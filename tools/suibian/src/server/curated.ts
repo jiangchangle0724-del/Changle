@@ -3,7 +3,7 @@
 // Matched by name, and by street number when the entry gives an address (branches share names).
 // Google often shows two names at once ("Sea Harbour Seafood Restaurant 海港酒家") and puts a unit
 // before the street number ("150-8888 River Rd"); both still match an entry that has an address.
-import type { Badge, Recommend, RecommendLink, Text } from "../engine";
+import { isOccasion, type Badge, type Recommend, type RecommendLink, type Text } from "../engine";
 import listsData from "../data/lists.json";
 import picksData from "../data/picks.json";
 
@@ -12,6 +12,8 @@ export interface ListAward {
   label: Text;
   year?: number;
   url?: string;
+  /** A list for an occasion (most romantic, best private rooms…): which occasions (ids in occasion.ts). */
+  occasions?: string[];
 }
 
 interface Entry {
@@ -110,10 +112,18 @@ export function curatedFor(name: string, address?: string, files: { lists?: List
   const out: { badges?: Badge[]; recommend?: Recommend } = {};
   const l = find(lists, name, address);
   if (l?.awards.length) {
-    out.badges = [...l.awards]
-      .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
-      .slice(0, 3)
-      .map((a) => ({ source: a.source, label: a.label, year: a.year, url: a.url }));
+    // Newest first, and one from each list before a second from the same list, so a place on four
+    // lists shows all four (MICHELIN, Vancouver Magazine, OpenTable…) instead of two of one. All of
+    // them: a card shows up to four, the table's occasion's lists first (badgesFor()).
+    const newest = [...l.awards].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    const firsts = newest.filter((a, i) => newest.findIndex((x) => x.source === a.source) === i);
+    out.badges = [...firsts, ...newest.filter((a) => !firsts.includes(a))].map((a) => ({
+      source: a.source,
+      label: a.label,
+      year: a.year,
+      url: a.url,
+      ...(a.occasions?.length ? { occasions: a.occasions } : {}),
+    }));
   }
   const p = find(picks, name, address);
   if (p) out.recommend = { note: p.note, by: p.by, links: (p.links ?? []).slice(0, 4) };
@@ -154,6 +164,7 @@ export function checkLists(data: unknown): string[] {
       if (!isText(a.label)) problems.push(`${where}: award label needs zh and en`);
       if (a.year !== undefined && !(Number.isInteger(a.year) && a.year >= 2000 && a.year <= 2100)) problems.push(`${where}: year looks wrong`);
       if (!isHttps(a.url)) problems.push(`${where}: each award needs the https page that lists it`);
+      if (a.occasions !== undefined && (!Array.isArray(a.occasions) || !a.occasions.length || !a.occasions.every(isOccasion))) problems.push(`${where}: occasions must be ids from occasion.ts`);
     }
   });
   return problems;

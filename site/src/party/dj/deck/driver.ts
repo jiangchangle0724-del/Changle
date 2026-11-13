@@ -47,6 +47,8 @@ export class DeckDriver {
   private cueKey = "";
   /** when the drop lands (0: none on its way); the room's fader waits until the room says it landed */
   private dropT = 0;
+  /** that drop is 点歌模式's switch: no build-up before it, no boom on it */
+  private dropQuiet = false;
   private holdFader = 0;
   private holdBar: number | null = null;
   private fader = -1;
@@ -65,7 +67,7 @@ export class DeckDriver {
   private gateDone = -Infinity;
   private mixEpoch = -1;
   private mixBpm = 0;
-  /** what the deck did, for the checks (scripts/dj_deck_check.py): kind and audio time */
+  /** what the deck did, for the checks (scripts/dj_youtube_check.py, dj_local_check.py): kind and audio time */
   readonly log: { k: string; at: number; beat: number }[] = [];
 
   constructor(
@@ -231,7 +233,9 @@ export class DeckDriver {
     const charge = chargeNow(d, this.now());
     const left = d.drop ? beatsLeft(d.drop, d.grid, this.now()) : Infinity;
     const counted = Math.max(0, Math.min(1, 1 - left / COUNT_SPAN));
-    const level = landing ? (ctxNow < this.dropT ? 1 : 0) : d.drop ? FILLED + (1 - FILLED) * counted : FILLED * charge;
+    // (点歌模式's switch into the next song: none of it)
+    const quiet = landing ? this.dropQuiet : !!d.drop?.quiet;
+    const level = quiet ? 0 : landing ? (ctxNow < this.dropT ? 1 : 0) : d.drop ? FILLED + (1 - FILLED) * counted : FILLED * charge;
     if (Math.abs(level - this.level) > 0.004) {
       this.fx.build(level);
       this.level = level;
@@ -358,7 +362,8 @@ export class DeckDriver {
     }
     this.dropKey = key;
     this.dropT = at;
-    this.fx.drop(at);
+    this.dropQuiet = !!drop.quiet;
+    if (!drop.quiet) this.fx.drop(at);
     // the drop hits whole: the mixer's knobs back to 0 on its bar (the room does the same as it lands)
     for (const k of MIX_KNOBS) {
       if (this.knobs[k] !== 0) this.sp.mixer.knob(k, 0, at);

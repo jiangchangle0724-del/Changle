@@ -6,8 +6,8 @@
 // src/server/worker.ts is the Durable Object around it.
 import { createRoom, reduce, RoomError, type RoomEvent, type RoomState } from "../../../party-base/src/index";
 import { TEST_ROUTINE } from "../shared/catalog";
-import { MAX_BEATS_PER_MSG, type ClientMsg, type HostAction, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
-import { buildShow, phraseStart, type Anchors, type Show } from "../shared/show";
+import { MAX_BEATS_PER_MSG, SONG_SYNC_MS, type ClientMsg, type HostAction, type Lang, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
+import { buildShow, introOf, phraseStart, type Anchors, type Show } from "../shared/show";
 import { addBeats, clearFrom, emptyScores, floorOf, resultsOf, type Scores } from "./tally";
 
 /** A speaker page that drops gets this long to come back before the room goes back to the lobby. */
@@ -18,6 +18,11 @@ export const PLAYER_GRACE_MS = 45_000;
 export const IDLE_MS = 12 * 3_600_000;
 /** A routine's first warm-up beat comes this long after the host starts it: time for every page to hear of it. */
 export const LEAD_IN_MS = 3_000;
+/** The speaker gets a phone's movement at most this often (a little dancer on the TV needs no more). */
+export const PULSE_GAP_MS = 80;
+/** 继续 after a pause: the run picks up this long after the tap, its last moments before the pause played again first. */
+export const RESUME_LEAD_MS = 1_500;
+export { SONG_SYNC_MS };
 /**
  * 开始跳 and 这一段再来: the count-in's first beat comes this long after the tap, so the speaker
  * hears of it in time to play it (else the TV counts "3, 2, 1").
@@ -47,6 +52,10 @@ export interface SessionData {
   /** Speaker time the routine being danced is over, its cool-down too. */
   finishAt: number | null;
   lastActive: number;
+  /** The TV's delay was measured in this room (CALIBRATED). */
+  calibrated?: boolean;
+  /** Each phone's language (the TV speaks its host's). */
+  langs?: Record<string, Lang>;
 }
 
 export type Role = "speaker" | "player";
@@ -65,7 +74,7 @@ export function validPlayerId(id: string): boolean {
   return /^[A-Za-z0-9_-]{8,64}$/.test(id) && !(id in Object.prototype);
 }
 
-const HOST_ACTIONS = new Set(["START_CALIBRATION", "SKIP_CALIBRATION", "START_LEARNING", "START_DANCING", "RESTART_SECTION", "FINISH_NOW", "BACK_TO_LOBBY", "END_ROOM", "KICK"]);
+const HOST_ACTIONS = new Set(["START_CALIBRATION", "SKIP_CALIBRATION", "START_LEARNING", "START_DANCING", "RESTART_SECTION", "FINISH_NOW", "PAUSE", "RESUME", "BACK_TO_LOBBY", "END_ROOM", "KICK"]);
 const fin = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 
 export class Session {
@@ -155,14 +164,18 @@ export class Session {
         if (from.role === "player" && from.playerId) this.act(from, msg.action);
         return;
       case "tap":
-        // only the host's taps, only while calibrating, only to the speaker
-        if (from.role !== "player" || !from.playerId || !fin(msg.at) || this.d.state.phase !== "calibrating") return;
-        if (!this.isHost(from.playerId)) return;
-        this.out.push({ to: "speaker", msg: { t: "tap", at: msg.at, playerId: from.playerId } });
+        this.tap(from, msg.at);
         return;
-      case "calibrated":
+      case "calibrated": {
         if (from.role !== "speaker" || !fin(msg.audioOffsetMs)) return;
-        this.apply({ type: "CALIBRATED", at: this.speakerNow(), audioOffsetMs: Math.round(msg.audioOffsetMs) }, from);
+        // (set first: the state message that goes out with the change says so)
+        const was = this.d.calibrated;
+        this.d.calibrated = true;
+        if (!this.apply({ type: "CALIBRATED", at: this.speakerNow(), audioOffsetMs: Math.round(msg.audioOffsetMs) }, from)) this.d.calibrated = was;
+        return;
+      }
+      case "lang":
+        this.lang(from, msg.lang);
         return;
       case "here":
         this.d.lastActive = this.now();
@@ -173,7 +186,125 @@ export class Session {
       case "beats":
         this.beats(from, msg.from, msg.offs);
         return;
+      case "pulse":
+        this.pulse(from, msg.e, msg.v);
+        return;
+      case "songAt":
+        this.songAt(from, msg.startAt);
+        return;
+      case "songStall":
+        this.songStall(from);
+        return;
+      case "songReady":
+        this.songReady(from);
+        return;
+      case "songFailed":
+        this.songFailed(from, msg.why);
+        return;
     }
+  }
+
+  /** The host's tap while the TV's delay is measured: on to the speaker, which pairs it with its click. */
+  private tap(from: From, at: unknown): void {
+    if (from.role !== "player" || !from.playerId || !fin(at) || this.d.state.phase !== "calibrating" || !this.isHost(from.playerId)) return;
+    this.out.push({ to: "speaker", msg: { t: "tap", at, playerId: from.playerId } });
+  }
+
+  /**
+   * A phone's language: kept, and when it's the host's and it changed, the TV hears of it (the TV
+   * has no buttons: it speaks its host's language).
+   */
+  private lang(from: From, l: unknown): void {
+    if (from.role !== "player" || !from.playerId || (l !== "zh" && l !== "en") || !this.d.state.players.some((p) => p.id === from.playerId)) return;
+    const langs = (this.d.langs ??= {});
+    if (langs[from.playerId] === l) return;
+    langs[from.playerId] = l;
+    this.changed = true;
+    if (this.isHost(from.playerId)) this.out.push({ to: "speaker", msg: this.stateMsg() });
+  }
+
+  /** The speaker has the song's video held at its start: the song starts (its teaching, or its video) after the lead-in. */
+  private songReady(from: From): void {
+    const r = this.d.routine;
+    const show = this.show();
+    if (from.role !== "speaker" || this.d.state.phase !== "learning" || !r || !show || show.kind !== "song" || r.leadStartAt !== null) return;
+    const leadStartAt = Math.round(this.speakerNow() + LEAD_IN_MS);
+    this.d.routine = { ...r, leadStartAt };
+    this.d.danceAt = leadStartAt + show.leadMs;
+    this.changed = true;
+    this.out.push({ to: "all", msg: this.stateMsg() });
+  }
+
+  /** YouTube won't play the song here: back to the lobby, and everyone is told why. */
+  private songFailed(from: From, why: unknown): void {
+    const show = this.show();
+    const st = this.d.state;
+    if (from.role !== "speaker" || !show || show.kind !== "song" || (st.phase !== "learning" && st.phase !== "dancing")) return;
+    const host = st.players.find((p) => p.isHost);
+    if (!host) return;
+    this.act({ role: "player", playerId: host.id }, { type: "BACK_TO_LOBBY" });
+    this.out.push({ to: "all", msg: { t: "error", code: why === "offline" ? "song_offline" : "song_blocked", message: "the song's video won't play here" } });
+  }
+
+  /**
+   * The speaker, while a song plays: where the dance's first beat really is, from its video's
+   * clock. The room moves the beat there (BEAT_MOVED) when it's more than SONG_SYNC_MS off, however
+   * far that is; a dance held for its video (songStall) starts again from there.
+   */
+  private songAt(from: From, startAt: unknown): void {
+    const st = this.d.state;
+    const r = this.d.routine;
+    const show = this.show();
+    if (from.role !== "speaker" || typeof startAt !== "number" || !fin(startAt)) return;
+    if (st.phase !== "dancing" || !show || show.kind !== "song" || st.routineStartAt === null || !r || r.fromBeat !== 0 || r.pausedAt !== undefined) return;
+    const to = Math.round(startAt);
+    const held = r.heldAt !== undefined;
+    if (!held && Math.abs(to - st.routineStartAt) < SONG_SYNC_MS) return;
+    if (held) {
+      const { heldAt: _was, ...rest } = r;
+      this.d.routine = rest;
+      this.changed = true;
+    }
+    if (to !== st.routineStartAt && this.apply({ type: "BEAT_MOVED", at: this.speakerNow(), routineStartAt: to }, from)) this.d.finishAt = this.endOf(show);
+    else if (held) {
+      this.d.finishAt = this.endOf(show);
+      this.out.push({ to: "all", msg: this.stateMsg() });
+    }
+  }
+
+  /**
+   * The speaker: the song's video should be playing and isn't (stalled, an ad, stopped till someone
+   * taps it). The dance waits for it (heldAt): the coach and the phones stop with the song, and the
+   * next songAt starts them again from where the video is, however long that took.
+   */
+  private songStall(from: From): void {
+    const st = this.d.state;
+    const r = this.d.routine;
+    const show = this.show();
+    if (from.role !== "speaker" || !r || !show || show.kind !== "song" || st.phase !== "dancing" || st.routineStartAt === null) return;
+    if (r.pausedAt !== undefined || r.heldAt !== undefined || r.fromBeat !== 0) return;
+    this.d.routine = { ...r, heldAt: Math.round(this.speakerNow()) };
+    this.changed = true;
+    this.out.push({ to: "all", msg: this.stateMsg() });
+  }
+
+  /** When each phone's last pulse went on to the speaker (not kept: a pulse is only for now). */
+  private readonly pulsedAt = new Map<string, number>();
+
+  /**
+   * A phone's pulse, while a dance plays: on to the speaker, at most one movement-only pulse every
+   * PULSE_GAP_MS from a phone (one with a verdict always goes: there's one a beat).
+   */
+  private pulse(from: From, e: unknown, v: unknown): void {
+    const st = this.d.state;
+    if (from.role !== "player" || !from.playerId || (st.phase !== "learning" && st.phase !== "dancing")) return;
+    if (!st.players.some((p) => p.id === from.playerId) || typeof e !== "number" || !Number.isFinite(e)) return;
+    const verdict = v === "hit" || v === "close" || v === "miss" ? v : null;
+    const now = this.now();
+    const before = this.pulsedAt.get(from.playerId);
+    if (!verdict && before !== undefined && now - before < PULSE_GAP_MS) return;
+    this.pulsedAt.set(from.playerId, now);
+    this.out.push({ to: "speaker", msg: { t: "pulse", playerId: from.playerId, e: Math.round(Math.min(1, Math.max(0, e)) * 100) / 100, v: verdict } });
   }
 
   /** A phone's beats of the dance being danced: kept, and the floor so far goes to the speaker. */
@@ -214,12 +345,17 @@ export class Session {
         const id = String(a.routineId).slice(0, 64);
         const show = id === TEST_ROUTINE.id && !this.opts.testRoutines ? null : buildShow(id, a.mode === "dance" ? "dance" : "learn");
         if (!show) return this.send(from, { t: "error", code: "no_routine", message: `unknown routine ${id}` });
+        // (the dance starts at once: measuring the TV's delay is the host's to choose, from the
+        // lobby, 校准电视延迟. Steve, 2026-11-12: pick a song, and it plays)
         // the first warm-up beat a moment from now, on a whole millisecond (the metronome has none:
-        // it waits for the host's START_DANCING)
-        const leadStartAt = show.lead.length ? Math.round(at + LEAD_IN_MS) : null;
+        // it waits for the host's START_DANCING; a song waits for the speaker to have its video
+        // ready, songReady)
+        const leadStartAt = show.lead.length && show.kind !== "song" ? Math.round(at + LEAD_IN_MS) : null;
+        // (every song's beat was measured in its video: its intro is the show's)
+        const introMs = Math.round(show.introMs);
         // (set first: the state message that goes out with the change carries them)
         const results = this.d.results;
-        this.d.routine = { routineId: show.id, bpm: show.bpm, beatsPerBar: 4, totalBeats: show.dance.length, mode: show.mode, leadStartAt, fromBeat: 0 };
+        this.d.routine = { routineId: show.id, bpm: show.bpm, beatsPerBar: 4, totalBeats: show.dance.length, mode: show.mode, leadStartAt, fromBeat: 0, introMs };
         this.d.results = null;
         if (this.apply({ type: "START_LEARNING", at, byPlayerId: by, routineId: show.id, difficulty: show.difficulty, bpm: show.bpm }, from)) {
           this.d.danceAt = leadStartAt === null ? null : leadStartAt + show.leadMs;
@@ -235,13 +371,17 @@ export class Session {
       case "RESTART_SECTION": {
         const show = this.show();
         if (!show || !r) return this.send(from, { t: "error", code: "no_routine", message: "pick a routine first" });
+        // (a song plays on in its video: no going back a phrase in it)
+        if (a.type === "RESTART_SECTION" && show.kind === "song") return this.send(from, { t: "error", code: "not_for_songs", message: "a song can't go back a phrase" });
         // 这一段再来 goes back to the start of the 8-count the room is hearing (the metronome, and a
         // dance that hasn't begun: to the top); 开始跳 starts the dance from its first beat
         const fromBeat = a.type === "RESTART_SECTION" && show.routine && this.d.state.phase === "dancing" ? phraseStart(show, this.anchors(), at - this.d.state.audioOffsetMs) : 0;
-        // the beat comes after a moment and a count-in, on a whole millisecond
-        const routineStartAt = Math.round(at + COUNT_LEAD_MS + show.countIn * show.beatMs);
+        // the beat comes after a moment and a count-in (a song: its video from the start, and its
+        // intro), on a whole millisecond
+        const routineStartAt = Math.round(at + COUNT_LEAD_MS + introOf(show, this.anchors()));
         const results = this.d.results;
-        this.d.routine = { ...r, leadStartAt: null, fromBeat };
+        const { pausedAt: _go, ...unpaused } = r;
+        this.d.routine = { ...unpaused, leadStartAt: null, fromBeat };
         this.d.results = null;
         if (this.apply({ type: a.type, at, byPlayerId: by, routineStartAt }, from)) {
           this.d.danceAt = null;
@@ -267,16 +407,56 @@ export class Session {
         this.finish();
         return;
       }
+      case "PAUSE": {
+        const st = this.d.state;
+        if (!this.isHost(by)) return this.send(from, { t: "error", code: "not_host", message: `player ${by} is not the host` });
+        // (something has to be playing: the lead, or the dance)
+        const playing = r && ((st.phase === "learning" && r.leadStartAt !== null) || st.phase === "dancing");
+        if (!r || !playing || r.pausedAt !== undefined) return this.send(from, { t: "error", code: "bad_phase", message: `nothing to pause in phase ${st.phase}` });
+        this.d.routine = { ...r, pausedAt: Math.round(at) };
+        this.changed = true;
+        this.out.push({ to: "all", msg: this.stateMsg() });
+        return;
+      }
+      case "RESUME": {
+        const st = this.d.state;
+        if (!this.isHost(by)) return this.send(from, { t: "error", code: "not_host", message: `player ${by} is not the host` });
+        if (!r || r.pausedAt === undefined) return this.send(from, { t: "error", code: "bad_phase", message: "not paused" });
+        // everything moves later by the time paused: it picks up a moment from now, the last
+        // moments before the pause first again (a run-up)
+        const shift = Math.max(0, Math.round(at + RESUME_LEAD_MS - r.pausedAt));
+        // (held for the video too: 继续 tells the video to play again; if it doesn't, it's held again)
+        const { pausedAt: _was, heldAt: _held, ...rest } = r;
+        if (st.phase === "dancing" && st.routineStartAt !== null) {
+          this.d.routine = rest;
+          if (!this.apply({ type: "RESUMED", at, byPlayerId: by, routineStartAt: st.routineStartAt + shift }, from)) {
+            this.d.routine = r;
+            return;
+          }
+          if (this.d.finishAt !== null) this.d.finishAt += shift;
+          return;
+        }
+        this.d.routine = { ...rest, leadStartAt: rest.leadStartAt === null ? null : rest.leadStartAt + shift };
+        if (this.d.danceAt !== null) this.d.danceAt += shift;
+        this.changed = true;
+        this.out.push({ to: "all", msg: this.stateMsg() });
+        return;
+      }
+      case "SKIP_CALIBRATION":
+        this.apply({ type: "SKIP_CALIBRATION", at, byPlayerId: by }, from);
+        return;
       case "KICK":
         if (this.apply({ type: "KICK", at, byPlayerId: by, playerId: String(a.playerId) }, from)) {
           delete this.d.leaving[String(a.playerId)];
+          if (this.d.langs) delete this.d.langs[String(a.playerId)];
           this.out.push({ close: String(a.playerId) });
         }
         return;
       case "BACK_TO_LOBBY":
       case "END_ROOM": {
         const results = this.d.results;
-        this.d.routine = r ? { ...r, leadStartAt: null, fromBeat: 0 } : null;
+        const { pausedAt: _paused, ...rest } = r ?? ({} as RoutineInfo);
+        this.d.routine = r ? { ...rest, leadStartAt: null, fromBeat: 0 } : null;
         this.d.results = null;
         if (this.apply({ type: a.type, at, byPlayerId: by }, from)) {
           this.d.danceAt = null;
@@ -306,17 +486,21 @@ export class Session {
     for (const [id, until] of Object.entries(this.d.leaving)) {
       if (now < until) continue;
       delete this.d.leaving[id];
+      if (this.d.langs) delete this.d.langs[id];
       this.changed = true;
       this.apply({ type: "PLAYER_LEFT", at: this.speakerNow(), playerId: id });
     }
-    if (this.d.danceAt !== null && this.speakerNow() >= this.d.danceAt) {
+    // (paused, or held for the song's video: the lead's end and the dance's end wait)
+    const paused = this.d.routine?.pausedAt !== undefined || this.d.routine?.heldAt !== undefined;
+    if (!paused && this.d.danceAt !== null && this.speakerNow() >= this.d.danceAt) {
       const leadEnd = this.d.danceAt;
       this.d.danceAt = null;
       const show = this.show();
       // the dance follows the lead beat for beat: its first beat a count-in after the lead's last
-      if (show && this.d.state.phase === "learning" && this.apply({ type: "LEARNING_DONE", at: this.speakerNow(), routineStartAt: leadEnd + show.countIn * show.beatMs })) this.d.finishAt = this.endOf(show);
+      // (a song's: its intro after, the video starting as the lead ends)
+      if (show && this.d.state.phase === "learning" && this.apply({ type: "LEARNING_DONE", at: this.speakerNow(), routineStartAt: leadEnd + introOf(show, this.anchors()) })) this.d.finishAt = this.endOf(show);
     }
-    if (this.d.finishAt !== null && this.speakerNow() >= this.d.finishAt) {
+    if (!paused && this.d.finishAt !== null && this.speakerNow() >= this.d.finishAt) {
       if (this.d.state.phase === "dancing") this.finish();
       else this.d.finishAt = null;
     }
@@ -326,8 +510,11 @@ export class Session {
   nextWake(): number | null {
     const times: number[] = [...Object.values(this.d.leaving)];
     if (this.d.speakerGoneAt !== null) times.push(this.d.speakerGoneAt + SPEAKER_GRACE_MS);
-    if (this.d.danceAt !== null) times.push(this.d.danceAt - this.d.speakerOffset);
-    if (this.d.finishAt !== null) times.push(this.d.finishAt - this.d.speakerOffset);
+    // (paused: the lead's end and the dance's end wait for 继续; held: for the song's video)
+    if (this.d.routine?.pausedAt === undefined && this.d.routine?.heldAt === undefined) {
+      if (this.d.danceAt !== null) times.push(this.d.danceAt - this.d.speakerOffset);
+      if (this.d.finishAt !== null) times.push(this.d.finishAt - this.d.speakerOffset);
+    }
     times.push(this.d.lastActive + IDLE_MS);
     return Math.min(...times);
   }
@@ -344,9 +531,11 @@ export class Session {
     return r;
   }
 
-  /** The state message every page gets. */
+  /** The state message every page gets (the TV takes its language from it: its host's). */
   stateMsg(): ServerMsg {
-    return { t: "state", state: this.d.state, routine: this.d.routine, results: this.d.results };
+    const host = this.d.state.players.find((p) => p.isHost);
+    const lang = host ? this.d.langs?.[host.id] : undefined;
+    return { t: "state", state: this.d.state, routine: this.d.routine, results: this.d.results, ...(this.d.calibrated ? { calibrated: true } : {}), ...(lang ? { lang } : {}) };
   }
 
   /** The routine the room is on, as a show. */
@@ -355,7 +544,7 @@ export class Session {
   }
 
   private anchors(): Anchors {
-    return { leadStartAt: this.d.routine?.leadStartAt ?? null, danceStartAt: this.d.state.routineStartAt, fromBeat: this.d.routine?.fromBeat ?? 0 };
+    return { leadStartAt: this.d.routine?.leadStartAt ?? null, danceStartAt: this.d.state.routineStartAt, fromBeat: this.d.routine?.fromBeat ?? 0, introMs: this.d.routine?.introMs ?? null };
   }
 
   /** Speaker time the routine being danced is over: its last cool-down beat heard, and a margin. */

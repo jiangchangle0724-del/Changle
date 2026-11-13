@@ -5,7 +5,7 @@
 import { pickCard } from "./cards";
 import { mulberry32, type Rng } from "./rng";
 import { scoreRound } from "./scoring";
-import type { Card, GameEvent, GameOptions, GameState, Level, Player, PrivateView, PublicView, Role, RoundState } from "./types";
+import type { Awards, Card, GameEvent, GameOptions, GameState, Level, OwnCard, Player, PrivateView, PublicView, Role, RoundState } from "./types";
 
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 9;
@@ -37,6 +37,86 @@ export class GameError extends Error {
 
 export interface Deps {
   cards: Card[];
+}
+
+/* ---------- 自己出题: the players' own words ---------- */
+
+/** An own word's card id: the prefix and its author's id. Never a bank id, so stats and reports skip it. */
+export const OWN_PREFIX = "own:";
+/** The pack an own word shows under (its own picture and name on the screens). */
+export const OWN_PACK = "own";
+/** How long an own word may be, in characters. */
+export const OWN_LIMITS = { term: 30, definition: 120, fact: 120 } as const;
+
+export const isOwn = (id: string | null | undefined): boolean => !!id && id.startsWith(OWN_PREFIX);
+
+/** Text a player typed, made safe to show: no control characters, spaces collapsed, cut to `max` characters. */
+export function cleanOwn(v: unknown, max: number): string {
+  return [...String(v ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim()].slice(0, max).join("").trim();
+}
+
+/** A player's word as the rounds play it: the same text in both languages, no bluff seeds. */
+function ownAsCard(o: OwnCard, level: Level): Card {
+  const both = (s: string) => ({ zh: s, en: s });
+  return { id: o.id, pack: OWN_PACK, level, term: both(o.term), definition: both(o.definition), bluffSeeds: { zh: [], en: [] }, funFact: both(o.fact), source: "player" };
+}
+
+/** The card behind a round's word: from the bank, or a player's own (at the level the round was dealt). */
+export function cardOf(state: GameState, deps: Deps, id: string, level: Level = 2): Card | null {
+  const bank = deps.cards.find((c) => c.id === id);
+  if (bank) return bank;
+  const own = state.ownCards?.find((o) => o.id === id);
+  return own ? ownAsCard(own, level) : null;
+}
+
+/** The judges of the rounds after this one, as nextJudge will name them. */
+function laterJudges(state: GameState, judgeId: string): string[] {
+  const count: Record<string, number> = Object.fromEntries(state.judgeOrder.map((id) => [id, 0]));
+  for (const r of state.rounds) if (r.judgeId in count) count[r.judgeId] += 1;
+  if (judgeId in count) count[judgeId] += 1;
+  const out: string[] = [];
+  for (let i = state.rounds.length + 1; i < state.roundsPlanned; i++) {
+    const min = Math.min(...state.judgeOrder.map((id) => count[id]));
+    const next = state.judgeOrder.find((id) => count[id] === min);
+    if (!next) break;
+    count[next] += 1;
+    out.push(next);
+  }
+  return out;
+}
+
+/** How many of these authors' words can still be played, each in a round its author does not judge. */
+function playable(authors: string[], judges: string[]): number {
+  const taken: number[] = judges.map(() => -1);
+  const place = (a: number, seen: boolean[]): boolean => {
+    for (let j = 0; j < judges.length; j++) {
+      if (seen[j] || judges[j] === authors[a]) continue;
+      seen[j] = true;
+      if (taken[j] === -1 || place(taken[j], seen)) {
+        taken[j] = a;
+        return true;
+      }
+    }
+    return false;
+  };
+  let n = 0;
+  for (let a = 0; a < authors.length; a++) if (place(a, judges.map(() => false))) n += 1;
+  return n;
+}
+
+/**
+ * This round's own word, if one is left that its judge did not write: chosen at random among those
+ * that leave the most words still playable later (so the last judge is not left with only their own).
+ */
+function pickOwn(state: GameState, judgeId: string, rng: Rng): OwnCard | null {
+  const played = new Set(state.rounds.map((r) => r.cardId));
+  const left = (state.ownCards ?? []).filter((o) => !played.has(o.id));
+  const fits = left.filter((o) => o.authorId !== judgeId);
+  if (!fits.length) return null;
+  const later = laterJudges(state, judgeId);
+  const scored = fits.map((o) => ({ o, n: playable(left.filter((x) => x !== o).map((x) => x.authorId), later) }));
+  const best = Math.max(...scored.map((x) => x.n));
+  return rng.pick(scored.filter((x) => x.n === best).map((x) => x.o));
 }
 
 /** The RNG is re-derived from (seed, round index) so the reducer stays a pure function of state. */
@@ -97,15 +177,32 @@ function dealHonest(state: GameState, candidates: string[], rng: Rng): string {
   return candidates[candidates.length - 1];
 }
 
+/**
+ * Who judges the next round: the first in `judgeOrder` who has judged the fewest rounds so far. With
+ * nobody leaving that is simply judgeOrder[rounds.length]; when someone leaves halfway (online), the
+ * ones who have not judged yet still all get their turn.
+ */
+export function nextJudge(state: GameState): string | null {
+  if (!state.judgeOrder.length) return null;
+  const count: Record<string, number> = Object.fromEntries(state.judgeOrder.map((id) => [id, 0]));
+  for (const r of state.rounds) if (r.judgeId in count) count[r.judgeId] += 1;
+  const min = Math.min(...state.judgeOrder.map((id) => count[id]));
+  return state.judgeOrder.find((id) => count[id] === min) ?? null;
+}
+
 function startRound(state: GameState, deps: Deps, level: Level | undefined): GameState {
   const index = state.rounds.length;
   if (index >= state.roundsPlanned) throw new GameError("no_rounds_left", "game is over");
-  const judgeId = state.judgeOrder[index % state.judgeOrder.length];
+  const judgeId = nextJudge(state);
+  if (!judgeId) throw new GameError("no_rounds_left", "nobody left to judge");
   const rng = rngFor(state, index);
   const others = nonJudges(state, judgeId);
   const honestId = dealHonest(state, others, rng);
   const lvl: Level = level ?? 2;
-  const card = pickCard(deps.cards, { level: lvl, packs: state.options.packs, used: state.usedCardIds, allowAdult: state.options.allowAdult }, rng);
+  const tonight = state.rounds.map((r) => r.cardId);
+  // the players' own words first (自己出题), then the bank
+  const own = state.ownCards?.length ? pickOwn(state, judgeId, rng) : null;
+  const card = own ? ownAsCard(own, lvl) : pickCard(deps.cards, { level: lvl, packs: state.options.packs, used: state.usedCardIds, tonight, allowAdult: state.options.allowAdult }, rng);
   if (!card) throw new GameError("no_cards", "no cards in the selected packs");
   const peekQueue = state.options.mode === "pass" ? passOrder(state, judgeId) : [...others];
   const round: RoundState = {
@@ -123,6 +220,7 @@ function startRound(state: GameState, deps: Deps, level: Level | undefined): Gam
     bets: {},
     accusedId: null,
     result: null,
+    authorId: own ? own.authorId : null,
   };
   return { ...state, phase: "peek", current: round, usedCardIds: [...state.usedCardIds, card.id] };
 }
@@ -135,6 +233,19 @@ function need(state: GameState, phases: GameState["phase"][], ev: string): Round
 
 function betsPhaseApplies(state: GameState): boolean {
   return state.options.sideBets && state.players.length >= 4;
+}
+
+/** Who bets this round: every speaker but the one who wrote the word (they know it). */
+function bettorsOf(r: RoundState): string[] {
+  return r.speakOrder.filter((id) => id !== r.authorId);
+}
+
+/** Everyone has explained: on to the bets (4+ players, when on) or straight to the judge. */
+function afterLastSpeaker(state: GameState, r: RoundState): GameState {
+  const toBets = betsPhaseApplies(state);
+  const bettors = bettorsOf(r);
+  const betQueue = toBets ? (state.options.mode === "pass" ? passOrder(state, r.judgeId).filter((id) => bettors.includes(id)) : bettors) : [];
+  return { ...state, phase: toBets ? "bets" : "accuse", current: { ...r, speakerIdx: r.speakOrder.length, betQueue } };
 }
 
 export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
@@ -163,10 +274,7 @@ export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
       const r = need(state, ["explain"], ev.type);
       const next = r.speakerIdx + 1;
       if (next < r.speakOrder.length) return { ...state, current: { ...r, speakerIdx: next } };
-      // past the last speaker
-      const toBets = betsPhaseApplies(state);
-      const betQueue = toBets ? (state.options.mode === "pass" ? passOrder(state, r.judgeId) : [...r.speakOrder]) : [];
-      return { ...state, phase: toBets ? "bets" : "accuse", current: { ...r, speakerIdx: r.speakOrder.length, betQueue } };
+      return afterLastSpeaker(state, r);
     }
 
     case "TAG_SUSPECT": {
@@ -181,6 +289,7 @@ export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
       const r = need(state, ["bets"], ev.type);
       if (ev.playerId === r.judgeId) throw new GameError("judge_bet", "the judge accuses, not bets");
       if (!r.speakOrder.includes(ev.playerId)) throw new GameError("not_a_player", `${ev.playerId} is not in this round`);
+      if (ev.playerId === r.authorId) throw new GameError("author_bet", "the one who wrote the word knows it");
       if (ev.targetId === ev.playerId || !r.speakOrder.includes(ev.targetId)) throw new GameError("bad_target", "bet on another speaker");
       if (r.bets[ev.playerId]) throw new GameError("already_bet", `${ev.playerId} already bet`);
       if (state.options.mode === "pass" && r.betQueue[0] !== ev.playerId) {
@@ -218,6 +327,78 @@ export function reduce(state: GameState, ev: GameEvent, deps: Deps): GameState {
       return { ...state, phase: finished ? "finished" : "between", rounds, current: r };
     }
   }
+}
+
+/** A round being played (dealt, not yet scored): what a leaver can still call off. */
+const LIVE: GameState["phase"][] = ["peek", "explain", "bets", "accuse"];
+
+/** A bluffer who left drops out of the round; bets placed on them are void, so those players bet again. */
+function dropFromRound(r: RoundState, id: string): RoundState {
+  const at = r.speakOrder.indexOf(id);
+  const bets: Record<string, string> = {};
+  const again: string[] = [];
+  for (const [bettor, target] of Object.entries(r.bets)) {
+    if (bettor === id) continue;
+    if (target === id) again.push(bettor);
+    else bets[bettor] = target;
+  }
+  const betQueue = r.betQueue.filter((x) => x !== id);
+  return {
+    ...r,
+    peekQueue: r.peekQueue.filter((x) => x !== id),
+    peeked: r.peeked.filter((x) => x !== id),
+    speakOrder: r.speakOrder.filter((x) => x !== id),
+    // whoever spoke after them keeps their place in line (the one after a current speaker who left is up now)
+    speakerIdx: at >= 0 && at < r.speakerIdx ? r.speakerIdx - 1 : r.speakerIdx,
+    suspectId: r.suspectId === id ? null : r.suspectId,
+    betQueue: [...betQueue, ...again.filter((b) => !betQueue.includes(b))],
+    bets,
+  };
+}
+
+/** Rounds left to play so that everyone still here judges `roundsPerPlayer` times, plus those already played. */
+function plannedRounds(state: GameState): number {
+  const per = state.options.roundsPerPlayer;
+  const playing = !!state.current && [...LIVE, "reveal"].includes(state.phase);
+  const judged: Record<string, number> = Object.fromEntries(state.players.map((p) => [p.id, 0]));
+  for (const r of state.rounds) if (r.judgeId in judged) judged[r.judgeId] += 1;
+  if (playing && state.current!.judgeId in judged) judged[state.current!.judgeId] += 1;
+  return state.rounds.length + (playing ? 1 : 0) + state.players.reduce((n, p) => n + Math.max(0, per - judged[p.id]), 0);
+}
+
+/**
+ * Someone left the table halfway through (online): they leave the game too, out of every list and the
+ * scores. A round that can't go on without them (theirs to judge, or theirs to tell straight) is called
+ * off and dealt again with a new card; a bluffer just drops out of it, and a step that was only waiting
+ * for them moves on. With fewer than MIN_PLAYERS left, the game is over.
+ */
+export function removePlayer(state: GameState, id: string): GameState {
+  if (!state.players.some((p) => p.id === id)) return state;
+  const scores = { ...state.scores };
+  delete scores[id];
+  let next: GameState = { ...state, players: state.players.filter((p) => p.id !== id), judgeOrder: state.judgeOrder.filter((x) => x !== id), scores };
+  const r = state.current;
+  const last = state.rounds.length ? state.rounds[state.rounds.length - 1] : null;
+  if (r && LIVE.includes(state.phase)) {
+    if (r.judgeId === id || r.honestId === id) {
+      next = { ...next, phase: last ? "between" : "lobby", current: last };
+    } else {
+      const left = dropFromRound(r, id);
+      next = { ...next, current: left };
+      if (state.phase === "peek" && left.peekQueue.length === 0) next = { ...next, phase: "explain" };
+      else if (state.phase === "explain" && left.speakerIdx >= left.speakOrder.length) next = afterLastSpeaker(next, left);
+      else if (state.phase === "bets" && left.betQueue.length === 0) next = { ...next, phase: "accuse" };
+    }
+  }
+  next = { ...next, roundsPlanned: plannedRounds(next) };
+  const waiting = next.phase === "lobby" || next.phase === "between";
+  if (next.players.length < MIN_PLAYERS || (waiting && next.rounds.length >= next.roundsPlanned)) {
+    // a round still being played is called off (the last one played stays on screen); one already
+    // scored counts
+    if (next.phase === "reveal" && next.current) return { ...next, phase: "finished", rounds: [...next.rounds, next.current] };
+    return { ...next, phase: "finished", current: LIVE.includes(next.phase) ? last : next.current };
+  }
+  return next;
 }
 
 export function roleOf(state: GameState, playerId: string): Role | null {
@@ -261,7 +442,7 @@ function isRevealed(state: GameState): boolean {
 export function privateView(state: GameState, playerId: string, deps: Deps): PrivateView {
   const r = state.current;
   const role = roleOf(state, playerId);
-  const card = r ? (deps.cards.find((c) => c.id === r.cardId) ?? null) : null;
+  const card = r ? cardOf(state, deps, r.cardId, r.level) : null;
   const revealed = isRevealed(state);
   const inRound = !!r && state.phase !== "lobby";
   const hasPeeked = !!r && r.peeked.includes(playerId);
@@ -284,13 +465,14 @@ export function privateView(state: GameState, playerId: string, deps: Deps): Pri
     canBet: state.phase === "bets" && role !== "judge" && !!r && r.betQueue.includes(playerId) && !r.bets[playerId],
     canAccuse: ["bets", "accuse"].includes(state.phase) && role === "judge",
     suspectId: role === "judge" && r ? r.suspectId : null,
+    wrote: inRound && !!r && !!r.authorId && r.authorId === playerId,
   };
 }
 
 /** Everything the TV / observer may show. No roles, no definition until reveal. */
 export function publicView(state: GameState, deps: Deps): PublicView {
   const r = state.current;
-  const card = r ? (deps.cards.find((c) => c.id === r.cardId) ?? null) : null;
+  const card = r ? cardOf(state, deps, r.cardId, r.level) : null;
   const inRound = !!r && state.phase !== "lobby";
   const speakers = r ? r.speakOrder.length : 0;
   return {
@@ -307,10 +489,12 @@ export function publicView(state: GameState, deps: Deps): PublicView {
     peekedCount: r ? r.peeked.length : 0,
     peekTotal: speakers,
     betsPlaced: r ? Object.keys(r.bets).length : 0,
-    betsExpected: betsPhaseApplies(state) ? speakers : 0,
+    betsExpected: betsPhaseApplies(state) && r ? bettorsOf(r).length : 0,
     scores: state.scores,
     reveal: isRevealed(state) && r?.result && card ? { honestId: r.honestId, definition: card.definition, funFact: card.funFact, result: r.result } : null,
     timers: { peek: state.options.peekSeconds, explain: state.options.explainSeconds, accuse: state.options.accuseSeconds },
+    own: inRound && !!r?.authorId,
+    authorId: isRevealed(state) && r?.authorId ? r.authorId : null,
   };
 }
 
@@ -332,6 +516,25 @@ export function foolCounts(state: GameState): Record<string, number> {
     if (r.accusedId && r.accusedId !== r.honestId) out[r.accusedId] = (out[r.accusedId] ?? 0) + 1;
   }
   return out;
+}
+
+/**
+ * Tonight's titles, for the end screen and the picture the table shares: who topped the board, who
+ * fooled judges most, who bet best. Players who left are out of it; a title nobody earned is empty.
+ */
+export function awards(state: GameState): Awards {
+  const ids = state.players.map((p) => p.id);
+  const most = (counts: Record<string, number>) => {
+    const max = Math.max(0, ...ids.map((id) => counts[id] ?? 0));
+    return max > 0 ? ids.filter((id) => (counts[id] ?? 0) === max) : [];
+  };
+  const fooled = foolCounts(state);
+  const rightBets: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+  for (const r of state.rounds) {
+    for (const [who, target] of Object.entries(r.bets)) if (target === r.honestId && who in rightBets) rightBets[who] += 1;
+  }
+  const top = leaderboard(state).filter((b) => b.place === 1 && b.score > 0).map((b) => b.id);
+  return { top, bluffer: most(fooled), bettor: most(rightBets), fooled, rightBets };
 }
 
 /** Sorted by score; ties broken by who fooled the judge more often; still tied = shared place (they drink together). */

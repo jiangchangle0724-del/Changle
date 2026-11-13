@@ -559,11 +559,9 @@
     width: 50px;
   }
 }
-.lobby .tile {
-  min-height: 118px;
-}
-.lobby .tile:disabled {
-  cursor: default;
+/* shorter than the home page's: the whole board fits above the dock with fewer screens of scrolling */
+.lobby .ui-tile {
+  min-height: calc(var(--tap) * 3);
 }
 .lobby-dock {
   position: sticky;
@@ -902,6 +900,11 @@ button.bowl:disabled {
 }
 .num-btn:active {
   transform: scale(0.93);
+}
+/* 逢七过 can't start on a seven: those read as out */
+.num-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 .grab-btn {
   align-self: center;

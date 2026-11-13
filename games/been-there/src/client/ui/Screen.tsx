@@ -27,6 +27,8 @@ import { SambaLesson, useDanceClock } from "./Samba";
 import { Touchdown } from "./Touchdown";
 import { TriviaCard } from "./Trivia";
 import { IdleNote, useIdleWarn } from "./TurnClock";
+import { ReactBubbles } from "./Reactions";
+import { WorldBanner, WorldCard } from "./World";
 
 export function Screen({ v }: { v: RoomView }) {
   // (a TV left on the board shouldn't go dark between turns)
@@ -103,7 +105,13 @@ function TvGame({ v }: { v: RoomView }) {
           big
           globe
           center={TvCenter({ v, card, idle })}
-          over={<TvDice v={v} played={lastMove.current} />}
+          over={
+            <>
+              <TvDice v={v} played={lastMove.current} />
+              <ReactBubbles v={v} big />
+              <WorldCard v={v} big />
+            </>
+          }
           ride={move}
           rideMode="tv"
           onRideDone={done}
@@ -127,6 +135,7 @@ function TvGame({ v }: { v: RoomView }) {
             <TriviaCard v={v} big />
             <Departures v={v} move={move} />
             <Arrival v={v} big after={landAt} />
+            <WorldBanner v={v} big />
             <NewsBanner v={v} big />
           </FitColumn>
           <div class="tv-table">
@@ -275,6 +284,10 @@ function useScreenSounds(v: RoomView, move: RidePlan | null) {
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
     else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
     else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction" || f.e.t === "bonus"))) at(rideReady(move), sfx.coin);
+    else if (fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "build"))
+      sfx.build(fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "build" && (v.game?.s.deeds[f.e.at]?.houses ?? 0) >= 5));
+    else if (fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "sell")) sfx.sink();
+    else if (fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "mortgage")) sfx.flip();
     else if (reducedMotion() && fresh.some((f) => f.t === "game" && f.e.t === "stamp")) sfx.stamp();
   });
 }

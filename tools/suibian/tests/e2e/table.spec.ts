@@ -46,6 +46,10 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await expect(host.page.getByText("你好，小明")).toBeVisible();
   await expect(host.page.locator(".demo")).toBeVisible();
   await host.page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  // What the meal is for: just a meal unless the host says otherwise.
+  await expect(host.page.locator("[data-occasion=casual]")).toHaveAttribute("aria-pressed", "true");
+  await host.page.locator("[data-occasion=friends]").click();
+  await expect(host.page.locator("[data-occasion=friends]")).toHaveAttribute("aria-pressed", "true");
   await host.page.getByRole("button", { name: "开一桌" }).click();
   await expect(host.page).toHaveURL(/\/eat\/r\/\d{4}$/);
   const code = host.page.url().match(/(\d{4})$/)![1];
@@ -59,23 +63,58 @@ test("three phones pick a restaurant", async ({ browser }) => {
   // The table's diet summary isn't shown live (a new line would give away whose card it is).
   await expect(host.page.locator(".tablelimits")).toHaveCount(0);
   await expect(a.page.getByText("等房主开始…")).toBeVisible();
+  // Everyone sees what the table is for; only the host can change it.
+  await expect(a.page.locator(".settings .whenrow span").first()).toHaveText("🍻 场景：朋友聚会");
+  await expect(a.page.locator(".change-occasion")).toHaveCount(0);
+  await expect(host.page.locator(".change-occasion")).toBeVisible();
 
-  // Round 1.
+  // Round 1 comes before any search: the whole menu, in three groups, all of them on screen.
   await host.page.getByRole("button", { name: "开始！" }).click();
-  for (const p of [host, a, b]) await expect(p.page.locator(".moods")).toBeVisible();
-  // Severe peanut: no Thai chip for anyone.
-  await expect(host.page.locator("[data-cuisine=thai]")).toHaveCount(0);
+  for (const p of [host, a, b]) await expect(p.page.locator(".menu").first()).toBeVisible();
+  await expect(host.page.locator(".menu h3")).toHaveText(["中餐", "亚洲菜", "西餐和其他"]);
+  await expect(host.page.locator(".mood")).toHaveCount(31);
+  for (const c of ["sichuan", "cantonese", "hotpot", "thai", "vietnamese", "filipino", "mexican"]) await expect(host.page.locator(`[data-cuisine=${c}]`)).toBeVisible();
   await host.page.locator("[data-cuisine=ramen]").click(); // 👍
   await a.page.locator("[data-cuisine=ramen]").click();
   await b.page.locator("[data-cuisine=italian]").click();
   await b.page.locator("[data-cuisine=italian]").click(); // 🚫
   for (const p of [host, a, b]) await p.page.getByRole("button", { name: "好了" }).click();
 
-  // Round 2.
+  // Round 2: every place, ranked. The top six are full cards, then shorter ones that open.
   for (const p of [host, a, b]) await expect(p.page.locator(".place").first()).toBeVisible();
-  await expect(host.page.getByText("Nonna's Pasta")).toHaveCount(0);
+  await expect(host.page.locator(".place:not(.compact)")).toHaveCount(6);
+  await expect(host.page.locator(".place .rank").first()).toHaveText("1");
+  await expect(host.page.locator(".place .facts").first()).toContainText("🚗 约");
+  // What two people liked comes first, however well rated the rest.
+  await expect(host.page.locator(".place h3").first()).toHaveText("Demo · Ramen Hinoki");
+  const total = Number((await host.page.getByText(/^共 \d+ 家，都在范围和预算以内$/).textContent())!.match(/\d+/)![0]);
+  const more = host.page.getByRole("button", { name: /^再看 \d+ 家$/ });
+  for (let i = 0; i < 5 && (await more.count()); i++) await more.click();
+  await expect(host.page.locator(".place")).toHaveCount(total);
+  // b said no to Italian: Nonna's is still there, further down, saying why.
+  const nonna = host.page.locator(".place", { hasText: "Nonna's Pasta" });
+  await expect(nonna).toHaveClass(/compact/);
+  await expect(nonna.locator(".note")).toHaveText("有人第 1 轮不想吃这类，排在后面。");
+  // a's severe peanut allergy: Thai is at the bottom with a warning, not gone.
+  await expect(host.page.locator(".place", { hasText: "Bangkok Basil" }).locator(".note.severe")).toContainText("有人对花生严重过敏");
+  await expect(host.page.locator(".place").last().locator(".note.severe")).toContainText("有人对花生严重过敏");
+  // Friends: a hot pot place for groups, with beer, says it suits (even at the bottom, for the allergy).
+  await expect(host.page.locator(".place", { hasText: "小肥羊火锅" }).locator(".reason", { hasText: "适合朋友聚" })).toBeVisible();
+  // The short intro says what a place mainly serves when its name does.
+  await expect(host.page.locator(".place", { hasText: "台北牛肉面" }).locator(".intro")).toContainText("主打牛肉面");
+  // A shorter card opens for the rest: phone, map, ordering in.
+  await nonna.getByRole("button", { name: /更多/ }).click();
+  await expect(nonna.getByRole("link", { name: "📞 打电话" })).toBeVisible();
+  // Ordering in: the fold opens the delivery apps, without our address as the referrer.
+  const delivery = nonna.locator(".delivery");
+  await delivery.getByText("🛵 点外卖").click();
+  await expect(delivery.locator("[data-app=ubereats]")).toHaveAttribute("href", /^https:\/\/www\.ubereats\.com\/search\?q=.+/);
+  await expect(delivery.locator("[data-app=doordash]")).toHaveAttribute("href", /^https:\/\/www\.doordash\.com\/en-CA\/search\/store\/.+/);
+  await expect(delivery.locator("[data-app=fantuan]")).toHaveText("饭团");
+  for (const app of ["ubereats", "doordash", "fantuan", "skip"]) await expect(delivery.locator(`[data-app=${app}]`)).toHaveAttribute("rel", "noopener noreferrer");
   const ramen = host.page.locator(".place", { hasText: "Ramen Hinoki" });
   await expect(ramen).toBeVisible();
+  await expect(ramen.locator(".reason", { hasText: "2 人想吃这类" })).toBeVisible();
   for (const p of [host, a, b]) await p.page.locator(".place", { hasText: "Ramen Hinoki" }).locator(".approve").click();
   // b vetoes another card; the veto button on the others then says it's used.
   await b.page.locator(".place").filter({ hasNotText: "Ramen Hinoki" }).first().locator(".veto").click();
@@ -122,104 +161,21 @@ test("someone who joins after the start fills in a diet card first, then joins t
   // A signed-in host goes by their Google name instead of "朋友 1".
   await expect(host.page.locator(".people li.mine")).toContainText("阿明");
   await host.page.getByRole("button", { name: "开始！" }).click();
-  await expect(host.page.locator(".moods")).toBeVisible();
+  await expect(host.page.locator(".menu").first()).toBeVisible();
 
   await late.page.goto(`/eat/r/${code}`);
   await expect(late.page.getByText("这一桌已经开始了，先填一下饮食卡，再一起选")).toBeVisible();
   await late.page.locator(".diet .btn.primary").click();
-  await expect(late.page.locator(".moods")).toBeVisible();
+  await expect(late.page.locator(".menu").first()).toBeVisible();
   for (const p of [host, late]) expect(p.errors).toEqual([]);
 });
 
-test("guests can't start a table, or pick alone, when login is on", async ({ request }) => {
+test("guests can't start a table when login is on; picking alone is gone, its address goes home", async ({ request }) => {
   const res = await request.post("/eat/api/rooms", { data: { cid: "abcdef0123456789", center: { lat: 49.28, lng: -123.12 }, range: "walk10" } });
   expect(res.status()).toBe(401);
-  const solo = await request.post("/eat/api/solo", { data: { center: { lat: 49.28, lng: -123.12 }, range: "any", answers: { mood: "warm", side: "chinese" } } });
-  expect(solo.status()).toBe(401);
-});
-
-test("one person picks alone: five questions, three places with reasons, another three, choose one", async ({ browser }) => {
-  const me = await phone(browser, "solo");
-  const page = me.page;
-  await page.goto("/eat/");
-  await expect(page.getByText("一个人，不知道吃什么？")).toBeVisible();
-  // A new account each run (a local server keeps accounts between runs).
-  expect((await page.request.post("/eat/api/test/login", { data: { sub: `solo-${Date.now()}`, name: "小雨" } })).ok()).toBeTruthy();
-  await page.reload();
-  await page.getByRole("button", { name: "帮我挑" }).click();
-  await expect(page).toHaveURL(/\/eat\/solo$/);
-
-  await expect(page.getByRole("heading", { name: "现在想吃点什么感觉的？" })).toBeVisible();
-  await page.getByRole("button", { name: /热乎乎的/ }).click();
-  await expect(page.getByRole("heading", { name: "想吃哪边的？" })).toBeVisible();
-  await page.getByRole("button", { name: /^中餐/ }).click();
-  await page.getByRole("button", { name: "$35 以内" }).click();
-
-  // Where and how far: the tabs switch the minutes; "any" covers Greater Vancouver.
-  await expect(page.getByRole("heading", { name: "在哪儿，多远？" })).toBeVisible();
-  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
-  await page.getByRole("button", { name: "🌏 不限" }).click();
-  await expect(page.getByText("整个大温都算")).toBeVisible();
-  await page.getByRole("button", { name: "🚗 开车" }).click();
-  await page.getByRole("button", { name: "开车 25 分钟" }).click();
-  await expect(page.getByRole("button", { name: "开车 25 分钟" })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "下一步" }).click();
-
-  await expect(page.getByRole("heading", { name: "有什么不吃的吗？" })).toBeVisible();
-  await page.locator(".diet .btn.primary").click();
-
-  await expect(page.getByRole("heading", { name: "给你挑了这几家" })).toBeVisible();
-  const cards = page.locator(".place");
-  await expect(cards).toHaveCount(3);
-  await expect(page.locator(".reason").first()).toBeVisible();
-  // The made-up pick and description show in demo mode, so every part of a card is exercised.
-  await expect(page.getByText("示例推荐：虾饺皮薄，周末早点去")).toBeVisible();
-  await expect(page.getByText("示例：推车点心，周末一早就满座")).toBeVisible();
-  const first = await cards.locator("h3").allTextContents();
-  const shownIds = await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-id")!));
-  await page.getByRole("button", { name: "换一批" }).click();
-  await expect(cards).toHaveCount(2);
-  const second = await cards.locator("h3").allTextContents();
-  expect(second.some((n) => first.includes(n))).toBe(false);
-  await expect(page.getByText("附近就这些了")).toBeVisible();
-
-  const chosen = (await cards.first().locator("h3").textContent())!;
-  await cards.first().getByRole("button", { name: "就它了" }).click();
-  await expect(page.getByRole("heading", { name: "就吃这家！" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "发给朋友" })).toBeVisible();
-  // The diet card is saved for next time, but not this search's budget.
-  const saved = (await page.evaluate(() => fetch("/eat/api/me").then((r) => r.json()))) as { card: { budget: number }; last: { place: string } };
-  expect(saved.card.budget).toBe(0);
-
-  // Only your own last pick can be rated: any other place is refused.
-  const rate = (id: string) =>
-    page.evaluate((id) => fetch(`/eat/api/places/${id}/rate`, { method: "POST", body: JSON.stringify({ overall: "up", liked: true, wait: 0 }) }).then((r) => r.status), id);
-  const other = saved.last.place === "demo-1" ? "demo-2" : "demo-1";
-  expect(await rate(other)).toBe(403);
-
-  // Back home, it asks how the pick was; three taps rate it, once.
-  await page.goto("/eat/");
-  await page.getByText(`上次的「${chosen}」好吃吗？`).click();
-  await expect(page).toHaveURL(/\/eat\/rate$/);
-  await expect(page.getByText(`「${chosen}」怎么样？`)).toBeVisible();
-  await page.getByRole("button", { name: "👍" }).click();
-  await page.getByRole("button", { name: "是" }).click();
-  await page.getByRole("button", { name: "15 分钟" }).click();
-  await page.getByRole("button", { name: "提交" }).click();
-  await expect(page.getByText("谢谢！")).toBeVisible();
-  expect(await rate(saved.last.place)).toBe(403);
-  // Choosing another place from the same search doesn't open a second rating.
-  const another = shownIds.find((id) => id !== saved.last.place)!;
-  const chose = await page.evaluate((id) => fetch("/eat/api/me/last", { method: "POST", body: JSON.stringify({ place: id, name: "x" }) }).then((r) => r.status), another);
-  expect(chose).toBe(200);
-  expect(await rate(another)).toBe(403);
-  // A place the search never showed can't become the pick.
-  const stranger = await page.evaluate(() => fetch("/eat/api/me/last", { method: "POST", body: JSON.stringify({ place: "demo-999", name: "x" }) }).then((r) => r.status));
-  expect(stranger).toBe(403);
-  await page.goto("/eat/");
-  await expect(page.getByText("一个人，不知道吃什么？")).toBeVisible();
-  await expect(page.getByText(`上次的「${chosen}」好吃吗？`)).toHaveCount(0);
-  expect(me.errors).toEqual([]);
+  const solo = await request.get("/eat/solo", { maxRedirects: 0 });
+  expect(solo.status()).toBe(302);
+  expect(solo.headers().location).toMatch(/\/eat\/$/);
 });
 
 test("rating with nothing picked says so", async ({ browser }) => {
@@ -251,4 +207,74 @@ test("the privacy and terms pages are public and linked from the home page", asy
   await expect(page).toHaveURL(/\/eat\/terms$/);
   await page.getByRole("link", { name: /随便 · Whatever's Fine/ }).click();
   await expect(page).toHaveURL(/\/eat\/$/);
+});
+
+test("planning ahead, and what it's for: chosen on the home page, changed in the lobby, used by the list", async ({ browser }) => {
+  const me = await phone(browser, "plan");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `plan-${Date.now()}`, name: "小周" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  // Picking alone is now "一个人" here, not a page of its own.
+  await expect(page.getByText("一个人，不知道吃什么？")).toHaveCount(0);
+  await page.locator("[data-occasion=colleagues]").click();
+  await page.getByRole("button", { name: "明天午饭" }).click();
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  const rows = page.locator(".settings .whenrow span");
+  await expect(rows).toHaveText(["💼 场景：同事聚餐", "🕒 什么时候吃：明天 12:00"]);
+  await page.getByRole("button", { name: "改场景" }).click();
+  await page.locator("[data-occasion=date]").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await page.getByRole("button", { name: "改时间" }).click();
+  await page.getByRole("button", { name: "明天晚饭" }).click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(rows).toHaveText(["💕 场景：约会", "🕒 什么时候吃：明天 18:30"]);
+
+  // One person: round 1 done, the list for tomorrow's dinner.
+  await page.getByRole("button", { name: "开始！" }).click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".planned")).toHaveText("🕒 明天 18:30，按那时的营业时间排");
+  // Each full card says until when it's open then (demo hours: most close at 22:00).
+  await expect(page.locator(".place").first()).toContainText("那时营业到");
+  // A date: places booked ahead with wine and cocktails say they suit it.
+  await expect(page.locator(".reason", { hasText: "适合约会" }).first()).toBeVisible();
+  await page.locator(".place").first().locator(".approve").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.getByRole("heading", { name: /^明天 18:30，就吃这家！$/ })).toBeVisible();
+  expect(me.errors).toEqual([]);
+});
+
+test("a business dinner: a budget too low for it is pointed out; places plainly not for it go last saying why (Steve, 2026-11-11)", async ({ browser }) => {
+  const me = await phone(browser, "biz");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `biz-${Date.now()}`, name: "小李" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("[data-occasion=business]").click();
+  await page.getByRole("button", { name: "明天晚饭" }).click();
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  // A $35 budget on my own diet card: most places for a business dinner cost more.
+  await page.locator(".diet").getByRole("button", { name: "$35" }).click();
+  await page.locator(".diet .btn.primary").click();
+  const hint = page.locator(".budget-low");
+  await expect(hint).toContainText("你的饮食卡预算是人均 $35 以内。商务宴请合适的店大多更贵，会被去掉。");
+  await hint.getByRole("button", { name: "改预算" }).click();
+  await page.locator(".diet").getByRole("button", { name: "不限" }).click();
+  await page.locator(".diet .btn.primary").click();
+  await expect(hint).toHaveCount(0);
+
+  await page.getByRole("button", { name: "开始！" }).click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  // The top says why it suits; the dessert café, the brunch place and the burger place are last, saying why.
+  await expect(page.locator(".place").first().locator(".reason", { hasText: "适合商务宴请" })).toBeVisible();
+  const more = page.getByRole("button", { name: /^再看 \d+ 家$/ });
+  for (let i = 0; i < 5 && (await more.count()); i++) await more.click();
+  const last3 = await page.locator(".place h3").evaluateAll((hs) => hs.slice(-3).map((h) => h.textContent));
+  expect(last3.sort()).toEqual(["Demo · Burger Lab", "Demo · Moonlight Dessert Café", "Demo · Sunrise Brunch Co."]);
+  await expect(page.locator(".place", { hasText: "Moonlight Dessert Café" }).locator(".note")).toHaveText("不太适合商务宴请：这是甜品面包店，排在后面。");
+  expect(me.errors).toEqual([]);
 });

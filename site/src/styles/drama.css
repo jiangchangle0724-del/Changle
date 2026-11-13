@@ -696,9 +696,6 @@ li.is-ready .dm-roster-state {
   width: 100%;
   height: auto;
 }
-.dm-card.is-culprit .dm-card-watermark {
-  opacity: 0.3;
-}
 .dm-card-label {
   display: flex;
   align-items: center;
@@ -737,16 +734,6 @@ li.is-ready .dm-roster-state {
   margin: 0;
   font-size: 16px;
   line-height: var(--leading);
-}
-.dm-card-secret.is-culprit {
-  background: linear-gradient(160deg, #0b0816, #1c0f22);
-  box-shadow:
-    inset 0 0 0 1.5px var(--gel),
-    0 0 28px -6px color-mix(in oklab, var(--gel) 60%, transparent);
-}
-.dm-card-secret.is-culprit .dm-card-label {
-  color: var(--gel);
-  font-size: 14px;
 }
 /* a duel card: a long style name steps down a size, the example reads as an aside, tonight's line
    is the thing to remember, and the link to videos sits under the card */
@@ -1212,6 +1199,12 @@ li.is-ready .dm-roster-state {
 
 .dm-setup .seg {
   flex-wrap: wrap;
+}
+/* four ways to play: two by two, so no name has to break over three lines */
+.dm-setup .seg.dm-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-radius: var(--r-field);
 }
 .dm-marquee {
   position: absolute;
@@ -1752,6 +1745,20 @@ li.is-ready .dm-roster-state {
 .dm-secret-results li.is-true strong {
   color: var(--gel);
 }
+/* nobody here can vote (one person on stage): the room's question, and the three secrets to shout */
+.dm-crowd {
+  display: grid;
+  gap: var(--space-3);
+}
+.dm-crowd-ask {
+  max-width: 34em;
+  margin: 0 auto;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading);
+  text-align: center;
+}
 .dm-peer-note {
   max-width: 34em;
   margin: 0;
@@ -1814,4 +1821,97 @@ li.is-ready .dm-roster-state {
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--leading);
+}
+
+/* ---------- 朗读: how to read it, the words, the reader's card, the line over the words ---------- */
+
+.dm-read-how {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  max-width: 34em;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  text-align: left;
+}
+.dm-read-how p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.dm-read-how .dm-beats-title {
+  margin-bottom: 0;
+  color: var(--gel);
+}
+.dm-reading {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 34em;
+  margin: 0 auto;
+  padding: var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--gel) 30%, transparent),
+    var(--shadow-flat);
+  text-align: left;
+}
+.dm-reading p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+}
+/* the phone being read from: big enough to read at arm's length */
+.dm-reading.is-big {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-6);
+}
+.dm-reading.is-big p {
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+.dm-readcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+.dm-read-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 34em;
+  margin: 0 auto;
+}
+.dm-read-head-main {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.dm-read-head-main small {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--gel);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.dm-read-head-main strong {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  line-height: var(--leading-tight);
+}
+.dm-read-head .dm-clock {
+  position: relative;
+  top: auto;
+  right: auto;
+  flex-shrink: 0;
 }

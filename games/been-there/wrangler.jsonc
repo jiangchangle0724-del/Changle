@@ -21,11 +21,15 @@
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "RoomDO" },
-      { "name": "SAVES", "class_name": "SaveVault" }
+      { "name": "SAVES", "class_name": "SaveVault" },
+      { "name": "REPORTS", "class_name": "ReportBox" }
     ]
   },
   // SQLite-backed Durable Objects work on Cloudflare's free plan.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDO", "SaveVault"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RoomDO", "SaveVault"] },
+    { "tag": "v2", "new_sqlite_classes": ["ReportBox"] }
+  ],
   "build": { "command": "node scripts/build.mjs" },
   "observability": { "enabled": true }
 }

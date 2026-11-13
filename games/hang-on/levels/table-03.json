@@ -1,0 +1,128 @@
+{
+  "id": "table-03",
+  "world": "table",
+  "name": {
+    "zh": "筷子桥",
+    "en": "Chopstick Bridge"
+  },
+  "teaches": "swing",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 536
+  },
+  "goal": {
+    "x": 2400,
+    "y": 30,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 506
+    },
+    {
+      "x": 1990,
+      "y": 326
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 560,
+      "w": 330,
+      "h": 160,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 380,
+      "y": 530,
+      "w": 180,
+      "h": 22,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 610,
+      "y": 500,
+      "w": 180,
+      "h": 22,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 840,
+      "y": 530,
+      "w": 610,
+      "h": 190,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1820,
+      "y": 350,
+      "w": 300,
+      "h": 370,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2190,
+      "y": 270,
+      "w": 150,
+      "h": 450,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2390,
+      "y": 190,
+      "w": 130,
+      "h": 530,
+      "material": "wood"
+    },
+    {
+      "kind": "wall",
+      "x": 2520,
+      "y": 10,
+      "w": 40,
+      "h": 710,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 2
+  },
+  "replay": "replays/table-03.json",
+  "fading": [
+    {
+      "kind": "ground",
+      "x": 1500,
+      "y": 500,
+      "w": 130,
+      "h": 24,
+      "material": "wood",
+      "on": 4,
+      "off": 2,
+      "phase": 1.2
+    }
+  ],
+  "springs": [
+    {
+      "x": 1680,
+      "y": 530,
+      "w": 90,
+      "h": 190,
+      "power": 1
+    }
+  ]
+}

@@ -84,6 +84,33 @@ describe('happy path: calibrate → learn → dance → results', () => {
     expect(() => reduce(lobbyWithHost(), { type: 'LEARNING_DONE', at: 5, routineStartAt: 9 })).toThrow('not allowed');
   });
 
+  it("a song's beat moves to where the speaker measured it, however late the video is (15 minutes at most), only while dancing", () => {
+    let s = lobbyWithHost();
+    s = reduce(s, { type: 'START_LEARNING', at: 30, byPlayerId: 'steve', routineId: 'song-x', difficulty: 'easy', bpm: 132 });
+    expect(() => reduce(s, { type: 'BEAT_MOVED', at: 40, routineStartAt: 50 })).toThrow('not allowed');
+    s = reduce(s, { type: 'LEARNING_DONE', at: 3_000, routineStartAt: 10_000 });
+    s = reduce(s, { type: 'BEAT_MOVED', at: 4_000, routineStartAt: 10_180 });
+    expect(s.phase).toBe('dancing');
+    expect(s.routineStartAt).toBe(10_180);
+    expect(reduce(s, { type: 'BEAT_MOVED', at: 4_100, routineStartAt: 30_000 }).routineStartAt).toBe(30_000);
+    // (a video a minute and more late: an ad, or stopped till someone tapped it)
+    expect(reduce(s, { type: 'BEAT_MOVED', at: 4_100, routineStartAt: 80_000 }).routineStartAt).toBe(80_000);
+    expect(() => reduce(s, { type: 'BEAT_MOVED', at: 4_100, routineStartAt: 10_180 + 15 * 60_000 + 1 })).toThrow('15 minutes');
+    expect(() => reduce(s, { type: 'BEAT_MOVED', at: 4_100, routineStartAt: Number.NaN })).toThrow('15 minutes');
+  });
+
+  it('after a pause the host carries on: the beat moves later by any amount, never earlier, only while dancing', () => {
+    let s = lobbyWithHost();
+    s = reduce(s, { type: 'START_LEARNING', at: 30, byPlayerId: 'steve', routineId: 'r', difficulty: 'easy', bpm: 120 });
+    expect(() => reduce(s, { type: 'RESUMED', at: 40, byPlayerId: 'steve', routineStartAt: 50 })).toThrow('not allowed');
+    s = reduce(s, { type: 'LEARNING_DONE', at: 3_000, routineStartAt: 10_000 });
+    expect(() => reduce(s, { type: 'RESUMED', at: 4_000, byPlayerId: 'ann', routineStartAt: 200_000 })).toThrow();
+    s = reduce(s, { type: 'RESUMED', at: 4_000, byPlayerId: 'steve', routineStartAt: 200_000 });
+    expect(s.routineStartAt).toBe(200_000);
+    expect(s.phase).toBe('dancing');
+    expect(() => reduce(s, { type: 'RESUMED', at: 4_100, byPlayerId: 'steve', routineStartAt: 199_999 })).toThrow('later');
+  });
+
   it('the host can stop a song at any moment: learning or dancing, back to the lobby', () => {
     let s = lobbyWithHost();
     s = reduce(s, { type: 'START_LEARNING', at: 30, byPlayerId: 'steve', routineId: 'r', difficulty: 'easy', bpm: 96 });

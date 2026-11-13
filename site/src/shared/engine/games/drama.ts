@@ -1,5 +1,6 @@
 import { ANY_SECRETS, ANY_TWISTS, GROUPS, PENALTIES, PK_LINES, PK_STYLES, SCENES, TASKS, type DramaDiff, type DramaGroup, type DramaLevel, type DramaScene } from "../../../data/drama";
 import { CLASSICS, type ClassicScene, type ClassicSet } from "../../../data/dramaClassics";
+import { READ_KINDS, READ_PASS, READINGS, readKind, type ReadKind, type ReadPiece, type ReadSet } from "../../../data/dramaReadings";
 import type { T } from "../../../i18n";
 import { cleanScene, hasText } from "../../dramaScene";
 import type { DramaCard, DramaView } from "../../protocol";
@@ -17,8 +18,20 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * a few of those who don't mind go up, whoever has acted least first. With nobody left watching,
  * the actors vote on each other (never on themselves).
  *
+ * Small tables (Steve on Nov 12: one person can start): with fewer than three at the table a scene
+ * is a monologue, one actor and the rest guessing (two on stage voting on each other would always
+ * catch the culprit), and a written scene waits for three. One person alone plays monologues and
+ * readings: nobody at the table can vote, so the room guesses out loud (the big screen shows the
+ * three secrets), the host reveals the answer, and nobody scores (`quietReveal`).
+ *
  * 名场面 (`classic`): famous film and TV moments, from a Chinese set or an English one (the host
  * picks); no culprit, the audience gives stars, like the duel.
+ *
+ * 朗读 (`read`): one person reads a piece out loud, the way it asks (through tears, with a straight
+ * face, as a breakup, a royal memorial...), from the Chinese internet, the English internet or a set
+ * that works for both (the host picks, and can keep only some kinds). Volunteers take turns, whoever
+ * has read least first. The audience gives stars: an average under three pays, five from everyone
+ * takes the trophy. The lines reach the reader first, and every phone once the reading starts.
  *
  * Whose stories (`groups`): the host can pick any of the communities with scenes of their own
  * (Chinese, Canadian, South Asian, Filipino...). Their scenes come first; everyone's fill in when
@@ -33,7 +46,7 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * (written by players, approved by the site's owner), which mix in with the built-in ones.
  */
 
-type Mode = "show" | "pk" | "classic";
+type Mode = "show" | "pk" | "classic" | "read";
 type Pen = "drink" | "move" | "prank";
 type Want = "act" | "watch";
 type Vote = { guess: string | null; stars: Record<string, number> };
@@ -46,6 +59,8 @@ type S = {
   diff: DramaDiff;
   pen: Pen;
   total: number;
+  /** how many acts the host picked: three more at the curtain call add to `total`, not to this */
+  plan: number;
   round: number;
   /** scene ids already played, so none comes back until the library runs out */
   used: string[];
@@ -73,6 +88,10 @@ type S = {
   classic: number | null;
   /** whose stories come first (none: everyone's only) */
   groups: DramaGroup[];
+  /** 朗读: which set the host picked, the kinds on (none: all), and the piece being read (its index) */
+  rset: ReadSet;
+  rkinds: ReadKind[];
+  read: number | null;
   culprit: string | null;
   tasks: Record<string, number>;
   pk: { line: number; styles: Record<string, number> } | null;
@@ -97,6 +116,8 @@ const PER_ACTOR_MS = 15_000;
 const PK_MS = 45_000;
 /** a famous scene: a minute, and fifteen seconds more for each actor past two */
 const CLASSIC_MS = 60_000;
+/** a reading: two minutes for a minute and a half of words (the reader says when they're done) */
+const READ_MS = 120_000;
 const VOTE_MS = 50_000;
 /** the most on stage at once */
 export const MAX_CAST = 8;
@@ -229,7 +250,11 @@ function nextWritten(s: S, api: Api, turns = true): { w: Written; order: string[
 function upNext(s: S, api: Api): { lo: number; hi: number; ok: boolean; auto: boolean } {
   const { ids, vol, free } = lineup(s, api);
   if (s.mode === "pk") return { lo: 2, hi: 2, ok: vol.length + free.length >= 2, auto: !vol.length };
+  // one reader at a time
+  if (s.mode === "read") return { lo: 1, hi: 1, ok: vol.length + free.length >= 1, auto: !vol.length };
   if (s.mode === "classic") {
+    // famous scenes take two at the table (one person alone plays monologues and readings)
+    if (ids.length < 2) return { lo: 1, hi: 1, ok: false, auto: true };
     // as many as the biggest famous scene takes
     const most = Math.max(...classicPool(s).map((c) => c.roles.length));
     if (vol.length) {
@@ -239,13 +264,15 @@ function upNext(s: S, api: Api): { lo: number; hi: number; ok: boolean; auto: bo
     const hi = Math.min(castSize(ids.length), free.length, most);
     return { lo: Math.min(2, hi), hi, ok: hi > 0, auto: true };
   }
-  const w = nextWritten(s, api, false);
+  // fewer than three at the table: one acts a monologue, the rest guess
+  const few = ids.length < 3;
+  const w = few ? null : nextWritten(s, api, false);
   if (w) return { lo: w.order.length, hi: w.order.length, ok: true, auto: false };
   if (vol.length) {
-    const k = Math.min(MAX_CAST, vol.length);
+    const k = few ? 1 : Math.min(MAX_CAST, vol.length);
     return { lo: k, hi: k, ok: true, auto: false };
   }
-  const hi = Math.min(castSize(ids.length), free.length);
+  const hi = Math.min(few ? 1 : castSize(ids.length), free.length);
   return { lo: Math.min(2, hi), hi, ok: hi > 0, auto: true };
 }
 
@@ -269,6 +296,34 @@ function pickClassic(s: S, lo: number, hi: number, api: Api): { i: number; k: nu
   const pick = fresh[api.int(fresh.length)];
   s.used.push(pick.c.id);
   return { i: pick.i, k: Math.max(1, Math.min(pick.c.roles.length, hi)) };
+}
+
+/** The pieces this table can draw: the host's set and kinds, at its spice level (too few: the whole set). */
+function readPool(s: S): ReadPiece[] {
+  const set = s.rset ?? "zh";
+  const kinds = s.rkinds ?? [];
+  const inSet = READINGS.filter((r) => r.set === set);
+  const pool = inSet.filter((r) => (!kinds.length || kinds.includes(r.kind)) && (s.level === "spicy" || r.level === "all"));
+  return pool.length ? pool : inSet;
+}
+
+/**
+ * A piece not read yet at this table, from the kind read least so far (so the kinds take turns);
+ * all of them read, they start over. Its index in `READINGS`.
+ */
+function pickReading(s: S, api: Api): number {
+  const pool = readPool(s);
+  let fresh = pool.filter((r) => !s.used.includes(r.id));
+  if (!fresh.length) {
+    s.used = s.used.filter((id) => !pool.some((r) => r.id === id));
+    fresh = pool;
+  }
+  const read = (k: ReadKind) => s.used.filter((id) => pool.some((r) => r.id === id && r.kind === k)).length;
+  const least = Math.min(...fresh.map((r) => read(r.kind)));
+  const list = fresh.filter((r) => read(r.kind) === least);
+  const pick = list[api.int(list.length)];
+  s.used.push(pick.id);
+  return READINGS.indexOf(pick);
 }
 
 /** A famous scene's parts for `k` actors: the ones it can't do without, then any of the rest. */
@@ -295,8 +350,13 @@ function newRound(s: S, api: Api) {
   s.roles = [];
   s.order = [];
   s.classic = null;
+  s.read = null;
   const { ids, vol, free } = lineup(s, api);
-  if (s.mode === "classic") {
+  if (s.mode === "read") {
+    // one reader: a volunteer, else one of those who don't mind; whoever has read least first
+    s.cast = byTurns(s, vol.length ? vol : free, api).slice(0, 1);
+    s.read = pickReading(s, api);
+  } else if (s.mode === "classic") {
     // a famous scene for the volunteers (as many as it takes), else a few of those who don't mind
     const most = Math.max(...classicPool(s).map((c) => c.roles.length));
     const people = byTurns(s, vol.length ? vol : free, api);
@@ -318,8 +378,9 @@ function newRound(s: S, api: Api) {
     s.pk = { line, styles: Object.fromEntries(s.cast.map((pid, j) => [pid, styles[j % styles.length].i])) };
   } else {
     // a scene written here tonight goes first; else one for the volunteers, all of them (up to
-    // eight); else two to a few of those who don't mind
-    const mine = nextWritten(s, api);
+    // eight); else two to a few of those who don't mind. Fewer than three at the table: a monologue
+    const few = ids.length < 3;
+    const mine = few ? null : nextWritten(s, api);
     let pick: Option & { k: number };
     let people: string[];
     if (mine) {
@@ -327,11 +388,11 @@ function newRound(s: S, api: Api) {
       pick = { s: mine.w.scene, i: null, w: mine.w, k: mine.order.length };
       people = mine.order;
     } else if (vol.length) {
-      const k = Math.min(MAX_CAST, vol.length);
+      const k = few ? 1 : Math.min(MAX_CAST, vol.length);
       pick = pickScene(s, k, k, api);
       people = byTurns(s, vol, api);
     } else {
-      const hi = Math.min(castSize(ids.length), free.length);
+      const hi = Math.min(few ? 1 : castSize(ids.length), free.length);
       pick = pickScene(s, Math.min(2, hi), hi, api);
       people = byTurns(s, free, api);
     }
@@ -363,6 +424,7 @@ function newRound(s: S, api: Api) {
 /** How long the scene runs: a duel, a famous scene, a monologue, or a scene, longer for a big cast. */
 function actLength(s: S): number {
   if (s.mode === "pk") return PK_MS;
+  if (s.mode === "read") return READ_MS;
   if (s.mode === "classic") return CLASSIC_MS + Math.max(0, s.cast.length - 2) * PER_ACTOR_MS;
   if (s.cast.length <= 1) return SOLO_MS[s.diff];
   return ACT_MS[s.diff] + Math.max(0, s.cast.length - 4) * PER_ACTOR_MS;
@@ -397,6 +459,12 @@ function startVote(s: S, api: Api) {
   api.clear("act");
   api.clear("twist");
   s.twisted = s.mode === "show";
+  // nobody here can vote (one person, alone on stage): a reading ends on the applause; a monologue
+  // still leaves the room its guess, out loud, until the host reveals it
+  if (!voters(s, api).length && s.mode !== "show") {
+    quietReveal(s, api);
+    return;
+  }
   s.phase = "vote";
   s.votes = {};
   s.endsAt = api.now + VOTE_MS;
@@ -418,8 +486,8 @@ function penaltyText(s: S, api: Api): T | null {
 function card(s: S, pid: string): DramaCard | null {
   if (!s.cast.includes(pid)) return null;
   if (s.mode === "pk" && s.pk) return { secret: PK_STYLES[s.pk.styles[pid]].s, culprit: false, task: t("", "") };
-  // a famous scene keeps nothing secret: the card is the part, how to play it is on every phone
-  if (s.mode === "classic") return { secret: t("", ""), culprit: false, task: t("", "") };
+  // a famous scene or a reading keeps nothing secret: the part (or the piece) is on every phone
+  if (s.mode === "classic" || s.mode === "read") return { secret: t("", ""), culprit: false, task: t("", "") };
   const scene = current(s);
   if (!scene) return null;
   const task = TASKS[s.diff][s.tasks[pid] ?? 0];
@@ -473,10 +541,12 @@ function reveal(s: S, api: Api) {
   const rated = s.cast.filter((pid) => sums[pid].n > 0);
   const hi = Math.max(0, ...rated.map((pid) => stars[pid]));
   const lo = Math.min(6, ...rated.map((pid) => stars[pid]));
-  // best actor is a contest: a monologue has nobody to beat
-  const best = rated.length > 1 ? rated.filter((pid) => stars[pid] === hi) : [];
+  const reading = s.mode === "read";
+  // best actor is a contest: a monologue has nobody to beat. A reading has a bar instead: five
+  // stars from everyone takes the trophy, under three pays
+  const best = reading ? rated.filter((pid) => stars[pid] >= 5) : rated.length > 1 ? rated.filter((pid) => stars[pid] === hi) : [];
   // with everyone level, nobody stands out as the worst
-  const worst = rated.length && lo < hi ? rated.filter((pid) => stars[pid] === lo) : [];
+  const worst = reading ? rated.filter((pid) => stars[pid] < READ_PASS) : rated.length && lo < hi ? rated.filter((pid) => stars[pid] === lo) : [];
 
   const gained: Record<string, number> = {};
   const add = (pid: string, n: number) => {
@@ -517,10 +587,27 @@ function reveal(s: S, api: Api) {
   if (best.length) api.fx("award", best[0]);
   if (losers.size) {
     const sc = current(s);
-    const note = s.mode === "show" && sc ? sc.title : s.mode === "classic" && s.classic !== null ? CLASSICS[s.classic].title : PK_LINES[s.pk?.line ?? 0];
+    const note =
+      s.mode === "show" && sc ? sc.title : s.mode === "classic" && s.classic !== null ? CLASSICS[s.classic].title : reading && s.read !== null ? READINGS[s.read].title : PK_LINES[s.pk?.line ?? 0];
     // after the reveal has played (drum roll, mask, cards, trophy) and been read
     api.penalty([...losers], "sip", note, { delay: s.mode === "show" ? 8000 : 5500, ...(say ? { say } : {}) });
   }
+}
+
+/**
+ * The truth without a count: nobody voted, or nobody at the table could (one person, on stage).
+ * The answer and every card come out; no points, no best actor, no penalty.
+ */
+function quietReveal(s: S, api: Api) {
+  api.clear("vote");
+  const cards: Record<string, DramaCard> = {};
+  for (const pid of s.cast) {
+    const c = card(s, pid);
+    if (c) cards[pid] = c;
+  }
+  s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards, best: [], losers: [], right: [], penalty: null, gained: {}, answer: answerOf(s), quiet: true };
+  s.phase = "reveal";
+  api.fx("reveal");
 }
 
 function finish(s: S, api: Api) {
@@ -537,7 +624,7 @@ function finish(s: S, api: Api) {
 
 export const drama: GameDef<S> = {
   id: "drama",
-  min: 3,
+  min: 1,
   init() {
     return {
       phase: "setup",
@@ -546,6 +633,7 @@ export const drama: GameDef<S> = {
       diff: "easy",
       pen: "drink",
       total: 5,
+      plan: 5,
       round: 0,
       used: [],
       scene: null,
@@ -562,6 +650,9 @@ export const drama: GameDef<S> = {
       cset: "zh",
       classic: null,
       groups: [],
+      rset: "zh",
+      rkinds: [],
+      read: null,
       culprit: null,
       tasks: {},
       pk: null,
@@ -587,17 +678,23 @@ export const drama: GameDef<S> = {
     s.cset ??= "zh";
     s.classic ??= null;
     s.groups ??= [];
+    s.rset ??= "zh";
+    s.rkinds ??= [];
+    s.read ??= null;
+    s.plan ??= s.total;
     switch (g.x) {
       case "config": {
         if (!host || s.phase !== "setup") return;
-        if (g.mode === "show" || g.mode === "pk" || g.mode === "classic") s.mode = g.mode;
+        if (g.mode === "show" || g.mode === "pk" || g.mode === "classic" || g.mode === "read") s.mode = g.mode;
         if (g.cset === "zh" || g.cset === "en") s.cset = g.cset;
+        if (g.rset === "zh" || g.rset === "en" || g.rset === "both") s.rset = g.rset;
+        if (Array.isArray(g.rkinds)) s.rkinds = READ_KINDS.map((k) => k.key).filter((k) => (g.rkinds as unknown[]).includes(k));
         if (Array.isArray(g.groups)) s.groups = GROUPS.map((x) => x.key).filter((k) => (g.groups as unknown[]).includes(k));
         if (g.level === "all" || g.level === "spicy") s.level = g.level;
         if (g.diff === "easy" || g.diff === "hard") s.diff = g.diff;
         if (g.pen === "drink" || g.pen === "move" || g.pen === "prank") s.pen = g.pen;
         const total = intIn(g.total, 1, 20);
-        if (total !== null && g.total !== undefined) s.total = total;
+        if (total !== null && g.total !== undefined) s.total = s.plan = total;
         return;
       }
       case "want": {
@@ -609,7 +706,7 @@ export const drama: GameDef<S> = {
         return;
       }
       case "start": {
-        if (!host || s.phase !== "setup" || api.ids().length < 3 || !upNext(s, api).ok) return;
+        if (!host || s.phase !== "setup" || !upNext(s, api).ok) return;
         s.round = 1;
         newRound(s, api);
         return;
@@ -652,8 +749,11 @@ export const drama: GameDef<S> = {
         return;
       }
       case "reveal": {
-        if (!host || s.phase !== "vote" || !Object.keys(s.votes).length) return;
-        reveal(s, api);
+        // the host needn't wait for the last votes; with nobody here able to vote, the host's tap
+        // is the reveal
+        if (!host || s.phase !== "vote") return;
+        if (Object.keys(s.votes).length) reveal(s, api);
+        else if (!voters(s, api).length) quietReveal(s, api);
         return;
       }
       case "skip": {
@@ -682,6 +782,15 @@ export const drama: GameDef<S> = {
         s.total += 3;
         s.round += 1;
         newRound(s, api);
+        return;
+      }
+      case "setup": {
+        // between acts or at the curtain call, back to the setup to play it another way: the
+        // night's scores, the scenes written here and the ones already played all stay, and the
+        // acts count again from the number the host picks
+        if (!host || (s.phase !== "reveal" && s.phase !== "end")) return;
+        for (const k of ["brief", "act", "twist", "vote"]) api.clear(k);
+        Object.assign(s, { phase: "setup", round: 0, total: s.plan, scene: null, cur: null, cast: [], roles: [], order: [], classic: null, read: null, culprit: null, tasks: {}, pk: null, ready: [], endsAt: 0, actMs: 0, twistAt: 0, twisted: false, votes: {}, result: null } satisfies Partial<S>);
         return;
       }
       case "write": {
@@ -732,11 +841,8 @@ export const drama: GameDef<S> = {
     } else if (key === "act" && s.phase === "act") startVote(s, api);
     else if (key === "vote" && s.phase === "vote") {
       if (Object.keys(s.votes).length) reveal(s, api);
-      else {
-        // nobody voted: the scene still ends, without points
-        s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards: Object.fromEntries(s.cast.map((c) => [c, card(s, c)!]).filter(([, v]) => v)), best: [], losers: [], right: [], penalty: null, gained: {}, answer: answerOf(s) };
-        s.phase = "reveal";
-      }
+      // nobody voted: the scene still ends, without points
+      else quietReveal(s, api);
     }
   },
 
@@ -751,6 +857,9 @@ export const drama: GameDef<S> = {
     const live = s.phase !== "setup" && s.phase !== "end";
     const ids = api.ids();
     const cl = live && s.mode === "classic" && s.classic !== null ? CLASSICS[s.classic] : null;
+    const rd = live && s.mode === "read" && s.read !== null ? READINGS[s.read] : null;
+    // the words: the reader has them to read over first; everyone else once the reading starts
+    const words = !!rd && (s.phase !== "brief" || s.cast.includes(pid));
     return {
       id: "drama",
       phase: s.phase,
@@ -766,12 +875,17 @@ export const drama: GameDef<S> = {
             if (scene) return { pid: c, role: scene.roles[s.roles[j]].name, brief: scene.roles[s.roles[j]].brief };
             // a famous scene: the part, how to play it, and the line to open with
             if (cl) return { pid: c, role: cl.roles[s.roles[j]].name, brief: cl.roles[s.roles[j]].play, first: cl.roles[s.roles[j]].first };
+            // a reading: the way it's read, and this piece's own direction
+            if (rd) return { pid: c, role: readKind(rd.kind)?.name ?? t("朗读", "Reading"), brief: rd.how };
             return { pid: c, role: s.pk ? PK_STYLES[s.pk.styles[c]].s : t("", ""), brief: t("", "") };
           })
         : [],
       cset: s.cset ?? "zh",
       groups: s.groups ?? [],
       classic: cl ? { id: cl.id, set: cl.set, show: cl.show, year: cl.year, title: cl.title, setup: cl.setup, beats: cl.beats, see: cl.see } : null,
+      rset: s.rset ?? "zh",
+      rkinds: s.rkinds ?? [],
+      read: rd ? { id: rd.id, set: rd.set, kind: rd.kind, title: rd.title, how: rd.how, lines: words ? rd.lines : [] } : null,
       pk: live && s.pk ? { line: PK_LINES[s.pk.line], styles: Object.fromEntries(Object.entries(s.pk.styles).map(([c, i]) => [c, PK_STYLES[i].s])) } : null,
       me: (s.phase === "brief" || s.phase === "act" || s.phase === "vote") ? card(s, pid) : null,
       ready: s.ready,
@@ -791,6 +905,7 @@ export const drama: GameDef<S> = {
       want: Object.fromEntries(Object.entries(s.want ?? {}).filter(([p]) => ids.includes(p))),
       next: upNext(s, api),
       peer: live && peerVote(s, api),
+      crowd: live && !voters(s, api).length,
       // a monologue's three secrets, for the audience to choose from
       options: live && isSolo(scene) && s.order?.length ? s.order.map((i) => scene!.secrets![i]) : null,
     };

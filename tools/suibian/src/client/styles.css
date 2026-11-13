@@ -425,11 +425,20 @@ select {
   color: var(--ink);
 }
 
-/* round 1 */
+/* round 1: the whole menu, in groups */
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.menu h3 {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
 .moods {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
 }
 .mood {
   font: inherit;
@@ -438,8 +447,8 @@ select {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: 88px;
-  padding: 12px;
+  min-height: 72px;
+  padding: 10px;
   border-radius: 14px;
   border: 2px solid var(--line);
   background: var(--surface);
@@ -448,11 +457,17 @@ select {
   cursor: pointer;
 }
 .mood .emoji {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
 }
 .mood .label {
   font-weight: 600;
+  font-size: 0.9rem;
   line-height: 1.25;
+  /* A long English word ("Mediterranean") breaks inside the chip instead of running past it. */
+  overflow-wrap: break-word;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  max-width: 100%;
 }
 .mood .mark {
   position: absolute;
@@ -561,6 +576,95 @@ select {
   align-items: center;
   font-weight: 600;
   text-decoration: none;
+}
+/* Order delivery: a fold under call and map, the four apps wrapping on a narrow phone. */
+.delivery summary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.delivery summary::-webkit-details-marker {
+  display: none;
+}
+.delivery summary::after {
+  content: "▸";
+}
+.delivery[open] summary::after {
+  content: "▾";
+}
+.delivery .links {
+  flex-wrap: wrap;
+  column-gap: 16px;
+  row-gap: 0;
+}
+/* the ranked list: rank, short intro, notes on what someone can still order, Google's summary */
+.place .head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.rank {
+  flex: none;
+  min-width: 2em;
+  height: 2em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.place .head h3 {
+  align-self: center;
+}
+.intro {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.note {
+  color: var(--warn);
+  background: var(--warn-bg);
+  padding: 8px 12px;
+  border-radius: 10px;
+  line-height: 1.45;
+}
+.note.severe {
+  color: var(--ban);
+  background: var(--ban-bg);
+  font-weight: 600;
+}
+.summary {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.summary p + p {
+  margin-top: 2px;
+}
+.summary .flag {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.place.compact .body {
+  padding: 12px 14px;
+  gap: 6px;
+}
+.place.compact h3 {
+  font-size: 1.05rem;
+}
+.place .more {
+  align-self: flex-start;
+  min-height: 44px;
+  padding-left: 0;
 }
 .vote {
   display: grid;
@@ -783,4 +887,48 @@ select {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* when: now, the next lunch or dinner, or a day and time in the coming week */
+.when {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.whenother {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.whenrow {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.whenrow .btn {
+  min-height: 44px;
+  flex: none;
+}
+/* A diet card budget too low for the occasion: said to that person, with a way to change it. */
+.budget-low {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 0.9rem;
+}
+.budget-low .btn {
+  min-height: 44px;
+  flex: none;
+}
+.planned {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--mine);
 }

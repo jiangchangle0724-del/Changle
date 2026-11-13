@@ -1,6 +1,7 @@
 // The arena without WebGL (an old phone, a browser with it switched off, a lost GPU context): the
 // same crowd, top-down, drawn with plain elements. Each place in the crowd keeps one of the three
-// looks, as in 3D, and nothing marks a player but this phone's own "you".
+// looks, as in 3D, and nothing marks a player but this phone's own "you" until the round is over:
+// then every player's name, the winner's in the gel.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
@@ -109,7 +110,7 @@ export function ArenaFallback(props: {
       {props.avatars.map((avatar, index) => (
         <div
           key={index}
-          class={`flat-avatar look-${index % 3} pose-${avatar.p}${avatar.me ? " is-me" : ""}`}
+          class={`flat-avatar look-${index % 6} pose-${avatar.p}${avatar.me ? " is-me" : ""}`}
           ref={(node) => {
             avatarNodes.current[index] = node;
           }}
@@ -126,7 +127,11 @@ export function ArenaFallback(props: {
             <span class="flat-avatar__head" />
             <span class="flat-avatar__arm" />
           </span>
-          {avatar.me && <span class="flat-avatar__you">{t("marker")}</span>}
+          {avatar.n !== undefined ? (
+            <span class={`flat-avatar__you${avatar.w ? "" : " is-name"}`}>{avatar.n}</span>
+          ) : (
+            avatar.me && <span class="flat-avatar__you">{t("marker")}</span>
+          )}
         </div>
       ))}
     </div>

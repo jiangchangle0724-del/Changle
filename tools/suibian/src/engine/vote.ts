@@ -14,9 +14,13 @@ export interface Tally {
   winner: string;
 }
 
+/** Nobody ticked anything: the spinner turns between the top of the list, not all of it. */
+export const NO_VOTES_POOL = 6;
+
 /**
  * A vetoed card is out. If everyone vetoed everything, the least-vetoed cards stay in.
- * Most approvals wins; a tie goes to `random`.
+ * Most approvals wins; a tie goes to `random`. `cards` are in the list's order, best first, so with
+ * no approvals at all only the first NO_VOTES_POOL still in tie.
  */
 export function tally(cards: string[], ballots: Ballot[], random: () => number): Tally {
   const scores = cards.map((id) => ({
@@ -27,7 +31,7 @@ export function tally(cards: string[], ballots: Ballot[], random: () => number):
   const fewest = Math.min(...scores.map((s) => s.vetoes));
   const alive = scores.filter((s) => s.vetoes === fewest);
   const best = Math.max(...alive.map((s) => s.yes));
-  const tied = alive.filter((s) => s.yes === best).map((s) => s.id);
+  const tied = (best > 0 ? alive.filter((s) => s.yes === best) : alive.slice(0, NO_VOTES_POOL)).map((s) => s.id);
   const winner = tied[Math.min(tied.length - 1, Math.floor(random() * tied.length))];
   return { scores, tied, winner };
 }

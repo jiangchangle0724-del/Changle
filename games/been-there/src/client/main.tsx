@@ -8,6 +8,7 @@ import { api, connectWs } from "./net";
 import { identity, prefs, seenTrivia } from "./prefs";
 import { installAudioUnlock, setMuted } from "./sound";
 import { installKeyboard } from "./keyboard";
+import { installReports } from "./report";
 import { getState, onServer, send, setConn, update } from "./store";
 import { App } from "./ui/App";
 import { Home } from "./ui/Home";
@@ -18,6 +19,18 @@ setMuted(prefs.muted);
 setReduced(prefs.reduced);
 installAudioUnlock();
 installKeyboard();
+installReports(() => {
+  const s = getState();
+  const tv = s.view ? s.view.you.role === "screen" : /\/tv\//.test(location.pathname);
+  const inRoom = !!s.view || /\/(r|tv)\/\d{4}/.test(location.pathname);
+  return {
+    screen: tv ? "tv" : inRoom ? "phone" : "start",
+    phase: s.view?.phase,
+    lang: prefs.lang,
+    // (no room yet, or the room is gone: nothing to be out of touch with)
+    online: s.status === "open" || s.status === "idle" || s.status === "fatal",
+  };
+});
 // iPhone Safari only shows a button pressed (:active) when the page listens for touches.
 document.addEventListener("touchstart", () => {}, { passive: true });
 document.addEventListener("keydown", (e) => {

@@ -19,9 +19,10 @@ import "../../styles/dj.css";
 import "../../styles/dj-phone.css";
 
 /**
- * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The beginner deck
- * (everyone DJs at once: the crossfader, the pads, the build-up and the drop, what plays next), a 🔥
- * to push the DJ, and for the host, the night's four stretches and the end of the set.
+ * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The player (上一曲,
+ * 暂停 or 播放, 切歌: anyone), the song box and the 歌单, the sound pads, a 🔥 to push the DJ, for the
+ * host the night's four stretches and the end of the set, and at the very bottom 跟着跳 (Steve on
+ * Nov 12: the deck's turntables, mixer, crossfader and DROP gone, dancing along moved down).
  */
 export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   // the speaker is the only music: the lounge loop stays off on this phone
@@ -82,13 +83,13 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
     <>
       <p>
         {zh
-          ? "电视或电脑打开 changle.ca/dj 就是音箱：在那上面点「开始派对」放歌。手机不出声，按 🔥 给 DJ 加油，大屏上看得到是谁。"
-          : "Open changle.ca/dj on a TV or computer and it's the speaker: press Start the party there. Phones stay quiet; press 🔥 to push the DJ, and the big screen shows who did."}
+          ? "一台公用手机投屏到电视（或者电视、电脑）打开 changle.ca/dj 就是音箱：在那上面点「开始派对」放歌，也能直接在上面点歌。别的手机不出声，按 🔥 给 DJ 加油，大屏上看得到是谁。"
+          : "Open changle.ca/dj on a phone everyone shares, mirrored to the TV (or on a TV or computer), and it's the speaker: press Start the party there, and pick songs on it too. The other phones stay quiet; press 🔥 to push the DJ, and the big screen shows who did."}
       </p>
       <p>
         {zh
-          ? "每个人的手机都是打碟台，大家可以同时按，什么都卡在拍子上，不会乱：推子在 A、B 两个碟之间混，八个效果键（回声、扫频、喇叭、刹车、警笛、激光、搓碟、倒带）下一拍响，大家一起狂点「蓄力」，满了倒数 8 秒，在 DROP 那一下按，踩准了就是完美 Drop。下面选下一首放什么，票最多的放到没在放的那个碟上，Drop 的时候直接换过去。"
-          : "Every phone is a deck and everyone can play at once; it all lands on the beat, so nothing goes wrong. The crossfader mixes decks A and B, the eight pads (echo, sweep, horn, brake, siren, laser, scratch, rewind) play from the next beat, everyone taps Build up together, and when it's full an 8-second count starts: press DROP on it, right on it is a perfect drop. Below, pick what plays next; the most picked goes on the deck that isn't playing, and a drop switches straight to it."}
+          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
+          : "Everyone can ask for songs on their phone: type a song or paste a YouTube link, and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
       </p>
       <p>
         {zh
@@ -125,9 +126,6 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
             {zh ? `没有音箱在线：在电视或电脑上打开 changle.ca/tv/${code}` : `No speaker on: open changle.ca/tv/${code} on a TV or computer`}
           </p>
         )}
-
-        {/* 跟着跳: the phone in the dancing hand, following the coach on the TV */}
-        {v.phase !== "end" && <DancePad v={v} g={g} zh={zh} />}
 
         {/* (a rooms server a moment behind the site, mid-deploy, sends no deck yet) */}
         {v.deck && <DeckPad v={v} />}
@@ -213,6 +211,9 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
         )}
         {/* the host's songs: on the TV's computer, sent there from this phone, and the switch to them */}
         {isHost && v.phase !== "end" && <MySongs v={v} />}
+
+        {/* 跟着跳: the phone in the dancing hand, following the coach on the TV (at the very bottom, Steve on Nov 12) */}
+        {v.phase !== "end" && <DancePad v={v} g={g} zh={zh} />}
       </div>
     </NetFrame>
   );

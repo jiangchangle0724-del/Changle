@@ -47,6 +47,8 @@ const UserPage = lazy(() => import("./account/UserPage").then((m) => ({ default:
 const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default: m.ChatPage })));
 const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
 const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default: m.SignInSheet })));
+// 两清 (changle.ca/split): its screens and its arithmetic load when someone opens it
+const SplitApp = lazy(() => import("./split/SplitApp").then((m) => ({ default: m.SplitApp })));
 
 /** A one-phone game that ran a minute or more goes into the signed-in player's history. */
 function useSoloHistory(route: Route) {
@@ -82,8 +84,9 @@ function Shell() {
   const route = useRoute();
   const { sound, music, players, lang } = useStore();
   // a game opened by a link with fewer players than it needs on this phone: its card on the home
-  // page first, to add people (or play online), instead of a game that can't work
-  const short = route.kind === "game" && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
+  // page first, to add people (or play online), instead of a game that can't work (a link of the
+  // game's own, a 猜歌名 challenge, opens the game: one person can take it on)
+  const short = route.kind === "game" && !route.c && players.length < (GAME_BY_ID[route.id].solo?.min ?? GAME_BY_ID[route.id].minPlayers);
   const { signInOpen, openSignIn } = useAccount();
   // 再来一局 in a game's tally: the same game again from nothing (a new key mounts it afresh)
   const [restarts, setRestarts] = useState(0);
@@ -166,6 +169,7 @@ function Shell() {
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "chat") screen = <ChatPage key={route.id} id={route.id} onBack={back} />;
+  else if (route.kind === "split") screen = <SplitApp id={route.id} onBack={back} />;
   else if (route.kind === "game") {
     switch (route.id) {
       case "rogue":
@@ -214,7 +218,7 @@ function Shell() {
         screen = <Limbo onBack={back} />;
         break;
       case "tune":
-        screen = <Tune onBack={back} />;
+        screen = <Tune onBack={back} challenge={route.c} />;
         break;
       case "euchre":
         screen = <Euchre onBack={back} />;

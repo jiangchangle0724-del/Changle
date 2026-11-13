@@ -18,7 +18,14 @@ import { gzipSync } from "node:zlib";
 // KB, gzip. JS was 150 until A6 step 2 took GSAP out (147.7 → 115.7). 118 → 119 with 最后一张 (2026-11-05):
 // main stood at 117.96 and a new game's card (its words in two languages, its icon, its lazy route) adds
 // about 0.6, so no new game fitted any more; the game itself still loads only when it starts.
-const BUDGET = { js: 119, css: 22 };
+// 119 → 120 with 一起跳 going live (2026-11-05): main stood at 118.9 and its card (two languages, the
+// stage and join buttons) adds 0.3; the game is another Worker, so nothing of it loads here at all.
+// 120 → 121 (2026-11-11): main stood at 120.1, over it. The DJ booth's card took 0.4 with its shared
+// phone (#338: its words in two languages, and the few lines that wake the sound, which only work
+// inside the card's own tap, so they can't load later), and 最佳称号 and 林波舞 the rest since.
+// 121 → 122 (2026-11-11): main stood at 121.0. 一起跳's card now says to mirror this phone or computer
+// to the TV (Steve's words, both languages, a `mirror` flag on its stage) and adds 0.2.
+const BUDGET = { js: 122, css: 22 };
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const html = readFileSync(join(dist, "index.html"), "utf8");

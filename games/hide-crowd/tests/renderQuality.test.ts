@@ -39,8 +39,8 @@ test("quality recovers only after five fast windows and never jumps two tiers", 
 });
 
 test("pixel density respects device resolution and each quality budget", () => {
-  assert.equal(pixelRatioForQuality(3, "high"), 1.65);
-  assert.equal(pixelRatioForQuality(3, "efficient"), 1.05);
+  assert.equal(pixelRatioForQuality(3, "high"), 2.25);
+  assert.equal(pixelRatioForQuality(3, "efficient"), 1.15);
   assert.equal(pixelRatioForQuality(1.2, "balanced"), 1.2);
   assert.equal(pixelRatioForQuality(0, "high"), 1);
 });

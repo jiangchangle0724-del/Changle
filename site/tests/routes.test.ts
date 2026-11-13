@@ -1,6 +1,7 @@
 /* The site's addresses (src/router.ts). Run with `npx tsx tests/routes.test.ts` */
 import { GAMES } from "../src/games/registry";
-import { fromLegacyHash, gameFrom, parse, pathOf, titleOf, type Route } from "../src/router";
+import { fromLegacyHash, gameFrom, parse, pathOf, stageOf, titleOf, type Route } from "../src/router";
+import { ONLINE_GAMES } from "../src/shared/protocol";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -35,6 +36,14 @@ for (const g of GAMES) {
     ok(same(play, { kind: "tv", game: g.id }) && pathOf(play) === g.speaker, `/g/${g.slug}/play is its big screen, ${g.speaker}`);
     continue;
   }
+  if (g.stage) {
+    // on its own Worker (一起跳): its card here, and the page leaves for the stage
+    ok(same(play, { kind: "home", tab: "party", game: g.id }), `/g/${g.slug}/play shows its card while it leaves`);
+    ok(stageOf(`/g/${g.slug}/play`) === g.stage.screen && stageOf(`/g/${g.slug}/play/`) === g.stage.screen, `/g/${g.slug}/play goes to ${g.stage.screen}`);
+    ok(stageOf(`/g/${g.slug}`) === null, `/g/${g.slug} stays on its card`);
+    ok(!ONLINE_GAMES.includes(g.id as never), `${g.id} has no table game`);
+    continue;
+  }
   ok(g.ready ? same(play, { kind: "game", id: g.id }) : play.kind === "home", `/g/${g.slug}/play ${g.ready ? "is the game" : "is its card (not playable yet)"}`);
 }
 
@@ -56,8 +65,13 @@ const pages: Route[] = [
   { kind: "tv", code: "WXYZ", game: "punchline" },
   { kind: "tv", game: "dj" },
   { kind: "djtest" },
+  { kind: "split" },
+  { kind: "split", id: "doVm5qAluIJHUA77i3DeVA" },
 ];
 for (const r of pages) ok(same(at(pathOf(r)), r), `${pathOf(r)} round-trips`);
+// a game's own link (猜歌名's challenges) keeps its ?c=, and only one that could be one
+ok(same(at("/g/name-that-tune/play?c=MXx6aC1lbg_x"), { kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) && pathOf({ kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) === "/g/name-that-tune/play?c=MXx6aC1lbg_x", "a game's link of its own (?c=) stays on the address");
+ok(same(at("/g/name-that-tune/play?c=%3Cscript%3E"), { kind: "game", id: "tune" }) && same(at("/g/name-that-tune?c=MXx6aC1lbg"), { kind: "home", tab: "party", game: "tune" }), "a ?c= that can't be one is dropped; a card has none");
 
 // addresses written another way land on the site's own spelling
 ok(pathOf(at("/g/truth")) === "/g/truth-or-dare", "/g/truth (an old id) becomes /g/truth-or-dare");
@@ -72,6 +86,11 @@ ok(at("/dev/show").kind === "home", "the development-only page isn't there outsi
 ok(pathOf(at("/dj")) === "/dj" && same(at("/dj"), { kind: "tv", game: "dj" }), "/dj is the big screen with the DJ booth up, and keeps its short address");
 ok(pathOf(at("/DJ/test/")) === "/dj/test", "/dj/test is the booth's sound check");
 ok(pathOf(at("/tv?g=dj-booth")) === "/dj", "/tv?g=dj-booth is /dj");
+// 两清: the list of ledgers, and one ledger by an id only its phone knows
+ok(pathOf(at("/split/")) === "/split", "/split/ is /split");
+ok(same(at("/split/a_b-C9"), { kind: "split", id: "a_b-C9" }), "a ledger's id is letters, digits, - and _, kept as written");
+ok(at("/split/short").kind === "home" && at("/split/has.dot.in.it").kind === "home" && at(`/split/${"x".repeat(65)}`).kind === "home", "what couldn't be a ledger's id isn't a page");
+ok(at("/split/abcdef/more").kind === "home", "nor is anything under a ledger");
 
 // links from before the change
 const legacy: [string, string | null][] = [
@@ -103,6 +122,7 @@ ok(titleOf({ kind: "home", tab: "party" }, "zh") === "开席 Lazy Susan", "home'
 ok(titleOf({ kind: "game", id: "truth" }, "en") === "真心话大冒险 Truth or Dare · 开席 Lazy Susan", "a game's title has both names");
 ok(titleOf({ kind: "room", code: "ABCD" }, "zh").startsWith("桌号 ABCD"), "a table's title in Chinese");
 ok(titleOf({ kind: "room", code: "ABCD" }, "en").startsWith("Table ABCD"), "a table's title in English");
+ok(titleOf({ kind: "split" }, "zh").startsWith("两清") && titleOf({ kind: "split", id: "abcdef" }, "en").startsWith("All Square"), "两清's title, in each language");
 
 if (failed) {
   console.log(`\n${failed} failure(s)`);

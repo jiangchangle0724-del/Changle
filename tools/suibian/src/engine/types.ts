@@ -4,31 +4,51 @@ export type Lang = "zh" | "en";
 export type Text = Record<Lang, string>;
 
 export type CuisineId =
+  // Chinese
   | "cantonese"
   | "hk_cafe"
   | "sichuan"
   | "hotpot"
   | "taiwanese"
+  | "shanghai"
+  | "northern"
+  | "noodles"
+  | "chinese_bbq"
   | "chinese"
+  // the rest of Asia
   | "japanese"
   | "ramen"
+  | "izakaya"
   | "korean"
+  | "kbbq"
   | "vietnamese"
   | "thai"
+  | "filipino"
+  /** Malaysian, Singaporean, Indonesian. */
   | "sea"
   | "indian"
-  | "middle_eastern"
+  // Western and the rest
   | "italian"
   | "mexican"
+  /** American: burgers, diners, pubs, casual chains. */
   | "western"
+  | "steak"
+  | "french"
+  | "mediterranean"
+  | "middle_eastern"
   | "seafood"
   | "vegetarian"
   | "brunch"
+  | "cafe"
   | "other";
 
 export type AllergenId = "peanut" | "treenut" | "shellfish" | "fish" | "sesame" | "soy" | "chili" | "egg" | "dairy" | "gluten";
 
-/** "avoid": I don't eat it (warn when ordering). "severe": rule out places where it is everywhere. */
+/**
+ * "avoid": I don't eat it. "severe": a real allergy. Neither rules a place out (the owner's call,
+ * 2026-11-11): places where it is common move down the list, severe ones to the very bottom, each
+ * with a note on what can still be ordered.
+ */
 export type AllergyLevel = "avoid" | "severe";
 
 /** Per-person budget ceiling in CAD; 0 means no limit. */
@@ -40,10 +60,10 @@ export interface CustomItem {
   level: AllergyLevel;
 }
 
-/** One person's hard limits. Never shown to others with their name on it. */
+/** One person's limits. Never shown to others with their name on it. Only the budget rules a place out. */
 export interface Limits {
   allergies: Partial<Record<AllergenId, AllergyLevel>>;
-  /** Can't be matched to cuisines, so these only warn, never rule a place out. */
+  /** Can't be matched to cuisines, so these only warn. */
   custom: CustomItem[];
   halal: boolean;
   vegetarian: boolean;
@@ -65,12 +85,22 @@ export interface Place {
   ratings?: number;
   /** Rough lowest price per person in CAD, from Google's price range or level. */
   price?: number;
+  /** Highest price per person in CAD, when Google gives a range. */
+  priceTo?: number;
   /** "$" to "$$$$". */
   priceLabel?: string;
+  /** Up to three dishes it's known for, guessed from its name and Google type (keys of DISHES). */
+  dishes?: string[];
+  /** Google's AI summary of the place (English only in Canada), shown with its disclosure and a flag link. */
+  summary?: { text: string; disclosure: string; flag?: string };
   openNow?: boolean;
   /** When it next closes (ms since epoch). */
   closesAt?: number;
+  /** When it's open in the coming week, as [opens, closes] in ms since epoch (Google's dated hours). */
+  hours?: [number, number][];
   reservable?: boolean;
+  /** What Google says about it beyond the food, for the occasion (occasion.ts). */
+  traits?: Traits;
   /** Google's servesVegetarianFood; undefined when Google doesn't say. */
   veg?: boolean;
   /** "yes": says halal in its name or description. */
@@ -94,6 +124,42 @@ export interface Place {
   ours?: PlaceStats;
   demo?: boolean;
 }
+
+/** Google's "atmosphere" fields (good for groups, kids, serves wine…) and a few of its types. */
+export interface Traits {
+  groups?: boolean;
+  kids?: boolean;
+  kidsMenu?: boolean;
+  wine?: boolean;
+  beer?: boolean;
+  cocktails?: boolean;
+  dessert?: boolean;
+  music?: boolean;
+  outdoor?: boolean;
+  /** Google calls it fast food, a bar or pub, or fine dining (any of its types). */
+  fastFood?: boolean;
+  bar?: boolean;
+  fineDining?: boolean;
+  /** Google calls it a family restaurant, or a buffet. */
+  family?: boolean;
+  buffet?: boolean;
+  /** Which meals Google says it serves. */
+  breakfast?: boolean;
+  brunch?: boolean;
+  lunch?: boolean;
+  dinner?: boolean;
+  /** You can eat there (false: takeout only). */
+  dineIn?: boolean;
+  /** The kind of place, from Google's main type, when it isn't a plain restaurant. */
+  kind?: PlaceKind;
+}
+
+/**
+ * A place that isn't a sit-down restaurant, from Google's main type: a café or tea house, a bakery or
+ * dessert shop, a breakfast or bagel place, a counter (sandwiches, food court, takeout only), fast
+ * food, or a bar.
+ */
+export type PlaceKind = "cafe" | "sweets" | "breakfast" | "counter" | "fastFood" | "bar";
 
 export interface PlaceStats {
   up: number;
@@ -126,6 +192,8 @@ export interface Badge {
   label: Text;
   year?: number;
   url?: string;
+  /** A list for an occasion (most romantic, best private rooms, family-friendly, late night…): which ones. */
+  occasions?: string[];
 }
 
 /** A post about a place on a food-blogger platform (小红书, 抖音, TikTok, Instagram, YouTube, a blog). */

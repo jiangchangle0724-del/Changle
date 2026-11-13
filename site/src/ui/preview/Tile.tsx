@@ -67,6 +67,14 @@ export function TilePreview({ lang }: { lang: Lang }) {
           soon
           onOpen={() => setOpened(opened + 1)}
         />
+        <Tile
+          {...items[4]}
+          lang={lang}
+          isNew
+          line={lang === "zh" ? "吃什么？随便。让大家的手机来定" : "Where should we eat? Whatever's fine. Let everyone's phones decide."}
+          href="#Tile"
+          onOpen={() => setOpened(opened + 1)}
+        />
       </div>
       <output className="ui-preview-output">{opened}</output>
     </div>

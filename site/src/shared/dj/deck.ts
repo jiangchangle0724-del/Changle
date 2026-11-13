@@ -14,10 +14,11 @@ export const rested = (reqOn: Record<string, number>, by: string, now: number) =
 /**
  * The order the songs waiting come up in, if nothing changes: first come, first played, but a
  * player whose song came on the air in the last 10 minutes waits behind the others (the plan: one
- * person's two songs 10 minutes apart; alone, theirs still plays).
+ * person's two songs 10 minutes apart; alone, theirs still plays). Songs 上一曲 put back go first.
  */
-export function reqOrder<R extends { by: string }>(reqs: R[], reqOn: Record<string, number>, now: number): R[] {
-  return [...reqs.filter((r) => rested(reqOn, r.by, now)), ...reqs.filter((r) => !rested(reqOn, r.by, now))];
+export function reqOrder<R extends { by: string; back?: true }>(reqs: R[], reqOn: Record<string, number>, now: number): R[] {
+  const rest = reqs.filter((r) => !r.back);
+  return [...reqs.filter((r) => r.back), ...rest.filter((r) => rested(reqOn, r.by, now)), ...rest.filter((r) => !rested(reqOn, r.by, now))];
 }
 
 export function freshDeck(): DeckState {
@@ -56,6 +57,9 @@ export function freshDeck(): DeckState {
     songs: { a: null, b: null },
     played: [],
     ending: null,
+    paused: 0,
+    tap: false,
+    ctlAt: 0,
     crateAt: 0,
     speakerAt: 0,
     decksAt: 0,
@@ -164,16 +168,16 @@ export function beatAt(grid: DeckState["grid"], now: number): number {
  * Where a drop lands, aimed at `now` (the build-up just filled, or a countdown passed with nobody
  * pressing): the first bar that's a multiple of DECK.every at least DECK.minBeats beats away; and
  * the cue a beat before it. Without the speaker's bars, a few seconds on (the speaker lands it on
- * its next bar).
+ * its next bar). 点歌模式's quiet switch passes its own: any bar, DECK.jukeBeats away.
  */
-export function aim(grid: DeckState["grid"], now: number): { bar: number; at: number; cue: number } {
+export function aim(grid: DeckState["grid"], now: number, minBeats: number = DECK.minBeats, every: number = DECK.every): { bar: number; at: number; cue: number } {
   const beat = beatMsOf(grid);
   if (!grid) {
-    const at = now + DECK.minBeats * beat;
+    const at = now + minBeats * beat;
     return { bar: -1, at, cue: at - beat };
   }
-  const want = beatAt(grid, now) + DECK.minBeats;
-  const bar = Math.ceil(want / 4 / DECK.every - 1e-9) * DECK.every;
+  const want = beatAt(grid, now) + minBeats;
+  const bar = Math.ceil(want / 4 / every - 1e-9) * every;
   const at = grid.at + (bar - grid.bar) * 4 * beat;
   return { bar, at, cue: at - beat };
 }

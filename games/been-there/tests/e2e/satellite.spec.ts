@@ -155,7 +155,7 @@ test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自�
   await startWithComputers(p, code, 3);
   // Note every flight on the laptop's map as it comes: hidden until its take-off, then flown.
   await p.page.evaluate(() => {
-    const w = window as unknown as { flights: { from: string; to: string; hiddenFirst: boolean; added: number; flew?: number; moves: string[]; landed?: number; d: string }[] };
+    const w = window as unknown as { flights: { from: string; to: string; hiddenFirst: boolean; added: number; flew?: number; afterLand?: number | null; moves: string[]; landed?: number; d: string }[] };
     w.flights = [];
     new MutationObserver(() => {
       for (const el of document.querySelectorAll<SVGGElement>(".stage .flight.fly")) {
@@ -163,16 +163,25 @@ test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自�
         if (!f) {
           f = { from: el.dataset.from!, to: el.dataset.to!, hiddenFirst: getComputedStyle(el).visibility === "hidden", added: performance.now(), moves: [], d: el.querySelector(".route")?.getAttribute("d") ?? "" };
           Object.defineProperty(f, "el", { value: el });
+          // (the moves on the board as the flight comes, its own among them: our own ride, or another
+          // team's stamp waiting beside its token. A move begun after it isn't its own.)
+          Object.defineProperty(f, "marks", { value: Array.from(document.querySelectorAll(".stage .ride, .stage .other-stamp")) });
           w.flights.push(f);
         }
-        if (el.classList.contains("flying") && f.flew === undefined) f.flew = performance.now();
+        if (el.classList.contains("flying") && f.flew === undefined) {
+          f.flew = performance.now();
+          // (how long after the landing those moves planned, the latest of them: its own)
+          const marks = (f as unknown as { marks: HTMLElement[] }).marks;
+          const lands = marks.filter((e) => e.isConnected).map((e) => Number(e.dataset.land)).filter((n) => n > 0);
+          f.afterLand = lands.length ? Date.now() - Math.max(...lands) : null;
+        }
         const tf = el.querySelector(".fly-token")?.getAttribute("transform");
         if (tf && f.moves[f.moves.length - 1] !== tf) f.moves.push(tf);
         if (el.classList.contains("landed") && f.landed === undefined) f.landed = performance.now();
       }
     }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "transform"] });
   });
-  type Seen = { from: string; to: string; hiddenFirst: boolean; added: number; flew?: number; moves: string[]; landed?: number; d: string };
+  type Seen = { from: string; to: string; hiddenFirst: boolean; added: number; flew?: number; afterLand?: number | null; moves: string[]; landed?: number; d: string };
   const flights = () => p.page.evaluate(() => (window as unknown as { flights: Seen[] }).flights.map((f) => ({ ...f })));
   const done = (f: Seen) => f.landed !== undefined && f.flew !== undefined;
   for (const end = Date.now() + 180_000; Date.now() < end; ) {
@@ -184,10 +193,13 @@ test("飞行：从上一座城市沿大圆航线飞到这一座，这一队自�
   const flown = fs.find((f) => done(f) && f.hiddenFirst);
   expect(flown, `a flight flown on the map (seen: ${JSON.stringify(fs.map((f) => [f.from, f.to, f.hiddenFirst, !!f.flew, !!f.landed]))})`).toBeTruthy();
   const f = flown!;
-  // It waited for the token to walk round the ring and land, then took off. (By the clock of the
-  // walk: a busy machine may draw the flight only late in the walk, so how long it was there before
-  // it took off varies, 416 ms once on GitHub. One that took off at once would show 0 to 16.)
-  expect(f.flew! - f.added, "the flight takes off after the token is down").toBeGreaterThan(200);
+  // It waited for the token to walk round the ring and land, then took off, 250 ms after the landing
+  // this page planned for the move (its stamp's `data-land`). By that clock, not by how long the flight
+  // was drawn before it took off: a busy machine draws it late in the walk (on GitHub's WebKit, with
+  // no GPU and the laptop's board leaning back, 95 ms before its take-off once). A timer is never
+  // early, so this holds however busy; one that took off at once would be well before the landing.
+  console.log(`the flight took off ${f.afterLand} ms after the landing, ${Math.round(f.flew! - f.added)} ms after it was drawn`);
+  expect(f.afterLand, "the flight takes off after the token is down").toBeGreaterThan(200);
   // The token flew it: it moved, frame after frame, toward the city it lands on, and then stepped off
   // the map. (A busy machine may draw only a few of its frames: it's where they put it that counts.)
   expect(f.moves.length, "the token moves along the route").toBeGreaterThanOrEqual(2);

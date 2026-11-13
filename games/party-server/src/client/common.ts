@@ -1,8 +1,8 @@
 // What both pages share: the language, the room's WebSocket, clock sync and the screen wake lock.
 import { estimateClockOffset, type ClockOffsetEstimate, type ClockProbe } from "../../../party-base/src/index";
-import type { ClientMsg, ServerMsg } from "../shared/protocol";
+import type { ClientMsg, Lang, ServerMsg } from "../shared/protocol";
 
-export type Lang = "zh" | "en";
+export type { Lang };
 
 let lang: Lang = (() => {
   try {
@@ -15,9 +15,11 @@ let lang: Lang = (() => {
 })();
 
 export const getLang = () => lang;
-export function setLang(l: Lang) {
+/** The page's language; `keep`: remembered for next time (the TV's, taken from its host, isn't). */
+export function setLang(l: Lang, keep = true) {
   lang = l;
   document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
+  if (!keep) return;
   try {
     localStorage.setItem("party:lang", l);
   } catch {

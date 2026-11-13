@@ -7,6 +7,7 @@ import type { Rank, Suit } from "../data/rogue13";
 import type { Dancer } from "./dj/dance";
 import type { CrateSong, DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
 import type { LcColor, LcPending } from "./lastcard/cards";
+import type { StraightFaceView } from "./straightface/types";
 
 export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 export const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
@@ -32,15 +33,16 @@ export type GameId =
   | "trip"
   | "dj"
   | "hide"
-  | "lastcard";
+  | "lastcard"
+  | "straightface";
 /**
  * Every game, in the same spectrum order as the front door's board. New games that aren't on the
  * board yet go on the end (a table's `front` is an index into this list).
  */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard"];
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
-  drama: 3,
+  drama: 1,
   rogue: 2,
   superlatives: 3,
   king: 3,
@@ -59,6 +61,7 @@ export const ONLINE_MIN: Record<GameId, number> = {
   dj: 1,
   hide: 2,
   lastcard: 2,
+  straightface: 3,
 };
 
 export type PenaltyKind = "sip" | "two" | "full" | "everyone" | "safe";
@@ -78,6 +81,8 @@ export type Fx =
   | "camera"
   | "nose"
   | "wc"
+  | "trouble"
+  | "buddy"
   | "dice"
   | "reveal"
   | "correct"
@@ -139,7 +144,10 @@ export type RogueView = {
   holders: RogueHolders;
   wcUsed: boolean;
   reshuffled: boolean;
-  garden: { kind: number; speaker: string; endsAt: number; said: number } | null;
+  /** the camera and the nose rest a minute after each use: when each may go again (ms) */
+  cool?: { camera?: number; nose?: number };
+  /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
+  garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;
   sevens: { n: number; speaker: string; endsAt: number; log: { pid: string; n: number; pass: boolean }[] } | null;
   interrupt: { kind: "camera"; by: string; phase: "freeze" | "judge"; endsAt: number } | { kind: "nose"; by: string; endsAt: number; tapped: string[] } | null;
@@ -189,13 +197,23 @@ export type DrawView = {
   drawer: string;
   d: 1 | 2 | 3;
   endsAt: number;
-  hint: { zh: number; en: string } | null;
+  /** How long the word is: its Chinese characters and any letters in it (深夜emo is 2 and 3), the English as blanks. */
+  hint: { zh: number; latin: number; en: string } | null;
   word: T | null;
   guesses: { pid: string; text: string; ok: boolean }[];
   solved: string[];
   scores: Record<string, number>;
   round: number;
+  /** The drawer who left before their round was over: no penalty, and `drawer` already holds who draws next. */
+  left: string | null;
+  /** Nobody got it because nobody was left to guess (everyone else left): no penalty. */
+  alone: boolean;
 };
+
+/** 你画我猜: the longest guess a phone sends and the rooms server keeps (every answer fits, with room to spare). */
+export const DRAW_GUESS_MAX = 40;
+/** 你画我猜: one round's clock, online as on one phone (the game's card says a minute). */
+export const DRAW_ROUND_MS = 60_000;
 
 export type KingView = {
   id: "king";
@@ -261,7 +279,11 @@ export type SuperView = {
   title: T;
   /** written by the host rather than drawn from the deck */
   custom: boolean;
+  /** this ballot's number: a vote names it (`g: { x: "vote", target, ballot }`), and one for an older ballot is dropped */
+  ballot: number;
   endsAt: number;
+  /** when the winner's stamp (or the ceremony's toast) lands, on the room's clock; 0 once it has: the host moves on only after */
+  stampAt: number;
   voted: string[];
   myVote: string | null;
   counts: Record<string, number> | null;
@@ -422,6 +444,10 @@ export type TuneView = {
   pool: string;
   /** everyone answers at once from four titles, no buzzer */
   quiz: boolean;
+  /** songs mode: the four titles come without their singers, the wrong ones by the same singer */
+  hard: boolean;
+  /** songs mode: one second first, then three, then the rest (each from `hook`) */
+  snap: boolean;
   phase: "ready" | "listen" | "answer" | "reveal" | "end";
   round: number;
   total: number;
@@ -446,6 +472,8 @@ export type TuneView = {
   audio: string | null;
   /** server time the preview's first second plays (moves on after a pause) */
   startAt: number;
+  /** one second: ms into the preview where every snippet starts */
+  hook: number;
   /** ms into the preview where the reveal picks up */
   revealPos: number;
   /** the next preview, so phones can load it while this one plays */
@@ -601,12 +629,16 @@ export type HideView = {
 export type DramaCard = { secret: T; culprit: boolean; task: T };
 /** Whose everyday a scene is set in: Chinese, Canadian, South Asian, Filipino, Korean, Japanese, Iranian, European. */
 export type DramaGroupKey = "cn" | "ca" | "sa" | "ph" | "kr" | "jp" | "ir" | "eu";
+/** 朗读: the way a piece is read (through tears, with a straight face, a breakup, a royal memorial...). */
+export type DramaReadKind = "cry" | "deadpan" | "breakup" | "court" | "anchor" | "rant" | "melodrama" | "sell" | "sorry" | "voice" | "deep";
+/** 朗读: where the pieces come from: the Chinese internet, the English internet, or things everyone knows. */
+export type DramaReadSet = "zh" | "en" | "both";
 
 export type DramaView = {
   id: "drama";
   phase: "setup" | "brief" | "act" | "vote" | "reveal" | "end";
-  /** a scene with a hidden culprit, a quick acting duel, or a famous film or TV moment */
-  mode: "show" | "pk" | "classic";
+  /** a scene with a hidden culprit, a quick acting duel, a famous film or TV moment, or one person reading a piece aloud */
+  mode: "show" | "pk" | "classic" | "read";
   level: "all" | "spicy";
   diff: "easy" | "hard";
   /** what the losers do: drink, exercise, or a forfeit */
@@ -645,6 +677,8 @@ export type DramaView = {
     gained: Record<string, number>;
     /** a monologue: which of `options` was the actor's real secret */
     answer?: number | null;
+    /** no votes to count (nobody voted, or nobody at the table could): the truth only, no points */
+    quiet?: boolean;
   } | null;
   scores: Record<string, number>;
   /** best-actor awards so far */
@@ -661,6 +695,11 @@ export type DramaView = {
   next?: { lo: number; hi: number; ok: boolean; auto: boolean };
   /** nobody is watching: the actors vote on each other */
   peer?: boolean;
+  /**
+   * Nobody at the table can vote (one person, on stage): the room guesses out loud and the host
+   * reveals the answer; no points.
+   */
+  crowd?: boolean;
   /** a monologue: three secrets, one of them the actor's, for the audience to choose from */
   options?: T[] | null;
   /** 名场面: the set the host picked (Chinese film and TV, or English) */
@@ -669,6 +708,14 @@ export type DramaView = {
   groups?: DramaGroupKey[];
   /** the famous scene on now; `see` is what to search for to watch the original */
   classic?: { id: string; set: "zh" | "en"; show: T; year: number; title: T; setup: T; beats: T[]; see: string } | null;
+  /** 朗读: the set the host picked, and the kinds of piece on (none: every kind) */
+  rset?: DramaReadSet;
+  rkinds?: DramaReadKind[];
+  /**
+   * The piece being read: everyone sees its kind, title and how to read it; its lines reach the
+   * reader first, and everyone once the reading starts (empty until then).
+   */
+  read?: { id: string; set: DramaReadSet; kind: DramaReadKind; title: T; how: T; lines: T[] } | null;
 };
 
 /** 打碟 · DJ Booth (the shapes behind it: src/shared/dj/types.ts). */
@@ -718,6 +765,10 @@ export type DjView = {
   voice: boolean;
   /** the 歌单 plays in a random order (the host's switch), else first come, first played */
   shuffle: boolean;
+  /** 点歌模式 (the host's switch): no build-up or DROP, the songs asked for one after another */
+  juke: boolean;
+  /** the song's video over the whole TV (anyone's switch), else in its corner */
+  full: boolean;
   /** 跟着跳: each dancer's night, and the floor's combo (0 to 1; full: fireworks) */
   dance: Record<string, Dancer>;
   combo: number;
@@ -726,7 +777,7 @@ export type DjView = {
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
-export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "mixAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "reqs" | "up" | "now" | "heard"> & {
+export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "mixAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "ctlAt" | "reqs" | "up" | "now" | "heard"> & {
   reqs: ReqView[];
   up: ReqView | null;
   now: ReqView | null;
@@ -764,7 +815,8 @@ export type GameView =
   | LimboView
   | TuneView
   | EuchreView
-  | LastCardView;
+  | LastCardView
+  | StraightFaceView;
 
 export type RoomView = {
   code: string;

@@ -1,5 +1,6 @@
 /* 打碟 · DJ Booth: the pads' own sounds (speaker/club.ts), the part that needs no sound card: each
-   press a take of its own. The sounds themselves are heard in a browser (scripts/dj_turntable_check.py).
+   press a take of its own. The sounds themselves were heard in a browser by scripts/dj_turntable_check.py
+   (retired on Nov 12 with the phones' turntables: in git's history).
    Run with `npx tsx tests/dj-sound.test.ts`. */
 import { AS_MADE, nextTake } from "../src/party/dj/speaker/club";
 

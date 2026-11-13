@@ -17,7 +17,7 @@ import "../../styles/hide.css";
  */
 export function NetHide({ v, onLeave }: { v: HideView; onLeave: () => void }) {
   const { room, me, isHost, g, act, nameOf } = useRoom();
-  const { lang } = useStore();
+  const { lang, sound } = useStore();
   const zh = lang === "zh";
   const table = room?.code ?? "";
   const watching = !!room?.seats.find((s) => s.id === me)?.watch;
@@ -27,7 +27,7 @@ export function NetHide({ v, onLeave }: { v: HideView; onLeave: () => void }) {
   const asked = useRef(false);
 
   const go = (code: string) => {
-    handOff(nameOf(me), lang);
+    handOff(nameOf(me), lang, sound);
     markWent(code);
     window.location.assign(hideUrl(code, table));
   };

@@ -8,7 +8,7 @@ import { sfx } from "../sound";
 import { getState, send, serverNow } from "../store";
 import { Assets } from "./Assets";
 import { Board, moodOf, reducedMotion, thisGame } from "./Board";
-import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, seatName, teamOf, useCountdown } from "./common";
+import { Btn, Countdown, Money, SeatChip, Sheet, TeamChip, hostOf, moneyOrHidden, seatName, teamOf, useCountdown } from "./common";
 import { Decision, pendingSummary } from "./Decision";
 import { feedText } from "./feedText";
 import { ForfeitHold } from "./Forfeit";
@@ -26,10 +26,12 @@ import { IdleNote, useIdleWarn } from "./TurnClock";
 import { useWakeLock } from "../wake";
 import { SpeedMeter } from "./SpeedMeter";
 import { SambaLesson, useDanceClock } from "./Samba";
+import { ReactBubbles, ReactButton } from "./Reactions";
+import { WorldBanner, WorldCard } from "./World";
 
 type Panel = "mine" | "trade" | "log";
 /** The parts of the play window, in the order they stack (see `asks` in Game). */
-type Part = "arrival" | "card" | "decision" | "news" | "trivia";
+type Part = "arrival" | "card" | "decision" | "news" | "world" | "trivia";
 
 /**
  * A player's screen. The board is always there; what the team has to do comes up over it in a
@@ -96,9 +98,10 @@ export function Game({ v }: { v: RoomView }) {
     card: <TurnCard key="card" v={v} />,
     decision: <Decision key="decision" v={v} />,
     news: <NewsBanner key="news" v={v} />,
+    world: <WorldBanner key="world" v={v} />,
     trivia: <TriviaCard key="trivia" v={v} />,
   };
-  const asks: Part[] = myMove ? ["decision", "arrival", "card", "news", "trivia"] : ["arrival", "card", "decision", "news", "trivia"];
+  const asks: Part[] = myMove ? ["decision", "arrival", "card", "world", "news", "trivia"] : ["arrival", "card", "decision", "world", "news", "trivia"];
   // A new question goes back to the top of the window, where it is (the player may have scrolled
   // down to read the arrival card during the last one).
   const playBody = useRef<HTMLDivElement>(null);
@@ -139,7 +142,13 @@ export function Game({ v }: { v: RoomView }) {
           urgent={urgent}
           onRideReady={setReadyKey}
           onRideDone={rideDone}
-          over={<JailFx v={v} ride={ride} />}
+          over={
+            <>
+              <JailFx v={v} ride={ride} />
+              <ReactBubbles v={v} />
+              <ReactButton v={v} hidden={!!ride} />
+            </>
+          }
         />
         <BoardNote v={v} />
       </main>
@@ -218,6 +227,8 @@ export function Game({ v }: { v: RoomView }) {
       <Touchdown v={v} after={rideEnd(ride)} />
       <LocalSong v={v} />
       <QuizPop v={v} />
+      {/* (over the play window too: on its own turn a team would miss it) */}
+      <WorldCard v={v} />
       <ForfeitHold v={v} />
     </div>
   );
@@ -405,7 +416,7 @@ export function Standings({ v, big, until }: { v: RoomView; big?: boolean; until
   const hold = until ?? moveInPlay(v)?.ready ?? 0;
   const ps = useHeld(s.ps, hold);
   const worth = useHeld(g.worth, hold);
-  return (
+  const list = (
     <ul class={`standings${big ? " big" : ""}`}>
       {ps.map((p, seat) => {
         const team = teamOf(v, seat);
@@ -413,10 +424,10 @@ export function Standings({ v, big, until }: { v: RoomView; big?: boolean; until
           <li key={seat} class={`${seat === s.turn ? "turn" : ""}${p.out ? " out" : ""}`}>
             <TeamChip team={team} small={!big} mood={moodOf(v, seat)} />
             {!big && <span class="name">{seatName(v, seat)}</span>}
-            <span class="num">{money(worth[seat])}</span>
+            <span class="num">{moneyOrHidden(worth[seat])}</span>
             {big && (
               <small class="muted num cash">
-                {t("cash")} {money(p.cash)}
+                {t("cash")} {moneyOrHidden(p.cash)}
               </small>
             )}
             {p.jail && <small class="tag">{t("inJail")}</small>}
@@ -435,6 +446,13 @@ export function Standings({ v, big, until }: { v: RoomView; big?: boolean; until
         );
       })}
     </ul>
+  );
+  if (!v.settings.hideCash || s.over) return list;
+  return (
+    <>
+      {list}
+      <p class="hint cash-note">{t("cashHiddenNote")}</p>
+    </>
   );
 }
 
@@ -600,6 +618,14 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
       sfx.stamp();
       buzz(BUZZ.buy);
     }
+    // (our own buildings coming up out of the ground, going back into it, a chip turned face down)
+    const managed = ev.flatMap((e) => (e.t === "manage" && mine(e.p) ? [e] : []));
+    const built = managed.filter((e) => e.k === "build");
+    if (built.length) {
+      sfx.build(built.some((e) => (g.s.deeds[e.at]?.houses ?? 0) >= 5));
+      buzz(BUZZ.buy);
+    } else if (managed.some((e) => e.k === "sell")) sfx.sink();
+    else if (managed.some((e) => e.k === "mortgage")) sfx.flip();
     // (on a ride these come as the token gets there)
     if (!ride && ev.some((e) => e.t === "card" && mine(e.p))) {
       sfx.card();
@@ -618,7 +644,7 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
     if (delta > 0) {
       sfx.coin();
       buzz(BUZZ.paid);
-    } else if (delta < 0 && !bought) {
+    } else if (delta < 0 && !bought && !built.length) {
       sfx.pay();
       buzz(BUZZ.pay);
     }

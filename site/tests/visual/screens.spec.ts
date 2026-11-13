@@ -18,7 +18,7 @@ const screens: Screen[] = [
     { name: `home-${lang}`, path: '/', ready: '.board', lang },
     { name: `home-desktop-${lang}`, path: '/', ready: '.board', lang, desktop: true },
     { name: `home-empty-${lang}`, path: '/', ready: '.tonight', lang, empty: true },
-    { name: `tools-${lang}`, path: '/tools', ready: '.tool-blurb', lang },
+    { name: `tools-${lang}`, path: '/tools', ready: '#tool-eat .ui-tile', lang },
     { name: `game-card-${lang}`, path: '/g/truth-or-dare', ready: '.game-card-how', lang },
   ]),
   { name: 'wishlist', path: '/wish', ready: '.wish' },

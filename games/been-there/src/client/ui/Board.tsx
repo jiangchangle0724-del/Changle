@@ -4,9 +4,9 @@ import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEv
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type Rig, type SpaceMark, type TokenMark } from "../art/RoundBoard";
+import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type BoardFx, type Rig, type SpaceMark, type TokenMark, type WorldMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
-import { colon, groupName, money, spaceName, t, tx, type Key } from "../i18n";
+import { colon, getLang, groupName, money, spaceName, t, tx, type Key } from "../i18n";
 import { MAP_SIZES, prefs, type MapSize } from "../prefs";
 import { GroupIcon, Money, SeatChip, Sheet, TEAM_COLORS, TEAM_LETTERS, teamOf } from "./common";
 import { GlobeLayer } from "./GlobeLayer";
@@ -16,10 +16,11 @@ import { reducedMotion } from "../motion";
 import { serverNow, update } from "../store";
 import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
-import { LandStamp, Ride } from "./Ride";
+import { LandStamp, Ride, placeCamLayers, project, rest, viewBoard } from "./Ride";
 import { moveInPlay, ridesOn, walkOf, type RidePlan } from "./ridePlan";
 import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
+import { useWorldMoment } from "./World";
 
 export { reducedMotion };
 
@@ -63,6 +64,44 @@ export function moodOf(v: RoomView, seat: number): Mood {
   return "idle";
 }
 
+/** How long a stamp stays on the board (ms; its animation in art.css runs as long). */
+const FX_MS = 1_800;
+/** …and a world event's effect (art.css .wf). */
+const WORLD_FX_MS = 3_600;
+
+/**
+ * A city sold at auction, a team gone broke: a stamp on its space for a moment, in the team's colour.
+ * Only what happens while the board is up: what was in the feed when it first drew is old news.
+ */
+function useBoardFx(v: RoomView): BoardFx[] {
+  const [fx, setFx] = useState<BoardFx[]>([]);
+  const seen = useRef<number | null>(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const lastId = v.feed.length ? v.feed[v.feed.length - 1].id : 0;
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    const from = seen.current;
+    seen.current = Math.max(from ?? 0, lastId);
+    if (from === null) return;
+    const fresh: BoardFx[] = [];
+    for (const f of v.feed) {
+      if (f.id <= from || f.t !== "game") continue;
+      const e = f.e;
+      if (e.t === "auction" && e.winner !== null) {
+        const team = teamOf(v, e.winner);
+        fresh.push({ id: f.id, kind: "sold", at: e.at, label: t("fx_sold"), color: team ? TEAM_COLORS[team.color] : "var(--active)" });
+      } else if (e.t === "bankrupt" && v.game) {
+        fresh.push({ id: f.id, kind: "broke", at: v.game.s.ps[e.p]?.pos ?? 0, label: t("fx_broke"), color: "var(--active)" });
+      }
+    }
+    if (!fresh.length) return;
+    const ids = new Set(fresh.map((f) => f.id));
+    setFx((now) => [...now, ...fresh]);
+    timers.current.push(setTimeout(() => setFx((now) => now.filter((f) => !ids.has(f.id))), FX_MS));
+  }, [lastId]);
+  return fx;
+}
+
 /** Feed items from this game: after a rematch the room's feed still holds the last game's end. */
 export const thisGame = (v: RoomView) => (f: FeedItem) => !v.game || f.at >= v.game.startedAt;
 
@@ -101,6 +140,14 @@ export function flightToFly(v: RoomView): Flight | null {
   const at = m && m.seat === f.seat ? performance.now() + (m.land + TAKE_OFF - serverNow()) : undefined;
   return { from: f.from, to: f.to, key: f.key, kind: teamOf(v, f.seat)?.color ?? f.seat, at };
 }
+
+/**
+ * How far the board leans back at rest (degrees), as a board on a table seen from a chair: the big
+ * screen's a little more, a phone's or a laptop's at every size of its map (a bigger map is the same
+ * table seen closer, dragged round as it shows: ui/mapView.ts).
+ */
+export const LEAN = { tv: 30, table: 26 };
+export const boardLean = (big: boolean): number => (big ? LEAN.tv : LEAN.table);
 
 /**
  * Which space the table turns where. A phone with first-person moves keeps its own token at
@@ -190,6 +237,30 @@ export function Board({
     return [{ seat, at: p.pos, kind, mood: moodOf(v, seat), badge: { color: TEAM_COLORS[kind], letter: TEAM_LETTERS[kind] } }];
   });
   const tokenScale = big ? TOKEN_SCALE.tv : TOKEN_SCALE.phone;
+  const fx = useBoardFx(v);
+  // A world event as it comes, and the city one in force has struck (a meteor's crater, a city locked down).
+  const [moment] = useWorldMoment(v, WORLD_FX_MS);
+  const w = v.game?.s.world;
+  const worldMark: WorldMark | null =
+    w && w.at !== null && (w.id === "meteor" || w.id === "terror") ? { id: w.id, at: w.at, tag: t(`worldTag_${w.id}`) } : null;
+  // The map's size on a phone or a laptop (ui/mapView.ts); the big screen always fits the whole board.
+  const wrap = useRef<HTMLDivElement>(null);
+  const pan = useRef<HTMLDivElement>(null);
+  const view = useRef<HTMLDivElement>(null);
+  const zoomable = !big;
+  const size: MapSize = zoomable ? prefs.mapSize : "s";
+  // (the board's width, read when it changes: whether it's big enough to lean back)
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    const read = () => setWidth(Math.round(el.clientWidth));
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const lean = boardLean(!!big);
   // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
   // show the globe) the board draws it flat, under the ring.
   const sat = !(globe && globeWanted());
@@ -209,6 +280,11 @@ export function Board({
       focusAt={focusAt}
       walks={walks}
       sat={sat}
+      fx={fx}
+      worldFx={moment && { id: moment.id, kind: moment.e.id, at: moment.e.at }}
+      worldMark={worldMark}
+      lean={lean}
+      lang={getLang()}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -217,11 +293,6 @@ export function Board({
     if (still.current?.key !== ride.key) still.current = { key: ride.key, board: table };
     table = still.current.board;
   } else still.current = null;
-  // The map's size on a phone or a laptop (ui/mapView.ts); the big screen always fits the whole board.
-  const wrap = useRef<HTMLDivElement>(null);
-  const pan = useRef<HTMLDivElement>(null);
-  const zoomable = !big;
-  const size: MapSize = zoomable ? prefs.mapSize : "s";
   // (this phone's own move: its camera has the view, ui/Ride.tsx; the map's button steps aside)
   const moving = !!ride || throwing;
   const onTurn = s.ps[s.turn] && !s.ps[s.turn].out ? s.turn : null;
@@ -231,8 +302,37 @@ export function Board({
     turnKey: `${g.startedAt}:${s.turns}`,
     moveKey: `${s.turn}:${s.ps[s.turn]?.pos}`,
     reduced: reducedMotion(),
+    look: zoomable ? builtHere(v) : null,
+    // (where a point of the board shows in the box, the board leaning back as it rests)
+    place: (x, y, rot) => {
+      const p = project(x, y, rest(rot, lean), 1000);
+      return [p.x - 500, p.y - 500];
+    },
   });
   const hint = useMapHint(zoomable && size !== "s" && !moving);
+  // Between moves the board rests as it lies (a move's camera has it meanwhile: ui/Ride.tsx), and on
+  // the big screen its globe and centre card stand over its middle. Only a new lean eases over
+  // (`.easing`, styles.css): the board handed back by a move's camera (one cut short too) is at rest at
+  // once, so a pushed-in board never shows unclipped past its box while it eases back.
+  const leanShown = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = view.current;
+    const r = rig.current;
+    if (ride || !el || !r) return;
+    const easing = leanShown.current !== null && leanShown.current !== lean;
+    leanShown.current = lean;
+    el.classList.toggle("easing", easing);
+    const c = rest(r.rotation(), lean);
+    const w = el.clientWidth || 1;
+    viewBoard(el, c, r.rotation(), w);
+    if (big) placeCamLayers(Array.from(wrap.current?.querySelectorAll<HTMLElement>(".board-cam") ?? []), c, w);
+    if (!easing) return;
+    const done = window.setTimeout(() => el.classList.remove("easing"), 700);
+    return () => {
+      clearTimeout(done);
+      el.classList.remove("easing");
+    };
+  }, [ride, lean, width, globeOn]);
   const pick = (next: MapSize) => {
     setMapSize(next);
     map.recentre();
@@ -251,11 +351,14 @@ export function Board({
       )}
       {/* (the map's size and where it's dragged to: ui/mapView.ts) */}
       <div class="board-pan" ref={pan}>
-        {/* (the frame a move's camera moves: ui/Ride.tsx) */}
-        <div class="board-view">{table}</div>
-        {landings.map((l) => (
-          <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
-        ))}
+        {/* (the frame a move's camera moves, and the board leans back in at rest: ui/Ride.tsx; another
+            team's landing stamps the board itself, so it lies on the board as it leans) */}
+        <div class={`board-view${lean ? " leaning" : ""}`} ref={view}>
+          {table}
+          {landings.map((l) => (
+            <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
+          ))}
+        </div>
       </div>
       {/* (what's drawn over the middle of the board moves with the big screen's camera on a move) */}
       {center && (
@@ -308,6 +411,16 @@ const nextSize = (size: MapSize): MapSize => MAP_SIZES[(MAP_SIZES.indexOf(size) 
  * The map's size, in the board's top right corner (clear of the round board at its smallest): a tap
  * makes it bigger, and from the largest back to the whole board. Its three marks say which size it is.
  */
+/** The city this device's own team built on a moment ago (its map looks at it as it comes up), or null. */
+function builtHere(v: RoomView): { at: number; key: string } | null {
+  for (let i = v.feed.length - 1; i >= 0; i--) {
+    const f = v.feed[i];
+    if (serverNow() - f.at > 3000) return null;
+    if (f.t === "game" && f.e.t === "manage" && f.e.k === "build" && v.you.seats.includes(f.e.p)) return { at: f.e.at, key: String(f.id) };
+  }
+  return null;
+}
+
 function MapSizeButton({ size, onPick }: { size: MapSize; onPick: (s: MapSize) => void }) {
   const now = t(`map_${size}` as Key);
   const label = size === "l" ? t("mapWhole", { size: now }) : t("mapBigger", { size: now });

@@ -24,14 +24,19 @@ export function venueId(p: Place): string {
   return `v-${hash(`${norm(p.name)}|${where}`)}`;
 }
 
-/** When an event is over (epoch ms): its end, or the end of its day. */
-export function endMs(ev: NormalizedEvent): number {
-  if (ev.end) return ev.allDay ? fromVan(ev.end) + 86_400_000 : Date.parse(ev.end);
-  const start = ev.allDay ? fromVan(ev.start) : Date.parse(ev.start);
-  return ev.allDay ? start + 86_400_000 : start + 2 * 3600_000;
-}
-
+/** When an event starts (epoch ms); an all-day one at the start of its day in Vancouver. */
 export const startMs = (ev: NormalizedEvent) => (ev.allDay ? fromVan(ev.start.slice(0, 10)) : Date.parse(ev.start));
+
+/**
+ * When the event is over (epoch ms). An all-day event ends after its last day; that end may also come as a
+ * Vancouver ISO time, whose first 10 characters are the date. An end that can't be read counts as
+ * none (to the end of the day, or two hours), so the event isn't dropped from the window for it.
+ */
+export function endMs(ev: NormalizedEvent): number {
+  const end = !ev.end ? NaN : ev.allDay ? fromVan(ev.end.slice(0, 10)) + 86_400_000 : Date.parse(ev.end);
+  if (Number.isFinite(end)) return end;
+  return startMs(ev) + (ev.allDay ? 86_400_000 : 2 * 3600_000);
+}
 
 export async function storeEvents(db: D1Database, runId: string, events: NormalizedEvent[]): Promise<{ added: number; updated: number }> {
   if (!events.length) return { added: 0, updated: 0 };

@@ -15,12 +15,12 @@ import {
   type Pending,
 } from "../../engine";
 import { TIMING, type RoomView } from "../../room/protocol";
-import { cardTitle, colon, money, spaceName, t, tx, type Key } from "../i18n";
+import { cardTitle, colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
 import { BUZZ, allowShake, buzz, onShake, shakeState } from "../controls";
 import { send } from "../store";
-import { CODE } from "../art/stamps";
+import { placeTag } from "../art/stamps";
 import { Assets } from "./Assets";
-import { Btn, Countdown, GroupIcon, HapticBtn, Money, SeatChip, seatName, useCountdown } from "./common";
+import { Btn, Countdown, GroupIcon, HapticBtn, Money, SeatChip, moneyOrHidden, seatName, useCountdown } from "./common";
 import { sfx } from "../sound";
 import { startThrow } from "./throwing";
 import { SambaLesson, useDanceClock } from "./Samba";
@@ -59,7 +59,7 @@ export function pendingSummary(v: RoomView): string {
     case "tango-reply":
       return `${name(pd.who)} · ${t("tangoReply", { from: name(pd.from) })}`;
     case "debt":
-      return `${name(pd.who)} · ${t("debtTitle", { amount: money(pd.amount), cash: money(s.ps[pd.who].cash) })}`;
+      return `${name(pd.who)} · ${t("debtTitle", { amount: money(pd.amount), cash: moneyOrHidden(s.ps[pd.who].cash) })}`;
     default:
       return t("waitingFor", { who: name((pd as { who: number }).who) });
   }
@@ -154,7 +154,7 @@ function Strip({ label, at }: { label: string; at?: number }) {
   return (
     <p class="pass-strip">
       <span>{label}</span>
-      {at !== undefined && <span>{city ? CODE[city.id] : spaceName(at)}</span>}
+      {at !== undefined && <span>{city ? placeTag(city.id, getLang()) : spaceName(at)}</span>}
     </p>
   );
 }
@@ -281,7 +281,10 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
             </>
           ) : (
             <HapticBtn kind="primary" wide onClick={() => throwDice({})}>
-              🎲 {t("roll")}
+              {/* (one item in the button's grid: held down, the die rattles in the hand, styles.css) */}
+              <span>
+                <span class="roll-die">🎲</span> {t("roll")}
+              </span>
             </HapticBtn>
           )}
           <ShakeToRoll roll={() => throwDice(pd.jail ? { how: "roll" } : {})} />

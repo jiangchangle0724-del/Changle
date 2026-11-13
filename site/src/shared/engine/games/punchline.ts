@@ -2,6 +2,7 @@ import { PUNCH_FINAL, PUNCH_PROMPTS, PUNCH_SAFETY } from "../../../data/punchlin
 import type { T } from "../../../i18n";
 import type { PunchMatch, PunchView } from "../../protocol";
 import {
+  countWriters,
   FINAL_RESULT_MS,
   FINAL_VOTE_MS,
   FINAL_VOTES,
@@ -9,6 +10,7 @@ import {
   finalPoints,
   headToHeadPoints,
   MAX_WRITERS,
+  nextWriters,
   presentMs,
   RESULT_MS,
   ROUNDS,
@@ -23,8 +25,9 @@ import { byPenalty, clean, range, t, type Api, type GameDef } from "../api";
  * writers, every writer gets two prompts. Each matchup is presented (prompt, then the two
  * answers), everyone else votes (the audience too), then the votes, the names and the points
  * are revealed. The last round: one prompt, everyone answers, everyone picks up to three.
- * Up to eight people write; anyone else at the table is the audience. Losing a head-to-head
- * costs a sip (two if it was a clean sweep); last place drinks a full glass at the end.
+ * Up to eight people write; anyone else at the table is the audience, and writes first when the
+ * table plays again. Losing a head-to-head costs a sip (two if it was a clean sweep); last place
+ * drinks a full glass at the end.
  */
 
 type Match = {
@@ -50,6 +53,8 @@ type S = {
   rounds: number;
   /** who writes this game, in seat order */
   players: string[];
+  /** games each player has written at this table, this one included (missing in a game saved before it was counted) */
+  written?: Record<string, number>;
   matches: Match[];
   cur: number;
   phaseAt: number;
@@ -59,19 +64,49 @@ type S = {
   scores: Record<string, number>;
   /** scores when this round started: the board races from these */
   before: Record<string, number>;
+  /** the three piles (prompts, final prompts, stock answers) last across 再来一局 */
   deck: number[];
   finalDeck: number[];
   safetyDeck: number[];
+  /** each pile's latest cards, newest last (missing in a game saved before piles remembered them) */
+  latest?: Partial<Record<Pile, number[]>>;
   winners: string[] | null;
   last: string[] | null;
 };
 
+type Pile = "deck" | "finalDeck" | "safetyDeck";
+
+/** A pile remembers two whole games' head-to-heads at a full table: the last game and this one so far. */
+const REMEMBER = 2 * MAX_WRITERS * (ROUNDS - 1);
+
 const isFinal = (s: S) => s.round >= s.rounds;
 const writersHere = (s: S, api: Api) => s.players.filter((pid) => api.has(pid));
 
-function draw(deck: number[], size: number, api: Api) {
-  if (!deck.length) deck.push(...api.shuffle(range(size)));
-  return deck.pop()!;
+/**
+ * Deal `n` cards from one of the game's piles, from its end. When the pile runs short, its next
+ * pass goes under what's left: a shuffle of every other card, with the ones dealt lately at the
+ * bottom. So nothing comes twice in a game, and a table that plays again doesn't get the prompts
+ * it just had.
+ */
+function deal(s: S, pile: Pile, size: number, n: number, api: Api): number[] {
+  const deck = s[pile];
+  const latest = ((s.latest ??= {})[pile] ??= []);
+  // a pile saved before its content changed may still hold cards that are gone
+  for (let i = deck.length - 1; i >= 0; i--) if (deck[i] >= size) deck.splice(i, 1);
+  const keep = Math.min(REMEMBER, Math.floor(size / 2));
+  while (deck.length < n && size > 0) {
+    const left = new Set(deck);
+    const lately = latest.filter((c) => c < size && !left.has(c));
+    const rest = range(size).filter((c) => !left.has(c) && !lately.includes(c));
+    const pass = [...api.shuffle(lately), ...api.shuffle(rest)];
+    // a pile smaller than one deal: repeats can't be helped
+    if (!pass.length) pass.push(...api.shuffle(range(size)));
+    deck.unshift(...pass);
+  }
+  const out = range(Math.min(n, deck.length)).map(() => deck.pop()!);
+  latest.push(...out);
+  latest.splice(0, Math.max(0, latest.length - keep));
+  return out;
 }
 
 function setPhase(s: S, phase: S["phase"], ms: number, timer: string, api: Api) {
@@ -88,10 +123,11 @@ function startRound(s: S, api: Api) {
   s.before = { ...s.scores };
   if (!isFinal(s)) {
     const n = writers.length;
-    s.matches = range(n).map((k) => blankMatch(PUNCH_PROMPTS[draw(s.deck, PUNCH_PROMPTS.length, api)], [writers[k], writers[(k + 1) % n]], api));
+    const cards = deal(s, "deck", PUNCH_PROMPTS.length, n, api);
+    s.matches = range(n).map((k) => blankMatch(PUNCH_PROMPTS[cards[k]], [writers[k], writers[(k + 1) % n]], api));
     setPhase(s, "write", WRITE_MS, "write", api);
   } else {
-    s.matches = [blankMatch(PUNCH_FINAL[draw(s.finalDeck, PUNCH_FINAL.length, api)], writers, api)];
+    s.matches = [blankMatch(PUNCH_FINAL[deal(s, "finalDeck", PUNCH_FINAL.length, 1, api)[0]], writers, api)];
     setPhase(s, "write", FINAL_WRITE_MS, "write", api);
   }
 }
@@ -230,13 +266,17 @@ function checkVotes(s: S, api: Api) {
   if (v.length && v.every((pid) => (m.votes[pid]?.length ?? 0) >= allowance(s, m, pid))) settle(s, api);
 }
 
-function newGame(api: Api): S {
-  const players = api.ids().slice(0, MAX_WRITERS);
+/** A new game; 再来一局 passes the one that just ended, and the new game deals on from its piles. */
+function newGame(api: Api, prev?: S): S {
+  // past eight at the table, whoever only watched the last game writes this one
+  const written = prev ? (prev.written ?? countWriters({}, prev.players)) : {};
+  const players = nextWriters(api.ids(), prev?.players ?? null, written);
   const s: S = {
     phase: "write",
     round: 1,
     rounds: ROUNDS,
     players,
+    written: countWriters(written, players),
     matches: [],
     cur: 0,
     phaseAt: api.now,
@@ -244,9 +284,10 @@ function newGame(api: Api): S {
     step: 0,
     scores: Object.fromEntries(players.map((pid) => [pid, 0])),
     before: {},
-    deck: api.shuffle(range(PUNCH_PROMPTS.length)),
-    finalDeck: api.shuffle(range(PUNCH_FINAL.length)),
-    safetyDeck: api.shuffle(range(PUNCH_SAFETY.length)),
+    deck: prev?.deck ?? api.shuffle(range(PUNCH_PROMPTS.length)),
+    finalDeck: prev?.finalDeck ?? api.shuffle(range(PUNCH_FINAL.length)),
+    safetyDeck: prev?.safetyDeck ?? api.shuffle(range(PUNCH_SAFETY.length)),
+    latest: prev?.latest ?? {},
     winners: null,
     last: null,
   };
@@ -274,7 +315,7 @@ export const punchline: GameDef<S> = {
         const safety = g.safety === true;
         if (safety) {
           // "give me one": a stock answer, worth half
-          const quip = PUNCH_SAFETY[draw(s.safetyDeck, PUNCH_SAFETY.length, api)];
+          const quip = PUNCH_SAFETY[deal(s, "safetyDeck", PUNCH_SAFETY.length, 1, api)[0]];
           text = g.lang === "en" ? quip.en : quip.zh;
         }
         if (!text) return;
@@ -314,7 +355,7 @@ export const punchline: GameDef<S> = {
       case "again": {
         if (!host || s.phase !== "end") return;
         if (g.step !== undefined && Number(g.step) !== s.step) return;
-        Object.assign(s, newGame(api));
+        Object.assign(s, newGame(api, s));
         return;
       }
     }

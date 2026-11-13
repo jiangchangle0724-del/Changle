@@ -76,6 +76,9 @@
   .bar .me { display: inline-flex; align-items: center; gap: 8px; background: var(--mine); color: var(--card-ink); border-radius: 999px; padding: 4px 12px 4px 6px; font-weight: 700; }
   .bar .me .dot { width: 14px; height: 14px; border-radius: 50%; background: rgba(0,0,0,.25); }
   .bar .chip { background: var(--panel); border-radius: 999px; padding: 4px 10px; display: inline-flex; gap: 6px; align-items: center; }
+  /* 玩法的小牌子：哪一队、第几个到（金色），出局了（红色）；字是深色 */
+  .bar .chip.tag { background: #F8C56D; color: #2a1f3a; font-weight: 700; }
+  .bar .chip.tag.bad { background: #ef5a5a; }
   .bar .hand { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--glove-l); box-sizing: border-box; }
   .bar .hand.r { border-color: var(--glove-r); }
   .bar .hand.on { background: var(--glove-l); } .bar .hand.r.on { background: var(--glove-r); }
@@ -100,13 +103,46 @@
   @media (orientation: landscape) { .turn { display: none; } }
   @media (orientation: portrait) and (min-width: 700px) { .turn { display: none; } }
   @media (prefers-reduced-motion: reduce) { .flash { transition: none; } }
+
+  /* 手机局（body.viewing）：画面铺在后面，手柄缩到角上（src/pad/touch.css），上面一条半透明 */
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .vonly { display: none !important; }
+  body.viewing .vonly { display: inline-flex !important; }
+  body.viewing .bar { background: linear-gradient(rgba(16, 20, 40, .7), rgba(16, 20, 40, 0)); padding-bottom: 14px; }
+  body.viewing #pad .hand, body.viewing #pad .chip:has(.hand) { display: none; }
+  .vwait { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); background: var(--panel); border-radius: 999px;
+    padding: 8px 16px; font-size: 14px; white-space: nowrap; pointer-events: none; }
+  .vwait.bad { top: 50%; transform: translate(-50%, -50%); background: var(--bad); color: var(--card-ink); font-weight: 700; white-space: normal; text-align: center; max-width: calc(100vw - 48px); }
+  .vcount { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  .vcount .count { font-family: var(--font-display); font-size: 96px; font-weight: 800; line-height: 1; text-align: center; text-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .vcount small { display: block; font-size: 18px; font-family: var(--font-body); font-weight: 700; margin-top: 8px; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
+  .vres { position: fixed; inset: 0; display: flex; overflow: auto; background: rgba(10, 12, 30, .55); padding: 12px max(12px, env(safe-area-inset-right, 0px)) 12px max(12px, env(safe-area-inset-left, 0px)); box-sizing: border-box; }
+  .vres .card { max-width: 460px; padding: 16px 20px; }
+  .vres h2 { font-family: var(--font-display); font-weight: 800; font-size: 22px; margin: 0; }
+  .vres .big { font-family: var(--font-display); font-size: 34px; font-weight: 800; line-height: 1; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+  .vres .par { font-size: 13px; opacity: .7; margin: 0 0 4px; }
+  .vres ol { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 5px; }
+  .vres li { display: flex; align-items: center; gap: 8px; font-size: 14px; flex-wrap: wrap; }
+  .vres li .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.2); }
+  .vres li .who { font-weight: 700; }
+  .vres li .n { opacity: .75; }
+  .vres li .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  .vres h3 { font-family: var(--font-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 0; opacity: .6; }
+  .vres ul { list-style: none; padding: 0; margin: 4px 0 0; font-size: 14px; display: grid; gap: 3px; }
+  .vres .none { opacity: .6; font-size: 13px; margin: 4px 0 0; }
+  .vres .next { font-size: 13px; opacity: .7; margin: 10px 0 0; }
+  .banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.6); opacity: 0; font-family: var(--font-display); font-weight: 800; font-size: 32px; line-height: 1.1;
+    color: var(--ink); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.4); pointer-events: none; transition: opacity .18s, transform .18s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap; text-align: center; }
+  .banner.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .banner.bad { color: var(--bad); }
+  @media (prefers-reduced-motion: reduce) { .banner { transition: opacity .18s; transform: translate(-50%, -50%); } }
 </style>
 </head>
 <body>
 <div id="join">
   <form class="card" id="joinForm">
     <div class="top"><h1>抓紧了 · Hang On</h1><button class="lang" id="langBtn" type="button">EN</button></div>
-    <p data-en="The room code on the TV, and your name.">电视上的房间码，和你的名字。</p>
+    <p data-en="The room code on the TV or the host's phone, and your name.">电视或房主手机上的房间码，和你的名字。</p>
     <div class="field"><label for="code" data-en="Room code">房间码</label><input id="code" class="code" inputmode="latin" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="ABCD" required></div>
     <div class="field"><label for="name" data-en="Name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="糯米团" data-en-ph="Dumpling"></div>
     <button class="btn quiet" id="lookBtn" type="button"><canvas id="lookMini" width="44" height="44" style="width:22px;height:22px" aria-hidden="true"></canvas><span id="lookSummary">换个样子</span></button>
@@ -115,15 +151,18 @@
   </form>
 </div>
 
+<canvas id="view" hidden aria-label="游戏画面" data-en-label="Game screen"></canvas>
 <div id="pad" hidden>
   <div class="bar">
     <span class="me"><span class="dot"></span><span id="meName">糯米团</span></span>
     <span class="chip" title="左手 / 右手" data-en-title="Left hand / right hand"><span class="hand" id="handL"></span><span class="hand r" id="handR"></span></span>
     <span class="chip">💀 <b id="deaths">0</b></span>
+    <span class="chip tag" id="tag" hidden></span>
     <span class="chip">⏱ <b class="ms" id="rtt">—</b></span>
     <span class="chip" id="path">连接中</span>
     <button class="chip btn" id="lookBtn2" type="button" data-en="Look">样子</button>
     <button class="summon" id="summonBtn" type="button" disabled data-en="Summon">召唤队友</button>
+    <button class="chip btn vonly" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
     <span class="conn" id="conn">连接中…</span>
   </div>
   <div class="zones">
@@ -154,6 +193,23 @@
     </div>
   </div>
 </dialog>
+<!-- 手机局：等开始、倒数、结算、横幅（src/pad/view.ts 管） -->
+<div class="vwait" id="vWait" hidden><span data-en="Waiting for the host to start">等房主开始</span> · <span id="vLevel"></span></div>
+<div class="vwait bad" id="vHost" hidden data-en="The host's phone dropped out. Waiting for it to come back…">房主的手机断线了，等它回来……</div>
+<div class="vcount" id="vCount" hidden><div class="count"><span id="vCountNum">3</span><small id="vCountLevel"></small></div></div>
+<div class="vres" id="vResults" hidden>
+  <div class="card">
+    <h2 id="vWinTitle">到顶了！</h2>
+    <div class="big" id="vWinTime">0.0 s</div>
+    <p class="par" id="vWinPar"></p>
+    <ol id="vDeathList"></ol>
+    <h3 id="vBetrayTitle" data-en="Betrayals">背叛榜</h3>
+    <ul id="vBetrayList"></ul>
+    <p class="none" id="vBetrayNone" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
+    <p class="next" data-en="The host picks what's next.">房主选下一关。</p>
+  </div>
+</div>
+<div class="banner" id="vBanner" aria-live="polite"></div>
 <div class="flash" id="flash"></div>
 <div class="turn" id="turn" hidden><div><span data-en="Turn your phone sideways">把手机横过来</span><br><small data-en="Left thumb drags to aim, right thumb holds the two big buttons">左手拖方向，右手两个大键抓</small></div></div>
 

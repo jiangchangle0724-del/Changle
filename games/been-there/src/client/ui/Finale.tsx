@@ -14,6 +14,10 @@ import { send, serverNow } from "../store";
 import { reducedMotion } from "./Board";
 import { Btn, TEAM_COLORS, TeamChip, TeamFace, seatName, teamOf } from "./common";
 import { Feed } from "./Game";
+import { ReportCard } from "./ReportCard";
+
+/** The big screen turns between the standings and the report card, this long each (ms). */
+const TURN_MS = 12_000;
 
 /** Seconds from the end of the game: the stamp lands, then a team every half second, last place first. */
 const STAMP_AT = 0.3;
@@ -40,6 +44,21 @@ export function Over({ v, big }: { v: RoomView; big?: boolean }) {
   // When the team at `rank` comes in (the winners, rank 0, last), in seconds from now.
   const at = (rank: number) => (still ? 0 : FIRST_AT + (order.length - 1 - rank) * EACH - since);
   const ours = s.winner !== null && v.you.seats.includes(s.winner);
+  // The big screen has no room for both: once the teams are in, it turns between them and the report
+  // card (the winners' card stays). A phone shows the card under the standings.
+  const [report, setReport] = useState(false);
+  useEffect(() => {
+    if (!big || !g.tally) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const turn = (on: boolean, wait: number) => {
+      timer = setTimeout(() => {
+        setReport(on);
+        turn(!on, TURN_MS);
+      }, wait);
+    };
+    turn(true, Math.max(0, at(0) * 1000) + TURN_MS);
+    return () => clearTimeout(timer);
+  }, [big, !!g.tally]);
   const table = v.settings.hotseat ? null : tableFrom(v);
   // Nobody holds the big screen's remote: two minutes after the results it goes back to the table.
   useEffect(() => {
@@ -66,11 +85,17 @@ export function Over({ v, big }: { v: RoomView; big?: boolean }) {
           {today()} · {t("room")} {v.code}
         </p>
       </header>
-      <ol class={s.winner !== null ? "results with-won" : "results"}>
+      <ol class={`results${s.winner !== null ? " with-won" : ""}${report ? " reporting" : ""}`}>
         {order.map((seat, rank) => (
           <Row key={seat} v={v} seat={seat} rank={rank} at={at(rank)} big={big} />
         ))}
+        {big && report && (
+          <li class="report-slot">
+            <ReportCard v={v} big />
+          </li>
+        )}
       </ol>
+      {!big && <ReportCard v={v} at={at(0) + 1.2} />}
       {s.winner !== null && !still && at(0) > -3 && <Confetti at={at(0)} many={big} />}
       {(v.you.host || table) && (
         <div class="over-again" style={{ "--at": `${at(0) + 0.8}s` }}>

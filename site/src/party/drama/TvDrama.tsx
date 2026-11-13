@@ -1,8 +1,9 @@
-import { Clapperboard, Eye, Feather, Film, Sparkles, Star } from "lucide-react";
+import { Clapperboard, Eye, Feather, Film, Mic, Sparkles, Star } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
 import { GROUPS, KINDS } from "../../data/drama";
 import { CSET_NAME } from "../../data/dramaClassics";
+import { READ_PASS, readKind, RSET_NAME } from "../../data/dramaReadings";
 import { GENERIC_BEATS, sceneGuide } from "../../data/dramaGuide";
 import { gsap, reduced } from "../../lib/anim";
 import { sfx } from "../../lib/sfx";
@@ -13,9 +14,8 @@ import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
 import { Bi, FacesIn, RoundTag, TvClock, TvPodium, TvShow, useArrivals, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
-import { perfAt } from "../sensors";
-import { seedOf, startAmbience, type Scape } from "./ambience";
-import { Backdrop, Cast, Curtain, isKind, MaskArt, MiniMask, TrophyArt, TwistBanner, type Actor } from "./parts";
+import { Backdrop, Cast, Curtain, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
+import { useDramaMusic } from "./score";
 import { dramaSfx } from "./sound";
 import "../../styles/drama.css";
 import "../../styles/tv-drama.css";
@@ -41,20 +41,14 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
     return { pid: c.pid, role: c.role, name: name(c.pid), face: (size: number) => <SeatFace seat={s} size={size} />, body: s ? <Figure seat={s} /> : <SeatFace seat={s} size={120} /> };
   });
 
-  // the house before the curtain, then the set itself, in step with every phone
+  // the house bells, then the game's theme off stage and the scene's own music on it, on the
+  // same beat as any phone that plays it too
   useCue(v.phase === "brief", () => {
     if (!sound) return;
     dramaSfx.chimes();
     dramaSfx.deal();
   });
-  const scape: Scape | null = !sound ? null : v.phase === "brief" ? "foyer" : v.phase === "act" ? (v.mode === "pk" ? "pk" : v.mode === "classic" ? "classic" : isKind(v.scene?.kind) ? v.scene!.kind : null) : null;
-  useEffect(() => {
-    if (!scape) return;
-    const from = v.phase === "act" ? v.endsAt - v.actMs : v.endsAt - BRIEF_MS;
-    const a = startAmbience(scape, { startPerf: perfAt(from, now()), seed: seedOf(`${v.round}|${v.scene?.id ?? v.classic?.id ?? v.pk?.line.en ?? ""}|${scape}`) });
-    return () => a?.stop(0.8);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scape, v.round]);
+  useDramaMusic(v, sound, now);
   useCue(v.phase === "vote", () => {
     if (sound) sfx.applause(1.8, 0.7);
   });
@@ -83,7 +77,7 @@ export default function TvDrama({ v, sound }: TvViewProps<DramaView>) {
       {v.phase === "setup" && <Setup v={v} />}
       {staged && <Theatre v={v} actors={actors} sound={sound} />}
       {v.phase === "brief" && <Brief v={v} sound={sound} />}
-      {v.phase === "act" && (v.pk ? <Caption v={v} /> : <Script v={v} />)}
+      {v.phase === "act" && (v.pk ? <Caption v={v} /> : v.read ? <ReadingNow v={v} /> : <Script v={v} />)}
       {v.phase === "vote" && <Vote v={v} sound={sound} />}
       {v.phase === "reveal" && v.result && <Truths v={v} actors={actors} />}
       {v.phase === "end" && <Finale v={v} sound={sound} />}
@@ -106,7 +100,7 @@ function useCredit(v: DramaView) {
 function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: boolean }) {
   const r = v.result;
   const reveal = v.phase === "reveal" && !!r;
-  const step = useSteps(reveal ? [1.6, 2.9, 3.9] : [], reveal ? `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.pk?.line.zh}` : "");
+  const step = useSteps(reveal ? [1.6, 2.9, 3.9] : [], reveal ? `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.read?.id ?? v.pk?.line.zh}` : "");
   const burst = useConfetti();
   const show = v.mode === "show";
   // the reveal's beats, sounded here when this screen plays the show
@@ -114,7 +108,8 @@ function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: b
     if (!reveal || !r || step === 0) return;
     if (step === 1 && sound) {
       dramaSfx.spotlight();
-      if (show) dramaSfx.culprit(r.caught);
+      // (no votes to count: nobody was caught or fooled, the truth just comes out)
+      if (show && !r.quiet) dramaSfx.culprit(r.caught);
       else sfx.versus();
     }
     if (step === 2 && sound) sfx.flip();
@@ -130,7 +125,7 @@ function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: b
   const open = v.phase === "act" || reveal;
   return (
     <div className={`tvd-theatre is-${v.phase}`}>
-      <Backdrop kind={v.scene?.kind} pk={v.mode === "pk"} classic={v.mode === "classic"} group={v.scene?.group} live={v.phase === "act" || reveal}>
+      <Backdrop {...stageOf(v)} live={v.phase === "act" || reveal}>
         {reveal && <div className={`dm-spot-culprit ${step >= 1 && show ? "is-on" : ""}`} aria-hidden="true" />}
         <Cast actors={actors} culprit={reveal && step >= 1 && show ? r!.culprit : null} best={reveal && step >= 3 ? r!.best : []} />
         <Curtain open={open} sound={sound} />
@@ -197,6 +192,8 @@ function Slate({ sound }: { sound: boolean }) {
 function Setup({ v }: { v: DramaView }) {
   const { zh } = useLang();
   const pen = usePenaltyText();
+  // one person at the table: monologues and readings, the room guessing out loud
+  const alone = useSeats().players.length === 1;
   return (
     <>
       <div className="tvd-theatre is-setup">
@@ -215,10 +212,22 @@ function Setup({ v }: { v: DramaView }) {
       <aside className="tvd-side tvd-bill">
         <p className="tvd-act">{zh ? "今晚上演" : "Tonight"}</p>
         <ul className="tvd-chips">
-          <li className="is-main">{v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : v.mode === "classic" ? (zh ? "名场面" : "Famous scenes") : zh ? "演戏猜坏人" : "Find the culprit"}</li>
+          <li className="is-main">
+            {v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : v.mode === "classic" ? (zh ? "名场面" : "Famous scenes") : v.mode === "read" ? (zh ? "朗读" : "Read aloud") : zh ? "演戏猜坏人" : "Find the culprit"}
+          </li>
           {v.mode === "classic" && <li>{zh ? CSET_NAME[v.cset ?? "zh"].zh : CSET_NAME[v.cset ?? "zh"].en}</li>}
+          {v.mode === "read" && <li>{zh ? RSET_NAME[v.rset ?? "zh"].zh : RSET_NAME[v.rset ?? "zh"].en}</li>}
+          {v.mode === "read" && (v.rkinds ?? []).length > 0 && (
+            <li>
+              {(v.rkinds ?? [])
+                .map((k) => readKind(k))
+                .filter((k): k is NonNullable<typeof k> => !!k)
+                .map((k) => (zh ? k.name.zh : k.name.en))
+                .join(zh ? "、" : ", ")}
+            </li>
+          )}
           <li>{v.level === "spicy" ? (zh ? "微辣" : "Spicy") : zh ? "全年龄" : "All ages"}</li>
-          {v.mode !== "classic" && <li>{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</li>}
+          {v.mode !== "classic" && v.mode !== "read" && <li>{v.diff === "hard" ? (zh ? "困难" : "Hard") : zh ? "简单" : "Easy"}</li>}
           {v.mode === "show" && (v.groups ?? []).length > 0 && <li>{GROUPS.filter((x) => v.groups!.includes(x.key)).map((x) => (zh ? x.name.zh : x.name.en)).join(zh ? "、" : ", ")}</li>}
           <li>{zh ? `${v.total} 幕` : `${v.total} acts`}</li>
           <li>{v.pen === "drink" ? (pen.isCustom ? pen.text : zh ? "输了喝" : "Losers drink") : v.pen === "move" ? (zh ? "输了运动" : "Losers exercise") : zh ? "输了整蛊" : "Losers do a forfeit"}</li>
@@ -232,10 +241,19 @@ function Setup({ v }: { v: DramaView }) {
               ? zh
                 ? "照着有名的电影、电视剧片段演，观众打星，分低的受罚。"
                 : "Act out famous moments from film and TV. The audience gives stars; the lowest score pays."
+            : v.mode === "read"
+              ? zh
+                ? "一个人上台朗读一段，照指定的读法读：哭着读、憋着笑读、用大臣腔读、深情告白……观众打星，不到 3 星的受罚。"
+                : "One person reads a piece aloud, the way it asks: in tears, with a straight face, as a royal courtier, from the heart... The audience gives stars; under three pays."
             : zh
               ? "几个人上台演一段狗血剧，其中一个偷偷是坏人。观众猜是谁，再给演技打星。"
               : "A few players act a soap opera; one of them is secretly the culprit. The audience guesses who, then stars the acting."}
         </p>
+        {alone && (
+          <p className="tvd-note">
+            {zh ? "一个人也能演：独角戏或者朗读。大家看着大屏幕一起喊答案，不计分。" : "One person can play too: monologues or readings. Everyone shouts the answer at the screen; no points."}
+          </p>
+        )}
         <p className="tvd-wait">{zh ? "等主人开演" : "Waiting for the host to raise the curtain"}</p>
       </aside>
     </>
@@ -275,7 +293,9 @@ function Brief({ v, sound }: { v: DramaView; sound: boolean }) {
                 <strong>{tr(c.role)}</strong>
                 <small>{seat(c.pid)?.name ?? "?"}</small>
               </span>
-              <span className="tvd-roster-state">{ready ? (zh ? "看好了" : "Ready") : zh ? "在看牌" : "Reading"}</span>
+              <span className="tvd-roster-state">
+                {ready ? (zh ? (v.mode === "read" ? "准备好了" : "看好了") : "Ready") : v.mode === "read" ? (zh ? "在默读" : "Reading it over") : zh ? "在看牌" : "Reading"}
+              </span>
             </li>
           );
         })}
@@ -292,9 +312,35 @@ function Bill({ v, credit }: { v: DramaView; credit: string | null }) {
   return (
     <>
       <p className="tvd-act">
-        {v.mode === "pk" ? (zh ? "演技 PK" : "Acting duel") : v.mode === "classic" ? (zh ? "名场面" : "Famous scene") : kind ? tr(kind.name) : zh ? "本幕" : "This act"}
+        {v.mode === "pk"
+          ? zh
+            ? "演技 PK"
+            : "Acting duel"
+          : v.mode === "classic"
+            ? zh
+              ? "名场面"
+              : "Famous scene"
+            : v.read
+              ? `${zh ? "朗读" : "Read aloud"} · ${tr(readKind(v.read.kind)?.name ?? { zh: "", en: "" })}`
+              : kind
+                ? tr(kind.name)
+                : zh
+                  ? "本幕"
+                  : "This act"}
         {group && ` · ${tr(group.name)}`}
       </p>
+      {v.read && (
+        <>
+          <h1 className="tvd-title">
+            <Bi t={v.read.title} />
+          </h1>
+          <p className="tvd-setup">{tr(readKind(v.read.kind)?.how ?? v.read.how)}</p>
+          <p className="tvd-hunt">
+            <Mic size={26} strokeWidth={2.4} aria-hidden="true" />
+            {tr(v.read.how)}
+          </p>
+        </>
+      )}
       {v.scene && (
         <>
           <h1 className="tvd-title">
@@ -416,6 +462,33 @@ function stepAt(f: number, n: number, twist: boolean): number {
   return Math.min(n - 1, Math.floor(x * n));
 }
 
+/**
+ * While a piece is read: who's reading, what, and how it's meant to be read, so the room knows what
+ * the stars are for. (The words are on the phones; this screen leaves the reader the voice.)
+ */
+function ReadingNow({ v }: { v: DramaView }) {
+  const { tr, zh } = useLang();
+  const { name } = useSeats();
+  if (!v.read) return null;
+  const kind = readKind(v.read.kind);
+  const reader = v.cast[0]?.pid;
+  return (
+    <div className="tvd-script is-read">
+      <p className="tvd-script-head">
+        <span>{tr(v.read.title)}</span>
+        {kind && (
+          <small>
+            <Mic size={24} strokeWidth={2.4} aria-hidden="true" />
+            {tr(kind.name)}
+          </small>
+        )}
+        {reader && <small>{zh ? `朗读：${name(reader)}` : `Read by ${name(reader)}`}</small>}
+      </p>
+      <p className="tvd-script-beat">{tr(v.read.how)}</p>
+    </div>
+  );
+}
+
 /** While a duel plays, its line rides at the top. */
 function Caption({ v }: { v: DramaView }) {
   const { tr, zh } = useLang();
@@ -434,6 +507,23 @@ function Vote({ v, sound }: { v: DramaView; sound: boolean }) {
   const { zh, tr } = useLang();
   const { seat, players } = useSeats();
   useArrivals(v.voted, sound);
+  // nobody at the table can vote (one person, on stage): the room shouts, the host's phone reveals
+  if (v.crowd)
+    return (
+      <aside className="tvd-side tvd-ballot">
+        <h1 className="tvd-ask">
+          <Bi t={{ zh: "大家一起喊", en: "Shout it out" }} />
+        </h1>
+        {v.scene && (
+          <p className="tvd-q">
+            <MiniMask />
+            {tr(v.scene.ask)}
+          </p>
+        )}
+        {v.options && <SecretList v={v} />}
+        <p className="tvd-q">{zh ? "猜好了，在手机上点揭晓" : "Then reveal it on the phone"}</p>
+      </aside>
+    );
   // the audience votes; with nobody watching, the actors vote on each other
   const audience = v.peer ? players.filter((s) => v.cast.some((c) => c.pid === s.id)) : players.filter((s) => !v.cast.some((c) => c.pid === s.id));
   const voted = audience.filter((s) => v.voted.includes(s.id));
@@ -451,7 +541,19 @@ function Vote({ v, sound }: { v: DramaView; sound: boolean }) {
       {v.mode === "show" && v.options && <SecretList v={v} />}
       <p className="tvd-q">
         <Star size={30} strokeWidth={2.4} />
-        {v.mode === "show" ? (zh ? "再给每个演员的演技打星" : "Then stars for every actor") : v.mode === "classic" ? (zh ? "给每个演员打星：谁最像原片？" : "Stars for every actor: who got closest to the original?") : zh ? "给两个人打星" : "Stars for both of them"}
+        {v.mode === "show"
+          ? zh
+            ? "再给每个演员的演技打星"
+            : "Then stars for every actor"
+          : v.mode === "classic"
+            ? zh
+              ? "给每个演员打星：谁最像原片？"
+              : "Stars for every actor: who got closest to the original?"
+            : v.mode === "read" && v.read
+              ? tr(readKind(v.read.kind)?.ask ?? { zh: "读得怎么样？", en: "How was that?" })
+              : zh
+                ? "给两个人打星"
+                : "Stars for both of them"}
       </p>
       <p className="tvd-count tabular">
         <b>{voted.length}</b>/{audience.length}
@@ -474,16 +576,25 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
   const { zh } = useLang();
   const r = v.result!;
   const culprit = actors.find((a) => a.pid === r.culprit);
+  const readStars = v.mode === "read" ? (r.stars[v.cast[0]?.pid ?? ""] ?? 0) : 0;
   const headline =
     v.mode === "pk"
       ? zh
         ? "谁演得更像？"
         : "Who sold it?"
+      : v.mode === "read"
+        ? r.quiet
+          ? quietRead(zh)
+          : readHeadline(readStars, zh)
       : v.mode === "classic"
         ? zh
           ? "谁最像原版？"
           : "Who nailed it?"
-        : r.caught
+        : r.quiet && v.options
+        ? zh
+          ? "猜对了吗？"
+          : "Did you get it right?"
+        : r.caught || r.quiet
         ? v.options
           ? zh
             ? "秘密被猜中了！"
@@ -500,7 +611,11 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
             : `${culprit?.name ?? "They"} fooled everyone!`;
   return (
     <div className="tvd-verdict" data-step={step}>
-      {step === 0 ? <p className="tvd-drum">{zh ? "真相是……" : "And the truth is…"}</p> : <h2 className={`tvd-headline ${r.caught ? "is-caught" : ""}`}>{headline}</h2>}
+      {step === 0 && !(r.quiet && v.mode === "read") ? (
+        <p className="tvd-drum">{v.mode === "read" ? (zh ? "评委打分中……" : "The judges are scoring…") : zh ? "真相是……" : "And the truth is…"}</p>
+      ) : (
+        <h2 className={`tvd-headline ${r.caught || (v.mode === "read" && readStars >= READ_PASS) ? "is-caught" : ""}`}>{headline}</h2>
+      )}
     </div>
   );
 }
@@ -508,11 +623,11 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
 function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
   const { zh, tr } = useLang();
   const r = v.result!;
-  const step = useSteps([1.6, 2.9, 3.9], `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.pk?.line.zh}`);
+  const step = useSteps([1.6, 2.9, 3.9], `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.read?.id ?? v.pk?.line.zh}`);
   return (
     <aside className="tvd-side tvd-truths">
-      {step >= 1 && v.mode === "show" && v.options && <SecretList v={v} counts={r.counts} answer={r.answer ?? null} />}
-      {step >= 1 && v.mode === "show" && !v.options && (
+      {step >= 1 && v.mode === "show" && v.options && <SecretList v={v} counts={r.quiet ? undefined : r.counts} answer={r.answer ?? null} />}
+      {step >= 1 && v.mode === "show" && !v.options && !r.quiet && (
         <p className="tvd-counts">
           {actors.map((a) => (
             <span key={a.pid}>
@@ -549,16 +664,18 @@ function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
                     </span>
                   )}
                 </span>
-                <span className="tvd-card-stars tabular">
-                  <Star size={24} strokeWidth={2.4} />
-                  {step >= 3 ? st.toFixed(1) : "?"}
-                </span>
+                {!r.quiet && (
+                  <span className="tvd-card-stars tabular">
+                    <Star size={24} strokeWidth={2.4} />
+                    {step >= 3 ? st.toFixed(1) : "?"}
+                  </span>
+                )}
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="tvd-wait">{v.mode === "show" ? (zh ? "每个人的牌马上翻开" : "Every card turns over in a moment") : zh ? "星星马上揭晓" : "The stars are coming up"}</p>
+        <p className="tvd-wait">{v.mode === "show" ? (zh ? "每个人的牌马上翻开" : "Every card turns over in a moment") : r.quiet ? (zh ? "这一幕不打星" : "No stars this act") : zh ? "星星马上揭晓" : "The stars are coming up"}</p>
       )}
       {step >= 3 && <Outcome v={v} actors={actors} />}
     </aside>
@@ -578,11 +695,24 @@ function Outcome({ v, actors }: { v: DramaView; actors: Actor[] }) {
         <strong>{best.map((a) => a.name).join(zh ? "、" : ", ")}</strong>
       </p>,
     );
-  if (v.mode === "show")
+  if (r.quiet)
+    lines.push(
+      <p key="quiet" className="tvd-note">
+        {quietNote(v.mode, !!v.crowd, zh)}
+      </p>,
+    );
+  else if (v.mode === "show")
     lines.push(
       <p key="right" className="tvd-note">
         {r.right.length ? (zh ? `猜对的 ${r.right.length} 人，每人 +1` : `${r.right.length} guessed right: +1 each`) : zh ? "没有人猜对" : "Nobody guessed right"}
         {!r.caught && (zh ? "；坏人逍遥法外 +3" : "; the culprit walks free: +3")}
+      </p>,
+    );
+  const readStars = v.mode === "read" ? (r.stars[v.cast[0]?.pid ?? ""] ?? 0) : 0;
+  if (readStars > 0)
+    lines.push(
+      <p key="bar" className="tvd-note">
+        {readBar(readStars, zh)}
       </p>,
     );
   if (r.losers.length && r.penalty)

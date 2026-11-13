@@ -1,13 +1,13 @@
 // What phones and the server say to each other.
-import { RANGES, check, distanceMeters, estimateWait, minutesToLastOrder, travelMinutes, vancouverClock } from "../engine";
-import type { Ballot, Center, CuisineId, Lang, Limits, MoodPick, Place, RangeId, Rating, SoloReason, WaitEstimate, Warning } from "../engine";
+import { PLANNED_FROM, RANGES, check, closingTime, distanceMeters, estimateWait, fitFor, isOpen, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
+import type { Ballot, Center, Concern, CuisineId, FitWhy, Lang, Limits, MoodPick, OccasionId, Off, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
 
 export type { Lang };
 
 /** Room timings in milliseconds. */
 export const TIMING = {
   /** Round 1: people who haven't finished by then keep what they tapped. */
-  mood: 60_000,
+  mood: 90_000,
   /** Round 2. */
   cards: 120_000,
   /** The tie-break spinner. */
@@ -45,10 +45,14 @@ export type ClientMsg =
   | { t: "next"; phase?: Phase }
   /** Host: back to the lobby for a new search (wider range, someone new). */
   | { t: "again"; range?: RangeId }
+  /** Host, in the lobby: when the table eats (ms since epoch), or null for now. */
+  | { t: "when"; at: number | null }
+  /** Host, in the lobby: what the meal is for. */
+  | { t: "occasion"; occasion: OccasionId }
   | { t: "ping" };
 
 export type ServerMsg =
-  | { t: "view"; view: RoomView }
+  | { t: "view"; view: WireView }
   | { t: "toast"; key: string; vars?: Record<string, string | number> }
   | { t: "pong"; now: number }
   | { t: "fatal"; key: string };
@@ -66,45 +70,87 @@ export interface MemberView {
 
 export interface CardView {
   place: Place;
-  /** Rough travel minutes from the room's starting point. */
-  minutes: number;
+  /** Its place on the list, from 1. */
+  rank: number;
+  /** From the starting point in a straight line, to the nearest 50 m (100 m past 1 km). */
+  meters: number;
+  /** Rough minutes there on foot and by car (see travelMinutes). */
+  walkMin: number;
+  driveMin: number;
+  /** The table chose a driving range (or any distance), so the drive comes first. */
   drive: boolean;
   wait: WaitEstimate;
-  lastOrder?: number;
+  /** A planned meal (ms since epoch): the card is about then. Absent for now. */
+  at?: number;
+  /** Open then: false never reaches a card; undefined when Google has no hours for it. */
+  open?: boolean;
+  /** When it closes after then, and when the kitchen likely stops taking orders (ms since epoch). */
+  closesAt?: number;
+  lastOrderAt?: number;
   warnings: Warning[];
-  /** A cuisine someone banned in round 1, brought back because little else was left. */
-  relaxed: boolean;
+  /** Why it is further down the list for this table; each comes with a note (tips.ts). */
+  concerns: Concern[];
+  /** Round 1: how many people liked its cuisine, and how many said no to it. */
+  likes: number;
+  bans: number;
+  /** What speaks for it, best first, at most three. */
+  reasons: Reason[];
+  /** For the occasion and the meal: what makes it suit them ("fits" in reasons), or why it plainly doesn't. */
+  fit?: { why: FitWhy[]; off?: Off };
 }
 
-/** A place as a card, seen from the starting point, for the people whose limits are `limits`. */
-export function cardView(p: Place, center: Center, range: RangeId, limits: Limits, now: number, relaxed = false): CardView {
-  const drive = RANGES[range].drive;
+const soon = (t: number | undefined, from: number) => (t !== undefined && t - from < 24 * 3600_000 ? t : undefined);
+
+/** Distances a card shows: never so exact that the starting point could be worked out from them. */
+export const roundMeters = (m: number) => (m < 1000 ? Math.max(50, Math.round(m / 50) * 50) : Math.round(m / 100) * 100);
+
+export interface CardContext {
+  center: Center;
+  range: RangeId;
+  /** The table's merged limits. */
+  limits: Limits;
+  now: number;
+  /** A planned meal; now when absent. */
+  at?: number;
+  /** What the meal is for: a card says when a place suits it. */
+  occasion?: OccasionId;
+}
+
+/** A place as a card at `rank` on the list, seen from the starting point, for the people whose limits are `limits`. */
+export function cardView(p: Place, rank: number, ctx: CardContext, extra: { likes?: number; bans?: number; reasons?: Reason[] } = {}): CardView {
+  const meters = distanceMeters(ctx.center, p);
+  const v = check(p, ctx.limits);
+  const likes = extra.likes ?? 0;
+  const at = ctx.at !== undefined && ctx.at - ctx.now >= PLANNED_FROM ? ctx.at : undefined;
+  // The week's opening hours stay on the server: the card says what they mean for this meal.
+  const { hours: _hours, ...place } = p;
   return {
-    place: p,
-    minutes: travelMinutes(distanceMeters(center, p), drive),
-    drive,
-    wait: estimateWait(p, vancouverClock(now)),
-    lastOrder: minutesToLastOrder(p, now),
-    warnings: check(p, limits).warnings,
-    relaxed,
+    place,
+    rank,
+    meters: roundMeters(meters),
+    walkMin: travelMinutes(meters, false),
+    driveMin: travelMinutes(meters, true),
+    drive: RANGES[ctx.range].drive,
+    wait: estimateWait(p, vancouverClock(at ?? ctx.now)),
+    at,
+    open: isOpen(p, ctx.now, at),
+    // A closing time a day or more away means open around the clock: nothing to say.
+    closesAt: soon(closingTime(p, ctx.now, at), at ?? ctx.now),
+    lastOrderAt: soon(lastOrderAt(p, ctx.now, at), at ?? ctx.now),
+    warnings: v.warnings,
+    concerns: v.concerns,
+    likes,
+    bans: extra.bans ?? 0,
+    reasons: extra.reasons ?? reasonsFor(p, { limits: ctx.limits, center: ctx.center, range: ctx.range, liked: likes > 0, occasion: ctx.occasion, now: ctx.now, at }),
+    ...fitView(p, ctx, at),
   };
 }
 
-/** One person's pick (POST /eat/api/solo): a card and why it was chosen. */
-export interface SoloCard extends CardView {
-  reasons: SoloReason[];
-}
-
-export interface SoloResponse {
-  cards?: SoloCard[];
-  /** The side of the menu asked for had too few places nearby, so others were let in. */
-  relaxed?: boolean;
-  demo?: boolean;
-  /** More places are waiting: POST /api/solo/more fetches the next batch. */
-  more?: boolean;
-  /** Without accounts (sign-in off): what finds this search's other places; send it back with "more". */
-  run?: string;
-  error?: "nothingNearby" | "nothingFits" | "searchFailed" | "login" | "quota" | "badPlace" | "expired";
+/** The occasion's and meal's say on a card: only when there's something to say. */
+function fitView(p: Place, ctx: CardContext, at: number | undefined): Pick<CardView, "fit"> {
+  const f = fitFor(p, { center: ctx.center, range: ctx.range, now: ctx.now, at, occasion: ctx.occasion });
+  if (f.off) return { fit: { why: [], off: f.off } };
+  return f.suits && f.why.length ? { fit: { why: f.why } } : {};
 }
 
 export interface RoomView {
@@ -125,23 +171,40 @@ export interface RoomView {
   };
   members: MemberView[];
   range: RangeId;
+  /** When the table eats (ms since epoch), or null for now. */
+  at: number | null;
+  /** What the meal is for. */
+  occasion: OccasionId;
+  /** Places open then but over someone's budget, left off the list (the list says how many). */
+  overBudget: number;
   /**
    * Everyone's limits merged, with no names, sent only with the result: shown live, a line appearing
    * as one person saves their card would give away whose it is.
    */
   table: Limits;
-  chips: { cuisine: CuisineId; count: number; likes: number; bans: number }[];
+  /**
+   * Round 1's menu: every cuisine, with how many liked it and said no to it (hidden while people
+   * choose) and, once the search has run, how many of its places are on the list.
+   */
+  chips: { cuisine: CuisineId; count?: number; likes: number; bans: number }[];
+  /** Round 2's list, best first: every place in range and budget. */
   cards: CardView[];
+  /** Changes whenever `cards` would: a phone that has this one already is sent `cards: null`. */
+  cardsRev: string;
   result: { winner: string; tied: string[]; scores: { id: string; yes: number; vetoes: number }[] } | null;
   /**
-   * The winner's card, kept even if someone who joined afterwards can't eat there (then `unsafe`), so
-   * the result never disappears.
+   * The winner's card, kept even if someone who joined afterwards can't eat there, so the result
+   * never disappears. `unsafe`: someone at the table is severely allergic to something this kind
+   * of food often uses, or it is over someone's budget.
    */
-  winner: (CardView & { unsafe: boolean }) | null;
+  winner: (CardView & { unsafe: false | "severe" | "budget" }) | null;
   ratings: { n: number; up: number; mid: number; down: number; liked: number };
   /** Why the last search came back empty. */
   error: "nothingNearby" | "nothingFits" | "searchFailed" | "searchLimit" | null;
 }
+
+/** A view as sent: `cards` is null when this phone already has that list (the same `cardsRev`). */
+export type WireView = Omit<RoomView, "cards"> & { cards: CardView[] | null };
 
 export interface RatingInput extends Rating {
   /** Device id; one rating per device. */

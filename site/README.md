@@ -24,7 +24,7 @@
 | 猜歌名 Name That Tune | 手机放旋律，或者当抢答器 | 2+ |
 | 神回复 Punchline | 两人对决，大家投票，手机上整场演出 | 3+（超过 8 人的当观众） |
 | 你画我猜 Draw & Guess | 在手机上画 | 2+ |
-| 一本正经 In All Seriousness | 一个冷门词，只有老实人知道真意思，其他人现编，裁判找老实人。17 个词包，中文局 9 个、英文局 5 个、都能玩 3 个，开局按桌上的语言选好；图标和角色图是 ChatGPT 生的。只能一部手机玩，联机还没做 | 3 到 9 |
+| 一本正经 In All Seriousness | 一个冷门词，只有老实人知道真意思，其他人现编，裁判找老实人。17 个词包，中文局 9 个、英文局 5 个、都能玩 3 个，开局按桌上的语言选好；图标和角色图是 ChatGPT 生的。一部手机传着玩，或者联机每人一部、电视当大屏 | 3 到 9 |
 | 最后一张 Last Card | 没有单机，只能每人用自己的手机：每人 7 张，跟颜色、数字或符号出牌，有跳过、反转、+2、变色、+4，剩一张要喊「最后一张！」，先出完的赢。还没上首页：手机打开 `changle.ca/g/last-card/play` 开一桌 | 2 到 10 |
 
 **大屏幕**：电视或电脑的浏览器打开 `changle.ca/tv`，屏幕上出现桌号和二维码，大家用手机扫码入座。神回复会在大屏幕上整场演出（开场、对决、投票揭晓、比分、颁奖），手机变成遥控器；其他游戏（最佳称号、谁是卧底、猜歌名、戏精大赏、真心话大冒险、命运转盘、七八九、流氓十三张、国王游戏、我从来没有、额头便利贴、木头人蹦迪、尤克牌、你画我猜、林波舞、最后一张）在大屏幕上也有自己的画面（轮到谁、谁投了票、揭晓、领奖台），不会出现任何人的词、手牌和票，真心话大冒险的题目也等被指到的人念出来，额头便利贴上还没猜出来的词、你画我猜的词（这一轮结束前）也不会上屏；到此一游开始以后，大屏幕自己去它的大屏页面，打碟时大屏幕就是音箱。已经开好的桌，在大屏幕上打开 `changle.ca/tv/桌号`。按 M 静音。座位设成「只看」的手机，在这些游戏里整屏显示大屏画面，横过来投屏到电视就行。
@@ -78,13 +78,14 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 打碟的 Lyria 本地不连 Google：先跑 `node scripts/fake_lyria.mjs`（一个假的 Lyria），再在 `worker/.dev.vars` 里写
 `DEV_LYRIA_URL=ws://127.0.0.1:8790` 和 `DEV_LYRIA_ANYONE=1`（任何桌子都能试），整条链路用
 `python3 scripts/dj_lyria_check.py` 检查。
-打碟的新手打碟台（两个碟、推子、效果键、蓄力和 Drop）用 `python3 scripts/dj_deck_check.py` 检查：
+打碟手机上的播放键（上一曲、暂停、播放、切歌）和手机页面的顺序用 `python3 scripts/dj_player_check.py` 检查：
 它要试音版 DJ 放两个碟，所以 `worker/.dev.vars` 里 `DEV_LYRIA_ANYONE` 要关掉（不写，或写 0）。
 点歌放 YouTube 整首用 `python3 scripts/dj_youtube_check.py` 检查，主人从手机传歌到电视用
-`python3 scripts/dj_mine_check.py` 检查，混音台（均衡、滤波和四个效果）用 `python3 scripts/dj_mixer_check.py` 检查，
+`python3 scripts/dj_mine_check.py` 检查，主人自己的歌放一晚用 `python3 scripts/dj_local_check.py` 检查，
 ❄️、读场、语音报幕、10 分钟一首和今晚回顾用 `python3 scripts/dj_floor_check.py` 检查，
-手机上的打碟机（唱盘、旋钮、十二个效果键）用 `python3 scripts/dj_turntable_check.py` 检查，
-电视上的教练和手机跟着跳用 `python3 scripts/dj_dance_check.py` 检查，同样都要关掉它。
+电视上的教练和手机跟着跳用 `python3 scripts/dj_dance_check.py` 检查，舞池的 3D 小机器人用
+`python3 scripts/dj_floor3d_check.py` 检查，公用手机当音箱用 `python3 scripts/dj_shared_check.py` 检查，同样都要关掉它。
+（11 月 12 日起手机上没有唱盘、混音台、推子、蓄力和 Drop 了，原来检查它们的三个脚本也一起拿掉了。）
 
 到此一游和 随便 各自是独立的 Worker（本仓库的 `games/been-there` 和 `tools/suibian`）。本地要连着试，在它们的文件夹里分别跑 `npx wrangler dev --port 8799` 和 `npx wrangler dev --port 8798`，网站的 `/trip` 和 `/eat` 会代理过去（`vite.config.ts`）。
 
@@ -100,7 +101,10 @@ npx tsx tests/tokens.test.ts        # 设计 token：和 global.css 同名的值
 npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的旧链接
 npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读出几秒，中英文说的时间一样
 npx tsx tests/hide.test.ts          # 藏在人群里在桌上的替身规则：主人开局、只开一次
+npx tsx tests/split.test.ts         # 两清的算账：尾差、净额、最少转账，1 万个随机账本
+npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、中英文、只用 token、还没有入口
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
+npx tsx scripts/split_check.ts      # 两清（只要 npm run dev 在跑）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字

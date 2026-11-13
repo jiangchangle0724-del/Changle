@@ -5,7 +5,7 @@
 import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Pt } from '../physics/level';
-import type { Player } from '../physics/world';
+import type { PlayerView } from './view';
 import { ARM_COLORS, DEFAULT_LOOK, type Look } from '../look';
 import { CREAM, GLOVES, INK, OUTLINE, hex } from './art';
 
@@ -108,7 +108,8 @@ export class Dumpling {
   }
 
   /** 每帧：读玩家状态，摆位置，重画胳膊和脸。 */
-  update(p: Player, dt: number, won: boolean, time: number): void {
+  /** won：这个人赢了（一起跳）；slips：坐不住，手抓久了要抖、圈变红。 */
+  update(p: PlayerView, dt: number, won: boolean, time: number, slips = false): void {
     const b = p.body;
     this.squash = this.squash > 0 ? Math.max(0, this.squash - dt * 4.5) : Math.min(0, this.squash + dt * 4.5);
     this.pulse = Math.max(0, this.pulse - dt * 5);
@@ -171,7 +172,7 @@ export class Dumpling {
       this.stretchC.position.set(0, 0);
     }
 
-    this.drawArms(p);
+    this.drawArms(p, slips);
     this.drawFace(p, time);
     this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - 4);
     this.label.alpha = sinking ? 0 : 1;
@@ -214,10 +215,13 @@ export class Dumpling {
     g.circle(14, 4, 4.2).fill({ color: 0xf05a6e, alpha: 0.35 });
   }
 
-  private drawArms(p: Player): void {
+  private drawArms(p: PlayerView, slips: boolean): void {
     const g = this.arms;
     g.clear();
     p.arms.forEach((arm, i) => {
+      // 坐不住：抓了 lastGripWarn 秒起手开始抖、圈变红，到 lastGripMax 就滑（减弱动效时只变红）
+      const warn = slips && arm.grip ? Math.min(1, Math.max(0, (arm.grip.t - CFG.lastGripWarn) / (CFG.lastGripMax - CFG.lastGripWarn))) : 0;
+      const jit = warn > 0 && !this.reduced ? warn * 3 : 0;
       const pts = arm.pts;
       if (pts.length >= 2) {
         this.noodle(g, pts);
@@ -225,13 +229,13 @@ export class Dumpling {
         this.noodle(g, pts);
         g.stroke({ width: 10, color: ARM_COLORS[this.look.arms] ?? ARM_COLORS.noodle, cap: 'round', join: 'round' });
       }
-      const h = arm.hand;
+      const h = jit ? { x: arm.hand.x + (Math.random() - 0.5) * jit, y: arm.hand.y + (Math.random() - 0.5) * jit } : arm.hand;
       g.circle(h.x, h.y, CFG.handR + 2.5).fill(OUTLINE);
       g.circle(h.x, h.y, CFG.handR).fill(GLOVES[i] as string);
       g.circle(h.x - 3, h.y - 3, 3).fill({ color: 0xffffff, alpha: 0.35 });
       if (arm.grip) {
-        const r = CFG.handR + 5 + Math.sin(arm.grip.t * 12) * 1.5;
-        g.circle(h.x, h.y, r).stroke({ width: 2, color: 0xffffff, alpha: 0.9 });
+        const r = CFG.handR + 5 + Math.sin(arm.grip.t * (12 + warn * 18)) * 1.5;
+        g.circle(h.x, h.y, r).stroke({ width: 2 + warn * 1.5, color: warn > 0 ? 0xff6b5a : 0xffffff, alpha: 0.9 });
       }
     });
   }
@@ -247,7 +251,7 @@ export class Dumpling {
     g.lineTo(l.x, l.y);
   }
 
-  private drawFace(p: Player, time: number): void {
+  private drawFace(p: PlayerView, time: number): void {
     // 眼睛跟摇杆；没推摇杆就看向飞的方向
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const v = Math.hypot(p.body.vx, p.body.vy);

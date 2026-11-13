@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { METRONOME_ID } from "../src/shared/catalog";
 import type { ServerMsg } from "../src/shared/protocol";
-import { buildShow, cachedShows, danceStart } from "../src/shared/show";
-import { COUNT_LEAD_MS, IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, validPlayerId, type From, type Out } from "../src/server/session";
+import { anchorsOf, buildShow, cachedShows, danceStart } from "../src/shared/show";
+import { COUNT_LEAD_MS, IDLE_MS, LEAD_IN_MS, PLAYER_GRACE_MS, PULSE_GAP_MS, RESUME_LEAD_MS, SPEAKER_GRACE_MS, Session, cleanName, makeCode, validPlayerId, type From, type Out } from "../src/server/session";
 
 const SPEAKER: From = { role: "speaker", playerId: null };
 const ANN: From = { role: "player", playerId: "ann-000001" };
@@ -26,12 +26,21 @@ const msgs = (out: Out[], to?: Out extends infer O ? (O extends { to: infer T } 
 const last = <T extends ServerMsg["t"]>(out: Out[], t: T) => msgs(out).filter((m): m is Extract<ServerMsg, { t: T }> => m.t === t).at(-1);
 
 /** A room with the speaker connected and synced, Ann (host) and Bob in. */
-function ready() {
+function fresh() {
   const r = room();
   r.s.connect(SPEAKER);
   r.s.handle(SPEAKER, { t: "clock", offsetMs: -995_000, rttMs: 20 });
   r.s.connect(ANN, "Ann");
   r.s.connect(BOB, "  Bob  ");
+  r.s.flush();
+  return r;
+}
+
+/** …and its TV's delay measured (none: the speaker's own sound), so a dance starts at once. */
+function ready() {
+  const r = fresh();
+  r.s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
+  r.s.handle(SPEAKER, { t: "calibrated", audioOffsetMs: 0 });
   r.s.flush();
   return r;
 }
@@ -140,7 +149,7 @@ describe("the host's actions", () => {
     s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: METRONOME_ID } });
     assert.equal(s.d.state.phase, "learning");
     assert.equal(s.d.state.bpm, 120, "the routine's tempo");
-    assert.deepEqual(last(s.flush().out, "state")?.routine, { routineId: METRONOME_ID, bpm: 120, beatsPerBar: 4, totalBeats: 240, mode: null, leadStartAt: null, fromBeat: 0 });
+    assert.deepEqual(last(s.flush().out, "state")?.routine, { routineId: METRONOME_ID, bpm: 120, beatsPerBar: 4, totalBeats: 240, mode: null, leadStartAt: null, fromBeat: 0, introMs: 8 * 500 });
     // (no warm-up: it waits for the host)
     assert.equal(s.d.danceAt, null);
     clock.advance(60_000);
@@ -196,6 +205,35 @@ describe("the host's actions", () => {
     s.handle(BOB, { t: "here" });
     assert.deepEqual(s.flush().out, [{ to: "all", msg: { t: "here", playerId: "bob-000002" } }]);
   });
+
+  it("a phone's pulse goes to the speaker while a dance plays, tidied, not too often, and isn't kept", () => {
+    const { s, clock } = ready();
+    s.handle(BOB, { t: "pulse", e: 0.5 });
+    assert.deepEqual(s.flush().out, [], "not in the lobby");
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    s.flush();
+    s.handle(BOB, { t: "pulse", e: 1.7, v: "hit" });
+    let { out, changed } = s.flush();
+    assert.deepEqual(out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 1, v: "hit" } }]);
+    assert.equal(changed, false, "nothing stored");
+    // movement only: one every PULSE_GAP_MS; a verdict always
+    clock.advance(PULSE_GAP_MS - 10);
+    s.handle(BOB, { t: "pulse", e: 0.333 });
+    assert.deepEqual(s.flush().out, []);
+    s.handle(BOB, { t: "pulse", e: 0.2, v: "miss" });
+    assert.deepEqual(s.flush().out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 0.2, v: "miss" } }]);
+    clock.advance(PULSE_GAP_MS);
+    s.handle(BOB, { t: "pulse", e: 0.333, v: "nonsense" as never });
+    ({ out } = s.flush());
+    assert.deepEqual(out, [{ to: "speaker", msg: { t: "pulse", playerId: "bob-000002", e: 0.33, v: null } }]);
+    // not from the speaker, a stranger, or without a number
+    clock.advance(PULSE_GAP_MS);
+    s.handle(SPEAKER, { t: "pulse", e: 0.5 });
+    s.handle({ role: "player", playerId: "cat-000003" }, { t: "pulse", e: 0.5 });
+    s.handle(ANN, { t: "pulse", e: Number.NaN });
+    s.handle(ANN, { t: "pulse", e: "1" as never });
+    assert.deepEqual(s.flush().out, []);
+  });
 });
 
 /** A room dancing square-easy (96 BPM, 192 beats) from its first beat: the host skipped the warm-up. */
@@ -219,7 +257,7 @@ describe("a dance", () => {
     assert.equal(s.d.state.phase, "learning");
     assert.equal(s.d.state.difficulty, "easy", "the dance's own difficulty");
     assert.equal(s.d.state.bpm, 96);
-    assert.deepEqual(s.d.routine, { routineId: "square-easy", bpm: 96, beatsPerBar: 4, totalBeats: 192, mode: "learn", leadStartAt: at + LEAD_IN_MS, fromBeat: 0 });
+    assert.deepEqual(s.d.routine, { routineId: "square-easy", bpm: 96, beatsPerBar: 4, totalBeats: 192, mode: "learn", leadStartAt: at + LEAD_IN_MS, fromBeat: 0, introMs: 4 * 625 });
     const lead = { leadStartAt: at + LEAD_IN_MS, danceStartAt: null, fromBeat: 0 };
     assert.equal(s.d.danceAt, at + LEAD_IN_MS + show.leadMs, "the lead runs out where the count-in begins");
     assert.equal(s.nextWake(), s.d.danceAt! + 995_000);
@@ -454,6 +492,137 @@ describe("a dance", () => {
     assert.equal(s.d.results, null);
     assert.equal(s.d.danceAt, null);
     assert.deepEqual(s.d.routine, { routineId: METRONOME_ID, bpm: 120, beatsPerBar: 4, totalBeats: 240, mode: null, leadStartAt: null, fromBeat: 0 });
+  });
+});
+
+describe("the TV's delay, the TV's language, and 暂停", () => {
+  it("a room's first dance starts at once: measuring the TV's delay is the host's to choose, from the lobby", () => {
+    const { s, clock } = fresh();
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    const at = clock.now - 995_000;
+    assert.equal(s.d.state.phase, "learning", "no measuring first");
+    assert.equal(s.d.routine?.leadStartAt, at + LEAD_IN_MS);
+    assert.equal(last(s.flush().out, "state")?.calibrated, undefined);
+    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
+    s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
+    assert.equal(s.d.state.phase, "calibrating");
+    clock.advance(12_000);
+    s.handle(SPEAKER, { t: "calibrated", audioOffsetMs: 150 });
+    assert.equal(s.d.state.phase, "lobby", "measured: back in the lobby");
+    assert.equal(s.d.state.audioOffsetMs, 150);
+    assert.equal(last(s.flush().out, "state")?.calibrated, true, "the pages hear the TV is measured");
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "pop-medium", mode: "dance" } });
+    assert.equal(s.d.state.phase, "learning");
+  });
+
+  it("the host can skip the measuring, back to the lobby", () => {
+    const { s } = fresh();
+    s.handle(ANN, { t: "act", action: { type: "START_CALIBRATION" } });
+    assert.equal(s.d.state.phase, "calibrating");
+    s.handle(BOB, { t: "act", action: { type: "SKIP_CALIBRATION" } });
+    assert.equal(s.d.state.phase, "calibrating", "only the host");
+    s.handle(ANN, { t: "act", action: { type: "SKIP_CALIBRATION" } });
+    assert.equal(s.d.state.phase, "lobby");
+    assert.equal(last(s.flush().out, "state")?.calibrated, undefined);
+  });
+
+  it("the TV speaks its host's language: the host's phone says it, the others' don't change it, the next host's when the host leaves", () => {
+    const { s, clock } = fresh();
+    const first = s.stateMsg();
+    assert.equal(first.t === "state" ? first.lang : null, undefined, "nothing said yet");
+    s.handle(BOB, { t: "lang", lang: "en" });
+    assert.deepEqual(s.flush().out, [], "Bob isn't the host: nothing for the TV");
+    s.handle(ANN, { t: "lang", lang: "zh" });
+    const out = s.flush().out;
+    assert.equal(out.length, 1);
+    assert.ok(out[0] && "to" in out[0] && out[0].to === "speaker");
+    assert.equal(last(out, "state")?.lang, "zh");
+    s.handle(ANN, { t: "lang", lang: "zh" });
+    assert.deepEqual(s.flush().out, [], "the same again: nothing new");
+    s.handle(ANN, { t: "lang", lang: "fr" as never });
+    s.handle(SPEAKER, { t: "lang", lang: "en" });
+    assert.deepEqual(s.flush().out, [], "only zh or en, only from a phone");
+    // Ann leaves: Bob is the host, and his language is the TV's
+    s.disconnect(ANN);
+    clock.advance(PLAYER_GRACE_MS);
+    s.tick();
+    assert.equal(last(s.flush().out, "state")?.lang, "en");
+    assert.equal(s.d.langs?.["ann-000001"], undefined, "a phone gone for good is forgotten");
+  });
+
+  it("暂停 in the dance: nothing ends while paused; 继续 moves beat 0 and the end later, the moments before the pause again first", () => {
+    const { s, clock } = ready();
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
+    const start = s.d.state.routineStartAt!;
+    const end = s.d.finishAt!;
+    clock.advance(20_000);
+    s.flush();
+    s.handle(BOB, { t: "act", action: { type: "PAUSE" } });
+    assert.equal(s.d.routine?.pausedAt, undefined, "only the host");
+    s.handle(ANN, { t: "act", action: { type: "PAUSE" } });
+    const pausedAt = clock.now - 995_000;
+    assert.equal(s.d.routine?.pausedAt, pausedAt);
+    assert.equal(last(s.flush().out, "state")?.routine?.pausedAt, pausedAt, "every page hears of it");
+    assert.equal(anchorsOf(s.d.state.phase, s.d.state.routineStartAt, s.d.routine), null, "nothing plays on the pages");
+    s.handle(ANN, { t: "act", action: { type: "PAUSE" } });
+    assert.equal(last(s.flush().out, "error")?.code, "bad_phase", "paused already");
+    // the end doesn't come while paused, however long
+    clock.advance(end - pausedAt + 60_000);
+    s.tick();
+    assert.equal(s.d.state.phase, "dancing");
+    assert.ok(s.nextWake()! > clock.now, "no alarm for the end");
+    s.handle(ANN, { t: "act", action: { type: "RESUME" } });
+    const at = clock.now - 995_000;
+    const shift = at + RESUME_LEAD_MS - pausedAt;
+    assert.equal(s.d.routine?.pausedAt, undefined);
+    assert.equal(s.d.state.routineStartAt, start + shift);
+    assert.equal(s.d.finishAt, end + shift);
+    assert.equal(at + RESUME_LEAD_MS - s.d.state.routineStartAt!, pausedAt - start, "where the pause was, a moment and a half after 继续");
+    assert.ok(last(s.flush().out, "state"), "every page hears of it");
+    clock.advance(end + shift - at - 5);
+    s.tick();
+    assert.equal(s.d.state.phase, "dancing");
+    clock.advance(10);
+    s.tick();
+    assert.equal(s.d.state.phase, "results");
+  });
+
+  it("暂停 during the teaching: the lead and the dance after it move later; nothing to pause before anything plays", () => {
+    const { s, clock } = ready();
+    s.handle(ANN, { t: "act", action: { type: "PAUSE" } });
+    assert.equal(last(s.flush().out, "error")?.code, "bad_phase", "nothing plays in the lobby");
+    s.handle(ANN, { t: "act", action: { type: "RESUME" } });
+    assert.equal(last(s.flush().out, "error")?.code, "bad_phase", "not paused");
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    const lead = s.d.routine!.leadStartAt!;
+    const danceAt = s.d.danceAt!;
+    clock.advance(30_000);
+    s.handle(ANN, { t: "act", action: { type: "PAUSE" } });
+    const p = clock.now - 995_000;
+    clock.advance(Math.ceil(danceAt - p) + 10_000);
+    s.tick();
+    assert.equal(s.d.state.phase, "learning", "the dance waits for 继续");
+    s.handle(ANN, { t: "act", action: { type: "RESUME" } });
+    const shift = clock.now - 995_000 + RESUME_LEAD_MS - p;
+    assert.equal(s.d.routine!.leadStartAt, lead + shift);
+    assert.equal(s.d.danceAt, danceAt + shift);
+    clock.advance(Math.ceil(danceAt + shift - (clock.now - 995_000)));
+    s.tick();
+    assert.equal(s.d.state.phase, "dancing");
+    assert.equal(s.d.state.routineStartAt, danceStart(buildShow("square-easy", "learn")!, { leadStartAt: lead + shift, danceStartAt: null, fromBeat: 0 }));
+  });
+
+  it("stopped while paused: back in the lobby nothing is paused", () => {
+    const { s } = ready();
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
+    s.handle(ANN, { t: "act", action: { type: "PAUSE" } });
+    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
+    assert.equal(s.d.routine?.pausedAt, undefined);
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    assert.equal(s.d.routine?.pausedAt, undefined);
+    assert.ok(anchorsOf(s.d.state.phase, s.d.state.routineStartAt, s.d.routine));
   });
 });
 

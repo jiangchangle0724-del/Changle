@@ -74,8 +74,16 @@ export type TileProps = {
   soon?: boolean;
   /** under the room light during a random pick */
   lit?: boolean;
+  /** the one chosen on a board where one is up (the online table's games): read out as pressed */
+  pressed?: boolean;
+  /** can't be pressed now (at an online table only the host picks); it still looks the same */
+  disabled?: boolean;
   /** grid (default), or hero: the full-width card at the top of home */
   size?: "grid" | "hero";
+  /** one line under the names, for a card with no players or minutes to show (a tool) */
+  line?: string;
+  /** a card that opens another page at its own address (随便 at /eat): a link, not a button */
+  href?: string;
   onOpen: () => void;
 };
 

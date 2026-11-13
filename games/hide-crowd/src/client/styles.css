@@ -22,10 +22,25 @@
   --arena-accent: #ff8a6b;
   --arena-warn: #ffb36b;
   --arena-danger: #ff8a7f;
-  /* the three looks in the crowd, for the flat arena (the same coats as the sprite sheet) */
+  /* the floors, in daylight like the places in the pictures (Arena3D draws them) */
+  --arena-lawn: #6aaf45;
+  --arena-lawn-2: #4f9135;
+  --arena-lawn-light: #8fca5c;
+  --arena-tile: #d3c8b8;
+  --arena-tile-2: #b9aa94;
+  --arena-inlay: #b8694b;
+  --arena-stone: #d9c19c;
+  --arena-stone-2: #c0a37a;
+  --arena-petal: #ee9fb6;
+  --arena-daisy: #fbf4e2;
+  --arena-sea: #3b8db5;
+  /* the six looks in the crowd, for the flat arena (the same tops as the 3D people, src/client/people.ts) */
   --look-0: #d9962a;
   --look-1: #5cc79b;
-  --look-2: #2e6f73;
+  --look-2: #3f8f94;
+  --look-3: #c8402f;
+  --look-4: #44599a;
+  --look-5: #f0c419;
   --look-skin: #e8b48c;
   --look-ink: #1b1d2e;
   /* the penalty glass */
@@ -40,6 +55,8 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* (no double-tap zoom anywhere; pinch still zooms the pages that have text) */
+  touch-action: manipulation;
   background: var(--color-bg);
   color-scheme: dark;
   accent-color: var(--light);
@@ -756,6 +773,10 @@ button.arena-option:active {
   position: fixed;
   inset: 0;
   overflow: hidden;
+  /* thumbs on glass: no text selection, no long-press menu */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 .play {
   position: absolute;
@@ -774,6 +795,8 @@ button.arena-option:active {
   grid-area: arena;
   position: relative;
   min-height: 0;
+  /* the arena never scrolls or zooms under a thumb */
+  touch-action: none;
 }
 .arena {
   position: absolute;
@@ -1008,7 +1031,7 @@ button.arena-option:active {
   touch-action: none;
   transition: transform var(--dur-exit) var(--ease-out), background-color var(--dur-enter) var(--ease-out);
 }
-.move-btn:active:not(:disabled) {
+.move-btn:active:not(.is-waiting) {
   transform: scale(0.94);
 }
 .move-punch {
@@ -1026,7 +1049,7 @@ button.arena-option:active {
   font-size: var(--text-sm);
   box-shadow: inset 0 0 0 1.5px var(--color-line);
 }
-.move-btn:disabled {
+.move-btn.is-waiting {
   background: var(--color-raised);
   color: var(--color-text-3);
   box-shadow: none;
@@ -1180,6 +1203,20 @@ button.arena-option:active {
   .result {
     max-width: 560px;
     padding-top: var(--space-4);
+  }
+  /* sideways, the titles and the buttons sit beside the table, so Play again is in reach without scrolling */
+  .result.has-awards {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-6);
+    max-width: 800px;
+  }
+  .result.has-awards .result-table {
+    margin-bottom: 0;
+  }
+  .result.has-awards .award-why {
+    display: none;
   }
   .result-actions {
     grid-template-columns: 1fr 1fr;
@@ -1810,6 +1847,15 @@ html.is-tv body::before {
 .flat-avatar.look-2 {
   --look: var(--look-2);
 }
+.flat-avatar.look-3 {
+  --look: var(--look-3);
+}
+.flat-avatar.look-4 {
+  --look: var(--look-4);
+}
+.flat-avatar.look-5 {
+  --look: var(--look-5);
+}
 .flat-avatar__shadow {
   position: absolute;
   inset: 4px;
@@ -1860,6 +1906,32 @@ html.is-tv body::before {
 }
 .flat-avatar.pose-glance .flat-avatar__head {
   animation: flat-glance 520ms ease-in-out infinite alternate;
+}
+/* the busker plays (or the round is won): a bounce on the spot */
+.flat-avatar.pose-dance .flat-avatar__turn {
+  animation: flat-dance var(--dur-emphasis) var(--ease-out) infinite alternate;
+}
+@keyframes flat-dance {
+  from {
+    translate: 0 0;
+    rotate: -8deg;
+  }
+  to {
+    translate: 0 calc(-1 * var(--space-1));
+    rotate: 8deg;
+  }
+}
+.flat-avatar__you.is-name {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+@media (prefers-reduced-motion: reduce) {
+  .flat-avatar.pose-dance .flat-avatar__turn {
+    animation: none;
+  }
+}
+[data-reduced="1"] .flat-avatar.pose-dance .flat-avatar__turn {
+  animation: none;
 }
 @keyframes flat-stagger {
   from {
@@ -1945,4 +2017,629 @@ html.is-tv body::before {
   color: var(--color-bg);
   font-size: var(--text-xs);
   font-weight: 800;
+}
+
+/* ---------- held upright: turn the phone sideways ---------- */
+.turn-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: calc(var(--safe-top) + var(--space-6)) var(--space-6) calc(var(--safe-bottom) + var(--space-6));
+  background: var(--color-bg);
+  text-align: center;
+}
+.turn-phone {
+  position: relative;
+  width: 60px;
+  height: 100px;
+  margin-bottom: var(--space-6);
+  border-radius: var(--r-field);
+  box-shadow: inset 0 0 0 3px var(--color-text);
+  animation: turn-phone 2.6s var(--ease-out) infinite;
+}
+.turn-screen {
+  position: absolute;
+  inset: 10px 7px;
+  border-radius: var(--r-small);
+  background: var(--gel);
+}
+@keyframes turn-phone {
+  0%,
+  22% {
+    transform: rotate(0deg);
+  }
+  50%,
+  86% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+.turn-title {
+  font: 800 var(--text-xl) / var(--leading-tight) var(--font-display);
+}
+.turn-body {
+  max-width: 30ch;
+  color: var(--color-text-2);
+}
+.turn-lock {
+  max-width: 34ch;
+  margin-top: var(--space-4);
+  color: var(--color-text-3);
+  font-size: var(--text-sm);
+}
+
+/* ---------- an iPhone: the Home Screen guide ---------- */
+.sheet.sheet-wide {
+  max-width: 760px;
+}
+.home-tip {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+}
+.home-tip .panel-line {
+  margin: 0;
+}
+.home-guide {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+.home-guide-text {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+.home-guide-text .sheet-text {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+/* the two ways: hide Safari's toolbar (quickest), or the Home Screen (all the screen) */
+.home-way {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+}
+.home-way .icon {
+  flex: none;
+}
+.home-guide-text .home-quick {
+  padding-left: calc(var(--space-2) + 18px);
+}
+
+/* in a round on an iPhone in Safari: how to hide its bars, under the top bar on the left, clear of the scores */
+.bars-hint {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--bar-h) + var(--space-1));
+  left: max(var(--space-2), env(safe-area-inset-left));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: calc(100% - 2 * var(--gutter) - 168px);
+  padding-left: var(--space-3);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-float);
+  animation: fade-in var(--dur-enter) var(--ease-out) both;
+}
+.bars-hint-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+.bars-hint-icon {
+  display: inline-grid;
+  place-items: center;
+  margin: 0 var(--space-1);
+  padding: 1px var(--space-1);
+  border-radius: var(--r-small);
+  background: var(--color-bg);
+  color: var(--color-text);
+  vertical-align: middle;
+}
+.bars-hint-more,
+.bars-hint-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bars-hint-more {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bars-hint {
+    animation: none;
+  }
+}
+.home-steps {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+.home-step {
+  position: relative;
+  padding: 6px var(--space-3) 6px calc(var(--space-3) + 28px);
+  border-radius: var(--r-field);
+  color: var(--color-text-2);
+  counter-increment: step;
+}
+.home-step::before {
+  content: counter(step);
+  position: absolute;
+  left: var(--space-2);
+  top: 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+/* the step the little iPhone is acting out lights up */
+.home-step-1,
+.home-step-2,
+.home-step-3,
+.home-step-4 {
+  animation: home-step 10s linear infinite;
+}
+.home-step-2 {
+  animation-delay: 2.5s;
+}
+.home-step-3 {
+  animation-delay: 5s;
+}
+.home-step-4 {
+  animation-delay: 7.5s;
+}
+@keyframes home-step {
+  0%,
+  24% {
+    background: var(--color-raised);
+    color: var(--color-text);
+  }
+  25%,
+  100% {
+    background: transparent;
+    color: var(--color-text-2);
+  }
+}
+
+/* the little iPhone: four scenes, two and a half seconds each */
+.mini-phone {
+  width: 150px;
+  padding: 8px;
+  border-radius: var(--r-tile);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-float);
+}
+.mini-screen {
+  position: relative;
+  height: 260px;
+  overflow: hidden;
+  border-radius: var(--r-field);
+  background: var(--color-bg);
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+}
+.mini-scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: mini-scene 10s linear infinite;
+}
+@keyframes mini-scene {
+  0% {
+    opacity: 0;
+  }
+  2%,
+  23% {
+    opacity: 1;
+  }
+  25%,
+  100% {
+    opacity: 0;
+  }
+}
+.mini-page {
+  position: absolute;
+  inset: 14px 12px auto;
+  display: grid;
+  gap: 8px;
+}
+.mini-page i {
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+}
+.mini-page i.is-short {
+  width: 60%;
+}
+.mini-bar {
+  position: absolute;
+  inset: auto 8px 10px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.mini-address {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  color: var(--color-text-2);
+}
+.mini-more {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  font-weight: 800;
+}
+.mini-pop {
+  position: absolute;
+  right: 8px;
+  bottom: 44px;
+  width: 92px;
+  padding: 4px;
+  border-radius: var(--r-small);
+  background: var(--color-sheet);
+  box-shadow: var(--shadow-float);
+}
+.mini-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  border-radius: var(--r-small);
+  color: var(--color-text);
+}
+.mini-sheet {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  gap: 2px;
+  padding: 8px 6px 12px;
+  border-radius: var(--r-field) var(--r-field) 0 0;
+  background: var(--color-sheet);
+  animation: mini-rise 10s var(--ease-out) infinite;
+}
+.mini-sheet.is-full {
+  top: 18px;
+  align-content: start;
+}
+@keyframes mini-rise {
+  0% {
+    transform: translateY(100%);
+  }
+  5%,
+  100% {
+    transform: none;
+  }
+}
+.mini-addbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 4px 8px;
+}
+.mini-addbar b {
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  color: var(--gel);
+}
+.mini-app {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  color: var(--color-text);
+}
+.mini-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-small);
+  background: var(--gel);
+}
+.mini-switch {
+  justify-content: space-between;
+  margin-top: 8px;
+  background: var(--color-surface);
+}
+.mini-switch i {
+  flex-shrink: 0;
+  width: 24px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  box-shadow: inset -12px 0 0 -2px var(--color-text);
+}
+.mini-home {
+  position: absolute;
+  inset: 22px 12px auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 10px;
+  justify-items: center;
+}
+.mini-home .mini-icon {
+  width: 30px;
+  height: 30px;
+}
+.mini-app.is-other .mini-icon {
+  background: var(--color-surface);
+}
+.mini-app.is-new {
+  animation: mini-pop 10s var(--ease-pop) infinite;
+}
+@keyframes mini-pop {
+  0%,
+  3% {
+    transform: scale(0);
+  }
+  8% {
+    transform: scale(1.15);
+  }
+  11%,
+  100% {
+    transform: none;
+  }
+}
+/* the tap: a ring where the finger lands, a moment into each scene */
+.mini-tap {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 3px var(--gel);
+  opacity: 0;
+  animation: mini-tap 10s var(--ease-out) infinite;
+}
+.mini-1 .mini-tap {
+  left: 113px;
+  top: 236px;
+}
+.mini-2 .mini-tap {
+  left: 60px;
+  top: 236px;
+}
+.mini-3 .mini-tap {
+  left: 115px;
+  top: 34px;
+}
+@keyframes mini-tap {
+  0%,
+  9% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  12% {
+    opacity: 1;
+  }
+  20%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+.mini-scene .is-target {
+  animation: mini-target 10s linear infinite;
+}
+@keyframes mini-target {
+  0%,
+  11% {
+    background: transparent;
+  }
+  12%,
+  24% {
+    background: color-mix(in oklab, var(--gel) 26%, transparent);
+  }
+  25%,
+  100% {
+    background: transparent;
+  }
+}
+/* each scene, and everything in it, runs a quarter of the loop later than the one before (after the rules above, so it wins) */
+.mini-2,
+.mini-2 > *,
+.mini-2 .is-target {
+  animation-delay: 2.5s;
+}
+.mini-3,
+.mini-3 > *,
+.mini-3 .is-target {
+  animation-delay: 5s;
+}
+.mini-4,
+.mini-4 > *,
+.mini-4 .is-new {
+  animation-delay: 7.5s;
+}
+/* the first scene stands for the steps when nothing moves */
+@media (prefers-reduced-motion: reduce) {
+  .turn-phone,
+  .home-step,
+  .mini-scene,
+  .mini-scene *,
+  .mini-sheet {
+    animation: none;
+  }
+  .turn-phone {
+    transform: rotate(-90deg);
+  }
+  .mini-1 {
+    opacity: 1;
+  }
+}
+[data-reduced="1"] .turn-phone,
+[data-reduced="1"] .home-step,
+[data-reduced="1"] .mini-scene,
+[data-reduced="1"] .mini-scene *,
+[data-reduced="1"] .mini-sheet {
+  animation: none;
+}
+[data-reduced="1"] .turn-phone {
+  transform: rotate(-90deg);
+}
+[data-reduced="1"] .mini-1 {
+  opacity: 1;
+}
+/* sideways on a phone, the little iPhone sits beside the steps; a narrow screen stacks them */
+@media (max-width: 520px) {
+  .home-guide {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+/* ---------- the crowd's moments, the round's titles, the big screen's sound ---------- */
+/* the ferry horn, the gong: the whole crowd stops (low in the middle, between the thumbs) */
+.moment-banner {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + var(--space-4));
+  left: 50%;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: calc(100% - 2 * var(--gutter));
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  animation: moment-in var(--dur-emphasis) var(--ease-pop) both;
+}
+.moment-banner .icon {
+  flex: none;
+}
+@keyframes moment-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--motion-shift)) scale(0.92);
+  }
+}
+.moment-banner.is-tv {
+  bottom: 40px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-8);
+  font-size: var(--text-xl);
+}
+/* upright, the controls sit under the arena: the banner goes on top instead */
+@media (orientation: portrait) and (max-width: 719px) {
+  .moment-banner:not(.is-tv) {
+    top: calc(var(--safe-top) + 112px);
+    bottom: auto;
+  }
+}
+
+/* the round's titles: 火眼金睛, 隐身大师... */
+.awards {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  text-align: start;
+}
+.award {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "name title" "why why";
+  column-gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.award.is-you {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.award-name {
+  grid-area: name;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.award-title {
+  grid-area: title;
+  color: var(--gel);
+  font-weight: 800;
+}
+.award-why {
+  grid-area: why;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.tv-result .awards {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  font-size: var(--text-lg);
+}
+.tv-result .award-why {
+  font-size: var(--text-md);
+}
+
+/* a big screen plays sound only after a click on it */
+.tv-sound {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (prefers-reduced-motion: reduce) {
+  .moment-banner {
+    animation: none;
+  }
+}
+:root[data-reduced="1"] .moment-banner {
+  animation: none;
 }

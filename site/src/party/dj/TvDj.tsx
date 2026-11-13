@@ -11,17 +11,21 @@ import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
+import { Floor3D } from "./Floor3D";
 import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePadEvents } from "./deck/TvDeck";
 import { LocalPanel } from "./local/LocalPanel";
 import { FloorGrid, NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
+import { SharedPhone } from "./SharedPhone";
 import { useBooth } from "./useBooth";
+import { takePrimed } from "../../lib/primeAudio";
 import { primeVoice, useAnnounce } from "./announce";
 import { useWakeLock } from "../sensors";
 import { Coach } from "./Coach";
 import { TubePlayer } from "./TubePlayer";
 import { danceShare } from "../../shared/dj/dance";
 import "../../styles/dj.css";
+import { useDjNames } from "./names";
 
 /**
  * 打碟 · DJ Booth on the big screen, which is also the speaker: the one device the music comes
@@ -29,9 +33,10 @@ import "../../styles/dj.css";
  * follow the kick, everyone at the table dances on the beat, and every 🔥 shows whose it was.
  */
 export default function TvDj({ v }: { v: DjView }) {
-  const { room, code, g, now, nameOf } = useRoom();
+  const { room, code, g, now } = useRoom();
   const { lang, sound } = useStore();
   const zh = lang === "zh";
+  const nameOf = useDjNames(zh);
   // at one of the owner's tables this screen may stream Lyria (the private test)
   const sid = room?.you ?? "";
   const lyria = useMemo(() => (v.lab && sid ? { url: lyriaUrl(code, sid), key: `${code}:${sid}` } : null), [v.lab, sid, code]);
@@ -84,6 +89,29 @@ export default function TvDj({ v }: { v: DjView }) {
   // the beginner deck: every pad pressed at the table plays here, on the next beat
   const chips = usePadEvents(booth.pad);
 
+  // opened from the game's card as the shared phone (Steve on Nov 11: "直接开始播放音乐"): the
+  // card's tap woke the sound, so the music starts with no tap here
+  useEffect(() => {
+    const ctx = takePrimed();
+    if (!ctx) return;
+    if (v.phase !== "wait" || booth.speaker) {
+      void ctx.close().catch(() => {});
+      return;
+    }
+    primeVoice();
+    booth.start(ctx);
+    // (once, on the page's first look)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // 点歌模式 is the booth's only way (Steve on Nov 12: "不需要drop了"; the phones have no build-up
+  // or DROP): a room an older page switched back gets it again from the speaker
+  useEffect(() => {
+    if (v.juke || booth.status !== "on") return;
+    g("juke", { on: true });
+    const id = window.setInterval(() => g("juke", { on: true }), 3000);
+    return () => window.clearInterval(id);
+  }, [v.juke, booth.status, g]);
+
   // the music starts here: the room's set begins when this screen says it's playing (said again
   // every few seconds until the room has heard it: a message can be lost on a dropping connection)
   useEffect(() => {
@@ -116,6 +144,8 @@ export default function TvDj({ v }: { v: DjView }) {
   }, [speaker, booth.source, booth.driver, dj]);
 
   const fires = useRef(new Map<string, number>());
+  // the floor in 3D: trying, dancing, or the drawn floor instead
+  const [floor3d, setFloor3d] = useState<"try" | "on" | "off">("try");
   const [flames, setFlames] = useState<Flame[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
@@ -127,10 +157,13 @@ export default function TvDj({ v }: { v: DjView }) {
   });
 
   const root = useRef<HTMLDivElement>(null);
+  // (暂停 on a phone: the floor rests with the music)
+  const held = useRef(false);
+  held.current = !!v.deck?.paused;
   const clock = useMemo(
     () => ({
-      beat: () => (speaker && speaker.stats().state === "playing" ? dj.beat() : NaN),
-      energy: () => speaker?.energy() ?? 0,
+      beat: () => (!held.current && speaker && speaker.stats().state === "playing" ? dj.beat() : NaN),
+      energy: () => (held.current ? 0 : (speaker?.energy() ?? 0)),
     }),
     [speaker, dj],
   );
@@ -231,9 +264,25 @@ export default function TvDj({ v }: { v: DjView }) {
       {v.deck && <DeckBoard v={v} clip={booth.clipOn} />}
       <JoinCard code={code} big={!seats.length} />
 
-      <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />
+      {/* the floor: the robots once they're dancing (a graphics chip that keeps up), the drawn one till then or instead */}
+      {floor3d !== "on" && <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />}
+      {floor3d !== "off" && (
+        <Floor3D
+          seats={dancers}
+          flames={flames}
+          host={room?.host}
+          dance={dancing.floor}
+          clock={clock}
+          level={ENERGY[stage].density}
+          singing={!!v.deck?.song && !v.deck.paused}
+          fires={fires}
+          shown={floor3d === "on"}
+          onReady={() => setFloor3d("on")}
+          onFail={() => setFloor3d("off")}
+        />
+      )}
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
-      {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} />}
+      {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} />}
       {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
@@ -295,6 +344,8 @@ export default function TvDj({ v }: { v: DjView }) {
           }}
         />
       )}
+      {/* the big screen's own 点歌 (the shared phone), and a phone held upright asked to turn sideways */}
+      <SharedPhone v={v} />
       {live && booth.stopped && (
         <button
           type="button"

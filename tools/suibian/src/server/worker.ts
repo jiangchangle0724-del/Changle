@@ -3,13 +3,11 @@
 //
 //   GET  /api/me                 → { user, loginEnabled, card, last }
 //   PUT  /api/me/card            ← Limits           save my diet card (logged in)
-//   POST /api/me/last            ← { code, name } or { place, name }   remember my last table or solo pick, to ask how it was
-//   POST /api/places/:id/rate    ← { overall, liked, wait }   rate my last solo pick (logged in, once)
-//   POST /api/solo               ← { center, range, answers, limits, lang } → { cards, more }   one person picking (logged in, counts toward 10 a day)
-//   POST /api/solo/more          → { cards, more }   the next three of that search (within 30 minutes; not another use)
+//   POST /api/me/last            ← { code, name } or { place, name }   remember my last table (or a solo pick made before picking alone went, 2026-11), to ask how it was
+//   POST /api/places/:id/rate    ← { overall, liked, wait }   rate my last solo pick (logged in, once; picking alone went in 2026-11, this stays a few days for picks made before)
 //   DELETE /api/me               → 204              forget everything about me
 //   GET  /auth/google, /auth/callback, POST /auth/logout
-//   POST /api/rooms              ← { cid, center, range } → { code }   (logged in, 10 a day)
+//   POST /api/rooms              ← { cid, center, range, at, occasion } → { code }   (logged in, 10 a day; `at`: a planned meal, or none for now)
 //   GET  /api/rooms/:code        → { exists, phase }
 //   GET  /api/rooms/:code/ws     → WebSocket (cid, key, name, lang in the query)
 //   POST /api/rooms/:code/rate   ← { cid, overall, liked, wait }
@@ -20,8 +18,8 @@
 // can spend API money). Without them the server runs on made-up demo restaurants.
 import { DurableObject } from "cloudflare:workers";
 import { BASE } from "../base";
-import { NEIGHBOURHOODS, SOLO_BATCH, cleanAnswers, cleanLimits, isRange, soloPick, soloReasons, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating, type SoloAnswers } from "../engine";
-import { cardView, type ClientMsg, type SoloCard, type SoloResponse } from "../room/protocol";
+import { NEIGHBOURHOODS, cleanAt, cleanLimits, isOccasion, isRange, type Center, type Limits, type Place, type PlaceStats, type RangeId, type Rating } from "../engine";
+import { type ClientMsg, type WireView } from "../room/protocol";
 import { Room, cleanRating, type RoomEnv, type RoomState, type Want } from "../room/room";
 import { currentUser, finishLogin, loginEnabled, logout, startLogin, testSession } from "./auth";
 import { demoPlaces, detailsGoogle, keepAbout, searchGoogle } from "./places";
@@ -70,7 +68,9 @@ export default {
     const path = url.pathname.slice(BASE.length) || "/";
     // Room and rating links are app pages; serve the app for them directly (old phones don't send
     // Sec-Fetch-Mode). The page is dist/client/eat/index.html, served at /eat/.
-    if (path === "/" || path === "/solo" || path === "/rate" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
+    // Picking alone (/solo) went in 2026-11: "一个人" is an occasion at a table now. Its old address goes home.
+    if (path === "/solo" || path === "/solo/") return Response.redirect(new URL(`${BASE}/`, url).toString(), 302);
+    if (path === "/" || path === "/rate" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
 
     if (path === "/auth/google") return loginEnabled(env) ? startLogin(req, env) : json({ error: "loginOff" }, 404);
     if (path === "/auth/callback") {
@@ -122,7 +122,7 @@ export default {
     }
 
     if (parts[1] === "rooms" && parts.length === 2 && req.method === "POST") {
-      const body = (await req.json().catch(() => ({}))) as { cid?: string; center?: unknown; range?: string; lang?: string };
+      const body = (await req.json().catch(() => ({}))) as { cid?: string; center?: unknown; range?: string; lang?: string; at?: unknown; occasion?: unknown };
       const center = cleanCenter(body.center);
       const range: RangeId = isRange(body.range) ? body.range : "walk20";
       if (!center) return json({ error: "badPlace" }, 400);
@@ -131,13 +131,11 @@ export default {
       if (denied) return denied;
       for (let i = 0; i < 40; i++) {
         const code = roomCode();
-        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, { host: body.cid!, center, range, demo: !usesGoogle(env), lang: body.lang === "en" ? "en" : "zh" })) return json({ code });
+        if (await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code, { host: body.cid!, center, range, demo: !usesGoogle(env), lang: body.lang === "en" ? "en" : "zh", at: cleanAt(body.at, Date.now()), occasion: isOccasion(body.occasion) ? body.occasion : "casual" })) return json({ code });
       }
       return json({ error: "busy" }, 503);
     }
 
-    if (parts[1] === "solo" && parts.length === 2 && req.method === "POST") return solo(req, env, me);
-    if (parts[1] === "solo" && parts[2] === "more" && parts.length === 3 && req.method === "POST") return soloMore(req, env, me);
 
     // One person's pick, rated after the meal: only your own last pick, once.
     if (parts[1] === "places" && parts[3] === "rate" && parts.length === 4 && req.method === "POST") {
@@ -181,98 +179,12 @@ async function takeUse(env: Env, me: { sub: string } | null): Promise<Response |
   return null;
 }
 
-/**
- * One person who doesn't know what to eat: their answers, where they are and their diet card come
- * in; the first three places go back, with phone, photo and map like a table's cards, and why each
- * was picked. Up to twelve are ranked; the rest wait on the account for "show me others" (POST
- * /api/solo/more), which fetches each batch's details only when it's asked for.
- */
-async function solo(req: Request, env: Env, me: { sub: string } | null): Promise<Response> {
-  const body = (await req.json().catch(() => ({}))) as { center?: unknown; range?: unknown; answers?: unknown; limits?: unknown; lang?: unknown };
-  const center = cleanCenter(body.center);
-  if (!center) return json({ error: "badPlace" } satisfies SoloResponse, 400);
-  const range: RangeId = isRange(body.range) ? body.range : "walk20";
-  const answers = cleanAnswers(body.answers);
-  const limits = cleanLimits(body.limits);
-  const lang = body.lang === "en" ? "en" : "zh";
-  const denied = await takeUse(env, me);
-  if (denied) return denied;
-  const google = usesGoogle(env);
-  const key = env.GOOGLE_PLACES_KEY!;
-  const now = Date.now();
-  let places: Place[];
-  try {
-    places = google ? await searchGoogle(key, center, range, lang) : demoPlaces(center, range, now);
-  } catch (e) {
-    console.error("places", String(e));
-    return json({ error: "searchFailed" } satisfies SoloResponse, 502);
-  }
-  if (!places.length) return json({ error: "nothingNearby", demo: !google } satisfies SoloResponse);
-  if (google) await Promise.all(places.map(async (p) => (p.ours = (await env.PLACES.get(env.PLACES.idFromName(p.id)).get()) ?? undefined)));
-  const { ids, relaxed } = soloPick({ places, answers, limits, center, range, now });
-  if (!ids.length) return json({ error: "nothingFits", demo: !google } satisfies SoloResponse);
-  const run: SoloRun = { places: ids.map((id) => places.find((p) => p.id === id)!), center, range, limits, answers, google };
-  const cards = await soloCards(env, run, 0);
-  const more = ids.length > cards.length;
-  // The rest wait for "show me others"; only places shown can become the pick to rate (/api/me/last).
-  // Without sign-in (no accounts on this deployment) they wait under a one-off token instead.
-  let token: string | undefined;
-  if (me) await user(env, me.sub).setSolo(ids, cards.length, run);
-  else if (more) {
-    token = crypto.randomUUID();
-    await user(env, soloKey(token)).setSolo(ids, cards.length, run);
-  }
-  return json({ cards, relaxed, demo: !google, more, run: token } satisfies SoloResponse);
-}
-
-/** What "show me others" needs from the first search, kept on the account until the next one. */
-export interface SoloRun {
-  places: Place[];
-  center: Center;
-  range: RangeId;
-  limits: Limits;
-  answers: SoloAnswers;
-  google: boolean;
-}
-
-/** How long a solo search's other batches stay available. */
-const SOLO_RUN_MS = 30 * 60_000;
-
-/** Without accounts, a solo search's other places wait under a random token (never an account's name). */
-const SOLO_TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const soloKey = (token: string) => `solo:${token}`;
-
-/** The batch of cards starting at `from`: details (phone, photo, map, review) fetched just for them. */
-async function soloCards(env: Env, run: SoloRun, from: number): Promise<SoloCard[]> {
-  const batch = run.places.slice(from, from + SOLO_BATCH).map((p) => ({ ...p }));
-  if (run.google) {
-    const key = env.GOOGLE_PLACES_KEY!;
-    const got = await Promise.allSettled(batch.map((p) => detailsGoogle(key, p.id)));
-    got.forEach((g, i) => g.status === "fulfilled" && Object.assign(batch[i], keepAbout(batch[i], g.value)));
-  }
-  const now = Date.now();
-  return batch.map((p) => ({ ...cardView(p, run.center, run.range, run.limits, now), reasons: soloReasons(p, run.answers, run.limits, run.center, run.range) }));
-}
-
-/** "Show me others": the next batch of the last solo search, if it's recent. Not another use of the day's ten. */
-async function soloMore(req: Request, env: Env, me: { sub: string } | null): Promise<Response> {
-  let key = me?.sub;
-  if (!key) {
-    if (loginEnabled(env)) return json({ error: "login" } satisfies SoloResponse, 401);
-    const body = (await req.json().catch(() => ({}))) as { run?: unknown };
-    if (typeof body.run !== "string" || !SOLO_TOKEN.test(body.run)) return json({ error: "expired" } satisfies SoloResponse, 410);
-    key = soloKey(body.run);
-  }
-  const u = user(env, key);
-  const s = await u.solo();
-  if (!s?.run || Date.now() - s.at > SOLO_RUN_MS) return json({ error: "expired" } satisfies SoloResponse, 410);
-  const cards = await soloCards(env, s.run, s.shown);
-  await u.showMore(cards.length);
-  return json({ cards, more: s.shown + cards.length < s.ids.length, demo: !s.run.google } satisfies SoloResponse);
-}
-
 interface Attachment {
   id: string;
+  /** The page keeps the list between views (it says v=2): it may be sent without an unchanged one. */
+  keeps?: boolean;
+  /** The cardsRev this phone was last sent with the cards (see commit()). */
+  rev?: string;
 }
 
 export class RoomDO extends DurableObject<Env> {
@@ -288,7 +200,7 @@ export class RoomDO extends DurableObject<Env> {
       // A socket refused before it got an attachment has no id: skip it rather than fail to start.
       this.room.presence(ctx.getWebSockets().flatMap((ws) => (ws.deserializeAttachment() as Attachment | null)?.id ?? []));
       // Restarted in the middle of a search: start it again.
-      if (st.phase === "finding") void this.work({ k: "search", center: st.center, range: st.range, lang: st.lang ?? "zh" });
+      if (st.phase === "finding") void this.work(this.room.searchWant());
     });
   }
 
@@ -332,7 +244,7 @@ export class RoomDO extends DurableObject<Env> {
     const id = q.get("cid") ?? "";
     if (this.room.full(id)) return refuse("full", 4005);
     if (!this.room.join(id, q.get("key") ?? "", { name: q.get("name") ?? undefined, lang: q.get("lang") === "en" ? "en" : "zh" })) return refuse("identity", 4003);
-    server.serializeAttachment({ id } satisfies Attachment);
+    server.serializeAttachment({ id, keeps: q.get("v") === "2" } satisfies Attachment);
     await this.commit();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -389,7 +301,7 @@ export class RoomDO extends DurableObject<Env> {
     const key = room.st.demo ? undefined : this.env.GOOGLE_PLACES_KEY;
     try {
       if (want.k === "search") {
-        const places = key ? await searchGoogle(key, want.center, want.range, want.lang) : demoPlaces(want.center, want.range, Date.now());
+        const places = key ? await searchGoogle(key, want.center, want.range, want.lang, { liked: want.liked, occasion: want.occasion, at: want.at, random: randomUnit }) : demoPlaces(want.center, want.range, Date.now());
         // Our own numbers, for real places only (demo ones are made up).
         if (key) await Promise.all(places.map(async (p: Place) => (p.ours = (await this.env.PLACES.get(this.env.PLACES.idFromName(p.id)).get()) ?? undefined)));
         if (this.room === room) room.found(places);
@@ -417,10 +329,15 @@ export class RoomDO extends DurableObject<Env> {
     if (out.changed) {
       await this.ctx.storage.put("room", room.st);
       for (const ws of sockets) {
-        const id = of(ws);
-        if (!id) continue;
+        const att = ws.deserializeAttachment() as Attachment | null;
+        if (!att?.id) continue;
         try {
-          ws.send(JSON.stringify({ t: "view", view: room.view(id) }));
+          const view = room.view(att.id);
+          // The list is the same for everyone and changes rarely: a phone that has it gets it once. A page
+          // from before that (open while the server was updated) still gets it every time.
+          const same = !!att.keeps && att.rev === view.cardsRev;
+          ws.send(JSON.stringify({ t: "view", view: { ...view, cards: same ? null : view.cards } satisfies WireView }));
+          if (!same) ws.serializeAttachment({ ...att, rev: view.cardsRev } satisfies Attachment);
         } catch {
           // socket closing; its close handler will tidy up
         }
@@ -435,15 +352,29 @@ export class RoomDO extends DurableObject<Env> {
 /** The last table (its code) or solo pick (its place id) someone went to, to ask how it was. */
 type Last = { code?: string; place?: string; name: string; at: number; rated?: boolean };
 /**
- * The last solo search: the places it ranked, how many of them have been shown, whether one has been
- * rated, and (for "show me others") what it needs to make the next cards. Replaced by the next search.
+ * The last solo search: the places it showed, and whether one of them has been rated. Replaced by
+ * the next search.
  */
-type Solo = { ids: string[]; shown: number; rated?: boolean; at: number; run?: SoloRun };
+type Solo = { ids: string[]; rated?: boolean; at: number };
+/** How long an old solo pick can still be rated (the home page asks for as long). */
+const SOLO_RATE_DAYS = 3;
 
 /** One logged-in person: their diet card, last table or pick, and today's count. */
 export class UserDO extends DurableObject<Env> {
   async me(): Promise<{ card: Limits | null; last: Last | null }> {
-    return { card: (await this.ctx.storage.get<Limits>("card")) ?? null, last: (await this.ctx.storage.get<Last>("last")) ?? null };
+    // From 2026-11-05 to 11-11 picking alone kept the places it showed, to show others first; no longer used.
+    await this.ctx.storage.delete("seen");
+    // Picking alone went in 2026-11: its last search and pick are only kept while the pick can be
+    // rated (the home page asks for three days), as the privacy page says.
+    const old = Date.now() - SOLO_RATE_DAYS * 24 * 3600_000;
+    const solo = await this.ctx.storage.get<Solo>("solo");
+    if (solo && solo.at < old) await this.ctx.storage.delete("solo");
+    let last = (await this.ctx.storage.get<Last>("last")) ?? null;
+    if (last?.place && last.at < old) {
+      await this.ctx.storage.delete("last");
+      last = null;
+    }
+    return { card: (await this.ctx.storage.get<Limits>("card")) ?? null, last };
   }
 
   /**
@@ -471,26 +402,10 @@ export class UserDO extends DurableObject<Env> {
     await this.ctx.storage.put("last", last);
   }
 
-  /** A new solo search: the places it ranked, how many the first answer showed, and what the rest need. */
-  async setSolo(ids: string[], shown: number, run: SoloRun) {
-    await this.ctx.storage.put("solo", { ids, shown, at: Date.now(), run } satisfies Solo);
-  }
-
-  async solo(): Promise<Solo | null> {
-    return (await this.ctx.storage.get<Solo>("solo")) ?? null;
-  }
-
-  /** "Show me others" showed `n` more. */
-  async showMore(n: number) {
-    const s = await this.ctx.storage.get<Solo>("solo");
-    if (s) await this.ctx.storage.put("solo", { ...s, shown: Math.min(s.ids.length, s.shown + n) });
-  }
-
   /** "就它了": becomes the pick to ask about, if the last solo search showed it. Choosing it again keeps it as it was (rated or not). */
   async chooseSolo(place: string, name: string): Promise<boolean> {
     const s = await this.ctx.storage.get<Solo>("solo");
-    const shown = s ? s.ids.slice(0, s.shown ?? s.ids.length) : [];
-    if (!shown.includes(place)) return false;
+    if (!s?.ids.includes(place)) return false;
     const last = await this.ctx.storage.get<Last>("last");
     if (last?.place !== place) await this.ctx.storage.put("last", { place, name, at: Date.now() } satisfies Last);
     return true;

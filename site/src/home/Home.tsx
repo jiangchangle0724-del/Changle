@@ -5,6 +5,7 @@ import { SettingsSheet } from "../components/SettingsSheet";
 import type { GameId } from "../games/registry";
 import { EASE, LIGHTS, play, reduced, setLight } from "../lib/motion";
 import { useStore } from "../store";
+import { labels } from "../ui/labels";
 import { PartyTab } from "./PartyTab";
 import { TipButton } from "./Tip";
 // the tools and wishlist tabs aren't on the first screen: they load when opened, or once the home
@@ -37,7 +38,7 @@ export function Home({
   onCard: (id: GameId | null) => void;
   onPlay: (id: GameId) => void;
 }) {
-  const { ui } = useStore();
+  const { ui, lang } = useStore();
   const [settingsOpen, setSettingsOpen] = useState(!!openSettings);
   const prev = useRef(tab);
   const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
@@ -74,7 +75,14 @@ export function Home({
       <Tabs value={tab} onChange={onTab} />
       <Panel key={tab} dir={dir}>
         {tab === "party" && <PartyTab card={game} onCard={onCard} onPlay={onPlay} onWishlist={() => onTab("wish")} />}
-        <Suspense fallback={null}>
+        {/* a tab whose file is still on the way (a slow network, right after opening): its shape, not a blank (C5) */}
+        <Suspense
+          fallback={
+            <div className="tab-loading" aria-busy="true">
+              <span className="ui-visually-hidden">{labels.loading[lang]}</span>
+            </div>
+          }
+        >
           {tab === "tools" && <ToolsTab />}
           {tab === "wish" && <WishlistTab />}
         </Suspense>

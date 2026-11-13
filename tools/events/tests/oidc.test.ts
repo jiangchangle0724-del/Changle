@@ -170,8 +170,10 @@ describe("GitHub's sign-in token (src/oidc.ts)", () => {
       [{ event_name: "repository_dispatch" }, "wrong event_name"],
       [{ event_name: undefined }, "wrong event_name"],
     ];
+    // Checked at the second the cases were written for: on a slow runner the loop can cross into the
+    // next second, and then iat = t + 61 is no longer more than a minute ahead (11 November, PR #302).
     for (const [change, error] of wrong) {
-      expect(await verify(await token({ ...claims(), ...change })), what(change)).toEqual({ ok: false, status: 401, error });
+      expect(await verify(await token({ ...claims(t * 1000), ...change }), t * 1000), what(change)).toEqual({ ok: false, status: 401, error });
     }
   });
 
@@ -343,7 +345,7 @@ describe("POST /go/api/handoff, signed in by GitHub", () => {
     expect((env as Env).EVENTS_HANDOFF_KEY).toBeUndefined();
     const res = await post(await token(claims()));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, source: "vpl", date: today(), part: 0, bytes: vpl.length });
+    expect(await res.json()).toEqual({ ok: true, source: "vpl", date: today(), part: 0, bytes: vpl.length, read: false });
     expect((await takeHandoff(env.CACHE, today(), "vpl", 0))?.raw).toBe(vpl);
   });
 

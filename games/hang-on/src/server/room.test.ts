@@ -37,13 +37,13 @@ describe('进出房', () => {
     expect(v.phase).toBe('lobby');
   });
 
-  test('第 5 个手柄进不来，掉线的座位回来还是原来的颜色', () => {
+  test('第 7 个手柄进不来，掉线的座位回来还是原来的颜色', () => {
     const { r, clock } = room();
-    for (let i = 1; i <= 4; i++) expect(r.connect(pad(i))).toBeNull();
-    expect(r.connect(pad(5))).toBe('full');
+    for (let i = 1; i <= 6; i++) expect(r.connect(pad(i))).toBeNull();
+    expect(r.connect(pad(7))).toBe('full');
     r.disconnect(pad(2));
     clock.advance(1000);
-    expect(r.connect(pad(5))).toBe('full'); // 座位还留着等 2 号回来
+    expect(r.connect(pad(7))).toBe('full'); // 座位还留着等 2 号回来
     expect(r.connect(pad(2))).toBeNull();
     const v = lastRoom(r.flush().out)!;
     expect(v.seats.find((s) => s.id === pad(2).seat)).toMatchObject({ color: 1, connected: true });
@@ -51,11 +51,11 @@ describe('进出房', () => {
 
   test('座位空够久就让出来', () => {
     const { r, clock } = room();
-    for (let i = 1; i <= 4; i++) r.connect(pad(i));
+    for (let i = 1; i <= 6; i++) r.connect(pad(i));
     r.disconnect(pad(3));
     clock.advance(PAD_GRACE_MS + 1);
     r.tick();
-    expect(r.connect(pad(5))).toBeNull();
+    expect(r.connect(pad(7))).toBeNull();
     expect(lastRoom(r.flush().out)!.seats.map((s) => s.id)).not.toContain(pad(3).seat);
   });
 
@@ -80,6 +80,17 @@ describe('阶段', () => {
       out = r.flush().out;
       expect(lastRoom(out)!.phase).toBe(phase);
     }
+  });
+
+  test('结算页可以直接 START 开下一局，不用先回大厅', () => {
+    const { r } = room();
+    r.connect(HOST);
+    r.connect(ANN);
+    r.flush();
+    for (const type of ['START', 'PLAY', 'FINISH'] as const) r.handle(HOST, { t: 'act', action: { type } });
+    expect(r.d.phase).toBe('results');
+    r.handle(HOST, { t: 'act', action: { type: 'START' } });
+    expect(lastRoom(r.flush().out)!.phase).toBe('countdown');
   });
 
   test('手柄不能改阶段', () => {
@@ -174,5 +185,27 @@ describe('杂', () => {
     expect(cleanName('')).toBe('糯米团');
     expect(cleanName('一二三四五六七八九十十一十二十三')).toBe('一二三四五六七八九十十一');
     expect(makeCode('AB', () => 1)).toBe('BBBB');
+  });
+});
+
+describe('手机局', () => {
+  test('房主自己也玩：手柄从 1 号颜色排起，最多 5 个，房间告诉大家这是手机局', () => {
+    const now = 1_000_000;
+    const r = new Room(Room.create('ABCD', now, { hostPlays: true }), () => now);
+    expect(r.connect(HOST)).toBeNull();
+    for (let i = 1; i <= 5; i++) expect(r.connect(pad(i), `P${i}`)).toBeNull();
+    expect(r.connect(pad(6), 'P6')).toBe('full');
+    const view = r.view();
+    expect(view.hostPlays).toBe(true);
+    expect(view.seats.map((s) => s.color)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  test('电视局：6 个手柄，颜色从 0 排，房间里没有 hostPlays', () => {
+    const { r } = room();
+    r.connect(HOST);
+    for (let i = 1; i <= 6; i++) expect(r.connect(pad(i), `P${i}`)).toBeNull();
+    const view = r.view();
+    expect(view.hostPlays).toBeUndefined();
+    expect(view.seats.map((s) => s.color)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 });

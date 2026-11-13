@@ -30,10 +30,50 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   middle, under the board where the flat map is, so the tokens stand on it, wearing the same pictures.
   A team crossing to another region flies there along the great circle, its own token flying it. On a
   phone the player picks how big the board is drawn (below, "The map's size").
+* **A board on a table**, as the original Monopoly is: seen from a chair, it leans back at rest, 26
+  degrees on a phone or a laptop, at every size of its map, and 30 on the big screen (`boardLean` in
+  `ui/Board.tsx`; until 11-12 a phone's board, and a laptop's bigger map, lay flat). A bigger map is
+  that table seen closer: the map zooms and drags the board as it shows, leaning (`.board-pan` round
+  `.board-view`), and follows a token where it shows (`place`, through `project`). The lean is the
+  ride's camera at rest (`rest` in `ui/Ride.tsx`, one CSS transform on `.board-view`); `leanFit` finds
+  how much bigger and lower to draw it so the leaned ring fills the box it had flat. A phone's own move
+  starts from its map and ends on it: the camera carries the map's zoom and pan over the leaning board
+  (`mz`, `mx`, `my`, written before the perspective), so neither end jumps. A new lean eases over 0.6 s
+  (`.easing`), with reduced motion at once; a move's camera writes every frame and hands the board back
+  at rest at once, even cut short. (Eased back instead, a pushed-in big screen's board ran 512 px off
+  the screen for a moment, no longer inside the ride's clipped box: `tests/e2e/tv.spec.ts` caught it on
+  WebKit.) The board is a
+  thing too (`BoardDefs` in `art/RoundBoard.tsx`): its edge under its face (more of it shows as it
+  leans), its soft shadow on the table, a lamp's light from the top left with its pool on the table
+  behind, and lacquer on the colour bands. **What stands on it stands up**: the tokens, the buildings
+  and the news and world tags are stretched back up by 1/cos(lean) (`standOf`), so they keep their
+  height instead of lying down with the board; what is printed on it (codes, signs, owners' marks,
+  stamps) lies flat. An owner's mark is a chip with its shadow under it.
+* **The buildings** (`Buildings` in `art/RoundBoard.tsx`) stand up on a city's space like the tokens,
+  upright while the table turns: little models drawn in code, with a front, a side in shade and a roof,
+  1.5 times their drawing (`BLD_K`; it was 1.3), with their shadow on the space under them.
+  One to four green houses side by side, or a hotel of three floors with lit windows and a sign on its
+  roof carrying the city's own picture (the pyramid, the gondola, the die…): the city's landmark at a
+  size a phone can still read. **A new one comes up out of the ground**: the ground opens under it, it
+  pushes up through it (clipped at the ground until it's out: `#rb-above`), stretched as it rises,
+  squashed as it lands, and settles; clods fly, dust puffs out both ways and a ring of dust spreads.
+  Houses one after another, a hotel floor by floor with its roof dropping on (0.8 s each, 0.16 s
+  apart). On a laptop and the big screen a big one comes up first where it's going to stand, 3.2 times
+  its size, lands with a jolt that shakes it and shrinks to its place (`BuildFx`); on a phone, where
+  the 我的 sheet covers the board, the city's row in the list has its own ground with the same moment
+  at twice the size (`Lot`), and the map looks at the city for 2.6 s once the sheet is down (`look` in
+  `ui/mapView.ts`). Sold, a building sinks back into the ground in dust; with a sound for each: a
+  rumble, a thunk for each part landing and a chime (a hotel's a chord and a bell), a sinking one, and
+  a card turned for a mortgage. What was there when the board first drew stays still.
+* **Life between moves.** Every 2.4 s one thing on the board moves for a second: a token that isn't on
+  turn looks round or bobs, or a hotel's sign swings and its windows blink (a city's owner mark gives a
+  bounce while there's no hotel yet). One at a time, so a phone draws only that small part again; never
+  during a move, with the page hidden, or with reduced motion.
 * **Six characters**, one per team colour, each with six moods (idle, happy, shock, sad, curious,
   smug): 咔嚓 Click, 呼呼 Snooze, 小旗 Flaggy, 背背 Packy, 箱箱 Trunky, 球球 Globey. On the board they
-  stand at 0.8 of their drawing on a phone or a laptop and 0.62 on the big screen (`TOKEN_SCALE` in
-  `art/RoundBoard.tsx`; it was 0.57 everywhere). Several on one space stand in pairs, each pair further
+  stand at 0.88 of their drawing on a phone or a laptop and 0.62 on the big screen (`TOKEN_SCALE` in
+  `art/RoundBoard.tsx`; it was 0.57 everywhere, then 0.8 on the flat board: the lean draws the ring a
+  little smaller, its far side most). Several on one space stand in pairs, each pair further
   in toward the middle, a little smaller the more there are (`slots`), each whole and wearing its
   team's letter like the owner's mark on a city; the one whose turn it is hops.
 * **Each city** has a poster built around its rule (Venice floods, Tokyo's trains are packed) and a
@@ -42,9 +82,28 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   touchdown in each new city (out of the plane window, through the clouds, the real local time and
   the live weather), and the finale (an exit stamp, teams read out last to first, the winners'
   medal, stamps and falling paper).
+* **The report card (战报)** follows the finale (`ui/ReportCard.tsx`, `ui/tripReport.ts`), from what the
+  room counted for each team over the game (`Tally` in `room/protocol.ts`, sent only once it's over):
+  up to five awards in a fixed order (top landlord, priciest night, quiz champ, auction ace, hottest
+  dice with three throws or more, doubles king, Immigration regular; nothing for nothing, a tie
+  shared), and the dice, a bar for each total of two against a dot for the long run, with the numbers
+  in words, so nobody has to wonder whether they were loaded. On a phone it comes in under the
+  standings, with 存成图片: a 1080 × 1350 picture drawn on a canvas in the game's fonts and colours
+  (`ui/reportPicture.ts`), shown in a sheet to press and hold (a data address, which WeChat saves too),
+  share where the phone can, or download (a blob address of plain bytes: a data one downloaded nothing
+  on an iPhone). An iPhone that can share gets one button instead, 存到相册或分享: a web page can't put
+  a picture in Photos and a download goes to the Files app (from the Home Screen, nowhere), but the
+  share sheet's 存储图像 puts it in Photos. The sheet sits beside the card, not in it: the card's
+  entrance moves it, and a moving card holds a fixed sheet inside itself. The big screen has no room
+  for both, so once the teams are
+  in, the standings' column turns between them and the card every 12 s, beside the winners' card,
+  sized in `vh` to fit 1280×720 (five awards take a third row, and the chart gives up a little height
+  for it). A game started at a table has the way back to it in the big screen's top corner, beside
+  the exit stamp, where it takes no height from the results.
 * **The printed things are drawn in code** (SVG, CSS, a canvas for the paper grain) and the sounds are
   synthesised in the browser. What's real comes as files, each credited: the cities' photos and
-  recordings (below), the songs (streamed from Apple) and the satellite pictures of the world.
+  recordings (below), the songs (streamed from Apple), the satellite pictures of the world, and the
+  game's own music (written for it in code, played with sampled instruments: "The music", below).
 
 ## See it while you work
 
@@ -71,6 +130,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
 | `src/client/music.ts`, `ui/localSong.ts`, `ui/Local.tsx`, `src/client/local.ts`, `src/client/songs.json` | Being there: the local hit a second visit plays (the player; which song, when, on which device; "Now playing"), the arrival card's local part, prices in local money, and the data (songs, hellos, exchange rates). |
+| `src/client/bgm.ts`, `ui/bgmPlan.ts`, `ui/Bgm.tsx`, `src/client/bgm.json`, `src/client/media/music/`, `scripts/music.mjs`, `scripts/music/` | The game's music: the player; what plays, how loud and on which device; the files and their loop points; the score and the script that plays and mixes it. |
 | `src/client/i18n.ts` | Every word on screen, in Chinese and English. |
 
 ## Tokens
@@ -254,6 +314,53 @@ Issue #44's parts 2 and 3 (its part 1, the satellite map: "The real world in the
   song. The preview URL found when the list was made is the fallback if the lookup doesn't answer.
 * **The record turns** while the song is on, 33⅓ turns a minute; it stands still with reduced motion.
 
+## The music
+
+The game's own music, written for it: **"Boarding Call" (登机广播)**, a medium swing in the manner of a
+1930s small band, the decade of the posters, and its ending for the results.
+
+* **The tune.** A 32-bar AABA song in F: the A is a riff that climbs to the top of the chord and comes
+  back, answered a step higher (I-VI-ii-V, the blue seventh on the way home); the bridge goes round the
+  cycle of dominants (A7 D7 G7 C7), a figure two bars long a fifth lower each time. Two choruses, 64 bars
+  at 125 a minute, 122.88 s, written to go round: the last bar turns back to the first.
+* **The band.** Clarinet (the tune), muted trumpet (the first chorus's bridge, then a second voice under
+  the clarinet), piano (sparse comping on the offbeats, three high notes where the tune rests, sixteen
+  bars of solo), rhythm guitar (four even strokes a bar, root, seventh and third), upright bass (in two
+  for the first sixteen bars, then walking), brushes (a swirl on every beat, a tap or the ride's "ding,
+  ding-a ding", the hi-hat on two and four, the bass drum felt more than heard; a fill at the end of each
+  eight). The first chorus is the tune; the second has the piano's sixteen, the clarinet's own bridge
+  and the shout, both horns together. Swing at 0.64 of the beat, each player a little uneven in their own
+  way (the clarinet a hair behind, the bass on top), all of it the same every time it's made.
+* **The ending** (11.3 s): the riff by everyone over two bars, three high piano notes alone, the band's
+  last chord on four, held, a cymbal swelling, and the final stroke. It starts with the exit stamp, so
+  the last chord comes as the paper falls.
+* **Made in code, played by samples.** `scripts/music/score.mjs` is the score (notes, voicings, the bass
+  line's search for its smoothest walk, the drums, the players' timing); `npm run music`
+  (`scripts/music.mjs`) has FluidSynth play each instrument alone with the GeneralUser GS SoundFont (S.
+  Christian Collins, its licence lets the music made with it be used freely, commercially too; fetched
+  at a fixed version, never committed), and ffmpeg mix them: a little EQ each, the balance measured where
+  each one plays, one room they all send to (an impulse response made in the script), levelled to -20
+  LUFS, true peak under -1.5 dBTP. The files: `theme.mp3` (stereo, 112 kbps, 1.7 MB) for the big screen,
+  `theme-mono.mp3` (64 kbps, 1.0 MB) for a phone, `finale.mp3` (155 KB); `tests/bgm.test.ts` holds their
+  sizes.
+* **The loop is the music going on.** The theme is played twice round and a bit, and the file is cut from
+  the second time round with a second either side; the player loops between those two points
+  (`bgm.json`), sample for sample the same music on both sides of the join (the script checks the second
+  time round against the third: -139 dB). 125 a minute makes a beat 0.48 s, a whole number of samples
+  and of milliseconds, so the join is exact.
+* **One device plays it** (`ui/bgmPlan.ts`): the big screen when one is on, otherwise the host's phone,
+  otherwise the first phone online; in the one-phone demo, that phone. A phone gets the mono file: about
+  24 MB once decoded, half the stereo one's.
+* **When.** From the game's start to its end, going round; nothing in the lobby. It fades in over 2.5 s,
+  sits at half volume under the game's sounds (each of which ducks it, `sound.ts`) and under the local
+  hits, and comes down out of the way: right down for a local hit (it's music too), Seoul's silence, Rio's
+  samba from the ready card to the scores, a party forfeit (one of them is humming a song) and a pause;
+  to 30% for a first visit's city recording. Then the ending, once.
+* **The menu's 背景音乐 / Music** turns it off on this device (`prefs.music`, on unless turned off); with the
+  sound off it's off too. Nothing is fetched or played while it's off, and nothing before the game starts.
+* **Cheap.** Fetched when it's about to play, never in the first load; scheduled on the audio clock; no
+  work on any frame.
+
 ## The real world in the middle
 
 Issue #44's part 1: the world inside the printed ring is real.
@@ -314,7 +421,14 @@ Issue #44's part 1: the world inside the printed ring is real.
   phone's does.
 * **The ring's colours.** Each city's space is washed in its region's colour, mixed into the navy as light
   mixes (20%, `tint` in `RoundBoard.tsx`), so the ring reads as the regions' posters round the world; the
-  airport codes stay at 4.4:1 or more against it. Corners, the band of each region and everything else
+  names stay at 4.4:1 or more against it.
+* **Each city's name on its space** is in the player's language: its airport code in English, its
+  Chinese name in Chinese (`BOARD_ZH` in `art/stamps.tsx`: two characters at 25 board units, three or
+  a name on two lines at 18, in ZCOOL QingKe HuangYou with a thin stroke of its own ink so it holds up
+  small). Both are outlines made by `scripts/board-type.mjs` (`CODE_PATH`, `ZH_PATH`), simplified to
+  the board's sizes so the file stays small. The boarding pass on a question and the quiz card say
+  the same (`placeTag`); the departures board on a move keeps the codes on its flaps, as an airport's
+  does, with the name beside them in the player's language. Corners, the band of each region and everything else
   printed are as they were.
 
 ## Your move, first-person
@@ -343,10 +457,15 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   degrees is a 0.5 s fade instead (`art/RoundBoard.tsx`).
 * **Three ways to play it** (`ui/Ride.tsx`). "fp": the thrower's phone, first-person, the board
   leaning back into the night with the departures board flipping up each city passed in the corner
-  of the sky. "flat": the same beats on the flat board, for reduced motion, the menu's 第一视角走棋
-  off, or a throw that stays put. "tv": the big screen pushes in 1.4× and pans 55% of the way to the
-  token, flat, with its own departures board beside the board (`ui/Departures.tsx`). Every other
-  phone walks the token on its flat board in step and stamps the landing with the thrower's.
+  of the sky. "flat": the same beats on the board as it rests (leaning back as on a table, and no
+  further), for reduced motion, the menu's 第一视角走棋 off, or a throw that stays put. "tv": the big screen pushes in 1.4× and pans 55% of the way to the
+  token, leaning as its board rests, with its own departures board beside the board
+  (`ui/Departures.tsx`). Every other phone walks the token on its board as it rests, in step, and
+  stamps the landing with the thrower's.
+* **A token walking** on a board at rest hops a space at a time (`HOP` in `art/RoundBoard.tsx`): up
+  22 board units, stretched a little in the air while its shadow stays on the board and shrinks
+  under it, a quick push off each space on the way and a squash onto its feet as it lands. Its own
+  hop on the spot waits while it walks.
 * **Every screen in step.** Each screen keeps the server's clock from the quickest of its last views
   (`store.ts`), and plays the move from the server's moment of the throw: in tests the planned
   landing agrees to within 3 ms across a phone, another phone and the big screen.
@@ -374,10 +493,21 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
 * **Your turn.** The edge of the screen glows gel twice, with the airport chime and a buzz. On the
   big screen the chime is the next team's boarding call, its flight number on the departures board.
 * **The dice** are in the air the moment the button is pressed (under 0.1 s), clack twice as they
-  land, and their number comes up with a tick.
-* **A city bought:** the owner's mark stamps down and its ink spreads out round it.
-* **Money:** coins fly from whoever pays to whoever is paid, once the token is down. On the big
-  screen, every payment; on a phone, its own team's.
+  land, and their number comes up with a tick. They are cubes (`art/dice.tsx`, CSS 3D) that come to
+  rest as dice do on a table seen from a chair: the number on the top face, two sides showing, their
+  shadow on the table under them, staying there while they're in the air. Held down, the throw
+  button rattles its die in the hand.
+* **A city bought:** the owner's mark stamps down, its ink spreads out round it and sparks fly out of
+  it, in the team's colour and gold; its chip comes down onto the board with its shadow coming in
+  under it. **Mortgaged**, the chip turns over like a card and lies face down (ink on paper), and
+  turns back when it's paid off.
+* **Sold, broke** (`useBoardFx` in `ui/Board.tsx`): a city won at auction is stamped 成交 SOLD on its
+  space in the winner's colour for 1.8 s, a team gone broke 破产 BROKE where its token stood, on every
+  screen. Only what happens while the board is up: what was in the log when it first drew is old news.
+  With reduced motion the stamp simply stands there for its 1.8 s, and new buildings are simply there,
+  with no dust and no sparks.
+* **Money:** coins fly from whoever pays to whoever is paid, once the token is down, spinning as
+  coins do. On the big screen, every payment; on a phone, its own team's.
 * **Sent to Immigration:** the gate comes down over the board.
 * **Rio's samba** (`ui/Samba.tsx`). A team that says it will dance gets a ready card on its phone,
   under the top bar: stand up, leave room for a step, what comes next, and one big Start. The
@@ -397,6 +527,34 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   (or on the dancer's phone when there's no big screen). A computer team, or one the computer is
   covering, has nobody to get ready or to teach: it dances a short one at once (10 s: two figures
   and the pose). The room's song is hushed from the ready card to the lesson's end.
+* **世界大动荡** (world upheaval, `engine/world.ts`, `ui/World.tsx`, the board's part `WorldMoment` in
+  `art/RoundBoard.tsx`). Every 20 minutes (once, at 8, in a 15-minute game) something happens to the whole
+  world, three bad and three good, each once before any comes round again: a financial crisis, a meteor,
+  a terror attack, the AI revolution, a new invention (the supersonic airliner), a travel boom. It comes at
+  the start of a turn, once the last throw has played and with no question up, and the table waits for
+  its moment (7 s). The board plays it first, for about three seconds, on every screen: the crisis's chart
+  falls in vermilion across a darkened map with −15%; a meteor comes in over the rim onto its city, one
+  flash, a shock wave, debris; slow blue rings round the city locked down (no explosions, no red, no
+  people); the AI's cyan circuits spread from the middle, +$50; the airliner crosses with its contrail and
+  a sonic boom; the boom's fireworks, ×1.5. Then the 号外 card comes in, printed like a newspaper's extra
+  (paper and navy ink, its masthead vermilion for bad news, green for good, the event's own picture): the
+  headline, what happened (the city it struck, the hotel it took and the insurance; on a phone, what the
+  crisis took from your team) and what it does for two rounds. On a phone over the top of the board (tap
+  to put it away); on the big screen across the foot of its board, bigger, the map above it in sight. With
+  its sound: the big screen's, or each phone's when there's none. While it lasts, a banner like the travel
+  news says what it does and how many rounds are left (the play window; the big screen's side), and the
+  city struck wears a tag, 陨石坑 or 戒严, a meteor's crater where its buildings stood. Nothing in it
+  flashes more than once, and the rings come under twice a second. With reduced motion the board plays
+  nothing and the card is simply there.
+* **Reactions** (表情, `ui/Reactions.tsx`). A team's player taps the round button in the board's top left
+  corner (the map's size is in the top right) and picks one of five: its own character in a mood, with
+  its word (好耶！ 不会吧！ 呜呜… 嗯？ 嘿嘿). No typing, so there's nothing to watch over. Every screen in
+  the room shows it at once for 2.8 s, a pill in the team's colour with the face, the word and the
+  team's letter: on a phone under the button (on your turn the play window covers the board's lower
+  part), on the big screen rising off the board's bottom left corner, bigger, with a small sound. One a
+  player every 1.5 s (the room drops quicker ones), never kept, and drawn on a layer of its own, so one
+  arriving mid-move redraws nothing else. Not in the one-phone demo; with reduced motion they fade in
+  and out in place.
 * **Vibration** (`controls.ts`) works where a page is allowed to vibrate: Android. It buzzes on
   your turn, your press on the dice (or any answer), the landing, money in and out, a city bought, a
   card, Immigration, an auction, a trade offer and going broke. iPhones can't buzz from a page: the
@@ -419,8 +577,9 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   second reach 23% of one) and 2 on the big screen (3 a second reach 19% of one); with the
   stricter field, 3 on the phones and 2 on the big screen; nothing anywhere flashes 4 times in a
   second, and nothing red. Reduced motion (the phone's setting or the menu's) plays every beat flat
-  and still: no lean, no push, no tumble, and a teacher who stands still while she waits and
-  counts, then holds each beat's pose for the whole beat.
+  and still: no leaning into the night, no push, no tumble, no hops, and a teacher who stands still
+  while she waits and counts, then holds each beat's pose for the whole beat. (The board keeps its
+  lean at rest, which never moves; new buildings are simply there and sold ones simply gone.)
 
 Also still to do: the ten-minute playtest on real phones (the script and record sheet are in the
 beat sheet's document), with people who haven't seen the game.

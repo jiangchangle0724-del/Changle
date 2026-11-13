@@ -16,7 +16,18 @@ const ICONS = {
   close: "M6 6l12 12M18 6L6 18",
   people: "M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 0 0 0 7zM2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.3a3.5 3.5 0 0 1 0 6.4M18.5 14.8c1.7.8 2.8 2.6 3 5.2",
   eye: "M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12zM12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6z",
-  play: "M8 5.5v13l10.5-6.5z"
+  play: "M8 5.5v13l10.5-6.5z",
+  // (as iOS draws them: Share, Add to Home Screen)
+  share: "M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5H6v10h12v-10h-2.5",
+  addSquare: "M5 5h14v14H5zM12 8.5v7M8.5 12h7",
+  phone: "M8 3h8a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM11 18h2",
+  // the ferry (a hull, a cabin, its funnel) and the opera gong on its stand
+  ship: "M3 15h18l-2.5 4.5h-13zM6 15v-4h10v4M9 11V7.5h3V11M10.5 5.5v2",
+  gong: "M12 17a5 5 0 1 0 0-10a5 5 0 0 0 0 10zM4 4v17M20 4v17M4 4h16M12 4v3M11 12h2",
+  sound: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11",
+  note: "M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM19 16a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM9 10l10-2",
+  // Safari's page menu, as iOS draws it at the left of the address bar
+  pageMenu: "M4 7h16M4 12h16M4 17h10"
 } as const;
 export type IconName = keyof typeof ICONS;
 

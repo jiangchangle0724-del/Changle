@@ -8,7 +8,11 @@
 import { DurableObject } from "cloudflare:workers";
 import { CODE_ALPHABET, CODE_RE, type ClientMsg, type ServerMsg } from "../shared/protocol";
 import { makeCode, Session, validPlayerId, type From, type Out, type SessionData } from "./session";
+import { SongBook } from "./songbook";
 import { emptyScores, type Scores } from "./tally";
+
+// (the songbook, kept only because Cloudflare keeps its Durable Object until a migration deletes it)
+export { SongBook };
 
 /** The beats of the dance being danced are stored at most this often (they change with every bar). */
 const SCORES_EVERY_MS = 3_000;

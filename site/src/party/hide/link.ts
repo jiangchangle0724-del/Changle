@@ -51,11 +51,12 @@ export function hideIdentity(screen = false): string {
   return id;
 }
 
-/** What the game should know about this phone before it gets there. */
-export function handOff(name: string, lang: "zh" | "en") {
+/** What the game should know about this phone before it gets there: its name, its language, and whether the site's sound is on. */
+export function handOff(name: string, lang: "zh" | "en", sound: boolean) {
   const clean = name.replace(/\s+/g, " ").trim().slice(0, 16);
   if (clean) write("hc.name", clean);
   write("hc.lang", lang);
+  write("hc.sound", sound ? "1" : "0");
 }
 
 type Opened = { code: string } | { error: string };

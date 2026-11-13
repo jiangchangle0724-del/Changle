@@ -1,5 +1,5 @@
 /*
- * 打碟 · DJ Booth: the beginner deck, on the phones (.djk-*) and on the big screen (.dk-*).
+ * 打碟 · DJ Booth: the phones' player, songs and sound pads (.djk-*), and the deck on the big screen (.dk-*).
  * Follows docs/DESIGN.md: tokens by meaning; the pads' and the stage's colours are game props,
  * named once here.
  */
@@ -35,282 +35,6 @@
   flex-direction: column;
   gap: var(--space-4);
 }
-.djk-hint {
-  min-height: 3em;
-  margin: 0;
-  color: var(--color-text-2);
-  font-size: var(--text-md);
-  font-weight: 700;
-  text-align: center;
-}
-
-/* the deck as a DJ controller (Steve on Nov 2: the page should look like one): a dark console with
-   two turntables at the top, the mixer between, the crossfader, the pads, the build-up and DROP */
-.djk-console {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-3);
-  border-radius: var(--r-sheet);
-  background: linear-gradient(180deg, #26222f 0%, #1a1821 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 14px 34px rgba(0, 0, 0, 0.45);
-}
-.djk-decks {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-}
-.djk-platter {
-  --deck: var(--gel-cyan);
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-2) var(--space-2);
-  border-radius: var(--r-panel);
-  background: linear-gradient(160deg, #2e2a38 0%, #1d1b24 100%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  color: var(--color-text-2);
-}
-.djk-platter.is-b {
-  --deck: var(--gel-pink);
-}
-/* the record: grooves, a label in the deck's colour, a sheen that stays put while it spins */
-.djk-vinyl {
-  position: relative;
-  width: 100%;
-  max-width: 172px;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: #0b0b0f;
-  box-shadow:
-    0 0 0 3px #3a3644,
-    0 8px 18px rgba(0, 0, 0, 0.55);
-  rotate: var(--turn, 0deg);
-  transition:
-    rotate 0.35s var(--ease-out),
-    box-shadow var(--dur-enter) var(--ease-out);
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-.djk-vinyl::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(from 30deg, transparent 0 8%, rgba(255, 255, 255, 0.1) 12%, transparent 17% 58%, rgba(255, 255, 255, 0.07) 62%, transparent 67%);
-  pointer-events: none;
-}
-.djk-vinyl:focus-visible {
-  outline: 3px solid var(--color-accent);
-  outline-offset: 4px;
-}
-.djk-vinyl[aria-disabled="true"] {
-  cursor: default;
-  opacity: 0.7;
-}
-.djk-vinyl-disc {
-  position: absolute;
-  inset: 3%;
-  border-radius: 50%;
-  background: repeating-radial-gradient(circle, #141418 0 1.6px, #1f1f25 1.6px 3.2px);
-  animation: djk-spin 1.8s linear infinite paused;
-  /* its own layer: the spin only turns it, nothing is painted again */
-  will-change: rotate;
-}
-/* a mark at the label's edge, so the spin shows */
-.djk-vinyl-disc::before {
-  content: "";
-  position: absolute;
-  top: 31%;
-  left: 50%;
-  width: 4px;
-  height: 9%;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.55);
-  translate: -50% 0;
-}
-.djk-vinyl-label {
-  position: absolute;
-  inset: 33%;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: radial-gradient(circle, #0b0b0f 0 7%, var(--deck) 8% 100%);
-  color: #0b0b0f;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 900;
-}
-.djk-platter.is-on .djk-vinyl {
-  box-shadow:
-    0 0 0 3px var(--deck),
-    0 0 26px color-mix(in oklab, var(--deck) 55%, transparent),
-    0 8px 18px rgba(0, 0, 0, 0.55);
-}
-.djk-platter.is-on .djk-vinyl-disc {
-  animation-play-state: running;
-}
-.djk-platter.is-cued .djk-vinyl {
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--deck) 60%, #3a3644),
-    0 8px 18px rgba(0, 0, 0, 0.55);
-}
-/* a hand on the record: it follows the finger; held still, it stops */
-.djk-platter.is-turn .djk-vinyl,
-.djk-platter.is-hold .djk-vinyl {
-  transition: none;
-  cursor: grabbing;
-}
-.djk-platter.is-turn .djk-vinyl-disc,
-.djk-platter.is-hold .djk-vinyl-disc {
-  animation-play-state: paused;
-}
-.djk-tonearm {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-3);
-  width: 5px;
-  height: 44%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #d9d8e0, #8f8d99);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-  transform-origin: 50% 6px;
-  rotate: 18deg;
-  transition: rotate var(--dur-enter) var(--ease-out);
-  pointer-events: none;
-}
-.djk-tonearm::after {
-  content: "";
-  position: absolute;
-  bottom: -4px;
-  left: -4px;
-  width: 13px;
-  height: 16px;
-  border-radius: 3px;
-  background: #b9b7c2;
-}
-.djk-platter.is-on .djk-tonearm {
-  rotate: 30deg;
-}
-.djk-platter-name {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: var(--text-md);
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.djk-platter-status {
-  position: absolute;
-  top: var(--space-2);
-  left: var(--space-2);
-  padding: 0 var(--space-2);
-  border-radius: var(--r-pill);
-  background: var(--color-raised);
-  color: var(--color-text-2);
-  font-size: var(--text-xs);
-  font-weight: 800;
-}
-.djk-platter-status.is-on {
-  background: var(--deck);
-  color: #0b0b0f;
-}
-.djk-platter-status.is-next {
-  background: color-mix(in oklab, var(--deck) 35%, var(--color-raised));
-  color: var(--color-text);
-}
-.djk-vinyl-tip {
-  margin: calc(-1 * var(--space-2)) 0 0;
-  color: var(--color-text-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-align: center;
-}
-@keyframes djk-spin {
-  to {
-    rotate: 360deg;
-  }
-}
-
-.djk-fader {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  grid-template-areas:
-    "a range b"
-    "who who who";
-  align-items: center;
-  gap: var(--space-1) var(--space-3);
-}
-.djk-fader-end {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 900;
-}
-.djk-fader-end:first-child {
-  grid-area: a;
-}
-.djk-fader-end:nth-child(3) {
-  grid-area: b;
-}
-.djk-fader input {
-  grid-area: range;
-  width: 100%;
-  height: var(--tap-crowded);
-  margin: 0;
-  background: transparent;
-  appearance: none;
-  touch-action: none;
-  cursor: pointer;
-}
-.djk-fader input::-webkit-slider-runnable-track {
-  height: 12px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(90deg, var(--color-accent) calc(var(--x) * 100%), var(--color-raised) calc(var(--x) * 100%));
-}
-.djk-fader input::-moz-range-track {
-  height: 12px;
-  border-radius: var(--r-pill);
-  background: linear-gradient(90deg, var(--color-accent) calc(var(--x) * 100%), var(--color-raised) calc(var(--x) * 100%));
-}
-.djk-fader input::-webkit-slider-thumb {
-  width: var(--tap);
-  height: var(--tap);
-  margin-top: -16px;
-  border: 0;
-  border-radius: var(--r-small);
-  background: var(--color-text);
-  box-shadow: var(--shadow-float);
-  appearance: none;
-}
-.djk-fader input::-moz-range-thumb {
-  width: var(--tap);
-  height: var(--tap);
-  border: 0;
-  border-radius: var(--r-small);
-  background: var(--color-text);
-  box-shadow: var(--shadow-float);
-}
-.djk-fader input:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-.djk-fader-who {
-  grid-area: who;
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  text-align: center;
-}
-
 .djk-pads {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -392,99 +116,6 @@
   }
 }
 
-.djk-build {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-2);
-}
-.djk-charge,
-.djk-drop {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  min-height: 88px;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--r-pill);
-  font: inherit;
-  cursor: pointer;
-  touch-action: manipulation;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-.djk-charge {
-  background: var(--color-surface);
-  box-shadow: var(--shadow-flat);
-  color: var(--color-text);
-  font-size: var(--text-xl);
-  font-weight: 900;
-}
-.djk-charge-fill {
-  position: absolute;
-  inset: 0;
-  width: calc(var(--level) * 100%);
-  background: linear-gradient(90deg, color-mix(in oklab, var(--dk-build) 55%, transparent), var(--dk-build));
-  transition: width var(--dur-enter) var(--ease-out);
-}
-.djk-charge > :not(.djk-charge-fill) {
-  position: relative;
-}
-.djk-charge-pct {
-  font-size: var(--text-md);
-  opacity: 0.85;
-}
-.djk-charge:active:not(:disabled) {
-  transform: scale(0.98);
-}
-.djk-build-note {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  text-align: center;
-}
-.djk-drop {
-  flex-direction: column;
-  gap: 0;
-  background: radial-gradient(circle at 50% 30%, color-mix(in oklab, var(--dk-drop) 70%, var(--color-text)), var(--dk-drop) 70%);
-  color: var(--color-on-accent);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--dk-drop) 35%, transparent);
-  animation: djk-armed 0.48s var(--ease-out) infinite alternate;
-}
-.djk-drop.is-now {
-  box-shadow:
-    0 0 0 8px color-mix(in oklab, var(--dk-perfect) 70%, transparent),
-    0 0 40px var(--dk-perfect);
-}
-.djk-drop-word {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: 900;
-  line-height: 1;
-}
-.djk-drop-count {
-  font-size: var(--text-lg);
-  font-weight: 900;
-}
-.djk-result {
-  align-self: center;
-  color: var(--color-text-2);
-  font-size: var(--text-xl);
-  font-weight: 900;
-  animation: djk-hit var(--dur-emphasis) var(--ease-pop);
-}
-.djk-result.is-good {
-  color: var(--dk-perfect);
-}
-@keyframes djk-armed {
-  to {
-    filter: brightness(1.12);
-  }
-}
-
 .djk-said {
   display: flex;
   flex-wrap: wrap;
@@ -495,247 +126,6 @@
   color: var(--color-text-2);
   font-size: var(--text-sm);
   font-weight: 700;
-}
-
-.djk-picks {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.djk-picks-title {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  font-weight: 800;
-}
-.djk-picks-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-2);
-}
-.djk-pick {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: var(--tap);
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--r-pill);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-flat);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-.djk-pick.is-mine {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-.djk-pick:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.djk-pick-n {
-  min-width: 1.5em;
-  border-radius: var(--r-pill);
-  background: color-mix(in oklab, var(--color-bg) 40%, transparent);
-  font-size: var(--text-xs);
-}
-
-/* the mixer (混音台): four round knobs (0 at 12 o'clock), four effect switches */
-.djk-mix {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--r-panel);
-  background: rgba(0, 0, 0, 0.22);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-.djk-mix-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.djk-mix-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text);
-  font-size: var(--text-md);
-  font-weight: 800;
-}
-.djk-mix-title svg {
-  color: var(--color-accent);
-}
-.djk-mix-reset {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-height: var(--tap-crowded);
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--r-pill);
-  background: var(--color-raised);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 800;
-  cursor: pointer;
-}
-.djk-mix-reset:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.djk-knobs {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2);
-}
-.djk-knob {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-}
-.djk-knob-name {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  font-weight: 800;
-}
-.djk-knob.is-turned .djk-knob-name {
-  color: var(--color-text);
-}
-/* a mixer's knob: a ring lit from the middle (12 o'clock) to where it's turned, a cap with a mark */
-.djk-dial {
-  --x: 0;
-  position: relative;
-  width: min(17vw, 64px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background:
-    conic-gradient(from 0deg, var(--color-accent) 0 calc(max(var(--x), 0) * 135deg), transparent 0),
-    conic-gradient(from calc(min(var(--x), 0) * 135deg), var(--color-accent) 0 calc(min(var(--x), 0) * -135deg), transparent 0),
-    conic-gradient(from -135deg, #3a3644 0 270deg, transparent 0);
-  cursor: ns-resize;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-.djk-dial-cap {
-  position: absolute;
-  inset: 13%;
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 30%, #4a4656, #24212c 70%);
-  box-shadow:
-    0 3px 8px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  rotate: calc(var(--x) * 135deg);
-}
-.djk-dial-mark {
-  position: absolute;
-  top: 8%;
-  left: 50%;
-  width: 4px;
-  height: 30%;
-  border-radius: 2px;
-  background: var(--color-text);
-  translate: -50% 0;
-}
-.djk-knob.is-held .djk-dial {
-  opacity: 0.5;
-  cursor: default;
-}
-.djk-knob-ends {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  color: var(--color-text-2);
-  font-size: var(--text-xs);
-  font-weight: 700;
-}
-/* the same knob as a slider, out of sight: the keyboard's and screen readers' */
-.djk-knob-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  opacity: 0;
-}
-.djk-knob-who {
-  flex-basis: 100%;
-  color: var(--color-text-2);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  text-align: center;
-}
-.djk-mix-fx {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2);
-  margin-top: var(--space-1);
-}
-.djk-mix-btn {
-  --pad: var(--dk-pump);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: 60px;
-  padding: var(--space-2) var(--space-1);
-  border: 0;
-  border-radius: var(--r-tile);
-  background: var(--color-raised);
-  color: var(--color-text-2);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 800;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    transform var(--dur-exit) var(--ease-out),
-    background var(--dur-exit) var(--ease-out);
-}
-.djk-mix-btn.is-gate {
-  --pad: var(--dk-gate);
-}
-.djk-mix-btn.is-flange {
-  --pad: var(--dk-flange);
-}
-.djk-mix-btn.is-crush {
-  --pad: var(--dk-crush);
-}
-.djk-mix-btn svg {
-  color: var(--pad);
-}
-.djk-mix-btn.is-on {
-  background: color-mix(in oklab, var(--pad) 32%, var(--color-surface));
-  box-shadow:
-    0 0 0 2px var(--pad),
-    0 0 18px color-mix(in oklab, var(--pad) 45%, transparent);
-  color: var(--color-text);
-}
-.djk-mix-btn:active:not(:disabled) {
-  transform: scale(0.94);
-}
-.djk-mix-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.djk-mix-note {
-  margin: 0;
-  color: var(--color-text-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: var(--leading);
 }
 
 /* songs asked for by name */
@@ -877,20 +267,6 @@
   background: var(--color-raised);
   color: var(--color-text);
 }
-.djk-next {
-  display: flex;
-  align-items: center;
-  min-height: var(--tap);
-  padding: 0 var(--space-3);
-  overflow: hidden;
-  border-radius: var(--r-pill);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-flat);
-  color: var(--color-text);
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .djk-req-mine {
   display: flex;
   flex-direction: column;
@@ -971,29 +347,118 @@
   color: var(--color-text);
 }
 
-/* the 🔥 shrinks to make room for the deck */
+/* the 🔥 shrinks to make room for the songs */
 .djp-fire-wrap.is-small .djp-fire {
   width: min(40vw, 150px);
 }
 
-/* 真歌时间 on a phone: the TV plays a whole song, the deck waits */
-.djk-song {
+/* the player on every phone (Steve on Nov 12: "一键播放，切歌，暂停，上一曲"): what the TV plays and
+   what comes next, then 上一曲, 暂停 or 播放, and 切歌 */
+.djk-player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--r-panel);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gel) 45%, transparent);
+}
+.djk-player-now {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: center;
+}
+.djk-player-kicker {
+  color: var(--gel);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+.djk-player-title {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+.djk-player-by {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.djk-player-keys {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  gap: var(--space-2);
+}
+.djk-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 72px;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--r-tile);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-flat);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.djk-key.is-main {
+  background: var(--gel);
+  color: var(--color-on-accent);
+  font-size: var(--text-md);
+}
+.djk-key:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.djk-key:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* the TV wants a tap on its video (an iPhone's YouTube player, the night's first song) */
+.djk-player-tap {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--color-warning);
+  color: var(--color-on-accent);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading);
+}
+.djk-player-tap svg {
+  flex: none;
+  margin-top: var(--space-1);
+}
+.djk-player-next {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+  text-align: center;
+}
+/* the sound pads, under the playlist: the big screen plays them on the next beat */
+.djk-sounds {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--r-panel);
-  background: color-mix(in oklab, var(--gel-coral) 18%, var(--color-surface));
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gel-coral) 50%, transparent);
 }
-.djk-song-title {
+.djk-sounds-title {
   color: var(--color-text);
   font-size: var(--text-md);
   font-weight: 800;
-}
-.djk-song-note {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
 }
 
 /* the host's switch for 报幕 (the big screen saying who a song is from) */
@@ -1180,9 +645,6 @@
   .djk-pad {
     min-height: 56px;
     font-size: var(--text-xs);
-  }
-  .djk-picks-grid {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -1377,6 +839,12 @@
 }
 .dk-meter.is-full {
   box-shadow: 0 0 calc(10px + 30px * var(--pulse)) var(--dk-build);
+}
+/* 点歌模式: no build-up, the mode's name in its place */
+.dk-meter.is-juke {
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--moon);
 }
 
 .dk-chips {

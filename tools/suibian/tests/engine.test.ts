@@ -1,27 +1,47 @@
-// The rules on their own: limits, cuisines, waits, picking cards, counting votes.
+// The rules on their own: limits, cuisines, waits, the ranked list, counting votes.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  PLANNED_FROM,
+  cleanAt,
+  closingTime,
+  isOpen,
+  mealSlots,
+  mealTime,
+  vancouverClock,
+  vancouverDay,
+  vancouverMs,
   ALLERGENS,
+  AVOID_GENERIC,
+  AVOID_TIPS,
+  COMMON_IN,
   CUISINES,
-  SEVERE_RULES_OUT,
+  DISHES,
+  MAX_DISHES,
+  NO_VOTES_POOL,
+  TOP_COUNT,
+  avoidTip,
   check,
-  chips,
+  counts,
   cleanBallot,
   cleanLimits,
+  dishesFor,
   eligible,
   estimateWait,
   guessCuisine,
   mentionsQueue,
   mergeLimits,
-  pick,
+  rank,
   RANGE_MODES,
   RANGES,
-  cleanAnswers,
+  MENU,
+  OCCASIONS,
+  OCCASION_IDS,
   isRange,
-  soloPick,
-  soloReasons,
-  SIDE_CUISINES,
+  occasionFit,
+  mealOf,
+  badgesFor,
+  reasonsFor,
   tally,
   travelMinutes,
   type AllergenId,
@@ -46,12 +66,17 @@ function rng(seed: number) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32);
 }
 
-test("a severe allergy never lets a ruled-out cuisine through, whatever else the table wants", () => {
+const none: Limits = { allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 };
+/** The ranked list for a table, with sensible defaults. */
+const ranked = (places: Place[], o: Partial<Parameters<typeof rank>[0]> = {}) => rank({ places, limits: none, likes: {}, bans: {}, center, range: "walk20", now: NOW, ...o });
+const severeIn = (p: Place, people: Limits[]) => people.some((l) => Object.entries(l.allergies).some(([a, level]) => level === "severe" && COMMON_IN[a as AllergenId]?.includes(p.cuisine)));
+
+test("only the budget leaves a place out; a severe allergy puts its cuisines below every other place", () => {
   const cuisines = Object.keys(CUISINES) as CuisineId[];
   const allergens = Object.keys(ALLERGENS) as AllergenId[];
   const r = rng(7);
   for (let round = 0; round < 500; round++) {
-    const places = Array.from({ length: 30 }, () => place({ cuisine: cuisines[Math.floor(r() * cuisines.length)], price: Math.floor(r() * 80) }));
+    const places = Array.from({ length: 30 }, () => place({ cuisine: cuisines[Math.floor(r() * cuisines.length)], price: Math.floor(r() * 80), rating: 3.5 + r() * 1.5, ratings: Math.floor(r() * 3000) }));
     const people: Limits[] = Array.from({ length: 1 + Math.floor(r() * 6) }, () => {
       const allergies: Limits["allergies"] = {};
       for (const a of allergens) if (r() < 0.15) allergies[a] = r() < 0.5 ? "severe" : "avoid";
@@ -59,17 +84,15 @@ test("a severe allergy never lets a ruled-out cuisine through, whatever else the
     });
     const table = mergeLimits(people);
     const ok = eligible(places, table, NOW);
-    for (const p of ok) {
-      for (const person of people) {
-        for (const [a, level] of Object.entries(person.allergies)) {
-          if (level === "severe") assert.ok(!SEVERE_RULES_OUT[a as AllergenId]?.includes(p.cuisine), `${p.cuisine} with severe ${a}`);
-        }
-        if (person.budget && p.price !== undefined) assert.ok(p.price <= person.budget);
-      }
-    }
-    // And the cards are always a subset of what's allowed.
-    const { ids } = pick({ places: ok, likes: {}, bans: {}, members: people.length, center, range: "walk20", now: NOW });
-    for (const id of ids) assert.ok(ok.some((p) => p.id === id));
+    // Everything within everyone's budget is in, nothing over it.
+    const budget = Math.min(...people.map((l) => l.budget || Infinity));
+    assert.deepEqual(ok.map((p) => p.id).sort(), places.filter((p) => p.price! <= budget).map((p) => p.id).sort());
+    const ids = ranked(ok, { limits: table });
+    assert.equal(ids.length, ok.length, "every allowed place is on the list, once");
+    assert.equal(new Set(ids).size, ids.length);
+    const severe = ids.map((id) => severeIn(ok.find((p) => p.id === id)!, people));
+    const firstSevere = severe.indexOf(true);
+    if (firstSevere >= 0) assert.ok(severe.slice(firstSevere).every(Boolean), `round ${round}: a severe allergy's cuisine above a place without one`);
   }
 });
 
@@ -82,20 +105,28 @@ test("merging limits keeps the strictest of each", () => {
   assert.deepEqual(t, { allergies: { peanut: "severe", egg: "avoid" }, custom: [], halal: true, vegetarian: true, budget: 35 });
 });
 
-test("halal keeps halal places, and likely-halal cuisines with a 'check' warning", () => {
-  const l = { allergies: {}, custom: [], halal: true, vegetarian: false, budget: 0 as const };
-  assert.equal(check(place({ cuisine: "sichuan", halal: "yes" }), l).ok, true);
+test("halal: places that say so are fine, others move down, less for cuisines that often are", () => {
+  const l = { ...none, halal: true };
+  assert.deepEqual(check(place({ cuisine: "sichuan", halal: "yes" }), l).concerns, []);
   const me = check(place({ cuisine: "middle_eastern" }), l);
   assert.equal(me.ok, true);
-  assert.deepEqual(me.warnings, [{ k: "halalCheck" }]);
-  assert.equal(check(place({ cuisine: "hotpot" }), l).why, "halal");
+  assert.deepEqual(me.concerns, [{ k: "halal", likely: true }]);
+  const hot = check(place({ cuisine: "hotpot" }), l);
+  assert.equal(hot.ok, true);
+  assert.deepEqual(hot.concerns, [{ k: "halal", likely: false }]);
+  const [hotpot, middle, sichuan] = [place({ cuisine: "hotpot" }), place({ cuisine: "middle_eastern" }), place({ cuisine: "sichuan", halal: "yes" })];
+  assert.deepEqual(ranked([hotpot, middle, sichuan], { limits: l }), [sichuan.id, middle.id, hotpot.id]);
 });
 
-test("vegetarian: Google's 'no' rules out, unknown warns", () => {
-  const l = { allergies: {}, custom: [], halal: false, vegetarian: true, budget: 0 as const };
-  assert.equal(check(place({ veg: false }), l).ok, false);
-  assert.deepEqual(check(place({ cuisine: "korean" }), l).warnings, [{ k: "vegCheck" }]);
-  assert.deepEqual(check(place({ cuisine: "indian" }), l).warnings, []);
+test("vegetarian: Google's 'no' moves a place well down, 'nobody says' a little, never out", () => {
+  const l = { ...none, vegetarian: true };
+  const no = place({ veg: false });
+  assert.equal(check(no, l).ok, true);
+  assert.deepEqual(check(no, l).concerns, [{ k: "veg", known: true }]);
+  assert.deepEqual(check(place({ cuisine: "korean" }), l).concerns, [{ k: "veg", known: false }]);
+  assert.deepEqual(check(place({ cuisine: "indian" }), l).concerns, []);
+  const yes = place({ cuisine: "indian", rating: 4.0 });
+  assert.deepEqual(ranked([no, yes], { limits: l }), [yes.id, no.id]);
 });
 
 test("closed, and closing within 45 minutes, are not suggested", () => {
@@ -116,54 +147,127 @@ test("cuisine guesses use Chinese and English names", () => {
   assert.equal(guessCuisine("Pho Hoa", "restaurant"), "vietnamese");
   assert.equal(guessCuisine("Kintaro Ramen", "japanese_restaurant"), "japanese");
   assert.equal(guessCuisine("Kintaro Ramen", "ramen_restaurant"), "ramen");
-  assert.equal(guessCuisine("Some Bistro", "restaurant", ["french_restaurant", "restaurant"]), "western");
+  assert.equal(guessCuisine("Some Bistro", "restaurant", ["french_restaurant", "restaurant"]), "french");
   assert.equal(guessCuisine("Mystery Spot", "restaurant"), "other");
+  // The finer menu (2026-11-11).
+  assert.equal(guessCuisine("JOEY Burnaby", "restaurant", ["bar", "restaurant"]), "western");
+  assert.equal(guessCuisine("HK BBQ Master", "chinese_restaurant"), "cantonese");
+  assert.equal(guessCuisine("新疆烤串 Xinjiang Skewers", "chinese_restaurant"), "chinese_bbq");
+  assert.equal(guessCuisine("老上海小笼馆", "chinese_restaurant"), "shanghai");
+  assert.equal(guessCuisine("东北饺子王", "chinese_restaurant"), "northern");
+  assert.equal(guessCuisine("老王面馆", "chinese_restaurant"), "noodles");
+  assert.equal(guessCuisine("Gyu-Kaku", "yakiniku_restaurant"), "izakaya");
+  assert.equal(guessCuisine("Gogi House", "korean_barbecue_restaurant"), "kbbq");
+  assert.equal(guessCuisine("Manila Lechon House", "filipino_restaurant"), "filipino");
+  assert.equal(guessCuisine("Jollibee", "fast_food_restaurant"), "filipino", "a weak type: the name says more");
+  assert.equal(guessCuisine("Santorini Taverna", "greek_restaurant"), "mediterranean");
+  assert.equal(guessCuisine("The Keg Steakhouse + Bar", "steak_house"), "steak");
+  assert.equal(guessCuisine("Café Lingo", "cafe"), "cafe");
+  assert.equal(guessCuisine("新星茶餐厅 New Star Cafe", "cafe"), "hk_cafe");
+  assert.equal(guessCuisine("Liuyishou", "chinese_restaurant", ["chinese_restaurant", "hot_pot_restaurant", "restaurant"]), "hotpot", "its other types say more");
+  assert.equal(guessCuisine("Golden Spot", "chinese_restaurant", ["chinese_restaurant", "restaurant"]), "chinese");
 });
 
-test("chips list the cuisines on offer, most places first, at most 12", () => {
-  const ps = [place({ cuisine: "ramen" }), place({ cuisine: "thai" }), place({ cuisine: "thai" })];
-  assert.deepEqual(chips(ps), [
-    { cuisine: "thai", count: 2 },
-    { cuisine: "ramen", count: 1 },
-  ]);
+test("round 1's menu: every cuisine but 'other', each in a group, each with a way to search for it", () => {
+  assert.ok(MENU.length >= 30, String(MENU.length));
+  assert.ok(!MENU.includes("other"));
+  for (const c of ["chinese", "sichuan", "cantonese", "mexican", "filipino", "vietnamese"] as const) assert.ok(MENU.includes(c), c);
+  for (const c of MENU) {
+    const s = CUISINES[c].search!;
+    assert.ok(s && (s.types?.length || s.text), c);
+    assert.ok(CUISINES[c].group, c);
+  }
+  // How many of each are on the list.
+  assert.deepEqual(counts([place({ cuisine: "ramen" }), place({ cuisine: "thai" }), place({ cuisine: "thai" })]), { ramen: 1, thai: 2 });
 });
 
-test("cards: at most two per cuisine, banned cuisines left out", () => {
+test("the list: every place, at most two of a cuisine in the top, a banned cuisine further down but still there", () => {
   const ps = [
     ...Array.from({ length: 5 }, () => place({ cuisine: "hotpot", rating: 4.8, ratings: 2000 })),
     ...Array.from({ length: 3 }, () => place({ cuisine: "thai" })),
     ...Array.from({ length: 3 }, () => place({ cuisine: "korean" })),
-    place({ cuisine: "italian" }),
+    place({ cuisine: "italian", rating: 4.9, ratings: 3000 }),
   ];
-  const { ids, relaxed } = pick({ places: ps, likes: {}, bans: { italian: 1 }, members: 3, center, range: "walk20", now: NOW });
-  const by = (c: CuisineId) => ids.filter((id) => ps.find((p) => p.id === id)!.cuisine === c).length;
-  assert.equal(ids.length, 6);
-  assert.equal(by("hotpot"), 2);
-  assert.equal(by("italian"), 0);
-  assert.deepEqual(relaxed, []);
+  const ids = ranked(ps, { bans: { italian: 1 } });
+  const cuisine = (id: string) => ps.find((p) => p.id === id)!.cuisine;
+  assert.equal(ids.length, ps.length);
+  const head = ids.slice(0, TOP_COUNT).map(cuisine);
+  assert.equal(head.filter((c) => c === "hotpot").length, 2);
+  assert.ok(!head.includes("italian"), "the best-rated, but someone said no");
+  assert.ok(ids.map(cuisine).includes("italian"));
+  // Further down, the order is the score: the other hot pots come straight after the top; the
+  // cuisine someone said no to comes last.
+  assert.deepEqual(ids.slice(TOP_COUNT, TOP_COUNT + 3).map(cuisine), ["hotpot", "hotpot", "hotpot"]);
+  assert.equal(cuisine(ids[ids.length - 1]), "italian");
 });
 
-test("cards: when bans leave almost nothing, the least-banned come back, marked", () => {
+test("the list: when everyone said no to everything, all of it is still there, the least-refused first", () => {
   const ps = [place({ cuisine: "thai" }), place({ cuisine: "ramen" }), place({ cuisine: "korean" })];
-  const { ids, relaxed } = pick({ places: ps, likes: {}, bans: { thai: 2, ramen: 1, korean: 3 }, members: 3, center, range: "walk20", now: NOW });
-  assert.equal(ids.length, 3);
-  assert.equal(relaxed.length, 3);
+  const ids = ranked(ps, { bans: { thai: 2, ramen: 1, korean: 3 } });
+  assert.deepEqual(ids, [ps[1].id, ps[0].id, ps[2].id]);
+});
+
+test("the list: someone who doesn't eat chili moves Sichuan down, with a note on what else there is", () => {
+  const sichuan = place({ cuisine: "sichuan", rating: 4.7, ratings: 2000 });
+  const cantonese = place({ cuisine: "cantonese", rating: 4.3, ratings: 300 });
+  const l = { ...none, allergies: { chili: "avoid" as const } };
+  assert.deepEqual(ranked([sichuan, cantonese]), [sichuan.id, cantonese.id]);
+  assert.deepEqual(ranked([sichuan, cantonese], { limits: l }), [cantonese.id, sichuan.id]);
+  assert.deepEqual(check(sichuan, l).concerns, [{ k: "allergy", allergen: "chili", level: "avoid" }]);
+  assert.match(avoidTip("chili", "sichuan").zh, /不辣/);
+});
+
+test("the list: the same search gives the same list (nothing random)", () => {
+  const here = { lat: center.lat, lng: center.lng };
+  const twins = [place({ ...here, cuisine: "korean" }), place({ ...here, cuisine: "italian" })];
+  const once = ranked(twins);
+  for (let i = 0; i < 20; i++) assert.deepEqual(ranked(twins), once);
+  // Equal scores: the place more people rated comes first.
+  const more = place({ ...here, cuisine: "thai", rating: 4.3, ratings: 300 });
+  const fewer = place({ ...here, cuisine: "thai", rating: 4.3, ratings: 299 });
+  assert.equal(ranked([fewer, more]).indexOf(more.id) < ranked([fewer, more]).indexOf(fewer.id), true);
 });
 
 test("unknown opening hours: still possible, but after places known to be open", () => {
   const known = place({ id: "known", openNow: true });
   const unknown = place({ id: "unknown", openNow: undefined });
-  const base = { likes: {}, bans: {}, members: 2, center, range: "walk20" as const, now: NOW, count: 1 };
-  assert.deepEqual(pick({ ...base, places: [unknown, known] }).ids, ["known"]);
-  assert.deepEqual(pick({ ...base, places: [unknown] }).ids, ["unknown"]);
+  assert.deepEqual(ranked([unknown, known]), ["known", "unknown"]);
+  assert.deepEqual(ranked([unknown]), ["unknown"]);
 });
 
 test("likes pull a cuisine up", () => {
   const a = place({ cuisine: "thai" });
   const b = place({ cuisine: "ramen" });
-  const base = { places: [a, b], bans: {}, members: 2, center, range: "walk20" as const, now: NOW, count: 1 };
-  assert.deepEqual(pick({ ...base, likes: { ramen: 2 } }).ids, [b.id]);
-  assert.deepEqual(pick({ ...base, likes: { thai: 2 } }).ids, [a.id]);
+  assert.equal(ranked([a, b], { likes: { ramen: 2 } })[0], b.id);
+  assert.equal(ranked([a, b], { likes: { thai: 2 } })[0], a.id);
+});
+
+test("every place of a liked cuisine comes before the rest, however well rated the rest (Steve, 2026-11-11)", () => {
+  // His table liked hot pot; JOEY (4.7, a list badge) came third and the hot pots seventh and eighth.
+  const joey = place({ cuisine: "western", rating: 4.7, ratings: 9610, badges: [{ source: "vanmag", label: { zh: "最佳连锁", en: "Best chain" } }] });
+  const others = Array.from({ length: 5 }, () => place({ cuisine: "brunch", rating: 4.6, ratings: 3000 }));
+  const hotpots = [place({ cuisine: "hotpot", rating: 4.1, ratings: 1845 }), place({ cuisine: "hotpot", rating: 4.3, ratings: 3461 }), place({ cuisine: "hotpot", rating: 3.9, ratings: 500 })];
+  const ids = ranked([joey, ...others, ...hotpots], { likes: { hotpot: 1 } });
+  assert.deepEqual(ids.slice(0, 3).sort(), hotpots.map((p) => p.id).sort(), "all three hot pots first, no two-per-cuisine cap");
+  assert.equal(ids[3], joey.id);
+  // Two liked cuisines: the one more people liked first.
+  const ramen = place({ cuisine: "ramen", rating: 4.0 });
+  const two = ranked([joey, ...hotpots, ramen], { likes: { hotpot: 1, ramen: 2 } });
+  assert.equal(two[0], ramen.id);
+  // Liked and refused by as many: neither first nor last.
+  const even = ranked([joey, hotpots[0], ramen], { likes: { hotpot: 1 }, bans: { hotpot: 1, ramen: 1 } });
+  assert.deepEqual(even, [joey.id, hotpots[0].id, ramen.id]);
+  // A liked cuisine someone is severely allergic to the food of still goes to the bottom.
+  const chili = ranked([joey, ...hotpots], { likes: { hotpot: 2 }, limits: { ...none, allergies: { chili: "severe" } } });
+  assert.equal(chili[0], joey.id);
+});
+
+test("a place hardly anyone has rated gives way to rated ones, unless it is a pick or on a list", () => {
+  const unknown = place({ cuisine: "chinese", rating: 5, ratings: 3 });
+  const rated = place({ cuisine: "cantonese", rating: 4.2, ratings: 300 });
+  assert.deepEqual(ranked([unknown, rated]), [rated.id, unknown.id]);
+  const picked = { ...unknown, recommend: { note: { zh: "好吃", en: "Good" }, links: [] } };
+  assert.equal(ranked([picked, rated])[0], picked.id);
 });
 
 test("wait: dinner peak at a very popular place is red; quiet afternoon is green; our reports win", () => {
@@ -224,6 +328,14 @@ test("votes: if everything is vetoed, the least-vetoed stay in; nobody voting st
   assert.deepEqual(none.tied, ["a", "b"]);
 });
 
+test("votes: with nobody ticking anything, the spinner turns between the top of the list only", () => {
+  const list = Array.from({ length: 40 }, (_, i) => `p${i}`);
+  const t = tally(list, [{ approve: [], veto: "p0" }], () => 0.99);
+  assert.deepEqual(t.tied, list.slice(1, 1 + NO_VOTES_POOL));
+  // One tick anywhere on the list beats the top.
+  assert.equal(tally(list, [{ approve: ["p33"], veto: null }], () => 0).winner, "p33");
+});
+
 test("ballots from phones are cleaned: unknown cards dropped, a vetoed card isn't also approved", () => {
   assert.deepEqual(cleanBallot({ approve: ["a", "zz", "b", "a"], veto: "b" }, ["a", "b"]), { approve: ["a"], veto: "b" });
   assert.deepEqual(cleanBallot({ approve: "a", veto: 3 }, ["a"]), { approve: [], veto: null });
@@ -239,13 +351,77 @@ test("limits from phones are cleaned", () => {
   });
 });
 
-test("severe chili rules out the spicy cuisines; 'don't eat chili' only warns", () => {
+test("severe chili puts the spicy cuisines last; 'don't eat chili' moves them down; neither takes them off", () => {
   const severe = { ...cleanLimits({}), allergies: { chili: "severe" as const } };
-  assert.equal(check(place({ cuisine: "sichuan" }), severe).ok, false);
-  assert.equal(check(place({ cuisine: "hotpot" }), severe).ok, false);
-  assert.equal(check(place({ cuisine: "cantonese" }), severe).ok, true);
+  for (const c of ["sichuan", "hotpot"] as const) {
+    const v = check(place({ cuisine: c }), severe);
+    assert.equal(v.ok, true);
+    assert.deepEqual(v.concerns, [{ k: "allergy", allergen: "chili", level: "severe" }]);
+  }
+  assert.deepEqual(check(place({ cuisine: "cantonese" }), severe).concerns, []);
   const avoid = { ...cleanLimits({}), allergies: { chili: "avoid" as const } };
-  assert.deepEqual(check(place({ cuisine: "sichuan" }), avoid), { ok: true, warnings: [{ k: "allergy", allergen: "chili", level: "avoid" }] });
+  assert.deepEqual(check(place({ cuisine: "sichuan" }), avoid), {
+    ok: true,
+    warnings: [{ k: "allergy", allergen: "chili", level: "avoid" }],
+    concerns: [{ k: "allergy", allergen: "chili", level: "avoid" }],
+  });
+  const best = place({ cuisine: "sichuan", rating: 5, ratings: 5000 });
+  const plain = place({ cuisine: "cantonese", rating: 3.6, ratings: 40 });
+  assert.deepEqual(ranked([best, plain], { limits: severe }), [plain.id, best.id]);
+});
+
+test("the reviewed table (2026-11-05): every allergen is common in the cuisines built on it", () => {
+  const severe = (a: AllergenId) => ({ ...cleanLimits({}), allergies: { [a]: "severe" as const } });
+  const down = (a: AllergenId, c: CuisineId) => check(place({ cuisine: c }), severe(a)).concerns.length > 0;
+  // Added on review, one per reason on the page.
+  for (const c of ["hotpot", "hk_cafe", "taiwanese"] as const) assert.ok(down("peanut", c), `peanut ${c}`);
+  for (const c of ["vegetarian", "brunch"] as const) assert.ok(down("treenut", c), `tree nuts ${c}`);
+  for (const c of ["korean", "hotpot"] as const) assert.ok(down("shellfish", c), `shellfish ${c}`);
+  for (const c of ["ramen", "hotpot"] as const) assert.ok(down("fish", c), `fish ${c}`);
+  for (const c of ["ramen", "western"] as const) assert.ok(down("sesame", c), `sesame ${c}`);
+  for (const c of ["vegetarian", "sea"] as const) assert.ok(down("soy", c), `soy ${c}`);
+  assert.ok(down("egg", "brunch"));
+  for (const c of ["brunch", "italian", "indian"] as const) assert.ok(down("dairy", c), `dairy ${c}`);
+  for (const c of ["ramen", "italian"] as const) assert.ok(down("gluten", c), `gluten ${c}`);
+  // Still open on the page: oyster sauce, and other Chinese for peanut.
+  for (const c of ["chinese", "hk_cafe", "taiwanese"] as const) assert.ok(!down("shellfish", c), `shellfish ${c} is still a question`);
+  assert.ok(!down("peanut", "chinese"));
+  // Every allergen on the card has a list, and nothing on it is ever ruled out.
+  for (const a of Object.keys(ALLERGENS) as AllergenId[]) {
+    assert.ok(COMMON_IN[a]?.length, `${a} has cuisines`);
+    for (const level of ["avoid", "severe"] as const) {
+      for (const c of COMMON_IN[a]!) assert.ok(check(place({ cuisine: c }), { ...cleanLimits({}), allergies: { [a]: level } }).ok, `${a} ${level} ${c}`);
+    }
+  }
+});
+
+test("notes: every allergen has a plain line, and each cuisine-specific one is about a cuisine it moves down", () => {
+  for (const a of Object.keys(ALLERGENS) as AllergenId[]) {
+    assert.ok(AVOID_GENERIC[a].zh && AVOID_GENERIC[a].en, `${a} generic`);
+    for (const [c, tip] of Object.entries(AVOID_TIPS[a] ?? {})) {
+      assert.ok(COMMON_IN[a]!.includes(c as CuisineId), `${a} tip for ${c}, which ${a} doesn't move down`);
+      assert.ok(tip!.zh && tip!.en, `${a} ${c} in both languages`);
+    }
+    for (const c of COMMON_IN[a]!) assert.ok(avoidTip(a, c).zh.length > 4);
+  }
+  // Chili, the example from the owner: every spicy cuisine has its own line.
+  for (const c of COMMON_IN.chili!) assert.notEqual(avoidTip("chili", c), AVOID_GENERIC.chili, c);
+});
+
+test("what a place mainly serves comes from its name and Google type, at most three, the specific over the general", () => {
+  assert.deepEqual(dishesFor("台北牛肉面 Taipei Beef Noodle", ["taiwanese_restaurant", "restaurant"]), ["beef_noodle"]);
+  assert.deepEqual(dishesFor("兰州拉面 Lanzhou Hand-Pulled Noodle", ["chinese_noodle_restaurant"]), ["lanzhou"]);
+  assert.deepEqual(dishesFor("Kintaro Ramen", ["ramen_restaurant"], "ramen"), ["ramen"]);
+  assert.deepEqual(dishesFor("Seoul Table BBQ", ["korean_restaurant"], "korean"), ["kbbq"]);
+  assert.deepEqual(dishesFor("HK BBQ Master", ["chinese_restaurant"], "cantonese"), ["siu_mei"]);
+  assert.deepEqual(dishesFor("Harbour Oyster Bar", ["seafood_restaurant"]), ["oysters"]);
+  assert.deepEqual(dishesFor("小龙虾 Crawfish House", []), ["crawfish"]);
+  assert.deepEqual(dishesFor("Golden Dragon", ["chinese_restaurant"]), [], "a name that says nothing more: nothing guessed");
+  assert.ok(dishesFor("点心 粥 云吞面 Dim Sum Congee Wonton Noodle", ["dim_sum_restaurant"]).length <= MAX_DISHES);
+  for (const d of dishesFor("麻辣烫 酸菜鱼 烤鱼 Pho Banh Mi Pizza", [])) assert.ok(DISHES[d], d);
+  // Chinese hand-pulled noodles aren't a ramen shop.
+  assert.equal(guessCuisine("兰州拉面", "chinese_restaurant"), "northern");
+  assert.equal(guessCuisine("台北牛肉面", "chinese_restaurant"), "taiwanese");
 });
 
 test("typed items: cleaned, merged without duplicates, and only ever warn", () => {
@@ -293,87 +469,160 @@ test("ranges: only real range names count (not 'toString' or anything else on an
   for (const bad of ["toString", "__proto__", "constructor", "walk7", "", null, 3]) assert.equal(isRange(bad), false);
 });
 
-// ---- one person, can't decide ----
+// ---- what the meal is for ----
 
-const noLimits: Limits = { allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 };
-
-test("solo: answers are cleaned; anything unexpected means 'any'", () => {
-  assert.deepEqual(cleanAnswers({ mood: "warm", side: "jk" }), { mood: "warm", side: "jk" });
-  assert.deepEqual(cleanAnswers({ mood: "toString", side: 5 }), { mood: "any", side: "any" });
-  assert.deepEqual(cleanAnswers(null), { mood: "any", side: "any" });
+test("the occasion: what Google says about a place moves it, never off the list", () => {
+  const plain = place({ cuisine: "italian", rating: 4.4, ratings: 800, price: 30 });
+  const dateNight = place({ cuisine: "italian", rating: 4.4, ratings: 800, price: 30, reservable: true, traits: { wine: true, cocktails: true } });
+  const fast = place({ cuisine: "western", rating: 4.4, ratings: 800, price: 12, traits: { fastFood: true, kind: "fastFood" } });
+  const when = { at: NOW };
+  assert.equal(occasionFit(dateNight, "casual", when).points, 0);
+  assert.ok(occasionFit(dateNight, "date", when).points > occasionFit(plain, "date", when).points);
+  assert.ok(occasionFit(fast, "date", when).points < 0);
+  assert.deepEqual(ranked([fast, plain, dateNight], { occasion: "date" }), [dateNight.id, plain.id, fast.id]);
+  assert.equal(ranked([fast, plain, dateNight], { occasion: "date" }).length, 3);
+  // Groups and kids for a family; open late at night.
+  const family = place({ traits: { kids: true, kidsMenu: true, groups: true }, reservable: true });
+  assert.ok(occasionFit(family, "family", when).points >= 0.5);
+  const late = place({ cuisine: "chinese_bbq", closesAt: NOW + 6 * 3600_000 });
+  const early = place({ cuisine: "chinese_bbq", closesAt: NOW + 1 * 3600_000 });
+  assert.ok(occasionFit(late, "latenight", { at: NOW, close: late.closesAt }).points > occasionFit(early, "latenight", { at: NOW, close: early.closesAt }).points);
+  assert.deepEqual(occasionFit(early, "latenight", { at: NOW, close: early.closesAt }).off, { k: "early" });
+  // One person: noodles before a barbecue meant for a group.
+  assert.ok(occasionFit(place({ cuisine: "noodles", price: 15 }), "solo", when).points > occasionFit(place({ cuisine: "kbbq", price: 15 }), "solo", when).points);
+  // A card says when a place suits the occasion.
+  const r = reasonsFor(dateNight, { limits: none, center, range: "walk20", occasion: "date", now: NOW });
+  assert.ok(r.includes("fits"));
+  assert.ok(!reasonsFor(plain, { limits: none, center, range: "walk20", occasion: "casual", now: NOW }).includes("fits"));
+  // Every occasion has both languages and an emoji.
+  for (const o of OCCASION_IDS) assert.ok(OCCASIONS[o].zh && OCCASIONS[o].en && OCCASIONS[o].emoji, o);
 });
 
-test("solo: the chosen side of the menu is kept when there are at least three of it nearby", () => {
-  const places = [
-    ...["cantonese", "sichuan", "hotpot", "taiwanese"].map((c) => place({ cuisine: c as CuisineId })),
-    ...["italian", "mexican", "japanese", "korean"].map((c) => place({ cuisine: c as CuisineId, rating: 4.9, ratings: 5000 })),
-  ];
-  const { ids, relaxed } = soloPick({ places, answers: { mood: "any", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW });
-  assert.equal(relaxed, false);
-  assert.ok(ids.length >= 3);
-  for (const id of ids) assert.ok(SIDE_CUISINES.chinese.includes(places.find((p) => p.id === id)!.cuisine), "only Chinese places");
-});
-
-test("solo: too few on the chosen side, so others come in and it says so", () => {
-  const places = [place({ cuisine: "ramen" }), ...["italian", "mexican", "western", "thai"].map((c) => place({ cuisine: c as CuisineId }))];
-  const { ids, relaxed } = soloPick({ places, answers: { mood: "any", side: "jk" }, limits: noLimits, center, range: "walk20", now: NOW });
-  assert.equal(relaxed, true);
+test("a business dinner: the 4.5★ bagel shop goes last and says why; booked rooms with wine come first (Steve, 2026-11-11)", () => {
+  const bagels = place({
+    name: "Siegel's Bagels",
+    cuisine: "brunch",
+    rating: 4.5,
+    ratings: 2521,
+    price: 10,
+    priceTo: 20,
+    traits: { kind: "breakfast", dinner: true },
+    about: "Down-to-earth shop with housemade bagels & breakfast sandwiches in unfussy surrounds.",
+  });
+  const banquet = place({ cuisine: "cantonese", rating: 4.2, ratings: 1500, price: 30, reservable: true, traits: { groups: true, wine: true }, about: "Elegant Cantonese seafood restaurant with private rooms for banquets" });
+  const steak = place({ cuisine: "steak", rating: 4.3, ratings: 900, price: 60, reservable: true, traits: { wine: true, cocktails: true, fineDining: true } });
+  const noodles = place({ cuisine: "noodles", rating: 4.6, ratings: 3000, price: 12 });
+  const cafe = place({ cuisine: "cafe", rating: 4.7, ratings: 1200, price: 8, traits: { kind: "cafe" } });
+  const ids = ranked([bagels, cafe, noodles, banquet, steak], { occasion: "business" });
+  assert.deepEqual(ids.slice(0, 2).sort(), [banquet.id, steak.id].sort(), "the places for it first, whatever the stars");
+  assert.deepEqual(ids.slice(-2).sort(), [bagels.id, cafe.id].sort(), "the ones plainly not for it last");
+  const off = occasionFit(bagels, "business", { at: NOW });
+  assert.deepEqual(off.off, { k: "kind", kind: "breakfast" });
+  assert.equal(off.suits, false);
+  const fit = occasionFit(banquet, "business", { at: NOW });
+  assert.ok(fit.suits);
+  assert.deepEqual(fit.why, ["upscale", "private", "reservable"]);
+  // Never off the list: everything is still there, and with nobody liking anything the top six skip
+  // the places plainly not for it.
   assert.equal(ids.length, 5);
 });
 
-test("solo: the mood moves matching places up, and each batch of three tries three cuisines", () => {
-  const places = [
-    place({ cuisine: "brunch", rating: 4.2, ratings: 300 }),
-    place({ cuisine: "hotpot", rating: 4.2, ratings: 300 }),
-    place({ cuisine: "hotpot", rating: 4.2, ratings: 300 }),
-    place({ cuisine: "ramen", rating: 4.2, ratings: 300 }),
-    place({ cuisine: "italian", rating: 4.6, ratings: 900 }),
-    place({ cuisine: "western", rating: 4.6, ratings: 900 }),
-    place({ cuisine: "mexican", rating: 4.6, ratings: 900 }),
-  ];
-  const { ids } = soloPick({ places, answers: { mood: "warm", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW });
-  const first = ids.slice(0, 3).map((id) => places.find((p) => p.id === id)!.cuisine);
-  assert.equal(new Set(first).size, 3, "three different cuisines");
-  assert.ok(first.includes("hotpot") && first.includes("ramen"), "warm places first");
+test("the meal: at dinner a place that doesn't do dinner, or mostly does breakfast and coffee, goes after the rest", () => {
+  const brunch = place({ cuisine: "brunch", rating: 4.8, ratings: 2000, traits: { kind: "breakfast", dinner: false } });
+  const coffee = place({ cuisine: "cafe", rating: 4.8, ratings: 2000, traits: { kind: "cafe" } });
+  const diner = place({ cuisine: "western", rating: 4.0, ratings: 200 });
+  const hk = place({ cuisine: "hk_cafe", rating: 4.0, ratings: 200, traits: { kind: "cafe" } });
+  assert.deepEqual(occasionFit(brunch, "casual", { at: NOW }).off, { k: "meal", meal: "dinner" });
+  assert.deepEqual(occasionFit(coffee, "casual", { at: NOW }).off, { k: "meal", meal: "dinner", kind: "cafe" });
+  assert.equal(occasionFit(hk, "casual", { at: NOW }).off, undefined, "a 茶餐厅 is a restaurant");
+  assert.deepEqual(ranked([brunch, coffee, diner, hk]).slice(-2).sort(), [brunch.id, coffee.id].sort());
+  // At lunch the brunch place is fine; one that doesn't do lunch isn't.
+  const noon = vancouverMs({ y: 2026, m: 10, d: 23 }, 12 * 60);
+  assert.equal(occasionFit(brunch, "casual", { at: noon }).off, undefined);
+  assert.deepEqual(occasionFit(place({ traits: { lunch: false } }), "casual", { at: noon }).off, { k: "meal", meal: "lunch" });
+  assert.equal(mealOf(NOW), "dinner");
+  assert.equal(mealOf(noon), "lunch");
 });
 
-test("solo: up to twelve places, in batches of three, none repeated", () => {
-  const cuisines: CuisineId[] = ["hotpot", "ramen", "italian", "korean", "thai", "brunch"];
-  const places = Array.from({ length: 20 }, (_, i) => place({ cuisine: cuisines[i % cuisines.length] }));
-  const { ids } = soloPick({ places, answers: { mood: "any", side: "any" }, limits: noLimits, center, range: "walk20", now: NOW });
-  assert.equal(ids.length, 12);
-  assert.equal(new Set(ids).size, 12);
-  for (let b = 0; b < 4; b++) {
-    const batch = ids.slice(b * 3, b * 3 + 3).map((id) => places.find((p) => p.id === id)!.cuisine);
-    assert.equal(new Set(batch).size, 3, `batch ${b + 1} has three cuisines`);
+test("the family: a bar goes last; kids' menus and family restaurants first", () => {
+  const bar = place({ rating: 4.7, ratings: 900, traits: { kind: "bar", beer: true } });
+  const kids = place({ cuisine: "chinese", rating: 4.0, ratings: 400, traits: { kids: true, kidsMenu: true, family: true } });
+  const plain = place({ cuisine: "thai", rating: 4.3, ratings: 400 });
+  assert.deepEqual(ranked([bar, plain, kids], { occasion: "family" }), [kids.id, plain.id, bar.id]);
+  assert.deepEqual(occasionFit(bar, "family", { at: NOW }).off, { k: "kind", kind: "bar" });
+  assert.deepEqual(occasionFit(kids, "family", { at: NOW }).why, ["kids", "kidsMenu"]);
+});
+
+// ---- planning ahead ----
+
+test("Vancouver wall-clock times both ways, across the clock change", () => {
+  for (const [day, minutes] of [[{ y: 2026, m: 3, d: 8 }, 12 * 60], [{ y: 2026, m: 7, d: 1 }, 18 * 60 + 30], [{ y: 2026, m: 11, d: 12 }, 18 * 60 + 30], [{ y: 2026, m: 12, d: 31 }, 23 * 60 + 30]] as const) {
+    const ms = vancouverMs(day, minutes);
+    assert.equal(vancouverClock(ms).minutes, minutes, JSON.stringify(day));
+    assert.deepEqual(vancouverDay(ms), day);
   }
+  // The day after, across a month's end.
+  assert.deepEqual(vancouverDay(vancouverMs({ y: 2026, m: 10, d: 31 }, 20 * 60), 1), { y: 2026, m: 11, d: 1 });
 });
 
-test("solo: the diet card and budget still rule places out, and closed places never show", () => {
-  const places = [
-    place({ cuisine: "sichuan", price: 25 }),
-    place({ cuisine: "cantonese", price: 70 }),
-    place({ cuisine: "hotpot", price: 30, openNow: false }),
-    place({ cuisine: "taiwanese", price: 15 }),
-  ];
-  const limits: Limits = { ...noLimits, allergies: { chili: "severe" }, budget: 35 };
-  const { ids } = soloPick({ places, answers: { mood: "any", side: "any" }, limits, center, range: "walk20", now: NOW });
-  assert.deepEqual(ids, [places[3].id]);
+test("a planned time from a phone: at least a quarter hour ahead and within the week Google has hours for", () => {
+  assert.equal(cleanAt(NOW + 5 * 60_000, NOW), null, "that's now");
+  assert.equal(cleanAt(NOW - 3600_000, NOW), null);
+  assert.equal(cleanAt(NOW + 9 * 24 * 3600_000, NOW), null, "beyond Google's week");
+  assert.equal(cleanAt("tomorrow", NOW), null);
+  assert.equal(cleanAt(NOW + 3600_000 + 1234, NOW), NOW + 3600_000);
+  // A plan whose time has come is now.
+  assert.equal(mealTime(NOW + PLANNED_FROM - 1, NOW), NOW);
+  assert.equal(mealTime(NOW + 2 * 3600_000, NOW), NOW + 2 * 3600_000);
+  assert.equal(mealTime(null, NOW), NOW);
 });
 
-test("solo: reasons say why, a pick and a list first, at most three", () => {
-  const p = place({ cuisine: "hotpot", price: 20, rating: 4.7, ratings: 900, recommend: { note: { zh: "好吃", en: "Good" }, links: [] }, badges: [{ source: "michelin", label: { zh: "必比登", en: "Bib Gourmand" }, year: 2025 }] });
-  const r = soloReasons(p, { mood: "warm", side: "chinese" }, { ...noLimits, budget: 35 }, center, "walk20");
-  assert.deepEqual(r, ["pick", "list", "mood"]);
-  const q = place({ cuisine: "italian", price: 20, rating: 4.0, ratings: 20 });
-  assert.deepEqual(soloReasons(q, { mood: "any", side: "any" }, { ...noLimits, budget: 35 }, center, "walk20"), ["budget", "near"]);
+test("the quick choices are the lunches and dinners still ahead", () => {
+  // NOW is Thursday 7 pm in Vancouver: tonight's dinner has started, tomorrow's lunch and dinner are ahead.
+  assert.deepEqual(mealSlots(NOW).map((s) => s.id), ["lunch1", "dinner1"]);
+  const morning = vancouverMs(vancouverDay(NOW), 9 * 60);
+  assert.deepEqual(mealSlots(morning).map((s) => s.id), ["lunch0", "dinner0", "lunch1", "dinner1"]);
+  assert.equal(vancouverClock(mealSlots(morning)[1].at).minutes, 18 * 60 + 30);
 });
 
-test("solo: a place nobody has rated gives way to rated ones, unless it is a pick", () => {
-  const unknown = place({ cuisine: "chinese", rating: undefined, ratings: 0 });
-  const rated = place({ cuisine: "cantonese", rating: 4.1, ratings: 300 });
-  const ids = soloPick({ places: [unknown, rated], answers: { mood: "warm", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW, count: 2 }).ids;
-  assert.deepEqual(ids, [rated.id, unknown.id]);
-  const picked = { ...unknown, recommend: { note: { zh: "好吃", en: "Good" }, links: [] } };
-  assert.equal(soloPick({ places: [picked, rated], answers: { mood: "warm", side: "chinese" }, limits: noLimits, center, range: "walk20", now: NOW, count: 2 }).ids[0], picked.id);
+test("planned: open by its hours that day, now by Google's 'open now'", () => {
+  const tomorrow = vancouverDay(NOW, 1);
+  const lunchOnly = place({ openNow: true, closesAt: NOW + 2 * 3600_000, hours: [[vancouverMs(tomorrow, 11 * 60), vancouverMs(tomorrow, 15 * 60)]] });
+  const dinner = place({ openNow: false, hours: [[vancouverMs(tomorrow, 17 * 60), vancouverMs(tomorrow, 22 * 60)]] });
+  const noHours = place({ openNow: true });
+  const lunch = vancouverMs(tomorrow, 12 * 60);
+  const tea = vancouverMs(tomorrow, 14 * 60 + 30);
+  assert.equal(isOpen(lunchOnly, NOW, lunch), true);
+  assert.equal(isOpen(dinner, NOW, lunch), false);
+  assert.equal(isOpen(noHours, NOW, lunch), undefined, "no hours: can't tell");
+  assert.equal(isOpen(dinner, NOW), false, "now: Google's open-now");
+  assert.equal(closingTime(lunchOnly, NOW, lunch), vancouverMs(tomorrow, 15 * 60));
+  // Tomorrow's lunch: the lunch place and the one we can't tell about; not the dinner one. At 14:30
+  // the lunch place closes too soon.
+  assert.deepEqual(eligible([lunchOnly, dinner, noHours], none, NOW, lunch).map((p) => p.id), [lunchOnly.id, noHours.id]);
+  assert.deepEqual(eligible([lunchOnly, dinner, noHours], none, NOW, tea).map((p) => p.id), [noHours.id]);
+  // And now, as before: Google's open-now.
+  assert.deepEqual(eligible([lunchOnly, dinner, noHours], none, NOW).map((p) => p.id), [lunchOnly.id, noHours.id]);
+  // A place we have hours for comes before one we don't.
+  assert.deepEqual(ranked([noHours, lunchOnly], { at: lunch }), [lunchOnly.id, noHours.id]);
+});
+
+
+test("a list for the occasion: it moves a place up and comes first among its badges", () => {
+  const romantic = { source: "opentable", label: { zh: "最浪漫", en: "Most romantic" }, year: 2026, occasions: ["date"] };
+  const michelin = { source: "michelin", label: { zh: "米其林", en: "MICHELIN" }, year: 2026 };
+  const vanmag = { source: "vanmag", label: { zh: "金奖", en: "Gold" }, year: 2026 };
+  const canada = { source: "canada100", label: { zh: "百佳", en: "100 Best" }, year: 2026 };
+  const lateList = { source: "dailyhive", label: { zh: "深夜", en: "Late" }, year: 2024, occasions: ["latenight"] };
+  const p = place({ cuisine: "steak", reservable: true, badges: [michelin, vanmag, canada, lateList, romantic] });
+  assert.deepEqual(badgesFor(p.badges, "date").map((b) => b.source), ["opentable", "michelin", "vanmag", "canada100"]);
+  assert.deepEqual(badgesFor(p.badges, "latenight")[0].source, "dailyhive");
+  assert.equal(badgesFor(p.badges, "casual").length, 4);
+  const listed = occasionFit(p, "date", { at: NOW });
+  assert.equal(listed.why[0], "listed");
+  const plain = place({ cuisine: "steak", reservable: true, badges: [michelin] });
+  assert.ok(Math.abs(listed.points - occasionFit(plain, "date", { at: NOW }).points - 0.6) < 1e-9);
+  // A late-night list says nothing about a business dinner: not even "acclaimed".
+  const lateOnly = place({ cuisine: "western", badges: [lateList] });
+  assert.equal(occasionFit(lateOnly, "business", { at: NOW }).points, occasionFit(place({ cuisine: "western" }), "business", { at: NOW }).points);
 });

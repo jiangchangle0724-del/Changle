@@ -13,19 +13,41 @@ export async function newRoom(request: APIRequestContext, body: Record<string, u
   return code;
 }
 
-const PHONE: BrowserContextOptions = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+// (held sideways: the game is played that way; an upright phone is asked to turn)
+const PHONE: BrowserContextOptions = { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+const IPHONE_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+const ANDROID_CHROME = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
 
-/** A phone with a name and a language, as the table leaves them for the game. */
-export async function phone(browser: Browser, name: string, lang: "zh" | "en" = "zh", extra: { cid?: string; size?: { width: number; height: number } } = {}): Promise<Page> {
+/**
+ * A phone with a name and a language, as the table leaves them for the game (an iPhone, as the
+ * project's device says). `iphone`: one that hasn't seen the Home Screen guide yet (every other phone
+ * counts as having seen it); `android`: not an iPhone at all.
+ */
+export async function phone(
+  browser: Browser,
+  name: string,
+  lang: "zh" | "en" = "zh",
+  extra: { cid?: string; size?: { width: number; height: number }; screen?: { width: number; height: number }; iphone?: boolean; android?: boolean } = {}
+): Promise<Page> {
   const isWebkit = browser.browserType().name() === "webkit";
-  const context = await browser.newContext({ ...PHONE, ...(extra.size ? { viewport: extra.size } : {}), ...(isWebkit ? { isMobile: false } : {}), locale: lang === "zh" ? "zh-CN" : "en-CA" });
+  const context = await browser.newContext({
+    ...PHONE,
+    ...(extra.size ? { viewport: extra.size } : {}),
+    ...(extra.screen ? { screen: extra.screen } : {}),
+    ...(isWebkit ? { isMobile: false } : {}),
+    ...(extra.iphone ? { userAgent: IPHONE_SAFARI } : extra.android ? { userAgent: ANDROID_CHROME } : {}),
+    locale: lang === "zh" ? "zh-CN" : "en-CA"
+  });
   await context.addInitScript(
-    ([n, l, cid]) => {
+    ([n, l, cid, iphone]) => {
       localStorage.setItem("hc.name", n);
       localStorage.setItem("hc.lang", l);
       if (cid) localStorage.setItem("hc.cid", cid);
+      // (only once per page load, so a test can watch the guide stay closed after a reload)
+      if (!iphone && !sessionStorage.getItem("hc.test")) localStorage.setItem("hc.homeGuide", "1");
+      sessionStorage.setItem("hc.test", "1");
     },
-    [name, lang, extra.cid ?? ""] as const
+    [name, lang, extra.cid ?? "", extra.iphone ? "1" : ""] as const
   );
   const page = await context.newPage();
   watchErrors(page, name);

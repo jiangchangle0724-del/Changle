@@ -1,21 +1,20 @@
 import { Eraser, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { BRUSHES, BRUSH_NAMES, INK_NAMES, PLATE_LABELS } from "../components/plateLabels";
 import { INK_COLORS, type Stroke } from "../shared/protocol";
 import { useStore } from "../store";
 import { useRoom } from "./RoomContext";
 
-const INK_NAMES = ["cobalt", "ink", "vermilion", "jade", "gold"];
-/** Brush widths as a fraction of the plate, so a stroke looks the same on every phone. */
-const BRUSHES = [0.012, 0.024, 0.042];
 const FLUSH_MS = 45;
 
 /**
  * The porcelain drawing plate, shared: the drawer's strokes stream to every phone as they are drawn.
- * Coordinates travel as 0..1 of the plate, so phones of any size see the same drawing.
+ * Coordinates travel as 0..1 of the plate, so phones of any size see the same drawing. The plate is
+ * square on every screen (on a phone held sideways too: landscape.css), so a circle stays a circle.
  */
 export function NetPlate({ canDraw }: { canDraw: boolean }) {
   const { strokes, stroke, sendStroke } = useRoom();
-  const { ui } = useStore();
+  const { ui, tr } = useStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [color, setColor] = useState(INK_COLORS[0]);
   const [width, setWidth] = useState(BRUSHES[1]);
@@ -86,8 +85,10 @@ export function NetPlate({ canDraw }: { canDraw: boolean }) {
   };
 
   return (
-    <div className="plate-draw">
-      <div className={`plate-surface ${canDraw ? "" : "plate-watch"}`}>
+    // (plate-watch goes on the plate as a whole, as landscape.css expects: on the drawing itself it
+    // made the drawing a tall strip on a phone held sideways)
+    <div className={`plate-draw ${canDraw ? "" : "plate-watch"}`}>
+      <div className="plate-surface">
         <canvas
           ref={canvasRef}
           className="plate-canvas"
@@ -118,7 +119,7 @@ export function NetPlate({ canDraw }: { canDraw: boolean }) {
       </div>
       {canDraw && (
         <div className="plate-tools">
-          <div className="inks" role="radiogroup" aria-label="ink">
+          <div className="inks" role="radiogroup" aria-label={tr(PLATE_LABELS.inks)}>
             {INK_COLORS.map((ink, i) => (
               <button
                 key={ink}
@@ -128,20 +129,20 @@ export function NetPlate({ canDraw }: { canDraw: boolean }) {
                 className={`swatch ${color === ink ? "ink-on" : ""}`}
                 style={{ "--swatch": ink } as React.CSSProperties}
                 onClick={() => setColor(ink)}
-                aria-label={INK_NAMES[i]}
+                aria-label={tr(INK_NAMES[i])}
               />
             ))}
           </div>
-          <div className="inks" role="radiogroup" aria-label="brush">
+          <div className="inks" role="radiogroup" aria-label={tr(PLATE_LABELS.brushes)}>
             {BRUSHES.map((w, i) => (
-              <button key={w} type="button" role="radio" aria-checked={width === w} className={`brush ${width === w ? "ink-on" : ""}`} onClick={() => setWidth(w)} aria-label={`${i + 1}`}>
+              <button key={w} type="button" role="radio" aria-checked={width === w} className={`brush ${width === w ? "ink-on" : ""}`} onClick={() => setWidth(w)} aria-label={tr(BRUSH_NAMES[i])}>
                 <span>
                   <i style={{ width: 6 + i * 5, height: 6 + i * 5 }} />
                 </span>
               </button>
             ))}
           </div>
-          <button type="button" className="icon-btn" aria-label="undo" onClick={() => stroke({ o: "u" })}>
+          <button type="button" className="icon-btn" aria-label={tr(PLATE_LABELS.undo)} onClick={() => stroke({ o: "u" })}>
             <Undo2 size={18} />
           </button>
           <button type="button" className="icon-btn" aria-label={ui("reset")} onClick={() => stroke({ o: "c" })}>

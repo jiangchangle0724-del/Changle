@@ -1,0 +1,34 @@
+// Cloudflare settings for 约时间 · When Works: its own Worker, one of changle.ca's tools, at
+// changle.ca/when. `npm run deploy` (or a merge into main, once Cloudflare is connected to the
+// repository) builds the pages into dist/client/when and publishes it. No secrets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "when",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-01",
+  // The files are in dist/client/when, so they answer at /when/…. The pages themselves and the API
+  // go to the worker first: it puts each gathering's name in its page's title and sets the page's
+  // headers. Scripts, styles and fonts (under /when/assets) are plain files.
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/when", "/when/", "/when/api/*"]
+  },
+  // With routes set, wrangler leaves the workers.dev address off, so /when is its only address.
+  "routes": [
+    { "pattern": "changle.ca/when", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/when/*", "zone_name": "changle.ca" }
+  ],
+  // One gathering, one Durable Object; and one small one per network for the daily allowances.
+  "durable_objects": {
+    "bindings": [
+      { "name": "EVENTS", "class_name": "EventDO" },
+      { "name": "GATES", "class_name": "GateDO" }
+    ]
+  },
+  // SQLite-backed Durable Objects work on Cloudflare's free plan.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["EventDO", "GateDO"] }],
+  "build": { "command": "node scripts/build.mjs" },
+  "observability": { "enabled": true }
+}

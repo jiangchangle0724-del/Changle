@@ -15,8 +15,9 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/hide: 藏在人群里 · Hide in the Crowd | `games/hide-crowd/` | Worker `hide-crowd` (Durable Objects) | by itself on merge when `games/hide-crowd/*` changes, once Steve has connected it (`games/hide-crowd/README.md`) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
+| changle.ca/when: 约时间 · When Works (friends find a time to meet: a gathering's page is changle.ca/when/CODE; not live until Steve connects it, and its card in the Tools tab stays off until he has tried it with friends) | `tools/when/` | Worker `when` (Durable Objects: one per gathering, and the daily allowances) | by itself on merge when `tools/when/*` changes, once Steve has connected it (`tools/when/README.md`) |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
-| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page, phones | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects) | by itself on merge when `games/party-server` or `games/party-base` changes (connected 2026-11-01, `games/party-server/README.md`; `games/dance` is still to be added to its watch paths) |
+| changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page (it opens its room by itself and has nothing to press: one tap to set up its sound, and the phones do the rest; it speaks the host's language; a 3D coach; each practice dance's own tune; songs from YouTube, every one's beat measured in its video, fourteen danced to their own famous dance and taught step by step (the Cha-Cha Slide call by call); the dance waits when the video stops; the TV's delay measured when the host asks; 暂停; a phone mirrored to the TV as the stage, sideways), phones, /party/moves | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects: the rooms, and the songbook, unused since 12 November) | by itself on merge when `games/party-server`, `games/party-base` or `games/dance` changes (connected 2026-11-01, `games/party-server/README.md`) |
 | changle.ca/hang-on: 抓紧了 · Hang On (the host screen; phones at /hang-on/pad, the QR code's link /hang-on/r/CODE) | `games/hang-on/` (physics, the room server, the pages) | Worker `hang-on` (Durable Objects) | by itself on merge when `games/hang-on/*` changes (connected 2026-11-04, `games/hang-on/README.md`) |
 
 There is no root workspace: each folder has its own `package.json` and `package-lock.json` and
@@ -163,8 +164,12 @@ site's `/hide` is proxied there), then `python3 scripts/hide_test.py` in `site`.
 ## A tool (the 随便 pattern)
 
 `tools/suibian` is its own Worker at changle.ca/eat; its card in the site's Tools tab is
-`site/src/tools/Suibian.tsx`. Its state, settings and open items: `tools/suibian/HANDOFF.md`. Tools
-that need no server (exchange rates, world clock, unit price) live in `site/src/tools/`.
+`site/src/tools/Suibian.tsx`. Its state, settings and open items: `tools/suibian/HANDOFF.md`. 约时间
+(`tools/when`, changle.ca/when, card `site/src/tools/When.tsx`) is made the same way; its brief is
+`docs/briefs/when.md`. Tools
+without a Worker of their own (exchange rates, world clock, unit price) live in `site/src/tools/`;
+the rates come from the rooms server's `/api/fx` (`site/worker/index.ts`), with open.er-api.com as
+the browser's fallback. Their brief: `docs/briefs/tools.md`.
 
 ## Settings (names only, never the values)
 
@@ -173,6 +178,7 @@ that need no server (exchange rates, world clock, unit price) live in `site/src/
 | rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own), `YOUTUBE_API_KEY` (optional: 打碟's song search; links work without it) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
+| 约时间 (`tools/when`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts the daily allowances) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 藏在人群里 (`games/hide-crowd`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (optional, never needed live: the libraries' hand-over from a run outside GitHub) | `ALLOW_TEST` (local and tests only) |
@@ -186,7 +192,9 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
 ## Working rules
 
 * Every change on its own branch with a PR. Never push to `main`. CI green before merging.
-* Ask the owner before merging, deploying, or anything that costs money or goes public.
+* Once CI is green, merge the PR yourself and tell the owner (Steve) what went live.
+* Ask the owner first only for: anything that costs money, deletes data, changes Cloudflare or GitHub
+  settings or keys, or makes the repository public or private.
 * No keys, secrets or tokens in code, commits, chat or screenshots: Cloudflare Secrets only.
 * Stuck? Stop and say what is needed instead of working around it.
 
@@ -204,12 +212,19 @@ OIDC token, which the Worker checks against GitHub's public keys (`tools/events/
   `docs/codex-tasks/dj/` (C1 presets is done).
 
 * 一本正经 · In All Seriousness (`docs/straight-face.md`, brief `docs/briefs/straightface.md`): the
-  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 251
-  cards in 17 packs (nine for Chinese tables, five for English tables, three for any table; a table
+  engine (`site/src/shared/straightface/`, a pure reducer with `privateView` / `publicView`), 400
+  cards in 21 packs (eleven for Chinese tables, six for English tables, four for any table; a table
   starts with its own language's packs), pictures drawn with ChatGPT (pack icons, the three parts, the
-  room) and synthesised sound cues, and the one-phone flow are done, on the board since 2026-11-05. One phone only: its card offers no online
-  table until A3 (a `GameDef` wrapping the same engine) adds it to `ONLINE_GAMES`. Next: A3, the card
-  bank to 300 (Codex C1, `docs/codex-tasks/straightface/`).
+  room) and synthesised sound cues, on the board since 2026-11-05. One phone passed round, or online
+  with every phone its own and a big-screen view (A3: the rules on the rooms server in
+  `site/src/shared/engine/games/straightface.ts`, the screens `NetStraightFace.tsx` and
+  `TvStraightFace.tsx` in `site/src/party/straightface/`). Each card's numbers and the cards players
+  flag live in the users' hub (`site/worker/straightface.ts`, three tables, hooked into `hub.ts` with
+  one line each); the owner reads and decides them in the back office (`AdminCards.tsx`). The end
+  screen gives tonight's titles and a picture to share (`share.tsx`, drawn in the phone by
+  `picture.ts`). 自己出题: each player can write a word of their own before the game (`own.tsx`; the
+  engine deals them first, never to their writer's round). Online, more than nine at the table or late
+  arrivals are the audience: they back the honest one from their phones, on a board of their own.
 
 * 最后一张 · Last Card (brief `docs/briefs/lastcard.md`): a shedding card game under our own name
   and card faces, online only (rules `site/src/shared/engine/games/lastcard.ts`, screens and the

@@ -5,9 +5,9 @@
  * must find the honest one.
  *
  * All names, cards and art are original. Nothing here reuses 瞎掰王 / 9UPPER material.
- * The engine is pure: the one-phone screen runs it in React state; the rooms server will run the
- * same code behind a GameDef (A3). Phones render only what `privateView` returns, big screens only
- * what `publicView` returns.
+ * The engine is pure: the one-phone screen runs it in React state; the rooms server runs the same
+ * code behind a GameDef (site/src/shared/engine/games/straightface.ts). Phones render only what
+ * `privateView` returns, big screens only what `publicView` returns.
  */
 import type { T } from "../../i18n";
 
@@ -32,6 +32,24 @@ export interface Card {
   /** 18+: sexual or drug content only. Alcohol vocabulary is NOT adult. */
   adult?: boolean;
 }
+
+/**
+ * A word a player wrote for tonight (自己出题). It is played like a card, in a round its author does
+ * not judge; the honest one is dealt as usual, so knowing who wrote it tells nobody who is honest.
+ * It lives in the game state only: never stored, never counted, never in the bank.
+ */
+export interface OwnCard {
+  /** OWN_PREFIX + the author's id */
+  id: string;
+  authorId: string;
+  term: string;
+  definition: string;
+  /** where it comes from, a story; "" when the author wrote none */
+  fact: string;
+}
+
+/** What a player writes for 自己出题, before it becomes an OwnCard. */
+export type OwnDraft = { term: string; definition: string; fact: string };
 
 export interface Player {
   id: string;
@@ -94,6 +112,8 @@ export interface RoundState {
   bets: Record<string, string>; // bettorId -> targetId
   accusedId: string | null;
   result: RoundResult | null;
+  /** 自己出题: who wrote this round's word (they know it, so they don't bet); absent for a bank card */
+  authorId?: string | null;
 }
 
 export interface RoundResult {
@@ -125,6 +145,8 @@ export interface GameState {
   current: RoundState | null;
   /** seat order starting from a random seat */
   judgeOrder: string[];
+  /** 自己出题: the words the players wrote before the deal, played before any bank card */
+  ownCards?: OwnCard[];
 }
 
 export type GameEvent =
@@ -157,6 +179,8 @@ export interface PrivateView {
   canAccuse: boolean;
   /** judge only: whom the judge tagged (cannot be accused) */
   suspectId: string | null;
+  /** 自己出题: this round's word is this player's own (they know what it means, and sit out the bets) */
+  wrote: boolean;
 }
 
 /** What the TV / observer screen may render. Never contains roles or the definition before reveal. */
@@ -180,4 +204,102 @@ export interface PublicView {
   scores: Record<string, number>;
   reveal: { honestId: string; definition: T; funFact: T; result: RoundResult } | null;
   timers: { peek: number; explain: number; accuse: number };
+  /** 自己出题: this round's word is a player's (who wrote it shows from the reveal on) */
+  own: boolean;
+  authorId: string | null;
+}
+
+/** What a round's reveal needs to know to be worded: who judged, who was honest, whom the judge named, the tag, the bets. */
+export interface RoundFacts {
+  judgeId: string;
+  honestId: string;
+  accusedId: string;
+  suspectId: string | null;
+  bets: Record<string, string>;
+  level: Level;
+}
+
+/** Online: the host's choices before the first round. `packs` is null until the host's phone sets them. */
+export interface NetSetup {
+  packs: string[] | null;
+  /** the difficulty the next round is dealt at (the host may change it between rounds) */
+  level: Level;
+  seeds: boolean;
+  bets: boolean;
+  /** 自己出题: every player writes one word before the deal */
+  own: boolean;
+}
+
+/**
+ * 一本正经 online, as one phone or a big screen sees it: the table's view, plus this phone's own part.
+ * A big screen, a seat that only watches and someone who sat down after the deal are not in the game:
+ * `me` is null for them, so they see what the table sees and nobody's part.
+ */
+export interface StraightFaceView {
+  id: "straightface";
+  /** "setup" until the host deals */
+  phase: "setup" | Phase;
+  setup: NetSetup;
+  /** who is in this game, in seat order (empty before the deal) */
+  players: string[];
+  /**
+   * The table's view. The server knows ids, not names, so its reveal carries no lines (each screen
+   * words them from `facts` with the names it shows) and no penalty wording (the room says that).
+   */
+  table: PublicView | null;
+  me: PrivateView | null;
+  /** when the current step began, on the server's clock: the soft timers count from it */
+  stepAt: number;
+  /** between rounds: who judges the next one */
+  nextJudge: string | null;
+  /** from the reveal on: who did what */
+  facts: RoundFacts | null;
+  /** from the reveal on: the card's id (each phone records it as played, and can flag it) */
+  cardId: string | null;
+  /** the bluffer who fooled the judge, while they still have someone to pick for the penalty */
+  master: string | null;
+  /** whom this round's master bluffer picked */
+  picked: string | null;
+  /** how often each player fooled a judge (the tie-break) */
+  fooled: Record<string, number>;
+  /** at the end: every word played tonight, with its meaning */
+  learned: { term: T; definition: T }[] | null;
+  /** at the end: tonight's titles (`awards` in the engine) */
+  awards: Awards | null;
+  /** 自己出题, before the deal: who has written a word, and this phone's own (nobody sees anyone else's) */
+  writing: { written: string[]; mine: OwnDraft | null } | null;
+  /** The audience's bets (people at the table who aren't in this game); null when bets are off. */
+  crowd: CrowdView | null;
+}
+
+/**
+ * The audience: phones at the table that aren't in this game (they sat down after the deal, or
+ * after the first nine). They bet on the honest one from the first explanation until the verdict;
+ * it scores nothing in the game, only on their own board. Nobody sees whom they backed before the
+ * verdict, so the crowd can't steer the judge.
+ */
+export interface CrowdView {
+  /** how many in the audience have bet this round */
+  count: number;
+  /** this phone's bet this round, if it is in the audience */
+  mine: string | null;
+  /** this phone may bet now: not in the game, the bets are open, it hasn't bet */
+  canBet: boolean;
+  /** from the verdict on: who in the audience backed whom */
+  bets: Record<string, string> | null;
+  /** over the game: how often each in the audience backed the honest one */
+  right: Record<string, number>;
+}
+
+/** The end's titles, by player id; each shared when tied, empty when nobody earned it. */
+export interface Awards {
+  /** first on the board (with at least a point) */
+  top: string[];
+  /** fooled the judge most often, at least once */
+  bluffer: string[];
+  /** bet on the honest one most often, at least once */
+  bettor: string[];
+  /** how often each fooled a judge, and bet right: the line under a title */
+  fooled: Record<string, number>;
+  rightBets: Record<string, number>;
 }

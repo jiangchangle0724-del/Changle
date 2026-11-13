@@ -91,6 +91,8 @@ All merged into `main`:
 | #55 | List matching copes with Google's two-language names and unit numbers | `tools/suibian/src/server/curated.ts`, `tests/curated.test.ts`, README |
 | #57 | Bugs from a screen-by-screen walk and a code review: late joiners' diet cards, a race that skipped round 2, rounds ending while someone looks at a map, rating and search limits, fresh GPS, unknown hours, the diet summary only with the result, the host's location, and six display fixes | `tools/suibian/src/room/`, `src/server/worker.ts`, `src/engine/` (`clock.ts`, `pick.ts`, `wait.ts`), `src/client/` (`net.ts`, `i18n.ts`, `styles.css`, `privacy.html`, `ui/Table.tsx`, `Rate.tsx`, `Solo.tsx`, `Where.tsx`, `PlaceCard.tsx`), tests, README |
 | #61 | Picking alone: "show me others" goes up to twelve places, fetching each batch's details only when asked (`POST /api/solo/more`) | `tools/suibian/src/server/worker.ts`, `src/engine/solo.ts`, `src/room/protocol.ts`, `src/client/ui/Solo.tsx`, `src/client/i18n.ts`, `src/client/privacy.html`, tests, README |
+| #313 | Every place in range and budget, ranked; diets and round 1's 🚫 move places down with a note on what can still be ordered (severe allergies to the bottom); rank, short intro, distance, walking and driving minutes and Google's AI summary on every card; "show me others" and the seen list gone | `tools/suibian/src/engine/` (`pick.ts`, `solo.ts`, `limits.ts`, `tips.ts` and `dishes.ts` new, `vote.ts`, `cuisines.ts`, `types.ts`), `src/room/`, `src/server/` (`places.ts`, `worker.ts`), `src/client/` (`ui/PlaceCard.tsx`, `ui/RankedList.tsx` new, `ui/Table.tsx`, `ui/Solo.tsx`, `store.ts`, `i18n.ts`, `styles.css`, privacy, terms), tests, README, DESIGN |
+| #316 | 什么时候吃？: now, the next lunch or dinner, or a day and time this week; places checked against their opening hours then | `tools/suibian/src/engine/` (`clock.ts`, `pick.ts`, `solo.ts`), `src/room/`, `src/server/` (`places.ts`, `worker.ts`), `src/client/` (`ui/WhenPicker.tsx` and `when.ts` new, `ui/Home.tsx`, `ui/Table.tsx`, `ui/Solo.tsx`, `ui/PlaceCard.tsx`, `i18n.ts`, `styles.css`, privacy), tests, README, DESIGN |
 
 ## Live state
 
@@ -119,8 +121,36 @@ All merged into `main`:
 
 ## Open items
 
-* The severe-allergy table `SEVERE_RULES_OUT` in `src/engine/limits.ts` is a **draft** and needs
-  review by friends who have those allergies.
+* The allergen table, `COMMON_IN` in `src/engine/limits.ts` (was `SEVERE_RULES_OUT`): the owner
+  approved the review page's suggested additions on 2026-11-05 and they are in. Since #313 it only
+  moves places down (severe to the bottom) and picks the note from `src/engine/tips.ts`. Still open,
+  for friends who have those allergies: oyster sauce (count other Chinese, HK café and Taiwanese for
+  shellfish?), other Chinese for peanut, and adding mustard as an allergen.
+* The notes on what can still be ordered are per cuisine (Google has no menus); "mainly …" on a card
+  only comes from the place's name and Google type (`src/engine/dishes.ts`). Google's AI summary is
+  English only in Canada: a Chinese-language table mostly sees it on the top cards (from the English
+  details request).
+* What it's for weighs a lot since 2026-11-12 (README, "What it's for"): the searches ask Google
+  for the meals each place serves and whether you can sit down (servesDinner, dineIn…; same price
+  tier, no extra cost), an occasion has a search of its own (still four a table at most), and the
+  other searches leave out kinds of place it rules out (Google's `excludedPrimaryTypes`).
+* Round 1 comes before the search (2026-11-11): the whole menu, 31 cuisines, and the table's other
+  searches go to what people liked. Five cuisines Google has no place type for (Sichuan,
+  Shanghainese, Northern Chinese, Chinese BBQ skewers, HK cafés) are found by a Text Search, at most
+  two a table. Text Search has its own Google allowance (1,000 a month free at this field tier, then
+  US$40 per 1,000, the same as Nearby) and its own daily quota, which has no cap set yet: set one
+  (about 100 a day) in the Cloud console next to the Nearby one.
+* More places per pick (branch `claude/suibian-more-places`): up to four searches per table
+  instead of two (README, "Where the places come from"). Google's free allowance for
+  this search is 1,000 a month, then US$40 per 1,000 (pricing page, 2026-11-03), so it now covers
+  about 250 picks a month instead of 500, and the daily cap `SearchNearbyRequestPerDayPerProject`
+  200 about 50 picks a day instead of 100. If people start seeing 搜索出错了 in the evening, raise
+  that cap.
+* Delivery apps as a source of places: Uber Eats and DoorDash open their APIs only to approved
+  merchants managing their own menus and orders (no search of other restaurants); none found for
+  SkipTheDishes or 饭团 Fantuan; copying their pages breaks their terms. Google already lists more
+  restaurants than any of them. What they are instead: the "order delivery" fold on each card
+  (README, "Cards"), which the owner asked for on 2026-11-05.
 * `src/data/picks.json` (Steve's picks) is empty: it waits for the owner's 探店 links. The list
   badges in `src/data/lists.json` came from Codex in #54 (issue #42): the 2026 MICHELIN Guide,
   Vancouver Magazine Restaurant Awards and Canada's 100 Best, and the 2025 Chinese Restaurant

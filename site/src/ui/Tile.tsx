@@ -14,15 +14,24 @@ export function Tile({
   isNew,
   soon,
   lit,
+  pressed,
+  disabled,
   size = "grid",
+  line,
+  href,
   onOpen,
 }: TileProps) {
   const other = lang === "zh" ? "en" : "zh";
+  // a card that opens another page at its own address (随便 at /eat) is a link, every other one a button
+  const Card = href ? "a" : "button";
   return (
-    <button
-      type="button"
+    <Card
+      type={href ? undefined : "button"}
+      href={href}
       className={`ui-tile ui-category-${category} ui-tile-${size}${lit ? " ui-tile-lit" : ""}${soon ? " ui-tile-soon" : ""}`}
       onClick={onOpen}
+      disabled={disabled}
+      aria-pressed={pressed}
     >
       <Icon
         className="ui-tile-watermark"
@@ -37,6 +46,7 @@ export function Tile({
         <span lang={lang === "zh" ? "zh-CN" : "en"}>{name[lang]}</span>
         <small lang={other === "zh" ? "zh-CN" : "en"}>{name[other]}</small>
       </span>
+      {line && <span className="ui-tile-line">{line}</span>}
       <span className="ui-tile-meta">
         {players && (
           <span>
@@ -53,6 +63,6 @@ export function Tile({
         )}
         {drinking && <Wine aria-label={labels.drinking[lang]} role="img" />}
       </span>
-    </button>
+    </Card>
   );
 }

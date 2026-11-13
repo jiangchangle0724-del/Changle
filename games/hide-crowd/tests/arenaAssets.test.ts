@@ -29,8 +29,30 @@ test("original Blender arena models are valid, bounded GLB 2.0 files", () => {
   }
 });
 
+test("the people are slim, rigged GLB 2.0 files with nothing from outside", () => {
+  const read = (filename: string) => {
+    const data = readFileSync(dir + filename);
+    assert.equal(data.toString("ascii", 0, 4), "glTF", `${filename} magic`);
+    assert.equal(data.readUInt32LE(4), 2, `${filename} version`);
+    assert.equal(data.readUInt32LE(8), data.byteLength, `${filename} declared length`);
+    const jsonLength = data.readUInt32LE(12);
+    return JSON.parse(data.toString("utf8", 20, 20 + jsonLength)) as { skins?: unknown[]; animations?: { name: string }[]; materials?: unknown[]; images?: unknown[]; extensionsRequired?: string[] };
+  };
+  const man = read("crowd-people.glb");
+  const woman = read("crowd-people-f.glb");
+  for (const gltf of [man, woman]) {
+    assert.equal(gltf.skins?.length, 1, "one skeleton");
+    assert.equal(gltf.images, undefined, "no pictures: the game paints the clothes");
+    assert.equal(gltf.materials, undefined, "no materials: the game paints the clothes");
+    assert.ok(gltf.extensionsRequired?.includes("KHR_mesh_quantization"), "small numbers");
+  }
+  assert.equal(man.animations?.length, 11, "the man's file carries the clips");
+  assert.equal(woman.animations, undefined, "the woman moves with the man's clips");
+});
+
 test("pictures are WebP and within their budgets", () => {
-  const budget = (name: string) => (name === "crowd-atlas.webp" ? 340_000 : name.startsWith("thumb-") ? 24_000 : name.endsWith(".webp") ? 240_000 : 450_000);
+  // (the man's file carries the eleven clips: the dance took it past 200 KB)
+  const budget = (name: string) => (name === "crowd-people.glb" ? 210_000 : name === "crowd-people-f.glb" ? 110_000 : name.startsWith("thumb-") ? 24_000 : name.endsWith(".webp") ? 240_000 : 450_000);
   for (const [name, size] of Object.entries(sizes)) {
     assert.ok(/\.(webp|glb)$/.test(name), `${name}: art ships as WebP or GLB`);
     assert.ok(size <= budget(name), `${name} is ${size} bytes`);

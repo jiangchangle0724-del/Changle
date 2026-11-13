@@ -2,17 +2,19 @@
 // gathers the next 14 days (src/run.ts) and publishes them to KV (src/publish.ts); the API reads
 // that one file, so it answers at once. The page itself comes after gate A (docs/whats-on-v2.md).
 //   GET /go/api/events   the events, filtered: from, to (YYYY-MM-DD), cat, area, tag (comma lists)
-//   GET /go/api/events.ics  the same, as a calendar to subscribe to (task C6)
+//   GET /go/api/events.ics  the same, as a calendar to subscribe to (src/ics.ts)
 //   GET /go/api/status   the last run, step by step (the fetch log), and what's published
 //   GET /go/preview      what's published, day by day: unlisted and not indexed, to check the run
-//   POST /go/api/handoff the libraries' pages, from the GitHub job at 05:50 (signed in by GitHub; src/handoff.ts)
+//   POST /go/api/handoff the libraries' pages, from the GitHub job (signed in by GitHub; src/handoff.ts): kept for
+//                        the run, or read at once when the run has gone past the library (src/arrival.ts)
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { useArrival } from "./arrival";
 import { receiveHandoff } from "./handoff";
 import { toIcs } from "./ics";
-import { renderPreview } from "./preview";
+import { AREA_LABEL, CATEGORY_LABEL, renderPreview, TAG_LABEL } from "./preview";
 import { LIVE_KEY, publish } from "./publish";
 import { filterEvents, readQuery } from "./query";
-import { fetchStep, runDay, type StepArgs } from "./run";
+import { fetchStep, runDay, type StepArgs, type StepRunner } from "./run";
 import { ensureSchema } from "./schema";
 import { vanParts } from "./time";
 import type { Published } from "./types";
@@ -22,10 +24,14 @@ export class Steps extends WorkerEntrypoint<Env> {
   fetchSource(args: StepArgs) {
     return fetchStep(this.env, args);
   }
-  publish(args: { runId: string }) {
-    return publish(this.env, args.runId);
+  publish(args: { runId: string; note?: string }) {
+    return publish(this.env, args.runId, args.note ?? null);
   }
 }
+
+/** The steps, each a request of its own (the loopback binding); called directly where there's none (tests). */
+const stepsOf = (env: Env, ctx?: ExecutionContext): StepRunner =>
+  (ctx?.exports?.Steps as StepRunner | undefined) ?? { fetchSource: (a) => fetchStep(env, a), publish: (a) => publish(env, a.runId, a.note ?? null) };
 
 const json = (body: unknown, status = 200, cache = "no-store") =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": cache, "access-control-allow-origin": "*" } });
@@ -39,9 +45,10 @@ async function listEvents(url: URL, env: Env, ics = false): Promise<Response> {
   const { from, to } = q;
   const events = filterEvents(pub.events, q);
   if (ics) {
-    const name = ["玩什么 · What's On", ...q.cats, ...q.areas, ...q.tags].join(" · ");
+    // A filtered calendar is named by its filters, in Chinese and English: "玩什么 · What's On · 亲子家庭 Family & Kids".
+    const label = ([zh, en]: readonly [string, string]) => `${zh} ${en}`;
+    const name = ["玩什么 · What's On", ...q.cats.map((c) => label(CATEGORY_LABEL[c])), ...q.areas.map((a) => label(AREA_LABEL[a])), ...q.tags.map((t) => label(TAG_LABEL[t]))].join(" · ");
     const text = toIcs(events, { name, now: new Date() });
-    if (text === null) return json({ error: "not built yet" }, 501);
     return new Response(text, { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "public, max-age=1800", "access-control-allow-origin": "*" } });
   }
   return json({ runId: pub.runId, generatedAt: pub.generatedAt, from, to, count: events.length, events }, 200, "public, max-age=300, stale-while-revalidate=3600");
@@ -72,10 +79,15 @@ const PAGE = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><met
 <body><main><h1>玩什么 · What's On</h1><p>大温这两周去哪玩，正在准备中。</p><p>Greater Vancouver's next two weeks, coming soon.</p><p><a href="https://changle.ca">changle.ca</a></p></main></body></html>`;
 
 export default {
-  async fetch(req, env) {
+  // (ctx is optional for the tests, which call fetch without one: the steps are then called directly)
+  async fetch(req, env, ctx?: ExecutionContext) {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
-    if (path === "/go/api/handoff") return receiveHandoff(req, env);
+    if (path === "/go/api/handoff") return receiveHandoff(req, env, Date.now(), (page) => useArrival(stepsOf(env, ctx), env.DB, page));
+    // The Worker's own address (changle-events.<account>.workers.dev) is only the GitHub job's way in:
+    // changle.ca's bot protection answers GitHub's machines with a challenge page (5 November 2026), so
+    // the job hands its pages over here (wrangler.jsonc: workers_dev). Nothing else is served on it.
+    if (url.hostname.endsWith(".workers.dev")) return json({ error: "not found" }, 404);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405);
     if (path === "/go/api/events") return listEvents(url, env);
     if (path === "/go/api/events.ics") return listEvents(url, env, true);

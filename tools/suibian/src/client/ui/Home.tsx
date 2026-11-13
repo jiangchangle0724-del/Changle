@@ -4,7 +4,10 @@ import { t } from "../i18n";
 import { api } from "../net";
 import { identity, inWeChat, prefs } from "../prefs";
 import { update, useApp } from "../store";
+import type { OccasionId } from "../../engine";
 import { Btn, DemoBanner, LangToggle } from "./common";
+import { OccasionPicker } from "./OccasionPicker";
+import { WhenPicker } from "./WhenPicker";
 import { WhereFields, useWhere } from "./Where";
 
 export function Home({ go }: { go: (path: string) => void }) {
@@ -14,6 +17,8 @@ export function Home({ go }: { go: (path: string) => void }) {
   const where = useWhere(setErr);
   const [busy, setBusy] = useState(false);
   const [sure, setSure] = useState(false);
+  const [at, setAt] = useState<number | null>(null);
+  const [occasion, setOccasion] = useState<OccasionId>("casual");
 
   const create = async () => {
     const c = where.center();
@@ -21,7 +26,7 @@ export function Home({ go }: { go: (path: string) => void }) {
     const range = where.range;
     setBusy(true);
     prefs.start = { center: c, range };
-    const res = await api<{ code?: string; error?: string }>("/api/rooms", { method: "POST", body: JSON.stringify({ cid: identity().cid, center: c, range, lang: prefs.lang }) });
+    const res = await api<{ code?: string; error?: string }>("/api/rooms", { method: "POST", body: JSON.stringify({ cid: identity().cid, center: c, range, lang: prefs.lang, at, occasion }) });
     setBusy(false);
     if (res.ok && res.data.code) return go(`/r/${res.data.code}`);
     setErr(res.data.error === "quota" ? t("quota") : res.data.error === "login" ? t("loginWhy") : t("offline"));
@@ -71,22 +76,19 @@ export function Home({ go }: { go: (path: string) => void }) {
           </>
         ) : (
           <>
+            <div class="field">
+              <span>{t("occasion")}</span>
+              <OccasionPicker value={occasion} onChange={setOccasion} />
+            </div>
+            <div class="field">
+              <span>{t("when")}</span>
+              <WhenPicker value={at} onChange={setAt} />
+            </div>
             <WhereFields w={where} />
             <Btn kind="primary" wide disabled={busy || where.waiting} onClick={() => void create()}>
               {t("startTable")}
             </Btn>
           </>
-        )}
-      </section>
-
-      <section class="card solo-entry">
-        <h2>{t("soloTitle")}</h2>
-        {/* Signed out: the sign-in button is in the card above, so just say it's needed. */}
-        <p class="muted small">{mustLogin ? t("soloLogin") : t("soloPitch")}</p>
-        {!mustLogin && (
-          <Btn wide onClick={() => go("/solo")}>
-            {t("soloStart")}
-          </Btn>
         )}
       </section>
 
