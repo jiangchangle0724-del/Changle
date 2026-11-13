@@ -1,6 +1,7 @@
 """打碟 · DJ Booth: what the checks with a whole song from YouTube share (dj_youtube_check.py,
-dj_floor3d_check.py): YouTube's player, standing in, and a song brought down on its drop."""
-import os, sys, time
+dj_floor3d_check.py, dj_player_check.py, dj_shared_check.py): YouTube's player, standing in, the
+phones' player, and a song coming on by itself."""
+import os, sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from party_test import until, ok, view  # noqa: E402
@@ -74,41 +75,32 @@ def deck(pg):
     return (view(pg) or {}).get("deck") or {}
 
 
-def press_drop(ph):
-    """DROP on the cue, as a quick thumb would."""
-    if until(lambda: ph.locator(".djk-drop.is-now").count() > 0, 30000, 15):
-        ph.locator(".djk-drop").dispatch_event("pointerdown")
-        return True
-    return False
+def key(ph, n):
+    """A phone's player (Steve on Nov 12): 0 上一曲, 1 暂停 or 播放, 2 切歌."""
+    return ph.locator(".djk-player-keys .djk-key").nth(n)
+
+
+def hold(tv, ph):
+    """暂停 from a phone: the room holds its music (a song up next waits, ready, in the TV's corner)."""
+    key(ph, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 0) > 0, 4000), "(held: nothing comes up next)")
+
+
+def carry_on(tv, ph):
+    """播放 from a phone, after `hold`."""
+    key(ph, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 1) == 0, 4000), "(播放: it carries on)")
 
 
 def drop_into(tv, phones, who, whole=True, press=None):
-    """The song up next is `who`'s: the speaker cues its deck, the table builds up and drops into it
-    (`press`: that phone presses DROP on the cue; else the DJ drops it after a countdown nobody
-    pressed). Whole: the room says the whole song plays. (A deck still changing when the build-up
-    fills keeps the drop on the deck that's on, as it should: the table builds up again.)"""
-    side = "b" if deck(tv).get("fader", 0) <= 0.5 else "a"
-    ok(until(lambda: (deck(tv).get("up") or {}).get("by") == who, 6000), "up next")
-    ok(until(lambda: bool((deck(tv).get("sounding") or {}).get(side)) and (deck(tv).get("sounding") or {}).get(side) == deck(tv).get(side), 40000, 250), f"the speaker plays it on deck {side.upper()}")
-    into = False
-    for _ in range(4):
-        end = time.time() + 30
-        while time.time() < end and not deck(tv).get("drop"):
-            for ph in phones:
-                ph.evaluate("() => { const b = document.querySelector('.djk-charge'); if (b) for (let i = 0; i < 3; i++) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }")
-            phones[0].wait_for_timeout(150)
-        dr = deck(tv).get("drop") or {}
-        if dr.get("to") == side:
-            into = True
-            break
-        # (into the deck that's on: let it land, wait for the deck to settle, build up again)
-        until(lambda: not deck(tv).get("drop"), 30000, 200)
-        until(lambda: (deck(tv).get("sounding") or {}).get(side) == deck(tv).get(side), 30000, 250)
-    ok(into, "the table builds it up, into its deck")
-    if press is not None:
-        ok(press_drop(press), "DROP pressed on the cue")
+    """The song up next is `who`'s: the room switches into it by itself (点歌模式, the booth's only way
+    since Nov 12: nothing to build up or press). A room held (`hold`) carries on first, from
+    `press`'s phone or the first. Whole: the room says the whole song plays."""
+    ok(until(lambda: (deck(tv).get("up") or {}).get("by") == who or (deck(tv).get("song") or {}).get("by") == who, 6000), "up next")
+    if deck(tv).get("paused"):
+        carry_on(tv, press or phones[0])
     if whole:
-        ok(until(lambda: (deck(tv).get("song") or {}).get("by") == who, 60000, 50), "it lands (the table's drop or the DJ's): the whole song's time")
+        ok(until(lambda: (deck(tv).get("song") or {}).get("by") == who, 60000, 50), "it comes on by itself: the whole song's time")
     else:
         landed = until(lambda: (deck(tv).get("now") or {}).get("by") == who and not deck(tv).get("drop"), 60000, 50)
         if not landed:

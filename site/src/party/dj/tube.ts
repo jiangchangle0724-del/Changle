@@ -105,6 +105,8 @@ export type TubeStatus =
   | "playing"
   /** the browser wants a tap on the video before it plays with sound */
   | "tap"
+  /** the room paused it (暂停 on a phone): held where it is */
+  | "paused"
   /** YouTube couldn't be reached; this is retriable and doesn't ban the video. */
   | "offline"
   /** YouTube won't play this video here */
@@ -131,7 +133,9 @@ type Step =
   /** playing with sound */
   | "on"
   /** the browser wants a tap */
-  | "tap";
+  | "tap"
+  /** the room paused it: held where it is till 播放 */
+  | "paused";
 
 type Hooks = {
   /** the server's clock, ms */
@@ -194,6 +198,8 @@ export class Tube {
   /** when a mute was first seen on a song meant to be heard */
   private mutedAt = 0;
   private blockedSaid = false;
+  /** it was heard before the room paused it (播放 carries it on from there, its sound on) */
+  private wasOn = false;
   private timer = 0;
   private tick = 0;
   private broken = new Set<string>();
@@ -262,6 +268,20 @@ export class Tube {
    */
   play(video: string, at: number, when = performance.now() - (this.h.now() - at)) {
     if (this.gone) return;
+    if (this.step === "paused" && this.video === video && this.p && this.live) {
+      // 播放 after the room's 暂停: heard before, it carries on from where it stopped (the DJ stays
+      // quiet: it gave way already); not heard yet, it starts over from where the room says it is
+      if (this.wasOn) {
+        this.p.unMute();
+        this.p.setVolume(100);
+        this.p.playVideo();
+        // (nothing to learn about how fast a start is from this one)
+        this.askedAt = 0;
+        this.to("start", "starting");
+        return;
+      }
+      this.going = false;
+    }
     const late = this.h.now() - at;
     if (this.going && this.video === video) {
       // the drop's time corrected before it lands: the start moves with it (once it's started, the
@@ -307,13 +327,22 @@ export class Tube {
     this.to("start", "starting");
   }
 
+  /** 暂停 (the room's, from a phone): the song held where it is, quiet; `play` carries it on. */
+  pause() {
+    if (this.gone || !this.going || this.step === "paused") return;
+    window.clearTimeout(this.timer);
+    this.wasOn = this.step === "on";
+    this.p?.pauseVideo();
+    this.to("paused", "paused");
+  }
+
   /** The song is over, skipped, or isn't coming after all: quiet, ready for the next. */
   stop() {
     window.clearTimeout(this.timer);
     const was = this.going;
     this.going = false;
     this.quiet = false;
-    if (!was && this.step !== "on" && this.step !== "start" && this.step !== "tap" && this.step !== "wait" && this.step !== "rolled") return;
+    if (!was && this.step !== "on" && this.step !== "start" && this.step !== "tap" && this.step !== "wait" && this.step !== "rolled" && this.step !== "paused") return;
     this.p?.pauseVideo();
     this.to("none", "idle");
   }
@@ -349,7 +378,7 @@ export class Tube {
       this.h.status(status, this.armed);
     }
     // watch the player while there's something to watch for
-    const watch = step !== "none" && step !== "wait";
+    const watch = step !== "none" && step !== "wait" && step !== "paused";
     if (watch && !this.tick) this.tick = window.setInterval(() => this.look(), 100);
     else if (!watch && this.tick) {
       window.clearInterval(this.tick);
