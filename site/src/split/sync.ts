@@ -57,9 +57,15 @@ export function act(h: Held, change: Change, id: string, at: number): Held | nul
   return applyChange(shown(h), change) ? { ...h, waiting: [...h.waiting, { id, at, change }] } : null;
 }
 
-/** The server says where the ledger stands (on making it, on the live connection). News older than what we have is ignored. */
+/**
+ * The server says where the ledger stands (on making it, on the live connection). News older than
+ * what the phone has is ignored, and so is news it has already: a ledger at one number is one
+ * ledger, so hearing it twice (the answer to a change, then the same thing on the live connection)
+ * changes nothing here, and nothing is drawn or kept again.
+ */
 export function heard(h: Held, s: Snapshot): Held {
-  return s.seq < h.seq ? h : { ...h, made: true, seq: s.seq, server: s.ledger };
+  if (s.seq < h.seq || (h.made && s.seq === h.seq)) return h;
+  return { ...h, made: true, seq: s.seq, server: s.ledger };
 }
 
 /** What to send: everything waiting, oldest first, so nothing arrives before what it follows. */
@@ -105,13 +111,14 @@ export function holds(l: Ledger, c: Change): boolean {
  * The server's answer to what was sent. Those changes stop waiting, whatever became of them. One
  * that changed nothing, and whose purpose the ledger doesn't already serve, didn't stick (someone
  * took its name, or took the person out of the ledger, while this phone had no signal): it goes
- * on the list the screen reads.
+ * on the list the screen reads, once (two tabs open on one ledger are both told).
  */
 export function answered(h: Held, sent: Sent[], a: Pushed): Held {
   const ids = new Set(sent.map((s) => s.id));
-  const lost = sent.filter((s, i) => a.took[i] === "nothing" && !holds(a.ledger, s.change));
+  const listed = new Set(h.lost.map((s) => s.id));
+  const lost = sent.filter((s, i) => a.took[i] === "nothing" && !listed.has(s.id) && !holds(a.ledger, s.change));
   return { ...heard(h, a), waiting: h.waiting.filter((s) => !ids.has(s.id)), lost: [...h.lost, ...lost].slice(-LOST_MOST) };
 }
 
 /** The screen has said so. */
-export const dismiss = (h: Held, id: string): Held => ({ ...h, lost: h.lost.filter((s) => s.id !== id) });
+export const dismiss = (h: Held, id: string): Held => (h.lost.some((s) => s.id === id) ? { ...h, lost: h.lost.filter((s) => s.id !== id) } : h);

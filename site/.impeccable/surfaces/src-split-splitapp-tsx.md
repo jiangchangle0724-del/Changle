@@ -7,7 +7,7 @@ related_targets: ["src/split/LedgerPage.tsx","src/split/AddExpense.tsx","src/spl
 
 # Surface brief: 两清 · All Square (changle.ca/split)
 
-Scope: the whole tool, mode Operate. Audience: a group of friends after a trip or a dinner, one of them holding the phone, the others watching the group chat. Job: note who paid for what in two taps, see where you stand, and settle in the fewest transfers. Content: the ledger's own entries; the plan, with every rule and the approved wireframe, is `docs/split.md`. Constraints: the site's established world (docs/DESIGN.md, tokens and the 12 shared components), portrait phone first, 中/EN at any moment, no money ever passes through the site, stage one keeps ledgers on the phone.
+Scope: the whole tool, mode Operate. Audience: a group of friends after a trip or a dinner, one of them holding the phone, the others watching the group chat. Job: note who paid for what in two taps, see where you stand, and settle in the fewest transfers. Content: the ledger's own entries; the plan, with every rule and the approved wireframe, is `docs/split.md`. Constraints: the site's established world (docs/DESIGN.md, tokens and the 12 shared components), portrait phone first, 中/EN at any moment, no money ever passes through the site. Stage one kept ledgers on the phone; since stage two (2026-11-13) a ledger is kept on the server and the phone holds a copy, so it works with no signal.
 
 Memorable moment: the last transfer is marked as paid and the page is stamped 两清, the tool's own name, like the seal on a settled bill.
 
@@ -45,3 +45,25 @@ What the review changed, most material first:
 Verdict: holds to the contract. One light, one button a screen, the amount as the largest thing, three motions and no fourth. The detector's one finding on the page is the site's own room light, which is the world and not this surface's to change.
 
 Kept on purpose: 删掉 in Stop Red (the Button's own documented use, and the account page's delete does the same); the stamp's overshoot (`--ease-pop`, a stamp presses in and settles); no dates on rows yet (open above).
+
+## Stage two, step 4b: the server, said only when there is something to say (2026-11-13)
+
+Shape, in the thread that built it (the owner had said to go ahead without asking; the assumptions are marked):
+
+- Who and when: someone recording an expense on a trip, often with a poor signal (a mountain road, a subway, abroad with no data). Two things have to be true without their thinking about them: what I recorded is kept, and it reaches the others.
+- The page says nothing while that is so. No "saved" label, no cloud mark in the bar: the row landing in the list is the feedback, as before. (Assumption: a working tool needs no status. The ⋯ sheet says 已同步到云端 for whoever goes looking.)
+- One quiet line under the tabs, above both views, when what was recorded here hasn't gone up: how many changes, and that they go when there is a signal. It appears after the second miss, not the first, so a train in a tunnel doesn't flash it.
+- The same line in the page's strong voice with a mark when the phone can't go on sending (five cases, each in words of its own, each saying what happens to what is recorded). Not in the light and not in red: the amber is this tool's one light and the site's warning colour at once, and nothing is lost.
+- A change that didn't stick is named (the note and amount of an expense, who was to be renamed to what), with why and what to do, in a panel with one button, 知道了. It stays until read, across reloads.
+- The list flags a ledger's card with one short line in the same two voices.
+- No new motion: three motions and no fourth.
+
+What the look at the rendered screens changed (45 screens now, both languages, four phone sizes; axe clean, nothing too wide, nothing under 44px):
+
+1. A lost rename read 成员：Zed, which names nobody's action. Each kind now says what was done: 记一笔, 改一笔, 标成已转, 加人, 改名：小王 改成 Zed, 去掉.
+2. Two lost changes that each ran to two lines read as four lines. The gap between changes is wider than the gap between lines.
+3. Why it didn't stick broke as a line and three words. It is balanced over even lines.
+4. On a 320px phone in English the title on the list page sat 1px from the language switch (the bar's right side could be narrower than what it held; there since stage one). The right side now keeps its own width and the title gives way.
+5. Deleting a ledger said the ledger lives only on this phone, which stopped being true. It says what is true: it can't be opened again, and a copy stays online that can't be deleted yet. (Real deletion needs an owner, so it comes with accounts; it must be there before the tool gets its card.)
+
+Verdict: holds to the contract. The page is still one calm thing with one light; the server is heard from only when it has something to say, and then in the page's own two voices.

@@ -16,8 +16,8 @@ export const W = {
   },
   start: { zh: "开一个账本", en: "Start a ledger" },
   preview: {
-    zh: "小样：账本只存在这部手机上，还不能和别人一起记。",
-    en: "A first look: ledgers stay on this phone for now. Sharing one with friends comes next.",
+    zh: "小样：账本存在云端，这部手机上留一份。还不能和别人一起记。",
+    en: "A first look: ledgers are kept online, with a copy on this phone. Sharing one with friends comes next.",
   },
   notKept: {
     zh: "这个浏览器不让存东西（可能开了无痕模式），关掉页面账本就没了。",
@@ -29,6 +29,8 @@ export const W = {
   youOwe: { zh: "你该给", en: "You owe" },
   youSquare: { zh: "你两清了", en: "You're all square" },
   nothingYet: { zh: "还没记账", en: "Nothing recorded yet" },
+  cardUnsent: { zh: "有改动还没发出去", en: "Changes not sent yet" },
+  cardLost: { zh: "有改动没存上", en: "Some changes weren't saved" },
 
   // starting a ledger
   ledgerName: { zh: "账本叫什么", en: "What's it called" },
@@ -64,15 +66,49 @@ export const W = {
   back: { zh: "返回", en: "Back" },
   close: { zh: "关闭", en: "Close" },
   missing: { zh: "这部手机上没有这个账本", en: "This ledger isn't on this phone" },
-  missingBody: { zh: "账本现在只存在开它的那部手机上。", en: "For now, a ledger stays on the phone that started it." },
+  missingBody: { zh: "现在一个账本只能在开它的那部手机上打开。", en: "For now, a ledger opens only on the phone that started it." },
   myLedgers: { zh: "看我的账本", en: "My ledgers" },
+
+  // in step with the server: nothing is said while it is; these are for when it isn't
+  synced: { zh: "已同步到云端", en: "Saved online" },
+  notMade: { zh: "这个账本还没存到云端，有信号就存。", en: "This ledger isn't online yet. It goes up when there's a signal." },
+  unsentOne: { zh: "有 1 处改动还没发出去，有信号就发。", en: "1 change hasn't been sent yet. It goes when there's a signal." },
+  unsent: { zh: "有 {n} 处改动还没发出去，有信号就发。", en: "{n} changes haven't been sent yet. They go when there's a signal." },
+  offline: { zh: "没连上，看到的可能不是最新的。", en: "Not connected. This may not be the latest." },
+  troubleLimit: {
+    zh: "今天开的账本太多了，这个要到明天才能存到云端。先记在这部手机上。",
+    en: "Too many ledgers started today. This one can go online tomorrow; until then it stays on this phone.",
+  },
+  troubleGone: { zh: "云端没有这个账本了，现在只在这部手机上。", en: "This ledger is no longer online. It's only on this phone now." },
+  troubleKey: { zh: "这部手机打不开云端的这个账本了，这里记的发不上去。", en: "This phone can no longer open this ledger online. What's recorded here can't be sent." },
+  troubleTaken: { zh: "这个账本存不到云端，只在这部手机上。重开一个账本就好。", en: "This ledger can't be kept online, so it's only on this phone. Starting a new one fixes it." },
+  troubleStuck: {
+    zh: "云端没收下这部手机发去的改动，先留在手机上。过一会儿再打开试试。",
+    en: "The server didn't take what this phone sent, so it stays on this phone. Try opening it again in a while.",
+  },
+  lostOne: { zh: "有 1 处改动没存上", en: "1 change wasn't saved" },
+  lostMany: { zh: "有 {n} 处改动没存上", en: "{n} changes weren't saved" },
+  lostWhy: { zh: "账本在别的手机上先改过，所以没存上。还需要的话，再做一次。", en: "The ledger was changed on another phone first. Redo whatever is still needed." },
+  lostExpense: { zh: "记一笔：{what}", en: "New expense: {what}" },
+  lostEdit: { zh: "改一笔：{what}", en: "Edit: {what}" },
+  lostPaid: { zh: "标成已转：{what}", en: "Marked as paid: {what}" },
+  lostAdd: { zh: "加人：{who}", en: "New person: {who}" },
+  lostRename: { zh: "改名：{who} 改成 {name}", en: "Rename: {who} to {name}" },
+  lostRemove: { zh: "去掉：{who}", en: "Removed: {who}" },
+  lostOther: { zh: "一处别的改动", en: "Another change" },
+  lostMore: { zh: "还有 {n} 处", en: "and {n} more" },
+  gotIt: { zh: "知道了", en: "Got it" },
+  notSaved: { zh: "没记上，账本刚变过，再看一眼。", en: "That didn't save. The ledger just changed, so take another look." },
 
   // the ⋯ sheet
   members: { zh: "成员", en: "People" },
   rename: { zh: "改账本名", en: "Rename the ledger" },
   language: { zh: "语言", en: "Language" },
   deleteLedger: { zh: "删掉这个账本", en: "Delete this ledger" },
-  deleteAsk: { zh: "账本只存在这部手机上，删了就找不回来。", en: "This ledger lives only on this phone. Once deleted, it can't be brought back." },
+  deleteAsk: {
+    zh: "删掉以后这个账本就打不开了，找不回来。云端还留着一份，现在还删不了。",
+    en: "Once deleted, this ledger can't be opened again or brought back. A copy stays online, and that can't be deleted yet.",
+  },
   deleteYes: { zh: "删掉", en: "Delete it" },
   keep: { zh: "先留着", en: "Keep it" },
   save: { zh: "存好", en: "Save" },

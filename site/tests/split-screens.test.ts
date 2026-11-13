@@ -6,10 +6,11 @@
  *  3. 记一笔 while it is filled in: a draft, the three ways of sharing, moving between them.
  *  4. What can be done to a ledger: every change, and every change that is refused.
  *  5. The plan's example weekend, recorded the way the screens record it, and the lines they say.
- *  6. What is kept on the phone, however it comes back.
- *  7. Words: both languages for every one, the same blanks in each, none left unused.
- *  8. The screens write nothing of their own: tokens only, and no words outside the table.
- *  9. Still hidden: no way in but its address.
+ *  6. What is kept on the phone, and what the server answers, however either comes back.
+ *  7. What the screens say about the server: nothing while in step, and what didn't stick by name.
+ *  8. Words: both languages for every one, the same blanks in each, none left unused.
+ *  9. The screens write nothing of their own: tokens only, and no words outside the table.
+ * 10. Still hidden: no way in but its address.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -18,9 +19,12 @@ import { balances, expensesOf, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settl
 import { amountOf, blankDraft, draftOf, draftProblem, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, decimalsOf, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
-import { mine, nameFor, paidBy, paysLine, planText, sharedHow, standing } from "../src/split/lines";
+import { applyChange, type Change, type Sent } from "../src/split/changes";
+import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
-import { newId, parseSaved } from "../src/split/store";
+import { asPushed, asSnapshot } from "../src/split/shape";
+import { newId, newKey, parseSaved } from "../src/split/store";
+import { hold, shown, type Held } from "../src/split/sync";
 import { say, W, type Word } from "../src/split/words";
 import { CURRENCIES } from "../src/tools/money";
 import { randomLedger, rng } from "./split/ledgers";
@@ -273,7 +277,11 @@ const roster = five.members.map((x) => x.id);
   let l = five;
   const record = (id: string, me: string, text: string, payer: string | null, note: string) => {
     const d = { ...blankDraft(l, me), text, note, ...(payer ? { payer } : {}) };
-    l = addExpense(l, { id, at: l.entries.length + 1, payer: d.payer, amount: amountOf(d, 2)!, note: d.note, split: splitOf(d, 2) });
+    // (记一笔 sends the expense as a change, with the turn for the odd cents the ledger shows it then)
+    const expense = { kind: "expense" as const, id, at: l.entries.length + 1, payer: d.payer, amount: amountOf(d, 2)!, note: d.note, split: splitOf(d, 2), rot: nextRot(l) };
+    const sameAsBefore = addExpense(l, expense);
+    l = applyChange(l, { do: "expense", expense }) ?? l;
+    ok(JSON.stringify(l) === JSON.stringify(sameAsBefore), `${note}: recorded as a change, the ledger is what recording it on the phone alone made it`);
   };
   eq(standing(l, "s", "zh"), "还没记账", "before anything is recorded");
   record("e1", "s", "186", "w", "晚饭");
@@ -319,33 +327,103 @@ const roster = five.members.map((x) => x.id);
   eq(settlement(putBack(undone, "t2")).clear, true, "and put back, square again");
 }
 
-// ---------- 6. what is kept on the phone ----------
+// ---------- 6. what is kept on the phone, and what the server answers ----------
 {
   const l = addTransfer(addExpense(five, { id: "e1", at: 1, payer: "w", amount: 18600, note: "晚饭", split: { how: "equal", among: roster } }), { id: "t1", at: 2, from: "j", to: "w", amount: 100 });
-  const saved = { ledgers: [l], me: { L: "s" } };
-  eq(parseSaved(JSON.stringify(saved)), saved, "what was saved comes back as it was");
-  eq(parseSaved(null), { ledgers: [], me: {} }, "nothing saved");
-  for (const junk of ["", "{", "null", "[]", "42", '"x"', '{"ledgers":7,"me":[]}', '{"ledgers":[null,7,"x",{}],"me":{"a":1}}']) eq(parseSaved(junk), { ledgers: [], me: {} }, `${junk || "(empty)"} is no ledgers, and no crash`);
+  const key = "k".repeat(43);
+  const waiting: Sent = { id: "c1", at: 5, change: { do: "expense", expense: { kind: "expense", id: "e2", at: 5, payer: "s", amount: 1200, note: "油费", split: { how: "equal", among: roster }, rot: 1 } } };
+  const lost: Sent = { id: "c0", at: 4, change: { do: "rename", member: "w", name: "阿美" } };
+  const h: Held = { key, made: true, seq: 2, server: l, waiting: [waiting], lost: [lost] };
+  const saved = { held: [h], me: { L: "s" } };
+  eq(parseSaved(JSON.stringify(saved)), saved, "what was saved comes back as it was: the server's ledger, the key, what is waiting, what didn't stick");
+  eq(shown(parseSaved(JSON.stringify(saved)).held[0]).entries.map((e) => e.id), ["e1", "t1", "e2"], "and what was recorded with no signal is on the screen again after the page is closed and opened");
+  eq(parseSaved(null), { held: [], me: {} }, "nothing saved");
+  for (const junk of ["", "{", "null", "[]", "42", '"x"', '{"held":7,"me":[]}', '{"held":[null,7,"x",{}],"me":{"a":1}}']) eq(parseSaved(junk), { held: [], me: {} }, `${junk || "(empty)"} is no ledgers, and no crash`);
+  eq(parseSaved(JSON.stringify({ ledgers: [l], me: {} })).held, [], "the first sample's record (ledgers kept on the phone alone) holds nothing this reads as a ledger");
   const damaged = JSON.stringify({
-    ledgers: [
-      { ...l, entries: [...l.entries, { kind: "expense", id: "bad" }, null, { kind: "what" }, { kind: "transfer", id: "t9", at: 1, amount: "5", from: "j", to: "w" }], members: [...l.members, { id: 5 }, "x"], extra: true },
-      { id: "nobody", name: "x", currency: "CAD", members: [], entries: [] },
-      { id: "half" },
+    held: [
+      {
+        ...h,
+        server: { ...l, entries: [...l.entries, { kind: "expense", id: "bad" }, null, { kind: "what" }, { kind: "transfer", id: "t9", at: 1, amount: "5", from: "j", to: "w" }], members: [...l.members, { id: 5 }, "x"], extra: true },
+        waiting: [waiting, null, { id: "c2" }, { id: "c3", at: 1, change: { do: "what" } }, { id: "c4", at: 1, change: { do: "expense", expense: { id: "e9" } } }],
+        lost: [lost, 7],
+        extra: true,
+      },
+      { ...h, server: { id: "nobody", name: "x", currency: "CAD", members: [], entries: [] } },
+      { ...h, key: "short" },
+      { ...h, key: undefined },
+      { ...h, made: "yes" },
+      { ...h, seq: -1 },
+      { ...h, seq: 1.5 },
+      { ...h, server: { id: "half" } },
+      { id: "L" },
     ],
     me: { L: "s", other: 3 },
   });
-  eq(parseSaved(damaged), saved, "a damaged record keeps every ledger, person and entry that is still whole, and drops the rest");
-  const odd = parseSaved(JSON.stringify({ ledgers: [{ ...l, entries: [{ kind: "expense", id: "e", at: 1, payer: "zz", amount: -5, note: "", rot: 0, split: { how: "equal", among: [] } }] }], me: {} })).ledgers[0];
+  eq(parseSaved(damaged), saved, "a damaged record keeps every ledger, person, entry and waiting change that is still whole, and drops the rest");
+  eq(parseSaved(JSON.stringify({ held: [{ ...h, waiting: 5, lost: null }], me: {} })).held[0], { ...h, waiting: [], lost: [] }, "a ledger whose list of waiting changes is gone is still a ledger, with nothing waiting");
+  const odd = parseSaved(JSON.stringify({ held: [{ ...h, waiting: [], server: { ...l, entries: [{ kind: "expense", id: "e", at: 1, payer: "zz", amount: -5, note: "", rot: 0, split: { how: "equal", among: [] } }] } }], me: {} })).held[0].server;
   eq([odd.entries.length, expensesOf(odd).length, Object.values(balances(odd)).every((n) => n === 0)], [1, 0, true], "an entry that has the shape but isn't sound is kept and counts for nothing");
-  const zero = parseSaved(JSON.stringify({ ledgers: [{ ...l, entries: l.entries.map((e) => ({ ...e, gone: 0 })) }], me: {} })).ledgers[0];
+  const zero = parseSaved(JSON.stringify({ held: [{ ...h, waiting: [], server: { ...l, entries: l.entries.map((e) => ({ ...e, gone: 0 })) } }], me: {} })).held[0].server;
   eq([zero.entries.length, expensesOf(zero).length, settlement(zero).clear, Object.values(balances(zero)).every((n) => n === 0)], [2, 0, true, true], "entries saved as taken out at time 0 come back taken out, and count for nothing");
+
+  // what the server answers is read the same way: only what has the shape of an answer is one
+  eq(asSnapshot({ seq: 2, ledger: l, extra: 1 }), { seq: 2, ledger: l }, "the server saying where a ledger stands");
+  for (const [what, x] of [["nothing", null], ["a page from a hotel's sign-in", "<html>"], ["no number", { ledger: l }], ["a number that isn't one", { seq: "2", ledger: l }], ["a number below 0", { seq: -1, ledger: l }], ["no ledger", { seq: 2 }], ["a ledger with nobody in it", { seq: 2, ledger: { ...l, members: [] } }]] as [string, unknown][])
+    ok(asSnapshot(x) === null, `${what} is not an answer`);
+  eq(asPushed({ seq: 3, ledger: l, took: ["new", "seen", "nothing"] }, 3), { seq: 3, ledger: l, took: ["new", "seen", "nothing"] }, "the answer to three changes says what became of each");
+  ok(asPushed({ seq: 3, ledger: l, took: ["new"] }, 3) === null && asPushed({ seq: 3, ledger: l, took: ["new", "yes", "seen"] }, 3) === null && asPushed({ seq: 3, ledger: l }, 0) === null, "one that says so for fewer, or in another word, or not at all, is not an answer");
 
   const ids = Array.from({ length: 2000 }, newId);
   ok(ids.every((id) => /^[A-Za-z0-9_-]{22}$/.test(id)), "a new id is 22 letters, digits, - or _: it fits an address (src/router.ts takes 6 to 64 of them)");
   ok(new Set(ids).size === ids.length, "2,000 new ids, no two alike");
+  const keys = Array.from({ length: 500 }, newKey);
+  ok(keys.every((k) => /^[A-Za-z0-9_-]{43}$/.test(k)) && new Set(keys).size === keys.length, "a new key is 43 of the same, 32 random bytes: what the server takes for one (22 to 128), and no two alike");
+  eq(parseSaved(JSON.stringify({ held: [hold(five, keys[0])], me: {} })).held[0].key, keys[0], "and a ledger just opened is kept with its key");
 }
 
-// ---------- 7. words ----------
+// ---------- 7. what the screens say about the server ----------
+{
+  const l = addExpense(five, { id: "e1", at: 1, payer: "w", amount: 18600, note: "晚饭", split: { how: "equal", among: roster } });
+  const sent = (change: Change): Sent => ({ id: "c", at: 1, change });
+  const waits = (n: number) => ({ made: true, waiting: Array.from({ length: n }, () => sent({ do: "title", name: "x" })) });
+  const well = { away: false, trouble: null };
+  const away = { away: true, trouble: null };
+  eq([syncLine(waits(0), well, "zh"), syncLine(waits(2), well, "zh"), syncLine({ made: false, waiting: [] }, well, "zh")], [null, null, null], "in step, or a change simply on its way, or a ledger being made: nothing is said");
+  eq(syncLine(waits(0), away, "zh"), { text: "没连上，看到的可能不是最新的。", loud: false }, "no signal and nothing waiting: said quietly");
+  eq([syncLine(waits(1), away, "zh")?.text, syncLine(waits(1), away, "en")?.text], ["有 1 处改动还没发出去，有信号就发。", "1 change hasn't been sent yet. It goes when there's a signal."], "one change waiting");
+  eq([syncLine(waits(3), away, "zh")?.text, syncLine(waits(3), away, "en")?.text, syncLine(waits(3), away, "en")?.loud], ["有 3 处改动还没发出去，有信号就发。", "3 changes haven't been sent yet. They go when there's a signal.", false], "three waiting: quiet too, they will go by themselves");
+  eq(syncLine({ made: false, waiting: waits(2).waiting }, away, "zh")?.text, "这个账本还没存到云端，有信号就存。", "a ledger the server hasn't made yet says that, not how many changes");
+  for (const trouble of ["limit", "gone", "key", "taken", "stuck"] as const) {
+    const said = syncLine(waits(1), { away: true, trouble }, "zh");
+    const en = syncLine(waits(1), { away: false, trouble }, "en");
+    ok(said?.loud && en?.loud && said.text.length > 8 && en.text.length > 20 && said.text !== syncLine(waits(1), away, "zh")?.text, `${trouble}: the phone can't go on sending, said in the strong voice, whatever the signal → ${said?.text}`);
+  }
+  eq(new Set((["limit", "gone", "key", "taken", "stuck"] as const).map((trouble) => syncLine(waits(0), { away: false, trouble }, "zh")?.text)).size, 5, "and each of the five in words of its own");
+
+  const expense = { kind: "expense" as const, id: "e9", at: 1, payer: "s", amount: 4250, split: { how: "equal" as const, among: ["s", "gone"] }, rot: 0 };
+  eq([lostLine(l, sent({ do: "expense", expense: { ...expense, note: "  打车 " } }), "zh"), lostLine(l, sent({ do: "expense", expense: { ...expense, note: "" } }), "en")], ["记一笔：打车 $42.50", "New expense: No note $42.50"], "an expense that didn't stick is named by its note and amount");
+  const edited = sent({ do: "edit", entry: "e1", to: { payer: "s", amount: 20000, note: "晚饭", split: { how: "equal", among: ["gone"] } } });
+  eq([lostLine(l, edited, "zh"), lostLine(l, edited, "en")], ["改一笔：晚饭 $200.00", "Edit: 晚饭 $200.00"], "a change to one, by what it was changed to");
+  eq([lostLine(l, sent({ do: "transfer", transfer: { id: "t", at: 1, from: "l", to: "w", amount: 3100 } }), "zh"), lostLine(l, sent({ do: "transfer", transfer: { id: "t", at: 1, from: "l", to: "w", amount: 3100 } }), "en")], ["标成已转：小李 给 小王 $31.00", "Marked as paid: 小李 pays 小王 $31.00"], "a transfer, by who was to pay whom, in real names");
+  eq([lostLine(l, sent({ do: "member", member: { id: "n", name: " 老陈 " } }), "zh"), lostLine(l, sent({ do: "member", member: { id: "n", name: "Ann" } }), "en")], ["加人：老陈", "New person: Ann"], "someone added, by name");
+  eq([lostLine(l, sent({ do: "rename", member: "w", name: " Zed " }), "zh"), lostLine(l, sent({ do: "rename", member: "w", name: "Zed" }), "en")], ["改名：小王 改成 Zed", "Rename: 小王 to Zed"], "someone renamed, by who they are and what they were to be called");
+  eq([lostLine(l, sent({ do: "remove", member: "j" }), "zh"), lostLine(l, sent({ do: "remove", member: "j" }), "en")], ["去掉：Jason", "Removed: Jason"], "someone taken out, by name");
+  eq(
+    [
+      lostLine(l, sent({ do: "remove", member: "nobody" }), "zh"),
+      lostLine(l, sent({ do: "rename", member: "nobody", name: "Zed" }), "zh"),
+      lostLine(l, sent({ do: "transfer", transfer: { id: "t", at: 1, from: "nobody", to: "w", amount: 5 } }), "zh"),
+      lostLine(l, sent({ do: "out", entry: "e1", at: 2 }), "en"),
+      lostLine(l, sent({ do: "back", entry: "e1" }), "en"),
+      lostLine(l, sent({ do: "title", name: "x" }), "zh"),
+    ],
+    ["一处别的改动", "一处别的改动", "一处别的改动", "Another change", "Another change", "一处别的改动"],
+    "and anything it can't name is still counted",
+  );
+}
+
+// ---------- 8. words ----------
 const here = fileURLToPath(new URL("..", import.meta.url));
 const read = (p: string) => readFileSync(join(here, p), "utf8");
 function walk(dir: string): string[] {
@@ -378,7 +456,7 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
   ok(!asked.length, `and every line a screen asks for is in the table${asked.length ? ` (missing: ${asked.join(", ")})` : ""}`);
 }
 
-// ---------- 8. tokens only, and no words outside the table ----------
+// ---------- 9. tokens only, and no words outside the table ----------
 {
   for (const p of code) {
     const src = bare(p);
@@ -411,7 +489,7 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
   }
 }
 
-// ---------- 9. still hidden ----------
+// ---------- 10. still hidden ----------
 {
   // 两清 gets its card on the Tools tab when all three gates in docs/split.md are passed, and not before.
   // Until then its address is the only way in: nothing in the site but the router and the app shell may name it.

@@ -10,14 +10,16 @@ import { sizeClass } from "../tools/money";
 import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { Tabs } from "../ui/Tabs";
+import { useToast } from "../ui/Toast";
 import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger } from "./core";
 import { amountOf, blankDraft, draftOf, draftProblem, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, money, typed } from "./format";
 import { asAmountText, press, type Key } from "./input";
 import { nameFor } from "./lines";
-import { addExpense, editExpense, NOTE_MAX, takeOut } from "./ops";
+import { NOTE_MAX } from "./ops";
 import { Bar, Keypad } from "./parts";
-import { change, newId } from "./store";
+import { newId } from "./store";
+import { record } from "./syncing";
 import { say } from "./words";
 
 type Props = {
@@ -33,6 +35,7 @@ type Props = {
 };
 
 export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDeleted }: Props) {
+  const toast = useToast();
   const decimals = decimalsOf(ledger.currency);
   const [draft, setDraft] = useState<Draft>(() => (editing ? draftOf(editing, decimals) : blankDraft(ledger, me)));
   const [sheet, setSheet] = useState<"payer" | "share" | null>(null);
@@ -62,14 +65,12 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const save = () => {
     if (wrong || !amount) return;
     const to = { payer: draft.payer, amount, note: draft.note, split: splitOf(draft, decimals) };
-    if (editing) {
-      change(ledger.id, (l) => editExpense(l, editing.id, to));
-      onSaved(editing.id);
-    } else {
-      const id = newId();
-      change(ledger.id, (l) => addExpense(l, { ...to, id, at: Date.now() }));
-      onSaved(id);
-    }
+    const id = editing ? editing.id : newId();
+    // a new expense goes as it is recorded here, its turn for the odd cents included: the parts shown are the parts everyone gets
+    const done = editing ? record(ledger.id, { do: "edit", entry: id, to }) : record(ledger.id, { do: "expense", expense: { kind: "expense", id, at: Date.now(), ...to, rot } });
+    // (refused only when the ledger changed under this screen: someone on another phone got there first)
+    if (done) onSaved(id);
+    else toast(say(lang, "notSaved"), { tone: "warning" });
   };
 
   const shown = typed(draft.text, ledger.currency, lang);
@@ -97,7 +98,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
               icon={Trash2}
               label={say(lang, "deleteExpense")}
               onClick={() => {
-                change(ledger.id, (l) => takeOut(l, editing.id, Date.now()));
+                record(ledger.id, { do: "out", entry: editing.id, at: Date.now() });
                 onDeleted(editing.id);
               }}
             />

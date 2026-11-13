@@ -15,7 +15,7 @@
 import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
 import { accept, applyChange, MAX_ENTRIES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
 import { addExpense, startLedger } from "../src/split/ops";
-import { parseSaved } from "../src/split/store";
+import { asLedger } from "../src/split/shape";
 import { randomLedger, rng } from "./split/ledgers";
 
 let failed = 0;
@@ -317,7 +317,7 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
         l.members.length >= 2 && l.members.length <= MAX_MEMBERS &&
         expensesOf(l).every((x) => sum(Object.values(portionsOf(x, l))) === x.amount) &&
         l.entries.filter((x) => x.kind === "expense").length === expensesOf(l).length + l.entries.filter((x) => x.kind === "expense" && x.gone !== undefined).length &&
-        canon(parseSaved(JSON.stringify({ ledgers: [l], me: {} })).ledgers[0]) === canon(l);
+        canon(asLedger(JSON.parse(JSON.stringify(l)))) === canon(l);
       if (!sound && broken.length < 3) broken.push(`seed ${seed}, change ${i}: ${JSON.stringify(c)}`);
     }
   }

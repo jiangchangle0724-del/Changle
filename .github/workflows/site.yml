@@ -59,6 +59,7 @@ jobs:
       - run: npx tsx tests/split-screens.test.ts
       - run: npx tsx tests/split-changes.test.ts
       - run: npx tsx tests/split-sync.test.ts
+      - run: npx tsx tests/split-phone.test.ts
       - run: npm run build
       - run: npx tsx scripts/budget.ts
 

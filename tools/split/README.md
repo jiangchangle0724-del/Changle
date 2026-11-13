@@ -4,7 +4,9 @@ The server behind **changle.ca/split**: ledgers shared between phones. The pages
 main site's (`site/src/split/`); this Worker answers only `changle.ca/split/api`.
 
 The plan is `docs/split.md`; where it stands and what's next is in `docs/briefs/split.md`.
-**It is live** at `changle.ca/split/api` since 2026-11-13, and no page uses it yet.
+**It is live** at `changle.ca/split/api` since 2026-11-13, and the pages at changle.ca/split keep
+their ledgers on it (how a phone talks to it is `site/src/split/net.ts`, and when,
+`site/src/split/syncer.ts`).
 
 ## How a change goes live
 
@@ -57,3 +59,8 @@ npm test              # the room
 npm run test:server   # the Worker, on this machine
 npm run dev           # http://localhost:8794/split/api
 ```
+
+The site's own dev server (`npm run dev` in `site`) passes `/split/api` on to this one, so the
+pages at `localhost:5173/split` work against it. A day's allowance of ten new ledgers applies
+here too: for anything that starts more (the site's `scripts/split_check.ts` does), run it as
+`npx wrangler dev --port 8794 --var ALLOW_TEST_SETTINGS:1`.
