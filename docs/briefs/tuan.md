@@ -1,6 +1,6 @@
 # 工具 · 跟一单（tuan）
 
-对话名「工具 · 跟一单」。网址 changle.ca/tuan（还没上线：服务器的代码在仓库里了，Cloudflare 还没接；A1 做完先藏在 changle.ca/tuan/preview）。档案建于 2026-11-12；以后由这个对话维护。
+对话名「工具 · 跟一单」。网址 changle.ca/tuan（接口 2026-11-13 上线了，合并到 main 就自己部署；页面还没做，做完先藏在 changle.ca/tuan/preview）。档案建于 2026-11-12；以后由这个对话维护。
 
 ## 它是什么
 
@@ -13,7 +13,7 @@
   - `src/engine/`：规则，不碰浏览器也不碰 Cloudflare。下单和改单（`order.ts`）、开团（`offer.ts`）、店铺（`shop.ts`）、汇总表（`summary.ts`）、谁能看到什么（`view.ts`）、钱和数量（`money.ts`）、订单号（`ids.ts`）、电话（`phone.ts`）
   - `src/api.ts`：页面和服务器之间说的话，所有的形状和错误码。页面照这个写。
   - `src/server/`：`worker.ts`（接口，开头列了全部地址）、`store.ts`（读写 D1 只在这里）、`who.ts`（商家登录）、`gate.ts`（每天的次数限制）、`schema.ts`（自己执行 `migrations/`）
-  - `migrations/0001_init.sql`：表。还没部署过，所以 A1 期间直接改这个文件；第一次部署以后，改表一律加新的编号文件。
+  - `migrations/0001_init.sql`：表。11 月 13 日第一次部署，线上已经照它建了表：这个文件不能再改，改表一律加新的编号文件，并加进 `src/server/schema.ts` 的清单。
   - `tests/`：`engine.test.ts`（规则）、`api.test.ts`（整个 Worker 加本地 D1）、`accounts.ts`（测试用的假账号和房间服务器的替身）、`sample.ts`（测试用的团）
 - CI：`.github/workflows/tuan.yml`（PR 上跑一次，合进 main 再跑一次；只在 `tools/tuan/` 有改动时跑）
 - Codex 的任务卡：`docs/codex-tasks/tuan/`（还没有）
@@ -76,11 +76,12 @@
 
 ## 现在
 
-2026-11-13：A1 的第一步做完了，是服务器这一半，没有页面。
+2026-11-13：A1 的第一步做完了，是服务器这一半，没有页面；当天接上了 Cloudflare，接口在线上了。
 
 - 有了：Worker 的骨架、D1 的表、全部接口（看团、下单、查单、改单、取消；商家看订单、确认、标已收款和已取货、取消、填称重；汇总表；开团、开关团；站长手工建店）、73 个测试、CI。
-- 线上什么都没变。Worker 还没接上 Cloudflare（要 Steve 点头，见「还剩什么」），所以合并了也不会部署；接上以后 /tuan 下面只有接口，页面一律答 not found，直到页面那个 PR 合并。
-- 商家登录照第 1 条建议做的，房间服务器没有改。本地用真的房间服务器走通过。
+- 线上：changle.ca/tuan/api/… 在答话了。/tuan 下面的页面一律答 not found，直到页面那个 PR 合并。库里是空的：没有店，没有团。
+- Cloudflare：Worker `tuan`，设置照别的 Worker（根目录 `/tools/tuan`，没有构建命令，部署命令 `npx wrangler deploy`，分支 `main`，只盯 `tools/tuan/*`，钥匙沿用 suibian build token，不建预览）。第一次部署自己建了 D1 库 `changle-tuan`，接上了房间服务器。以后合并到 main、碰到 `tools/tuan/` 的改动会自己部署。
+- 商家登录照第 1 条建议做的，房间服务器没有改。本地用真的房间服务器走通过；线上验到的是：瞎编的登录凭证回 401（说明问到了房间服务器）。真账号登录还没在线上试，Steve 电脑上那个浏览器里没登录 changle.ca；等页面做好他在手机上登录时一起验。
 - 订单邮件、图片、页面都还没做。
 
 下面四条是开工前的建议（2026-11-12 写的，外面查来的数字和说法也是那天查的，出处在每条后面），留着备查；图片那条 Steve 当天定了（先放 KV）。再后面是点单流程照什么做。
@@ -240,7 +241,8 @@ A1 接着做（各一个 PR）：
 
 ## 最近的改动
 
-- 2026-11-13 照大米团真实的规则改：送货区加满多少免运费，商品加最少买多少，一个团最多 200 样。
+- 2026-11-13 接上 Cloudflare 以后的说明（README、HANDOFF、档案）。
+- 2026-11-13 #449 照大米团真实的规则改：送货区加满多少免运费，商品加最少买多少，一个团最多 200 样。
 - 2026-11-13 #446 A1 第一步：`tools/tuan` 的 Worker、D1 表、接口和测试，`tuan.yml`，`HANDOFF.md` 里自己的三行。没接 Cloudflare，线上没有变化。
 - 2026-11-12 #411 档案里记下点单流程照什么做。
 - 2026-11-12 #407 建档案，存方案。
@@ -251,3 +253,4 @@ A1 接着做（各一个 PR）：
 - 2026-11-12 Steve 选了图片先放 KV。他发来 Market Alley Meat 的动效预览，读完并走了一遍点单流程，要点记在「现在」的最后一节。
 - 2026-11-13 Steve 说开工。开工时开着的 PR 有 9 个（#437、#436、#431、#425、#423、#418、#373、#364、#235），没有碰 /tuan 的。做了 A1 的第一步（见「现在」）。本地把房间服务器和这个 Worker 一起跑起来，用真的邮箱验证码登录走了一遍建店、开团、下单、称重、汇总。`npm install` 在这台机器上会崩（npm 自己的问题），`package-lock.json` 是从 `tools/events` 的那份改出来的，`npm ci` 正常。
 - 2026-11-13 #446 合并。Steve 回：Cloudflare 新建，路径先不管，订单邮件听这个对话的；大米团的原文件让这个对话自己找。GitHub 上只看得到 changle 一个仓库；在他电脑的 `C:\Claude Playground\OUTPUTS\常乐点单\` 找到了 woodleaf.ca 的全部代码和数据备份（他在手机上点了允许，只读）。读了 README、导入清单、结算页和订单页的文字、最新备份里的店铺设置和商品（订单和账号没看）。照真实的规则改了三处（见「定过的事」）。
+- 2026-11-13 #449 合并后接 Cloudflare。Chrome 的扩展没连上，用的是 Claude 桌面应用自带的浏览器，里面 Cloudflare 已经登录着。Workers & Pages → Create application → Continue with GitHub → 选 Changle → 填名字 `tuan`、关掉预览构建、高级设置里把路径写成 `/tools/tuan`、钥匙选已有的 suibian build token → Deploy。第一次构建 1 分 22 秒成功。再到 Settings 的 Builds 里把构建监视路径从 `*` 改成 `tools/tuan/*`。线上验过：不存在的团和订单回 404 的 JSON，没登录回 401，瞎编的登录凭证回 401，页面回 not found；都带不缓存和不进搜索的头。

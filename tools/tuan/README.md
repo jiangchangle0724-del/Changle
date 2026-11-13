@@ -1,6 +1,6 @@
 # 跟一单 · Count Me In
 
-One of changle.ca's tools, to be at **changle.ca/tuan**: group buys for Greater Vancouver's home
+One of changle.ca's tools, at **changle.ca/tuan**: group buys for Greater Vancouver's home
 kitchens, group-buy leaders and farms. A merchant posts a group buy and drops its link in their
 WeChat group; buyers order from the link without signing in; the merchant gets the orders, a sheet
 of what to get ready and a sheet of what goes where. The money goes from buyer to merchant
@@ -8,10 +8,9 @@ directly (e-Transfer, WeChat, cash): the site carries the orders and never touch
 
 The plan is `docs/tuan.md`; where it stands and what's next is in `docs/briefs/tuan.md`.
 
-**Not live yet.** This is the first step of the first stage (A1): the Worker, its database and the
-API, with tests. The pages come next, hidden at `/tuan/preview` until the owner has tried them on a
-phone. Until the Worker is connected in Cloudflare (a settings change the owner approves), merging
-changes here puts nothing online.
+**Only the API is there so far.** This is the first step of the first stage (A1): the Worker, its
+database and the API, with tests. Every page under `/tuan` answers "not found" until the pages are
+built; they come next, hidden at `/tuan/preview` until the owner has tried them on a phone.
 
 ## How it is made
 
@@ -117,10 +116,15 @@ it locally too, first (in `site/`: `npx wrangler dev -c worker/wrangler.jsonc --
 to be the owner locally. Without it, everything a merchant does answers `503 down`. The tests
 don't need it: they run a stand-in that knows a few made-up accounts (`tests/accounts.ts`).
 
-## Going live
+## Live
 
-Cloudflare builds and deploys it from GitHub on every merge into `main` that touches `tools/tuan/`,
-once the Worker is connected (Workers & Pages → Create → import the repository; root directory
-`tools/tuan`, deploy command `npx wrangler deploy`, production branch `main`, build watch path
-`tools/tuan/*`). The first deploy creates the D1 database `changle-tuan` (there is no id in
-`wrangler.jsonc`) and the Worker creates its tables on its first request. No secrets.
+Connected to Cloudflare on 13 November 2026: merging into `main` deploys it. The Worker `tuan`
+(Workers Builds): root directory `/tools/tuan`, no build command, deploy command
+`npx wrangler deploy`, production branch `main`, build watch paths `tools/tuan/*`, API token
+"suibian build token", preview builds off (as for the other Workers: a PR gets no extra check).
+
+- The first deploy made the D1 database `changle-tuan` by itself (it's in `wrangler.jsonc` without
+  an id) and bound the rooms server (`ROOMS` → `changle-rooms`); the Worker made its tables on its
+  first request. No secrets.
+- A table changes from now on only through a new numbered file in `migrations/`, added to the
+  list in `src/server/schema.ts`: `0001_init.sql` has been applied and is never edited again.
