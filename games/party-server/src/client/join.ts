@@ -1,7 +1,8 @@
 // A phone's page, /party/join: join with the code, set its clock by the speaker's (8 pings, then a
 // few every 15 s), flash on every beat the room hears, and the 我在 button the big screen shows.
-// The first one in is the host: they calibrate (a big button to tap along with the TV), pick a dance
-// and steer it. While a dance plays, the phone shows the move and the count and has one big button
+// The first one in is the host: they pick a dance or a song and steer it, everything the room does
+// (the TV has no buttons, and speaks the host's language); they can measure the TV's delay too (a
+// big button to tap along with the TV). While a dance plays, the phone shows the move and the count and has one big button
 // to tap on every beat: it stands in for the motion sensor (the plan's 假体感) until task A2. The
 // phone judges each tap against the beat the room hears (shared/taps.ts) and sends the room the
 // dance's beats a bar at a time. The real phone screen is task C4
@@ -113,6 +114,8 @@ function join() {
     if (open) {
       burst(8);
       resend = true;
+      // (the TV speaks the host's language)
+      sock?.send({ t: "lang", lang: getLang() });
     }
     render();
   });
@@ -128,12 +131,10 @@ function onMsg(m: ServerMsg) {
   switch (m.t) {
     case "state": {
       const before = state?.phase;
-      const wasFinding = finding();
       state = m.state;
       routine = m.routine;
       results = m.results;
       if (state.phase === "calibrating" && before !== "calibrating") taps = 0;
-      if (finding() && !wasFinding) findTaps = 0;
       endArmed = false;
       track();
       // (bars sent while the connection was down never got there; the room keeps the newest of
@@ -181,7 +182,7 @@ function errorText(code: string, message: string): string {
     case "not_host":
       return tr("只有主人能这样做", "Only the host can do that");
     case "no_speaker":
-      return tr("先在大屏（音箱端）点开始", "Start the speaker page first");
+      return tr("大屏没连上：投屏的那台设备要亮着屏，开着这个房间", "The big screen isn't connected: the device on the TV needs its screen on, with this room open");
     case "bad_phase":
       return tr("现在不能这样做", "Not right now");
     case "room_full":
@@ -190,12 +191,6 @@ function errorText(code: string, message: string): string {
       return tr("等这支舞跳完", "Wait until the dance is over");
     case "no_routine":
       return tr("先选一支舞", "Pick a dance first");
-    case "song_untapped":
-      return tr("这首歌还没对拍：先在电视上点「歌曲对拍」，跟着歌点一次", "This song hasn't been tapped along to yet: on the TV, pick Tap along to a song first");
-    case "song_notap":
-      return tr("没找到拍子：鼓点进来以后，大家一拍点一下。再选一次这首歌试试", "Couldn't find the beat: once the drums come in, everyone taps once a beat. Pick the song again to retry");
-    case "song_tapping":
-      return tr("先跟着歌找拍子", "Find the song's beat first");
     case "song_blocked":
       return tr("YouTube 不让这首歌在别的网站放，换一首吧", "YouTube won't play this song outside YouTube: pick another");
     case "song_offline":
@@ -336,7 +331,6 @@ function render() {
     parts.count = el("div", "count");
     main.append(parts.count);
     if (state?.phase === "calibrating" && isHost()) main.append(tapPad());
-    if (finding()) main.append(findPad());
     if (state?.phase === "results" && results) main.append(myResults(results));
     if (state?.phase === "lobby" || state?.phase === "results") {
       const m = motionSwitch();
@@ -376,6 +370,7 @@ function topBar(): HTMLElement {
   const lang = el("button", "chip", getLang() === "zh" ? "EN" : "中文");
   lang.onclick = () => {
     setLang(getLang() === "zh" ? "en" : "zh");
+    sock?.send({ t: "lang", lang: getLang() });
     render();
   };
   tools.append(lang);
@@ -427,13 +422,12 @@ function phaseTitle(): string {
   const host = isHost();
   switch (state.phase) {
     case "lobby":
-      if (!state.speakerConnected) return tr("等大屏（音箱端）点开始", "Waiting for the speaker page to start");
+      if (!state.speakerConnected) return tr("等大屏连上", "Waiting for the big screen");
       return host ? tr("选一支舞，人齐了就开始", "Pick a dance and start when everyone's in") : tr("等主人选舞", "Waiting for the host to pick a dance");
     case "calibrating":
-      return host ? tr("开跳前先量电视延迟：听到电视的声音就点下面的大按钮", "First, the TV's delay: tap the big button each time you hear the TV") : tr("主人在量电视的延迟，量好就开始", "The host is measuring the TV's delay; the dance starts right after");
+      return host ? tr("量电视的延迟：听到电视的声音就点下面的大按钮", "The TV's delay: tap the big button each time you hear the TV") : tr("主人在量电视的延迟", "The host is measuring the TV's delay");
     case "learning":
       if (routine?.pausedAt !== undefined) return host ? tr("暂停了，点「继续」接着跳", "Paused: tap Carry on to go on") : tr("暂停了，等主人继续", "Paused: the host will carry on");
-      if (routine?.tapIn) return tr("先找拍子：听电视里的歌", "Find the beat: listen to the song on the TV");
       return host ? tr("准备好了就点「开始跳」", "Tap Dance when everyone's ready") : tr("准备", "Get ready");
     case "dancing":
       if (routine?.pausedAt !== undefined) return host ? tr("暂停了，点「继续」接着跳", "Paused: tap Carry on to go on") : tr("暂停了，等主人继续", "Paused: the host will carry on");
@@ -465,34 +459,6 @@ function tapPad(): HTMLElement {
     { passive: true },
   );
   return pad;
-}
-
-/** 找拍子: a song nobody has danced yet, its video playing on the TV while everyone taps along. */
-const finding = () => state?.phase === "learning" && !!routine?.tapIn;
-let findTaps = 0;
-
-/** 找拍子 on the phone: everyone taps along to the song on the TV, once a beat. */
-function findPad(): HTMLElement {
-  const box = el("section", "find");
-  box.append(el("p", "lead", tr("鼓点一进来，就跟着点下面的大按钮，一拍一下。大家点齐了就开始跳。", "Once the drums come in, tap the big button below, once a beat. When everyone's taps agree, the dance starts.")));
-  const pad = el("button", "btn tap-pad", `${tr("跟着拍子点", "Tap on the beat")}\n${findTaps}`);
-  // pointerdown, not click: a click comes after the finger lifts, later than the tap
-  pad.addEventListener(
-    "pointerdown",
-    (e) => {
-      const at = speakerNow(tapTime(e));
-      if (at === null) return;
-      sock?.send({ t: "tap", at });
-      findTaps++;
-      pad.textContent = `${tr("跟着拍子点", "Tap on the beat")}\n${findTaps}`;
-      pad.classList.remove("hit");
-      void pad.offsetWidth;
-      pad.classList.add("hit");
-    },
-    { passive: true },
-  );
-  box.append(pad);
-  return box;
 }
 
 /** While a dance plays: the move and the count (filled every frame), the big button, this player's meter. */
@@ -598,8 +564,7 @@ function hostPanel(): HTMLElement {
         button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
         break;
       }
-      // (找拍子 first: the dance waits for the beat)
-      if (!routine?.tapIn) button(tr("开始跳", "Dance"), { type: "START_DANCING" }, "btn primary");
+      button(tr("开始跳", "Dance"), { type: "START_DANCING" }, "btn primary");
       if (routine?.leadStartAt !== null && routine?.leadStartAt !== undefined) button(tr("暂停", "Pause"), { type: "PAUSE" });
       button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
       break;
@@ -642,27 +607,8 @@ function hostPanel(): HTMLElement {
   return box;
 }
 
-/** The host's list of dances, easy first, and whether to learn it first. */
-/** Which songs have been tapped along to (the songbook): fetched when the host's picker shows. */
-let tappedSongs: Record<string, unknown> | null = null;
-let tappedAsked = 0;
-function askSongbook() {
-  if (Date.now() - tappedAsked < 15000) return;
-  tappedAsked = Date.now();
-  void fetch("/party/api/songs", { cache: "no-store" })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((j) => {
-      if (j && typeof j === "object") {
-        tappedSongs = j as Record<string, unknown>;
-        render();
-      }
-    })
-    .catch(() => {});
-}
-
 /** The host's list: the songs (YouTube, the real ones), then the library's dances, easy first; and whether to learn it first. */
 function routinePicker(): HTMLElement {
-  askSongbook();
   const box = el("div", "picker");
   box.append(el("p", "picker-title", tr("热歌（电视上放 YouTube 原版）", "Songs (the real ones, from YouTube on the TV)")));
   const songs = el("div", "picker-list");
@@ -671,9 +617,8 @@ function routinePicker(): HTMLElement {
     const b = el("button", song.id === pick ? "pick is-on" : "pick");
     b.setAttribute("aria-pressed", String(song.id === pick));
     b.append(el("span", "pick-name", `${songTitle(song)} · ${songArtist(song)}`));
-    const ready = song.aligned || (tappedSongs ? song.id in tappedSongs : true);
     const own = song.aligned ? ` · ${tr("原版舞", "its own dance")}` : "";
-    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${Math.round(song.bpm)} BPM${own}${ready ? "" : ` · ${tr("第一次跳先一起找拍子", "first time: find the beat together")}`}`));
+    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${Math.round(song.bpm)} BPM${own}`));
     b.onclick = () => {
       pick = song.id;
       render();

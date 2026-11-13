@@ -39,11 +39,17 @@ instead, `site/src/party/dj/`.)
   results: each dancer's participation (party-base's `summarize`), and 最稳 (closest to the beat),
   最嗨 (the longest run on the beat), 最努力 (moved on the most beats). Easy dances show only the
   awards; medium and hard also the scores.
-- **`/party/screen`**, the speaker (`src/client/screen.ts`): Start (starts the audio and keeps the
-  screen on), the room code and QR code, the players (a phone's 我在 lights its name),
-  calibration (8 clicks 1.2 s apart, the host's taps in speaker time, `calibrateFromTaps()`; three
-  tries). A room's first dance (not the metronome) measures the TV's delay first and then starts
-  by itself (`SessionData.pending`); the host can skip it, and then the room doesn't ask again.
+- **`/party/screen`**, the speaker (`src/client/screen.ts`): it opens its room as it loads (a
+  reload goes back into its own: the code is in the address) and has nothing to press (Steve,
+  12 Nov: the phones pick the songs and start them; the TV speaks the host's phone's language,
+  `lang` in the state message). It asks for a tap only to set itself up, in the lobby: a browser
+  plays a page's sound only after a tap on it, so the first tap anywhere starts the audio and keeps
+  the screen on (Chrome come from a tap on /party's link may need none); on an iPhone, an iPad or in
+  Safari, one more on a video it shows for that (YouTube's player wants its own tap, once). Then the
+  room code and QR code, the players (a phone's 我在 lights its name), and the TV's delay when the
+  host measures it from their phone (校准电视延迟, in the lobby: 8 clicks 1.2 s apart, the host's
+  taps in speaker time, `calibrateFromTaps()`; three tries; the host can skip). Nothing waits for
+  it: a dance starts as soon as it's picked. `?timing` shows the clock readout for the field test.
   暂停 / 继续 (the host, while the lead or the dance plays): `RoutineInfo.pausedAt`; nothing plays
   on the pages while it's set (`anchorsOf` gives none), the song's video holds where it is, and
   nothing ends; 继续 moves everything later by the pause plus 1.5 s (`RESUME_LEAD_MS`), so the
@@ -51,7 +57,7 @@ instead, `site/src/party/dj/`.)
   A phone can be the stage, mirrored to the TV: sideways it lays everything out on one short
   screen (the song's video at 356×200, YouTube's 200 px at least, the move and count under it, the
   coach beside); held upright it asks to be turned (an iPhone's page can't turn itself; Android's
-  Chrome goes full screen and sideways after 开始). It's never a player. While a dance plays: its tune (below), the 3D coach dancing each move on
+  Chrome goes full screen and sideways with the setup's tap). It's never a player. While a dance plays: its tune (below), the 3D coach dancing each move on
   the beat (below) and beside it the words: the stage, the move in both languages and how to do it,
   the 8-count, the next move 2 beats ahead, the floor. A song's own move is taught step by step
   there for someone who has never danced (`src/shared/steps.ts`: how to stand, what to
@@ -86,7 +92,7 @@ instead, `site/src/party/dj/`.)
   every tune).
 - **Songs** (`src/shared/songs.ts`): famous songs played on the TV from YouTube's own player
   (`src/client/tube.ts`: in sight in the top left corner, never covered, never downloaded; the
-  same rules as 打碟's player). Six are danced to their own famous dance, laid along the song
+  same rules as 打碟's player). Fourteen are danced to their own famous dance, laid along the song
   (`Song.dance`, `aligned`): 江南Style's horse dance, Macarena, 科目三, 最炫民族风, 爱你, APT., the
   Cupid Shuffle, the Cha-Cha Slide, Y.M.C.A., Watch Me, the Ketchup Song, Gee, 海草舞; their moves are
   `src/shared/songmoves.ts` (the coach's key frames: `src/client/coach/songmoves.ts` and, for the
@@ -96,13 +102,15 @@ instead, `site/src/party/dj/`.)
   江南Style's was worked out from its official video frame by frame (sheets of frames on the beat,
   drawn from the video in a browser): the horse ride and the lasso, "Eh~ Sexy Lady"'s hands-on-hips
   hip shake, the tour bus's disco point, little PSY's groove, the strut across the disco.
-  Their beat was measured in each video (the video played silently in a browser, its onsets fitted
-  to a grid: the tempo, and beat 0 to within ~10 ms) and their parts placed from the songs' timed
-  lyrics, so they need no 找拍子. The others are danced with a few of the library's easiest moves,
-  two 8-counts each, round and round (`pattern`). Fast songs at half their tempo. The host picks one
+  Their parts were placed from the songs' timed lyrics. The other six are danced with a few of the
+  library's easiest moves, two 8-counts each, round and round (`pattern`). Every song's beat was
+  measured in its video (the video played silently in a browser, its onsets fitted to a grid: the
+  tempo, and beat 0 to within ~10 ms; the six on 12 Nov), so a song starts the moment it's picked:
+  nobody taps along to find its beat. Fast songs at half their tempo. The host picks one
   like a dance (the ones with their own dance first). The room waits for the speaker to have the video held at its start (`songReady`; on
   Safari not before someone has tapped the video once, so it can play with sound), then the video
-  plays from its start: its intro, a count-in on its last 4 beats, the dance. While it plays, the
+  plays from its start: its intro, a count-in on its last 4 beats (every song's first beat is at least
+  4 beats into its video), the dance. While it plays, the
   speaker reads the video's clock every 4 ms and tells the room where the song's first beat really
   is (`songAt`); more than 20 ms off, the room moves the dance's beat there (party-base's
   `BEAT_MOVED`, however far: a video a minute late is followed too) and every page follows. When
@@ -113,25 +121,11 @@ instead, `site/src/party/dj/`.)
   dance is over the video fades out over 2.5 s and stops (`Tube.fadeOut`), so the song never plays
   on without the coach. YouTube refusing the video (`songFailed`): back to the lobby, and the phones
   say why. No 这一段再来 in a song.
-- **找拍子 / the songbook**: where a song's beat starts in its video can't be guessed well enough
-  (unless it was measured: the six above). The first time a room dances such a song
-  (`RoutineInfo.tapIn`), its video plays from the start and
-  everyone taps along on their phones, a tap a beat, from when the drums come in (the TV shows
-  the count and lights each name as it taps; whoever holds the speaker can tap on it too). The
-  phones' taps go to the speaker (`tap`, at most one every 150 ms a phone); from 16 that agree,
-  `tapIn()` in `src/shared/tapalong.ts` finds the beat (where the taps cluster in the beat, strays
-  left out; taps on the song's own beat when it's danced at half tempo work too) and the song's
-  first beat in the video (the earliest tap's beat, moved back whole 8-counts if the dance would
-  run past the video's end; the TV's calibrated delay taken out). The speaker sends it
-  (`songTapped`); the room checks it (`src/server/tapped.ts`), keeps it in the songbook
-  (`src/server/songbook.ts`, one Durable Object for the whole site) for every room from then on,
-  and the song starts from its start as any song does. Only a room that measured its TV's delay
-  keeps it for every room (`calibrated`; without it the beat is late by the delay): a room that
-  skipped it uses the beat itself, and the songbook gives rooms only calibrated beats. No beat after 90 s of video: back to the
-  lobby (`song_notap`). The host can't skip ahead during 找拍子. 歌曲对拍 on the speaker page (the
-  lobby) does it again by one person: play a song, and from its first strong beat tap 16 times
-  (`tapAlong()`; `POST /party/api/songs/ID`, refused unless the room is calibrated), for a song
-  whose dance has come out off its beat.
+- **The songbook** (`src/server/songbook.ts`): until 12 Nov a song's beat was found the first time
+  a room danced it (找拍子: everyone tapping along on their phones) or on the speaker page (歌曲对拍),
+  and kept in a Durable Object for every room. Every song's beat is measured now, so nothing reads
+  or writes it; the class stays because its Durable Object (`SONGBOOK`, migration `v2`) stays
+  until a migration deletes it, which deletes what it holds too: Steve's to decide.
 - **`/party/moves`** (`src/client/moves.ts`): the 20 moves (and under them the songs' own, song by
   song), each danced by the coach at its own
   tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
@@ -140,10 +134,11 @@ instead, `site/src/party/dj/`.)
   photographing it.
 - **`/party/join`**, a phone (`src/client/join.ts`): code and name, clock sync, a flash on every
   beat the room hears, 我在, the motion sensor's switch (开体感); while a dance plays, the move, the
-  count, what's next, the big button and how hard you're moving; the player's own results. For the host: calibrate, pick a dance, steer it, the 120 BPM
-  metronome (the timing test in `docs/field-notes/2026-11-01.md`), end the room.
-- **测量 / Timing** on both pages: the speaker's clock in big digits, for the field test (a photo
-  of the two screens side by side shows the error).
+  count, what's next, the big button and how hard you're moving; the player's own results. For the host: pick a dance or a song, steer it, measure
+  the TV's delay, the 120 BPM metronome (the timing test in `docs/field-notes/2026-11-01.md`), end
+  the room. Each phone tells the room its language (`lang`): the TV speaks the host's.
+- **测量 / Timing**: the speaker's clock in big digits, for the field test (a photo of the two
+  screens side by side shows the error); on a phone its button, on the speaker page `?timing`.
 
 The pages are still plain around the coach: the real speaker screen and phone screen are cards C3
 and C4 (`docs/codex-tasks/dance-C3-speaker-screen.md`, `dance-C4-phone-screen.md`), to be rewritten
@@ -155,7 +150,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 110 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 105 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```
@@ -175,17 +170,15 @@ when the Worker runs with `ALLOW_TEST_SETTINGS` (never set on Cloudflare), so ru
 `scripts/song-yt-check.cjs` (the same Worker) dances a song from YouTube with a pretend YouTube
 player (real YouTube won't play in a data centre's browser: error 150). It starts 300 ms late and
 its clock answers four times a second, like the real one's; the pretend TV plays everything
-150 ms late. Checked: the songbook API (taps from an uncalibrated room refused), the room's first
-dance measuring the TV first, the room waiting for the video, the beat moved to the video's
-(within 25 ms), Ann tapping on the video's real beats on the beat, 暂停 holding the video and 继续
-picking it up 1.5 s before where it stopped (the beat with the video again), the video stalling for
-4 s (the dance held, the TV and the phones saying so, then picking up on the video's beat), the song
-fading out at the dance's end, the video gone in the lobby; 找拍子 on a song nobody has danced (Ann and Bob tapping along on their phones as the TV plays
-it, the first beat found within 25 ms and kept, then the song from its start on the video's
-beat); a song with its own dance starting with no 找拍子 on its measured beat (within 25 ms); and
-歌曲对拍 finding another song's first beat (within 20 ms).
-About two minutes. Run the Worker with fresh storage (`--persist-to` a new folder): a song
-already in the songbook skips 找拍子.
+150 ms late. Checked: the speaker page opening its room by itself with nothing to press, asking
+for a tap where a browser wants one before it makes a sound (and the tap anywhere turning it on),
+speaking its host's language and following it; the host measuring the TV's delay from the lobby;
+a song starting straight from the host's pick, the room waiting for the video, the beat moved to
+the video's (within 25 ms), Ann tapping on the video's real beats on the beat, 暂停 holding the
+video and 继续 picking it up 1.5 s before where it stopped (the beat with the video again), the
+video stalling for 4 s (the dance held, the TV and the phones saying so, then picking up on the
+video's beat), the song fading out at the dance's end, the video gone in the lobby; and a song
+with its own dance starting on its measured beat (within 25 ms). About a minute and a half.
 
 `scripts/motion-check.cjs` (the same Worker) dances the short test dance with the motion sensor:
 Ann's phone gets a pretend hand (a bump of acceleration on every beat she hears), Bob taps late,
@@ -198,7 +191,7 @@ in the folder given. About a minute and a half.
 Connected to Cloudflare on 1 November 2026: like 随便, merging into `main` deploys it. The Worker
 `party` (Workers Builds; the name must match `name` in `wrangler.jsonc`): root directory
 `/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy` (it
-also makes the songbook's Durable Object, migration `v2`, the first time), build
+also made the songbook's Durable Object, migration `v2`, the first time), build
 watch paths `games/party-server/*`, `games/party-base/*` and `games/dance/*` (the pages and the room
 read the move library; `games/dance/*` added on 6 November), API token "suibian build
 token". Builds for preview branches are off (`wrangler preview` needs a `previews` block, and the

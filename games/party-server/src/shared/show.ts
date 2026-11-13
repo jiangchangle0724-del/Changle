@@ -52,7 +52,7 @@ export interface Show {
   countIn: number;
   /**
    * From the lead's end to the dance's first beat (ms): the count-in; for a song, its intro (the
-   * video starts as the lead ends). A room's RoutineInfo.introMs overrides it (a song tapped along to).
+   * video starts as the lead ends). A room's RoutineInfo.introMs, when it has one, is used instead.
    */
   introMs: number;
   dance: ShowBeat[];
@@ -181,7 +181,7 @@ export interface Anchors {
   /** RoomState.routineStartAt: the dance's beat `fromBeat`; null while the lead plays */
   danceStartAt: number | null;
   fromBeat: number;
-  /** the room's RoutineInfo.introMs (a song tapped along to), else null: the show's own */
+  /** the room's RoutineInfo.introMs, else null: the show's own */
   introMs?: number | null;
 }
 
@@ -216,21 +216,8 @@ export function danceStart(show: Show, a: Anchors): number | null {
   return null;
 }
 
-/** From the lead's end to the dance's first beat: the room's (a song tapped along to), or the show's. */
+/** From the lead's end to the dance's first beat: the room's, or the show's. */
 export const introOf = (show: Show, a: Anchors): number => a.introMs ?? show.introMs;
-
-/**
- * Where a song's dance starts in its video, given a beat people tapped along to (找拍子 or 歌曲对拍:
- * any beat of the song's grid). A song whose dance is laid along its sections (`Song.aligned`: its
- * first beat known from the song's own timing, to within half a beat) starts on the tapped grid's
- * beat nearest that; any other song starts on the tapped beat itself.
- */
-export function songStart(show: Show, tappedMs: number): number {
-  const song = show.song;
-  if (!song?.aligned) return tappedMs;
-  const n = Math.round((song.firstBeatMs - tappedMs) / show.beatMs);
-  return tappedMs + n * show.beatMs;
-}
 
 /**
  * Every beat still to come from these anchors, in order: what is left of the lead, the count-in,

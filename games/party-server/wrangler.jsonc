@@ -20,8 +20,10 @@
     { "pattern": "changle.ca/party", "zone_name": "changle.ca" },
     { "pattern": "changle.ca/party/*", "zone_name": "changle.ca" }
   ],
-  // One Durable Object per room, and one for the songbook (each song's first beat, as tapped along
-  // to). SQLite-backed Durable Objects work on Cloudflare's free plan.
+  // One Durable Object per room, and one for the songbook (each song's first beat as a room once
+  // tapped along to it: nothing uses it since every song's beat was measured, 2026-11-12; deleting
+  // it takes a migration, which deletes what it holds: Steve's to decide). SQLite-backed Durable
+  // Objects work on Cloudflare's free plan.
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "PartyRoom" },
