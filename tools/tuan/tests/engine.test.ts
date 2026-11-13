@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { makeCode, OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../src/engine/ids";
 import { amountText, dollars, finalGoods, goodsOf, lineAmount, piecesOf } from "../src/engine/money";
+import { ordersNotice } from "../src/engine/notice";
 import { readOffer } from "../src/engine/offer";
 import { buyerMayChange, deliveryFee, isOpen, leftOf, ORDERS_PER_PHONE, takeOrder, without, type Taken } from "../src/engine/order";
 import { phoneDigits, phoneKey, tailOf } from "../src/engine/phone";
@@ -405,6 +406,40 @@ describe("the merchant's sheets", () => {
     const more = kept(taken(sent({ name: "小林", phone: "604-555-0177", lines: [{ itemId: "lamb", qty: 1000 }] })), 4);
     const one = { ...chen, lines: chen.lines.map((line) => (line.itemId === "lamb" ? { ...line, actual: 1620 } : line)) };
     expect(summarize(book(), [wang, one, more]).items.find((i) => i.itemId === "lamb")).toMatchObject({ qty: 2500, actual: null, orders: 2 });
+  });
+});
+
+describe("the mail that tells the merchant", () => {
+  const order = (seq: number, more: Record<string, unknown> = {}) => kept(taken(sent({ name: `买家${seq}`, phone: `604-555-${String(1000 + seq)}`, ...more })), seq);
+
+  it("writes out the first eight orders and counts the rest", () => {
+    const fresh = Array.from({ length: 8 }, (_, n) => order(n + 5));
+    const { subject, text } = ordersNotice(book(), fresh, 12, 16);
+    expect(subject).toBe("跟一单 新订单 12 张 · 12 new orders · 本周大米团 · 周五到货");
+    expect(text).toContain("新来了 12 张订单，现在一共 16 张。");
+    expect(text).toContain("第 5 位 买家5：五常大米 10kg ×2，$76.00，自提 温哥华西区");
+    expect(text).toContain("第 12 位 买家12");
+    expect(text).toContain("还有 4 张没列出来。");
+    expect(text).toContain("4 more not listed here.");
+    expect(text).not.toMatch(/604-?555/);
+  });
+
+  it("shortens long orders, and never passes the door's limits", () => {
+    const long = order(1, { name: "名".repeat(30), lines: [{ itemId: "rice", qty: 1000 }, { itemId: "pearl", qty: 1000 }, { itemId: "millet", qty: 1000 }, { itemId: "eggs", qty: 1000 }, { itemId: "lamb", qty: 1500 }] });
+    const b = book();
+    b.offer.title = "题".repeat(60);
+    for (const item of b.items) item.name = `${item.name}${"长".repeat(50)}`;
+    const many = Array.from({ length: 8 }, (_, n) => ({ ...long, seq: n + 1, lines: long.lines.map((l) => ({ ...l, name: `${l.name}${"长".repeat(50)}` })) }));
+    const { subject, text } = ordersNotice(b, many, 300, 300);
+    expect(Array.from(subject).length).toBeLessThanOrEqual(120);
+    expect(text.length).toBeLessThanOrEqual(2000);
+    // fewer are written out, but each still says how many things, what it comes to and where it goes
+    const lines = text.split("\n").filter((line) => line.startsWith("第 "));
+    expect(lines.length).toBeGreaterThan(0);
+    expect(lines.length).toBeLessThan(8);
+    for (const line of lines) expect(line).toMatch(/等 5 样，预估 \$\d+\.\d\d，自提 温哥华西区$/);
+    expect(text).toContain("and 2 more, about $");
+    expect(text).toMatch(/还有 \d+ 张没列出来。/);
   });
 });
 

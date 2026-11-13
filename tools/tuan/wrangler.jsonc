@@ -1,7 +1,7 @@
 // Cloudflare settings for 跟一单 · Count Me In: its own Worker, one of changle.ca's tools, answering at
 // changle.ca/tuan. Merchants post a group buy, buyers order from the link without signing in, and the
 // money goes straight from buyer to merchant: the site only carries the orders.
-// It runs on Cloudflare's free plan. No secrets.
+// It runs on Cloudflare's free plan. No secrets: mail goes out through the rooms server, which has the key.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tuan",
@@ -17,7 +17,15 @@
   // Merchants sign in with their changle.ca account. Accounts live in the rooms server
   // (site/worker): this Worker asks it who a sign-in belongs to, Worker to Worker, never over the
   // public address (src/server/who.ts).
-  "services": [{ "binding": "ROOMS", "service": "changle-rooms" }],
+  // A merchant is told of new orders by mail, which the rooms server sends: its door for that is the
+  // named entrypoint `Mail` (site/worker/mail.ts), reachable only like this (src/server/notify.ts).
+  "services": [
+    { "binding": "ROOMS", "service": "changle-rooms" },
+    { "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }
+  ],
+  // Every ten minutes: group buys with orders their merchant hasn't been told of, and no mail in
+  // the last half hour, get one (src/server/notify.ts).
+  "triggers": { "crons": ["*/10 * * * *"] },
   // The schema files are part of the Worker (applied by src/server/schema.ts).
   "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
   "observability": { "enabled": true }
