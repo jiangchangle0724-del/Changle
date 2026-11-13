@@ -6,6 +6,11 @@
  * so the unlock listens to touchend / pointerup / click / keydown and stays armed until the
  * context is actually running (and re-arms after iOS interrupts it). On iPhone the page asks
  * for the "playback" audio session so the ring/silent switch does not mute the party.
+ *
+ * While the page is hidden (another app, the lock screen) the context is stopped on purpose: an
+ * iPhone that keeps one playing in the background can hand it back silent for good, still saying
+ * "running" (WebKit bugs 276687, 263627, 281955). Coming back, it starts again and its clock is
+ * checked; one that a tap still can't bring back is replaced by a new context at the next tap.
  */
 
 export type Bus = { c: AudioContext; out: GainNode; verb: GainNode; music: GainNode; dry: GainNode };
@@ -85,6 +90,9 @@ function onGesture() {
   if (!enabled) return;
   askForPlaybackSession();
   startKeepAlive();
+  // the last tap couldn't bring this context back: a new one, made inside this tap so it may start
+  // (not more than once in a few seconds, should a new one not play either)
+  if (stale && Date.now() - rebuiltAt > 5000) rebuild();
   const b = bus();
   if (!b) return;
   try {
@@ -96,12 +104,15 @@ function onGesture() {
   } catch {
     /* fine */
   }
-  b.c
-    .resume()
-    .then(() => {
-      if (b.c.state === "running") disarm();
-    })
-    .catch(() => {});
+  void settle(b.c.resume()).then(() =>
+    ticking(b.c, (ok) => {
+      if (A !== b) return;
+      if (ok) {
+        stale = false;
+        disarm();
+      } else stale = true; // still armed: the next tap replaces it
+    }),
+  );
 }
 
 function arm() {
@@ -114,6 +125,49 @@ function disarm() {
   if (!armed) return;
   armed = false;
   GESTURES.forEach((e) => window.removeEventListener(e, onGesture, { capture: true }));
+}
+
+/** A promise an iPhone may never settle (WebKit bug 281566): give it a moment, then go on. */
+function settle(p: Promise<void>, ms = 1500) {
+  return Promise.race([p.catch(() => {}), new Promise<void>((ok) => window.setTimeout(ok, ms))]);
+}
+
+/** Whether the context plays: running, with a clock that moves (an iPhone can say running and stand still). */
+function ticking(c: AudioContext, then: (ok: boolean) => void) {
+  const t0 = c.currentTime;
+  window.setTimeout(() => then(c.state === "running" && c.currentTime > t0), 400);
+}
+
+/** a tap tried and the context still doesn't play: the next tap makes a new one */
+let stale = false;
+let rebuiltAt = 0;
+const resets = new Set<() => void>();
+
+/** Hear when the context is replaced, to start again on the new one (the lounge music does). */
+export function onAudioReset(f: () => void) {
+  resets.add(f);
+  return () => {
+    resets.delete(f);
+  };
+}
+
+function rebuild() {
+  const old = A;
+  A = null;
+  stale = false;
+  rebuiltAt = Date.now();
+  noiseBuf = null;
+  if (old) {
+    old.c.onstatechange = null;
+    void settle(old.c.close());
+  }
+  resets.forEach((f) => f());
+}
+
+/** The page went away: stop the sound ourselves, so it can come back (see the top of this file). */
+function park() {
+  if (keepAlive) keepAlive.pause();
+  if (A && A.c.state === "running") void settle(A.c.suspend());
 }
 
 let installed = false;
@@ -134,16 +188,18 @@ function wake() {
   const c = A.c;
   const state = c.state as string;
   if (state === "closed") return;
-  if (state === "running") {
-    void c
-      .suspend()
-      .then(() => c.resume())
-      .catch(() => {});
-  } else {
-    void c.resume().catch(() => {});
-  }
+  // a tap finishes the job if this can't (an iPhone may want one)
   arm();
   startKeepAlive();
+  const back = state === "running" ? settle(c.suspend()).then(() => settle(c.resume())) : settle(c.resume());
+  void back.then(() =>
+    ticking(c, (ok) => {
+      if (ok && A?.c === c) {
+        stale = false;
+        disarm();
+      }
+    }),
+  );
 }
 
 /** Call once at startup. */
@@ -154,8 +210,9 @@ export function initAudio() {
   arm();
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") wake();
-    else if (keepAlive) keepAlive.pause();
+    else park();
   });
+  window.addEventListener("pagehide", park);
   window.addEventListener("pageshow", (e) => {
     if ((e as PageTransitionEvent).persisted) wake();
   });
@@ -174,9 +231,9 @@ export function setEnabled(on: boolean) {
   enabled = on;
   if (!A) return;
   if (!on) {
-    if (A.c.state === "running") void A.c.suspend().catch(() => {});
+    if (A.c.state === "running") void settle(A.c.suspend());
   } else if (A.c.state !== "running") {
-    void A.c.resume().catch(() => {});
+    void settle(A.c.resume());
     arm();
   }
 }
@@ -248,7 +305,8 @@ export function bus(): Bus | null {
       };
       A = { c, out, verb, music, dry };
     }
-    if (A.c.state !== "running" && A.c.state !== "closed") void A.c.resume().catch(() => {});
+    // (a sound asked for while the page is hidden waits: the context stays stopped until it's back)
+    if (A.c.state !== "running" && A.c.state !== "closed" && document.visibilityState !== "hidden") void settle(A.c.resume());
     return A;
   } catch {
     return null;
