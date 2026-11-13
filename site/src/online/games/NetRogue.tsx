@@ -21,8 +21,8 @@ const ONLINE_HOW: Partial<Record<Rank, T>> = {
   "2": t("以后谁被罚，他的手机上会多一个喊陪酒的按钮，一按你就得陪他喝。", "From now on, anyone who gets a penalty can call you from their phone, and you drink with them."),
   "3": t("选一个园。从下一位开始轮流说一样，说完在自己手机上按一下。", "Pick a garden. Starting with the next player, each names one thing, then taps their phone."),
   "4": t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都喝；最后没抢到的也喝。", "Everyone races to tap the next number. Two on the same number both drink; whoever is left drinks too."),
-  "5": t("你的手机上多了一个照相机按钮，随时可以按，按一次歇一分钟。", "Your phone now has a camera button. Press it whenever you like; it rests a minute after each shot."),
-  "6": t("你的手机上多了一个摸鼻子按钮。你一按，所有人都要在手机上摸鼻子，最慢的喝。按一次歇一分钟。", "Your phone now has a nose button. Press it and everyone must tap theirs; the slowest drinks. It rests a minute after each call."),
+  "5": t("你的手机上多了一个照相机按钮，什么时候按你挑，只能按一次。", "Your phone now has a camera button. Press it whenever you like, once."),
+  "6": t("你的手机上多了一个摸鼻子按钮，只能按一次。你一按，所有人都要在手机上摸鼻子，最慢的喝。", "Your phone now has a nose button, good for one press. Press it and everyone must tap theirs; the slowest drinks."),
   "7": t("你选一个开始的数，大家轮流在手机上报数，遇到 7 的倍数或带 7 的要按过。", "Pick a starting number. Everyone counts in turn on their phone; on a seven, tap pass."),
   "8": t("别人要去厕所，得先在手机上按上厕所，喝一口再去。", "Anyone else who needs the bathroom taps it on their phone and drinks first."),
   "10": t("谁接了你的话，就在你的手机上点他，他喝。", "Whoever answers you: tap them on your phone and they drink."),
@@ -32,7 +32,7 @@ const ONLINE_HOW: Partial<Record<Rank, T>> = {
 const ONLINE_HOW_CUSTOM: Partial<Record<Rank, T>> = {
   "2": t("以后谁被罚，他的手机上会多一个喊陪罚的按钮，一按你就得陪他一起受罚。", "From now on, anyone who gets a penalty can call you from their phone, and you take it with them."),
   "4": t("所有人抢着按下一个数字。两个人同时按到同一个数，两个都受罚；最后没抢到的也受罚。", "Everyone races to tap the next number. Two on the same number both take the penalty, and so does whoever is left."),
-  "6": t("你的手机上多了一个摸鼻子按钮。你一按，所有人都要在手机上摸鼻子，最慢的受罚。按一次歇一分钟。", "Your phone now has a nose button. Press it and everyone must tap theirs; the slowest takes the penalty. It rests a minute after each call."),
+  "6": t("你的手机上多了一个摸鼻子按钮，只能按一次。你一按，所有人都要在手机上摸鼻子，最慢的受罚。", "Your phone now has a nose button, good for one press. Press it and everyone must tap theirs; the slowest takes the penalty."),
   "8": t("别人要去厕所，得先在手机上按上厕所，受完罚再去。", "Anyone else who needs the bathroom taps it on their phone and takes the penalty first."),
   "10": t("谁接了你的话，就在你的手机上点他，他受罚。", "Whoever answers you: tap them on your phone and they take the penalty."),
 };
@@ -342,7 +342,7 @@ function SevensPanel({ v }: { v: RogueView }) {
 const BADGE: Record<keyof RogueHolders, Rank> = { buddy: "2", camera: "5", nose: "6", wc: "8", trouble: "10" };
 
 function Powers({ v }: { v: RogueView }) {
-  const { me, g, nameOf, offset } = useRoom();
+  const { me, g, nameOf } = useRoom();
   const { ui, tr, lang } = useStore();
   const pen = usePenaltyText();
   const watching = useWatching();
@@ -353,9 +353,9 @@ function Powers({ v }: { v: RogueView }) {
   const busy = !!v.interrupt || v.phase === "garden" || v.phase === "grab" || v.phase === "sevens";
   const iHave = (k: keyof RogueHolders) => v.holders[k] === me;
   const myWc = iHave("wc") && !v.wcUsed;
-  // the camera and the nose rest a minute after each use: the button counts it down
-  const cooling = useCooling([v.cool?.camera, v.cool?.nose], offset);
-  const rest = (until?: number) => (until ? cooling(until) : 0);
+  // the pass is good for one visit, the camera and the nose for one call each, until the next card of theirs
+  const spent = (k: keyof RogueHolders) => (k === "wc" ? v.wcUsed : k === "camera" || k === "nose" ? !!v.used?.[k] : false);
+  const usedWord = lang === "zh" ? "已用" : "used";
 
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -365,7 +365,7 @@ function Powers({ v }: { v: RogueView }) {
             <span key={k} className={`chip ${v.holders[k] === me ? "chip-selected" : ""}`}>
               <span className="en-display held-rank">{BADGE[k]}</span>
               {tr(ruleWords(RULE_BY_RANK[BADGE[k]], pen.isCustom).badge!)} · {v.holders[k] === me ? (lang === "zh" ? "你" : "you") : nameOf(v.holders[k])}
-              {k === "wc" && v.wcUsed && <span className="hint" style={{ fontSize: 12 }}>{lang === "zh" ? "已用" : "used"}</span>}
+              {spent(k) && <span className="hint" style={{ fontSize: 12 }}>{usedWord}</span>}
             </span>
           ))}
         </div>
@@ -373,17 +373,17 @@ function Powers({ v }: { v: RogueView }) {
 
       <div className="power-dock">
         {iHave("camera") && (
-          <button type="button" className="power-btn" disabled={busy || rest(v.cool?.camera) > 0} onClick={() => g("camera")}>
+          <button type="button" className="power-btn" disabled={busy || spent("camera")} onClick={() => g("camera")}>
             <Camera size={18} />
             {lang === "zh" ? "照相机" : "Camera"}
-            {rest(v.cool?.camera) > 0 && <span className="tabular">{rest(v.cool?.camera)}s</span>}
+            {spent("camera") && <span className="power-used">{usedWord}</span>}
           </button>
         )}
         {iHave("nose") && (
-          <button type="button" className="power-btn" disabled={busy || rest(v.cool?.nose) > 0} onClick={() => g("nose")}>
+          <button type="button" className="power-btn" disabled={busy || spent("nose")} onClick={() => g("nose")}>
             <Hand size={18} />
             {lang === "zh" ? "摸鼻子" : "Nose"}
-            {rest(v.cool?.nose) > 0 && <span className="tabular">{rest(v.cool?.nose)}s</span>}
+            {spent("nose") && <span className="power-used">{usedWord}</span>}
           </button>
         )}
         {iHave("trouble") && (
@@ -445,18 +445,6 @@ function Powers({ v }: { v: RogueView }) {
       </AnimatePresence>
     </div>
   );
-}
-
-/** Seconds left until a moment (server ms, with this phone's clock offset), re-read every second while any is still to come. */
-function useCooling(untils: (number | undefined)[], offset: number) {
-  const [, tick] = useState(0);
-  const pending = untils.some((u) => u && u > Date.now() + offset);
-  useEffect(() => {
-    if (!pending) return;
-    const id = window.setInterval(() => tick((n) => n + 1), 1000);
-    return () => window.clearInterval(id);
-  }, [pending]);
-  return (until: number) => Math.max(0, Math.ceil((until - (Date.now() + offset)) / 1000));
 }
 
 /* ---------------- camera and nose: they stop the whole table ---------------- */
