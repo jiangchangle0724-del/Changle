@@ -28,6 +28,7 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `scripts/lobby-check.mjs` | 大厅检查：真点开始、切语言、到顶出结算、下一关、回大厅 |
 | `scripts/phone-check.mjs` | 手机局检查：一部手机开房自己也玩，两部手机进来都有画面，倒数、到顶、结算、再来一次跟着走，直连 20 张一秒、绕路 10 张一秒，电视局的手柄不下载画面 |
 | `scripts/run-levels.mjs` | 关卡验收（`npm run levels`）：每关的格式、大小、检查点、机关、回放都得过；难关和按人数摆的关另有规则（`CONTRACTS.md`「关卡契约」） |
+| `scripts/probe.mjs` | 乱按探路（`npm run probe`）：每一段让 1 个人、2 个人乱按，看到不到得了下一个检查点；大关每关至少两段一两个人过不去（`CONTRACTS.md`「大关（C9）」） |
 | `scripts/ip-check.mjs` | 法律线：docs/ 之外不出现原版的名字 |
 | `proto/` | 最早的 Verlet 软体手感原型，零依赖，留作参照（`node proto/sim.test.mjs`） |
 
@@ -45,6 +46,7 @@ npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截�
 npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，
                     #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 试玩法）
 npm run levels      # 关卡验收：每关的规则加回放（-- --screenshots 重拍 docs/levels/ 的截图）
+npm run probe       # 乱按探路：大关每关至少两段一两个人过不去（-- table-06 只报告一关，--quick 少按几次）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON
 npm run ip-check    # 法律线，CI 里为零才合并
 ```

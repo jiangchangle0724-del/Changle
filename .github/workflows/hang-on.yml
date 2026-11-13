@@ -37,6 +37,8 @@ jobs:
       - run: npm run ip-check
       # 12 关的回放：全员到终点、用时在 par 的 0.5 到 2 倍、第 6 关真成链、第 10 关真丢人（scripts/run-levels.mjs）
       - run: npm run levels
+      # 大关每关至少两段 1 个人、2 个人乱按都过不去（scripts/probe.mjs；CI 少按几次）
+      - run: npm run probe -- --quick
 
   link:
     runs-on: ubuntu-latest
