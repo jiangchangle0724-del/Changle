@@ -2,7 +2,8 @@
 
 One of changle.ca's tools, at **changle.ca/when**: friends find a time to meet. The host makes a
 gathering and drops its link in the group chat; everyone taps the times they are free on their own
-phone; the page shows where they overlap, live; the host sets the time. Nobody signs in.
+phone; the page shows where they overlap, live; the host sets the time, and every page asks what's
+next: where to eat (随便) or what to play (开席). Nobody signs in.
 
 The plan is `docs/when.md`; where it stands and what's next is in `docs/briefs/when.md`.
 
@@ -13,11 +14,11 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
-| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. |
+| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/After.tsx` (what's next, once its time is set), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. |
 | `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`). |
 
 ### What is kept, and for how long
@@ -44,6 +45,23 @@ Saving goes by ordinary requests (they work everywhere, WeChat included, and not
 when a connection drops). The server pushes the gathering to every open page over a WebSocket
 (`/when/api/e/<code>/ws`, hibernating, so an idle gathering costs nothing). When the socket is down
 the page asks again every ten seconds, and the moment it comes back to the front.
+
+### Once the time is set
+
+Every page then asks what's next (`src/client/ui/After.tsx`; the rules are in
+`src/engine/after.ts`):
+
+- **Tell the group**: the result as words to paste into the chat, in Chinese and in English, with
+  the gathering's link under them.
+- **Where to eat**: on to 随便 (changle.ca/eat). Only a host gets the link, so one gathering opens
+  one table; everyone else is told to wait for the table's link. The link carries what is known:
+  `/eat/?from=when&code=<code>&date=2026-11-21&time=18:30&occasion=friends&people=7` (lunch at
+  12:00 for a morning or an afternoon, dinner at 18:30 otherwise; `people` is everyone who is free
+  or could move things for that slot). 随便 doesn't read these yet, so the page also says which
+  day and time to pick there. 随便 plans meals for today and the six days after: for a day further
+  off, the button waits until that week. Inside WeChat, where Google refuses its sign-in, a note
+  says to open 随便 in a browser, with a button that copies its link.
+- **What to play**: on to 开席, the site's home page.
 
 ### Time
 

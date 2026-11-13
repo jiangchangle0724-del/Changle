@@ -73,6 +73,23 @@ const STRINGS = {
   settledTitle: { zh: "定了", en: "It's set" },
   reopen: { zh: "重新选", en: "Choose again" },
 
+  // ---------- once the time is set ----------
+  afterTitle: { zh: "接着定什么？", en: "What's next?" },
+  afterTell: { zh: "把结果发回群里", en: "Tell the group" },
+  copyZh: { zh: "复制中文", en: "Copy in Chinese" },
+  copyEn: { zh: "复制英文", en: "Copy in English" },
+  afterEat: { zh: "吃什么", en: "Where to eat" },
+  eatGo: { zh: "去随便开一桌", en: "Open a table in Whatever's Fine" },
+  eatPick: { zh: "到了随便，「什么时候吃」选 {when} {time}。", en: "Once there, set When to {time} on {when}." },
+  eatWeChat: { zh: "微信里不能用 Google 登录。到了随便，点右上角 ··· → 在浏览器打开，或者复制下面的链接。", en: "Google sign-in doesn't work inside WeChat. Once there, tap ··· → Open in browser, or copy the link below." },
+  eatCopy: { zh: "复制随便的链接", en: "Copy that link" },
+  eatLater: { zh: "那周再来选", en: "Come back that week" },
+  eatLaterNote: { zh: "随便只排一周以内的饭，{day} 起可以选。", en: "Whatever's Fine plans meals up to a week ahead. It opens for this one on {day}." },
+  eatWait: { zh: "等发起人去随便开一桌。开好了，链接会发到群里，大家进去投票。", en: "The host opens a table in Whatever's Fine and sends its link to the group. Everyone votes there." },
+  afterPlay: { zh: "玩什么", en: "What to play" },
+  playGo: { zh: "去开席挑个游戏", en: "Pick a game on Lazy Susan" },
+  playNote: { zh: "在家玩的话，开席里有一桌人玩的聚会游戏。", en: "Staying in? Lazy Susan has party games for a table of friends." },
+
   slotFree: { zh: "有空", en: "Free" },
   slotMaybe: { zh: "可以调", en: "Could move things" },
   slotNo: { zh: "没空，或者还没填", en: "Not free, or no answer yet" },

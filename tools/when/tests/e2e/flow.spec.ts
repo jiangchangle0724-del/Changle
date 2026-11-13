@@ -1,6 +1,7 @@
-// The whole of A1 on real pages: a host makes a gathering, guests fill in on their own phones,
-// everyone sees the same counts without reloading, the host sets the time, and another phone takes
-// over with the admin code. Each phone is its own browser context, so each has its own storage.
+// The tool on real pages: a host makes a gathering, guests fill in on their own phones, everyone
+// sees the same counts without reloading, the host sets the time, every page then asks what's next,
+// and another phone takes over with the admin code. Each phone is its own browser context, so each
+// has its own storage.
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
 const KEY = "x-when-key";
@@ -33,12 +34,23 @@ async function join(page: Page, url: string, name: string): Promise<void> {
   await expect(page.locator(".you")).toContainText(name);
 }
 
+/**
+ * Keep what this page copies where the test can read it. (Reading the real clipboard needs a
+ * permission only Chromium can grant.) Call it before the page opens anything.
+ */
+const catchCopies = (page: Page) =>
+  page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => void ((window as unknown as { copied: string }).copied = text) } });
+  });
+const copied = (page: Page) => page.evaluate(() => (window as unknown as { copied?: string }).copied);
+
 const saved = (page: Page) => expect(page.locator(".status")).toHaveAttribute("data-state", "saved");
 const cell = (page: Page, n: number) => page.locator(".grid .cell").nth(n);
 
 test("make, fill in on two phones, set the time", async ({ browser }) => {
   const host = await phone(browser);
-  const { url } = await make(host, "周末火锅");
+  await catchCopies(host);
+  const { url, code } = await make(host, "周末火锅");
   await expect(host).toHaveTitle(/周末火锅/);
   await expect(host.locator(".event-head h1")).toHaveText("周末火锅");
 
@@ -84,6 +96,20 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   await expect(host.locator(".set")).toContainText("定了");
   await expect(guest.locator(".set")).toContainText("2 个人里 2 个有空");
 
+  // then every page asks what's next. The words for the group chat, in Chinese and in English:
+  await expect(guest.locator(".after")).toContainText("接着定什么");
+  await host.locator(".after .copy .btn").first().click();
+  await expect(host.locator(".after .copy .btn").first()).toContainText("复制好了");
+  expect(await copied(host)).toMatch(new RegExp(`^「周末火锅」定了：\\d+月\\d+日 周. 晚上。2 个人里 2 个有空。\\n\\S+/when/${code}$`));
+  await host.locator(".after .copy .btn").nth(1).click();
+  await expect.poll(() => copied(host)).toMatch(new RegExp(`^"周末火锅" is set: \\w{3}, \\w{3} \\d+, evening\\. 2 of 2 free\\.\\n\\S+/when/${code}$`));
+  // on to 随便 with the day, dinner time, the occasion and who can come: the host only, so one
+  // gathering opens one table. Tonight is within the week 随便 plans for.
+  await expect(host.locator(".after a[href^='/eat/']")).toHaveAttribute("href", new RegExp(`^/eat/\\?from=when&code=${code}&date=\\d{4}-\\d\\d-\\d\\d&time=18%3A30&occasion=friends&people=2$`));
+  await expect(guest.locator(".after a[href^='/eat/']")).toHaveCount(0);
+  await expect(guest.locator(".after")).toContainText("等发起人");
+  await expect(host.locator(".after a[href='/']")).toBeVisible();
+
   // it all survives a reload, and each phone is still who it was
   await guest.reload();
   await expect(guest.locator(".you")).toContainText("阿May");
@@ -91,6 +117,29 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   await host.reload();
   await expect(host.locator(".you")).toContainText("Steve");
   await expect(host.locator(".stepper")).toBeVisible();
+});
+
+test("a day more than a week away: 随便 opens for it that week, and reopening takes the question away", async ({ browser }) => {
+  const host = await phone(browser);
+  const { url } = await make(host, "下下周烧烤");
+  await join(host, url, "Steve");
+  // three slots a day: the 27th is the evening eight days from today
+  await cell(host, 26).click();
+  await saved(host);
+  await host.click(".seg button:nth-child(2)");
+  await host.locator(".best li").first().locator(".btn").click();
+  await expect(host.locator(".after")).toBeVisible();
+  await expect(host.locator(".after a[href^='/eat/']")).toHaveCount(0);
+  await expect(host.locator(".after button:disabled")).toHaveText("那周再来选");
+  await expect(host.locator(".after")).toContainText("起可以选");
+  // in English too
+  await host.click(".bar-lang");
+  await expect(host.locator(".after button:disabled")).toHaveText("Come back that week");
+  await expect(host.locator(".after .panel-title")).toHaveText("What's next?");
+  // the host picks again: nothing is set, so there's nothing to ask
+  await host.locator(".set .link-btn").click();
+  await expect(host.locator(".set")).toHaveCount(0);
+  await expect(host.locator(".after")).toHaveCount(0);
 });
 
 test("two phones tap the same slot at once: both answers stay", async ({ browser }) => {
@@ -182,6 +231,10 @@ test("nothing is wider than a small phone, and every button can be pressed", asy
     await saved(page);
     await fits();
     await page.click(".seg button:nth-child(2)");
+    await fits();
+    // and with the time set, when the page asks what's next
+    await page.locator(".best li").first().locator(".btn").click();
+    await expect(page.locator(".after")).toBeVisible();
     await fits();
     const small = await page.evaluate(() => [...document.querySelectorAll("button, a.btn")].filter((el) => el.getBoundingClientRect().height > 0 && el.getBoundingClientRect().height < 43.5).map((el) => el.className + ":" + el.textContent));
     expect(small).toEqual([]);

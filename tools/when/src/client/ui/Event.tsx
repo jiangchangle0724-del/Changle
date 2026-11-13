@@ -12,6 +12,7 @@ import type { Snapshot } from "../../room/protocol";
 import { api, ApiFail, forget, remember, savedName, saveName } from "../api";
 import { t, type Key } from "../i18n";
 import { watch } from "../live";
+import { After } from "./After";
 import { CopyButton, IconCheck, IconQr, IconStar, IconWave, Qr, Sheet, Toast, TopBar, useLang } from "./common";
 
 type Open = { kind: "slot"; slot: SlotKey } | { kind: "person"; id: string } | { kind: "claim" } | { kind: "qr" } | { kind: "created"; adminCode: string } | null;
@@ -239,6 +240,8 @@ export function EventPage({ code }: { code: string }) {
           )}
         </section>
       )}
+
+      {state.settled && settledTally && <After state={state} tally={settledTally} people={people} host={host} link={link} />}
 
       <section class="panel">
         {showNameField ? (
