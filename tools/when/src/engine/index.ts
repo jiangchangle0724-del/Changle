@@ -3,6 +3,7 @@ export * from "./daynotes";
 export * from "./holidays";
 export * from "./ics";
 export * from "./ids";
+export * from "./quick";
 export * from "./rank";
 export * from "./slots";
 export * from "./text";

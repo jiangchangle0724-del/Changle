@@ -152,6 +152,93 @@ test("a holiday among the days is said above its day, in both languages", async 
   }
 });
 
+test("quick fill: weekends, evenings, a whole day, everything; one tap takes such a slot back; undo", async ({ browser }) => {
+  const page = await phone(browser);
+  const { url } = await make(page, "周末火锅");
+  // fourteen days in a row, three slots each: two weekends among them
+  const days = 14;
+  const free = page.locator('.grid .cell[data-mine="yes"]');
+  const chip = (name: string) => page.locator(".quick button", { hasText: name });
+  const undo = page.locator(".toast .link-btn");
+  const clear = page.locator(".grid-foot .link-btn");
+
+  // before there's a name, a quick fill asks for it like a tap does
+  await chip("全都行").click();
+  await expect(page.locator(".name-form .problem")).toBeVisible();
+  await expect(free).toHaveCount(0);
+  await join(page, url, "Steve");
+
+  // weekends, and off again
+  await chip("周末都行").click();
+  await expect(free).toHaveCount(4 * 3);
+  await expect(chip("周末都行")).toHaveAttribute("aria-pressed", "true");
+  await chip("周末都行").click();
+  await expect(free).toHaveCount(0);
+  await expect(clear).toHaveCount(0);
+
+  // every evening
+  await chip("晚上都行").click();
+  await expect(free).toHaveCount(days);
+  await expect(chip("晚上都行")).toHaveAttribute("aria-pressed", "true");
+  await expect(chip("全都行")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".toast")).toContainText("没空的点一下就去掉");
+  await saved(page);
+  // a slot filled that way goes with one tap (one tapped by hand would become "could move things")
+  await cell(page, 2).click();
+  await expect(cell(page, 2)).toHaveAttribute("data-mine", "no");
+  await expect(chip("晚上都行")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".toast")).toHaveCount(0);
+  // from there it's the usual round: free, could move things
+  await cell(page, 2).click();
+  await expect(cell(page, 2)).toHaveAttribute("data-mine", "yes");
+  await cell(page, 2).click();
+  await expect(cell(page, 2)).toHaveAttribute("data-mine", "maybe");
+
+  // a whole day by its name (the second day), and back
+  const day = page.locator("button.grid-date").nth(1);
+  await day.click();
+  await expect(day).toHaveAttribute("aria-pressed", "true");
+  for (const n of [3, 4, 5]) await expect(cell(page, n)).toHaveAttribute("data-mine", "yes");
+  await day.click();
+  for (const n of [3, 4, 5]) await expect(cell(page, n)).toHaveAttribute("data-mine", "no");
+  // twelve evenings are left free, and the first is a maybe
+  await expect(free).toHaveCount(days - 2);
+
+  // everything; undo brings back exactly what was there
+  await chip("全都行").click();
+  await expect(free).toHaveCount(days * 3);
+  await undo.click();
+  await expect(free).toHaveCount(days - 2);
+  await expect(cell(page, 2)).toHaveAttribute("data-mine", "maybe");
+  await expect(page.locator(".toast")).toHaveCount(0);
+
+  // clear all, and undo that too
+  await clear.click();
+  await expect(free).toHaveCount(0);
+  await expect(cell(page, 2)).toHaveAttribute("data-mine", "no");
+  await expect(page.locator(".toast")).toContainText("去掉了");
+  await undo.click();
+  await expect(free).toHaveCount(days - 2);
+  await saved(page);
+
+  // a reload shows what was saved, and no longer knows which slots were filled in one go
+  await page.reload();
+  // someone coming back is shown everyone first: wait for that, then go back to filling in
+  await expect(page.locator(".seg button:nth-child(2)")).toHaveAttribute("aria-pressed", "true");
+  await page.click(".seg button:nth-child(1)");
+  await expect(free).toHaveCount(days - 2);
+  await expect(cell(page, 2)).toHaveAttribute("data-mine", "maybe");
+  await cell(page, 8).click();
+  await expect(cell(page, 8)).toHaveAttribute("data-mine", "maybe");
+
+  // in English; and everyone's view has no quick fill
+  await page.click(".bar-lang");
+  await expect(page.locator(".quick button")).toHaveText(["All free", "Weekends", "Evenings"]);
+  await page.click(".seg button:nth-child(2)");
+  await expect(page.locator(".quick")).toHaveCount(0);
+  await expect(page.locator("button.grid-date")).toHaveCount(0);
+});
+
 test("inside WeChat the page says how to get out; an Android phone goes to Google Calendar", async ({ browser }) => {
   // the host is in WeChat's own browser, where most gatherings start
   const host = await (await browser.newContext({ userAgent: WECHAT })).newPage();

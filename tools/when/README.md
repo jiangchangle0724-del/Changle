@@ -14,7 +14,7 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
@@ -60,6 +60,22 @@ Above a day in the grid, one line says what that day is, in the page's language
 A day with none of these has no line. The dates are not worked out here: they were looked up and
 sit in `src/engine/holidays.ts` with their sources, from November 2026 to the end of 2028. After
 that the grid says nothing until the next years are added there.
+
+### Quick fill
+
+In "my times", three chips above the grid fill in many slots with one tap: **all free**,
+**weekends** (when some of the days, but not all, are weekend days) and **evenings** (when the
+gathering asks by the half day). There, a day's name is a button too, and fills in its row. Each
+says "free" for every slot it covers and is lit while they all are; pressed then, it takes them
+back. The rules are in `src/engine/quick.ts`.
+
+A slot filled that way and not touched since goes back to "not free" with one tap, so someone who
+is free most of the time presses "all free" and then taps only what they can't make. A slot
+tapped by hand goes round as before: free, could move things, not free. Which slots were filled
+in one go is remembered only while the page is open.
+
+Every quick fill, and "clear all" under the grid, can be undone for six seconds, or until the
+next tap on a slot, from the line that comes up at the bottom of the screen.
 
 ### Once the time is set
 

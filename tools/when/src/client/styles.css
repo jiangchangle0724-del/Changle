@@ -584,6 +584,28 @@ input {
   color: var(--on-gel);
 }
 
+/* quick fill: many slots in one tap. Lit while every slot it covers is free. */
+.quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.quick button {
+  min-height: var(--tap-crowded);
+  padding: 0 var(--space-3);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  transition: background-color var(--dur-exit) var(--ease-out);
+}
+.quick button[aria-pressed="true"] {
+  background: var(--gel);
+  box-shadow: none;
+  color: var(--on-gel);
+}
+
 /* the grid: a row a day, a cell a slot */
 .grid {
   display: flex;
@@ -632,6 +654,16 @@ input {
 }
 .grid-row[data-weekend] .grid-date b {
   color: var(--gel);
+}
+/* my times, by the half day: the day's name fills in its whole row, and is underlined like the
+   page's other things to press */
+button.grid-date {
+  border-radius: var(--r-small);
+  text-align: start;
+}
+button.grid-date b {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .cell {
   position: relative;
@@ -765,6 +797,15 @@ input {
 .legend i[data-mine="maybe"] {
   box-shadow: inset 0 0 0 2px var(--gel);
   color: var(--gel);
+}
+/* under the grid: "clear all" once there is something to clear, and whether it's saved. As tall
+   as the link with or without it, so nothing below moves when it comes and goes. */
+.grid-foot {
+  min-height: var(--tap);
+}
+.grid-foot .link-btn {
+  /* its words line up with the grid's edge */
+  margin-inline-start: calc(-1 * var(--space-2));
 }
 .status {
   min-height: 1.5em;
@@ -1078,10 +1119,25 @@ html.has-sheet body {
   animation: rise var(--dur-enter) var(--ease-out);
 }
 
+/* a toast with something to press on it ("undo"). Only that takes a tap: the rest lets it through
+   to whatever the toast is over. */
+.toast[data-action] {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: 0;
+  padding-inline-end: var(--space-2);
+}
+.toast[data-action] .link-btn {
+  flex: none;
+  pointer-events: auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .btn,
   .cell,
-  .cal-day {
+  .cal-day,
+  .quick button {
     transition: none;
   }
   .btn:active:not(:disabled),
