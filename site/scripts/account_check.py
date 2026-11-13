@@ -283,6 +283,10 @@ def main():
             shot(a, "me-history")
 
         browser.close()
+    # an error thrown in the page (a crash the "something went wrong" screen caught, or worse) fails the run;
+    # console errors are only shown, since a turned-away request logs one too
+    thrown = [e for e in errors if e.startswith("pageerror") and "favicon" not in e]
+    check(not thrown, f"no error was thrown in any page ({len(thrown)})")
     print("errors:", errors[:12])
     print("FAILS:", fails if fails else "none")
     sys.exit(1 if fails else 0)

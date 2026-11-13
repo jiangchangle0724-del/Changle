@@ -142,7 +142,8 @@ def main():
         dpage.keyboard.press("Escape")
         a.wait_for_selector(".lobby .face-watch", timeout=5000)
         check(a.locator(".lobby .face-watch").count() == 1, "the lobby shows who is just watching")
-        a.click(".lobby .board .tile[aria-label^='Name That Tune']")
+        # (the board's tiles are src/ui/Tile now: a button named by its bilingual title, no aria-label)
+        a.locator(".lobby .board .ui-tile", has_text="Name That Tune").first.click()
         a.wait_for_timeout(700)
         a.click(".lobby-actions .btn-primary")
         a.wait_for_selector(".tn", timeout=8000)
@@ -220,6 +221,8 @@ def main():
     real = [e for e in errors if "favicon" not in e]
     if real:
         print("\npage errors:\n  " + "\n  ".join(real[:10]))
+    # an error thrown in a page is a failure, not a footnote (a crash the "something went wrong" screen caught still counts)
+    check(not real, f"no error was thrown in any page ({len(real)})")
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed")
     sys.exit(1 if fails else 0)
 
