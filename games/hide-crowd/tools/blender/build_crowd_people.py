@@ -56,6 +56,8 @@ CLIPS = {
     "getup": ("ual2", "LayToIdle"),
     # a foul (a passer-by punched): the punch bounces back
     "flinch": ("ual1", "Hit_Chest"),
+    # the transit hall's busker strikes up and everyone dances on the spot; the winner dances at the end
+    "dance": ("ual1", "Dance_Loop"),
 }
 # one-shots keep only the frames that matter (inclusive, counted from the clip's first frame)
 TRIM = {"punch": (0, 21), "hit": (2, 14), "getup": (3, 43), "flinch": (0, 10)}

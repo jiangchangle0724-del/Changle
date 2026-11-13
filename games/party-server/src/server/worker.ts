@@ -4,22 +4,15 @@
 //   POST /party/api/rooms                 open a room: { speakerAt } -> { code }
 //   GET  /party/api/rooms/CODE/ws         the room's WebSocket: ?role=speaker, or ?id=…&name=… for a phone
 //   GET  /party/r/CODE                    the QR code's link: the phone page with the code filled in
-//   GET  /party/api/songs                 the songbook: each song's first beat as tapped along to
-//   POST /party/api/songs/ID              a speaker page's taps for a song: { firstBeatMs, taps, spreadMs }
-//                                         (a room's 找拍子 writes there too, through the room)
 //   /party/screen, /party/join            the pages (dist/client/party, built by scripts/build.mjs)
 import { DurableObject } from "cloudflare:workers";
 import { CODE_ALPHABET, CODE_RE, type ClientMsg, type ServerMsg } from "../shared/protocol";
-import { isSongId } from "../shared/songs";
 import { makeCode, Session, validPlayerId, type From, type Out, type SessionData } from "./session";
 import { SongBook } from "./songbook";
-import { checkTapped } from "./tapped";
 import { emptyScores, type Scores } from "./tally";
 
+// (the songbook, kept only because Cloudflare keeps its Durable Object until a migration deletes it)
 export { SongBook };
-
-/** The songbook's one Durable Object. */
-const songbook = (env: Env) => env.SONGBOOK.get(env.SONGBOOK.idFromName("songs"));
 
 /** The beats of the dance being danced are stored at most this often (they change with every bar). */
 const SCORES_EVERY_MS = 3_000;
@@ -103,16 +96,6 @@ export class PartyRoom extends DurableObject<Env> {
     } catch {
       return;
     }
-    // a song is about to start: the session takes its first beat from the songbook as it is now
-    // (the beats tapped in a room that measured its TV's delay)
-    if (msg && msg.t === "act" && msg.action?.type === "START_LEARNING" && isSongId(String(msg.action.routineId))) {
-      try {
-        const all = await songbook(this.env).all();
-        this.s.songbook = { ...this.s.songbook, ...Object.fromEntries(Object.entries(all).flatMap(([id, t]) => (t.calibrated ? [[id, t.firstBeatMs]] : []))) };
-      } catch {
-        // (the songbook didn't answer: the catalogue's guess)
-      }
-    }
     this.s.handle(from, msg);
     await this.commit();
   }
@@ -165,18 +148,7 @@ export class PartyRoom extends DurableObject<Env> {
     if (!s) return;
     const { out, changed, scored } = s.flush();
     const sockets = this.ctx.getWebSockets();
-    for (const o of out) {
-      // a song's beat found by 找拍子: into the songbook, for every room
-      if ("songbook" in o) {
-        try {
-          await songbook(this.env).set(o.songbook.songId, o.songbook.tapped);
-        } catch {
-          // (the songbook didn't answer: this room has the beat anyway, the next one finds it again)
-        }
-        continue;
-      }
-      deliver(sockets, o);
-    }
+    for (const o of out) deliver(sockets, o);
     // (the speaker's offset is refreshed every second: kept in memory, stored when it moves 5 ms)
     const offsetMoved = this.storedOffset === null || Math.abs(s.d.speakerOffset - this.storedOffset) >= 5;
     if (changed || offsetMoved) {
@@ -203,7 +175,7 @@ export class PartyRoom extends DurableObject<Env> {
   }
 }
 
-function deliver(sockets: WebSocket[], o: Exclude<Out, { songbook: unknown }>) {
+function deliver(sockets: WebSocket[], o: Out) {
   const of = (ws: WebSocket) => ws.deserializeAttachment() as From | null;
   if ("close" in o) {
     for (const ws of sockets) {
@@ -260,22 +232,6 @@ export default {
       const code = ws[1]!.toUpperCase();
       if (!CODE_RE.test(code)) return json({ error: "no such room" }, 404);
       return env.ROOMS.get(env.ROOMS.idFromName(code)).fetch(req);
-    }
-    if (path === "/party/api/songs") {
-      if (req.method !== "GET") return json({ error: "method not allowed" }, 405);
-      // (the beats for every room: tapped where the TV's delay was measured)
-      const all = await songbook(env).all();
-      return json(Object.fromEntries(Object.entries(all).filter(([, t]) => t.calibrated)));
-    }
-    const song = /^\/party\/api\/songs\/([a-z0-9-]{1,64})$/.exec(path);
-    if (song) {
-      if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
-      const t = checkTapped(song[1]!, await req.json().catch(() => null), Date.now());
-      if (typeof t === "string") return json({ error: t }, 400);
-      // (tapped where the TV's delay wasn't measured, the beat is late by it: not for every room)
-      if (!t.calibrated) return json({ error: "calibrate the TV's delay first" }, 400);
-      await songbook(env).set(song[1]!, t);
-      return json({ ok: true, ...t });
     }
     const r = /^\/party\/r\/([A-Za-z0-9]{4})\/?$/.exec(path);
     if (r) return Response.redirect(new URL(`/party/join?code=${r[1]!.toUpperCase()}`, url).toString(), 302);

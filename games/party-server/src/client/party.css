@@ -978,39 +978,39 @@ body.has-tube .screen {
 body.has-tube .screen > .join-card {
   margin-top: 250px;
 }
-/* 歌曲对拍 on the speaker page */
-.tapalong {
+/* setting up the speaker page, the one time: a tap anywhere for its sound (the card is a button
+   too, for a keyboard), and on an iPhone or in Safari a tap on the video, which is in sight beside it */
+.setup {
   display: grid;
-  gap: 12px;
-  align-content: start;
-}
-.tap-songs {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 8px;
+  margin-bottom: 16px;
+  padding: 18px 22px;
+  border-radius: 18px;
+  text-align: left;
 }
-.tap-ctl {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-/* 找拍子: a new song's beat, from everyone tapping along (the TV's panel, the phone's button) */
-.find {
-  display: grid;
-  gap: 12px;
-}
-.tapalong.find .tap-pad {
+.btn.setup {
   min-height: 0;
-  padding: 16px 24px;
-  font-size: 1.3rem;
-  justify-self: start;
 }
-.find-count {
-  font-size: clamp(3rem, 10vw, 6rem);
-  font-variant-numeric: tabular-nums;
+.setup-title {
+  display: block;
+  margin: 0;
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1.2;
+}
+.setup-lead {
+  display: block;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.setup.is-video {
+  background: var(--panel);
+  border: 2px solid var(--accent);
+}
+.setup.is-video .setup-title {
+  color: var(--accent);
 }
 
 /* ---------- a phone as the stage, mirrored to the TV (the TV shows its screen as it is) */
@@ -1106,6 +1106,17 @@ body.has-tube .screen > .join-card {
   }
   .is-screen .phase {
     font-size: clamp(1.2rem, 7vh, 2rem);
+  }
+  .is-screen .setup {
+    margin-bottom: 8px;
+    padding: 10px 14px;
+    gap: 4px;
+  }
+  .is-screen .setup-title {
+    font-size: clamp(1.1rem, 7vh, 1.6rem);
+  }
+  .is-screen .setup-lead {
+    font-size: 0.9rem;
   }
   /* a dance: the whole screen for the coach, the room's code over it */
   .is-screen .screen.is-run {

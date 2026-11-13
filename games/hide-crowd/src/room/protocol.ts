@@ -55,6 +55,10 @@ export interface AvatarView {
   vy: number;
   p: Pose;
   me?: 1;
+  /** once the round is over: the player in this body (no body has one while the round is on) */
+  n?: string;
+  /** once the round is over: this body won it */
+  w?: 1;
 }
 
 export interface EventView {

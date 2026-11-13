@@ -36,11 +36,10 @@ export type ClientMsg =
   | { t: "clock"; offsetMs: number; rttMs: number }
   /** The host. */
   | { t: "act"; action: HostAction }
-  /**
-   * A tap, in speaker time, passed on to the speaker: the host's while calibrating, and anyone's
-   * while the room finds a song's beat (找拍子, RoutineInfo.tapIn).
-   */
+  /** The host's tap while the room measures the TV's delay, in speaker time: passed on to the speaker. */
   | { t: "tap"; at: number }
+  /** A phone's language, when it connects and when it's switched: the TV speaks its host's. */
+  | { t: "lang"; lang: Lang }
   /** The speaker after calibrateFromTaps(): how late the room hears its sound. */
   | { t: "calibrated"; audioOffsetMs: number }
   /** A phone's 我在 button: the big screen lights its name up. */
@@ -71,22 +70,19 @@ export type ClientMsg =
   | { t: "songStall" }
   /** The speaker: the song picked is loaded and held at its start; the room starts it (after the lead-in). */
   | { t: "songReady" }
-  /**
-   * The speaker after 找拍子: where the song's first beat is in its video (ms), from how many taps,
-   * how far they strayed (ms), and the video's length as its player gave it. The room keeps it in
-   * the songbook for every room from then on, and starts the song.
-   */
-  | { t: "songTapped"; firstBeatMs: number; taps: number; spreadMs: number; durationMs: number | null }
-  /**
-   * The speaker: YouTube won't play the song here (bad), can't be reached (offline), or 找拍子
-   * didn't find the beat in time (notap). Back to the lobby.
-   */
-  | { t: "songFailed"; why: "bad" | "offline" | "notap" };
+  /** The speaker: YouTube won't play the song here (bad), or can't be reached (offline). Back to the lobby. */
+  | { t: "songFailed"; why: "bad" | "offline" };
+
+/** The pages' two languages. */
+export type Lang = "zh" | "en";
 
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
-  /** calibrated: this room has measured its TV's delay (a song's beat tapped here is kept for every room). */
-  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null; calibrated?: boolean }
+  /**
+   * calibrated: this room has measured its TV's delay. lang: the host's phone's language, which the
+   * TV speaks (it has no buttons of its own); absent until the host's phone has said.
+   */
+  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null; calibrated?: boolean; lang?: Lang }
   /** serverAt: the room's clock when the ping came in; speakerAt: the speaker's then (null: no speaker yet). */
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }
@@ -117,15 +113,9 @@ export interface RoutineInfo {
   fromBeat: number;
   /**
    * From the end of the part before the dance to its first beat (ms): the count-in, or for a song
-   * its intro, as the songbook has it when the room picks the song (the show's own when absent).
+   * its intro (the show's own).
    */
   introMs?: number;
-  /**
-   * A song nobody has tapped along to yet: before anything else the video plays from its start and
-   * everyone taps along on their phones (找拍子) until the speaker has the beat (songTapped). Then
-   * the song starts from its start as any other does.
-   */
-  tapIn?: boolean;
   /** Paused by the host at this speaker time: nothing plays until 继续 (RESUME) moves the run later. */
   pausedAt?: number;
   /**

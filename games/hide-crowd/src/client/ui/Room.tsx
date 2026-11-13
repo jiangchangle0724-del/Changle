@@ -314,7 +314,7 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
   return (
     <>
     <main class="room-play" inert={upright}>
-      <Play view={view} game={view.game} receivedAt={session.receivedAt} serverOffset={session.offset} send={send} onMenu={() => setMenu(true)} fullscreen={full} music={props.practice}>
+      <Play view={view} game={view.game} receivedAt={session.receivedAt} serverOffset={session.offset} send={send} onMenu={() => setMenu(true)} fullscreen={full} music={props.practice} fullGuide={home.wanted ? home.show : undefined}>
         {session.status === "offline" && (
           <p class="conn-banner is-floating" role="status">
             {t("reconnecting")}

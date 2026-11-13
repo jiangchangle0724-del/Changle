@@ -4,9 +4,11 @@
 //
 // The arena is 100 by 58 units. 18 passers-by wander it the way people do (each its own pace, stops
 // to look around or at someone, tags along behind someone, now and then breaks into a run); 2 to 8
-// players hide among them. Some places have a moment the whole crowd reacts to (the ferry horn, the
-// opera gong): the passers-by stop and look, and a player who doesn't stands out. A punch that lands
-// on a rival scores; one that lands on a passer-by knocks the passer-by down and stuns you. A tagged
+// players hide among them. Every place has a moment the whole crowd reacts to (the ferry horn, the
+// busker, the opera gong): the passers-by stop and look, or dance on the spot, and a player who
+// doesn't stands out. Anyone knocked down draws the looks of the people near them for a second or
+// two. A punch that lands on a rival scores; one that lands on a passer-by knocks the passer-by down
+// and stuns you. A tagged
 // player slips back into the crowd: once they get up, they swap bodies with a passer-by far away, so
 // nobody can keep hitting the same one. First to 3 tags, or the most tags after 75 s.
 
@@ -35,9 +37,9 @@ export const BLEND_COOLDOWN_MS = 6_000;
 /** A tagged player's new body is at least this far from whoever tagged them (when the crowd allows). */
 export const HIDE_AWAY_DISTANCE = 24;
 
-export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned";
-/** the moments the whole crowd reacts to: the ferry horn by the seawall, the gong at the theatre */
-export type MomentKind = "horn" | "gong";
+export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" | "dance";
+/** the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall, the gong at the theatre */
+export type MomentKind = "horn" | "dance" | "gong";
 export type ArenaId = "plaza" | "metro" | "gallery";
 export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery"];
 export interface Vector { x: number; y: number }
@@ -108,6 +110,14 @@ export interface MatchEvent {
   target: string | null;
 }
 
+/** Someone knocked down: where, when, and who (they don't stare at themselves). */
+export interface Commotion {
+  x: number;
+  y: number;
+  at: number;
+  who: string;
+}
+
 export interface MatchState {
   phase: "playing" | "over";
   arena: ArenaId;
@@ -119,6 +129,8 @@ export interface MatchState {
   winnerId: string | null;
   events: MatchEvent[];
   nextEventId: number;
+  /** the knockdowns the people nearby are still looking at (a round saved before there were any has none) */
+  commotions?: Commotion[];
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -305,7 +317,8 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: Are
     characters,
     winnerId: null,
     events: [],
-    nextEventId: 1
+    nextEventId: 1,
+    commotions: []
   };
 }
 
@@ -404,10 +417,13 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
   return { mode: "walk", x: goal.x, y: goal.y, pace: run ? RUN_PACE : low + random() * (high - low), since: now, until: now + 9_000, other: null, count };
 }
 
-/** The ferry horn and the gong: when, for how long, and where the crowd looks. */
-const MOMENTS: Partial<Record<ArenaId, { kind: MomentKind; first: number; every: number; lasts: number; look: Vector }>> = {
+/** The ferry horn, the busker and the gong: when, for how long, and where the crowd looks (nowhere: it dances). */
+const MOMENTS: Record<ArenaId, { kind: MomentKind; first: number; every: number; lasts: number; look: Vector | null }> = {
   // the sea beyond the seawall's railing (far behind the crowd: everyone looks the same way)
   plaza: { kind: "horn", first: 9_000, every: 15_000, lasts: 2_600, look: { x: 50, y: -400 } },
+  // a busker strikes up and the whole hall dances on the spot (always in one of the walkway's quiet
+  // spells, which come every 6 s: nobody dances while the floor carries them)
+  metro: { kind: "dance", first: 8_800, every: 18_000, lasts: 2_700, look: null },
   // the stage, just behind the back row
   gallery: { kind: "gong", first: 12_000, every: 17_000, lasts: 2_600, look: { x: 50, y: -6 } }
 };
@@ -416,7 +432,8 @@ export interface CrowdMoment {
   kind: MomentKind;
   startsAt: number;
   endsAt: number;
-  look: Vector;
+  /** where everyone looks; null while they dance */
+  look: Vector | null;
 }
 
 /** The moment the crowd is reacting to now, if any (the same for everyone, from the round's start). */
@@ -434,6 +451,25 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
 /** How long a body takes to react to a moment: people don't all turn at once. */
 export const reactionDelay = (id: string) => 120 + (idHash(id) % 520);
 
+/** How far a knockdown draws the looks of the people around it, and for how long (ms). */
+export const COMMOTION_RADIUS = 15;
+export const COMMOTION_MS = 1_900;
+
+/** The knockdown this body is looking at now, if any: the nearest, from a beat after it until it's old news. */
+export function commotionFor(body: Pick<Character, "id" | "x" | "y">, commotions: readonly Commotion[] | undefined, now: number): Commotion | null {
+  let nearest: Commotion | null = null;
+  let best = COMMOTION_RADIUS;
+  for (const fuss of commotions ?? []) {
+    if (fuss.who === body.id || now < fuss.at + reactionDelay(body.id) * 0.5 || now >= fuss.at + COMMOTION_MS) continue;
+    const distance = Math.hypot(fuss.x - body.x, fuss.y - body.y);
+    if (distance < best) {
+      nearest = fuss;
+      best = distance;
+    }
+  }
+  return nearest;
+}
+
 /** What a passer-by (or a computer rival copying one) does this tick: which way, how fast, where it faces when still. */
 export interface CrowdStep {
   plan: Plan;
@@ -450,15 +486,19 @@ export interface CrowdStep {
 export function crowdStep(
   body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan" | "facing">,
   others: readonly Neighbour[],
-  game: Pick<MatchState, "arena" | "startedAt" | "seed">,
+  game: Pick<MatchState, "arena" | "startedAt" | "seed" | "commotions">,
   now: number
 ): CrowdStep {
   const moment = crowdMoment(game.arena, game.startedAt, now);
   let plan = body.plan ?? restingPlan(body.x, body.y);
   if (moment && now >= moment.startsAt + reactionDelay(body.id)) {
-    // everyone stops and looks (and picks up where they were once it's over)
-    return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(moment.look.y - body.y, moment.look.x - body.x), glance: false };
+    // everyone stops and looks, or dances where they stand (and picks up where they were once it's over)
+    const face = moment.look ? Math.atan2(moment.look.y - body.y, moment.look.x - body.x) : null;
+    return { plan, heading: { x: 0, y: 0 }, pace: 0, face, glance: false };
   }
+  // someone knocked down nearby: stop and look
+  const fuss = commotionFor(body, game.commotions, now);
+  if (fuss) return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(fuss.y - body.y, fuss.x - body.x), glance: false };
   const done = (current: Plan) => {
     if (now >= current.until) return true;
     if (current.mode === "walk") return Math.hypot(current.x - body.x, current.y - body.y) < 1.6;
@@ -514,6 +554,7 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
     addEvent(state, "swing", attacker.ownerId, null);
     return;
   }
+  state.commotions = [...(state.commotions ?? []), { x: target.x, y: target.y, at: now, who: target.id }];
   if (target.kind === "npc") {
     // the passer-by goes down (everyone sees who was punched), and the puncher is stunned
     target.stunnedUntil = now + STUN_MS;
@@ -651,10 +692,13 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       velocity: { ...(character.velocity ?? { x: 0, y: 0 }) },
       recoil: { ...character.recoil }
     })),
-    events: [...state.events]
+    events: [...state.events],
+    commotions: (state.commotions ?? []).filter((fuss) => now - fuss.at < COMMOTION_MS)
   };
   const dt = bounded(now - state.lastTickAt, 0, 120) / 1_000;
   const laneDrift = environmentalDrift(state.arena, state.startedAt, now).x;
+  // while the busker plays, anyone standing still dances (players too: it's how they blend in)
+  const dancing = crowdMoment(state.arena, state.startedAt, now)?.kind === "dance";
   // tagged players who are back on their feet slip into the crowd first
   next.characters.forEach((character, index) => {
     if (character.kind === "player" && character.hideAt !== null && now >= character.hideAt) hideAway(next, index, now);
@@ -701,6 +745,8 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     const moveX = character.velocity.x;
     const moveY = character.velocity.y;
     const moving = Math.hypot(moveX, moveY) > 0.65;
+    // (moving on the floor, not just carried by the walkway)
+    const walking = Math.hypot(moveX - laneDrift, moveY) > 0.65;
     // a passer-by standing still turns (gently) to what it's looking at, even while the crowd jostles it
     const looking = step !== null && step.face !== null && step.heading.x === 0 && step.heading.y === 0;
     if (looking) character.facing = turnToward(character.facing, step!.face!, TURN_RATE * 0.45 * dt);
@@ -717,6 +763,7 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       character.pose = "punch";
       resolvePunch(next, character, now);
     } else if (character.attackResolved && character.attackResolveAt !== null && now <= character.attackResolveAt + 220) character.pose = "punch";
+    else if (dancing && !walking) character.pose = "dance";
     else if (blended) character.pose = "glance";
     else if (moving) character.pose = "walk";
     else if (step?.glance) character.pose = "glance";

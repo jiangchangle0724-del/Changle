@@ -46,7 +46,7 @@ interface Visual {
   pose: Pose;
   poseStartedAt: number;
 }
-type FrameMetrics = { fps: number; avg: number; p95: number; slow: number; quality: RenderQuality; dpr: number };
+type FrameMetrics = { fps: number; avg: number; p95: number; slow: number; quality: RenderQuality; dpr: number; draws: number; js: number };
 interface Palette {
   bg: string;
   sky: string;
@@ -862,25 +862,50 @@ export function Arena3D(props: Props) {
     markerTexture.colorSpace = THREE.SRGBColorSpace;
     const markerMaterial = new THREE.SpriteMaterial({ map: markerTexture, depthTest: false, transparent: true });
     const marker = new THREE.Sprite(markerMaterial);
-    const paintMarker = () => {
-      if (!markerContext) return;
-      markerContext.clearRect(0, 0, markerCanvas.width, markerCanvas.height);
-      markerContext.fillStyle = palette.me;
-      // a pill (drawn by hand: older iPhones have no roundRect)
-      markerContext.beginPath();
-      markerContext.moveTo(60, 14);
-      markerContext.arcTo(502, 14, 502, 114, 50);
-      markerContext.arcTo(502, 114, 10, 114, 50);
-      markerContext.arcTo(10, 114, 10, 14, 50);
-      markerContext.arcTo(10, 14, 502, 14, 50);
-      markerContext.closePath();
-      markerContext.fill();
-      markerContext.fillStyle = palette.onMe;
-      markerContext.font = "700 68px " + palette.font;
-      markerContext.textAlign = "center";
-      markerContext.textBaseline = "middle";
-      markerContext.fillText(youLabel.current, 256, 64, 450);
-      markerTexture.needsUpdate = true;
+    /** A label in a pill on a 512 x 128 canvas (drawn by hand: older iPhones have no roundRect). */
+    const paintPill = (context: CanvasRenderingContext2D | null, texture: THREE.CanvasTexture, fill: string, ink: string, text: string) => {
+      if (!context) return;
+      context.clearRect(0, 0, 512, 128);
+      context.fillStyle = fill;
+      context.beginPath();
+      context.moveTo(60, 14);
+      context.arcTo(502, 14, 502, 114, 50);
+      context.arcTo(502, 114, 10, 114, 50);
+      context.arcTo(10, 114, 10, 14, 50);
+      context.arcTo(10, 14, 502, 14, 50);
+      context.closePath();
+      context.fill();
+      context.fillStyle = ink;
+      context.font = "700 68px " + palette.font;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(text, 256, 64, 450);
+      texture.needsUpdate = true;
+    };
+    const paintMarker = () => paintPill(markerContext, markerTexture, palette.me, palette.onMe, youLabel.current);
+    // once the round is over: every player's name over the body they were (the winner's in the gel)
+    const tags: { sprite: THREE.Sprite; context: CanvasRenderingContext2D | null; texture: THREE.CanvasTexture; painted: string }[] = [];
+    /** a name's size on screen, in the projection's units (-1 to 1 across), measured once the camera is framed */
+    const tagSize = new THREE.Vector2(0.3, 0.1);
+    const measureTags = () => {
+      const centre = new THREE.Vector3(0, MARKER_Y, 0).project(camera);
+      const right = new THREE.Vector3(2.4, MARKER_Y, 0).project(camera);
+      const up = new THREE.Vector3(0, MARKER_Y + 0.6, 0).project(camera);
+      tagSize.set(Math.abs(right.x - centre.x), Math.abs(up.y - centre.y));
+    };
+    const tagAt = (slot: number) => {
+      if (!tags[slot]) {
+        const tagCanvas = document.createElement("canvas");
+        tagCanvas.width = 512;
+        tagCanvas.height = 128;
+        const texture = new THREE.CanvasTexture(tagCanvas);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
+        sprite.scale.set(2.4, 0.6, 1);
+        scene.add(sprite);
+        tags[slot] = { sprite, context: tagCanvas.getContext("2d"), texture, painted: "" };
+      }
+      return tags[slot];
     };
     paintMarker();
     let paintedLabel = props.youLabel;
@@ -905,6 +930,8 @@ export function Arena3D(props: Props) {
       camera.position.copy(eye);
       camera.lookAt(look);
       camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+      measureTags();
     };
     resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(canvas);
@@ -921,6 +948,9 @@ export function Arena3D(props: Props) {
     let fpsTotalMs = 0;
     let fpsSlowestMs = 0;
     let frameTimes: number[] = [];
+    /** the page's own work a frame (moving everyone and handing the picture to the graphics chip), and its draws */
+    let fpsWorkMs = 0;
+    let draws = 0;
     let shakeAt = 0;
     let shakeStrength = 0;
     let lastImpact = props.impactId;
@@ -937,9 +967,11 @@ export function Arena3D(props: Props) {
         fpsSamples = 0;
         fpsTotalMs = 0;
         fpsSlowestMs = 0;
+        fpsWorkMs = 0;
         frameTimes = [];
         return;
       }
+      const workStartedAt = performance.now();
       const frameMs = previous ? time - previous : 16;
       const delta = Math.min(50, frameMs);
       previous = time;
@@ -964,13 +996,16 @@ export function Arena3D(props: Props) {
             p95: Math.round(p95 * 10) / 10,
             slow: Math.round(fpsSlowestMs * 10) / 10,
             quality: qualityState.level,
-            dpr: Math.round(renderer.getPixelRatio() * 100) / 100
+            dpr: Math.round(renderer.getPixelRatio() * 100) / 100,
+            draws,
+            js: Math.round((fpsWorkMs / fpsSamples) * 10) / 10
           });
         }
         fpsStartedAt = time;
         fpsSamples = 0;
         fpsTotalMs = 0;
         fpsSlowestMs = 0;
+        fpsWorkMs = 0;
         frameTimes = [];
       }
       if (impact.current !== lastImpact) {
@@ -995,6 +1030,9 @@ export function Arena3D(props: Props) {
       const ease = reduced ? 1 : frozen ? 0 : 1 - Math.exp(-(delta * pace) / 46);
       if (ruleMarks.belt) ruleMarks.belt.offset.x -= (drift.current.x * SCENE_PER_WORLD * delta) / 1000 / ruleMarks.beltRepeat;
       const snapshot = targets.current;
+      // (the round is over once the bodies have names: everyone stops where they are)
+      const over = snapshot.some((avatar) => avatar.n !== undefined);
+      let tagCount = 0;
       shadows.count = snapshot.length;
       standInBodies.count = kit ? 0 : snapshot.length;
       standInHeads.count = standInBodies.count;
@@ -1031,7 +1069,7 @@ export function Arena3D(props: Props) {
         const targetZ = sceneZ(worldY);
         // how fast the legs go: over the floor under the feet (the transit hall's walkway carries everyone on
         // it, so someone standing on it glides; the rules count the walkway in the body's speed)
-        const targetSpeed = avatar.p === "stunned" ? 0 : Math.hypot(velocityX - drift.current.x, velocityY - drift.current.y);
+        const targetSpeed = avatar.p === "stunned" || over ? 0 : Math.hypot(velocityX - drift.current.x, velocityY - drift.current.y);
         const visual = visuals[index] ?? (visuals[index] = {
           x: targetX,
           z: targetZ,
@@ -1090,6 +1128,33 @@ export function Arena3D(props: Props) {
           writeInstance(standInHeads, index, dummy, visual.x, 1.62 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1);
         }
         if (avatar.me) localVisual = visual;
+        if (avatar.n !== undefined) {
+          const tag = tagAt(tagCount++);
+          const key = (avatar.w ? "1" : "0") + avatar.n;
+          if (tag.painted !== key) {
+            paintPill(tag.context, tag.texture, avatar.w ? palette.me : palette.surface, avatar.w ? palette.onMe : palette.ink, avatar.n);
+            tag.painted = key;
+          }
+          tag.sprite.position.set(visual.x, MARKER_Y, visual.z);
+          tag.sprite.visible = true;
+        }
+      }
+      for (let index = tagCount; index < tags.length; index++) tags[index].sprite.visible = false;
+      // names close together stack instead of covering each other (front first, the others lift)
+      if (tagCount > 1) {
+        const placed: THREE.Vector3[] = [];
+        const order = tags.slice(0, tagCount).sort((a, b) => b.sprite.position.z - a.sprite.position.z);
+        for (const tag of order) {
+          for (let lift = 0; lift < tagCount; lift++) {
+            const here = tag.sprite.position.clone().project(camera);
+            const clash = placed.some((other) => Math.abs(other.x - here.x) < tagSize.x && Math.abs(other.y - here.y) < tagSize.y);
+            if (!clash) {
+              placed.push(here);
+              break;
+            }
+            tag.sprite.position.y += 0.62;
+          }
+        }
       }
       for (let index = snapshot.length; index < people.length; index++) if (people[index]) people[index].root.visible = false;
       impactRings.count = activeImpactRings;
@@ -1099,7 +1164,8 @@ export function Arena3D(props: Props) {
         standInBodies.instanceMatrix.needsUpdate = true;
         standInHeads.instanceMatrix.needsUpdate = true;
       }
-      if (localVisual) {
+      // (once the names are out, yours is among them)
+      if (localVisual && !over) {
         marker.position.set(localVisual.x, MARKER_Y, localVisual.z);
         marker.visible = true;
       } else marker.visible = false;
@@ -1139,6 +1205,8 @@ export function Arena3D(props: Props) {
       camera.position.set(eye.x + shake + (look.x - eye.x) * kick, eye.y + Math.abs(shake) * 0.34 + (look.y - eye.y) * kick, eye.z + (look.z - eye.z) * kick);
       camera.lookAt(look.x + shake, look.y - shake * 0.22, look.z);
       renderer.render(scene, camera);
+      draws = renderer.info.render.calls;
+      fpsWorkMs += performance.now() - workStartedAt;
     };
     frame = requestAnimationFrame(animate);
 
@@ -1161,6 +1229,10 @@ export function Arena3D(props: Props) {
       });
       marker.material.dispose();
       markerTexture.dispose();
+      for (const tag of tags) {
+        tag.sprite.material.dispose();
+        tag.texture.dispose();
+      }
       groundTexture.dispose();
       ruleMarks.dispose();
       shadowTexture.dispose();

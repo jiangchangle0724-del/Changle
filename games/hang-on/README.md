@@ -7,15 +7,16 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 
 | 路径 | 是什么 |
 | --- | --- |
-| `src/physics/` | Rapier2D 物理（A1）：`world.ts` 世界和玩家，`config.ts` 手感参数，`level.ts` 关卡类型和样例关，`replay.ts` 无头回放 |
+| `src/physics/` | Rapier2D 物理（A1）：`world.ts` 世界和玩家，`config.ts` 手感参数，`level.ts` 关卡类型、样例关和机关样板关，`motion.ts` 会动的台子和转杆在第几秒在哪（物理和画面共用），`replay.ts` 无头回放 |
 | `src/physics/feel.test.ts` | 原型的 20 条手感检查，移植到 Rapier 版 |
 | `src/physics/extras.test.ts` | 检查点、跷跷板和箱子、回放、步长 |
 | `src/physics/gameplay.test.ts` | A3 的玩法：饼干平台、弹簧蜡烛、背叛判定、召唤、落地事件 |
+| `src/physics/hazards.test.ts` | A6 的机关：碰到就死的尖刺、烫、电，会动的台子，会转的杆子，按人数摆的关 |
 | `src/render/` | 画面（A3，Pixi 8）：`stage.ts` 镜头、图层、事件→动效、慢动作；`backdrop.ts` 两个世界的视差背景；`terrain.ts` 平台按材质贴图、饼干、蜡烛、灯、旗；`dumpling.ts` 糯米团（脸、帽子、眼镜、挤压拉伸、复活掉落）；`fx.ts` 粒子池；`art.ts` 色板和程序画的贴图 |
 | `src/audio/sfx.ts` | 音效（A3）：全部 WebAudio 现场合成，没有音频文件；每个人的尖叫音高不同 |
 | `src/look.ts` | 换装的选项（帽子、眼镜、眼睛、脸、袖子、嗓子）和中英名字，手柄页和主机共用 |
 | `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
-| `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关）加彩蛋关「桌上杂技」 |
+| `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」 |
 | `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入 |
 | `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计，`snap.ts` 手机局的画面快照（主机压、手机拼成 `RemoteSim`） |
 | `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜，画法在 `src/results.ts`）、声音开关，键盘也能加入。在手机上打开就是手机局（见下） |
@@ -24,6 +25,7 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `scripts/link-check.mjs` | 联机检查：一台主机页加两个手柄页对着本地房间服务跑一遍（直连、绕路、掐线 5 秒内回来） |
 | `scripts/lobby-check.mjs` | 大厅检查：真点开始、切语言、到顶出结算、下一关、回大厅 |
 | `scripts/phone-check.mjs` | 手机局检查：一部手机开房自己也玩，两部手机进来都有画面，倒数、到顶、结算、再来一次跟着走，直连 20 张一秒、绕路 10 张一秒，电视局的手柄不下载画面 |
+| `scripts/run-levels.mjs` | 关卡验收（`npm run levels`）：每关的格式、大小、检查点、机关、回放都得过；难关和按人数摆的关另有规则（`CONTRACTS.md`「关卡契约」） |
 | `scripts/ip-check.mjs` | 法律线：docs/ 之外不出现原版的名字 |
 | `proto/` | 最早的 Verlet 软体手感原型，零依赖，留作参照（`node proto/sim.test.mjs`） |
 
@@ -38,7 +40,8 @@ npm run dev         # 整套本地跑：http://<这台电脑的 IP>:8787/hang-on
 npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwright 的 Chromium：npx playwright install chromium）
 npm run lobby-check # 同上：大厅、结算、下一关
 npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
-npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=4 放 4 个人量帧时间）
+npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=4 放 4 个人量帧时间，?level=proto-02 / proto-03 是机关样板关）
+npm run levels      # 关卡验收：每关的规则加回放（-- --screenshots 重拍 docs/levels/ 的截图）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON
 npm run ip-check    # 法律线，CI 里为零才合并
 ```

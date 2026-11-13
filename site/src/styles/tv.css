@@ -180,6 +180,70 @@ html.tv-mode .room-light {
   }
 }
 
+/* ---------- a phone or tablet held upright: the stage is small, a word below it to turn the device ---------- */
+/* On the screen itself, outside the stage, so in the page's own tokens. Only an upright touch
+   screen sees it (a TV or a computer never does); turning the device makes it go. */
+.tv-turn {
+  display: none;
+}
+@media (orientation: portrait) and (max-width: 1024px) and (any-pointer: coarse) {
+  .tv-turn {
+    position: absolute;
+    left: var(--space-4);
+    right: var(--space-4);
+    bottom: max(var(--space-8), calc(var(--safe-bottom) + var(--space-4)));
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: fit-content;
+    margin: 0 auto;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--r-panel);
+    background: color-mix(in oklab, var(--color-surface) 92%, transparent);
+    box-shadow: var(--shadow-float);
+    color: var(--color-text);
+  }
+}
+.tv-turn-icon {
+  flex: none;
+  color: var(--color-text);
+  animation: tv-turn-tilt 2.8s var(--ease-out) infinite;
+}
+.tv-turn-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+}
+.tv-turn-text small {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-2);
+}
+/* the phone on the icon turns on its side, the way the hand should */
+@keyframes tv-turn-tilt {
+  0%,
+  22% {
+    rotate: 0deg;
+  }
+  48%,
+  74% {
+    rotate: -90deg;
+  }
+  100% {
+    rotate: 0deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-turn-icon {
+    animation: none;
+    rotate: -90deg;
+  }
+}
+
 /* ---------- notices: connecting, ended, moved ---------- */
 .tv-notice {
   position: absolute;

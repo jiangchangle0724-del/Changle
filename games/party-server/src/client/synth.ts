@@ -16,6 +16,15 @@ const BASS = [
   [130.81, 98],
 ];
 
+/** Inside a tap: the audio clock going, and a silent sound played (what unlocks audio on iOS). */
+function unlock(ctx: AudioContext) {
+  void ctx.resume();
+  const s = ctx.createBufferSource();
+  s.buffer = ctx.createBuffer(1, 1, 22050);
+  s.connect(ctx.destination);
+  s.start(0);
+}
+
 export class Synth {
   private ctx: BaseAudioContext | null = null;
   private out: GainNode | null = null;
@@ -30,13 +39,7 @@ export class Synth {
   start(): void {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const ctx = new AC({ latencyHint: "interactive" });
-    void ctx.resume();
-    // a silent sound first: what unlocks audio on iOS
-    const b = ctx.createBuffer(1, 1, 22050);
-    const s = ctx.createBufferSource();
-    s.buffer = b;
-    s.connect(ctx.destination);
-    s.start(0);
+    unlock(ctx);
     this.wire(ctx);
   }
 
@@ -94,9 +97,9 @@ export class Synth {
     return this.ctx?.state === "running";
   }
 
-  /** Audio stopped (the page went to the background): start it again, inside a tap. */
+  /** The sound on, inside a tap: the first time, or again after the page went to the background. */
   resume(): void {
-    if (this.ctx && !this.offlineClock) void (this.ctx as AudioContext).resume();
+    if (this.ctx && !this.offlineClock) unlock(this.ctx as AudioContext);
     else if (!this.ctx) this.start();
   }
 
