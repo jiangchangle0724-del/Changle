@@ -4,7 +4,16 @@ The server behind **changle.ca/split**: ledgers shared between phones. The pages
 main site's (`site/src/split/`); this Worker answers only `changle.ca/split/api`.
 
 The plan is `docs/split.md`; where it stands and what's next is in `docs/briefs/split.md`.
-**It is not connected to Cloudflare yet**: nothing here is live until the Worker is made there.
+**It is live** at `changle.ca/split/api` since 2026-11-13, and no page uses it yet.
+
+## How a change goes live
+
+Merge into `main`. Cloudflare builds and publishes the Worker `split` by itself (Workers Builds:
+root directory `/tools/split`, no build command, `npx wrangler deploy`, branch `main`, no preview
+builds). It watches three paths, because the server is bundled from the phone's own rules:
+`tools/split/*`, `site/src/split/*` and `site/src/tools/money.ts`. If the server ever imports
+another file of the site's, add its path to the Worker's build watch paths in Cloudflare (Settings,
+Builds), or a change there will publish the site and leave the server behind.
 
 ## How it is made
 
@@ -45,5 +54,5 @@ npm ci
 npm run typecheck
 npm test              # the room
 npm run test:server   # the Worker, on this machine
-npm run dev           # http://localhost:8787/split/api
+npm run dev           # http://localhost:8794/split/api
 ```

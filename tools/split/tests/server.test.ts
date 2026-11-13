@@ -7,7 +7,7 @@ import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
 import { KEY_HEADER, LIVE_PROTOCOL, type Push, type Pushed, type Since, type Snapshot } from "../src/room/protocol";
 
-const PORT = 8796;
+const PORT = 8794;
 const HOST = `127.0.0.1:${PORT}`;
 const API = `http://${HOST}/split/api`;
 let server: ChildProcess;

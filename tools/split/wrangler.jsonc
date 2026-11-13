@@ -1,6 +1,6 @@
 // Cloudflare settings for 两清 · All Square's server: its own Worker, answering only
 // changle.ca/split/api. (The pages at changle.ca/split are the main site's own, in site/src/split.)
-// A merge into main publishes it once Cloudflare is connected to the repository. No secrets.
+// A merge into main publishes it (Cloudflare Workers Builds, connected 2026-11-13). No secrets.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "split",

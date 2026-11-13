@@ -49,11 +49,11 @@
 
 - `site/src/router.ts`：/split 这一种页面（已加）。不要把 `split` 加进 `elsewhere`（那一串是整条路径都归别的 Worker 的）。
 - `site/src/App.tsx`：/split 的画面按需下载（已加）。
-- `site/scripts/sw.template.js`：离线缓存不要拿主站的页面顶替 /split/api 的请求（第二期，服务器上线时）。
-- `site/vite.config.ts`：本地把 /split/api 代理到本地的 Worker（第二期）。
-- `site/public/robots.txt`：`Disallow: /split/api/`，带钥匙的账本页也不让收录（第二期）。
+- `site/scripts/sw.template.js`：不用加（2026-11-13 看过）。这个离线缓存只管打开页面和 `/assets/` 下的文件，别的请求它不碰，/split/api 本来就直接走网络。
+- `site/vite.config.ts`：本地把 /split/api 代理到本地的 Worker（第二期第 4 步，手机接上同步时加；本地的 Worker 在 8794 端口，`tools/split` 里 `npm run dev`）。
+- `site/public/robots.txt`：`Disallow: /split/api/`（已加）。带钥匙的账本页不让收录这件事，到第 5 步定链接长什么样时一起做。
 - `site/tests/routes.test.ts`：/split 的地址（已加）。
-- `HANDOFF.md`：「What changle.ca is made of」和「Settings」两张表各一行（第二期，Worker 上线时）。
+- `HANDOFF.md`：「What changle.ca is made of」和「Settings」两张表各一行，工具那一段一句（已加）。
 - `site/src/tools/ToolsTab.tsx`：入口卡。三道验收门都过了才加。加的那天要同时改 `tests/split-screens.test.ts` 最后一节：它现在查的就是「除了 router.ts 和 App.tsx，站里没有别的地方提到 /split」。
 
 ## 先读
@@ -146,7 +146,7 @@
 
 ## 现在
 
-2026-11-13：第二期做完了前两步（Steve 说直接开始，不等他记 10 笔）。第 1 步是改动的规则和测试（`changes.ts`）。第 2 步是服务器（`tools/split/`）：写好了，在本机用 Cloudflare 的运行环境测过，还没接上 Cloudflare，所以线上没有它。画面还没接上，线上看不出变化。小样照旧在 changle.ca/split，藏着，账本只存在打开它的那部手机上。下一步是接上 Cloudflare，要先问 Steve。
+2026-11-13：第二期做完了前三步（Steve 说直接开始，不等他记 10 笔）。第 1 步是改动的规则和测试（`changes.ts`）。第 2 步是服务器（`tools/split/`）。第 3 步是接上 Cloudflare：服务器上线了，在 changle.ca/split/api（Worker `split`，合并到 main 自己上线）。页面还没用它，用户看不出变化。小样照旧在 changle.ca/split，藏着，账本只存在打开它的那部手机上。下一步是第 4 步：手机接上同步。
 
 第一期：Codex 的第二份算账合并了（PR #423），它查出 core 的一个错（删除时间是 0 的账还在算），改了（PR #438）。验收门 1 的前两条过了，第三条（Steve 记 10 笔）欠着。
 
@@ -156,7 +156,7 @@
 - 第二期，一步一个 PR，按这个顺序：
   1. 改动的规则和测试（做完了，2026-11-13）。
   2. 服务器 `tools/split/`（做完了，2026-11-13；还没接上 Cloudflare）。
-  3. 接上 Cloudflare（下一步，等 Steve 点头）：新建 Worker `split`，接上 GitHub 仓库，根目录填 `tools/split`；它只接 changle.ca/split/api，路由已经写在 `wrangler.jsonc` 里。照约时间的做法（`docs/briefs/when.md` 里 2026-11-12 晚那一条）：用 Claude 桌面应用自带的浏览器进 Cloudflare；根目录 `/tools/split`，不用构建命令，部署命令 `npx wrangler deploy`，分支 `main`，不建预览。盯的路径要写三处：`tools/split/*`、`site/src/split/*`、`site/src/tools/money.ts`。服务器是拿手机那份规矩一起打包的，只盯自己的文件夹的话，改了 `changes.ts` 以后网站上线了、服务器却还是旧的，两边就对不上。Cloudflare 要是让重新登录，停下来请 Steve 自己登。不花钱（免费额度内），但是改 Cloudflare 设置：做之前跟 Steve 说一声，用他的电脑点（约时间 11-13 刚这样接过，照 `docs/briefs/when.md`）。同时加共用文件里自己的那几行（`sw.template.js`、`vite.config.ts`、`robots.txt`、`HANDOFF.md`）。
+  3. 接上 Cloudflare（做完了，2026-11-13；怎么设的写在 `tools/split/README.md`）。线上留着一个检查用的账本（名字「上线检查 deploy check」，两个人两笔），等有了删账本的功能再删。
   4. 手机这边：账本从服务器来，手机上那份变成副本；没发出去的改动排队，有信号就发；别人记了账马上看到；哪一笔没存上要说出来。
   5. 链接加入：点开链接在名单里选自己，名单里没有就加上；开账本的人能换链接、锁账本。
   6. 登录了才能开账本，「我的账本」跟着账号走（每个账号一个对象；向房间服务器的 `/api/me` 认人，照 `docs/briefs/tuan.md` 查过的做法）。每个账号每天最多开 10 个。
@@ -180,6 +180,7 @@
 
 提交记录原文，最新的在上面。
 
+- 2026-11-13 两清: the server is live at changle.ca/split/api (stage two, step 3)
 - 2026-11-13 两清: the server, one Durable Object per ledger, run and tested on this machine (stage two, step 2)
 - 2026-11-13 两清: changes, as phones send them and the server takes them (stage two, step 1)
 - 2026-11-13 两清: an entry taken out at time 0 is taken out
@@ -202,3 +203,5 @@
 - 2026-11-13 Steve 说「直接开始第二期」。读了方案里第二期的部分和 `tools/when/` 的做法；当时开着的 PR 没有碰两清的。定了同步规则（见「定过的事」），写了 `changes.ts` 和它的测试，故意改坏六条规则它都红。写测试时发现一件要写进规则的事：手机必须把没确认的改动按先后一起发，不然「删这一笔」可能比「记这一笔」先到，被当成没这回事。首页 js 还是 121.6 KB；两清自己那一块没变，画面还没用上 `changes.ts`。问了 Steve 小样阶段手机上的账本怎么办，等他回。
 - 2026-11-13 Steve 回了 A：小样阶段存在手机上的账本不保留。记进了「定过的事」和「还剩什么」。
 - 2026-11-13 第二期第 2 步：服务器。照 `tools/when/` 的做法写了 `tools/split/`：账本房间一层（不靠 Cloudflare），外面包 Durable Object 和路由，有自己的 CI。改动的规矩没有在服务器里重写一遍，直接用手机那一份（`changes.ts`）。在本机用 `wrangler dev` 把它跑起来测了：开账本、钥匙、发改动、重发、记录、一部手机听到另一部记的账，都过。房间故意改坏五处，测试都红。没碰 Cloudflare，没部署。当时开着的 PR 没有碰两清的。
+- 2026-11-13 下午 Steve 回「可以」。第 3 步：在他电脑上 Claude 桌面应用自带的浏览器里进 Cloudflare（登录着的，没有让重新登录）。Create application，选 GitHub 仓库 Changle，名字 `split`，根目录 `/tools/split`，不填构建命令，`npx wrangler deploy`，关掉预览构建；构建用的钥匙选的是已有的那一把（suibian build token），没有新建钥匙。建好以后把盯的路径从 `*` 改成三处（`tools/split/*`、`site/src/split/*`、`site/src/tools/money.ts`），存好，重开页面看过还在。分支是 main。第一次构建部署成功。
+- 2026-11-13 线上验了一遍，从真浏览器在 changle.ca 上：开账本 201，同一把钥匙再开一次 200，钥匙不对和没带钥匙都是 403；发改动、重发只算一次、读回来对、记录对；实时连接收到三次账本（序号 0、1、2）和 pong；钥匙不对的实时连接连不上。主站的内容安全策略没有挡这些请求。当时 Cloudflare 免费版的用量是当天 2,692 / 100,000 次请求。本地的 Worker 换到 8794 端口（原来和约时间撞了 8796）。
