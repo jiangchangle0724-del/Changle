@@ -60,10 +60,16 @@ async function allowed(req: Request, env: Env, kind: string, limit: number): Pro
   return env.GATES.get(env.GATES.idFromName(network)).take(kind, limit, vancouverDay(Date.now()));
 }
 
-/** The page itself: never kept by a phone, and nothing on it may run but the site's own files. */
+/**
+ * The page itself: never kept by a phone, and nothing on it may run but the site's own files and
+ * one thing of Cloudflare's: the visitor statistics it adds to every page of changle.ca (Web
+ * Analytics). That script comes from static.cloudflareinsights.com and reports to this site's own
+ * /cdn-cgi/rum, or to cloudflareinsights.com when it was put in by hand. The inline bot check
+ * Cloudflare also adds is still turned away.
+ */
 const PAGE_HEADERS: Record<string, string> = {
   "cache-control": "no-store",
-  "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' wss://changle.ca ws://127.0.0.1:* ws://localhost:*; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com; connect-src 'self' https://cloudflareinsights.com wss://changle.ca ws://127.0.0.1:* ws://localhost:*; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   "referrer-policy": "same-origin",
   "x-content-type-options": "nosniff",
 };

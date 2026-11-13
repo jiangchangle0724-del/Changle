@@ -216,6 +216,25 @@ test("a link to a gathering that isn't there says so, in English too", async ({ 
   await expect(page.locator(".hero h1")).toContainText("When Works");
 });
 
+test("a page runs its own files and Cloudflare's visitor statistics, and nothing else", async ({ request }) => {
+  // a page that is there and one that isn't: both are pages, with the same headers
+  for (const path of ["/when/", "/when/zzzzzzzz"]) {
+    const res = await request.get(path);
+    const policy = Object.fromEntries(
+      (res.headers()["content-security-policy"] ?? "").split("; ").map((part) => {
+        const [name, ...sources] = part.split(" ");
+        return [name, sources];
+      }),
+    );
+    expect(policy["default-src"], path).toEqual(["'self'"]);
+    expect(policy["script-src"], path).toEqual(["'self'", "https://static.cloudflareinsights.com"]);
+    expect(policy["connect-src"], path).toEqual(["'self'", "https://cloudflareinsights.com", "wss://changle.ca", "ws://127.0.0.1:*", "ws://localhost:*"]);
+    expect(policy["style-src"], path).toEqual(["'self'"]);
+    expect(policy["frame-ancestors"], path).toEqual(["'none'"]);
+    expect(res.headers()["cache-control"], path).toBe("no-store");
+  }
+});
+
 test("nothing is wider than a small phone, and every button can be pressed", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 320, height: 568 } });
   const page = await context.newPage();
