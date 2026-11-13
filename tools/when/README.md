@@ -14,11 +14,11 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`, not on the pages yet). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
-| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/After.tsx` (what's next, once its time is set), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. |
+| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; no page uses them yet). |
 | `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`). |
 
 ### What is kept, and for how long
@@ -48,7 +48,15 @@ the page asks again every ten seconds, and the moment it comes back to the front
 
 ### Once the time is set
 
-Every page then asks what's next (`src/client/ui/After.tsx`; the rules are in
+The banner of the time that was set carries **Add to calendar**, for everyone
+(`src/client/ui/Calendar.tsx`). An iPhone, an iPad or a Mac gets the gathering's calendar file,
+`/when/api/e/<code>/calendar.ics` (`src/engine/ics.ts` writes it; it is there only while a time is
+set, and never kept, since the host can choose again); everything else goes to Google Calendar
+with the event filled in. The other of the two is the link beside the button. Inside WeChat
+neither opens, so there the button says how to get to a browser. The times in the file are in UTC
+with no time-zone block, so no calendar can get Vancouver's rules wrong.
+
+Every page also asks what's next (`src/client/ui/After.tsx`; the rules are in
 `src/engine/after.ts`):
 
 - **Tell the group**: the result as words to paste into the chat, in Chinese and in English, with

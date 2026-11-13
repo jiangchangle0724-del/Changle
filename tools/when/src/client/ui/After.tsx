@@ -6,10 +6,7 @@
 import { addDays, dayLabel, EAT_DAYS_AHEAD, eatLink, eatWhen, mealLabel, resultText, vancouverDay } from "../../engine";
 import type { EventState, Lang, Person, Tally } from "../../engine";
 import { t } from "../i18n";
-import { CopyButton, useLang } from "./common";
-
-/** WeChat's built-in browser: Google won't let anyone sign in there, and 随便 needs that to open a table. */
-const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
+import { CopyButton, inWeChat, useLang } from "./common";
 
 export function After({ state, tally, people, host, link }: { state: EventState; tally: Tally; people: Person[]; host: boolean; link: string }) {
   const lang = useLang();

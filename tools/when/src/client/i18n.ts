@@ -74,6 +74,10 @@ const STRINGS = {
   reopen: { zh: "重新选", en: "Choose again" },
 
   // ---------- once the time is set ----------
+  calAdd: { zh: "加到日历", en: "Add to calendar" },
+  calGoogle: { zh: "用 Google 日历", en: "Use Google Calendar" },
+  calFile: { zh: "下载日历文件", en: "Get a calendar file" },
+  calWeChat: { zh: "微信里加不了日历。点右上角 ···，选「在浏览器打开」，再点一次。", en: "Calendars don't open inside WeChat. Tap ···, choose Open in browser, then tap this again." },
   afterTitle: { zh: "接着定什么？", en: "What's next?" },
   afterTell: { zh: "把结果发回群里", en: "Tell the group" },
   copyZh: { zh: "复制中文", en: "Copy in Chinese" },

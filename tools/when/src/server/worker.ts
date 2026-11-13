@@ -6,6 +6,7 @@
 // rows, tells every open phone when something changes, and deletes itself 60 days after it was made.
 import { DurableObject } from "cloudflare:workers";
 import { BASE } from "../base";
+import { toIcs } from "../engine/ics";
 import { ADMIN_RE, CODE_RE, KEY_RE, makeAdminCode, makeCode } from "../engine/ids";
 import { vancouverDay } from "../engine/time";
 import { EventRoom, type ErrorCode, type Fail, type HostAction, type Meta, type Row, type Store } from "../room/event";
@@ -59,6 +60,9 @@ async function allowed(req: Request, env: Env, kind: string, limit: number): Pro
   const network = await sha256(`when:${req.headers.get("cf-connecting-ip") ?? "local"}`);
   return env.GATES.get(env.GATES.idFromName(network)).take(kind, limit, vancouverDay(Date.now()));
 }
+
+/** The last part of a gathering's calendar file's address: /when/api/e/CODE/calendar.ics. */
+const CALENDAR_FILE = "calendar.ics";
 
 /**
  * The page itself: never kept by a phone, and nothing on it may run but the site's own files and
@@ -134,6 +138,21 @@ export default {
       const origin = req.headers.get("origin");
       if (origin && new URL(origin).host !== url.host) return new Response("forbidden", { status: 403 });
       return stub.fetch(req);
+    }
+    // The time that was set, as a calendar file. An iPhone opens it straight in its Calendar; it
+    // isn't there until a time is set, and it is never kept, since the host can choose again.
+    if (parts.length === 4 && what === CALENDAR_FILE && req.method === "GET") {
+      const state = (await stub.snapshot(null))?.state;
+      if (!state?.settled) return new Response("not found", { status: 404, headers: { "cache-control": "no-store" } });
+      const { day, part, at } = state.settled;
+      return new Response(toIcs({ code: state.code, title: state.title, day, part, setAt: at }), {
+        headers: {
+          "content-type": "text/calendar; charset=utf-8",
+          "content-disposition": `inline; filename="when-${state.code}.ics"`,
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+        },
+      });
     }
     if (parts.length !== 4 || req.method !== "POST") return refuse("notfound", 404);
     if (!keyHash) return refuse("key", 400);

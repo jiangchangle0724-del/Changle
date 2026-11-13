@@ -44,6 +44,11 @@ const catchCopies = (page: Page) =>
   });
 const copied = (page: Page) => page.evaluate(() => (window as unknown as { copied?: string }).copied);
 
+/** The phones in these tests say they are iPhones (playwright.config.ts). Two that don't: */
+const WECHAT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50(0x18003200) NetType/WIFI Language/zh_CN";
+const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
+const calendarFile = (code: string) => `/when/api/e/${code}/calendar.ics`;
+
 const saved = (page: Page) => expect(page.locator(".status")).toHaveAttribute("data-state", "saved");
 const cell = (page: Page, n: number) => page.locator(".grid .cell").nth(n);
 
@@ -52,6 +57,7 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   await catchCopies(host);
   const { url, code } = await make(host, "周末火锅");
   await expect(host).toHaveTitle(/周末火锅/);
+  expect((await host.request.get(calendarFile(code))).status(), "no calendar file before a time is set").toBe(404);
   await expect(host.locator(".event-head h1")).toHaveText("周末火锅");
 
   // tapping a slot before giving a name asks for the name instead
@@ -96,6 +102,26 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   await expect(host.locator(".set")).toContainText("定了");
   await expect(guest.locator(".set")).toContainText("2 个人里 2 个有空");
 
+  // everyone can put it in their calendar: an iPhone gets the file, with Google Calendar beside it
+  for (const page of [host, guest]) {
+    await expect(page.locator(".set a.btn")).toHaveAttribute("href", calendarFile(code));
+    await expect(page.locator(".set a.btn")).toHaveText("加到日历");
+    const google = new URL((await page.locator(".set a.link-btn").getAttribute("href"))!);
+    expect(google.origin + google.pathname).toBe("https://calendar.google.com/calendar/render");
+    expect(google.searchParams.get("text")).toBe("周末火锅");
+    expect(google.searchParams.get("dates")).toMatch(/^\d{8}T010000Z\/\d{8}T050000Z$/);
+    expect(google.searchParams.get("details")).toContain(`/when/${code}`);
+  }
+  // the file itself: this evening, 18:00 to 22:00 in Vancouver, written in UTC
+  const file = await host.request.get(calendarFile(code));
+  expect(file.status()).toBe(200);
+  expect(file.headers()["content-type"]).toBe("text/calendar; charset=utf-8");
+  expect(file.headers()["cache-control"]).toBe("no-store");
+  const ics = await file.text();
+  expect(ics).toContain("SUMMARY:周末火锅\r\n");
+  expect(ics).toContain(`UID:${code}@when.changle.ca\r\n`);
+  expect(ics).toMatch(/DTSTART:\d{8}T010000Z\r\nDTEND:\d{8}T050000Z\r\n/);
+
   // then every page asks what's next. The words for the group chat, in Chinese and in English:
   await expect(guest.locator(".after")).toContainText("接着定什么");
   await host.locator(".after .copy .btn").first().click();
@@ -121,7 +147,7 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
 
 test("a day more than a week away: 随便 opens for it that week, and reopening takes the question away", async ({ browser }) => {
   const host = await phone(browser);
-  const { url } = await make(host, "下下周烧烤");
+  const { url, code } = await make(host, "下下周烧烤");
   await join(host, url, "Steve");
   // three slots a day: the 27th is the evening eight days from today
   await cell(host, 26).click();
@@ -137,9 +163,42 @@ test("a day more than a week away: 随便 opens for it that week, and reopening 
   await expect(host.locator(".after button:disabled")).toHaveText("Come back that week");
   await expect(host.locator(".after .panel-title")).toHaveText("What's next?");
   // the host picks again: nothing is set, so there's nothing to ask
-  await host.locator(".set .link-btn").click();
+  await host.locator(".set button.link-btn").click();
   await expect(host.locator(".set")).toHaveCount(0);
   await expect(host.locator(".after")).toHaveCount(0);
+  expect((await host.request.get(calendarFile(code))).status(), "and the calendar file goes with it").toBe(404);
+});
+
+test("inside WeChat the page says how to get out; an Android phone goes to Google Calendar", async ({ browser }) => {
+  // the host is in WeChat's own browser, where most gatherings start
+  const host = await (await browser.newContext({ userAgent: WECHAT })).newPage();
+  const { url, code } = await make(host, "生日饭");
+  await join(host, url, "Steve");
+  await cell(host, 4).click(); // tomorrow afternoon
+  await saved(host);
+  await host.click(".seg button:nth-child(2)");
+  await host.locator(".best li").first().locator(".btn").click();
+  await expect(host.locator(".set")).toBeVisible();
+  // neither a calendar file nor Google Calendar opens there: the button says where to go instead
+  await expect(host.locator(".set a")).toHaveCount(0);
+  await expect(host.locator(".set [role=status]")).toHaveCount(0);
+  await host.locator(".set .btn").click();
+  await expect(host.locator(".set [role=status]")).toContainText("在浏览器打开");
+  // and 随便 can't sign anyone in there: a note, and its link to copy
+  await expect(host.locator(".after .note")).toContainText("微信里不能用 Google 登录");
+  await expect(host.locator(".after .copy .btn").last()).toContainText("复制随便的链接");
+
+  // a guest on an Android phone: Google Calendar first, the file beside it
+  const android = await (await browser.newContext({ userAgent: ANDROID })).newPage();
+  await android.goto(url);
+  const main = android.locator(".set a.btn");
+  await expect(main).toHaveAttribute("target", "_blank");
+  const google = new URL((await main.getAttribute("href"))!);
+  expect(google.origin + google.pathname).toBe("https://calendar.google.com/calendar/render");
+  expect(google.searchParams.get("text")).toBe("生日饭");
+  expect(google.searchParams.get("dates")).toMatch(/^\d{8}T200000Z\/\d{8}T000000Z$/);
+  await expect(android.locator(".set a.link-btn")).toHaveAttribute("href", calendarFile(code));
+  await expect(android.locator(".set a.link-btn")).toHaveText("下载日历文件");
 });
 
 test("two phones tap the same slot at once: both answers stay", async ({ browser }) => {
