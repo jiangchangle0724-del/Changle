@@ -196,7 +196,7 @@
   "deathY": 790,
   "par": {
     "seconds": 150,
-    "deathsPerPlayer": 2
+    "deathsPerPlayer": 4
   },
   "replay": "replays/table-13.json"
 }

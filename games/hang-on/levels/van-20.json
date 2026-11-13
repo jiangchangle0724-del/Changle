@@ -207,7 +207,7 @@
   "deathY": 790,
   "par": {
     "seconds": 180,
-    "deathsPerPlayer": 6
+    "deathsPerPlayer": 8
   },
   "replay": "replays/van-20.json"
 }
