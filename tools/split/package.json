@@ -5,7 +5,7 @@
   "description": "两清 · All Square: the server behind changle.ca/split (ledgers shared between phones)",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --port 8794",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/room.test.ts",
     "test:server": "tsx --test tests/server.test.ts",
