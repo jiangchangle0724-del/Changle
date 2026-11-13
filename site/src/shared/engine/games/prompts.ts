@@ -22,7 +22,7 @@ function noteFor(s: S) {
   if (s.card === null) return undefined;
   const c = list(s.mode)[s.card];
   return s.mode === "never"
-    ? { zh: `我从来没有${c.zh}`, en: `Never have I ever ${c.en}` }
+    ? { zh: `我曾经${c.zh}`, en: `Never have I ever ${c.en}` }
     : { zh: `在座谁最有可能${c.zh}`, en: `Most likely to ${c.en}` };
 }
 

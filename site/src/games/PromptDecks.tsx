@@ -66,7 +66,7 @@ function PromptGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
     setPicking(false);
   };
 
-  const lead = mode === "never" ? (lang === "zh" ? "我从来没有……" : "Never have I ever…") : lang === "zh" ? "在座谁最有可能……" : "Who's most likely to…";
+  const lead = mode === "never" ? (lang === "zh" ? "我曾经……" : "Never have I ever…") : lang === "zh" ? "在座谁最有可能……" : "Who's most likely to…";
 
   const actions =
     picking && mode === "never" ? (
@@ -141,7 +141,7 @@ function PromptGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
                 <p className="deck-text">{tr(card)}</p>
                 <p className="hint-ink prompt-other">
                   {mode === "never"
-                    ? lang === "zh" ? `Never have I ever ${card.en}` : `我从来没有${card.zh}`
+                    ? lang === "zh" ? `Never have I ever ${card.en}` : `我曾经${card.zh}`
                     : lang === "zh" ? `Who's most likely to ${card.en}` : `在座谁最有可能${card.zh}`}
                 </p>
               </motion.div>
