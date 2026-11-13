@@ -1,0 +1,14 @@
+// A stand-in for a Worker that sends mail through the rooms server (跟一单 is the first): it binds
+// the rooms server's Mail door (worker/mail.ts) the way such a Worker does, and forwards whatever it
+// is posted. For scripts/mail_door_check.py only; it is never deployed.
+//
+//   npx wrangler dev -c scripts/mail_door/wrangler.jsonc --port 8788 --ip 127.0.0.1
+//
+// (with the rooms server running from this folder: wrangler connects the two local processes)
+{
+  "name": "mail-door-check",
+  "main": "index.ts",
+  "compatibility_date": "2026-10-26",
+  "workers_dev": false,
+  "services": [{ "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }]
+}

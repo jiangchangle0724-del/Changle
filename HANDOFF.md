@@ -11,7 +11,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | Address | Code | Runs on | Goes live |
 | --- | --- | --- | --- |
 | changle.ca: the party games (a game's card at `/g/<slug>`, the game at `/g/<slug>/play`), tables at `/t/<CODE>`, tools tab, accounts, big screen at `/tv`, DJ booth at `/dj` (addresses: `site/src/router.ts`) | `site/` (Vite, React, TypeScript) | Cloudflare Pages project `changle` | by itself when a PR touching `site/` is merged into `main` |
-| rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
+| rooms.changle.ca: online tables, accounts, friends, chat, wishlist, avatar drawing, and the mail other changle.ca Workers send (the `Mail` entrypoint, `site/worker/mail.ts`: service bindings only, no public address) | `site/worker/`, plus what it bundles from the site: `site/src/shared/` (game rules, protocol), `site/src/data/` (question banks) and `site/src/i18n.ts` | Cloudflare Worker `changle-rooms` (Durable Objects) | by itself on merge when any of those (or `site/package-lock.json`) change (Workers Builds) |
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/hide: 藏在人群里 · Hide in the Crowd | `games/hide-crowd/` | Worker `hide-crowd` (Durable Objects) | by itself on merge when `games/hide-crowd/*` changes, once Steve has connected it (`games/hide-crowd/README.md`) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
@@ -75,6 +75,7 @@ npx tsx tests/dj-presets.test.ts # the DJ booth's 12 style presets for Lyria
 npx tsx tests/trip.test.ts
 npx tsx tests/hide.test.ts      # 藏在人群里's stand-in rules at a table
 npx tsx tests/draw.test.ts
+npx tsx tests/mail.test.ts      # the Mail entrypoint's checks on a notice and the mail it makes (worker/notice.ts)
 npx tsx tests/performer.test.ts # Name That Tune's two dancers, every move frame by frame
 npx tsx tests/tokens.test.ts    # design tokens match global.css; src/ui uses tokens only
 npx tsx tests/routes.test.ts    # every page's address, and links from before (#/g/..., #/r/...)
@@ -92,6 +93,7 @@ python3 scripts/party_test.py      # the newer games, one phone and online
 python3 scripts/tv_test.py         # the big screen
 python3 scripts/watch_test.py      # every game's own big-screen view, on two TVs and a phone that only watches
 python3 scripts/account_check.py   # sign-in, profile, friends, chat
+python3 scripts/mail_door_check.py # the Mail entrypoint end to end (needs scripts/fake_mail.mjs and a stand-in Worker: see its header)
 python3 scripts/tune_quiz_check.py # Name That Tune's multiple choice, 20 songs, sound on, memory watched
 python3 scripts/dj_check.py        # the DJ booth's speaker in WebKit and Chromium, and a table of phones
 ```
@@ -177,7 +179,7 @@ the browser's fallback. Their brief: `docs/briefs/tools.md`.
 
 | App | Secrets (Cloudflare) | Other variables |
 | --- | --- | --- |
-| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own), `YOUTUBE_API_KEY` (optional: 打碟's song search; links work without it) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
+| rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own), `YOUTUBE_API_KEY` (optional: 打碟's song search; links work without it) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_MAIL_URL` (a stand-in Resend, `site/scripts/fake_mail.mjs`), `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 约时间 (`tools/when`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts the daily allowances) |

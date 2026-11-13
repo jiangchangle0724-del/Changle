@@ -75,6 +75,9 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 ```
 
 本地登录不发邮件：在 `worker/.dev.vars` 里写 `DEV_SHOW_CODES=1`，验证码会直接显示出来。
+本地要看发出去的邮件（比如别的 Worker 经房间服务器代发的通知，`worker/mail.ts`）：先跑 `node scripts/fake_mail.mjs`（一个假的
+Resend，收下每封信），再在 `worker/.dev.vars` 里写 `DEV_MAIL_URL=http://127.0.0.1:8791/emails`；整条链路用
+`python3 scripts/mail_door_check.py` 检查（它还要 `npx wrangler dev -c scripts/mail_door/wrangler.jsonc --port 8788`，一个替身 Worker）。
 打碟的 Lyria 本地不连 Google：先跑 `node scripts/fake_lyria.mjs`（一个假的 Lyria），再在 `worker/.dev.vars` 里写
 `DEV_LYRIA_URL=ws://127.0.0.1:8790` 和 `DEV_LYRIA_ANYONE=1`（任何桌子都能试），整条链路用
 `python3 scripts/dj_lyria_check.py` 检查。
@@ -105,6 +108,7 @@ npx tsx tests/split.test.ts         # 两清的算账：尾差、净额、最少
 npx tsx tests/split-second.test.ts  # 两清的算账再算一遍：Codex 只照规则另写的一份（tests/split/second.ts），同一批 1 万个账本上和 core 逐项对比
 npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、中英文、只用 token、还没有入口
 npx tsx tests/split-changes.test.ts # 两清的改动（手机发、服务器收）：只算一次、离线几部手机怎么到都一样、不合规矩的进不来
+npx tsx tests/mail.test.ts          # 房间服务器代别的 Worker 发信的入口（worker/notice.ts）：放行什么、拒绝什么、信长什么样
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
 npx tsx scripts/split_check.ts      # 两清（只要 npm run dev 在跑）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
@@ -118,6 +122,7 @@ python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回
 python3 scripts/watch_test.py       # 每个游戏自己的大屏画面：两台电视和一部只看的手机，每个阶段、没有秘密、没有报错
 python3 scripts/lastcard_check.py   # 最后一张：三部手机、一部只看的手机、两台电视，在手机上点着打两场，谁的手牌都不外泄
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
+python3 scripts/mail_door_check.py  # 别的 Worker 经房间服务器发信（Mail 入口）：从 Service Binding 进来、查收件人、每天的上限、假 Resend 收到的信；公网进不来
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥
 ```
