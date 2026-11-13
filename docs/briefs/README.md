@@ -51,7 +51,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 30 个对话，每个�
 | 工具 · 生活小工具 | [tools.md](tools.md) | changle.ca/tools |
 | 工具 · 心愿单与打赏 | [wishlist.md](wishlist.md) | changle.ca/wish |
 | 工具 · 跟一单 | [tuan.md](tuan.md) | changle.ca/tuan（还没上线；A1 做完先藏在 `/tuan/preview`） |
-| 工具 · 两清 | [split.md](split.md) | changle.ca/split（还没开工，排在约时间后面；方案在 `docs/split.md`） |
+| 工具 · 两清 | [split.md](split.md) | changle.ca/split（还没上线；小样做完先藏着） |
 
 ## 开场白
 
