@@ -22,7 +22,8 @@
 }
 /* the chips at the top jump here: clear of the header */
 .tool,
-.tool-eat {
+.tool-eat,
+.tool-when {
   scroll-margin-top: 96px;
 }
 .tool-head {
