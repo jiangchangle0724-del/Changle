@@ -38,7 +38,7 @@ export type Expense = {
    * `amount` is what counts, so a rate that moves later never changes an old entry.
    */
   paidIn?: { currency: string; amount: number; rate: string };
-  /** when it was taken out, if it was */
+  /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };
 

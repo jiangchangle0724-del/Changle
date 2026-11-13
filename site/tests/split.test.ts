@@ -30,6 +30,7 @@ import {
   soundTransfer,
   spent,
   toMinor,
+  transfersOf,
   type Entry,
   type Expense,
   type Ledger,
@@ -236,6 +237,23 @@ spend(whistler, "p3", 5000, "停车");
   l.entries.push({ kind: "transfer", id: "bad", at: 9, from: "p1", to: "p1", amount: 100 });
   l.entries.push({ kind: "expense", id: "bad2", at: 9, payer: "nobody", amount: 100, note: "", split: { how: "equal", among: abc }, rot: 0 });
   eq(balances(l), { p0: 6667, p1: -3334, p2: -3333 }, "an entry that isn't sound (paying yourself, a payer not in the ledger) counts for nothing");
+}
+// taken out is taken out whatever number `gone` holds, 0 included. (The second opinion found the core
+// still counting an entry taken out at time 0: docs/codex-tasks/split/C1-second-opinion.md.)
+{
+  const l: Ledger = { id: "z", name: "z", currency: "CAD", members: people.slice(0, 2), entries: [] };
+  const e = spend(l, "p0", 1, "a", { how: "exact", amounts: { p1: 1 } });
+  eq(balances(l), { p0: 1, p1: -1 }, "one cent paid for the other: owed a cent, owes a cent");
+  for (const when of [0, -1, 0.5, 1e15]) {
+    e.gone = when;
+    eq([balances(l), expensesOf(l).length, spent(l)], [{ p0: 0, p1: 0 }, 0, 0], `taken out at time ${when}: it counts for nothing`);
+  }
+  const back = pay(l, { from: "p1", to: "p0", amount: 1 });
+  eq([balances(l), transfersOf(l).length], [{ p0: -1, p1: 1 }, 1], "a cent paid back for an expense that no longer counts: the one who paid it is owed it");
+  (l.entries.find((x) => x.id === back) as Entry).gone = 0;
+  eq([balances(l), transfersOf(l).length, settlement(l).clear], [{ p0: 0, p1: 0 }, 0, true], "that transfer taken back at time 0: nothing counts, nobody owes anybody");
+  e.gone = undefined;
+  eq(balances(l), { p0: 1, p1: -1 }, "`gone` set back to undefined: the expense counts again");
 }
 
 // ---------- 6. settling ----------
