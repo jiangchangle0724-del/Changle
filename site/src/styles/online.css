@@ -991,6 +991,11 @@ button.bowl:disabled {
 .power-btn:disabled {
   opacity: 0.45;
 }
+/* 流氓十三张: a power that has had its one go on this card */
+.power-used {
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
 .power-quiet {
   background: var(--dusk-2);
   color: var(--haze);

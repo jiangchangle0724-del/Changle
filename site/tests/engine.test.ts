@@ -5592,7 +5592,7 @@ test("rogue: the camera's judgement has a deadline, so a holder who walks away c
   // an answer in time: the deadline is forgotten
   t.g(rv().drawer ?? rv().turn, "next");
   ok(rv().phase === "draw", "on to the next draw");
-  t.advance(60000); // (the camera's minute of rest)
+  (t.eng.d.game!.s as { used: Record<string, boolean> }).used = {}; // (a fresh 5, say: the camera goes once per card)
   t.g("p2", "camera");
   t.advance(3600);
   t.g("p2", "moved", { target: "p1" });
@@ -5700,7 +5700,7 @@ test("rogue: sevens never starts on a seven; a phone that is away sits out the g
   // p3 comes back: in the next race and the next nose as usual
   u.eng.setOnline("p3", true);
   u.eng.flush();
-  u.advance(60000); // (the nose's minute of rest)
+  (u.eng.d.game!.s as { used: Record<string, boolean> }).used = {}; // (a fresh 6, say: the nose goes once per card)
   u.g(d, "nose");
   u.g(free[0], "tap");
   u.g(free[1], "tap");
@@ -5709,7 +5709,7 @@ test("rogue: sevens never starts on a seven; a phone that is away sits out the g
   ok(u.pens().slice(-1)[0].who[0] === "p3" && u.pens().slice(-1)[0].note?.zh === "摸鼻子：没摸", "and p3 pays for not touching");
 });
 
-test("rogue: the camera and the nose rest a minute after each use; a new holder starts fresh", () => {
+test("rogue: the camera and the nose go once per card; the next card of theirs is a new shot", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "rogue" });
   const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
@@ -5717,29 +5717,48 @@ test("rogue: the camera and the nose rest a minute after each use; a new holder 
   s.holders.nose = "p2";
   const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
   t.g("p1", "camera");
-  ok(rv().interrupt?.kind === "camera" && (rv().cool?.camera ?? 0) > clock + 50000, "the camera goes, and rests for a minute");
+  ok(rv().interrupt?.kind === "camera" && rv().used?.camera === true, "the camera goes, and that was its one go");
   t.advance(3600);
   t.g("p1", "moved", {});
   t.g("p1", "camera");
-  ok(rv().interrupt === null, "not again straight away");
+  ok(rv().interrupt === null, "not again");
+  t.advance(120000);
+  t.g("p1", "camera");
+  ok(rv().interrupt === null, "not later either");
   t.g("p2", "nose");
-  ok(rv().interrupt?.kind === "nose", "the nose has a clock of its own");
+  ok(rv().interrupt?.kind === "nose" && rv().used?.nose === true, "the nose has its own one go");
   t.advance(6500);
   t.g("p2", "nose");
-  ok(rv().interrupt === null && (rv().cool?.nose ?? 0) > clock, "and rests too");
-  t.advance(55000);
-  t.g("p1", "camera");
-  ok(rv().interrupt?.kind === "camera", "a minute on, the camera goes again");
-  t.advance(3600);
-  t.g("p1", "moved", {});
-  // a new 5: its new holder is not held to the old one's minute
+  ok(rv().interrupt === null, "and it is spent too");
+  // a new 5: a fresh shot for whoever draws it
   s.deck.push(4); // the five of spades
   const d = rv().turn;
   t.g(d, "draw");
-  ok(rv().holders.camera === d && rv().cool?.camera === undefined, "the card changes hands: no rest to serve");
+  ok(rv().holders.camera === d && rv().used?.camera === undefined, "the card changes hands: a new shot");
   t.g(rv().drawer ?? d, "next");
   t.g(d, "camera");
-  ok(rv().interrupt?.kind === "camera", "and the new holder can use it at once");
+  ok(rv().interrupt?.kind === "camera", "and the new holder takes it when they like");
+  t.advance(3600);
+  t.g(d, "moved", {});
+  // the same player draws the 5 again: a new card, a new shot
+  s.deck.push(17); // the five of hearts
+  while (rv().turn !== d) {
+    s.deck.push(8); // nines of spades until it is d's turn again
+    t.g(rv().turn, "draw");
+    t.g(rv().drawer ?? rv().turn, "next");
+  }
+  t.g(d, "draw");
+  ok(rv().holders.camera === d && rv().used?.camera === undefined, "the same holder, a new 5: a new shot");
+  t.g(rv().drawer ?? d, "next");
+  t.g(d, "camera");
+  ok(rv().interrupt?.kind === "camera", "and it goes");
+  // the deck runs out: the powers go back in with it
+  t.advance(3600);
+  t.g(d, "moved", {});
+  ok(rv().used?.camera === true, "spent again");
+  s.deck.length = 0;
+  t.g(rv().turn, "draw");
+  ok(rv().reshuffled && rv().used?.camera === undefined, "a new deck: nothing used");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
