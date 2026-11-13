@@ -346,6 +346,8 @@ input {
   font-size: var(--text-sm);
 }
 .link-btn {
+  display: inline-flex;
+  align-items: center;
   min-height: var(--tap);
   padding: 0 var(--space-2);
   color: var(--gel);
@@ -518,6 +520,18 @@ input {
 .set p {
   font-size: var(--text-sm);
   font-weight: 600;
+}
+.set-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin-top: var(--space-2);
+}
+/* a button that sits on a gel: the night, with the gel's own color for its words */
+.btn-on-gel {
+  background: var(--on-gel);
+  color: var(--gel);
 }
 /* what's next, once it is set */
 .after-block {

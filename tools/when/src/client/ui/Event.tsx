@@ -13,6 +13,7 @@ import { api, ApiFail, forget, remember, savedName, saveName } from "../api";
 import { t, type Key } from "../i18n";
 import { watch } from "../live";
 import { After } from "./After";
+import { AddToCalendar } from "./Calendar";
 import { CopyButton, IconCheck, IconQr, IconStar, IconWave, Qr, Sheet, Toast, TopBar, useLang } from "./common";
 
 type Open = { kind: "slot"; slot: SlotKey } | { kind: "person"; id: string } | { kind: "claim" } | { kind: "qr" } | { kind: "created"; adminCode: string } | null;
@@ -233,6 +234,7 @@ export function EventPage({ code }: { code: string }) {
           <span class="set-tag">{t("settledTitle")}</span>
           <strong>{slotLabel(state.settled.day, state.settled.part, lang)}</strong>
           <p>{reason(settledTally, people, lang)}</p>
+          <AddToCalendar state={state} />
           {host && (
             <button type="button" class="link-btn on-gel" onClick={() => act({ do: "reopen" })}>
               {t("reopen")}
