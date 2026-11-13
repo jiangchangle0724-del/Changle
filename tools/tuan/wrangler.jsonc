@@ -1,0 +1,24 @@
+// Cloudflare settings for 跟一单 · Count Me In: its own Worker, one of changle.ca's tools, answering at
+// changle.ca/tuan. Merchants post a group buy, buyers order from the link without signing in, and the
+// money goes straight from buyer to merchant: the site only carries the orders.
+// It runs on Cloudflare's free plan. No secrets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tuan",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-26",
+  // With routes set, wrangler leaves the workers.dev address off, so /tuan is its only address.
+  "routes": [
+    { "pattern": "changle.ca/tuan", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/tuan/*", "zone_name": "changle.ca" }
+  ],
+  // Created by the first deploy (no id here). The Worker applies migrations/ itself (src/server/schema.ts).
+  "d1_databases": [{ "binding": "DB", "database_name": "changle-tuan" }],
+  // Merchants sign in with their changle.ca account. Accounts live in the rooms server
+  // (site/worker): this Worker asks it who a sign-in belongs to, Worker to Worker, never over the
+  // public address (src/server/who.ts).
+  "services": [{ "binding": "ROOMS", "service": "changle-rooms" }],
+  // The schema files are part of the Worker (applied by src/server/schema.ts).
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
+  "observability": { "enabled": true }
+}
