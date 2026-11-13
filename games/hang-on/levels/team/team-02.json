@@ -1,0 +1,122 @@
+{
+  "id": "team-02",
+  "world": "table",
+  "name": {
+    "zh": "圆桌长席",
+    "en": "Round Table Reach"
+  },
+  "teaches": "counterweight",
+  "w": 2880,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 436
+  },
+  "goal": {
+    "x": 2680,
+    "y": 40,
+    "w": 160,
+    "h": 200
+  },
+  "checkpoints": [
+    {
+      "x": 1270,
+      "y": 416
+    },
+    {
+      "x": 1935,
+      "y": 276
+    },
+    {
+      "x": 2580,
+      "y": 216
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 460,
+      "w": 620,
+      "h": 260,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 630,
+      "y": 660,
+      "w": 600,
+      "h": 60,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 440,
+      "w": 330,
+      "h": 280,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1640,
+      "y": 380,
+      "w": 200,
+      "h": 340,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1910,
+      "y": 300,
+      "w": 200,
+      "h": 420,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2180,
+      "y": 300,
+      "w": 260,
+      "h": 420,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2510,
+      "y": 240,
+      "w": 330,
+      "h": 480,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2840,
+      "y": 60,
+      "w": 40,
+      "h": 660,
+      "material": "wood"
+    }
+  ],
+  "seesaws": [
+    {
+      "pivot": {
+        "x": 930,
+        "y": 570
+      },
+      "w": 600,
+      "h": 18,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "deathY": 790,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-02.p4.json"
+}
