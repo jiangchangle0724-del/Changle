@@ -180,6 +180,13 @@ video stalling for 4 s (the dance held, the TV and the phones saying so, then pi
 video's beat), the song fading out at the dance's end, the video gone in the lobby; and a song
 with its own dance starting on its measured beat (within 25 ms). About a minute and a half.
 
+A new song needs its beat measured before it goes in (`src/shared/songs.ts`; nothing finds it at a
+party): in a desktop browser that plays YouTube, `scripts/beats/record.js` plays the video
+silently and records how loud it is, and `scripts/beats/fit.js` fits the beat grid to it and shows
+where the music starts, breaks and ends (how to run them: the top of each). A data centre's
+browser can't play YouTube, so it's done on a computer at home (the built-in browser of Steve's
+Claude app, for the twenty so far).
+
 `scripts/motion-check.cjs` (the same Worker) dances the short test dance with the motion sensor:
 Ann's phone gets a pretend hand (a bump of acceleration on every beat she hears), Bob taps late,
 Cat stands still; the speaker page draws the 3D coach in software (`?gl=any`). Checked: the pulses
