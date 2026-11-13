@@ -323,9 +323,9 @@ export class Sim {
   private readonly cpOf: number[] = [];
   /** 坐不住：出局的人已经挪到画面外面停好了。 */
   private readonly parked = new Set<number>();
-  /** 每个人离开实在的地方多久了、在半空的圈里拉力是不是已经不算了（pullCounts）。 */
+  /** 每个人离开实在的地方多久了、拽着悬空队友的拉力是不是已经不算了（pullCounts）。 */
   private readonly offSolid: number[] = [];
-  private readonly ringCut: boolean[] = [];
+  private readonly airCut: boolean[] = [];
   private acc = 0;
 
   constructor(level: Level, nPlayers: number, rules: Rules = CLIMB) {
@@ -944,12 +944,13 @@ export class Sim {
   }
 
   /**
-   * 谁的拉力算数。拉身体的力只加在身体上，没有反作用力：抓着地形时地形扛着，没事；抓着一个悬空的队友，那个队友被拽着走，
-   * 两个人也只是慢慢往下掉。可几个人在半空互相抓成一个圈（你抓我、我抓你），谁也没连到实在的地方时，每个人的力都朝着
-   * 别人的手上方去，越拉越快，一起往天上飞（推摇杆往上，一秒一千多 px）。圈里的人往上快过 CFG.ringRise，或者离开实在的
-   * 地方超过 CFG.ringAir 秒，拉力就不算了，直到又连到实在的地方：最多一起蹦一下，飞不上天。
+   * 谁的拉力算数。拉身体的力只加在身体上，没有反作用力：抓着地形时地形扛着，没事。可抓着的是一个悬空的队友、两个人都没
+   * 连到实在的地方时，这股力就是凭空推着两个人走：两个人互相抓着推摇杆往上，或者一个先往上一窜、另一个抓住他再往上拽、
+   * 再换过来，一秒一千多 px 一直往天上飞。所以没连上的人往上快过 CFG.airPullRise，或者离开实在的地方超过
+   * CFG.airPullTime 秒，拉力就不算了，直到又连到实在的地方：最多一起蹦一下，飞不上天。
    * 实在的地方：自己站在地上，抓着地形、绳子、跷跷板或箱子，比谁先到了终点钉在那里；抓着这样的人也算连上了。
-   * 只管圈里的人，别的都和以前一样（录好的回放还是那样跑）。
+   * 两个门槛放在录好的回放之外（12 关里没连上还在拽队友的时候，最久离地 0.92 秒、最快往上 538 px/s，都在 van-10），
+   * 所以回放和以前一模一样。
    */
   private pullCounts(dt: number): boolean[] {
     const ok = this.players.map((p) => {
@@ -968,31 +969,15 @@ export class Sim {
         }
       });
     }
-    this.players.forEach((p, i) => {
+    return this.players.map((p, i) => {
       if (ok[i] || p.dead) {
         this.offSolid[i] = 0;
-        this.ringCut[i] = false;
-      } else this.offSolid[i] = (this.offSolid[i] ?? 0) + dt;
-    });
-    // 没连上的人里，顺着「抓着谁」走能走回自己的就在圈里
-    const holds = (i: number): number[] =>
-      (this.players[i]?.arms ?? []).flatMap((a) => (a.grip?.kind === 'player' && a.grip.player !== undefined && !ok[a.grip.player] ? [a.grip.player] : []));
-    const inRing = (i: number): boolean => {
-      const seen = new Set<number>();
-      const todo = holds(i);
-      while (todo.length) {
-        const j = todo.pop() as number;
-        if (j === i) return true;
-        if (seen.has(j)) continue;
-        seen.add(j);
-        todo.push(...holds(j));
+        this.airCut[i] = false;
+        return true;
       }
-      return false;
-    };
-    return this.players.map((p, i) => {
-      if (ok[i] || p.dead || !inRing(i)) return true;
-      if (p.body.vy < -CFG.ringRise || (this.offSolid[i] ?? 0) > CFG.ringAir) this.ringCut[i] = true;
-      return !this.ringCut[i];
+      this.offSolid[i] = (this.offSolid[i] ?? 0) + dt;
+      if (p.body.vy < -CFG.airPullRise || (this.offSolid[i] ?? 0) > CFG.airPullTime) this.airCut[i] = true;
+      return !this.airCut[i];
     });
   }
 

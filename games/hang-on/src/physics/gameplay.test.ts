@@ -223,6 +223,30 @@ describe('互相抓着飞不上天', () => {
     sim.destroy();
   });
 
+  test('两个人已经一起往上飞，半空里拽着队友再往上推，也不会多飞：只剩惯性', async () => {
+    // 乱按探路的两个人这样「你窜上去、我拽你、再换过来」翻过了 520 px 的电墙
+    const lv = level({ w: 3000, h: 3000, rects: [{ x: 0, y: 2900, w: 3000, h: 100, kind: 'ground', material: 'wood' }], deathY: 3200 });
+    const sim = await createSim(lv, 2);
+    sim.teleport(0, 1000, 2000);
+    sim.teleport(1, 1000, 2080, { hands: [null, { x: 1000, y: 2024 }] });
+    run(sim, 2 * dt, () => sim.setInput(1, input(0, 0, false, true)));
+    expect(sim.players[1]!.arms[1]!.grip?.kind).toBe('player');
+    // 两个人都往上 800 px/s（比 airPullRise 快）
+    for (const p of sim.players) {
+      p.rb.setLinvel({ x: 0, y: -800 }, true);
+      for (const a of p.arms) for (const rb of a.segs) rb.setLinvel({ x: 0, y: -800 }, true);
+    }
+    const y0 = sim.players[1]!.body.y;
+    let top = Infinity;
+    run(sim, 3, () => {
+      sim.setInput(1, input(0, -1, false, true));
+      for (const p of sim.players) top = Math.min(top, p.body.y);
+    });
+    // 只靠惯性能往上 800² / (2 × 1700) ≈ 188 px；以前拽着队友能再推到 396 px
+    expect(y0 - top).toBeLessThan(800 ** 2 / (2 * CFG.gravity) + 30);
+    sim.destroy();
+  });
+
   test('一个人抓着站在地上的队友往上推，照旧撑到队友身上', async () => {
     const sim = await createSim(wide(), 2);
     sim.teleport(0, 1000, 540 - CFG.bodyR);
