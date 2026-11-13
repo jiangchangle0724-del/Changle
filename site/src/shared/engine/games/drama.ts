@@ -59,6 +59,8 @@ type S = {
   diff: DramaDiff;
   pen: Pen;
   total: number;
+  /** how many acts the host picked: three more at the curtain call add to `total`, not to this */
+  plan: number;
   round: number;
   /** scene ids already played, so none comes back until the library runs out */
   used: string[];
@@ -631,6 +633,7 @@ export const drama: GameDef<S> = {
       diff: "easy",
       pen: "drink",
       total: 5,
+      plan: 5,
       round: 0,
       used: [],
       scene: null,
@@ -678,6 +681,7 @@ export const drama: GameDef<S> = {
     s.rset ??= "zh";
     s.rkinds ??= [];
     s.read ??= null;
+    s.plan ??= s.total;
     switch (g.x) {
       case "config": {
         if (!host || s.phase !== "setup") return;
@@ -690,7 +694,7 @@ export const drama: GameDef<S> = {
         if (g.diff === "easy" || g.diff === "hard") s.diff = g.diff;
         if (g.pen === "drink" || g.pen === "move" || g.pen === "prank") s.pen = g.pen;
         const total = intIn(g.total, 1, 20);
-        if (total !== null && g.total !== undefined) s.total = total;
+        if (total !== null && g.total !== undefined) s.total = s.plan = total;
         return;
       }
       case "want": {
@@ -778,6 +782,15 @@ export const drama: GameDef<S> = {
         s.total += 3;
         s.round += 1;
         newRound(s, api);
+        return;
+      }
+      case "setup": {
+        // between acts or at the curtain call, back to the setup to play it another way: the
+        // night's scores, the scenes written here and the ones already played all stay, and the
+        // acts count again from the number the host picks
+        if (!host || (s.phase !== "reveal" && s.phase !== "end")) return;
+        for (const k of ["brief", "act", "twist", "vote"]) api.clear(k);
+        Object.assign(s, { phase: "setup", round: 0, total: s.plan, scene: null, cur: null, cast: [], roles: [], order: [], classic: null, read: null, culprit: null, tasks: {}, pk: null, ready: [], endsAt: 0, actMs: 0, twistAt: 0, twisted: false, votes: {}, result: null } satisfies Partial<S>);
         return;
       }
       case "write": {
