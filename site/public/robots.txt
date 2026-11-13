@@ -2,7 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /eat/api/
 Disallow: /when/api/
-Disallow: /split/api/
 Disallow: /go/api/
 Disallow: /trip/api/
 Content-signal: search=yes, ai-input=no, ai-train=no

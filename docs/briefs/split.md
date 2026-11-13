@@ -51,7 +51,7 @@
 - `site/src/App.tsx`：/split 的画面按需下载（已加）。
 - `site/scripts/sw.template.js`：不用加（2026-11-13 看过）。这个离线缓存只管打开页面和 `/assets/` 下的文件，别的请求它不碰，/split/api 本来就直接走网络。
 - `site/vite.config.ts`：本地把 /split/api 代理到本地的 Worker（第二期第 4 步，手机接上同步时加；本地的 Worker 在 8794 端口，`tools/split` 里 `npm run dev`）。
-- `site/public/robots.txt`：`Disallow: /split/api/`（已加）。带钥匙的账本页不让收录这件事，到第 5 步定链接长什么样时一起做。
+- `site/public/robots.txt`：`Disallow: /split/api/` 等入口卡上线那天一起加。现在不加：robots.txt 谁都能看，加了等于告诉别人有这个地址，`tests/split-screens.test.ts` 最后一节查的就是这个（2026-11-13 加过一次，CI 红了，撤了）。带钥匙的账本页不让收录这件事，到第 5 步定链接长什么样时一起做。
 - `site/tests/routes.test.ts`：/split 的地址（已加）。
 - `HANDOFF.md`：「What changle.ca is made of」和「Settings」两张表各一行，工具那一段一句（已加）。
 - `site/src/tools/ToolsTab.tsx`：入口卡。三道验收门都过了才加。加的那天要同时改 `tests/split-screens.test.ts` 最后一节：它现在查的就是「除了 router.ts 和 App.tsx，站里没有别的地方提到 /split」。
