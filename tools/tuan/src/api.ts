@@ -59,6 +59,8 @@ export interface PublicItem {
   price: number;
   unit: Unit;
   step: number;
+  /** the least one order may take */
+  least: number;
   /** how much is left, or null for no limit */
   left: number | null;
   perBuyer: number | null;

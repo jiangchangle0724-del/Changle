@@ -28,6 +28,7 @@ export function offerPage(book: OfferBook, standing: readonly RosterEntry[], now
       price: item.price,
       unit: item.unit,
       step: item.step,
+      least: item.least,
       left: leftOf(item),
       perBuyer: item.perBuyer,
       allergens: item.allergens,

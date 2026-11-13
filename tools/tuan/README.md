@@ -37,6 +37,12 @@ total is a sum of lines: the sheets always add up to the orders.
 
 Only `lb` is weighed. A weighed line is an estimate until the merchant writes down what the scale
 said; an order's `final` (goods and delivery) is empty until every weighed line in it is weighed.
+An item has a `step` (weight comes by the half pound unless the merchant says otherwise) and a
+`least` (a merchant who weighs by the half pound may still sell no less than a pound).
+
+A delivery area has a minimum (`min`: under it, no delivery), a fee, and optionally a mark from
+which delivery is free (`freeFrom`). The fee is settled on the goods as ordered, when the order is
+placed or changed; weighing doesn't move it.
 
 ### Stock, and two people at once
 
@@ -79,7 +85,7 @@ they agree after a crowd of orders, changes and cancellations at once.
 | Standing orders one phone number may have in a group buy | 5 |
 | Orders in a group buy, cancelled ones included | 500 |
 | Different things in an order, and the most of one thing | 60, 99 |
-| Goods in a group buy; pickup points; delivery areas | 80; 12; 12 |
+| Goods in a group buy; pickup points; delivery areas | 200; 12; 12 |
 
 A network is told apart by its address, kept only as a fingerprint, in the `gates` table (one row
 a key a day, dropped two days later).
