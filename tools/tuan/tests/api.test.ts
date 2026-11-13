@@ -615,7 +615,7 @@ describe("the pages", () => {
 
   it("is one file for home, a group buy and an order: never kept, nothing foreign runs on it, no search engine lists it", async () => {
     const at = await start();
-    for (const path of ["/tuan", "/tuan/", "/tuan/preview", `/tuan/t/${at.id}`, "/tuan/o/K7M2PQ", "/tuan/o/k7m2pq"]) {
+    for (const path of ["/tuan", "/tuan/", "/tuan/preview", `/tuan/t/${at.id}`, "/tuan/o/K7M2PQ", "/tuan/o/k7m2pq", "/tuan/my", "/tuan/my/", `/tuan/my/t/${at.id}`]) {
       const res = await open(path);
       expect([path, res.status]).toEqual([path, 200]);
       expect(res.headers.get("content-type")).toMatch(/^text\/html/);
@@ -654,7 +654,7 @@ describe("the pages", () => {
 
   it("says 404, with the page that says so, for a group buy that isn't there or isn't public yet", async () => {
     const draft = await start({ open: false });
-    for (const path of ["/tuan/t/zzzz9999", `/tuan/t/${draft.id}`, "/tuan/t/short", "/tuan/nothing", "/tuan/o/bad", "/tuan/t", "/tuan/my"]) {
+    for (const path of ["/tuan/t/zzzz9999", `/tuan/t/${draft.id}`, "/tuan/t/short", "/tuan/nothing", "/tuan/o/bad", "/tuan/t", "/tuan/my/t", "/tuan/my/t/short", "/tuan/my/shops", `/tuan/my/t/${draft.id}/more`]) {
       const res = await open(path);
       expect([path, res.status]).toEqual([path, 404]);
       expect(res.html).toContain('<div id="app"></div>');
@@ -674,6 +674,21 @@ describe("the pages", () => {
     expect([real.status, none.status]).toEqual([200, 200]);
     expect(real.html).toBe(none.html);
     expect(real.html).not.toContain(mine.code);
+  });
+
+  it("gives a merchant's pages to anyone, saying nothing: what they show comes from the API, signed in", async () => {
+    const at = await start();
+    const mine = (await place(at, [["五常大米", 1000]])).data.order;
+    const real = await open(`/tuan/my/t/${at.id}`);
+    const none = await open("/tuan/my/t/zzzz9999");
+    expect([real.status, none.status]).toEqual([200, 200]);
+    expect(real.html).toBe(none.html);
+    expect(real.html).not.toContain("本周大米团");
+    expect(real.html).not.toContain(mine.code);
+    expect(titleOf(real.html)).toBe("跟一单 · Count Me In");
+    // …and the API still wants the sign-in
+    expect(said(await get(`/my/offers/${at.id}`))).toBe("401 signin");
+    expect(said(await get(`/my/offers/${at.id}`, { session: SESSION.visitor }))).toBe("403 forbidden");
   });
 
   it("has no page where a script, a style or a font is missing", async () => {

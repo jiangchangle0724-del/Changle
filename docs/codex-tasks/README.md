@@ -2,6 +2,7 @@
 
 (打碟 · DJ Booth's cards are in [`dj/`](dj/README.md).)
 (戏精大赏 · Drama Queens' cards are in [`drama/`](drama/README.md).)
+(跟一单 · Count Me In's cards are in [`tuan/`](tuan/README.md).)
 
 One card, one branch, one PR. Each card names the only files to change, the saved inputs
 (fixtures, already in the repo), the output type, the test file, the command and when it's done.

@@ -4,6 +4,7 @@
 //   /tuan/ and /tuan/preview                  home
 //   /tuan/t/<id>                              a group buy, with its name in the page's title
 //   /tuan/o/<code>                            an order
+//   /tuan/my, /tuan/my/t/<id>                 a merchant's home, and one group buy's orders and sheets
 //   /tuan/assets/…                            the script, the styles and the fonts: plain files
 // The API (the shapes are in src/api.ts). Anyone, no sign-in:
 //   GET  /tuan/api/offers/<id>                a group buy: the goods, what's left, who's in
@@ -392,6 +393,8 @@ async function page(req: Request, env: Env, url: URL, parts: string[]): Promise<
   const n = parts.length;
   if (n === 0 || (n === 1 && a === "preview")) return shell(env, url, null, 200);
   if (n === 2 && a === "o" && ORDER_RE.test(tidyOrderCode(b))) return shell(env, url, null, 200);
+  // a merchant's pages say nothing by themselves: what they show comes from the API, once signed in
+  if (a === "my" && (n === 1 || (n === 3 && b === "t" && OFFER_RE.test(parts[2])))) return shell(env, url, null, 200);
   if (n === 2 && a === "t" && OFFER_RE.test(b)) {
     let head: { title: string; shop: string } | null;
     try {
