@@ -29,6 +29,8 @@ export interface Burst {
   jitter?: number;
   /** 竖着拉长几倍（雨丝），并且转到和飞行方向一致。 */
   stretch?: number;
+  /** 翻面的快慢（弧度/秒，A8）：纸屑在空中翻，一会儿正面一会儿侧着，看着是立体的。 */
+  flip?: number;
 }
 
 interface P {
@@ -44,6 +46,8 @@ interface P {
   size: number;
   alpha: number;
   stretch: number;
+  flip: number;
+  ph: number;
 }
 
 export class Particles {
@@ -81,7 +85,8 @@ export class Particles {
       s.visible = true;
       this.view.addChild(s);
       const life = b.life[0] + Math.random() * (b.life[1] - b.life[0]);
-      this.live.push({ s, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life, max: life, g: b.gravity ?? 0, grow: b.grow ?? 1, spin: (b.spin ?? 0) * (Math.random() - 0.5) * 2, drag: b.drag ?? 0, size, alpha: b.alpha ?? 1, stretch });
+      const flip = b.flip ? b.flip * (0.6 + Math.random() * 0.8) * (Math.random() < 0.5 ? -1 : 1) : 0;
+      this.live.push({ s, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life, max: life, g: b.gravity ?? 0, grow: b.grow ?? 1, spin: (b.spin ?? 0) * (Math.random() - 0.5) * 2, drag: b.drag ?? 0, size, alpha: b.alpha ?? 1, stretch, flip, ph: Math.random() * 6.28 });
     }
   }
 
@@ -105,6 +110,14 @@ export class Particles {
       s.rotation += p.spin * dt;
       const t = p.life / p.max; // 1 → 0
       const sc = p.size * (1 + (p.grow - 1) * (1 - t));
+      if (p.flip) {
+        // 翻面：竖向按 cos 缩，翻到背面时暗一点
+        p.ph += p.flip * dt;
+        const c = Math.cos(p.ph);
+        s.scale.set(sc, sc * p.stretch * (0.15 + 0.85 * Math.abs(c)));
+        s.alpha = p.alpha * Math.min(1, t * 3) * (c < 0 ? 0.75 : 1);
+        continue;
+      }
       s.scale.set(sc, sc * p.stretch);
       s.alpha = p.alpha * Math.min(1, t * 3);
     }

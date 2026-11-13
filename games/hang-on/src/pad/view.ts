@@ -143,6 +143,7 @@ export class PhoneView {
   }
 
   private countdown(): void {
+    this.stage?.intro(2.6);
     this.stopCount();
     let n = 3;
     $('vCountNum').textContent = String(n);

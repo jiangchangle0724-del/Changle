@@ -3,6 +3,7 @@
  * `?level=table-03` 选关（levels/ 里的 id），不给就是彩蛋关；`?players=4` 放 4 个人（最多 6 个，量帧时间用，只有 P1 P2 能操作）。
  * `?mode=race`（比谁先，`&teams=1` 分两队）、`?mode=last`（坐不住，场地 `?level=arena-01` / `arena-02`）试玩法。
  * 带回放录制：`?record=1` 一进来就录，或者点「录制」；停止时下载 replays 用的 JSON（每物理步一帧）。
+ * `?phone=1` 照手机上的画法画（镜头近一些，没有近景光斑和斜光）。
  */
 import { LEVELS, levelById } from '../levels';
 import { CFG } from '../physics/config';
@@ -21,7 +22,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const canvas = $<HTMLCanvasElement>('stage');
 const query = new URLSearchParams(location.search);
 const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
-const stage = await Stage.create(canvas, { plates: PLATES });
+const stage = await Stage.create(canvas, { plates: PLATES, compact: query.get('phone') === '1' });
 let nPlayers = Math.max(1, Math.min(6, Number(query.get('players')) || 1));
 const mode = (['climb', 'team', 'race', 'last'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
 const rules = (): Rules => (mode === 'race' && query.get('teams') === '1' ? { mode, teams: Array.from({ length: nPlayers }, (_, i) => i % 2) } : { mode });

@@ -8,7 +8,7 @@
  * 盖住天空和远、中两层剪影，压暗一点，镜头走过整关它只横着挪一小段；最近那层剪影留着压在画前面。
  * 没有这张图就全用程序画的。
  */
-import { Assets, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js';
+import { Assets, BlurFilter, Container, FillGradient, Graphics, Sprite, type Texture } from 'pixi.js';
 import { glow, hex, type Palette, type WorldId } from './art';
 import type { Burst, Particles } from './fx';
 
@@ -44,9 +44,15 @@ export class Backdrop {
   private H = 0;
   private skyGrad: FillGradient | null = null;
   private steamT = 0;
+  private rayT = 0;
   private rainT = 0;
   private plate: Sprite | null = null;
+  /** 远景画外面套一层：糊一点（景深，A8），糊好的样子存成一张图，镜头动时只挪这层。 */
+  private plateC: Container | null = null;
   private plateA = 0;
+  /** 从上面斜照下来的几道光（A8）：屏幕空间，慢慢晃。手机上不画。 */
+  private readonly rays = new Graphics();
+  private raysOn = true;
   private dead = false;
   rain = false;
 
@@ -65,7 +71,15 @@ export class Backdrop {
       this.view.addChild(c);
       this.layers.push({ c, f, period: 1600, g });
     }
+    this.rays.blendMode = 'add';
+    this.view.addChild(this.rays);
     if (plate) void this.loadPlate(plate);
+  }
+
+  /** 手机上省掉斜光（满屏的半透明很费）。 */
+  set light(on: boolean) {
+    this.raysOn = on;
+    this.rays.visible = on;
   }
 
   /** 远景画：加载好了就盖在天空上，最远那层剪影藏起来。加载失败就当没有。 */
@@ -75,10 +89,16 @@ export class Backdrop {
       if (this.dead) return;
       const s = new Sprite(tex);
       s.tint = PLATE_TINT[this.world];
-      s.alpha = 0;
-      this.view.addChildAt(s, 1);
+      const c = new Container();
+      c.addChild(s);
+      // 景深：远处的画糊一点，前面的台子和人就跳出来了；糊一次存起来，不每帧算
+      c.filters = [new BlurFilter({ strength: 2.4, quality: 3 })];
+      c.alpha = 0;
+      this.view.addChildAt(c, 1);
       this.plate = s;
+      this.plateC = c;
       this.layoutPlate();
+      c.cacheAsTexture(true);
     } catch {
       // 没有图就全用程序画的
     }
@@ -93,6 +113,7 @@ export class Backdrop {
     const k = Math.max((this.W * 1.1) / tw, this.H / th);
     s.scale.set(k);
     s.y = (this.H - th * k) / 2;
+    this.plateC?.updateCacheTexture();
   }
 
   resize(W: number, H: number): void {
@@ -115,6 +136,26 @@ export class Backdrop {
       l.g[1].x = period;
     });
     this.layoutPlate();
+    this.drawRays(W, H);
+  }
+
+  /** 几道斜光：年夜饭桌是灯笼的暖光，温哥华是路灯的冷光。从画面上沿斜着往右下。 */
+  private drawRays(W: number, H: number): void {
+    const g = this.rays.clear();
+    const warm = this.world === 'table';
+    const color = warm ? 0xffc27a : 0xa8c8ff;
+    const beams = warm ? [0.12, 0.36, 0.63, 0.86] : [0.2, 0.55, 0.82];
+    for (const [i, fx] of beams.entries()) {
+      const x = fx * W;
+      const w0 = W * 0.03;
+      const w1 = W * (0.12 + (i % 2) * 0.05);
+      const dx = H * 0.35;
+      // 一道光：上窄下宽，三层叠出软边
+      for (let k = 0; k < 3; k++) {
+        const s = 1 - k * 0.3;
+        g.poly([x - w0 * s, -10, x + w0 * s, -10, x + dx + w1 * s, H * 1.05, x + dx - w1 * s, H * 1.05]).fill({ color, alpha: 0.018 + k * 0.012 });
+      }
+    }
   }
 
   destroy(): void {
@@ -127,13 +168,20 @@ export class Backdrop {
   /** camX / camY：镜头中心（世界坐标）；levelW / levelH 用来算远景画挪多少、竖直视差。 */
   update(camX: number, camY: number, zoom: number, levelW: number, levelH: number, dt: number): void {
     const plate = this.plate;
-    if (plate) {
+    const plateC = this.plateC;
+    if (plate && plateC) {
       // 慢慢显出来；显出来之后最远那层剪影就不画了
       this.plateA = Math.min(1, this.plateA + dt / 0.5);
-      plate.alpha = this.plateA;
+      plateC.alpha = this.plateA;
       for (const i of PLATE_HIDES) (this.layers[i] as Layer).c.visible = this.plateA < 1;
       const t = Math.max(0, Math.min(1, camX / Math.max(1, levelW)));
-      plate.x = -(plate.width - this.W) * t;
+      plateC.x = -(plate.width - this.W) * t;
+    }
+    if (this.raysOn) {
+      // 斜光慢慢呼吸，跟着镜头横着挪一点点（它离得近）
+      this.rayT += dt;
+      this.rays.alpha = 0.75 + 0.25 * Math.sin(this.rayT * 0.7);
+      this.rays.x = -((camX * 0.04 * zoom) % 60);
     }
     for (const l of this.layers) {
       const off = ((camX * l.f * zoom) % l.period) + l.period;

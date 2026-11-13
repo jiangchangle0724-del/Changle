@@ -14,7 +14,7 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/physics/hazards.test.ts` | A6 的机关：碰到就死的尖刺、烫、电，会动的台子，会转的杆子，按人数摆的关 |
 | `src/physics/arenas.ts` | 坐不住（A7）的两个场地：转盘（桌上）、海湾浮台（温哥华），平台按 `until` 一块块塌 |
 | `src/physics/modes.test.ts` | A7：6 个人每关都站得住、每个检查点都复活得了，比谁先（各跑各的、分两队）、坐不住、定时塌、手滑 |
-| `src/render/` | 画面（A3，Pixi 8）：`stage.ts` 镜头、图层、事件→动效、慢动作；`backdrop.ts` 两个世界的视差背景；`terrain.ts` 平台按材质贴图、饼干、蜡烛、灯、旗；`dumpling.ts` 糯米团（脸、帽子、眼镜、挤压拉伸、复活掉落）；`fx.ts` 粒子池；`art.ts` 色板和程序画的贴图 |
+| `src/render/` | 画面（A3，Pixi 8；A8 加了 2.5D）：`stage.ts` 镜头（开局从终点扫回起点、过关推近）、图层、事件→动效、慢动作、落地影子；`backdrop.ts` 两个世界的视差背景（远景画虚化、灯的斜光）；`depth.ts` 台子的侧面，跟着镜头透视；`fore.ts` 近景虚化的光斑和热气；`terrain.ts` 平台按材质贴图、饼干、蜡烛、灯、旗；`dumpling.ts` 糯米团（明暗和高光、脸、帽子、眼镜、挤压拉伸、复活掉落）；`fx.ts` 粒子池（纸屑会翻面）；`framewatch.ts` 掉帧就少画（画多细三级：电脑全画，手机不画近景光斑和斜光，再掉帧台子不画侧面）；`art.ts` 色板和程序画的贴图 |
 | `src/audio/sfx.ts` | 音效（A3）：全部 WebAudio 现场合成，没有音频文件；每个人的尖叫音高不同 |
 | `src/look.ts` | 换装的选项（帽子、眼镜、眼睛、脸、袖子、嗓子）和中英名字，手柄页和主机共用 |
 | `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
@@ -44,7 +44,7 @@ npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwr
 npm run lobby-check # 同上：大厅、结算、下一关
 npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
 npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，
-                    #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 试玩法）
+                    #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 试玩法，?phone=1 照手机的画法画）
 npm run levels      # 关卡验收：每关的规则加回放（-- --screenshots 重拍 docs/levels/ 的截图）
 npm run probe       # 乱按探路：大关每关至少两段一两个人过不去（-- table-06 只报告一关，--quick 少按几次）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON

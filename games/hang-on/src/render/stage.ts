@@ -9,11 +9,15 @@ import { Application, Container, FillGradient, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Level, Pt } from '../physics/level';
 import type { SimEvent } from '../physics/world';
+import { moverAt } from '../physics/motion';
 import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
 import { CONFETTI, hex, OUTLINE, PALETTES, textures, type Palette, type Textures, type WorldId } from './art';
 import { Backdrop } from './backdrop';
+import { Depth } from './depth';
 import { Dumpling } from './dumpling';
+import { Foreground } from './fore';
+import { FrameWatch } from './framewatch';
 import { Particles } from './fx';
 import { Terrain } from './terrain';
 
@@ -50,6 +54,8 @@ export class Stage {
   private readonly abyssBody = new Graphics();
   private readonly abyssTop = new Graphics();
   private readonly propsG = new Graphics();
+  /** 落在台子上的影子（A8）。 */
+  private readonly shadowsG = new Graphics();
   private readonly ropesG = new Graphics();
   private readonly trailsG = new Graphics();
   private readonly playersC = new Container();
@@ -58,6 +64,15 @@ export class Stage {
   private readonly flash = new Graphics();
 
   private backdrop: Backdrop | null = null;
+  /** 近景虚化（A8）：手机上没有。 */
+  private fore: Foreground | null = null;
+  /**
+   * 画多细（A8）：2 全画；1 没有近景光斑和斜光（手机局、小触屏投屏当电视从这一级开始）；
+   * 0 台子也不画侧面。一直掉帧（FrameWatch）就降一级，这一局不再升回去。
+   */
+  private detail: 0 | 1 | 2;
+  private readonly watch = new FrameWatch();
+  private depth: Depth | null = null;
   private terrain: Terrain | null = null;
   private world_: WorldId = 'table';
   private pal: Palette = PALETTES.table;
@@ -69,6 +84,9 @@ export class Stage {
   private vignetteGrad: FillGradient | null = null;
   private abyssGrad: FillGradient | null = null;
   private t = 0;
+  /** 开局镜头从终点扫回起点（A8）：还剩几秒、一共几秒。 */
+  private introT = 0;
+  private introDur = 0;
   private bubbleT = 0;
   private W = 1;
   private H = 1;
@@ -79,8 +97,10 @@ export class Stage {
     private readonly plates: Partial<Record<WorldId, string>>,
     /** 手机屏幕：镜头拉近一点，糯米团别小得看不清。 */
     private readonly compact: boolean,
+    smallTouch: boolean,
   ) {
     this.app = app;
+    this.detail = compact || smallTouch ? 1 : 2;
     this.reduced = reduced;
     this.tex = textures();
     this.screenFx = new Particles(this.tex.particles);
@@ -89,7 +109,7 @@ export class Stage {
       this.fx.cap = 150;
       this.screenFx.cap = 60;
     }
-    this.world.addChild(this.abyssBody, this.propsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
+    this.world.addChild(this.abyssBody, this.propsG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
     this.root.addChild(this.screenFx.view, this.world, this.vignette, this.flash);
     app.stage.addChild(this.root);
   }
@@ -121,7 +141,8 @@ export class Stage {
     }
     app.ticker.stop();
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const stage = new Stage(app, reduced, opts.plates ?? {}, !!opts.compact);
+    const smallTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
+    const stage = new Stage(app, reduced, opts.plates ?? {}, !!opts.compact, smallTouch);
     stage.resize();
     return stage;
   }
@@ -135,6 +156,7 @@ export class Stage {
     this.H = H;
     this.app.renderer.resize(W, H);
     this.backdrop?.resize(W, H);
+    this.fore?.resize(W, H);
     const v = this.vignette.clear();
     const grad = (this.vignetteGrad ??= new FillGradient({
       type: 'radial',
@@ -160,13 +182,27 @@ export class Stage {
     this.world_ = level.world === 'van' ? 'van' : 'table';
     this.pal = PALETTES[this.world_];
     this.backdrop?.destroy();
+    this.depth?.view.destroy({ children: true });
     this.terrain?.view.destroy({ children: true });
     this.backdrop = new Backdrop(this.world_, this.pal, this.screenFx, this.plates[this.world_]);
     this.backdrop.rain = this.world_ === 'van' && (level.teaches === 'ice' || level.rects.some((r) => r.material === 'ice'));
     this.backdrop.resize(this.W, this.H);
+    this.backdrop.light = this.detail === 2;
     this.root.addChildAt(this.backdrop.view, 0);
+    this.fore?.destroy();
+    this.fore = null;
+    this.watch.reset();
+    if (this.detail === 2) {
+      this.fore = new Foreground(this.world_, this.reduced);
+      this.fore.resize(this.W, this.H);
+      this.root.addChildAt(this.fore.view, this.root.getChildIndex(this.world) + 1);
+    }
+    // 2.5D：台子后面露出来的侧面画在正面下面（A8）
+    this.depth = new Depth(level, this.world_);
+    this.depth.view.visible = this.detail > 0;
+    this.world.addChildAt(this.depth.view, 1);
     this.terrain = new Terrain(level, this.world_, this.pal, this.reduced);
-    this.world.addChildAt(this.terrain.view, 1);
+    this.world.addChildAt(this.terrain.view, 2);
     const a = this.abyssBody.clear();
     this.abyssGrad?.destroy();
     this.abyssGrad = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.abyssTop }, { offset: 1, color: this.pal.abyssBottom }] });
@@ -201,6 +237,16 @@ export class Stage {
     d.setName(st.name);
     d.setColor(st.color);
     d.setLook(st.look);
+  }
+
+  /**
+   * 开局倒数时镜头从终点扫回起点（A8）：先看到终点在哪，拉远一点，再落到大家身上。
+   * 坐不住的场地一屏就看全了，减弱动效时不扫。
+   */
+  intro(seconds = 2.6): void {
+    if (this.reduced) return;
+    this.introDur = seconds;
+    this.introT = seconds;
   }
 
   reset(): void {
@@ -270,7 +316,7 @@ export class Stage {
         case 'fade': {
           const f = sim.fadings[ev.index];
           if (f && !ev.on) {
-            this.fx.burst({ x: f.x + f.w / 2, y: f.y + f.h / 2, n: Math.min(36, Math.round(f.w / 5)), texture: 'square', colors: [0xe2b06a, 0xa56f2e, 0xfff6e9], speed: [60, 220], life: [0.6, 1.1], size: [7, 14], gravity: 800, spin: 9, jitter: f.w / 12 });
+            this.fx.burst({ x: f.x + f.w / 2, y: f.y + f.h / 2, n: Math.min(36, Math.round(f.w / 5)), texture: 'square', colors: [0xe2b06a, 0xa56f2e, 0xfff6e9], speed: [60, 220], life: [0.6, 1.1], size: [7, 14], gravity: 800, spin: 9, jitter: f.w / 12, flip: this.reduced ? 0 : 8 });
           }
           break;
         }
@@ -296,7 +342,7 @@ export class Stage {
           // 定时的东西塌了：碎块往下掉，镜头轻轻一抖
           const n = Math.min(40, Math.max(10, Math.round(ev.w / 8)));
           const colors = this.world_ === 'table' ? [0xe8d5b0, 0xb08050, 0xfff6e9] : [0x9aa8c0, 0x5f6b85, 0xd8dde8];
-          this.fx.burst({ x: ev.x + ev.w / 2, y: ev.y + ev.h / 2, n, texture: 'square', colors, speed: [60, 240], life: [0.6, 1.2], size: [6, 14], gravity: 900, spin: 9, jitter: ev.w / 3 });
+          this.fx.burst({ x: ev.x + ev.w / 2, y: ev.y + ev.h / 2, n, texture: 'square', colors, speed: [60, 240], life: [0.6, 1.2], size: [6, 14], gravity: 900, spin: 9, jitter: ev.w / 3, flip: this.reduced ? 0 : 8 });
           if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 4);
           break;
         }
@@ -332,7 +378,7 @@ export class Stage {
 
   private confetti(x: number, y: number): void {
     const colors = CONFETTI.map(hex);
-    this.fx.burst({ x, y, n: this.reduced ? 30 : 90, texture: 'square', colors, speed: [250, 700], angle: -Math.PI / 2, spread: 1.1, life: [1.4, 2.6], size: [6, 11], gravity: 500, spin: 14, drag: 1.2 });
+    this.fx.burst({ x, y, n: this.reduced ? 30 : 90, texture: 'square', colors, speed: [250, 700], angle: -Math.PI / 2, spread: 1.1, life: [1.4, 2.6], size: [6, 11], gravity: 500, spin: 14, drag: 1.2, flip: this.reduced ? 0 : 11 });
     this.fx.burst({ x, y, n: this.reduced ? 10 : 30, texture: 'star', colors: STAR_COLORS, speed: [200, 500], angle: -Math.PI / 2, spread: 1.2, life: [1, 2], size: [8, 14], gravity: 400, spin: 10 });
   }
 
@@ -370,13 +416,37 @@ export class Stage {
     const base = this.compact ? Math.max(0.55, Math.min(1.1, Math.min(W / 820, H / 500))) : Math.max(0.6, Math.min(1.25, Math.min(W / 1000, H / 640)));
     const fit = Math.min(W / (bw + 420), H / (bh + 360));
     // 坐不住的场地只有一屏：整个场地都看得见（哪块要塌、谁在哪一眼看全）
-    const zt = level.arena ? Math.min(W / level.w, H / level.h) : Math.max(0.45, Math.min(base, fit));
+    let zt = level.arena ? Math.min(W / level.w, H / level.h) : Math.max(0.45, Math.min(base, fit));
+    // 过关：镜头推近一点看大家一起跳（A8）
+    if (sim.won && !level.arena && !this.reduced) zt *= 1.22;
+    const clampX = (x: number, z: number): number => {
+      const hw = W / 2 / z;
+      return level.w <= hw * 2 ? level.w / 2 : Math.max(hw - 60, Math.min(level.w - hw + 60, x));
+    };
+    const clampY = (y: number, z: number): number => {
+      const hh = H / 2 / z;
+      return level.h <= hh * 2 ? level.h / 2 : Math.max(hh - 40, Math.min(level.h - hh + 80, y));
+    };
+    if (this.introT > 0 && !level.arena) {
+      // 开局：从终点扫回起点，中途拉远一点（像摇臂）
+      this.introT = Math.max(0, this.introT - dt);
+      const u = 1 - this.introT / this.introDur;
+      const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+      const z0 = Math.max(0.45, zt * 0.8);
+      const z = z0 + (zt - z0) * e - 0.14 * zt * Math.sin(Math.PI * u);
+      const g = level.goal;
+      const gx = clampX(g.x + g.w / 2, z);
+      const gy = clampY(g.y + g.h / 2 - 40, z);
+      cam.z = z;
+      cam.x = gx + (clampX(tx, z) - gx) * e;
+      cam.y = gy + (clampY(ty, z) - gy) * e;
+      cam.shake = 0;
+      return;
+    }
     cam.z += (zt - cam.z) * Math.min(1, dt * 2.5);
-    const halfW = W / 2 / cam.z;
-    const halfH = H / 2 / cam.z;
     // 关卡比画面窄就居中，不然到边停
-    const cx = level.w <= halfW * 2 ? level.w / 2 : Math.max(halfW - 60, Math.min(level.w - halfW + 60, tx));
-    const cy = level.h <= halfH * 2 ? level.h / 2 : Math.max(halfH - 40, Math.min(level.h - halfH + 80, ty));
+    const cx = clampX(tx, cam.z);
+    const cy = clampY(ty, cam.z);
     cam.x += (cx - cam.x) * Math.min(1, dt * 5);
     cam.y += (cy - cam.y) * Math.min(1, dt * 5);
     cam.shake = Math.max(0, cam.shake - dt * 30);
@@ -392,6 +462,7 @@ export class Stage {
 
   draw(sim: SimView, dt: number): void {
     this.t += dt;
+    if (this.detail > 0 && !(typeof navigator !== 'undefined' && navigator.webdriver) && this.watch.tick(performance.now())) this.lessDetail();
     // 慢动作：摔死后 0.3 秒 0.25 倍，再 0.25 秒回到 1
     if (this.slow > 0) {
       this.slow = Math.max(0, this.slow - dt);
@@ -409,8 +480,11 @@ export class Stage {
 
     const level = sim.level;
     this.backdrop?.update(cam.x, cam.y, cam.z, level.w, level.h, dt);
+    this.fore?.update(cam.x, cam.y, cam.z, level.h, dt);
+    if (this.detail > 0) this.depth?.update(sim, { x: cam.x, y: cam.y, halfW: this.W / 2 / cam.z, halfH: this.H / 2 / cam.z });
     this.terrain?.update(sim, dt);
     this.drawProps(sim);
+    this.drawShadows(sim);
     this.drawRopes(sim);
     this.drawTrails(sim);
     this.syncPlayers(sim);
@@ -421,6 +495,18 @@ export class Stage {
     this.fx.update(dt);
     this.screenFx.update(dt);
     this.app.renderer.render(this.app.stage);
+  }
+
+  /** 一直掉帧：降一级（先关近景光斑和斜光，再不画台子的侧面）。截图、测试用的无头浏览器不降，画面才稳。 */
+  private lessDetail(): void {
+    this.detail = this.detail === 2 ? 1 : 0;
+    if (this.detail < 2) {
+      if (this.backdrop) this.backdrop.light = false;
+      this.fore?.destroy();
+      this.fore = null;
+    }
+    if (this.detail < 1 && this.depth) this.depth.view.visible = false;
+    console.info(`[hang-on] 一直掉帧，画面降到第 ${this.detail} 级`);
   }
 
   private drawProps(sim: SimView): void {
@@ -471,6 +557,54 @@ export class Stage {
         g.poly(pts).stroke({ width: 3, color: table ? 0x8a5a2b : 0x5a6676, join: 'round' });
       }
     }
+  }
+
+  /**
+   * 落在台子上的影子（A8）：每个人正下方最近的台面上一团椭圆，离得越高越淡越小，
+   * 光从左上来，影子往右偏一点。人飞在半空、底下没东西就没有影子。
+   */
+  private drawShadows(sim: SimView): void {
+    const g = this.shadowsG.clear();
+    for (const p of sim.players) {
+      if (p.dead) continue;
+      const b = p.body;
+      const foot = b.y + CFG.bodyR;
+      const gy = this.groundBelow(sim, b.x, foot - 6);
+      if (gy === null) continue;
+      const h = Math.max(0, gy - foot);
+      const k = Math.min(1, h / 320);
+      const sx = b.x + h * 0.1;
+      const rx = CFG.bodyR * (1.15 - 0.5 * k);
+      const ry = CFG.bodyR * 0.3 * (1 - 0.35 * k);
+      const a = 0.32 * (1 - k) * (1 - k);
+      g.ellipse(sx, gy - 2, rx, ry).fill({ color: 0x140a1e, alpha: a });
+      g.ellipse(sx, gy - 2, rx * 0.6, ry * 0.6).fill({ color: 0x140a1e, alpha: a * 0.7 });
+    }
+  }
+
+  /** (x, y) 正下方 320 px 内最近的台面的 y；没有就是 null。 */
+  private groundBelow(sim: SimView, x: number, y: number): number | null {
+    let best = Infinity;
+    const take = (top: number, x0: number, x1: number): void => {
+      if (x >= x0 && x <= x1 && top >= y && top < best) best = top;
+    };
+    const level = sim.level;
+    for (const r of level.rects) if (r.until === undefined || sim.time < r.until) take(r.y, r.x, r.x + r.w);
+    for (const m of level.movers ?? []) {
+      if (m.deadly || (m.until !== undefined && sim.time >= m.until)) continue;
+      const at = moverAt(m, sim.time);
+      take(at.y, at.x, at.x + m.w);
+    }
+    for (const f of sim.fadings) if (f.on) take(f.y, f.x, f.x + f.w);
+    for (const s of sim.springs) take(s.y, s.x, s.x + s.w);
+    for (const prop of sim.props) {
+      const c = Math.cos(prop.angle);
+      if (Math.abs(c) < 0.3) continue;
+      const lx = (x - prop.x) / c;
+      if (Math.abs(lx) > prop.w / 2) continue;
+      take(prop.y + lx * Math.sin(prop.angle) - (prop.h / 2) * c, x - 1, x + 1);
+    }
+    return best <= y + 320 ? best : null;
   }
 
   private drawRopes(sim: SimView): void {
