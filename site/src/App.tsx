@@ -47,6 +47,8 @@ const UserPage = lazy(() => import("./account/UserPage").then((m) => ({ default:
 const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default: m.ChatPage })));
 const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
 const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default: m.SignInSheet })));
+// 两清 (changle.ca/split): its screens and its arithmetic load when someone opens it
+const SplitApp = lazy(() => import("./split/SplitApp").then((m) => ({ default: m.SplitApp })));
 
 /** A one-phone game that ran a minute or more goes into the signed-in player's history. */
 function useSoloHistory(route: Route) {
@@ -167,6 +169,7 @@ function Shell() {
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "chat") screen = <ChatPage key={route.id} id={route.id} onBack={back} />;
+  else if (route.kind === "split") screen = <SplitApp id={route.id} onBack={back} />;
   else if (route.kind === "game") {
     switch (route.id) {
       case "rogue":
