@@ -76,6 +76,9 @@
   .bar .me { display: inline-flex; align-items: center; gap: 8px; background: var(--mine); color: var(--card-ink); border-radius: 999px; padding: 4px 12px 4px 6px; font-weight: 700; }
   .bar .me .dot { width: 14px; height: 14px; border-radius: 50%; background: rgba(0,0,0,.25); }
   .bar .chip { background: var(--panel); border-radius: 999px; padding: 4px 10px; display: inline-flex; gap: 6px; align-items: center; }
+  /* 玩法的小牌子：哪一队、第几个到（金色），出局了（红色）；字是深色 */
+  .bar .chip.tag { background: #F8C56D; color: #2a1f3a; font-weight: 700; }
+  .bar .chip.tag.bad { background: #ef5a5a; }
   .bar .hand { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--glove-l); box-sizing: border-box; }
   .bar .hand.r { border-color: var(--glove-r); }
   .bar .hand.on { background: var(--glove-l); } .bar .hand.r.on { background: var(--glove-r); }
@@ -154,6 +157,7 @@
     <span class="me"><span class="dot"></span><span id="meName">糯米团</span></span>
     <span class="chip" title="左手 / 右手" data-en-title="Left hand / right hand"><span class="hand" id="handL"></span><span class="hand r" id="handR"></span></span>
     <span class="chip">💀 <b id="deaths">0</b></span>
+    <span class="chip tag" id="tag" hidden></span>
     <span class="chip">⏱ <b class="ms" id="rtt">—</b></span>
     <span class="chip" id="path">连接中</span>
     <button class="chip btn" id="lookBtn2" type="button" data-en="Look">样子</button>
@@ -195,7 +199,7 @@
 <div class="vcount" id="vCount" hidden><div class="count"><span id="vCountNum">3</span><small id="vCountLevel"></small></div></div>
 <div class="vres" id="vResults" hidden>
   <div class="card">
-    <h2 data-en="Made it!">到顶了！</h2>
+    <h2 id="vWinTitle">到顶了！</h2>
     <div class="big" id="vWinTime">0.0 s</div>
     <p class="par" id="vWinPar"></p>
     <ol id="vDeathList"></ol>

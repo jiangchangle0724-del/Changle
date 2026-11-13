@@ -84,6 +84,36 @@ const dangersOf = (level) => [
   ...(level.movers ?? []).filter((m) => m.deadly).map((m) => ({ kind: 'mover', def: m })),
   ...(level.spinners ?? []).filter((s) => s.deadly).map((s) => ({ kind: 'spinner', def: s })),
 ];
+/**
+ * 两关像不像：把每块台子（含饼干、蜡烛）的上沿按 40 px 一格记下来，比两关的格子重了多少（交集 / 并集）。
+ * 整关比一次，开头那一屏（出生点附近 1280 × 720）再比一次。挪几个像素躲不过去。
+ */
+const CELL = 40;
+function surfaceCells(level, window) {
+  const cells = new Set();
+  for (const r of [...level.rects, ...(level.fading ?? []), ...(level.springs ?? [])]) {
+    const y = Math.floor(r.y / CELL);
+    for (let cx = Math.floor(r.x / CELL); cx <= Math.floor((r.x + r.w - 1) / CELL); cx++) {
+      if (window) {
+        const px = cx * CELL + CELL / 2;
+        const py = y * CELL + CELL / 2;
+        if (px < window.x0 || px > window.x1 || py < window.y0 || py > window.y1) continue;
+      }
+      cells.add(`${cx},${y}`);
+    }
+  }
+  return cells;
+}
+const firstScreen = (level) => surfaceCells(level, { x0: level.spawn.x - 200, x1: level.spawn.x + 1080, y0: level.spawn.y - 520, y1: level.spawn.y + 200 });
+function jaccard(a, b) {
+  let both = 0;
+  for (const c of a) if (b.has(c)) both++;
+  return both / Math.max(1, a.size + b.size - both);
+}
+/** 难关和别的关最多多像：整关（现有 12 关之间最多 0.55），开头那一屏（难关之间）。 */
+const SAME_LEVEL = 0.6;
+const SAME_START = 0.85;
+
 /** 一件要命的东西碰得到的范围（会动的按整条路线算），给「每屏都有」用。 */
 function dangerBox(d) {
   if (d.kind === 'hazard') return d.def;
@@ -101,6 +131,8 @@ function machines(level, id) {
   const hazardKinds = new Set(['spike', 'hot', 'zap']);
   const dirs = new Set(['up', 'down', 'left', 'right']);
   const all = layoutLists(level).flatMap((l) => l ?? []);
+  // A7 的定时塌（until）：几秒后塌，不再回来
+  for (const item of all) assert(item.until === undefined || (finite(item.until) && item.until > 0), `${id}: until must be a positive number of seconds`);
   for (const item of all) {
     if (item.players === undefined) continue;
     const [a, b] = item.players;
@@ -221,7 +253,7 @@ function validate(level, replay, id) {
     assert(inside(level, cp), id + ': checkpoint outside level');
     // Respawns use cp.x + player * 30. All four bodies (radius 24) need permanent footing,
     // at every team size (a platform that is only there for some sizes counts only for those).
-    for (let n = 1; n <= TESTED_PLAYERS; n++) for (let player = 0; player < Math.min(n, 4); player++) assert(level.rects.some(r => present(r, n) &&
+    for (let n = 1; n <= TESTED_PLAYERS; n++) for (let player = 0; player < Math.min(n, 4); player++) assert(level.rects.some(r => present(r, n) && r.until === undefined &&
       cp.x + player * 30 - 24 >= r.x && cp.x + player * 30 + 24 <= r.x + r.w &&
       r.y - cp.y >= 24 && r.y - cp.y <= 80 && r.w >= 48), id + ': checkpoint ' + index + ' lacks permanent footing within 80px for P' + (player + 1) + (n < 4 ? ` with ${n} players` : ''));
     if (index) assert(cp.x > cps[index - 1].x && Math.hypot(cp.x - cps[index - 1].x, cp.y - cps[index - 1].y) >= 120, id + ': checkpoints must follow the route');
@@ -273,7 +305,8 @@ async function inspect(physics, level, replay) {
   const laid = sim.level;
   const step = sim.step.bind(sim);
   const dangers = dangersOf(laid);
-  const evidence = { chainSeconds: 0, throws: 0, ropeGrabs: 0, propGrabs: 0, maxTilt: 0, checkpointTimes: [], cookieGrabs: (laid.fading ?? []).map(() => 0), springBounces: (laid.springs ?? []).map(() => 0), iceGrabs: 0,
+  // chainBySeg / throwsBySeg：每一段（出生到第一个检查点是第 0 段）里成串挂了几秒、丢了几次人
+  const evidence = { chainSeconds: 0, throws: 0, chainBySeg: [], throwsBySeg: [], ropeGrabs: 0, propGrabs: 0, maxTilt: 0, checkpointTimes: [], cookieGrabs: (laid.fading ?? []).map(() => 0), springBounces: (laid.springs ?? []).map(() => 0), iceGrabs: 0,
     moverUse: (laid.movers ?? []).map(() => 0), spinnerUse: (laid.spinners ?? []).map(() => 0), near: dangers.map(() => false) };
   const bars = (s) => { const angle = spinnerAngle(s, sim.time); return Array.from({ length: s.arms }, (_, j) => spinnerArm(s, j, angle)); };
   const holding = (p, hit) => p.arms.some((a) => a.grip?.kind === 'terrain' && hit(a.hand, CFG.handR + CFG.grabPad));
@@ -283,13 +316,20 @@ async function inspect(physics, level, replay) {
     step(dt);
     const chained = sim.players.some((p) => !p.dead && !p.ground && p.arms.some((a) => a.grip?.kind === 'player' &&
       !sim.players[a.grip.player].ground && sim.players[a.grip.player].arms.some((b) => b.grip?.kind === 'terrain' || b.grip?.kind === 'rope')));
-    if (chained) evidence.chainSeconds += dt;
+    const seg = evidence.checkpointTimes.length;
+    if (chained) {
+      evidence.chainSeconds += dt;
+      evidence.chainBySeg[seg] = (evidence.chainBySeg[seg] ?? 0) + dt;
+    }
     sim.players.forEach((p, i) => p.arms.forEach((a, j) => {
       const old = before[i][j];
       if (old?.kind === 'player' && !a.grip) {
         const v = velocities[old.player];
         // A throw releases a teammate flying right and upward toward the pit.
-        if (v.x > level.spawn.x + 50 && v.vx > 150 && v.vy < -100) evidence.throws++;
+        if (v.x > level.spawn.x + 50 && v.vx > 150 && v.vy < -100) {
+          evidence.throws++;
+          evidence.throwsBySeg[seg] = (evidence.throwsBySeg[seg] ?? 0) + 1;
+        }
       }
     }));
     for (const e of sim.events) {
@@ -492,7 +532,13 @@ try {
     if (id === 'table-05' || id === 'van-12') assert(evidence.ropeGrabs > 0, `${id}: rope was bypassed`);
     if (id === 'van-09' || id === 'van-12') assert(evidence.propGrabs > 0 && evidence.maxTilt > 0.05, `${id}: seesaw was bypassed`);
     // 难关得靠大家：回放里真的有人连成串挂着，或者把队友丢过去
-    if (isHard(id)) assert(evidence.chainSeconds >= 0.25 || evidence.throws >= 1, `${id}: a hard level's replay must use teamwork (hang as a chain for 0.25 s or throw a teammate)`);
+    if (isHard(id)) {
+      assert(evidence.chainSeconds >= 0.25 || evidence.throws >= 1, `${id}: a hard level's replay must use teamwork (hang as a chain for 0.25 s or throw a teammate)`);
+      // 不能只在开头连一下：至少两段里都要靠大家（成串挂着 0.25 秒，或者丢一次人）
+      const segs = Math.max(evidence.chainBySeg.length, evidence.throwsBySeg.length);
+      const teamSegs = Array.from({ length: segs }, (_, k) => (evidence.chainBySeg[k] ?? 0) >= 0.25 || (evidence.throwsBySeg[k] ?? 0) >= 1).filter(Boolean).length;
+      assert(teamSegs >= 2, `${id}: teamwork in only ${teamSegs} checkpoint segment(s); a hard level needs it in at least two`);
+    }
     // 按人数摆的关：每一种摆法都要有一份回放（4 个人那种就是上面这份）
     const mine = extraReplays.filter((r) => r.id === id);
     for (const group of layoutGroups(level)) {
@@ -514,6 +560,17 @@ try {
   assert(entries.filter(e => e.level.fading?.length && e.level.springs?.length).length >= 2, 'at least two levels need both cookies and candles');
   // 难关全到齐了才查的整体搭配（分批交的时候先不查）
   const hardEntries = entries.filter((e) => isHard(e.level.id));
+  // 每个难关都要是自己的关：整关不能和别的关（现有 12 关、别的难关）像，开头那一屏不能和别的难关一样，也不能把一个世界的关换个样子搬到另一个世界
+  for (const a of hardEntries) {
+    for (const b of entries) {
+      if (b === a || (isHard(b.level.id) && b.level.id < a.level.id)) continue;
+      const whole = jaccard(surfaceCells(a.level), surfaceCells(b.level));
+      assert(whole <= SAME_LEVEL, `${a.level.id} and ${b.level.id} share ${(whole * 100).toFixed(0)}% of their platforms; every hard level needs its own layout (at most ${SAME_LEVEL * 100}%)`);
+      if (!isHard(b.level.id)) continue;
+      const start = jaccard(firstScreen(a.level), firstScreen(b.level));
+      assert(start <= SAME_START, `${a.level.id} and ${b.level.id} open with the same first screen (${(start * 100).toFixed(0)}% alike); every hard level needs its own start (at most ${SAME_START * 100}%)`);
+    }
+  }
   if (hardEntries.length === hardIds.length) {
     const count = (pred) => hardEntries.filter((e) => pred(e.level)).length;
     assert(count((l) => l.movers?.some((m) => !m.deadly)) >= 3, 'hard levels: at least three need a moving platform to ride or hold');

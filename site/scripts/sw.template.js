@@ -33,7 +33,7 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== "GET" || url.origin !== self.location.origin ||
-      !/^https?:$/.test(url.protocol) || /^\/(eat|go|trip|hide|party|hang-on)(\/|$)/.test(url.pathname) ||
+      !/^https?:$/.test(url.protocol) || /^\/(eat|when|go|trip|hide|party|hang-on)(\/|$)/.test(url.pathname) ||
       request.headers.get("Upgrade")?.toLowerCase() === "websocket") return;
 
   if (request.mode === "navigate") {

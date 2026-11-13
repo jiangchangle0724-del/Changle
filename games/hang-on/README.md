@@ -12,11 +12,13 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/physics/extras.test.ts` | 检查点、跷跷板和箱子、回放、步长 |
 | `src/physics/gameplay.test.ts` | A3 的玩法：饼干平台、弹簧蜡烛、背叛判定、召唤、落地事件 |
 | `src/physics/hazards.test.ts` | A6 的机关：碰到就死的尖刺、烫、电，会动的台子，会转的杆子，按人数摆的关 |
+| `src/physics/arenas.ts` | 坐不住（A7）的两个场地：转盘（桌上）、海湾浮台（温哥华），平台按 `until` 一块块塌 |
+| `src/physics/modes.test.ts` | A7：6 个人每关都站得住、每个检查点都复活得了，比谁先（各跑各的、分两队）、坐不住、定时塌、手滑 |
 | `src/render/` | 画面（A3，Pixi 8）：`stage.ts` 镜头、图层、事件→动效、慢动作；`backdrop.ts` 两个世界的视差背景；`terrain.ts` 平台按材质贴图、饼干、蜡烛、灯、旗；`dumpling.ts` 糯米团（脸、帽子、眼镜、挤压拉伸、复活掉落）；`fx.ts` 粒子池；`art.ts` 色板和程序画的贴图 |
 | `src/audio/sfx.ts` | 音效（A3）：全部 WebAudio 现场合成，没有音频文件；每个人的尖叫音高不同 |
 | `src/look.ts` | 换装的选项（帽子、眼镜、眼睛、脸、袖子、嗓子）和中英名字，手柄页和主机共用 |
 | `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
-| `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」 |
+| `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」；`levelsFor(玩法)` 给每种玩法自己的一串（大团队是 `levels/team/`，坐不住是场地） |
 | `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入 |
 | `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计，`snap.ts` 手机局的画面快照（主机压、手机拼成 `RemoteSim`） |
 | `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜，画法在 `src/results.ts`）、声音开关，键盘也能加入。在手机上打开就是手机局（见下） |
@@ -40,7 +42,8 @@ npm run dev         # 整套本地跑：http://<这台电脑的 IP>:8787/hang-on
 npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwright 的 Chromium：npx playwright install chromium）
 npm run lobby-check # 同上：大厅、结算、下一关
 npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
-npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=4 放 4 个人量帧时间，?level=proto-02 / proto-03 是机关样板关）
+npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，
+                    #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 试玩法）
 npm run levels      # 关卡验收：每关的规则加回放（-- --screenshots 重拍 docs/levels/ 的截图）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON
 npm run ip-check    # 法律线，CI 里为零才合并
@@ -49,6 +52,11 @@ npm run ip-check    # 法律线，CI 里为零才合并
 主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓、R 召唤，自己一个人也能试。
 「绕路模式」是测试用的开关：不直连，全部经 Cloudflare 中转，看看备用路好不好用。`?render=0` 只跑物理不画画面（联机检查用）。
 控制台里 `hangOn.sim`、`hangOn.peers()`、`hangOn.pickLevel(i)` 看状态和换关；手柄页 `hangOnPad.link.simulateDrop()` 模拟关 Wi-Fi。
+
+## 玩法（A7）
+
+大厅里开局前选：闯关（照旧）、大团队（4 到 6 个人的大关，C9 做好才出）、比谁先（各跑各的，或者甜队对咸队）、坐不住（摔了不复活，平台会塌，一个地方抓久了手会滑，最后挂着的赢）。
+最多 6 个人：电视局 6 个手柄，手机局房主加 5 部手机。规则在 `CONTRACTS.md`「玩法契约」；主机页 `?mode=race&teams=1`、`?mode=last` 直接开到那个玩法。
 
 ## 手机局（没有电视、没有电脑）
 

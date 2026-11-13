@@ -260,13 +260,16 @@ export function HintLine({ v }: { v: DjView }) {
   const live = v.phase !== "wait" && v.phase !== "end";
   useTicker(live, 3000);
   const d = v.deck;
-  if (v.juke && live)
+  if (v.juke && live) {
+    // (读场: a floor that's dragging between songs is told to ask for one everyone loves)
+    const cold = !d.song && !d.paused && heatLean(v.fires, v.colds, now()) <= COLD_LEAN;
     return (
-      <p className="dk-hint">
+      <p className={`dk-hint ${cold ? "is-cold" : ""}`}>
         <ListMusic size={24} aria-hidden="true" />
-        {jukeText(!!d.song, !!d.up, zh)}
+        {cold ? hintText("cold", offAir(d), zh, true) : jukeText(!!d.song, !!d.up, zh, !!d.paused)}
       </p>
     );
+  }
   const h = hintFor(d, now(), live, v.source === "lyria", heatLean(v.fires, v.colds, now()) <= COLD_LEAN);
   if (!h || h === "countdown") return null;
   return (

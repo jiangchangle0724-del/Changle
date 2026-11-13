@@ -67,7 +67,7 @@ export class DeckDriver {
   private gateDone = -Infinity;
   private mixEpoch = -1;
   private mixBpm = 0;
-  /** what the deck did, for the checks (scripts/dj_deck_check.py): kind and audio time */
+  /** what the deck did, for the checks (scripts/dj_youtube_check.py, dj_local_check.py): kind and audio time */
   readonly log: { k: string; at: number; beat: number }[] = [];
 
   constructor(

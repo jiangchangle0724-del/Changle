@@ -1,8 +1,9 @@
 """打碟 · DJ Booth, a night of the host's own songs, in browsers: the TV starts the night, the host
 adds three song files on it (made up here: a kick, a snare, hats, a bass in the loud part, at 128,
 124 and 100 BPM), the DJ hears each one's tempo; the host switches to them, the phones see the
-songs on the decks and ask for one by name, the table drops into it and its loud part lands on the
-drop's bar, the pads still land on the beat, and as a song ends the DJ drops into the next.
+song on the air and ask for one by name, the room switches into it by itself (点歌模式, the
+booth's only way since Nov 12; held with 暂停 till the speaker has it ready) and its loud part lands
+on the switch's bar, the pads still land on the beat, and as a song ends the DJ goes into the next.
 
 Needs the two local servers (site/README.md). usage: python3 scripts/dj_local_check.py [chromium|webkit]
 """
@@ -11,6 +12,7 @@ from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, os.path.dirname(__file__))
 from party_test import until, ok, fails, phone, view  # noqa: E402
+from dj_tube import key  # noqa: E402
 
 BASE = "http://127.0.0.1:5173/"
 WHICH = next((a for a in sys.argv[1:] if a in ("chromium", "webkit")), "chromium")
@@ -78,15 +80,6 @@ def on_beat(e):
     return e["want"] is not None and abs(e["beat"] - round(e["beat"])) < 1e-6 and abs(e["at"] - e["want"]) < 0.001
 
 
-def charge(phones, tv, secs=20):
-    end = time.time() + secs
-    while time.time() < end and not deck(tv).get("drop"):
-        for ph in phones:
-            ph.evaluate("() => { const b = document.querySelector('.djk-charge'); if (b) for (let i = 0; i < 3; i++) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }")
-        phones[0].wait_for_timeout(150)
-    return deck(tv).get("drop")
-
-
 songs_dir = tempfile.mkdtemp(prefix="dj-songs-")
 SONGS = [
     ("Alpha - First Song.wav", 128, 0.4, 44, 12),
@@ -125,7 +118,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-player").count() == 1, 10000), f"{name}'s phone shows the player")
         phones.append(ph)
     amy, ben = phones
 
@@ -134,8 +127,7 @@ with sync_playwright() as p:
     ok(until(lambda: (view(tv) or {}).get("source") == "local" and deck(tv).get("local"), 8000), "用我的歌放: the room plays the host's songs")
     ok(until(lambda: tv.evaluate("() => window.__djBooth.source") == "local", 15000), "the TV hands the speaker to the local DJ once the song on the air is ready")
     on_song = (view(tv) or {}).get("onDecks", {}).get("a") or {}
-    ok(until(lambda: on_song.get("t", "~") in amy.locator(".djk-deck").first.inner_text(), 4000), f"the phones' deck A says which song ({on_song.get('t')})")
-    ok(amy.locator(".djk-pick").count() == 0 and amy.locator(".djk-next").count() == 1, "no styles to pick: the next song instead")
+    ok(until(lambda: on_song.get("t", "~") in amy.locator(".djp-now").inner_text(), 4000), f"the phones say which song is on ({on_song.get('t')})")
     tv.locator(".dj-local-x").click()
     ok(until(lambda: tv.evaluate("() => window.__djBooth.stats()")["state"] == "playing", 8000), "the music plays")
     tv.wait_for_timeout(1500)
@@ -149,7 +141,9 @@ with sync_playwright() as p:
     pads = [e for e in log(tv)["log"] if e["k"] in ("echo", "horn")]
     ok(all(on_beat(e) for e in pads), f"on the song's beat, to the millisecond ({[round(e['beat'], 3) for e in pads]})")
 
-    # Ben asks for one by name
+    # Ben asks for one by name (Amy holds the room, so it waits up next while the speaker gets it ready)
+    key(amy, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 0) > 0, 4000), "Amy holds the room (暂停)")
     want = next(s for s in ("Third Song", "Second Song", "First Song") if s != on_song.get("t") and s != ((view(tv) or {}).get("onDecks", {}).get("b") or {}).get("t"))
     ben.locator(".djk-req-input").fill(want.split()[0])
     ok(until(lambda: ben.locator(".djk-req-hit").filter(has_text=want).count() >= 1, 8000, 100), f"Ben types: the host's songs come up ({want})")
@@ -162,12 +156,9 @@ with sync_playwright() as p:
     tv.screenshot(path=os.path.join(OUT, f"local-{WHICH}-tv-2-up.png"))
     ben.screenshot(path=os.path.join(OUT, f"local-{WHICH}-phone-1.png"), full_page=True)
 
-    dr = charge(phones, tv)
-    ok(bool(dr) and dr["to"] == off, "everyone builds it up: the drop goes into it")
-    ben.evaluate(
-        """(when) => { setTimeout(() => { const b = document.querySelector('.djk-drop'); if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, isPrimary: true })); }, Math.max(0, when - Date.now())); }""",
-        dr["cue"] + 15,
-    )
+    key(ben, 1).click()
+    dr = until(lambda: deck(tv).get("drop"), 20000, 50)
+    ok(bool(dr) and dr["to"] == off and dr.get("quiet") is True, "Ben carries on (播放): the switch into it, by itself")
     ok(until(lambda: (deck(tv).get("last") or {}).get("bar") == dr["bar"], max(0, dr["at"] - time.time() * 1000) + 5000), "it lands")
     ok((deck(tv).get("now") or {}).get("text") == want, "the song asked for is on the air")
     xf = tv.evaluate("() => window.__localDj.sp.node.parameters.get('xfade').value")
@@ -184,7 +175,7 @@ with sync_playwright() as p:
     # as the song ends, the DJ drops into the next by itself
     playing_id = deck(tv)["now"]["local"]
     ok(until(lambda: (deck(tv).get("ending") == playing_id) or ((deck(tv).get("last") or {}).get("auto") and (deck(tv).get("songs") or {}).get("a" if deck(tv)["fader"] < 0.5 else "b") != playing_id), 120000, 500), "the song on the air nearly over: the room hears it")
-    ok(until(lambda: (deck(tv).get("last") or {}).get("auto") is True, 60000, 500), "the DJ drops into the next song by itself")
+    ok(until(lambda: (deck(tv).get("last") or {}).get("auto") is True and (deck(tv).get("last") or {}).get("bar") != dr["bar"], 60000, 500), "the DJ goes into the next song by itself")
     st = tv.evaluate("() => window.__djBooth.stats()")
     ok(st["state"] == "playing" and st["stalls"] == 0, f"the music never stopped ({st})")
 
@@ -192,7 +183,7 @@ with sync_playwright() as p:
     tv.locator(".dj-local-btn").click()
     tv.locator(".dj-local-go .tv-btn").first.click()
     ok(until(lambda: (view(tv) or {}).get("source") == "fake" and tv.evaluate("() => window.__djBooth.source") == "fake", 10000), "换回试音版 DJ: the stand-in plays again")
-    ok(until(lambda: amy.locator(".djk-pick").count() == 12, 4000), "and the phones pick styles again")
+    ok(until(lambda: "试音版" in amy.locator(".djp-now").inner_text(), 4000), f"and the phones say so ({amy.locator('.djp-now').inner_text()!r})")
 
     bad = [e for e in errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not bad, f"no errors {bad[:3]}")

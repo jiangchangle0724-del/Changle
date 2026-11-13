@@ -489,3 +489,18 @@ clock the speakers are sounding. Changed:
 
 `dj_turntable_check.py` 36 of 36 (three new), `dj_deck_check.py` 68, `dj_local_check.py` 32,
 `tests/dj-sound.test.ts`.
+
+## The phones' player, no build-up or DROP (Nov 12)
+
+Steve: "把截图2 3功能去掉，不需要drop了，把dance along 放到最下面，手机上点完歌后可以直接在玩家手机上一键
+播放，切歌，暂停，上一曲". The phone lost its turntables, mixer, crossfader, build-up, DROP and picks; the
+room plays the songs asked for one after another, always (点歌模式); the player (上一曲, 暂停 or 播放,
+切歌) is on every phone and in the shared phone's sheet. In Chromium, all passing:
+`dj_player_check.py` (new: the page's order, 暂停 holding the TV's video where it is with the DJ
+quiet, 播放 on from there, 切歌, 上一曲, the tap word), `dj_youtube_check.py` (the songs come on by
+themselves now; a room held with 暂停 keeps the next one waiting, ready, in its corner; each heard on
+its bar, the DJ letting go on it), `dj_shared_check.py`, `dj_floor_check.py`, `dj_floor3d_check.py`
+(its 🔥 jump sample missed once on a busy machine, passed again), `dj_local_check.py`,
+`dj_dance_check.py`, `dj_mine_check.py`. Retired with the deck they drove: `dj_deck_check.py`,
+`dj_mixer_check.py`, `dj_turntable_check.py` (in git's history). `tests/engine.test.ts` has the
+player's rules, and the old deck's with it switched back on from the speaker.

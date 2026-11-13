@@ -113,7 +113,7 @@ with sync_playwright() as p:
 
     phones = [join(br, code, n) for n in ("Amy", "Ben", "Cat")]
     for ph in phones:
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 15000), f"{ph._name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-player").count() == 1, 15000), f"{ph._name}'s phone shows the player")
     amy, ben, cat = phones
     pid = {ph._name: ph.evaluate("() => window.__room.you") for ph in phones}
     ok(until(lambda: f3(tv).get("n") == 3 and len(tags(tv)) == 3, 8000), f"a robot for each of the three ({f3(tv).get('n')})")

@@ -1,0 +1,190 @@
+// The whole of A1 on real pages: a host makes a gathering, guests fill in on their own phones,
+// everyone sees the same counts without reloading, the host sets the time, and another phone takes
+// over with the admin code. Each phone is its own browser context, so each has its own storage.
+import { expect, test, type Browser, type Page } from "@playwright/test";
+
+const KEY = "x-when-key";
+
+async function phone(browser: Browser): Promise<Page> {
+  const context = await browser.newContext();
+  return context.newPage();
+}
+
+/** Make a gathering on the home page; ends on its page with the "it's ready" sheet open. */
+async function make(page: Page, title: string): Promise<{ url: string; code: string; adminCode: string }> {
+  await page.goto("/when/");
+  await page.fill('input[name="title"]', title);
+  await page.click('button[type="submit"]');
+  await expect(page.locator(".admin-code")).toBeVisible();
+  const adminCode = (await page.locator(".admin-code").innerText()).trim();
+  expect(adminCode).toMatch(/^\d{6}$/);
+  const url = page.url();
+  const code = url.split("/").pop()!;
+  expect(code).toMatch(/^[a-hjkmnp-z2-9]{8}$/);
+  await page.click(".sheet-foot .btn");
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  return { url, code, adminCode };
+}
+
+async function join(page: Page, url: string, name: string): Promise<void> {
+  await page.goto(url);
+  await page.fill(".name-form input", name);
+  await page.click(".name-form .btn");
+  await expect(page.locator(".you")).toContainText(name);
+}
+
+const saved = (page: Page) => expect(page.locator(".status")).toHaveAttribute("data-state", "saved");
+const cell = (page: Page, n: number) => page.locator(".grid .cell").nth(n);
+
+test("make, fill in on two phones, set the time", async ({ browser }) => {
+  const host = await phone(browser);
+  const { url } = await make(host, "周末火锅");
+  await expect(host).toHaveTitle(/周末火锅/);
+  await expect(host.locator(".event-head h1")).toHaveText("周末火锅");
+
+  // tapping a slot before giving a name asks for the name instead
+  await cell(host, 2).click();
+  await expect(host.locator(".name-form .problem")).toBeVisible();
+  await host.fill(".name-form input", "Steve");
+  await host.click(".name-form .btn");
+  await expect(host.locator(".you")).toContainText("Steve");
+
+  // one tap is free, two is could-move-things, three clears
+  await cell(host, 2).click();
+  await expect(cell(host, 2)).toHaveAttribute("data-mine", "yes");
+  await cell(host, 5).click();
+  await cell(host, 5).click();
+  await expect(cell(host, 5)).toHaveAttribute("data-mine", "maybe");
+  await cell(host, 8).click();
+  await cell(host, 8).click();
+  await cell(host, 8).click();
+  await expect(cell(host, 8)).toHaveAttribute("data-mine", "no");
+  await saved(host);
+
+  // a guest opens the link on another phone: sees the host's answers, adds their own
+  const guest = await phone(browser);
+  await join(guest, url, "阿May");
+  await expect(guest.locator(".meta")).toContainText("2");
+  await expect(guest.locator(".link-btn", { hasText: "我是发起人" })).toBeVisible();
+  await cell(guest, 2).click();
+  await cell(guest, 4).click();
+  await saved(guest);
+
+  // the host's page catches up by itself
+  await host.click(".seg button:nth-child(2)");
+  await expect(host.locator(".meta")).toContainText("2");
+  await expect(cell(host, 2).locator("b")).toHaveText("2");
+  await expect(cell(host, 4).locator("b")).toHaveText("1");
+  await expect(host.locator(".best li").first()).toContainText("2 个人里 2 个有空");
+
+  // a guest has no way to set the time; the host does, and the guest's page shows it
+  await guest.click(".seg button:nth-child(2)");
+  await expect(guest.locator(".best .btn")).toHaveCount(0);
+  await host.locator(".best li").first().locator(".btn").click();
+  await expect(host.locator(".set")).toContainText("定了");
+  await expect(guest.locator(".set")).toContainText("2 个人里 2 个有空");
+
+  // it all survives a reload, and each phone is still who it was
+  await guest.reload();
+  await expect(guest.locator(".you")).toContainText("阿May");
+  await expect(guest.locator(".set")).toBeVisible();
+  await host.reload();
+  await expect(host.locator(".you")).toContainText("Steve");
+  await expect(host.locator(".stepper")).toBeVisible();
+});
+
+test("two phones tap the same slot at once: both answers stay", async ({ browser }) => {
+  const host = await phone(browser);
+  const { url } = await make(host, "桌游");
+  const [a, b] = [await phone(browser), await phone(browser)];
+  await Promise.all([join(a, url, "甲"), join(b, url, "乙")]);
+  await Promise.all([cell(a, 7).click(), cell(b, 7).click()]);
+  await Promise.all([saved(a), saved(b)]);
+  for (const page of [a, b, host]) {
+    await page.click(".seg button:nth-child(2)");
+    await expect(cell(page, 7).locator("b")).toHaveText("2");
+  }
+  await a.reload();
+  await a.click(".seg button:nth-child(2)");
+  await expect(cell(a, 7).locator("b")).toHaveText("2");
+});
+
+test("nobody can write someone else's row, or set the time without being a host", async ({ browser, request }) => {
+  const host = await phone(browser);
+  const { url, code } = await make(host, "爬山");
+  const guest = await phone(browser);
+  await join(guest, url, "阿May");
+  await cell(guest, 1).click();
+  await saved(guest);
+
+  const state = await (await request.get(`/when/api/e/${code}`)).json();
+  const may = state.state.people[0];
+  expect(may.name).toBe("阿May");
+  expect(JSON.stringify(state)).not.toContain("Hash");
+
+  // a stranger's key with May's id
+  const stranger = "A".repeat(43);
+  const steal = await request.post(`/when/api/e/${code}/me`, { headers: { [KEY]: stranger }, data: { id: may.id, name: "阿May", answers: {} } });
+  expect(steal.status()).toBe(403);
+  const settle = await request.post(`/when/api/e/${code}/host`, { headers: { [KEY]: stranger }, data: { do: "settle", slot: Object.keys(may.answers)[0] } });
+  expect(settle.status()).toBe(403);
+  const nokey = await request.post(`/when/api/e/${code}/me`, { data: { name: "x", answers: {} } });
+  expect(nokey.status()).toBe(400);
+  const after = await (await request.get(`/when/api/e/${code}`)).json();
+  expect(after.state.people).toEqual(state.state.people);
+  expect(after.state.settled).toBeNull();
+});
+
+test("another phone becomes the host with the admin code; a wrong code is refused", async ({ browser }) => {
+  const host = await phone(browser);
+  const { url, adminCode } = await make(host, "生日");
+  const other = await phone(browser);
+  await join(other, url, "新手机");
+  await other.click(".link-btn:has-text('我是发起人')");
+  // the sheet opens with the cursor in its field, ready to type
+  await expect(other.locator(".code-input")).toBeFocused();
+  const wrong = adminCode === "000000" ? "000001" : "000000";
+  await other.fill(".code-input", wrong);
+  await other.click(".claim .btn");
+  await expect(other.locator(".claim .problem")).toHaveText("管理码不对");
+  await other.fill(".code-input", adminCode);
+  await other.click(".claim .btn");
+  await expect(other.locator(".stepper")).toBeVisible();
+  // and it can do a host's things: at least two people now
+  await other.click(".stepper button:last-child");
+  await expect(other.locator(".stepper output")).toHaveText("2");
+  await expect(host.locator(".stepper output")).toHaveText("2");
+});
+
+test("a link to a gathering that isn't there says so, in English too", async ({ browser }) => {
+  const page = await phone(browser);
+  const res = await page.goto("/when/zzzzzzzz");
+  expect(res!.status()).toBe(404);
+  await expect(page.locator(".empty h1")).toHaveText("找不到这个聚会");
+  await page.click(".bar-lang");
+  await expect(page.locator(".empty h1")).toHaveText("Can't find this gathering");
+  await page.click(".empty .btn");
+  await expect(page.locator(".hero h1")).toContainText("When Works");
+});
+
+test("nothing is wider than a small phone, and every button can be pressed", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 320, height: 568 } });
+  const page = await context.newPage();
+  const fits = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  for (const lang of ["zh", "en"]) {
+    await page.goto("/when/");
+    if (lang === "en") await page.click(".bar-lang");
+    await fits();
+    const { url } = await make(page, lang === "zh" ? "周末火锅和桌游，顺便看个电影" : "Hot pot, board games and a late movie");
+    // names are 16 characters at most: these are as long as they get
+    await join(page, url, lang === "zh" ? "名字特别特别长的一位老朋友啊哈哈" : "A long-named pal");
+    await cell(page, 0).click();
+    await saved(page);
+    await fits();
+    await page.click(".seg button:nth-child(2)");
+    await fits();
+    const small = await page.evaluate(() => [...document.querySelectorAll("button, a.btn")].filter((el) => el.getBoundingClientRect().height > 0 && el.getBoundingClientRect().height < 43.5).map((el) => el.className + ":" + el.textContent));
+    expect(small).toEqual([]);
+  }
+  await context.close();
+});
