@@ -34,6 +34,7 @@ export function TubePlayer({
   done,
   nosong,
   tap,
+  stopped = false,
 }: {
   v: DjView;
   zh: boolean;
@@ -46,6 +47,8 @@ export function TubePlayer({
   nosong: (id: string) => void;
   /** this browser wants a tap on the video before it plays with sound (or doesn't any more): the room tells the phones */
   tap: (on: boolean) => void;
+  /** this page's own sound stopped (a phone's screen locked, a call): it wants a tap too */
+  stopped?: boolean;
 }) {
   const d = v.deck;
   const slot = useRef<HTMLDivElement>(null);
@@ -196,9 +199,10 @@ export function TubePlayer({
     else if (!away.current) speaker.giveWay(false, 0.8);
   }, [held, speaker]);
 
-  // this browser wants a tap on the video (Safari, an iPhone: the night's first song): the room
-  // keeps it, the phones say so (said again whenever the room has it otherwise)
-  const wants = status === "tap" || (status === "ready" && !armed && !!(next || target));
+  // this browser wants a tap on the video (Safari, an iPhone: the night's first song), or this
+  // page's sound stopped: the room keeps it, the phones say so (said again whenever the room has it
+  // otherwise)
+  const wants = stopped || status === "tap" || (status === "ready" && !armed && !!(next || target));
   const roomTap = !!d.tap;
   useEffect(() => {
     if (wants !== roomTap) latest.current.tap(wants);

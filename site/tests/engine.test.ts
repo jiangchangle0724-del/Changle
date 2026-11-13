@@ -3589,10 +3589,10 @@ test("dj: songs asked for by name: up next on the deck off the air, the drop pla
   const e2 = new RoomEngine(freshRoom("DJRM", clock), host);
   e2.screenHello("tv-m", true, "dj");
   dropMode(e2, "tv-m");
-  // (a full table, 15, three each would be 45)
+  // (a full table, 15, seven each would be 105)
   for (let i = 1; i <= 15; i++) e2.hello(`q${i}`, `Q${i}`, false);
   e2.flush();
-  for (let round = 0; round < 3; round++) {
+  for (let round = 0; round < 7; round++) {
     for (let i = 1; i <= 15; i++) {
       e2.act(`q${i}`, { a: "g", g: { x: "req", text: `song ${i} ${round}` } });
       e2.flush();
@@ -3907,6 +3907,101 @@ test("dj: the player on every phone (Steve on Nov 12: \"一键播放，切歌，
   ok(nothing(g("p3", "play")), "and nothing to carry on");
 });
 
+test("dj: a song coming on (点歌模式's quiet switch): a speaker whose bars keep moving doesn't put it off, 切歌 skips it too, 上一曲 puts the last one in on its bar (Steve on Nov 12: \"播放下一首全程没办法使用\")", () => {
+  const e = new RoomEngine(freshRoom("DJQS", clock), host);
+  e.screenHello("tv-qs", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-qs", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const ask = (pid: string, id: string) => g(pid, "req", { yt: [id, `Song ${id}`, "Chan"] });
+  const playing = () => dv("p2").deck.song?.yt ?? null;
+  const land = () => {
+    const sw = dv("p1").deck.drop;
+    if (sw) advance(sw.at - clock + 5);
+  };
+  const A = "aaaaaaaaaa1";
+  const B = "bbbbbbbbbb2";
+  const C = "cccccccccc3";
+  const D = "dddddddddd4";
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ask("p1", A);
+  advance(DECK.jukeWaitMs + 10);
+  const sw = dv("p1").deck.drop;
+  ok(!!sw && sw.quiet === true, "Amy's song is coming on");
+  // the speaker's sound stopped: its bars drift along with the clock, every second or so
+  for (let k = 1; k <= 3; k++) {
+    advance(DECK.gridGapMs + 100);
+    ok(sc("grid", { at: clock + 333 * k, bar: 2 + k, bpm: 125 }), `(new bars from the speaker, ${k})`);
+  }
+  ok(dv("p1").deck.drop?.at === sw!.at && dv("p1").deck.drop?.bar === sw!.bar, "the switch keeps its moment: new bars don't put it off (they did, for good, while a phone's sound was stopped)");
+  land();
+  ok(playing() === A, "and it lands: Amy's plays");
+  ask("p2", B);
+  ask("p3", C);
+  ok(dv("p1").deck.up?.yt === B && dv("p1").deck.reqs[0]?.yt === C, "Ben's up next, Cat's after it");
+
+  // 切歌 while Ben's is coming on: Cat's goes in on that bar instead
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }), "Amy's ends");
+  advance(DECK.jukeGapMs + 10);
+  const sw2 = dv("p1").deck.drop;
+  ok(!!sw2 && sw2.quiet === true && dv("p1").deck.up?.yt === B, "Ben's is coming on");
+  ok(!nothing(g("p3", "next")), "切歌 while it's coming on: taken (the keys aren't grey then any more)");
+  ok(dv("p1").deck.up?.yt === C && dv("p1").deck.drop?.at === sw2!.at, "Ben's skipped too: Cat's goes in on the same bar");
+  ok(dv("p1").deck.reqs.length === 0, "nothing else waiting");
+  land();
+  ok(playing() === C, "Cat's plays");
+  ok(dv("p1").deck.heard.map((r) => r.yt).join() === [A, C].join(), "the night's list: Amy's, Cat's (Ben's never played)");
+
+  // 上一曲 while the next is coming on: the last one played goes in instead
+  advance(DECK.reqGapMs + 10);
+  ask("p1", D);
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }), "Cat's ends");
+  advance(DECK.jukeGapMs + 10);
+  const sw3 = dv("p1").deck.drop;
+  ok(!!sw3 && dv("p1").deck.up?.yt === D, "Amy's next one is coming on");
+  ok(!nothing(g("p2", "prev")), "上一曲 while it's coming on: taken");
+  let d = dv("p1").deck;
+  ok(d.up?.yt === C && d.drop?.at === sw3!.at, "Cat's goes in again on that bar");
+  ok(d.reqs[0]?.yt === D && !!d.reqs[0].back, "Amy's back first on the 歌单");
+  ok(d.heard.map((r) => r.yt).join() === A, "the night's list steps back");
+  land();
+  ok(playing() === C && dv("p1").deck.up?.yt === D, "Cat's plays again, Amy's up next");
+
+  // 切歌 while the last one is coming on: the switch goes to the DJ
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }), "Cat's ends again");
+  advance(DECK.jukeGapMs + 10);
+  ok(!!dv("p1").deck.drop && dv("p1").deck.up?.yt === D, "Amy's is coming on");
+  advance(DECK.ctlGapMs);
+  ok(!nothing(g("p3", "next")), "切歌 while the last one is coming on");
+  d = dv("p1").deck;
+  ok(d.up === null && !!d.drop, "nothing up next: the switch goes to the DJ");
+  land();
+  ok(playing() === null && !dv("p1").deck.drop, "the DJ plays");
+  advance(DECK.ctlGapMs);
+  ok(nothing(g("p3", "next")), "and there's nothing to skip to");
+});
+
 test("dj: the shared phone (公用手机): the big screen itself asks for songs as the table's, takes its own back, skips the song playing, switches 随机 and the video, with nobody seated; another screen can't", () => {
   const e = new RoomEngine(freshRoom("DJSP", clock), host);
   e.screenHello("tv-sp", true, "dj");
@@ -3932,13 +4027,21 @@ test("dj: the shared phone (公用手机): the big screen itself asks for songs 
   ok(tv().deck.up?.by === SHARED_BY && tv().deck.up?.text === "Despacito", "up next, the table's, its name read on the screen");
   ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === SHARED_BY), "the room says the shared phone asked for a song");
   ok(!sc("req", { yt: ["abcdefghijk", "Two", "Chan"] }), "not again within a few seconds");
-  // more than a player's three: the table's thirty only (its first plays meanwhile: 点歌模式)
+  // more than a player's songs: the table's limit only (its first plays meanwhile: 点歌模式)
   for (const id of ["abcdefghij1", "abcdefghij2", "abcdefghij3", "abcdefghij4"]) {
     advance(DECK.reqGapMs + 10);
     ok(sc("req", { yt: [id, `Song ${id.slice(-1)}`, "Chan"] }), `the shared phone's song ${id.slice(-1)}`);
   }
+  // (its first comes on by itself a few seconds after it went up)
+  const sw0 = tv().deck.drop;
+  if (sw0) advance(sw0.at - clock + 5);
   ok(tv().deck.song?.by === SHARED_BY && tv().deck.song?.yt === "kJQP7kiw5Fk", "its first plays whole meanwhile, one after another (点歌模式)");
-  ok(mine() === 4, `four more of its own waiting, more than a player's three (${mine()})`);
+  ok(mine() === 4, `four more of its own waiting (${mine()})`);
+  for (let k = 5; k <= DECK.reqEach + 1; k++) {
+    advance(DECK.reqGapMs + 10);
+    sc("req", { text: `Song ${k}, typed on the shared phone` });
+  }
+  ok(mine() === DECK.reqEach + 1, `more than a player's ${DECK.reqEach} (${mine()}): the table's limit only`);
   // phones at the table read the shared phone's songs by name; only the host can take them out
   e.hello("p1", "Amy", false);
   e.hello("p2", "Ben", false);
@@ -3998,13 +4101,16 @@ test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随
   };
   const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
   const { dv, g, sc, advance } = room("DJPL");
-  for (const k of [1, 2, 3]) {
+  ok(DECK.reqEach >= 24 && DECK.reqMax === 100, `at least 24 each (Steve on Nov 12: "一个人一次性可以至少点24首歌"; ${DECK.reqEach}), a hundred in all`);
+  g("p2", "req", { text: "song 1 for ben" });
+  ok(nothing(g("p2", "req", { text: "too soon" })), "a second song the same moment: one a second");
+  for (let k = 2; k <= DECK.reqEach; k++) {
+    advance(DECK.reqGapMs + 10);
     g("p2", "req", { text: `song ${k} for ben` });
-    advance(6000);
   }
-  ok(dv("p2").deck.reqs.filter((r) => r.by === "p2").length === 3, "Ben puts three songs on the playlist");
-  ok(nothing(g("p2", "req", { text: "song four" })), "a fourth waits till one has played");
-  ok(DECK.reqEach === 3 && DECK.reqMax === 30, "three each, thirty in all");
+  ok(dv("p2").deck.reqs.filter((r) => r.by === "p2").length === DECK.reqEach, `Ben puts ${DECK.reqEach} songs on the playlist, one after another`);
+  advance(DECK.reqGapMs + 10);
+  ok(nothing(g("p2", "req", { text: "one more" })), "one more waits till one has played");
   // the host's switch
   ok(nothing(g("p2", "shuffle", { on: true })) && dv("p1").shuffle === false, "only the host switches 随机: it starts 按顺序");
   ok(!nothing(g("p1", "shuffle", { on: true })) && dv("p3").shuffle === true, "the host turns 随机 on: every phone sees it");

@@ -9,38 +9,6 @@
   gap: 18px;
   padding-bottom: 24px;
 }
-.djp-now {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 18px 16px;
-  border-radius: 22px;
-  background: var(--dusk);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-  text-align: center;
-}
-.djp-phase {
-  font-family: var(--font-display);
-  font-size: 32px;
-  font-weight: 900;
-  color: var(--gel);
-}
-.djp-hint {
-  color: var(--haze);
-  font-size: 15px;
-  font-weight: 600;
-}
-.djp .dj-now {
-  margin-top: 6px;
-}
-.djp .dj-now-src {
-  font-size: 12px;
-}
-.djp .dj-now-mix {
-  font-size: 16px;
-  white-space: normal;
-}
 .djp-warn {
   display: flex;
   align-items: center;

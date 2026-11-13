@@ -64,10 +64,11 @@ const tell = (is: Is) => {
 /**
  * The floor in 3D (Steve on Nov 5: "要把人玩家物的3d animation 做的更丝滑与机器人同样的设计感", and he
  * chose little robots): everyone at the table is the coach's robot in their own colour, their face
- * and name over its head, dancing on the speaker's beat. While a whole song plays they sing to it,
- * a microphone in hand (the page can't hear YouTube, so the mouths move to a singer's rhythm, not
- * the words). Someone away sits down; a 🔥 makes its owner jump. No graphics chip, frames too slow,
- * or the model can't load: `onFail`, and the drawn floor.
+ * and name over its head, dancing on the speaker's beat. While a whole song plays they dance to the
+ * song's own beat (its tempo looked up, counted from its start: Steve on Nov 12, "机器人没有跟着音乐
+ * 一起跳"), at a microphone, singing along (the page can't hear YouTube, so the brows move to a
+ * singer's rhythm, not the words). Someone away sits down; a 🔥 makes its owner jump. No graphics
+ * chip, frames too slow, or the model can't load: `onFail`, and the drawn floor.
  */
 export function Floor3D({
   seats,
@@ -199,7 +200,7 @@ export function Floor3D({
         const seen = { sing: false, beat: NaN, rows: 1 };
 
         // a microphone on a stand in front of each of them while a song plays (the robot has no
-        // mouth to sing with: it sways at the mic, brows up on the long notes, notes going up)
+        // mouth to sing with: it dances at the mic, brows up on the long notes, notes going up)
         const micGeo = {
           foot: new THREE.CylinderGeometry(tall * 0.1, tall * 0.11, tall * 0.015, 24),
           pole: new THREE.CylinderGeometry(tall * 0.009, tall * 0.009, tall * 0.6, 10),
@@ -448,7 +449,8 @@ export function Floor3D({
           // (local runs: the checks can have them sing without a song, dj_floor3d_check.py)
           const sing = live.current.singing || (import.meta.env.DEV && (window as unknown as { __floor3dSing?: boolean }).__floor3dSing === true);
           const b = clock.beat();
-          const beat = !sing && !calm && Number.isFinite(b) && b >= 0;
+          // (a song playing: its own beat, the TV's clock says; they dance at their mics)
+          const beat = !calm && Number.isFinite(b) && b >= 0;
           const sec = t / 1000;
           for (const s of list) {
             const bot = bots.get(s.id);
@@ -492,8 +494,8 @@ export function Floor3D({
               bot.root.rotation.y = 0;
               bot.root.rotation.z = 0;
             } else {
-              // no beat to dance on (no music yet, or a song the page can't hear): standing easy,
-              // swaying while it sings, turned a little to the room
+              // no beat to dance on (no music yet, or paused): standing easy, swaying while it
+              // sings, turned a little to the room
               const a = play(bot, "Idle");
               if (a) {
                 a.setLoop(THREE.LoopRepeat, Infinity);
