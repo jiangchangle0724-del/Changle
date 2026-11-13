@@ -1,0 +1,34 @@
+# Runs every time 跟一单 · Count Me In changes: the rules, and the Worker inside the Workers runtime
+# with a local D1 (no network; the rooms server it asks about sign-ins is a stand-in). Only this folder.
+name: tuan
+
+on:
+  push:
+    branches: [main]
+    paths: ["tools/tuan/**", ".github/workflows/tuan.yml"]
+  pull_request:
+    paths: ["tools/tuan/**", ".github/workflows/tuan.yml"]
+
+# One run per change: a branch's pushes are checked through its pull request, and main after each
+# merge. A newer push to the same pull request stops the older run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/tuan
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/tuan/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
