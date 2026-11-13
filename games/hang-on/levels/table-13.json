@@ -6,100 +6,120 @@
     "en": "Skewer Narrows"
   },
   "teaches": "spike",
-  "w": 2560,
+  "w": 3000,
   "h": 720,
   "spawn": {
-    "x": 300,
-    "y": 536
+    "x": 180,
+    "y": 556
   },
   "goal": {
-    "x": 2400,
-    "y": 240,
-    "w": 120,
+    "x": 2860,
+    "y": 200,
+    "w": 100,
     "h": 160
   },
   "checkpoints": [
     {
-      "x": 1275,
-      "y": 356
+      "x": 1200,
+      "y": 316
     },
     {
-      "x": 2140,
-      "y": 456
+      "x": 2200,
+      "y": 156
+    },
+    {
+      "x": 2800,
+      "y": 336
     }
   ],
   "rects": [
     {
       "kind": "ground",
       "x": 0,
-      "y": 560,
-      "w": 520,
-      "h": 160,
+      "y": 580,
+      "w": 420,
+      "h": 140,
       "material": "cloth",
       "grab": false
     },
     {
       "kind": "ground",
-      "x": 260,
-      "y": 340,
-      "w": 470,
+      "x": 600,
+      "y": 500,
+      "w": 400,
+      "h": 220,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1000,
+      "y": 420,
+      "w": 160,
+      "h": 300,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 420,
+      "y": 700,
+      "w": 180,
       "h": 20,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 800,
-      "y": 380,
-      "w": 660,
-      "h": 340,
+      "x": 1160,
+      "y": 340,
+      "w": 400,
+      "h": 380,
       "material": "ceramic"
     },
     {
       "kind": "ground",
-      "x": 1960,
-      "y": 480,
-      "w": 300,
-      "h": 240,
+      "x": 1560,
+      "y": 700,
+      "w": 180,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1740,
+      "y": 260,
+      "w": 400,
+      "h": 460,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2140,
+      "y": 180,
+      "w": 200,
+      "h": 540,
       "material": "ceramic"
     },
     {
       "kind": "ground",
       "x": 2340,
-      "y": 400,
-      "w": 180,
-      "h": 320,
+      "y": 700,
+      "w": 400,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2740,
+      "y": 360,
+      "w": 220,
+      "h": 360,
       "material": "ceramic"
     },
     {
       "kind": "ground",
-      "x": 2520,
-      "y": 240,
+      "x": 2960,
+      "y": 200,
       "w": 40,
-      "h": 480,
-      "material": "wood"
-    },
-    {
-      "kind": "ground",
-      "x": 520,
-      "y": 700,
-      "w": 280,
-      "h": 20,
-      "material": "wood"
-    },
-    {
-      "kind": "ground",
-      "x": 1460,
-      "y": 700,
-      "w": 500,
-      "h": 20,
-      "material": "wood"
-    },
-    {
-      "kind": "ground",
-      "x": 2260,
-      "y": 700,
-      "w": 80,
-      "h": 20,
+      "h": 520,
       "material": "wood"
     }
   ],
@@ -110,57 +130,73 @@
   "springs": [],
   "hazards": [
     {
-      "x": 560,
-      "y": 600,
-      "w": 220,
-      "h": 24,
+      "x": 440,
+      "y": 650,
+      "w": 140,
+      "h": 20,
       "kind": "spike"
     },
     {
-      "x": 1000,
-      "y": 250,
-      "w": 100,
-      "h": 24,
+      "x": 800,
+      "y": 180,
+      "w": 120,
+      "h": 20,
       "kind": "spike",
       "dir": "down"
     },
     {
-      "x": 1480,
-      "y": 600,
-      "w": 460,
-      "h": 24,
+      "x": 1580,
+      "y": 480,
+      "w": 140,
+      "h": 20,
       "kind": "spike"
     },
     {
-      "x": 2260,
-      "y": 560,
-      "w": 80,
-      "h": 24,
+      "x": 2360,
+      "y": 360,
+      "w": 300,
+      "h": 20,
       "kind": "spike"
     }
   ],
   "movers": [
     {
-      "x": 1480,
-      "y": 300,
-      "w": 260,
+      "x": 2360,
+      "y": 80,
+      "w": 180,
       "h": 22,
       "path": [
         {
-          "x": 1980,
-          "y": 300
+          "x": 2770,
+          "y": 80
         }
       ],
       "speed": 45,
       "wait": 1,
       "material": "wood"
+    },
+    {
+      "x": 1060,
+      "y": 260,
+      "w": 30,
+      "h": 80,
+      "path": [
+        {
+          "x": 1060,
+          "y": 0
+        }
+      ],
+      "speed": 20,
+      "wait": 4,
+      "deadly": true,
+      "hazard": "spike"
     }
   ],
   "spinners": [],
   "deathY": 790,
   "par": {
-    "seconds": 90,
-    "deathsPerPlayer": 4
+    "seconds": 150,
+    "deathsPerPlayer": 2
   },
   "replay": "replays/table-13.json"
 }

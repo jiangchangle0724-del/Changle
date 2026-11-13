@@ -9,82 +9,65 @@
   "w": 2560,
   "h": 720,
   "spawn": {
-    "x": 300,
-    "y": 536
+    "x": 216,
+    "y": 616
   },
   "goal": {
-    "x": 2400,
+    "x": 2420,
     "y": 240,
-    "w": 120,
+    "w": 100,
     "h": 160
   },
   "checkpoints": [
     {
-      "x": 1275,
-      "y": 356
+      "x": 1210,
+      "y": 416
     },
     {
-      "x": 2140,
-      "y": 456
+      "x": 2020,
+      "y": 256
     }
   ],
   "rects": [
     {
       "kind": "ground",
       "x": 0,
-      "y": 560,
-      "w": 520,
-      "h": 160,
-      "material": "cloth",
-      "grab": false
+      "y": 640,
+      "w": 480,
+      "h": 80,
+      "material": "metal"
     },
     {
       "kind": "ground",
-      "x": 260,
-      "y": 340,
-      "w": 470,
-      "h": 20,
-      "material": "wood"
+      "x": 1000,
+      "y": 440,
+      "w": 400,
+      "h": 280,
+      "material": "metal"
     },
     {
       "kind": "ground",
-      "x": 800,
-      "y": 380,
-      "w": 660,
-      "h": 340,
-      "material": "ceramic"
+      "x": 1640,
+      "y": 360,
+      "w": 160,
+      "h": 360,
+      "material": "metal"
     },
     {
       "kind": "ground",
-      "x": 520,
-      "y": 700,
-      "w": 280,
-      "h": 20,
-      "material": "wood"
+      "x": 1800,
+      "y": 280,
+      "w": 400,
+      "h": 440,
+      "material": "metal"
     },
     {
       "kind": "ground",
-      "x": 1960,
-      "y": 480,
-      "w": 300,
-      "h": 240,
-      "material": "ceramic"
-    },
-    {
-      "kind": "ground",
-      "x": 1460,
-      "y": 700,
-      "w": 500,
-      "h": 20,
-      "material": "wood"
-    },
-    {
-      "kind": "ground",
-      "x": 2340,
+      "x": 2400,
       "y": 400,
-      "w": 180,
+      "w": 120,
       "h": 320,
-      "material": "ceramic"
+      "material": "metal"
     },
     {
       "kind": "ground",
@@ -92,13 +75,29 @@
       "y": 240,
       "w": 40,
       "h": 480,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 480,
+      "y": 700,
+      "w": 520,
+      "h": 20,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 2260,
+      "x": 1400,
       "y": 700,
-      "w": 80,
+      "w": 240,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2200,
+      "y": 700,
+      "w": 200,
       "h": 20,
       "material": "wood"
     }
@@ -110,88 +109,105 @@
   "springs": [],
   "hazards": [
     {
-      "x": 530,
-      "y": 650,
-      "w": 250,
-      "h": 24,
+      "x": 500,
+      "y": 680,
+      "w": 400,
+      "h": 20,
       "kind": "zap",
       "dir": "up"
     },
     {
-      "x": 1000,
-      "y": 250,
-      "w": 100,
-      "h": 24,
+      "x": 700,
+      "y": 80,
+      "w": 80,
+      "h": 20,
       "kind": "zap",
       "dir": "down"
     },
     {
-      "x": 1480,
-      "y": 600,
-      "w": 460,
-      "h": 24,
-      "kind": "zap"
+      "x": 1440,
+      "y": 620,
+      "w": 140,
+      "h": 20,
+      "kind": "zap",
+      "dir": "up"
     },
     {
-      "x": 2260,
-      "y": 560,
-      "w": 80,
-      "h": 24,
-      "kind": "zap"
+      "x": 2240,
+      "y": 600,
+      "w": 120,
+      "h": 20,
+      "kind": "zap",
+      "dir": "up"
     }
   ],
   "movers": [
     {
-      "x": 780,
-      "y": 270,
-      "w": 20,
-      "h": 40,
-      "path": [
-        {
-          "x": 780,
-          "y": 650
-        }
-      ],
-      "speed": 40,
-      "wait": 0.4,
-      "deadly": true,
-      "hazard": "zap"
-    },
-    {
-      "x": 1480,
-      "y": 300,
-      "w": 260,
+      "x": 440,
+      "y": 500,
+      "w": 160,
       "h": 22,
       "path": [
         {
-          "x": 1980,
-          "y": 300
+          "x": 500,
+          "y": 220
+        },
+        {
+          "x": 1040,
+          "y": 220
         }
       ],
-      "speed": 45,
-      "wait": 1,
-      "phase": 0,
+      "speed": 65,
+      "wait": 2,
       "material": "metal"
+    },
+    {
+      "x": 780,
+      "y": 500,
+      "w": 24,
+      "h": 24,
+      "path": [
+        {
+          "x": 780,
+          "y": 620
+        }
+      ],
+      "speed": 100,
+      "wait": 2,
+      "material": "wood",
+      "deadly": true,
+      "hazard": "zap"
     }
   ],
   "spinners": [
     {
       "pivot": {
-        "x": 1810,
-        "y": 620
+        "x": 2300,
+        "y": 260
       },
       "arms": 2,
-      "len": 100,
-      "h": 14,
-      "spin": -1.1,
-      "phase": 0.9,
+      "len": 140,
+      "h": 16,
+      "spin": 0.55,
+      "material": "metal"
+    },
+    {
+      "pivot": {
+        "x": 800,
+        "y": 500
+      },
+      "arms": 2,
+      "len": 80,
+      "h": 16,
+      "spin": 1.1,
+      "material": "wood",
       "deadly": true
     }
   ],
   "deathY": 790,
   "par": {
-    "seconds": 120,
-    "deathsPerPlayer": 5
+    "seconds": 150,
+    "deathsPerPlayer": 6
   },
   "replay": "replays/van-21.json"
 }
