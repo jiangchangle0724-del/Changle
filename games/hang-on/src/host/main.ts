@@ -169,7 +169,7 @@ function renderModes(): void {
     b.className = 'mode small';
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', String(on === teamsOn));
-    b.textContent = on ? tr('甜队对咸队', 'Sweet vs Savory') : tr('各跑各的', 'Every dumpling for themselves');
+    b.textContent = on ? tr('甜队对咸队', 'Sweet vs Savory') : tr('各跑各的', 'Free for all');
     b.addEventListener('click', () => {
       sfx.tick();
       setTeams(on);
