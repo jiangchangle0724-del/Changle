@@ -231,5 +231,5 @@ export function whistle(c: BaseAudioContext, out: AudioNode, at: number, beat: n
   return end;
 }
 
-// the checks render these offline in the browser (dj_turntable_check.py)
+// a check rendered these offline in the browser (dj_turntable_check.py, retired on Nov 12 with the phones' turntables: in git's history)
 if (typeof window !== "undefined" && import.meta.env?.DEV) (window as unknown as { __club: unknown }).__club = { vinyl, bassDrop, reverseCymbal, whistle, noiseOnce };

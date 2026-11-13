@@ -1,19 +1,21 @@
 """打碟 · DJ Booth, what the plan asked of the floor, in browsers: a TV and three phones. ❄️ next to 🔥 on
 every phone, the TV counting both, the room reading them (读场: the stretch's energy leans down with
 ❄️, up with 🔥) and the hint telling the table what to do when it's cold; 报幕, the TV saying who a
-song asked for is from as the countdown into it starts (the host can turn it off); one player's two
-songs 10 minutes apart (the others' go first, and the phone says why); and the night's recap
-(今晚回顾) on the TV and the phones once the host ends the set.
+song asked for is from as the switch into it starts (the host can turn it off); one player's two
+songs 10 minutes apart (the others' go first, and the phone says why: the room held with 暂停, so
+they wait); and the night's recap (今晚回顾) on the TV and the phones once the host ends the set.
+The songs come on by themselves (点歌模式, the booth's only way since Nov 12).
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off. Headless browsers have no
 voices: the check reads what the TV meant to say (`window.__said`, the dev build only).
 usage: python3 scripts/dj_floor_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
 """
-import os, sys, tempfile, time
+import os, sys, tempfile
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, os.path.dirname(__file__))
 from party_test import until, ok, fails, phone, view  # noqa: E402
+from dj_tube import key  # noqa: E402
 
 BASE = "http://127.0.0.1:5173/"
 WHICH = next((a for a in sys.argv[1:] if a in ("chromium", "webkit")), "chromium")
@@ -54,31 +56,21 @@ def said(tv):
     return tv.evaluate("() => (window.__said || []).map(x => x.text)")
 
 
-def arm_press(pg, selector, when_ms):
-    pg.evaluate(
-        """([sel, when]) => { const go = () => { const b = document.querySelector(sel); if (b) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, isPrimary: true })); };
-          const wait = when - Date.now(); if (wait <= 0) go(); else setTimeout(go, wait); }""",
-        [selector, when_ms],
-    )
+def hold(tv, ph):
+    """暂停 from a phone: nothing comes up next till 播放."""
+    key(ph, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 0) > 0, 4000), "(held: the songs wait)")
 
 
 def drop_into(tv, phones, style, who):
-    """The speaker plays the song up next on its deck; the table builds it up; Amy presses on the cue.
-    (On a busy machine a phone's press can miss: then the DJ counts down again and drops it itself.)"""
+    """The song up next comes on by itself: the room held carries on from Amy's phone first; the
+    speaker plays its style on the deck off the air, and the room switches into it."""
+    if deck(tv).get("paused"):
+        key(phones[0], 1).click()
+        ok(until(lambda: not deck(tv).get("paused"), 4000), "(Amy carries on: 播放)")
     side = "b" if deck(tv).get("fader", 0) <= 0.5 else "a"
-    ok(until(lambda: (deck(tv).get("sounding") or {}).get(side) == style, 40000, 250), f"the speaker plays {style} on deck {side.upper()}")
-    end = time.time() + 30
-    while time.time() < end and not deck(tv).get("drop"):
-        for ph in phones:
-            ph.evaluate("() => { const b = document.querySelector('.djk-charge'); if (b) for (let i = 0; i < 3; i++) b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); }")
-        phones[0].wait_for_timeout(150)
-    dr = deck(tv).get("drop")
-    ok(bool(dr) and dr["to"] == side, f"the build-up full: the drop goes to deck {side.upper()}")
-    arm_press(phones[0], ".djk-drop", dr["cue"] + 15)
-    ok(until(lambda: (deck(tv).get("now") or {}).get("by") == who and (deck(tv).get("last") or {}).get("to") == side, max(0, dr["at"] - time.time() * 1000) + 45000, 100), "it lands")
-    last = deck(tv).get("last") or {}
-    print(f"     (on its first countdown: {last.get('bar') == dr['bar']}; Amy's press: {[h['grade'] for h in last.get('hits', [])]})")
-    return dr
+    ok(until(lambda: (deck(tv).get("sounding") or {}).get(side) == style or (deck(tv).get("now") or {}).get("by") == who, 40000, 250), f"the speaker plays {style} on deck {side.upper()}")
+    ok(until(lambda: (deck(tv).get("now") or {}).get("by") == who and not deck(tv).get("drop"), 45000, 100), "it comes on by itself")
 
 
 with sync_playwright() as p:
@@ -102,7 +94,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-player").count() == 1, 10000), f"{name}'s phone shows the player")
         phones.append(ph)
     amy, ben, cat = phones
     pid = {n: ph.evaluate("() => window.__room.you") for n, ph in zip(("Amy", "Ben", "Cat"), phones)}
@@ -123,16 +115,17 @@ with sync_playwright() as p:
     tap(amy, ".djp-fire", 10)
     ok(until(lambda: view(tv)["mix"]["density"] > energy0, 5000), f"🔥 pulls it back up ({view(tv)['mix']['density']})")
 
-    # 报幕: Ben's song up next, the countdown into it, the TV says who it's from
+    # 报幕: Ben's song up next, the switch into it, the TV says who it's from
     ok(said(tv) == [], "nothing said yet")
     ask(ben, "reggaeton uno")
     ok(until(lambda: (deck(tv).get("up") or {}).get("by") == pid["Ben"], 4000), "Ben's song is up next (latin)")
     drop_into(tv, phones, "latin", pid["Ben"])
-    ok("Next up, a request from Ben" in said(tv), f"报幕: as the countdown started the TV said who it's from ({said(tv)})")
+    ok("Next up, a request from Ben" in said(tv), f"报幕: as the switch started the TV said who it's from ({said(tv)})")
     ok(len(said(tv)) == 1, "once")
     tv.wait_for_timeout(15000)
 
-    # one player's two songs 10 minutes apart
+    # one player's two songs 10 minutes apart (held, so they wait their turn)
+    hold(tv, amy)
     ask(cat, "techno cat")
     ok(until(lambda: (deck(tv).get("up") or {}).get("by") == pid["Cat"], 4000), "Cat's is up next")
     ben.wait_for_timeout(5200)
@@ -149,6 +142,7 @@ with sync_playwright() as p:
     drop_into(tv, phones, "techno", pid["Cat"])
     ok(len(said(tv)) == 1, "off: the TV says nothing for Cat's")
     ok(until(lambda: (deck(tv).get("up") or {}).get("by") == pid["Amy"], 4000), "Cat's lands: Amy's comes up ahead of Ben's")
+    hold(tv, amy)
     tv.wait_for_timeout(32000)
 
     # the night's recap

@@ -19,7 +19,7 @@ from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, os.path.dirname(__file__))
 from party_test import until, ok, fails, phone, view  # noqa: E402
-from dj_tube import FAKE_YT, deck  # noqa: E402
+from dj_tube import FAKE_YT, deck, key  # noqa: E402
 
 BASE = "http://127.0.0.1:5173/"
 OUT = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "dj-player"))
@@ -59,11 +59,6 @@ def heard(tv, vid):
 
 def dj_level(tv):
     return tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value")
-
-
-def key(ph, n):
-    """The player's keys: 0 上一曲, 1 暂停 or 播放, 2 切歌."""
-    return ph.locator(".djk-player-keys .djk-key").nth(n)
 
 
 with sync_playwright() as p:

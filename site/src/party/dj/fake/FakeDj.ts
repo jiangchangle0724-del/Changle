@@ -145,7 +145,7 @@ export class FakeDj {
 
   /** `render` records a section (the tests hand in their own) */
   constructor(private render: (sec: Section, rate: number) => Promise<Rendered> = renderSection) {
-    // local runs: the checks look inside (scripts/dj_deck_check.py)
+    // local runs: the checks look inside (scripts/dj_youtube_check.py, dj_player_check.py)
     if (typeof window !== "undefined" && import.meta.env?.DEV) (window as unknown as { __fakeDj: FakeDj }).__fakeDj = this;
   }
 
