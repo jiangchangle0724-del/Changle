@@ -1,4 +1,4 @@
-import { Crown, Volume2, VolumeX } from "lucide-react";
+import { Crown, Smartphone, Volume2, VolumeX } from "lucide-react";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { GAME_BY_ID, type GameId } from "../games/registry";
 import { gsap, reduced } from "../lib/anim";
@@ -113,7 +113,7 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   else body = <TvLobby room={room} audio={gate.armed} onJoin={onJoin} />;
 
   return (
-    <Fit>
+    <Fit outside={<TvTurn />}>
       <TablePenalty value={room?.penalty ?? ""}>
         {body}
         {status === "reconnecting" && <div className="tv-reconnecting" role="status">{zh ? "网断了，正在重连" : "Connection lost. Reconnecting"}</div>}
@@ -128,6 +128,25 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
 }
 
 /* ------------------------------------------------------------------ the 1600x900 canvas, scaled to the screen */
+
+/**
+ * A phone or a tablet held upright (someone mirroring it to a TV) fits the 16:9 stage into its
+ * width, small, with the rest of the screen empty: a word in that empty space to turn it sideways.
+ * The style shows it only on an upright touch screen; a TV or a computer never sees it.
+ */
+function TvTurn() {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  return (
+    <div className="tv-turn">
+      <Smartphone className="tv-turn-icon" size={24} strokeWidth={2} aria-hidden="true" />
+      <span className="tv-turn-text">
+        <strong>{zh ? "横过来拿，画面才够大" : "Hold it sideways for the full picture"}</strong>
+        <small>{zh ? "锁了屏幕方向的话，先解开" : "If rotation is locked, unlock it first"}</small>
+      </span>
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ sound: a TV needs one click first */
 
