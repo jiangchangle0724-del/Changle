@@ -1,6 +1,6 @@
 // What a round sounds like, and the crowd's moments on screen. On a phone: your own punches, hits and
-// spills, the ferry horn or the gong, the last five seconds, the whistle and the fanfare. On the big
-// screen (and in practice): every punch and hit in the room, and a light loop for the place.
+// spills, the ferry horn, the busker or the gong, the last five seconds, the whistle and the fanfare.
+// On the big screen (and in practice): every punch and hit in the room, and a light loop for the place.
 import { useEffect, useRef } from "preact/hooks";
 import type { AwardView, GameView } from "../../room/protocol";
 import { t, type Key } from "../i18n";
@@ -53,10 +53,11 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
     });
   }, [game.avatars]);
 
-  // the ferry horn, the gong
+  // the ferry horn, the busker, the gong
   const moment = game.moment?.kind ?? null;
   useEffect(() => {
     if (moment === "horn") sfx.horn();
+    if (moment === "dance") sfx.busker();
     if (moment === "gong") sfx.gong();
   }, [moment]);
 
@@ -66,7 +67,7 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
   }, [seconds]);
 }
 
-const MOMENT: Record<NonNullable<GameView["moment"]>["kind"], Key> = { horn: "momentHorn", gong: "momentGong" };
+const MOMENT: Record<NonNullable<GameView["moment"]>["kind"], Key> = { horn: "momentHorn", dance: "momentDance", gong: "momentGong" };
 
 /** The whole crowd stops: say why, while it lasts. */
 export function MomentBanner(props: { game: GameView; tv?: boolean }) {
@@ -74,7 +75,7 @@ export function MomentBanner(props: { game: GameView; tv?: boolean }) {
   if (!moment || props.game.phase !== "playing") return null;
   return (
     <p class={`moment-banner${props.tv ? " is-tv" : ""}`} role="status" key={moment.kind}>
-      <Icon name={moment.kind === "horn" ? "ship" : "gong"} size={props.tv ? 34 : 20} />
+      <Icon name={moment.kind === "horn" ? "ship" : moment.kind === "dance" ? "note" : "gong"} size={props.tv ? 34 : 20} />
       <span>{t(MOMENT[moment.kind])}</span>
     </p>
   );

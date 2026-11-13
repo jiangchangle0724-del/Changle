@@ -1,11 +1,13 @@
 // The people in the crowd: real 3D bodies on a skeleton (a man's and a woman's, from Quaternius's CC0
 // mannequins; tools/blender/build_crowd_people.py makes the files), dressed in six looks, moving with
-// ten clips blended by what each body is doing: standing three ways, walking two ways and jogging at
-// any speed without the feet sliding, a punch that lands when the rules land it, knocked down and up
-// again when tagged, a recoil after a foul, and a glance around (the head, by hand).
+// eleven clips blended by what each body is doing: standing three ways, walking two ways and jogging
+// at any speed without the feet sliding, a punch that lands when the rules land it, knocked down and
+// up again when tagged, a recoil after a foul, dancing when the busker plays (and the winner, at the
+// end), and a glance around (the head, by hand).
 // Every body is made the same way whoever steers it: what gives a player away is what they do.
 import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { ARENA, PUNCH_WINDUP_MS, STUN_MS, type Pose } from "../engine";
 import { BASE } from "./base";
@@ -23,7 +25,6 @@ const PALETTE_WIDTH = 16;
 
 export type Hair = "hair_short" | "hair_bun" | "hair_tail" | "cap";
 export type Bag = "backpack" | "satchel";
-const GEAR = ["hair_short", "hair_bun", "hair_tail", "cap", "cap_peak", "backpack", "straps", "satchel"] as const;
 
 export interface Look {
   body: "m" | "f";
@@ -125,6 +126,54 @@ function palette(look: Look): THREE.DataTexture {
   return texture;
 }
 
+/** What a look wears on top of its body: its hair (a cap has a peak), its bag (a backpack has straps), and its eyes. */
+export function wornBy(look: Look): Set<string> {
+  return new Set([look.hair, ...(look.hair === "cap" ? ["cap_peak"] : []), ...(look.bag ? [look.bag] : []), ...(look.bag === "backpack" ? ["straps"] : []), "eyes"]);
+}
+
+/**
+ * A look's body in one piece, so a person is one draw (it was two to six: the body, the eyes, the hair,
+ * the bag, the straps): each worn part sits on a bone in the file, and here it is moved into the body's
+ * bind pose and skinned to that bone alone, so it moves exactly as it did on the bone.
+ */
+function oneShape(source: THREE.Object3D, look: Look): THREE.BufferGeometry {
+  source.updateMatrixWorld(true);
+  let body: THREE.SkinnedMesh | null = null;
+  source.traverse((object) => {
+    if (object instanceof THREE.SkinnedMesh) body = object;
+  });
+  if (!body) throw new Error("no body in the people file");
+  const { geometry, skeleton, bindMatrix } = body as THREE.SkinnedMesh;
+  const unbind = bindMatrix.clone().invert();
+  const indexes = geometry.getAttribute("skinIndex") as THREE.BufferAttribute;
+  const weights = geometry.getAttribute("skinWeight") as THREE.BufferAttribute;
+  // a whole weight in the file's own number type (a normalised byte is 255)
+  const whole = weights.normalized ? (weights.array instanceof Uint8Array ? 255 : weights.array instanceof Uint16Array ? 65_535 : 1) : 1;
+  const parts: THREE.BufferGeometry[] = [geometry];
+  const worn = wornBy(look);
+  source.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || object instanceof THREE.SkinnedMesh || !worn.has(object.name)) return;
+    const bone = skeleton.bones.indexOf(object.parent as THREE.Bone);
+    if (bone < 0) throw new Error(`${object.name} is not on a bone`);
+    const part = object.geometry.clone();
+    part.applyMatrix4(unbind.clone().multiply(skeleton.boneInverses[bone].clone().invert()).multiply(object.matrix));
+    part.normalizeNormals();
+    const count = part.getAttribute("position").count;
+    const index = new (indexes.array.constructor as new (length: number) => Uint8Array)(count * 4);
+    const weight = new (weights.array.constructor as new (length: number) => Uint8Array)(count * 4);
+    for (let vertex = 0; vertex < count; vertex++) {
+      index[vertex * 4] = bone;
+      weight[vertex * 4] = whole;
+    }
+    part.setAttribute("skinIndex", new THREE.BufferAttribute(index, 4, indexes.normalized));
+    part.setAttribute("skinWeight", new THREE.BufferAttribute(weight, 4, weights.normalized));
+    parts.push(part);
+  });
+  const merged = mergeGeometries(parts, false);
+  if (!merged) throw new Error("the parts of a look don't fit together");
+  return merged;
+}
+
 /** The clips, kept to what moves: every bone's turn, and the hips' height (so the woman keeps her own shoulders). */
 function clipsOf(gltf: GLTF): Map<string, THREE.AnimationClip> {
   const clips = new Map<string, THREE.AnimationClip>();
@@ -141,7 +190,8 @@ export function kitFrom(man: GLTF, woman: GLTF): PeopleKit {
   // (one material per look, for the body, the hair and the bag alike: the UVs pick the cell)
   const materials = LOOKS.map((look) => new THREE.MeshStandardMaterial({ map: palette(look), roughness: 0.82, metalness: 0 }));
   const sources = { m: man.scene, f: woman.scene };
-  return { spawn: (index) => new Person(sources, clips, materials, index) };
+  const shapes = LOOKS.map((look) => oneShape(sources[look.body], look));
+  return { spawn: (index) => new Person(sources, clips, materials, shapes, index) };
 }
 
 export async function loadPeople(loader = new GLTFLoader()): Promise<PeopleKit> {
@@ -171,12 +221,14 @@ export class Person {
   private readonly hit: THREE.AnimationAction;
   private readonly getup: THREE.AnimationAction;
   private readonly flinch: THREE.AnimationAction;
+  private readonly dance: THREE.AnimationAction;
   private readonly head: THREE.Object3D | null;
   private readonly neck: THREE.Object3D | null;
   private readonly seed: number;
   private phase: number;
   private moving = 0;
   private jogging = 0;
+  private dancing = 0;
   private shots: Shot[] = [];
   /** the get-up, once the fall is over */
   private next: { action: THREE.AnimationAction; rate: number; at: number } | null = null;
@@ -187,19 +239,22 @@ export class Person {
   landAt: number | null = null;
   private yawKick = new THREE.Quaternion();
 
-  constructor(sources: { m: THREE.Object3D; f: THREE.Object3D }, clips: Map<string, THREE.AnimationClip>, materials: THREE.Material[], index: number) {
+  constructor(sources: { m: THREE.Object3D; f: THREE.Object3D }, clips: Map<string, THREE.AnimationClip>, materials: THREE.Material[], shapes: THREE.BufferGeometry[], index: number) {
     const lookIndex = ((index % LOOKS.length) + LOOKS.length) % LOOKS.length;
     this.look = LOOKS[lookIndex];
     this.seed = (index * 2.39996) % (Math.PI * 2);
     this.phase = (index * 0.618) % 1;
     const model = SkeletonUtils.clone(sources[this.look.body]);
-    const wear = new Set<string>([this.look.hair, ...(this.look.hair === "cap" ? ["cap_peak"] : []), ...(this.look.bag ? [this.look.bag] : []), ...(this.look.bag === "backpack" ? ["straps"] : [])]);
+    // the body becomes the look in one piece; the separate parts go
+    const loose: THREE.Object3D[] = [];
     model.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.material = materials[lookIndex];
-      object.frustumCulled = false;
-      if ((GEAR as readonly string[]).includes(object.name)) object.visible = wear.has(object.name);
+      if (object instanceof THREE.SkinnedMesh) {
+        object.geometry = shapes[lookIndex];
+        object.material = materials[lookIndex];
+        object.frustumCulled = false;
+      } else if (object instanceof THREE.Mesh) loose.push(object);
     });
+    for (const part of loose) part.removeFromParent();
     model.scale.setScalar(PERSON_SCALE);
     this.root = new THREE.Group();
     this.root.add(model);
@@ -220,12 +275,17 @@ export class Person {
     this.hit = action("hit");
     this.getup = action("getup");
     this.flinch = action("flinch");
-    // locomotion always plays: its weights follow the speed, its time follows the stride
-    for (const loop of [this.idle, this.walk, this.jog]) {
+    this.dance = action("dance");
+    // locomotion always plays: its weights follow the speed, its time follows the stride (a body that
+    // isn't dancing has its dance at no weight, which costs nothing)
+    for (const loop of [this.idle, this.walk, this.jog, this.dance]) {
       loop.play();
       loop.setEffectiveWeight(0);
     }
     this.idle.time = (this.seed / (Math.PI * 2)) * this.idle.getClip().duration;
+    // nobody dances quite in step with anyone else
+    this.dance.time = this.phase * this.dance.getClip().duration;
+    this.dance.timeScale = 0.9 + ((index * 0.37) % 1) * 0.2;
     this.walk.timeScale = 0;
     this.jog.timeScale = 0;
     for (const once of [this.punch, this.hit, this.getup, this.flinch]) {
@@ -303,9 +363,13 @@ export class Person {
     this.walk.time = this.phase * this.walk.getClip().duration;
     this.jog.time = this.phase * this.jog.getClip().duration;
     const legs = 1 - Math.min(1, overlay);
-    this.idle.setEffectiveWeight((1 - this.moving) * legs);
-    this.walk.setEffectiveWeight(this.moving * (1 - this.jogging) * legs);
-    this.jog.setEffectiveWeight(this.moving * this.jogging * legs);
+    // dancing takes the whole body (in over a third of a second, out a little slower)
+    this.dancing = damp(this.dancing, pose === "dance" ? 1 : 0, pose === "dance" ? 9 : 6, step);
+    const free = legs * (1 - this.dancing);
+    this.idle.setEffectiveWeight((1 - this.moving) * free);
+    this.walk.setEffectiveWeight(this.moving * (1 - this.jogging) * free);
+    this.jog.setEffectiveWeight(this.moving * this.jogging * free);
+    this.dance.setEffectiveWeight(this.dancing * legs);
     this.mixer.update(step);
     // a glance: the head looks one way, then the other (by hand, after the clips have had their say)
     this.glance = damp(this.glance, pose === "glance" ? 1 : 0, 5, step);

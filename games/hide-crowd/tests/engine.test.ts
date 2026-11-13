@@ -8,7 +8,10 @@ import {
   NPC_COUNT,
   NPC_SPEED,
   PLAYER_SPEED,
+  COMMOTION_MS,
+  COMMOTION_RADIUS,
   crowdMoment,
+  environmentalDrift,
   crowdSeparationVelocity,
   SCORE_TO_WIN,
   STUN_MS,
@@ -315,8 +318,8 @@ test("passers-by wander like people: their own pace, stops, a look at someone, t
   assert.deepEqual(again, match);
 });
 
-test("the ferry horn stops the passers-by and turns them to the sea; the gong turns them to the stage", () => {
-  for (const arena of ["plaza", "gallery"] as const) {
+test("the ferry horn turns the passers-by to the sea, the gong to the stage, and the busker sets them dancing", () => {
+  for (const arena of ["plaza", "metro", "gallery"] as const) {
     let match = createMatch(players, 0, 77, arena);
     let first = 0;
     for (let now = 50; now <= 20_000; now += 50) {
@@ -324,19 +327,85 @@ test("the ferry horn stops the passers-by and turns them to the sea; the gong tu
       const moment = crowdMoment(arena, 0, now);
       if (!moment) continue;
       first ||= now;
-      assert.equal(moment.kind, arena === "plaza" ? "horn" : "gong");
+      assert.equal(moment.kind, arena === "plaza" ? "horn" : arena === "metro" ? "dance" : "gong");
       // (everyone has reacted, and turned, a second and a half in)
       if (now - moment.startsAt < 1_500) continue;
       for (const character of match.characters.filter((item) => item.kind === "npc" && now >= item.stunnedUntil)) {
         assert.ok(Math.hypot(character.velocity.x, character.velocity.y) < 0.6, `${arena}: ${character.id} stops`);
-        const want = Math.atan2(moment.look.y - character.y, moment.look.x - character.x);
-        assert.ok(Math.abs(Math.atan2(Math.sin(character.facing - want), Math.cos(character.facing - want))) < 0.4, `${arena}: ${character.id} looks`);
+        if (moment.look) {
+          const want = Math.atan2(moment.look.y - character.y, moment.look.x - character.x);
+          assert.ok(Math.abs(Math.atan2(Math.sin(character.facing - want), Math.cos(character.facing - want))) < 0.4, `${arena}: ${character.id} looks`);
+        } else assert.equal(character.pose, "dance", `${arena}: ${character.id} dances`);
       }
     }
     assert.ok(first > 0 && first < 13_000, `${arena}: the first moment comes early in the round`);
-    // a player is never made to stop: that's the test
-    assert.ok(!crowdMoment("metro", 0, first), "the transit hall has its walkways instead");
   }
+  // the busker only plays while the walkway rests: nobody dances while the floor carries them
+  let dances = 0;
+  for (let now = 0; now < MATCH_MS; now += 50) {
+    if (crowdMoment("metro", 0, now)?.kind !== "dance") continue;
+    dances++;
+    assert.equal(environmentalDrift("metro", 0, now).x, 0, `the walkway is still at ${now} ms`);
+  }
+  assert.ok(dances * 50 >= 3 * 2_600, "the busker plays a few times a round");
+});
+
+test("while the busker plays, a player standing still dances like everyone, and one who walks on doesn't", () => {
+  let match = createMatch(players, 0, 31, "metro");
+  const dance = crowdMoment("metro", 0, 8_800)!;
+  assert.equal(dance.kind, "dance");
+  for (let now = 50; now <= dance.startsAt + 1_500; now += 50) {
+    // player one stands still from the start of the music; player two keeps walking
+    match = advanceMatch(match, now, { "player-one": now < dance.startsAt ? { x: 1, y: 0 } : { x: 0, y: 0 }, "player-two": { x: 0, y: now % 4_000 < 2_000 ? 1 : -1 } });
+  }
+  const pose = (owner: string) => match.characters.find((character) => character.ownerId === owner)!.pose;
+  assert.equal(pose("player-one"), "dance");
+  assert.notEqual(pose("player-two"), "dance");
+});
+
+test("a knockdown draws the looks of the people near it for a second or two, and nobody else's", () => {
+  let match = createMatch(players, 0, 12, "plaza");
+  const actor = match.characters.find((character) => character.ownerId === "player-one")!;
+  const npcs = match.characters.filter((character) => character.kind === "npc");
+  const [punched, near, alsoNear, far] = npcs;
+  actor.x = 40;
+  actor.y = 28;
+  actor.facing = 0;
+  punched.x = 44;
+  punched.y = 28;
+  // two passers-by close by, facing away from it, and one across the floor
+  near.x = 46;
+  near.y = 36;
+  near.facing = Math.PI / 2;
+  alsoNear.x = 36;
+  alsoNear.y = 21;
+  alsoNear.facing = -Math.PI / 2;
+  far.x = 90;
+  far.y = 50;
+  for (const other of npcs.slice(4)) {
+    other.x = 8 + (other.npcStyle % 3);
+    other.y = 8 + npcs.indexOf(other);
+  }
+  const at = 3_000;
+  match = advanceMatch(startPunch(match, "player-one", at), at + 160, {});
+  assert.equal(match.events.at(-1)?.t, "foul");
+  const fall = match.commotions!.at(-1)!;
+  assert.equal(fall.who, punched.id);
+  for (let now = at + 200; now <= at + 1_400; now += 50) match = advanceMatch(match, now, {});
+  const body = (id: string) => match.characters.find((character) => character.id === id)!;
+  for (const id of [near.id, alsoNear.id]) {
+    const watcher = body(id);
+    assert.ok(Math.hypot(fall.x - watcher.x, fall.y - watcher.y) < COMMOTION_RADIUS);
+    assert.ok(Math.hypot(watcher.velocity.x, watcher.velocity.y) < 0.6, `${id} stops to look`);
+    const want = Math.atan2(fall.y - watcher.y, fall.x - watcher.x);
+    assert.ok(Math.abs(Math.atan2(Math.sin(watcher.facing - want), Math.cos(watcher.facing - want))) < 0.45, `${id} looks at the fall`);
+  }
+  const across = body(far.id);
+  const towards = Math.atan2(fall.y - across.y, fall.x - across.x);
+  assert.ok(Math.hypot(across.velocity.x, across.velocity.y) > 0.6 || Math.abs(Math.atan2(Math.sin(across.facing - towards), Math.cos(across.facing - towards))) > 0.45, "someone across the floor carries on");
+  // and once it's old news, it's forgotten
+  for (let now = at + 1_450; now <= at + COMMOTION_MS + 200; now += 50) match = advanceMatch(match, now, {});
+  assert.equal(match.commotions!.length, 0);
 });
 
 test("the round's titles: the sharpest eye, the ones never spotted, the most passers-by punched, the most air, the most spotted", () => {
