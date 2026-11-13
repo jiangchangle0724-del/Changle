@@ -255,6 +255,10 @@ const STRINGS = {
 
   // ---------- the site's owner ----------
   ownerTitle: { zh: "站长", en: "Site owner" },
+  ownerFile: { zh: "从文件导入", en: "Fill in from a file" },
+  ownerFileRead: { zh: "读到了：店铺「{shop}」，团「{title}」，{n} 样商品，{p} 个自提点，{r} 个送货区。还没有提交，看一眼再点下面的按钮。", en: "Read: shop “{shop}”, group buy “{title}”, {n} goods, {p} pickup point(s), {r} delivery area(s). Nothing is sent yet: look it over, then press the button below." },
+  ownerFileBig: { zh: "文件太大了。", en: "That file is too big." },
+  ownerBoth: { zh: "建店并开团", en: "Save the shop and start the group buy" },
   ownerShopTitle: { zh: "建店或改店", en: "Set up or change a shop" },
   ownerNote: { zh: "保存会整个覆盖这家店：介绍、联系方式、付款说明、管店的账号都以这次填的为准。", en: "Saving replaces the whole shop: about, contact, how to pay and the accounts are what you enter here." },
   ownerSlug: { zh: "店铺地址（小写字母、数字、短横线）", en: "Shop address (lower-case letters, digits, hyphens)" },

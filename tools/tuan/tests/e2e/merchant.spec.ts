@@ -2,10 +2,12 @@
 // (tests/rooms): who gets in, a merchant's home, a group buy's orders with the merchant's marks
 // (confirmed, paid, handed over, weighed, cancelled), the two sheets adding up to a hand count,
 // closing and opening a group buy, and the owner's panel that sets a shop up and starts a group
-// buy by hand. A phone that is signed in has the session the site would have left in its storage.
+// buy by hand or from a file. A phone that is signed in has the session the site would have left
+// in its storage.
 import { expect, test } from "@playwright/test";
+import { vancouverClock } from "../../src/engine/time.ts";
 import { SESSION } from "../accounts.ts";
-import { catchCopies, copied, fits, offerOf, order, phone, start, word } from "./help.ts";
+import { catchCopies, copied, DAY, fits, offerOf, order, phone, start, word } from "./help.ts";
 
 /** Three friends' orders, as in the plan's bar for this stage: counted goods, something by weight, pickup at two points and one delivery. */
 async function threeOrders(request: Parameters<typeof start>[0], id: string) {
@@ -286,6 +288,91 @@ test("the owner sets a shop up and starts a group buy by hand", async ({ browser
   await expect(page.locator(".state")).toContainText("20:00");
 });
 
+test("the owner fills the forms from a file: a shop and its group buy in one go", async ({ browser }) => {
+  const page = await phone(browser, { session: SESSION.owner });
+  await page.goto("/tuan/my");
+  const panel = page.locator(".panel", { hasText: "站长" });
+  const pick = panel.locator('input[type="file"]');
+  const both = panel.getByRole("button", { name: "建店并开团" });
+  const slug = `file-${word()}`;
+  const name = `文件小店 ${slug.slice(5)}`; // both engines use one database: each run's shop has a name of its own
+  const shop = page.locator(".panel", { hasText: name }).first();
+  const json = (data: unknown) => ({ name: "import.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) });
+  const read = (shopName: string, title: string) => `读到了：店铺「${shopName}」，团「${title}」，2 样商品，1 个自提点，0 个送货区。还没有提交，看一眼再点下面的按钮。`;
+
+  // what isn't a document is said so, and fills nothing
+  await pick.setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("not json at all") });
+  await expect(panel.locator(".problem")).toHaveText("这不是合法的 JSON。");
+  await pick.setInputFiles(json(["a", "list"]));
+  await expect(panel.locator(".problem")).toHaveText("这不是合法的 JSON。");
+  await pick.setInputFiles({ name: "photo.jpg", mimeType: "image/jpeg", buffer: Buffer.alloc(400_001, 32) });
+  await expect(panel.locator(".problem")).toHaveText("文件太大了。");
+  await expect(both).toHaveCount(0);
+  await expect(panel.locator('textarea[name="doc"]')).toHaveValue("");
+  await expect(panel.locator('input[name="slug"]')).toHaveValue("");
+
+  // a shop with its group buy: the forms are filled in, and nothing is sent yet
+  const offer = {
+    title: "文件里的团",
+    roster: "names",
+    items: [
+      { section: "牛肉/Beef", name: "样例牛腩 ～3/LB", detail: "Sample brisket · 炖煮都行", price: 899, unit: "lb", step: 500, least: 1000, perBuyer: 20000 },
+      { section: "火锅/HOTPOT", name: "样例肥牛卷 0.5/LB", price: 800, unit: "portion", perBuyer: 50000 },
+    ],
+    points: [{ name: "样例自提点", address: "下单后发地址", hours: "周五" }],
+    rules: [],
+  };
+  const about = { slug, name, contact: "微信 file-shop", pay: "测试：不用付款" };
+  const broken = { ...offer, items: [offer.items[0], { ...offer.items[1], price: undefined }] };
+  await pick.setInputFiles(json({ shop: about, offer: broken }));
+  await expect(panel.getByText(read(name, "文件里的团"))).toBeVisible();
+  await expect(panel.locator('input[name="slug"]')).toHaveValue(slug);
+  await expect(panel.locator('input[name="shopname"]')).toHaveValue(name);
+  await expect(panel.locator('select[name="kind"]')).toHaveValue("leader");
+  await expect(panel.locator('textarea[name="pay"]')).toHaveValue("测试：不用付款");
+  await expect(panel.locator('textarea[name="members"]'), "run by the owner unless the file says who").toHaveValue("owner@example.com");
+  await expect(page.locator(".panel-title", { hasText: name })).toHaveCount(0);
+
+  // one button: the shop, then the group buy in it. What went in and what didn't is said where the button is, and the button stays
+  await both.click();
+  await expect(panel.getByText("店铺保存好了。")).toBeVisible();
+  await expect(panel.locator(".problem")).toHaveText("没成：item #2");
+  await expect(both).toBeEnabled();
+  await expect(shop.getByText("还没有开过团。")).toBeVisible();
+
+  // the file put right, and saying when it closes: the field says so too, and that's what is sent
+  const closesAt = Math.floor((Date.now() + 3 * DAY) / 60_000) * 60_000;
+  await pick.setInputFiles(json({ shop: { ...about, kind: "farm", members: ["owner@example.com", "leader@example.com"] }, offer: { ...offer, closesAt } }));
+  await expect(panel.getByText(read(name, "文件里的团"))).toBeVisible();
+  await expect(panel.locator(".problem")).toHaveCount(0);
+  await expect(panel.locator('select[name="kind"]')).toHaveValue("farm");
+  await expect(panel.locator('textarea[name="members"]')).toHaveValue("owner@example.com\nleader@example.com");
+  await expect(panel.locator('input[name="closes"]')).toHaveValue(vancouverClock(closesAt).replace(" ", "T"));
+  await both.click();
+  await expect(panel.getByText("店铺保存好了。")).toBeVisible();
+  await expect(panel.getByText("开好了。")).toBeVisible();
+  await expect(both, "it went in: there is nothing left to press twice").toHaveCount(0);
+  await expect(shop.locator(".mine li")).toHaveCount(1);
+  await expect(shop.locator(".mine li")).toContainText("文件里的团");
+  await expect(shop.locator(".mine li")).toContainText(vancouverClock(closesAt).slice(11));
+  await panel.getByRole("link", { name: "看开团页" }).click();
+  await expect(page.locator(".hero h1")).toHaveText("文件里的团");
+  await expect(page.locator(".shop-name")).toHaveText(name);
+  await expect(page.locator(".item")).toHaveCount(2);
+  await expect(page.locator(".tab")).toHaveText(["牛肉/Beef", "火锅/HOTPOT"]);
+
+  // a group buy alone fills only its document: the shop is chosen from the list
+  await page.goto("/tuan/my");
+  await pick.setInputFiles(json({ ...offer, title: "第二个团" }));
+  await expect(panel.getByText(read("—", "第二个团"))).toBeVisible();
+  await expect(both).toHaveCount(0);
+  await expect(panel.locator('input[name="slug"]')).toHaveValue("");
+  await panel.locator('select[name="shop"]').selectOption(slug);
+  await panel.getByRole("button", { name: "开团", exact: true }).click();
+  await expect(panel.getByText("开好了。")).toBeVisible();
+  await expect(shop.locator(".mine li")).toHaveCount(2);
+});
+
 test("on a small phone: the merchant's pages fit, and everything to tap is big enough", async ({ browser, request }) => {
   const { id } = await start(request, { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团" });
   await threeOrders(request, id);
@@ -294,6 +381,10 @@ test("on a small phone: the merchant's pages fit, and everything to tap is big e
   await page.goto("/tuan/my");
   await expect(page.locator("form.stack")).toHaveCount(2);
   await fits(page, "a merchant's home, with the owner's panel");
+  const file = { shop: { slug: "a-shop-with-a-long-address", name: "名字很长很长的一家测试小店 A Shop With A Long Name" }, offer: { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团", items: [], points: [], rules: [] } };
+  await page.locator('.panel input[type="file"]').setInputFiles({ name: "import.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await expect(page.getByRole("button", { name: "建店并开团" })).toBeVisible();
+  await fits(page, "the owner's panel with a file read in");
   await page.goto(`/tuan/my/t/${id}`);
   await expect(page.locator(".order")).toHaveCount(3);
   await fits(page, "a group buy's orders");
