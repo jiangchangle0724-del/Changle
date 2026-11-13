@@ -135,6 +135,32 @@ describe('手机局快照', () => {
     sim.destroy();
   });
 
+  test('关卡照主机摆的人数摆（半路进人时快照带 np），时钟跟着人一起匀', async () => {
+    const lv0 = LEVELS[0] as Level;
+    const base: Level = { ...lv0, id: 'np-test', rects: [...lv0.rects, { x: 0, y: 0, w: 10, h: 10, players: [1, 2] }] };
+    const sim = await createSim(base, 4);
+    sim.setPlayers(5); // 开局 4 个人摆的关，第 5 个人半路进来
+    const a = encodeSnap(sim, 1);
+    expect(a.np).toBe(4);
+    const view = new RemoteSim((id) => (id === base.id ? base : undefined), lv0);
+    view.apply(a, 1000);
+    expect(view.layoutFor).toBe(4);
+    expect(view.level.rects).toHaveLength(base.rects.length - 1);
+    // 人数没变：关卡还是同一个对象（画面不重画）
+    const laid = view.level;
+    sim.step(0.05);
+    view.apply(encodeSnap(sim, 2), 1050);
+    expect(view.level).toBe(laid);
+    // 时钟和人一起匀：两张快照中间是一半
+    view.advance(1075);
+    close(view.time, 0.025, 0.002);
+    // 人数和摆关卡的人数一样就不带 np
+    const same = await createSim(base, 3);
+    expect(encodeSnap(same, 1).np).toBeUndefined();
+    same.destroy();
+    sim.destroy();
+  });
+
   test('同一件事跟着几轮快照走，丢了一张也收得到，只放一次；房主卡住时不丢', async () => {
     const level = LEVELS[0] as Level;
     const sim = await createSim(level, 1);

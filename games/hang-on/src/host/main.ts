@@ -42,7 +42,8 @@ const canvas = $<HTMLCanvasElement>('stage');
 const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
 let levelIndex = Math.max(0, LEVELS.findIndex((l) => l.id === params.get('level')));
 let level: Level = LEVELS[levelIndex] as Level;
-let stageLevel = '';
+/** 画面上现在画的是哪一版关卡（按人数摆出来的那个对象）。 */
+let stageLevel: Level | null = null;
 let sim: Sim = await createSim(level, 0);
 syncStageLevel();
 let link: HostLink | null = null;
@@ -193,7 +194,8 @@ function onPhase(next: Phase): void {
   castDirty = true;
   if (next === 'lobby') void resetSim();
   // 从结算页直接开下一关（或再来一次）：大厅那步的重置没走，在这里换上新的一局
-  if (next === 'countdown' && prev === 'results') void resetSim();
+  // 结算页的「再来一次」「下一关」从头开；从大厅开局时人数和摆关卡时不一样也重摆
+  if (next === 'countdown' && (prev === 'results' || sim.layoutFor !== playerCount())) void resetSim();
   if (next === 'countdown') countdown();
   if (next === 'results') showResults();
 }
@@ -304,10 +306,11 @@ $('levelNext').addEventListener('click', () => {
   sfx.tick();
   pickLevel(levelIndex + 1);
 });
+/** 画面跟着物理那一版关卡走（按人数摆的；没有人数范围的关每次都是同一个对象，不重画）。 */
 function syncStageLevel(): void {
-  if (stageLevel === level.id) return;
-  stageLevel = level.id;
-  stage.setLevel(level);
+  if (stageLevel === sim.level) return;
+  stageLevel = sim.level;
+  stage.setLevel(sim.level);
 }
 
 // ---------- 玩家 ----------
@@ -330,6 +333,11 @@ function syncPlayers(): void {
   const changed = seats.length !== seatOrder.length || seats.some((id, i) => seatOrder[i] !== id);
   if (changed) seatOrder = seats;
   const n = playerCount();
+  // 大厅里人数变了：关卡按新人数重摆（有人数范围的关缝会变宽），玩的时候中途进来的不重摆
+  if (phase === 'lobby' && sim.layoutFor !== n && !resetting) {
+    void resetSim();
+    return;
+  }
   if (sim.players.length !== n) sim.setPlayers(n);
   stage.syncPlayers(sim);
   seatOrder.forEach((id, i) => {
@@ -352,9 +360,16 @@ function syncPlayers(): void {
   }
   castDirty = true;
 }
+let resetting = false;
+/** 重开这一关：按现在的人数摆关卡、放人。 */
 async function resetSim(): Promise<void> {
+  resetting = true;
   const old = sim;
-  sim = await createSim(level, 0);
+  try {
+    sim = await createSim(level, playerCount());
+  } finally {
+    resetting = false;
+  }
   old.destroy();
   syncStageLevel();
   stage.reset();

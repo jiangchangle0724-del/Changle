@@ -63,7 +63,10 @@ export interface SpringView {
 }
 
 export interface SimView {
+  /** 按人数摆出来的关卡（forPlayers 之后的那一版）。 */
   level: Level;
+  /** 关卡是按几个人摆的（主机的 Sim 有；手机局里别的手机从快照拿）。 */
+  readonly layoutFor?: number;
   time: number;
   won: boolean;
   /** 最新生效的检查点，没有是 -1。 */

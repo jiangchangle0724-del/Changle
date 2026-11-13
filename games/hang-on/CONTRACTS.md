@@ -93,7 +93,29 @@ type PadInput = {
 `fading`（饼干平台）：`{ x, y, w, h, material?, on?, off?, phase? }`，在 `on` 秒、消失 `off` 秒（默认 3 / 2），`phase` 把这块的钟往后拨几秒；消失时抓着它的手一起松开。
 `springs`（弹簧蜡烛）：`{ x, y, w, h, power? }`，身体落在顶上就弹，`power` 1 约弹 250 px（5 个身高）；侧面能抓。
 
-每关必须附一个回放脚本（`replays/*.json`，每帧 4 人的 `PadInput`），`npm run levels` 用它无头跑通整关，用时在 `par.seconds` 的 0.5 到 2 倍之间才算合格。
+每关必须附一个回放脚本（`replays/<id>.json`，每帧 4 人的 `PadInput`），`npm run levels` 用它无头跑通整关，用时在 `par.seconds` 的 0.5 到 2 倍之间才算合格。
+
+关卡按 id 末尾的号排（table-01 … van-12，再 table-13 … van-24），彩蛋关最后。
+
+### 机关（A6）
+
+- `hazards`（碰到就死）：`{ x, y, w, h, kind?, dir?, players? }`。`kind` 是 `spike`（尖刺，默认）、`hot`（烫）、`zap`（电），`dir` 是尖朝哪边（默认 `up`）。身体、手、胳膊肘碰到都算。它不是碰撞体，不能站也不能抓，下面要垫台子。样子按世界画：桌上是竹签、红油锅、电热丝，温哥华是铁栅栏、夜市烤架、黄黑电轨；三种死法各有特效和声音，摔下去还是原来的水花。
+- `movers`（会动的台子）：`{ x, y, w, h, path, speed, wait?, loop?, phase?, material?, deadly?, hazard?, players? }`。(x, y) 是起点，沿 `path` 的点来回走（`loop: true` 绕圈），`speed` 每秒多少像素（最多 600），每到一个点停 `wait` 秒，起步和停下都是慢慢的；站在上面、抓着它都跟着走。`deadly: true` 是碰到就死的块（`hazard` 定样子，默认电），不能抓。走到头停下的地方不能插进别的台子。
+- `spinners`（会转的杆子）：`{ pivot, arms, len, h?, spin, phase?, material?, deadly?, players? }`。绕 `pivot` 转，`arms` 根（1 到 6）均匀分开，每根长 `len`（40 到 400）、粗 `h`（默认 16），`spin` 每秒转几弧度（正负 4 以内，正数顺时针）。能抓能站；`deadly: true` 的带刺，碰到就死。
+- `players: [min, max]`（按人数摆）：`rects`、`ropes`、`seesaws`、`crates`、`fading`、`springs`、`hazards`、`movers`、`spinners` 里的每一件都可以写，只在 min 到 max 个人时摆出来，比如人少时多一块台子、人多时缝更宽。开局按人数摆，半路进人不重摆（下一局再摆），手机局的快照带 `np` 告诉手机按几个人摆。
+- 会动的东西的位置只由关卡数据和时间算（`src/physics/motion.ts`），物理和画面用同一套，快照里不带它们。
+- 复活的地方（起点，每个检查点，四个人错开站）离要命的东西至少 84 px。
+- 机关样板关：开发页 `play.html?level=proto-02`（桌上）、`proto-03`（温哥华），不进大厅。
+
+### 难关（C8）
+
+- id 是 `table-13` … `table-18` 和 `van-19` … `van-24`，可以分批交；在的每一关都要过下面全部规则。
+- `teaches` 是 `spike`、`hot`、`zap`、`mover`、`spinner`、`gauntlet` 之一，大厅里显示「难关：…」。每个世界最后一关（table-18、van-24）是 `gauntlet`，至少用四种机关。
+- 大小、出生点、终点、检查点（每屏一个、15 到 60 秒一段、四个人都有落脚）和前 12 关一样；高过一屏的按攀爬关查（高 1400 到 2200，至少往上一屏）。
+- `par.seconds` 60 到 240，`par.deathsPerPlayer` 2 到 8。
+- 难在哪：要命的东西至少 4 处，每一屏（攀爬关每一层）都有；至少一个会动的台子或会转的杆子。回放里每个不要命的机关都真的用上（站上去或抓着至少 0.25 秒），每处要命的东西都在路上（有人到过 240 px 以内）。这关得靠大家：回放里真的有人连成串挂着（至少 0.25 秒）或者把队友丢过去，录好的每个手柄单独跑都过不去。
+- 12 关到齐以后的搭配：能站能抓的动台至少 3 关，能抓的转杆至少 3 关，要命的动块至少 2 关，要命的转杆至少 2 关，尖刺、烫、电各至少 3 关，按人数变的至少 4 关，每个世界至少一道攀爬。
+- 按人数变的关：1 到 4 个人里每一种摆法都要一份回放。4 个人那种是 `replays/<id>.json`，别的是 `replays/<id>.p<人数>.json`（这份回放就是那么多人）。`players` 范围现在要从 4 或更少开始；上限提到 6 个人以后再放开。
 
 ## 性能契约
 

@@ -15,6 +15,10 @@
  *   饼干平台（A3：到点就关掉碰撞体，抓着它的手一起松开）、弹簧蜡烛（A3：身体落在顶上就给一个向上的冲量）。
  * - 背叛（A3）：松开抓着的队友之后，队友没抓到东西也没落地就摔死了，算松手的人一笔。
  * - 召唤（A3）：手柄的 act = summon，摔死还没复活的队友直接从你身上掉出来。
+ * - 原版那套难的机关（A6）：碰到就死的东西（尖刺、烫的、带电的，只做几何判断，不建碰撞体）；
+ *   会动的平台和会转的杆子是运动学刚体，每步按 motion.ts 算的位置摆（画面用同一套算法，两边对得上），
+ *   站在上面被带着走，抓着跟着动；带 deadly 的碰到就死。
+ * - 人数（A6）：关卡按开局的人数摆（level.ts 的 forPlayers：缝更宽、抓点更少）。
  *
  * 单位：像素、秒；y 向下。主机是唯一跑物理的地方（铁律 1）。
  */
@@ -27,7 +31,8 @@ import {
   PLAYER_COLORS,
   TETHER_LEN,
 } from './config';
-import type { FadingDef, Level, Pt, Rect, SpringDef } from './level';
+import { forPlayers, type FadingDef, type HazardDef, type Level, type MoverDef, type Pt, type Rect, type SpinnerDef, type SpringDef } from './level';
+import { circleHitsBar, circleHitsRect, moverAt, spinnerAngle, spinnerArm } from './motion';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -81,7 +86,9 @@ type ColInfo =
   | { kind: 'rope'; rope: number; link: number }
   | { kind: 'player'; player: number; part: 'body' | 'arm' | 'hand'; arm: number }
   | { kind: 'prop'; prop: number }
-  | { kind: 'spring'; spring: number; rect: Rect };
+  | { kind: 'spring'; spring: number; rect: Rect }
+  /** 会动的平台、会转的杆子：抓着算抓地形；deadly 的不能抓。 */
+  | { kind: 'moving'; deadly: boolean };
 
 export interface Arm {
   side: -1 | 1;
@@ -180,12 +187,16 @@ export interface Prop {
   angle: number;
 }
 
+/** 怎么死的：掉下去，或者碰到尖的、烫的、带电的。 */
+export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap';
+
 export type SimEvent =
   | { type: 'grab'; player: number; kind: GripKind; x: number; y: number }
   | { type: 'release'; player: number; kind: GripKind; x: number; y: number }
   /** 落地（身体从空中压到地上），speed 是落地前的竖直速度。 */
   | { type: 'land'; player: number; speed: number }
-  | { type: 'death'; player: number; x: number; y: number }
+  /** 死在哪；碰到机关死的带 cause（掉下去的不带，和以前一样）。 */
+  | { type: 'death'; player: number; x: number; y: number; cause?: Exclude<DeathCause, 'fall'> }
   | { type: 'respawn'; player: number; summoned: boolean }
   | { type: 'checkpoint'; index: number }
   | { type: 'bounce'; player: number; spring: number }
@@ -255,8 +266,12 @@ export class Sim {
   winT = 0;
   /** 全队激活到第几个检查点（-1 = 还在起点）。 */
   checkpoint = -1;
+  /** 关卡是按几个人摆的（开局的人数；中途进来的人不重摆）。 */
+  readonly layoutFor: number;
 
   private readonly info = new Map<number, ColInfo>();
+  private readonly movers: { def: MoverDef; rb: RB }[] = [];
+  private readonly spinners: { def: SpinnerDef; rb: RB }[] = [];
   private readonly terrain: RB;
   private readonly grabShape: RAPIER.Ball;
   private readonly grips = new Map<Joint, { player: number; arm: number; g: GripInternal }>();
@@ -264,7 +279,9 @@ export class Sim {
   private acc = 0;
 
   constructor(level: Level, nPlayers: number) {
-    this.level = level;
+    this.level = forPlayers(level, nPlayers);
+    this.layoutFor = nPlayers;
+    level = this.level;
     const world = new RAPIER.World({ x: 0, y: CFG.gravity });
     world.timestep = CFG.step;
     world.lengthUnit = CFG.lengthUnit;
@@ -280,6 +297,8 @@ export class Sim {
     for (const def of level.ropes ?? []) this.addRope(def.anchor, def.segments, def.segLen);
     for (const def of level.seesaws ?? []) this.addSeesaw(def.pivot, def.w, def.h ?? 14, frictionOf(def.material));
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
+    for (const def of level.movers ?? []) this.addMover(def);
+    for (const def of level.spinners ?? []) this.addSpinner(def);
 
     this.setPlayers(nPlayers);
   }
@@ -423,6 +442,79 @@ export class Sim {
     const index = this.props.length;
     this.info.set(col.handle, { kind: 'prop', prop: index });
     this.props.push({ kind: 'crate', rb, w: def.w, h: def.h, x: def.x + def.w / 2, y: def.y + def.h / 2, angle: 0 });
+  }
+
+  /** 会动的平台：运动学刚体，每步摆到 moverAt 算的位置。 */
+  private addMover(def: MoverDef): void {
+    const at = moverAt(def, 0);
+    const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(at.x + def.w / 2, at.y + def.h / 2));
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(def.w / 2, def.h / 2)
+        .setFriction(frictionOf(def.material))
+        .setSensor(!!def.deadly)
+        .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL)),
+      rb,
+    );
+    this.info.set(col.handle, { kind: 'moving', deadly: !!def.deadly });
+    this.movers.push({ def, rb });
+  }
+
+  /** 会转的杆子：运动学刚体在轴心，每根杆子一个长条碰撞体，每步转到 spinnerAngle 算的角度。 */
+  private addSpinner(def: SpinnerDef): void {
+    const rb = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(def.pivot.x, def.pivot.y).setRotation(spinnerAngle(def, 0)),
+    );
+    for (let j = 0; j < Math.max(1, def.arms); j++) {
+      const arm = spinnerArm(def, j, 0);
+      const col = this.world.createCollider(
+        RAPIER.ColliderDesc.cuboid(arm.len / 2, arm.h / 2)
+          .setTranslation(arm.x - def.pivot.x, arm.y - def.pivot.y)
+          .setRotation(arm.angle)
+          .setFriction(frictionOf(def.material))
+          .setSensor(!!def.deadly)
+          .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL)),
+        rb,
+      );
+      this.info.set(col.handle, { kind: 'moving', deadly: !!def.deadly });
+    }
+    this.spinners.push({ def, rb });
+  }
+
+  /** 这一步会动的东西该在哪：下一次 world.step() 把它们挪过去（站在上面的、抓着的跟着走）。 */
+  private moveKinematics(): void {
+    for (const { def, rb } of this.movers) {
+      const at = moverAt(def, this.time);
+      rb.setNextKinematicTranslation({ x: at.x + def.w / 2, y: at.y + def.h / 2 });
+    }
+    for (const { def, rb } of this.spinners) rb.setNextKinematicRotation(spinnerAngle(def, this.time));
+  }
+
+  /**
+   * 这个人碰到要命的东西没有（身体、两个手心、两个肘）：碰到了返回怎么死的、在哪。
+   * 只做几何，不靠碰撞体：尖刺不挡路，碰一下就够。
+   */
+  private hazardHit(p: Player): { cause: Exclude<DeathCause, 'fall'>; at: Pt } | null {
+    const lv = this.level;
+    const deadlyMovers = this.movers.filter((m) => m.def.deadly);
+    const deadlySpinners = this.spinners.filter((s) => s.def.deadly);
+    if (!lv.hazards?.length && !deadlyMovers.length && !deadlySpinners.length) return null;
+    const parts: { c: Pt; r: number }[] = [{ c: p.body, r: CFG.bodyR * 0.85 }];
+    for (const arm of p.arms) {
+      parts.push({ c: arm.hand, r: CFG.handR });
+      for (const e of arm.pts.slice(1, -1)) parts.push({ c: e, r: CFG.segR });
+    }
+    for (const { c, r } of parts) {
+      for (const h of lv.hazards ?? []) if (circleHitsRect(c, r, h)) return { cause: (h as HazardDef).kind ?? 'spike', at: { ...c } };
+      for (const { def } of deadlyMovers) {
+        const at = moverAt(def, this.time);
+        if (circleHitsRect(c, r, { x: at.x, y: at.y, w: def.w, h: def.h })) return { cause: def.hazard ?? 'spike', at: { ...c } };
+      }
+      for (const { def } of deadlySpinners) {
+        const angle = spinnerAngle(def, this.time);
+        for (let j = 0; j < Math.max(1, def.arms); j++) if (circleHitsBar(c, r, spinnerArm(def, j, angle))) return { cause: 'zap', at: { ...c } };
+      }
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------- 玩家
@@ -571,7 +663,9 @@ export class Sim {
     const minGap = CFG.bodyR * 2;
     const others = this.players.filter((q) => q.id !== i && !q.dead).map((q) => q.body);
     const gap = (x: number): number => others.reduce((m, b) => Math.min(m, Math.hypot(b.x - x, b.y - s.y)), Infinity);
-    if (gap(s.x) >= minGap) return s;
+    // 照常的位置挨着要命的东西（几个人错开站，最后一个可能站到尖刺上）也往旁边找
+    const nearHazard = (this.level.hazards ?? []).some((h) => circleHitsRect(s, CFG.bodyR + 4, h));
+    if (gap(s.x) >= minGap && !nearHazard) return s;
     let best = s;
     let bestGap = gap(s.x);
     for (let k = 1; k <= 25; k++) {
@@ -588,12 +682,13 @@ export class Sim {
     return best;
   }
 
-  /** (x, y) 放得下一个身体，而且脚下 80 px 内有不会消失的平台（饼干会没、蜡烛会弹，都不算）。 */
+  /** (x, y) 放得下一个身体，而且脚下 80 px 内有不会消失的平台（饼干会没、蜡烛会弹，都不算），离要命的东西也够远。 */
   private standable(x: number, y: number): boolean {
     const r = CFG.bodyR;
     const lv = this.level;
     const footing = lv.rects.some((b) => x - r >= b.x && x + r <= b.x + b.w && b.y - y >= r && b.y - y <= 80);
     if (!footing) return false;
+    if ((lv.hazards ?? []).some((h) => circleHitsRect({ x, y }, r + 40, h))) return false;
     const solid = [...lv.rects, ...(lv.fading ?? []), ...(lv.springs ?? [])];
     return !solid.some((b) => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h);
   }
@@ -688,6 +783,7 @@ export class Sim {
         if (arm.grip) arm.grip.t += dt;
       });
     }
+    this.moveKinematics();
     this.world.step();
     for (const p of this.players) {
       const wasGround = p.ground;
@@ -803,6 +899,7 @@ export class Sim {
         if (info.player === p.id || !other || other.dead) return true;
       }
       if (info.kind === 'terrain' && info.rect.grab === false) return true;
+      if (info.kind === 'moving' && info.deadly) return true;
       const proj = col.projectPoint(h, true);
       if (!proj) return true;
       const d = proj.isInside ? 0 : dist(proj.point, h);
@@ -823,7 +920,7 @@ export class Sim {
     );
     joint.setContactsEnabled(false);
     const tether = this.world.createImpulseJoint(RAPIER.JointData.rope(TETHER_LEN, { x: 0, y: 0 }, local), p.rb, target, true);
-    const kind: GripKind = info.kind === 'spring' ? 'terrain' : info.kind;
+    const kind: GripKind = info.kind === 'spring' || info.kind === 'moving' ? 'terrain' : info.kind;
     const grip: GripInternal = {
       kind,
       x: point.x,
@@ -947,22 +1044,10 @@ export class Sim {
 
   private lifeAndDeath(dt: number): void {
     for (const p of this.players) {
-      if (!p.dead && p.body.y > this.level.deathY) {
-        p.dead = true;
-        p.deadT = 0;
-        p.deaths++;
-        p.face = 'scream';
-        this.events.push({ type: 'death', player: p.id, x: p.body.x, y: p.body.y });
-        const held = p.heldBy;
-        p.heldBy = null;
-        if (held && this.time - held.t <= CFG.betrayalWindow) {
-          const by = this.players[held.by];
-          if (by) by.betrayals++;
-          this.betrayals.push({ by: held.by, victim: p.id, t: this.time });
-          this.events.push({ type: 'betrayal', by: held.by, victim: p.id });
-        }
-        this.releaseAll(p);
-        this.releaseGripsOn(p.id);
+      if (!p.dead && p.body.y > this.level.deathY) this.kill(p, 'fall', p.body);
+      if (!p.dead) {
+        const hit = this.hazardHit(p);
+        if (hit) this.kill(p, hit.cause, hit.at);
       }
       if (p.dead) {
         p.deadT += dt;
@@ -974,6 +1059,25 @@ export class Sim {
         }
       }
     }
+  }
+
+  /** 死了：记一次，被队友刚松开的算他背叛，松开所有手（自己的和抓着自己的）。 */
+  private kill(p: Player, cause: DeathCause, at: Pt): void {
+    p.dead = true;
+    p.deadT = 0;
+    p.deaths++;
+    p.face = 'scream';
+    this.events.push(cause === 'fall' ? { type: 'death', player: p.id, x: at.x, y: at.y } : { type: 'death', player: p.id, x: at.x, y: at.y, cause });
+    const held = p.heldBy;
+    p.heldBy = null;
+    if (held && this.time - held.t <= CFG.betrayalWindow) {
+      const by = this.players[held.by];
+      if (by) by.betrayals++;
+      this.betrayals.push({ by: held.by, victim: p.id, t: this.time });
+      this.events.push({ type: 'betrayal', by: held.by, victim: p.id });
+    }
+    this.releaseAll(p);
+    this.releaseGripsOn(p.id);
   }
 
   private checkpoints(): void {

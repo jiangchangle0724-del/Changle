@@ -154,10 +154,24 @@ class Sfx {
           this.noise({ dur: 0.06, vol: 0.12 + 0.2 * v, filter: { type: 'lowpass', freq: 900 }, pan });
           break;
         }
-        case 'death':
-          this.scream(ev.player, this.pan(ev.x, ev.y));
-          this.splash(this.pan(ev.x, ev.y), sim.level.world !== 'van');
+        case 'death': {
+          const pan = this.pan(ev.x, ev.y);
+          this.scream(ev.player, pan);
+          if (ev.cause === 'zap') {
+            // 电：一声嗞，带点抖
+            this.tone({ freq: 110, to: 90, wave: 'sawtooth', dur: 0.32, vol: 0.22, pan, vibrato: [35, 38], lowpass: 2400 });
+            this.noise({ dur: 0.25, vol: 0.18, filter: { type: 'bandpass', freq: 3200, q: 2 }, pan });
+          } else if (ev.cause === 'hot') {
+            // 烫：滋啦一下，往下滑
+            this.noise({ dur: 0.45, vol: 0.22, filter: { type: 'highpass', freq: 2500, to: 5000 }, pan });
+            this.tone({ freq: 300, to: 140, wave: 'sine', dur: 0.2, vol: 0.15, pan });
+          } else if (ev.cause === 'spike') {
+            // 扎：短促一声啵
+            this.tone({ freq: 900, to: 300, wave: 'triangle', dur: 0.09, vol: 0.3, pan });
+            this.noise({ dur: 0.05, vol: 0.15, filter: { type: 'lowpass', freq: 1800 }, pan });
+          } else this.splash(pan, sim.level.world !== 'van');
           break;
+        }
         case 'respawn': {
           const p = sim.players[ev.player];
           const pan = p ? this.pan(p.body.x, p.body.y) : 0;

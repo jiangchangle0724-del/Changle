@@ -19,12 +19,15 @@ export interface Rect {
   material?: string;
   /** false = 不可抓（只能站）。默认可抓。 */
   grab?: boolean;
+  /** 只在这么多人玩的时候才有：[最少, 最多]，两头都算（原版人多了关卡跟着变：缝更宽、抓点更少）。不写就是一直有。 */
+  players?: [number, number];
 }
 
 export interface RopeDef {
   anchor: Pt;
   segments: number;
   segLen: number;
+  players?: [number, number];
 }
 
 export interface SeesawDef {
@@ -33,6 +36,49 @@ export interface SeesawDef {
   w: number;
   h?: number;
   material?: string;
+  players?: [number, number];
+}
+
+/**
+ * 碰到就死的东西（原版那种尖刺、电）：身体、胳膊、手碰到都算，不能抓，也不挡路。
+ * kind 只管画面和声音：spike 尖的（桌上是牙签，温哥华是铁栏杆尖），hot 烫的（红油锅、夜市烤炉），zap 带电的（电炉丝、天车的电轨）。
+ * dir：尖头朝哪边，默认朝上。
+ */
+export interface HazardDef extends Rect {
+  kind?: 'spike' | 'hot' | 'zap';
+  dir?: 'up' | 'down' | 'left' | 'right';
+}
+
+/**
+ * 会动的平台：从 (x, y) 出发，依次走到 path 里的每个点（都是矩形左上角的位置），走到头原路回来；
+ * loop 就从最后一点直接回起点。speed 像素/秒，每到一个点停 wait 秒；phase 把钟往后拨几秒，几块错开用。
+ * 能站能抓，抓着就跟着走。deadly：会动的尖刺，碰到就死，不能抓。
+ */
+export interface MoverDef extends Rect {
+  path: Pt[];
+  speed: number;
+  wait?: number;
+  loop?: boolean;
+  phase?: number;
+  deadly?: boolean;
+  /** deadly 时的样子，和 HazardDef 一样。 */
+  hazard?: 'spike' | 'hot' | 'zap';
+}
+
+/**
+ * 会转的杆子（转动的筷子、旋转门、风车）：绕 pivot 转，arms 根杆子均匀分开，每根从轴心伸出 len 长、h 粗；
+ * spin 弧度/秒（正的顺时针），phase 起始角度（弧度）。能抓，抓着跟着转。deadly：带电的杆子，碰到就死，不能抓。
+ */
+export interface SpinnerDef {
+  pivot: Pt;
+  arms: number;
+  len: number;
+  h?: number;
+  spin: number;
+  phase?: number;
+  material?: string;
+  deadly?: boolean;
+  players?: [number, number];
 }
 
 export interface CrateDef extends Rect {
@@ -70,9 +116,40 @@ export interface Level {
   crates?: CrateDef[];
   fading?: FadingDef[];
   springs?: SpringDef[];
+  hazards?: HazardDef[];
+  movers?: MoverDef[];
+  spinners?: SpinnerDef[];
   deathY: number;
   par?: { seconds: number; deathsPerPlayer: number };
   replay?: string;
+}
+
+/** 这件东西在 n 个人玩的时候有没有。 */
+export function forCount(item: { players?: [number, number] }, n: number): boolean {
+  const r = item.players;
+  return !r || (n >= r[0] && n <= r[1]);
+}
+
+/**
+ * 按人数摆出来的关卡：只留这么多人玩时该有的东西（`players` 范围）。没有写范围的关原样返回同一个对象。
+ * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
+ */
+export function forPlayers(level: Level, n: number): Level {
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners];
+  if (!lists.some((l) => l?.some((x) => x.players))) return level;
+  const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
+  return {
+    ...level,
+    rects: keep(level.rects) ?? [],
+    ropes: keep(level.ropes),
+    seesaws: keep(level.seesaws),
+    crates: keep(level.crates),
+    fading: keep(level.fading),
+    springs: keep(level.springs),
+    hazards: keep(level.hazards),
+    movers: keep(level.movers),
+    spinners: keep(level.spinners),
+  };
 }
 
 /**
@@ -105,6 +182,48 @@ export function sampleLevel(): Level {
     ropes: [{ anchor: { x: 720, y: 120 }, segments: 8, segLen: 38 }],
     deathY: 1040,
     par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 机关样板关（A6，只在开发页：`play.html?level=proto-02` 桌上、`proto-03` 温哥华）：
+ * 要命的三种东西、会动的平台、会动的尖刺、会转的杆子、带电的杆子各一个，Codex 做难关时照着写 JSON。
+ * 不进大厅，也不保证能过。
+ */
+export function machinesLevel(world: 'table' | 'van'): Level {
+  const ground = world === 'van' ? 'metal' : 'cloth';
+  return {
+    id: world === 'van' ? 'proto-03' : 'proto-02',
+    world,
+    name: { zh: '机关样板', en: 'Machines sampler' },
+    teaches: 'combine',
+    w: 2600,
+    h: 1000,
+    spawn: { x: 120, y: 596 },
+    goal: { x: 2380, y: 380, w: 200, h: 180 },
+    checkpoints: [{ x: 1180, y: 596 }],
+    rects: [
+      { kind: 'ground', x: 0, y: 620, w: 420, h: 380, material: ground },
+      { kind: 'ground', x: 900, y: 620, w: 520, h: 380, material: ground },
+      { kind: 'ground', x: 2080, y: 560, w: 520, h: 440, material: ground },
+    ],
+    hazards: [
+      { x: 420, y: 760, w: 480, h: 40, kind: 'hot' },
+      { x: 1000, y: 584, w: 120, h: 36, kind: 'spike' },
+      { x: 1300, y: 520, w: 60, h: 100, kind: 'zap' },
+      { x: 1420, y: 800, w: 660, h: 44, kind: 'spike', dir: 'up' },
+    ],
+    movers: [
+      { x: 450, y: 560, w: 180, h: 22, material: 'wood', path: [{ x: 700, y: 560 }], speed: 110, wait: 0.6 },
+      { x: 960, y: 420, w: 44, h: 44, path: [{ x: 1360, y: 420 }], speed: 160, deadly: true, hazard: 'zap' },
+      { x: 1460, y: 600, w: 160, h: 22, material: world === 'van' ? 'metal' : 'ceramic', path: [{ x: 1460, y: 420 }, { x: 1700, y: 420 }], speed: 90, wait: 0.4, loop: true },
+    ],
+    spinners: [
+      { pivot: { x: 1880, y: 420 }, arms: 3, len: 150, h: 18, spin: 0.9 },
+      { pivot: { x: 1180, y: 300 }, arms: 2, len: 120, h: 14, spin: -1.6, deadly: true },
+    ],
+    deathY: 1000,
+    par: { seconds: 120, deathsPerPlayer: 4 },
   };
 }
 

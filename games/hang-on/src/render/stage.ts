@@ -240,7 +240,9 @@ export class Stage {
           this.cam.shake = this.reduced ? 0 : 12;
           this.slow = 0.55;
           this.flashA = this.reduced ? 0 : 0.28;
-          this.splash(ev.x, sim.level.deathY);
+          // 碰到机关死的在出事的地方炸开；掉下去的在深渊面上溅起来
+          if (ev.cause) this.hazardBurst(ev.cause, ev.x, ev.y);
+          else this.splash(ev.x, sim.level.deathY);
           sim.players.forEach((q, i) => {
             if (i !== ev.player && !q.dead) this.dumplings[i]?.onMateDied();
           });
@@ -289,6 +291,22 @@ export class Stage {
     this.fx.burst({ x, y: y - 4, n: 22, texture: 'drop', colors, speed: [200, 520], angle: -Math.PI / 2, spread: 0.9, life: [0.5, 0.9], size: [8, 16], gravity: 1400, spin: 6 });
     this.fx.burst({ x, y: y - 4, n: 10, texture: 'circle', colors, speed: [100, 300], angle: -Math.PI / 2, spread: 1.2, life: [0.3, 0.6], size: [5, 12], gravity: 1200 });
     this.fx.burst({ x, y: y - 10, n: 4, texture: 'puff', colors: [0xffffff], speed: [30, 80], angle: -Math.PI / 2, spread: 0.6, life: [0.8, 1.4], size: [40, 80], grow: 2.2, alpha: 0.35, drag: 1 });
+  }
+
+  /** 碰到机关的死法：电是一团火花，烫是一股白气加几滴红油，扎是一圈白点。 */
+  private hazardBurst(cause: 'spike' | 'hot' | 'zap', x: number, y: number): void {
+    const van = this.world_ === 'van';
+    if (cause === 'zap') {
+      this.fx.burst({ x, y, n: this.reduced ? 8 : 26, texture: 'star', colors: van ? [0xbff0ff, 0x7fd8ff, 0xffffff] : [0xffd27a, 0xff7a2f, 0xffffff], speed: [200, 620], life: [0.25, 0.6], size: [6, 12], drag: 3, spin: 12 });
+      this.fx.burst({ x, y, n: 3, texture: 'puff', colors: [0x2a2a2a], speed: [20, 60], angle: -Math.PI / 2, spread: 0.8, life: [0.6, 1], size: [30, 60], grow: 2, alpha: 0.35, drag: 1 });
+      return;
+    }
+    if (cause === 'hot') {
+      this.fx.burst({ x, y, n: 6, texture: 'puff', colors: [0xffffff], speed: [40, 120], angle: -Math.PI / 2, spread: 0.7, life: [0.8, 1.4], size: [40, 80], grow: 2.4, alpha: 0.4, drag: 1 });
+      this.fx.burst({ x, y, n: 12, texture: 'drop', colors: van ? [0xff6a2c, 0xffb347] : [0xd8432a, 0xff8a5b], speed: [150, 380], angle: -Math.PI / 2, spread: 1, life: [0.4, 0.8], size: [6, 12], gravity: 1300 });
+      return;
+    }
+    this.fx.burst({ x, y, n: this.reduced ? 6 : 16, texture: 'circle', colors: [0xfff6e9, 0xf8c56d], speed: [180, 420], life: [0.3, 0.6], size: [5, 10], drag: 3 });
   }
 
   private confetti(x: number, y: number): void {
