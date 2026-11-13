@@ -91,3 +91,41 @@ test("the host turns the penalty off; someone who joins mid-round watches and pl
   await expect(kev.locator(".controls")).toBeVisible();
   noErrors(steve, mia, kev);
 });
+
+test("the night market: standing still at a stall tastes it, the stall lights up for everyone, and only the taster is told", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { stall: 2, roundMs: 40_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en");
+  const tv = await screen(browser);
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await tv.goto(`/hide/tv/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await expect(steve.locator(".arena-option")).toHaveCount(4);
+  await steve.getByRole("button", { name: /列治文夜市/ }).click();
+  await mia.getByRole("button", { name: /Richmond Night Market/ }).click();
+  await until(steve, (v) => v.arenaVotes.market === 2);
+  await steve.getByRole("button", { name: "开始" }).click();
+  await until(mia, (v) => v.phase === "playing" && v.game?.arena === "market");
+  // the quest strip: four snacks, none tasted yet
+  await expect(steve.locator(".quest .quest-snack")).toHaveCount(4);
+  await expect(mia.locator(".quest")).toHaveAttribute("aria-label", "Taste all four: 0 tasted");
+  // Steve starts at the bubble tea stall and stands still: a moment later it's tasted
+  await until(steve, (v) => v.game!.events.some((e) => e.t === "bite" && e.stall === 2 && e.byYou), 6_000);
+  await expect(steve.locator(".play-notice")).toHaveText("珍珠奶茶，还差 3 样");
+  await expect(steve.locator(".quest-snack.stall-2")).toHaveClass(/is-done/);
+  await expect(steve.locator(".quest")).toHaveAttribute("aria-label", "尝遍四样：尝过 1 样");
+  await shot(steve, "phone-market-bite");
+  // everyone sees the stall light up; only Steve's phone says it was him
+  await until(mia, (v) => v.game!.events.some((e) => e.t === "bite" && e.stall === 2 && !e.byYou));
+  await until(tv, (v) => v.game!.events.some((e) => e.t === "bite" && e.stall === 2 && !e.byYou));
+  await expect(mia.locator(".play-notice")).toHaveCount(0);
+  await expect(mia.locator(".quest-snack.is-done")).toHaveCount(0);
+  await expect(tv.locator(".flat-stall")).toHaveCount(4);
+  // the fireworks, ten seconds in: the crowd's moment, on the phones and the big screen
+  await expect(mia.locator(".moment-banner")).toContainText("Fireworks", { timeout: 15_000 });
+  await expect(tv.locator(".moment-banner")).toContainText("放烟花了");
+  await shot(tv, "tv-market-fireworks");
+  noErrors(steve, mia, tv);
+});

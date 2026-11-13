@@ -34,6 +34,17 @@
   --arena-petal: #ee9fb6;
   --arena-daisy: #fbf4e2;
   --arena-sea: #3b8db5;
+  /* the night market, after dark: the parking lot's asphalt and its paint, the bulbs, the dusk sky,
+     and the four stalls' canvas (the same colours as the Blender set) */
+  --arena-asphalt: #2c303b;
+  --arena-asphalt-2: #3a3f4d;
+  --arena-paint: #e6dcc0;
+  --arena-bulb: #ffd58a;
+  --arena-dusk: #34396b;
+  --stall-0: #c8443a;
+  --stall-1: #2e8c86;
+  --stall-2: #7a5cb0;
+  --stall-3: #d99a2b;
   /* the six looks in the crowd, for the flat arena (the same tops as the 3D people, src/client/people.ts) */
   --look-0: #d9962a;
   --look-1: #5cc79b;
@@ -1525,7 +1536,7 @@ html.is-tv body::before {
   display: none;
 }
 .arena-vote.is-big .arena-options {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
 }
 .arena-vote.is-big .arena-option {
@@ -1801,6 +1812,51 @@ html.is-tv body::before {
   background:
     repeating-linear-gradient(0deg, color-mix(in oklab, var(--arena-line) 70%, transparent) 0 1px, transparent 1px 36px),
     linear-gradient(160deg, color-mix(in oklab, var(--arena-accent) 18%, var(--arena-surface)), var(--arena-bg));
+}
+/* the night market: the lot's asphalt and its lines; the stalls along the top, their pools of light below */
+.flat-arena--market {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 2px), color-mix(in oklab, var(--arena-paint) 16%, transparent) calc(12.5% - 2px) 12.5%, transparent 12.5% 25%),
+    linear-gradient(170deg, var(--arena-asphalt-2), var(--arena-asphalt));
+}
+.flat-stalls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.flat-stall {
+  position: absolute;
+  top: 0;
+  /* (the stall's reach: 4.5 either side of its middle, from the floor's edge to 6 in) */
+  width: 9%;
+  height: 20.7%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 50%, color-mix(in oklab, var(--arena-bulb) 30%, transparent), transparent 70%);
+  transition: background var(--dur-emphasis) var(--ease-out);
+}
+/* the counter, beyond the floor's edge */
+.flat-stall::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 50%;
+  border-radius: 0 0 var(--r-small) var(--r-small);
+  background: var(--stall-color);
+}
+.flat-stall.stall-0 {
+  left: 20%;
+}
+.flat-stall.stall-1 {
+  left: 40%;
+}
+.flat-stall.stall-2 {
+  left: 60%;
+}
+.flat-stall.stall-3 {
+  left: 80%;
+}
+.flat-stall.is-lit {
+  background: radial-gradient(ellipse at 50% 50%, color-mix(in oklab, var(--stall-color) 90%, transparent), transparent 78%);
+  transition-duration: var(--dur-exit);
 }
 .flat-arena.is-hit {
   animation: flat-hit var(--dur-emphasis) var(--ease-out);
@@ -2570,6 +2626,103 @@ html.is-tv body::before {
     top: calc(var(--safe-top) + 112px);
     bottom: auto;
   }
+}
+
+/* the night market's four stalls, in their canvas colours (the Blender set's) */
+.stall-0 {
+  --stall-color: var(--stall-0);
+}
+.stall-1 {
+  --stall-color: var(--stall-1);
+}
+.stall-2 {
+  --stall-color: var(--stall-2);
+}
+.stall-3 {
+  --stall-color: var(--stall-3);
+}
+/* the side quest on your phone: the four snacks, lit once tasted, a ring filling round the one you're at */
+.quest {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + var(--space-4));
+  left: 50%;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--color-bg) 78%, transparent);
+  box-shadow: var(--shadow-flat);
+  transform: translateX(-50%);
+}
+.moment-banner + .quest {
+  bottom: calc(var(--safe-bottom) + var(--space-4) + var(--space-12));
+}
+.quest-title {
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.quest-snack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--stall-color) 18%, var(--color-bg));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--stall-color) 60%, transparent);
+  color: color-mix(in oklab, var(--stall-color) 45%, var(--color-text));
+  transition: background var(--dur-enter) var(--ease-out), color var(--dur-enter) var(--ease-out);
+}
+.quest-snack.is-done {
+  background: var(--stall-color);
+  color: var(--color-on-accent);
+  animation: quest-done var(--dur-emphasis) var(--ease-pop);
+}
+.quest-snack.is-tasting::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--r-pill);
+  background: conic-gradient(var(--stall-color) calc(var(--tasting) * 1turn), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+}
+@keyframes quest-done {
+  50% {
+    transform: scale(1.22);
+  }
+}
+@media (orientation: portrait) and (max-width: 719px) {
+  .quest {
+    top: calc(var(--safe-top) + 112px);
+    bottom: auto;
+  }
+  .moment-banner + .quest {
+    top: calc(var(--safe-top) + 112px + var(--space-12));
+    bottom: auto;
+  }
+}
+/* the big screen: someone tasted all four */
+.tv-feast {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--r-pill);
+  background: var(--stall-3);
+  color: var(--color-on-accent);
+  font: 800 var(--text-xl) / var(--leading-tight) var(--font-display);
+  white-space: nowrap;
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  animation: moment-in var(--dur-emphasis) var(--ease-pop) both;
 }
 
 /* the round's titles: 火眼金睛, 隐身大师... */

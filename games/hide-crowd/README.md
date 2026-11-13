@@ -6,8 +6,9 @@ nobody can tell it's you; spot a rival and punch: a hit scores, hitting a passer
 down and stuns you, and a tagged player gets up in another body somewhere else in the crowd. First
 to 3 tags, or the most tags after 75 seconds. The round ends in a penalty: whoever got spotted most
 takes a sip. A big screen (a TV or a computer) shows the whole crowd and never marks who is human.
-Three 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre. 2 to 8
-players, Chinese and English.
+Four 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre, and the
+Richmond Night Market, where tasting all four stalls scores 2 but lights each stall up for everyone.
+2 to 8 players, Chinese and English.
 
 How it looks, where the art comes from and what a design change has to keep: [DESIGN.md](DESIGN.md).
 

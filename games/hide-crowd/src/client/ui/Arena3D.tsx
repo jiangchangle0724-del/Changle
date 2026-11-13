@@ -5,14 +5,15 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
-import type { ArenaId, Pose } from "../../engine";
+import { ARENA, PLAYER_ACCELERATION, PLAYER_BRAKING, STALLS, steerVelocity } from "../../engine";
+import type { ArenaId, MomentKind, Pose } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
 import { BASE } from "../base";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type PeopleKit } from "../people";
 import { addEnvironmentalLandmarks } from "./landmarks";
+import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
 export function preloadPeople(): void {
@@ -29,6 +30,10 @@ interface Props {
   receivedAt: number;
   impactId: number;
   impactType: "tag" | "foul" | "swing" | "hide" | "over";
+  /** the night market: the latest stall tasted (it flashes for everyone), and whether that bite was a feast */
+  flash?: { id: number; stall: number; feast: boolean } | null;
+  /** the crowd's moment, while it lasts (the night market's fireworks go up in it) */
+  moment?: { kind: MomentKind } | null;
   label: string;
   youLabel: string;
   fallback: ComponentChildren;
@@ -72,6 +77,16 @@ interface Palette {
   petal: string;
   daisy: string;
   sea: string;
+  /** the night market: the lot's asphalt and paint, the bulbs, the dusk, the four stalls' canvas */
+  asphalt: string;
+  asphalt2: string;
+  paint: string;
+  bulb: string;
+  dusk: string;
+  stall0: string;
+  stall1: string;
+  stall2: string;
+  stall3: string;
   /** the "you" marker: the game's gel, night-colored text */
   me: string;
   onMe: string;
@@ -96,7 +111,7 @@ const GROUND_SIZE = { x: 48, z: 36, centerZ: -4 };
 /** the seawall's stone edge, just beyond the set's railing; the sea lies past it */
 const SEAWALL_Z = -7.85;
 /** the courtyard's set sits this much further back, so the front row stands before the stage, not in it */
-const SET_OFFSET_Z: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: -0.65 };
+const SET_OFFSET_Z: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: -0.65, market: 0 };
 /** one repeat of the floor's pattern, in scene units */
 const GROUND_TILE = 12;
 /** the screen kept clear of the crowd: the top bar, the bottom edge, the sides */
@@ -105,7 +120,8 @@ const TV_MARGINS: ScreenMargins = { top: 0.15, bottom: 0.1, side: 0.04 };
 const ARENA_DRESSING: Record<ArenaId, string> = {
   plaza: `${BASE}/art/seawall-dressing.glb`,
   metro: `${BASE}/art/transit-dressing.glb`,
-  gallery: `${BASE}/art/courtyard-dressing.glb`
+  gallery: `${BASE}/art/courtyard-dressing.glb`,
+  market: `${BASE}/art/market-dressing.glb`
 };
 
 function disposeTree(root: THREE.Object3D): void {
@@ -150,9 +166,31 @@ function readPalette(): Palette {
     petal: read("--arena-petal", "#ee9fb6"),
     daisy: read("--arena-daisy", "#fbf4e2"),
     sea: read("--arena-sea", "#3b8db5"),
+    asphalt: read("--arena-asphalt", "#2c303b"),
+    asphalt2: read("--arena-asphalt-2", "#3a3f4d"),
+    paint: read("--arena-paint", "#e6dcc0"),
+    bulb: read("--arena-bulb", "#ffd58a"),
+    dusk: read("--arena-dusk", "#34396b"),
+    stall0: read("--stall-0", "#c8443a"),
+    stall1: read("--stall-1", "#2e8c86"),
+    stall2: read("--stall-2", "#7a5cb0"),
+    stall3: read("--stall-3", "#d99a2b"),
     me: read("--gel", "#7be55c"),
     onMe: read("--night", "#0e0c22"),
     font: read("--font-display", "sans-serif")
+  };
+}
+
+function marketPalette(palette: Palette): MarketPalette {
+  return {
+    asphalt: palette.asphalt,
+    asphalt2: palette.asphalt2,
+    paint: palette.paint,
+    bulb: palette.bulb,
+    dusk: palette.dusk,
+    stalls: [palette.stall0, palette.stall1, palette.stall2, palette.stall3],
+    sparks: [palette.bulb, palette.me, palette.accent, palette.stall2, palette.stall1],
+    ink: palette.ink
   };
 }
 
@@ -201,12 +239,16 @@ function seeded(seed: number): () => number {
 const FLOOR_PX = 1024;
 
 /**
- * The three floors, in daylight like the places in the pictures, drawn once on a canvas that repeats
- * every GROUND_TILE units: the seawall's mown lawn, the transit hall's stone tiles, the courtyard's
- * flagstones with a few blossom petals.
+ * The four floors, drawn once on a canvas that repeats every GROUND_TILE units: the seawall's mown
+ * lawn, the transit hall's stone tiles and the courtyard's flagstones with a few blossom petals, in
+ * daylight like the places in the pictures, and the night market's parking lot after dark.
  */
 function paintFloor(context: CanvasRenderingContext2D, arena: ArenaId, palette: Palette): void {
-  const random = seeded(arena === "plaza" ? 11 : arena === "metro" ? 23 : 37);
+  const random = seeded(arena === "plaza" ? 11 : arena === "metro" ? 23 : arena === "gallery" ? 37 : 53);
+  if (arena === "market") {
+    paintAsphalt(context, FLOOR_PX, marketPalette(palette), random);
+    return;
+  }
   const size = FLOOR_PX;
   const mix = (a: string, b: string, amount: number) => "#" + new THREE.Color(a).lerp(new THREE.Color(b), amount).getHexString();
   const tint = (value: string, alpha: number) => {
@@ -370,12 +412,12 @@ function createSoftShadowTexture(): THREE.CanvasTexture {
  */
 function addGround(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
   // (white: the floor's colors are the drawn ones)
-  const groundMaterial = makeMaterial("#ffffff", arena === "metro" ? 0.62 : 0.95);
+  const groundMaterial = makeMaterial("#ffffff", arena === "metro" ? 0.62 : arena === "market" ? 0.88 : 0.95);
   const groundTexture = createGroundTexture(arena, palette, maxAnisotropy);
   groundTexture.repeat.set(GROUND_SIZE.x / GROUND_TILE, GROUND_SIZE.z / GROUND_TILE);
   groundMaterial.map = groundTexture;
   groundMaterial.bumpMap = groundTexture;
-  groundMaterial.bumpScale = arena === "plaza" ? 0.004 : arena === "gallery" ? 0.02 : 0.012;
+  groundMaterial.bumpScale = arena === "plaza" ? 0.004 : arena === "gallery" ? 0.02 : arena === "market" ? 0.016 : 0.012;
   groundMaterial.needsUpdate = true;
   const ground = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE.x, 0.35, GROUND_SIZE.z), groundMaterial);
   ground.name = "floor";
@@ -443,6 +485,7 @@ interface RuleMarks {
  * What each place's rule looks like, kept whichever set is showing: the transit hall's moving
  * walkways under the whole crowd (the room carries everyone along; they slide the same way), the
  * courtyard's spotlight where the rules make you faster, and the sea beyond the seawall's railing.
+ * (The night market's pools of light before its stalls are in market.ts, with the rest of its lights.)
  */
 function addRuleMarks(scene: THREE.Scene, arena: ArenaId, palette: Palette): RuleMarks {
   const owned: { dispose: () => void }[] = [];
@@ -487,7 +530,7 @@ function addRuleMarks(scene: THREE.Scene, arena: ArenaId, palette: Palette): Rul
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.02;
     scene.add(pool);
-  } else {
+  } else if (arena === "plaza") {
     // the sea beyond the railing, and the seawall's stone edge
     const sea = new THREE.Mesh(keep(new THREE.PlaneGeometry(GROUND_SIZE.x, 16)), keep(new THREE.MeshStandardMaterial({ color: palette.sea, roughness: 0.28, metalness: 0.1 })));
     sea.rotation.x = -Math.PI / 2;
@@ -599,6 +642,21 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
     return;
   }
 
+  if (arena === "market") {
+    // until the Blender set is in: a night backdrop and four stalls in their canvas colours
+    makeBox(scene, [24, 4.4, 0.3], [0, 2.2, -7.9], dark);
+    [palette.stall0, palette.stall1, palette.stall2, palette.stall3].forEach((canvas, index) => {
+      const x = (STALLS[index] - ARENA.width / 2) * SCENE_PER_WORLD;
+      const color = makeMaterial(canvas, 0.8);
+      makeBox(scene, [2.7, 1.0, 0.7], [x, 0.5, -4.55], color);
+      makeBox(scene, [2.95, 2.5, 0.3], [x, 1.25, -6.05], wood);
+      const awning = makeBox(scene, [2.9, 0.08, 1.85], [x, 2.72, -5.2], color);
+      awning.rotation.x = 0.28;
+      makeBox(scene, [2.0, 0.62, 0.12], [x, 3.3, -4.75], dark);
+    });
+    return;
+  }
+
   if (arena === "metro") {
     // Vancouver-style transit concourse: glass, tiled floor, columns and a platform edge.
     makeBox(scene, [18.5, 4.8, 0.25], [0, 2.2, -5.7], detail);
@@ -690,6 +748,8 @@ export function Arena3D(props: Props) {
   const impact = useRef(props.impactId);
   const impactType = useRef(props.impactType);
   const youLabel = useRef(props.youLabel);
+  const flash = useRef(props.flash ?? null);
+  const moment = useRef(props.moment ?? null);
   const [supported, setSupported] = useState(true);
   const [frameMetrics, setFrameMetrics] = useState<FrameMetrics | null>(null);
   const showFps = new URLSearchParams(window.location.search).get("fps") === "1";
@@ -701,6 +761,8 @@ export function Arena3D(props: Props) {
   impact.current = props.impactId;
   impactType.current = props.impactType;
   youLabel.current = props.youLabel;
+  flash.current = props.flash ?? null;
+  moment.current = props.moment ?? null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -743,6 +805,8 @@ export function Arena3D(props: Props) {
 
     const groundTexture = addGround(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
     const ruleMarks = addRuleMarks(scene, props.arena, palette);
+    // (the night market's lights, its stalls' pools and its fireworks stay whichever set is showing)
+    const market: Market | null = props.arena === "market" ? addMarket(scene, marketPalette(palette), ambient, key, fill) : null;
     const environmentStart = new Set(scene.children);
     addVenue(scene, props.arena, palette);
     addEnvironmentalLandmarks(scene, props.arena, palette);
@@ -777,6 +841,7 @@ export function Arena3D(props: Props) {
       scene.remove(fallbackVenue);
       disposeTree(fallbackVenue);
       scene.add(loadedVenue);
+      market?.showGlow();
     }, undefined, () => {
       // Keep the procedural venue visible if an asset fails to load.
     });
@@ -954,6 +1019,8 @@ export function Arena3D(props: Props) {
     let shakeAt = 0;
     let shakeStrength = 0;
     let lastImpact = props.impactId;
+    let lastFlash = props.flash?.id ?? 0;
+    let fireworksSeen = props.moment?.kind === "fireworks";
     /** a beat of stillness when a punch lands (a hit-stop), the camera's kick toward it, the last blow in slow motion */
     let freezeUntil = 0;
     let kickAt = 0;
@@ -1024,6 +1091,19 @@ export function Arena3D(props: Props) {
       }
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
       const reduced = reducedNow();
+      if (market) {
+        // a stall tasted: its pool flashes, and a few sparks fly off its counter
+        const lit = flash.current;
+        if (lit && lit.id !== lastFlash) {
+          lastFlash = lit.id;
+          market.flash(lit.stall, lit.feast, time);
+          if (!reduced) burst((STALLS[lit.stall] - ARENA.width / 2) * SCENE_PER_WORLD, -4.25, time, "spark");
+        }
+        const showing = moment.current?.kind === "fireworks";
+        if (showing && !fireworksSeen) market.fireworks(time);
+        fireworksSeen = showing;
+        market.update(time, delta, reduced, 1 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+      }
       // the hit-stop holds every body for a beat; the round's last blow plays at a third of the speed
       const frozen = !reduced && time < freezeUntil;
       const pace = frozen ? 0 : !reduced && time < slowUntil ? 0.35 : 1;
@@ -1235,6 +1315,7 @@ export function Arena3D(props: Props) {
       }
       groundTexture.dispose();
       ruleMarks.dispose();
+      market?.dispose();
       shadowTexture.dispose();
       renderer.dispose();
     };

@@ -27,7 +27,14 @@ const ICONS = {
   sound: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11",
   note: "M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM19 16a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM9 10l10-2",
   // Safari's page menu, as iOS draws it at the left of the address bar
-  pageMenu: "M4 7h16M4 12h16M4 17h10"
+  pageMenu: "M4 7h16M4 12h16M4 17h10",
+  // the night market: a firework, and the four stalls' snacks (squid on a stick, fish balls on a
+  // skewer, bubble tea with its straw and pearls, a tornado potato)
+  firework: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8",
+  squid: "M12 2.5l4.5 8h-9zM9 10.5l-1.2 4.5M11 10.5l-.4 5M13 10.5l.4 5M15 10.5l1.2 4.5M12 10.5v11",
+  fishball: "M12 2v20M14.6 6.2a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 12a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 17.8a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0z",
+  tea: "M7 9h10l-1.3 12H8.3zM6 9h12M8.5 6.5h7l1 2.5h-9zM13 6.5l2.5-4M10 17h.01M12 18.5h.01M14 17h.01",
+  potato: "M12 2.5v19M8.5 6l7 1.6M8 9.8l8 1.6M8 13.6l8 1.6M8.6 17.4l6.8 1.4"
 } as const;
 export type IconName = keyof typeof ICONS;
 

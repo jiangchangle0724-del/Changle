@@ -63,7 +63,9 @@ export interface AvatarView {
 
 export interface EventView {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "over";
+  /** bite: the night market's stall that was tasted (everyone sees which; only the taster's phone sees byYou) */
+  stall?: number;
   /** this phone did it (a tag, a foul, a miss) or it happened to this phone's player (slipped away) */
   byYou: boolean;
   /** this phone's player was tagged */
@@ -75,6 +77,10 @@ export interface MeView {
   blendReadyAt: number;
   /** top speed now, for predicting your own body between frames */
   maxSpeed: number;
+  /** the night market: the stalls you've tasted since your last feast (one bit each), the one you're tasting now (-1: none) and how far along (0 to 1) */
+  bites: number;
+  at: number;
+  tasting: number;
 }
 
 export interface GameView {

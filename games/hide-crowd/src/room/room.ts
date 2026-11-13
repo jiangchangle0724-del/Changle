@@ -3,11 +3,14 @@
 // own (every call says what time it is), so the tests drive it directly; the Durable Object in
 // src/server/worker.ts runs it.
 import {
+  ARENA,
   ARENAS,
+  BITE_MS,
   MAX_PLAYERS,
   MIN_PLAYERS,
   SCORE_TO_WIN,
   SIMULATION_STEP_MS,
+  STALLS,
   advanceMatch,
   characterForOwner,
   characterMaxSpeed,
@@ -25,7 +28,7 @@ import {
   type RoundPenalty,
   type Vector
 } from "../engine";
-import type { AvatarView, ClientMsg, Lang, Role, RoomInfo, RoomView } from "./protocol";
+import type { AvatarView, ClientMsg, EventView, Lang, Role, RoomInfo, RoomView } from "./protocol";
 
 const ROOM_TTL_MS = 3 * 60 * 60_000;
 /** a room nobody ever came into is let go sooner */
@@ -51,11 +54,13 @@ export interface Opening {
 
 /**
  * For the browser tests only (the Worker accepts it with ALLOW_TEST_SETTINGS=1, never set on
- * changle.ca): a short round, and the first two players starting face to face.
+ * changle.ca): a short round, the first two players starting face to face, or the first player
+ * starting at one of the night market's stalls (0 to 3) with nobody else near it.
  */
 export interface TestSettings {
   roundMs?: number;
   duel?: boolean;
+  stall?: number;
 }
 
 export interface Member {
@@ -339,14 +344,14 @@ export class Room {
     this.st.seed = (this.st.seed * 48271 + now) % 0x7fffffff;
     this.st.inputs = {};
     this.st.inputUpdatedAt = {};
-    const totals: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: 0 };
+    const totals: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: 0, market: 0 };
     for (const player of players) {
       const vote = this.st.arenaVotes[player.id];
       if (vote && ARENAS.includes(vote)) totals[vote]++;
     }
     const highest = Math.max(...Object.values(totals));
     const leaders = ARENAS.filter((arena) => totals[arena] === highest);
-    // nobody voted: each round goes to the next arena, so a table sees all three
+    // nobody voted: each round goes to the next arena, so a table sees all four
     const arena = highest === 0 ? ARENAS[this.st.round % ARENAS.length] : leaders[this.st.seed % leaders.length];
     this.st.game = createMatch(players.map((player) => ({ id: player.id, name: player.name })), now, this.st.seed, arena);
     const test = this.st.test;
@@ -356,6 +361,11 @@ export class Room {
       Object.assign(one, { x: 40, y: 29, facing: 0 });
       Object.assign(two, { x: 45, y: 29, facing: Math.PI });
       for (const other of this.st.game.characters) if (other !== one && other !== two && Math.hypot(other.x - 42, other.y - 29) < 12) other.y = other.y < 29 ? 8 : 50;
+    }
+    if (test?.stall !== undefined && arena === "market") {
+      const taster = characterForOwner(this.st.game, players[0].id)!;
+      Object.assign(taster, { x: STALLS[test.stall], y: ARENA.marginY + 2, velocity: { x: 0, y: 0 }, facing: -Math.PI / 2 });
+      for (const other of this.st.game.characters) if (other !== taster && Math.abs(other.x - taster.x) < 14) other.y = Math.max(other.y, 40);
     }
     this.st.round++;
     this.st.result = null;
@@ -409,7 +419,7 @@ export class Room {
           tagged: body?.tagged ?? 0
         };
       });
-    const arenaVotes: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: 0 };
+    const arenaVotes: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: 0, market: 0 };
     for (const member of this.st.members) {
       const vote = this.st.arenaVotes[member.id];
       if (member.role === "player" && member.online && vote && ARENAS.includes(vote)) arenaVotes[vote]++;
@@ -449,14 +459,21 @@ export class Room {
           }
           return avatar;
         }),
-        events: game.events.map((event) => ({
-          id: event.id,
-          t: event.t,
-          byYou: !!mine && event.actor === id,
-          onYou: !!mine && event.target === id
-        })),
+        events: game.events.map((event) => {
+          const item: EventView = { id: event.id, t: event.t, byYou: !!mine && event.actor === id, onYou: !!mine && event.target === id };
+          // (which stall was tasted is for everyone; who tasted it, only for them)
+          if (event.stall !== undefined) item.stall = event.stall;
+          return item;
+        }),
         me: mine
-          ? { punchReadyAt: mine.cooldownUntil, blendReadyAt: mine.blendCooldownUntil, maxSpeed: r2(characterMaxSpeed(mine, game.arena, now)) }
+          ? {
+              punchReadyAt: mine.cooldownUntil,
+              blendReadyAt: mine.blendCooldownUntil,
+              maxSpeed: r2(characterMaxSpeed(mine, game.arena, now)),
+              bites: mine.bites ?? 0,
+              at: mine.biteStall ?? -1,
+              tasting: mine.biteStall >= 0 && mine.biteStall !== undefined ? r2(Math.min(1, (now - mine.biteSince) / BITE_MS)) : 0
+            }
           : null
       };
     }
