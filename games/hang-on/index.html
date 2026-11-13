@@ -109,54 +109,65 @@
   /* 手机局（body.phone）：这部手机开房自己也玩；摇杆、抓键压在画面上（样子在 src/pad/touch.css） */
   .phone-only, .turn { display: none; }
   body.phone .phone-only { display: block; }
-  body.phone .tv-only, body.phone #kbBtn, body.phone #relayBtn, body.phone .lat, body.phone .note.quiet, body.phone #codeBig, body.phone #lobbyLine { display: none; }
+  body.phone .tv-only, body.phone #kbBtn, body.phone #relayBtn, body.phone .lat, body.phone #codeBig, body.phone #lobbyLine { display: none; }
+  /* 底下那条：手机局和触屏开的电视局只在断线时出来 */
+  .note.quiet { display: none; }
+  /* 矮的屏幕上大厅里不放延迟表（会压住卡片），声音、语言两个键靠右落进卡片右上角；开局后延迟表照常 */
+  body.short[data-phase="lobby"] .lat { display: none; }
+  body.short[data-phase="lobby"] .hud { justify-content: flex-end; }
   /* 延迟表收起来了，顶栏的键靠右；遮罩从顶栏下面开始 */
   body.phone .hud { justify-content: flex-end; }
   #touch { position: fixed; inset: calc(64px + env(safe-area-inset-top, 0px)) 0 0 0; }
   #touch .summon { position: absolute; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(196px + env(safe-area-inset-bottom, 0px));
     background: var(--warn); color: var(--card-ink); font-weight: 800; border: 0; border-radius: 999px; padding: 6px 16px; min-height: 44px; font-size: 14px; }
   #touch .summon:disabled { opacity: .35; }
-  /* 卡片比屏幕高时能滚，放得下就居中 */
-  body.phone .overlay { display: flex; overflow: auto; padding: calc(58px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); }
+  /*
+   * 手机局，和矮的屏幕（body.short：不到 600 高，比如手机投屏到电视时用电视局）都排紧一点：
+   * 卡片比屏幕高时能滚，放得下就居中
+   */
+  :is(body.phone, body.short) .overlay { display: flex; overflow: auto; padding: calc(58px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px)); }
   /* 大厅卡片顶到最上面，声音、语言两个键落在卡片右上角里，样子跟卡片里的键一样 */
-  body.phone #lobby { padding-top: max(4px, env(safe-area-inset-top, 0px)); }
-  body.phone #lobby > .card { margin: 0 auto auto; }
-  body.phone[data-phase="lobby"] .hud { padding-top: max(14px, env(safe-area-inset-top, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
-  body.phone[data-phase="lobby"] .hud .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); }
-  body.phone .overlay > * { margin: auto; }
-  body.phone .card { padding: 16px 18px; gap: 16px; border-radius: 18px; }
-  body.phone .card h2 { font-size: 22px; }
-  body.phone .card p { font-size: 13px; line-height: 1.5; }
-  body.phone .qr { width: 128px; height: 128px; padding: 7px; border-radius: 12px; }
+  :is(body.phone, body.short) #lobby { padding-top: max(4px, env(safe-area-inset-top, 0px)); }
+  :is(body.phone, body.short) #lobby > .card { margin: 0 auto auto; }
+  :is(body.phone, body.short)[data-phase="lobby"] .hud { padding-top: max(14px, env(safe-area-inset-top, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px)); }
+  :is(body.phone, body.short)[data-phase="lobby"] .hud .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); }
+  :is(body.phone, body.short) .overlay > * { margin: auto; }
+  :is(body.phone, body.short) .card { padding: 16px 18px; gap: 16px; border-radius: 18px; }
+  :is(body.phone, body.short) .card h2 { font-size: 22px; }
+  :is(body.phone, body.short) .card p { font-size: 13px; line-height: 1.5; }
+  :is(body.phone, body.short) .qr { width: 128px; height: 128px; padding: 7px; border-radius: 12px; }
   .codeside { font-family: var(--font-display); font-size: 48px; font-weight: 800; letter-spacing: .14em; line-height: 1; text-align: center; margin: 12px 0 0; }
-  body.phone .codeside { font-size: 34px; margin: 10px 0 0; }
-  body.phone #joinUrl { margin-top: 4px !important; }
-  body.phone .level { margin: 4px 0 0; }
-  body.phone .level .name { font-size: 16px; }
-  body.phone .level.teach { margin: 0 0 2px; }
-  body.phone .seats { gap: 5px; margin: 4px 0 0; }
-  body.phone .moderow { margin: 6px 0 0; gap: 5px 10px; }
-  body.phone .modes { gap: 5px; }
-  body.phone .mode { font-size: 13px; padding: 6px 11px; }
-  body.phone .seat { padding: 5px 4px 7px; font: inherit; color: inherit; border: 0; }
-  body.phone .seat canvas { width: 46px; height: 46px; }
-  body.phone .seat.empty .ph { width: 40px; height: 40px; margin: 3px 0; font-size: 20px; }
-  body.phone .results .big { font-size: 30px; margin: 4px 0 2px; }
-  body.phone .results ol { margin: 6px 0; gap: 3px; }
-  body.phone .results li { font-size: 14px; }
-  body.phone .results h3 { margin: 8px 0 0; }
+  :is(body.phone, body.short) .codeside { font-size: 34px; margin: 10px 0 0; }
+  :is(body.phone, body.short) #joinUrl { margin-top: 4px !important; }
+  :is(body.phone, body.short) .level { margin: 4px 0 0; }
+  :is(body.phone, body.short) .level .name { font-size: 16px; }
+  :is(body.phone, body.short) .level.teach { margin: 0 0 2px; }
+  :is(body.phone, body.short) .seats { gap: 5px; margin: 4px 0 0; }
+  :is(body.phone, body.short) .moderow { margin: 6px 0 0; gap: 5px 10px; }
+  :is(body.phone, body.short) .modes { gap: 5px; }
+  :is(body.phone, body.short) .mode { font-size: 13px; padding: 6px 11px; }
+  :is(body.phone, body.short) .seat { padding: 5px 4px 7px; font: inherit; color: inherit; border: 0; }
+  :is(body.phone, body.short) .seat canvas { width: 46px; height: 46px; }
+  :is(body.phone, body.short) .seat.empty .ph { width: 40px; height: 40px; margin: 3px 0; font-size: 20px; }
+  :is(body.phone, body.short) .results .big { font-size: 30px; margin: 4px 0 2px; }
+  :is(body.phone, body.short) .results ol { margin: 6px 0; gap: 3px; }
+  :is(body.phone, body.short) .results li { font-size: 14px; }
+  :is(body.phone, body.short) .results h3 { margin: 8px 0 0; }
   body.phone button.seat.me { cursor: pointer; box-shadow: inset 0 0 0 2px rgba(42,31,58,.25); }
   body.phone button.seat.me:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
-  body.phone .card .row { margin-top: 10px; }
-  body.phone .count { font-size: 96px; }
-  body.phone .count small { font-size: 18px; }
+  :is(body.phone, body.short) .card .row { margin-top: 10px; }
+  /* 矮的屏幕：怎么拿手机（手柄上也会说）和空座位的「扫码加入」不写，开始键不用往下滚 */
+  body.short #lobbyLine { margin: 0; font-size: 13px; }
+  body.short .howto, body.short .seat.empty .sub { display: none; }
+  :is(body.phone, body.short) .count { font-size: 96px; }
+  :is(body.phone, body.short) .count small { font-size: 18px; }
   /* 倒数时画面和摇杆都看得见、按得到 */
   body.phone #countdown { pointer-events: none; background: rgba(10, 12, 30, .25); backdrop-filter: none; }
-  body.phone .banner { font-size: 34px; top: 26%; }
-  body.phone .hud { padding-block: 8px; }
+  :is(body.phone, body.short) .banner { font-size: 34px; top: 26%; }
+  :is(body.phone, body.short) .hud { padding-block: 8px; }
   /* 手机竖着：二维码在上面；横着（再窄的手机也是）：二维码在左边，开始键不用往下滚 */
-  @media (max-width: 720px) and (orientation: portrait) { body.phone .card { grid-template-columns: 1fr; } }
-  @media (orientation: landscape) { body.phone .card { grid-template-columns: auto 1fr; } }
+  @media (max-width: 720px) and (orientation: portrait) { :is(body.phone, body.short) .card { grid-template-columns: 1fr; } }
+  @media (orientation: landscape) { :is(body.phone, body.short) .card { grid-template-columns: auto 1fr; } }
   /* 竖着拿玩不了：倒数和玩的时候提示横过来 */
   .turn { position: fixed; inset: 0; place-items: center; background: var(--sky-top); text-align: center; padding: 24px; font-size: 18px; line-height: 1.6; z-index: 5; }
   .turn small { font-size: 14px; color: var(--ink-soft); }
@@ -203,7 +214,7 @@
     </div>
     <div>
       <h2>抓紧了 · Hang On</h2>
-      <p class="tv-only"><span data-en="Scan with your phone, or open">手机扫码加入，或者打开</span> <b id="padUrl">changle.ca/hang-on/pad</b> <span data-en="and type the room code. Hold the phone sideways: drag on the left to aim, the two big buttons on the right are your hands.">输房间码。手机横着拿：左边拖是方向，右边两个大键是左右手。</span></p>
+      <p class="tv-only"><span data-en="Scan with your phone, or open">手机扫码加入，或者打开</span> <b id="padUrl">changle.ca/hang-on/pad</b> <span data-en="and type the room code.">输房间码。</span><span class="howto" data-en=" Hold the phone sideways: drag on the left to aim, the two big buttons on the right are your hands.">手机横着拿：左边拖是方向，右边两个大键是左右手。</span></p>
       <p class="phone-only" data-en="No TV needed. Everyone else scans this code with their phone (up to 5 more), and every phone shows the game. Hold it sideways: drag on the left to aim, the two buttons on the right are your hands.">不用电视。别的人用手机扫这个码进来（最多再来 5 个），每部手机上都有画面。手机横着拿：左边拖是方向，右边两个键是左右手。</p>
       <div class="codebig" id="codeBig" hidden>····</div>
       <div class="moderow">
