@@ -449,8 +449,7 @@ export class Hub extends DurableObject<HubEnv> {
     if (mm && m === "DELETE") {
       const [a, z] = pair(me.id, mm[1]);
       this.sql.exec(`DELETE FROM friends WHERE a = ? AND b = ?`, a, z);
-      this.push(mm[1], { t: "friends" });
-      this.push(me.id, { t: "friends" });
+      this.parted(me.id, mm[1]);
       return ok({ ok: true });
     }
     mm = /^\/blocks\/(u[a-z0-9]{6,20})$/.exec(path);
@@ -458,6 +457,7 @@ export class Hub extends DurableObject<HubEnv> {
       const [a, z] = pair(me.id, mm[1]);
       this.sql.exec(`DELETE FROM friends WHERE a = ? AND b = ?`, a, z);
       this.sql.exec(`INSERT OR IGNORE INTO blocks (user_id, blocked) VALUES (?, ?)`, me.id, mm[1]);
+      this.parted(me.id, mm[1]);
       return ok({ ok: true });
     }
 
@@ -1003,8 +1003,28 @@ export class Hub extends DurableObject<HubEnv> {
     return Number(this.one(`SELECT COUNT(*) AS n FROM friends WHERE (a = ? OR b = ?) AND status = 'pending' AND by != ?`, me, me, me)?.n ?? 0);
   }
 
+  /**
+   * Unread messages, counted only in threads with people who are still friends: a thread that
+   * ended (unfriended, or blocked by either side) can't be opened any more, so its unread messages
+   * mustn't keep the badge up.
+   */
   private unread(me: string) {
-    return Number(this.one(`SELECT COUNT(*) AS n FROM messages WHERE (a = ? OR b = ?) AND from_id != ? AND read_at IS NULL`, me, me, me)?.n ?? 0);
+    return Number(
+      this.one(
+        `SELECT COUNT(*) AS n FROM messages m JOIN friends f ON f.a = m.a AND f.b = m.b AND f.status = 'accepted' WHERE (m.a = ? OR m.b = ?) AND m.from_id != ? AND m.read_at IS NULL`,
+        me,
+        me,
+        me,
+      )?.n ?? 0,
+    );
+  }
+
+  /** Two people are no longer friends (one left, or blocked the other): both phones' lists and badges follow. */
+  private parted(me: string, other: string) {
+    for (const uid of [me, other]) {
+      this.push(uid, { t: "friends" });
+      this.push(uid, { t: "unread", n: this.unread(uid) });
+    }
   }
 
   /* ================= history ================= */

@@ -57,11 +57,13 @@
 
 1. **单机游戏的战绩经常记不上**：只有点游戏里的返回键才记；直接关网页或跳到别的网址就没了（`App.tsx` 的 `useSoloHistory` 只在卸载时发，`pagehide` 时的 fetch 没带 keepalive）。代码在首页对话的地盘，见「交给别的对话」。
 2. **屏蔽了解不开**：没有解除的按钮，服务器也没有 `DELETE /blocks/<id>`。要不要做成一个「已屏蔽的人」名单，等 Steve 定。
-3. **未读数字消不掉**：有未读消息时被对方删好友，或自己把对方屏蔽，头像上的数字就一直挂着（`unread()` 不看好友关系）。
-4. 头像的第三种身形叫「中性」（Steve 当时写的是「双性别」），10-30 问过，没确认。
-5. 代发信：后台看不到今天发了几封（`mails` 表里有）；要的话在 /admin 加一行。
+3. 头像的第三种身形叫「中性」（Steve 当时写的是「双性别」），10-30 问过，没确认。
+4. 代发信：后台看不到今天发了几封（`mails` 表里有）；要的话在 /admin 加一行。
 
-修掉的（留着备查）：AI 头像编辑器在 Chrome、Edge 150 起（2026 年 6 月底，含安卓）会把整页变成「这里出了点问题」：换过一次分类再换或关掉就崩，已经有头像的人打开再关也崩，画到一半的图没了、这个月的次数不退。原因是 `Maker.tsx` 里 `useLayoutEffect(() => panel.current?.scrollTo({ top: 0 }), [tab])` 把 `scrollTo` 的返回值交给了 React 当清理函数，而这些浏览器的 `scrollTo` 现在返回 Promise（[scroll method promises](https://web-platform-dx.github.io/web-features-explorer/features/scroll-promises/)）；React 下次清理时调用它就抛错。改成带大括号的函数体，11 月 13 日修了。仓库里其它地方没有同样的写法（到此一游有一处 `useEffect(() => window.scrollTo(0, 0))`，但它用的是 Preact，Preact 只调用函数类型的清理，不会崩）。
+修掉的（留着备查）：
+
+- 未读数字消不掉（11 月 13 日修）：`unread()` 只数还是好友的那些对话；删好友或屏蔽时两边的手机都收到 `friends` 和 `unread`，角标当场更新。account_check 里加了一步。
+- AI 头像编辑器在 Chrome、Edge 150 起（2026 年 6 月底，含安卓）会把整页变成「这里出了点问题」：换过一次分类再换或关掉就崩，已经有头像的人打开再关也崩，画到一半的图没了、这个月的次数不退。原因是 `Maker.tsx` 里 `useLayoutEffect(() => panel.current?.scrollTo({ top: 0 }), [tab])` 把 `scrollTo` 的返回值交给了 React 当清理函数，而这些浏览器的 `scrollTo` 现在返回 Promise（[scroll method promises](https://web-platform-dx.github.io/web-features-explorer/features/scroll-promises/)）；React 下次清理时调用它就抛错。改成带大括号的函数体，11 月 13 日修了。仓库里其它地方没有同样的写法（到此一游有一处 `useEffect(() => window.scrollTo(0, 0))`，但它用的是 Preact，Preact 只调用函数类型的清理，不会崩）。
 
 ## 交给别的对话
 
@@ -72,6 +74,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-13 账号：未读角标只数还是好友的对话；删好友、屏蔽时两边当场更新
 - 2026-11-13 账号：AI 头像编辑器在 Chrome、Edge 150 起崩页面（scrollTo 的 Promise 被当成了清理函数）；四个检查脚本遇到页面报错就算失败；stage_check 认得新的桌面格子
 - 2026-11-13 账号：房间服务器给内部 Worker 的发信入口（Mail 入口） (#457)
 - 2026-11-05 一本正经：战绩和卡片反馈（升级 4）

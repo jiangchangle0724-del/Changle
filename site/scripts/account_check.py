@@ -274,6 +274,34 @@ def main():
         a.wait_for_function("u => fetch(u + '/me', {headers: {Authorization: 'Bearer ' + localStorage.getItem('changle.session')}}).then(r => r.json()).then(d => d.user.figure)", arg=api, timeout=8000)
         check(a.locator(".mk").count() == 0, "A: switching back to the figure is one tap (no maker)")
 
+        # a thread that ends: B writes once more, A hasn't read it (the header badge says 1), then A
+        # blocks B. The badge goes at once, live, since that thread can't be opened any more.
+        b.goto(BASE + f"#/chat/{aid}")
+        b.wait_for_selector(".chat-field textarea", timeout=8000)
+        b.fill(".chat-field textarea", "还在吗？")
+        b.click(".chat-send")
+        a.goto(BASE)
+        try:
+            a.wait_for_function("document.querySelector('.acct-badge')?.textContent.trim() === '1'", timeout=8000)
+            check(True, "A: B's unread message shows on the header badge")
+        except Exception:
+            check(False, f"A: B's unread message shows on the header badge ({a.locator('.acct-badge').all_inner_texts()})")
+        a.goto(BASE + f"#/u/{bid}")
+        a.wait_for_selector(".user-block", timeout=8000)
+        a.once("dialog", lambda d: d.accept())
+        a.click(".user-block")
+        a.wait_for_selector(".acct-me", timeout=8000)
+        try:
+            a.wait_for_function("!document.querySelector('.acct-badge')", timeout=8000)
+            check(True, "A: blocking B takes B's unread message off the badge, live")
+        except Exception:
+            check(False, f"A: blocking B takes B's unread message off the badge, live ({a.locator('.acct-badge').all_inner_texts()})")
+        a.reload()
+        a.wait_for_selector(".acct-me", timeout=10000)
+        a.wait_for_timeout(1500)
+        check(a.locator(".acct-badge").count() == 0, "A: and it stays off after a reload")
+        shot(a, "home-after-block")
+
         if SOLO:
             a.goto(BASE + "#/g/dice")
             a.wait_for_timeout(61500)
