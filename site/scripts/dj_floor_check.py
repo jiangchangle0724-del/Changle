@@ -122,7 +122,8 @@ with sync_playwright() as p:
     drop_into(tv, phones, "latin", pid["Ben"])
     ok("Next up, a request from Ben" in said(tv), f"报幕: as the switch started the TV said who it's from ({said(tv)})")
     ok(len(said(tv)) == 1, "once")
-    tv.wait_for_timeout(15000)
+    # (Latin plays half a minute or more, so the recap counts it: the next switch lands on time now)
+    tv.wait_for_timeout(32000)
 
     # one player's two songs 10 minutes apart (held, so they wait their turn)
     hold(tv, amy)

@@ -6,11 +6,10 @@ import { haptic } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
-import { onAir } from "../../shared/dj/deck";
 import { FIRE_GAP_MS, SET_PHASES, type SetPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
-import { NowPlaying, phaseHint, phaseName, TIMES_MIN, useHeat } from "./parts";
+import { phaseName, TIMES_MIN, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
 import { DancePad } from "./phone/DancePad";
 import { DeckPad } from "./phone/DeckPad";
@@ -19,10 +18,11 @@ import "../../styles/dj.css";
 import "../../styles/dj-phone.css";
 
 /**
- * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The player (上一曲,
- * 暂停 or 播放, 切歌: anyone), the song box and the 歌单, the sound pads, a 🔥 to push the DJ, for the
- * host the night's four stretches and the end of the set, and at the very bottom 跟着跳 (Steve on
- * Nov 12: the deck's turntables, mixer, crossfader and DROP gone, dancing along moved down).
+ * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The player at the
+ * top (上一曲, 暂停 or 播放, 切歌: anyone), the song box and the 歌单, the sound pads, a 🔥 to push the
+ * DJ, for the host the night's four stretches and the end of the set, and at the very bottom 跟着跳
+ * (Steve on Nov 12: the deck's turntables, mixer, crossfader and DROP gone, dancing along moved
+ * down, and the card with the night's stretch at the top gone too).
  */
 export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   // the speaker is the only music: the lounge loop stays off on this phone
@@ -102,12 +102,6 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   return (
     <NetFrame title={GAME_BY_ID.dj.name} rules={rules} onLeave={onLeave} dock={false}>
       <div className={`djp is-${v.phase}`}>
-        <section className="djp-now">
-          <span className="djp-phase">{phaseName(v.phase, zh)}</span>
-          <span className="djp-hint">{phaseHint(v, now(), zh)}</span>
-          {v.phase !== "wait" && v.phase !== "end" && <NowPlaying v={v} song={v.deck?.local ? v.onDecks?.[onAir(v.deck)] : null} />}
-        </section>
-
         {v.phase === "end" && (
           <section className="djp-recap" aria-label={zh ? "今晚回顾" : "Tonight's recap"}>
             <span className="djp-recap-title">{zh ? "今晚回顾" : "Tonight's recap"}</span>

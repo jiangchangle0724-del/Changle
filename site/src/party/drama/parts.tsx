@@ -678,6 +678,11 @@ export function TwistBanner({ twist, sound = true }: { twist: T | null; sound?: 
 }
 
 /** Seconds left, as a big ring; the last ten tick (and the heart beats). */
+/** A clock's time left: minutes and seconds (5:00) while there's a minute or more, then seconds. */
+export function clockText(secs: number): string {
+  return secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : String(secs);
+}
+
 export function SceneClock({ endsAt, total, now, sound = true }: { endsAt: number; total: number; now: () => number; sound?: boolean }) {
   const [, bump] = useState(0);
   const lastTick = useRef(-1);
@@ -696,12 +701,12 @@ export function SceneClock({ endsAt, total, now, sound = true }: { endsAt: numbe
   const r = 26;
   const c = 2 * Math.PI * r;
   return (
-    <div className={`dm-clock ${secs <= 10 ? "is-late" : ""}`} role="timer" aria-live="off">
+    <div className={`dm-clock ${secs <= 10 ? "is-late" : ""} ${secs >= 60 ? "is-long" : ""}`} role="timer" aria-live="off">
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <circle cx="32" cy="32" r={r} className="dm-clock-track" />
         <circle cx="32" cy="32" r={r} className="dm-clock-arc" strokeDasharray={c} strokeDashoffset={c * (1 - frac)} />
       </svg>
-      <span className="tabular">{secs}</span>
+      <span className="tabular">{clockText(secs)}</span>
     </div>
   );
 }

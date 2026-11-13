@@ -443,9 +443,14 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     }
   } else if (v.phase === "reveal" && v.result) {
     actions = (
-      <button type="button" className="btn btn-primary btn-lg" disabled={v.round < v.total && blocked} onClick={settle(() => act(host, "next"))}>
-        {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "下一幕" : "Next act"}
-      </button>
+      <>
+        <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => act(host, "setup"))}>
+          {zh ? "换个玩法" : "Change the setup"}
+        </button>
+        <button type="button" className="btn btn-primary btn-lg" disabled={v.round < v.total && blocked} onClick={settle(() => act(host, "next"))}>
+          {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "下一幕" : "Next act"}
+        </button>
+      </>
     );
     body = (
       <>
@@ -457,8 +462,8 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   } else if (v.phase === "end") {
     actions = (
       <>
-        <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => game.reset())}>
-          {zh ? "重新选剧本" : "Back to the setup"}
+        <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => act(host, "setup"))}>
+          {zh ? "换个玩法" : "Change the setup"}
         </button>
         <button type="button" className="btn btn-primary btn-lg" disabled={blocked} onClick={settle(() => act(host, "more"))}>
           {blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "再演三幕" : "Three more acts"}

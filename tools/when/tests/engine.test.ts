@@ -163,3 +163,31 @@ test("many maybes are counted, not listed", () => {
   assert.equal(reason(t, people, "zh"), "4 个人里 0 个有空，4 个可以调");
   assert.equal(reason(t, people, "en"), "0 of 4 free, 4 could move things");
 });
+
+// ---------- once the time is set ----------
+
+test("the words to paste back into the group chat", async () => {
+  const { eatLink, eatWhen, mealLabel, mealTime, resultText } = await import("../src/engine");
+  const people = [person("老王", free(`${SAT}:eve`)), person("Jenny", free(`${SAT}:eve`)), person("阿May", { [`${SAT}:eve`]: 1 })];
+  const [t] = tally({ days: [SAT], grain: "half", people, minPeople: 1 }).filter((x) => x.slot === `${SAT}:eve`);
+  const url = "https://changle.ca/when/abcdefgh";
+  assert.equal(resultText({ title: "周末火锅", day: SAT, part: "eve", tally: t, people, url }, "zh"), `「周末火锅」定了：11月21日 周六 晚上。3 个人里 2 个有空，阿May 可以调。\n${url}`);
+  assert.equal(resultText({ title: "Hot pot", day: SAT, part: "eve", tally: t, people, url }, "en"), `"Hot pot" is set: Sat, Nov 21, evening. 2 of 3 free, 阿May could move things.\n${url}`);
+
+  // on to 随便: lunch for a morning or an afternoon, dinner otherwise; everyone who can come
+  assert.equal(mealTime("am"), "12:00");
+  assert.equal(mealTime("pm"), "12:00");
+  assert.equal(mealTime("eve"), "18:30");
+  assert.equal(mealTime("day"), "18:30");
+  assert.equal(mealLabel("eve", "zh"), "18:30");
+  assert.equal(mealLabel("eve", "en"), "6:30 p.m.");
+  assert.equal(mealLabel("am", "en"), "12:00 p.m.");
+  assert.equal(eatLink({ code: "abcdefgh", day: SAT, part: "eve", coming: 3 }), "/eat/?from=when&code=abcdefgh&date=2026-11-21&time=18%3A30&occasion=friends&people=3");
+  assert.match(eatLink({ code: "abcdefgh", day: SAT, part: "am", coming: 0 }), /time=12%3A00&occasion=friends&people=1$/);
+
+  // 随便 plans today and the six days after
+  assert.equal(eatWhen(SAT, "2026-11-22"), "past");
+  assert.equal(eatWhen(SAT, SAT), "open");
+  assert.equal(eatWhen(SAT, "2026-11-15"), "open", "six days ahead");
+  assert.equal(eatWhen(SAT, "2026-11-14"), "later", "seven days ahead is too far for now");
+});
