@@ -69,7 +69,9 @@ function useSoloHistory(route: Route) {
       const ms = Date.now() - r.started;
       if (ms < 60_000) return;
       sent = true;
-      void api("/me/history", { body: { game: r.game, players: names.current.slice(0, 15), minutes: Math.round(ms / 60_000) } }).catch(() => {});
+      // keepalive: the page is often going away right now (the tab closed, another address typed),
+      // and an ordinary request would be dropped with it
+      void api("/me/history", { body: { game: r.game, players: names.current.slice(0, 15), minutes: Math.round(ms / 60_000) }, keepalive: true }).catch(() => {});
     };
     window.addEventListener("pagehide", finish);
     return () => {

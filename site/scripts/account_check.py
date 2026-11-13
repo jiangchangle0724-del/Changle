@@ -270,6 +270,8 @@ def main():
         a.set_input_files(".profile-form input[type=file]", files=[{"name": "me.png", "mimeType": "image/png", "buffer": photo((176, 114, 255), (255, 95, 162))}])
         a.wait_for_function("u => fetch(u + '/me', {headers: {Authorization: 'Bearer ' + localStorage.getItem('changle.session')}}).then(r => r.json()).then(d => !d.user.figure && d.user.hasFigure)", arg=api, timeout=8000)
         check(True, "A: a photo takes over, the figure is kept")
+        # (wait for the form to show the photo as the face, not just the server: tapped before that, 动漫头像 means "draw again")
+        a.wait_for_selector(".pf-kind button[aria-pressed='true']:has-text('真照片')", timeout=8000)
         a.click(".pf-kind button:has-text('动漫头像')")
         a.wait_for_function("u => fetch(u + '/me', {headers: {Authorization: 'Bearer ' + localStorage.getItem('changle.session')}}).then(r => r.json()).then(d => d.user.figure)", arg=api, timeout=8000)
         check(a.locator(".mk").count() == 0, "A: switching back to the figure is one tap (no maker)")
@@ -303,11 +305,19 @@ def main():
         shot(a, "home-after-block")
 
         if SOLO:
-            a.goto(BASE + "#/g/dice")
+            # a one-phone game needs people on the phone (with too few, the link opens the game's card instead)
+            a.evaluate("() => { const k = 'lazysusan.settings.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); s.players = ['小明', 'Ann', 'Ben'].map((name, i) => ({ id: 'p' + i, name })); localStorage.setItem(k, JSON.stringify(s)); }")
+            # (a new address, not just a new hash: the page loads afresh and reads the people off the phone)
+            a.goto(BASE + "g/seven-eight-nine/play")
+            a.wait_for_selector(".game-body", timeout=15000)
             a.wait_for_timeout(61500)
-            a.goto(BASE + "#/me")
-            a.wait_for_selector(".history-row", timeout=8000)
-            check(True, "A: a one-phone game shows in history")
+            # typing another address is a full page load: the entry has to outlive the page (keepalive)
+            a.goto(BASE + "me")
+            try:
+                a.wait_for_selector(".history-row", timeout=8000)
+                check(True, "A: a one-phone game of a minute shows in history, though the phone left by typing another address")
+            except Exception:
+                check(False, "A: a one-phone game of a minute shows in history, though the phone left by typing another address")
             shot(a, "me-history")
 
         browser.close()
