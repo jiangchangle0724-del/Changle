@@ -1980,13 +1980,13 @@ test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a p
   ok(v.twist === null, "the twist hasn't landed yet");
   for (const a of actors) t.g(a, "ready");
   v = t.view<V>("p0");
-  ok(v.phase === "act" && v.actMs === 120_000, "everyone has read their card: the scene starts (hard: two minutes)");
-  t.advance(61_000);
+  ok(v.phase === "act" && v.actMs === 360_000, "everyone has read their card: the scene starts (hard: six minutes)");
+  t.advance(181_000);
   ok(t.view<V>("p0").twist !== null, "halfway: the twist lands on every phone");
   const bystander = watchers.find((w) => w !== "p0");
   if (bystander) t.g(bystander, "cut");
   ok(t.view<V>("p0").phase === "act", "only the host or an actor ends the scene early");
-  t.advance(60_000);
+  t.advance(180_000);
   v = t.view<V>("p0");
   ok(v.phase === "vote", "time's up: the audience votes");
   const stars = (good: string) => Object.fromEntries(actors.map((a) => [a, a === good ? 5 : 2]));
@@ -2026,8 +2026,8 @@ test("drama: an acting duel, and a culprit who fools everyone", () => {
   const s = t.eng.d.game!.s as { cast: string[] };
   ok(v.cast.length === 2 && !!v.pk && Object.keys(v.pk.styles).length === 2 && v.pk.styles[s.cast[0]].zh !== v.pk.styles[s.cast[1]].zh, "two actors, one line, two styles");
   t.g("p0", "go");
-  ok(t.view<V>("p0").phase === "act" && t.view<V>("p0").actMs === 45_000, "the host starts it");
-  t.advance(46_000);
+  ok(t.view<V>("p0").phase === "act" && t.view<V>("p0").actMs === 300_000, "the host starts it: five minutes for a duel");
+  t.advance(301_000);
   const aud = t.ids.filter((id) => !s.cast.includes(id));
   for (const a of aud) t.g(a, "vote", { stars: { [s.cast[0]]: 4, [s.cast[1]]: 2 } });
   v = t.view<V>("p0");
@@ -2041,7 +2041,7 @@ test("drama: an acting duel, and a culprit who fools everyone", () => {
   const s2 = u.eng.d.game!.s as { cast: string[]; culprit: string };
   ok(s2.cast.length === 2, "three at the table: two act, one watches");
   u.g("p0", "go");
-  u.advance(91_000);
+  u.advance(301_000);
   const watcher = u.ids.find((id) => !s2.cast.includes(id))!;
   const other = s2.cast.find((c) => c !== s2.culprit)!;
   u.g(watcher, "vote", { guess: other, stars: { [s2.cast[0]]: 3, [s2.cast[1]]: 3 } });
@@ -2083,7 +2083,7 @@ test("drama: scenes written at the table and from the public library", () => {
   const blank = s.cast.find((c) => c !== s.culprit && v.cast.find((x) => x.pid === c)?.role.zh === "男朋友");
   if (blank) ok(!!t.view<V>(blank).me?.secret.zh, "a role left blank gets a generic secret");
   for (const c of s.cast) t.g(c, "ready");
-  t.advance(46_000);
+  t.advance(t.view<V>("p0").actMs / 2 + 1000);
   ok(!!t.view<V>("p0").twist?.zh, "no twist given: a generic one lands");
   ok(t.view<V>("p0").mine[0].played, "the written scene is marked played");
   t.g("p3", "unwrite", { id: t.view<V>("p0").mine[0].id });
@@ -2202,8 +2202,8 @@ test("drama: who acts: each player says on stage or watching, and the scene fits
   ok(t.view<V>("p1").me?.secret.zh === sc.culpritCard.zh && !t.view<V>("p1").me?.culprit, "the actor's card is the real secret and what to do");
   ok(!JSON.stringify(v).includes(sc.culpritCard.zh), "nobody else sees which one it is");
   t.g("p1", "ready");
-  ok(t.view<V>("p4").phase === "act" && t.view<V>("p4").actMs === 60_000, "a monologue runs a minute");
-  t.advance(61_000);
+  ok(t.view<V>("p4").phase === "act" && t.view<V>("p4").actMs === 300_000, "a monologue runs five minutes too");
+  t.advance(301_000);
   const answer = String(st().order.indexOf(0));
   const wrong = answer === "0" ? "1" : "0";
   const crowd = t.ids.filter((id) => id !== "p1");
@@ -2226,7 +2226,7 @@ test("drama: who acts: each player says on stage or watching, and the scene fits
   const [lo, hi] = dramaSizes(big);
   ok(v.cast.length === 8 && lo <= 8 && hi >= 8 && st().cast.every((c) => t.view<V>("p4").want?.[c] === "act"), "all eight on stage, in a scene written for that many");
   for (const c of st().cast) t.g(c, "ready");
-  ok(t.view<V>("p4").actMs === 150_000, "eight actors: a minute more than four");
+  ok(t.view<V>("p4").actMs === 420_000, "eight actors: two minutes more than four");
   t.g("p0", "cut");
   ok(!t.view<V>("p4").peer, "two still watch: they vote");
   // nine volunteers: eight go up, whoever has acted least
@@ -2525,7 +2525,7 @@ test("drama: famous scenes: the host picks the films, every phone shows the part
   ok(pkSeeUrl(v.classic!.set, v.classic!.see).startsWith("https://www.youtube.com/results?search_query="), "the original, to find on YouTube");
   for (const x of v.cast) t.g(x.pid, "ready");
   v = t.view<V>("p4");
-  ok(v.phase === "act" && v.actMs === 60_000 + (v.cast.length - 2) * 15_000 && !v.twistAt, "a minute, fifteen seconds more for each actor past two, and no plot twist");
+  ok(v.phase === "act" && v.actMs === 300_000 + (v.cast.length - 2) * 30_000 && !v.twistAt, "five minutes, half a minute more for each actor past two, and no plot twist");
   t.advance(v.actMs + 1000);
   ok(t.view<V>("p4").phase === "vote" && !t.view<V>("p4").twist, "time's up: the vote");
   const cast = st().cast;
@@ -2629,7 +2629,7 @@ test("drama: read aloud: one reader, the host's set and kinds, the words for eve
   ok(t.view<V>("p1").phase === "brief", "only the reader says they're ready");
   t.g("p2", "ready");
   v = t.view<V>("p1");
-  ok(v.phase === "act" && v.actMs === 120_000 && !v.twistAt && v.read!.lines.length === piece.lines.length, "two minutes, no twist, and every phone can follow along");
+  ok(v.phase === "act" && v.actMs === 180_000 && !v.twistAt && v.read!.lines.length === piece.lines.length, "three minutes, no twist, and every phone can follow along");
   t.g("p2", "cut");
   ok(t.view<V>("p1").phase === "vote", "the reader says when they're done");
   t.g("p1", "vote", { guess: "p2", stars: { p2: 2 } });
@@ -2654,7 +2654,7 @@ test("drama: read aloud: one reader, the host's set and kinds, the words for eve
   ok(st().cast.join() === "p3", "two volunteers: whoever has read least goes first");
   ok(second.id !== piece.id && second.set === "en" && second.kind !== piece.kind && ["cry", "deadpan"].includes(second.kind), "another piece, and the kinds take turns");
   t.g("p3", "ready");
-  t.advance(120_000 + 1000);
+  t.advance(180_000 + 1000);
   ok(t.view<V>("p1").phase === "vote", "time's up: the vote");
   for (const a of ["p0", "p1", "p2", "p4"]) t.g(a, "vote", { stars: { p3: 5 } });
   v = t.view<V>("p1");

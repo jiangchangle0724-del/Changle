@@ -139,7 +139,7 @@ export function RoundTag({ children }: { children: ReactNode }) {
  * Seconds left, as a ring that empties like a glass: the game's gel, Stop Red for the last ten,
  * which knock on the screen that plays the show. `paused`: the server time it stopped at.
  */
-export function TvClock({ endsAt, total, sound, paused = null, size = 96 }: { endsAt: number; total: number; sound: boolean; paused?: number | null; size?: number }) {
+export function TvClock({ endsAt, total, sound, paused = null, size = 96, label }: { endsAt: number; total: number; sound: boolean; paused?: number | null; size?: number; /** how the seconds left read, if not just the number (a long clock: 5:00) */ label?: (secs: number) => ReactNode }) {
   const { now } = useRoom();
   const [, bump] = useState(0);
   useEffect(() => {
@@ -168,7 +168,7 @@ export function TvClock({ endsAt, total, sound, paused = null, size = 96 }: { en
         <circle cx={size / 2} cy={size / 2} r={r} className="tvx-clock-track" />
         <circle cx={size / 2} cy={size / 2} r={r} className="tvx-clock-arc" strokeDasharray={c} strokeDashoffset={c * (1 - frac)} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       </svg>
-      <span className="tvx-clock-n tabular">{secs}</span>
+      <span className="tvx-clock-n tabular">{label ? label(secs) : secs}</span>
     </span>
   );
 }
