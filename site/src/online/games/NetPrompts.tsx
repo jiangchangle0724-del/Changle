@@ -28,9 +28,9 @@ export function NetPrompts({ v, onLeave }: { v: PromptsView; onLeave: () => void
     haptic(10);
   });
 
-  const lead = never ? (lang === "zh" ? "我从来没有……" : "Never have I ever…") : lang === "zh" ? "在座谁最有可能……" : "Who's most likely to…";
+  const lead = never ? (lang === "zh" ? "我曾经……" : "Never have I ever…") : lang === "zh" ? "在座谁最有可能……" : "Who's most likely to…";
   const other = (c: { zh: string; en: string }) =>
-    never ? (lang === "zh" ? `Never have I ever ${c.en}` : `我从来没有${c.zh}`) : lang === "zh" ? `Who's most likely to ${c.en}` : `在座谁最有可能${c.zh}`;
+    never ? (lang === "zh" ? `Never have I ever ${c.en}` : `我曾经${c.zh}`) : lang === "zh" ? `Who's most likely to ${c.en}` : `在座谁最有可能${c.zh}`;
 
   const rules = (
     <p>
