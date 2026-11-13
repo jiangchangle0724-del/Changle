@@ -114,8 +114,10 @@ production branch `main`, build watch path `tools/when/*`, preview builds off, a
 are in `wrangler.jsonc`; there are no secrets. The build shows up as the check
 "Workers Builds: when" on the merge commit.
 
-Cloudflare adds two scripts of its own to every page of changle.ca: its bot check (inline) and its
-visitor statistics (from static.cloudflareinsights.com). These pages only run their own files
-(the `Content-Security-Policy` header in `src/server/worker.ts`), so the browser turns both away:
-two lines in the console, nothing a person notices, and Cloudflare's Web Analytics doesn't count
-these pages (the Worker's own request numbers do).
+Cloudflare adds two scripts of its own to every page of changle.ca: its visitor statistics (Web
+Analytics, from static.cloudflareinsights.com) and its bot check (inline). These pages run their
+own files and the first of those: Steve asked for the statistics on 2026-11-13, so the
+`Content-Security-Policy` header in `src/server/worker.ts` names that script's address and where
+it reports (this site's own /cdn-cgi/rum; cloudflareinsights.com is listed too, as Cloudflare's
+own table of headers has it). The inline bot check is still turned away: one line in the console,
+nothing a person notices.
