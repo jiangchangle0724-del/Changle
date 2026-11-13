@@ -45,7 +45,7 @@ function recording(e: Entry): Sent[] {
 const changesOf = (l: Ledger): Sent[] => l.entries.flatMap(recording);
 const empty = (l: Ledger): Ledger => ({ ...l, entries: [] });
 /** A server taking these, one at a time. */
-function serve(start: Ledger, changes: Sent[], seen = new Set<string>()) {
+function serve(start: Ledger, changes: Sent[], seen = new Map<string, boolean>()) {
   let ledger = start;
   const took: Took[] = [];
   for (const s of changes) {
@@ -128,7 +128,7 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   const people = ["s", "w", "m", "j", "l"].map((id) => ({ id, name: id.toUpperCase() }));
   const five = people.map((p) => p.id);
   let server = startLedger("L", "Whistler", "CAD", people);
-  const seen = new Set<string>();
+  const seen = new Map<string, boolean>();
   const take = (changes: Sent[]) => {
     const r = serve(server, changes, seen);
     server = r.ledger;
@@ -179,6 +179,9 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   const out = serve(start, [sent({ do: "out", entry: "e", at: 5 }), sent({ do: "out", entry: "e", at: 9 }), sent(to(4000))]);
   eq([out.took, out.ledger.entries[0]], [["new", "nothing", "new"], { ...(start.entries[0] as Expense), amount: 4000, gone: 5 }], "taken out twice keeps the first time; changed while it is out, it is still out");
   eq(serve(out.ledger, [sent({ do: "back", entry: "e" }), sent({ do: "back", entry: "e" })]).took, ["new", "nothing"], "put back once");
+  const refused = sent({ do: "rename", member: "a", name: "B" });
+  const twice = serve(start, [refused, sent(to(5000)), refused, refused]);
+  eq(twice.took, ["nothing", "new", "nothing", "nothing"], "a change that changed nothing says so every time it is sent, so a phone whose answer was lost still learns it didn't stick");
 }
 
 // ---------- 6. what changes nothing ----------
@@ -220,7 +223,7 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
     ["a ledger with no name", { do: "title", name: "   " }],
     ["the ledger's own name", { do: "title", name: "x" }],
   ];
-  const wrong = no.filter(([, c, l = base]) => applyChange(l, c) !== null || accept(l, new Set(), sent(c)).ledger !== l || accept(l, new Set(), sent(c)).took !== "nothing");
+  const wrong = no.filter(([, c, l = base]) => applyChange(l, c) !== null || accept(l, new Map(), sent(c)).ledger !== l || accept(l, new Map(), sent(c)).took !== "nothing");
   ok(!wrong.length, `${no.length} changes that change nothing leave the very same ledger${wrong.length ? `: not ${wrong.map(([name]) => name).join("; ")}` : ""}`);
   eq(serve(base, [sent({ do: "remove", member: "p2" }), sent({ do: "member", member: { id: "q", name: " Qi  " } }), sent({ do: "rename", member: "q", name: "Qiu" }), sent({ do: "title", name: " 周末 " })]).ledger, { ...base, name: "周末", members: [...base.members.slice(0, 2), { id: "q", name: "Qiu" }] }, "and the ones that are allowed: someone no entry names goes, someone joins, is renamed, the ledger is renamed");
   let big = three;
@@ -272,7 +275,7 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
     const int = (lo: number, hi: number) => lo + Math.floor(r() * (hi - lo + 1));
     const pick = <X>(xs: X[]): X => xs[int(0, xs.length - 1)];
     let l = empty(randomLedger(seed));
-    const seen = new Set<string>();
+    const seen = new Map<string, boolean>();
     const who = () => (r() < 0.08 ? "ghost" : pick(l.members).id);
     const entry = () => (l.entries.length && r() < 0.9 ? pick(l.entries).id : "nope");
     const amount = () => pick([int(1, 50_000), int(1, 50_000), 0, -5, 1.5, 9_999_999_999, 10_000_000_000]);

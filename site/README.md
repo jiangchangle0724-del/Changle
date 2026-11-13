@@ -108,6 +108,7 @@ npx tsx tests/split.test.ts         # 两清的算账：尾差、净额、最少
 npx tsx tests/split-second.test.ts  # 两清的算账再算一遍：Codex 只照规则另写的一份（tests/split/second.ts），同一批 1 万个账本上和 core 逐项对比
 npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、中英文、只用 token、还没有入口
 npx tsx tests/split-changes.test.ts # 两清的改动（手机发、服务器收）：只算一次、离线几部手机怎么到都一样、不合规矩的进不来
+npx tsx tests/split-sync.test.ts    # 两清在手机上怎么同步：没信号照样记、回信丢了重发只算一次、三部手机最后都是服务器那本账
 npx tsx tests/mail.test.ts          # 房间服务器代别的 Worker 发信的入口（worker/notice.ts）：放行什么、拒绝什么、信长什么样
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
 npx tsx scripts/split_check.ts      # 两清（只要 npm run dev 在跑）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效
