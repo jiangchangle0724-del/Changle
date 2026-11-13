@@ -82,6 +82,11 @@ def main():
         check(wisher.locator(".lobby .face .avatar.avatar-gold").count() == 1, "at a table their face wears the gold frame too")
         wisher.screenshot(path=f"{ac.OUT}/perk-lobby.png")
         browser.close()
+    # an error thrown in a page is a failure, not a footnote (the phones are admin_check's, so are their errors)
+    real = [e for e in ac.errors if "favicon" not in e]
+    if real:
+        print("\npage errors:\n  " + "\n  ".join(real[:10]))
+    check(not real, f"no error was thrown in any page ({len(real)})")
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed")
     sys.exit(1 if fails else 0)
 
