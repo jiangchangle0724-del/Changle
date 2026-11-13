@@ -30,6 +30,8 @@ export const BUZZ = {
   doubles: [12, 50, 12, 50, 30],
   /** A full set: a drum roll and the hit. */
   set: [10, 40, 10, 40, 10, 60, 60],
+  /** A deal done: two hands clapping together. */
+  deal: [20, 110, 30],
 };
 
 export function buzz(pattern: number | number[]) {
