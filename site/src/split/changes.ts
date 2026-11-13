@@ -100,22 +100,28 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
 }
 
 /**
- * What became of a change the server was sent: it counted ("new"), it had been sent before
- * ("seen"), or it changes nothing ("nothing": against the rules, or nothing left for it to do).
+ * What became of a change the server was sent: it counted just now ("new"); it had been sent
+ * before, and counted then ("seen"); or it changes nothing ("nothing": against the rules, or
+ * nothing left for it to do). A change that changed nothing is "nothing" every time it is sent, so
+ * a phone whose first answer was lost still learns that it didn't stick.
  */
 export type Took = "new" | "seen" | "nothing";
 
-/** The ids of the changes a ledger has been sent. A Set is one; the server keeps its own in a table. */
-export type Seen = { has(id: string): boolean; add(id: string): unknown };
+/**
+ * The changes a ledger has been sent, by id: did each one count? A Map is one; the server keeps
+ * its own in a table.
+ */
+export type Seen = { get(id: string): boolean | undefined; set(id: string, counted: boolean): unknown };
 
 /**
- * The server's side: take one change. `seen` holds the id of every change this ledger has been
- * sent, whatever became of it, and this adds to it.
+ * The server's side: take one change. `seen` holds every change this ledger has been sent,
+ * whatever became of it, and this adds to it.
  */
 export function accept(l: Ledger, seen: Seen, sent: Sent): { ledger: Ledger; took: Took } {
-  if (seen.has(sent.id)) return { ledger: l, took: "seen" };
-  seen.add(sent.id);
+  const before = seen.get(sent.id);
+  if (before !== undefined) return { ledger: l, took: before ? "seen" : "nothing" };
   const next = applyChange(l, sent.change);
+  seen.set(sent.id, next !== null);
   return next ? { ledger: next, took: "new" } : { ledger: l, took: "nothing" };
 }
 

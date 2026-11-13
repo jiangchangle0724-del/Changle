@@ -32,7 +32,8 @@ phone and the server can't disagree. Their tests are `site/tests/split-changes.t
 
 Each ledger is one Durable Object with its own SQLite database: the ledger (its name, currency,
 people, entries), the SHA-256 fingerprint of the key that opens it, the id of every change it has
-been sent, and the record of the ones that counted (each with a number and the time it arrived).
+been sent with whether it counted, and the record of the ones that did (each with a number and the
+time it arrived).
 No accounts yet, no email, no addresses. A network's address is kept only as a fingerprint, for
 two days, to count the ledgers it made today.
 
