@@ -1,0 +1,773 @@
+/*
+ * 两清 · All Square (changle.ca/split). Tokens only (docs/DESIGN.md): the room at night, moonlight
+ * text, and one light, the tool's amber, on the one button each screen has, on what is chosen and
+ * on the seal at the end. Rows are hairlines, not cards; the amount is the largest thing on a page.
+ *
+ * Motion is three things and no more: an expense landing in the list, the figure rolling to its new
+ * value (parts.tsx), and the 两清 stamp when the last transfer is paid.
+ */
+
+.split,
+.split-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- the top bar: back, the title in the middle, one thing on the right ---------- */
+.split-bar {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--bar-h);
+  margin: 0 calc(-1 * var(--space-2)) var(--space-2);
+}
+.split-bar-side {
+  display: flex;
+  align-items: center;
+  min-width: var(--tap);
+}
+.split-bar-right {
+  justify-content: flex-end;
+}
+/* the bar reaches past the page's edge so an icon's glyph lines up with the text under it; something
+   with a body of its own (the language switch) comes back in to the edge */
+.split-bar-inset {
+  display: flex;
+  margin-inline-end: var(--space-2);
+}
+.split-bar-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 var(--text-md) / var(--leading-tight) var(--font-display);
+}
+
+/* ---------- the one button, at the thumb (the shape of a game's actions, GameShell.css) ---------- */
+.split-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: auto calc(-1 * var(--gutter)) calc(-1 * (var(--safe-bottom) + var(--space-4)));
+  padding: var(--space-6) var(--gutter) calc(var(--safe-bottom) + var(--space-4));
+  background: linear-gradient(to top, var(--color-bg) 78%, transparent);
+}
+
+/* ---------- the figure: an amount at the page's largest size ---------- */
+.split-figure {
+  margin: 0;
+  font: 800 var(--text-3xl) / var(--leading-tight) var(--font-display);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.split-figure.is-long {
+  font-size: var(--text-2xl);
+}
+.split-figure.is-longer {
+  font-size: var(--text-xl);
+}
+.split-figure.is-empty {
+  color: var(--color-text-3);
+}
+
+/* ---------- the page of ledgers ---------- */
+.split-ledgers {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.split-ledger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+  border-radius: var(--r-panel);
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  text-decoration: none;
+  transition: background var(--dur-exit) var(--ease-out);
+}
+.split-ledger:active {
+  background: var(--color-raised);
+}
+.split-ledger-text {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+.split-ledger-text strong {
+  font: 700 var(--text-lg) / var(--leading-tight) var(--font-display);
+  overflow-wrap: anywhere;
+}
+.split-ledger-text span {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.split-ledger-text .split-ledger-standing {
+  margin-top: var(--space-1);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+.split-ledger > svg {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--color-text-2);
+}
+.split-fine {
+  margin: var(--space-6) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+
+/* ---------- a ledger: where you stand, then what was paid ---------- */
+.split-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.split-standing {
+  padding: var(--space-6) 0 var(--space-4);
+}
+/* "你该收" and the amount are one sentence over two lines, in one voice: the words are not a label
+   over a number */
+.split-standing-words {
+  margin: 0 0 var(--space-1);
+  font: 800 var(--text-xl) / var(--leading-tight) var(--font-display);
+}
+.split-standing-lead {
+  margin: 0;
+  font: 800 var(--text-2xl) / var(--leading-tight) var(--font-display);
+}
+.split-standing-sub {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* rows: what it was and how it was shared on the left, the amount on the right, a hairline between */
+.split-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.split-rows > li + li {
+  border-top: 1px solid var(--color-line-soft);
+}
+.split-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: calc(100% + var(--space-4));
+  min-height: calc(var(--tap) + var(--space-4));
+  margin: 0 calc(-1 * var(--space-2));
+  padding: var(--space-3) var(--space-2);
+  border: 0;
+  border-radius: var(--r-small);
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--dur-exit) var(--ease-out);
+}
+.split-row:active {
+  background: var(--color-line-soft);
+}
+@media (hover: hover) {
+  .split-row:hover {
+    background: var(--color-line-soft);
+  }
+}
+.split-row-text {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+.split-row-text strong {
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+.split-row-text strong.is-quiet {
+  color: var(--color-text-2);
+  font-weight: 400;
+}
+.split-row-text > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  /* a long name wraps without leaving one character alone on the last line */
+  text-wrap: pretty;
+}
+.split-row-text > span svg {
+  flex: none;
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
+/* paid: a tick and the word, in the colour that means done */
+.split-row-text > .is-paid {
+  color: var(--color-success);
+  font-weight: 700;
+}
+.split-row-amount {
+  flex: none;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* motion one of three: an expense just recorded comes down into the list under a wash of the light */
+.split-rows > .is-landing {
+  animation: split-land var(--dur-emphasis) var(--ease-out) both;
+}
+.split-rows > .is-landing > .split-row {
+  animation: split-lit calc(var(--dur-emphasis) * 3) var(--ease-out) both;
+}
+@keyframes split-land {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--motion-shift)));
+  }
+}
+@keyframes split-lit {
+  from {
+    background: color-mix(in oklab, var(--gel) 22%, transparent);
+  }
+}
+
+/* ---------- settling ---------- */
+.split-plan-head {
+  padding: var(--space-6) 0 var(--space-3);
+}
+.split-plan-head h2,
+.split-square h2 {
+  margin: 0;
+  font: 800 var(--text-xl) / var(--leading-tight) var(--font-display);
+  text-wrap: balance;
+}
+.split-plan-head p,
+.split-square > p:last-child {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.split-subhead {
+  margin: var(--space-6) 0 var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+/* everyone is square: the tool's own name, stamped like a seal on a settled bill */
+.split-square {
+  display: grid;
+  justify-items: center;
+  padding: var(--space-8) 0 var(--space-6);
+  text-align: center;
+}
+.split-seal {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-1);
+  width: calc(var(--space-12) * 3);
+  aspect-ratio: 1;
+  margin: 0 0 var(--space-6);
+  border: 3px solid var(--gel);
+  border-radius: var(--r-pill);
+  color: var(--gel);
+  /* a second, finer ring inside the first, the way a seal is cut */
+  box-shadow:
+    inset 0 0 0 var(--space-1) var(--color-bg),
+    inset 0 0 0 calc(var(--space-1) + 1px) var(--gel);
+  transform: rotate(-6deg);
+}
+.split-seal > :first-child {
+  font: 800 var(--text-3xl) / var(--leading-tight) var(--font-display);
+}
+.split-seal > :last-child {
+  font: 700 var(--text-xs) / var(--leading-tight) var(--font-display);
+}
+/* motion three of three: the last transfer was just marked, and the seal comes down */
+.split-square.is-stamping .split-seal {
+  animation: split-stamp var(--dur-emphasis) var(--ease-pop) both;
+}
+@keyframes split-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-16deg) scale(1.7);
+  }
+}
+
+/* one transfer, opened: the amount, a way to copy it, and marking it */
+.split-step {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0 0;
+  text-align: center;
+}
+/* two even lines, not a line and one word left over */
+.split-step .split-note {
+  margin: 0;
+  text-wrap: balance;
+}
+
+/* ---------- 记一笔 ---------- */
+/* The screen is as tall as the phone shows and no taller: the amount and its three lines at the top,
+   the keypad and the button at the thumb, nothing to scroll. Whatever height a phone has to spare
+   goes to the keys first (a taller key is easier to hit), then to air between the two halves. */
+.split-add-main {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+}
+.split-add-amount {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-6) 0 var(--space-4);
+  text-align: center;
+}
+.split-add-amount > span {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.split-add .split-dock {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1;
+  gap: var(--space-3);
+}
+
+/* a line with its name on the left and what it holds on the right: who paid, shared by, the note */
+.split-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: calc(var(--tap) + var(--space-3));
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-line-soft);
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.split-field > span:first-child {
+  flex: none;
+  color: var(--color-text-2);
+}
+.split-field > strong {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+/* what is wrong with the sharing leads with a mark, on the line where it is put right */
+.split-field > strong svg {
+  flex: none;
+  width: var(--text-lg);
+  height: var(--text-lg);
+}
+.split-field > svg {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--color-text-2);
+}
+.split-field > input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  text-align: end;
+  caret-color: var(--gel);
+}
+.split-field > input::placeholder {
+  color: var(--color-text-3);
+  font-weight: 400;
+}
+.split-field > input:focus-visible {
+  outline: none;
+}
+/* the note is typed in place: its line takes the light while the cursor is in it */
+label.split-field {
+  cursor: text;
+}
+label.split-field:focus-within {
+  border-bottom-color: var(--gel);
+}
+/* in the ⋯ sheet a line leads with its icon and reads left to right */
+.split-menu-row > svg:first-child {
+  color: var(--color-text);
+}
+.split-menu-row > strong {
+  flex: none;
+  justify-content: flex-start;
+  text-align: start;
+}
+.split-menu-row > span {
+  flex: 1;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  text-align: end;
+}
+.split-menu-row > strong:last-child {
+  flex: 1;
+}
+/* the sheet's last line has nothing under it to be ruled off from */
+.split-menu-row:last-child {
+  border-bottom: 0;
+}
+
+/* the keypad: twelve keys under the thumb, each as tall as the screen has room for */
+.split-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, minmax(var(--tap), 1fr));
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  max-height: calc(4 * (var(--tap-crowded) + var(--space-2)) + 3 * var(--space-2));
+}
+.split-key {
+  display: grid;
+  place-items: center;
+  min-height: var(--tap);
+  border: 0;
+  border-radius: var(--r-pill);
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  font: 700 var(--text-xl) / var(--leading-tight) var(--font-text);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    transform var(--dur-exit) var(--ease-out),
+    background var(--dur-exit) var(--ease-out);
+}
+.split-key:active:not(:disabled) {
+  background: var(--color-raised);
+  transform: scale(0.965);
+}
+.split-key:disabled {
+  color: var(--color-text-3);
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+.split-key svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+/* A web page gets less of the phone than the phone has (the browser's bars take a sixth of it), so
+   these heights are everyday ones. Up to 700 tall, less air; up to 640 (a small iPhone in Safari,
+   or in WeChat), the amount a size down, its currency left to its sign, and tighter lines. */
+@media (max-height: 700px) {
+  .split-add-amount {
+    margin: var(--space-2) 0;
+  }
+  .split-add .split-dock {
+    padding-top: var(--space-3);
+  }
+}
+@media (max-height: 640px) {
+  .split-add .split-bar {
+    margin-bottom: 0;
+  }
+  .split-add-amount {
+    margin: var(--space-1) 0;
+  }
+  .split-add-amount > .split-figure {
+    font-size: var(--text-2xl);
+  }
+  .split-add-amount > .split-figure.is-longer {
+    font-size: var(--text-xl);
+  }
+  .split-add-amount > span {
+    display: none;
+  }
+  .split-add .split-field {
+    min-height: var(--tap-crowded);
+    padding: 0;
+  }
+  .split-add .split-dock {
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+  }
+}
+/* shorter than that (an old small phone, a phone on its side) it can't all show at once: the page
+   scrolls like any other, with nothing held over it */
+@media (max-height: 535px) {
+  .split-add .split-dock {
+    position: static;
+  }
+}
+
+/* ---------- forms in sheets ---------- */
+.split-form {
+  display: grid;
+  gap: var(--space-4);
+}
+.split-form label {
+  display: block;
+}
+.split-form .field input {
+  caret-color: var(--gel);
+}
+.split-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: calc(var(--text-sm) * var(--leading));
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.split-note svg {
+  flex: none;
+  width: var(--text-md);
+  height: var(--text-md);
+}
+.split-note.is-good {
+  color: var(--color-success);
+  font-weight: 700;
+}
+/* the sum is off, and that is why the button can't be pressed: said in the page's own strong voice,
+   not in red (nothing has gone wrong yet) and not in the light (that is for what is chosen) */
+.split-note.is-off {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.split-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.split-choice {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.split-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.split-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.split-setting .field-label {
+  margin: 0;
+}
+.split-ask {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.split-ask p {
+  margin: 0;
+  line-height: var(--leading);
+}
+.split-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+/* ---------- people, in the sheets: who paid, who shares, who is in the ledger ---------- */
+.split-people {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.split-people > :is(li, .split-person) + :is(li, .split-person) {
+  border-top: 1px solid var(--color-line-soft);
+}
+.split-people + .ui-button {
+  margin-top: var(--space-2);
+}
+.split-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: calc(var(--tap) + var(--space-3));
+  padding: var(--space-1) 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+}
+button.split-person {
+  cursor: pointer;
+}
+.split-face {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  font-size: var(--text-sm);
+  font-weight: 800;
+}
+.split-person-name {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.split-person-name small {
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+}
+.split-person-part {
+  flex: none;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.split-person-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+/* someone left out of the sharing (unticked, no shares, no amount) reads quieter, and their mark is empty.
+   (Who paid is one of several, not in or out: the others keep their voice.) */
+.split-person[role="checkbox"][aria-checked="false"] .split-person-name,
+.split-person.is-out .split-person-name {
+  color: var(--color-text-2);
+  font-weight: 400;
+}
+.split-check {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  border: 2px solid var(--color-line);
+  border-radius: var(--r-pill);
+  color: transparent;
+}
+.split-check svg {
+  width: var(--space-4);
+  height: var(--space-4);
+  stroke-width: 3;
+}
+.split-person[aria-checked="true"] .split-check {
+  border-color: var(--gel);
+  color: var(--on-gel);
+  background: var(--gel);
+}
+/* in the list of people a line ends in a pencil: it opens to that person's name and what can be done with them */
+.split-person > svg {
+  flex: none;
+  width: calc(var(--icon-sm) - var(--space-1));
+  height: calc(var(--icon-sm) - var(--space-1));
+  color: var(--color-text-2);
+}
+.split-person-edit {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+.split-person-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.split-person-edit .split-note {
+  margin: 0;
+}
+/* shares: one fewer, how many, one more, as one control */
+.split-stepper {
+  display: flex;
+  align-items: center;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.split-stepper output {
+  min-width: var(--space-6);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+/* typed amounts: a narrow field at the end of each person's line */
+.split-person-field {
+  flex: none;
+  width: calc(var(--space-12) * 2 + var(--space-6));
+  min-height: var(--tap);
+}
+.split-person-field input {
+  padding-right: var(--space-3);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  caret-color: var(--gel);
+}
+
+/* with less motion asked for, nothing drops or turns: the seal and the new row are simply there */
+@media (prefers-reduced-motion: reduce) {
+  .split-rows > .is-landing,
+  .split-square.is-stamping .split-seal {
+    animation: split-appear var(--dur-enter) var(--ease-out) both;
+  }
+  .split-key:active:not(:disabled) {
+    transform: none;
+  }
+}
+@keyframes split-appear {
+  from {
+    opacity: 0;
+  }
+}
