@@ -1,10 +1,10 @@
-import type { ComponentChildren, VNode } from "preact";
+import type { ComponentChildren, RefObject, VNode } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, xy, type BoardFx, type Rig, type SpaceMark, type TokenMark, type WorldMark } from "../art/RoundBoard";
+import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, rentSpace, xy, type BoardFx, type Fallen, type Rig, type SpaceMark, type TokenMark, type WorldMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
 import { colon, getLang, groupName, money, spaceName, t, tx, type Key } from "../i18n";
 import { MAP_SIZES, prefs, type MapSize } from "../prefs";
@@ -18,7 +18,8 @@ import { serverNow, update } from "../store";
 import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
 import { LandStamp, Ride, placeCamLayers, project, rest, viewBoard } from "./Ride";
-import { moveInPlay, ridesOn, walkOf, type RidePlan } from "./ridePlan";
+import { moveInPlay, planMove, ridesOn, walkOf, withTimes, type RidePlan } from "./ridePlan";
+import { sfx } from "../sound";
 import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
 import { useWorldMoment } from "./World";
@@ -69,13 +70,23 @@ export function moodOf(v: RoomView, seat: number): Mood {
 const FX_MS = 1_800;
 /** …and a world event's effect (art.css .wf). */
 const WORLD_FX_MS = 3_600;
+/** …and a team gone broke: its token falling over and fading (art.css token-fall, token-gone). */
+const FALL_MS = 2_400;
+/** When the auctioneer's gavel strikes a sale's stamp (art.css fx-gavel: 16% of FX_MS), and the sound with it. */
+const GAVEL_MS = 290;
+/** A rent this big makes a moment of it (the party forfeit's huge rent: room.ts). */
+export const BIG_RENT = 500;
 
 /**
- * A city sold at auction, a team gone broke: a stamp on its space for a moment, in the team's colour.
- * Only what happens while the board is up: what was in the feed when it first drew is old news.
+ * A city sold at auction, a team gone broke: a stamp on its space for a moment, in the team's colour
+ * (a sale's struck by the auctioneer's gavel, with its knock); and the team gone broke, its token
+ * falling over (`fallen`) with a sound going down, once its move's token is down on the space it
+ * couldn't pay for (until then its token walks there: Board keeps it). Only what happens while the board
+ * is up: what was in the feed when it first drew is old news.
  */
-function useBoardFx(v: RoomView): BoardFx[] {
+function useBoardFx(v: RoomView): { fx: BoardFx[]; fallen: Fallen[] } {
   const [fx, setFx] = useState<BoardFx[]>([]);
+  const [fallen, setFallen] = useState<Fallen[]>([]);
   const seen = useRef<number | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const lastId = v.feed.length ? v.feed[v.feed.length - 1].id : 0;
@@ -84,23 +95,90 @@ function useBoardFx(v: RoomView): BoardFx[] {
     const from = seen.current;
     seen.current = Math.max(from ?? 0, lastId);
     if (from === null) return;
-    const fresh: BoardFx[] = [];
+    const later = (ms: number, run: () => void) => (ms > 20 ? timers.current.push(setTimeout(run, ms)) : run());
+    const show = (list: BoardFx[]) => {
+      const ids = new Set(list.map((f) => f.id));
+      setFx((now) => [...now, ...list]);
+      timers.current.push(setTimeout(() => setFx((now) => now.filter((f) => !ids.has(f.id))), FX_MS));
+    };
+    const sold: BoardFx[] = [];
     for (const f of v.feed) {
       if (f.id <= from || f.t !== "game") continue;
       const e = f.e;
       if (e.t === "auction" && e.winner !== null) {
         const team = teamOf(v, e.winner);
-        fresh.push({ id: f.id, kind: "sold", at: e.at, label: t("fx_sold"), color: team ? TEAM_COLORS[team.color] : "var(--active)" });
+        sold.push({ id: f.id, kind: "sold", at: e.at, label: t("fx_sold"), color: team ? TEAM_COLORS[team.color] : "var(--active)" });
       } else if (e.t === "bankrupt" && v.game) {
-        fresh.push({ id: f.id, kind: "broke", at: v.game.s.ps[e.p]?.pos ?? 0, label: t("fx_broke"), color: "var(--active)" });
+        const at = v.game.s.ps[e.p]?.pos ?? 0;
+        const wait = Math.max(0, landingOf(v, e.p, f.id) + 250 - serverNow());
+        const fall: Fallen = { key: f.id, seat: e.p, at, kind: teamOf(v, e.p)?.color ?? 0, start: performance.now() + wait };
+        setFallen((now) => [...now, fall]);
+        later(wait, () => {
+          show([{ id: f.id, kind: "broke", at, label: t("fx_broke"), color: "var(--active)" }]);
+          sfx.broke();
+          // (the board draws its token falling from now: ui/Board.tsx stops drawing it walking)
+          setFallen((now) => [...now]);
+        });
+        timers.current.push(setTimeout(() => setFallen((now) => now.filter((x) => x !== fall)), wait + FALL_MS));
       }
     }
-    if (!fresh.length) return;
-    const ids = new Set(fresh.map((f) => f.id));
-    setFx((now) => [...now, ...fresh]);
-    timers.current.push(setTimeout(() => setFx((now) => now.filter((f) => !ids.has(f.id))), FX_MS));
+    if (!sold.length) return;
+    show(sold);
+    if (!reducedMotion()) later(GAVEL_MS, () => sfx.bid());
   }, [lastId]);
-  return fx;
+  return { fx, fallen };
+}
+
+/**
+ * Rent paid while the board is up: what stands on the city bounces with its windows lit (RoundBoard
+ * rentSpace) as the money changes hands, once the token that pays it is down on the city (its move's
+ * stamp). On the big screen with the till's sound (a big rent's grander).
+ */
+function useRentFx(v: RoomView, rig: { current: Rig | null }, tv: boolean) {
+  const seen = useRef<number | null>(null);
+  const timers = useRef<number[]>([]);
+  const lastId = v.feed.length ? v.feed[v.feed.length - 1].id : 0;
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  useEffect(() => {
+    const from = seen.current;
+    seen.current = Math.max(from ?? 0, lastId);
+    if (from === null || reducedMotion()) return;
+    for (const f of v.feed) {
+      if (f.id <= from || f.t !== "game" || f.e.t !== "rent" || f.e.amount <= 0) continue;
+      const { at, amount, p } = f.e;
+      const big = amount >= BIG_RENT;
+      const wait = Math.max(0, landingOf(v, p, f.id) + 260 - serverNow());
+      timers.current.push(
+        window.setTimeout(() => {
+          rentSpace(rig.current?.svg, at, big);
+          if (tv) sfx.rent(big);
+        }, wait),
+      );
+    }
+  }, [lastId]);
+}
+
+/** When the token of `seat` is down on the space a feed item (`id`) came with (server time): its move's
+ * stamp, if that move is still playing; 0 if it isn't. */
+function landingOf(v: RoomView, seat: number, id: number): number {
+  const raw = planMove(v, [seat]);
+  if (!raw || raw.key > id) return 0;
+  const m = withTimes(raw);
+  return m.start + m.t.land;
+}
+
+/** A big rent on this phone's board, as its token pays it (a phone's own team's move plays it on the
+ * ride, so not that), for the map to push in on the city for a moment; null if none. */
+function bigRentHere(v: RoomView): { at: number; key: string; from: number; push: number } | null {
+  for (let i = v.feed.length - 1; i >= 0; i--) {
+    const f = v.feed[i];
+    if (serverNow() - f.at > 6000) return null;
+    if (f.t !== "game" || f.e.t !== "rent" || f.e.amount < BIG_RENT) continue;
+    if (v.you.seats.includes(f.e.p) && ridesOn()) return null;
+    const land = landingOf(v, f.e.p, f.id) || f.at;
+    return { at: f.e.at, key: `r${f.id}`, from: performance.now() + (land - serverNow()), push: 1.6 };
+  }
+  return null;
 }
 
 /** Feed items from this game: after a rematch the room's feed still holds the last game's end. */
@@ -183,10 +261,13 @@ export function Board({
   urgent,
   onRideReady,
   onRideDone,
+  covered,
 }: {
   v: RoomView;
   /** The big screen. */
   big?: boolean;
+  /** A phone's play window is up over the board (ui/Game.tsx): the map keeps what it follows above it. */
+  covered?: boolean;
   center?: ComponentChildren;
   globe?: boolean;
   over?: ComponentChildren;
@@ -207,8 +288,12 @@ export function Board({
   const { focus, at: focusAt } = useFocus(v, !!big);
   const rig = useRef<Rig | null>(null);
   const throwing = useThrowing();
+  useRentFx(v, rig, !!big);
+  const { fx, fallen } = useBoardFx(v);
+  // (a team gone broke walks to where it went broke before it falls: useBoardFx)
+  const walking = (seat: number) => fallen.some((f) => f.seat === seat && performance.now() < f.start - 30);
   // The other teams' tokens walk in step with their thrower's ride (a phone), and land with a stamp.
-  const others = big ? [] : s.ps.flatMap((p, seat) => (p.out || v.you.seats.includes(seat) ? [] : [seat]));
+  const others = big ? [] : s.ps.flatMap((p, seat) => ((p.out && !walking(seat)) || v.you.seats.includes(seat) ? [] : [seat]));
   const walks: Record<number, { start: number; per: number }> = {};
   const landings: { seat: number; at: number; land: number }[] = [];
   const nowS = serverNow();
@@ -232,13 +317,12 @@ export function Board({
     };
   });
   const tokens: TokenMark[] = s.ps.flatMap((p, seat) => {
-    if (p.out) return [];
+    if (p.out && !walking(seat)) return [];
     const team = teamOf(v, seat);
     const kind = team?.color ?? 0;
     return [{ seat, at: p.pos, kind, mood: moodOf(v, seat), badge: { color: TEAM_COLORS[kind], letter: TEAM_LETTERS[kind] } }];
   });
   const tokenScale = big ? TOKEN_SCALE.tv : TOKEN_SCALE.phone;
-  const fx = useBoardFx(v);
   // A world event as it comes, and the city one in force has struck (a meteor's crater, a city locked down).
   const [moment] = useWorldMoment(v, WORLD_FX_MS);
   const w = v.game?.s.world;
@@ -289,6 +373,8 @@ export function Board({
       lean={lean}
       lang={getLang()}
       lit={litSets(v, sets)}
+      fallen={fallen}
+      visited={[...new Set(s.ps.flatMap((p) => p.stamps ?? []))]}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -300,13 +386,15 @@ export function Board({
   // (this phone's own move: its camera has the view, ui/Ride.tsx; the map's button steps aside)
   const moving = !!ride || throwing;
   const onTurn = s.ps[s.turn] && !s.ps[s.turn].out ? s.turn : null;
+  const cover = useCover(wrap, !!covered && zoomable);
   const map = useMapView(wrap, pan, rig, {
+    cover,
     zoom: ZOOM[size],
     follow: zoomable ? onTurn : null,
     turnKey: `${g.startedAt}:${s.turns}`,
     moveKey: `${s.turn}:${s.ps[s.turn]?.pos}`,
     reduced: reducedMotion(),
-    look: zoomable ? builtHere(v) : null,
+    look: zoomable ? (builtHere(v) ?? bigRentHere(v)) : null,
     // (where a point of the board shows in the box, the board leaning back as it rests)
     place: (x, y, rot) => {
       const p = project(x, y, rest(rot, lean), 1000);
@@ -401,6 +489,35 @@ export function Board({
       {open !== null && <SpaceSheet v={v} at={open} onClose={() => setOpen(null)} />}
     </div>
   );
+}
+
+/**
+ * How much of the board's box (px, from its bottom) a phone's play window covers while it's up (`on`):
+ * none where it stands beside the board (a phone held sideways). Measured as laid out, not as it slides
+ * in, and again as it grows or shrinks with what's in it.
+ */
+function useCover(wrap: RefObject<HTMLDivElement>, on: boolean): number {
+  const [cover, setCover] = useState(0);
+  useLayoutEffect(() => {
+    const pw = document.querySelector<HTMLElement>(".playwin");
+    const box = wrap.current;
+    if (!on || !pw || !box) {
+      setCover(0);
+      return;
+    }
+    const measure = () => {
+      const b = box.getBoundingClientRect();
+      const p = pw.getBoundingClientRect();
+      if (p.left >= b.right || p.right <= b.left) return setCover(0);
+      const top = innerHeight - (parseFloat(getComputedStyle(pw).bottom) || 0) - pw.offsetHeight;
+      setCover(Math.max(0, Math.min(Math.round(b.height), Math.round(b.bottom - top))));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(pw);
+    return () => ro.disconnect();
+  }, [on]);
+  return cover;
 }
 
 /** The map's size, remembered on this phone; every screen draws again with it. */

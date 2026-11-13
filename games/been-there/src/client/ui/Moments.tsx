@@ -189,11 +189,32 @@ interface Coins {
 }
 
 /**
- * A phone's wallet, its cash in the top bar: when the coins on their way next touch it (performance.now()
- * ms: the first to land, or the first to leave; 0, none on the way), and whether its money going out has
- * a sound of its own already (a city bought, a building put up). Cash counts then (CoinFx sets it).
+ * A phone's wallet, its cash in the top bar: a batch for each moment its money moved (CoinFx adds them),
+ * with when its cash shows the change (`due`: the move's decision window, or now; performance.now()
+ * ms), when the first of its coins touches the wallet (`at`: the first to land, or the first to leave),
+ * and whether its money going out has a sound of its own already (`quiet`: a city bought, a building
+ * put up). Cash counts as the batch its change comes with gets there: one each, as the computer's teams
+ * move one after another.
  */
-const wallet = { at: 0, quiet: false };
+interface Batch {
+  due: number;
+  at: number;
+  quiet: boolean;
+}
+const wallet: Batch[] = [];
+/** How far apart a change of the cash and its batch's `due` can be and still be the same moment (ms). */
+const SAME_MOMENT = 450;
+
+/** The batches a change of the cash at `now` comes with (taken off the list), and those long past dropped. */
+function batchesAt(now: number): Batch[] {
+  const mine: Batch[] = [];
+  for (let i = wallet.length - 1; i >= 0; i--) {
+    const b = wallet[i];
+    if (Math.abs(b.due - now) <= SAME_MOMENT) mine.push(...wallet.splice(i, 1));
+    else if (b.due < now - 4000) wallet.splice(i, 1);
+  }
+  return mine;
+}
 
 /** The other end of a payment to or from a phone's own team: a team's token, a space, or the bank
  * (the middle of the board). */
@@ -267,18 +288,23 @@ const LANDS_MS = 840;
 /** A phone's payments in one moment set off this far apart (ms). */
 const NEXT_MS = 280;
 
-/** Who pays whom in a game event (-1 is the bank), or null if no money moves. */
-function moneyOf(e: GameEvent): { from: number; to: number; amount: number } | null {
-  if ((e.t === "rent" || e.t === "pay") && e.amount > 0) return { from: e.p, to: e.to, amount: e.amount };
-  if (e.t === "move" && e.salary) return { from: -1, to: e.p, amount: e.salary };
-  if ((e.t === "passport" || e.t === "bonus") && e.amount > 0) return { from: -1, to: e.p, amount: e.amount };
-  if (e.t === "fine" && e.amount > 0) return { from: e.p, to: -1, amount: e.amount };
-  return null;
+/** Who pays whom in a game event (-1 is the bank): none, one payment, or a deal's both ways. */
+function moneyOf(e: GameEvent): { from: number; to: number; amount: number }[] {
+  if ((e.t === "rent" || e.t === "pay") && e.amount > 0) return [{ from: e.p, to: e.to, amount: e.amount }];
+  if (e.t === "move" && e.salary) return [{ from: -1, to: e.p, amount: e.salary }];
+  if ((e.t === "passport" || e.t === "bonus") && e.amount > 0) return [{ from: -1, to: e.p, amount: e.amount }];
+  if (e.t === "fine" && e.amount > 0) return [{ from: e.p, to: -1, amount: e.amount }];
+  if (e.t === "trade")
+    return [
+      ...(e.give.cash ? [{ from: e.a, to: e.b, amount: e.give.cash }] : []),
+      ...(e.get.cash ? [{ from: e.b, to: e.a, amount: e.get.cash }] : []),
+    ];
+  return [];
 }
 
 /** Coins fly from whoever pays to whoever is paid, token to token (the bank is the middle of the
  * board), once the token that moved has landed (`after`, server time: the move's stamp): on the big
- * screen, every payment. On a phone (`phone`), the money in and out of its own team, the bank's too,
+ * screen, every payment (a deal's both ways). On a phone (`phone`), the money in and out of its own team, the bank's too,
  * flies into its wallet (the cash in the top bar) or out of it, to or from the token, the space (a
  * city bought, a building, the salary's corner) or the middle of the board; the cash counts as the
  * coins get there (`wallet`, Cash). */
@@ -295,11 +321,11 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
     const gs = v.game?.s;
     // A phone's own money, the bank's too: into its wallet or out of it.
     const purse = phone && gs ? news.flatMap((f) => (f.t === "game" && serverNow() - f.at < 4000 ? walletMoves(f.e, mine, gs) : [])) : [];
-    wallet.quiet = purse.length > 0 && purse.every((m) => m.dir > 0 || m.quiet);
-    if (reducedMotion()) {
-      wallet.at = 0;
-      return;
-    }
+    // (when the cash shows it: with the move's decision window, or now)
+    const due = performance.now() + Math.max(0, (after ?? 0) - serverNow());
+    const batch: Batch | null = purse.length ? { due, at: due, quiet: purse.every((m) => m.dir > 0 || m.quiet) } : null;
+    if (batch) wallet.push(batch);
+    if (reducedMotion()) return;
     // Back from a dropped connection, the payments missed meanwhile don't all fly at once.
     const fresh = news.filter((f) => serverNow() - f.at < 4000);
     // Wait for the token to walk the short way round (RoundBoard: 220 ms + 120 ms a space, at most 1.8 s).
@@ -312,16 +338,13 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
     }
     const moves = phone
       ? []
-      : fresh.flatMap((f) => {
-          const m = f.t === "game" ? moneyOf(f.e) : null;
-          return m ? [{ id: f.id, ...m }] : [];
-        });
+      : fresh.flatMap((f) => (f.t === "game" ? moneyOf(f.e).map((m, i) => ({ id: f.id * 4 + i, ...m })) : []));
     const wallet0 = document.querySelector(".top .cash-tick");
     const purseOn = phone && purse.length > 0 && !!wallet0;
     if (!moves.length && !purseOn) return;
     const wait = after && after > serverNow() ? after - serverNow() + 180 : walk + 120;
     // (the wallet counts as the first coins land in it, or the first leave it)
-    if (purseOn) wallet.at = performance.now() + wait + Math.min(...purse.map((m, i) => i * NEXT_MS + (m.dir > 0 ? LANDS_MS : 0)));
+    if (purseOn && batch) batch.at = performance.now() + wait + Math.min(...purse.map((m, i) => i * NEXT_MS + (m.dir > 0 ? LANDS_MS : 0)));
     timers.current.push(
       window.setTimeout(() => {
         const board = document.querySelector<SVGSVGElement>(phone ? ".stage .roundboard" : ".tv-board .roundboard");
@@ -333,7 +356,9 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
         };
         // (on screen: an end off the edge, a token the map has scrolled away, comes in from the edge)
         const inView = ([x, y]: [number, number]): [number, number] => [Math.min(innerWidth - 18, Math.max(18, x)), Math.min(innerHeight - 18, Math.max(18, y))];
-        const where = (seat: number) => mid(seat >= 0 ? board.querySelector(`[data-seat="${seat}"]`) : null) ?? mid(board.querySelector(".rim")) ?? mid(board)!;
+        // (a team gone broke: where its token lies, fallen over: art/RoundBoard.tsx)
+        const where = (seat: number) =>
+          mid(seat >= 0 ? (board.querySelector(`[data-seat="${seat}"]`) ?? board.querySelector(`[data-fallen="${seat}"]`)) : null) ?? mid(board.querySelector(".rim")) ?? mid(board)!;
         const endOf = (end: End): [number, number] => {
           if ("seat" in end) return inView(where(end.seat));
           if ("bank" in end) return inView(where(-1));
@@ -405,11 +430,10 @@ export function Cash({ n }: { n: number }) {
     if (n === now.current) return;
     let raf = 0;
     let timer = 0;
+    let quiet = false;
     const run = () => {
       const from = now.current;
       const change = n - from;
-      const quiet = wallet.quiet;
-      wallet.at = 0;
       if (change > 0) {
         sfx.coin();
         buzz(BUZZ.paid);
@@ -435,7 +459,10 @@ export function Cash({ n }: { n: number }) {
     };
     // (decided a moment later, once this update's coins are on their way: CoinFx runs after this)
     timer = window.setTimeout(() => {
-      const wait = wallet.at - performance.now();
+      const t = performance.now();
+      const mine = batchesAt(t);
+      quiet = mine.length > 0 && mine.every((b) => b.quiet);
+      const wait = mine.length ? Math.min(...mine.map((b) => b.at)) - t : 0;
       if (wait > 0 && wait < 6000) timer = window.setTimeout(run, wait);
       else run();
     }, 0);

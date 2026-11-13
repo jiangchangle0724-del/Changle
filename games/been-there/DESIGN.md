@@ -69,6 +69,14 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   turn looks round or bobs, or a hotel's sign swings and its windows blink (a city's owner mark gives a
   bounce while there's no hotel yet). One at a time, so a phone draws only that small part again; never
   during a move, with the page hidden, or with reduced motion.
+* **Life on the map** (`art/MapLife.tsx`): now and then (every 13 to 19 s, 7.6 s a flight) a little
+  airliner flies over the map between two cities the teams have been to, in different regions, along
+  the great circle as a token flies it, its contrail behind it; and each city with buildings on the
+  ring glows on the map, a hotel's brighter and wider. It lies between the satellite map and the board
+  (the city dots and the tokens stand over it) and turns with the table. A plane is a small box the
+  browser moves by itself, so nothing of the board is drawn again for it; the glows stand still (a
+  light that never stops would keep a phone drawing frames all the time). One plane at a time, none
+  while a move plays, with the page hidden or with reduced motion; not over the big screen's globe.
 * **Six characters**, one per team colour, each with six moods (idle, happy, shock, sad, curious,
   smug): 咔嚓 Click, 呼呼 Snooze, 小旗 Flaggy, 背背 Packy, 箱箱 Trunky, 球球 Globey. On the board they
   stand at 0.88 of their drawing on a phone or a laptop and 0.62 on the big screen (`TOKEN_SCALE` in
@@ -266,7 +274,11 @@ which goes round the three, its marks saying which it is. The big screen always 
   A tablet or a computer starts at small: its board is 560 to 640 px already.
 * **Where it looks.** The view follows the token of the team on turn, in step as it walks (it never
   shows where a token will land before it gets there), and stays on the board's edge rather than show
-  the night past it. A drag leaves it where the player put it until the turn passes or a size is picked.
+  the night past it. With the play window up over the bottom of the board, the token stands in the
+  middle of the part the window leaves, as far as the board's edge lets it (`cover`: measured as the
+  window is laid out, and again as it grows or shrinks). A drag leaves it where the player put it until
+  the turn passes or a size is picked. A big rent pushes in on its city for 2.6 s, to 1.6 times at
+  least, even at the size that shows the whole board (`look`).
   Moving it is one CSS transform on `.board-pan`, a frame round `.board-view`, written on the animation
   clock and a layer of its own only while it moves (standing still, it's drawn sharp).
 * **Your own move.** The ride's camera takes the view over where the map is (`release`): the dice
@@ -516,10 +528,29 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   under it. **Mortgaged**, the chip turns over like a card and lies face down (ink on paper), and
   turns back when it's paid off.
 * **Sold, broke** (`useBoardFx` in `ui/Board.tsx`): a city won at auction is stamped 成交 SOLD on its
-  space in the winner's colour for 1.8 s, a team gone broke 破产 BROKE where its token stood, on every
-  screen. Only what happens while the board is up: what was in the log when it first drew is old news.
-  With reduced motion the stamp simply stands there for its 1.8 s, and new buildings are simply there,
-  with no dust and no sparks.
+  space in the winner's colour for 1.8 s, struck by the auctioneer's gavel as it lands (wound up, down
+  at 0.29 s with its knock, `sfx.bid`, a bounce off it, then lifted away: `Gavel`). A team gone broke
+  is stamped 破产 BROKE where its token stood, once its move's token is down there (it walks there
+  first), and its token wobbles, tips over on its feet, lies there a moment and fades (2.4 s, to four
+  notes sliding down, `sfx.broke`). Then its cities go, one after another: to the team it owed, each
+  chip turning over to that team's colour and letter as in a deal; to the bank, each chip lifting off
+  the board and flying into the middle, shrinking (`chip-off`); the money it had left flies from where
+  its token lies. On every screen. Only what happens while the board is up: what was in the log when
+  it first drew is old news. With reduced motion the stamp simply stands there for its 1.8 s, the
+  chips simply change, and new buildings are simply there, with no dust and no sparks.
+* **Rent** (`useRentFx` in `ui/Board.tsx`, `rentSpace` in `art/RoundBoard.tsx`): once the token that
+  pays it is down on the city, what stands there bounces on the spot, its door and windows lit and its
+  front catching the light (a city with nothing built: its owner's chip bounces). A big one, $500 or
+  more (the size the party forfeit calls huge), bounces twice and sends a ring of gold out round the
+  city, and a phone's map pushes in on it (unless it's the phone's own move, which its ride shows). On
+  the big screen with the till: a bright ring over a coin's chink, a big one ringing twice (`sfx.rent`).
+* **A deal** (`ui/Deal.tsx`): 成交！ comes up over the board with the two teams, and what changed
+  hands under it, one thing after another: each city turning over from its old owner's colour to its
+  new one's (as its chip turns over on the board, 0.16 s apart: `hand` in `art/RoundBoard.tsx`), the
+  money with who got it (on the big screen it flies token to token). Two hands clap and two notes go
+  up, on the big screen and the phones of the two teams, with a buzz; every phone sees it, over a
+  sheet too. A full set the deal made comes after it (`late` in `ui/Sets.tsx`), and so does one a team
+  gone broke handed over.
 * **Money:** coins fly from whoever pays to whoever is paid, once the token is down, spinning as
   coins do. On the big screen, every payment, token to token (the bank is the middle of the board).
   **On a phone the cash in the top bar is the team's wallet** (`wallet` and `Cash` in
@@ -530,7 +561,10 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   comes in from its edge. The cash counts as the first coins land in it or leave it, bumping up in
   gold as money comes in and dipping as it goes, the change floating off below it, with the till or
   the pay sound (a city bought or a building has its own). Several payments at once set off 0.28 s
-  apart. With reduced motion the cash simply changes, with its sound.
+  apart. With reduced motion the cash simply changes, with its sound. Each move's money shows with
+  its own token's stamp, even as the computer's teams throw one after another (each waits 0.9 s, a
+  move plays for 3 or so): `useHeld` keeps a step for each move, and the wallet's coins come in
+  batches the cash counts with, one each (`batchesAt`).
 * **A full set** (`ui/Sets.tsx`): the moment a team owns a whole group (rent there doubles, and it can
   build), its spaces light up in its colour one after another, 0.18 s apart once the owner's stamp
   is down, then glow together twice and go out by 3.2 s (`.set-lit`, Istanbul with them when it

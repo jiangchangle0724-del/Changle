@@ -595,6 +595,31 @@ export const sfx = {
     chord([523.3, 659.3, 784, 1046.5], 0.95, { type: "triangle", vol: 0.055 * v, at: 0.34 });
     bell(1568, { at: 0.36, vol: 0.045 * v, dur: 1.1 });
   },
+  /**
+   * Rent paid on a city (the big screen, as its buildings bounce): the till, a bright ring over a
+   * coin's chink. A big one rings twice, a fifth higher, over a deeper drawer.
+   */
+  rent: (big = false) => {
+    burst(0.04, { type: "bandpass", freq: 3200, q: 4, vol: 0.08 });
+    bell(1318.5, { at: 0.03, vol: 0.05, dur: 0.9 });
+    if (!big) return;
+    burst(0.12, { type: "lowpass", freq: 420, vol: 0.12, at: 0.02 });
+    bell(1975.5, { at: 0.2, vol: 0.05, dur: 1.2 });
+    [1568, 2093].forEach((f, i) => tone(f, 0.18, { type: "triangle", vol: 0.03, at: 0.34 + i * 0.08 }));
+  },
+  /** A deal done (a trade): two hands clap together and two notes go up, as the chips turn over. */
+  deal: () => {
+    burst(0.05, { type: "bandpass", freq: 1500, q: 1.1, vol: 0.14 });
+    burst(0.05, { type: "bandpass", freq: 1100, q: 1.1, vol: 0.12, at: 0.13 });
+    tone(784, 0.2, { type: "triangle", vol: 0.06, at: 0.22 });
+    tone(1174.7, 0.42, { type: "triangle", vol: 0.06, at: 0.32 });
+    bell(2349.3, { at: 0.34, vol: 0.025, dur: 0.8 });
+  },
+  /** A team gone broke: its token falls over to four notes sliding down, quietly. */
+  broke: () => {
+    [392, 370, 349.2, 311.1].forEach((f, i) => tone(f, i === 3 ? 0.9 : 0.26, { type: "triangle", vol: 0.06, at: i * 0.26, slide: i === 3 ? 262 : f * 0.98 }));
+    burst(0.12, { type: "lowpass", freq: 300, vol: 0.12, at: 1.0 });
+  },
   /** Sent to Immigration: the gate comes down. */
   jail: () => {
     burst(0.08, { type: "bandpass", freq: 700, q: 2, vol: 0.2 });

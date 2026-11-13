@@ -13,8 +13,11 @@ import { t, tx } from "../i18n";
 import { sfx } from "../sound";
 import { GroupIcon, TEAM_COLORS, seatName, teamOf } from "./common";
 
-/** How long a set just made shows (ms): its spaces light up from 0.5 s and go out by 3.2 s. */
+/** How long a set just made shows (ms): its spaces light up from 0.5 s and go out by 3.2 s… */
 const SHOW_MS = 3400;
+/** …later by this much when it came of a deal (or a team gone broke to another): after the deal's call
+ * and the chips turning over (ui/Deal.tsx, art/RoundBoard.tsx `hand`). */
+export const LATE_MS = 2400;
 
 /** Each whole group a team owns, as "seat:group". */
 function setsOf(s: GameState): Set<string> {
@@ -30,6 +33,8 @@ export interface NewSet {
   key: string;
   seat: number;
   group: number;
+  /** Made by a deal, or by a team gone broke to this one: it waits for that moment (LATE_MS). */
+  late: boolean;
 }
 
 /** The full sets made since this screen started watching the game, each for SHOW_MS. */
@@ -41,6 +46,9 @@ export function useNewSets(v: RoomView): NewSet[] {
   const seen = useRef<{ game: number; sets: Set<string> } | null>(null);
   const [fresh, setFresh] = useState<NewSet[]>([]);
   const timers = useRef<number[]>([]);
+  // (the newest feed item the last time this drew: what's come since came with the set)
+  const lastId = v.feed.length ? v.feed[v.feed.length - 1].id : 0;
+  const drawn = useRef(lastId);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   useEffect(() => {
     const was = seen.current;
@@ -48,14 +56,19 @@ export function useNewSets(v: RoomView): NewSet[] {
     if (!was || was.game !== game) return;
     const made = [...now].filter((k) => !was.sets.has(k));
     if (!made.length) return;
+    // (a deal, or a team gone broke, among what came with it)
+    const late = v.feed.some((f) => f.id > drawn.current && f.t === "game" && (f.e.t === "trade" || f.e.t === "bankrupt"));
     const stamp = Date.now();
     const list = made.map((k) => {
       const [seat, group] = k.split(":").map(Number);
-      return { key: `${k}@${stamp}`, seat, group };
+      return { key: `${k}@${stamp}`, seat, group, late };
     });
     setFresh((x) => [...x, ...list]);
-    timers.current.push(window.setTimeout(() => setFresh((x) => x.filter((f) => !list.includes(f))), SHOW_MS));
+    timers.current.push(window.setTimeout(() => setFresh((x) => x.filter((f) => !list.includes(f))), SHOW_MS + (late ? LATE_MS : 0)));
   }, [sig]);
+  useEffect(() => {
+    drawn.current = lastId;
+  });
   return fresh;
 }
 
@@ -73,6 +86,7 @@ export function litSets(v: RoomView, fresh: NewSet[]): LitSet[] {
       key: f.key,
       color: team ? TEAM_COLORS[team.color] : (GROUPS.find((g) => g.id === f.group)?.color ?? "#fff"),
       spaces: (stands ? [...own, ISTANBUL] : own).sort((a, b) => a - b),
+      late: f.late,
     };
   });
 }
@@ -93,10 +107,13 @@ export function SetCall({ v, big }: { v: RoomView; big?: boolean }) {
       const mine = v.you.seats.includes(f.seat);
       // (as the spaces start to light up, once the owner's stamp is down)
       timers.current.push(
-        window.setTimeout(() => {
-          sfx.set(big || mine);
-          if (mine && !big) buzz(BUZZ.set);
-        }, 550),
+        window.setTimeout(
+          () => {
+            sfx.set(big || mine);
+            if (mine && !big) buzz(BUZZ.set);
+          },
+          550 + (f.late ? LATE_MS : 0),
+        ),
       );
     }
   }, [fresh.map((f) => f.key).join(",")]);
@@ -111,7 +128,7 @@ export function SetCall({ v, big }: { v: RoomView; big?: boolean }) {
   const cities = litSets(v, [f])[0]?.spaces ?? [];
   return (
     <div
-      class={`set-call${big ? " big" : ""}${mine ? " mine" : ""}`}
+      class={`set-call${big ? " big" : ""}${mine ? " mine" : ""}${f.late ? " late" : ""}`}
       key={f.key}
       style={{ "--group": group.color, "--team": team ? TEAM_COLORS[team.color] : group.color }}
       aria-hidden="true"
