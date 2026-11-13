@@ -7,8 +7,9 @@ down and stuns you, and a tagged player gets up in another body somewhere else i
 to 3 tags, or the most tags after 75 seconds. Twice a round a player can distract everyone: a
 passer-by across the crowd throws a punch at nothing. The round ends in a penalty: whoever got spotted most
 takes a sip. A big screen (a TV or a computer) shows the whole crowd and never marks who is human.
-Four 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre, and the
-Richmond Night Market, where tasting all four stalls scores 2 but lights each stall up for everyone.
+Four 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre (where now
+and then the stage counts three, two, one and the whole crowd punches at once), and the Richmond
+Night Market, where tasting all four stalls scores 2 but lights each stall up for everyone.
 2 to 8 players, Chinese and English.
 
 How it looks, where the art comes from and what a design change has to keep: [DESIGN.md](DESIGN.md).

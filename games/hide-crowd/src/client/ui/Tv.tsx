@@ -16,7 +16,7 @@ import { Icon } from "./chrome";
 import { PenaltyStamp } from "./Penalty";
 import { Scoreboard, useClock } from "./Play";
 import { ResultTable, resultTitle } from "./Result";
-import { arenaEvents, Awards, INTRO_WINDOW_MS, MomentBanner, useRoundSounds } from "./roundFx";
+import { arenaEvents, Awards, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 import { useLanded } from "./useLanded";
 import { installAudioUnlock, soundOn, unlockAudio } from "../sound";
 
@@ -141,6 +141,10 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
 function useFeast(events: EventView[]): number | null {
   const [shown, setShown] = useState<number | null>(null);
   const seen = useRef(events.length ? events[events.length - 1].id : 0);
+  const timer = useRef(0);
+  // (every frame brings a new list: look again only when something new has happened, and leave the
+  // line's own timer to run, or it would never go)
+  const latest = events.length ? events[events.length - 1].id : 0;
   useEffect(() => {
     const fresh = events.filter((event) => event.id > seen.current);
     if (!fresh.length) return;
@@ -148,9 +152,10 @@ function useFeast(events: EventView[]): number | null {
     const feast = fresh.find((event) => event.t === "feast");
     if (!feast) return;
     setShown(feast.id);
-    const timer = window.setTimeout(() => setShown((now) => (now === feast.id ? null : now)), 2_800);
-    return () => window.clearTimeout(timer);
-  }, [events]);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setShown((now) => (now === feast.id ? null : now)), 2_800);
+  }, [latest]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   return shown;
 }
 
@@ -161,6 +166,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   useRoundSounds(game, seconds, { screen: true, music: true });
   const shown = arenaEvents(game);
   const feasted = useFeast(game.events);
+  const drill = useDrill(game, receivedAt);
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
@@ -182,6 +188,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
     impactType: shown.impactType,
     flash: shown.flash,
     moment: game.moment,
+    glance: game.glance ?? null,
     intro
   } as const;
   // (the last blow lands, in slow motion, before the penalty and the results take the screen)
@@ -209,6 +216,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
         </div>
         {/* (the crowd's moment takes the hint's place while it lasts) */}
         {game.phase === "playing" && (game.moment ? <MomentBanner game={game} tv /> : <p class="tv-hint">{t("nobodyMarked")}</p>)}
+        <DrillCall drill={drill} tv />
         {feasted && game.phase === "playing" && (
           <p class="tv-feast" role="status" key={feasted}>
             <Icon name="firework" size={30} />

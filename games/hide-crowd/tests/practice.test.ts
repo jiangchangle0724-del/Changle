@@ -1,9 +1,11 @@
 // Practice's computer rivals, played out on a fake clock with fixed dice: a player who stands still is
-// left alone and the round lasts long enough to play, and a player who walks on through the ferry horn
-// is spotted far more often than one who stops with the crowd (the rivals stop for it too, a beat late).
+// left alone and the round lasts long enough to play, a player who walks on through the ferry horn is
+// spotted far more often than one who stops with the crowd (the rivals stop for it too, a beat late),
+// and at the theatre one who stands through the stage's call is spotted more than one who punches with
+// the whole crowd.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SIMULATION_STEP_MS } from "../src/engine";
+import { DRILL_GO_MS, DRILL_MS, SIMULATION_STEP_MS } from "../src/engine";
 import type { ClientMsg, RoomView, ServerMsg } from "../src/room/protocol";
 
 let now = 1_700_000_000_000;
@@ -76,4 +78,29 @@ test("walking on through the ferry horn gives a player away; stopping with the c
   const spotted = (played: { spotted: number }[]) => played.reduce((sum, round) => sum + round.spotted, 0);
   assert.ok(spotted(careless) >= 3, `walking on through the horn: spotted ${spotted(careless)} times in 10 rounds`);
   assert.ok(spotted(careless) >= 2 * spotted(careful), `walking on ${spotted(careless)} times, stopping ${spotted(careful)}`);
+});
+
+test("at the theatre, standing through the call gives a player away; punching with the crowd doesn't", () => {
+  const place = globalThis as { location?: unknown };
+  place.location = { search: "?arena=gallery" };
+  try {
+    const still = rounds(10, () => null);
+    // the same, but on the call: punch with everyone (once a drill)
+    let punchedIn = NaN;
+    const together = rounds(10, (step, view) => {
+      if (step === 0) punchedIn = NaN;
+      const game = view?.game;
+      const moment = game?.moment;
+      if (!game || moment?.kind !== "drill" || moment.endsInMs > DRILL_MS - DRILL_GO_MS) return null;
+      const drill = Math.round((game.remainingMs - moment.endsInMs) / 500);
+      if (drill === punchedIn) return null;
+      punchedIn = drill;
+      return { t: "punch" };
+    });
+    const spotted = (played: { spotted: number }[]) => played.reduce((sum, round) => sum + round.spotted, 0);
+    assert.ok(spotted(still) >= 3, `standing through the call: spotted ${spotted(still)} times in 10 rounds`);
+    assert.ok(spotted(still) >= 2 * spotted(together), `standing ${spotted(still)} times, punching with the crowd ${spotted(together)}`);
+  } finally {
+    delete place.location;
+  }
 });

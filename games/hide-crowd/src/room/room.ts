@@ -6,6 +6,7 @@ import {
   ARENA,
   ARENAS,
   BITE_MS,
+  GLANCE_MS,
   MAX_PLAYERS,
   MIN_PLAYERS,
   SCORE_TO_WIN,
@@ -438,6 +439,11 @@ export class Room {
           const moment = game.phase === "playing" ? crowdMoment(game.arena, game.startedAt, now) : null;
           return moment ? { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now) } : null;
         })(),
+        // (a distraction turns every camera but its maker's: theirs stays on the whole floor, to slip away)
+        glance:
+          game.phase === "playing" && game.glance && now < game.glance.at + GLANCE_MS && game.glance.by !== id
+            ? { x: r2(game.glance.x), y: r2(game.glance.y), endsInMs: game.glance.at + GLANCE_MS - now }
+            : null,
         endsAt: game.endsAt,
         remainingMs: game.phase === "playing" ? Math.max(0, game.endsAt - now) : 0,
         scoreToWin: SCORE_TO_WIN,

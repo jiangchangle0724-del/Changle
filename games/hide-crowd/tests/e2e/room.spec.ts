@@ -166,3 +166,44 @@ test("Distract, twice a round: a passer-by across the crowd swings at nothing, a
   await expect(steve.getByRole("button", { name: "分心，还剩 0 次" })).toHaveAttribute("aria-disabled", "true");
   noErrors(steve, mia);
 });
+
+test("the theatre: a distraction turns the others' cameras; then the stage counts three, two, one, Punch lights up, and a punch on the call is the crowd's", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { roundMs: 40_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en");
+  const tv = await screen(browser);
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await tv.goto(`/hide/tv/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await steve.getByRole("button", { name: /中式庭院戏台/ }).click();
+  await mia.getByRole("button", { name: /Courtyard Theatre/ }).click();
+  await until(steve, (v) => v.arenaVotes.gallery === 2);
+  await steve.getByRole("button", { name: "开始" }).click();
+  await until(mia, (v) => v.phase === "playing" && v.game?.arena === "gallery");
+  // Mia's distraction: Steve's camera and the big screen's glance at the passer-by; Mia's own stays put
+  await mia.getByRole("button", { name: "Distract, 2 left" }).dispatchEvent("pointerdown");
+  // (it lasts a second and a half: both watched at once)
+  await Promise.all([until(steve, (v) => !!v.game?.glance, 3_000), until(tv, (v) => !!v.game?.glance, 3_000)]);
+  expect((await view(mia))!.game!.glance ?? null).toBeNull();
+  // 12 s in, the stage counts on every screen, and Punch has a ring round it
+  await expect(steve.locator(".drill-call")).toBeVisible({ timeout: 15_000 });
+  await expect(steve.locator(".moment-banner")).toContainText("台上喊口令");
+  await expect(mia.locator(".moment-banner")).toContainText("The stage counts");
+  await expect(tv.locator(".drill-call")).toBeVisible();
+  await expect(steve.locator(".move-punch")).toHaveClass(/is-drill|is-cue/);
+  await shot(tv, "tv-drill");
+  // the call: 出拳！, and Punch pulses; a punch now goes through the passers-by (no foul, and not a miss)
+  // (watched for every frame: it's on for under a second)
+  await steve.waitForFunction(() => document.querySelector(".drill-call.is-go")?.textContent === "出拳！", undefined, { timeout: 5_000 });
+  expect(await steve.locator(".move-punch").getAttribute("class")).toMatch(/is-cue/);
+  await steve.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
+  await expect(mia.locator(".drill-call.is-go")).toHaveText("Punch!");
+  await shot(steve, "phone-drill-call");
+  await until(steve, (v) => v.game!.avatars.some((a) => a.me && (a.p === "windup" || a.p === "punch")), 2_000);
+  await steve.waitForTimeout(600);
+  const mine = (await view(steve))!.game!.events.filter((e) => e.byYou);
+  expect(mine.filter((e) => e.t === "foul" || e.t === "swing")).toEqual([]);
+  noErrors(steve, mia, tv);
+});

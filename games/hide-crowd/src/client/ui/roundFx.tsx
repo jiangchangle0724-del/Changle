@@ -1,8 +1,10 @@
 // What a round sounds like, and the crowd's moments on screen. On a phone: your own punches, hits and
-// spills, your bites at the night market's stalls, the ferry horn, the busker, the gong or the
-// fireworks, the last five seconds, the whistle and the fanfare. On the big screen (and in practice):
-// every punch, hit and bite in the room, and a light loop for the place.
-import { useEffect, useRef } from "preact/hooks";
+// spills, your bites at the night market's stalls, the ferry horn, the busker, the gong, the stage's
+// count or the fireworks, the last five seconds, the whistle and the fanfare. On the big screen (and
+// in practice): every punch, hit and bite in the room, and a light loop for the place. And the
+// theatre's drill, counted big in the middle of the screen.
+import { useEffect, useRef, useState } from "preact/hooks";
+import { DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS } from "../../engine";
 import type { AwardView, EventView, GameView } from "../../room/protocol";
 import { t, type Key } from "../i18n";
 import { buzz, installAudioUnlock, sfx, startMusic, stopMusic } from "../sound";
@@ -53,22 +55,26 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
     }
   }, [game.events]);
 
-  // a punch thrown: your own (a phone), or anyone's (the big screen sees them all anyway)
+  // a punch thrown: your own (a phone), or anyone's (the big screen sees them all anyway), one whoosh
+  // however many at once (the drill's whole crowd has its own, in the count's sound)
   const poses = useRef<string[]>([]);
+  const moment = game.moment?.kind ?? null;
   useEffect(() => {
+    let thrown = false;
     game.avatars.forEach((avatar, index) => {
       const before = poses.current[index];
-      if (avatar.p === "windup" && before !== "windup" && before !== undefined && (screen || avatar.me)) sfx.whoosh();
+      if (avatar.p === "windup" && before !== "windup" && before !== undefined && (avatar.me || (screen && moment !== "drill"))) thrown = true;
       poses.current[index] = avatar.p;
     });
+    if (thrown) sfx.whoosh();
   }, [game.avatars]);
 
-  // the ferry horn, the busker, the gong, the fireworks
-  const moment = game.moment?.kind ?? null;
+  // the ferry horn, the busker, the gong, the stage's count, the fireworks
   useEffect(() => {
     if (moment === "horn") sfx.horn();
     if (moment === "dance") sfx.busker();
     if (moment === "gong") sfx.gong();
+    if (moment === "drill") sfx.drill(Math.max(0, DRILL_MS - (game.moment?.endsInMs ?? DRILL_MS)));
     if (moment === "fireworks") sfx.fireworks();
   }, [moment]);
 
@@ -108,6 +114,7 @@ const MOMENT: Record<NonNullable<GameView["moment"]>["kind"], { text: Key; icon:
   horn: { text: "momentHorn", icon: "ship" },
   dance: { text: "momentDance", icon: "note" },
   gong: { text: "momentGong", icon: "gong" },
+  drill: { text: "momentDrill", icon: "fist" },
   fireworks: { text: "momentFireworks", icon: "firework" }
 };
 
@@ -119,6 +126,55 @@ export function MomentBanner(props: { game: GameView; tv?: boolean }) {
     <p class={`moment-banner${props.tv ? " is-tv" : ""}`} role="status" key={moment.kind}>
       <Icon name={MOMENT[moment.kind].icon} size={props.tv ? 34 : 20} />
       <span>{t(MOMENT[moment.kind].text)}</span>
+    </p>
+  );
+}
+
+export interface Drill {
+  /** the count: 0, 1, 2 for 三, 二, 一, then 3 for the call (出拳！) */
+  beat: number;
+  /** a punch pressed now lands with the crowd's (from the call until the window closes) */
+  cue: boolean;
+}
+
+/** How far into the theatre's drill this screen is (ms), or null outside one. */
+export function drillElapsed(game: GameView, receivedAt: number, at = Date.now()): number | null {
+  if (game.phase !== "playing" || game.moment?.kind !== "drill") return null;
+  return DRILL_MS - game.moment.endsInMs + Math.max(0, at - receivedAt);
+}
+
+/** a punch pressed this long into the drill still lands inside the crowd's window (it lands a wind-up later) */
+const CUE_ENDS = DRILL_WINDOW[1] - PUNCH_WINDUP_MS;
+/** (the cue lights a moment before the call: a thumb takes that long to come down) */
+const CUE_STARTS = DRILL_GO_MS - 120;
+
+/**
+ * The theatre's drill as this screen counts it, on the beat: the room's frames come often but not on
+ * the beat, so it wakes itself on each one (and when the punch's window closes).
+ */
+export function useDrill(game: GameView, receivedAt: number): Drill | null {
+  const [, wake] = useState(0);
+  const elapsed = drillElapsed(game, receivedAt);
+  useEffect(() => {
+    if (elapsed === null) return;
+    const next = [DRILL_BEAT_MS, DRILL_BEAT_MS * 2, CUE_STARTS, DRILL_GO_MS, CUE_ENDS, DRILL_MS].find((mark) => mark > elapsed);
+    if (next === undefined) return;
+    const timer = window.setTimeout(() => wake((n) => n + 1), next - elapsed + 4);
+    return () => window.clearTimeout(timer);
+  });
+  if (elapsed === null || elapsed >= DRILL_MS) return null;
+  return { beat: Math.min(3, Math.floor(Math.max(0, elapsed) / DRILL_BEAT_MS)), cue: elapsed >= CUE_STARTS && elapsed < CUE_ENDS };
+}
+
+const COUNT: readonly Key[] = ["drill3", "drill2", "drill1", "drillGo"];
+
+/** The stage's count, big in the middle: 三, 二, 一 in a disc, then 出拳！ in the gel (the banner says it in words). */
+export function DrillCall(props: { drill: Drill | null; tv?: boolean }) {
+  if (!props.drill) return null;
+  const { beat } = props.drill;
+  return (
+    <p class={`drill-call${beat === 3 ? " is-go" : ""}${props.tv ? " is-tv" : ""}`} aria-hidden="true" key={beat}>
+      <span>{t(COUNT[beat])}</span>
     </p>
   );
 }
