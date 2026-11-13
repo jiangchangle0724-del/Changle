@@ -141,6 +141,8 @@ test("another phone becomes the host with the admin code; a wrong code is refuse
   const other = await phone(browser);
   await join(other, url, "新手机");
   await other.click(".link-btn:has-text('我是发起人')");
+  // the sheet opens with the cursor in its field, ready to type
+  await expect(other.locator(".code-input")).toBeFocused();
   const wrong = adminCode === "000000" ? "000001" : "000000";
   await other.fill(".code-input", wrong);
   await other.click(".claim .btn");

@@ -579,7 +579,7 @@ function ClaimSheet({ code, onDone, onClose }: { code: string; onDone: () => voi
       <form class="claim" onSubmit={submit}>
         <label class="field">
           <span class="field-label">{t("claimHint")}</span>
-          <input class="code-input" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autocomplete="off" value={typed} onInput={(event) => (setTyped(event.currentTarget.value.replace(/\D/g, "").slice(0, 6)), setProblem(null))} />
+          <input class="code-input" data-autofocus type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autocomplete="off" value={typed} onInput={(event) => (setTyped(event.currentTarget.value.replace(/\D/g, "").slice(0, 6)), setProblem(null))} />
         </label>
         {problem && (
           <p class="problem" role="alert">

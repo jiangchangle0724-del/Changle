@@ -95,7 +95,10 @@ export function Sheet({ title, onClose, children, footer }: { title: string; onC
     const key = (event: KeyboardEvent) => event.key === "Escape" && close.current();
     window.addEventListener("popstate", back);
     document.addEventListener("keydown", key);
-    panel.current?.focus();
+    // focus goes into the sheet: to the field it asks for, if it has one, and never away from
+    // something inside it that already has it (a field someone is typing in)
+    const el = panel.current;
+    if (el && !el.contains(document.activeElement)) (el.querySelector<HTMLElement>("[data-autofocus]") ?? el).focus();
     return () => {
       window.removeEventListener("popstate", back);
       document.removeEventListener("keydown", key);
