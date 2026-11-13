@@ -55,6 +55,7 @@ Steve 定的：
   2. 「最佳前三」的排法写死（见方案「核心流程」第 3 步）。
   3. V1 只有发起人能去随便开桌，其他人看到「等发起人开桌」。
   Steve 的原话：「可以，建议完了直接开工」。
+- 2026-11-12：看过 A1 的截图后说「可以」。名字和路径就用约时间 · When Works、changle.ca/when，A1 合并。
 - 规矩照旧：一个改动一个分支一个 PR，CI 绿了自己合并，合完告诉 Steve 上线了什么；花钱、删数据、动 Cloudflare 或 GitHub 的设置和钥匙先问。
 
 这个对话定的（方案没写到的细节，Steve 可以改）：
@@ -76,7 +77,7 @@ Steve 定的：
 
 ## 现在
 
-2026-11-12：A0 上线了（#412：方案、档案、Codex 的卡、工具页上藏着的卡片）。A1 的代码做好了，在它的 PR 里；线上还打不开 changle.ca/when，因为新的 Worker 要 Steve 在 Cloudflare 接上（见「还剩什么」第一条）。
+2026-11-12：A0 上线了（#412：方案、档案、Codex 的卡、工具页上藏着的卡片）。A1 合并了（#417）；线上还打不开 changle.ca/when，因为新的 Worker 要 Steve 在 Cloudflare 接上（见「还剩什么」第一条）。
 
 A1 里有的：
 
@@ -94,8 +95,7 @@ A1 里没有的（都在后面的步骤里）：截止时间的界面（服务�
 
 - **等 Steve（动 Cloudflare 设置）**：在 Cloudflare 新建 Worker `when`，接上 GitHub。Workers & Pages，从这个仓库建（Workers Builds）：根目录 `tools/when`，构建命令 `npm run build`，部署命令 `npx wrangler deploy`，生产分支 `main`，只盯 `tools/when/*`。路由和两个 Durable Object 都写在 `wrangler.jsonc` 里，没有钥匙要填。接上以后合并到 main 就自己上线。
 - 接上以后这个对话要看一眼的：changle.ca/when 打得开；建一个活动走一遍；`_headers` 里给脚本和样式的一年缓存生效了没有。
-- 工作名和路径（约时间 · When Works、changle.ca/when）是方案的建议，Steve 没有改。路径上线后不好改，接 Cloudflare 之前再跟 Steve 确认一次。
-- C1 美术、C2 日历、C3 节假日：A1 的 PR 合并以后就可以发给 Codex（卡在 `docs/codex-tasks/when/`）。
+- C1 美术、C2 日历、C3 节假日：可以发给 Codex 了（卡和要发的那句话在 `docs/codex-tasks/when/`）。2026-11-12 把三句话给了 Steve，发没发、PR 号是多少，回来记在这里；每个 PR 由这个对话审。
 - A2：结果文案（中英文各一版，一键复制）、加到日历（用 C2）、「接着定吃什么还是玩什么」、带参数去随便（V1 只有发起人能去开桌）。
 - 关口：Steve 用两部手机（一部在微信里）建一个、填一个，2 分钟内走完；再拉 3 到 8 个朋友真约一次。过了把 `WHEN_ON_TAB` 改成 `true`，补工具页的两张参考截图。
 - A3（看朋友用过以后再定做哪些）：邀请图和结果图、截止时间和还差谁、催人文案、代填、一键快填、谁在看、节假日标注。
@@ -125,3 +125,4 @@ A1 里没有的（都在后面的步骤里）：截止时间的界面（服务�
 
 - 2026-11-12 建档案。方案是当天早些时候 Steve 和 Claude 聊出来的 Claude 文档，另一个对话读过仓库后往里加了 37 处修改建议；这个对话把关（Cloudflare 免费额度、KV 的延迟、BC 的时区、微信分享卡片和 Google 登录的限制，都对过官方来源），加了三处建议，Steve 说直接开工。这个对话是 Steve 在手机上开的，不在 changle.ca 的 Project 里；换对话接手时从这份档案接上。
 - 2026-11-12 #412 合并上线（A0）。同一天做完 A1：规则和房间 33 个测试、浏览器 6 个测试都过；本机用手机尺寸的 Chrome 开了 8 部手机走过一遍，看了截图。微信真机没法在这边试，列在「还剩什么」。
+- 2026-11-12 Steve 回「可以」：路径定下，#417 合并。等他在 Cloudflare 接上 Worker `when`。
