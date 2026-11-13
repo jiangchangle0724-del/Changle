@@ -42,7 +42,7 @@ with the card's own file and branch name in it. C1, C2 and C3 change different f
 at the same time.
 
 ```
-先把本机的 Changle 仓库更新到最新的 main。这张卡用自己的文件夹和分支：用 git worktree 从 origin/main 开分支 codex/when-c2-calendar，只在那个文件夹里做，别动别的文件夹和分支。
+本机的 Changle 仓库里别的对话正在干活，所以不要在原来的文件夹里切分支或改文件：只运行 git fetch origin，然后用 git worktree add 从 origin/main 开一个新文件夹和新分支 codex/when-c2-calendar，只在新文件夹里做。
 按 docs/codex-tasks/when/C2-calendar.md 做。先读 docs/codex-tasks/when/README.md 和 tools/when/src/engine/types.ts。只改卡上写的文件和测试，跑卡上的命令通过后再开 PR，PR 描述里用文字贴测试输出。不用开浏览器，也不要往 PR 里传图片。
 不要合并，不要推 main，不要部署；代码和提交里都不能出现任何密钥。
 ```
