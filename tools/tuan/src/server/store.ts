@@ -249,6 +249,58 @@ export async function weighOrder(db: D1Database, order: Order, weights: { itemId
   return done[1].meta.changes === 1;
 }
 
+// ---------- telling the merchant (src/server/notify.ts) ----------
+
+/** When a notice last went out for a group buy (0: never), or null when there's no such group buy. */
+export async function mailedAt(db: D1Database, offerId: string): Promise<number | null> {
+  const row = await db.prepare("SELECT mailed_at FROM offers WHERE id = ?").bind(offerId).first<{ mailed_at: number }>();
+  return row ? row.mailed_at : null;
+}
+
+/**
+ * The standing orders of a group buy its merchant hasn't been told of: the first `limit` of them
+ * (oldest first), how many there are, the place in line of the last one, and how many orders stand.
+ */
+export async function unnoticed(db: D1Database, offerId: string, limit: number): Promise<{ orders: Order[]; count: number; last: number; standing: number }> {
+  const fresh = "offer_id = ?1 AND noticed = 0 AND status != 'cancelled' ORDER BY seq LIMIT ?2";
+  const [orders, lines, counts] = await db.batch<Row>([
+    db.prepare(`SELECT ${ORDER_COLS} FROM orders WHERE ${fresh}`).bind(offerId, limit),
+    db.prepare(`SELECT ${LINE_COLS} FROM order_items WHERE order_code IN (SELECT code FROM orders WHERE ${fresh}) ORDER BY order_code, pos`).bind(offerId, limit),
+    db.prepare("SELECT COUNT(*) FILTER (WHERE noticed = 0) AS fresh, COALESCE(MAX(seq) FILTER (WHERE noticed = 0), 0) AS last, COUNT(*) AS standing FROM orders WHERE offer_id = ? AND status != 'cancelled'").bind(offerId),
+  ]);
+  const c = counts.results[0];
+  return { orders: withLines(orders.results, lines.results), count: num(c?.fresh), last: num(c?.last), standing: num(c?.standing) };
+}
+
+/** The merchant has been told of a group buy's orders: those up to a place in line, or (null) all of them. */
+export async function markNoticed(db: D1Database, offerId: string, upTo: number | null): Promise<void> {
+  await db.prepare("UPDATE orders SET noticed = 1 WHERE offer_id = ?1 AND noticed = 0 AND (?2 IS NULL OR seq <= ?2)").bind(offerId, upTo).run();
+}
+
+/** Take the group buy's turn to send a notice: true for one caller only, when two get here together. */
+export async function claimNotice(db: D1Database, offerId: string, seen: number, now: number): Promise<boolean> {
+  return (await db.prepare("UPDATE offers SET mailed_at = ?3 WHERE id = ?1 AND mailed_at = ?2").bind(offerId, seen, now).run()).meta.changes === 1;
+}
+
+/** Give the turn back: nothing went out. */
+export async function unclaimNotice(db: D1Database, offerId: string, now: number, seen: number): Promise<void> {
+  await db.prepare("UPDATE offers SET mailed_at = ?3 WHERE id = ?1 AND mailed_at = ?2").bind(offerId, now, seen).run();
+}
+
+/** The first accounts that run a shop, by email, in the order the owner listed them. */
+export async function membersOf(db: D1Database, shopId: string, limit: number): Promise<string[]> {
+  return (await db.prepare("SELECT email FROM shop_members WHERE shop_id = ? ORDER BY rowid LIMIT ?").bind(shopId, limit).all<{ email: string }>()).results.map((r) => r.email);
+}
+
+/** Group buys with orders their merchant hasn't been told of, and no notice since `before`. */
+export async function waitingOffers(db: D1Database, before: number, limit: number): Promise<string[]> {
+  const rows = await db
+    .prepare("SELECT f.id FROM offers f WHERE f.mailed_at <= ?1 AND EXISTS (SELECT 1 FROM orders o WHERE o.offer_id = f.id AND o.noticed = 0 AND o.status != 'cancelled') ORDER BY f.mailed_at LIMIT ?2")
+    .bind(before, limit)
+    .all<{ id: string }>();
+  return rows.results.map((r) => r.id);
+}
+
 // ---------- shops, and who runs them ----------
 
 /** Make a shop, or change the one at this address; the accounts that run it are replaced by the ones given. */
