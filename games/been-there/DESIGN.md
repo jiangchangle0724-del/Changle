@@ -276,7 +276,10 @@ which goes round the three, its marks saying which it is. The big screen always 
   shows where a token will land before it gets there), and stays on the board's edge rather than show
   the night past it. With the play window up over the bottom of the board, the token stands in the
   middle of the part the window leaves, as far as the board's edge lets it (`cover`: measured as the
-  window is laid out, and again as it grows or shrinks). A drag leaves it where the player put it until
+  window is laid out, and again as it grows or shrinks). The window is no taller than its question
+  needs, and never more than about half the screen (54%: a longer question scrolls inside it, its
+  answers held at its foot): your roll takes about 225 px of an iPhone 13's 664, the dice with one
+  line under them (shaking, and where building is; "your turn" is the banner over the board's). A drag leaves it where the player put it until
   the turn passes or a size is picked. A big rent pushes in on its city for 2.6 s, to 1.6 times at
   least, even at the size that shows the whole board (`look`).
   Moving it is one CSS transform on `.board-pan`, a frame round `.board-view`, written on the animation
@@ -625,6 +628,15 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   card, Immigration, an auction, a trade offer and going broke. iPhones can't buzz from a page: the
   buttons that matter most (the dice, buying, dancing) are a hidden switch inside a label, which
   Safari answers with its own light tap (`HapticBtn`), and the glow and the sounds carry the rest.
+* **Shake to roll** (`controls.ts`, `ShakeToRoll` in `ui/Decision.tsx`): while the dice are up,
+  three firm jolts within 0.6 s throw them. Android sends a page motion without asking. An iPhone
+  sends none until it has asked the player (运动与方向, Motion & Orientation), and it asks only when
+  the page asks straight from a tap: 开启摇一摇 under the dice, or 允许读动作 in the menu, call
+  `requestPermission` before anything else in the tap. Safari keeps the answer until it's closed, so
+  the page also asks as it opens, without a tap: that brings back a yes or a no it already has (and,
+  with none, fails without asking anything). A yes turns shaking on at once. After a no Safari won't
+  ask again until it has been closed and opened, so where the button was, 摇一摇没开，怎么开 says how
+  (open by itself after a tap that brought no yes, or no question at all).
 * **The screen stays on** (`wake.ts`): a phone set down between turns and the big screen keep a
   wake lock, asked for again when the page comes back.
 * **Full screen** (`fullscreen.ts`). Android, iPads and computers use the browser's own: the

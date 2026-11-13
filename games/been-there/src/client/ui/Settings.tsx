@@ -8,7 +8,7 @@ import { MAP_SIZES, prefs } from "../prefs";
 import { setMuted } from "../sound";
 import { getState, send, update } from "../store";
 import { setMapSize } from "./Board";
-import { Btn, Sheet } from "./common";
+import { Btn, Sheet, useShakeState } from "./common";
 import { Credits } from "./Credits";
 import { FullscreenGuide, useFullscreen } from "./Fullscreen";
 
@@ -104,6 +104,7 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
   const [guide, setGuide] = useState(false);
   const [watch, setWatch] = useState(false);
   const fs = useFullscreen();
+  const shake = useShakeState();
   const table = v && !v.settings.hotseat ? tableFrom(v) : null;
   if (guide) return <FullscreenGuide onClose={() => setGuide(false)} />;
   if (credits)
@@ -219,8 +220,16 @@ export function SettingsSheet({ v, onClose }: { v: RoomView | null; onClose: () 
             />
             <span>
               <b>{t("shakeSetting")}</b>
+              {shake === "ask" && <small>{t("shakeAsk")}</small>}
+              {shake === "no" && <small>{t("shakeFix")}</small>}
             </span>
           </label>
+        )}
+        {(shake === "ask" || shake === "no") && (
+          // (straight from the tap, so an iPhone puts up its question)
+          <Btn kind="ghost" onClick={() => void allowShake().then(refresh)}>
+            📳 {shake === "ask" ? t("shakeAllow") : t("shakeAgain")}
+          </Btn>
         )}
         <label class="radio">
           <input
