@@ -2103,6 +2103,83 @@ html.is-tv body::before {
   color: var(--color-text-2);
   font-size: var(--text-sm);
 }
+/* the two ways: hide Safari's toolbar (quickest), or the Home Screen (all the screen) */
+.home-way {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+}
+.home-way .icon {
+  flex: none;
+}
+.home-guide-text .home-quick {
+  padding-left: calc(var(--space-2) + 18px);
+}
+
+/* in a round on an iPhone in Safari: how to hide its bars, under the top bar on the left, clear of the scores */
+.bars-hint {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--bar-h) + var(--space-1));
+  left: max(var(--space-2), env(safe-area-inset-left));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: calc(100% - 2 * var(--gutter) - 168px);
+  padding-left: var(--space-3);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-float);
+  animation: fade-in var(--dur-enter) var(--ease-out) both;
+}
+.bars-hint-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+.bars-hint-icon {
+  display: inline-grid;
+  place-items: center;
+  margin: 0 var(--space-1);
+  padding: 1px var(--space-1);
+  border-radius: var(--r-small);
+  background: var(--color-bg);
+  color: var(--color-text);
+  vertical-align: middle;
+}
+.bars-hint-more,
+.bars-hint-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.bars-hint-more {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bars-hint {
+    animation: none;
+  }
+}
 .home-steps {
   display: grid;
   gap: 2px;

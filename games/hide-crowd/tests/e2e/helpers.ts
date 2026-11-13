@@ -23,11 +23,17 @@ const ANDROID_CHROME = "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537
  * project's device says). `iphone`: one that hasn't seen the Home Screen guide yet (every other phone
  * counts as having seen it); `android`: not an iPhone at all.
  */
-export async function phone(browser: Browser, name: string, lang: "zh" | "en" = "zh", extra: { cid?: string; size?: { width: number; height: number }; iphone?: boolean; android?: boolean } = {}): Promise<Page> {
+export async function phone(
+  browser: Browser,
+  name: string,
+  lang: "zh" | "en" = "zh",
+  extra: { cid?: string; size?: { width: number; height: number }; screen?: { width: number; height: number }; iphone?: boolean; android?: boolean } = {}
+): Promise<Page> {
   const isWebkit = browser.browserType().name() === "webkit";
   const context = await browser.newContext({
     ...PHONE,
     ...(extra.size ? { viewport: extra.size } : {}),
+    ...(extra.screen ? { screen: extra.screen } : {}),
     ...(isWebkit ? { isMobile: false } : {}),
     ...(extra.iphone ? { userAgent: IPHONE_SAFARI } : extra.android ? { userAgent: ANDROID_CHROME } : {}),
     locale: lang === "zh" ? "zh-CN" : "en-CA"

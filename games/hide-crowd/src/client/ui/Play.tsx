@@ -9,6 +9,7 @@ import { Arena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
 import { Icon, IconButton } from "./chrome";
 import { Controls } from "./Controls";
+import { BarsHint } from "./HomeScreen";
 import { MomentBanner, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden" };
@@ -73,6 +74,8 @@ export function Play(props: {
   fullscreen: { on: boolean; toggle: () => void } | null;
   /** the place's music too (practice: this phone is the only screen) */
   music?: boolean;
+  /** an iPhone in Safari: the full-screen guide, for the line about hiding Safari's bars */
+  fullGuide?: () => void;
   children?: ComponentChildren;
 }) {
   const { view, game, send } = props;
@@ -132,6 +135,7 @@ export function Play(props: {
         <Scoreboard view={view} target={game.scoreToWin} compact />
       </div>
       <MomentBanner game={game} />
+      {props.fullGuide && game.phase === "playing" && <BarsHint onMore={props.fullGuide} />}
       {notice && (
         <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" ? " is-bad" : notice.key === "hit" ? " is-good" : ""}`} role="status" key={notice.id}>
           {t(notice.key)}

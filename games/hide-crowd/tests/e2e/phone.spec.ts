@@ -1,5 +1,5 @@
 // One phone: practice against the computer, the screens a phone shows (sideways: an upright phone is
-// asked to turn), and an iPhone's Home Screen guide.
+// asked to turn), and an iPhone's ways to full screen (hide Safari's toolbar, or the Home Screen).
 import { expect, test } from "@playwright/test";
 import { bigTargets, newRoom, noErrors, noSideScroll, phone, shot, until } from "./helpers";
 
@@ -99,15 +99,17 @@ test("the penalty stamp fits a phone held sideways, Continue in reach", async ({
   noErrors(steve, mia);
 });
 
-test("an iPhone in Safari is shown, once by itself, how to put changle.ca on the Home Screen", async ({ browser, request }) => {
+test("an iPhone in Safari is shown, once by itself, how to play full screen: hide the toolbar, or the Home Screen", async ({ browser, request }) => {
   const code = await newRoom(request);
   const steve = await phone(browser, "Steve", "zh", { iphone: true });
   const mia = await phone(browser, "Mia", "en", { android: true });
   await steve.goto(`/hide/r/${code}?flat=1`);
   await mia.goto(`/hide/r/${code}?flat=1`);
   await expect(steve.locator(".lobby")).toBeVisible();
-  // by itself, the first time: the four taps, acted out
-  await expect(steve.locator(".sheet-title")).toHaveText("加到主屏幕，全屏玩");
+  // by itself, the first time: the quickest way (Safari's page menu), then the four taps to the Home Screen, acted out
+  await expect(steve.locator(".sheet-title")).toHaveText("iPhone 上全屏玩");
+  await expect(steve.locator(".home-way")).toHaveCount(2);
+  await expect(steve.locator(".home-quick")).toContainText("隐藏工具栏");
   await expect(steve.locator(".home-step")).toHaveCount(4);
   await expect(steve.locator(".mini-phone")).toBeVisible();
   await steve.waitForTimeout(2_800);
@@ -122,15 +124,47 @@ test("an iPhone in Safari is shown, once by itself, how to put changle.ca on the
   await expect(steve.locator(".lobby")).toBeVisible();
   await steve.waitForTimeout(1_500);
   await expect(steve.locator(".sheet")).toHaveCount(0);
-  await steve.getByRole("button", { name: "怎么加" }).click();
-  await expect(steve.locator(".sheet-title")).toHaveText("加到主屏幕，全屏玩");
+  await steve.getByRole("button", { name: "怎么做" }).click();
+  await expect(steve.locator(".sheet-title")).toHaveText("iPhone 上全屏玩");
   await steve.keyboard.press("Escape");
   await expect(steve.locator(".sheet")).toHaveCount(0);
   await steve.getByRole("button", { name: "更多" }).first().click();
-  await steve.getByRole("button", { name: "加到主屏幕，全屏玩" }).click();
+  await steve.getByRole("button", { name: "iPhone 上全屏玩" }).click();
   await expect(steve.locator(".home-guide")).toBeVisible();
   // a phone that isn't an iPhone has none of it
   await expect(mia.locator(".lobby")).toBeVisible();
   await expect(mia.getByText("Show me")).toHaveCount(0);
   noErrors(steve, mia);
+});
+
+test("in a round on an iPhone, while Safari's bars take part of the screen, a line says how to hide them", async ({ browser }) => {
+  // an iPhone 15 held sideways in Safari: 393 points of screen, 283 left under the toolbar and the tab bar
+  const steve = await phone(browser, "Steve", "zh", { iphone: true, size: { width: 852, height: 283 }, screen: { width: 393, height: 852 } });
+  await steve.goto("/hide/practice?flat=1");
+  await until(steve, (v) => v.phase === "playing" && !!v.game?.me);
+  const hint = steve.locator(".bars-hint");
+  await expect(hint).toContainText("隐藏工具栏");
+  await expect(hint.locator(".icon")).toHaveCount(2);
+  await bigTargets(steve);
+  await noSideScroll(steve);
+  await shot(steve, "phone-bars-hint");
+  // more ways: the whole guide
+  await hint.getByRole("button", { name: "更多办法" }).click();
+  await expect(steve.locator(".sheet-title")).toHaveText("iPhone 上全屏玩");
+  await steve.keyboard.press("Escape");
+  await expect(steve.locator(".sheet")).toHaveCount(0);
+  // closed for good: not in the next round either
+  await hint.getByRole("button", { name: "知道了" }).click();
+  await expect(steve.locator(".bars-hint")).toHaveCount(0);
+  await steve.reload();
+  await until(steve, (v) => v.phase === "playing" && !!v.game?.me);
+  await steve.waitForTimeout(800);
+  await expect(steve.locator(".bars-hint")).toHaveCount(0);
+  // with the bars hidden (the whole screen's height), there's nothing to say
+  const full = await phone(browser, "Mia", "zh", { iphone: true, size: { width: 852, height: 393 }, screen: { width: 393, height: 852 } });
+  await full.goto("/hide/practice?flat=1");
+  await until(full, (v) => v.phase === "playing" && !!v.game?.me);
+  await full.waitForTimeout(800);
+  await expect(full.locator(".bars-hint")).toHaveCount(0);
+  noErrors(steve, full);
 });
