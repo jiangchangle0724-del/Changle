@@ -1,6 +1,6 @@
 // Two phones and a big screen: joining, the vote, a round with a tag, the penalty, and playing again.
 import { expect, test } from "@playwright/test";
-import { newRoom, noErrors, noSideScroll, phone, screen, shot, until, view } from "./helpers";
+import { bigTargets, newRoom, noErrors, noSideScroll, phone, screen, shot, until, view } from "./helpers";
 
 test("two phones join, vote and play a round: a tag scores, the most spotted takes the penalty, the host plays again", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { duel: true, roundMs: 9_000 } });
@@ -128,4 +128,41 @@ test("the night market: standing still at a stall tastes it, the stall lights up
   await expect(tv.locator(".moment-banner")).toContainText("放烟花了");
   await shot(tv, "tv-market-fireworks");
   noErrors(steve, mia, tv);
+});
+
+test("Distract, twice a round: a passer-by across the crowd swings at nothing, and only you are told", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { roundMs: 30_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en");
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await steve.getByRole("button", { name: "开始" }).click();
+  await until(mia, (v) => v.phase === "playing");
+  const distract = steve.getByRole("button", { name: "分心，还剩 2 次" });
+  await expect(distract).toBeVisible();
+  await bigTargets(steve);
+  // (the swing is over in under half a second: Mia's page watches for it itself)
+  await mia.evaluate(() => {
+    const page = window as unknown as { __hide?: { game?: { avatars: { p: string }[] } }; __swung?: boolean };
+    page.__swung = false;
+    const timer = window.setInterval(() => {
+      if (page.__hide?.game?.avatars.some((a) => a.p === "windup" || a.p === "punch")) {
+        page.__swung = true;
+        window.clearInterval(timer);
+      }
+    }, 15);
+  });
+  await distract.dispatchEvent("pointerdown");
+  await expect(steve.locator(".play-notice")).toHaveText("人群另一头有人挥了一拳，大家都在看那边");
+  await expect(steve.getByRole("button", { name: "分心，还剩 1 次" })).toBeVisible();
+  await shot(steve, "phone-distract");
+  // the others see a passer-by swing, and nothing more
+  await expect.poll(() => mia.evaluate(() => (window as unknown as { __swung?: boolean }).__swung)).toBe(true);
+  expect((await view(mia))!.game!.events.some((e) => e.t === "decoy")).toBe(false);
+  await expect(mia.locator(".play-notice")).toHaveCount(0);
+  await steve.getByRole("button", { name: "分心，还剩 1 次" }).dispatchEvent("pointerdown");
+  await expect(steve.getByRole("button", { name: "分心，还剩 0 次" })).toHaveAttribute("aria-disabled", "true");
+  noErrors(steve, mia);
 });

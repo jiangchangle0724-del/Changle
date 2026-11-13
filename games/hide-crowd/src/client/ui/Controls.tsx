@@ -1,5 +1,5 @@
-// The phone in your hand: a stick under the left thumb, Punch and Blend in under the right. Also the
-// keyboard (arrows or WASD, Space, Shift) and a gamepad (left stick, A, X).
+// The phone in your hand: a stick under the left thumb, Punch, Blend in and Distract under the right.
+// Also the keyboard (arrows or WASD, Space, Shift, E) and a gamepad (left stick, A, X, Y).
 // Thumbs tap fast: nothing here may zoom, scroll, select or pop a menu. A button waiting for its
 // move to come back stays a live target (aria-disabled, not disabled), so a quick second tap still
 // lands on it and is kept from the browser, instead of falling through as a double tap that zooms.
@@ -20,7 +20,7 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
   const vectorRef = useRef(vector);
   const lastSent = useRef<{ v: Vec; at: number }>({ v: ZERO, at: 0 });
   const heldKeys = useRef(new Set<string>());
-  const gamepadButtons = useRef({ punch: false, blend: false });
+  const gamepadButtons = useRef({ punch: false, blend: false, distract: false });
   const gamepadDriving = useRef(false);
   const { send, onVector } = props;
   vectorRef.current = vector;
@@ -88,9 +88,9 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
         event.preventDefault();
         heldKeys.current.add(key);
         keysVector();
-      } else if (!event.repeat && (key === "Shift" || key === " ") && !(event.target instanceof HTMLButtonElement)) {
+      } else if (!event.repeat && (key === "Shift" || key === " " || key === "e") && !(event.target instanceof HTMLButtonElement)) {
         event.preventDefault();
-        send({ t: key === "Shift" ? "blend" : "punch" });
+        send({ t: key === "Shift" ? "blend" : key === "e" ? "distract" : "punch" });
       }
     };
     const keyUp = (event: KeyboardEvent) => {
@@ -140,7 +140,7 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
     const timer = window.setInterval(() => {
       const pad = Array.from(navigator.getGamepads()).find((candidate) => candidate?.connected);
       if (!pad) {
-        gamepadButtons.current = { punch: false, blend: false };
+        gamepadButtons.current = { punch: false, blend: false, distract: false };
         if (gamepadDriving.current) {
           gamepadDriving.current = false;
           apply(ZERO);
@@ -153,14 +153,16 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
       const y = Math.max(-1, Math.min(1, axis(pad.axes[1] ?? 0) + dpadY));
       const punch = Boolean(pad.buttons[0]?.pressed);
       const blend = Boolean(pad.buttons[2]?.pressed);
-      const active = Math.hypot(x, y) > 0 || punch || blend;
+      const distract = Boolean(pad.buttons[3]?.pressed);
+      const active = Math.hypot(x, y) > 0 || punch || blend || distract;
       if (active || gamepadDriving.current) {
         gamepadDriving.current = active;
         apply({ x, y });
       }
       if (punch && !gamepadButtons.current.punch) send({ t: "punch" });
       if (blend && !gamepadButtons.current.blend) send({ t: "blend" });
-      gamepadButtons.current = { punch, blend };
+      if (distract && !gamepadButtons.current.distract) send({ t: "distract" });
+      gamepadButtons.current = { punch, blend, distract };
     }, 50);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -168,6 +170,7 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
 
   const punchReady = props.now >= props.me.punchReadyAt;
   const blendReady = props.now >= props.me.blendReadyAt;
+  const distracts = props.me.distracts ?? 0;
   return (
     <div class="controls" ref={root}>
       <div
@@ -189,20 +192,40 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
         <span class="stick__knob" aria-hidden="true" style={{ transform: `translate(${vector.x * 36}px, ${vector.y * 36}px)` }} />
       </div>
       <div class="moves">
-        <button
-          type="button"
-          class={`move-btn move-blend${blendReady ? "" : " is-waiting"}`}
-          aria-disabled={!blendReady}
-          onPointerDown={(event) => {
-            event.preventDefault();
-            if (blendReady) send({ t: "blend" });
-          }}
-          onClick={(event) => {
-            if (event.detail === 0 && blendReady) send({ t: "blend" });
-          }}
-        >
-          {t(blendReady ? "blend" : "wait")}
-        </button>
+        <div class="moves-side">
+          <button
+            type="button"
+            class={`move-btn move-distract${distracts > 0 ? "" : " is-waiting"}`}
+            aria-disabled={distracts <= 0}
+            aria-label={t("distractLeft", { n: distracts })}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              if (distracts > 0) send({ t: "distract" });
+            }}
+            onClick={(event) => {
+              if (event.detail === 0 && distracts > 0) send({ t: "distract" });
+            }}
+          >
+            <span>{t("distract")}</span>
+            <b class="move-count tabular" aria-hidden="true">
+              {distracts}
+            </b>
+          </button>
+          <button
+            type="button"
+            class={`move-btn move-blend${blendReady ? "" : " is-waiting"}`}
+            aria-disabled={!blendReady}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              if (blendReady) send({ t: "blend" });
+            }}
+            onClick={(event) => {
+              if (event.detail === 0 && blendReady) send({ t: "blend" });
+            }}
+          >
+            {t(blendReady ? "blend" : "wait")}
+          </button>
+        </div>
         <button
           type="button"
           class={`move-btn move-punch${punchReady ? "" : " is-waiting"}`}

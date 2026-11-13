@@ -188,7 +188,7 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
   const [rules, setRules] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [stampSeen, setStampSeen] = useState(0);
-  const landed = useLanded(view?.phase === "over", view?.result?.round ?? 0);
+  const landed = useLanded(view?.phase === "over", view?.result?.round ?? 0, !!view?.result?.winner);
   const fullscreen = useFullscreen();
   const upright = useUpright();
   // an iPhone: no full screen for a page, so the Home Screen guide (by itself once, in a lobby held sideways)

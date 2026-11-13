@@ -13,7 +13,8 @@
 // way to score (like the side quests in some places of the Steam game this one was modelled on, where
 // collecting things scores): taste the four snack stalls along the back, lingering a moment at each,
 // for 2 points. Passers-by browse the stalls too, but only a player's bite makes a stall light up for
-// everyone. First to 3 points, or the most after 75 s.
+// everyone. Twice a round a player can distract everyone (as in the Steam game): a passer-by across the
+// crowd throws a punch at nothing, and every eye goes there. First to 3 points, or the most after 75 s.
 
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
 export const MATCH_MS = 75_000;
@@ -47,6 +48,12 @@ export const STALL_REACH = { halfWidth: 4.5, depth: 6 } as const;
 export const BITE_MS = 1_200;
 /** All four stalls tasted. */
 export const FEAST_POINTS = 2;
+/** How many times a round a player can distract everyone (a passer-by across the crowd throws a punch at nothing). */
+export const DISTRACTS = 2;
+/** The passer-by who throws it is at least this far from the player. */
+export const DECOY_DISTANCE = 22;
+/** The passer-by's swing: the wind-up, the punch, and a beat standing after it, as a player's would look. */
+export const DECOY_MS = PUNCH_WINDUP_MS + 220 + 420;
 const ALL_STALLS = (1 << 4) - 1;
 
 /** The stall a spot is in front of, or -1. */
@@ -91,6 +98,10 @@ export interface Character {
   /** the stall this body is standing at to taste, and since when (-1: none) */
   biteStall: number;
   biteSince: number;
+  /** a player: distractions left this round */
+  distracts: number;
+  /** a passer-by throwing a punch at nothing for someone's distraction: since when (null: not) */
+  decoyAt: number | null;
   pose: Pose;
   npcStyle: number;
   npcOffset: number;
@@ -133,11 +144,12 @@ export interface Plan {
 
 /**
  * tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away;
- * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points; over: the round ended
+ * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points;
+ * decoy: a player's distraction (only they hear of it); over: the round ended
  */
 export interface MatchEvent {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "over";
   actor: string | null;
   target: string | null;
   /** bite: the stall */
@@ -180,6 +192,7 @@ const IDENTITY = [
   "bites",
   "snacks",
   "feasts",
+  "distracts",
   "npcStyle",
   "npcOffset",
   "attackResolveAt",
@@ -284,6 +297,8 @@ function blankCharacter(fields: Pick<Character, "id" | "ownerId" | "name" | "kin
     feasts: 0,
     biteStall: -1,
     biteSince: 0,
+    distracts: fields.kind === "player" ? DISTRACTS : 0,
+    decoyAt: null,
     pose: "idle",
     attackResolveAt: null,
     attackResolved: false,
@@ -383,6 +398,30 @@ export function startPunch(state: MatchState, ownerId: string, now: number): Mat
   copy.attackResolved = false;
   copy.cooldownUntil = now + PUNCH_COOLDOWN_MS;
   copy.pose = "windup";
+  return next;
+}
+
+/**
+ * A distraction: a passer-by well away from the player (DECOY_DISTANCE or more) throws a punch at
+ * nothing, so every eye in the room goes there. Twice a round; only the player hears of it.
+ */
+export function startDistract(state: MatchState, ownerId: string, now: number): MatchState {
+  if (state.phase !== "playing") return state;
+  const actor = characterForOwner(state, ownerId);
+  if (!actor || (actor.distracts ?? 0) <= 0 || now < actor.stunnedUntil || actor.hideAt !== null) return state;
+  const free = (body: Character) => body.decoyAt === null || body.decoyAt === undefined || now > body.decoyAt + DECOY_MS;
+  const candidates = state.characters.filter(
+    (body) => body.kind === "npc" && now >= body.stunnedUntil && free(body) && Math.hypot(body.x - actor.x, body.y - actor.y) >= DECOY_DISTANCE
+  );
+  if (!candidates.length) return state;
+  const pick = candidates[Math.floor(seeded(Math.imul(state.seed, 31) + now)() * candidates.length)];
+  const next = { ...state, events: [...state.events], characters: state.characters.map((character) => (character.id === actor.id || character.id === pick.id ? { ...character } : character)) };
+  const copy = characterForOwner(next, ownerId)!;
+  copy.distracts = (copy.distracts ?? 0) - 1;
+  const decoy = next.characters.find((character) => character.id === pick.id)!;
+  decoy.decoyAt = now;
+  decoy.pose = "windup";
+  addEvent(next, "decoy", ownerId, null);
   return next;
 }
 
@@ -784,10 +823,13 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     let rawInput: Vector;
     let pace = 1;
     let step: CrowdStep | null = null;
+    // a passer-by throwing a punch at nothing (someone's distraction) stands where it is to throw it
+    const decoying = character.decoyAt !== null && character.decoyAt !== undefined && now < character.decoyAt + DECOY_MS;
+    if (character.decoyAt !== null && character.decoyAt !== undefined && !decoying) character.decoyAt = null;
     if (character.kind === "npc") {
       step = crowdStep(character, state.characters, state, now);
       character.plan = step.plan;
-      rawInput = step.heading;
+      rawInput = decoying ? { x: 0, y: 0 } : step.heading;
       pace = step.pace;
     } else rawInput = inputs[character.ownerId ?? ""] ?? { x: 0, y: 0 };
     const vector = normalizeVector(rawInput);
@@ -831,6 +873,7 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       character.pose = "punch";
       resolvePunch(next, character, now);
     } else if (character.attackResolved && character.attackResolveAt !== null && now <= character.attackResolveAt + 220) character.pose = "punch";
+    else if (decoying) character.pose = now < character.decoyAt! + PUNCH_WINDUP_MS ? "windup" : now <= character.decoyAt! + PUNCH_WINDUP_MS + 220 ? "punch" : "idle";
     else if (dancing && !walking) character.pose = "dance";
     else if (blended) character.pose = "glance";
     else if (moving) character.pose = "walk";

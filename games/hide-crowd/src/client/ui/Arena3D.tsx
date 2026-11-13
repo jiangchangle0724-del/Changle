@@ -13,6 +13,7 @@ import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type PeopleKit } from "../people";
 import { addEnvironmentalLandmarks } from "./landmarks";
+import { addCinema } from "./cinema";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
@@ -34,6 +35,8 @@ interface Props {
   flash?: { id: number; stall: number; feast: boolean } | null;
   /** the crowd's moment, while it lasts (the night market's fireworks go up in it) */
   moment?: { kind: MomentKind } | null;
+  /** the round has just begun on this screen: open on the camera's sweep into the game's view */
+  intro?: boolean;
   label: string;
   youLabel: string;
   fallback: ComponentChildren;
@@ -807,7 +810,15 @@ export function Arena3D(props: Props) {
     const ruleMarks = addRuleMarks(scene, props.arena, palette);
     // (the night market's lights, its stalls' pools and its fireworks stay whichever set is showing)
     const market: Market | null = props.arena === "market" ? addMarket(scene, marketPalette(palette), ambient, key, fill) : null;
+    // (the opening sweep, the move to the winner and the confetti stay whichever set is showing)
+    const cinema = addCinema(scene, [palette.me, palette.accent, palette.warn, palette.stall1, palette.stall2, palette.ink], !!props.intro);
     const environmentStart = new Set(scene.children);
+    const viewEye = new THREE.Vector3();
+    const viewLook = new THREE.Vector3();
+    /** how near the camera has come (1: the game's view): the names keep their size on screen */
+    let tagZoom = 1;
+    /** the last frame's round was over (the names were out): when they go, the next round has begun */
+    let wasOver = false;
     addVenue(scene, props.arena, palette);
     addEnvironmentalLandmarks(scene, props.arena, palette);
     const fallbackVenue = new THREE.Group();
@@ -949,7 +960,7 @@ export function Arena3D(props: Props) {
     };
     const paintMarker = () => paintPill(markerContext, markerTexture, palette.me, palette.onMe, youLabel.current);
     // once the round is over: every player's name over the body they were (the winner's in the gel)
-    const tags: { sprite: THREE.Sprite; context: CanvasRenderingContext2D | null; texture: THREE.CanvasTexture; painted: string }[] = [];
+    const tags: { sprite: THREE.Sprite; context: CanvasRenderingContext2D | null; texture: THREE.CanvasTexture; painted: string; winner: boolean }[] = [];
     /** a name's size on screen, in the projection's units (-1 to 1 across), measured once the camera is framed */
     const tagSize = new THREE.Vector2(0.3, 0.1);
     const measureTags = () => {
@@ -968,7 +979,7 @@ export function Arena3D(props: Props) {
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
         sprite.scale.set(2.4, 0.6, 1);
         scene.add(sprite);
-        tags[slot] = { sprite, context: tagCanvas.getContext("2d"), texture, painted: "" };
+        tags[slot] = { sprite, context: tagCanvas.getContext("2d"), texture, painted: "", winner: false };
       }
       return tags[slot];
     };
@@ -1122,6 +1133,7 @@ export function Arena3D(props: Props) {
       const predictionSeconds = prediction / 1000;
       const clock = reduced ? 0 : time / 1000;
       let localVisual: Visual | undefined;
+      let winnerVisual: Visual | undefined;
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
         let worldX = avatar.x;
@@ -1208,6 +1220,7 @@ export function Arena3D(props: Props) {
           writeInstance(standInHeads, index, dummy, visual.x, 1.62 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1);
         }
         if (avatar.me) localVisual = visual;
+        if (avatar.w) winnerVisual = visual;
         if (avatar.n !== undefined) {
           const tag = tagAt(tagCount++);
           const key = (avatar.w ? "1" : "0") + avatar.n;
@@ -1215,15 +1228,18 @@ export function Arena3D(props: Props) {
             paintPill(tag.context, tag.texture, avatar.w ? palette.me : palette.surface, avatar.w ? palette.onMe : palette.ink, avatar.n);
             tag.painted = key;
           }
-          tag.sprite.position.set(visual.x, MARKER_Y, visual.z);
+          tag.sprite.position.set(visual.x, 2.3 + (MARKER_Y - 2.3) * tagZoom, visual.z);
+          tag.sprite.scale.set(2.4 * tagZoom, 0.6 * tagZoom, 1);
+          tag.winner = !!avatar.w;
           tag.sprite.visible = true;
         }
       }
       for (let index = tagCount; index < tags.length; index++) tags[index].sprite.visible = false;
-      // names close together stack instead of covering each other (front first, the others lift)
+      // names close together stack instead of covering each other (the winner's first, then front to
+      // back: the others lift)
       if (tagCount > 1) {
         const placed: THREE.Vector3[] = [];
-        const order = tags.slice(0, tagCount).sort((a, b) => b.sprite.position.z - a.sprite.position.z);
+        const order = tags.slice(0, tagCount).sort((a, b) => Number(b.winner) - Number(a.winner) || b.sprite.position.z - a.sprite.position.z);
         for (const tag of order) {
           for (let lift = 0; lift < tagCount; lift++) {
             const here = tag.sprite.position.clone().project(camera);
@@ -1232,7 +1248,7 @@ export function Arena3D(props: Props) {
               placed.push(here);
               break;
             }
-            tag.sprite.position.y += 0.62;
+            tag.sprite.position.y += 0.62 * tagZoom;
           }
         }
       }
@@ -1282,8 +1298,15 @@ export function Arena3D(props: Props) {
       // the kick: in toward the floor and back, in a third of a second
       const kickAge = time - kickAt;
       const kick = kickAt && kickAge < 340 && !reduced ? Math.sin(Math.min(1, kickAge / 70) * (Math.PI / 2)) * (1 - kickAge / 340) * 0.045 : 0;
-      camera.position.set(eye.x + shake + (look.x - eye.x) * kick, eye.y + Math.abs(shake) * 0.34 + (look.y - eye.y) * kick, eye.z + (look.z - eye.z) * kick);
-      camera.lookAt(look.x + shake, look.y - shake * 0.22, look.z);
+      // the opening sweep, or the move to the winner; then the blow's shake and kick on top
+      if (wasOver && !over) cinema.restart();
+      wasOver = over;
+      if (over) cinema.ending(time, winnerVisual ? { x: winnerVisual.x, z: winnerVisual.z } : null, reduced);
+      cinema.update(time, delta);
+      cinema.shot(time, eye, look, reduced, viewEye, viewLook);
+      camera.position.set(viewEye.x + shake + (viewLook.x - viewEye.x) * kick, viewEye.y + Math.abs(shake) * 0.34 + (viewLook.y - viewEye.y) * kick, viewEye.z + (viewLook.z - viewEye.z) * kick);
+      camera.lookAt(viewLook.x + shake, viewLook.y - shake * 0.22, viewLook.z);
+      tagZoom = Math.min(1, viewEye.distanceTo(viewLook) / Math.max(0.001, eye.distanceTo(look)));
       renderer.render(scene, camera);
       draws = renderer.info.render.calls;
       fpsWorkMs += performance.now() - workStartedAt;
@@ -1316,6 +1339,7 @@ export function Arena3D(props: Props) {
       groundTexture.dispose();
       ruleMarks.dispose();
       market?.dispose();
+      cinema.dispose();
       shadowTexture.dispose();
       renderer.dispose();
     };

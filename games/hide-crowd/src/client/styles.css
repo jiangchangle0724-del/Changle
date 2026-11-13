@@ -989,7 +989,7 @@ button.arena-option:active {
   padding: 0 var(--gutter);
 }
 
-/* the stick and the two moves */
+/* the stick and the three moves */
 .controls {
   grid-area: controls;
   z-index: 4;
@@ -1064,6 +1064,40 @@ button.arena-option:active {
   background: var(--color-raised);
   color: var(--color-text-3);
   box-shadow: none;
+}
+/* Distract sits over Blend in, smaller: twice a round, its count in a dot on its shoulder */
+.moves-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.move-distract {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  background: var(--color-raised);
+  font-size: var(--text-xs);
+  box-shadow: inset 0 0 0 1.5px var(--color-line);
+}
+.move-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--on-gel);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+.move-distract.is-waiting .move-count {
+  background: var(--color-line);
+  color: var(--color-text-3);
 }
 
 /* sideways (how it's meant to be played): the arena fills the screen, everything floats over it */

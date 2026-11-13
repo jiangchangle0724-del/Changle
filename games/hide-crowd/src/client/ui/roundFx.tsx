@@ -46,6 +46,9 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
       } else if (event.t === "feast" && (screen || event.byYou)) {
         sfx.feast();
         if (event.byYou) buzz([30, 40, 30]);
+      } else if (event.t === "decoy" && event.byYou) {
+        // (only its maker hears of a distraction)
+        sfx.psst();
       }
     }
   }, [game.events]);
@@ -75,7 +78,10 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
   }, [seconds]);
 }
 
-type Blow = Exclude<EventView["t"], "bite" | "feast">;
+/** a screen that shows a round within this long of its start opens on the camera's sweep (Arena3D) */
+export const INTRO_WINDOW_MS = 2_500;
+
+type Blow = Exclude<EventView["t"], "bite" | "feast" | "decoy">;
 
 /**
  * What the arena shows of the round's events: the latest blow (the shake, how a body falls), and the
@@ -89,7 +95,7 @@ export function arenaEvents(game: GameView): { impactId: number; impactType: Blo
     const event = game.events[index];
     if (event.t === "bite") bite ??= event;
     else if (event.t === "feast") feast = bite ? feast : event.id;
-    else blow ??= event;
+    else if (event.t !== "decoy") blow ??= event;
   }
   return {
     impactId: blow?.id ?? 0,

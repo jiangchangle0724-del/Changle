@@ -21,6 +21,7 @@ import {
   roundAwards,
   roundPenalty,
   startBlend,
+  startDistract,
   startPunch,
   type ArenaId,
   type AwardKey,
@@ -292,11 +293,13 @@ export class Room {
         return;
       }
       case "punch":
-      case "blend": {
+      case "blend":
+      case "distract": {
         if (!this.playing || !this.inRound(id)) return;
         this.advance(now);
         if (!this.st.game || this.st.game.phase !== "playing") return;
-        this.st.game = message.t === "punch" ? startPunch(this.st.game, id, now) : startBlend(this.st.game, id, now);
+        const start = message.t === "punch" ? startPunch : message.t === "blend" ? startBlend : startDistract;
+        this.st.game = start(this.st.game, id, now);
         return;
       }
       case "vote": {
@@ -459,7 +462,8 @@ export class Room {
           }
           return avatar;
         }),
-        events: game.events.map((event) => {
+        // (a distraction is heard of only by whoever made it: everyone else just sees a passer-by swing)
+        events: game.events.filter((event) => event.t !== "decoy" || (!!mine && event.actor === id)).map((event) => {
           const item: EventView = { id: event.id, t: event.t, byYou: !!mine && event.actor === id, onYou: !!mine && event.target === id };
           // (which stall was tasted is for everyone; who tasted it, only for them)
           if (event.stall !== undefined) item.stall = event.stall;
@@ -470,6 +474,7 @@ export class Room {
               punchReadyAt: mine.cooldownUntil,
               blendReadyAt: mine.blendCooldownUntil,
               maxSpeed: r2(characterMaxSpeed(mine, game.arena, now)),
+              distracts: mine.distracts ?? 0,
               bites: mine.bites ?? 0,
               at: mine.biteStall ?? -1,
               tasting: mine.biteStall >= 0 && mine.biteStall !== undefined ? r2(Math.min(1, (now - mine.biteSince) / BITE_MS)) : 0

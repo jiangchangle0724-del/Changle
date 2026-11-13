@@ -5,7 +5,8 @@
 // fireworks a beat after it like everyone and turn to look at a knockdown near them, go after anyone
 // who gives themselves away (punching, walking on through a moment, running on and on: passers-by run
 // too, but only for a moment, or standing at a stall just as it lights up), and sometimes get it
-// wrong. No server, no penalty.
+// wrong: a passer-by throwing a punch at nothing (someone's distraction) fools them as it would a
+// person. Each uses one distraction a round itself. No server, no penalty.
 import { ARENAS, crowdMoment, crowdStep, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
 import type { ArenaId } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
@@ -22,6 +23,8 @@ const WILD_SWING = 0.12;
 interface Brain {
   id: string;
   style: number;
+  /** when it uses one of its distractions (once a round, somewhere in the middle) */
+  distractAt: number;
   /** what it's up to, the way a passer-by plans it */
   plan: Plan | null;
   nextLook: number;
@@ -51,6 +54,9 @@ function stroll(brain: Brain, body: Character, game: MatchState, now: number): V
   return { x: step.heading.x * scale, y: step.heading.y * scale };
 }
 
+/** a rival's distraction comes 12 to 55 s into a round */
+const distractDelay = () => 12_000 + Math.random() * 43_000;
+
 export function openPractice(lang: Lang, name: string, onMessage: (message: ServerMsg) => void, onStatus: (status: ConnectionState) => void): RoomConnection {
   const start = Date.now();
   const room = Room.create("0000", start, Math.floor(Math.random() * 0x7fffffff));
@@ -60,7 +66,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
   for (let index = 0; index < RIVALS; index++) {
     const id = `practice-computer-${index + 1}`;
     room.join(id, lang === "zh" ? `电脑 ${index + 1}` : `Computer ${index + 1}`, lang, "player", start + index + 1);
-    brains.push({ id, style: index % 3, plan: null, nextLook: start + 1_500 + index * 400, chasing: null, chaseUntil: 0 });
+    brains.push({ id, style: index % 3, plan: null, nextLook: start + 1_500 + index * 400, chasing: null, chaseUntil: 0, distractAt: start + distractDelay() });
   }
   room.claimHost(start);
   // ?arena=market on the address practises one place every round (otherwise they take turns)
@@ -145,6 +151,11 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
         });
         if (front && Math.random() < WILD_SWING) room.handle(brain.id, { t: "punch" }, now);
       }
+      // once a round, somewhere in the middle: a distraction (a passer-by across the crowd swings at nothing)
+      if (now >= brain.distractAt) {
+        brain.distractAt = Infinity;
+        room.handle(brain.id, { t: "distract" }, now);
+      }
       room.setInput(brain.id, input, now);
     }
   };
@@ -168,6 +179,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
         suspicion.clear();
         runningFor.clear();
         seenEvent = 0;
+        for (const brain of brains) brain.distractAt = now + distractDelay();
         room.handle(ME, { t: "lobby" }, now);
         room.handle(ME, { t: "start" }, now);
       } else room.handle(ME, message, now);
