@@ -4,7 +4,7 @@
  * audio clock, and grooves can start on a shared wall-clock moment so every phone at an online
  * table lands on the same beat.
  */
-import { bus, clap, crash, ctxTimeAt, hat, kick, midiHz, note, shaker, snare, tom, burst, type Bus, type Inst } from "./audio/engine";
+import { bus, clap, crash, ctxTimeAt, hat, kick, midiHz, note, onAudioReset, shaker, snare, tom, burst, type Bus, type Inst } from "./audio/engine";
 
 type Hits = number[]; // 16 velocities (0 = silent)
 export const v = (s: string): Hits => s.split("").map((ch) => (ch === "." ? 0 : ch === "x" ? 1 : ch === "o" ? 0.55 : ch === "-" ? 0.3 : 0));
@@ -368,13 +368,25 @@ function playSet(m: NightSet): SetPlayer | null {
       if (dead) return;
       dead = true;
       window.clearInterval(timer);
-      const t = b.c.currentTime;
-      out.gain.cancelScheduledValues(t);
-      out.gain.setTargetAtTime(0, t, fade);
+      try {
+        const t = b.c.currentTime;
+        out.gain.cancelScheduledValues(t);
+        out.gain.setTargetAtTime(0, t, fade);
+      } catch {
+        /* a context being replaced */
+      }
       window.setTimeout(() => out.disconnect(), 2500);
     },
   };
 }
+
+// a context an iPhone wouldn't bring back is replaced (engine.ts): the set starts again on the new one
+onAudioReset(() => {
+  if (!background) return;
+  background.stop(0);
+  background = null;
+  if (wanted && !holds) startBackground();
+});
 
 export function startBackground() {
   wanted = true;
