@@ -234,6 +234,8 @@ const roster = five.members.map((x) => x.id);
   eq([(out.entries[2] as Expense).gone, expensesOf(out).length, nextRot(out)], [99, 2, nextRot(l)], "an expense taken out counts for nothing, and nobody else's odd cent moves");
   eq(JSON.stringify(putBack(out, "e3")) === JSON.stringify(l), true, "put back, the ledger is as it was");
   ok(!("gone" in putBack(out, "e3").entries[2]), "with no mark left on it");
+  const outAtZero = takeOut(l, "e3", 0);
+  eq([(outAtZero.entries[2] as Expense).gone, expensesOf(outAtZero).length, balances(outAtZero)], [0, 2, balances(out)], "taken out at time 0 is taken out all the same");
 
   const paid = addTransfer(l, { id: "t1", at: 5, from: "j", to: "w", amount: 7750 });
   eq(paid.entries.length, 4, "a transfer goes in");
@@ -335,6 +337,8 @@ const roster = five.members.map((x) => x.id);
   eq(parseSaved(damaged), saved, "a damaged record keeps every ledger, person and entry that is still whole, and drops the rest");
   const odd = parseSaved(JSON.stringify({ ledgers: [{ ...l, entries: [{ kind: "expense", id: "e", at: 1, payer: "zz", amount: -5, note: "", rot: 0, split: { how: "equal", among: [] } }] }], me: {} })).ledgers[0];
   eq([odd.entries.length, expensesOf(odd).length, Object.values(balances(odd)).every((n) => n === 0)], [1, 0, true], "an entry that has the shape but isn't sound is kept and counts for nothing");
+  const zero = parseSaved(JSON.stringify({ ledgers: [{ ...l, entries: l.entries.map((e) => ({ ...e, gone: 0 })) }], me: {} })).ledgers[0];
+  eq([zero.entries.length, expensesOf(zero).length, settlement(zero).clear, Object.values(balances(zero)).every((n) => n === 0)], [2, 0, true, true], "entries saved as taken out at time 0 come back taken out, and count for nothing");
 
   const ids = Array.from({ length: 2000 }, newId);
   ok(ids.every((id) => /^[A-Za-z0-9_-]{22}$/.test(id)), "a new id is 22 letters, digits, - or _: it fits an address (src/router.ts takes 6 to 64 of them)");

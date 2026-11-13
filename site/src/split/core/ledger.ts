@@ -60,16 +60,19 @@ export const soundTransfer = (t: Pick<Transfer, "from" | "to" | "amount">, roste
 
 const rosterOf = (l: Ledger) => l.members.map((m) => m.id);
 
+/** Still in the ledger: `gone` holds no time at all. (Any number is a time it was taken out, 0 too.) */
+const kept = (e: { gone?: number }) => e.gone === undefined;
+
 /** The expenses that count: not taken out, and sound. */
 export const expensesOf = (l: Ledger): Expense[] => {
   const roster = rosterOf(l);
-  return l.entries.filter((e): e is Expense => e.kind === "expense" && !e.gone && !problem(e, roster));
+  return l.entries.filter((e): e is Expense => e.kind === "expense" && kept(e) && !problem(e, roster));
 };
 
 /** The transfers that count: not taken out, and sound. */
 export const transfersOf = (l: Ledger): Transfer[] => {
   const roster = rosterOf(l);
-  return l.entries.filter((e): e is Transfer => e.kind === "transfer" && !e.gone && soundTransfer(e, roster));
+  return l.entries.filter((e): e is Transfer => e.kind === "transfer" && kept(e) && soundTransfer(e, roster));
 };
 
 /** What each member bears of one expense, by member id. */
