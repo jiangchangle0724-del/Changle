@@ -1,0 +1,3 @@
+/* changle.ca's two fonts (subsets copied from games/hide-crowd/src/client/fonts; SIL OFL 1.1, licences in ./licences). */
+@font-face{font-family:"Unbounded";font-weight:600 800;font-style:normal;font-display:swap;src:url(/tuan/assets/fonts/unbounded.woff2) format("woff2")}
+@font-face{font-family:"Figtree";font-weight:400 800;font-style:normal;font-display:swap;src:url(/tuan/assets/fonts/figtree.woff2) format("woff2")}

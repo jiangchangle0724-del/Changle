@@ -3,6 +3,7 @@ Allow: /
 Disallow: /eat/api/
 Disallow: /when/api/
 Disallow: /go/api/
+Disallow: /tuan/api/
 Disallow: /trip/api/
 Content-signal: search=yes, ai-input=no, ai-train=no
 
