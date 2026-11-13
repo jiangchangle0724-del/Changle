@@ -18,6 +18,12 @@ import { clean, intIn, t, type Api, type GameDef } from "../api";
  * a few of those who don't mind go up, whoever has acted least first. With nobody left watching,
  * the actors vote on each other (never on themselves).
  *
+ * Small tables (Steve on Nov 12: one person can start): with fewer than three at the table a scene
+ * is a monologue, one actor and the rest guessing (two on stage voting on each other would always
+ * catch the culprit), and a written scene waits for three. One person alone plays monologues and
+ * readings: nobody at the table can vote, so the room guesses out loud (the big screen shows the
+ * three secrets), the host reveals the answer, and nobody scores (`quietReveal`).
+ *
  * 名场面 (`classic`): famous film and TV moments, from a Chinese set or an English one (the host
  * picks); no culprit, the audience gives stars, like the duel.
  *
@@ -245,6 +251,8 @@ function upNext(s: S, api: Api): { lo: number; hi: number; ok: boolean; auto: bo
   // one reader at a time
   if (s.mode === "read") return { lo: 1, hi: 1, ok: vol.length + free.length >= 1, auto: !vol.length };
   if (s.mode === "classic") {
+    // famous scenes take two at the table (one person alone plays monologues and readings)
+    if (ids.length < 2) return { lo: 1, hi: 1, ok: false, auto: true };
     // as many as the biggest famous scene takes
     const most = Math.max(...classicPool(s).map((c) => c.roles.length));
     if (vol.length) {
@@ -254,13 +262,15 @@ function upNext(s: S, api: Api): { lo: number; hi: number; ok: boolean; auto: bo
     const hi = Math.min(castSize(ids.length), free.length, most);
     return { lo: Math.min(2, hi), hi, ok: hi > 0, auto: true };
   }
-  const w = nextWritten(s, api, false);
+  // fewer than three at the table: one acts a monologue, the rest guess
+  const few = ids.length < 3;
+  const w = few ? null : nextWritten(s, api, false);
   if (w) return { lo: w.order.length, hi: w.order.length, ok: true, auto: false };
   if (vol.length) {
-    const k = Math.min(MAX_CAST, vol.length);
+    const k = few ? 1 : Math.min(MAX_CAST, vol.length);
     return { lo: k, hi: k, ok: true, auto: false };
   }
-  const hi = Math.min(castSize(ids.length), free.length);
+  const hi = Math.min(few ? 1 : castSize(ids.length), free.length);
   return { lo: Math.min(2, hi), hi, ok: hi > 0, auto: true };
 }
 
@@ -366,8 +376,9 @@ function newRound(s: S, api: Api) {
     s.pk = { line, styles: Object.fromEntries(s.cast.map((pid, j) => [pid, styles[j % styles.length].i])) };
   } else {
     // a scene written here tonight goes first; else one for the volunteers, all of them (up to
-    // eight); else two to a few of those who don't mind
-    const mine = nextWritten(s, api);
+    // eight); else two to a few of those who don't mind. Fewer than three at the table: a monologue
+    const few = ids.length < 3;
+    const mine = few ? null : nextWritten(s, api);
     let pick: Option & { k: number };
     let people: string[];
     if (mine) {
@@ -375,11 +386,11 @@ function newRound(s: S, api: Api) {
       pick = { s: mine.w.scene, i: null, w: mine.w, k: mine.order.length };
       people = mine.order;
     } else if (vol.length) {
-      const k = Math.min(MAX_CAST, vol.length);
+      const k = few ? 1 : Math.min(MAX_CAST, vol.length);
       pick = pickScene(s, k, k, api);
       people = byTurns(s, vol, api);
     } else {
-      const hi = Math.min(castSize(ids.length), free.length);
+      const hi = Math.min(few ? 1 : castSize(ids.length), free.length);
       pick = pickScene(s, Math.min(2, hi), hi, api);
       people = byTurns(s, free, api);
     }
@@ -446,6 +457,12 @@ function startVote(s: S, api: Api) {
   api.clear("act");
   api.clear("twist");
   s.twisted = s.mode === "show";
+  // nobody here can vote (one person, alone on stage): a reading ends on the applause; a monologue
+  // still leaves the room its guess, out loud, until the host reveals it
+  if (!voters(s, api).length && s.mode !== "show") {
+    quietReveal(s, api);
+    return;
+  }
   s.phase = "vote";
   s.votes = {};
   s.endsAt = api.now + VOTE_MS;
@@ -575,6 +592,22 @@ function reveal(s: S, api: Api) {
   }
 }
 
+/**
+ * The truth without a count: nobody voted, or nobody at the table could (one person, on stage).
+ * The answer and every card come out; no points, no best actor, no penalty.
+ */
+function quietReveal(s: S, api: Api) {
+  api.clear("vote");
+  const cards: Record<string, DramaCard> = {};
+  for (const pid of s.cast) {
+    const c = card(s, pid);
+    if (c) cards[pid] = c;
+  }
+  s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards, best: [], losers: [], right: [], penalty: null, gained: {}, answer: answerOf(s), quiet: true };
+  s.phase = "reveal";
+  api.fx("reveal");
+}
+
 function finish(s: S, api: Api) {
   s.phase = "end";
   api.fx("win");
@@ -589,7 +622,7 @@ function finish(s: S, api: Api) {
 
 export const drama: GameDef<S> = {
   id: "drama",
-  min: 3,
+  min: 1,
   init() {
     return {
       phase: "setup",
@@ -669,7 +702,7 @@ export const drama: GameDef<S> = {
         return;
       }
       case "start": {
-        if (!host || s.phase !== "setup" || api.ids().length < 3 || !upNext(s, api).ok) return;
+        if (!host || s.phase !== "setup" || !upNext(s, api).ok) return;
         s.round = 1;
         newRound(s, api);
         return;
@@ -712,8 +745,11 @@ export const drama: GameDef<S> = {
         return;
       }
       case "reveal": {
-        if (!host || s.phase !== "vote" || !Object.keys(s.votes).length) return;
-        reveal(s, api);
+        // the host needn't wait for the last votes; with nobody here able to vote, the host's tap
+        // is the reveal
+        if (!host || s.phase !== "vote") return;
+        if (Object.keys(s.votes).length) reveal(s, api);
+        else if (!voters(s, api).length) quietReveal(s, api);
         return;
       }
       case "skip": {
@@ -792,11 +828,8 @@ export const drama: GameDef<S> = {
     } else if (key === "act" && s.phase === "act") startVote(s, api);
     else if (key === "vote" && s.phase === "vote") {
       if (Object.keys(s.votes).length) reveal(s, api);
-      else {
-        // nobody voted: the scene still ends, without points
-        s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards: Object.fromEntries(s.cast.map((c) => [c, card(s, c)!]).filter(([, v]) => v)), best: [], losers: [], right: [], penalty: null, gained: {}, answer: answerOf(s) };
-        s.phase = "reveal";
-      }
+      // nobody voted: the scene still ends, without points
+      else quietReveal(s, api);
     }
   },
 
@@ -859,6 +892,7 @@ export const drama: GameDef<S> = {
       want: Object.fromEntries(Object.entries(s.want ?? {}).filter(([p]) => ids.includes(p))),
       next: upNext(s, api),
       peer: live && peerVote(s, api),
+      crowd: live && !voters(s, api).length,
       // a monologue's three secrets, for the audience to choose from
       options: live && isSolo(scene) && s.order?.length ? s.order.map((i) => scene!.secrets![i]) : null,
     };
