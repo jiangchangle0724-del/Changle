@@ -114,6 +114,17 @@ export const CFG = {
   springCooldown: 0.35,
   /** 手柄的偶发动作（召唤）多久只算一次。 */
   actCooldown: 1.0,
+
+  // ---- 模式（A7）----
+  /** 比谁先（各跑各的）：第一个到了以后最多再等几秒，到点没到的按进度排。 */
+  raceGrace: 40,
+  /** 坐不住：一只手抓同一个地方最多几秒就滑脱，几秒起开始抖（提醒）。 */
+  lastGripMax: 6,
+  lastGripWarn: 4.5,
+  /** 滑脱以后这只手多久抓不了东西（按着键也不会马上又抓回去）。 */
+  slipCooldown: 0.8,
+  /** 定时塌的东西（until）提前几秒开始抖。 */
+  crumbleWarn: 2,
 };
 
 export type Cfg = typeof CFG;
@@ -136,4 +147,5 @@ export const MATERIAL_FRICTION: Record<string, number> = {
 };
 export const DEFAULT_FRICTION = 0.6;
 
-export const PLAYER_COLORS = ['#F28CA6', '#9BCF83', '#F8C56D', '#8EC5E8'];
+/** 馅儿色，跟座位走：草莓粉、抹茶绿、芒果黄、苏打蓝、芋泥紫、椰奶白（最多 6 个人）。 */
+export const PLAYER_COLORS = ['#F28CA6', '#9BCF83', '#F8C56D', '#8EC5E8', '#B9A2E8', '#F1E7D8'];

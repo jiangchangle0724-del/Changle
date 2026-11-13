@@ -4,17 +4,19 @@
  * 主机是唯一跑物理的地方（铁律 1）。玩家看到的字中英都有（右上角切换）。
  *
  * 手机局（没有电视、没有电脑）：在手机上打开就是手机局（`?phone=1` 强开，`?phone=0` 强关）。
- * 这部手机照样开房、跑物理、画画面，房主自己用屏幕上的摇杆和抓键玩（0 号颜色，最多再进 3 部手机），
+ * 这部手机照样开房、跑物理、画画面，房主自己用屏幕上的摇杆和抓键玩（0 号颜色，最多再进 5 部手机），
  * 每 50 ms（绕路 100 ms）给每部手机发一张画面快照，大家都在自己手机上看（src/net/snap.ts）。
+ *
+ * 玩法（A7）：大厅里开局前选闯关、大团队（有大关才出）、比谁先（各跑各的或甜队对咸队）、坐不住。
  */
 import qrcode from 'qrcode-generator';
 import { heardBy, sfx } from '../audio/sfx';
 import { applyStatic, langButton, onLang, tr } from '../i18n';
-import { LEVELS, levelTitle, teachLabel } from '../levels';
+import { levelsFor, levelTitle, MIN_PLAYERS, TEAM_LEVELS, teachLabel } from '../levels';
 import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
 import { CFG, PLAYER_COLORS } from '../physics/config';
 import type { Level } from '../physics/level';
-import { createSim, type PadInput, type Sim, type SimEvent } from '../physics/world';
+import { createSim, type GameMode, type PadInput, type Rules, type Sim, type SimEvent } from '../physics/world';
 import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
 import { CAST_MS, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Phase, type RoomView } from '../net/protocol';
@@ -23,7 +25,7 @@ import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
-import { renderResults, resultsOf, type ResultsDom } from '../results';
+import { renderResults, resultsOf, resultsTitle, teamName, type ResultsDom } from '../results';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -40,8 +42,14 @@ document.body.classList.toggle('phone', phoneMode);
 document.body.dataset.phase = 'lobby';
 const canvas = $<HTMLCanvasElement>('stage');
 const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
-let levelIndex = Math.max(0, LEVELS.findIndex((l) => l.id === params.get('level')));
-let level: Level = LEVELS[levelIndex] as Level;
+/** 玩法（A7）：开局前在大厅里选；`?mode=race` 之类直接开到那个玩法（检查脚本用），`?teams=1` 比谁先分两队。 */
+const MODES: GameMode[] = ['climb', 'team', 'race', 'last'];
+let mode: GameMode = MODES.find((m) => m === params.get('mode') && (m !== 'team' || TEAM_LEVELS.length > 0)) ?? 'climb';
+let teamsOn = params.get('teams') === '1';
+/** 每种玩法记着自己选到第几关，换回来还在那。 */
+const levelIndexOf: Record<GameMode, number> = { climb: 0, team: 0, race: 0, last: 0 };
+let levelIndex = Math.max(0, levelsFor(mode).findIndex((l) => l.id === params.get('level')));
+let level: Level = levelsFor(mode)[levelIndex] as Level;
 /** 画面上现在画的是哪一版关卡（按人数摆出来的那个对象）。 */
 let stageLevel: Level | null = null;
 let sim: Sim = await createSim(level, 0);
@@ -55,7 +63,6 @@ let keyboard = false;
 let forceRelay = params.get('relay') === '1';
 /** `?render=0`：不画画面只跑物理（联机检查用，CI 的机器没有显卡，画画面会把主机页拖慢）。 */
 const renderOn = params.get('render') !== '0';
-const KB_COLOR = 3;
 const kbLook: Look = randomLook();
 /** 手机局的房主：0 号颜色；名字和样子用这部手机当手柄时记下的（没有就叫「房主」、随机一个样子）。 */
 const HOST_COLOR = 0;
@@ -76,7 +83,8 @@ function stored<T>(key: string, read: (v: string) => T): T | null {
 
 /** 这台设备上有没有自己玩的人、他的颜色、名字、样子。 */
 const localOn = (): boolean => phoneMode || keyboard;
-const localColor = (): number => (phoneMode ? HOST_COLOR : KB_COLOR);
+/** 键盘玩家用座位没占的颜色里最后一个（6 个座位都坐满时和 5 号重色，只是试手感用）。 */
+const localColor = (): number => (phoneMode ? HOST_COLOR : ([5, 4, 3, 2, 1, 0].find((c) => !room?.seats.some((s) => s.color === c)) ?? 5));
 const localName = (): string => (phoneMode ? hostName() : tr('键盘', 'Keyboard'));
 const localLook = (): Look => (phoneMode ? hostLook : kbLook);
 /** 自己那个人是第几个（没有是 -1）。 */
@@ -85,6 +93,90 @@ const localIndex = (): number => (localOn() ? seatOrder.length : -1);
 sfx.attach(document);
 sfx.panOf = (x, y) => Math.max(-1, Math.min(1, (stage.toScreen({ x, y }).x / innerWidth) * 2 - 1)) * 0.6;
 langButton($<HTMLButtonElement>('langBtn'));
+
+// ---------- 玩法 ----------
+function modeName(m: GameMode): string {
+  if (m === 'team') return tr('大团队', 'Big team');
+  if (m === 'race') return tr('比谁先', 'Race');
+  if (m === 'last') return tr('坐不住', 'Last one hanging');
+  return tr('闯关', 'Climb');
+}
+function modeHint(m: GameMode): string {
+  if (m === 'team') return tr('4 到 6 个人的大关，大家一起到顶', 'Big levels for 4 to 6 players. Everyone reaches the top together');
+  if (m === 'race')
+    return teamsOn
+      ? tr('甜队对咸队，哪一队的人先都到顶就赢', 'Team Sweet vs Team Savory. The first team with everyone at the top wins')
+      : tr('各跑各的，先到顶的赢，拽别人也算', 'Every dumpling for themselves. First to the top wins, and grabbing others is fair game');
+  if (m === 'last') return tr('摔了不复活，平台会塌，最后还挂着的赢', 'No respawns and the platforms crumble. The last one hanging wins');
+  return tr('大家一起到顶，摔了回检查点', 'Everyone reaches the top together. Fall and you come back at the last checkpoint');
+}
+/** 比谁先分两队：按座位一个甜一个咸。 */
+const teamsFor = (n: number): number[] => Array.from({ length: n }, (_, i) => i % 2);
+function rules(): Rules {
+  return mode === 'race' && teamsOn ? { mode, teams: teamsFor(playerCount()) } : { mode };
+}
+/** 比谁先分两队时这个人在哪一队（不分队是 undefined）。 */
+const teamOf = (i: number): number | undefined => sim.rules.teams?.[i] ?? (sim.rules.mode === 'race' && sim.rules.teams ? i % 2 : undefined);
+/** 头顶上的名字：分队时带上队。 */
+function tagName(i: number, nm: string): string {
+  const t = teamOf(i);
+  return t === undefined ? nm : `${nm} · ${t === 0 ? tr('甜', 'Sweet') : tr('咸', 'Savory')}`;
+}
+function setMode(m: GameMode): void {
+  if (m === mode) return;
+  levelIndexOf[mode] = levelIndex;
+  mode = m;
+  const list = levelsFor(mode);
+  levelIndex = Math.min(levelIndexOf[mode], list.length - 1);
+  level = list[levelIndex] as Level;
+  renderModes();
+  renderLevel();
+  renderLobby();
+  if (phase === 'lobby') void resetSim();
+}
+function setTeams(on: boolean): void {
+  if (on === teamsOn) return;
+  teamsOn = on;
+  renderModes();
+  renderLevel();
+  renderLobby();
+  if (phase === 'lobby') void resetSim();
+}
+/** 大厅里的玩法选择：四个键（大团队有大关才出），比谁先下面再选各跑各的还是分两队。 */
+function renderModes(): void {
+  const box = $('modes');
+  box.innerHTML = '';
+  for (const m of MODES) {
+    if (m === 'team' && !TEAM_LEVELS.length) continue;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'mode';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(m === mode));
+    b.textContent = modeName(m);
+    b.addEventListener('click', () => {
+      sfx.tick();
+      setMode(m);
+    });
+    box.append(b);
+  }
+  const teams = $('teams');
+  teams.hidden = mode !== 'race';
+  teams.innerHTML = '';
+  for (const on of [false, true]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'mode small';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(on === teamsOn));
+    b.textContent = on ? tr('甜队对咸队', 'Sweet vs Savory') : tr('各跑各的', 'Every dumpling for themselves');
+    b.addEventListener('click', () => {
+      sfx.tick();
+      setTeams(on);
+    });
+    teams.append(b);
+  }
+}
 
 // ---------- 房间 ----------
 async function start(): Promise<void> {
@@ -185,7 +277,11 @@ function onPhase(next: Phase): void {
   $('lobbyBtn').hidden = next === 'lobby';
   // 顶栏压在遮罩上面；大厅卡片里已经有大房间码，用时和摔死只在玩的时候有意思
   $('codeChip').hidden = next === 'lobby';
-  $('clockChip').hidden = $('deathChip').hidden = next !== 'countdown' && next !== 'playing';
+  const playing = next === 'countdown' || next === 'playing';
+  $('clockChip').hidden = !playing;
+  // 坐不住：数还有几个人挂着，不数摔了几次
+  $('deathChip').hidden = !playing || mode === 'last';
+  $('aliveChip').hidden = !playing || mode !== 'last';
   // 底下那条说明只在大厅里有用，玩的时候别挡着画面
   $('note').hidden = next !== 'lobby';
   // 手机局：倒数和玩的时候房主的摇杆、抓键压在画面上；页面的样式（横过来的提示）按阶段走
@@ -204,7 +300,7 @@ let countTimer: ReturnType<typeof setInterval> | null = null;
 function countdown(): void {
   let n = 3;
   $('countNum').textContent = String(n);
-  $('countLevel').textContent = levelTitle(level, levelIndex);
+  $('countLevel').textContent = countLabel();
   sfx.countdown(n);
   if (countTimer) clearInterval(countTimer);
   countTimer = setInterval(() => {
@@ -223,8 +319,14 @@ function countdown(): void {
 function name(i: number): string {
   return playerNames()[i] || `P${i + 1}`;
 }
+/** 倒数时写的：不是闯关就带上玩法。 */
+function countLabel(): string {
+  const title = levelTitle(level, levelIndex);
+  return mode === 'climb' ? title : `${modeName(mode)} · ${title}`;
+}
 
 const resultsDom: ResultsDom = {
+  title: $('winTitle'),
   time: $('winTime'),
   par: $('winPar'),
   deaths: $('deathList'),
@@ -234,7 +336,10 @@ const resultsDom: ResultsDom = {
 };
 function showResults(): void {
   renderResults(resultsDom, resultsOf(sim), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
-  $<HTMLButtonElement>('nextBtn').hidden = levelIndex >= LEVELS.length - 1;
+  const next = $<HTMLButtonElement>('nextBtn');
+  next.hidden = levelIndex >= levelsFor(mode).length - 1;
+  next.textContent = mode === 'last' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  $('againBtn').textContent = mode === 'climb' || mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
 }
 
 $('startBtn').addEventListener('click', () => {
@@ -287,16 +392,19 @@ function renderButtons(): void {
 
 // ---------- 关卡 ----------
 function pickLevel(i: number): void {
-  levelIndex = Math.max(0, Math.min(LEVELS.length - 1, i));
-  level = LEVELS[levelIndex] as Level;
+  const list = levelsFor(mode);
+  levelIndex = Math.max(0, Math.min(list.length - 1, i));
+  level = list[levelIndex] as Level;
   renderLevel();
   if (phase === 'lobby') void resetSim();
 }
 function renderLevel(): void {
+  const list = levelsFor(mode);
   $('levelName').textContent = levelTitle(level, levelIndex);
-  $('levelTeach').textContent = teachLabel(level);
+  // 闯关、大团队写这关教什么；比谁先、坐不住写这个玩法怎么赢（场地自己的说明和它一样）
+  $('levelTeach').textContent = mode === 'climb' || mode === 'team' ? teachLabel(level) : modeHint(mode);
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
-  $<HTMLButtonElement>('levelNext').disabled = levelIndex >= LEVELS.length - 1;
+  $<HTMLButtonElement>('levelNext').disabled = levelIndex >= list.length - 1;
 }
 $('levelPrev').addEventListener('click', () => {
   sfx.tick();
@@ -346,7 +454,7 @@ function syncPlayers(): void {
     if (!p || !peer) return;
     p.color = PLAYER_COLORS[peer.color] ?? p.color;
     const look = peer.look ?? DEFAULT_LOOK;
-    stage.setPlayerStyle(i, { name: peer.name, color: p.color, look });
+    stage.setPlayerStyle(i, { name: tagName(i, peer.name), color: p.color, look });
     sfx.setVoice(i, look.voice);
   });
   if (localOn()) {
@@ -354,7 +462,7 @@ function syncPlayers(): void {
     const p = sim.players[i];
     if (p) {
       p.color = PLAYER_COLORS[localColor()] ?? p.color;
-      stage.setPlayerStyle(i, { name: localName(), color: p.color, look: localLook() });
+      stage.setPlayerStyle(i, { name: tagName(i, localName()), color: p.color, look: localLook() });
       sfx.setVoice(i, localLook().voice);
     }
   }
@@ -362,14 +470,23 @@ function syncPlayers(): void {
 }
 let resetting = false;
 /** 重开这一关：按现在的人数摆关卡、放人。 */
+let resetGen = 0;
 async function resetSim(): Promise<void> {
+  // 连着好几下（换玩法、换分队、有人进来）：只留最后一次的，每个旧的局面只释放一次
+  const gen = ++resetGen;
   resetting = true;
-  const old = sim;
+  let next: Sim;
   try {
-    sim = await createSim(level, playerCount());
+    next = await createSim(level, playerCount(), rules());
   } finally {
-    resetting = false;
+    if (gen === resetGen) resetting = false;
   }
+  if (gen !== resetGen) {
+    next.destroy();
+    return;
+  }
+  const old = sim;
+  sim = next;
   old.destroy();
   syncStageLevel();
   stage.reset();
@@ -390,7 +507,7 @@ function banner(text: string, kind: 'bad' | 'good' = 'good'): void {
 
 // ---------- 大厅和延迟表 ----------
 /** 一张座位卡：这个人的糯米团（帽子眼镜都在）、名字、连接状态。 */
-function seatCard(nm: string, color: string, look: Look, sub: string, off: boolean): HTMLElement {
+function seatCard(nm: string, color: string, look: Look, sub: string, off: boolean, team?: number): HTMLElement {
   const el = document.createElement('div');
   el.className = `seat${off ? ' off' : ''}`;
   const c = document.createElement('canvas');
@@ -405,6 +522,13 @@ function seatCard(nm: string, color: string, look: Look, sub: string, off: boole
   s.className = 'sub';
   s.textContent = sub;
   el.append(c, n, s);
+  // 比谁先分两队：卡片上写是哪一队
+  if (team !== undefined) {
+    const t = document.createElement('span');
+    t.className = `team t${team}`;
+    t.textContent = teamName(team);
+    el.append(t);
+  }
   return el;
 }
 
@@ -412,13 +536,14 @@ function renderLobby(): void {
   const box = $('seats');
   box.innerHTML = '';
   const seats = room?.seats ?? [];
-  for (const s of seats) {
+  const team = (i: number): number | undefined => (mode === 'race' && teamsOn ? i % 2 : undefined);
+  seats.forEach((s, i) => {
     const peer = link?.peers.get(s.id);
     const sub = !s.connected ? tr('掉线', 'Offline') : peer?.direct ? tr('直连', 'Direct') : peer?.relayed ? tr('绕路', 'Relayed') : tr('连接中', 'Connecting');
-    box.append(seatCard(s.name, PLAYER_COLORS[s.color] ?? '#fff', peer?.look ?? DEFAULT_LOOK, sub, !s.connected));
-  }
+    box.append(seatCard(s.name, PLAYER_COLORS[s.color] ?? '#fff', peer?.look ?? DEFAULT_LOOK, sub, !s.connected, team(i)));
+  });
   if (localOn()) {
-    const card = seatCard(localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false);
+    const card = seatCard(localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false, team(seats.length));
     // 手机局：点自己那张卡换个样子（随机），这部手机以后当手柄也用这个
     if (phoneMode) {
       const b = document.createElement('button');
@@ -457,8 +582,13 @@ function renderLobby(): void {
     box.append(el);
   }
   const n = playerCount();
-  $('lobbyLine').textContent = n ? tr(`${n} 个人，到齐了就开始。`, `${n} ${n === 1 ? 'player' : 'players'}. Start when everyone is in.`) : tr('等人进来……', 'Waiting for players…');
-  $<HTMLButtonElement>('startBtn').disabled = n === 0 || !link?.socketOpen;
+  const min = MIN_PLAYERS[mode];
+  $('lobbyLine').textContent = !n
+    ? tr('等人进来……', 'Waiting for players…')
+    : n < min
+      ? tr(`${n} 个人。${modeName(mode)}至少要 ${min} 个人。`, `${n} ${n === 1 ? 'player' : 'players'}. ${modeName(mode)} needs at least ${min}.`)
+      : tr(`${n} 个人，到齐了就开始。`, `${n} ${n === 1 ? 'player' : 'players'}. Start when everyone is in.`);
+  $<HTMLButtonElement>('startBtn').disabled = n < Math.max(1, min) || !link?.socketOpen;
 }
 
 function renderLatency(): void {
@@ -503,17 +633,19 @@ setInterval(renderLatency, 500);
 function renderAll(): void {
   renderButtons();
   renderNote();
+  renderModes();
   renderLevel();
   renderLobby();
   renderLatency();
   if (lastFatal) $('fatalLine').textContent = fatalLine(lastFatal);
   if (phase === 'results') showResults();
-  if (phase === 'countdown') $('countLevel').textContent = levelTitle(level, levelIndex);
+  if (phase === 'countdown') $('countLevel').textContent = countLabel();
   syncPlayers();
 }
 onLang(renderAll);
 renderButtons();
 renderNote();
+renderModes();
 renderLevel();
 
 // ---------- 键盘（一个人试手感用）----------
@@ -605,18 +737,26 @@ function feedInputs(): void {
   if (localOn()) sim.setInput(sim.players.length - 1, localInput());
 }
 
+/** 第 i 个人的队友里摔下去还没回来的有几个：闯关、大团队是全队，比谁先分队是自己队，各跑各的和坐不住没有队友可拉。 */
+function teamDead(i: number): number {
+  const m = sim.rules.mode;
+  if (m === 'last' || (m === 'race' && !sim.rules.teams)) return 0;
+  return sim.players.filter((q, j) => j !== i && q.dead && !q.done && (m !== 'race' || teamOf(j) === teamOf(i))).length;
+}
 function sendStatus(): void {
-  const dead = sim.players.filter((p) => p.dead).length;
   if (phoneMode) {
-    // 房主的「召唤」键：有队友摔下去还没回来才亮
-    const me = sim.players[localIndex()];
-    touchSummon.disabled = !(phase === 'playing' && dead - (me?.dead ? 1 : 0) > 0);
+    // 房主的「召唤」键：有队友摔下去还没回来才亮；没有队友可拉的玩法不出
+    const me = localIndex();
+    touchSummon.hidden = sim.rules.mode === 'last' || (sim.rules.mode === 'race' && !sim.rules.teams);
+    touchSummon.disabled = !(phase === 'playing' && teamDead(me) > 0);
   }
   if (!link) return;
   seatOrder.forEach((id, i) => {
     const p = sim.players[i];
     const peer = link!.peers.get(id);
     if (!p || !peer || !peer.connected) return;
+    const place = sim.finishOrder.indexOf(i) + 1;
+    const team = teamOf(i);
     link!.status(id, {
       color: peer.color,
       hands: [!!p.arms[0].grip, !!p.arms[1].grip],
@@ -624,7 +764,11 @@ function sendStatus(): void {
       rttMs: peer.rtt.median(),
       phase,
       direct: peer.direct,
-      teamDead: dead - (p.dead ? 1 : 0),
+      teamDead: teamDead(i),
+      mode: sim.rules.mode,
+      ...(team !== undefined ? { team } : {}),
+      ...(place ? { place } : {}),
+      ...(p.out ? { out: true } : {}),
     });
   });
 }
@@ -632,8 +776,8 @@ function sendStatus(): void {
 function onEvents(): void {
   for (const ev of sim.events) {
     if (ev.type === 'win') {
-      // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页
-      banner(tr('到顶了！', 'Made it!'));
+      // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页；比谁先、坐不住的横幅写谁赢了
+      banner(resultsTitle(resultsOf(sim), name));
       const won = sim;
       setTimeout(() => {
         if (sim === won && phase === 'playing') link?.act({ type: 'FINISH' });
@@ -644,7 +788,10 @@ function onEvents(): void {
       const who = ev.who.map(name);
       banner(tr(`${name(ev.player)} 把 ${who.join('、')} 拉了回来`, `${name(ev.player)} pulled ${who.join(' & ')} back`));
     }
-    if (ev.type === 'checkpoint') banner(tr('检查点 ✓', 'Checkpoint ✓'));
+    // 比谁先人人都有自己的检查点，横幅太多，不出
+    if (ev.type === 'checkpoint' && sim.rules.mode !== 'race') banner(tr('检查点 ✓', 'Checkpoint ✓'));
+    if (ev.type === 'finish') banner(tr(`${name(ev.player)} 到了！第 ${ev.place} 个`, `${name(ev.player)} made it! #${ev.place}`));
+    if (ev.type === 'out') banner(tr(`${name(ev.player)} 出局`, `${name(ev.player)} is out`), 'bad');
   }
 }
 
@@ -660,6 +807,8 @@ function castFor(seat: string): Cast {
     me: seatOrder.indexOf(seat),
     players: sim.players.map((p, i) => ({ name: names[i] || `P${i + 1}`, color: p.color, look: playerLook(i) })),
     ...(phase === 'results' ? { results: resultsOf(sim) } : {}),
+    mode: sim.rules.mode,
+    ...(sim.rules.teams ? { teams: sim.rules.teams } : {}),
   };
 }
 
@@ -715,6 +864,7 @@ function frame(now: number): void {
   }
   $('clock').textContent = sim.time.toFixed(1);
   $('deaths').textContent = String(sim.players.reduce((s, p) => s + p.deaths, 0));
+  $('alive').textContent = String(sim.players.filter((p) => !p.dead).length);
   if (now - statusAt >= STATUS_MS) {
     statusAt = now;
     sendStatus();
@@ -742,10 +892,17 @@ requestAnimationFrame(frame);
   },
   peers: (): PadPeer[] => [...(link?.peers.values() ?? [])],
   pickLevel,
+  setMode,
+  setTeams,
+  get mode() {
+    return mode;
+  },
   stage,
   sfx,
   CFG,
-  LEVELS,
+  get LEVELS() {
+    return levelsFor(mode);
+  },
   phoneMode,
   /** 手机局房主的触屏输入（检查脚本直接改它，像在屏幕上按）。 */
   touch,

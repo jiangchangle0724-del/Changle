@@ -6,6 +6,7 @@
  * 静态的东西只画一次，动的每帧更新。
  */
 import { Container, Graphics } from 'pixi.js';
+import { CFG } from '../physics/config';
 import type { HazardDef, Level, Rect } from '../physics/level';
 import { moverAt, spinnerAngle } from '../physics/motion';
 import type { SimView } from './view';
@@ -26,6 +27,8 @@ export class Terrain {
   private readonly hazardFx = new Graphics();
   private readonly moverC: Container[] = [];
   private readonly spinnerC: Container[] = [];
+  /** 定时塌的东西（until）：快到点抖、变淡，到点不画。base 是它这一帧本来该在的位置。 */
+  private readonly timed: { c: Container; until: number; base: () => { x: number; y: number } }[] = [];
   private lampState = -2;
   private readonly tex: Textures;
   private t = 0;
@@ -34,11 +37,23 @@ export class Terrain {
     private readonly level: Level,
     private readonly world: WorldId,
     private readonly pal: Palette,
+    private readonly reduced = false,
   ) {
     this.tex = textures();
     this.view.addChild(this.goal, this.ground, this.lamps, this.flag);
-    this.drawGoal();
-    for (const r of level.rects) this.platform(this.ground, r);
+    // 坐不住的场地没有终点和旗子
+    if (!level.arena) this.drawGoal();
+    for (const r of level.rects) {
+      if (r.until === undefined) {
+        this.platform(this.ground, r);
+        continue;
+      }
+      // 会塌的平台单独一块，好抖、好藏
+      const g = new Graphics();
+      this.platform(g, r);
+      this.view.addChild(g);
+      this.timed.push({ c: g, until: r.until, base: () => ({ x: 0, y: 0 }) });
+    }
     // 会动的平台：在自己的原点上画好，每帧整块挪过去（贴图跟着走）
     for (const m of level.movers ?? []) {
       const c = new Container();
@@ -49,6 +64,7 @@ export class Terrain {
       c.addChild(g);
       this.view.addChild(c);
       this.moverC.push(c);
+      if (m.until !== undefined) this.timed.push({ c, until: m.until, base: () => ({ x: c.x, y: c.y }) });
     }
     // 会转的杆子：轴心是原点，每根杆子朝自己的方向画，每帧整个转
     for (const sp of level.spinners ?? []) {
@@ -65,6 +81,7 @@ export class Terrain {
       c.addChild(hub);
       this.view.addChild(c);
       this.spinnerC.push(c);
+      if (sp.until !== undefined) this.timed.push({ c, until: sp.until, base: () => ({ x: sp.pivot.x, y: sp.pivot.y }) });
     }
     for (const h of level.hazards ?? []) this.hazard(this.hazardG, h);
     this.view.addChild(this.hazardG, this.hazardFx);
@@ -86,6 +103,7 @@ export class Terrain {
       flame.position.set(0, -(s.h + 2));
       this.view.addChild(c);
       this.springG.push({ body, flame, c });
+      if (s.until !== undefined) this.timed.push({ c, until: s.until, base: () => ({ x: s.x + s.w / 2, y: s.y + s.h }) });
     }
   }
 
@@ -128,12 +146,23 @@ export class Terrain {
       if (c) c.rotation = spinnerAngle(sp, sim.time);
     });
     this.drawHazardFx(sim.time);
+    // 定时塌的：最后 2 秒抖、变淡（减弱动效时只变淡），到点不画
+    for (const t of this.timed) {
+      const left = t.until - sim.time;
+      t.c.visible = left > 0;
+      if (left <= 0) continue;
+      const k = left < CFG.crumbleWarn ? 1 - left / CFG.crumbleWarn : 0;
+      const b = t.base();
+      const s = this.reduced ? 0 : k * 4;
+      t.c.position.set(b.x + (Math.random() - 0.5) * s, b.y + (Math.random() - 0.5) * s);
+      t.c.alpha = 1 - 0.45 * k;
+    }
     // 检查点的灯
     if (sim.checkpoint !== this.lampState) {
       this.lampState = sim.checkpoint;
       this.drawLamps(sim.checkpoint);
     }
-    this.drawFlag();
+    if (!this.level.arena) this.drawFlag();
   }
 
   // ---------------------------------------------------------------- 平台

@@ -165,7 +165,7 @@ export class Stage {
     this.backdrop.rain = this.world_ === 'van' && (level.teaches === 'ice' || level.rects.some((r) => r.material === 'ice'));
     this.backdrop.resize(this.W, this.H);
     this.root.addChildAt(this.backdrop.view, 0);
-    this.terrain = new Terrain(level, this.world_, this.pal);
+    this.terrain = new Terrain(level, this.world_, this.pal, this.reduced);
     this.world.addChildAt(this.terrain.view, 1);
     const a = this.abyssBody.clear();
     this.abyssGrad?.destroy();
@@ -275,8 +275,29 @@ export class Stage {
           break;
         }
         case 'win': {
+          // 场地没有旗子：纸屑撒在赢的人头上
+          const w = ev.who?.[0];
+          const winner = w !== undefined ? sim.players[w] : undefined;
+          if (sim.level.arena) {
+            if (winner) this.confetti(winner.body.x, winner.body.y - 60);
+            break;
+          }
           const flag = sim.level.flag ?? { x: sim.level.goal.x + sim.level.goal.w / 2, y: sim.level.goal.y + sim.level.goal.h };
           this.confetti(flag.x + 30, flag.y - 90);
+          break;
+        }
+        case 'finish': {
+          // 比谁先：到了终点的人头上冒一把星星
+          const p = sim.players[ev.player];
+          if (p) this.fx.burst({ x: p.body.x, y: p.body.y - 30, n: this.reduced ? 8 : 24, texture: 'star', colors: [0xffd166, 0xffffff, hex(p.color)], speed: [120, 360], angle: -Math.PI / 2, spread: 1.1, life: [0.6, 1.2], size: [7, 13], gravity: 400, spin: 10 });
+          break;
+        }
+        case 'crumble': {
+          // 定时的东西塌了：碎块往下掉，镜头轻轻一抖
+          const n = Math.min(40, Math.max(10, Math.round(ev.w / 8)));
+          const colors = this.world_ === 'table' ? [0xe8d5b0, 0xb08050, 0xfff6e9] : [0x9aa8c0, 0x5f6b85, 0xd8dde8];
+          this.fx.burst({ x: ev.x + ev.w / 2, y: ev.y + ev.h / 2, n, texture: 'square', colors, speed: [60, 240], life: [0.6, 1.2], size: [6, 14], gravity: 900, spin: 9, jitter: ev.w / 3 });
+          if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 4);
           break;
         }
         default:
@@ -320,7 +341,8 @@ export class Stage {
   updateCamera(sim: SimView, dt: number): void {
     const cam = this.cam;
     const level = sim.level;
-    const alive = sim.players.filter((p) => !p.dead);
+    // 镜头跟着还在路上的人（比谁先到了终点的不算）
+    const alive = sim.players.filter((p) => !p.dead && !p.done);
     const ps = alive.length ? alive : sim.players;
     let tx = level.spawn.x;
     let ty = level.spawn.y - 60;
@@ -347,7 +369,8 @@ export class Stage {
     // 缩放：基础按屏幕大小，人分散了再缩到都能看见；手机屏幕小，基础近一些
     const base = this.compact ? Math.max(0.55, Math.min(1.1, Math.min(W / 820, H / 500))) : Math.max(0.6, Math.min(1.25, Math.min(W / 1000, H / 640)));
     const fit = Math.min(W / (bw + 420), H / (bh + 360));
-    const zt = Math.max(0.45, Math.min(base, fit));
+    // 坐不住的场地只有一屏：整个场地都看得见（哪块要塌、谁在哪一眼看全）
+    const zt = level.arena ? Math.min(W / level.w, H / level.h) : Math.max(0.45, Math.min(base, fit));
     cam.z += (zt - cam.z) * Math.min(1, dt * 2.5);
     const halfW = W / 2 / cam.z;
     const halfH = H / 2 / cam.z;
@@ -391,7 +414,9 @@ export class Stage {
     this.drawRopes(sim);
     this.drawTrails(sim);
     this.syncPlayers(sim);
-    sim.players.forEach((p, i) => this.dumplings[i]?.update(p, dt, sim.won, this.t));
+    // 结束时只有赢的（笑着的）一起跳；坐不住时手抓久了要抖
+    const slips = sim.rules?.mode === 'last';
+    sim.players.forEach((p, i) => this.dumplings[i]?.update(p, dt, sim.won && p.face === 'win', this.t, slips));
     this.drawAbyss(sim, dt);
     this.fx.update(dt);
     this.screenFx.update(dt);

@@ -175,3 +175,35 @@ it('电脑上打开不是手机局', () => {
   expect(harness.opened).toEqual({ hostPlays: false });
   expect(host.localIndex).toBe(-1);
 });
+
+// A7：开局前选玩法。比谁先、坐不住至少 2 个人；坐不住用场地；比谁先分两队时局面带着队。
+it('坐不住：关卡换成场地，一个人开不了，键盘加入凑够两个就能开', async () => {
+  host.sim.destroy();
+  await boot('?mode=last');
+  expect(host.level.id).toBe('arena-01');
+  expect(host.sim.rules.mode).toBe('last');
+  expect(harness.elements.get('startBtn')!.disabled).toBe(true);
+  expect(harness.elements.get('lobbyLine')!.textContent).toContain('至少要 2 个人');
+  harness.elements.get('kbBtn')!.click();
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  expect(host.sim.players).toHaveLength(2);
+  expect(harness.elements.get('startBtn')!.disabled).toBe(false);
+  harness.elements.get('startBtn')!.click();
+  harness.send({ type: 'PLAY' });
+  harness.send({ type: 'FINISH' });
+  expect(host.phase).toBe('results');
+  expect(harness.elements.get('nextBtn')!.textContent).toBe('换个场地');
+});
+
+it('比谁先分两队：局面带着队，结算页的标题按比谁先写', async () => {
+  host.sim.destroy();
+  await boot('?mode=race&teams=1');
+  harness.elements.get('kbBtn')!.click();
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  expect(host.sim.rules).toEqual({ mode: 'race', teams: [0, 1] });
+  harness.elements.get('startBtn')!.click();
+  harness.send({ type: 'PLAY' });
+  harness.send({ type: 'FINISH' });
+  expect(harness.elements.get('winTitle')!.textContent).toBe('没人到终点');
+  expect(harness.elements.get('againBtn')!.textContent).toBe('再来一局');
+});

@@ -21,6 +21,8 @@ export interface Rect {
   grab?: boolean;
   /** 只在这么多人玩的时候才有：[最少, 最多]，两头都算（原版人多了关卡跟着变：缝更宽、抓点更少）。不写就是一直有。 */
   players?: [number, number];
+  /** 第几秒塌掉（不再回来），提前 2 秒开始抖；坐不住的场地用。不写就一直在。 */
+  until?: number;
 }
 
 export interface RopeDef {
@@ -79,6 +81,8 @@ export interface SpinnerDef {
   material?: string;
   deadly?: boolean;
   players?: [number, number];
+  /** 第几秒塌掉（和 Rect.until 一样）。 */
+  until?: number;
 }
 
 export interface CrateDef extends Rect {
@@ -122,6 +126,8 @@ export interface Level {
   deathY: number;
   par?: { seconds: number; deathsPerPlayer: number };
   replay?: string;
+  /** 坐不住的场地：没有终点和检查点，最后还挂着的赢（画面不画旗子和灯）。 */
+  arena?: boolean;
 }
 
 /** 这件东西在 n 个人玩的时候有没有。 */

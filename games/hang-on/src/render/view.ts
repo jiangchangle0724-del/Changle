@@ -4,7 +4,7 @@
  * 这里只放类型，不引物理：手机的画面包里不能带 Rapier。
  */
 import type { Level, Pt } from '../physics/level';
-import type { Face } from '../physics/world';
+import type { Face, Rules } from '../physics/world';
 
 export interface ArmView {
   side: -1 | 1;
@@ -26,6 +26,8 @@ export interface PlayerView {
   deadT: number;
   deaths: number;
   face: Face;
+  /** 比谁先：到终点了（停在终点里）。 */
+  done?: boolean;
 }
 
 export interface RopeView {
@@ -67,6 +69,8 @@ export interface SimView {
   level: Level;
   /** 关卡是按几个人摆的（主机的 Sim 有；手机局里别的手机从快照拿）。 */
   readonly layoutFor?: number;
+  /** 玩法（主机的 Sim 有；手机局里别的手机从样子名单拿）。坐不住时手抓久了要抖。 */
+  readonly rules?: Rules;
   time: number;
   won: boolean;
   /** 最新生效的检查点，没有是 -1。 */

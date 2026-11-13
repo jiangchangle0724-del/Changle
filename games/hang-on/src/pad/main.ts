@@ -20,7 +20,7 @@ const $ = <T extends HTMLElement>(id: string): T => {
   if (!e) throw new Error(`#${id} missing`);
   return e as T;
 };
-const COLORS = ['#F28CA6', '#9BCF83', '#F8C56D', '#8EC5E8'];
+const COLORS = ['#F28CA6', '#9BCF83', '#F8C56D', '#8EC5E8', '#B9A2E8', '#F1E7D8'];
 
 applyStatic();
 langButton($<HTMLButtonElement>('langBtn'));
@@ -290,7 +290,23 @@ function status(s: PadStatus): void {
     renderLook();
   }
   document.documentElement.style.setProperty('--mine', color);
+  // 没有队友可拉的玩法（比谁先各跑各的、坐不住）不出「召唤」键
+  summonBtn.hidden = s.mode === 'last' || (s.mode === 'race' && s.team === undefined);
   summonBtn.disabled = !(s.phase === 'playing' && (s.teamDead ?? 0) > 0);
+  // 玩法的小牌子：哪一队、第几个到、出局了
+  const tag = $('tag');
+  const text = s.out
+    ? tr('出局了', "You're out")
+    : s.place
+      ? tr(`第 ${s.place} 个到`, `#${s.place} at the top`)
+      : s.team !== undefined
+        ? s.team === 0
+          ? tr('甜队', 'Team Sweet')
+          : tr('咸队', 'Team Savory')
+        : '';
+  tag.hidden = !text;
+  tag.textContent = text;
+  tag.classList.toggle('bad', !!s.out);
   $('handL').classList.toggle('on', s.hands[0]);
   $('handR').classList.toggle('on', s.hands[1]);
   $('deaths').textContent = String(s.deaths);

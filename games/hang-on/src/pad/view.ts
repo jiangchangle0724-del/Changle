@@ -7,14 +7,14 @@
  */
 import { heardBy, sfx } from '../audio/sfx';
 import { tr } from '../i18n';
-import { levelById, LEVELS, levelTitle } from '../levels';
+import { levelById, LEVELS, levelsFor, levelTitle } from '../levels';
 import type { Level } from '../physics/level';
 import type { SimEvent } from '../physics/world';
 import type { Cast, Phase, RoomView, Snap } from '../net/protocol';
 import { RemoteSim } from '../net/snap';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
-import { renderResults, type ResultsDom } from '../results';
+import { renderResults, resultsTitle, type ResultsDom } from '../results';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -41,6 +41,7 @@ export class PhoneView {
   private constructor(private readonly stage: Stage | null) {
     this.sim = new RemoteSim((id) => levelById(id), LEVELS[0] as Level);
     this.dom = {
+      title: $('vWinTitle'),
       time: $('vWinTime'),
       par: $('vWinPar'),
       deaths: $('vDeathList'),
@@ -95,8 +96,12 @@ export class PhoneView {
   cast(c: Cast): void {
     this.cast_ = c;
     this.me = c.me;
+    // 玩法：坐不住时手抓久了要抖；比谁先分队时头顶的名字带上队
+    this.sim.rules = { mode: c.mode ?? 'climb', ...(c.teams ? { teams: c.teams } : {}) };
     c.players.forEach((p, i) => {
-      this.stage?.setPlayerStyle(i, p);
+      const team = c.teams?.[i];
+      const name = team === undefined ? p.name : `${p.name} · ${team === 0 ? tr('甜', 'Sweet') : tr('咸', 'Savory')}`;
+      this.stage?.setPlayerStyle(i, { ...p, name });
       sfx.setVoice(i, p.look.voice);
       const q = this.sim.players[i];
       if (q) q.color = p.color;
@@ -125,7 +130,9 @@ export class PhoneView {
 
   private levelName(): string {
     const l = this.sim.level;
-    return levelTitle(l, Math.max(0, LEVELS.indexOf(l)));
+    // 按 id 找：按人数摆过的关卡是另一个对象
+    const list = levelsFor(this.cast_?.mode ?? 'climb');
+    return levelTitle(l, Math.max(0, list.findIndex((x) => x.id === l.id)));
   }
 
   private showLevel(): void {
@@ -198,14 +205,20 @@ export class PhoneView {
   /** 和电视上一样的横幅：到顶、松手害人、召唤、检查点。 */
   private banners(evs: readonly SimEvent[]): void {
     const name = (i: number): string => this.cast_?.players[i]?.name || `P${i + 1}`;
+    const mode = this.cast_?.mode ?? 'climb';
     for (const ev of evs) {
-      if (ev.type === 'win') this.banner(tr('到顶了！', 'Made it!'));
+      if (ev.type === 'win') {
+        const teams = this.cast_?.teams;
+        this.banner(resultsTitle({ time: 0, deaths: [], grabs: [], betrayals: [], mode, winners: ev.who ?? [], ...(teams ? { teams } : {}) }, name));
+      }
+      if (ev.type === 'finish') this.banner(tr(`${name(ev.player)} 到了！第 ${ev.place} 个`, `${name(ev.player)} made it! #${ev.place}`));
+      if (ev.type === 'out') this.banner(tr(`${name(ev.player)} 出局`, `${name(ev.player)} is out`), 'bad');
       if (ev.type === 'betrayal') this.banner(tr(`${name(ev.by)} 松手了`, `${name(ev.by)} let go!`), 'bad');
       if (ev.type === 'summon') {
         const who = ev.who.map(name);
         this.banner(tr(`${name(ev.player)} 把 ${who.join('、')} 拉了回来`, `${name(ev.player)} pulled ${who.join(' & ')} back`));
       }
-      if (ev.type === 'checkpoint') this.banner(tr('检查点 ✓', 'Checkpoint ✓'));
+      if (ev.type === 'checkpoint' && mode !== 'race') this.banner(tr('检查点 ✓', 'Checkpoint ✓'));
     }
   }
 
