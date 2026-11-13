@@ -222,9 +222,11 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
     const area = (r: typeof p) => (r.right - r.left) * (r.bottom - r.top);
     return (w * h) / Math.min(area(p), area(q));
   };
+  // (how tall the one furthest back is drawn depends on which slot of the fan it stands in, and the
+  // board leans back: the three come out between about 26 and 31 px at 中, 17 and 20 at 小)
   for (const [size, label, tall] of [
-    ["m", "中", 26],
-    ["s", "小", 17],
+    ["m", "中", 25],
+    ["s", "小", 16],
   ] as const) {
     if (size !== "m") await pickSize(a, label);
     await expect(a.page.locator(".stage .boardwrap")).toHaveAttribute("data-map", size);
