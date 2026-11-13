@@ -323,6 +323,9 @@ export class Sim {
   private readonly cpOf: number[] = [];
   /** 坐不住：出局的人已经挪到画面外面停好了。 */
   private readonly parked = new Set<number>();
+  /** 每个人离开实在的地方多久了、在半空的圈里拉力是不是已经不算了（pullCounts）。 */
+  private readonly offSolid: number[] = [];
+  private readonly ringCut: boolean[] = [];
   private acc = 0;
 
   constructor(level: Level, nPlayers: number, rules: Rules = CLIMB) {
@@ -854,7 +857,8 @@ export class Sim {
     for (let i = 0; i < this.fadings.length; i++) this.tickFading(i);
     this.tickCrumbles();
     for (const s of this.springs) s.hit += dt;
-    for (const p of this.players) if (!p.dead && !p.done) this.control(p);
+    const pulls = this.pullCounts(dt);
+    for (const p of this.players) if (!p.dead && !p.done) this.control(p, pulls[p.id] ?? true);
     const slips = this.rules.mode === 'last';
     for (const p of this.players) {
       if (p.dead || p.done) continue;
@@ -939,15 +943,68 @@ export class Sim {
     }
   }
 
+  /**
+   * 谁的拉力算数。拉身体的力只加在身体上，没有反作用力：抓着地形时地形扛着，没事；抓着一个悬空的队友，那个队友被拽着走，
+   * 两个人也只是慢慢往下掉。可几个人在半空互相抓成一个圈（你抓我、我抓你），谁也没连到实在的地方时，每个人的力都朝着
+   * 别人的手上方去，越拉越快，一起往天上飞（推摇杆往上，一秒一千多 px）。圈里的人往上快过 CFG.ringRise，或者离开实在的
+   * 地方超过 CFG.ringAir 秒，拉力就不算了，直到又连到实在的地方：最多一起蹦一下，飞不上天。
+   * 实在的地方：自己站在地上，抓着地形、绳子、跷跷板或箱子，比谁先到了终点钉在那里；抓着这样的人也算连上了。
+   * 只管圈里的人，别的都和以前一样（录好的回放还是那样跑）。
+   */
+  private pullCounts(dt: number): boolean[] {
+    const ok = this.players.map((p) => {
+      if (p.dead) return false;
+      if (p.done || p.ground) return true;
+      return p.arms.some((a) => a.grip !== null && a.grip.kind !== 'player');
+    });
+    // 抓着已经连上的人也算连上；最多 6 个人，转几圈就定了
+    for (let changed = true; changed; ) {
+      changed = false;
+      this.players.forEach((p, i) => {
+        if (ok[i] || p.dead) return;
+        if (p.arms.some((a) => a.grip?.kind === 'player' && a.grip.player !== undefined && ok[a.grip.player])) {
+          ok[i] = true;
+          changed = true;
+        }
+      });
+    }
+    this.players.forEach((p, i) => {
+      if (ok[i] || p.dead) {
+        this.offSolid[i] = 0;
+        this.ringCut[i] = false;
+      } else this.offSolid[i] = (this.offSolid[i] ?? 0) + dt;
+    });
+    // 没连上的人里，顺着「抓着谁」走能走回自己的就在圈里
+    const holds = (i: number): number[] =>
+      (this.players[i]?.arms ?? []).flatMap((a) => (a.grip?.kind === 'player' && a.grip.player !== undefined && !ok[a.grip.player] ? [a.grip.player] : []));
+    const inRing = (i: number): boolean => {
+      const seen = new Set<number>();
+      const todo = holds(i);
+      while (todo.length) {
+        const j = todo.pop() as number;
+        if (j === i) return true;
+        if (seen.has(j)) continue;
+        seen.add(j);
+        todo.push(...holds(j));
+      }
+      return false;
+    };
+    return this.players.map((p, i) => {
+      if (ok[i] || p.dead || !inRing(i)) return true;
+      if (p.body.vy < -CFG.ringRise || (this.offSolid[i] ?? 0) > CFG.ringAir) this.ringCut[i] = true;
+      return !this.ringCut[i];
+    });
+  }
+
   /** 一步里的操作：挂着时对身体施力，没抓着的手伸向摇杆方向。 */
-  private control(p: Player): void {
+  private control(p: Player, pulls: boolean): void {
     const body = p.rb;
     body.resetForces(false);
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const gripping = p.arms.filter((a) => a.grip);
     body.setLinearDamping(gripping.length && !p.ground ? CFG.hangDamp : CFG.bodyDamp);
     p.bodyCol.setFriction(gripping.length && aimed ? CFG.bodyFrictionPulling : CFG.bodyFriction);
-    if (gripping.length && aimed) {
+    if (gripping.length && aimed && pulls) {
       // 挂着时摇杆指「身体想去哪」，不是「手指哪」：往上推翻上去，左右推是荡。
       let tx = 0;
       let ty = 0;
