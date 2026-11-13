@@ -1,13 +1,17 @@
-// An iPhone can't make a web page full screen: Safari keeps its bars. Opened from the Home Screen,
-// changle.ca (and this game with it) gets the whole screen. This shows how, with a little iPhone that
-// acts out the four taps; once by itself the first time an iPhone reaches a lobby, then from the
-// lobby's line, the menu and the full-screen button.
+// An iPhone can't make a web page full screen: Safari keeps its bars. Two ways round it: hide
+// Safari's toolbar (the page menu, two taps, any time), or open changle.ca from the Home Screen,
+// where the game gets the whole screen. This shows both, with a little iPhone that acts out the four
+// taps to the Home Screen: once by itself the first time an iPhone reaches a lobby, then from the
+// lobby's line, the menu and the full-screen button. In a round, while Safari's bars take part of
+// the screen, a line under the top bar says how to hide them.
 import { useEffect, useState } from "preact/hooks";
-import { inAppBrowser, wantsHomeScreen } from "../device";
+import { browserBarsShowing, inAppBrowser, wantsHomeScreen } from "../device";
 import { t, type Key } from "../i18n";
 import { Icon, Sheet } from "./chrome";
 
 const SEEN = "hc.homeGuide";
+/** the round's line about Safari's bars, closed for good */
+const BARS_SEEN = "hc.barsTip";
 
 export interface HomeGuide {
   /** this device would gain the whole screen from it (an iPhone in Safari, not opened from the Home Screen) */
@@ -130,6 +134,15 @@ export function HomeGuideBody(props: { onDone: () => void; doneLabel?: string })
       <MiniPhone />
       <div class="home-guide-text">
         <p class="sheet-text">{t("homeWhy")}</p>
+        <h3 class="home-way">
+          <Icon name="pageMenu" size={18} />
+          {t("homeQuickTitle")}
+        </h3>
+        <p class="sheet-text home-quick">{t("homeQuick")}</p>
+        <h3 class="home-way">
+          <Icon name="addSquare" size={18} />
+          {t("homeFullTitle")}
+        </h3>
         <ol class="home-steps">
           {steps.map((step) => (
             <li key={step.key} class={`home-step${step.scene ? ` home-step-${step.scene}` : ""}`}>
@@ -150,6 +163,70 @@ export function HomeScreenGuide(props: { guide: HomeGuide }) {
     <Sheet open={props.guide.open} title={t("homeTitle")} onClose={props.guide.close} wide>
       <HomeGuideBody onDone={props.guide.close} />
     </Sheet>
+  );
+}
+
+/** Whether the browser's bars are taking part of the screen now (held sideways, in Safari). */
+function useBrowserBars(): boolean {
+  const [showing, setShowing] = useState(browserBarsShowing);
+  useEffect(() => {
+    const update = () => setShowing(browserBarsShowing());
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    window.visualViewport?.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      window.visualViewport?.removeEventListener("resize", update);
+    };
+  }, []);
+  return showing;
+}
+
+/**
+ * In a round on an iPhone in Safari, while its bars take part of the screen: how to hide them (and the
+ * whole guide behind "more ways"). It goes when the bars do, after 15 s in a round, or for good with ×.
+ */
+export function BarsHint(props: { onMore: () => void }) {
+  const showing = useBrowserBars();
+  const [closed, setClosed] = useState(() => {
+    try {
+      return localStorage.getItem(BARS_SEEN) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [later, setLater] = useState(false);
+  useEffect(() => {
+    if (!showing || closed) return;
+    const timer = window.setTimeout(() => setLater(true), 15_000);
+    return () => window.clearTimeout(timer);
+  }, [showing, closed]);
+  if (!showing || closed || later) return null;
+  const close = () => {
+    setClosed(true);
+    try {
+      localStorage.setItem(BARS_SEEN, "1");
+    } catch {
+      // fine: gone for this round
+    }
+  };
+  return (
+    <div class="bars-hint" role="note">
+      <p class="bars-hint-text">
+        {t("barsHintA")}
+        <span class="bars-hint-icon">
+          <Icon name="pageMenu" size={18} />
+        </span>
+        {t("barsHintB")}
+      </p>
+      <button type="button" class="bars-hint-more" onClick={props.onMore}>
+        {t("barsMore")}
+      </button>
+      <button type="button" class="bars-hint-close" aria-label={t("homeGotIt")} onClick={close}>
+        <Icon name="close" size={18} />
+      </button>
+    </div>
   );
 }
 

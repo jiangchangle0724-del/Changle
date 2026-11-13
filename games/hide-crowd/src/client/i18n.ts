@@ -136,16 +136,23 @@ const S = {
   turnBody: ["这个游戏只能横着玩：画面更大，两只手各管一边。", "This game is played sideways: a bigger view, a thumb on each side."],
   turnLockApple: ["转不过来？从右上角往下滑打开控制中心，关掉竖排方向锁定。", "Won't turn? Swipe down from the top right for Control Center and turn off Portrait Orientation Lock."],
   turnLockOther: ["转不过来？在手机的快捷设置里打开自动旋转。", "Won't turn? Turn on auto-rotate in your phone's quick settings."],
-  // an iPhone: the game without Safari's bars, from the Home Screen
-  homeTitle: ["加到主屏幕，全屏玩", "Add to Home Screen, play full screen"],
-  homeWhy: ["iPhone 的 Safari 不让网页全屏。把 changle.ca 加到主屏幕，从那里打开，游戏就铺满整个屏幕。只要加一次。", "Safari on an iPhone won't let a page go full screen. Add changle.ca to your Home Screen and open it from there: the game fills the whole screen. You only do this once."],
+  // an iPhone: the game without Safari's bars (hide the toolbar, or open it from the Home Screen)
+  homeTitle: ["iPhone 上全屏玩", "Full screen on an iPhone"],
+  homeWhy: ["iPhone 的 Safari 不让网页自己全屏，有两个办法。", "Safari on an iPhone won't let a page go full screen by itself. There are two ways round it."],
+  homeQuickTitle: ["最快：隐藏 Safari 的工具栏", "Quickest: hide Safari's toolbar"],
+  homeQuick: ["点地址栏左边的「页面菜单」（三条横线），选「隐藏工具栏」。旧版 iOS 是地址栏里的「aA」或「···」。想把栏叫回来，点一下屏幕边上那条小网址。", "Tap the page menu at the left of the address bar (three lines), then Hide Toolbar. On older iOS it's the aA or the ··· in the address bar. To bring the bars back, tap the little address at the edge of the screen."],
+  homeFullTitle: ["完全全屏：加到主屏幕（只要一次）", "All the screen: add it to your Home Screen (once)"],
   homeSafari: ["先点右上角的 ···，选在 Safari 中打开。", "First tap ··· at the top right and open this page in Safari."],
   homeStep1: ["点 Safari 的「共享」：在地址栏旁边的 ··· 或菜单里（旧版 iOS 在底部工具栏）。", "Tap Share in Safari: it's in the ··· or the menu beside the address bar (on older iOS, in the bottom toolbar)."],
   homeStep2: ["往下滑，点「添加到主屏幕」。", "Scroll down and tap Add to Home Screen."],
   homeStep3: ["打开「作为网页 App 打开」，再点「添加」。", "Turn on Open as Web App, then tap Add."],
   homeStep4: ["以后点主屏幕上的「开席」图标进来：没有 Safari 的栏，整个屏幕都是游戏。", "From now on, open the changle.ca icon on your Home Screen: no Safari bars, the whole screen is the game."],
-  homeShow: ["怎么加", "Show me"],
-  homeTip: ["iPhone 想全屏玩，把 changle.ca 加到主屏幕", "On an iPhone, add changle.ca to your Home Screen to play full screen"],
+  homeShow: ["怎么做", "Show me"],
+  homeTip: ["iPhone 想全屏玩：隐藏 Safari 的工具栏，或者把 changle.ca 加到主屏幕", "Full screen on an iPhone: hide Safari's toolbar, or add changle.ca to your Home Screen"],
+  // in a round, while Safari's bars take part of the screen
+  barsHintA: ["全屏玩：点地址栏左边的", "Full screen: tap"],
+  barsHintB: ["，选「隐藏工具栏」", "at the left of the address bar, then Hide Toolbar"],
+  barsMore: ["更多办法", "More ways"],
   homeGotIt: ["知道了", "Got it"],
   // (the guide's little iPhone, labelled as iOS labels it)
   homeShare: ["共享", "Share"],
