@@ -71,14 +71,14 @@ export class Foreground {
         y: low ? 0.86 + r() * 0.22 : 0.02 + r() * 0.14,
         r: 50 + r() * 90,
         color,
-        alpha: 0.12 + r() * 0.1,
+        alpha: 0.1 + r() * 0.08,
         phase: r() * 6.28,
         steam: false,
         s: sprite(color),
       });
     }
     if (world === 'table' && !still) {
-      for (let i = 0; i < 5; i++) this.blobs.push({ x: r() * P, y: 0.95 + r() * 0.1, r: 90 + r() * 60, color: 0xffffff, alpha: 0.09, phase: r() * 6.28, steam: true, s: sprite(0xffffff) });
+      for (let i = 0; i < 5; i++) this.blobs.push({ x: r() * P, y: 0.95 + r() * 0.1, r: 90 + r() * 60, color: 0xffffff, alpha: 0.07, phase: r() * 6.28, steam: true, s: sprite(0xffffff) });
     }
   }
 

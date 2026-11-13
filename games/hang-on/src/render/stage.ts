@@ -158,16 +158,20 @@ export class Stage {
     this.backdrop?.resize(W, H);
     this.fore?.resize(W, H);
     const v = this.vignette.clear();
+    // 暗角只压四边。Pixi 画放射渐变时先拿最后一个颜色铺满整张图，所以最后一个必须透明：
+    // 原来最后是 0.42 的黑，整个画面（连中间）都蒙了一层，亮度只剩六成（A8 查出来的）。
+    // 现在 0.982 是四个角（离中心 0.707），1 再回到透明；中间到四边的样子和原来想要的一样。
     const grad = (this.vignetteGrad ??= new FillGradient({
       type: 'radial',
       center: { x: 0.5, y: 0.5 },
       innerRadius: 0,
       outerCenter: { x: 0.5, y: 0.5 },
-      outerRadius: 0.78,
+      outerRadius: 0.72,
       colorStops: [
         { offset: 0, color: 'rgba(0,0,0,0)' },
-        { offset: 0.6, color: 'rgba(0,0,0,0)' },
-        { offset: 1, color: 'rgba(0,0,0,0.42)' },
+        { offset: 0.65, color: 'rgba(0,0,0,0)' },
+        { offset: 0.982, color: 'rgba(0,0,0,0.32)' },
+        { offset: 1, color: 'rgba(0,0,0,0)' },
       ],
     }));
     v.rect(0, 0, W, H).fill(grad);

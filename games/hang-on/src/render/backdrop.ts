@@ -153,7 +153,7 @@ export class Backdrop {
       // 一道光：上窄下宽，三层叠出软边
       for (let k = 0; k < 3; k++) {
         const s = 1 - k * 0.3;
-        g.poly([x - w0 * s, -10, x + w0 * s, -10, x + dx + w1 * s, H * 1.05, x + dx - w1 * s, H * 1.05]).fill({ color, alpha: 0.018 + k * 0.012 });
+        g.poly([x - w0 * s, -10, x + w0 * s, -10, x + dx + w1 * s, H * 1.05, x + dx - w1 * s, H * 1.05]).fill({ color, alpha: 0.014 + k * 0.01 });
       }
     }
   }

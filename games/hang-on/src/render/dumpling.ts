@@ -26,6 +26,8 @@ const ease = {
 /**
  * 2.5D 的光影（A8）：光从左上来。身体是个球：左上一团亮、右下边上暗下去，右下沿着边一道反光。
  * 渐变用白和黑的半透明叠在本色上，换什么颜色都对；local 坐标，所有糯米团共用这两个。
+ * Pixi 画放射渐变时先拿最后一个颜色铺满整张图，所以最后一个颜色必须是透明的，
+ * 不然整个圆都蒙上那层颜色：暗的那圈放在 0.96（圆上离光最远的点），1 再回到透明。
  */
 let LIT: FillGradient | null = null;
 let SHADE: FillGradient | null = null;
@@ -44,14 +46,15 @@ function bodyGradients(): { lit: FillGradient; shade: FillGradient } {
   });
   SHADE ??= new FillGradient({
     type: 'radial',
-    center: { x: 0.36, y: 0.3 },
+    center: { x: 0.4, y: 0.36 },
     innerRadius: 0,
-    outerCenter: { x: 0.4, y: 0.34 },
-    outerRadius: 0.78,
+    outerCenter: { x: 0.4, y: 0.36 },
+    outerRadius: 0.7,
     colorStops: [
       { offset: 0, color: 'rgba(20,10,30,0)' },
-      { offset: 0.55, color: 'rgba(20,10,30,0)' },
-      { offset: 1, color: 'rgba(20,10,30,0.42)' },
+      { offset: 0.5, color: 'rgba(20,10,30,0)' },
+      { offset: 0.96, color: 'rgba(20,10,30,0.34)' },
+      { offset: 1, color: 'rgba(20,10,30,0)' },
     ],
   });
   return { lit: LIT, shade: SHADE };
