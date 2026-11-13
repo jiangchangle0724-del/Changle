@@ -13,8 +13,8 @@
  * every link ever shared, and 到此一游's own links, still land in the right place.
  *
  * No router library: the History API, plus one click handler so an ordinary <a href="/me"> stays
- * inside the page. /eat, /go, /trip, /hide, /party and /hang-on are other Workers: links there load
- * a real page.
+ * inside the page. /eat, /when, /go, /trip, /hide, /party and /hang-on are other Workers: links there
+ * load a real page.
  */
 import { useEffect, useRef, useState } from "react";
 import { GAMES, GAME_BY_ID, isGameId, type GameId } from "./games/registry";
@@ -330,7 +330,7 @@ export function back() {
 }
 
 /** The other Workers on changle.ca: a link there is a real page load. */
-const elsewhere = (path: string) => /^\/(eat|go|trip|hide|party|hang-on)(\/|$)/.test(path);
+const elsewhere = (path: string) => /^\/(eat|when|go|trip|hide|party|hang-on)(\/|$)/.test(path);
 
 /** /g/<slug>/play of a game on its own Worker (一起跳): the address of its stage, or null. */
 export function stageOf(pathname: string): string | null {
