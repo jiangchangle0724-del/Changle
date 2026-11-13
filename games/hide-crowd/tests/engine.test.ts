@@ -13,6 +13,8 @@ import {
   BITE_MS,
   DECOY_DISTANCE,
   DECOY_MS,
+  DRILL_GO_MS,
+  DRILL_WINDOW,
   DISTRACTS,
   FEAST_POINTS,
   STALLS,
@@ -23,6 +25,7 @@ import {
   SCORE_TO_WIN,
   STUN_MS,
   advanceMatch,
+  characterForOwner,
   createMatch,
   normalizeVector,
   roundAwards,
@@ -330,12 +333,14 @@ test("the ferry horn turns the passers-by to the sea, the gong to the stage, the
   for (const arena of ["plaza", "metro", "gallery", "market"] as const) {
     let match = createMatch(players, 0, 77, arena);
     let first = 0;
-    for (let now = 50; now <= 20_000; now += 50) {
+    for (let now = 50; now <= 32_000; now += 50) {
       match = advanceMatch(match, now, {});
       const moment = crowdMoment(arena, 0, now);
       if (!moment) continue;
       first ||= now;
-      assert.equal(moment.kind, { plaza: "horn", metro: "dance", gallery: "gong", market: "fireworks" }[arena]);
+      // (the theatre's drill, first and every other time, stops and turns the crowd to the stage too;
+      // its punch on the call has its own test)
+      assert.equal(moment.kind, { plaza: "horn", metro: "dance", gallery: now < 29_000 ? "drill" : "gong", market: "fireworks" }[arena]);
       // (everyone has reacted, and turned, a second and a half in)
       if (now - moment.startsAt < 1_500) continue;
       for (const character of match.characters.filter((item) => item.kind === "npc" && now >= item.stunnedUntil)) {
@@ -529,4 +534,65 @@ test("a distraction: a passer-by well away throws a punch at nothing, twice a ro
   const used = state.events.length;
   state = startDistract(state, "a", 3_000);
   assert.equal(state.events.length, used, "twice a round, no more");
+});
+
+test("the theatre's moments take turns: the drill, where every passer-by punches on the call, then the gong", () => {
+  // 12 s in the drill, 17 s later the gong, then the drill again
+  assert.equal(crowdMoment("gallery", 0, 12_100)?.kind, "drill");
+  assert.equal(crowdMoment("gallery", 0, 29_100)?.kind, "gong");
+  assert.equal(crowdMoment("gallery", 0, 46_100)?.kind, "drill");
+  assert.equal(crowdMoment("plaza", 0, 24_100)?.kind, "horn", "a place with one moment keeps it");
+  let match = createMatch(players, 0, 31, "gallery");
+  const punched = new Set<string>();
+  for (let now = 50; now <= 12_000 + DRILL_GO_MS + 600; now += 50) {
+    match = advanceMatch(match, now, {});
+    if (now < 12_000 + DRILL_GO_MS - 200) {
+      if (now > 12_000 + 1_000) for (const body of match.characters) assert.notEqual(body.pose, "punch", "nobody punches before the call");
+      continue;
+    }
+    for (const body of match.characters) if (body.kind === "npc" && (body.pose === "windup" || body.pose === "punch")) punched.add(body.id);
+  }
+  const standing = match.characters.filter((body) => body.kind === "npc" && match.lastTickAt >= body.stunnedUntil);
+  assert.equal(punched.size, standing.length, "every passer-by throws a punch on the call");
+});
+
+test("a player's punch with the drill goes through the passers-by: no foul, and a rival behind one is tagged", () => {
+  let match = createMatch(players, 0, 31, "gallery");
+  for (let now = 50; now <= 12_000; now += 50) match = advanceMatch(match, now, {});
+  const one = characterForOwner(match, "player-one")!;
+  const two = characterForOwner(match, "player-two")!;
+  const passerBy = match.characters.find((body) => body.kind === "npc")!;
+  for (const body of match.characters) if (body !== one && body !== two && body !== passerBy) Object.assign(body, { x: 90, y: 50 });
+  Object.assign(one, { x: 40, y: 30, facing: 0, velocity: { x: 0, y: 0 } });
+  Object.assign(passerBy, { x: 42.5, y: 30, velocity: { x: 0, y: 0 } });
+  Object.assign(two, { x: 46, y: 30, velocity: { x: 0, y: 0 } });
+  // pressed just before the call: it lands in the window
+  const pressed = 12_000 + DRILL_GO_MS - 150;
+  for (let now = 12_050; now < pressed; now += 50) match = advanceMatch(match, now, {});
+  match = startPunch(match, "player-one", pressed);
+  for (let now = pressed + 10; now <= pressed + 400; now += 50) match = advanceMatch(match, now, {});
+  assert.ok(pressed + 160 >= 12_000 + DRILL_WINDOW[0] && pressed + 160 <= 12_000 + DRILL_WINDOW[1]);
+  assert.deepEqual(match.events.map((event) => [event.t, event.actor, event.target]), [["tag", "player-one", "player-two"]]);
+  assert.equal(characterForOwner(match, "player-one")!.fouls, 0);
+  assert.equal(match.characters.find((body) => body.id === passerBy.id)!.pose === "stunned", false, "the passer-by stays up");
+});
+
+test("outside the drill a punch at a passer-by is still a foul, and one at nothing a miss", () => {
+  let match = createMatch(players, 0, 31, "gallery");
+  for (let now = 50; now <= 5_000; now += 50) match = advanceMatch(match, now, {});
+  const one = characterForOwner(match, "player-one")!;
+  const passerBy = match.characters.find((body) => body.kind === "npc")!;
+  for (const body of match.characters) if (body !== one && body !== passerBy) Object.assign(body, { x: 90, y: 50 });
+  Object.assign(one, { x: 40, y: 30, facing: 0, velocity: { x: 0, y: 0 } });
+  Object.assign(passerBy, { x: 42.5, y: 30, velocity: { x: 0, y: 0 } });
+  match = startPunch(match, "player-one", 5_010);
+  for (let now = 5_050; now <= 5_400; now += 50) match = advanceMatch(match, now, {});
+  assert.deepEqual(match.events.map((event) => event.t), ["foul"]);
+});
+
+test("a distraction leaves a glance at its passer-by for every other screen's camera", () => {
+  let match = createMatch(players, 0, 7);
+  match = startDistract(match, "player-one", 500);
+  const decoy = match.characters.find((body) => body.decoyAt === 500)!;
+  assert.deepEqual(match.glance, { x: decoy.x, y: decoy.y, at: 500, by: "player-one" });
 });

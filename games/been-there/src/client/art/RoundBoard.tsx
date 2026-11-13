@@ -10,6 +10,7 @@ import { BOARD, CITY_AT, GROUPS, type WorldId } from "../../engine";
 import { CharacterArt, type Mood } from "./characters";
 import { CityGlyph, SpaceGlyph } from "./icons";
 import { RouteMap, type Flight } from "./RouteMap";
+import { MapLife } from "./MapLife";
 import { useSatMap } from "./SatMap";
 import { shapePath } from "./shapes";
 import { CODE_PATH, NEWS_PATH, OWNER_PATH, ZH_PATH } from "./boardType";
@@ -202,6 +203,35 @@ export interface Gone {
   key: number;
 }
 
+/** An owner's chip on a city: the team's colour and letter. */
+interface Chip {
+  color: string;
+  letter: string;
+}
+
+/** A chip that changed hands a moment ago (it turns over to the new owner), or went back to the bank (it
+ * flies into the middle): the one it was, its place among those that went together (`i`), how long it
+ * waits first (`wait`, s: a team gone broke, until its token has fallen), and when (performance.now()). */
+interface Moved extends Chip {
+  key: number;
+  i: number;
+  wait: number;
+  t: number;
+}
+
+/** A team gone broke: its token tips over where it stood and fades, from `start` (performance.now() ms:
+ * once its move's token is down, ui/Board.tsx), its cities going after it. */
+export interface Fallen {
+  key: number;
+  seat: number;
+  at: number;
+  /** Character index (= team colour index). */
+  kind: number;
+  start: number;
+}
+/** How long after a team's token starts to fall its cities go (s: once it's down, art.css token-fall). */
+const BROKE_GO = 0.75;
+
 const houseGap = (n: number) => Math.min(12.4, 40 / n);
 const houseX = (i: number, n: number) => ((i - (n - 1) / 2) * houseGap(n)).toFixed(1);
 
@@ -246,22 +276,25 @@ const rising = (i: number, drop = false) => ({ "--i": i, ...(drop ? { "--from": 
 
 function Built({ at, n, from, tag = true }: { at: number; n: number; from: number; /** marked with its city (the board's) */ tag?: boolean }) {
   const city = CITY_AT[at]?.id;
+  // (`b-body`: what stands, as one, for a rent paid there to bounce: rentSpace)
   if (n >= 5) {
     const fresh = from < 5;
     return (
       <g class="bldg hotel" data-at={tag ? at : undefined} transform={`scale(${BLD_K}) translate(0 20)`}>
         <ellipse class="b-ground" rx="13.5" ry="3.4" cy="0.6" />
-        <g clip-path={fresh ? "url(#rb-above)" : undefined}>
-          {[0, 1, 2].map((f) => (
-            <g key={f} transform={`translate(0 ${-f * 8.5})`}>
-              <g class={fresh ? "b-new" : undefined} style={fresh ? rising(f, f > 0) : undefined}>
-                <Floor />
+        <g class="b-body">
+          <g clip-path={fresh ? "url(#rb-above)" : undefined}>
+            {[0, 1, 2].map((f) => (
+              <g key={f} transform={`translate(0 ${-f * 8.5})`}>
+                <g class={fresh ? "b-new" : undefined} style={fresh ? rising(f, f > 0) : undefined}>
+                  <Floor />
+                </g>
               </g>
-            </g>
-          ))}
-          <g transform="translate(0 -25.5)">
-            <g class={fresh ? "b-new" : undefined} style={fresh ? rising(3, true) : undefined}>
-              <Roof city={city} />
+            ))}
+            <g transform="translate(0 -25.5)">
+              <g class={fresh ? "b-new" : undefined} style={fresh ? rising(3, true) : undefined}>
+                <Roof city={city} />
+              </g>
             </g>
           </g>
         </g>
@@ -274,13 +307,15 @@ function Built({ at, n, from, tag = true }: { at: number; n: number; from: numbe
   return (
     <g class="bldg" data-at={tag ? at : undefined} transform={`scale(${BLD_K}) translate(0 8)`}>
       <ellipse class="b-ground" rx={((n * houseGap(n)) / 2 + 4).toFixed(1)} ry="3" cy="0.6" />
-      {Array.from({ length: n }, (_, i) => (
-        <g key={i} transform={`translate(${houseX(i, n)} 0)`} clip-path={i >= from ? "url(#rb-above)" : undefined}>
-          <g class={i >= from ? "b-new" : undefined} style={i >= from ? rising(i - from) : undefined}>
-            <House />
+      <g class="b-body">
+        {Array.from({ length: n }, (_, i) => (
+          <g key={i} transform={`translate(${houseX(i, n)} 0)`} clip-path={i >= from ? "url(#rb-above)" : undefined}>
+            <g class={i >= from ? "b-new" : undefined} style={i >= from ? rising(i - from) : undefined}>
+              <House />
+            </g>
           </g>
-        </g>
-      ))}
+        ))}
+      </g>
       {/* (a burst for each building, so a new key each time) */}
       {fresh.length > 0 && <Dust key={from} xs={fresh} w={12} />}
     </g>
@@ -661,12 +696,66 @@ export function pressSpace(svg: SVGSVGElement | null | undefined, at: number, la
     ring.remove();
 }
 
+/**
+ * Rent paid on city `at` of the board `svg`: its buildings bounce on the spot, their doors and windows
+ * lit up and their fronts catching the light, the till's moment (a city with none: its owner's chip
+ * bounces). A big one (`big`) bounces twice and sends a ring of gold out round it. Never with reduced
+ * motion (ui/Board.tsx); drawn by marking what stands there for a moment (art.css b-rent).
+ */
+export function rentSpace(svg: SVGSVGElement | null | undefined, at: number, big = false) {
+  if (!svg) return;
+  const el = svg.querySelector<SVGGElement>(`.bldg[data-at="${at}"]`) ?? svg.querySelector<SVGGElement>(`.sp[data-at="${at}"] .owned`);
+  if (!el) return;
+  // (from the top again if the last one is still going)
+  delete el.dataset.rent;
+  void el.getBoundingClientRect();
+  el.dataset.rent = big ? "big" : "";
+  const key = String(performance.now());
+  el.dataset.rentKey = key;
+  window.setTimeout(() => {
+    if (el.dataset.rentKey !== key) return;
+    delete el.dataset.rent;
+    delete el.dataset.rentKey;
+  }, big ? 2100 : 1500);
+  const layer = svg.querySelector<SVGGElement>(".presses");
+  if (!big || !layer || typeof layer.animate !== "function") return;
+  const [x, y] = xy(angleOf(at), RBLD);
+  const ring = document.createElementNS(SVG_NS, "circle");
+  ring.setAttribute("cx", x.toFixed(1));
+  ring.setAttribute("cy", y.toFixed(1));
+  ring.setAttribute("r", "30");
+  ring.setAttribute("class", "rent-ring");
+  layer.appendChild(ring);
+  ring.animate([{ transform: "scale(0.5)", opacity: 0.9 }, { transform: "scale(3.6)", opacity: 0 }], { duration: 1000, delay: 120, easing: "cubic-bezier(0.2, 0.7, 0.3, 1)" }).onfinish = () =>
+    ring.remove();
+}
+
+/**
+ * The auctioneer's gavel striking a sale's stamp as it comes down (art.css fx-gavel), then lifting
+ * away. Drawn about the end of its handle, where it's held, half as big again: its head's face, (-48, 14)
+ * from there, meets the top of the stamp at (24, -17).
+ */
+function Gavel() {
+  return (
+    <g transform="translate(96 -38) scale(1.5)" aria-hidden="true">
+      <g class="gavel">
+        <rect class="gv-handle" x="-44" y="-3.2" width="50" height="6.4" rx="3.2" />
+        <rect class="gv-head" x="-56" y="-14" width="16" height="28" rx="4" />
+        <rect class="gv-band" x="-56" y="-14" width="16" height="4.5" rx="2" />
+        <rect class="gv-band" x="-56" y="9.5" width="16" height="4.5" rx="2" />
+      </g>
+    </g>
+  );
+}
+
 /** A team that has just made a full set: its spaces light up one after another in its colour. */
 export interface LitSet {
   key: string;
   color: string;
   /** Its spaces, in the order they light up. */
   spaces: number[];
+  /** Made by a deal (or a team gone broke to this one): it lights up after the chips turn over. */
+  late?: boolean;
 }
 
 /** The table turns 60 degrees a second at most (easing in and out); past this a fade is kinder. */
@@ -720,6 +809,8 @@ export function RoundBoard({
   lean = 0,
   lang = "en",
   lit,
+  fallen,
+  visited,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -762,6 +853,11 @@ export function RoundBoard({
   lang?: "zh" | "en";
   /** Full sets just made (`LitSet`; not with reduced motion). */
   lit?: LitSet[];
+  /** Teams gone broke a moment ago (`Fallen`): their tokens fall over (not with reduced motion), and
+   * their cities go after their stamp. */
+  fallen?: Fallen[];
+  /** The cities the teams have been to: little planes fly between them over the map (`MapLife`). */
+  visited?: string[];
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const satRef = useRef<HTMLCanvasElement>(null);
@@ -769,6 +865,8 @@ export function RoundBoard({
   ridingRef.current = riding !== undefined && riding !== null;
   // (painted once its pictures are in, never while a move plays: the board draws the map until then)
   const satOn = useSatMap(satRef, !!sat, () => ridingRef.current);
+  // (life on the map, turning with it: MapLife)
+  const lifeRef = useRef<HTMLDivElement>(null);
   const cam = useRef<SVGGElement>(null);
   const ref = useRef<SVGGElement>(null);
   const rot = useRef(focusAt - angleOf(focus));
@@ -785,8 +883,9 @@ export function RoundBoard({
     const g = ref.current;
     if (!g) return;
     g.setAttribute("transform", `rotate(${r.toFixed(2)})`);
-    // (the world under the board turns with the table)
+    // (the world under the board turns with the table, and the life on it)
     if (satRef.current) satRef.current.style.transform = `rotate(${r.toFixed(2)}deg)`;
+    if (lifeRef.current) lifeRef.current.style.transform = `rotate(${r.toFixed(2)}deg)`;
     upright(r, near);
   };
   const standRef = useRef(1);
@@ -854,6 +953,7 @@ export function RoundBoard({
         const o = p < 1 ? Math.abs(2 * p - 1).toFixed(3) : "";
         if (svg) svg.style.opacity = o;
         if (satRef.current) satRef.current.style.opacity = o;
+        if (lifeRef.current) lifeRef.current.style.opacity = o;
         if (p < 1) raf = requestAnimationFrame(step);
       };
       raf = requestAnimationFrame(step);
@@ -861,6 +961,7 @@ export function RoundBoard({
         cancelAnimationFrame(raf);
         if (svg) svg.style.opacity = "";
         if (satRef.current) satRef.current.style.opacity = "";
+        if (lifeRef.current) lifeRef.current.style.opacity = "";
         if (!turned) apply(start + delta);
       };
     }
@@ -1004,12 +1105,18 @@ export function RoundBoard({
   // For each city, how many buildings stand on it and how many stood before the latest was built
   // (`Buildings`' `from`): selling one makes nothing new (it sinks: `gone`), building again does; a
   // hotel sold back to houses puts them all up anew. A city mortgaged since then turns its owner's
-  // chip face down (`flipped`).
+  // chip face down (`flipped`). A city that changed hands since (a trade, a team gone broke to
+  // another) turns its chip over to its new owner (`hand`), one after another; one gone back to the
+  // bank (a team gone broke to it) has its chip lift off and fly into the middle of the board (`off`).
   const born = useRef<{
     owned: Set<number>;
     built: Map<number, { n: number; from: number }>;
     gone: Map<number, Gone>;
     stillMort: Set<number>;
+    chips: Map<number, Chip>;
+    hand: Map<number, Moved>;
+    off: Map<number, Moved>;
+    broke: Set<number>;
     k: number;
   } | null>(null);
   born.current ??= {
@@ -1017,12 +1124,34 @@ export function RoundBoard({
     built: new Map(marks.flatMap((m, at) => (m?.houses ? [[at, { n: m.houses, from: m.houses }] as const] : []))),
     gone: new Map(),
     stillMort: new Set(marks.flatMap((m, at) => (m?.mortgaged ? [at] : []))),
+    chips: new Map(marks.flatMap((m, at) => (m?.owner ? [[at, { color: m.owner.color, letter: m.owner.letter }] as const] : []))),
+    hand: new Map(),
+    off: new Map(),
+    broke: new Set((fallen ?? []).map((f) => f.key)),
     k: 0,
   };
-  const { owned, built, gone, stillMort } = born.current;
+  const { owned, built, gone, stillMort, chips, hand, off, broke } = born.current;
+  // (a team gone broke this time: its cities go once its token has fallen)
+  const nowMs = performance.now();
+  const breaking = (fallen ?? []).find((f) => !broke.has(f.key));
+  const wait = breaking ? Math.max(0, (breaking.start - nowMs) / 1000) + BROKE_GO : 0;
+  for (const f of fallen ?? []) broke.add(f.key);
+  for (const list of [hand, off]) for (const [at, x] of list) if (nowMs - x.t > 6000) list.delete(at);
+  let handed = 0;
+  let lifted = 0;
   marks.forEach((m, at) => {
     if (!m?.owner) owned.delete(at);
     if (!m?.mortgaged) stillMort.delete(at);
+    const had = chips.get(at);
+    if (m?.owner) {
+      if (had && had.color !== m.owner.color) hand.set(at, { ...had, key: ++born.current!.k, i: handed++, wait, t: nowMs });
+      chips.set(at, { color: m.owner.color, letter: m.owner.letter });
+      off.delete(at);
+    } else if (had) {
+      chips.delete(at);
+      hand.delete(at);
+      off.set(at, { ...had, key: ++born.current!.k, i: lifted++, wait, t: nowMs });
+    }
     const n = m?.houses ?? 0;
     const was = built.get(at) ?? { n: 0, from: 0 };
     if (n === was.n) return;
@@ -1031,6 +1160,8 @@ export function RoundBoard({
     else gone.delete(at);
   });
 
+  // (one lying face down, mortgaged, turns over face down: art.css)
+  const handedOver = (at: number) => !reduced && hand.has(at);
   const r = rot.current;
   const stand = standOf(lean);
   const bySpace = new Map<number, TokenMark[]>();
@@ -1040,6 +1171,17 @@ export function RoundBoard({
     <>
     {/* (the satellite map, under the board: it shows through the middle once it's painted) */}
     {sat && <canvas ref={satRef} class={`satmap${satOn ? " on" : ""}`} width={1} height={1} style={{ transform: `rotate(${r.toFixed(2)}deg)` }} aria-hidden="true" />}
+    {/* (planes between the cities been to, and lit windows: over the real world, under the board) */}
+    {sat && satOn && (
+      <MapLife
+        layer={lifeRef}
+        visited={visited ?? []}
+        glows={marks.flatMap((m, at) => (m?.houses && CITY_AT[at] ? [{ city: CITY_AT[at]!.id, hotel: m.houses >= 5 }] : []))}
+        reduced={reduced}
+        busy={() => ridingRef.current}
+        rot={r}
+      />
+    )}
     <svg
       ref={svgRef}
       class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}${satOn ? " sat-on" : ""}`}
@@ -1144,11 +1286,20 @@ export function RoundBoard({
                   {!owned.has(at) && <circle class="stamp-ring" r="17" stroke={mark.owner.color} />}
                   {!owned.has(at) && <Burst color={mark.owner.color} />}
                   <g class={owned.has(at) ? "owned" : "owned stamp-in"}>
-                    {/* (mortgaged since the board drew: the chip turns face down, as a deed card does) */}
-                    <g class={mark.mortgaged && !stillMort.has(at) ? "om flip" : "om"} style={{ "--team": mark.owner.color }}>
-                      <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
-                      <path class="owner" d={OWNER_PATH[mark.owner.letter]} />
-                    </g>
+                    {handedOver(at) ? (
+                      // (changed hands since the board drew: the chip turns over, the old owner's face to the new one's)
+                      <g key={hand.get(at)!.key} class="om hand" style={{ "--team": mark.owner.color, "--from": hand.get(at)!.color, "--i": hand.get(at)!.i, "--wait": `${hand.get(at)!.wait.toFixed(2)}s` }}>
+                        <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
+                        <path class="owner was" d={OWNER_PATH[hand.get(at)!.letter]} />
+                        <path class="owner now" d={OWNER_PATH[mark.owner.letter]} />
+                      </g>
+                    ) : (
+                      // (mortgaged since the board drew: the chip turns face down, as a deed card does)
+                      <g class={mark.mortgaged && !stillMort.has(at) ? "om flip" : "om"} style={{ "--team": mark.owner.color }}>
+                        <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
+                        <path class="owner" d={OWNER_PATH[mark.owner.letter]} />
+                      </g>
+                    )}
                   </g>
                 </Up>
               )}
@@ -1162,7 +1313,7 @@ export function RoundBoard({
         {/* (a full set just made: its spaces light up one after another, then together) */}
         {!reduced &&
           lit?.map((l) => (
-            <g key={l.key} class="set-lit" style={{ "--c": l.color }} aria-hidden="true">
+            <g key={l.key} class={`set-lit${l.late ? " late" : ""}`} style={{ "--c": l.color }} aria-hidden="true">
               {l.spaces.map((at, i) => (
                 <path key={at} d={wedge(at)} style={{ "--i": i }} />
               ))}
@@ -1206,12 +1357,54 @@ export function RoundBoard({
               })
           );
         })}
+        {/* (a team gone broke: its token tips over where it stood, and fades) */}
+        {!reduced &&
+          fallen?.map((f) => {
+            // (its token walks there first: ui/Board.tsx keeps it until then)
+            if (nowMs < f.start - 30) return null;
+            const [x, y] = xy(angleOf(f.at), RT);
+            const s = tokenScale;
+            const feet = 45 * s;
+            return (
+              <Up key={`fall${f.key}`} x={x} y={y} rot={r} stand={stand} extra={{ "data-fallen": f.seat }}>
+                <g class="token fallen" aria-hidden="true">
+                  <ellipse class="fall-shadow" cx="0" cy={feet.toFixed(1)} rx={(38 * s).toFixed(1)} ry={(12 * s).toFixed(1)} fill="rgba(0,0,0,.18)" />
+                  {/* (it tips over on its feet: turned about them) */}
+                  <g transform={`translate(0 ${feet.toFixed(1)})`}>
+                    <g class="fall">
+                      <g transform={`translate(${(-ART_X * s).toFixed(1)} ${(-ART_Y * s - feet).toFixed(1)}) scale(${s.toFixed(3)})`}>
+                        <CharacterArt kind={f.kind} mood="sad" />
+                      </g>
+                    </g>
+                  </g>
+                </g>
+              </Up>
+            );
+          })}
+        {/* (a city gone back to the bank: its chip lifts off and flies into the middle, the bank) */}
+        {!reduced &&
+          [...off].map(([at, o]) => {
+            const [x, y] = xy(angleOf(at), RM);
+            // (the way to the middle in the chip's own upright frame: it's turned back by the table's angle)
+            const a = (r * Math.PI) / 180;
+            const dx = -x * Math.cos(a) + y * Math.sin(a);
+            const dy = -x * Math.sin(a) - y * Math.cos(a);
+            return (
+              <Up key={`off${o.key}`} x={x} y={y} rot={r}>
+                <g class="chip-off" style={{ "--dx": `${dx.toFixed(1)}px`, "--dy": `${dy.toFixed(1)}px`, "--i": o.i, "--wait": `${o.wait.toFixed(2)}s` }} aria-hidden="true">
+                  <circle r="17" fill={o.color} stroke="var(--board-paper)" stroke-width="3" />
+                  <path class="owner" d={OWNER_PATH[o.letter]} />
+                </g>
+              </Up>
+            );
+          })}
         {/* (a building just put up comes up out of the ground big, over everything, then settles to its size) */}
         {!reduced &&
           [...built].flatMap(([at, b]) =>
             b.from < b.n && !gone.has(at) ? [<BuildFx key={`${at}:${b.from}:${b.n}`} at={at} n={b.n} from={b.from} rot={r} stand={stand} />] : [],
           )}
-        {/* (a city sold at auction, a team gone broke: a stamp on the space for a moment, upright) */}
+        {/* (a city sold at auction, a team gone broke: a stamp on the space for a moment, upright; a sale's
+            is struck by the auctioneer's gavel as it comes down) */}
         {fx?.map((f) => {
           const [x, y] = xy(angleOf(f.at), RM);
           return (
@@ -1220,6 +1413,7 @@ export function RoundBoard({
                 <rect x="-38" y="-17" width="76" height="34" rx="7" />
                 <text y="8.5">{f.label}</text>
               </g>
+              {f.kind === "sold" && !reduced && <Gavel />}
             </Up>
           );
         })}

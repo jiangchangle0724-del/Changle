@@ -16,6 +16,7 @@ import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
 import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { Police, doublesKind } from "./Doubles";
 import { SetCall } from "./Sets";
+import { DealCall } from "./Deal";
 import { NewsBanner } from "./News";
 import { ArrivalLocal, LocalSong, NowPlaying } from "./Local";
 import { ArrivalFrame } from "./Photo";
@@ -144,6 +145,7 @@ export function Game({ v }: { v: RoomView }) {
           urgent={urgent}
           onRideReady={setReadyKey}
           onRideDone={rideDone}
+          covered={open && !wide}
           over={
             <>
               <JailFx v={v} ride={ride} />
@@ -223,9 +225,11 @@ export function Game({ v }: { v: RoomView }) {
       {fsGuide && <FullscreenGuide onClose={() => setFsGuide(false)} />}
       {!ride && <RollMoment v={v} />}
       <SetCall v={v} />
+      <DealCall v={v} />
       {dancingHere && <SambaLesson v={v} size="full" />}
-      {/* (with the money: this team's ride's stamp, another team's token landing here) */}
-      <CoinFx v={v} phone after={holdUntil} />
+      {/* (with the money: this team's ride's stamp, another team's token landing here; the later of
+          the two if another team throws while this team's ride is still on) */}
+      <CoinFx v={v} phone after={Math.max(holdUntil, playing && !v.you.seats.includes(playing.seat) ? playing.ready : 0)} />
       <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
@@ -240,27 +244,38 @@ export function Game({ v }: { v: RoomView }) {
 
 /**
  * A value as it was until `until` (server time), then as it is: a move's money shows with its
- * decision window. Re-renders at `until`.
+ * decision window. Moves can overlap (a computer team throws while the last team's token is still on
+ * its way: it waits 0.9 s, a move plays for 3 or so), and each shows what it changed at its own time:
+ * a newer move holds back only what came with it, never the one before, whose time has come. (Each
+ * hold is a step: from `at`, `value`, as it was when the next move came; a step never shows before
+ * the one before it.) Re-renders when the next is due.
  */
 export function useHeld<T>(value: T, until: number): T {
-  const before = useRef(value);
-  const held = useRef<{ until: number; value: T } | null>(null);
-  useRerenderAt(until);
-  if (until > serverNow()) {
-    if (held.current?.until !== until) held.current = { until, value: before.current };
-  } else held.current = null;
-  if (held.current) return held.current.value;
-  before.current = value;
-  return value;
+  const st = useRef<{ shown: T; steps: { key: number; at: number; value: T }[] }>({ shown: value, steps: [] });
+  const s = st.current;
+  const now = serverNow();
+  while (s.steps.length && s.steps[0].at <= now) s.shown = s.steps.shift()!.value;
+  const last = s.steps[s.steps.length - 1];
+  if (until > now) {
+    if (last?.key === until) last.value = value;
+    else s.steps.push({ key: until, at: Math.max(until, last?.at ?? 0), value });
+  }
+  // (nothing held now: what's left to come, if anything, ends with the value as it is)
+  else if (last) last.value = value;
+  else s.shown = value;
+  useRerenderAt(s.steps[0]?.at ?? 0);
+  return s.shown;
 }
 
-/** Re-render at a server time (when a ride's decision window is due back, or its token lands). */
+/** Re-render at a server time (when a ride's decision window is due back, or its token lands). One
+ * that has passed by the time the page gets round to it (a render a few ms before it) re-renders now:
+ * otherwise what waited for it would wait for whatever changes next. */
 export function useRerenderAt(at: number) {
   const [, tick] = useState(0);
   useEffect(() => {
+    if (!at) return;
     const left = at - serverNow();
-    if (left <= 0) return;
-    const id = window.setTimeout(() => tick((x) => x + 1), left + 20);
+    const id = window.setTimeout(() => tick((x) => x + 1), Math.max(0, left) + 20);
     return () => clearTimeout(id);
   }, [at]);
 }

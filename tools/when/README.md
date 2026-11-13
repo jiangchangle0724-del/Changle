@@ -14,12 +14,12 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`, not on the pages yet). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
 | `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; no page uses them yet). |
-| `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`). |
+| `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`; what every browser test starts from is in `tests/e2e/helpers.ts`). |
 
 ### What is kept, and for how long
 
@@ -45,6 +45,37 @@ Saving goes by ordinary requests (they work everywhere, WeChat included, and not
 when a connection drops). The server pushes the gathering to every open page over a WebSocket
 (`/when/api/e/<code>/ws`, hibernating, so an idle gathering costs nothing). When the socket is down
 the page asks again every ten seconds, and the moment it comes back to the front.
+
+### Holidays on the grid
+
+Above a day in the grid, one line says what that day is, in the page's language
+(`src/engine/daynotes.ts` chooses the words, `DayNotes` in `src/client/ui/Event.tsx` shows them):
+
+- a B.C. statutory holiday, with "法定假日 / stat holiday" after its name, in the tool's amber:
+  most people are off;
+- a festival people keep without a day off (春节, 中秋, Christmas Eve…), in the quiet text color;
+- where a long weekend runs to ("连休到 12月27日 周日"), said once, on the first of its days the
+  gathering asks about.
+
+A day with none of these has no line. The dates are not worked out here: they were looked up and
+sit in `src/engine/holidays.ts` with their sources, from November 2026 to the end of 2028. After
+that the grid says nothing until the next years are added there.
+
+### Quick fill
+
+In "my times", three chips above the grid fill in many slots with one tap: **all free**,
+**weekends** (when some of the days, but not all, are weekend days) and **evenings** (when the
+gathering asks by the half day). There, a day's name is a button too, and fills in its row. Each
+says "free" for every slot it covers and is lit while they all are; pressed then, it takes them
+back. The rules are in `src/engine/quick.ts`.
+
+A slot filled that way and not touched since goes back to "not free" with one tap, so someone who
+is free most of the time presses "all free" and then taps only what they can't make. A slot
+tapped by hand goes round as before: free, could move things, not free. Which slots were filled
+in one go is remembered only while the page is open.
+
+Every quick fill, and "clear all" under the grid, can be undone for six seconds, or until the
+next tap on a slot, from the line that comes up at the bottom of the screen.
 
 ### Once the time is set
 

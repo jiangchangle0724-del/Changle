@@ -21,6 +21,7 @@ import { Qr } from "./Lobby";
 import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
 import { doublesKind } from "./Doubles";
 import { SetCall } from "./Sets";
+import { DealCall } from "./Deal";
 import { NewsBanner } from "./News";
 import { LocalSong, TvNowPlaying } from "./Local";
 import { rowsOf } from "./Ride";
@@ -111,6 +112,7 @@ function TvGame({ v }: { v: RoomView }) {
             <>
               <TvDice v={v} played={lastMove.current} />
               <SetCall v={v} big />
+              <DealCall v={v} big />
               <ReactBubbles v={v} big />
               <WorldCard v={v} big />
             </>

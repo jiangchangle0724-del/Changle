@@ -1,9 +1,11 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
-// hitting the floor, the ferry horn, the busker's riff, the opera gong and the night market's
-// fireworks, a bite at a stall and a feast, the last seconds' ticks, a whistle to start and a little
-// fanfare at the end; on the big screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the first tap unlocks it. The menu's two
-// switches turn the sounds off (hc.sound) and the music (hc.music), and the game plays the same without.
-import type { ArenaId } from "../engine";
+// hitting the floor, the ferry horn, the busker's riff, the opera gong, the theatre's drill (the
+// stage's count and the crowd's punches) and the night market's fireworks, a bite at a stall and a
+// feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
+// screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the
+// first tap unlocks it. The menu's two switches turn the sounds off (hc.sound) and the music
+// (hc.music), and the game plays the same without.
+import { DRILL_BEAT_MS, DRILL_GO_MS, type ArenaId } from "../engine";
 import { FIREWORK_RISE_MS, FIREWORK_SHOTS } from "./fireworks";
 
 let ctx: AudioContext | null = null;
@@ -217,6 +219,32 @@ export const sfx = {
     }
     hiss(t, 0.09, 0.2, 3_000, 1_200, 0.9);
     duck(t, 2.4);
+  },
+  /**
+   * The theatre's drill: the stage's count on a big drum, three beats rising, then the call, a deep
+   * hit under the whole crowd's punches swishing at once. In time with the screen's count: `elapsedMs`
+   * is how far into the drill this screen came in (a beat already gone isn't played).
+   */
+  drill(elapsedMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    const at = (ms: number) => t + (ms - elapsedMs) / 1000;
+    [0, 1, 2].forEach((beat) => {
+      const start = at(beat * DRILL_BEAT_MS);
+      if (start < t - 0.03) return;
+      const pitch = 150 + beat * 22;
+      voice("sine", pitch, pitch * 0.42, start, 0.34, 0.5);
+      voice("triangle", pitch * 2.02, pitch * 0.9, start, 0.1, 0.1, master!, 0.003);
+      hiss(start, 0.05, 0.16, 1_600, 600, 0.9);
+    });
+    const go = at(DRILL_GO_MS);
+    if (go >= t - 0.03) {
+      voice("sine", 120, 34, go, 0.55, 0.62);
+      voice("square", 240, 120, go, 0.09, 0.06, master!, 0.003);
+      hiss(go, 0.3, 0.38, 500, 2_900, 1);
+      hiss(go + 0.08, 0.24, 0.26, 2_600, 800, 0.8);
+    }
+    duck(t, Math.max(0.4, (DRILL_GO_MS + 700 - elapsedMs) / 1000));
   },
   /** the transit hall's busker strikes up: a bouncy plucked riff over a bass and claps, for the dance */
   busker(): void {

@@ -1,5 +1,6 @@
 // The phone in your hand: a stick under the left thumb, Punch, Blend in and Distract under the right.
-// Also the keyboard (arrows or WASD, Space, Shift, E) and a gamepad (left stick, A, X, Y).
+// Also the keyboard (arrows or WASD, Space, Shift, E) and a gamepad (left stick, A, X, Y). In the
+// theatre's drill, a ring round Punch while the stage counts, and a pulse on the call.
 // Thumbs tap fast: nothing here may zoom, scroll, select or pop a menu. A button waiting for its
 // move to come back stays a live target (aria-disabled, not disabled), so a quick second tap still
 // lands on it and is kept from the browser, instead of falling through as a double tap that zooms.
@@ -7,6 +8,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { SIMULATION_STEP_MS } from "../../engine";
 import type { ClientMsg, MeView } from "../../room/protocol";
 import { t } from "../i18n";
+import type { Drill } from "./roundFx";
 
 type Vec = { x: number; y: number };
 const ZERO: Vec = { x: 0, y: 0 };
@@ -14,7 +16,7 @@ const ZERO: Vec = { x: 0, y: 0 };
 const KEEPALIVE_MS = 150;
 const quantize = (v: Vec): Vec => ({ x: Math.round(v.x * 20) / 20, y: Math.round(v.y * 20) / 20 });
 
-export function Controls(props: { me: MeView; now: number; send: (message: ClientMsg) => void; onVector: (value: Vec) => void }) {
+export function Controls(props: { me: MeView; now: number; send: (message: ClientMsg) => void; onVector: (value: Vec) => void; drill?: Drill | null }) {
   const [vector, setVector] = useState<Vec>(ZERO);
   const root = useRef<HTMLDivElement>(null);
   const vectorRef = useRef(vector);
@@ -171,6 +173,8 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
   const punchReady = props.now >= props.me.punchReadyAt;
   const blendReady = props.now >= props.me.blendReadyAt;
   const distracts = props.me.distracts ?? 0;
+  const drill = punchReady ? props.drill : null;
+  const cue = drill ? (drill.cue ? " is-cue" : drill.beat < 3 ? " is-drill" : "") : "";
   return (
     <div class="controls" ref={root}>
       <div
@@ -228,7 +232,7 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
         </div>
         <button
           type="button"
-          class={`move-btn move-punch${punchReady ? "" : " is-waiting"}`}
+          class={`move-btn move-punch${punchReady ? "" : " is-waiting"}${cue}`}
           aria-disabled={!punchReady}
           aria-label={t("punch")}
           onPointerDown={(event) => {

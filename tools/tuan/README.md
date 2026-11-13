@@ -8,9 +8,21 @@ directly (e-Transfer, WeChat, cash): the site carries the orders and never touch
 
 The plan is `docs/tuan.md`; where it stands and what's next is in `docs/briefs/tuan.md`.
 
-**Only the API is there so far.** This is the first step of the first stage (A1): the Worker, its
-database and the API, with tests. Every page under `/tuan` answers "not found" until the pages are
-built; they come next, hidden at `/tuan/preview` until the owner has tried them on a phone.
+**The first stage (A1) is built**: the Worker, its database and the API; mail to the merchant; the
+pages a buyer sees (a group buy, the cart, checkout, the order); and the pages a merchant sees
+(their group buys, a group buy's orders with their marks, the two sheets). There is no editor yet:
+a shop is set up and a group buy started by the site's owner, by hand, from a panel on the
+merchant's home. Nothing on changle.ca links here until the owner has tried it on a phone:
+`/tuan/preview` is home with a line saying so, and no search engine is let in.
+
+| Address | What |
+| --- | --- |
+| `/tuan/`, `/tuan/preview` | Home: how it works, the orders placed from this phone, and opening an order by its code. |
+| `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
+| `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
+| `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. The site's owner also gets the panel that sets a shop up and starts a group buy from a document. |
+| `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each. The new-order mail's button leads here. |
+| `/tuan/api/…` | The API (`src/server/worker.ts` lists it). |
 
 ## How it is made
 
@@ -21,13 +33,56 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 | --- | --- |
 | `src/engine/` | The rules, with no browser and no Cloudflare in them: what a group buy is made of (`types.ts`), money and amounts (`money.ts`), taking and changing an order (`order.ts`), starting a group buy (`offer.ts`), a shop (`shop.ts`), the merchant's sheets (`summary.ts`), who is shown what (`view.ts`), codes (`ids.ts`), phone numbers (`phone.ts`), Vancouver days (`time.ts`), tidying what people type (`text.ts`). |
 | `src/api.ts` | What a phone and the server say to each other: every shape, every error code. |
-| `src/server/worker.ts` | The Worker: the routes (listed at the top of the file) and what each does. |
+| `src/server/worker.ts` | The Worker: the routes (listed at the top of the file) and what each does. It serves the pages too: one file for all of them, with a group buy's name put in its page's title. |
 | `src/server/store.ts` | Everything kept in D1, read and written here and nowhere else. |
 | `src/server/who.ts` | Who is signed in: asks the rooms server (below). |
 | `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`. |
 | `src/server/gate.ts` | The daily allowances. |
 | `src/server/schema.ts` | Applies `migrations/` (numbered files, each once, in order) when the Worker starts. Nothing to run by hand. |
-| `tests/` | The rules (`engine.test.ts`) and the Worker with a local database (`api.test.ts`). |
+| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
+| `scripts/build.mjs` | Builds the pages into `dist/client/tuan` (esbuild). wrangler runs it before `wrangler dev` and `wrangler deploy`. |
+| `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
+
+### The pages
+
+One HTML file and one script for every page; the address decides what shows. The script, styles
+and fonts carry a hash in their names and are kept by phones for a year; the page itself is never
+kept (`no-store`), so a new version arrives on the next visit. A content-security policy lets
+nothing run or load but the site's own files (and Cloudflare's visitor statistics).
+
+- **No account for buyers.** A phone remembers, in its own storage: each group buy's cart, the
+  name, phone number and address last ordered with, and the orders placed from it with the four
+  digits that open them. Clearing the browser's data forgets them; an order still opens anywhere
+  with its code and those digits.
+- **Counted goods** get a plus, then less and more in the row. **Anything by weight** opens a
+  sheet: from the item's least, by its step, with what it comes to as an estimate.
+- **What can be ordered is kept true on the phone**: no more than is left, than the limit per
+  buyer, than 99. The server decides again when the order is sent; if something ran out meanwhile,
+  the buyer is shown the goods again with the cart put right and told why, and nothing typed at
+  checkout is lost.
+- **Sheets and checkout close on the phone's back button.** Each adds its step to the history the
+  moment it's on the page (a layout effect), so a quick tap or a quick back never finds one
+  without the other.
+- **A merchant's pages** show nothing by themselves: the page is the same file for everyone, and
+  what it shows comes from the API once signed in. Signed in means the session the site keeps in
+  the phone's storage (`changle.session`): these pages are at the same address, so they read it
+  and send it as `Authorization: Bearer …` to this tool's own API and nowhere else. With no
+  session, or one the rooms server no longer knows, the page offers the site's sign-in
+  (`/login`) and looks again when the merchant comes back to it.
+- **A merchant's marks** go to the server one at a time and come back as the order now stands;
+  the sums on the page are then done again from the orders (`summarize`, the same rules as the
+  server), so the counts, what's to collect and the sheets never disagree with the list. What's
+  to collect counts a weighed order at what the scale said; "as ordered" is said where it's that.
+  The page reads again every minute while it's looked at, and whenever it's come back to.
+- **The sheets' text** (`ui/sheets.ts`): a pickup line carries the last four digits of the buyer's
+  phone number (such a list is often posted in the group), a delivery line the whole number and
+  the address. A spreadsheet file comes later (`docs/codex-tasks/tuan/T1-orders-csv.md`).
+- **Design**: `docs/DESIGN.md`. Colors, sizes, corners, shadows and timings come from the site's
+  tokens (`src/client/tokens.css` is a copy; `tests/design.test.mjs` fails if it differs or if
+  `styles.css` writes a color, a type size, a shadow or a duration out). A tool's color is amber.
+  The same test checks that every class a page uses has styles, that no styles or lines of text
+  are left over, and that every line exists in both languages. Class names are written out whole
+  in the pages (never built from parts) so the test can find them.
 
 ### Numbers
 
@@ -123,10 +178,21 @@ Node 22.
 ```sh
 cd tools/tuan
 npm ci
-npm run typecheck
-npm test               # the rules, and the Worker in the Workers runtime with a local D1
-npm run dev            # http://127.0.0.1:8795/tuan/api/…
+npm run typecheck      # the server (Workers runtime) and the pages (DOM): two tsconfigs
+npm test               # builds the pages, then: the rules and the Worker (Workers runtime, local D1), the design rules
+npm run test:e2e       # phones in browsers (first: npx playwright install chromium; or PW_CHROME=1 for this computer's Chrome)
+npm run dev:alone      # http://127.0.0.1:8795/tuan/ with a stand-in rooms server: the accounts in tests/accounts.ts
+npm run dev            # the same address, bound to the real rooms server running beside it (below)
+npm run build -- --watch   # rebuild the pages as they change (wrangler dev reloads)
 ```
+
+`npm run dev:alone` is the quick way to see the pages: start it, then make a shop and a group buy
+through the API as the tests do (`tests/e2e/help.ts`, `start()`), with
+`Authorization: Bearer test-session-owner-0000000`; or sign in as the stand-in's owner in the
+browser's console (`localStorage.setItem("changle.session", "test-session-owner-0000000")`) and
+use the panel on `/tuan/my`. The browser tests start their own copy on
+port 8793 with an empty database (`playwright.config.ts`); on GitHub they run in Chromium and in
+WebKit, the engine inside iPhone Safari and WeChat on iOS.
 
 `npm run dev` keeps its own local database in `.wrangler/`. Signing in and mail need the rooms server: run
 it locally too, first (in `site/`: `npx wrangler dev -c worker/wrangler.jsonc --port 8787 --ip
@@ -136,7 +202,7 @@ to be the owner locally, and `--var DEV_MAIL_URL:http://127.0.0.1:8791/emails` w
 `node scripts/fake_mail.mjs` running there to see the mails. Without the rooms server, everything
 a merchant does answers `503 down` and no mail goes out. The tests don't need it: they run a
 stand-in that knows a few made-up accounts and keeps the mails it is asked to send
-(`tests/accounts.ts`).
+(`tests/rooms/worker.ts`, `tests/accounts.ts`).
 
 ## Live
 
@@ -152,3 +218,9 @@ Connected to Cloudflare on 13 November 2026: merging into `main` deploys it. The
   `Mail`) and has one timer (every ten minutes).
 - A table changes only through a new numbered file in `migrations/`, added to the list in
   `src/server/schema.ts`: a file that has been applied on the live database is never edited again.
+- The pages need no setting on Cloudflare: `wrangler deploy` builds them first (`build.command` in
+  `wrangler.jsonc`), and they are published with the Worker as its static assets.
+- The site knows `/tuan` is another Worker's (one line each): `site/src/router.ts` (`elsewhere`),
+  `site/scripts/sw.template.js` (the offline cache leaves it alone), `site/public/robots.txt`
+  (`Disallow: /tuan/api/`) and `site/vite.config.ts` (the local proxy). Its card in the Tools tab
+  comes when the owner has tried the pages.

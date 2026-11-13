@@ -54,6 +54,22 @@ export const DISTRACTS = 2;
 export const DECOY_DISTANCE = 22;
 /** The passer-by's swing: the wind-up, the punch, and a beat standing after it, as a player's would look. */
 export const DECOY_MS = PUNCH_WINDUP_MS + 220 + 420;
+/** A distraction turns every other screen's camera towards the passer-by for this long (as the Steam game pans away). */
+export const GLANCE_MS = 1_500;
+/**
+ * The theatre's drill (after the Steam game's gym, where the instructor counts and every robot
+ * punches): the performer calls three beats, and on the fourth the whole crowd throws a punch at once.
+ */
+export const DRILL_BEAT_MS = 600;
+export const DRILL_GO_MS = DRILL_BEAT_MS * 3;
+export const DRILL_MS = 2_700;
+/**
+ * A player's punch landing from a little before the call to a little after it is one of the crowd's:
+ * it goes through the passers-by (no knockdown, no foul, not even a miss) and tags a rival in reach.
+ */
+export const DRILL_WINDOW: readonly [number, number] = [DRILL_GO_MS - 450, DRILL_GO_MS + 650];
+/** Each passer-by's punch in the drill comes this much after the call at most (they're nearly together). */
+export const drillLag = (id: string) => idHash(id) % 110;
 const ALL_STALLS = (1 << 4) - 1;
 
 /** The stall a spot is in front of, or -1. */
@@ -63,8 +79,12 @@ export function stallAt(x: number, y: number): number {
 }
 
 export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" | "dance";
-/** the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall, the gong at the theatre, the night market's fireworks */
-export type MomentKind = "horn" | "dance" | "gong" | "fireworks";
+/**
+ * the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall,
+ * the gong and the drill at the theatre (the performer counts three and everyone punches), the night
+ * market's fireworks
+ */
+export type MomentKind = "horn" | "dance" | "gong" | "drill" | "fireworks";
 export type ArenaId = "plaza" | "metro" | "gallery" | "market";
 export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery", "market"];
 export interface Vector { x: number; y: number }
@@ -177,6 +197,8 @@ export interface MatchState {
   nextEventId: number;
   /** the knockdowns the people nearby are still looking at (a round saved before there were any has none) */
   commotions?: Commotion[];
+  /** the latest distraction: where its passer-by swung, when, and whose it was (every other screen looks there) */
+  glance?: { x: number; y: number; at: number; by: string } | null;
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -421,6 +443,7 @@ export function startDistract(state: MatchState, ownerId: string, now: number): 
   const decoy = next.characters.find((character) => character.id === pick.id)!;
   decoy.decoyAt = now;
   decoy.pose = "windup";
+  next.glance = { x: decoy.x, y: decoy.y, at: now, by: ownerId };
   addEvent(next, "decoy", ownerId, null);
   return next;
 }
@@ -507,16 +530,31 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
 }
 
 /** The ferry horn, the busker and the gong: when, for how long, and where the crowd looks (nowhere: it dances). */
-const MOMENTS: Record<ArenaId, { kind: MomentKind; first: number; every: number; lasts: number; look: Vector | null }> = {
+interface MomentBeat {
+  kind: MomentKind;
+  lasts: number;
+  look: Vector | null;
+}
+/** the theatre's stage, just behind the back row */
+const STAGE: Vector = { x: 50, y: -6 };
+/** each place's moments: the first, then one every so often (where a place has two, they take turns) */
+const MOMENTS: Record<ArenaId, { first: number; every: number; beats: readonly MomentBeat[] }> = {
   // the sea beyond the seawall's railing (far behind the crowd: everyone looks the same way)
-  plaza: { kind: "horn", first: 9_000, every: 15_000, lasts: 2_600, look: { x: 50, y: -400 } },
+  plaza: { first: 9_000, every: 15_000, beats: [{ kind: "horn", lasts: 2_600, look: { x: 50, y: -400 } }] },
   // a busker strikes up and the whole hall dances on the spot (always in one of the walkway's quiet
   // spells, which come every 6 s: nobody dances while the floor carries them)
-  metro: { kind: "dance", first: 8_800, every: 18_000, lasts: 2_700, look: null },
-  // the stage, just behind the back row
-  gallery: { kind: "gong", first: 12_000, every: 17_000, lasts: 2_600, look: { x: 50, y: -6 } },
+  metro: { first: 8_800, every: 18_000, beats: [{ kind: "dance", lasts: 2_700, look: null }] },
+  // the stage: the drill (everyone punches on the call), then the gong (everyone stops and looks)
+  gallery: {
+    first: 12_000,
+    every: 17_000,
+    beats: [
+      { kind: "drill", lasts: DRILL_MS, look: STAGE },
+      { kind: "gong", lasts: 2_600, look: STAGE }
+    ]
+  },
   // fireworks going up from behind the stalls: everyone turns round to watch
-  market: { kind: "fireworks", first: 10_000, every: 16_000, lasts: 2_800, look: { x: 50, y: -400 } }
+  market: { first: 10_000, every: 16_000, beats: [{ kind: "fireworks", lasts: 2_800, look: { x: 50, y: -400 } }] }
 };
 
 export interface CrowdMoment {
@@ -533,10 +571,11 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
   if (!rule) return null;
   const elapsed = now - startedAt - rule.first;
   if (elapsed < 0) return null;
+  const beat = rule.beats[Math.floor(elapsed / rule.every) % rule.beats.length];
   const into = elapsed % rule.every;
-  if (into >= rule.lasts) return null;
+  if (into >= beat.lasts) return null;
   const startsAt = now - into;
-  return { kind: rule.kind, startsAt, endsAt: startsAt + rule.lasts, look: rule.look };
+  return { kind: beat.kind, startsAt, endsAt: startsAt + beat.lasts, look: beat.look };
 }
 
 /** How long a body takes to react to a moment: people don't all turn at once. */
@@ -644,8 +683,11 @@ function angleDifference(a: number, b: number): number {
 }
 
 function resolvePunch(state: MatchState, attacker: Character, now: number): void {
+  // in the theatre's drill everyone is punching: a player's punch then goes through the passers-by
+  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const drill = moment?.kind === "drill" && now >= moment.startsAt + DRILL_WINDOW[0] && now <= moment.startsAt + DRILL_WINDOW[1];
   const candidates = state.characters
-    .filter((character) => character.id !== attacker.id && now >= character.stunnedUntil && character.hideAt === null)
+    .filter((character) => character.id !== attacker.id && now >= character.stunnedUntil && character.hideAt === null && !(drill && character.kind === "npc"))
     .map((character) => {
       const dx = character.x - attacker.x;
       const dy = character.y - attacker.y;
@@ -655,6 +697,8 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
     .sort((a, b) => a.distance - b.distance);
   const target = candidates[0]?.character;
   if (!target) {
+    // (a punch thrown with the drill is one of the crowd's: not a miss)
+    if (drill) return;
     attacker.swings = (attacker.swings ?? 0) + 1;
     addEvent(state, "swing", attacker.ownerId, null);
     return;
@@ -803,7 +847,10 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
   const dt = bounded(now - state.lastTickAt, 0, 120) / 1_000;
   const laneDrift = environmentalDrift(state.arena, state.startedAt, now).x;
   // while the busker plays, anyone standing still dances (players too: it's how they blend in)
-  const dancing = crowdMoment(state.arena, state.startedAt, now)?.kind === "dance";
+  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const dancing = moment?.kind === "dance";
+  // the drill's call: every passer-by throws its punch (nearly together)
+  const drillGo = moment?.kind === "drill" ? moment.startsAt + DRILL_GO_MS : null;
   // tagged players who are back on their feet slip into the crowd first
   next.characters.forEach((character, index) => {
     if (character.kind === "player" && character.hideAt !== null && now >= character.hideAt) hideAway(next, index, now);
@@ -874,6 +921,9 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       resolvePunch(next, character, now);
     } else if (character.attackResolved && character.attackResolveAt !== null && now <= character.attackResolveAt + 220) character.pose = "punch";
     else if (decoying) character.pose = now < character.decoyAt! + PUNCH_WINDUP_MS ? "windup" : now <= character.decoyAt! + PUNCH_WINDUP_MS + 220 ? "punch" : "idle";
+    else if (character.kind === "npc" && drillGo !== null && now >= drillGo + drillLag(character.id) && now <= drillGo + drillLag(character.id) + PUNCH_WINDUP_MS + 220) {
+      character.pose = now < drillGo + drillLag(character.id) + PUNCH_WINDUP_MS ? "windup" : "punch";
+    }
     else if (dancing && !walking) character.pose = "dance";
     else if (blended) character.pose = "glance";
     else if (moving) character.pose = "walk";

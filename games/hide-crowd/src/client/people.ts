@@ -380,6 +380,12 @@ export class Person {
     }
   }
 
+  /** Where the head is this frame, in the scene, once its clips have moved it (what floats over it: the dizzy stars). */
+  headPosition(target: THREE.Vector3): THREE.Vector3 {
+    if (this.head) return this.head.getWorldPosition(target);
+    return target.copy(this.root.position).setY(PERSON_HEIGHT * 0.92);
+  }
+
   /** This body's own parts go (its clock and its skeleton); the shared shapes and looks stay for the next round. */
   dispose(): void {
     this.mixer.stopAllAction();
