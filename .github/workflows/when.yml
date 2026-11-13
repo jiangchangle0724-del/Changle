@@ -1,0 +1,46 @@
+# Runs every time 约时间 · When Works changes: types, the rules and the room (unit tests), the build,
+# and phones in browsers: Chrome's engine, and WebKit (the engine in iPhone Safari and WeChat on
+# iOS). The design test compares the tool's tokens with the site's, so it runs when those change too.
+name: when
+
+on:
+  push:
+    branches: [main]
+    paths: ["tools/when/**", ".github/workflows/when.yml", "site/src/styles/tokens.css"]
+  pull_request:
+    paths: ["tools/when/**", ".github/workflows/when.yml", "site/src/styles/tokens.css"]
+
+# One run per change: a branch's pushes are checked through its pull request, and main after each
+# merge. A newer push to the same pull request stops the older run (HANDOFF.md, CI).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: tools/when
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/when/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright test
+        env:
+          CI: "1"
+      - uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: playwright-report
+          path: tools/when/playwright-report
+          retention-days: 7
