@@ -5,6 +5,7 @@
 import qrcode from "qrcode-generator";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
+import { MATCH_MS } from "../../engine";
 import type { EventView, RoomView } from "../../room/protocol";
 import { BASE, joinUrl, onChangle } from "../base";
 import { other, t } from "../i18n";
@@ -15,7 +16,7 @@ import { Icon } from "./chrome";
 import { PenaltyStamp } from "./Penalty";
 import { Scoreboard, useClock } from "./Play";
 import { ResultTable, resultTitle } from "./Result";
-import { arenaEvents, Awards, MomentBanner, useRoundSounds } from "./roundFx";
+import { arenaEvents, Awards, INTRO_WINDOW_MS, MomentBanner, useRoundSounds } from "./roundFx";
 import { useLanded } from "./useLanded";
 import { installAudioUnlock, soundOn, unlockAudio } from "../sound";
 
@@ -160,6 +161,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   useRoundSounds(game, seconds, { screen: true, music: true });
   const shown = arenaEvents(game);
   const feasted = useFeast(game.events);
+  const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
   const round = view.result?.round ?? 0;
@@ -179,10 +181,11 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
     impactId: shown.impactId,
     impactType: shown.impactType,
     flash: shown.flash,
-    moment: game.moment
+    moment: game.moment,
+    intro
   } as const;
   // (the last blow lands, in slow motion, before the penalty and the results take the screen)
-  const landed = useLanded(game.phase === "over", view.result?.round ?? 0);
+  const landed = useLanded(game.phase === "over", view.result?.round ?? 0, !!view.result?.winner);
   const over = game.phase === "over" && view.result && landed;
   return (
     <>

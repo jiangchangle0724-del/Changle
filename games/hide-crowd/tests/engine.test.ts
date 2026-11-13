@@ -11,6 +11,9 @@ import {
   COMMOTION_MS,
   COMMOTION_RADIUS,
   BITE_MS,
+  DECOY_DISTANCE,
+  DECOY_MS,
+  DISTRACTS,
   FEAST_POINTS,
   STALLS,
   stallAt,
@@ -25,6 +28,7 @@ import {
   roundAwards,
   roundPenalty,
   startBlend,
+  startDistract,
   startPunch,
   type MatchState
 } from "../src/engine";
@@ -495,4 +499,34 @@ test("at the night market the passers-by browse the stalls, but a stall only lig
   }
   assert.ok(browsing / samples >= 1.5, `${(browsing / samples).toFixed(1)} passers-by stand at the stalls at a time`);
   assert.equal(match.events.filter((event) => event.t === "bite").length, 0, "no bite without a player");
+});
+
+test("a distraction: a passer-by well away throws a punch at nothing, twice a round", () => {
+  let state = createMatch([{ id: "a", name: "A" }, { id: "b", name: "B" }], 0, 7);
+  const me = () => state.characters.find((body) => body.ownerId === "a")!;
+  assert.equal(me().distracts, DISTRACTS);
+  state = startDistract(state, "a", 100);
+  const decoy = state.characters.find((body) => body.decoyAt === 100)!;
+  assert.ok(decoy, "a passer-by swings");
+  assert.equal(decoy.kind, "npc");
+  assert.ok(Math.hypot(decoy.x - me().x, decoy.y - me().y) >= DECOY_DISTANCE, "well away from whoever made it");
+  assert.equal(me().distracts, DISTRACTS - 1);
+  assert.deepEqual(state.events.map((event) => [event.t, event.actor]), [["decoy", "a"]]);
+  // the swing looks like a player's: the wind-up, the punch, then it stands a beat and walks on
+  const poses: string[] = [];
+  for (let now = 150; now <= 100 + DECOY_MS + 300; now += 50) {
+    state = advanceMatch(state, now, {});
+    poses.push(state.characters.find((body) => body.id === decoy.id)!.pose);
+  }
+  assert.equal(poses[0], "windup");
+  assert.ok(poses.includes("punch"));
+  assert.notEqual(poses[poses.length - 1], "punch");
+  assert.equal(state.characters.find((body) => body.id === decoy.id)!.decoyAt, null);
+  // nobody was hit, nobody scored: nothing but the swing
+  assert.deepEqual(state.events.map((event) => event.t), ["decoy"]);
+  state = startDistract(state, "a", 2_000);
+  assert.equal(me().distracts, 0);
+  const used = state.events.length;
+  state = startDistract(state, "a", 3_000);
+  assert.equal(state.events.length, used, "twice a round, no more");
 });

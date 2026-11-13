@@ -4,6 +4,7 @@
 // the round watches until the next one.
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { MATCH_MS } from "../../engine";
 import type { ClientMsg, EventView, GameView, MeView, RoomView } from "../../room/protocol";
 import { t, type Key } from "../i18n";
 import { Arena } from "./Arena";
@@ -11,9 +12,9 @@ import { ArenaFallback } from "./ArenaFallback";
 import { Icon, IconButton, type IconName } from "./chrome";
 import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
-import { arenaEvents, MomentBanner, useRoundSounds } from "./roundFx";
+import { arenaEvents, INTRO_WINDOW_MS, MomentBanner, useRoundSounds } from "./roundFx";
 
-const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast" };
+const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone" };
 /** the night market's four stalls, left to right: their snacks */
 export const SNACKS: readonly { icon: IconName; name: Key }[] = [
   { icon: "squid", name: "snack0" },
@@ -43,7 +44,7 @@ function useNotice(events: EventView[], me: MeView | null): Notice | null {
     if (!key) return;
     const vars = mine.t === "bite" ? { snack: t(SNACKS[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
     setNotice({ key, id: mine.id, vars });
-    const timer = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" ? 2_600 : 1_400);
+    const timer = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" ? 2_600 : 1_400);
     return () => window.clearTimeout(timer);
   }, [events]);
   return notice;
@@ -138,6 +139,9 @@ export function Play(props: {
   useRoundSounds(game, seconds, { screen: false, music: !!props.music });
   const me = game.me;
   const shown = arenaEvents(game);
+  // (the camera's opening sweep when the arena comes up: only if the round has just begun, not for a
+  // phone that comes in late; the next round on the same arena starts its own, Arena3D)
+  const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   const notice = useNotice(game.events, me);
   const meScore = view.players.find((player) => player.you);
   const arenaProps = {
@@ -150,7 +154,8 @@ export function Play(props: {
     impactId: shown.impactId,
     impactType: shown.impactType,
     flash: shown.flash,
-    moment: game.moment
+    moment: game.moment,
+    intro
   } as const;
   return (
     <section class={`play${me ? " is-playing" : " is-watching"}`}>

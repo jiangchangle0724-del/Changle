@@ -272,6 +272,14 @@ export const sfx = {
     const last = FIREWORK_SHOTS[FIREWORK_SHOTS.length - 1];
     duck(t, (last.at + FIREWORK_RISE_MS) / 1000 + 0.8);
   },
+  /** your distraction: a sly little whistle down and up, only for you */
+  psst(): void {
+    const t = now();
+    if (t === null) return;
+    hiss(t, 0.16, 0.12, 4_200, 2_600, 2.2);
+    voice("sine", 1_480, 990, t + 0.05, 0.16, 0.08, master!, 0.01);
+    voice("sine", 990, 1_480, t + 0.22, 0.18, 0.08, master!, 0.01);
+  },
   /** one of the last five seconds */
   tick(last = false): void {
     const t = now();

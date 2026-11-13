@@ -28,15 +28,15 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Screen | What it shows |
 | --- | --- |
 | Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. When the ferry horn, the busker, the gong or the fireworks go, a pill low in the middle says so while the crowd stands still or dances. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the busker, the gong or the fireworks go, a pill low in the middle says so while the crowd stands still or dances. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the full-screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen (an iPad's can: there the full-screen button does it), so the game shows the two ways round it (`ui/HomeScreen.tsx`): quickest, Safari's page menu (the three lines at the left of the address bar, aA or ··· on older iOS) and Hide Toolbar, which leaves a sliver of address and gives the game the rest; all of the screen, changle.ca on the Home Screen. A little iPhone acts out the four taps to the Home Screen (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. It opens by itself once in the first lobby, then from the lobby's line, the menu and the full-screen button. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, a round in Safari's bars (an iPhone) | When Safari's toolbar and tab bar take part of the screen (held sideways, the page is over 60 points shorter than the screen), a line under the top bar shows the page menu's icon and says to choose Hide Toolbar, with More ways (the guide) and a close button. It goes when the bars do, after 15 s, or for good when closed (Steve, 2026-11-12, from an iPhone in Safari). |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
-| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
+| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the four arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
 | Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's or the fireworks' pill takes its place while it lasts). At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
-| Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the penalty stamp for seven seconds, then the result card with the round's titles. |
+| Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the camera down to the winner and the confetti, the penalty stamp for seven seconds, then the result card with the round's titles. |
 | Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the full-screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
 | Credits (`/hide/credits`, and the menu) | Where every picture and model comes from. |
@@ -200,6 +200,29 @@ here the collecting gives a player away while they do it:
   on the body they were (the next round shuffles the crowd again, so it gives nothing away), and the
   winner's body dances. Everyone stops where they are.
 
+## The camera's big moves, and Distract
+
+Steve, 2026-11-13, the second half of "more of the big games' 3D": the camera moves the way a big
+game's does at the start and the end of a round, and players get the Steam original's distraction.
+
+* **The opening shot** (`ui/cinema.ts`). A round that has just begun (within 2.5 s of its start:
+  a phone that comes in late gets none) opens low across the place, looking at its far side, and
+  swings up into the game's view in 2.4 s. The round is already on: the crowd walks and the stick
+  works while the camera settles.
+* **The winner's shot.** Once a round is over and the last blow has landed in slow motion (1.2 s),
+  the camera comes down to the winner, dancing, a little to the side (1.1 s) and drifts slowly round
+  them while confetti in the room's colours bursts over their head and flutters down. The names keep
+  their size on screen as the camera comes in, the winner's on top. The penalty and the results wait
+  for it (`useLanded`: 3.4 s with a winner, 1.4 s without).
+* **Distract** (分心, `startDistract` in `src/engine`): twice a round, a player can draw every eye
+  elsewhere. A passer-by at least 22 from them throws a punch at nothing (the wind-up, the punch, a
+  beat standing), exactly as a player's punch looks, so whoever is watching for punches looks there.
+  Only the player who did it hears of it ("someone across the crowd swung at nothing"); no screen
+  marks it, and nobody is hit. The phone's button sits over Blend in with its count; on a computer
+  it's E, on a gamepad Y. The practice rivals use one a round each and are fooled by a passer-by's
+  swing as a person would be.
+* With reduced motion the camera doesn't move and no confetti falls.
+
 ## Nobody is marked
 
 The game is about not being found, so nothing a screen is sent may tell a player from a
@@ -249,6 +272,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/Lobby.tsx`, `Play.tsx`, `Controls.tsx`, `Result.tsx`, `Penalty.tsx`, `Menu.tsx` | The phone's screens. |
 | `src/client/ui/Tv.tsx` | The big screen. |
 | `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
+| `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/cinema.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); the camera's opening sweep, the winner's shot and the confetti. |
 | `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
 | `tools/blender/` | The scripts that build the 3D sets and the people's files. |
 | `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's full-screen guide and its line in a round, and what kind of phone this is. |

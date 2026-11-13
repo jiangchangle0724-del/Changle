@@ -4,7 +4,8 @@ A party game on [changle.ca](https://changle.ca), played with everyone's own pho
 steers one person in a crowd of 18 passers-by the computer walks around. Walk like them and
 nobody can tell it's you; spot a rival and punch: a hit scores, hitting a passer-by knocks them
 down and stuns you, and a tagged player gets up in another body somewhere else in the crowd. First
-to 3 tags, or the most tags after 75 seconds. The round ends in a penalty: whoever got spotted most
+to 3 tags, or the most tags after 75 seconds. Twice a round a player can distract everyone: a
+passer-by across the crowd throws a punch at nothing. The round ends in a penalty: whoever got spotted most
 takes a sip. A big screen (a TV or a computer) shows the whole crowd and never marks who is human.
 Four 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre, and the
 Richmond Night Market, where tasting all four stalls scores 2 but lights each stall up for everyone.

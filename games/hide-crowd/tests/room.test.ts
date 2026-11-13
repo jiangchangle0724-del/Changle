@@ -282,3 +282,20 @@ test("names are tidied: no markup, no control characters, sixteen characters at 
   room.join(second, "   ", "zh", "player", 3);
   assert.equal(room.view(second, "player", 4).players[1].name, "玩家");
 });
+
+test("a distraction is heard of only by whoever made it: the others just see a passer-by swing", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "start" }, 5);
+  room.handle(first, { t: "distract" }, 100);
+  const mine = room.view(first, "player", 120).game!;
+  assert.equal(mine.events.filter((event) => event.t === "decoy" && event.byYou).length, 1);
+  assert.equal(mine.me!.distracts, 1);
+  for (const view of [room.view(second, "player", 120), room.view(screen, "screen", 120)]) {
+    assert.equal(view.game!.events.some((event) => event.t === "decoy"), false);
+  }
+  assert.equal(room.view(second, "player", 120).game!.me!.distracts, 2);
+  // the passer-by's swing is in every view, like anyone's
+  room.advance(150);
+  assert.ok(room.view(screen, "screen", 150).game!.avatars.some((avatar) => avatar.p === "windup"));
+});

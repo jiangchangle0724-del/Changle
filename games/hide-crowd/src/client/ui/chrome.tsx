@@ -150,6 +150,7 @@ export function Rules({ custom }: { custom: string }) {
       <p>{t("rule1")}</p>
       <p>{t("rule2")}</p>
       <p>{t("rule3")}</p>
+      <p>{t("ruleDistract")}</p>
       <p>{t("rule4", { n: 3 })}</p>
       <p>{t(custom ? "rulePenaltyCustom" : "rulePenalty")}</p>
       <p>{t("ruleScreen")}</p>
