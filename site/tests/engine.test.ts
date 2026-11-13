@@ -2360,6 +2360,57 @@ test("drama: two at the table: one acts a monologue, the other guesses", () => {
   ok(v.phase === "brief" && v.cast.length === 2 && v.peer === true && !v.crowd, "two on stage in a duel: they vote on each other, nobody shouts");
 });
 
+test("drama: between acts or at the curtain call, the host goes back to the setup to play it another way; the night's scores stay", () => {
+  type V = V<"drama">;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { mode: "show", total: 3 });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string | null; order: number[]; round: number; total: number; used: string[] };
+  // the cast reads their cards, the host calls cut, everyone watching votes
+  const play = () => {
+    const actors = [...s.cast];
+    for (const a of actors) t.g(a, "ready");
+    t.g("p0", "cut");
+    const guess = s.order.length ? String(s.order.indexOf(0)) : s.culprit;
+    for (const w of t.ids.filter((id) => !actors.includes(id))) t.g(w, "vote", { guess, stars: Object.fromEntries(actors.map((a) => [a, 4])) });
+  };
+  play();
+  let v = t.view<V>("p0");
+  ok(v.phase === "reveal" && Object.keys(v.scores).length > 0, "the first act played, points on the board");
+  const scores = JSON.stringify(v.scores);
+  const played = s.used.length;
+  t.g("p1", "setup");
+  ok(t.view<V>("p0").phase === "reveal", "only the host goes back to the setup");
+  t.g("p0", "setup");
+  v = t.view<V>("p0");
+  ok(v.phase === "setup" && v.round === 0 && v.total === 3 && v.mode === "show" && !v.result && !v.cast.length, "back to the setup, as the host left it");
+  ok(JSON.stringify(v.scores) === scores && s.used.length === played, "the night's scores stay, and the scene played won't come back");
+  t.g("p0", "config", { mode: "read" });
+  t.g("p0", "start");
+  v = t.view<V>("p0");
+  ok(v.phase === "brief" && v.mode === "read" && v.round === 1 && v.total === 3, "a reading this time, three acts again");
+  t.g("p0", "setup");
+  ok(t.view<V>("p0").phase === "brief", "not while an act is on");
+  play();
+  ok(t.view<V>("p0").phase === "reveal", "read, and starred");
+  s.round = s.total;
+  t.g("p0", "next");
+  ok(t.view<V>("p0").phase === "end", "the curtain call");
+  t.g("p0", "more");
+  ok(t.view<V>("p0").phase === "brief" && t.view<V>("p0").total === 6, "three more acts");
+  play();
+  t.g("p0", "setup");
+  v = t.view<V>("p0");
+  ok(v.phase === "setup" && v.total === 3, "back to the setup: the acts count from the three picked, not the three more");
+  t.g("p0", "start");
+  play();
+  s.round = s.total;
+  t.g("p0", "next");
+  t.g("p0", "setup");
+  ok(t.view<V>("p0").phase === "setup", "and straight from the curtain call");
+});
+
 test("drama: a scene written for every number of actors, at every table", () => {
   type V = V<"drama">;
   const missing: string[] = [];
