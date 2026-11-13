@@ -430,11 +430,14 @@ function phaseTitle(): string {
       if (!state.speakerConnected) return tr("等大屏（音箱端）点开始", "Waiting for the speaker page to start");
       return host ? tr("选一支舞，人齐了就开始", "Pick a dance and start when everyone's in") : tr("等主人选舞", "Waiting for the host to pick a dance");
     case "calibrating":
-      return host ? tr("听到电视的声音就点下面的大按钮", "Tap the big button each time you hear the TV") : tr("主人在校准，稍等", "The host is calibrating");
+      return host ? tr("开跳前先量电视延迟：听到电视的声音就点下面的大按钮", "First, the TV's delay: tap the big button each time you hear the TV") : tr("主人在量电视的延迟，量好就开始", "The host is measuring the TV's delay; the dance starts right after");
     case "learning":
+      if (routine?.pausedAt !== undefined) return host ? tr("暂停了，点「继续」接着跳", "Paused: tap Carry on to go on") : tr("暂停了，等主人继续", "Paused: the host will carry on");
       if (routine?.tapIn) return tr("先找拍子：听电视里的歌", "Find the beat: listen to the song on the TV");
       return host ? tr("准备好了就点「开始跳」", "Tap Dance when everyone's ready") : tr("准备", "Get ready");
     case "dancing":
+      if (routine?.pausedAt !== undefined) return host ? tr("暂停了，点「继续」接着跳", "Paused: tap Carry on to go on") : tr("暂停了，等主人继续", "Paused: the host will carry on");
+      if (routine?.heldAt !== undefined) return tr("等电视上的视频：它一动就接着跳", "Waiting for the video on the TV: the dance picks up when it plays");
       return tr("跟着闪光的节奏动起来", "Move with the flashes");
     case "results":
       return tr("跳完了", "That's the song");
@@ -590,11 +593,23 @@ function hostPanel(): HTMLElement {
       button(tr("跳过校准", "Skip calibration"), { type: "SKIP_CALIBRATION" });
       break;
     case "learning":
+      if (routine?.pausedAt !== undefined) {
+        button(tr("继续", "Carry on"), { type: "RESUME" }, "btn primary");
+        button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
+        break;
+      }
       // (找拍子 first: the dance waits for the beat)
       if (!routine?.tapIn) button(tr("开始跳", "Dance"), { type: "START_DANCING" }, "btn primary");
+      if (routine?.leadStartAt !== null && routine?.leadStartAt !== undefined) button(tr("暂停", "Pause"), { type: "PAUSE" });
       button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
       break;
     case "dancing":
+      if (routine?.pausedAt !== undefined) {
+        button(tr("继续", "Carry on"), { type: "RESUME" }, "btn primary");
+        button(tr("停下，回大厅", "Stop, back to the lobby"), { type: "BACK_TO_LOBBY" });
+        break;
+      }
+      button(tr("暂停", "Pause"), { type: "PAUSE" });
       // (a song plays on in its video: no going back a part)
       if (!routine?.routineId.startsWith("song-")) button(tr("这一段再来", "This part again"), { type: "RESTART_SECTION" });
       // 看结果 once the whole dance has been heard (the cool-down can be skipped)
@@ -651,12 +666,14 @@ function routinePicker(): HTMLElement {
   const box = el("div", "picker");
   box.append(el("p", "picker-title", tr("热歌（电视上放 YouTube 原版）", "Songs (the real ones, from YouTube on the TV)")));
   const songs = el("div", "picker-list");
-  for (const song of SONGS) {
+  // (the songs with their own famous dance first)
+  for (const song of [...SONGS].sort((a, b) => Number(!!b.aligned) - Number(!!a.aligned))) {
     const b = el("button", song.id === pick ? "pick is-on" : "pick");
     b.setAttribute("aria-pressed", String(song.id === pick));
     b.append(el("span", "pick-name", `${songTitle(song)} · ${songArtist(song)}`));
-    const ready = tappedSongs ? song.id in tappedSongs : true;
-    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${song.bpm} BPM${ready ? "" : ` · ${tr("第一次跳先一起找拍子", "first time: find the beat together")}`}`));
+    const ready = song.aligned || (tappedSongs ? song.id in tappedSongs : true);
+    const own = song.aligned ? ` · ${tr("原版舞", "its own dance")}` : "";
+    b.append(el("span", "pick-meta", `${difficultyName(song.difficulty)} · ${Math.round(song.bpm)} BPM${own}${ready ? "" : ` · ${tr("第一次跳先一起找拍子", "first time: find the beat together")}`}`));
     b.onclick = () => {
       pick = song.id;
       render();

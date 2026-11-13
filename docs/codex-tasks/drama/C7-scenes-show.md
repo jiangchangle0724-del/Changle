@@ -45,10 +45,15 @@ of this card.
   own, not a tourist poster. Nothing that makes fun of anyone.
 - Night colours: the site is dark. No big areas of white or pale sky; screens glow in deep colour,
   and a daytime scene is lit low and warm (late sun, lamps on, rain on the window).
-- Each set looks clearly different from the others on this card, from the first set and from the
-  community pictures: another place, palette or time of day. Where scenes share a kind of place
+- Each set looks clearly different from the others on this card, from the first set, from the
+  community pictures and from the scene pictures already drawn (the `scene-*.webp` in
+  `site/public/drama/`): another place, palette or time of day. Where scenes share a kind of place
   (six livestreams, five stages, two karaoke nights, two dating shows), the table gives each its own
-  room, palette or light; keep them apart.
+  room, palette or light; keep them apart. Keep the karaoke rooms apart from
+  `scene-love-ktv-dedication`, the awards ballroom apart from the ballrooms
+  (`scene-family-lipstick-collar`, `scene-solo-best-man-speech`), and the living rooms apart from
+  `scene-sa-cricket-final-password` and the community pictures. Paint the time of day the table
+  gives: a morning or afternoon scene has daylight at the window, kept low and warm.
 
 ## The pictures
 
@@ -69,7 +74,7 @@ of this card.
 | `scene-show-couple-account-single.webp` | A couple influencers' studio in dusty rose and sage under ring lights: a two-seat sofa with matching cushions and mugs, a camera on a tripod with its red light on, an editing desk with blank screens, and through an open door a rack of outfits. Plain dark floor below; live and in trouble. |
 | `scene-solo-weather-report.webp` | A TV news studio in the evening, deep blue: the weather wall glowing with a map of an invented coastline and cloud and sun symbols (no words or numbers), a studio camera on a pedestal, and the empty news desk off to one side. Plain dark floor below; calm, or is it. |
 | `scene-solo-live-workout.webp` | A home workout studio at seven in the morning, a big window with a dark blue dawn turning orange: yoga mats rolled out, dumbbells and a kettlebell, a ring light and a phone on a tripod (blank screen), and a water bottle and towel. Plain dark floor below; peppy. |
-| `scene-show-karaoke-skip.webp` | A private karaoke room on a birthday night in magenta and gold: a birthday cake on the table, balloons, a song-picking tablet with a blank screen, the big screen glowing blank, and tambourines on the sofa. Plain dark carpet below; a party with a grudge. |
+| `scene-show-karaoke-skip.webp` | A private karaoke room on a birthday night in amber and emerald green: a birthday cake on the table, balloons, a song-picking tablet with a blank screen, the big screen glowing blank, and tambourines on the sofa. Plain dark carpet below; a party with a grudge. |
 | `scene-show-final-envelope.webp` | The grand-final stage of a TV singing competition, an arena of LED panels in violet and silver and columns of light: a gold envelope on a pedestal at centre stage, the judges' desk with three red buttons, and confetti cannons waiting. Plain dark stage floor below; live-TV shock. |
 | `scene-show-wrap-party-leak.webp` | A film's wrap party in a dark-wood restaurant under string lights: a blank clapperboard on a long table, a cake shaped like a film reel, champagne glasses, a director's chair, and the double doors bolted shut. Plain dark floor below; locked-room glamour. |
 | `scene-cn-square-dance-speaker.webp` | A neighbourhood plaza at dusk, apartment blocks with lit windows all around and street lamps coming on: a rolling trolley speaker with coloured lights, red silk fans and handkerchiefs laid on a bench, a blank contest banner strung between lamp posts, and potted plants. Plain plaza tiles in shadow below; competitive and cheerful. |
@@ -83,20 +88,17 @@ of this card.
   uses and has its file), `npx tsc --noEmit`, `npm run build`. If that test turns down a `scene-`
   name, stop and say so in the PR; don't change the test or the game.
 - Every file is 1600 × 900 and at most 150 KB, and `DRAWN_ART` gains exactly this card's 22 names.
-- Look at them in the game: `npm run dev`, choose 演戏猜坏人 and press 换个剧本 until this card's
-  scenes come up, at a phone's width (390) and on the big screen (`/tv/<code>`). At least six,
-  among them a spicy one (尺度: 微辣) and a community's (中国, 南亚, 韩国 or 欧洲 under 剧本背景).
-  The figures and their plaques must stay easy to read over the picture.
-- In the PR: a contact sheet of all 22, small, each with its file name under it, and phone
-  screenshots of the ones you played.
+- No browser and no uploads: don't open the game in a browser and don't attach pictures to the PR.
+  The reviewer makes the contact sheet from the branch and plays the scenes. In the PR, list the
+  files with their sizes and paste the checks' results, in words.
 
 ## Done when
 
-The 22 files are in `site/public/drama/`, `DRAWN_ART` lists all 22, the checks pass, and the contact
-sheet and screenshots are in the PR.
+The 22 files are in `site/public/drama/`, `DRAWN_ART` lists all 22, the checks pass, and the PR lists the
+files and the checks' results.
 
 ## Send to Codex
 
 ```
-按 docs/codex-tasks/drama/C7-scenes-show.md 做。先看 site/public/drama/ 里原来的图，照同样的画风画。只加卡上写的图片和 site/src/data/dramaArt.ts 里的名字，跑卡上的检查，通过后再开 PR，PR 里贴缩略图。
+按 docs/codex-tasks/drama/C7-scenes-show.md 做。先看 site/public/drama/ 里原来的图，照同样的画风画。只加卡上写的图片和 site/src/data/dramaArt.ts 里的名字，跑卡上的检查，通过后再开 PR，PR 里用文字写文件和检查结果。不用开浏览器，也不要往 PR 里传图片。
 ```

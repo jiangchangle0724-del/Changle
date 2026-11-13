@@ -6,7 +6,8 @@ import { READ_ZH } from "./dramaReadingsZh";
 
 /**
  * 戏精大赏 · 朗读 (read aloud): one person reads a piece out loud, the way it asks (through tears, with
- * a straight face, in a courtier's voice...), and the audience gives stars.
+ * a straight face, in a courtier's voice, from the heart...), and the audience gives stars. A piece
+ * takes a minute and a half or so out loud.
  *
  * Three sets, picked by the host: bits from the Chinese internet (`zh`: 疯狂星期四, 发疯文学, 奏折和朱批,
  * 直播带货...), from the English internet (`en`: LinkedIn posts, Notes-app apologies, slam poetry,
@@ -19,7 +20,7 @@ import { READ_ZH } from "./dramaReadingsZh";
  */
 
 export type ReadSet = "zh" | "en" | "both";
-export type ReadKind = "cry" | "deadpan" | "breakup" | "court" | "anchor" | "rant" | "melodrama" | "sell" | "sorry" | "voice";
+export type ReadKind = "cry" | "deadpan" | "breakup" | "court" | "anchor" | "rant" | "melodrama" | "sell" | "sorry" | "voice" | "deep";
 export type ReadPiece = {
   id: string;
   set: ReadSet;
@@ -95,6 +96,13 @@ export const READ_KINDS: ReadKindInfo[] = [
     name: t("腔调大赏", "Do the voice"),
     how: t("照这一段要的腔调读，越夸张越好，是什么腔写在下面。", "Use the voice this piece asks for, as over the top as you can. Which voice is written below."),
     ask: t("腔调像不像？", "Did they nail the voice?"),
+  },
+  {
+    // the one kind played straight: a confession, wedding vows, a letter home, to a best friend, to yourself
+    key: "deep",
+    name: t("深情款款", "From the heart"),
+    how: t("慢一点，轻一点。挑屋里一个人，看着对方的眼睛读，就像屋里只剩你们两个。最重要的那一句之前，停一下。", "Slow down and soften your voice. Pick one person in the room and read it to them, as if nobody else were there. Pause before the line that matters most."),
+    ask: t("听得心里一软了吗？", "Did it melt your heart?"),
   },
 ];
 

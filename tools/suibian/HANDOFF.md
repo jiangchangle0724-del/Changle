@@ -130,10 +130,18 @@ All merged into `main`:
   only comes from the place's name and Google type (`src/engine/dishes.ts`). Google's AI summary is
   English only in Canada: a Chinese-language table mostly sees it on the top cards (from the English
   details request).
-* Round 1 has room for twelve cuisine chips; cuisines someone is severely allergic to something in
-  come last there, so they may not be offered in round 1, but their places are still on round 2's list.
-* More places per pick (branch `claude/suibian-more-places`): up to four Nearby searches per table
-  or solo pick instead of two (README, "Where the places come from"). Google's free allowance for
+* What it's for weighs a lot since 2026-11-12 (README, "What it's for"): the searches ask Google
+  for the meals each place serves and whether you can sit down (servesDinner, dineIn…; same price
+  tier, no extra cost), an occasion has a search of its own (still four a table at most), and the
+  other searches leave out kinds of place it rules out (Google's `excludedPrimaryTypes`).
+* Round 1 comes before the search (2026-11-11): the whole menu, 31 cuisines, and the table's other
+  searches go to what people liked. Five cuisines Google has no place type for (Sichuan,
+  Shanghainese, Northern Chinese, Chinese BBQ skewers, HK cafés) are found by a Text Search, at most
+  two a table. Text Search has its own Google allowance (1,000 a month free at this field tier, then
+  US$40 per 1,000, the same as Nearby) and its own daily quota, which has no cap set yet: set one
+  (about 100 a day) in the Cloud console next to the Nearby one.
+* More places per pick (branch `claude/suibian-more-places`): up to four searches per table
+  instead of two (README, "Where the places come from"). Google's free allowance for
   this search is 1,000 a month, then US$40 per 1,000 (pricing page, 2026-11-03), so it now covers
   about 250 picks a month instead of 500, and the daily cap `SearchNearbyRequestPerDayPerProject`
   200 about 50 picks a day instead of 100. If people start seeing 搜索出错了 in the evening, raise

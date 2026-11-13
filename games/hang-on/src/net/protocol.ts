@@ -10,7 +10,7 @@
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
 import type { Look } from '../look';
-import type { PadInput } from '../physics/world';
+import type { PadInput, SimEvent } from '../physics/world';
 
 export type { PadInput };
 
@@ -35,6 +35,11 @@ export interface RoomView {
   watchers: number;
   /** 房间开了多久（毫秒，房间时钟）。 */
   age: number;
+  /**
+   * 手机局：主机是一部手机，房主自己也玩（占 0 号颜色，手柄最多 3 个），
+   * 每部手机都看主机发来的画面。没有这个字段就是电视局。
+   */
+  hostPlays?: boolean;
 }
 
 export type HostAction =
@@ -78,14 +83,75 @@ export interface PadStatus {
 }
 
 /**
+ * 手机局（主机也是一部手机，大家各自在手机上看画面）：主机每 50 ms（绕路 100 ms）给每部手机发一张快照。
+ * 数字都压成短数组省流量，编码和拼回去在 `src/net/snap.ts`。只在直连通道上可以丢；丢了下一张补上。
+ */
+export interface Snap {
+  /** 序号，只增不减；旧的丢掉。 */
+  n: number;
+  /** 关卡 id。 */
+  lv: string;
+  /** 关卡是按几个人摆的（和现在的人数不一样时才有，比如有人半路进来）；手机照这个人数摆关卡。 */
+  np?: number;
+  /** 模拟时间（秒）。 */
+  t: number;
+  /** 1 = 到顶了。 */
+  w: 0 | 1;
+  /** 最新生效的检查点，-1 没有。 */
+  cp: number;
+  /**
+   * 每个人一行：x, y, vx, vy, 摇杆 x, 摇杆 y, 死了(0/1), 死了几秒, 表情(FACES 下标), 摔死次数,
+   * 左臂四个点(8 个数), 左手抓了几秒(-1 没抓), 右臂四个点, 右手抓了几秒。
+   */
+  p: number[][];
+  /** 每根绳一行：各点 x, y 摊平；第一个是锚，最后一个是把手。 */
+  r: number[][];
+  /** 每个物件一行：x, y, 角度, 宽, 高, 种类(0 跷跷板, 1 箱子)。 */
+  o: number[][];
+  /** 每块饼干两个数：在不在(0/1)、还有几秒切换。 */
+  f: number[];
+  /** 每根蜡烛被弹了几秒（-1 没弹过）。 */
+  s: number[];
+  /**
+   * 最近发生的事（声音、特效用），ek 是第一件的编号，后面的依次加一。
+   * 同一件事跟着好几轮快照走（丢一两张也收得到），手机按编号只放一次。
+   */
+  e?: SimEvent[];
+  ek?: number;
+}
+
+/** 结算页要的数（主机算，手机局里装进 Cast 发给每部手机，画法在 `src/results.ts`）。 */
+export interface Results {
+  /** 用时（秒）。 */
+  time: number;
+  /** 每个人摔了几次、抓了几下，下标和玩家一样。 */
+  deaths: number[];
+  grabs: number[];
+  /** 背叛榜：[谁, 松开了谁, 几次]，多的在前。 */
+  betrayals: [number, number, number][];
+}
+
+/** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */
+export interface Cast {
+  /** 收的这部手机是第几个人。 */
+  me: number;
+  players: { name: string; color: string; look: Look }[];
+  /** 到了结算页才有。 */
+  results?: Results;
+}
+
+/**
  * 主机和手柄之间的话。`k` 是种类：
  * - hello：手柄每次（重新）连上房间就说一声，主机收到就发 offer。
  * - sdp / ice：WebRTC 信令（只走房间）。
  * - ping / pong：主机量往返，手柄原样回。
  * - input：手柄的每帧输入；status：主机的小包。
  * - look：手柄选的样子（帽子、眼镜、眼睛），连上时发一次，改了再发；只走房间（要可靠）。
+ * - snap / cast：手机局里主机发给每部手机的画面快照和样子名单（见上面 Snap、Cast）。
  */
 export type LinkMsg =
+  | { k: 'snap'; s: Snap }
+  | { k: 'cast'; c: Cast }
   | { k: 'hello' }
   | { k: 'look'; look: Look }
   | { k: 'sdp'; sdp: { type: 'offer' | 'answer'; sdp: string } }
@@ -116,3 +182,14 @@ export const RTT_WARN_MS = 60;
 export const RTT_BAD_MS = 120;
 /** 绕路时手柄发输入的频率（直连时每帧都发）。 */
 export const RELAY_INPUT_HZ = 30;
+/** 手机局：直连时每 50 ms 给每部手机一张快照，绕路时 100 ms（房间转发扛得住的量）。 */
+export const SNAP_MS = 50;
+export const SNAP_RELAY_MS = 100;
+/**
+ * 一件事跟着几轮快照走（直连每轮都发，约 0.3 秒；绕路隔一轮发一张），快照里最多带几件。
+ * 按轮数不按时间：房主那部手机卡一下（过关撒纸屑那一下），事情也还在，等发出去了才算数。
+ */
+export const SNAP_EVENT_SENDS = 6;
+export const SNAP_EVENTS_MAX = 40;
+/** 样子名单没变也隔多久补发一次。 */
+export const CAST_MS = 2000;

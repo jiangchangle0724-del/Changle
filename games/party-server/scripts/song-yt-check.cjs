@@ -4,19 +4,34 @@
 // YouTube won't play in a data centre's browser (error 150), so the speaker page gets a pretend
 // YouTube player: it starts playing 300 ms after it's asked (a real video is late too), and its
 // clock answers four times a second, stale in between, like the real one's. Checked:
-//   - the songbook API (a tap-along's result kept; too few taps turned away);
-//   - a song the host starts waits for the video to be ready, then plays it; the speaker measures
-//     where the video's beat really is and the room moves the dance's beat there (within 25 ms);
-//   - Ann tapping on the video's real beats is on the beat; the TV's video goes away in the lobby;
+//   - the songbook API (a tap-along's result kept; too few taps, or taps from a room that didn't
+//     measure its TV's delay, turned away);
+//   - the host starts a song: the room measures the TV's delay first (Ann taps TV_DELAY ms after
+//     each click, as if the TV played them that late), then the song waits for the video to be
+//     ready and plays it; the speaker measures where the video's beat really is and the room moves
+//     the dance's beat there (within 25 ms);
+//   - Ann tapping on the video's real beats as the room hears them is on the beat;
+//   - 暂停 and 继续: the video holds, the phones say so; on 继续 it picks up a moment and a half
+//     before where it stopped, and the room's beat is where the video's is again (within 25 ms);
+//   - the video stalls for 4 s: the dance waits for it (the TV and the phones say so), then picks up
+//     where the video is (its beat within 25 ms of the video's, 4 s later than it was);
+//   - the dance's end: the song fades out and stops, its sound back for the next time;
+//   - the TV's video goes away in the lobby;
 //   - 找拍子: a song nobody has danced yet plays first while Ann and Bob tap along on their phones;
-//     the speaker finds its first beat from their taps (within 25 ms), the songbook keeps it, and the
-//     song then starts from its start with its beat where the video's is;
-//   - 歌曲对拍 on the speaker page: 16 taps on the beats of another song give its first beat.
+//     the speaker finds its first beat from their taps, heard TV_DELAY late (within 25 ms), the
+//     songbook keeps it, and the song then starts from its start with its beat where the video's is;
+//   - a song with its own dance (Macarena) starts with no 找拍子, its beat 0 where the data has it in
+//     the video (within 25 ms);
+//   - 歌曲对拍 on the speaker page: 16 taps on the beats of another song, heard from the TV, give its
+//     first beat.
 const { chromium, devices } = require("playwright");
 
 const BASE = process.env.BASE || "http://127.0.0.1:8787";
-const SONG = "song-gangnam-style";
-const SONG_BPM = 132;
+const SONG = "song-levitating";
+const SONG_BPM = 103;
+/** a song with its own dance, its beat measured: no 找拍子, beat 0 where the data has it */
+const OWN_SONG = "song-macarena";
+const OWN_FIRST = 5154;
 const FIRST = 3000;
 const TAP_SONG = "song-gentleman";
 const FIND_SONG = "song-dynamite";
@@ -24,6 +39,8 @@ const FIND_BPM = 114;
 const FIND_FIRST = 6100;
 const TAP_BPM = 126;
 const TAP_FIRST = 5200;
+/** how late the pretend TV plays the speaker's sound (ms) */
+const TV_DELAY = 150;
 
 const FAKE_YT = `(() => {
   const LAG = 300;
@@ -51,8 +68,14 @@ const FAKE_YT = `(() => {
         this.rep = { t: this.cur(), at: performance.now() };
       }, LAG);
     }
-    pauseVideo() { this.at = this.cur(); this.state = 2; clearTimeout(this.tm); this.rep = { t: this.at, at: performance.now() }; }
-    seekTo(s) { this.at = s; if (this.state === 1) { this.t0 = performance.now(); window.__fakeZero = window.partyDebug.now() - s * 1000; } this.rep = { t: s, at: performance.now() }; }
+    pauseVideo() { this.at = this.cur(); this.state = 2; clearTimeout(this.tm); this.rep = { t: this.at, at: performance.now() }; window.__pauses = (window.__pauses ?? 0) + 1; }
+    seekTo(s) { (window.__seeks ??= []).push(s); this.at = s; if (this.state === 1) { this.t0 = performance.now(); window.__fakeZero = window.partyDebug.now() - s * 1000; } this.rep = { t: s, at: performance.now() }; }
+    /** the network holding it up for ms: its clock stops, then it plays on */
+    stall(ms) {
+      this.at = this.cur(); this.state = 3; clearTimeout(this.tm); this.rep = { t: this.at, at: performance.now() };
+      this.tm = setTimeout(() => { this.state = 1; this.t0 = performance.now(); window.__fakeZero = window.partyDebug.now() - this.at * 1000; this.rep = { t: this.cur(), at: performance.now() }; }, ms);
+    }
+    setVolume(v) { this.vol = v; (window.__vols ??= []).push(v); }
     mute() { this.muted = true; }
     unMute() { this.muted = false; }
     isMuted() { return this.muted; }
@@ -71,8 +94,9 @@ const FAKE_YT = `(() => {
     const res = await fetch(`${BASE}${path}`, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : undefined);
     return { ok: res.ok, json: await res.json() };
   };
-  const kept = await api(`/party/api/songs/${SONG}`, { firstBeatMs: FIRST, taps: 16, spreadMs: 20 });
-  const refused = await api(`/party/api/songs/${SONG}`, { firstBeatMs: FIRST, taps: 3, spreadMs: 20 });
+  const kept = await api(`/party/api/songs/${SONG}`, { firstBeatMs: FIRST, taps: 16, spreadMs: 20, calibrated: true });
+  const refused = await api(`/party/api/songs/${SONG}`, { firstBeatMs: FIRST, taps: 3, spreadMs: 20, calibrated: true });
+  const uncalibrated = await api(`/party/api/songs/${SONG}`, { firstBeatMs: FIRST + 200, taps: 16, spreadMs: 20 });
 
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
   const errors = [];
@@ -102,9 +126,21 @@ const FAKE_YT = `(() => {
   const origin = await speaker.evaluate(() => performance.timeOrigin - window.partyDebug.origin());
   const annTruth = (await ann.evaluate(() => performance.timeOrigin)) - origin;
 
-  // ---- the host starts the song (just dance): the room waits for the video, then plays it
+  // ---- the host starts the song (just dance): the TV's delay first (the room's first dance),
+  // Ann tapping TV_DELAY ms after each click; then the room waits for the video, and plays it
   await ann.evaluate((id) => window.partyDebug.act({ type: "START_LEARNING", routineId: id, mode: "dance" }), SONG);
-  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "learning");
+  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "calibrating");
+  const calFirst = await ann.evaluate(() => /开跳前先量电视延迟/.test(document.body.innerText));
+  await speaker.waitForFunction(() => window.partyDebug.cal()?.clicks?.length === 8);
+  const clickTimes = await speaker.evaluate(() => window.partyDebug.cal().clicks);
+  await ann.evaluate(
+    ({ clicks, truth, delay }) => {
+      for (const c of clicks) setTimeout(() => document.querySelector(".tap-pad").dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })), c - truth + delay - performance.now());
+    },
+    { clicks: clickTimes, truth: annTruth, delay: TV_DELAY },
+  );
+  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "learning", null, { timeout: 30000 });
+  const audioOffsetMs = await speaker.evaluate(() => window.partyDebug.state().audioOffsetMs);
   const waited = await speaker.evaluate(() => window.partyDebug.state() && true);
   await speaker.waitForFunction(() => window.partyDebug.tube().status === "ready", null, { timeout: 15000 });
   await ann.waitForFunction(() => window.partyDebug.state()?.phase === "dancing", null, { timeout: 20000 });
@@ -115,10 +151,10 @@ const FAKE_YT = `(() => {
   const startAt = await speaker.evaluate(() => window.partyDebug.state().routineStartAt);
   const beatMs = 60000 / SONG_BPM;
   const moved = startAt - (fakeZero + FIRST);
-  // Ann taps on the video's real beats for 16 beats from a moment from now
+  // Ann taps on the video's real beats, as the room hears them, for 16 beats from a moment from now
   const nowS = await speaker.evaluate(() => window.partyDebug.now());
   const k0 = Math.ceil((nowS + 600 - (fakeZero + FIRST)) / beatMs);
-  const beats = Array.from({ length: 16 }, (_, i) => fakeZero + FIRST + (k0 + i) * beatMs);
+  const beats = Array.from({ length: 16 }, (_, i) => fakeZero + FIRST + (k0 + i) * beatMs + audioOffsetMs);
   await ann.evaluate((ts) => { for (const t of ts) setTimeout(() => document.querySelector(".dance-pad")?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })), t - performance.now()); }, beats.map((t) => t - annTruth));
   // (her last tapped beat, judged once its window has closed)
   await speaker.waitForTimeout(beats[15] - nowS + 450);
@@ -126,6 +162,40 @@ const FAKE_YT = `(() => {
   await speaker.waitForTimeout(800);
   const floor = await speaker.evaluate(() => window.partyDebug.floor());
   await speaker.screenshot({ path: process.env.SHOT || "/tmp/song-yt.png" });
+  // 暂停: the video holds where it is; 继续: from a moment and a half before, the beat with the video
+  await ann.evaluate(() => window.partyDebug.act({ type: "PAUSE" }));
+  await speaker.waitForFunction(() => window.partyDebug.state() && window.partyDebug.tube().status === "ready", null, { timeout: 5000 });
+  const heldAt = await speaker.evaluate(() => window.__fakeYt.cur());
+  await ann.waitForFunction(() => /暂停了/.test(document.body.innerText));
+  const pauseShown = await ann.evaluate(() => [...document.querySelectorAll(".host-panel button")].some((b) => b.textContent === "继续"));
+  await speaker.waitForTimeout(2500);
+  const stillHeld = await speaker.evaluate(() => window.__fakeYt.cur());
+  await speaker.screenshot({ path: (process.env.SHOT || "/tmp/song-yt.png").replace(/\.png$/, "-paused.png") });
+  await ann.evaluate(() => window.partyDebug.act({ type: "RESUME" }));
+  await speaker.waitForFunction(() => window.partyDebug.tube().status === "playing", null, { timeout: 10000 });
+  const pickedUp = await speaker.evaluate(() => (window.__seeks ?? []).at(-1));
+  await speaker.waitForTimeout(4500);
+  const resumedZero = await speaker.evaluate(() => window.__fakeZero);
+  const resumedStart = await speaker.evaluate(() => window.partyDebug.state().routineStartAt);
+  const resumedMoved = resumedStart - (resumedZero + FIRST);
+  // the video stalls for 4 s: the dance waits (the TV and the phones say so), then picks up with it
+  await speaker.evaluate(() => window.__fakeYt.stall(4000));
+  await speaker.waitForFunction(() => window.partyDebug.routine()?.heldAt !== undefined, null, { timeout: 6000 }).catch(() => {});
+  const held = await speaker.evaluate(() => window.partyDebug.routine()?.heldAt !== undefined);
+  const stallShown = await ann.waitForFunction(() => /等电视上的视频/.test(document.body.innerText), null, { timeout: 3000 }).then(() => true, () => false);
+  const tvStallShown = await speaker.evaluate(() => /等视频/.test(document.body.innerText) && window.partyDebug.run().length === 0);
+  await speaker.waitForFunction(() => window.partyDebug.routine()?.heldAt === undefined, null, { timeout: 10000 }).catch(() => {});
+  await speaker.waitForTimeout(3500);
+  const stallZero = await speaker.evaluate(() => window.__fakeZero);
+  const stallStart = await speaker.evaluate(() => window.partyDebug.state().routineStartAt);
+  const stallMoved = stallStart - (stallZero + FIRST);
+  const stallLater = stallStart - resumedStart;
+  // the dance's end: the song fades out and stops, its sound back for the next time (here the dance
+  // is still on, so the video then picks up again: a real end has the room on its results)
+  await speaker.evaluate(() => { window.__vols = []; window.__pauses = 0; window.partyDebug.fade(); });
+  await speaker.waitForTimeout(3200);
+  const fade = await speaker.evaluate(() => ({ low: Math.min(...window.__vols), last: window.__vols.at(-1), steps: window.__vols.length, pauses: window.__pauses }));
+  const faded = fade.steps > 5 && fade.low <= 5 && fade.last === 100 && fade.pauses >= 1;
   await ann.evaluate(() => window.partyDebug.act({ type: "BACK_TO_LOBBY" }));
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "lobby");
   await speaker.waitForTimeout(300);
@@ -142,8 +212,9 @@ const FAKE_YT = `(() => {
   const zeroF = await speaker.evaluate(() => window.__fakeZero);
   const findBeat = 60000 / FIND_BPM;
   // (Ann from the beat's first, Bob joining in a few beats later; each a little off, their own way)
-  const annF = Array.from({ length: 12 }, (_, i) => zeroF + FIND_FIRST + i * findBeat + 20 * Math.sin(i * 1.9));
-  const bobF = Array.from({ length: 11 }, (_, i) => zeroF + FIND_FIRST + (i + 3) * findBeat + 15 + 25 * Math.sin(i * 2.7));
+  // (as they hear it: from the TV, TV_DELAY late)
+  const annF = Array.from({ length: 12 }, (_, i) => zeroF + FIND_FIRST + i * findBeat + TV_DELAY + 20 * Math.sin(i * 1.9));
+  const bobF = Array.from({ length: 11 }, (_, i) => zeroF + FIND_FIRST + (i + 3) * findBeat + TV_DELAY + 15 + 25 * Math.sin(i * 2.7));
   const tapAt = (p, truth, ts) => p.evaluate((list) => { for (const t of list) setTimeout(() => document.querySelector(".find .tap-pad")?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })), t - performance.now()); }, ts.map((t) => t - truth));
   await tapAt(ann, annTruth, annF);
   await tapAt(bob, bobTruth, bobF);
@@ -160,6 +231,20 @@ const FAKE_YT = `(() => {
   await ann.evaluate(() => window.partyDebug.act({ type: "BACK_TO_LOBBY" }));
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "lobby");
 
+  // ---- a song with its own dance: no 找拍子, straight to the video
+  await ann.evaluate((id) => window.partyDebug.act({ type: "START_LEARNING", routineId: id, mode: "dance" }), OWN_SONG);
+  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "learning");
+  const ownNoTap = await speaker.evaluate(() => !window.partyDebug.state() || !document.querySelector(".find"));
+  await ann.waitForFunction(() => window.partyDebug.state()?.phase === "dancing", null, { timeout: 30000 });
+  await speaker.waitForFunction(() => window.partyDebug.tube().status === "playing", null, { timeout: 10000 });
+  await speaker.waitForTimeout(4500);
+  const ownZero = await speaker.evaluate(() => window.__fakeZero);
+  const ownStart = await speaker.evaluate(() => window.partyDebug.state().routineStartAt);
+  const ownMoved = ownStart - (ownZero + OWN_FIRST);
+  const ownMove = await speaker.evaluate(() => window.partyDebug.run().find((b) => b.stage === "dance")?.move);
+  await ann.evaluate(() => window.partyDebug.act({ type: "BACK_TO_LOBBY" }));
+  await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "lobby");
+
   // ---- 歌曲对拍 on the speaker page
   await speaker.getByRole("button", { name: /歌曲对拍/ }).click();
   await speaker.getByRole("button", { name: /Gentleman/ }).click();
@@ -172,24 +257,34 @@ const FAKE_YT = `(() => {
   const now2 = await speaker.evaluate(() => window.partyDebug.now());
   const j0 = Math.max(0, Math.ceil((now2 + 500 - (zero2 + TAP_FIRST)) / tapBeat));
   // (the first tap on a beat that is the song's first beat as far as the taps know: TAP_FIRST + j0 beats)
-  const taps = Array.from({ length: 16 }, (_, i) => zero2 + TAP_FIRST + (j0 + i) * tapBeat + 12 * Math.sin(i * 2.1));
+  // (heard from the TV: TV_DELAY late)
+  const taps = Array.from({ length: 16 }, (_, i) => zero2 + TAP_FIRST + (j0 + i) * tapBeat + TV_DELAY + 12 * Math.sin(i * 2.1));
   await speaker.evaluate((ts) => { for (const t of ts) setTimeout(() => document.querySelector(".tap-pad")?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })), t - window.partyDebug.now()); }, taps);
   await speaker.waitForFunction(() => /对好了|没存上|再来/.test(document.querySelector(".tapalong")?.textContent ?? ""), null, { timeout: 16 * tapBeat + 8000 });
   const tapText = await speaker.locator(".tapalong").textContent();
   const book = (await api("/party/api/songs")).json;
   const expectFirst = TAP_FIRST + j0 * tapBeat;
 
-  console.log(JSON.stringify({ tapText, kept, refused, waited, moved: Math.round(moved), judged: judged && { verdict: judged.verdict, off: judged.off }, floor: floor && { best: floor.best, dancers: floor.dancers }, tubeAfter, findShown, found, bookF, findMoved: Math.round(findMoved), tapped: book[TAP_SONG], expectFirst: Math.round(expectFirst), errors }, null, 1));
+  console.log(JSON.stringify({ tapText, kept, refused, uncalibrated, calFirst, audioOffsetMs, heldAt, stillHeld, pickedUp, resumedMoved: Math.round(resumedMoved), held, stallShown, tvStallShown, stallMoved: Math.round(stallMoved), stallLater: Math.round(stallLater), fade, ownNoTap, ownMoved: Math.round(ownMoved), ownMove, waited, moved: Math.round(moved), judged: judged && { verdict: judged.verdict, off: judged.off }, floor: floor && { best: floor.best, dancers: floor.dancers }, tubeAfter, findShown, found, bookF, findMoved: Math.round(findMoved), tapped: book[TAP_SONG], expectFirst: Math.round(expectFirst), errors }, null, 1));
   const checks = {
     "the songbook keeps a tap-along": kept.ok && kept.json.firstBeatMs === FIRST,
     "and turns away too few taps": !refused.ok,
+    "and taps from a room that didn't measure its TV's delay": !uncalibrated.ok,
+    "the room's first dance measures the TV's delay first (within 20 ms)": calFirst && Math.abs(audioOffsetMs - TV_DELAY) <= 20,
     "the room moved the beat to the video's (within 25 ms)": Math.abs(moved) <= 25,
     "Ann on the video's beats is on the beat": judged?.verdict === "hit" && Math.abs(judged.off) <= 40,
     "the floor counts her": (floor?.best ?? 0) >= 8,
+    "暂停 holds the video, and the phones say so": Math.abs(stillHeld - heldAt) < 0.01 && pauseShown,
+    "继续 picks the video up a moment and a half before where it stopped": typeof pickedUp === "number" && Math.abs(heldAt - 1.5 - pickedUp) <= 0.35,
+    "after 继续 the room's beat is where the video's is (within 25 ms)": Math.abs(resumedMoved) <= 25,
+    "a stalled video holds the dance, and the TV and the phones say so": held && stallShown && tvStallShown,
+    "then the dance picks up where the video is (within 25 ms), 4 s later": Math.abs(stallMoved) <= 25 && Math.abs(stallLater - 4000) <= 600,
+    "the dance's end fades the song out and stops it, its sound back for next time": faded,
     "the video goes away in the lobby": tubeAfter === "idle",
     "找拍子 shows on the phones and the TV": findShown,
     "找拍子 finds the first beat from Ann's and Bob's taps (within 25 ms), and the songbook keeps it": !!bookF && Math.abs(bookF.firstBeatMs - FIND_FIRST) <= 25 && bookF.taps >= 16,
     "then the song starts from its start, its beat where the video's is (within 25 ms)": Math.abs(findMoved) <= 25,
+    "a song with its own dance starts with no 找拍子, on its measured beat (within 25 ms), its own moves": ownNoTap && Math.abs(ownMoved) <= 25 && ownMove === "macarena-arms",
     "对拍 finds the song's first beat (within 20 ms)": !!book[TAP_SONG] && Math.abs(book[TAP_SONG].firstBeatMs - expectFirst) <= 20 && /对好了/.test(tapText ?? ""),
     "no page errors": errors.length === 0,
   };

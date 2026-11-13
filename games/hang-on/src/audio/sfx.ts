@@ -4,7 +4,8 @@
  * 浏览器要用户点过一次才让出声：attach() 挂在第一次按键 / 点击上。静音记在 localStorage。
  */
 import type { Voice } from '../look';
-import type { Sim, SimEvent } from '../physics/world';
+import type { SimEvent } from '../physics/world';
+import type { SimView } from '../render/view';
 
 type Wave = OscillatorType;
 
@@ -126,7 +127,7 @@ class Sfx {
 
   // ---------------------------------------------------------------- 事件 → 声音
 
-  handleEvents(sim: Sim, events: readonly SimEvent[]): void {
+  handleEvents(sim: SimView, events: readonly SimEvent[]): void {
     if (!this.ready || this.muted_) return;
     for (const ev of events) {
       switch (ev.type) {
@@ -153,10 +154,24 @@ class Sfx {
           this.noise({ dur: 0.06, vol: 0.12 + 0.2 * v, filter: { type: 'lowpass', freq: 900 }, pan });
           break;
         }
-        case 'death':
-          this.scream(ev.player, this.pan(ev.x, ev.y));
-          this.splash(this.pan(ev.x, ev.y), sim.level.world !== 'van');
+        case 'death': {
+          const pan = this.pan(ev.x, ev.y);
+          this.scream(ev.player, pan);
+          if (ev.cause === 'zap') {
+            // 电：一声嗞，带点抖
+            this.tone({ freq: 110, to: 90, wave: 'sawtooth', dur: 0.32, vol: 0.22, pan, vibrato: [35, 38], lowpass: 2400 });
+            this.noise({ dur: 0.25, vol: 0.18, filter: { type: 'bandpass', freq: 3200, q: 2 }, pan });
+          } else if (ev.cause === 'hot') {
+            // 烫：滋啦一下，往下滑
+            this.noise({ dur: 0.45, vol: 0.22, filter: { type: 'highpass', freq: 2500, to: 5000 }, pan });
+            this.tone({ freq: 300, to: 140, wave: 'sine', dur: 0.2, vol: 0.15, pan });
+          } else if (ev.cause === 'spike') {
+            // 扎：短促一声啵
+            this.tone({ freq: 900, to: 300, wave: 'triangle', dur: 0.09, vol: 0.3, pan });
+            this.noise({ dur: 0.05, vol: 0.15, filter: { type: 'lowpass', freq: 1800 }, pan });
+          } else this.splash(pan, sim.level.world !== 'van');
           break;
+        }
         case 'respawn': {
           const p = sim.players[ev.player];
           const pan = p ? this.pan(p.body.x, p.body.y) : 0;
@@ -377,3 +392,18 @@ class Sfx {
 }
 
 export const sfx = new Sfx();
+
+/**
+ * 手机局里每部手机只放跟自己那个人有关的声音，加上大家共有的（检查点、饼干、过关）：
+ * 几部手机放在一张桌上，同一下抓不该从四部手机里各响一遍。
+ */
+export function heardBy(ev: SimEvent, me: number): boolean {
+  switch (ev.type) {
+    case 'betrayal':
+      return ev.by === me || ev.victim === me;
+    case 'summon':
+      return ev.player === me || ev.who.includes(me);
+    default:
+      return !('player' in ev) || ev.player === me;
+  }
+}

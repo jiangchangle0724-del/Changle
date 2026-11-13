@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, GalleryHorizontalEnd, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
+import { ArrowDownToLine, Club, Crown, Dices, Disc3, Drama, Footprints, GalleryHorizontalEnd, Grab, Hand, Luggage, MessageSquareQuote, Music, PenLine, ShipWheel, Snowflake, Spade, Speech, StickyNote, Trophy, VenetianMask, Wine } from "lucide-react";
 import { UsersRound } from "lucide-react";
 import type { T } from "../i18n";
 import { LC_CALL, LC_NAME } from "../shared/lastcard/name";
@@ -27,7 +27,8 @@ export type GameId =
   | "dj"
   | "hide"
   | "lastcard"
-  | "dance";
+  | "dance"
+  | "hangon";
 
 export type GameMeta = {
   id: GameId;
@@ -63,7 +64,14 @@ export type GameMeta = {
    * to `screen` and tells a phone where to go; /g/<slug>/play goes to `screen` too. There is no
    * one-phone mode and no table game: a table's spin never lands on it (it isn't in ONLINE_GAMES).
    */
-  stage?: { screen: string; join: string };
+  stage?: {
+    screen: string;
+    join: string;
+    /** the stage button's second line */
+    note?: T;
+    /** the stage is this phone or computer, mirrored to the TV (一起跳, Steve 11-11): the button and its help say so */
+    mirror?: boolean;
+  };
   /**
    * its kind, which colors its card (decided 2026-11-01: cards by kind, not one color per game; the
    * stage gel above stays the game's own light): drink 喝酒局, brain 动脑, body 动身体, online 线上
@@ -475,8 +483,40 @@ export const GAMES: GameMeta[] = [
     category: "body",
     minutes: 8,
     ready: true,
-    stage: { screen: "/party/screen", join: "/party/join" },
+    stage: {
+      screen: "/party/screen",
+      join: "/party/join",
+      note: t("投到电视上当舞台，这台不参与游玩；大家用自己的手机跳", "It's the stage on the TV, not a player; everyone dances with their own phone"),
+      mirror: true,
+    },
     newUntil: "2026-12-05",
+  },
+  // its own Worker at changle.ca/hang-on (games/hang-on): a TV or computer is the big screen, phones
+  // scan in as controllers; opened on a phone it is a phones-only room (11-11: one phone hosts, every
+  // phone shows the game). Went on the board 11-11 (before that only its address); it sits last so
+  // the board stays put
+  {
+    id: "hangon",
+    slug: "hang-on",
+    name: t("抓紧了", "Hang On"),
+    blurb: t("两只手轮流抓，全队一起爬到顶", "Grab with both hands and climb to the top together."),
+    how: t(
+      "电视或电脑打开 changle.ca/hang-on 当大屏，大家用手机扫码进来当手柄；没有电视，就在一部手机上打开，大家都在自己手机上看。每人是一个糯米团，不能跳，只有两只手：按住就抓，松开就放，摇杆管身体往哪边荡。1 到 4 个人合作，全队都到顶才算过关，摔下去会在存档点复活；可以拉着队友荡过去，也可以把队友丢过去。12 关，从年夜饭桌一路爬到温哥华海湾。",
+      "Open changle.ca/hang-on on a TV or computer as the big screen. Everyone scans in, and each phone becomes a controller. No TV? Open it on one phone, and everyone plays on their own screen. You're a rice dumpling with two arms and no jumping: hold a button to grab, let go to drop, and the stick swings your body. 1 to 4 players work together, and the whole team has to reach the top. Fall and you come back at the last checkpoint. Swing a teammate across, or throw one. 12 levels, from a family dinner table to Vancouver's harbour.",
+    ),
+    minPlayers: 1,
+    maxPlayers: 4,
+    gel: "#ff9f43",
+    icon: Grab,
+    category: "online",
+    minutes: 15,
+    ready: true,
+    stage: {
+      screen: "/hang-on/",
+      join: "/hang-on/pad/",
+      note: t("游戏在大屏上，手机当手柄。没有电视，一部手机也能开", "The game plays there and phones are controllers. No TV? One phone can host."),
+    },
+    newUntil: "2026-12-11",
   },
 ];
 

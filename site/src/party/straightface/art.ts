@@ -1,5 +1,5 @@
 /**
- * 一本正经's pictures. All drawn with ChatGPT's image generation (Steve's account, 2026-11-05); the
+ * 一本正经's pictures. All drawn with ChatGPT's image generation (Steve's account, 2026-11-05 and -11); the
  * prompts and where each file came from are in art/README.md. They load with the game, never with the
  * home page.
  */
@@ -21,6 +21,10 @@ import idioms from "./art/packs/idioms.webp";
 import phobias from "./art/packs/phobias.webp";
 import placenames from "./art/packs/placenames.webp";
 import slang from "./art/packs/slang.webp";
+import yueyu from "./art/packs/yueyu.webp";
+import hangdang from "./art/packs/hangdang.webp";
+import animals from "./art/packs/animals.webp";
+import oldjobs from "./art/packs/oldjobs.webp";
 import all from "./art/packs/all.webp";
 import judge from "./art/roles/judge.webp";
 import honest from "./art/roles/honest.webp";
@@ -31,9 +35,9 @@ import fooled from "./art/verdict/fooled.webp";
 import master from "./art/verdict/master.webp";
 
 export const PACK_ART: Record<Pack, string> = {
-  zi, fangyan, chengyu, caiming, xiehouyu, zhongyao, diming, laowujian, wangluo,
-  trivia, vancouver, food,
-  oddwords, idioms, phobias, placenames, slang,
+  zi, fangyan, chengyu, caiming, xiehouyu, zhongyao, diming, laowujian, wangluo, yueyu, hangdang,
+  trivia, vancouver, food, animals,
+  oddwords, idioms, phobias, placenames, slang, oldjobs,
 };
 /** a hand of cards under a spotlight: every pack at once */
 export const ALL_PACKS_ART = all;

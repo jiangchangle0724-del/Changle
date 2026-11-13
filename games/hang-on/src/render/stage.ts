@@ -8,7 +8,8 @@
 import { Application, Container, FillGradient, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Level, Pt } from '../physics/level';
-import type { Sim, SimEvent } from '../physics/world';
+import type { SimEvent } from '../physics/world';
+import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
 import { CONFETTI, hex, OUTLINE, PALETTES, textures, type Palette, type Textures, type WorldId } from './art';
 import { Backdrop } from './backdrop';
@@ -76,6 +77,8 @@ export class Stage {
     app: Application,
     reduced: boolean,
     private readonly plates: Partial<Record<WorldId, string>>,
+    /** 手机屏幕：镜头拉近一点，糯米团别小得看不清。 */
+    private readonly compact: boolean,
   ) {
     this.app = app;
     this.reduced = reduced;
@@ -91,8 +94,11 @@ export class Stage {
     app.stage.addChild(this.root);
   }
 
-  /** 建画面：Pixi 要异步初始化。plates：每个世界的远景画地址（主机页和开发页给 `src/render/plates.ts` 的）。 */
-  static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>> } = {}): Promise<Stage> {
+  /**
+   * 建画面：Pixi 要异步初始化。plates：每个世界的远景画地址（主机页和开发页给 `src/render/plates.ts` 的）；
+   * compact：画在手机上（手机局），镜头近一些。
+   */
+  static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>>; compact?: boolean } = {}): Promise<Stage> {
     const init = {
       canvas,
       width: innerWidth,
@@ -115,7 +121,7 @@ export class Stage {
     }
     app.ticker.stop();
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const stage = new Stage(app, reduced, opts.plates ?? {});
+    const stage = new Stage(app, reduced, opts.plates ?? {}, !!opts.compact);
     stage.resize();
     return stage;
   }
@@ -172,7 +178,7 @@ export class Stage {
   }
 
   /** 玩家数量跟着 sim 走；样子（名字、颜色、帽子）另外给。 */
-  syncPlayers(sim: Sim): void {
+  syncPlayers(sim: SimView): void {
     while (this.dumplings.length < sim.players.length) {
       const i = this.dumplings.length;
       const st = this.styles[i] ?? { name: `P${i + 1}`, color: sim.players[i]?.color ?? '#fff', look: DEFAULT_LOOK };
@@ -207,7 +213,7 @@ export class Stage {
 
   // ---------------------------------------------------------------- 事件 → 动效
 
-  handleEvents(sim: Sim, events: readonly SimEvent[]): void {
+  handleEvents(sim: SimView, events: readonly SimEvent[]): void {
     for (const ev of events) {
       switch (ev.type) {
         case 'grab': {
@@ -234,7 +240,9 @@ export class Stage {
           this.cam.shake = this.reduced ? 0 : 12;
           this.slow = 0.55;
           this.flashA = this.reduced ? 0 : 0.28;
-          this.splash(ev.x, sim.level.deathY);
+          // 碰到机关死的在出事的地方炸开；掉下去的在深渊面上溅起来
+          if (ev.cause) this.hazardBurst(ev.cause, ev.x, ev.y);
+          else this.splash(ev.x, sim.level.deathY);
           sim.players.forEach((q, i) => {
             if (i !== ev.player && !q.dead) this.dumplings[i]?.onMateDied();
           });
@@ -285,6 +293,22 @@ export class Stage {
     this.fx.burst({ x, y: y - 10, n: 4, texture: 'puff', colors: [0xffffff], speed: [30, 80], angle: -Math.PI / 2, spread: 0.6, life: [0.8, 1.4], size: [40, 80], grow: 2.2, alpha: 0.35, drag: 1 });
   }
 
+  /** 碰到机关的死法：电是一团火花，烫是一股白气加几滴红油，扎是一圈白点。 */
+  private hazardBurst(cause: 'spike' | 'hot' | 'zap', x: number, y: number): void {
+    const van = this.world_ === 'van';
+    if (cause === 'zap') {
+      this.fx.burst({ x, y, n: this.reduced ? 8 : 26, texture: 'star', colors: van ? [0xbff0ff, 0x7fd8ff, 0xffffff] : [0xffd27a, 0xff7a2f, 0xffffff], speed: [200, 620], life: [0.25, 0.6], size: [6, 12], drag: 3, spin: 12 });
+      this.fx.burst({ x, y, n: 3, texture: 'puff', colors: [0x2a2a2a], speed: [20, 60], angle: -Math.PI / 2, spread: 0.8, life: [0.6, 1], size: [30, 60], grow: 2, alpha: 0.35, drag: 1 });
+      return;
+    }
+    if (cause === 'hot') {
+      this.fx.burst({ x, y, n: 6, texture: 'puff', colors: [0xffffff], speed: [40, 120], angle: -Math.PI / 2, spread: 0.7, life: [0.8, 1.4], size: [40, 80], grow: 2.4, alpha: 0.4, drag: 1 });
+      this.fx.burst({ x, y, n: 12, texture: 'drop', colors: van ? [0xff6a2c, 0xffb347] : [0xd8432a, 0xff8a5b], speed: [150, 380], angle: -Math.PI / 2, spread: 1, life: [0.4, 0.8], size: [6, 12], gravity: 1300 });
+      return;
+    }
+    this.fx.burst({ x, y, n: this.reduced ? 6 : 16, texture: 'circle', colors: [0xfff6e9, 0xf8c56d], speed: [180, 420], life: [0.3, 0.6], size: [5, 10], drag: 3 });
+  }
+
   private confetti(x: number, y: number): void {
     const colors = CONFETTI.map(hex);
     this.fx.burst({ x, y, n: this.reduced ? 30 : 90, texture: 'square', colors, speed: [250, 700], angle: -Math.PI / 2, spread: 1.1, life: [1.4, 2.6], size: [6, 11], gravity: 500, spin: 14, drag: 1.2 });
@@ -293,7 +317,7 @@ export class Stage {
 
   // ---------------------------------------------------------------- 镜头
 
-  updateCamera(sim: Sim, dt: number): void {
+  updateCamera(sim: SimView, dt: number): void {
     const cam = this.cam;
     const level = sim.level;
     const alive = sim.players.filter((p) => !p.dead);
@@ -320,8 +344,8 @@ export class Stage {
     }
     const W = this.W;
     const H = this.H;
-    // 缩放：基础按屏幕大小，人分散了再缩到都能看见
-    const base = Math.max(0.6, Math.min(1.25, Math.min(W / 1000, H / 640)));
+    // 缩放：基础按屏幕大小，人分散了再缩到都能看见；手机屏幕小，基础近一些
+    const base = this.compact ? Math.max(0.55, Math.min(1.1, Math.min(W / 820, H / 500))) : Math.max(0.6, Math.min(1.25, Math.min(W / 1000, H / 640)));
     const fit = Math.min(W / (bw + 420), H / (bh + 360));
     const zt = Math.max(0.45, Math.min(base, fit));
     cam.z += (zt - cam.z) * Math.min(1, dt * 2.5);
@@ -343,7 +367,7 @@ export class Stage {
 
   // ---------------------------------------------------------------- 每帧
 
-  draw(sim: Sim, dt: number): void {
+  draw(sim: SimView, dt: number): void {
     this.t += dt;
     // 慢动作：摔死后 0.3 秒 0.25 倍，再 0.25 秒回到 1
     if (this.slow > 0) {
@@ -374,7 +398,7 @@ export class Stage {
     this.app.renderer.render(this.app.stage);
   }
 
-  private drawProps(sim: Sim): void {
+  private drawProps(sim: SimView): void {
     const g = this.propsG.clear();
     const table = this.world_ === 'table';
     for (const prop of sim.props) {
@@ -424,7 +448,7 @@ export class Stage {
     }
   }
 
-  private drawRopes(sim: Sim): void {
+  private drawRopes(sim: SimView): void {
     const g = this.ropesG.clear();
     const table = this.world_ === 'table';
     for (const rope of sim.ropes) {
@@ -464,7 +488,7 @@ export class Stage {
     }
   }
 
-  private drawTrails(sim: Sim): void {
+  private drawTrails(sim: SimView): void {
     const g = this.trailsG.clear();
     if (this.reduced) return;
     sim.players.forEach((p, i) => {
@@ -490,7 +514,7 @@ export class Stage {
   }
 
   /** 汤面 / 水面：一条会动的波浪，盖在人前面；表面冒泡、冒蒸汽。 */
-  private drawAbyss(sim: Sim, dt: number): void {
+  private drawAbyss(sim: SimView, dt: number): void {
     const level = sim.level;
     const g = this.abyssTop.clear();
     const y = level.deathY - 8;

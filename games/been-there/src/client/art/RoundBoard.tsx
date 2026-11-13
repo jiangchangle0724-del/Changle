@@ -70,6 +70,8 @@ export interface Rig {
   /** The table's angle now (as drawn), and where it rests for this turn. */
   rotation(): number;
   focusRotation(): number;
+  /** How far the board leans back at rest (degrees: 0, flat; ui/Board.tsx boardLean). */
+  lean: number;
 }
 
 const RO = 490;
@@ -81,7 +83,7 @@ const RH = 358;
 const RT = 294;
 /** Where the buildings stand on a city's space: just inside its owner's mark; and how big they're drawn. */
 const RBLD = 350;
-const BLD_K = 1.3;
+const BLD_K = 1.5;
 /** Travel news tags sit on the inner edge of the ring. */
 const RN = 330;
 const RMAP = 320;
@@ -177,15 +179,16 @@ function glyphName(at: number): string {
  * and rise, one after another; n itself when nothing is new. Each animated part is a group of its
  * own inside the one placing it: a CSS animation's transform would replace a transform attribute.)
  */
-function Buildings({ at, n, from, rot }: { at: number; n: number; from: number; rot: number }) {
+function Buildings({ at, n, from, rot, stand }: { at: number; n: number; from: number; rot: number; stand: number }) {
   const [x, y] = xy(angleOf(at), RBLD);
   const city = CITY_AT[at]?.id;
   // (centred on their spot rather than standing on it: upright, they reach as far out of the ring as in)
   if (n >= 5) {
     const fresh = from < 5;
     return (
-      <Up x={x} y={y} rot={rot}>
+      <Up x={x} y={y} rot={rot} stand={stand}>
         <g class="bldg hotel" data-at={at} transform={`scale(${BLD_K}) translate(0 20)`}>
+          <ellipse class="b-ground" rx="13.5" ry="3.4" cy="0.6" />
           {[0, 1, 2].map((f) => (
             <g key={f} transform={`translate(0 ${-f * 8.5})`}>
               <g class={fresh ? "b-new" : undefined} style={fresh ? { "--i": f } : undefined}>
@@ -213,8 +216,9 @@ function Buildings({ at, n, from, rot }: { at: number; n: number; from: number; 
   // (four in a row stand close, as town houses do, to stay on their space)
   const gap = Math.min(12.4, 40 / n);
   return (
-    <Up x={x} y={y} rot={rot}>
+    <Up x={x} y={y} rot={rot} stand={stand}>
       <g class="bldg" data-at={at} transform={`scale(${BLD_K}) translate(0 8)`}>
+        <ellipse class="b-ground" rx={((n * gap) / 2 + 4).toFixed(1)} ry="3" cy="0.6" />
         {Array.from({ length: n }, (_, i) => (
           <g key={i} transform={`translate(${((i - (n - 1) / 2) * gap).toFixed(1)} 0)`}>
             <g class={i >= from ? "b-new" : undefined} style={i >= from ? { "--i": i - from } : undefined}>
@@ -360,16 +364,69 @@ function WorldMoment({ kind, at, rot }: { kind: WorldId; at?: number; rot: numbe
   );
 }
 
+/** A ring between two radii round the middle (filled even-odd). */
+const ring = (ro: number, ri: number) =>
+  `M${-ro} 0a${ro} ${ro} 0 1 0 ${2 * ro} 0a${ro} ${ro} 0 1 0 ${-2 * ro} 0ZM${-ri} 0a${ri} ${ri} 0 1 0 ${2 * ri} 0a${ri} ${ri} 0 1 0 ${-2 * ri} 0Z`;
+
+/** How far the board's edge shows under its face (board units): flat, and leaning back. */
+const EDGE = { flat: 7, lean: 15 };
+/** The ring's outer band, where the colours are: the lacquer's gloss lies on it. */
+const GLOSS_D = `M${-RO} 0a${RO} ${RO} 0 1 0 ${2 * RO} 0a${RO} ${RO} 0 1 0 ${-2 * RO} 0ZM${-RB + 6} 0a${RB - 6} ${RB - 6} 0 1 1 ${2 * (RB - 6)} 0a${RB - 6} ${RB - 6} 0 1 1 ${-2 * (RB - 6)} 0Z`;
+
+/** The board's light and shade: its shadow on the table, its edge, the lamp and the gloss. */
+function BoardDefs() {
+  return (
+    <defs aria-hidden="true">
+      <radialGradient id="rb-shadow" gradientUnits="userSpaceOnUse" cx="0" cy="0" r={RO + 24}>
+        <stop offset="0.82" style={{ stopColor: "var(--night-shade)", stopOpacity: 0.7 }} />
+        <stop offset="0.93" style={{ stopColor: "var(--night-shade)", stopOpacity: 0.32 }} />
+        <stop offset="1" style={{ stopColor: "var(--night-shade)", stopOpacity: 0 }} />
+      </radialGradient>
+      <linearGradient id="rb-edge" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0.45" style={{ stopColor: "var(--board-edge-hi)", stopOpacity: 1 }} />
+        <stop offset="1" style={{ stopColor: "var(--board-edge)", stopOpacity: 1 }} />
+      </linearGradient>
+      <radialGradient id="rb-lamp" cx="0.3" cy="0.22" r="0.85">
+        <stop offset="0" style={{ stopColor: "var(--lamp)", stopOpacity: 0.16 }} />
+        <stop offset="0.45" style={{ stopColor: "var(--lamp)", stopOpacity: 0.05 }} />
+        <stop offset="1" style={{ stopColor: "var(--lamp)", stopOpacity: 0 }} />
+      </radialGradient>
+      <radialGradient id="rb-gloss" gradientUnits="userSpaceOnUse" cx="0" cy="0" r={RO}>
+        <stop offset={((RB - 6) / RO).toFixed(3)} style={{ stopColor: "var(--board-ink)", stopOpacity: 0 }} />
+        <stop offset={((RB + 8) / RO).toFixed(3)} style={{ stopColor: "var(--board-ink)", stopOpacity: 0.13 }} />
+        <stop offset={((RO - 7) / RO).toFixed(3)} style={{ stopColor: "var(--board-ink)", stopOpacity: 0.04 }} />
+        <stop offset="1" style={{ stopColor: "var(--night-shade)", stopOpacity: 0.22 }} />
+      </radialGradient>
+    </defs>
+  );
+}
+
+/** A token walking round: how high it hops (board units) and how long it stays squashed as it lands (ms). */
+const HOP = { h: 22, land: 160 };
+
 /** The table turns 60 degrees a second at most (easing in and out); past this a fade is kinder. */
 const TURN_MAX = 60;
 const TURN_ACCEL = 300;
 const FADE_PAST = 60;
 const FADE_MS = 500;
 
-/** Something that stays upright while the table turns. */
-function Up({ x, y, rot, children, extra }: { x: number; y: number; rot: number; children: ComponentChildren; extra?: Record<string, string | number> }) {
+/** How much taller what stands on a board leaning back `lean` degrees is drawn, so it shows its own
+ * height: the lean shortens everything on the board by its cosine. */
+export const standOf = (lean: number) => (lean > 0.05 ? 1 / Math.cos((lean * Math.PI) / 180) : 1);
+const standTf = (k: number) => (k > 1.0005 ? ` scale(1 ${k.toFixed(4)})` : "");
+
+/** Something that stays upright while the table turns; `stand` (its height, `standOf`): something that
+ * stands up off the board (a token, a building, a sign) rather than printed on it. */
+function Up({ x, y, rot, children, extra, stand }: { x: number; y: number; rot: number; children: ComponentChildren; extra?: Record<string, string | number>; stand?: number }) {
   return (
-    <g data-up="" data-x={x.toFixed(1)} data-y={y.toFixed(1)} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${-rot})`} {...extra}>
+    <g
+      data-up=""
+      data-x={x.toFixed(1)}
+      data-y={y.toFixed(1)}
+      data-stand={stand ? "" : undefined}
+      transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${-rot})${stand ? standTf(stand) : ""}`}
+      {...extra}
+    >
       {children}
     </g>
   );
@@ -395,6 +452,7 @@ export function RoundBoard({
   fx,
   worldFx,
   worldMark,
+  lean = 0,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -430,6 +488,9 @@ export function RoundBoard({
   /** A world event as it comes (`WorldFx`; not with reduced motion), and the city one in force has struck (`WorldMark`). */
   worldFx?: WorldFx | null;
   worldMark?: WorldMark | null;
+  /** How far the board leans back at rest (degrees; ui/Board.tsx boardLean): what stands on it is drawn
+   * taller by as much as the lean shortens it (`standOf`), so it stands up off the board. */
+  lean?: number;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const satRef = useRef<HTMLCanvasElement>(null);
@@ -457,8 +518,11 @@ export function RoundBoard({
     if (satRef.current) satRef.current.style.transform = `rotate(${r.toFixed(2)}deg)`;
     upright(r, near);
   };
+  const standRef = useRef(1);
+  standRef.current = standOf(lean);
   const upright = (r: number, near?: { at: number; span: number }) => {
     const back = `rotate(${(-r).toFixed(2)})`;
+    const up = standTf(standRef.current);
     for (const u of ups.current) {
       const { x, y, lift } = u.el.dataset;
       if (x !== u.x || y !== u.y) {
@@ -472,7 +536,7 @@ export function RoundBoard({
       if (Math.abs(u.shown - r) < 0.35 || !u.el.isConnected) continue;
       if (near && Math.abs(((((u.angle + r - near.at) % 360) + 540) % 360) - 180) > near.span) continue;
       u.shown = r;
-      u.el.setAttribute("transform", `${u.at}${back}${lift ? ` translate(0 ${lift})` : ""}`);
+      u.el.setAttribute("transform", `${u.at}${back}${lift ? ` translate(0 ${lift})` : ""}${u.el.dataset.stand !== undefined ? up : ""}`);
     }
   };
 
@@ -485,6 +549,7 @@ export function RoundBoard({
       turn: apply,
       upright,
       rotation: () => rot.current,
+      lean,
       focusRotation: () => {
         // The nearest way round to where the table rests.
         const target = focusRef.current.focusAt - angleOf(focusRef.current.focus);
@@ -572,24 +637,61 @@ export function RoundBoard({
       moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT), start, per });
     }
     if (!moves.length) return;
+    // A hop to each space: up and stretched a little in the air, its shadow staying on the board and
+    // shrinking under it, and squashed onto its feet as it lands (on each space, and after the last).
+    const parts = moves.map((m) => ({ token: m.el.querySelector<SVGGElement>(".token"), shadow: m.el.querySelector<SVGEllipseElement>(".token > ellipse") }));
     let raf = 0;
     const step = (now: number) => {
       let going = false;
-      for (const m of moves) {
-        const p = Math.max(0, Math.min(1, (now - m.start) / Math.max(1, m.per * Math.abs(m.delta))));
-        if (p < 1) going = true;
+      const k = standRef.current;
+      const up = standTf(k);
+      moves.forEach((m, i) => {
+        const dur = Math.max(1, m.per * Math.abs(m.delta));
+        const e = now - m.start;
+        const p = Math.max(0, Math.min(1, e / dur));
+        if (e < dur + HOP.land) going = true;
         const at = m.from + m.delta * p;
-        const hop = Math.abs(Math.sin(Math.PI * (at - Math.floor(at)))) * 16 * (p < 1 && p > 0 ? 1 : 0);
+        const done = Math.abs(m.delta) * p;
+        const u = done - Math.floor(done);
+        const air = p > 0 && p < 1 ? Math.sin(Math.PI * u) : 0;
+        const hop = air * HOP.h;
+        // (since it last landed: on a space on the way, a quick push off it; on the last one, settling)
+        const since = p >= 1 ? e - dur : done >= 1 ? u * m.per : Infinity;
+        const land = p >= 1 ? HOP.land : Math.min(HOP.land, 0.15 * m.per);
+        const squash = since < land ? (1 - since / land) * (p >= 1 ? 1 : 0.6) : 0;
         const [x, y] = xy(angleOf(at) + m.fan, m.ring);
         m.el.dataset.x = x.toFixed(1);
         m.el.dataset.y = y.toFixed(1);
-        m.el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(-rot.current).toFixed(2)}) translate(0 ${(-hop).toFixed(1)})`);
-      }
+        m.el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(-rot.current).toFixed(2)}) translate(0 ${(-hop).toFixed(1)})${up}`);
+        const { token, shadow } = parts[i];
+        const feet = Number(shadow?.getAttribute("cy") ?? 0);
+        if (token) {
+          const sx = 1 + 0.12 * squash - 0.05 * air;
+          const sy = 1 - 0.14 * squash + 0.07 * air;
+          if (Math.abs(sx - 1) + Math.abs(sy - 1) < 0.002) token.removeAttribute("transform");
+          else token.setAttribute("transform", `translate(0 ${feet.toFixed(1)}) scale(${sx.toFixed(3)} ${sy.toFixed(3)}) translate(0 ${(-feet).toFixed(1)})`);
+        }
+        if (shadow) {
+          if (hop < 0.05) shadow.removeAttribute("transform");
+          else shadow.setAttribute("transform", `translate(0 ${(hop / k + feet).toFixed(1)}) scale(${(1 - 0.35 * air).toFixed(3)}) translate(0 ${(-feet).toFixed(1)})`);
+        }
+        // (its own hop on the spot waits while it walks)
+        if (e < dur + HOP.land) m.el.dataset.walking = "";
+        else delete m.el.dataset.walking;
+      });
       if (going) raf = requestAnimationFrame(step);
     };
     // (straight away, before the board is painted: a token waiting for the thrower's beat stays put)
     step(performance.now());
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      // (cut short: nothing left squashed or in the air)
+      moves.forEach((m, i) => {
+        delete m.el.dataset.walking;
+        parts[i].token?.removeAttribute("transform");
+        parts[i].shadow?.removeAttribute("transform");
+      });
+    };
   }, [posKey, reduced]);
 
   // Life on the board between moves: now and then one token looks round or bobs, and a hotel's sign
@@ -636,6 +738,7 @@ export function RoundBoard({
   });
 
   const r = rot.current;
+  const stand = standOf(lean);
   const bySpace = new Map<number, TokenMark[]>();
   for (const t of tokens) bySpace.set(t.at, [...(bySpace.get(t.at) ?? []), t]);
 
@@ -643,8 +746,20 @@ export function RoundBoard({
     <>
     {/* (the satellite map, under the board: it shows through the middle once it's painted) */}
     {sat && <canvas ref={satRef} class={`satmap${satOn ? " on" : ""}`} width={1} height={1} style={{ transform: `rotate(${r.toFixed(2)}deg)` }} aria-hidden="true" />}
-    <svg ref={svgRef} class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}${satOn ? " sat-on" : ""}`} viewBox="-500 -500 1000 1000" role="img" aria-label="board">
+    <svg
+      ref={svgRef}
+      class={`${cls ?? "roundboard"}${riding !== undefined && riding !== null ? " riding" : ""}${satOn ? " sat-on" : ""}`}
+      viewBox="-500 -500 1000 1000"
+      overflow="visible"
+      role="img"
+      aria-label="board"
+    >
+      <BoardDefs />
       <g ref={cam}>
+      {/* The board is a thing on a table: its shadow on the table, and its edge under its face (seen
+          as it leans back, a little more when it does). */}
+      <path class="board-shadow" d={ring(RO + 24, RO - 40)} transform={`translate(0 ${lean ? 26 : 14})`} fill="url(#rb-shadow)" fill-rule="evenodd" aria-hidden="true" />
+      <path class="board-edge" d={ring(RO + 8, RMAP - 2)} transform={`translate(0 ${lean ? EDGE.lean : EDGE.flat})`} fill="url(#rb-edge)" fill-rule="evenodd" aria-hidden="true" />
       <circle class="rim" r={RO + 8} fill="var(--board-rim)" />
       {/* (round the big screen's globe, which stands where the flat map is: styles.css .globe-on) */}
       <path class="rim-ring" d={`M${-RO - 8} 0a${RO + 8} ${RO + 8} 0 1 0 ${2 * (RO + 8)} 0a${RO + 8} ${RO + 8} 0 1 0 ${-2 * (RO + 8)} 0M${-RMAP + 2} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${2 * (RMAP - 2)} 0a${RMAP - 2} ${RMAP - 2} 0 1 0 ${-2 * (RMAP - 2)} 0Z`} fill="var(--board-rim)" fill-rule="evenodd" />
@@ -681,7 +796,7 @@ export function RoundBoard({
                   <SpaceGlyph name={glyphName(at)} x={-17} y={-17} size={34} color="var(--board-ink-2)" width={2.6} />
                 </Up>
               )}
-              {mark?.houses ? <Buildings at={at} n={mark.houses} from={built.get(at)?.from ?? 0} rot={r} /> : null}
+              {mark?.houses ? <Buildings at={at} n={mark.houses} from={built.get(at)?.from ?? 0} rot={r} stand={stand} /> : null}
               {worldMark?.at === at && (
                 <>
                   {worldMark.id === "meteor" && (
@@ -692,7 +807,7 @@ export function RoundBoard({
                       </g>
                     </Up>
                   )}
-                  <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
+                  <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r} stand={stand}>
                     <g class={`world-tag wt-${worldMark.id}`}>
                       <rect x={-34} y={-14} width="68" height="28" rx="6" />
                       <text y="7">{worldMark.tag}</text>
@@ -701,7 +816,7 @@ export function RoundBoard({
                 </>
               )}
               {mark?.news && worldMark?.at !== at && (
-                <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r}>
+                <Up x={xy(deg, RN)[0]} y={xy(deg, RN)[1]} rot={r} stand={stand}>
                   <g class="pop board-news">
                     <rect x={-24} y={-13} width="48" height="26" rx="13" />
                     {NEWS_PATH[mark.news] ? (
@@ -717,6 +832,8 @@ export function RoundBoard({
               {mark?.owner && (
                 <Up x={mx} y={my} rot={r}>
                   {/* A city just bought: the owner's mark comes down like a stamp, and the ink spreads. */}
+                  {/* (a chip on the board: its shadow under it) */}
+                  <ellipse class="om-shadow" rx="18" ry="17" cy="3.5" />
                   {!owned.has(at) && <circle class="stamp-ring" r="17" stroke={mark.owner.color} />}
                   {!owned.has(at) && <Burst color={mark.owner.color} />}
                   <g class={owned.has(at) ? "owned" : "owned stamp-in"}>
@@ -730,6 +847,8 @@ export function RoundBoard({
             </g>
           );
         })}
+        {/* (the lacquer on the colour bands round the edge, catching the light) */}
+        <path class="board-gloss" d={GLOSS_D} fill="url(#rb-gloss)" aria-hidden="true" />
         {/* (one list, keyed by seat: a token that moves to another space keeps its drawing, which walks) */}
         {[...bySpace.entries()].flatMap(([at, list]) => {
           const place = slots(list.length, tokenScale);
@@ -743,7 +862,7 @@ export function RoundBoard({
                 const [x, y] = xy(angleOf(at) + slot.fan, slot.ring);
                 const now = (turn === undefined ? at === active : tk.seat === turn) && tk.mood !== "sad";
                 return (
-                  <Up key={tk.seat} x={x} y={y} rot={r} extra={{ "data-seat": tk.seat, "data-fan": slot.fan.toFixed(2), "data-ring": slot.ring.toFixed(1) }}>
+                  <Up key={tk.seat} x={x} y={y} rot={r} stand={stand} extra={{ "data-seat": tk.seat, "data-fan": slot.fan.toFixed(2), "data-ring": slot.ring.toFixed(1) }}>
                     <g class={`token${now ? " now" : ""}${tk.seat === riding ? " ridden" : ""}`} data-k={slot.k}>
                       <ellipse cx="0" cy={(45 * s).toFixed(1)} rx={(38 * s).toFixed(1)} ry={(12 * s).toFixed(1)} fill="rgba(0,0,0,.18)" />
                       <g class="hop">
@@ -783,6 +902,8 @@ export function RoundBoard({
         {/* (a world event as it comes: over the map, or on its city) */}
         {worldFx && !reduced && <WorldMoment key={worldFx.id} kind={worldFx.kind} at={worldFx.at} rot={r} />}
       </g>
+      {/* (the lamp over the table: its light falls from the top left, where the board doesn't turn) */}
+      <circle class="board-lamp" r={RO + 8} fill="url(#rb-lamp)" aria-hidden="true" />
       </g>
       {center}
     </svg>

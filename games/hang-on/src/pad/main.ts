@@ -1,14 +1,19 @@
 /**
  * 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓。
  * 每帧把输入发给主机；屏幕上只显示自己的颜色、两只手、摔死次数、延迟和连接状态，眼睛要在电视上。
+ *
+ * 手机局（房主也是一部手机，房间带 hostPlays）：这部手机自己也画画面，摇杆和抓键变小、半透明压在画面上。
+ * 画面那部分（src/pad/view.ts，带 Pixi）到了手机局才下载。
  */
 import { PadLink, seatId } from '../net/pad-link';
 import { rttLevel } from '../net/latency';
-import { CODE_RE, type FatalKey, type PadStatus } from '../net/protocol';
+import { CODE_RE, type Cast, type FatalKey, type PadStatus, type RoomView } from '../net/protocol';
+import type { PhoneView } from './view';
 import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
 import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
 import { sfx } from '../audio/sfx';
 import { drawLook } from './look-preview';
+import { bindControls } from './controls';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -52,10 +57,22 @@ $('joinForm').addEventListener('submit', (e) => {
 
 function join(code: string, name: string): void {
   link?.close();
+  view?.reset();
+  lastCast = null;
+  watch(false);
   link = new PadLink(code, seatId(), name, {
     onStatus: (s) => status(s),
     onConn: (c) => conn(c),
     onFatal: (key) => fatal(key),
+    onRoom: (r) => {
+      if (!!r.hostPlays !== document.body.classList.contains('viewing')) watch(!!r.hostPlays);
+      view?.room(r);
+    },
+    onSnap: (s) => view?.snap(s),
+    onCast: (c) => {
+      lastCast = c;
+      view?.cast(c);
+    },
   });
   link.setLook(look);
   $('meName').textContent = name;
@@ -69,9 +86,9 @@ function join(code: string, name: string): void {
 function fatalLine(key: FatalKey): string {
   switch (key) {
     case 'noRoom':
-      return tr('没有这个房间，看看电视上的码。', 'No such room. Check the code on the TV.');
+      return tr('没有这个房间，再看看房间码。', 'No such room. Check the code again.');
     case 'full':
-      return tr('房间满了（最多 4 个手柄）。', 'The room is full (4 phones max).');
+      return tr('房间满了（最多 4 个人）。', 'The room is full (4 players max).');
     case 'ended':
       return tr('这局结束了。', 'This game has ended.');
     case 'kicked':
@@ -82,7 +99,11 @@ function fatalLine(key: FatalKey): string {
 }
 
 function renderErr(): void {
-  $('err').textContent = badCode ? tr('房间码是电视上那 4 个字。', 'The room code is the 4 characters on the TV.') : lastFatal ? fatalLine(lastFatal) : '';
+  $('err').textContent = badCode
+    ? tr('房间码是 4 个字，在电视或房主的手机上。', "The room code is 4 characters, on the TV or the host's phone.")
+    : lastFatal
+      ? fatalLine(lastFatal)
+      : '';
 }
 
 function fatal(key: FatalKey): void {
@@ -91,9 +112,49 @@ function fatal(key: FatalKey): void {
   $('pad').hidden = true;
   $('turn').hidden = true;
   $('join').hidden = false;
+  watch(false);
   link?.close();
   link = null;
 }
+
+// ---------- 手机局：自己也看画面 ----------
+let view: PhoneView | null = null;
+let viewLoad: Promise<void> | null = null;
+let lastCast: Cast | null = null;
+/** `?render=0`：手机局里也不画（联机检查用）。 */
+const renderView = params.get('render') !== '0';
+
+/** 进出手机局：画面铺在后面，手柄缩到角上。画面那部分第一次用到才下载。 */
+function watch(on: boolean): void {
+  document.body.classList.toggle('viewing', on);
+  pad.classList.toggle('touch', on);
+  $('view').hidden = !on;
+  if (!on) for (const id of ['vWait', 'vHost', 'vCount', 'vResults']) $(id).hidden = true;
+  if (!on || viewLoad) return;
+  viewLoad = import('./view')
+    .then(async ({ PhoneView }) => {
+      view = await PhoneView.create($<HTMLCanvasElement>('view'), { render: renderView });
+      const room: RoomView | null = link?.room ?? null;
+      if (room) view.room(room);
+      if (lastCast) view.cast(lastCast);
+    })
+    .catch((e: unknown) => {
+      // 下载失败（断网）：下次进手机局再试；手柄照样能用
+      console.warn('[hang-on] 画面没加载上', e);
+      viewLoad = null;
+    });
+}
+
+$('muteBtn').addEventListener('click', () => {
+  sfx.muted = !sfx.muted;
+  renderMute();
+});
+function renderMute(): void {
+  const b = $('muteBtn');
+  b.textContent = sfx.muted ? tr('🔇 静音', '🔇 Muted') : tr('🔊 声音', '🔊 Sound');
+  b.setAttribute('aria-pressed', String(sfx.muted));
+}
+renderMute();
 
 async function goFullscreen(): Promise<void> {
   try {
@@ -241,9 +302,12 @@ function status(s: PadStatus): void {
   if ((s.hands[0] && !lastHands[0]) || (s.hands[1] && !lastHands[1])) buzz(30);
   if (s.deaths > lastDeaths) {
     buzz([60, 40, 60]);
-    const f = $('flash');
-    f.classList.add('on');
-    setTimeout(() => f.classList.remove('on'), 120);
+    // 手机局里画面自己会闪、会抖，不用再整屏红一下
+    if (!document.body.classList.contains('viewing')) {
+      const f = $('flash');
+      f.classList.add('on');
+      setTimeout(() => f.classList.remove('on'), 120);
+    }
   }
   lastHands = [s.hands[0], s.hands[1]];
   lastDeaths = s.deaths;
@@ -281,96 +345,30 @@ onLang(() => {
   renderLook();
   renderConn();
   renderErr();
+  renderMute();
+  view?.relang();
 });
 
-// ---------- 防误触：连按两下不放大，长按不弹菜单 ----------
-// 逻辑都走 pointer 事件；这里只把触摸的默认动作掐掉（Safari 的双击缩放只认 touchend 的 preventDefault）。
+// ---------- 防误触：连按两下不放大（输入框、按钮除外）----------
+// 手柄区的触摸默认动作在 controls.ts 里掐；这里管整页（Safari 的双击缩放只认 touchend 的 preventDefault）。
+// 按钮不掐：换样子的 ‹ › 要能连着点（掐了第二下就没有 click）。
 const pad = $('pad');
-for (const type of ['touchstart', 'touchend', 'touchmove'] as const) {
-  pad.addEventListener(type, (e) => e.preventDefault(), { passive: false });
-}
 let lastTap = 0;
 document.addEventListener(
   'touchend',
   (e) => {
     const now = performance.now();
-    const typing = e.target instanceof HTMLInputElement;
-    if (now - lastTap < 350 && !typing) e.preventDefault();
+    const t = e.target instanceof Element ? e.target : null;
+    const own = !!t?.closest('input, button, select, label');
+    if (now - lastTap < 350 && !own) e.preventDefault();
     lastTap = now;
   },
   { passive: false },
 );
 document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
-pad.addEventListener('contextmenu', (e) => e.preventDefault());
 
-// ---------- 摇杆（左半边）----------
-const zone = $('stickzone');
-const stick = $('stick');
-const knob = $('knob');
-const STICK_R = 54;
-const aim = { x: 0, y: 0 };
-let stickId: number | null = null;
-let center = { x: 0, y: 0 };
-zone.addEventListener('pointerdown', (e) => {
-  if (stickId !== null) return;
-  stickId = e.pointerId;
-  zone.setPointerCapture(e.pointerId);
-  const r = zone.getBoundingClientRect();
-  center = { x: e.clientX - r.left, y: e.clientY - r.top };
-  stick.style.left = `${center.x}px`;
-  stick.style.top = `${center.y}px`;
-  stick.hidden = false;
-  move(e);
-});
-zone.addEventListener('pointermove', (e) => {
-  if (e.pointerId === stickId) move(e);
-});
-const endStick = (e: PointerEvent): void => {
-  if (e.pointerId !== stickId) return;
-  stickId = null;
-  aim.x = 0;
-  aim.y = 0;
-  stick.hidden = true;
-  knob.style.transform = '';
-};
-zone.addEventListener('pointerup', endStick);
-zone.addEventListener('pointercancel', endStick);
-function move(e: PointerEvent): void {
-  const r = zone.getBoundingClientRect();
-  let dx = e.clientX - r.left - center.x;
-  let dy = e.clientY - r.top - center.y;
-  const d = Math.hypot(dx, dy) || 1;
-  if (d > STICK_R) {
-    dx = (dx / d) * STICK_R;
-    dy = (dy / d) * STICK_R;
-  }
-  aim.x = dx / STICK_R;
-  aim.y = dy / STICK_R;
-  knob.style.transform = `translate(${dx}px, ${dy}px)`;
-}
-
-// ---------- 抓键（右半边）----------
-const grab = { l: false, r: false };
-function hold(el: HTMLElement, key: 'l' | 'r'): void {
-  const on = (e: PointerEvent): void => {
-    e.preventDefault();
-    grab[key] = true;
-    el.classList.add('down');
-    el.setPointerCapture?.(e.pointerId);
-  };
-  const off = (e: PointerEvent): void => {
-    e.preventDefault();
-    grab[key] = false;
-    el.classList.remove('down');
-  };
-  el.addEventListener('pointerdown', on);
-  el.addEventListener('pointerup', off);
-  el.addEventListener('pointercancel', off);
-  el.addEventListener('lostpointercapture', off);
-  el.addEventListener('contextmenu', (e) => e.preventDefault());
-}
-hold($('grabL'), 'l');
-hold($('grabR'), 'r');
+// ---------- 摇杆（左半边）和抓键（右半边）----------
+const { aim, grab } = bindControls(pad);
 
 // 键盘也能开（电脑上调试）
 const keys = new Set<string>();
@@ -410,6 +408,10 @@ requestAnimationFrame(tick);
   },
   get look() {
     return look;
+  },
+  /** 手机局里这部手机的画面（还没加载是 null）。 */
+  get view() {
+    return view;
   },
   join,
 };

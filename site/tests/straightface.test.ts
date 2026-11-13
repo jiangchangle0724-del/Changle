@@ -113,8 +113,14 @@ test("straightface: validateCard requires funFact and source, refuses a brackete
   ok(lintDeck([base]).length === 0, "lint passes the plain term");
 });
 
-test("straightface: the bank holds 300 cards", () => {
-  ok(cards.length >= 300, `${cards.length} cards`);
+test("straightface: the bank holds 400 cards, the four newest packs 25 each", () => {
+  ok(cards.length >= 400, `${cards.length} cards`);
+  for (const p of ["yueyu", "hangdang", "animals", "oldjobs"]) {
+    const deck = cards.filter((c) => c.pack === p);
+    ok(deck.length >= 25, `${p}: ${deck.length} cards`);
+    // every level has a few, so the judge's level choice means something in a one-pack game
+    for (const lvl of [1, 2, 3]) ok(deck.filter((c) => c.level === lvl).length >= 4, `${p}: level ${lvl} has at least four`);
+  }
 });
 
 test("straightface: every pack has its table, its picture and enough cards; Chinese packs show the word with its reading, English packs the word itself", () => {

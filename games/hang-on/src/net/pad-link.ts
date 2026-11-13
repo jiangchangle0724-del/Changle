@@ -10,6 +10,8 @@ import {
   type PadStatus,
   type RoomView,
   type ServerMsg,
+  type Snap,
+  type Cast,
 } from './protocol';
 import { RoomSocket, wsUrl } from './socket';
 import { ICE_SERVERS } from './ice';
@@ -21,6 +23,9 @@ export interface PadLinkEvents {
   onFatal?(key: FatalKey): void;
   /** 连接状态变了：房间的 WebSocket 在不在、数据通道通没通。 */
   onConn?(c: { socket: boolean; direct: boolean }): void;
+  /** 手机局：主机发来的画面快照和样子名单。 */
+  onSnap?(s: Snap): void;
+  onCast?(c: Cast): void;
 }
 
 /** 这台手机的座位 id，存起来，刷新、换 Wi-Fi 都还是同一个座位。 */
@@ -161,6 +166,12 @@ export class PadLink {
       }
       case 'status':
         this.ev.onStatus?.(data.s);
+        return;
+      case 'snap':
+        this.ev.onSnap?.(data.s);
+        return;
+      case 'cast':
+        this.ev.onCast?.(data.c);
         return;
       default:
         return;

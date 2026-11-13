@@ -12,12 +12,15 @@ import {
   characterForOwner,
   characterMaxSpeed,
   createMatch,
+  crowdMoment,
   environmentalDrift,
   normalizeVector,
+  roundAwards,
   roundPenalty,
   startBlend,
   startPunch,
   type ArenaId,
+  type AwardKey,
   type MatchState,
   type RoundPenalty,
   type Vector
@@ -69,6 +72,8 @@ export interface RoundResult {
   round: number;
   winnerId: string | null;
   penalty: RoundPenalty | null;
+  /** the round's nicknames (missing in a room saved before they existed) */
+  awards?: { owner: string; award: AwardKey }[];
 }
 
 export interface RoomState {
@@ -377,7 +382,8 @@ export class Room {
       this.st.result = {
         round: this.st.round,
         winnerId: next.winnerId,
-        penalty: this.st.settings.penalties ? roundPenalty(next) : null
+        penalty: this.st.settings.penalties ? roundPenalty(next) : null,
+        awards: roundAwards(next)
       };
       this.dirty = true;
     }
@@ -415,6 +421,10 @@ export class Room {
         phase: game.phase,
         arena: game.arena,
         drift: environmentalDrift(game.arena, game.startedAt, now),
+        moment: (() => {
+          const moment = game.phase === "playing" ? crowdMoment(game.arena, game.startedAt, now) : null;
+          return moment ? { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now) } : null;
+        })(),
         endsAt: game.endsAt,
         remainingMs: game.phase === "playing" ? Math.max(0, game.endsAt - now) : 0,
         scoreToWin: SCORE_TO_WIN,
@@ -428,6 +438,15 @@ export class Room {
             p: character.pose
           };
           if (mine && character === mine) avatar.me = 1;
+          // the round is over: every screen finds out who was who (the next round shuffles the crowd
+          // again), and the winner dances
+          if (game.phase === "over" && character.kind === "player") {
+            avatar.n = nameOf(character.ownerId) ?? character.name;
+            if (character.ownerId === game.winnerId) {
+              avatar.w = 1;
+              avatar.p = "dance";
+            }
+          }
           return avatar;
         }),
         events: game.events.map((event) => ({
@@ -460,7 +479,8 @@ export class Room {
             youWon: asPlayer && result.winnerId === id,
             penalty: result.penalty
               ? { kind: result.penalty.kind, who: result.penalty.who.map((owner) => nameOf(owner) ?? "?"), times: result.penalty.times }
-              : null
+              : null,
+            awards: (result.awards ?? []).map((item) => ({ name: nameOf(item.owner) ?? "?", award: item.award, you: asPlayer && item.owner === id }))
           }
         : null,
       ended: this.st.ended,

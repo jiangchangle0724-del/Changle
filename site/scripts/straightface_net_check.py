@@ -184,11 +184,14 @@ def main():
         ok(until(lambda: len(room(host)["seats"]) == 5), "five seated, one only watching")
         ok(room(host)["host"] == me(host), "Amy hosts")
 
-        # Dan's phone has played every card but one before: the table's first card is that one
+        # between them, Dan's and Ben's phones have played every card but one before (a phone remembers
+        # its last 300, the bank holds more): the table's first card is that one
         bank = re.findall(r'^    id: "([^"]+)"', open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "data", "straightface.ts"), encoding="utf-8").read(), re.M)
         fresh = "haboob"  # 冷知识, a pack every table starts with
         dan = phones[3]
-        dan.evaluate("(ids) => localStorage.setItem('changle.sf.seen', JSON.stringify(ids))", [c for c in bank if c != fresh][-300:])
+        rest = [c for c in bank if c != fresh]
+        dan.evaluate("(ids) => localStorage.setItem('changle.sf.seen', JSON.stringify(ids))", rest[-300:])
+        phones[1].evaluate("(ids) => localStorage.setItem('changle.sf.seen', JSON.stringify(ids))", rest[:-300])
         played = []
 
         host.locator(".lobby-actions .btn-primary").click()

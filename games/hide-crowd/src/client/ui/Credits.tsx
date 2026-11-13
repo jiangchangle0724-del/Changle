@@ -5,8 +5,8 @@ import { t, type Key } from "../i18n";
 import { TopBar } from "./chrome";
 
 const ITEMS: { title: Key; body: Key; files: string[]; ai?: boolean }[] = [
-  { title: "creditsBackdrops", body: "creditsBackdropsBody", files: ["plaza-seawall.webp", "metro-station.webp", "gallery-courtyard.webp", "thumb-*.webp"], ai: true },
-  { title: "creditsPeople", body: "creditsPeopleBody", files: ["crowd-atlas.webp"], ai: true },
+  { title: "creditsBackdrops", body: "creditsBackdropsBody", files: ["thumb-*.webp"], ai: true },
+  { title: "creditsPeople", body: "creditsPeopleBody", files: ["crowd-people.glb", "crowd-people-f.glb"] },
   { title: "creditsSets", body: "creditsSetsBody", files: ["seawall-dressing.glb", "transit-dressing.glb", "courtyard-dressing.glb"] },
   { title: "creditsFonts", body: "creditsFontsBody", files: ["fonts/unbounded.woff2", "fonts/figtree.woff2"] },
   { title: "creditsCode", body: "creditsCodeBody", files: [] }

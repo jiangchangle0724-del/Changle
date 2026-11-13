@@ -1,4 +1,4 @@
-// Where to start from (my location or an area) and how far: the home page and the solo picker.
+// Where to start from (my location or an area) and how far, on the home page.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { NEIGHBOURHOODS, type Center, type RangeId } from "../../engine";
 import { t, tx } from "../i18n";

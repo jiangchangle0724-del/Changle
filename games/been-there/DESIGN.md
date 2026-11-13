@@ -30,8 +30,24 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   middle, under the board where the flat map is, so the tokens stand on it, wearing the same pictures.
   A team crossing to another region flies there along the great circle, its own token flying it. On a
   phone the player picks how big the board is drawn (below, "The map's size").
+* **A board on a table**, as the original Monopoly is: seen from a chair, it leans back at rest, 26
+  degrees on a laptop (a board 480 px across or more) and 30 on the big screen (`boardLean` in
+  `ui/Board.tsx`). A phone's board stays flat: it zooms and drags the map instead. The lean is the
+  ride's camera at rest (`rest` in `ui/Ride.tsx`, one CSS transform on `.board-view`); `leanFit` finds
+  how much bigger and lower to draw it so the leaned ring fills the box it had flat. A new lean (a
+  size picked, a window made narrower) eases over 0.6 s (`.easing`), with reduced motion at once; a
+  move's camera writes every frame and hands the board back at rest at once, even cut short. (Eased
+  back instead, a pushed-in big screen's board ran 512 px off the screen for a moment, no longer
+  inside the ride's clipped box: `tests/e2e/tv.spec.ts` caught it on WebKit.) The board is a
+  thing too (`BoardDefs` in `art/RoundBoard.tsx`): its edge under its face (more of it shows as it
+  leans), its soft shadow on the table, a lamp's light from the top left with its pool on the table
+  behind, and lacquer on the colour bands. **What stands on it stands up**: the tokens, the buildings
+  and the news and world tags are stretched back up by 1/cos(lean) (`standOf`), so they keep their
+  height instead of lying down with the board; what is printed on it (codes, signs, owners' marks,
+  stamps) lies flat. An owner's mark is a chip with its shadow under it.
 * **The buildings** (`Buildings` in `art/RoundBoard.tsx`) stand up on a city's space like the tokens,
-  upright while the table turns: little models drawn in code, with a front, a side in shade and a roof.
+  upright while the table turns: little models drawn in code, with a front, a side in shade and a roof,
+  1.5 times their drawing (`BLD_K`; it was 1.3), with their shadow on the space under them.
   One to four green houses side by side, or a hotel of three floors with lit windows and a sign on its
   roof carrying the city's own picture (the pyramid, the gondola, the die…): the city's landmark at a
   size a phone can still read. A new one rises from its foot in a puff of dust, houses one after
@@ -61,7 +77,12 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   in words, so nobody has to wonder whether they were loaded. On a phone it comes in under the
   standings, with 存成图片: a 1080 × 1350 picture drawn on a canvas in the game's fonts and colours
   (`ui/reportPicture.ts`), shown in a sheet to press and hold (a data address, which WeChat saves too),
-  share where the phone can, or download. The big screen has no room for both, so once the teams are
+  share where the phone can, or download (a blob address of plain bytes: a data one downloaded nothing
+  on an iPhone). An iPhone that can share gets one button instead, 存到相册或分享: a web page can't put
+  a picture in Photos and a download goes to the Files app (from the Home Screen, nowhere), but the
+  share sheet's 存储图像 puts it in Photos. The sheet sits beside the card, not in it: the card's
+  entrance moves it, and a moving card holds a fixed sheet inside itself. The big screen has no room
+  for both, so once the teams are
   in, the standings' column turns between them and the card every 12 s, beside the winners' card,
   sized in `vh` to fit 1280×720 (five awards take a third row, and the chart gives up a little height
   for it). A game started at a table has the way back to it in the big screen's top corner, beside
@@ -418,8 +439,13 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   leaning back into the night with the departures board flipping up each city passed in the corner
   of the sky. "flat": the same beats on the flat board, for reduced motion, the menu's 第一视角走棋
   off, or a throw that stays put. "tv": the big screen pushes in 1.4× and pans 55% of the way to the
-  token, flat, with its own departures board beside the board (`ui/Departures.tsx`). Every other
-  phone walks the token on its flat board in step and stamps the landing with the thrower's.
+  token, leaning as its board rests, with its own departures board beside the board
+  (`ui/Departures.tsx`). Every other phone walks the token on its board as it rests, in step, and
+  stamps the landing with the thrower's. (A laptop's "flat" keeps its board's lean at rest.)
+* **A token walking** on a board at rest hops a space at a time (`HOP` in `art/RoundBoard.tsx`): up
+  22 board units, stretched a little in the air while its shadow stays on the board and shrinks
+  under it, a quick push off each space on the way and a squash onto its feet as it lands. Its own
+  hop on the spot waits while it walks.
 * **Every screen in step.** Each screen keeps the server's clock from the quickest of its last views
   (`store.ts`), and plays the move from the server's moment of the throw: in tests the planned
   landing agrees to within 3 ms across a phone, another phone and the big screen.
@@ -447,7 +473,10 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
 * **Your turn.** The edge of the screen glows gel twice, with the airport chime and a buzz. On the
   big screen the chime is the next team's boarding call, its flight number on the departures board.
 * **The dice** are in the air the moment the button is pressed (under 0.1 s), clack twice as they
-  land, and their number comes up with a tick.
+  land, and their number comes up with a tick. They are cubes (`art/dice.tsx`, CSS 3D) that come to
+  rest as dice do on a table seen from a chair: the number on the top face, two sides showing, their
+  shadow on the table under them, staying there while they're in the air. Held down, the throw
+  button rattles its die in the hand.
 * **A city bought:** the owner's mark stamps down, its ink spreads out round it and sparks fly out of
   it, in the team's colour and gold.
 * **Sold, broke** (`useBoardFx` in `ui/Board.tsx`): a city won at auction is stamped 成交 SOLD on its
@@ -526,8 +555,9 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   second reach 23% of one) and 2 on the big screen (3 a second reach 19% of one); with the
   stricter field, 3 on the phones and 2 on the big screen; nothing anywhere flashes 4 times in a
   second, and nothing red. Reduced motion (the phone's setting or the menu's) plays every beat flat
-  and still: no lean, no push, no tumble, and a teacher who stands still while she waits and
-  counts, then holds each beat's pose for the whole beat.
+  and still: no leaning into the night, no push, no tumble, no hops, and a teacher who stands still
+  while she waits and counts, then holds each beat's pose for the whole beat. (A laptop's or the big
+  screen's board keeps its lean at rest, which never moves.)
 
 Also still to do: the ten-minute playtest on real phones (the script and record sheet are in the
 beat sheet's document), with people who haven't seen the game.

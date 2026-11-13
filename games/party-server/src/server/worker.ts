@@ -104,10 +104,11 @@ export class PartyRoom extends DurableObject<Env> {
       return;
     }
     // a song is about to start: the session takes its first beat from the songbook as it is now
+    // (the beats tapped in a room that measured its TV's delay)
     if (msg && msg.t === "act" && msg.action?.type === "START_LEARNING" && isSongId(String(msg.action.routineId))) {
       try {
         const all = await songbook(this.env).all();
-        this.s.songbook = Object.fromEntries(Object.entries(all).map(([id, t]) => [id, t.firstBeatMs]));
+        this.s.songbook = { ...this.s.songbook, ...Object.fromEntries(Object.entries(all).flatMap(([id, t]) => (t.calibrated ? [[id, t.firstBeatMs]] : []))) };
       } catch {
         // (the songbook didn't answer: the catalogue's guess)
       }
@@ -262,13 +263,17 @@ export default {
     }
     if (path === "/party/api/songs") {
       if (req.method !== "GET") return json({ error: "method not allowed" }, 405);
-      return json(await songbook(env).all());
+      // (the beats for every room: tapped where the TV's delay was measured)
+      const all = await songbook(env).all();
+      return json(Object.fromEntries(Object.entries(all).filter(([, t]) => t.calibrated)));
     }
     const song = /^\/party\/api\/songs\/([a-z0-9-]{1,64})$/.exec(path);
     if (song) {
       if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
       const t = checkTapped(song[1]!, await req.json().catch(() => null), Date.now());
       if (typeof t === "string") return json({ error: t }, 400);
+      // (tapped where the TV's delay wasn't measured, the beat is late by it: not for every room)
+      if (!t.calibrated) return json({ error: "calibrate the TV's delay first" }, 400);
       await songbook(env).set(song[1]!, t);
       return json({ ok: true, ...t });
     }

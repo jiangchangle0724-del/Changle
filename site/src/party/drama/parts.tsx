@@ -26,13 +26,14 @@ export type Face = (pid: string, size: number) => ReactNode;
 export const isKind = (k: string | undefined): k is DramaKind => !!k && KINDS.some((x) => x.key === k);
 
 /**
- * The set a reading stands in: a love letter or a breakup at the candlelit table, a memorial in the
+ * The set a reading stands in: a love letter, a breakup or a confession at the candlelit table, a memorial in the
  * palace hall, a broadcast or a sales pitch in the studio, a meltdown at the office, a dubbed voice
  * on the film set; a straight face on the empty stage.
  */
 const READ_STAGE: Record<ReadKind, DramaKind | "classic" | null> = {
   cry: "love",
   breakup: "love",
+  deep: "love",
   melodrama: "love",
   court: "palace",
   anchor: "show",
@@ -1183,7 +1184,7 @@ function KindPicker({ picked, onChange, disabled }: { picked: string[]; onChange
           ))}
         </div>
       )}
-      <p className="dm-groups-hint">{zh ? "不选就是全部，十类轮流来。选了的就只读这几类。" : "Pick none and all ten take turns. Pick some and only those come up."}</p>
+      <p className="dm-groups-hint">{zh ? "不选就是全部，每一类轮流来。选了的就只读这几类。" : "Pick none and they all take turns. Pick some and only those come up."}</p>
     </>
   );
 }
@@ -1281,7 +1282,7 @@ export function Rules() {
       <p>演技 PK：两个人用不同的状态说同一句台词，观众打分，分低的受罚。</p>
       <p>剧本背景：主人可以选几个人群（中国、加拿大、南亚、菲律宾……），选了的人群的剧本先演，不够时用通用的补。</p>
       <p>名场面：主人选中文影视还是英文影视，上台的人照着有名的电影、电视剧片段演。牌上写着你演谁、怎么演、开口第一句，还能点开原片看看。观众打星，分低的受罚。</p>
-      <p>朗读：每一幕一个人上台，照指定的读法读一段，比如带着哭腔读一封情书、一本正经地读一个第一人称的笑话、用大臣腔读一份奏折。主人选中文网络、英文网络还是中英通用的段子，也可以只选其中几类。读的人先默读一遍，开始读以后，大家手机上都能跟着看。读完观众打 1 到 5 星，平均不到 3 星的受罚；憋笑那一类，笑出声就只能拿 1 星。全场都给 5 星，拿下本幕最佳。</p>
+      <p>朗读：每一幕一个人上台，照指定的读法读一段，比如带着哭腔读一封情书、一本正经地读一个第一人称的笑话、用大臣腔读一份奏折、看着一个人深情地读一段告白。主人选中文网络、英文网络还是中英通用的段子，也可以只选其中几类。读的人先默读一遍，开始读以后，大家手机上都能跟着看。读完观众打 1 到 5 星，平均不到 3 星的受罚；憋笑那一类，笑出声就只能拿 1 星。全场都给 5 星，拿下本幕最佳。</p>
     </>
   ) : (
     <>
@@ -1292,7 +1293,7 @@ export function Rules() {
       <p>Acting duel: two players say the same line in two different states; the audience scores, and the lower score pays.</p>
       <p>Whose stories: the host can pick some of the communities (Chinese, Canadian, South Asian, Filipino...). Their scenes come first, and everyone's fill in when they run out.</p>
       <p>Famous scenes: the host picks Chinese or English film and TV, and the actors play a famous moment from it. Your card says who you play, how to play them and the line to open with, with a link to watch the original. The audience gives stars; the lowest score pays.</p>
-      <p>Read aloud: each act, one person reads a piece the way it asks: a love letter through tears, a first-person joke with a straight face, a royal memorial in a courtier's voice. The host picks pieces from the Chinese internet, the English internet or ones that work for both, and can keep only some of the kinds. The reader reads it over first; once they start, everyone can follow along on their phones. Then the audience gives 1 to 5 stars, and an average under 3 pays. In the straight-face kind, a laugh out loud gets one star. Five stars from everyone takes best of the act.</p>
+      <p>Read aloud: each act, one person reads a piece the way it asks: a love letter through tears, a first-person joke with a straight face, a royal memorial in a courtier's voice, a confession from the heart. The host picks pieces from the Chinese internet, the English internet or ones that work for both, and can keep only some of the kinds. The reader reads it over first; once they start, everyone can follow along on their phones. Then the audience gives 1 to 5 stars, and an average under 3 pays. In the straight-face kind, a laugh out loud gets one star. Five stars from everyone takes best of the act.</p>
     </>
   );
 }

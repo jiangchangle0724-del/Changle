@@ -10,9 +10,9 @@ import "../../styles/hide.css";
  * crowd (playing with friends needs a phone each, from a table).
  */
 export function HideSolo({ onBack }: { onBack: () => void }) {
-  const { lang, players } = useStore();
+  const { lang, players, sound } = useStore();
   useEffect(() => {
-    handOff(players[0]?.name ?? "", lang);
+    handOff(players[0]?.name ?? "", lang, sound);
     window.location.assign(`${HIDE}/practice`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

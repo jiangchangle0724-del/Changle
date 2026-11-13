@@ -1,17 +1,20 @@
 // The arena, loaded when it's needed: three.js and the 3D scene are a file of their own (arena.js),
-// fetched while the lobby is up, so the lobby opens fast. Until it arrives (or without WebGL) the
-// flat arena shows the same crowd.
+// fetched while the lobby is up, so the lobby opens fast, and the people's file right after it. Until
+// they arrive (or without WebGL) the flat arena shows the same crowd.
 import { useEffect, useState } from "preact/hooks";
 import type { ComponentProps } from "preact";
 import type { Arena3D as Arena3DType } from "./Arena3D";
 
-type Module = { Arena3D: typeof Arena3DType };
+type Module = typeof import("./Arena3D");
 let loaded: Module | null = null;
 let loading: Promise<Module> | null = null;
 
-/** Start fetching the 3D arena (the lobby calls this, so a round starts at once). */
+/** Start fetching the 3D arena and its people (the lobby calls this, so a round starts at once). */
 export function preloadArena(): Promise<Module> {
-  loading ??= import("./Arena3D").then((module) => (loaded = module));
+  loading ??= import("./Arena3D").then((module) => {
+    module.preloadPeople();
+    return (loaded = module);
+  });
   return loading;
 }
 

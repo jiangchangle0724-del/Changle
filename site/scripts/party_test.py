@@ -2032,7 +2032,7 @@ def t_drama_read(browser):
     pg.get_by_role("button", name="朗读", exact=True).click()
     ok(until(lambda: pg.get_by_role("button", name="中文网络").get_attribute("aria-pressed") == "true", 2000), "read aloud: the Chinese internet to start with")
     ok(pg.get_by_role("button", name="困难", exact=True).count() == 0, "no difficulty: the words set it")
-    ok(pg.locator(".dm-kinds .ui-pill-toggle").count() == 10 and pg.locator(".dm-kinds .ui-pill-toggle[aria-pressed=true]").count() == 0, "ten kinds, none picked (all of them)")
+    ok(pg.locator(".dm-kinds .ui-pill-toggle").count() == 11 and pg.locator(".dm-kinds .ui-pill-toggle[aria-pressed=true]").count() == 0, "eleven kinds, none picked (all of them)")
     pg.get_by_role("button", name="中英通用").click()
     pg.locator(".dm-kinds .ui-pill-toggle", has_text="哭着读").click()
     pg.locator(".dm-kinds .ui-pill-toggle", has_text="憋笑读").click()

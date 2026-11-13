@@ -1,8 +1,8 @@
 // Ticketmaster's Discovery API: concerts, games and theatre at Rogers Arena, BC Place, the Orpheum,
-// the Queen Elizabeth. A first version; task C3 hardens it (the full category table, every status,
-// price ranges, a saved response as the fixture). Its own classification decides the category.
+// the Queen Elizabeth. Only its own segment/genre labels decide the category (task C3).
 import { vanIso } from "../time";
 import type { Category, EventStatus, NormalizedEvent } from "../types";
+import { plainText } from "./ical";
 
 interface TmEvent {
   id: string;
@@ -12,11 +12,11 @@ interface TmEvent {
   pleaseNote?: string;
   dates?: {
     start?: { localDate?: string; localTime?: string; dateTime?: string; dateTBD?: boolean; dateTBA?: boolean; timeTBA?: boolean; noSpecificTime?: boolean };
-    end?: { dateTime?: string };
+    end?: { localDate?: string; dateTime?: string };
     status?: { code?: string };
   };
-  classifications?: { segment?: { name?: string }; genre?: { name?: string }; subGenre?: { name?: string } }[];
-  priceRanges?: { min?: number; max?: number; currency?: string }[];
+  classifications?: { primary?: boolean; segment?: { name?: string }; genre?: { name?: string }; subGenre?: { name?: string } }[];
+  priceRanges?: { type?: string; min?: number; max?: number; currency?: string }[];
   images?: { url: string; width?: number; ratio?: string }[];
   _embedded?: {
     venues?: { name?: string; address?: { line1?: string }; city?: { name?: string }; postalCode?: string; location?: { latitude?: string; longitude?: string } }[];
@@ -32,69 +32,134 @@ const STATUS: Record<string, EventStatus> = { onsale: "scheduled", offsale: "sol
 /** Ticketmaster's segment and genre to one of the 8 categories. */
 export function tmCategory(segment?: string, genre?: string): Category | null {
   const g = (genre ?? "").toLowerCase();
-  // (a music festival is a concert: shows; fairs and festivals are festivals)
-  if (/festival/.test(g) && (segment ?? "").toLowerCase() !== "music") return "festivals";
-  if (/comedy|theatre|musical|magic|dance/.test(g)) return "shows";
-  if (/family|children/.test(g)) return "family";
-  if (/fine art|museum|film/.test(g)) return "arts";
   switch ((segment ?? "").toLowerCase()) {
     case "music":
       return "shows";
     case "sports":
       return "outdoors";
     case "arts & theatre":
+      if (g === "children's theatre" || g === "family" || g === "circus & specialty acts") return "family";
+      if (g === "fine art" || g === "film") return "arts";
       return "shows";
     case "film":
       return "arts";
+    case "miscellaneous":
+      if (g === "family") return "family";
+      if (g === "fairs & festivals") return "festivals";
+      if (g === "food & drink") return "food";
+      return null;
     default:
       return null;
   }
 }
 
+/** A real calendar date, so all-day start/end values also work with store.endMs. */
+function localDate(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const ms = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === value ? value : null;
+}
+
+function coordinate(value: unknown): number | null {
+  if ((typeof value !== "string" && typeof value !== "number") || (typeof value === "string" && !value.trim())) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function positivePrice(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
 export function parseTicketmaster(page: TmPage, source: string): { events: NormalizedEvent[]; more: boolean } {
+  // An error response must fail the source, not mark it read with zero events.
+  if (!page || (!page._embedded && !page.page)) throw new Error("Invalid Ticketmaster events page");
+  const entries = page._embedded?.events ?? [];
+  if (!Array.isArray(entries)) throw new Error("Invalid Ticketmaster events page");
   const events: NormalizedEvent[] = [];
-  for (const ev of page._embedded?.events ?? []) {
-    const st = ev.dates?.start;
-    if (!st?.localDate) continue;
-    const timeless = !st.dateTime || st.timeTBA || st.noSpecificTime || st.dateTBD || st.dateTBA;
-    const cls = ev.classifications?.[0];
-    const venue = ev._embedded?.venues?.[0];
-    const prices = (ev.priceRanges ?? []).filter((p) => !p.currency || p.currency === "CAD");
-    const priceMin = prices.length ? Math.min(...prices.map((p) => p.min ?? Infinity)) : null;
-    const priceMax = prices.length ? Math.max(...prices.map((p) => p.max ?? 0)) : null;
-    const image = (ev.images ?? []).filter((i) => i.ratio === "16_9").sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0];
-    events.push({
-      source,
-      sourceEventId: ev.id,
-      url: ev.url ?? `https://www.ticketmaster.ca/event/${ev.id}`,
-      title: ev.name.trim(),
-      description: [ev.info, ev.pleaseNote].filter(Boolean).join("\n").slice(0, 600) || null,
-      start: timeless ? st.localDate : vanIso(Date.parse(st.dateTime!)),
-      end: ev.dates?.end?.dateTime ? vanIso(Date.parse(ev.dates.end.dateTime)) : null,
-      allDay: !!timeless,
-      timeTBD: !!timeless,
-      status: STATUS[(ev.dates?.status?.code ?? "onsale").toLowerCase()] ?? "scheduled",
-      place: venue
-        ? {
-            name: venue.name ?? null,
-            address: venue.address?.line1 ?? null,
-            city: venue.city?.name ?? null,
-            postalCode: venue.postalCode ?? null,
-            lat: venue.location?.latitude ? Number(venue.location.latitude) : null,
-            lon: venue.location?.longitude ? Number(venue.location.longitude) : null,
-          }
-        : null,
-      priceMin: Number.isFinite(priceMin) ? priceMin : null,
-      priceMax: Number.isFinite(priceMax) && priceMax ? priceMax : null,
-      isFree: priceMax === 0 ? true : null,
-      category: tmCategory(cls?.segment?.name, cls?.genre?.name),
-      sourceCategories: [cls?.segment?.name, cls?.genre?.name, cls?.subGenre?.name].filter((x): x is string => !!x && x !== "Undefined"),
-      tags: ["tickets", "indoor"].filter((t) => t !== "indoor" || !/park|stadium|field/i.test(venue?.name ?? "")) as NormalizedEvent["tags"],
-      lang: "en",
-      imageUrl: image?.url ?? null,
-      organizer: null,
-    });
+  let unreadable = 0;
+  for (const ev of entries) {
+    try {
+      if (typeof ev?.id !== "string" || !ev.id.trim() || typeof ev.name !== "string" || !ev.name.trim()) {
+        unreadable++;
+        continue;
+      }
+      const st = ev.dates?.start;
+      // Missing dates are an intentional skip; a supplied but invalid date is unreadable.
+      if (!st || st.localDate == null || st.localDate === "") continue;
+      const day = localDate(st.localDate);
+      if (!day) {
+        unreadable++;
+        continue;
+      }
+      const startAt = typeof st.dateTime === "string" ? Date.parse(st.dateTime) : NaN;
+      const timeless = !Number.isFinite(startAt) || st.timeTBA || st.noSpecificTime || st.dateTBD || st.dateTBA;
+      let end: string | null = null;
+      if (timeless) {
+        const endDay = localDate(ev.dates?.end?.localDate);
+        if (endDay && endDay > day) end = endDay;
+      } else {
+        const endAt = Date.parse(ev.dates?.end?.dateTime ?? "");
+        if (Number.isFinite(endAt) && endAt > startAt) end = vanIso(endAt);
+      }
+      const classifications = Array.isArray(ev.classifications) ? ev.classifications : [];
+      const cls = classifications.find((c) => c?.primary) ?? classifications[0];
+      const venue = ev._embedded?.venues?.[0];
+      const prices = Array.isArray(ev.priceRanges) ? ev.priceRanges : [];
+      const hasStandard = prices.some((p) => p?.currency === "CAD" && p.type === "standard" && (positivePrice(p.min) || positivePrice(p.max)));
+      let priceMin: number | null = null;
+      let priceMax: number | null = null;
+      for (const p of prices) {
+        if (!p || p.currency !== "CAD" || (hasStandard && p.type !== "standard")) continue;
+        // Zero is Ticketmaster's unspecified bound, including one-sided zero ranges.
+        if (positivePrice(p.min)) priceMin = Math.min(priceMin ?? Infinity, p.min);
+        if (positivePrice(p.max)) priceMax = Math.max(priceMax ?? -Infinity, p.max);
+      }
+      let image: NonNullable<TmEvent["images"]>[number] | undefined;
+      for (const candidate of Array.isArray(ev.images) ? ev.images : []) {
+        if (candidate?.ratio === "16_9" && (!image || (candidate.width ?? 0) > (image.width ?? 0))) image = candidate;
+      }
+      const status = (ev.dates?.status?.code ?? "onsale").toLowerCase();
+      events.push({
+        source,
+        sourceEventId: ev.id,
+        url: ev.url ?? `https://www.ticketmaster.ca/event/${ev.id}`,
+        title: ev.name,
+        description: plainText([ev.info, ev.pleaseNote].filter(Boolean).join("\n")),
+        start: timeless ? day : vanIso(startAt),
+        end,
+        allDay: !!timeless,
+        timeTBD: !!timeless,
+        status: Object.hasOwn(STATUS, status) ? STATUS[status] : "scheduled",
+        place: venue
+          ? {
+              name: stringOrNull(venue.name),
+              address: stringOrNull(venue.address?.line1),
+              city: stringOrNull(venue.city?.name),
+              postalCode: stringOrNull(venue.postalCode),
+              lat: coordinate(venue.location?.latitude),
+              lon: coordinate(venue.location?.longitude),
+            }
+          : null,
+        priceMin,
+        priceMax,
+        isFree: null,
+        category: tmCategory(cls?.segment?.name, cls?.genre?.name),
+        sourceCategories: [cls?.segment?.name, cls?.genre?.name, cls?.subGenre?.name].filter((x): x is string => !!x && x !== "Undefined"),
+        tags: ["tickets"],
+        lang: "en",
+        imageUrl: image?.url ?? null,
+        organizer: null,
+      });
+    } catch {
+      unreadable++;
+    }
   }
+  // Fail the source on widespread bad data so yesterday's events are retained.
+  if (unreadable > entries.length / 2) throw new Error("Invalid Ticketmaster events page");
   const p = page.page;
   return { events, more: !!p && p.number + 1 < p.totalPages };
 }

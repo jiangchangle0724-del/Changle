@@ -8,6 +8,7 @@ import { RttMeter } from './latency';
 import {
   DIRECT_TIMEOUT_MS,
   PING_MS,
+  type Cast,
   type FatalKey,
   type HostAction,
   type LinkMsg,
@@ -16,6 +17,7 @@ import {
   type RelayTo,
   type RoomView,
   type ServerMsg,
+  type Snap,
 } from './protocol';
 import { ICE_SERVERS } from './ice';
 import { RoomSocket, wsUrl } from './socket';
@@ -51,8 +53,8 @@ export interface HostLinkEvents {
 }
 
 /** 开一个房间，拿到房间码。 */
-export async function openRoom(base = location.origin): Promise<string> {
-  const res = await fetch(new URL('/hang-on/api/rooms', base), { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+export async function openRoom(base = location.origin, opts: { hostPlays?: boolean } = {}): Promise<string> {
+  const res = await fetch(new URL('/hang-on/api/rooms', base), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(opts.hostPlays ? { hostPlays: true } : {}) });
   if (!res.ok) throw new Error(`开房失败 ${res.status}`);
   const { code } = (await res.json()) as { code: string };
   return code;
@@ -96,6 +98,20 @@ export class HostLink {
     const p = this.peers.get(seat);
     if (!p) return;
     this.send(p, { k: 'status', s });
+  }
+
+  /** 手机局：给一部手机发画面快照（直连走通道，不然绕房间；发多快由调的人按 direct 定）。 */
+  snap(seat: string, s: Snap): void {
+    const p = this.peers.get(seat);
+    if (!p || !p.connected) return;
+    this.send(p, { k: 'snap', s });
+  }
+
+  /** 手机局：给一部手机发样子名单。要可靠，走房间。 */
+  cast(seat: string, c: Cast): void {
+    const p = this.peers.get(seat);
+    if (!p || !p.connected) return;
+    this.relay(seat, { k: 'cast', c });
   }
 
   /** 关掉一切（离开页面）。 */

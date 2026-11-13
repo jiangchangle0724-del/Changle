@@ -45,10 +45,15 @@ of this card.
   own, not a tourist poster. Nothing that makes fun of anyone.
 - Night colours: the site is dark. No big areas of white or pale sky; paper and screens stay dim,
   and a daytime scene is lit low and warm (late sun, lamps on, rain on the window).
-- Each set looks clearly different from the others on this card, from the first set and from the
-  community pictures: another place, palette or time of day. Where scenes share a kind of place
+- Each set looks clearly different from the others on this card, from the first set, from the
+  community pictures and from the scene pictures already drawn (the `scene-*.webp` in
+  `site/public/drama/`): another place, palette or time of day. Where scenes share a kind of place
   (four break rooms and pantries, two party stages, several open offices), the table gives each its
-  own corner, season or light; keep them apart.
+  own corner, season or light; keep them apart. Keep the hot pot room apart from the red-and-gold
+  restaurant rooms (`scene-family-surprise-heir`, `scene-love-three-blind-dates`), and the ballroom
+  stage and the banquet hall apart from the ballrooms (`scene-family-lipstick-collar`,
+  `scene-solo-best-man-speech`). Paint the time of day the table gives: a lunchtime or afternoon
+  scene has daylight at the window, kept low and warm.
 
 ## The pictures
 
@@ -65,7 +70,7 @@ of this card.
 | `scene-office-money-tree.webp` | An office reception area in the evening, warm lamps and a deep red feature wall: a braided money tree in a big glazed pot, its leaves all gone yellow and drooping, a watering can beside it, a reception desk with a bell, and a key rack by the door. Plain dark floor below; mourning a plant. |
 | `scene-office-skytrain-laptop.webp` | Inside an elevated train car at dusk, nearly empty, the city's lights sliding past the windows: blue seats, steel poles and hand straps, an unzipped empty laptop sleeve left on a seat, a folder of blank client papers, and closed doors. Plain dark car floor below; a sinking feeling. |
 | `scene-office-recalled-message.webp` | An open-plan office on a grey late afternoon, desk lamps on: rows of desks with monitors glowing blank, a phone face up on the nearest desk with a blank lit screen, the boss's glass office with its blinds half drawn, and a wall screen glowing plain blue. Plain dark carpet below; everyone pretending to work. |
-| `scene-office-hot-pot-both-spicy.webp` | A hot pot restaurant's private room at night, steam and red lanterns: a split yin-yang pot where both halves bubble bright red, plates of thin-sliced meat and greens, an empty foil soup-base packet (no print) beside it, a place set for the guest of honour, and glasses of iced water. Plain dark floor below; steaming dread. |
+| `scene-office-hot-pot-both-spicy.webp` | A modern hot pot restaurant's private room at night, black booths and slate walls, steam and red lanterns: a split yin-yang pot where both halves bubble bright red, plates of thin-sliced meat and greens, an empty foil soup-base packet (no print) beside it, a place set for the guest of honour, and glasses of iced water. Plain dark floor below; steaming dread. |
 | `scene-office-printer-cats.webp` | An office just after dawn, the lights still off and the windows deep blue: the copier still spitting out pages, hundreds of identical prints tinted blue in the gloom and piled on the copier, desks and chairs, each with the same small cat photo too small to make out from here, an empty paper tray pulled out, and a coffee maker just switched on. Plain dark carpet below with no paper on it; absurd. |
 | `scene-office-secret-santa-mugs.webp` | An office break room at the Christmas party, tinsel and a small tree in red and green: a pair of matching mugs printed with red hearts on the table, torn wrapping paper and ribbon, a pile of opened gifts, and an empty cake stand with a cake knife beside it. Plain dark floor below; giggly and scandalised. |
 | `scene-office-salary-sheet-leak.webp` | A glass-walled team room late at night, monitors glowing blank and one desk lamp: a spreadsheet printout of neat empty rows on the table, a paper shredder, three desks with blank name plates, and a glossy recruiting folder (no logo) on a chair. Plain dark carpet below; paranoid. |
@@ -84,20 +89,17 @@ of this card.
   uses and has its file), `npx tsc --noEmit`, `npm run build`. If that test turns down a `scene-`
   name, stop and say so in the PR; don't change the test or the game.
 - Every file is 1600 × 900 and at most 150 KB, and `DRAWN_ART` gains exactly this card's 23 names.
-- Look at them in the game: `npm run dev`, choose 演戏猜坏人 and press 换个剧本 until this card's
-  scenes come up, at a phone's width (390) and on the big screen (`/tv/<code>`). At least six,
-  among them a spicy one (尺度: 微辣) and a community's (日本, 韩国 or 加拿大本地 under 剧本背景).
-  The figures and their plaques must stay easy to read over the picture.
-- In the PR: a contact sheet of all 23, small, each with its file name under it, and phone
-  screenshots of the ones you played.
+- No browser and no uploads: don't open the game in a browser and don't attach pictures to the PR.
+  The reviewer makes the contact sheet from the branch and plays the scenes. In the PR, list the
+  files with their sizes and paste the checks' results, in words.
 
 ## Done when
 
-The 23 files are in `site/public/drama/`, `DRAWN_ART` lists all 23, the checks pass, and the contact
-sheet and screenshots are in the PR.
+The 23 files are in `site/public/drama/`, `DRAWN_ART` lists all 23, the checks pass, and the PR lists the
+files and the checks' results.
 
 ## Send to Codex
 
 ```
-按 docs/codex-tasks/drama/C6-scenes-office.md 做。先看 site/public/drama/ 里原来的图，照同样的画风画。只加卡上写的图片和 site/src/data/dramaArt.ts 里的名字，跑卡上的检查，通过后再开 PR，PR 里贴缩略图。
+按 docs/codex-tasks/drama/C6-scenes-office.md 做。先看 site/public/drama/ 里原来的图，照同样的画风画。只加卡上写的图片和 site/src/data/dramaArt.ts 里的名字，跑卡上的检查，通过后再开 PR，PR 里用文字写文件和检查结果。不用开浏览器，也不要往 PR 里传图片。
 ```

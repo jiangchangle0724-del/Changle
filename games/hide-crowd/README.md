@@ -2,12 +2,12 @@
 
 A party game on [changle.ca](https://changle.ca), played with everyone's own phone. Each player
 steers one person in a crowd of 18 passers-by the computer walks around. Walk like them and
-nobody can tell it's you; spot a rival and punch: a hit scores, a passer-by stuns you, and a
-tagged player gets up in another body somewhere else in the crowd. First to 3 tags, or the most
-tags after 75 seconds. The round ends in a penalty: whoever got spotted most takes a sip. A big
-screen (a TV or a computer) shows the whole crowd and never marks who is human. Three 3D arenas:
-Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre. 2 to 8 players, Chinese
-and English.
+nobody can tell it's you; spot a rival and punch: a hit scores, hitting a passer-by knocks them
+down and stuns you, and a tagged player gets up in another body somewhere else in the crowd. First
+to 3 tags, or the most tags after 75 seconds. The round ends in a penalty: whoever got spotted most
+takes a sip. A big screen (a TV or a computer) shows the whole crowd and never marks who is human.
+Three 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre. 2 to 8
+players, Chinese and English.
 
 How it looks, where the art comes from and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
@@ -67,7 +67,8 @@ arena instead of 3D.
 
 ```sh
 npm run typecheck
-npm test             # rules, room, privacy, penalty, design tokens, strings, art budgets
+npm test             # rules, room, privacy, penalty, the crowd, practice's rivals, the people,
+                     # design tokens, strings, art budgets
 npm run test:e2e     # phones and a big screen in Chromium: joining, a round, a tag, the penalty,
                      # the big screen hiding the players, the hand-off from a table, practice
 ```

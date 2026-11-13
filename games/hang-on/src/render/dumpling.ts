@@ -5,7 +5,7 @@
 import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Pt } from '../physics/level';
-import type { Player } from '../physics/world';
+import type { PlayerView } from './view';
 import { ARM_COLORS, DEFAULT_LOOK, type Look } from '../look';
 import { CREAM, GLOVES, INK, OUTLINE, hex } from './art';
 
@@ -108,7 +108,7 @@ export class Dumpling {
   }
 
   /** 每帧：读玩家状态，摆位置，重画胳膊和脸。 */
-  update(p: Player, dt: number, won: boolean, time: number): void {
+  update(p: PlayerView, dt: number, won: boolean, time: number): void {
     const b = p.body;
     this.squash = this.squash > 0 ? Math.max(0, this.squash - dt * 4.5) : Math.min(0, this.squash + dt * 4.5);
     this.pulse = Math.max(0, this.pulse - dt * 5);
@@ -214,7 +214,7 @@ export class Dumpling {
     g.circle(14, 4, 4.2).fill({ color: 0xf05a6e, alpha: 0.35 });
   }
 
-  private drawArms(p: Player): void {
+  private drawArms(p: PlayerView): void {
     const g = this.arms;
     g.clear();
     p.arms.forEach((arm, i) => {
@@ -247,7 +247,7 @@ export class Dumpling {
     g.lineTo(l.x, l.y);
   }
 
-  private drawFace(p: Player, time: number): void {
+  private drawFace(p: PlayerView, time: number): void {
     // 眼睛跟摇杆；没推摇杆就看向飞的方向
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const v = Math.hypot(p.body.vx, p.body.vy);

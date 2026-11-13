@@ -33,16 +33,26 @@ each page has and what its first one says.
      `availability` SoldOut makes it `soldout`.
    - `location`: a `Place` with a `PostalAddress` (streetAddress, addressLocality, postalCode,
      geo) to `place`; a `VirtualLocation` (or `eventAttendanceMode` Online) to `online: true`, no place.
+     Mixed attendance, or a Place listed next to a VirtualLocation: `online: true` and the place.
+     A text location is a place only if it has a digit or a comma; text naming online, virtual,
+     zoom or webinar means `online: true`.
    - `offers` (an object or an array): `price`, or `lowPrice` / `highPrice`, numbers or strings, in
      CAD only (another `priceCurrency`: unknown); a price of 0 makes `isFree: true`.
-   - `url`: the event's own, or `pageUrl`. `sourceEventId`: the url without its query string.
+   - `url`: the event's own, or `pageUrl`. `sourceEventId`: the url without its query string,
+     then `@` and the Vancouver date (`…@2026-12-18`), even for an event with one date, so the id
+     stays the same when other dates drop off the page. When one url has several start times on one
+     day, that day's ids carry the time (`…@2026-12-18T14:00:00`; an all-day one keeps the date).
+     When the url is the page's own, a short hash of the title (whitespace collapsed) goes into the
+     id too, and the several-times rule counts only the events with that title. The query string
+     comes off only before a `#` fragment.
    - `image`: a string, an array or an ImageObject (`url`): the first. `organizer.name`.
    - `name` and `description` with HTML entities decoded; `description` through `plainText`.
    - `category` and `tags`: leave empty (the AI's job) except `online` and `free` facts above.
 
 ## Done when
 
-- Each page gives the number of events in `expected.json`, and its first event's fields match
+- Each page gives the number of events in `expected.json` (every entry, exact repeats too: they
+  share an id, so the store keeps one row), and its first event's fields match
   (after mapping: e.g. Commodore's first starts `"2026-10-31T19:00:00-07:00"`; the listing's first
   is all-day with `timeTBD`; the Meetup online one has `online: true` and no place).
 - The UBC series comes out all-day, `start: "2026-07-19"`, `end: "2026-12-08"`.

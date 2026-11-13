@@ -19,6 +19,7 @@ type YtPlayer = {
   mute(): void;
   unMute(): void;
   isMuted(): boolean;
+  setVolume(volume: number): void;
   cueVideoById(id: string): void;
   getPlayerState(): number;
   getCurrentTime(): number;
@@ -104,6 +105,9 @@ const START_LEAD_MS = 150;
 const TAP_AFTER_MS = 2500;
 /** The measurements kept (ms of looking): the smallest one is the freshest. */
 const MEASURE_MS = 3000;
+/** The song fades out over this long when its dance is over (then stops). */
+const FADE_MS = 2500;
+const ENDED = 0;
 
 export class Tube {
   status: TubeStatus = "idle";
@@ -114,14 +118,18 @@ export class Tube {
   private making = false;
   private live = false;
   private video = "";
-  /** where it is in getting ready: none, cue, buffer, hold, ready, start, on */
-  private step: "none" | "cue" | "buffer" | "hold" | "ready" | "start" | "on" = "none";
+  /** where it is in getting ready: none, cue, buffer, hold, ready, start, on; paused mid-song */
+  private step: "none" | "cue" | "buffer" | "hold" | "ready" | "start" | "on" | "paused" = "none";
   private stepAt = 0;
   /** when the video's 0:00 should be (speaker time); null: not asked to play */
   private goAt: number | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private seen: { local: number; zero: number }[] = [];
   private fast: ReturnType<typeof setInterval> | null = null;
+  /** when (performance.now) it was last seen playing its song */
+  private lastPlayed = 0;
+  /** fading out at the dance's end: when it started (performance.now), or null */
+  private fadeFrom: number | null = null;
   /** called when something the screen shows changes */
   onChange: () => void = () => {};
 
@@ -137,6 +145,8 @@ export class Tube {
     this.goAt = null;
     this.clearTimer();
     this.seen = [];
+    this.lastPlayed = 0;
+    this.fadeFrom = null;
     if (this.p && this.live) {
       this.p.mute();
       this.p.cueVideoById(videoId);
@@ -192,10 +202,50 @@ export class Tube {
     this.goAt = null;
     this.clearTimer();
     this.seen = [];
+    this.lastPlayed = 0;
+    this.fadeFrom = null;
     if (!this.p || !this.live || !this.video) return;
     this.p.pauseVideo();
     this.p.seekTo(0, true);
+    this.p.setVolume(100);
     this.go("hold", "buffering");
+  }
+
+  /**
+   * The dance is over: the song fades out and stops (it doesn't play on without the coach). Its
+   * sound comes back for the next time it's played. Where a browser won't let a page set the
+   * volume (an iPhone), it plays to the end of the fade and stops.
+   */
+  fadeOut() {
+    if (!this.p || !this.live || this.fadeFrom !== null || (this.step !== "on" && this.step !== "start")) return;
+    this.fadeFrom = performance.now();
+  }
+
+  /**
+   * How long (ms) the song's video hasn't been playing although its moment has come: stalled, an
+   * ad, or stopped till someone taps it. 0 while it plays, before its moment, or paused on purpose.
+   */
+  stuckMs(): number {
+    if (this.goAt === null || !this.p || !this.live || this.step === "paused" || this.fadeFrom !== null) return 0;
+    const due = pageClock() - this.goAt;
+    if (due <= 0) return 0;
+    const st = this.p.getPlayerState();
+    if (st === ENDED || (this.step === "on" && st === PLAYING)) return 0;
+    const local = performance.now();
+    return local - Math.max(this.lastPlayed, local - due);
+  }
+
+  /**
+   * 暂停: held where it is, sound on. playAt starts it again: for a moment gone by, from as far into
+   * the song as that moment is.
+   */
+  pause() {
+    if (!this.p || !this.live || !this.video || (this.step !== "on" && this.step !== "start")) return;
+    this.p.pauseVideo();
+    this.clearTimer();
+    this.goAt = null;
+    this.seen = [];
+    this.go("paused", "ready");
   }
 
   /** Stop and forget the video (back to the lobby). */
@@ -219,12 +269,12 @@ export class Tube {
   }
 
   /**
-   * When the video's 0:00 was, on the speaker's clock, as measured while it plays; null until a
-   * second and a half of measuring.
+   * When the video's 0:00 was, on the speaker's clock, as measured while it plays; null until
+   * `spanMs` of measuring (a second and a half; less to start a dance held for its video again).
    */
-  zero(): number | null {
+  zero(spanMs = 1500): number | null {
     if (this.status !== "playing" || this.seen.length < 2) return null;
-    if (this.seen[this.seen.length - 1]!.local - this.seen[0]!.local < 1500) return null;
+    if (this.seen[this.seen.length - 1]!.local - this.seen[0]!.local < spanMs) return null;
     let z = Infinity;
     for (const s of this.seen) z = Math.min(z, s.zero);
     return z;
@@ -275,17 +325,37 @@ export class Tube {
         }
         break;
       case "start":
+        if (this.fadeFrom !== null) {
+          p.pauseVideo();
+          this.stop();
+          break;
+        }
         if (st === PLAYING && !p.isMuted()) {
           this.seen = [];
           this.armed = true;
           this.go("on", "playing");
         } else if (local - this.stepAt > TAP_AFTER_MS && this.status !== "tap") this.set("tap");
         break;
+      case "paused":
+        // (someone tapped the paused video: it waits for 继续)
+        if (st === PLAYING) p.pauseVideo();
+        break;
       case "on":
-        if (st === PLAYING) this.measure();
-        else if (st === BUFFERING) this.seen = [];
+        if (this.fadeFrom !== null) {
+          // the dance is over: the song fades out, then stops
+          const k = (local - this.fadeFrom) / FADE_MS;
+          if (k >= 1) {
+            p.pauseVideo();
+            this.stop();
+          } else p.setVolume(Math.round(100 * (1 - k)));
+          break;
+        }
+        if (st === PLAYING) {
+          this.lastPlayed = local;
+          this.measure();
+        } else if (st === BUFFERING) this.seen = [];
         else if (st === PAUSED && this.goAt !== null) {
-          // (paused by someone tapping the video: play on)
+          // (paused by someone tapping the video, or by the phone: play on)
           p.playVideo();
         }
         break;
@@ -322,6 +392,7 @@ export class Tube {
         const late = pageClock() - this.goAt;
         // (a moment gone by: from as far into the song as it should be)
         if (late > 300) this.p.seekTo(late / 1000, true);
+        this.p.setVolume(100);
         this.p.unMute();
         this.p.playVideo();
         this.go("start", "starting");
