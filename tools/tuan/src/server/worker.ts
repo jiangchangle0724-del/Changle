@@ -27,8 +27,9 @@ import { summarize } from "../engine/summary";
 import { weighed, type OfferBook, type Order } from "../engine/types";
 import { offerPage, orderPage } from "../engine/view";
 import { bump, networkOf, used } from "./gate";
+import { flush, notify } from "./notify";
 import { ensureSchema } from "./schema";
-import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markOrder, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveShop, setOfferStatus, shopBySlug, shopsOf, weighOrder } from "./store";
+import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveShop, setOfferStatus, shopBySlug, shopsOf, weighOrder } from "./store";
 import { tokenOf, whoIs, type Who } from "./who";
 
 /** The most an order's body may be, and a whole group buy's. */
@@ -112,7 +113,8 @@ async function seeOffer(db: D1Database, offerId: string, now: number): Promise<R
   return json(offerPage(book, await rosterOf(db, offerId), now) satisfies OfferPage);
 }
 
-async function placeOrder(req: Request, db: D1Database, offerId: string, now: number): Promise<Response> {
+async function placeOrder(req: Request, env: Env, ctx: ExecutionContext | undefined, offerId: string, now: number): Promise<Response> {
+  const db = env.DB;
   const input = await body(req, ORDER_BODY_MAX);
   if (!input || typeof input.key !== "string" || !KEY_RE.test(input.key)) return refuse("bad");
   if ((await bump(db, `order:${await networkOf(req)}`, now)) > ORDERS_PER_NETWORK) return refuse("limit");
@@ -132,6 +134,10 @@ async function placeOrder(req: Request, db: D1Database, offerId: string, now: nu
 
     const code = makeCode(rand, ORDER_LENGTH);
     if (await insertOrder(db, offerId, input.key, taken, code, ORDERS_MAX, now)) {
+      // the merchant is told by mail, after the buyer has their answer; a mail that fails doesn't fail the order
+      const told = notify(env, offerId, now).catch((e) => console.error("tuan notice", e));
+      if (ctx) ctx.waitUntil(told);
+      else await told;
       const order = await orderByCode(db, code);
       if (order) return json(orderPage(book, order, now) satisfies OrderPage, 201);
     }
@@ -237,6 +243,8 @@ async function myOffer(db: D1Database, who: Who, offerId: string, now: number): 
   if (!book) return refuse("notfound");
   if (!(await runs(db, who, book.shop.id))) return refuse("forbidden");
   const orders = await ordersOf(db, offerId);
+  // seen here is as good as told by mail
+  await markNoticed(db, offerId, null);
   return json({ ...book, orders, summary: summarize(book, orders), now } satisfies MyOfferPage);
 }
 
@@ -352,7 +360,7 @@ async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, ur
 
   if (a === "offers" && OFFER_RE.test(b ?? "")) {
     if (n === 2 && get) return seeOffer(db, b, now);
-    if (n === 3 && c === "orders" && post) return placeOrder(req, db, b, now);
+    if (n === 3 && c === "orders" && post) return placeOrder(req, env, ctx, b, now);
   }
   if (a === "orders" && b) {
     if (n === 2 && get) return seeOrder(req, db, b, now);
@@ -391,5 +399,15 @@ export default {
       console.error("tuan", req.method, url.pathname, e);
       return refuse("failed");
     }
+  },
+
+  // every ten minutes (wrangler.jsonc): mail for orders that came in while a group buy's half hour was running
+  async scheduled(_event: ScheduledController, env: Env, ctx?: ExecutionContext): Promise<void> {
+    const run = (async () => {
+      await ensureSchema(env.DB);
+      await flush(env, Date.now());
+    })();
+    if (ctx) ctx.waitUntil(run);
+    await run;
   },
 } satisfies ExportedHandler<Env>;

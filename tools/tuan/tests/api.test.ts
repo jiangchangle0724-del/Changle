@@ -8,6 +8,7 @@ import { makeCode } from "../src/engine/ids";
 import { ORDERS_PER_PHONE } from "../src/engine/order";
 import { vancouverDay } from "../src/engine/time";
 import { networkOf, sha256 } from "../src/server/gate";
+import type { Notice } from "../src/server/mail";
 import { whoKey } from "../src/server/who";
 import worker from "../src/server/worker";
 import { SESSION } from "./accounts";
@@ -652,6 +653,144 @@ describe("the way in", () => {
     expect(said(await place(at, [["五常大米", 1000]], {}, { from: crowd }))).toBe("ok"); // the 300th
     expect(said(await place(at, [["五常大米", 1000]], { phone: "604-555-0177" }, { from: crowd }))).toBe("429 limit");
     expect(said(await place(at, [["五常大米", 1000]], { phone: "604-555-0177" }))).toBe("ok");
+  });
+});
+
+describe("telling the merchant by mail", () => {
+  const rooms = async <T>(path: string): Promise<T> => (await env.ROOMS.fetch(`https://rooms.test${path}`)).json();
+  /** What the mail door sent since last asked. */
+  const mails = () => rooms<Notice[]>("/test/mails");
+  const door = (is: "open" | "full" | "down") => rooms(`/test/door?is=${is}`);
+  /** As if the last mail for this group buy went out this long ago. */
+  const ago = (at: Started, ms: number) => env.DB.prepare("UPDATE offers SET mailed_at = ? WHERE id = ?").bind(Date.now() - ms, at.id).run();
+  const timer = () => worker.scheduled({} as ScheduledController, env);
+  const HALF_HOUR = 30 * 60_000;
+
+  it("mails the first order at once, in both languages, with no phone number in it", async () => {
+    const at = await start();
+    await mails();
+    const placed = await place(at, [["五常大米", 2000], ["土鸡蛋", 1000]], { wechat: "wang_ayi", note: "下午来拿" });
+    expect(placed.status).toBe(201);
+    const sent = await mails();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ app: "tuan", to: "leader@example.com", lang: "zh", link: `https://changle.ca/tuan/my/t/${at.id}` });
+    expect(sent[0].subject).toBe("跟一单 新订单 1 张 · 1 new order · 本周大米团 · 周五到货");
+    expect(sent[0].text).toContain("「本周大米团 · 周五到货」新来了 1 张订单，现在一共 1 张。");
+    expect(sent[0].text).toContain("第 1 位 王阿姨：五常大米 10kg ×2、土鸡蛋 30 枚 ×1，$89.50，自提 温哥华西区");
+    expect(sent[0].text).toContain('1 new order for "本周大米团 · 周五到货", 1 in all.');
+    expect(sent[0].text).toContain("No. 1 王阿姨: 五常大米 10kg ×2, 土鸡蛋 30 枚 ×1, $89.50, pickup at 温哥华西区");
+    expect(sent[0].text).not.toMatch(/6045550134|0134|wang_ayi|下午来拿/);
+    expect(sent[0].subject.length).toBeLessThanOrEqual(120);
+    expect(sent[0].text.length).toBeLessThanOrEqual(2000);
+  });
+
+  it("then waits half an hour, and mails everything since in one", async () => {
+    const at = await start();
+    await place(at, [["五常大米", 1000]]);
+    await mails();
+    await place(at, [["手切羊肉片", 1500], ["土鸡蛋", 2000]], { name: "陈太", phone: "236-555-0111", pickupId: at.point("大学区") });
+    await place(at, [["五常大米", 1000]], { name: "Leo", phone: "778-555-0199", how: "delivery", ruleId: at.rule("列治文"), address: "8888 No. 3 Rd" });
+    expect(await mails()).toEqual([]);
+
+    await ago(at, HALF_HOUR + 1000);
+    await place(at, [["土鸡蛋", 1000]], { name: "小林", phone: "604-555-0177" });
+    const sent = await mails();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].subject).toContain("新订单 3 张 · 3 new orders");
+    expect(sent[0].text).toContain("新来了 3 张订单，现在一共 4 张。");
+    expect(sent[0].text).toContain("第 2 位 陈太：土鸡蛋 30 枚 ×2、手切羊肉片 1.5 lb，预估 $52.49，自提 大学区");
+    expect(sent[0].text).toContain("第 3 位 Leo：五常大米 10kg ×1，$43.00，送货 列治文"); // $38 and $5 delivery
+    expect(sent[0].text).toContain("No. 3 Leo: 五常大米 10kg ×1, $43.00, delivery to 列治文");
+    expect(sent[0].text).toContain("第 4 位 小林");
+    expect(sent[0].text).not.toContain("第 1 位");
+    expect(sent[0].text).not.toMatch(/No\. 3 Rd|2365550111/);
+  });
+
+  it("sends what's waiting when the timer comes round, once", async () => {
+    const at = await start();
+    await place(at, [["五常大米", 1000]]);
+    await place(at, [["五常大米", 1000]], { name: "Leo", phone: "778-555-0199" });
+    await mails();
+    await timer();
+    expect(await mails()).toEqual([]); // the half hour isn't up
+    await ago(at, HALF_HOUR);
+    await timer();
+    const sent = await mails();
+    expect(sent.map((m) => m.to)).toEqual(["leader@example.com"]);
+    expect(sent[0].text).toContain("新来了 1 张订单，现在一共 2 张。");
+    await ago(at, HALF_HOUR);
+    await timer();
+    expect(await mails()).toEqual([]); // nothing new
+  });
+
+  it("doesn't mail orders the merchant has seen on their page, or ones cancelled since", async () => {
+    const at = await start();
+    await place(at, [["五常大米", 1000]]);
+    await place(at, [["五常大米", 1000]], { name: "Leo", phone: "778-555-0199" });
+    await sheets(at); // the merchant looks
+    const gone = (await place(at, [["五常大米", 1000]], { name: "陈太", phone: "236-555-0111" })).data.order.code;
+    await post(`/orders/${gone}/cancel`, {}, { tail: "0111" });
+    await mails();
+    await ago(at, HALF_HOUR);
+    await timer();
+    expect(await mails()).toEqual([]);
+  });
+
+  it("mails the first two accounts that run the shop", async () => {
+    const at = await start();
+    await post("/admin/shops", { slug: at.slug, name: "大米团（测试）", members: ["visitor@example.com", "leader@example.com", "owner@example.com"] }, { session: SESSION.owner });
+    await mails();
+    await place(at, [["五常大米", 1000]]);
+    expect((await mails()).map((m) => m.to)).toEqual(["visitor@example.com", "leader@example.com"]);
+  });
+
+  it("takes the order all the same when the mail can't go out, and tries again later", async () => {
+    const at = await start();
+    await mails();
+    await door("down");
+    try {
+      expect((await place(at, [["五常大米", 1000]])).status).toBe(201);
+      expect(await mails()).toEqual([]);
+    } finally {
+      await door("open");
+    }
+    // the half hour wasn't spent on a mail that didn't go
+    await timer();
+    const sent = await mails();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain("第 1 位 王阿姨");
+  });
+
+  it("stops asking for the day once the allowance is used up", async () => {
+    const at = await start();
+    const other = await start();
+    await mails();
+    await door("full");
+    try {
+      expect((await place(at, [["五常大米", 1000]])).status).toBe(201);
+      await door("open");
+      // the door would take it now, but it said it was full for today
+      expect((await place(other, [["五常大米", 1000]])).status).toBe(201);
+      await timer();
+      expect(await mails()).toEqual([]);
+      // tomorrow (the door's day) they go out
+      await env.DB.prepare("DELETE FROM gates WHERE key LIKE 'mailfull:%'").run();
+      await timer();
+      expect((await mails()).map((m) => m.link).sort()).toEqual([at.id, other.id].map((id) => `https://changle.ca/tuan/my/t/${id}`).sort());
+    } finally {
+      await door("open");
+      await env.DB.prepare("DELETE FROM gates WHERE key LIKE 'mailfull:%'").run();
+    }
+  });
+
+  it("doesn't keep trying a shop whose accounts the door doesn't mail", async () => {
+    const at = await start();
+    await post("/admin/shops", { slug: at.slug, name: "大米团（测试）", members: ["someone-else@example.com"] }, { session: SESSION.owner });
+    await mails();
+    await place(at, [["五常大米", 1000]]);
+    expect(await mails()).toEqual([]);
+    const waiting = await env.DB.prepare("SELECT COUNT(*) AS n FROM orders WHERE offer_id = ? AND noticed = 0").bind(at.id).first<{ n: number }>();
+    expect(waiting?.n).toBe(0);
   });
 });
 

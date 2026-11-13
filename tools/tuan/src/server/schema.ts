@@ -1,8 +1,13 @@
 // The database's tables, made by the Worker itself: the numbered files in migrations/, each applied
 // once, in order (the same way as 玩什么, tools/events/src/schema.ts). Nothing to run by hand.
 import m0001 from "../../migrations/0001_init.sql";
+import m0002 from "../../migrations/0002_notices.sql";
 
-const MIGRATIONS: [name: string, sql: string][] = [["0001_init", m0001]];
+// (a file that has been applied on the live database is never edited again: a change is a new file, added here)
+const MIGRATIONS: [name: string, sql: string][] = [
+  ["0001_init", m0001],
+  ["0002_notices", m0002],
+];
 
 /** A migration file as statements: comments dropped, split at each ";". (No ";" inside a string or a comment in these files.) */
 export function statements(sql: string): string[] {
