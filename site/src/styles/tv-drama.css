@@ -9,6 +9,11 @@
   --marquee: #fff1c9;
 }
 
+/* a scene's clock while there's a minute or more (5:00): four characters inside the ring */
+.tvd-clock-long {
+  font-size: var(--text-xl);
+}
+
 /* ---------- the theatre ---------- */
 .tvd-theatre {
   position: absolute;

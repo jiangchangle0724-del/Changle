@@ -2,13 +2,15 @@
 along 放到最下面，手机上点完歌后可以直接在玩家手机上一键播放，切歌，暂停，上一曲"), in browsers: a TV
 and two phones.
 
-What it checks: a phone has the player at the top (上一曲, 暂停 or 播放, 切歌), then the song box, the
-歌单 and the sound pads, and 跟着跳 at the very bottom; no turntables, mixer, crossfader, build-up,
-DROP, picks or switch to them. A song asked for plays by itself; anyone pauses it (the TV's video
-stops where it is, the DJ stays quiet) and carries it on (from there, not from its start); 切歌 brings
-the next on in a few seconds; 上一曲 the one before, the one that was playing first on the 歌单
-again; paused between songs, the DJ goes quiet too and comes back on 播放. A TV that wants a tap on
-its video says so on the phones, and its own 点歌 sheet gets out of the video's way.
+What it checks: a phone has the player at the very top (上一曲, 暂停 or 播放, 切歌; the card with the
+night's stretch gone, Steve's second message that night), then the song box, the 歌单 and the sound
+pads, and 跟着跳 at the very bottom; no turntables, mixer, crossfader, build-up, DROP, picks or switch
+to them. A song asked for plays by itself; anyone pauses it (the TV's video stops where it is, the
+DJ stays quiet) and carries it on (from there, not from its start); 切歌 brings the next on in a few
+seconds, its keys not grey while it comes on; 上一曲 the one before, the one that was playing first
+on the 歌单 again; paused between songs, the DJ goes quiet too and comes back on 播放. One phone asks
+for many songs in a row (Steve: at least 24 each). A TV that wants a tap on its video says so on
+the phones, and its own 点歌 sheet gets out of the video's way.
 
 The TV's YouTube player is the stand-in of dj_tube.py (this machine can't play YouTube).
 Needs the two local servers (site/README.md).
@@ -96,6 +98,8 @@ with sync_playwright() as p:
     ok(order[:2] == ["djk-player", "djk-req"] and order[-1] == "djk-sounds", f"the player at the top, the song box under it, the pads last ({order})")
     last = ben.evaluate("""() => { const kids = [...document.querySelector('.djp').children]; return kids[kids.length - 1].className; }""")
     ok("djk-dance" in last, f"跟着跳 at the very bottom of the page ({last!r})")
+    first = ben.evaluate("""() => document.querySelector('.djp').firstElementChild.className""")
+    ok(ben.locator(".djp-now").count() == 0 and first.startswith("djk"), f"no card with the night's stretch at the top: the player is the first thing ({first!r})")
     gone = ben.evaluate("""() => ['.djk-console', '.djk-platter', '.djk-vinyl', '.djk-fader', '.djk-mix', '.djk-charge', '.djk-drop', '.djk-picks', '.djk-juke', '.djk-hint', '.djk-song'].filter((s) => document.querySelector(s))""")
     ok(not gone, f"no turntables, mixer, crossfader, build-up, DROP, picks, nor a switch to them ({gone})")
     ok(ben.locator(".djk-pad").count() == 12, "the twelve sound pads are there")
@@ -141,6 +145,7 @@ with sync_playwright() as p:
 
     # 切歌: the next one in a few seconds
     key(ben, 2).click()
+    ok(until(lambda: bool(deck(tv).get("drop")), 3000) and not key(amy, 2).is_disabled() and not key(amy, 0).is_disabled(), "while Ben's is coming on, 切歌 and 上一曲 aren't grey")
     ok(until(lambda: (deck(tv).get("song") or {}).get("yt") == B_ID, 8000), "Ben skips it: his own comes on")
     ok(until(lambda: heard(tv, B_ID) > 0, 10000), "and is heard on the TV")
     ok(until(lambda: "Ben" in text(amy, ".djk-player-by") or "你点的" in text(amy, ".djk-player-by"), 3000) and "你点的" in text(ben, ".djk-player-by"), "the phones say whose it is (Ben's own: 你点的)")
@@ -174,6 +179,18 @@ with sync_playwright() as p:
     ok(until(lambda: "暂停了" in text(tv, ".dk-hint") or "Paused" in text(tv, ".dk-hint"), 3000), f"the TV's line says so ({text(tv, '.dk-hint')!r})")
     key(ben, 1).click()
     ok(until(lambda: dj_level(tv) > 0.9, 4000), "Ben presses 播放: the DJ is back")
+
+    # one phone, many songs in a row (Steve: "一个人一次性可以至少点24首歌"; it was 3): held, so they wait
+    key(amy, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 0) > 0, 3000), "(held)")
+    many = [f"manysongs0{k}" for k in range(1, 7)]
+    for vid in many:
+        ask(cat, vid)
+        cat.wait_for_timeout(1100)
+    cats = lambda: [r for r in deck(tv).get("reqs", []) + [deck(tv).get("up") or {}] if r.get("yt") in many]
+    ok(until(lambda: len(cats()) == len(many), 4000), f"Cat asks for {len(many)} in a row: all on the 歌单 ({len(cats())})")
+    ok(until(lambda: "Up next" in text(cat, ".djk-player-next") or "more on the playlist" in text(cat, ".djk-player-next"), 3000), f"her player says what's next ({text(cat, '.djk-player-next')!r})")
+    key(amy, 1).click()
 
     # a TV that wants a tap on its video first (as an iPhone does): the phones say so
     tv.add_init_script("window.__tubeTapFirst = true; window.__ytConf = { sound: false };")

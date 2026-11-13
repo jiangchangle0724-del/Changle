@@ -109,15 +109,18 @@ type S = {
 };
 
 export const BRIEF_MS = 60_000;
-const ACT_MS: Record<DramaDiff, number> = { easy: 90_000, hard: 120_000 };
-/** a monologue is shorter; a big cast gets fifteen seconds more for each actor past four */
-const SOLO_MS: Record<DramaDiff, number> = { easy: 60_000, hard: 75_000 };
-const PER_ACTOR_MS = 15_000;
-const PK_MS = 45_000;
-/** a famous scene: a minute, and fifteen seconds more for each actor past two */
-const CLASSIC_MS = 60_000;
-/** a reading: two minutes for a minute and a half of words (the reader says when they're done) */
-const READ_MS = 120_000;
+/*
+ * The most an act runs (Steve, Nov 12: every scene at least five minutes, a reading at least
+ * three); the actors or the host call cut as soon as it's done. A scene, a monologue too: five
+ * minutes, six when it's hard, half a minute more for each actor past four. A duel: five. A famous
+ * scene: five, half a minute more for each actor past two. A reading: three (the longest piece
+ * takes under two out loud).
+ */
+const ACT_MS: Record<DramaDiff, number> = { easy: 300_000, hard: 360_000 };
+const PER_ACTOR_MS = 30_000;
+const PK_MS = 300_000;
+const CLASSIC_MS = 300_000;
+const READ_MS = 180_000;
 const VOTE_MS = 50_000;
 /** the most on stage at once */
 export const MAX_CAST = 8;
@@ -426,7 +429,6 @@ function actLength(s: S): number {
   if (s.mode === "pk") return PK_MS;
   if (s.mode === "read") return READ_MS;
   if (s.mode === "classic") return CLASSIC_MS + Math.max(0, s.cast.length - 2) * PER_ACTOR_MS;
-  if (s.cast.length <= 1) return SOLO_MS[s.diff];
   return ACT_MS[s.diff] + Math.max(0, s.cast.length - 4) * PER_ACTOR_MS;
 }
 
