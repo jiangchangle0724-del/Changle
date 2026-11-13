@@ -101,6 +101,8 @@ function machines(level, id) {
   const hazardKinds = new Set(['spike', 'hot', 'zap']);
   const dirs = new Set(['up', 'down', 'left', 'right']);
   const all = layoutLists(level).flatMap((l) => l ?? []);
+  // A7 的定时塌（until）：几秒后塌，不再回来
+  for (const item of all) assert(item.until === undefined || (finite(item.until) && item.until > 0), `${id}: until must be a positive number of seconds`);
   for (const item of all) {
     if (item.players === undefined) continue;
     const [a, b] = item.players;
@@ -221,7 +223,7 @@ function validate(level, replay, id) {
     assert(inside(level, cp), id + ': checkpoint outside level');
     // Respawns use cp.x + player * 30. All four bodies (radius 24) need permanent footing,
     // at every team size (a platform that is only there for some sizes counts only for those).
-    for (let n = 1; n <= TESTED_PLAYERS; n++) for (let player = 0; player < Math.min(n, 4); player++) assert(level.rects.some(r => present(r, n) &&
+    for (let n = 1; n <= TESTED_PLAYERS; n++) for (let player = 0; player < Math.min(n, 4); player++) assert(level.rects.some(r => present(r, n) && r.until === undefined &&
       cp.x + player * 30 - 24 >= r.x && cp.x + player * 30 + 24 <= r.x + r.w &&
       r.y - cp.y >= 24 && r.y - cp.y <= 80 && r.w >= 48), id + ': checkpoint ' + index + ' lacks permanent footing within 80px for P' + (player + 1) + (n < 4 ? ` with ${n} players` : ''));
     if (index) assert(cp.x > cps[index - 1].x && Math.hypot(cp.x - cps[index - 1].x, cp.y - cps[index - 1].y) >= 120, id + ': checkpoints must follow the route');

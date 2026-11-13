@@ -1,12 +1,13 @@
 /**
  * 开发页：键盘 / 鼠标 / 触屏开 Rapier 物理，Pixi 画画面（和主机页同一套）。`npm run play`。
- * `?level=table-03` 选关（levels/ 里的 id），不给就是彩蛋关；`?players=4` 放 4 个人（量帧时间用，只有 P1 P2 能操作）。
+ * `?level=table-03` 选关（levels/ 里的 id），不给就是彩蛋关；`?players=4` 放 4 个人（最多 6 个，量帧时间用，只有 P1 P2 能操作）。
+ * `?mode=race`（比谁先，`&teams=1` 分两队）、`?mode=last`（坐不住，场地 `?level=arena-01` / `arena-02`）试玩法。
  * 带回放录制：`?record=1` 一进来就录，或者点「录制」；停止时下载 replays 用的 JSON（每物理步一帧）。
  */
 import { LEVELS, levelById } from '../levels';
 import { CFG } from '../physics/config';
 import type { Replay } from '../physics/replay';
-import { createSim, type PadInput, type Sim } from '../physics/world';
+import { createSim, type GameMode, type PadInput, type Rules, type Sim } from '../physics/world';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 import { sfx } from '../audio/sfx';
@@ -21,8 +22,10 @@ const canvas = $<HTMLCanvasElement>('stage');
 const query = new URLSearchParams(location.search);
 const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
 const stage = await Stage.create(canvas, { plates: PLATES });
-let nPlayers = Math.max(1, Math.min(4, Number(query.get('players')) || 1));
-let sim: Sim = await createSim(level, nPlayers);
+let nPlayers = Math.max(1, Math.min(6, Number(query.get('players')) || 1));
+const mode = (['climb', 'team', 'race', 'last'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
+const rules = (): Rules => (mode === 'race' && query.get('teams') === '1' ? { mode, teams: Array.from({ length: nPlayers }, (_, i) => i % 2) } : { mode });
+let sim: Sim = await createSim(level, nPlayers, rules());
 // 画按人数摆出来的那一版（关卡里有 players 范围的东西时，人数不同摆法不同）
 stage.setLevel(sim.level);
 stage.syncPlayers(sim);
@@ -230,12 +233,16 @@ function showWin(): void {
   winEl.hidden = false;
   $('winTime').textContent = `${sim.time.toFixed(1)} s`;
   const d = sim.players.reduce((s, p) => s + p.deaths, 0);
-  $('winLine').textContent = `${sim.players.length} 个人到顶，一共掉下去 ${d} 次。`;
+  // 开发页只给自己看：比谁先、坐不住写赢的是谁
+  $('winLine').textContent =
+    sim.rules.mode === 'climb' || sim.rules.mode === 'team'
+      ? `${sim.players.length} 个人到顶，一共掉下去 ${d} 次。`
+      : `${mode === 'race' ? '比谁先' : '坐不住'}：赢的是 ${sim.winners.map((i) => `P${i + 1}`).join('、') || '没人'}。`;
   if (recording) stopRecording();
 }
 async function restart(): Promise<void> {
   sim.destroy();
-  sim = await createSim(level, nPlayers);
+  sim = await createSim(level, nPlayers, rules());
   stage.setLevel(sim.level);
   winEl.hidden = true;
   stage.reset();

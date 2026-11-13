@@ -10,18 +10,18 @@
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
 import type { Look } from '../look';
-import type { PadInput, SimEvent } from '../physics/world';
+import type { GameMode, PadInput, SimEvent } from '../physics/world';
 
 export type { PadInput };
 
 export type Phase = 'lobby' | 'countdown' | 'playing' | 'results' | 'ended';
 export type Role = 'host' | 'pad' | 'watch';
 
-/** 座位：最多 4 个手柄。 */
+/** 座位：最多 6 个手柄（手机局里房主占一个，再进 5 个）。 */
 export interface Seat {
   id: string;
   name: string;
-  /** 馅儿色 0..3（草莓粉、抹茶绿、芒果黄、苏打蓝）。 */
+  /** 馅儿色 0..5（草莓粉、抹茶绿、芒果黄、苏打蓝、芋泥紫、椰奶白）。 */
   color: number;
   connected: boolean;
 }
@@ -78,8 +78,16 @@ export interface PadStatus {
   phase: Phase;
   /** 走直连还是绕路。 */
   direct: boolean;
-  /** 队友里摔死还没复活的有几个（手柄上亮「召唤」键用）。 */
+  /** 队友里摔死还没复活的有几个（手柄上亮「召唤」键用；比谁先各跑各的、坐不住没有队友可拉，是 0）。 */
   teamDead?: number;
+  /** 这一局的玩法（A7），手柄上显示用。 */
+  mode?: GameMode;
+  /** 比谁先分两队：你在第几队（0 甜队，1 咸队）。 */
+  team?: number;
+  /** 比谁先：你第几个到的终点。 */
+  place?: number;
+  /** 坐不住：你出局了。 */
+  out?: boolean;
 }
 
 /**
@@ -100,7 +108,7 @@ export interface Snap {
   /** 最新生效的检查点，-1 没有。 */
   cp: number;
   /**
-   * 每个人一行：x, y, vx, vy, 摇杆 x, 摇杆 y, 死了(0/1), 死了几秒, 表情(FACES 下标), 摔死次数,
+   * 每个人一行：x, y, vx, vy, 摇杆 x, 摇杆 y, 死了(0 活着 / 1 死了 / 2 比谁先到了终点), 死了几秒, 表情(FACES 下标), 摔死次数,
    * 左臂四个点(8 个数), 左手抓了几秒(-1 没抓), 右臂四个点, 右手抓了几秒。
    */
   p: number[][];
@@ -129,6 +137,17 @@ export interface Results {
   grabs: number[];
   /** 背叛榜：[谁, 松开了谁, 几次]，多的在前。 */
   betrayals: [number, number, number][];
+  /** 玩法（A7），没有就是闯关。 */
+  mode?: GameMode;
+  /** 赢的人（比谁先、坐不住）。 */
+  winners?: number[];
+  /** 比谁先分两队：每个人在第几队。 */
+  teams?: number[];
+  /**
+   * 排名：比谁先是到终点的先后和用时（没到的秒数是 null，排在后面）；
+   * 坐不住是撑了多久，赢的在前、先出局的在后。[玩家, 秒]
+   */
+  order?: [number, number | null][];
 }
 
 /** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */
@@ -138,6 +157,9 @@ export interface Cast {
   players: { name: string; color: string; look: Look }[];
   /** 到了结算页才有。 */
   results?: Results;
+  /** 这一局的玩法（A7）和比谁先的分队，横幅、结算页、画面（坐不住时手抓久了要抖）用。 */
+  mode?: GameMode;
+  teams?: number[];
 }
 
 /**
@@ -165,7 +187,7 @@ export type LinkMsg =
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{4}$/;
 export const SEAT_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
-export const MAX_SEATS = 4;
+export const MAX_SEATS = 6;
 /** 主机断开多久房间作废（契约：30 秒）。 */
 export const HOST_GRACE_MS = 30_000;
 /** 手柄断开多久座位让出来（锁屏、换 Wi-Fi 都要能回来）。 */

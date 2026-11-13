@@ -8,7 +8,7 @@
  * 这个文件不引物理（只要类型），手机的画面包里不会带 Rapier。
  */
 import { forPlayers, type Level, type Pt } from '../physics/level';
-import type { Face, SimEvent } from '../physics/world';
+import type { Face, Rules, SimEvent } from '../physics/world';
 import type { FadingView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
 import { SNAP_EVENT_SENDS, SNAP_EVENTS_MAX, type Snap } from './protocol';
 
@@ -37,7 +37,8 @@ function slim(ev: SimEvent): SimEvent {
  */
 export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: readonly SimEvent[] }): Snap {
   const p = sim.players.map((pl) => {
-    const row = [r1(pl.body.x), r1(pl.body.y), r1(pl.body.vx), r1(pl.body.vy), r2(pl.aim.x), r2(pl.aim.y), pl.dead ? 1 : 0, r2(pl.deadT), Math.max(0, FACES.indexOf(pl.face)), pl.deaths];
+    // 第 7 个数：0 活着，1 死了，2 比谁先到了终点
+    const row = [r1(pl.body.x), r1(pl.body.y), r1(pl.body.vx), r1(pl.body.vy), r2(pl.aim.x), r2(pl.aim.y), pl.dead ? 1 : pl.done ? 2 : 0, r2(pl.deadT), Math.max(0, FACES.indexOf(pl.face)), pl.deaths];
     for (const arm of pl.arms) {
       for (let k = 0; k < 4; k++) {
         const q = arm.pts[k] ?? arm.hand;
@@ -119,6 +120,8 @@ export class RemoteSim implements SimView {
   seq = -1;
   /** 关卡是按几个人摆的（快照的 np，没有就是人数）。 */
   layoutFor = -1;
+  /** 玩法：手机局里从样子名单（Cast.mode / teams）来，画面用（坐不住时手抓久了要抖）。 */
+  rules: Rules = { mode: 'climb' };
   private levelId: string;
   /** 放过的最后一件事的编号。 */
   private lastK = -1;
@@ -313,6 +316,7 @@ export class RemoteSim implements SimView {
       const p = this.players[i];
       if (!p) return;
       p.dead = row[6] === 1;
+      p.done = row[6] === 2;
       p.deadT = (row[7] ?? 0) + (p.dead ? since : 0);
       p.face = FACES[row[8] ?? 0] ?? 'idle';
       p.deaths = row[9] ?? 0;

@@ -103,6 +103,8 @@ export interface Arm {
   hand: Pt;
   /** 画面用的折线：肩、两个肘、手心。 */
   pts: Pt[];
+  /** 坐不住：刚滑脱，还有几秒抓不了。 */
+  slipCd: number;
 }
 
 export type Face = 'idle' | 'grab' | 'fly' | 'scream' | 'win';
@@ -134,6 +136,12 @@ export interface Player {
   /** 手柄的偶发动作，等下一步处理。 */
   pendingAct: 'summon' | 'emote' | null;
   actAt: number;
+  /** 比谁先：到终点了（停在终点里，不再动、不会死）。 */
+  done: boolean;
+  /** 坐不住：出局了（不再复活）。 */
+  out: boolean;
+  /** 到终点或者出局是第几秒，没有是 null。 */
+  endT: number | null;
 }
 
 /** 饼干平台的当前样子（画面用）。 */
@@ -190,6 +198,21 @@ export interface Prop {
 /** 怎么死的：掉下去，或者碰到尖的、烫的、带电的。 */
 export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap';
 
+/**
+ * 玩法（A7，开局前在大厅里选）：
+ * - climb 闯关：大家都到终点才算过，摔了回最近的检查点。
+ * - team 大团队：规则和闯关一样，关卡是给 4 到 6 个人的大关。
+ * - race 比谁先：各跑各的（或者分两队），先到终点的赢；每个人（每队）有自己的检查点，到了终点就停在那。
+ * - last 坐不住：摔了不复活，平台一块块塌，一个地方抓久了手会滑，最后还挂着的赢。
+ */
+export type GameMode = 'climb' | 'team' | 'race' | 'last';
+export interface Rules {
+  mode: GameMode;
+  /** 比谁先分两队时：每个人在第几队（0 或 1）。不写就是各跑各的。 */
+  teams?: number[];
+}
+export const CLIMB: Rules = { mode: 'climb' };
+
 export type SimEvent =
   | { type: 'grab'; player: number; kind: GripKind; x: number; y: number }
   | { type: 'release'; player: number; kind: GripKind; x: number; y: number }
@@ -198,14 +221,24 @@ export type SimEvent =
   /** 死在哪；碰到机关死的带 cause（掉下去的不带，和以前一样）。 */
   | { type: 'death'; player: number; x: number; y: number; cause?: Exclude<DeathCause, 'fall'> }
   | { type: 'respawn'; player: number; summoned: boolean }
-  | { type: 'checkpoint'; index: number }
+  /** 检查点亮了；比谁先时带是谁过的（每个人、每队各有各的检查点）。 */
+  | { type: 'checkpoint'; index: number; player?: number }
   | { type: 'bounce'; player: number; spring: number }
   /** 饼干平台没了 / 回来了。 */
   | { type: 'fade'; index: number; on: boolean }
   /** by 松开 victim 之后 victim 摔死了。 */
   | { type: 'betrayal'; by: number; victim: number }
   | { type: 'summon'; player: number; who: number[] }
-  | { type: 'win' };
+  /** 比谁先：有人到终点了，第几个到的。 */
+  | { type: 'finish'; player: number; place: number }
+  /** 坐不住：这个人出局了（不复活）。 */
+  | { type: 'out'; player: number }
+  /** 定时的东西塌了（until），塌的那一块在哪。 */
+  | { type: 'crumble'; x: number; y: number; w: number; h: number }
+  /** 坐不住：一个地方抓太久，手滑了。 */
+  | { type: 'slip'; player: number; arm: number }
+  /** 这一局结束：闯关是大家都到了；比谁先、坐不住带赢的人（平局可能几个，坐不住一个人玩摔了是空的）。 */
+  | { type: 'win'; who?: number[] };
 
 export interface TeleportOpts {
   /** 每只手摆到哪（世界坐标）；null 用默认收拢姿势。 */
@@ -268,6 +301,14 @@ export class Sim {
   checkpoint = -1;
   /** 关卡是按几个人摆的（开局的人数；中途进来的人不重摆）。 */
   readonly layoutFor: number;
+  /** 玩法（A7）。 */
+  readonly rules: Rules;
+  /** 比谁先：到终点的先后（玩家下标）。 */
+  readonly finishOrder: number[] = [];
+  /** 坐不住：出局的先后。 */
+  readonly outOrder: number[] = [];
+  /** 结束时赢的人：闯关是全队，比谁先是第一个到的（分队时先到齐的那一队），坐不住是最后挂着的。 */
+  winners: number[] = [];
 
   private readonly info = new Map<number, ColInfo>();
   private readonly movers: { def: MoverDef; rb: RB }[] = [];
@@ -276,11 +317,18 @@ export class Sim {
   private readonly grabShape: RAPIER.Ball;
   private readonly grips = new Map<Joint, { player: number; arm: number; g: GripInternal }>();
   private readonly fadingCols: { def: FadingDef; col: Col }[] = [];
+  /** 定时塌的东西（until）：到点关掉碰撞体、松开抓着它的手。 */
+  private readonly crumbles: { until: number; gone: boolean; cols: Col[]; rect?: Rect; rb?: RB; box: () => Rect }[] = [];
+  /** 比谁先：每个人（分队时每队）自己的检查点。 */
+  private readonly cpOf: number[] = [];
+  /** 坐不住：出局的人已经挪到画面外面停好了。 */
+  private readonly parked = new Set<number>();
   private acc = 0;
 
-  constructor(level: Level, nPlayers: number) {
+  constructor(level: Level, nPlayers: number, rules: Rules = CLIMB) {
     this.level = forPlayers(level, nPlayers);
     this.layoutFor = nPlayers;
+    this.rules = rules;
     level = this.level;
     const world = new RAPIER.World({ x: 0, y: CFG.gravity });
     world.timestep = CFG.step;
@@ -313,6 +361,7 @@ export class Sim {
       .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL));
     const col = this.world.createCollider(desc, this.terrain);
     this.info.set(col.handle, { kind: 'terrain', rect: r });
+    if (r.until !== undefined) this.crumbles.push({ until: r.until, gone: false, cols: [col], rect: r, box: () => r });
     return col;
   }
 
@@ -341,8 +390,10 @@ export class Sim {
     if (!f || !fc) return;
     const cycle = f.onS + f.offS;
     const t = (((this.time + (fc.def.phase ?? 0)) % cycle) + cycle) % cycle;
-    const on = t < f.onS;
-    f.left = on ? f.onS - t : cycle - t;
+    // 塌了（until）就不再回来；left 给个有限的大数（快照里 Infinity 会变成 null）
+    const gone = fc.def.until !== undefined && this.time >= fc.def.until;
+    const on = !gone && t < f.onS;
+    f.left = gone ? 99 : on ? f.onS - t : cycle - t;
     if (on === f.on) return;
     f.on = on;
     fc.col.setEnabled(on);
@@ -457,6 +508,9 @@ export class Sim {
     );
     this.info.set(col.handle, { kind: 'moving', deadly: !!def.deadly });
     this.movers.push({ def, rb });
+    if (def.until !== undefined) {
+      this.crumbles.push({ until: def.until, gone: false, cols: [col], rb, box: () => ({ ...moverAt(def, this.time), w: def.w, h: def.h }) });
+    }
   }
 
   /** 会转的杆子：运动学刚体在轴心，每根杆子一个长条碰撞体，每步转到 spinnerAngle 算的角度。 */
@@ -464,6 +518,7 @@ export class Sim {
     const rb = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(def.pivot.x, def.pivot.y).setRotation(spinnerAngle(def, 0)),
     );
+    const cols: Col[] = [];
     for (let j = 0; j < Math.max(1, def.arms); j++) {
       const arm = spinnerArm(def, j, 0);
       const col = this.world.createCollider(
@@ -476,8 +531,12 @@ export class Sim {
         rb,
       );
       this.info.set(col.handle, { kind: 'moving', deadly: !!def.deadly });
+      cols.push(col);
     }
     this.spinners.push({ def, rb });
+    if (def.until !== undefined) {
+      this.crumbles.push({ until: def.until, gone: false, cols, rb, box: () => ({ x: def.pivot.x - def.len, y: def.pivot.y - def.len, w: def.len * 2, h: def.len * 2 }) });
+    }
   }
 
   /** 这一步会动的东西该在哪：下一次 world.step() 把它们挪过去（站在上面的、抓着的跟着走）。 */
@@ -495,8 +554,9 @@ export class Sim {
    */
   private hazardHit(p: Player): { cause: Exclude<DeathCause, 'fall'>; at: Pt } | null {
     const lv = this.level;
-    const deadlyMovers = this.movers.filter((m) => m.def.deadly);
-    const deadlySpinners = this.spinners.filter((s) => s.def.deadly);
+    const here = (until: number | undefined): boolean => until === undefined || this.time < until;
+    const deadlyMovers = this.movers.filter((m) => m.def.deadly && here(m.def.until));
+    const deadlySpinners = this.spinners.filter((s) => s.def.deadly && here(s.def.until));
     if (!lv.hazards?.length && !deadlyMovers.length && !deadlySpinners.length) return null;
     const parts: { c: Pt; r: number }[] = [{ c: p.body, r: CFG.bodyR * 0.85 }];
     for (const arm of p.arms) {
@@ -528,7 +588,7 @@ export class Sim {
   private addPlayer(): void {
     const id = this.players.length;
     const world = this.world;
-    const spawn = this.spawnPoint(id);
+    const spawn = this.startPoint(id);
     const rb = world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()
         .setTranslation(spawn.x, spawn.y)
@@ -567,6 +627,9 @@ export class Sim {
       springCd: 0,
       pendingAct: null,
       actAt: -10,
+      done: false,
+      out: false,
+      endT: null,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -633,7 +696,7 @@ export class Sim {
         ),
       );
     }
-    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [] };
+    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [], slipCd: 0 };
   }
 
   private removePlayer(): void {
@@ -648,7 +711,9 @@ export class Sim {
 
   /** 第 i 个玩家的复活点：最近激活的检查点，没有就是起点；几个人并排错开。 */
   private spawnPoint(i: number): Pt {
-    const cp = this.checkpoint >= 0 ? this.level.checkpoints?.[this.checkpoint] : undefined;
+    // 比谁先：回自己（自己那一队）到过的检查点
+    const at = this.rules.mode === 'race' ? (this.cpOf[this.teamOf(i)] ?? -1) : this.checkpoint;
+    const cp = at >= 0 ? this.level.checkpoints?.[at] : undefined;
     if (cp) return { x: cp.x + i * 30, y: cp.y };
     return { x: this.level.spawn.x + i * 44, y: this.level.spawn.y };
   }
@@ -661,13 +726,15 @@ export class Sim {
   private respawnPoint(i: number): Pt {
     const s = this.spawnPoint(i);
     const minGap = CFG.bodyR * 2;
-    const others = this.players.filter((q) => q.id !== i && !q.dead).map((q) => q.body);
+    const others = this.players.filter((q) => q.id !== i && !q.dead && !q.done).map((q) => q.body);
     const gap = (x: number): number => others.reduce((m, b) => Math.min(m, Math.hypot(b.x - x, b.y - s.y)), Infinity);
     // 照常的位置挨着要命的东西（几个人错开站，最后一个可能站到尖刺上）也往旁边找
     const nearHazard = (this.level.hazards ?? []).some((h) => circleHitsRect(s, CFG.bodyR + 4, h));
-    if (gap(s.x) >= minGap && !nearHazard) return s;
-    let best = s;
-    let bestGap = gap(s.x);
+    // 第 5、6 个人错开站到了台子外面（关卡只保证 4 个人的落脚）也往旁边找
+    const footing = i < 4 || this.standable(s.x, s.y);
+    if (gap(s.x) >= minGap && !nearHazard && footing) return s;
+    let best: Pt | null = footing && !nearHazard ? s : null;
+    let bestGap = best ? gap(s.x) : -1;
     for (let k = 1; k <= 25; k++) {
       for (const x of [s.x + k * 8, s.x - k * 8]) {
         if (!this.standable(x, s.y)) continue;
@@ -679,14 +746,26 @@ export class Sim {
         }
       }
     }
-    return best;
+    // 两边都站不住：回 1 号的位置（每一关都保证那里有落脚），和别人叠着也比掉下去好
+    return best ?? this.spawnPoint(0);
+  }
+
+  /** 开局放人的位置：前 4 个人照关卡摆的（回放靠它）；第 5、6 个人那里站不住就往旁边找。 */
+  private startPoint(i: number): Pt {
+    const s = this.spawnPoint(i);
+    if (i < 4 || this.standable(s.x, s.y, false)) return s;
+    for (let k = 1; k <= 40; k++) {
+      for (const x of [s.x - k * 8, s.x + k * 8]) if (this.standable(x, s.y, false)) return { x, y: s.y };
+    }
+    return this.spawnPoint(0);
   }
 
   /** (x, y) 放得下一个身体，而且脚下 80 px 内有不会消失的平台（饼干会没、蜡烛会弹，都不算），离要命的东西也够远。 */
-  private standable(x: number, y: number): boolean {
+  private standable(x: number, y: number, lasting = true): boolean {
     const r = CFG.bodyR;
     const lv = this.level;
-    const footing = lv.rects.some((b) => x - r >= b.x && x + r <= b.x + b.w && b.y - y >= r && b.y - y <= 80);
+    // 复活时会塌的（until）不算站得住；开局放人时还在就算（lasting = false）
+    const footing = lv.rects.some((b) => (!lasting || b.until === undefined) && x - r >= b.x && x + r <= b.x + b.w && b.y - y >= r && b.y - y <= 80);
     if (!footing) return false;
     if ((lv.hazards ?? []).some((h) => circleHitsRect({ x, y }, r + 40, h))) return false;
     const solid = [...lv.rects, ...(lv.fading ?? []), ...(lv.springs ?? [])];
@@ -773,14 +852,25 @@ export class Sim {
     const dt = CFG.step;
     this.time += dt;
     for (let i = 0; i < this.fadings.length; i++) this.tickFading(i);
+    this.tickCrumbles();
     for (const s of this.springs) s.hit += dt;
-    for (const p of this.players) if (!p.dead) this.control(p);
+    for (const p of this.players) if (!p.dead && !p.done) this.control(p);
+    const slips = this.rules.mode === 'last';
     for (const p of this.players) {
-      if (p.dead) continue;
+      if (p.dead || p.done) continue;
       p.arms.forEach((arm, k) => {
-        if (p.grab[k] && !arm.grip) this.tryGrab(p, k);
+        if (arm.slipCd > 0) arm.slipCd = Math.max(0, arm.slipCd - dt);
+        if (p.grab[k] && !arm.grip && arm.slipCd <= 0) this.tryGrab(p, k);
         else if (!p.grab[k] && arm.grip) this.release(p, k);
-        if (arm.grip) arm.grip.t += dt;
+        if (arm.grip) {
+          arm.grip.t += dt;
+          // 坐不住：一个地方抓太久手就滑了，一会儿抓不了（按着键也不会马上又抓回去）
+          if (slips && arm.grip.t >= CFG.lastGripMax) {
+            this.release(p, k);
+            arm.slipCd = CFG.slipCooldown;
+            this.events.push({ type: 'slip', player: p.id, arm: k });
+          }
+        }
       });
     }
     this.moveKinematics();
@@ -803,8 +893,29 @@ export class Sim {
     this.lifeAndDeath(dt);
     this.acts();
     this.checkpoints();
-    this.checkWin();
+    this.checkEnd();
     for (const p of this.players) this.updateFace(p);
+  }
+
+  /** 定时塌的东西到点了：关掉碰撞体，松开抓着它的手（站在上面的自然掉下去）。 */
+  private tickCrumbles(): void {
+    for (const c of this.crumbles) {
+      if (c.gone || this.time < c.until) continue;
+      c.gone = true;
+      for (const col of c.cols) col.setEnabled(false);
+      for (const [, entry] of [...this.grips]) {
+        const on = c.rb ? entry.g.target === c.rb : entry.g.kind === 'terrain' && entry.g.rect === c.rect;
+        const holder = this.players[entry.player];
+        if (on && holder) this.release(holder, entry.arm);
+      }
+      const b = c.box();
+      this.events.push({ type: 'crumble', x: b.x, y: b.y, w: b.w, h: b.h });
+    }
+  }
+
+  /** 比谁先分队时这个人在哪一队（各跑各的时每人自己一队）。 */
+  private teamOf(i: number): number {
+    return this.rules.teams ? (this.rules.teams[i] ?? i % 2) : i;
   }
 
   /** 手柄的偶发动作：召唤 = 摔死还没复活的队友立刻从你身上掉出来。 */
@@ -812,10 +923,13 @@ export class Sim {
     for (const p of this.players) {
       const act = p.pendingAct;
       p.pendingAct = null;
-      if (!act || p.dead || act !== 'summon') continue;
+      if (!act || p.dead || p.done || act !== 'summon') continue;
+      // 坐不住摔了就出局；比谁先各跑各的没有队友可以拉
+      if (this.rules.mode === 'last' || (this.rules.mode === 'race' && !this.rules.teams)) continue;
       const who: number[] = [];
       for (const q of this.players) {
-        if (!q.dead) continue;
+        if (!q.dead || q.done) continue;
+        if (this.rules.mode === 'race' && this.teamOf(q.id) !== this.teamOf(p.id)) continue;
         this.teleport(q.id, p.body.x, p.body.y - CFG.bodyR * 2);
         q.face = 'idle';
         who.push(q.id);
@@ -1044,6 +1158,8 @@ export class Sim {
 
   private lifeAndDeath(dt: number): void {
     for (const p of this.players) {
+      // 到了终点的人停在那，不会再死
+      if (p.done) continue;
       if (!p.dead && p.body.y > this.level.deathY) this.kill(p, 'fall', p.body);
       if (!p.dead) {
         const hit = this.hazardHit(p);
@@ -1051,6 +1167,11 @@ export class Sim {
       }
       if (p.dead) {
         p.deadT += dt;
+        // 坐不住：出局了不复活；一秒后把人挪到画面下面停好（不然一直往下掉）
+        if (p.out) {
+          if (p.deadT >= CFG.respawnDelay && !this.parked.has(p.id)) this.park(p);
+          continue;
+        }
         if (p.deadT >= CFG.respawnDelay) {
           const s = this.respawnPoint(p.id);
           this.teleport(p.id, s.x, s.y);
@@ -1061,12 +1182,28 @@ export class Sim {
     }
   }
 
+  /** 坐不住出局的人：挪到死线下面，身体钉住（胳膊挂着），不再算。 */
+  private park(p: Player): void {
+    const deadT = p.deadT;
+    this.teleport(p.id, p.body.x, this.level.deathY + 400);
+    p.dead = true;
+    p.deadT = deadT;
+    p.rb.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+    this.parked.add(p.id);
+  }
+
   /** 死了：记一次，被队友刚松开的算他背叛，松开所有手（自己的和抓着自己的）。 */
   private kill(p: Player, cause: DeathCause, at: Pt): void {
     p.dead = true;
     p.deadT = 0;
     p.deaths++;
     p.face = 'scream';
+    if (this.rules.mode === 'last' && !p.out) {
+      p.out = true;
+      p.endT = this.time;
+      this.outOrder.push(p.id);
+      this.events.push({ type: 'out', player: p.id });
+    }
     this.events.push(cause === 'fall' ? { type: 'death', player: p.id, x: at.x, y: at.y } : { type: 'death', player: p.id, x: at.x, y: at.y, cause });
     const held = p.heldBy;
     p.heldBy = null;
@@ -1082,6 +1219,20 @@ export class Sim {
 
   private checkpoints(): void {
     const cps = this.level.checkpoints ?? [];
+    if (this.rules.mode === 'race') {
+      // 比谁先：每个人（分队时每队）自己的检查点；灯按跑得最远的亮
+      for (const p of this.players) {
+        if (p.dead || p.done) continue;
+        const key = this.teamOf(p.id);
+        for (let j = (this.cpOf[key] ?? -1) + 1; j < cps.length; j++) {
+          if (dist(p.body, cps[j] as Pt) >= CFG.checkpointR) continue;
+          this.cpOf[key] = j;
+          this.checkpoint = Math.max(this.checkpoint, j);
+          this.events.push({ type: 'checkpoint', index: j, player: p.id });
+        }
+      }
+      return;
+    }
     for (let j = this.checkpoint + 1; j < cps.length; j++) {
       const cp = cps[j] as Pt;
       if (this.players.some((p) => !p.dead && dist(p.body, cp) < CFG.checkpointR)) {
@@ -1091,22 +1242,88 @@ export class Sim {
     }
   }
 
-  private checkWin(): void {
+  /** 这一局完了没有：闯关、大团队是大家都到终点；比谁先、坐不住见下面。 */
+  private checkEnd(): void {
     if (this.won || this.players.length === 0) return;
-    const g = this.level.goal;
-    const allIn = this.players.every(
-      (p) => !p.dead && p.body.x > g.x && p.body.x < g.x + g.w && p.body.y > g.y && p.body.y < g.y + g.h,
-    );
+    if (this.rules.mode === 'race') return this.checkRace();
+    if (this.rules.mode === 'last') return this.checkLast();
+    const allIn = this.players.every((p) => !p.dead && this.inGoal(p));
     if (allIn) {
       this.won = true;
       this.winT = 0;
+      this.winners = this.players.map((p) => p.id);
       this.events.push({ type: 'win' });
       for (const p of this.players) p.face = 'win';
     }
   }
 
+  private inGoal(p: Player): boolean {
+    const g = this.level.goal;
+    return p.body.x > g.x && p.body.x < g.x + g.w && p.body.y > g.y && p.body.y < g.y + g.h;
+  }
+
+  /**
+   * 比谁先：进了终点的人停在终点里。各跑各的：只剩一个人没到、或者第一个到了以后过了 raceGrace 秒就完，
+   * 第一个到的赢；分队：哪一队的人都到了就完，那一队赢。
+   */
+  private checkRace(): void {
+    for (const p of this.players) if (!p.dead && !p.done && this.inGoal(p)) this.finish(p);
+    if (this.rules.teams) {
+      for (const team of [0, 1]) {
+        const members = this.players.filter((p) => this.teamOf(p.id) === team);
+        if (members.length && members.every((p) => p.done)) return this.end(members.map((p) => p.id));
+      }
+      return;
+    }
+    const first = this.finishOrder[0];
+    if (first === undefined) return;
+    const n = this.players.length;
+    const done = this.finishOrder.length;
+    const since = this.time - (this.players[first]?.endT ?? this.time);
+    if (done >= n || (n >= 2 && done >= n - 1) || since >= CFG.raceGrace) this.end([first]);
+  }
+
+  /** 到终点了：记名次，搬进终点里排好，身体钉住（胳膊挂着），不再动、不会死。 */
+  private finish(p: Player): void {
+    p.done = true;
+    p.endT = this.time;
+    this.finishOrder.push(p.id);
+    const place = this.finishOrder.length;
+    const g = this.level.goal;
+    const k = place - 1;
+    const x = g.x + Math.min(g.w - CFG.bodyR, CFG.bodyR + (k % 3) * 40);
+    const y = g.y + g.h - CFG.bodyR - 6 - Math.floor(k / 3) * 46;
+    this.teleport(p.id, x, y);
+    p.rb.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+    p.face = 'win';
+    this.events.push({ type: 'finish', player: p.id, place });
+  }
+
+  /** 坐不住：只剩一个人挂着就是他赢；最后几个同时掉下去算平局（都赢）；一个人玩的摔了就完。 */
+  private checkLast(): void {
+    const n = this.players.length;
+    const alive = this.players.filter((p) => !p.dead);
+    if (n >= 2 && alive.length === 1) return this.end([(alive[0] as Player).id]);
+    if (alive.length === 0) {
+      const lastT = Math.max(...this.players.map((p) => p.endT ?? -1));
+      this.end(n >= 2 ? this.players.filter((p) => p.endT === lastT).map((p) => p.id) : []);
+    }
+  }
+
+  private end(who: number[]): void {
+    this.won = true;
+    this.winT = 0;
+    this.winners = who;
+    this.events.push({ type: 'win', who });
+    for (const i of who) {
+      const p = this.players[i];
+      if (p) p.face = 'win';
+    }
+  }
+
   private updateFace(p: Player): void {
-    if (this.won) {
+    // 赢了的、到了终点的笑；比谁先、坐不住没赢的照常
+    if ((this.won && (this.rules.mode === 'climb' || this.rules.mode === 'team' || this.winners.includes(p.id))) || p.done) {
       p.face = 'win';
       return;
     }
@@ -1153,7 +1370,7 @@ export function chainPose(shoulder: Pt, hand: Pt): { centers: Pt[]; angles: numb
 }
 
 /** 建一局：初始化 Rapier，然后按关卡搭世界、放 nPlayers 个人在起点。 */
-export async function createSim(level: Level, nPlayers = 1): Promise<Sim> {
+export async function createSim(level: Level, nPlayers = 1, rules: Rules = CLIMB): Promise<Sim> {
   await initPhysics();
-  return new Sim(level, nPlayers);
+  return new Sim(level, nPlayers, rules);
 }

@@ -35,8 +35,8 @@ interface NoiseOpts {
 }
 
 const MUTE_KEY = 'hang-on:mute';
-/** 每个玩家尖叫的基频：四个人四个嗓子。 */
-const SCREAM_HZ = [520, 400, 640, 340];
+/** 每个玩家尖叫的基频：六个人六个嗓子。 */
+const SCREAM_HZ = [520, 400, 640, 340, 580, 460];
 
 class Sfx {
   private ctx: AudioContext | null = null;
@@ -204,6 +204,24 @@ class Sfx {
         }
         case 'betrayal':
           this.ooh();
+          break;
+        case 'finish': {
+          // 比谁先：有人到了，亮一声（第一个到的高一点）
+          const up = ev.place === 1 ? 1.25 : 1;
+          this.tone({ freq: 784 * up, wave: 'sine', dur: 0.18, vol: 0.3 });
+          this.tone({ freq: 1046 * up, wave: 'triangle', dur: 0.4, vol: 0.22, delay: 0.1 });
+          break;
+        }
+        case 'crumble': {
+          // 塌了：一串碎响加一声闷的
+          const pan = this.pan(ev.x + ev.w / 2, ev.y);
+          for (let k = 0; k < 5; k++) this.noise({ dur: 0.08, vol: 0.2, filter: { type: 'lowpass', freq: 1600 - k * 220 }, pan, delay: k * 0.045 });
+          this.tone({ freq: 90, to: 55, wave: 'sine', dur: 0.25, vol: 0.3, pan });
+          break;
+        }
+        case 'slip':
+          // 坐不住：手滑了，吱一下
+          this.tone({ freq: 1100, to: 420, wave: 'sine', dur: 0.12, vol: 0.22 });
           break;
         case 'win':
           this.fanfare();
@@ -403,6 +421,9 @@ export function heardBy(ev: SimEvent, me: number): boolean {
       return ev.by === me || ev.victim === me;
     case 'summon':
       return ev.player === me || ev.who.includes(me);
+    // 比谁先有人到了：大家都听得见
+    case 'finish':
+      return true;
     default:
       return !('player' in ev) || ev.player === me;
   }
