@@ -156,7 +156,7 @@
 - 第二期，一步一个 PR，按这个顺序：
   1. 改动的规则和测试（做完了，2026-11-13）。
   2. 服务器 `tools/split/`（做完了，2026-11-13；还没接上 Cloudflare）。
-  3. 接上 Cloudflare（下一步，等 Steve 点头）：新建 Worker `split`，接上 GitHub 仓库，根目录填 `tools/split`；它只接 changle.ca/split/api，路由已经写在 `wrangler.jsonc` 里。不花钱（免费额度内），但是改 Cloudflare 设置：做之前跟 Steve 说一声，用他的电脑点（约时间 11-13 刚这样接过，照 `docs/briefs/when.md`）。同时加共用文件里自己的那几行（`sw.template.js`、`vite.config.ts`、`robots.txt`、`HANDOFF.md`）。
+  3. 接上 Cloudflare（下一步，等 Steve 点头）：新建 Worker `split`，接上 GitHub 仓库，根目录填 `tools/split`；它只接 changle.ca/split/api，路由已经写在 `wrangler.jsonc` 里。照约时间的做法（`docs/briefs/when.md` 里 2026-11-12 晚那一条）：用 Claude 桌面应用自带的浏览器进 Cloudflare；根目录 `/tools/split`，不用构建命令，部署命令 `npx wrangler deploy`，分支 `main`，不建预览。盯的路径要写三处：`tools/split/*`、`site/src/split/*`、`site/src/tools/money.ts`。服务器是拿手机那份规矩一起打包的，只盯自己的文件夹的话，改了 `changes.ts` 以后网站上线了、服务器却还是旧的，两边就对不上。Cloudflare 要是让重新登录，停下来请 Steve 自己登。不花钱（免费额度内），但是改 Cloudflare 设置：做之前跟 Steve 说一声，用他的电脑点（约时间 11-13 刚这样接过，照 `docs/briefs/when.md`）。同时加共用文件里自己的那几行（`sw.template.js`、`vite.config.ts`、`robots.txt`、`HANDOFF.md`）。
   4. 手机这边：账本从服务器来，手机上那份变成副本；没发出去的改动排队，有信号就发；别人记了账马上看到；哪一笔没存上要说出来。
   5. 链接加入：点开链接在名单里选自己，名单里没有就加上；开账本的人能换链接、锁账本。
   6. 登录了才能开账本，「我的账本」跟着账号走（每个账号一个对象；向房间服务器的 `/api/me` 认人，照 `docs/briefs/tuan.md` 查过的做法）。每个账号每天最多开 10 个。
