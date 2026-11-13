@@ -53,6 +53,10 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
   ice: { zh: '滑', en: 'Slippery' },
   combine: { zh: '全套', en: 'Everything' },
   all: { zh: '全套', en: 'Everything' },
+  // 大团队的大关（C9）
+  longchain: { zh: '三个人以上连成一串', en: 'A chain of three or more' },
+  counterweight: { zh: '几个人一起压', en: 'Weigh it down together' },
+  relay: { zh: '一个个递上去', en: 'Pass each other up' },
 };
 
 /** 难关（13 号往后）难在哪：大厅里显示「难关：…」。 */

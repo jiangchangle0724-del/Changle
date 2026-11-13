@@ -72,7 +72,7 @@
 - A4 手柄页剩下的：两摇杆设置、首包 ≤ 50 KB 的验证（现在 JS 约 15 KB，gzip 6 KB）。
 - 手机局 #372 已上线（11-12）。要 Steve 真机试：一部手机开 changle.ca/hang-on，两三部扫码进来，看画面顺不顺、自己那个人跟手不跟手（手机局里自己的动作要转一圈回来，比电视局多约 50 到 100 ms）、几部手机一起放声音吵不吵、房主手机热不热。手机局目前要点首页卡上的「电视或电脑当舞台」→「就用这台设备当舞台」才进（见「交给别的对话」）。
 - A6（机关）#403 11-12 合并上线（线上看过 proto-02、proto-03 两个样板关）。C8 的卡 11-12 由 Claude 控制电脑发给了 Codex（在它做「扩展 Hang On 第二版关卡」那个对话里接着做）。验收器已经认难关和按人数的回放（`npm run levels` 最后一行 `12/12 base + N/12 hard`），C8 不用改它。C8 合并后，首页卡的说明（registry 里这个游戏那一条，中英文都写着 12 关）改成 24 关。
-- A7（6 个人和选模式）：PR #413（分支 `claude/ho-six-modes`）。还剩：① 首页卡的人数（registry 里这个游戏那一条：`maxPlayers` 改 6，说明里的「1 到 4 个人」改成 6、加一句能选比谁先和坐不住），要单独开 PR、加 `update-screenshots` 标签（首页的卡写着人数，截图会变）；② C9 的卡（大团队的大关 `levels/team/*.json`，4、5、6 个人各一份回放；也可以多做几个坐不住的场地）和验收器对大关的规则（读 `levels/team/`，`TESTED_PLAYERS` 对大关是 4 到 6）；③ 场地现在写在代码里（`src/physics/arenas.ts`），要让 Codex 加场地就先挪成 JSON。
+- A7（6 个人和选模式）：PR #413（分支 `claude/ho-six-modes`）。还剩：① 首页卡的人数（registry 里这个游戏那一条：`maxPlayers` 改 6，说明里的「1 到 4 个人」改成 6、加一句能选比谁先和坐不住），要单独开 PR、加 `update-screenshots` 标签（首页的卡写着人数，截图会变）；② C9 的卡写好了（`docs/codex-tasks/hang-on/ho-C9-team-levels.md`：6 个大关 `levels/team/team-01…06.json`，4、5、6 个人各一份回放，验收器里大关那一段也由 Codex 照卡加），A7 合并后发给 Codex（可以和 C8 同时做，文件不重叠）；大厅里「这关教」的三个新词（longchain、counterweight、relay）已经在 `src/levels.ts`；③ 场地现在写在代码里（`src/physics/arenas.ts`），要让 Codex 加场地就先挪成 JSON。
 - A2 的已知简化：玩的中途有座位被踢，玩家下标会整体前移（大厅里会重排）；观众（role=watch）只计数，没有页面。
 - 温哥华世界的音效和年夜饭桌一套，只换了掉水的声音；以后可以分。
 
