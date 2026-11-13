@@ -1,0 +1,21 @@
+// Cloudflare settings for 两清 · All Square's server: its own Worker, answering only
+// changle.ca/split/api. (The pages at changle.ca/split are the main site's own, in site/src/split.)
+// A merge into main publishes it once Cloudflare is connected to the repository. No secrets.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "split",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-01",
+  // With routes set, wrangler leaves the workers.dev address off, so this is its only address.
+  "routes": [{ "pattern": "changle.ca/split/api/*", "zone_name": "changle.ca" }],
+  // One ledger, one Durable Object; and one small one per network for the daily allowance.
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEDGERS", "class_name": "LedgerDO" },
+      { "name": "GATES", "class_name": "GateDO" }
+    ]
+  },
+  // SQLite-backed Durable Objects work on Cloudflare's free plan.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LedgerDO", "GateDO"] }],
+  "observability": { "enabled": true }
+}

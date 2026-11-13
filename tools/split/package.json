@@ -1,0 +1,21 @@
+{
+  "name": "split",
+  "version": "0.1.0",
+  "private": true,
+  "description": "两清 · All Square: the server behind changle.ca/split (ledgers shared between phones)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/room.test.ts",
+    "test:server": "tsx --test tests/server.test.ts",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261019.1",
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "6.0.2",
+    "wrangler": "4.151.2"
+  }
+}

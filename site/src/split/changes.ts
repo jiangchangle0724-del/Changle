@@ -105,11 +105,14 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
  */
 export type Took = "new" | "seen" | "nothing";
 
+/** The ids of the changes a ledger has been sent. A Set is one; the server keeps its own in a table. */
+export type Seen = { has(id: string): boolean; add(id: string): unknown };
+
 /**
  * The server's side: take one change. `seen` holds the id of every change this ledger has been
  * sent, whatever became of it, and this adds to it.
  */
-export function accept(l: Ledger, seen: Set<string>, sent: Sent): { ledger: Ledger; took: Took } {
+export function accept(l: Ledger, seen: Seen, sent: Sent): { ledger: Ledger; took: Took } {
   if (seen.has(sent.id)) return { ledger: l, took: "seen" };
   seen.add(sent.id);
   const next = applyChange(l, sent.change);

@@ -1,0 +1,36 @@
+# Runs every time 两清 · All Square's server changes: types, the room (unit tests), and the Worker
+# itself on Cloudflare's own runtime (wrangler dev). The server takes a change by the phone's own
+# rules (site/src/split), so it runs when those change too.
+name: split
+
+on:
+  push:
+    branches: [main]
+    paths: ["tools/split/**", ".github/workflows/split.yml", "site/src/split/**", "site/src/tools/money.ts"]
+  pull_request:
+    paths: ["tools/split/**", ".github/workflows/split.yml", "site/src/split/**", "site/src/tools/money.ts"]
+
+# One run per change: a branch's pushes are checked through its pull request, and main after each
+# merge. A newer push to the same pull request stops the older run (HANDOFF.md, CI).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/split
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/split/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:server
