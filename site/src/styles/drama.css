@@ -810,6 +810,10 @@ li.is-ready .dm-roster-state {
   color: var(--stop);
   animation: dm-pulse 1s ease-in-out infinite;
 }
+/* minutes and seconds (5:00): four characters in the same ring */
+.dm-clock.is-long span {
+  font-size: var(--text-md);
+}
 @keyframes dm-pulse {
   50% {
     transform: scale(1.15);
