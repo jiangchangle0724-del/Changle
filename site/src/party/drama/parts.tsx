@@ -889,6 +889,21 @@ export function readHeadline(stars: number, zh: boolean): string {
   return zh ? "没过关……" : "Not this time…";
 }
 
+/** A reading nobody here could rate (one person at the table): the applause is the verdict. */
+export function quietRead(zh: boolean): string {
+  return zh ? "读完了，掌声送给你！" : "That's the reading. Take a bow!";
+}
+
+/**
+ * Why a reveal counts nothing. `crowd`: one person at the table, so nobody could vote (a monologue
+ * the room guessed out loud, or a reading); otherwise nobody voted or gave stars in time.
+ */
+export function quietNote(mode: DramaView["mode"], crowd: boolean, zh: boolean): string {
+  if (mode === "read") return crowd ? (zh ? "一个人读，不打星也不计分" : "Reading on your own: no stars, no points") : zh ? "没人打星，这一幕不计分" : "Nobody gave stars: no points this act";
+  if (crowd) return zh ? "大家是喊着猜的，这一幕不计分" : "The room guessed out loud: no points this act";
+  return zh ? "没人投票，这一幕不计分" : "Nobody voted: no points this act";
+}
+
 /** The bar a reading had to clear. */
 export function readBar(stars: number, zh: boolean): string {
   return zh ? `平均 ${stars.toFixed(1)} 星，${READ_PASS} 星过关` : `${stars.toFixed(1)} stars on average; ${READ_PASS} to pass`;
@@ -916,7 +931,8 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
       window.setTimeout(() => {
         setStep(1);
         dramaSfx.spotlight();
-        if (v.mode === "show") dramaSfx.culprit(r.caught);
+        // (no votes to count: nobody was caught or fooled, the truth just comes out)
+        if (v.mode === "show" && !r.quiet) dramaSfx.culprit(r.caught);
         else sfx.versus();
       }, 1600),
       window.setTimeout(() => {
@@ -947,12 +963,18 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
         ? "谁演得更像？"
         : "Who sold it?"
       : v.mode === "read"
-        ? readHeadline(readStars, zh)
+        ? r.quiet
+          ? quietRead(zh)
+          : readHeadline(readStars, zh)
       : v.mode === "classic"
         ? zh
           ? "谁最像原版？"
           : "Who nailed it?"
-        : r.caught
+        : r.quiet && options
+        ? zh
+          ? "猜对了吗？"
+          : "Did you get it right?"
+        : r.caught || r.quiet
         ? options
           ? zh
             ? "秘密被猜中了！"
@@ -975,7 +997,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
         <Cast actors={actors} culprit={step >= 1 && v.mode === "show" && !options ? r.culprit : null} best={step >= 3 ? r.best : []} />
       </Backdrop>
       <div className="dm-verdict" data-step={step}>
-        {step === 0 ? (
+        {step === 0 && !(r.quiet && v.mode === "read") ? (
           <p className="dm-drum">{v.mode === "read" ? (zh ? "评委打分中……" : "The judges are scoring…") : zh ? "真相是……" : "And the truth is…"}</p>
         ) : (
           <h2 className={`dm-headline ${r.caught || (v.mode === "read" && readStars >= READ_PASS) ? "is-caught" : ""}`}>{headline}</h2>
@@ -991,12 +1013,12 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
                   {tx(o)}
                   {r.answer === i && <strong>{zh ? "（真的）" : " (the real one)"}</strong>}
                 </span>
-                <small className="tabular">{zh ? `${r.counts[String(i)] ?? 0} 票` : `${r.counts[String(i)] ?? 0} ${r.counts[String(i)] === 1 ? "vote" : "votes"}`}</small>
+                {!r.quiet && <small className="tabular">{zh ? `${r.counts[String(i)] ?? 0} 票` : `${r.counts[String(i)] ?? 0} ${r.counts[String(i)] === 1 ? "vote" : "votes"}`}</small>}
               </li>
             ))}
           </ol>
         )}
-        {step >= 1 && v.mode === "show" && !options && (
+        {step >= 1 && v.mode === "show" && !options && !r.quiet && (
           <p className="hint dm-count">
             {actors.map((a) => `${a.name} ${r.counts[a.pid] ?? 0}${zh ? " 票" : ""}`).join(zh ? "，" : " · ")}
             {!zh && " votes"}
@@ -1029,10 +1051,12 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
                     </span>
                   )}
                 </span>
-                <span className="dm-truth-stars tabular" aria-label={zh ? `平均 ${st} 星` : `${st} stars on average`}>
-                  <Star size={16} strokeWidth={2.4} />
-                  {step >= 3 ? st.toFixed(1) : "?"}
-                </span>
+                {!r.quiet && (
+                  <span className="dm-truth-stars tabular" aria-label={zh ? `平均 ${st} 星` : `${st} stars on average`}>
+                    <Star size={16} strokeWidth={2.4} />
+                    {step >= 3 ? st.toFixed(1) : "?"}
+                  </span>
+                )}
               </li>
             );
           })}
@@ -1047,7 +1071,8 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
               <strong>{actors.filter((a) => r.best.includes(a.pid)).map((a) => a.name).join(zh ? "、" : ", ")}</strong>
             </p>
           )}
-          {v.mode === "show" && (
+          {r.quiet && <p className="hint">{quietNote(v.mode, !!v.crowd, zh)}</p>}
+          {v.mode === "show" && !r.quiet && (
             <p className="hint">
               {r.right.length
                 ? zh
@@ -1278,6 +1303,7 @@ export function Rules() {
       <p>每一幕开始前，每个人选「我要上台」「都行」或「我只看」。剧本按上台的人数来分，一个人到八个人都有；没人报名时，从选「都行」的人里随机抽几个上台。</p>
       <p>每个演员会拿到一张只有自己能看的身份牌：自己的角色、一个小秘密和一个秘密任务。其中一个人偷偷是「坏人」（小三、凶手、内鬼……），他的牌上写着他干了什么。一个人上台时是独角戏：台上的人藏着三个秘密里的一个，观众猜是哪一个。</p>
       <p>演到一半会弹出一个剧情反转。演完以后，观众先猜谁是坏人，再给每个演员的演技打 1 到 5 星。没人当观众时，演员互相猜、互相打星，不能投自己。</p>
+      <p>人少也能玩：桌上不到三个人时，每一幕都是独角戏，一个人演，其他人猜。只有一个人时只演独角戏和朗读，屋里的人一起喊答案，主人点揭晓，不计分。</p>
       <p>计分：猜对 +1；没被多数人认出来的坏人 +3；每个演员加平均星数。受罚：星最少的演员；坏人被认出来就一起罚，没被认出来，被他骗了的观众受罚。星最多的拿下本幕最佳演员。</p>
       <p>演技 PK：两个人用不同的状态说同一句台词，观众打分，分低的受罚。</p>
       <p>剧本背景：主人可以选几个人群（中国、加拿大、南亚、菲律宾……），选了的人群的剧本先演，不够时用通用的补。</p>
@@ -1289,6 +1315,7 @@ export function Rules() {
       <p>Before each act, everyone picks “I'll act”, “Either way” or “Just watching”. The scene fits however many go up, from one to eight; with no volunteers, a few of the “Either way” crowd go up at random.</p>
       <p>Every actor gets a private card: their role, a little secret and a secret task. One of them is secretly the culprit (the homewrecker, the killer, the mole...), and their card says what they did. With one on stage, it's a monologue: the actor is hiding one of three secrets, and the audience guesses which.</p>
       <p>Halfway through, a plot twist lands. When the scene ends, the audience guesses the culprit, then gives every actor 1 to 5 stars. With nobody watching, the actors guess and rate each other, never themselves.</p>
+      <p>A small table works too: with fewer than three, every act is a monologue, one acting and the rest guessing. On your own you play monologues and readings: the room shouts its guesses, the host reveals the answer, and nobody scores.</p>
       <p>Points: a right guess +1; a culprit most people miss +3; every actor gets their average stars. Penalty: the actor with the fewest stars, plus the culprit if caught, or everyone the culprit fooled if not. Most stars wins best actor.</p>
       <p>Acting duel: two players say the same line in two different states; the audience scores, and the lower score pays.</p>
       <p>Whose stories: the host can pick some of the communities (Chinese, Canadian, South Asian, Filipino...). Their scenes come first, and everyone's fill in when they run out.</p>

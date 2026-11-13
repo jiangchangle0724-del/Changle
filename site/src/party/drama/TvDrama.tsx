@@ -14,7 +14,7 @@ import type { DramaView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
 import { Bi, FacesIn, RoundTag, TvClock, TvPodium, TvShow, useArrivals, useConfetti, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
-import { Backdrop, Cast, Curtain, MaskArt, MiniMask, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
+import { Backdrop, Cast, Curtain, MaskArt, MiniMask, quietNote, quietRead, readBar, readHeadline, stageOf, TrophyArt, TwistBanner, type Actor } from "./parts";
 import { useDramaMusic } from "./score";
 import { dramaSfx } from "./sound";
 import "../../styles/drama.css";
@@ -108,7 +108,8 @@ function Theatre({ v, actors, sound }: { v: DramaView; actors: Actor[]; sound: b
     if (!reveal || !r || step === 0) return;
     if (step === 1 && sound) {
       dramaSfx.spotlight();
-      if (show) dramaSfx.culprit(r.caught);
+      // (no votes to count: nobody was caught or fooled, the truth just comes out)
+      if (show && !r.quiet) dramaSfx.culprit(r.caught);
       else sfx.versus();
     }
     if (step === 2 && sound) sfx.flip();
@@ -191,6 +192,8 @@ function Slate({ sound }: { sound: boolean }) {
 function Setup({ v }: { v: DramaView }) {
   const { zh } = useLang();
   const pen = usePenaltyText();
+  // one person at the table: monologues and readings, the room guessing out loud
+  const alone = useSeats().players.length === 1;
   return (
     <>
       <div className="tvd-theatre is-setup">
@@ -246,6 +249,11 @@ function Setup({ v }: { v: DramaView }) {
               ? "几个人上台演一段狗血剧，其中一个偷偷是坏人。观众猜是谁，再给演技打星。"
               : "A few players act a soap opera; one of them is secretly the culprit. The audience guesses who, then stars the acting."}
         </p>
+        {alone && (
+          <p className="tvd-note">
+            {zh ? "一个人也能演：独角戏或者朗读。大家看着大屏幕一起喊答案，不计分。" : "One person can play too: monologues or readings. Everyone shouts the answer at the screen; no points."}
+          </p>
+        )}
         <p className="tvd-wait">{zh ? "等主人开演" : "Waiting for the host to raise the curtain"}</p>
       </aside>
     </>
@@ -499,6 +507,23 @@ function Vote({ v, sound }: { v: DramaView; sound: boolean }) {
   const { zh, tr } = useLang();
   const { seat, players } = useSeats();
   useArrivals(v.voted, sound);
+  // nobody at the table can vote (one person, on stage): the room shouts, the host's phone reveals
+  if (v.crowd)
+    return (
+      <aside className="tvd-side tvd-ballot">
+        <h1 className="tvd-ask">
+          <Bi t={{ zh: "大家一起喊", en: "Shout it out" }} />
+        </h1>
+        {v.scene && (
+          <p className="tvd-q">
+            <MiniMask />
+            {tr(v.scene.ask)}
+          </p>
+        )}
+        {v.options && <SecretList v={v} />}
+        <p className="tvd-q">{zh ? "猜好了，在手机上点揭晓" : "Then reveal it on the phone"}</p>
+      </aside>
+    );
   // the audience votes; with nobody watching, the actors vote on each other
   const audience = v.peer ? players.filter((s) => v.cast.some((c) => c.pid === s.id)) : players.filter((s) => !v.cast.some((c) => c.pid === s.id));
   const voted = audience.filter((s) => v.voted.includes(s.id));
@@ -558,12 +583,18 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
         ? "谁演得更像？"
         : "Who sold it?"
       : v.mode === "read"
-        ? readHeadline(readStars, zh)
+        ? r.quiet
+          ? quietRead(zh)
+          : readHeadline(readStars, zh)
       : v.mode === "classic"
         ? zh
           ? "谁最像原版？"
           : "Who nailed it?"
-        : r.caught
+        : r.quiet && v.options
+        ? zh
+          ? "猜对了吗？"
+          : "Did you get it right?"
+        : r.caught || r.quiet
         ? v.options
           ? zh
             ? "秘密被猜中了！"
@@ -580,7 +611,7 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
             : `${culprit?.name ?? "They"} fooled everyone!`;
   return (
     <div className="tvd-verdict" data-step={step}>
-      {step === 0 ? (
+      {step === 0 && !(r.quiet && v.mode === "read") ? (
         <p className="tvd-drum">{v.mode === "read" ? (zh ? "评委打分中……" : "The judges are scoring…") : zh ? "真相是……" : "And the truth is…"}</p>
       ) : (
         <h2 className={`tvd-headline ${r.caught || (v.mode === "read" && readStars >= READ_PASS) ? "is-caught" : ""}`}>{headline}</h2>
@@ -595,8 +626,8 @@ function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
   const step = useSteps([1.6, 2.9, 3.9], `${v.round}-${v.scene?.id ?? v.classic?.id ?? v.read?.id ?? v.pk?.line.zh}`);
   return (
     <aside className="tvd-side tvd-truths">
-      {step >= 1 && v.mode === "show" && v.options && <SecretList v={v} counts={r.counts} answer={r.answer ?? null} />}
-      {step >= 1 && v.mode === "show" && !v.options && (
+      {step >= 1 && v.mode === "show" && v.options && <SecretList v={v} counts={r.quiet ? undefined : r.counts} answer={r.answer ?? null} />}
+      {step >= 1 && v.mode === "show" && !v.options && !r.quiet && (
         <p className="tvd-counts">
           {actors.map((a) => (
             <span key={a.pid}>
@@ -633,16 +664,18 @@ function Truths({ v, actors }: { v: DramaView; actors: Actor[] }) {
                     </span>
                   )}
                 </span>
-                <span className="tvd-card-stars tabular">
-                  <Star size={24} strokeWidth={2.4} />
-                  {step >= 3 ? st.toFixed(1) : "?"}
-                </span>
+                {!r.quiet && (
+                  <span className="tvd-card-stars tabular">
+                    <Star size={24} strokeWidth={2.4} />
+                    {step >= 3 ? st.toFixed(1) : "?"}
+                  </span>
+                )}
               </li>
             );
           })}
         </ul>
       ) : (
-        <p className="tvd-wait">{v.mode === "show" ? (zh ? "每个人的牌马上翻开" : "Every card turns over in a moment") : zh ? "星星马上揭晓" : "The stars are coming up"}</p>
+        <p className="tvd-wait">{v.mode === "show" ? (zh ? "每个人的牌马上翻开" : "Every card turns over in a moment") : r.quiet ? (zh ? "这一幕不打星" : "No stars this act") : zh ? "星星马上揭晓" : "The stars are coming up"}</p>
       )}
       {step >= 3 && <Outcome v={v} actors={actors} />}
     </aside>
@@ -662,7 +695,13 @@ function Outcome({ v, actors }: { v: DramaView; actors: Actor[] }) {
         <strong>{best.map((a) => a.name).join(zh ? "、" : ", ")}</strong>
       </p>,
     );
-  if (v.mode === "show")
+  if (r.quiet)
+    lines.push(
+      <p key="quiet" className="tvd-note">
+        {quietNote(v.mode, !!v.crowd, zh)}
+      </p>,
+    );
+  else if (v.mode === "show")
     lines.push(
       <p key="right" className="tvd-note">
         {r.right.length ? (zh ? `猜对的 ${r.right.length} 人，每人 +1` : `${r.right.length} guessed right: +1 each`) : zh ? "没有人猜对" : "Nobody guessed right"}
