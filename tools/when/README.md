@@ -106,9 +106,16 @@ shade and the text on it is 5.4:1 or better (2026-11-12).
 
 ## Live
 
-Not yet. It goes live when Steve connects it in Cloudflare (a settings change, so it is his to
-make): Workers & Pages, create a Worker named `when` from this repository (Workers Builds) with
-**root directory** `tools/when`, build command `npm run build`, deploy command
-`npx wrangler deploy`, production branch `main`, build watch path `tools/when/*`. The routes
-(changle.ca/when and changle.ca/when/*) and the two Durable Objects are in `wrangler.jsonc`; there
-are no secrets. After that, merging into `main` deploys it.
+Since 2026-11-12, at changle.ca/when. Merging a change to `tools/when/*` into `main` deploys it:
+the Worker `when` is connected to this repository in Cloudflare (Workers Builds) with **root
+directory** `/tools/when`, build command `npm run build`, deploy command `npx wrangler deploy`,
+production branch `main`, build watch path `tools/when/*`, preview builds off, and the build token
+随便 also uses. The routes (changle.ca/when and changle.ca/when/*) and the two Durable Objects
+are in `wrangler.jsonc`; there are no secrets. The build shows up as the check
+"Workers Builds: when" on the merge commit.
+
+Cloudflare adds two scripts of its own to every page of changle.ca: its bot check (inline) and its
+visitor statistics (from static.cloudflareinsights.com). These pages only run their own files
+(the `Content-Security-Policy` header in `src/server/worker.ts`), so the browser turns both away:
+two lines in the console, nothing a person notices, and Cloudflare's Web Analytics doesn't count
+these pages (the Worker's own request numbers do).
