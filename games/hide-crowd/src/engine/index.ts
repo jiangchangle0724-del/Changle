@@ -8,9 +8,12 @@
 // busker, the opera gong): the passers-by stop and look, or dance on the spot, and a player who
 // doesn't stands out. Anyone knocked down draws the looks of the people near them for a second or
 // two. A punch that lands on a rival scores; one that lands on a passer-by knocks the passer-by down
-// and stuns you. A tagged
-// player slips back into the crowd: once they get up, they swap bodies with a passer-by far away, so
-// nobody can keep hitting the same one. First to 3 tags, or the most tags after 75 s.
+// and stuns you. A tagged player slips back into the crowd: once they get up, they swap bodies with a
+// passer-by far away, so nobody can keep hitting the same one. At the night market there is a second
+// way to score (like the side quests in some places of the Steam game this one was modelled on, where
+// collecting things scores): taste the four snack stalls along the back, lingering a moment at each,
+// for 2 points. Passers-by browse the stalls too, but only a player's bite makes a stall light up for
+// everyone. First to 3 points, or the most after 75 s.
 
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
 export const MATCH_MS = 75_000;
@@ -36,12 +39,27 @@ export const BLEND_MS = 1_450;
 export const BLEND_COOLDOWN_MS = 6_000;
 /** A tagged player's new body is at least this far from whoever tagged them (when the crowd allows). */
 export const HIDE_AWAY_DISTANCE = 24;
+/** The night market's four snack stalls along the back, left to right (their middles). */
+export const STALLS: readonly number[] = [20, 40, 60, 80];
+/** In front of a stall, how far either side of its middle, and how far into the floor from the back, you can eat. */
+export const STALL_REACH = { halfWidth: 4.5, depth: 6 } as const;
+/** How long a player stands at a stall to taste it. */
+export const BITE_MS = 1_200;
+/** All four stalls tasted. */
+export const FEAST_POINTS = 2;
+const ALL_STALLS = (1 << 4) - 1;
+
+/** The stall a spot is in front of, or -1. */
+export function stallAt(x: number, y: number): number {
+  if (y > ARENA.marginY + STALL_REACH.depth) return -1;
+  return STALLS.findIndex((middle) => Math.abs(x - middle) <= STALL_REACH.halfWidth);
+}
 
 export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" | "dance";
-/** the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall, the gong at the theatre */
-export type MomentKind = "horn" | "dance" | "gong";
-export type ArenaId = "plaza" | "metro" | "gallery";
-export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery"];
+/** the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall, the gong at the theatre, the night market's fireworks */
+export type MomentKind = "horn" | "dance" | "gong" | "fireworks";
+export type ArenaId = "plaza" | "metro" | "gallery" | "market";
+export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery", "market"];
 export interface Vector { x: number; y: number }
 export interface PlayerSeed { id: string; name: string }
 
@@ -66,6 +84,13 @@ export interface Character {
   fouls: number;
   /** how many times this player punched the air this round */
   swings: number;
+  /** the night market: the stalls tasted since the last feast (one bit each), how many bites and feasts this round */
+  bites: number;
+  snacks: number;
+  feasts: number;
+  /** the stall this body is standing at to taste, and since when (-1: none) */
+  biteStall: number;
+  biteSince: number;
   pose: Pose;
   npcStyle: number;
   npcOffset: number;
@@ -88,7 +113,8 @@ export interface Character {
  * its id and how many plans it has made), so the same round always plays the same.
  */
 export interface Plan {
-  mode: "walk" | "wait" | "follow";
+  /** browse: (the night market) walk up to a stall and look it over for a while */
+  mode: "walk" | "wait" | "follow" | "browse";
   /** where it's walking to */
   x: number;
   y: number;
@@ -100,14 +126,22 @@ export interface Plan {
   /** the body it looks at (wait) or follows (follow) */
   other: string | null;
   count: number;
+  /** browse: when it reached the stall, and how long it stays */
+  arrivedAt?: number;
+  dwell?: number;
 }
 
-/** tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away; over: the round ended */
+/**
+ * tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away;
+ * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points; over: the round ended
+ */
 export interface MatchEvent {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "over";
   actor: string | null;
   target: string | null;
+  /** bite: the stall */
+  stall?: number;
 }
 
 /** Someone knocked down: where, when, and who (they don't stare at themselves). */
@@ -143,6 +177,9 @@ const IDENTITY = [
   "tagged",
   "fouls",
   "swings",
+  "bites",
+  "snacks",
+  "feasts",
   "npcStyle",
   "npcOffset",
   "attackResolveAt",
@@ -242,6 +279,11 @@ function blankCharacter(fields: Pick<Character, "id" | "ownerId" | "name" | "kin
     tagged: 0,
     fouls: 0,
     swings: 0,
+    bites: 0,
+    snacks: 0,
+    feasts: 0,
+    biteStall: -1,
+    biteSince: 0,
     pose: "idle",
     attackResolveAt: null,
     attackResolved: false,
@@ -326,8 +368,8 @@ export function characterForOwner(state: MatchState, ownerId: string): Character
   return state.characters.find((character) => character.ownerId === ownerId);
 }
 
-function addEvent(state: MatchState, t: MatchEvent["t"], actor: string | null, target: string | null): void {
-  state.events.push({ id: state.nextEventId++, t, actor, target });
+function addEvent(state: MatchState, t: MatchEvent["t"], actor: string | null, target: string | null, stall?: number): void {
+  state.events.push(stall === undefined ? { id: state.nextEventId++, t, actor, target } : { id: state.nextEventId++, t, actor, target, stall });
   if (state.events.length > 18) state.events.splice(0, state.events.length - 18);
 }
 
@@ -382,7 +424,7 @@ function clampGoal(x: number, y: number): Vector {
 /** The next thing a passer-by does, rolled with its own dice. */
 type Neighbour = Pick<Character, "id" | "x" | "y" | "velocity" | "stunnedUntil" | "plan">;
 
-export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan">, others: readonly Neighbour[], seed: number, now: number): Plan {
+export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan">, others: readonly Neighbour[], seed: number, now: number, arena: ArenaId = "plaza"): Plan {
   const previous = body.plan ?? restingPlan(body.x, body.y);
   const count = previous.count + 1;
   const random = seeded(Math.imul(seed, 7) + Math.imul(idHash(body.id), 131) + count * 7919);
@@ -409,8 +451,16 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
       return { mode: "follow", x: body.x, y: body.y, pace: 1, since: now, until: now + 2_200 + random() * 3_000, other, count };
     }
   }
-  const run = random() < 0.1;
   const [low, high] = PACES[((body.npcStyle % 3) + 3) % 3];
+  if (arena === "market" && previous.mode !== "browse" && roll < 0.66) {
+    // the night market: up to a stall, to look it over (about a third of the crowd is at one, so a player
+    // tasting has company)
+    const middle = STALLS[Math.floor(random() * STALLS.length)];
+    const x = middle + (random() * 2 - 1) * (STALL_REACH.halfWidth - 1);
+    const y = ARENA.marginY + 1.5 + random() * (STALL_REACH.depth - 2.5);
+    return { mode: "browse", x, y, pace: low + random() * (high - low), since: now, until: now + 14_000, other: null, count, dwell: 1_200 + random() * 2_600 };
+  }
+  const run = random() < 0.1;
   const angle = random() * Math.PI * 2;
   const distance = run ? 9 + random() * 10 : 10 + random() * 28;
   const goal = clampGoal(body.x + Math.cos(angle) * distance, body.y + Math.sin(angle) * distance);
@@ -425,7 +475,9 @@ const MOMENTS: Record<ArenaId, { kind: MomentKind; first: number; every: number;
   // spells, which come every 6 s: nobody dances while the floor carries them)
   metro: { kind: "dance", first: 8_800, every: 18_000, lasts: 2_700, look: null },
   // the stage, just behind the back row
-  gallery: { kind: "gong", first: 12_000, every: 17_000, lasts: 2_600, look: { x: 50, y: -6 } }
+  gallery: { kind: "gong", first: 12_000, every: 17_000, lasts: 2_600, look: { x: 50, y: -6 } },
+  // fireworks going up from behind the stalls: everyone turns round to watch
+  market: { kind: "fireworks", first: 10_000, every: 16_000, lasts: 2_800, look: { x: 50, y: -400 } }
 };
 
 export interface CrowdMoment {
@@ -502,6 +554,7 @@ export function crowdStep(
   const done = (current: Plan) => {
     if (now >= current.until) return true;
     if (current.mode === "walk") return Math.hypot(current.x - body.x, current.y - body.y) < 1.6;
+    if (current.mode === "browse") return current.arrivedAt !== undefined && now >= current.arrivedAt + (current.dwell ?? 0);
     if (current.mode === "follow") {
       const other = others.find((item) => item.id === current.other);
       // (and nobody keeps following someone who has started following someone else)
@@ -509,7 +562,20 @@ export function crowdStep(
     }
     return false;
   };
-  if (done(plan)) plan = nextPlan(body, others, game.seed, now);
+  if (done(plan)) plan = nextPlan(body, others, game.seed, now, game.arena);
+  if (plan.mode === "browse") {
+    const dx = plan.x - body.x;
+    const dy = plan.y - body.y;
+    const distance = Math.hypot(dx, dy);
+    if (plan.arrivedAt === undefined && distance > 1.4) {
+      return { plan, heading: { x: dx / (distance || 1), y: dy / (distance || 1) }, pace: plan.pace * Math.min(1, 0.45 + distance / 6), face: null, glance: false };
+    }
+    if (plan.arrivedAt === undefined) plan = { ...plan, arrivedAt: now };
+    // at the counter, looking it over (and around, now and then)
+    const middle = STALLS.reduce((best, item) => (Math.abs(item - body.x) < Math.abs(best - body.x) ? item : best), STALLS[0]);
+    const glance = now - plan.arrivedAt! > (plan.dwell ?? 0) * 0.6;
+    return { plan, heading: { x: 0, y: 0 }, pace: 0, face: glance ? null : Math.atan2(ARENA.marginY - 3 - body.y, middle - body.x), glance };
+  }
   if (plan.mode === "walk") {
     const dx = plan.x - body.x;
     const dy = plan.y - body.y;
@@ -757,6 +823,8 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     character.y = bounded(nextY, ARENA.marginY, ARENA.height - ARENA.marginY);
     if (character.x !== nextX) character.velocity.x = 0;
     if (character.y !== nextY) character.velocity.y = 0;
+    // (a player standing at a stall tastes it however the crowd jostles them: it's the stick that counts)
+    if (next.arena === "market" && character.kind === "player" && next.phase === "playing") taste(next, character, Math.hypot(vector.x, vector.y) > 0.2, now);
     if (character.attackResolveAt !== null && now < character.attackResolveAt) character.pose = "windup";
     else if (character.attackResolveAt !== null && !character.attackResolved && now >= character.attackResolveAt) {
       character.attackResolved = true;
@@ -785,6 +853,39 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
   return next;
 }
 
+/**
+ * The night market: a player standing at a stall they haven't tasted yet tastes it after a moment
+ * (the stall lights up on every screen: only a player's bite does that). All four is a feast: 2
+ * points, and they can start again.
+ */
+function taste(state: MatchState, body: Character, steering: boolean, now: number): void {
+  const stall = !steering && now >= body.stunnedUntil && body.hideAt === null ? stallAt(body.x, body.y) : -1;
+  if (stall < 0 || (body.bites ?? 0) & (1 << stall)) {
+    body.biteStall = -1;
+    return;
+  }
+  if (body.biteStall !== stall) {
+    body.biteStall = stall;
+    body.biteSince = now;
+    return;
+  }
+  if (now - body.biteSince < BITE_MS) return;
+  body.biteStall = -1;
+  body.bites = (body.bites ?? 0) | (1 << stall);
+  body.snacks = (body.snacks ?? 0) + 1;
+  addEvent(state, "bite", body.ownerId, null, stall);
+  if (body.bites !== ALL_STALLS) return;
+  body.bites = 0;
+  body.feasts = (body.feasts ?? 0) + 1;
+  body.score += FEAST_POINTS;
+  addEvent(state, "feast", body.ownerId, null);
+  if (body.score >= SCORE_TO_WIN) {
+    state.phase = "over";
+    state.winnerId = body.ownerId;
+    addEvent(state, "over", body.ownerId, null);
+  }
+}
+
 export function nextMatchWake(state: MatchState): number | null {
   if (state.phase !== "playing") return null;
   const attacks = state.characters
@@ -806,7 +907,7 @@ export interface RoundPenalty {
 }
 
 /** The round's nicknames, from what each player did (each gets one at most, the first that fits). */
-export type AwardKey = "eagleEye" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
+export type AwardKey = "eagleEye" | "foodie" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
 
 export function roundAwards(state: Pick<MatchState, "characters">): { owner: string; award: AwardKey }[] {
   const players = state.characters.filter((character) => character.kind === "player" && character.ownerId);
@@ -816,12 +917,14 @@ export function roundAwards(state: Pick<MatchState, "characters">): { owner: str
     if (top < least) return;
     for (const player of players) if (value(player) === top && !given.has(player.ownerId!)) given.set(player.ownerId!, award);
   };
-  most((player) => player.score, 1, "eagleEye");
+  // (spotting: the points from tags, not from the night market's stalls)
+  most((player) => player.score - (player.feasts ?? 0) * FEAST_POINTS, 1, "eagleEye");
+  most((player) => player.snacks ?? 0, 3, "foodie");
   for (const player of players) if (player.tagged === 0 && player.fouls === 0 && !given.has(player.ownerId!)) given.set(player.ownerId!, "ghost");
   most((player) => player.fouls, 1, "friendlyFire");
   most((player) => player.swings ?? 0, 2, "airPunch");
   most((player) => player.tagged, 2, "punchingBag");
-  const order: AwardKey[] = ["eagleEye", "ghost", "friendlyFire", "airPunch", "punchingBag"];
+  const order: AwardKey[] = ["eagleEye", "foodie", "ghost", "friendlyFire", "airPunch", "punchingBag"];
   return players
     .filter((player) => given.has(player.ownerId!))
     .map((player) => ({ owner: player.ownerId!, award: given.get(player.ownerId!)! }))

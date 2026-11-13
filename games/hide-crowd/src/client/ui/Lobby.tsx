@@ -12,13 +12,15 @@ import { HomeTip } from "./HomeScreen";
 export const ARENA_THUMBS: Record<ArenaId, string> = {
   plaza: `${BASE}/art/thumb-plaza.webp`,
   metro: `${BASE}/art/thumb-metro.webp`,
-  gallery: `${BASE}/art/thumb-gallery.webp`
+  gallery: `${BASE}/art/thumb-gallery.webp`,
+  market: `${BASE}/art/thumb-market.webp`
 };
 
-export const ARENA_RULE: Record<ArenaId, "plazaRule" | "metroRule" | "galleryRule"> = {
+export const ARENA_RULE: Record<ArenaId, "plazaRule" | "metroRule" | "galleryRule" | "marketRule"> = {
   plaza: "plazaRule",
   metro: "metroRule",
-  gallery: "galleryRule"
+  gallery: "galleryRule",
+  market: "marketRule"
 };
 
 export function ArenaVote(props: { view: RoomView; onVote?: (arena: ArenaId) => void; big?: boolean }) {

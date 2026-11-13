@@ -10,6 +10,10 @@ import {
   PLAYER_SPEED,
   COMMOTION_MS,
   COMMOTION_RADIUS,
+  BITE_MS,
+  FEAST_POINTS,
+  STALLS,
+  stallAt,
   crowdMoment,
   environmentalDrift,
   crowdSeparationVelocity,
@@ -318,8 +322,8 @@ test("passers-by wander like people: their own pace, stops, a look at someone, t
   assert.deepEqual(again, match);
 });
 
-test("the ferry horn turns the passers-by to the sea, the gong to the stage, and the busker sets them dancing", () => {
-  for (const arena of ["plaza", "metro", "gallery"] as const) {
+test("the ferry horn turns the passers-by to the sea, the gong to the stage, the fireworks to the sky, and the busker sets them dancing", () => {
+  for (const arena of ["plaza", "metro", "gallery", "market"] as const) {
     let match = createMatch(players, 0, 77, arena);
     let first = 0;
     for (let now = 50; now <= 20_000; now += 50) {
@@ -327,7 +331,7 @@ test("the ferry horn turns the passers-by to the sea, the gong to the stage, and
       const moment = crowdMoment(arena, 0, now);
       if (!moment) continue;
       first ||= now;
-      assert.equal(moment.kind, arena === "plaza" ? "horn" : arena === "metro" ? "dance" : "gong");
+      assert.equal(moment.kind, { plaza: "horn", metro: "dance", gallery: "gong", market: "fireworks" }[arena]);
       // (everyone has reacted, and turned, a second and a half in)
       if (now - moment.startsAt < 1_500) continue;
       for (const character of match.characters.filter((item) => item.kind === "npc" && now >= item.stunnedUntil)) {
@@ -429,4 +433,66 @@ test("the round's penalty lands on whoever was spotted most, or on everyone when
   assert.deepEqual(roundPenalty(match), { kind: "sip", who: ["player-two"], times: 2 });
   owner("player-three").tagged = 2;
   assert.deepEqual(roundPenalty(match).who.sort(), ["player-three", "player-two"], "a tie: both take it");
+});
+
+test("at the night market, standing at each of the four stalls tastes it, and all four is a feast worth 2 points", () => {
+  let match = createMatch(players, 0, 8, "market");
+  const me = () => match.characters.find((character) => character.ownerId === "player-one")!;
+  const other = match.characters.find((character) => character.ownerId === "player-two")!;
+  other.x = 50;
+  other.y = 45;
+  let now = 0;
+  const wait = (ms: number, input: { x: number; y: number } = { x: 0, y: 0 }) => {
+    for (const end = now + ms; now < end; ) {
+      now += 50;
+      match = advanceMatch(match, now, { "player-one": input });
+    }
+  };
+  const bites = () => match.events.filter((event) => event.t === "bite");
+  // walking through a stall's patch tastes nothing
+  me().x = STALLS[0] - 4;
+  me().y = 9;
+  wait(BITE_MS + 400, { x: 0.25, y: 0 });
+  assert.equal(bites().length, 0, "walking past");
+  STALLS.forEach((middle, stall) => {
+    me().x = middle;
+    me().y = 9;
+    me().velocity = { x: 0, y: 0 };
+    assert.equal(stallAt(me().x, me().y), stall);
+    wait(BITE_MS - 200);
+    assert.equal(bites().length, stall, `not yet at stall ${stall}`);
+    wait(400);
+    assert.equal(bites().length, stall + 1, `tasted stall ${stall}`);
+    assert.equal(bites().at(-1)!.stall, stall);
+    if (stall === STALLS.length - 1) return;
+    // the same stall again tastes nothing new
+    wait(BITE_MS + 200);
+    assert.equal(bites().length, stall + 1);
+  });
+  assert.equal(match.events.filter((event) => event.t === "feast").length, 1);
+  assert.equal(me().score, FEAST_POINTS);
+  assert.equal(me().snacks, 4);
+  // and a new feast starts: the last stall can be tasted again
+  wait(BITE_MS + 200);
+  assert.equal(bites().length, 5);
+  assert.equal(me().bites, 1 << (STALLS.length - 1));
+});
+
+test("at the night market the passers-by browse the stalls, but a stall only lights up for a player", () => {
+  let match = createMatch(players, 0, 2024, "market");
+  for (const owner of ["player-one", "player-two"]) {
+    const body = match.characters.find((character) => character.ownerId === owner)!;
+    body.x = owner === "player-one" ? 30 : 70;
+    body.y = 46;
+  }
+  let browsing = 0;
+  let samples = 0;
+  for (let now = 50; now <= 60_000; now += 50) {
+    match = advanceMatch(match, now, {});
+    if (now % 1_000 !== 0) continue;
+    samples++;
+    browsing += match.characters.filter((character) => character.kind === "npc" && stallAt(character.x, character.y) >= 0 && Math.hypot(character.velocity.x, character.velocity.y) < 0.6).length;
+  }
+  assert.ok(browsing / samples >= 1.5, `${(browsing / samples).toFixed(1)} passers-by stand at the stalls at a time`);
+  assert.equal(match.events.filter((event) => event.t === "bite").length, 0, "no bite without a player");
 });

@@ -1,9 +1,10 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
-// hitting the floor, the ferry horn, the busker's riff and the opera gong, the last seconds' ticks, a
-// whistle to start and a little fanfare at the end; on the big screen (and in practice) a light loop
-// for the place. Phones only allow sound after a tap, so the first tap unlocks it. The menu's two
+// hitting the floor, the ferry horn, the busker's riff, the opera gong and the night market's
+// fireworks, a bite at a stall and a feast, the last seconds' ticks, a whistle to start and a little
+// fanfare at the end; on the big screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the first tap unlocks it. The menu's two
 // switches turn the sounds off (hc.sound) and the music (hc.music), and the game plays the same without.
 import type { ArenaId } from "../engine";
+import { FIREWORK_RISE_MS, FIREWORK_SHOTS } from "./fireworks";
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -233,6 +234,44 @@ export const sfx = {
     });
     duck(t, riff.length * eighth + 0.2);
   },
+  /** a bite at one of the night market's stalls: a crunch and a little bell, each stall its own note */
+  bite(stall: number): void {
+    const t = now();
+    if (t === null) return;
+    hiss(t, 0.07, 0.26, 3_400, 1_400, 1.1);
+    hiss(t + 0.06, 0.05, 0.18, 2_800, 1_200, 1.1);
+    const note = midi([79, 81, 84, 86][stall % 4]);
+    voice("sine", note, note, t + 0.08, 0.32, 0.16, master!, 0.004);
+    voice("triangle", note * 2, note * 2, t + 0.08, 0.12, 0.04, master!, 0.003);
+  },
+  /** all four tasted: the four stalls' bells running up, and a sparkle */
+  feast(): void {
+    const t = now();
+    if (t === null) return;
+    [79, 81, 84, 86, 91].forEach((note, index) => {
+      const at = t + index * 0.085;
+      voice("triangle", midi(note), midi(note), at, index === 4 ? 0.6 : 0.18, 0.15, master!, 0.004);
+      voice("sine", midi(note + 12), midi(note + 12), at, 0.12, 0.05, master!, 0.003);
+    });
+    for (let index = 0; index < 6; index++) hiss(t + 0.42 + index * 0.05, 0.04, 0.06, 7_000, 6_000, 3);
+    duck(t, 0.9);
+  },
+  /** the night market's fireworks: each rocket whistles up, bursts with a boom and crackles (in time with the picture) */
+  fireworks(): void {
+    const t = now();
+    if (t === null) return;
+    for (const shot of FIREWORK_SHOTS) {
+      const up = t + shot.at / 1000;
+      const burst = up + FIREWORK_RISE_MS / 1000;
+      voice("sine", 520, 1_900, up, FIREWORK_RISE_MS / 1000, 0.035, master!, 0.08);
+      hiss(up, FIREWORK_RISE_MS / 1000, 0.05, 1_200, 4_000, 2.5);
+      voice("sine", 120, 36, burst, 0.6, 0.45, master!, 0.004);
+      hiss(burst, 0.7, 0.3, 1_100, 180, 0.6);
+      for (let crack = 0; crack < 9; crack++) hiss(burst + 0.18 + crack * 0.055 + ((crack * 37) % 10) / 400, 0.03, 0.07, 6_000, 4_500, 2.2);
+    }
+    const last = FIREWORK_SHOTS[FIREWORK_SHOTS.length - 1];
+    duck(t, (last.at + FIREWORK_RISE_MS) / 1000 + 0.8);
+  },
   /** one of the last five seconds */
   tick(last = false): void {
     const t = now();
@@ -300,7 +339,9 @@ const GROOVES: Record<ArenaId, Groove> = {
   // a busy concourse
   metro: { bpm: 116, bass: [45, 45, 41, 43], scale: [69, 72, 74, 76, 79, 81], lead: "square", block: false },
   // the courtyard theatre: pentatonic, plucked, a woodblock keeping time
-  gallery: { bpm: 96, bass: [43, 43, 38, 40], scale: [67, 69, 71, 74, 76, 79], lead: "triangle", block: true }
+  gallery: { bpm: 96, bass: [43, 43, 38, 40], scale: [67, 69, 71, 74, 76, 79], lead: "triangle", block: true },
+  // the night market: a bright, bustling pentatonic over a walking bass
+  market: { bpm: 112, bass: [41, 45, 46, 48], scale: [72, 74, 77, 79, 81, 84], lead: "triangle", block: false }
 };
 
 let loop: { timer: number; arena: ArenaId; step: number; at: number; seed: number } | null = null;

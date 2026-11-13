@@ -12,7 +12,7 @@ const credits = readFileSync(new URL("../src/client/ui/Credits.tsx", import.meta
 const design = readFileSync(new URL("../DESIGN.md", import.meta.url), "utf8");
 
 test("original Blender arena models are valid, bounded GLB 2.0 files", () => {
-  for (const filename of ["seawall-dressing.glb", "transit-dressing.glb", "courtyard-dressing.glb"]) {
+  for (const filename of ["seawall-dressing.glb", "transit-dressing.glb", "courtyard-dressing.glb", "market-dressing.glb"]) {
     const data = readFileSync(dir + filename);
     assert.equal(data.toString("ascii", 0, 4), "glTF", `${filename} magic`);
     assert.equal(data.readUInt32LE(4), 2, `${filename} version`);

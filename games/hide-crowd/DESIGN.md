@@ -27,15 +27,15 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 
 | Screen | What it shows |
 | --- | --- |
-| Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (three rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. When the ferry horn, the busker or the gong sounds, a pill low in the middle says so while the crowd stands still or dances. |
+| Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel) and Blend in (quiet) under the right. When the ferry horn, the busker, the gong or the fireworks go, a pill low in the middle says so while the crowd stands still or dances. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the full-screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen (an iPad's can: there the full-screen button does it), so the game shows the two ways round it (`ui/HomeScreen.tsx`): quickest, Safari's page menu (the three lines at the left of the address bar, aA or ··· on older iOS) and Hide Toolbar, which leaves a sliver of address and gives the game the rest; all of the screen, changle.ca on the Home Screen. A little iPhone acts out the four taps to the Home Screen (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. It opens by itself once in the first lobby, then from the lobby's line, the menu and the full-screen button. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, a round in Safari's bars (an iPhone) | When Safari's toolbar and tab bar take part of the screen (held sideways, the page is over 60 points shorter than the screen), a line under the top bar shows the page menu's icon and says to choose Hide Toolbar, with More ways (the guide) and a close button. It goes when the bars do, after 15 s, or for good when closed (Steve, 2026-11-12, from an iPhone in Safari). |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
-| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
-| Big screen, lobby | A 1920 x 1080 stage: the title, the three arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
-| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's or the gong's pill takes its place while it lasts). |
+| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
+| Big screen, lobby | A 1920 x 1080 stage: the title, the four arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
+| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's or the fireworks' pill takes its place while it lasts). At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
 | Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the penalty stamp for seven seconds, then the result card with the round's titles. |
 | Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the full-screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
@@ -54,7 +54,8 @@ screen empty and out of reach, a blurry background, a double tap that zoomed) wa
 
 * **A real floor, always.** The floor is drawn by the game's code on a canvas: the seawall's mown
   lawn, the transit hall's stone tiles with terracotta lines, the courtyard's flagstones with a few
-  blossom petals, in daylight colours (`--arena-lawn` … `--arena-sea` in the game's block). It stays
+  blossom petals, in daylight colours (`--arena-lawn` … `--arena-sea` in the game's block), and the
+  night market's parking lot after dark (`--arena-asphalt` … `--stall-3`). It stays
   when the Blender set arrives (the sets have no floor of their own) and reaches past every edge of
   the screen. Until 2026-11-11 the set's arrival removed the stand-in venue floor and all, and the crowd
   walked on the backdrop.
@@ -71,8 +72,10 @@ screen empty and out of reach, a blurry background, a double tap that zoomed) wa
   `tests/camera.test.ts` checks it at phone and TV shapes.
 * **The rules' marks are always drawn**, whichever set is up: the transit hall's moving walkways under
   the whole crowd, sliding the way the room carries everyone; the courtyard's spotlight over the rules'
-  28 x 34 zone where you move faster; the sea beyond the seawall's railing. The courtyard's set sits
-  0.65 further back, so the front of the stage is behind the back row, not under it.
+  28 x 34 zone where you move faster; the sea beyond the seawall's railing; the warm pools of light
+  before the night market's four stalls, each with a painted box round where you can taste
+  (`ui/market.ts`). The courtyard's set sits 0.65 further back, so the front of the stage is behind
+  the back row, not under it.
 * **Sharp on a phone.** The frame-rate budget starts at up to 2.25 times the screen's pixels (it was
   1.65, which drew the 3D view soft on a phone whose screen has 3), then lowers it if frames run slow.
 
@@ -155,9 +158,44 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
 * **Titles at the end** (`roundAwards`): each player gets one at most, the first that fits: 火眼金睛
   Eagle Eye (spotted the most), 隐身大师 Ghost (never spotted, never punched a passer-by), 误伤专业户
   Friendly Fire (punched the most passers-by), 空气拳手 Air Puncher (punched the most air, two or
-  more), 人肉沙包 Punching Bag (spotted the most, two or more). They come only with the result, so
-  nothing during the round tells who did what.
+  more), 人肉沙包 Punching Bag (spotted the most, two or more), and at the night market 夜市吃货
+  Foodie (tasted the most, three or more; it comes second, after Eagle Eye, whose count leaves out
+  the feasts' points). They come only with the result, so nothing during the round tells who did what.
 * **Faces.** Every body has two dark eyes now, so the crowd reads where everyone is looking.
+
+## The night market (列治文夜市 Richmond Night Market)
+
+Steve, 2026-11-13: more ways to play, more places, more of the big games' 3D. The fourth arena
+borrows the Steam original's side quests (in some of its places, collecting things scores points);
+here the collecting gives a player away while they do it:
+
+* **The side quest, 尝遍四样 Taste all four** (`taste` in `src/engine`). Four snack stalls stand behind
+  the back row: 烤鱿鱼 grilled squid (red), 咖喱鱼蛋 curry fish balls (teal), 珍珠奶茶 bubble tea
+  (purple), 旋风薯塔 tornado potato (amber). A player who stands still (no stick) in front of a stall
+  they haven't tasted (4.5 either side of its middle, up to 6 in from the floor's edge: the painted
+  box) tastes it after 1.2 s. All four is a feast: 2 points, and the four start over. Every bite lights
+  that stall up on every screen (a flash of its colour on its pool of light, sparks off its counter, a
+  bell on the big screen), so the others know someone at that stall is a player; only the taster's
+  phone knows it was them (`byYou`). A feast also sends up a rocket from the stall.
+* **Company at the stalls.** About a third of the passers-by are at a stall at any time (`browse`
+  plans: they walk up, stand a few seconds looking it over, and glance about), so a player tasting is
+  never alone there. Only a player's bite lights a stall.
+* **The crowd's moment: fireworks** (10 s in, then every 16 s, 2.8 s). Five rockets go up from behind
+  the stalls and burst over the back of the crowd, each lighting the whole lot in its colour for a
+  moment; every passer-by turns round to watch, a beat after the first, like the horn. With reduced
+  motion the bursts open where they are, nothing flies and the light doesn't flicker.
+* **The set** (`market-dressing.glb`, from `tools/blender/generate_arena_dressing.py`): four stalls
+  with striped awnings, steel counters, trays, a sign with a big lit snack on top of each, bulbs
+  along the awnings, string lights on poles, red paper lanterns, folding tables with umbrellas at
+  the sides. The game adds the night (`ui/market.ts`): a dusk-blue sky light, a cool light from the
+  front and the stalls' warm light from behind, a glow round every bulb and lantern, the pools of
+  light and the fireworks. The lot is asphalt with its parking lines worn almost away.
+* **On the phone**, the quest strip (four snacks, a ring filling while you taste) and a word when you
+  taste one ("bubble tea! 3 to go") or feast ("tasted all four! +2"). Practice rivals browse the stalls
+  like everyone and taste like a player, and grow suspicious of whoever stands at a stall as it lights
+  up (the fewer there, the surer). The flat arena draws the four stalls along its top, lit when tasted.
+* **Sound:** a crunch and a bell for a bite (each stall its own note), the four bells running up for a
+  feast, each rocket's whistle, boom and crackle, and a bright pentatonic loop for the market.
 * **Who was who, at the end** (`Room.view`): once a round is over, every screen gets each player's name
   on the body they were (the next round shuffles the crowd again, so it gives nothing away), and the
   winner's body dances. Everyone stops where they are.
@@ -220,12 +258,13 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 
 | File | Size | What | Where it comes from | Licence |
 | --- | --- | --- | --- | --- |
-| `thumb-*.webp` | 12 to 17 KB each | The lobby's pictures of the three arenas, 320 x 180 | **AI-made**: cropped from three panoramas drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 (the panoramas themselves were dropped on 2026-11-11: the arena doesn't draw them) | OpenAI's terms assign the output to the user; no third-party art in it |
+| `thumb-*.webp` | 12 to 17 KB each | The lobby's pictures of the four arenas, 320 x 180 | The seawall's, the transit hall's and the theatre's are **AI-made**: cropped from three panoramas drawn with ChatGPT's image generation (OpenAI), by Codex for PR #5 (the panoramas themselves were dropped on 2026-11-11: the arena doesn't draw them). The night market's (`thumb-market.webp`) is a picture of the game itself, taken in a browser | OpenAI's terms assign the output to the user; no third-party art in it. The market's is ours |
 | `crowd-people.glb` | 201 KB | The crowd's man: his body on a 23-bone skeleton, the hair, caps, bags and eyes, and the eleven clips everyone moves with (three ways of standing, two walks, a jog, a punch, a fall, a get-up, a recoil, a dance) | Quaternius's Universal Animation Library 1 and 2 (the mannequin and the clips), rebuilt by `tools/blender/build_crowd_people.py`; the hair, caps and bags made from scratch in the same script | CC0 1.0 (public domain); the gear ours |
 | `crowd-people-f.glb` | 96 KB | The crowd's woman: her body, her hair, caps, bags and eyes | Quaternius's Universal Animation Library 2 (the female mannequin), the same script | CC0 1.0; the gear ours |
 | `seawall-dressing.glb` | 390 KB | The seawall's 3D set: cedars, benches, railing, lamps, signs | Made from scratch by `tools/blender/generate_arena_dressing.py` (Blender 5.2), no outside models or textures | ours |
 | `transit-dressing.glb` | 262 KB | The transit hall's 3D set: carriage, canopy, platform edge | The same script | ours |
 | `courtyard-dressing.glb` | 354 KB | The courtyard's 3D set: stage, pavilion, curtains, lanterns | The same script | ours |
+| `market-dressing.glb` | 100 KB | The night market's 3D set: four stalls and their snacks, string lights, lanterns, tables | The same script (as the `bpy` module, which can't compress meshes: glTF-Transform's meshopt does, through npx) | ours |
 | `fonts/unbounded.woff2`, `fonts/figtree.woff2` | 30 KB, 23 KB | Unbounded and Figtree, Latin subsets | Google Fonts, via `games/been-there` | SIL Open Font License 1.1 |
 
 The floors, the walkways, the spotlight and the sea are drawn by the game's own code. There are no

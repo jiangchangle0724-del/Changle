@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SIMULATION_STEP_MS, STUN_MS, characterForOwner } from "../src/engine";
+import { ARENA, BITE_MS, MATCH_MS, SIMULATION_STEP_MS, STALLS, STUN_MS, characterForOwner } from "../src/engine";
 import { HOST_GRACE, HOST_HOLD, Room } from "../src/room/room";
 
 const first = "player-one";
@@ -96,18 +96,18 @@ test("players vote for an arena and the winning rule starts for every screen; no
   room.handle(first, { t: "vote", arena: "metro" }, 3);
   room.handle(second, { t: "vote", arena: "metro" }, 4);
   room.handle(first, { t: "vote", arena: "gallery" }, 5);
-  assert.deepEqual(room.view(first, "player", 6).arenaVotes, { plaza: 0, metro: 1, gallery: 1 });
+  assert.deepEqual(room.view(first, "player", 6).arenaVotes, { plaza: 0, metro: 1, gallery: 1, market: 0 });
   assert.equal(room.view(first, "player", 6).you.vote, "gallery");
   room.handle(first, { t: "start" }, 7);
   assert.ok(["metro", "gallery"].includes(room.view(second, "player", 8).game!.arena));
   const quiet = twoPlayerRoom();
   const arenas: string[] = [];
-  for (let round = 0; round < 3; round++) {
+  for (let round = 0; round < 5; round++) {
     quiet.handle(first, { t: "start" }, 10 + round * 100_000);
     arenas.push(quiet.st.game!.arena);
     quiet.advance(10 + round * 100_000 + 80_000);
   }
-  assert.deepEqual(arenas, ["plaza", "metro", "gallery"]);
+  assert.deepEqual(arenas, ["plaza", "metro", "gallery", "market", "plaza"]);
 });
 
 test("the big screen sees the crowd and the scores but never who is a player", () => {
@@ -168,6 +168,63 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   room.handle(first, { t: "start" }, at + 2);
   room.advance(at + 2 + 80_000);
   assert.equal(room.view(first, "player", at + 80_003).result?.penalty, null);
+});
+
+/** Stand a player still at one of the night market's stalls (everyone else far off) until it's tasted. */
+function taste(room: Room, owner: string, stall: number, from: number): number {
+  const game = room.st.game!;
+  const body = characterForOwner(game, owner)!;
+  for (const other of game.characters) if (other !== body) Object.assign(other, { x: 8, y: 50 });
+  Object.assign(body, { x: STALLS[stall], y: ARENA.marginY + 2, velocity: { x: 0, y: 0 } });
+  let at = from;
+  for (; at <= from + BITE_MS + 3 * SIMULATION_STEP_MS; at += SIMULATION_STEP_MS) room.advance(at);
+  return at;
+}
+
+test("at the night market a bite lights its stall on every screen, but only the taster's phone knows it was them", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "vote", arena: "market" }, 4);
+  room.handle(second, { t: "vote", arena: "market" }, 4);
+  room.handle(first, { t: "start" }, 5);
+  assert.equal(room.st.game!.arena, "market");
+  // halfway through tasting: your own phone shows it filling
+  const body = characterForOwner(room.st.game!, first)!;
+  for (const other of room.st.game!.characters) if (other !== body) Object.assign(other, { x: 8, y: 50 });
+  Object.assign(body, { x: STALLS[2], y: ARENA.marginY + 2, velocity: { x: 0, y: 0 } });
+  room.advance(5 + SIMULATION_STEP_MS);
+  room.advance(5 + SIMULATION_STEP_MS + BITE_MS / 2);
+  const halfway = room.view(first, "player", 5 + SIMULATION_STEP_MS + BITE_MS / 2).game!.me!;
+  assert.equal(halfway.at, 2);
+  assert.ok(halfway.tasting > 0.3 && halfway.tasting < 0.7, `tasting ${halfway.tasting}`);
+  assert.equal(room.view(second, "player", 600).game!.me!.at, -1);
+  const at = taste(room, first, 2, 5 + SIMULATION_STEP_MS + BITE_MS / 2);
+  const mine = room.view(first, "player", at).game!;
+  const theirs = room.view(second, "player", at).game!;
+  const tv = room.view(screen, "screen", at).game!;
+  for (const [game, byYou] of [[mine, true], [theirs, false], [tv, false]] as const) {
+    const bite = game.events.find((event) => event.t === "bite");
+    assert.equal(bite?.stall, 2, "everyone sees which stall lit up");
+    assert.equal(bite?.byYou, byYou, "only the taster's phone knows it was them");
+  }
+  assert.equal(mine.me!.bites, 1 << 2);
+  assert.equal(theirs.me!.bites, 0);
+  assert.equal(JSON.stringify(tv).includes(first), false, "still no ids");
+});
+
+test("all four stalls is a feast: 2 points, a fresh start, and the round's foodie title", () => {
+  const room = twoPlayerRoom();
+  room.handle(first, { t: "vote", arena: "market" }, 4);
+  room.handle(first, { t: "start" }, 5);
+  let at = 10;
+  for (const stall of [3, 0, 2, 1]) at = taste(room, first, stall, at);
+  const view = room.view(first, "player", at);
+  assert.deepEqual(view.game!.events.filter((event) => event.t === "bite" || event.t === "feast").map((event) => event.t), ["bite", "bite", "bite", "bite", "feast"]);
+  assert.equal(view.game!.me!.bites, 0, "a feast starts the four over");
+  assert.equal(view.players.find((player) => player.you)?.score, 2);
+  room.advance(5 + MATCH_MS + 10);
+  const titles = Object.fromEntries(room.view(first, "player", 5 + MATCH_MS + 20).result!.awards.map((item) => [item.name, item.award]));
+  assert.equal(titles.Ari, "foodie");
 });
 
 test("someone who joins during a round watches it and plays the next", () => {

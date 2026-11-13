@@ -1,10 +1,13 @@
 // One phone on its own (changle.ca/hide/practice, the game card's one-phone button): the same room
 // as online, run in the page, with three computer rivals hidden in the crowd. They walk the way the
-// passers-by walk (the same plans, crowdStep in the rules), stop for the ferry horn, the busker or the
-// gong a beat after it like everyone and turn to look at a knockdown near them, go after anyone who
-// gives themselves away (punching, walking on through the horn, the dance or the gong, running on and
-// on: passers-by run too, but only for a moment), and sometimes get it wrong. No server, no penalty.
-import { crowdMoment, crowdStep, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, type Character, type MatchState, type Plan, type Vector } from "../engine";
+// passers-by walk (the same plans, crowdStep in the rules: at the night market that takes them to the
+// stalls, where they taste like a player), stop for the ferry horn, the busker, the gong or the
+// fireworks a beat after it like everyone and turn to look at a knockdown near them, go after anyone
+// who gives themselves away (punching, walking on through a moment, running on and on: passers-by run
+// too, but only for a moment, or standing at a stall just as it lights up), and sometimes get it
+// wrong. No server, no penalty.
+import { ARENAS, crowdMoment, crowdStep, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
+import type { ArenaId } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
 import { Room } from "../room/room";
 import type { ConnectionState, RoomConnection } from "./net";
@@ -60,11 +63,16 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
     brains.push({ id, style: index % 3, plan: null, nextLook: start + 1_500 + index * 400, chasing: null, chaseUntil: 0 });
   }
   room.claimHost(start);
+  // ?arena=market on the address practises one place every round (otherwise they take turns)
+  const asked = new URLSearchParams(typeof location === "undefined" ? "" : location.search).get("arena");
+  if (asked && (ARENAS as readonly string[]).includes(asked)) room.handle(ME, { t: "vote", arena: asked as ArenaId }, start);
   room.handle(ME, { t: "start" }, start);
   // how long each place in the crowd has looked like a player lately (fast, or a punch)
   const suspicion = new Map<number, number>();
   /** how long each body has been running without a break (ms) */
   const runningFor = new Map<number, number>();
+  /** the latest of the round's events seen (a stall lighting up points at whoever stands at it) */
+  let seenEvent = 0;
 
   const think = (now: number) => {
     const game = room.st.game;
@@ -82,6 +90,14 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       const tell = body.pose === "windup" || body.pose === "punch" ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
       suspicion.set(at, Math.max(0, (suspicion.get(at) ?? 0) * 0.985 + tell));
     });
+    // a stall lit up: someone standing at it just tasted it (the fewer there, the surer)
+    for (const event of game.events) {
+      if (event.id <= seenEvent) continue;
+      seenEvent = event.id;
+      if (event.t !== "bite" || event.stall === undefined) continue;
+      const there = game.characters.map((body, at) => (stallAt(body.x, body.y) === event.stall ? at : -1)).filter((at) => at >= 0);
+      for (const at of there) suspicion.set(at, (suspicion.get(at) ?? 0) + 3 / there.length);
+    }
     for (const brain of brains) {
       const at = game.characters.findIndex((body) => body.ownerId === brain.id);
       const body = game.characters[at];
@@ -151,6 +167,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       if (message.t === "start" && room.st.game?.phase === "over") {
         suspicion.clear();
         runningFor.clear();
+        seenEvent = 0;
         room.handle(ME, { t: "lobby" }, now);
         room.handle(ME, { t: "start" }, now);
       } else room.handle(ME, message, now);
