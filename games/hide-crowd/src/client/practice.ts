@@ -2,12 +2,14 @@
 // as online, run in the page, with three computer rivals hidden in the crowd. They walk the way the
 // passers-by walk (the same plans, crowdStep in the rules: at the night market that takes them to the
 // stalls, where they taste like a player), stop for the ferry horn, the busker, the gong or the
-// fireworks a beat after it like everyone and turn to look at a knockdown near them, go after anyone
-// who gives themselves away (punching, walking on through a moment, running on and on: passers-by run
-// too, but only for a moment, or standing at a stall just as it lights up), and sometimes get it
-// wrong: a passer-by throwing a punch at nothing (someone's distraction) fools them as it would a
-// person. Each uses one distraction a round itself. No server, no penalty.
-import { ARENAS, crowdMoment, crowdStep, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
+// fireworks a beat after it like everyone, punch on the theatre's call with the whole crowd (at
+// whoever they suspect, if they're in reach), and turn to look at a knockdown near them. They go after
+// anyone who gives themselves away (punching, walking on through a moment, standing still while the
+// whole crowd punches on the call, running on and on: passers-by run too, but only for a moment, or
+// standing at a stall just as it lights up), and sometimes get it wrong: a passer-by throwing a punch
+// at nothing (someone's distraction) fools them as it would a person. Each uses one distraction a
+// round itself. No server, no penalty.
+import { ARENAS, crowdMoment, crowdStep, DRILL_GO_MS, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
 import type { ArenaId } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
 import { Room } from "../room/room";
@@ -19,6 +21,14 @@ const RIVALS = 3;
 const LONG_RUN_MS = 1_800;
 /** how often a rival takes a swing at whoever is in front of it, with nothing to go on */
 const WILD_SWING = 0.12;
+/**
+ * The drill: a punch from this long before the call counts as the crowd's; this long after it,
+ * whoever hasn't punched stands out, as much as a punch at the wrong time would (a punch's wind-up and
+ * swing add a punching tell, 4, at each of about six looks)
+ */
+const DRILL_EARLY_MS = 400;
+const DRILL_LOOK_MS = 520;
+const DRILL_STOOD = 24;
 
 interface Brain {
   id: string;
@@ -31,6 +41,10 @@ interface Brain {
   /** the body it is after (a place in the crowd), and until when */
   chasing: number | null;
   chaseUntil: number;
+  /** the drill it is in (by its call), how long after the call it punches in it, and whether it has */
+  drill: number;
+  drillDelay: number;
+  drillDone: boolean;
 }
 
 const angleDiff = (a: number, b: number) => {
@@ -66,7 +80,7 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
   for (let index = 0; index < RIVALS; index++) {
     const id = `practice-computer-${index + 1}`;
     room.join(id, lang === "zh" ? `电脑 ${index + 1}` : `Computer ${index + 1}`, lang, "player", start + index + 1);
-    brains.push({ id, style: index % 3, plan: null, nextLook: start + 1_500 + index * 400, chasing: null, chaseUntil: 0, distractAt: start + distractDelay() });
+    brains.push({ id, style: index % 3, plan: null, nextLook: start + 1_500 + index * 400, chasing: null, chaseUntil: 0, distractAt: start + distractDelay(), drill: 0, drillDelay: 0, drillDone: false });
   }
   room.claimHost(start);
   // ?arena=market on the address practises one place every round (otherwise they take turns)
@@ -79,6 +93,10 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
   const runningFor = new Map<number, number>();
   /** the latest of the round's events seen (a stall lighting up points at whoever stands at it) */
   let seenEvent = 0;
+  /** the theatre's drill being watched (by its call): who has punched with it, and who couldn't (knocked down) */
+  let drillWatched = 0;
+  let drillLooked = false;
+  const drillPunched = new Set<number>();
 
   const think = (now: number) => {
     const game = room.st.game;
@@ -87,15 +105,32 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
     // passer-by has stopped (the slowest turns 0.64 s in, then slows down)
     const moment = crowdMoment(game.arena, game.startedAt, now);
     const watching = !!moment && now - moment.startsAt > 1_300;
+    // the theatre's drill: on the call everyone punches, so a punch then is no tell (one during the count is)
+    const drillGo = moment?.kind === "drill" ? moment.startsAt + DRILL_GO_MS : null;
+    const withTheCrowd = drillGo !== null && now >= drillGo - DRILL_EARLY_MS;
+    if (drillGo !== null && drillGo !== drillWatched) {
+      drillWatched = drillGo;
+      drillLooked = false;
+      drillPunched.clear();
+    }
     // (a body's own speed: the transit hall's walkway carries everyone)
     const drift = environmentalDrift(game.arena, game.startedAt, now);
     game.characters.forEach((body, at) => {
       const speed = Math.hypot(body.velocity.x - drift.x, body.velocity.y - drift.y);
       const running = speed > NPC_SPEED + 1.2 ? (runningFor.get(at) ?? 0) + SIMULATION_STEP_MS : 0;
       runningFor.set(at, running);
-      const tell = body.pose === "windup" || body.pose === "punch" ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
+      const punching = body.pose === "windup" || body.pose === "punch";
+      if (punching && withTheCrowd) drillPunched.add(at);
+      const tell = punching && !withTheCrowd ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
       suspicion.set(at, Math.max(0, (suspicion.get(at) ?? 0) * 0.985 + tell));
     });
+    // a moment after the call, whoever stood there without punching (and could have) gives themselves away
+    if (drillGo !== null && !drillLooked && now >= drillGo + DRILL_LOOK_MS) {
+      drillLooked = true;
+      game.characters.forEach((body, at) => {
+        if (!drillPunched.has(at) && body.stunnedUntil < drillGo - DRILL_EARLY_MS && body.hideAt === null) suspicion.set(at, (suspicion.get(at) ?? 0) + DRILL_STOOD);
+      });
+    }
     // a stall lit up: someone standing at it just tasted it (the fewer there, the surer)
     for (const event of game.events) {
       if (event.id <= seenEvent) continue;
@@ -125,7 +160,24 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       }
       let input = stroll(brain, body, game, now);
       const target = brain.chasing !== null ? game.characters[brain.chasing] : undefined;
-      if (moment) {
+      if (drillGo !== null) {
+        // the drill: it stands with the crowd, turned to whoever it suspects most if they're in reach,
+        // and punches on the call a moment after everyone (the punch goes through the passers-by)
+        if (brain.drill !== drillGo) {
+          brain.drill = drillGo;
+          brain.drillDelay = 30 + Math.random() * 120;
+          brain.drillDone = false;
+        }
+        const suspect = best >= 0 ? game.characters[best] : undefined;
+        const dx = suspect ? suspect.x - body.x : 0;
+        const dy = suspect ? suspect.y - body.y : 0;
+        const reach = Math.hypot(dx, dy);
+        if (suspect && reach <= PUNCH_RANGE * 0.95 && reach > 0 && now < drillGo) input = { x: (dx / reach) * 0.07, y: (dy / reach) * 0.07 };
+        if (!brain.drillDone && now >= drillGo + brain.drillDelay) {
+          brain.drillDone = true;
+          room.handle(brain.id, { t: "punch" }, now);
+        }
+      } else if (moment) {
         // the horn, the busker or the gong: it does what the crowd does, a beat after the sound like
         // everyone (stops and turns to look, or stands and dances: the stroll above), and chases nobody
       } else if (target && now <= brain.chaseUntil) {

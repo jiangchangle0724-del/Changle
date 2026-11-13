@@ -100,6 +100,11 @@ export interface GameView {
   me: MeView | null;
   /** the moment the whole crowd is reacting to (the ferry horn, the gong), while it lasts */
   moment: { kind: MomentKind; endsInMs: number } | null;
+  /**
+   * someone's distraction, for a moment: where its passer-by swung (every screen but the maker's
+   * turns its camera there, as the Steam game pans away; nothing says whose it was)
+   */
+  glance?: { x: number; y: number; endsInMs: number } | null;
 }
 
 /** A nickname for the round (火眼金睛 Eagle Eye...), by name; `you` on that player's own phone. */

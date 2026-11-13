@@ -28,14 +28,14 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Screen | What it shows |
 | --- | --- |
 | Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the busker, the gong or the fireworks go, a pill low in the middle says so while the crowd stands still or dances. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the busker, the gong, the theatre's drill or the fireworks go, a pill low in the middle says so while the crowd stands still, dances or punches. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, and a run kicks up dust. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the full-screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen (an iPad's can: there the full-screen button does it), so the game shows the two ways round it (`ui/HomeScreen.tsx`): quickest, Safari's page menu (the three lines at the left of the address bar, aA or ··· on older iOS) and Hide Toolbar, which leaves a sliver of address and gives the game the rest; all of the screen, changle.ca on the Home Screen. A little iPhone acts out the four taps to the Home Screen (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. It opens by itself once in the first lobby, then from the lobby's line, the menu and the full-screen button. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, a round in Safari's bars (an iPhone) | When Safari's toolbar and tab bar take part of the screen (held sideways, the page is over 60 points shorter than the screen), a line under the top bar shows the page menu's icon and says to choose Hide Toolbar, with More ways (the guide) and a close button. It goes when the bars do, after 15 s, or for good when closed (Steve, 2026-11-12, from an iPhone in Safari). |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
 | Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the four arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
-| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's or the fireworks' pill takes its place while it lasts). At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
+| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's, the drill's or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
 | Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the camera down to the winner and the confetti, the penalty stamp for seven seconds, then the result card with the round's titles. |
 | Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the full-screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
@@ -126,7 +126,8 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
   Because passers-by run too, running alone no longer gives a player away; what does is running at
   the wrong moment, punching, and ignoring the crowd's moments.
 * **Moments the whole crowd reacts to** (`crowdMoment`): by the seawall the ferry horn (9 s in, then
-  every 15 s), at the theatre the opera gong (12 s in, then every 17 s). For 2.6 s every passer-by
+  every 15 s), at the theatre the drill and the opera gong, taking turns (12 s in, then every 17 s;
+  the drill has its own section below). For 2.6 s every passer-by
   stops and turns to the sea or the stage, each a beat after the sound (0.1 to 0.6 s: people don't
   all turn at once). Players aren't made to stop: that's the test. A light nudge up turns a player to
   the sea or the stage too. In the transit hall a busker strikes up (8.8 s in, then every 18 s, always
@@ -147,12 +148,12 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
   stillness, kicks, sparks, dust or slow motion.
 * **Sound** (`src/client/sound.ts`, all made in the page, no files): a whoosh for a punch, a cartoon
   bonk when it lands, a thud on the floor, a sheepish two notes for a foul, a slide when you're
-  spotted, the ferry horn, the busker's riff, the gong, ticks in the last five seconds, a whistle to
-  start and a little fanfare at the end. A phone plays only its own player's moments (and the horn,
-  the busker, the gong, the clock),
-  so a table of phones doesn't become a din; the big screen plays the whole room and a light loop for
-  the place (a stroll by the bay, a busy concourse, a woodblock at the theatre), as does a phone in
-  practice. The menu's Sound switch turns it all off (it is remembered, and a phone sent in from a
+  spotted, the ferry horn, the busker's riff, the gong, the stage's count (three drum beats rising,
+  then a deep hit under the whole crowd's swish), ticks in the last five seconds, a whistle to start
+  and a little fanfare at the end. A phone plays only its own player's moments (and the horn, the
+  busker, the gong, the count, the clock), so a table of phones doesn't become a din; the big screen
+  plays the whole room (one whoosh however many punch at once) and a light loop for the place (a
+  stroll by the bay, a busy concourse, a woodblock at the theatre), as does a phone in practice. The menu's Sound switch turns it all off (it is remembered, and a phone sent in from a
   table brings the site's own sound setting with it), and its Music switch the loop alone; the game
   plays the same without them. Being spotted also buzzes an Android phone.
 * **Titles at the end** (`roundAwards`): each player gets one at most, the first that fits: 火眼金睛
@@ -223,6 +224,48 @@ game's does at the start and the end of a round, and players get the Steam origi
   swing as a person would be.
 * With reduced motion the camera doesn't move and no confetti falls.
 
+## The theatre's drill, the glance, and the little effects
+
+Steve, 2026-11-13: the 3D animation and the interaction, compared with the Steam original once more.
+What it does that this game didn't, and what this one does now:
+
+* **The drill** (一起出拳, `crowdMoment` and `resolvePunch` in `src/engine`), after the original's
+  gym, where the instructor counts and every robot punches. At the courtyard theatre the drill and
+  the gong take turns (the drill first, 12 s in, then every 17 s). The stage counts three beats
+  (0.6 s apart) and on the fourth, the call, every passer-by throws a punch, nearly together (each up
+  to 0.11 s late). A player's punch that lands from a little before the call to a little after it
+  (1.35 to 2.45 s into the drill: pressed 0.16 s earlier) is one of the crowd's: it goes through the
+  passers-by (no knockdown, no foul, not even a miss) and still tags a rival in reach. So the drill is
+  a chance to hit someone while looking like everyone, and whoever doesn't punch stands out.
+* **On screen**: the banner says what's coming (台上喊口令：三、二、一，全场一起出拳！), and the count
+  comes up big over the back of the crowd, where the stage is: 三, 二, 一 in a disc, then 出拳！ in the
+  gel, each beat popping in (a phone counts on its own clock between the room's frames, so the beats
+  land on time). Punch gets a ring while the stage counts and pulses from just before the call until a
+  press would land too late. On the call the camera takes a small kick, as for a blow.
+* **The glance** (`glance` in the room's view, `cinema.glance`): someone's distraction now does what
+  the original's does, it pulls the camera away. Every screen but the distracter's turns part of the
+  way towards the passer-by's swing and moves in a little (0.4 s there, a moment's hold, 0.6 s back,
+  1.5 s in all), the big screen too. Nothing says whose it was.
+* **The little effects** (`ui/effects.ts`, one draw each): every punch leaves a swoosh, a crescent
+  ahead of the fist with a bright core and dark edges, so it reads on the theatre's pale stone and
+  the night market's asphalt alike, drawn over the bodies for the quarter second it lasts; a
+  passer-by's punch leaves the same, so a swoosh gives nobody away. Three stars circle the head of
+  anyone stunned (a tagged body, a passer-by knocked down, a puncher who hit one), following the head
+  as it falls and gets up. A run (a passer-by's, or a player at full speed) kicks up soft puffs of
+  dust behind it.
+* **Words go when they should.** A phone's word about its own punch ("missed", "new body, find
+  yourself") and the big screen's feast line now leave after their time; before, the next frame
+  stopped their timer, so a word stayed until another replaced it.
+* **Sound**: the count is three drum beats, each a little higher, then a deep hit with the whole
+  crowd's swish, in time with the screen even for a screen that came in late.
+* **Practice**: the rivals punch on the call with everyone (at whoever they suspect, if they're in
+  reach, the punch going through the passers-by), and grow suspicious of a body that stands through
+  the call as of one that punches at the wrong time; a punch during the count still gives a body
+  away. Played out on the fake clock, a player who stands through every drill is spotted six times
+  in ten rounds, one who punches with the crowd once (`tests/practice.test.ts`).
+* With reduced motion: no glance, no kick, no swooshes and no dust (all of them move or fly); the
+  count and the cue come up without popping or pulsing, and the stars hold still round the head.
+
 ## Nobody is marked
 
 The game is about not being found, so nothing a screen is sent may tell a player from a
@@ -272,7 +315,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/Lobby.tsx`, `Play.tsx`, `Controls.tsx`, `Result.tsx`, `Penalty.tsx`, `Menu.tsx` | The phone's screens. |
 | `src/client/ui/Tv.tsx` | The big screen. |
 | `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
-| `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/cinema.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); the camera's opening sweep, the winner's shot and the confetti. |
+| `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); the camera's opening sweep, the glance at a distraction, the winner's shot and the confetti; the punches' swooshes, the dizzy stars and the dust. |
 | `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
 | `tools/blender/` | The scripts that build the 3D sets and the people's files. |
 | `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's full-screen guide and its line in a round, and what kind of phone this is. |
@@ -351,8 +394,9 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 6. **Night colours only**, from the tokens; the gel carries night-coloured text.
 7. **Both languages**, switchable in the menu at any time; no em dashes or curly quotes.
 8. **Reduced motion**: the phone's setting or the menu's switch stops the stamp's slam and shake,
-   the camera shake and the walk's bounce, and holds the turn screen's phone and the guide's little
-   iPhone still; the crowd still moves (that is the game).
+   the camera's shake, kicks, sweeps and glances, the walk's bounce, the swooshes and the dust, holds
+   the dizzy stars, the turn screen's phone and the guide's little iPhone still, and brings the
+   drill's count up without a pop; the crowd still moves (that is the game).
 9. **The penalty follows the table**: the table's own penalty replaces every drink word.
 10. **The art stays credited and within budget** (`tests/arenaAssets.test.ts`).
 

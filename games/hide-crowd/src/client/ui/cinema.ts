@@ -1,7 +1,9 @@
-// The camera's two big moves, as the big games make them, and the confetti: a round opens on a low
-// shot across the place that swings up into the game's view (2.4 s), and once a round is over and the
-// last blow has landed in slow motion, the camera comes down to the winner, dancing, while confetti
-// bursts over them. With reduced motion the camera stays where it is and no confetti falls.
+// The camera's big moves, as the big games make them, and the confetti: a round opens on a low shot
+// across the place that swings up into the game's view (2.4 s); someone's distraction turns the camera
+// towards the passer-by's swing for a moment (as the Steam game's pans away from the action); and once
+// a round is over and the last blow has landed in slow motion, the camera comes down to the winner,
+// dancing, while confetti bursts over them. With reduced motion the camera stays where it is and no
+// confetti falls.
 import * as THREE from "three";
 import { CLOSE_AFTER_MS, CLOSE_MS } from "./useLanded";
 
@@ -9,6 +11,11 @@ import { CLOSE_AFTER_MS, CLOSE_MS } from "./useLanded";
 export const INTRO_MS = 2_400;
 
 const CONFETTI = 220;
+/** a distraction's glance: how far the camera turns towards the swing (of the way), how far it moves in, how fast it goes there and back */
+const GLANCE_PULL = 0.36;
+const GLANCE_DOLLY = 0.08;
+const GLANCE_IN_MS = 420;
+const GLANCE_OUT_MS = 600;
 
 export interface Cinema {
   /**
@@ -16,6 +23,8 @@ export interface Cinema {
    * Writes into `outEye` and `outLook`.
    */
   shot: (time: number, eye: THREE.Vector3, look: THREE.Vector3, reduced: boolean, outEye: THREE.Vector3, outLook: THREE.Vector3) => void;
+  /** someone's distraction: the passer-by swung at (x, z), and the camera looks that way for `lastsMs` */
+  glance: (time: number, x: number, z: number, lastsMs: number) => void;
   /** the round is over (every frame from then on): where the winner stands, or null (a draw) */
   ending: (time: number, winner: { x: number; z: number } | null, reduced: boolean) => void;
   /** the confetti flies, flutters and falls */
@@ -37,6 +46,9 @@ export function addCinema(scene: THREE.Scene, colors: readonly string[], intro: 
   const winnerAt = new THREE.Vector3();
   let hasWinner = false;
   let burstDone = false;
+  const glanceAt = new THREE.Vector3();
+  let glanceFrom = 0;
+  let glanceUntil = 0;
 
   // the confetti: little cards in the room's colours
   const geometry = new THREE.PlaneGeometry(0.16, 0.09);
@@ -97,7 +109,16 @@ export function addCinema(scene: THREE.Scene, colors: readonly string[], intro: 
         outEye.set(outLook.x + Math.sin(y) * Math.cos(p) * r, outLook.y + Math.sin(p) * r, outLook.z + Math.cos(y) * Math.cos(p) * r);
         return;
       }
-      if (endedAt === null || !hasWinner) return;
+      if (endedAt === null) {
+        // a distraction: the camera turns part of the way to the swing and moves in a little, then back
+        if (time < glanceUntil) {
+          const g = Math.min(ease((time - glanceFrom) / GLANCE_IN_MS), ease((glanceUntil - time) / GLANCE_OUT_MS));
+          outLook.lerp(glanceAt, GLANCE_PULL * g);
+          outEye.lerp(outLook, GLANCE_DOLLY * g);
+        }
+        return;
+      }
+      if (!hasWinner) return;
       // the winner: down to them, a little to the side, and a slow drift round while they dance
       const since = time - endedAt - CLOSE_AFTER_MS;
       if (since <= 0) return;
@@ -111,6 +132,11 @@ export function addCinema(scene: THREE.Scene, colors: readonly string[], intro: 
       outEye.lerpVectors(eye, closeEye, c);
       outLook.lerpVectors(look, closeLook, c);
     },
+    glance(time, x, z, lastsMs) {
+      glanceAt.set(x, 0.9, z);
+      glanceFrom = time;
+      glanceUntil = time + Math.max(GLANCE_IN_MS, lastsMs);
+    },
     ending(time, winner, reduced) {
       if (endedAt === null) endedAt = time;
       hasWinner = winner !== null;
@@ -123,6 +149,7 @@ export function addCinema(scene: THREE.Scene, colors: readonly string[], intro: 
     restart() {
       introAt = null;
       endedAt = null;
+      glanceUntil = 0;
       hasWinner = false;
       burstDone = false;
       flying.length = 0;

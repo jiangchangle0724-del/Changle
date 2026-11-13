@@ -299,3 +299,16 @@ test("a distraction is heard of only by whoever made it: the others just see a p
   room.advance(150);
   assert.ok(room.view(screen, "screen", 150).game!.avatars.some((avatar) => avatar.p === "windup"));
 });
+
+test("a distraction turns every camera but its maker's towards the passer-by, for a moment", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "start" }, 5);
+  room.handle(first, { t: "distract" }, 100);
+  const theirs = room.view(second, "player", 200).game!.glance;
+  const tv = room.view(screen, "screen", 200).game!.glance;
+  assert.ok(theirs && tv, "the others' cameras look");
+  assert.deepEqual(theirs, tv);
+  assert.equal(room.view(first, "player", 200).game!.glance, null, "the maker's stays on the whole floor");
+  assert.equal(room.view(second, "player", 100 + 1_600).game!.glance, null, "and only for a moment");
+});

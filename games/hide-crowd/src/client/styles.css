@@ -22,6 +22,8 @@
   --arena-accent: #ff8a6b;
   --arena-warn: #ffb36b;
   --arena-danger: #ff8a7f;
+  /* the stars round a stunned head (their rim is the night: --arena-bg) */
+  --arena-star: var(--gel-lemon);
   /* the floors, in daylight like the places in the pictures (Arena3D draws them) */
   --arena-lawn: #6aaf45;
   --arena-lawn-2: #4f9135;
@@ -2661,6 +2663,68 @@ html.is-tv body::before {
     bottom: auto;
   }
 }
+/* the theatre's drill: the stage's count, big over the back of the crowd, where the stage is (三, 二,
+   一 in a disc, then 出拳！ in the gel); each beat pops in */
+.drill-call {
+  position: absolute;
+  top: 31%;
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  min-width: 88px;
+  height: 88px;
+  margin: 0;
+  padding: 0 var(--space-6);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font: 800 var(--text-4xl) / var(--leading-tight) var(--font-display);
+  white-space: nowrap;
+  box-shadow: var(--shadow-float);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: drill-beat var(--dur-emphasis) var(--ease-pop) both;
+}
+.drill-call.is-go {
+  height: 72px;
+  background: var(--gel);
+  color: var(--on-gel);
+  font-size: var(--text-3xl);
+  box-shadow: var(--shadow-float), var(--glow);
+}
+.drill-call.is-tv {
+  top: 38%;
+  min-width: 220px;
+  height: 220px;
+  padding: 0 var(--space-12);
+  font-size: var(--text-poster);
+}
+.drill-call.is-tv.is-go {
+  height: 160px;
+  font-size: var(--text-4xl);
+}
+@keyframes drill-beat {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+}
+/* Punch in the drill: a ring round it while the stage counts, a pulse from the call while a punch
+   still lands with the crowd's */
+.move-punch.is-drill,
+.move-punch.is-cue {
+  box-shadow: var(--glow), 0 0 0 4px var(--color-bg), 0 0 0 7px var(--gel);
+}
+.move-punch.is-cue {
+  animation: punch-cue var(--dur-emphasis) var(--ease-out) infinite alternate;
+}
+@keyframes punch-cue {
+  to {
+    transform: scale(1.08);
+    box-shadow: var(--glow), 0 0 0 5px var(--color-bg), 0 0 0 11px var(--gel);
+  }
+}
 
 /* the night market's four stalls, in their canvas colours (the Blender set's) */
 .stall-0 {
@@ -2823,10 +2887,14 @@ html.is-tv body::before {
   cursor: pointer;
 }
 @media (prefers-reduced-motion: reduce) {
-  .moment-banner {
+  .moment-banner,
+  .drill-call,
+  .move-punch.is-cue {
     animation: none;
   }
 }
-:root[data-reduced="1"] .moment-banner {
+:root[data-reduced="1"] .moment-banner,
+:root[data-reduced="1"] .drill-call,
+:root[data-reduced="1"] .move-punch.is-cue {
   animation: none;
 }

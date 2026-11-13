@@ -1,5 +1,6 @@
 // A round on a phone: the arena (3D, or flat without WebGL), the clock and the scores along the top,
-// the stick and the two moves under the thumbs, and at the night market the four snacks you've tasted.
+// the stick and the three moves under the thumbs, at the night market the four snacks you've tasted,
+// and at the theatre the stage's count in the middle when the whole crowd is about to punch.
 // Sideways the arena fills the screen; upright it sits above the controls. A phone that joined during
 // the round watches until the next one.
 import type { ComponentChildren } from "preact";
@@ -12,7 +13,7 @@ import { ArenaFallback } from "./ArenaFallback";
 import { Icon, IconButton, type IconName } from "./chrome";
 import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
-import { arenaEvents, INTRO_WINDOW_MS, MomentBanner, useRoundSounds } from "./roundFx";
+import { arenaEvents, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone" };
 /** the night market's four stalls, left to right: their snacks */
@@ -34,6 +35,10 @@ interface Notice {
 function useNotice(events: EventView[], me: MeView | null): Notice | null {
   const [notice, setNotice] = useState<Notice | null>(null);
   const seen = useRef(events.length ? events[events.length - 1].id : 0);
+  const timer = useRef(0);
+  // (every frame brings a new list: look again only when something new has happened, and leave the
+  // word's own timer to run until a newer word takes its place, or the word would never go)
+  const latest = events.length ? events[events.length - 1].id : 0;
   useEffect(() => {
     const fresh = events.filter((event) => event.id > seen.current);
     if (!fresh.length) return;
@@ -44,9 +49,10 @@ function useNotice(events: EventView[], me: MeView | null): Notice | null {
     if (!key) return;
     const vars = mine.t === "bite" ? { snack: t(SNACKS[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
     setNotice({ key, id: mine.id, vars });
-    const timer = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" ? 2_600 : 1_400);
-    return () => window.clearTimeout(timer);
-  }, [events]);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" ? 2_600 : 1_400);
+  }, [latest]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   return notice;
 }
 
@@ -143,6 +149,7 @@ export function Play(props: {
   // phone that comes in late; the next round on the same arena starts its own, Arena3D)
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   const notice = useNotice(game.events, me);
+  const drill = useDrill(game, props.receivedAt);
   const meScore = view.players.find((player) => player.you);
   const arenaProps = {
     avatars: game.avatars,
@@ -155,6 +162,7 @@ export function Play(props: {
     impactType: shown.impactType,
     flash: shown.flash,
     moment: game.moment,
+    glance: game.glance ?? null,
     intro
   } as const;
   return (
@@ -185,6 +193,8 @@ export function Play(props: {
         <Scoreboard view={view} target={game.scoreToWin} compact />
       </div>
       <MomentBanner game={game} />
+      {/* (a word about your own punch takes the count's place) */}
+      {!notice && <DrillCall drill={drill} />}
       {game.arena === "market" && me && game.phase === "playing" && <Quest me={me} />}
       {props.fullGuide && game.phase === "playing" && <BarsHint onMore={props.fullGuide} />}
       {notice && (
@@ -194,7 +204,7 @@ export function Play(props: {
       )}
       {game.phase === "playing" &&
         (me ? (
-          <Controls me={me} now={Date.now() + props.serverOffset} send={send} onVector={setVector} />
+          <Controls me={me} now={Date.now() + props.serverOffset} send={send} onVector={setVector} drill={drill} />
         ) : (
           <p class="play-watching" role="status">
             <Icon name="eye" size={18} />

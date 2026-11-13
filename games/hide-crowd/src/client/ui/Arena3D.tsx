@@ -5,7 +5,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, PLAYER_ACCELERATION, PLAYER_BRAKING, STALLS, steerVelocity } from "../../engine";
+import { ARENA, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, steerVelocity } from "../../engine";
 import type { ArenaId, MomentKind, Pose } from "../../engine";
 import type { AvatarView } from "../../room/protocol";
 import { BASE } from "../base";
@@ -14,6 +14,7 @@ import { reducedNow } from "../prefs";
 import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type PeopleKit } from "../people";
 import { addEnvironmentalLandmarks } from "./landmarks";
 import { addCinema } from "./cinema";
+import { addEffects } from "./effects";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
@@ -33,8 +34,10 @@ interface Props {
   impactType: "tag" | "foul" | "swing" | "hide" | "over";
   /** the night market: the latest stall tasted (it flashes for everyone), and whether that bite was a feast */
   flash?: { id: number; stall: number; feast: boolean } | null;
-  /** the crowd's moment, while it lasts (the night market's fireworks go up in it) */
-  moment?: { kind: MomentKind } | null;
+  /** the crowd's moment, while it lasts (the night market's fireworks go up in it, the theatre's drill calls in it) */
+  moment?: { kind: MomentKind; endsInMs?: number } | null;
+  /** someone else's distraction, for a moment: where its passer-by swung (the camera glances there) */
+  glance?: { x: number; y: number; endsInMs: number } | null;
   /** the round has just begun on this screen: open on the camera's sweep into the game's view */
   intro?: boolean;
   label: string;
@@ -90,6 +93,8 @@ interface Palette {
   stall1: string;
   stall2: string;
   stall3: string;
+  /** the dizzy stars round a stunned head */
+  star: string;
   /** the "you" marker: the game's gel, night-colored text */
   me: string;
   onMe: string;
@@ -178,6 +183,7 @@ function readPalette(): Palette {
     stall1: read("--stall-1", "#2e8c86"),
     stall2: read("--stall-2", "#7a5cb0"),
     stall3: read("--stall-3", "#d99a2b"),
+    star: read("--arena-star", "#f5df3b"),
     me: read("--gel", "#7be55c"),
     onMe: read("--night", "#0e0c22"),
     font: read("--font-display", "sans-serif")
@@ -753,6 +759,7 @@ export function Arena3D(props: Props) {
   const youLabel = useRef(props.youLabel);
   const flash = useRef(props.flash ?? null);
   const moment = useRef(props.moment ?? null);
+  const glance = useRef(props.glance ?? null);
   const [supported, setSupported] = useState(true);
   const [frameMetrics, setFrameMetrics] = useState<FrameMetrics | null>(null);
   const showFps = new URLSearchParams(window.location.search).get("fps") === "1";
@@ -766,6 +773,7 @@ export function Arena3D(props: Props) {
   youLabel.current = props.youLabel;
   flash.current = props.flash ?? null;
   moment.current = props.moment ?? null;
+  glance.current = props.glance ?? null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -812,6 +820,9 @@ export function Arena3D(props: Props) {
     const market: Market | null = props.arena === "market" ? addMarket(scene, marketPalette(palette), ambient, key, fill) : null;
     // (the opening sweep, the move to the winner and the confetti stay whichever set is showing)
     const cinema = addCinema(scene, [palette.me, palette.accent, palette.warn, palette.stall1, palette.stall2, palette.ink], !!props.intro);
+    // (and the punches' swooshes, the dizzy stars and the dust)
+    const effects = addEffects(scene, { swoosh: palette.ink, star: palette.star, rim: palette.bg, dust: palette.muted });
+    const headAt = new THREE.Vector3();
     const environmentStart = new Set(scene.children);
     const viewEye = new THREE.Vector3();
     const viewLook = new THREE.Vector3();
@@ -1032,6 +1043,9 @@ export function Arena3D(props: Props) {
     let lastImpact = props.impactId;
     let lastFlash = props.flash?.id ?? 0;
     let fireworksSeen = props.moment?.kind === "fireworks";
+    /** the distraction the camera last glanced at, and the drill whose call it last took */
+    let glanceSeen: string | null = null;
+    let drillCalled = false;
     /** a beat of stillness when a punch lands (a hit-stop), the camera's kick toward it, the last blow in slow motion */
     let freezeUntil = 0;
     let kickAt = 0;
@@ -1102,6 +1116,25 @@ export function Arena3D(props: Props) {
       }
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
       const reduced = reducedNow();
+      // the theatre's drill: on the call the whole crowd's fists fly out together, and the camera takes it
+      const crowd = moment.current;
+      if (crowd?.kind === "drill" && crowd.endsInMs !== undefined) {
+        const fistsAt = receivedAt.current + crowd.endsInMs - (DRILL_MS - DRILL_GO_MS) + PUNCH_WINDUP_MS;
+        const since = Date.now() - fistsAt;
+        if (!drillCalled && since >= 0) {
+          drillCalled = true;
+          if (since < 300) {
+            kickAt = time;
+            shakeAt = time;
+            shakeStrength = 0.1;
+          }
+        }
+      } else drillCalled = false;
+      // someone else's distraction: the camera glances at the passer-by's swing
+      const looking = glance.current;
+      const lookingKey = looking ? `${looking.x},${looking.y}` : null;
+      if (looking && lookingKey !== glanceSeen) cinema.glance(time, sceneX(looking.x), sceneZ(looking.y), looking.endsInMs - Math.max(0, Date.now() - receivedAt.current));
+      glanceSeen = lookingKey;
       if (market) {
         // a stall tasted: its pool flashes, and a few sparks fly off its counter
         const lit = flash.current;
@@ -1180,6 +1213,8 @@ export function Arena3D(props: Props) {
         if (visual.pose !== avatar.p) {
           // (the stand-ins have no fall of their own: a burst where they were hit)
           if (avatar.p === "stunned" && !kit && !reduced) burst(visual.x, visual.z, time, "spark");
+          // a fist out: its swoosh, the same for everyone (a puncher who hit a passer-by is stopped mid-punch)
+          if (avatar.p === "punch" || (avatar.p === "stunned" && visual.pose === "windup")) effects.punch(visual.x, visual.z, visual.facing, time);
           visual.pose = avatar.p;
           visual.poseStartedAt = time;
         }
@@ -1219,6 +1254,13 @@ export function Arena3D(props: Props) {
           writeInstance(standInBodies, index, dummy, visual.x, 0.82 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1, visual.lean, visual.roll);
           writeInstance(standInHeads, index, dummy, visual.x, 1.62 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1);
         }
+        // stars round a stunned head (it falls with the body), dust behind a run
+        if (staggered) {
+          if (kit && people[index]) people[index].headPosition(headAt);
+          else headAt.set(visual.x, 1.62 * PERSON_SCALE, visual.z);
+          effects.dizzy(headAt.x, headAt.y, headAt.z, visual.poseStartedAt);
+        }
+        effects.run(index, visual.x, visual.z, visual.facing, over ? 0 : visual.speed, time);
         if (avatar.me) localVisual = visual;
         if (avatar.w) winnerVisual = visual;
         if (avatar.n !== undefined) {
@@ -1307,6 +1349,7 @@ export function Arena3D(props: Props) {
       camera.position.set(viewEye.x + shake + (viewLook.x - viewEye.x) * kick, viewEye.y + Math.abs(shake) * 0.34 + (viewLook.y - viewEye.y) * kick, viewEye.z + (viewLook.z - viewEye.z) * kick);
       camera.lookAt(viewLook.x + shake, viewLook.y - shake * 0.22, viewLook.z);
       tagZoom = Math.min(1, viewEye.distanceTo(viewLook) / Math.max(0.001, eye.distanceTo(look)));
+      effects.update(time, delta * pace, camera, reduced);
       renderer.render(scene, camera);
       draws = renderer.info.render.calls;
       fpsWorkMs += performance.now() - workStartedAt;
@@ -1340,6 +1383,7 @@ export function Arena3D(props: Props) {
       ruleMarks.dispose();
       market?.dispose();
       cinema.dispose();
+      effects.dispose();
       shadowTexture.dispose();
       renderer.dispose();
     };
