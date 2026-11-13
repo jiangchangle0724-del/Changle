@@ -4,7 +4,7 @@
 
 ## 它是什么
 
-电视上一个 3D 老师按拍子跳，大家手里拿着手机跟着跳，手机的体感（或者点手机）判每一拍。一首歌分学、跳、结算三段；20 个 8 拍基础动作拼成 6 套练习舞，每套配一首我们自己写的曲子（音箱端现场合成）；另外有 16 首热歌（电视上用 YouTube 放原版，配我们自己的简单舞；第一次跳一首歌时，大家先跟着歌点手机找拍子）。电视下面一排是每个人的霓虹小人，跟着你动。打碟原计划也用这个底座，后来做在主站里（`site/src/party/dj/`），没用它。
+电视上一个 3D 老师按拍子跳，大家手里拿着手机跟着跳，手机的体感（或者点手机）判每一拍。一首歌分学、跳、结算三段；20 个 8 拍基础动作拼成 6 套练习舞，每套配一首我们自己写的曲子（音箱端现场合成）；另外有 20 首热歌（电视上用 YouTube 放原版；14 首跳原版舞，6 首配我们自己的简单舞；每首的拍子都在视频里量好了，手机上选了就跳）。投屏到电视的那台设备不用碰：开头点一下出声（iPhone 再点一下视频），之后选歌、开始、暂停都在主人的手机上。电视下面一排是每个人的霓虹小人，跟着你动。打碟原计划也用这个底座，后来做在主站里（`site/src/party/dj/`），没用它。
 
 ## 文件
 
@@ -14,7 +14,7 @@
   - 音箱端的声音和音效：`src/client/synth.ts`（乐器、混响、回声）；六套练习舞的原创曲：`src/client/tunes.ts`（简谱写的旋律、和弦、鼓点），试听：`scripts/tunes-preview.cjs`；两边页面上的字：`src/client/words.ts`
   - 3D 老师：`src/client/coach/`（`moves.ts` 每个动作的关键帧，`rig.ts` 身体和 IK，`stage.ts` 舞台和特效，`crowd.ts` 电视下面每个人的小人）；动作页 `src/client/moves.ts`（changle.ca/party/moves）
   - 手机体感：`src/client/motion.ts`、`src/shared/peaks.ts`
-  - 热歌：`src/shared/songs.ts`（歌单、怎么跳），电视上的 YouTube 播放器 `src/client/tube.ts`，找拍子和对拍的算法 `src/shared/tapalong.ts`（`tapIn` 大家一起点，`tapAlong` 一个人点），歌本（每首歌的第一拍）`src/server/songbook.ts`、`src/server/tapped.ts`
+  - 热歌：`src/shared/songs.ts`（歌单、每首量好的拍子、怎么跳），电视上的 YouTube 播放器 `src/client/tube.ts`；量一首歌的拍子：`scripts/beats/record.js`、`fit.js`（在家里的电脑浏览器里跑，README 写了怎么用）；歌本 `src/server/songbook.ts` 11-12 起不用了（Cloudflare 上的 Durable Object 还留着，见「还剩什么」）
 - 共用底座（纯逻辑：对时、校准、打分、房间状态机）：`games/party-base/`
 - 动作库和学跳流程：`games/dance/`（`data/` 动作和舞，`src/session-flow.ts`）
 - Codex 的任务卡：`docs/codex-tasks/dance-*.md`
@@ -28,16 +28,16 @@
 
 ## 测试
 
-- `games/party-base`：`npm test`（44 个）；`games/party-server`：`npm run typecheck`、`npm test`（113 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
+- `games/party-base`：`npm test`（44 个）；`games/party-server`：`npm run typecheck`、`npm test`（105 个）、`npm run build`；`games/dance`：`npm test`（138 个）；CI `.github/workflows/party.yml`
 - 浏览器里把一支舞从头跳到结算：`games/party-server/scripts/song-check.cjs`（Worker 要带 `--var ALLOW_TEST_SETTINGS:1` 跑，见 README），约两分半；中间会让一台手机断网 2.5 秒
 - 对时：`games/party-server/scripts/timing-check.cjs`（本地，或 `BASE=https://changle.ca` 测线上）
-- 体感和电视小人：`scripts/motion-check.cjs`（一台手机用假手跳）；热歌：`scripts/song-yt-check.cjs`（假的 YouTube 播放器：云端的浏览器里真 YouTube 不让放，错误 150；也跑一遍找拍子，本地 Worker 要用新的存储 `--persist-to` 一个新文件夹，歌本里有的歌不找拍子）。都要本地 Worker 带 `ALLOW_TEST_SETTINGS`。
+- 体感和电视小人：`scripts/motion-check.cjs`（一台手机用假手跳）；热歌和电视的设置：`scripts/song-yt-check.cjs`（假的 YouTube 播放器：云端的浏览器里真 YouTube 不让放，错误 150；也查电视自己开房间、没有按钮、要声音时请人点一下、跟着主人的语言）。都要本地 Worker 带 `ALLOW_TEST_SETTINGS`。
 - 练习舞的曲子：`OUT=文件夹 node scripts/tunes-preview.cjs` 把六首各渲染成一分钟的 MP3（热身、教、跳各一段）；加 `STEMS=1` 打出旋律、和弦、低音、鼓各自多响，六首的各声部按这个调到差不多响。
 - 看老师的每个动作：changle.ca/party/moves（`?move=动作id`，`?still=拍子` 停在那一拍，`?gl=any` 没显卡也画）
 
 ## 定过的事
 
-- 电视用 Apple TV，音箱页在 Mac 或 iPad 上 AirPlay 镜像；每场开始做一次 10 秒校准。
+- 电视用 Apple TV，音箱页在 Mac 或 iPad 上 AirPlay 镜像；每场开始做一次 10 秒校准（11-12 起不再自动做，主人想校准就在大厅点，见下）。
 - 一起跳先于打碟做。
 - A1 对时在正式站实测过，Steve 11 月 1 日验收。
 - 学的阶段每个不同的动作只教一次：先看 8 拍再跟 8 拍，速度 70%（#107）。
@@ -100,6 +100,12 @@
   - 跳得更大：每首歌一个放大倍数（`big`，1.2 到 1.4，江南Style 1.4），身体的弹、摆、歪、头，手离开垂下位置的距离，脚的步子、踢腿、抬膝都按倍数放大（`pose.ts` 的 `exaggerate`）；拍手的手不会越过中线，手臂最多伸直。江南Style 的骑马舞另外改大了：蹲得更低更宽、马步跳得更高、点头耸肩，套索甩得更大，Sexy Lady 抖得更大。
   - 表情（`rig.ts` 的 `setFace`）：smile、grin（闭眼咧嘴露牙）、laugh（再加舌头）、cool、smug（坏笑挑眉）、wink、wow（O 形嘴瞪眼）、shy（闭眼脸红）、focus（皱眉抿嘴），眉毛跟着动，睁眼的时候照样眨眼。每个招牌动作配表情，可以按拍子换（`FACES`），没配的用这首歌的默认表情。
 - 11-12 起 AGENTS.md 改了：CI 绿了这个对话自己合并，然后告诉 Steve 上线了什么；只有花钱、删数据、改 Cloudflare 或 GitHub 设置和钥匙、改仓库公开与否才先问他。
+- 11-12 晚上 Steve 发了电视大厅和两台手机的截图说：投屏的手机不要做任何控制，加入的玩家在手机上直接选歌开始，去掉 tap 功能。这样做（#405）：
+  - 电视页一打开就自己开房间（刷新回到原来的房间），页面上没有按钮：拿掉「开始」「歌曲对拍」「测量」（测量改成网址后面加 `?timing`，现场测时用）和语言键（电视跟主人手机的语言走：每台手机连上和切换语言时告诉房间）。
+  - 浏览器规定页面要被点一下才能出声，所以大厅里只请人点一次屏幕（一张粉色卡片，点哪里都行）；iPhone、iPad 和 Safari 再点一下电视上出现的视频（YouTube 的播放器要自己被点一次）。这两下都在开头做，跳舞中途不用碰电视。Chrome 从 /party 的按钮点进来的，可能一下都不用点。
+  - 6 首没有原版舞的歌（Dynamite、Gentleman、Levitating、Waka Waka、Uptown Funk、Can't Stop the Feeling）在 Steve 电脑的浏览器里静音放了一遍量出拍子，和另外 14 首一样，所以找拍子、歌曲对拍和歌本都拿掉了。量出来的：Dynamite 114 拍（MV 开头 24 秒是一段情节，舞从歌开始的第 48 拍跳，25.3 秒）、Gentleman 126、Levitating 103、Waka Waka 127（从鼓进来的第 40 拍跳）、Uptown Funk 115、Can't Stop the Feeling 113；每首都在视频偏离拍子之前跳完（Gentleman、Levitating、Can't Stop the Feeling 的 MV 结尾一段剪过，不在拍子上）。线上歌本本来就是空的（校准过的一首都没有）。
+  - 第一支舞不再先自动量电视延迟（10 秒、主人点 8 下），选了就跳；主人想更准，就在大厅点「校准电视延迟」。不校准的话手机判拍会差一个投屏延迟（一两百毫秒），简单模式的窗口是 ±150 毫秒。
+  - 歌本的 Durable Object 留着没删：删要在 Cloudflare 上做一次迁移，会删掉里面的数据，按规矩要 Steve 定（里面没有用得着的东西）。
 
 ## 现在
 
@@ -113,9 +119,10 @@
   - 合并前的检查都过了：测试、typecheck、build；本地 song-check、timing-check、motion-check（假手跳，每拍都算踩准，平均差 11 毫秒）、song-yt-check（假 YouTube 晚 300 毫秒开始，房间把拍子挪到视频的拍子上，差 4 毫秒；对拍算出的第一拍差 1 毫秒）。老师的样子在云端用软件画法截图、拍了视频给 Steve 看过。
   - 上线后在正式站上查过（一次性的脚本，没进仓库，不往歌本里写）：歌本的接口在（空的）；动作页画出老师；大厅有「歌曲对拍」；没对拍的歌开不了，手机上说「还没对拍」；「广场初体验」教的时候电视上是 3D 老师，下面有手机的小人；房间结束；页面没有报错。
 - 11-11 晚上 Steve 点头，合并上线：#317（找拍子、六首原创曲、最炫民族风换视频）。上线后在正式站上查过（一次性的脚本，没进仓库，不往歌本里写）：「秧歌扭起来」直接跳，音箱端放它自己的曲子；选江南Style，手机和电视都出「先找拍子」；没点就停下、结束房间；歌本还是空的；页面没有报错。
-- 线上歌本里有三首（11-11 Steve 测试时存的，没校准）；新版上线后不再用，下次在校准过的房间重新找拍子。
+- 歌本 11-12 起不用了，里面 11-11 存的三首（没校准）不会再被读到。
 - 11-11 深夜合并上线 #347（第一支舞先量电视延迟、暂停、手机横屏当舞台）和 #360（6 首原版舞）。上线后在正式站上查过（一次性的脚本，没进仓库，不往歌本里写）：江南Style 先量延迟再直接教原版舞、不找拍子；歌单里 6 首原版舞排最前；动作页按歌列出；暂停和继续能用；歌本只给校准过的（空的）；页面没有报错。
 - 11-12 合并上线 #370（视频停了舞也停、慢多久都跟、跳完淡出；江南Style 照 MV 重排加文字教学）、#371（另外 5 首的文字教学）、#377（换上的 8 首新歌）。上线后在正式站上查过（一次性的脚本，没进仓库，不往歌本里写）：动作页按歌列出 14 首原版舞，新的 8 首都在，拿掉的 4 首不在；动作页的一步一步文字在；大厅歌单里有新歌；选 Cha-Cha Slide 先量延迟、跳过后进到学跳；结束房间；歌本还是空的；页面没有报错。云端的浏览器放不了 YouTube（机房的地址被拒），教学画面要等视频，所以没在正式站上看到教的样子（本地看过）。
+- 11-12 晚上合并上线 #405（电视不用碰、所有歌直接跳）。上线后在正式站上查过（一次性的脚本，没进仓库）：电视页自己开房间，只有「点一下屏幕，打开声音」那张卡片，点了以后页面上一个按钮都没有；主人切英文电视跟着变英文，切回中文跟着变回来；歌单里没有「找拍子」；选练习舞直接进热身（没有先校准）；选 Dynamite 直接等视频（不找拍子，第一拍 25.3 秒）；`/party/api/songs` 没有了（404）；结束房间；页面没有报错。云端放不了 YouTube，没看到真视频。
 
 ## 还剩什么
 
@@ -124,11 +131,11 @@
 - 真机测试（要 Steve）：Mac 或 iPad 投到 Apple TV，iPhone 扫码。
   - 老师在电视上流不流畅（没显卡或者太慢会自动换回文字）。
   - 体感：手机拿在手里跳，看手机说「踩准了」准不准。阈值 2.2 m/s² 是按经验定的，不准就调 `src/shared/peaks.ts`。iPhone 第一次要点「开体感」允许。
-  - 热歌：最好先校准电视延迟。第一次跳一首没量过的歌时大家跟着点手机找拍子，看找得顺不顺、找完跳起来准不准。Safari 第一次放歌要在那台设备上点一下视频。20 首在 Steve 电脑上都能嵌入（11-11 和 11-12 量拍子时放过），在 iPhone/iPad 投屏上还没试。
+  - 热歌：20 首的拍子都量好了，选了直接跳，看跳起来准不准（想更准先在大厅校准电视延迟）。投屏的那台是 iPhone 或 iPad 的话，开头点一下屏幕、再点一下视频，之后应该不用再碰：要真机试一次，特别是第一首歌能不能自己出声、视频卡了能不能自己接上。20 首在 Steve 电脑上都能嵌入（11-11 和 11-12 量拍子时放过），在 iPhone/iPad 投屏上还没试。
   - 六首练习舞的原创曲：好不好听要 Steve 听（发过他一分钟的试听），哪首不喜欢就改那首的旋律或乐器。
-- 歌本谁都能写（和房间一样没有登录）：有人乱写一首歌的第一拍，那首歌就对不上拍子，在电视上重新对拍一次就好。真有人捣乱的话，可以让对拍走房间的连接，或者歌本留历史能退回去。
+- 歌本的 Durable Object（`SONGBOOK`）没用了。要删得在 `wrangler.jsonc` 加一次迁移（`deleted_classes`），会删掉里面的数据：要 Steve 点头。不删也不花钱。
 - C3、C4 两张卡先别发：电视和手机现在有老师、小人、体感、YouTube，卡要按新页面重写（这个对话来写）。C2（动捕流水线）暂时用不上：老师是代码写的动画，以后要换真人动捕或者 AI 角色时再说。
-- 以后可以做：歌的副歌换一个招牌动作（要标出副歌在哪）；点歌（像打碟那样搜 YouTube）；大厅里老师先站着挥手；结算时老师欢呼；困难模式（A3）；喝水、休息提醒（C8）。
+- 以后可以做：不用校准也对得准（从大家跳的时候手机的动作算出投屏延迟：每个人都晚同样多，那就是延迟）；新加一首歌要先在浏览器里量拍子（`games/party-server/scripts/beats/` 两个脚本，README 写了怎么用）；歌的副歌换一个招牌动作（要标出副歌在哪）；点歌（像打碟那样搜 YouTube）；大厅里老师先站着挥手；结算时老师欢呼；困难模式（A3）；喝水、休息提醒（C8）。
 - 方案里还没做的：每 3 首提醒喝水、30 分钟休息（C8）；电视的「背面跟随」视角和镜子提示（等 3D 教练）；困难模式比对动作形状（A3）；打分黄金集（C7）。
 
 ## 交给别的对话
@@ -140,6 +147,13 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-12 一起跳: the TV needs nothing pressed, and every song starts straight from a phone（#405）
+- 2026-11-12 一起跳: the coach dresses for each song, dances bigger and pulls faces（#381）
+- 2026-11-12 一起跳: seven more songs danced as their own dances, step by step; 海草舞's seaweed hands; 極楽浄土 from its band's own dance video（#377）
+- 2026-11-12 一起跳: the other five songs' moves taught step by step too（#371）
+- 2026-11-12 一起跳: the dance waits when the song's video stops; 江南Style as its video dances it, taught step by step（#370）
+- 2026-11-11 一起跳: six songs danced to their own famous dance, on a beat measured in each video（#360）
+- 2026-11-11 一起跳: the TV's delay measured before a room's first dance, 暂停, a phone as the stage（#347）
 - 2026-11-11 一起跳: a new song finds its beat from everyone tapping along on their phones; the practice dances get their own tunes（#317）
 - 2026-11-05 一起跳: famous songs from YouTube on the TV, each tapped along to once on the speaker page（#283）
 - 2026-11-05 一起跳: the phone's motion sensor counts the moves; everyone dances on the TV, with sounds（#272）
@@ -177,5 +191,6 @@
 - 2026-11-12 Steve 测了江南Style（截图：结算出来了视频还在 2:37），说动作要更细、要文字教学、音乐和老师脱节。查出视频比舞慢了 61 秒，房间最多跟 60 秒。做了：视频停了舞跟着停、慢多久都跟、跳完淡出；在他电脑上把江南Style 的 MV 按拍子抽帧拼图看，照 MV 重排副歌、主歌、桥段，加了抖臀、蹦迪指天、嘚瑟走、小 PSY 律动；每个动作的文字教学，电视上亮当前那一拍。song-yt-check 加了视频卡 4 秒和跳完淡出两项，四个检查都过。
 - 2026-11-12 接着做换上的歌：在 Steve 电脑上把每首的 MV 按拍子抽帧看（Watch Me、Ketchup、Gee、海草舞、Cha-Cha Slide），从 lrclib 拿歌词时间（只用时间点）排段落；Cha-Cha Slide 的口令位置试了几种听人声的办法都不够准，最后用两份歌词时间加小节排。七首做完：老师 52 个新动作，每个截图看过（踢脚、Whip、stanky leg、海草的手改过一次，正面看不清）；电视上教 Cha-Cha Slide 截图看过。测试 115 个都过，typecheck、build 过。极乐净土的视频是一张画，没有舞，留到下一步。合并 #370 被权限挡住了，等 Steve。之后找到极乐净土官方的跳舞视频（YouTube 搜索），在他浏览器里量了拍子、读了视频字幕的时间、抽帧看了副歌和主歌，做成 9 个动作，也加进 #377。
 - 2026-11-12 早上 Steve 看了江南Style：要更大更夸张、有表情、衣服跟着歌换，别的歌也改。做了 #381（衣服、放大、表情），14 首的衣服和各种表情在动作页截图看过，上线后在正式站动作页看了江南Style、Y.M.C.A.、极乐净土、海草舞四身衣服，没有报错。
+- 2026-11-12 晚上 Steve 说投屏的手机不要做任何控制、手机上直接选歌开始、去掉 tap 功能。做了 #405：电视自己开房间、没有按钮、开头点一下出声（iPhone 再点一下视频）、跟主人的语言；在他电脑的内置浏览器里 6 个标签页一起静音放，量出 6 首的拍子，找拍子、对拍、歌本都拿掉；第一支舞不再先校准。四个浏览器检查都过（song-yt-check 重写了），截图看了电脑、iPhone 横着和竖着的设置画面。CI 绿了合并，上线后在正式站查过（见「现在」）。
 - 2026-11-12 Project 说明改了：CI 绿了直接合并，合完告诉 Steve 上线了什么。照这个合并了 #370、#371、#377（之前合并被权限挡住，是说明还写着先问他），Cloudflare 部署好以后在正式站上查过，都对（见「现在」）。
 - 2026-11-06 Steve 让这个对话去点 Cloudflare：他电脑上的浏览器已经登录，Worker `party` 的 Build watch paths 加了 `games/dance/*`，保存后刷新看过还在（现在是 `games/party-server/*`、`games/party-base/*`、`games/dance/*`）。从「还剩什么」拿掉，README 和 HANDOFF 那一行跟着改。
