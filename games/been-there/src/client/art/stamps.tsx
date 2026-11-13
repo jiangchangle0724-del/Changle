@@ -40,6 +40,37 @@ export const CODE: Record<string, string> = {
   hongkong: "HKG",
 };
 
+/** A city's name on the board in Chinese (art/boardType.ts draws it), in its lines: the whole name,
+ * two lines for four or five characters; Buenos Aires as it's usually shortened. */
+export const BOARD_ZH: Record<string, string[]> = {
+  cairo: ["开罗"],
+  capetown: ["开普敦"],
+  buenosaires: ["布宜", "诺斯"],
+  mexicocity: ["墨西", "哥城"],
+  rio: ["里约"],
+  istanbul: ["伊斯坦", "布尔"],
+  mumbai: ["孟买"],
+  dubai: ["迪拜"],
+  lasvegas: ["拉斯", "维加斯"],
+  vancouver: ["温哥华"],
+  newyork: ["纽约"],
+  tokyo: ["东京"],
+  beijing: ["北京"],
+  shanghai: ["上海"],
+  bangkok: ["曼谷"],
+  sydney: ["悉尼"],
+  singapore: ["新加坡"],
+  venice: ["威尼斯"],
+  paris: ["巴黎"],
+  london: ["伦敦"],
+  seoul: ["首尔"],
+  hongkong: ["香港"],
+};
+
+/** What names a city where a few letters go (a boarding pass's corner, the quiz's): its airport code
+ * in English, its name in Chinese. */
+export const placeTag = (id: string, lang: "zh" | "en") => (lang === "zh" ? (CITIES.find((c) => c.id === id)?.name.zh ?? CODE[id] ?? "") : (CODE[id] ?? ""));
+
 const DISPLAY = `"Big Shoulders Display","ZCOOL QingKe HuangYou","PingFang SC","Noto Sans CJK SC",system-ui,sans-serif`;
 const MONO = `"Space Mono",ui-monospace,Menlo,monospace`;
 

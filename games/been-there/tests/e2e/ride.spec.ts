@@ -2,7 +2,8 @@
 // then the camera pushes in behind our token without turning, follows it round the ring by turning
 // only, the departures board flips up each city it passes, the stamp comes down on the landing, and
 // the camera pulls back as the decision comes up. A tap skips to the stamp, and a second past it.
-// With the menu's setting off or reduced motion, the same beats play on the flat board.
+// With the menu's setting off or reduced motion, the same beats play on the board as it rests (leaning
+// back as a board on a table does, and no further).
 import { expect, test, type APIRequestContext, type Browser, type Locator } from "@playwright/test";
 import { closeAll, createRoom, explain, joinWithTeam, newPhone, quizOff, tap, type Phone } from "./phones";
 
@@ -92,11 +93,18 @@ async function probe(p: Phone) {
 
 const read = <T>(p: Phone, key: string) => p.page.evaluate((k) => (window as unknown as Record<string, unknown>)[k], key) as Promise<T>;
 
+/** The board's frame as it rests between moves (leaning back), and how far it leans there. */
+async function atRest(p: Phone) {
+  const tf = await p.page.locator(".stage .board-view").evaluate((el: HTMLElement) => el.style.transform);
+  return { tf, lean: Number(tf.match(/rotateX\(([\d.]+)deg\)/)?.[1] ?? 0) };
+}
+
 test("我们掷骰：骰子当场就转，镜头推进、跟走、出发牌逐格翻、盖章、拉回，决定在 5.7 秒内回来", async ({ browser, request, contextOptions, browserName }) => {
   test.setTimeout(150_000);
   // 3 + 5 from Departure: past Cairo, Cape Town and Buenos Aires to Mexico City.
   const { p, roll } = await ourFirstThrow(browser, request, contextOptions, [3, 5]);
   await probe(p);
+  const rest = await atRest(p);
   const ride = p.page.locator(".stage .ride");
   await roll.click();
   await expect(ride, "the move starts").toBeVisible({ timeout: 4_000 });
@@ -116,9 +124,11 @@ test("我们掷骰：骰子当场就转，镜头推进、跟走、出发牌逐�
   expect(decided, "from the press to the question, at most 4 s more than the 1.7 s before").toBeLessThan(5_700);
   expect(marks.land - marks.press, "the stamp lands on the beat (dice 0.6 s, push 0.3 s, 8 spaces at 0.2 s)").toBeGreaterThan(2_300);
   expect(marks.land - marks.press).toBeLessThan(3_400);
-  // Then it's over: the board stands straight again and the token is back on it.
+  // Then it's over: the board rests as it did (leaning back as a board on a table does), and the token
+  // is back on it.
   await expect(ride).toHaveCount(0, { timeout: 6_000 });
-  await expect.poll(() => p.page.locator(".stage .board-view").evaluate((el: HTMLElement) => el.style.transform)).toBe("");
+  expect(rest.lean, "a phone's board leans back at rest").toBeGreaterThan(20);
+  await expect.poll(() => p.page.locator(".stage .board-view").evaluate((el: HTMLElement) => el.style.transform)).toBe(rest.tf);
   await expect(p.page.locator(".stage .token.ridden")).toHaveCount(0);
   const feedback = await read<Feedback[]>(p, "feedback");
   expect(feedback.length).toBe(1);
@@ -145,10 +155,11 @@ test("我们掷骰：骰子当场就转，镜头推进、跟走、出发牌逐�
   expect(p.errors).toEqual([]);
 });
 
-test("关掉第一视角，或手机设了减少动态：同样的节拍在平的棋盘上走，不倾斜、不推镜头", async ({ browser, request, contextOptions }) => {
+test("关掉第一视角，或手机设了减少动态：同样的节拍在静止的棋盘上走，不再多倾斜、不推镜头", async ({ browser, request, contextOptions }) => {
   test.setTimeout(150_000);
   const { p, roll } = await ourFirstThrow(browser, request, contextOptions, [3, 5]);
   await probe(p);
+  const rest = await atRest(p);
   await p.page.locator(".menu-btn").click();
   await p.page.getByRole("checkbox", { name: /第一视角走棋/ }).uncheck();
   await p.page.keyboard.press("Escape");
@@ -159,9 +170,10 @@ test("关掉第一视角，或手机设了减少动态：同样的节拍在平�
   await expect(ride.locator(".ride-board .row.pass.on")).toHaveCount(3, { timeout: 8_000 });
   await expect(ride.locator(".ride-land")).toHaveClass(/\bon\b/);
   await expect(ride).toHaveCount(0, { timeout: 6_000 });
-  expect(await read<number>(p, "lean"), "the board never leaned").toBe(0);
+  expect(await read<number>(p, "lean"), "the board never leaned back further than it rests").toBeLessThanOrEqual(rest.lean + 0.01);
 
-  // Reduced motion (the phone's setting), with first-person on again: still flat, the dice don't tumble.
+  // Reduced motion (the phone's setting), with first-person on again: still as it rests, the dice don't
+  // tumble.
   await p.page.locator(".menu-btn").click();
   await p.page.getByRole("checkbox", { name: /第一视角走棋/ }).check();
   await p.page.keyboard.press("Escape");
@@ -172,6 +184,6 @@ test("关掉第一视角，或手机设了减少动态：同样的节拍在平�
   await expect(ride).toHaveClass(/mode-flat/);
   if (await ride.locator(".ride-dice").count()) await expect(ride.locator(".ride-dice")).toHaveClass(/still/);
   await expect(ride).toHaveCount(0, { timeout: 8_000 });
-  expect(await read<number>(p, "lean")).toBe(0);
+  expect(await read<number>(p, "lean")).toBeLessThanOrEqual(rest.lean + 0.01);
   expect(p.errors).toEqual([]);
 });

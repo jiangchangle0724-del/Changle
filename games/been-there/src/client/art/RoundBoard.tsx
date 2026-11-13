@@ -12,7 +12,7 @@ import { CityGlyph, SpaceGlyph } from "./icons";
 import { RouteMap, type Flight } from "./RouteMap";
 import { useSatMap } from "./SatMap";
 import { shapePath } from "./shapes";
-import { CODE_PATH, NEWS_PATH, OWNER_PATH } from "./boardType";
+import { CODE_PATH, NEWS_PATH, OWNER_PATH, ZH_PATH } from "./boardType";
 
 export interface SpaceMark {
   /** Owner's team colour and letter. */
@@ -108,9 +108,10 @@ export const xy = (deg: number, r: number): [number, number] => [r * Math.sin((d
 /** Where the tokens stand: just inside the ring of spaces. */
 export const TOKEN_R = RT;
 
-/** How big a token is drawn (board units per unit of its drawing): on a phone or a laptop, and on the
- * big screen, whose board is twice as wide. The drawing is 120 across and stands on (60, 70). */
-export const TOKEN_SCALE = { phone: 0.8, tv: 0.62 };
+/** How big a token is drawn (board units per unit of its drawing): on a phone or a laptop (a little
+ * bigger than on the flat board: the lean draws the ring a little smaller, its far side most), and on
+ * the big screen, whose board is twice as wide. The drawing is 120 across and stands on (60, 70). */
+export const TOKEN_SCALE = { phone: 0.88, tv: 0.62 };
 const ART_X = 60;
 const ART_Y = 70;
 /** How wide the characters are drawn, of their 120. */
@@ -174,75 +175,289 @@ function glyphName(at: number): string {
  * The buildings on a city, standing up like the tokens (upright while the table turns), drawn as little
  * models with a front, a side in shade and a roof: one to four green houses side by side, or a hotel
  * of three floors with lit windows and a sign on its roof carrying the city's own picture (the
- * pyramid, the gondola, the die…). A new one rises from its foot, floor by floor, in a puff of dust.
+ * pyramid, the gondola, the die…). A new one comes up out of the ground (art.css b-rise): the board
+ * opens under it, it shoots up out of the hole (cut off at the ground, `rb-above`), overshoots and
+ * lands on its foot with a squash, and the ground it broke flies up round it in dust and clods. A
+ * hotel's ground floor comes up so, and each floor above drops onto the one under it. A building sold
+ * sinks back into the ground (`gone`).
  * (`from`: how many stood there before the latest one was built, so the ones from there on are new
  * and rise, one after another; n itself when nothing is new. Each animated part is a group of its
  * own inside the one placing it: a CSS animation's transform would replace a transform attribute.)
  */
-function Buildings({ at, n, from, rot, stand }: { at: number; n: number; from: number; rot: number; stand: number }) {
+function Buildings({ at, n, from, rot, stand, gone }: { at: number; n: number; from: number; rot: number; stand: number; gone?: Gone }) {
   const [x, y] = xy(angleOf(at), RBLD);
-  const city = CITY_AT[at]?.id;
   // (centred on their spot rather than standing on it: upright, they reach as far out of the ring as in)
-  if (n >= 5) {
-    const fresh = from < 5;
-    return (
-      <Up x={x} y={y} rot={rot} stand={stand}>
-        <g class="bldg hotel" data-at={at} transform={`scale(${BLD_K}) translate(0 20)`}>
-          <ellipse class="b-ground" rx="13.5" ry="3.4" cy="0.6" />
-          {[0, 1, 2].map((f) => (
-            <g key={f} transform={`translate(0 ${-f * 8.5})`}>
-              <g class={fresh ? "b-new" : undefined} style={fresh ? { "--i": f } : undefined}>
-                <path class="b-side" d="M7.5 0V-8.5l4-3V-3z" />
-                <rect class="b-front" x="-7.5" y="-8.5" width="15" height="8.5" />
-                <rect class="b-win" x="-5" y="-6.6" width="3.4" height="4.2" rx="0.5" />
-                <rect class="b-win" x="1.6" y="-6.6" width="3.4" height="4.2" rx="0.5" />
-              </g>
-            </g>
-          ))}
-          <g transform="translate(0 -25.5)">
-            <g class={fresh ? "b-new" : undefined} style={fresh ? { "--i": 3 } : undefined}>
-              <path class="b-top" d="M-7.5 0H7.5l4-3h-15z" />
-              <g class="b-sign">
-                <rect x="-8" y="-15" width="16" height="13.4" rx="2.6" />
-                {city && <CityGlyph id={city} x={-5.6} y={-14.2} size={11.2} color="var(--print-ink)" width={1.5} />}
-              </g>
-            </g>
-          </g>
-          {fresh && <Dust key={from} w={18} />}
-        </g>
-      </Up>
-    );
-  }
-  // (four in a row stand close, as town houses do, to stay on their space)
-  const gap = Math.min(12.4, 40 / n);
   return (
     <Up x={x} y={y} rot={rot} stand={stand}>
-      <g class="bldg" data-at={at} transform={`scale(${BLD_K}) translate(0 8)`}>
-        <ellipse class="b-ground" rx={((n * gap) / 2 + 4).toFixed(1)} ry="3" cy="0.6" />
-        {Array.from({ length: n }, (_, i) => (
-          <g key={i} transform={`translate(${((i - (n - 1) / 2) * gap).toFixed(1)} 0)`}>
-            <g class={i >= from ? "b-new" : undefined} style={i >= from ? { "--i": i - from } : undefined}>
-              <path class="b-side" d="M5 0V-9l3.5-2.6V-2.6z" />
-              <rect class="b-front" x="-5" y="-9" width="10" height="9" />
-              <path class="b-roof-side" d="M0-15l3.5-2.6 8.6 6.4-3.5 2.6z" />
-              <path class="b-roof" d="M-6.6-8.6L0-15l6.6 6.4z" />
-              <rect class="b-door" x="-1.6" y="-5" width="3.2" height="5" rx="0.6" />
-            </g>
-          </g>
-        ))}
-        {/* (a puff for each building, so a new key each time) */}
-        {n > from && <Dust key={from} w={n * gap + 8} />}
-      </g>
+      {gone && <Sold key={gone.key} at={at} was={gone.was} n={gone.n} />}
+      {n > 0 && <Built at={at} n={n} from={from} />}
     </Up>
   );
 }
 
-/** The puff of dust at a new building's foot. */
-function Dust({ w }: { w: number }) {
+/** What was sold off a city a moment ago (it sinks), and what stood there before. */
+export interface Gone {
+  was: number;
+  n: number;
+  key: number;
+}
+
+const houseGap = (n: number) => Math.min(12.4, 40 / n);
+const houseX = (i: number, n: number) => ((i - (n - 1) / 2) * houseGap(n)).toFixed(1);
+
+function House() {
   return (
-    <g class="b-dust" aria-hidden="true">
-      <ellipse class="l" cx={(-w / 2).toFixed(1)} cy="0" rx="5" ry="2.4" />
-      <ellipse class="r" cx={(w / 2).toFixed(1)} cy="0" rx="5" ry="2.4" />
+    <>
+      <path class="b-side" d="M5 0V-9l3.5-2.6V-2.6z" />
+      <rect class="b-front" x="-5" y="-9" width="10" height="9" />
+      <path class="b-roof-side" d="M0-15l3.5-2.6 8.6 6.4-3.5 2.6z" />
+      <path class="b-roof" d="M-6.6-8.6L0-15l6.6 6.4z" />
+      <rect class="b-door" x="-1.6" y="-5" width="3.2" height="5" rx="0.6" />
+    </>
+  );
+}
+
+function Floor() {
+  return (
+    <>
+      <path class="b-side" d="M7.5 0V-8.5l4-3V-3z" />
+      <rect class="b-front" x="-7.5" y="-8.5" width="15" height="8.5" />
+      <rect class="b-win" x="-5" y="-6.6" width="3.4" height="4.2" rx="0.5" />
+      <rect class="b-win" x="1.6" y="-6.6" width="3.4" height="4.2" rx="0.5" />
+    </>
+  );
+}
+
+function Roof({ city }: { city?: string }) {
+  return (
+    <>
+      <path class="b-top" d="M-7.5 0H7.5l4-3h-15z" />
+      <g class="b-sign">
+        <rect x="-8" y="-15" width="16" height="13.4" rx="2.6" />
+        {city && <CityGlyph id={city} x={-5.6} y={-14.2} size={11.2} color="var(--print-ink)" width={1.5} />}
+      </g>
+    </>
+  );
+}
+
+/** A new part's place in the rise: up out of the ground (the ground floor, a house), or down onto
+ * the floor under it (a hotel's upper floors and roof). */
+const rising = (i: number, drop = false) => ({ "--i": i, ...(drop ? { "--from": "-34px", "--over": "-1px", "--o0": 0 } : {}) });
+
+function Built({ at, n, from, tag = true }: { at: number; n: number; from: number; /** marked with its city (the board's) */ tag?: boolean }) {
+  const city = CITY_AT[at]?.id;
+  if (n >= 5) {
+    const fresh = from < 5;
+    return (
+      <g class="bldg hotel" data-at={tag ? at : undefined} transform={`scale(${BLD_K}) translate(0 20)`}>
+        <ellipse class="b-ground" rx="13.5" ry="3.4" cy="0.6" />
+        <g clip-path={fresh ? "url(#rb-above)" : undefined}>
+          {[0, 1, 2].map((f) => (
+            <g key={f} transform={`translate(0 ${-f * 8.5})`}>
+              <g class={fresh ? "b-new" : undefined} style={fresh ? rising(f, f > 0) : undefined}>
+                <Floor />
+              </g>
+            </g>
+          ))}
+          <g transform="translate(0 -25.5)">
+            <g class={fresh ? "b-new" : undefined} style={fresh ? rising(3, true) : undefined}>
+              <Roof city={city} />
+            </g>
+          </g>
+        </g>
+        {fresh && <Dust key={from} xs={[0]} w={18} />}
+      </g>
+    );
+  }
+  // (four in a row stand close, as town houses do, to stay on their space)
+  const fresh = Array.from({ length: n - Math.min(from, n) }, (_, k) => Number(houseX(from + k, n)));
+  return (
+    <g class="bldg" data-at={tag ? at : undefined} transform={`scale(${BLD_K}) translate(0 8)`}>
+      <ellipse class="b-ground" rx={((n * houseGap(n)) / 2 + 4).toFixed(1)} ry="3" cy="0.6" />
+      {Array.from({ length: n }, (_, i) => (
+        <g key={i} transform={`translate(${houseX(i, n)} 0)`} clip-path={i >= from ? "url(#rb-above)" : undefined}>
+          <g class={i >= from ? "b-new" : undefined} style={i >= from ? rising(i - from) : undefined}>
+            <House />
+          </g>
+        </g>
+      ))}
+      {/* (a burst for each building, so a new key each time) */}
+      {fresh.length > 0 && <Dust key={from} xs={fresh} w={12} />}
+    </g>
+  );
+}
+
+/**
+ * A city's buildings on a patch of its own ground, for a list (ui/Assets.tsx: where a phone builds, the
+ * board under the sheet): the same little models as the board's, drawn bigger, coming up out of the
+ * ground as they're built (`from`) and sinking back as they're sold (`gone`), as on the board.
+ */
+export function Lot({ at, n, from, gone, color }: { at: number; n: number; from: number; gone?: Gone; color?: string }) {
+  // (each drawing's foot on the ground line: a house row's is 12 under its middle, a hotel's 30)
+  const foot = (hotel: boolean) => `translate(0 ${hotel ? -30 : -12})`;
+  return (
+    <svg class="lot" viewBox="-46 -64 92 72" overflow="visible" aria-hidden="true">
+      <ellipse class="lot-ground" rx="40" ry="6.5" cy="1.5" style={color ? { fill: color } : undefined} />
+      {gone && (
+        <g transform={foot(gone.was >= 5)}>
+          <Sold key={gone.key} at={at} was={gone.was} n={gone.n} />
+        </g>
+      )}
+      {n > 0 && (
+        <g transform={foot(n >= 5)}>
+          <Built at={at} n={n} from={from} tag={false} />
+          {from < n && !gone && <Moment key={`${from}:${n}`} at={at} n={n} from={from} big={2} />}
+        </g>
+      )}
+    </svg>
+  );
+}
+
+/** How much bigger a new building comes up than it will stand (`BuildFx`). */
+const BIG = 3.2;
+
+/**
+ * A building just put up, as the moment of it (drawn over everything else on the board): it comes up
+ * out of the ground BIG times its size, where it's going to stand, lands with a jolt that shakes it,
+ * in a burst of dust and clods as big; it stands a moment, then settles down to its own size on its
+ * spot, over the real one (`Built`, which has come up small under it meanwhile), and fades into it.
+ * A hotel's floors land one on another first. Its sound keeps time with it (sound.ts sfx.build).
+ */
+function BuildFx({ at, n, from, rot, stand }: { at: number; n: number; from: number; rot: number; stand: number }) {
+  const [x, y] = xy(angleOf(at), RBLD);
+  return (
+    <Up x={x} y={y} rot={rot} stand={stand}>
+      <Moment at={at} n={n} from={from} big={BIG} />
+    </Up>
+  );
+}
+
+/** The new parts of a city's buildings coming up `big` times their size and settling to it (BuildFx on
+ * the board; a city's Lot in a list, smaller). */
+function Moment({ at, n, from, big }: { at: number; n: number; from: number; big: number }) {
+  const hotel = n >= 5;
+  const parts = hotel ? [0] : Array.from({ length: n - from }, (_, k) => from + k);
+  return (
+    <g class={`bldg bfx${hotel ? " hotel" : ""}`} transform={`scale(${BLD_K}) translate(0 ${hotel ? 20 : 8})`} style={{ "--big": big }} aria-hidden="true">
+      <g class="bfx-shake">
+        {parts.map((i, k) => (
+          <g key={i} transform={`translate(${hotel ? 0 : houseX(i, n)} 0)`}>
+            <g transform={`scale(${big})`}>
+              <Pit xs={[0]} w={hotel ? 16 : 11} i0={k} />
+            </g>
+            <g class="bfx-zoom" style={{ "--i": k }}>
+              <g clip-path="url(#rb-above)">
+                {hotel ? (
+                  <>
+                    {[0, 1, 2].map((f) => (
+                      <g key={f} transform={`translate(0 ${-f * 8.5})`}>
+                        <g class="b-up" style={rising(f, f > 0)}>
+                          <Floor />
+                        </g>
+                      </g>
+                    ))}
+                    <g transform="translate(0 -25.5)">
+                      <g class="b-up" style={rising(3, true)}>
+                        <Roof city={CITY_AT[at]?.id} />
+                      </g>
+                    </g>
+                  </>
+                ) : (
+                  <g class="b-up" style={rising(k)}>
+                    <House />
+                  </g>
+                )}
+              </g>
+            </g>
+            <g transform={`scale(${big})`}>
+              <Dust xs={[0]} w={hotel ? 18 : 12} i0={k} />
+            </g>
+          </g>
+        ))}
+      </g>
+    </g>
+  );
+}
+
+/** What was just sold sinking back into the ground, where it stood (a hotel's whole, or the houses at
+ * the end of the row). Not a `.bldg[data-at]`: what stands on the city is only what's left. */
+function Sold({ at, was, n }: { at: number; was: number; n: number }) {
+  if (was >= 5)
+    return (
+      <g class="bldg gone" transform={`scale(${BLD_K}) translate(0 20)`} aria-hidden="true">
+        <g clip-path="url(#rb-above)">
+          <g class="b-sink tall">
+            {[0, 1, 2].map((f) => (
+              <g key={f} transform={`translate(0 ${-f * 8.5})`}>
+                <Floor />
+              </g>
+            ))}
+            <g transform="translate(0 -25.5)">
+              <Roof city={CITY_AT[at]?.id} />
+            </g>
+          </g>
+        </g>
+        <Dust xs={[0]} w={18} sink />
+      </g>
+    );
+  const xs = Array.from({ length: was - n }, (_, k) => Number(houseX(n + k, was)));
+  return (
+    <g class="bldg gone" transform={`scale(${BLD_K}) translate(0 8)`} aria-hidden="true">
+      {xs.map((x, k) => (
+        <g key={k} transform={`translate(${x} 0)`} clip-path="url(#rb-above)">
+          <g class="b-sink">
+            <House />
+          </g>
+        </g>
+      ))}
+      <Dust xs={xs} w={12} sink />
+    </g>
+  );
+}
+
+/** The ground opening under a new building's foot (`xs`: where each one comes up), before it's out. */
+function Pit({ xs, w, i0 = 0 }: { xs: number[]; w: number; i0?: number }) {
+  return (
+    <g class="b-pit" aria-hidden="true">
+      {xs.map((x, k) => (
+        <ellipse key={k} cx={x} cy="0.4" rx={w / 2} ry={w / 5} style={{ "--i": i0 + k }} />
+      ))}
+    </g>
+  );
+}
+
+/** Six clods of the ground each building broke, flying up and falling back (where they land: dx, and
+ * how high they go: up, board units), its dust blowing out either side, and a ring where it landed. */
+const CLODS: [number, number][] = [
+  [-13, 15],
+  [-8, 21],
+  [-3, 12],
+  [4, 19],
+  [9, 13],
+  [14, 17],
+];
+
+/** The burst at a new building's foot (or a sold one's, smaller: `sink`). */
+function Dust({ xs, w, sink, i0 = 0 }: { xs: number[]; w: number; sink?: boolean; i0?: number }) {
+  return (
+    <g class={`b-dust${sink ? " sink" : ""}`} aria-hidden="true">
+      {xs.map((x, k) => (
+        <g key={k} transform={`translate(${x} 0)`} style={{ "--i": i0 + k }}>
+          <ellipse class="ring" rx={w * 0.55} ry={w * 0.2} cy="0.4" />
+          <ellipse class="l" cx={(-w / 2).toFixed(1)} cy="-1" rx="5" ry="2.6" />
+          <ellipse class="l far" cx={(-w / 2 - 2).toFixed(1)} cy="-3" rx="3.6" ry="2" />
+          <ellipse class="r" cx={(w / 2).toFixed(1)} cy="-1" rx="5" ry="2.6" />
+          <ellipse class="r far" cx={(w / 2 + 2).toFixed(1)} cy="-3" rx="3.6" ry="2" />
+          {!sink &&
+            CLODS.map(([dx, up], c) => (
+              <g key={c} class="clod-x" style={{ "--dx": `${dx}px`, "--c": c }}>
+                <g class="clod-y" style={{ "--up": `${-up}px`, "--c": c }}>
+                  <rect class="clod" x="-1.3" y="-1.3" width="2.6" height="2.6" rx="0.6" />
+                </g>
+              </g>
+            ))}
+        </g>
+      ))}
     </g>
   );
 }
@@ -397,6 +612,11 @@ function BoardDefs() {
         <stop offset={((RO - 7) / RO).toFixed(3)} style={{ stopColor: "var(--board-ink)", stopOpacity: 0.04 }} />
         <stop offset="1" style={{ stopColor: "var(--night-shade)", stopOpacity: 0.22 }} />
       </radialGradient>
+      {/* (a building coming up out of the ground, or going back into it: only what's above its foot shows,
+          in the drawing's own units, its foot at 0) */}
+      <clipPath id="rb-above">
+        <rect x="-30" y="-70" width="60" height="70.8" />
+      </clipPath>
     </defs>
   );
 }
@@ -453,6 +673,7 @@ export function RoundBoard({
   worldFx,
   worldMark,
   lean = 0,
+  lang = "en",
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -491,6 +712,8 @@ export function RoundBoard({
   /** How far the board leans back at rest (degrees; ui/Board.tsx boardLean): what stands on it is drawn
    * taller by as much as the lean shortens it (`standOf`), so it stands up off the board. */
   lean?: number;
+  /** The players' language: a city's space carries its Chinese name, or its airport code. */
+  lang?: "zh" | "en";
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const satRef = useRef<HTMLCanvasElement>(null);
@@ -723,18 +946,33 @@ export function RoundBoard({
 
   // Owner marks and buildings already there when the board first draws stay still; new ones come in.
   // For each city, how many buildings stand on it and how many stood before the latest was built
-  // (`Buildings`' `from`): selling one makes nothing new, building again does.
-  const born = useRef<{ owned: Set<number>; built: Map<number, { n: number; from: number }> } | null>(null);
+  // (`Buildings`' `from`): selling one makes nothing new (it sinks: `gone`), building again does; a
+  // hotel sold back to houses puts them all up anew. A city mortgaged since then turns its owner's
+  // chip face down (`flipped`).
+  const born = useRef<{
+    owned: Set<number>;
+    built: Map<number, { n: number; from: number }>;
+    gone: Map<number, Gone>;
+    stillMort: Set<number>;
+    k: number;
+  } | null>(null);
   born.current ??= {
     owned: new Set(marks.flatMap((m, at) => (m?.owner ? [at] : []))),
     built: new Map(marks.flatMap((m, at) => (m?.houses ? [[at, { n: m.houses, from: m.houses }] as const] : []))),
+    gone: new Map(),
+    stillMort: new Set(marks.flatMap((m, at) => (m?.mortgaged ? [at] : []))),
+    k: 0,
   };
-  const { owned, built } = born.current;
+  const { owned, built, gone, stillMort } = born.current;
   marks.forEach((m, at) => {
     if (!m?.owner) owned.delete(at);
+    if (!m?.mortgaged) stillMort.delete(at);
     const n = m?.houses ?? 0;
     const was = built.get(at) ?? { n: 0, from: 0 };
-    if (n !== was.n) built.set(at, { n, from: n > was.n ? was.n : n });
+    if (n === was.n) return;
+    built.set(at, { n, from: n > was.n ? was.n : was.n >= 5 && n > 0 ? 0 : n });
+    if (n < was.n) gone.set(at, { was: was.n, n, key: ++born.current!.k });
+    else gone.delete(at);
   });
 
   const r = rot.current;
@@ -785,7 +1023,11 @@ export function RoundBoard({
               )}
               {city ? (
                 <Up x={lx} y={ly} rot={r}>
-                  <path class="code" d={CODE_PATH[city.id]} aria-hidden="true" />
+                  {lang === "zh" ? (
+                    <path class="code zh" d={ZH_PATH[city.id]} aria-hidden="true" />
+                  ) : (
+                    <path class="code" d={CODE_PATH[city.id]} aria-hidden="true" />
+                  )}
                 </Up>
               ) : corner ? (
                 <Up x={lx} y={ly} rot={r}>
@@ -796,7 +1038,16 @@ export function RoundBoard({
                   <SpaceGlyph name={glyphName(at)} x={-17} y={-17} size={34} color="var(--board-ink-2)" width={2.6} />
                 </Up>
               )}
-              {mark?.houses ? <Buildings at={at} n={mark.houses} from={built.get(at)?.from ?? 0} rot={r} stand={stand} /> : null}
+              {mark?.houses || gone.has(at) ? (
+                <Buildings
+                  at={at}
+                  n={mark?.houses ?? 0}
+                  from={reduced ? (mark?.houses ?? 0) : (built.get(at)?.from ?? 0)}
+                  rot={r}
+                  stand={stand}
+                  gone={reduced ? undefined : gone.get(at)}
+                />
+              ) : null}
               {worldMark?.at === at && (
                 <>
                   {worldMark.id === "meteor" && (
@@ -833,11 +1084,12 @@ export function RoundBoard({
                 <Up x={mx} y={my} rot={r}>
                   {/* A city just bought: the owner's mark comes down like a stamp, and the ink spreads. */}
                   {/* (a chip on the board: its shadow under it) */}
-                  <ellipse class="om-shadow" rx="18" ry="17" cy="3.5" />
+                  <ellipse class={owned.has(at) ? "om-shadow" : "om-shadow fresh"} rx="18" ry="17" cy="3.5" />
                   {!owned.has(at) && <circle class="stamp-ring" r="17" stroke={mark.owner.color} />}
                   {!owned.has(at) && <Burst color={mark.owner.color} />}
                   <g class={owned.has(at) ? "owned" : "owned stamp-in"}>
-                    <g class="om">
+                    {/* (mortgaged since the board drew: the chip turns face down, as a deed card does) */}
+                    <g class={mark.mortgaged && !stillMort.has(at) ? "om flip" : "om"} style={{ "--team": mark.owner.color }}>
                       <circle r="17" fill={mark.owner.color} stroke="var(--board-paper)" stroke-width="3" />
                       <path class="owner" d={OWNER_PATH[mark.owner.letter]} />
                     </g>
@@ -887,6 +1139,11 @@ export function RoundBoard({
               })
           );
         })}
+        {/* (a building just put up comes up out of the ground big, over everything, then settles to its size) */}
+        {!reduced &&
+          [...built].flatMap(([at, b]) =>
+            b.from < b.n && !gone.has(at) ? [<BuildFx key={`${at}:${b.from}:${b.n}`} at={at} n={b.n} from={b.from} rot={r} stand={stand} />] : [],
+          )}
         {/* (a city sold at auction, a team gone broke: a stamp on the space for a moment, upright) */}
         {fx?.map((f) => {
           const [x, y] = xy(angleOf(f.at), RM);
