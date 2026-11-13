@@ -1980,13 +1980,13 @@ test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a p
   ok(v.twist === null, "the twist hasn't landed yet");
   for (const a of actors) t.g(a, "ready");
   v = t.view<V>("p0");
-  ok(v.phase === "act" && v.actMs === 120_000, "everyone has read their card: the scene starts (hard: two minutes)");
-  t.advance(61_000);
+  ok(v.phase === "act" && v.actMs === 360_000, "everyone has read their card: the scene starts (hard: six minutes)");
+  t.advance(181_000);
   ok(t.view<V>("p0").twist !== null, "halfway: the twist lands on every phone");
   const bystander = watchers.find((w) => w !== "p0");
   if (bystander) t.g(bystander, "cut");
   ok(t.view<V>("p0").phase === "act", "only the host or an actor ends the scene early");
-  t.advance(60_000);
+  t.advance(180_000);
   v = t.view<V>("p0");
   ok(v.phase === "vote", "time's up: the audience votes");
   const stars = (good: string) => Object.fromEntries(actors.map((a) => [a, a === good ? 5 : 2]));
@@ -2026,8 +2026,8 @@ test("drama: an acting duel, and a culprit who fools everyone", () => {
   const s = t.eng.d.game!.s as { cast: string[] };
   ok(v.cast.length === 2 && !!v.pk && Object.keys(v.pk.styles).length === 2 && v.pk.styles[s.cast[0]].zh !== v.pk.styles[s.cast[1]].zh, "two actors, one line, two styles");
   t.g("p0", "go");
-  ok(t.view<V>("p0").phase === "act" && t.view<V>("p0").actMs === 45_000, "the host starts it");
-  t.advance(46_000);
+  ok(t.view<V>("p0").phase === "act" && t.view<V>("p0").actMs === 300_000, "the host starts it: five minutes for a duel");
+  t.advance(301_000);
   const aud = t.ids.filter((id) => !s.cast.includes(id));
   for (const a of aud) t.g(a, "vote", { stars: { [s.cast[0]]: 4, [s.cast[1]]: 2 } });
   v = t.view<V>("p0");
@@ -2041,7 +2041,7 @@ test("drama: an acting duel, and a culprit who fools everyone", () => {
   const s2 = u.eng.d.game!.s as { cast: string[]; culprit: string };
   ok(s2.cast.length === 2, "three at the table: two act, one watches");
   u.g("p0", "go");
-  u.advance(91_000);
+  u.advance(301_000);
   const watcher = u.ids.find((id) => !s2.cast.includes(id))!;
   const other = s2.cast.find((c) => c !== s2.culprit)!;
   u.g(watcher, "vote", { guess: other, stars: { [s2.cast[0]]: 3, [s2.cast[1]]: 3 } });
@@ -2083,7 +2083,7 @@ test("drama: scenes written at the table and from the public library", () => {
   const blank = s.cast.find((c) => c !== s.culprit && v.cast.find((x) => x.pid === c)?.role.zh === "男朋友");
   if (blank) ok(!!t.view<V>(blank).me?.secret.zh, "a role left blank gets a generic secret");
   for (const c of s.cast) t.g(c, "ready");
-  t.advance(46_000);
+  t.advance(t.view<V>("p0").actMs / 2 + 1000);
   ok(!!t.view<V>("p0").twist?.zh, "no twist given: a generic one lands");
   ok(t.view<V>("p0").mine[0].played, "the written scene is marked played");
   t.g("p3", "unwrite", { id: t.view<V>("p0").mine[0].id });
@@ -2202,8 +2202,8 @@ test("drama: who acts: each player says on stage or watching, and the scene fits
   ok(t.view<V>("p1").me?.secret.zh === sc.culpritCard.zh && !t.view<V>("p1").me?.culprit, "the actor's card is the real secret and what to do");
   ok(!JSON.stringify(v).includes(sc.culpritCard.zh), "nobody else sees which one it is");
   t.g("p1", "ready");
-  ok(t.view<V>("p4").phase === "act" && t.view<V>("p4").actMs === 60_000, "a monologue runs a minute");
-  t.advance(61_000);
+  ok(t.view<V>("p4").phase === "act" && t.view<V>("p4").actMs === 300_000, "a monologue runs five minutes too");
+  t.advance(301_000);
   const answer = String(st().order.indexOf(0));
   const wrong = answer === "0" ? "1" : "0";
   const crowd = t.ids.filter((id) => id !== "p1");
@@ -2226,7 +2226,7 @@ test("drama: who acts: each player says on stage or watching, and the scene fits
   const [lo, hi] = dramaSizes(big);
   ok(v.cast.length === 8 && lo <= 8 && hi >= 8 && st().cast.every((c) => t.view<V>("p4").want?.[c] === "act"), "all eight on stage, in a scene written for that many");
   for (const c of st().cast) t.g(c, "ready");
-  ok(t.view<V>("p4").actMs === 150_000, "eight actors: a minute more than four");
+  ok(t.view<V>("p4").actMs === 420_000, "eight actors: two minutes more than four");
   t.g("p0", "cut");
   ok(!t.view<V>("p4").peer, "two still watch: they vote");
   // nine volunteers: eight go up, whoever has acted least
@@ -2360,6 +2360,57 @@ test("drama: two at the table: one acts a monologue, the other guesses", () => {
   ok(v.phase === "brief" && v.cast.length === 2 && v.peer === true && !v.crowd, "two on stage in a duel: they vote on each other, nobody shouts");
 });
 
+test("drama: between acts or at the curtain call, the host goes back to the setup to play it another way; the night's scores stay", () => {
+  type V = V<"drama">;
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "config", { mode: "show", total: 3 });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string | null; order: number[]; round: number; total: number; used: string[] };
+  // the cast reads their cards, the host calls cut, everyone watching votes
+  const play = () => {
+    const actors = [...s.cast];
+    for (const a of actors) t.g(a, "ready");
+    t.g("p0", "cut");
+    const guess = s.order.length ? String(s.order.indexOf(0)) : s.culprit;
+    for (const w of t.ids.filter((id) => !actors.includes(id))) t.g(w, "vote", { guess, stars: Object.fromEntries(actors.map((a) => [a, 4])) });
+  };
+  play();
+  let v = t.view<V>("p0");
+  ok(v.phase === "reveal" && Object.keys(v.scores).length > 0, "the first act played, points on the board");
+  const scores = JSON.stringify(v.scores);
+  const played = s.used.length;
+  t.g("p1", "setup");
+  ok(t.view<V>("p0").phase === "reveal", "only the host goes back to the setup");
+  t.g("p0", "setup");
+  v = t.view<V>("p0");
+  ok(v.phase === "setup" && v.round === 0 && v.total === 3 && v.mode === "show" && !v.result && !v.cast.length, "back to the setup, as the host left it");
+  ok(JSON.stringify(v.scores) === scores && s.used.length === played, "the night's scores stay, and the scene played won't come back");
+  t.g("p0", "config", { mode: "read" });
+  t.g("p0", "start");
+  v = t.view<V>("p0");
+  ok(v.phase === "brief" && v.mode === "read" && v.round === 1 && v.total === 3, "a reading this time, three acts again");
+  t.g("p0", "setup");
+  ok(t.view<V>("p0").phase === "brief", "not while an act is on");
+  play();
+  ok(t.view<V>("p0").phase === "reveal", "read, and starred");
+  s.round = s.total;
+  t.g("p0", "next");
+  ok(t.view<V>("p0").phase === "end", "the curtain call");
+  t.g("p0", "more");
+  ok(t.view<V>("p0").phase === "brief" && t.view<V>("p0").total === 6, "three more acts");
+  play();
+  t.g("p0", "setup");
+  v = t.view<V>("p0");
+  ok(v.phase === "setup" && v.total === 3, "back to the setup: the acts count from the three picked, not the three more");
+  t.g("p0", "start");
+  play();
+  s.round = s.total;
+  t.g("p0", "next");
+  t.g("p0", "setup");
+  ok(t.view<V>("p0").phase === "setup", "and straight from the curtain call");
+});
+
 test("drama: a scene written for every number of actors, at every table", () => {
   type V = V<"drama">;
   const missing: string[] = [];
@@ -2474,7 +2525,7 @@ test("drama: famous scenes: the host picks the films, every phone shows the part
   ok(pkSeeUrl(v.classic!.set, v.classic!.see).startsWith("https://www.youtube.com/results?search_query="), "the original, to find on YouTube");
   for (const x of v.cast) t.g(x.pid, "ready");
   v = t.view<V>("p4");
-  ok(v.phase === "act" && v.actMs === 60_000 + (v.cast.length - 2) * 15_000 && !v.twistAt, "a minute, fifteen seconds more for each actor past two, and no plot twist");
+  ok(v.phase === "act" && v.actMs === 300_000 + (v.cast.length - 2) * 30_000 && !v.twistAt, "five minutes, half a minute more for each actor past two, and no plot twist");
   t.advance(v.actMs + 1000);
   ok(t.view<V>("p4").phase === "vote" && !t.view<V>("p4").twist, "time's up: the vote");
   const cast = st().cast;
@@ -2578,7 +2629,7 @@ test("drama: read aloud: one reader, the host's set and kinds, the words for eve
   ok(t.view<V>("p1").phase === "brief", "only the reader says they're ready");
   t.g("p2", "ready");
   v = t.view<V>("p1");
-  ok(v.phase === "act" && v.actMs === 120_000 && !v.twistAt && v.read!.lines.length === piece.lines.length, "two minutes, no twist, and every phone can follow along");
+  ok(v.phase === "act" && v.actMs === 180_000 && !v.twistAt && v.read!.lines.length === piece.lines.length, "three minutes, no twist, and every phone can follow along");
   t.g("p2", "cut");
   ok(t.view<V>("p1").phase === "vote", "the reader says when they're done");
   t.g("p1", "vote", { guess: "p2", stars: { p2: 2 } });
@@ -2603,7 +2654,7 @@ test("drama: read aloud: one reader, the host's set and kinds, the words for eve
   ok(st().cast.join() === "p3", "two volunteers: whoever has read least goes first");
   ok(second.id !== piece.id && second.set === "en" && second.kind !== piece.kind && ["cry", "deadpan"].includes(second.kind), "another piece, and the kinds take turns");
   t.g("p3", "ready");
-  t.advance(120_000 + 1000);
+  t.advance(180_000 + 1000);
   ok(t.view<V>("p1").phase === "vote", "time's up: the vote");
   for (const a of ["p0", "p1", "p2", "p4"]) t.g(a, "vote", { stars: { p3: 5 } });
   v = t.view<V>("p1");
@@ -3136,10 +3187,20 @@ test("dj: ❄️, knobs, drops and songs are kept and limited; nobody else reads
   ok(dv("p1").colds.length === 1, "and takes them");
 });
 
+/**
+ * The build-up and DROP back on, from the speaker (点歌模式 has been the booth's only way since Nov 12,
+ * "不需要drop了"; the deck as it was is still in the engine, and these tests are of it).
+ */
+function dropMode(e: RoomEngine, sid: string) {
+  ok(e.screenAct(sid, { x: "juke", on: false }), "(the build-up and DROP on, as the deck was before Nov 12)");
+  e.flush();
+}
+
 test("dj: the beginner deck: pads on a leash, the build-up, the countdown, DROP on the cue, picks and the fader", () => {
   const e = new RoomEngine(freshRoom("DJBD", clock), host);
   const events: RoomEvent[] = [];
   e.screenHello("tv-bd", true, "dj");
+  dropMode(e, "tv-bd");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -3364,6 +3425,7 @@ test("dj: the beginner deck: picks wait for a drop; one screen speaks, said agai
   const e = new RoomEngine(freshRoom("DJBE", clock), host);
   e.screenHello("tv-a", true, "dj");
   e.screenHello("tv-b", true, "dj");
+  dropMode(e, "tv-a");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -3445,6 +3507,7 @@ test("dj: songs asked for by name: up next on the deck off the air, the drop pla
   const e = new RoomEngine(freshRoom("DJRQ", clock), host);
   const events: RoomEvent[] = [];
   e.screenHello("tv-rq", true, "dj");
+  dropMode(e, "tv-rq");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -3576,10 +3639,11 @@ test("dj: songs asked for by name: up next on the deck off the air, the drop pla
   ok(deck().up?.by === "p1" && deck().reqs.length === 2, "and its music starts with the first");
   const e2 = new RoomEngine(freshRoom("DJRM", clock), host);
   e2.screenHello("tv-m", true, "dj");
-  // (a full table, 15, three each would be 45)
+  dropMode(e2, "tv-m");
+  // (a full table, 15, seven each would be 105)
   for (let i = 1; i <= 15; i++) e2.hello(`q${i}`, `Q${i}`, false);
   e2.flush();
-  for (let round = 0; round < 3; round++) {
+  for (let round = 0; round < 7; round++) {
     for (let i = 1; i <= 15; i++) {
       e2.act(`q${i}`, { a: "g", g: { x: "req", text: `song ${i} ${round}` } });
       e2.flush();
@@ -3595,6 +3659,7 @@ test("dj: songs asked for by name: up next on the deck off the air, the drop pla
 test("dj: a song found on YouTube: every field checked, its name only for its player and the host, played whole on the big screen, the deck waiting", () => {
   const e = new RoomEngine(freshRoom("DJYT", clock), host);
   e.screenHello("tv-yt", true, "dj");
+  dropMode(e, "tv-yt");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -3646,7 +3711,6 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock, "it lands: the whole song plays from the drop's bar (the big screen has it ready, the DJ lets go with the boom)");
   ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "echo" })) && nothing(g("p1", "pad", { pad: "brake" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no fader, none of the pads that work the music");
   ok(!nothing(g("p1", "pad", { pad: "horn" })) && !nothing(g("p2", "pad", { pad: "siren" })), "but the pads that are a sound of their own play over it (Steve: the effects to hype the floor)");
-  ok(nothing(g("p3", "songskip")), "only its player or the host can skip it");
   ok(!sc("songdone", { id: "other" }), "the big screen's word for another song: not taken");
   ok(sc("songdone", { id: song!.id }) && dv("p1").deck.song === null, "the big screen says it ended: the DJ comes back");
   // and the time limit, and a skip
@@ -3659,7 +3723,7 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   ok(!!auto, "nobody drops into it: the DJ does");
   advance(auto!.at - clock + 5);
   ok(dv("p1").deck.song?.by === "p3", "it plays whole");
-  ok(!nothing(g("p3", "songskip")) && dv("p1").deck.song === null, "its player skips it: the DJ comes back");
+  ok(!nothing(g("p2", "songskip")) && dv("p1").deck.song === null, "anyone at the table skips it (an older page's 切歌; since Nov 12 the player is on every phone): the DJ comes back");
   // a video YouTube won't play here: the big screen finds out while getting it ready
   advance(6000);
   g("p2", "req", { yt: ["zyxwvutsrqp", "Gone song", "Chan"] });
@@ -3680,7 +3744,7 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   ok(dv("p1").deck.now?.id === dead!.id && dv("p1").deck.song === null, "it lands as the DJ's remix alone: no whole song to wait for");
 });
 
-test("dj: 点歌模式 (the jukebox): the host's switch; no build-up, DROP or picks; the songs asked for one after another, the DJ a few seconds between them; the video over the whole TV on anyone's word", () => {
+test("dj: 点歌模式 (the jukebox), the booth's only way since Nov 12: no build-up, DROP or picks; the songs asked for one after another, the DJ a few seconds between them; the video over the whole TV on anyone's word", () => {
   const e = new RoomEngine(freshRoom("DJJK", clock), host);
   e.screenHello("tv-jk", true, "dj");
   for (const [p, n] of [
@@ -3706,13 +3770,16 @@ test("dj: 点歌模式 (the jukebox): the host's switch; no build-up, DROP or pi
     e.flush();
   };
   const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  ok(dv("p2").juke === true && dv("p2").full === false, "点歌模式 from the start (Steve on Nov 12: \"不需要drop了\"), the video in its corner");
+  // a booth saved before Nov 12, with the build-up and DROP on: it goes over to 点歌模式, once
+  const saved = e.d.game!.s as { juke: boolean; rev?: number };
+  saved.juke = false;
+  delete saved.rev;
+  ok(dv("p2").juke === true, "a booth saved before goes over to 点歌模式");
   sc("live", { source: "fake" });
   sc("grid", { at: clock, bar: 0, bpm: 125 });
-  ok(dv("p2").juke === false && dv("p2").full === false, "off to start with: the deck as it was, the video in its corner");
-  ok(nothing(g("p2", "juke", { on: true })), "only the host switches to 点歌模式");
-  ok(!nothing(g("p1", "juke", { on: true })) && dv("p3").juke === true, "the host does, and every phone reads it");
-  ok(nothing(g("p1", "juke", { on: true })), "switched on again: nothing more to do");
-  ok(nothing(g("p2", "charge", { n: 8 })), "no build-up in 点歌模式");
+  ok(nothing(g("p1", "juke", { on: false })) && dv("p2").juke === true, "no phone switches it off, the host's neither (an older page's switch)");
+  ok(nothing(g("p2", "charge", { n: 8 })), "no build-up");
   ok(nothing(g("p3", "vote", { style: "techno" })), "nor picks");
   // a song asked for, nothing else playing: it starts a few seconds on, with no countdown to press
   g("p2", "req", { yt: ["kJQP7kiw5Fk", "Despacito", "Luis Fonsi"] });
@@ -3743,23 +3810,250 @@ test("dj: 点歌模式 (the jukebox): the host's switch; no build-up, DROP or pi
   ok(!nothing(g("p2", "full", { on: true })) && dv("p1").full === true && dv("p3").full === true, "Ben puts the video over the whole TV");
   ok(nothing(g("p3", "full", { on: true })), "asked again: nothing more to do");
   ok(!nothing(g("p3", "full", { on: false })) && dv("p1").full === false, "Cat puts it back in its corner");
-  // back to the deck as it was: a song up next waits for the table's drop again
   ok(sc("songdone", { id: dv("p1").deck.song!.id }) && dv("p1").deck.song === null, "Cat's ends, nothing else asked for: the DJ plays on");
   advance(DECK.jukeGapMs + 10);
   ok(dv("p1").deck.drop === null, "and no switch is on its way");
-  ok(!nothing(g("p1", "juke", { on: false })) && dv("p2").juke === false, "the host switches back");
-  g("p2", "req", { yt: ["zyxwvutsrqp", "Third", "Chan"] });
-  advance(DECK.jukeWaitMs + 10);
-  ok(dv("p1").deck.up?.by === "p2" && dv("p1").deck.drop === null, "a song up next waits for the table's build-up and DROP again");
-  ok(!nothing(g("p2", "charge", { n: 8 })), "and the build-up takes taps again");
-  // a new set keeps the host's choice
-  g("p1", "juke", { on: true });
+  // a new set keeps it
   g("p1", "phase", { phase: "end" });
   g("p1", "again");
   ok(dv("p2").juke === true && dv("p2").full === false, "another set: still 点歌模式, the video back in its corner");
 });
 
-test("dj: the shared phone (公用手机): the big screen itself asks for songs as the table's, takes its own back, skips the song playing, switches 点歌模式, 随机 and the video, with nobody seated; another screen can't", () => {
+test("dj: the player on every phone (Steve on Nov 12: \"一键播放，切歌，暂停，上一曲\"): anyone at the table, or the shared phone, holds the room's music and carries it on, skips to the next song, goes back to the one before", () => {
+  const e = new RoomEngine(freshRoom("DJPY", clock), host);
+  e.screenHello("tv-py", true, "dj");
+  e.screenHello("tv-py2", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}, sid = "tv-py") => {
+    const took = e.screenAct(sid, { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const ask = (pid: string, id: string) => g(pid, "req", { yt: [id, `Song ${id}`, "Chan"] });
+  const beat = 60_000 / 125;
+  /** the switch on its way into the next song lands; `soon`: it came on 切歌 or 上一曲 (a bar or so on) */
+  const landed = (what: string, soon = false) => {
+    const sw = dv("p1").deck.drop;
+    ok(!!sw && sw.quiet === true && (!soon || sw.at - clock <= (DECK.ctlBeats + 4) * beat), `${what}${sw ? ` (${Math.round(sw.at - clock)} ms on)` : ""}`);
+    if (sw) advance(sw.at - clock + 5);
+  };
+  const playing = () => dv("p2").deck.song?.yt ?? null;
+  const A = "aaaaaaaaaa1";
+  const B = "bbbbbbbbbb2";
+  const C = "cccccccccc3";
+  const D = "dddddddddd4";
+  ok(nothing(g("p3", "pause")) && nothing(g("p3", "next")) && nothing(g("p3", "prev")), "before the music starts: nothing to pause, skip or go back to");
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ask("p1", A);
+  advance(DECK.jukeWaitMs + 10);
+  landed("Amy's song comes on");
+  ok(playing() === A, "Amy's plays");
+  ok(nothing(g("p3", "prev")), "上一曲 with none before it: nothing");
+  ask("p2", B);
+  ask("p3", C);
+  ok(dv("p1").deck.up?.yt === B && dv("p1").deck.reqs[0]?.yt === C, "Ben's up next, Cat's after it");
+
+  // 暂停 and 播放: anyone (Cat: not the host, not her song)
+  advance(20_000);
+  const t0 = dv("p1").deck.song!.at;
+  ok(!nothing(g("p3", "pause")) && dv("p2").deck.paused === clock, "Cat pauses it: the room's music held, every phone reads it");
+  ok(nothing(g("p2", "pause")), "paused already: nothing more to do");
+  ok(nothing(g("p2", "pad", { pad: "echo" })) && !nothing(g("p2", "pad", { pad: "horn" })), "the DJ's pads wait with it (the air horn and the other sounds of their own still play)");
+  advance(13 * 60_000);
+  ok(playing() === A && !dv("p1").deck.drop, "held 13 minutes: the song's 12-minute limit doesn't run, nothing comes up next");
+  ok(!nothing(g("p2", "play")) && dv("p3").deck.paused === 0, "Ben carries it on");
+  ok(dv("p1").deck.song!.at === t0 + 13 * 60_000, "from where it stopped: its start moved on by the pause (the TV plays it from there)");
+  ok(nothing(g("p2", "play")), "playing: 播放 again does nothing");
+
+  // 切歌: the next now
+  ok(!nothing(g("p3", "next")) && dv("p1").deck.song === null, "Cat skips Amy's song (anyone can)");
+  ok(nothing(g("p1", "next")) && dv("p1").deck.up?.yt === B, "the host's 切歌 a moment later skips nothing more (Ben's switch is on its way)");
+  landed("Ben's comes straight on", true);
+  ok(playing() === B && dv("p1").deck.up?.yt === C, "Ben's plays, Cat's up next");
+
+  // 上一曲: Amy's again, Ben's and Cat's after it as they were
+  advance(5000);
+  ok(!nothing(g("p2", "prev")) && dv("p1").deck.song === null, "Ben goes back a song");
+  let d = dv("p1").deck;
+  ok(d.up?.yt === A && d.up.by === "p1", "Amy's is up again, hers");
+  ok(d.reqs[0]?.yt === B && d.reqs[1]?.yt === C && !!d.reqs[0].back && !!d.reqs[1].back, "Ben's and Cat's back first on the 歌单, in their order");
+  ok(d.heard.length === 0, "the night's list of songs played steps back with them");
+  landed("Amy's comes on again", true);
+  ok(playing() === A && dv("p1").deck.up?.yt === B, "Amy's plays again, Ben's up next");
+  ok(dv("p1").deck.heard.map((r) => r.yt).join() === A, "on the night's list once");
+  advance(DECK.reqGapMs);
+  ask("p1", D);
+  ok(dv("p1").deck.reqs.map((r) => r.yt).join() === [C, D].join(), "a song asked for now waits behind the ones put back");
+  ok(reqOrder(dv("p3").deck.reqs, dv("p3").deck.reqOn, clock)[0]?.yt === C, "and the phones' 歌单 shows them so");
+
+  // the shared phone (the speaker) has the player too; another screen with the code doesn't
+  advance(DECK.ctlGapMs + 10);
+  // (the speaker says the bars every 10 s while it plays: still there, still the one speaking)
+  sc("tap", { on: false });
+  ok(!sc("pause", {}, "tv-py2"), "another screen with the code can't pause it");
+  ok(sc("pause") && dv("p2").deck.paused > 0, "the shared phone can");
+  ok(sc("play") && dv("p2").deck.paused === 0, "and carry it on");
+  ok(!sc("next", {}, "tv-py2"), "nor skip it");
+  ok(sc("next") && dv("p1").deck.song === null, "the shared phone skips it");
+  landed("Ben's comes on", true);
+  ok(playing() === B, "Ben's plays");
+
+  // the TV's YouTube player wants a tap on the video (an iPhone's): the phones can say so
+  ok(!sc("tap", { on: true }, "tv-py2") && dv("p1").deck.tap === false, "another screen's word that it wants a tap: not taken");
+  ok(sc("tap", { on: true }) && dv("p3").deck.tap === true, "the speaker's: every phone reads it");
+  ok(!sc("tap", { on: true }), "said again: nothing");
+  ok(sc("tap", { on: false }) && dv("p3").deck.tap === false, "tapped: it doesn't any more");
+  sc("tap", { on: true });
+  ok(!nothing(g("p3", "next")) && dv("p1").deck.tap === false, "切歌: the word goes with the song");
+  landed("Cat's comes on", true);
+  ok(playing() === C && dv("p1").deck.up?.yt === D, "Cat's plays, Amy's next");
+
+  // between two songs, 切歌 brings the next on now; on the last one, the DJ plays on
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }) && dv("p1").deck.song === null && !dv("p1").deck.drop, "Cat's ends: the DJ's moment before the next");
+  ok(!nothing(g("p2", "next")) && !!dv("p1").deck.drop, "切歌 then: the next comes on now");
+  landed("Amy's comes on", true);
+  ok(playing() === D && !dv("p1").deck.up, "Amy's plays, nothing up next");
+  ok(!nothing(g("p3", "next")) && dv("p1").deck.song === null && !dv("p1").deck.drop, "切歌 on the last one: the DJ plays on");
+  advance(DECK.ctlGapMs + 10);
+  ok(nothing(g("p3", "next")), "nothing playing, nothing up next: nothing to skip to");
+
+  // 上一曲 with nothing playing: the last one again
+  ok(!nothing(g("p1", "prev")) && dv("p1").deck.up?.yt === D && !!dv("p1").deck.drop, "上一曲 with the DJ playing: Amy's last one again, now");
+  landed("it comes on", true);
+  ok(playing() === D, "it plays");
+
+  // paused between songs, nothing comes up until 播放
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }) && dv("p1").deck.song === null, "it ends: the DJ plays");
+  ok(!nothing(g("p1", "pause")), "Amy pauses the DJ");
+  advance(DECK.reqGapMs);
+  ask("p2", "eeeeeeeeee5");
+  advance(10_000);
+  ok(dv("p1").deck.up?.yt === "eeeeeeeeee5" && !dv("p1").deck.drop, "a song asked for while it's held waits up next");
+  ok(!nothing(g("p2", "play")) && !dv("p1").deck.drop, "播放: the DJ carries on");
+  advance(DECK.jukeGapMs + 10);
+  ok(!!dv("p1").deck.drop, "and the song up next comes on a moment later");
+  // the end of the night lets go of a pause
+  g("p3", "pause");
+  ok(dv("p1").deck.paused > 0, "held again");
+  g("p1", "phase", { phase: "end" });
+  ok(dv("p2").deck.paused === 0 && dv("p2").deck.tap === false, "the set ends: nothing held");
+  ok(nothing(g("p3", "play")), "and nothing to carry on");
+});
+
+test("dj: a song coming on (点歌模式's quiet switch): a speaker whose bars keep moving doesn't put it off, 切歌 skips it too, 上一曲 puts the last one in on its bar (Steve on Nov 12: \"播放下一首全程没办法使用\")", () => {
+  const e = new RoomEngine(freshRoom("DJQS", clock), host);
+  e.screenHello("tv-qs", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-qs", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const ask = (pid: string, id: string) => g(pid, "req", { yt: [id, `Song ${id}`, "Chan"] });
+  const playing = () => dv("p2").deck.song?.yt ?? null;
+  const land = () => {
+    const sw = dv("p1").deck.drop;
+    if (sw) advance(sw.at - clock + 5);
+  };
+  const A = "aaaaaaaaaa1";
+  const B = "bbbbbbbbbb2";
+  const C = "cccccccccc3";
+  const D = "dddddddddd4";
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  ask("p1", A);
+  advance(DECK.jukeWaitMs + 10);
+  const sw = dv("p1").deck.drop;
+  ok(!!sw && sw.quiet === true, "Amy's song is coming on");
+  // the speaker's sound stopped: its bars drift along with the clock, every second or so
+  for (let k = 1; k <= 3; k++) {
+    advance(DECK.gridGapMs + 100);
+    ok(sc("grid", { at: clock + 333 * k, bar: 2 + k, bpm: 125 }), `(new bars from the speaker, ${k})`);
+  }
+  ok(dv("p1").deck.drop?.at === sw!.at && dv("p1").deck.drop?.bar === sw!.bar, "the switch keeps its moment: new bars don't put it off (they did, for good, while a phone's sound was stopped)");
+  land();
+  ok(playing() === A, "and it lands: Amy's plays");
+  ask("p2", B);
+  ask("p3", C);
+  ok(dv("p1").deck.up?.yt === B && dv("p1").deck.reqs[0]?.yt === C, "Ben's up next, Cat's after it");
+
+  // 切歌 while Ben's is coming on: Cat's goes in on that bar instead
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }), "Amy's ends");
+  advance(DECK.jukeGapMs + 10);
+  const sw2 = dv("p1").deck.drop;
+  ok(!!sw2 && sw2.quiet === true && dv("p1").deck.up?.yt === B, "Ben's is coming on");
+  ok(!nothing(g("p3", "next")), "切歌 while it's coming on: taken (the keys aren't grey then any more)");
+  ok(dv("p1").deck.up?.yt === C && dv("p1").deck.drop?.at === sw2!.at, "Ben's skipped too: Cat's goes in on the same bar");
+  ok(dv("p1").deck.reqs.length === 0, "nothing else waiting");
+  land();
+  ok(playing() === C, "Cat's plays");
+  ok(dv("p1").deck.heard.map((r) => r.yt).join() === [A, C].join(), "the night's list: Amy's, Cat's (Ben's never played)");
+
+  // 上一曲 while the next is coming on: the last one played goes in instead
+  advance(DECK.reqGapMs + 10);
+  ask("p1", D);
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }), "Cat's ends");
+  advance(DECK.jukeGapMs + 10);
+  const sw3 = dv("p1").deck.drop;
+  ok(!!sw3 && dv("p1").deck.up?.yt === D, "Amy's next one is coming on");
+  ok(!nothing(g("p2", "prev")), "上一曲 while it's coming on: taken");
+  let d = dv("p1").deck;
+  ok(d.up?.yt === C && d.drop?.at === sw3!.at, "Cat's goes in again on that bar");
+  ok(d.reqs[0]?.yt === D && !!d.reqs[0].back, "Amy's back first on the 歌单");
+  ok(d.heard.map((r) => r.yt).join() === A, "the night's list steps back");
+  land();
+  ok(playing() === C && dv("p1").deck.up?.yt === D, "Cat's plays again, Amy's up next");
+
+  // 切歌 while the last one is coming on: the switch goes to the DJ
+  ok(sc("songdone", { id: dv("p1").deck.song!.id }), "Cat's ends again");
+  advance(DECK.jukeGapMs + 10);
+  ok(!!dv("p1").deck.drop && dv("p1").deck.up?.yt === D, "Amy's is coming on");
+  advance(DECK.ctlGapMs);
+  ok(!nothing(g("p3", "next")), "切歌 while the last one is coming on");
+  d = dv("p1").deck;
+  ok(d.up === null && !!d.drop, "nothing up next: the switch goes to the DJ");
+  land();
+  ok(playing() === null && !dv("p1").deck.drop, "the DJ plays");
+  advance(DECK.ctlGapMs);
+  ok(nothing(g("p3", "next")), "and there's nothing to skip to");
+});
+
+test("dj: the shared phone (公用手机): the big screen itself asks for songs as the table's, takes its own back, skips the song playing, switches 随机 and the video, with nobody seated; another screen can't", () => {
   const e = new RoomEngine(freshRoom("DJSP", clock), host);
   e.screenHello("tv-sp", true, "dj");
   e.screenHello("tv-other", true, "dj");
@@ -3784,12 +4078,21 @@ test("dj: the shared phone (公用手机): the big screen itself asks for songs 
   ok(tv().deck.up?.by === SHARED_BY && tv().deck.up?.text === "Despacito", "up next, the table's, its name read on the screen");
   ok(events.some((x) => x.k === "fx" && x.fx === "req" && x.pid === SHARED_BY), "the room says the shared phone asked for a song");
   ok(!sc("req", { yt: ["abcdefghijk", "Two", "Chan"] }), "not again within a few seconds");
-  // more than a player's three: the table's thirty only
+  // more than a player's songs: the table's limit only (its first plays meanwhile: 点歌模式)
   for (const id of ["abcdefghij1", "abcdefghij2", "abcdefghij3", "abcdefghij4"]) {
     advance(DECK.reqGapMs + 10);
     ok(sc("req", { yt: [id, `Song ${id.slice(-1)}`, "Chan"] }), `the shared phone's song ${id.slice(-1)}`);
   }
-  ok(mine() === 5, `five of its own, more than a player's three (${mine()})`);
+  // (its first comes on by itself a few seconds after it went up)
+  const sw0 = tv().deck.drop;
+  if (sw0) advance(sw0.at - clock + 5);
+  ok(tv().deck.song?.by === SHARED_BY && tv().deck.song?.yt === "kJQP7kiw5Fk", "its first plays whole meanwhile, one after another (点歌模式)");
+  ok(mine() === 4, `four more of its own waiting (${mine()})`);
+  for (let k = 5; k <= DECK.reqEach + 1; k++) {
+    advance(DECK.reqGapMs + 10);
+    sc("req", { text: `Song ${k}, typed on the shared phone` });
+  }
+  ok(mine() === DECK.reqEach + 1, `more than a player's ${DECK.reqEach} (${mine()}): the table's limit only`);
   // phones at the table read the shared phone's songs by name; only the host can take them out
   e.hello("p1", "Amy", false);
   e.hello("p2", "Ben", false);
@@ -3807,22 +4110,11 @@ test("dj: the shared phone (公用手机): the big screen itself asks for songs 
   e.flush();
   const bens = tv().deck.reqs.find((r) => r.by === "p2");
   ok(!!bens && !sc("unreq", { id: bens.id }), "Ben's song isn't the shared phone's to take back");
-  // 点歌模式 from the shared phone (no host phone needed): its song up next starts a few seconds on
-  ok(!sc("juke", { on: true }, "tv-other"), "another screen can't switch 点歌模式");
-  ok(sc("juke", { on: true }) && tv().juke === true && pv("p2").juke === true, "the shared phone switches to 点歌模式, every phone reads it");
-  ok(!sc("juke", { on: true }), "again: nothing to do");
-  advance(DECK.jukeWaitMs + 10);
-  const sw = tv().deck.drop;
-  ok(!!sw && sw.quiet === true, "the switch into its song is on its way");
-  advance(sw!.at - clock + 5);
-  ok(tv().deck.song?.by === SHARED_BY && tv().deck.song?.yt === "kJQP7kiw5Fk", "and it plays whole");
   ok(!sc("songskip", {}, "tv-other"), "another screen can't skip it");
   ok(sc("full", { on: true }) && tv().full === true && pv("p1").full === true, "the shared phone puts the video over the whole TV");
   ok(!sc("full", { on: true }), "asked again: nothing to do");
   ok(sc("full", { on: false }) && tv().full === false, "and back in its corner");
-  ok(sc("songskip") && tv().deck.song === null, "the shared phone skips it: the DJ comes back");
-  ok(!sc("songskip"), "no song playing: nothing to skip");
-  ok(sc("juke", { on: false }) && tv().juke === false, "and switches back to the build-up and DROP");
+  ok(sc("songskip") && tv().deck.song === null && !!tv().deck.drop?.quiet, "the shared phone skips it (an older page's 切歌): the next comes straight on");
   ok(!sc("shuffle", { on: true }, "tv-other"), "another screen can't switch the playlist to 随机");
   ok(sc("shuffle", { on: true }) && tv().shuffle === true && !sc("shuffle", { on: true }), "the shared phone does (once)");
   ok(sc("shuffle", { on: false }) && tv().shuffle === false, "and back to 按顺序");
@@ -3832,6 +4124,7 @@ test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随
   const room = (code: string) => {
     const e = new RoomEngine(freshRoom(code, clock), host);
     e.screenHello(`tv-${code}`, true, "dj");
+    dropMode(e, `tv-${code}`);
     for (const [p, n] of [
       ["p1", "Amy"],
       ["p2", "Ben"],
@@ -3859,13 +4152,16 @@ test("dj: the 歌单 (playlist): three songs each, thirty in all; the host's 随
   };
   const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
   const { dv, g, sc, advance } = room("DJPL");
-  for (const k of [1, 2, 3]) {
+  ok(DECK.reqEach >= 24 && DECK.reqMax === 100, `at least 24 each (Steve on Nov 12: "一个人一次性可以至少点24首歌"; ${DECK.reqEach}), a hundred in all`);
+  g("p2", "req", { text: "song 1 for ben" });
+  ok(nothing(g("p2", "req", { text: "too soon" })), "a second song the same moment: one a second");
+  for (let k = 2; k <= DECK.reqEach; k++) {
+    advance(DECK.reqGapMs + 10);
     g("p2", "req", { text: `song ${k} for ben` });
-    advance(6000);
   }
-  ok(dv("p2").deck.reqs.filter((r) => r.by === "p2").length === 3, "Ben puts three songs on the playlist");
-  ok(nothing(g("p2", "req", { text: "song four" })), "a fourth waits till one has played");
-  ok(DECK.reqEach === 3 && DECK.reqMax === 30, "three each, thirty in all");
+  ok(dv("p2").deck.reqs.filter((r) => r.by === "p2").length === DECK.reqEach, `Ben puts ${DECK.reqEach} songs on the playlist, one after another`);
+  advance(DECK.reqGapMs + 10);
+  ok(nothing(g("p2", "req", { text: "one more" })), "one more waits till one has played");
   // the host's switch
   ok(nothing(g("p2", "shuffle", { on: true })) && dv("p1").shuffle === false, "only the host switches 随机: it starts 按顺序");
   ok(!nothing(g("p1", "shuffle", { on: true })) && dv("p3").shuffle === true, "the host turns 随机 on: every phone sees it");
@@ -3925,6 +4221,7 @@ test("dj: the mixer (混音台): knobs anyone turns (held a moment by whoever mo
   const e = new RoomEngine(freshRoom("DJMX", clock), host);
   const events: RoomEvent[] = [];
   e.screenHello("tv-mx", true, "dj");
+  dropMode(e, "tv-mx");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -4082,6 +4379,7 @@ test("dj: dancing along (跟着跳): each dancer's bars, late or twice turned aw
 test("dj: the plan's floor: ❄️ and reading the room (读场), one person's two songs 10 minutes apart, the night's recap (今晚回顾), 报幕's switch", () => {
   const e = new RoomEngine(freshRoom("DJFL", clock), host);
   e.screenHello("tv-fl", true, "dj");
+  dropMode(e, "tv-fl");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -4220,6 +4518,7 @@ test("dj: 我的歌 from the host's phone: the switch is the room's (the host's 
 test("dj: a night of the host's songs: their names from the speaker, a song on each deck, asked for by name, the DJ drops into the next as one ends", () => {
   const e = new RoomEngine(freshRoom("DJLC", clock), host);
   e.screenHello("tv-lc", true, "dj");
+  dropMode(e, "tv-lc");
   for (const [p, n] of [
     ["p1", "Amy"],
     ["p2", "Ben"],
@@ -4339,6 +4638,7 @@ test("dj: a night of the host's songs: their names from the speaker, a song on e
   // two songs take turns
   const e3 = new RoomEngine(freshRoom("DJLE", clock), host);
   e3.screenHello("tv-le", true, "dj");
+  dropMode(e3, "tv-le");
   e3.hello("q1", "Q1", false);
   e3.flush();
   const s3 = (x: string, rest: Record<string, unknown> = {}) => {
@@ -4362,6 +4662,7 @@ test("dj: a night of the host's songs: their names from the speaker, a song on e
   ok(d3().fader === 1 && d3().songs.a === first, `the next plays, and the one before comes round again on the deck off the air (${d3().songs.a})`);
   const e2 = new RoomEngine(freshRoom("DJLD", clock), host);
   e2.screenHello("tv-ld", true, "dj");
+  dropMode(e2, "tv-ld");
   e2.flush();
   e2.screenAct("tv-ld", { x: "live", source: "local" });
   e2.flush();

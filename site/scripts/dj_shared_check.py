@@ -7,8 +7,9 @@ speaker page, goes full screen (where the browser lets a page: an iPhone can't, 
 is asked instead) and starts the music with no other tap, in 点歌模式. Its 点歌 button opens the
 sheet: a pasted link goes in as the shared phone's (not one of anyone's three), the badge counts the
 playlist, the TV names it 公用手机's, and it plays whole in its corner; the phones at the table read
-it by name and only the host can take it out; the sheet skips the song playing, takes its own song
-back, switches 随机 and back to the build-up and DROP. Held upright, the phone is asked to turn
+it by name and only the host can take it out; the sheet has the phones' player (Steve on Nov 12):
+it pauses the song and carries it on, skips it; it takes its own song back and switches 随机. Its
+Held upright, the phone is asked to turn
 sideways (or keep it upright). On a computer the card's button is 这台电脑当音箱 and starts the music
 the same way; the booth opened at its address still asks for the tap that starts the party.
 
@@ -92,7 +93,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 15000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-player").count() == 1, 15000), f"{name}'s phone shows the player")
         phones.append(ph)
     amy, ben = phones
 
@@ -104,7 +105,7 @@ with sync_playwright() as p:
     share.click()
     ok(until(lambda: sp.locator(".ui-sheet[open] .dj-share").count() == 1, 6000), "it opens the song sheet")
     ok("点歌" in text(sp, ".ui-sheet[open] .ui-sheet-heading"), "titled 点歌")
-    ok(sp.locator(".dj-share .djk-juke button[aria-pressed=true]").inner_text().strip().endswith("点歌模式"), "点歌模式 switched on, in the sheet")
+    ok(sp.locator(".dj-share .djk-player").count() == 1 and sp.locator(".dj-share .djk-juke").count() == 0, "the player at the top of the sheet, no switch to the build-up and DROP")
     ask(sp, SONG)
     ok(until(lambda: (deck(sp).get("up") or deck(sp).get("now") or {}).get("by") == SHARED, 6000), "it goes in as the shared phone's")
     ok(until(lambda: "下一首就是你点的" in text(sp, ".dj-share .djk-req-mine") or bool(deck(sp).get("song")), 6000), f"the sheet says it's next ({text(sp, '.dj-share .djk-req-mine')!r})")
@@ -116,7 +117,7 @@ with sync_playwright() as p:
     tb = sp.locator(".dj-tube").bounding_box()
     sb = share.bounding_box()
     ok(tb and sb and sb["x"] >= tb["x"] + tb["width"] - 2, "the 点歌 button beside the video's corner, not over it")
-    ok(until(lambda: "公用手机" in text(ben, ".djk-song-title"), 6000), f"Ben's phone says whose song plays ({text(ben, '.djk-song-title')!r})")
+    ok(until(lambda: "公用手机" in text(ben, ".djk-player-by"), 6000), f"Ben's phone says whose song plays ({text(ben, '.djk-player-now')!r})")
     sp.wait_for_timeout(800)
     sp.screenshot(path=os.path.join(OUT, "shared-4-song.png"))
 
@@ -130,21 +131,27 @@ with sync_playwright() as p:
     row = lambda pg: pg.locator(".djk-list-row").filter(has_text="Another song")
     ok(until(lambda: row(ben).count() == 1 and "公用手机" in row(ben).inner_text(), 6000), f"Ben reads it by name, the shared phone's ({row(ben).inner_text() if row(ben).count() else ''!r})")
     ok(row(ben).locator(".djk-list-out").count() == 0 and row(amy).locator(".djk-list-out").count() == 1, "only the host can take it out")
-    # the song playing skipped from the sheet
-    ok(sp.locator(".dj-share .djk-song").count() == 1, "the sheet shows the song playing")
-    sp.locator(".dj-share .djk-song button:not([aria-pressed])").click()
-    ok(until(lambda: deck(sp).get("song") is None or (deck(sp).get("song") or {}).get("yt") == MORE, 6000), "skipped from the shared phone")
+    # the player in the sheet: pause, carry on, skip
+    ok(until(lambda: "电视上在放" in text(sp, ".dj-share .djk-player-kicker"), 4000), f"the sheet shows the song playing ({text(sp, '.dj-share .djk-player-now')!r})")
+    keys = sp.locator(".dj-share .djk-player-keys .djk-key")
+    keys.nth(1).click()
+    ok(until(lambda: deck(sp).get("paused", 0) > 0 and "暂停了" in text(ben, ".djk-player-kicker"), 4000), "暂停 from the shared phone: the phones see it")
+    keys.nth(1).click()
+    ok(until(lambda: deck(sp).get("paused", 1) == 0, 4000), "播放: it carries on")
+    sp.wait_for_timeout(1700)
+    keys.nth(2).click()
+    ok(until(lambda: deck(sp).get("song") is None or (deck(sp).get("song") or {}).get("yt") == MORE, 6000), "切歌 from the shared phone")
     # its own taken back (the one up next, before it starts)
     if (deck(sp).get("up") or {}).get("by") == SHARED:
         row(sp).locator(".djk-list-out").click()
         ok(until(lambda: not any(r.get("by") == SHARED for r in [deck(sp).get("up") or {}] + deck(sp).get("reqs", [])), 4000), "the shared phone takes its own back")
-    # 随机, and back to the build-up and DROP
+    # 随机
     sp.locator(".dj-share .djk-list-seg button").nth(1).click()
     ok(until(lambda: (view(sp) or {}).get("shuffle") is True, 4000), "随机 from the shared phone")
     sp.locator(".dj-share .djk-list-seg button").nth(0).click()
     ok(until(lambda: (view(sp) or {}).get("shuffle") is False, 4000), "and 按顺序")
-    sp.locator(".dj-share .djk-juke button").nth(0).click()
-    ok(until(lambda: (view(sp) or {}).get("juke") is False and ben.locator(".djk-build").count() == 1, 4000), "back to the build-up and DROP: the phones have it again")
+    ok((view(sp) or {}).get("juke") is True, "still 点歌模式 (there's nothing else now)")
+    sp.screenshot(path=os.path.join(OUT, "shared-4b-player.png"))
     sp.keyboard.press("Escape")
 
     # held upright: asked to turn sideways, or keep it so

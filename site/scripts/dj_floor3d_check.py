@@ -7,9 +7,10 @@ any WebGL: the robots come on as they would on a TV with one.
 What it checks: the drawn floor gives way to the robots once they dance; a robot for each player,
 in their own colour, their face and name over its head; every one's animation set to where the
 speaker's beat is (the coach's way), the moves changing every two bars; a 🔥 makes its owner jump;
-someone who leaves sits down, greyed. A whole song from YouTube: they stop dancing to the DJ's beat
-and sing, a microphone each (not the one away), brows moving, notes going up; the song over, they
-dance again. Crowded (more than 8): two rows, the back one on a step, its tags over the heads, the
+someone who leaves sits down, greyed. A whole song from YouTube (Steve on Nov 12: "机器人没有跟着
+音乐一起跳"): they dance to the song's own beat (its tempo from the rooms server, counted from its
+start), a microphone each (not the one away), brows moving, notes going up; the song over, back to
+the DJ's beat. Crowded (more than 8): two rows, the back one on a step, its tags over the heads, the
 front row's under the feet. The fallbacks: a TV drawing WebGL in software (as this machine's, untold)
 keeps the drawn floor and never downloads three.js; frames too slow (a TV slowed down on purpose)
 and the drawn floor comes back. With reduced motion the robots stand easy: no dancing, no jumping.
@@ -28,15 +29,18 @@ BASE = "http://127.0.0.1:5173/"
 OUT = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "dj-floor3d"))
 os.makedirs(OUT, exist_ok=True)
 SONG = "kJQP7kiw5Fk"
+SONG_BPM = 89
 DANCES = {"Dance", "Yes", "Jump", "Wave", "Punch", "ThumbsUp"}
 MORE = ["Dan", "Eve", "Fay", "Gus", "Hal", "Ivy"]
 
 
 def yt_api(route):
-    """The rooms server's YouTube lookup, standing in: any pasted link is Despacito."""
+    """The rooms server's YouTube lookups, standing in: any pasted link is Despacito, at 89 BPM."""
     url = route.request.url
     vid = url.split("id=")[1][:11] if "id=" in url else SONG
     hdr = {"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"}
+    if "/yt/bpm" in url:
+        return route.fulfill(status=200, body=json.dumps({"bpm": SONG_BPM}), headers=hdr)
     route.fulfill(status=200, body=json.dumps({"id": vid, "t": "Despacito (official video)", "a": "Luis Fonsi"}), headers=hdr)
 
 
@@ -92,6 +96,7 @@ def tv_page(br, any_gl=True, extra="", **ctx):
     if any_gl:
         tv.add_init_script("window.__djAnyGl = true;" + extra)
     tv.route("https://www.youtube.com/iframe_api", lambda r: r.fulfill(status=200, body=FAKE_YT, headers={"Content-Type": "text/javascript"}))
+    tv.route("http://127.0.0.1:8787/api/yt/**", yt_api)
     tv.route("https://audio-ssl.itunes.apple.com/**", lambda r: r.abort())
     tv._errs = []
     tv.on("pageerror", lambda e: tv._errs.append(str(e)))
@@ -113,7 +118,7 @@ with sync_playwright() as p:
 
     phones = [join(br, code, n) for n in ("Amy", "Ben", "Cat")]
     for ph in phones:
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 15000), f"{ph._name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-player").count() == 1, 15000), f"{ph._name}'s phone shows the player")
     amy, ben, cat = phones
     pid = {ph._name: ph.evaluate("() => window.__room.you") for ph in phones}
     ok(until(lambda: f3(tv).get("n") == 3 and len(tags(tv)) == 3, 8000), f"a robot for each of the three ({f3(tv).get('n')})")
@@ -160,7 +165,7 @@ with sync_playwright() as p:
     ok(until(lambda: f3(tv)["bots"][pid["Cat"]]["clip"] == "Sitting" and "is-away" in (tag(tv, "Cat") or {}).get("cls", ""), 15000), "Cat leaves: her robot sits down, her tag greyed")
     ok(f3(tv)["bots"][pid["Cat"]]["color"] != tag(tv, "Cat")["tc"], f"her robot greyed too ({f3(tv)['bots'][pid['Cat']]['color']}, hers {tag(tv, 'Cat')['tc']})")
 
-    # a whole song: they stop dancing to the DJ's beat and sing
+    # a whole song: they dance to its own beat, at a microphone each, singing along
     ben.locator(".djk-req-input").fill(f"https://youtu.be/{SONG}")
     ok(until(lambda: ben.locator(".djk-req-hit.is-yt").count() > 0, 5000), "Ben pastes a song's link")
     ben.locator(".djk-req-hit.is-yt").first.click()
@@ -169,7 +174,21 @@ with sync_playwright() as p:
     ok(until(lambda: f3(tv).get("singing"), 5000), "the whole song plays: the floor sings")
     s1 = f3(tv)["bots"]
     ok(s1[pid["Amy"]]["mic"] and s1[pid["Ben"]]["mic"] and not s1[pid["Cat"]]["mic"], "a microphone for each at the table (none for Cat, away)")
-    ok(until(lambda: all(f3(tv)["bots"][pid[n]]["clip"] == "Idle" for n in ("Amy", "Ben")), 3000), "no dancing to the DJ's beat over someone else's song: they stand at the mic")
+    ok(until(lambda: all(f3(tv)["bots"][pid[n]]["clip"] in DANCES for n in ("Amy", "Ben")), 3000), f"they dance over the song ({[f3(tv)['bots'][pid[n]]['clip'] for n in ('Amy', 'Ben')]})")
+    t0, b0 = time.time(), f3(tv)["beat"]
+    tv.wait_for_timeout(3000)
+    t1, b1 = time.time(), f3(tv)["beat"]
+    rate = (b1 - b0) / (t1 - t0) * 60
+    ok(abs(rate - SONG_BPM) < 6, f"to the song's own tempo, not the DJ's 125 ({rate:.0f} BPM, the song's {SONG_BPM})")
+    song_at = deck(tv)["song"]["at"]
+    # (the rooms server runs on this machine: its clock is the page's)
+    since = tv.evaluate("(at) => Date.now() - at", song_at) / 1000 * SONG_BPM / 60
+    ok(abs(f3(tv)["beat"] - since) < 1.5, f"counted from the song's start ({f3(tv)['beat']:.1f} beats, {since:.1f} since it started)")
+    worst = []
+    for _ in range(8):
+        worst += off_beat(f3(tv))
+        tv.wait_for_timeout(170)
+    ok(not worst, f"every animation where the song's beat is ({worst[:3]})")
     ok(f3(tv)["bots"][pid["Cat"]]["clip"] == "Sitting", "Cat still sitting")
     ok(until(lambda: all("is-singing" in (tag(tv, n) or {}).get("cls", "") for n in ("Amy", "Ben")) and "is-singing" not in (tag(tv, "Cat") or {}).get("cls", ""), 3000), "notes going up from the two singing")
     brows = []
@@ -178,11 +197,11 @@ with sync_playwright() as p:
         brows.append(f3(tv)["bots"][pid["Amy"]]["brows"])
         tv.wait_for_timeout(100)
     ok(max(brows) > 0.5 and min(brows) < 0.15, f"brows up as a line opens, down for the next ({min(brows):.2f} to {max(brows):.2f})")
-    tv.screenshot(path=os.path.join(OUT, "floor3d-tv-2-singing.png"))
+    tv.screenshot(path=os.path.join(OUT, "floor3d-tv-2-song.png"))
     tv.evaluate("() => window.__yt.end()")
     ok(until(lambda: deck(tv).get("song") is None and not f3(tv).get("singing"), 5000), "the song over: the singing stops")
     ok(until(lambda: not f3(tv)["bots"][pid["Amy"]]["mic"] and not f3(tv)["bots"][pid["Ben"]]["mic"] and tv.locator(".dj-f3-tag.is-singing").count() == 0, 2000), "the microphones go, the notes too")
-    ok(until(lambda: all(f3(tv)["bots"][pid[n]]["clip"] in DANCES for n in ("Amy", "Ben")), 15000), "and they dance again when the DJ's back")
+    ok(until(lambda: all(f3(tv)["bots"][pid[n]]["clip"] in DANCES for n in ("Amy", "Ben")), 15000), "and they dance on, to the DJ's beat again")
 
     # crowded: two rows, the back one on a step
     more = [join(br, code, n) for n in MORE]

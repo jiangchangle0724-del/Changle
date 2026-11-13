@@ -113,22 +113,13 @@ export function nowLine(r: { text: string | null; artist?: string; local?: strin
 /** Under a song asked for that brings its clip: whose 30 seconds they are, and what comes after. */
 export const CLIP_CREDIT = t("原曲片段来自 Apple Music，之后接 DJ 的 Remix", "Clip courtesy of Apple Music, then the DJ's remix");
 
-/** One of the host's songs, in a line: "周杰伦《晴天》", or "晴天 (周杰伦)". */
-export const localName = (s: { t: string; a: string }, zh: boolean) => (zh ? `${s.a ? `${s.a} ` : ""}《${s.t}》` : s.a ? `${s.t} (${s.a})` : s.t);
-
-export const DROP_WORDS = {
-  perfect: t("完美", "Perfect"),
-  good: t("好", "Good"),
-  early: t("还没到，看倒数", "Not yet. Watch the count"),
-  late: t("晚了一点", "A bit late"),
-};
-
 /**
- * 点歌模式's line under the floor and on the phones (no build-up, no DROP): what happens next.
- * `song`: one plays on the TV now; `up`: one's next.
+ * 点歌模式's line under the floor (no build-up, no DROP): what happens next. `song`: one plays on
+ * the TV now; `up`: one's next; `paused`: someone pressed 暂停 on a phone.
  */
-export function jukeText(song: boolean, up: boolean, zh: boolean): string {
-  if (song) return zh ? "点歌模式：放完马上接下一首" : "Jukebox: the next song follows right after";
-  if (up) return zh ? "点歌模式：下一首几秒后开始" : "Jukebox: the next song starts in a moment";
-  return zh ? "点歌模式：在手机上点歌，一首接一首" : "Jukebox: ask for songs on your phone";
+export function jukeText(song: boolean, up: boolean, zh: boolean, paused = false): string {
+  if (paused) return zh ? "暂停了：手机上点「播放」接着放" : "Paused. Press Play on a phone to carry on";
+  if (song) return zh ? "放完马上接下一首。手机上可以暂停、切歌、上一曲" : "The next song follows right after. Pause, skip or go back from any phone";
+  if (up) return zh ? "下一首几秒后开始" : "The next song starts in a moment";
+  return zh ? "在手机上点歌，一首接一首放" : "Ask for songs on your phone: they play one after another";
 }

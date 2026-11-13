@@ -777,7 +777,7 @@ export type DjView = {
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
-export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "mixAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "reqs" | "up" | "now" | "heard"> & {
+export type DeckView = Omit<DeckState, "pending" | "padAt" | "voteAt" | "reqAt" | "mixAt" | "gridFrom" | "speakerAt" | "decksAt" | "srcAt" | "crateAt" | "ctlAt" | "reqs" | "up" | "now" | "heard"> & {
   reqs: ReqView[];
   up: ReqView | null;
   now: ReqView | null;

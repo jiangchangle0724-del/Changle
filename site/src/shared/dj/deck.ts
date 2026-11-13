@@ -14,10 +14,11 @@ export const rested = (reqOn: Record<string, number>, by: string, now: number) =
 /**
  * The order the songs waiting come up in, if nothing changes: first come, first played, but a
  * player whose song came on the air in the last 10 minutes waits behind the others (the plan: one
- * person's two songs 10 minutes apart; alone, theirs still plays).
+ * person's two songs 10 minutes apart; alone, theirs still plays). Songs 上一曲 put back go first.
  */
-export function reqOrder<R extends { by: string }>(reqs: R[], reqOn: Record<string, number>, now: number): R[] {
-  return [...reqs.filter((r) => rested(reqOn, r.by, now)), ...reqs.filter((r) => !rested(reqOn, r.by, now))];
+export function reqOrder<R extends { by: string; back?: true }>(reqs: R[], reqOn: Record<string, number>, now: number): R[] {
+  const rest = reqs.filter((r) => !r.back);
+  return [...reqs.filter((r) => r.back), ...rest.filter((r) => rested(reqOn, r.by, now)), ...rest.filter((r) => !rested(reqOn, r.by, now))];
 }
 
 export function freshDeck(): DeckState {
@@ -56,6 +57,9 @@ export function freshDeck(): DeckState {
     songs: { a: null, b: null },
     played: [],
     ending: null,
+    paused: 0,
+    tap: false,
+    ctlAt: 0,
     crateAt: 0,
     speakerAt: 0,
     decksAt: 0,

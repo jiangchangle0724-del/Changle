@@ -1,4 +1,4 @@
-import { Hand, Loader2, Music2, SkipForward } from "lucide-react";
+import { Hand, Loader2, Music2, Pause, SkipForward } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { onAir } from "../../shared/dj/deck";
 import type { DjView } from "../../shared/protocol";
@@ -20,8 +20,9 @@ type Target = { id: string; yt: string; by: string; at: number; bar?: number; ro
  * from YouTube plays in YouTube's own player (never downloaded, never mixed). While it's up next it
  * waits in a corner of the TV, loaded and ready (tube.ts); on its drop's bar it starts and comes to
  * the middle, the DJ letting go with the drop's boom (Steve on Nov 4: the drop and the song should
- * meet). When it ends, or can't be played, the screen tells the room and the DJ comes back; the
- * player's phone or the host can skip it.
+ * meet). When it ends, or can't be played, the screen tells the room and the DJ comes back; any
+ * phone can pause it, carry it on, skip it or go back (the phones' player, Steve on Nov 12), and
+ * hears from here when this browser wants a tap on the video first.
  */
 export function TubePlayer({
   v,
@@ -32,6 +33,8 @@ export function TubePlayer({
   barTime,
   done,
   nosong,
+  tap,
+  stopped = false,
 }: {
   v: DjView;
   zh: boolean;
@@ -42,6 +45,10 @@ export function TubePlayer({
   barTime: (bar: number) => number | null;
   done: (id: string) => void;
   nosong: (id: string) => void;
+  /** this browser wants a tap on the video before it plays with sound (or doesn't any more): the room tells the phones */
+  tap: (on: boolean) => void;
+  /** this page's own sound stopped (a phone's screen locked, a call): it wants a tap too */
+  stopped?: boolean;
 }) {
   const d = v.deck;
   const slot = useRef<HTMLDivElement>(null);
@@ -55,8 +62,10 @@ export function TubePlayer({
   const target: Target | null = d.song ? { ...d.song, room: true } : coming;
   // the song up next, got ready while the DJ plays
   const next = !target && up ? up : null;
-  const latest = useRef({ target, next, speaker, now, barTime, done, nosong });
-  latest.current = { target, next, speaker, now, barTime, done, nosong };
+  // 暂停 (the phones' player): the song held where it is, the DJ quiet with it, till 播放
+  const held = !!d.paused;
+  const latest = useRef({ target, next, speaker, now, barTime, done, nosong, tap, held });
+  latest.current = { target, next, speaker, now, barTime, done, nosong, tap, held };
   /** the song the DJ has given way to (or is set to, on its drop's bar) */
   const away = useRef<{ yt: string } | null>(null);
   /**
@@ -76,6 +85,8 @@ export function TubePlayer({
   const back = (seconds: number) => {
     if (!away.current) return;
     away.current = null;
+    // (paused: the DJ stays quiet till 播放)
+    if (latest.current.held) return;
     latest.current.speaker?.giveWay(false, seconds);
   };
 
@@ -168,16 +179,39 @@ export function TubePlayer({
       else L.nosong(target.id);
       return;
     }
+    // 暂停: held where it is (a song this page hasn't started yet, or a switch into one that lands
+    // meanwhile, waits for 播放, from where the room is)
+    if (held) {
+      if (target.room) t.pause();
+      return;
+    }
     // (ready, and allowed to start by itself, it says when through `timed`: the DJ lets go then;
-    // else the DJ gives way once the song is heard)
+    // else the DJ gives way once the song is heard; 播放 after 暂停 carries it on)
     t.play(target.yt, target.at, whenOf(target.at, target.bar));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, target?.at]);
+  }, [key, target?.at, held]);
+
+  // 暂停 holds the DJ too (no song, or one not heard yet); 播放 brings it back, unless a song it gave
+  // way to plays on
+  useEffect(() => {
+    if (!speaker) return;
+    if (held) speaker.giveWay(true, 0.4);
+    else if (!away.current) speaker.giveWay(false, 0.8);
+  }, [held, speaker]);
+
+  // this browser wants a tap on the video (Safari, an iPhone: the night's first song), or this
+  // page's sound stopped: the room keeps it, the phones say so (said again whenever the room has it
+  // otherwise)
+  const wants = stopped || status === "tap" || (status === "ready" && !armed && !!(next || target));
+  const roomTap = !!d.tap;
+  useEffect(() => {
+    if (wants !== roomTap) latest.current.tap(wants);
+  }, [wants, roomTap]);
 
   // on the TV, in its corner: playing once it's heard (or the room says it plays, or it wants a
   // tap), ready while it's up next and as its drop comes; over the whole TV while it plays when
   // someone asks from their phone; out of sight between songs (paused, kept)
-  const heard = status === "playing" || status === "tap" || (status === "ad" && !!target);
+  const heard = status === "playing" || status === "tap" || status === "paused" || (status === "ad" && !!target);
   const mode = d.song || (target && heard) ? "on" : next || target ? "next" : "off";
   const who = target?.by ?? next?.by ?? null;
   const req = target && v.deck.now?.id === target.id ? v.deck.now : null;
@@ -204,7 +238,7 @@ export function TubePlayer({
       {/* YouTube's player goes in here (tube.ts): nothing of React's inside it */}
       <div className="dj-tube-slot" ref={slot} />
       <div className={`dj-tube-note ${status === "tap" || (mode === "next" && status === "ready" && !armed) ? "is-ask" : ""}`} role="status">
-        {status === "offline" ? <EmptyState tone="error" title={zh ? "没连上 YouTube，检查一下网络" : "Couldn't reach YouTube. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => tube.current?.retry() }} /> : mode === "next" ? <NextNote status={status} armed={armed} zh={zh} /> : <OnNote status={status} zh={zh} after={after ? nameOf(after.by) : null} />}
+        {status === "offline" ? <EmptyState tone="error" title={zh ? "没连上 YouTube，检查一下网络" : "Couldn't reach YouTube. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => tube.current?.retry() }} /> : mode === "next" ? <NextNote status={status} armed={armed} zh={zh} /> : <OnNote status={held ? "paused" : status} zh={zh} after={after ? nameOf(after.by) : null} />}
       </div>
     </section>
   );
@@ -212,7 +246,7 @@ export function TubePlayer({
 
 /** Under the song up next: how ready it is. */
 function NextNote({ status, armed, zh }: { status: TubeStatus; armed: boolean; zh: boolean }) {
-  if (status === "bad") return <>{zh ? "YouTube 不让这首在这里放，Drop 进去放 DJ 的 Remix" : "YouTube won't play this one here. Its drop plays the DJ's remix"}</>;
+  if (status === "bad") return <>{zh ? "YouTube 不让这首在这里放，轮到它放 DJ 的 Remix" : "YouTube won't play this one here. The DJ plays its remix instead"}</>;
   if (status === "ad")
     return (
       <>
@@ -224,20 +258,27 @@ function NextNote({ status, armed, zh }: { status: TubeStatus; armed: boolean; z
     return (
       <>
         <Hand size={18} aria-hidden="true" />
-        {zh ? "这个浏览器要先点一下视频（会响一下），Drop 的时候它才能自己开始" : "This browser needs one tap on the video (it plays a moment) to start it by itself on the drop"}
+        {zh ? "这个浏览器要先点一下视频（会响一下），轮到它的时候才能自己开始" : "This browser needs one tap on the video (it plays a moment) to start it by itself when its turn comes"}
       </>
     );
-  if (status === "ready") return <>{zh ? "准备好了，Drop 进去马上放" : "Ready. It starts the moment you drop into it"}</>;
+  if (status === "ready") return <>{zh ? "准备好了，轮到它马上放" : "Ready. It starts the moment its turn comes"}</>;
   return (
     <>
       <Loader2 size={16} className="dj-spin" aria-hidden="true" />
-      {zh ? "正在准备，Drop 进去马上放" : "Getting it ready. It starts on the drop"}
+      {zh ? "正在准备，轮到它就放" : "Getting it ready. It starts when its turn comes"}
     </>
   );
 }
 
 /** Under the song playing: what's happening, and what comes after. */
 function OnNote({ status, zh, after }: { status: TubeStatus; zh: boolean; after: string | null }) {
+  if (status === "paused")
+    return (
+      <>
+        <Pause size={18} aria-hidden="true" />
+        {zh ? "暂停了，手机上点「播放」接着放" : "Paused. Press Play on a phone to carry on"}
+      </>
+    );
   if (status === "tap")
     return (
       <>
@@ -264,11 +305,11 @@ function OnNote({ status, zh, after }: { status: TubeStatus; zh: boolean; after:
       <SkipForward size={16} aria-hidden="true" />
       {after
         ? zh
-          ? `放完 DJ 接一段，再放 ${after} 点的歌。点歌的人和主人在手机上可以切歌`
-          : `When it ends the DJ plays a while, then ${after}'s song. Whoever asked, or the host, can skip it from their phone`
+          ? `放完马上接 ${after} 点的歌。手机上可以暂停、切歌、上一曲`
+          : `${after}'s song comes right after. Pause, skip or go back from any phone`
         : zh
-          ? "放完 DJ 就回来。点歌的人和主人在手机上可以切歌"
-          : "The DJ comes back when it ends. Whoever asked, or the host, can skip it from their phone"}
+          ? "放完 DJ 接着放。手机上可以暂停、切歌、上一曲"
+          : "The DJ comes back when it ends. Pause, skip or go back from any phone"}
     </>
   );
 }

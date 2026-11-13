@@ -15,6 +15,7 @@ Content files and local scripts: `site/README.md` (Chinese).
 | changle.ca/trip: 到此一游 | `games/been-there/` | Worker `been-there` | by itself on merge (Cloudflare Workers Builds) |
 | changle.ca/hide: 藏在人群里 · Hide in the Crowd | `games/hide-crowd/` | Worker `hide-crowd` (Durable Objects) | by itself on merge when `games/hide-crowd/*` changes, once Steve has connected it (`games/hide-crowd/README.md`) |
 | changle.ca/eat: 随便 | `tools/suibian/` | Worker `suibian` | by itself on merge when `tools/suibian/*` changes |
+| changle.ca/when: 约时间 · When Works (friends find a time to meet: a gathering's page is changle.ca/when/CODE; its card in the Tools tab stays off until Steve has tried it with friends) | `tools/when/` | Worker `when` (Durable Objects: one per gathering, and the daily allowances) | by itself on merge when `tools/when/*` changes (connected 2026-11-12, `tools/when/README.md`) |
 | changle.ca/go: 玩什么 · What's On (events, every morning at 06:00) | `tools/events/` | Worker `changle-events` (D1, KV, a daily cron), and a GitHub job at 05:50 for two libraries (`.github/workflows/events-libraries.yml`) | by itself on merge when `tools/events/*` changes (connected 2026-11-01, `tools/events/README.md`) |
 | changle.ca/party: 一起跳 · Dance Along: rooms, the speaker page (it opens its room by itself and has nothing to press: one tap to set up its sound, and the phones do the rest; it speaks the host's language; a 3D coach; each practice dance's own tune; songs from YouTube, every one's beat measured in its video, fourteen danced to their own famous dance and taught step by step (the Cha-Cha Slide call by call); the dance waits when the video stops; the TV's delay measured when the host asks; 暂停; a phone mirrored to the TV as the stage, sideways), phones, /party/moves | `games/party-server/`, on the shared base `games/party-base/` and the move library `games/dance/` (pure logic and data, no deploy of their own) | Worker `party` (Durable Objects: the rooms, and the songbook, unused since 12 November) | by itself on merge when `games/party-server`, `games/party-base` or `games/dance` changes (connected 2026-11-01, `games/party-server/README.md`) |
 | changle.ca/hang-on: 抓紧了 · Hang On (the host screen; phones at /hang-on/pad, the QR code's link /hang-on/r/CODE) | `games/hang-on/` (physics, the room server, the pages) | Worker `hang-on` (Durable Objects) | by itself on merge when `games/hang-on/*` changes (connected 2026-11-04, `games/hang-on/README.md`) |
@@ -163,7 +164,9 @@ site's `/hide` is proxied there), then `python3 scripts/hide_test.py` in `site`.
 ## A tool (the 随便 pattern)
 
 `tools/suibian` is its own Worker at changle.ca/eat; its card in the site's Tools tab is
-`site/src/tools/Suibian.tsx`. Its state, settings and open items: `tools/suibian/HANDOFF.md`. Tools
+`site/src/tools/Suibian.tsx`. Its state, settings and open items: `tools/suibian/HANDOFF.md`. 约时间
+(`tools/when`, changle.ca/when, card `site/src/tools/When.tsx`) is made the same way; its brief is
+`docs/briefs/when.md`. Tools
 without a Worker of their own (exchange rates, world clock, unit price) live in `site/src/tools/`;
 the rates come from the rooms server's `/api/fx` (`site/worker/index.ts`), with open.er-api.com as
 the browser's fallback. Their brief: `docs/briefs/tools.md`.
@@ -175,6 +178,7 @@ the browser's fallback. Their brief: `docs/briefs/tools.md`.
 | rooms Worker `changle-rooms` (`site/worker`) | `RESEND_API_KEY` (sign-in emails), `GEMINI_API_KEY` (anime avatars, and the DJ booth's Lyria test unless `LYRIA_API_KEY` is set), `LYRIA_API_KEY` (optional: Lyria on a key of its own), `YOUTUBE_API_KEY` (optional: 打碟's song search; links work without it) | `MAIL_FROM`, `ADMIN_EMAILS` (in `site/worker/wrangler.jsonc`; also who may test Lyria); `GEMINI_IMAGE_MODEL`, `LYRIA_MODEL`, `DJ_LYRIA_HOURS` (Lyria hours a month, default 20) (optional); `DEV_SHOW_CODES`, `DEV_FAKE_DRAW`, `DEV_LYRIA_URL`, `DEV_LYRIA_ANYONE` (local only) |
 | site front end | none | `VITE_ROOMS_URL` (local dev: where the rooms server is) |
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
+| 约时间 (`tools/when`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts the daily allowances) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 藏在人群里 (`games/hide-crowd`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (optional, never needed live: the libraries' hand-over from a run outside GitHub) | `ALLOW_TEST` (local and tests only) |

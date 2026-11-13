@@ -41,12 +41,15 @@ Use Codex's own image tool (OpenAI's `imagegen` skill, the built-in tool: no API
 
 - Each file has the size in the table, is WebP, and is under its weight
   (`ls -l tools/when/src/client/art`).
-- Open the two backgrounds at a phone's width and put a white block of text over the middle three
-  fifths (any image editor, or a scratch HTML page you don't commit): it reads easily everywhere.
+- Put a white block of text over the middle three fifths of each of the two backgrounds (with an
+  image tool or a short script you don't commit; not a browser) and look at the result: it reads
+  easily everywhere.
 - `npm run typecheck` and `npm test` in `tools/when` still pass (the card adds no code).
-- In the PR: the four pictures, small, side by side.
+- No browser and no uploads: don't attach the pictures to the PR. They are files on the branch,
+  and the reviewing chat looks at them there. In the PR, list the four files with their sizes and
+  weights, as text.
 
 ## Done when
 
 The four files and the art README are in `tools/when/src/client/art/`, `LICENSES.md` has the
-section, and the pictures are in the PR.
+section, and the PR lists the files with their sizes and weights.

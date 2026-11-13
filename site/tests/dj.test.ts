@@ -7,7 +7,7 @@ import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
 import { ALL_SECTIONS, ANY_SECTION, BED, KITS, sectionById, sectionOf } from "../src/party/dj/fake/styles";
 import { CLIP_DB, ClipDeck, clipOf, loadClip, type Clip } from "../src/party/dj/clip/clip";
-import { hitsOf, unescape, ytIdOf } from "../src/shared/dj/youtube";
+import { danceBpm, hitsOf, songQueries, songQuery, trackOf, tracksOf, unescape, ytIdOf } from "../src/shared/dj/youtube";
 import { previewOk } from "../src/shared/songs";
 import { decodePiece, encodePiece, fileNumber, PIECE_BYTES, SONG_BYTES } from "../src/shared/dj/songwire";
 import { eqDb, filterOf, GATE_STEPS } from "../src/party/dj/speaker/mixer";
@@ -19,6 +19,7 @@ import { LyriaDj, pcmChunk } from "../src/party/dj/lyria/LyriaDj";
 import { FALLBACK_PROMPTS, lyriaFor } from "../src/party/dj/lyria/prompts";
 import { FAKE_MIX, mixFor } from "../src/shared/dj/curve";
 import { toGoogle } from "../worker/lyria";
+import { youtube } from "../worker/youtube";
 import { Tube } from "../src/party/dj/tube";
 import WORDS from "./fixtures/dj/lyria-prompt-words.json";
 
@@ -1122,6 +1123,101 @@ await test("songwire: a song file in pieces, every piece checked; the rooms serv
   junk[0] = 0x58;
   ok(decodePiece(junk.buffer) === null && decodePiece(new ArrayBuffer(4)) === null, "not a piece at all: no");
   ok(fileNumber("abc123xyz") === parseInt("abc123xy", 36) && Number.isSafeInteger(fileNumber("zzzzzzzzzzzz")), "a file's number for the word back");
+});
+
+await test("youtube: a song's tempo for the floor: what to look its video up by, the catalogue's track that's it, a tempo to dance to (Steve on Nov 12: the robots dance to the music)", () => {
+  ok(songQuery("YoungBoy Never Broke Again - Untouchable [Official Video]", "YoungBoyNeverBrokeAgain") === "YoungBoy Never Broke Again - Untouchable", `"Artist - Title": the title alone, less [Official Video] (${songQuery("YoungBoy Never Broke Again - Untouchable [Official Video]", "YoungBoyNeverBrokeAgain")})`);
+  ok(songQuery("Shape of You (Official Music Video)", "Ed Sheeran") === "Ed Sheeran Shape of You", `the singer from the channel when the title doesn't say (${songQuery("Shape of You (Official Music Video)", "Ed Sheeran")})`);
+  ok(songQuery("Levitating", "Dua Lipa - Topic") === "Dua Lipa Levitating" && songQuery("Bad Romance", "LadyGagaVEVO") === "LadyGaga Bad Romance", `a channel's - Topic and VEVO come off (${songQuery("Levitating", "Dua Lipa - Topic")}, ${songQuery("Bad Romance", "LadyGagaVEVO")})`);
+  const qt = songQuery("周杰伦 Jay Chou【晴天 Sunny Day】Official MV", "周杰倫 Jay Chou");
+  ok(qt.includes("晴天") && qt.includes("周杰伦") && !/official|mv/i.test(qt), `a Chinese title: the song in its 【】 kept, its Official MV gone (${qt})`);
+  ok(songQuery("Despacito &amp; more (Lyrics)", "Luis Fonsi") === "Luis Fonsi Despacito & more", `YouTube's escapes, its (Lyrics) (${songQuery("Despacito &amp; more (Lyrics)", "Luis Fonsi")})`);
+  const found = { data: [{ id: 1, title: "Untouchable (Remix)", title_short: "Untouchable", artist: { name: "Someone Else" } }, { id: 2, title: "Untouchable", title_short: "Untouchable", artist: { name: "YoungBoy Never Broke Again" } }] };
+  ok(trackOf(found, "YoungBoy Never Broke Again - Untouchable [Official Video]") === 2, "the track that's the song itself (not a remix of it), its name in the video's title");
+  const two = { data: [{ id: 7, title: "Hello", artist: { name: "Lionel Richie" } }, { id: 8, title: "Hello", artist: { name: "Adele" } }] };
+  ok(trackOf(two, "Hello (Official Music Video)", "AdeleVEVO") === 8 && trackOf(two, "Hello", "") === 7, "two songs of that name: the singer the video names, else the first");
+  ok(trackOf({ data: [{ id: 3, title: "Something Else", title_short: "Something Else" }] }, "Untouchable") === null, "none whose name is: nothing (no wrong tempo)");
+  ok(trackOf({ data: [{ id: 4, title: "晴天", title_short: "晴天" }] }, "周杰伦 Jay Chou【晴天 Sunny Day】Official MV") === 4, "a Chinese name too");
+  ok(trackOf(null, "x") === null && trackOf({ data: "x" }, "x") === null && trackOf({ data: [{ id: "5", title: "x y" }] }, "x y") === null, "an answer that isn't one: nothing");
+  ok(trackOf({ data: [{ id: 6, title: "I", title_short: "I" }] }, "I Like It") === null, "a one-letter name matches nothing");
+  // the live catalogue found none for these (Nov 12): a title in two scripts, M/V, quotes, 《》
+  const eq = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const jc = songQueries("周杰倫 Jay Chou【晴天 Sunny Day】-Official Music Video", "周杰倫 Jay Chou");
+  ok(eq(jc, ["周杰倫 Jay Chou 晴天 Sunny Day", "Jay Chou 晴天", "周杰倫 晴天"]), `a Chinese singer's video: the whole title, then the singer's Latin name and the song as it's sung, then the singer's Chinese name (${jc.join(" / ")})`);
+  const psy = songQueries("PSY - GANGNAM STYLE(강남스타일) M/V", "officialpsy");
+  ok(eq(psy, ["PSY - GANGNAM STYLE 강남스타일", "PSY 강남스타일", "PSY GANGNAM STYLE"]), `M/V goes before its slash, the song by each of its names (${psy.join(" / ")})`);
+  const bp = songQueries("BLACKPINK - ‘뚜두뚜두 (DDU-DU DDU-DU)’ M/V", "BLACKPINK");
+  ok(eq(bp, ["BLACKPINK - 뚜두뚜두 DDU-DU DDU-DU", "BLACKPINK 뚜두뚜두", "BLACKPINK DDU-DU DDU-DU"]), `quotes go (${bp.join(" / ")})`);
+  const jj = songQueries("林俊傑 JJ Lin《不為誰而作的歌 Twilight》Official Music Video", "林俊傑 JJ Lin");
+  ok(eq(jj, ["林俊傑 JJ Lin 不為誰而作的歌 Twilight", "JJ Lin 不為誰而作的歌", "林俊傑 不為誰而作的歌"]), `the song in 《》 (${jj.join(" / ")})`);
+  const gem = songQueries("G.E.M.【光年之外 LIGHT YEARS AWAY】MV [HD] 鄧紫棋", "G.E.M. 鄧紫棋");
+  ok(gem[1] === "G.E.M. 光年之外", `who sings it before the 【】 (${gem.join(" / ")})`);
+  const rick = songQueries("Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", "Rick Astley");
+  ok(eq(rick, ["Rick Astley - Never Gonna Give You Up"]), `one name each: one way (the same less its dash isn't another) (${rick.join(" / ")})`);
+  ok(eq(songQueries("Levitating", "Dua Lipa - Topic"), ["Dua Lipa Levitating"]) && songQueries("", "").length === 0, "a channel's song: one way; nothing: none");
+  ok(eq(songQueries("[MV] IU(아이유) _ Celebrity", "이지금 [IU Official]").slice(1), ["IU Celebrity", "아이유 Celebrity"]), `"Artist _ Title", a K-pop singer's two names (${songQueries("[MV] IU(아이유) _ Celebrity", "이지금 [IU Official]").join(" / ")})`);
+  const hello = { data: [{ id: 7, title: "Hello", artist: { name: "Lionel Richie" } }, { id: 9, title: "Hello (Live)", title_short: "Hello", artist: { name: "Adele" } }, { id: 10, title: "Hello", artist: { name: "Adele" } }] };
+  const hs = tracksOf(hello, "Adele - Hello (Official Music Video)");
+  ok(hs.map((h) => `${h.id}${h.theirs ? "+" : ""}`).join() === "10+,9+,7", `every track that could be it, the singer's own first (its whole name, then its short one), then another singer's of that name (${hs.map((h) => h.id).join()})`);
+  ok(tracksOf({ data: [{ id: 11, title: "晴天", artist: { name: "Jay Chou" } }, { id: 12, title: "晴天", artist: { name: "周杰倫" } }] }, "周杰倫 Jay Chou【晴天 Sunny Day】-Official Music Video").every((h) => h.theirs), "a Chinese singer by either name is the one the video names");
+  ok(tracksOf(null, "x").length === 0 && trackOf(hello, "Hello") === 7, "nothing: none; the best of them is trackOf");
+  ok(danceBpm(128) === 128 && danceBpm(170) === 85 && danceBpm(60) === 120 && danceBpm(300) === 75, `folded into 70 to 140 (${danceBpm(170)}, ${danceBpm(60)}, ${danceBpm(300)})`);
+  ok(danceBpm(0) === 120 && danceBpm(NaN) === 120 && danceBpm(-5) === 120, "no tempo: 120");
+});
+
+await test("youtube: the rooms server's /yt/bpm, against a stand-in YouTube and Deezer: the next track when one has no tempo, the next way to look it up when one finds nothing, the singer's own before a cover, five tracks at most", async () => {
+  type Videos = Record<string, { title: string; author_name: string }>;
+  const ask = async (id: string, videos: Videos, searches: Record<string, unknown[]>, tempos: Record<number, number>) => {
+    const asked: string[] = [];
+    const real = globalThis.fetch;
+    const g = globalThis as unknown as { caches?: unknown };
+    const realCaches = g.caches;
+    g.caches = { default: { match: async () => undefined, put: async () => undefined } };
+    globalThis.fetch = (async (u: string) => {
+      const url = new URL(String(u));
+      if (url.hostname === "www.youtube.com") {
+        const v = videos[new URL(url.searchParams.get("url") ?? "").searchParams.get("v") ?? ""];
+        asked.push("video");
+        return v ? Response.json(v) : new Response("", { status: 404 });
+      }
+      if (url.pathname === "/search") {
+        const q = url.searchParams.get("q") ?? "";
+        asked.push(`search ${q}`);
+        return Response.json({ data: searches[q] ?? [] });
+      }
+      const t = Number(url.pathname.split("/").pop());
+      asked.push(`track ${t}`);
+      return Response.json({ id: t, bpm: tempos[t] ?? 0 });
+    }) as typeof fetch;
+    try {
+      const res = await youtube("/yt/bpm", new URL(`https://rooms.changle.ca/api/yt/bpm?id=${id}`), {}, { waitUntil() {}, passThroughOnException() {} } as unknown as ExecutionContext);
+      return { status: res?.status ?? 0, body: res ? ((await res.json()) as { bpm: number | null; why?: string }) : null, asked };
+    } finally {
+      globalThis.fetch = real;
+      g.caches = realCaches;
+    }
+  };
+  const rick = { dQw4w9WgXcQ: { title: "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)", author_name: "Rick Astley" } };
+  const versions = [{ id: 19, title: "Never Gonna Give You Up (Cake Mix)", title_short: "Never Gonna Give You Up", artist: { name: "Rick Astley" } }, { id: 20, title: "Never Gonna Give You Up", artist: { name: "Rick Astley" } }, { id: 21, title: "Never Gonna Give You Up", artist: { name: "Rick Astley" } }];
+  const r1 = await ask("dQw4w9WgXcQ", rick, { "Rick Astley - Never Gonna Give You Up": versions }, { 21: 113.24 });
+  ok(r1.body?.bpm === 113.2 && r1.asked.join() === "video,search Rick Astley - Never Gonna Give You Up,track 20,track 21", `the first of his tracks has no tempo: the next one's (${JSON.stringify(r1.body)}: ${r1.asked.join(" / ")})`);
+  const jay = { DYptgVvkVLQ: { title: "周杰倫 Jay Chou【晴天 Sunny Day】-Official Music Video", author_name: "周杰倫 Jay Chou" } };
+  const r2 = await ask("DYptgVvkVLQ", jay, { "Jay Chou 晴天": [{ id: 30, title: "晴天", artist: { name: "Jay Chou" } }] }, { 30: 69 });
+  ok(r2.body?.bpm === 69 && r2.asked.join() === "video,search 周杰倫 Jay Chou 晴天 Sunny Day,search Jay Chou 晴天,track 30", `the whole title finds nothing: his Latin name and the song's (${JSON.stringify(r2.body)}: ${r2.asked.join(" / ")})`);
+  const cover = [{ id: 40, title: "晴天", artist: { name: "Someone" } }];
+  const r3 = await ask("DYptgVvkVLQ", jay, { "周杰倫 Jay Chou 晴天 Sunny Day": cover, "Jay Chou 晴天": [...cover, { id: 41, title: "晴天", artist: { name: "周杰倫" } }] }, { 40: 70, 41: 68.9 });
+  ok(r3.body?.bpm === 68.9 && !r3.asked.includes("track 40"), `his own track, found by the second way, before a cover found by the first (${JSON.stringify(r3.body)}: ${r3.asked.join(" / ")})`);
+  const r4 = await ask("DYptgVvkVLQ", jay, { "Jay Chou 晴天": cover, "周杰倫 晴天": cover }, { 40: 70 });
+  ok(r4.body?.bpm === 70 && r4.asked.filter((a) => a === "track 40").length === 1, `only a cover: its tempo, looked up once (${JSON.stringify(r4.body)}: ${r4.asked.join(" / ")})`);
+  const r5 = await ask("DYptgVvkVLQ", jay, {}, {});
+  ok(r5.body?.bpm === null && r5.body?.why === "match" && r5.asked.filter((a) => a.startsWith("search")).length === 3, `nothing anywhere: null, "match", three ways tried (${JSON.stringify(r5.body)})`);
+  const many = Array.from({ length: 8 }, (_, i) => ({ id: 50 + i, title: "Never Gonna Give You Up", artist: { name: "Rick Astley" } }));
+  const r6 = await ask("dQw4w9WgXcQ", rick, { "Rick Astley - Never Gonna Give You Up": many }, {});
+  ok(r6.body?.bpm === null && r6.body?.why === "tempo" && r6.asked.filter((a) => a.startsWith("track")).length === 5, `his tracks have no tempo: null, "tempo", five looked at (${JSON.stringify(r6.body)}: ${r6.asked.filter((a) => a.startsWith("track")).length})`);
+  const r7 = await ask("abcdefghijk", {}, {}, {});
+  ok(r7.body?.bpm === null && r7.body?.why === "video" && r7.asked.join() === "video", "no such video: null, \"video\"");
+  const r8 = await ask("nope", {}, {}, {});
+  ok(r8.status === 400 && r8.asked.length === 0, "not a video's id: refused, nothing asked");
 });
 
 await test("youtube: a link's video id, the search answer's videos, YouTube's escapes", () => {

@@ -67,7 +67,7 @@ export class DeckDriver {
   private gateDone = -Infinity;
   private mixEpoch = -1;
   private mixBpm = 0;
-  /** what the deck did, for the checks (scripts/dj_deck_check.py): kind and audio time */
+  /** what the deck did, for the checks (scripts/dj_youtube_check.py, dj_local_check.py): kind and audio time */
   readonly log: { k: string; at: number; beat: number }[] = [];
 
   constructor(
@@ -385,12 +385,19 @@ export class DeckDriver {
    * aren't these (a new stream, a drift, a stall, a word that never arrived), countdown or not: the
    * room keeps a drop's bar and its presses through a correction.
    */
+  /** what the DJ had played at the last look at its bars */
+  private heardWas = -1;
+
   private reportGrid() {
     const nowMs = performance.now();
     if (nowMs - this.checked < 1000 || !this.on) return;
     this.checked = nowMs;
     const heard = this.dj.beat();
     if (!(heard > 0)) return;
+    // (a sound that stopped, its clock standing still: its bars say nothing new until it moves
+    // again; told anyway, they'd drift along with the server's clock)
+    if (heard === this.heardWas) return;
+    this.heardWas = heard;
     // a bar a little ahead of what's heard
     const bar = Math.ceil(heard / 4) + 1;
     const f = this.dj.beatFrame(bar * 4);

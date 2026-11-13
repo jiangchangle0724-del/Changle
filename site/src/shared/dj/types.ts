@@ -266,6 +266,9 @@ export type SongReq = {
   track: number;
   /** server time it was asked for */
   at: number;
+  /** put back on the 歌单 by 上一曲 (the song that was playing, and the one that was up next): first
+   *  in line, in that order, whatever the order or 随机 */
+  back?: true;
 };
 
 /** A song's name typed in: 1 to 60 characters (an emoji or a Chinese character counts as one). */
@@ -329,8 +332,16 @@ export type DeckState = {
   aired: { at: number; style: StyleId | "mine" | "off" }[];
   heard: SongReq[];
   /** 真歌时间: a song asked for from YouTube plays whole on the big screen (from `at`, after the DJ
-   *  fades out); the deck waits until it ends, its player or the host skips it, or 12 minutes */
+   *  fades out, moved on by the time a pause took); the deck waits until it ends, someone skips it,
+   *  or 12 minutes of it have played */
   song: { id: string; yt: string; by: string; at: number } | null;
+  /** 暂停 (the phones' player, Steve on Nov 12: "一键播放，切歌，暂停，上一曲"): the room's music held
+   *  since this server time, 0 while it plays. The song's video stops where it is and the DJ goes
+   *  quiet; nothing comes up next until 播放 */
+  paused: number;
+  /** the big screen's YouTube player wants a tap on the video before it plays with sound (an
+   *  iPhone's or Safari's, the night's first song): the speaker says so, the phones pass it on */
+  tap: boolean;
   /** the table's mixer on the speaker's output (混音台) */
   mixer: MixerState;
   /** the room's own bookkeeping (not sent to the phones): when each phone last had a pad, a pick,
@@ -348,6 +359,8 @@ export type DeckState = {
   decksAt: number;
   srcAt: number;
   crateAt: number;
+  /** the last 切歌 or 上一曲 the room took (two phones pressing at once skip one song, not two) */
+  ctlAt: number;
 };
 
 /* ------------------------------------------------------------------ the mixer (混音台) */
@@ -435,13 +448,14 @@ export const DECK = {
   /** countdowns nobody pressed before the DJ drops it by itself */
   maxMisses: 1,
   /** songs asked for by name (the night's 歌单, Steve on Nov 2: "很多人点歌要把它们放到一个
-   *  playlist"): `reqMax` waiting for the whole table, `reqEach` each (waiting or up next), a
-   *  phone's taken one per `reqGapMs`. Up next: if the table hasn't dropped into it `reqWaitMs`
-   *  after it's ready, the DJ starts the countdown itself (and drops it if nobody presses); its
-   *  remix is named on the screens for `reqPlayMs` after its drop */
-  reqMax: 30,
-  reqEach: 3,
-  reqGapMs: 5000,
+   *  playlist"): `reqMax` waiting for the whole table, `reqEach` each (waiting or up next; Steve
+   *  on Nov 12: "一个人一次性可以至少点24首歌", it was 3), a phone's taken one per `reqGapMs` (a
+   *  second: a long list asked for in a row). Up next: if the table hasn't dropped into it
+   *  `reqWaitMs` after it's ready, the DJ starts the countdown itself (and drops it if nobody
+   *  presses); its remix is named on the screens for `reqPlayMs` after its drop */
+  reqMax: 100,
+  reqEach: 30,
+  reqGapMs: 1000,
   reqWaitMs: 40_000,
   reqPlayMs: 90_000,
   /** a whole song from YouTube starts on its drop's bar (the big screen has it cued and buffered
@@ -453,10 +467,13 @@ export const DECK = {
   songGapMs: 60_000,
   /** 点歌模式: a song up next starts this soon (a moment for the big screen to load it), after a
    *  song the DJ comes back for `jukeGapMs`, and the switch lands on the first bar at least
-   *  `jukeBeats` beats on (about 5 seconds of DJ between two songs at 125 BPM) */
+   *  `jukeBeats` beats on (about 5 seconds of DJ between two songs at 125 BPM); `ctlBeats` after
+   *  切歌 or 上一曲 (2 to 4 seconds), the room taking one of those per `ctlGapMs` */
   jukeWaitMs: 1500,
   jukeGapMs: 1000,
   jukeBeats: 8,
+  ctlBeats: 4,
+  ctlGapMs: 1500,
   /** a player whose song came on the air this recently waits behind the others' songs (alone, it
    *  still plays: nobody's turn is taken) */
   reqAgainMs: 600_000,
@@ -497,6 +514,12 @@ export type DjCommand =
    *  `yt`, its video on YouTube (a pasted link or a search): [video id, title, channel];
    *  on a night of the host's songs, `local`: one of them */
   | { x: "req"; text?: string; song?: number; yt?: [string, string, string]; local?: string }
+  /** the player (anyone at the table, and the speaker: the shared phone): 播放 (carry on after 暂停),
+   *  暂停, 切歌 (the next song now) and 上一曲 (the one before, again); `songskip`, an older page's 切歌 */
+  | { x: "play" }
+  | { x: "pause" }
+  | { x: "next" }
+  | { x: "prev" }
   | { x: "songskip" }
   /** take back a song asked for by name, waiting or up next (the host can take back anyone's) */
   | { x: "unreq"; id: string }
@@ -551,7 +574,9 @@ export type DjCommand =
   | { x: "songdone"; id: string }
   /** the speaker: the video of the song up next won't play here (YouTube's answer while getting it
    *  ready): it comes off that song, which plays as the DJ's remix alone */
-  | { x: "nosong"; id: string };
+  | { x: "nosong"; id: string }
+  /** the speaker: its YouTube player wants a tap on the video (or doesn't any more) */
+  | { x: "tap"; on: boolean };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;
@@ -607,11 +632,16 @@ export type RoomState = {
    *  the next song asked for is any of the waiting ones, else first come, first played */
   shuffle: boolean;
   /**
-   * 点歌模式 (the host's switch, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就
-   * 自动播放"): no build-up, no DROP and no picks; the songs asked for play one after another, the DJ
-   * for a few seconds between them, and on its own when there are none
+   * 点歌模式 (Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"): no
+   * build-up, no DROP and no picks; the songs asked for play one after another, the DJ for a few
+   * seconds between them, and on its own when there are none. Always, since Nov 12 ("不需要drop了"):
+   * the phones have the player instead of the deck. Off (the build-up and DROP, still in here) only
+   * from the speaker's word, which no page sends now
    */
   juke: boolean;
+  /** which rules the booth was saved under: 2 since Nov 12 (点歌模式 always; a booth saved before
+   *  gets it once) */
+  rev?: number;
   /** the song's video over the whole TV (anyone at the table, Steve on Nov 5), else in its corner */
   full: boolean;
   /** 跟着跳 (shared/dj/dance.ts): each dancer's night, the bar the floor is being counted on, and the floor's combo (0 to 1) */
