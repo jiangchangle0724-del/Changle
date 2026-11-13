@@ -91,6 +91,8 @@ export interface Snap {
   n: number;
   /** 关卡 id。 */
   lv: string;
+  /** 关卡是按几个人摆的（和现在的人数不一样时才有，比如有人半路进来）；手机照这个人数摆关卡。 */
+  np?: number;
   /** 模拟时间（秒）。 */
   t: number;
   /** 1 = 到顶了。 */

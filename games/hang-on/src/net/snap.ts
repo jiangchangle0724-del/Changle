@@ -7,7 +7,7 @@
  *
  * 这个文件不引物理（只要类型），手机的画面包里不会带 Rapier。
  */
-import type { Level, Pt } from '../physics/level';
+import { forPlayers, type Level, type Pt } from '../physics/level';
 import type { Face, SimEvent } from '../physics/world';
 import type { FadingView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
 import { SNAP_EVENT_SENDS, SNAP_EVENTS_MAX, type Snap } from './protocol';
@@ -54,6 +54,7 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
     w: sim.won ? 1 : 0,
     cp: sim.checkpoint,
     p,
+    ...(sim.layoutFor !== undefined && sim.layoutFor !== sim.players.length ? { np: sim.layoutFor } : {}),
     r: sim.ropes.map((rope) => rope.pts.flatMap((q) => [r1(q.x), r1(q.y)])),
     o: sim.props.map((o) => [r1(o.x), r1(o.y), r3(o.angle), o.w, o.h, o.kind === 'seesaw' ? 0 : 1]),
     f: sim.fadings.flatMap((f) => [f.on ? 1 : 0, r2(f.left)]),
@@ -116,6 +117,9 @@ export class RemoteSim implements SimView {
   springs: SpringView[] = [];
   /** 收到过的最新序号。 */
   seq = -1;
+  /** 关卡是按几个人摆的（快照的 np，没有就是人数）。 */
+  layoutFor = -1;
+  private levelId: string;
   /** 放过的最后一件事的编号。 */
   private lastK = -1;
 
@@ -132,14 +136,23 @@ export class RemoteSim implements SimView {
     level: Level,
   ) {
     this.level = level;
+    this.levelId = level.id;
   }
 
   /** 收到一张快照（now：performance.now()）。返回要放的声音和特效；旧的、关卡找不到的不要。 */
   apply(s: Snap, now: number): SimEvent[] {
     if (s.n <= this.seq) return [];
-    const lv = s.lv === this.level.id ? this.level : this.find(s.lv);
-    if (!lv) return [];
+    // 关卡按主机摆的人数摆；关卡或人数变了才重摆（没有人数范围的关原样拿来，还是同一个对象）
+    const np = s.np ?? s.p.length;
+    let lv = this.level;
+    if (s.lv !== this.levelId || np !== this.layoutFor) {
+      const base = this.find(s.lv);
+      if (!base) return [];
+      lv = forPlayers(base, np);
+    }
     const levelChanged = lv !== this.level;
+    this.levelId = s.lv;
+    this.layoutFor = np;
     // 先把正在匀的推到这一刻：画面一帧比快照慢（慢手机）时，从「现在该在的地方」接着匀，别回到上一帧
     if (this.snap) this.lerp(now);
     this.seq = s.n;
@@ -252,6 +265,8 @@ export class RemoteSim implements SimView {
     }
     for (const flat of s.r) for (const v of flat) out.push(v);
     for (const o of s.o) out.push(o[0] ?? 0, o[1] ?? 0, o[2] ?? 0);
+    // 时间也跟着匀：会动的平台按时间画，和匀过的人对得上（站在上面不抖）
+    out.push(s.t);
     return out;
   }
 
@@ -287,11 +302,11 @@ export class RemoteSim implements SimView {
       o.y = c[i++] as number;
       o.angle = c[i++] as number;
     }
+    this.time = c[i++] as number;
   }
 
-  /** 不匀的：死没死、表情、抓没抓、检查点、饼干、蜡烛、时钟；since 是这张快照到现在几秒。 */
+  /** 不匀的：死没死、表情、抓没抓、检查点、饼干、蜡烛；since 是这张快照到现在几秒。时钟跟着匀（write）。 */
   private discrete(s: Snap, since: number): void {
-    this.time = s.t + (s.w ? 0 : since);
     this.won = s.w === 1;
     this.checkpoint = s.cp;
     s.p.forEach((row, i) => {

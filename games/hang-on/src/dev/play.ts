@@ -21,9 +21,10 @@ const canvas = $<HTMLCanvasElement>('stage');
 const query = new URLSearchParams(location.search);
 const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
 const stage = await Stage.create(canvas, { plates: PLATES });
-stage.setLevel(level);
 let nPlayers = Math.max(1, Math.min(4, Number(query.get('players')) || 1));
 let sim: Sim = await createSim(level, nPlayers);
+// 画按人数摆出来的那一版（关卡里有 players 范围的东西时，人数不同摆法不同）
+stage.setLevel(sim.level);
 stage.syncPlayers(sim);
 sfx.attach(document);
 
@@ -235,6 +236,7 @@ function showWin(): void {
 async function restart(): Promise<void> {
   sim.destroy();
   sim = await createSim(level, nPlayers);
+  stage.setLevel(sim.level);
   winEl.hidden = true;
   stage.reset();
   stage.syncPlayers(sim);
@@ -243,8 +245,8 @@ $('again').addEventListener('click', () => void restart());
 $('reset').addEventListener('click', () => void restart());
 $('p2btn').addEventListener('click', (e) => {
   nPlayers = nPlayers === 1 ? 2 : 1;
-  sim.setPlayers(nPlayers);
-  stage.syncPlayers(sim);
+  // 人数变了关卡可能要重摆：重新开这一关
+  void restart();
   (e.currentTarget as HTMLButtonElement).textContent = nPlayers === 1 ? '+ 第二个人' : '− 第二个人';
 });
 setTimeout(() => {
