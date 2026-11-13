@@ -323,6 +323,9 @@ export class Sim {
   private readonly cpOf: number[] = [];
   /** 坐不住：出局的人已经挪到画面外面停好了。 */
   private readonly parked = new Set<number>();
+  /** 每个人离开实在的地方多久了、拽着悬空队友的拉力是不是已经不算了（pullCounts）。 */
+  private readonly offSolid: number[] = [];
+  private readonly airCut: boolean[] = [];
   private acc = 0;
 
   constructor(level: Level, nPlayers: number, rules: Rules = CLIMB) {
@@ -854,7 +857,8 @@ export class Sim {
     for (let i = 0; i < this.fadings.length; i++) this.tickFading(i);
     this.tickCrumbles();
     for (const s of this.springs) s.hit += dt;
-    for (const p of this.players) if (!p.dead && !p.done) this.control(p);
+    const pulls = this.pullCounts(dt);
+    for (const p of this.players) if (!p.dead && !p.done) this.control(p, pulls[p.id] ?? true);
     const slips = this.rules.mode === 'last';
     for (const p of this.players) {
       if (p.dead || p.done) continue;
@@ -939,15 +943,53 @@ export class Sim {
     }
   }
 
+  /**
+   * 谁的拉力算数。拉身体的力只加在身体上，没有反作用力：抓着地形时地形扛着，没事。可抓着的是一个悬空的队友、两个人都没
+   * 连到实在的地方时，这股力就是凭空推着两个人走：两个人互相抓着推摇杆往上，或者一个先往上一窜、另一个抓住他再往上拽、
+   * 再换过来，一秒一千多 px 一直往天上飞。所以没连上的人往上快过 CFG.airPullRise，或者离开实在的地方超过
+   * CFG.airPullTime 秒，拉力就不算了，直到又连到实在的地方：最多一起蹦一下，飞不上天。
+   * 实在的地方：自己站在地上，抓着地形、绳子、跷跷板或箱子，比谁先到了终点钉在那里；抓着这样的人也算连上了。
+   * 两个门槛放在录好的回放之外（12 关里没连上还在拽队友的时候，最久离地 0.92 秒、最快往上 538 px/s，都在 van-10），
+   * 所以回放和以前一模一样。
+   */
+  private pullCounts(dt: number): boolean[] {
+    const ok = this.players.map((p) => {
+      if (p.dead) return false;
+      if (p.done || p.ground) return true;
+      return p.arms.some((a) => a.grip !== null && a.grip.kind !== 'player');
+    });
+    // 抓着已经连上的人也算连上；最多 6 个人，转几圈就定了
+    for (let changed = true; changed; ) {
+      changed = false;
+      this.players.forEach((p, i) => {
+        if (ok[i] || p.dead) return;
+        if (p.arms.some((a) => a.grip?.kind === 'player' && a.grip.player !== undefined && ok[a.grip.player])) {
+          ok[i] = true;
+          changed = true;
+        }
+      });
+    }
+    return this.players.map((p, i) => {
+      if (ok[i] || p.dead) {
+        this.offSolid[i] = 0;
+        this.airCut[i] = false;
+        return true;
+      }
+      this.offSolid[i] = (this.offSolid[i] ?? 0) + dt;
+      if (p.body.vy < -CFG.airPullRise || (this.offSolid[i] ?? 0) > CFG.airPullTime) this.airCut[i] = true;
+      return !this.airCut[i];
+    });
+  }
+
   /** 一步里的操作：挂着时对身体施力，没抓着的手伸向摇杆方向。 */
-  private control(p: Player): void {
+  private control(p: Player, pulls: boolean): void {
     const body = p.rb;
     body.resetForces(false);
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const gripping = p.arms.filter((a) => a.grip);
     body.setLinearDamping(gripping.length && !p.ground ? CFG.hangDamp : CFG.bodyDamp);
     p.bodyCol.setFriction(gripping.length && aimed ? CFG.bodyFrictionPulling : CFG.bodyFriction);
-    if (gripping.length && aimed) {
+    if (gripping.length && aimed && pulls) {
       // 挂着时摇杆指「身体想去哪」，不是「手指哪」：往上推翻上去，左右推是荡。
       let tx = 0;
       let ty = 0;
