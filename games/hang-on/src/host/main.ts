@@ -39,6 +39,17 @@ const params = new URLSearchParams(location.search);
 const phoneMode =
   params.get('phone') === '1' || (params.get('phone') !== '0' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600);
 document.body.classList.toggle('phone', phoneMode);
+/**
+ * 触屏开的电视局：手机或平板接电视（投屏）当大屏，大家的手机当手柄。没有键盘，底下那条键盘说明、
+ * 「键盘加入」「绕路模式」都不出；开局时和手机局一样全屏、横过来、不让屏幕睡着（睡了电视上就没了）。
+ */
+const touchHost = !phoneMode && matchMedia('(pointer: coarse)').matches;
+/** 矮的屏幕（不到 600 高，比如横着的手机）：大厅、结算排紧一点，放不下能滚，开始键总找得到。 */
+const fitShort = (): void => {
+  document.body.classList.toggle('short', (globalThis.innerHeight ?? 1080) < 600);
+};
+fitShort();
+addEventListener('resize', fitShort);
 document.body.dataset.phase = 'lobby';
 const canvas = $<HTMLCanvasElement>('stage');
 const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
@@ -226,11 +237,11 @@ async function start(): Promise<void> {
 
 let socketDown = false;
 function renderNote(): void {
-  // 手机局屏幕小：底下那条只在断线时出来
-  $('note').classList.toggle('quiet', phoneMode && !socketDown);
+  // 手机局屏幕小、触屏开的电视局没有键盘：底下那条只在断线时出来
+  $('note').classList.toggle('quiet', (phoneMode || touchHost) && !socketDown);
   $('note').innerHTML = socketDown
     ? tr('和房间的连接断了，正在重连……', 'Lost the room connection. Reconnecting…')
-    : phoneMode
+    : phoneMode || touchHost
       ? ''
       : tr(
           '主机页只在一台电脑上开，接电视。<kbd>键盘加入</kbd> 后 <kbd>W A S D</kbd> 指方向、<kbd>Q</kbd> <kbd>E</kbd> 抓、<kbd>R</kbd> 召唤，自己一个人也能试。',
@@ -343,8 +354,8 @@ function showResults(): void {
 }
 
 $('startBtn').addEventListener('click', () => {
-  // 手机局：这一下点击正好用来全屏、横过来、不让屏幕睡着（浏览器只在点击里给）
-  if (phoneMode) void phoneScreen();
+  // 手机局、触屏开的电视局：这一下点击正好用来全屏、横过来、不让屏幕睡着（浏览器只在点击里给）
+  if (phoneMode || touchHost) void phoneScreen();
   link?.act({ type: 'START' });
 });
 // 结算页：再来一次、下一关都直接倒数开局；要换人、换关走顶栏的「回大厅」
@@ -372,6 +383,8 @@ $('muteBtn').addEventListener('click', () => {
 // 触屏设备上可以在两种局之间换（猜错了的时候，比如平板）：换了就重新开房
 const modeBtn = $<HTMLButtonElement>('modeBtn');
 modeBtn.hidden = !matchMedia('(pointer: coarse)').matches;
+// 触屏开的电视局没有键盘：键盘加入、绕路模式（测试用）都不出
+$('kbBtn').hidden = $('relayBtn').hidden = touchHost;
 modeBtn.addEventListener('click', () => {
   const q = new URLSearchParams(location.search);
   q.set('phone', phoneMode ? '0' : '1');
@@ -385,7 +398,7 @@ function renderButtons(): void {
   $('kbBtn').textContent = keyboard ? tr('− 键盘退出', '− Keyboard leave') : tr('+ 键盘加入', '+ Keyboard join');
   $('relayBtn').textContent = forceRelay ? tr('绕路模式：开', 'Relay mode: on') : tr('绕路模式：关', 'Relay mode: off');
   // 手机上顶栏挤：只留图标
-  $('muteBtn').textContent = phoneMode ? (sfx.muted ? '🔇' : '🔊') : sfx.muted ? tr('🔇 静音', '🔇 Muted') : tr('🔊 声音', '🔊 Sound');
+  $('muteBtn').textContent = phoneMode || touchHost ? (sfx.muted ? '🔇' : '🔊') : sfx.muted ? tr('🔇 静音', '🔇 Muted') : tr('🔊 声音', '🔊 Sound');
   $('muteBtn').setAttribute('aria-label', tr('声音', 'Sound'));
   $('muteBtn').setAttribute('aria-pressed', String(sfx.muted));
 }
