@@ -222,14 +222,21 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
     const area = (r: typeof p) => (r.right - r.left) * (r.bottom - r.top);
     return (w * h) / Math.min(area(p), area(q));
   };
+  // (how tall the one furthest back is drawn depends on which slot of the fan it stands in, and the
+  // board leans back: the three come out between about 26 and 31 px at 中, 17 and 20 at 小)
   for (const [size, label, tall] of [
-    ["m", "中", 26],
-    ["s", "小", 17],
+    ["m", "中", 25],
+    ["s", "小", 16],
   ] as const) {
     if (size !== "m") await pickSize(a, label);
     await expect(a.page.locator(".stage .boardwrap")).toHaveAttribute("data-map", size);
     await a.page.waitForTimeout(1200);
+    // (measured standing: the hop on the spot of the team on turn lifts it toward the board's far
+    // side, which the lean draws a little smaller, and a token now and then bobs or looks round)
+    const still = await a.page.addStyleTag({ content: ".roundboard .token .hop, .roundboard .token .react { animation: none !important; }" });
+    await a.page.waitForTimeout(100);
     const list = await tokens(a.page);
+    await still.evaluate((el) => (el as HTMLElement).remove());
     await a.page.screenshot({ path: `test-results/tokens-shared-${size}.png` });
     const pairs = list.flatMap((p, i) => list.slice(i + 1).map((q) => overlap(p, q).toFixed(2)));
     console.log(`tokens at ${size}: heights ${list.map((t) => t.h.toFixed(1)).join(", ")} px; overlaps ${pairs.join(", ")}`);

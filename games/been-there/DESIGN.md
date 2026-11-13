@@ -466,6 +466,14 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   22 board units, stretched a little in the air while its shadow stays on the board and shrinks
   under it, a quick push off each space on the way and a squash onto its feet as it lands. Its own
   hop on the spot waits while it walks.
+* **Each space answers a token**, as a tile does in the phone games (`pressSpace` in
+  `art/RoundBoard.tsx`). On a move's walk (`ui/Ride.tsx`) each space the token comes down on lights
+  up for 0.4 s and ticks (`sfx.step`; the departures board's flap is for its rows); where the move
+  ends the space lights gold, sinks 10% and comes back up, and a ring spreads out from under the
+  token. Another team's hops on a phone's board at rest get that landing only: they come often, and
+  a space that sinks is drawn again every frame (its city, marks and buildings with it), which cost a
+  phone at 4× slowdown 4 to 8 frames a second when every hop did it (`npm run perf`). A space passed
+  while the ride skipped ahead, or before this screen heard of the move, doesn't light.
 * **Every screen in step.** Each screen keeps the server's clock from the quickest of its last views
   (`store.ts`), and plays the move from the server's moment of the throw: in tests the planned
   landing agrees to within 3 ms across a phone, another phone and the big screen.
@@ -497,6 +505,12 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   rest as dice do on a table seen from a chair: the number on the top face, two sides showing, their
   shadow on the table under them, staying there while they're in the air. Held down, the throw
   button rattles its die in the hand.
+* **Doubles** (`ui/Doubles.tsx`): as the dice settle they knock together and light up, and the call
+  pops up: 双数！再掷一次 in gold (out of Immigration: 免费出关, no second throw). The third in a row
+  is speeding: 连掷三次双数！超速 in red with the police lights, red at the screen's left edge and
+  blue at its right taking turns 1.6 times a second for 1.6 s (well under three flashes a second),
+  a siren, and then the gate (`JailFx`, 1.5 s on). In a move's ride over the board's far side, clear
+  of the departures board; on a phone's throw that doesn't move and the big screen's under the dice.
 * **A city bought:** the owner's mark stamps down, its ink spreads out round it and sparks fly out of
   it, in the team's colour and gold; its chip comes down onto the board with its shadow coming in
   under it. **Mortgaged**, the chip turns over like a card and lies face down (ink on paper), and
@@ -507,7 +521,24 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   With reduced motion the stamp simply stands there for its 1.8 s, and new buildings are simply there,
   with no dust and no sparks.
 * **Money:** coins fly from whoever pays to whoever is paid, once the token is down, spinning as
-  coins do. On the big screen, every payment; on a phone, its own team's.
+  coins do. On the big screen, every payment, token to token (the bank is the middle of the board).
+  **On a phone the cash in the top bar is the team's wallet** (`wallet` and `Cash` in
+  `ui/Moments.tsx`): every dollar in or out of its own team, the bank's too, flies into it or out of
+  it. In from the token that paid, Departure's corner (the salary), the token's city (a stamp's
+  bonus), a space (a building sold, a mortgage); out to the token paid, the city bought (a building:
+  its row in 我的 when that's open), the middle of the board (a fine, a tax). An end off the screen
+  comes in from its edge. The cash counts as the first coins land in it or leave it, bumping up in
+  gold as money comes in and dipping as it goes, the change floating off below it, with the till or
+  the pay sound (a city bought or a building has its own). Several payments at once set off 0.28 s
+  apart. With reduced motion the cash simply changes, with its sound.
+* **A full set** (`ui/Sets.tsx`): the moment a team owns a whole group (rent there doubles, and it can
+  build), its spaces light up in its colour one after another, 0.18 s apart once the owner's stamp
+  is down, then glow together twice and go out by 3.2 s (`.set-lit`, Istanbul with them when it
+  stands in for a Europe city). A call comes up over the board, ringed in the group's colour with its
+  shape: 集齐北美！ and its cities lighting up in it in the same order (a phone's play window may be
+  covering the board), and 租金翻倍，可以盖房了; another team's says whose. A brass call with a bell
+  (quieter for another team's on a phone) and a buzz for the phone's own. Only sets made while the
+  screen is up.
 * **Sent to Immigration:** the gate comes down over the board.
 * **Rio's samba** (`ui/Samba.tsx`). A team that says it will dance gets a ready card on its phone,
   under the top bar: stand up, leave room for a step, what comes next, and one big Start. The

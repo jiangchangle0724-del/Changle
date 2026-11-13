@@ -59,6 +59,8 @@ export interface RidePlan {
   dice: number[];
   thrown: number;
   doubles: boolean;
+  /** The throw was a team's way out of Immigration (doubles there: out free, and no second throw). */
+  fromJail?: boolean;
   /** Whether the beat starts with the dice (not when the move waited for a decision: a car permit). */
   rolled: boolean;
   /** Server time the beat starts (the throw, or the move after a permit). */
@@ -273,6 +275,7 @@ export function planMove(v: RoomView, seats: number[] | null, now = serverNow())
     dice,
     thrown: rollItem.e.steps,
     doubles: !!rollItem.e.doubles,
+    fromJail: !!rollItem.e.jail,
     rolled,
     start,
     pace,

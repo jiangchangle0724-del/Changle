@@ -26,6 +26,10 @@ export const BUZZ = {
   alarm: [160, 90, 160],
   /** A tap on a button (the dice, an answer). */
   tap: 15,
+  /** Doubles: the dice knock together. */
+  doubles: [12, 50, 12, 50, 30],
+  /** A full set: a drum roll and the hit. */
+  set: [10, 40, 10, 40, 10, 60, 60],
 };
 
 export function buzz(pattern: number | number[]) {
