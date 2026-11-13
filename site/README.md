@@ -102,6 +102,7 @@ npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的
 npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读出几秒，中英文说的时间一样
 npx tsx tests/hide.test.ts          # 藏在人群里在桌上的替身规则：主人开局、只开一次
 npx tsx tests/split.test.ts         # 两清的算账：尾差、净额、最少转账，1 万个随机账本
+npx tsx tests/split-second.test.ts  # 两清的算账再算一遍：Codex 只照规则另写的一份（tests/split/second.ts），同一批 1 万个账本上和 core 逐项对比
 npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、中英文、只用 token、还没有入口
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
 npx tsx scripts/split_check.ts      # 两清（只要 npm run dev 在跑）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效
