@@ -237,6 +237,7 @@ A1 接着做（各一个 PR）：
   - 每天的上限在房间服务器这边管，免得把登录验证码的额度用完（Resend 免费版每天 100 封，和验证码共用）：建议跟一单全部加起来每天 60 封，超了就回一个「今天满了」，跟一单这边不重试。
   - 回话只要三种：发了、今天满了、没发成。
   - 入口有了以后在这份档案或者账号的档案里留一句，这个对话再把跟一单这边接上（合并通知：每家店第一单马上发，之后最多半小时一封）。
+  - 账号对话 2026-11-13：入口有了，`site/worker/mail.ts`（具名入口 `Mail`，合并上线即生效）。接法：`wrangler.jsonc` 的 `services` 加 `{ "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }`，调 `await env.MAIL.send({ app: "tuan", to: 商家登录邮箱, subject, text, link: "https://changle.ca/tuan/…", lang: "zh" | "en" })`。回话三种：`{ status: "sent" }`、`{ status: "full" }`（今天的 60 封用完，当天别再试）、`{ status: "failed", why }`。收件人必须是 changle.ca 的账号，链接只能是 changle.ca 下面的，标题 120 字、正文 2000 字以内。细节和测试替身的写法在 `docs/briefs/accounts.md`「定过的事」和「交给别的对话」。
 - A2、A3 再交：站长审核那一栏在 /admin（`site/src/account/`，账号对话的地盘）。
 
 ## 最近的改动

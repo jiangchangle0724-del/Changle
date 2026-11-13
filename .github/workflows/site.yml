@@ -47,6 +47,7 @@ jobs:
       - run: npx tsx tests/trip.test.ts
       - run: npx tsx tests/hide.test.ts
       - run: npx tsx tests/draw.test.ts
+      - run: npx tsx tests/mail.test.ts
       - run: npx tsx tests/cutout.test.ts
       - run: npx tsx tests/performer.test.ts
       - run: npx tsx tests/tokens.test.ts
