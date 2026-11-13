@@ -7,7 +7,7 @@ import type { Rendered } from "../src/party/dj/fake/render";
 import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/dj/fake/sections";
 import { ALL_SECTIONS, ANY_SECTION, BED, KITS, sectionById, sectionOf } from "../src/party/dj/fake/styles";
 import { CLIP_DB, ClipDeck, clipOf, loadClip, type Clip } from "../src/party/dj/clip/clip";
-import { hitsOf, unescape, ytIdOf } from "../src/shared/dj/youtube";
+import { danceBpm, hitsOf, songQuery, trackOf, unescape, ytIdOf } from "../src/shared/dj/youtube";
 import { previewOk } from "../src/shared/songs";
 import { decodePiece, encodePiece, fileNumber, PIECE_BYTES, SONG_BYTES } from "../src/shared/dj/songwire";
 import { eqDb, filterOf, GATE_STEPS } from "../src/party/dj/speaker/mixer";
@@ -1122,6 +1122,25 @@ await test("songwire: a song file in pieces, every piece checked; the rooms serv
   junk[0] = 0x58;
   ok(decodePiece(junk.buffer) === null && decodePiece(new ArrayBuffer(4)) === null, "not a piece at all: no");
   ok(fileNumber("abc123xyz") === parseInt("abc123xy", 36) && Number.isSafeInteger(fileNumber("zzzzzzzzzzzz")), "a file's number for the word back");
+});
+
+await test("youtube: a song's tempo for the floor: what to look its video up by, the catalogue's track that's it, a tempo to dance to (Steve on Nov 12: the robots dance to the music)", () => {
+  ok(songQuery("YoungBoy Never Broke Again - Untouchable [Official Video]", "YoungBoyNeverBrokeAgain") === "YoungBoy Never Broke Again - Untouchable", `"Artist - Title": the title alone, less [Official Video] (${songQuery("YoungBoy Never Broke Again - Untouchable [Official Video]", "YoungBoyNeverBrokeAgain")})`);
+  ok(songQuery("Shape of You (Official Music Video)", "Ed Sheeran") === "Ed Sheeran Shape of You", `the singer from the channel when the title doesn't say (${songQuery("Shape of You (Official Music Video)", "Ed Sheeran")})`);
+  ok(songQuery("Levitating", "Dua Lipa - Topic") === "Dua Lipa Levitating" && songQuery("Bad Romance", "LadyGagaVEVO") === "LadyGaga Bad Romance", `a channel's - Topic and VEVO come off (${songQuery("Levitating", "Dua Lipa - Topic")}, ${songQuery("Bad Romance", "LadyGagaVEVO")})`);
+  const qt = songQuery("周杰伦 Jay Chou【晴天 Sunny Day】Official MV", "周杰倫 Jay Chou");
+  ok(qt.includes("晴天") && qt.includes("周杰伦") && !/official|mv/i.test(qt), `a Chinese title: the song in its 【】 kept, its Official MV gone (${qt})`);
+  ok(songQuery("Despacito &amp; more (Lyrics)", "Luis Fonsi") === "Luis Fonsi Despacito & more", `YouTube's escapes, its (Lyrics) (${songQuery("Despacito &amp; more (Lyrics)", "Luis Fonsi")})`);
+  const found = { data: [{ id: 1, title: "Untouchable (Remix)", title_short: "Untouchable", artist: { name: "Someone Else" } }, { id: 2, title: "Untouchable", title_short: "Untouchable", artist: { name: "YoungBoy Never Broke Again" } }] };
+  ok(trackOf(found, "YoungBoy Never Broke Again - Untouchable [Official Video]") === 2, "the track that's the song itself (not a remix of it), its name in the video's title");
+  const two = { data: [{ id: 7, title: "Hello", artist: { name: "Lionel Richie" } }, { id: 8, title: "Hello", artist: { name: "Adele" } }] };
+  ok(trackOf(two, "Hello (Official Music Video)", "AdeleVEVO") === 8 && trackOf(two, "Hello", "") === 7, "two songs of that name: the singer the video names, else the first");
+  ok(trackOf({ data: [{ id: 3, title: "Something Else", title_short: "Something Else" }] }, "Untouchable") === null, "none whose name is: nothing (no wrong tempo)");
+  ok(trackOf({ data: [{ id: 4, title: "晴天", title_short: "晴天" }] }, "周杰伦 Jay Chou【晴天 Sunny Day】Official MV") === 4, "a Chinese name too");
+  ok(trackOf(null, "x") === null && trackOf({ data: "x" }, "x") === null && trackOf({ data: [{ id: "5", title: "x y" }] }, "x y") === null, "an answer that isn't one: nothing");
+  ok(trackOf({ data: [{ id: 6, title: "I", title_short: "I" }] }, "I Like It") === null, "a one-letter name matches nothing");
+  ok(danceBpm(128) === 128 && danceBpm(170) === 85 && danceBpm(60) === 120 && danceBpm(300) === 75, `folded into 70 to 140 (${danceBpm(170)}, ${danceBpm(60)}, ${danceBpm(300)})`);
+  ok(danceBpm(0) === 120 && danceBpm(NaN) === 120 && danceBpm(-5) === 120, "no tempo: 120");
 });
 
 await test("youtube: a link's video id, the search answer's videos, YouTube's escapes", () => {

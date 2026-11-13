@@ -448,13 +448,14 @@ export const DECK = {
   /** countdowns nobody pressed before the DJ drops it by itself */
   maxMisses: 1,
   /** songs asked for by name (the night's 歌单, Steve on Nov 2: "很多人点歌要把它们放到一个
-   *  playlist"): `reqMax` waiting for the whole table, `reqEach` each (waiting or up next), a
-   *  phone's taken one per `reqGapMs`. Up next: if the table hasn't dropped into it `reqWaitMs`
-   *  after it's ready, the DJ starts the countdown itself (and drops it if nobody presses); its
-   *  remix is named on the screens for `reqPlayMs` after its drop */
-  reqMax: 30,
-  reqEach: 3,
-  reqGapMs: 5000,
+   *  playlist"): `reqMax` waiting for the whole table, `reqEach` each (waiting or up next; Steve
+   *  on Nov 12: "一个人一次性可以至少点24首歌", it was 3), a phone's taken one per `reqGapMs` (a
+   *  second: a long list asked for in a row). Up next: if the table hasn't dropped into it
+   *  `reqWaitMs` after it's ready, the DJ starts the countdown itself (and drops it if nobody
+   *  presses); its remix is named on the screens for `reqPlayMs` after its drop */
+  reqMax: 100,
+  reqEach: 30,
+  reqGapMs: 1000,
   reqWaitMs: 40_000,
   reqPlayMs: 90_000,
   /** a whole song from YouTube starts on its drop's bar (the big screen has it cued and buffered
