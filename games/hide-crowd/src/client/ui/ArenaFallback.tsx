@@ -5,7 +5,7 @@
 // top, and light up when someone tastes one.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
-import type { AvatarView } from "../../room/protocol";
+import type { AvatarView, CrackerView } from "../../room/protocol";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 
@@ -22,8 +22,10 @@ export function ArenaFallback(props: {
   maxSpeed: number;
   receivedAt: number;
   impactId: number;
-  impactType: "tag" | "foul" | "swing" | "hide" | "over";
+  impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "over";
   flash?: { id: number; stall: number; feast: boolean } | null;
+  /** the night market's firecrackers come with their moment */
+  moment?: { crackers?: CrackerView[] } | null;
 }) {
   const arenaRef = useRef<HTMLDivElement>(null);
   const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
@@ -127,6 +129,17 @@ export function ArenaFallback(props: {
         <div class={`flat-belt ${props.drift.x < 0 ? "is-left" : props.drift.x > 0 ? "is-right" : ""}`} aria-hidden="true" />
       )}
       {props.arena === "gallery" && <div class="flat-spotlight" aria-hidden="true" />}
+      {/* the firecrackers: once landed, a ring of how far each will knock people down, then its bang */}
+      {(props.moment?.crackers ?? [])
+        .filter((cracker) => cracker.landsInMs <= 0 && cracker.bangsInMs > -500)
+        .map((cracker) => (
+          <span
+            key={`${cracker.x},${cracker.y}`}
+            class={`flat-cracker${cracker.bangsInMs <= 0 ? " is-bang" : ""}`}
+            style={{ left: `${cracker.x}%`, top: `${(cracker.y / 58) * 100}%` }}
+            aria-hidden="true"
+          />
+        ))}
       {props.avatars.map((avatar, index) => (
         <div
           key={index}

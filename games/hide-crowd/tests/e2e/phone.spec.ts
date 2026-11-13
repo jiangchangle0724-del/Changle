@@ -1,7 +1,7 @@
 // One phone: practice against the computer, the screens a phone shows (sideways: an upright phone is
 // asked to turn), and an iPhone's ways to full screen (hide Safari's toolbar, or the Home Screen).
-import { expect, test } from "@playwright/test";
-import { bigTargets, newRoom, noErrors, noSideScroll, phone, shot, until } from "./helpers";
+import { expect } from "@playwright/test";
+import { bigTargets, newRoom, noErrors, noSideScroll, phone, shot, test, until } from "./helpers";
 
 test("practice: one phone against three computer rivals hidden in the crowd", async ({ browser }) => {
   const me = await phone(browser, "Steve");

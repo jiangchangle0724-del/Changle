@@ -199,7 +199,7 @@ export async function loadPeople(loader = new GLTFLoader()): Promise<PeopleKit> 
   return kitFrom(man, woman);
 }
 
-type Kind = "tag" | "foul" | "swing" | "hide" | "over";
+type Kind = "tag" | "foul" | "swing" | "hide" | "blast" | "over";
 
 /** A one-off clip over the legs: its share of the body, and until when it holds (ms; Infinity while stunned). */
 interface Shot {

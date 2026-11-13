@@ -1,6 +1,6 @@
 // Two phones and a big screen: joining, the vote, a round with a tag, the penalty, and playing again.
-import { expect, test } from "@playwright/test";
-import { bigTargets, newRoom, noErrors, noSideScroll, phone, screen, shot, until, view } from "./helpers";
+import { expect } from "@playwright/test";
+import { bigTargets, newRoom, noErrors, noSideScroll, phone, screen, shot, test, until, view } from "./helpers";
 
 test("two phones join, vote and play a round: a tag scores, the most spotted takes the penalty, the host plays again", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { duel: true, roundMs: 9_000 } });
@@ -92,7 +92,7 @@ test("the host turns the penalty off; someone who joins mid-round watches and pl
   noErrors(steve, mia, kev);
 });
 
-test("the night market: standing still at a stall tastes it, the stall lights up for everyone, and only the taster is told", async ({ browser, request }) => {
+test("the night market: standing still at a stall tastes it, the stall lights up for everyone, and only the taster is told; then firecrackers", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { stall: 2, roundMs: 40_000 } });
   const steve = await phone(browser, "Steve");
   const mia = await phone(browser, "Mia", "en");
@@ -123,10 +123,13 @@ test("the night market: standing still at a stall tastes it, the stall lights up
   await expect(mia.locator(".play-notice")).toHaveCount(0);
   await expect(mia.locator(".quest-snack.is-done")).toHaveCount(0);
   await expect(tv.locator(".flat-stall")).toHaveCount(4);
-  // the fireworks, ten seconds in: the crowd's moment, on the phones and the big screen
-  await expect(mia.locator(".moment-banner")).toContainText("Fireworks", { timeout: 15_000 });
-  await expect(tv.locator(".moment-banner")).toContainText("放烟花了");
-  await shot(tv, "tv-market-fireworks");
+  // ten seconds in, firecrackers thrown into the crowd: the moment on the phones and the big screen,
+  // and on the flat arena the ring round each that has landed
+  await expect(mia.locator(".moment-banner")).toContainText("Firecrackers", { timeout: 15_000 });
+  await expect(tv.locator(".moment-banner")).toContainText("有人扔鞭炮");
+  await expect(mia.locator(".flat-cracker").first()).toBeVisible();
+  await expect(tv.locator(".flat-cracker").first()).toBeVisible();
+  await shot(tv, "tv-market-crackers");
   noErrors(steve, mia, tv);
 });
 

@@ -1,6 +1,6 @@
 // The big screen: a real TV layout at 1920 x 1080 and 1280 x 720, and nobody marked as a player.
-import { expect, test, type Page } from "@playwright/test";
-import { newRoom, noErrors, phone, screen, shot, until, view } from "./helpers";
+import { expect, type Page } from "@playwright/test";
+import { newRoom, noErrors, phone, screen, shot, test, until, view } from "./helpers";
 
 /** Everything on the stage stays on the screen. */
 async function fits(page: Page) {

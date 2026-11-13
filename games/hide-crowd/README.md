@@ -9,7 +9,9 @@ passer-by across the crowd throws a punch at nothing. The round ends in a penalt
 takes a sip. A big screen (a TV or a computer) shows the whole crowd and never marks who is human.
 Four 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre (where now
 and then the stage counts three, two, one and the whole crowd punches at once), and the Richmond
-Night Market, where tasting all four stalls scores 2 but lights each stall up for everyone.
+Night Market, where tasting all four stalls scores 2 but lights each stall up for everyone, and
+where now and then someone throws firecrackers into the crowd: everyone gets clear, and a player
+who doesn't is knocked down for all to see.
 2 to 8 players, Chinese and English.
 
 How it looks, where the art comes from and what a design change has to keep: [DESIGN.md](DESIGN.md).
@@ -78,7 +80,8 @@ npm run test:e2e     # phones and a big screen in Chromium: joining, a round, a 
 
 GitHub runs all three on every push, in Chromium and WebKit (`.github/workflows/hide-crowd.yml`).
 Locally, `E2E_PORT` picks the test server's port and `PW_CHROMIUM` a Chromium already on the
-machine.
+machine. Each browser test closes the phones and screens it opened (the `test` in
+`tests/e2e/helpers.ts`), so write new ones with that `test`.
 
 ## Put it online
 

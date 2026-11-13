@@ -2,8 +2,9 @@
 // across the place that swings up into the game's view (2.4 s); someone's distraction turns the camera
 // towards the passer-by's swing for a moment (as the Steam game's pans away from the action); and once
 // a round is over and the last blow has landed in slow motion, the camera comes down to the winner,
-// dancing, while confetti bursts over them. With reduced motion the camera stays where it is and no
-// confetti falls.
+// dancing, while confetti bursts over them. A tagged player bursts into a little confetti too (as the
+// Steam game punches the confetti out of your friends). With reduced motion the camera stays where it
+// is and no confetti falls.
 import * as THREE from "three";
 import { CLOSE_AFTER_MS, CLOSE_MS } from "./useLanded";
 
@@ -27,6 +28,8 @@ export interface Cinema {
   glance: (time: number, x: number, z: number, lastsMs: number) => void;
   /** the round is over (every frame from then on): where the winner stands, or null (a draw) */
   ending: (time: number, winner: { x: number; z: number } | null, reduced: boolean) => void;
+  /** a tagged player, knocked off their feet at (x, z): a little burst of confetti out of them */
+  pop: (time: number, x: number, z: number, reduced: boolean) => void;
   /** the confetti flies, flutters and falls */
   update: (time: number, delta: number) => void;
   /** the next round on the same arena (the arena stays up between rounds): the opening shot again */
@@ -62,25 +65,30 @@ export function addCinema(scene: THREE.Scene, colors: readonly string[], intro: 
   interface Piece { x: number; y: number; z: number; vx: number; vy: number; vz: number; spin: THREE.Vector3; turn: number; rate: number; born: number; life: number; color: THREE.Color }
   const flying: Piece[] = [];
   const dummy = new THREE.Object3D();
+  const card = (time: number, x: number, y: number, z: number, angle: number, out: number, up: number, life: number, index: number) => {
+    if (flying.length >= CONFETTI) return;
+    flying.push({
+      x,
+      y,
+      z,
+      vx: Math.cos(angle) * out,
+      vy: up,
+      vz: Math.sin(angle) * out,
+      spin: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
+      turn: Math.random() * Math.PI * 2,
+      rate: 5 + Math.random() * 9,
+      born: time,
+      life,
+      color: palette[index % palette.length]
+    });
+  };
   const burst = (time: number) => {
-    // (from just over the winner's head, out and only a little up: the close camera sees it rain down)
+    // (from just over the winner's head, out and only a little up: the close camera sees it rain down;
+    // whatever is still falling from a tag makes room for it)
+    flying.length = 0;
     for (let index = 0; index < CONFETTI; index++) {
       const angle = Math.random() * Math.PI * 2;
-      const out = 1.2 + Math.random() * 2.6;
-      flying.push({
-        x: winnerAt.x + Math.cos(angle) * 0.3,
-        y: 2.7 + Math.random() * 0.5,
-        z: winnerAt.z + Math.sin(angle) * 0.3,
-        vx: Math.cos(angle) * out,
-        vy: 0.8 + Math.random() * 1.8,
-        vz: Math.sin(angle) * out,
-        spin: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
-        turn: Math.random() * Math.PI * 2,
-        rate: 5 + Math.random() * 9,
-        born: time,
-        life: 3_000 + Math.random() * 1_400,
-        color: palette[index % palette.length]
-      });
+      card(time, winnerAt.x + Math.cos(angle) * 0.3, 2.7 + Math.random() * 0.5, winnerAt.z + Math.sin(angle) * 0.3, angle, 1.2 + Math.random() * 2.6, 0.8 + Math.random() * 1.8, 3_000 + Math.random() * 1_400, index);
     }
   };
 
@@ -136,6 +144,14 @@ export function addCinema(scene: THREE.Scene, colors: readonly string[], intro: 
       glanceAt.set(x, 0.9, z);
       glanceFrom = time;
       glanceUntil = time + Math.max(GLANCE_IN_MS, lastsMs);
+    },
+    pop(time, x, z, reduced) {
+      if (reduced) return;
+      // (from the chest, out and up: it rains down round the body as it falls)
+      for (let index = 0; index < 60; index++) {
+        const angle = Math.random() * Math.PI * 2;
+        card(time, x, 1.3, z, angle, 0.8 + Math.random() * 2.2, 1.6 + Math.random() * 2.6, 1_400 + Math.random() * 900, index);
+      }
     },
     ending(time, winner, reduced) {
       if (endedAt === null) endedAt = time;
