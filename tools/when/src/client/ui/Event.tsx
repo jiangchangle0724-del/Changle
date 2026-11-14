@@ -89,7 +89,10 @@ export function EventPage({ code }: { code: string }) {
     api.get(code).then(
       (fresh) => {
         setReach(true);
-        setSnap((before) => (before && fresh.state.v < before.state.v ? { ...fresh, state: before.state } : fresh));
+        // An answer older than what the page has was on its way while something newer arrived
+        // (this phone's name being saved, say): it takes nothing back. Not the gathering, not
+        // "this row is yours", not "you manage this".
+        setSnap((before) => (before && fresh.state.v < before.state.v ? { state: before.state, host: fresh.host || before.host, me: fresh.me ?? before.me } : fresh));
         remember({ code, title: fresh.state.title, mine: fresh.host, at: Date.now() });
         if (firstLook.current) {
           firstLook.current = false;

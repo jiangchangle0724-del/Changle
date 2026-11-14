@@ -239,6 +239,50 @@ test("quick fill: weekends, evenings, a whole day, everything; one tap takes suc
   await expect(page.locator("button.grid-date")).toHaveCount(0);
 });
 
+test("an answer from the server that arrives late doesn't make the page forget who you are", async ({ browser }) => {
+  // The page asks for the gathering again when it comes to the front, when it opens, when the
+  // phone is back online. An answer to one of those, worked out before this phone gave its name
+  // but arriving after the name was saved, is older than what the page has: it must not take
+  // "this is your row" away.
+  const host = await phone(browser);
+  const { url, code } = await make(host, "周末火锅");
+  const guest = await phone(browser);
+  await guest.goto(url);
+  await expect(guest.locator(".name-form input")).toBeVisible();
+
+  // hold the next answer to "what does the gathering look like": fetched now, delivered later
+  let deliver: (() => Promise<void>) | undefined;
+  await guest.route(
+    (address) => address.pathname === `/when/api/e/${code}`,
+    async (route) => {
+      if (deliver || route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch();
+      deliver = () => route.fulfill({ response });
+    },
+  );
+  await guest.evaluate(() => window.dispatchEvent(new Event("online")));
+  await expect.poll(() => !!deliver).toBe(true);
+
+  // meanwhile the guest gives a name and taps a slot
+  await guest.fill(".name-form input", "阿May");
+  await guest.click(".name-form .btn");
+  await expect(guest.locator(".you")).toContainText("阿May");
+  await cell(guest, 4).click();
+  await saved(guest);
+
+  // now the old answer arrives: nobody had a row when it was written
+  await deliver!();
+  await guest.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+  await expect(guest.locator(".you")).toContainText("阿May");
+  await expect(guest.locator(".name-form")).toHaveCount(0);
+  await expect(cell(guest, 4)).toHaveAttribute("data-mine", "yes");
+  // and the next tap still saves to the same row: one person in the gathering, not two
+  await cell(guest, 5).click();
+  await saved(guest);
+  await host.reload();
+  await expect(host.locator(".meta")).toContainText("1 个人填了");
+});
+
 test("inside WeChat the page says how to get out; an Android phone goes to Google Calendar", async ({ browser }) => {
   // the host is in WeChat's own browser, where most gatherings start
   const host = await (await browser.newContext({ userAgent: WECHAT })).newPage();
