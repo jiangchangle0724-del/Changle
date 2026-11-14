@@ -47,13 +47,18 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 | `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`. |
 | `src/server/gate.ts` | The daily allowances. |
 | `src/server/schema.ts` | Applies `migrations/` (numbered files, each once, in order) when the Worker starts. Nothing to run by hand. |
-| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
+| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is; a buyer's pages), `my.tsx` (the merchant's pages, a script of their own), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` and `i18n-my.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
 | `scripts/build.mjs` | Builds the pages into `dist/client/tuan` (esbuild). wrangler runs it before `wrangler dev` and `wrangler deploy`. |
 | `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/editor.spec.ts` for starting and changing a group buy, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
 
 ### The pages
 
-One HTML file and one script for every page; the address decides what shows. The script, styles
+One HTML file for every page; the address decides what shows. A buyer's pages are one script
+(`src/client/main.tsx`, with what it shares with the merchant's in a chunk); the merchant's pages
+come in a script of their own (`src/client/my.tsx`, with their words in `src/client/i18n-my.ts`)
+that is fetched only at `/tuan/my…`, so a buyer's phone never downloads them. The build stops if
+any of the merchant's pages ends up in what a buyer downloads, and prints the sizes (a buyer's
+page about 66 KB, 23 KB gzipped, on 2026-11-14; it was 124 KB in one script). The scripts, styles
 and fonts carry a hash in their names and are kept by phones for a year; the page itself is never
 kept (`no-store`), so a new version arrives on the next visit. A content-security policy lets
 nothing run or load but the site's own files (and Cloudflare's visitor statistics).
