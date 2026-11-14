@@ -11,6 +11,7 @@
  *     the account, and its owner deleting it for everyone.
  *  6. A ledger's record (改动记录), read from the server a batch at a time.
  *  7. The 结清图: when this phone last made a ledger's picture, kept beside the ledger.
+ *  8. Receipt photos: sent with the key and the sign-in, shown from what this phone has, taken off.
  *
  * (What is sent when, and what the phone makes of the answers, is tests/split-sync.test.ts.)
  */
@@ -79,8 +80,8 @@ const page = { visibilityState: "visible", addEventListener: listenTo, removeEve
 const storage = new Storage();
 
 /** One request the page made, and how the test answers it. */
-type Asked = { method: string; path: string; key: string | null; body: unknown; owner?: string; next?: string; auth?: string };
-type Answer = { status: number; json?: unknown; text?: string } | "nothing" | "hangs";
+type Asked = { method: string; path: string; key: string | null; body: unknown; owner?: string; next?: string; auth?: string; type?: string; blob?: Blob };
+type Answer = { status: number; json?: unknown; text?: string; bytes?: Uint8Array; type?: string } | "nothing" | "hangs";
 const asked: Asked[] = [];
 let answer: (a: Asked) => Answer = () => "nothing";
 
@@ -127,12 +128,15 @@ Object.assign(globalThis, {
   location: { protocol: "https:", host: "changle.test" },
   localStorage: storage,
   WebSocket: Socket,
-  fetch: async (url: string, init: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal } = {}) => {
-    const a: Asked = { method: init.method ?? "GET", path: url, key: init.headers?.["x-split-key"] ?? null, body: init.body ? JSON.parse(init.body) : undefined, owner: init.headers?.["x-split-owner"], next: init.headers?.["x-split-next"], auth: init.headers?.authorization };
+  fetch: async (url: string, init: { method?: string; headers?: Record<string, string>; body?: string | Blob; signal?: AbortSignal } = {}) => {
+    // (a change goes as words; a photo as itself)
+    const words = typeof init.body === "string" ? init.body : undefined;
+    const a: Asked = { method: init.method ?? "GET", path: url, key: init.headers?.["x-split-key"] ?? null, body: words ? JSON.parse(words) : undefined, owner: init.headers?.["x-split-owner"], next: init.headers?.["x-split-next"], auth: init.headers?.authorization, ...(init.body instanceof Blob ? { type: init.headers?.["content-type"], blob: init.body } : {}) };
     asked.push(a);
     const how = answer(a);
     if (how === "nothing") throw new TypeError("Failed to fetch");
     if (how === "hangs") return new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
+    if (how.bytes) return new Response(new Blob([new Uint8Array(how.bytes)]), { status: how.status, headers: { "content-type": how.type ?? "application/octet-stream" } });
     return new Response(how.json !== undefined ? JSON.stringify(how.json) : (how.text ?? ""), { status: how.status, headers: { "content-type": how.json !== undefined ? "application/json" : "text/html" } });
   },
 });
@@ -903,6 +907,94 @@ const { net } = await import("../src/split/net");
   store.dropHeld("pic-2");
   store.dropHeld("pic-3");
   eq(raw()?.pictures, undefined, "and with none left, none is kept");
+}
+
+// ---------- 8. receipt photos ----------
+{
+  const store = await import("../src/split/store");
+  const syncing = await import("../src/split/syncing");
+  const { FILE_MAX } = await import("../src/split/photos");
+  const K = "q".repeat(43);
+  store.keepHeld(join({ seq: 1, ledger: fresh("pho-1") }, K));
+  store.keepHeld(hold(fresh("pho-2"), K));
+  storage.setItem("changle.session", "session-1");
+  const pdf = new File([new TextEncoder().encode("%PDF-1.7 a receipt")], "receipt.pdf", { type: "application/pdf" });
+  const at = (path: string) => /^\/split\/api\/ledgers\/([^/]+)\/files\/([^/]+)$/.exec(path);
+  // the server, as the tests have it: storing echoes the phone's id; reading gives a JPEG's bytes
+  const photo = new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3]);
+  let refusal: Answer | null = null;
+  answer = (a) => {
+    const m = at(a.path);
+    if (!m) return "nothing";
+    if (refusal) return refusal;
+    if (a.method === "PUT") return { status: 201, json: { file: { id: m[2], size: a.blob?.size ?? 0, type: a.type, at: 1 }, used: 1234, quota: 524_288_000 } };
+    if (a.method === "GET") return { status: 200, bytes: photo, type: "image/jpeg" };
+    if (a.method === "DELETE") return { status: 200, json: { ok: true } };
+    return "nothing";
+  };
+
+  asked.length = 0;
+  eq([await syncing.sendPhoto("not-on-this-phone", pdf), await syncing.sendPhoto("pho-2", pdf), asked.length], [{ ok: false, trouble: "gone" }, { ok: false, trouble: "notYet" }, 0], "a ledger this phone doesn't hold, or one not on the server yet: no photo, and nothing asked");
+  const sent = await syncing.sendPhoto("pho-1", pdf);
+  const put = asked[0];
+  eq([sent.ok, sent.ok && /^[A-Za-z0-9_-]{22}$/.test(sent.file), sent.ok && sent.used, put?.method, at(put?.path ?? "")?.[1], put?.key === K, put?.auth, put?.type, put?.blob?.size], [true, true, 1234, "PUT", "pho-1", true, "Bearer session-1", "application/pdf", pdf.size], "a PDF goes as it is: under an id of the phone's own, with the key and the sign-in in headers, and the room it now uses comes back");
+  asked.length = 0;
+  const mine = sent.ok ? await syncing.photoOf("pho-1", sent.file) : null;
+  eq([mine?.type, mine?.url.startsWith("blob:"), asked.length], ["application/pdf", true, 0], "the photo just sent is shown from what this phone has: nothing is asked");
+  const theirs = await syncing.photoOf("pho-1", "someone-elses");
+  eq([theirs?.type, asked.map((a) => [a.method, at(a.path)?.[2], a.key === K])], ["image/jpeg", [["GET", "someone-elses", true]]], "another's photo is fetched with the key");
+  await syncing.photoOf("pho-1", "someone-elses");
+  eq(asked.length, 1, "and once only, while the page is open");
+  refusal = { status: 200, text: "<html>a hotel's sign-in page</html>" };
+  eq(await syncing.photoOf("pho-1", "a-hotel"), null, "a page that isn't a photo, though it came back as one: no photo");
+  refusal = "nothing";
+  eq(await syncing.photoOf("pho-1", "not-yet-come"), null, "no answer: no photo");
+  refusal = null;
+  eq((await syncing.photoOf("pho-1", "not-yet-come"))?.type, "image/jpeg", "and asked for again the next time");
+
+  // why a photo didn't go, as the server says it
+  const troubles: [Answer, string][] = [
+    [{ status: 401, json: { error: "signin" } }, "signin"],
+    [{ status: 413, json: { error: "quota" } }, "quota"],
+    [{ status: 413, json: { error: "big" } }, "big"],
+    [{ status: 429, json: { error: "limit" } }, "limit"],
+    [{ status: 423, json: { error: "locked" } }, "locked"],
+    [{ status: 403, json: { error: "key" } }, "key"],
+    [{ status: 404, json: { error: "gone" } }, "gone"],
+    [{ status: 400, json: { error: "bad" } }, "bad"],
+    [{ status: 503, json: { error: "down" } }, "away"],
+    // (the server's own trouble, whatever it says: no answer)
+    [{ status: 500, json: { error: "bad" } }, "away"],
+    [{ status: 403, text: "<html>a hotel's sign-in page</html>" }, "away"],
+    ["nothing", "away"],
+  ];
+  const said: string[] = [];
+  for (const [how] of troubles) {
+    refusal = how;
+    const got = await syncing.sendPhoto("pho-1", pdf);
+    said.push(got.ok ? "ok" : got.trouble);
+  }
+  refusal = null;
+  eq(said, troubles.map(([, t]) => t), "each refusal said as itself; anything that isn't the server's is no connection");
+
+  // what never goes
+  asked.length = 0;
+  const note = new File(["just words"], "note.txt", { type: "text/plain" });
+  const huge = new File([new Uint8Array(FILE_MAX + 1)], "huge.pdf", { type: "application/pdf" });
+  // (an iPhone's own kind of photo, on a phone that can't draw it: not one the server takes)
+  const heic = new File([new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112])], "IMG_0001.HEIC", { type: "image/heic" });
+  eq([await syncing.sendPhoto("pho-1", note), await syncing.sendPhoto("pho-1", huge), await syncing.sendPhoto("pho-1", heic), asked.length], [{ ok: false, trouble: "bad" }, { ok: false, trouble: "big" }, { ok: false, trouble: "bad" }, 0], "a file that is neither a photo nor a PDF, one over 10 MB, and a photo this phone can't draw of a kind the server doesn't take: said at once, nothing sent");
+  // (a phone that can't draw a photo sends it as it is, when it is a kind the server takes)
+  const jpeg = new File([photo], "receipt.jpg", { type: "image/jpeg" });
+  const asIs = await syncing.sendPhoto("pho-1", jpeg);
+  eq([asIs.ok, asked.at(-1)?.type, asked.at(-1)?.blob?.size], [true, "image/jpeg", photo.length], "a photo this phone can't make smaller goes as it is");
+
+  asked.length = 0;
+  syncing.dropPhoto("pho-1", "old-photo");
+  syncing.dropPhoto("not-on-this-phone", "x");
+  await settle();
+  eq(asked.map((a) => [a.method, at(a.path)?.[1], at(a.path)?.[2], a.key === K]), [["DELETE", "pho-1", "old-photo", true]], "a photo no expense keeps is taken off with the key (for a ledger this phone holds)");
+  storage.removeItem("changle.session");
 }
 
 if (failed) {

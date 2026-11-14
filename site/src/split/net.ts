@@ -10,6 +10,7 @@
  * and the syncer tries again later. So a phone is never told its key is wrong by something that
  * isn't the server.
  */
+import { KINDS } from "./photos";
 import { asDone, asMine, asPushed, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
 import type { Net, Reply } from "./syncer";
 
@@ -174,6 +175,46 @@ export const net: Net = {
 
 /** The ledger's record after change `seq` (0: from the start), at most a batch of it (the server's MAX_BATCH, 500). */
 export const recordNet = (id: string, key: string, seq: number): Promise<Reply<Since>> => ask(`/ledgers/${id}?since=${seq}`, { [KEY_HEADER]: key }, asSince);
+
+/** A file's request: what the server said (its status, and the error it named when it said no), and the answer. 0: no answer. */
+export type FileReply<T> = { status: number; error?: string; data?: T };
+
+/** One request about a ledger's files, the key (and the sign-in, to store one) in headers. Only the server's own answers count. */
+async function fileAsk<T>(path: string, method: string, keys: Record<string, string>, read: (res: Response) => Promise<T | null>, body?: Blob, type?: string, patience = PATIENCE): Promise<FileReply<T>> {
+  const ctl = new AbortController();
+  const timer = window.setTimeout(() => ctl.abort(), patience);
+  try {
+    const res = await fetch(`${API}${path}`, { method, headers: { ...keys, ...(type ? { "content-type": type } : {}) }, body, signal: ctl.signal });
+    if (res.ok) {
+      const data = await read(res);
+      return data === null ? { status: 0 } : { status: res.status, data };
+    }
+    const said: unknown = await res.json().catch(() => null);
+    if (res.status >= 500 || !isRecord(said) || !isText(said.error) || ![...REFUSALS, "quota", "big"].includes(said.error)) return { status: 0 };
+    return { status: res.status, error: said.error };
+  } catch {
+    return { status: 0 };
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+/** A stored file as the server answers: its id, and the bytes the sender's account now uses of its quota. */
+export type Stored = { id: string; used: number; quota: number };
+const asStored = async (res: Response): Promise<Stored | null> => {
+  const x: unknown = await res.json().catch(() => null);
+  if (!isRecord(x) || !isRecord(x.file) || !isText(x.file.id) || typeof x.used !== "number" || typeof x.quota !== "number") return null;
+  return { id: x.file.id, used: x.used, quota: x.quota };
+};
+
+/** A ledger's files at the server: one stored (signed in; a photo can take a while on a slow line), read back as it is, or taken off. */
+export const fileNet = {
+  put: (id: string, key: string, file: string, blob: Blob, type: string) => fileAsk(`/ledgers/${id}/files/${file}`, "PUT", { ...signedIn(), [KEY_HEADER]: key }, asStored, blob, type, 60_000),
+  // (only a kind of file the server keeps: anything else is not its answer, as a hotel's sign-in page isn't)
+  get: (id: string, key: string, file: string) =>
+    fileAsk(`/ledgers/${id}/files/${file}`, "GET", { [KEY_HEADER]: key }, async (res) => res.blob().then((b) => (KINDS.includes(b.type) ? b : null)), undefined, undefined, 60_000),
+  drop: (id: string, key: string, file: string) => fileAsk(`/ledgers/${id}/files/${file}`, "DELETE", { [KEY_HEADER]: key }, async () => true as const),
+};
 
 /** The owner deletes a ledger, for everyone. (Signed in, it leaves the owner's list too: the server does that.) */
 export const deleteLedger = (id: string, owner: string): Promise<Reply<true>> => ask(`/ledgers/${id}`, { ...signedIn(), [OWNER_HEADER]: owner }, asDone, undefined, "DELETE");

@@ -210,3 +210,24 @@ What the look at the rendered screens changed (four phone sizes, both languages)
 2. In Chinese its last line was two characters on their own. The paragraph wraps so the last line keeps company.
 
 Verdict: holds to the contract. Still three screens and one light; the export is a line in the menu and a sheet that says what you will get.
+
+## Stage three, step 13b: receipt photos (2026-11-14)
+
+Shape, in the thread that built it (the plan: "each expense can carry photos"; signed in to add them, 500 MB an account, made smaller on the phone first; only people with the ledger's key see them):
+
+- Who and when: whoever paid, at the table or the till, with the receipt in hand; and anyone in the group later, checking what an expense was. Adding a photo can't slow down recording one: two taps still record an expense, and a photo is a third, only if wanted.
+- Where: at the end of 记一笔's note line, the line that already says what the expense was. A camera, 44px; once there is a photo, the photo itself, small, with how many if more than one. With nothing to look at yet, it opens the phone's own picker straight away (its photos, its camera, its files); otherwise a sheet of the expense's photos, three to a row, with 再加一张, Add another, at its foot.
+- One photo seen whole opens in the same sheet (titled 第 2 张，共 3 张, Photo 2 of 3), with 去掉这张, Take this one off, at the foot; ✕, Esc and the back button go back to the three to a row. A PDF opens in the phone's own viewer.
+- The ledger shows which expenses have photos: a paperclip after who paid and how it was shared.
+- Sending is said on the button itself, with the shared buttons' busy mark (a turning ring; three dots with reduced motion), and 记好了 waits for it. Nothing new moves.
+- What can't go is said where the person is looking: in the sheet, above its button, in the strong voice, when the sheet is open; as a toast when it isn't. Signed out, the sheet says photos need a sign-in, with 登录, which makes way for the site's sign-in and comes back once signed in.
+
+What the look at the rendered screens changed (four phone sizes, both languages; two phones against the local server):
+
+1. The PDF's tile said PDF, but its name for a screen reader didn't, which axe found; and the hidden picker counted as a button under 44px. The tiles and the note line's button are named by words read out plus what shows, and the picker is out of a screen reader's way, as it is out of the way of a tap.
+2. The photos and one photo whole were two sheets, one giving way to the other: a press of Esc or back in the 150 ms the first was sliding away went to it, and did nothing. They are one sheet with two views.
+3. 登录 in a sheet did nothing: the site's sign-in is drawn under any sheet still open. The photos sheet, and the ⋯ sheet's 登录 with it, make way first.
+4. In English, 1 of 1 set in the display face read as one word. It is Photo 1 of 1.
+
+Verdict: holds to the contract. Still three screens and one light; a photo is one button at the end of a line that was already there, and a sheet like the others.
+

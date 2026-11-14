@@ -680,6 +680,124 @@ label.split-field {
 label.split-field:focus-within {
   border-bottom-color: var(--gel);
 }
+/* the note's line: the note typed in place, and its receipt photos' button at the end */
+.split-note-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.split-note-row > label.split-field {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+}
+/* (the line takes the light while the cursor is in the note, as the note's own line did) */
+.split-note-row:has(> label:focus-within) {
+  border-bottom-color: var(--gel);
+}
+/* a camera; or the first photo, small, and how many there are */
+.split-photo-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-small);
+  color: var(--color-text-2);
+  background: transparent;
+  cursor: pointer;
+}
+.split-photo-button > svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+.split-photo-button > .split-thumb {
+  width: calc(var(--tap) - var(--space-2));
+}
+.split-photo-button.is-sending > :not(.ui-button-progress) {
+  opacity: 0;
+}
+.split-photo-button > .ui-button-progress {
+  inset: 0;
+  margin: auto;
+}
+.split-photo-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: var(--space-4);
+  padding: 0 var(--space-1);
+  border-radius: var(--r-pill);
+  color: var(--color-text);
+  background: var(--color-raised);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--space-4);
+  text-align: center;
+}
+/* a photo as small as a tile: the picture, a PDF's mark, or that it is gone; the surface while it comes */
+.split-thumb {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--r-small);
+  object-fit: cover;
+  color: var(--color-text-2);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.split-thumb > svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+/* an expense's photos, three to a row; each opens whole */
+.split-photos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.split-photo-tile {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-small);
+  background: transparent;
+  cursor: pointer;
+}
+/* one photo whole: as wide as the sheet, as tall as it is (the view the focus moves to: no ring of its own) */
+.split-photo-whole:focus {
+  outline: none;
+}
+.split-photo-whole img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+}
+.split-photo-whole > .split-thumb {
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r-panel);
+}
+/* the sheet's foot: why the last photo didn't go (or that there is no room for more), then the button */
+.split-photos-foot {
+  display: grid;
+  gap: var(--space-2);
+}
+.split-photos-foot > .split-note {
+  margin: 0;
+}
 /* 改动记录: a line for each thing done, newest first; one that offers something has its button at the
    end, or under it where the line would get too narrow (English on a small phone) */
 .split-history-line {
