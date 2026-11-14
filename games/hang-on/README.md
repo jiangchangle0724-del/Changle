@@ -19,6 +19,8 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/goals.ts`、`src/goal-text.ts`、`src/host/progress.ts` | 每关小目标和红包（A9b）：三颗星（准时、少摔、红包拿齐）怎么算、给人看的话、这台主机上记下的星和红包；`src/goals.test.ts` 测它们 |
 | `src/render/` | 画面（A3，Pixi 8；A8 加了 2.5D）：`stage.ts` 镜头（开局从终点扫回起点、过关推近）、图层、事件→动效、慢动作、落地影子；`backdrop.ts` 两个世界的视差背景（远景画虚化、灯的斜光）；`depth.ts` 台子的侧面，跟着镜头透视；`fore.ts` 近景虚化的光斑和热气；`terrain.ts` 平台按材质贴图、饼干、蜡烛、灯、旗；`dumpling.ts` 糯米团（明暗和高光、脸、帽子、眼镜、挤压拉伸、复活掉落）；`fx.ts` 粒子池（纸屑会翻面）；`framewatch.ts` 掉帧就少画（画多细三级：电脑全画，手机不画近景光斑和斜光，再掉帧台子不画侧面）；`art.ts` 色板和程序画的贴图 |
 | `src/audio/sfx.ts` | 音效（A3）：全部 WebAudio 现场合成，没有音频文件；每个人的尖叫音高不同 |
+| `src/audio/music.ts`、`themes.ts`、`composer.ts`、`tension.ts` | 背景音乐（11-13）：每个场景一首（难关是小调版），跟着局面紧张起来（有人快掉下去时更快、鼓更密）；全部现场合成。`music.test.ts` 测曲子、紧张和合成的音高 |
+| `music.html` + `src/dev/music.ts` | 背景音乐试听页：选场景、拖紧张、点事件，40 秒演示，能离线导出 WAV |
 | `src/look.ts` | 换装的选项（帽子、眼镜、眼睛、脸、袖子、嗓子）和中英名字，手柄页和主机共用 |
 | `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
 | `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」；`levelsFor(玩法)` 给每种玩法自己的一串（大团队是 `levels/team/`，坐不住是场地） |
@@ -46,6 +48,7 @@ npm run dev         # 整套本地跑：http://<这台电脑的 IP>:8787/hang-on
 npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwright 的 Chromium：npx playwright install chromium）
 npm run lobby-check # 同上：大厅、结算、下一关
 npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
+                    # 背景音乐试听：npm run dev 以后开 http://localhost:8787/hang-on/music.html
 npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，
                     #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 试玩法，?phone=1 照手机的画法画，
                     #   ?item=freeze / noodle / leaf 每人带一样道具，P1 按 F、P2 按 P 用）
