@@ -1,13 +1,13 @@
 // One ledger's room: who may open it, that changes are taken in order and once, the record of
-// them, that it all survives a restart, and that its owner can delete it. Then one account's list
-// of ledgers. (What a change does is tested with the phone's own rules:
-// site/tests/split-changes.test.ts.)
+// them, that it all survives a restart, and that its owner can delete it; its list of receipt
+// photos and files. Then one account's list of ledgers, and its room for files. (What a change does
+// is tested with the phone's own rules: site/tests/split-changes.test.ts.)
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
 import type { Expense } from "../../../site/src/split/core";
-import { AccountRoom, MAX_MINE, memoryAccountStore } from "../src/room/account";
-import { LedgerRoom, MAX_BATCH, MAX_SENT, memoryStore } from "../src/room/ledger";
+import { AccountRoom, MAX_MINE, memoryAccountStore, UPLOADS_PER_DAY } from "../src/room/account";
+import { LedgerRoom, MAX_BATCH, MAX_LEDGER_FILES, MAX_SENT, memoryStore, type StoredFile } from "../src/room/ledger";
 
 const NOW = Date.UTC(2026, 10, 13, 19, 0);
 const three = [
@@ -281,7 +281,7 @@ test("the owner deletes the ledger: it is gone for everyone, and its id isn't ma
   for (const who of ["key", "wrong", null]) assert.deepEqual(room.wipe(who, NOW + 3), { ok: false, error: "owner" }, `not by ${who ?? "nobody"}`);
   assert.ok(room.read("key").ok, "(still there)");
 
-  assert.deepEqual(room.wipe("owner", NOW + 3), { ok: true }, "the owner deletes it, locked or not");
+  assert.deepEqual(room.wipe("owner", NOW + 3), { ok: true, id: asked.id, files: [] }, "the owner deletes it, locked or not");
   assert.deepEqual([store.load(), store.ids.size, store.log.length, store.buried()], [null, 0, 0, NOW + 3], "nothing of it is kept but when it went");
   for (const got of [room.read("key"), room.push("key", [expense("e2")], NOW + 4), room.since("key", 0), room.lock("owner", false, NOW + 4), room.rekey("owner", "next"), room.wipe("owner", NOW + 4)]) {
     assert.deepEqual(got, { ok: false, error: "gone" }, "it is gone: to its key, its owner's key, and a second delete");
@@ -294,6 +294,66 @@ test("the owner deletes the ledger: it is gone for everyone, and its id isn't ma
 
   const { room: ownerless } = make();
   assert.deepEqual(ownerless.wipe(null, NOW + 1), { ok: false, error: "owner" }, "a ledger with no owner can't be deleted by anyone");
+});
+
+test("a ledger's files: stored once, read and listed with the key, taken off, and handed back when it is deleted", () => {
+  const { room, store } = make({ ownerHash: "owner" });
+  const photo = (id: string, over: Partial<StoredFile> = {}): StoredFile => ({ id, size: 300_000, type: "image/jpeg", by: "u1", at: NOW + 1, ...over });
+  for (const key of ["wrong", null]) assert.deepEqual(room.mayStore(key, "f1"), { ok: false, error: "key" }, `not with ${key ?? "no key"}`);
+  assert.deepEqual(room.mayStore("key", "f1"), { ok: true, kept: null }, "the key may store a new one");
+  assert.deepEqual(room.stored(photo("f1")), { ok: true, file: { id: "f1", size: 300_000, type: "image/jpeg", at: NOW + 1 } }, "kept: nobody but the server is told whose account sent it");
+  assert.deepEqual(room.stored(photo("f1", { size: 5, by: "u2" })), { ok: true, file: { id: "f1", size: 300_000, type: "image/jpeg", at: NOW + 1 } }, "told again, it is as it was first kept");
+  assert.deepEqual(room.mayStore("key", "f1"), { ok: true, kept: { id: "f1", size: 300_000, type: "image/jpeg", at: NOW + 1 } }, "asked again for the same id: it is there already");
+  room.stored(photo("f2", { type: "application/pdf", size: 1_000_000, by: "u2", at: NOW + 2 }));
+  assert.deepEqual(room.file("key", "f2"), { ok: true, file: { id: "f2", size: 1_000_000, type: "application/pdf", at: NOW + 2 } });
+  assert.deepEqual([room.file("wrong", "f2"), room.file("key", "nope")], [{ ok: false, error: "key" }, { ok: false, error: "gone" }], "the wrong key, and an id it doesn't have");
+  assert.deepEqual(room.listFiles("key"), { ok: true, files: [{ id: "f1", size: 300_000, type: "image/jpeg", at: NOW + 1 }, { id: "f2", size: 1_000_000, type: "application/pdf", at: NOW + 2 }] }, "listed, the first stored first");
+  assert.deepEqual(room.listFiles("wrong"), { ok: false, error: "key" });
+
+  room.lock("owner", true, NOW + 3);
+  assert.deepEqual([room.mayStore("key", "f3"), room.stored(photo("f3")), room.unstore("key", "f1")], [{ ok: false, error: "locked" }, { ok: false, error: "locked" }, { ok: false, error: "locked" }], "locked: no new file, and none taken off");
+  assert.ok(room.mayStore("key", "f1").ok && room.file("key", "f1").ok && room.listFiles("key").ok, "but one stored already is still there to be read (and a phone sending it again hears it is)");
+  room.lock("owner", false, NOW + 4);
+
+  assert.deepEqual(room.unstore("wrong", "f1"), { ok: false, error: "key" });
+  assert.deepEqual(room.unstore("key", "f1"), { ok: true, file: photo("f1") }, "taken off by the key: its record comes back, whose account sent it included");
+  assert.deepEqual([room.unstore("key", "f1"), room.file("key", "f1")], [{ ok: false, error: "gone" }, { ok: false, error: "gone" }], "taken off twice: gone");
+  const woken = new LedgerRoom(store);
+  assert.deepEqual(woken.listFiles("key"), { ok: true, files: [{ id: "f2", size: 1_000_000, type: "application/pdf", at: NOW + 2 }] }, "the same after a restart");
+
+  const deleted = woken.wipe("owner", NOW + 5);
+  assert.deepEqual(deleted, { ok: true, id: asked.id, files: [photo("f2", { type: "application/pdf", size: 1_000_000, by: "u2", at: NOW + 2 })] }, "deleted: its files come back, for the bucket and their senders' accounts");
+  assert.deepEqual([store.kept.size, woken.mayStore("key", "f4"), woken.stored(photo("f4")), woken.file("key", "f2")], [0, { ok: false, error: "gone" }, { ok: false, error: "gone" }, { ok: false, error: "gone" }], "and nothing of them is kept, nor can more be");
+
+  const full = make();
+  for (let i = 0; i < MAX_LEDGER_FILES; i++) full.store.putFile(photo(`p${i}`));
+  assert.deepEqual([full.room.mayStore("key", "one-more"), full.room.stored(photo("one-more"))], [{ ok: false, error: "full" }, { ok: false, error: "full" }], `${MAX_LEDGER_FILES} files: no more`);
+  assert.ok(full.room.mayStore("key", "p7").ok, "though one of them can still be sent again");
+});
+
+test("an account's room for files: charged once, never past its quota, so many a day, and given back", () => {
+  const store = memoryAccountStore();
+  const account = new AccountRoom(store);
+  const quota = 1_000;
+  const day = "2026-11-14";
+  const reserve = (ledger: string, id: string, size: number, on = day) => account.reserve({ ledger, id, size, now: NOW, day: on, quota });
+  assert.deepEqual(reserve("L1", "f1", 400), { ok: true, used: 400, fresh: true });
+  assert.deepEqual(reserve("L1", "f1", 400), { ok: true, used: 400, fresh: false }, "the same file again: charged once");
+  assert.deepEqual(reserve("L2", "f1", 600), { ok: true, used: 1_000, fresh: true }, "the same id in another ledger is another file; the quota exactly");
+  assert.deepEqual(reserve("L2", "f2", 1), { ok: false, error: "quota" }, "one byte more: no");
+  assert.equal(account.used(), 1_000);
+  assert.equal(account.release("L2", ["f1", "nope"]), 400, "a file let go: its room is back (one it never had changes nothing)");
+  assert.deepEqual(reserve("L2", "f2", 500), { ok: true, used: 900, fresh: true });
+  assert.deepEqual(account.storage(quota), { used: 900, quota, ledgers: [{ id: "L2", bytes: 500, count: 1 }, { id: "L1", bytes: 400, count: 1 }] }, "in all, and in each ledger, the most first");
+  assert.equal(account.release("L1", ["f1"]), 500);
+  assert.equal(account.release("L2", ["f2"]), 0);
+  assert.deepEqual(account.storage(quota), { used: 0, quota, ledgers: [] });
+
+  const busy = new AccountRoom(memoryAccountStore());
+  for (let i = 0; i < UPLOADS_PER_DAY; i++) assert.ok(busy.reserve({ ledger: "L", id: `f${i}`, size: 1, now: NOW, day, quota }).ok);
+  assert.deepEqual(busy.reserve({ ledger: "L", id: "more", size: 1, now: NOW, day, quota }), { ok: false, error: "limit" }, `${UPLOADS_PER_DAY} files in a day: no more today`);
+  assert.deepEqual(busy.reserve({ ledger: "L", id: "f3", size: 1, now: NOW, day, quota }), { ok: true, used: UPLOADS_PER_DAY, fresh: false }, "one sent again is still let through");
+  assert.ok(busy.reserve({ ledger: "L", id: "more", size: 1, now: NOW, day: "2026-11-15", quota }).ok, "the next day, yes");
 });
 
 test("an account's ledgers: kept with their keys, brought up to date, taken off", () => {

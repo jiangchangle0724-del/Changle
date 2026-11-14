@@ -420,6 +420,14 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
     [true, false, false, true, true, false, true],
     "a change that says the other currency is done when the ledger says the same one, one that says there is none when it has none, and one that says nothing whatever it has",
   );
+  // and one with receipt photos
+  const pictured: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, files: ["f1", "f2"] }] };
+  const photos = (files?: string[] | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(files === undefined ? {} : { files }) } });
+  eq(
+    [holds(pictured, photos(["f1", "f2"])), holds(pictured, photos(["f2", "f1"])), holds(pictured, photos(null)), holds(pictured, photos()), holds(plain, photos(null)), holds(plain, photos([])), holds(plain, photos(["f1"]))],
+    [true, false, false, true, true, true, false],
+    "photos: done when the ledger has the same ones in the same order, none when it has none, and whatever it has when the change says nothing",
+  );
 }
 
 // ---------- 7. when the phone can't go on ----------

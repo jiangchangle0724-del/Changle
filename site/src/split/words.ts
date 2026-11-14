@@ -183,6 +183,8 @@ export const W = {
   historyNote: { zh: "备注改成 {note}", en: "note now {note}" },
   historyNoteGone: { zh: "去掉了备注", en: "note taken off" },
   historySplit: { zh: "分法改了", en: "shared differently" },
+  historyFilesAdded: { zh: "加了照片", en: "photo added" },
+  historyFilesRemoved: { zh: "去掉了照片", en: "photo taken off" },
   historyCurrency: { zh: "货币或汇率改了", en: "currency or rate changed" },
   historyAnd: { zh: "，", en: ", " },
   startedIt: { zh: "开账本的人", en: "Whoever started it" },

@@ -35,6 +35,8 @@ function isSplit(x: unknown): x is Split {
 function isEntry(x: unknown): x is Entry {
   if (!isRecord(x) || !isText(x.id) || !isCount(x.at) || !isCount(x.amount)) return false;
   if (x.gone !== undefined && !isCount(x.gone)) return false;
+  // (receipt photos: a list of ids, or none)
+  if (x.files !== undefined && !(Array.isArray(x.files) && x.files.every(isText))) return false;
   if (x.kind === "transfer") return isText(x.from) && isText(x.to);
   return x.kind === "expense" && isText(x.payer) && isText(x.note) && isCount(x.rot) && isSplit(x.split);
 }

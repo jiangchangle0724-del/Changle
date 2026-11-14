@@ -38,6 +38,12 @@ export type Expense = {
    * `amount` is what counts, so a rate that moves later never changes an old entry.
    */
   paidIn?: { currency: string; amount: number; rate: string };
+  /**
+   * receipt photos and files kept with it: their ids, in the order they were added (at most
+   * MAX_FILES, changes.ts). The files themselves are on the server (tools/split), each read with the
+   * ledger's key; nothing here sums them, and an expense with none has no `files`.
+   */
+  files?: string[];
   /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };
