@@ -304,6 +304,34 @@ def main():
         check(a.locator(".acct-badge").count() == 0, "A: and it stays off after a reload")
         shot(a, "home-after-block")
 
+        # undoing it: B's page tells A it's A's own block and offers to undo; the friends page lists B
+        # under 已屏蔽 with 解除; after that B can ask to be friends again
+        a.goto(BASE + f"#/u/{bid}")
+        a.wait_for_selector(".user-unblock", timeout=8000)
+        check(a.locator(".user-block").count() == 0 and a.locator(".user-actions .btn-primary").count() == 0, "A: B's page offers to undo the block, nothing else")
+        shot(a, "user-blocked")
+        a.goto(BASE + "me/friends")
+        a.wait_for_selector(".blocked-people .person", timeout=10000)
+        check("Mia" in a.locator(".blocked-people .person strong").first.inner_text(), "A: the friends page lists B under 已屏蔽")
+        shot(a, "friends-blocked")
+        a.click(".blocked-people .unblock")
+        try:
+            a.wait_for_function("!document.querySelector('.blocked-people')", timeout=8000)
+            check(True, "A: 解除 takes B off the list")
+        except Exception:
+            check(False, "A: 解除 takes B off the list")
+        b.goto(BASE + f"#/u/{aid}")
+        b.wait_for_selector(".user-actions .btn-primary", timeout=8000)
+        check("加好友" in b.locator(".user-actions .btn-primary").inner_text(), "B: A's page offers 加好友 again")
+        b.click(".user-actions .btn-primary")
+        b.wait_for_selector(".user-actions .btn-ghost", timeout=8000)
+        a.goto(BASE + "me/friends")
+        try:
+            a.wait_for_selector(".people .person:has-text('Mia') .btn-primary", timeout=8000)
+            check(True, "A: B's new request arrives")
+        except Exception:
+            check(False, "A: B's new request arrives")
+
         if SOLO:
             # a one-phone game needs people on the phone (with too few, the link opens the game's card instead)
             a.evaluate("() => { const k = 'lazysusan.settings.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); s.players = ['小明', 'Ann', 'Ben'].map((name, i) => ({ id: 'p' + i, name })); localStorage.setItem(k, JSON.stringify(s)); }")

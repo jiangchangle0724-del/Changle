@@ -36,6 +36,7 @@
 - 许的愿上线后，许愿的人得到金色头像框和限量服饰。
 - 本地不发邮件：`site/worker/.dev.vars` 里写 `DEV_SHOW_CODES=1`；画头像不用钥匙：`DEV_FAKE_DRAW=1`；要看发出去的信：跑 `node scripts/fake_mail.mjs`，写 `DEV_MAIL_URL=http://127.0.0.1:8791/emails`。
 - 2026-11-13 Steve 定的（跟一单的档案）：订单邮件由房间服务器代发，新 Worker 上不再放钥匙。
+- 2026-11-13 Steve 定的：头像「画成」的第三个选项就叫「中性」（10-30 他写的是「双性别」，今天确认用「中性」）；屏蔽要能解除，做成好友页里的「已屏蔽」名单。
 - 2026-11-13 代发信入口的规矩，这个对话定的，Steve 可以改（都在 `site/worker/notice.ts` 和 `hub.ts` 的 `notice()`，改起来都小）：
   - 只有具名入口 `Mail`（`WorkerEntrypoint`），从 Service Binding 调 `env.MAIL.send(notice)`。rooms.changle.ca 上没有对应的地址。
   - 给什么：`{ app, to, subject, text, link?, lang }`。`app` 先只认 `"tuan"`；`to` 必须是 changle.ca 注册过、没被拉黑的账号的登录邮箱，别人一律不发；标题一行、120 字以内；正文纯文字 2000 字以内，换行保留；链接只能是 https://changle.ca 下面的（本地跑可以是 localhost）；`lang` 是 zh 或 en。
@@ -55,12 +56,11 @@
 
 11 月 4 日查出来、复现过的，还没改的：
 
-1. **屏蔽了解不开**：没有解除的按钮，服务器也没有 `DELETE /blocks/<id>`。要不要做成一个「已屏蔽的人」名单，等 Steve 定。
-2. 头像的第三种身形叫「中性」（Steve 当时写的是「双性别」），10-30 问过，没确认。
-3. 代发信：后台看不到今天发了几封（`mails` 表里有）；要的话在 /admin 加一行。
+1. 代发信：后台看不到今天发了几封（`mails` 表里有）；要的话在 /admin 加一行。
 
 修掉的（留着备查）：
 
+- 屏蔽解不开（11 月 13 日 Steve 定了「加上」，当天做）：`DELETE /blocks/<id>` 解除；`GET /friends` 多回 `blocked`（我屏蔽的人）；`GET /users/<id>` 在是我屏蔽的人时多回 `blockedByMe: true`。好友页底部多一节「已屏蔽」（有人才显示），每人一个「解除」；对方的主页上是一句说明加「解除屏蔽」。解除后两人是陌生人，要重新加好友。被屏蔽的一方什么都看不出来（和以前一样）。account_check 加了四步。
 - 单机战绩关网页就记不上（11 月 13 日修）：`App.tsx` 的 `useSoloHistory` 在页面走的时候发的那条请求没带 keepalive，关标签页或在地址栏换个网址就丢了，只有点游戏里的返回键才记得上。`api()` 多了一个 `keepalive` 选项，这条请求带上它。三种走法（返回键、关页面、换网址）都记上了；account_check 的 `--solo` 那步改成真的换网址，顺便给手机加上三个人（没人的手机打开的是游戏卡片，不是游戏，所以那步以前一直过不了）。
 - 未读数字消不掉（11 月 13 日修）：`unread()` 只数还是好友的那些对话；删好友或屏蔽时两边的手机都收到 `friends` 和 `unread`，角标当场更新。account_check 里加了一步。
 - AI 头像编辑器在 Chrome、Edge 150 起（2026 年 6 月底，含安卓）会把整页变成「这里出了点问题」：换过一次分类再换或关掉就崩，已经有头像的人打开再关也崩，画到一半的图没了、这个月的次数不退。原因是 `Maker.tsx` 里 `useLayoutEffect(() => panel.current?.scrollTo({ top: 0 }), [tab])` 把 `scrollTo` 的返回值交给了 React 当清理函数，而这些浏览器的 `scrollTo` 现在返回 Promise（[scroll method promises](https://web-platform-dx.github.io/web-features-explorer/features/scroll-promises/)）；React 下次清理时调用它就抛错。改成带大括号的函数体，11 月 13 日修了。仓库里其它地方没有同样的写法（到此一游有一处 `useEffect(() => window.scrollTo(0, 0))`，但它用的是 Preact，Preact 只调用函数类型的清理，不会崩）。
@@ -74,7 +74,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-13 账号：单机战绩在页面走的时候也记得上（keepalive）；account_check 的单机那步修好
+- 2026-11-13 账号：屏蔽可以解除（好友页的「已屏蔽」名单、对方主页上的「解除屏蔽」）
+- 2026-11-13 账号：单机战绩在页面走的时候也记得上（keepalive）；account_check 的单机那步修好 (#468)
 - 2026-11-13 账号：未读角标只数还是好友的对话；删好友、屏蔽时两边当场更新 (#464)
 - 2026-11-13 账号：AI 头像编辑器在 Chrome、Edge 150 起崩页面（scrollTo 的 Promise 被当成了清理函数）；四个检查脚本遇到页面报错就算失败；stage_check 认得新的桌面格子 (#461)
 - 2026-11-13 账号：房间服务器给内部 Worker 的发信入口（Mail 入口） (#457)
@@ -98,3 +99,4 @@
 - 2026-11-13 按跟一单档案的「交给别的对话」做了代发信的入口：`notice.ts`（规矩和信）、`mail.ts`（具名入口）、`hub.ts` 的 `notice()` 和 `mails` 表、`index.ts` 一行、假 Resend、替身 Worker、`tests/mail.test.ts`（CI）和 `scripts/mail_door_check.py`。本地三个进程一起跑，检查全过；验证码邮件也重跑了一遍。开工时看了 main 上 9 天的提交，账号这块只有别的对话加进来的几行（一本正经的表挂进 hub、加载和失败状态），没有碰 `mail`。
 - 2026-11-13 修头像编辑器崩页面的那一行。本地用生产构建在 Chromium 153 上把三种崩法各走一遍，都不再崩，图也存上了；四个检查脚本全过，admin_check 以前卡在头像那一步，现在 40 条走完。stage_check 点桌面格子的那一句过时了（格子改成 `src/ui/Tile` 以后没有 aria-label），顺手改了。
 - 2026-11-13 修了未读角标（#464）和单机战绩两件。account_check 里「切回动漫头像只要一步」那条偶尔会错，是脚本在表单还没刷出「真照片」时就点了下去（那时点「动漫头像」等于重画），改成先等表单。
+- 2026-11-13 Steve 定了「中性」留着、屏蔽要能解除。做了解除：服务器一条路由、好友页一节、对方主页一个按钮，account_check 32 条全过。
