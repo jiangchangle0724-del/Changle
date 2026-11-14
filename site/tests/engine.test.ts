@@ -8,6 +8,7 @@ import { GROOVES } from "../src/lib/music";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK, MIX_FX, MIXER, SHARED_BY, SONG_SENT } from "../src/shared/dj/types";
 import { DANMU, DANMU_READY } from "../src/shared/dj/danmu";
+import { SFX, SFX_CATS, SFX_TIMES } from "../src/shared/dj/sfx";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, nextWriters, presentMs } from "../src/shared/punchline";
@@ -5897,6 +5898,47 @@ test("dj: songs from the phones (Steve on Nov 13: \"要允许所有玩家都可�
   advance(DECK.gridGapMs);
   sc("crate", { songs: [row("smine", "Mine", "")] });
   ok(!deck().reqs.some((r) => r.local === "smine") && deck().up?.local !== "smine", "the big screen's own file: not on anyone's 歌单");
+});
+
+test("dj: the sound board (Steve on Nov 13: his own sounds, in categories, \"把你的音效全部替换掉\"): a sound by its number, on the big screen at once; one per phone a moment, the same one for the room once in a while; nothing else", () => {
+  const e = new RoomEngine(freshRoom("DJSF", clock), host);
+  e.screenHello("tv-sf", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const played = (o: Output) => o.events.filter((x) => x.k === "fx" && x.fx === "sfx").map((x) => (x as { pid?: string; data?: number[] }).pid + ":" + ((x as { data?: number[] }).data ?? []).join());
+  const bbq = SFX.findIndex((x) => x.id === "rude-bbq");
+  const o = g("p2", "sfx", { i: bbq });
+  ok(o.light && !o.persist && played(o).join() === `p2:${bbq}`, "Ben's 芭比Q了: the screens hear it at once (light), his and its number (before the music too)");
+  ok(nothing(g("p2", "sfx", { i: 0 })), "another from him straight after: not taken");
+  ok(nothing(g("p1", "sfx", { i: bbq })), "the same one from Amy a moment later: not taken (one for the room)");
+  ok(played(g("p1", "sfx", { i: 0 })).join() === "p1:0", "a different one from her: it plays");
+  advance(SFX_TIMES.takeMs);
+  ok(nothing(g("p2", "sfx", { i: bbq })), "the same one again before the room's gap: not yet");
+  ok(played(g("p2", "sfx", { i: 2 })).join() === "p2:2", "another from him once his moment's up (a little under the phone's own gap: the network bunches presses)");
+  advance(SFX_TIMES.roomGapMs);
+  ok(played(g("p2", "sfx", { i: bbq })).join() === `p2:${bbq}`, "a moment on: again");
+  advance(SFX_TIMES.roomGapMs);
+  ok(nothing(g("p1", "sfx", { i: -1 })) && nothing(g("p1", "sfx", { i: SFX.length })) && nothing(g("p1", "sfx", { i: 1.5 })) && nothing(g("p1", "sfx", { i: "0" })) && nothing(g("p1", "sfx", {})), "no such sound: nothing");
+  e.screenAct("tv-sf", { x: "live", source: "fake" });
+  e.flush();
+  g("p1", "phase", { phase: "end" });
+  advance(SFX_TIMES.roomGapMs);
+  ok(nothing(g("p2", "sfx", { i: 3 })), "the set over: none");
+  ok(SFX_CATS.every((c) => SFX.some((x) => x.cat === c.id)) && new Set(SFX.map((x) => x.id)).size === SFX.length, "every category has sounds; every sound its own name");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

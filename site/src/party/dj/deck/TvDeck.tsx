@@ -13,6 +13,8 @@ import { CLIP_CREDIT, hintText, jukeText, KNOBS, MIX_EFFECTS, mixSaid, nowLine, 
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
 import { useDjNames } from "../names";
+import { SFX, type SfxCat } from "../../../shared/dj/sfx";
+import { SFX_ICON } from "../sfx/look";
 
 const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
 
@@ -172,7 +174,7 @@ export function DropParty({ v }: { v: DjView }) {
   );
 }
 
-type Chip = { id: number; text: string; kind: PadId | "req" | "mix"; icon: LucideIcon };
+type Chip = { id: number; text: string; kind: PadId | "req" | "mix" | `sfx-${SfxCat}`; icon: LucideIcon };
 
 /** The board shows the mixer (a line of its own) once anyone has touched it. */
 export const mixerShows = (m: MixerState | undefined) => !!m && (MIX_KNOBS.some((k) => m.knobs[k] !== 0) || MIX_FX.some((f) => !!m.fx[f]));
@@ -208,17 +210,25 @@ function MixStrip({ m, zh }: { m: MixerState; zh: boolean }) {
   );
 }
 
-/** Who pressed which pad (the pad itself played on the speaker) or asked for a song, for a moment. */
-export function usePadEvents(play: (pad: PadId) => void) {
+/** Who pressed which pad or sound (played on the speaker, `play` and `playSfx`) or asked for a song, for a moment. */
+export function usePadEvents(play: (pad: PadId) => void, playSfx?: (i: number) => void) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const nameOf = useDjNames(zh);
   const [chips, setChips] = useState<Chip[]>([]);
   const seq = useRef(0);
   useRoomEvent((e) => {
-    if (e.k !== "fx" || !e.pid || (e.fx !== "pad" && e.fx !== "req" && e.fx !== "mix")) return;
+    if (e.k !== "fx" || !e.pid || (e.fx !== "pad" && e.fx !== "req" && e.fx !== "mix" && e.fx !== "sfx")) return;
     let chip: Omit<Chip, "id">;
     if (e.fx === "req") chip = { text: zh ? `${nameOf(e.pid)} 点了一首歌` : `${nameOf(e.pid)} asked for a song`, kind: "req", icon: ListMusic };
+    else if (e.fx === "sfx") {
+      // the sound board (Steve's own sounds, Nov 13)
+      const i = e.data?.[0] ?? -1;
+      const x = SFX[i];
+      if (!x) return;
+      playSfx?.(i);
+      chip = { text: `${nameOf(e.pid)} · ${L(x, zh)}`, kind: `sfx-${x.cat}`, icon: SFX_ICON[x.cat] };
+    }
     else if (e.fx === "mix") {
       const f = MIX_FX[e.data?.[0] ?? -1];
       chip = { text: mixSaid(nameOf(e.pid), e.data, zh), kind: "mix", icon: f ? MIX_EFFECTS[f].icon : SlidersHorizontal };

@@ -113,6 +113,29 @@ test("a change that changes nothing is remembered, and is not in the record", ()
   assert.ok(again.ok && again.took[0] === "nothing" && store.load()?.meta.sent === 1, "sent again, it is told the same: it didn't stick");
 });
 
+test("an expense paid in another currency keeps both amounts, and a change to it says what becomes of the other one", () => {
+  const { room } = make();
+  const said = { payer: "s", note: "", split: { how: "equal" as const, among: ["s", "w", "m"] } };
+  const edit = (to: Record<string, unknown>): unknown => ({ id: `c${++n}`, at: NOW, change: { do: "edit", entry: "e1", to: { ...said, ...to } } });
+  const now = (got: ReturnType<typeof room.push>) => {
+    assert.ok(got.ok);
+    const e = got.ledger.entries[0] as Expense;
+    return [got.took.join(), e.amount, e.paidIn ?? null];
+  };
+  const usd = { currency: "USD", amount: 3000, rate: "1.40" };
+  assert.deepEqual(now(room.push("key", [expense("e1", { amount: 4200, paidIn: usd })], NOW)), ["new", 4200, usd], "30 US dollars at 1.40 counts for 42 Canadian, and the ledger keeps both");
+  // (sent as text, the way a phone sends it: only what an other currency has is kept)
+  const dearer = { currency: "USD", amount: 3500, rate: "1.40" };
+  assert.deepEqual(now(room.push("key", JSON.parse(JSON.stringify([edit({ amount: 4900, paidIn: { ...dearer, extra: 1 } })])), NOW)), ["new", 4900, dearer], "changed to 35 dollars by a change that says so");
+  assert.deepEqual(now(room.push("key", [edit({ amount: 4900, note: "lunch" })], NOW)), ["new", 4900, dearer], "a page from before changes the note and says nothing of the dollars: they stay");
+  assert.deepEqual(now(room.push("key", [edit({ amount: 5000, note: "lunch" })], NOW)), ["new", 5000, null], "it changes the amount: the dollars go, since they no longer come to it");
+  assert.deepEqual(now(room.push("key", [edit({ amount: 4170, paidIn: { currency: "USD", amount: 3000, rate: "1.39" } }), edit({ amount: 4170, paidIn: null })], NOW)), ["new,new", 4170, null], "put back by a change that says so, then said to be in the ledger's own currency");
+  for (const paidIn of [5, "USD", { currency: "usd", amount: 5, rate: "1" }, { currency: "USD", amount: 5 }]) {
+    assert.deepEqual(room.push("key", [edit({ amount: 4170, paidIn })], NOW), { ok: false, error: "bad" }, "an other currency that isn't the shape of one isn't a change");
+  }
+  assert.deepEqual(now(room.push("key", [edit({ amount: 9000, paidIn: { currency: "USD", amount: 5, rate: "0" } })], NOW)), ["nothing", 4170, null], "one with no rate changes nothing, the amount included");
+});
+
 test("a request with anything in it that isn't a change is turned away whole", () => {
   const { room, store } = make();
   const good = expense("e1");

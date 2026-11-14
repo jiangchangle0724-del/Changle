@@ -44,12 +44,30 @@ export function addExpense(l: Ledger, e: NewExpense): Ledger {
   return { ...l, entries: [...l.entries, expense] };
 }
 
-/** An expense changed: who paid, how much, the note, how it is shared. Its id, its time and its turn for the odd cents stay. */
-export function editExpense(l: Ledger, id: string, to: Pick<Expense, "payer" | "amount" | "note" | "split">): Ledger {
-  if (problem(to, roster(l))) return l;
+/**
+ * What can be changed about an expense after it is recorded: who paid, how much, the note, how it
+ * is shared, and the other currency it was paid in. `paidIn` is said one of three ways: what it is
+ * now; null, for an expense paid in the ledger's own currency; or not at all. Said not at all (a
+ * page from before expenses had another currency says nothing), the expense keeps what it had
+ * while its amount stays the same, and loses it when the amount changes: an amount in another
+ * currency that no longer comes to what the expense counts for would be a lie.
+ */
+export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> & { paidIn?: Expense["paidIn"] | null };
+
+/** An expense changed. Its id, its time and its turn for the odd cents stay. */
+export function editExpense(l: Ledger, id: string, to: ExpenseEdit): Ledger {
+  if (problem({ payer: to.payer, amount: to.amount, split: to.split, paidIn: to.paidIn ?? undefined }, roster(l))) return l;
   return {
     ...l,
-    entries: l.entries.map((e) => (e.id === id && e.kind === "expense" ? { ...e, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split } : e)),
+    entries: l.entries.map((e) => {
+      if (e.id !== id || e.kind !== "expense") return e;
+      const paidIn = to.paidIn === undefined ? (to.amount === e.amount ? e.paidIn : undefined) : (to.paidIn ?? undefined);
+      // (every field keeps its place, so an expense changed to what it already says is the same, letter for letter)
+      const next: Expense = { ...e, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
+      if (paidIn) next.paidIn = { currency: paidIn.currency, amount: paidIn.amount, rate: paidIn.rate };
+      else delete next.paidIn;
+      return next;
+    }),
   };
 }
 

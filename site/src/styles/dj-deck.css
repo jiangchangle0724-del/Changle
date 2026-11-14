@@ -6,6 +6,16 @@
 
 .djk,
 .dj-stage {
+  /* the sound board's categories (phone/SoundBoard.tsx, and the TV's chips) */
+  --sfx-dj: var(--gel-violet);
+  --sfx-mc: var(--gel-cyan);
+  --sfx-hype: var(--gel-tangerine);
+  --sfx-funny: var(--gel-lemon);
+  --sfx-shock: var(--gel-aqua);
+  --sfx-fail: var(--gel-periwinkle);
+  --sfx-taunt: var(--gel-pink);
+  --sfx-songs: var(--gel-mint);
+  --sfx-rude: var(--gel-coral);
   --dk-echo: var(--gel-cyan);
   --dk-sweep: var(--gel-violet);
   --dk-horn: var(--gel-amber);
@@ -34,81 +44,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-}
-.djk-pads {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-2);
-}
-.djk-pad {
-  --pad: var(--dk-echo);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  min-height: 64px;
-  padding: var(--space-2) var(--space-1);
-  border: 0;
-  border-radius: var(--r-tile);
-  background: color-mix(in oklab, var(--pad) 18%, var(--color-surface));
-  box-shadow:
-    var(--shadow-flat),
-    inset 0 -3px 0 color-mix(in oklab, var(--pad) 70%, transparent);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 800;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  transition: transform var(--dur-exit) var(--ease-out);
-}
-.djk-pad svg {
-  color: var(--pad);
-}
-.djk-pad:active:not(:disabled) {
-  transform: scale(0.94);
-}
-.djk-pad:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.djk-pad svg.is-hit {
-  animation: djk-hit var(--dur-emphasis) var(--ease-pop);
-}
-.djk-pad.is-sweep {
-  --pad: var(--dk-sweep);
-}
-.djk-pad.is-horn {
-  --pad: var(--dk-horn);
-}
-.djk-pad.is-brake {
-  --pad: var(--dk-brake);
-}
-.djk-pad.is-siren {
-  --pad: var(--dk-siren);
-}
-.djk-pad.is-laser {
-  --pad: var(--dk-laser);
-}
-.djk-pad.is-scratch {
-  --pad: var(--dk-scratch);
-}
-.djk-pad.is-rewind {
-  --pad: var(--dk-rewind);
-}
-.djk-pad.is-vinyl {
-  --pad: var(--dk-vinyl);
-}
-.djk-pad.is-bassdrop {
-  --pad: var(--dk-bassdrop);
-}
-.djk-pad.is-reverse {
-  --pad: var(--dk-reverse);
-}
-.djk-pad.is-whistle {
-  --pad: var(--dk-whistle);
 }
 @keyframes djk-hit {
   from {
@@ -450,15 +385,187 @@
   text-align: center;
 }
 /* the sound pads, under the playlist: the big screen plays them on the next beat */
-.djk-sounds {
+/* the sound board (phone/SoundBoard.tsx): the categories, then a category's sounds */
+.djk-board {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
-.djk-sounds-title {
+.djk-board-title {
   color: var(--color-text);
   font-size: var(--text-md);
   font-weight: 800;
+}
+.djk-cats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+.djk-cat,
+.djk-sfx {
+  --pad: var(--sfx-dj);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 84px;
+  padding: var(--space-2) var(--space-1);
+  border: 0;
+  border-radius: var(--r-tile);
+  background: color-mix(in oklab, var(--pad) 18%, var(--color-surface));
+  box-shadow:
+    var(--shadow-flat),
+    inset 0 -3px 0 color-mix(in oklab, var(--pad) 70%, transparent);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  text-align: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.djk-cat svg {
+  color: var(--pad);
+}
+.djk-cat-n {
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.djk-cat:active,
+.djk-sfx:active {
+  transform: scale(0.94);
+}
+.djk-cat:focus-visible,
+.djk-sfx:focus-visible,
+.djk-board-back:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.djk-board-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.djk-board-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+.djk-board-name {
+  color: var(--pad);
+  font-size: var(--text-lg);
+  font-weight: 900;
+}
+.djk-sfx-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+.djk-sfx {
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+.djk-sfx.is-hit > span {
+  animation: djk-hit var(--dur-emphasis) var(--ease-pop);
+}
+.djk-cat.is-dj,
+.djk-board-head.is-dj,
+.djk-sfx-list.is-dj .djk-sfx {
+  --pad: var(--sfx-dj);
+}
+.djk-cat.is-mc,
+.djk-board-head.is-mc,
+.djk-sfx-list.is-mc .djk-sfx {
+  --pad: var(--sfx-mc);
+}
+.djk-cat.is-hype,
+.djk-board-head.is-hype,
+.djk-sfx-list.is-hype .djk-sfx {
+  --pad: var(--sfx-hype);
+}
+.djk-cat.is-funny,
+.djk-board-head.is-funny,
+.djk-sfx-list.is-funny .djk-sfx {
+  --pad: var(--sfx-funny);
+}
+.djk-cat.is-shock,
+.djk-board-head.is-shock,
+.djk-sfx-list.is-shock .djk-sfx {
+  --pad: var(--sfx-shock);
+}
+.djk-cat.is-fail,
+.djk-board-head.is-fail,
+.djk-sfx-list.is-fail .djk-sfx {
+  --pad: var(--sfx-fail);
+}
+.djk-cat.is-taunt,
+.djk-board-head.is-taunt,
+.djk-sfx-list.is-taunt .djk-sfx {
+  --pad: var(--sfx-taunt);
+}
+.djk-cat.is-songs,
+.djk-board-head.is-songs,
+.djk-sfx-list.is-songs .djk-sfx {
+  --pad: var(--sfx-songs);
+}
+.djk-cat.is-rude,
+.djk-board-head.is-rude,
+.djk-sfx-list.is-rude .djk-sfx {
+  --pad: var(--sfx-rude);
+}
+/* and the TV's chip for one played */
+.dk-chip.is-sfx-dj {
+  --pad: var(--sfx-dj);
+}
+.dk-chip.is-sfx-mc {
+  --pad: var(--sfx-mc);
+}
+.dk-chip.is-sfx-hype {
+  --pad: var(--sfx-hype);
+}
+.dk-chip.is-sfx-funny {
+  --pad: var(--sfx-funny);
+}
+.dk-chip.is-sfx-shock {
+  --pad: var(--sfx-shock);
+}
+.dk-chip.is-sfx-fail {
+  --pad: var(--sfx-fail);
+}
+.dk-chip.is-sfx-taunt {
+  --pad: var(--sfx-taunt);
+}
+.dk-chip.is-sfx-songs {
+  --pad: var(--sfx-songs);
+}
+.dk-chip.is-sfx-rude {
+  --pad: var(--sfx-rude);
+}
+@media (prefers-reduced-motion: reduce) {
+  .djk-cat:active,
+  .djk-sfx:active {
+    transform: none;
+  }
+  .djk-sfx.is-hit > span {
+    animation: none;
+  }
 }
 
 /* the host's switches: 报幕 (the big screen saying who a song is from) and 弹幕 (two side by side: 48 px) */
@@ -640,12 +747,11 @@
 }
 
 @media (max-width: 359px) {
-  .djk-pads {
-    grid-template-columns: repeat(4, 1fr);
+  .djk-cats {
     gap: var(--space-1);
   }
-  .djk-pad {
-    min-height: 56px;
+  .djk-cat {
+    min-height: 72px;
     font-size: var(--text-xs);
   }
 }
@@ -1101,7 +1207,6 @@
 @media (prefers-reduced-motion: reduce) {
   .djk-platter.is-on .djk-vinyl-disc,
   .djk-drop,
-  .djk-pad svg.is-hit,
   .djk-result,
   .dk-chip,
   .dk-count-n,

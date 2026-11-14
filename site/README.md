@@ -88,6 +88,9 @@ Resend，收下每封信），再在 `worker/.dev.vars` 里写 `DEV_MAIL_URL=htt
 ❄️、读场、语音报幕、10 分钟一首和今晚回顾用 `python3 scripts/dj_floor_check.py` 检查，
 电视上的教练和手机跟着跳用 `python3 scripts/dj_dance_check.py` 检查，舞池的 3D 小机器人用
 `python3 scripts/dj_floor3d_check.py` 检查，公用手机当音箱用 `python3 scripts/dj_shared_check.py` 检查，同样都要关掉它。
+弹幕用 `python3 scripts/dj_danmu_check.py` 检查，音效板（先选分类再点音效）用 `python3 scripts/dj_sfx_check.py` 检查。
+音效的文件（`public/media/sfx/`）和清单（`src/shared/dj/sfx.ts`）从 Steve 的音效文件夹做出来：
+`python3 scripts/sfx_make.py <音效文件夹>`（要 ffmpeg 和 numpy；哪个文件是哪个音效、叫什么、在哪一类写在 `scripts/sfx_catalog.py`）。
 （11 月 12 日起手机上没有唱盘、混音台、推子、蓄力和 Drop 了，原来检查它们的三个脚本也一起拿掉了。）
 
 到此一游和 随便 各自是独立的 Worker（本仓库的 `games/been-there` 和 `tools/suibian`）。本地要连着试，在它们的文件夹里分别跑 `npx wrangler dev --port 8799` 和 `npx wrangler dev --port 8798`，网站的 `/trip` 和 `/eat` 会代理过去（`vite.config.ts`）。

@@ -15,15 +15,19 @@
  *  - The later one stands. Two phones change the same expense: the change that arrives second is
  *    what the ledger says. The first is still in the server's log, so it can be brought back.
  *  - Nothing unsound gets in. A change that breaks a rule (core/ledger.ts, ops.ts) changes nothing.
+ *  - An expense paid in another currency says both amounts. What it counts for is the one in the
+ *    ledger's own currency; the other, with its rate, is kept to show, and nothing here or on any
+ *    phone multiplies them again. A change to such an expense says what becomes of the other
+ *    amount (ops.ts, ExpenseEdit).
  */
 import { MAX_MEMBERS, problem, type Expense, type Ledger, type Member, type Split, type Transfer } from "./core";
-import { addMember, addTransfer, editExpense, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, takeOut, tidy } from "./ops";
+import { addMember, addTransfer, editExpense, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, takeOut, tidy, type ExpenseEdit } from "./ops";
 
 /** The most entries (expenses and transfers, taken out or not) one ledger holds. */
 export const MAX_ENTRIES = 2000;
 
-/** What can be changed about an expense after it is recorded. */
-export type Edit = Pick<Expense, "payer" | "amount" | "note" | "split">;
+/** What can be changed about an expense after it is recorded (ops.ts says what `paidIn` means said, said null, and not said). */
+export type Edit = ExpenseEdit;
 
 export type Change =
   /** a new expense, exactly as the phone recorded it */
@@ -165,20 +169,36 @@ function asSplit(x: unknown): Split | null {
   return null;
 }
 
-function asEdit(x: unknown): Edit | null {
+/** The other currency an expense was paid in, when what arrived is the shape of one. (Whether the amount and the rate are sound is core/ledger.ts's business.) */
+function asPaidIn(p: unknown): NonNullable<Expense["paidIn"]> | null {
+  if (!isRecord(p) || typeof p.currency !== "string" || !/^[A-Z]{3}$/.test(p.currency) || !isTime(p.amount) || typeof p.rate !== "string" || p.rate.length > 20) return null;
+  return { currency: p.currency, amount: p.amount, rate: p.rate };
+}
+
+/** The four things every expense says, new or changed. */
+function asSaid(x: unknown): Pick<Expense, "payer" | "amount" | "note" | "split"> | null {
   if (!isRecord(x) || !isId(x.payer) || !isTime(x.amount) || !isText(x.note)) return null;
   const split = asSplit(x.split);
   return split && { payer: x.payer, amount: x.amount, note: x.note, split };
 }
 
+function asEdit(x: unknown): Edit | null {
+  const said = asSaid(x);
+  if (!said || !isRecord(x)) return null;
+  // said not at all, said null, or said: three different things (ops.ts, ExpenseEdit)
+  if (x.paidIn === undefined) return said;
+  if (x.paidIn === null) return { ...said, paidIn: null };
+  const paidIn = asPaidIn(x.paidIn);
+  return paidIn && { ...said, paidIn };
+}
+
 function asExpense(x: unknown): Omit<Expense, "gone"> | null {
-  const edit = asEdit(x);
-  if (!edit || !isRecord(x) || !isId(x.id) || !isTime(x.at) || !isTurn(x.rot)) return null;
-  const expense: Omit<Expense, "gone"> = { kind: "expense", id: x.id, at: x.at, ...edit, rot: x.rot };
+  const said = asSaid(x);
+  if (!said || !isRecord(x) || !isId(x.id) || !isTime(x.at) || !isTurn(x.rot)) return null;
+  const expense: Omit<Expense, "gone"> = { kind: "expense", id: x.id, at: x.at, ...said, rot: x.rot };
   if (x.paidIn === undefined) return expense;
-  const p = x.paidIn;
-  if (!isRecord(p) || typeof p.currency !== "string" || !/^[A-Z]{3}$/.test(p.currency) || !isTime(p.amount) || typeof p.rate !== "string" || p.rate.length > 20) return null;
-  return { ...expense, paidIn: { currency: p.currency, amount: p.amount, rate: p.rate } };
+  const paidIn = asPaidIn(x.paidIn);
+  return paidIn && { ...expense, paidIn };
 }
 
 function asChange(x: Record<string, unknown>): Change | null {

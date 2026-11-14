@@ -19,7 +19,7 @@ import "../../styles/dj-phone.css";
 
 /**
  * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The player at the
- * top (上一曲, 暂停 or 播放, 切歌: anyone), the song box and the 歌单, the sound pads, a 🔥 to push the
+ * top (上一曲, 暂停 or 播放, 切歌: anyone), the song box and the 歌单, the sound board, a 🔥 to push the
  * DJ, 弹幕 to the TV, for the host 报幕 and 弹幕 on or off (and at the end another set), and at the very bottom 跟着跳 (Steve
  * on Nov 12: the deck's turntables, mixer, crossfader and DROP gone, dancing along moved down, and
  * the card with the night's stretch at the top gone too; on Nov 13: the host's stretches and 结束这一场
@@ -99,8 +99,8 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
       </p>
       <p>
         {zh
-          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，也能从手机里传歌（MP3、M4A 这些），点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。还能发弹幕：点现成的或者自己写一句，带着你的名字从电视上飘过去。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
-          : "Everyone can ask for songs on their phone: type a song, paste a YouTube link or send a song file from the phone (MP3, M4A and the like), and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. Send comments too: a ready one or your own words fly across the TV with your name. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
+          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，也能从手机里传歌（MP3、M4A 这些），点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面是音效板：先选一类（DJ 音效、搞笑、嘲讽……），再点一个音效，电视上马上响。还能发弹幕：点现成的或者自己写一句，带着你的名字从电视上飘过去。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
+          : "Everyone can ask for songs on their phone: type a song, paste a YouTube link or send a song file from the phone (MP3, M4A and the like), and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. Below it, the sound board: pick a kind (DJ effects, Funny, Taunts and more), then a sound, and it plays on the TV at once. Send comments too: a ready one or your own words fly across the TV with your name. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
       </p>
       <p>
         {zh
