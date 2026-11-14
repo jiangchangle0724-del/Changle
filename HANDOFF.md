@@ -95,6 +95,7 @@ python3 scripts/tv_test.py         # the big screen
 python3 scripts/watch_test.py      # every game's own big-screen view, on two TVs and a phone that only watches
 python3 scripts/account_check.py   # sign-in, profile, friends, chat
 python3 scripts/mail_door_check.py # the Mail entrypoint end to end (needs scripts/fake_mail.mjs and a stand-in Worker: see its header)
+python3 scripts/figure_check.py    # the 3D figure's prototype (/me/figure): loads, moves, turns; the owner's link
 python3 scripts/tune_quiz_check.py # Name That Tune's multiple choice, 20 songs, sound on, memory watched
 python3 scripts/dj_check.py        # the DJ booth's speaker in WebKit and Chromium, and a table of phones
 ```
