@@ -13,12 +13,14 @@ pages a buyer sees (a group buy, the cart, checkout, the order); and the pages a
 (their group buys, a group buy's orders with their marks, the two sheets). **The second stage (A2)
 has begun**: a merchant starts a group buy and changes one on their phone, from nothing or from
 their last one, and says who the shop is (its own page, with its group buys). A shop is still set
-up by the site's owner, by hand, from a panel on the merchant's home. Nothing on changle.ca links here until the owner has tried it on a phone:
-`/tuan/preview` is home with a line saying so, and no search engine is let in.
+up by the site's owner, by hand, from a panel on the merchant's home. Since 2026-11-14 the tool has
+a card on the site's Tools tab (`site/src/tools/Tuan.tsx`), which opens home, `/tuan/`: the one page
+search engines may list (it's in the site's sitemap). Every other page stays out of them: a group
+buy is for the people its link was sent to.
 
 | Address | What |
 | --- | --- |
-| `/tuan/`, `/tuan/preview` | Home: how it works, the orders placed from this phone, and opening an order by its code. |
+| `/tuan/` | Home: how it works, the orders placed from this phone, opening an order by its code, and the way in for merchants. The Tools tab's card opens it; `/tuan` and `/tuan/preview` (where it was before it was on the tab) lead here. |
 | `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
 | `/tuan/s/<shop>` | A shop's own page: what it is, what it says about itself, its permit, how to reach it and pay it, the group buys taking orders (the one that closes soonest first) and the earlier ones. A group buy's page links here from the shop's name. A shop not yet opened isn't there. |
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
@@ -257,5 +259,6 @@ Connected to Cloudflare on 13 November 2026: merging into `main` deploys it. The
   `wrangler.jsonc`), and they are published with the Worker as its static assets.
 - The site knows `/tuan` is another Worker's (one line each): `site/src/router.ts` (`elsewhere`),
   `site/scripts/sw.template.js` (the offline cache leaves it alone), `site/public/robots.txt`
-  (`Disallow: /tuan/api/`) and `site/vite.config.ts` (the local proxy). Its card in the Tools tab
-  comes when the owner has tried the pages.
+  (`Disallow: /tuan/api/`) and `site/vite.config.ts` (the local proxy). Since 2026-11-14 also its
+  card, `site/src/tools/Tuan.tsx` (one line in `site/src/tools/ToolsTab.tsx`, after 随便), and home
+  in the sitemap (`site/scripts/postbuild.ts`).

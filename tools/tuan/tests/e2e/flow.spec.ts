@@ -417,14 +417,19 @@ test("a group buy that has closed, one that isn't public yet, and addresses that
     await expect(page.locator(".empty h1")).toHaveText(title);
   }
 
-  // the preview is home, saying it's a preview
-  const res = await page.goto("/tuan/preview");
-  expect(res?.status()).toBe(200);
-  expect(res?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
-  await expect(page.getByText("预览版：还在试用，先不对外。")).toBeVisible();
-  await page.goto("/tuan/");
+  // home is at /tuan/, the one page search engines may list, with the way in for merchants;
+  // /tuan and the preview it used to be lead there
+  for (const path of ["/tuan", "/tuan/preview"]) {
+    const res = await page.goto(path);
+    expect([path, res?.status()]).toEqual([path, 200]);
+    await expect(page).toHaveURL(/\/tuan\/$/);
+  }
+  const res = await page.goto("/tuan/");
+  expect(res?.headers()["x-robots-tag"]).toBeUndefined();
   await expect(page.locator(".hero h1")).toHaveText("跟一单");
-  await expect(page.getByText("预览版：还在试用，先不对外。")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "商家入口：我的团" })).toHaveAttribute("href", "/tuan/my");
+  // every other page stays out of search engines
+  expect((await page.goto(url))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 });
 
 test("on a small phone: nothing runs off the side, and everything to tap is big enough", async ({ browser, request }) => {

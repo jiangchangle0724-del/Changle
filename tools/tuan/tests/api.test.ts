@@ -847,9 +847,9 @@ describe("the pages", () => {
   const titleOf = (html: string) => /<title>([^<]*)<\/title>/.exec(html)?.[1];
   const cardOf = (html: string) => /<meta property="og:title" content="([^"]*)"/.exec(html)?.[1];
 
-  it("is one file for home, a group buy and an order: never kept, nothing foreign runs on it, no search engine lists it", async () => {
+  it("is one file for home, a group buy, an order and a shop: never kept, nothing foreign runs on it, no search engine lists any but home", async () => {
     const at = await start();
-    for (const path of ["/tuan", "/tuan/", "/tuan/preview", `/tuan/t/${at.id}`, "/tuan/o/K7M2PQ", "/tuan/o/k7m2pq", "/tuan/my", "/tuan/my/", `/tuan/my/t/${at.id}`]) {
+    for (const path of ["/tuan/", `/tuan/t/${at.id}`, "/tuan/o/K7M2PQ", "/tuan/o/k7m2pq", `/tuan/s/${at.slug}`, "/tuan/my", "/tuan/my/", `/tuan/my/t/${at.id}`, `/tuan/my/s/${at.slug}`]) {
       const res = await open(path);
       expect([path, res.status]).toEqual([path, 200]);
       expect(res.headers.get("content-type")).toMatch(/^text\/html/);
@@ -858,13 +858,18 @@ describe("the pages", () => {
       expect(res.html).toMatch(/<link rel="modulepreload" href="\/tuan\/assets\/chunk-[A-Z0-9]+\.js" \/>/);
       expect(res.html).toMatch(/<link rel="stylesheet" href="\/tuan\/assets\/app-[A-Z0-9]+\.css" \/>/);
       expect(res.headers.get("cache-control")).toBe("no-store");
-      expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect([path, res.headers.get("x-robots-tag")]).toEqual([path, path === "/tuan/" ? null : "noindex, nofollow"]);
       expect(res.headers.get("referrer-policy")).toBe("same-origin");
       expect(res.headers.get("x-content-type-options")).toBe("nosniff");
       const csp = res.headers.get("content-security-policy") ?? "";
       expect(csp).toContain("default-src 'self'");
       expect(csp).toContain("frame-ancestors 'none'");
       expect(csp).not.toContain("unsafe");
+    }
+    // home is at /tuan/: /tuan, and the preview it was before it went on the site's Tools tab, lead there
+    for (const path of ["/tuan", "/tuan/preview", "/tuan/preview/"]) {
+      const res = await open(path);
+      expect([path, res.status, res.headers.get("location")]).toEqual([path, 301, "https://changle.ca/tuan/"]);
     }
     // a page is only ever read
     expect((await open("/tuan/", "POST")).status).toBe(405);

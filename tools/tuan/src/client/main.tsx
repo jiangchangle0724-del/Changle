@@ -1,5 +1,5 @@
 // 跟一单 · Count Me In: the phone pages. A buyer's are in this script:
-//   /tuan/ and /tuan/preview     home: how it works, and the orders placed from this phone
+//   /tuan/                       home: how it works, the orders placed from this phone, the way in for merchants
 //   /tuan/t/<group buy>          a group buy: pick, check out (…?change=<order> changes that order)
 //   /tuan/o/<order code>         an order
 //   /tuan/s/<shop>               a shop: who they are, and their group buys
@@ -32,7 +32,7 @@ if (history.state?.sheet || history.state?.checkout) history.replaceState(null, 
 
 function Page() {
   const [a, b] = parts;
-  if (parts.length === 0 || (parts.length === 1 && a === "preview")) return <Home preview={a === "preview"} />;
+  if (parts.length === 0) return <Home />;
   if (parts.length === 2 && a === "t" && OFFER_RE.test(b)) {
     const change = tidyOrderCode(query.get("change") ?? "");
     return <OfferView offerId={b} changeCode={ORDER_RE.test(change) ? change : null} />;
