@@ -7,6 +7,7 @@ import { DANCE, moveAt, type Mood } from "../../shared/dj/dance";
 import { Choreo } from "../tune/moves";
 import { Performer } from "../tune/performer";
 import { Coach3D } from "./Coach3D";
+import { Dancer3D } from "./Dancer3D";
 
 /** The performer's drawing box (party/tune/stage.tsx): the body fills it, arms and hair reach outside. */
 const VIEWBOX = "44 10 112 286";
@@ -15,21 +16,22 @@ type Clock = { beat: () => number; energy: () => number; bpm: () => number };
 
 /**
  * 跟着跳 on the big screen (Steve on Nov 2: the TV is for dancing along; his plan's 一起跳): a coach
- * dancing the routine's move on the speaker's own beat (the robot, coach/robot.ts; Name That Tune's
- * performer where it can't be shown), its name big, a line saying how to do it (Steve on Nov 14:
+ * dancing the routine's move on the speaker's own beat (the dancer, Dancer3D, in a new outfit each
+ * `song`; the robot, coach/robot.ts, where she can't be shown; Name That Tune's performer where no 3D can), its name big, a line saying how to do it (Steve on Nov 14:
  * "下面有文字告诉大家怎么跳"), the next one coming in the last beats before it, and how the whole floor
  * is doing together. On all night, whole songs too (Nov 14: "要一直在那里不能消失"): `over` the video
  * when it fills the TV. Every phone knows the same move from the same beat count and the night's
  * stretch (`mood`, shared/dj/dance.ts).
  */
-export function Coach({ clock, zh, mood, over, combo, dancers }: { clock: Clock; zh: boolean; mood: Mood; over: boolean; combo: number; dancers: number }) {
+export function Coach({ clock, zh, mood, over, combo, dancers, song }: { clock: Clock; zh: boolean; mood: Mood; over: boolean; combo: number; dancers: number; song: string | null }) {
   const svg = useRef<SVGSVGElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [beat, setBeat] = useState(-1);
-  // the robot in 3D once it's loaded (the drawn coach till then, and on a screen without WebGL)
-  const [three, setThree] = useState<"try" | "on" | "off">("try");
+  // the dancer in 3D once she's loaded (Steve on Nov 14); the robot where she can't be (her files
+  // didn't come, her frames too slow); the drawn coach till then, and on a screen without WebGL
+  const [three, setThree] = useState<"try" | "on" | "robot" | "robot-on" | "off">("try");
   const threeOn = useRef(false);
-  threeOn.current = three === "on";
+  threeOn.current = three === "on" || three === "robot-on";
   const moodNow = useRef(mood);
   moodNow.current = mood;
   const [getMood] = useState(() => () => moodNow.current);
@@ -109,8 +111,9 @@ export function Coach({ clock, zh, mood, over, combo, dancers }: { clock: Clock;
         {zh ? "跟着跳" : "Dance along"}
       </span>
       <div className="dj-coach-stage">
-        <svg className={`dj-coach-svg ${three === "on" ? "is-off" : ""}`} viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
-        {three !== "off" && <Coach3D clock={clock} mood={getMood} onReady={() => setThree("on")} onFail={() => setThree("off")} />}
+        <svg className={`dj-coach-svg ${three === "on" || three === "robot-on" ? "is-off" : ""}`} viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
+        {(three === "try" || three === "on") && <Dancer3D clock={clock} mood={getMood} song={song} onReady={() => setThree("on")} onFail={() => setThree("robot")} />}
+        {(three === "robot" || three === "robot-on") && <Coach3D clock={clock} mood={getMood} onReady={() => setThree("robot-on")} onFail={() => setThree("off")} />}
       </div>
       {m ? (
         <div className="dj-coach-moves">
