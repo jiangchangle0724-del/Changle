@@ -222,9 +222,10 @@ with sync_playwright() as p:
     ok(not worst, f"the crowd on the beat too ({worst[:3]})")
     tv.screenshot(path=os.path.join(OUT, "floor3d-tv-3-crowded.png"))
 
-    # the host takes the night to the peak: when the music gets there, the big moves
-    amy.locator(".djp-seg button").nth(2).click()
-    ok(until(lambda: (view(tv) or {}).get("phase") == "peak", 4000), "the host takes the night to the peak")
+    # the night at its peak (the check takes it there: the host has no buttons for it since Nov 13):
+    # when the music gets there, the big moves
+    amy.evaluate("() => window.__djHost.phase('peak')")
+    ok(until(lambda: (view(tv) or {}).get("phase") == "peak", 4000), "the night at its peak")
     ok(until(lambda: f3(tv).get("level", 0) >= 0.8, 90000, 500), f"the music gets there ({f3(tv).get('level')})")
     seen = set()
     end = time.time() + 6
