@@ -9,9 +9,11 @@
  *
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
+import type { Goal } from '../goals';
 import type { ItemId } from '../items';
 import type { Look } from '../look';
 import type { GameMode, PadInput, SimEvent } from '../physics/world';
+import type { Side, Tier } from '../sides';
 
 export type { PadInput };
 
@@ -130,6 +132,8 @@ export interface Snap {
   s: number[];
   /** 道具拉面（A9），每根一行：谁放的、还剩几秒、各点 x, y 摊平（第一个是锚）。没有就不写。 */
   nd?: number[][];
+  /** 红包（A9b）：拿到了哪几个（第 k 个拿到了，第 k 位是 1）。这一局没有红包就不写。 */
+  en?: number;
   /**
    * 最近发生的事（声音、特效用），ek 是第一件的编号，后面的依次加一。
    * 同一件事跟着好几轮快照走（丢一两张也收得到），手机按编号只放一次。
@@ -158,6 +162,10 @@ export interface Results {
    * 坐不住是撑了多久，赢的在前、先出局的在后。[玩家, 秒]
    */
   order?: [number, number | null][];
+  /** 小目标（A9b，闯关和大团队）：每个达到没有、是不是这一局第一次拿到这颗星。 */
+  goals?: Goal[];
+  /** 红包（A9b）：这一局拿到几个、这关一共几个、这一局新拿到几个（以前没拿过的）、这台主机一共攒了几个。 */
+  envelopes?: { got: number; of: number; fresh: number; total: number };
 }
 
 /**
@@ -171,18 +179,25 @@ export type PadCmd =
   | { do: 'lobby' }
   | { do: 'level'; d: -1 | 1 }
   | { do: 'mode'; mode: GameMode }
-  | { do: 'teams'; on: boolean };
+  | { do: 'teams'; on: boolean }
+  | { do: 'side'; side: Side }
+  | { do: 'tier'; tier: Tier };
 
 /** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
 export interface Menu {
   phase: Phase;
+  /** 单人还是多人（11-13）。 */
+  side: Side;
   mode: GameMode;
   /** 大厅里能选的玩法（大团队有大关才有）。 */
   modes: GameMode[];
   /** 比谁先分两队。 */
   teams: boolean;
-  /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）。 */
-  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string } };
+  /** 难度（简单、中等、困难）；这个玩法分不分难度（闯关、比谁先分）。 */
+  tier: Tier;
+  tiered: boolean;
+  /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）；闯关、大团队带这关拿到过的星（「★★☆」）。 */
+  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string }; stars?: string };
   players: number;
   /** 这个玩法至少几个人。 */
   min: number;

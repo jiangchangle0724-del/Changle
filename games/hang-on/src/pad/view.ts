@@ -7,7 +7,9 @@
  */
 import { heardBy, sfx } from '../audio/sfx';
 import { tr } from '../i18n';
-import { levelById, LEVELS, levelsFor, levelTitle } from '../levels';
+import { levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
+import { tierName } from '../mode-text';
+import { tiered } from '../sides';
 import type { Level } from '../physics/level';
 import type { SimEvent } from '../physics/world';
 import type { Cast, Phase, RoomView, Snap } from '../net/protocol';
@@ -48,6 +50,8 @@ export class PhoneView {
       betrayTitle: $('vBetrayTitle'),
       betrayList: $('vBetrayList'),
       betrayNone: $('vBetrayNone'),
+      goalTitle: $('vGoalTitle'),
+      goalList: $('vGoalList'),
     };
     sfx.attach(document);
     if (stage) {
@@ -131,8 +135,12 @@ export class PhoneView {
   private levelName(): string {
     const l = this.sim.level;
     // 按 id 找：按人数摆过的关卡是另一个对象
-    const list = levelsFor(this.cast_?.mode ?? 'climb');
-    return levelTitle(l, Math.max(0, list.findIndex((x) => x.id === l.id)));
+    const mode = this.cast_?.mode ?? 'climb';
+    const tier = tiered(mode) ? tierOfLevel(l) : undefined;
+    const list = levelsFor(mode, tier);
+    const title = levelTitle(l, Math.max(0, list.findIndex((x) => x.id === l.id)));
+    // 和主机的倒数一样：分难度的带上难度
+    return tier === undefined ? title : `${tierName(tier)} · ${title}`;
   }
 
   private showLevel(): void {
@@ -220,6 +228,10 @@ export class PhoneView {
         this.banner(tr(`${name(ev.player)} 把 ${who.join('、')} 拉了回来`, `${name(ev.player)} pulled ${who.join(' & ')} back`));
       }
       if (ev.type === 'checkpoint' && mode !== 'race') this.banner(tr('检查点 ✓', 'Checkpoint ✓'));
+      if (ev.type === 'envelope') {
+        const got = this.sim.envelopes.filter((e) => e.got).length;
+        this.banner(tr(`🧧 ${name(ev.player)} 拿到红包 ${got}/${this.sim.envelopes.length}`, `🧧 ${name(ev.player)} got an envelope ${got}/${this.sim.envelopes.length}`));
+      }
     }
   }
 

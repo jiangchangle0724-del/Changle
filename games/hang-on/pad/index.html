@@ -109,6 +109,11 @@
   .mcard { background: var(--card); color: var(--card-ink); border-radius: 22px; padding: 14px 16px; display: grid; gap: 10px; max-width: 760px; margin: 0 auto; box-sizing: border-box; }
   .mcard h2 { font-family: var(--font-display); font-weight: 800; font-size: 22px; margin: 0; }
   .mmodes { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* 单人多人、玩法、难度（11-13）：三组排成一串，放得下就在一行，前面一个小字说是哪一组 */
+  .mpicks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+  .mrow { display: flex; align-items: center; gap: 8px; }
+  .mrow[hidden] { display: none; }
+  .mrow .lab { flex: none; font-size: 12px; font-weight: 700; opacity: .55; }
   .mmodes button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 2px solid rgba(42,31,58,.18); background: #fff; color: var(--card-ink); font: inherit; font-weight: 700; font-size: 15px; }
   .mmodes button[aria-checked="true"] { background: var(--card-ink); color: var(--ink); border-color: var(--card-ink); }
   .mmodes button:focus-visible, .mlevel button:focus-visible, .mcard .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
@@ -203,6 +208,12 @@
   .vres h3 { font-family: var(--font-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 0; opacity: .6; }
   .vres ul { list-style: none; padding: 0; margin: 4px 0 0; font-size: 14px; display: grid; gap: 3px; }
   .vres .none { opacity: .6; font-size: 13px; margin: 4px 0 0; }
+  :is(.vres, .mcard) ul.goals li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  :is(.vres, .mcard) ul.goals .mark { font-size: 17px; line-height: 1; color: #d9a21b; }
+  :is(.vres, .mcard) ul.goals li.miss { opacity: .6; }
+  :is(.vres, .mcard) ul.goals li.miss .mark { color: inherit; }
+  :is(.vres, .mcard) ul.goals .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  :is(.vres, .mcard) ul.goals li.env { font-size: 13px; opacity: .8; }
   .vres .next { font-size: 13px; opacity: .7; margin: 10px 0 0; }
   .banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.6); opacity: 0; font-family: var(--font-display); font-weight: 800; font-size: 32px; line-height: 1.1;
     color: var(--ink); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.4); pointer-events: none; transition: opacity .18s, transform .18s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap; text-align: center; }
@@ -256,8 +267,12 @@
   <!-- 手柄当遥控（电视局）：大厅里开局、选玩法、选关；结算时下一关、再来一次、回大厅。谁按都行 -->
   <div id="menu" hidden>
     <div class="mcard" id="mLobby">
-      <div class="mmodes" id="mModes" role="radiogroup" aria-label="玩法" data-en-label="Mode"></div>
-      <div class="mmodes" id="mTeams" role="radiogroup" aria-label="怎么分" data-en-label="Teams" hidden></div>
+      <div class="mpicks">
+        <div class="mrow"><span class="lab" data-en="Players">人数</span><div class="mmodes" id="mSides" role="radiogroup" aria-label="单人还是多人" data-en-label="Solo or multiplayer"></div></div>
+        <div class="mrow" id="mModeRow"><span class="lab" data-en="Mode">玩法</span><div class="mmodes" id="mModes" role="radiogroup" aria-label="玩法" data-en-label="Mode"></div></div>
+        <div class="mmodes" id="mTeams" role="radiogroup" aria-label="怎么分" data-en-label="Teams" hidden></div>
+        <div class="mrow" id="mTierRow"><span class="lab" data-en="Difficulty">难度</span><div class="mmodes" id="mTiers" role="radiogroup" aria-label="难度" data-en-label="Difficulty"></div></div>
+      </div>
       <div class="mlevel">
         <button id="mPrev" type="button" aria-label="上一关" data-en-label="Previous level">‹</button>
         <div class="nm"><span id="mLevel"></span><small id="mTeach"></small></div>
@@ -270,6 +285,8 @@
       <h2 id="mTitle">到顶了！</h2>
       <div class="big" id="mTime">0.0 s</div>
       <p class="par" id="mPar"></p>
+      <h3 id="mGoalTitle" hidden data-en="Goals">小目标</h3>
+      <ul class="goals" id="mGoalList" hidden></ul>
       <ol id="mDeaths"></ol>
       <h3 id="mBetrayTitle" data-en="Betrayals">背叛榜</h3>
       <ul id="mBetrayList"></ul>
@@ -330,6 +347,8 @@
     <h2 id="vWinTitle">到顶了！</h2>
     <div class="big" id="vWinTime">0.0 s</div>
     <p class="par" id="vWinPar"></p>
+    <h3 id="vGoalTitle" hidden data-en="Goals">小目标</h3>
+    <ul class="goals" id="vGoalList" hidden></ul>
     <ol id="vDeathList"></ol>
     <h3 id="vBetrayTitle" data-en="Betrayals">背叛榜</h3>
     <ul id="vBetrayList"></ul>

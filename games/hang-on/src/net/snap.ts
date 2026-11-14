@@ -66,6 +66,7 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
     f: sim.fadings.flatMap((f) => [f.on ? 1 : 0, r2(f.left)]),
     s: sim.springs.map((s) => (Number.isFinite(s.hit) ? r2(Math.min(s.hit, 99)) : -1)),
   };
+  if (sim.envelopes?.length) snap.en = sim.envelopes.reduce((m, e, k) => (e.got ? m | (1 << k) : m), 0);
   if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
     snap.e = events.list.map(slim);
@@ -123,6 +124,9 @@ export class RemoteSim implements SimView {
   fadings: FadingView[] = [];
   springs: SpringView[] = [];
   noodles: NoodleView[] = [];
+  envelopes: { x: number; y: number; got: boolean }[] = [];
+  /** envelopes 是按哪一版关卡摆的（换关就重摆）。 */
+  private envFor: Level | null = null;
   /** 收到过的最新序号。 */
   seq = -1;
   /** 关卡是按几个人摆的（快照的 np，没有就是人数）。 */
@@ -331,6 +335,18 @@ export class RemoteSim implements SimView {
   private discrete(s: Snap, since: number): void {
     this.won = s.w === 1;
     this.checkpoint = s.cp;
+    // 红包：位置在关卡里，拿没拿到跟着快照走；这一局没有红包（不写 en）就不画
+    const en = s.en;
+    if (en === undefined) {
+      this.envelopes = [];
+      this.envFor = null;
+    } else {
+      if (this.envFor !== this.level) {
+        this.envFor = this.level;
+        this.envelopes = (this.level.envelopes ?? []).map((d) => ({ x: d.x, y: d.y, got: false }));
+      }
+      this.envelopes.forEach((e, k) => (e.got = (en & (1 << k)) !== 0));
+    }
     s.p.forEach((row, i) => {
       const p = this.players[i];
       if (!p) return;

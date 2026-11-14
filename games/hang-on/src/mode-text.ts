@@ -3,6 +3,7 @@
  */
 import { pickLang } from './i18n';
 import type { GameMode } from './physics/world';
+import { maxPlayers, minPlayers, type Side, type Tier } from './sides';
 
 type Text = { zh: string; en: string };
 
@@ -27,3 +28,24 @@ export function modeHintText(m: GameMode, teams: boolean): Text {
 }
 
 export const modeHint = (m: GameMode, teams: boolean): string => pickLang(modeHintText(m, teams));
+
+const SIDE_NAMES: Record<Side, Text> = { solo: { zh: '单人', en: 'Solo' }, multi: { zh: '多人', en: 'Multiplayer' } };
+const TIER_NAMES: Record<Tier, Text> = { 0: { zh: '简单', en: 'Easy' }, 1: { zh: '中等', en: 'Medium' }, 2: { zh: '困难', en: 'Hard' } };
+
+/** 单人、多人（11-13）。 */
+export const sideName = (s: Side): string => pickLang(SIDE_NAMES[s]);
+/** 简单、中等、困难（11-13）。 */
+export const tierName = (t: Tier): string => pickLang(TIER_NAMES[t]);
+
+/** 大厅玩法键上的字：多人里的闯关叫「一起闯关」。 */
+export const modeLabel = (m: GameMode, side: Side): string => (m === 'climb' && side === 'multi' ? pickLang({ zh: '一起闯关', en: 'Climb together' }) : modeName(m));
+
+/** 人数不对、开不了时大厅里写的话（主机页和手柄当遥控都用）；能开是 null。 */
+export function notReadyText(n: number, side: Side, mode: GameMode): Text | null {
+  const who = (k: number): string => `${k} ${k === 1 ? 'player' : 'players'}`;
+  if (n > maxPlayers(side)) return { zh: `${n} 个人。单人只能一个人玩，人多就选多人。`, en: `${who(n)}. Solo is for one player. Pick Multiplayer.` };
+  const min = minPlayers(side, mode);
+  if (n >= min) return null;
+  const label = side === 'multi' && mode === 'climb' ? { zh: '多人', en: 'Multiplayer' } : NAMES[mode];
+  return { zh: `${n} 个人。${label.zh}至少要 ${min} 个人。`, en: `${who(n)}. ${label.en} needs at least ${min}.` };
+}
