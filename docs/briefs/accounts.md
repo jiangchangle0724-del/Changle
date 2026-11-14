@@ -10,11 +10,12 @@
 
 - 画面：`site/src/account/`（登录 `SignIn.tsx`、个人页 `MePage.tsx`、资料 `ProfileForm.tsx`、AI 头像编辑器 `avatar/`、好友 `Friends.tsx`、聊天 `ChatPage.tsx`、别人的页 `UserPage.tsx`、战绩 `History.tsx`、后台 `AdminPage.tsx` 和 `AdminScenes.tsx`；`AdminCards.tsx` 是一本正经那个对话的）
 - 3D 小人的小样：`site/src/account/figure/`（页面 `FigurePage.tsx`，动作和捏脸两页；React 的壳 `Figure3D.tsx`；three.js 的那一块 `FigureStage.ts`，和它一起懒加载的道具 `props.ts`、冒出来的东西 `fx.ts`；动作表和每个动作的表情 `moves.ts`；捏脸的滑杆、肤色、发型、存在手机上的那几十个数字 `look.ts`）、模型 `site/public/models/figure/`（男女各一个主文件，别的发型一款一个文件在 `hair/` 里，都 gzip 过，页面自己解压；来历和许可在 `LICENSES.md`）；`Figure3D.tsx` 借用打碟的 `party/dj/robot3d.ts` 里的 `glOf()`（有没有图形芯片）和 `ratioFor()`，没改那个文件
-- 做模型、编动作：`site/scripts/figure/`（自己的 package.json；`human.mjs` 把 MakeHuman 的人做成我们的小人，`build.mjs` 做出所有文件，`moves.mjs` 编动作，`rig.mjs` 把姿势解到骨头上，`look.py`、`play.py` 看效果；要下载的两样素材和怎么用见那里的 README）
+- 编动作：`site/src/account/figure/pose/`（`keys.ts` 写关键姿势，`anim.ts` 插值采样，`rig.ts` 解到骨头上，手和胳膊不穿身体）；页面拿到身体后现解，`body.ts` 从模型量出骨架和身体的形状
+- 做模型：`site/scripts/figure/`（自己的 package.json；`human.mjs` 把 MakeHuman 的人做成我们的小人，`build.mjs` 做出所有文件，`look.py`、`play.py` 看效果；要下载的两样素材和怎么用见那里的 README）
 - 服务器：`site/worker/hub.ts` 里的账号、好友、聊天、记录、后台部分；画头像 `site/worker/draw.ts`；代发信的入口 `site/worker/mail.ts`（具名入口 `Mail`）和它的规矩 `site/worker/notice.ts`
 - 本地替身：`site/scripts/fake_mail.mjs`（假的 Resend）、`site/scripts/mail_door/`（绑着 Mail 入口的替身 Worker，只给检查用）
 - Cloudflare 里的钥匙（只写名字）：`RESEND_API_KEY`（登录邮件和代发的信）、`GEMINI_API_KEY`（头像）
-- 共用文件里我们的几行：`site/worker/index.ts` 的 `export { Mail }`；`.github/workflows/site.yml` 的 `tests/mail.test.ts` 一行；`HANDOFF.md` 房间服务器那一行和 Settings 表里的 `DEV_MAIL_URL`；`site/src/router.ts` 和 `App.tsx` 里 `/me/figure`（`kind: "figure"`）的几行
+- 共用文件里我们的几行：`site/worker/index.ts` 的 `export { Mail }`；`.github/workflows/site.yml` 的 `tests/mail.test.ts`、`tests/figure.test.ts` 两行；`HANDOFF.md` 房间服务器那一行和 Settings 表里的 `DEV_MAIL_URL`；`site/src/router.ts` 和 `App.tsx` 里 `/me/figure`（`kind: "figure"`）的几行
 
 ## 先读
 
@@ -25,10 +26,11 @@
 ## 测试
 
 - `npx tsx tests/mail.test.ts`：代发信的规矩（CI 里也跑）
+- `npx tsx tests/figure.test.ts`：3D 小人的每个动作在男女两个身体上现解一遍，手和胳膊进身体最多 2.5 厘米（CI 里也跑）
 - `npx tsx tests/draw.test.ts`、`npx tsx tests/cutout.test.ts`：头像的提示词和抠图
 - 手机尺寸的浏览器（要房间服务器和网站都在跑，`site/README.md`「自己跑起来」）：`python3 scripts/account_check.py`（登录、资料、好友、聊天、一桌人的头像、屏蔽后的角标；加 `--solo` 连单机战绩一起，多等一分钟）、`python3 scripts/admin_check.py`（后台：踢人、拉黑、暂停、每月头像、保持登录）、`python3 scripts/perk_check.py`（许愿的奖励）、`python3 scripts/stage_check.py`（头像上猜歌名的台）
 - `python3 scripts/mail_door_check.py`：代发信从头到尾（怎么跑在它开头）
-- `python3 scripts/figure_check.py`：3D 小人的小样，66 条（要网站的开发服务器，`VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev`；最后一步站长的入口要房间服务器，不开它页面会报连不上的错，最后一条就不过）。这台机器没有图形芯片，脚本用 `window.__figAnyGl`（只在开发构建里认）让页面照画；`__figSeek`、`__figCam`、`__figHeld`、`__figFloaters`、`__figFlashes`、`__figFace`、`__figBlinks`、`__figView`、`__figHair`、`__figSex`、`__figSkin`、`__figShapeSum` 也只在开发构建里有
+- `python3 scripts/figure_check.py`：3D 小人的小样，73 条（要网站的开发服务器，`VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev`；最后一步站长的入口要房间服务器，不开它页面会报连不上的错，最后一条就不过）。这台机器没有图形芯片，脚本用 `window.__figAnyGl`（只在开发构建里认）让页面照画；`__figSeek`、`__figCam`、`__figHeld`、`__figFloaters`、`__figFlashes`、`__figFace`、`__figBlinks`、`__figView`、`__figHair`、`__figSex`、`__figSkin`、`__figShapeSum` 也只在开发构建里有
 - 这四个浏览器脚本（account、admin、perk、stage）最后都有一条「页面里没有抛出错误」：页面报了错（哪怕被「这里出了点问题」接住了）就算失败。
 
 ## 定过的事
@@ -57,6 +59,11 @@
   - 发型除了每个人自己那款，别的点了才下载（每款 70 到 240 KB），主文件男 562 KB、女 546 KB，都在 1 MB 以内。
   - 小人会眨眼，每个动作带表情：照相、干杯、比心笑，挥刀皱眉，大哭八字眉、嘴角下垂，睡觉闭眼。表情是 MakeHuman 的表情单元。
   - 借来的 17 个 Ready Player Me 动作和替身人模都拿掉了（许可只许配他们的人模）。站着也换成自己编的（呼吸、重心左右换、看看四周）。
+- 2026-11-14 Steve 看了捏脸版说「动作上还可以优化很多，比如 sleep 的时候手会穿过身体，不符合真实的物理逻辑，继续优化，补常用动作、存进账号、衣服或眼睛颜色、身材高矮胖瘦」。这个对话定的：
+  - 动作不再做进模型文件，页面拿到身体后现解（`site/src/account/figure/pose/`）：一段几毫秒到两百毫秒，打开页面后在后台每帧解 3 毫秒，点到还没解的就当场解。这样身体一变（高矮胖瘦），动作跟着这个身体走。
+  - 不穿身体：身体按骨头量成几段椭圆柱（髋、肚子、肋、胸、脖子、大小腿、上臂前臂）和头的椭球；手、手腕、前臂、手肘、上臂各放一个小球，碰到了先把手肘绕着肩到手腕的轴转开，转不开再把手往外推，也不进地板。CI 里每个动作在男女两个身体上都解一遍，进身体超过 2.5 厘米就不过（这些形状比皮肤稍胖，一两厘米算贴着）。
+  - 衣服的权重改成跟最近的皮肤走、再抹匀（以前 T 恤肩膀一抬就裂开），袖子下面的皮肤删掉（以前胳膊一动就从袖子里戳出来）。
+  - 补了 11 个动作：挥手、鼓掌、点赞（眨一只眼）、欢呼、跳舞（冒音符）、晕倒（晃两下倒下，再躺着，闭眼）、鞠躬、敬礼、叉腰、摊手、思考，一共 21 个。英文 Wave、Clap、Thumbs up、Cheer、Dance、Faint、Bow、Salute、Hands on hips、Shrug、Think。摆酷的抱胳膊、睡觉、挥刀重编过：胳膊不再插进胸口，睡觉时下面那只手放在身前地上，挥刀举起时从身前绕过去。
 - 2026-11-13 代发信入口的规矩，这个对话定的，Steve 可以改（都在 `site/worker/notice.ts` 和 `hub.ts` 的 `notice()`，改起来都小）：
   - 只有具名入口 `Mail`（`WorkerEntrypoint`），从 Service Binding 调 `env.MAIL.send(notice)`。rooms.changle.ca 上没有对应的地址。
   - 给什么：`{ app, to, subject, text, link?, lang }`。`app` 先只认 `"tuan"`；`to` 必须是 changle.ca 注册过、没被拉黑的账号的登录邮箱，别人一律不发；标题一行、120 字以内；正文纯文字 2000 字以内，换行保留；链接只能是 https://changle.ca 下面的（本地跑可以是 localhost）；`lang` 是 zh 或 en。
@@ -69,7 +76,7 @@
 
 2026-11-14：账号这块都在线上。代发信的入口上线了（#457），等跟一单那边接上。3D 小人的小样在 changle.ca/me/figure（站长 /me 底部有入口，别人只能靠网址）。Steve 选了自己建捏脸，今天换成 MakeHuman 的写实人模，能捏脸了，等他看。
 
-- 3D 小人的小样：男女两个写实人模、10 个自己编的动作（带道具、特效、表情，会眨眼）、左右拖动转圈，「捏脸」一页 30 根滑杆、9 种肤色、11 款发型、11 种发色、随机和还原，存在手机上，刷新还在。页面底下一行数字（模型 KB、面数、帧率、引擎 KB）。主文件男 562 KB、女 546 KB（gzip），别的发型点了才下，three.js 那块 131 KB gzip（和打碟共用一份缓存），这一页自己的代码 FigureStage 和 FigurePage 合起来约 22 KB gzip；首页的首次下载 JS 122.3 KB（多了 0.1 KB，是懒加载那一页的依赖名单），CSS 21.1 KB（多了捏脸那页的样式 0.2 KB），都在预算里。本地 figure_check 66 条全过。
+- 3D 小人的小样：男女两个写实人模、21 个自己编的动作（页面现解，手和胳膊不穿身体；带道具、特效、表情，会眨眼）、左右拖动转圈，「捏脸」一页 30 根滑杆、9 种肤色、11 款发型、11 种发色、随机和还原，存在手机上，刷新还在。页面底下一行数字（模型 KB、面数、帧率、引擎 KB）。主文件男 524 KB、女 506 KB（gzip，动作不在里面了），别的发型点了才下，three.js 那块 131 KB gzip（和打碟共用一份缓存），这一页自己的代码 FigureStage 和 FigurePage 合起来约 22 KB gzip；首页的首次下载 JS 122.3 KB（多了 0.1 KB，是懒加载那一页的依赖名单），CSS 21.1 KB（多了捏脸那页的样式 0.2 KB），都在预算里。本地 figure_check 66 条全过。
 
 - 登录、个人页、照片或 AI 头像、好友、聊天、战绩、后台，都有。11 月 13 日本地四个检查脚本全过（admin 40 条、account 24 条、perk 10 条、stage 10 条）。
 - 代发信：本地从替身 Worker 经 Service Binding 调过，61 封里 60 封到了假 Resend，第 61 封回 full；拒绝的、被拉黑的、Resend 报错的都对；验证码邮件改走 `deliver()` 以后也发了一遍。线上还没有谁调过它。
@@ -84,7 +91,6 @@
 
 1. 存进账号：现在只存在手机上（`figure.look`）。小人进游戏前，账号里加一个字段存这几十个数字（`look.ts` 的 `Look`），别人的手机才看得到你的样子。
 2. 给 DJ、跳舞、戏精各自的对话一个「小人」组件去接：`FigureStage.ts` 的 `mountStage(el, { look, first, view, … })`，有 `play`、`setLook`、`view`。
-3. 动作补回来：借来的 17 个拿掉后剩 10 个。常用的挥手、鼓掌、点赞、鞠躬、欢呼、摊手、思考、跳舞可以照 `moves.mjs` 的写法补；戏精用的晕倒也是。
 4. 张嘴的表情要牙齿和舌头（MakeHuman 的素材里有，没放进来，所以现在的表情都不张嘴）。眼睛颜色、衣服颜色、身材（高矮胖瘦）想要的话，也是加几根滑杆的事（`README.md`「加一根捏脸的滑杆」）。
 5. 头发是从贴图里挖出来的，手机上靠 alphaToCoverage 把边抹平，近看还有点硬；爆炸头那款文件 237 KB，最大，可以再压。
 
@@ -105,6 +111,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-14 账号：3D 小人的动作在页面上现解，手和胳膊不穿身体（CI 查）；补 11 个常用动作，一共 21 个；衣服肩膀不裂、皮肤不从袖子里戳出来
 - 2026-11-14 账号：3D 小人换成 MakeHuman 的写实人模，能捏脸（男女、30 根滑杆、肤色、11 款发型和发色，存在手机上），会眨眼、有表情；借来的 RPM 人模和动作拿掉 (#539)
 - 2026-11-14 账号：3D 小人自己编的 9 个动作（摆酷、照相、睡觉、挥刀、干杯、比心、打碟、大哭、抱拳），道具和特效，模型 gzip 后 331 KB；做模型的工具进仓库（site/scripts/figure/） (#522)
 - 2026-11-13 账号：3D 小人的小样（/me/figure：替身人模、17 个动作、拖动转圈、大小和帧率；figure_check.py） (#503)
@@ -137,3 +144,4 @@
 - 2026-11-13 Steve 提了 3D 小人，定「先做小样」。找免费人模和动作：three.js 示例里的 Xbot、Soldier、Michelle、readyplayer.me 都能用，Ready Player Me 在 GitHub 的动作库（200 多段真人动捕、GLB 不走 LFS）许可只配 RPM 的人模，于是用它自带的样例男模（`Masculine_TPose.glb`）配它的动作。动作是看着每段的预览和自己渲染的分镜认出来的，17 段挑好后合进一个文件（gltf-transform：把动作的通道按骨头名搬到人模上、重采样、量化、meshopt；衣服上的 RPM 标志用 OpenCV 补掉）。页面照打碟 Coach3D 的做法：three.js 懒加载，没图形芯片就说明，不下载引擎。第一版相机把 T 字形姿势的臂展当宽度，人太小，改成按身高算。本地 figure_check 29 条、account_check 32 条全过。
 - 2026-11-14 Steve 回「可以」。做了自己编动作的这一套：`rig.mjs`（按关键姿势解骨头）、`anim.mjs`（插值、缓动、采样）、`moves.mjs`（9 个动作 10 段）、`bake.mjs`（写进 glTF，加三个挂道具的空节点）、`build.mjs`（从 RPM 动作库的原文件一路做到 `figure.glb.gz`，两次做出来的文件一样）。页面那边把 three.js 的部分搬进 `FigureStage.ts`，加了道具、Zzz 爱心音符眼泪、自拍闪光、刀光，睡觉先播一次躺下再循环。每个动作都在页面里停帧看过正面、侧面、过渡，也实时播过。发现模型里一半是动作的 JSON（309 KB），而 Cloudflare 不压 .glb，就改成 gzip 后上传。本地 figure_check 44 条全过，生产构建、首页预算、路由和 tokens 测试都过。
 - 2026-11-14 Steve 回「1」，走自己建捏脸。读了 MakeHuman 的格式（base.obj、target、mhclo 贴合、mhmat、表情单元、MPFB2 的 Mixamo 骨架和权重），自己写了转换（`human.mjs`：塑形、贴合衣服头发眼睛眉毛睫毛、删掉衣服下的身体、30 根滑杆和 9 个表情做成 morph target、骨架、权重、贴图去标志和做成可上色的灰色）。动作照旧在 `rig.mjs` 里解：手肘的转轴改成从静止的 A 字姿势算，胸、头、髋三个坐标系按身体挪（不然男的抱胳膊会插进胸口），脚踝高度按这个身体。页面那边：滑杆的 morph 在 CPU 上混再重算法线（发现一个两字节的属性在文件里被补成四字节，按数组直接读会错位，满身条纹，改成一个个读），头发从单独的文件挂到同一副骨架上，镜头三档（全身、脸、头和肩），表情和眨眼，换身体时原地换人。修了一个老问题：换到照相时会凭空闪一下（上一个动作的时间没清）。figure_check 改写，66 条全过，生产构建、首页预算、tsc、tokens、routes 都过。
+- 2026-11-14 Steve 要动作更真实（睡觉时手穿过身体）、补常用动作、存进账号、衣服或眼睛颜色、高矮胖瘦。先做动作：把解姿势的代码从做模型的脚本搬到页面上（`pose/`），加了身体的形状和不穿身体的解法，查出原来的问题有三处（抱胳膊插进胸口 5 厘米、睡觉下面那只手穿过胸口、挥刀举起时左前臂扫过胸口），都重编了；衣服权重和袖子下的皮肤顺手修了。补了 11 个动作，每个都停帧看过正面和侧面。新加 `tests/figure.test.ts`（CI 里跑，两秒）。模型男女重做，动作不在里面，各小了 40 KB。figure_check 全过。

@@ -6,10 +6,13 @@ This machine has no graphics chip (its browser draws WebGL in software), so the 
 take any WebGL (window.__figAnyGl, dev builds only) and the figure comes on as it would on a phone.
 
 What it checks: untold, the page explains that this device can't draw 3D and never downloads
-three.js; told, the man's figure loads (gzipped) and draws (frames counted); the 10 moves are chips
-of at least 48 px, each playing its own clip; they hold their props (sword, shades, phone, beer,
-headphones), the selfie flashes, sleep lies down before its Zzz float up with its eyes shut, crying
-sheds tears with a sad face, the heart smiles, standing blinks; dragging sideways turns it. Then
+three.js; told, the man's figure loads (gzipped) and draws (frames counted); the 21 moves are chips
+of at least 48 px, each playing its own clip (solved on the page: the file has none); they hold
+their props (sword, shades, phone, beer, headphones), the selfie flashes, sleep lies down before its
+Zzz float up with its eyes shut, fainting falls first and then lies with its eyes shut, crying
+sheds tears with a sad face, the heart smiles, dancing sends notes up, the thumbs-up winks, standing
+blinks; dragging sideways turns it. (That the moves keep their arms out of the body is
+tests/figure.test.ts, in CI.) Then
 捏脸: the camera comes up to the face, the sliders (face 11, eyes 8, nose 6, mouth 5, at least
 44 px) reshape it, the skin and hair colours tint it, a hairstyle comes from its own file, a buzz
 cut has none, the woman's body swaps in, random and reset work, and all of it is still there after
@@ -78,7 +81,7 @@ def main():
         check(pg.evaluate("window.__figIs") == "software", f"the figure reports 'software' ({pg.evaluate('window.__figIs')})")
         pg.wait_for_timeout(800)
         check(not any("three" in u or ".glb" in u for u in pg._js), "three.js and the model were not downloaded")
-        check(pg.locator(".fig-moves .chip").count() == 10 and pg.locator(".fig-moves .chip:not(:disabled)").count() == 0, "the 10 moves are shown but off")
+        check(pg.locator(".fig-moves .chip").count() == 21 and pg.locator(".fig-moves .chip:not(:disabled)").count() == 0, "the 21 moves are shown but off")
         pg.screenshot(path=f"{OUT}/figure-no-gl.png")
         ctx.close()
 
@@ -107,7 +110,7 @@ def main():
 
         # the moves: chips, big enough, each playing its own clip
         chips = pg.locator(".fig-moves .chip")
-        check(chips.count() == 10, f"10 moves ({chips.count()})")
+        check(chips.count() == 21, f"21 moves ({chips.count()})")
         check(chips.all_inner_texts()[:5] == ["站着", "摆酷", "照相", "睡觉", "挥刀"], "站着, then Steve's four: 摆酷 照相 睡觉 挥刀")
         boxes = chips.evaluate_all("els => els.map(e => e.getBoundingClientRect().height)")
         check(all(h >= 48 for h in boxes), f"every move is at least 48 px tall (smallest {min(boxes):.0f})")
@@ -123,10 +126,10 @@ def main():
             pg.wait_for_timeout(120)
             played.append((label, pg.evaluate("window.__figMove")))
         ids = [m for _, m in played]
-        check(len(set(ids)) == 10, f"each chip plays a clip of its own ({len(set(ids))} different)")
-        check(pg.locator(".fig-moves .chip[aria-pressed='true']").inner_text() == "抱拳", "the last chip pressed is the pressed one")
+        check(len(set(ids)) == 21, f"each chip plays a clip of its own ({len(set(ids))} different)")
+        check(pg.locator(".fig-moves .chip[aria-pressed='true']").inner_text() == "思考", "the last chip pressed is the pressed one")
         clips = [c[0] for c in pg.evaluate("window.__figClips")]
-        check(set(ids) <= set(clips) and "sleep_in" in clips, f"the file has every move's clip ({len(clips)} clips)")
+        check(set(ids) <= set(clips) and "sleep_in" in clips and "faint_in" in clips, f"every move has its clip ({len(clips)} clips)")
 
         # our moves: what they hold, and what comes off them
         def tap(label, wait=700):
@@ -162,6 +165,19 @@ def main():
         pg.wait_for_function("window.__figFace.browsSad > 0.8 && window.__figFace.sadMouth > 0.7 && window.__figFace.blinkL < 0.5", timeout=3000)
         check(True, "大哭 pulls a sad face, its eyes open again")
         pg.screenshot(path=f"{OUT}/figure-cry.png")
+        tap("晕倒", 300)
+        check(pg.evaluate("window.__figLooping") is False, "晕倒 falls first (its intro plays once)")
+        pg.wait_for_function("window.__figLooping === true", timeout=8000)
+        pg.wait_for_function("window.__figFace.blinkL > 0.9 && window.__figFace.blinkR > 0.9", timeout=3000)
+        check(True, "then it lies there, its eyes shut")
+        pg.screenshot(path=f"{OUT}/figure-faint.png")
+        tap("跳舞", 0)
+        pg.wait_for_function("window.__figFloaters > 0", timeout=4000)
+        check(True, "跳舞 sends notes up")
+        tap("点赞", 0)
+        pg.wait_for_function("window.__figFace.blinkR > 0.9 && window.__figFace.blinkL < 0.5", timeout=3000)
+        check(True, "点赞 winks")
+        pg.screenshot(path=f"{OUT}/figure-thumbs.png")
         tap("抱拳")
         check(pg.evaluate("window.__figMove") == "fist" and pg.evaluate("window.__figHeld") == [], "抱拳 plays, with empty hands")
 

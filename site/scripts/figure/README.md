@@ -1,7 +1,7 @@
-# 3D 小人：做模型和编动作
+# 3D 小人：做模型，编动作
 
 做出 `site/public/models/figure/` 里的文件，/me/figure 用的 3D 小人（账号那个对话管，档案
-`docs/briefs/accounts.md`）。只在改动作、换衣服发型、加滑杆时跑，CI 不跑。
+`docs/briefs/accounts.md`）。只在换衣服发型、加滑杆时跑，CI 不跑。动作不在文件里：页面拿到身体后现解（下面「编一个动作」）。
 
 ## 里面是什么
 
@@ -17,13 +17,10 @@
   页面在 CPU 上把它们混进形状，再重算法线（`_WELD` 属性说哪些顶点本是同一个点，只是贴图上分开了）
 - 表情：MakeHuman 的表情单元（眨左眼、眨右眼、眯眼、笑、嘴角下垂、嘟嘴、挑眉、八字眉、皱眉）做成 morph target `X_…`，
   页面每帧按动作调（`moves.ts` 的 `face`），还会眨眼
-- 动作：`moves.mjs` 的 11 段（站着、摆酷、照相、睡觉和它先躺下的一段、挥刀、干杯、比心、打碟、大哭、抱拳），`rig.mjs` 解到骨头上。
-  人按眼睛的高度缩放到第一个替身的大小（眼睛离地 1.7257 米），动作里写的位置照用；胸、头、髋三个坐标系按这个身体挪一挪
-  （`frames`，记在文件场景的 extras 里），脚踝的高度也按这个身体
-- 道具的挂点：两只手心里的 `Grip_R`、`Grip_L`，头上的 `Head_Anchor`（`bake.mjs`）。道具本身和冒出来的东西是页面上用代码画的：
-  `site/src/account/figure/props.ts`、`fx.ts`
-- 压缩：皮肤贴图 1024 px、衣服鞋子头发 512、眼睛眉毛睫毛 256，都是 WebP；关键帧去重，顶点量化，meshopt，最后 gzip
-  （Cloudflare 不压 .glb）。男的主文件 562 KB，女的 546 KB，每款头发 70 到 240 KB。同样的输入做出来的文件一样
+- 人按眼睛的高度缩放到动作写的那个大小（眼睛离地 1.7257 米），男女一样高
+- 动作、道具的挂点不在文件里，都在页面上做：见下面「编一个动作」
+- 压缩：皮肤贴图 1024 px、衣服鞋子头发 512、眼睛眉毛睫毛 256，都是 WebP；顶点量化，meshopt，最后 gzip
+  （Cloudflare 不压 .glb）。男的主文件 524 KB，女的 506 KB，每款头发 70 到 240 KB。同样的输入做出来的文件一样
 
 ## 做一次
 
@@ -45,18 +42,31 @@ node build.mjs /tmp/mpfb2/src/mpfb/data /tmp/mh-assets --only male --plain /tmp/
 
 ## 编一个动作
 
-1. 在 `moves.mjs` 里写：`{ name, dur, fps, keys: [{ t, pose, ease }], add }`。`pose` 只写和站着（`BASE`）不一样的地方：
+动作都在 `site/src/account/figure/pose/` 里，页面拿到身体之后现解（`rig.ts`），所以换了身体、以后加了高矮胖瘦，动作都跟着这个身体走：
+
+- `keys.ts`：21 个动作的关键姿势；`anim.ts`：姿势之间插值、缓动、采样成 three.js 的片段；`rig.ts`：把一个姿势解到骨头上
+- 解的时候手和胳膊不穿进身体：身体按骨头分成几段椭圆柱（髋、肚子、肋、胸、脖子、大腿小腿、上臂前臂）和一个椭球的头，
+  从这个身体的皮肤和衣服上的点量出来（`fitBody`）。手、手腕、前臂、手肘、上臂各放一个小球，碰到了就先把手肘绕着肩到手腕的轴转开，
+  转不开再把手往外推；也不进地板
+- 道具的挂点：两只手心里的 `Grip_R`、`Grip_L`，头上的 `Head_Anchor`，页面按这个身体的手放（`FigureStage.ts` 的 `anchor`）。
+  道具本身和冒出来的东西是代码画的：`props.ts`、`fx.ts`
+
+加一个动作：
+
+1. 在 `keys.ts` 的 `CLIPS` 里写：`{ name, dur, fps, keys: [{ t, pose, ease }], add }`。`pose` 只写和站着（`BASE`）不一样的地方：
    - `hips`：`pos` 挪多少米，`yaw`（向它的左转 +）、`pitch`（前倾 +）、`roll`（向它的右倒 +），度
    - `spine`：`bend` 前弯、`side` 向左弯、`twist` 向左扭；`head`：`nod` 低头、`turn`、`tilt`，或 `look` 看一个点
    - `L` / `R`（左右手）：`hand` 手腕放哪，或 `grip` 手心握的那一点放哪；`pole` 手肘朝哪；`orient` 手的朝向
-     （`fingers` + `palm`，或 `thumb` + `palm`：握刀时 `thumb` 就是刀的方向）；`fingers` 手型（`rig.mjs` 的 `HANDS`：
-     relaxed、open、flat、fist、grip、cup、point、v、thumbsup、phone）；`clav` 耸肩
+     （`fingers` + `palm`，或 `thumb` + `palm`：握刀时 `thumb` 就是刀的方向）；`fingers` 手型（`rig.ts` 的 `HANDS`：
+     relaxed、open、flat、fist、grip、cup、point、v、thumbsup、phone、spread、salute）；`clav` 耸肩
    - `legL` / `legR`：`foot` 脚踝放哪（不写就站在原地，臀部一低膝盖自己弯），`pole` 膝盖朝哪，`footDir`、`footYaw`
-   - 点和方向都带坐标系：`char`（地面上，x 是它的左边、y 向上、z 向前，米）、`hips`、`chest`、`head`（跟着那块身体走）
+   - 点和方向都带坐标系：`ch`（地面上，x 是它的左边、y 向上、z 向前，米）、`hp`（髋）、`cs`（胸）、`hd`（头），跟着那块身体走
    - `ease`：到这一帧怎么过渡（inout、snap 快出手、out、in、linear）；`add(t, pose)` 叠一点呼吸、抽泣
-2. 在页面的 `site/src/account/figure/moves.ts` 里加一行：`id` 就是这里的 `name`，中英文名，道具 `props`，
-   冒出来的 `fx`，照相的 `flash`，刀光 `trail`，先播一次的 `intro`，表情 `face`（`introFace` 是开场那段的）
-3. `node build.mjs …` 重做
+2. 在 `moves.ts` 里加一行：`id` 就是这里的 `name`，中英文名，道具 `props`，冒出来的 `fx`，照相的 `flash`，刀光 `trail`，
+   先播一次的 `intro`，表情 `face`（`introFace` 是开场那段的）
+3. `npx tsx tests/figure.test.ts`（在 `site` 里）：每个动作在男女两个身体上解一遍，手和胳膊进身体超过 2.5 厘米就不过。
+   不过的话，多半是两只手要走的路线穿过了身子：加一个中间的关键姿势让手从前面绕过去，或者把手肘的 `pole` 往外摆
+4. 用下面的 `look.py` 停帧看正面、侧面、过渡，不用重做模型
 
 ## 加一根捏脸的滑杆
 
@@ -72,6 +82,6 @@ python3 look.py /tmp/a.png 'sword:0,0.85,1.12,1.65' 'sleep:0.8,1.8,2.6::intro' '
 python3 play.py /tmp/b.png 'photo:0.5,1.6,2.2' 'cry:0.5,1'
 ```
 
-`look.py` 把动作停在某一秒拍下来（可以转个角度 `:35`、看开场 `:intro`、拉近镜头），`play.py` 点了按钮实时拍，
+`look.py` 把动作停在某一秒拍下来（可以转个角度 `:35`、看开场 `:intro`、拉近镜头，或者对准一根骨头 `@Head,0,0.02,0.9`），`play.py` 点了按钮实时拍，
 看道具、Zzz、眼泪、闪光、刀光。这台机器没有图形芯片，实时只有十几帧，手机上是 60。
 `python3 ../figure_check.py` 是正式的检查。

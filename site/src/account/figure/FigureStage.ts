@@ -1,10 +1,14 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { restNodes, rigFor, type RestNode } from "./body";
 import { Floaters, Trail } from "./fx";
 import { HAIR_COLORS, SKINS, shapeWeights, type HairId, type Look, type Sex } from "./look";
 import { ANCHOR, disposeProp, makeProp } from "./props";
-import { figureFile, hairFile, moveOf, type Expr, type Move, type PropId } from "./moves";
+import { MOVES, figureFile, hairFile, moveOf, type Expr, type Move, type PropId } from "./moves";
+import { baking, toClip, type Baked } from "./pose/anim";
+import { BASE, CLIPS } from "./pose/keys";
+import type { Rig } from "./pose/rig";
 
 export type StageStats = { kb: number; tris: number; fps: number };
 /** the whole figure, its face up close (for sculpting), or its head and shoulders (for hair) */
@@ -200,12 +204,17 @@ type Figure = {
   root: THREE.Object3D;
   kb: number;
   mixer: THREE.AnimationMixer;
+  /** each move's clip, solved for this body: a few milliseconds a frame from the start, or at once when played */
   actions: Map<string, THREE.AnimationAction>;
-  clips: [string, number][];
+  solving: Map<string, Generator<void, Baked>>;
+  /** the clips still to solve, in the order of the moves on the page */
+  toSolve: string[];
   bones: Map<string, THREE.Object3D>;
   meshes: THREE.SkinnedMesh[];
   shaped: Shaped[];
   hairs: Map<HairId, THREE.SkinnedMesh>;
+  nodes: RestNode[];
+  rig: Rig;
 };
 
 const loader = new GLTFLoader();
@@ -228,18 +237,22 @@ async function loadFigure(sex: Sex): Promise<Figure> {
   const { bytes, kb } = await fetchModel(url);
   const gltf = await loader.parseAsync(bytes, url.slice(0, url.lastIndexOf("/") + 1));
   const root = gltf.scene;
-  const mixer = new THREE.AnimationMixer(root);
+  // the moves aren't in the file: they're solved here, for this body (pose/)
+  const nodes = restNodes(root);
   const fig: Figure = {
     sex,
     root,
     kb,
-    mixer,
-    actions: new Map(gltf.animations.map((a) => [a.name, mixer.clipAction(a)])),
-    clips: gltf.animations.map((c) => [c.name, c.duration]),
+    mixer: new THREE.AnimationMixer(root),
+    actions: new Map(),
+    solving: new Map(),
+    toSolve: [...new Set((MOVES as readonly Move[]).flatMap((m) => [m.intro, m.clip ?? m.id].filter((x): x is string => !!x)))],
     bones: new Map(),
     meshes: [],
     shaped: [],
     hairs: new Map(),
+    nodes,
+    rig: null as unknown as Rig,
   };
   const skinned: THREE.SkinnedMesh[] = [];
   root.traverse((x) => {
@@ -251,7 +264,101 @@ async function loadFigure(sex: Sex): Promise<Figure> {
     const hair = m.userData.hair as HairId | undefined;
     if (hair) fig.hairs.set(hair, m);
   }
+  fig.rig = rigFor(nodes, fig.meshes.filter((m) => m.name === "Body" || m.name === "Clothes"));
+  anchor(fig);
   return fig;
+}
+
+/**
+ * Empty nodes for props to hang on: Grip_R and Grip_L in each palm (x along the fingers, y toward
+ * the thumb's side), Head_Anchor at the head (the figure's own axes). Placed from the solver's
+ * idea of each hand, and moved when the body changes.
+ */
+function anchor(fig: Figure) {
+  const put = (name: string, bone: string, at: THREE.Vector3, q: THREE.Quaternion) => {
+    const b = fig.bones.get(bone);
+    const rb = fig.rig.bones.get(bone);
+    if (!b || !rb) return;
+    let o = fig.bones.get(name);
+    if (!o) {
+      o = new THREE.Object3D();
+      o.name = name;
+      b.add(o);
+      fig.bones.set(name, o);
+    }
+    // the bones turn nothing at rest: an offset in the world is an offset in the bone
+    const inv = rb.Wr.clone().invert();
+    o.position.copy(at.clone().sub(rb.Pr).applyQuaternion(inv));
+    o.quaternion.copy(inv.multiply(q));
+  };
+  for (const side of ["Left", "Right"]) {
+    const h = fig.rig.hand[side];
+    const hb = fig.rig.bones.get(`${side}Hand`);
+    if (!h || !hb) continue;
+    const x = h.fingers.clone();
+    const y = h.thumbSide.clone();
+    const z = x.clone().cross(y);
+    put(`Grip_${side[0]}`, `${side}Hand`, hb.Pr.clone().add(h.grip), new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z)));
+  }
+  const head = fig.rig.bones.get("Head");
+  if (head) put("Head_Anchor", "Head", head.Pr.clone(), new THREE.Quaternion());
+}
+
+/** a clip's solving, started if it hasn't been */
+function solvingOf(fig: Figure, name: string) {
+  let g = fig.solving.get(name);
+  if (!g) {
+    const def = CLIPS.find((c) => c.name === name);
+    if (!def) return null;
+    g = baking(fig.rig, def, BASE);
+    fig.solving.set(name, g);
+  }
+  return g;
+}
+
+/** a move's clip for this body: solved now if it isn't yet */
+function actionFor(fig: Figure, name: string): THREE.AnimationAction | null {
+  const a = fig.actions.get(name);
+  if (a) return a;
+  const g = solvingOf(fig, name);
+  if (!g) return null;
+  for (;;) {
+    const r = g.next();
+    if (r.done) return done(fig, name, r.value);
+  }
+}
+
+function done(fig: Figure, name: string, b: Baked) {
+  const a = fig.mixer.clipAction(toClip(b));
+  fig.actions.set(name, a);
+  fig.solving.delete(name);
+  fig.toSolve = fig.toSolve.filter((n) => n !== name);
+  return a;
+}
+
+/** the next clips solved, for up to `ms` milliseconds (so a move starts at once when picked) */
+function solveSome(fig: Figure, ms: number) {
+  const until = performance.now() + ms;
+  while (fig.toSolve.length && performance.now() < until) {
+    const name = fig.toSolve[0];
+    if (fig.actions.has(name)) {
+      fig.toSolve.shift();
+      continue;
+    }
+    const g = solvingOf(fig, name);
+    if (!g) {
+      fig.toSolve.shift();
+      continue;
+    }
+    for (;;) {
+      const r = g.next();
+      if (r.done) {
+        done(fig, name, r.value);
+        break;
+      }
+      if (performance.now() >= until) return;
+    }
+  }
 }
 
 function disposeFigure(fig: Figure) {
@@ -505,9 +612,9 @@ export async function mountStage(
   const play = (id: string) => {
     const move = moveOf(id);
     if (cur?.move === move) return;
-    const loop = fig.actions.get(move.clip ?? move.id) ?? fig.actions.get("stand");
+    const loop = actionFor(fig, move.clip ?? move.id) ?? actionFor(fig, "stand");
     if (!loop) return;
-    const intro = move.intro ? fig.actions.get(move.intro) ?? null : null;
+    const intro = move.intro ? actionFor(fig, move.intro) : null;
     for (const a of fig.actions.values()) if (a.isRunning() && a.getEffectiveWeight() > 0) a.fadeOut(FADE);
     const first = intro ?? loop;
     first.reset();
@@ -721,7 +828,7 @@ export async function mountStage(
       paused = true;
       const m = moveOf(id);
       fig.mixer.stopAllAction();
-      const a = fig.actions.get(intro && m.intro ? m.intro : m.clip ?? m.id);
+      const a = actionFor(fig, intro && m.intro ? m.intro : m.clip ?? m.id);
       if (!a) return false;
       a.reset().setEffectiveWeight(1).play();
       a.time = t;
@@ -750,6 +857,16 @@ export async function mountStage(
         camera.lookAt(tx, ty, tz);
       }
       renderer.render(scene, camera);
+    };
+    // a mesh shown or hidden (to see what's under the clothes)
+    win.__figShow = (name: string, on: boolean) => {
+      for (const m of fig.meshes) if (m.name === name) m.visible = on;
+      renderer.render(scene, camera);
+    };
+    // where a bone is in the world (for the checks' cameras)
+    win.__figBone = (name: string) => {
+      const b = bone(name);
+      return b ? b.getWorldPosition(new THREE.Vector3()).toArray().map((x) => Math.round(x * 1000) / 1000) : null;
     };
     win.__figResume = () => {
       paused = false;
@@ -785,9 +902,12 @@ export async function mountStage(
     placeCamera(dt);
     effects(dt);
     renderer.render(scene, camera);
+    // the moves not picked yet, solved a little each frame
+    solveSome(fig, 3);
     if (import.meta.env.DEV) {
       const win = window as unknown as Record<string, unknown>;
       win.__figTurn = turn.rotation.y;
+      win.__figToSolve = fig.toSolve.length;
       win.__figHeld = [...held].filter(([, x]) => !x.going && x.k === 1).map(([id]) => id);
       win.__figFloaters = floaters.count;
       win.__figLooping = cur?.looping ?? false;
@@ -796,7 +916,8 @@ export async function mountStage(
       win.__figFace = Object.fromEntries([...face].map(([k, v]) => [k, Math.round(v * 100) / 100]));
       win.__figView = viewNow;
       win.__figCamZ = Math.round(camera.position.z * 1000) / 1000;
-      win.__figClips = fig.clips;
+      win.__figClips = CLIPS.map((c) => [c.name, c.dur]);
+      win.__figInside = fig.rig.inside;
       const body = fig.meshes.find((m) => m.name === "Body");
       win.__figSkin = body ? (body.material as THREE.MeshStandardMaterial).color.getHexString() : null;
       // a number that changes when the sliders reshape the face
