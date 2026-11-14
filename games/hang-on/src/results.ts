@@ -4,7 +4,7 @@
  * 手柄页也用，只引 i18n。
  */
 import { goalText } from './goal-text';
-import { tr } from './i18n';
+import { getLang, tr } from './i18n';
 import type { Results } from './net/protocol';
 import type { GameMode, Rules } from './physics/world';
 
@@ -83,6 +83,7 @@ export function resultsTitle(r: Results, name: (i: number) => string): string {
     if (r.teams && w.length) return tr(`${teamName(r.teams[w[0] as number] ?? 0)}赢了！`, `${teamName(r.teams[w[0] as number] ?? 0)} wins!`);
     return w.length ? tr(`${name(w[0] as number)} 第一！`, `${name(w[0] as number)} wins!`) : tr('没人到终点', 'Nobody made it');
   }
+  if (mode === 'gold') return w.length ? tr(`${name(w[0] as number)} 抢到了金元宝！`, `${name(w[0] as number)} takes the gold!`) : tr('没人抢到', 'Nobody got the gold');
   if (mode === 'last') {
     if (w.length === 1) return tr(`${name(w[0] as number)} 撑到了最后！`, `${name(w[0] as number)} held on longest!`);
     if (w.length > 1) return tr('平局！一起掉下去了', 'A tie! They dropped together');
@@ -105,7 +106,9 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
         : ''
       : mode === 'race'
         ? tr('这一场用了多久', 'How long the race took')
-        : tr('撑了多久', 'How long it lasted');
+        : mode === 'gold'
+          ? tr('这一场一共用了多久', 'How long the whole match took')
+          : tr('撑了多久', 'How long it lasted');
   dom.deaths.innerHTML = '';
   const row = (i: number, text: string, tag?: string): void => {
     const li = document.createElement('li');
@@ -127,7 +130,15 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
     }
     dom.deaths.append(li);
   };
-  if (mode === 'race' || mode === 'last') {
+  if (mode === 'gold') {
+    // 抢金元宝：按赢了几局排，赢了的带「金元宝」
+    const rounds = r.rounds ?? [];
+    const winners = r.winners ?? [];
+    rounds
+      .map((n, i) => [i, n] as const)
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([i, n]) => row(i, tr(`赢了 ${n} 局 · 摔了 ${r.deaths[i] ?? 0} 次`, `${n} ${n === 1 ? 'round' : 'rounds'} · ${r.deaths[i] ?? 0} falls`), winners.includes(i) ? tr('金元宝', 'Gold') : undefined));
+  } else if (mode === 'race' || mode === 'last') {
     const winners = r.winners ?? [];
     (r.order ?? []).forEach(([i, t], k) => {
       const team = r.teams ? ` · ${teamName(r.teams[i] ?? 0)}` : '';
@@ -158,7 +169,7 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
     dom.betrayList.append(li);
   }
   // 「没人松手害人，好队友」只在大家一队的时候说
-  dom.betrayNone.hidden = r.betrayals.length > 0 || mode === 'last' || (mode === 'race' && !r.teams);
+  dom.betrayNone.hidden = r.betrayals.length > 0 || mode === 'last' || mode === 'gold' || (mode === 'race' && !r.teams);
   renderGoals(dom, r);
 }
 
@@ -195,4 +206,39 @@ function renderGoals(dom: ResultsDom, r: Results): void {
     li.textContent = tr(`🧧 这一局拿到 ${e.got} / ${e.of} 个红包${fresh}，一共攒了 ${e.total} 个`, `🧧 ${e.got} of ${e.of} red envelopes this run${fresh}. ${e.total} saved up in all`);
     dom.goalList.append(li);
   }
+}
+
+/**
+ * 抢金元宝（A9d）的比分：「第 2 局」，后面每个人一个颜色点、名字、赢了几局。名字长的截短，
+ * 超过 4 个人只写颜色点和局数（横着的小手机也放得下）；读屏念完整的一句。没变就不重画。
+ */
+export function renderGoldScore(el: HTMLElement, round: number, wins: readonly number[], name: (i: number) => string, color: (i: number) => string): void {
+  const names = wins.map((_, i) => name(i));
+  const key = JSON.stringify([getLang(), round, wins, names, wins.map((_, i) => color(i))]);
+  if (el.dataset.key === key) return;
+  el.dataset.key = key;
+  el.classList.add('gold-score');
+  el.setAttribute('aria-label', tr(`第 ${round} 局：`, `Round ${round}: `) + wins.map((n, i) => `${names[i]} ${n}`).join(tr('，', ', ')));
+  const head = document.createElement('span');
+  head.textContent = tr(`第 ${round} 局`, `Round ${round}`);
+  const parts: HTMLElement[] = [head];
+  wins.forEach((n, i) => {
+    const s = document.createElement('span');
+    s.className = 'gs';
+    s.title = `${names[i]} ${n}`;
+    const dot = document.createElement('i');
+    dot.style.background = color(i);
+    s.append(dot);
+    if (wins.length <= 4) {
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = names[i] ?? '';
+      s.append(nm);
+    }
+    const b = document.createElement('b');
+    b.textContent = String(n);
+    s.append(b);
+    parts.push(s);
+  });
+  el.replaceChildren(...parts);
 }

@@ -26,7 +26,7 @@ const query = new URLSearchParams(location.search);
 const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
 const stage = await Stage.create(canvas, { plates: PLATES, compact: query.get('phone') === '1' });
 let nPlayers = Math.max(1, Math.min(6, Number(query.get('players')) || 1));
-const mode = (['climb', 'team', 'race', 'last'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
+const mode = (['climb', 'team', 'race', 'last', 'gold'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
 // ?helper=1：卡太久来外卖无人机（A9c）；?helpAfter=5 之类改等多久（试的时候不用干等两分钟）
 const rules = (): Rules =>
   mode === 'race' && query.get('teams') === '1'

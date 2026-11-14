@@ -428,7 +428,7 @@ function renderMenu(): void {
   const names = m.names ?? [];
   if (results && m.results) renderResults(menuDom, m.results, (i) => names[i]?.name || `P${i + 1}`, (i) => names[i]?.color ?? '#fff', m.par);
   // 下一关（坐不住是换个场地）、再来一次（比谁先、坐不住是再来一局）、回大厅：电视局的菜单和手机局的结算页都有
-  const nextText = m.mode === 'last' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  const nextText = m.mode === 'last' || m.mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   const againText = m.mode === 'climb' || m.mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
   for (const id of ['mNextLevel', 'vNextLevel']) {
     $(id).hidden = !m.hasNext;
@@ -517,7 +517,7 @@ function status(s: PadStatus): void {
   }
   document.documentElement.style.setProperty('--mine', color);
   // 没有队友可拉的玩法（比谁先各跑各的、坐不住）不出「召唤」键
-  summonBtn.hidden = s.mode === 'last' || (s.mode === 'race' && s.team === undefined);
+  summonBtn.hidden = s.mode === 'last' || s.mode === 'gold' || (s.mode === 'race' && s.team === undefined);
   summonBtn.disabled = !(s.phase === 'playing' && (s.teamDead ?? 0) > 0);
   // 道具键：这个玩法有道具才出；冷却着、正在起作用的时候按不了
   const use = $<HTMLButtonElement>('itemUse');
