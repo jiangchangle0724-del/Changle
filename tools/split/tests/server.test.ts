@@ -73,10 +73,13 @@ const expense = (id: string, amount = 3000): Sent => ({
   at: Date.now(),
   change: { do: "expense", expense: { kind: "expense", id, at: Date.now(), payer: "s", amount, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0 } },
 });
+const as = (session: string) => ({ authorization: `Bearer ${session}` });
+/** A sign-in of an account of its own (the stand-in rooms server takes any "test-account-…": tests/accounts.ts), so no test runs out of an account's day. */
+const someone = () => as(`test-account-${randomUUID().replaceAll("-", "").slice(0, 12)}`);
 async function make() {
   const id = newId();
   const key = newKey();
-  const made = await call<Snapshot>("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three });
+  const made = await call<Snapshot>("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, someone());
   return { id, key, made };
 }
 
@@ -92,7 +95,7 @@ test("making a ledger, and who may open it", async () => {
   assert.deepEqual(await call("GET", `/ledgers/${id}?key=${key}`, null), { status: 403, data: { error: "key" } }, "the key is never read from the address");
   assert.deepEqual(await call("GET", `/ledgers/${newId()}`, key), { status: 404, data: { error: "gone" } });
   assert.deepEqual(await call("POST", "/ledgers", null, { id: newId(), name: "x", currency: "CAD", members: three }), { status: 403, data: { error: "key" } });
-  assert.deepEqual(await call("POST", "/ledgers", key, { id: newId(), name: "x", currency: "XXX", members: three }), { status: 400, data: { error: "bad" } });
+  assert.deepEqual(await call("POST", "/ledgers", key, { id: newId(), name: "x", currency: "XXX", members: three }, someone()), { status: 400, data: { error: "bad" } });
   assert.deepEqual(await call("POST", "/ledgers", key, "{not json"), { status: 400, data: { error: "bad" } });
 });
 
@@ -166,8 +169,8 @@ test("the owner's two: the lock, and a new key for the invitation", async () => 
   const asOwner = { [OWNER_HEADER]: owner };
   const ledger = { id, name: "周末", currency: "CAD", members: three };
   assert.deepEqual(await call("POST", "/ledgers", newKey(), { ...ledger, id: newId() }, { [OWNER_HEADER]: "short" }), { status: 400, data: { error: "bad" } }, "an owner's key that isn't one makes no ledger");
-  assert.deepEqual(await call("POST", "/ledgers", key, { ...ledger, id: newId() }, { [OWNER_HEADER]: key }), { status: 400, data: { error: "bad" } }, "nor does one that is the invitation's key");
-  assert.equal((await call("POST", "/ledgers", key, ledger, asOwner)).status, 201);
+  assert.deepEqual(await call("POST", "/ledgers", key, { ...ledger, id: newId() }, { [OWNER_HEADER]: key, ...someone() }), { status: 400, data: { error: "bad" } }, "nor does one that is the invitation's key");
+  assert.equal((await call("POST", "/ledgers", key, ledger, { ...asOwner, ...someone() })).status, 201);
 
   const heard: Push[] = [];
   const ws = new WebSocket(`ws://${HOST}/split/api/ledgers/${id}/live`, [LIVE_PROTOCOL, key]);
@@ -240,7 +243,6 @@ test("addresses that aren't there", async () => {
   assert.equal((await fetch(`${API}/ledgers/${id}/live`, { headers: { [KEY_HEADER]: key } })).status, 426, "the live address is a WebSocket's");
 });
 
-const as = (session: string) => ({ authorization: `Bearer ${session}` });
 const mineOf = async (session: string) => (await call<MyLedgers>("GET", "/me/ledgers", null, undefined, as(session))).data.ledgers;
 
 test("signed in, a ledger made is kept in the account's list, keys and all", async () => {
@@ -267,7 +269,11 @@ test("signed in, a ledger made is kept in the account's list, keys and all", asy
   for (const [session, want] of [[null, { status: 401, data: { error: "signin" } }], [SESSION.nobody, { status: 401, data: { error: "signin" } }], [SESSION.down, { status: 503, data: { error: "down" } }]] as const) {
     assert.deepEqual(await call("GET", "/me/ledgers", null, undefined, session ? as(session) : {}), want, `my ledgers asked by ${session ?? "nobody signed in"}`);
   }
-  assert.equal((await call("POST", "/ledgers", newKey(), { ...ledger, id: newId() })).status, 201, "not signed in, a ledger is still made (until the pages sign in to start one)");
+  const unsigned = { ...ledger, id: newId() };
+  const unsignedKey = newKey();
+  assert.deepEqual(await call("POST", "/ledgers", unsignedKey, unsigned), { status: 401, data: { error: "signin" } }, "not signed in, no ledger is made");
+  assert.equal((await call("GET", `/ledgers/${unsigned.id}`, unsignedKey)).status, 404, "(it wasn't)");
+  assert.equal((await call("POST", "/ledgers", key, ledger)).status, 200, "a ledger already made, asked for again with its key, needs no sign-in: nothing new is made");
 });
 
 test("a ledger joined is kept in the account's list when its key opens it", async () => {
@@ -326,7 +332,7 @@ test("the owner deletes a ledger: gone for everyone, and off the owner's list", 
   assert.deepEqual(await call("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e2")] }), { status: 404, data: { error: "gone" } });
   assert.deepEqual(await call("GET", `/ledgers/${id}?since=0`, key), { status: 404, data: { error: "gone" } }, "its record too");
   assert.deepEqual(await call("DELETE", `/ledgers/${id}`, null, undefined, { [OWNER_HEADER]: owner }), { status: 404, data: { error: "gone" } }, "deleted twice: gone");
-  assert.deepEqual(await call("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, { [OWNER_HEADER]: owner }), { status: 404, data: { error: "gone" } }, "its id isn't made into another ledger");
+  assert.deepEqual(await call("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, { [OWNER_HEADER]: owner, ...someone() }), { status: 404, data: { error: "gone" } }, "its id isn't made into another ledger");
   assert.ok(!(await mineOf(SESSION.steve)).some((m) => m.id === id), "it is off its owner's list");
   assert.deepEqual(await call("PUT", `/me/ledgers/${id}`, key, {}, as(SESSION.wang)), { status: 404, data: { error: "gone" } }, "and can't be kept again by anyone");
 });

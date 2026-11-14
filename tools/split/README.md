@@ -85,9 +85,10 @@ server whose it is, Worker to Worker over the `ROOMS` service binding (never ove
 address), and keeps the answer five minutes under the session's fingerprint. The same way as 跟一单
 (`tools/tuan/src/server/who.ts`).
 
-- Making a ledger signed in keeps it in the account's list with its keys, and counts against the
-  account's day: ten a day. (Not signed in, a ledger is still made, for the pages from before
-  accounts; that door closes once the pages sign in to start one.)
+- Making a ledger needs a sign-in (401 `signin` without one, since step 6c on 2026-11-14). It is
+  kept in the account's list with its keys, and counts against the account's day: ten a day.
+  Asking again for a ledger already made, with its key, makes nothing and needs no sign-in (a
+  phone whose answer was lost may have signed out since).
 - `GET /me/ledgers`: the account's ledgers, keys and all, the last one kept first.
 - `PUT /me/ledgers/<id>`, with the key in `x-split-key` (and the owner's key in `x-split-owner`
   when the phone has it), `{ "me": "<person's id>" }`: keep a ledger the account joined, or bring
@@ -119,7 +120,10 @@ on this machine with the test sessions in `tests/accounts.ts`, and with any sess
 rooms server is never asked from here.
 
 The site's own dev server (`npm run dev` in `site`) passes `/split/api` on to this one, so the
-pages at `localhost:5173/split` work against it. A day's allowance of ten new ledgers per network
+pages at `127.0.0.1:5173/split` work against it. (`npm run dev` tells wrangler that is where its
+requests come from: otherwise it gives every request changle.ca's address, the route's, and a
+browser's live connection, which says it comes from 127.0.0.1:5173, is turned away as coming from
+another site. Open the pages at that address, not localhost, for the live connection to work.) A day's allowance of ten new ledgers per network
 applies here too: for anything that starts more (the site's `scripts/split_check.ts` does), run it
 as `npm run dev -- --var ALLOW_TEST_SETTINGS:1`. (That lifts the network's allowance only; an
 account's stays.)

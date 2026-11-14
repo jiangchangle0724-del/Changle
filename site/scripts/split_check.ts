@@ -1497,8 +1497,11 @@ async function behave() {
       await pb.goto(link2);
       await pb.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
       await pa.locator(".split-row").nth(2).waitFor({ timeout: 8000 });
-      ok(pb.url() === `${base}/split/${id}` && (await keptBy(pb)).held[0].key === now.key && (await keptBy(pb)).held[0].waiting.length === 0 && (await onServer(pa, id, now.key)).ledger.entries.length === 3 && (await keptBy(pb)).me[id] !== undefined,
-        "the new invitation opened on it: the phone takes the new key, is still who it was, and what it kept goes up; the owner sees it");
+      // (the owner hears it over the live line the moment the server has it, which can be before the answer reaches the phone that sent it)
+      await pb.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`, undefined, { timeout: 8000 });
+      const theirsNow = await keptBy(pb);
+      const parts = { address: pb.url() === `${base}/split/${id}`, key: theirsNow.held[0].key === now.key, sent: theirsNow.held[0].waiting.length === 0, there: (await onServer(pa, id, now.key)).ledger.entries.length === 3, who: theirsNow.me[id] !== undefined };
+      ok(Object.values(parts).every(Boolean), `the new invitation opened on it: the phone takes the new key, is still who it was, and what it kept goes up; the owner sees it${Object.values(parts).every(Boolean) ? "" : ` → ${JSON.stringify(parts)}`}`);
       const c = await phone(390, 664, "zh");
       const pc = await c.newPage();
       watch(pc, true);

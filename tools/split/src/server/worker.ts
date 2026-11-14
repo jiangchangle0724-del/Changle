@@ -138,9 +138,9 @@ export default {
       if (!keyHash) return refuse("key", 403);
       // (an owner's key that isn't one makes no ledger: better than a ledger its maker can't lock)
       if (owner !== null && !ownerHash) return refuse("bad", 400);
-      // Signed in, the ledger goes into the account's list, keys and all, and counts against the
-      // account's day. (Not signed in, it is still made, for the pages from before accounts: that
-      // door closes once the pages sign in to start one.)
+      // A ledger is made for a phone signed in to changle.ca: it goes into the account's list, keys
+      // and all, and counts against the account's day. (Asked for again, one already made needs no
+      // sign-in: nothing new is made, and a phone that signed out meanwhile still gets its answer.)
       const who = await signedIn(req, env, ctx);
       if (who instanceof Response) return who;
       const input = await body(req);
@@ -159,6 +159,7 @@ export default {
         return json({ seq: there.seq, ledger: there.ledger } satisfies Snapshot);
       }
       if (there.error !== "gone") return refuse("exists", 409);
+      if (!who) return refuse("signin", 401);
       if (!(await allowed(req, env))) return refuse("limit", 429);
       if (who && !(await accountOf(env, who.id).take(today(), STARTS_PER_DAY))) return refuse("limit", 429);
       const made = await stub.create({ id, name: input.name, currency: input.currency, members: input.members, keyHash, ownerHash, now: Date.now() });
