@@ -2,9 +2,8 @@
  * The 3D figure's moves (Steve on Nov 13: a 3D version of the avatar, more lifelike, moving on the
  * page, poses the player picks: 摆酷, 照相, 睡觉, 挥刀, and more designed here).
  *
- * All written here: key poses solved onto the skeleton (`site/scripts/figure/`), baked into each
- * figure's file (`site/public/models/figure/<sex>.glb.gz`, LICENSES.md). Some hold a prop, show
- * an effect or pull a face.
+ * All written here as key poses (`pose/keys.ts`), solved in the browser for the body on screen
+ * (`pose/rig.ts`), its arms kept out of its body. Some hold a prop, show an effect or pull a face.
  */
 import type { HairId, Sex } from "./look";
 
@@ -45,12 +44,25 @@ export const MOVES = [
   { id: "photo", zh: "照相", en: "Selfie", props: ["phone"], flash: [1.45, 3.65], face: { smile: 0.85, squint: 0.3 } },
   { id: "sleep", zh: "睡觉", en: "Sleep", intro: "sleep_in", fx: { kind: "z", every: 1.1, from: "head" }, face: { blinkL: 1, blinkR: 1, smile: 0.1 }, introFace: { browsUp: 0.5, squint: 0.6 } },
   { id: "sword", zh: "挥刀", en: "Sword", props: ["sword"], trail: true, face: { browsDown: 0.75, squint: 0.25 } },
+  // everyday ones
+  { id: "wave", zh: "挥手", en: "Wave", face: { smile: 0.8, squint: 0.2 } },
+  { id: "clap", zh: "鼓掌", en: "Clap", face: { smile: 0.75, squint: 0.3 } },
+  { id: "thumbs", zh: "点赞", en: "Thumbs up", face: { smile: 0.7, blinkR: 0.95 } },
+  { id: "cheer", zh: "欢呼", en: "Cheer", face: { smile: 1, browsUp: 0.6, squint: 0.4 } },
+  { id: "dance", zh: "跳舞", en: "Dance", fx: { kind: "note", every: 0.7, from: "head" }, face: { smile: 0.8, squint: 0.2 } },
   // for the party games
-  { id: "toast", zh: "干杯", en: "Cheers", props: ["beer"], face: { smile: 0.8, squint: 0.2 } },
   { id: "heart", zh: "比心", en: "Heart", fx: { kind: "heart", every: 0.45, from: "head" }, face: { smile: 0.9, squint: 0.35, browsUp: 0.2 } },
+  { id: "toast", zh: "干杯", en: "Cheers", props: ["beer"], face: { smile: 0.8, squint: 0.2 } },
   { id: "dj", zh: "打碟", en: "DJ", props: ["headphones"], fx: { kind: "note", every: 0.5, from: "hand" }, face: { smile: 0.4 } },
   { id: "cry", zh: "大哭", en: "Cry", fx: { kind: "tear", every: 0.09, from: "eyes" }, face: { browsSad: 1, sadMouth: 0.9, squint: 0.7 } },
+  { id: "faint", zh: "晕倒", en: "Faint", intro: "faint_in", face: { blinkL: 1, blinkR: 1, sadMouth: 0.2 }, introFace: { browsSad: 0.9, squint: 0.5, sadMouth: 0.5 } },
+  // manners
+  { id: "bow", zh: "鞠躬", en: "Bow", face: { smile: 0.3, squint: 0.25 } },
   { id: "fist", zh: "抱拳", en: "Fist salute", face: { browsDown: 0.15, smile: 0.25 } },
+  { id: "salute", zh: "敬礼", en: "Salute", face: { browsDown: 0.25 } },
+  { id: "akimbo", zh: "叉腰", en: "Hands on hips", face: { smile: 0.35, browsDown: 0.1 } },
+  { id: "shrug", zh: "摊手", en: "Shrug", face: { browsUp: 0.9, sadMouth: 0.35 } },
+  { id: "think", zh: "思考", en: "Think", face: { browsDown: 0.35, kiss: 0.25, squint: 0.2 } },
 ] as const satisfies readonly Move[];
 
 export type MoveId = (typeof MOVES)[number]["id"];

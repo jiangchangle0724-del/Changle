@@ -1,7 +1,8 @@
 // MakeHuman's realistic human (CC0) as a glTF figure we can sculpt: the base mesh shaped into an
 // adult man or woman, dressed (clothes, shoes, eyes, eyebrows, eyelashes, several hairstyles fitted
 // on the way MakeHuman fits them), skinned to a Mixamo-named skeleton, with morph targets for the
-// face sliders (S_…) and the expressions (X_…). build.mjs adds the moves and writes the files.
+// face sliders (S_…) and the expressions (X_…). build.mjs writes the files; the moves are solved on
+// the page (site/src/account/figure/pose/).
 //
 // Reads two folders (README.md says where they come from):
 //   mpfb:   MPFB2's src/mpfb/data (base.obj, targets, the Mixamo rig and its weights)
@@ -244,7 +245,7 @@ function normalsOf(V, faces) {
  * covered with cloth from the back of the same shirt); the brown eyes a calmer brown.
  */
 const CLEAN = {
-  "clothes/male_casualsuit06/male_casualsuit06_diffuse.png": { fill: { color: [207, 207, 207], tol: 20, grow: 4, boxes: [[395, 230, 615, 340], [900, 240, 1285, 420], [1488, 292, 1545, 372]] } },
+  "clothes/male_casualsuit06/male_casualsuit06_diffuse.png": { fill: { color: [207, 207, 207], tol: 20, grow: 4, boxes: [[380, 190, 640, 350], [860, 210, 1300, 430], [1420, 300, 1560, 470]] } },
   "clothes/female_casualsuit01/female_casualsuit01_diffuse.png": { copy: { from: [581, 467], to: [1608, 467], r: 192, soft: 12 } },
 };
 
@@ -490,10 +491,77 @@ export async function prepareHuman({ mpfb, assets, sex }) {
     return { name, pos, nor, uv: Float32Array.from(uvs), joints, weights, weld, index: m > 65535 ? Uint32Array.from(tri) : Uint16Array.from(tri), targets: targetsOut };
   };
 
+  /**
+   * A cloth's weights: each point takes the weights of the nearest skin vertex (the whole body, under
+   * the cloth too), then each point's weights are evened with its neighbours' a few times.
+   */
+  const clothWeights = (P, faces) => {
+    const body = groupIdx("body");
+    const m = P.length / 3;
+    const near = new Int32Array(m);
+    for (let i = 0; i < m; i++) {
+      let best = Infinity;
+      let bi = 0;
+      const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+      for (const v of body) {
+        const dx = V[v * 3] - x, dy = V[v * 3 + 1] - y, dz = V[v * 3 + 2] - z;
+        const d = dx * dx + dy * dy + dz * dz;
+        if (d < best) {
+          best = d;
+          bi = v;
+        }
+      }
+      near[i] = bi;
+    }
+    let w = Array.from({ length: m }, (_, i) => new Map(vw[near[i]].map(([j, x]) => [j, x])));
+    const nb = Array.from({ length: m }, () => new Set());
+    for (const f of faces) for (let k = 0; k < f.v.length; k++) for (let q = 0; q < f.v.length; q++) if (k !== q) nb[f.v[k]].add(f.v[q]);
+    for (let it = 0; it < 8; it++) {
+      w = w.map((own, i) => {
+        const out = new Map();
+        for (const [j, x] of own) out.set(j, x * 0.5);
+        const n = nb[i].size;
+        if (!n) return own;
+        for (const o of nb[i]) for (const [j, x] of w[o]) out.set(j, (out.get(j) ?? 0) + (x * 0.5) / n);
+        return out;
+      });
+    }
+    return w.map((x) => [...x.entries()].sort((a, b) => a[0] - b[0]));
+  };
+
   const parts = [];
   // the body: what the clothes and shoes cover is left out
   {
-    const faces = base.faces.filter((f) => f.g === "body" && !f.v.some((v) => hidden.has(v)));
+    // and the skin under the sleeves, which pokes through them when an arm moves: on each side, the
+    // shoulder and upper-arm skin nearer the shoulder than where the sleeve ends (less 2 cm)
+    const cloth = fit(wear.find((q) => q.name === "Clothes").proxy, V);
+    const under = new Set();
+    for (const side of ["Left", "Right"]) {
+      const sh = bones.get(`${side}Arm`).head;
+      const el = bones.get(`${side}ForeArm`).head;
+      const u = [0, 1, 2].map((c) => el[c] - sh[c]);
+      const ul = Math.hypot(...u);
+      u.forEach((x, c) => (u[c] = x / ul));
+      const along = (p) => {
+        const m = toM(p);
+        const rel = [0, 1, 2].map((c) => m[c] - sh[c]);
+        const t = rel[0] * u[0] + rel[1] * u[1] + rel[2] * u[2];
+        return { t, r: Math.hypot(rel[0] - t * u[0], rel[1] - t * u[1], rel[2] - t * u[2]) };
+      };
+      let hem = -Infinity;
+      for (let i = 0; i < cloth.length; i += 3) {
+        const a = along([cloth[i], cloth[i + 1], cloth[i + 2]]);
+        if (a.t > 0 && a.t < ul && a.r < 0.1) hem = Math.max(hem, a.t);
+      }
+      if (!Number.isFinite(hem)) continue;
+      const mine = new Set([`${side}Arm`, `${side}Shoulder`].map((n) => jointOf.get(n)));
+      for (const v of groupIdx("body")) {
+        if (hidden.has(v)) continue;
+        const main = vw[v].reduce((a, b) => (b[1] > a[1] ? b : a), [-1, 0])[0];
+        if (mine.has(main) && along([V[v * 3], V[v * 3 + 1], V[v * 3 + 2]]).t < hem - 0.02) under.add(v);
+      }
+    }
+    const faces = base.faces.filter((f) => f.g === "body" && !f.v.some((v) => hidden.has(v)) && !f.v.every((v) => under.has(v)));
     const used = [...new Set(faces.flatMap((f) => f.v))].sort((a, b) => a - b);
     const re = new Map(used.map((v, i) => [v, i]));
     const P = new Float64Array(used.length * 3);
@@ -511,9 +579,13 @@ export async function prepareHuman({ mpfb, assets, sex }) {
   for (const part of wear) {
     const p = part.proxy;
     const P = fit(p, V);
+    // clothes take the weights of the skin under them, smoothed over the cloth (MakeHuman's way, from
+    // the few helper vertices each point hangs on, tears the sleeves when an arm comes forward)
+    const smooth = part.name === "Clothes" ? clothWeights(P, p.mesh.faces) : null;
     const weightsOf = (i) => {
       // the eyes turn with their own bones
       if (part.name === "Eyes") return top4([[jointOf.get(P[i * 3] > 0 ? "LeftEye" : "RightEye"), 1]]);
+      if (smooth) return top4(smooth[i]);
       const r = p.refs[i];
       return top4(r.i.flatMap((v, k) => vw[v].map(([j, w]) => [j, w * r.w[k]])).filter(([, w]) => w > 0));
     };
@@ -537,30 +609,14 @@ export async function prepareHuman({ mpfb, assets, sex }) {
   let height = 0;
   for (const p of parts) if (p.name === "Body" || p.name === `Hair_${HAIRS[0]}`) for (let i = 1; i < p.pos.length; i += 3) height = Math.max(height, p.pos[i]);
 
-  // where this body's chest, head and hips frames sit, so the moves' points (written on the first
-  // stand-in) land at the same places: the chest's front 0.155 m ahead of the chest frame, the eyes
-  // 0.0872 m above and 0.083 m ahead of the head's, the hip joints' midpoint a little above the hips'
-  const at = (name) => bones.get(name).head;
-  const sp = at("Spine2");
-  let front = -Infinity;
-  for (const p of parts.filter((q) => q.name === "Body" || q.name === "Clothes"))
-    for (let i = 0; i < p.pos.length; i += 3) if (Math.abs(p.pos[i]) < 0.04 && Math.abs(p.pos[i + 1] - sp[1]) < 0.03) front = Math.max(front, p.pos[i + 2]);
-  const eyes = [0, 1, 2].map((c) => (at("LeftEye")[c] + at("RightEye")[c]) / 2);
-  const legs = [0, 1, 2].map((c) => (at("LeftUpLeg")[c] + at("RightUpLeg")[c]) / 2);
-  const r4 = (v) => v.map((x) => +x.toFixed(4));
-  const frames = {
-    chest: r4([0, 0, front - sp[2] - 0.155]),
-    head: r4([0, eyes[1] - at("Head")[1] - 0.0872, eyes[2] - at("Head")[2] - 0.083]),
-    hips: r4([legs[0] - at("Hips")[0], legs[1] - 0.0053 - at("Hips")[1], legs[2] + 0.0031 - at("Hips")[2]]),
-  };
-  return { sex, order, parts, frames, info: { sex, scale, height: +height.toFixed(3), ankle: +at("LeftFoot")[1].toFixed(4), frames } };
+  return { sex, order, parts, info: { sex, scale, height: +height.toFixed(3) } };
 }
 
 /** a glTF document with the skeleton and the named parts of a prepared figure */
 export function docOf(prep, names) {
   const doc = new Document();
   const buffer = doc.createBuffer();
-  const scene = doc.createScene("Scene").setExtras({ frames: prep.frames });
+  const scene = doc.createScene("Scene");
   doc.getRoot().setDefaultScene(scene);
   const nodes = new Map();
   const headOf = new Map(prep.order.map((b) => [b.name, b.head]));

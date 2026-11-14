@@ -6,7 +6,8 @@ Held poses of the figure's moves, through the real page, side by side in one pic
   move    a move's id (site/src/account/figure/moves.ts), its clip held at each time (seconds)
   yaw     turns the figure (degrees, 35 = a three-quarter view)
   intro   'intro' holds the move's intro clip instead (睡觉 lying down)
-  camera  x,y,z,tx,ty,tz: the camera there, looking at that point (a close-up)
+  camera  x,y,z,tx,ty,tz: the camera there, looking at that point (a close-up); or @Bone,dx,dy,dz:
+          looking at a bone from that far off it (@Head,0,0,0.6 is the face, from the front)
 
 e.g.  python3 look.py /tmp/sword.png 'sword:0,0.85,1.12,1.65' 'sleep:0.6,1.8,2.6::intro'
 
@@ -44,6 +45,11 @@ with sync_playwright() as p:
         for t in times:
             if not pg.evaluate(f"window.__figSeek('{move}', {t}, {yaw}, {str(intro).lower()})"):
                 print("no such clip:", move, "(intro)" if intro else "")
+            if cam.startswith("@"):
+                bone, *d = cam[1:].split(",")
+                at = pg.evaluate(f"window.__figBone('{bone}')")
+                d = [float(x) for x in d] or [0, 0, 0.6]
+                cam = ",".join(str(x) for x in [at[0] + d[0], at[1] + d[1], at[2] + d[2], *at])
             pg.evaluate(f"window.__figCam({cam})")
             im = Image.open(io.BytesIO(stage.screenshot())).convert("RGB")
             im = im.resize((W, int(im.height * W / im.width)))
