@@ -192,6 +192,14 @@ export const MY_STRINGS = {
   ownerStarted: { zh: "开好了。", en: "Started." },
   ownerBadJson: { zh: "这不是合法的 JSON。", en: "That isn't valid JSON." },
   ownerErr: { zh: "没成：{why}", en: "It didn't go: {why}" },
+
+  // ---------- the orders as a spreadsheet ----------
+  csvButton: { zh: "导出表格", en: "Export to a spreadsheet" },
+  csvHeaders: { zh: "序号,订单号,状态,称呼,电话,微信,取货方式,自提点或送货区,地址,备注,商品,单位,单价,数量,实际重量,金额,运费,应收,已收款,已取货,下单时间", en: "No.,Code,Status,Name,Phone,WeChat,How,Place,Address,Note,Item,Unit,Price,Amount,Weighed,Comes to,Delivery,To collect,Paid,Handed over,Ordered" },
+  csvYes: { zh: "是", en: "yes" },
+  csvFile: { zh: "订单", en: "orders" },
+  csvWeChatTitle: { zh: "到浏览器里导出", en: "Export it in a browser" },
+  csvWeChat: { zh: "微信里存不了文件。点右上角的「…」，选「在浏览器打开」，再点一次「导出表格」。", en: "WeChat can't save files. Tap ··· at the top right, choose Open in Browser, then tap Export again." },
 } as const;
 
 addStrings(MY_STRINGS);
