@@ -14,6 +14,7 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/physics/hazards.test.ts` | A6 的机关：碰到就死的尖刺、烫、电，会动的台子，会转的杆子，按人数摆的关 |
 | `src/physics/arenas.ts` | 坐不住（A7）的两个场地：转盘（桌上）、海湾浮台（温哥华），平台按 `until` 一块块塌 |
 | `src/physics/modes.test.ts` | A7：6 个人每关都站得住、每个检查点都复活得了，比谁先（各跑各的、分两队）、坐不住、定时塌、手滑 |
+| `src/physics/drone.test.ts` | 卡太久来帮手（A9c，外卖无人机）：没打开帮手不来、比谁先坐不住不来、卡久了来没人抓就走、摔多了早来、抓住带到下一个检查点 |
 | `src/physics/gates.test.ts` | 踩板门（11-13）：踩着开门、走开过一会儿关、有人挡着不夹人、箱子也算、几块一起按、按人数摆、手机局快照 |
 | `src/physics/items.test.ts` | A9 的道具：速冻（冻住不掉、队友能站能抓、冷却）、拉面（要先抓着墙、垂下来能挂人、到点断）、荷叶（掉得慢、能横着飘），比谁先和坐不住里没有 |
 | `src/items.ts`、`src/item-text.ts` | 道具（A9）有哪几样、小图标（物理和房间协议也用，什么都不 import）；名字和一句话说明（中英两套） |
@@ -50,7 +51,7 @@ npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwr
 npm run lobby-check # 同上：大厅、结算、下一关
 npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
                     # 背景音乐试听：npm run dev 以后开 http://localhost:8787/hang-on/music.html
-npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，proto-04 是踩板门样板关，
+npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，proto-04 是踩板门样板关，?helper=1&helpLate=5 打开外卖无人机、卡 5 秒就来，
                     #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 试玩法，?phone=1 照手机的画法画，
                     #   ?item=freeze / noodle / leaf 每人带一样道具，P1 按 F、P2 按 P 用）
 npm run levels      # 关卡验收：每关的规则加回放（-- --screenshots 重拍 docs/levels/ 的截图）

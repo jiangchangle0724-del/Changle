@@ -153,6 +153,18 @@ export const CFG = {
   // ---- 红包（A9b）----
   /** 红包有多大（半径）：身体或手心碰到它这么近就算拿到。 */
   envelopeR: 14,
+  /**
+   * 卡太久来帮手（A9c，外卖无人机）：这一段卡了 helpAfter 秒、摔了 helpDeaths 次以上，或者卡了 helpLate 秒，
+   * 就飞来一架无人机，挂着外卖袋悬在落在最后的人头上 droneHang 像素；droneWait 秒没人抓就走，有人抓就带到下一个检查点（或终点），
+   * 在那悬 droneDrop 秒再走。每秒飞 droneSpeed 像素。
+   */
+  helpAfter: 60,
+  helpDeaths: 3,
+  helpLate: 120,
+  droneHang: 120,
+  droneWait: 20,
+  droneDrop: 3,
+  droneSpeed: 170,
   /** 踩板门（11-13）：门每秒挪多少像素，没人踩了还开着几秒，踏板上面多高以内算压着。 */
   gateSpeed: 260,
   gateHold: 0.4,

@@ -202,6 +202,18 @@ class Sfx {
           this.tone({ freq: 2640, wave: 'sine', dur: 0.25, vol: 0.08, pan, delay: 0.08 });
           break;
         }
+        case 'drone': {
+          // 外卖无人机（A9c）：来了叮咚一声加嗡嗡；带人走往上嗡一声；飞走嗡声往下
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'arrive') {
+            this.tone({ freq: 988, wave: 'sine', dur: 0.25, vol: 0.22, pan });
+            this.tone({ freq: 784, wave: 'sine', dur: 0.4, vol: 0.22, pan, delay: 0.22 });
+          }
+          const [f0, f1] = ev.phase === 'leave' ? [190, 120] : ev.phase === 'carry' ? [150, 210] : [120, 170];
+          this.tone({ freq: f0, to: f1, wave: 'sawtooth', dur: 1.4, vol: 0.06, pan, lowpass: 900, vibrato: [8, 31] });
+          this.noise({ dur: 1.2, vol: 0.05, filter: { type: 'bandpass', freq: 1800, q: 0.8 }, attack: 0.2, pan });
+          break;
+        }
         case 'plate': {
           // 踩板门（11-13）：踩下去咔哒一声，抬起来轻一点、高一点
           const pan = this.pan(ev.x, ev.y);

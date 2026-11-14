@@ -56,6 +56,8 @@ export class Stage {
   private readonly propsG = new Graphics();
   /** 红包（A9b）。 */
   private readonly envG = new Graphics();
+  /** 外卖无人机（A9c）。 */
+  private readonly droneG = new Graphics();
   /** 落在台子上的影子（A8）。 */
   private readonly shadowsG = new Graphics();
   private readonly ropesG = new Graphics();
@@ -111,7 +113,7 @@ export class Stage {
       this.fx.cap = 150;
       this.screenFx.cap = 60;
     }
-    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
+    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.droneG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
     this.root.addChild(this.screenFx.view, this.world, this.vignette, this.flash);
     app.stage.addChild(this.root);
   }
@@ -528,6 +530,7 @@ export class Stage {
     this.terrain?.update(sim, dt);
     this.drawProps(sim);
     this.drawEnvelopes(sim);
+    this.drawDrone(sim);
     this.drawShadows(sim);
     this.drawRopes(sim);
     this.drawTrails(sim);
@@ -638,6 +641,42 @@ export class Stage {
   /**
    * 红包（A9b）：一个小红包，正面一个金色的圆封口，背后一圈暖光，轻轻上下飘、左右晃（减弱动效时不动）。拿到了就不画。
    */
+  /**
+   * 外卖无人机（A9c）：四个旋翼的小飞机，下面吊着一个外卖袋，袋子底下一根横杆就是提手（物理里能抓的那一条）。
+   * 等人抓的时候提手一闪一闪；旋翼一直转（减弱动效时不晃）。
+   */
+  private drawDrone(sim: SimView): void {
+    const g = this.droneG.clear();
+    const d = sim.drone;
+    if (!d) return;
+    const x = d.x;
+    const y = d.y;
+    const spin = this.reduced ? 1 : 0.55 + 0.45 * Math.abs(Math.sin(this.t * 38));
+    const tilt = this.reduced ? 0 : Math.sin(this.t * 1.8) * 2;
+    // 吊绳
+    g.moveTo(x - 16, y - 46).lineTo(x - 22, y - 74).moveTo(x + 16, y - 46).lineTo(x + 22, y - 74).stroke({ width: 2, color: 0x3a2a2a, alpha: 0.8 });
+    // 机身和四根臂
+    const by = y - 84 + tilt;
+    g.roundRect(x - 30, by - 7, 60, 16, 7).fill(0x3b4250).stroke({ width: 2.5, color: 0x1f232b });
+    for (const sx of [-1, 1]) {
+      g.moveTo(x + sx * 22, by).lineTo(x + sx * 46, by - 6).stroke({ width: 4, color: 0x1f232b });
+      g.ellipse(x + sx * 46, by - 10, 20 * spin, 4).fill({ color: 0xcfd8e3, alpha: 0.55 });
+      g.circle(x + sx * 46, by - 8, 3).fill(0x1f232b);
+    }
+    // 两个小灯，一红一绿，闪
+    const blink = Math.floor(this.t * 3) % 2 === 0;
+    g.circle(x - 22, by + 2, 2.5).fill(blink ? 0xff4d4d : 0x7a2a2a);
+    g.circle(x + 22, by + 2, 2.5).fill(blink ? 0x7aff8a : 0x2a5a32);
+    // 外卖袋：红的，一道白边
+    g.roundRect(x - 22, y - 48, 44, 38, 5).fill(0xd8262f).stroke({ width: 2.5, color: 0x7a0f18 });
+    g.rect(x - 22, y - 34, 44, 7).fill({ color: 0xffffff, alpha: 0.85 });
+    g.circle(x, y - 30, 5).fill(0xf6c453);
+    // 提手：横杆，等人抓的时候一闪一闪地发光
+    if (d.phase === 'wait' && !this.reduced) g.roundRect(x - 34, y - 9, 68, 18, 9).fill({ color: 0xffd27a, alpha: 0.25 + 0.2 * Math.sin(this.t * 6) });
+    g.moveTo(x - 20, y - 10).lineTo(x - 26, y).moveTo(x + 20, y - 10).lineTo(x + 26, y).stroke({ width: 2.5, color: 0x3a2a2a });
+    g.roundRect(x - 28, y - 4, 56, 9, 4).fill(0xf6c453).stroke({ width: 2, color: 0x8a5a14 });
+  }
+
   private drawEnvelopes(sim: SimView): void {
     const g = this.envG.clear();
     const list = sim.envelopes ?? [];

@@ -14,6 +14,8 @@ import type { FadingView, GateView, NoodleView, PlateView, PlayerView, PropView,
 import { SNAP_EVENT_SENDS, SNAP_EVENTS_MAX, type Snap } from './protocol';
 
 export const FACES: Face[] = ['idle', 'grab', 'fly', 'scream', 'win'];
+/** 外卖无人机（A9c）在干什么，快照里按下标。 */
+const DRONE_PHASES = ['arrive', 'wait', 'carry', 'drop', 'leave'];
 /** 一个人一行的长度：10 个标量 + 两条胳膊（各 8 个坐标 + 抓了几秒）+ 道具（A9：哪样、还剩几秒）。 */
 const PLAYER_LEN = 10 + 2 * 9 + 2;
 /** 快照里正在起作用的道具：0 没有，1 起是 ITEM_IDS 的下标加一。 */
@@ -69,6 +71,7 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
   if (sim.envelopes?.length) snap.en = sim.envelopes.reduce((m, e, k) => (e.got ? m | (1 << k) : m), 0);
   if (sim.plates?.length) snap.pl = sim.plates.reduce((m, q, k) => (q.on ? m | (1 << k) : m), 0);
   if (sim.gates?.length) snap.gt = sim.gates.map((g) => r3(g.open));
+  if (sim.drone) snap.dr = [r1(sim.drone.x), r1(sim.drone.y), Math.max(0, DRONE_PHASES.indexOf(sim.drone.phase))];
   if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
     snap.e = events.list.map(slim);
@@ -130,6 +133,8 @@ export class RemoteSim implements SimView {
   /** 踩板门（11-13）：踏板按着没有跟着快照走（不匀）；门开到几成跟着匀，位置按关卡算。 */
   plates: PlateView[] = [];
   gates: (GateView & { def: GateDef })[] = [];
+  /** 外卖无人机（A9c）：位置跟着匀，来了、走了直接出现、消失。 */
+  drone: { x: number; y: number; phase: string } | null = null;
   /** envelopes 是按哪一版关卡摆的（换关就重摆）。 */
   private envFor: Level | null = null;
   /** 收到过的最新序号。 */
@@ -278,6 +283,10 @@ export class RemoteSim implements SimView {
       });
       changed = true;
     }
+    if (force || !!this.drone !== !!s.dr) {
+      this.drone = s.dr ? { x: 0, y: 0, phase: 'arrive' } : null;
+      changed = true;
+    }
     const pd = this.level.plates ?? [];
     if (force || this.plates.length !== pd.length) {
       this.plates = pd.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, on: false }));
@@ -305,6 +314,7 @@ export class RemoteSim implements SimView {
     for (const o of s.o) out.push(o[0] ?? 0, o[1] ?? 0, o[2] ?? 0);
     for (const row of s.nd ?? []) for (let i = 2; i < row.length; i++) out.push(row[i] ?? 0);
     for (const v of s.gt ?? []) out.push(v);
+    if (s.dr) out.push(s.dr[0], s.dr[1]);
     // 时间也跟着匀：会动的平台按时间画，和匀过的人对得上（站在上面不抖）
     out.push(s.t);
     return out;
@@ -356,6 +366,10 @@ export class RemoteSim implements SimView {
         g.y = at.y;
       }
     }
+    if (this.drone) {
+      this.drone.x = c[i++] as number;
+      this.drone.y = c[i++] as number;
+    }
     this.time = c[i++] as number;
   }
 
@@ -363,6 +377,7 @@ export class RemoteSim implements SimView {
   private discrete(s: Snap, since: number): void {
     this.won = s.w === 1;
     this.checkpoint = s.cp;
+    if (this.drone && s.dr) this.drone.phase = DRONE_PHASES[s.dr[2]] ?? 'wait';
     const pl = s.pl ?? 0;
     this.plates.forEach((q, k) => (q.on = (pl & (1 << k)) !== 0));
     // 红包：位置在关卡里，拿没拿到跟着快照走；这一局没有红包（不写 en）就不画
