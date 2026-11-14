@@ -17,7 +17,8 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: { baseURL: "http://127.0.0.1:8793", ...iphone, locale: "zh-CN", trace: "retain-on-failure" },
   projects: [
-    { name: "chromium", use: { browserName: "chromium", ...(process.env.PW_CHROME ? { channel: "chrome" } : {}) } },
+    // (on Linux, Chromium names a saved file "download" unless the locale is UTF-8: a container may have none set)
+    { name: "chromium", use: { browserName: "chromium", ...(process.env.PW_CHROME ? { channel: "chrome" } : {}), launchOptions: { env: { ...process.env, LANG: process.env.LANG || "C.UTF-8" } } } },
     ...(process.env.CI ? [{ name: "webkit", use: { browserName: "webkit" as const } }] : []),
   ],
   webServer: {

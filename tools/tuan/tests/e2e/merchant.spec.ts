@@ -4,10 +4,11 @@
 // closing and opening a group buy, and the owner's panel that sets a shop up and starts a group
 // buy by hand or from a file. A phone that is signed in has the session the site would have left
 // in its storage.
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { vancouverClock } from "../../src/engine/time.ts";
 import { SESSION } from "../accounts.ts";
-import { catchCopies, copied, DAY, fits, offerOf, order, phone, putAway, start, word } from "./help.ts";
+import { catchCopies, copied, DAY, fits, offerOf, order, phone, putAway, start, WECHAT, word } from "./help.ts";
 
 test.afterEach(putAway);
 
@@ -373,6 +374,45 @@ test("the owner fills the forms from a file: a shop and its group buy in one go"
   await panel.getByRole("button", { name: "开团", exact: true }).click();
   await expect(panel.getByText("开好了。")).toBeVisible();
   await expect(shop.locator(".mine li")).toHaveCount(2);
+});
+
+test("the orders download as a spreadsheet; in WeChat, which can't save files, the page says where to do it", async ({ browser, request }) => {
+  const { id } = await start(request);
+  await order(request, id, { name: "王阿姨", phone: "604-555-0134" }, [["五常大米", 2000], ["手切羊肉片", 1500]]);
+  await order(request, id, { name: "=HYPERLINK(\"http://x\")", phone: "16045550177" }, [["土鸡蛋", 1000]], { note: "放门口, 谢谢" });
+  const page = await phone(browser, { session: SESSION.leader });
+  await page.goto(`/tuan/my/t/${id}`);
+  const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "导出表格" }).click()]);
+  expect(file.suggestedFilename()).toMatch(/^本周大米团 · 周五到货 订单 \d{4}-\d{2}-\d{2}\.csv$/);
+  const bytes = await readFile(await file.path());
+  expect([...bytes.subarray(0, 3)], "it starts with the mark that tells Excel it's UTF-8").toEqual([0xef, 0xbb, 0xbf]);
+  const rows = bytes.toString("utf8").slice(1).split("\r\n");
+  expect(rows.pop(), "every row ends with CRLF").toBe("");
+  expect(rows[0]).toBe("序号,订单号,状态,称呼,电话,微信,取货方式,自提点或送货区,地址,备注,商品,单位,单价,数量,实际重量,金额,运费,应收,已收款,已取货,下单时间");
+  expect(rows).toHaveLength(4);
+  expect(rows[1]).toMatch(/^1,[2-9A-HJKMNP-Z]{6},待确认,王阿姨,604-555-0134,,自提,温哥华西区,,,五常大米 10kg,袋,38\.00,2,,76\.00,0\.00,101\.49,,,\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  expect(rows[2]).toMatch(/^1,[2-9A-HJKMNP-Z]{6},待确认,王阿姨,,,,,,,手切羊肉片,磅,16\.99,1\.5,,25\.49,,,,,$/);
+  // what a buyer typed never runs as a formula, and a comma stays inside its field
+  expect(rows[3]).toMatch(/^2,[2-9A-HJKMNP-Z]{6},待确认,"'=HYPERLINK\(""http:\/\/x""\)",1-604-555-0177,,自提,温哥华西区,,"放门口, 谢谢",土鸡蛋 30 枚,盒,13\.50,1,,13\.50,0\.00,13\.50,,,/);
+
+  // in English, the words are English
+  await page.evaluate(() => localStorage.setItem("tuan.lang", "en"));
+  await page.reload();
+  const [english] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export to a spreadsheet" }).click()]);
+  expect(english.suggestedFilename()).toMatch(/ orders \d{4}-\d{2}-\d{2}\.csv$/);
+  expect((await readFile(await english.path(), "utf8")).split("\r\n")[1]).toMatch(/^1,[2-9A-HJKMNP-Z]{6},To confirm,王阿姨,604-555-0134,,Pickup,温哥华西区,,,五常大米 10kg,bag,38\.00,/);
+
+  // in WeChat: no file, but where to get it
+  const wechat = await phone(browser, { session: SESSION.leader, userAgent: WECHAT });
+  let saved = false;
+  wechat.on("download", () => void (saved = true));
+  await wechat.goto(`/tuan/my/t/${id}`);
+  await wechat.getByRole("button", { name: "导出表格" }).click();
+  await expect(wechat.locator(".sheet h2")).toHaveText("到浏览器里导出");
+  await expect(wechat.locator(".sheet")).toContainText("点右上角的「…」，选「在浏览器打开」");
+  expect(saved).toBe(false);
+  await wechat.goBack();
+  await expect(wechat.locator(".sheet")).toHaveCount(0);
 });
 
 test("the merchant's pages come in a script of their own: a buyer never downloads it, and when it can't be fetched the page says so", async ({ browser, request }) => {

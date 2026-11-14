@@ -5,11 +5,13 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { MyOfferPage, OrderMove } from "../../api";
 import { BASE } from "../../base";
+import { ordersCsv, type CsvWords } from "../../engine/csv";
 import { lineAmount, MILLI } from "../../engine/money";
 import { dueOf, summarize } from "../../engine/summary";
-import { weighed, type Order } from "../../engine/types";
+import { vancouverClock } from "../../engine/time";
+import { UNITS, weighed, type Order, type Unit } from "../../engine/types";
 import { ApiFail, getMyOffer, moveOffer, moveOrder, session } from "../api";
-import { t, whenText } from "../i18n";
+import { inWeChat, t, unitName, whenText } from "../i18n";
 import { Copyable, CopyButton, IconBack, IconCheck, IconClock, Lines, money, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
 import { offerState, onReturn, shutOut, stateWord, troubleOf, TroublePanel, type Trouble } from "./My";
 import { amountOf, dueAll, goodsText, ordersAt, phoneLink, phoneText, placesText } from "./sheets";
@@ -32,6 +34,8 @@ export function MyOfferView({ offerId }: { offerId: string }) {
   const [weighing, setWeighing] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  /** in WeChat, which can't save a file: where to export it instead */
+  const [elsewhere, setElsewhere] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const skew = useRef(0);
   const shown = useRef(false);
@@ -181,6 +185,9 @@ export function MyOfferView({ offerId }: { offerId: string }) {
           <a class="btn btn-quiet btn-sm" href={`${BASE}/my/new/${page.shop.slug}?from=${offer.id}`}>
             {t("editAgain")}
           </a>
+          <button type="button" class="btn btn-quiet btn-sm" onClick={() => (inWeChat() ? setElsewhere(true) : download(page))}>
+            {t("csvButton")}
+          </button>
         </div>
       </section>
 
@@ -417,9 +424,36 @@ export function MyOfferView({ offerId }: { offerId: string }) {
           <p>{t("closeBody")}</p>
         </Sheet>
       )}
+      {elsewhere && (
+        <Sheet title={t("csvWeChatTitle")} onClose={() => setElsewhere(false)}>
+          <p>{t("csvWeChat")}</p>
+        </Sheet>
+      )}
       <Toast text={toast} />
     </div>
   );
+}
+
+/** The words of the spreadsheet, in the reader's language. */
+const csvWords = (): CsvWords => ({
+  headers: t("csvHeaders").split(","),
+  status: { new: t("statFresh"), confirmed: t("doneConfirm"), cancelled: t("statusCancelled") },
+  how: { pickup: t("pickup"), delivery: t("delivery") },
+  unit: Object.fromEntries(UNITS.map((unit) => [unit, unitName(unit)])) as Record<Unit, string>,
+  yes: t("csvYes"),
+});
+
+/** Save the orders as a spreadsheet (CSV, which Excel, Numbers and Google Sheets open): "本周大米团 订单 2026-11-14.csv". */
+function download(page: MyOfferPage) {
+  const text = ordersCsv(page, page.orders, csvWords());
+  const title = page.offer.title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().slice(0, 60);
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  link.download = `${title} ${t("csvFile")} ${vancouverClock(page.now).slice(0, 10)}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
 }
 
 function OrderCard({

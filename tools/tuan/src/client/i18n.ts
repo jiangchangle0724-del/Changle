@@ -207,7 +207,7 @@ const stored = (): Lang | null => {
 };
 
 /** WeChat's own browser, WeCom's, and a mini program's pages all say so in the user agent. */
-const inWeChat = (): boolean => /MicroMessenger/i.test(navigator.userAgent);
+export const inWeChat = (): boolean => /MicroMessenger/i.test(navigator.userAgent);
 
 let lang: Lang = stored() ?? (inWeChat() || /^zh\b/i.test(navigator.language || "zh") ? "zh" : "en");
 const listeners = new Set<() => void>();
