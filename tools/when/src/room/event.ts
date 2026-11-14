@@ -49,6 +49,8 @@ export type HostAction =
   | { do: "reopen" }
   | { do: "edit"; title?: unknown; minPeople?: unknown; deadline?: unknown; invited?: unknown }
   | { do: "must"; id: string; must: boolean }
+  /** fill in for someone (代填): a new row of that name without `id`; with it, one made this way before */
+  | { do: "proxy"; id?: unknown; name: unknown; answers: unknown; times?: unknown }
   | { do: "remove"; id: string };
 
 export class EventRoom {
@@ -151,11 +153,12 @@ export class EventRoom {
     return { ok: true, id: row.id, fresh };
   }
 
-  /** Something only a host's phone may do. */
-  hostAct(keyHash: string | null, action: HostAction, now: number): Ok | Fail {
+  /** Something only a host's phone may do. `newId` names a row filled in for someone; its id comes back. */
+  hostAct(keyHash: string | null, action: HostAction, now: number, newId: () => string = () => Math.random().toString(36).slice(2, 12)): Ok<{ id?: string }> | Fail {
     const meta = this.meta;
     if (!meta) return fail("gone");
     if (!this.isHost(keyHash)) return fail("forbidden");
+    let made: string | undefined;
     switch (action?.do) {
       case "settle": {
         const at = slotsOf(meta.days, meta.grain).indexOf(action.slot);
@@ -207,6 +210,34 @@ export class EventRoom {
         this.store.saveRow(row);
         break;
       }
+      case "proxy": {
+        // a row no phone holds the key to: only a host changes it, and a host changes no other row
+        const name = cleanText(action.name, NAME_MAX);
+        if (!name) return fail("name");
+        const answers = cleanAnswers(action.answers, new Set(slotsOf(meta.days, meta.grain)));
+        const times = cleanTimes(action.times, answers, meta.grain);
+        let row: Row;
+        if (action.id === undefined) {
+          if (this.rows.size >= MAX_PEOPLE) return fail("full");
+          let id = newId();
+          while (this.rows.has(id)) id = newId();
+          row = { id, name, must: false, proxy: true, answers, at: now, keyHash: "", joinedAt: now };
+          this.rows.set(id, row);
+        } else {
+          const had = typeof action.id === "string" ? this.rows.get(action.id) : undefined;
+          if (!had) return fail("bad");
+          if (!had.proxy) return fail("forbidden");
+          row = had;
+          row.name = name;
+          row.answers = answers;
+          row.at = now;
+        }
+        if (Object.keys(times).length) row.times = times;
+        else delete row.times;
+        this.store.saveRow(row);
+        made = row.id;
+        break;
+      }
       case "remove": {
         if (!this.rows.delete(action.id)) return fail("bad");
         this.store.deleteRow(action.id);
@@ -216,7 +247,7 @@ export class EventRoom {
         return fail("bad");
     }
     this.bump();
-    return { ok: true };
+    return made ? { ok: true, id: made } : { ok: true };
   }
 
   /** The salt to fingerprint a typed admin code with, or why no code is being taken right now. */

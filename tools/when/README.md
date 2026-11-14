@@ -35,8 +35,10 @@ sends it with each request in `x-when-key`. The server keeps only the key's SHA-
 
 - A row is changed only with the key it was made with. Sending someone else's row id is refused.
 - The phone that made the gathering is its host: it sets the time, marks who must be there, sets
-  the least number of people, writes who it means to ask and when to answer by, removes a
-  duplicate row.
+  the least number of people, writes who it means to ask and when to answer by, fills in for
+  someone (below), removes a duplicate row.
+- A row a host filled in for someone is marked as such and has no key: no phone can take it over,
+  only a host changes it, and a host changes no row someone filled in for themselves.
 - Another phone becomes a host with the 6-digit admin code, shown once when the gathering is made.
   Five wrong codes in a row and that gathering takes none for an hour; one network may try 20 a
   day across all gatherings, and make 30 gatherings a day.
@@ -153,6 +155,24 @@ group chat instead (A3, 2026-11-14).
   with a button for each language. The tone a phone last picked is kept on that phone
   (`when.tone`) for every gathering; plain until then.
 - Once the time is set, "tell the group" uses the same words and tones for the result.
+
+### Filling in for someone
+
+A host can fill in for parents, or a friend without WeChat (代填, A3, 2026-11-14). Under the host's
+tools, "who for" takes a name; the grid is then theirs, on the same page, with everything the grid
+does (quick fills, times to the minute), until "done". The panel is outlined in the room's light
+and says whose times these are, so they aren't taken for the host's own. The host's own taps are
+saved before the grid changes hands, and every save goes to the row it was tapped for.
+
+- The server: a host action, `{ do: "proxy", name, answers, times }` makes the row (marked
+  `proxy`, with no key) and returns its id; with `id` it changes that row again. A row someone
+  filled in for themselves is refused.
+- Everyone sees the name marked 代填 ("by the host"). A host taps it to change it again, mark it
+  as a must, or remove it.
+- The same name again carries on with that row rather than making a second. A name someone has
+  filled in for themselves can't be filled in for.
+- If they later fill in themselves, the host is told under who's in that the 代填 row can go. The
+  page doesn't merge the two: removing the 代填 row is one tap.
 
 ### Pictures to pass around
 
