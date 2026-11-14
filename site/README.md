@@ -106,13 +106,13 @@ npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读
 npx tsx tests/hide.test.ts          # 藏在人群里在桌上的替身规则：主人开局、只开一次
 npx tsx tests/split.test.ts         # 两清的算账：尾差、净额、最少转账，1 万个随机账本
 npx tsx tests/split-second.test.ts  # 两清的算账再算一遍：Codex 只照规则另写的一份（tests/split/second.ts），同一批 1 万个账本上和 core 逐项对比
-npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、中英文、只用 token、还没有入口
+npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、邀请链接和二维码、中英文、只用 token、还没有入口
 npx tsx tests/split-changes.test.ts # 两清的改动（手机发、服务器收）：只算一次、离线几部手机怎么到都一样、不合规矩的进不来
-npx tsx tests/split-sync.test.ts    # 两清在手机上怎么同步：没信号照样记、回信丢了重发只算一次、三部手机最后都是服务器那本账
-npx tsx tests/split-phone.test.ts   # 两清在手机上碰浏览器的那几处（存储、网络、实时连接都是假的）：存得住、两个标签页不互相覆盖、只认服务器自己的回答、断了的连接查得出来
+npx tsx tests/split-sync.test.ts    # 两清在手机上怎么同步：没信号照样记、回信丢了重发只算一次、三部手机最后都是服务器那本账、列表上的卡片问一次就跟上
+npx tsx tests/split-phone.test.ts   # 两清在手机上碰浏览器的那几处（存储、网络、实时连接都是假的）：存得住、两个标签页不互相覆盖、只认服务器自己的回答、断了的连接查得出来、点开邀请就进账本
 npx tsx tests/mail.test.ts          # 房间服务器代别的 Worker 发信的入口（worker/notice.ts）：放行什么、拒绝什么、信长什么样
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
-npx tsx scripts/split_check.ts      # 两清（npm run dev 在跑，旁边 tools/split 里再开 npx wrangler dev --port 8794 --var ALLOW_TEST_SETTINGS:1）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效；断网再连上、两部手机、没存上的那一笔
+npx tsx scripts/split_check.ts      # 两清（npm run dev 在跑，旁边 tools/split 里再开 npx wrangler dev --port 8794 --var ALLOW_TEST_SETTINGS:1）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效；断网再连上、两部手机、没存上的那一笔；发邀请、点开、选自己是哪一位（walk、fits、behave 一次跑一种；ONLY=zh-320x568 只走一种大小）
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字

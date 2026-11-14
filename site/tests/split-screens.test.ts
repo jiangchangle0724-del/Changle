@@ -8,10 +8,12 @@
  *  5. The plan's example weekend, recorded the way the screens record it, and the lines they say.
  *  6. What is kept on the phone, and what the server answers, however either comes back.
  *  7. What the screens say about the server: nothing while in step, and what didn't stick by name.
- *  8. Words: both languages for every one, the same blanks in each, none left unused.
- *  9. The screens write nothing of their own: tokens only, and no words outside the table.
- * 10. Still hidden: no way in but its address.
+ *  8. An invitation: the link, the key in it, what is pasted into the chat, the code to scan.
+ *  9. Words: both languages for every one, the same blanks in each, none left unused.
+ * 10. The screens write nothing of their own: tokens only, and no words outside the table.
+ * 11. Still hidden: no way in but its address.
  */
+import QRCode from "qrcode";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +21,8 @@ import { balances, expensesOf, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settl
 import { amountOf, blankDraft, draftOf, draftProblem, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, decimalsOf, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
+import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
+import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
 import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
@@ -377,9 +381,10 @@ const roster = five.members.map((x) => x.id);
   const ids = Array.from({ length: 2000 }, newId);
   ok(ids.every((id) => /^[A-Za-z0-9_-]{22}$/.test(id)), "a new id is 22 letters, digits, - or _: it fits an address (src/router.ts takes 6 to 64 of them)");
   ok(new Set(ids).size === ids.length, "2,000 new ids, no two alike");
-  const keys = Array.from({ length: 500 }, newKey);
+  const keys = Array.from({ length: 2000 }, newKey);
   ok(keys.every((k) => /^[A-Za-z0-9_-]{43}$/.test(k)) && new Set(keys).size === keys.length, "a new key is 43 of the same, 32 random bytes: what the server takes for one (22 to 128), and no two alike");
-  eq(parseSaved(JSON.stringify({ held: [hold(five, keys[0])], me: {} })).held[0].key, keys[0], "and a ledger just opened is kept with its key");
+  ok([...ids, ...keys].every((x) => /^[A-Za-z0-9]/.test(x) && /[A-Za-z0-9]$/.test(x)) && [...ids, ...keys].some((x) => /[-_]/.test(x)), "each begins and ends with a letter or a digit (a chat app leaves a last - or _ out of a link), with - and _ only inside");
+  ok(parseSaved(JSON.stringify({ held: [hold(five, keys[0])], me: {} })).held[0].key === keys[0], "and a ledger just opened is kept with its key");
 }
 
 // ---------- 7. what the screens say about the server ----------
@@ -423,7 +428,43 @@ const roster = five.members.map((x) => x.id);
   );
 }
 
-// ---------- 8. words ----------
+// ---------- 8. an invitation ----------
+{
+  const id = "Ab3-_xyzAb3-_xyzAb3-_x";
+  const key = newKey();
+  const link = inviteLink("https://changle.ca", id, key);
+  // (said with ok, not eq: eq writes what it compared into the log, and a key, even a made-up one, has no place there)
+  ok(link === `https://changle.ca/split/${id}#k=${key}`, "the link: the ledger's address, and its key after the #");
+  const url = new URL(link);
+  eq(parse(url.pathname, url.search), { kind: "split", id }, "it opens the ledger's page");
+  ok(keyFrom(url.hash) === key && !url.pathname.includes(key) && !url.search.includes(key), "the key is read back from it, and is in no part of it that is sent to a server");
+  ok(fromLegacyHash(url.hash) === null, "and it isn't mistaken for one of the site's old #/ links");
+  ok([`#k=${key}&from=singlemessage`, `#from=timeline&k=${key}`, `#a=1&k=${key}&b=2`].every((hash) => keyFrom(hash) === key), "whatever else an app adds after the #, before or behind, the key is still found");
+  ok([".", ")", "。", "%EF%BC%8C%E5%BF%AB%E6%9D%A5", "/", "?x=1"].every((tail) => keyFrom(`#k=${key}${tail}`) === key), "and so is one with the end of a sentence stuck to it (a full stop, a bracket, the next words)");
+  for (const [what, hash] of [["no # part", ""], ["an empty one", "#"], ["no key", "#k="], ["a key too short", "#k=abc"], ["a key too long", `#k=${"a".repeat(129)}`], ["one with something that isn't in a key", `#k=${key.slice(0, 20)}+${key.slice(21)}`], ["another name", `#key=${key}`], ["a name that only ends in k", `#ok=${key}`], ["an old site link", "#/g/truth"]] as [string, string][])
+    ok(keyFrom(hash) === null, `${what} is no invitation`);
+  const made = Array.from({ length: 300 }, () => inviteLink("https://changle.ca", newId(), newKey()));
+  ok(made.every((l) => /[A-Za-z0-9]$/.test(l) && !/\s/.test(l) && l.length < 100), "300 links: each ends in a letter or digit, has no spaces, and is under 100 characters");
+
+  ok(inviteText("惠斯勒周末", link, "zh") === `来「惠斯勒周末」一起记账：\n${link}`, "what is pasted into the group chat: what this is, then the link on a line of its own");
+  ok(inviteText("Whistler", link, "en") === `Join the ledger "Whistler" on All Square:\n${link}`, "and in English");
+
+  // the code to scan: every dark square the library worked out is in the drawing, and nothing else is
+  const qr = qrPath(link);
+  const want = QRCode.create(link, { errorCorrectionLevel: "M" }).modules;
+  const drawn = new Uint8Array(want.size * want.size);
+  let whole = !!qr;
+  for (const m of (qr?.d ?? "").matchAll(/M(\d+) (\d+)h(\d+)v1h-(\d+)z/g)) {
+    const [x, y, run, back] = m.slice(1).map(Number);
+    if (run !== back || x + run > want.size) whole = false;
+    for (let i = 0; i < run; i++) drawn[y * want.size + x + i] += 1;
+  }
+  ok(whole && qr?.size === want.size && want.size >= 21 && (qr?.d ?? "").replace(/M\d+ \d+h\d+v1h-\d+z/g, "") === "", `the code is drawn on a grid ${want.size} squares wide, in rectangles one square tall and nothing else`);
+  ok(drawn.every((n, i) => n === (want.data[i] ? 1 : 0)), "every dark square is drawn once, and no light one");
+  ok(qrPath("x".repeat(5000)) === null, "a text too long for a code draws nothing, and doesn't throw");
+}
+
+// ---------- 9. words ----------
 const here = fileURLToPath(new URL("..", import.meta.url));
 const read = (p: string) => readFileSync(join(here, p), "utf8");
 function walk(dir: string): string[] {
@@ -454,9 +495,16 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
   ok(!unused.length, `every line is used by a screen${unused.length ? ` (unused: ${unused.join(", ")})` : ""}`);
   const asked = [...all.matchAll(/\bsay\(\s*lang\s*,\s*"(\w+)"/g)].map((m) => m[1]).filter((k) => !(k in W));
   ok(!asked.length, `and every line a screen asks for is in the table${asked.length ? ` (missing: ${asked.join(", ")})` : ""}`);
+  // a line break inside a line marks where it may wrap first (Chinese has no spaces to say so): it is
+  // in both languages, and the line is shown by something that keeps it
+  const broken = words.filter((k) => W[k].zh.includes("\n") || W[k].en.includes("\n"));
+  const lopsided = broken.filter((k) => W[k].zh.split("\n").length !== W[k].en.split("\n").length);
+  ok(broken.length > 0 && !lopsided.length, `a line broken in two is broken in both languages${lopsided.length ? ` (not ${lopsided.join(", ")})` : ""}`);
+  const dropped = broken.filter((k) => !new RegExp(`<Sentences text=\\{say\\(lang, "${k}"\\)|\\bbody=\\{say\\(lang, "${k}"\\)\\}`).test(all));
+  ok(!dropped.length, `and is shown by something that keeps the break: Sentences, or the empty state's words${dropped.length ? ` (not ${dropped.join(", ")})` : ""}`);
 }
 
-// ---------- 9. tokens only, and no words outside the table ----------
+// ---------- 10. tokens only, and no words outside the table ----------
 {
   for (const p of code) {
     const src = bare(p);
@@ -489,7 +537,7 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
   }
 }
 
-// ---------- 10. still hidden ----------
+// ---------- 11. still hidden ----------
 {
   // 两清 gets its card on the Tools tab when all three gates in docs/split.md are passed, and not before.
   // Until then its address is the only way in: nothing in the site but the router and the app shell may name it.

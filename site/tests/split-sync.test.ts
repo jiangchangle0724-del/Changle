@@ -15,6 +15,7 @@
  * 11. A trouble that can pass is tried again when the page comes back; one that can't is left.
  * 12. News the phone already has changes nothing; two tabs on one ledger are told once.
  * 13. The ledger is taken off the phone with a request on its way: nothing is written back.
+ * 14. A ledger that is a card in the list is asked where it stands, once, and only when nothing else would say.
  */
 import { accept, type Change, type Sent, type Took } from "../src/split/changes";
 import { balances, nextRot, portionsOf, type Expense, type Ledger } from "../src/split/core";
@@ -51,6 +52,11 @@ class World {
     this.ledgers.set(body.id, { key, ledger, seq: 0, seen: new Map(), ears: new Set() });
     this.makes++;
     return { status: 201, data: { seq: 0, ledger } };
+  }
+  read(id: string, key: string): Reply<Snapshot> {
+    const k = this.ledgers.get(id);
+    if (!k) return { status: 404 };
+    return k.key === key ? { status: 200, data: { seq: k.seq, ledger: k.ledger } } : { status: 403 };
   }
   push(id: string, key: string, changes: Sent[]): Reply<Pushed> {
     const k = this.ledgers.get(id);
@@ -100,6 +106,7 @@ function phone(world: World, name: string, from: Held | OnPhone, watching?: bool
   };
   const net: Net = {
     make: (key, body) => answer(() => world.make(key, body), signal.makeSays),
+    read: (id, key) => answer(() => world.read(id, key), 0),
     push: (id, key, changes) => answer(() => world.push(id, key, changes), signal.pushSays),
     listen(id, key, on, down) {
       const k = world.ledgers.get(id);
@@ -123,8 +130,10 @@ function phone(world: World, name: string, from: Held | OnPhone, watching?: bool
   let n = 0;
   let listens = 0;
   let asks = 0;
+  let reads = 0;
   const counted: Net = {
     make: (...args) => (asks++, net.make(...args)),
+    read: (...args) => (reads++, net.read(...args)),
     push: (...args) => (asks++, net.push(...args)),
     listen: (...args) => (listens++, net.listen(...args)),
   };
@@ -161,6 +170,8 @@ function phone(world: World, name: string, from: Held | OnPhone, watching?: bool
     /** how many times it has started listening, and how many requests it has made */
     listens: () => listens,
     asks: () => asks,
+    /** how many times it has asked where the ledger stands */
+    reads: () => reads,
     ledger: () => shown(held()),
     waits: () => timers.filter((t) => !t.off).length,
     /** the most requests this phone ever had on their way at once */
@@ -594,6 +605,62 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
   a.fire();
   await settle();
   eq([a.box.held, a.waits(), a.s.state().sending], [null, 0, false], "or tried");
+}
+
+// ---------- 14. a card in the list ----------
+{
+  const world = new World();
+  const a = phone(world, "a", hold(fresh(), "k"));
+  a.s.wake();
+  await settle();
+  a.spend("e1");
+  await settle();
+  const k = world.ledgers.get("ledger-1")!;
+
+  const b = phone(world, "b", join({ seq: 0, ledger: fresh() }, "k"), false);
+  b.s.look();
+  await settle();
+  eq([ids(b.ledger()), b.held().seq, b.reads(), b.listens(), b.s.state().sending], [["e1"], 1, 1, 0, false], "a ledger that is only a card in the list: asked once where it stands and brought up to date, with no connection held open");
+  b.s.look();
+  await settle();
+  eq([b.reads(), b.box.writes], [2, 1], "asked again with nothing new: nothing on the phone changes");
+  b.s.wake();
+  await settle();
+  eq(b.reads(), 2, "a look is one look: waking later with nothing to send asks nothing");
+  a.s.look();
+  await settle();
+  eq(a.reads(), 0, "a ledger open on the screen isn't asked: its connection brings whatever is new");
+
+  b.signal.on = false;
+  b.spend("b1");
+  await settle();
+  b.signal.on = true;
+  b.s.look();
+  await settle();
+  eq([b.reads(), ids(k.ledger), b.held().waiting.length, ids(b.ledger())], [2, ["e1", "b1"], 0, ["e1", "b1"]], "nor one with something to send: sending it brings the ledger back, and the look sees to the sending");
+
+  b.signal.on = false;
+  b.s.look();
+  await settle();
+  eq([b.reads(), b.waits(), b.s.state().away, b.s.state().trouble], [3, 0, false, null], "no answer to a look is nothing to act on: it isn't tried again, and nothing is said");
+  b.signal.on = true;
+
+  const c = phone(world, "c", hold(fresh("ledger-2"), "k"), false);
+  c.s.look();
+  await settle();
+  eq([c.held().made, c.reads(), c.box.writes], [true, 1, 1], "a ledger the server hasn't got yet is made first, then asked after");
+
+  k.key = "changed";
+  b.s.look();
+  await settle();
+  eq([b.s.state().trouble, b.reads()], ["key", 4], "the look finds the key no longer opens the ledger: said");
+  b.s.look();
+  await settle();
+  eq(b.reads(), 4, "and not asked again");
+  world.ledgers.delete("ledger-2");
+  c.s.look();
+  await settle();
+  eq(c.s.state().trouble, "gone", "or that the ledger is gone");
 }
 
 if (failed) {
