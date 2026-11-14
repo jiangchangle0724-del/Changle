@@ -15,7 +15,7 @@ import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
 import { arenaEvents, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 
-const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone" };
+const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", blast: "blasted" };
 /** the night market's four stalls, left to right: their snacks */
 export const SNACKS: readonly { icon: IconName; name: Key }[] = [
   { icon: "squid", name: "snack0" },
@@ -50,7 +50,7 @@ function useNotice(events: EventView[], me: MeView | null): Notice | null {
     const vars = mine.t === "bite" ? { snack: t(SNACKS[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
     setNotice({ key, id: mine.id, vars });
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" ? 2_600 : 1_400);
+    timer.current = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" || mine.t === "blast" ? 2_600 : 1_400);
   }, [latest]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   return notice;
@@ -198,7 +198,7 @@ export function Play(props: {
       {game.arena === "market" && me && game.phase === "playing" && <Quest me={me} />}
       {props.fullGuide && game.phase === "playing" && <BarsHint onMore={props.fullGuide} />}
       {notice && (
-        <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" ? " is-bad" : notice.key === "hit" || notice.key === "feast" ? " is-good" : ""}`} role="status" key={notice.id}>
+        <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" || notice.key === "blasted" ? " is-bad" : notice.key === "hit" || notice.key === "feast" ? " is-good" : ""}`} role="status" key={notice.id}>
           {t(notice.key, notice.vars)}
         </p>
       )}

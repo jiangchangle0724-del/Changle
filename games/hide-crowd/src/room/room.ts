@@ -437,7 +437,15 @@ export class Room {
         drift: environmentalDrift(game.arena, game.startedAt, now),
         moment: (() => {
           const moment = game.phase === "playing" ? crowdMoment(game.arena, game.startedAt, now) : null;
-          return moment ? { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now) } : null;
+          if (!moment) return null;
+          if (moment.kind !== "crackers") return { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now) };
+          const crackers = (game.crackers ?? []).map((cracker) => ({
+            x: r2(cracker.x),
+            y: r2(cracker.y),
+            landsInMs: cracker.landsAt - now,
+            bangsInMs: cracker.bangsAt - now
+          }));
+          return { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now), crackers };
         })(),
         // (a distraction turns every camera but its maker's: theirs stays on the whole floor, to slip away)
         glance:
@@ -470,7 +478,9 @@ export class Room {
         }),
         // (a distraction is heard of only by whoever made it: everyone else just sees a passer-by swing)
         events: game.events.filter((event) => event.t !== "decoy" || (!!mine && event.actor === id)).map((event) => {
-          const item: EventView = { id: event.id, t: event.t, byYou: !!mine && event.actor === id, onYou: !!mine && event.target === id };
+          // (a blast tells each phone only whether it knocked down this phone's player)
+          const onYou = !!mine && (event.target === id || (event.targets ?? []).includes(id));
+          const item: EventView = { id: event.id, t: event.t, byYou: !!mine && event.actor === id, onYou };
           // (which stall was tasted is for everyone; who tasted it, only for them)
           if (event.stall !== undefined) item.stall = event.stall;
           return item;

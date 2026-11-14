@@ -1,8 +1,26 @@
 // Shared bits for the browser tests: rooms made through the API, phones and big screens, what a page was told.
-import { expect, type APIRequestContext, type Browser, type BrowserContextOptions, type Page } from "@playwright/test";
+import { expect, test as base, type APIRequestContext, type Browser, type BrowserContext, type BrowserContextOptions, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { RoomView } from "../../src/room/protocol";
+
+/** every phone and big screen the test on now has opened */
+const opened: BrowserContext[] = [];
+
+/**
+ * The browser tests' own `test`: the phones and big screens a test opens are closed after it, so the
+ * next test doesn't share the machine with the last one's rooms still running.
+ */
+export const test = base.extend<{ tidy: void }>({
+  tidy: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      await use();
+      while (opened.length) await opened.pop()!.close().catch(() => undefined);
+    },
+    { auto: true }
+  ]
+});
 
 /** A room, as the computer's own start page or a changle.ca table would open it. */
 export async function newRoom(request: APIRequestContext, body: Record<string, unknown> = {}): Promise<string> {
@@ -38,6 +56,7 @@ export async function phone(
     ...(extra.iphone ? { userAgent: IPHONE_SAFARI } : extra.android ? { userAgent: ANDROID_CHROME } : {}),
     locale: lang === "zh" ? "zh-CN" : "en-CA"
   });
+  opened.push(context);
   await context.addInitScript(
     ([n, l, cid, iphone]) => {
       localStorage.setItem("hc.name", n);
@@ -58,6 +77,7 @@ export async function phone(
 export async function screen(browser: Browser, width = 1920, height = 1080, lang: "zh" | "en" = "zh"): Promise<Page> {
   // (a desktop browser: not the phone the project's defaults describe)
   const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, userAgent: undefined, locale: lang === "zh" ? "zh-CN" : "en-CA" });
+  opened.push(context);
   await context.addInitScript((l) => localStorage.setItem("hc.lang", l), lang);
   const page = await context.newPage();
   watchErrors(page, "tv");

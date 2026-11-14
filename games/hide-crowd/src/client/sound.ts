@@ -1,7 +1,7 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
 // hitting the floor, the ferry horn, the busker's riff, the opera gong, the theatre's drill (the
-// stage's count and the crowd's punches) and the night market's fireworks, a bite at a stall and a
-// feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
+// stage's count and the crowd's punches), the night market's firecrackers and fireworks, a bite at a
+// stall and a feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
 // screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the
 // first tap unlocks it. The menu's two switches turn the sounds off (hc.sound) and the music
 // (hc.music), and the game plays the same without.
@@ -103,16 +103,22 @@ function voice(type: OscillatorType, from: number, to: number, start: number, le
 }
 
 let noiseBuffer: AudioBuffer | null = null;
-/** A breath of noise through a sweeping band-pass: whooshes, scuffs, the crack of a hit. */
-function hiss(start: number, length: number, level: number, from: number, to: number, q = 1.2, out: AudioNode = master!): void {
+/** A second of white noise, made once. */
+function noise(): AudioBuffer {
   const c = ctx!;
   if (!noiseBuffer) {
     noiseBuffer = c.createBuffer(1, c.sampleRate, c.sampleRate);
     const data = noiseBuffer.getChannelData(0);
     for (let index = 0; index < data.length; index++) data[index] = Math.random() * 2 - 1;
   }
+  return noiseBuffer;
+}
+
+/** A breath of noise through a sweeping band-pass: whooshes, scuffs, the crack of a hit. */
+function hiss(start: number, length: number, level: number, from: number, to: number, q = 1.2, out: AudioNode = master!): void {
+  const c = ctx!;
   const source = c.createBufferSource();
-  source.buffer = noiseBuffer;
+  source.buffer = noise();
   const filter = c.createBiquadFilter();
   filter.type = "bandpass";
   filter.Q.value = q;
@@ -123,6 +129,27 @@ function hiss(start: number, length: number, level: number, from: number, to: nu
   gain.gain.exponentialRampToValueAtTime(level, start + Math.min(0.03, length / 3));
   gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
   source.connect(filter).connect(gain).connect(out);
+  source.start(start, Math.random() * 0.5);
+  source.stop(start + length + 0.05);
+}
+
+/** A fuse burning: a thin, spitting hiss that holds until the bang. */
+function sizzle(start: number, length: number, level: number): void {
+  const c = ctx!;
+  const source = c.createBufferSource();
+  source.buffer = noise();
+  source.loop = true;
+  const filter = c.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.value = 4_500;
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(level, start + 0.04);
+  // (it spits: the level flickers)
+  for (let at = start + 0.06; at < start + length - 0.05; at += 0.07) gain.gain.setValueAtTime(level * (0.55 + Math.random() * 0.45), at);
+  gain.gain.setValueAtTime(level, start + Math.max(0.05, length - 0.04));
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
+  source.connect(filter).connect(gain).connect(master!);
   source.start(start, Math.random() * 0.5);
   source.stop(start + length + 0.05);
 }
@@ -245,6 +272,33 @@ export const sfx = {
       hiss(go + 0.08, 0.24, 0.26, 2_600, 800, 0.8);
     }
     duck(t, Math.max(0.4, (DRILL_GO_MS + 700 - elapsedMs) / 1000));
+  },
+  /**
+   * The night market's firecrackers, in time with the screen: each one's throw (a whoosh), its landing
+   * (a tick on the asphalt), its fuse (a spitting hiss) and its bang, with the crackle of the paper.
+   * Times are from now (ms); one already gone isn't played.
+   */
+  crackers(list: readonly { landsInMs: number; bangsInMs: number }[]): void {
+    const t = now();
+    if (t === null) return;
+    let last = t;
+    for (const cracker of list) {
+      const land = t + cracker.landsInMs / 1000;
+      const bang = t + cracker.bangsInMs / 1000;
+      if (bang < t - 0.03) continue;
+      if (land >= t) {
+        hiss(Math.max(t, land - 0.45), 0.42, 0.07, 800, 2_400, 1.2);
+        voice("triangle", 1_900, 1_350, land, 0.05, 0.07, master!, 0.002);
+      }
+      const fuse = Math.max(t, land);
+      if (bang - fuse > 0.08) sizzle(fuse, bang - fuse, 0.035);
+      voice("sine", 170, 36, bang, 0.45, 0.6);
+      voice("square", 330, 90, bang, 0.07, 0.06, master!, 0.002);
+      hiss(bang, 0.3, 0.5, 3_400, 500, 0.7);
+      for (let pop = 0; pop < 8; pop++) hiss(bang + 0.07 + pop * 0.042 + ((pop * 29) % 7) / 350, 0.025, 0.13, 6_000, 4_000, 2);
+      last = Math.max(last, bang);
+    }
+    duck(t, last - t + 0.7);
   },
   /** the transit hall's busker strikes up: a bouncy plucked riff over a bass and claps, for the dance */
   busker(): void {

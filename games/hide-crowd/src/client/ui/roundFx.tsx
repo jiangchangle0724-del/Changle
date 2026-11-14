@@ -1,6 +1,6 @@
 // What a round sounds like, and the crowd's moments on screen. On a phone: your own punches, hits and
 // spills, your bites at the night market's stalls, the ferry horn, the busker, the gong, the stage's
-// count or the fireworks, the last five seconds, the whistle and the fanfare. On the big screen (and
+// count, the firecrackers or the fireworks, the last five seconds, the whistle and the fanfare. On the big screen (and
 // in practice): every punch, hit and bite in the room, and a light loop for the place. And the
 // theatre's drill, counted big in the middle of the screen.
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -69,12 +69,13 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
     if (thrown) sfx.whoosh();
   }, [game.avatars]);
 
-  // the ferry horn, the busker, the gong, the stage's count, the fireworks
+  // the ferry horn, the busker, the gong, the stage's count, the firecrackers, the fireworks
   useEffect(() => {
     if (moment === "horn") sfx.horn();
     if (moment === "dance") sfx.busker();
     if (moment === "gong") sfx.gong();
     if (moment === "drill") sfx.drill(Math.max(0, DRILL_MS - (game.moment?.endsInMs ?? DRILL_MS)));
+    if (moment === "crackers") sfx.crackers((game.moment?.crackers ?? []).map((cracker) => ({ landsInMs: cracker.landsInMs, bangsInMs: cracker.bangsInMs })));
     if (moment === "fireworks") sfx.fireworks();
   }, [moment]);
 
@@ -115,6 +116,7 @@ const MOMENT: Record<NonNullable<GameView["moment"]>["kind"], { text: Key; icon:
   dance: { text: "momentDance", icon: "note" },
   gong: { text: "momentGong", icon: "gong" },
   drill: { text: "momentDrill", icon: "fist" },
+  crackers: { text: "momentCrackers", icon: "cracker" },
   fireworks: { text: "momentFireworks", icon: "firework" }
 };
 

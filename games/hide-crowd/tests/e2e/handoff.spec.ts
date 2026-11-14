@@ -1,8 +1,8 @@
 // From a changle.ca table: the site opens the room with the table's host, code and own penalty, and
 // sends each phone in with its name; the way back tells the table the game is over. (The table side
 // is the site's: site/src/party/hide/link.ts. Here the table's pages are stand-ins.)
-import { expect, test } from "@playwright/test";
-import { newRoom, noErrors, phone, screen, until } from "./helpers";
+import { expect } from "@playwright/test";
+import { newRoom, noErrors, phone, screen, test, until } from "./helpers";
 
 const HOST_ID = "0123456789abcdef01234567";
 

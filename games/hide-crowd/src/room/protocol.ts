@@ -65,13 +65,21 @@ export interface AvatarView {
 
 export interface EventView {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "over";
   /** bite: the night market's stall that was tasted (everyone sees which; only the taster's phone sees byYou) */
   stall?: number;
   /** this phone did it (a tag, a foul, a miss) or it happened to this phone's player (slipped away) */
   byYou: boolean;
-  /** this phone's player was tagged */
+  /** this phone's player was tagged (or, a blast: knocked down by it) */
   onYou: boolean;
+}
+
+/** A firecracker thrown into the night market's crowd: where it lands, and how long until it lands and bangs. */
+export interface CrackerView {
+  x: number;
+  y: number;
+  landsInMs: number;
+  bangsInMs: number;
 }
 
 export interface MeView {
@@ -98,8 +106,11 @@ export interface GameView {
   events: EventView[];
   /** this phone's player, when it plays this round */
   me: MeView | null;
-  /** the moment the whole crowd is reacting to (the ferry horn, the gong), while it lasts */
-  moment: { kind: MomentKind; endsInMs: number } | null;
+  /**
+   * the moment the whole crowd is reacting to (the ferry horn, the gong), while it lasts; the night
+   * market's firecrackers come with where each lands and when it bangs
+   */
+  moment: { kind: MomentKind; endsInMs: number; crackers?: CrackerView[] } | null;
   /**
    * someone's distraction, for a moment: where its passer-by swung (every screen but the maker's
    * turns its camera there, as the Steam game pans away; nothing says whose it was)

@@ -28,14 +28,14 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Screen | What it shows |
 | --- | --- |
 | Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the busker, the gong, the theatre's drill or the fireworks go, a pill low in the middle says so while the crowd stands still, dances or punches. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, and a run kicks up dust. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the busker, the gong, the theatre's drill, the night market's firecrackers or its fireworks go, a pill low in the middle says so while the crowd stands still, dances, punches or scatters. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, a tagged player bursts into confetti as they go down, and a run kicks up dust. When the firecrackers land, a ring glows on the floor round each one while its fuse burns (how far its bang knocks people down), and a word says so if one knocks you down. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the full-screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen (an iPad's can: there the full-screen button does it), so the game shows the two ways round it (`ui/HomeScreen.tsx`): quickest, Safari's page menu (the three lines at the left of the address bar, aA or ··· on older iOS) and Hide Toolbar, which leaves a sliver of address and gives the game the rest; all of the screen, changle.ca on the Home Screen. A little iPhone acts out the four taps to the Home Screen (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. It opens by itself once in the first lobby, then from the lobby's line, the menu and the full-screen button. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, a round in Safari's bars (an iPhone) | When Safari's toolbar and tab bar take part of the screen (held sideways, the page is over 60 points shorter than the screen), a line under the top bar shows the page menu's icon and says to choose Hide Toolbar, with More ways (the guide) and a close button. It goes when the bars do, after 15 s, or for good when closed (Steve, 2026-11-12, from an iPhone in Safari). |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
 | Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the four arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
-| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's, the drill's or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
+| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's, the drill's, the firecrackers' or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
 | Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the camera down to the winner and the confetti, the penalty stamp for seven seconds, then the result card with the round's titles. |
 | Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the full-screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
@@ -181,8 +181,9 @@ here the collecting gives a player away while they do it:
 * **Company at the stalls.** About a third of the passers-by are at a stall at any time (`browse`
   plans: they walk up, stand a few seconds looking it over, and glance about), so a player tasting is
   never alone there. Only a player's bite lights a stall.
-* **The crowd's moment: fireworks** (10 s in, then every 16 s, 2.8 s). Five rockets go up from behind
-  the stalls and burst over the back of the crowd, each lighting the whole lot in its colour for a
+* **The crowd's moments: firecrackers and fireworks**, taking turns (the firecrackers first, 10 s in,
+  then one or the other every 16 s). The firecrackers have their own section below. For the fireworks
+  (2.8 s) five rockets go up from behind the stalls and burst over the back of the crowd, each lighting the whole lot in its colour for a
   moment; every passer-by turns round to watch, a beat after the first, like the horn. With reduced
   motion the bursts open where they are, nothing flies and the light doesn't flicker.
 * **The set** (`market-dressing.glb`, from `tools/blender/generate_arena_dressing.py`): four stalls
@@ -196,7 +197,8 @@ here the collecting gives a player away while they do it:
   like everyone and taste like a player, and grow suspicious of whoever stands at a stall as it lights
   up (the fewer there, the surer). The flat arena draws the four stalls along its top, lit when tasted.
 * **Sound:** a crunch and a bell for a bite (each stall its own note), the four bells running up for a
-  feast, each rocket's whistle, boom and crackle, and a bright pentatonic loop for the market.
+  feast, each rocket's whistle, boom and crackle, each firecracker's throw, landing, fizzing fuse and
+  bang, and a bright pentatonic loop for the market.
 * **Who was who, at the end** (`Room.view`): once a round is over, every screen gets each player's name
   on the body they were (the next round shuffles the crowd again, so it gives nothing away), and the
   winner's body dances. Everyone stops where they are.
@@ -266,6 +268,49 @@ What it does that this game didn't, and what this one does now:
 * With reduced motion: no glance, no kick, no swooshes and no dust (all of them move or fly); the
   count and the cue come up without popping or pulsing, and the stars hold still round the head.
 
+## The night market's firecrackers, and the tag's confetti
+
+Steve, 2026-11-13 (继续, "go on"): the 3D animation and the interaction, after the Steam original once
+more. Its arenas throw things at the crowd (bombs that fall among the people and knock down whoever
+is near), so a player has to react the way a passer-by would; and a hit player goes out with a burst.
+What this game does now:
+
+* **The firecrackers** (鞭炮, `throwCrackers`, `crackerFlight` and `blast` in `src/engine`). At the
+  night market they take turns with the fireworks (the firecrackers first, 10 s in, then every 16 s).
+  Someone behind the stalls throws five firecrackers into the crowd, one after another (the first
+  lands 0.65 s in, the rest 0.23 s apart, each after 0.55 s in the air). Each is aimed at someone, a
+  passer-by or a player, where they'll be when it lands, the five at least 14 apart; it fizzes on the
+  asphalt for 1.5 s and bangs.
+  Everyone on their feet within 6.5 of the bang goes down, thrown away from it and stunned as long as
+  a tagged body; the fall stops their punch and their blending in. Where the five land is the round's
+  dice, so every screen sees the same five. Knocked down by a firecracker is not a tag (no point to
+  anyone).
+* **The crowd gets clear.** A passer-by near a fizzing firecracker runs from it a beat after it lands
+  (at a run's pace, sliding along a wall rather than into it); one in seven freezes a moment too long,
+  so about one passer-by goes down each time. Those a little further off (within 15) stop and stare
+  at it; the rest walk on. So a player has
+  to get clear too: one who stands at a firecracker is knocked down for all to see, and their phone
+  says so ("Knocked over by a firecracker. Everyone saw!"). Only the player knocked down hears of it
+  (`onYou` on the room's `blast` event; nobody else's phone, and no screen, says who fell).
+* **On screen** (`ui/crackers.ts`): the pill (有人扔鞭炮：快躲开！ Firecrackers! Get clear!); each
+  firecracker, a red tube with a gold band, tumbles in on an arc and lands; a ring on the floor the
+  size of its bang glows fuller as the fuse burns down, sparks spitting off the fuse; then the bang: a
+  flash, a ring of shock going out, sparks, a cloud of smoke, red paper flying up and fluttering down
+  to lie on the asphalt a while, and the camera jolts. The flat arena (no WebGL) draws each landed
+  firecracker as a ring with a red dot that flashes on its bang.
+* **Sound**: for each firecracker a whoosh as it's thrown, a tick as it lands, the fuse's fizz, then
+  the bang: a deep thump, a crack and a string of pops. The music ducks under them. A phone plays them
+  too (they're the place's, like the horn).
+* **Practice**: the rivals grow suspicious of every body a firecracker knocks down, as of one that
+  stands through the drill (a passer-by who froze too long looks the same).
+* **The tag's confetti** (`cinema.pop`): a tagged player, as they go down, bursts into confetti in
+  the room's colours, out and up from the chest, raining round the body as it falls, on every screen.
+  It gives nothing away: the scores already say a tag landed, and the player gets up in another body.
+* With reduced motion: a firecracker doesn't fly (it is there once it has landed) and its ring holds
+  still; no flash, shock, sparks, smoke or jolt; the red paper lies on the floor; no confetti.
+* The browser tests now close every phone and screen they open (`tests/e2e/helpers.ts`), so one test
+  doesn't slow the next on a busy machine.
+
 ## Nobody is marked
 
 The game is about not being found, so nothing a screen is sent may tell a player from a
@@ -315,7 +360,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/Lobby.tsx`, `Play.tsx`, `Controls.tsx`, `Result.tsx`, `Penalty.tsx`, `Menu.tsx` | The phone's screens. |
 | `src/client/ui/Tv.tsx` | The big screen. |
 | `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
-| `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); the camera's opening sweep, the glance at a distraction, the winner's shot and the confetti; the punches' swooshes, the dizzy stars and the dust. |
+| `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/crackers.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); its firecrackers (the throw, the ring, the fuse, the bang, the red paper); the camera's opening sweep, the glance at a distraction, the winner's shot, the confetti for the winner and for a tag; the punches' swooshes, the dizzy stars, the dust and the bangs' smoke. |
 | `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
 | `tools/blender/` | The scripts that build the 3D sets and the people's files. |
 | `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's full-screen guide and its line in a round, and what kind of phone this is. |
@@ -394,8 +439,8 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 6. **Night colours only**, from the tokens; the gel carries night-coloured text.
 7. **Both languages**, switchable in the menu at any time; no em dashes or curly quotes.
 8. **Reduced motion**: the phone's setting or the menu's switch stops the stamp's slam and shake,
-   the camera's shake, kicks, sweeps and glances, the walk's bounce, the swooshes and the dust, holds
-   the dizzy stars, the turn screen's phone and the guide's little iPhone still, and brings the
+   the camera's shake, kicks, sweeps and glances, the walk's bounce, the swooshes and the dust, the
+   firecrackers' flight, flash, smoke and jolt, and the confetti, holds the dizzy stars, the turn screen's phone and the guide's little iPhone still, and brings the
    drill's count up without a pop; the crowd still moves (that is the game).
 9. **The penalty follows the table**: the table's own penalty replaces every drink word.
 10. **The art stays credited and within budget** (`tests/arenaAssets.test.ts`).

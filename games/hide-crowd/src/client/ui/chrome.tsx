@@ -33,6 +33,8 @@ const ICONS = {
   // the night market: a firework, and the four stalls' snacks (squid on a stick, fish balls on a
   // skewer, bubble tea with its straw and pearls, a tornado potato)
   firework: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8",
+  // a firecracker: the tube with its band, the fuse, and the spark on it
+  cracker: "M3 17l9-9 4 4-9 9zM7.5 12.5l4 4M14 10c1-1 1.5-2.5 3-3M19.5 2.5v2.5M22 5h-2.5M21.3 3.2l-1.6 1.6",
   squid: "M12 2.5l4.5 8h-9zM9 10.5l-1.2 4.5M11 10.5l-.4 5M13 10.5l.4 5M15 10.5l1.2 4.5M12 10.5v11",
   fishball: "M12 2v20M14.6 6.2a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 12a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 17.8a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0z",
   tea: "M7 9h10l-1.3 12H8.3zM6 9h12M8.5 6.5h7l1 2.5h-9zM13 6.5l2.5-4M10 17h.01M12 18.5h.01M14 17h.01",
