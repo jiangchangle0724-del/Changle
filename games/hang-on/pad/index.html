@@ -6,6 +6,11 @@
 <title>抓紧了 · Hang On · 手柄</title>
 <meta name="robots" content="noindex">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="抓紧了">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/pad.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <meta name="theme-color" content="#1d2a4a">
 <style>
   :root {
@@ -98,6 +103,46 @@
   @media (min-width: 560px) { .ilist { grid-template-columns: 1fr 1fr 1fr; } .iopt { grid-template-columns: 1fr; text-align: center; } .iopt .ic { grid-row: auto; } }
   @media (prefers-reduced-motion: reduce) { .itembtn .fill, .itemtip { transition: none; } }
 
+  /* 手柄当遥控：电视局里大厅、结算的时候，摇杆和抓键那块换成菜单（开始、选关、下一关……） */
+  #menu { overflow: auto; padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); min-height: 0; }
+  #pad.menuing .zones { display: none; }
+  .mcard { background: var(--card); color: var(--card-ink); border-radius: 22px; padding: 14px 16px; display: grid; gap: 10px; max-width: 760px; margin: 0 auto; box-sizing: border-box; }
+  .mcard h2 { font-family: var(--font-display); font-weight: 800; font-size: 22px; margin: 0; }
+  .mmodes { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mmodes button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 2px solid rgba(42,31,58,.18); background: #fff; color: var(--card-ink); font: inherit; font-weight: 700; font-size: 15px; }
+  .mmodes button[aria-checked="true"] { background: var(--card-ink); color: var(--ink); border-color: var(--card-ink); }
+  .mmodes button:focus-visible, .mlevel button:focus-visible, .mcard .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
+  .mlevel { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 8px; }
+  .mlevel button { min-height: 48px; border-radius: 14px; border: 0; background: rgba(42,31,58,.1); color: var(--card-ink); font-size: 24px; font-weight: 800; }
+  .mlevel button:disabled { opacity: .35; }
+  .mlevel .nm { text-align: center; font-weight: 800; font-size: 17px; line-height: 1.35; }
+  .mlevel .nm small { display: block; font-weight: 500; font-size: 13px; opacity: .7; }
+  .mline { margin: 0; font-size: 14px; opacity: .75; text-align: center; }
+  .mcard .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mcard .row .btn { flex: 1 1 120px; background: var(--card-ink); color: var(--ink); }
+  .mcard .row .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); }
+  .mcard .big { font-family: var(--font-display); font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .mcard .par { font-size: 13px; opacity: .7; margin: 0; }
+  .mcard ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 5px; }
+  .mcard li { display: flex; align-items: center; gap: 8px; font-size: 14px; flex-wrap: wrap; }
+  .mcard li .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.2); }
+  .mcard li .who { font-weight: 700; }
+  .mcard li .n { opacity: .75; }
+  .mcard li .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  .mcard h3 { font-family: var(--font-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 2px 0 0; opacity: .6; }
+  .mcard ul { list-style: none; padding: 0; margin: 0; font-size: 14px; display: grid; gap: 3px; }
+  .mcard .none { opacity: .6; font-size: 13px; margin: 0; }
+  .bar .back.armed { background: var(--bad); color: var(--card-ink); }
+  .vres .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .vres .row .btn { flex: 1 1 110px; background: var(--card-ink); color: var(--ink); }
+  .vres .row .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); }
+  /* 全屏的说明（iPhone 的 Safari 不让网页自己全屏） */
+  .fs { padding: 16px 18px 18px; display: grid; gap: 10px; }
+  .fs h2 { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0; }
+  .fs ol { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; line-height: 1.6; font-size: 15px; }
+  .fs p { margin: 0; font-size: 13px; opacity: .75; line-height: 1.6; }
+  .fs .btn { background: var(--card-ink); color: var(--ink); }
+
   /* 手柄 */
   #pad { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr; }
   .bar { display: flex; align-items: center; gap: 8px; padding: calc(6px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px)); font-size: 13px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
@@ -158,12 +203,12 @@
   .vres h3 { font-family: var(--font-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 0; opacity: .6; }
   .vres ul { list-style: none; padding: 0; margin: 4px 0 0; font-size: 14px; display: grid; gap: 3px; }
   .vres .none { opacity: .6; font-size: 13px; margin: 4px 0 0; }
-  .vres ul.goals li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .vres ul.goals .mark { font-size: 17px; line-height: 1; color: #d9a21b; }
-  .vres ul.goals li.miss { opacity: .6; }
-  .vres ul.goals li.miss .mark { color: inherit; }
-  .vres ul.goals .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
-  .vres ul.goals li.env { font-size: 13px; opacity: .8; }
+  :is(.vres, .mcard) ul.goals li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  :is(.vres, .mcard) ul.goals .mark { font-size: 17px; line-height: 1; color: #d9a21b; }
+  :is(.vres, .mcard) ul.goals li.miss { opacity: .6; }
+  :is(.vres, .mcard) ul.goals li.miss .mark { color: inherit; }
+  :is(.vres, .mcard) ul.goals .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  :is(.vres, .mcard) ul.goals li.env { font-size: 13px; opacity: .8; }
   .vres .next { font-size: 13px; opacity: .7; margin: 10px 0 0; }
   .banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.6); opacity: 0; font-family: var(--font-display); font-weight: 800; font-size: 32px; line-height: 1.1;
     color: var(--ink); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.4); pointer-events: none; transition: opacity .18s, transform .18s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap; text-align: center; }
@@ -198,6 +243,8 @@
     <button class="chip btn" id="lookBtn2" type="button" data-en="Look">样子</button>
     <button class="chip btn" id="itemBtn2" type="button" data-en="Item">道具</button>
     <button class="summon" id="summonBtn" type="button" disabled data-en="Summon">召唤队友</button>
+    <button class="chip btn back" id="backBtn" type="button" hidden data-en="Lobby">回大厅</button>
+    <button class="chip btn" id="fsBtn" type="button" hidden data-en="Full screen">全屏</button>
     <button class="chip btn vonly" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
     <span class="conn" id="conn">连接中…</span>
   </div>
@@ -210,6 +257,36 @@
       <button class="itembtn" id="itemUse" type="button" hidden><span class="fill" aria-hidden="true"></span><span class="ic" id="itemUseIcon" aria-hidden="true">🧊</span><span class="nm" id="itemUseName">速冻</span></button>
       <button class="grab" id="grabL" type="button" aria-label="左手抓" data-en-label="Left hand: grab"><span data-en="Left">左手</span><small data-en="hold = grab">按住 = 抓</small></button>
       <button class="grab r" id="grabR" type="button" aria-label="右手抓" data-en-label="Right hand: grab"><span data-en="Right">右手</span><small data-en="hold = grab">按住 = 抓</small></button>
+    </div>
+  </div>
+  <!-- 手柄当遥控（电视局）：大厅里开局、选玩法、选关；结算时下一关、再来一次、回大厅。谁按都行 -->
+  <div id="menu" hidden>
+    <div class="mcard" id="mLobby">
+      <div class="mmodes" id="mModes" role="radiogroup" aria-label="玩法" data-en-label="Mode"></div>
+      <div class="mmodes" id="mTeams" role="radiogroup" aria-label="怎么分" data-en-label="Teams" hidden></div>
+      <div class="mlevel">
+        <button id="mPrev" type="button" aria-label="上一关" data-en-label="Previous level">‹</button>
+        <div class="nm"><span id="mLevel"></span><small id="mTeach"></small></div>
+        <button id="mNext" type="button" aria-label="下一关" data-en-label="Next level">›</button>
+      </div>
+      <p class="mline" id="mLine"></p>
+      <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button></div>
+    </div>
+    <div class="mcard" id="mResults" hidden>
+      <h2 id="mTitle">到顶了！</h2>
+      <div class="big" id="mTime">0.0 s</div>
+      <p class="par" id="mPar"></p>
+      <h3 id="mGoalTitle" hidden data-en="Goals">小目标</h3>
+      <ul class="goals" id="mGoalList" hidden></ul>
+      <ol id="mDeaths"></ol>
+      <h3 id="mBetrayTitle" data-en="Betrayals">背叛榜</h3>
+      <ul id="mBetrayList"></ul>
+      <p class="none" id="mBetrayNone" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
+      <div class="row">
+        <button class="btn" id="mNextLevel" type="button" data-en="Next level">下一关</button>
+        <button class="btn quiet" id="mAgain" type="button" data-en="Play again">再来一次</button>
+        <button class="btn quiet" id="mToLobby" type="button" data-en="Lobby">回大厅</button>
+      </div>
     </div>
   </div>
 </div>
@@ -239,6 +316,19 @@
   </div>
 </dialog>
 <div class="itemtip" id="itemTip" role="status" aria-live="polite"></div>
+<dialog id="fsDlg" aria-label="全屏" data-en-label="Full screen">
+  <div class="fs">
+    <h2 data-en="Full screen on iPhone">iPhone 上怎么全屏</h2>
+    <p data-en="Safari on iPhone does not let web pages go full screen by themselves. Do this once:">iPhone 的 Safari 不让网页自己全屏。弄一次就好：</p>
+    <ol>
+      <li data-en="Tap Share in Safari (the square with an arrow).">点 Safari 的「分享」（方框加箭头那个）。</li>
+      <li data-en="Choose Add to Home Screen, then Add.">选「添加到主屏幕」，再点「添加」。</li>
+      <li data-en="From now on open Hang On from the icon on your home screen. It opens with no address bar.">以后从主屏幕上「抓紧了」的图标打开，就没有地址栏了。</li>
+    </ol>
+    <p data-en="Still in Safari? The page menu next to the address bar may have Hide Toolbar on some iOS versions.">还在 Safari 里：有的 iOS 版本，地址栏旁边的菜单里有「隐藏工具栏」，也能用。</p>
+    <button class="btn" id="fsDone" type="button" data-en="Got it">知道了</button>
+  </div>
+</dialog>
 <!-- 手机局：等开始、倒数、结算、横幅（src/pad/view.ts 管） -->
 <div class="vwait" id="vWait" hidden><span data-en="Waiting for the host to start">等房主开始</span> · <span id="vLevel"></span></div>
 <div class="vwait bad" id="vHost" hidden data-en="The host's phone dropped out. Waiting for it to come back…">房主的手机断线了，等它回来……</div>
@@ -254,7 +344,11 @@
     <h3 id="vBetrayTitle" data-en="Betrayals">背叛榜</h3>
     <ul id="vBetrayList"></ul>
     <p class="none" id="vBetrayNone" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
-    <p class="next" data-en="The host picks what's next.">房主选下一关。</p>
+    <div class="row">
+      <button class="btn" id="vNextLevel" type="button" data-en="Next level">下一关</button>
+      <button class="btn quiet" id="vAgain" type="button" data-en="Play again">再来一次</button>
+      <button class="btn quiet" id="vToLobby" type="button" data-en="Lobby">回大厅</button>
+    </div>
   </div>
 </div>
 <div class="banner" id="vBanner" aria-live="polite"></div>

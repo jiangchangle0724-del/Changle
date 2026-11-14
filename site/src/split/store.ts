@@ -143,11 +143,18 @@ export const useSaved = () => useSyncExternalStore(subscribe, seen);
 /** Did the last write reach the phone's storage? */
 export const isKept = () => kept;
 
-/** Random bytes written in letters, digits, - and _. */
+/**
+ * Random bytes written in letters, digits, - and _, beginning and ending with a letter or a digit.
+ * (An invitation link ends with one of these, and a chat app that turns addresses into links
+ * leaves a last - or _ out of the link: so none ends in one.)
+ */
 function random(bytes: number): string {
-  let s = "";
-  for (const b of crypto.getRandomValues(new Uint8Array(bytes))) s += String.fromCharCode(b);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  for (;;) {
+    let s = "";
+    for (const b of crypto.getRandomValues(new Uint8Array(bytes))) s += String.fromCharCode(b);
+    const text = btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    if (/^[A-Za-z0-9].*[A-Za-z0-9]$/.test(text)) return text;
+  }
 }
 
 /** An id nobody can guess and no two phones will make alike: 22 letters and digits. */
@@ -162,10 +169,16 @@ export const everyHeld = (): Held[] => current().held;
 /** What this phone holds of one ledger; null when it isn't on this phone. */
 export const heldOf = (id: string): Held | null => current().held.find((h) => h.server.id === id) ?? null;
 
-/** A ledger newly held goes on top of the list; `me` is which of its members this phone's owner is. */
-export function keepHeld(h: Held, me: string) {
+/**
+ * A ledger newly held goes on top of the list; `me` is which of its members this phone's owner is
+ * (not known yet for one opened from an invitation: its page asks).
+ */
+export function keepHeld(h: Held, me?: string) {
   const s = fresh();
-  commit({ held: [h, ...s.held.filter((x) => x.server.id !== h.server.id)], me: { ...s.me, [h.server.id]: me } });
+  // (one the phone holds already stays as it is, with whatever it has waiting to be sent)
+  if (s.held.some((x) => x.server.id === h.server.id)) return;
+  const { [h.server.id]: _stale, ...others } = s.me;
+  commit({ held: [h, ...s.held], me: me ? { ...others, [h.server.id]: me } : others });
 }
 
 /** What the phone holds of one ledger changes (sync.ts says how). A change that leaves it as it was writes nothing. */

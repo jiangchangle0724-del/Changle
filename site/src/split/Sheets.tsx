@@ -3,7 +3,7 @@
  * step with the server, the people (who is who, adding and renaming) in a sheet of their own, the
  * ledger's name, the language, and deleting the ledger.
  */
-import { ChevronRight, CircleAlert, CloudCheck, CloudOff, Pencil, Trash2, Users, X } from "lucide-react";
+import { ChevronRight, CircleAlert, CloudCheck, CloudOff, Pencil, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LangTab } from "../components/TopBar";
 import type { Lang } from "../i18n";
@@ -11,6 +11,7 @@ import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { Face } from "./AddExpense";
 import { MAX_MEMBERS, type Ledger } from "./core";
+import { InviteSheet } from "./Join";
 import { inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, tidy } from "./ops";
 import { newId, setMe } from "./store";
 import { forget, record } from "./syncing";
@@ -24,11 +25,15 @@ type MenuProps = {
   lang: Lang;
   /** what there is to say about the ledger and the server (lines.ts, syncLine); null when the two are in step */
   status: { text: string; loud: boolean } | null;
+  /** the key that opens the ledger, for the invitation; and whether the server has the ledger yet */
+  inviteKey: string;
+  made: boolean;
   onDeleted: () => void;
 };
 
-export function LedgerMenu({ open, onClose, ledger, me, lang, status, onDeleted }: MenuProps) {
+export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey, made, onDeleted }: MenuProps) {
   const [people, setPeople] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [name, setName] = useState(ledger.name);
   const [deleting, setDeleting] = useState(false);
   // every time it opens, it opens with the ledger's current name and nothing half-decided
@@ -48,6 +53,19 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, onDeleted 
             {!status ? <CloudCheck aria-hidden="true" /> : status.loud ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
             {status?.text ?? say(lang, "synced")}
           </p>
+          <button
+            type="button"
+            className="split-field split-menu-row"
+            onClick={() => {
+              onClose();
+              setInviting(true);
+            }}
+          >
+            <UserPlus aria-hidden="true" />
+            <strong>{say(lang, "invite")}</strong>
+            <span>{say(lang, "inviteVia")}</span>
+            <ChevronRight aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="split-field split-menu-row"
@@ -110,6 +128,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, onDeleted 
       <Sheet open={people} onClose={() => setPeople(false)} lang={lang} category="tool" title={say(lang, "members")}>
         <People ledger={ledger} me={me} lang={lang} />
       </Sheet>
+      <InviteSheet open={inviting} onClose={() => setInviting(false)} ledger={ledger} inviteKey={inviteKey} ready={made} lang={lang} />
     </>
   );
 }

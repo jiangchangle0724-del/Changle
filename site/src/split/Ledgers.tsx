@@ -1,6 +1,6 @@
 /** changle.ca/split: the ledgers on this phone, and starting a new one. */
 import { ChevronRight, CircleAlert, CloudOff, Plus, ReceiptText } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BiTitle, LangTab } from "../components/TopBar";
 import type { Lang } from "../i18n";
 import { savedName } from "../online/config";
@@ -19,13 +19,15 @@ import { LEDGER_NAME_MAX, NAME_MAX, startLedger, tidy } from "./ops";
 import { Bar } from "./parts";
 import { isKept, newId, useSaved } from "./store";
 import type { Held } from "./sync";
-import { openLedger, useSync } from "./syncing";
+import { browse, openLedger, useSync } from "./syncing";
 import { say, W } from "./words";
 
 export function Ledgers({ onBack }: { onBack: () => void }) {
   const { lang } = useStore();
   const saved = useSaved();
   const [starting, setStarting] = useState(false);
+  // each card says where you stand after what others recorded: the server is asked while the list is up
+  useEffect(() => browse(), []);
   return (
     <div className="split-page">
       <Bar

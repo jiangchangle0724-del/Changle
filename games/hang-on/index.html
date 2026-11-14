@@ -111,6 +111,7 @@
   .count small.goals { font-size: 16px; font-weight: 500; opacity: .9; margin-top: 6px; }
   .level .stars { color: #d9a21b; letter-spacing: 2px; margin-left: 6px; font-size: .9em; }
   .envtotal { font-size: 13px; opacity: .75; text-align: center; margin: -4px 0 6px; }
+  .results .padhint { font-size: 13px; opacity: .7; margin: 10px 0 0; }
   .count small { display: block; font-size: 22px; font-family: var(--font-body); font-weight: 700; margin-top: 10px; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
   @media (prefers-reduced-motion: reduce) { .banner { transition: opacity .18s; transform: translate(-50%, -50%); } }
   @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .qr { width: 160px; height: 160px; } .codebig { font-size: 44px; } .count { font-size: 110px; } }
@@ -272,6 +273,7 @@
       <ul id="betrayList"></ul>
       <p id="betrayNone" style="opacity:.6;font-size:13px;margin:6px 0 0" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
       <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
+      <p class="padhint" id="padHint" hidden></p>
     </div>
   </div>
 </div>

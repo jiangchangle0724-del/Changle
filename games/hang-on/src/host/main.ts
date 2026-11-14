@@ -11,8 +11,9 @@
  */
 import qrcode from 'qrcode-generator';
 import { heardBy, sfx } from '../audio/sfx';
-import { applyStatic, langButton, onLang, tr } from '../i18n';
-import { levelsFor, levelTitle, MIN_PLAYERS, TEAM_LEVELS, teachLabel } from '../levels';
+import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
+import { levelsFor, levelTitle, MIN_PLAYERS, TEAM_LEVELS, teachLabel, teachText } from '../levels';
+import { modeHintText, modeName } from '../mode-text';
 import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
 import { cleanItem, ITEM_ICON, ITEM_IDS, itemsIn, type ItemId } from '../items';
 import { itemName } from '../item-text';
@@ -21,7 +22,7 @@ import type { Level } from '../physics/level';
 import { createSim, type GameMode, type PadInput, type Rules, type Sim, type SimEvent } from '../physics/world';
 import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
-import { CAST_MS, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Phase, type RoomView } from '../net/protocol';
+import { CAST_MS, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Menu, type PadCmd, type Phase, type RoomView } from '../net/protocol';
 import { encodeSnap, EventWindow } from '../net/snap';
 import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
@@ -130,21 +131,7 @@ sfx.panOf = (x, y) => Math.max(-1, Math.min(1, (stage.toScreen({ x, y }).x / inn
 langButton($<HTMLButtonElement>('langBtn'));
 
 // ---------- 玩法 ----------
-function modeName(m: GameMode): string {
-  if (m === 'team') return tr('大团队', 'Big team');
-  if (m === 'race') return tr('比谁先', 'Race');
-  if (m === 'last') return tr('坐不住', 'Last one hanging');
-  return tr('闯关', 'Climb');
-}
-function modeHint(m: GameMode): string {
-  if (m === 'team') return tr('4 到 6 个人的大关，大家一起到顶', 'Big levels for 4 to 6 players. Everyone reaches the top together');
-  if (m === 'race')
-    return teamsOn
-      ? tr('甜队对咸队，哪一队的人先都到顶就赢', 'Team Sweet vs Team Savory. The first team with everyone at the top wins')
-      : tr('各跑各的，先到顶的赢，拽别人也算', 'Every dumpling for themselves. First to the top wins, and grabbing others is fair game');
-  if (m === 'last') return tr('摔了不复活，平台会塌，最后还挂着的赢', 'No respawns and the platforms crumble. The last one hanging wins');
-  return tr('大家一起到顶，摔了回检查点', 'Everyone reaches the top together. Fall and you come back at the last checkpoint');
-}
+const modeHint = (m: GameMode): string => pickLang(modeHintText(m, teamsOn));
 /** 比谁先分两队：按座位一个甜一个咸。 */
 const teamsFor = (n: number): number[] => Array.from({ length: n }, (_, i) => i % 2);
 function rules(): Rules {
@@ -167,6 +154,7 @@ function setMode(m: GameMode): void {
   renderModes();
   renderLevel();
   renderLobby();
+  menuDirty = true;
   if (phase === 'lobby') void resetSim();
 }
 function setTeams(on: boolean): void {
@@ -175,6 +163,7 @@ function setTeams(on: boolean): void {
   renderModes();
   renderLevel();
   renderLobby();
+  menuDirty = true;
   if (phase === 'lobby') void resetSim();
 }
 /** 大厅里的玩法选择：四个键（大团队有大关才出），比谁先下面再选各跑各的还是分两队。 */
@@ -238,8 +227,9 @@ async function start(): Promise<void> {
       renderLatency();
     },
     onPeers: () => {
-      // 手机局：有人（重新）连上或换了路，马上补一份样子名单，别等下一个 2 秒
+      // 手机局：有人（重新）连上或换了路，马上补一份样子名单，别等下一个 2 秒；菜单也是
       castDirty = true;
+      menuDirty = true;
       renderLobby();
       renderLatency();
     },
@@ -251,6 +241,7 @@ async function start(): Promise<void> {
       syncPlayers();
       renderLobby();
     },
+    onCmd: (_peer, c) => runCmd(c),
     onFatal: (key) => fatal(key),
     onSocket: (open) => {
       socketDown = !open;
@@ -327,6 +318,7 @@ function onPhase(next: Phase): void {
   $('touch').hidden = !phoneMode || (next !== 'countdown' && next !== 'playing');
   document.body.dataset.phase = next;
   castDirty = true;
+  menuDirty = true;
   if (next === 'lobby') void resetSim();
   // 从结算页直接开下一关（或再来一次）：大厅那步的重置没走，在这里换上新的一局
   // 结算页的「再来一次」「下一关」从头开；从大厅开局时人数和摆关卡时不一样也重摆
@@ -410,6 +402,9 @@ function showResults(): void {
   next.hidden = levelIndex >= levelsFor(mode).length - 1;
   next.textContent = mode === 'last' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   $('againBtn').textContent = mode === 'climb' || mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
+  // 电视局：手机上也能选下一步（电视那边可以不碰）
+  $('padHint').hidden = phoneMode;
+  $('padHint').textContent = tr('手机上按「下一关」「再来一次」「回大厅」都行', 'Anyone can pick Next, Again or Lobby on their phone');
 }
 
 $('startBtn').addEventListener('click', () => {
@@ -468,6 +463,7 @@ function pickLevel(i: number): void {
   levelIndex = Math.max(0, Math.min(list.length - 1, i));
   level = list[levelIndex] as Level;
   renderLevel();
+  menuDirty = true;
   if (phase === 'lobby') void resetSim();
 }
 function renderLevel(): void {
@@ -554,6 +550,7 @@ function syncPlayers(): void {
     }
   }
   castDirty = true;
+  menuDirty = true;
 }
 let resetting = false;
 /** 重开这一关：按现在的人数摆关卡、放人。 */
@@ -682,7 +679,9 @@ function renderLobby(): void {
     ? tr('等人进来……', 'Waiting for players…')
     : n < min
       ? tr(`${n} 个人。${modeName(mode)}至少要 ${min} 个人。`, `${n} ${n === 1 ? 'player' : 'players'}. ${modeName(mode)} needs at least ${min}.`)
-      : tr(`${n} 个人，到齐了就开始。`, `${n} ${n === 1 ? 'player' : 'players'}. Start when everyone is in.`);
+      : phoneMode
+        ? tr(`${n} 个人，到齐了就开始。`, `${n} ${n === 1 ? 'player' : 'players'}. Start when everyone is in.`)
+        : tr(`${n} 个人，到齐了谁的手机上按「开始」都行。`, `${n} ${n === 1 ? 'player' : 'players'}. When everyone is in, anyone can press Start on their phone.`);
   $<HTMLButtonElement>('startBtn').disabled = n < Math.max(1, min) || !link?.socketOpen;
   // 这台设备上自己玩的人换道具：点一下换下一样
   const ib = $<HTMLButtonElement>('itemBtn');
@@ -948,7 +947,97 @@ function castFor(seat: string): Cast {
   };
 }
 
+// ---------- 手柄当遥控：给每个手柄发菜单，照手柄按的做 ----------
+let menuDirty = true;
+let menuAt = 0;
+/** 开局、下一关这种一按就换阶段的，1 秒里只算一次（几个人一起按、一个人连按，别跳过两关）。 */
+let cmdLockUntil = 0;
+
+function canStart(): boolean {
+  const n = playerCount();
+  return n >= Math.max(1, MIN_PLAYERS[mode]) && !!link?.socketOpen;
+}
+
+function menuFor(): Menu {
+  const list = levelsFor(mode);
+  return {
+    phase,
+    mode,
+    modes: MODES.filter((m) => m !== 'team' || TEAM_LEVELS.length > 0),
+    teams: teamsOn,
+    level: {
+      n: levelIndex + 1,
+      of: list.length,
+      name: level.name ?? { zh: level.id, en: level.id },
+      teach: mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn),
+      // 小目标的星（A9b）：这台主机上这一关拿到过的（闯关、大团队）
+      ...(mode === 'climb' || mode === 'team' ? { stars: starLine(starsOf(level.id), goalTargets(level, Math.max(1, playerCount())).map((g) => g.key)) } : {}),
+    },
+    players: playerCount(),
+    min: MIN_PLAYERS[mode],
+    canStart: canStart(),
+    hasNext: levelIndex < list.length - 1,
+    ...(phase === 'results'
+      ? { results: fullResults(), names: sim.players.map((p, i) => ({ name: name(i), color: p.color })), ...(level.par ? { par: level.par.seconds } : {}) }
+      : {}),
+  };
+}
+
+function runCmd(c: PadCmd): void {
+  const now = performance.now();
+  const phaseChange = c.do === 'start' || c.do === 'again' || c.do === 'next' || c.do === 'lobby';
+  if (phaseChange && now < cmdLockUntil) return;
+  switch (c.do) {
+    case 'start':
+      if (phase !== 'lobby' || !canStart()) return;
+      link?.act({ type: 'START' });
+      break;
+    case 'again':
+      if (phase !== 'results') return;
+      link?.act({ type: 'START' });
+      break;
+    case 'next':
+      if (phase !== 'results' || levelIndex >= levelsFor(mode).length - 1) return;
+      pickLevel(levelIndex + 1);
+      link?.act({ type: 'START' });
+      break;
+    case 'lobby':
+      if (phase === 'lobby') return;
+      link?.act({ type: 'LOBBY' });
+      break;
+    case 'level':
+      if (phase !== 'lobby' || (c.d !== 1 && c.d !== -1)) return;
+      sfx.tick();
+      pickLevel(levelIndex + c.d);
+      break;
+    case 'mode':
+      if (phase !== 'lobby' || !MODES.includes(c.mode) || (c.mode === 'team' && !TEAM_LEVELS.length)) return;
+      sfx.tick();
+      setMode(c.mode);
+      break;
+    case 'teams':
+      if (phase !== 'lobby') return;
+      sfx.tick();
+      setTeams(!!c.on);
+      break;
+    default:
+      return;
+  }
+  if (phaseChange) cmdLockUntil = now + 1000;
+  menuDirty = true;
+}
+
+function sendMenus(now: number): void {
+  if (!link) return;
+  if (!menuDirty && now - menuAt < CAST_MS) return;
+  menuDirty = false;
+  menuAt = now;
+  const m = menuFor();
+  for (const p of link.peers.values()) if (p.connected) link.menu(p.seat, m);
+}
+
 function broadcast(now: number): void {
+  sendMenus(now);
   if (!phoneMode || !link) return;
   const castNow = castDirty || now - castAt >= CAST_MS;
   if (castNow) {

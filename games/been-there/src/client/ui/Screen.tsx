@@ -18,7 +18,7 @@ import { Over } from "./Finale";
 import { Arrival, Clock, Feed, Standings, lastId, useRerenderAt } from "./Game";
 import { joinUrl, tableFrom } from "../base";
 import { Qr } from "./Lobby";
-import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
+import { CardFace, MoneyFx, TvDice, useFreshCard } from "./Moments";
 import { doublesKind } from "./Doubles";
 import { SetCall } from "./Sets";
 import { DealCall } from "./Deal";
@@ -156,7 +156,7 @@ function TvGame({ v }: { v: RoomView }) {
           </div>
         </div>
       </aside>
-      <CoinFx v={v} after={rideReady(move)} />
+      <MoneyFx v={v} after={rideReady(move)} />
       <Touchdown v={v} big after={rideEnd(move)} />
       <LocalSong v={v} />
       <ForfeitHold v={v} big />

@@ -7,7 +7,9 @@
  */
 import { PadLink, seatId } from '../net/pad-link';
 import { rttLevel } from '../net/latency';
-import { CODE_RE, type Cast, type FatalKey, type PadStatus, type RoomView } from '../net/protocol';
+import { CODE_RE, type Cast, type FatalKey, type Menu, type PadCmd, type PadStatus, type RoomView } from '../net/protocol';
+import { modeName } from '../mode-text';
+import { renderResults, type ResultsDom } from '../results';
 import type { PhoneView } from './view';
 import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
 import { cleanItem, ITEM_ICON, ITEM_IDS, type ItemId } from '../items';
@@ -75,6 +77,10 @@ function join(code: string, name: string): void {
       lastCast = c;
       view?.cast(c);
     },
+    onMenu: (m) => {
+      lastMenu = m;
+      renderMenu();
+    },
   });
   link.setLook(look);
   link.setItem(item);
@@ -84,6 +90,8 @@ function join(code: string, name: string): void {
   $('turn').hidden = false;
   void goFullscreen();
   void keepAwake();
+  renderFs();
+  fsFirstTip();
 }
 
 function fatalLine(key: FatalKey): string {
@@ -111,6 +119,8 @@ function renderErr(): void {
 
 function fatal(key: FatalKey): void {
   lastFatal = key;
+  lastMenu = null;
+  renderMenu();
   renderErr();
   $('pad').hidden = true;
   $('turn').hidden = true;
@@ -347,6 +357,135 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF' && !e.repeat && link) itemFrames = 12;
 });
 
+// ---------- 手柄当遥控（电视局里电视那边不用碰）----------
+let lastMenu: Menu | null = null;
+function send(c: PadCmd): void {
+  link?.command(c);
+  buzz(15);
+}
+const menuDom: ResultsDom = {
+  title: $('mTitle'),
+  time: $('mTime'),
+  par: $('mPar'),
+  deaths: $('mDeaths'),
+  betrayTitle: $('mBetrayTitle'),
+  betrayList: $('mBetrayList'),
+  betrayNone: $('mBetrayNone'),
+  goalTitle: $('mGoalTitle'),
+  goalList: $('mGoalList'),
+};
+function radio(box: HTMLElement, label: string, on: boolean, click: () => void): void {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.setAttribute('role', 'radio');
+  b.setAttribute('aria-checked', String(on));
+  b.textContent = label;
+  b.addEventListener('click', click);
+  box.append(b);
+}
+/** 菜单：电视局里大厅、结算时盖在摇杆和抓键那块上；手机局里结算页下面的三个键；玩的时候顶上的「回大厅」。 */
+function renderMenu(): void {
+  const m = lastMenu;
+  const viewing = document.body.classList.contains('viewing');
+  const lobby = m?.phase === 'lobby';
+  const results = m?.phase === 'results';
+  const show = !!m && !viewing && (lobby || results);
+  $('menu').hidden = !show;
+  pad.classList.toggle('menuing', show);
+  $('mLobby').hidden = !lobby;
+  $('mResults').hidden = !results;
+  $('backBtn').hidden = !m || (m.phase !== 'countdown' && m.phase !== 'playing');
+  if (!m) return;
+  if (lobby) {
+    const modes = $('mModes');
+    modes.innerHTML = '';
+    for (const mo of m.modes) radio(modes, modeName(mo), mo === m.mode, () => send({ do: 'mode', mode: mo }));
+    const teams = $('mTeams');
+    teams.hidden = m.mode !== 'race';
+    teams.innerHTML = '';
+    radio(teams, tr('各跑各的', 'Free for all'), !m.teams, () => send({ do: 'teams', on: false }));
+    radio(teams, tr('甜队对咸队', 'Sweet vs Savory'), m.teams, () => send({ do: 'teams', on: true }));
+    $('mLevel').textContent = `${m.level.n}. ${pickLang(m.level.name)}${m.level.stars ? ` ${m.level.stars}` : ''}`;
+    $('mTeach').textContent = pickLang(m.level.teach);
+    $<HTMLButtonElement>('mPrev').disabled = m.level.n <= 1;
+    $<HTMLButtonElement>('mNext').disabled = m.level.n >= m.level.of;
+    $('mLine').textContent =
+      m.players < m.min
+        ? tr(`${m.players} 个人。${modeName(m.mode)}至少要 ${m.min} 个人。`, `${m.players} ${m.players === 1 ? 'player' : 'players'}. ${modeName(m.mode)} needs at least ${m.min}.`)
+        : tr(`${m.players} 个人，谁按开始都行。`, `${m.players} ${m.players === 1 ? 'player' : 'players'}. Anyone can press Start.`);
+    $<HTMLButtonElement>('mStart').disabled = !m.canStart;
+  }
+  const names = m.names ?? [];
+  if (results && m.results) renderResults(menuDom, m.results, (i) => names[i]?.name || `P${i + 1}`, (i) => names[i]?.color ?? '#fff', m.par);
+  // 下一关（坐不住是换个场地）、再来一次（比谁先、坐不住是再来一局）、回大厅：电视局的菜单和手机局的结算页都有
+  const nextText = m.mode === 'last' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  const againText = m.mode === 'climb' || m.mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
+  for (const id of ['mNextLevel', 'vNextLevel']) {
+    $(id).hidden = !m.hasNext;
+    $(id).textContent = nextText;
+  }
+  for (const id of ['mAgain', 'vAgain']) $(id).textContent = againText;
+}
+$('mPrev').addEventListener('click', () => send({ do: 'level', d: -1 }));
+$('mNext').addEventListener('click', () => send({ do: 'level', d: 1 }));
+$('mStart').addEventListener('click', () => send({ do: 'start' }));
+for (const pre of ['m', 'v']) {
+  $(`${pre}NextLevel`).addEventListener('click', () => send({ do: 'next' }));
+  $(`${pre}Again`).addEventListener('click', () => send({ do: 'again' }));
+  $(`${pre}ToLobby`).addEventListener('click', () => send({ do: 'lobby' }));
+}
+// 玩的时候回大厅：按两下才算（第一下变红，3 秒内再按一下）
+const backBtn = $<HTMLButtonElement>('backBtn');
+let backArmedUntil = 0;
+let backTimer: ReturnType<typeof setTimeout> | null = null;
+function disarmBack(): void {
+  backArmedUntil = 0;
+  backBtn.classList.remove('armed');
+  backBtn.textContent = tr('回大厅', 'Lobby');
+}
+backBtn.addEventListener('click', () => {
+  if (performance.now() < backArmedUntil) {
+    disarmBack();
+    send({ do: 'lobby' });
+    return;
+  }
+  backArmedUntil = performance.now() + 3000;
+  backBtn.classList.add('armed');
+  backBtn.textContent = tr('再按一下回大厅', 'Tap again for lobby');
+  if (backTimer) clearTimeout(backTimer);
+  backTimer = setTimeout(disarmBack, 3000);
+});
+
+// ---------- 全屏：安卓、平板点了就全屏；iPhone 的 Safari 不让网页全屏，点了说怎么弄 ----------
+type FsDoc = Document & { webkitFullscreenEnabled?: boolean; webkitFullscreenElement?: Element | null };
+const fsDoc = document as FsDoc;
+const fsAble = !!(document.fullscreenEnabled || fsDoc.webkitFullscreenEnabled);
+const standalone =
+  matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+const touchy = matchMedia('(pointer: coarse)').matches;
+function renderFs(): void {
+  const full = !!(document.fullscreenElement || fsDoc.webkitFullscreenElement);
+  $('fsBtn').hidden = !touchy || standalone || full || $('pad').hidden;
+}
+$('fsBtn').addEventListener('click', () => {
+  if (fsAble) void goFullscreen();
+  else $<HTMLDialogElement>('fsDlg').showModal();
+});
+$('fsDone').addEventListener('click', () => $<HTMLDialogElement>('fsDlg').close());
+document.addEventListener('fullscreenchange', renderFs);
+document.addEventListener('webkitfullscreenchange', renderFs);
+/** iPhone 上第一次进来提示一次：想全屏点上面的「全屏」。 */
+function fsFirstTip(): void {
+  if (fsAble || standalone || !touchy) return;
+  try {
+    if (localStorage.getItem('hang-on:fs-tip')) return;
+    localStorage.setItem('hang-on:fs-tip', '1');
+  } catch {
+    // 记不住就每次都提示
+  }
+  itemTip(tr('想全屏？点上面的「全屏」看怎么弄', 'Want full screen? Tap Full screen at the top'));
+}
+
 // ---------- 召唤 ----------
 /** 召唤要连发几帧，不可靠通道丢一两条也送得到；主机 1 秒内只算一次。 */
 let actFrames = 0;
@@ -451,6 +590,8 @@ renderConn();
 onLang(() => {
   renderLook();
   renderItem();
+  renderMenu();
+  disarmBack();
   renderConn();
   renderErr();
   renderMute();
