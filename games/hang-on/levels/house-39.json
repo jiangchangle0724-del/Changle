@@ -1,0 +1,172 @@
+{
+  "id": "house-39",
+  "world": "house",
+  "name": {
+    "zh": "阁楼寻灯",
+    "en": "Lights in the Attic"
+  },
+  "tier": 1,
+  "teaches": "dark",
+  "w": 2440,
+  "h": 1440,
+  "spawn": {
+    "x": 100,
+    "y": 1296
+  },
+  "goal": {
+    "x": 2320,
+    "y": 260,
+    "w": 110,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1090,
+      "y": 896
+    },
+    {
+      "x": 2130,
+      "y": 396
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 918,
+      "y": 800
+    },
+    {
+      "x": 1958,
+      "y": 339
+    },
+    {
+      "x": 1539,
+      "y": 670
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 1320,
+      "w": 410,
+      "h": 120,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 410,
+      "y": 1220,
+      "w": 170,
+      "h": 220,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 580,
+      "y": 1120,
+      "w": 170,
+      "h": 320,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 750,
+      "y": 1020,
+      "w": 170,
+      "h": 420,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 920,
+      "y": 920,
+      "w": 480,
+      "h": 520,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 1400,
+      "y": 820,
+      "w": 140,
+      "h": 620,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1540,
+      "y": 720,
+      "w": 140,
+      "h": 720,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1680,
+      "y": 620,
+      "w": 140,
+      "h": 820,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1820,
+      "y": 520,
+      "w": 140,
+      "h": 920,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1960,
+      "y": 420,
+      "w": 480,
+      "h": 1020,
+      "kind": "ground",
+      "material": "brick"
+    }
+  ],
+  "dark": [
+    {
+      "x": 350,
+      "y": 780,
+      "w": 970,
+      "h": 660
+    },
+    {
+      "x": 1320,
+      "y": 200,
+      "w": 920,
+      "h": 1240
+    }
+  ],
+  "lamps": [
+    {
+      "x": 610,
+      "y": 1096,
+      "r": 240,
+      "off": true
+    },
+    {
+      "x": 1710,
+      "y": 596,
+      "r": 260,
+      "off": true
+    }
+  ],
+  "lanterns": [
+    {
+      "x": 300,
+      "y": 1300
+    }
+  ],
+  "hazards": [],
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 3
+  },
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 1520,
+  "replay": "replays/house-39.json"
+}
