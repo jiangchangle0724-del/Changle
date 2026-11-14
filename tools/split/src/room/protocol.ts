@@ -1,6 +1,6 @@
 // What the phones and the server say to each other. Every address is under /split/api.
 //
-//   POST /split/api/ledgers                 make a ledger            MakeBody → Snapshot (201; 200 when it was made already)
+//   POST /split/api/ledgers                 make a ledger, signed in MakeBody → Snapshot (201; 200 when it was made already)
 //   GET  /split/api/ledgers/<id>            the ledger as it stands  → Snapshot
 //   GET  /split/api/ledgers/<id>?since=<n>  the record after change n → Since
 //   POST /split/api/ledgers/<id>/changes    send changes             PushBody → Pushed
@@ -23,7 +23,9 @@
 //
 // "My ledgers" are a changle.ca account's: the request carries the site's sign-in
 // (`Authorization: Bearer <session>`, as the site's pages keep it), and nothing else says whose.
-// Making a ledger signed in keeps it there too, and counts against the account's day. Keeping one
+// Making a ledger needs one (401 "signin" without): it is kept there too, and counts against the
+// account's day. Asking again for a ledger already made, with its key, makes nothing, and needs
+// none. Keeping one
 // takes its key in the KEY_HEADER, which has to open it, and the owner's key in the OWNER_HEADER
 // when the phone has it, which has to be the owner's. A sign-in that is nobody's gets 401
 // "signin"; when the rooms server can't say whose it is, 503 "down".
