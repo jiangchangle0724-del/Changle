@@ -14,6 +14,8 @@
  * 10. The screens write nothing of their own: tokens only, and no words outside the table. The
  *     site's sign-in is read by the name the site keeps it under.
  * 11. Still hidden: no way in but its address.
+ * 12. The ledger's record (改动记录): every kind of line, who and when, what an edit changed, and
+ *     what a line offers (an expense changed back, or brought back within 30 days).
  */
 import QRCode from "qrcode";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -30,7 +32,8 @@ import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standin
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, paidId, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
 import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
 import { SESSION_KEY } from "../src/split/net";
-import { asDone, asMine, asPushed, asSnapshot } from "../src/split/shape";
+import { historyOf, RESTORE_DAYS, whenText, type Logged } from "../src/split/history";
+import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
 import { listed } from "../src/split/syncing";
@@ -752,6 +755,154 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const naming = elsewhere.filter((p) => /["'`(]\/split(\/|["'`)])|kind:\s*["']split["']|split\/SplitApp/.test(read(p)));
   ok(!naming.length, `nothing links to /split yet (${elsewhere.length} files looked at)${naming.length ? `: ${naming.join(", ")}` : ""}`);
   ok(!/split/i.test(read("public/robots.txt")) && !/["'`]\/split/.test(read("scripts/postbuild.ts")), "and it isn't in the sitemap or robots.txt");
+}
+
+// ---------- 12. the ledger's record ----------
+{
+  const day = 86_400_000;
+  const clock = new Date(2026, 10, 14, 9, 43).getTime();
+  const start = startLedger("R", "周末", "CAD", [
+    { id: "s", name: "Steve" },
+    { id: "w", name: "小王" },
+    { id: "m", name: "阿美" },
+  ]);
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "w", amount: 18600, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0 };
+  const gas: Expense = { kind: "expense", id: "e2", at: 2, payer: "w", amount: 12000, note: "油费", split: { how: "equal", among: ["s", "w"] }, rot: 1 };
+  const steps: [Change, string | undefined, number][] = [
+    [{ do: "expense", expense: dinner }, "s", clock - 3 * day],
+    [{ do: "expense", expense: gas }, "w", clock - 3 * day + 60_000],
+    [{ do: "edit", entry: "e1", to: { payer: "s", amount: 20000, note: "晚饭和酒", split: dinner.split } }, "m", clock - 2 * day],
+    [{ do: "out", entry: "e2", at: clock - day }, "w", clock - day],
+    [{ do: "member", member: { id: "j", name: "Jason" } }, "s", clock - day + 1],
+    [{ do: "rename", member: "j", name: "JJ" }, "w", clock - day + 2],
+    [{ do: "rename", member: "m", name: "美美" }, "m", clock - day + 3],
+    [{ do: "transfer", transfer: { id: "t1", at: clock - 1000, from: "w", to: "s", amount: 5000 } }, "w", clock - 1000],
+    [{ do: "out", entry: "t1", at: clock - 900 }, "s", clock - 900],
+    [{ do: "title", name: "周末二" }, undefined, clock - 500],
+    [{ do: "title", name: "周末三" }, "gone-person", clock - 400],
+  ];
+  let now = start;
+  const log: Logged[] = [];
+  steps.forEach(([change, by, at], i) => {
+    now = applyChange(now, change) ?? now;
+    // (the server's time is when it got there: a few seconds after the phone made it)
+    log.push({ seq: i + 1, at: at + 5_000, sent: { id: `c${i}`, at, change, ...(by ? { by } : {}) } });
+  });
+  // locked and opened again, between the payment and the titles
+  log.push({ seq: 99, at: clock - 800, lock: true }, { seq: 100, at: clock - 700, lock: false });
+  const lines = historyOf(now, log, [], "s", "zh", clock);
+  eq(lines.map((l) => l.text), [
+    "打开了账本",
+    "锁上了账本",
+    "改了账本名：周末三",
+    "改了账本名：周末二",
+    "撤销了已转：小王 给 Steve $50.00",
+    "标了已转：小王 给 Steve $50.00",
+    "改名：改成 美美",
+    "改名：Jason 改成 JJ",
+    "加了一个人：Jason",
+    "删了一笔：油费 $120.00",
+    "改了一笔：晚饭和酒 $200.00",
+    "记了一笔：油费 $120.00",
+    "记了一笔：晚饭 $186.00",
+  ], "every kind of line, newest first by the record's numbers (a lock among them where it came), in the words of what didn't stick");
+  eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
+  eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
+  const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  const backAgain = applyChange(now, edit!.change)!;
+  const { rot: _r1, ...was } = dinner;
+  const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
+  eq(isNow, was, "and changing it back makes it what it was, field for field");
+  eq(lines.find((l) => l.text.startsWith("删了一笔"))?.action, { word: "restore", change: { do: "back", entry: "e2" } }, "a deleted expense offers to come back");
+  eq(lines.filter((l) => l.action).length, 2, "nothing else offers anything (a payment taken back is marked again on the settle tab)");
+  eq(lines.map((l) => l.at), [...log].sort((a, b) => a.seq - b.seq).map((l) => ("sent" in l ? l.sent.at : l.at)).reverse(), "each line is when it was done: on the phone that did it (the server's time only for a lock)");
+  eq(historyOf(now, [...log].reverse(), [], "s", "zh", clock), lines, "the record goes by its numbers, whatever order its lines came in");
+
+  // what this phone hasn't sent: on top, and the latest edit now
+  const waiting = [{ id: "p1", at: clock - 10, by: "s", change: { do: "edit", entry: "e1", to: { payer: "s", amount: 21000, note: "晚饭和酒", split: dinner.split } } as Change }];
+  const withWaiting = historyOf(applyChange(now, waiting[0].change)!, log, waiting, "s", "zh", clock);
+  eq([withWaiting[0].text, withWaiting[0].pending, withWaiting[0].detail, withWaiting[0].action?.word], ["改了一笔：晚饭和酒 $210.00", true, "金额 $200.00 改成 $210.00", "revert"], "what this phone hasn't sent is on top, said the same way");
+  eq(withWaiting.filter((l) => l.action?.word === "revert").length, 1, "only the latest edit of an expense offers to change it back");
+
+  // locked: nothing to offer; deleted too long ago: no coming back; brought back already: nothing to bring
+  eq(historyOf({ ...now, locked: clock - 600 }, log, [], "s", "zh", clock).filter((l) => l.action).length, 0, "a locked ledger offers nothing");
+  eq(historyOf(now, log, [], "s", "zh", clock + RESTORE_DAYS * day).find((l) => l.text.startsWith("删了一笔"))?.action, undefined, `deleted more than ${RESTORE_DAYS} days ago: it can't be brought back from here`);
+  eq(historyOf(now, log, [], "s", "zh", clock + RESTORE_DAYS * day - day - 1).find((l) => l.text.startsWith("删了一笔"))?.action?.word, "restore", `within ${RESTORE_DAYS} days it can`);
+  const restored = applyChange(now, { do: "back", entry: "e2" })!;
+  const restoredLog: Logged[] = [...log, { seq: 101, at: clock, sent: { id: "c101", at: clock, by: "w", change: { do: "back", entry: "e2" } } }];
+  const afterBack = historyOf(restored, restoredLog, [], "s", "zh", clock);
+  eq([afterBack[0].text, afterBack.find((l) => l.text.startsWith("删了一笔"))?.action], ["恢复了一笔：油费 $120.00", undefined], "brought back: the line says so, and the deletion offers nothing more");
+  const goneAgain = applyChange(now, { do: "out", entry: "e1", at: clock })!;
+  eq(historyOf(goneAgain, [...log, { seq: 101, at: clock, sent: { id: "c101", at: clock, change: { do: "out", entry: "e1", at: clock } } }], [], "s", "zh", clock).find((l) => l.text.startsWith("改了一笔"))?.action, undefined, "an expense deleted since offers no changing back");
+
+  // whoever paid it before has been taken off since: changing it back wouldn't go through, so it isn't offered
+  {
+    const e3: Expense = { kind: "expense", id: "e3", at: 3, payer: "j", amount: 3000, note: "门票", split: { how: "equal", among: ["s", "w"] }, rot: 0 };
+    const more: Change[] = [
+      { do: "member", member: { id: "j", name: "Jason" } },
+      { do: "expense", expense: e3 },
+      { do: "edit", entry: "e3", to: { payer: "s", amount: 3000, note: "门票", split: e3.split } },
+    ];
+    let l = start;
+    const lg: Logged[] = [];
+    const go = (change: Change) => {
+      const next = applyChange(l, change);
+      ok(next !== null, `${change.do} goes through`);
+      l = next ?? l;
+      lg.push({ seq: lg.length + 1, at: clock, sent: { id: `d${lg.length}`, at: clock, change } });
+    };
+    more.forEach(go);
+    eq(historyOf(l, lg, [], "s", "zh", clock)[0].action?.word, "revert", "Jason still in the ledger: the change of who paid can be changed back");
+    go({ do: "remove", member: "j" });
+    const offers = historyOf(l, lg, [], "s", "zh", clock);
+    eq([offers[0].text, offers.find((x) => x.text.startsWith("改了一笔"))?.action], ["去掉了一个人：Jason", undefined], "Jason taken off since: changing it back to him wouldn't go through, so it isn't offered");
+  }
+
+  // a few changes, each as the server keeps it
+  const play = (changes: Change[]) => {
+    let l = start;
+    const lg: Logged[] = [];
+    for (const change of changes) {
+      const next = applyChange(l, change);
+      ok(next !== null, `${change.do} goes through`);
+      l = next ?? l;
+      lg.push({ seq: lg.length + 1, at: clock, sent: { id: `f${lg.length}`, at: clock, change } });
+    }
+    return { l, lg };
+  };
+
+  // deleted, brought back and deleted again: only the latest deletion offers to bring it back
+  {
+    const { l, lg } = play([{ do: "expense", expense: gas }, { do: "out", entry: "e2", at: clock - 3000 }, { do: "back", entry: "e2" }, { do: "out", entry: "e2", at: clock - 1000 }]);
+    eq(historyOf(l, lg, [], "s", "zh", clock).map((x) => x.action?.word ?? ""), ["restore", "", "", ""], "deleted twice: only the latest deletion offers to bring it back");
+  }
+
+  // paid in another currency, its amount changed without saying: the other currency goes, and changing back brings it back
+  {
+    const car: Expense = { kind: "expense", id: "e5", at: 5, payer: "s", amount: 4200, note: "租车", split: { how: "equal", among: ["s", "w"] }, rot: 0, paidIn: { currency: "USD", amount: 3000, rate: "1.4" } };
+    const { l, lg } = play([{ do: "expense", expense: car }, { do: "edit", entry: "e5", to: { payer: "s", amount: 5000, note: "租车", split: car.split } }]);
+    const [edit] = historyOf(l, lg, [], "s", "zh", clock);
+    eq([edit.detail, (l.entries[0] as Expense).paidIn], ["金额 $42.00 改成 $50.00，货币或汇率改了", undefined], "an amount changed without saying the currency: no longer in US dollars, and the record says so");
+    const { rot: _r3, ...back } = applyChange(l, edit.action!.change)!.entries[0] as Expense;
+    const { rot: _r4, ...asWas } = car;
+    eq(back, asWas, "changed back: paid in US dollars again, at the same rate, as it was");
+  }
+
+  // in English, and a record that is empty
+  const en = historyOf(now, log, [], "s", "en", clock);
+  eq([en.at(-1)?.text, en.find((l) => l.text.startsWith("Edited"))?.detail, en.at(-7)?.text, en[0].who, en.at(-1)?.who], ["New expense: 晚饭 $186.00", "Amount $186.00 to $200.00, now paid by you, note now 晚饭和酒", "Renamed someone 美美", "Whoever started it", "You"], "in English: the same lines, the detail starting as a sentence does");
+  eq(historyOf(start, [], [], "s", "zh", clock), [], "nothing done yet: an empty record");
+
+  // when, as the record says it
+  const at = (d: number, h: number, mi: number, y = 2026, mo = 10) => new Date(y, mo, d, h, mi).getTime();
+  eq([whenText(at(14, 9, 5), clock, "zh"), whenText(at(13, 21, 30), clock, "zh"), whenText(at(2, 8, 0), clock, "zh"), whenText(at(30, 18, 0, 2025, 11), clock, "zh")], ["今天 09:05", "昨天 21:30", "11月2日 08:00", "2025年12月30日 18:00"], "when, in 中文: today, yesterday, a day this year, a day another year");
+  eq([whenText(at(14, 9, 5), clock, "en"), whenText(at(13, 21, 30), clock, "en"), whenText(at(2, 8, 0), clock, "en")].map((x) => x.replace(/\s/g, " ")), ["Today 9:05 a.m.", "Yesterday 9:30 p.m.", "Nov 2 8:00 a.m."], "and in English");
+
+  // the record as the server answers it
+  const read = asSince({ seq: 3, changes: [{ seq: 1, at: 5, sent: { id: "c1", at: 4, by: "w", change: { do: "title", name: "x" }, extra: 1 } }, { seq: 2, at: 6, lock: true }, { seq: 3, at: 7, sent: { id: "c3" } }, null, { seq: -1, at: 1, lock: false }, { seq: 4, at: "8", lock: true }] });
+  eq(read, { seq: 3, changes: [{ seq: 1, at: 5, sent: { id: "c1", at: 4, change: { do: "title", name: "x" }, by: "w" } }, { seq: 2, at: 6, lock: true }] }, "the server's record is read line by line: a change as any change is read, a lock; what is neither is left out");
+  for (const x of [null, [], { seq: 1 }, { seq: "1", changes: [] }, { changes: [] }]) ok(asSince(x) === null, `${JSON.stringify(x)} is no record`);
 }
 
 if (failed) {
