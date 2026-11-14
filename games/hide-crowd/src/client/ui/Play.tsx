@@ -102,6 +102,9 @@ export function Scoreboard(props: { view: RoomView; target: number; compact?: bo
   );
 }
 
+/** The round's clock as it reads: minutes and seconds (3:00 down to 0:00). */
+export const clockText = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
 export function useClock(game: GameView | null, receivedAt: number): number {
   const [, force] = useState(0);
   useEffect(() => {
@@ -177,7 +180,7 @@ export function Play(props: {
           <span>{t("firstTo", { n: game.scoreToWin })}</span>
         </div>
         <div class={`hud-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
-          {game.phase === "playing" ? seconds : 0}
+          {clockText(game.phase === "playing" ? seconds : 0)}
         </div>
         {meScore && meScore.inRound && (
           <div class="hud-mine" aria-label={`${t("score")} ${meScore.score}`}>
