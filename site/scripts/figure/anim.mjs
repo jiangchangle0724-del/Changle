@@ -26,11 +26,11 @@ export function over(a, b) {
 /** the world point (or direction) of a target in a solved pose */
 function worldOf(rig, pose, t, isDir) {
   rig.solve(pose);
-  const name = { hips: "Hips", chest: "Spine2", head: "Head", spine: "Spine1" }[t.frame] ?? t.frame;
   const v = new THREE.Vector3(...(t.p ?? t.d));
   if (!t.frame || t.frame === "char") return v;
-  v.applyQuaternion(rig.D.get(name));
-  return isDir ? v : v.add(rig.P.get(name));
+  const f = rig.frameOf(t.frame);
+  v.applyQuaternion(f.q);
+  return isDir ? v : v.add(f.p);
 }
 
 /** a pose between a and b, u from 0 to 1 */
@@ -53,6 +53,11 @@ export function mix(rig, a, b, u, path = []) {
     }
     const wa = worldOf(rig, mix.root.a, a, isDir);
     const wb = worldOf(rig, mix.root.b, b, isDir);
+    // the solver lifts a foot's char-frame point by the figure's ankle shift: not one that came from another frame
+    if (!isDir && path[path.length - 1] === "foot") {
+      if ((a.frame ?? "char") !== "char") wa.y -= rig.ankleShift ?? 0;
+      if ((b.frame ?? "char") !== "char") wb.y -= rig.ankleShift ?? 0;
+    }
     return { frame: "char", [key]: wa.lerp(wb, u).toArray() };
   }
   if (Array.isArray(a) && Array.isArray(b)) return a.map((x, i) => mix(rig, x, b[i], u, path));

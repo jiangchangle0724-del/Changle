@@ -205,6 +205,19 @@ const salute = (y, bow) => ({
 });
 
 export const MOVES = [
+  // ---------------------------------------------------------------- 站着 stand: breathing, the weight from one leg to the other, a look about
+  {
+    name: "stand",
+    fps: 10,
+    dur: 8,
+    add: breathe(1),
+    keys: [
+      { t: 0, pose: {} },
+      { t: 2.4, pose: { hips: { pos: [0.018, -0.008, 0], roll: -1.6 }, spine: { side: 1 }, head: { turn: 7, nod: 1, tilt: -1 }, legR: { foot: ch([-0.105, 0.126, -0.06]), footYaw: -6 } } },
+      { t: 4.2, pose: { hips: { pos: [0.018, -0.008, 0], roll: -1.6 }, spine: { side: 1 }, head: { turn: 2, nod: 3, tilt: 1 }, legR: { foot: ch([-0.105, 0.126, -0.06]), footYaw: -6 } } },
+      { t: 6.2, pose: { hips: { pos: [-0.012, -0.01, 0], roll: 1.2 }, spine: { side: -1 }, head: { turn: -6, nod: 2, tilt: 2 } } },
+    ],
+  },
   {
     name: "cool",
     fps: 15,

@@ -10,7 +10,7 @@
  * and the syncer tries again later. So a phone is never told its key is wrong by something that
  * isn't the server.
  */
-import { asDone, asMine, asPushed, asSnapshot, isRecord, isText, type Mine } from "./shape";
+import { asDone, asMine, asPushed, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
 import type { Net, Reply } from "./syncer";
 
 const API = "/split/api";
@@ -171,6 +171,9 @@ export const net: Net = {
   lock: (id, owner, locked) => ask(`/ledgers/${id}/lock`, { [OWNER_HEADER]: owner }, asSnapshot, { locked }),
   listen,
 };
+
+/** The ledger's record after change `seq` (0: from the start), at most a batch of it (the server's MAX_BATCH, 500). */
+export const recordNet = (id: string, key: string, seq: number): Promise<Reply<Since>> => ask(`/ledgers/${id}?since=${seq}`, { [KEY_HEADER]: key }, asSince);
 
 /** The owner deletes a ledger, for everyone. (Signed in, it leaves the owner's list too: the server does that.) */
 export const deleteLedger = (id: string, owner: string): Promise<Reply<true>> => ask(`/ledgers/${id}`, { ...signedIn(), [OWNER_HEADER]: owner }, asDone, undefined, "DELETE");

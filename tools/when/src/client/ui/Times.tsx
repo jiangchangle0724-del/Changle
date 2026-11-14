@@ -8,9 +8,9 @@ import { t } from "../i18n";
 import { Sheet, useLang } from "./common";
 
 /** "19:30" as a time field wants it: "19:30", "06:00". */
-const field = (minutes: number) => clock(minutes).padStart(5, "0");
+export const field = (minutes: number) => clock(minutes).padStart(5, "0");
 /** A time field's "HH:MM" back to minutes; null when it isn't one. */
-function minutesOf(value: string): number | null {
+export function minutesOf(value: string): number | null {
   const match = /^(\d{1,2}):(\d{2})/.exec(value);
   if (!match) return null;
   const minutes = Number(match[1]) * 60 + Number(match[2]);

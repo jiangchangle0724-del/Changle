@@ -1,138 +1,88 @@
-// Builds site/public/models/figure.glb.gz, the 3D figure's prototype (README.md):
-//   node build.mjs <Ready Player Me animation-library folder> [--out <file.glb>]
-// (--out writes a plain .glb, to look at; the page loads the gzipped one, a third of the size.)
-// 1. Ready Player Me's masculine sample avatar (Masculine_TPose.glb), its shirt's logo painted out;
-// 2. 17 clips from their library moved onto its bones (licensed with their avatars only);
-// 3. the moves written here (moves.mjs, solved by rig.mjs) and the props' anchors (bake.mjs);
-// 4. shrunk: keyframes thinned, textures to 512 px WebP, vertices quantized, meshopt.
+// Builds the 3D figure's files (README.md):
+//   node build.mjs <MPFB2 data folder> <MakeHuman system assets folder> [--only male|female] [--plain <folder>]
+// writes site/public/models/figure/male.glb.gz and female.glb.gz (the figure: body, clothes, face,
+// its first hairstyle, the moves, the props' anchors) and hair/<style>-<sex>.glb.gz (each other
+// hairstyle on its own, loaded when picked). --plain also writes them unzipped there, to look at.
+// 1. MakeHuman's human shaped and dressed, with the face sliders and expressions (human.mjs);
+// 2. the moves written here (moves.mjs, solved by rig.mjs) and the props' anchors (bake.mjs);
+// 3. shrunk: textures to WebP (the skin 1024 px, most 512, the small ones 256), keyframes
+//    thinned, vertices quantized, meshopt; then gzip (Cloudflare doesn't compress .glb).
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { dedup, meshopt, prune, quantize, resample, textureCompress } from "@gltf-transform/functions";
 import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
 import sharp from "sharp";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { addAnchors, addMoves, rigOf } from "./bake.mjs";
 import { MOVES } from "./moves.mjs";
+import { HAIRS, SEXES, docOf, prepareHuman } from "./human.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
-const lib = args.find((a) => !a.startsWith("--"));
-const outAt = args.indexOf("--out");
-const out = outAt >= 0 ? args[outAt + 1] : join(here, "../../public/models/figure.glb.gz");
-if (!lib) {
-  console.error("usage: node build.mjs <animation-library folder> [--out file]  (README.md)");
+const opt = (name) => {
+  const i = args.indexOf(name);
+  return i >= 0 ? args.splice(i, 2)[1] : null;
+};
+const only = opt("--only");
+const plain = opt("--plain");
+const [mpfb, assets] = args;
+if (!mpfb || !assets) {
+  console.error("usage: node build.mjs <MPFB2 src/mpfb/data> <MakeHuman system assets> [--only male|female] [--plain folder]  (README.md)");
   process.exit(1);
 }
+const out = join(here, "../../public/models/figure");
 
-/**
- * The library's clips we keep, by the names the page knows (site/src/account/figure/moves.ts).
- * half: slow clips keep every other keyframe (15 a second); inplace: walk and run stay put.
- */
-const CLIPS = {
-  stand: "idle/M_Standing_Idle_001.glb",
-  "half:wave": "expression/M_Standing_Expressions_001.glb",
-  "half:salute": "expression/M_Standing_Expressions_002.glb",
-  "half:clap": "expression/M_Standing_Expressions_009.glb",
-  "half:thumbs": "expression/M_Standing_Expressions_012.glb",
-  "half:cheer": "expression/M_Standing_Expressions_010.glb",
-  "half:bow": "expression/M_Standing_Expressions_007.glb",
-  "half:shrug": "expression/M_Standing_Expressions_015.glb",
-  "half:think": "expression/M_Standing_Expressions_011.glb",
-  "half:lookout": "expression/M_Standing_Expressions_008.glb",
-  "half:flex": "expression/M_Standing_Expressions_018.glb",
-  "half:stretch": "idle/M_Standing_Idle_Variations_006.glb",
-  "half:watch": "idle/M_Standing_Idle_Variations_005.glb",
-  dance: "dance/M_Dances_004.glb",
-  party: "dance/M_Dances_005.glb",
-  "inplace:walk": "locomotion/M_Walk_001.glb",
-  "inplace:run": "locomotion/M_Run_001.glb",
-};
+/** each figure's first hairstyle (the one in its own file) */
+export const FIRST_HAIR = { male: "short02", female: "long01" };
+const BASE_PARTS = ["Body", "Eyes", "Eyebrows", "Eyelashes", "Clothes", "Shoes"];
 
 await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready]);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.encoder": MeshoptEncoder, "meshopt.decoder": MeshoptDecoder });
-const doc = await io.read(join(lib, "masculine/glb/Masculine_TPose.glb"));
-const root = doc.getRoot();
-const buffer = root.listBuffers()[0];
-const byName = new Map(root.listNodes().map((n) => [n.getName(), n]));
-root.listAnimations().forEach((a) => a.dispose());
 
-// 1. the shirt's logo (the material's own colour texture; the file carries a second, unused one)
-{
-  const tex = root.listMaterials()[0].getBaseColorTexture();
-  const tmp = mkdtempSync(join(tmpdir(), "figure-"));
-  writeFileSync(join(tmp, "in.png"), tex.getImage());
-  const r = spawnSync("python3", [join(here, "clean_texture.py"), join(tmp, "in.png"), join(tmp, "out.png")], { stdio: "inherit" });
-  if (r.status !== 0) throw new Error("clean_texture.py failed (pip install opencv-python-headless pillow numpy)");
-  tex.setImage(new Uint8Array(readFileSync(join(tmp, "out.png")))).setMimeType("image/png");
-}
-
-// 2. the library's clips, by bone name
-for (const [spec, file] of Object.entries(CLIPS)) {
-  let name = spec;
-  const inplace = name.startsWith("inplace:");
-  if (inplace) name = name.slice(8);
-  const half = name.startsWith("half:");
-  if (half) name = name.slice(5);
-  const src = await io.read(join(lib, "masculine/glb", file));
-  const anim = src.getRoot().listAnimations()[0];
-  if (!anim) throw new Error(`no animation in ${file}`);
-  const dst = doc.createAnimation(name);
-  const cache = new Map();
-  const copy = (acc) => {
-    if (cache.has(acc)) return cache.get(acc);
-    let arr = acc.getArray().slice();
-    const n = acc.getElementSize();
-    if (half && acc.getCount() > 4) {
-      const count = acc.getCount();
-      const keep = [];
-      for (let i = 0; i < count; i += 2) keep.push(i);
-      if (keep[keep.length - 1] !== count - 1) keep.push(count - 1);
-      const next = new arr.constructor(keep.length * n);
-      keep.forEach((i, k) => next.set(arr.subarray(i * n, i * n + n), k * n));
-      arr = next;
-    }
-    const a = doc.createAccessor(acc.getName()).setType(acc.getType()).setArray(arr).setBuffer(buffer);
-    cache.set(acc, a);
-    return a;
-  };
-  for (const ch of anim.listChannels()) {
-    const node = ch.getTargetNode() && byName.get(ch.getTargetNode().getName());
-    if (!node) continue;
-    const s = ch.getSampler();
-    if (inplace && ch.getTargetPath() === "translation" && node.getName() === "Hips") {
-      const arr = s.getOutput().getArray();
-      for (let i = 3; i < arr.length; i += 3) {
-        arr[i] = arr[0];
-        arr[i + 2] = arr[2];
-      }
-    }
-    const sampler = doc.createAnimationSampler().setInput(copy(s.getInput())).setOutput(copy(s.getOutput())).setInterpolation(s.getInterpolation());
-    dst.addSampler(sampler).addChannel(doc.createAnimationChannel().setTargetNode(node).setTargetPath(ch.getTargetPath()).setSampler(sampler));
+async function write(doc, rel) {
+  await doc.transform(
+    dedup(),
+    resample({ tolerance: 1e-3 }),
+    prune({ keepLeaves: true }),
+    textureCompress({ encoder: sharp, pattern: /^skin$/, resize: [1024, 1024], quality: 82, targetFormat: "webp" }),
+    textureCompress({ encoder: sharp, pattern: /^(clothes|shoes|hair_\w+)$/, resize: [512, 512], quality: 80, targetFormat: "webp" }),
+    textureCompress({ encoder: sharp, pattern: /^(eyes|eyebrows|eyelashes)$/, resize: [256, 256], quality: 82, targetFormat: "webp" }),
+    quantize({ quantizePosition: 14, quantizeNormal: 8, quantizeTexcoord: 12 }),
+    meshopt({ encoder: MeshoptEncoder, level: "high" }),
+  );
+  const glb = Buffer.from(await io.writeBinary(doc));
+  const file = join(out, `${rel}.glb.gz`);
+  mkdirSync(dirname(file), { recursive: true });
+  // gzip's header carries no time from Node, so the same input gives the same file
+  const gz = gzipSync(glb, { level: 9 });
+  writeFileSync(file, gz);
+  if (plain) {
+    mkdirSync(dirname(join(plain, rel)), { recursive: true });
+    writeFileSync(join(plain, `${rel}.glb`), glb);
   }
+  return gz.length;
 }
 
-// 3. our own moves and the props' anchors
-const rig = rigOf(doc);
-addAnchors(doc, rig);
-addMoves(doc, rig, MOVES);
+const quiet = console.warn;
+console.warn = (m, ...rest) => (/Skipping _WELD/.test(String(m)) ? null : quiet(m, ...rest));
 
-// 4. smaller
-await doc.transform(
-  dedup(),
-  resample({ tolerance: 1e-3 }),
-  prune({ keepLeaves: true }),
-  textureCompress({ encoder: sharp, targetSize: [512, 512], quality: 80, targetFormat: "webp" }),
-  quantize({ quantizePosition: 14, quantizeNormal: 8, quantizeTexcoord: 12 }),
-  meshopt({ encoder: MeshoptEncoder, level: "high" }),
-);
-const glb = Buffer.from(await io.writeBinary(doc));
-// gzip's header carries no time from Node, so the same input gives the same file
-const bytes = out.endsWith(".gz") ? gzipSync(glb, { level: 9 }) : glb;
-writeFileSync(out, bytes);
-const clips = root.listAnimations().map((a) => a.getName());
-console.log(`${out}: ${(bytes.length / 1024).toFixed(0)} KB (${(glb.length / 1024).toFixed(0)} KB unzipped), ${clips.length} clips: ${clips.join(" ")}`);
+for (const sex of Object.keys(SEXES)) {
+  if (only && only !== sex) continue;
+  const t0 = Date.now();
+  const prep = await prepareHuman({ mpfb, assets, sex });
+  // the figure, with its first hair, the moves and the props' anchors
+  const doc = docOf(prep, [...BASE_PARTS, `Hair_${FIRST_HAIR[sex]}`]);
+  const rig = rigOf(doc);
+  addAnchors(doc, rig);
+  addMoves(doc, rig, MOVES);
+  const scene = doc.getRoot().getDefaultScene();
+  scene.setExtras({ ...scene.getExtras(), figure: { sex, hair: FIRST_HAIR[sex], hairs: HAIRS } });
+  const kb = (n) => `${(n / 1024).toFixed(0)} KB`;
+  const sizes = [`${sex} ${kb(await write(doc, sex))}`];
+  // the other hairstyles, each on its own
+  for (const h of HAIRS) if (h !== FIRST_HAIR[sex]) sizes.push(`${h} ${kb(await write(docOf(prep, [`Hair_${h}`]), `hair/${h}-${sex}`))}`);
+  console.log(`${sex} (${((Date.now() - t0) / 1000).toFixed(0)} s, ${prep.info.height} m tall as drawn, frames ${JSON.stringify(prep.frames)}): ${sizes.join(", ")}`);
+}

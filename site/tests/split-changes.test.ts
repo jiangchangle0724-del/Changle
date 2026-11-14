@@ -301,6 +301,13 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
     "a change to an expense arrives saying nothing about another currency, saying there is none, or saying which: each as it was sent, with nothing extra",
   );
   ok(!("paidIn" in (asSent(edited) as { to: object }).to), "(said nothing is nothing there at all, not a null)");
+  // who made it: an id, kept as it came; anything else, as if it said nobody
+  const by = (x: unknown) => parseSent({ ...good, by: x });
+  eq([by("w")?.by, by("x".repeat(64))?.by], ["w", "x".repeat(64)], "who made a change arrives with it");
+  for (const x of [5, "", "has space", "x".repeat(65), null, ["w"], { id: "w" }]) {
+    const read = by(x);
+    ok(!!read && !("by" in read) && canon(read) === canon(good), `who made it said as ${JSON.stringify(x)}: the change arrives, saying nobody`);
+  }
 }
 
 // ---------- 8. anything at all ----------

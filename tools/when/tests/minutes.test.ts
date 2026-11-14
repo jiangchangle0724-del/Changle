@@ -3,7 +3,7 @@
 // Run with `npx tsx --test tests/minutes.test.ts`.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { atTime, best, cleanTimes, counted, eatLink, mealLabel, mealTime, meet, MIN_SPAN, reason, resultText, spanLabel, tally, toIcs, whenLabel } from "../src/engine";
+import { atTime, best, cleanTimes, counted, eatLink, mealLabel, mealTime, meet, MIN_SPAN, reason, resultText, resultWords, spanLabel, tally, toIcs, whenLabel } from "../src/engine";
 import { entriesOf } from "../src/engine/minutes";
 import type { Answers, Person, Times } from "../src/engine";
 import { EventRoom, memoryStore } from "../src/room/event";
@@ -159,8 +159,8 @@ test("the calendar, the words for the group and the meal start at the minutes th
   const people = [person("a", { [EVE]: 2 })];
   const t = atTime(tally({ days: [SAT], grain: "periods", people, minPeople: 1 })[4], people, "periods", at(19, 30), at(22));
   assert.equal(
-    resultText({ title: "周末火锅", day: SAT, part: "eve", from: at(19, 30), to: at(22), tally: t, people, url: "u" }, "zh"),
-    "「周末火锅」定了：11月21日 周六 晚上 19:30–22:00。1 个人里 1 个有空。\nu",
+    resultText(resultWords({ title: "周末火锅", day: SAT, part: "eve", from: at(19, 30), to: at(22), tally: t, people, url: "u" }), "plain", "zh"),
+    "「周末火锅」\n定了：11月21日 周六 晚上 19:30–22:00。1 个人里 1 个有空。详情见链接。\nu",
   );
   assert.equal(mealTime("eve", at(19, 30)), "19:30");
   assert.equal(mealTime("dawn", at(1, 5)), "01:05");

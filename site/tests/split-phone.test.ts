@@ -9,6 +9,7 @@
  *     one joined from an invitation; the list asking after each of its ledgers.
  *  5. Signed in: the phone's ledgers and the account's "my ledgers" made one; taking a ledger off
  *     the account, and its owner deleting it for everyone.
+ *  6. A ledger's record (改动记录), read from the server a batch at a time.
  *
  * (What is sent when, and what the phone makes of the answers, is tests/split-sync.test.ts.)
  */
@@ -460,6 +461,8 @@ const { net } = await import("../src/split/net");
   ok(shown(store.heldOf("ledger-6") as Held).entries.length === 1, "is on the screen at once");
   await settle();
   eq([posts(), store.heldOf("ledger-6")?.waiting.length, made.get("ledger-6")?.ledger.entries.length], [["(make)", "/ledger-6/changes"], 0, 1], "and on the server a moment later");
+  const sentBy = (asked.find((a) => a.path === "/split/api/ledgers/ledger-6/changes")?.body as { changes: Sent[] } | undefined)?.changes.map((c) => c.by);
+  eq(sentBy, ["s"], "it went saying who recorded it: the person this phone said it is (the one who started the ledger)");
   ok(syncing.record("ledger-6", spend("e1").change) && !syncing.record("ledger-6", { do: "rename", member: "nobody", name: "x" }) && posts().length === 2, "recorded again it is already so (nothing is sent); what the ledger doesn't allow is refused");
   ok(!syncing.record("not on this phone", spend("e2").change), "and there is no recording in a ledger this phone doesn't hold");
 
@@ -845,6 +848,36 @@ const { net } = await import("../src/split/net");
   eq([raced?.acct, raced?.owner === K("P"), store.meOf("race-1"), syncing.listed(raced!, null), store.heldOf("race-2")], ["u1", true, "s", false, null], "signed out while they were coming: the one that came is the account's (out of sight), with its owner's key and who they are; the rest wait for the next sign-in");
   leave();
   pass(0);
+}
+
+// ---------- 6. a ledger's record ----------
+{
+  const store = await import("../src/split/store");
+  const syncing = await import("../src/split/syncing");
+  const K = "r".repeat(43);
+  const total = 1203;
+  store.keepHeld(join({ seq: total, ledger: fresh("rec-1") }, K));
+  const line = (seq: number) => ({ seq, at: 1000 + seq, sent: { id: `c${seq}`, at: 900 + seq, by: "s", change: { do: "title", name: `n${seq}` } } });
+  asked.length = 0;
+  let down = -1;
+  answer = (a) => {
+    const m = /^\/split\/api\/ledgers\/rec-1\?since=(\d+)$/.exec(a.path);
+    if (!m || a.method !== "GET") return { status: 404, json: { error: "notfound" } };
+    const after = Number(m[1]);
+    if (after === down) return "nothing";
+    const lines = Array.from({ length: Math.max(0, Math.min(500, total - after)) }, (_, i) => line(after + i + 1));
+    return { status: 200, json: { seq: total, changes: lines } };
+  };
+  const got = await syncing.recordOf("rec-1");
+  eq([got?.length, got?.[0]?.seq, got?.at(-1)?.seq, got?.every((l, i) => l.seq === i + 1)], [total, 1, total, true], "a ledger's record, read from the start: all of it, in order");
+  eq(asked.map((a) => [a.path, a.key === K]), [["/split/api/ledgers/rec-1?since=0", true], ["/split/api/ledgers/rec-1?since=500", true], ["/split/api/ledgers/rec-1?since=1000", true]], "asked for a batch at a time, with the key in a header and nowhere in the address");
+  eq((got?.[0] as { sent?: Sent } | undefined)?.sent?.by, "s", "each line says who made it");
+  down = 500;
+  eq(await syncing.recordOf("rec-1"), null, "no answer to one of the batches: no record, rather than part of one");
+  store.keepHeld(hold(fresh("rec-2"), K));
+  asked.length = 0;
+  eq([await syncing.recordOf("rec-2"), asked.length], [[], 0], "a ledger not on the server yet: nothing to ask for, and nothing there");
+  eq(await syncing.recordOf("not-on-this-phone"), null, "and none for a ledger this phone doesn't hold");
 }
 
 if (failed) {

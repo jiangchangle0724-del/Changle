@@ -69,8 +69,8 @@ export type SyncState = {
 
 export type Syncer = {
   state(): SyncState;
-  /** The phone does something. False when the ledger as shown doesn't allow it. */
-  do(change: Change): boolean;
+  /** The phone does something (`by`: who did it, the person the phone's owner said they are). False when the ledger as shown doesn't allow it. */
+  do(change: Change, by?: string): boolean;
   /**
    * Something says now is a good time (the page is in front again, the phone is online, the ledger
    * was opened): try now, and try once more to get past a trouble that can pass.
@@ -287,13 +287,13 @@ export function syncer(opts: {
 
   return {
     state,
-    do(change) {
+    do(change, by) {
       if (stopped) return false;
       const id = opts.newId();
       const at = opts.now();
       let done = false;
       keep((x) => {
-        const next = act(x, change, id, at);
+        const next = act(x, change, id, at, by);
         done = next !== null;
         return next ?? x;
       });

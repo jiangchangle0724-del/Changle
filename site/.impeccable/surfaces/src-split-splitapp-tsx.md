@@ -158,3 +158,20 @@ What the look at the rendered screens changed (four phone sizes, both languages;
 3. The line for a ledger kept back by a sign-in said the sign-in had run out. The same line is what someone sees who signed out on purpose; it says the ledger needs a sign-in to go online.
 
 Verdict: holds to the contract. Still three screens and one light. Signing in is the site's own sheet, asked for once at the one moment it is needed; an account's ledgers are just the list, and what an owner can do that others can't is one line more in a sheet.
+
+## Stage three, step 9b: the record, and changing back (2026-11-14)
+
+Shape, in the thread that built it (the plan: every change keeps a record; the version before a change stays in it and can be gone back to; a deleted expense can be brought back for 30 days):
+
+- Who and when: someone in the group who sees a number they don't remember, or who deleted the wrong expense, a day or two into a trip. They want to know who did it and put it right, not to audit anyone.
+- Where: one more line in the ⋯ sheet, under the people: 改动记录 · 谁改了什么, History · Who changed what. It opens a sheet, not a page: a look, then back to the ledger. Still three screens.
+- A line says what was done in the ledger's own words (记了一笔：早餐 $81.50); for an edit, a quiet line under it says what changed (金额 $30.00 改成 $45.00); and a quiet line says who and when (你 · 今天 10:12; a name; 有人 for a change from before phones said who they were; 开账本的人 for a lock). Newest first; what this phone hasn't sent yet is on top, with "not sent yet" where the time would be.
+- Two offers, each a quiet small button at the end of its line: 改回去 on an expense's latest change, while the expense is there, the ledger isn't locked and the change back would go through; 恢复 on a deleted expense's line, for 30 days. Each is a change like any other: it goes up the same way, shows on every phone, and is itself a line of the record. Nothing in the record is ever rewritten.
+- Read from the server each time the sheet opens, and again while it is open whenever the ledger moves on, keeping what is shown meanwhile. With no signal it says so in the page's strong voice, with 再试一次, and still lists what this phone has waiting.
+- No new colour, no new motion.
+
+What the look at the rendered screens changed (four phone sizes, both languages; two phones against the local server):
+
+1. In English on a 320 phone, Change back sat beside its line and left the text a third of the width: "Today" and the time broke over two lines. Where the text would get narrower than about half the line, the button goes under it; in Chinese, and in English from 390 up, it stays at the end.
+
+Verdict: holds to the contract. Still three screens and one light; the record is a sheet a tap from ⋯, and putting something right is one quiet button on the line that says what went wrong.

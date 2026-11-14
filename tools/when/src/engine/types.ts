@@ -52,6 +52,8 @@ export type EventState = {
   expiresAt: number;
   /** answer by then, or null for no deadline */
   deadline: number | null;
+  /** who the host means to ask, by name (还差谁 goes by it); empty when the host wrote none */
+  invited: string[];
   /** fewer than this many able to come, and a slot isn't offered */
   minPeople: number;
   settled: Settled | null;

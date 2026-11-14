@@ -49,7 +49,7 @@ export interface NoodleView {
 }
 
 export interface PropView {
-  kind: 'seesaw' | 'crate' | 'ingot' | 'tray';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern';
   w: number;
   h: number;
   x: number;
@@ -119,6 +119,12 @@ export interface SimView {
   gold?: { holdT: number[]; need: number; holder: number } | null;
   /** 端托盘（后厨，A10）：托盘是第几个物件、点心翻了没有（翻了画空托盘）。蒸笼喷汽按关卡和 time 画，不用带。 */
   tray?: { prop: number; spilled: boolean } | null;
+  /** 老宅找钥匙（A10）：每把钥匙是第几个物件、找到没有、用掉没有（插在锁里了就不画）。灯笼就是 kind 为 lantern 的物件。 */
+  keys?: { prop: number; found: boolean; used: boolean }[];
+  /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
+  lamps?: { x: number; y: number; r: number; on: boolean }[];
+  /** 拉杆（太空站，A10）：把手在哪、有没有人抓着。失重区按关卡画，不用带。 */
+  levers?: PlateView[];
   /** 卡太久来帮手（A9c）：外卖无人机提手的中间、在干什么；没来是 null。 */
   drone?: { x: number; y: number; phase: string } | null;
 }

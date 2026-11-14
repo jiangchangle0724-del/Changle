@@ -88,10 +88,45 @@ export function putBack(l: Ledger, id: string): Ledger {
   };
 }
 
-/** One person has paid another back. A transfer that isn't sound changes nothing. */
+/** One person has paid another back. A transfer that isn't sound changes nothing, and nor does one whose id the ledger has. */
 export function addTransfer(l: Ledger, t: Omit<Transfer, "kind" | "gone">): Ledger {
   if (!soundTransfer(t, roster(l)) || l.entries.some((x) => x.id === t.id)) return l;
   return { ...l, entries: [...l.entries, { ...t, kind: "transfer" }] };
+}
+
+/** A 53-bit fingerprint of some text (cyrb53, public domain), in letters and digits. */
+function fingerprint(text: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/**
+ * The id of a transfer marked as made from a step of the plan to settle up (core/ledger.ts,
+ * settlement): the same on every phone that marks the same step of the same ledger. So when the
+ * one who paid and the one who was paid both mark one payment, at the same moment or with no
+ * signal, it is recorded once: the second is a transfer the ledger already has (addTransfer).
+ *
+ * What it is made of: the ledger and the step; how many expenses have ever been recorded in it
+ * (the plan is worked out from them, so the same step after other expenses came and went is a new
+ * one); and how many transfers like it the ledger already has, taken back ones included (so marking
+ * it again after taking it back is a new one too).
+ */
+export function paidId(l: Ledger, step: { from: string; to: string; amount: number }): string {
+  let expenses = 0;
+  let before = 0;
+  for (const e of l.entries) {
+    if (e.kind === "expense") expenses++;
+    else if (e.from === step.from && e.to === step.to && e.amount === step.amount) before++;
+  }
+  return `paid-${fingerprint(`${l.id}|${expenses}|${step.from}|${step.to}|${step.amount}|${before}`)}`;
 }
 
 /** One more person, at the end of the roster. Refused when the ledger is full or the name is empty or taken. */

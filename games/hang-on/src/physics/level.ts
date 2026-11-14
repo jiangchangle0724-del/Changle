@@ -156,6 +156,43 @@ export interface LiftDef {
   players?: [number, number];
 }
 
+/**
+ * 老宅找钥匙（A10）：一把钥匙（物件，能抓、能拽、能丢），开 `opens` 那扇门（GateDef 的 id）。钥匙碰到它的门（离门不到
+ * CFG.keyReach）门就开了，一直开着，钥匙插在锁里没了。门只由钥匙开（不连踏板）。钥匙掉下去、碰到要命的东西，
+ * 过 CFG.keyBack 秒回来：回到它到过的最后一个（大家激活过的）检查点，没到过就回开局的地方。(x, y) 是钥匙的中心。
+ */
+export interface KeyDef extends Pt {
+  opens: string;
+  players?: [number, number];
+}
+
+/** 手提的灯笼（老宅，A10）：一个物件，拿着走照亮周围；碰到灭着的灯就点着它。掉了和钥匙一样回来。(x, y) 是灯笼的中心。 */
+export interface LanternDef extends Pt {
+  players?: [number, number];
+}
+
+/**
+ * 墙上的灯（老宅，A10）：一盏油灯 / 一支蜡烛，亮着照亮周围 `r` 像素（默认 CFG.lampR）。`off`：一开始灭着，
+ * 有人（身体、手）或者灯笼碰一下就点着，点着了一直亮。只管看得见看不见，不碰撞、不挡路。
+ */
+export interface LampDef extends Pt {
+  r?: number;
+  off?: boolean;
+  players?: [number, number];
+}
+
+/**
+ * 太空站的拉杆（A10）：墙上一根把手（(x, y) 是中心，默认 44 × 14，能抓），有人的手抓着它就算拉下去了；
+ * 开 `opens` 那几扇门（和踏板一样，门的 id 用空格分开）。门写 `all` 就要连着它的拉杆、踏板同时都按着才开：
+ * 几根拉杆隔得远，一个人抓不过来，得几个人一起拉。
+ */
+export interface LeverDef extends Pt {
+  opens: string;
+  w?: number;
+  h?: number;
+  players?: [number, number];
+}
+
 export interface Level {
   id: string;
   world?: string;
@@ -191,6 +228,19 @@ export interface Level {
    * 第一个点是开局托盘放在哪（中心），第 j + 1 个是托盘过了第 j 个检查点以后翻了回哪；没写的用前一个。
    */
   tray?: Pt[];
+  /**
+   * 老宅找钥匙（A10）：钥匙（开锁着的门）、手提的灯笼、墙上的灯、黑屋子。黑屋子（`dark` 里的矩形）里看不清，
+   * 只有灯、灯笼、每个人自己身上那一圈、亮了的检查点照得到的地方看得见；只管画面，物理照常。
+   */
+  keys?: KeyDef[];
+  lanterns?: LanternDef[];
+  lamps?: LampDef[];
+  dark?: Rect[];
+  /**
+   * 太空站（A10）：失重区（这些矩形里没有重力，人、胳膊、物件飘着；没抓着东西时摇杆轻轻喷气挪一点）和拉杆。
+   */
+  zerog?: Rect[];
+  levers?: LeverDef[];
   deathY: number;
   par?: { seconds: number; deathsPerPlayer: number };
   replay?: string;
@@ -219,7 +269,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -237,11 +287,24 @@ export function forPlayers(level: Level, n: number): Level {
     gates: keep(level.gates),
     vents: keep(level.vents),
     lifts: keep(level.lifts),
+    keys: keep(level.keys),
+    lanterns: keep(level.lanterns),
+    lamps: keep(level.lamps),
+    dark: keep(level.dark),
+    zerog: keep(level.zerog),
+    levers: keep(level.levers),
   };
 }
 
+/** 拉杆的那块把手（矩形）。 */
+export const leverRect = (l: LeverDef): Rect => {
+  const w = l.w ?? 44;
+  const h = l.h ?? 14;
+  return { x: l.x - w / 2, y: l.y - h / 2, w, h, kind: 'lever', material: 'metal' };
+};
+
 /** 这块踏板开哪几扇门。 */
-export const opensOf = (p: PlateDef): string[] => p.opens.split(/\s+/).filter(Boolean);
+export const opensOf = (p: { opens: string }): string[] => p.opens.split(/\s+/).filter(Boolean);
 
 /** 门开到 `open`（0 关着，1 全开）时在哪（左上角）。 */
 export const gateAt = (g: GateDef, open: number): Pt => ({ x: g.x + g.move.x * open, y: g.y + g.move.y * open });
@@ -469,6 +532,104 @@ export function snowLevel(): Level {
       { x: 340, y: 770, w: 30, h: 30, kind: 'zap' },
       { x: 80, y: 600, w: 160, h: 30, kind: 'spike', dir: 'down' },
       { x: 2080, y: 280, w: 70, h: 20, kind: 'hot' },
+    ],
+    deathY: 1180,
+    par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 老宅样板关（A10，只在开发页：`play.html?level=proto-07`）：月下的院子，往右是一间黑着的库房（`dark`），门口一盏手提灯笼、
+ * 墙上一支灭着的蜡烛（碰一下就点着），地板中间一个窟窿，一地碎瓷片；钥匙在高柜子顶上，拿下来端到库房尽头那扇锁着的门，
+ * 门就开了；门后是厅堂，炭盆、漏电的老电线，台阶上去是终点。Codex 做老宅的关时照着写 JSON。
+ */
+export function houseLevel(): Level {
+  return {
+    id: 'proto-07',
+    world: 'house',
+    name: { zh: '老宅样板', en: 'Old house sampler' },
+    teaches: 'key',
+    w: 2700,
+    h: 1100,
+    spawn: { x: 100, y: 760 },
+    goal: { x: 2480, y: 300, w: 200, h: 160 },
+    checkpoints: [{ x: 1950, y: 766 }],
+    rects: [
+      // 院子：青砖地
+      { x: 0, y: 800, w: 900, h: 300, kind: 'ground', material: 'brick' },
+      // 库房：木地板，中间一个窟窿；顶上一道抓不住的大梁（门在梁的那头，翻不过去）
+      { x: 900, y: 800, w: 340, h: 300, kind: 'ground', material: 'wood' },
+      { x: 1360, y: 800, w: 990, h: 300, kind: 'ground', material: 'wood' },
+      { x: 880, y: 280, w: 980, h: 40, kind: 'wall', material: 'wood', grab: false },
+      // 高柜子，钥匙在柜顶上
+      { x: 1520, y: 560, w: 180, h: 240, kind: 'wall', material: 'wood' },
+      // 门后的厅堂：一级台阶，再上去是青砖的高台
+      { x: 2150, y: 640, w: 200, h: 160, kind: 'step', material: 'wood' },
+      { x: 2350, y: 460, w: 350, h: 640, kind: 'ground', material: 'brick' },
+    ],
+    gates: [{ id: 'door', x: 1820, y: 320, w: 40, h: 480, move: { x: 0, y: -260 }, grab: false }],
+    keys: [{ x: 1610, y: 552, opens: 'door' }],
+    lanterns: [{ x: 960, y: 780 }],
+    lamps: [
+      { x: 1180, y: 650, off: true },
+      { x: 1700, y: 420, r: 200, off: true },
+      { x: 2260, y: 520 },
+    ],
+    // 黑屋子连着地板一起黑（地板下面的窟窿也看不清）
+    dark: [{ x: 900, y: 320, w: 920, h: 780 }],
+    hazards: [
+      { x: 1400, y: 784, w: 80, h: 16, kind: 'spike' },
+      { x: 2060, y: 772, w: 70, h: 28, kind: 'hot' },
+      { x: 2230, y: 624, w: 50, h: 16, kind: 'zap' },
+    ],
+    deathY: 1180,
+    par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 太空站样板关（A10，只在开发页：`play.html?level=proto-08&players=2`）：气闸舱的甲板，往右是一段失重舱（`zerog`，
+ * 底下没有地板，只有几根扶手，飘出失重舱就掉下去），中间一道激光栅栏；对面的甲板上两根拉杆隔得老远，两个人一起拉着，
+ * 舱门才开（门 `all`）；门后是控制室，推进器的尾焰、一地碎片。Codex 做太空站的关时照着写 JSON。
+ */
+export function spaceLevel(): Level {
+  return {
+    id: 'proto-08',
+    world: 'space',
+    name: { zh: '太空站样板', en: 'Space station sampler' },
+    teaches: 'float',
+    w: 2800,
+    h: 1100,
+    spawn: { x: 100, y: 760 },
+    goal: { x: 2580, y: 380, w: 200, h: 160 },
+    checkpoints: [{ x: 1780, y: 666 }],
+    rects: [
+      // 气闸舱的甲板
+      { x: 0, y: 800, w: 700, h: 300, kind: 'ground', material: 'hull' },
+      // 失重舱的顶（抓不住的白舱壁）和几根扶手
+      { x: 700, y: 120, w: 1000, h: 40, kind: 'wall', material: 'hull', grab: false },
+      { x: 820, y: 560, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1000, y: 430, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1210, y: 560, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1420, y: 400, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1580, y: 540, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      // 对面的甲板，一个高一点的台子（第二根拉杆在上面），舱门后面是控制室
+      { x: 1700, y: 700, w: 640, h: 400, kind: 'ground', material: 'hull' },
+      { x: 2080, y: 520, w: 120, h: 180, kind: 'step', material: 'metal' },
+      { x: 2340, y: 700, w: 100, h: 400, kind: 'ground', material: 'hull' },
+      { x: 2440, y: 540, w: 360, h: 560, kind: 'ground', material: 'hull' },
+      { x: 2300, y: 120, w: 140, h: 180, kind: 'wall', material: 'hull', grab: false },
+    ],
+    zerog: [{ x: 700, y: 160, w: 1000, h: 640 }],
+    levers: [
+      { x: 1830, y: 620, opens: 'hatch' },
+      { x: 2140, y: 470, opens: 'hatch' },
+    ],
+    gates: [{ id: 'hatch', x: 2300, y: 300, w: 40, h: 400, move: { x: 0, y: -280 }, all: true, hold: 3, grab: false }],
+    hazards: [
+      { x: 1290, y: 260, w: 12, h: 200, kind: 'zap' },
+      { x: 1960, y: 684, w: 70, h: 16, kind: 'spike' },
+      { x: 2470, y: 520, w: 50, h: 20, kind: 'hot' },
     ],
     deathY: 1180,
     par: { seconds: 90, deathsPerPlayer: 3 },

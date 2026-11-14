@@ -15,7 +15,8 @@
 import { useSyncExternalStore } from "react";
 import type { Change } from "./changes";
 import type { Ledger } from "./core";
-import { deleteLedger, mineNet, net } from "./net";
+import type { Logged } from "./history";
+import { deleteLedger, mineNet, net, recordNet } from "./net";
 import type { Mine } from "./shape";
 import { dropHeld, everyHeld, heldOf, keepHeld, meOf, newId, newKey, setMe, write } from "./store";
 import { hold, holds, join, notOwner, opened, shown, type Held } from "./sync";
@@ -203,7 +204,8 @@ export function rekeyLedger(id: string) {
  * was recorded here (and goes to the server when it can), or it was already so.
  */
 export function record(id: string, change: Change): boolean {
-  if (run(id)?.syncer.do(change)) return true;
+  // (who did it goes with it, for the ledger's record: the person this phone said it is, if it said)
+  if (run(id)?.syncer.do(change, meOf(id))) return true;
   const h = heldOf(id);
   return !!h && holds(shown(h), change);
 }
@@ -232,6 +234,33 @@ export async function removeLedger(id: string): Promise<boolean> {
   if (account && h.acct === account && (await mineNet.drop(id)).status !== 200) return false;
   forgetHere(id);
   return true;
+}
+
+/** How many lines of the record the server gives at a time (tools/split/src/room/ledger.ts, MAX_BATCH). */
+const RECORD_BATCH = 500;
+/** No more than this many asked for in all (the server keeps at most 20,000 changes of a ledger). */
+const RECORD_MOST = 50_000;
+
+/**
+ * A ledger's record from the start, as the server keeps it, asked for a batch at a time. Empty for
+ * one not on the server yet (what this phone did is all there is, and the screen has that); null
+ * when the server couldn't be reached or wouldn't say.
+ */
+export async function recordOf(id: string): Promise<Logged[] | null> {
+  const h = heldOf(id);
+  if (!h) return null;
+  if (!h.made) return [];
+  const all: Logged[] = [];
+  let after = 0;
+  while (all.length < RECORD_MOST) {
+    const got = await recordNet(id, h.key, after);
+    if (got.status !== 200 || !got.data) return null;
+    const more = got.data.changes.filter((l) => l.seq > after);
+    all.push(...more);
+    if (more.length < RECORD_BATCH) return all;
+    after = Math.max(...more.map((l) => l.seq));
+  }
+  return all;
 }
 
 /**

@@ -7,6 +7,7 @@
  */
 import { parseSent, type Sent, type Took } from "./changes";
 import type { Entry, Ledger, Member, Split } from "./core";
+import type { Logged } from "./history";
 import type { Held, Pushed, Snapshot } from "./sync";
 
 export const isText = (x: unknown): x is string => typeof x === "string";
@@ -64,6 +65,25 @@ export function asPushed(x: unknown, sent: number): Pushed | null {
   const snapshot = asSnapshot(x);
   if (!snapshot || !isRecord(x) || !Array.isArray(x.took) || x.took.length !== sent || !x.took.every((t) => TOOK.includes(t))) return null;
   return { ...snapshot, took: x.took as Took[] };
+}
+
+/** The ledger's record after some change, as the server answers (tools/split/src/room/protocol.ts, Since). */
+export type Since = { seq: number; changes: Logged[] };
+
+/**
+ * The server's record, read from whatever arrived: each line a change that counted (read as any
+ * change is, so nothing else rides in) or the ledger locked or opened. A line that is neither is
+ * left out; an answer that isn't a record is none.
+ */
+export function asSince(x: unknown): Since | null {
+  if (!isRecord(x) || !isSeq(x.seq) || !Array.isArray(x.changes)) return null;
+  const changes = x.changes.flatMap((l): Logged[] => {
+    if (!isRecord(l) || !isSeq(l.seq) || !isSeq(l.at)) return [];
+    if (typeof l.lock === "boolean") return [{ seq: l.seq, at: l.at, lock: l.lock }];
+    const sent = parseSent(l.sent);
+    return sent ? [{ seq: l.seq, at: l.at, sent }] : [];
+  });
+  return { seq: x.seq, changes };
 }
 
 /**

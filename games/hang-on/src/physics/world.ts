@@ -35,7 +35,7 @@ import {
   TETHER_LEN,
 } from './config';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LiftDef, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
+import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
 import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, spinnerAngle, spinnerArm, ventColumn, ventState } from './motion';
 
 type RB = RAPIER.RigidBody;
@@ -171,6 +171,8 @@ export interface Player {
   pendingItem: boolean;
   /** 上一次没用成（拉面没抓着墙）是第几秒：没用成的事件 1 秒只报一次。 */
   itemFailAt: number;
+  /** 在太空站的失重区里（A10）：没有重力，没抓东西时摇杆喷气。 */
+  floating: boolean;
 }
 
 /** 饼干平台的当前样子（画面用）。 */
@@ -228,13 +230,15 @@ export interface Noodle {
 }
 
 export interface Prop {
-  kind: 'seesaw' | 'crate' | 'ingot' | 'tray';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern';
   rb: RB;
   w: number;
   h: number;
   x: number;
   y: number;
   angle: number;
+  /** 在失重区里飘着（太空站，A10）。 */
+  floating?: boolean;
 }
 
 /** 怎么死的：掉下去，或者碰到尖的、烫的、带电的。 */
@@ -300,6 +304,16 @@ export type SimEvent =
   | { type: 'vent'; index: number; phase: 'warn' | 'on'; x: number; y: number }
   /** 端托盘（后厨，A10）：点心翻了（spill）、托盘回到存档的地方（back）、端进终点了（home）；x、y 是托盘在哪。 */
   | { type: 'tray'; phase: 'spill' | 'back' | 'home'; x: number; y: number }
+  /**
+   * 老宅找钥匙（A10）：第几把钥匙头一回被人抓住（found）、开了门（unlock，x、y 是门的中间）、掉了回到存档的地方（back）；
+   * 有人碰着它那扇锁着的门、钥匙还没开（locked，隔 CFG.lockedHint 秒报一次，x、y 是门的中间）。
+   */
+  | { type: 'key'; index: number; phase: 'found' | 'unlock' | 'back' | 'locked'; x: number; y: number }
+  /** 老宅（A10）：第几盏灭着的灯被点着了。 */
+  | { type: 'lamp'; index: number; x: number; y: number }
+  /** 太空站（A10）：第几根拉杆被拉下去 / 松开了（x、y 是把手的中间）；有人飘进 / 飘出失重区。 */
+  | { type: 'lever'; index: number; on: boolean; x: number; y: number }
+  | { type: 'float'; player: number; on: boolean; x: number; y: number }
   /** 用道具（A9）：ok 是用成了没有（拉面要先抓着墙或台子）；x、y 是在哪用的。 */
   | { type: 'item'; player: number; item: ItemId; ok: boolean; x: number; y: number }
   /** 道具的劲过了：速冻化开、荷叶收起、拉面断了（x、y 是在哪）。 */
@@ -395,7 +409,18 @@ export class Sim {
   tray: { prop: number; cp: number; spilled: boolean; spillT: number; tiltT: number; grace: number; home: boolean } | null = null;
   /** 踩板门（11-13）：踏板按着没有；门开到几成（0 关、1 开）、现在在哪。 */
   readonly plates: { def: PlateDef; x: number; y: number; w: number; h: number; on: boolean }[] = [];
-  readonly gates: { def: GateDef; rb: RB; x: number; y: number; w: number; h: number; open: number; holdT: number; opening: boolean }[] = [];
+  /** 门：开到几成；钥匙开的门（老宅，A10）`unlocked` 了就一直开着，`hintAt` 是上一次报「门锁着」的时候。 */
+  readonly gates: { def: GateDef; rb: RB; x: number; y: number; w: number; h: number; open: number; holdT: number; opening: boolean; unlocked: boolean; hintAt: number }[] = [];
+  /**
+   * 老宅找钥匙（A10）：每把钥匙是第几个物件、开第几扇门、找到没有（有人抓过）、用掉没有（插在锁里了）、
+   * 存档到第几个检查点（-1 是开局的地方）、掉出去几秒了、开局在哪。灯笼一样，只是不开门。
+   */
+  readonly keys: { prop: number; gate: number; found: boolean; used: boolean; cp: number; lostT: number; home: Pt }[] = [];
+  readonly lanterns: { prop: number; cp: number; lostT: number; home: Pt }[] = [];
+  /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
+  readonly lamps: { x: number; y: number; r: number; on: boolean }[] = [];
+  /** 太空站的拉杆（A10）：把手在哪（抓的是这块地形）、有没有人抓着。 */
+  readonly levers: { def: LeverDef; rect: Rect; x: number; y: number; w: number; h: number; on: boolean }[] = [];
   private noodleSeq = 0;
 
   private readonly info = new Map<number, ColInfo>();
@@ -441,6 +466,7 @@ export class Sim {
     for (const def of level.movers ?? []) this.addMover(def);
     for (const def of level.spinners ?? []) this.addSpinner(def);
     for (const def of level.plates ?? []) this.addPlate(def);
+    for (const def of level.levers ?? []) this.addLever(def);
     for (const def of level.gates ?? []) this.addGate(def);
     for (const def of level.vents ?? []) this.addVent(def);
     for (const def of level.lifts ?? []) this.addLift(def);
@@ -448,6 +474,16 @@ export class Sim {
     // 端托盘（后厨，A10）：闯关、大团队里摆上一托盘点心
     const traySpot = level.tray?.[0];
     if (traySpot && this.itemsOn) this.addTray(traySpot);
+    // 老宅找钥匙（A10）：钥匙、灯笼、墙上的灯（每种玩法都有：门要钥匙才开）
+    for (const def of level.keys ?? []) {
+      const prop = this.addCarry('key', def, CFG.keyW, CFG.keyH, CFG.keyMass);
+      this.keys.push({ prop, gate: this.gates.findIndex((g) => g.def.id === def.opens), found: false, used: false, cp: -1, lostT: 0, home: { x: def.x, y: def.y } });
+    }
+    for (const def of level.lanterns ?? []) {
+      const prop = this.addCarry('lantern', def, CFG.lanternW, CFG.lanternH, CFG.lanternMass);
+      this.lanterns.push({ prop, cp: -1, lostT: 0, home: { x: def.x, y: def.y } });
+    }
+    for (const def of level.lamps ?? []) this.lamps.push({ x: def.x, y: def.y, r: def.r ?? CFG.lampR, on: !def.off });
 
     this.setPlayers(nPlayers);
     // 抢金元宝（A9d）：中间放一个元宝
@@ -651,6 +687,24 @@ export class Sim {
     this.tray = { prop: index, cp: -1, spilled: false, spillT: 0, tiltT: 0, grace: CFG.trayGrace, home: false };
   }
 
+  /** 钥匙、手提的灯笼（老宅，A10）：一个轻的小方块（at 是中心），能抓能拽能丢。返回它是第几个物件。 */
+  private addCarry(kind: 'key' | 'lantern', at: Pt, w: number, h: number, mass: number): number {
+    const rb = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(at.x, at.y).setLinearDamping(0.3).setAngularDamping(1.5).setCcdEnabled(true),
+    );
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(w / 2, h / 2)
+        .setMass(mass)
+        .setFriction(0.5)
+        .setCollisionGroups(groups(GROUP.PROP, GROUP.TERRAIN | GROUP.PLAYER | GROUP.PROP)),
+      rb,
+    );
+    const index = this.props.length;
+    this.info.set(col.handle, { kind: 'prop', prop: index });
+    this.props.push({ kind, rb, w, h, x: at.x, y: at.y, angle: 0 });
+    return index;
+  }
+
   /** 会动的平台：运动学刚体，每步摆到 moverAt 算的位置。 */
   private addMover(def: MoverDef): void {
     const at = moverAt(def, 0);
@@ -675,6 +729,13 @@ export class Sim {
     this.plates.push({ def, x: def.x, y: def.y, w: def.w, h: def.h, on: false });
   }
 
+  /** 拉杆（太空站，A10）：墙上一根能抓的把手（实的小块地形），有人抓着就算拉下去（`tickGates` 里量）。 */
+  private addLever(def: LeverDef): void {
+    const rect = leverRect(def);
+    this.addRect(rect, frictionOf('metal'), 0);
+    this.levers.push({ def, rect, x: rect.x, y: rect.y, w: rect.w, h: rect.h, on: false });
+  }
+
   /** 门：运动学刚体，能站能抓（和会动的平台一样，抓着跟着走），开到几成由踏板管。 */
   private addGate(def: GateDef): void {
     const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(def.x + def.w / 2, def.y + def.h / 2));
@@ -685,7 +746,7 @@ export class Sim {
       rb,
     );
     this.info.set(col.handle, { kind: 'moving', deadly: false, noGrab: def.grab === false });
-    this.gates.push({ def, rb, x: def.x, y: def.y, w: def.w, h: def.h, open: 0, holdT: 0, opening: false });
+    this.gates.push({ def, rb, x: def.x, y: def.y, w: def.w, h: def.h, open: 0, holdT: 0, opening: false, unlocked: false, hintAt: -Infinity });
   }
 
   /**
@@ -694,6 +755,13 @@ export class Sim {
    */
   private tickGates(dt: number): void {
     if (!this.plates.length && !this.gates.length) return;
+    // 拉杆（太空站）：有活着的人的手抓着把手就算拉下去
+    this.levers.forEach((lv, k) => {
+      const on = this.players.some((p) => !p.dead && p.arms.some((a) => a.grip?.kind === 'terrain' && a.grip.rect === lv.rect));
+      if (on === lv.on) return;
+      lv.on = on;
+      this.events.push({ type: 'lever', index: k, on, x: lv.x + lv.w / 2, y: lv.y + lv.h / 2 });
+    });
     const reach = CFG.plateReach;
     this.plates.forEach((pl, k) => {
       const top = { x: pl.x, y: pl.y - reach, w: pl.w, h: reach };
@@ -708,8 +776,9 @@ export class Sim {
       }
     });
     this.gates.forEach((g, k) => {
-      const mine = this.plates.filter((pl) => opensOf(pl.def).includes(g.def.id));
-      const want = mine.length > 0 && (g.def.all ? mine.every((pl) => pl.on) : mine.some((pl) => pl.on));
+      const mine: { on: boolean }[] = [...this.plates.filter((pl) => opensOf(pl.def).includes(g.def.id)), ...this.levers.filter((lv) => opensOf(lv.def).includes(g.def.id))];
+      // 钥匙开了的门（老宅，A10）一直开着
+      const want = g.unlocked || (mine.length > 0 && (g.def.all ? mine.every((pl) => pl.on) : mine.some((pl) => pl.on)));
       g.holdT = want ? (g.def.hold ?? CFG.gateHold) : Math.max(0, g.holdT - dt);
       const opening = want || g.holdT > 0;
       const len = Math.hypot(g.def.move.x, g.def.move.y) || 1;
@@ -972,6 +1041,119 @@ export class Sim {
     this.events.push({ type: 'tray', phase: 'back', x: at.x, y: at.y });
   }
 
+  /**
+   * 老宅找钥匙（A10）每一步：钥匙头一回被人抓住报一声；钥匙碰到它的门（离门不到 CFG.keyReach），门就一直开着，
+   * 钥匙插进锁里没了（抓着它的手松开，刚体关掉）；有人碰着锁着的门报「门锁着」。钥匙、灯笼掉出去了就回来（tickLost）。
+   */
+  private tickKeys(dt: number): void {
+    this.keys.forEach((k, i) => {
+      if (k.used) return;
+      const prop = this.props[k.prop] as Prop;
+      if (!k.found && this.heldProp(k.prop)) {
+        k.found = true;
+        this.events.push({ type: 'key', index: i, phase: 'found', x: prop.x, y: prop.y });
+      }
+      const g = this.gates[k.gate];
+      if (g && !g.unlocked) {
+        if (circleHitsRect(prop, CFG.keyReach, g)) {
+          g.unlocked = true;
+          k.used = true;
+          this.dropProp(prop);
+          prop.rb.setEnabled(false);
+          this.events.push({ type: 'key', index: i, phase: 'unlock', x: g.x + g.w / 2, y: g.y + g.h / 2 });
+          return;
+        }
+        // 锁着的门：有人走到跟前（身体离门不到 30 px，或者手碰着门），隔几秒提醒一次
+        const near = (p: Player): boolean => circleHitsRect(p.body, CFG.bodyR + 30, g) || p.arms.some((a) => circleHitsRect(a.hand, CFG.handR + 10, g));
+        if (this.time - g.hintAt >= CFG.lockedHint && this.players.some((p) => !p.dead && !p.done && near(p))) {
+          g.hintAt = this.time;
+          this.events.push({ type: 'key', index: i, phase: 'locked', x: g.x + g.w / 2, y: g.y + g.h / 2 });
+        }
+      }
+      if (this.tickLost(k, prop, dt)) this.events.push({ type: 'key', index: i, phase: 'back', x: prop.x, y: prop.y });
+    });
+    for (const l of this.lanterns) this.tickLost(l, this.props[l.prop] as Prop, dt);
+  }
+
+  /**
+   * 钥匙、灯笼（老宅，A10）：掉下去、碰到要命的东西 CFG.keyBack 秒就回来（回到它到过的最后一个大家激活过的检查点，
+   * 没到过就回开局的地方），抓着它的手松开。也在这里存档：离激活过的检查点不到 CFG.keyCpR 就算它到过。回来了返回 true。
+   */
+  private tickLost(c: { cp: number; lostT: number; home: Pt }, prop: Prop, dt: number): boolean {
+    const cps = this.level.checkpoints ?? [];
+    for (let j = c.cp + 1; j <= this.checkpoint && j < cps.length; j++) if (dist(prop, cps[j] as Pt) < CFG.keyCpR) c.cp = j;
+    const lost = prop.y > this.level.deathY || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 8, h));
+    c.lostT = lost ? c.lostT + dt : 0;
+    if (c.lostT < CFG.keyBack) return false;
+    const cp = cps[c.cp];
+    // 存档的检查点：放在复活的人头顶上一点、第一第二个人中间，掉下来落在脚边
+    const at = cp ? { x: cp.x + 45, y: cp.y - 40 } : c.home;
+    this.dropProp(prop);
+    prop.rb.setTranslation(at, true);
+    prop.rb.setLinvel({ x: 0, y: 0 }, true);
+    prop.rb.setAngvel(0, true);
+    prop.rb.setRotation(0, true);
+    prop.x = at.x;
+    prop.y = at.y;
+    prop.angle = 0;
+    c.lostT = 0;
+    return true;
+  }
+
+  /** 有没有人的手抓着第 i 个物件。 */
+  private heldProp(i: number): boolean {
+    return this.players.some((p) => !p.dead && p.arms.some((a) => a.grip?.kind === 'prop' && a.grip.prop === i));
+  }
+
+  /** 抓着这个物件的手都松开。 */
+  private dropProp(prop: Prop): void {
+    for (const [, e] of [...this.grips]) if (e.g.target === prop.rb) this.release(this.players[e.player] as Player, e.arm);
+  }
+
+  /**
+   * 失重区（太空站，A10）每一步：身体中心在失重区里的人，身体和胳膊都不受重力（出来了恢复）；物件（跷跷板除外）也一样。
+   * 只在进出的那一步改重力倍数。
+   */
+  private tickZeroG(): void {
+    const zones = this.level.zerog;
+    if (!zones?.length) return;
+    const inZone = (q: Pt): boolean => zones.some((z) => q.x >= z.x && q.x <= z.x + z.w && q.y >= z.y && q.y <= z.y + z.h);
+    for (const p of this.players) {
+      const on = !p.dead && !p.done && inZone(p.body);
+      if (on === p.floating) continue;
+      p.floating = on;
+      p.rb.setGravityScale(on ? 0 : 1, true);
+      for (const arm of p.arms) {
+        for (const rb of arm.segs) {
+          rb.setGravityScale(on ? 0 : CFG.armGravity, true);
+          rb.setLinearDamping(on ? CFG.floatArmDamp : CFG.armDamp);
+        }
+      }
+      this.events.push({ type: 'float', player: p.id, on, x: p.body.x, y: p.body.y });
+    }
+    for (const prop of this.props) {
+      if (prop.kind === 'seesaw') continue;
+      const on = inZone(prop);
+      if (on === !!prop.floating) continue;
+      prop.floating = on;
+      prop.rb.setGravityScale(on ? 0 : 1, true);
+    }
+  }
+
+  /** 墙上灭着的灯（老宅，A10）：活着的人的身体、手，或者灯笼碰到就点着。 */
+  private tickLamps(): void {
+    this.lamps.forEach((l, i) => {
+      if (l.on) return;
+      const near = (q: Pt, r: number): boolean => Math.hypot(q.x - l.x, q.y - l.y) <= r + CFG.lampTouch;
+      const lit =
+        this.players.some((p) => !p.dead && (near(p.body, CFG.bodyR) || p.arms.some((a) => near(a.hand, CFG.handR)))) ||
+        this.lanterns.some((ln) => near(this.props[ln.prop] as Prop, CFG.lanternH / 2));
+      if (!lit) return;
+      l.on = true;
+      this.events.push({ type: 'lamp', index: i, x: l.x, y: l.y });
+    });
+  }
+
   /** 叫无人机：悬在离下一个目标最远的那个活着的人头上。 */
   private callDrone(): void {
     const target = this.nextTarget();
@@ -1154,6 +1336,7 @@ export class Sim {
       itemLeft: 0,
       pendingItem: false,
       itemFailAt: -10,
+      floating: false,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -1406,6 +1589,7 @@ export class Sim {
     this.tickItems(dt);
     this.tickGates(dt);
     this.tickDrone(dt);
+    this.tickZeroG();
     const pulls = this.pullCounts(dt);
     for (const p of this.players) {
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
@@ -1456,6 +1640,8 @@ export class Sim {
     this.pickEnvelopes();
     this.checkpoints();
     this.tickTray(dt);
+    this.tickKeys(dt);
+    this.tickLamps();
     this.checkEnd();
     for (const p of this.players) this.updateFace(p);
   }
@@ -1569,7 +1755,13 @@ export class Sim {
     body.resetForces(false);
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const gripping = p.arms.filter((a) => a.grip);
-    body.setLinearDamping(gripping.length && !p.ground ? CFG.hangDamp : CFG.bodyDamp);
+    // 失重区里没抓东西：阻尼大一点（慢慢停下来），摇杆往那边轻轻喷气，喷到 floatMax 就不再加
+    body.setLinearDamping(p.floating && !gripping.length ? CFG.floatDamp : gripping.length && !p.ground ? CFG.hangDamp : CFG.bodyDamp);
+    if (p.floating && !gripping.length && aimed) {
+      const v = body.linvel();
+      const mag = Math.hypot(p.aim.x, p.aim.y) || 1;
+      if ((v.x * p.aim.x + v.y * p.aim.y) / mag < CFG.floatMax) body.addForce({ x: CFG.bodyMass * CFG.floatThrust * p.aim.x, y: CFG.bodyMass * CFG.floatThrust * p.aim.y }, true);
+    }
     p.bodyCol.setFriction(gripping.length && aimed ? CFG.bodyFrictionPulling : CFG.bodyFriction);
     if (gripping.length && aimed && pulls) {
       // 挂着时摇杆指「身体想去哪」，不是「手指哪」：往上推翻上去，左右推是荡。
@@ -1614,7 +1806,11 @@ export class Sim {
       const hx = sx + dx * CFG.reach;
       const hy = sy + dy * CFG.reach;
       const k = CFG.reachK * armMass;
-      last.addForceAtPoint({ x: k * (hx - arm.hand.x), y: k * (hy - arm.hand.y) }, arm.hand, true);
+      const fx = k * (hx - arm.hand.x);
+      const fy = k * (hy - arm.hand.y);
+      last.addForceAtPoint({ x: fx, y: fy }, arm.hand, true);
+      // 失重区（太空站）：伸手的力反过来加在身体上（不然光挥胳膊人就飘走了）；有重力的地方照旧
+      if (p.floating) body.addForce({ x: -fx, y: -fy }, true);
       // 肩电机：上臂指向摇杆方向
       const target = Math.atan2(dy, dx);
       const err = wrapAngle(target - seg0.rotation());

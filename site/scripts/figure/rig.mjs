@@ -55,6 +55,10 @@ const MAIN = {
   RightUpLeg: "RightLeg", RightLeg: "RightFoot", RightFoot: "RightToeBase", RightToeBase: "RightToe_End",
 };
 const FINGERS = ["Thumb", "Index", "Middle", "Ring", "Pinky"];
+/** the frames a pose can be written in, by bone */
+const FRAMES = { hips: "Hips", chest: "Spine2", head: "Head", spine: "Spine1" };
+/** the ankle height the moves were written for (the first stand-in's), metres */
+const ANKLE = 0.1265;
 
 /** Finger shapes: curl of joints 1, 2, 3 (into the palm +), spread of joint 1 (away from the middle finger +). */
 export const HANDS = {
@@ -71,8 +75,13 @@ export const HANDS = {
 };
 
 export class Rig {
-  /** nodes: [{ name, parent, t: [x, y, z], r: [x, y, z, w] }], parents before children */
-  constructor(nodes) {
+  /**
+   * nodes: [{ name, parent, t: [x, y, z], r: [x, y, z, w] }], parents before children.
+   * frames: where this figure's chest, head and hips frames sit off their bones (metres, at
+   * rest), so a point written for the first stand-in lands at the same place on this body.
+   */
+  constructor(nodes, frames = {}) {
+    this.frameOff = Object.fromEntries(Object.entries(frames).map(([k, v]) => [k, v3(v)]));
     this.bones = new Map();
     this.order = [];
     for (const n of nodes) {
@@ -107,15 +116,28 @@ export class Rig {
       const grip = fingers.clone().multiplyScalar(0.085).add(palm.clone().multiplyScalar(0.032));
       this.hand[side] = { fingers, palm, thumbSide, grip };
     }
-    // the elbows' and knees' hinge at rest
+    // the elbows' and knees' hinge at rest: across the bend of an arm that rests bent (an A pose),
+    // else as a straight arm along ±x bends its forearm forward (+z): about -y (left) or +y (right)
     this.hinge = {};
     for (const side of ["Left", "Right"]) {
       const s = side === "Left" ? 1 : -1;
-      // a rest arm along ±x bends its forearm forward (+z) about -y (left) or +y (right)
-      this.hinge[`${side}Arm`] = new THREE.Vector3(0, -s, 0);
+      const bent = this.bones.get(`${side}Arm`).dir.clone().cross(this.bones.get(`${side}ForeArm`).dir);
+      this.hinge[`${side}Arm`] = bent.length() > 0.2 ? bent.normalize() : new THREE.Vector3(0, -s, 0);
       this.hinge[`${side}UpLeg`] = new THREE.Vector3(1, 0, 0);
     }
     this.eyes = this.bones.get("LeftEye") && this.bones.get("RightEye") ? this.bones.get("LeftEye").Pr.clone().add(this.bones.get("RightEye").Pr).multiplyScalar(0.5) : this.bones.get("Head").Pr.clone().add(new THREE.Vector3(0, 0.09, 0.08));
+    // the moves put the feet for ankles ANKLE above the ground; this figure's stand where they stand
+    this.ankleShift = this.bones.get("LeftFoot").Pr.y - ANKLE;
+  }
+
+  /** a frame's origin and turn: { p, q } (from a pose being solved, or the last one) */
+  frameOf(f, P = this.P, D = this.D) {
+    if (!f || f === "char") return { p: new THREE.Vector3(), q: new THREE.Quaternion() };
+    const name = FRAMES[f] ?? f;
+    const q = D.get(name).clone();
+    const p = P.get(name).clone();
+    if (this.frameOff[f]) p.add(this.frameOff[f].clone().applyQuaternion(q));
+    return { p, q };
   }
 
   handShape(h) {
@@ -137,11 +159,7 @@ export class Rig {
       P.set(b.name, p);
       E.set(b.name, e);
     };
-    const frame = (f) => {
-      if (!f || f === "char") return { p: new THREE.Vector3(), q: new THREE.Quaternion() };
-      const name = { hips: "Hips", chest: "Spine2", head: "Head", spine: "Spine1" }[f] ?? f;
-      return { p: P.get(name).clone(), q: D.get(name).clone() };
-    };
+    const frame = (f) => this.frameOf(f, P, D);
     const point = (spec) => {
       if (!spec) return null;
       const fr = frame(spec.frame);
@@ -319,6 +337,7 @@ export class Rig {
       const toe = get(`${side}ToeBase`);
       const H = P.get("Hips").clone().add(th.off.clone().applyQuaternion(D.get("Hips")));
       const T = l.foot ? point(l.foot) : ft.Pr.clone();
+      if (l.foot && (l.foot.frame ?? "char") === "char") T.y += this.ankleShift;
       const la = th.len;
       const lb = sh.len;
       const toT = T.clone().sub(H);

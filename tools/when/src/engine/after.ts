@@ -1,19 +1,20 @@
-// Once the time is set: the words to paste back into the group chat, and the way on to 随便
-// (changle.ca/eat) to choose where to eat.
-import { whenLabel } from "./minutes";
-import { reason, type Tally } from "./rank";
+// Once the time is set: what the words for the group chat say (copy.ts writes them), and the way
+// on to 随便 (changle.ca/eat) to choose where to eat.
+import type { ResultWords } from "./copy";
+import { counted, type Tally } from "./rank";
 import { clock } from "./slots";
 import { daysBetween } from "./time";
 import type { Day, Lang, Part, Person } from "./types";
 
 /**
- * "「周末火锅」定了：11月21日 周六 晚上 19:30–22:00。8 个人里 7 个有空，阿May 可以调。" and the
- * link under it. `from` and `to`: the minutes, when the time was set to them.
+ * What the words for the group say about the time that was set (copy.ts writes them): who is free
+ * for it, and who could move things, as the page counts them. `from` and `to`: the minutes, when
+ * the time was set to them.
  */
-export function resultText(input: { title: string; day: Day; part: Part; from?: number; to?: number; tally: Tally; people: readonly Person[]; url: string }, lang: Lang): string {
-  const when = whenLabel(input.day, input.part, lang, input.from, input.to);
-  const why = reason(input.tally, input.people, lang);
-  return lang === "zh" ? `「${input.title}」定了：${when}。${why}。\n${input.url}` : `"${input.title}" is set: ${when}. ${why}.\n${input.url}`;
+export function resultWords(input: { title: string; day: Day; part: Part; from?: number; to?: number; tally: Tally; people: readonly Person[]; url: string }): ResultWords {
+  const { yes, maybe } = counted(input.tally);
+  const names = maybe.map((id) => input.people.find((p) => p.id === id)?.name ?? "").filter(Boolean);
+  return { title: input.title, url: input.url, day: input.day, part: input.part, from: input.from, to: input.to, coming: yes.length, asked: input.people.length, maybe: names };
 }
 
 /**
