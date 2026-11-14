@@ -5,6 +5,7 @@
  * how sharp to draw on a stage the page scales to fit the screen.
  */
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { appleTouch } from "./device";
 
 /** The robot, in the site's own files. */
 export const MODEL = "/models/robot.glb";
@@ -75,5 +76,6 @@ export function ratioFor(el: HTMLElement): number {
   const shown = el.getBoundingClientRect().width;
   const laid = el.clientWidth || shown || 1;
   const scale = shown > 0 ? shown / laid : 1;
-  return Math.max(0.75, Math.min(2, (window.devicePixelRatio || 1) * scale));
+  // (an iPhone or iPad: one pixel per point at most, its memory is for the music and the video)
+  return Math.max(0.75, Math.min(appleTouch() ? 1 : 2, (window.devicePixelRatio || 1) * scale));
 }

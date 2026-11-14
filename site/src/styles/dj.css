@@ -769,6 +769,22 @@
     transition: none;
   }
 }
+/* an iPhone or iPad as the speaker (device.ts): YouTube's player stays 640 by 360 inside, drawn
+   smaller in its corner and 2.5 times bigger over the whole TV, so it streams the same picture both
+   ways (up to 1080p, never 4K) and nothing loads again when it goes over the TV */
+.dj-stage.is-light .dj-tube {
+  transition: none;
+}
+.dj-stage.is-light .dj-tube-frame {
+  inset: 0 auto auto 0;
+  width: 640px;
+  height: 360px;
+  transform: scale(0.6375);
+  transform-origin: 0 0;
+}
+.dj-stage.is-light .dj-tube.is-full .dj-tube-frame {
+  transform: scale(2.5);
+}
 
 /* 跟着跳: the coach on the left of the floor (its name on the card's top edge), the move's name, how
    to do it, the next, the floor together */

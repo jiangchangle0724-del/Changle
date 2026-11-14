@@ -582,7 +582,13 @@ style carrying on; anyone skips it from their phone (`next`); 12 minutes of it a
 next already, waits at least a minute (`DECK.songGapMs`) before the DJ drops into it by itself; the
 table can build up and drop sooner. A big screen opened again mid-song picks the song up where the
 room is. The video plays in the same corner it waited in (Steve on Nov 5: the floor and the coach in
-sight), over the whole TV while `full` is on (anyone's switch on their phone: `full`).
+sight), over the whole TV while `full` is on (anyone's switch on their phone: `full`). On an iPhone
+or iPad as the speaker (`device.ts`; Steve on Nov 14, the shared phone reloaded as the video went over
+the TV or the next song came on) the player stays 640 by 360 inside and is drawn to its corner or the
+whole TV, so YouTube streams one picture size, up to 1080p, and loads nothing again when it goes over
+the TV; the booth's 3D is drawn at one pixel per point there. The shared phone's 点歌 and 音效 sheets
+load a few seconds in (a page that first asks for one of its files after the site was updated reloads
+itself, `lib/freshness.ts`, the music with it).
 
 **点歌模式** (`juke`, Nov 5; the booth's only way since Nov 12): no build-up, no DROP and no picks (the room turns
 `charge`, `vote` and DROP on its switch away; the phones and the big screen show the mode instead).
