@@ -42,6 +42,14 @@ const KEY_CHANGED = 4403;
 /** The live connections of a ledger its owner deleted are closed with this. */
 const DELETED = 4404;
 const failed = (f: Fail) => refuse(f.error, STATUS[f.error]);
+
+/**
+ * The ledgers the checks after each step left on changle.ca (docs/briefs/split.md, 还剩什么): their
+ * keys weren't kept, so no owner's delete can reach them. Steve agreed on 2026-11-14 that they go.
+ * POST /split/api/retire-checks deletes these six and nothing else, once (asked again, they are
+ * already gone); the change after it takes the address out again.
+ */
+const CHECKS = ["PvhF-9CX3LrQ45hrPezAww", "iizSBQish8UA3fyd1gF50Q", "92ZNE48v4LOQ0exZqFCzdA", "fMdFLKgUl0IvGzj5bc31eQ", "C2P61elUGtKSwS-x6l0rhQ", "QzILaFAd3-dqGWT78LgqDQ"];
 const today = () => new Date().toISOString().slice(0, 10);
 
 async function body(req: Request): Promise<Record<string, unknown> | null> {
@@ -113,6 +121,15 @@ export default {
     if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return refuse("notfound", 404);
     const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean);
     if (parts[0] === "me" && parts[1] === "ledgers" && parts.length <= 3) return mine(req, env, ctx, parts[2]);
+    // once: the ledgers the checks left go (CHECKS), and say whether each was there to go
+    if (parts[0] === "retire-checks" && parts.length === 1 && req.method === "POST") {
+      const retired: Record<string, string> = {};
+      for (const id of CHECKS) {
+        const got = await env.LEDGERS.get(env.LEDGERS.idFromName(id)).retire();
+        retired[id] = got.ok ? "deleted" : got.error;
+      }
+      return json({ retired });
+    }
     if (parts[0] !== "ledgers" || parts.length > 3) return refuse("notfound", 404);
 
     // the live connection: its key comes as a protocol name, because a browser can't give it a header
@@ -340,16 +357,26 @@ export class LedgerDO extends DurableObject<Env> {
   /** The owner deletes the ledger. Every phone that was listening is let go, and finds it gone when it comes back. */
   async wipe(ownerHash: string | null): Promise<ReturnType<LedgerRoom["wipe"]>> {
     const got = this.room.wipe(ownerHash, Date.now());
-    if (got.ok) {
-      for (const ws of this.ctx.getWebSockets()) {
-        try {
-          ws.close(DELETED, "gone");
-        } catch {
-          // a phone that just left
-        }
+    if (got.ok) this.letGo();
+    return got;
+  }
+
+  /** One of the checks' ledgers goes (CHECKS), as when its owner deletes it. */
+  async retire(): Promise<ReturnType<LedgerRoom["retire"]>> {
+    const got = this.room.retire(Date.now());
+    if (got.ok) this.letGo();
+    return got;
+  }
+
+  /** Every phone listening to a ledger that is gone is let go. */
+  private letGo() {
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.close(DELETED, "gone");
+      } catch {
+        // a phone that just left
       }
     }
-    return got;
   }
 
   /** The owner locks the ledger, or opens it again: every phone that is listening sees it. */
