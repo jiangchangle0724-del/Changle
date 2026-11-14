@@ -38,8 +38,9 @@ phone and the server can't disagree. Their tests are `site/tests/split-changes.t
 Each ledger is one Durable Object with its own SQLite database: the ledger (its name, currency,
 people, entries, and since when it is locked if it is), the SHA-256 fingerprints of the key that
 opens it and of its owner's key, the id of every change it has been sent with whether it counted,
-and the record of the ones that did (each with a number and the time it arrived), which also has a
-line for each time the ledger was locked or opened again. A ledger its owner deleted keeps only
+and the record of the ones that did (each with a number, the time it arrived, and who made it as
+the phone said: the person in the ledger its owner said they are, when it said; since 2026-11-14),
+which also has a line for each time the ledger was locked or opened again. A ledger its owner deleted keeps only
 the time it was deleted.
 
 Each changle.ca account that has signed in here has one Durable Object too: its ledgers, each

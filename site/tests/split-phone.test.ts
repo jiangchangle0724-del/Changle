@@ -460,6 +460,8 @@ const { net } = await import("../src/split/net");
   ok(shown(store.heldOf("ledger-6") as Held).entries.length === 1, "is on the screen at once");
   await settle();
   eq([posts(), store.heldOf("ledger-6")?.waiting.length, made.get("ledger-6")?.ledger.entries.length], [["(make)", "/ledger-6/changes"], 0, 1], "and on the server a moment later");
+  const sentBy = (asked.find((a) => a.path === "/split/api/ledgers/ledger-6/changes")?.body as { changes: Sent[] } | undefined)?.changes.map((c) => c.by);
+  eq(sentBy, ["s"], "it went saying who recorded it: the person this phone said it is (the one who started the ledger)");
   ok(syncing.record("ledger-6", spend("e1").change) && !syncing.record("ledger-6", { do: "rename", member: "nobody", name: "x" }) && posts().length === 2, "recorded again it is already so (nothing is sent); what the ledger doesn't allow is refused");
   ok(!syncing.record("not on this phone", spend("e2").change), "and there is no recording in a ledger this phone doesn't hold");
 

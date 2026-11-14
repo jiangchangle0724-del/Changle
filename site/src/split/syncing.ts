@@ -203,7 +203,8 @@ export function rekeyLedger(id: string) {
  * was recorded here (and goes to the server when it can), or it was already so.
  */
 export function record(id: string, change: Change): boolean {
-  if (run(id)?.syncer.do(change)) return true;
+  // (who did it goes with it, for the ledger's record: the person this phone said it is, if it said)
+  if (run(id)?.syncer.do(change, meOf(id))) return true;
   const h = heldOf(id);
   return !!h && holds(shown(h), change);
 }

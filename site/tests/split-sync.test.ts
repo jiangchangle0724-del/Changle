@@ -261,10 +261,11 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
   ok(a.spend("e1") && a.spend("e2") && a.spend("e3"), "no signal: three expenses are recorded all the same");
   await settle();
   eq([ids(a.ledger()), a.held().waiting.length, a.held().made, world.makes, a.waits() > 0], [["e1", "e2", "e3"], 3, false, 0, true], "they show, they are kept on the phone, nothing has reached the server, and it means to try again");
+  ok(a.s.do({ do: "title", name: "周末二" }, "w") && a.held().waiting.at(-1)?.by === "w" && a.held().waiting[0].by === undefined, "what it records keeps who recorded it, when the screen says (and says nobody when it doesn't)");
   a.back();
   await settle();
   const k = world.ledgers.get("ledger-1")!;
-  eq([ids(k.ledger), a.held().waiting.length, a.s.state().live, world.makes], [["e1", "e2", "e3"], 0, true, 1], "the signal is back: the ledger is made and the three go up, each once");
+  eq([ids(k.ledger), a.held().waiting.length, a.s.state().live, world.makes, k.ledger.name], [["e1", "e2", "e3"], 0, true, 1, "周末二"], "the signal is back: the ledger is made and the four go up, each once");
 }
 
 // ---------- 3. the answer is lost ----------

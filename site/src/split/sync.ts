@@ -65,10 +65,10 @@ export const shown = (h: Held): Ledger => rebase(h.server, h.waiting);
 /** What the server is asked to make, the first time. (Until it is made, `server` is the ledger as it was opened.) */
 export const makeBody = (h: Held): MakeBody => ({ id: h.server.id, name: h.server.name, currency: h.server.currency, members: h.server.members });
 
-/** The phone does something. Null when the ledger as shown doesn't allow it, or is locked. */
-export function act(h: Held, change: Change, id: string, at: number): Held | null {
+/** The phone does something (`by`: the person in the ledger who did it, when the phone knows). Null when the ledger as shown doesn't allow it, or is locked. */
+export function act(h: Held, change: Change, id: string, at: number, by?: string): Held | null {
   const now = shown(h);
-  return now.locked === undefined && applyChange(now, change) ? { ...h, waiting: [...h.waiting, { id, at, change }] } : null;
+  return now.locked === undefined && applyChange(now, change) ? { ...h, waiting: [...h.waiting, { id, at, change, ...(by ? { by } : {}) }] } : null;
 }
 
 /**
