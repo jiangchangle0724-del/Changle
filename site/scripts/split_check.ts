@@ -44,7 +44,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { say, W, type Word } from "../src/split/words";
@@ -525,6 +525,22 @@ async function walk(lang: Lang, width: number, height: number) {
   await page.waitForTimeout(300);
   await shot(local ? "37-history" : "37-history-unreached");
   ok((await page.getByRole("dialog").getByRole("button", { name: t("revert"), exact: true }).count()) === 1 && (await page.getByRole("dialog").getByText(t("historyEdit").split("{")[0], { exact: false }).count()) >= 1, `${lang} ${width}x${height}: 改动记录 has the note's change, and offers to change it back`);
+  await page.keyboard.press("Escape");
+  await closed(page);
+
+  // 导出账目: what the file holds; this browser saves it, a phone shares it
+  await button("more").click();
+  await page.getByRole("button", { name: re(t("export")) }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("exportSave"), exact: true }).waitFor();
+  await shot("38-export");
+  await page.keyboard.press("Escape");
+  await closed(page);
+  await page.evaluate("navigator.share = async () => {}; navigator.canShare = () => true");
+  await button("more").click();
+  await page.getByRole("button", { name: re(t("export")) }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("exportShare"), exact: true }).waitFor();
+  await shot("38b-export-phone");
+  await page.evaluate("delete navigator.share; delete navigator.canShare");
   await page.keyboard.press("Escape");
   await closed(page);
   await page.goto(`${base}/split`);
@@ -1859,7 +1875,10 @@ async function behave() {
           const no = window.refuse;
           window.refuse = undefined;
           if (no) throw new DOMException("not sent", no);
-          for (const f of d.files || []) window.shared.push({ name: f.name, type: f.type, size: f.size });
+          for (const f of d.files || []) {
+            const head = [...new Uint8Array(await f.slice(0, 3).arrayBuffer())];
+            window.shared.push({ name: f.name, type: f.type, size: f.size, bom: head.join() === "239,187,191", text: f.type === "text/csv" ? await f.text() : "" });
+          }
         } });
       `);
       const pa = await open(a);
@@ -1903,6 +1922,23 @@ async function behave() {
       await closed(pa);
       await pa.waitForTimeout(500);
       ok((await pa.locator(".split-stale").count()) === 0 && (await pa.locator(".split-row", { hasText: t("paid") }).count()) === 1, "a new picture: up to date; a transfer marked as paid since doesn't put it out of date");
+
+      // 导出账目 through the same share sheet: the ledger as one CSV file
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("export")) }).click();
+      await sheet(pa).getByRole("button", { name: t("exportShare"), exact: true }).click();
+      // (the page was opened again since the picture was shared: what the share sheet was given starts afresh)
+      await pa.waitForFunction(`window.shared.some((f) => f.type === "text/csv")`);
+      // (its first three bytes are the byte-order mark; reading it as text takes them off)
+      const csv = ((await pa.evaluate("window.shared")) as { name: string; type: string; bom: boolean; text: string }[]).find((f) => f.type === "text/csv")!;
+      const csvLines = csv.text.split("\r\n");
+      ok(/^all-square-\d{4}-\d{2}-\d{2}\.csv$/.test(csv.name) && csv.type === "text/csv" && csv.bom && csv.text.startsWith(`${t("csvWhen")},`) && csvLines.length === 6 && csvLines[4].startsWith(`,${t("csvTotal")},`), `导出账目 on a phone: one CSV file to the share sheet (${csv.name}): the headings, two expenses and the payment, the totals`);
+      await pa.evaluate("window.refuse = 'NotAllowedError'");
+      await sheet(pa).getByRole("button", { name: t("exportShare"), exact: true }).click();
+      await sheet(pa).getByRole("button", { name: t("exportSave"), exact: true }).waitFor({ timeout: 5000 });
+      ok((await sheet(pa).getByRole("button", { name: t("exportShare"), exact: true }).count()) === 0, "the phone wouldn't take it: the sheet offers to save it instead");
+      await pa.keyboard.press("Escape");
+      await closed(pa);
       await a.close();
 
       // WeChat's own browser: no share sheet; the picture is held to send it or save it
@@ -1918,6 +1954,12 @@ async function behave() {
       await makePicture(pw);
       ok((await sheet(pw).locator(".split-picture-hint.is-loud", { hasText: t("pictureHold") }).count()) === 1 && (await sheet(pw).getByRole("button", { name: t("pictureShare"), exact: true }).count()) === 0 && (await sheet(pw).getByRole("button", { name: t("pictureSave"), exact: true }).count()) === 0, "in WeChat: hold the picture to send it or save it, said over the picture; no button to share it or to save it as a file (neither works there)");
       ok((await sheet(pw).getByRole("button", { name: re(t("copyAsText")) }).count()) === 1, "and the plan can still be copied as text");
+      await pw.keyboard.press("Escape");
+      await closed(pw);
+      await button(pw, "more").click();
+      await pw.getByRole("button", { name: re(t("export")) }).click();
+      await sheet(pw).getByText(t("exportWeChat")).waitFor({ timeout: 5000 });
+      ok((await sheet(pw).getByRole("button", { name: t("exportShare"), exact: true }).count()) === 0 && (await sheet(pw).getByRole("button", { name: t("exportSave"), exact: true }).count()) === 0, "导出账目 in WeChat: it says to open 两清 in the phone's browser and export there, with no button that can't work in WeChat");
       await w.close();
 
       // a computer: no share sheet and no long press; the picture is saved as a file
@@ -1925,6 +1967,12 @@ async function behave() {
       await rooms(d);
       const pd = await open(d);
       await start(pd, "电脑", ["阿甲"]);
+      await button(pd, "more").click();
+      await pd.getByRole("button", { name: re(t("export")) }).click();
+      await sheet(pd).getByText(t("exportEmpty")).waitFor({ timeout: 5000 });
+      ok((await sheet(pd).getByRole("button", { name: t("exportSave"), exact: true }).count()) === 0, "导出账目 with nothing recorded: it says so, and there is nothing to save");
+      await pd.keyboard.press("Escape");
+      await closed(pd);
       await spend(pd, "30");
       await pd.getByRole("tab", { name: t("settle") }).click();
       await makePicture(pd);
@@ -1932,6 +1980,15 @@ async function behave() {
       await sheet(pd).getByRole("button", { name: t("pictureSave"), exact: true }).click();
       const file = await saving;
       ok(/^all-square-\d{4}-\d{2}-\d{2}\.png$/.test(file.suggestedFilename()) && (await sheet(pd).locator(".split-picture-hint").count()) === 0, `a computer: 存图片 saves it as a file (${file.suggestedFilename()}), with nothing said about holding it`);
+      await pd.keyboard.press("Escape");
+      await closed(pd);
+      await button(pd, "more").click();
+      await pd.getByRole("button", { name: re(t("export")) }).click();
+      const exporting = pd.waitForEvent("download");
+      await sheet(pd).getByRole("button", { name: t("exportSave"), exact: true }).click();
+      const csvFile = await exporting;
+      const saved = readFileSync(await csvFile.path(), "utf8");
+      ok(/^all-square-\d{4}-\d{2}-\d{2}\.csv$/.test(csvFile.suggestedFilename()) && saved.startsWith("\uFEFF") && saved.split("\r\n").length === 4, `导出账目 on a computer: saved as a file (${csvFile.suggestedFilename()}): the headings, the expense, the totals`);
       await d.close();
     }
   }
