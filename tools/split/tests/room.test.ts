@@ -296,6 +296,15 @@ test("the owner deletes the ledger: it is gone for everyone, and its id isn't ma
   assert.deepEqual(ownerless.wipe(null, NOW + 1), { ok: false, error: "owner" }, "a ledger with no owner can't be deleted by anyone");
 });
 
+test("one of the checks' ledgers goes without its owner's key, as an owner's delete leaves a ledger", () => {
+  const { room, store } = make();
+  room.push("key", [expense("e1")], NOW + 1);
+  assert.deepEqual(room.retire(NOW + 2), { ok: true });
+  assert.deepEqual([store.load(), store.ids.size, store.log.length, store.buried()], [null, 0, 0, NOW + 2], "nothing of it is kept but when it went");
+  assert.deepEqual([room.read("key"), room.since("key", 0), room.retire(NOW + 3)], [{ ok: false, error: "gone" }, { ok: false, error: "gone" }, { ok: false, error: "gone" }], "it is gone, and a second time is gone");
+  assert.deepEqual(room.create({ ...asked, now: NOW + 4 }), { ok: false, error: "gone" }, "and its id isn't made again");
+});
+
 test("an account's ledgers: kept with their keys, brought up to date, taken off", () => {
   const store = memoryAccountStore();
   const account = new AccountRoom(store);

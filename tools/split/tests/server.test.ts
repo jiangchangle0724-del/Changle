@@ -312,6 +312,20 @@ test("an account starts at most ten ledgers a day", async () => {
   assert.equal((await call("POST", "/ledgers", key, eleventh, as(SESSION.wang))).status, 201, "another account, yes");
 });
 
+test("the ledgers the checks left on changle.ca go, once, and no other ledger does", async () => {
+  const checks = ["PvhF-9CX3LrQ45hrPezAww", "iizSBQish8UA3fyd1gF50Q", "92ZNE48v4LOQ0exZqFCzdA", "fMdFLKgUl0IvGzj5bc31eQ", "C2P61elUGtKSwS-x6l0rhQ", "QzILaFAd3-dqGWT78LgqDQ"];
+  const key = newKey();
+  const who = someone();
+  for (const id of checks.slice(0, 5)) assert.equal((await call("POST", "/ledgers", key, { id, name: "上线检查", currency: "CAD", members: three }, who)).status, 201, "(a check's ledger, made here)");
+  const other = newId();
+  assert.equal((await call("POST", "/ledgers", key, { id: other, name: "周末", currency: "CAD", members: three }, who)).status, 201);
+  assert.deepEqual(await call("GET", "/retire-checks", null), { status: 404, data: { error: "notfound" } }, "asked for any other way: no such address");
+  assert.deepEqual(await call("POST", "/retire-checks", null), { status: 200, data: { retired: { ...Object.fromEntries(checks.slice(0, 5).map((id) => [id, "deleted"])), [checks[5]]: "gone" } } }, "the five made here go; the sixth was never here");
+  for (const id of checks) assert.deepEqual(await call("GET", `/ledgers/${id}`, key), { status: 404, data: { error: "gone" } }, `${id} is gone`);
+  assert.equal((await call("GET", `/ledgers/${other}`, key)).status, 200, "another ledger is still there");
+  assert.deepEqual(await call("POST", "/retire-checks", null), { status: 200, data: { retired: Object.fromEntries(checks.map((id) => [id, "gone"])) } }, "asked again: all already gone");
+});
+
 test("the owner deletes a ledger: gone for everyone, and off the owner's list", async () => {
   const id = newId();
   const key = newKey();
