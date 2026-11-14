@@ -17,6 +17,12 @@ export type SlotKey = string;
 /** 2: free (有空). 1: could move things (可以调). A slot not in someone's answers: not free. */
 export type Answer = 1 | 2;
 export type Answers = Record<SlotKey, Answer>;
+/**
+ * The part of a slot someone is free for, when it isn't all of it: [from, to], minutes from
+ * midnight, from the first up to (not including) the second. Only gatherings asked by the period
+ * have these. (A plain array: it travels between the server's parts, which don't keep tuples.)
+ */
+export type Times = Record<SlotKey, number[]>;
 
 export type Person = {
   id: string;
@@ -26,11 +32,14 @@ export type Person = {
   /** the host filled this row in for someone (代填) */
   proxy: boolean;
   answers: Answers;
+  /** the slots they're free for only part of, and which part (see Times) */
+  times?: Times;
   /** when they last saved, in milliseconds */
   at: number;
 };
 
-export type Settled = { day: Day; part: Part; at: number };
+/** The time that was set. Set to part of a period (a gathering asked by the period), also its minutes: from, up to (not including) to. */
+export type Settled = { day: Day; part: Part; at: number; from?: number; to?: number };
 
 /** Everything a phone is shown. Nothing here is secret: everyone sees everyone's answers. */
 export type EventState = {

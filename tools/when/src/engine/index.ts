@@ -4,6 +4,7 @@ export * from "./holidays";
 export * from "./ics";
 export * from "./ids";
 export * from "./quick";
+export * from "./minutes";
 export * from "./rank";
 export * from "./slots";
 export * from "./text";

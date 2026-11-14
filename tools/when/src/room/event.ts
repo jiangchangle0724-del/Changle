@@ -6,9 +6,10 @@
 // room never keeps a key, only its SHA-256 fingerprint. A row can be changed only with the key it
 // was made with. The phone that made the gathering is its host; another phone becomes one by
 // giving the 6-digit admin code.
-import { cleanAnswers, cleanDays, slotsOf } from "../engine/slots";
+import { cleanTimes, isWhole, MIN_SPAN } from "../engine/minutes";
+import { cleanAnswers, cleanDays, parseSlot, partRange, slotsOf } from "../engine/slots";
 import { cleanText } from "../engine/text";
-import type { Day, EventState, Grain, Person, Settled, SlotKey } from "../engine/types";
+import type { Day, EventState, Grain, Person, SlotKey } from "../engine/types";
 
 export const MAX_PEOPLE = 40;
 export const NAME_MAX = 16;
@@ -42,7 +43,8 @@ export type Ok<T = object> = { ok: true } & T;
 const fail = (error: ErrorCode): Fail => ({ ok: false, error });
 
 export type HostAction =
-  | { do: "settle"; slot: SlotKey }
+  /** `from` and `to`: part of it to the minute, in a gathering asked by the period (left out, or all of it: the slot itself) */
+  | { do: "settle"; slot: SlotKey; from?: unknown; to?: unknown }
   | { do: "reopen" }
   | { do: "edit"; title?: unknown; minPeople?: unknown; deadline?: unknown }
   | { do: "must"; id: string; must: boolean }
@@ -116,12 +118,13 @@ export class EventRoom {
    * Save someone's own row: their name and their answers. The first save makes the row. A row is
    * changed only with the key that made it; a key has one row.
    */
-  saveMine(input: { id?: unknown; keyHash: string; newId: () => string; name: unknown; answers: unknown; now: number }): Ok<{ id: string; fresh: boolean }> | Fail {
+  saveMine(input: { id?: unknown; keyHash: string; newId: () => string; name: unknown; answers: unknown; times?: unknown; now: number }): Ok<{ id: string; fresh: boolean }> | Fail {
     const meta = this.meta;
     if (!meta) return fail("gone");
     const name = cleanText(input.name, NAME_MAX);
     if (!name) return fail("name");
     const answers = cleanAnswers(input.answers, new Set(slotsOf(meta.days, meta.grain)));
+    const times = cleanTimes(input.times, answers, meta.grain);
     const mine = this.rowOf(input.keyHash);
     if (typeof input.id === "string" && this.rows.has(input.id) && input.id !== mine) return fail("forbidden");
     let row = mine ? this.rows.get(mine)! : null;
@@ -137,6 +140,9 @@ export class EventRoom {
       row.answers = answers;
       row.at = input.now;
     }
+    // only the slots someone is free for part of carry a time
+    if (Object.keys(times).length) row.times = times;
+    else delete row.times;
     this.store.saveRow(row);
     this.bump();
     return { ok: true, id: row.id, fresh };
@@ -151,8 +157,18 @@ export class EventRoom {
       case "settle": {
         const at = slotsOf(meta.days, meta.grain).indexOf(action.slot);
         if (at < 0) return fail("bad");
-        const [day, part] = action.slot.split(":") as [Day, Settled["part"]];
-        meta.settled = { day, part, at: now };
+        const { day, part } = parseSlot(action.slot)!;
+        const range = partRange(meta.grain, part);
+        if (!range || (action.from === undefined && action.to === undefined)) {
+          meta.settled = { day, part, at: now };
+          break;
+        }
+        const { from, to } = action;
+        if (!Number.isInteger(from) || !Number.isInteger(to)) return fail("bad");
+        const [f, t] = [from as number, to as number];
+        if (f < range[0] || t > range[1] || t - f < MIN_SPAN) return fail("bad");
+        // the whole period is the slot itself: no minutes, as with an answer
+        meta.settled = isWhole([f, t], range) ? { day, part, at: now } : { day, part, at: now, from: f, to: t };
         break;
       }
       case "reopen":

@@ -84,6 +84,24 @@ const STRINGS = {
   settledTitle: { zh: "定了", en: "It's set" },
   reopen: { zh: "重新选", en: "Choose again" },
 
+  // ---------- a time within a period, to the minute ----------
+  minuteMode: { zh: "调到分钟", en: "To the minute" },
+  minuteHint: { zh: "点一格，把它的时间调到分钟：拖时间线的两头，或者直接改时间。", en: "Tap a slot to set its time to the minute: drag either end of the line, or type the times." },
+  timeFrom: { zh: "从", en: "From" },
+  timeTo: { zh: "到", en: "To" },
+  timeHint: { zh: "这一段是 {range}。只有一部分时间有空，就把两头拖到那里。", en: "This one runs {range}. Free for only part of it? Drag the ends to that part." },
+  timeWhole: { zh: "整段都行", en: "All of it" },
+  timeDone: { zh: "好了", en: "Done" },
+  timeAdjust: { zh: "调时间", en: "Set the time" },
+  timeSame: { zh: "我填了的其它{part}也改成这样", en: "Same for my other {part}s" },
+  timeSameDone: { zh: "改好了 {n} 个", en: "Changed {n}" },
+  timeTapped: { zh: "{when} · 整段", en: "{when} · all of it" },
+  timeMeet: { zh: "最多人能凑上的时间：{span}", en: "When the most can make it: {span}" },
+  setTime: { zh: "调定下的时间", en: "Adjust the time" },
+  setTimeHint: { zh: "这一段是 {range}。把两头拖到要定的时间，或者直接改。", en: "This one runs {range}. Drag the ends to the time you're setting, or type it." },
+  setTimeGo: { zh: "就定这个时间", en: "Set this time" },
+  setTimeCount: { zh: "这个时间：{why}", en: "At this time: {why}" },
+
   // ---------- the pictures to pass around ----------
   picInvite: { zh: "邀请图", en: "Invitation" },
   picResult: { zh: "结果图", en: "Result picture" },
@@ -132,6 +150,7 @@ const STRINGS = {
   must: { zh: "必到", en: "must be there" },
   you: { zh: "你", en: "you" },
   slotsPicked: { zh: "{n} 格", en: "{n} slots" },
+  slotsPickedOne: { zh: "1 格", en: "1 slot" },
   markMust: { zh: "这个人必须到", en: "Must be there" },
   unmarkMust: { zh: "不是必须到", en: "Not a must" },
   mustNote: { zh: "标了必到，最佳前三只排这个人来得了的时段。", en: "With this on, the best three only has slots this person can make." },

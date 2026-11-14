@@ -14,7 +14,7 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`), times within a period to the minute (`minutes.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
@@ -62,6 +62,36 @@ calls Friday night. Gatherings made before 2026-11-14 were asked by the half day
 The grid's side shows each day short ("周一 11/16") so the five keep a crowded tap target's width
 from a 375px phone up; on a narrower phone the day's name goes on a line of its own above its
 five.
+
+### Times to the minute
+
+Someone free for only part of a period says which part, to the minute (Steve, 2026-11-14). The
+rules are in `src/engine/minutes.ts`, the sheet in `src/client/ui/Times.tsx`. Only gatherings
+asked by the period have it: a half day and a whole day have no stated hours.
+
+- For five seconds after a tap answers a slot, the line at the bottom says which slot it was
+  ("11月15日 周日 晚上 · 整段") with **调时间** beside it. Or **调到分钟**, among the quick fills,
+  makes every tap open the slot's time. The sheet has the period as a line with a handle at each
+  end (drag either; with a keyboard the arrows move a minute, Page Up and Page Down a quarter of
+  an hour), two time fields to type into, 有空 / 可以调 / 没空, and one button that gives the same
+  answer and time to the same period on the other days answered. A time is half an hour or more;
+  all of the period is the slot itself and keeps no time.
+- A person's times are kept with their answers: `times: { "2026-11-21:eve": [1170, 1335] }`,
+  minutes from midnight, up to but not including the second. The server keeps only times inside
+  the period, for slots the person answered, half an hour or more, never the whole period.
+- The best three go by each slot's best stretch. Starting at the period's start and at each
+  start of someone's time, the stretch is as long as the free people there all have (with nobody
+  free, the people who could move things); it counts who is free and who could move things for
+  all of it. Most free wins, then most who could move things, then the longest, then the
+  earliest. So someone free only before seven and someone free only after eight don't count as
+  meeting. With people who must be there, the stretch is the best of those they can all make
+  (their time bounds it even when they could only move things); with none, the slot is out. A
+  best stretch that is the whole period counts as a slot always has: everyone who answered it.
+  The grid's numbers still count everyone who answered.
+- **就这个** sets the best stretch: `settled` gets `from` and `to` (none for the whole period).
+  The banner, the words for the group, the calendar file, the result picture and the meal time
+  taken to 随便 use them. A host can adjust it afterwards (**调定下的时间**), seeing who is free for
+  all of it before setting it.
 
 ### Holidays on the grid
 
@@ -126,8 +156,10 @@ The banner of the time that was set carries **Add to calendar**, for everyone
 `/when/api/e/<code>/calendar.ics` (`src/engine/ics.ts` writes it; it is there only while a time is
 set, and never kept, since the host can choose again); everything else goes to Google Calendar
 with the event filled in. The other of the two is the link beside the button. Inside WeChat
-neither opens, so there the button says how to get to a browser. The times in the file are in UTC
-with no time-zone block, so no calendar can get Vancouver's rules wrong.
+neither opens, so there the button says how to get to a browser. The event runs for the minutes
+that were set; without them, for the slot's usual hours (`PART_HOURS` in `src/engine/slots.ts`:
+the evening goes in as 18:00 to 22:00, not to midnight), and a whole day is an all-day event. The times in the file are in UTC with no time-zone block, so
+no calendar can get Vancouver's rules wrong.
 
 Every page also asks what's next (`src/client/ui/After.tsx`; the rules are in
 `src/engine/after.ts`):
@@ -138,8 +170,9 @@ Every page also asks what's next (`src/client/ui/After.tsx`; the rules are in
   one table; everyone else is told to wait for the table's link. The link carries what is known:
   `/eat/?from=when&code=<code>&date=2026-11-21&time=18:30&occasion=friends&people=7` (宵夜 at
   0:30 in the early hours, 早茶 at 10:00 in the morning, lunch at 12:00 at midday and for the old
-  half days' morning and afternoon, afternoon tea at 15:00, dinner at 18:30 otherwise; `people` is everyone who is free
-  or could move things for that slot). 随便 doesn't read these yet, so the page also says which
+  half days' morning and afternoon, afternoon tea at 15:00, dinner at 18:30 otherwise; a time set
+  to the minute takes its start; `people` is everyone who is free or could move things for the
+  time that was set). 随便 doesn't read these yet, so the page also says which
   day and time to pick there. 随便 plans meals for today and the six days after: for a day further
   off, the button waits until that week. Inside WeChat, where Google refuses its sign-in, a note
   says to open 随便 in a browser, with a button that copies its link.
