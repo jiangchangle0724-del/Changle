@@ -395,9 +395,19 @@
   font-weight: 700;
 }
 .split-row-amount {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
   flex: none;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
+}
+/* paid in another currency: what was paid, small, under what it counts for */
+.split-row-amount small {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 400;
 }
 
 /* motion one of three: an expense just recorded comes down into the list under a wash of the light */
@@ -513,9 +523,79 @@
   margin: var(--space-6) 0 var(--space-4);
   text-align: center;
 }
-.split-add-amount > span {
+/* The currency the amount is typed in sits in the bar's corner: a quiet pill with the arrow of
+   something that opens. Beside the bin (an expense being changed) the two share the corner, and
+   that is more than half the bar on a narrow phone: so here the title starts where the ✕ ends
+   and takes what is left, with nothing kept empty on the left to balance the right. */
+.split-add .split-bar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.split-add .split-bar-title {
+  text-align: start;
+}
+.split-currency {
+  display: flex;
+}
+.split-currency .ui-button {
+  padding-inline: var(--space-3);
+  /* (a code is one word: on a narrow phone the title gives way, not the letters of "CAD") */
+  white-space: nowrap;
+}
+.split-currency .ui-button-content {
+  gap: var(--space-1);
+}
+/* Paid in another currency: under the amount, what it comes to in the ledger's. The line is too
+   thin a thing to press, so the button is the whole block: it lies over the amount, which shows
+   through it, and the line is at its foot. */
+.split-add-amount.is-abroad {
+  position: relative;
+  padding-bottom: calc(var(--text-sm) * var(--leading-tight) + var(--space-2));
+}
+.split-add-comes {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-small);
   color: var(--color-text-2);
+  background: transparent;
+  font: inherit;
   font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.split-add-comes > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.split-add-comes > span > span {
+  flex: none;
+}
+/* an amount so long that the two don't fit on the line: the rate is cut short, the amount never */
+.split-add-comes > span > .split-add-comes-more {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.split-add-comes svg {
+  flex: none;
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
+/* why 记好了 can't be pressed yet, said where it is put right */
+.split-add-comes.is-loud {
+  color: var(--color-text);
+  font-weight: 700;
 }
 .split-add .split-dock {
   display: flex;
@@ -685,8 +765,14 @@ label.split-field:focus-within {
   .split-add-amount > .split-figure.is-longer {
     font-size: var(--text-xl);
   }
-  .split-add-amount > span {
-    display: none;
+  /* with the line under it, the amount goes one more size down: the two together are no taller
+     than a thing to press has to be, and the keys keep their height */
+  .split-add-amount.is-abroad {
+    min-height: var(--tap);
+    padding-bottom: calc(var(--text-sm) * var(--leading-tight) + var(--space-1));
+  }
+  .split-add-amount.is-abroad > .split-figure {
+    font-size: var(--text-xl);
   }
   .split-add .split-field {
     min-height: var(--tap-crowded);
@@ -752,6 +838,29 @@ label.split-field:focus-within {
   margin: var(--space-2) 0 0;
   padding: 0;
   list-style: none;
+}
+/* the rate, as a sum: 1 of that = [so many] of this */
+.split-rate {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+.split-rate > span:not(.field) {
+  flex: none;
+}
+.split-rate .field {
+  flex: 1;
+  min-width: 0;
+}
+.split-rate .field input {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.split-rate-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .split-choice {
   min-width: 0;

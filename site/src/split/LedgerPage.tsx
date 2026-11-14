@@ -29,6 +29,7 @@ import { keyFrom } from "./invite";
 import { WhoStep } from "./Join";
 import { lostLine, mine, paidBy, planText, sharedHow, syncLine } from "./lines";
 import { Bar, copyText, Rolling } from "./parts";
+import { paidInOf } from "./rates";
 import { SettleView } from "./SettleView";
 import { LedgerMenu } from "./Sheets";
 import { heldOf, useSaved } from "./store";
@@ -311,7 +312,7 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
         }
       />
     );
-  const row = (e: Expense) => (
+  const row = (e: Expense, paid = paidInOf(e, ledger)) => (
     <>
       <span className="split-row-text">
         <strong className={e.note ? undefined : "is-quiet"}>{e.note || say(lang, "noNote")}</strong>
@@ -319,7 +320,11 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
           {paidBy(e, ledger, me, lang)} · {sharedHow(e, ledger, me, lang)}
         </span>
       </span>
-      <span className="split-row-amount">{money(e.amount, ledger.currency, lang)}</span>
+      <span className="split-row-amount">
+        {money(e.amount, ledger.currency, lang)}
+        {/* paid in another currency: what was paid, under what it counts for */}
+        {paid && <small>{money(paid.amount, paid.currency, lang)}</small>}
+      </span>
     </>
   );
   return (

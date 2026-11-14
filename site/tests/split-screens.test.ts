@@ -3,7 +3,8 @@
  * Run with `npx tsx tests/split-screens.test.ts`
  *  1. The keypad: what the amount reads after each key, and what a typed field lets through.
  *  2. Money as it is written for a person to read.
- *  3. 记一笔 while it is filled in: a draft, the three ways of sharing, moving between them.
+ *  3. 记一笔 while it is filled in: a draft, the three ways of sharing, moving between them;
+ *     and paid in another currency: the rate it starts with, what it comes to, what is kept.
  *  4. What can be done to a ledger: every change, and every change that is refused.
  *  5. The plan's example weekend, recorded the way the screens record it, and the lines they say.
  *  6. What is kept on the phone, and what the server answers, however either comes back.
@@ -17,8 +18,8 @@ import QRCode from "qrcode";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { balances, expensesOf, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
-import { amountOf, blankDraft, draftOf, draftProblem, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
+import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, decimalsOf, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
@@ -26,6 +27,7 @@ import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
 import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
+import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
 import { asPushed, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
@@ -132,24 +134,26 @@ const five: Ledger = startLedger("L", "惠斯勒周末", "CAD", [
   { id: "l", name: "小李" },
 ]);
 const roster = five.members.map((x) => x.id);
+/** The moment the drafts here are made at. */
+const NOW = Date.UTC(2026, 10, 13, 19, 0);
 {
-  const blank = blankDraft(five, "s");
-  eq([blank.payer, blank.how, blank.among, blank.text], ["s", "equal", roster, ""], "a new expense starts paid by you, shared equally by everyone");
-  eq(blankDraft(five, undefined).payer, "s", "with nobody known as you, by the first on the roster");
-  eq(blankDraft(five, "gone").payer, "s", "and the same when 'you' is no longer in the ledger");
-  eq(draftProblem(blank, five, 2), { what: "amount" }, "nothing typed yet");
-  eq(draftProblem({ ...blank, text: "0" }, five, 2), { what: "amount" }, "zero isn't an amount");
-  eq(draftProblem({ ...blank, text: "0.00" }, five, 2), { what: "amount" }, "nor is 0.00");
+  const blank = blankDraft(five, "s", NOW);
+  eq([blank.payer, blank.how, blank.among, blank.text, blank.currency, blank.rate], ["s", "equal", roster, "", "CAD", ""], "a new expense starts paid by you, shared equally by everyone, in the ledger's currency");
+  eq(blankDraft(five, undefined, NOW).payer, "s", "with nobody known as you, by the first on the roster");
+  eq(blankDraft(five, "gone", NOW).payer, "s", "and the same when 'you' is no longer in the ledger");
+  eq(draftProblem(blank, five), { what: "amount" }, "nothing typed yet");
+  eq(draftProblem({ ...blank, text: "0" }, five), { what: "amount" }, "zero isn't an amount");
+  eq(draftProblem({ ...blank, text: "0.00" }, five), { what: "amount" }, "nor is 0.00");
   const d: Draft = { ...blank, text: "86.40" };
-  eq(draftProblem(d, five, 2), null, "86.40 between five can be recorded");
-  eq(amountOf(d, 2), 8640, "as 8640 cents");
+  eq(draftProblem(d, five), null, "86.40 between five can be recorded");
+  eq(amountOf(d, five), 8640, "as 8640 cents");
   eq(splitOf(d, 2), { how: "equal", among: roster }, "shared equally by all five");
 
   // four of the five
   const four: Draft = { ...d, among: ["s", "w", "m", "j"] };
   eq(sharers(four, five, 2), ["s", "w", "m", "j"], "one person left out");
   eq(sharers({ ...d, among: ["j", "s"] }, five, 2), ["s", "j"], "who takes part is read in roster order, whatever order they were ticked in");
-  eq(draftProblem({ ...d, among: [] }, five, 2), { what: "nobody" }, "everyone left out");
+  eq(draftProblem({ ...d, among: [] }, five), { what: "nobody" }, "everyone left out");
 
   // by shares: the same people, one share each to start
   const byShares = shareBy(four, "shares", five, 2, 0);
@@ -158,7 +162,7 @@ const roster = five.members.map((x) => x.id);
   const family: Draft = { ...byShares, shares: { ...byShares.shares, s: 2, j: 0 } };
   eq(sharers(family, five, 2), ["s", "w", "m"], "no shares takes no part");
   eq(splitOf(family, 2), { how: "shares", shares: { s: 2, w: 1, m: 1 } }, "and isn't kept");
-  eq(draftProblem(family, five, 2), null, "2 : 1 : 1 can be recorded");
+  eq(draftProblem(family, five), null, "2 : 1 : 1 can be recorded");
   eq(shareBy({ ...d, among: [] }, "shares", five, 2, 0).shares, { s: 1, w: 1, m: 1, j: 1, l: 1 }, "from nobody, by shares starts with everyone");
 
   // by amounts: each starts from exactly what they bore the way it was shared before, whoever's turn the odd cents are
@@ -166,24 +170,170 @@ const roster = five.members.map((x) => x.id);
     const fromShares = shareBy(family, "exact", five, 2, rot);
     const was = portions(8640, splitOf(family, 2), rot, roster);
     eq(Object.fromEntries(Object.entries(fromShares.amounts).map(([id, text]) => [id, toMinor(text, 2)])), was, `turn ${rot}: by amounts starts from what 2 : 1 : 1 gave each`);
-    ok(draftProblem(fromShares, five, 2) === null, `turn ${rot}: and adds up before anyone changes a figure`);
+    ok(draftProblem(fromShares, five) === null, `turn ${rot}: and adds up before anyone changes a figure`);
     const odd: Draft = { ...d, text: "100", among: ["s", "w", "m"] };
     eq(Object.fromEntries(Object.entries(shareBy(odd, "exact", five, 2, rot).amounts).map(([id, text]) => [id, toMinor(text, 2)])), portions(10000, splitOf(odd, 2), rot, roster), `turn ${rot}: $100 between three, the odd cent where the sheet showed it`);
   }
   const typedOut = shareBy(four, "exact", five, 2, 0);
   eq(typedOut.amounts, { s: "21.60", w: "21.60", m: "21.60", j: "21.60" }, "86.40 between four, typed out");
-  eq(draftProblem({ ...typedOut, amounts: { ...typedOut.amounts, s: "40" } }, five, 2), { what: "sum", off: -1840 }, "40 for one of them is 18.40 too much");
-  eq(draftProblem({ ...typedOut, amounts: { s: "40", w: "40" } }, five, 2), { what: "sum", off: 640 }, "40 and 40 leaves 6.40 to share");
+  eq(draftProblem({ ...typedOut, amounts: { ...typedOut.amounts, s: "40" } }, five), { what: "sum", off: -1840 }, "40 for one of them is 18.40 too much");
+  eq(draftProblem({ ...typedOut, amounts: { s: "40", w: "40" } }, five), { what: "sum", off: 640 }, "40 and 40 leaves 6.40 to share");
   eq(sharers({ ...typedOut, amounts: { s: "40", w: "0", m: "", j: "0.00" } }, five, 2), ["s"], "0, 0.00 and nothing typed take no part");
-  eq(draftProblem({ ...typedOut, amounts: {} }, five, 2), { what: "nobody" }, "no figures at all");
+  eq(draftProblem({ ...typedOut, amounts: {} }, five), { what: "nobody" }, "no figures at all");
   eq(shareBy({ ...typedOut, amounts: { s: "40", w: "46.40" } }, "equal", five, 2, 0).among, ["s", "w"], "back to equal keeps who had a figure");
   eq(shareBy({ ...blank, how: "shares", shares: {} }, "exact", five, 2, 0).amounts, {}, "with no amount typed, by amounts starts empty");
 
   // yen
   const yen = startLedger("Y", "北海道", "JPY", five.members);
-  const y: Draft = { ...blankDraft(yen, "s"), text: "1000", among: ["s", "w", "m"] };
+  const y: Draft = { ...blankDraft(yen, "s", NOW), text: "1000", among: ["s", "w", "m"] };
   eq(shareBy(y, "exact", yen, 0, 1).amounts, { s: "333", w: "334", m: "333" }, "1,000 yen between three, the odd yen on the second");
-  eq(draftProblem({ ...y, text: "12.5" }, yen, 0), { what: "amount" }, "12.5 yen isn't an amount");
+  eq(draftProblem({ ...y, text: "12.5" }, yen), { what: "amount" }, "12.5 yen isn't an amount");
+}
+{
+  // ----- paid in another currency -----
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  /** The site's rates as its server gives them: so many of each for one US dollar. */
+  const RATES = { CAD: 1.4012, CNY: 7.1, USD: 1, HKD: 7.8, EUR: 0.92, GBP: 0.79, JPY: 153.6, KRW: 1389.5, TWD: 32.3, SGD: 1.34, AUD: 1.52 };
+  const even: Split = { how: "equal", among: roster };
+  const plain = (l: Ledger, id: string, at: number, cents: number) => applyChange(l, { do: "expense", expense: { kind: "expense", id, at, payer: "s", amount: cents, note: "", split: even, rot: nextRot(l) } })!;
+  const inUsd = (l: Ledger, id: string, at: number, cents: number, rate: string, over: Partial<Expense> = {}) =>
+    applyChange(l, { do: "expense", expense: { kind: "expense", id, at, payer: "s", amount: convert(cents, 2, rate, 2)!, note: "", split: even, rot: nextRot(l), paidIn: { currency: "USD", amount: cents, rate }, ...over } })!;
+  const startsIn = (l: Ledger) => {
+    const d = blankDraft(l, "s", NOW);
+    return [d.currency, d.rate, d.asking];
+  };
+
+  // how a rate is written, and typed
+  eq(
+    [1.4012345, 150.1234, 0.0091234567, 0.00098765432, 1, 100, 1389.5, 12345.678, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, 1e9, 1e-9].map(rateText),
+    ["1.4012", "150.12", "0.0091235", "0.00098765", "1", "100", "1389.5", "12346", "", "", "", "", "", ""],
+    "a rate is written with five figures that count, at most 8 decimals and no zeros trailing; what isn't a rate is written as nothing",
+  );
+  {
+    const r = rng(77);
+    let bad = "";
+    for (let i = 0; i < 3000 && !bad; i++) {
+      const x = 10 ** (-6 + r() * 14);
+      const text = rateText(x);
+      if (!isRate(text) || /e/i.test(text)) bad = `${x} is written "${text}"`;
+      else if (x >= 1e-3 && Math.abs(Number(text) - x) > x * 6e-5) bad = `${x} is written "${text}", which is another rate`;
+    }
+    ok(!bad, `3,000 rates from a millionth to a hundred million are each written as a rate, and the same rate to five figures${bad ? ` (${bad})` : ""}`);
+  }
+  eq(
+    [todaysRate(RATES, "USD", "CAD"), todaysRate(RATES, "JPY", "CAD"), todaysRate(RATES, "CAD", "JPY"), todaysRate(RATES, "KRW", "CAD"), todaysRate(RATES, "CAD", "CAD")],
+    ["1.4012", "0.0091224", "109.62", "0.0010084", "1"],
+    "today's rate between two currencies comes out of the site's rates per US dollar: so many of the second for one of the first",
+  );
+  eq([todaysRate(null, "USD", "CAD"), todaysRate(undefined, "USD", "CAD"), todaysRate({ CAD: 1.4 }, "USD", "CAD"), todaysRate({ ...RATES, USD: 0 }, "USD", "CAD"), todaysRate(RATES, "XAU", "CAD")], ["", "", "", "", ""], "with no rates, or either currency missing, there is none");
+  eq(
+    ["1.4", "1.40", "01.4", ".5", "1..2", "1,38", "1。38", "abc", "1.123456789", "1234567890", "0.0", "00", "1.2.3", "$ 1.38 "].map(asRateText),
+    ["1.4", "1.40", "1.4", "0.5", "1.2", "1.38", "1.38", "", "1.12345678", "123456789", "0.0", "0", "1.23", "1.38"],
+    "a rate typed or pasted is held to digits and one point, 9 before it and 8 after; a comma or a Chinese full stop is the point",
+  );
+  eq(["1.", "1.40", "5", "0", "0.0", "0.", "", "."].map(settled), ["1", "1.40", "5", "", "", "", "", ""], "the rate as it is used: a point left hanging is dropped, and nothing, or zero, is no rate");
+
+  // which currency a new expense starts in
+  eq(startsIn(five), ["CAD", "", false], "an empty ledger: the ledger's own");
+  const trip = inUsd(five, "u1", NOW - HOUR, 3000, "1.38");
+  eq(startsIn(trip), ["USD", "1.38", false], "the last expense was paid in US dollars an hour ago: the next starts in dollars at that one's rate, with nothing to ask for");
+  eq(startsIn(plain(trip, "c1", NOW - 60_000, 500)), ["CAD", "", false], "an expense in the ledger's own currency since then: back to that");
+  eq([startsIn(inUsd(five, "u1", NOW - RECENT, 3000, "1.38")), startsIn(inUsd(five, "u1", NOW - RECENT - 1, 3000, "1.38"))], [["USD", "1.38", false], ["CAD", "", false]], "it leads for thirty days and no longer");
+  eq(startsIn(applyChange(plain(trip, "c1", NOW - 60_000, 500), { do: "out", entry: "c1", at: NOW })!), ["USD", "1.38", false], "an expense taken out leads nothing: the one before it does");
+  eq(startsIn(applyChange(trip, { do: "out", entry: "u1", at: NOW })!), ["CAD", "", false], "(and the same the other way)");
+  eq(
+    [startsIn(inUsd(five, "u1", NOW - HOUR, 3000, "1.38", { amount: 9999 })), startsIn(inUsd(five, "u1", NOW - HOUR, 3000, "1.38", { paidIn: { currency: "XAU", amount: 3000, rate: "1.38" } })), startsIn(inUsd(five, "u1", NOW - HOUR, 3000, "1.38", { paidIn: { currency: "CAD", amount: 4140, rate: "1" } }))],
+    [["CAD", "", false], ["CAD", "", false], ["CAD", "", false]],
+    "an other currency the screens can't vouch for leads nothing: one that doesn't come to the amount, one the site doesn't know, the ledger's own written as if it were another",
+  );
+
+  // what an expense says it was paid in, when it can be shown
+  const u1 = trip.entries[0] as Expense;
+  eq([paidInOf(u1, trip), paidInOf({ ...u1, amount: 4141 }, trip), paidInOf({ ...u1, paidIn: { currency: "USD", amount: 3000, rate: "0" } }, trip), paidInOf({ ...u1, paidIn: { currency: "USD", amount: 0, rate: "1.38" } }, trip), paidInOf(u1, { currency: "USD" }), paidInOf(plain(five, "c", 1, 500).entries[0] as Expense, five)], [{ currency: "USD", amount: 3000, rate: "1.38" }, null, null, null, null, null], "30 dollars at 1.38 that counts for 41.40 can be shown; a cent out, no rate, nothing paid, the ledger's own currency, or no other currency at all can't");
+  const yenTrip = applyChange(startLedger("Y", "北海道", "JPY", five.members), { do: "expense", expense: { kind: "expense", id: "u", at: NOW, payer: "s", amount: 4608, note: "", split: even, rot: 0, paidIn: { currency: "USD", amount: 3000, rate: "153.6" } } })!;
+  eq(paidInOf(yenTrip.entries[0] as Expense, yenTrip)?.amount, 3000, "(a ledger in yen: 30 dollars at 153.6 is 4,608 yen, with no cents to it)");
+  const twice = inUsd(inUsd(trip, "u2", NOW - 30 * 60_000, 1000, "1.39"), "u3", NOW - 60_000, 1000, "1.41", { amount: 1 });
+  eq([lastPaidIn(twice, "USD"), lastPaidIn(twice, "JPY"), lastPaidIn(applyChange(twice, { do: "out", entry: "u2", at: NOW })!, "USD")], [{ rate: "1.39", at: NOW - 30 * 60_000 }, null, { rate: "1.38", at: NOW - HOUR }], "the last expense in a currency is the last one still in the ledger that can be shown");
+
+  // picking a currency
+  const typed864: Draft = { ...blankDraft(five, "s", NOW), text: "86.40" };
+  const picked = payIn(typed864, "USD", five, RATES, NOW);
+  eq([picked.currency, picked.rate, picked.asking, picked.text, paidOf(picked), amountOf(picked, five), abroad(picked, five)], ["USD", "1.4012", false, "86.40", 8640, 12106, true], "US dollars picked with today's rates known: 86.40 dollars at 1.4012 comes to 121.06");
+  ok(payIn(picked, "USD", five, RATES, NOW) === picked, "picking the currency it is already in changes nothing");
+  eq([startingRate(trip, "USD", RATES, NOW), startingRate(trip, "USD", RATES, NOW + RECENT), startingRate(trip, "JPY", RATES, NOW), startingRate(trip, "USD", null, NOW + RECENT), startingRate(five, "USD", undefined, NOW)], ["1.38", "1.4012", "0.0091224", "", ""], "the rate it starts with: the last one's in that currency while that is recent, else today's, else none yet");
+  const waiting = payIn(typed864, "USD", five, null, NOW);
+  eq([waiting.rate, waiting.asking, amountOf(waiting, five), draftProblem(waiting, five)], ["", true, null, { what: "rate" }], "picked with no rate to be had yet: it asks, comes to nothing yet, and can't be recorded");
+  eq([payIn(typed864, "JPY", five, RATES, NOW).text, payIn(payIn(typed864, "JPY", five, RATES, NOW), "CAD", five, RATES, NOW).text, payIn({ ...typed864, text: "86." }, "KRW", five, RATES, NOW).text, payIn({ ...typed864, text: "" }, "JPY", five, RATES, NOW).text], ["86", "86", "86", ""], "a currency with no cents keeps the digits before the point");
+  const home = payIn(picked, "CAD", five, RATES, NOW);
+  eq([home.currency, home.rate, home.asking, amountOf(home, five), abroad(home, five)], ["CAD", "", false, 8640, false], "back to the ledger's own: no rate, and the amount is what was typed");
+
+  // today's rates come, or don't
+  eq([rated(waiting, five, RATES, false).rate, rated(waiting, five, RATES, false).asking], ["1.4012", false], "today's rates come: a draft that was asking takes today's");
+  ok(rated(waiting, five, null, false) === waiting && rated(waiting, five, { CAD: 1.4 }, false) === waiting, "not here yet: it goes on asking");
+  eq([rated(waiting, five, null, true).rate, rated(waiting, five, null, true).asking, draftProblem(rated(waiting, five, null, true), five)], ["", false, { what: "rate" }], "they won't come, and the ledger has no expense in that currency: it stops asking, and the rate is left to be typed");
+  const old = inUsd(five, "u1", NOW - 40 * DAY, 3000, "1.33");
+  const stale = payIn({ ...blankDraft(old, "s", NOW), text: "10" }, "USD", old, null, NOW);
+  eq([stale.asking, rated(stale, old, null, true).rate, rated(stale, old, RATES, true).rate], [true, "1.33", "1.4012"], "they won't come, and the last expense in that currency is from forty days ago: its rate is better than none (today's, when there is one, is better than it)");
+  const byHand: Draft = { ...picked, rate: "1.5" };
+  ok(rated(byHand, five, RATES, false) === byHand && rated({ ...byHand, rate: "" }, five, RATES, true).rate === "", "a draft that isn't asking is left alone: a rate someone typed, or cleared, is never replaced");
+
+  // what it comes to, and what stops it
+  const thirty: Draft = { ...picked, text: "30", rate: "1.40" };
+  eq([amountOf(thirty, five), amountOf({ ...thirty, rate: "1." }, five), amountOf({ ...thirty, rate: "" }, five), amountOf({ ...thirty, text: "" }, five)], [4200, 3000, null, null], "30 dollars at 1.40 counts for 42.00; a rate still being typed (1.) is 1; no rate or no amount comes to nothing");
+  eq(amountOf(payIn({ ...typed864, text: "3000" }, "JPY", five, RATES, NOW), five), 2737, "3,000 yen at 0.0091224 counts for 27.37");
+  eq(amountOf({ ...blankDraft(yenTrip, "s", NOW - 40 * DAY), text: "30", currency: "USD", rate: "153.6" }, yenTrip), 4608, "in a ledger kept in yen, 30 dollars at 153.6 counts for 4,608 yen");
+  eq([draftProblem({ ...thirty, currency: "KRW", text: "1", rate: "0.001" }, five), draftProblem({ ...thirty, currency: "JPY", text: "1", rate: "0.005" }, five)], [{ what: "amount" }, null], "one won at 0.001 comes to a tenth of a cent, which is no amount; one yen at 0.005 is half a cent, which is one");
+  const won = startLedger("K", "首尔", "KRW", five.members);
+  eq(draftProblem({ ...blankDraft(won, "s", NOW), text: "99999999.99", currency: "USD", rate: "1400" }, won), { what: "amount" }, "an amount that comes to more than one expense can be can't be recorded");
+  const byAmounts = shareBy({ ...thirty, among: ["s", "w"] }, "exact", five, 2, 0);
+  eq([byAmounts.amounts, draftProblem(byAmounts, five), draftProblem({ ...byAmounts, amounts: { s: "15", w: "15" } }, five)], [{ s: "21.00", w: "21.00" }, null, { what: "sum", off: 1200 }], "shared by amounts, the amounts are in the ledger's currency and add up to what it comes to: 15 and 15 leaves 12.00 of the 42.00");
+
+  // what is said to the ledger
+  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, paidIn: { currency: "USD", amount: 3000, rate: "1.40" } }, "paid in another currency, an expense says both amounts and the rate as it was typed");
+  eq(saying({ ...thirty, rate: "1." }, five)?.paidIn, { currency: "USD", amount: 3000, rate: "1" }, "(a rate left at 1. is kept as 1)");
+  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, paidIn: null }, null, null], "in the ledger's own, it says there is no other currency; while something is wrong with it, it says nothing at all");
+
+  // opened again
+  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
+  const again = draftOf(recorded.entries[0] as Expense, recorded);
+  eq([again.text, again.currency, again.rate, again.asking, again.untouched], ["30.00", "USD", "1.40", false, false], "an expense paid in dollars opens in dollars, at the rate it was recorded at");
+  eq([saying(again, recorded), applyChange(recorded, { do: "edit", entry: "e", to: saying(again, recorded)! })], [saying(thirty, five), null], "saved untouched, it says what it said, and nothing changes");
+  ok(rated(again, recorded, { ...RATES, CAD: 1.5 }, false) === again, "today's rate, whatever it is by then, doesn't touch it");
+  const dearer = applyChange(recorded, { do: "edit", entry: "e", to: saying({ ...again, text: "35" }, recorded)! })!;
+  eq([(dearer.entries[0] as Expense).amount, (dearer.entries[0] as Expense).paidIn], [4900, { currency: "USD", amount: 3500, rate: "1.40" }], "changed to 35 dollars: it counts for 49.00 at the same rate, and the ledger holds both");
+  const inCad = applyChange(recorded, { do: "edit", entry: "e", to: saying(payIn(again, "CAD", recorded, RATES, NOW), recorded)! })!;
+  eq([(inCad.entries[0] as Expense).amount, "paidIn" in inCad.entries[0]], [3000, false], "changed to the ledger's own currency: 30.00, and no other currency left in the ledger");
+  const odd = inUsd(five, "x", NOW - HOUR, 3000, "1.38", { amount: 9999 });
+  const cant = draftOf(odd.entries[0] as Expense, odd);
+  eq([cant.text, cant.currency, cant.untouched, "paidIn" in saying(cant, odd)!, applyChange(odd, { do: "edit", entry: "x", to: saying({ ...cant, note: "lunch" }, odd)! })?.entries[0]], ["99.99", "CAD", true, false, { ...odd.entries[0], note: "lunch" }], "an expense whose other currency can't be shown opens as what it counts for, and a change to it says nothing of that currency: its note changed, the rest is as it was");
+  eq([payIn(cant, "USD", odd, RATES, NOW).untouched, saying(payIn(cant, "USD", odd, RATES, NOW), odd)?.paidIn, saying(payIn(payIn(cant, "USD", odd, RATES, NOW), "CAD", odd, RATES, NOW), odd)?.paidIn], [false, { currency: "USD", amount: 9999, rate: "1.4012" }, null], "once a currency is picked for it here, the change speaks for it");
+
+  // any amount, any currency: recorded, shown, opened and saved again, it is the same expense
+  {
+    const r = rng(2026);
+    let bad = "";
+    let done = 0;
+    for (let i = 0; i < 2000 && !bad; i++) {
+      const settle = CURRENCIES[Math.floor(r() * CURRENCIES.length)].code;
+      const other = CURRENCIES.filter((c) => c.code !== settle)[Math.floor(r() * (CURRENCIES.length - 1))].code;
+      const l = startLedger("L", "x", settle, five.members);
+      const text = decimalsOf(other) ? fromMinor(1 + Math.floor(r() * 10 ** (1 + Math.floor(r() * 7))), 2) : String(1 + Math.floor(r() * 10 ** (1 + Math.floor(r() * 7))));
+      const d = payIn({ ...blankDraft(l, "s", NOW), text }, other, l, RATES, NOW);
+      const to = saying(d, l);
+      if (!to) {
+        if (draftProblem(d, l)?.what !== "amount") bad = `${text} ${other} in a ${settle} ledger: ${JSON.stringify(draftProblem(d, l))}`;
+        continue;
+      }
+      const { paidIn, ...said } = to;
+      const made = applyChange(l, { do: "expense", expense: { kind: "expense", id: "e", at: NOW, ...said, rot: 0, ...(paidIn ? { paidIn } : {}) } });
+      const e = made?.entries[0] as Expense | undefined;
+      if (!made || !e || JSON.stringify(paidInOf(e, made)) !== JSON.stringify(paidIn) || e.amount !== convert(paidIn?.amount ?? 0, decimalsOf(other), paidIn?.rate ?? "", decimalsOf(settle))) bad = `${text} ${other} in a ${settle} ledger isn't kept as it was said`;
+      else if (JSON.stringify(saying(draftOf(e, made), made)) !== JSON.stringify(to) || applyChange(made, { do: "edit", entry: "e", to: saying(draftOf(e, made), made)! }) !== null) bad = `${text} ${other} in a ${settle} ledger: opened and saved untouched, it changed`;
+      done++;
+    }
+    ok(!bad && done > 1500, `${done} expenses in every pair of the site's currencies: each is kept as it was said, can be shown, and opened and saved untouched changes nothing${bad ? ` (${bad})` : ""}`);
+  }
 }
 {
   // an expense opened and saved untouched is the same expense: over the made-up ledgers
@@ -195,11 +345,15 @@ const roster = five.members.map((x) => x.id);
     const before = JSON.stringify([balances(l), nextRot(l), spent(l)]);
     let now = l;
     for (const e of expensesOf(l)) {
-      const d = draftOf(e, dec);
-      if (draftProblem(d, l, dec) !== null || amountOf(d, dec) !== e.amount || d.payer !== e.payer) bad = `seed ${seed} ${e.id}: the draft isn't the expense`;
-      now = editExpense(now, e.id, { payer: d.payer, amount: amountOf(d, dec) ?? 0, note: d.note, split: splitOf(d, dec) });
+      const d = draftOf(e, l);
+      const to = saying(d, l);
+      if (!to || amountOf(d, l) !== e.amount || d.payer !== e.payer || JSON.stringify(to.split) !== JSON.stringify(splitOf(d, dec))) bad = `seed ${seed} ${e.id}: the draft isn't the expense`;
+      // (these ledgers' other currencies are made up and don't come to their amounts: the screens can't show them, and leave them be)
+      if (to && (abroad(d, l) || "paidIn" in to !== (e.paidIn === undefined))) bad = `seed ${seed} ${e.id}: a made-up other currency was read as a real one, or spoken for`;
+      if (to) now = editExpense(now, e.id, to);
       checked++;
     }
+    if (!bad && JSON.stringify(now.entries.map((e) => (e.kind === "expense" ? e.paidIn : 0))) !== JSON.stringify(l.entries.map((e) => (e.kind === "expense" ? e.paidIn : 0)))) bad = `seed ${seed}: saving untouched changed what an expense says it was paid in`;
     if (!bad && JSON.stringify([balances(now), nextRot(now), spent(now)]) !== before) bad = `seed ${seed}: saving untouched moved a balance`;
     if (!bad && now.entries.some((e, i) => e.kind === "expense" && (e.rot !== (l.entries[i] as Expense).rot || e.at !== l.entries[i].at || e.id !== l.entries[i].id))) bad = `seed ${seed}: an edit moved an id, a time or a turn`;
   }
@@ -280,9 +434,9 @@ const roster = five.members.map((x) => x.id);
 {
   let l = five;
   const record = (id: string, me: string, text: string, payer: string | null, note: string) => {
-    const d = { ...blankDraft(l, me), text, note, ...(payer ? { payer } : {}) };
+    const d = { ...blankDraft(l, me, NOW), text, note, ...(payer ? { payer } : {}) };
     // (记一笔 sends the expense as a change, with the turn for the odd cents the ledger shows it then)
-    const expense = { kind: "expense" as const, id, at: l.entries.length + 1, payer: d.payer, amount: amountOf(d, 2)!, note: d.note, split: splitOf(d, 2), rot: nextRot(l) };
+    const expense = { kind: "expense" as const, id, at: l.entries.length + 1, payer: d.payer, amount: amountOf(d, l)!, note: d.note, split: splitOf(d, 2), rot: nextRot(l) };
     const sameAsBefore = addExpense(l, expense);
     l = applyChange(l, { do: "expense", expense }) ?? l;
     ok(JSON.stringify(l) === JSON.stringify(sameAsBefore), `${note}: recorded as a change, the ledger is what recording it on the phone alone made it`);

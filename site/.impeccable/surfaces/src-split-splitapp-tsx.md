@@ -114,3 +114,27 @@ What the look at the rendered screens changed (69 screens now, both languages, f
 7. A transfer in a locked ledger still said to come back and mark it as paid, and in English the page's lock line left one word on a line of its own. The first says the ledger is locked; the second is a shorter sentence, and the line now breaks evenly whenever it runs to two.
 
 Verdict: holds to the contract. Three screens, one light, three motions. What an owner can do that others can't is two lines in a sheet, and what it does to everyone else is said to them in the page's own two voices.
+
+## Stage two, step 7b: paid in another currency (2026-11-14)
+
+Shape, in the thread that built it (the owner had said to go on; the plan already had eleven currencies and the rule: convert once, at the rate typed, and never again):
+
+- Who and when: someone on a trip, paying in yen or dollars all week, often with no signal, at the rate their money was changed at. The common case is the second expense in that currency, not the first.
+- So the currency is not a field on the form. It is a quiet pill in the bar's corner, saying what the amount is typed in (its name in Chinese, its code in English), and a new expense starts in the currency and at the rate of the last one, for thirty days. Picking yen once covers the week; an expense in the ledger's own currency puts the next one back.
+- The amount stays the one big thing, in the currency it was paid in. What it comes to, and at what rate, is one quiet line under it. The whole amount is the thing to press to change the rate: the line alone would be too thin to hit.
+- When it can't be recorded yet, the line says why in the page's strong voice (needs a rate; comes to less than a cent; more than one expense can be), since that line is what stands between the person and 记好了.
+- The rate is a sum on its own sheet: 1 USD = [ ] CAD, with what the amount comes to written as it is typed, today's rate and the last one's one tap away, and one sentence saying the rate is for this expense only.
+- Sharing is done on what it comes to, in the ledger's currency, and the share sheet says so when it is paid in another.
+- In the ledger, a row paid in another currency carries what was paid, small, under what it counts for. The totals, the settling and the plan never see the other currency.
+- Today's rates are asked for only when something on the screen wants them. A trip's worth of expenses at the last one's rate asks for nothing, and works with no signal.
+- No new colour, no new motion.
+
+What the look at the rendered screens changed (four phone sizes, both languages, and 记一笔 at seven real phone heights):
+
+1. With the line under the amount, the keys at 375 by 553 (an iPhone SE in Safari) came out 41px tall. On short phones the amount goes one size down while the line is there, and the keys are 44px again.
+2. At 320px the pill in the corner broke CAD over two lines. A code is one word: it doesn't break, and the title gives way instead.
+3. With the pill (and, on an expense being changed, the bin) the right of the bar was wider than the left, and the centred title was cut to "Add an e…". On this screen the title starts beside the ✕ and takes what is left, and the English titles are shorter: Add expense, Edit.
+4. A long amount in yen pushed the line under it off the screen's edge. The rate gives way, with an ellipsis; what it comes to never does.
+5. The currency's name under the amount said again what the corner says. It is gone.
+
+Verdict: holds to the contract. Still three screens and one light; a trip in another currency is one tap, once, and after that the screen is what it always was with one quiet line more.
