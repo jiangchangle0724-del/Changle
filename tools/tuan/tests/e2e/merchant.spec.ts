@@ -4,10 +4,12 @@
 // closing and opening a group buy, and the owner's panel that sets a shop up and starts a group
 // buy by hand or from a file. A phone that is signed in has the session the site would have left
 // in its storage.
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { vancouverClock } from "../../src/engine/time.ts";
 import { SESSION } from "../accounts.ts";
-import { catchCopies, copied, DAY, fits, offerOf, order, phone, putAway, start, word } from "./help.ts";
+import { offerDoc } from "../sample.ts";
+import { catchCopies, copied, DAY, fits, offerOf, order, phone, putAway, start, WECHAT, word } from "./help.ts";
 
 test.afterEach(putAway);
 
@@ -375,8 +377,135 @@ test("the owner fills the forms from a file: a shop and its group buy in one go"
   await expect(shop.locator(".mine li")).toHaveCount(2);
 });
 
+test("a shop's own page: the merchant says who they are, and buyers see it, with the group buys taking orders and the earlier ones", async ({ browser, request }) => {
+  const { id, slug } = await start(request);
+  const page = await phone(browser, { session: SESSION.leader });
+  await page.goto("/tuan/my");
+  const shop = page.locator(".panel", { hasText: "大米团（测试）" }).first();
+  await shop.getByRole("link", { name: "店铺资料" }).click();
+  await expect(page).toHaveURL(new RegExp(`/tuan/my/s/${slug}$`));
+  await expect(page.locator('[name="shopname"]')).toHaveValue("大米团（测试）");
+  await expect(page.locator('[name="contact"]')).toHaveValue("微信 rice-test");
+  // a name is needed
+  await page.locator('[name="shopname"]').fill(" ");
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.locator(".problem")).toHaveText("这里要写。");
+  await page.locator('[name="shopname"]').fill("大米团");
+  await page.locator('[name="kind"]').selectOption("farm");
+  await page.locator('[name="about"]').fill("每周一团，周五到货。\n米面粮油和冷冻肉。");
+  await page.locator('[name="permit"]').fill("BC 农业部门许可 AG-2026-001");
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByText("存好了。")).toBeVisible();
+  await page.reload();
+  await expect(page.locator('[name="shopname"]')).toHaveValue("大米团");
+  await expect(page.locator('[name="kind"]')).toHaveValue("farm");
+
+  // a later group buy, and the first one closed
+  const later = await request.post(`/tuan/api/my/shops/${slug}/offers`, { headers: { authorization: `Bearer ${SESSION.leader}` }, data: { ...offerDoc(Date.now() + 3 * DAY), title: "下周的团" } });
+  expect(later.status()).toBe(201);
+  await request.post(`/tuan/api/my/offers/${id}`, { headers: { authorization: `Bearer ${SESSION.leader}` }, data: { do: "close" } });
+
+  // a buyer, from the group buy's page: the shop's name leads to its own page
+  const buyer = await phone(browser);
+  await buyer.goto(`/tuan/t/${(await later.json()).id}`);
+  await buyer.locator(".hero a.shop-name").click();
+  await expect(buyer).toHaveURL(new RegExp(`/tuan/s/${slug}$`));
+  await expect(buyer).toHaveTitle("大米团 · 跟一单");
+  await expect(buyer.locator(".hero h1")).toHaveText("大米团");
+  await expect(buyer.locator(".hero .shop-name")).toHaveText("农场");
+  await expect(buyer.locator(".hero .lines")).toHaveText("每周一团，周五到货。\n米面粮油和冷冻肉。");
+  // the permit is on the first screen
+  await expect(buyer.getByText("BC 农业部门许可 AG-2026-001")).toBeInViewport();
+  const taking = buyer.locator(".panel", { has: buyer.locator(".panel-title", { hasText: "正在接单" }) });
+  await expect(taking.locator("li")).toHaveCount(1);
+  await expect(taking.locator("li")).toContainText("下周的团");
+  const earlier = buyer.locator(".panel", { has: buyer.locator(".panel-title", { hasText: "开过的团" }) });
+  await expect(earlier.locator("li")).toHaveText([/本周大米团 · 周五到货\s*已截单/]);
+  await taking.getByRole("link", { name: /下周的团/ }).click();
+  await expect(buyer.locator(".hero h1")).toHaveText("下周的团");
+  // and from the shop's panel at the foot of a group buy's page
+  await buyer.getByRole("link", { name: "这家店的其他团" }).click();
+  await expect(buyer).toHaveURL(new RegExp(`/tuan/s/${slug}$`));
+  await buyer.goto("/tuan/s/no-such-shop");
+  await expect(buyer.locator(".empty h1")).toHaveText("没有这家店");
+
+  // only the shop's own people change it
+  const other = await phone(browser, { session: SESSION.visitor });
+  await other.goto(`/tuan/my/s/${slug}`);
+  await expect(other.locator(".empty p")).toHaveText("这个账号没有这家店。");
+  await expect(other.locator('[name="shopname"]')).toHaveCount(0);
+});
+
+test("the orders download as a spreadsheet; in WeChat, which can't save files, the page says where to do it", async ({ browser, request }) => {
+  const { id } = await start(request);
+  await order(request, id, { name: "王阿姨", phone: "604-555-0134" }, [["五常大米", 2000], ["手切羊肉片", 1500]]);
+  await order(request, id, { name: "=HYPERLINK(\"http://x\")", phone: "16045550177" }, [["土鸡蛋", 1000]], { note: "放门口, 谢谢" });
+  const page = await phone(browser, { session: SESSION.leader });
+  await page.goto(`/tuan/my/t/${id}`);
+  const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "导出表格" }).click()]);
+  // (some browsers save spaces in a file's name as underscores)
+  expect(file.suggestedFilename()).toMatch(/^本周大米团[ _]·[ _]周五到货[ _]订单[ _]\d{4}-\d{2}-\d{2}\.csv$/);
+  const bytes = await readFile(await file.path());
+  expect([...bytes.subarray(0, 3)], "it starts with the mark that tells Excel it's UTF-8").toEqual([0xef, 0xbb, 0xbf]);
+  const rows = bytes.toString("utf8").slice(1).split("\r\n");
+  expect(rows.pop(), "every row ends with CRLF").toBe("");
+  expect(rows[0]).toBe("序号,订单号,状态,称呼,电话,微信,取货方式,自提点或送货区,地址,备注,商品,单位,单价,数量,实际重量,金额,运费,应收,已收款,已取货,下单时间");
+  expect(rows).toHaveLength(4);
+  expect(rows[1]).toMatch(/^1,[2-9A-HJKMNP-Z]{6},待确认,王阿姨,604-555-0134,,自提,温哥华西区,,,五常大米 10kg,袋,38\.00,2,,76\.00,0\.00,101\.49,,,\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+  expect(rows[2]).toMatch(/^1,[2-9A-HJKMNP-Z]{6},待确认,王阿姨,,,,,,,手切羊肉片,磅,16\.99,1\.5,,25\.49,,,,,$/);
+  // what a buyer typed never runs as a formula, and a comma stays inside its field
+  expect(rows[3]).toMatch(/^2,[2-9A-HJKMNP-Z]{6},待确认,"'=HYPERLINK\(""http:\/\/x""\)",1-604-555-0177,,自提,温哥华西区,,"放门口, 谢谢",土鸡蛋 30 枚,盒,13\.50,1,,13\.50,0\.00,13\.50,,,/);
+
+  // in English, the words are English
+  await page.evaluate(() => localStorage.setItem("tuan.lang", "en"));
+  await page.reload();
+  const [english] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export to a spreadsheet" }).click()]);
+  expect(english.suggestedFilename()).toMatch(/[ _]orders[ _]\d{4}-\d{2}-\d{2}\.csv$/);
+  expect((await readFile(await english.path(), "utf8")).split("\r\n")[1]).toMatch(/^1,[2-9A-HJKMNP-Z]{6},To confirm,王阿姨,604-555-0134,,Pickup,温哥华西区,,,五常大米 10kg,bag,38\.00,/);
+
+  // in WeChat: no file, but where to get it
+  const wechat = await phone(browser, { session: SESSION.leader, userAgent: WECHAT });
+  let saved = false;
+  wechat.on("download", () => void (saved = true));
+  await wechat.goto(`/tuan/my/t/${id}`);
+  await wechat.getByRole("button", { name: "导出表格" }).click();
+  await expect(wechat.locator(".sheet h2")).toHaveText("到浏览器里导出");
+  await expect(wechat.locator(".sheet")).toContainText("点右上角的「…」，选「在浏览器打开」");
+  expect(saved).toBe(false);
+  await wechat.goBack();
+  await expect(wechat.locator(".sheet")).toHaveCount(0);
+});
+
+test("the merchant's pages come in a script of their own: a buyer never downloads it, and when it can't be fetched the page says so", async ({ browser, request }) => {
+  const { url } = await start(request);
+  const page = await phone(browser, { session: SESSION.leader });
+  const scripts: string[] = [];
+  page.on("request", (sent) => {
+    if (sent.url().endsWith(".js")) scripts.push(new URL(sent.url()).pathname);
+  });
+  const theirs = (name: string) => scripts.some((path) => new RegExp(`/tuan/assets/${name}-[A-Z0-9]+\\.js$`).test(path));
+  // a buyer's pages: the group buy, an order, home
+  await page.goto(url);
+  await expect(page.locator(".item").first()).toBeVisible();
+  await page.goto("/tuan/");
+  await expect(page.locator(".hero h1")).toBeVisible();
+  expect(theirs("app")).toBe(true);
+  expect(theirs("my"), "a buyer's page never downloads the merchant's").toBe(false);
+  // a merchant's page fetches it
+  await page.goto("/tuan/my");
+  await expect(page.locator(".panel", { hasText: "大米团（测试）" }).first()).toBeVisible();
+  expect(theirs("my")).toBe(true);
+  // when it can't be fetched: said so, and trying again brings it
+  await page.route(/\/tuan\/assets\/my-[A-Z0-9]+\.js$/, (route) => route.abort());
+  await page.reload();
+  await expect(page.locator(".empty p")).toHaveText("连不上，看看网络再试一次");
+  await page.unroute(/\/tuan\/assets\/my-[A-Z0-9]+\.js$/);
+  await page.getByRole("button", { name: "再试一次" }).click();
+  await expect(page.locator(".panel", { hasText: "大米团（测试）" }).first()).toBeVisible();
+});
+
 test("on a small phone: the merchant's pages fit, and everything to tap is big enough", async ({ browser, request }) => {
-  const { id } = await start(request, { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团" });
+  const { id, slug } = await start(request, { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团" });
   await threeOrders(request, id);
   const page = await phone(browser, { viewport: { width: 320, height: 568 }, session: SESSION.owner });
 
@@ -387,6 +516,12 @@ test("on a small phone: the merchant's pages fit, and everything to tap is big e
   await page.locator('.panel input[type="file"]').setInputFiles({ name: "import.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await expect(page.getByRole("button", { name: "建店并开团" })).toBeVisible();
   await fits(page, "the owner's panel with a file read in");
+  await page.goto(`/tuan/my/s/${slug}`);
+  await expect(page.locator('[name="shopname"]')).toBeVisible();
+  await fits(page, "what a shop says about itself");
+  await page.goto(`/tuan/s/${slug}`);
+  await expect(page.locator(".hero h1")).toBeVisible();
+  await fits(page, "a shop's own page");
   await page.goto(`/tuan/my/t/${id}`);
   await expect(page.locator(".order")).toHaveCount(3);
   await fits(page, "a group buy's orders");

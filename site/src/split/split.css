@@ -728,6 +728,22 @@ label.split-field:focus-within {
   display: grid;
   gap: var(--space-2);
 }
+/* 导出账目: what the file holds, and in WeChat's own browser, what to do instead */
+.split-export {
+  display: grid;
+  gap: var(--space-3);
+}
+.split-export > p {
+  margin: 0;
+  color: var(--color-text-2);
+  line-height: var(--leading);
+  /* (no word or two left alone on the last line) */
+  text-wrap: pretty;
+}
+.split-export > .split-sync {
+  margin: 0;
+  color: var(--color-text);
+}
 /* the 结清图 this phone made is out of date: in the page's strong voice, over the plan, with when it was made */
 .split-stale {
   margin: var(--space-3) 0 var(--space-4);

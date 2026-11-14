@@ -1,0 +1,162 @@
+{
+  "id": "team-03",
+  "world": "table",
+  "name": {
+    "zh": "长席分工",
+    "en": "Reunion Shift"
+  },
+  "teaches": "combine",
+  "w": 3600,
+  "h": 1440,
+  "spawn": {
+    "x": 120,
+    "y": 1256
+  },
+  "goal": {
+    "x": 3400,
+    "y": 370,
+    "w": 160,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1100,
+      "y": 1256
+    },
+    {
+      "x": 1870,
+      "y": 506
+    },
+    {
+      "x": 3120,
+      "y": 506
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1280,
+      "w": 1500,
+      "h": 160,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1770,
+      "y": 530,
+      "w": 1030,
+      "h": 910,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 3000,
+      "y": 530,
+      "w": 560,
+      "h": 910,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 3560,
+      "y": 370,
+      "w": 40,
+      "h": 1070,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 1530,
+      "y": 600,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2050,
+      "y": 350,
+      "w": 630,
+      "h": 20,
+      "material": "wood"
+    }
+  ],
+  "hazards": [
+    {
+      "x": 1760,
+      "y": 574,
+      "w": 18,
+      "h": 866,
+      "kind": "hot"
+    },
+    {
+      "x": 2050,
+      "y": 334,
+      "w": 630,
+      "h": 16,
+      "kind": "zap"
+    },
+    {
+      "x": 2980,
+      "y": 590,
+      "w": 20,
+      "h": 40,
+      "kind": "zap",
+      "players": [
+        5,
+        6
+      ]
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [
+    {
+      "x": 2330,
+      "y": 375,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 20,
+      "players": [
+        4,
+        4
+      ]
+    },
+    {
+      "x": 2330,
+      "y": 375,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        5,
+        5
+      ]
+    },
+    {
+      "x": 2330,
+      "y": 375,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 37,
+      "players": [
+        6,
+        6
+      ]
+    }
+  ],
+  "fading": [],
+  "springs": [],
+  "movers": [],
+  "spinners": [],
+  "deathY": 1510,
+  "par": {
+    "seconds": 160,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-03.p4.json"
+}

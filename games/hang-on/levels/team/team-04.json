@@ -1,0 +1,114 @@
+{
+  "id": "team-04",
+  "world": "van",
+  "name": {
+    "zh": "港塔递班",
+    "en": "Harbour Tower Relay"
+  },
+  "teaches": "relay",
+  "w": 3600,
+  "h": 2160,
+  "spawn": {
+    "x": 120,
+    "y": 2036
+  },
+  "goal": {
+    "x": 3400,
+    "y": 400,
+    "w": 160,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1230,
+      "y": 2036
+    },
+    {
+      "x": 2110,
+      "y": 1286
+    },
+    {
+      "x": 2900,
+      "y": 536
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 2060,
+      "w": 1700,
+      "h": 100,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1970,
+      "y": 1310,
+      "w": 530,
+      "h": 850,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2770,
+      "y": 560,
+      "w": 790,
+      "h": 1600,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 3560,
+      "y": 400,
+      "w": 40,
+      "h": 1760,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 1730,
+      "y": 1380,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 2530,
+      "y": 630,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    }
+  ],
+  "hazards": [
+    {
+      "x": 1960,
+      "y": 1354,
+      "w": 18,
+      "h": 806,
+      "kind": "zap"
+    },
+    {
+      "x": 2760,
+      "y": 604,
+      "w": 18,
+      "h": 1556,
+      "kind": "zap"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "movers": [],
+  "spinners": [],
+  "deathY": 2230,
+  "par": {
+    "seconds": 160,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-04.p4.json"
+}

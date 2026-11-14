@@ -151,12 +151,20 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
 
 ## The API
 
+- `GET /go/?lang=zh|en&day=YYYY-MM-DD&cat=x&area=y&price=free|20` (or bare `/go`): the page (`src/page.ts`), one day
+  at a time (today by default), at most one category and one area, free or at most $20. Without
+  `lang`, the browser's first language decides (Chinese if Chinese, English otherwise), and a few lines
+  of script then follow the language chosen on changle.ca (`lazysusan.settings.v1`). Plain HTML, every
+  filter a link; `noindex` for now. Events that started on an earlier day are folded under the day's
+  own; a night that ends by 05:00 isn't on the next day's list. With a query string it must be `/go/?…`:
+  the route `changle.ca/go` takes only the bare address, so `/go?lang=zh` goes to the site instead.
 - `GET /go/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD&cat=a,b&area=x,y&tag=free,kids`
 - `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6),
   named by its filters in Chinese and English (`玩什么 · What's On · 亲子家庭 Family & Kids`).
 - `GET /go/api/status`: the last run step by step (the fetch log) and what's published.
 - `GET /go/preview`: what's published, day by day, with the same filters as links (`?lang=en` for
-  English). Not linked from anywhere, `noindex`: for checking the run until the page (C7) exists.
+  English). Not linked from anywhere, `noindex`: for checking the run, with what the page leaves out
+  (areas to check, uncategorised events, every source's count).
 - `POST /go/api/handoff?source=vpl&date=YYYY-MM-DD&part=N`, `Authorization: Bearer <GitHub's OIDC token>`
   (or `<EVENTS_HANDOFF_KEY>`, when the Worker has one), the page as the body: the GitHub job only.
   The job uses the Worker's own address (`https://changle-events.jiangchangle0724.workers.dev`):

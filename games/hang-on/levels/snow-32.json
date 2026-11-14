@@ -1,0 +1,171 @@
+{
+  "id": "snow-32",
+  "world": "snow",
+  "tier": 0,
+  "name": {
+    "zh": "冰瀑换手",
+    "en": "Frozen Falls"
+  },
+  "teaches": "slip",
+  "w": 2400,
+  "h": 1400,
+  "spawn": {
+    "x": 100,
+    "y": 1237
+  },
+  "goal": {
+    "x": 2320,
+    "y": 30,
+    "w": 80,
+    "h": 120
+  },
+  "checkpoints": [
+    {
+      "x": 850,
+      "y": 787
+    },
+    {
+      "x": 1880,
+      "y": 198
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 634,
+      "y": 907
+    },
+    {
+      "x": 1280,
+      "y": 535
+    },
+    {
+      "x": 2190,
+      "y": 160
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1268,
+      "w": 280,
+      "h": 132,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 280,
+      "y": 1151,
+      "w": 180,
+      "h": 249,
+      "material": "ice",
+      "slip": 2.4
+    },
+    {
+      "kind": "ground",
+      "x": 460,
+      "y": 1052,
+      "w": 180,
+      "h": 348,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 640,
+      "y": 926,
+      "w": 180,
+      "h": 474,
+      "material": "ice",
+      "slip": 2
+    },
+    {
+      "kind": "ground",
+      "x": 820,
+      "y": 827,
+      "w": 180,
+      "h": 573,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1000,
+      "y": 710,
+      "w": 280,
+      "h": 690,
+      "material": "ice",
+      "slip": 1.8
+    },
+    {
+      "kind": "ground",
+      "x": 1280,
+      "y": 611,
+      "w": 180,
+      "h": 789,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1460,
+      "y": 503,
+      "w": 180,
+      "h": 897,
+      "material": "ice",
+      "slip": 1.6
+    },
+    {
+      "kind": "ground",
+      "x": 1640,
+      "y": 395,
+      "w": 180,
+      "h": 1005,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1820,
+      "y": 278,
+      "w": 180,
+      "h": 1122,
+      "material": "ice",
+      "slip": 1.5
+    },
+    {
+      "kind": "ground",
+      "x": 2000,
+      "y": 179,
+      "w": 180,
+      "h": 1221,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "material": "snow",
+      "x": 2180,
+      "y": 500,
+      "w": 140,
+      "h": 900
+    },
+    {
+      "kind": "wall",
+      "material": "ice",
+      "slip": 2,
+      "x": 2320,
+      "y": 160,
+      "w": 80,
+      "h": 1240
+    }
+  ],
+  "lifts": [],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "deathY": 1560,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/snow-32.json"
+}

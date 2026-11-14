@@ -1,24 +1,23 @@
 // Builds the 3D figure's files (README.md):
 //   node build.mjs <MPFB2 data folder> <MakeHuman system assets folder> [--only male|female] [--plain <folder>]
 // writes site/public/models/figure/male.glb.gz and female.glb.gz (the figure: body, clothes, face,
-// its first hairstyle, the moves, the props' anchors) and hair/<style>-<sex>.glb.gz (each other
-// hairstyle on its own, loaded when picked). --plain also writes them unzipped there, to look at.
+// its first hairstyle) and hair/<style>-<sex>.glb.gz (each other hairstyle on its own, loaded when
+// picked), and eyes/<colour>.webp (the other eye colours). --plain also writes the models unzipped
+// there, to look at. No moves in them: the page solves those for the body on screen
+// (site/src/account/figure/pose/).
 // 1. MakeHuman's human shaped and dressed, with the face sliders and expressions (human.mjs);
-// 2. the moves written here (moves.mjs, solved by rig.mjs) and the props' anchors (bake.mjs);
-// 3. shrunk: textures to WebP (the skin 1024 px, most 512, the small ones 256), keyframes
-//    thinned, vertices quantized, meshopt; then gzip (Cloudflare doesn't compress .glb).
+// 2. shrunk: textures to WebP (the skin 1024 px, most 512, the small ones 256), vertices
+//    quantized, meshopt; then gzip (Cloudflare doesn't compress .glb).
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { dedup, meshopt, prune, quantize, resample, textureCompress } from "@gltf-transform/functions";
+import { dedup, meshopt, prune, quantize, textureCompress } from "@gltf-transform/functions";
 import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
 import sharp from "sharp";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addAnchors, addMoves, rigOf } from "./bake.mjs";
-import { MOVES } from "./moves.mjs";
-import { HAIRS, SEXES, docOf, prepareHuman } from "./human.mjs";
+import { EYE_COLORS, HAIRS, SEXES, docOf, prepareHuman } from "./human.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -37,7 +36,7 @@ const out = join(here, "../../public/models/figure");
 
 /** each figure's first hairstyle (the one in its own file) */
 export const FIRST_HAIR = { male: "short02", female: "long01" };
-const BASE_PARTS = ["Body", "Eyes", "Eyebrows", "Eyelashes", "Clothes", "Shoes"];
+const BASE_PARTS = ["Body", "Eyes", "Eyebrows", "Eyelashes", "Shirt", "Pants", "Shoes"];
 
 await Promise.all([MeshoptEncoder.ready, MeshoptDecoder.ready]);
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.encoder": MeshoptEncoder, "meshopt.decoder": MeshoptDecoder });
@@ -45,7 +44,6 @@ const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies(
 async function write(doc, rel) {
   await doc.transform(
     dedup(),
-    resample({ tolerance: 1e-3 }),
     prune({ keepLeaves: true }),
     textureCompress({ encoder: sharp, pattern: /^skin$/, resize: [1024, 1024], quality: 82, targetFormat: "webp" }),
     textureCompress({ encoder: sharp, pattern: /^(clothes|shoes|hair_\w+)$/, resize: [512, 512], quality: 80, targetFormat: "webp" }),
@@ -69,20 +67,29 @@ async function write(doc, rel) {
 const quiet = console.warn;
 console.warn = (m, ...rest) => (/Skipping _WELD/.test(String(m)) ? null : quiet(m, ...rest));
 
+// the other eye colours: MakeHuman's eye textures, a little greyed like the figure's own, 256 px
+for (const [id, grey] of Object.entries(EYE_COLORS)) {
+  const { data, info } = await sharp(join(assets, `eyes/materials/${id}_eye.png`)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += 4) {
+    const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    for (let c = 0; c < 3; c++) data[i + c] = Math.round(data[i + c] + (l - data[i + c]) * grey);
+  }
+  const webp = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).resize(256, 256).webp({ quality: 82, alphaQuality: 90 }).toBuffer();
+  mkdirSync(join(out, "eyes"), { recursive: true });
+  writeFileSync(join(out, `eyes/${id}.webp`), webp);
+}
+
 for (const sex of Object.keys(SEXES)) {
   if (only && only !== sex) continue;
   const t0 = Date.now();
   const prep = await prepareHuman({ mpfb, assets, sex });
-  // the figure, with its first hair, the moves and the props' anchors
+  // the figure, with its first hair
   const doc = docOf(prep, [...BASE_PARTS, `Hair_${FIRST_HAIR[sex]}`]);
-  const rig = rigOf(doc);
-  addAnchors(doc, rig);
-  addMoves(doc, rig, MOVES);
   const scene = doc.getRoot().getDefaultScene();
   scene.setExtras({ ...scene.getExtras(), figure: { sex, hair: FIRST_HAIR[sex], hairs: HAIRS } });
   const kb = (n) => `${(n / 1024).toFixed(0)} KB`;
   const sizes = [`${sex} ${kb(await write(doc, sex))}`];
   // the other hairstyles, each on its own
   for (const h of HAIRS) if (h !== FIRST_HAIR[sex]) sizes.push(`${h} ${kb(await write(docOf(prep, [`Hair_${h}`]), `hair/${h}-${sex}`))}`);
-  console.log(`${sex} (${((Date.now() - t0) / 1000).toFixed(0)} s, ${prep.info.height} m tall as drawn, frames ${JSON.stringify(prep.frames)}): ${sizes.join(", ")}`);
+  console.log(`${sex} (${((Date.now() - t0) / 1000).toFixed(0)} s, ${prep.info.height} m tall as drawn): ${sizes.join(", ")}`);
 }

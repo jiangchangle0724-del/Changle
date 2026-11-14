@@ -1,5 +1,5 @@
 import { Crown, Flame, Megaphone, MessageSquareText, MonitorSpeaker, Play, Snowflake } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
 import { haptic } from "../../lib/sfx";
@@ -28,6 +28,13 @@ import "../../styles/dj-phone.css";
 export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   // the speaker is the only music: the lounge loop stays off on this phone
   useEffect(() => holdBackground(), []);
+  // a long page of things anyone can press any time, scrolled by the player alone (Steve on Nov 14:
+  // picking a song from the suggestions, the page slid down by itself before he could press Ask for
+  // it): the frame doesn't follow new controls here (`follow={false}`, like the lobby), so the page
+  // starts at its top itself
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const { room, me, isHost, g, now, nameOf, code } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
@@ -111,7 +118,7 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   );
 
   return (
-    <NetFrame title={GAME_BY_ID.dj.name} rules={rules} onLeave={onLeave} dock={false}>
+    <NetFrame title={GAME_BY_ID.dj.name} rules={rules} onLeave={onLeave} dock={false} follow={false}>
       <div className={`djp is-${v.phase}`}>
         {v.phase === "end" && (
           <section className="djp-recap" aria-label={zh ? "今晚回顾" : "Tonight's recap"}>

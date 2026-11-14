@@ -22,6 +22,8 @@ export interface Env {
   ACCOUNTS: DurableObjectNamespace<AccountDO>;
   /** the rooms server (site/worker), which says whose a sign-in is */
   ROOMS: Fetcher;
+  /** receipt photos (stage three): the private bucket split-files, read and written only here */
+  FILES: R2Bucket;
   /** local runs and tests only: "1" lifts the daily allowance of new ledgers per network (not per account) */
   ALLOW_TEST_SETTINGS?: string;
 }
@@ -340,16 +342,19 @@ export class LedgerDO extends DurableObject<Env> {
   /** The owner deletes the ledger. Every phone that was listening is let go, and finds it gone when it comes back. */
   async wipe(ownerHash: string | null): Promise<ReturnType<LedgerRoom["wipe"]>> {
     const got = this.room.wipe(ownerHash, Date.now());
-    if (got.ok) {
-      for (const ws of this.ctx.getWebSockets()) {
-        try {
-          ws.close(DELETED, "gone");
-        } catch {
-          // a phone that just left
-        }
+    if (got.ok) this.letGo();
+    return got;
+  }
+
+  /** Every phone listening to a ledger that is gone is let go. */
+  private letGo() {
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.close(DELETED, "gone");
+      } catch {
+        // a phone that just left
       }
     }
-    return got;
   }
 
   /** The owner locks the ledger, or opens it again: every phone that is listening sees it. */

@@ -1,0 +1,112 @@
+{
+  "id": "space-43",
+  "world": "space",
+  "name": {
+    "zh": "气闸初航",
+    "en": "Airlock Drift"
+  },
+  "tier": 0,
+  "teaches": "float",
+  "w": 2400,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 556
+  },
+  "goal": {
+    "x": 2140,
+    "y": 420,
+    "w": 240,
+    "h": 180
+  },
+  "checkpoints": [
+    {
+      "x": 1100,
+      "y": 556
+    },
+    {
+      "x": 1770,
+      "y": 556
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 869,
+      "y": 521
+    },
+    {
+      "x": 1380,
+      "y": 548
+    },
+    {
+      "x": 2050,
+      "y": 541
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 600,
+      "w": 430,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 870,
+      "y": 600,
+      "w": 500,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1390,
+      "y": 600,
+      "w": 1010,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 460,
+      "y": 490,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 650,
+      "y": 430,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "movers": [],
+  "spinners": [],
+  "zerog": [
+    {
+      "x": 380,
+      "y": 250,
+      "w": 540,
+      "h": 430
+    }
+  ],
+  "levers": [],
+  "gates": [],
+  "deathY": 900,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/space-43.json"
+}

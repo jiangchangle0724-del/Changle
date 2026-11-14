@@ -1,5 +1,6 @@
 // A shop, as the owner of the site sets it up by hand (merchants applying for themselves comes
-// later). Pure rules; the server keeps it (src/server/store.ts).
+// later), and what its own people may change about it themselves. Pure rules; the server keeps it
+// (src/server/store.ts).
 import { SLUG_RE } from "./ids";
 import { cleanLine, cleanLines } from "./text";
 import { SHOP_KINDS, type ShopKind, type ShopStatus } from "./types";
@@ -21,18 +22,41 @@ export interface NewShop {
   members: string[];
 }
 
+/** What a shop says about itself: everything but its address, who runs it and whether it's taking orders. */
+export type ShopWords = Pick<NewShop, "name" | "kind" | "about" | "contact" | "pay" | "permit">;
+
 export type ShopError = "bad" | "slug" | "name" | "members";
 export type ReadShop = { ok: true; shop: NewShop } | { ok: false; error: ShopError };
+export type ReadWords = { ok: true; words: ShopWords } | { ok: false; error: "bad" | "name" };
+
+/** Check what a shop says about itself, as its own people (or the site's owner) sent it. */
+export function readShopWords(input: unknown): ReadWords {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return { ok: false, error: "bad" };
+  const raw = input as Record<string, unknown>;
+  const name = cleanLine(raw.name, 40);
+  if (!name) return { ok: false, error: "name" };
+  const kind = raw.kind ?? "leader";
+  if (!(SHOP_KINDS as readonly unknown[]).includes(kind)) return { ok: false, error: "bad" };
+  return {
+    ok: true,
+    words: {
+      name,
+      kind: kind as ShopKind,
+      about: cleanLines(raw.about, 600),
+      contact: cleanLines(raw.contact, 300),
+      pay: cleanLines(raw.pay, 600),
+      permit: cleanLine(raw.permit, 200) ?? "",
+    },
+  };
+}
 
 /** Check a shop as the owner sent it. */
 export function readShop(input: unknown): ReadShop {
   if (!input || typeof input !== "object" || Array.isArray(input)) return { ok: false, error: "bad" };
   const raw = input as Record<string, unknown>;
   if (typeof raw.slug !== "string" || !SLUG_RE.test(raw.slug)) return { ok: false, error: "slug" };
-  const name = cleanLine(raw.name, 40);
-  if (!name) return { ok: false, error: "name" };
-  const kind = raw.kind ?? "leader";
-  if (!(SHOP_KINDS as readonly unknown[]).includes(kind)) return { ok: false, error: "bad" };
+  const read = readShopWords(raw);
+  if (!read.ok) return read;
   const status = raw.status ?? "live";
   if (status !== "pending" && status !== "live" && status !== "paused") return { ok: false, error: "bad" };
 
@@ -44,18 +68,5 @@ export function readShop(input: unknown): ReadShop {
     members.add(email);
   }
 
-  return {
-    ok: true,
-    shop: {
-      slug: raw.slug,
-      name,
-      kind: kind as ShopKind,
-      about: cleanLines(raw.about, 600),
-      contact: cleanLines(raw.contact, 300),
-      pay: cleanLines(raw.pay, 600),
-      permit: cleanLine(raw.permit, 200) ?? "",
-      status,
-      members: [...members],
-    },
-  };
+  return { ok: true, shop: { slug: raw.slug, ...read.words, status, members: [...members] } };
 }

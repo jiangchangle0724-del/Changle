@@ -1,0 +1,118 @@
+{
+  "id": "space-44",
+  "world": "space",
+  "name": {
+    "zh": "对接口值守",
+    "en": "Docking Watch"
+  },
+  "tier": 0,
+  "teaches": "lever",
+  "w": 2400,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 476
+  },
+  "goal": {
+    "x": 2140,
+    "y": 340,
+    "w": 240,
+    "h": 180
+  },
+  "checkpoints": [
+    {
+      "x": 1150,
+      "y": 476
+    },
+    {
+      "x": 1740,
+      "y": 476
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 300,
+      "y": 455
+    },
+    {
+      "x": 862,
+      "y": 440
+    },
+    {
+      "x": 1917,
+      "y": 465
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 520,
+      "w": 620,
+      "h": 200,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 620,
+      "y": 520,
+      "w": 700,
+      "h": 200,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1320,
+      "y": 520,
+      "w": 1080,
+      "h": 200,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 920,
+      "y": 0,
+      "w": 36,
+      "h": 180,
+      "kind": "wall",
+      "material": "hull"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "movers": [],
+  "spinners": [],
+  "zerog": [],
+  "levers": [
+    {
+      "x": 840,
+      "y": 440,
+      "opens": "dock"
+    }
+  ],
+  "gates": [
+    {
+      "id": "dock",
+      "x": 920,
+      "y": 180,
+      "w": 36,
+      "h": 340,
+      "move": {
+        "x": 0,
+        "y": -180
+      },
+      "hold": 3,
+      "speed": 400,
+      "grab": false
+    }
+  ],
+  "deathY": 900,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/space-44.json"
+}

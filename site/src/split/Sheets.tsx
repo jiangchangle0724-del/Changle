@@ -5,7 +5,7 @@
  * off my ledgers). On the phone that started the ledger, its owner's three: locking it and opening
  * it again, a new invitation, and deleting it for everyone.
  */
-import { ChevronRight, CircleAlert, CloudCheck, CloudOff, History, ListX, Lock, LockOpen, LogIn, Pencil, RefreshCw, Trash2, UserPlus, Users, X } from "lucide-react";
+import { ChevronRight, CircleAlert, CloudCheck, CloudOff, FileSpreadsheet, History, ListX, Lock, LockOpen, LogIn, Pencil, RefreshCw, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import { LangTab } from "../components/TopBar";
@@ -14,6 +14,7 @@ import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { Face } from "./AddExpense";
 import { MAX_MEMBERS, type Ledger } from "./core";
+import { ExportSheet } from "./ExportSheet";
 import { HistorySheet } from "./HistorySheet";
 import { InviteSheet } from "./Join";
 import { inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, tidy } from "./ops";
@@ -50,6 +51,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
   const { openSignIn } = useAccount();
   const [people, setPeople] = useState(false);
   const [history, setHistory] = useState(false);
+  const [exporting, setExporting] = useState(false);
   /** the invitation's sheet is up: to send it, or (its owner) to change it */
   const [inviting, setInviting] = useState<"send" | "change" | null>(null);
   const [name, setName] = useState(ledger.name);
@@ -137,6 +139,19 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
             <History aria-hidden="true" />
             <strong>{say(lang, "history")}</strong>
             <span>{say(lang, "historyHint")}</span>
+            <ChevronRight aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="split-field split-menu-row"
+            onClick={() => {
+              onClose();
+              setExporting(true);
+            }}
+          >
+            <FileSpreadsheet aria-hidden="true" />
+            <strong>{say(lang, "export")}</strong>
+            <span>{say(lang, "exportHint")}</span>
             <ChevronRight aria-hidden="true" />
           </button>
           {/* the owner's two. One tap locks, and the same line opens it again; changing the link is asked about first, on the invitation's own sheet */}
@@ -238,6 +253,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
         </div>
       </Sheet>
       <HistorySheet open={history} onClose={() => setHistory(false)} ledger={ledger} me={me} lang={lang} />
+      <ExportSheet open={exporting} onClose={() => setExporting(false)} ledger={ledger} lang={lang} />
       <Sheet open={people} onClose={() => setPeople(false)} lang={lang} category="tool" title={say(lang, "members")}>
         <People ledger={ledger} me={me} lang={lang} />
       </Sheet>

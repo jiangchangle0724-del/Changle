@@ -3,18 +3,23 @@
  */
 import { describe, expect, test } from 'vitest';
 import { LEVELS, levelsFor, MULTI_LEVELS, tierOfLevel } from './levels';
+import type { Level } from './physics/level';
 import { notReadyText } from './mode-text';
 import { maxPlayers, minPlayers, SIDE_MODES, sideFor, tiered } from './sides';
 
 describe('难度', () => {
-  test('简单 1 到 6 关和彩蛋关，中等 7 到 12 关，困难 13 号往后；三档加起来就是全部', () => {
-    const ids = (t: 0 | 1 | 2) => levelsFor('climb', t).map((l) => l.id);
+  test('简单 1 到 6 关和彩蛋关，中等 7 到 12 关，困难 13 号往后；新场景的关按自己写的 tier 进档；三档加起来就是全部', () => {
+    // 后厨、雪山、老宅、太空站的关（C10 到 C13）每关写了 tier，进哪一档看它自己
+    const scenes: readonly string[] = ['kitchen', 'snow', 'house', 'space'];
+    const isScene = (l: Level): boolean => scenes.includes(l.world ?? 'table');
+    const ids = (t: 0 | 1 | 2) => levelsFor('climb', t).filter((l) => !isScene(l)).map((l) => l.id);
     expect(ids(0)).toEqual(['table-01', 'table-02', 'table-03', 'table-04', 'table-05', 'table-06', 'bonus-01']);
     expect(ids(1)).toEqual(['van-07', 'van-08', 'van-09', 'van-10', 'van-11', 'van-12']);
     expect(ids(2)[0]).toBe('table-13');
     expect(ids(2).at(-1)).toBe('van-24');
-    expect(ids(0).length + ids(1).length + ids(2).length).toBe(LEVELS.length);
+    expect(levelsFor('climb', 0).length + levelsFor('climb', 1).length + levelsFor('climb', 2).length).toBe(LEVELS.length);
     for (const l of LEVELS) expect(levelsFor('climb', tierOfLevel(l))).toContain(l);
+    for (const l of LEVELS.filter(isScene)) expect(tierOfLevel(l)).toBe(l.tier);
   });
 
   test('多人的一起闯关：这一档有多人的关（levels/multi/）就用多人的，没有就和单人一样', () => {
