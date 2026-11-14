@@ -1,0 +1,170 @@
+{
+  "id": "team-06",
+  "world": "van",
+  "name": {
+    "zh": "码头接力班",
+    "en": "Quayside Shift"
+  },
+  "teaches": "combine",
+  "w": 3000,
+  "h": 1440,
+  "spawn": {
+    "x": 120,
+    "y": 1256
+  },
+  "goal": {
+    "x": 2800,
+    "y": 370,
+    "w": 160,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1230,
+      "y": 1256
+    },
+    {
+      "x": 1700,
+      "y": 1256
+    },
+    {
+      "x": 2610,
+      "y": 506
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 2960,
+      "y": 370,
+      "w": 40,
+      "h": 1070,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2350,
+      "y": 530,
+      "w": 610,
+      "h": 910,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 2110,
+      "y": 600,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1100,
+      "w": 830,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1280,
+      "w": 950,
+      "h": 160,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1150,
+      "y": 1280,
+      "w": 930,
+      "h": 160,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 950,
+      "y": 1434,
+      "w": 200,
+      "h": 6,
+      "material": "wood"
+    }
+  ],
+  "hazards": [
+    {
+      "x": 0,
+      "y": 1084,
+      "w": 830,
+      "h": 16,
+      "kind": "zap"
+    },
+    {
+      "x": 2340,
+      "y": 574,
+      "w": 18,
+      "h": 866,
+      "kind": "zap"
+    },
+    {
+      "x": 1050,
+      "y": 1120,
+      "w": 20,
+      "h": 24,
+      "kind": "zap",
+      "players": [
+        5,
+        6
+      ]
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [
+    {
+      "x": 440,
+      "y": 1125,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 20,
+      "players": [
+        4,
+        4
+      ]
+    },
+    {
+      "x": 440,
+      "y": 1125,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        5,
+        5
+      ]
+    },
+    {
+      "x": 440,
+      "y": 1125,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        6,
+        6
+      ]
+    }
+  ],
+  "fading": [],
+  "springs": [],
+  "movers": [],
+  "spinners": [],
+  "deathY": 1510,
+  "par": {
+    "seconds": 160,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-06.p4.json"
+}

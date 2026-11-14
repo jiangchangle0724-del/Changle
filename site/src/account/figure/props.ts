@@ -4,7 +4,7 @@ import type { PropId } from "./moves";
 
 /**
  * Things the figure holds or wears, made here from simple shapes (nothing to download). Each hangs
- * on an empty node the model file carries (site/scripts/figure/bake.mjs): Grip_R / Grip_L in the
+ * on an empty node the page puts on the figure's bones (FigureStage.ts, anchor()): Grip_R / Grip_L in the
  * palm (x along the fingers, y toward the thumb's side, so a handle runs along y; for the right
  * hand the palm faces -z) and Head_Anchor at the head (x its left, y up, z forward, as it stood).
  * Sizes in metres, from the stand-in's head and hands.

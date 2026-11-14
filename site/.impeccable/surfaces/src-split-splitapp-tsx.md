@@ -194,3 +194,19 @@ What the look at the rendered screens changed (four phone sizes, both languages;
 3. The out-of-date line sat tight under the tabs, and its second line broke with one word left over. It has the sync line's space above it, and its lines are balanced.
 
 Verdict: holds to the contract. Still three screens and one light. The picture is the settle tab as the group sees it, and the one new thing the page says is said only when it matters: the picture someone may pay from is wrong.
+
+## Stage three, step 11: the expenses as a spreadsheet (2026-11-14)
+
+Shape, in the thread that built it (the plan: "export the expenses as CSV"; people can take their own data with them; export lives in the menu, not on a screen of its own):
+
+- Who and when: whoever keeps the books for the trip, after it, wanting the expenses in Excel, Numbers or WPS: to check, to keep, to send to someone who wasn't in the group.
+- Where: one more line in the ⋯ sheet, under the record: 导出账目 · 存成表格, Export · As a spreadsheet. It opens a sheet with one plain paragraph on what the file holds and one button: Share or save where the phone's share sheet takes files (Files, mail, a chat), Save the file on a computer. WeChat's own browser can do neither, so there the sheet says, in the strong voice, how to open 两清 in the phone's browser and export from there, and offers no button that can't work.
+- The file is the ledger as a spreadsheet person expects it: a row for each expense or payment, a column for each person, a total at the bottom that is exactly the settle tab's numbers. Written so Excel opens it right the first time (a byte-order mark, CR LF), and so nothing anyone typed can run as a formula.
+- No new colour, no new motion; the sheet is words and one button.
+
+What the look at the rendered screens changed (four phone sizes, both languages):
+
+1. The paragraph on what the file holds didn't say what its numbers' signs mean, and in English ran to seven lines at 320. It says it plainly now: paying more than your part is above zero, owing is below.
+2. In Chinese its last line was two characters on their own. The paragraph wraps so the last line keeps company.
+
+Verdict: holds to the contract. Still three screens and one light; the export is a line in the menu and a sheet that says what you will get.

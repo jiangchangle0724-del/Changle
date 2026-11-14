@@ -10,7 +10,8 @@ DJ stays quiet) and carries it on (from there, not from its start); 切歌 bring
 seconds, its keys not grey while it comes on; 上一曲 the one before, the one that was playing first
 on the 歌单 again; paused between songs, the DJ goes quiet too and comes back on 播放. One phone asks
 for many songs in a row (Steve: at least 24 each). A TV that wants a tap on its video says so on
-the phones, and its own 点歌 sheet gets out of the video's way.
+the phones, and its own 点歌 sheet gets out of the video's way. Picking a song from the suggestions
+leaves the page where it is (Steve on Nov 14: it slid down by itself before he could ask).
 
 The TV's YouTube player is the stand-in of dj_tube.py (this machine can't play YouTube).
 Needs the two local servers (site/README.md).
@@ -108,6 +109,23 @@ with sync_playwright() as p:
     sizes = ben.evaluate("() => [...document.querySelectorAll('.djk-key')].map((b) => Math.round(b.getBoundingClientRect().height))")
     ok(all(h >= 48 for h in sizes), f"each key big enough to hit together ({sizes} px)")
     ben.screenshot(path=os.path.join(OUT, "player-ben-0-empty.png"), full_page=True)
+
+    # Steve on Nov 14: picking a song from the suggestions, the page slid down by itself before he could
+    # press Ask for it (the first few songs): it stays where it is now, the box and its button in sight
+    where = lambda: cat.evaluate("() => Math.round(window.scrollY)")
+    cat.evaluate("() => { const b = document.querySelector('.djk-req-input').getBoundingClientRect(); window.scrollBy(0, b.top - 170); }")
+    cat.wait_for_timeout(500)
+    y0 = where()
+    cat.locator(".djk-req-input").tap()
+    cat.locator(".djk-req-input").press_sequentially("月亮", delay=80)
+    ok(until(lambda: cat.locator(".djk-req-hit:not(.is-yt)").count() > 0, 6000), "Cat types 月亮: the song list suggests some")
+    cat.locator(".djk-req-hit:not(.is-yt)").first.tap()
+    cat.wait_for_timeout(2000)
+    send = cat.locator(".djk-req-send").bounding_box()
+    ok(abs(where() - y0) <= 2 and send and 0 <= send["y"] and send["y"] + send["height"] <= 844, f"she picks one: the page stays where it was, Ask for it in sight (scrolled {y0} → {where()}, the button at {send and round(send['y'])})")
+    cat.locator(".djk-req-pick button").tap()
+    ok(until(lambda: cat.locator(".djk-req-input").count() == 1, 2000) and abs(where() - y0) <= 2, "she takes it back (nothing sent): the page still where it was")
+    cat.evaluate("() => window.scrollTo(0, 0)")
 
     # a song asked for plays by itself
     ask(amy, A_ID)

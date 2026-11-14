@@ -51,6 +51,10 @@ owner. Only that account's sign-in reads them. No email, no names, no addresses:
 its id at the rooms server. A network's address is kept only as a fingerprint, for two days, to
 count the ledgers it made today.
 
+Receipt photos go in one R2 bucket, `split-files` (the `FILES` binding), made in the dashboard on
+2026-11-14: private, no public address, read and written only by this Worker. It is empty until the
+server takes photos (stage three, step 13; the plan's rules are in `docs/split.md`, 云存储).
+
 ### Who may open a ledger
 
 Whoever holds the key in the invitation link. The phone makes the key (32 random bytes) with the

@@ -7,9 +7,14 @@ import { useStore } from "../../store";
 import { Sheet } from "../../ui/Sheet";
 import { Skeleton } from "../../ui/Skeleton";
 
-// the song box and the rest come with the phone's deck: loaded the first time the sheet opens
-const SharedSongs = lazy(() => import("./SharedSongs"));
-const SharedSounds = lazy(() => import("./SharedSounds"));
+// the song box and the rest come with the phone's deck: loaded a few seconds in, not with the page
+// (they're small), and not when a sheet first opens: by then the site may have been updated, its
+// old files gone, and a page asking for one reloads itself (lib/freshness.ts), the music with it
+const songsFile = () => import("./SharedSongs");
+const soundsFile = () => import("./SharedSounds");
+const SharedSongs = lazy(songsFile);
+const SharedSounds = lazy(soundsFile);
+const PRELOAD_MS = 4000;
 
 const GEL = GAMES.find((g) => g.id === "dj")?.gel;
 
@@ -36,6 +41,13 @@ export function SharedPhone({ v }: { v: DjView }) {
   useEffect(() => {
     if (tap) setOpen(null);
   }, [tap]);
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      void songsFile().catch(() => {});
+      void soundsFile().catch(() => {});
+    }, PRELOAD_MS);
+    return () => window.clearTimeout(id);
+  }, []);
   return createPortal(
     <>
       {v.phase !== "end" && (

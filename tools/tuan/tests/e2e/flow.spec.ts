@@ -8,10 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { OfferPage } from "../../src/api";
 import { SESSION } from "../accounts.ts";
 import { offerDoc } from "../sample.ts";
-import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, putAway, sheets, start, word } from "./help.ts";
-
-/** WeChat's browser on an iPhone that is set to English (WeChat says its own language at the end). */
-const WECHAT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50(0x18003200) NetType/WIFI Language/en";
+import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, putAway, sheets, start, WECHAT, word } from "./help.ts";
 
 test.afterEach(putAway);
 

@@ -1,0 +1,122 @@
+{
+  "id": "team-01",
+  "world": "table",
+  "name": {
+    "zh": "蒸汽提笼队",
+    "en": "Steam Basket Crew"
+  },
+  "teaches": "longchain",
+  "w": 3000,
+  "h": 1440,
+  "spawn": {
+    "x": 120,
+    "y": 1256
+  },
+  "goal": {
+    "x": 2800,
+    "y": 370,
+    "w": 160,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1020,
+      "y": 506
+    },
+    {
+      "x": 1620,
+      "y": 1256
+    },
+    {
+      "x": 2610,
+      "y": 506
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1280,
+      "w": 630,
+      "h": 160,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 900,
+      "y": 530,
+      "w": 550,
+      "h": 910,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1450,
+      "y": 1280,
+      "w": 630,
+      "h": 160,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2350,
+      "y": 530,
+      "w": 610,
+      "h": 910,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2960,
+      "y": 370,
+      "w": 40,
+      "h": 1070,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 660,
+      "y": 600,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 2110,
+      "y": 600,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    }
+  ],
+  "hazards": [
+    {
+      "x": 890,
+      "y": 574,
+      "w": 18,
+      "h": 866,
+      "kind": "hot"
+    },
+    {
+      "x": 2340,
+      "y": 574,
+      "w": 18,
+      "h": 866,
+      "kind": "hot"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "movers": [],
+  "spinners": [],
+  "deathY": 1510,
+  "par": {
+    "seconds": 160,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/team-01.p4.json"
+}

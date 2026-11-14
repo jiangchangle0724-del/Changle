@@ -1,10 +1,15 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { bodyHeads, bodyKey, packOf, restBones, restHeads, restMesh, restNodes, rigFor, type BodyJoints, type RestNode } from "./body";
 import { Floaters, Trail } from "./fx";
-import { HAIR_COLORS, SKINS, shapeWeights, type HairId, type Look, type Sex } from "./look";
+import { EYE_COLORS, HAIR_COLORS, PANTS_COLORS, SHIRT_COLORS, SKINS, shapeWeights, type HairId, type Look, type Sex } from "./look";
 import { ANCHOR, disposeProp, makeProp } from "./props";
-import { figureFile, hairFile, moveOf, type Expr, type Move, type PropId } from "./moves";
+import { MOVES, eyeFile, figureFile, hairFile, moveOf, type Expr, type Move, type PropId } from "./moves";
+import { baking, toClip, type Baked } from "./pose/anim";
+import { BASE, CLIPS } from "./pose/keys";
+import type { Rig } from "./pose/rig";
+import { applyShapes, prepMesh, type Shaped } from "./shape";
 
 export type StageStats = { kb: number; tris: number; fps: number };
 /** the whole figure, its face up close (for sculpting), or its head and shoulders (for hair) */
@@ -39,149 +44,6 @@ async function fetchModel(url: string): Promise<{ bytes: ArrayBuffer; kb: number
   return { bytes: u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer, kb };
 }
 
-// ---------------------------------------------------------------- the sliders, mixed on the CPU
-
-/** a target as the few numbers it changes: component indexes (vertex·3 + axis) and how much */
-type Delta = { idx: Uint32Array; val: Float32Array };
-/** a mesh the sliders reshape: its packed shape unpacked once, the sliders' targets taken off the GPU */
-type Shaped = { mesh: THREE.SkinnedMesh; base: Float32Array; baseN: Float32Array; shapes: Map<string, Delta>; weld: ArrayLike<number> | null; acc: Float32Array; shaped: boolean };
-
-function sparse(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): Delta {
-  const idx: number[] = [];
-  const val: number[] = [];
-  for (let i = 0; i < a.count; i++) {
-    const v = [a.getX(i), a.getY(i), a.getZ(i)];
-    for (let c = 0; c < 3; c++)
-      if (v[c] !== 0) {
-        idx.push(i * 3 + c);
-        val.push(v[c]);
-      }
-  }
-  return { idx: Uint32Array.from(idx), val: Float32Array.from(val) };
-}
-
-/**
- * Splits a mesh's morph targets: the sliders' (S_…) come off the GPU, to mix into its positions
- * when the look changes; the expressions (X_…) stay there, to move every frame.
- */
-function prepMesh(mesh: THREE.SkinnedMesh): Shaped | null {
-  const g = mesh.geometry;
-  const dict = mesh.morphTargetDictionary ?? {};
-  const names = Object.keys(dict).sort((a, b) => dict[a] - dict[b]);
-  // (read one by one: a two-byte attribute is padded to four in the file, so its array has gaps)
-  const weldAttr = g.getAttribute("_weld");
-  let weld: Uint32Array | null = null;
-  if (weldAttr) {
-    weld = new Uint32Array(weldAttr.count);
-    for (let i = 0; i < weldAttr.count; i++) weld[i] = weldAttr.getX(i);
-    g.deleteAttribute("_weld");
-  }
-  if (!names.length) return null;
-  const mp = g.morphAttributes.position ?? [];
-  const mn = g.morphAttributes.normal ?? [];
-  const shapes = new Map<string, Delta>();
-  const keepP: typeof mp = [];
-  const keepN: typeof mn = [];
-  const keep: string[] = [];
-  names.forEach((name, i) => {
-    if (!mp[i]) return;
-    if (name.startsWith("S_")) shapes.set(name, sparse(mp[i]));
-    else {
-      keep.push(name);
-      keepP.push(mp[i]);
-      if (mn[i]) keepN.push(mn[i]);
-    }
-  });
-  g.morphAttributes = {};
-  if (keep.length) {
-    g.morphAttributes.position = keepP;
-    if (keepN.length === keepP.length) g.morphAttributes.normal = keepN;
-    mesh.morphTargetDictionary = Object.fromEntries(keep.map((k, i) => [k, i]));
-    mesh.morphTargetInfluences = keep.map(() => 0);
-  } else {
-    mesh.morphTargetDictionary = undefined;
-    mesh.morphTargetInfluences = undefined;
-  }
-  if (!shapes.size) return null;
-  // the file packs positions and normals small: unpacked once, to move them
-  const pos = g.attributes.position;
-  const nor = g.attributes.normal;
-  const n = pos.count;
-  const base = new Float32Array(n * 3);
-  const baseN = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) {
-    base.set([pos.getX(i), pos.getY(i), pos.getZ(i)], i * 3);
-    baseN.set([nor.getX(i), nor.getY(i), nor.getZ(i)], i * 3);
-  }
-  g.setAttribute("position", new THREE.BufferAttribute(base.slice(), 3));
-  g.setAttribute("normal", new THREE.BufferAttribute(baseN.slice(), 3));
-  // which of the file's vertices are one point (split only for the texture), for smooth normals
-  let nWeld = n;
-  if (weld) {
-    nWeld = 0;
-    for (let i = 0; i < weld.length; i++) nWeld = Math.max(nWeld, weld[i] + 1);
-  }
-  return { mesh, base, baseN, shapes, weld, acc: new Float32Array(nWeld * 3), shaped: false };
-}
-
-/** positions = the file's + the sliders' targets; then smooth normals again */
-function applyShapes(s: Shaped, w: Map<string, number>) {
-  const g = s.mesh.geometry;
-  const pos = g.attributes.position as THREE.BufferAttribute;
-  const nor = g.attributes.normal as THREE.BufferAttribute;
-  const p = pos.array as Float32Array;
-  let any = false;
-  for (const [name, k] of w) if (k && s.shapes.has(name)) any = true;
-  if (!any && !s.shaped) return;
-  p.set(s.base);
-  for (const [name, k] of w) {
-    const d = s.shapes.get(name);
-    if (!d || !k) continue;
-    for (let j = 0; j < d.idx.length; j++) p[d.idx[j]] += k * d.val[j];
-  }
-  pos.needsUpdate = true;
-  const nArr = nor.array as Float32Array;
-  nor.needsUpdate = true;
-  s.shaped = any;
-  if (!any) {
-    nArr.set(s.baseN);
-    return;
-  }
-  const acc = s.acc;
-  acc.fill(0);
-  const ix = g.index?.array;
-  if (!ix) return;
-  const W = s.weld;
-  for (let t = 0; t < ix.length; t += 3) {
-    const a = ix[t] * 3;
-    const b = ix[t + 1] * 3;
-    const c = ix[t + 2] * 3;
-    const ux = p[b] - p[a];
-    const uy = p[b + 1] - p[a + 1];
-    const uz = p[b + 2] - p[a + 2];
-    const vx = p[c] - p[a];
-    const vy = p[c + 1] - p[a + 1];
-    const vz = p[c + 2] - p[a + 2];
-    const nx = uy * vz - uz * vy;
-    const ny = uz * vx - ux * vz;
-    const nz = ux * vy - uy * vx;
-    for (let q = 0; q < 3; q++) {
-      const v = ix[t + q];
-      const k = (W ? W[v] : v) * 3;
-      acc[k] += nx;
-      acc[k + 1] += ny;
-      acc[k + 2] += nz;
-    }
-  }
-  for (let i = 0; i < pos.count; i++) {
-    const k = (W ? W[i] : i) * 3;
-    const l = Math.hypot(acc[k], acc[k + 1], acc[k + 2]) || 1;
-    nArr[i * 3] = acc[k] / l;
-    nArr[i * 3 + 1] = acc[k + 1] / l;
-    nArr[i * 3 + 2] = acc[k + 2] / l;
-  }
-}
-
 /** a material's colour so its texture's average comes out as `hex` (times k); the file says the average */
 function tint(mat: THREE.MeshStandardMaterial, hex: string, k = 1) {
   const c = new THREE.Color(hex);
@@ -200,21 +62,42 @@ type Figure = {
   root: THREE.Object3D;
   kb: number;
   mixer: THREE.AnimationMixer;
+  /** each move's clip, solved for this body: a few milliseconds a frame from the start, or at once when played */
   actions: Map<string, THREE.AnimationAction>;
-  clips: [string, number][];
+  solving: Map<string, Generator<void, Baked>>;
+  /** the clips still to solve, in the order of the moves on the page */
+  toSolve: string[];
   bones: Map<string, THREE.Object3D>;
   meshes: THREE.SkinnedMesh[];
   shaped: Shaped[];
   hairs: Map<HairId, THREE.SkinnedMesh>;
+  /** the skeleton at rest as the file has it; where the body sliders move its joints */
+  nodes: RestNode[];
+  base: Map<string, THREE.Vector3>;
+  joints: BodyJoints | undefined;
+  /** the skeleton at rest for the body on show, and the body sliders' weights it was moved for */
+  heads: Map<string, THREE.Vector3>;
+  bodyKey: string;
+  /** each mesh's packing (its positions to the world at rest) */
+  packs: Map<THREE.SkinnedMesh, THREE.Matrix4>;
+  rig: Rig;
 };
+
+/** every clip a move plays, in the order of the moves on the page */
+const ALL_CLIPS = [...new Set((MOVES as readonly Move[]).flatMap((m) => [m.intro, m.clip ?? m.id].filter((x): x is string => !!x)))];
+/** the meshes the arms keep out of */
+const bodyMeshes = (fig: Figure) => fig.meshes.filter((m) => m.name === "Body" || m.name === "Shirt" || m.name === "Pants");
 
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
 
-/** a skinned mesh joins a figure: its sliders' targets split off, hair edges smoothed */
+/** a skinned mesh joins a figure: its sliders' targets split off, bound to the body on show, hair edges smoothed */
 function adopt(fig: Figure, m: THREE.SkinnedMesh) {
   m.frustumCulled = false;
   fig.meshes.push(m);
+  const pack = packOf(m, fig.base);
+  fig.packs.set(m, pack);
+  if (fig.bodyKey) restMesh(m, pack, fig.heads);
   const s = prepMesh(m);
   if (s) fig.shaped.push(s);
   const mat = m.material as THREE.MeshStandardMaterial;
@@ -228,18 +111,28 @@ async function loadFigure(sex: Sex): Promise<Figure> {
   const { bytes, kb } = await fetchModel(url);
   const gltf = await loader.parseAsync(bytes, url.slice(0, url.lastIndexOf("/") + 1));
   const root = gltf.scene;
-  const mixer = new THREE.AnimationMixer(root);
+  // the moves aren't in the file: they're solved here, for this body (pose/)
+  const nodes = restNodes(root);
+  const base = restHeads(nodes);
   const fig: Figure = {
     sex,
     root,
     kb,
-    mixer,
-    actions: new Map(gltf.animations.map((a) => [a.name, mixer.clipAction(a)])),
-    clips: gltf.animations.map((c) => [c.name, c.duration]),
+    mixer: new THREE.AnimationMixer(root),
+    actions: new Map(),
+    solving: new Map(),
+    toSolve: [...ALL_CLIPS],
     bones: new Map(),
     meshes: [],
     shaped: [],
     hairs: new Map(),
+    nodes,
+    base,
+    joints: root.userData.body as BodyJoints | undefined,
+    heads: base,
+    bodyKey: "",
+    packs: new Map(),
+    rig: null as unknown as Rig,
   };
   const skinned: THREE.SkinnedMesh[] = [];
   root.traverse((x) => {
@@ -251,7 +144,121 @@ async function loadFigure(sex: Sex): Promise<Figure> {
     const hair = m.userData.hair as HairId | undefined;
     if (hair) fig.hairs.set(hair, m);
   }
+  fig.rig = rigFor(nodes, bodyMeshes(fig));
+  anchor(fig);
   return fig;
+}
+
+/**
+ * The body sliders (height, weight, muscle): the skeleton moved to the body they make, every mesh
+ * bound to it again, and the solver and the props' anchors made for it. The meshes must have their
+ * shapes already. True if the skeleton moved (the moves must then be solved again).
+ */
+function shapeBody(fig: Figure, w: Map<string, number>): boolean {
+  const key = bodyKey(fig.joints, w);
+  if (key === fig.bodyKey) return false;
+  fig.bodyKey = key;
+  fig.heads = bodyHeads(fig.base, fig.joints, w);
+  const nodes = restBones(fig.nodes, fig.heads, fig.bones);
+  for (const m of fig.meshes) {
+    const pack = fig.packs.get(m);
+    if (pack) restMesh(m, pack, fig.heads);
+  }
+  fig.rig = rigFor(nodes, bodyMeshes(fig));
+  anchor(fig);
+  return true;
+}
+
+/**
+ * Empty nodes for props to hang on: Grip_R and Grip_L in each palm (x along the fingers, y toward
+ * the thumb's side), Head_Anchor at the head (the figure's own axes). Placed from the solver's
+ * idea of each hand, and moved when the body changes.
+ */
+function anchor(fig: Figure) {
+  const put = (name: string, bone: string, at: THREE.Vector3, q: THREE.Quaternion) => {
+    const b = fig.bones.get(bone);
+    const rb = fig.rig.bones.get(bone);
+    if (!b || !rb) return;
+    let o = fig.bones.get(name);
+    if (!o) {
+      o = new THREE.Object3D();
+      o.name = name;
+      b.add(o);
+      fig.bones.set(name, o);
+    }
+    // the bones turn nothing at rest: an offset in the world is an offset in the bone
+    const inv = rb.Wr.clone().invert();
+    o.position.copy(at.clone().sub(rb.Pr).applyQuaternion(inv));
+    o.quaternion.copy(inv.multiply(q));
+  };
+  for (const side of ["Left", "Right"]) {
+    const h = fig.rig.hand[side];
+    const hb = fig.rig.bones.get(`${side}Hand`);
+    if (!h || !hb) continue;
+    const x = h.fingers.clone();
+    const y = h.thumbSide.clone();
+    const z = x.clone().cross(y);
+    put(`Grip_${side[0]}`, `${side}Hand`, hb.Pr.clone().add(h.grip), new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z)));
+  }
+  const head = fig.rig.bones.get("Head");
+  if (head) put("Head_Anchor", "Head", head.Pr.clone(), new THREE.Quaternion());
+}
+
+/** a clip's solving, started if it hasn't been */
+function solvingOf(fig: Figure, name: string) {
+  let g = fig.solving.get(name);
+  if (!g) {
+    const def = CLIPS.find((c) => c.name === name);
+    if (!def) return null;
+    g = baking(fig.rig, def, BASE);
+    fig.solving.set(name, g);
+  }
+  return g;
+}
+
+/** a move's clip for this body: solved now if it isn't yet */
+function actionFor(fig: Figure, name: string): THREE.AnimationAction | null {
+  const a = fig.actions.get(name);
+  if (a) return a;
+  const g = solvingOf(fig, name);
+  if (!g) return null;
+  for (;;) {
+    const r = g.next();
+    if (r.done) return done(fig, name, r.value);
+  }
+}
+
+function done(fig: Figure, name: string, b: Baked) {
+  const a = fig.mixer.clipAction(toClip(b));
+  fig.actions.set(name, a);
+  fig.solving.delete(name);
+  fig.toSolve = fig.toSolve.filter((n) => n !== name);
+  return a;
+}
+
+/** the next clips solved, for up to `ms` milliseconds (so a move starts at once when picked) */
+function solveSome(fig: Figure, ms: number) {
+  const until = performance.now() + ms;
+  while (fig.toSolve.length && performance.now() < until) {
+    const name = fig.toSolve[0];
+    if (fig.actions.has(name)) {
+      fig.toSolve.shift();
+      continue;
+    }
+    const g = solvingOf(fig, name);
+    if (!g) {
+      fig.toSolve.shift();
+      continue;
+    }
+    for (;;) {
+      const r = g.next();
+      if (r.done) {
+        done(fig, name, r.value);
+        break;
+      }
+      if (performance.now() >= until) return;
+    }
+  }
 }
 
 function disposeFigure(fig: Figure) {
@@ -260,7 +267,9 @@ function disposeFigure(fig: Figure) {
   for (const m of fig.meshes) {
     m.geometry.dispose();
     const mat = m.material as THREE.MeshStandardMaterial;
-    if (mat.map) textures.add(mat.map);
+    // (the eyes may be wearing a colour the stage keeps: their own texture goes)
+    const own = (mat.userData.ownMap as THREE.Texture | undefined) ?? mat.map;
+    if (own) textures.add(own);
     mat.dispose();
   }
   for (const t of textures) t.dispose();
@@ -279,6 +288,13 @@ export async function mountStage(
 ): Promise<Stage> {
   let look = o.look;
   let fig = await loadFigure(look.sex);
+  /** the look's shapes on a figure, and its skeleton moved to that body (before its moves are solved) */
+  const fitLook = (f: Figure) => {
+    const w8 = shapeWeights(look);
+    for (const s of f.shaped) applyShapes(s, w8);
+    shapeBody(f, w8);
+  };
+  fitLook(fig);
   let kbTotal = fig.kb;
   let gone = false;
   let cur: { move: Move; loop: THREE.AnimationAction; intro: THREE.AnimationAction | null; looping: boolean } | null = null;
@@ -304,8 +320,9 @@ export async function mountStage(
   const bone = (n: string) => fig.bones.get(n);
 
   // every figure's eyes are drawn at the same height (site/scripts/figure/human.mjs), so the camera
-  // stands where that body fits: the whole of it, feet on the floor
-  const tall = (bone("LeftEye")?.getWorldPosition(new THREE.Vector3()).y ?? 1.72) + 0.13;
+  // stands where that body fits: the whole of it, feet on the floor, with room for the tallest the
+  // sliders make (12% taller), so a taller or shorter body shows as one
+  const tall = ((fig.base.get("LeftEye")?.y ?? 1.7257) + 0.13) * 1.06;
   const camera = new THREE.PerspectiveCamera(30, w / h, 0.05, 50);
   const bodyCam = { at: new THREE.Vector3(), look: new THREE.Vector3() };
   const fit = () => {
@@ -400,13 +417,55 @@ export async function mountStage(
   const paint = () => {
     const skin = SKINS[look.skin] ?? SKINS[3];
     const hair = HAIR_COLORS[look.hairColor] ?? HAIR_COLORS[1];
+    const shirt = SHIRT_COLORS[look.shirt] ?? SHIRT_COLORS[0];
+    const pants = PANTS_COLORS[look.pants] ?? PANTS_COLORS[0];
     for (const m of fig.meshes) {
       const mat = m.material as THREE.MeshStandardMaterial;
-      if (mat.userData.tint === "skin") tint(mat, skin);
-      else if (mat.userData.tint === "hair") tint(mat, hair);
+      const t = mat.userData.tint;
+      if (t === "skin") tint(mat, skin);
+      else if (t === "hair") tint(mat, hair);
       // eyebrows a shade darker than the hair
-      else if (mat.userData.tint === "brow") tint(mat, hair, 0.55);
+      else if (t === "brow") tint(mat, hair, 0.55);
+      else if (t === "shirt") tint(mat, shirt);
+      else if (t === "pants") tint(mat, pants);
     }
+    wantEyes(look.eyes);
+  };
+  // the eyes: their own texture, or another colour's, loaded once when picked (kept for the other body too)
+  const eyeMaps = new Map<string, Promise<THREE.Texture | null>>();
+  const eyeLoader = new THREE.TextureLoader();
+  const wantEyes = (i: number) => {
+    const id = EYE_COLORS[i]?.id ?? "brown";
+    const eyes = fig.meshes.find((m) => m.name === "Eyes");
+    if (!eyes) return;
+    const mat = eyes.material as THREE.MeshStandardMaterial;
+    if (!mat.userData.ownMap) mat.userData.ownMap = mat.map;
+    if (mat.userData.eyes === id) return;
+    mat.userData.eyes = id;
+    if (i <= 0) {
+      mat.map = mat.userData.ownMap;
+      return;
+    }
+    let p = eyeMaps.get(id);
+    if (!p) {
+      p = eyeLoader
+        .loadAsync(eyeFile(id))
+        .then((t) => {
+          // as the model's own textures are read: not flipped, in sRGB
+          t.flipY = false;
+          t.colorSpace = THREE.SRGBColorSpace;
+          return t;
+        })
+        .catch((e) => {
+          if (import.meta.env.DEV) console.error("eyes", e);
+          eyeMaps.delete(id);
+          return null;
+        });
+      eyeMaps.set(id, p);
+    }
+    void p.then((t) => {
+      if (t && !gone && mat.userData.eyes === id) mat.map = t;
+    });
   };
   // the hair on show: the wanted one once it's here (until then the one before stays on)
   let hairShown: HairId = look.hair;
@@ -480,6 +539,7 @@ export async function mountStage(
         disposeProp(x.obj);
       }
       held.clear();
+      fitLook(next);
       const old = fig;
       fig = next;
       listen(next);
@@ -505,9 +565,9 @@ export async function mountStage(
   const play = (id: string) => {
     const move = moveOf(id);
     if (cur?.move === move) return;
-    const loop = fig.actions.get(move.clip ?? move.id) ?? fig.actions.get("stand");
+    const loop = actionFor(fig, move.clip ?? move.id) ?? actionFor(fig, "stand");
     if (!loop) return;
-    const intro = move.intro ? fig.actions.get(move.intro) ?? null : null;
+    const intro = move.intro ? actionFor(fig, move.intro) : null;
     for (const a of fig.actions.values()) if (a.isRunning() && a.getEffectiveWeight() > 0) a.fadeOut(FADE);
     const first = intro ?? loop;
     first.reset();
@@ -706,11 +766,41 @@ export async function mountStage(
   });
   ro.observe(el);
 
+  // the sliders' shapes, mixed at most once a frame; the skeleton follows the body sliders a moment
+  // after they stop (the moves are solved again for it), not on every step of a drag
+  let bodyAt = 0;
   const reshape = () => {
-    if (!shapeDirty) return;
-    const w8 = shapeWeights(look);
-    for (const s of fig.shaped) applyShapes(s, w8);
-    shapeDirty = false;
+    if (shapeDirty) {
+      const w8 = shapeWeights(look);
+      for (const s of fig.shaped) applyShapes(s, w8);
+      shapeDirty = false;
+      if (bodyKey(fig.joints, w8) !== fig.bodyKey) bodyAt = performance.now();
+    }
+    if (bodyAt && performance.now() - bodyAt > 150) {
+      bodyAt = 0;
+      if (shapeBody(fig, shapeWeights(look))) resolveMoves();
+    }
+  };
+  // every move solved again for the body on show: the one playing at once, from where it was
+  const resolveMoves = () => {
+    const was = cur;
+    const t = was ? (was.intro && !was.looping ? was.intro : was.loop).time : 0;
+    fig.mixer.stopAllAction();
+    for (const a of fig.actions.values()) fig.mixer.uncacheClip(a.getClip());
+    fig.actions.clear();
+    fig.solving.clear();
+    fig.toSolve = [...ALL_CLIPS];
+    if (!was) return;
+    const loop = actionFor(fig, was.move.clip ?? was.move.id) ?? actionFor(fig, "stand");
+    if (!loop) return;
+    const intro = was.move.intro ? actionFor(fig, was.move.intro) : null;
+    const now = intro && !was.looping ? intro : loop;
+    now.reset();
+    now.setLoop(now === intro ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+    now.clampWhenFinished = now === intro;
+    now.time = t;
+    now.setEffectiveWeight(1).play();
+    cur = { move: was.move, loop, intro, looping: was.looping };
   };
 
   // the checks hold a move still at a time, to look at it (development builds only)
@@ -721,7 +811,7 @@ export async function mountStage(
       paused = true;
       const m = moveOf(id);
       fig.mixer.stopAllAction();
-      const a = fig.actions.get(intro && m.intro ? m.intro : m.clip ?? m.id);
+      const a = actionFor(fig, intro && m.intro ? m.intro : m.clip ?? m.id);
       if (!a) return false;
       a.reset().setEffectiveWeight(1).play();
       a.time = t;
@@ -750,6 +840,16 @@ export async function mountStage(
         camera.lookAt(tx, ty, tz);
       }
       renderer.render(scene, camera);
+    };
+    // a mesh shown or hidden (to see what's under the clothes)
+    win.__figShow = (name: string, on: boolean) => {
+      for (const m of fig.meshes) if (m.name === name) m.visible = on;
+      renderer.render(scene, camera);
+    };
+    // where a bone is in the world (for the checks' cameras)
+    win.__figBone = (name: string) => {
+      const b = bone(name);
+      return b ? b.getWorldPosition(new THREE.Vector3()).toArray().map((x) => Math.round(x * 1000) / 1000) : null;
     };
     win.__figResume = () => {
       paused = false;
@@ -785,9 +885,17 @@ export async function mountStage(
     placeCamera(dt);
     effects(dt);
     renderer.render(scene, camera);
+    // the moves not picked yet, solved a little each frame
+    solveSome(fig, 3);
     if (import.meta.env.DEV) {
       const win = window as unknown as Record<string, unknown>;
       win.__figTurn = turn.rotation.y;
+      win.__figToSolve = fig.toSolve.length;
+      win.__figBody = fig.bodyKey;
+      win.__figEyeY = Math.round((fig.heads.get("LeftEye")?.y ?? 0) * 1000) / 1000;
+      win.__figEyes = ((fig.meshes.find((m) => m.name === "Eyes")?.material as THREE.MeshStandardMaterial | undefined)?.userData.eyes as string | undefined) ?? "brown";
+      const shirtMat = fig.meshes.find((m) => m.name === "Shirt")?.material as THREE.MeshStandardMaterial | undefined;
+      win.__figShirt = shirtMat ? shirtMat.color.getHexString() : null;
       win.__figHeld = [...held].filter(([, x]) => !x.going && x.k === 1).map(([id]) => id);
       win.__figFloaters = floaters.count;
       win.__figLooping = cur?.looping ?? false;
@@ -796,7 +904,8 @@ export async function mountStage(
       win.__figFace = Object.fromEntries([...face].map(([k, v]) => [k, Math.round(v * 100) / 100]));
       win.__figView = viewNow;
       win.__figCamZ = Math.round(camera.position.z * 1000) / 1000;
-      win.__figClips = fig.clips;
+      win.__figClips = CLIPS.map((c) => [c.name, c.dur]);
+      win.__figInside = fig.rig.inside;
       const body = fig.meshes.find((m) => m.name === "Body");
       win.__figSkin = body ? (body.material as THREE.MeshStandardMaterial).color.getHexString() : null;
       // a number that changes when the sliders reshape the face
@@ -844,6 +953,7 @@ export async function mountStage(
       trail.dispose();
       for (const x of held.values()) disposeProp(x.obj);
       disposeFigure(fig);
+      for (const p of eyeMaps.values()) void p.then((t) => t?.dispose());
       shadow.geometry.dispose();
       (shadow.material as THREE.Material).dispose();
       shadowTex.dispose();

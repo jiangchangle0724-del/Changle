@@ -1,0 +1,207 @@
+{
+  "id": "snow-36",
+  "world": "snow",
+  "tier": 2,
+  "name": {
+    "zh": "极光风口",
+    "en": "Aurora Pass"
+  },
+  "teaches": "gauntlet",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 586
+  },
+  "goal": {
+    "x": 2420,
+    "y": 50,
+    "w": 140,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1120,
+      "y": 496
+    },
+    {
+      "x": 1860,
+      "y": 356
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 995,
+      "y": 113
+    },
+    {
+      "x": 1577,
+      "y": 287
+    },
+    {
+      "x": 2322,
+      "y": 136
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 620,
+      "w": 400,
+      "h": 100,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1030,
+      "y": 540,
+      "w": 320,
+      "h": 180,
+      "material": "ice",
+      "slip": 1.2
+    },
+    {
+      "kind": "ground",
+      "x": 2400,
+      "y": 220,
+      "w": 160,
+      "h": 500,
+      "material": "ice",
+      "slip": 0.8
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 160,
+      "y": 444,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 1100,
+      "y": 364,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 1450,
+      "y": 224,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "ground",
+      "material": "snow",
+      "x": 1830,
+      "y": 400,
+      "w": 150,
+      "h": 320
+    }
+  ],
+  "lifts": [
+    {
+      "from": {
+        "x": 320,
+        "y": 500
+      },
+      "to": {
+        "x": 1280,
+        "y": 400
+      },
+      "speed": 38,
+      "gap": 280
+    },
+    {
+      "from": {
+        "x": 1280,
+        "y": 420
+      },
+      "to": {
+        "x": 1970,
+        "y": 260
+      },
+      "speed": 30,
+      "gap": 250
+    },
+    {
+      "from": {
+        "x": 1930,
+        "y": 280
+      },
+      "to": {
+        "x": 2530,
+        "y": 50
+      },
+      "speed": 32,
+      "gap": 240,
+      "kind": "cabin"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 160,
+      "y": 460,
+      "w": 40,
+      "h": 16,
+      "kind": "spike",
+      "dir": "down"
+    },
+    {
+      "x": 1100,
+      "y": 380,
+      "w": 40,
+      "h": 16,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 1450,
+      "y": 240,
+      "w": 40,
+      "h": 16,
+      "kind": "zap",
+      "dir": "down"
+    },
+    {
+      "x": 2384,
+      "y": 280,
+      "w": 16,
+      "h": 40,
+      "kind": "spike",
+      "dir": "left"
+    }
+  ],
+  "deathY": 880,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 8
+  },
+  "replay": "replays/snow-36.json",
+  "movers": [
+    {
+      "x": 1500,
+      "y": 190,
+      "w": 36,
+      "h": 28,
+      "path": [
+        {
+          "x": 1690,
+          "y": 190
+        }
+      ],
+      "speed": 35,
+      "deadly": true,
+      "hazard": "zap"
+    }
+  ]
+}

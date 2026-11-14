@@ -5,4 +5,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.jsonc" } })],
+  // CSS is skipped in tests (imports come back empty), except the site's tokens, which
+  // tests/page.test.ts reads as text to check the page's copy of them
+  test: { css: { include: [/site\/src\/styles\/tokens\.css/] } },
 });

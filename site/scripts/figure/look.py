@@ -6,14 +6,17 @@ Held poses of the figure's moves, through the real page, side by side in one pic
   move    a move's id (site/src/account/figure/moves.ts), its clip held at each time (seconds)
   yaw     turns the figure (degrees, 35 = a three-quarter view)
   intro   'intro' holds the move's intro clip instead (睡觉 lying down)
-  camera  x,y,z,tx,ty,tz: the camera there, looking at that point (a close-up)
+  camera  x,y,z,tx,ty,tz: the camera there, looking at that point (a close-up); or @Bone,dx,dy,dz:
+          looking at a bone from that far off it (@Head,0,0,0.6 is the face, from the front)
 
 e.g.  python3 look.py /tmp/sword.png 'sword:0,0.85,1.12,1.65' 'sleep:0.6,1.8,2.6::intro'
 
 Needs the site's dev server (npm run dev, port 5173), the built figure in public/models, and
-Playwright for Python. CELL=300 sets each picture's width.
+Playwright for Python. CELL=300 sets each picture's width. LOOK='{"v":1,"sex":"female","shape":{"weight":1}}'
+dresses it first (a look as look.ts keeps it; what's left out is the default).
 """
 import io
+import json
 import os
 import sys
 
@@ -30,6 +33,8 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
     pg.add_init_script("window.__figAnyGl = true;")
+    if os.environ.get("LOOK"):
+        pg.add_init_script(f"localStorage.setItem('figure.look', {json.dumps(os.environ['LOOK'])});")
     pg.goto("http://127.0.0.1:5173/me/figure", wait_until="load")
     pg.wait_for_function("window.__figIs === 'on'", timeout=120000)
     pg.wait_for_selector(".fig-stats")
@@ -44,6 +49,11 @@ with sync_playwright() as p:
         for t in times:
             if not pg.evaluate(f"window.__figSeek('{move}', {t}, {yaw}, {str(intro).lower()})"):
                 print("no such clip:", move, "(intro)" if intro else "")
+            if cam.startswith("@"):
+                bone, *d = cam[1:].split(",")
+                at = pg.evaluate(f"window.__figBone('{bone}')")
+                d = [float(x) for x in d] or [0, 0, 0.6]
+                cam = ",".join(str(x) for x in [at[0] + d[0], at[1] + d[1], at[2] + d[2], *at])
             pg.evaluate(f"window.__figCam({cam})")
             im = Image.open(io.BytesIO(stage.screenshot())).convert("RGB")
             im = im.resize((W, int(im.height * W / im.width)))
