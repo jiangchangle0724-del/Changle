@@ -33,7 +33,7 @@ export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; 
   // (the DJ playing: the host's song on the air, or its styles and tempo)
   const onDeck = d.local ? v.onDecks?.[onAir(d)] : null;
   const djPlays = onDeck ? `${onDeck.a ? `${onDeck.a} · ` : ""}${onDeck.t}` : mixLine(v.mix, zh);
-  const title = song ? (nameIn(cur) ?? (zh ? "一首 YouTube 上的歌" : "A song from YouTube")) : coming ? nameIn(coming) : live ? djPlays : v.phase === "end" ? (zh ? "主人可以再来一场" : "The host can start another set") : zh ? "电视上点「开始派对」就开场" : "Press Start the party on the TV";
+  const title = song ? (nameIn(cur) ?? (song.yt ? (zh ? "一首 YouTube 上的歌" : "A song from YouTube") : zh ? "一首手机传的歌" : "A song from a phone")) : coming ? nameIn(coming) : live ? djPlays : v.phase === "end" ? (zh ? "主人可以再来一场" : "The host can start another set") : zh ? "电视上点「开始派对」就开场" : "Press Start the party on the TV";
   // a song before the one playing (none playing: the last one) to go back to
   const before = d.heard.length - (cur ? 1 : 0) > 0;
   // (a switch with a countdown on its way can't be taken back; 点歌模式's quiet one takes another song)
@@ -84,8 +84,8 @@ export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; 
               : "The playlist is empty: ask for songs below, they play one after another"}
         </p>
       )}
-      {/* the video over the whole TV, or back in its corner (anyone at the table) */}
-      {song && (
+      {/* the video over the whole TV, or back in its corner (anyone at the table; a song file from a phone has none) */}
+      {song?.yt && (
         <button type="button" className="btn btn-ghost btn-block" aria-pressed={!!v.full} onClick={() => g("full", { on: !v.full })}>
           {v.full ? <Minimize2 size={18} aria-hidden="true" /> : <Maximize2 size={18} aria-hidden="true" />}
           {v.full ? (zh ? "电视上回到小窗" : "Back to the corner on the TV") : zh ? "电视上全屏看视频" : "Video over the whole TV"}

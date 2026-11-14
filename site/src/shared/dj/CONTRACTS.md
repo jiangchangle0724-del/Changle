@@ -165,7 +165,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `juke` `{ on }` | the speaker | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), the booth's only way since Nov 12 ("不需要drop了": on in a new booth, and once in one saved before, `rev` 2). Off (the build-up and DROP, still in the engine) only from the speaker's word, which no page sends: the engine's tests use it, and the big screen switches a booth an older page turned off back on. Another set keeps it. |
 | `full` `{ on }` | anyone, or the speaker | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
 | `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
-| `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
+| `song` `{ by, id, code, local? }` | the speaker | How a song file sent from a player's phone went (below): an `fx` event `song` for that phone; one the TV had already (`there`, `local` its id): on that player's 歌单 too. |
 | `nosong` `{ id }` | the speaker | The video of the song up next won't play here (YouTube said so while the TV got it ready): it comes off that song (`ytNo`), whose drop plays the DJ's remix alone. Only the song up next with a video; said again, nothing more. |
 | `req` `{ text, song?, yt? }`, `unreq` `{ id }` | the speaker | The shared phone's own 点歌 (below): a song asked for as the table's (`SHARED_BY`), up to the table's 30 (not three); only its own taken back. |
 
@@ -599,31 +599,43 @@ wish is the room's (`mine`, from the TV's 我的歌 or the host's phone, below; 
 and the speaker, once it has songs, says so as the source (`live`/`src` with `local`); the stand-in
 comes back with 换回试音版 DJ.
 
-**From the host's phone** (Nov 2, Steve: "this should work on the phone too"). Under the host's
-controls, 我的歌: how many songs the TV's computer has, the same switch (`mine` `{ on }`: the host
-only; the TV's own panel sends it as the speaker), and songs on the phone sent to the TV. A file goes
-in pieces over the phone's own line to the table, as binary messages (`shared/dj/songwire.ts`:
-"SONG", the header's length, a JSON header `{ id, i, n, size, name, type }`, 256 KB of the file;
-30 MB a file at most): the rooms server takes them only from the host's phone at a DJ booth, 60 MB
-a minute at most, checks each (its length right for where it falls in the file), marks it as theirs
-(`by`, never the phone's word) and passes it straight on to the big screens; it keeps nothing. The TV
-puts the file back together (three at a time at most; one that goes quiet for a minute is given up
-on), keeps it in memory (400 MB of phone songs at most), and listens to it like one chosen on its
-own computer; then it tells the room how it went (`song` `{ by, id, code }`, `SONG_SENT`: added,
-not a sound file, too short, too long, can't be played, no room, already there) and the room tells
-that phone (an `fx` event `song`, `data: [code, the file's number]`). The phone sends one file at a
-time, a megabyte waiting on its line at most and under the table's minute, and says each one's
-word back (or that the line dropped, or the TV didn't answer in 90 s). Only the host: a song's name
-comes from its file, and nothing a player sends reaches the big screen unchecked.
+**From the phones** (Nov 2, Steve: "this should work on the phone too", the host's phone; since
+Nov 13 everyone's: "要允许所有玩家都可以上传自己的歌上去，不仅是host", and the host's 我的歌 card with
+its switch to them gone from the phone). Under the song box on every phone, 从手机传歌
+(`phone/SendSongs.tsx`): songs on the phone sent to the TV, each going on the sender's 歌单 the
+moment the TV has it, played whole when its turn comes (below). A file goes in pieces over the
+phone's own line to the table, as binary messages (`shared/dj/songwire.ts`: "SONG", the header's
+length, a JSON header `{ id, i, n, size, name, type }`, 256 KB of the file; 30 MB a file at most):
+the rooms server takes them from anyone seated at a DJ booth, 60 MB a minute a phone at most,
+checks each (its length right for where it falls in the file), marks it as theirs (`by`, never the
+phone's word) and passes it straight on to the big screens; it keeps nothing. The TV puts the file
+back together (six at a time at most; one that goes quiet for a minute is given up on), keeps it in
+memory (400 MB of phone songs at most), listens to it like one chosen on its own computer, and keeps
+whose it is (`LocalSong.by`); then it tells the room how it went (`song` `{ by, id, code, local? }`,
+`SONG_SENT`: added, not a sound file, too short, too long, can't be played, no room, already
+there) and the room tells that phone (an `fx` event `song`, `data: [code, the file's number]`). The
+phone sends one file at a time, a megabyte waiting on its line at most and under the table's
+minute, and says each one's word back (on the playlist; or that the line dropped, or the TV didn't
+answer in 90 s). A song's name comes from its file: the room stars out the worst words in it, as in
+弹幕's (`maskDanmu`).
 
 **The room** (`games/dj.ts`): the speaker's list as `crate` (`{ x: "crate", songs: [id, title,
-artist, bpm, seconds][] }`, once a second at most, from the speaker; kept with the next set too),
+artist, bpm, seconds, the phone that sent it or ""][] }`, once a second at most, from the speaker;
+kept with the next set too; a song new to it from a phone at the table goes on that player's 歌单
+at once, their 30 counted, no second's gap; a song the list no longer has leaves the 歌单, and one
+playing whole ends),
 fetched by the phones over HTTP (`GET /room/CODE/data`: it's big, so it doesn't come with every
 view; the view has `crateN` and `crateV`, and `onDecks`, the two songs on the decks by name). On a
 night of them (`deck.local`) each deck has one of the songs (`deck.songs`): the one on the air
 keeps its own, and the deck off the air the next, one not played tonight (`played`; all played,
-they start over), or the one asked for (`req` with `local`: named for everyone, they're the host's;
-a name typed in isn't taken). There are no styles to pick. A drop swaps to the deck off the air
+they start over), or the one asked for (`req` with `local`: named for everyone; a name typed in
+isn't taken). Any other night a song file asked for (from a phone) plays whole like a YouTube one
+(`deck.song` with `local`, no `yt`; `phone`'s player names it, with no video to put over the TV): on
+the speaker `PhoneSong.tsx` plays it in the page's own sound (no tap: the music's on already) from
+the room's moment for it, the DJ giving way under it and coming back after (`songdone` at its end);
+the next one from a phone is decoded while the one before plays; 暂停 stops it where it is, 播放
+carries it on from there; a corner card where the video sits says whose it is and what. The floor
+dances to its own beat, heard when it came (`beat.first`, `beat.bpm`). There are no styles to pick. A drop swaps to the deck off the air
 once the speaker says it has that song (`decks` with `sa`/`sb`: `cued`). The speaker says when the
 song on the air is nearly over (`ending`, 40 s before its end): the DJ starts the countdown into the
 next itself, once that deck has it (else 3 s later).
@@ -811,13 +823,16 @@ and is back if they can't be.
   `tests/dj.test.ts` has the links, the search answer and the TV's player against the same stand-in
   (ready, on its moment within 40 ms, the roll for a press that comes late, an ad, a video that
   won't play, a browser that wants a tap); `tests/engine.test.ts` the room's side.
-- `python3 scripts/dj_mine_check.py [chromium|webkit]`: 我的歌 from the host's phone in browsers:
-  two made-up songs and a broken file sent from the host's phone, each one's word back (added,
-  can't be played, the same one again: already there), the TV listening to them like its own; a
-  phone that isn't the host's sending pieces straight at the rooms server, never reaching the TV;
-  the switch to her songs from her phone (the TV hands the music over, no gap) and back.
-  `tests/dj.test.ts` has the pieces (read back byte for byte, every bad one turned away);
-  `tests/engine.test.ts` the switch and the word back.
+- `python3 scripts/dj_mine_check.py [chromium|webkit]`: songs from the phones in browsers: no
+  我的歌 card on the host's phone, 从手机传歌 on every one; two made-up songs and a broken file sent
+  from Ben's (not the host's), each one's word back (on the playlist, can't be played), both his on
+  the 歌单 at once, the first whole on the TV in its own sound (the DJ quiet under it, a card saying
+  whose, no video), 暂停 stopping it and 播放 carrying it on from there, 切歌 bringing his second;
+  the same file from Amy's phone (the TV had it: on her 歌单 too); someone sitting down and sending
+  one as someone else getting it as their own; the TV opened again losing the files, and the songs
+  from them leaving the 歌单. `tests/dj.test.ts` has the pieces (read back byte for byte, every bad
+  one turned away); `tests/engine.test.ts` the room's side (on the 歌单 by itself, whole, 切歌 and
+  上一曲, already there, someone not at the table, the TV without them).
 - `python3 scripts/dj_dance_check.py [chromium|webkit]`: dancing along in browsers, a TV and two
   phones: the coach drawn, moving, named, the next move called, then changing; two phones dancing
   with a pretend hand on their own clock (Amy's moving on the beats, Ben's between them): each

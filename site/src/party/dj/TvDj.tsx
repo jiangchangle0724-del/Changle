@@ -27,6 +27,7 @@ import { danceShare } from "../../shared/dj/dance";
 import { danceBpm } from "../../shared/dj/youtube";
 import { ytBpm } from "./phone/youtube";
 import { DanmuLayer } from "./DanmuLayer";
+import { PhoneSong } from "./PhoneSong";
 import "../../styles/dj.css";
 import { useDjNames } from "./names";
 
@@ -59,15 +60,15 @@ export default function TvDj({ v }: { v: DjView }) {
   // where the music should come from: the host's songs when they want them and there are some,
   // else whichever DJ plays (the stand-in, or Lyria at one of the owner's tables)
   const want = v.mine && booth.crate.length ? "local" : booth.source === "local" ? "fake" : booth.source;
-  // songs the host sends from their phone (songwire.ts): put back together here, listened to like
-  // this computer's own, and the phone told how it went
+  // songs a player sends from their phone (songwire.ts; anyone at the table since Nov 13): put back
+  // together here, listened to like this computer's own, and the phone told how it went
   const { onBytes } = useRoom();
   const take = booth.takeSongPiece;
   useEffect(
     () =>
       onBytes((data) => {
         const piece = decodePiece(data);
-        if (piece) take(piece, (by, id, r) => g("song", { by, id, code: SONG_SENT.indexOf(r) }));
+        if (piece) take(piece, (by, id, r, song) => g("song", { by, id, code: SONG_SENT.indexOf(r), ...(r === "there" && song ? { local: song } : {}) }));
       }),
     [onBytes, take, g],
   );
@@ -80,7 +81,7 @@ export default function TvDj({ v }: { v: DjView }) {
     // (none on this computer, the page opened again or the host cleared them: the room's names
     // for them go too, they couldn't be played, and the host's phone sees none)
     if (!list.length && crateN.current === 0) return;
-    const send = () => g("crate", { songs: list.map((s) => [s.id, s.title, s.artist, Math.round(s.beat.bpm * 10) / 10, Math.round(s.seconds)]) });
+    const send = () => g("crate", { songs: list.map((s) => [s.id, s.title, s.artist, Math.round(s.beat.bpm * 10) / 10, Math.round(s.seconds), s.by ?? ""]) });
     send();
     const id = window.setInterval(() => {
       if (crateN.current !== list.length) send();
@@ -186,19 +187,26 @@ export default function TvDj({ v }: { v: DjView }) {
   // song's own tempo (the rooms server finds it by its title; the DJ's, until then or when it
   // can't), counted from the song's start, whether or not this page's own sound is running
   const song = booth.status === "on" && v.deck?.song ? v.deck.song : null;
+  const yt = song?.yt ?? null;
   const [tempo, setTempo] = useState<{ yt: string; bpm: number | null } | null>(null);
   useEffect(() => {
-    if (!song?.yt) return;
+    if (!yt) return;
     let gone = false;
-    void ytBpm(song.yt).then((bpm) => {
-      if (!gone) setTempo({ yt: song.yt, bpm });
+    void ytBpm(yt).then((bpm) => {
+      if (!gone) setTempo({ yt, bpm });
     });
     return () => {
       gone = true;
     };
-  }, [song?.yt]);
+  }, [yt]);
+  // (a song file a phone sent: its own beat, heard when it came, from its first beat)
+  const file = song?.local ? booth.crate.find((c) => c.id === song.local) : undefined;
   const songBeat = useRef<{ at: number; bpm: number } | null>(null);
-  songBeat.current = song ? { at: song.at, bpm: danceBpm((tempo?.yt === song.yt ? tempo.bpm : null) ?? v.deck?.grid?.bpm ?? 120) } : null;
+  songBeat.current = !song
+    ? null
+    : file
+      ? { at: song.at + file.beat.first * 1000, bpm: danceBpm(file.beat.bpm) }
+      : { at: song.at, bpm: danceBpm((tempo && tempo.yt === yt ? tempo.bpm : null) ?? v.deck?.grid?.bpm ?? 120) };
   const clock = useMemo(
     () => ({
       beat: () => {
@@ -336,6 +344,8 @@ export default function TvDj({ v }: { v: DjView }) {
       )}
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
+      {/* a song file a phone sent, whole, in this page's own sound */}
+      {live && v.deck && <PhoneSong v={v} crate={booth.crate} speaker={speaker} now={now} zh={zh} nameOf={nameOf} done={(id) => g("songdone", { id })} />}
       {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
       {/* 弹幕 from the phones, across everything (the video too) */}
       <DanmuLayer v={v} zh={zh} />

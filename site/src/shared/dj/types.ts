@@ -90,11 +90,13 @@ export type Mix = {
 export type Source = "fake" | "lyria" | "local";
 
 /**
- * One of the host's own songs on a night of them (`local`: Steve's ask on Nov 2), as the room keeps
- * it: the big screen's computer has the file and plays it (nothing is uploaded); the room has its
- * name, to show and to ask for. `t` its title, `a` its artist, `bpm` its tempo, `s` its seconds.
+ * A song file on the big screen's computer (`local`: Steve's ask on Nov 2, the host's own; since
+ * Nov 13 anyone's, sent from their phone: "要允许所有玩家都可以上传自己的歌上去，不仅是host"), as the
+ * room keeps it: the computer has the file and plays it (nothing is kept online); the room has its
+ * name, to show and to ask for. `t` its title, `a` its artist, `bpm` its tempo, `s` its seconds;
+ * `by`, the player whose phone sent it (none: added on the computer itself).
  */
-export type CrateSong = { id: string; t: string; a: string; bpm: number; s: number };
+export type CrateSong = { id: string; t: string; a: string; bpm: number; s: number; by?: string };
 /** the host's songs a night keeps at most (their names go to the room in one message) */
 export const CRATE_MAX = 200;
 
@@ -332,10 +334,11 @@ export type DeckState = {
    *  first. Another set carries them on, like the night's 🔥 */
   aired: { at: number; style: StyleId | "mine" | "off" }[];
   heard: SongReq[];
-  /** 真歌时间: a song asked for from YouTube plays whole on the big screen (from `at`, after the DJ
-   *  fades out, moved on by the time a pause took); the deck waits until it ends, someone skips it,
-   *  or 12 minutes of it have played */
-  song: { id: string; yt: string; by: string; at: number } | null;
+  /** 真歌时间: a song asked for from YouTube (`yt`), or a song file a phone sent the big screen
+   *  (`local`, Nov 13), plays whole on the big screen (from `at`, after the DJ fades out, moved on by
+   *  the time a pause took); the deck waits until it ends, someone skips it, or 12 minutes of it have
+   *  played */
+  song: { id: string; yt?: string; local?: string; by: string; at: number } | null;
   /** 暂停 (the phones' player, Steve on Nov 12: "一键播放，切歌，暂停，上一曲"): the room's music held
    *  since this server time, 0 while it plays. The song's video stops where it is and the DJ goes
    *  quiet; nothing comes up next until 播放 */
@@ -550,8 +553,8 @@ export type DjCommand =
   | { x: "grid"; at: number; bar: number; bpm: number }
   /** the styles its two decks are sounding now (and on a night of the host's songs, which songs) */
   | { x: "decks"; a: StyleId; b: StyleId | null; sa?: string | null; sb?: string | null }
-  /** the host's own songs on this computer: [id, title, artist, bpm, seconds] each */
-  | { x: "crate"; songs: [string, string, string, number, number][] }
+  /** the song files on this computer: [id, title, artist, bpm, seconds, the phone that sent it ("": this computer's own)] each */
+  | { x: "crate"; songs: [string, string, string, number, number, string?][] }
   /** the host's song on the air is nearly over */
   | { x: "ending"; id: string }
   /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
@@ -570,8 +573,8 @@ export type DjCommand =
   | { x: "mixfx"; fx: MixFx; on: boolean }
   /** every knob back to 0, every effect off */
   | { x: "mixoff" }
-  /** the speaker: how a song file sent from the host's phone went (`code`: SONG_SENT), for that phone (`by`), the file's number (`id`) */
-  | { x: "song"; by: string; id: number; code: number }
+  /** the speaker: how a song file sent from a player's phone went (`code`: SONG_SENT), for that phone (`by`), the file's number (`id`); one it had already: its id on the list (`local`) */
+  | { x: "song"; by: string; id: number; code: number; local?: string }
   | { x: "songdone"; id: string }
   /** the speaker: the video of the song up next won't play here (YouTube's answer while getting it
    *  ready): it comes off that song, which plays as the DJ's remix alone */

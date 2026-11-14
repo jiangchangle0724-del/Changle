@@ -6,7 +6,7 @@ import { coaching } from "../src/party/limbo/coach";
 import { limboLift, limboStyle } from "../src/party/limbo/music";
 import { GROOVES } from "../src/lib/music";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
-import { DECK, MIX_FX, MIXER, SHARED_BY } from "../src/shared/dj/types";
+import { DECK, MIX_FX, MIXER, SHARED_BY, SONG_SENT } from "../src/shared/dj/types";
 import { DANMU, DANMU_READY } from "../src/shared/dj/danmu";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
@@ -5816,6 +5816,87 @@ test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕�
   advance(DANMU.gapMs);
   g("p2", "say", { p: 0 });
   ok(dv("p1").danmuOn === true && lines().at(-1)!.n === 5 + DANMU.keep + 5 + 2, `another set: the count carries on (${lines().at(-1)!.n})`);
+});
+
+test("dj: songs from the phones (Steve on Nov 13: \"要允许所有玩家都可以上传自己的歌上去，不仅是host\"): a song file a phone sent goes on the 歌单 as theirs the moment the big screen has it, plays whole like a YouTube one, the next after it; one the big screen had already goes on theirs too; one the big screen no longer has is skipped", () => {
+  const e = new RoomEngine(freshRoom("DJPS", clock), host);
+  e.screenHello("tv-ps", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const deck = () => dv("p3").deck;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-ps", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const land = () => {
+    for (let i = 0; i < 40 && !deck().drop; i++) advance(250);
+    const sw = deck().drop!;
+    advance(sw.at - clock + 5);
+  };
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  const row = (id: string, t: string, by: string) => [id, t, "Band", 120, 200, by];
+
+  // Ben's file: the big screen has it, and it's his on the 歌单 at once
+  ok(sc("crate", { songs: [row("sben1", "Ben Song", "p2")] }), "the big screen says it has Ben's file");
+  ok(deck().up?.by === "p2" && deck().up?.local === "sben1" && deck().up?.text === "Ben Song", `up next: Ben's, by its name (${JSON.stringify(deck().up)})`);
+  ok(dv("p1").deck.up?.text === "Ben Song" && dv("p2").crateN === 1, "named for everyone");
+  land();
+  ok(deck().song?.local === "sben1" && deck().song?.by === "p2" && !deck().song?.yt && deck().heard.at(-1)?.local === "sben1", "on its bar it plays whole on the big screen (a file, not a video)");
+  // Cat's two, while Ben's plays: in line behind it, not cutting it short
+  sc("crate", { songs: [row("sben1", "Ben Song", "p2"), row("scat1", "Cat One", "p3"), row("scat2", "Cat Two", "p3")] });
+  ok(deck().up?.local === "scat1" && deck().reqs.map((r) => r.local).join() === "scat2", `Cat's two, sent at once, both on the 歌单 (${deck().up?.local}, ${deck().reqs.map((r) => r.local).join()})`);
+  advance(30_000);
+  ok(deck().song?.local === "sben1" && deck().drop === null, "nothing cuts Ben's short");
+  ok(sc("songdone", { id: deck().song!.id }) && deck().song === null, "it ends on the big screen: the DJ for a moment");
+  land();
+  ok(deck().song?.local === "scat1" && deck().song?.by === "p3", "then Cat's first, whole");
+  // 切歌 and 上一曲 as with any song
+  ok(!!g("p2", "next").changed || deck().song === null, "Ben skips it");
+  land();
+  ok(deck().song?.local === "scat2", "Cat's second comes on");
+  advance(DECK.ctlGapMs);
+  g("p1", "prev");
+  land();
+  ok(deck().song?.local === "scat1" && deck().up?.local === "scat2", "上一曲: the one before again, the one that was on next after it");
+  // the same file sent from Amy's phone: the big screen had it, it goes on her 歌单 too
+  const before = deck().reqs.length;
+  ok(sc("song", { by: "p1", id: 7, code: SONG_SENT.indexOf("there"), local: "sben1" }), "the big screen tells Amy's phone it had that one");
+  ok(deck().reqs.length === before + 1 && deck().reqs.at(-1)!.by === "p1" && deck().reqs.at(-1)!.local === "sben1", "on the 歌单 as hers");
+  ok(!sc("song", { by: "p1", id: 8, code: SONG_SENT.indexOf("there"), local: "nope" }) || deck().reqs.length === before + 1, "one it doesn't have: nothing");
+  // a file from someone who isn't at the table: on the big screen, not on anyone's 歌单 (the big
+  // screen says its list once a second at most)
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [row("sben1", "Ben Song", "p2"), row("scat1", "Cat One", "p3"), row("scat2", "Cat Two", "p3"), row("sx", "Stranger", "p9")] });
+  ok(!deck().reqs.some((r) => r.local === "sx") && dv("p1").crateN === 4, "a file from someone not at the table: kept, not asked for");
+  // a file's name with the worst words in it: starred, as in 弹幕
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [row("sben1", "Ben Song", "p2"), row("scat1", "Cat One", "p3"), row("scat2", "Cat Two", "p3"), row("sx", "Stranger", "p9"), ["srude", "傻逼 Song", "fuck band", 120, 200, "p2"]] });
+  ok(deck().reqs.at(-1)!.text === "** Song" && deck().reqs.at(-1)!.artist === "**** band", `a rude file name, starred (${deck().reqs.at(-1)!.text} · ${deck().reqs.at(-1)!.artist})`);
+  // the big screen opened again: its files are gone, so is the song playing and the ones waiting
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [] });
+  ok(deck().song === null && !deck().reqs.some((r) => r.local) && deck().up?.local === undefined, "the big screen without them: the song playing ends, the waiting ones go");
+  // the host's songs on the decks (the big screen's own switch, 用我的歌放) still play them there
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [row("smine", "Mine", "")] });
+  ok(!deck().reqs.some((r) => r.local === "smine") && deck().up?.local !== "smine", "the big screen's own file: not on anyone's 歌单");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

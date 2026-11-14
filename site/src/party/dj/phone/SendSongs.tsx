@@ -1,23 +1,22 @@
-import { Music2, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRoom, useRoomEvent } from "../../../online/RoomContext";
 import { encodePiece, fileNumber, PHONE_BYTES_MIN, PIECE_BYTES, SONG_BYTES } from "../../../shared/dj/songwire";
 import { SONG_SENT, type SongSent } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
-import { useStore } from "../../../store";
 
 /** What the phone says about a song it sent: the TV's word on it, or why it never got there. */
 const SAID: Record<SongSent | "big" | "line" | "quiet", { zh: string; en: string }> = {
-  added: { zh: "加好了", en: "Added" },
+  added: { zh: "加进歌单了", en: "On the playlist" },
   kind: { zh: "不是歌的文件", en: "Not a sound file" },
   short: { zh: "太短，不到 45 秒", en: "Too short, under 45 seconds" },
   long: { zh: "太长，超过 15 分钟", en: "Too long, over 15 minutes" },
   unreadable: { zh: "放不了，可能是加密的会员歌", en: "Can't be played, maybe a protected download" },
-  full: { zh: "电视上的歌太多了，先在电视上清空一些", en: "The TV has too many songs. Clear some there first" },
-  there: { zh: "电视上已经有这首了", en: "The TV has this one already" },
+  full: { zh: "电视上放不下更多歌了", en: "The TV can't take more songs" },
+  there: { zh: "电视上已经有这首，也加进你的歌单了", en: "The TV had it already: on the playlist for you too" },
   big: { zh: "文件太大，超过 30 MB", en: "Too big, over 30 MB" },
   line: { zh: "断线了，没传完，再试一次", en: "The connection dropped before it was sent. Try again" },
-  quiet: { zh: "电视没回应，看看电视上的「我的歌」", en: "The TV didn't answer. Check My songs there" },
+  quiet: { zh: "电视没回应，再传一次试试", en: "The TV didn't answer. Try sending it again" },
 };
 type Said = keyof typeof SAID;
 
@@ -30,15 +29,13 @@ const sleep = (ms: number) => new Promise((ok) => window.setTimeout(ok, ms));
 const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => (b % 36).toString(36)).join("") + Date.now().toString(36).slice(-4);
 
 /**
- * 打碟 · DJ Booth: 我的歌 on the host's phone (Steve on Nov 2: it should work from the phone too).
- * How many songs the big screen's computer has; songs on this phone sent to it (in pieces through
- * the table, nothing kept on the way: songwire.ts), listened to there like the computer's own;
- * and the switch between them and the sound-check DJ.
+ * 打碟 · DJ Booth: songs from this phone, on every phone (Steve on Nov 13: "要允许所有玩家都可以上传
+ * 自己的歌上去，不仅是host"; before, the host's 我的歌 alone). Song files on this phone go to the big
+ * screen's computer in pieces through the table (nothing kept on the way: songwire.ts), are
+ * listened to there, and go on the 歌单 as this player's, played whole when their turn comes.
  */
-export function MySongs({ v }: { v: DjView }) {
-  const { g, me, room, sendBytes, bytesWaiting } = useRoom();
-  const { lang } = useStore();
-  const zh = lang === "zh";
+export function SendSongs({ v, zh }: { v: DjView; zh: boolean }) {
+  const { me, room, sendBytes, bytesWaiting } = useRoom();
   const L = (x: { zh: string; en: string }) => (zh ? x.zh : x.en);
   const pick = useRef<HTMLInputElement>(null);
   const [queue, setQueue] = useState<File[]>([]);
@@ -48,6 +45,7 @@ export function MySongs({ v }: { v: DjView }) {
   const paced = useRef<{ at: number; bytes: number }[]>([]);
   const busy = useRef(false);
   const screen = (room?.screens ?? 0) > 0;
+  const ended = v.phase === "end";
 
   // the TV's word on a song this phone sent
   useRoomEvent((e) => {
@@ -106,37 +104,12 @@ export function MySongs({ v }: { v: DjView }) {
 
   const pct = now ? Math.round((100 * now.done) / Math.max(1, now.size)) : 0;
   const more = Math.max(0, queue.length - 1);
-  const state =
-    v.source === "local"
-      ? zh
-        ? "正在放你的歌"
-        : "Playing your songs"
-      : v.mine
-        ? v.crateN === 0
-          ? zh
-            ? "电视上还没有歌，先传几首"
-            : "The TV has no songs yet. Send some first"
-          : v.phase === "wait"
-            ? zh
-              ? "开始派对就放你的歌"
-              : "Your songs play when the party starts"
-            : zh
-              ? "马上换成你的歌"
-              : "Switching to your songs"
-        : "";
 
   return (
-    <section className="djp-host djp-mine" aria-label={zh ? "我的歌" : "My songs"}>
-      <span className="djp-host-label">
-        <Music2 size={14} strokeWidth={2.4} />
-        {zh ? `我的歌 · 电视上有 ${v.crateN} 首` : `My songs · ${v.crateN} on the TV`}
-      </span>
-      <p className="djp-host-note">
-        {zh ? "手机里的歌（MP3、M4A 这些）可以传到电视那台电脑上放，不存到网上。会员下载的加密歌放不了。" : "Songs on this phone (MP3, M4A and the like) can go to the TV's computer and play there. Nothing is saved online. Protected downloads from music apps can't be played."}
-      </p>
-      <button type="button" className="btn btn-ghost btn-block" disabled={!screen || queue.length >= QUEUE_MAX} onClick={() => pick.current?.click()}>
-        <Upload size={16} />
-        {zh ? "从手机传歌到电视" : "Send songs to the TV"}
+    <section className="djk-send" aria-label={zh ? "从手机传歌" : "Songs from this phone"}>
+      <button type="button" className="btn btn-ghost btn-block" disabled={!screen || ended || queue.length >= QUEUE_MAX} onClick={() => pick.current?.click()}>
+        <Upload size={18} aria-hidden="true" />
+        {zh ? "从手机传歌" : "Send a song from this phone"}
       </button>
       <input
         ref={pick}
@@ -150,30 +123,30 @@ export function MySongs({ v }: { v: DjView }) {
           if (files.length) setQueue((q) => [...q, ...files].slice(0, QUEUE_MAX));
         }}
       />
-      {!screen && <p className="djp-host-note">{zh ? "电视那台电脑没开着，开了才能传" : "The TV's computer isn't on. Songs can go once it is"}</p>}
+      <p className="djk-send-note">
+        {!screen
+          ? zh
+            ? "电视那台设备没开着，开了才能传"
+            : "The TV isn't on. Songs can go once it is"
+          : zh
+            ? "手机里的歌（MP3、M4A 这些）传到电视上，加进歌单，轮到就放整首。不存到网上，会员下载的加密歌放不了。"
+            : "A song on this phone (MP3, M4A and the like) goes to the TV and onto the playlist, played whole when its turn comes. Nothing is saved online; protected downloads from music apps can't be played."}
+      </p>
       {now && (
-        <p className="djp-mine-now" role="status">
+        <p className="djk-send-now" role="status">
           {now.listening ? (zh ? `电视正在听：${now.name}` : `The TV is listening: ${now.name}`) : zh ? `正在传 ${pct}%：${now.name}` : `Sending ${pct}%: ${now.name}`}
           {more > 0 && (zh ? `，还有 ${more} 首` : `, ${more} more`)}
         </p>
       )}
       {sent.length > 0 && (
-        <ul className="djp-mine-sent">
+        <ul className="djk-send-done">
           {sent.map((s) => (
-            <li key={s.key} className={s.said === "added" ? "is-ok" : ""}>
-              <span className="djp-mine-name">{s.name}</span>
+            <li key={s.key} className={s.said === "added" || s.said === "there" ? "is-ok" : ""}>
+              <span className="djk-send-name">{s.name}</span>
               <span>{L(SAID[s.said])}</span>
             </li>
           ))}
         </ul>
-      )}
-      <button type="button" className={`btn btn-block ${v.mine ? "btn-ghost" : "btn-primary"}`} disabled={!v.mine && v.crateN === 0} onClick={() => g("mine", { on: !v.mine })}>
-        {v.mine ? (zh ? "换回试音版 DJ" : "Back to the sound-check DJ") : zh ? "用我的歌放" : "Play my songs"}
-      </button>
-      {state && (
-        <p className="djp-host-note" role="status">
-          {state}
-        </p>
       )}
     </section>
   );
