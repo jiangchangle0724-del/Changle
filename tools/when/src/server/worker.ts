@@ -165,7 +165,7 @@ export default {
     }
     if (what === "host") {
       const done = await stub.hostAct(keyHash, input as unknown as HostAction);
-      return done.ok ? json({ state: done.state } satisfies Hosted) : failed(done);
+      return done.ok ? json({ state: done.state, ...(done.id ? { id: done.id } : {}) } satisfies Hosted) : failed(done);
     }
     if (what === "claim") {
       const code = typeof input.adminCode === "string" ? input.adminCode.trim() : "";
@@ -282,10 +282,10 @@ export class EventDO extends DurableObject<Env> {
     return saved.ok ? { ok: true, id: saved.id, state: this.changed() } : saved;
   }
 
-  async hostAct(keyHash: string, action: HostAction): Promise<WithState | Fail> {
+  async hostAct(keyHash: string, action: HostAction): Promise<WithState<{ id?: string }> | Fail> {
     if (!(await this.live())) return { ok: false, error: "gone" };
-    const done = this.room.hostAct(keyHash, action, Date.now());
-    return done.ok ? { ok: true, state: this.changed() } : done;
+    const done = this.room.hostAct(keyHash, action, Date.now(), () => makeCode(rand, 10));
+    return done.ok ? { ok: true, state: this.changed(), ...(done.id ? { id: done.id } : {}) } : done;
   }
 
   async claim(keyHash: string, code: string): Promise<{ ok: true } | Fail> {
