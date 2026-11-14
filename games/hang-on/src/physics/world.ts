@@ -19,6 +19,9 @@
  *   会动的平台和会转的杆子是运动学刚体，每步按 motion.ts 算的位置摆（画面用同一套算法，两边对得上），
  *   站在上面被带着走，抓着跟着动；带 deadly 的碰到就死。
  * - 人数（A6）：关卡按开局的人数摆（level.ts 的 forPlayers：缝更宽、抓点更少）。
+ * - 道具（A9，闯关和大团队）：act = item 用自己带的那一样。速冻：身体换成运动学刚体钉在原地，
+ *   碰撞体多一个 FROZEN 组（别人的身体碰得到，能站上去），几秒后化开；拉面：抓着不动的地形的那只手旁边
+ *   放一根会碰地形的绳子（和关卡的绳子一样的做法），几秒后断；荷叶：往下掉的速度封顶，摇杆推着横着飘。
  *
  * 单位：像素、秒；y 向下。主机是唯一跑物理的地方（铁律 1）。
  */
@@ -31,6 +34,7 @@ import {
   PLAYER_COLORS,
   TETHER_LEN,
 } from './config';
+import type { ItemId } from '../items';
 import { forPlayers, type FadingDef, type HazardDef, type Level, type MoverDef, type Pt, type Rect, type SpinnerDef, type SpringDef } from './level';
 import { circleHitsBar, circleHitsRect, moverAt, spinnerAngle, spinnerArm } from './motion';
 
@@ -39,8 +43,15 @@ type Col = RAPIER.Collider;
 type Joint = RAPIER.ImpulseJoint;
 
 /** 碰撞分组：16 位 membership << 16 | 16 位 filter。 */
-export const GROUP = { TERRAIN: 0x0001, PLAYER: 0x0002, ROPE: 0x0004, PROP: 0x0008, ALL: 0xffff } as const;
+/** FROZEN：速冻的人的身体（A9）。别人的身体碰得到它，谁也不冻的时候这一组里没有东西，和以前一样。 */
+export const GROUP = { TERRAIN: 0x0001, PLAYER: 0x0002, ROPE: 0x0004, PROP: 0x0008, FROZEN: 0x0010, ALL: 0xffff } as const;
 const groups = (member: number, filter: number): number => ((member << 16) | filter) >>> 0;
+/**
+ * 身体：平时是 PLAYER，碰地形、物件和冻住的人（站得上去）。冻住时（A9）多一个 FROZEN，也碰 PLAYER：
+ * 和别人的身体两边都对得上就碰；胳膊的过滤只有地形和物件，自己的、别人的胳膊都不碰它。
+ */
+const BODY_GROUPS = groups(GROUP.PLAYER, GROUP.TERRAIN | GROUP.PROP | GROUP.FROZEN);
+const FROZEN_BODY_GROUPS = groups(GROUP.PLAYER | GROUP.FROZEN, GROUP.TERRAIN | GROUP.PROP | GROUP.FROZEN | GROUP.PLAYER);
 
 /** 手柄 → 主机的每帧输入（契约「输入契约」）。 */
 export interface PadInput {
@@ -54,7 +65,8 @@ export interface PadInput {
   gl: boolean;
   /** 右手抓 */
   gr: boolean;
-  act?: 'summon' | 'emote';
+  /** 偶发动作：召唤、表情、用道具（A9）。 */
+  act?: 'summon' | 'emote' | 'item';
 }
 
 export type GripKind = 'terrain' | 'rope' | 'player' | 'prop';
@@ -69,6 +81,8 @@ export interface Grip {
   player?: number;
   rope?: number;
   prop?: number;
+  /** 抓的是谁放的拉面（A9）：放面条的人的下标。 */
+  noodle?: number;
   /** 抓了多久（秒）。 */
   t: number;
 }
@@ -84,6 +98,8 @@ interface GripInternal extends Grip {
 type ColInfo =
   | { kind: 'terrain'; rect: Rect }
   | { kind: 'rope'; rope: number; link: number }
+  /** 道具拉面的一节（A9）：id 是这根面条的编号。 */
+  | { kind: 'noodle'; noodle: number; link: number }
   | { kind: 'player'; player: number; part: 'body' | 'arm' | 'hand'; arm: number }
   | { kind: 'prop'; prop: number }
   | { kind: 'spring'; spring: number; rect: Rect }
@@ -142,6 +158,17 @@ export interface Player {
   out: boolean;
   /** 到终点或者出局是第几秒，没有是 null。 */
   endT: number | null;
+  /** 带的道具（A9），没带是 null。 */
+  item: ItemId | null;
+  /** 道具还要几秒才能再用（从用的那一下算）。 */
+  itemCd: number;
+  /** 正在起作用的道具（速冻、荷叶）和还剩几秒；拉面挂在墙上，不算在人身上。 */
+  itemOn: ItemId | null;
+  itemLeft: number;
+  /** 手柄按了道具键，下一步用。 */
+  pendingItem: boolean;
+  /** 上一次没用成（拉面没抓着墙）是第几秒：没用成的事件 1 秒只报一次。 */
+  itemFailAt: number;
 }
 
 /** 饼干平台的当前样子（画面用）。 */
@@ -183,6 +210,19 @@ export interface Rope {
   pts: Pt[];
   handle: Pt;
   segLen: number;
+}
+
+/** 道具拉面（A9）：谁放的、还剩几秒；pts 和关卡的绳子一样（锚点、每节末端）。 */
+export interface Noodle {
+  id: number;
+  owner: number;
+  left: number;
+  anchor: Pt;
+  pts: Pt[];
+  handle: Pt;
+  segLen: number;
+  links: RB[];
+  anchorRb: RB;
 }
 
 export interface Prop {
@@ -238,7 +278,11 @@ export type SimEvent =
   /** 坐不住：一个地方抓太久，手滑了。 */
   | { type: 'slip'; player: number; arm: number }
   /** 这一局结束：闯关是大家都到了；比谁先、坐不住带赢的人（平局可能几个，坐不住一个人玩摔了是空的）。 */
-  | { type: 'win'; who?: number[] };
+  | { type: 'win'; who?: number[] }
+  /** 用道具（A9）：ok 是用成了没有（拉面要先抓着墙或台子）；x、y 是在哪用的。 */
+  | { type: 'item'; player: number; item: ItemId; ok: boolean; x: number; y: number }
+  /** 道具的劲过了：速冻化开、荷叶收起、拉面断了（x、y 是在哪）。 */
+  | { type: 'itemEnd'; player: number; item: ItemId; x: number; y: number };
 
 export interface TeleportOpts {
   /** 每只手摆到哪（世界坐标）；null 用默认收拢姿势。 */
@@ -309,6 +353,9 @@ export class Sim {
   readonly outOrder: number[] = [];
   /** 结束时赢的人：闯关是全队，比谁先是第一个到的（分队时先到齐的那一队），坐不住是最后挂着的。 */
   winners: number[] = [];
+  /** 道具放下来的拉面（A9）。 */
+  readonly noodles: Noodle[] = [];
+  private noodleSeq = 0;
 
   private readonly info = new Map<number, ColInfo>();
   private readonly movers: { def: MoverDef; rb: RB }[] = [];
@@ -605,7 +652,7 @@ export class Sim {
         .setMass(CFG.bodyMass)
         .setFriction(CFG.bodyFriction)
         .setRestitution(0)
-        .setCollisionGroups(groups(GROUP.PLAYER, GROUP.TERRAIN | GROUP.PROP)),
+        .setCollisionGroups(BODY_GROUPS),
       rb,
     );
     this.info.set(bodyCol.handle, { kind: 'player', player: id, part: 'body', arm: -1 });
@@ -633,6 +680,12 @@ export class Sim {
       done: false,
       out: false,
       endT: null,
+      item: null,
+      itemCd: 0,
+      itemOn: null,
+      itemLeft: 0,
+      pendingItem: false,
+      itemFailAt: -10,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -797,6 +850,27 @@ export class Sim {
       p.actAt = this.time;
       p.pendingAct = input.act;
     }
+    // 道具：冷却里连发的那几帧不算；没用成的（拉面没抓着墙）下一步再试，事件 1 秒只报一次
+    if (input.act === 'item' && p.item && p.itemCd <= 0) p.pendingItem = true;
+  }
+
+  /** 这个人带哪样道具（A9），null 是不带。换了道具，正在起作用的那样照旧到时候才完。 */
+  setItem(i: number, item: ItemId | null): void {
+    const p = this.players[i];
+    if (p) p.item = item;
+  }
+
+  /** 这一局用不用得了道具：闯关和大团队用得了。 */
+  get itemsOn(): boolean {
+    return this.rules.mode === 'climb' || this.rules.mode === 'team';
+  }
+
+  /** 第 i 个人的道具冷却好了多少：0 刚用完，1 能用了（手柄上那条充能条）。 */
+  itemReady(i: number): number {
+    const p = this.players[i];
+    if (!p?.item || p.itemCd <= 0) return 1;
+    const cd = p.item === 'freeze' ? CFG.freezeCd : p.item === 'noodle' ? CFG.noodleCd : CFG.leafCd;
+    return Math.max(0, Math.min(1, 1 - p.itemCd / cd));
   }
 
   /**
@@ -808,6 +882,7 @@ export class Sim {
     if (!p) return;
     this.releaseAll(p);
     this.releaseGripsOn(p.id);
+    if (p.itemOn) this.endItem(p, false);
     p.rb.setTranslation({ x, y }, true);
     p.rb.setLinvel({ x: 0, y: 0 }, true);
     p.arms.forEach((arm, k) => {
@@ -857,11 +932,17 @@ export class Sim {
     for (let i = 0; i < this.fadings.length; i++) this.tickFading(i);
     this.tickCrumbles();
     for (const s of this.springs) s.hit += dt;
+    this.tickItems(dt);
     const pulls = this.pullCounts(dt);
-    for (const p of this.players) if (!p.dead && !p.done) this.control(p, pulls[p.id] ?? true);
+    for (const p of this.players) {
+      if (p.dead || p.done || p.itemOn === 'freeze') continue;
+      this.control(p, pulls[p.id] ?? true);
+      if (p.itemOn === 'leaf') this.glide(p, dt);
+    }
     const slips = this.rules.mode === 'last';
     for (const p of this.players) {
-      if (p.dead || p.done) continue;
+      // 冻住的人手也冻住了：抓着的照旧抓着，没抓的抓不了
+      if (p.dead || p.done || p.itemOn === 'freeze') continue;
       p.arms.forEach((arm, k) => {
         if (arm.slipCd > 0) arm.slipCd = Math.max(0, arm.slipCd - dt);
         if (p.grab[k] && !arm.grip && arm.slipCd <= 0) this.tryGrab(p, k);
@@ -888,6 +969,7 @@ export class Sim {
       p.springCd = Math.max(0, p.springCd - dt);
     }
     for (const rope of this.ropes) this.refreshRope(rope);
+    for (const n of this.noodles) this.refreshRope(n);
     for (const prop of this.props) {
       const t = prop.rb.translation();
       prop.x = t.x;
@@ -955,7 +1037,8 @@ export class Sim {
   private pullCounts(dt: number): boolean[] {
     const ok = this.players.map((p) => {
       if (p.dead) return false;
-      if (p.done || p.ground) return true;
+      // 冻住的人钉在原地，和站在地上一样实在（抓着他的人也算连上了）
+      if (p.done || p.ground || p.itemOn === 'freeze') return true;
       return p.arms.some((a) => a.grip !== null && a.grip.kind !== 'player');
     });
     // 抓着已经连上的人也算连上；最多 6 个人，转几圈就定了
@@ -1076,7 +1159,7 @@ export class Sim {
     );
     joint.setContactsEnabled(false);
     const tether = this.world.createImpulseJoint(RAPIER.JointData.rope(TETHER_LEN, { x: 0, y: 0 }, local), p.rb, target, true);
-    const kind: GripKind = info.kind === 'spring' || info.kind === 'moving' ? 'terrain' : info.kind;
+    const kind: GripKind = info.kind === 'spring' || info.kind === 'moving' ? 'terrain' : info.kind === 'noodle' ? 'rope' : info.kind;
     const grip: GripInternal = {
       kind,
       x: point.x,
@@ -1090,6 +1173,7 @@ export class Sim {
     if (info.kind === 'terrain' || info.kind === 'spring') grip.rect = info.rect;
     if (info.kind === 'player') grip.player = info.player;
     if (info.kind === 'rope') grip.rope = info.rope;
+    if (info.kind === 'noodle') grip.noodle = this.noodles.find((n) => n.id === info.noodle)?.owner;
     if (info.kind === 'prop') grip.prop = info.prop;
     arm.grip = grip;
     this.grips.set(joint, { player: p.id, arm: k, g: grip });
@@ -1189,13 +1273,197 @@ export class Sim {
     }
   }
 
-  private refreshRope(rope: Rope): void {
+  private refreshRope(rope: Rope | Noodle): void {
     const pts: Pt[] = [{ ...rope.anchor }];
     for (const rb of rope.links) pts.push(toWorld(rb, { x: 0, y: rope.segLen / 2 }));
     rope.pts = pts;
     const end = pts[pts.length - 1] as Pt;
     rope.handle.x = end.x;
     rope.handle.y = end.y;
+  }
+
+  // ---------------------------------------------------------------- 道具（A9）
+
+  /** 每步：冷却往下走，起作用的道具到点就完，按了道具键的用掉，拉面到点就断。 */
+  private tickItems(dt: number): void {
+    for (const p of this.players) {
+      if (p.itemCd > 0) p.itemCd = Math.max(0, p.itemCd - dt);
+      if (p.itemOn) {
+        p.itemLeft -= dt;
+        if (p.itemLeft <= 0) this.endItem(p, true);
+      }
+      if (p.pendingItem) {
+        p.pendingItem = false;
+        this.useItem(p);
+      }
+    }
+    for (const n of [...this.noodles]) {
+      n.left -= dt;
+      if (n.left <= 0) this.cutNoodle(n);
+    }
+  }
+
+  private useItem(p: Player): void {
+    const item = p.item;
+    if (!item || p.dead || p.done || p.itemCd > 0 || p.itemOn || !this.itemsOn) return;
+    const at = { x: p.body.x, y: p.body.y };
+    if (item === 'noodle') {
+      const spot = this.noodleSpot(p);
+      if (!spot) {
+        if (this.time - p.itemFailAt >= CFG.actCooldown) {
+          p.itemFailAt = this.time;
+          this.events.push({ type: 'item', player: p.id, item, ok: false, x: at.x, y: at.y });
+        }
+        return;
+      }
+      this.addNoodle(p, spot);
+      p.itemCd = CFG.noodleCd;
+      this.events.push({ type: 'item', player: p.id, item, ok: true, x: spot.x, y: spot.y });
+      return;
+    }
+    if (item === 'freeze') {
+      p.itemOn = 'freeze';
+      p.itemLeft = CFG.freezeTime;
+      p.itemCd = CFG.freezeCd;
+      p.heldBy = null;
+      p.rb.setLinvel({ x: 0, y: 0 }, true);
+      p.rb.resetForces(true);
+      p.rb.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
+      p.bodyCol.setCollisionGroups(FROZEN_BODY_GROUPS);
+      // 胳膊也定住：加在胳膊上的力会一直留着（Rapier 的力不自己清），肩电机停下
+      for (const arm of p.arms) {
+        for (const rb of arm.segs) {
+          rb.resetForces(true);
+          rb.resetTorques(true);
+        }
+        arm.shoulder.configureMotorVelocity(0, CFG.shoulderDamping);
+      }
+    } else {
+      p.itemOn = 'leaf';
+      p.itemLeft = CFG.leafTime;
+      p.itemCd = CFG.leafCd;
+    }
+    this.events.push({ type: 'item', player: p.id, item, ok: true, x: at.x, y: at.y });
+  }
+
+  /** 起作用的道具完了：速冻化开（身体变回动态刚体，站在上面的人自然掉下去），荷叶收起。loud：要不要事件（死了、传送时不要）。 */
+  private endItem(p: Player, loud: boolean): void {
+    const item = p.itemOn;
+    if (!item) return;
+    p.itemOn = null;
+    p.itemLeft = 0;
+    if (item === 'freeze') {
+      p.bodyCol.setCollisionGroups(BODY_GROUPS);
+      p.rb.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
+      p.rb.setLinvel({ x: 0, y: 0 }, true);
+    }
+    if (loud) this.events.push({ type: 'itemEnd', player: p.id, item, x: p.body.x, y: p.body.y });
+  }
+
+  /**
+   * 荷叶：往下掉的速度封顶，摇杆推着往左右飘（抓着东西、站在地上时不管）。
+   * 胳膊也封顶，不然垂着的胳膊往下拽身体，一步一步又快起来。
+   */
+  private glide(p: Player, dt: number): void {
+    if (p.ground || p.arms.some((a) => a.grip)) return;
+    const v = p.rb.linvel();
+    const want = p.aim.x * CFG.leafDrift;
+    const vx = v.x + clamp(want - v.x, -CFG.leafAccel * dt, CFG.leafAccel * dt);
+    const vy = Math.min(v.y, CFG.leafFall);
+    if (vx !== v.x || vy !== v.y) p.rb.setLinvel({ x: vx, y: vy }, true);
+    for (const arm of p.arms) {
+      for (const rb of arm.segs) {
+        const a = rb.linvel();
+        if (a.y > CFG.leafFall) rb.setLinvel({ x: a.x, y: CFG.leafFall }, true);
+      }
+    }
+  }
+
+  /**
+   * 拉面从哪儿垂下来：抓着不动的地形（关卡的台子、墙，不是会动的、跷跷板、绳子、队友）的那只手旁边。
+   * 抓在台面上就挪到离抓点近的那条边外面，抓在侧面、底面就往外挪一点：面条顺着墙或者从空中垂下去。
+   */
+  private noodleSpot(p: Player): Pt | null {
+    for (const arm of p.arms) {
+      const g = arm.grip as GripInternal | null;
+      if (!g || g.kind !== 'terrain' || g.target !== this.terrain || !g.rect) continue;
+      const r = g.rect;
+      const out = CFG.noodleGap;
+      const dTop = Math.abs(g.y - r.y);
+      const dBottom = Math.abs(g.y - (r.y + r.h));
+      const dLeft = Math.abs(g.x - r.x);
+      const dRight = Math.abs(g.x - (r.x + r.w));
+      const near = Math.min(dTop, dBottom, dLeft, dRight);
+      if (near === dLeft) return { x: r.x - out, y: Math.max(r.y + out, g.y) };
+      if (near === dRight) return { x: r.x + r.w + out, y: Math.max(r.y + out, g.y) };
+      if (near === dBottom) return { x: g.x, y: r.y + r.h + out };
+      // 台面上：挪到近的那条边外面
+      return g.x - r.x < r.x + r.w - g.x ? { x: r.x - out, y: r.y + out } : { x: r.x + r.w + out, y: r.y + out };
+    }
+    return null;
+  }
+
+  /** 放一根拉面：和关卡的绳子一样（一串胶囊小刚体 + 转动关节 + 防拉长的系绳），只是会碰地形（顺着墙垂）。 */
+  private addNoodle(p: Player, anchor: Pt): void {
+    const w = this.world;
+    const id = this.noodleSeq++;
+    const n = CFG.noodleSegs;
+    const segLen = CFG.noodleSegLen;
+    const anchorRb = w.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(anchor.x, anchor.y));
+    const links: RB[] = [];
+    let prev = anchorRb;
+    for (let k = 0; k < n; k++) {
+      const rb = w.createRigidBody(
+        RAPIER.RigidBodyDesc.dynamic()
+          .setTranslation(anchor.x, anchor.y + (k + 0.5) * segLen)
+          .setLinearDamping(CFG.ropeDamp)
+          .setAngularDamping(CFG.ropeDamp)
+          .setCanSleep(false),
+      );
+      const col = w.createCollider(
+        RAPIER.ColliderDesc.capsule(Math.max(1, segLen / 2 - CFG.ropeLinkR), CFG.ropeLinkR)
+          .setMass(CFG.ropeLinkMass)
+          .setFriction(0.4)
+          .setCollisionGroups(groups(GROUP.ROPE, GROUP.TERRAIN)),
+        rb,
+      );
+      this.info.set(col.handle, { kind: 'noodle', noodle: id, link: k });
+      if (k === n - 1) {
+        const handle = w.createCollider(
+          RAPIER.ColliderDesc.ball(CFG.ropeHandleR)
+            .setTranslation(0, segLen / 2)
+            .setMass(CFG.ropeLinkMass * 1.5)
+            .setCollisionGroups(groups(GROUP.ROPE, GROUP.TERRAIN)),
+          rb,
+        );
+        this.info.set(handle.handle, { kind: 'noodle', noodle: id, link: k });
+      }
+      const jd = RAPIER.JointData.revolute(k === 0 ? { x: 0, y: 0 } : { x: 0, y: segLen / 2 }, { x: 0, y: -segLen / 2 });
+      w.createImpulseJoint(jd, prev, rb, true);
+      links.push(rb);
+      prev = rb;
+    }
+    const last = links[n - 1];
+    if (last) w.createImpulseJoint(RAPIER.JointData.rope(n * segLen, { x: 0, y: 0 }, { x: 0, y: segLen / 2 }), anchorRb, last, true);
+    const noodle: Noodle = { id, owner: p.id, left: CFG.noodleTime, anchor: { ...anchor }, pts: [], handle: { x: anchor.x, y: anchor.y + n * segLen }, segLen, links, anchorRb };
+    this.noodles.push(noodle);
+    this.refreshRope(noodle);
+  }
+
+  /** 拉面断了：抓着它的手松开（人自然掉下去），刚体都拿掉。 */
+  private cutNoodle(n: Noodle): void {
+    const bodies = new Set(n.links.map((rb) => rb.handle));
+    for (const [, entry] of [...this.grips]) {
+      if (!bodies.has(entry.g.target.handle)) continue;
+      const holder = this.players[entry.player];
+      if (holder) this.release(holder, entry.arm);
+    }
+    for (const [h, info] of [...this.info]) if (info.kind === 'noodle' && info.noodle === n.id) this.info.delete(h);
+    for (const rb of n.links) this.world.removeRigidBody(rb);
+    this.world.removeRigidBody(n.anchorRb);
+    this.noodles.splice(this.noodles.indexOf(n), 1);
+    const end = n.handle;
+    this.events.push({ type: 'itemEnd', player: n.owner, item: 'noodle', x: end.x, y: end.y });
   }
 
   private lifeAndDeath(dt: number): void {
@@ -1236,6 +1504,7 @@ export class Sim {
 
   /** 死了：记一次，被队友刚松开的算他背叛，松开所有手（自己的和抓着自己的）。 */
   private kill(p: Player, cause: DeathCause, at: Pt): void {
+    if (p.itemOn) this.endItem(p, false);
     p.dead = true;
     p.deadT = 0;
     p.deaths++;

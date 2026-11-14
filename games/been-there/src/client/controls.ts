@@ -43,36 +43,63 @@ export function buzz(pattern: number | number[]) {
   }
 }
 
-type Motion = typeof DeviceMotionEvent & { requestPermission?: () => Promise<"granted" | "denied"> };
+// (Chromium answers "prompt" too, while it hasn't asked.)
+type Answer = "granted" | "denied" | "prompt";
+type Motion = typeof DeviceMotionEvent & { requestPermission?: () => Promise<Answer> };
 
 export const canShake = typeof window !== "undefined" && "DeviceMotionEvent" in window && "ontouchstart" in window;
 const asks = () => canShake && typeof (DeviceMotionEvent as Motion).requestPermission === "function";
-// Anything that doesn't ask can listen straight away; an iPhone needs a yes first. Some browsers
-// have the asking function but send motion anyway (Android): the first reading settles it.
-let granted = canShake && !asks();
-if (canShake && !granted) {
+
+/**
+ * What the phone has said about motion. An iPhone sends none until it's asked and the player says
+ * yes, and it asks only when the page asks straight from a tap. Safari then keeps the answer until
+ * it's closed: a yes comes back to any page of ours without a tap, and after a no it doesn't ask
+ * again until Safari has been closed and opened again. Anything that doesn't ask can listen at once.
+ */
+let said: "yes" | "no" | "nothing" = canShake && !asks() ? "yes" : "nothing";
+const watchers = new Set<() => void>();
+function hear(a: Answer) {
+  const now = a === "granted" ? "yes" : a === "denied" ? "no" : said;
+  if (now === said) return;
+  said = now;
+  for (const f of watchers) f();
+}
+if (canShake && said !== "yes") {
+  // Some browsers have the asking function but send motion anyway (Android): the first reading settles it.
   const probe = (e: DeviceMotionEvent) => {
     if (e.accelerationIncludingGravity?.x == null && e.acceleration?.x == null) return;
-    granted = true;
     window.removeEventListener("devicemotion", probe);
+    hear("granted");
   };
   window.addEventListener("devicemotion", probe);
+  // The answer the phone already has, without a tap (no question comes up without one: Safari then
+  // refuses the call, and the player's tap on "turn on" asks).
+  (DeviceMotionEvent as Motion).requestPermission!().then(hear, () => {});
 }
 
-/** Whether shaking works now, or needs a tap on "turn on" first (iPhone). */
-export const shakeState = (): "on" | "ask" | "off" => (!canShake || !prefs.shake ? "off" : granted ? "on" : "ask");
+/** Call `then` when the phone's answer changes. Returns a function that stops. */
+export function watchShake(then: () => void): () => void {
+  watchers.add(then);
+  return () => void watchers.delete(then);
+}
 
-/** Ask the phone for motion. On an iPhone this must run from a tap. */
-export async function allowShake(): Promise<boolean> {
-  if (!canShake) return false;
-  if (!granted) {
-    try {
-      granted = (await (DeviceMotionEvent as Motion).requestPermission!()) === "granted";
-    } catch {
-      granted = false;
-    }
-  }
-  return granted;
+/**
+ * Shaking: works now (on), needs the player's yes first (ask: the phone asks from a tap on "turn on"),
+ * the phone said no (no: only closing the browser and opening it again lets it ask again), or off.
+ */
+export type ShakeState = "on" | "ask" | "no" | "off";
+export const shakeState = (): ShakeState => (!canShake || !prefs.shake ? "off" : said === "yes" ? "on" : said === "no" ? "no" : "ask");
+
+/**
+ * Ask the phone for motion. Call it straight from a tap, with nothing awaited before it: that is the
+ * only time an iPhone puts its question up. Resolves with the state after the answer (still "ask"
+ * when no question came up).
+ */
+export function allowShake(): Promise<ShakeState> {
+  if (!canShake || said === "yes" || !asks()) return Promise.resolve(shakeState());
+  return (DeviceMotionEvent as Motion).requestPermission!()
+    .then(hear, () => {})
+    .then(shakeState);
 }
 
 // When the last shake counted: one long shake rolls once, even when doubles bring the roll straight back.

@@ -24,6 +24,9 @@
   --arena-danger: #ff8a7f;
   /* the stars round a stunned head (their rim is the night: --arena-bg) */
   --arena-star: var(--gel-lemon);
+  /* the night market's firecrackers: their red paper, and the smoke of a bang */
+  --arena-cracker: #d4282c;
+  --arena-smoke: #cfc8bd;
   /* the floors, in daylight like the places in the pictures (Arena3D draws them) */
   --arena-lawn: #6aaf45;
   --arena-lawn-2: #4f9135;
@@ -1897,6 +1900,51 @@ html.is-tv body::before {
 .flat-arena.is-hit {
   animation: flat-hit var(--dur-emphasis) var(--ease-out);
 }
+/* the night market's firecrackers, flat: once one lands, the ring of how far it will knock people
+   down (the blast's 6.5 across the floor's 100 x 58), beating; then its bang */
+.flat-cracker {
+  position: absolute;
+  z-index: 1;
+  width: 13%;
+  height: 22.4%;
+  border-radius: var(--r-pill);
+  background: radial-gradient(circle, color-mix(in oklab, var(--arena-accent) 40%, transparent), transparent 72%);
+  box-shadow: inset 0 0 0 2px var(--arena-warn);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: flat-fuse var(--dur-emphasis) var(--ease-out) infinite alternate;
+}
+.flat-cracker::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: var(--r-pill);
+  background: var(--arena-cracker);
+  box-shadow: 0 0 0 2px var(--arena-bulb);
+}
+.flat-cracker.is-bang {
+  background: radial-gradient(circle, var(--arena-bulb), transparent 70%);
+  box-shadow: none;
+  animation: flat-bang var(--dur-emphasis) var(--ease-out) both;
+}
+.flat-cracker.is-bang::after {
+  display: none;
+}
+@keyframes flat-fuse {
+  to {
+    opacity: 0.55;
+  }
+}
+@keyframes flat-bang {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
+}
 @keyframes flat-hit {
   25% {
     transform: translateX(-4px);
@@ -2889,12 +2937,14 @@ html.is-tv body::before {
 @media (prefers-reduced-motion: reduce) {
   .moment-banner,
   .drill-call,
-  .move-punch.is-cue {
+  .move-punch.is-cue,
+  .flat-cracker {
     animation: none;
   }
 }
 :root[data-reduced="1"] .moment-banner,
 :root[data-reduced="1"] .drill-call,
-:root[data-reduced="1"] .move-punch.is-cue {
+:root[data-reduced="1"] .move-punch.is-cue,
+:root[data-reduced="1"] .flat-cracker {
   animation: none;
 }

@@ -19,7 +19,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   sheet, `dist/styles.html`, still shows all three): **the golden age of travel**, 1930s posters,
   luggage labels, passport stamps and boarding passes. Navy paper, cream ink and vermilion, type
   like a departures board. They keep it inside the frame: the board, posters, stamps, the
-  passport, the characters, dice, coins and cards, the ticket strip across the top of each
+  passport, the characters, dice, banknotes and cards, the ticket strip across the top of each
   question, the city names on the arrival postcard, the big screen's departure board, the
   touchdown and the finale's stamps.
 
@@ -86,7 +86,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   team's letter like the owner's mark on a city; the one whose turn it is hops.
 * **Each city** has a poster built around its rule (Venice floods, Tokyo's trains are packed) and a
   passport stamp whose outline is its region's shape.
-* **Moments are animated**: dice landing, coins changing hands, cards turning, the first-person
+* **Moments are animated**: dice landing, banknotes changing hands, cards coming off their deck, the first-person
   touchdown in each new city (out of the plane window, through the clouds, the real local time and
   the live weather), and the finale (an exit stamp, teams read out last to first, the winners'
   medal, stamps and falling paper).
@@ -127,7 +127,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 
 | File | What |
 | --- | --- |
-| `src/client/art/art.css` | The printed things' inks (paper, ink, map, dice, coins, weather), their three fonts, and the board, posters and stamps. |
+| `src/client/art/art.css` | The printed things' inks (paper, ink, map, dice, coins, banknotes, weather), their three fonts, and the board, posters and stamps. |
 | `src/client/styles.css` | The frame: changle.ca's night tokens (`--night`, `--dusk`, `--gel`...) and the names the screens use (`--bg`, `--surface`, `--accent`...), the fonts, layouts (phone tabs; everything side by side from 960 px; the big screen), buttons, panels and sheets, and the scenes (touchdown, finale). |
 | `src/client/art/characters.tsx` | The six characters and their moods. |
 | `src/client/art/posters*.tsx`, `stamps.tsx` | The 22 city posters and passport stamps. |
@@ -135,7 +135,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/art/satellite.ts`, `SatMap.ts`, `src/client/media/map/`, `scripts/satellite.mjs` | The real world in the middle: where the sun is, the pictures (made by the script from NASA's), and their painting under the board. |
 | `src/client/art/dice.tsx`, `Passport.tsx`, `LandingCard.tsx`, `icons.tsx`, `texture.ts` | Dice, the passport, the arrival card, small icons, paper grain and stamp speckle. |
 | `src/client/globe/` | The big screen's 3D globe (three.js): the real world day and night, city lights, flights. |
-| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, coins, cards), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
+| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, banknotes, cards; `notes.ts` the bills a sum is paid in), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
 | `src/client/music.ts`, `ui/localSong.ts`, `ui/Local.tsx`, `src/client/local.ts`, `src/client/songs.json` | Being there: the local hit a second visit plays (the player; which song, when, on which device; "Now playing"), the arrival card's local part, prices in local money, and the data (songs, hellos, exchange rates). |
 | `src/client/bgm.ts`, `ui/bgmPlan.ts`, `ui/Bgm.tsx`, `src/client/bgm.json`, `src/client/media/music/`, `scripts/music.mjs`, `scripts/music/` | The game's music: the player; what plays, how loud and on which device; the files and their loop points; the score and the script that plays and mixes it. |
@@ -276,7 +276,10 @@ which goes round the three, its marks saying which it is. The big screen always 
   shows where a token will land before it gets there), and stays on the board's edge rather than show
   the night past it. With the play window up over the bottom of the board, the token stands in the
   middle of the part the window leaves, as far as the board's edge lets it (`cover`: measured as the
-  window is laid out, and again as it grows or shrinks). A drag leaves it where the player put it until
+  window is laid out, and again as it grows or shrinks). The window is no taller than its question
+  needs, and never more than about half the screen (54%: a longer question scrolls inside it, its
+  answers held at its foot): your roll takes about 225 px of an iPhone 13's 664, the dice with one
+  line under them (shaking, and where building is; "your turn" is the banner over the board's). A drag leaves it where the player put it until
   the turn passes or a size is picked. A big rent pushes in on its city for 2.6 s, to 1.6 times at
   least, even at the size that shows the whole board (`look`).
   Moving it is one CSS transform on `.board-pan`, a frame round `.board-view`, written on the animation
@@ -551,20 +554,32 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   up, on the big screen and the phones of the two teams, with a buzz; every phone sees it, over a
   sheet too. A full set the deal made comes after it (`late` in `ui/Sets.tsx`), and so does one a team
   gone broke handed over.
-* **Money:** coins fly from whoever pays to whoever is paid, once the token is down, spinning as
-  coins do. On the big screen, every payment, token to token (the bank is the middle of the board).
+* **Money:** banknotes fly from whoever pays to whoever is paid, once the token is down, as a board
+  game's bank pays: in the bills that make the sum (`notesFor` in `ui/notes.ts`: 500, 100, 50, 20,
+  10, 5 and 1, each its own pastel on printed paper with its value in an oval, `--note-…` in
+  `art/art.css`), a round sum changed into smaller ones so that at least three fly ($200 is a 100
+  and two 50s), never more than eight. Each leaves the hand at its own slant 70 ms after the last,
+  flutters as paper does over the top of its arc (never above the top of the screen: a phone's
+  wallet is right under it), and a riffle plays as they go (`sfx.riffle`). On the big screen, every
+  payment, token to token (the bank is the middle of the board).
   **On a phone the cash in the top bar is the team's wallet** (`wallet` and `Cash` in
   `ui/Moments.tsx`): every dollar in or out of its own team, the bank's too, flies into it or out of
   it. In from the token that paid, Departure's corner (the salary), the token's city (a stamp's
   bonus), a space (a building sold, a mortgage); out to the token paid, the city bought (a building:
   its row in 我的 when that's open), the middle of the board (a fine, a tax). An end off the screen
-  comes in from its edge. The cash counts as the first coins land in it or leave it, bumping up in
+  comes in from its edge. The cash counts as the first notes land in it or leave it, bumping up in
   gold as money comes in and dipping as it goes, the change floating off below it, with the till or
   the pay sound (a city bought or a building has its own). Several payments at once set off 0.28 s
   apart. With reduced motion the cash simply changes, with its sound. Each move's money shows with
   its own token's stamp, even as the computer's teams throw one after another (each waits 0.9 s, a
-  move plays for 3 or so): `useHeld` keeps a step for each move, and the wallet's coins come in
+  move plays for 3 or so): `useHeld` keeps a step for each move, and the wallet's notes come in
   batches the cash counts with, one each (`batchesAt`).
+* **A card** (`CardFace` in `ui/Moments.tsx`) comes off its deck: it lies face down on top of the pile
+  (the deck's own backs: the journey cards' stripes, the postcards' in the gel), lifts off it at a
+  slant, turns over on its way to you and settles, while the pile sinks away under it (1.1 s). On a
+  phone, in the play window, as the window comes back up after the team's own move (drawn while it
+  was away, it would turn over with nobody watching); on the big screen, in the middle of the board
+  once the token is there. With reduced motion it's simply there, face up, and no deck.
 * **A full set** (`ui/Sets.tsx`): the moment a team owns a whole group (rent there doubles, and it can
   build), its spaces light up in its colour one after another, 0.18 s apart once the owner's stamp
   is down, then glow together twice and go out by 3.2 s (`.set-lit`, Istanbul with them when it
@@ -625,6 +640,15 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   card, Immigration, an auction, a trade offer and going broke. iPhones can't buzz from a page: the
   buttons that matter most (the dice, buying, dancing) are a hidden switch inside a label, which
   Safari answers with its own light tap (`HapticBtn`), and the glow and the sounds carry the rest.
+* **Shake to roll** (`controls.ts`, `ShakeToRoll` in `ui/Decision.tsx`): while the dice are up,
+  three firm jolts within 0.6 s throw them. Android sends a page motion without asking. An iPhone
+  sends none until it has asked the player (运动与方向, Motion & Orientation), and it asks only when
+  the page asks straight from a tap: 开启摇一摇 under the dice, or 允许读动作 in the menu, call
+  `requestPermission` before anything else in the tap. Safari keeps the answer until it's closed, so
+  the page also asks as it opens, without a tap: that brings back a yes or a no it already has (and,
+  with none, fails without asking anything). A yes turns shaking on at once. After a no Safari won't
+  ask again until it has been closed and opened, so where the button was, 摇一摇没开，怎么开 says how
+  (open by itself after a tap that brought no yes, or no question at all).
 * **The screen stays on** (`wake.ts`): a phone set down between turns and the big screen keep a
   wake lock, asked for again when the page comes back.
 * **Full screen** (`fullscreen.ts`). Android, iPads and computers use the browser's own: the

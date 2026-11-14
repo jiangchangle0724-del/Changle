@@ -2,11 +2,13 @@
 // as online, run in the page, with three computer rivals hidden in the crowd. They walk the way the
 // passers-by walk (the same plans, crowdStep in the rules: at the night market that takes them to the
 // stalls, where they taste like a player), stop for the ferry horn, the busker, the gong or the
-// fireworks a beat after it like everyone, punch on the theatre's call with the whole crowd (at
-// whoever they suspect, if they're in reach), and turn to look at a knockdown near them. They go after
+// fireworks a beat after it like everyone, get clear of the night market's firecrackers, punch on the
+// theatre's call with the whole crowd (at whoever they suspect, if they're in reach), and turn to look
+// at a knockdown near them. They go after
 // anyone who gives themselves away (punching, walking on through a moment, standing still while the
-// whole crowd punches on the call, running on and on: passers-by run too, but only for a moment, or
-// standing at a stall just as it lights up), and sometimes get it wrong: a passer-by throwing a punch
+// whole crowd punches on the call, being knocked down by a firecracker everyone else got clear of,
+// running on and on: passers-by run too, but only for a moment, or standing at a stall just as it
+// lights up), and sometimes get it wrong: a passer-by throwing a punch
 // at nothing (someone's distraction) fools them as it would a person. Each uses one distraction a
 // round itself. No server, no penalty.
 import { ARENAS, crowdMoment, crowdStep, DRILL_GO_MS, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
@@ -131,10 +133,17 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
         if (!drillPunched.has(at) && body.stunnedUntil < drillGo - DRILL_EARLY_MS && body.hideAt === null) suspicion.set(at, (suspicion.get(at) ?? 0) + DRILL_STOOD);
       });
     }
-    // a stall lit up: someone standing at it just tasted it (the fewer there, the surer)
+    // a stall lit up: someone standing at it just tasted it (the fewer there, the surer); a firecracker
+    // knocked someone down (the passers-by get clear of them: whoever didn't is likely a player)
     for (const event of game.events) {
       if (event.id <= seenEvent) continue;
       seenEvent = event.id;
+      if (event.t === "blast") {
+        game.characters.forEach((body, at) => {
+          if (now < body.stunnedUntil && body.pose === "stunned") suspicion.set(at, (suspicion.get(at) ?? 0) + DRILL_STOOD);
+        });
+        continue;
+      }
       if (event.t !== "bite" || event.stall === undefined) continue;
       const there = game.characters.map((body, at) => (stallAt(body.x, body.y) === event.stall ? at : -1)).filter((at) => at >= 0);
       for (const at of there) suspicion.set(at, (suspicion.get(at) ?? 0) + 3 / there.length);

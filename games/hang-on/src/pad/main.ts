@@ -1,5 +1,5 @@
 /**
- * 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓。
+ * 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓，抓键上面是道具键（A9，闯关和大团队里有）。
  * 每帧把输入发给主机；屏幕上只显示自己的颜色、两只手、摔死次数、延迟和连接状态，眼睛要在电视上。
  *
  * 手机局（房主也是一部手机，房间带 hostPlays）：这部手机自己也画画面，摇杆和抓键变小、半透明压在画面上。
@@ -10,6 +10,8 @@ import { rttLevel } from '../net/latency';
 import { CODE_RE, type Cast, type FatalKey, type PadStatus, type RoomView } from '../net/protocol';
 import type { PhoneView } from './view';
 import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
+import { cleanItem, ITEM_ICON, ITEM_IDS, type ItemId } from '../items';
+import { itemHint, itemName } from '../item-text';
 import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
 import { sfx } from '../audio/sfx';
 import { drawLook } from './look-preview';
@@ -75,6 +77,7 @@ function join(code: string, name: string): void {
     },
   });
   link.setLook(look);
+  link.setItem(item);
   $('meName').textContent = name;
   $('join').hidden = true;
   $('pad').hidden = false;
@@ -270,6 +273,80 @@ $('lookReset').addEventListener('click', () => {
 });
 renderLook();
 
+// ---------- 道具（A9）----------
+let item: ItemId = 'freeze';
+try {
+  item = cleanItem(localStorage.getItem('hang-on:item'));
+} catch {
+  // 没有存储
+}
+const itemDlg = $<HTMLDialogElement>('itemDlg');
+const itemList = $('itemList');
+for (const id of ITEM_IDS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'iopt';
+  b.setAttribute('role', 'radio');
+  b.dataset.item = id;
+  for (const cls of ['ic', 'nm', 'hint']) {
+    const sp = document.createElement('span');
+    sp.className = cls;
+    b.append(sp);
+  }
+  b.addEventListener('click', () => {
+    item = id;
+    sfx.tick();
+    renderItem();
+  });
+  itemList.append(b);
+}
+function renderItem(): void {
+  for (const b of itemList.querySelectorAll<HTMLButtonElement>('.iopt')) {
+    const id = b.dataset.item as ItemId;
+    b.setAttribute('aria-checked', String(id === item));
+    (b.querySelector('.ic') as HTMLElement).textContent = ITEM_ICON[id];
+    (b.querySelector('.nm') as HTMLElement).textContent = itemName(id);
+    (b.querySelector('.hint') as HTMLElement).textContent = itemHint(id);
+  }
+  $('itemIcon').textContent = ITEM_ICON[item];
+  $('itemSummary').textContent = tr(`道具：${itemName(item)}`, `Item: ${itemName(item)}`);
+  $('itemUseIcon').textContent = ITEM_ICON[item];
+  $('itemUseName').textContent = itemName(item);
+  $('itemUse').setAttribute('aria-label', tr(`用道具：${itemName(item)}`, `Use item: ${itemName(item)}`));
+}
+function openItems(): void {
+  renderItem();
+  itemDlg.showModal();
+}
+/** 关掉对话框就算定了：存起来，告诉主机。 */
+itemDlg.addEventListener('close', () => {
+  try {
+    localStorage.setItem('hang-on:item', item);
+  } catch {
+    // 记不住就记不住
+  }
+  renderItem();
+  link?.setItem(item);
+});
+$('itemBtn').addEventListener('click', openItems);
+$('itemBtn2').addEventListener('click', openItems);
+$('itemDone').addEventListener('click', () => itemDlg.close());
+renderItem();
+/** 道具键也连发几帧（和召唤一样）；冷却里主机不算。 */
+let itemFrames = 0;
+let lastFails = 0;
+let tipTimer: ReturnType<typeof setTimeout> | null = null;
+function itemTip(text: string): void {
+  const el = $('itemTip');
+  el.textContent = text;
+  el.classList.add('on');
+  if (tipTimer) clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => el.classList.remove('on'), 1800);
+}
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyF' && !e.repeat && link) itemFrames = 12;
+});
+
 // ---------- 召唤 ----------
 /** 召唤要连发几帧，不可靠通道丢一两条也送得到；主机 1 秒内只算一次。 */
 let actFrames = 0;
@@ -293,6 +370,20 @@ function status(s: PadStatus): void {
   // 没有队友可拉的玩法（比谁先各跑各的、坐不住）不出「召唤」键
   summonBtn.hidden = s.mode === 'last' || (s.mode === 'race' && s.team === undefined);
   summonBtn.disabled = !(s.phase === 'playing' && (s.teamDead ?? 0) > 0);
+  // 道具键：这个玩法有道具才出；冷却着、正在起作用的时候按不了
+  const use = $<HTMLButtonElement>('itemUse');
+  use.hidden = s.item === undefined;
+  if (s.item !== undefined) {
+    const ready = Math.max(0, Math.min(1, s.itemReady ?? 1));
+    use.style.setProperty('--ready', String(ready));
+    use.disabled = s.phase !== 'playing' || ready < 1 || !!s.itemOn;
+    use.classList.toggle('on', !!s.itemOn);
+  }
+  if ((s.itemFails ?? 0) > lastFails && s.item === 'noodle') {
+    itemTip(tr('拉面要先抓住墙或台子', 'Grab a wall or ledge first, then drop the noodle'));
+    buzz(15);
+  }
+  lastFails = s.itemFails ?? 0;
   // 玩法的小牌子：哪一队、第几个到、出局了
   const tag = $('tag');
   const text = s.out
@@ -359,6 +450,7 @@ renderConn();
 
 onLang(() => {
   renderLook();
+  renderItem();
   renderConn();
   renderErr();
   renderMute();
@@ -384,7 +476,8 @@ document.addEventListener(
 document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
 
 // ---------- 摇杆（左半边）和抓键（右半边）----------
-const { aim, grab } = bindControls(pad);
+const controls = bindControls(pad);
+const { aim, grab } = controls;
 
 // 键盘也能开（电脑上调试）
 const keys = new Set<string>();
@@ -402,8 +495,14 @@ function tick(): void {
       if (keys.has('KeyW')) ay -= 1;
       if (keys.has('KeyS')) ay += 1;
     }
-    const act = actFrames > 0 ? 'summon' : undefined;
-    if (actFrames > 0) actFrames--;
+    if (controls.takeItem()) {
+      itemFrames = 12;
+      buzz(20);
+    }
+    // 道具和召唤同时按：先发道具，召唤跟在后面
+    const act = itemFrames > 0 ? 'item' : actFrames > 0 ? 'summon' : undefined;
+    if (itemFrames > 0) itemFrames--;
+    else if (actFrames > 0) actFrames--;
     link.send({ ax, ay, gl: grab.l || keys.has('KeyQ'), gr: grab.r || keys.has('KeyE'), act });
   }
   requestAnimationFrame(tick);
@@ -415,12 +514,22 @@ requestAnimationFrame(tick);
   get link() {
     return link;
   },
-  set(input: { ax?: number; ay?: number; gl?: boolean; gr?: boolean; summon?: boolean }) {
+  set(input: { ax?: number; ay?: number; gl?: boolean; gr?: boolean; summon?: boolean; item?: boolean }) {
     if (input.ax !== undefined) aim.x = input.ax;
     if (input.ay !== undefined) aim.y = input.ay;
     if (input.gl !== undefined) grab.l = input.gl;
     if (input.gr !== undefined) grab.r = input.gr;
     if (input.summon) actFrames = 12;
+    if (input.item) itemFrames = 12;
+  },
+  /** 换道具（检查脚本用，和在对话框里点一样）。 */
+  setItem(id: ItemId) {
+    item = cleanItem(id);
+    renderItem();
+    link?.setItem(item);
+  },
+  get item() {
+    return item;
   },
   get look() {
     return look;

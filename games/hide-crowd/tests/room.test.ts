@@ -312,3 +312,30 @@ test("a distraction turns every camera but its maker's towards the passer-by, fo
   assert.equal(room.view(first, "player", 200).game!.glance, null, "the maker's stays on the whole floor");
   assert.equal(room.view(second, "player", 100 + 1_600).game!.glance, null, "and only for a moment");
 });
+
+test("the night market's firecrackers go out to every screen, and a blast tells only the phone whose player it knocked down", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "vote", arena: "market" }, 4);
+  room.handle(second, { t: "vote", arena: "market" }, 4);
+  room.handle(first, { t: "start" }, 5);
+  let at = 5;
+  for (; at <= 5 + 10_000 + SIMULATION_STEP_MS; at += SIMULATION_STEP_MS) room.advance(at);
+  const moments = [room.view(first, "player", at), room.view(second, "player", at), room.view(screen, "screen", at)].map((view) => view.game!.moment!);
+  for (const moment of moments) {
+    assert.equal(moment.kind, "crackers");
+    assert.ok((moment.crackers ?? []).length >= 3, "where each lands, and when it bangs");
+  }
+  assert.deepEqual(moments[0].crackers, moments[2].crackers, "the same on every screen");
+  // One stands at the first firecracker; Two is well away from them all
+  const game = room.st.game!;
+  const cracker = game.crackers![0];
+  Object.assign(characterForOwner(game, first)!, { x: cracker.x, y: cracker.y, velocity: { x: 0, y: 0 } });
+  Object.assign(characterForOwner(game, second)!, { x: ARENA.marginX, y: ARENA.height - ARENA.marginY, velocity: { x: 0, y: 0 } });
+  for (; at <= cracker.bangsAt + 2 * SIMULATION_STEP_MS; at += SIMULATION_STEP_MS) room.advance(at);
+  const blast = (id: string, role: "player" | "screen") => room.view(id, role, at).game!.events.find((event) => event.t === "blast");
+  assert.equal(blast(first, "player")?.onYou, true, "One's phone is told it was them");
+  assert.equal(blast(second, "player")?.onYou, false, "Two's isn't");
+  assert.equal(blast(screen, "screen")?.onYou, false);
+  assert.equal(JSON.stringify(room.view(screen, "screen", at)).includes(first), false, "still no ids");
+});

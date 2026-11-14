@@ -311,6 +311,36 @@ export class Stage {
           if (cp) this.fx.burst({ x: cp.x, y: cp.y - 10, n: 14, texture: 'star', colors: [hex(this.pal.lampOn), 0xffffff], speed: [60, 200], life: [0.5, 0.9], size: [6, 12], gravity: 300, spin: 8, grow: 0.3 });
           break;
         }
+        case 'item': {
+          const p = sim.players[ev.player];
+          const at = ev.item === 'noodle' ? { x: ev.x, y: ev.y } : (p?.body ?? { x: ev.x, y: ev.y });
+          if (!ev.ok) {
+            // 没用成（拉面没抓着墙）：冒一小团灰烟
+            this.fx.burst({ x: at.x, y: at.y - CFG.bodyR, n: 4, texture: 'puff', colors: [0xb8b0c8], speed: [20, 60], angle: -Math.PI / 2, spread: 1, life: [0.3, 0.5], size: [10, 16], grow: 1.6, alpha: 0.5, drag: 2 });
+            break;
+          }
+          if (ev.item === 'freeze') {
+            this.fx.burst({ x: at.x, y: at.y, n: 14, texture: 'star', colors: [0xffffff, 0xbfe8ff, 0x8ec5e8], speed: [80, 240], life: [0.35, 0.7], size: [6, 12], drag: 3, spin: 8, grow: 0.3 });
+            this.fx.burst({ x: at.x, y: at.y, n: 1, texture: 'ring', colors: [0xbfe8ff], speed: [0, 0], life: [0.3, 0.3], size: [30, 30], grow: 2.6, alpha: 0.9 });
+          } else if (ev.item === 'leaf') {
+            this.fx.burst({ x: at.x, y: at.y - CFG.bodyR - 20, n: 10, texture: 'circle', colors: [0x6dbb5a, 0xa8e08f, 0xffffff], speed: [60, 180], angle: -Math.PI / 2, spread: 1.6, life: [0.3, 0.6], size: [5, 9], drag: 3, grow: 0.3 });
+          } else {
+            // 拉面：锚点冒一团热气
+            this.fx.burst({ x: at.x, y: at.y, n: 6, texture: 'puff', colors: [0xffffff], speed: [30, 90], angle: -Math.PI / 2, spread: 0.8, life: [0.5, 0.9], size: [12, 20], grow: 2, alpha: 0.45, drag: 2 });
+          }
+          break;
+        }
+        case 'itemEnd': {
+          if (ev.item === 'freeze') {
+            // 化开：冰碴往外崩
+            this.fx.burst({ x: ev.x, y: ev.y, n: 12, texture: 'square', colors: [0xffffff, 0xbfe8ff, 0x8ec5e8], speed: [120, 300], life: [0.4, 0.8], size: [5, 10], gravity: 900, spin: 12, flip: this.reduced ? 0 : 9 });
+          } else if (ev.item === 'noodle') {
+            this.fx.burst({ x: ev.x, y: ev.y, n: 8, texture: 'circle', colors: [0xf3d79a, 0xfff6dc], speed: [60, 200], life: [0.3, 0.6], size: [4, 8], gravity: 700, grow: 0.4 });
+          } else {
+            this.fx.burst({ x: ev.x, y: ev.y - CFG.bodyR - 24, n: 6, texture: 'circle', colors: [0x6dbb5a, 0xa8e08f], speed: [40, 120], life: [0.3, 0.6], size: [5, 9], gravity: 300, grow: 0.3 });
+          }
+          break;
+        }
         case 'bounce': {
           const s = sim.springs[ev.spring];
           this.dumplings[ev.player]?.onBounce();
@@ -513,6 +543,38 @@ export class Stage {
     console.info(`[hang-on] 一直掉帧，画面降到第 ${this.detail} 级`);
   }
 
+  /**
+   * 道具拉面（A9）：一根粗的、米色的面条，边上一道深色、一道亮的（看着是圆的），垂到底一个面疙瘩当把手。
+   * 快断的最后 2 秒一闪一闪（减弱动效时只变淡）。
+   */
+  private drawNoodles(g: Graphics, sim: SimView): void {
+    for (const n of sim.noodles ?? []) {
+      const pts = n.pts;
+      if (pts.length < 2) continue;
+      const warn = n.left < 2 ? (this.reduced ? 0.6 : 0.45 + 0.55 * Math.abs(Math.sin(this.t * 14))) : 1;
+      const path = (ox: number, oy: number): void => {
+        g.moveTo(pts[0]!.x + ox, pts[0]!.y + oy);
+        for (let i = 1; i < pts.length - 1; i++) {
+          const a = pts[i] as Pt;
+          const b = pts[i + 1] as Pt;
+          g.quadraticCurveTo(a.x + ox, a.y + oy, (a.x + b.x) / 2 + ox, (a.y + b.y) / 2 + oy);
+        }
+        const l = pts[pts.length - 1] as Pt;
+        g.lineTo(l.x + ox, l.y + oy);
+      };
+      path(0, 0);
+      g.stroke({ width: 11, color: OUTLINE, alpha: warn, cap: 'round', join: 'round' });
+      path(0, 0);
+      g.stroke({ width: 7, color: 0xf3d79a, alpha: warn, cap: 'round', join: 'round' });
+      path(-1.2, -1.2);
+      g.stroke({ width: 2.4, color: 0xfff6dc, alpha: 0.8 * warn, cap: 'round', join: 'round' });
+      const end = pts[pts.length - 1] as Pt;
+      g.circle(end.x, end.y, 9).fill({ color: OUTLINE, alpha: warn });
+      g.circle(end.x, end.y, 7).fill({ color: 0xf3d79a, alpha: warn });
+      g.circle(end.x - 2, end.y - 2, 2.4).fill({ color: 0xffffff, alpha: 0.7 * warn });
+    }
+  }
+
   private drawProps(sim: SimView): void {
     const g = this.propsG.clear();
     const table = this.world_ === 'table';
@@ -614,6 +676,7 @@ export class Stage {
   private drawRopes(sim: SimView): void {
     const g = this.ropesG.clear();
     const table = this.world_ === 'table';
+    this.drawNoodles(g, sim);
     for (const rope of sim.ropes) {
       const pts = rope.pts;
       if (pts.length < 2) continue;

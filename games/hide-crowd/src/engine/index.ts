@@ -70,6 +70,21 @@ export const DRILL_MS = 2_700;
 export const DRILL_WINDOW: readonly [number, number] = [DRILL_GO_MS - 450, DRILL_GO_MS + 650];
 /** Each passer-by's punch in the drill comes this much after the call at most (they're nearly together). */
 export const drillLag = (id: string) => idHash(id) % 110;
+/**
+ * The night market's firecrackers (after the Steam game's falling bombs): someone throws a few into
+ * the crowd, one after another; each flies a moment, lands, hisses on the ground, and bangs. The
+ * passers-by get clear once one lands near them; whoever is still inside its blast is knocked down.
+ */
+export const CRACKERS = 5;
+/** the first lands this long into the moment, the next ones this much later each */
+export const CRACKER_FIRST_MS = 650;
+export const CRACKER_EVERY_MS = 230;
+/** in the air before it lands, and hissing on the ground before it bangs */
+export const CRACKER_FLIGHT_MS = 550;
+export const CRACKER_FUSE_MS = 1_500;
+/** how far a bang knocks people down (a person is 2.4 across; a punch reaches 8.5) */
+export const BLAST_RADIUS = 6.5;
+export const CRACKERS_MS = CRACKER_FIRST_MS + (CRACKERS - 1) * CRACKER_EVERY_MS + CRACKER_FUSE_MS + 900;
 const ALL_STALLS = (1 << 4) - 1;
 
 /** The stall a spot is in front of, or -1. */
@@ -82,9 +97,9 @@ export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" |
 /**
  * the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall,
  * the gong and the drill at the theatre (the performer counts three and everyone punches), the night
- * market's fireworks
+ * market's firecrackers (everyone gets clear) and fireworks
  */
-export type MomentKind = "horn" | "dance" | "gong" | "drill" | "fireworks";
+export type MomentKind = "horn" | "dance" | "gong" | "drill" | "crackers" | "fireworks";
 export type ArenaId = "plaza" | "metro" | "gallery" | "market";
 export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery", "market"];
 export interface Vector { x: number; y: number }
@@ -111,6 +126,8 @@ export interface Character {
   fouls: number;
   /** how many times this player punched the air this round */
   swings: number;
+  /** how many times a firecracker knocked this player down this round */
+  blasted?: number;
   /** the night market: the stalls tasted since the last feast (one bit each), how many bites and feasts this round */
   bites: number;
   snacks: number;
@@ -165,15 +182,18 @@ export interface Plan {
 /**
  * tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away;
  * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points;
- * decoy: a player's distraction (only they hear of it); over: the round ended
+ * decoy: a player's distraction (only they hear of it); blast: a firecracker knocked people down;
+ * over: the round ended
  */
 export interface MatchEvent {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "over";
   actor: string | null;
   target: string | null;
   /** bite: the stall */
   stall?: number;
+  /** blast: the players it knocked down (each phone is told only whether it was them) */
+  targets?: string[];
 }
 
 /** Someone knocked down: where, when, and who (they don't stare at themselves). */
@@ -199,6 +219,8 @@ export interface MatchState {
   commotions?: Commotion[];
   /** the latest distraction: where its passer-by swung, when, and whose it was (every other screen looks there) */
   glance?: { x: number; y: number; at: number; by: string } | null;
+  /** the night market's firecrackers of the moment on now (thrown where the crowd was when it began) */
+  crackers?: Cracker[];
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -211,6 +233,7 @@ const IDENTITY = [
   "tagged",
   "fouls",
   "swings",
+  "blasted",
   "bites",
   "snacks",
   "feasts",
@@ -405,8 +428,11 @@ export function characterForOwner(state: MatchState, ownerId: string): Character
   return state.characters.find((character) => character.ownerId === ownerId);
 }
 
-function addEvent(state: MatchState, t: MatchEvent["t"], actor: string | null, target: string | null, stall?: number): void {
-  state.events.push(stall === undefined ? { id: state.nextEventId++, t, actor, target } : { id: state.nextEventId++, t, actor, target, stall });
+function addEvent(state: MatchState, t: MatchEvent["t"], actor: string | null, target: string | null, stall?: number, targets?: string[]): void {
+  const event: MatchEvent = { id: state.nextEventId++, t, actor, target };
+  if (stall !== undefined) event.stall = stall;
+  if (targets) event.targets = targets;
+  state.events.push(event);
   if (state.events.length > 18) state.events.splice(0, state.events.length - 18);
 }
 
@@ -553,8 +579,16 @@ const MOMENTS: Record<ArenaId, { first: number; every: number; beats: readonly M
       { kind: "gong", lasts: 2_600, look: STAGE }
     ]
   },
-  // fireworks going up from behind the stalls: everyone turns round to watch
-  market: { first: 10_000, every: 16_000, beats: [{ kind: "fireworks", lasts: 2_800, look: { x: 50, y: -400 } }] }
+  // firecrackers thrown into the lot (everyone gets clear of them), then fireworks going up from behind
+  // the stalls (everyone turns round to watch)
+  market: {
+    first: 10_000,
+    every: 16_000,
+    beats: [
+      { kind: "crackers", lasts: CRACKERS_MS, look: null },
+      { kind: "fireworks", lasts: 2_800, look: { x: 50, y: -400 } }
+    ]
+  }
 };
 
 export interface CrowdMoment {
@@ -580,6 +614,75 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
 
 /** How long a body takes to react to a moment: people don't all turn at once. */
 export const reactionDelay = (id: string) => 120 + (idHash(id) % 520);
+
+/** A firecracker: where it lands, when, and when it bangs. */
+export interface Cracker {
+  x: number;
+  y: number;
+  landsAt: number;
+  bangsAt: number;
+}
+
+/**
+ * The firecrackers thrown in the moment that starts at `startsAt`, by the round's dice: each at
+ * someone in the crowd, a player or a passer-by alike, aimed where they'll be when it lands (a
+ * thrower leads a walker), well apart from each other and inside the lot.
+ */
+export function throwCrackers(characters: readonly Pick<Character, "x" | "y" | "velocity">[], seed: number, startedAt: number, startsAt: number): Cracker[] {
+  const random = seeded(Math.imul(seed, 2_654_435_761) ^ Math.round((startsAt - startedAt) / 100));
+  const spots: Cracker[] = [];
+  for (let tries = 0; spots.length < CRACKERS && tries < 60; tries++) {
+    const landsAt = startsAt + CRACKER_FIRST_MS + spots.length * CRACKER_EVERY_MS;
+    const body = characters[Math.floor(random() * characters.length)];
+    const lead = (landsAt - startsAt) / 1_000;
+    const x = bounded(body.x + (body.velocity?.x ?? 0) * lead + (random() * 2 - 1) * 2.5, 12, ARENA.width - 12);
+    const y = bounded(body.y + (body.velocity?.y ?? 0) * lead + (random() * 2 - 1) * 2.5, 13, ARENA.height - 9);
+    if (spots.some((spot) => Math.hypot(spot.x - x, spot.y - y) < BLAST_RADIUS * 2.2)) continue;
+    spots.push({ x, y, landsAt, bangsAt: landsAt + CRACKER_FUSE_MS });
+  }
+  return spots;
+}
+
+/**
+ * How long a passer-by takes to run from a firecracker that lands near it: most go at once, but now
+ * and then someone freezes for a second (so a body knocked down isn't always a player).
+ */
+export const crackerReaction = (id: string) => (idHash(id) % 7 === 3 ? 1_050 + (idHash(id) % 400) : reactionDelay(id) * 0.6);
+
+/**
+ * Which way a body runs to get clear of the firecrackers hissing near it (once it has seen one land),
+ * or null: away from each, harder the closer it is, and off the walls.
+ */
+export function crackerFlight(body: Pick<Character, "id" | "x" | "y">, crackers: readonly Cracker[], now: number): Vector | null {
+  const clear = BLAST_RADIUS + 3;
+  let x = 0;
+  let y = 0;
+  for (const cracker of crackers) {
+    if (now < cracker.landsAt + crackerReaction(body.id) || now >= cracker.bangsAt + 120) continue;
+    const dx = body.x - cracker.x;
+    const dy = body.y - cracker.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= clear) continue;
+    const push = 1 - distance / clear + 0.25;
+    if (distance < 0.05) {
+      const angle = ((idHash(body.id) % 628) / 100) - Math.PI;
+      x += Math.cos(angle) * push;
+      y += Math.sin(angle) * push;
+    } else {
+      x += (dx / distance) * push;
+      y += (dy / distance) * push;
+    }
+  }
+  if (x === 0 && y === 0) return null;
+  // (running into a wall gets nobody clear: slide along it)
+  const wall = 7;
+  if (body.x < ARENA.marginX + wall) x += 0.6;
+  if (body.x > ARENA.width - ARENA.marginX - wall) x -= 0.6;
+  if (body.y < ARENA.marginY + wall) y += 0.6;
+  if (body.y > ARENA.height - ARENA.marginY - wall) y -= 0.6;
+  const length = Math.hypot(x, y);
+  return length > 0 ? { x: x / length, y: y / length } : null;
+}
 
 /** How far a knockdown draws the looks of the people around it, and for how long (ms). */
 export const COMMOTION_RADIUS = 15;
@@ -616,12 +719,21 @@ export interface CrowdStep {
 export function crowdStep(
   body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan" | "facing">,
   others: readonly Neighbour[],
-  game: Pick<MatchState, "arena" | "startedAt" | "seed" | "commotions">,
+  game: Pick<MatchState, "arena" | "startedAt" | "seed" | "commotions" | "crackers">,
   now: number
 ): CrowdStep {
   const moment = crowdMoment(game.arena, game.startedAt, now);
   let plan = body.plan ?? restingPlan(body.x, body.y);
-  if (moment && now >= moment.startsAt + reactionDelay(body.id)) {
+  if (moment?.kind === "crackers") {
+    // firecrackers: get clear of any hissing near you, at a run; stop and stare at one hissing nearby
+    const crackers = game.crackers ?? [];
+    const flight = crackerFlight(body, crackers, now);
+    if (flight) return { plan, heading: flight, pace: RUN_PACE, face: null, glance: false };
+    const hissing = crackers
+      .filter((cracker) => now >= cracker.landsAt + reactionDelay(body.id) && now < cracker.bangsAt && Math.hypot(cracker.x - body.x, cracker.y - body.y) < COMMOTION_RADIUS)
+      .sort((a, b) => Math.hypot(a.x - body.x, a.y - body.y) - Math.hypot(b.x - body.x, b.y - body.y))[0];
+    if (hissing) return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(hissing.y - body.y, hissing.x - body.x), glance: false };
+  } else if (moment && now >= moment.startsAt + reactionDelay(body.id)) {
     // everyone stops and looks, or dances where they stand (and picks up where they were once it's over)
     const face = moment.look ? Math.atan2(moment.look.y - body.y, moment.look.x - body.x) : null;
     return { plan, heading: { x: 0, y: 0 }, pace: 0, face, glance: false };
@@ -774,6 +886,37 @@ function hideAway(state: MatchState, index: number, now: number): void {
   addEvent(state, "hide", body.ownerId, null);
 }
 
+/** A firecracker bangs: everyone on their feet inside its blast is knocked down and away, and the crowd looks. */
+function blast(state: MatchState, cracker: Cracker, now: number): void {
+  const victims: string[] = [];
+  let anyone = false;
+  for (const body of state.characters) {
+    const dx = body.x - cracker.x;
+    const dy = body.y - cracker.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= BLAST_RADIUS || now < body.stunnedUntil || body.hideAt !== null) continue;
+    anyone = true;
+    const angle = distance < 0.05 ? ((idHash(body.id) % 628) / 100) - Math.PI : Math.atan2(dy, dx);
+    const force = 9 + 9 * (1 - distance / BLAST_RADIUS);
+    body.stunnedUntil = now + STUN_MS;
+    body.velocity = { x: 0, y: 0 };
+    body.recoil = { x: Math.cos(angle) * force, y: Math.sin(angle) * force };
+    body.pose = "stunned";
+    body.attackResolveAt = null;
+    body.attackResolved = false;
+    body.biteStall = -1;
+    if (body.kind === "npc") body.plan = restingPlan(body.x, body.y);
+    else {
+      body.blendUntil = 0;
+      body.blasted = (body.blasted ?? 0) + 1;
+      if (body.ownerId) victims.push(body.ownerId);
+    }
+  }
+  // (the smoke draws looks, like a knockdown, from everyone around)
+  state.commotions = [...(state.commotions ?? []), { x: cracker.x, y: cracker.y, at: now, who: "" }];
+  if (anyone) addEvent(state, "blast", null, null, undefined, victims);
+}
+
 function resolveCrowdCollisions(characters: Character[]): void {
   const diameter = CHARACTER_COLLISION_DIAMETER;
   for (let pass = 0; pass < 2; pass++) {
@@ -851,6 +994,14 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
   const dancing = moment?.kind === "dance";
   // the drill's call: every passer-by throws its punch (nearly together)
   const drillGo = moment?.kind === "drill" ? moment.startsAt + DRILL_GO_MS : null;
+  // the night market's firecrackers: thrown at the crowd as the moment begins; one banging since the
+  // last tick knocks down everyone still inside its blast
+  if (moment?.kind === "crackers") {
+    if (!next.crackers?.length || next.crackers[0].landsAt < moment.startsAt) next.crackers = throwCrackers(next.characters, next.seed, next.startedAt, moment.startsAt);
+    for (const cracker of next.crackers) {
+      if (cracker.bangsAt > state.lastTickAt && cracker.bangsAt <= now) blast(next, cracker, now);
+    }
+  } else if (next.crackers?.length) next.crackers = [];
   // tagged players who are back on their feet slip into the crowd first
   next.characters.forEach((character, index) => {
     if (character.kind === "player" && character.hideAt !== null && now >= character.hideAt) hideAway(next, index, now);

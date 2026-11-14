@@ -9,6 +9,7 @@
  *
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
+import type { ItemId } from '../items';
 import type { Look } from '../look';
 import type { GameMode, PadInput, SimEvent } from '../physics/world';
 
@@ -88,6 +89,12 @@ export interface PadStatus {
   place?: number;
   /** 坐不住：你出局了。 */
   out?: boolean;
+  /** 道具（A9）：你带的那一样（这个玩法没有道具就不写）、冷却好了多少（0..1，1 是能用了）、正在起作用。 */
+  item?: ItemId;
+  itemReady?: number;
+  itemOn?: boolean;
+  /** 道具没用成的次数（拉面没抓着墙）：变了手柄就提示一下。 */
+  itemFails?: number;
 }
 
 /**
@@ -109,7 +116,8 @@ export interface Snap {
   cp: number;
   /**
    * 每个人一行：x, y, vx, vy, 摇杆 x, 摇杆 y, 死了(0 活着 / 1 死了 / 2 比谁先到了终点), 死了几秒, 表情(FACES 下标), 摔死次数,
-   * 左臂四个点(8 个数), 左手抓了几秒(-1 没抓), 右臂四个点, 右手抓了几秒。
+   * 左臂四个点(8 个数), 左手抓了几秒(-1 没抓), 右臂四个点, 右手抓了几秒,
+   * 正在起作用的道具(0 没有 / 1 速冻 / 2 荷叶，A9), 还剩几秒。
    */
   p: number[][];
   /** 每根绳一行：各点 x, y 摊平；第一个是锚，最后一个是把手。 */
@@ -120,6 +128,8 @@ export interface Snap {
   f: number[];
   /** 每根蜡烛被弹了几秒（-1 没弹过）。 */
   s: number[];
+  /** 道具拉面（A9），每根一行：谁放的、还剩几秒、各点 x, y 摊平（第一个是锚）。没有就不写。 */
+  nd?: number[][];
   /**
    * 最近发生的事（声音、特效用），ek 是第一件的编号，后面的依次加一。
    * 同一件事跟着好几轮快照走（丢一两张也收得到），手机按编号只放一次。
@@ -169,6 +179,7 @@ export interface Cast {
  * - ping / pong：主机量往返，手柄原样回。
  * - input：手柄的每帧输入；status：主机的小包。
  * - look：手柄选的样子（帽子、眼镜、眼睛），连上时发一次，改了再发；只走房间（要可靠）。
+ * - item：手柄选的道具（A9），和 look 一样。
  * - snap / cast：手机局里主机发给每部手机的画面快照和样子名单（见上面 Snap、Cast）。
  */
 export type LinkMsg =
@@ -176,6 +187,8 @@ export type LinkMsg =
   | { k: 'cast'; c: Cast }
   | { k: 'hello' }
   | { k: 'look'; look: Look }
+  /** 手柄选的道具（A9），和样子一样只走房间（要可靠），连上时发一次、改了再发。 */
+  | { k: 'item'; item: ItemId }
   | { k: 'sdp'; sdp: { type: 'offer' | 'answer'; sdp: string } }
   | { k: 'ice'; ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null }
   | { k: 'ping'; id: number; at: number }

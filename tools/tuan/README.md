@@ -20,7 +20,7 @@ merchant's home. Nothing on changle.ca links here until the owner has tried it o
 | `/tuan/`, `/tuan/preview` | Home: how it works, the orders placed from this phone, and opening an order by its code. |
 | `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
-| `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. The site's owner also gets the panel that sets a shop up and starts a group buy from a document. |
+| `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. The site's owner also gets the panel that sets a shop up and starts a group buy from a document, typed in or filled in from a file. |
 | `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each. The new-order mail's button leads here. |
 | `/tuan/api/…` | The API (`src/server/worker.ts` lists it). |
 
@@ -127,7 +127,13 @@ they agree after a crowd of orders, changes and cancellations at once.
   keeps the answer for five minutes under the session's fingerprint. `shop_members` says which
   accounts (by email) run which shop. Only they see buyers' phone numbers and addresses.
 - **The site's owner** (the rooms server's `MASTER_EMAIL`) sets shops up by hand for now
-  (`POST /tuan/api/admin/shops`), and may look after any shop.
+  (`POST /tuan/api/admin/shops`), and may look after any shop. The panel's forms can be filled in
+  from a file (`src/client/ui/Owner.tsx`): a group buy's document as
+  `POST /tuan/api/my/shops/<slug>/offers` takes it, or `{ "shop": {…}, "offer": {…} }` for a shop
+  and a group buy in it, which adds one button that does both. The file only fills the forms in;
+  nothing is sent until a button is pressed, and the server checks it all the same. A real
+  merchant's catalogue made ready this way stays out of this repository (it is public): the goods
+  in the tests are made up.
 
 ### Mail
 

@@ -5,6 +5,14 @@ import type { RoomView, TeamView } from "../../room/protocol";
 import { CharacterArt, type Mood } from "../art/characters";
 import { getLang, money, other, t, type Key } from "../i18n";
 import { getState, serverNow } from "../store";
+import { shakeState, watchShake } from "../controls";
+
+/** Whether shaking rolls the dice, kept up to date (the phone's yes can come from a tap anywhere, or later). */
+export function useShakeState() {
+  const [, tick] = useState(0);
+  useEffect(() => watchShake(() => tick((n) => n + 1)), []);
+  return shakeState();
+}
 
 /** Mid-tone team colours that hold up on light and dark backgrounds; the letter is the real identifier. */
 export const TEAM_COLORS = ["#4a6683", "#8a4fc4", "#c23a5e", "#178a7a", "#b8670a", "#3b6fd6"];
