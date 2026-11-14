@@ -77,6 +77,9 @@ const sourceName = (name: string, lang: Lang) => (lang === "zh" ? (SOURCE_ZH[nam
 /**
  * A link to the page with the view changed. The language always goes in (otherwise the browser's own
  * would decide again); the day only when it isn't the first one shown, so a shared link stays current.
+ * Always "/go/?…", with the slash: Cloudflare sends changle.ca/go to this Worker only without a query
+ * string ("changle.ca/go" in wrangler.jsonc); "/go?lang=zh" would go to the site instead, while
+ * "/go/?lang=zh" matches "changle.ca/go/*" (14 November 2026).
  */
 function href(v: View, change: Partial<View>, first: string): string {
   const n = { ...v, ...change };
@@ -86,7 +89,7 @@ function href(v: View, change: Partial<View>, first: string): string {
   if (n.cat) p.set("cat", n.cat);
   if (n.area) p.set("area", n.area);
   if (n.price) p.set("price", n.price);
-  return `/go?${p}`;
+  return `/go/?${p}`;
 }
 
 /** "$15" or "$14.86" */
@@ -315,10 +318,10 @@ footer a{color:var(--gel)}
 
 /*
  * Keeps the language in step with changle.ca, which saves the reader's choice in this browser
- * (site/src/store.tsx, "lazysusan.settings.v1"): with no ?lang in the address, open in that language;
- * tapping 中文 / English here saves the choice for the site too.
+ * (site/src/store.tsx, "lazysusan.settings.v1"): with no ?lang in the address, open in that language
+ * (at /go/, with the slash: see `href`); tapping 中文 / English here saves the choice for the site too.
  */
-const SCRIPT = `(function(){var K="lazysusan.settings.v1";try{var u=new URL(location.href),s=JSON.parse(localStorage.getItem(K)||"{}"),l=document.documentElement.getAttribute("data-lang");if(!u.searchParams.has("lang")&&(s.lang==="zh"||s.lang==="en")&&s.lang!==l){u.searchParams.set("lang",s.lang);location.replace(u.href);return}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[data-lang]");if(!a)return;try{var t=JSON.parse(localStorage.getItem(K)||"{}");t.lang=a.getAttribute("data-lang");localStorage.setItem(K,JSON.stringify(t))}catch(_){}})}catch(_){}})();`;
+const SCRIPT = `(function(){var K="lazysusan.settings.v1";try{var u=new URL(location.href),s=JSON.parse(localStorage.getItem(K)||"{}"),l=document.documentElement.getAttribute("data-lang");if(!u.searchParams.has("lang")&&(s.lang==="zh"||s.lang==="en")&&s.lang!==l){u.searchParams.set("lang",s.lang);u.pathname="/go/";location.replace(u.href);return}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[data-lang]");if(!a)return;try{var t=JSON.parse(localStorage.getItem(K)||"{}");t.lang=a.getAttribute("data-lang");localStorage.setItem(K,JSON.stringify(t))}catch(_){}})}catch(_){}})();`;
 
 function shell(lang: Lang, langLink: string, body: string): string {
   const zh = lang === "zh";
@@ -329,7 +332,7 @@ function shell(lang: Lang, langLink: string, body: string): string {
 export function renderPage(pub: Published | null, params: URLSearchParams, lang: Lang, now = Date.now()): string {
   const zh = lang === "zh";
   if (!pub) {
-    return shell(lang, `/go?lang=${zh ? "en" : "zh"}`, `<p class="lead">${zh ? "大温这两周去哪玩。每天早上 6 点更新，第一轮还没跑完，过一会儿再来看。" : "What's on around Greater Vancouver in the next two weeks. It updates every morning at 6, and the first run isn't done yet: try again soon."}</p>`);
+    return shell(lang, `/go/?lang=${zh ? "en" : "zh"}`, `<p class="lead">${zh ? "大温这两周去哪玩。每天早上 6 点更新，第一轮还没跑完，过一会儿再来看。" : "What's on around Greater Vancouver in the next two weeks. It updates every morning at 6, and the first run isn't done yet: try again soon."}</p>`);
   }
   const today = vanParts(now).date;
   const v = readView(params, pub, lang, now);
