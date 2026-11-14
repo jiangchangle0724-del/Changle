@@ -88,7 +88,7 @@ for (const id of toolIds) {
 }
 console.log(`postbuild: ${n} game pages, the tools page and ${toolIds.length} tool pages in dist/`);
 
-const paths = ["/", "/tools", ...toolIds.map((id) => `/tools/${id}`), ...GAMES.filter((g) => g.ready && !g.hidden).map((g) => `/g/${g.slug}`), "/eat", "/trip", "/go"];
+const paths = ["/", "/tools", ...toolIds.map((id) => `/tools/${id}`), ...GAMES.filter((g) => g.ready && !g.hidden).map((g) => `/g/${g.slug}`), "/eat", "/trip", "/go", "/tuan/"];
 write("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((path) => `  <url><loc>${SITE}${esc(path)}</loc></url>`).join("\n")}\n</urlset>\n`);
 
 // Include content revisions as well as names: changing only the HTML must also update the worker.
