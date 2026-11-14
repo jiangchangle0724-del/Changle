@@ -222,8 +222,29 @@ a {
 .btn:not(:disabled):active {
   transform: scale(0.965);
 }
-.shake-hint {
-  text-align: center;
+/* Under the dice, on one line where they fit: shaking (a hint, the tap that asks the phone for motion,
+   or how to let it ask again), and where building is. */
+.roll-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 12px;
+}
+.roll-more .btn {
+  min-height: 44px;
+  padding: 6px 14px;
+  font-size: 0.875rem;
+}
+.shake-no[open] {
+  flex-basis: 100%;
+}
+.shake-no summary {
+  font-size: inherit;
+}
+.shake-no p {
+  color: var(--haze);
+  line-height: var(--leading);
 }
 .btn.wide {
   width: 100%;
@@ -743,7 +764,8 @@ legend {
   padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(96px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
 }
 /* The play window: a dusk window floating over the board, above the bar. It rises when there's
-   something to answer and sinks away a moment after. */
+   something to answer and sinks away a moment after. No taller than about half the screen, so the
+   board still shows above it (a longer question scrolls inside it, its answers held at the foot). */
 .playwin {
   position: fixed;
   z-index: 7;
@@ -752,8 +774,8 @@ legend {
   bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   max-width: 560px;
   margin-inline: auto;
-  max-height: min(66vh, calc(100vh - 150px));
-  max-height: min(66dvh, calc(100dvh - 150px));
+  max-height: min(54vh, calc(100vh - 150px));
+  max-height: min(54dvh, calc(100dvh - 150px));
   display: flex;
   flex-direction: column;
   border-radius: 26px;
@@ -783,8 +805,8 @@ legend {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 50px;
-  padding: 12px 8px 2px 18px;
+  min-height: 44px;
+  padding: 2px 6px 0 18px;
   /* a flick down on the header puts the window away */
   touch-action: none;
 }
@@ -832,9 +854,9 @@ legend {
   overflow: auto;
   overscroll-behavior: contain;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   align-content: start;
-  padding: 4px 12px 14px;
+  padding: 2px 12px 12px;
 }
 /* Under the open window the table steps back (it would show between the window and the bar). */
 .side {
