@@ -8,7 +8,7 @@
 // one sends the whole document back, each part that stays under its id (src/engine/edit.ts): a
 // part an order names can change, but it can't go.
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { MyOfferDoc } from "../../api";
 import { BASE } from "../../base";
 import { amountText, MILLI, QTY_MAX } from "../../engine/money";
@@ -403,8 +403,9 @@ export function Editor({ slug, from, offerId }: { slug: string | null; from: str
     // back from signing in: read it then, but never over what's being typed
     return onReturn(() => void (loaded.current || load()));
   }, []);
-  // a new one is kept on the phone as it's typed
-  useEffect(() => {
+  // a new one is kept on the phone as it's typed: by the time a change shows, it is kept (a layout
+  // effect), so closing the page the moment after loses nothing
+  useLayoutEffect(() => {
     if (fresh && draft && shop && written(draft)) saveDraft(shop.slug, draft);
   }, [draft]);
 
