@@ -83,6 +83,22 @@ const STRINGS = {
   settledTitle: { zh: "定了", en: "It's set" },
   reopen: { zh: "重新选", en: "Choose again" },
 
+  // ---------- the pictures to pass around ----------
+  picInvite: { zh: "邀请图", en: "Invitation" },
+  picResult: { zh: "结果图", en: "Result picture" },
+  picAsk: { zh: "你什么时候有空？", en: "When are you free?" },
+  picScanInvite: { zh: "长按识别二维码，点你有空的时间", en: "Scan the code and tap the times you're free" },
+  picSet: { zh: "时间定了", en: "The time is set" },
+  picScanResult: { zh: "长按识别二维码，看详情、加到日历", en: "Scan the code for the details and your calendar" },
+  picHint: { zh: "长按图片，保存或者发给朋友。", en: "Press and hold the picture to save it or send it on." },
+  picShare: { zh: "发给朋友", en: "Share" },
+  picSave: { zh: "保存图片", en: "Save the picture" },
+  picDrawing: { zh: "正在画", en: "Drawing it" },
+  picFailed: { zh: "没画出来。", en: "That didn't draw." },
+  picRetry: { zh: "再画一次", en: "Try again" },
+  picAltInvite: { zh: "邀请图：{title}，{days}，带二维码", en: "Invitation: {title}, {days}, with a QR code" },
+  picAltResult: { zh: "结果图：{title}，{when}，{who}，带二维码", en: "Result: {title}, {when}, {who}, with a QR code" },
+
   // ---------- once the time is set ----------
   calAdd: { zh: "加到日历", en: "Add to calendar" },
   calGoogle: { zh: "用 Google 日历", en: "Use Google Calendar" },
@@ -139,7 +155,7 @@ const STRINGS = {
   claimOk: { zh: "这部手机现在是发起人了", en: "This phone is now a host" },
 
   share: { zh: "分享", en: "Share" },
-  copyLink: { zh: "复制链接", en: "Copy the link" },
+  copyLink: { zh: "复制链接", en: "Copy link" },
   copied: { zh: "复制好了", en: "Copied" },
   copyByHand: { zh: "按住下面这行，全选再复制", en: "Press and hold the line below, select all, then copy" },
   qr: { zh: "二维码", en: "QR code" },
