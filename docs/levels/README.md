@@ -229,7 +229,7 @@ S0 是出生到第一面旗，之后按实际检查点事件划段。表中位�
 
 ### 复核与截图
 
-在 `games/hang-on` 使用 Node 22、Git Bash 跑 `npm test`、`npm run typecheck`、`npm run ip-check` 和原样 `npm run levels`。完整验收表及三项反例的原始错误用于本次 PR 描述。本轮 typecheck 通过、ip-check 0 处、levels 含 `6/6 snow` 通过；`npm test` 为 206/207，唯一失败是 `src/sides.test.ts:12` 固定了旧 24 关的难度名单，合法新关会使断言失效。该文件超出本卡输出范围，保持未改，待单独授权或上游修复后再推分支、开 PR。反例分别删除 `snow-31.p1.json`、把 snow-31 第一根缆绳下移至穿过起站、把 snow-32 第一块冰壁的 slip 改成 10；逐项执行原验收器、确认退出 1，finally 按原字节恢复，再重新全验。
+在 `games/hang-on` 使用 Node 22、Git Bash 跑 `npm test`、`npm run typecheck`、`npm run ip-check` 和原样 `npm run levels`。完整验收表及三项反例的原始错误用于本次 PR 描述。本轮 typecheck 通过、ip-check 0 处、levels 含 `6/6 snow` 通过；`npm test` 为 206/207，唯一失败是 `src/sides.test.ts:12` 固定了旧 24 关的难度名单，合法新关会使断言失效。该文件超出本卡输出范围，保持未改。Steve 明确要求按当前结果先推分支、开 PR；由 Steve 在 main 修复该测试，再自行把 main 合入本分支后审查。反例分别删除 `snow-31.p1.json`、把 snow-31 第一根缆绳下移至穿过起站、把 snow-32 第一块冰壁的 slip 改成 10；逐项执行原验收器、确认退出 1，finally 按原字节恢复，再重新全验。
 
 六张 1280×720 全关截图使用 `npm run levels -- --screenshots` 的原 Pixi Stage 和审查页。当前 `run-levels.mjs` 审查页服务的数据路由只匹配 `table|van`，故截图阶段用临时 Playwright 路由适配器提供六关的原始 JSON / 回放，且保留旧关截图原字节；不修改脚本或验收规则。浏览器内核为已安装的 Chromium。
 
