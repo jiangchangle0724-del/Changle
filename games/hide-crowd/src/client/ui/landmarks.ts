@@ -243,5 +243,6 @@ function addCourtyardArchitecture(scene: THREE.Scene, palette: LandmarkPalette):
 export function addEnvironmentalLandmarks(scene: THREE.Scene, arena: ArenaId, palette: LandmarkPalette): void {
   if (arena === "plaza") addMountainAndSkyline(scene, palette);
   else if (arena === "metro") addTransitArchitecture(scene, palette);
-  else addCourtyardArchitecture(scene, palette);
+  else if (arena === "gallery") addCourtyardArchitecture(scene, palette);
+  // (the night market's lot is dark beyond its stalls)
 }

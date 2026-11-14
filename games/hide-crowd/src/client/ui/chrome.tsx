@@ -3,6 +3,7 @@
 // back button, switches, and a few line icons drawn on a 24 grid.
 import type { ComponentChildren } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
+import { MATCH_MS, SCORE_TO_WIN } from "../../engine";
 import { other, t, type Key } from "../i18n";
 
 /** Line icons, 24 x 24, stroked (drawn for this game). */
@@ -24,10 +25,21 @@ const ICONS = {
   // the ferry (a hull, a cabin, its funnel) and the opera gong on its stand
   ship: "M3 15h18l-2.5 4.5h-13zM6 15v-4h10v4M9 11V7.5h3V11M10.5 5.5v2",
   gong: "M12 17a5 5 0 1 0 0-10a5 5 0 0 0 0 10zM4 4v17M20 4v17M4 4h16M12 4v3M11 12h2",
+  // the theatre's drill: a fist, its knuckles on top and the thumb across
+  fist: "M6 10.5V9a2 2 0 0 1 2-2h8a3 3 0 0 1 3 3v4a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6zM9.5 7v3.5M13 7v3.5M16.5 7.5v3M6 12.5h5a1.5 1.5 0 0 0 0-3H6",
   sound: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11",
   note: "M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM19 16a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM9 10l10-2",
   // Safari's page menu, as iOS draws it at the left of the address bar
-  pageMenu: "M4 7h16M4 12h16M4 17h10"
+  pageMenu: "M4 7h16M4 12h16M4 17h10",
+  // the night market: a firework, and the four stalls' snacks (squid on a stick, fish balls on a
+  // skewer, bubble tea with its straw and pearls, a tornado potato)
+  firework: "M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8",
+  // a firecracker: the tube with its band, the fuse, and the spark on it
+  cracker: "M3 17l9-9 4 4-9 9zM7.5 12.5l4 4M14 10c1-1 1.5-2.5 3-3M19.5 2.5v2.5M22 5h-2.5M21.3 3.2l-1.6 1.6",
+  squid: "M12 2.5l4.5 8h-9zM9 10.5l-1.2 4.5M11 10.5l-.4 5M13 10.5l.4 5M15 10.5l1.2 4.5M12 10.5v11",
+  fishball: "M12 2v20M14.6 6.2a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 12a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0zM14.6 17.8a2.6 2.6 0 1 1-5.2 0a2.6 2.6 0 0 1 5.2 0z",
+  tea: "M7 9h10l-1.3 12H8.3zM6 9h12M8.5 6.5h7l1 2.5h-9zM13 6.5l2.5-4M10 17h.01M12 18.5h.01M14 17h.01",
+  potato: "M12 2.5v19M8.5 6l7 1.6M8 9.8l8 1.6M8 13.6l8 1.6M8.6 17.4l6.8 1.4"
 } as const;
 export type IconName = keyof typeof ICONS;
 
@@ -143,7 +155,8 @@ export function Rules({ custom }: { custom: string }) {
       <p>{t("rule1")}</p>
       <p>{t("rule2")}</p>
       <p>{t("rule3")}</p>
-      <p>{t("rule4", { n: 3 })}</p>
+      <p>{t("ruleDistract")}</p>
+      <p>{t("rule4", { n: SCORE_TO_WIN, m: MATCH_MS / 60_000 })}</p>
       <p>{t(custom ? "rulePenaltyCustom" : "rulePenalty")}</p>
       <p>{t("ruleScreen")}</p>
       <p class="rules-small">{t("ruleControls")}</p>

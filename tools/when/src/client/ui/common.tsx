@@ -8,6 +8,12 @@ import { copyText } from "../api";
 import { getLang, onLang, setLang, t } from "../i18n";
 
 /** Re-render when the language changes. */
+/**
+ * WeChat's built-in browser. Google won't let anyone sign in there (随便 needs that to open a
+ * table), and it opens neither a calendar file nor Google Calendar.
+ */
+export const inWeChat = (): boolean => /MicroMessenger/i.test(navigator.userAgent);
+
 export function useLang() {
   const [lang, set] = useState(getLang());
   useEffect(() => onLang(() => set(getLang())), []);
@@ -31,6 +37,25 @@ export const IconCopy = ({ size = 18 }: IconProps) =>
     <>
       <rect x="9" y="9" width="11" height="11" rx="2.5" />
       <path d="M5.5 14.5H5a1.5 1.5 0 0 1-1.5-1.5V5A1.5 1.5 0 0 1 5 3.5h8A1.5 1.5 0 0 1 14.5 5v.5" />
+    </>,
+    2,
+  );
+export const IconCalendar = ({ size = 18 }: IconProps) =>
+  svg(
+    size,
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="3" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>,
+    2,
+  );
+export const IconPicture = ({ size = 18 }: IconProps) =>
+  svg(
+    size,
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="M4.5 17l4.5-4.4 3.4 3 3-2.6 4.1 3.6" />
     </>,
     2,
   );
@@ -170,11 +195,20 @@ export function Qr({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** A short line that comes and goes at the bottom of the screen. */
-export function Toast({ text }: { text: string | null }) {
+/** A short line that comes and goes at the bottom of the screen; with `action`, it carries one thing to press. */
+export function Toast({ text, action }: { text: string | null; action?: { label: string; run: () => void } }) {
   return (
     <div class="toast-wrap" aria-live="polite">
-      {text && <div class="toast">{text}</div>}
+      {text && (
+        <div class="toast" data-action={action ? "" : undefined}>
+          <span>{text}</span>
+          {action && (
+            <button type="button" class="link-btn" onClick={action.run}>
+              {action.label}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

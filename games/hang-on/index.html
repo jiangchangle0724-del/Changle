@@ -69,6 +69,8 @@
   .seat .team { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px; margin-top: 2px; color: var(--card-ink); }
   .seat .team.t0 { background: var(--p0); }
   .seat .team.t1 { background: var(--p1); }
+  /* 道具（A9）：座位卡上写带的是哪一样 */
+  .seat .item { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px; margin-top: 2px; background: rgba(42,31,58,.1); white-space: nowrap; }
   /* 玩法：四个键，比谁先下面两个小键 */
   .moderow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 12px 0 2px; }
   .modes { display: inline-flex; flex-wrap: wrap; gap: 6px; }
@@ -99,6 +101,7 @@
   .results h3 { font-family: var(--font-display); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; margin: 14px 0 0; opacity: .6; }
   .results ul { list-style: none; padding: 0; margin: 6px 0 0; font-size: 15px; display: grid; gap: 4px; }
   .results .par { font-size: 13px; opacity: .7; margin: 0 0 6px; }
+  .results .padhint { font-size: 13px; opacity: .7; margin: 10px 0 0; }
   .count small { display: block; font-size: 22px; font-family: var(--font-body); font-weight: 700; margin-top: 10px; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
   @media (prefers-reduced-motion: reduce) { .banner { transition: opacity .18s; transform: translate(-50%, -50%); } }
   @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .qr { width: 160px; height: 160px; } .codebig { font-size: 44px; } .count { font-size: 110px; } }
@@ -121,6 +124,8 @@
   #touch .summon { position: absolute; right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(196px + env(safe-area-inset-bottom, 0px));
     background: var(--warn); color: var(--card-ink); font-weight: 800; border: 0; border-radius: 999px; padding: 6px 16px; min-height: 44px; font-size: 14px; }
   #touch .summon:disabled { opacity: .35; }
+  /* 有道具键（A9）时抓键那一块高了，召唤键跟着往上挪 */
+  #touch:has(.itembtn:not([hidden])) .summon { bottom: calc(min(58vh, 214px) + 32px + env(safe-area-inset-bottom, 0px)); }
   /*
    * 手机局，和矮的屏幕（body.short：不到 600 高，比如手机投屏到电视时用电视局）都排紧一点：
    * 卡片比屏幕高时能滚，放得下就居中
@@ -185,6 +190,7 @@
       <div class="stick" hidden><div class="knob"></div></div>
     </div>
     <div class="grabs">
+      <button class="itembtn" id="touchItem" type="button" hidden><span class="fill" aria-hidden="true"></span><span class="ic" id="touchItemIcon" aria-hidden="true">🧊</span><span class="nm" id="touchItemName">速冻</span></button>
       <button class="grab" type="button" aria-label="左手抓" data-en-label="Left hand: grab"><span data-en="Left">左手</span></button>
       <button class="grab r" type="button" aria-label="右手抓" data-en-label="Right hand: grab"><span data-en="Right">右手</span></button>
     </div>
@@ -232,6 +238,7 @@
       <div class="row">
         <button class="btn" id="startBtn" type="button" disabled data-en="Start">开始</button>
         <button class="btn quiet" id="kbBtn" type="button">+ 键盘加入</button>
+        <button class="btn quiet" id="itemBtn" type="button" hidden></button>
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
         <button class="btn quiet" id="modeBtn" type="button" hidden></button>
       </div>
@@ -252,6 +259,7 @@
       <ul id="betrayList"></ul>
       <p id="betrayNone" style="opacity:.6;font-size:13px;margin:6px 0 0" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
       <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
+      <p class="padhint" id="padHint" hidden></p>
     </div>
   </div>
 </div>

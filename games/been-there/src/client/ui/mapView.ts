@@ -6,7 +6,8 @@
 //
 // The view follows the token of the team on turn, in step as it walks (so it never shows where a token
 // will land before it gets there), until the player drags the map to look round: then it stays where
-// they left it until the turn passes or the size changes. This phone's own move (ui/Ride.tsx) takes the
+// they left it until the turn passes or the size changes. With the play window up over the bottom of
+// the board, the token stands in the middle of the part the window leaves (`cover`). This phone's own move (ui/Ride.tsx) takes the
 // view over where the map is (release), its camera starting from there and coming back to the map's
 // size over where the token landed (adopt): one camera, no jump at either end. Every change of view
 // eases toward where it's going; with reduced motion it is simply there.
@@ -54,12 +55,17 @@ export interface MapViewOptions {
   /** Changes when the followed token moves on: the view keeps up with it as it walks. */
   moveKey: string;
   reduced: boolean;
-  /** A city to look at for a moment (one this phone just built on), keyed so each build looks again. */
-  look?: { at: number; key: string } | null;
+  /** A city to look at for a moment (one this phone just built on; a big rent paid there, pushing in
+   * on it: `push`, the zoom to look at it with at least), keyed so each looks again; from `from`
+   * (performance.now() ms: the rent's token down on the city), or now. */
+  look?: { at: number; key: string; from?: number; push?: number } | null;
   /** Where a point of the board (board units, before the table turns) shows in the box, the table
    * turned to `rot`: board units from the box's middle (the board leaning back as it rests: the map
    * is the board as it shows). None: the table only turns. */
   place?: (x: number, y: number, rot: number) => [number, number];
+  /** How much of the box (px, from its bottom) the play window covers on a phone, while it's up: what
+   * the view follows stands in the middle of the part it leaves, not of the whole box. */
+  cover?: number;
 }
 
 /** How this phone's own move takes the view over, and gives it back (ui/Ride.tsx). */
@@ -95,9 +101,11 @@ interface View {
   vy: number;
   /** Keep watching the followed token until then (performance.now()). */
   until: number;
-  /** The city looked at (`look`) until then, or none. */
+  /** The city looked at (`look`) from `lookFrom` until `lookUntil`, or none, and the zoom it's looked at with at least. */
   lookAt: number | null;
+  lookFrom: number;
   lookUntil: number;
+  lookPush: number;
   raf: number;
   last: number;
   shown: string;
@@ -106,7 +114,7 @@ interface View {
 export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLDivElement>, rig: RefObject<Rig | null>, o: MapViewOptions): MapView {
   const opts = useRef(o);
   opts.current = o;
-  const view = useRef<View>({ cx: 0, cy: 0, z: Math.max(1, o.zoom), held: false, ridden: false, w: 0, h: 0, vx: 0, vy: 0, until: 0, lookAt: null, lookUntil: 0, raf: 0, last: 0, shown: "" });
+  const view = useRef<View>({ cx: 0, cy: 0, z: Math.max(1, o.zoom), held: false, ridden: false, w: 0, h: 0, vx: 0, vy: 0, until: 0, lookAt: null, lookFrom: 0, lookUntil: 0, lookPush: 1, raf: 0, last: 0, shown: "" });
   const kick = useRef<(watch?: number) => void>(() => {});
   const write = useRef<() => void>(() => {});
 
@@ -117,7 +125,10 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
     const v = view.current;
     v.w = box.clientWidth;
     v.h = box.clientHeight;
-    const goal = () => Math.max(1, opts.current.zoom);
+    /** Looking at a city now (`look`). */
+    const looking = (now = performance.now()) => v.lookAt !== null && now >= v.lookFrom && now < v.lookUntil;
+    /** The zoom the view eases to: the size picked, or more while it pushes in on a city. */
+    const goal = () => Math.max(1, opts.current.zoom, looking() ? v.lookPush : 1);
     write.current = () => {
       const { z, w, h } = v;
       let tf = "";
@@ -143,7 +154,7 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
     const target = (): [number, number] | null => {
       const seat = opts.current.follow;
       const r = rig.current;
-      if (r && v.lookAt !== null && performance.now() < v.lookUntil) {
+      if (r && v.lookAt !== null && looking()) {
         const [x, y] = xy(angleOf(v.lookAt), LOOK_R);
         return shown(x, y, r);
       }
@@ -184,8 +195,10 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
       } else if (!drag.on && !v.held && zt > 1) {
         const t = target();
         if (t) {
+          // (the play window up over the bottom of the box: in the middle of what it leaves)
+          const lift = o.cover && v.h ? (Math.min(o.cover, v.h * 0.8) / 2) * (1000 / (zt * v.h)) : 0;
           const tx = keepIn(t[0], zt);
-          const ty = keepIn(t[1], zt);
+          const ty = keepIn(t[1] + lift, zt);
           const k = still ? 1 : 1 - Math.exp(-dt / EASE_FOLLOW);
           v.cx += (tx - v.cx) * k;
           v.cy += (ty - v.cy) * k;
@@ -196,6 +209,8 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
         }
         if (now < v.until) busy = true;
       }
+      // (a city to push in on, even at the size that shows the whole board: wait for it, and see it through)
+      if (v.lookAt !== null && now < v.lookUntil) busy = true;
       write.current();
       // (a layer of its own only while it moves: standing still, it's drawn sharp at its size)
       layer.classList.toggle("moving", busy && !still && Math.max(v.z, zt) > 1.0005);
@@ -306,19 +321,22 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
     view.current.held = false;
     kick.current(WATCH_MS);
   }, [o.turnKey, o.zoom]);
-  // The token moves on: ease along with it.
+  // The token moves on: ease along with it. (The play window comes up or goes: make room.)
   useEffect(() => {
     kick.current(WATCH_MS);
-  }, [o.moveKey, o.follow, o.reduced]);
+  }, [o.moveKey, o.follow, o.reduced, o.cover]);
   // A city built on: look at it for a moment (even after a drag), then back to the team on turn.
   useEffect(() => {
     const v = view.current;
     if (!o.look) return;
+    const now = performance.now();
     v.lookAt = o.look.at;
-    v.lookUntil = performance.now() + LOOK_MS;
+    v.lookFrom = Math.max(now, o.look.from ?? now);
+    v.lookUntil = v.lookFrom + LOOK_MS;
+    v.lookPush = o.look.push ?? 1;
     v.held = false;
     v.vx = v.vy = 0;
-    kick.current(LOOK_MS + 1500);
+    kick.current(v.lookUntil - now + 1500);
   }, [o.look?.key]);
 
   return {

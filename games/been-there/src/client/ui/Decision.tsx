@@ -16,11 +16,11 @@ import {
 } from "../../engine";
 import { TIMING, type RoomView } from "../../room/protocol";
 import { cardTitle, colon, getLang, money, spaceName, t, tx, type Key } from "../i18n";
-import { BUZZ, allowShake, buzz, onShake, shakeState } from "../controls";
+import { BUZZ, allowShake, buzz, onShake } from "../controls";
 import { send } from "../store";
 import { placeTag } from "../art/stamps";
 import { Assets } from "./Assets";
-import { Btn, Countdown, GroupIcon, HapticBtn, Money, SeatChip, moneyOrHidden, seatName, useCountdown } from "./common";
+import { Btn, Countdown, GroupIcon, HapticBtn, Money, SeatChip, moneyOrHidden, seatName, useCountdown, useShakeState } from "./common";
 import { sfx } from "../sound";
 import { startThrow } from "./throwing";
 import { SambaLesson, useDanceClock } from "./Samba";
@@ -131,21 +131,36 @@ function Panel({ v, acting, act, idle }: { v: RoomView; acting: number | undefin
   );
 }
 
-/** Shake the phone to roll: listening while the roll is up, or a tap to turn it on (iPhone asks once). */
+/**
+ * Shake the phone to roll: listening while the roll is up. Before that, a tap on "turn on", from which
+ * an iPhone asks whether the page may feel motion; and where the phone said no (or asked nothing), how
+ * to let it ask again, open at once after a tap that didn't work.
+ */
 function ShakeToRoll({ roll }: { roll: () => void }) {
-  const [, setTick] = useState(0);
-  const state = shakeState();
+  const state = useShakeState();
+  const [tried, setTried] = useState(false);
   const latest = useRef(roll);
   latest.current = roll;
   useEffect(() => onShake(() => latest.current()), [state]);
+  // (straight from the tap: nothing may come before the question, or an iPhone won't ask it)
+  const ask = () => void allowShake().then((s) => setTried(s !== "on"));
   if (state === "off") return null;
-  if (state === "ask")
+  if (state === "on") return <span class="shake-hint">📳 {t("shakeHint")}</span>;
+  if (state === "ask" && !tried)
     return (
-      <Btn kind="quiet" wide onClick={() => void allowShake().then(() => setTick((n) => n + 1))}>
+      <Btn kind="ghost" class="shake-ask" onClick={ask}>
         📳 {t("shakeEnable")}
       </Btn>
     );
-  return <p class="hint shake-hint">📳 {t("shakeHint")}</p>;
+  return (
+    <details class="shake-no" open={tried}>
+      <summary>📳 {t("shakeNo")}</summary>
+      <p>{t("shakeFix")}</p>
+      <Btn kind="ghost" onClick={ask}>
+        {t("shakeAgain")}
+      </Btn>
+    </details>
+  );
 }
 
 /** The dark strip across the top of a decision, like the top of a boarding pass. */
@@ -261,9 +276,9 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
         sfx.tap();
         act(a);
       };
+      // (no "your turn" line: the banner over the board says it)
       return (
         <>
-          <p class="ask">{t("yourTurn")}</p>
           {pd.jail ? (
             <>
               <p class="muted">{t("jailNote")}</p>
@@ -287,9 +302,12 @@ function Ask({ v, pd, seat, act }: { v: RoomView; pd: Pending; seat: number; act
               </span>
             </HapticBtn>
           )}
-          <ShakeToRoll roll={() => throwDice(pd.jail ? { how: "roll" } : {})} />
           {me.jetlag && <p class="muted">{t("jetlag")}</p>}
-          <p class="hint">{t("manageFirst")}</p>
+          {/* (one line under the dice where they fit: shaking, and where building is) */}
+          <div class="roll-more hint">
+            <ShakeToRoll roll={() => throwDice(pd.jail ? { how: "roll" } : {})} />
+            <span>{t("manageFirst")}</span>
+          </div>
         </>
       );
     }

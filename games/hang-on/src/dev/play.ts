@@ -3,7 +3,10 @@
  * `?level=table-03` 选关（levels/ 里的 id），不给就是彩蛋关；`?players=4` 放 4 个人（最多 6 个，量帧时间用，只有 P1 P2 能操作）。
  * `?mode=race`（比谁先，`&teams=1` 分两队）、`?mode=last`（坐不住，场地 `?level=arena-01` / `arena-02`）试玩法。
  * 带回放录制：`?record=1` 一进来就录，或者点「录制」；停止时下载 replays 用的 JSON（每物理步一帧）。
+ * `?phone=1` 照手机上的画法画（镜头近一些，没有近景光斑和斜光）。
+ * 道具（A9）：`?item=freeze` / `noodle` / `leaf` 给每个人带上，P1 按 F 用，P2 按 P 用。
  */
+import { cleanItem } from '../items';
 import { LEVELS, levelById } from '../levels';
 import { CFG } from '../physics/config';
 import type { Replay } from '../physics/replay';
@@ -21,11 +24,14 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const canvas = $<HTMLCanvasElement>('stage');
 const query = new URLSearchParams(location.search);
 const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
-const stage = await Stage.create(canvas, { plates: PLATES });
+const stage = await Stage.create(canvas, { plates: PLATES, compact: query.get('phone') === '1' });
 let nPlayers = Math.max(1, Math.min(6, Number(query.get('players')) || 1));
 const mode = (['climb', 'team', 'race', 'last'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
 const rules = (): Rules => (mode === 'race' && query.get('teams') === '1' ? { mode, teams: Array.from({ length: nPlayers }, (_, i) => i % 2) } : { mode });
 let sim: Sim = await createSim(level, nPlayers, rules());
+const devItem = query.get('item') ? cleanItem(query.get('item')) : null;
+const giveItems = (): void => sim.players.forEach((_, i) => sim.setItem(i, devItem));
+giveItems();
 // 画按人数摆出来的那一版（关卡里有 players 范围的东西时，人数不同摆法不同）
 stage.setLevel(sim.level);
 stage.syncPlayers(sim);
@@ -153,6 +159,7 @@ function readInputs(): PadInput[] {
     ay,
     gl: keys.has('KeyQ') || keys.has('ShiftLeft') || mouse.L || touch.L,
     gr: keys.has('KeyE') || keys.has('ShiftRight') || mouse.R || touch.R,
+    ...(keys.has('KeyF') ? { act: 'item' as const } : {}),
   });
   if (sim.players[1]) {
     let bx = 0;
@@ -161,7 +168,7 @@ function readInputs(): PadInput[] {
     if (keys.has('KeyL')) bx += 1;
     if (keys.has('KeyI')) by -= 1;
     if (keys.has('KeyK')) by += 1;
-    inputs.push({ ax: bx, ay: by, gl: keys.has('KeyU'), gr: keys.has('KeyO') });
+    inputs.push({ ax: bx, ay: by, gl: keys.has('KeyU'), gr: keys.has('KeyO'), ...(keys.has('KeyP') ? { act: 'item' as const } : {}) });
   }
   return inputs;
 }
@@ -243,6 +250,7 @@ function showWin(): void {
 async function restart(): Promise<void> {
   sim.destroy();
   sim = await createSim(level, nPlayers, rules());
+  giveItems();
   stage.setLevel(sim.level);
   winEl.hidden = true;
   stage.reset();

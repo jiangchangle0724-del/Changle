@@ -3,9 +3,10 @@
  * square it up. Its screens live inside the site (the site's own components, colours and words in
  * both languages), in a file of their own that loads when someone opens it.
  *
- * This first stage keeps every ledger on the phone that started it (store.ts): the three screens
- * and the arithmetic, there to be tried. Sharing a ledger by a link comes with the server, next.
- * Until then it has no card on the Tools tab: its address is the only way in.
+ * A ledger is kept on the server (tools/split), and the phone that started it keeps a copy with
+ * whatever it has recorded and not yet sent (store.ts, syncing.ts), so it works with no signal.
+ * Opening someone else's ledger from a link is the next step: until then a ledger opens only on
+ * the phone that started it. And it has no card on the Tools tab yet: its address is the only way in.
  */
 import { useEffect } from "react";
 import { setLight } from "../lib/motion";
@@ -14,6 +15,7 @@ import { ToastProvider } from "../ui/Toast";
 import { LedgerPage } from "./LedgerPage";
 import { Ledgers } from "./Ledgers";
 import "./split.css";
+import { startSyncing } from "./syncing";
 
 export function SplitApp({ id, onBack }: { id?: string; onBack: () => void }) {
   // a tool's light is amber: the room takes it while 两清 is open
@@ -21,6 +23,8 @@ export function SplitApp({ id, onBack }: { id?: string; onBack: () => void }) {
     const amber = getComputedStyle(document.documentElement).getPropertyValue("--type-tool").trim();
     if (amber) setLight(amber);
   }, []);
+  // what this phone recorded and couldn't send goes up while 两清 is open, whichever screen is showing
+  useEffect(() => startSyncing(), []);
   return (
     <ToastProvider>
       {/* (a ledger's page starts afresh for each ledger: which view it was on belongs to that ledger) */}

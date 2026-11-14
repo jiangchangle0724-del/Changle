@@ -199,7 +199,7 @@ export async function loadPeople(loader = new GLTFLoader()): Promise<PeopleKit> 
   return kitFrom(man, woman);
 }
 
-type Kind = "tag" | "foul" | "swing" | "hide" | "over";
+type Kind = "tag" | "foul" | "swing" | "hide" | "blast" | "over";
 
 /** A one-off clip over the legs: its share of the body, and until when it holds (ms; Infinity while stunned). */
 interface Shot {
@@ -378,6 +378,12 @@ export class Person {
       this.neck.quaternion.multiply(this.yawKick.setFromAxisAngle(UP, look * 0.35));
       this.head.quaternion.multiply(this.yawKick.setFromAxisAngle(UP, look * 0.65));
     }
+  }
+
+  /** Where the head is this frame, in the scene, once its clips have moved it (what floats over it: the dizzy stars). */
+  headPosition(target: THREE.Vector3): THREE.Vector3 {
+    if (this.head) return this.head.getWorldPosition(target);
+    return target.copy(this.root.position).setY(PERSON_HEIGHT * 0.92);
   }
 
   /** This body's own parts go (its clock and its skeleton); the shared shapes and looks stay for the next round. */

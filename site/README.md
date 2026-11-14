@@ -75,6 +75,9 @@ VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev -- --port 5173            # 网�
 ```
 
 本地登录不发邮件：在 `worker/.dev.vars` 里写 `DEV_SHOW_CODES=1`，验证码会直接显示出来。
+本地要看发出去的邮件（比如别的 Worker 经房间服务器代发的通知，`worker/mail.ts`）：先跑 `node scripts/fake_mail.mjs`（一个假的
+Resend，收下每封信），再在 `worker/.dev.vars` 里写 `DEV_MAIL_URL=http://127.0.0.1:8791/emails`；整条链路用
+`python3 scripts/mail_door_check.py` 检查（它还要 `npx wrangler dev -c scripts/mail_door/wrangler.jsonc --port 8788`，一个替身 Worker）。
 打碟的 Lyria 本地不连 Google：先跑 `node scripts/fake_lyria.mjs`（一个假的 Lyria），再在 `worker/.dev.vars` 里写
 `DEV_LYRIA_URL=ws://127.0.0.1:8790` 和 `DEV_LYRIA_ANYONE=1`（任何桌子都能试），整条链路用
 `python3 scripts/dj_lyria_check.py` 检查。
@@ -102,9 +105,14 @@ npx tsx tests/routes.test.ts        # 每个页面的网址，和以前带 # 的
 npx tsx tests/duration.test.ts      # 带时间的大冒险和国王命令：读出几秒，中英文说的时间一样
 npx tsx tests/hide.test.ts          # 藏在人群里在桌上的替身规则：主人开局、只开一次
 npx tsx tests/split.test.ts         # 两清的算账：尾差、净额、最少转账，1 万个随机账本
-npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、中英文、只用 token、还没有入口
+npx tsx tests/split-second.test.ts  # 两清的算账再算一遍：Codex 只照规则另写的一份（tests/split/second.ts），同一批 1 万个账本上和 core 逐项对比
+npx tsx tests/split-screens.test.ts # 两清的画面规则：键盘、三种分法、每个改动、存在手机上的那份、邀请链接和二维码、中英文、只用 token、还没有入口
+npx tsx tests/split-changes.test.ts # 两清的改动（手机发、服务器收）：只算一次、离线几部手机怎么到都一样、不合规矩的进不来
+npx tsx tests/split-sync.test.ts    # 两清在手机上怎么同步：没信号照样记、回信丢了重发只算一次、三部手机最后都是服务器那本账、列表上的卡片问一次就跟上
+npx tsx tests/split-phone.test.ts   # 两清在手机上碰浏览器的那几处（存储、网络、实时连接都是假的）：存得住、两个标签页不互相覆盖、只认服务器自己的回答、断了的连接查得出来、点开邀请就进账本
+npx tsx tests/mail.test.ts          # 房间服务器代别的 Worker 发信的入口（worker/notice.ts）：放行什么、拒绝什么、信长什么样
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
-npx tsx scripts/split_check.ts      # 两清（只要 npm run dev 在跑）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效
+npx tsx scripts/split_check.ts      # 两清（npm run dev 在跑，旁边 tools/split 里再开 npx wrangler dev --port 8794 --var ALLOW_TEST_SETTINGS:1）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效；断网再连上、两部手机、没存上的那一笔；发邀请、点开、选自己是哪一位（walk、fits、behave 一次跑一种；ONLY=zh-320x568 只走一种大小）
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字
@@ -116,6 +124,8 @@ python3 scripts/tv_test.py          # 大屏幕：开桌、扫码、整局神回
 python3 scripts/watch_test.py       # 每个游戏自己的大屏画面：两台电视和一部只看的手机，每个阶段、没有秘密、没有报错
 python3 scripts/lastcard_check.py   # 最后一张：三部手机、一部只看的手机、两台电视，在手机上点着打两场，谁的手牌都不外泄
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
+python3 scripts/mail_door_check.py  # 别的 Worker 经房间服务器发信（Mail 入口）：从 Service Binding 进来、查收件人、每天的上限、假 Resend 收到的信；公网进不来
+python3 scripts/figure_check.py     # 3D 小人的小样（/me/figure）：没有图形芯片时的说明、小人加载和画出来、17 个动作、拖动转圈、英文、站长 /me 上的入口
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥
 ```

@@ -1,6 +1,6 @@
 /** changle.ca/split: the ledgers on this phone, and starting a new one. */
-import { ChevronRight, Plus, ReceiptText } from "lucide-react";
-import { useState } from "react";
+import { ChevronRight, CircleAlert, CloudOff, Plus, ReceiptText } from "lucide-react";
+import { useEffect, useState } from "react";
 import { BiTitle, LangTab } from "../components/TopBar";
 import type { Lang } from "../i18n";
 import { savedName } from "../online/config";
@@ -12,18 +12,22 @@ import { EmptyState } from "../ui/EmptyState";
 import { Pill } from "../ui/Pill";
 import { RosterChip } from "../ui/RosterChip";
 import { Sheet } from "../ui/Sheet";
-import { MAX_MEMBERS, spent } from "./core";
+import { MAX_MEMBERS, spent, type Ledger } from "./core";
 import { money } from "./format";
 import { standing } from "./lines";
 import { LEDGER_NAME_MAX, NAME_MAX, startLedger, tidy } from "./ops";
 import { Bar } from "./parts";
-import { isKept, keepLedger, newId, useSaved } from "./store";
+import { isKept, newId, useSaved } from "./store";
+import type { Held } from "./sync";
+import { browse, openLedger, useSync } from "./syncing";
 import { say, W } from "./words";
 
 export function Ledgers({ onBack }: { onBack: () => void }) {
   const { lang } = useStore();
   const saved = useSaved();
   const [starting, setStarting] = useState(false);
+  // each card says where you stand after what others recorded: the server is asked while the list is up
+  useEffect(() => browse(), []);
   return (
     <div className="split-page">
       <Bar
@@ -38,23 +42,11 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
       />
       {saved.ledgers.length ? (
         <ul className="split-ledgers">
-          {saved.ledgers.map((l) => {
-            const mine = standing(l, saved.me[l.id], lang);
-            return (
-              <li key={l.id}>
-                <a className="split-ledger" href={`/split/${l.id}`}>
-                  <span className="split-ledger-text">
-                    <strong>{l.name}</strong>
-                    <span>
-                      {say(lang, "people", { n: l.members.length })} · {say(lang, "spent", { amount: money(spent(l), l.currency, lang) })}
-                    </span>
-                    {mine && <span className="split-ledger-standing">{mine}</span>}
-                  </span>
-                  <ChevronRight aria-hidden="true" />
-                </a>
-              </li>
-            );
-          })}
+          {saved.ledgers.map((l, i) => (
+            <li key={l.id}>
+              <LedgerCard ledger={l} held={saved.held[i]} me={saved.me[l.id]} lang={lang} />
+            </li>
+          ))}
         </ul>
       ) : (
         <EmptyState icon={ReceiptText} title={say(lang, "noLedgers")} body={say(lang, "noLedgersBody")} />
@@ -69,6 +61,34 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
       </div>
       <StartLedger open={starting} onClose={() => setStarting(false)} lang={lang} />
     </div>
+  );
+}
+
+/**
+ * One ledger in the list: its name, how many people and how much spent, where you stand. And one
+ * more line only when something recorded on this phone hasn't reached the server, or didn't stick.
+ */
+function LedgerCard({ ledger, held, me, lang }: { ledger: Ledger; held: Held; me: string | undefined; lang: Lang }) {
+  const sync = useSync(ledger.id);
+  const mine = standing(ledger, me, lang);
+  const flag = held.lost.length ? "cardLost" : (held.waiting.length || !held.made) && (sync.away || sync.trouble) ? "cardUnsent" : null;
+  return (
+    <a className="split-ledger" href={`/split/${ledger.id}`}>
+      <span className="split-ledger-text">
+        <strong>{ledger.name}</strong>
+        <span>
+          {say(lang, "people", { n: ledger.members.length })} · {say(lang, "spent", { amount: money(spent(ledger), ledger.currency, lang) })}
+        </span>
+        {mine && <span className="split-ledger-standing">{mine}</span>}
+        {flag && (
+          <span className={`split-ledger-flag${flag === "cardLost" ? " is-loud" : ""}`}>
+            {flag === "cardLost" ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
+            {say(lang, flag)}
+          </span>
+        )}
+      </span>
+      <ChevronRight aria-hidden="true" />
+    </a>
   );
 }
 
@@ -97,7 +117,8 @@ function StartLedger({ open, onClose, lang }: { open: boolean; onClose: () => vo
     if (!ready) return;
     const mine = newId();
     const ledger = startLedger(newId(), name, currency, [{ id: mine, name: me }, ...everyoneElse.map((n) => ({ id: newId(), name: n }))]);
-    keepLedger(ledger, mine);
+    // (it is held on this phone from here on, and made on the server as soon as that can be reached)
+    openLedger(ledger, mine);
     go({ kind: "split", id: ledger.id });
   };
 

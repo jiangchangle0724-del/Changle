@@ -24,6 +24,11 @@ test("type sizes come from the tokens", () => {
   assert.deepEqual(fonts, [], "no font shorthand but inherit");
 });
 
+test("pressing and holding is off for the page, and back on for the pictures people save", () => {
+  assert.match(styles, /\bbody\s*\{[^}]*-webkit-touch-callout:\s*none/);
+  assert.match(styles, /\.share-img\s*\{[^}]*-webkit-touch-callout:\s*default/);
+});
+
 test("this is a tool: its light is the tools' amber", () => {
   assert.match(styles, /--gel:\s*var\(--type-tool\)/);
 });

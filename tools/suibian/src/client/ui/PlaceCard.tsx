@@ -4,7 +4,7 @@
 // and ordering it in. Further down the list a card starts short (`compact`) and opens with "More".
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
-import { CUISINES, DISHES, avoidTip, badgesFor, type OccasionId, type Off, type Place, type Reason } from "../../engine";
+import { CUISINES, DISHES, avoidTip, badgesFor, cuisinesOf, type OccasionId, type Off, type Place, type Reason } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
 import { serverNow } from "../store";
@@ -33,11 +33,15 @@ function price(p: Place): string | undefined {
   return undefined;
 }
 
-/** The short intro: cuisine, what it mainly serves (unless the cuisine already says it), price. */
-function intro(p: Place): string {
-  const cu = CUISINES[p.cuisine];
-  const kind = tx(cu);
-  const parts = [`${cu.emoji} ${kind}`];
+/**
+ * The short intro: its cuisines (one the table liked first: "🍢 中式烧烤 · 串串、火锅"), what it
+ * mainly serves (unless a cuisine already says it), price.
+ */
+function intro(c: CardView): string {
+  const p = c.place;
+  const shown = c.cuisines?.length ? c.cuisines : [p.cuisine];
+  const kind = shown.map((x) => tx(CUISINES[x])).join(getLang() === "zh" ? "、" : ", ");
+  const parts = [`${CUISINES[shown[0]].emoji} ${kind}`];
   const dishes = (p.dishes ?? []).flatMap((d) => (DISHES[d] ? [tx(DISHES[d])] : [])).filter((d) => !kind.toLowerCase().includes(d.toLowerCase()));
   if (dishes.length) parts.push(t("mainly", { what: dishes.join(getLang() === "zh" ? "、" : ", ") }));
   const pr = price(p);
@@ -52,7 +56,7 @@ function notes(c: CardView, occasion?: OccasionId): { text: string; severe: bool
     if (x.k === "allergy") {
       const what = allergenWord(x.allergen);
       if (x.level === "severe") out.push({ text: t("note_severe", { what }), severe: true });
-      else out.push({ text: t("note_avoid", { what, tip: tx(avoidTip(x.allergen, c.place.cuisine)) }), severe: false });
+      else out.push({ text: t("note_avoid", { what, tip: tx(avoidTip(x.allergen, cuisinesOf(c.place))) }), severe: false });
     } else if (x.k === "halal") out.push({ text: t(x.likely ? "note_halalLikely" : "note_halal"), severe: false });
     else out.push({ text: t(x.known ? "note_vegNone" : "note_vegUnsure"), severe: false });
   }
@@ -138,7 +142,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardV
             })}
           </p>
         )}
-        <p class="intro">{intro(p)}</p>
+        <p class="intro">{intro(c)}</p>
         <p class="meta facts">
           {p.rating !== undefined && (
             <span>

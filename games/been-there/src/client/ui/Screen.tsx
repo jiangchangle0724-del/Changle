@@ -18,7 +18,10 @@ import { Over } from "./Finale";
 import { Arrival, Clock, Feed, Standings, lastId, useRerenderAt } from "./Game";
 import { joinUrl, tableFrom } from "../base";
 import { Qr } from "./Lobby";
-import { CardFace, CoinFx, TvDice, useFreshCard } from "./Moments";
+import { CardFace, MoneyFx, TvDice, useFreshCard } from "./Moments";
+import { doublesKind } from "./Doubles";
+import { SetCall } from "./Sets";
+import { DealCall } from "./Deal";
 import { NewsBanner } from "./News";
 import { LocalSong, TvNowPlaying } from "./Local";
 import { rowsOf } from "./Ride";
@@ -108,6 +111,8 @@ function TvGame({ v }: { v: RoomView }) {
           over={
             <>
               <TvDice v={v} played={lastMove.current} />
+              <SetCall v={v} big />
+              <DealCall v={v} big />
               <ReactBubbles v={v} big />
               <WorldCard v={v} big />
             </>
@@ -151,7 +156,7 @@ function TvGame({ v }: { v: RoomView }) {
           </div>
         </div>
       </aside>
-      <CoinFx v={v} after={rideReady(move)} />
+      <MoneyFx v={v} after={rideReady(move)} />
       <Touchdown v={v} big after={rideEnd(move)} />
       <LocalSong v={v} />
       <ForfeitHold v={v} big />
@@ -282,7 +287,12 @@ function useScreenSounds(v: RoomView, move: RidePlan | null) {
     if (fresh.some((f) => f.t === "game" && f.e.t === "news" && f.e.on)) sfx.news();
     if (fresh.some((f) => f.t === "game" && f.e.t === "turn")) sfx.turn();
     if (fresh.some((f) => f.t === "party" || f.t === "timeup")) sfx.alert();
-    else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) sfx.dice();
+    else if (fresh.some((f) => f.t === "game" && f.e.t === "roll")) {
+      sfx.dice();
+      // (doubles a move doesn't play, with their call as the dice settle: ui/Moments.tsx TvDice)
+      const dbl = fresh.flatMap((f) => (f.t === "game" && f.e.t === "roll" && f.id !== move?.key ? [doublesKind(f.e)] : [])).find((k) => k);
+      if (dbl && !reducedMotion()) timers.current.push(window.setTimeout(() => (dbl === "speeding" ? sfx.siren() : sfx.doubles()), 1000));
+    }
     else if (fresh.some((f) => f.t === "game" && (f.e.t === "buy" || f.e.t === "auction" || f.e.t === "bonus"))) at(rideReady(move), sfx.coin);
     else if (fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "build"))
       sfx.build(fresh.some((f) => f.t === "game" && f.e.t === "manage" && f.e.k === "build" && (v.game?.s.deeds[f.e.at]?.houses ?? 0) >= 5));

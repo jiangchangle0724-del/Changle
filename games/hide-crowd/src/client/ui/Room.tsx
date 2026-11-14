@@ -10,7 +10,7 @@ import { openPractice } from "../practice";
 import { identity, savedName } from "../prefs";
 import { IconButton, Rules, Sheet, TopBar } from "./chrome";
 import { HomeScreenGuide, useHomeGuide } from "./HomeScreen";
-import { Lobby } from "./Lobby";
+import { Lobby, PracticePick } from "./Lobby";
 import { Menu } from "./Menu";
 import { PenaltyStamp } from "./Penalty";
 import { Play } from "./Play";
@@ -188,7 +188,7 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
   const [rules, setRules] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [stampSeen, setStampSeen] = useState(0);
-  const landed = useLanded(view?.phase === "over", view?.result?.round ?? 0);
+  const landed = useLanded(view?.phase === "over", view?.result?.round ?? 0, !!view?.result?.winner);
   const fullscreen = useFullscreen();
   const upright = useUpright();
   // an iPhone: no full screen for a page, so the Home Screen guide (by itself once, in a lobby held sideways)
@@ -291,17 +291,18 @@ function PhoneRoom(props: PageProps & { code: string; role: Role; session: Sessi
       </>
     );
 
+  // (practice opens on the four places to pick from; a room on its lobby)
   if (view.phase === "lobby" || !view.game)
     return (
       <>
-      <main class="page has-dock" inert={upright}>
+      <main class={props.practice ? "page is-picking" : "page has-dock"} inert={upright}>
         {top}
         {session.status === "offline" && (
           <p class="conn-banner" role="status">
             {t("reconnecting")}
           </p>
         )}
-        <Lobby view={view} table={table} send={send} onHomeGuide={home.wanted ? home.show : undefined} />
+        {props.practice ? <PracticePick view={view} send={send} /> : <Lobby view={view} table={table} send={send} onHomeGuide={home.wanted ? home.show : undefined} />}
         {sheets}
       </main>
       {turn}

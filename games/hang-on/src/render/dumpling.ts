@@ -2,7 +2,7 @@
  * 糯米团（A3）：一个玩家的画法。身体是物理驱动的圆，脸、帽子、眼镜程序画；胳膊是两条面条，每帧重画。
  * 动效都在这里：沿速度方向拉伸、落地压扁、抓上一颤、复活从天上掉、眨眼、眼睛跟摇杆、队友摔死时冒汗。
  */
-import { Container, Graphics, Text, type TextStyleOptions } from 'pixi.js';
+import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Pt } from '../physics/level';
 import type { PlayerView } from './view';
@@ -23,6 +23,43 @@ const ease = {
   inQuad: (t: number): number => t * t,
 };
 
+/**
+ * 2.5D 的光影（A8）：光从左上来。身体是个球：左上一团亮、右下边上暗下去，右下沿着边一道反光。
+ * 渐变用白和黑的半透明叠在本色上，换什么颜色都对；local 坐标，所有糯米团共用这两个。
+ * Pixi 画放射渐变时先拿最后一个颜色铺满整张图，所以最后一个颜色必须是透明的，
+ * 不然整个圆都蒙上那层颜色：暗的那圈放在 0.96（圆上离光最远的点），1 再回到透明。
+ */
+let LIT: FillGradient | null = null;
+let SHADE: FillGradient | null = null;
+function bodyGradients(): { lit: FillGradient; shade: FillGradient } {
+  LIT ??= new FillGradient({
+    type: 'radial',
+    center: { x: 0.34, y: 0.28 },
+    innerRadius: 0,
+    outerCenter: { x: 0.4, y: 0.34 },
+    outerRadius: 0.6,
+    colorStops: [
+      { offset: 0, color: 'rgba(255,255,255,0.55)' },
+      { offset: 0.35, color: 'rgba(255,255,255,0.2)' },
+      { offset: 1, color: 'rgba(255,255,255,0)' },
+    ],
+  });
+  SHADE ??= new FillGradient({
+    type: 'radial',
+    center: { x: 0.4, y: 0.36 },
+    innerRadius: 0,
+    outerCenter: { x: 0.4, y: 0.36 },
+    outerRadius: 0.7,
+    colorStops: [
+      { offset: 0, color: 'rgba(20,10,30,0)' },
+      { offset: 0.5, color: 'rgba(20,10,30,0)' },
+      { offset: 0.96, color: 'rgba(20,10,30,0.34)' },
+      { offset: 1, color: 'rgba(20,10,30,0)' },
+    ],
+  });
+  return { lit: LIT, shade: SHADE };
+}
+
 export class Dumpling {
   readonly view = new Container();
   private readonly arms = new Graphics();
@@ -36,6 +73,9 @@ export class Dumpling {
   private readonly extras = new Graphics();
   private readonly glasses = new Graphics();
   private readonly hat = new Graphics();
+  /** 道具（A9）：冻住时的冰块、撑开的荷叶，压在人上面。 */
+  private readonly itemG = new Graphics();
+  private itemKey = '';
   private readonly label: Text;
 
   private color = '#ffffff';
@@ -63,7 +103,7 @@ export class Dumpling {
     this.inner.addChild(this.body, this.face, this.extras, this.glasses, this.hat);
     this.stretchC.addChild(this.inner);
     this.bodyC.addChild(this.stretchC);
-    this.view.addChild(this.shadow, this.arms, this.bodyC, this.label);
+    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.label);
     this.setColor(color);
     this.setLook(look);
   }
@@ -174,8 +214,69 @@ export class Dumpling {
 
     this.drawArms(p, slips);
     this.drawFace(p, time);
-    this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - 4);
+    this.drawItem(p, time);
+    this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - (p.itemOn === 'leaf' && !p.dead ? 34 : 4));
     this.label.alpha = sinking ? 0 : 1;
+  }
+
+  /**
+   * 道具（A9）。速冻：整个人封在一块冰里（半透明，脸看得见），快化的最后 0.8 秒一闪一闪。
+   * 荷叶：头顶撑一片大荷叶，叶柄连到头上，跟着摇杆轻轻歪（减弱动效时不歪、不闪）。
+   */
+  private drawItem(p: PlayerView, time: number): void {
+    const g = this.itemG;
+    const on = p.dead ? null : (p.itemOn ?? null);
+    const left = p.itemLeft ?? 0;
+    if (!on) {
+      if (this.itemKey) {
+        g.clear();
+        this.itemKey = '';
+      }
+      return;
+    }
+    const x = this.bodyC.x;
+    const y = this.bodyC.y;
+    g.clear();
+    this.itemKey = on;
+    if (on === 'freeze') {
+      const s = R + 9;
+      const blink = left < 0.8 && !this.reduced ? 0.55 + 0.45 * Math.abs(Math.sin(time * 18)) : 1;
+      g.roundRect(x - s, y - s, s * 2, s * 2, 12).fill({ color: 0xbfe8ff, alpha: 0.42 * blink });
+      g.roundRect(x - s, y - s, s * 2, s * 2, 12).stroke({ width: 3, color: 0xffffff, alpha: 0.85 * blink });
+      // 冰面的反光：左上两道斜的亮条
+      g.moveTo(x - s + 8, y - s + 22).lineTo(x - s + 22, y - s + 8).stroke({ width: 4, color: 0xffffff, alpha: 0.75 * blink, cap: 'round' });
+      g.moveTo(x - s + 9, y - s + 34).lineTo(x - s + 34, y - s + 9).stroke({ width: 2.5, color: 0xffffff, alpha: 0.5 * blink, cap: 'round' });
+      // 右下角一点霜
+      g.circle(x + s - 9, y + s - 9, 3).fill({ color: 0xffffff, alpha: 0.7 * blink });
+      return;
+    }
+    // 荷叶
+    const tilt = this.reduced ? 0 : Math.max(-0.35, Math.min(0.35, p.aim.x * 0.3 + Math.sin(time * 2.2 + p.id) * 0.05));
+    const top = y - R - this.hatHeight() - 26;
+    const cx = x + Math.sin(tilt) * 26;
+    const cy = top + (1 - Math.cos(tilt)) * 26;
+    const w = 46;
+    const h = 15;
+    // 叶柄
+    g.moveTo(x, y - R + 4).quadraticCurveTo(x + Math.sin(tilt) * 10, (y - R + top) / 2, cx, cy + 4).stroke({ width: 4, color: 0x4e8a3c, cap: 'round' });
+    // 叶面：一个扁的半圆盖，边上一圈深一点，几条叶脉
+    const pts: number[] = [];
+    for (let k = 0; k <= 16; k++) {
+      const a = Math.PI + (k / 16) * Math.PI;
+      const lx = Math.cos(a) * w;
+      const ly = Math.sin(a) * h;
+      pts.push(cx + lx * Math.cos(tilt) - ly * Math.sin(tilt), cy + lx * Math.sin(tilt) + ly * Math.cos(tilt));
+    }
+    const rim = (k: number): [number, number] => [pts[k * 2] as number, pts[k * 2 + 1] as number];
+    g.poly(pts).fill(0x6dbb5a);
+    g.poly(pts).stroke({ width: 3, color: 0x3f7a33, join: 'round' });
+    for (const k of [2, 5, 8, 11, 14]) {
+      const [ex, ey] = rim(k);
+      g.moveTo(cx, cy).lineTo(cx + (ex - cx) * 0.85, cy + (ey - cy) * 0.85).stroke({ width: 1.6, color: 0x3f7a33, alpha: 0.8 });
+    }
+    // 高光
+    const [hx, hy] = rim(5);
+    g.moveTo(cx - 6, cy - 4).lineTo(cx + (hx - cx) * 0.6, cy + (hy - cy) * 0.6).stroke({ width: 3, color: 0xd8f5c4, alpha: 0.6, cap: 'round' });
   }
 
   private hatHeight(): number {
@@ -205,12 +306,18 @@ export class Dumpling {
 
   private drawBody(): void {
     const g = this.body;
+    const { lit, shade } = bodyGradients();
     g.clear();
     g.circle(0, 0, R + 2.5).fill(OUTLINE);
     g.circle(0, 0, R).fill(this.color);
     // 糯米的糯：一点点半透明的白，像粉
-    g.circle(0, 0, R - 1).fill({ color: 0xffffff, alpha: 0.12 });
-    g.ellipse(-7, -10, 9, 5).fill({ color: 0xffffff, alpha: 0.4 });
+    g.circle(0, 0, R - 1).fill({ color: 0xffffff, alpha: 0.1 });
+    // 球的光影：左上亮，右下暗，右下沿着边一道反光（A8）
+    g.circle(0, 0, R).fill(shade);
+    g.circle(0, 0, R).fill(lit);
+    g.arc(0, 0, R - 2.2, Math.PI * 0.08, Math.PI * 0.62).stroke({ width: 2.4, color: 0xffffff, alpha: 0.26, cap: 'round' });
+    // 高光：一小块亮的
+    g.ellipse(-8, -12, 5.5, 3.2).fill({ color: 0xffffff, alpha: 0.8 });
     g.circle(-14, 4, 4.2).fill({ color: 0xf05a6e, alpha: 0.35 });
     g.circle(14, 4, 4.2).fill({ color: 0xf05a6e, alpha: 0.35 });
   }
@@ -228,11 +335,16 @@ export class Dumpling {
         g.stroke({ width: 15, color: OUTLINE, cap: 'round', join: 'round' });
         this.noodle(g, pts);
         g.stroke({ width: 10, color: ARM_COLORS[this.look.arms] ?? ARM_COLORS.noodle, cap: 'round', join: 'round' });
+        // 面条是圆的：靠光的那边一道亮（A8）
+        this.noodle(g, pts, -1.3, -1.8);
+        g.stroke({ width: 3.2, color: 0xffffff, alpha: 0.32, cap: 'round', join: 'round' });
       }
       const h = jit ? { x: arm.hand.x + (Math.random() - 0.5) * jit, y: arm.hand.y + (Math.random() - 0.5) * jit } : arm.hand;
       g.circle(h.x, h.y, CFG.handR + 2.5).fill(OUTLINE);
       g.circle(h.x, h.y, CFG.handR).fill(GLOVES[i] as string);
-      g.circle(h.x - 3, h.y - 3, 3).fill({ color: 0xffffff, alpha: 0.35 });
+      // 手套也是个球：右下压暗一圈，左上留一道亮边，再点一个高光
+      g.circle(h.x + 1.6, h.y + 1.8, CFG.handR - 0.8).fill({ color: 0x140a1e, alpha: 0.2 });
+      g.circle(h.x - 3, h.y - 3, 3).fill({ color: 0xffffff, alpha: 0.5 });
       if (arm.grip) {
         const r = CFG.handR + 5 + Math.sin(arm.grip.t * (12 + warn * 18)) * 1.5;
         g.circle(h.x, h.y, r).stroke({ width: 2 + warn * 1.5, color: warn > 0 ? 0xff6b5a : 0xffffff, alpha: 0.9 });
@@ -240,15 +352,15 @@ export class Dumpling {
     });
   }
 
-  private noodle(g: Graphics, pts: Pt[]): void {
-    g.moveTo(pts[0]!.x, pts[0]!.y);
+  private noodle(g: Graphics, pts: Pt[], ox = 0, oy = 0): void {
+    g.moveTo(pts[0]!.x + ox, pts[0]!.y + oy);
     for (let i = 1; i < pts.length - 1; i++) {
       const a = pts[i] as Pt;
       const b = pts[i + 1] as Pt;
-      g.quadraticCurveTo(a.x, a.y, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      g.quadraticCurveTo(a.x + ox, a.y + oy, (a.x + b.x) / 2 + ox, (a.y + b.y) / 2 + oy);
     }
     const l = pts[pts.length - 1] as Pt;
-    g.lineTo(l.x, l.y);
+    g.lineTo(l.x + ox, l.y + oy);
   }
 
   private drawFace(p: PlayerView, time: number): void {
@@ -257,6 +369,12 @@ export class Dumpling {
     const v = Math.hypot(p.body.vx, p.body.vy);
     const lx = aimed ? p.aim.x * 4 : v > 200 ? (p.body.vx / v) * 3 : 0;
     const ly = aimed ? p.aim.y * 3 : v > 200 ? (p.body.vy / v) * 2 : 0;
+    // 2.5D（A8）：脸长在球面上，往哪看整张脸就往那边转一点（帽子转得少），看着是个圆的
+    const turn = this.reduced ? 0 : 1;
+    this.face.position.set(lx * 0.9 * turn, ly * 0.6 * turn);
+    this.extras.position.set(lx * 0.9 * turn, ly * 0.6 * turn);
+    this.glasses.position.set(lx * 0.9 * turn, ly * 0.6 * turn);
+    this.hat.position.set(lx * 0.4 * turn, 0);
     const blink = this.blink > 0 && this.look.eyes !== 'happy';
     const key = `${p.face}|${lx.toFixed(1)}|${ly.toFixed(1)}|${blink}|${this.sweat > 0}|${this.look.eyes}|${Math.floor(time * 6) % 2}`;
     if (key === this.faceKey) return;

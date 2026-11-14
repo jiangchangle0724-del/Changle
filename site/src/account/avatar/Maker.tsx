@@ -297,7 +297,10 @@ function Body({ ticket, figureUrl, start, onDone, onClose }: { ticket?: string; 
     );
   }, [sel, drawings.length]);
 
-  useLayoutEffect(() => panel.current?.scrollTo({ top: 0 }), [tab]);
+  // (a block body: in Chrome 150+ scrollTo returns a Promise, which React would take for the clean-up and crash on)
+  useLayoutEffect(() => {
+    panel.current?.scrollTo({ top: 0 });
+  }, [tab]);
 
   const inputs = (
     <>

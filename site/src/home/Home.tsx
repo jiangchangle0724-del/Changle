@@ -10,7 +10,8 @@ import { PartyTab } from "./PartyTab";
 import { TipButton } from "./Tip";
 // the tools and wishlist tabs aren't on the first screen: they load when opened, or once the home
 // page has settled (below), so the first download is smaller
-const loadTools = () => import("../tools/ToolsTab");
+// (the app opens a tool's page from the same file: one import, one list of what it needs)
+export const loadTools = () => import("../tools/ToolsTab");
 const loadWishlist = () => import("./WishlistTab");
 const ToolsTab = lazy(() => loadTools().then((m) => ({ default: m.ToolsTab })));
 const WishlistTab = lazy(() => loadWishlist().then((m) => ({ default: m.WishlistTab })));

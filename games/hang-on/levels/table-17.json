@@ -1,0 +1,217 @@
+{
+  "id": "table-17",
+  "world": "table",
+  "name": {
+    "zh": "热丝蒸笼塔",
+    "en": "Steamer Wire Tower"
+  },
+  "teaches": "zap",
+  "w": 2560,
+  "h": 1440,
+  "spawn": {
+    "x": 180,
+    "y": 1216
+  },
+  "goal": {
+    "x": 2420,
+    "y": 240,
+    "w": 100,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 936
+    },
+    {
+      "x": 1980,
+      "y": 456
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1240,
+      "w": 400,
+      "h": 200,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 600,
+      "y": 1120,
+      "w": 160,
+      "h": 320,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 760,
+      "y": 1040,
+      "w": 160,
+      "h": 400,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 920,
+      "y": 960,
+      "w": 440,
+      "h": 480,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1880,
+      "y": 480,
+      "w": 260,
+      "h": 960,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2260,
+      "y": 400,
+      "w": 260,
+      "h": 1040,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 240,
+      "w": 40,
+      "h": 1200,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 400,
+      "y": 1420,
+      "w": 200,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1360,
+      "y": 1420,
+      "w": 520,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2140,
+      "y": 1420,
+      "w": 120,
+      "h": 20,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 420,
+      "y": 1320,
+      "w": 160,
+      "h": 20,
+      "kind": "zap",
+      "dir": "up"
+    },
+    {
+      "x": 800,
+      "y": 800,
+      "w": 80,
+      "h": 20,
+      "kind": "zap",
+      "dir": "down"
+    },
+    {
+      "x": 1400,
+      "y": 1160,
+      "w": 400,
+      "h": 20,
+      "kind": "zap",
+      "dir": "up"
+    },
+    {
+      "x": 2180,
+      "y": 620,
+      "w": 120,
+      "h": 20,
+      "kind": "zap",
+      "dir": "up"
+    },
+    {
+      "x": 2300,
+      "y": 580,
+      "w": 60,
+      "h": 20,
+      "kind": "zap",
+      "dir": "up"
+    }
+  ],
+  "movers": [
+    {
+      "x": 1320,
+      "y": 880,
+      "w": 180,
+      "h": 22,
+      "path": [
+        {
+          "x": 1320,
+          "y": 300
+        },
+        {
+          "x": 1940,
+          "y": 260
+        }
+      ],
+      "speed": 110,
+      "wait": 2,
+      "material": "wood"
+    },
+    {
+      "x": 820,
+      "y": 900,
+      "w": 30,
+      "h": 80,
+      "path": [
+        {
+          "x": 820,
+          "y": 640
+        }
+      ],
+      "speed": 18,
+      "wait": 4,
+      "material": "wood",
+      "deadly": true,
+      "hazard": "zap"
+    }
+  ],
+  "spinners": [
+    {
+      "pivot": {
+        "x": 2240,
+        "y": 300
+      },
+      "arms": 2,
+      "len": 160,
+      "h": 16,
+      "spin": 0.5,
+      "material": "wood"
+    }
+  ],
+  "deathY": 1510,
+  "par": {
+    "seconds": 180,
+    "deathsPerPlayer": 5
+  },
+  "replay": "replays/table-17.json"
+}

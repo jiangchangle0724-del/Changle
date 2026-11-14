@@ -532,6 +532,10 @@ export const sfx = {
     dir > 0
       ? swell(0.55, { type: "bandpass", freq: 260, sweep: 1500, q: 0.9, vol: 0.05 })
       : swell(0.6, { type: "bandpass", freq: 1500, sweep: 240, q: 0.9, vol: 0.04 }),
+  /** Banknotes leaving a hand (ui/Moments.tsx MoneyFx): a riffle, a flick for each, as they set off. */
+  riffle: (n: number) => {
+    for (let i = 0; i < Math.min(n, 6); i++) burst(0.03, { type: "bandpass", freq: 2600 + ((i * 530) % 1400), q: 0.9, vol: 0.045, at: i * 0.07 });
+  },
   /** A card off the pile. */
   card: () => {
     burst(0.07, { type: "highpass", freq: 2200, vol: 0.06 });
@@ -571,6 +575,54 @@ export const sfx = {
     burst(0.05, { type: "highpass", freq: 3000, vol: 0.05 });
     burst(0.08, { type: "bandpass", freq: 1100, q: 1.3, vol: 0.07, at: 0.3 });
     tone(220, 0.1, { vol: 0.08, at: 0.34, slide: 160 });
+  },
+  /** Doubles: the dice knock together, and a quick run up to a bright ring. */
+  doubles: () => {
+    burst(0.03, { type: "bandpass", freq: 2900, q: 3, vol: 0.12 });
+    [784, 1046.5, 1318.5, 1568].forEach((f, i) => tone(f, 0.16, { type: "triangle", vol: 0.065, at: 0.06 + i * 0.06 }));
+    bell(2093, { at: 0.3, vol: 0.04, dur: 0.7 });
+  },
+  /** Speeding: a police car's two notes, three times, not loud. */
+  siren: () => {
+    for (let k = 0; k < 3; k++) {
+      tone(940, 0.26, { type: "triangle", vol: 0.05, at: k * 0.52, slide: 720 });
+      tone(720, 0.26, { type: "triangle", vol: 0.05, at: k * 0.52 + 0.26, slide: 940 });
+    }
+  },
+  /**
+   * A full set: a short brass call, three notes up to a held chord with a bell on top (`mine`: this
+   * phone's team; another team's is the same call, quieter).
+   */
+  set: (mine = true) => {
+    const v = mine ? 1 : 0.55;
+    [392, 523.3, 659.3].forEach((f, i) => tone(f, 0.14, { type: "sawtooth", vol: 0.035 * v, at: i * 0.11 }));
+    chord([523.3, 659.3, 784, 1046.5], 0.95, { type: "triangle", vol: 0.055 * v, at: 0.34 });
+    bell(1568, { at: 0.36, vol: 0.045 * v, dur: 1.1 });
+  },
+  /**
+   * Rent paid on a city (the big screen, as its buildings bounce): the till, a bright ring over a
+   * coin's chink. A big one rings twice, a fifth higher, over a deeper drawer.
+   */
+  rent: (big = false) => {
+    burst(0.04, { type: "bandpass", freq: 3200, q: 4, vol: 0.08 });
+    bell(1318.5, { at: 0.03, vol: 0.05, dur: 0.9 });
+    if (!big) return;
+    burst(0.12, { type: "lowpass", freq: 420, vol: 0.12, at: 0.02 });
+    bell(1975.5, { at: 0.2, vol: 0.05, dur: 1.2 });
+    [1568, 2093].forEach((f, i) => tone(f, 0.18, { type: "triangle", vol: 0.03, at: 0.34 + i * 0.08 }));
+  },
+  /** A deal done (a trade): two hands clap together and two notes go up, as the chips turn over. */
+  deal: () => {
+    burst(0.05, { type: "bandpass", freq: 1500, q: 1.1, vol: 0.14 });
+    burst(0.05, { type: "bandpass", freq: 1100, q: 1.1, vol: 0.12, at: 0.13 });
+    tone(784, 0.2, { type: "triangle", vol: 0.06, at: 0.22 });
+    tone(1174.7, 0.42, { type: "triangle", vol: 0.06, at: 0.32 });
+    bell(2349.3, { at: 0.34, vol: 0.025, dur: 0.8 });
+  },
+  /** A team gone broke: its token falls over to four notes sliding down, quietly. */
+  broke: () => {
+    [392, 370, 349.2, 311.1].forEach((f, i) => tone(f, i === 3 ? 0.9 : 0.26, { type: "triangle", vol: 0.06, at: i * 0.26, slide: i === 3 ? 262 : f * 0.98 }));
+    burst(0.12, { type: "lowpass", freq: 300, vol: 0.12, at: 1.0 });
   },
   /** Sent to Immigration: the gate comes down. */
   jail: () => {

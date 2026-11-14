@@ -47,6 +47,7 @@ jobs:
       - run: npx tsx tests/trip.test.ts
       - run: npx tsx tests/hide.test.ts
       - run: npx tsx tests/draw.test.ts
+      - run: npx tsx tests/mail.test.ts
       - run: npx tsx tests/cutout.test.ts
       - run: npx tsx tests/performer.test.ts
       - run: npx tsx tests/tokens.test.ts
@@ -54,7 +55,11 @@ jobs:
       - run: npx tsx tests/duration.test.ts
       - run: npx tsx tests/tools.test.ts
       - run: npx tsx tests/split.test.ts
+      - run: npx tsx tests/split-second.test.ts
       - run: npx tsx tests/split-screens.test.ts
+      - run: npx tsx tests/split-changes.test.ts
+      - run: npx tsx tests/split-sync.test.ts
+      - run: npx tsx tests/split-phone.test.ts
       - run: npm run build
       - run: npx tsx scripts/budget.ts
 

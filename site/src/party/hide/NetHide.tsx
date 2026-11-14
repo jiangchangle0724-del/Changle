@@ -91,8 +91,8 @@ export function NetHide({ v, onLeave }: { v: HideView; onLeave: () => void }) {
       </p>
       <p>
         {zh
-          ? "先拿到 3 分的赢，或者 75 秒后分最多的赢。每局结束，被认出来次数最多的人受罚。大屏放在电视上看全场，但不会标出谁是真人。"
-          : "First to 3 tags wins, or the most tags after 75 seconds. At the end of each round, whoever got spotted most takes the penalty. The big screen shows the whole crowd on a TV and never marks who's human."}
+          ? "先拿到 5 分的赢，或者 3 分钟后分最多的赢。每局结束，被认出来次数最多的人受罚。大屏放在电视上看全场，但不会标出谁是真人。"
+          : "First to 5 tags wins, or the most tags after 3 minutes. At the end of each round, whoever got spotted most takes the penalty. The big screen shows the whole crowd on a TV and never marks who's human."}
       </p>
     </>
   );

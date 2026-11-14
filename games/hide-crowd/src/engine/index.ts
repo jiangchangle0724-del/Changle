@@ -8,13 +8,18 @@
 // busker, the opera gong): the passers-by stop and look, or dance on the spot, and a player who
 // doesn't stands out. Anyone knocked down draws the looks of the people near them for a second or
 // two. A punch that lands on a rival scores; one that lands on a passer-by knocks the passer-by down
-// and stuns you. A tagged
-// player slips back into the crowd: once they get up, they swap bodies with a passer-by far away, so
-// nobody can keep hitting the same one. First to 3 tags, or the most tags after 75 s.
+// and stuns you. A tagged player slips back into the crowd: once they get up, they swap bodies with a
+// passer-by far away, so nobody can keep hitting the same one. At the night market there is a second
+// way to score (like the side quests in some places of the Steam game this one was modelled on, where
+// collecting things scores): taste the four snack stalls along the back, lingering a moment at each,
+// for 2 points. Passers-by browse the stalls too, but only a player's bite makes a stall light up for
+// everyone. Twice a round a player can distract everyone (as in the Steam game): a passer-by across the
+// crowd throws a punch at nothing, and every eye goes there. First to 5 points, or the most after 3
+// minutes (Steve, 2026-11-13: 75 s and 3 points made each place feel too short).
 
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
-export const MATCH_MS = 75_000;
-export const SCORE_TO_WIN = 3;
+export const MATCH_MS = 180_000;
+export const SCORE_TO_WIN = 5;
 export const NPC_COUNT = 18;
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
@@ -36,12 +41,68 @@ export const BLEND_MS = 1_450;
 export const BLEND_COOLDOWN_MS = 6_000;
 /** A tagged player's new body is at least this far from whoever tagged them (when the crowd allows). */
 export const HIDE_AWAY_DISTANCE = 24;
+/** The night market's four snack stalls along the back, left to right (their middles). */
+export const STALLS: readonly number[] = [20, 40, 60, 80];
+/** In front of a stall, how far either side of its middle, and how far into the floor from the back, you can eat. */
+export const STALL_REACH = { halfWidth: 4.5, depth: 6 } as const;
+/** How long a player stands at a stall to taste it. */
+export const BITE_MS = 1_200;
+/** All four stalls tasted. */
+export const FEAST_POINTS = 2;
+/** How many times a round a player can distract everyone (a passer-by across the crowd throws a punch at nothing). */
+export const DISTRACTS = 2;
+/** The passer-by who throws it is at least this far from the player. */
+export const DECOY_DISTANCE = 22;
+/** The passer-by's swing: the wind-up, the punch, and a beat standing after it, as a player's would look. */
+export const DECOY_MS = PUNCH_WINDUP_MS + 220 + 420;
+/** A distraction turns every other screen's camera towards the passer-by for this long (as the Steam game pans away). */
+export const GLANCE_MS = 1_500;
+/**
+ * The theatre's drill (after the Steam game's gym, where the instructor counts and every robot
+ * punches): the performer calls three beats, and on the fourth the whole crowd throws a punch at once.
+ */
+export const DRILL_BEAT_MS = 600;
+export const DRILL_GO_MS = DRILL_BEAT_MS * 3;
+export const DRILL_MS = 2_700;
+/**
+ * A player's punch landing from a little before the call to a little after it is one of the crowd's:
+ * it goes through the passers-by (no knockdown, no foul, not even a miss) and tags a rival in reach.
+ */
+export const DRILL_WINDOW: readonly [number, number] = [DRILL_GO_MS - 450, DRILL_GO_MS + 650];
+/** Each passer-by's punch in the drill comes this much after the call at most (they're nearly together). */
+export const drillLag = (id: string) => idHash(id) % 110;
+/**
+ * The night market's firecrackers (after the Steam game's falling bombs): someone throws a few into
+ * the crowd, one after another; each flies a moment, lands, hisses on the ground, and bangs. The
+ * passers-by get clear once one lands near them; whoever is still inside its blast is knocked down.
+ */
+export const CRACKERS = 5;
+/** the first lands this long into the moment, the next ones this much later each */
+export const CRACKER_FIRST_MS = 650;
+export const CRACKER_EVERY_MS = 230;
+/** in the air before it lands, and hissing on the ground before it bangs */
+export const CRACKER_FLIGHT_MS = 550;
+export const CRACKER_FUSE_MS = 1_500;
+/** how far a bang knocks people down (a person is 2.4 across; a punch reaches 8.5) */
+export const BLAST_RADIUS = 6.5;
+export const CRACKERS_MS = CRACKER_FIRST_MS + (CRACKERS - 1) * CRACKER_EVERY_MS + CRACKER_FUSE_MS + 900;
+const ALL_STALLS = (1 << 4) - 1;
+
+/** The stall a spot is in front of, or -1. */
+export function stallAt(x: number, y: number): number {
+  if (y > ARENA.marginY + STALL_REACH.depth) return -1;
+  return STALLS.findIndex((middle) => Math.abs(x - middle) <= STALL_REACH.halfWidth);
+}
 
 export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" | "dance";
-/** the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall, the gong at the theatre */
-export type MomentKind = "horn" | "dance" | "gong";
-export type ArenaId = "plaza" | "metro" | "gallery";
-export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery"];
+/**
+ * the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall,
+ * the gong and the drill at the theatre (the performer counts three and everyone punches), the night
+ * market's firecrackers (everyone gets clear) and fireworks
+ */
+export type MomentKind = "horn" | "dance" | "gong" | "drill" | "crackers" | "fireworks";
+export type ArenaId = "plaza" | "metro" | "gallery" | "market";
+export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery", "market"];
 export interface Vector { x: number; y: number }
 export interface PlayerSeed { id: string; name: string }
 
@@ -66,6 +127,19 @@ export interface Character {
   fouls: number;
   /** how many times this player punched the air this round */
   swings: number;
+  /** how many times a firecracker knocked this player down this round */
+  blasted?: number;
+  /** the night market: the stalls tasted since the last feast (one bit each), how many bites and feasts this round */
+  bites: number;
+  snacks: number;
+  feasts: number;
+  /** the stall this body is standing at to taste, and since when (-1: none) */
+  biteStall: number;
+  biteSince: number;
+  /** a player: distractions left this round */
+  distracts: number;
+  /** a passer-by throwing a punch at nothing for someone's distraction: since when (null: not) */
+  decoyAt: number | null;
   pose: Pose;
   npcStyle: number;
   npcOffset: number;
@@ -88,7 +162,8 @@ export interface Character {
  * its id and how many plans it has made), so the same round always plays the same.
  */
 export interface Plan {
-  mode: "walk" | "wait" | "follow";
+  /** browse: (the night market) walk up to a stall and look it over for a while */
+  mode: "walk" | "wait" | "follow" | "browse";
   /** where it's walking to */
   x: number;
   y: number;
@@ -100,14 +175,26 @@ export interface Plan {
   /** the body it looks at (wait) or follows (follow) */
   other: string | null;
   count: number;
+  /** browse: when it reached the stall, and how long it stays */
+  arrivedAt?: number;
+  dwell?: number;
 }
 
-/** tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away; over: the round ended */
+/**
+ * tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away;
+ * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points;
+ * decoy: a player's distraction (only they hear of it); blast: a firecracker knocked people down;
+ * over: the round ended
+ */
 export interface MatchEvent {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "over";
   actor: string | null;
   target: string | null;
+  /** bite: the stall */
+  stall?: number;
+  /** blast: the players it knocked down (each phone is told only whether it was them) */
+  targets?: string[];
 }
 
 /** Someone knocked down: where, when, and who (they don't stare at themselves). */
@@ -131,6 +218,10 @@ export interface MatchState {
   nextEventId: number;
   /** the knockdowns the people nearby are still looking at (a round saved before there were any has none) */
   commotions?: Commotion[];
+  /** the latest distraction: where its passer-by swung, when, and whose it was (every other screen looks there) */
+  glance?: { x: number; y: number; at: number; by: string } | null;
+  /** the night market's firecrackers of the moment on now (thrown where the crowd was when it began) */
+  crackers?: Cracker[];
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -143,6 +234,11 @@ const IDENTITY = [
   "tagged",
   "fouls",
   "swings",
+  "blasted",
+  "bites",
+  "snacks",
+  "feasts",
+  "distracts",
   "npcStyle",
   "npcOffset",
   "attackResolveAt",
@@ -242,6 +338,13 @@ function blankCharacter(fields: Pick<Character, "id" | "ownerId" | "name" | "kin
     tagged: 0,
     fouls: 0,
     swings: 0,
+    bites: 0,
+    snacks: 0,
+    feasts: 0,
+    biteStall: -1,
+    biteSince: 0,
+    distracts: fields.kind === "player" ? DISTRACTS : 0,
+    decoyAt: null,
     pose: "idle",
     attackResolveAt: null,
     attackResolved: false,
@@ -326,8 +429,11 @@ export function characterForOwner(state: MatchState, ownerId: string): Character
   return state.characters.find((character) => character.ownerId === ownerId);
 }
 
-function addEvent(state: MatchState, t: MatchEvent["t"], actor: string | null, target: string | null): void {
-  state.events.push({ id: state.nextEventId++, t, actor, target });
+function addEvent(state: MatchState, t: MatchEvent["t"], actor: string | null, target: string | null, stall?: number, targets?: string[]): void {
+  const event: MatchEvent = { id: state.nextEventId++, t, actor, target };
+  if (stall !== undefined) event.stall = stall;
+  if (targets) event.targets = targets;
+  state.events.push(event);
   if (state.events.length > 18) state.events.splice(0, state.events.length - 18);
 }
 
@@ -341,6 +447,31 @@ export function startPunch(state: MatchState, ownerId: string, now: number): Mat
   copy.attackResolved = false;
   copy.cooldownUntil = now + PUNCH_COOLDOWN_MS;
   copy.pose = "windup";
+  return next;
+}
+
+/**
+ * A distraction: a passer-by well away from the player (DECOY_DISTANCE or more) throws a punch at
+ * nothing, so every eye in the room goes there. Twice a round; only the player hears of it.
+ */
+export function startDistract(state: MatchState, ownerId: string, now: number): MatchState {
+  if (state.phase !== "playing") return state;
+  const actor = characterForOwner(state, ownerId);
+  if (!actor || (actor.distracts ?? 0) <= 0 || now < actor.stunnedUntil || actor.hideAt !== null) return state;
+  const free = (body: Character) => body.decoyAt === null || body.decoyAt === undefined || now > body.decoyAt + DECOY_MS;
+  const candidates = state.characters.filter(
+    (body) => body.kind === "npc" && now >= body.stunnedUntil && free(body) && Math.hypot(body.x - actor.x, body.y - actor.y) >= DECOY_DISTANCE
+  );
+  if (!candidates.length) return state;
+  const pick = candidates[Math.floor(seeded(Math.imul(state.seed, 31) + now)() * candidates.length)];
+  const next = { ...state, events: [...state.events], characters: state.characters.map((character) => (character.id === actor.id || character.id === pick.id ? { ...character } : character)) };
+  const copy = characterForOwner(next, ownerId)!;
+  copy.distracts = (copy.distracts ?? 0) - 1;
+  const decoy = next.characters.find((character) => character.id === pick.id)!;
+  decoy.decoyAt = now;
+  decoy.pose = "windup";
+  next.glance = { x: decoy.x, y: decoy.y, at: now, by: ownerId };
+  addEvent(next, "decoy", ownerId, null);
   return next;
 }
 
@@ -382,7 +513,7 @@ function clampGoal(x: number, y: number): Vector {
 /** The next thing a passer-by does, rolled with its own dice. */
 type Neighbour = Pick<Character, "id" | "x" | "y" | "velocity" | "stunnedUntil" | "plan">;
 
-export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan">, others: readonly Neighbour[], seed: number, now: number): Plan {
+export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan">, others: readonly Neighbour[], seed: number, now: number, arena: ArenaId = "plaza"): Plan {
   const previous = body.plan ?? restingPlan(body.x, body.y);
   const count = previous.count + 1;
   const random = seeded(Math.imul(seed, 7) + Math.imul(idHash(body.id), 131) + count * 7919);
@@ -409,8 +540,16 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
       return { mode: "follow", x: body.x, y: body.y, pace: 1, since: now, until: now + 2_200 + random() * 3_000, other, count };
     }
   }
-  const run = random() < 0.1;
   const [low, high] = PACES[((body.npcStyle % 3) + 3) % 3];
+  if (arena === "market" && previous.mode !== "browse" && roll < 0.66) {
+    // the night market: up to a stall, to look it over (about a third of the crowd is at one, so a player
+    // tasting has company)
+    const middle = STALLS[Math.floor(random() * STALLS.length)];
+    const x = middle + (random() * 2 - 1) * (STALL_REACH.halfWidth - 1);
+    const y = ARENA.marginY + 1.5 + random() * (STALL_REACH.depth - 2.5);
+    return { mode: "browse", x, y, pace: low + random() * (high - low), since: now, until: now + 14_000, other: null, count, dwell: 1_200 + random() * 2_600 };
+  }
+  const run = random() < 0.1;
   const angle = random() * Math.PI * 2;
   const distance = run ? 9 + random() * 10 : 10 + random() * 28;
   const goal = clampGoal(body.x + Math.cos(angle) * distance, body.y + Math.sin(angle) * distance);
@@ -418,14 +557,39 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
 }
 
 /** The ferry horn, the busker and the gong: when, for how long, and where the crowd looks (nowhere: it dances). */
-const MOMENTS: Record<ArenaId, { kind: MomentKind; first: number; every: number; lasts: number; look: Vector | null }> = {
+interface MomentBeat {
+  kind: MomentKind;
+  lasts: number;
+  look: Vector | null;
+}
+/** the theatre's stage, just behind the back row */
+const STAGE: Vector = { x: 50, y: -6 };
+/** each place's moments: the first, then one every so often (where a place has two, they take turns) */
+const MOMENTS: Record<ArenaId, { first: number; every: number; beats: readonly MomentBeat[] }> = {
   // the sea beyond the seawall's railing (far behind the crowd: everyone looks the same way)
-  plaza: { kind: "horn", first: 9_000, every: 15_000, lasts: 2_600, look: { x: 50, y: -400 } },
+  plaza: { first: 9_000, every: 15_000, beats: [{ kind: "horn", lasts: 2_600, look: { x: 50, y: -400 } }] },
   // a busker strikes up and the whole hall dances on the spot (always in one of the walkway's quiet
   // spells, which come every 6 s: nobody dances while the floor carries them)
-  metro: { kind: "dance", first: 8_800, every: 18_000, lasts: 2_700, look: null },
-  // the stage, just behind the back row
-  gallery: { kind: "gong", first: 12_000, every: 17_000, lasts: 2_600, look: { x: 50, y: -6 } }
+  metro: { first: 8_800, every: 18_000, beats: [{ kind: "dance", lasts: 2_700, look: null }] },
+  // the stage: the drill (everyone punches on the call), then the gong (everyone stops and looks)
+  gallery: {
+    first: 12_000,
+    every: 17_000,
+    beats: [
+      { kind: "drill", lasts: DRILL_MS, look: STAGE },
+      { kind: "gong", lasts: 2_600, look: STAGE }
+    ]
+  },
+  // firecrackers thrown into the lot (everyone gets clear of them), then fireworks going up from behind
+  // the stalls (everyone turns round to watch)
+  market: {
+    first: 10_000,
+    every: 16_000,
+    beats: [
+      { kind: "crackers", lasts: CRACKERS_MS, look: null },
+      { kind: "fireworks", lasts: 2_800, look: { x: 50, y: -400 } }
+    ]
+  }
 };
 
 export interface CrowdMoment {
@@ -442,14 +606,84 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
   if (!rule) return null;
   const elapsed = now - startedAt - rule.first;
   if (elapsed < 0) return null;
+  const beat = rule.beats[Math.floor(elapsed / rule.every) % rule.beats.length];
   const into = elapsed % rule.every;
-  if (into >= rule.lasts) return null;
+  if (into >= beat.lasts) return null;
   const startsAt = now - into;
-  return { kind: rule.kind, startsAt, endsAt: startsAt + rule.lasts, look: rule.look };
+  return { kind: beat.kind, startsAt, endsAt: startsAt + beat.lasts, look: beat.look };
 }
 
 /** How long a body takes to react to a moment: people don't all turn at once. */
 export const reactionDelay = (id: string) => 120 + (idHash(id) % 520);
+
+/** A firecracker: where it lands, when, and when it bangs. */
+export interface Cracker {
+  x: number;
+  y: number;
+  landsAt: number;
+  bangsAt: number;
+}
+
+/**
+ * The firecrackers thrown in the moment that starts at `startsAt`, by the round's dice: each at
+ * someone in the crowd, a player or a passer-by alike, aimed where they'll be when it lands (a
+ * thrower leads a walker), well apart from each other and inside the lot.
+ */
+export function throwCrackers(characters: readonly Pick<Character, "x" | "y" | "velocity">[], seed: number, startedAt: number, startsAt: number): Cracker[] {
+  const random = seeded(Math.imul(seed, 2_654_435_761) ^ Math.round((startsAt - startedAt) / 100));
+  const spots: Cracker[] = [];
+  for (let tries = 0; spots.length < CRACKERS && tries < 60; tries++) {
+    const landsAt = startsAt + CRACKER_FIRST_MS + spots.length * CRACKER_EVERY_MS;
+    const body = characters[Math.floor(random() * characters.length)];
+    const lead = (landsAt - startsAt) / 1_000;
+    const x = bounded(body.x + (body.velocity?.x ?? 0) * lead + (random() * 2 - 1) * 2.5, 12, ARENA.width - 12);
+    const y = bounded(body.y + (body.velocity?.y ?? 0) * lead + (random() * 2 - 1) * 2.5, 13, ARENA.height - 9);
+    if (spots.some((spot) => Math.hypot(spot.x - x, spot.y - y) < BLAST_RADIUS * 2.2)) continue;
+    spots.push({ x, y, landsAt, bangsAt: landsAt + CRACKER_FUSE_MS });
+  }
+  return spots;
+}
+
+/**
+ * How long a passer-by takes to run from a firecracker that lands near it: most go at once, but now
+ * and then someone freezes for a second (so a body knocked down isn't always a player).
+ */
+export const crackerReaction = (id: string) => (idHash(id) % 7 === 3 ? 1_050 + (idHash(id) % 400) : reactionDelay(id) * 0.6);
+
+/**
+ * Which way a body runs to get clear of the firecrackers hissing near it (once it has seen one land),
+ * or null: away from each, harder the closer it is, and off the walls.
+ */
+export function crackerFlight(body: Pick<Character, "id" | "x" | "y">, crackers: readonly Cracker[], now: number): Vector | null {
+  const clear = BLAST_RADIUS + 3;
+  let x = 0;
+  let y = 0;
+  for (const cracker of crackers) {
+    if (now < cracker.landsAt + crackerReaction(body.id) || now >= cracker.bangsAt + 120) continue;
+    const dx = body.x - cracker.x;
+    const dy = body.y - cracker.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= clear) continue;
+    const push = 1 - distance / clear + 0.25;
+    if (distance < 0.05) {
+      const angle = ((idHash(body.id) % 628) / 100) - Math.PI;
+      x += Math.cos(angle) * push;
+      y += Math.sin(angle) * push;
+    } else {
+      x += (dx / distance) * push;
+      y += (dy / distance) * push;
+    }
+  }
+  if (x === 0 && y === 0) return null;
+  // (running into a wall gets nobody clear: slide along it)
+  const wall = 7;
+  if (body.x < ARENA.marginX + wall) x += 0.6;
+  if (body.x > ARENA.width - ARENA.marginX - wall) x -= 0.6;
+  if (body.y < ARENA.marginY + wall) y += 0.6;
+  if (body.y > ARENA.height - ARENA.marginY - wall) y -= 0.6;
+  const length = Math.hypot(x, y);
+  return length > 0 ? { x: x / length, y: y / length } : null;
+}
 
 /** How far a knockdown draws the looks of the people around it, and for how long (ms). */
 export const COMMOTION_RADIUS = 15;
@@ -486,12 +720,21 @@ export interface CrowdStep {
 export function crowdStep(
   body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan" | "facing">,
   others: readonly Neighbour[],
-  game: Pick<MatchState, "arena" | "startedAt" | "seed" | "commotions">,
+  game: Pick<MatchState, "arena" | "startedAt" | "seed" | "commotions" | "crackers">,
   now: number
 ): CrowdStep {
   const moment = crowdMoment(game.arena, game.startedAt, now);
   let plan = body.plan ?? restingPlan(body.x, body.y);
-  if (moment && now >= moment.startsAt + reactionDelay(body.id)) {
+  if (moment?.kind === "crackers") {
+    // firecrackers: get clear of any hissing near you, at a run; stop and stare at one hissing nearby
+    const crackers = game.crackers ?? [];
+    const flight = crackerFlight(body, crackers, now);
+    if (flight) return { plan, heading: flight, pace: RUN_PACE, face: null, glance: false };
+    const hissing = crackers
+      .filter((cracker) => now >= cracker.landsAt + reactionDelay(body.id) && now < cracker.bangsAt && Math.hypot(cracker.x - body.x, cracker.y - body.y) < COMMOTION_RADIUS)
+      .sort((a, b) => Math.hypot(a.x - body.x, a.y - body.y) - Math.hypot(b.x - body.x, b.y - body.y))[0];
+    if (hissing) return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(hissing.y - body.y, hissing.x - body.x), glance: false };
+  } else if (moment && now >= moment.startsAt + reactionDelay(body.id)) {
     // everyone stops and looks, or dances where they stand (and picks up where they were once it's over)
     const face = moment.look ? Math.atan2(moment.look.y - body.y, moment.look.x - body.x) : null;
     return { plan, heading: { x: 0, y: 0 }, pace: 0, face, glance: false };
@@ -502,6 +745,7 @@ export function crowdStep(
   const done = (current: Plan) => {
     if (now >= current.until) return true;
     if (current.mode === "walk") return Math.hypot(current.x - body.x, current.y - body.y) < 1.6;
+    if (current.mode === "browse") return current.arrivedAt !== undefined && now >= current.arrivedAt + (current.dwell ?? 0);
     if (current.mode === "follow") {
       const other = others.find((item) => item.id === current.other);
       // (and nobody keeps following someone who has started following someone else)
@@ -509,7 +753,20 @@ export function crowdStep(
     }
     return false;
   };
-  if (done(plan)) plan = nextPlan(body, others, game.seed, now);
+  if (done(plan)) plan = nextPlan(body, others, game.seed, now, game.arena);
+  if (plan.mode === "browse") {
+    const dx = plan.x - body.x;
+    const dy = plan.y - body.y;
+    const distance = Math.hypot(dx, dy);
+    if (plan.arrivedAt === undefined && distance > 1.4) {
+      return { plan, heading: { x: dx / (distance || 1), y: dy / (distance || 1) }, pace: plan.pace * Math.min(1, 0.45 + distance / 6), face: null, glance: false };
+    }
+    if (plan.arrivedAt === undefined) plan = { ...plan, arrivedAt: now };
+    // at the counter, looking it over (and around, now and then)
+    const middle = STALLS.reduce((best, item) => (Math.abs(item - body.x) < Math.abs(best - body.x) ? item : best), STALLS[0]);
+    const glance = now - plan.arrivedAt! > (plan.dwell ?? 0) * 0.6;
+    return { plan, heading: { x: 0, y: 0 }, pace: 0, face: glance ? null : Math.atan2(ARENA.marginY - 3 - body.y, middle - body.x), glance };
+  }
   if (plan.mode === "walk") {
     const dx = plan.x - body.x;
     const dy = plan.y - body.y;
@@ -539,8 +796,11 @@ function angleDifference(a: number, b: number): number {
 }
 
 function resolvePunch(state: MatchState, attacker: Character, now: number): void {
+  // in the theatre's drill everyone is punching: a player's punch then goes through the passers-by
+  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const drill = moment?.kind === "drill" && now >= moment.startsAt + DRILL_WINDOW[0] && now <= moment.startsAt + DRILL_WINDOW[1];
   const candidates = state.characters
-    .filter((character) => character.id !== attacker.id && now >= character.stunnedUntil && character.hideAt === null)
+    .filter((character) => character.id !== attacker.id && now >= character.stunnedUntil && character.hideAt === null && !(drill && character.kind === "npc"))
     .map((character) => {
       const dx = character.x - attacker.x;
       const dy = character.y - attacker.y;
@@ -550,6 +810,8 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
     .sort((a, b) => a.distance - b.distance);
   const target = candidates[0]?.character;
   if (!target) {
+    // (a punch thrown with the drill is one of the crowd's: not a miss)
+    if (drill) return;
     attacker.swings = (attacker.swings ?? 0) + 1;
     addEvent(state, "swing", attacker.ownerId, null);
     return;
@@ -625,6 +887,37 @@ function hideAway(state: MatchState, index: number, now: number): void {
   addEvent(state, "hide", body.ownerId, null);
 }
 
+/** A firecracker bangs: everyone on their feet inside its blast is knocked down and away, and the crowd looks. */
+function blast(state: MatchState, cracker: Cracker, now: number): void {
+  const victims: string[] = [];
+  let anyone = false;
+  for (const body of state.characters) {
+    const dx = body.x - cracker.x;
+    const dy = body.y - cracker.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance >= BLAST_RADIUS || now < body.stunnedUntil || body.hideAt !== null) continue;
+    anyone = true;
+    const angle = distance < 0.05 ? ((idHash(body.id) % 628) / 100) - Math.PI : Math.atan2(dy, dx);
+    const force = 9 + 9 * (1 - distance / BLAST_RADIUS);
+    body.stunnedUntil = now + STUN_MS;
+    body.velocity = { x: 0, y: 0 };
+    body.recoil = { x: Math.cos(angle) * force, y: Math.sin(angle) * force };
+    body.pose = "stunned";
+    body.attackResolveAt = null;
+    body.attackResolved = false;
+    body.biteStall = -1;
+    if (body.kind === "npc") body.plan = restingPlan(body.x, body.y);
+    else {
+      body.blendUntil = 0;
+      body.blasted = (body.blasted ?? 0) + 1;
+      if (body.ownerId) victims.push(body.ownerId);
+    }
+  }
+  // (the smoke draws looks, like a knockdown, from everyone around)
+  state.commotions = [...(state.commotions ?? []), { x: cracker.x, y: cracker.y, at: now, who: "" }];
+  if (anyone) addEvent(state, "blast", null, null, undefined, victims);
+}
+
 function resolveCrowdCollisions(characters: Character[]): void {
   const diameter = CHARACTER_COLLISION_DIAMETER;
   for (let pass = 0; pass < 2; pass++) {
@@ -698,7 +991,18 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
   const dt = bounded(now - state.lastTickAt, 0, 120) / 1_000;
   const laneDrift = environmentalDrift(state.arena, state.startedAt, now).x;
   // while the busker plays, anyone standing still dances (players too: it's how they blend in)
-  const dancing = crowdMoment(state.arena, state.startedAt, now)?.kind === "dance";
+  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const dancing = moment?.kind === "dance";
+  // the drill's call: every passer-by throws its punch (nearly together)
+  const drillGo = moment?.kind === "drill" ? moment.startsAt + DRILL_GO_MS : null;
+  // the night market's firecrackers: thrown at the crowd as the moment begins; one banging since the
+  // last tick knocks down everyone still inside its blast
+  if (moment?.kind === "crackers") {
+    if (!next.crackers?.length || next.crackers[0].landsAt < moment.startsAt) next.crackers = throwCrackers(next.characters, next.seed, next.startedAt, moment.startsAt);
+    for (const cracker of next.crackers) {
+      if (cracker.bangsAt > state.lastTickAt && cracker.bangsAt <= now) blast(next, cracker, now);
+    }
+  } else if (next.crackers?.length) next.crackers = [];
   // tagged players who are back on their feet slip into the crowd first
   next.characters.forEach((character, index) => {
     if (character.kind === "player" && character.hideAt !== null && now >= character.hideAt) hideAway(next, index, now);
@@ -718,10 +1022,13 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     let rawInput: Vector;
     let pace = 1;
     let step: CrowdStep | null = null;
+    // a passer-by throwing a punch at nothing (someone's distraction) stands where it is to throw it
+    const decoying = character.decoyAt !== null && character.decoyAt !== undefined && now < character.decoyAt + DECOY_MS;
+    if (character.decoyAt !== null && character.decoyAt !== undefined && !decoying) character.decoyAt = null;
     if (character.kind === "npc") {
       step = crowdStep(character, state.characters, state, now);
       character.plan = step.plan;
-      rawInput = step.heading;
+      rawInput = decoying ? { x: 0, y: 0 } : step.heading;
       pace = step.pace;
     } else rawInput = inputs[character.ownerId ?? ""] ?? { x: 0, y: 0 };
     const vector = normalizeVector(rawInput);
@@ -757,12 +1064,18 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     character.y = bounded(nextY, ARENA.marginY, ARENA.height - ARENA.marginY);
     if (character.x !== nextX) character.velocity.x = 0;
     if (character.y !== nextY) character.velocity.y = 0;
+    // (a player standing at a stall tastes it however the crowd jostles them: it's the stick that counts)
+    if (next.arena === "market" && character.kind === "player" && next.phase === "playing") taste(next, character, Math.hypot(vector.x, vector.y) > 0.2, now);
     if (character.attackResolveAt !== null && now < character.attackResolveAt) character.pose = "windup";
     else if (character.attackResolveAt !== null && !character.attackResolved && now >= character.attackResolveAt) {
       character.attackResolved = true;
       character.pose = "punch";
       resolvePunch(next, character, now);
     } else if (character.attackResolved && character.attackResolveAt !== null && now <= character.attackResolveAt + 220) character.pose = "punch";
+    else if (decoying) character.pose = now < character.decoyAt! + PUNCH_WINDUP_MS ? "windup" : now <= character.decoyAt! + PUNCH_WINDUP_MS + 220 ? "punch" : "idle";
+    else if (character.kind === "npc" && drillGo !== null && now >= drillGo + drillLag(character.id) && now <= drillGo + drillLag(character.id) + PUNCH_WINDUP_MS + 220) {
+      character.pose = now < drillGo + drillLag(character.id) + PUNCH_WINDUP_MS ? "windup" : "punch";
+    }
     else if (dancing && !walking) character.pose = "dance";
     else if (blended) character.pose = "glance";
     else if (moving) character.pose = "walk";
@@ -783,6 +1096,39 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     addEvent(next, "over", next.winnerId, null);
   }
   return next;
+}
+
+/**
+ * The night market: a player standing at a stall they haven't tasted yet tastes it after a moment
+ * (the stall lights up on every screen: only a player's bite does that). All four is a feast: 2
+ * points, and they can start again.
+ */
+function taste(state: MatchState, body: Character, steering: boolean, now: number): void {
+  const stall = !steering && now >= body.stunnedUntil && body.hideAt === null ? stallAt(body.x, body.y) : -1;
+  if (stall < 0 || (body.bites ?? 0) & (1 << stall)) {
+    body.biteStall = -1;
+    return;
+  }
+  if (body.biteStall !== stall) {
+    body.biteStall = stall;
+    body.biteSince = now;
+    return;
+  }
+  if (now - body.biteSince < BITE_MS) return;
+  body.biteStall = -1;
+  body.bites = (body.bites ?? 0) | (1 << stall);
+  body.snacks = (body.snacks ?? 0) + 1;
+  addEvent(state, "bite", body.ownerId, null, stall);
+  if (body.bites !== ALL_STALLS) return;
+  body.bites = 0;
+  body.feasts = (body.feasts ?? 0) + 1;
+  body.score += FEAST_POINTS;
+  addEvent(state, "feast", body.ownerId, null);
+  if (body.score >= SCORE_TO_WIN) {
+    state.phase = "over";
+    state.winnerId = body.ownerId;
+    addEvent(state, "over", body.ownerId, null);
+  }
 }
 
 export function nextMatchWake(state: MatchState): number | null {
@@ -806,7 +1152,7 @@ export interface RoundPenalty {
 }
 
 /** The round's nicknames, from what each player did (each gets one at most, the first that fits). */
-export type AwardKey = "eagleEye" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
+export type AwardKey = "eagleEye" | "foodie" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
 
 export function roundAwards(state: Pick<MatchState, "characters">): { owner: string; award: AwardKey }[] {
   const players = state.characters.filter((character) => character.kind === "player" && character.ownerId);
@@ -816,12 +1162,14 @@ export function roundAwards(state: Pick<MatchState, "characters">): { owner: str
     if (top < least) return;
     for (const player of players) if (value(player) === top && !given.has(player.ownerId!)) given.set(player.ownerId!, award);
   };
-  most((player) => player.score, 1, "eagleEye");
+  // (spotting: the points from tags, not from the night market's stalls)
+  most((player) => player.score - (player.feasts ?? 0) * FEAST_POINTS, 1, "eagleEye");
+  most((player) => player.snacks ?? 0, 3, "foodie");
   for (const player of players) if (player.tagged === 0 && player.fouls === 0 && !given.has(player.ownerId!)) given.set(player.ownerId!, "ghost");
   most((player) => player.fouls, 1, "friendlyFire");
   most((player) => player.swings ?? 0, 2, "airPunch");
   most((player) => player.tagged, 2, "punchingBag");
-  const order: AwardKey[] = ["eagleEye", "ghost", "friendlyFire", "airPunch", "punchingBag"];
+  const order: AwardKey[] = ["eagleEye", "foodie", "ghost", "friendlyFire", "airPunch", "punchingBag"];
   return players
     .filter((player) => given.has(player.ownerId!))
     .map((player) => ({ owner: player.ownerId!, award: given.get(player.ownerId!)! }))

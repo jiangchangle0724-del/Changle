@@ -1,0 +1,213 @@
+{
+  "id": "table-15",
+  "world": "table",
+  "name": {
+    "zh": "红油吊廊",
+    "en": "Chilli-Oil Catwalk"
+  },
+  "teaches": "hot",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 336,
+    "y": 616
+  },
+  "goal": {
+    "x": 2400,
+    "y": 360,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1180,
+      "y": 376
+    },
+    {
+      "x": 1900,
+      "y": 576
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 640,
+      "w": 600,
+      "h": 80,
+      "material": "cloth"
+    },
+    {
+      "kind": "ground",
+      "x": 820,
+      "y": 560,
+      "w": 160,
+      "h": 160,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 980,
+      "y": 480,
+      "w": 160,
+      "h": 240,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1140,
+      "y": 400,
+      "w": 260,
+      "h": 320,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 1700,
+      "y": 600,
+      "w": 400,
+      "h": 120,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2320,
+      "y": 520,
+      "w": 200,
+      "h": 200,
+      "material": "ceramic"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 360,
+      "w": 40,
+      "h": 360,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 600,
+      "y": 700,
+      "w": 220,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1400,
+      "y": 700,
+      "w": 300,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2100,
+      "y": 700,
+      "w": 220,
+      "h": 20,
+      "material": "wood"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 700,
+      "y": 650,
+      "w": 100,
+      "h": 20,
+      "kind": "hot",
+      "dir": "up"
+    },
+    {
+      "x": 900,
+      "y": 160,
+      "w": 60,
+      "h": 20,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 1440,
+      "y": 660,
+      "w": 240,
+      "h": 20,
+      "kind": "hot",
+      "dir": "up"
+    },
+    {
+      "x": 2140,
+      "y": 660,
+      "w": 120,
+      "h": 20,
+      "kind": "hot",
+      "dir": "up"
+    },
+    {
+      "x": 1800,
+      "y": 420,
+      "w": 60,
+      "h": 20,
+      "kind": "hot",
+      "dir": "down"
+    }
+  ],
+  "movers": [
+    {
+      "x": 2120,
+      "y": 500,
+      "w": 180,
+      "h": 22,
+      "path": [
+        {
+          "x": 2340,
+          "y": 360
+        }
+      ],
+      "speed": 40,
+      "wait": 2,
+      "material": "wood"
+    },
+    {
+      "x": 1060,
+      "y": 320,
+      "w": 30,
+      "h": 80,
+      "path": [
+        {
+          "x": 1060,
+          "y": 0
+        }
+      ],
+      "speed": 24,
+      "wait": 4,
+      "material": "wood",
+      "deadly": true,
+      "hazard": "hot"
+    }
+  ],
+  "spinners": [
+    {
+      "pivot": {
+        "x": 1560,
+        "y": 260
+      },
+      "arms": 2,
+      "len": 180,
+      "h": 16,
+      "spin": 0.45,
+      "material": "wood"
+    }
+  ],
+  "deathY": 790,
+  "par": {
+    "seconds": 150,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/table-15.json"
+}

@@ -25,7 +25,11 @@ import { gzipSync } from "node:zlib";
 // inside the card's own tap, so they can't load later), and 最佳称号 and 林波舞 the rest since.
 // 121 → 122 (2026-11-11): main stood at 121.0. 一起跳's card now says to mirror this phone or computer
 // to the TV (Steve's words, both languages, a `mirror` flag on its stage) and adds 0.2.
-const BUDGET = { js: 122, css: 22 };
+// 122 → 123 (2026-11-13): main stood at 121.8. The tools open on pages of their own (/tools/currency,
+// /tools/clock, /tools/price; Steve: cards like 随便's): their route and names add 0.2, and the game
+// header they share with the games becomes a file of its own, which every game's list of files names
+// (0.07). The tools themselves still load with their tab or page.
+const BUDGET = { js: 123, css: 22 };
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const html = readFileSync(join(dist, "index.html"), "utf8");

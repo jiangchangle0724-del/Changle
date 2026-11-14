@@ -14,12 +14,12 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
-| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/After.tsx` (what's next, once its time is set), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. |
-| `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`). |
+| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
+| `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`; what every browser test starts from is in `tests/e2e/helpers.ts`). |
 
 ### What is kept, and for how long
 
@@ -46,13 +46,75 @@ when a connection drops). The server pushes the gathering to every open page ove
 (`/when/api/e/<code>/ws`, hibernating, so an idle gathering costs nothing). When the socket is down
 the page asks again every ten seconds, and the moment it comes back to the front.
 
+### Holidays on the grid
+
+Above a day in the grid, one line says what that day is, in the page's language
+(`src/engine/daynotes.ts` chooses the words, `DayNotes` in `src/client/ui/Event.tsx` shows them):
+
+- a B.C. statutory holiday, with "法定假日 / stat holiday" after its name, in the tool's amber:
+  most people are off;
+- a festival people keep without a day off (春节, 中秋, Christmas Eve…), in the quiet text color;
+- where a long weekend runs to ("连休到 12月27日 周日"), said once, on the first of its days the
+  gathering asks about.
+
+A day with none of these has no line. The dates are not worked out here: they were looked up and
+sit in `src/engine/holidays.ts` with their sources, from November 2026 to the end of 2028. After
+that the grid says nothing until the next years are added there.
+
+### Quick fill
+
+In "my times", three chips above the grid fill in many slots with one tap: **all free**,
+**weekends** (when some of the days, but not all, are weekend days) and **evenings** (when the
+gathering asks by the half day). There, a day's name is a button too, and fills in its row. Each
+says "free" for every slot it covers and is lit while they all are; pressed then, it takes them
+back. The rules are in `src/engine/quick.ts`.
+
+A slot filled that way and not touched since goes back to "not free" with one tap, so someone who
+is free most of the time presses "all free" and then taps only what they can't make. A slot
+tapped by hand goes round as before: free, could move things, not free. Which slots were filled
+in one go is remembered only while the page is open.
+
+Every quick fill, and "clear all" under the grid, can be undone for six seconds, or until the
+next tap on a slot, from the line that comes up at the bottom of the screen.
+
+### Pictures to pass around
+
+A link pasted into WeChat shows no picture of its own, so the gathering's page makes two that can
+be sent on like any photo:
+
+- the **invitation** (the button beside the link and the QR code): the gathering's name, the days
+  it asks about, and a code that leads to its page;
+- the **result** (under "tell the group", once the time is set): the name, the day and part, who
+  can make it in the page's own words, and the same code.
+
+Each is drawn in the phone when asked for and never sent anywhere (`src/client/picture.ts`): a
+1080 × 1440 canvas over one of the two backgrounds in `src/client/art/`, which keep their middle
+three fifths empty for this, with the words set as large as fits and the code dark on a white card.
+The picture comes out as a JPEG of about 150 kB, in the page's language. `src/client/ui/Picture.tsx`
+shows it in a sheet. In WeChat a page can neither share nor download, so the picture is pressed
+and held to save it or send it on, and to follow its code: the page allows pressing and holding
+on the picture and nowhere else. Other browsers also get "share" (where the phone can share a
+file) and "save the picture".
+
+A picture a page imports (`import picture from "../art/x.webp"`) is built to
+`assets/art/<name>-<hash>.webp`, so it can be kept for a year like the scripts; only the pictures
+a page imports are built at all.
+
 ### Once the time is set
 
-Every page then asks what's next (`src/client/ui/After.tsx`; the rules are in
+The banner of the time that was set carries **Add to calendar**, for everyone
+(`src/client/ui/Calendar.tsx`). An iPhone, an iPad or a Mac gets the gathering's calendar file,
+`/when/api/e/<code>/calendar.ics` (`src/engine/ics.ts` writes it; it is there only while a time is
+set, and never kept, since the host can choose again); everything else goes to Google Calendar
+with the event filled in. The other of the two is the link beside the button. Inside WeChat
+neither opens, so there the button says how to get to a browser. The times in the file are in UTC
+with no time-zone block, so no calendar can get Vancouver's rules wrong.
+
+Every page also asks what's next (`src/client/ui/After.tsx`; the rules are in
 `src/engine/after.ts`):
 
 - **Tell the group**: the result as words to paste into the chat, in Chinese and in English, with
-  the gathering's link under them.
+  the gathering's link under them, and as a picture (above).
 - **Where to eat**: on to 随便 (changle.ca/eat). Only a host gets the link, so one gathering opens
   one table; everyone else is told to wait for the table's link. The link carries what is known:
   `/eat/?from=when&code=<code>&date=2026-11-21&time=18:30&occasion=friends&people=7` (lunch at
@@ -106,9 +168,18 @@ shade and the text on it is 5.4:1 or better (2026-11-12).
 
 ## Live
 
-Not yet. It goes live when Steve connects it in Cloudflare (a settings change, so it is his to
-make): Workers & Pages, create a Worker named `when` from this repository (Workers Builds) with
-**root directory** `tools/when`, build command `npm run build`, deploy command
-`npx wrangler deploy`, production branch `main`, build watch path `tools/when/*`. The routes
-(changle.ca/when and changle.ca/when/*) and the two Durable Objects are in `wrangler.jsonc`; there
-are no secrets. After that, merging into `main` deploys it.
+Since 2026-11-12, at changle.ca/when. Merging a change to `tools/when/*` into `main` deploys it:
+the Worker `when` is connected to this repository in Cloudflare (Workers Builds) with **root
+directory** `/tools/when`, build command `npm run build`, deploy command `npx wrangler deploy`,
+production branch `main`, build watch path `tools/when/*`, preview builds off, and the build token
+随便 also uses. The routes (changle.ca/when and changle.ca/when/*) and the two Durable Objects
+are in `wrangler.jsonc`; there are no secrets. The build shows up as the check
+"Workers Builds: when" on the merge commit.
+
+Cloudflare adds two scripts of its own to every page of changle.ca: its visitor statistics (Web
+Analytics, from static.cloudflareinsights.com) and its bot check (inline). These pages run their
+own files and the first of those: Steve asked for the statistics on 2026-11-13, so the
+`Content-Security-Policy` header in `src/server/worker.ts` names that script's address and where
+it reports (this site's own /cdn-cgi/rum; cloudflareinsights.com is listed too, as Cloudflare's
+own table of headers has it). The inline bot check is still turned away: one line in the console,
+nothing a person notices.

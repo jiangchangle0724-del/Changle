@@ -1,23 +1,44 @@
 // A round on a phone: the arena (3D, or flat without WebGL), the clock and the scores along the top,
-// the stick and the two moves under the thumbs. Sideways the arena fills the screen; upright it sits
-// above the controls. A phone that joined during the round watches until the next one.
+// the stick and the three moves under the thumbs, at the night market the four snacks you've tasted,
+// and at the theatre the stage's count in the middle when the whole crowd is about to punch.
+// Sideways the arena fills the screen; upright it sits above the controls. A phone that joined during
+// the round watches until the next one.
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { ClientMsg, EventView, GameView, RoomView } from "../../room/protocol";
+import { MATCH_MS } from "../../engine";
+import type { ClientMsg, EventView, GameView, MeView, RoomView } from "../../room/protocol";
 import { t, type Key } from "../i18n";
 import { Arena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
-import { Icon, IconButton } from "./chrome";
+import { Icon, IconButton, type IconName } from "./chrome";
 import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
-import { MomentBanner, useRoundSounds } from "./roundFx";
+import { arenaEvents, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 
-const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden" };
+const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", blast: "blasted" };
+/** the night market's four stalls, left to right: their snacks */
+export const SNACKS: readonly { icon: IconName; name: Key }[] = [
+  { icon: "squid", name: "snack0" },
+  { icon: "fishball", name: "snack1" },
+  { icon: "tea", name: "snack2" },
+  { icon: "potato", name: "snack3" }
+];
+const tastedCount = (bites: number) => [0, 1, 2, 3].filter((stall) => bites & (1 << stall)).length;
+
+interface Notice {
+  key: Key;
+  id: number;
+  vars?: Record<string, string | number>;
+}
 
 /** The latest thing that happened to this phone's player, as a word on screen for a moment. */
-function useNotice(events: EventView[]): { key: Key; id: number } | null {
-  const [notice, setNotice] = useState<{ key: Key; id: number } | null>(null);
+function useNotice(events: EventView[], me: MeView | null): Notice | null {
+  const [notice, setNotice] = useState<Notice | null>(null);
   const seen = useRef(events.length ? events[events.length - 1].id : 0);
+  const timer = useRef(0);
+  // (every frame brings a new list: look again only when something new has happened, and leave the
+  // word's own timer to run until a newer word takes its place, or the word would never go)
+  const latest = events.length ? events[events.length - 1].id : 0;
   useEffect(() => {
     const fresh = events.filter((event) => event.id > seen.current);
     if (!fresh.length) return;
@@ -26,11 +47,40 @@ function useNotice(events: EventView[]): { key: Key; id: number } | null {
     if (!mine) return;
     const key = mine.onYou && mine.t === "tag" ? "spotted" : NOTICE[mine.t];
     if (!key) return;
-    setNotice({ key, id: mine.id });
-    const timer = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" ? 2_600 : 1_400);
-    return () => window.clearTimeout(timer);
-  }, [events]);
+    const vars = mine.t === "bite" ? { snack: t(SNACKS[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
+    setNotice({ key, id: mine.id, vars });
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" || mine.t === "blast" ? 2_600 : 1_400);
+  }, [latest]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
   return notice;
+}
+
+/**
+ * The night market's side quest on your phone: the four snacks, lit once you've tasted them, and a
+ * ring filling round the one you're standing at.
+ */
+function Quest(props: { me: MeView }) {
+  const { me } = props;
+  return (
+    <div class="quest" role="group" aria-label={t("questLabel", { n: tastedCount(me.bites) })}>
+      <span class="quest-title">{t("questTitle")}</span>
+      {SNACKS.map((snack, stall) => {
+        const done = (me.bites & (1 << stall)) !== 0;
+        const tasting = !done && me.at === stall && me.tasting > 0;
+        return (
+          <span
+            key={stall}
+            class={`quest-snack stall-${stall}${done ? " is-done" : ""}${tasting ? " is-tasting" : ""}`}
+            style={tasting ? { "--tasting": String(me.tasting) } : undefined}
+            title={t(snack.name)}
+          >
+            <Icon name={snack.icon} size={18} />
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 export function Scoreboard(props: { view: RoomView; target: number; compact?: boolean }) {
@@ -51,6 +101,9 @@ export function Scoreboard(props: { view: RoomView; target: number; compact?: bo
     </ol>
   );
 }
+
+/** The round's clock as it reads: minutes and seconds (3:00 down to 0:00). */
+export const clockText = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 export function useClock(game: GameView | null, receivedAt: number): number {
   const [, force] = useState(0);
@@ -93,9 +146,13 @@ export function Play(props: {
   const remaining = useClock(game, props.receivedAt);
   const seconds = Math.ceil(remaining / 1_000);
   useRoundSounds(game, seconds, { screen: false, music: !!props.music });
-  const latest = game.events[game.events.length - 1];
-  const notice = useNotice(game.events);
   const me = game.me;
+  const shown = arenaEvents(game);
+  // (the camera's opening sweep when the arena comes up: only if the round has just begun, not for a
+  // phone that comes in late; the next round on the same arena starts its own, Arena3D)
+  const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
+  const notice = useNotice(game.events, me);
+  const drill = useDrill(game, props.receivedAt);
   const meScore = view.players.find((player) => player.you);
   const arenaProps = {
     avatars: game.avatars,
@@ -104,8 +161,12 @@ export function Play(props: {
     localVector: me ? vector : { x: 0, y: 0 },
     maxSpeed: me?.maxSpeed ?? 0,
     receivedAt: props.receivedAt,
-    impactId: latest?.id ?? 0,
-    impactType: latest?.t ?? "swing"
+    impactId: shown.impactId,
+    impactType: shown.impactType,
+    flash: shown.flash,
+    moment: game.moment,
+    glance: game.glance ?? null,
+    intro
   } as const;
   return (
     <section class={`play${me ? " is-playing" : " is-watching"}`}>
@@ -119,7 +180,7 @@ export function Play(props: {
           <span>{t("firstTo", { n: game.scoreToWin })}</span>
         </div>
         <div class={`hud-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
-          {game.phase === "playing" ? seconds : 0}
+          {clockText(game.phase === "playing" ? seconds : 0)}
         </div>
         {meScore && meScore.inRound && (
           <div class="hud-mine" aria-label={`${t("score")} ${meScore.score}`}>
@@ -135,15 +196,18 @@ export function Play(props: {
         <Scoreboard view={view} target={game.scoreToWin} compact />
       </div>
       <MomentBanner game={game} />
+      {/* (a word about your own punch takes the count's place) */}
+      {!notice && <DrillCall drill={drill} />}
+      {game.arena === "market" && me && game.phase === "playing" && <Quest me={me} />}
       {props.fullGuide && game.phase === "playing" && <BarsHint onMore={props.fullGuide} />}
       {notice && (
-        <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" ? " is-bad" : notice.key === "hit" ? " is-good" : ""}`} role="status" key={notice.id}>
-          {t(notice.key)}
+        <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" || notice.key === "blasted" ? " is-bad" : notice.key === "hit" || notice.key === "feast" ? " is-good" : ""}`} role="status" key={notice.id}>
+          {t(notice.key, notice.vars)}
         </p>
       )}
       {game.phase === "playing" &&
         (me ? (
-          <Controls me={me} now={Date.now() + props.serverOffset} send={send} onVector={setVector} />
+          <Controls me={me} now={Date.now() + props.serverOffset} send={send} onVector={setVector} drill={drill} />
         ) : (
           <p class="play-watching" role="status">
             <Icon name="eye" size={18} />

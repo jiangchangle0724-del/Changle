@@ -1,0 +1,45 @@
+// Cloudflare settings for 跟一单 · Count Me In: its own Worker, one of changle.ca's tools, answering at
+// changle.ca/tuan. Merchants post a group buy, buyers order from the link without signing in, and the
+// money goes straight from buyer to merchant: the site only carries the orders.
+// It runs on Cloudflare's free plan. No secrets: mail goes out through the rooms server, which has the key.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tuan",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-26",
+  // The pages: one file for all of them, with its script, styles and fonts, built into
+  // dist/client/tuan by scripts/build.mjs (so they answer at /tuan/…). The page itself and the API
+  // go to the Worker first: it sets the page's headers and puts a group buy's name in its page's
+  // title. Scripts, styles and fonts (under /tuan/assets) are plain files; any other address isn't
+  // a file, so the Worker answers it too.
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/tuan", "/tuan/", "/tuan/api/*"]
+  },
+  // wrangler builds the pages before it runs or publishes the Worker.
+  "build": { "command": "node scripts/build.mjs" },
+  // With routes set, wrangler leaves the workers.dev address off, so /tuan is its only address.
+  "routes": [
+    { "pattern": "changle.ca/tuan", "zone_name": "changle.ca" },
+    { "pattern": "changle.ca/tuan/*", "zone_name": "changle.ca" }
+  ],
+  // Created by the first deploy (no id here). The Worker applies migrations/ itself (src/server/schema.ts).
+  "d1_databases": [{ "binding": "DB", "database_name": "changle-tuan" }],
+  // Merchants sign in with their changle.ca account. Accounts live in the rooms server
+  // (site/worker): this Worker asks it who a sign-in belongs to, Worker to Worker, never over the
+  // public address (src/server/who.ts).
+  // A merchant is told of new orders by mail, which the rooms server sends: its door for that is the
+  // named entrypoint `Mail` (site/worker/mail.ts), reachable only like this (src/server/notify.ts).
+  "services": [
+    { "binding": "ROOMS", "service": "changle-rooms" },
+    { "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }
+  ],
+  // Every ten minutes: group buys with orders their merchant hasn't been told of, and no mail in
+  // the last half hour, get one (src/server/notify.ts).
+  "triggers": { "crons": ["*/10 * * * *"] },
+  // The schema files are part of the Worker (applied by src/server/schema.ts).
+  "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
+  "observability": { "enabled": true }
+}

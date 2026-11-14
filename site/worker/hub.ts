@@ -7,6 +7,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
+import { cleanNotice, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
 /** The tables (Room objects), reached by code: the hub asks one to let someone go, or to close. */
@@ -19,6 +20,8 @@ export type HubEnv = {
   /** the owner: the back office, and the only one let in while the site is paused */
   MASTER_EMAIL?: string;
   DEV_SHOW_CODES?: string;
+  /** local runs only: where mail is posted instead of Resend (scripts/fake_mail.mjs) */
+  DEV_MAIL_URL?: string;
   ROOMS?: DurableObjectNamespace;
   /** the DJ booth's Lyria test: hours a month, all tables together (default 20) */
   DJ_LYRIA_HOURS?: string;
@@ -138,6 +141,8 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE TABLE IF NOT EXISTS figures (user_id TEXT PRIMARY KEY, mime TEXT NOT NULL, full BLOB NOT NULL, round BLOB NOT NULL, choices TEXT NOT NULL, shown INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)`);
     // AI drawings counted per day (k: e:<email>, ip:<address>, all)
     q(`CREATE TABLE IF NOT EXISTS draws (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
+    // notices sent for other Workers, counted per day (k: the app; worker/notice.ts)
+    q(`CREATE TABLE IF NOT EXISTS mails (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS codes (email TEXT PRIMARY KEY, hash TEXT NOT NULL, expires INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, sent_at INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS tickets (hash TEXT PRIMARY KEY, email TEXT NOT NULL, expires INTEGER NOT NULL)`);
     q(`CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at INTEGER NOT NULL, last_used INTEGER NOT NULL, expires INTEGER NOT NULL)`);
@@ -430,7 +435,9 @@ export class Hub extends DurableObject<HubEnv> {
       const u = this.userById(mm[1]);
       if (!u) return err(404, "none");
       const rel = this.relation(me.id, u.id);
-      return ok({ user: { ...this.publicView(u), figure: this.figure(u.id).shown }, relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [] });
+      // (blockedByMe: the block is mine, so the page can offer to undo it; the person I blocked is told nothing)
+      const mine = rel === "blocked" && !!this.one(`SELECT 1 AS x FROM blocks WHERE user_id = ? AND blocked = ?`, me.id, u.id);
+      return ok({ user: { ...this.publicView(u), figure: this.figure(u.id).shown }, relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [], ...(mine ? { blockedByMe: true } : {}) });
     }
     if (path === "/users" && m === "GET") {
       const q = clean((c.body as { q?: string } | undefined)?.q ?? "", 30);
@@ -444,8 +451,7 @@ export class Hub extends DurableObject<HubEnv> {
     if (mm && m === "DELETE") {
       const [a, z] = pair(me.id, mm[1]);
       this.sql.exec(`DELETE FROM friends WHERE a = ? AND b = ?`, a, z);
-      this.push(mm[1], { t: "friends" });
-      this.push(me.id, { t: "friends" });
+      this.parted(me.id, mm[1]);
       return ok({ ok: true });
     }
     mm = /^\/blocks\/(u[a-z0-9]{6,20})$/.exec(path);
@@ -453,7 +459,14 @@ export class Hub extends DurableObject<HubEnv> {
       const [a, z] = pair(me.id, mm[1]);
       this.sql.exec(`DELETE FROM friends WHERE a = ? AND b = ?`, a, z);
       this.sql.exec(`INSERT OR IGNORE INTO blocks (user_id, blocked) VALUES (?, ?)`, me.id, mm[1]);
+      this.parted(me.id, mm[1]);
       return ok({ ok: true });
+    }
+    if (mm && m === "DELETE") {
+      // undone: they're strangers again (the friendship went when the block came), either side may ask anew
+      this.sql.exec(`DELETE FROM blocks WHERE user_id = ? AND blocked = ?`, me.id, mm[1]);
+      this.push(me.id, { t: "friends" });
+      return ok({ relation: this.relation(me.id, mm[1]) });
     }
 
     // ---- chat ----
@@ -772,8 +785,6 @@ export class Hub extends DurableObject<HubEnv> {
   }
 
   private async mail(to: string, code: string, lang: "zh" | "en") {
-    const key = this.env.RESEND_API_KEY;
-    if (!key) throw new Error("no-mail");
     const subject = lang === "zh" ? `changle 验证码 ${code}` : `Your changle code: ${code}`;
     const lead = lang === "zh" ? "你的登录验证码：" : "Your sign-in code:";
     const note = lang === "zh" ? "10 分钟内有效。不是你本人操作的话，忽略这封邮件就好。" : "It works for 10 minutes. If you didn't ask for it, ignore this email.";
@@ -782,13 +793,46 @@ export class Hub extends DurableObject<HubEnv> {
 <p style="margin:0 0 8px;color:#b6b4d0">${lead}</p>
 <p style="font-size:40px;font-weight:800;letter-spacing:8px;margin:0 0 18px">${code}</p>
 <p style="margin:0;color:#7f7c9d;font-size:13px">${note}</p></div>`;
+    await this.deliver({ to, subject, html, text: `${lead} ${code}\n\n${note}` });
+  }
+
+  /** One mail out through Resend (or, locally, DEV_MAIL_URL). Throws "no-mail" without a key, "resend …" when Resend says no. */
+  private async deliver(m: { to: string; subject: string; html: string; text: string }) {
+    const key = this.env.RESEND_API_KEY;
+    const url = this.env.DEV_MAIL_URL || "https://api.resend.com/emails";
+    if (!key && !this.env.DEV_MAIL_URL) throw new Error("no-mail");
     // (Resend turns away any request without a User-Agent, and a Worker's fetch sends none)
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "User-Agent": "changle/1.0 (+https://changle.ca)" },
-      body: JSON.stringify({ from: this.env.MAIL_FROM || "changle <hello@changle.ca>", to: [to], subject, html, text: `${lead} ${code}\n\n${note}` }),
+      headers: { Authorization: `Bearer ${key ?? ""}`, "Content-Type": "application/json", "User-Agent": "changle/1.0 (+https://changle.ca)" },
+      body: JSON.stringify({ from: this.env.MAIL_FROM || "changle <hello@changle.ca>", to: [m.to], subject: m.subject, html: m.html, text: m.text }),
     });
     if (!res.ok) throw new Error(`resend ${res.status} ${(await res.text()).slice(0, 200)}`);
+  }
+
+  /**
+   * A notice another Worker sends through the Mail door (worker/mail.ts, worker/notice.ts): to an
+   * account here, within the app's allowance for the day, in the sign-in mail's frame. The answer is
+   * one of three: sent, full (the day's allowance is used up), failed (and why).
+   */
+  async notice(raw: unknown): Promise<Sent> {
+    const n = cleanNotice(raw, this.env.DEV_SHOW_CODES === "1");
+    if (typeof n === "string") return { status: "failed", why: n };
+    const who = this.one(`SELECT id, banned FROM users WHERE email = ?`, n.to);
+    if (!who || Number(who.banned ?? 0) === 1) return { status: "failed", why: "to" };
+    const day = new Date().toISOString().slice(0, 10);
+    const used = Number(this.one(`SELECT n FROM mails WHERE k = ? AND day = ?`, n.app, day)?.n ?? 0);
+    if (used >= NOTICES_A_DAY[n.app]) return { status: "full" };
+    // counted before it goes out (two at once can't both take the last one), given back if it didn't
+    this.sql.exec(`INSERT INTO mails (k, day, n) VALUES (?, ?, 1) ON CONFLICT(k) DO UPDATE SET n = CASE WHEN day = excluded.day THEN n + 1 ELSE 1 END, day = excluded.day`, n.app, day);
+    try {
+      await this.deliver({ to: n.to, ...renderNotice(n) });
+    } catch (e) {
+      console.error("notice", n.app, e);
+      this.sql.exec(`UPDATE mails SET n = MAX(0, n - 1) WHERE k = ? AND day = ?`, n.app, day);
+      return { status: "failed", why: String((e as Error).message) === "no-mail" ? "no-mail" : "mail" };
+    }
+    return { status: "sent" };
   }
 
   private async verify(raw: string, code: string, ip: string): Promise<Reply> {
@@ -942,7 +986,8 @@ export class Hub extends DurableObject<HubEnv> {
       else incoming.push(view);
     }
     friends.sort((x, y) => ((y as { last: { at: number } | null }).last?.at ?? 0) - ((x as { last: { at: number } | null }).last?.at ?? 0));
-    return { friends, incoming, outgoing };
+    const blocked = (this.sql.exec(`SELECT u.* FROM blocks k JOIN users u ON u.id = k.blocked WHERE k.user_id = ? ORDER BY u.name`, me).toArray() as Row[]).map((r) => this.publicView(asUser(r)));
+    return { friends, incoming, outgoing, blocked };
   }
 
   private search(me: string, q: string) {
@@ -967,8 +1012,28 @@ export class Hub extends DurableObject<HubEnv> {
     return Number(this.one(`SELECT COUNT(*) AS n FROM friends WHERE (a = ? OR b = ?) AND status = 'pending' AND by != ?`, me, me, me)?.n ?? 0);
   }
 
+  /**
+   * Unread messages, counted only in threads with people who are still friends: a thread that
+   * ended (unfriended, or blocked by either side) can't be opened any more, so its unread messages
+   * mustn't keep the badge up.
+   */
   private unread(me: string) {
-    return Number(this.one(`SELECT COUNT(*) AS n FROM messages WHERE (a = ? OR b = ?) AND from_id != ? AND read_at IS NULL`, me, me, me)?.n ?? 0);
+    return Number(
+      this.one(
+        `SELECT COUNT(*) AS n FROM messages m JOIN friends f ON f.a = m.a AND f.b = m.b AND f.status = 'accepted' WHERE (m.a = ? OR m.b = ?) AND m.from_id != ? AND m.read_at IS NULL`,
+        me,
+        me,
+        me,
+      )?.n ?? 0,
+    );
+  }
+
+  /** Two people are no longer friends (one left, or blocked the other): both phones' lists and badges follow. */
+  private parted(me: string, other: string) {
+    for (const uid of [me, other]) {
+      this.push(uid, { t: "friends" });
+      this.push(uid, { t: "unread", n: this.unread(uid) });
+    }
   }
 
   /* ================= history ================= */

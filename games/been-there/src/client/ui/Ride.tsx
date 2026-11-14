@@ -14,7 +14,7 @@ import { useLayoutEffect, useMemo, useRef } from "preact/hooks";
 import { BOARD, CITY_AT, GROUPS, JOURNEY_CARDS, POSTCARDS } from "../../engine";
 import { CharacterArt, type Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { TOKEN_R, TOKEN_SCALE, angleOf, xy, type Rig } from "../art/RoundBoard";
+import { TOKEN_R, TOKEN_SCALE, angleOf, pressSpace, xy, type Rig } from "../art/RoundBoard";
 import { CODE, StampArt } from "../art/stamps";
 import { BUZZ, buzz, holdShake } from "../controls";
 import { getLang, money, spaceName, t, tx } from "../i18n";
@@ -23,6 +23,7 @@ import { serverNow } from "../store";
 import { reducedMotion } from "../motion";
 import { keepIn, mapCam, type MapHand } from "./mapView";
 import { BEAT, type RidePlan } from "./ridePlan";
+import { DoublesCall, doublesKind } from "./Doubles";
 
 const N = BOARD.length;
 
@@ -379,6 +380,7 @@ export function Ride({
   const group = land ? GROUPS.find((g) => g.id === land.group) : null;
   const still = reducedMotion();
   const phone = mode !== "tv";
+  const dbl = plan.rolled ? doublesKind({ doubles: plan.doubles, steps: plan.thrown, jail: plan.fromJail }) : null;
 
   useLayoutEffect(() => {
     const el = root.current;
@@ -394,6 +396,7 @@ export function Ride({
     const fade = $<HTMLElement>(".ride-fade")!;
     const diceBox = $<HTMLElement>(".ride-dice");
     const sum = $<HTMLElement>(".ride-dice .dice-sum");
+    const dblEl = $<HTMLElement>(".ride-doubles");
     const board = $<HTMLElement>(".ride-board");
     const rowEls = Array.from(el.querySelectorAll<HTMLElement>(".ride-board .row"));
     const sky = el.parentElement?.querySelector<HTMLElement>(".ride-sky") ?? null;
@@ -538,6 +541,14 @@ export function Ride({
       // way in they go to the corner, out of the camera's way.
       if (plan.rolled && diceBox) {
         if (t >= T.dice) once("sum", () => sfx.result());
+        // Doubles: the dice knock together and light up, and the call pops up (ui/Doubles.tsx).
+        if (dbl && dblEl && t >= T.dice + 80)
+          once("dbl", () => {
+            dblEl.classList.add("on");
+            diceBox.querySelector(".dice3d")?.classList.add("knock");
+            sfx.doubles();
+            if (phone) buzz(BUZZ.doubles);
+          });
         if (t > 340 && t < 340 + 200) once("c1", () => sfx.clack());
         if (t > 540 && t < 540 + 200) once("c2", () => sfx.clack());
         const pop = t < T.dice ? 0 : clamp((t - T.dice) / 220, 0, 1);
@@ -585,7 +596,14 @@ export function Ride({
         }
         const k = Math.min(leg.steps, (t - L.at) / L.per);
         const i = Math.floor(k);
-        for (let s = 1; s <= i; s++) once(`s${j}-${s}`, () => quiet++ || sfx.flap());
+        // Each space the token comes down on gives under it, with a tick (one passed while the ride
+        // skipped ahead, or this screen joined late, doesn't); the last of the move gives deeper.
+        for (let s = 1; s <= i; s++)
+          once(`s${j}-${s}`, () => {
+            if (t - (L.at + s * L.per) > 250) return;
+            if (!reduced) pressSpace(r.svg, (((leg.from + leg.dir * s) % BOARD.length) + BOARD.length) % BOARD.length, j === plan.legs.length - 1 && s === leg.steps);
+            if (!quiet++) sfx.step();
+          });
         if (k >= leg.steps) {
           pos = lin = leg.from + leg.dir * leg.steps;
           continue;
@@ -606,10 +624,12 @@ export function Ride({
           row.classList.add("on");
           board?.classList.add("shown");
           flipRow(row, reduced);
+          sfx.flap();
           const shown = rowEls.filter((x) => x.classList.contains("on") && !x.classList.contains("old"));
           if (shown.length > 4) shown[0].classList.add("old");
           const kind = rows[n].kind;
-          if (kind === "salary") sfx.coin();
+          // (on a phone the salary's coins fly into its wallet once the move is over: ui/Moments.tsx)
+          if (kind === "salary" && !phone) sfx.coin();
           if (kind === "card") {
             sfx.card();
             if (phone) buzz(BUZZ.card);
@@ -817,12 +837,14 @@ export function Ride({
           <LandStamp at={landAt} />
         </svg>
       </div>
+      {dbl && (
+        <div class={`ride-doubles${mode === "tv" ? " big" : ""}`}>
+          <DoublesCall kind={dbl} />
+        </div>
+      )}
       {plan.rolled && (
         <div class={`ride-dice${still ? " still" : ""}`}>
-          <p class="dice-sum num">
-            {plan.thrown}
-            {plan.doubles && <small>{t("doubles")}</small>}
-          </p>
+          <p class="dice-sum num">{plan.thrown}</p>
           <Dice dice={plan.dice} seed={plan.key} size={mode === "tv" ? 64 : 40} />
         </div>
       )}

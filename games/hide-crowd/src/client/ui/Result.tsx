@@ -1,5 +1,6 @@
 // The end of a round on a phone: who won, everyone's tags and how often they were spotted, and the
-// host's Play again. (The penalty stamp comes first, see Room.tsx.)
+// host's Play again (the same place) or Pick another arena (back to the lobby, or practice's picker).
+// (The penalty stamp comes first, see Room.tsx.)
 import type { ClientMsg, RoomView } from "../../room/protocol";
 import { t } from "../i18n";
 import { Awards } from "./roundFx";
@@ -61,11 +62,9 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
                 <button type="button" class="btn btn-primary btn-lg btn-block" disabled={online < 2} onClick={() => send({ t: "start" })}>
                   {t("again")}
                 </button>
-                {!props.practice && (
-                  <button type="button" class="btn btn-quiet btn-block" onClick={() => send({ t: "lobby" })}>
-                    {t("otherArena")}
-                  </button>
-                )}
+                <button type="button" class="btn btn-quiet btn-block" onClick={() => send({ t: "lobby" })}>
+                  {t("otherArena")}
+                </button>
               </>
             ) : (
               <p class="dock-wait" role="status">

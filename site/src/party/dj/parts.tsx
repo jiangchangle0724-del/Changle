@@ -77,9 +77,12 @@ export function NowPlaying({ v, song }: { v: { mix: Mix; source: Source }; song?
   );
 }
 
-/** Minutes until the night moves on by itself, or what waits for the host. */
-export function phaseHint(v: { phase: DjPhase; nextAt: number }, now: number, zh: boolean) {
+/** How long until the night moves on by itself (the peak: until it winds down, near the set's end). */
+export function phaseHint(v: { phase: DjPhase; nextAt: number; capAt?: number }, now: number, zh: boolean) {
   const mins = v.nextAt ? Math.max(1, Math.ceil((v.nextAt - now) / 60_000)) : 0;
+  // (the peak has no clock of its own since the host's buttons went, Nov 13: it winds down a stretch before the cap)
+  const left = v.capAt ? Math.max(1, Math.ceil((v.capAt - DJ_TIMES.cool - now) / 60_000)) : 0;
+  const span = left >= 90 ? (zh ? `${Math.round(left / 6) / 10} 小时` : `${Math.round(left / 6) / 10} h`) : zh ? `${left} 分钟` : `${left} min`;
   switch (v.phase) {
     case "wait":
       return zh ? "大屏上点「开始派对」就开场" : "Press Start the party on the big screen";
@@ -88,7 +91,7 @@ export function phaseHint(v: { phase: DjPhase; nextAt: number }, now: number, zh
     case "build":
       return zh ? `${mins} 分钟后到顶点` : `Peak in ${mins} min`;
     case "peak":
-      return zh ? "顶点：主人说了算什么时候收" : "The peak: the host says when to wind down";
+      return left ? (zh ? `顶点：${span}后收尾` : `The peak: winding down in ${span}`) : zh ? "顶点" : "The peak";
     case "cool":
       return zh ? `${mins} 分钟后结束` : `Ends in ${mins} min`;
     case "end":
@@ -97,7 +100,7 @@ export function phaseHint(v: { phase: DjPhase; nextAt: number }, now: number, zh
 }
 
 /** The night in four stretches, the one we're in lit. */
-export function NightCurve({ v, now }: { v: { phase: DjPhase; nextAt: number }; now: number }) {
+export function NightCurve({ v, now }: { v: { phase: DjPhase; nextAt: number; capAt?: number }; now: number }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const at = SET_PHASES.indexOf(v.phase as (typeof SET_PHASES)[number]);

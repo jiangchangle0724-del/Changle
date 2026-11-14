@@ -66,14 +66,17 @@ test("手机当手柄：摇一摇掷骰子，连点只算一次，行动窗口�
   await untilRoll();
   const hint = roll.locator(".shake-hint");
   const enable = roll.getByRole("button", { name: /开启摇一摇/ });
+  // (where the phone said no: how to let it ask again)
+  const help = roll.locator(".shake-no");
   if (!(await p.page.evaluate(() => "DeviceMotionEvent" in window && "ontouchstart" in window))) {
     await expect(hint).toHaveCount(0);
     await expect(enable).toHaveCount(0);
   } else {
     if (await enable.count()) await enable.click();
-    // Chromium (Android's engine) says yes here; another engine's test build may say no, which
-    // leaves the button for another try.
-    await expect(browserName === "chromium" ? hint : hint.or(enable)).toBeVisible();
+    // Chromium (Android's engine) says yes here (the yes given above comes back without a tap, so
+    // shaking is on from the start); another engine's test build may say no, which shows how to
+    // let it ask again.
+    await expect(browserName === "chromium" ? hint : hint.or(enable).or(help)).toBeVisible();
     if (await hint.count()) {
       const before = throws();
       const asked = answers.length;

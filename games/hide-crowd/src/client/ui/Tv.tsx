@@ -3,9 +3,10 @@
 // thing (src/room/room.ts). Laid out on a 1920 x 1080 stage that scales to the screen; the arena
 // itself is drawn at the screen's own size underneath.
 import qrcode from "qrcode-generator";
-import { useEffect, useLayoutEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
-import type { RoomView } from "../../room/protocol";
+import { MATCH_MS, SCORE_TO_WIN } from "../../engine";
+import type { EventView, RoomView } from "../../room/protocol";
 import { BASE, joinUrl, onChangle } from "../base";
 import { other, t } from "../i18n";
 import { Arena, preloadArena } from "./Arena";
@@ -13,9 +14,9 @@ import { ArenaFallback } from "./ArenaFallback";
 import { ArenaVote, ARENA_RULE, penaltyLine, PlayerChips } from "./Lobby";
 import { Icon } from "./chrome";
 import { PenaltyStamp } from "./Penalty";
-import { Scoreboard, useClock } from "./Play";
+import { clockText, Scoreboard, useClock } from "./Play";
 import { ResultTable, resultTitle } from "./Result";
-import { Awards, MomentBanner, useRoundSounds } from "./roundFx";
+import { arenaEvents, Awards, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 import { useLanded } from "./useLanded";
 import { installAudioUnlock, soundOn, unlockAudio } from "../sound";
 
@@ -103,7 +104,7 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
         <ol class="tv-steps">
           <li>{t("tvStep1")}</li>
           <li>{t("tvStep2")}</li>
-          <li>{t(!view.settings.penalties ? "tvStep3Off" : view.settings.custom ? "tvStep3Custom" : "tvStep3")}</li>
+          <li>{t(!view.settings.penalties ? "tvStep3Off" : view.settings.custom ? "tvStep3Custom" : "tvStep3", { n: SCORE_TO_WIN, m: MATCH_MS / 60_000 })}</li>
         </ol>
       </div>
       <aside class="tv-lobby-side">
@@ -136,12 +137,37 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
   );
 }
 
+/** Someone at the night market just tasted all four: say so on the big screen for a moment (not who). */
+function useFeast(events: EventView[]): number | null {
+  const [shown, setShown] = useState<number | null>(null);
+  const seen = useRef(events.length ? events[events.length - 1].id : 0);
+  const timer = useRef(0);
+  // (every frame brings a new list: look again only when something new has happened, and leave the
+  // line's own timer to run, or it would never go)
+  const latest = events.length ? events[events.length - 1].id : 0;
+  useEffect(() => {
+    const fresh = events.filter((event) => event.id > seen.current);
+    if (!fresh.length) return;
+    seen.current = fresh[fresh.length - 1].id;
+    const feast = fresh.find((event) => event.t === "feast");
+    if (!feast) return;
+    setShown(feast.id);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setShown((now) => (now === feast.id ? null : now)), 2_800);
+  }, [latest]);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return shown;
+}
+
 function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   const game = view.game!;
   const remaining = useClock(game, receivedAt);
   const seconds = Math.ceil(remaining / 1_000);
   useRoundSounds(game, seconds, { screen: true, music: true });
-  const latest = game.events[game.events.length - 1];
+  const shown = arenaEvents(game);
+  const feasted = useFeast(game.events);
+  const drill = useDrill(game, receivedAt);
+  const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
   const round = view.result?.round ?? 0;
@@ -158,11 +184,15 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
     localVector: { x: 0, y: 0 },
     maxSpeed: 0,
     receivedAt,
-    impactId: latest?.id ?? 0,
-    impactType: latest?.t ?? "swing"
+    impactId: shown.impactId,
+    impactType: shown.impactType,
+    flash: shown.flash,
+    moment: game.moment,
+    glance: game.glance ?? null,
+    intro
   } as const;
   // (the last blow lands, in slow motion, before the penalty and the results take the screen)
-  const landed = useLanded(game.phase === "over", view.result?.round ?? 0);
+  const landed = useLanded(game.phase === "over", view.result?.round ?? 0, !!view.result?.winner);
   const over = game.phase === "over" && view.result && landed;
   return (
     <>
@@ -178,7 +208,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
           </div>
         </div>
         <div class={`tv-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
-          <b>{game.phase === "playing" ? seconds : 0}</b>
+          <b>{clockText(game.phase === "playing" ? seconds : 0)}</b>
           <span>{t("firstTo", { n: game.scoreToWin })}</span>
         </div>
         <div class="tv-hud-right">
@@ -186,6 +216,13 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
         </div>
         {/* (the crowd's moment takes the hint's place while it lasts) */}
         {game.phase === "playing" && (game.moment ? <MomentBanner game={game} tv /> : <p class="tv-hint">{t("nobodyMarked")}</p>)}
+        <DrillCall drill={drill} tv />
+        {feasted && game.phase === "playing" && (
+          <p class="tv-feast" role="status" key={feasted}>
+            <Icon name="firework" size={30} />
+            {t("feastTv")}
+          </p>
+        )}
         {over && (
           <div class="tv-over">
             {view.result!.penalty && !stampDone ? (

@@ -1,0 +1,213 @@
+{
+  "id": "van-20",
+  "world": "van",
+  "name": {
+    "zh": "海湾摆渡",
+    "en": "Harbour Shuttle"
+  },
+  "teaches": "mover",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 96,
+    "y": 596
+  },
+  "goal": {
+    "x": 2400,
+    "y": 240,
+    "w": 120,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1210,
+      "y": 536
+    },
+    {
+      "x": 1960,
+      "y": 616
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 620,
+      "w": 360,
+      "h": 100,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 880,
+      "y": 560,
+      "w": 520,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1720,
+      "y": 640,
+      "w": 480,
+      "h": 80,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2340,
+      "y": 400,
+      "w": 180,
+      "h": 320,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2520,
+      "y": 240,
+      "w": 40,
+      "h": 480,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 360,
+      "y": 700,
+      "w": 520,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1400,
+      "y": 700,
+      "w": 320,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1500,
+      "y": 600,
+      "w": 100,
+      "h": 20,
+      "material": "wood",
+      "players": [
+        1,
+        2
+      ]
+    },
+    {
+      "kind": "ground",
+      "x": 2200,
+      "y": 560,
+      "w": 70,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2270,
+      "y": 480,
+      "w": 70,
+      "h": 240,
+      "material": "metal"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 380,
+      "y": 680,
+      "w": 400,
+      "h": 20,
+      "kind": "spike",
+      "dir": "up"
+    },
+    {
+      "x": 640,
+      "y": 240,
+      "w": 80,
+      "h": 20,
+      "kind": "spike",
+      "dir": "down"
+    },
+    {
+      "x": 1440,
+      "y": 680,
+      "w": 280,
+      "h": 20,
+      "kind": "spike",
+      "dir": "up"
+    },
+    {
+      "x": 2240,
+      "y": 180,
+      "w": 80,
+      "h": 20,
+      "kind": "spike",
+      "dir": "down"
+    }
+  ],
+  "movers": [
+    {
+      "x": 340,
+      "y": 540,
+      "w": 140,
+      "h": 22,
+      "path": [
+        {
+          "x": 600,
+          "y": 360
+        },
+        {
+          "x": 940,
+          "y": 360
+        }
+      ],
+      "speed": 70,
+      "wait": 3,
+      "material": "metal"
+    },
+    {
+      "x": 700,
+      "y": 600,
+      "w": 24,
+      "h": 24,
+      "path": [
+        {
+          "x": 700,
+          "y": 660
+        }
+      ],
+      "speed": 80,
+      "wait": 2,
+      "material": "wood",
+      "deadly": true,
+      "hazard": "spike"
+    }
+  ],
+  "spinners": [
+    {
+      "pivot": {
+        "x": 1580,
+        "y": 320
+      },
+      "arms": 2,
+      "len": 200,
+      "h": 16,
+      "spin": -0.5,
+      "material": "metal"
+    }
+  ],
+  "deathY": 790,
+  "par": {
+    "seconds": 180,
+    "deathsPerPlayer": 8
+  },
+  "replay": "replays/van-20.json"
+}

@@ -1,9 +1,12 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
-// hitting the floor, the ferry horn, the busker's riff and the opera gong, the last seconds' ticks, a
-// whistle to start and a little fanfare at the end; on the big screen (and in practice) a light loop
-// for the place. Phones only allow sound after a tap, so the first tap unlocks it. The menu's two
-// switches turn the sounds off (hc.sound) and the music (hc.music), and the game plays the same without.
-import type { ArenaId } from "../engine";
+// hitting the floor, the ferry horn, the busker's riff, the opera gong, the theatre's drill (the
+// stage's count and the crowd's punches), the night market's firecrackers and fireworks, a bite at a
+// stall and a feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
+// screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the
+// first tap unlocks it. The menu's two switches turn the sounds off (hc.sound) and the music
+// (hc.music), and the game plays the same without.
+import { DRILL_BEAT_MS, DRILL_GO_MS, type ArenaId } from "../engine";
+import { FIREWORK_RISE_MS, FIREWORK_SHOTS } from "./fireworks";
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -100,16 +103,22 @@ function voice(type: OscillatorType, from: number, to: number, start: number, le
 }
 
 let noiseBuffer: AudioBuffer | null = null;
-/** A breath of noise through a sweeping band-pass: whooshes, scuffs, the crack of a hit. */
-function hiss(start: number, length: number, level: number, from: number, to: number, q = 1.2, out: AudioNode = master!): void {
+/** A second of white noise, made once. */
+function noise(): AudioBuffer {
   const c = ctx!;
   if (!noiseBuffer) {
     noiseBuffer = c.createBuffer(1, c.sampleRate, c.sampleRate);
     const data = noiseBuffer.getChannelData(0);
     for (let index = 0; index < data.length; index++) data[index] = Math.random() * 2 - 1;
   }
+  return noiseBuffer;
+}
+
+/** A breath of noise through a sweeping band-pass: whooshes, scuffs, the crack of a hit. */
+function hiss(start: number, length: number, level: number, from: number, to: number, q = 1.2, out: AudioNode = master!): void {
+  const c = ctx!;
   const source = c.createBufferSource();
-  source.buffer = noiseBuffer;
+  source.buffer = noise();
   const filter = c.createBiquadFilter();
   filter.type = "bandpass";
   filter.Q.value = q;
@@ -120,6 +129,27 @@ function hiss(start: number, length: number, level: number, from: number, to: nu
   gain.gain.exponentialRampToValueAtTime(level, start + Math.min(0.03, length / 3));
   gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
   source.connect(filter).connect(gain).connect(out);
+  source.start(start, Math.random() * 0.5);
+  source.stop(start + length + 0.05);
+}
+
+/** A fuse burning: a thin, spitting hiss that holds until the bang. */
+function sizzle(start: number, length: number, level: number): void {
+  const c = ctx!;
+  const source = c.createBufferSource();
+  source.buffer = noise();
+  source.loop = true;
+  const filter = c.createBiquadFilter();
+  filter.type = "highpass";
+  filter.frequency.value = 4_500;
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(level, start + 0.04);
+  // (it spits: the level flickers)
+  for (let at = start + 0.06; at < start + length - 0.05; at += 0.07) gain.gain.setValueAtTime(level * (0.55 + Math.random() * 0.45), at);
+  gain.gain.setValueAtTime(level, start + Math.max(0.05, length - 0.04));
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
+  source.connect(filter).connect(gain).connect(master!);
   source.start(start, Math.random() * 0.5);
   source.stop(start + length + 0.05);
 }
@@ -217,6 +247,59 @@ export const sfx = {
     hiss(t, 0.09, 0.2, 3_000, 1_200, 0.9);
     duck(t, 2.4);
   },
+  /**
+   * The theatre's drill: the stage's count on a big drum, three beats rising, then the call, a deep
+   * hit under the whole crowd's punches swishing at once. In time with the screen's count: `elapsedMs`
+   * is how far into the drill this screen came in (a beat already gone isn't played).
+   */
+  drill(elapsedMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    const at = (ms: number) => t + (ms - elapsedMs) / 1000;
+    [0, 1, 2].forEach((beat) => {
+      const start = at(beat * DRILL_BEAT_MS);
+      if (start < t - 0.03) return;
+      const pitch = 150 + beat * 22;
+      voice("sine", pitch, pitch * 0.42, start, 0.34, 0.5);
+      voice("triangle", pitch * 2.02, pitch * 0.9, start, 0.1, 0.1, master!, 0.003);
+      hiss(start, 0.05, 0.16, 1_600, 600, 0.9);
+    });
+    const go = at(DRILL_GO_MS);
+    if (go >= t - 0.03) {
+      voice("sine", 120, 34, go, 0.55, 0.62);
+      voice("square", 240, 120, go, 0.09, 0.06, master!, 0.003);
+      hiss(go, 0.3, 0.38, 500, 2_900, 1);
+      hiss(go + 0.08, 0.24, 0.26, 2_600, 800, 0.8);
+    }
+    duck(t, Math.max(0.4, (DRILL_GO_MS + 700 - elapsedMs) / 1000));
+  },
+  /**
+   * The night market's firecrackers, in time with the screen: each one's throw (a whoosh), its landing
+   * (a tick on the asphalt), its fuse (a spitting hiss) and its bang, with the crackle of the paper.
+   * Times are from now (ms); one already gone isn't played.
+   */
+  crackers(list: readonly { landsInMs: number; bangsInMs: number }[]): void {
+    const t = now();
+    if (t === null) return;
+    let last = t;
+    for (const cracker of list) {
+      const land = t + cracker.landsInMs / 1000;
+      const bang = t + cracker.bangsInMs / 1000;
+      if (bang < t - 0.03) continue;
+      if (land >= t) {
+        hiss(Math.max(t, land - 0.45), 0.42, 0.07, 800, 2_400, 1.2);
+        voice("triangle", 1_900, 1_350, land, 0.05, 0.07, master!, 0.002);
+      }
+      const fuse = Math.max(t, land);
+      if (bang - fuse > 0.08) sizzle(fuse, bang - fuse, 0.035);
+      voice("sine", 170, 36, bang, 0.45, 0.6);
+      voice("square", 330, 90, bang, 0.07, 0.06, master!, 0.002);
+      hiss(bang, 0.3, 0.5, 3_400, 500, 0.7);
+      for (let pop = 0; pop < 8; pop++) hiss(bang + 0.07 + pop * 0.042 + ((pop * 29) % 7) / 350, 0.025, 0.13, 6_000, 4_000, 2);
+      last = Math.max(last, bang);
+    }
+    duck(t, last - t + 0.7);
+  },
   /** the transit hall's busker strikes up: a bouncy plucked riff over a bass and claps, for the dance */
   busker(): void {
     const t = now();
@@ -232,6 +315,52 @@ export const sfx = {
       if (index % 4 === 2) hiss(at, 0.07, 0.2, 1_800, 1_200, 1.1);
     });
     duck(t, riff.length * eighth + 0.2);
+  },
+  /** a bite at one of the night market's stalls: a crunch and a little bell, each stall its own note */
+  bite(stall: number): void {
+    const t = now();
+    if (t === null) return;
+    hiss(t, 0.07, 0.26, 3_400, 1_400, 1.1);
+    hiss(t + 0.06, 0.05, 0.18, 2_800, 1_200, 1.1);
+    const note = midi([79, 81, 84, 86][stall % 4]);
+    voice("sine", note, note, t + 0.08, 0.32, 0.16, master!, 0.004);
+    voice("triangle", note * 2, note * 2, t + 0.08, 0.12, 0.04, master!, 0.003);
+  },
+  /** all four tasted: the four stalls' bells running up, and a sparkle */
+  feast(): void {
+    const t = now();
+    if (t === null) return;
+    [79, 81, 84, 86, 91].forEach((note, index) => {
+      const at = t + index * 0.085;
+      voice("triangle", midi(note), midi(note), at, index === 4 ? 0.6 : 0.18, 0.15, master!, 0.004);
+      voice("sine", midi(note + 12), midi(note + 12), at, 0.12, 0.05, master!, 0.003);
+    });
+    for (let index = 0; index < 6; index++) hiss(t + 0.42 + index * 0.05, 0.04, 0.06, 7_000, 6_000, 3);
+    duck(t, 0.9);
+  },
+  /** the night market's fireworks: each rocket whistles up, bursts with a boom and crackles (in time with the picture) */
+  fireworks(): void {
+    const t = now();
+    if (t === null) return;
+    for (const shot of FIREWORK_SHOTS) {
+      const up = t + shot.at / 1000;
+      const burst = up + FIREWORK_RISE_MS / 1000;
+      voice("sine", 520, 1_900, up, FIREWORK_RISE_MS / 1000, 0.035, master!, 0.08);
+      hiss(up, FIREWORK_RISE_MS / 1000, 0.05, 1_200, 4_000, 2.5);
+      voice("sine", 120, 36, burst, 0.6, 0.45, master!, 0.004);
+      hiss(burst, 0.7, 0.3, 1_100, 180, 0.6);
+      for (let crack = 0; crack < 9; crack++) hiss(burst + 0.18 + crack * 0.055 + ((crack * 37) % 10) / 400, 0.03, 0.07, 6_000, 4_500, 2.2);
+    }
+    const last = FIREWORK_SHOTS[FIREWORK_SHOTS.length - 1];
+    duck(t, (last.at + FIREWORK_RISE_MS) / 1000 + 0.8);
+  },
+  /** your distraction: a sly little whistle down and up, only for you */
+  psst(): void {
+    const t = now();
+    if (t === null) return;
+    hiss(t, 0.16, 0.12, 4_200, 2_600, 2.2);
+    voice("sine", 1_480, 990, t + 0.05, 0.16, 0.08, master!, 0.01);
+    voice("sine", 990, 1_480, t + 0.22, 0.18, 0.08, master!, 0.01);
   },
   /** one of the last five seconds */
   tick(last = false): void {
@@ -300,7 +429,9 @@ const GROOVES: Record<ArenaId, Groove> = {
   // a busy concourse
   metro: { bpm: 116, bass: [45, 45, 41, 43], scale: [69, 72, 74, 76, 79, 81], lead: "square", block: false },
   // the courtyard theatre: pentatonic, plucked, a woodblock keeping time
-  gallery: { bpm: 96, bass: [43, 43, 38, 40], scale: [67, 69, 71, 74, 76, 79], lead: "triangle", block: true }
+  gallery: { bpm: 96, bass: [43, 43, 38, 40], scale: [67, 69, 71, 74, 76, 79], lead: "triangle", block: true },
+  // the night market: a bright, bustling pentatonic over a walking bass
+  market: { bpm: 112, bass: [41, 45, 46, 48], scale: [72, 74, 77, 79, 81, 84], lead: "triangle", block: false }
 };
 
 let loop: { timer: number; arena: ArenaId; step: number; at: number; seed: number } | null = null;

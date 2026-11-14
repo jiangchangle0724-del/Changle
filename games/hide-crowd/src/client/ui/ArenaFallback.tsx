@@ -1,10 +1,11 @@
 // The arena without WebGL (an old phone, a browser with it switched off, a lost GPU context): the
 // same crowd, top-down, drawn with plain elements. Each place in the crowd keeps one of the three
 // looks, as in 3D, and nothing marks a player but this phone's own "you" until the round is over:
-// then every player's name, the winner's in the gel.
+// then every player's name, the winner's in the gel. The night market's four stalls sit along the
+// top, and light up when someone tastes one.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
-import type { AvatarView } from "../../room/protocol";
+import type { AvatarView, CrackerView } from "../../room/protocol";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 
@@ -21,7 +22,10 @@ export function ArenaFallback(props: {
   maxSpeed: number;
   receivedAt: number;
   impactId: number;
-  impactType: "tag" | "foul" | "swing" | "hide" | "over";
+  impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "over";
+  flash?: { id: number; stall: number; feast: boolean } | null;
+  /** the night market's firecrackers come with their moment */
+  moment?: { crackers?: CrackerView[] } | null;
 }) {
   const arenaRef = useRef<HTMLDivElement>(null);
   const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
@@ -33,6 +37,8 @@ export function ArenaFallback(props: {
   const receivedAtRef = useRef(props.receivedAt);
   const visuals = useRef<VisualAvatar[]>([]);
   const [shaking, setShaking] = useState(false);
+  const [lit, setLit] = useState<number | null>(null);
+  const flashId = useRef(props.flash?.id ?? 0);
   avatarTargets.current = props.avatars;
   vectorRef.current = props.localVector;
   speedRef.current = props.maxSpeed;
@@ -101,12 +107,39 @@ export function ArenaFallback(props: {
     };
   }, [props.impactId, props.impactType]);
 
+  useEffect(() => {
+    const flash = props.flash;
+    if (!flash || flash.id === flashId.current) return;
+    flashId.current = flash.id;
+    setLit(flash.stall);
+    const timer = window.setTimeout(() => setLit((now) => (now === flash.stall ? null : now)), 1_200);
+    return () => window.clearTimeout(timer);
+  }, [props.flash?.id]);
+
   return (
     <div ref={arenaRef} class={`flat-arena flat-arena--${props.arena}${shaking ? " is-hit" : ""}`} role="img" aria-label={t("arena")}>
+      {props.arena === "market" && (
+        <div class="flat-stalls" aria-hidden="true">
+          {[0, 1, 2, 3].map((stall) => (
+            <span key={stall} class={`flat-stall stall-${stall}${lit === stall ? " is-lit" : ""}`} />
+          ))}
+        </div>
+      )}
       {props.arena === "metro" && (
         <div class={`flat-belt ${props.drift.x < 0 ? "is-left" : props.drift.x > 0 ? "is-right" : ""}`} aria-hidden="true" />
       )}
       {props.arena === "gallery" && <div class="flat-spotlight" aria-hidden="true" />}
+      {/* the firecrackers: once landed, a ring of how far each will knock people down, then its bang */}
+      {(props.moment?.crackers ?? [])
+        .filter((cracker) => cracker.landsInMs <= 0 && cracker.bangsInMs > -500)
+        .map((cracker) => (
+          <span
+            key={`${cracker.x},${cracker.y}`}
+            class={`flat-cracker${cracker.bangsInMs <= 0 ? " is-bang" : ""}`}
+            style={{ left: `${cracker.x}%`, top: `${(cracker.y / 58) * 100}%` }}
+            aria-hidden="true"
+          />
+        ))}
       {props.avatars.map((avatar, index) => (
         <div
           key={index}

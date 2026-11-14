@@ -2,26 +2,38 @@
  * changle.ca/split/<id>: one ledger. Two views of it, 账目 (what was paid, and where you stand) and
  * 结清 (who pays whom), with one button at the thumb for each. 记一笔 takes the whole screen while it
  * is open, and the phone's back button closes it like a sheet.
+ *
+ * While the page is open the ledger listens for what other phones record (syncing.ts). It says
+ * nothing about that while all is well: only when something recorded here hasn't gone up, or
+ * didn't stick.
+ *
+ * A ledger this phone doesn't hold opens from an invitation: its address with the ledger's key
+ * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
+ * the page asks which of the people in the ledger this phone's owner is.
  */
-import { ClipboardCopy, Ellipsis, FileQuestion, Plus, ReceiptText } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { CircleAlert, ClipboardCopy, CloudOff, Ellipsis, FileQuestion, Link2Off, Plus, ReceiptText, WifiOff } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Lang } from "../i18n";
 import { back, go, mark, useBackCloses } from "../router";
 import { useStore } from "../store";
 import { sizeClass } from "../tools/money";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
+import { Skeleton } from "../ui/Skeleton";
 import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 import { AddExpense } from "./AddExpense";
 import { balances, expensesOf, settlement, spent, type Expense, type Ledger } from "./core";
 import { money } from "./format";
-import { mine, paidBy, planText, sharedHow } from "./lines";
-import { putBack } from "./ops";
+import { keyFrom } from "./invite";
+import { WhoStep } from "./Join";
+import { lostLine, mine, paidBy, planText, sharedHow, syncLine } from "./lines";
 import { Bar, copyText, Rolling } from "./parts";
 import { SettleView } from "./SettleView";
 import { LedgerMenu } from "./Sheets";
-import { change, useSaved } from "./store";
+import { heldOf, useSaved } from "./store";
+import type { Held } from "./sync";
+import { dismissLost, joinLedger, record, useSync, watch, type Joined } from "./syncing";
 import { say } from "./words";
 
 type View = "list" | "settle";
@@ -30,8 +42,35 @@ export function LedgerPage({ id }: { id: string }) {
   const { lang } = useStore();
   const toast = useToast();
   const saved = useSaved();
-  const ledger = saved.ledgers.find((l) => l.id === id);
+  const at = saved.held.findIndex((h) => h.server.id === id);
+  const ledger: Ledger | undefined = saved.ledgers[at];
+  const held: Held | undefined = saved.held[at];
   const me = saved.me[id];
+  const sync = useSync(id);
+  // open on the screen: what others record arrives by itself, until the page is left
+  // (watched again once the phone holds it: a ledger just opened from an invitation)
+  const here = !!held;
+  useEffect(() => (here ? watch(id) : undefined), [id, here]);
+
+  // An invitation: this address, with the ledger's key after the #. A phone that doesn't hold the
+  // ledger reads it from the server with that key. Once it is held the key comes off the address,
+  // so it isn't in what the phone's browser shares or remembers of this page.
+  const [arrival, setArrival] = useState<"joining" | Exclude<Joined, "in"> | null>(() => (keyFrom(window.location.hash) && !heldOf(id) ? "joining" : null));
+  const arrive = useCallback(() => {
+    const key = keyFrom(window.location.hash);
+    if (!key) return;
+    const done = () => window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+    if (heldOf(id)) return done();
+    setArrival("joining");
+    void joinLedger(id, key).then((how) => (how === "in" ? done() : setArrival(how)));
+  }, [id]);
+  useEffect(() => {
+    arrive();
+    window.addEventListener("hashchange", arrive);
+    return () => window.removeEventListener("hashchange", arrive);
+  }, [arrive]);
+  /** "which one are you?" is asked when the page opens, and not again until it is opened again */
+  const [asking, setAsking] = useState(true);
   const [view, setView] = useState<View>("list");
   /** 记一笔 is open: for a new expense (null), or to change the one with this id */
   const [entry, setEntry] = useState<{ edit: string | null } | null>(null);
@@ -50,11 +89,36 @@ export function LedgerPage({ id }: { id: string }) {
   const fromSite = useRef(!!mark()?.inSite && !mark()?.sheet);
   const toList = () => (fromSite.current ? back() : go({ kind: "split" }, true));
 
-  if (!ledger || !plan)
+  if (!ledger || !held || !plan) {
+    const toMine = { label: say(lang, "myLedgers"), onClick: () => go({ kind: "split" }, true) };
     return (
       <div className="split-page">
         <Bar lang={lang} onBack={toList} title={say(lang, "name")} />
-        <EmptyState icon={FileQuestion} title={say(lang, "missing")} body={say(lang, "missingBody")} action={{ label: say(lang, "myLedgers"), onClick: () => go({ kind: "split" }, true) }} />
+        {arrival === "joining" ? (
+          // the shape of the page it is about to be: where you stand, then a few rows
+          <div className="split-arriving">
+            <Skeleton lang={lang} shape="block" />
+            <Skeleton lang={lang} lines={3} slowText={say(lang, "slow")} />
+          </div>
+        ) : arrival === "away" ? (
+          <EmptyState tone="error" icon={WifiOff} title={say(lang, "joinAway")} body={say(lang, "joinAwayBody")} action={{ label: say(lang, "retry"), onClick: arrive }} />
+        ) : arrival === "key" ? (
+          <EmptyState tone="error" icon={Link2Off} title={say(lang, "joinKey")} body={say(lang, "joinKeyBody")} action={toMine} />
+        ) : arrival === "gone" ? (
+          <EmptyState tone="error" icon={FileQuestion} title={say(lang, "joinGone")} body={say(lang, "joinGoneBody")} action={toMine} />
+        ) : (
+          <EmptyState icon={FileQuestion} title={say(lang, "missing")} body={say(lang, "missingBody")} action={toMine} />
+        )}
+      </div>
+    );
+  }
+
+  // a phone that came in by an invitation doesn't know yet which of these people its owner is: asked first
+  if (asking && !mine(ledger, me))
+    return (
+      <div className="split-page">
+        <Bar lang={lang} onBack={toList} title={ledger.name} />
+        <WhoStep ledger={ledger} lang={lang} onSkip={() => setAsking(false)} />
       </div>
     );
 
@@ -77,7 +141,7 @@ export function LedgerPage({ id }: { id: string }) {
         }}
         onDeleted={(goneId) => {
           setEntry(null);
-          toast(say(lang, "expenseDeleted"), { action: { label: say(lang, "undo"), onClick: () => change(id, (l) => putBack(l, goneId)) } });
+          toast(say(lang, "expenseDeleted"), { action: { label: say(lang, "undo"), onClick: () => record(id, { do: "back", entry: goneId }) } });
         }}
       />
     );
@@ -88,6 +152,7 @@ export function LedgerPage({ id }: { id: string }) {
     toast(say(lang, done ? "planCopied" : "copyFailed"), { tone: done ? "success" : "warning" });
   };
   const hasExpenses = expensesOf(ledger).length > 0;
+  const line = syncLine(held, sync, lang);
   const openEntry = (edit: string | null) => {
     setRollFrom(Math.abs(me ? (balances(ledger)[me] ?? 0) : 0));
     setEntry({ edit });
@@ -109,6 +174,7 @@ export function LedgerPage({ id }: { id: string }) {
           { key: "settle", label: say(lang, "settle"), panelId: "split-settle" },
         ]}
       />
+      <SyncNote ledger={ledger} lost={held.lost} line={line} lang={lang} />
       {view === "list" ? (
         <section className="split-panel" id="split-list" role="tabpanel" aria-labelledby="split-list-tab">
           {/* an empty ledger says so once, in the list's own empty state */}
@@ -132,8 +198,52 @@ export function LedgerPage({ id }: { id: string }) {
           </Button>
         )}
       </div>
-      <LedgerMenu open={menu} onClose={() => setMenu(false)} ledger={ledger} me={me} lang={lang} onDeleted={toList} />
+      <LedgerMenu open={menu} onClose={() => setMenu(false)} ledger={ledger} me={me} lang={lang} status={line} inviteKey={held.key} made={held.made} onDeleted={toList} />
     </div>
+  );
+}
+
+/** At most this many changes that didn't stick are named one by one; the rest are counted. */
+const LOST_NAMED = 3;
+
+/**
+ * What the page says about the server, above both views, and only when there is something to say.
+ * A change that didn't stick is named, with why and what to do, until its owner says 知道了. Under
+ * it, one line when what was recorded here hasn't gone up (quiet: it will) or can't (in the page's
+ * strong voice, with a mark). Neither takes the light: that is for the one button and what is chosen.
+ */
+function SyncNote({ ledger, lost, line, lang }: { ledger: Ledger; lost: Held["lost"]; line: ReturnType<typeof syncLine>; lang: Lang }) {
+  return (
+    <>
+      {lost.length > 0 && (
+        <div className="split-ask split-lost" role="alert">
+          <p className="split-lost-head">
+            <CircleAlert aria-hidden="true" />
+            {lost.length === 1 ? say(lang, "lostOne") : say(lang, "lostMany", { n: lost.length })}
+          </p>
+          <ul>
+            {lost.slice(0, LOST_NAMED).map((s) => (
+              <li key={s.id}>{lostLine(ledger, s, lang)}</li>
+            ))}
+            {lost.length > LOST_NAMED && <li>{say(lang, "lostMore", { n: lost.length - LOST_NAMED })}</li>}
+          </ul>
+          <p className="split-lost-why">{say(lang, "lostWhy")}</p>
+          <Button tone="quiet" size="sm" onClick={() => dismissLost(ledger.id, lost.map((s) => s.id))}>
+            {say(lang, "gotIt")}
+          </Button>
+        </div>
+      )}
+      {line && (
+        <p className={`split-sync${line.loud ? " is-loud" : ""}`}>
+          {line.loud ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
+          {line.text}
+        </p>
+      )}
+      {/* read out when it changes; the line itself comes and goes */}
+      <span className="ui-visually-hidden" role="status">
+        {line?.text ?? ""}
+      </span>
+    </>
   );
 }
 
@@ -173,7 +283,21 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
   useEffect(() => {
     if (landed) landedRow.current?.scrollIntoView({ block: "nearest" });
   }, [landed]);
-  if (!rows.length) return <EmptyState icon={ReceiptText} title={say(lang, "noExpenses")} body={say(lang, "noExpensesBody")} />;
+  if (!rows.length)
+    return (
+      <EmptyState
+        icon={ReceiptText}
+        title={say(lang, "noExpenses")}
+        body={
+          // two things a new ledger wants next, a line each
+          <>
+            {say(lang, "noExpensesBody")}
+            <br />
+            {say(lang, "inviteHint")}
+          </>
+        }
+      />
+    );
   return (
     <ul className="split-rows">
       {rows.map((e) => (

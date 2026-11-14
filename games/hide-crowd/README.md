@@ -4,10 +4,15 @@ A party game on [changle.ca](https://changle.ca), played with everyone's own pho
 steers one person in a crowd of 18 passers-by the computer walks around. Walk like them and
 nobody can tell it's you; spot a rival and punch: a hit scores, hitting a passer-by knocks them
 down and stuns you, and a tagged player gets up in another body somewhere else in the crowd. First
-to 3 tags, or the most tags after 75 seconds. The round ends in a penalty: whoever got spotted most
+to 5 tags, or the most tags after 3 minutes. Twice a round a player can distract everyone: a
+passer-by across the crowd throws a punch at nothing. The round ends in a penalty: whoever got spotted most
 takes a sip. A big screen (a TV or a computer) shows the whole crowd and never marks who is human.
-Three 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre. 2 to 8
-players, Chinese and English.
+Four 3D arenas: Vancouver Seawall Park, a Vancouver transit hall, a courtyard theatre (where now
+and then the stage counts three, two, one and the whole crowd punches at once), and the Richmond
+Night Market, where tasting all four stalls scores 2 but lights each stall up for everyone, and
+where now and then someone throws firecrackers into the crowd: everyone gets clear, and a player
+who doesn't is knocked down for all to see.
+2 to 8 players, Chinese and English.
 
 How it looks, where the art comes from and what a design change has to keep: [DESIGN.md](DESIGN.md).
 
@@ -26,7 +31,8 @@ How it looks, where the art comes from and what a design change has to keep: [DE
   host closes it there, so everyone lands in the table's lobby. (Whoever is the table's host by
   then: a seat that stayed at the table takes the role over when the host has been away a while.)
 * **One phone:** the game card's one-phone button opens `changle.ca/hide/practice`, one player
-  against three computer rivals.
+  against three computer rivals. It opens on the four places to pick from (`?arena=market` on the
+  address starts there at once).
 * **Addresses.** The Worker answers `changle.ca/hide` and `changle.ca/hide/*` (the routes in
   `wrangler.jsonc`); the rest of changle.ca is the site. A bare `/hide` leads to the game's card on
   the site, `/hide/tv` to the site's big screen.
@@ -75,7 +81,8 @@ npm run test:e2e     # phones and a big screen in Chromium: joining, a round, a 
 
 GitHub runs all three on every push, in Chromium and WebKit (`.github/workflows/hide-crowd.yml`).
 Locally, `E2E_PORT` picks the test server's port and `PW_CHROMIUM` a Chromium already on the
-machine.
+machine. Each browser test closes the phones and screens it opened (the `test` in
+`tests/e2e/helpers.ts`), so write new ones with that `test`.
 
 ## Put it online
 
@@ -85,9 +92,10 @@ connected (below). From a computer instead: `npx wrangler login`, then `npm run 
 **Cost:** nothing on the plan the other Workers use (the free plan; `tools/events` and
 `games/party-server` run there too). A room is one SQLite Durable Object, which the free plan
 allows. During a round the room keeps the crowd in memory and stores only what changes (a join,
-a vote, a tag, the end of the round): a round costs about 30 writes and, with four players, about
-250 requests (each player's stick counts 1 request per 20 messages). The free plan's daily
-limits (100,000 requests, 100,000 writes, 13,000 GB-s) cover a few hundred rounds a day.
+a vote, a tag, the end of the round): a 3-minute round costs about 40 writes and, with four
+players, about 600 requests (each player's stick counts 1 request per 20 messages). The free
+plan's daily limits (100,000 requests, 100,000 writes, 13,000 GB-s) cover about 150 such rounds a
+day.
 
 ### 第一次接上 Cloudflare（Steve 做一次）
 
@@ -106,11 +114,11 @@ limits (100,000 requests, 100,000 writes, 13,000 GB-s) cover a few hundred round
 4. **合并这个改动。** 合并后几分钟，Cloudflare 构建完。打开 `changle.ca/hide/practice`，看得到人群在走就成了；再在一张桌上选藏在人群里试一局。
 5. **旧的测试地址（可以顺手删）。** Codex 之前把旧名字的版本部署到了单独的子域名（PR #5 里写着）。新游戏不用它。在 Workers & Pages 里找到 Codex 那个旧 Worker，Settings → Domains & Routes 删掉它的自定义域名，再删掉这个 Worker。
 
-不花钱：上面「Cost」一段算过，用的是免费版，几百局一天都在额度里。
+不花钱：上面「Cost」一段算过，用的是免费版，一天一百五十局左右（四个人一桌、每局 3 分钟）都在额度里。
 
 ## Numbers you might want to change
 
-* The round: `MATCH_MS` (75 s), `SCORE_TO_WIN` (3), `NPC_COUNT` (18), speeds, punch range and
+* The round: `MATCH_MS` (3 minutes), `SCORE_TO_WIN` (5), `NPC_COUNT` (18), speeds, punch range and
   timings in `src/engine/index.ts`; `HIDE_AWAY_DISTANCE` for how far a tagged player slips away.
 * The penalty: `roundPenalty` in `src/engine/index.ts`.
 * How long the table's host is kept the host (`HOST_HOLD`, 90 s), and a host who drops off

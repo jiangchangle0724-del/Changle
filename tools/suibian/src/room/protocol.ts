@@ -1,5 +1,5 @@
 // What phones and the server say to each other.
-import { PLANNED_FROM, RANGES, check, closingTime, distanceMeters, estimateWait, fitFor, isOpen, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
+import { PLANNED_FROM, RANGES, check, closingTime, cuisinesOf, distanceMeters, estimateWait, fitFor, isOpen, lastOrderAt, reasonsFor, travelMinutes, vancouverClock } from "../engine";
 import type { Ballot, Center, Concern, CuisineId, FitWhy, Lang, Limits, MoodPick, OccasionId, Off, Place, RangeId, Rating, Reason, WaitEstimate, Warning } from "../engine";
 
 export type { Lang };
@@ -90,9 +90,11 @@ export interface CardView {
   warnings: Warning[];
   /** Why it is further down the list for this table; each comes with a note (tips.ts). */
   concerns: Concern[];
-  /** Round 1: how many people liked its cuisine, and how many said no to it. */
+  /** Round 1: how many people liked its cuisine, and how many said no to it (the most for any of its cuisines). */
   likes: number;
   bans: number;
+  /** Its cuisines as the card says them, at most two: one the table liked first, then its main one. */
+  cuisines: CuisineId[];
   /** What speaks for it, best first, at most three. */
   reasons: Reason[];
   /** For the occasion and the meal: what makes it suit them ("fits" in reasons), or why it plainly doesn't. */
@@ -117,10 +119,11 @@ export interface CardContext {
 }
 
 /** A place as a card at `rank` on the list, seen from the starting point, for the people whose limits are `limits`. */
-export function cardView(p: Place, rank: number, ctx: CardContext, extra: { likes?: number; bans?: number; reasons?: Reason[] } = {}): CardView {
+export function cardView(p: Place, rank: number, ctx: CardContext, extra: { likes?: number; bans?: number; liked?: CuisineId[]; reasons?: Reason[] } = {}): CardView {
   const meters = distanceMeters(ctx.center, p);
   const v = check(p, ctx.limits);
   const likes = extra.likes ?? 0;
+  const liked = extra.liked ?? [];
   const at = ctx.at !== undefined && ctx.at - ctx.now >= PLANNED_FROM ? ctx.at : undefined;
   // The week's opening hours stay on the server: the card says what they mean for this meal.
   const { hours: _hours, ...place } = p;
@@ -141,6 +144,7 @@ export function cardView(p: Place, rank: number, ctx: CardContext, extra: { like
     concerns: v.concerns,
     likes,
     bans: extra.bans ?? 0,
+    cuisines: [...liked, ...cuisinesOf(p).filter((c) => !liked.includes(c))].slice(0, 2),
     reasons: extra.reasons ?? reasonsFor(p, { limits: ctx.limits, center: ctx.center, range: ctx.range, liked: likes > 0, occasion: ctx.occasion, now: ctx.now, at }),
     ...fitView(p, ctx, at),
   };

@@ -3,7 +3,7 @@ import { StoreProvider, useStore } from "./store";
 import { setSoundEnabled } from "./lib/sound";
 import { initAudio, startMusic, stopMusic } from "./lib/sfx";
 import { EASE, play, setLight } from "./lib/motion";
-import { Home } from "./home/Home";
+import { Home, loadTools } from "./home/Home";
 import { GAME_BY_ID, type GameId } from "./games/registry";
 import type * as LoadingShapes from "./games/GameLoading";
 import { GameRun } from "./games/GameRun";
@@ -46,9 +46,13 @@ const MePage = lazy(() => import("./account/MePage").then((m) => ({ default: m.M
 const UserPage = lazy(() => import("./account/UserPage").then((m) => ({ default: m.UserPage })));
 const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default: m.ChatPage })));
 const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
+// the 3D figure's prototype (/me/figure): its page here, three.js and the model once it opens
+const FigurePage = lazy(() => import("./account/figure/FigurePage").then((m) => ({ default: m.FigurePage })));
 const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default: m.SignInSheet })));
 // 两清 (changle.ca/split): its screens and its arithmetic load when someone opens it
 const SplitApp = lazy(() => import("./split/SplitApp").then((m) => ({ default: m.SplitApp })));
+// a tool on its page (/tools/currency, /tools/clock, /tools/price): it and the tools' styles load when it opens
+const ToolPage = lazy(() => loadTools().then((m) => ({ default: m.ToolPage })));
 
 /** A one-phone game that ran a minute or more goes into the signed-in player's history. */
 function useSoloHistory(route: Route) {
@@ -69,7 +73,9 @@ function useSoloHistory(route: Route) {
       const ms = Date.now() - r.started;
       if (ms < 60_000) return;
       sent = true;
-      void api("/me/history", { body: { game: r.game, players: names.current.slice(0, 15), minutes: Math.round(ms / 60_000) } }).catch(() => {});
+      // keepalive: the page is often going away right now (the tab closed, another address typed),
+      // and an ordinary request would be dropped with it
+      void api("/me/history", { body: { game: r.game, players: names.current.slice(0, 15), minutes: Math.round(ms / 60_000) }, keepalive: true }).catch(() => {});
     };
     window.addEventListener("pagehide", finish);
     return () => {
@@ -167,9 +173,11 @@ function Shell() {
   else if (route.kind === "room") screen = <OnlineRoom key={route.code} code={route.code} onExit={() => go({ kind: "home", tab: "party" }, true)} />;
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
+  else if (route.kind === "figure") screen = <FigurePage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "chat") screen = <ChatPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "split") screen = <SplitApp id={route.id} onBack={back} />;
+  else if (route.kind === "tool") screen = <ToolPage id={route.id} />;
   else if (route.kind === "game") {
     switch (route.id) {
       case "rogue":
@@ -244,7 +252,7 @@ function Shell() {
         ? `room-${route.code}`
         : route.kind === "game"
           ? `${route.id}.${restarts}`
-          : route.kind === "me" || route.kind === "admin" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
+          : route.kind === "me" || route.kind === "admin" || route.kind === "figure" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
             ? route.kind
             : `${route.kind}-${route.id}`;
   if (route.kind === "tv")

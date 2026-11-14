@@ -1,9 +1,9 @@
 /**
- * The ledger's ⋯ sheet: everything that isn't one of the three screens. The people (who is who,
- * adding and renaming) in a sheet of their own, the ledger's name, the language, and deleting the
- * ledger.
+ * The ledger's ⋯ sheet: everything that isn't one of the three screens. Whether the ledger is in
+ * step with the server, the people (who is who, adding and renaming) in a sheet of their own, the
+ * ledger's name, the language, and deleting the ledger.
  */
-import { ChevronRight, Pencil, Trash2, Users, X } from "lucide-react";
+import { ChevronRight, CircleAlert, CloudCheck, CloudOff, Pencil, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { LangTab } from "../components/TopBar";
 import type { Lang } from "../i18n";
@@ -11,12 +11,29 @@ import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { Face } from "./AddExpense";
 import { MAX_MEMBERS, type Ledger } from "./core";
-import { addMember, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, removeMember, renameLedger, renameMember, tidy } from "./ops";
-import { change, dropLedger, newId, setMe } from "./store";
+import { InviteSheet } from "./Join";
+import { inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, tidy } from "./ops";
+import { newId, setMe } from "./store";
+import { forget, record } from "./syncing";
 import { say } from "./words";
 
-export function LedgerMenu({ open, onClose, ledger, me, lang, onDeleted }: { open: boolean; onClose: () => void; ledger: Ledger; me: string | undefined; lang: Lang; onDeleted: () => void }) {
+type MenuProps = {
+  open: boolean;
+  onClose: () => void;
+  ledger: Ledger;
+  me: string | undefined;
+  lang: Lang;
+  /** what there is to say about the ledger and the server (lines.ts, syncLine); null when the two are in step */
+  status: { text: string; loud: boolean } | null;
+  /** the key that opens the ledger, for the invitation; and whether the server has the ledger yet */
+  inviteKey: string;
+  made: boolean;
+  onDeleted: () => void;
+};
+
+export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey, made, onDeleted }: MenuProps) {
   const [people, setPeople] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [name, setName] = useState(ledger.name);
   const [deleting, setDeleting] = useState(false);
   // every time it opens, it opens with the ledger's current name and nothing half-decided
@@ -31,6 +48,24 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, onDeleted }: { ope
     <>
       <Sheet open={open} onClose={onClose} lang={lang} category="tool" title={ledger.name}>
         <div className="split-form">
+          {/* the page says nothing while all is well; here, asked for, it says so */}
+          <p className={`split-sync${status?.loud ? " is-loud" : ""}`}>
+            {!status ? <CloudCheck aria-hidden="true" /> : status.loud ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
+            {status?.text ?? say(lang, "synced")}
+          </p>
+          <button
+            type="button"
+            className="split-field split-menu-row"
+            onClick={() => {
+              onClose();
+              setInviting(true);
+            }}
+          >
+            <UserPlus aria-hidden="true" />
+            <strong>{say(lang, "invite")}</strong>
+            <span>{say(lang, "inviteVia")}</span>
+            <ChevronRight aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="split-field split-menu-row"
@@ -47,7 +82,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, onDeleted }: { ope
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (renamed && renamed !== ledger.name) change(ledger.id, (l) => renameLedger(l, renamed));
+              if (renamed && renamed !== ledger.name) record(ledger.id, { do: "title", name: renamed });
             }}
           >
             <label htmlFor="split-rename" className="field-label">
@@ -74,7 +109,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, onDeleted }: { ope
                 <Button
                   tone="danger"
                   onClick={() => {
-                    dropLedger(ledger.id);
+                    forget(ledger.id);
                     onDeleted();
                   }}
                 >
@@ -93,6 +128,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, onDeleted }: { ope
       <Sheet open={people} onClose={() => setPeople(false)} lang={lang} category="tool" title={say(lang, "members")}>
         <People ledger={ledger} me={me} lang={lang} />
       </Sheet>
+      <InviteSheet open={inviting} onClose={() => setInviting(false)} ledger={ledger} inviteKey={inviteKey} ready={made} lang={lang} />
     </>
   );
 }
@@ -137,8 +173,8 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!to || clash) return;
-                  if (to !== m.name) change(ledger.id, (l) => renameMember(l, m.id, to));
-                  setOpen(null);
+                  // (refused only when another phone took the name a moment ago: the line stays open and says so)
+                  if (to === m.name || record(ledger.id, { do: "rename", member: m.id, name: to })) setOpen(null);
                 }}
               >
                 <span className="field">
@@ -165,8 +201,7 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
                         size="sm"
                         icon={X}
                         onClick={() => {
-                          change(ledger.id, (l) => removeMember(l, m.id));
-                          setOpen(null);
+                          if (record(ledger.id, { do: "remove", member: m.id })) setOpen(null);
                         }}
                       >
                         {say(lang, "remove", { who: m.name })}
@@ -188,8 +223,7 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
         onSubmit={(e) => {
           e.preventDefault();
           if (!fresh || taken || full) return;
-          change(ledger.id, (l) => addMember(l, { id: newId(), name: fresh }));
-          setNext("");
+          if (record(ledger.id, { do: "member", member: { id: newId(), name: fresh } })) setNext("");
         }}
       >
         <label htmlFor="split-add-person" className="field-label">

@@ -15,14 +15,28 @@ async function board(page: Page) {
   return page.evaluate(() => {
     const wrap = document.querySelector<HTMLElement>(".stage .boardwrap")!;
     const w = wrap.getBoundingClientRect();
-    // (the ring of spaces as drawn: the drawing's own square reaches past it where the board leans)
+    // (the ring of spaces as drawn: the drawing's own square reaches past it where the board leans. Its
+    // outline, a dot at a time: a space's own box is a box round it as the table turns it, which
+    // reaches up to 2.5 px past the ring when the table is turned by about 45 degrees.)
     const b = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, width: 0 };
-    for (const w of document.querySelectorAll(".stage .roundboard .wedge")) {
-      const r = w.getBoundingClientRect();
-      b.left = Math.min(b.left, r.left);
-      b.top = Math.min(b.top, r.top);
-      b.right = Math.max(b.right, r.right);
-      b.bottom = Math.max(b.bottom, r.bottom);
+    for (const w of document.querySelectorAll<SVGPathElement>(".stage .roundboard .wedge")) {
+      const len = w.getTotalLength();
+      for (let i = 0; i < 24; i++) {
+        const at = w.getPointAtLength((len * i) / 24);
+        const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        dot.setAttribute("cx", String(at.x));
+        dot.setAttribute("cy", String(at.y));
+        dot.setAttribute("r", "0.01");
+        w.parentNode!.appendChild(dot);
+        const r = dot.getBoundingClientRect();
+        dot.remove();
+        const x = r.left + r.width / 2;
+        const y = r.top + r.height / 2;
+        b.left = Math.min(b.left, x);
+        b.top = Math.min(b.top, y);
+        b.right = Math.max(b.right, x);
+        b.bottom = Math.max(b.bottom, y);
+      }
     }
     b.width = b.right - b.left;
     const tf = getComputedStyle(document.querySelector(".stage .board-pan")!).transform;
@@ -222,14 +236,21 @@ test("几队停在同一座城：棋子大了，个个整个看得见、不互�
     const area = (r: typeof p) => (r.right - r.left) * (r.bottom - r.top);
     return (w * h) / Math.min(area(p), area(q));
   };
+  // (how tall the one furthest back is drawn depends on which slot of the fan it stands in, and the
+  // board leans back: the three come out between about 26 and 31 px at 中, 17 and 20 at 小)
   for (const [size, label, tall] of [
-    ["m", "中", 26],
-    ["s", "小", 17],
+    ["m", "中", 25],
+    ["s", "小", 16],
   ] as const) {
     if (size !== "m") await pickSize(a, label);
     await expect(a.page.locator(".stage .boardwrap")).toHaveAttribute("data-map", size);
     await a.page.waitForTimeout(1200);
+    // (measured standing: the hop on the spot of the team on turn lifts it toward the board's far
+    // side, which the lean draws a little smaller, and a token now and then bobs or looks round)
+    const still = await a.page.addStyleTag({ content: ".roundboard .token .hop, .roundboard .token .react { animation: none !important; }" });
+    await a.page.waitForTimeout(100);
     const list = await tokens(a.page);
+    await still.evaluate((el) => (el as HTMLElement).remove());
     await a.page.screenshot({ path: `test-results/tokens-shared-${size}.png` });
     const pairs = list.flatMap((p, i) => list.slice(i + 1).map((q) => overlap(p, q).toFixed(2)));
     console.log(`tokens at ${size}: heights ${list.map((t) => t.h.toFixed(1)).join(", ")} px; overlaps ${pairs.join(", ")}`);

@@ -1,12 +1,17 @@
 /**
  * The lines 两清's screens say about a ledger, as plain text: where you stand, how an expense was
- * paid and shared, who pays whom, and the plan as it is pasted into a group chat. Nothing here
- * touches the screen, so each line is tested as it is written (tests/split-screens.test.ts).
+ * paid and shared, who pays whom, the plan as it is pasted into a group chat, and how the sending
+ * to the server is going. Nothing here touches the screen, so each line is tested as it is written
+ * (tests/split-screens.test.ts).
  */
 import type { Lang } from "../i18n";
+import type { Sent } from "./changes";
 import { balances, expensesOf, type Expense, type Ledger, type Settlement } from "./core";
 import { money } from "./format";
-import { say } from "./words";
+import { NAME_MAX, NOTE_MAX, tidy } from "./ops";
+import type { Held } from "./sync";
+import type { SyncState, Trouble } from "./syncer";
+import { say, type Word } from "./words";
 
 const nameOf = (l: Ledger, id: string) => l.members.find((m) => m.id === id)?.name ?? "";
 
@@ -61,4 +66,52 @@ export function planText(l: Ledger, plan: Settlement, lang: Lang): string {
   for (const s of plan.steps) lines.push(say(lang, "planLine", { from: nameOf(l, s.from), to: nameOf(l, s.to), amount: money(s.amount, l.currency, lang) }) + (s.paid ? say(lang, "planPaid") : ""));
   if (plan.clear) lines.push(say(lang, "planSquare"));
   return lines.join("\n");
+}
+
+const TROUBLE: Record<Trouble, Word> = { limit: "troubleLimit", gone: "troubleGone", key: "troubleKey", taken: "troubleTaken", stuck: "troubleStuck" };
+
+/**
+ * What to say about a ledger and the server, when there is something to say; null while the two
+ * are in step, or a change is simply on its way (the page says nothing then). `loud` is for what
+ * won't sort itself out: the phone can't go on sending, and its owner has to know. The rest is
+ * for a phone with no signal, and passes when the signal is back.
+ */
+export function syncLine(h: Pick<Held, "made" | "waiting">, s: Pick<SyncState, "away" | "trouble">, lang: Lang): { text: string; loud: boolean } | null {
+  if (s.trouble) return { text: say(lang, TROUBLE[s.trouble]), loud: true };
+  if (!s.away) return null;
+  if (!h.made) return { text: say(lang, "notMade"), loud: false };
+  const n = h.waiting.length;
+  return { text: n === 0 ? say(lang, "offline") : n === 1 ? say(lang, "unsentOne") : say(lang, "unsent", { n }), loud: false };
+}
+
+/**
+ * A change that didn't stick, named so the one who made it knows which it was: the note and the
+ * amount of an expense, who was to pay whom, the name of a person. Real names, as in the plan.
+ */
+export function lostLine(l: Ledger, sent: Sent, lang: Lang): string {
+  const c = sent.change;
+  const expense = (note: string, amount: number) => `${tidy(note, NOTE_MAX) || say(lang, "noNote")} ${money(amount, l.currency, lang)}`;
+  switch (c.do) {
+    case "expense":
+      return say(lang, "lostExpense", { what: expense(c.expense.note, c.expense.amount) });
+    case "edit":
+      return say(lang, "lostEdit", { what: expense(c.to.note, c.to.amount) });
+    case "transfer": {
+      const from = nameOf(l, c.transfer.from);
+      const to = nameOf(l, c.transfer.to);
+      return from && to ? say(lang, "lostPaid", { what: say(lang, "planLine", { from, to, amount: money(c.transfer.amount, l.currency, lang) }) }) : say(lang, "lostOther");
+    }
+    case "member":
+      return say(lang, "lostAdd", { who: tidy(c.member.name, NAME_MAX) });
+    case "rename": {
+      const who = nameOf(l, c.member);
+      return who ? say(lang, "lostRename", { who, name: tidy(c.name, NAME_MAX) }) : say(lang, "lostOther");
+    }
+    case "remove": {
+      const who = nameOf(l, c.member);
+      return who ? say(lang, "lostRemove", { who }) : say(lang, "lostOther");
+    }
+    default:
+      return say(lang, "lostOther");
+  }
 }

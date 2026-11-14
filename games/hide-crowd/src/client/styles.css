@@ -22,6 +22,11 @@
   --arena-accent: #ff8a6b;
   --arena-warn: #ffb36b;
   --arena-danger: #ff8a7f;
+  /* the stars round a stunned head (their rim is the night: --arena-bg) */
+  --arena-star: var(--gel-lemon);
+  /* the night market's firecrackers: their red paper, and the smoke of a bang */
+  --arena-cracker: #d4282c;
+  --arena-smoke: #cfc8bd;
   /* the floors, in daylight like the places in the pictures (Arena3D draws them) */
   --arena-lawn: #6aaf45;
   --arena-lawn-2: #4f9135;
@@ -34,6 +39,17 @@
   --arena-petal: #ee9fb6;
   --arena-daisy: #fbf4e2;
   --arena-sea: #3b8db5;
+  /* the night market, after dark: the parking lot's asphalt and its paint, the bulbs, the dusk sky,
+     and the four stalls' canvas (the same colours as the Blender set) */
+  --arena-asphalt: #2c303b;
+  --arena-asphalt-2: #3a3f4d;
+  --arena-paint: #e6dcc0;
+  --arena-bulb: #ffd58a;
+  --arena-dusk: #34396b;
+  --stall-0: #c8443a;
+  --stall-1: #2e8c86;
+  --stall-2: #7a5cb0;
+  --stall-3: #d99a2b;
   /* the six looks in the crowd, for the flat arena (the same tops as the 3D people, src/client/people.ts) */
   --look-0: #d9962a;
   --look-1: #5cc79b;
@@ -768,6 +784,84 @@ button.arena-option:active {
   color: var(--color-text);
 }
 
+/* ---------- practice: the four places to pick from ---------- */
+.page.is-picking {
+  max-width: 960px;
+}
+.practice-pick {
+  padding-top: var(--space-2);
+  gap: var(--space-4);
+}
+.pick-head {
+  display: grid;
+  gap: var(--space-1);
+}
+.pick-title {
+  font: 800 var(--text-xl) / var(--leading-tight) var(--font-display);
+}
+.pick-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+/* a phone held sideways: all four in a row, so none is below the fold */
+@media (orientation: landscape) {
+  .pick-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.pick-option {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  text-align: start;
+  transition: box-shadow var(--dur-enter) var(--ease-out), transform var(--dur-exit) var(--ease-out);
+}
+.pick-option:active {
+  transform: scale(0.985);
+}
+@media (hover: hover) {
+  .pick-option:hover {
+    box-shadow:
+      inset 0 0 0 2px var(--gel),
+      0 0 24px -6px color-mix(in oklab, var(--gel) 60%, transparent);
+  }
+}
+.pick-thumb {
+  position: relative;
+  display: block;
+}
+.pick-thumb img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-small);
+  object-fit: cover;
+  background: var(--color-raised);
+}
+.pick-tag {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--on-gel);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+.pick-option .arena-text {
+  padding: 0 var(--space-1);
+}
+.pick-option .clause {
+  display: inline-block;
+}
+
 /* ---------- a round on a phone ---------- */
 .room-play {
   position: fixed;
@@ -978,7 +1072,7 @@ button.arena-option:active {
   padding: 0 var(--gutter);
 }
 
-/* the stick and the two moves */
+/* the stick and the three moves */
 .controls {
   grid-area: controls;
   z-index: 4;
@@ -1053,6 +1147,40 @@ button.arena-option:active {
   background: var(--color-raised);
   color: var(--color-text-3);
   box-shadow: none;
+}
+/* Distract sits over Blend in, smaller: twice a round, its count in a dot on its shoulder */
+.moves-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+.move-distract {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  background: var(--color-raised);
+  font-size: var(--text-xs);
+  box-shadow: inset 0 0 0 1.5px var(--color-line);
+}
+.move-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--on-gel);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+.move-distract.is-waiting .move-count {
+  background: var(--color-line);
+  color: var(--color-text-3);
 }
 
 /* sideways (how it's meant to be played): the arena fills the screen, everything floats over it */
@@ -1221,7 +1349,9 @@ button.arena-option:active {
   .result-actions {
     grid-template-columns: 1fr 1fr;
   }
-  .result-actions .btn-lg {
+  .result-actions .btn-lg,
+  /* (one button under Play again takes the whole row; two share it) */
+  .result-actions > .btn:nth-child(2):last-child {
     grid-column: 1 / -1;
   }
 }
@@ -1525,7 +1655,7 @@ html.is-tv body::before {
   display: none;
 }
 .arena-vote.is-big .arena-options {
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
 }
 .arena-vote.is-big .arena-option {
@@ -1802,8 +1932,98 @@ html.is-tv body::before {
     repeating-linear-gradient(0deg, color-mix(in oklab, var(--arena-line) 70%, transparent) 0 1px, transparent 1px 36px),
     linear-gradient(160deg, color-mix(in oklab, var(--arena-accent) 18%, var(--arena-surface)), var(--arena-bg));
 }
+/* the night market: the lot's asphalt and its lines; the stalls along the top, their pools of light below */
+.flat-arena--market {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 calc(12.5% - 2px), color-mix(in oklab, var(--arena-paint) 16%, transparent) calc(12.5% - 2px) 12.5%, transparent 12.5% 25%),
+    linear-gradient(170deg, var(--arena-asphalt-2), var(--arena-asphalt));
+}
+.flat-stalls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.flat-stall {
+  position: absolute;
+  top: 0;
+  /* (the stall's reach: 4.5 either side of its middle, from the floor's edge to 6 in) */
+  width: 9%;
+  height: 20.7%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 50%, color-mix(in oklab, var(--arena-bulb) 30%, transparent), transparent 70%);
+  transition: background var(--dur-emphasis) var(--ease-out);
+}
+/* the counter, beyond the floor's edge */
+.flat-stall::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 50%;
+  border-radius: 0 0 var(--r-small) var(--r-small);
+  background: var(--stall-color);
+}
+.flat-stall.stall-0 {
+  left: 20%;
+}
+.flat-stall.stall-1 {
+  left: 40%;
+}
+.flat-stall.stall-2 {
+  left: 60%;
+}
+.flat-stall.stall-3 {
+  left: 80%;
+}
+.flat-stall.is-lit {
+  background: radial-gradient(ellipse at 50% 50%, color-mix(in oklab, var(--stall-color) 90%, transparent), transparent 78%);
+  transition-duration: var(--dur-exit);
+}
 .flat-arena.is-hit {
   animation: flat-hit var(--dur-emphasis) var(--ease-out);
+}
+/* the night market's firecrackers, flat: once one lands, the ring of how far it will knock people
+   down (the blast's 6.5 across the floor's 100 x 58), beating; then its bang */
+.flat-cracker {
+  position: absolute;
+  z-index: 1;
+  width: 13%;
+  height: 22.4%;
+  border-radius: var(--r-pill);
+  background: radial-gradient(circle, color-mix(in oklab, var(--arena-accent) 40%, transparent), transparent 72%);
+  box-shadow: inset 0 0 0 2px var(--arena-warn);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: flat-fuse var(--dur-emphasis) var(--ease-out) infinite alternate;
+}
+.flat-cracker::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: var(--r-pill);
+  background: var(--arena-cracker);
+  box-shadow: 0 0 0 2px var(--arena-bulb);
+}
+.flat-cracker.is-bang {
+  background: radial-gradient(circle, var(--arena-bulb), transparent 70%);
+  box-shadow: none;
+  animation: flat-bang var(--dur-emphasis) var(--ease-out) both;
+}
+.flat-cracker.is-bang::after {
+  display: none;
+}
+@keyframes flat-fuse {
+  to {
+    opacity: 0.55;
+  }
+}
+@keyframes flat-bang {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
 }
 @keyframes flat-hit {
   25% {
@@ -2571,6 +2791,165 @@ html.is-tv body::before {
     bottom: auto;
   }
 }
+/* the theatre's drill: the stage's count, big over the back of the crowd, where the stage is (三, 二,
+   一 in a disc, then 出拳！ in the gel); each beat pops in */
+.drill-call {
+  position: absolute;
+  top: 31%;
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  min-width: 88px;
+  height: 88px;
+  margin: 0;
+  padding: 0 var(--space-6);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  color: var(--color-bg);
+  font: 800 var(--text-4xl) / var(--leading-tight) var(--font-display);
+  white-space: nowrap;
+  box-shadow: var(--shadow-float);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: drill-beat var(--dur-emphasis) var(--ease-pop) both;
+}
+.drill-call.is-go {
+  height: 72px;
+  background: var(--gel);
+  color: var(--on-gel);
+  font-size: var(--text-3xl);
+  box-shadow: var(--shadow-float), var(--glow);
+}
+.drill-call.is-tv {
+  top: 38%;
+  min-width: 220px;
+  height: 220px;
+  padding: 0 var(--space-12);
+  font-size: var(--text-poster);
+}
+.drill-call.is-tv.is-go {
+  height: 160px;
+  font-size: var(--text-4xl);
+}
+@keyframes drill-beat {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+}
+/* Punch in the drill: a ring round it while the stage counts, a pulse from the call while a punch
+   still lands with the crowd's */
+.move-punch.is-drill,
+.move-punch.is-cue {
+  box-shadow: var(--glow), 0 0 0 4px var(--color-bg), 0 0 0 7px var(--gel);
+}
+.move-punch.is-cue {
+  animation: punch-cue var(--dur-emphasis) var(--ease-out) infinite alternate;
+}
+@keyframes punch-cue {
+  to {
+    transform: scale(1.08);
+    box-shadow: var(--glow), 0 0 0 5px var(--color-bg), 0 0 0 11px var(--gel);
+  }
+}
+
+/* the night market's four stalls, in their canvas colours (the Blender set's) */
+.stall-0 {
+  --stall-color: var(--stall-0);
+}
+.stall-1 {
+  --stall-color: var(--stall-1);
+}
+.stall-2 {
+  --stall-color: var(--stall-2);
+}
+.stall-3 {
+  --stall-color: var(--stall-3);
+}
+/* the side quest on your phone: the four snacks, lit once tasted, a ring filling round the one you're at */
+.quest {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + var(--space-4));
+  left: 50%;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--color-bg) 78%, transparent);
+  box-shadow: var(--shadow-flat);
+  transform: translateX(-50%);
+}
+.moment-banner + .quest {
+  bottom: calc(var(--safe-bottom) + var(--space-4) + var(--space-12));
+}
+.quest-title {
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.quest-snack {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--stall-color) 18%, var(--color-bg));
+  box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--stall-color) 60%, transparent);
+  color: color-mix(in oklab, var(--stall-color) 45%, var(--color-text));
+  transition: background var(--dur-enter) var(--ease-out), color var(--dur-enter) var(--ease-out);
+}
+.quest-snack.is-done {
+  background: var(--stall-color);
+  color: var(--color-on-accent);
+  animation: quest-done var(--dur-emphasis) var(--ease-pop);
+}
+.quest-snack.is-tasting::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--r-pill);
+  background: conic-gradient(var(--stall-color) calc(var(--tasting) * 1turn), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px));
+}
+@keyframes quest-done {
+  50% {
+    transform: scale(1.22);
+  }
+}
+@media (orientation: portrait) and (max-width: 719px) {
+  .quest {
+    top: calc(var(--safe-top) + 112px);
+    bottom: auto;
+  }
+  .moment-banner + .quest {
+    top: calc(var(--safe-top) + 112px + var(--space-12));
+    bottom: auto;
+  }
+}
+/* the big screen: someone tasted all four */
+.tv-feast {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--r-pill);
+  background: var(--stall-3);
+  color: var(--color-on-accent);
+  font: 800 var(--text-xl) / var(--leading-tight) var(--font-display);
+  white-space: nowrap;
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  animation: moment-in var(--dur-emphasis) var(--ease-pop) both;
+}
 
 /* the round's titles: 火眼金睛, 隐身大师... */
 .awards {
@@ -2636,10 +3015,16 @@ html.is-tv body::before {
   cursor: pointer;
 }
 @media (prefers-reduced-motion: reduce) {
-  .moment-banner {
+  .moment-banner,
+  .drill-call,
+  .move-punch.is-cue,
+  .flat-cracker {
     animation: none;
   }
 }
-:root[data-reduced="1"] .moment-banner {
+:root[data-reduced="1"] .moment-banner,
+:root[data-reduced="1"] .drill-call,
+:root[data-reduced="1"] .move-punch.is-cue,
+:root[data-reduced="1"] .flat-cracker {
   animation: none;
 }

@@ -12,9 +12,12 @@ import {
   type ServerMsg,
   type Snap,
   type Cast,
+  type Menu,
+  type PadCmd,
 } from './protocol';
 import { RoomSocket, wsUrl } from './socket';
 import { ICE_SERVERS } from './ice';
+import type { ItemId } from '../items';
 import type { Look } from '../look';
 
 export interface PadLinkEvents {
@@ -26,6 +29,8 @@ export interface PadLinkEvents {
   /** 手机局：主机发来的画面快照和样子名单。 */
   onSnap?(s: Snap): void;
   onCast?(c: Cast): void;
+  /** 主机发来的菜单（手柄当遥控）。 */
+  onMenu?(m: Menu): void;
 }
 
 /** 这台手机的座位 id，存起来，刷新、换 Wi-Fi 都还是同一个座位。 */
@@ -59,6 +64,7 @@ export class PadLink {
   private lastRelayAt = 0;
   private seq = 1;
   private look: Look | null = null;
+  private item: ItemId | null = null;
 
   constructor(
     readonly code: string,
@@ -75,6 +81,7 @@ export class PadLink {
         if (open) {
           this.relay({ k: 'hello' });
           if (this.look) this.relay({ k: 'look', look: this.look });
+          if (this.item) this.relay({ k: 'item', item: this.item });
         }
         this.ev.onConn?.({ socket: open, direct: this.direct });
       },
@@ -85,6 +92,17 @@ export class PadLink {
   setLook(look: Look): void {
     this.look = look;
     if (this.socketOpen) this.relay({ k: 'look', look });
+  }
+
+  /** 手柄当遥控：按了开始、下一关……走房间（要可靠）。 */
+  command(c: PadCmd): void {
+    if (this.socketOpen) this.relay({ k: 'cmd', c });
+  }
+
+  /** 告诉主机自己带哪样道具（A9）；每次重新连上房间也会再说一遍。 */
+  setItem(item: ItemId): void {
+    this.item = item;
+    if (this.socketOpen) this.relay({ k: 'item', item });
   }
 
   get isDirect(): boolean {
@@ -172,6 +190,9 @@ export class PadLink {
         return;
       case 'cast':
         this.ev.onCast?.(data.c);
+        return;
+      case 'menu':
+        this.ev.onMenu?.(data.m);
         return;
       default:
         return;

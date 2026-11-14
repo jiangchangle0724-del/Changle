@@ -5,14 +5,18 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity } from "../../engine";
-import type { ArenaId, Pose } from "../../engine";
-import type { AvatarView } from "../../room/protocol";
+import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, steerVelocity } from "../../engine";
+import type { ArenaId, MomentKind, Pose } from "../../engine";
+import type { AvatarView, CrackerView } from "../../room/protocol";
 import { BASE } from "../base";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type PeopleKit } from "../people";
 import { addEnvironmentalLandmarks } from "./landmarks";
+import { addCinema } from "./cinema";
+import { addCrackers } from "./crackers";
+import { addEffects } from "./effects";
+import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
 export function preloadPeople(): void {
@@ -28,7 +32,15 @@ interface Props {
   maxSpeed: number;
   receivedAt: number;
   impactId: number;
-  impactType: "tag" | "foul" | "swing" | "hide" | "over";
+  impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "over";
+  /** the night market: the latest stall tasted (it flashes for everyone), and whether that bite was a feast */
+  flash?: { id: number; stall: number; feast: boolean } | null;
+  /** the crowd's moment, while it lasts (the night market's firecrackers and fireworks go off in it, the theatre's drill calls in it) */
+  moment?: { kind: MomentKind; endsInMs?: number; crackers?: CrackerView[] } | null;
+  /** someone else's distraction, for a moment: where its passer-by swung (the camera glances there) */
+  glance?: { x: number; y: number; endsInMs: number } | null;
+  /** the round has just begun on this screen: open on the camera's sweep into the game's view */
+  intro?: boolean;
   label: string;
   youLabel: string;
   fallback: ComponentChildren;
@@ -72,6 +84,21 @@ interface Palette {
   petal: string;
   daisy: string;
   sea: string;
+  /** the night market: the lot's asphalt and paint, the bulbs, the dusk, the four stalls' canvas */
+  asphalt: string;
+  asphalt2: string;
+  paint: string;
+  bulb: string;
+  dusk: string;
+  stall0: string;
+  stall1: string;
+  stall2: string;
+  stall3: string;
+  /** the dizzy stars round a stunned head */
+  star: string;
+  /** the night market's firecrackers: their paper, and the smoke of their bang */
+  cracker: string;
+  smoke: string;
   /** the "you" marker: the game's gel, night-colored text */
   me: string;
   onMe: string;
@@ -96,7 +123,7 @@ const GROUND_SIZE = { x: 48, z: 36, centerZ: -4 };
 /** the seawall's stone edge, just beyond the set's railing; the sea lies past it */
 const SEAWALL_Z = -7.85;
 /** the courtyard's set sits this much further back, so the front row stands before the stage, not in it */
-const SET_OFFSET_Z: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: -0.65 };
+const SET_OFFSET_Z: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: -0.65, market: 0 };
 /** one repeat of the floor's pattern, in scene units */
 const GROUND_TILE = 12;
 /** the screen kept clear of the crowd: the top bar, the bottom edge, the sides */
@@ -105,7 +132,8 @@ const TV_MARGINS: ScreenMargins = { top: 0.15, bottom: 0.1, side: 0.04 };
 const ARENA_DRESSING: Record<ArenaId, string> = {
   plaza: `${BASE}/art/seawall-dressing.glb`,
   metro: `${BASE}/art/transit-dressing.glb`,
-  gallery: `${BASE}/art/courtyard-dressing.glb`
+  gallery: `${BASE}/art/courtyard-dressing.glb`,
+  market: `${BASE}/art/market-dressing.glb`
 };
 
 function disposeTree(root: THREE.Object3D): void {
@@ -150,9 +178,34 @@ function readPalette(): Palette {
     petal: read("--arena-petal", "#ee9fb6"),
     daisy: read("--arena-daisy", "#fbf4e2"),
     sea: read("--arena-sea", "#3b8db5"),
+    asphalt: read("--arena-asphalt", "#2c303b"),
+    asphalt2: read("--arena-asphalt-2", "#3a3f4d"),
+    paint: read("--arena-paint", "#e6dcc0"),
+    bulb: read("--arena-bulb", "#ffd58a"),
+    dusk: read("--arena-dusk", "#34396b"),
+    stall0: read("--stall-0", "#c8443a"),
+    stall1: read("--stall-1", "#2e8c86"),
+    stall2: read("--stall-2", "#7a5cb0"),
+    stall3: read("--stall-3", "#d99a2b"),
+    star: read("--arena-star", "#f5df3b"),
+    cracker: read("--arena-cracker", "#d4282c"),
+    smoke: read("--arena-smoke", "#cfc8bd"),
     me: read("--gel", "#7be55c"),
     onMe: read("--night", "#0e0c22"),
     font: read("--font-display", "sans-serif")
+  };
+}
+
+function marketPalette(palette: Palette): MarketPalette {
+  return {
+    asphalt: palette.asphalt,
+    asphalt2: palette.asphalt2,
+    paint: palette.paint,
+    bulb: palette.bulb,
+    dusk: palette.dusk,
+    stalls: [palette.stall0, palette.stall1, palette.stall2, palette.stall3],
+    sparks: [palette.bulb, palette.me, palette.accent, palette.stall2, palette.stall1],
+    ink: palette.ink
   };
 }
 
@@ -201,12 +254,16 @@ function seeded(seed: number): () => number {
 const FLOOR_PX = 1024;
 
 /**
- * The three floors, in daylight like the places in the pictures, drawn once on a canvas that repeats
- * every GROUND_TILE units: the seawall's mown lawn, the transit hall's stone tiles, the courtyard's
- * flagstones with a few blossom petals.
+ * The four floors, drawn once on a canvas that repeats every GROUND_TILE units: the seawall's mown
+ * lawn, the transit hall's stone tiles and the courtyard's flagstones with a few blossom petals, in
+ * daylight like the places in the pictures, and the night market's parking lot after dark.
  */
 function paintFloor(context: CanvasRenderingContext2D, arena: ArenaId, palette: Palette): void {
-  const random = seeded(arena === "plaza" ? 11 : arena === "metro" ? 23 : 37);
+  const random = seeded(arena === "plaza" ? 11 : arena === "metro" ? 23 : arena === "gallery" ? 37 : 53);
+  if (arena === "market") {
+    paintAsphalt(context, FLOOR_PX, marketPalette(palette), random);
+    return;
+  }
   const size = FLOOR_PX;
   const mix = (a: string, b: string, amount: number) => "#" + new THREE.Color(a).lerp(new THREE.Color(b), amount).getHexString();
   const tint = (value: string, alpha: number) => {
@@ -370,12 +427,12 @@ function createSoftShadowTexture(): THREE.CanvasTexture {
  */
 function addGround(scene: THREE.Scene, arena: ArenaId, palette: Palette, maxAnisotropy: number): THREE.CanvasTexture {
   // (white: the floor's colors are the drawn ones)
-  const groundMaterial = makeMaterial("#ffffff", arena === "metro" ? 0.62 : 0.95);
+  const groundMaterial = makeMaterial("#ffffff", arena === "metro" ? 0.62 : arena === "market" ? 0.88 : 0.95);
   const groundTexture = createGroundTexture(arena, palette, maxAnisotropy);
   groundTexture.repeat.set(GROUND_SIZE.x / GROUND_TILE, GROUND_SIZE.z / GROUND_TILE);
   groundMaterial.map = groundTexture;
   groundMaterial.bumpMap = groundTexture;
-  groundMaterial.bumpScale = arena === "plaza" ? 0.004 : arena === "gallery" ? 0.02 : 0.012;
+  groundMaterial.bumpScale = arena === "plaza" ? 0.004 : arena === "gallery" ? 0.02 : arena === "market" ? 0.016 : 0.012;
   groundMaterial.needsUpdate = true;
   const ground = new THREE.Mesh(new THREE.BoxGeometry(GROUND_SIZE.x, 0.35, GROUND_SIZE.z), groundMaterial);
   ground.name = "floor";
@@ -443,6 +500,7 @@ interface RuleMarks {
  * What each place's rule looks like, kept whichever set is showing: the transit hall's moving
  * walkways under the whole crowd (the room carries everyone along; they slide the same way), the
  * courtyard's spotlight where the rules make you faster, and the sea beyond the seawall's railing.
+ * (The night market's pools of light before its stalls are in market.ts, with the rest of its lights.)
  */
 function addRuleMarks(scene: THREE.Scene, arena: ArenaId, palette: Palette): RuleMarks {
   const owned: { dispose: () => void }[] = [];
@@ -487,7 +545,7 @@ function addRuleMarks(scene: THREE.Scene, arena: ArenaId, palette: Palette): Rul
     pool.rotation.x = -Math.PI / 2;
     pool.position.y = 0.02;
     scene.add(pool);
-  } else {
+  } else if (arena === "plaza") {
     // the sea beyond the railing, and the seawall's stone edge
     const sea = new THREE.Mesh(keep(new THREE.PlaneGeometry(GROUND_SIZE.x, 16)), keep(new THREE.MeshStandardMaterial({ color: palette.sea, roughness: 0.28, metalness: 0.1 })));
     sea.rotation.x = -Math.PI / 2;
@@ -599,6 +657,21 @@ function addVenue(scene: THREE.Scene, arena: ArenaId, palette: Palette): void {
     return;
   }
 
+  if (arena === "market") {
+    // until the Blender set is in: a night backdrop and four stalls in their canvas colours
+    makeBox(scene, [24, 4.4, 0.3], [0, 2.2, -7.9], dark);
+    [palette.stall0, palette.stall1, palette.stall2, palette.stall3].forEach((canvas, index) => {
+      const x = (STALLS[index] - ARENA.width / 2) * SCENE_PER_WORLD;
+      const color = makeMaterial(canvas, 0.8);
+      makeBox(scene, [2.7, 1.0, 0.7], [x, 0.5, -4.55], color);
+      makeBox(scene, [2.95, 2.5, 0.3], [x, 1.25, -6.05], wood);
+      const awning = makeBox(scene, [2.9, 0.08, 1.85], [x, 2.72, -5.2], color);
+      awning.rotation.x = 0.28;
+      makeBox(scene, [2.0, 0.62, 0.12], [x, 3.3, -4.75], dark);
+    });
+    return;
+  }
+
   if (arena === "metro") {
     // Vancouver-style transit concourse: glass, tiled floor, columns and a platform edge.
     makeBox(scene, [18.5, 4.8, 0.25], [0, 2.2, -5.7], detail);
@@ -690,6 +763,9 @@ export function Arena3D(props: Props) {
   const impact = useRef(props.impactId);
   const impactType = useRef(props.impactType);
   const youLabel = useRef(props.youLabel);
+  const flash = useRef(props.flash ?? null);
+  const moment = useRef(props.moment ?? null);
+  const glance = useRef(props.glance ?? null);
   const [supported, setSupported] = useState(true);
   const [frameMetrics, setFrameMetrics] = useState<FrameMetrics | null>(null);
   const showFps = new URLSearchParams(window.location.search).get("fps") === "1";
@@ -701,6 +777,9 @@ export function Arena3D(props: Props) {
   impact.current = props.impactId;
   impactType.current = props.impactType;
   youLabel.current = props.youLabel;
+  flash.current = props.flash ?? null;
+  moment.current = props.moment ?? null;
+  glance.current = props.glance ?? null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -743,7 +822,22 @@ export function Arena3D(props: Props) {
 
     const groundTexture = addGround(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
     const ruleMarks = addRuleMarks(scene, props.arena, palette);
+    // (the night market's lights, its stalls' pools and its fireworks stay whichever set is showing)
+    const market: Market | null = props.arena === "market" ? addMarket(scene, marketPalette(palette), ambient, key, fill) : null;
+    // (the opening sweep, the move to the winner and the confetti stay whichever set is showing)
+    const cinema = addCinema(scene, [palette.me, palette.accent, palette.warn, palette.stall1, palette.stall2, palette.ink], !!props.intro);
+    // (and the punches' swooshes, the dizzy stars and the dust)
+    const effects = addEffects(scene, { swoosh: palette.ink, star: palette.star, rim: palette.bg, dust: palette.muted, smoke: palette.smoke });
+    // (and the night market's firecrackers)
+    const crackers = market ? addCrackers(scene, { red: palette.cracker, gold: palette.bulb, fuse: palette.bg, ring: palette.warn, glow: palette.accent, flash: palette.bulb }, BLAST_RADIUS * SCENE_PER_WORLD) : null;
+    const headAt = new THREE.Vector3();
     const environmentStart = new Set(scene.children);
+    const viewEye = new THREE.Vector3();
+    const viewLook = new THREE.Vector3();
+    /** how near the camera has come (1: the game's view): the names keep their size on screen */
+    let tagZoom = 1;
+    /** the last frame's round was over (the names were out): when they go, the next round has begun */
+    let wasOver = false;
     addVenue(scene, props.arena, palette);
     addEnvironmentalLandmarks(scene, props.arena, palette);
     const fallbackVenue = new THREE.Group();
@@ -777,6 +871,7 @@ export function Arena3D(props: Props) {
       scene.remove(fallbackVenue);
       disposeTree(fallbackVenue);
       scene.add(loadedVenue);
+      market?.showGlow();
     }, undefined, () => {
       // Keep the procedural venue visible if an asset fails to load.
     });
@@ -819,24 +914,26 @@ export function Arena3D(props: Props) {
     const bits: Bit[] = [];
     const sparkColors = [new THREE.Color(palette.warn), new THREE.Color(palette.me), new THREE.Color(palette.ink)];
     const dustColors = [new THREE.Color(palette.stone), new THREE.Color(palette.tile), new THREE.Color(palette.stone2)];
-    const burst = (x: number, z: number, now: number, kind: "spark" | "dust") => {
-      const count = kind === "spark" ? 16 : 10;
+    // (a bang: a firecracker's sparks, from the ground, wider and higher than a punch's)
+    const burst = (x: number, z: number, now: number, kind: "spark" | "dust" | "bang") => {
+      const sparky = kind !== "dust";
+      const count = kind === "bang" ? 20 : kind === "spark" ? 16 : 10;
       for (let index = 0; index < count && bits.length < BITS; index++) {
         const angle = Math.random() * Math.PI * 2;
-        const out = kind === "spark" ? 2.4 + Math.random() * 2.6 : 0.9 + Math.random() * 1.3;
-        const colors = kind === "spark" ? sparkColors : dustColors;
+        const out = kind === "bang" ? 2.8 + Math.random() * 3.4 : kind === "spark" ? 2.4 + Math.random() * 2.6 : 0.9 + Math.random() * 1.3;
+        const colors = sparky ? sparkColors : dustColors;
         bits.push({
           x,
-          y: kind === "spark" ? 1.45 : 0.12,
+          y: kind === "spark" ? 1.45 : kind === "bang" ? 0.3 : 0.12,
           z,
           vx: Math.cos(angle) * out,
-          vy: kind === "spark" ? 1.6 + Math.random() * 3 : 0.4 + Math.random() * 0.8,
+          vy: kind === "bang" ? 2.4 + Math.random() * 3.6 : kind === "spark" ? 1.6 + Math.random() * 3 : 0.4 + Math.random() * 0.8,
           vz: Math.sin(angle) * out,
           born: now,
-          life: kind === "spark" ? 420 + Math.random() * 260 : 520 + Math.random() * 360,
-          size: kind === "spark" ? 0.8 + Math.random() * 0.9 : 1.6 + Math.random() * 1.4,
+          life: sparky ? 420 + Math.random() * 260 : 520 + Math.random() * 360,
+          size: sparky ? 0.8 + Math.random() * 0.9 : 1.6 + Math.random() * 1.4,
           spin: (Math.random() - 0.5) * 18,
-          fall: kind === "spark" ? 9 : 0.6,
+          fall: sparky ? 9 : 0.6,
           color: colors[index % colors.length]
         });
       }
@@ -884,7 +981,7 @@ export function Arena3D(props: Props) {
     };
     const paintMarker = () => paintPill(markerContext, markerTexture, palette.me, palette.onMe, youLabel.current);
     // once the round is over: every player's name over the body they were (the winner's in the gel)
-    const tags: { sprite: THREE.Sprite; context: CanvasRenderingContext2D | null; texture: THREE.CanvasTexture; painted: string }[] = [];
+    const tags: { sprite: THREE.Sprite; context: CanvasRenderingContext2D | null; texture: THREE.CanvasTexture; painted: string; winner: boolean }[] = [];
     /** a name's size on screen, in the projection's units (-1 to 1 across), measured once the camera is framed */
     const tagSize = new THREE.Vector2(0.3, 0.1);
     const measureTags = () => {
@@ -903,7 +1000,7 @@ export function Arena3D(props: Props) {
         const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true }));
         sprite.scale.set(2.4, 0.6, 1);
         scene.add(sprite);
-        tags[slot] = { sprite, context: tagCanvas.getContext("2d"), texture, painted: "" };
+        tags[slot] = { sprite, context: tagCanvas.getContext("2d"), texture, painted: "", winner: false };
       }
       return tags[slot];
     };
@@ -954,6 +1051,13 @@ export function Arena3D(props: Props) {
     let shakeAt = 0;
     let shakeStrength = 0;
     let lastImpact = props.impactId;
+    let lastFlash = props.flash?.id ?? 0;
+    let fireworksSeen = props.moment?.kind === "fireworks";
+    /** the distraction the camera last glanced at, and the drill whose call it last took */
+    let glanceSeen: string | null = null;
+    let drillCalled = false;
+    /** a tag has just come in: the body it knocks down bursts into confetti */
+    let tagPop = false;
     /** a beat of stillness when a punch lands (a hit-stop), the camera's kick toward it, the last blow in slow motion */
     let freezeUntil = 0;
     let kickAt = 0;
@@ -1010,8 +1114,12 @@ export function Arena3D(props: Props) {
       }
       if (impact.current !== lastImpact) {
         lastImpact = impact.current;
-        shakeAt = time;
-        shakeStrength = impactType.current === "tag" ? 0.28 : impactType.current === "foul" ? 0.16 : impactType.current === "swing" ? 0.08 : impactType.current === "hide" ? 0 : 0.12;
+        // (a firecracker's bang shakes the camera itself, on this screen's own clock)
+        if (impactType.current !== "blast") {
+          shakeAt = time;
+          shakeStrength = impactType.current === "tag" ? 0.28 : impactType.current === "foul" ? 0.16 : impactType.current === "swing" ? 0.08 : impactType.current === "hide" ? 0 : 0.12;
+        }
+        tagPop = impactType.current === "tag";
         if (impactType.current === "tag" || impactType.current === "foul") {
           freezeUntil = time + (impactType.current === "tag" ? 95 : 60);
           kickAt = time;
@@ -1024,6 +1132,48 @@ export function Arena3D(props: Props) {
       }
       if (paintedLabel !== youLabel.current) { paintedLabel = youLabel.current; paintMarker(); }
       const reduced = reducedNow();
+      // the theatre's drill: on the call the whole crowd's fists fly out together, and the camera takes it
+      const crowd = moment.current;
+      if (crowd?.kind === "drill" && crowd.endsInMs !== undefined) {
+        const fistsAt = receivedAt.current + crowd.endsInMs - (DRILL_MS - DRILL_GO_MS) + PUNCH_WINDUP_MS;
+        const since = Date.now() - fistsAt;
+        if (!drillCalled && since >= 0) {
+          drillCalled = true;
+          if (since < 300) {
+            kickAt = time;
+            shakeAt = time;
+            shakeStrength = 0.1;
+          }
+        }
+      } else drillCalled = false;
+      // the night market's firecrackers: thrown, landed, hissing (their times on this page's clock)
+      if (crackers && crowd?.kind === "crackers" && crowd.crackers) {
+        const age = Math.max(0, Date.now() - receivedAt.current);
+        crackers.see(
+          crowd.crackers.map((cracker) => {
+            const landAt = time + cracker.landsInMs - age;
+            return { x: sceneX(cracker.x), z: sceneZ(cracker.y), flyAt: landAt - CRACKER_FLIGHT_MS, landAt, bangAt: time + cracker.bangsInMs - age };
+          })
+        );
+      }
+      // someone else's distraction: the camera glances at the passer-by's swing
+      const looking = glance.current;
+      const lookingKey = looking ? `${looking.x},${looking.y}` : null;
+      if (looking && lookingKey !== glanceSeen) cinema.glance(time, sceneX(looking.x), sceneZ(looking.y), looking.endsInMs - Math.max(0, Date.now() - receivedAt.current));
+      glanceSeen = lookingKey;
+      if (market) {
+        // a stall tasted: its pool flashes, and a few sparks fly off its counter
+        const lit = flash.current;
+        if (lit && lit.id !== lastFlash) {
+          lastFlash = lit.id;
+          market.flash(lit.stall, lit.feast, time);
+          if (!reduced) burst((STALLS[lit.stall] - ARENA.width / 2) * SCENE_PER_WORLD, -4.25, time, "spark");
+        }
+        const showing = moment.current?.kind === "fireworks";
+        if (showing && !fireworksSeen) market.fireworks(time);
+        fireworksSeen = showing;
+        market.update(time, delta, reduced, 1 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+      }
       // the hit-stop holds every body for a beat; the round's last blow plays at a third of the speed
       const frozen = !reduced && time < freezeUntil;
       const pace = frozen ? 0 : !reduced && time < slowUntil ? 0.35 : 1;
@@ -1042,6 +1192,7 @@ export function Arena3D(props: Props) {
       const predictionSeconds = prediction / 1000;
       const clock = reduced ? 0 : time / 1000;
       let localVisual: Visual | undefined;
+      let winnerVisual: Visual | undefined;
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
         let worldX = avatar.x;
@@ -1088,6 +1239,13 @@ export function Arena3D(props: Props) {
         if (visual.pose !== avatar.p) {
           // (the stand-ins have no fall of their own: a burst where they were hit)
           if (avatar.p === "stunned" && !kit && !reduced) burst(visual.x, visual.z, time, "spark");
+          // a fist out: its swoosh, the same for everyone (a puncher who hit a passer-by is stopped mid-punch)
+          if (avatar.p === "punch" || (avatar.p === "stunned" && visual.pose === "windup")) effects.punch(visual.x, visual.z, visual.facing, time);
+          // the tagged player bursts into confetti as they go down
+          if (avatar.p === "stunned" && tagPop) {
+            tagPop = false;
+            cinema.pop(time, visual.x, visual.z, reduced);
+          }
           visual.pose = avatar.p;
           visual.poseStartedAt = time;
         }
@@ -1127,7 +1285,15 @@ export function Arena3D(props: Props) {
           writeInstance(standInBodies, index, dummy, visual.x, 0.82 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1, visual.lean, visual.roll);
           writeInstance(standInHeads, index, dummy, visual.x, 1.62 * PERSON_SCALE, visual.z, visual.facing, 1, 1, 1);
         }
+        // stars round a stunned head (it falls with the body), dust behind a run
+        if (staggered) {
+          if (kit && people[index]) people[index].headPosition(headAt);
+          else headAt.set(visual.x, 1.62 * PERSON_SCALE, visual.z);
+          effects.dizzy(headAt.x, headAt.y, headAt.z, visual.poseStartedAt);
+        }
+        effects.run(index, visual.x, visual.z, visual.facing, over ? 0 : visual.speed, time);
         if (avatar.me) localVisual = visual;
+        if (avatar.w) winnerVisual = visual;
         if (avatar.n !== undefined) {
           const tag = tagAt(tagCount++);
           const key = (avatar.w ? "1" : "0") + avatar.n;
@@ -1135,15 +1301,18 @@ export function Arena3D(props: Props) {
             paintPill(tag.context, tag.texture, avatar.w ? palette.me : palette.surface, avatar.w ? palette.onMe : palette.ink, avatar.n);
             tag.painted = key;
           }
-          tag.sprite.position.set(visual.x, MARKER_Y, visual.z);
+          tag.sprite.position.set(visual.x, 2.3 + (MARKER_Y - 2.3) * tagZoom, visual.z);
+          tag.sprite.scale.set(2.4 * tagZoom, 0.6 * tagZoom, 1);
+          tag.winner = !!avatar.w;
           tag.sprite.visible = true;
         }
       }
       for (let index = tagCount; index < tags.length; index++) tags[index].sprite.visible = false;
-      // names close together stack instead of covering each other (front first, the others lift)
+      // names close together stack instead of covering each other (the winner's first, then front to
+      // back: the others lift)
       if (tagCount > 1) {
         const placed: THREE.Vector3[] = [];
-        const order = tags.slice(0, tagCount).sort((a, b) => b.sprite.position.z - a.sprite.position.z);
+        const order = tags.slice(0, tagCount).sort((a, b) => Number(b.winner) - Number(a.winner) || b.sprite.position.z - a.sprite.position.z);
         for (const tag of order) {
           for (let lift = 0; lift < tagCount; lift++) {
             const here = tag.sprite.position.clone().project(camera);
@@ -1152,7 +1321,7 @@ export function Arena3D(props: Props) {
               placed.push(here);
               break;
             }
-            tag.sprite.position.y += 0.62;
+            tag.sprite.position.y += 0.62 * tagZoom;
           }
         }
       }
@@ -1197,13 +1366,33 @@ export function Arena3D(props: Props) {
         bitMesh.instanceMatrix.needsUpdate = true;
         if (bitMesh.instanceColor) bitMesh.instanceColor.needsUpdate = true;
       }
+      tagPop = false;
+      // the firecrackers fly, hiss and bang: each bang throws sparks and smoke, and jolts the camera
+      if (crackers) {
+        for (const bang of crackers.update(time, delta * pace, camera, reduced)) {
+          if (reduced) continue;
+          burst(bang.x, bang.z, time, "bang");
+          effects.smoke(bang.x, bang.z, time);
+          shakeAt = time;
+          shakeStrength = 0.24;
+          kickAt = time;
+        }
+      }
       const impactAge = time - shakeAt;
       const shake = shakeAt && impactAge < 280 && !reduced ? Math.sin(impactAge * 0.095) * (1 - impactAge / 280) * shakeStrength : 0;
       // the kick: in toward the floor and back, in a third of a second
       const kickAge = time - kickAt;
       const kick = kickAt && kickAge < 340 && !reduced ? Math.sin(Math.min(1, kickAge / 70) * (Math.PI / 2)) * (1 - kickAge / 340) * 0.045 : 0;
-      camera.position.set(eye.x + shake + (look.x - eye.x) * kick, eye.y + Math.abs(shake) * 0.34 + (look.y - eye.y) * kick, eye.z + (look.z - eye.z) * kick);
-      camera.lookAt(look.x + shake, look.y - shake * 0.22, look.z);
+      // the opening sweep, or the move to the winner; then the blow's shake and kick on top
+      if (wasOver && !over) cinema.restart();
+      wasOver = over;
+      if (over) cinema.ending(time, winnerVisual ? { x: winnerVisual.x, z: winnerVisual.z } : null, reduced);
+      cinema.update(time, delta);
+      cinema.shot(time, eye, look, reduced, viewEye, viewLook);
+      camera.position.set(viewEye.x + shake + (viewLook.x - viewEye.x) * kick, viewEye.y + Math.abs(shake) * 0.34 + (viewLook.y - viewEye.y) * kick, viewEye.z + (viewLook.z - viewEye.z) * kick);
+      camera.lookAt(viewLook.x + shake, viewLook.y - shake * 0.22, viewLook.z);
+      tagZoom = Math.min(1, viewEye.distanceTo(viewLook) / Math.max(0.001, eye.distanceTo(look)));
+      effects.update(time, delta * pace, camera, reduced);
       renderer.render(scene, camera);
       draws = renderer.info.render.calls;
       fpsWorkMs += performance.now() - workStartedAt;
@@ -1235,6 +1424,10 @@ export function Arena3D(props: Props) {
       }
       groundTexture.dispose();
       ruleMarks.dispose();
+      market?.dispose();
+      cinema.dispose();
+      effects.dispose();
+      crackers?.dispose();
       shadowTexture.dispose();
       renderer.dispose();
     };

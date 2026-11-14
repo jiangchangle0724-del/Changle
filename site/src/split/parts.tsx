@@ -1,6 +1,6 @@
 /** The small pieces 两清's screens share: the top bar, a figure that rolls to its new value, copying, the keypad. */
 import { ChevronLeft, Delete, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Lang } from "../i18n";
 import { reduced } from "../lib/motion";
 import { haptic } from "../lib/sound";
@@ -9,6 +9,24 @@ import type { Decimals } from "./core";
 import { money } from "./format";
 import type { Key } from "./input";
 import { say } from "./words";
+
+/**
+ * A sentence or two of running text that wraps between its sentences before it wraps inside one.
+ * Chinese has no spaces to say where a break may fall, so a line left to itself ends mid-word; the
+ * words mark the place with a line break.
+ */
+export function Sentences({ text, lang }: { text: string; lang: Lang }) {
+  return (
+    <>
+      {text.split("\n").map((sentence, i) => (
+        <Fragment key={i}>
+          {i > 0 && lang === "en" ? " " : null}
+          <span className="split-sentence">{sentence}</span>
+        </Fragment>
+      ))}
+    </>
+  );
+}
 
 /** The top bar: the way back (or ✕ on a screen that closes), the title in the middle, one or two buttons on the right. */
 export function Bar({ title, onBack, close, right, lang }: { title: ReactNode; onBack: () => void; close?: boolean; right?: ReactNode; lang: Lang }) {

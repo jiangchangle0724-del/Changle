@@ -1,0 +1,30 @@
+{
+  "name": "tuan",
+  "version": "0.1.0",
+  "private": true,
+  "description": "跟一单 · Count Me In: group buys for Greater Vancouver's home kitchens, group-buy leaders and farms, for changle.ca/tuan",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "wrangler dev --port 8795 --ip 127.0.0.1",
+    "dev:alone": "wrangler dev -c wrangler.jsonc -c tests/rooms/wrangler.jsonc --port 8795 --ip 127.0.0.1",
+    "types": "wrangler types",
+    "typecheck": "wrangler types > /dev/null && tsc --noEmit && tsc --noEmit -p tsconfig.client.json",
+    "test": "node scripts/build.mjs && vitest run && node --test tests/design.test.mjs",
+    "test:e2e": "playwright test",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.11",
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
+    "typescript": "6.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5",
+    "wrangler": "4.151.2"
+  }
+}
