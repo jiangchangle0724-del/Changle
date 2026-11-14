@@ -16,6 +16,13 @@ const baseIds = Array.from({ length: 12 }, (_, i) => `${i < 6 ? 'table' : 'van'}
 // C8 的难关：table-13…18、van-19…24（CONTRACTS「关卡契约 · 难关」）。可以分批交，在的每一关都要过全部难关规则。
 const hardIds = Array.from({ length: 12 }, (_, i) => `${i < 6 ? 'table' : 'van'}-${String(i + 13).padStart(2, '0')}`);
 const isHard = (id) => hardIds.includes(id);
+// C10 中餐馆后厨的关：kitchen-25…30（CONTRACTS「关卡契约 · 后厨」）。可以分批交，在的每一关都要过全部后厨规则。
+const kitchenIds = Array.from({ length: 6 }, (_, i) => `kitchen-${i + 25}`);
+const isKitchen = (id) => kitchenIds.includes(id);
+// 后厨的关教什么：蒸笼喷汽、端托盘、全套，困难那一档也可以是难关的那几样
+const kitchenTeaches = new Set(['steam', 'tray', 'combine', 'spike', 'hot', 'zap', 'mover', 'spinner', 'gauntlet']);
+/** 关卡 id 前面那半截就是它在哪个世界（table-01 → table，kitchen-25 → kitchen）。 */
+const worldOfId = (id) => id.slice(0, id.lastIndexOf('-'));
 // 难关的 teaches（大厅里显示「难关：…」，中英文在 src/levels.ts）
 const hardTeaches = new Set(['spike', 'hot', 'zap', 'mover', 'spinner', 'gauntlet']);
 // 按人数摆的东西（players: [min, max]）现在能验到几个人；A7 把上限提到 6 以后改成 6
@@ -39,7 +46,7 @@ const identities = {
 };
 const contains = (r, p) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 const inside = (level, p) => p.x >= 0 && p.x <= level.w && p.y >= 0 && p.y <= level.h;
-const materials = new Set(['cloth', 'wood', 'ceramic', 'metal', 'noodle', 'ice']);
+const materials = new Set(['cloth', 'wood', 'ceramic', 'metal', 'noodle', 'ice', 'bamboo']);
 const temporary = await mkdtemp(join(tmpdir(), 'hang-on-levels-'));
 const readJSON = async (path) => JSON.parse(await readFile(path, 'utf8'));
 const finite = (n) => typeof n === 'number' && Number.isFinite(n);
@@ -65,7 +72,7 @@ const together = (a, b) => {
   const [b0, b1] = b.players ?? [1, 6];
   return a0 <= b1 && b0 <= a1;
 };
-const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates];
+const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents];
 /**
  * 1 到 TESTED_PLAYERS 个人各摆出来什么样，一样的归一组。每组都要有一份回放证明能过：
  * 4 个人的是 replays/<id>.json，别的组是 replays/<id>.p<人数>.json。
@@ -154,6 +161,37 @@ function gates(level, id) {
   }
 }
 
+/**
+ * 后厨（A10）：蒸笼喷汽和端托盘。蒸笼是实的台子（垫在别的台子上），汽柱在关里、下面六成没有台子挡着；
+ * 托盘每个放的地方都在一块一直在的台子上、离要命的东西够远、不压在复活的人身上，最多一个开局加每个检查点一个。
+ */
+function kitchen(level, id) {
+  for (const v of level.vents ?? []) {
+    rectangle(v);
+    const reach = v.reach ?? 300;
+    assert(finite(reach) && reach >= 120 && reach <= 480, `${id}: vent reach must be 120–480`);
+    assert(v.w >= 48 && v.w <= 200 && v.h >= 24 && v.h <= 120, `${id}: a steamer is 48–200 px wide and 24–120 px high`);
+    for (const [k, lo, hi] of [['on', 0.4, 6], ['off', 0.4, 8], ['phase', 0, 30], ['power', 0.5, 1.6]]) assert(v[k] === undefined || (finite(v[k]) && v[k] >= lo && v[k] <= hi), `${id}: vent ${k} must be ${lo}–${hi}`);
+    assert(v.material === undefined || materials.has(v.material), `unknown material ${v.material}`);
+    assert(inside(level, { x: v.x, y: v.y - reach }) && inside(level, { x: v.x + v.w, y: v.y + v.h }), `${id}: a vent's steam column leaves the level`);
+    assert(level.rects.some((r) => together(r, v) && Math.abs(r.y - (v.y + v.h)) <= 2 && r.x <= v.x + 4 && r.x + r.w >= v.x + v.w - 4), `${id}: vent at (${v.x}, ${v.y}) must sit on a platform`);
+    const low = { x: v.x, y: v.y - reach * 0.6, w: v.w, h: reach * 0.6 };
+    for (const r of [...level.rects, ...(level.fading ?? []), ...(level.springs ?? [])]) assert(!together(r, v) || !overlaps(r, low), `${id}: a platform blocks the steam above the vent at (${v.x}, ${v.y})`);
+  }
+  const spots = level.tray ?? [];
+  if (!spots.length) return;
+  assert(spots.length <= (level.checkpoints?.length ?? 0) + 1, `${id}: tray has one spot to start plus at most one per checkpoint`);
+  const respawns = [{ ...level.spawn, dx: 44 }, ...(level.checkpoints ?? []).map((cp) => ({ ...cp, dx: 30 }))].flatMap((s) => [0, 1, 2, 3].map((k) => ({ x: s.x + k * s.dx, y: s.y })));
+  for (const s of spots) {
+    point(s);
+    assert(inside(level, s), `${id}: tray spot outside the level`);
+    const half = 46;
+    assert(level.rects.some((r) => r.players === undefined && r.until === undefined && r.x <= s.x - half && r.x + r.w >= s.x + half && r.y - (s.y + 5) >= -1 && r.y - (s.y + 5) <= 12), `${id}: tray spot (${s.x}, ${s.y}) must rest on a platform that is always there (centre 5 px above its top)`);
+    for (const h of level.hazards ?? []) assert(!circleHits(s, 84, h), `${id}: tray spot (${s.x}, ${s.y}) is within reach of a hazard`);
+    for (const c of respawns) assert(Math.abs(c.x - s.x) > 70 || Math.abs(c.y - s.y) > 40, `${id}: tray spot (${s.x}, ${s.y}) sits where a player respawns`);
+  }
+}
+
 function machines(level, id) {
   const hazardKinds = new Set(['spike', 'hot', 'zap']);
   const dirs = new Set(['up', 'down', 'left', 'right']);
@@ -214,17 +252,23 @@ function machines(level, id) {
 }
 function validate(level, replay, id) {
   assert.equal(level.id, id);
-  assert.equal(level.world, id.startsWith('table') ? 'table' : 'van');
+  assert.equal(level.world, worldOfId(id));
   assert(level.name?.zh && level.name.en && level.teaches, 'missing bilingual name / lesson');
   assert(finite(level.w) && level.w > 0 && finite(level.h) && level.h > 0);
-  const hard = isHard(id);
-  if (hard) assert(hardTeaches.has(level.teaches), `${id}: a hard level teaches one of ${[...hardTeaches].join(' / ')}`);
+  const cook = isKitchen(id);
+  // 后厨的关写明难度；困难那一档按难关的规矩查
+  if (cook) assert([0, 1, 2].includes(level.tier), `${id}: a kitchen level states its tier (0 easy, 1 medium, 2 hard)`);
+  const hard = isHard(id) || (cook && level.tier === 2);
+  if (cook) {
+    assert(kitchenTeaches.has(level.teaches), `${id}: a kitchen level teaches one of ${[...kitchenTeaches].join(' / ')}`);
+    assert((level.vents?.length ?? 0) > 0 || (level.tray?.length ?? 0) > 0, `${id}: a kitchen level needs steamers or a tray`);
+  } else if (hard) assert(hardTeaches.has(level.teaches), `${id}: a hard level teaches one of ${[...hardTeaches].join(' / ')}`);
   else {
     assert.deepEqual(level.name, identities[id].name, id + ': C1 name changed');
     assert.equal(level.teaches, identities[id].teaches, id + ': C1 lesson changed');
   }
   // 难关按形状分：高过一屏的是攀爬关
-  const vertical = hard ? level.h > 720 : id === 'table-04' || id === 'van-08';
+  const vertical = hard || cook ? level.h > 720 : id === 'table-04' || id === 'van-08';
   if (vertical) {
     assert(level.h >= 1400 && level.h <= 2200, id + ': climb height must be 1400–2200');
     assert(level.spawn.y - (level.goal.y + level.goal.h) >= 720, id + ': climb route must rise at least one screen');
@@ -236,6 +280,7 @@ function validate(level, replay, id) {
   assert(moving <= 40, id + ': moving objects exceed 40 (rope links + seesaws + crates + movers + spinners + gates)');
   machines(level, id);
   gates(level, id);
+  kitchen(level, id);
   assert(level.rects.length + (level.fading?.length ?? 0) + (level.springs?.length ?? 0) <= 60, id + ': platforms exceed 60');
   point(level.spawn);
   assert(inside(level, level.spawn), id + ': spawn outside level');
@@ -342,7 +387,8 @@ async function inspect(physics, level, replay) {
   const dangers = dangersOf(laid);
   // chainBySeg / throwsBySeg：每一段（出生到第一个检查点是第 0 段）里成串挂了几秒、丢了几次人
   const evidence = { chainSeconds: 0, throws: 0, chainBySeg: [], throwsBySeg: [], ropeGrabs: 0, propGrabs: 0, maxTilt: 0, checkpointTimes: [], cookieGrabs: (laid.fading ?? []).map(() => 0), springBounces: (laid.springs ?? []).map(() => 0), iceGrabs: 0,
-    moverUse: (laid.movers ?? []).map(() => 0), spinnerUse: (laid.spinners ?? []).map(() => 0), near: dangers.map(() => false), gateOpen: (laid.gates ?? []).map(() => 0) };
+    moverUse: (laid.movers ?? []).map(() => 0), spinnerUse: (laid.spinners ?? []).map(() => 0), near: dangers.map(() => false), gateOpen: (laid.gates ?? []).map(() => 0),
+    ventRide: (laid.vents ?? []).map(() => 0), traySpills: 0 };
   const bars = (s) => { const angle = spinnerAngle(s, sim.time); return Array.from({ length: s.arms }, (_, j) => spinnerArm(s, j, angle)); };
   const holding = (p, hit) => p.arms.some((a) => a.grip?.kind === 'terrain' && hit(a.hand, CFG.handR + CFG.grabPad));
   sim.step = (dt) => {
@@ -397,6 +443,13 @@ async function inspect(physics, level, replay) {
       if (live.some((p) => hit(p.body, CFG.bodyR + 3) || holding(p, hit))) evidence.spinnerUse[i] += dt;
     });
     sim.gates.forEach((g, k) => (evidence.gateOpen[k] = Math.max(evidence.gateOpen[k], g.open)));
+    // 后厨：喷着的汽柱里有人正被往上托（往上走得比 100 px/s 快）
+    sim.vents.forEach((v, k) => {
+      if (!v.on) return;
+      const reach = v.def.reach ?? CFG.ventReach;
+      if (live.some((p) => p.body.vy < -100 && p.body.x >= v.def.x - 12 && p.body.x <= v.def.x + v.def.w + 12 && p.body.y >= v.def.y - reach && p.body.y <= v.def.y)) evidence.ventRide[k] += dt;
+    });
+    for (const e of sim.events) if (e.type === 'tray' && e.phase === 'spill') evidence.traySpills++;
     dangers.forEach((d, k) => {
       if (evidence.near[k]) return;
       let hit;
@@ -415,6 +468,7 @@ async function inspect(physics, level, replay) {
     const result = await runReplay(level, replay, sim);
     // 红包（A9b）：回放里每个都有人拿到过（够得着）
     evidence.envelopes = sim.envelopes.map((e) => e.got);
+    evidence.trayHome = sim.tray ? sim.tray.home : null;
     return { result, evidence, laid };
   } finally {
     sim.destroy();
@@ -431,7 +485,7 @@ const replay=await (await fetch('/replays/'+id)).json();
 const sim=await createSim(level,replay.players||4), canvas=document.querySelector('canvas');
 const stage=await Stage.create(canvas,{plates:{table:'/art/table-far.webp',van:'/art/van-far.webp'}});
 stage.setLevel(sim.level);stage.syncPlayers(sim);
-const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet'};
+const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet',steam:'后厨 · 蒸笼喷汽 / Kitchen · Ride the steam',tray:'后厨 · 端托盘 / Kitchen · Carry the tray'};
 document.querySelector('h1').textContent=id+' · '+level.name.zh+' · '+level.name.en;
 document.querySelector('#lesson').textContent=lessons[level.teaches];
 const marks=document.querySelector('#marks');
@@ -520,13 +574,14 @@ try {
   const files = (await readdir(levelsDir)).filter((f) => f.endsWith('.json')).sort();
   const found = files.map((f) => f.slice(0, -'.json'.length));
   for (const id of baseIds) assert(found.includes(id), `missing contracted level ${id}`);
-  for (const id of found) assert(baseIds.includes(id) || isHard(id), `unexpected level ${id}: the twelve contracted levels plus hard levels table-13…18 / van-19…24 only`);
+  for (const id of found) assert(baseIds.includes(id) || isHard(id) || isKitchen(id), `unexpected level ${id}: the twelve contracted levels plus hard levels table-13…18 / van-19…24 and kitchen levels kitchen-25…30 only`);
   ids.push(...hardIds.filter((id) => found.includes(id)));
+  ids.push(...kitchenIds.filter((id) => found.includes(id)));
   const replayFiles = (await readdir(join(levelsDir, 'replays'))).filter((f) => f.endsWith('.json')).sort();
   for (const id of ids) assert(replayFiles.includes(`${id}.json`), `${id}: needs its own replay`);
   // 别的人数的回放：replays/<id>.p<人数>.json，只给按人数摆的关、每种摆法一份
   const extraReplays = replayFiles.filter((f) => !files.includes(f)).map((f) => {
-    const m = /^((?:table|van)-\d{2})\.p([1-6])\.json$/.exec(f);
+    const m = /^((?:table|van|kitchen)-\d{2})\.p([1-6])\.json$/.exec(f);
     assert(m && ids.includes(m[1]), `unexpected replay ${f} (extra replays are <level>.p<players>.json)`);
     return { file: f, id: m[1], players: Number(m[2]) };
   });
@@ -561,6 +616,9 @@ try {
     evidence.near.forEach((n, k) => assert(n, `${id}: deadly thing ${k} is never within ${NEAR}px of the route`));
     // 踩板门：每扇门回放里都真开过（全开）
     evidence.gateOpen.forEach((o, k) => assert(o >= 0.99, `${id} (${replay.players} players): gate ${laid.gates[k].id} never opened`));
+    // 后厨：每摞蒸笼都真把人托上去过（0.25 秒），有托盘的关托盘端进了终点
+    evidence.ventRide.forEach((t, k) => assert(t >= 0.25, `${id} (${replay.players} players): steamer ${k} never lifted anyone`));
+    if (laid.tray?.length) assert(evidence.trayHome === true, `${id} (${replay.players} players): the tray did not end in the goal`);
     return { result, evidence };
   }
   for (const id of ids) {
@@ -573,8 +631,8 @@ try {
     if (id === 'van-10') assert(evidence.throws >= 2, 'level 10 must release flying teammates');
     if (id === 'table-05' || id === 'van-12') assert(evidence.ropeGrabs > 0, `${id}: rope was bypassed`);
     if (id === 'van-09' || id === 'van-12') assert(evidence.propGrabs > 0 && evidence.maxTilt > 0.05, `${id}: seesaw was bypassed`);
-    // 难关得靠大家：回放里真的有人连成串挂着，或者把队友丢过去
-    if (isHard(id)) {
+    // 难关得靠大家：回放里真的有人连成串挂着，或者把队友丢过去（后厨困难那一档也一样）
+    if (isHard(id) || (isKitchen(id) && level.tier === 2)) {
       assert(evidence.chainSeconds >= 0.25 || evidence.throws >= 1, `${id}: a hard level's replay must use teamwork (hang as a chain for 0.25 s or throw a teammate)`);
       // 不能只在开头连一下：至少两段里都要靠大家（成串挂着 0.25 秒，或者丢一次人）
       const segs = Math.max(evidence.chainBySeg.length, evidence.throwsBySeg.length);
@@ -583,9 +641,18 @@ try {
     }
     // 按人数摆的关：每一种摆法都要有一份回放（4 个人那种就是上面这份）
     const mine = extraReplays.filter((r) => r.id === id);
+    // 后厨简单、中等的关一个人也要过得去（单人模式也玩这些关）：要一份 1 个人的回放，一个人端着托盘、坐着汽到顶
+    const soloKitchen = isKitchen(id) && level.tier < 2;
+    if (soloKitchen) assert(mine.some((r) => r.players === 1), `${id}: an easy or medium kitchen level needs a one-player replay (replays/${id}.p1.json); solo mode plays it too`);
     for (const group of layoutGroups(level)) {
       if (group.includes(4)) {
-        assert(!mine.some((r) => group.includes(r.players)), `${id}: ${group.join('/')} players share the four-player layout; replays/${id}.json already covers them`);
+        assert(!mine.some((r) => group.includes(r.players) && !(soloKitchen && r.players === 1)), `${id}: ${group.join('/')} players share the four-player layout; replays/${id}.json already covers them`);
+        if (soloKitchen && group.includes(1)) {
+          const solo = mine.find((r) => r.players === 1);
+          const extra = await readJSON(join(levelsDir, 'replays', solo.file));
+          replayShape(level, extra, id, 1);
+          await check(level, extra, id, false);
+        }
         continue;
       }
       const cover = mine.filter((r) => group.includes(r.players));
@@ -630,7 +697,7 @@ try {
     }
   }
   // 两人成链、丢队友，和每一个难关：录好的每个手柄单独跑都过不去（这关得靠大家）
-  for (const { level, replay, evidence } of entries.filter((e) => ['table-06', 'van-10'].includes(e.level.id) || isHard(e.level.id))) {
+  for (const { level, replay, evidence } of entries.filter((e) => ['table-06', 'van-10'].includes(e.level.id) || isHard(e.level.id) || (isKitchen(e.level.id) && e.level.tier === 2))) {
     // Replay each recorded controller alone, without moving spawn or injecting state.
     for (let player = 0; player < 4; player++) {
       const solo = { ...replay, players: 1, frames: replay.frames.map((f) => [f[player]]) };
@@ -645,8 +712,28 @@ try {
     assert.equal(png.readUInt32BE(16), 1280);
     assert.equal(png.readUInt32BE(20), 720);
   }
+  // 后厨（C10）：每关都是自己的关；六关到齐了才查的搭配
+  const kitchenEntries = entries.filter((e) => isKitchen(e.level.id));
+  for (const a of kitchenEntries) {
+    for (const b of entries) {
+      if (b === a || (isKitchen(b.level.id) && b.level.id < a.level.id)) continue;
+      const whole = jaccard(surfaceCells(a.level), surfaceCells(b.level));
+      assert(whole <= SAME_LEVEL, `${a.level.id} and ${b.level.id} share ${(whole * 100).toFixed(0)}% of their platforms; every kitchen level needs its own layout (at most ${SAME_LEVEL * 100}%)`);
+      if (!isKitchen(b.level.id)) continue;
+      const start = jaccard(firstScreen(a.level), firstScreen(b.level));
+      assert(start <= SAME_START, `${a.level.id} and ${b.level.id} open with the same first screen (${(start * 100).toFixed(0)}% alike)`);
+    }
+  }
+  if (kitchenEntries.length === kitchenIds.length) {
+    const count = (pred) => kitchenEntries.filter((e) => pred(e.level)).length;
+    for (const tier of [0, 1, 2]) assert.equal(count((l) => l.tier === tier), 2, `kitchen levels: two per tier (tier ${tier})`);
+    assert(count((l) => l.vents?.length) >= 4, 'kitchen levels: at least four need steamers');
+    assert(count((l) => l.tray?.length) >= 3, 'kitchen levels: at least three need a tray');
+    assert(count((l) => l.vents?.length && l.tray?.length) >= 2, 'kitchen levels: at least two need both steamers and a tray');
+    for (const kind of ['spike', 'hot', 'zap']) assert(count((l) => (l.hazards ?? []).some((h) => (h.kind ?? 'spike') === kind)) >= 2, `kitchen levels: at least two need ${kind}`);
+  }
   if (process.argv.includes('--screenshots') || process.argv.includes('--serve')) await serve(entries, process.argv.includes('--screenshots'));
-  console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS`);
+  console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard + ${kitchenEntries.length}/${kitchenIds.length} kitchen PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS`);
 } catch (error) {
   console.error(`levels: FAIL — ${error.message}`);
   process.exitCode = 1;

@@ -35,8 +35,8 @@ import {
   TETHER_LEN,
 } from './config';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef } from './level';
-import { circleHitsBar, circleHitsRect, moverAt, spinnerAngle, spinnerArm } from './motion';
+import { forPlayers, gateAt, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
+import { circleHitsBar, circleHitsRect, moverAt, spinnerAngle, spinnerArm, ventColumn, ventState } from './motion';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -226,7 +226,7 @@ export interface Noodle {
 }
 
 export interface Prop {
-  kind: 'seesaw' | 'crate' | 'ingot';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray';
   rb: RB;
   w: number;
   h: number;
@@ -294,6 +294,10 @@ export type SimEvent =
   /** 踩板门（11-13）：踏板按下去 / 弹起来了；门开始开 / 开始关（x、y 是踏板、门的中间）。 */
   | { type: 'plate'; index: number; on: boolean; x: number; y: number }
   | { type: 'gate'; index: number; open: boolean; x: number; y: number }
+  /** 蒸笼喷汽（后厨，A10）：第几摞快喷了（warn，盖子跳）、喷了（on）；x、y 是蒸笼顶的中间。 */
+  | { type: 'vent'; index: number; phase: 'warn' | 'on'; x: number; y: number }
+  /** 端托盘（后厨，A10）：点心翻了（spill）、托盘回到存档的地方（back）、端进终点了（home）；x、y 是托盘在哪。 */
+  | { type: 'tray'; phase: 'spill' | 'back' | 'home'; x: number; y: number }
   /** 用道具（A9）：ok 是用成了没有（拉面要先抓着墙或台子）；x、y 是在哪用的。 */
   | { type: 'item'; player: number; item: ItemId; ok: boolean; x: number; y: number }
   /** 道具的劲过了：速冻化开、荷叶收起、拉面断了（x、y 是在哪）。 */
@@ -380,6 +384,13 @@ export class Sim {
   private stuckT = 0;
   private segDeaths = 0;
   private stuckCp = -1;
+  /** 蒸笼喷汽（后厨，A10）：每摞现在喷着没有、快喷了没有（钟在 motion.ts 的 ventState，画面也用它）。 */
+  readonly vents: { def: VentDef; on: boolean; warn: boolean }[] = [];
+  /**
+   * 端托盘（后厨，A10）：托盘是第几个物件、存档到第几个检查点（-1 是开局那里）、点心翻了没有（翻了几秒）、
+   * 歪了几秒、刚回来还有几秒不算翻、在不在终点里。闯关、大团队里关卡有 `tray` 才有。
+   */
+  tray: { prop: number; cp: number; spilled: boolean; spillT: number; tiltT: number; grace: number; home: boolean } | null = null;
   /** 踩板门（11-13）：踏板按着没有；门开到几成（0 关、1 开）、现在在哪。 */
   readonly plates: { def: PlateDef; x: number; y: number; w: number; h: number; on: boolean }[] = [];
   readonly gates: { def: GateDef; rb: RB; x: number; y: number; w: number; h: number; open: number; holdT: number; opening: boolean }[] = [];
@@ -427,7 +438,11 @@ export class Sim {
     for (const def of level.spinners ?? []) this.addSpinner(def);
     for (const def of level.plates ?? []) this.addPlate(def);
     for (const def of level.gates ?? []) this.addGate(def);
+    for (const def of level.vents ?? []) this.addVent(def);
     if (this.itemsOn) for (const e of level.envelopes ?? []) this.envelopes.push({ x: e.x, y: e.y, got: false });
+    // 端托盘（后厨，A10）：闯关、大团队里摆上一托盘点心
+    const traySpot = level.tray?.[0];
+    if (traySpot && this.itemsOn) this.addTray(traySpot);
 
     this.setPlayers(nPlayers);
     // 抢金元宝（A9d）：中间放一个元宝
@@ -581,6 +596,32 @@ export class Sim {
     const index = this.props.length;
     this.info.set(col.handle, { kind: 'prop', prop: index });
     this.props.push({ kind: 'crate', rb, w: def.w, h: def.h, x: def.x + def.w / 2, y: def.y + def.h / 2, angle: 0 });
+  }
+
+  /** 蒸笼喷汽（后厨，A10）：蒸笼本身是普通的台子（能站能抓），汽柱只是个范围，喷的时候在 tickVents 里往上托。 */
+  private addVent(def: VentDef): void {
+    const material = def.material ?? 'wood';
+    this.addRect({ ...def, material }, frictionOf(material), 0);
+    const s = ventState(def, 0);
+    this.vents.push({ def, on: s.on, warn: s.warn });
+  }
+
+  /** 端托盘（后厨，A10）：一块薄薄的托盘（at 是中心），能抓能拽；抓在中间端得平，抓在一头就往下歪。 */
+  private addTray(at: Pt): void {
+    const rb = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(at.x, at.y).setLinearDamping(0.2).setAngularDamping(2).setCcdEnabled(true),
+    );
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(CFG.trayW / 2, CFG.trayH / 2)
+        .setMass(CFG.trayMass)
+        .setFriction(CFG.trayFriction)
+        .setCollisionGroups(groups(GROUP.PROP, GROUP.TERRAIN | GROUP.PLAYER | GROUP.PROP)),
+      rb,
+    );
+    const index = this.props.length;
+    this.info.set(col.handle, { kind: 'prop', prop: index });
+    this.props.push({ kind: 'tray', rb, w: CFG.trayW, h: CFG.trayH, x: at.x, y: at.y, angle: 0 });
+    this.tray = { prop: index, cp: -1, spilled: false, spillT: 0, tiltT: 0, grace: CFG.trayGrace, home: false };
   }
 
   /** 会动的平台：运动学刚体，每步摆到 moverAt 算的位置。 */
@@ -789,6 +830,119 @@ export class Sim {
       g.lostT = 0;
       this.events.push({ type: 'gold', player: -1, t: 0, x: this.level.ingot.x, y: this.level.ingot.y });
     }
+  }
+
+  /**
+   * 蒸笼喷汽（后厨，A10）每一步：快喷了、喷了报一声；喷着的那几摞把汽柱里的身体、胳膊、箱子、托盘往上托
+   * （往上的速度没到 ventLift 就加，汽柱最上面那几成越往上越弱）。冻住的人不动（钉住了）。
+   */
+  private tickVents(dt: number): void {
+    this.vents.forEach((v, i) => {
+      const s = ventState(v.def, this.time);
+      const here = v.def.until === undefined || this.time < v.def.until;
+      const on = s.on && here;
+      const warn = s.warn && here;
+      const top = { x: v.def.x + v.def.w / 2, y: v.def.y };
+      if (warn && !v.warn) this.events.push({ type: 'vent', index: i, phase: 'warn', ...top });
+      if (on && !v.on) this.events.push({ type: 'vent', index: i, phase: 'on', ...top });
+      v.on = on;
+      v.warn = warn;
+      if (!on) return;
+      const col = ventColumn(v.def);
+      const power = v.def.power ?? 1;
+      const max = -CFG.ventLift * power;
+      const lift = (rb: RB, x: number, y: number, pad: number, k: number): void => {
+        if (x < col.x - pad || x > col.x + col.w + pad || y < col.y || y > v.def.y + 2) return;
+        const f = Math.min(1, (y - col.y) / (col.h * CFG.ventFade)) * k;
+        const vel = rb.linvel();
+        if (vel.y <= max || f <= 0) return;
+        rb.setLinvel({ x: vel.x, y: Math.max(max, vel.y - CFG.ventAccel * power * f * dt) }, true);
+      };
+      for (const p of this.players) {
+        if (p.dead || p.done || p.itemOn === 'freeze') continue;
+        lift(p.rb, p.body.x, p.body.y, CFG.bodyR * 0.5, 1);
+        for (const arm of p.arms) {
+          for (const rb of arm.segs) {
+            const at = rb.translation();
+            lift(rb, at.x, at.y, 0, CFG.ventArm);
+          }
+        }
+      }
+      for (const prop of this.props) if (prop.kind !== 'seesaw') lift(prop.rb, prop.x, prop.y, 0, CFG.ventArm);
+    });
+  }
+
+  /**
+   * 端托盘（后厨，A10）每一步：歪太久、掉下去、碰到要命的东西，点心就翻了，过 CFG.trayBack 秒托盘回存档的地方；
+   * 托盘到了（大家激活过的）检查点旁边就存档；在不在终点里（闯关、大团队要它在终点里才算过关）。
+   */
+  private tickTray(dt: number): void {
+    const tr = this.tray;
+    if (!tr || this.won) return;
+    const prop = this.props[tr.prop] as Prop;
+    if (tr.spilled) {
+      tr.spillT += dt;
+      if (tr.spillT >= CFG.trayBack) this.trayBack();
+      return;
+    }
+    tr.grace = Math.max(0, tr.grace - dt);
+    const a = Math.atan2(Math.sin(prop.angle), Math.cos(prop.angle));
+    tr.tiltT = Math.abs(a) > CFG.traySpill ? tr.tiltT + dt : 0;
+    const fell = prop.y > this.level.deathY;
+    if (fell || this.trayBurnt(prop) || (tr.grace <= 0 && tr.tiltT >= CFG.traySpillTime)) {
+      tr.spilled = true;
+      tr.spillT = 0;
+      tr.home = false;
+      this.events.push({ type: 'tray', phase: 'spill', x: prop.x, y: prop.y });
+      return;
+    }
+    const cps = this.level.checkpoints ?? [];
+    for (let j = tr.cp + 1; j <= this.checkpoint && j < cps.length; j++) if (dist(prop, cps[j] as Pt) < CFG.trayCpR) tr.cp = j;
+    const g = this.level.goal;
+    const pad = 20;
+    const home = prop.x > g.x - pad && prop.x < g.x + g.w + pad && prop.y > g.y - pad && prop.y < g.y + g.h + pad;
+    if (home && !tr.home) this.events.push({ type: 'tray', phase: 'home', x: prop.x, y: prop.y });
+    tr.home = home;
+  }
+
+  /** 托盘碰到要命的东西没有（关卡的、会动的、会转的）。 */
+  private trayBurnt(c: Pt): boolean {
+    const r = CFG.trayH;
+    const here = (until: number | undefined): boolean => until === undefined || this.time < until;
+    if ((this.level.hazards ?? []).some((h) => circleHitsRect(c, r, h))) return true;
+    for (const { def } of this.movers) {
+      if (!def.deadly || !here(def.until)) continue;
+      const at = moverAt(def, this.time);
+      if (circleHitsRect(c, r, { x: at.x, y: at.y, w: def.w, h: def.h })) return true;
+    }
+    for (const { def } of this.spinners) {
+      if (!def.deadly || !here(def.until)) continue;
+      const angle = spinnerAngle(def, this.time);
+      for (let j = 0; j < Math.max(1, def.arms); j++) if (circleHitsBar(c, r, spinnerArm(def, j, angle))) return true;
+    }
+    return false;
+  }
+
+  /** 翻了的托盘回到存档的地方：摆平、不动，抓着它的手松开。 */
+  private trayBack(): void {
+    const tr = this.tray;
+    if (!tr) return;
+    const prop = this.props[tr.prop] as Prop;
+    const spots = this.level.tray ?? [];
+    const at = spots[Math.min(spots.length - 1, tr.cp + 1)] ?? spots[0] ?? { x: prop.x, y: prop.y };
+    for (const [, e] of [...this.grips]) if (e.g.target === prop.rb) this.release(this.players[e.player] as Player, e.arm);
+    prop.rb.setTranslation(at, true);
+    prop.rb.setLinvel({ x: 0, y: 0 }, true);
+    prop.rb.setAngvel(0, true);
+    prop.rb.setRotation(0, true);
+    prop.x = at.x;
+    prop.y = at.y;
+    prop.angle = 0;
+    tr.spilled = false;
+    tr.spillT = 0;
+    tr.tiltT = 0;
+    tr.grace = CFG.trayGrace;
+    this.events.push({ type: 'tray', phase: 'back', x: at.x, y: at.y });
   }
 
   /** 叫无人机：悬在离下一个目标最远的那个活着的人头上。 */
@@ -1216,6 +1370,7 @@ export class Sim {
       this.control(p, pulls[p.id] ?? true);
       if (p.itemOn === 'leaf') this.glide(p, dt);
     }
+    this.tickVents(dt);
     const slips = this.rules.mode === 'last';
     for (const p of this.players) {
       // 冻住的人手也冻住了：抓着的照旧抓着，没抓的抓不了
@@ -1258,6 +1413,7 @@ export class Sim {
     this.acts();
     this.pickEnvelopes();
     this.checkpoints();
+    this.tickTray(dt);
     this.checkEnd();
     for (const p of this.players) this.updateFace(p);
   }
@@ -1318,7 +1474,8 @@ export class Sim {
       if (p.dead) return false;
       // 冻住的人钉在原地，和站在地上一样实在（抓着他的人也算连上了）
       if (p.done || p.ground || p.itemOn === 'freeze') return true;
-      return p.arms.some((a) => a.grip !== null && a.grip.kind !== 'player');
+      // 抓着会动的物件（箱子、托盘、元宝）：物件得靠在实在的东西上才算（端着托盘悬在空中往上推，不能把自己推上天）
+      return p.arms.some((a) => a.grip !== null && a.grip.kind !== 'player' && (a.grip.kind !== 'prop' || this.propRests(a.grip.prop ?? -1)));
     });
     // 抓着已经连上的人也算连上；最多 6 个人，转几圈就定了
     for (let changed = true; changed; ) {
@@ -1341,6 +1498,27 @@ export class Sim {
       if (p.body.vy < -CFG.airPullRise || (this.offSolid[i] ?? 0) > CFG.airPullTime) this.airCut[i] = true;
       return !this.airCut[i];
     });
+  }
+
+  /**
+   * 这个物件靠在实在的东西上没有：跷跷板钉在轴上，算；箱子、托盘、元宝要贴着地形或别的物件（不算人）。
+   * 拉力只推身体，物件自己悬在空中时拽着它往上推就是凭空往上飞（和两个人在空中互相抓着一样，#435）。
+   */
+  private propRests(i: number): boolean {
+    const prop = this.props[i];
+    if (!prop) return false;
+    if (prop.kind === 'seesaw') return true;
+    const col = prop.rb.collider(0);
+    let rests = false;
+    this.world.contactPairsWith(col, (other) => {
+      if (rests) return;
+      const info = this.info.get(other.handle);
+      if (!info || info.kind === 'player') return;
+      this.world.contactPair(col, other, (manifold) => {
+        for (let k = 0; k < manifold.numContacts(); k++) if (manifold.contactDist(k) < 1.5) rests = true;
+      });
+    });
+    return rests;
   }
 
   /** 一步里的操作：挂着时对身体施力，没抓着的手伸向摇杆方向。 */
@@ -1855,7 +2033,8 @@ export class Sim {
     if (this.rules.mode === 'race') return this.checkRace();
     if (this.rules.mode === 'last') return this.checkLast();
     if (this.rules.mode === 'gold') return;
-    const allIn = this.players.every((p) => !p.dead && this.inGoal(p));
+    // 端托盘的关：托盘也要端进终点（点心没翻）
+    const allIn = this.players.every((p) => !p.dead && this.inGoal(p)) && (!this.tray || this.tray.home);
     if (allIn) {
       this.won = true;
       this.winT = 0;

@@ -14,7 +14,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { HazardDef, Level, Pt, Rect } from '../physics/level';
 import { moverAt, spinnerAngle } from '../physics/motion';
 import type { SimView } from './view';
-import { hex, materialOf, mix, OUTLINE, type MaterialStyle, type WorldId } from './art';
+import { hex, materialOf, mix, OUTLINE, WORLD_MATERIAL, type MaterialStyle, type WorldId } from './art';
 
 /** 焦距（世界像素）：越小透视越猛。800 时 80 px 厚的台子，离镜头中心 300 px 的地方露出约 27 px 的侧面。 */
 export const FOCAL = 800;
@@ -88,7 +88,7 @@ export class Depth {
   }
 
   private style(material: string | undefined): MaterialStyle {
-    return materialOf(material ?? (this.world === 'van' ? 'metal' : 'wood'));
+    return materialOf(material ?? WORLD_MATERIAL[this.world]);
   }
 
   /** 每帧：镜头中心 vp，看得见的范围 view。 */
@@ -144,6 +144,11 @@ export class Depth {
       if ((h.kind ?? 'spike') === 'spike' || !seen(h)) continue;
       boxes.push({ pts: rectPts(h), depth: h.kind === 'hot' ? 60 : 30, style: this.hazardStyle(h.kind ?? 'zap'), alpha: 1 });
     }
+    // 蒸笼（后厨，A10）：竹子的侧面
+    for (const v of level.vents ?? []) {
+      if (v.until !== undefined && t >= v.until) continue;
+      if (seen(v)) boxes.push({ pts: rectPts(v), depth: Math.max(60, Math.min(110, v.w)), style: this.style(v.material ?? 'bamboo'), alpha: 1 });
+    }
     sim.fadings.forEach((f) => {
       if (!seen(f)) return;
       const alpha = f.on ? (f.left < 0.8 ? 0.45 + 0.55 * (f.left / 0.8) : 1) : f.left < 0.35 ? 0.6 * (1 - f.left / 0.35) : 0;
@@ -156,8 +161,9 @@ export class Depth {
       const at = (lx: number, ly: number): Pt => ({ x: prop.x + lx * c - ly * s, y: prop.y + lx * s + ly * c });
       const w = prop.w / 2;
       const hh = prop.h / 2;
-      const style = this.style(this.world === 'van' ? 'metal' : 'wood');
-      boxes.push({ pts: [at(-w, -hh), at(w, -hh), at(w, hh), at(-w, hh)], depth: prop.kind === 'crate' ? Math.min(90, prop.w) : 50, style, alpha: 1 });
+      const style = prop.kind === 'tray' ? TRAY : prop.kind === 'ingot' ? INGOT : this.style(undefined);
+      const depth = prop.kind === 'crate' ? Math.min(90, prop.w) : prop.kind === 'tray' ? 40 : 50;
+      boxes.push({ pts: [at(-w, -hh), at(w, -hh), at(w, hh), at(-w, hh)], depth, style, alpha: 1 });
     }
     // 离镜头远的先画：近处的侧面压在远处的上面
     boxes.sort((a, b) => dist2(b, vp) - dist2(a, vp));
@@ -213,10 +219,10 @@ export class Depth {
   }
 
   private hazardStyle(kind: NonNullable<HazardDef['kind']>): MaterialStyle {
-    const van = this.world === 'van';
-    if (kind === 'hot') return van ? HOT_VAN : HOT_TABLE;
-    if (kind === 'zap') return van ? ZAP_VAN : ZAP_TABLE;
-    return van ? SPIKE_VAN : SPIKE_TABLE;
+    const w = this.world;
+    if (kind === 'hot') return w === 'van' ? HOT_VAN : w === 'kitchen' ? HOT_KITCHEN : HOT_TABLE;
+    if (kind === 'zap') return w === 'van' ? ZAP_VAN : w === 'kitchen' ? ZAP_KITCHEN : ZAP_TABLE;
+    return w === 'van' ? SPIKE_VAN : w === 'kitchen' ? SPIKE_KITCHEN : SPIKE_TABLE;
   }
 
   private cookieStyle(): MaterialStyle {
@@ -251,3 +257,10 @@ const ZAP_VAN: MaterialStyle = { base: '#1f1f24', dark: '#0e0e12', light: '#f6c4
 const SPIKE_TABLE: MaterialStyle = { base: '#c99a5b', dark: '#8a5a2b', light: '#f0d9a8', detail: '#fff4dc', texture: 'wood' };
 const SPIKE_VAN: MaterialStyle = { base: '#4a5466', dark: '#2a303b', light: '#c9d3e0', detail: '#c9d3e0', texture: 'metal' };
 const COOKIE: MaterialStyle = { base: '#e2b06a', dark: '#a56f2e', light: '#f6d49a', detail: '#a56f2e', texture: 'wood' };
+// 后厨（A10）：炒锅是生铁，灭蚊灯是黑塑料壳，刀架是深色木头
+const HOT_KITCHEN: MaterialStyle = { base: '#2b2b2e', dark: '#141416', light: '#55555c', detail: '#ff8a2c', texture: 'metal' };
+const ZAP_KITCHEN: MaterialStyle = { base: '#1c2430', dark: '#0d1118', light: '#3a4658', detail: '#8f9dff', texture: 'metal' };
+const SPIKE_KITCHEN: MaterialStyle = { base: '#4a3428', dark: '#2a1c14', light: '#7a5a44', detail: '#dfe6ee', texture: 'wood' };
+// 物件（A9d、A10）：金元宝、红漆托盘
+const INGOT: MaterialStyle = { base: '#e8b23a', dark: '#a87418', light: '#ffe08a', detail: '#fff1b8', texture: 'metal' };
+const TRAY: MaterialStyle = { base: '#b3262b', dark: '#6e1216', light: '#e0525a', detail: '#f2c14e', texture: 'wood' };

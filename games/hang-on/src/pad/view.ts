@@ -239,6 +239,8 @@ export class PhoneView {
       }
       if (ev.type === 'checkpoint' && mode !== 'race') this.banner(tr('检查点 ✓', 'Checkpoint ✓'));
       if (ev.type === 'drone' && ev.phase === 'arrive') this.banner(tr('🛸 外卖到了！抓住袋子底下的横杆', '🛸 Delivery! Grab the bar under the bag'));
+      if (ev.type === 'tray' && ev.phase === 'spill') this.banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
+      if (ev.type === 'tray' && ev.phase === 'home') this.banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
       if (ev.type === 'envelope') {
         const got = this.sim.envelopes.filter((e) => e.got).length;
         this.banner(tr(`🧧 ${name(ev.player)} 拿到红包 ${got}/${this.sim.envelopes.length}`, `🧧 ${name(ev.player)} got an envelope ${got}/${this.sim.envelopes.length}`));

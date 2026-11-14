@@ -6,7 +6,7 @@
  */
 import { pickLang } from './i18n';
 import { arenaLevels, goldArenas } from './physics/arenas';
-import { gatesLevel, machinesLevel, sampleLevel, showcaseLevel, type Level } from './physics/level';
+import { gatesLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
 import type { Side, Tier } from './sides';
 
@@ -59,6 +59,7 @@ export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-02') return machinesLevel('table');
   if (id === 'proto-03') return machinesLevel('van');
   if (id === 'proto-04') return gatesLevel();
+  if (id === 'proto-05') return kitchenLevel();
   return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id);
 }
 
@@ -83,6 +84,9 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
   longchain: { zh: '三个人以上连成一串', en: 'A chain of three or more' },
   counterweight: { zh: '几个人一起压', en: 'Weigh it down together' },
   relay: { zh: '一个个递上去', en: 'Pass each other up' },
+  // 后厨（A10，C10 做关）
+  steam: { zh: '蒸笼喷汽，站上去等它把你托起来', en: 'Ride the steam from the steamers' },
+  tray: { zh: '把点心端到终点，抓托盘中间才端得平', en: 'Carry the dim sum to the top. Hold the tray in the middle to keep it level' },
 };
 
 /** 难关（13 号往后）难在哪：大厅里显示「难关：…」。 */

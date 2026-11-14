@@ -124,6 +124,19 @@ export interface GateDef extends Rect {
   all?: boolean;
 }
 
+/**
+ * 蒸笼喷汽（后厨，A10）：台子上一摞蒸笼（这个矩形，实的，能站能抓），定时从顶上往上喷汽。喷的时候汽柱里
+ * （蒸笼顶往上 `reach` 像素，和蒸笼一样宽）的人和物件被往上托，停的时候就是一摞普通的蒸笼。喷之前 CFG.ventWarn 秒盖子跳、冒小汽。
+ * `on` 喷几秒、`off` 停几秒（默认 CFG.ventOn / ventOff），`phase` 把钟往后拨几秒（几摞错开），`power` 托的力气倍数。
+ */
+export interface VentDef extends Rect {
+  reach?: number;
+  on?: number;
+  off?: number;
+  phase?: number;
+  power?: number;
+}
+
 export interface Level {
   id: string;
   world?: string;
@@ -149,6 +162,14 @@ export interface Level {
   /** 踩板门（11-13）：踏板和门。 */
   plates?: PlateDef[];
   gates?: GateDef[];
+  /** 蒸笼喷汽（后厨，A10）。 */
+  vents?: VentDef[];
+  /**
+   * 端托盘（后厨，A10）：关里有一托盘点心，要端到终点才算过关（闯关、大团队）。托盘歪过 CFG.traySpill 弧度
+   * 超过 CFG.traySpillTime 秒、掉下去、碰到要命的东西，点心就翻了，托盘回到存档的地方。
+   * 第一个点是开局托盘放在哪（中心），第 j + 1 个是托盘过了第 j 个检查点以后翻了回哪；没写的用前一个。
+   */
+  tray?: Pt[];
   deathY: number;
   par?: { seconds: number; deathsPerPlayer: number };
   replay?: string;
@@ -177,7 +198,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -193,6 +214,7 @@ export function forPlayers(level: Level, n: number): Level {
     spinners: keep(level.spinners),
     plates: keep(level.plates),
     gates: keep(level.gates),
+    vents: keep(level.vents),
   };
 }
 
@@ -345,5 +367,50 @@ export function gatesLevel(): Level {
       { id: 'lift', x: 1380, y: 520, w: 110, h: 20, move: { x: 0, y: -220 }, hold: 1.2, grab: false },
     ],
     deathY: 900,
+  };
+}
+
+/**
+ * 后厨样板关（A10，只在开发页：`play.html?level=proto-05`）：两摞蒸笼喷汽（第一摞把人托上一面贴瓷砖、抓不住的墙顶上的砧板，
+ * 第二摞托上终点那块台子）、一口热锅、一台灭蚊灯、一排刀，和一托盘点心（端到终点才算过）。Codex 做后厨的关时照着写 JSON。
+ */
+export function kitchenLevel(): Level {
+  return {
+    id: 'proto-05',
+    world: 'kitchen',
+    name: { zh: '后厨样板', en: 'Kitchen sampler' },
+    teaches: 'tray',
+    w: 2300,
+    h: 900,
+    spawn: { x: 100, y: 520 },
+    goal: { x: 2080, y: 140, w: 200, h: 160 },
+    checkpoints: [
+      { x: 900, y: 166 },
+      { x: 1240, y: 566 },
+    ],
+    rects: [
+      { x: 0, y: 560, w: 700, h: 340, kind: 'ground', material: 'metal' },
+      // 贴瓷砖的墙抓不住，只有顶上那块砧板抓得住：得靠汽托上去
+      { x: 700, y: 226, w: 60, h: 674, kind: 'wall', material: 'ceramic', grab: false },
+      { x: 700, y: 200, w: 400, h: 26, kind: 'step', material: 'wood' },
+      { x: 1100, y: 600, w: 600, h: 300, kind: 'ground', material: 'metal' },
+      { x: 1700, y: 300, w: 600, h: 600, kind: 'ground', material: 'metal' },
+    ],
+    vents: [
+      { x: 600, y: 520, w: 96, h: 40, reach: 330 },
+      { x: 1590, y: 560, w: 96, h: 40, reach: 340, phase: 1.2 },
+    ],
+    hazards: [
+      { x: 1430, y: 572, w: 120, h: 28, kind: 'hot' },
+      { x: 1820, y: 272, w: 56, h: 28, kind: 'zap' },
+      { x: 1960, y: 278, w: 60, h: 22, kind: 'spike' },
+    ],
+    tray: [
+      { x: 340, y: 554 },
+      { x: 810, y: 194 },
+      { x: 1150, y: 594 },
+    ],
+    deathY: 980,
+    par: { seconds: 90, deathsPerPlayer: 3 },
   };
 }

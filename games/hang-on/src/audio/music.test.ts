@@ -68,6 +68,8 @@ describe('曲子', () => {
     expect(themeFor(lv('table-13'), true).id).toBe('table-hard');
     expect(themeFor(lv('van-21'), true).id).toBe('van-hard');
     expect(themeFor({ world: 'van', arena: true }, false).id).toBe('van-hard');
+    expect(themeFor({ world: 'kitchen' }, false).id).toBe('kitchen');
+    expect(themeFor({ world: 'kitchen' }, true).id).toBe('kitchen-hard');
     expect(themeFor({ world: 'space' }, false).id).toBe('table');
     expect(seedOf('table-01')).not.toBe(seedOf('table-02'));
   });

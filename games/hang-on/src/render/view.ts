@@ -48,7 +48,7 @@ export interface NoodleView {
 }
 
 export interface PropView {
-  kind: 'seesaw' | 'crate' | 'ingot';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray';
   w: number;
   h: number;
   x: number;
@@ -116,6 +116,8 @@ export interface SimView {
   gates?: GateView[];
   /** 抢金元宝（A9d）：每个人这一局抓着元宝攒了几秒、要攒几秒、现在谁一个人抓着（-1 没有）。 */
   gold?: { holdT: number[]; need: number; holder: number } | null;
+  /** 端托盘（后厨，A10）：托盘是第几个物件、点心翻了没有（翻了画空托盘）。蒸笼喷汽按关卡和 time 画，不用带。 */
+  tray?: { prop: number; spilled: boolean } | null;
   /** 卡太久来帮手（A9c）：外卖无人机提手的中间、在干什么；没来是 null。 */
   drone?: { x: number; y: number; phase: string } | null;
 }

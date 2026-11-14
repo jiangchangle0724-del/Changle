@@ -174,7 +174,7 @@ class Sfx {
             // 扎：短促一声啵
             this.tone({ freq: 900, to: 300, wave: 'triangle', dur: 0.09, vol: 0.3, pan });
             this.noise({ dur: 0.05, vol: 0.15, filter: { type: 'lowpass', freq: 1800 }, pan });
-          } else this.splash(pan, sim.level.world !== 'van');
+          } else this.splash(pan, (sim.level.world ?? 'table') === 'table');
           break;
         }
         case 'respawn': {
@@ -225,6 +225,34 @@ class Sfx {
           const [f0, f1] = ev.phase === 'leave' ? [190, 120] : ev.phase === 'carry' ? [150, 210] : [120, 170];
           this.tone({ freq: f0, to: f1, wave: 'sawtooth', dur: 1.4, vol: 0.06, pan, lowpass: 900, vibrato: [8, 31] });
           this.noise({ dur: 1.2, vol: 0.05, filter: { type: 'bandpass', freq: 1800, q: 0.8 }, attack: 0.2, pan });
+          break;
+        }
+        case 'vent': {
+          // 蒸笼喷汽（后厨，A10）：快喷了盖子咔哒咔哒跳三下，喷了呲的一声长汽；离大家远的那几摞不响（一关好几摞，不吵）
+          const near = sim.players.some((p) => !p.dead && Math.hypot(p.body.x - ev.x, p.body.y - ev.y) < 700);
+          if (!near || !this.throttle(`vent${ev.index}`, 0.3)) break;
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'warn') {
+            for (let k = 0; k < 3; k++) this.noise({ dur: 0.03, vol: 0.12, filter: { type: 'bandpass', freq: 1800 + k * 300, q: 3 }, pan, delay: k * 0.13 });
+          } else {
+            this.noise({ dur: 1.1, vol: 0.16, filter: { type: 'bandpass', freq: 3600, to: 1500, q: 0.9 }, attack: 0.04, pan });
+            this.noise({ dur: 0.5, vol: 0.08, filter: { type: 'lowpass', freq: 600 }, attack: 0.02, pan });
+          }
+          break;
+        }
+        case 'tray': {
+          // 端托盘（后厨，A10）：翻了是盘子哐当一声加点心掉一地；回来了轻轻叮咚；端进终点亮三声
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'spill') {
+            this.tone({ freq: 1250, to: 820, wave: 'triangle', dur: 0.35, vol: 0.22, pan, vibrato: [9, 40] });
+            this.noise({ dur: 0.18, vol: 0.22, filter: { type: 'highpass', freq: 2500 }, pan });
+            for (let k = 0; k < 3; k++) this.tone({ freq: 240 - k * 30, to: 120, wave: 'sine', dur: 0.08, vol: 0.2, pan, delay: 0.12 + k * 0.09 });
+          } else if (ev.phase === 'back') {
+            this.tone({ freq: 523, wave: 'sine', dur: 0.14, vol: 0.14, pan });
+            this.tone({ freq: 659, wave: 'sine', dur: 0.2, vol: 0.14, pan, delay: 0.1 });
+          } else {
+            for (const [k, f] of [784, 988, 1175].entries()) this.tone({ freq: f, wave: 'triangle', dur: 0.22, vol: 0.18, pan, delay: k * 0.08 });
+          }
           break;
         }
         case 'plate': {
