@@ -250,7 +250,12 @@ export interface Rules {
   mode: GameMode;
   /** 比谁先分两队时：每个人在第几队（0 或 1）。不写就是各跑各的。 */
   teams?: number[];
+  /** 卡太久来帮手（A9c，外卖无人机）：主机开局时给闯关、大团队打开；回放、验收、测试默认没有（回放不变）。 */
+  helper?: boolean;
 }
+
+/** 外卖无人机（A9c）在干什么：飞来、等人抓、带人走、放人、飞走。 */
+export type DronePhase = 'arrive' | 'wait' | 'carry' | 'drop' | 'leave';
 export const CLIMB: Rules = { mode: 'climb' };
 
 export type SimEvent =
@@ -281,6 +286,8 @@ export type SimEvent =
   | { type: 'win'; who?: number[] }
   /** 拿到一个红包（A9b）：第几个、谁拿的、在哪。 */
   | { type: 'envelope'; index: number; player: number; x: number; y: number }
+  /** 外卖无人机（A9c）：飞来了（arrive）、有人抓着开始带（carry）、飞走了（leave）；x、y 是提手在哪。 */
+  | { type: 'drone'; phase: 'arrive' | 'carry' | 'leave'; x: number; y: number }
   /** 踩板门（11-13）：踏板按下去 / 弹起来了；门开始开 / 开始关（x、y 是踏板、门的中间）。 */
   | { type: 'plate'; index: number; on: boolean; x: number; y: number }
   | { type: 'gate'; index: number; open: boolean; x: number; y: number }
@@ -362,6 +369,12 @@ export class Sim {
   readonly noodles: Noodle[] = [];
   /** 红包（A9b）：关里藏的几个，拿到没有（闯关和大团队才有）。 */
   readonly envelopes: { x: number; y: number; got: boolean }[] = [];
+  /** 外卖无人机（A9c）：x、y 是外卖袋提手的中间；没来是 null。 */
+  drone: { phase: DronePhase; x: number; y: number; t: number; hover: Pt; path: Pt[]; rb: RB; col: Col } | null = null;
+  /** 这一段卡了几秒、摔了几次（过一个检查点清零），无人机走了也清零。 */
+  private stuckT = 0;
+  private segDeaths = 0;
+  private stuckCp = -1;
   /** 踩板门（11-13）：踏板按着没有；门开到几成（0 关、1 开）、现在在哪。 */
   readonly plates: { def: PlateDef; x: number; y: number; w: number; h: number; on: boolean }[] = [];
   readonly gates: { def: GateDef; rb: RB; x: number; y: number; w: number; h: number; open: number; holdT: number; opening: boolean }[] = [];
@@ -639,6 +652,135 @@ export class Sim {
     });
   }
 
+  // ---------------------------------------------------------------- 卡太久来帮手（A9c）
+
+  /** 下一个要去的地方：下一个检查点，没有了就是终点中间。 */
+  private nextTarget(): Pt {
+    const cp = this.level.checkpoints?.[this.checkpoint + 1];
+    if (cp) return cp;
+    const g = this.level.goal;
+    return { x: g.x + g.w / 2, y: g.y + g.h / 2 };
+  }
+
+  /**
+   * 外卖无人机每一步：闯关、大团队里打开了帮手（`rules.helper`）才有。这一段卡久了就飞来，悬在落在最后的人头上；
+   * 有人抓住提手就先升到这一路最高的台子上面，横着飞到下一个检查点（或终点）上头，降下来悬一会儿，再飞走。
+   * 提手是运动学刚体上的一小条（能抓，跟着走），无人机本身不碰任何东西。
+   */
+  private tickDrone(dt: number): void {
+    const mode = this.rules.mode;
+    if (!this.rules.helper || (mode !== 'climb' && mode !== 'team')) return;
+    if (this.checkpoint !== this.stuckCp) {
+      this.stuckCp = this.checkpoint;
+      this.stuckT = 0;
+      this.segDeaths = 0;
+    }
+    const d = this.drone;
+    if (!d) {
+      this.stuckT += dt;
+      if (this.stuckT >= CFG.helpLate || (this.stuckT >= CFG.helpAfter && this.segDeaths >= CFG.helpDeaths)) this.callDrone();
+      return;
+    }
+    d.t += dt;
+    const step = CFG.droneSpeed * dt;
+    const toward = (to: Pt): boolean => {
+      const dx = to.x - d.x;
+      const dy = to.y - d.y;
+      const len = Math.hypot(dx, dy);
+      if (len <= step) {
+        d.x = to.x;
+        d.y = to.y;
+        return true;
+      }
+      d.x += (dx / len) * step;
+      d.y += (dy / len) * step;
+      return false;
+    };
+    const held = (): boolean => [...this.grips.values()].some((e) => e.g.target === d.rb);
+    switch (d.phase) {
+      case 'arrive':
+        if (toward(d.hover)) {
+          d.phase = 'wait';
+          d.t = 0;
+        }
+        break;
+      case 'wait':
+        // 悬着上下轻轻晃；有人抓住就走，等太久没人抓也走
+        d.y = d.hover.y + Math.sin(d.t * 2.4) * 5;
+        if (held()) {
+          d.phase = 'carry';
+          d.t = 0;
+          d.path = this.dronePath(d.x, d.y);
+          this.events.push({ type: 'drone', phase: 'carry', x: d.x, y: d.y });
+        } else if (d.t >= CFG.droneWait) this.droneLeave();
+        break;
+      case 'carry':
+        if (d.path.length && toward(d.path[0] as Pt)) d.path.shift();
+        if (!d.path.length) {
+          d.phase = 'drop';
+          d.t = 0;
+        }
+        break;
+      case 'drop':
+        if (d.t >= CFG.droneDrop || !held()) this.droneLeave();
+        break;
+      case 'leave':
+        d.y -= step * 1.5;
+        // 飞出关卡顶上：还抓着的手松开，无人机没了
+        if (d.y < -260 || d.t > 4) {
+          for (const [, e] of [...this.grips]) if (e.g.target === d.rb) this.release(this.players[e.player] as Player, e.arm);
+          this.world.removeRigidBody(d.rb);
+          this.info.delete(d.col.handle);
+          this.drone = null;
+          this.stuckT = 0;
+          this.segDeaths = 0;
+        }
+        break;
+    }
+  }
+
+  /** 叫无人机：悬在离下一个目标最远的那个活着的人头上。 */
+  private callDrone(): void {
+    const target = this.nextTarget();
+    const live = this.players.filter((p) => !p.dead && !p.done);
+    if (!live.length) return;
+    const p = live.reduce((a, b) => (dist(b.body, target) > dist(a.body, target) ? b : a));
+    const hover = { x: p.body.x, y: p.body.y - CFG.droneHang };
+    const from = { x: hover.x, y: hover.y - 420 };
+    const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(from.x, from.y));
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(28, 5).setFriction(1).setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL & ~GROUP.TERRAIN & ~GROUP.PLAYER)),
+      rb,
+    );
+    this.info.set(col.handle, { kind: 'moving', deadly: false });
+    this.drone = { phase: 'arrive', x: from.x, y: from.y, t: 0, hover, path: [], rb, col };
+    this.events.push({ type: 'drone', phase: 'arrive', x: hover.x, y: hover.y });
+  }
+
+  /** 带人的路线：先升到这一路上最高的台子再高 200 px（至少比目标高 140 px），横着飞过去，再降到目标上头。 */
+  private dronePath(x: number, y: number): Pt[] {
+    const t = this.nextTarget();
+    const lo = Math.min(x, t.x) - 80;
+    const hi = Math.max(x, t.x) + 80;
+    let top = Math.min(y, t.y - CFG.droneHang);
+    for (const r of this.level.rects) if (r.x < hi && r.x + r.w > lo) top = Math.min(top, r.y - 200);
+    for (const m of this.level.movers ?? []) if (m.x < hi && m.x + m.w > lo) top = Math.min(top, m.y - 200);
+    const cruise = Math.max(-180, top);
+    return [
+      { x, y: cruise },
+      { x: t.x, y: cruise },
+      { x: t.x, y: t.y - CFG.droneHang + 20 },
+    ];
+  }
+
+  private droneLeave(): void {
+    const d = this.drone;
+    if (!d || d.phase === 'leave') return;
+    d.phase = 'leave';
+    d.t = 0;
+    this.events.push({ type: 'drone', phase: 'leave', x: d.x, y: d.y });
+  }
+
   /** 会转的杆子：运动学刚体在轴心，每根杆子一个长条碰撞体，每步转到 spinnerAngle 算的角度。 */
   private addSpinner(def: SpinnerDef): void {
     const rb = this.world.createRigidBody(
@@ -673,6 +815,7 @@ export class Sim {
     }
     for (const { def, rb } of this.spinners) rb.setNextKinematicRotation(spinnerAngle(def, this.time));
     for (const g of this.gates) g.rb.setNextKinematicTranslation({ x: g.x + g.w / 2, y: g.y + g.h / 2 });
+    if (this.drone) this.drone.rb.setNextKinematicTranslation({ x: this.drone.x, y: this.drone.y });
   }
 
   /**
@@ -1011,6 +1154,7 @@ export class Sim {
     for (const s of this.springs) s.hit += dt;
     this.tickItems(dt);
     this.tickGates(dt);
+    this.tickDrone(dt);
     const pulls = this.pullCounts(dt);
     for (const p of this.players) {
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
@@ -1611,6 +1755,7 @@ export class Sim {
       this.events.push({ type: 'out', player: p.id });
     }
     this.events.push(cause === 'fall' ? { type: 'death', player: p.id, x: at.x, y: at.y } : { type: 'death', player: p.id, x: at.x, y: at.y, cause });
+    this.segDeaths++;
     const held = p.heldBy;
     p.heldBy = null;
     if (held && this.time - held.t <= CFG.betrayalWindow) {

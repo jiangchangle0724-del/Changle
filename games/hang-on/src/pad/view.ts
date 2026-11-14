@@ -228,6 +228,7 @@ export class PhoneView {
         this.banner(tr(`${name(ev.player)} 把 ${who.join('、')} 拉了回来`, `${name(ev.player)} pulled ${who.join(' & ')} back`));
       }
       if (ev.type === 'checkpoint' && mode !== 'race') this.banner(tr('检查点 ✓', 'Checkpoint ✓'));
+      if (ev.type === 'drone' && ev.phase === 'arrive') this.banner(tr('🛸 外卖到了！抓住袋子底下的横杆', '🛸 Delivery! Grab the bar under the bag'));
       if (ev.type === 'envelope') {
         const got = this.sim.envelopes.filter((e) => e.got).length;
         this.banner(tr(`🧧 ${name(ev.player)} 拿到红包 ${got}/${this.sim.envelopes.length}`, `🧧 ${name(ev.player)} got an envelope ${got}/${this.sim.envelopes.length}`));

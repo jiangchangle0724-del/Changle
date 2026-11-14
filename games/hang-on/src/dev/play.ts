@@ -27,7 +27,17 @@ const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (ty
 const stage = await Stage.create(canvas, { plates: PLATES, compact: query.get('phone') === '1' });
 let nPlayers = Math.max(1, Math.min(6, Number(query.get('players')) || 1));
 const mode = (['climb', 'team', 'race', 'last'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
-const rules = (): Rules => (mode === 'race' && query.get('teams') === '1' ? { mode, teams: Array.from({ length: nPlayers }, (_, i) => i % 2) } : { mode });
+// ?helper=1：卡太久来外卖无人机（A9c）；?helpAfter=5 之类改等多久（试的时候不用干等两分钟）
+const rules = (): Rules =>
+  mode === 'race' && query.get('teams') === '1'
+    ? { mode, teams: Array.from({ length: nPlayers }, (_, i) => i % 2) }
+    : query.get('helper') === '1'
+      ? { mode, helper: true }
+      : { mode };
+for (const key of ['helpAfter', 'helpLate'] as const) {
+  const v = Number(query.get(key));
+  if (v > 0) CFG[key] = v;
+}
 let sim: Sim = await createSim(level, nPlayers, rules());
 const devItem = query.get('item') ? cleanItem(query.get('item')) : null;
 const giveItems = (): void => sim.players.forEach((_, i) => sim.setItem(i, devItem));

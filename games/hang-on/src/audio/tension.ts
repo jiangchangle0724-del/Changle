@@ -87,7 +87,10 @@ export interface MoodInput {
 /** 这一刻的危险和催（还没平滑）。 */
 export function moodOf(sim: SimView, opts: MoodInput = {}): { danger: number; push: number } {
   const live = sim.players.filter((p) => !p.dead && !p.done);
-  const ds = live.map((p) => playerDanger(sim.level, p, sim.time, sim.gates ?? []));
+  // 抓着外卖无人机（A9c）的人：有人接着，不算危险
+  const d = sim.drone;
+  const onDrone = (p: PlayerView): boolean => !!d && p.arms.some((a) => a.grip && Math.abs(a.hand.x - d.x) < 40 && Math.abs(a.hand.y - d.y) < 20);
+  const ds = live.map((p) => (onDrone(p) ? 0.1 : playerDanger(sim.level, p, sim.time, sim.gates ?? [])));
   const max = ds.length ? Math.max(...ds) : 0;
   const mean = ds.length ? ds.reduce((s, d) => s + d, 0) / ds.length : 0;
   const danger = 0.7 * max + 0.3 * mean;

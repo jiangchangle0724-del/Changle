@@ -160,7 +160,9 @@ const modeHint = (m: GameMode): string => pickLang(modeHintText(m, teamsOn));
 /** 比谁先分两队：按座位一个甜一个咸。 */
 const teamsFor = (n: number): number[] => Array.from({ length: n }, (_, i) => i % 2);
 function rules(): Rules {
-  return mode === 'race' && teamsOn ? { mode, teams: teamsFor(playerCount()) } : { mode };
+  if (mode === 'race' && teamsOn) return { mode, teams: teamsFor(playerCount()) };
+  // 卡太久来帮手（A9c）：闯关、大团队里有外卖无人机
+  return mode === 'climb' || mode === 'team' ? { mode, helper: true } : { mode };
 }
 /** 比谁先分两队时这个人在哪一队（不分队是 undefined）。 */
 const teamOf = (i: number): number | undefined => sim.rules.teams?.[i] ?? (sim.rules.mode === 'race' && sim.rules.teams ? i % 2 : undefined);
@@ -995,6 +997,7 @@ function onEvents(): void {
       }, 2600);
     }
     if (ev.type === 'death' || ev.type === 'out') music.duck();
+    if (ev.type === 'drone' && ev.phase === 'arrive') banner(tr('🛸 外卖到了！抓住袋子底下的横杆，带你去下一个检查点', '🛸 Delivery! Grab the bar under the bag for a lift to the next checkpoint'));
     if (ev.type === 'checkpoint' && sim.rules.mode !== 'race') music.flourish();
     if (ev.type === 'betrayal') banner(tr(`${name(ev.by)} 松手了`, `${name(ev.by)} let go!`), 'bad');
     if (ev.type === 'summon') {

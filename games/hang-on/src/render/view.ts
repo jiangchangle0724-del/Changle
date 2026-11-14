@@ -114,4 +114,6 @@ export interface SimView {
   /** 踩板门（11-13）。 */
   plates?: PlateView[];
   gates?: GateView[];
+  /** 卡太久来帮手（A9c）：外卖无人机提手的中间、在干什么；没来是 null。 */
+  drone?: { x: number; y: number; phase: string } | null;
 }
