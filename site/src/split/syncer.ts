@@ -46,12 +46,16 @@ export interface Net {
 
 /**
  * Why this phone can't go on syncing: today's allowance of new ledgers is used up; the ledger is
- * gone; the key no longer opens it; its id was taken; the server won't take what was sent.
+ * gone; the key no longer opens it; its id was taken; the server won't take what was sent; the
+ * ledger was opened signed in, and the sign-in ran out before the server could make it.
  */
-export type Trouble = "limit" | "gone" | "key" | "taken" | "stuck";
+export type Trouble = "limit" | "gone" | "key" | "taken" | "stuck" | "signin";
 
-/** The two that can pass by themselves (tomorrow has a new allowance; a server can be put right). The other three are facts. */
-const passes = (t: Trouble) => t === "limit" || t === "stuck";
+/**
+ * The three that can pass (tomorrow has a new allowance; a server can be put right; whoever opened
+ * the ledger can sign in again). The other three are facts.
+ */
+const passes = (t: Trouble) => t === "limit" || t === "stuck" || t === "signin";
 
 export type SyncState = {
   /** a request is on its way */
@@ -205,7 +209,8 @@ export function syncer(opts: {
           away = false;
           keep((x) => heard({ ...x, made: true }, data));
         } else if (made.status === 0 || made.status >= 500) return retry();
-        else return halt(made.status === 429 ? "limit" : made.status === 409 ? "taken" : made.status === 403 ? "key" : "stuck");
+        // (401: the sign-in it was opened under ran out before the ledger could be made)
+        else return halt(made.status === 429 ? "limit" : made.status === 409 ? "taken" : made.status === 403 ? "key" : made.status === 401 ? "signin" : "stuck");
       }
       // A key the owner asked for comes before everything else: the server may already have it
       // (the answer was lost, or the page was closed), and then the old one opens nothing.

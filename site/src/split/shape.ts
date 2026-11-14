@@ -16,6 +16,12 @@ const isCount = (x: unknown): x is number => typeof x === "number" && Number.isF
 const isSeq = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
 /** A key as phones make them (the server's own rule, tools/split/src/room/protocol.ts). */
 const KEY = /^[A-Za-z0-9_-]{22,128}$/;
+/** A changle.ca account's id, as the rooms server makes them ("u" and twelve letters and digits), with room to spare. */
+export const ACCT = /^[A-Za-z0-9_-]{1,64}$/;
+/** A ledger's id, as phones make them and the server takes them. */
+const LEDGER_ID = /^[A-Za-z0-9_-]{6,64}$/;
+/** A person's id in a ledger, as the server takes one for "who they are" (its MEMBER_RE). */
+const MEMBER = /^[A-Za-z0-9_-]{1,64}$/;
 
 function isSplit(x: unknown): x is Split {
   if (!isRecord(x)) return false;
@@ -60,6 +66,28 @@ export function asPushed(x: unknown, sent: number): Pushed | null {
   return { ...snapshot, took: x.took as Took[] };
 }
 
+/**
+ * One of a changle.ca account's ledgers, as the server keeps it ("my ledgers",
+ * tools/split/src/room/account.ts): the key that opens it, the owner's key for one the account
+ * started, and which person in it the account is.
+ */
+export type Mine = { id: string; key: string; owner?: string; me?: string; at: number };
+
+/** The server's list of my ledgers; null when what came isn't one. Any one in it that isn't a ledger's is left out. */
+export function asMine(x: unknown): Mine[] | null {
+  if (!isRecord(x) || !Array.isArray(x.ledgers)) return null;
+  return x.ledgers.flatMap((m: unknown): Mine[] => {
+    if (!isRecord(m) || !isText(m.id) || !LEDGER_ID.test(m.id) || !isText(m.key) || !KEY.test(m.key) || !isSeq(m.at)) return [];
+    const mine: Mine = { id: m.id, key: m.key, at: m.at };
+    if (isText(m.owner) && KEY.test(m.owner) && m.owner !== m.key) mine.owner = m.owner;
+    if (isText(m.me) && MEMBER.test(m.me)) mine.me = m.me;
+    return [mine];
+  });
+}
+
+/** The server saying it is done (`{ ok: true }`); null when it isn't that. */
+export const asDone = (x: unknown): true | null => (isRecord(x) && x.ok === true ? true : null);
+
 const asChanges = (x: unknown): Sent[] => (Array.isArray(x) ? x.map(parseSent).filter((s): s is Sent => s !== null) : []);
 
 /**
@@ -74,5 +102,7 @@ export function asHeld(x: unknown): Held | null {
   // (the owner's key, and a key being changed to: each only when it is one, and not the key itself)
   if (isText(x.owner) && KEY.test(x.owner) && x.owner !== x.key) held.owner = x.owner;
   if (held.owner && isText(x.next) && KEY.test(x.next) && x.next !== x.key && x.next !== x.owner) held.next = x.next;
+  // (the account it is kept in: an id as the site's accounts make them)
+  if (isText(x.acct) && ACCT.test(x.acct)) held.acct = x.acct;
   return held;
 }

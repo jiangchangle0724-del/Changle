@@ -15,9 +15,11 @@ export const W = {
     en: "A group goes out. Note who paid for what, and at the end everyone sees who to pay and how much.",
   },
   start: { zh: "开一个账本", en: "Start a ledger" },
+  // signed out, the same button signs in first: starting a ledger needs a changle.ca account
+  startSignIn: { zh: "登录，开一个账本", en: "Sign in to start a ledger" },
   preview: {
-    zh: "小样：账本存在云端，这部手机上留一份。在账本右上角的 ⋯ 里邀请朋友一起记。",
-    en: "A first look: ledgers are kept online, with a copy on this phone. Invite friends from the ⋯ menu of a ledger.",
+    zh: "小样：账本存在云端，登录以后换手机也都在。在账本右上角的 ⋯ 里邀请朋友一起记。",
+    en: "A first look: ledgers are kept online, and signed in they follow you to any phone. Invite friends from the ⋯ menu of a ledger.",
   },
   notKept: {
     zh: "这个浏览器不让存东西（可能开了无痕模式），关掉页面账本就没了。",
@@ -112,12 +114,18 @@ export const W = {
     zh: "今天开的账本太多了，这个要到明天才能存到云端。先记在这部手机上。",
     en: "Too many ledgers started today. This one can go online tomorrow; until then it stays on this phone.",
   },
-  troubleGone: { zh: "云端没有这个账本了，现在只在这部手机上。", en: "This ledger is no longer online. It's only on this phone now." },
+  troubleGone: { zh: "这个账本已经删掉了，现在只在这部手机上。", en: "This ledger was deleted. It's only on this phone now." },
   troubleKey: {
     zh: "邀请链接换过了，这部手机暂时打不开云端的账本。点开新的邀请链接就接上，这里记的还留着。",
     en: "The invite link was changed, so this phone can't open the ledger online for now. Open the new invite link to carry on. What's recorded here is kept.",
   },
   troubleTaken: { zh: "这个账本存不到云端，只在这部手机上。重开一个账本就好。", en: "This ledger can't be kept online, so it's only on this phone. Starting a new one fixes it." },
+  // (opened signed in, and by the time it could go up the sign-in had run out, or was signed out of)
+  troubleSignin: {
+    zh: "要登录才能把这个账本存到云端。登录以后接着存，这里记的还留着。",
+    en: "This ledger needs a sign-in to go online. Sign in to carry on. What's recorded here is kept.",
+  },
+  signIn: { zh: "登录", en: "Sign in" },
   troubleStuck: {
     zh: "云端没收下这部手机发去的改动，先留在手机上。过一会儿再打开试试。",
     en: "The server didn't take what this phone sent, so it stays on this phone. Try opening it again in a while.",
@@ -159,10 +167,32 @@ export const W = {
   },
   // (added for the phone that started the ledger: its owner's key goes with it)
   deleteOwner: {
-    zh: "这部手机是开账本的那部。移除以后，就没有人能锁账本、换链接了。",
-    en: "This is the phone that started the ledger. Once it's removed, nobody can lock the ledger or change its link.",
+    zh: "这部手机是开账本的那部。移除以后，就没有人能锁账本、换链接、删掉账本了。",
+    en: "This is the phone that started the ledger. Once it's removed, nobody can lock the ledger, change its link or delete it.",
   },
   deleteYes: { zh: "移除", en: "Remove" },
+  // signed in, a ledger in "my ledgers" comes off the account, on every phone
+  removeMine: { zh: "从我的账本里拿掉", en: "Take off my ledgers" },
+  removeMineAsk: {
+    zh: "拿掉以后，你登录的哪部手机上都没有它了，要有邀请链接才能再打开。账本本身还在云端，别人照样能用。",
+    en: "Once it's off your ledgers, it's on none of your phones, and it takes an invite link to open it again. The ledger itself stays online, and the others can still use it.",
+  },
+  removeMineOwner: {
+    zh: "你是开账本的人。拿掉以后，就没有人能锁账本、换链接、删掉账本了。",
+    en: "You started this ledger. Once it's off your ledgers, nobody can lock it, change its link or delete it.",
+  },
+  removeMineYes: { zh: "拿掉", en: "Take it off" },
+  removeFailed: { zh: "没连上，没拿掉。再试一次。", en: "Couldn't connect, so it's still there. Try again." },
+  // the owner's third: deleting the ledger, for everyone
+  eraseIt: { zh: "删掉账本", en: "Delete the ledger" },
+  eraseItHint: { zh: "所有人都打不开", en: "For everyone" },
+  eraseAsk: {
+    zh: "删掉以后，所有人都打不开这个账本，记的账也找不回来。",
+    en: "Once deleted, nobody can open this ledger, and what's recorded in it can't be brought back.",
+  },
+  eraseYes: { zh: "删掉", en: "Delete" },
+  eraseFailed: { zh: "没连上，没删掉。再试一次。", en: "Couldn't connect, so nothing was deleted. Try again." },
+  erased: { zh: "账本删掉了", en: "Ledger deleted" },
   // the owner's: only on the phone that started the ledger
   lockIt: { zh: "锁上账本", en: "Lock the ledger" },
   lockItHint: { zh: "只能看，不能改", en: "Read-only" },

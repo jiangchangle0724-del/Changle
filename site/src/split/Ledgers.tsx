@@ -1,6 +1,11 @@
-/** changle.ca/split: the ledgers on this phone, and starting a new one. */
-import { ChevronRight, CircleAlert, CloudOff, Lock, Plus, ReceiptText } from "lucide-react";
-import { useEffect, useState } from "react";
+/**
+ * changle.ca/split: the ledgers on this phone, and starting a new one. Signed in, the list is the
+ * account's ledgers (the ones on this phone kept here only are among them until they reach the
+ * account); signed out, the ones kept on this phone only. Starting one needs a sign-in.
+ */
+import { ChevronRight, CircleAlert, CloudOff, LogIn, Lock, Plus, ReceiptText } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useAccount } from "../account/AccountContext";
 import { BiTitle, LangTab } from "../components/TopBar";
 import type { Lang } from "../i18n";
 import { savedName } from "../online/config";
@@ -12,6 +17,7 @@ import { EmptyState } from "../ui/EmptyState";
 import { Pill } from "../ui/Pill";
 import { RosterChip } from "../ui/RosterChip";
 import { Sheet } from "../ui/Sheet";
+import { useToast } from "../ui/Toast";
 import { MAX_MEMBERS, spent, type Ledger } from "./core";
 import { money } from "./format";
 import { standing } from "./lines";
@@ -19,15 +25,52 @@ import { LEDGER_NAME_MAX, NAME_MAX, startLedger, tidy } from "./ops";
 import { Bar } from "./parts";
 import { isKept, newId, useSaved } from "./store";
 import type { Held } from "./sync";
-import { browse, openLedger, useSync } from "./syncing";
-import { say, W } from "./words";
+import { browse, listed, openLedger, useSync } from "./syncing";
+import { say, W, type Word } from "./words";
+
+/**
+ * Something for the list to say when it comes up, said by the page that sends you there (a ledger
+ * deleted for everyone). Going from a ledger to the list puts 两清 up afresh, so it waits here.
+ */
+let news: Word | null = null;
+export const tellList = (word: Word) => {
+  news = word;
+};
 
 export function Ledgers({ onBack }: { onBack: () => void }) {
   const { lang } = useStore();
   const saved = useSaved();
+  const { me: user, status, openSignIn, signInOpen } = useAccount();
+  const account = status === "in" && user ? user.id : null;
   const [starting, setStarting] = useState(false);
+  const toast = useToast();
   // each card says where you stand after what others recorded: the server is asked while the list is up
   useEffect(() => browse(), []);
+  useEffect(() => {
+    if (!news) return;
+    toast(say(lang, news), { tone: "success" });
+    news = null;
+  }, [toast, lang]);
+  // Signed out, the button signs in first, and once that is done the sheet it was pressed for opens.
+  // Pressed while the page is still finding out who is signed in, it waits to know. The sign-in
+  // closed without signing in, it was never pressed.
+  const wants = useRef<"no" | "wait" | "signin">("no");
+  useEffect(() => {
+    if (wants.current === "no") return;
+    if (account) {
+      wants.current = "no";
+      setStarting(true);
+    } else if (wants.current === "wait" && status === "out") {
+      wants.current = "signin";
+      openSignIn();
+    } else if (wants.current === "signin" && !signInOpen) wants.current = "no";
+  }, [account, status, signInOpen, openSignIn]);
+  const start = () => {
+    if (account) return setStarting(true);
+    wants.current = status === "loading" ? "wait" : "signin";
+    if (status !== "loading") openSignIn();
+  };
+  const shown = saved.ledgers.flatMap((l, i) => (listed(saved.held[i], account) ? [{ ledger: l, held: saved.held[i] }] : []));
   return (
     <div className="split-page">
       <Bar
@@ -40,11 +83,11 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
           </span>
         }
       />
-      {saved.ledgers.length ? (
+      {shown.length ? (
         <ul className="split-ledgers">
-          {saved.ledgers.map((l, i) => (
+          {shown.map(({ ledger: l, held }) => (
             <li key={l.id}>
-              <LedgerCard ledger={l} held={saved.held[i]} me={saved.me[l.id]} lang={lang} />
+              <LedgerCard ledger={l} held={held} me={saved.me[l.id]} lang={lang} />
             </li>
           ))}
         </ul>
@@ -55,8 +98,9 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
         {say(lang, isKept() ? "preview" : "notKept")}
       </p>
       <div className="split-dock">
-        <Button size="lg" block icon={Plus} onClick={() => setStarting(true)}>
-          {say(lang, "start")}
+        {/* (while the page is still finding out who is signed in, it says what it will do, and does it once it knows) */}
+        <Button size="lg" block icon={account || status === "loading" ? Plus : LogIn} onClick={start}>
+          {say(lang, account || status === "loading" ? "start" : "startSignIn")}
         </Button>
       </div>
       <StartLedger open={starting} onClose={() => setStarting(false)} lang={lang} />

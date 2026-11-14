@@ -11,8 +11,9 @@
  * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
  * the page asks which of the people in the ledger this phone's owner is.
  */
-import { CircleAlert, ClipboardCopy, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, Plus, ReceiptText, WifiOff } from "lucide-react";
+import { CircleAlert, ClipboardCopy, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Plus, ReceiptText, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
 import { back, go, mark, useBackCloses } from "../router";
 import { useStore } from "../store";
@@ -31,6 +32,7 @@ import { lostLine, mine, paidBy, planText, sharedHow, syncLine } from "./lines";
 import { Bar, copyText, Rolling } from "./parts";
 import { paidInOf } from "./rates";
 import { SettleView } from "./SettleView";
+import { tellList } from "./Ledgers";
 import { LedgerMenu } from "./Sheets";
 import { heldOf, useSaved } from "./store";
 import type { Held } from "./sync";
@@ -42,6 +44,8 @@ type View = "list" | "settle";
 export function LedgerPage({ id }: { id: string }) {
   const { lang } = useStore();
   const toast = useToast();
+  const { me: user, status, openSignIn } = useAccount();
+  const account = status === "in" && user ? user.id : null;
   const saved = useSaved();
   const at = saved.held.findIndex((h) => h.server.id === id);
   const ledger: Ledger | undefined = saved.ledgers[at];
@@ -178,7 +182,7 @@ export function LedgerPage({ id }: { id: string }) {
           { key: "settle", label: say(lang, "settle"), panelId: "split-settle" },
         ]}
       />
-      <SyncNote ledger={ledger} lost={held.lost} line={line} lang={lang} />
+      <SyncNote ledger={ledger} lost={held.lost} line={line} lang={lang} onSignIn={sync.trouble === "signin" ? () => openSignIn() : undefined} />
       {view === "list" ? (
         <section className="split-panel" id="split-list" role="tabpanel" aria-labelledby="split-list-tab">
           {/* an empty ledger says so once, in the list's own empty state */}
@@ -206,7 +210,25 @@ export function LedgerPage({ id }: { id: string }) {
           </Button>
         </div>
       )}
-      <LedgerMenu open={menu} onClose={() => setMenu(false)} ledger={ledger} me={me} lang={lang} status={line} inviteKey={held.key} made={held.made} owner={!!held.owner} changing={!!held.next} away={sync.away} onDeleted={toList} />
+      <LedgerMenu
+        open={menu}
+        onClose={() => setMenu(false)}
+        ledger={ledger}
+        me={me}
+        lang={lang}
+        status={line}
+        inviteKey={held.key}
+        made={held.made}
+        owner={!!held.owner}
+        changing={!!held.next}
+        away={sync.away}
+        mine={!!account && held.acct === account}
+        signIn={sync.trouble === "signin"}
+        onDeleted={(erased) => {
+          if (erased) tellList("erased");
+          toList();
+        }}
+      />
     </div>
   );
 }
@@ -220,7 +242,7 @@ const LOST_NAMED = 3;
  * it, one line when what was recorded here hasn't gone up (quiet: it will) or can't (in the page's
  * strong voice, with a mark). Neither takes the light: that is for the one button and what is chosen.
  */
-function SyncNote({ ledger, lost, line, lang }: { ledger: Ledger; lost: Held["lost"]; line: ReturnType<typeof syncLine>; lang: Lang }) {
+function SyncNote({ ledger, lost, line, lang, onSignIn }: { ledger: Ledger; lost: Held["lost"]; line: ReturnType<typeof syncLine>; lang: Lang; onSignIn?: () => void }) {
   return (
     <>
       {lost.length > 0 && (
@@ -246,6 +268,14 @@ function SyncNote({ ledger, lost, line, lang }: { ledger: Ledger; lost: Held["lo
           {line.lock ? <Lock aria-hidden="true" /> : line.loud ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
           {line.text}
         </p>
+      )}
+      {/* the sign-in ran out before the ledger went up: what puts it right is one tap away */}
+      {line && onSignIn && (
+        <div className="split-sync-act">
+          <Button tone="quiet" size="sm" icon={LogIn} onClick={onSignIn}>
+            {say(lang, "signIn")}
+          </Button>
+        </div>
       )}
       {/* read out when it changes; the line itself comes and goes */}
       <span className="ui-visually-hidden" role="status">

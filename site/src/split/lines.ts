@@ -68,7 +68,7 @@ export function planText(l: Ledger, plan: Settlement, lang: Lang): string {
   return lines.join("\n");
 }
 
-const TROUBLE: Record<Trouble, Word> = { limit: "troubleLimit", gone: "troubleGone", key: "troubleKey", taken: "troubleTaken", stuck: "troubleStuck" };
+const TROUBLE: Record<Trouble, Word> = { limit: "troubleLimit", gone: "troubleGone", key: "troubleKey", taken: "troubleTaken", stuck: "troubleStuck", signin: "troubleSignin" };
 
 /**
  * What to say about a ledger and the server, when there is something to say; null while the two
