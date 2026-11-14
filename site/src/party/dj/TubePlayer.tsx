@@ -242,7 +242,10 @@ export function TubePlayer({
         </span>
       </header>
       {/* YouTube's player goes in here (tube.ts): nothing of React's inside it */}
-      <div className="dj-tube-slot" ref={slot} />
+      {/* (the player in a frame of its own: an iPhone's or iPad's keeps one size inside, dj.css) */}
+      <div className="dj-tube-slot">
+        <div className="dj-tube-frame" ref={slot} />
+      </div>
       <div className={`dj-tube-note ${status === "tap" || (mode === "next" && status === "ready" && !armed) ? "is-ask" : ""}`} role="status">
         {status === "offline" ? <EmptyState tone="error" title={zh ? "没连上 YouTube，检查一下网络" : "Couldn't reach YouTube. Check your connection"} action={{ label: zh ? "再试一次" : "Try again", onClick: () => tube.current?.retry() }} /> : mode === "next" ? <NextNote status={status} armed={armed} zh={zh} /> : <OnNote status={held ? "paused" : status} zh={zh} after={after ? nameOf(after.by) : null} />}
       </div>

@@ -16,7 +16,8 @@ import { ITEMS_MAX, MONEY_MAX, OFFER_NOTE_MAX, OPEN_FOR_MAX_MS, PLACES_MAX, STOC
 import { fromField, toField } from "../../engine/time";
 import { UNITS, weighed, type OfferStatus, type Roster, type Unit } from "../../engine/types";
 import { ApiFail, dropDraft, getMy, getMyDoc, saveDraft, savedDraft, saveMyDoc, session, startOffer } from "../api";
-import { soldBy, t, unitName } from "../i18n";
+import { t, unitName } from "../i18n";
+import { soldBy } from "../i18n-my";
 import { IconBack, IconNext, IconPlus, money, priceText, Sheet, useLang, useTitle } from "./common";
 import { onReturn, shutOut, troubleOf, TroublePanel, type Trouble } from "./My";
 

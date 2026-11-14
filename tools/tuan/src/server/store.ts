@@ -9,8 +9,8 @@ import type { MyOffer, MyShop } from "../api";
 import type { Edit, Used } from "../engine/edit";
 import type { NewOffer } from "../engine/offer";
 import type { Before, Taken } from "../engine/order";
-import type { NewShop } from "../engine/shop";
-import type { DeliveryRule, Item, Offer, OfferBook, Order, OrderLine, PickupPoint, Shop } from "../engine/types";
+import type { NewShop, ShopWords } from "../engine/shop";
+import type { DeliveryRule, Item, Offer, OfferBook, OfferStatus, Order, OrderLine, PickupPoint, Roster, Shop } from "../engine/types";
 import type { RosterEntry } from "../engine/view";
 
 type Row = Record<string, unknown>;
@@ -322,6 +322,20 @@ export async function saveShop(db: D1Database, shop: NewShop, newId: string, now
     db.prepare("DELETE FROM shop_members WHERE shop_id = (SELECT id FROM shops WHERE slug = ?)").bind(shop.slug),
     db.prepare("INSERT INTO shop_members (shop_id, email, added_at) SELECT (SELECT id FROM shops WHERE slug = ?1), j.value, ?3 FROM json_each(?2) AS j").bind(shop.slug, JSON.stringify(shop.members), now),
   ]);
+}
+
+/** Change what a shop says about itself (src/engine/shop.ts, readShopWords). */
+export async function saveShopWords(db: D1Database, shopId: string, words: ShopWords): Promise<void> {
+  await db
+    .prepare("UPDATE shops SET name = ?2, kind = ?3, about = ?4, contact = ?5, pay = ?6, permit = ?7 WHERE id = ?1")
+    .bind(shopId, words.name, words.kind, words.about, words.contact, words.pay, words.permit)
+    .run();
+}
+
+/** A shop's group buys as anyone may see them (no drafts), the one that closes last first. */
+export async function shopOffers(db: D1Database, shopId: string): Promise<Offer[]> {
+  const rows = (await db.prepare("SELECT id, shop_id, title, note, status, closes_at, roster FROM offers WHERE shop_id = ? AND status != 'draft' ORDER BY closes_at DESC LIMIT 30").bind(shopId).all<Row>()).results;
+  return rows.map((row) => ({ id: text(row.id), shopId: text(row.shop_id), title: text(row.title), note: text(row.note), status: row.status as OfferStatus, closesAt: num(row.closes_at), roster: row.roster as Roster }));
 }
 
 export async function isMember(db: D1Database, shopId: string, email: string): Promise<boolean> {

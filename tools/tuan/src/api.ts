@@ -91,6 +91,19 @@ export interface OfferPage {
   now: number;
 }
 
+/** A shop's own page: who they are, and their group buys (not drafts), the one that closes last first. */
+export interface ShopPage {
+  shop: ShopCard;
+  offers: { id: string; title: string; closesAt: number; state: OfferState }[];
+  now: number;
+}
+
+/** A shop as its own people see it to change what it says about itself. */
+export interface MyShopPage {
+  shop: ShopCard;
+  status: ShopStatus;
+}
+
 /** Placing an order, and changing one (the phone number of an order can't be changed). */
 export interface OrderInput {
   /** made by the phone, one per order: sending it twice makes one order */

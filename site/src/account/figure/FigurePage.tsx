@@ -8,22 +8,75 @@ import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { Skeleton } from "../../ui/Skeleton";
 import { Tabs } from "../../ui/Tabs";
+import { useAccount } from "../AccountContext";
 import { Figure3D, type FigureIs, type FigureStats } from "./Figure3D";
 import type { View } from "./FigureStage";
-import { HAIR_COLOR_NAMES, HAIR_COLORS, HAIRS, SHAPES, SKIN_NAMES, SKINS, defaultLook, randomLook, readLook, saveLook, type Look, type ShapeGroup, type Sex } from "./look";
+import {
+  EYE_COLORS,
+  HAIR_COLOR_NAMES,
+  HAIR_COLORS,
+  HAIRS,
+  PANTS_COLORS,
+  PANTS_NAMES,
+  SHAPES,
+  SHIRT_COLORS,
+  SHIRT_NAMES,
+  SKIN_NAMES,
+  SKINS,
+  defaultLook,
+  randomLook,
+  readLook,
+  saveLook,
+  type Look,
+  type ShapeGroup,
+  type Sex,
+} from "./look";
 import { MOVES, type MoveId } from "./moves";
+import { useLookSync, type Kept } from "./useLookSync";
 
 const TITLE = { zh: "3D 小人", en: "3D figure" };
 type Tab = "moves" | "face";
-type Part = ShapeGroup | "skin" | "hair";
+type Part = ShapeGroup | "hair" | "clothes";
 const PARTS: { key: Part; zh: string; en: string }[] = [
   { key: "face", zh: "脸型", en: "Face" },
   { key: "eyes", zh: "眼睛", en: "Eyes" },
   { key: "nose", zh: "鼻子", en: "Nose" },
   { key: "mouth", zh: "嘴", en: "Mouth" },
-  { key: "skin", zh: "肤色", en: "Skin" },
   { key: "hair", zh: "发型", en: "Hair" },
+  { key: "body", zh: "身材", en: "Build" },
+  { key: "clothes", zh: "衣服", en: "Clothes" },
 ];
+const SLIDERS: readonly Part[] = ["body", "face", "eyes", "nose", "mouth"];
+/** where the look is kept, said under the sculpting */
+const KEPT: Record<Kept, { zh: string; en: string }> = {
+  phone: { zh: "存在这台手机上。登录以后也存进账号，换手机也在。", en: "Kept on this phone. Sign in to keep it on your account too, on any phone." },
+  loading: { zh: "从账号里取你的小人…", en: "Getting your figure from your account…" },
+  account: { zh: "存在你的账号里，换手机登录也在。", en: "Kept on your account, on any phone you sign in on." },
+  saving: { zh: "正在存进账号…", en: "Saving to your account…" },
+  failed: { zh: "没存进账号（网不好？），这台手机上还在。再改一下会再存。", en: "Couldn't save to your account (offline?). It's still on this phone; the next change tries again." },
+};
+
+/** a row of colours to pick one of */
+function Swatches({ label, colors, names, value, data, disabled, onPick }: { label: string; colors: readonly string[]; names: string[]; value: number; data: string; disabled: boolean; onPick(i: number): void }) {
+  return (
+    <div className="fig-swatches" role="radiogroup" aria-label={label}>
+      {colors.map((c, i) => (
+        <button
+          key={c}
+          type="button"
+          role="radio"
+          className="fig-swatch"
+          {...{ [`data-${data}`]: i }}
+          aria-checked={value === i}
+          aria-label={names[i]}
+          disabled={disabled}
+          style={{ background: c }}
+          onClick={() => onPick(i)}
+        />
+      ))}
+    </div>
+  );
+}
 
 /**
  * /me/figure: the 3D figure (Steve on Nov 13: 先做小样; Nov 14: 捏脸 on MakeHuman's free human).
@@ -37,6 +90,8 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
   const [part, setPart] = useState<Part>("face");
   const [move, setMove] = useState<MoveId>("stand");
   const [look, setLook] = useState<Look>(() => readLook());
+  const { openSignIn } = useAccount();
+  const kept = useLookSync(look, setLook);
   const [is, setIs] = useState<FigureIs>("loading");
   const [stats, setStats] = useState<FigureStats | null>(null);
   const [tries, setTries] = useState(0);
@@ -47,12 +102,13 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
     return () => window.clearTimeout(t);
   }, [look]);
 
-  // sculpting: it stands still and the camera comes up to the face (the head and shoulders for hair)
-  const view: View = tab === "face" ? (part === "hair" ? "bust" : "face") : "body";
+  // sculpting: it stands still and the camera comes up to the face (the head and shoulders for hair,
+  // the whole of it for the build and the clothes)
+  const view: View = tab === "face" ? (part === "hair" ? "bust" : part === "body" || part === "clothes" ? "body" : "face") : "body";
   const shown: MoveId = tab === "face" ? "stand" : move;
   const n = (x: number) => x.toLocaleString(zh ? "zh-CN" : "en-CA");
   const pct = (x: number | undefined) => Math.round((x ?? 0) * 100);
-  const sex = (s: Sex) => setLook((l) => (l.sex === s ? l : { ...defaultLook(s), shape: l.shape, skin: l.skin, hairColor: l.hairColor }));
+  const sex = (s: Sex) => setLook((l) => (l.sex === s ? l : { ...defaultLook(s), shape: l.shape, skin: l.skin, hairColor: l.hairColor, eyes: l.eyes, pants: l.pants }));
   const on = is === "on";
 
   return (
@@ -60,8 +116,8 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
       <TopBar onBack={onBack} title={TITLE} />
       <p className="hint fig-intro">
         {zh
-          ? "小样：一个写实的 3D 小人，左右拖动转圈。动作是这里编的；「捏脸」里调脸型、五官、肤色和发型，存在这台手机上。"
-          : "A prototype: a lifelike 3D figure; drag sideways to turn it. The moves were written here; under Face you can shape the face, skin and hair, kept on this phone."}
+          ? "小样：一个写实的 3D 小人，左右拖动转圈。动作是这里编的；「捏脸」里调脸型、五官、发型、身材、肤色和衣服颜色，存在这台手机上，登录了也存进账号。"
+          : "A prototype: a lifelike 3D figure; drag sideways to turn it. The moves were written here; under Face you can shape the face, hair, build, skin and clothes, kept on this phone, and on your account when you're signed in."}
       </p>
 
       <div className={`fig-stage${on ? " is-on" : ""}`}>
@@ -137,10 +193,12 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
               ]}
             />
           </div>
-          <Tabs<Part> variant="segmented" label={zh ? "捏哪里" : "What to shape"} value={part} onChange={setPart} items={PARTS.map((p) => ({ key: p.key, label: zh ? p.zh : p.en }))} />
+          <div className="fig-parts">
+            <Tabs<Part> variant="segmented" label={zh ? "捏哪里" : "What to shape"} value={part} onChange={setPart} items={PARTS.map((p) => ({ key: p.key, label: zh ? p.zh : p.en }))} />
+          </div>
 
           <div className="fig-part" data-part={part}>
-            {(part === "face" || part === "eyes" || part === "nose" || part === "mouth") &&
+            {SLIDERS.includes(part) &&
               SHAPES.filter((s) => s.group === part).map((s) => (
                 <label key={s.id} className="fig-slider">
                   <span>{zh ? s.zh : s.en}</span>
@@ -165,23 +223,27 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
                 </label>
               ))}
 
-            {part === "skin" && (
-              <div className="fig-swatches" role="radiogroup" aria-label={zh ? "肤色" : "Skin"}>
-                {SKINS.map((c, i) => (
-                  <button
-                    key={c}
-                    type="button"
-                    role="radio"
-                    className="fig-swatch"
-                    data-skin={i}
-                    aria-checked={look.skin === i}
-                    aria-label={zh ? SKIN_NAMES.zh[i] : SKIN_NAMES.en[i]}
-                    disabled={!on}
-                    style={{ background: c }}
-                    onClick={() => setLook((l) => ({ ...l, skin: i }))}
-                  />
-                ))}
-              </div>
+            {part === "eyes" && (
+              <>
+                <span className="fig-label">{zh ? "眼睛颜色" : "Eye colour"}</span>
+                <Swatches label={zh ? "眼睛颜色" : "Eye colour"} colors={EYE_COLORS.map((c) => c.hex)} names={EYE_COLORS.map((c) => (zh ? c.zh : c.en))} value={look.eyes} data="eyes" disabled={!on} onPick={(i) => setLook((l) => ({ ...l, eyes: i }))} />
+              </>
+            )}
+
+            {part === "body" && (
+              <>
+                <span className="fig-label">{zh ? "肤色" : "Skin"}</span>
+                <Swatches label={zh ? "肤色" : "Skin"} colors={SKINS} names={zh ? SKIN_NAMES.zh : SKIN_NAMES.en} value={look.skin} data="skin" disabled={!on} onPick={(i) => setLook((l) => ({ ...l, skin: i }))} />
+              </>
+            )}
+
+            {part === "clothes" && (
+              <>
+                <span className="fig-label">{zh ? "上衣" : "Top"}</span>
+                <Swatches label={zh ? "上衣" : "Top"} colors={SHIRT_COLORS} names={zh ? SHIRT_NAMES.zh : SHIRT_NAMES.en} value={look.shirt} data="shirt" disabled={!on} onPick={(i) => setLook((l) => ({ ...l, shirt: i }))} />
+                <span className="fig-label">{zh ? "裤子" : "Trousers"}</span>
+                <Swatches label={zh ? "裤子" : "Trousers"} colors={PANTS_COLORS} names={zh ? PANTS_NAMES.zh : PANTS_NAMES.en} value={look.pants} data="pants" disabled={!on} onPick={(i) => setLook((l) => ({ ...l, pants: i }))} />
+              </>
             )}
 
             {part === "hair" && (
@@ -205,34 +267,30 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
                     </button>
                   ))}
                 </div>
-                <div className="fig-swatches" role="radiogroup" aria-label={zh ? "发色" : "Hair colour"}>
-                  {HAIR_COLORS.map((c, i) => (
-                    <button
-                      key={c}
-                      type="button"
-                      role="radio"
-                      className="fig-swatch"
-                      data-hair-color={i}
-                      aria-checked={look.hairColor === i}
-                      aria-label={zh ? HAIR_COLOR_NAMES.zh[i] : HAIR_COLOR_NAMES.en[i]}
-                      disabled={!on}
-                      style={{ background: c }}
-                      onClick={() => setLook((l) => ({ ...l, hairColor: i }))}
-                    />
-                  ))}
-                </div>
+                <Swatches label={zh ? "发色" : "Hair colour"} colors={HAIR_COLORS} names={zh ? HAIR_COLOR_NAMES.zh : HAIR_COLOR_NAMES.en} value={look.hairColor} data="hair-color" disabled={!on} onPick={(i) => setLook((l) => ({ ...l, hairColor: i }))} />
               </>
             )}
           </div>
 
           <div className="fig-actions">
-            <Button tone="quiet" icon={Shuffle} disabled={!on} onClick={() => setLook((l) => randomLook(l.sex))}>
+            <Button tone="quiet" icon={Shuffle} disabled={!on} onClick={() => setLook((l) => randomLook(l))}>
               {zh ? "随机" : "Random"}
             </Button>
             <Button tone="quiet" icon={RotateCcw} disabled={!on} onClick={() => setLook((l) => defaultLook(l.sex))}>
               {zh ? "还原" : "Reset"}
             </Button>
           </div>
+          <p className="hint fig-kept" data-kept={kept} role="status">
+            {zh ? KEPT[kept].zh : KEPT[kept].en}
+            {kept === "phone" && (
+              <>
+                {" "}
+                <button type="button" className="link-btn" onClick={() => openSignIn()}>
+                  {zh ? "登录" : "Sign in"}
+                </button>
+              </>
+            )}
+          </p>
         </section>
       )}
 

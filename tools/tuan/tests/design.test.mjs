@@ -98,23 +98,46 @@ test("every class a page uses has its styles, and no styles are left over", () =
   assert.deepEqual([...styled].filter((name) => !used.has(name) && name !== "has-sheet").sort(), [], "in styles.css, used by no page");
 });
 
+// The words: the ones a buyer's pages use in src/client/i18n.ts, the ones only the merchant's pages
+// use in src/client/i18n-my.ts (they come with the merchant's own script).
+const wordFiles = { buyer: ["../src/client/i18n.ts", "STRINGS"], merchant: ["../src/client/i18n-my.ts", "MY_STRINGS"] };
+const words = Object.fromEntries(
+  Object.entries(wordFiles).map(([who, [path, name]]) => {
+    const source = read(path);
+    const start = source.indexOf(`const ${name} = {`);
+    const end = source.indexOf("} as const;", start);
+    const lines = source.slice(start, end).split("\n").filter((line) => /^\s+\w+: \{/.test(line));
+    return [who, { lines, keys: lines.map((line) => /^\s+(\w+):/.exec(line)[1]), rest: source.slice(end) }];
+  }),
+);
+const client = (path) => read(`../src/client/${path}`);
+const uiFiles = readdirSync(here("../src/client/ui/"));
+/** The files of a buyer's pages: what src/client/main.tsx brings in. The build checks the same from the other side (scripts/build.mjs). */
+const buyerFiles = ["main.tsx", "api.ts", "ui/Offer.tsx", "ui/Order.tsx", "ui/Home.tsx", "ui/Shop.tsx", "ui/common.tsx"];
+
 test("every word a person reads is there in both languages", () => {
-  const source = read("../src/client/i18n.ts");
-  const block = source.slice(source.indexOf("const STRINGS = {"), source.indexOf("} as const;"));
-  const lines = block.split("\n").filter((line) => /^\s+\w+: \{/.test(line));
-  assert.ok(lines.length > 60);
-  for (const line of lines) {
-    assert.match(line, /zh: "[^"]+|zh: '[^']+/, line);
-    assert.match(line, /en: "(?:[^"\\]|\\.)+"/, line);
+  for (const { lines } of Object.values(words)) {
+    assert.ok(lines.length > 60);
+    for (const line of lines) {
+      assert.match(line, /zh: "[^"]+|zh: '[^']+/, line);
+      assert.match(line, /en: "(?:[^"\\]|\\.)+"/, line);
+    }
   }
+  const twice = words.buyer.keys.filter((key) => words.merchant.keys.includes(key));
+  assert.deepEqual(twice, [], "a word is in one of the two lists, not both");
 });
 
 test("no line is left over: every one is asked for by a page", () => {
-  // (that every line a page asks for exists is the type checker's job: t() takes only the keys of STRINGS)
-  const source = read("../src/client/i18n.ts");
-  const end = source.indexOf("} as const;");
-  const keys = [...source.slice(source.indexOf("const STRINGS = {"), end).matchAll(/^\s+(\w+): \{/gm)].map((m) => m[1]);
-  const dir = here("../src/client/ui/");
-  const pages = readdirSync(dir).map((name) => readFileSync(new URL(name, dir), "utf8")).join("\n") + source.slice(end);
-  assert.deepEqual(keys.filter((key) => !pages.includes(`"${key}"`)).sort(), [], "in i18n.ts, asked for by no page");
+  // (that every line a page asks for exists is the type checker's job: t() takes only the keys of the two lists)
+  const pages = [...uiFiles.map((name) => `ui/${name}`), "main.tsx", "my.tsx", "api.ts"].map(client).join("\n") + words.buyer.rest + words.merchant.rest;
+  const keys = [...words.buyer.keys, ...words.merchant.keys];
+  assert.deepEqual(keys.filter((key) => !pages.includes(`"${key}"`)).sort(), [], "in i18n.ts or i18n-my.ts, asked for by no page");
+});
+
+test("a buyer's page asks only for words it downloads, and a merchant's word is only a merchant's", () => {
+  const buyer = buyerFiles.map(client).join("\n") + words.buyer.rest;
+  assert.deepEqual(words.merchant.keys.filter((key) => buyer.includes(`"${key}"`)).sort(), [], "move these to i18n.ts: a buyer's page uses them");
+  const merchant = [...uiFiles.map((name) => `ui/${name}`).filter((path) => !buyerFiles.includes(path)), "my.tsx"].map(client).join("\n");
+  const merchantOnly = words.buyer.keys.filter((key) => merchant.includes(`"${key}"`) && !buyer.includes(`"${key}"`));
+  assert.deepEqual(merchantOnly.sort(), [], "move these to i18n-my.ts: only the merchant's pages use them");
 });

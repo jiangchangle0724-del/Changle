@@ -61,7 +61,7 @@
 - `src/data/tunes.ts` 猜歌名的旋律
 - `src/data/straightface.ts` 一本正经的词卡（规则见 `src/shared/straightface/cards.ts`，扩库的任务卡在 `docs/codex-tasks/straightface/`）
 - `src/i18n.ts` 界面上的按钮和提示文字
-- 3D 小人（/me/figure 的小样）：动作在 `scripts/figure/moves.mjs` 里编，页面上的名字、道具、特效、表情在 `src/account/figure/moves.ts`；捏脸的滑杆、肤色、发型在 `src/account/figure/look.ts`（滑杆也要在 `scripts/figure/human.mjs` 里有）；怎么重做模型见 `scripts/figure/README.md`
+- 3D 小人（/me/figure 的小样）：动作在 `src/account/figure/pose/keys.ts` 里编（页面现解，`pose/rig.ts`，手臂不穿身体；`tests/figure.test.ts` 查），页面上的名字、道具、特效、表情在 `src/account/figure/moves.ts`；捏脸的滑杆、肤色、发型在 `src/account/figure/look.ts`（滑杆也要在 `scripts/figure/human.mjs` 里有）；怎么重做模型见 `scripts/figure/README.md`
 
 改完以后重新打包部署即可。
 
@@ -115,6 +115,7 @@ npx tsx tests/split-changes.test.ts # 两清的改动（手机发、服务器收
 npx tsx tests/split-sync.test.ts    # 两清在手机上怎么同步：没信号照样记、回信丢了重发只算一次、三部手机最后都是服务器那本账、列表上的卡片问一次就跟上、开账本的人锁账本和换钥匙
 npx tsx tests/split-phone.test.ts   # 两清在手机上碰浏览器的那几处（存储、网络、实时连接都是假的）：存得住、两个标签页不互相覆盖、只认服务器自己的回答、断了的连接查得出来、点开邀请就进账本、主人钥匙只在该在的请求里
 npx tsx tests/mail.test.ts          # 房间服务器代别的 Worker 发信的入口（worker/notice.ts）：放行什么、拒绝什么、信长什么样
+npx tsx tests/figure.test.ts        # 3D 小人：每个动作有中英文名和片段，男女两个身体上现解出来，手和胳膊不穿进身体（最多 2.5 厘米）
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
 npx tsx scripts/split_check.ts      # 两清（npm run dev 在跑，旁边 tools/split 里再开 npm run dev -- --var ALLOW_TEST_SETTINGS:1）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效；断网再连上、两部手机、没存上的那一笔；发邀请、点开、选自己是哪一位；锁账本、换邀请链接；用别的货币记一笔、改汇率、没有汇率可查（walk、fits、behave 一次跑一种；ONLY=zh-320x568 只走一种大小）
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
@@ -129,7 +130,7 @@ python3 scripts/watch_test.py       # 每个游戏自己的大屏画面：两台
 python3 scripts/lastcard_check.py   # 最后一张：三部手机、一部只看的手机、两台电视，在手机上点着打两场，谁的手牌都不外泄
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
 python3 scripts/mail_door_check.py  # 别的 Worker 经房间服务器发信（Mail 入口）：从 Service Binding 进来、查收件人、每天的上限、假 Resend 收到的信；公网进不来
-python3 scripts/figure_check.py     # 3D 小人的小样（/me/figure）：没有图形芯片时的说明、小人加载和画出来、10 个动作（道具、特效、表情）、拖动转圈、捏脸（滑杆、肤色、发型、换身体、刷新后还在）、英文、站长 /me 上的入口
+python3 scripts/figure_check.py     # 3D 小人的小样（/me/figure）：没有图形芯片时的说明、小人加载和画出来、21 个动作（道具、特效、表情）、拖动转圈、捏脸（滑杆、肤色、发型、换身体、刷新后还在）、英文、站长 /me 上的入口
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥
 ```
