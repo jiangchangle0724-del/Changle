@@ -8,6 +8,7 @@ import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { Skeleton } from "../../ui/Skeleton";
 import { Tabs } from "../../ui/Tabs";
+import { useAccount } from "../AccountContext";
 import { Figure3D, type FigureIs, type FigureStats } from "./Figure3D";
 import type { View } from "./FigureStage";
 import {
@@ -31,6 +32,7 @@ import {
   type Sex,
 } from "./look";
 import { MOVES, type MoveId } from "./moves";
+import { useLookSync, type Kept } from "./useLookSync";
 
 const TITLE = { zh: "3D 小人", en: "3D figure" };
 type Tab = "moves" | "face";
@@ -45,6 +47,14 @@ const PARTS: { key: Part; zh: string; en: string }[] = [
   { key: "clothes", zh: "衣服", en: "Clothes" },
 ];
 const SLIDERS: readonly Part[] = ["body", "face", "eyes", "nose", "mouth"];
+/** where the look is kept, said under the sculpting */
+const KEPT: Record<Kept, { zh: string; en: string }> = {
+  phone: { zh: "存在这台手机上。登录以后也存进账号，换手机也在。", en: "Kept on this phone. Sign in to keep it on your account too, on any phone." },
+  loading: { zh: "从账号里取你的小人…", en: "Getting your figure from your account…" },
+  account: { zh: "存在你的账号里，换手机登录也在。", en: "Kept on your account, on any phone you sign in on." },
+  saving: { zh: "正在存进账号…", en: "Saving to your account…" },
+  failed: { zh: "没存进账号（网不好？），这台手机上还在。再改一下会再存。", en: "Couldn't save to your account (offline?). It's still on this phone; the next change tries again." },
+};
 
 /** a row of colours to pick one of */
 function Swatches({ label, colors, names, value, data, disabled, onPick }: { label: string; colors: readonly string[]; names: string[]; value: number; data: string; disabled: boolean; onPick(i: number): void }) {
@@ -80,6 +90,8 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
   const [part, setPart] = useState<Part>("face");
   const [move, setMove] = useState<MoveId>("stand");
   const [look, setLook] = useState<Look>(() => readLook());
+  const { openSignIn } = useAccount();
+  const kept = useLookSync(look, setLook);
   const [is, setIs] = useState<FigureIs>("loading");
   const [stats, setStats] = useState<FigureStats | null>(null);
   const [tries, setTries] = useState(0);
@@ -104,8 +116,8 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
       <TopBar onBack={onBack} title={TITLE} />
       <p className="hint fig-intro">
         {zh
-          ? "小样：一个写实的 3D 小人，左右拖动转圈。动作是这里编的；「捏脸」里调脸型、五官、发型、身材、肤色和衣服颜色，存在这台手机上。"
-          : "A prototype: a lifelike 3D figure; drag sideways to turn it. The moves were written here; under Face you can shape the face, hair, build, skin and clothes, kept on this phone."}
+          ? "小样：一个写实的 3D 小人，左右拖动转圈。动作是这里编的；「捏脸」里调脸型、五官、发型、身材、肤色和衣服颜色，存在这台手机上，登录了也存进账号。"
+          : "A prototype: a lifelike 3D figure; drag sideways to turn it. The moves were written here; under Face you can shape the face, hair, build, skin and clothes, kept on this phone, and on your account when you're signed in."}
       </p>
 
       <div className={`fig-stage${on ? " is-on" : ""}`}>
@@ -268,6 +280,17 @@ export function FigurePage({ onBack }: { onBack: () => void }) {
               {zh ? "还原" : "Reset"}
             </Button>
           </div>
+          <p className="hint fig-kept" data-kept={kept} role="status">
+            {zh ? KEPT[kept].zh : KEPT[kept].en}
+            {kept === "phone" && (
+              <>
+                {" "}
+                <button type="button" className="link-btn" onClick={() => openSignIn()}>
+                  {zh ? "登录" : "Sign in"}
+                </button>
+              </>
+            )}
+          </p>
         </section>
       )}
 

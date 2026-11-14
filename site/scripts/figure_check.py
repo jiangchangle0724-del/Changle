@@ -18,7 +18,8 @@ least 44 px) reshape it, an eye colour comes from its own small file, the skin a
 tint it, a hairstyle comes from its own file, a buzz cut has none; the build's sliders make it
 taller, shorter, heavier (the camera stays, the skeleton follows, the move still plays); the
 shirt and trousers take their colours; the woman's body swaps in with the same build, random
-keeps the build and clothes, reset and a reload work. In English too; the back button goes back; the owner's /me page has the link (needs
+keeps the build and clothes, reset and a reload work. Signed in, the look goes on the account: a
+change is saved there, and another phone signed in to the same account gets it. In English too; the back button goes back; the owner's /me page has the link (needs
 the rooms server with MASTER_EMAIL=master@example.test in site/worker/.dev.vars, skipped when the
 server is down); no error is thrown in any page. Screenshots go to OUT.
 
@@ -26,6 +27,7 @@ Needs the site's dev server (npm run dev, port 5173); the rooms server (port 878
 last step.
   python3 scripts/figure_check.py [out_dir]
 """
+import json
 import os
 import sys
 import time
@@ -387,6 +389,42 @@ def main():
             pg.wait_for_function("window.__figIs === 'on'", timeout=60000)
             check(True, "the link opens the figure")
             pg.screenshot(path=f"{OUT}/figure-from-me.png")
+
+            # signed in, the look goes on the account
+            pg.locator("[role=tab]", has_text="捏脸").click()
+            pg.wait_for_selector(".fig-kept[data-kept='account']", timeout=15000)
+            check("存在你的账号里" in pg.inner_text(".fig-kept"), "the sculpting says the look is kept on the account")
+            fetch_look = f"""fetch('{API}/me/look', {{ headers: {{ Authorization: 'Bearer ' + localStorage.getItem('changle.session'), 'X-Device': 'figure-check' }} }}).then((r) => r.json()).then((r) => r.look || {{}})"""
+            before = pg.evaluate(fetch_look)
+            # something the account doesn't have yet (it keeps what earlier runs left)
+            height = 30 if before.get("shape", {}).get("height") != 0.3 else 60
+            shirt = 7 if before.get("shirt") != 7 else 8
+            pg.locator(".fig-sculpt [role=radio]", has_text="身材").click()
+            pg.locator("input[data-shape=height]").fill(str(height))
+            pg.locator(".fig-sculpt [role=radio]", has_text="衣服").click()
+            pg.locator(f"[data-shirt='{shirt}']").click()
+            look = {}
+            for _ in range(30):
+                pg.wait_for_timeout(500)
+                look = pg.evaluate(fetch_look)
+                if look.get("shape", {}).get("height") == height / 100 and look.get("shirt") == shirt:
+                    break
+            check(look.get("shape", {}).get("height") == height / 100 and look.get("shirt") == shirt, f"a change is saved on the account a moment later (height {look.get('shape', {}).get('height')}, shirt {look.get('shirt')})")
+            pg.wait_for_selector(".fig-kept[data-kept='account']", timeout=5000)
+            token = pg.evaluate("localStorage.getItem('changle.session')")
+            me_cache = pg.evaluate("localStorage.getItem('changle.me')")
+            ctx.close()
+
+            # another phone, signed in to the same account, gets it (its own phone had nothing)
+            ctx, pg = phone(browser)
+            pg.add_init_script(f"localStorage.setItem('changle.session', {json.dumps(token)}); localStorage.setItem('changle.me', {json.dumps(me_cache)});")
+            pg.goto(BASE + "me/figure", wait_until="load")
+            pg.wait_for_function("window.__figIs === 'on'", timeout=60000)
+            pg.wait_for_function(f"(JSON.parse(localStorage.getItem('figure.look') || 'null')?.shape?.height ?? 0) === {height / 100}", timeout=15000)
+            pg.wait_for_function("window.__figShirt !== null", timeout=5000)
+            kept_look = pg.evaluate("JSON.parse(localStorage.getItem('figure.look'))")
+            check(kept_look["shirt"] == shirt, f"another phone signed in gets the figure from the account (height {kept_look['shape'].get('height')}, shirt {kept_look['shirt']})")
+            pg.screenshot(path=f"{OUT}/figure-other-phone.png")
             ctx.close()
         else:
             print("     (rooms server down: the owner's link not checked)")

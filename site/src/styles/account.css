@@ -1092,6 +1092,14 @@ button.tag {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* where the look is kept (this phone, or the account too) */
+.fig-kept {
+  margin: 0;
+}
+.fig-kept .link-btn {
+  margin-block: calc(var(--space-3) * -1);
+  font-size: inherit;
+}
 /* while sculpting, the figure stays in sight above the sliders */
 .figure.is-sculpt .fig-stage {
   position: sticky;
