@@ -190,6 +190,9 @@ export function write(id: string, how: (h: Held) => Held) {
   if (after !== before) commit({ ...s, held: s.held.map((h) => (h === before ? after : h)) });
 }
 
+/** Which member of this ledger this phone's owner is; undefined when that isn't known (yet). */
+export const meOf = (id: string): string | undefined => current().me[id];
+
 /** Which member of this ledger this phone's owner is. */
 export function setMe(id: string, member: string) {
   const s = fresh();

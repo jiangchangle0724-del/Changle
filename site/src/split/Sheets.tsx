@@ -1,11 +1,13 @@
 /**
  * The ledger's ⋯ sheet: everything that isn't one of the three screens. Whether the ledger is in
  * step with the server, inviting someone, the people (who is who, adding and renaming) in a sheet
- * of their own, the ledger's name, the language, and taking the ledger off this phone. On the
- * phone that started the ledger, its owner's: locking it and opening it again.
+ * of their own, the ledger's name, the language, and taking the ledger off this phone (signed in:
+ * off my ledgers). On the phone that started the ledger, its owner's three: locking it and opening
+ * it again, a new invitation, and deleting it for everyone.
  */
-import { ChevronRight, CircleAlert, CloudCheck, CloudOff, Lock, LockOpen, Pencil, RefreshCw, Trash2, UserPlus, Users, X } from "lucide-react";
+import { ChevronRight, CircleAlert, CloudCheck, CloudOff, ListX, Lock, LockOpen, LogIn, Pencil, RefreshCw, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useAccount } from "../account/AccountContext";
 import { LangTab } from "../components/TopBar";
 import type { Lang } from "../i18n";
 import { Button } from "../ui/Button";
@@ -14,8 +16,8 @@ import { Face } from "./AddExpense";
 import { MAX_MEMBERS, type Ledger } from "./core";
 import { InviteSheet } from "./Join";
 import { inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, tidy } from "./ops";
-import { newId, setMe } from "./store";
-import { forget, lockLedger, record, rekeyLedger } from "./syncing";
+import { newId } from "./store";
+import { eraseLedger, iAm, lockLedger, record, rekeyLedger, removeLedger } from "./syncing";
 import { say } from "./words";
 
 type MenuProps = {
@@ -35,24 +37,44 @@ type MenuProps = {
   changing: boolean;
   /** nothing has answered lately */
   away: boolean;
-  onDeleted: () => void;
+  /** signed in, and the ledger is in the account's ledgers: taking it off this phone takes it off those */
+  mine: boolean;
+  /** the ledger couldn't be made because the sign-in had run out: the sheet offers to sign in again */
+  signIn: boolean;
+  /** off this phone; `erased`: deleted for everyone */
+  onDeleted: (erased?: boolean) => void;
 };
 
-export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey, made, owner, changing, away, onDeleted }: MenuProps) {
+export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey, made, owner, changing, away, mine, signIn, onDeleted }: MenuProps) {
+  const { openSignIn } = useAccount();
   const [people, setPeople] = useState(false);
   /** the invitation's sheet is up: to send it, or (its owner) to change it */
   const [inviting, setInviting] = useState<"send" | "change" | null>(null);
   const [name, setName] = useState(ledger.name);
-  const [deleting, setDeleting] = useState(false);
+  /** taking it off: being asked about, on its way to the server, or the last time nothing answered */
+  const [deleting, setDeleting] = useState<"ask" | "busy" | "failed" | null>(null);
+  /** the owner deleting it for everyone: the same */
+  const [erasing, setErasing] = useState<"ask" | "busy" | "failed" | null>(null);
   /** locking or opening: asked and not answered yet; or the last time it was asked, nothing answered */
   const [locking, setLocking] = useState<"busy" | "failed" | null>(null);
   // every time it opens, it opens with the ledger's current name and nothing half-decided
   useEffect(() => {
     if (!open) return;
     setName(ledger.name);
-    setDeleting(false);
+    setDeleting(null);
+    setErasing(null);
     setLocking(null);
   }, [open, ledger.name]);
+  const remove = async () => {
+    setDeleting("busy");
+    if (await removeLedger(ledger.id)) onDeleted();
+    else setDeleting("failed");
+  };
+  const erase = async () => {
+    setErasing("busy");
+    if (await eraseLedger(ledger.id)) onDeleted(true);
+    else setErasing("failed");
+  };
 
   const renamed = tidy(name, LEDGER_NAME_MAX);
   const locked = ledger.locked !== undefined;
@@ -71,6 +93,11 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
             {/* (the page tells its owner where to open a locked ledger: here, that is the line below) */}
             {!status ? say(lang, "synced") : status.lock && !status.loud ? say(lang, "locked") : status.text}
           </p>
+          {signIn && (
+            <Button tone="quiet" icon={LogIn} onClick={() => openSignIn()}>
+              {say(lang, "signIn")}
+            </Button>
+          )}
           <button
             type="button"
             className="split-field split-menu-row"
@@ -121,6 +148,29 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
                 <strong>{say(lang, "rekey")}</strong>
                 <ChevronRight aria-hidden="true" />
               </button>
+              {erasing === "ask" || erasing === "busy" ? (
+                <div className="split-ask" role="alert">
+                  <p>{say(lang, "eraseAsk")}</p>
+                  <div className="split-pair">
+                    <Button tone="quiet" onClick={() => setErasing(null)}>
+                      {say(lang, "keep")}
+                    </Button>
+                    <Button tone="danger" disabled={erasing === "busy"} onClick={() => void erase()}>
+                      {say(lang, "eraseYes")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button type="button" className="split-field split-menu-row" onClick={() => setErasing("ask")}>
+                  <Trash2 aria-hidden="true" />
+                  <strong>{say(lang, "eraseIt")}</strong>
+                  <span>{say(lang, "eraseItHint")}</span>
+                </button>
+              )}
+              {erasing === "failed" && <p className="split-note">{say(lang, "eraseFailed")}</p>}
+              <span className="ui-visually-hidden" role="status">
+                {erasing === "failed" ? say(lang, "eraseFailed") : ""}
+              </span>
             </>
           )}
           {/* (a locked ledger keeps its name) */}
@@ -146,31 +196,30 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
             <span className="field-label">{say(lang, "language")}</span>
             <LangTab />
           </div>
-          {deleting ? (
+          {deleting === "ask" || deleting === "busy" ? (
             <div className="split-ask" role="alert">
-              <p>{say(lang, "deleteAsk")}</p>
-              {owner && <p>{say(lang, "deleteOwner")}</p>}
+              <p>{say(lang, mine ? "removeMineAsk" : "deleteAsk")}</p>
+              {owner && <p>{say(lang, mine ? "removeMineOwner" : "deleteOwner")}</p>}
               <div className="split-pair">
-                <Button tone="quiet" onClick={() => setDeleting(false)}>
+                <Button tone="quiet" onClick={() => setDeleting(null)}>
                   {say(lang, "keep")}
                 </Button>
-                <Button
-                  tone="danger"
-                  onClick={() => {
-                    forget(ledger.id);
-                    onDeleted();
-                  }}
-                >
-                  {say(lang, "deleteYes")}
+                <Button tone="danger" disabled={deleting === "busy"} onClick={() => void remove()}>
+                  {say(lang, mine ? "removeMineYes" : "deleteYes")}
                 </Button>
               </div>
             </div>
           ) : (
-            <button type="button" className="split-field split-menu-row" onClick={() => setDeleting(true)}>
-              <Trash2 aria-hidden="true" />
-              <strong>{say(lang, "deleteLedger")}</strong>
+            <button type="button" className="split-field split-menu-row" onClick={() => setDeleting("ask")}>
+              {/* (off a list, this phone's or the account's: the bin is for deleting it, for everyone) */}
+              <ListX aria-hidden="true" />
+              <strong>{say(lang, mine ? "removeMine" : "deleteLedger")}</strong>
             </button>
           )}
+          {deleting === "failed" && <p className="split-note">{say(lang, "removeFailed")}</p>}
+          <span className="ui-visually-hidden" role="status">
+            {deleting === "failed" ? say(lang, "removeFailed") : ""}
+          </span>
         </div>
       </Sheet>
       <Sheet open={people} onClose={() => setPeople(false)} lang={lang} category="tool" title={say(lang, "members")}>
@@ -210,7 +259,7 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
                   </span>
                 </div>
               ) : (
-                <button type="button" className="split-person" onClick={() => setMe(ledger.id, m.id)}>
+                <button type="button" className="split-person" onClick={() => iAm(ledger.id, m.id)}>
                   <Face name={m.name} />
                   <span className="split-person-name">{m.name}</span>
                   <span className="split-person-part">{say(lang, "thisIsMe")}</span>
@@ -267,7 +316,7 @@ function People({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; 
                       tone="quiet"
                       size="sm"
                       onClick={() => {
-                        setMe(ledger.id, m.id);
+                        iAm(ledger.id, m.id);
                         setOpen(null);
                       }}
                     >

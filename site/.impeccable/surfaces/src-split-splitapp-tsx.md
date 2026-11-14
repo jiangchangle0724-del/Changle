@@ -138,3 +138,23 @@ What the look at the rendered screens changed (four phone sizes, both languages,
 5. The currency's name under the amount said again what the corner says. It is gone.
 
 Verdict: holds to the contract. Still three screens and one light; a trip in another currency is one tap, once, and after that the screen is what it always was with one quiet line more.
+
+## Stage two, step 6b: a sign-in to start one, and ledgers that follow their account (2026-11-14)
+
+Shape, in the thread that built it (the owner had approved the step; the plan says starting a ledger needs a changle.ca account and joining one doesn't):
+
+- Who and when: someone about to start a ledger for a trip, on their own phone, likely signed in to the site already, and if not, one email code away. A friend opening the link never signs in.
+- Signed out, the list's one button says what it will do: 登录，开一个账本, Sign in to start a ledger, with the sign-in mark in place of the plus. It opens the site's own sign-in sheet, not one of 两清's; signed in, the sheet the button was pressed for opens by itself. Closing the sign-in without signing in leaves the list as it was.
+- Signed in, the list is the account's ledgers: they come with it to any phone, as their owner where it started them, as the same person in them. Ledgers on the phone from before the sign-in join the account. Another account's stay on the phone, out of sight, still sending what they have.
+- The ⋯ sheet's last line says what taking a ledger off does: off my ledgers, on every phone, when it is in the account; off this phone otherwise. Off my ledgers needs a signal, and says so when there is none, the way locking does.
+- Deleting for everyone is the owner's third line, under locking and the new link, asked about first in the danger voice. After it, the list says the ledger was deleted; a friend's page says it was deleted and is only on that phone now.
+- A ledger that couldn't go up for want of a sign-in says so in the page's strong voice, with 登录 one tap under the line (and under the first line of ⋯). It is a trouble that passes: signed in, it goes up by itself.
+- No new colour, no new motion.
+
+What the look at the rendered screens changed (four phone sizes, both languages; the account's flows in a browser against the local server, two phones on one account, a friend signed out and then in):
+
+1. The delete-for-everyone line had an eraser, and taking a ledger off had the bin. Deleting took the bin; taking a ledger off a list, the phone's or the account's, took a list with a cross.
+2. "Ledger deleted" was said by the ledger's page as it went to the list, and the list came up afresh without it (going between 两清's screens puts it up again). The ledger's page leaves the word for the list to say.
+3. The line for a ledger kept back by a sign-in said the sign-in had run out. The same line is what someone sees who signed out on purpose; it says the ledger needs a sign-in to go online.
+
+Verdict: holds to the contract. Still three screens and one light. Signing in is the site's own sheet, asked for once at the one moment it is needed; an account's ledgers are just the list, and what an owner can do that others can't is one line more in a sheet.

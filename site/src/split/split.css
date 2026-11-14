@@ -175,6 +175,11 @@
   color: var(--color-text);
   font-weight: 700;
 }
+/* under a line that has a remedy one tap away (signing in again): the button, lined up with the words */
+.split-sync-act {
+  margin-top: var(--space-2);
+  padding-inline-start: calc(var(--text-md) + var(--space-2));
+}
 /* a change that didn't stick: which one, why, what to do, and one button to say it has been read */
 .split-lost {
   margin-top: var(--space-4);

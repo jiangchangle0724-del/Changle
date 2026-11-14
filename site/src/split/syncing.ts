@@ -3,16 +3,22 @@
  * what the phone keeps (store.ts), the server (net.ts), and for each ledger that has something to
  * send or is open on the screen, one syncer (syncer.ts) between the two.
  *
- * The screens come here to open a ledger, to change one (`record`), to lock it or change its key
- * (its owner's phone only), and to hear how the sending is going. A ledger that is open on the screen also listens for what other phones record; the
- * others only send what they have. All of it stops when 两清 is left.
+ * The screens come here to open a ledger, to change one (`record`), to lock it, change its key or
+ * delete it (its owner's phone only), and to hear how the sending is going. A ledger that is open
+ * on the screen also listens for what other phones record; the others only send what they have.
+ * All of it stops when 两清 is left.
+ *
+ * Signed in to changle.ca, the phone's ledgers and the account's "my ledgers" on the server are
+ * kept as one (syncMine): what the account has comes to the phone, and what the phone has goes to
+ * the account. So a new phone signed in has every ledger, and is still the owner where it was.
  */
 import { useSyncExternalStore } from "react";
 import type { Change } from "./changes";
 import type { Ledger } from "./core";
-import { net } from "./net";
-import { dropHeld, everyHeld, heldOf, keepHeld, newId, newKey, write } from "./store";
-import { hold, holds, join, opened, shown } from "./sync";
+import { deleteLedger, mineNet, net } from "./net";
+import type { Mine } from "./shape";
+import { dropHeld, everyHeld, heldOf, keepHeld, meOf, newId, newKey, setMe, write } from "./store";
+import { hold, holds, join, notOwner, opened, shown, type Held } from "./sync";
 import { syncer, type Syncer, type SyncState } from "./syncer";
 
 type Running = { syncer: Syncer; state: SyncState; watchers: number };
@@ -32,7 +38,13 @@ function run(id: string): Running | null {
     state: IDLE,
     syncer: syncer({
       read: () => heldOf(id),
-      write: (how) => write(id, how),
+      write: (how) => {
+        const was = heldOf(id)?.made;
+        write(id, how);
+        // (made while signed in: the server put it in the account's ledgers as it made it, and the
+        // phone hears so from the account's list, so it is the account's on this phone at once)
+        if (was === false && heldOf(id)?.made && account) void syncMine();
+      },
       net,
       watching: false,
       changed: (next) => {
@@ -132,6 +144,13 @@ export type Joined = "in" | "key" | "gone" | "away";
  * among the people in it isn't known yet: the ledger's page asks).
  */
 export async function joinLedger(id: string, key: string): Promise<Joined> {
+  const joined = await join1(id, key);
+  // (signed in, a ledger joined goes to the account's ledgers)
+  if (joined === "in" && account) void syncMine();
+  return joined;
+}
+
+async function join1(id: string, key: string): Promise<Joined> {
   const has = heldOf(id);
   if (has) {
     // An invitation with another key than the phone's: its owner may have changed the key since
@@ -195,11 +214,173 @@ export function dismissLost(id: string, changes: string[]) {
   for (const change of changes) r?.syncer.dismiss(change);
 }
 
-/** A ledger taken off this phone. (The server's copy stays: only its owner will be able to delete that, once there are accounts.) */
-export function forget(id: string) {
+/** A ledger off this phone: its syncer stopped, what is held of it dropped. */
+function forgetHere(id: string) {
   running.get(id)?.syncer.stop();
   running.delete(id);
   dropHeld(id);
+}
+
+/**
+ * A ledger taken off this phone; signed in, and in the account's ledgers, off those too (so it
+ * comes back on no phone of the account). That needs the server: false when it couldn't be
+ * reached, and nothing changed. The ledger itself stays on the server for the others.
+ */
+export async function removeLedger(id: string): Promise<boolean> {
+  const h = heldOf(id);
+  if (!h) return true;
+  if (account && h.acct === account && (await mineNet.drop(id)).status !== 200) return false;
+  forgetHere(id);
+  return true;
+}
+
+/**
+ * Its owner deletes a ledger, for everyone. True when it is gone (or was already), and then it is
+ * off this phone too; false when the server couldn't be reached, or this phone isn't its owner
+ * after all (and from then on doesn't take itself for one).
+ */
+export async function eraseLedger(id: string): Promise<boolean> {
+  const h = heldOf(id);
+  if (!h?.owner || !h.made) return false;
+  const got = await deleteLedger(id, h.owner);
+  if (got.status === 200 || got.status === 404) {
+    forgetHere(id);
+    return true;
+  }
+  if (got.status === 403) write(id, notOwner);
+  return false;
+}
+
+/** Which person in a ledger this phone's owner is. Signed in, the account keeps it too. */
+export function iAm(id: string, member: string) {
+  setMe(id, member);
+  const h = heldOf(id);
+  if (account && h?.acct === account) void mineNet.put(id, h.key, h.owner, member);
+}
+
+// ---------- the account's ledgers ----------
+
+/** The changle.ca account signed in on this page; null while nobody is (or it isn't known yet). */
+let account: string | null = null;
+
+/**
+ * Who is signed in, as the page knows it. Signing in brings the account's ledgers and sends this
+ * phone's; and a ledger that couldn't be made because the sign-in had run out is tried again.
+ */
+export function setAccount(id: string | null) {
+  if (id === account) return;
+  account = id;
+  if (!id) return;
+  void syncMine();
+  wakeAll();
+}
+
+/** Is this ledger shown in the list for whoever is signed in? (Another account's stay on the phone, out of sight, and still send what they have.) */
+export const listed = (h: Pick<Held, "acct">, who: string | null): boolean => !h.acct || h.acct === who;
+
+let mining: Promise<void> | null = null;
+let mineAgain = false;
+
+/**
+ * The phone's ledgers and the account's, made one. Asked again while it is going on, it goes once
+ * more when it is done. Nothing answered: it is left for the next time (两清 opened, the page
+ * back in front, signing in).
+ */
+export function syncMine(): Promise<void> {
+  if (mining) {
+    mineAgain = true;
+    return mining;
+  }
+  mining = (async () => {
+    do {
+      mineAgain = false;
+      await mineOnce();
+    } while (mineAgain && account);
+  })().finally(() => {
+    mining = null;
+  });
+  return mining;
+}
+
+async function mineOnce(): Promise<void> {
+  const who = account;
+  if (!who) return;
+  const got = await mineNet.list();
+  if (got.status !== 200 || !got.data || account !== who) return;
+  const list = got.data;
+  const theirs = new Map(list.map((m) => [m.id, m]));
+
+  // What the account has and this phone doesn't: read with its key and held, with the owner's key
+  // and who they are. The oldest first, so the newest ends up on top of the list.
+  for (const m of [...list].reverse()) {
+    if (heldOf(m.id)) continue;
+    const read = await net.read(m.id, m.key);
+    if (account !== who) return;
+    if (read.status === 200 && read.data?.ledger.id === m.id) {
+      if (!heldOf(m.id)) keepHeld({ ...join(read.data, m.key), ...(m.owner ? { owner: m.owner } : {}), acct: who }, m.me);
+    } else if (read.status === 404) {
+      // (deleted by its owner: off the list)
+      await mineNet.drop(m.id);
+    }
+    // (403: its key was changed since; it stays on the list for a new invitation to put right)
+  }
+
+  // What this phone has: its own go to the account, the account's are brought up to date.
+  for (const h of everyHeld()) {
+    if (account !== who) return;
+    const id = h.server.id;
+    // (another account's are left alone; one not yet made goes to the account as it is made)
+    if ((h.acct && h.acct !== who) || !h.made) continue;
+    const m = theirs.get(id);
+    if (!m) {
+      // The account had it and doesn't now: taken off on another phone, or deleted by its owner.
+      // (What is still waiting to go up goes first: until then it stays.)
+      if (h.acct === who) {
+        if (!h.waiting.length) forgetHere(id);
+      } else await toAccount(who, id);
+      continue;
+    }
+    await sameAs(who, h, m);
+  }
+}
+
+/** A ledger this phone has goes to the account's list (or brings it up to date there); held as the account's once the server has it. */
+async function toAccount(who: string, id: string): Promise<boolean> {
+  const h = heldOf(id);
+  if (!h) return false;
+  const put = await mineNet.put(id, h.key, h.owner, meOf(id) ?? null);
+  if (put.status !== 200 || account !== who) return false;
+  if (h.acct !== who) write(id, (x) => ({ ...x, acct: who }));
+  return true;
+}
+
+/**
+ * A ledger both have: whichever knows more, the other is told. A newer key (the owner changed it
+ * on one of the account's phones), the owner's key, who they are: the phone takes what the account
+ * has that it hasn't, and the account what the phone has that it hasn't.
+ */
+async function sameAs(who: string, h: Held, m: Mine): Promise<void> {
+  const id = h.server.id;
+  // the owner's key, and who they are, when the account has them and the phone doesn't
+  if (m.owner && !h.owner) write(id, (x) => (x.owner ? x : { ...x, owner: m.owner }));
+  if (m.me && !meOf(id)) setMe(id, m.me);
+  if (h.acct !== who) write(id, (x) => ({ ...x, acct: who }));
+  const now = heldOf(id);
+  if (!now) return;
+  const me = meOf(id);
+  if (m.key === now.key && (m.owner ?? "") === (now.owner ?? "") && (m.me ?? "") === (me ?? "")) return;
+  if (m.key !== now.key) {
+    // Two keys: the one that opens the ledger is the one to keep. The phone's first (the account may
+    // not have heard of a change made here), then the account's (it was changed on another phone).
+    if (await toAccount(who, id)) return;
+    const read = await net.read(id, m.key);
+    if (account !== who || read.status !== 200 || read.data?.ledger.id !== id || !heldOf(id)) return;
+    const data = read.data;
+    write(id, (x) => opened(x, m.key, data));
+    run(id)?.syncer.rekeyed();
+    return;
+  }
+  await toAccount(who, id);
 }
 
 const subscribe = (listener: () => void) => {

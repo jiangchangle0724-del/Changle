@@ -6,7 +6,8 @@ main site's (`site/src/split/`); this Worker answers only `changle.ca/split/api`
 The plan is `docs/split.md`; where it stands and what's next is in `docs/briefs/split.md`.
 **It is live** at `changle.ca/split/api` since 2026-11-13, and the pages at changle.ca/split keep
 their ledgers on it (how a phone talks to it is `site/src/split/net.ts`, and when,
-`site/src/split/syncer.ts`).
+`site/src/split/syncer.ts`; a signed-in account's ledgers, `site/src/split/syncing.ts`). Since step
+6b the pages sign in to start a ledger.
 
 ## How a change goes live
 

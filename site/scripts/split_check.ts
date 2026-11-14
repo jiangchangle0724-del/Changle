@@ -15,18 +15,24 @@
  *                                           stick, a day's allowance used up, an answer that isn't the server's;
  *                                           an invitation sent and opened (as a chat app hands it over, too),
  *                                           ones that don't get in, the list asking after its ledgers; an
- *                                           expense paid in another currency, changed, and with no rates to be had
+ *                                           expense paid in another currency, changed, and with no rates to be had;
+ *                                           signing in to start one, the account's ledgers on a second phone,
+ *                                           taken off my ledgers, deleted for everyone, signed out, a sign-in
+ *                                           that ran out
  *
  * Options: --base http://127.0.0.1:5173 (a build: `npx vite preview`, then --base http://127.0.0.1:4173),
  * --out <folder for the pictures>. CHROME=/path/to/chrome uses that browser, else Playwright's own
  * (`npx playwright install chromium`).
  *
  * Nothing leaves the machine: the ledgers go to the server running on it, every phone here starts
- * with none, and the names in them are made up. The site's exchange rates are made up too (RATES),
- * so the rooms server isn't asked for them. Pointed anywhere else (--base a preview, or
+ * with none, and the names in them are made up. The site's rooms server is never asked either:
+ * each phone has a stand-in for it (rooms), with made-up exchange rates (RATES) and made-up
+ * accounts. Starting a ledger needs a changle.ca sign-in, so the phones that start ledgers are
+ * signed in, each as an account of its own that the local 两清 server knows too (its stand-in for
+ * the rooms server, tools/split/tests/rooms). Pointed anywhere else (--base a preview, or
  * changle.ca), the server is left alone: every phone here is given no way to reach it, so it shows
- * what a phone with no signal shows, and the checks that need a server are skipped. A ledger made
- * on the real server can't be deleted yet, so this never makes one there.
+ * what a phone with no signal shows, and the checks that need a server are skipped. This never
+ * makes a ledger on the real server: its keys aren't kept, so it couldn't be deleted.
  *
  * (Inside page.evaluate, no named functions: tsx wraps them in a helper the page doesn't have.)
  */
@@ -74,23 +80,110 @@ const watch = (page: Page, signalMayGo = !local) => {
   page.on("console", (m) => m.type() === "error" && !(signalMayGo && noSignal.test(m.text())) && errors.push(`${page.url()}: ${m.text()}`));
   page.on("pageerror", (e) => errors.push(`${page.url()}: ${e}`));
 };
+/** The site's own address: anything a page asks for at /api/ anywhere else is the rooms server's. */
+const site = new URL(base).origin;
+/** A changle.ca account of a phone's own: "test-account-" and this name is its session (tools/split/tests/accounts.ts). */
+const anAccount = () => `check${randomBytes(9).toString("base64url")}`;
+const sessionOf = (account: string) => `test-account-${account}`;
+/** The account as the rooms server describes it to its own phone (src/account/AccountContext.tsx, SelfUser). */
+const userOf = (account: string) => ({ id: account, name: "Check", city: "", gender: "", bio: "", av: 0, ac: 2, handle: account, since: 0, email: "check@example.com", phone: "", admin: false });
+/** Where the site keeps who is signed in on a phone (src/lib/api.ts, src/account/AccountContext.tsx). */
+const SESSION = "changle.session";
+const ME = "changle.me";
+/**
+ * The rooms server (site/worker), as these phones see it: a stand-in, so the real one is never
+ * asked. The site is open, no sign-in is kept in a cookie, today's rates are RATES, and every
+ * "test-account-…" session is that account. Signing in through the site's own sheet signs the
+ * phone in as a new account of its own. Anything else asked of it is a finding.
+ */
+const rooms = async (ctx: BrowserContext) => {
+  await ctx.route(
+    (url) => url.origin !== site && url.pathname.startsWith("/api/"),
+    (route) => {
+      const req = route.request();
+      const at = new URL(req.url()).pathname;
+      const who = /^Bearer test-account-([A-Za-z0-9_-]{7,60})$/.exec(req.headers().authorization ?? "")?.[1];
+      const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+      if (at === "/api/status") return json(200, { paused: false });
+      if (at === "/api/fx") return json(200, { rates: RATES, at: Date.now() - 3_600_000, source: "check" });
+      if (at === "/api/auth/restore") return route.fulfill({ status: 204 });
+      if (at === "/api/auth/keep" || at === "/api/auth/logout") return json(200, { ok: true });
+      if (at === "/api/me" && req.method() === "GET") return who ? json(200, { user: userOf(who) }) : json(401, { error: "signin" });
+      if (at === "/api/auth/code") return json(200, { sent: true, dev: "123456" });
+      if (at === "/api/auth/verify") {
+        const account = anAccount();
+        return json(200, { token: sessionOf(account), user: userOf(account) });
+      }
+      errors.push(`a page asked the rooms server for ${req.method()} ${at}, which these checks have no stand-in for`);
+      return route.abort("failed");
+    },
+  );
+  // (the live line a signed-in page keeps open: it hears nothing, and answers a ping)
+  await ctx.routeWebSocket(
+    (url) => url.origin.replace(/^ws/, "http") !== site && url.pathname === "/api/live",
+    (ws) => ws.onMessage((m) => m === "ping" && ws.send("pong")),
+  );
+};
 const phone = async (width: number, height: number, lang: Lang, motion: "reduce" | "no-preference" = "reduce") => {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: lang === "zh" ? "zh-CN" : "en-CA", reducedMotion: motion, serviceWorkers: "block" });
+  await rooms(ctx);
   if (!local) {
     await ctx.route(API, (route) => route.abort("internetdisconnected"));
     await ctx.routeWebSocket(/\/split\/api\//, (ws) => void ws.close());
   }
-  await ctx.route(FX, (route) => route.fulfill({ json: { rates: RATES, at: Date.now() - 3_600_000, source: "check" } }));
   await ctx.route("https://open.er-api.com/**", (route) => route.abort("internetdisconnected"));
   return ctx;
 };
+const signedIn = new WeakSet<BrowserContext>();
+/**
+ * This phone is signed in to changle.ca from its first page on, as `account` (a new one of its own
+ * unless given): what the site keeps on a phone that is. Once: signing out on it later stays so.
+ */
+const signIn = async (ctx: BrowserContext, account = anAccount()) => {
+  signedIn.add(ctx);
+  await ctx.addInitScript(
+    ([s, session, m, me]) => {
+      try {
+        if (localStorage.getItem("check.signed")) return;
+        localStorage.setItem("check.signed", "1");
+        localStorage.setItem(s, session);
+        localStorage.setItem(m, me);
+      } catch {
+        /* (a page with no storage of its own) */
+      }
+    },
+    [SESSION, sessionOf(account), ME, JSON.stringify(userOf(account))] as const,
+  );
+  return account;
+};
+/** The site's own sign-in sheet, open on the page: an email, the code (the stand-in's comes filled in), and signed in as a new account. */
+const viaSheet = async (page: Page, lang: Lang) => {
+  await page.locator("#si-email").fill("check@example.com");
+  await page.getByRole("button", { name: lang === "zh" ? "发验证码" : "Send me a code", exact: true }).click();
+  await page.getByRole("button", { name: lang === "zh" ? "确认" : "Confirm", exact: true }).click();
+  await page.locator("#si-email, .otp-input").waitFor({ state: "detached" });
+};
+/** Who the page is signed in as, by what the site keeps (null: nobody). */
+const signedAs = async (page: Page) => /^test-account-(.+)$/.exec(String(await page.evaluate(`localStorage.getItem(${JSON.stringify(SESSION)})`)))?.[1] ?? null;
+/** Signed out, as the site does it (what it keeps of the sign-in comes off the phone), or signed in again as `account`; then the page loaded afresh. */
+const signTo = async (page: Page, account: string | null) => {
+  await page.evaluate(
+    account
+      ? `localStorage.setItem(${JSON.stringify(SESSION)}, ${JSON.stringify(sessionOf(account))}); localStorage.setItem(${JSON.stringify(ME)}, ${JSON.stringify(JSON.stringify(userOf(account)))})`
+      : `localStorage.removeItem(${JSON.stringify(SESSION)}); localStorage.removeItem(${JSON.stringify(ME)})`,
+  );
+  await page.reload();
+};
+/** The signed-in account's ledgers as the server keeps them ("my ledgers"), asked for with the page's sign-in. */
+const myLedgers = async (page: Page) =>
+  (await page.evaluate(`fetch("/split/api/me/ledgers", { headers: { authorization: "Bearer " + localStorage.getItem(${JSON.stringify(SESSION)}) } }).then((r) => (r.ok ? r.json() : { ledgers: [] }))`)) as { ledgers: { id: string; key: string; owner?: string; me?: string }[] };
 /** From here on this phone gets no rates from anywhere, and has none kept. */
 const noRates = async (ctx: BrowserContext, page: Page) => {
   await ctx.route(FX, (route) => route.abort("internetdisconnected"));
   await page.evaluate(`localStorage.removeItem(${JSON.stringify(FX_KEPT)})`);
 };
 /** What a phone keeps of its ledgers (src/split/store.ts). */
-type Kept = { held: { key: string; owner?: string; next?: string; made: boolean; seq: number; server: { id: string; members: { id: string; name: string }[]; entries: unknown[] }; waiting: unknown[]; lost: unknown[] }[]; me: Record<string, string> };
+type Kept = { held: { key: string; owner?: string; next?: string; acct?: string; made: boolean; seq: number; server: { id: string; name: string; members: { id: string; name: string }[]; entries: unknown[] }; waiting: unknown[]; lost: unknown[] }[]; me: Record<string, string> };
 const keptBy = async (page: Page): Promise<Kept> => JSON.parse(String(await page.evaluate(`localStorage.getItem(${JSON.stringify(KEPT)})`))) as Kept;
 /** A phone that already holds these ledgers when it opens the site (as it will after joining by a link). */
 const holding = (ctx: BrowserContext, kept: unknown) =>
@@ -160,8 +253,9 @@ async function walk(lang: Lang, width: number, height: number) {
     for (const s of small) findings.push(`${name}: smaller than 44px: ${s}`);
   };
 
-  const startSheet = async (name: string, me: string, others: string[], currency?: string) => {
-    await button("start").click();
+  /** 开一个账本's sheet, filled in (`press`: opened by its button; or already open) */
+  const startSheet = async (name: string, me: string, others: string[], currency?: string, press = true) => {
+    if (press) await button("start").click();
     const sheet = page.getByRole("dialog");
     await sheet.locator("input").nth(0).fill(name);
     await sheet.locator("input").nth(1).fill(me);
@@ -189,8 +283,18 @@ async function walk(lang: Lang, width: number, height: number) {
   };
 
   await page.goto(`${base}/split`);
-  await button("start").waitFor();
+  await button("startSignIn").waitFor();
   await shot("01-empty");
+  // starting one needs a sign-in: the button opens the site's own sheet, and signed in, the sheet it was pressed for opens
+  await button("startSignIn").click();
+  await page.locator("#si-email").waitFor();
+  await shot("01b-sign-in");
+  await viaSheet(page, lang);
+  await page.getByRole("dialog").locator("#split-who-else").waitFor();
+  ok(!!(await signedAs(page)), `${lang} ${width}x${height}: signed in from 两清's list, 开一个账本 opens by itself`);
+  await page.keyboard.press("Escape");
+  await closed(page);
+  await shot("01c-empty-signed-in");
   let sheet = await startSheet("惠斯勒周末", "Steve", ["小王", "阿美", "Jason", "小李"]);
   await shot("02-start");
   await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
@@ -319,6 +423,14 @@ async function walk(lang: Lang, width: number, height: number) {
     invitation = renewed;
     await page.keyboard.press("Escape");
     await closed(page);
+    // the owner's third: deleting the ledger for everyone, asked about first
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("eraseIt")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("eraseYes"), exact: true }).waitFor();
+    await shot("35-erase-ask");
+    await page.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
+    await page.keyboard.press("Escape");
+    await closed(page);
     await page.getByRole("tab", { name: t("settle") }).click();
   }
   await button("more").click();
@@ -334,7 +446,8 @@ async function walk(lang: Lang, width: number, height: number) {
   await page.keyboard.press("Escape");
   await closed(page);
   await button("more").click();
-  await page.getByRole("button", { name: re(t("deleteLedger")) }).click();
+  // (signed in, once the server has it the ledger is in the account's ledgers, and comes off those)
+  await page.getByRole("button", { name: re(t(local ? "removeMine" : "deleteLedger")) }).click();
   await shot("13b-menu-delete-ask");
   await button("keep").click();
   await page.keyboard.press("Escape");
@@ -383,6 +496,11 @@ async function walk(lang: Lang, width: number, height: number) {
     await shot("26-unsent");
     await button("more").click();
     await shot("26b-menu-unsent");
+    // taking it off my ledgers needs the server: with no signal, nothing changes, and the sheet says so
+    await page.getByRole("button", { name: re(t("removeMine")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("removeMineYes"), exact: true }).click();
+    await page.getByRole("dialog").locator(".split-note", { hasText: t("removeFailed") }).waitFor({ timeout: 20_000 });
+    await shot("26d-remove-failed");
     await page.keyboard.press("Escape");
     await closed(page);
     await button("back").click();
@@ -431,6 +549,21 @@ async function walk(lang: Lang, width: number, height: number) {
     await button("back").click();
     await button("start").waitFor();
 
+    // the sign-in ran out before the ledger could go up: said in the strong voice, with the sign-in one tap away
+    await ctx.route("**/split/api/ledgers", (route) => (route.request().method() === "POST" ? route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "signin" }) }) : route.fallback()));
+    sheet = await startSheet("周三午饭", "Steve", ["小王"]);
+    await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+    await page.locator(".split-sync-act").waitFor();
+    await shot("28c-signin");
+    await button("more").click();
+    await page.getByRole("dialog").getByRole("button", { name: t("signIn"), exact: true }).waitFor();
+    await shot("28d-menu-signin");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await ctx.unroute("**/split/api/ledgers");
+    await button("back").click();
+    await button("start").waitFor();
+
     // someone else's phone, opening the invitation: asked which one they are, then in
     const guest = await phone(width, height, lang);
     await speak(guest, lang);
@@ -460,6 +593,14 @@ async function walk(lang: Lang, width: number, height: number) {
     await theirs.locator(".split-who").getByRole("button", { name: re("小王") }).click();
     await theirs.locator(".split-standing").waitFor();
     await shot("29f-joined", theirs);
+    // (joined signed out: not the owner, and the ledger is that phone's alone)
+    await theirs.getByRole("button", { name: t("more"), exact: true }).click();
+    await theirs.getByRole("dialog").getByRole("button", { name: re(t("deleteLedger")) }).click();
+    await theirs.getByRole("dialog").getByRole("button", { name: t("deleteYes"), exact: true }).waitFor();
+    await shot("29g-menu-guest", theirs);
+    await theirs.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
+    await theirs.keyboard.press("Escape");
+    await closed(theirs);
 
     // the owner locks the ledger: a friend's phone says so, and has nothing to press; someone new can still say who they are
     await page.locator(".split-ledger", { hasText: "惠斯勒周末" }).click();
@@ -510,6 +651,18 @@ async function walk(lang: Lang, width: number, height: number) {
     await other.getByText(t("joinAway")).waitFor();
     await shot("30c-join-away", other);
     await elsewhere.close();
+
+    // its owner deletes the ledger: gone from the owner's list, and a friend's page says so
+    await theirs.goto(invitation);
+    await theirs.locator(".split-standing").waitFor();
+    await page.locator(".split-ledger", { hasText: "惠斯勒周末" }).click();
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("eraseIt")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("eraseYes"), exact: true }).click();
+    await page.getByText(t("erased")).waitFor({ timeout: 8000 });
+    await shot("36-erased");
+    await theirs.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+    await shot("36b-erased-friend", theirs);
     await guest.close();
   }
 
@@ -654,6 +807,8 @@ async function fits() {
     for (const [w, h, phoneName] of sizes) {
       const ctx = await phone(w, h, lang);
       await speak(ctx, lang);
+      // (signed in: a ledger is made on the server only for a phone that is)
+      await signIn(ctx);
       await holding(ctx, saved);
       const page = await ctx.newPage();
       watch(page);
@@ -715,11 +870,13 @@ async function behave() {
     await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
     await button(page, "addExpense").waitFor();
   };
-  const open = async (ctx: BrowserContext, signalMayGo?: boolean) => {
+  /** 两清's list on a phone signed in (starting a ledger needs that); `signed` false: one that isn't */
+  const open = async (ctx: BrowserContext, signalMayGo?: boolean, signed = true) => {
+    if (signed && !signedIn.has(ctx)) await signIn(ctx);
     const page = await ctx.newPage();
     watch(page, signalMayGo);
     await page.goto(`${base}/split`);
-    await button(page, "start").waitFor();
+    await button(page, signed ? "start" : "startSignIn").waitFor();
     return page;
   };
   const amountShown = (page: Page) => page.locator(".split-add-amount output").textContent();
@@ -745,6 +902,7 @@ async function behave() {
   // the back button, links, a reload
   {
     const ctx = await phone(390, 664, "zh");
+    await signIn(ctx);
     const page = await ctx.newPage();
     watch(page);
     await page.goto(`${base}/`);
@@ -798,10 +956,11 @@ async function behave() {
     ok(path(page) === ledger && (await page.getByRole("tab", { name: t("settle") }).getAttribute("aria-selected")) === "true", "back on a transfer's sheet closes it and stays on 结清");
 
     await button(page, "more").click();
-    await page.getByRole("button", { name: re(t("deleteLedger")) }).click();
-    await button(page, "deleteYes").click();
+    // (signed in, a ledger the server has is in the account's ledgers: it comes off those)
+    await page.getByRole("button", { name: re(t(local ? "removeMine" : "deleteLedger")) }).click();
+    await button(page, local ? "removeMineYes" : "deleteYes").click();
     await button(page, "start").waitFor();
-    ok(path(page) === "/split" && (await page.locator(".split-ledger").count()) === 0, "deleting a ledger lands on the list, and the ledger is gone from it");
+    ok(path(page) === "/split" && (await page.locator(".split-ledger").count()) === 0, "taking a ledger off lands on the list, and the ledger is gone from it");
     await page.goBack();
     await page.waitForTimeout(600);
     ok(path(page) !== ledger, `back after deleting doesn't open the deleted ledger (now at ${path(page)})`);
@@ -841,6 +1000,8 @@ async function behave() {
   // a browser that won't store anything (a private window)
   {
     const ctx = await phone(390, 664, "zh");
+    // (signed in before storing stops: what the site keeps of a sign-in is there to read)
+    await signIn(ctx);
     await ctx.addInitScript("Storage.prototype.setItem = function () { throw new DOMException('no', 'QuotaExceededError'); };");
     const page = await open(ctx);
     await start(page);
@@ -880,6 +1041,7 @@ async function behave() {
   // a real keyboard, on a computer
   {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "zh-CN", reducedMotion: "reduce", serviceWorkers: "block" });
+    await rooms(ctx);
     const page = await open(ctx);
     await start(page);
     await button(page, "addExpense").click();
@@ -1075,7 +1237,8 @@ async function behave() {
       const first = (await keptBy(pa)).held[0];
       const id = first.server.id;
       const b = await phone(390, 664, "zh");
-      await holding(b, { held: [{ ...first, waiting: [], lost: [] }], me: { [id]: first.server.members[1].id } });
+      // (as joining gives it: the key, and neither the owner's key nor the first phone's account)
+      await holding(b, { held: [{ ...first, owner: undefined, acct: undefined, waiting: [], lost: [] }], me: { [id]: first.server.members[1].id } });
       const pb = await b.newPage();
       watch(pb, true);
       await pb.goto(`${base}/split/${id}`);
@@ -1343,13 +1506,13 @@ async function behave() {
       await pc.getByText(t("joinKey")).waitFor({ timeout: 8000 });
       ok(true, "someone opening the old invitation is told it doesn't open the ledger");
 
-      // taking the ledger off the owner's phone says what goes with it
+      // taking the ledger off the owner's ledgers says what goes with it
       await button(pa, "more").click();
-      await pa.getByRole("button", { name: re(t("deleteLedger")) }).click();
-      ok((await pa.getByRole("dialog").getByText(t("deleteOwner")).count()) === 1, "taking the ledger off its owner's phone says that the lock and the link go with it");
+      await pa.getByRole("button", { name: re(t("removeMine")) }).click();
+      ok((await pa.getByRole("dialog").getByText(t("removeMineOwner")).count()) === 1, "taking the ledger off its owner's ledgers says that the lock, the link and deleting it go with it");
       await button(pb, "more").click();
       await pb.getByRole("button", { name: re(t("deleteLedger")) }).click();
-      ok((await pb.getByRole("dialog").getByText(t("deleteOwner")).count()) === 0, "(a friend's phone is told no such thing)");
+      ok((await pb.getByRole("dialog").getByText(t("deleteOwner")).count()) === 0 && (await pb.getByRole("dialog").getByText(t("removeMineOwner")).count()) === 0, "(a friend's phone, signed out, takes it off that phone only, and is told no such thing)");
       for (const ctx of [a, b, c]) await ctx.close();
     }
 
@@ -1400,6 +1563,145 @@ async function behave() {
       const plain = await first();
       ok(plain.amount === 4500 && !("paidIn" in plain) && (await pb.locator(".split-row-amount small").count()) === 0, "put back into the ledger's currency: the server holds 45.00 and no other currency, and the other phone's row has one amount");
       for (const ctx of [a, b]) await ctx.close();
+    }
+
+    // signed in: the account's ledgers
+    {
+      // signed out, the list's one button signs in first, through the site's own sheet
+      const a = await phone(390, 664, "zh");
+      const pa = await open(a, true, false);
+      ok((await button(pa, "start").count()) === 0, "signed out, the list's one button is 登录，开一个账本");
+      await button(pa, "startSignIn").click();
+      await pa.locator("#si-email").waitFor();
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      ok(!(await signedAs(pa)) && (await pa.getByRole("dialog").count()) === 0, "the sign-in closed without signing in: nothing else opens");
+      await button(pa, "startSignIn").click();
+      await viaSheet(pa, "zh");
+      const sheet = pa.getByRole("dialog");
+      await sheet.locator("#split-who-else").waitFor();
+      const account = (await signedAs(pa)) ?? "";
+      ok(!!account, "signed in through it, the sheet 开一个账本 was pressed for opens by itself");
+      await sheet.locator("input").nth(0).fill("账号");
+      await sheet.locator("input").nth(1).fill("我");
+      for (const n of ["阿甲", "阿乙"]) {
+        await sheet.locator("#split-who-else").fill(n);
+        await sheet.getByRole("button", { name: t("add"), exact: true }).click();
+      }
+      await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+      await button(pa, "addExpense").waitFor();
+      await spend(pa, "30");
+      await pa.waitForTimeout(800);
+      const kept = await keptBy(pa);
+      const first = kept.held[0];
+      const id = first.server.id;
+      const listed = (await myLedgers(pa)).ledgers;
+      ok(listed.length === 1 && listed[0].id === id && listed[0].key === first.key && !!first.owner && listed[0].owner === first.owner && listed[0].me === kept.me[id] && first.acct === account,
+        "made signed in: the server keeps it in the account's ledgers, with the owner's key and who they are in it, and the phone holds it as the account's");
+
+      // the same account, signed in on another phone
+      const a2 = await phone(390, 664, "zh");
+      await signIn(a2, account);
+      const pa2 = await open(a2, true);
+      await pa2.locator(".split-ledger").click({ timeout: 8000 });
+      await pa2.locator(".split-row").first().waitFor();
+      const second = await keptBy(pa2);
+      ok(second.held.length === 1 && second.held[0].owner === first.owner && second.held[0].acct === account && second.me[id] === kept.me[id] && (await amounts(pa2)) === "$30.00",
+        "another phone signed in to the same account has the ledger, with what was recorded, as its owner, and as the same person in it");
+      await button(pa2, "more").click();
+      ok((await pa2.getByRole("button", { name: re(t("lockIt")) }).count()) === 1 && (await pa2.getByRole("button", { name: re(t("eraseIt")) }).count()) === 1, "and its ⋯ has the owner's lines");
+      await pa2.keyboard.press("Escape");
+      await closed(pa2);
+
+      // a friend joins signed out, and signs in later
+      const g = await phone(390, 664, "zh");
+      const pg = await g.newPage();
+      watch(pg, true);
+      await pg.goto(`${base}/split/${id}#k=${first.key}`);
+      await pg.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await pg.locator(".split-standing").waitFor();
+      ok((await keptBy(pg)).held[0].acct === undefined && !(await signedAs(pg)), "a friend signed out joins by the invitation: the ledger is that phone's alone");
+      const friend = anAccount();
+      await signTo(pg, friend);
+      await pg.locator(".split-standing").waitFor();
+      await pg.waitForTimeout(800);
+      const theirs = (await myLedgers(pg)).ledgers;
+      ok(theirs.length === 1 && theirs[0].id === id && theirs[0].me === (await keptBy(pg)).me[id] && theirs[0].owner === undefined && (await keptBy(pg)).held[0].acct === friend,
+        "signed in, it goes to their account, with who they are in it, and no owner's key");
+
+      // taken off my ledgers on one phone: off the account, and then off its other phone; the ledger stays for the others
+      await a2.setOffline(true);
+      await button(pa2, "more").click();
+      await pa2.getByRole("button", { name: re(t("removeMine")) }).click();
+      await pa2.getByRole("dialog").getByRole("button", { name: t("removeMineYes"), exact: true }).click();
+      await pa2.getByRole("dialog").locator(".split-note", { hasText: t("removeFailed") }).waitFor({ timeout: 20_000 });
+      ok((await keptBy(pa2)).held.length === 1, "with no signal it can't come off the account's ledgers: the sheet says so, and nothing changes");
+      await a2.setOffline(false);
+      await pa2.getByRole("button", { name: re(t("removeMine")) }).click();
+      await pa2.getByRole("dialog").getByRole("button", { name: t("removeMineYes"), exact: true }).click();
+      await button(pa2, "start").waitFor();
+      ok((await pa2.locator(".split-ledger").count()) === 0 && (await keptBy(pa2)).held.length === 0 && (await myLedgers(pa2)).ledgers.length === 0, "with one, it comes off this phone and off the account");
+      await button(pa, "back").click();
+      await pa.locator(".split-ledger").waitFor();
+      await pa.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+      await pa.locator(".split-ledger").waitFor({ state: "detached", timeout: 8000 });
+      ok((await keptBy(pa)).held.length === 0, "the account's other phone takes it off too, the next time it comes to the front");
+      ok((await onServer(pg, id, first.key)).ledger.entries.length === 1 && (await keptBy(pg)).held.length === 1, "and the ledger is still there for the others");
+
+      // its owner deletes one, for everyone
+      await start(pa, "删掉", ["阿甲"]);
+      await spend(pa, "12");
+      const doomed = (await keptBy(pa)).held.find((h) => h.server.name === "删掉")!;
+      const gone = doomed.server.id;
+      await pg.goto(`${base}/split/${gone}#k=${doomed.key}`);
+      await pg.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await pg.locator(".split-standing").waitFor();
+      await pg.waitForTimeout(800);
+      ok((await myLedgers(pg)).ledgers.some((m) => m.id === gone), "(a friend signed in joins it: it is in their account too)");
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("eraseIt")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
+      ok((await keptBy(pa)).held.some((h) => h.server.id === gone) && (await onServer(pa, gone, doomed.key)).ledger.entries.length === 1, "删掉账本 asks first, and 先留着 changes nothing");
+      await pa.getByRole("button", { name: re(t("eraseIt")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("eraseYes"), exact: true }).click();
+      await pa.getByText(t("erased")).waitFor({ timeout: 8000 });
+      ok(path(pa) === "/split" && !(await keptBy(pa)).held.some((h) => h.server.id === gone) && !(await myLedgers(pa)).ledgers.some((m) => m.id === gone), "deleted: the owner's page goes to the list and says so, and it is off the phone and the account");
+      ok((await onServer(pa, gone, doomed.key)).ledger.name === "404", "and the server has it no more");
+      await pg.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+      ok((await syncSaid(pg)) === t("troubleGone") && (await pg.locator(".split-row").count()) === 1, "a friend's page open on it says it was deleted, and keeps what it shows");
+
+      // signed out: the account's ledgers leave the list; another account on the same phone doesn't see them; signed in again, they are back
+      await start(pa, "留下", ["阿甲"]);
+      await button(pa, "back").click();
+      await pa.locator(".split-ledger").waitFor();
+      await signTo(pa, null);
+      await button(pa, "startSignIn").waitFor();
+      ok((await pa.locator(".split-ledger").count()) === 0 && (await keptBy(pa)).held.length === 1, "signed out, the account's ledgers leave the list (they stay on the phone, out of sight)");
+      await signTo(pa, anAccount());
+      await button(pa, "start").waitFor();
+      await pa.waitForTimeout(500);
+      ok((await pa.locator(".split-ledger").count()) === 0, "signed in on the same phone as someone else, they stay out of sight");
+      await signTo(pa, account);
+      await pa.locator(".split-ledger", { hasText: "留下" }).waitFor({ timeout: 8000 });
+      ok((await pa.locator(".split-ledger").count()) === 1, "signed in again as the account, they are back");
+
+      // the sign-in ran out before a ledger could go up
+      await a.route("**/split/api/ledgers", (route) => (route.request().method() === "POST" ? route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "signin" }) }) : route.fallback()));
+      await start(pa, "过期", ["阿甲"]);
+      await pa.locator(".split-sync-act").waitFor({ timeout: 8000 });
+      await spend(pa, "9");
+      const waiting = (await keptBy(pa)).held.find((h) => h.server.name === "过期")!;
+      ok((await syncSaid(pa)) === t("troubleSignin") && !waiting.made && waiting.waiting.length === 1, "the sign-in ran out before the ledger went up: the page says so with 登录 under it, and records all the same, on the phone");
+      await a.unroute("**/split/api/ledgers");
+      await pa.locator(".split-sync-act").getByRole("button", { name: t("signIn"), exact: true }).click();
+      await viaSheet(pa, "zh");
+      await pa.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
+      await pa.waitForTimeout(800);
+      const after = (await keptBy(pa)).held.find((h) => h.server.name === "过期")!;
+      const now = await signedAs(pa);
+      ok(!!now && now !== account && after.made && after.waiting.length === 0 && after.acct === now && (await myLedgers(pa)).ledgers.some((m) => m.id === after.server.id) && (await onServer(pa, after.server.id, after.key)).ledger.entries.length === 1,
+        "signed in again (here as another account): the ledger goes up with what was recorded, into that account's ledgers");
+      for (const ctx of [a, a2, g]) await ctx.close();
     }
   }
 

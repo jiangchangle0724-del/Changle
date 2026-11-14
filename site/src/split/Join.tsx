@@ -14,8 +14,8 @@ import { MAX_MEMBERS, type Ledger } from "./core";
 import { inviteLink, inviteText, qrPath } from "./invite";
 import { NAME_MAX, nameTaken, tidy } from "./ops";
 import { copyText, Sentences } from "./parts";
-import { newId, setMe } from "./store";
-import { record } from "./syncing";
+import { newId } from "./store";
+import { iAm, record } from "./syncing";
 import { say } from "./words";
 
 type InviteProps = {
@@ -184,7 +184,7 @@ export function WhoStep({ ledger, lang, onSkip }: { ledger: Ledger; lang: Lang; 
       <ul className="split-people">
         {ledger.members.map((m) => (
           <li key={m.id}>
-            <button type="button" className="split-person" onClick={() => setMe(ledger.id, m.id)}>
+            <button type="button" className="split-person" onClick={() => iAm(ledger.id, m.id)}>
               <Face name={m.name} />
               <span className="split-person-name">{m.name}</span>
               <ChevronRight aria-hidden="true" />
@@ -200,7 +200,7 @@ export function WhoStep({ ledger, lang, onSkip }: { ledger: Ledger; lang: Lang; 
           if (!fresh || taken || full || locked) return;
           const member = newId();
           // (refused only when another phone took the name or the last place a moment ago: the note under the field says which)
-          if (record(ledger.id, { do: "member", member: { id: member, name: fresh } })) setMe(ledger.id, member);
+          if (record(ledger.id, { do: "member", member: { id: member, name: fresh } })) iAm(ledger.id, member);
         }}
       >
         <label htmlFor="split-add-me" className="field-label">

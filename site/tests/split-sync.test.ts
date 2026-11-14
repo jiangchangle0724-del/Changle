@@ -586,6 +586,19 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
   await settle();
   eq([b.s.state().trouble, ids(world.ledgers.get("ledger-2")!.ledger), b.s.state().live], [null, ["e1"], true], "the server put right, the page back in front: it goes up, and the phone is listening again");
 
+  // opened signed in, and the sign-in ran out before the ledger could be made
+  const d = phone(world, "d", hold(fresh("ledger-4"), "k"));
+  d.signal.makeSays = 401;
+  d.s.wake();
+  await settle();
+  d.spend("e1");
+  await settle();
+  eq([d.s.state().trouble, d.held().made, d.held().waiting.length, d.asks()], ["signin", false, 1, 1], "a sign-in that ran out: said, and the phone keeps what it recorded, asking nothing more by itself");
+  d.signal.makeSays = 0;
+  d.s.wake();
+  await settle();
+  eq([d.s.state().trouble, d.held().made, ids(world.ledgers.get("ledger-4")!.ledger)], [null, true, ["e1"]], "signed in again (the page wakes it): the ledger is made, and what was recorded goes up");
+
   const c = phone(world, "c", hold(fresh("ledger-3"), "k"));
   c.s.wake();
   await settle();

@@ -11,7 +11,8 @@
  *  7. What the screens say about the server: nothing while in step, and what didn't stick by name.
  *  8. An invitation: the link, the key in it, what is pasted into the chat, the code to scan.
  *  9. Words: both languages for every one, the same blanks in each, none left unused.
- * 10. The screens write nothing of their own: tokens only, and no words outside the table.
+ * 10. The screens write nothing of their own: tokens only, and no words outside the table. The
+ *     site's sign-in is read by the name the site keeps it under.
  * 11. Still hidden: no way in but its address.
  */
 import QRCode from "qrcode";
@@ -28,9 +29,11 @@ import { applyChange, type Change, type Sent } from "../src/split/changes";
 import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
 import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
-import { asPushed, asSnapshot } from "../src/split/shape";
+import { SESSION_KEY } from "../src/split/net";
+import { asDone, asMine, asPushed, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
+import { listed } from "../src/split/syncing";
 import { say, W, type Word } from "../src/split/words";
 import { CURRENCIES } from "../src/tools/money";
 import { randomLedger, rng } from "./split/ledgers";
@@ -553,6 +556,15 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq(["locked" in asSnapshot({ seq: 3, ledger: { ...l, locked: "yes" } })!.ledger, "locked" in asSnapshot({ seq: 3, ledger: { ...l, locked: null } })!.ledger, "locked" in asSnapshot({ seq: 3, ledger: l })!.ledger], [false, false, false], "and one that isn't, or says so in something that isn't a number, comes back open");
   const afterLock = shown({ ...h, server: lockedAt });
   eq([afterLock.locked, afterLock.entries.map((e) => e.id)], [1_700_000_000_000, ["e1", "t1", "e2"]], "what a phone recorded with no signal still shows on a ledger that was locked meanwhile");
+
+  // which account's "my ledgers" a ledger is in, on this phone; and the server's list of them
+  eq([back({ ...h, acct: "u1a2b3c4d5e6f" }).acct, back({ ...h, acct: "" }).acct, back({ ...h, acct: 7 }).acct, back({ ...h, acct: "has space" }).acct, back({ ...h, acct: "x".repeat(65) }).acct], ["u1a2b3c4d5e6f", undefined, undefined, undefined, undefined], "a ledger kept with the account it is in comes back with it; what isn't an account's id, without");
+  ok(listed({}, null) && listed({}, "u1") && listed({ acct: "u1" }, "u1") && !listed({ acct: "u1" }, null) && !listed({ acct: "u1" }, "u2"), "the list shows the phone's own ledgers, and the account's to that account signed in only");
+  const m1 = { id: "ledger-1", key, at: 5, owner, me: "s" };
+  eq(asMine({ ledgers: [{ me: "s", owner, at: 5, key, id: "ledger-1" }, { id: "ledger-2", key, at: 6, extra: 1 }] }), [m1, { id: "ledger-2", key, at: 6 }], "the server's list of my ledgers is read with what each has, and nothing extra");
+  eq(asMine({ ledgers: [{ ...m1, id: "x" }, { ...m1, key: "short" }, { ...m1, at: -1 }, { ...m1, owner: key }, { ...m1, me: 5 }, { ...m1, me: "has space" }, null, 7] }), [{ id: "ledger-1", key, at: 5, me: "s" }, { id: "ledger-1", key, at: 5, owner }, { id: "ledger-1", key, at: 5, owner }], "one that isn't a ledger's is left out (an id or a key that isn't one, no time); an owner's key that is the key, or who they are that isn't an id, is left off it");
+  for (const x of [null, [], { ledgers: 5 }, { error: "signin" }]) ok(asMine(x) === null, `${JSON.stringify(x)} is no list`);
+  ok(asDone({ ok: true }) === true && asDone({ ok: 1 }) === null && asDone(null) === null, "the server saying it is done, and only that");
 }
 
 // ---------- 7. what the screens say about the server ----------
@@ -704,6 +716,9 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
     ok(!classes.length, `${p}: styles only its own classes (split-…), the shared components' (ui-…) and the site's form field${classes.length ? ` (also ${classes.join(", ")})` : ""}`);
   }
 }
+
+// the site's sign-in, read by the name the site keeps it under (net.ts can't import it): if the site renames it, this says so
+ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 sends the site's sign-in, read from where the site keeps it (${SESSION_KEY}, src/lib/api.ts)`);
 
 // ---------- 11. still hidden ----------
 {

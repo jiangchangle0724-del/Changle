@@ -30,6 +30,12 @@ export type Held = {
   owner?: string;
   /** the key the owner is changing to, kept from the moment it is asked for until the server has it: then it is `key` */
   next?: string;
+  /**
+   * The changle.ca account whose "my ledgers" this ledger is in: set once the server has it there
+   * (syncing.ts, syncMine). None for a ledger kept on this phone only (opened or joined signed
+   * out, or not yet sent to the account).
+   */
+  acct?: string;
   /** has the server made it yet? A ledger opened with no signal is made on the first send. */
   made: boolean;
   /** the number of the server's last change, as last heard */
