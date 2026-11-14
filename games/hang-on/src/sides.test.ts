@@ -17,7 +17,7 @@ describe('难度', () => {
     expect(ids(1)).toEqual(['van-07', 'van-08', 'van-09', 'van-10', 'van-11', 'van-12']);
     expect(ids(2)[0]).toBe('table-13');
     expect(ids(2).at(-1)).toBe('van-24');
-    expect(([0, 1, 2] as const).reduce((n, t) => n + levelsFor('climb', t).length, 0)).toBe(LEVELS.length);
+    expect(levelsFor('climb', 0).length + levelsFor('climb', 1).length + levelsFor('climb', 2).length).toBe(LEVELS.length);
     for (const l of LEVELS) expect(levelsFor('climb', tierOfLevel(l))).toContain(l);
     for (const l of LEVELS.filter(isScene)) expect(tierOfLevel(l)).toBe(l.tier);
   });
