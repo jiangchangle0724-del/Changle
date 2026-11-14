@@ -487,6 +487,13 @@ input {
   line-height: var(--leading-tight);
   overflow-wrap: anywhere;
 }
+/* three ways to pass the gathering on, side by side on most phones: a size down from the page's
+   other buttons, and as tall as buttons that sit close together must be */
+.event-head .row .btn {
+  min-height: var(--tap-crowded);
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
 .meta {
   display: flex;
   flex-wrap: wrap;
@@ -1080,6 +1087,30 @@ html.has-sheet body {
 }
 .qr-ink {
   fill: var(--night);
+}
+/* a picture to pass around (the invitation, the result). Pressing and holding is allowed on it,
+   and nowhere else on the page: in WeChat that is how it's saved or sent on. */
+.share-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+  -webkit-touch-callout: default;
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+/* while it's being drawn: the picture's place, so the sheet doesn't jump when it arrives */
+.share-wait {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.share-actions .btn {
+  flex: 1 1 0;
 }
 .copy {
   display: flex;

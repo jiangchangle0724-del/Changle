@@ -1,4 +1,4 @@
-import { Copy, LogOut, Pencil, ShieldCheck, Trash2 } from "lucide-react";
+import { Copy, LogOut, Pencil, PersonStanding, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { TopBar } from "../components/TopBar";
@@ -215,6 +215,12 @@ function Profile({ onBack }: { onBack: () => void }) {
           <a className="btn btn-moon btn-sm" href="/admin">
             <ShieldCheck size={15} />
             {zh ? "后台" : "Back office"}
+          </a>
+        )}
+        {me.master && (
+          <a className="btn btn-moon btn-sm me-figure" href="/me/figure">
+            <PersonStanding size={15} />
+            {zh ? "3D 小人" : "3D figure"}
           </a>
         )}
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>

@@ -8,7 +8,9 @@ import { expect, test, type Page } from "@playwright/test";
 import type { OfferPage } from "../../src/api";
 import { SESSION } from "../accounts.ts";
 import { offerDoc } from "../sample.ts";
-import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, sheets, start, word } from "./help.ts";
+import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, putAway, sheets, start, word } from "./help.ts";
+
+test.afterEach(putAway);
 
 const add = (page: Page, name: string) => page.getByRole("button", { name: `加一份 ${name}` }).click();
 const more = (page: Page, name: string) => page.locator(".items").getByRole("button", { name: `增加 ${name}` }).click();

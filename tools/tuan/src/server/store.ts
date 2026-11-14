@@ -6,6 +6,7 @@
 // Every order carries a `rev` that goes up with each change; a change made from an older reading
 // changes nothing and says so, and the caller reads again.
 import type { MyOffer, MyShop } from "../api";
+import type { Edit, Used } from "../engine/edit";
 import type { NewOffer } from "../engine/offer";
 import type { Before, Taken } from "../engine/order";
 import type { NewShop } from "../engine/shop";
@@ -382,6 +383,67 @@ export async function insertOffer(db: D1Database, shopId: string, offer: NewOffe
           "INSERT INTO delivery_rules (id, offer_id, pos, label, min_total, fee, free_from, hours) SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.label'), json_extract(j.value, '$.min'), json_extract(j.value, '$.fee'), json_extract(j.value, '$.freeFrom'), json_extract(j.value, '$.hours') FROM json_each(?2) AS j",
         )
         .bind(id, withIds(offer.rules)),
+    ]);
+    return true;
+  } catch (e) {
+    return refusedByTable(e);
+  }
+}
+
+/** The parts of a group buy that some order names, cancelled orders too. */
+export async function usedOf(db: D1Database, offerId: string): Promise<Used> {
+  const [items, points, rules] = await db.batch<Row>([
+    db.prepare("SELECT DISTINCT l.item_id AS id FROM order_items l JOIN orders o ON o.code = l.order_code WHERE o.offer_id = ?").bind(offerId),
+    db.prepare("SELECT DISTINCT pickup_id AS id FROM orders WHERE offer_id = ? AND pickup_id IS NOT NULL").bind(offerId),
+    db.prepare("SELECT DISTINCT rule_id AS id FROM orders WHERE offer_id = ? AND rule_id IS NOT NULL").bind(offerId),
+  ]);
+  const ids = (rows: Row[]) => new Set(rows.map((row) => text(row.id)));
+  return { items: ids(items.results), points: ids(points.results), rules: ids(rules.results) };
+}
+
+/**
+ * Keep a merchant's change to a group buy (src/engine/edit.ts): the parts that stay are changed
+ * where they are, so the orders that name them still do; new ones get an id; the ones that go, go.
+ * One transaction. False, and nothing changed, when the tables turned it down: an order came in
+ * meanwhile that names a part that would go, or takes more of an item than its new limit.
+ */
+export async function saveEdit(db: D1Database, offerId: string, edit: Edit, newId: () => string): Promise<boolean> {
+  const withIds = <T extends { id: string | null }>(list: T[]) => JSON.stringify(list.map((one) => ({ ...one, id: one.id ?? newId() })));
+  const gone = (table: string, ids: string[]) => db.prepare(`DELETE FROM ${table} WHERE offer_id = ?1 AND id IN (SELECT value FROM json_each(?2))`).bind(offerId, JSON.stringify(ids));
+  try {
+    await db.batch([
+      db
+        .prepare("UPDATE offers SET title = ?2, note = ?3, closes_at = ?4, roster = ?5, status = CASE WHEN ?6 = 1 AND status = 'draft' THEN 'open' ELSE status END WHERE id = ?1")
+        .bind(offerId, edit.title, edit.note, edit.closesAt, edit.roster, edit.publish ? 1 : 0),
+      gone("items", edit.gone.items),
+      gone("pickup_points", edit.gone.points),
+      gone("delivery_rules", edit.gone.rules),
+      // (WHERE true: without it SQLite reads the ON of ON CONFLICT as the join's. A picture stays as it is: the document has none.)
+      db
+        .prepare(
+          `INSERT INTO items (id, offer_id, pos, section, name, detail, price, unit, step, least, stock, per_buyer, allergens)
+           SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.section'), json_extract(j.value, '$.name'), json_extract(j.value, '$.detail'),
+             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
+           FROM json_each(?2) AS j WHERE true
+           ON CONFLICT (id) DO UPDATE SET pos = excluded.pos, section = excluded.section, name = excluded.name, detail = excluded.detail, price = excluded.price, unit = excluded.unit,
+             step = excluded.step, least = excluded.least, stock = excluded.stock, per_buyer = excluded.per_buyer, allergens = excluded.allergens
+           WHERE items.offer_id = ?1`,
+        )
+        .bind(offerId, withIds(edit.items)),
+      db
+        .prepare(
+          `INSERT INTO pickup_points (id, offer_id, pos, name, address, hours)
+           SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.name'), json_extract(j.value, '$.address'), json_extract(j.value, '$.hours') FROM json_each(?2) AS j WHERE true
+           ON CONFLICT (id) DO UPDATE SET pos = excluded.pos, name = excluded.name, address = excluded.address, hours = excluded.hours WHERE pickup_points.offer_id = ?1`,
+        )
+        .bind(offerId, withIds(edit.points)),
+      db
+        .prepare(
+          `INSERT INTO delivery_rules (id, offer_id, pos, label, min_total, fee, free_from, hours)
+           SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.label'), json_extract(j.value, '$.min'), json_extract(j.value, '$.fee'), json_extract(j.value, '$.freeFrom'), json_extract(j.value, '$.hours') FROM json_each(?2) AS j WHERE true
+           ON CONFLICT (id) DO UPDATE SET pos = excluded.pos, label = excluded.label, min_total = excluded.min_total, fee = excluded.fee, free_from = excluded.free_from, hours = excluded.hours WHERE delivery_rules.offer_id = ?1`,
+        )
+        .bind(offerId, withIds(edit.rules)),
     ]);
     return true;
   } catch (e) {

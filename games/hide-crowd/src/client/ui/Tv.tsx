@@ -5,7 +5,7 @@
 import qrcode from "qrcode-generator";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
-import { MATCH_MS } from "../../engine";
+import { MATCH_MS, SCORE_TO_WIN } from "../../engine";
 import type { EventView, RoomView } from "../../room/protocol";
 import { BASE, joinUrl, onChangle } from "../base";
 import { other, t } from "../i18n";
@@ -14,7 +14,7 @@ import { ArenaFallback } from "./ArenaFallback";
 import { ArenaVote, ARENA_RULE, penaltyLine, PlayerChips } from "./Lobby";
 import { Icon } from "./chrome";
 import { PenaltyStamp } from "./Penalty";
-import { Scoreboard, useClock } from "./Play";
+import { clockText, Scoreboard, useClock } from "./Play";
 import { ResultTable, resultTitle } from "./Result";
 import { arenaEvents, Awards, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 import { useLanded } from "./useLanded";
@@ -104,7 +104,7 @@ function TvLobby({ view, table }: { view: RoomView; table: string | null }) {
         <ol class="tv-steps">
           <li>{t("tvStep1")}</li>
           <li>{t("tvStep2")}</li>
-          <li>{t(!view.settings.penalties ? "tvStep3Off" : view.settings.custom ? "tvStep3Custom" : "tvStep3")}</li>
+          <li>{t(!view.settings.penalties ? "tvStep3Off" : view.settings.custom ? "tvStep3Custom" : "tvStep3", { n: SCORE_TO_WIN, m: MATCH_MS / 60_000 })}</li>
         </ol>
       </div>
       <aside class="tv-lobby-side">
@@ -208,7 +208,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
           </div>
         </div>
         <div class={`tv-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
-          <b>{game.phase === "playing" ? seconds : 0}</b>
+          <b>{clockText(game.phase === "playing" ? seconds : 0)}</b>
           <span>{t("firstTo", { n: game.scoreToWin })}</span>
         </div>
         <div class="tv-hud-right">

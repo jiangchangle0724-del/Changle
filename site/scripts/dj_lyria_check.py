@@ -74,7 +74,7 @@ with sync_playwright() as p:
     ok(z["s"]["stalls"] == a["s"]["stalls"], f"no stall ({z['s']['stalls']})")
     ok(fake("/state")["plays"].get("PAUSE", 0) >= 1, "Lyria (here twice as fast as real time) is held back when it gets ahead")
 
-    ph.locator(".djp-seg button").nth(2).click()
+    ph.evaluate("() => window.__djHost.phase('peak')")
     ok(until(lambda: "Euphoric" in words(fake("/state")), 6000), "the host takes the night to the peak: Lyria is asked for it at once")
     ok(abs(fake("/state")["config"]["density"] - 0.9) < 1e-6, "dense and bright")
     ok(until(lambda: "is-peak" in stage(tv), 30000, 200), "the lights follow when the speakers get there")

@@ -29,6 +29,11 @@ import {
   eligible,
   estimateWait,
   guessCuisine,
+  cuisineGuess,
+  cuisinesOf,
+  foundBy,
+  moodFor,
+  NO_LIMITS,
   mentionsQueue,
   mergeLimits,
   rank,
@@ -145,7 +150,7 @@ test("cuisine guesses use Chinese and English names", () => {
   assert.equal(guessCuisine("Chef Tony 點心", "restaurant"), "cantonese");
   assert.equal(guessCuisine("渝味小面", "chinese_restaurant"), "sichuan");
   assert.equal(guessCuisine("Pho Hoa", "restaurant"), "vietnamese");
-  assert.equal(guessCuisine("Kintaro Ramen", "japanese_restaurant"), "japanese");
+  assert.equal(guessCuisine("Kintaro Ramen", "japanese_restaurant"), "ramen", "its name says more than Google's type (2026-11-13)");
   assert.equal(guessCuisine("Kintaro Ramen", "ramen_restaurant"), "ramen");
   assert.equal(guessCuisine("Some Bistro", "restaurant", ["french_restaurant", "restaurant"]), "french");
   assert.equal(guessCuisine("Mystery Spot", "restaurant"), "other");
@@ -166,6 +171,161 @@ test("cuisine guesses use Chinese and English names", () => {
   assert.equal(guessCuisine("新星茶餐厅 New Star Cafe", "cafe"), "hk_cafe");
   assert.equal(guessCuisine("Liuyishou", "chinese_restaurant", ["chinese_restaurant", "hot_pot_restaurant", "restaurant"]), "hotpot", "its other types say more");
   assert.equal(guessCuisine("Golden Spot", "chinese_restaurant", ["chinese_restaurant", "restaurant"]), "chinese");
+});
+
+/**
+ * Places as Google might give them in Greater Vancouver (names, main type, other types, Google's
+ * descriptions), what they are, and what else they count for. One or more for every cuisine on the
+ * menu, and the mix-ups that used to happen (Steve, 2026-11-13: The Meat Up BBQ, an AYCE skewer and
+ * hot pot place, counted as steak and came after Earls for a table that wanted 串串).
+ */
+const KNOWN: [name: string, primary: string, types: string[], text: string, cuisine: CuisineId, also: CuisineId[]][] = [
+  // Cantonese, HK cafés
+  ["Kirin Seafood Restaurant 麒麟海鮮酒家", "seafood_restaurant", ["seafood_restaurant", "chinese_restaurant", "restaurant"], "", "cantonese", ["seafood"]],
+  ["Sun Sui Wah Seafood Restaurant", "chinese_restaurant", [], "", "cantonese", ["seafood"]],
+  ["Fisherman's Terrace Seafood", "chinese_restaurant", [], "", "cantonese", ["seafood"]],
+  ["HK BBQ Master", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"], "", "cantonese", []],
+  ["Gourmet BBQ", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"], "Takeout counter for Cantonese-style roast duck and BBQ pork.", "cantonese", []],
+  ["Chiu Chow Lou 潮州樓", "restaurant", [], "", "cantonese", []],
+  ["港式点心楼", "restaurant", [], "", "cantonese", []],
+  ["Cafe Gloucester 告羅士打茶餐廳", "breakfast_restaurant", [], "", "hk_cafe", ["brunch"]],
+  ["Lucky Cafe", "chinese_restaurant", ["chinese_restaurant", "cafe"], "", "hk_cafe", []],
+  // Sichuan, hot pot
+  ["Szechuan Chongqing Seafood Restaurant", "chinese_restaurant", [], "", "sichuan", ["seafood"]],
+  ["Chef Tony", "chinese_restaurant", [], "Busy spot for Sichuan and Hunan dishes.", "sichuan", []],
+  ["万州烤鱼 Wanzhou Grilled Fish", "chinese_restaurant", [], "", "sichuan", []],
+  ["Haidilao Hot Pot", "hot_pot_restaurant", [], "", "hotpot", []],
+  ["小龙坎 Xiaolongkan", "hot_pot_restaurant", [], "", "hotpot", []],
+  ["蜀九香火锅", "hot_pot_restaurant", [], "", "hotpot", ["sichuan"]],
+  ["老北京涮肉", "chinese_restaurant", [], "", "hotpot", ["northern"]],
+  ["港式火锅 HK Hot Pot", "restaurant", [], "", "hotpot", []],
+  ["Boiling Point", "taiwanese_restaurant", ["taiwanese_restaurant", "hot_pot_restaurant"], "", "taiwanese", ["hotpot"]],
+  // Taiwanese, Shanghai
+  ["Pearl Castle Café", "taiwanese_restaurant", [], "", "taiwanese", []],
+  ["台湾滷肉饭", "restaurant", [], "", "taiwanese", []],
+  ["豪大大鸡排 Hot-Star", "fast_food_restaurant", [], "", "taiwanese", []],
+  ["Shanghai River Restaurant", "chinese_restaurant", [], "", "shanghai", []],
+  ["上海酒家", "chinese_restaurant", [], "", "shanghai", []],
+  ["苏杭小馆", "chinese_restaurant", [], "", "shanghai", []],
+  ["Dinesty Dumpling House", "taiwanese_restaurant", [], "", "taiwanese", ["noodles"]],
+  // Northern, noodles
+  ["Peaceful Restaurant", "chinese_restaurant", [], "Northern Chinese spot for hand-pulled noodles and dumplings.", "northern", []],
+  ["Lanzhou Beef Noodle 兰州牛肉面", "chinese_noodle_restaurant", [], "", "northern", ["noodles"]],
+  ["东北人家", "chinese_restaurant", [], "", "northern", []],
+  ["Mr. Noodle", "noodle_shop", [], "", "noodles", []],
+  ["Dumpling King 饺子王", "dumpling_restaurant", [], "", "noodles", []],
+  ["金拉面", "chinese_noodle_restaurant", [], "", "noodles", []],
+  // Chinese barbecue skewers
+  ["The Meat Up BBQ 聚点串吧", "barbecue_restaurant", ["barbecue_restaurant", "restaurant"], "", "chinese_bbq", []],
+  ["The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"], "All-you-can-eat Chinese BBQ skewers and hot pot.", "chinese_bbq", ["hotpot"]],
+  ["The Meat Up BBQ", "hot_pot_restaurant", ["hot_pot_restaurant", "barbecue_restaurant", "restaurant"], "", "hotpot", ["chinese_bbq"]],
+  ["Northern BBQ", "barbecue_restaurant", [], "", "chinese_bbq", []],
+  ["Mr. Skewer", "restaurant", [], "", "chinese_bbq", []],
+  ["新疆烤串 Xinjiang Skewers", "chinese_restaurant", [], "", "chinese_bbq", ["northern"]],
+  ["四川串串香", "chinese_restaurant", [], "", "chinese_bbq", ["sichuan"]],
+  // Other Chinese
+  ["Golden Spot", "chinese_restaurant", [], "", "chinese", []],
+  ["Mongolie Grill", "mongolian_barbecue_restaurant", [], "", "chinese", []],
+  // Japanese, ramen, izakaya
+  ["Sushi Garden", "sushi_restaurant", [], "", "japanese", []],
+  ["Kobe Japanese Steak House", "steak_house", [], "", "japanese", ["steak"]],
+  ["CoCo Ichibanya", "japanese_curry_restaurant", [], "", "japanese", []],
+  ["Kintaro Ramen", "japanese_restaurant", [], "", "ramen", ["japanese"]],
+  ["Marutama Ramen", "ramen_restaurant", [], "", "ramen", []],
+  ["Gyu-Kaku Japanese BBQ", "yakiniku_restaurant", [], "", "izakaya", []],
+  ["牛角日式烧肉", "barbecue_restaurant", [], "", "izakaya", []],
+  ["Yakitori Skewer Bar", "restaurant", [], "", "izakaya", []],
+  // Korean, Korean BBQ
+  ["Damso Modern Korean", "korean_restaurant", [], "", "korean", []],
+  ["장모집 Jang Mo Jib", "restaurant", [], "", "korean", []],
+  ["Chicko Chicken", "chicken_restaurant", ["chicken_restaurant", "korean_restaurant"], "", "korean", []],
+  ["Gogi House", "korean_barbecue_restaurant", [], "", "kbbq", []],
+  ["Insadong Korean BBQ", "korean_restaurant", [], "", "kbbq", ["korean"]],
+  ["Sura", "barbecue_restaurant", ["barbecue_restaurant", "korean_restaurant"], "", "kbbq", ["korean"]],
+  // Southeast and South Asian
+  ["Pho Thai Hoa Noodle House", "vietnamese_restaurant", [], "", "vietnamese", []],
+  ["Saigon Noodle House", "noodle_shop", [], "", "vietnamese", []],
+  ["Kin Kao", "thai_restaurant", [], "", "thai", []],
+  ["Thai Noodle House", "restaurant", [], "", "thai", []],
+  ["Jollibee", "fast_food_restaurant", ["fast_food_restaurant", "hamburger_restaurant"], "", "filipino", []],
+  ["韩式炸鸡", "chicken_restaurant", [], "", "korean", []],
+  ["Kirin Restaurant", "seafood_restaurant", [], "Upscale Cantonese restaurant with dim sum and live seafood.", "cantonese", ["seafood"]],
+  ["Old Beijing Skewers", "restaurant", [], "", "chinese_bbq", ["northern"]],
+  ["Fengmao Kebab", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"], "", "chinese_bbq", []],
+  ["Satay Skewer Bar", "restaurant", [], "", "sea", []],
+  ["Kebab House", "kebab_shop", [], "", "middle_eastern", []],
+  ["Kopitiam", "restaurant", [], "", "sea", []],
+  ["Hainanese Chicken Rice", "restaurant", [], "", "sea", []],
+  ["Nepali Kitchen", "restaurant", [], "", "indian", []],
+  // Western and more
+  ["Pizza Garden", "pizza_restaurant", [], "", "italian", []],
+  ["Arepa Bar", "restaurant", [], "", "mexican", []],
+  ["Earls Kitchen + Bar", "american_restaurant", ["american_restaurant", "bar", "restaurant"], "", "western", []],
+  ["Cactus Club Cafe", "american_restaurant", ["american_restaurant", "restaurant"], "", "western", []],
+  ["Cactus Club Cafe", "restaurant", ["american_restaurant", "restaurant"], "", "western", []],
+  ["The Keg Steakhouse + Bar", "steak_house", [], "", "steak", []],
+  ["Memphis Blues Barbeque House", "barbecue_restaurant", [], "Southern-style BBQ: brisket, ribs and pulled pork.", "steak", []],
+  ["Bodega on Main", "spanish_restaurant", [], "", "french", []],
+  ["Kosmos Greek", "greek_restaurant", [], "", "mediterranean", []],
+  ["Jamjar", "lebanese_restaurant", [], "", "middle_eastern", []],
+  ["Blue Water Cafe", "seafood_restaurant", ["seafood_restaurant", "restaurant", "bar"], "", "seafood", []],
+  ["Joe Fortes Seafood & Chop House", "seafood_restaurant", [], "", "seafood", ["steak"]],
+  ["MeeT in Gastown", "vegan_restaurant", [], "", "vegetarian", []],
+  ["Café Medina", "brunch_restaurant", [], "", "brunch", []],
+  ["Siegel's Bagels", "bagel_shop", [], "", "brunch", []],
+  ["Saint Germain Bakery", "bakery", [], "", "cafe", []],
+  ["台湾甜品屋", "dessert_shop", [], "", "cafe", []],
+];
+
+test("cuisine guesses: names, types and Google's descriptions, for every cuisine on the menu (2026-11-13)", () => {
+  for (const [name, primary, types, text, cuisine, also] of KNOWN) {
+    const g = cuisineGuess(name, primary, types, text);
+    assert.equal(g.cuisine, cuisine, `${name} (${primary}): ${g.cuisine}, not ${cuisine}`);
+    assert.deepEqual(g.also, also, `${name}: also ${g.also}`);
+  }
+  // Every cuisine on the menu is in there, as the main one or as another.
+  for (const c of MENU) assert.ok(KNOWN.some(([, , , , main, also]) => main === c || also.includes(c)), c);
+});
+
+test("a cuisine search tells what a vague place is, whatever search found it first; it never overrides what's known", () => {
+  const meatUp = cuisineGuess("The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"]);
+  assert.deepEqual([meatUp.cuisine, meatUp.sure, meatUp.vague], ["chinese", false, "bbq"], "Chinese barbecue: roast meats or skewers, nothing says");
+  assert.equal(foundBy(meatUp, "chinese_bbq").cuisine, "chinese_bbq");
+  // Its English name only, Google's barbecue type only.
+  const bare = cuisineGuess("The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "restaurant"]);
+  assert.deepEqual([bare.cuisine, bare.vague], ["steak", "bbq"]);
+  assert.equal(foundBy(bare, "chinese_bbq").cuisine, "chinese_bbq");
+  // American barbecue a description calls so stays it.
+  const memphis = cuisineGuess("Memphis Blues Barbeque House", "barbecue_restaurant", [], "Southern-style BBQ: brisket, ribs and pulled pork.");
+  assert.equal(foundBy(memphis, "chinese_bbq").cuisine, "steak");
+  // A coffee chain isn't an HK café; a "Cafe" Google also calls a restaurant may be.
+  const starbucks = cuisineGuess("Starbucks", "coffee_shop", ["coffee_shop", "cafe", "store"]);
+  assert.equal(foundBy(starbucks, "hk_cafe").cuisine, "cafe");
+  assert.equal(foundBy(cuisineGuess("Lucky Cafe", "cafe", ["cafe", "restaurant"]), "hk_cafe").cuisine, "hk_cafe");
+  // "Chinese restaurant" and nothing more: what the search was for.
+  assert.equal(foundBy(cuisineGuess("Golden Spot", "chinese_restaurant"), "sichuan").cuisine, "sichuan");
+  // A noodle shop stays one.
+  assert.deepEqual(foundBy(cuisineGuess("Mr. Noodle", "noodle_shop"), "northern"), { cuisine: "northern", also: ["noodles"], sure: true, zh: false });
+  // Known: Cantonese stays Cantonese; a Xinjiang place a skewer search finds grills skewers too.
+  const kirin = cuisineGuess("Kirin Seafood Restaurant 麒麟海鮮酒家", "seafood_restaurant", ["seafood_restaurant", "chinese_restaurant"]);
+  assert.deepEqual(foundBy(kirin, "sichuan"), kirin);
+  assert.deepEqual(foundBy(cuisineGuess("新疆餐厅", "chinese_restaurant"), "chinese_bbq").also, ["chinese_bbq"]);
+});
+
+test("a place that is two cuisines counts for whoever liked either, and is checked as both for allergies", () => {
+  const meatUp = place({ cuisine: "hotpot", also: ["chinese_bbq"], rating: 4.0, ratings: 400 });
+  const earls = place({ cuisine: "western", rating: 4.6, ratings: 6000, traits: { kids: true, kidsMenu: true, groups: true, family: true } });
+  const cactus = place({ cuisine: "western", rating: 4.5, ratings: 5000, traits: { kids: true, kidsMenu: true, groups: true } });
+  const skewers = place({ cuisine: "chinese_bbq", rating: 4.2, ratings: 300 });
+  const ids = rank({ places: [earls, cactus, meatUp, skewers], limits: NO_LIMITS, likes: { chinese_bbq: 1 }, bans: {}, center, range: "drive15", now: NOW, occasion: "family" });
+  assert.deepEqual(ids.slice(0, 2).sort(), [meatUp.id, skewers.id].sort(), "both skewer places before Earls and Cactus");
+  assert.deepEqual(moodFor(meatUp, { chinese_bbq: 2, hotpot: 1 }, { hotpot: 1 }), { likes: 2, bans: 1, liked: ["chinese_bbq", "hotpot"] });
+  assert.deepEqual(counts([meatUp, skewers]), { hotpot: 1, chinese_bbq: 2 });
+  // A Cantonese seafood restaurant is a seafood place too: fish is in most of its dishes.
+  const kirin = place({ cuisine: "cantonese", also: ["seafood"] });
+  const fish = { ...NO_LIMITS, allergies: { fish: "avoid" as const } };
+  assert.deepEqual(check(kirin, fish).concerns, [{ k: "allergy", allergen: "fish", level: "avoid" }]);
+  assert.notEqual(avoidTip("fish", cuisinesOf(kirin)), AVOID_GENERIC.fish, "the seafood tip, not the generic one");
 });
 
 test("round 1's menu: every cuisine but 'other', each in a group, each with a way to search for it", () => {

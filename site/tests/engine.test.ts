@@ -7,6 +7,7 @@ import { limboLift, limboStyle } from "../src/party/limbo/music";
 import { GROOVES } from "../src/lib/music";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
 import { DECK, MIX_FX, MIXER, SHARED_BY } from "../src/shared/dj/types";
+import { DANMU, DANMU_READY } from "../src/shared/dj/danmu";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, nextWriters, presentMs } from "../src/shared/punchline";
@@ -5740,6 +5741,81 @@ test("rogue: the camera and the nose rest a minute after each use; a new holder 
   t.g(rv().drawer ?? d, "next");
   t.g(d, "camera");
   ok(rv().interrupt?.kind === "camera", "and the new holder can use it at once");
+});
+
+test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕表情之类的，也可以自定义\"): a ready line or one's own words for every screen, the worst masked, one a second and a half a phone, fresh ones only in the view, the host's switch", () => {
+  const e = new RoomEngine(freshRoom("DJDM", clock), host);
+  e.screenHello("tv-dm", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const lines = (pid = "p1") => dv(pid).danmu ?? [];
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+
+  ok(dv("p1").danmuOn === true && lines().length === 0, "on from the start, nothing yet");
+  const o = g("p2", "say", { p: 1 });
+  ok(o.light && !o.persist, "a line is light: sent at once, stored with the next save");
+  ok(lines().length === 1 && lines()[0].pid === "p2" && lines()[0].p === 1 && lines()[0].t === undefined && lines()[0].n === 1, "Ben's ready one, in every view (the big screen's too: before the music starts as well)");
+  ok(nothing(g("p2", "say", { p: 2 })), "another at once: not taken");
+  ok(!nothing(g("p1", "say", { p: 0 })) && lines().map((l) => l.n).join() === "1,2", "Amy's own gap: hers is, numbered on (a screen shows each once)");
+  advance(DANMU.gapMs);
+  g("p2", "say", { t: "  这首\n太好听了  " });
+  ok(lines().at(-1)!.t === "这首 太好听了" && lines().at(-1)!.p === undefined, `his own words, one line (${lines().at(-1)!.t})`);
+  advance(DANMU.gapMs);
+  g("p2", "say", { t: "F.U.C.K 傻逼们 spicy 生日你" });
+  ok(lines().at(-1)!.t === "*.*.*.* **们 spicy 生日你", `the worst words starred out, whatever the dots; everyday words left (${lines().at(-1)!.t})`);
+  advance(DANMU.gapMs);
+  g("p2", "say", { t: "哈".repeat(60) });
+  ok(Array.from(lines().at(-1)!.t!).length === DANMU.chars, `${DANMU.chars} characters at most`);
+  advance(DANMU.gapMs);
+  ok(nothing(g("p2", "say", { t: "   " })) && nothing(g("p2", "say", {})) && nothing(g("p2", "say", { p: DANMU_READY.length })) && nothing(g("p2", "say", { p: 1.5 })) && nothing(g("p2", "say", { p: -1 })), "nothing to say, or no such ready one: not taken");
+  ok(nothing(g("p2", "say", { p: "1" })), "a ready one's number, not text");
+  ok(lines().map((l) => l.n).join() === "3,4,5", `the view has the fresh ones only (${lines().map((l) => l.n).join()})`);
+  advance(DANMU.freshMs);
+  ok(lines().length === 0, "a few seconds on, none in the view: a screen opened later doesn't fly the old ones");
+
+  // the room keeps the latest few
+  for (let i = 0; i < DANMU.keep + 5; i++) {
+    g(i % 2 ? "p1" : "p2", "say", { p: i % DANMU_READY.length });
+    advance(DANMU.gapMs / 2);
+  }
+  ok(lines().length > 0 && lines().every((l) => clock - l.at < DANMU.freshMs) && lines().at(-1)!.n === 5 + DANMU.keep + 5, `the latest only, numbered on (${lines().length}, last ${lines().at(-1)!.n})`);
+
+  // the host's switch
+  advance(DANMU.gapMs);
+  ok(nothing(g("p2", "danmu", { on: false })) && dv("p2").danmuOn === true, "only the host turns them off");
+  g("p1", "danmu", { on: false });
+  ok(dv("p2").danmuOn === false && lines("p2").length === 0, "off: and the lines on their way go");
+  advance(DANMU.gapMs);
+  ok(nothing(g("p2", "say", { p: 0 })) && nothing(g("p1", "say", { t: "hi" })), "off: nobody's taken, the host's neither");
+  ok(nothing(g("p1", "danmu", { on: false })), "off again: nothing");
+  g("p1", "danmu", { on: true });
+  g("p2", "say", { p: 3 });
+  ok(lines().length === 1 && lines()[0].p === 3, "on again");
+
+  // another set keeps the switch and the count
+  e.screenAct("tv-dm", { x: "live", source: "fake" });
+  e.flush();
+  g("p1", "danmu", { on: false });
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  g("p1", "danmu", { on: true });
+  advance(DANMU.gapMs);
+  g("p2", "say", { p: 0 });
+  ok(dv("p1").danmuOn === true && lines().at(-1)!.n === 5 + DANMU.keep + 5 + 2, `another set: the count carries on (${lines().at(-1)!.n})`);
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

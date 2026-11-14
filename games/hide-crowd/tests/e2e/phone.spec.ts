@@ -1,13 +1,24 @@
-// One phone: practice against the computer, the screens a phone shows (sideways: an upright phone is
-// asked to turn), and an iPhone's ways to full screen (hide Safari's toolbar, or the Home Screen).
+// One phone: practice against the computer (it opens on the four places to pick from), the screens a
+// phone shows (sideways: an upright phone is asked to turn), and an iPhone's ways to full screen (hide
+// Safari's toolbar, or the Home Screen).
 import { expect } from "@playwright/test";
 import { bigTargets, newRoom, noErrors, noSideScroll, phone, shot, test, until } from "./helpers";
 
-test("practice: one phone against three computer rivals hidden in the crowd", async ({ browser }) => {
+test("practice: pick a place, then one phone against three computer rivals hidden in the crowd", async ({ browser }) => {
   const me = await phone(browser, "Steve");
   await me.goto("/hide/practice?flat=1");
+  // it opens on the four places, and waits
+  await expect(me.getByRole("heading", { name: "选个地方练手" })).toBeVisible();
+  await expect(me.locator(".pick-option")).toHaveCount(4);
+  await expect(me.locator(".practice-pick .hint")).toContainText("一局 3 分钟，先到 5 分的赢");
+  await until(me, (v) => v.phase === "lobby" && v.players.length === 4);
+  await noSideScroll(me);
+  await bigTargets(me);
+  await shot(me, "phone-practice-pick");
+  await me.getByRole("button", { name: /温哥华海堤公园/ }).click();
   await expect(me.locator(".play")).toBeVisible();
-  await until(me, (v) => v.phase === "playing" && v.players.length === 4 && !!v.game?.me);
+  await until(me, (v) => v.phase === "playing" && v.players.length === 4 && !!v.game?.me && v.game.arena === "plaza");
+  await expect(me.locator(".hud-clock")).toHaveText(/^[23]:\d\d$/);
   await expect(me.locator(".controls .move-punch")).toBeVisible();
   await me.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
   await noSideScroll(me);
@@ -19,7 +30,7 @@ test("practice: one phone against three computer rivals hidden in the crowd", as
 
 test("held upright, a phone is asked to turn sideways, and the round carries on underneath", async ({ browser }) => {
   const kev = await phone(browser, "Kev", "zh", { size: { width: 390, height: 844 } });
-  await kev.goto("/hide/practice?flat=1");
+  await kev.goto("/hide/practice?arena=plaza&flat=1");
   test.skip(!(await kev.evaluate(() => matchMedia("(pointer: coarse)").matches)), "this browser doesn't call itself a touch screen");
   await expect(kev.locator(".turn-layer")).toBeVisible();
   await expect(kev.locator(".turn-title")).toHaveText("横过来玩");
@@ -140,7 +151,7 @@ test("an iPhone in Safari is shown, once by itself, how to play full screen: hid
 test("in a round on an iPhone, while Safari's bars take part of the screen, a line says how to hide them", async ({ browser }) => {
   // an iPhone 15 held sideways in Safari: 393 points of screen, 283 left under the toolbar and the tab bar
   const steve = await phone(browser, "Steve", "zh", { iphone: true, size: { width: 852, height: 283 }, screen: { width: 393, height: 852 } });
-  await steve.goto("/hide/practice?flat=1");
+  await steve.goto("/hide/practice?arena=plaza&flat=1");
   await until(steve, (v) => v.phase === "playing" && !!v.game?.me);
   const hint = steve.locator(".bars-hint");
   await expect(hint).toContainText("隐藏工具栏");
@@ -162,7 +173,7 @@ test("in a round on an iPhone, while Safari's bars take part of the screen, a li
   await expect(steve.locator(".bars-hint")).toHaveCount(0);
   // with the bars hidden (the whole screen's height), there's nothing to say
   const full = await phone(browser, "Mia", "zh", { iphone: true, size: { width: 852, height: 393 }, screen: { width: 393, height: 852 } });
-  await full.goto("/hide/practice?flat=1");
+  await full.goto("/hide/practice?arena=plaza&flat=1");
   await until(full, (v) => v.phase === "playing" && !!v.game?.me);
   await full.waitForTimeout(800);
   await expect(full.locator(".bars-hint")).toHaveCount(0);
