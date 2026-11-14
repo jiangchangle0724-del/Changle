@@ -71,6 +71,11 @@ export type GameMeta = {
     note?: T;
     /** the stage is this phone or computer, mirrored to the TV (一起跳, Steve 11-11): the button and its help say so */
     mirror?: boolean;
+    /**
+     * it also plays on phones alone, with no TV (抓紧了's phones-only room, Steve 11-13: 「用手机玩」): on a
+     * phone the card's first button opens `url` (a computer is the stage, so it gets no such button)
+     */
+    phone?: { url: string; note: T };
   };
   /**
    * its kind, which colors its card (decided 2026-11-01: cards by kind, not one color per game; the
@@ -512,10 +517,14 @@ export const GAMES: GameMeta[] = [
     category: "online",
     minutes: 15,
     ready: true,
+    // three ways in (Steve 11-13): phones alone, this device as the stage on the TV, or join a stage.
+    // `?phone=0` keeps a phone on the stage (opened on a phone, /hang-on/ is a phones-only room)
     stage: {
-      screen: "/hang-on/",
+      screen: "/hang-on/?phone=0",
       join: "/hang-on/pad/",
-      note: t("游戏在大屏上，手机当手柄。没有电视，一部手机也能开", "The game plays there and phones are controllers. No TV? One phone can host."),
+      note: t("电视上放画面，大家用手机当手柄", "The game shows on the TV. Phones are the controllers."),
+      mirror: true,
+      phone: { url: "/hang-on/?phone=1", note: t("不用电视，大家都在自己手机上玩", "No TV needed. Everyone plays on their own phone.") },
     },
     newUntil: "2026-12-11",
   },
