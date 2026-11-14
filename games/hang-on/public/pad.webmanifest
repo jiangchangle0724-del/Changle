@@ -1,0 +1,15 @@
+{
+  "name": "抓紧了 · Hang On",
+  "short_name": "抓紧了",
+  "description": "手机当手柄：changle.ca/hang-on 的手柄页",
+  "start_url": "/hang-on/pad/",
+  "scope": "/hang-on/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1d2a4a",
+  "theme_color": "#1d2a4a",
+  "icons": [
+    { "src": "/hang-on/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/hang-on/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
