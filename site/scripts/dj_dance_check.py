@@ -1,5 +1,6 @@
 """打碟 · DJ Booth, dancing along (跟着跳), in browsers: a TV and two phones. The TV's coach dances the
-routine's move on the speaker's beat, names it and the next; two phones start dancing (the motion
+routine's move on the speaker's beat (the night's warm-up: sitting first), names it, says how to do it
+(Steve on Nov 14), and the next; two phones start dancing (the motion
 sensor, simulated: Amy's hand moves on every beat, Ben's between the beats, then on them too); each
 phone says how its beats went and sends its bars; the room counts them, the TV's floor shows who
 follows well, the whole floor dancing together fills the combo to fireworks, and the night's recap
@@ -10,7 +11,7 @@ Chromium without even downloading three.js); a second TV, told to take any WebGL
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
 usage: python3 scripts/dj_dance_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
 """
-import os, sys, tempfile, time
+import os, re, sys, tempfile, time
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -20,7 +21,12 @@ BASE = "http://127.0.0.1:5173/"
 WHICH = next((a for a in sys.argv[1:] if a in ("chromium", "webkit")), "chromium")
 OUT = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "dj-dance"))
 os.makedirs(OUT, exist_ok=True)
-NAMES = ["Step and clap", "Raise the roof", "Hip sway", "Fist pump", "Disco point", "Bounce", "Wave", "Twist", "Running man", "Shimmy"]
+# the moves (shared/dj/dance.ts), by name in each language, and how each is done
+_src = open(os.path.join(os.path.dirname(__file__), "..", "src", "shared", "dj", "dance.ts"), encoding="utf-8").read()
+MOVES = {m[0]: {"zh": m[1], "en": m[2], "sit": m[3] == "true"} for m in re.findall(r'^\s+(\w+): \{ zh: "([^"]+)", en: "([^"]+)", sit: (\w+),', _src, re.M)}
+HOWS = re.findall(r'how: \{ zh: "([^"]+)", en: "([^"]+)" \}', _src)
+NAMES = [m["en"] for m in MOVES.values()]
+NAMES_ZH = [m["zh"] for m in MOVES.values()]
 
 # a hand that moves hard within 80 ms of every beat, as an arm's swing does (`off`: half a beat later,
 # between the beats, still outside the 150 ms window), and gently otherwise, on the phone's own clock
@@ -57,6 +63,9 @@ with sync_playwright() as p:
     ok(until(lambda: tv.locator(".dj-coach.is-on").count() == 1, 8000), "the coach is on the TV, dancing")
     first = text(tv, ".dj-coach-now")
     ok(first in NAMES, f"the move, by name ({first})")
+    how = text(tv, ".dj-coach-how")
+    ok(any(how == h[1] for h in HOWS), f"and how to do it, under it ({how!r})")
+    ok(MOVES[next(k for k, m in MOVES.items() if m["en"] == first)]["sit"], "the warm-up starts sitting down")
     ok(tv.evaluate("() => document.querySelector('.dj-coach-svg').childElementCount") > 0, "the coach is drawn")
     # the robot in 3D, where a graphics chip draws it: none here, the drawn coach stays and dances
     is3d = until(lambda: (lambda x: x if x in ("on", "software", "none", "slow", "small", "failed") else None)(tv.evaluate("() => window.__coach3dIs")), 20000, 200)
@@ -92,7 +101,8 @@ with sync_playwright() as p:
         ph.context.grant_permissions(["accelerometer", "gyroscope"], origin=BASE.rstrip("/"))
         ph.get_by_role("button", name="开始跟着跳").click()
     ok(until(lambda: amy.locator(".djk-dance.is-on").count() == 1 and ben.locator(".djk-dance.is-on").count() == 1, 3000), "both start dancing (the motion sensor allowed)")
-    ok(until(lambda: text(amy, ".djk-dance-now") in [n for n in ("拍手踏步", "举手顶天", "左右摇", "出拳", "迪斯科", "弹跳", "双手挥", "扭一扭", "跑步人", "抖肩")], 3000), f"the phone names the same routine ({text(amy, '.djk-dance-now')})")
+    ok(until(lambda: text(amy, ".djk-dance-now") in NAMES_ZH, 3000), f"the phone names the same routine ({text(amy, '.djk-dance-now')})")
+    ok(any(text(amy, ".djk-dance-how") == h[0] for h in HOWS), f"and says how ({text(amy, '.djk-dance-how')!r})")
     ok(until(lambda: "踩准了" in text(amy, ".djk-dance-beat"), 4000, 50), "Amy's beats: on the beat")
     ok(until(lambda: "这一小节 4/4" in text(amy, ".djk-dance-score"), 6000), f"her bar: 4 of 4 ({text(amy, '.djk-dance-score')!r})")
     ok(until(lambda: "这一小节 0/4" in text(ben, ".djk-dance-score"), 6000), f"Ben's, between the beats: 0 of 4 ({text(ben, '.djk-dance-score')!r})")
@@ -135,8 +145,20 @@ with sync_playwright() as p:
     tv2.locator(".dj-start-btn").click()
     ok(until(lambda: tv2.locator(".dj-coach-3d canvas").count() == 1 and tv2.locator(".dj-coach-svg.is-off").count() == 1, 25000), "a TV that takes any WebGL: the 3D robot loads and takes over from the drawn coach")
     c1 = until(lambda: tv2.evaluate("() => window.__coach3d"), 15000, 200) or {}
-    c2 = until(lambda: (lambda c: c if c and c["at"] != c1.get("at") else None)(tv2.evaluate("() => window.__coach3d")), 8000, 200)
-    ok(c2 and c2["clip"] in ("Dance", "ThumbsUp", "Punch", "Wave", "Jump", "Running", "Yes"), f"and dances on the beat ({c2})")
+    # (between a move danced sitting and one standing it gets up for half a second: a moment after)
+    c2 = until(lambda: (lambda c: c if c and c["beat"] != c1.get("beat") and c["beat"] >= 0 and c["move"] in MOVES and c["sit"] == (1 if MOVES[c["move"]]["sit"] else 0) else None)(tv2.evaluate("() => window.__coach3d")), 8000, 200)
+    ok(c2, f"and dances the routine on the beat, sitting for a move danced sitting ({c2 or tv2.evaluate('() => window.__coach3d')})")
+    tv2.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-3-robot-sit.png"))
+    # the peak: standing, the bounciest
+    host2 = phone(chrome, "Dee", "en")
+    host2.goto(BASE + f"#/r/{tv2.locator('.dj-join-code').inner_text().strip()}", wait_until="load")
+    host2.locator(".join-card input").fill("Dee")
+    host2.locator(".join-card button[type=submit]").click()
+    until(lambda: host2.evaluate("() => !!window.__djHost"), 10000)
+    host2.evaluate("() => window.__djHost.phase('peak')")
+    c3 = until(lambda: (lambda c: c if c and c["move"] and not MOVES[c["move"]]["sit"] and c["sit"] == 0 else None)(tv2.evaluate("() => window.__coach3d")), 10000, 200)
+    ok(c3 and text(tv2, ".dj-coach-now") in [MOVES[k]["en"] for k in ("bounce", "fistPump", "raiseRoof", "shimmy", "waveBoth", "point")], f"the peak: it gets up and dances the peak's moves ({c3}, {text(tv2, '.dj-coach-now')})")
+    host2.context.close()
     tv2.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-3-robot.png"))
     tv2.context.close()
 

@@ -631,6 +631,16 @@
   font-size: var(--text-2xl);
   font-weight: 900;
 }
+/* how to do it, under its name */
+.djk-dance-how {
+  max-width: 32ch;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: var(--leading);
+  text-align: center;
+  text-wrap: balance;
+}
 .djk-dance-next {
   color: var(--color-text-2);
   font-size: var(--text-sm);
@@ -1172,22 +1182,27 @@
 }
 
 /* bottom centre, between the night's curve and the 🔥 */
+/* between the night's curve and the 🔥 count (a long English one on two lines, never over them) */
 .dk-hint {
   position: absolute;
   bottom: 36px;
-  left: 50%;
+  left: 840px;
   z-index: 5;
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  width: max-content;
+  max-width: 740px;
   margin: 0;
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--r-pill);
+  border-radius: var(--r-panel);
   background: color-mix(in oklab, var(--color-bg) 70%, transparent);
   color: var(--color-text-2);
   font-size: var(--text-xl);
   font-weight: 700;
-  white-space: nowrap;
+  line-height: var(--leading-tight);
+  text-align: center;
+  text-wrap: balance;
   translate: -50% 0;
 }
 

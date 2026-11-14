@@ -770,22 +770,33 @@
   }
 }
 
-/* 跟着跳: the coach on the left of the floor, the move's name, the next, the floor together */
+/* 跟着跳: the coach on the left of the floor (its name on the card's top edge), the move's name, how
+   to do it, the next, the floor together */
 .dj-coach {
   position: absolute;
-  top: 232px;
+  top: 226px;
   left: 40px;
   z-index: 6;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 300px;
-  padding: 16px 18px 18px;
+  padding: 22px 18px 16px;
   border-radius: 28px;
   background: rgba(10, 6, 18, 0.72);
   box-shadow: inset 0 0 0 1px var(--line-soft);
   text-align: center;
+}
+/* over a whole song's video filling the TV (Steve on Nov 14: the coach never goes): above it, under
+   the 弹幕, a little smaller, down in the corner */
+.dj-coach.is-over {
+  z-index: 41;
+  top: auto;
+  bottom: var(--space-6);
+  left: var(--space-6);
+  transform: scale(0.86);
+  transform-origin: left bottom;
 }
 .dj-coach-confetti {
   position: absolute;
@@ -795,9 +806,18 @@
   pointer-events: none;
 }
 .dj-coach-title {
+  position: absolute;
+  top: 0;
+  left: 50%;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--r-pill);
+  background: var(--night);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
   color: var(--gel);
   font-size: 20px;
   font-weight: 900;
@@ -808,7 +828,7 @@
   display: grid;
   place-items: center;
   width: 100%;
-  height: 280px;
+  height: 286px;
 }
 /* the robot (Coach3D.tsx): over the drawn coach, which hides once the robot is in */
 .dj-coach-3d {
@@ -832,14 +852,44 @@
 .dj-coach-moves {
   display: flex;
   flex-direction: column;
+  align-self: stretch;
   gap: 4px;
+  min-width: 0;
 }
+/* one line (Coach.tsx sets --fit for a long one) */
 .dj-coach-now {
+  overflow: hidden;
+  white-space: nowrap;
   color: var(--moon);
   font-family: var(--font-display);
-  font-size: 38px;
+  font-size: calc(38px * var(--fit, 1));
   font-weight: 900;
-  line-height: 1.1;
+  /* (the line as tall either way) */
+  line-height: calc(38px * 1.1);
+}
+/* how to do it: two lines at most, room kept for two (one line sits in the middle of it) so the card
+   doesn't jump */
+.dj-coach-how {
+  display: grid;
+  place-items: center;
+  min-height: calc(2 * var(--leading) * var(--text-lg));
+  color: var(--moon);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: var(--leading);
+  animation: dj-coach-how var(--dur-emphasis) var(--ease-out);
+}
+.dj-coach-how > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  text-wrap: balance;
+}
+@keyframes dj-coach-how {
+  from {
+    opacity: 0;
+  }
 }
 .dj-coach-next {
   color: var(--haze);

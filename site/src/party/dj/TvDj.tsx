@@ -6,7 +6,7 @@ import { SeatFace } from "../../online/People";
 import { playersOf } from "../../online/players";
 import { ENERGY, heatLean } from "../../shared/dj/curve";
 import { decodePiece } from "../../shared/dj/songwire";
-import { SONG_SENT, type DjPhase } from "../../shared/dj/types";
+import { SONG_SENT, type DjPhase, type SongBeat } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
@@ -23,7 +23,7 @@ import { primeVoice, useAnnounce } from "./announce";
 import { useWakeLock } from "../sensors";
 import { Coach } from "./Coach";
 import { TubePlayer } from "./TubePlayer";
-import { danceShare } from "../../shared/dj/dance";
+import { danceShare, moodOf, slowSong } from "../../shared/dj/dance";
 import { danceBpm } from "../../shared/dj/youtube";
 import { ytBpm } from "./phone/youtube";
 import { DanmuLayer } from "./DanmuLayer";
@@ -201,6 +201,8 @@ export default function TvDj({ v }: { v: DjView }) {
   // song's own tempo (the rooms server finds it by its title; the DJ's, until then or when it
   // can't), counted from the song's start, whether or not this page's own sound is running
   const song = booth.status === "on" && v.deck?.song ? v.deck.song : null;
+  // (its video over the whole TV: the floor out of sight, the coach over it)
+  const covered = !!v.full && !!v.deck?.song?.yt;
   const yt = song?.yt ?? null;
   const [tempo, setTempo] = useState<{ yt: string; bpm: number | null } | null>(null);
   useEffect(() => {
@@ -215,12 +217,23 @@ export default function TvDj({ v }: { v: DjView }) {
   }, [yt]);
   // (a song file a phone sent: its own beat, heard when it came, from its first beat)
   const file = song?.local ? booth.crate.find((c) => c.id === song.local) : undefined;
+  const own = file ? file.beat.bpm : tempo && tempo.yt === yt ? tempo.bpm : null;
+  const beat: SongBeat | null = !song ? null : { off: file ? Math.round(file.beat.first * 1000) : 0, bpm: danceBpm(own ?? v.deck?.grid?.bpm ?? 120), slow: slowSong(own) };
   const songBeat = useRef<{ at: number; bpm: number } | null>(null);
-  songBeat.current = !song
-    ? null
-    : file
-      ? { at: song.at + file.beat.first * 1000, bpm: danceBpm(file.beat.bpm) }
-      : { at: song.at, bpm: danceBpm((tempo && tempo.yt === yt ? tempo.bpm : null) ?? v.deck?.grid?.bpm ?? 120) };
+  songBeat.current = song && beat ? { at: song.at + beat.off, bpm: beat.bpm } : null;
+  // and the phones are told, so they dance to the song too (said again until the room has it)
+  const said = v.deck?.song?.beat;
+  const sayBeat = !!song && !!beat && !(said && said.off === beat.off && said.bpm === beat.bpm && said.slow === beat.slow);
+  const songId = song?.id;
+  useEffect(() => {
+    if (!sayBeat || !songId || !beat) return;
+    const say = () => g("songbeat", { id: songId, off: beat.off, bpm: beat.bpm, slow: beat.slow });
+    say();
+    const id = window.setInterval(say, 3000);
+    return () => window.clearInterval(id);
+    // (the beat by its parts: a new object each render)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sayBeat, songId, beat?.off, beat?.bpm, beat?.slow, g]);
   const clock = useMemo(
     () => ({
       beat: () => {
@@ -352,11 +365,13 @@ export default function TvDj({ v }: { v: DjView }) {
           singing={!!song && !v.deck?.paused}
           fires={fires}
           shown={floor3d === "on"}
+          covered={covered}
           onReady={() => setFloor3d("on")}
           onFail={() => setFloor3d("off")}
         />
       )}
-      {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
+      {/* (all night, whole songs too: over the video when it's over the whole TV) */}
+      {live && v.phase !== "end" && <Coach clock={coachClock} zh={zh} mood={moodOf(v.phase, beat?.slow)} over={covered} combo={v.combo ?? 0} dancers={dancing.n} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
       {/* a song file a phone sent, whole, in this page's own sound */}
       {live && v.deck && <PhoneSong v={v} crate={booth.crate} speaker={speaker} now={now} zh={zh} nameOf={nameOf} done={(id) => g("songdone", { id })} />}

@@ -1,7 +1,8 @@
 /**
- * The robot (CC0, LICENSES.md) for the booth's 3D: the coach on the left (Coach3D) and the floor's
- * dancers (Floor3D). What they share: whether a graphics chip draws WebGL here, the model loaded once
- * for both, and how sharp to draw on a stage the page scales to fit the screen.
+ * The booth's 3D: the floor's dancers (Floor3D, the CC0 robot, LICENSES.md) and the coach on the
+ * left (Coach3D, its own robot made in code since Nov 14, coach/robot.ts). What they share: whether a
+ * graphics chip draws WebGL here, how its first frames are watched, the floor's model loaded once, and
+ * how sharp to draw on a stage the page scales to fit the screen.
  */
 import type { GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 
