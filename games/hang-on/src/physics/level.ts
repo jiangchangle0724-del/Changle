@@ -622,7 +622,7 @@ export function spaceLevel(): Level {
     ],
     zerog: [{ x: 700, y: 160, w: 1000, h: 640 }],
     levers: [
-      { x: 1900, y: 620, opens: 'hatch' },
+      { x: 1830, y: 620, opens: 'hatch' },
       { x: 2140, y: 470, opens: 'hatch' },
     ],
     gates: [{ id: 'hatch', x: 2300, y: 300, w: 40, h: 400, move: { x: 0, y: -280 }, all: true, hold: 3, grab: false }],
