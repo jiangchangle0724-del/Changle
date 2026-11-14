@@ -60,6 +60,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-13 随便: a place can be more than one cuisine, and whoever liked either finds it first (#492)
 - 2026-11-12 随便: lists for an occasion (most romantic, private rooms, family-friendly, late night) (#368)
 - 2026-11-12 随便: what it's for weighs a lot; a place plainly not for it goes last, saying why (#366)
 - 2026-11-11 随便: list badges from OpenTable, enRoute, Yelp and the Chinese Restaurant Awards' Elite 30 Canada (#342)
