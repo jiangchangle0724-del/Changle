@@ -14,9 +14,10 @@ import { t, type Key } from "../i18n";
 import { watch } from "../live";
 import { After } from "./After";
 import { AddToCalendar } from "./Calendar";
-import { CopyButton, IconCheck, IconQr, IconStar, IconWave, Qr, Sheet, Toast, TopBar, useLang } from "./common";
+import { CopyButton, IconCheck, IconPicture, IconQr, IconStar, IconWave, Qr, Sheet, Toast, TopBar, useLang } from "./common";
+import { PictureSheet, daysLine, invitePicture } from "./Picture";
 
-type Open = { kind: "slot"; slot: SlotKey } | { kind: "person"; id: string } | { kind: "claim" } | { kind: "qr" } | { kind: "created"; adminCode: string } | null;
+type Open = { kind: "slot"; slot: SlotKey } | { kind: "person"; id: string } | { kind: "claim" } | { kind: "qr" } | { kind: "invite" } | { kind: "created"; adminCode: string } | null;
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
 const SAVE_AFTER_MS = 450;
@@ -268,8 +269,6 @@ export function EventPage({ code }: { code: string }) {
   }
 
   const showNameField = !joined || naming;
-  const first = state.days[0];
-  const lastDay = state.days[state.days.length - 1];
 
   return (
     <div class="page">
@@ -278,7 +277,7 @@ export function EventPage({ code }: { code: string }) {
       <div class="event-head">
         <h1>{state.title}</h1>
         <p class="meta">
-          <span>{state.days.length === 1 ? dayLabel(first, lang) : t("rangeTo", { from: dateLabel(first, lang), to: dateLabel(lastDay, lang) })}</span>
+          <span>{daysLine(state, lang)}</span>
           <span>{state.people.length ? t("answered", { n: state.people.length }) : t("answeredNone")}</span>
         </p>
         <div class="row">
@@ -286,6 +285,10 @@ export function EventPage({ code }: { code: string }) {
           <button type="button" class="btn btn-quiet" onClick={() => setOpen({ kind: "qr" })}>
             <IconQr />
             {t("qr")}
+          </button>
+          <button type="button" class="btn btn-quiet" onClick={() => setOpen({ kind: "invite" })}>
+            <IconPicture />
+            {t("picInvite")}
           </button>
         </div>
       </div>
@@ -548,6 +551,9 @@ export function EventPage({ code }: { code: string }) {
       {open?.kind === "slot" && <SlotSheet tl={tallies.find((x) => x.slot === open.slot)!} state={state} people={people} host={host} settled={open.slot === settledSlot} onPick={() => (setOpen(null), void act({ do: "settle", slot: open.slot }))} onClose={() => setOpen(null)} />}
       {open?.kind === "person" && people.some((p) => p.id === open.id) && <PersonSheet person={people.find((p) => p.id === open.id)!} onAct={(action) => (setOpen(null), void act(action))} onClose={() => setOpen(null)} />}
       {open?.kind === "claim" && <ClaimSheet code={code} onDone={() => (setOpen(null), setSnap((before) => before && { ...before, host: true }), say("claimOk"))} onClose={() => setOpen(null)} />}
+      {open?.kind === "invite" && (
+        <PictureSheet picture={invitePicture(state, link, lang)} title={t("picInvite")} alt={t("picAltInvite", { title: state.title, days: daysLine(state, lang) })} file={`when-${state.code}-invite.jpg`} onClose={() => setOpen(null)} />
+      )}
       {open?.kind === "qr" && (
         <Sheet title={t("qr")} onClose={() => setOpen(null)}>
           <Qr text={link} label={t("qr")} />

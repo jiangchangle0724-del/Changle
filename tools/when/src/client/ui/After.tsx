@@ -3,13 +3,16 @@
 // (开席, the site's home page). In this first version only the host goes to 随便 to open a table,
 // so one gathering doesn't end up with several; everyone else waits for the table's link.
 // 随便 doesn't read what the link carries yet, so the page says what to pick there.
-import { addDays, dayLabel, EAT_DAYS_AHEAD, eatLink, eatWhen, mealLabel, resultText, vancouverDay } from "../../engine";
+import { useState } from "preact/hooks";
+import { addDays, dayLabel, EAT_DAYS_AHEAD, eatLink, eatWhen, mealLabel, reason, resultText, slotLabel, vancouverDay } from "../../engine";
 import type { EventState, Lang, Person, Tally } from "../../engine";
 import { t } from "../i18n";
-import { CopyButton, inWeChat, useLang } from "./common";
+import { CopyButton, IconPicture, inWeChat, useLang } from "./common";
+import { PictureSheet, resultPicture } from "./Picture";
 
 export function After({ state, tally, people, host, link }: { state: EventState; tally: Tally; people: Person[]; host: boolean; link: string }) {
   const lang = useLang();
+  const [picture, setPicture] = useState(false);
   if (!state.settled) return null;
   const { day, part } = state.settled;
   const when = eatWhen(day, vancouverDay(Date.now()));
@@ -27,6 +30,10 @@ export function After({ state, tally, people, host, link }: { state: EventState;
         <div class="row">
           <CopyButton text={words(lang)} label={t(lang === "zh" ? "copyZh" : "copyEn")} kind="primary" />
           <CopyButton text={words(other)} label={t(other === "zh" ? "copyZh" : "copyEn")} />
+          <button type="button" class="btn btn-quiet" onClick={() => setPicture(true)}>
+            <IconPicture />
+            {t("picResult")}
+          </button>
         </div>
       </div>
 
@@ -66,6 +73,16 @@ export function After({ state, tally, people, host, link }: { state: EventState;
         </a>
         <p class="hint">{t("playNote")}</p>
       </div>
+
+      {picture && (
+        <PictureSheet
+          picture={resultPicture(state, tally, people, link, lang)}
+          title={t("picResult")}
+          alt={t("picAltResult", { title: state.title, when: slotLabel(day, part, lang), who: reason(tally, people, lang) })}
+          file={`when-${state.code}-result.jpg`}
+          onClose={() => setPicture(false)}
+        />
+      )}
     </section>
   );
 }

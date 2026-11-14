@@ -18,7 +18,7 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
-| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; no page uses them yet). |
+| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
 | `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`; what every browser test starts from is in `tests/e2e/helpers.ts`). |
 
 ### What is kept, and for how long
@@ -77,6 +77,29 @@ in one go is remembered only while the page is open.
 Every quick fill, and "clear all" under the grid, can be undone for six seconds, or until the
 next tap on a slot, from the line that comes up at the bottom of the screen.
 
+### Pictures to pass around
+
+A link pasted into WeChat shows no picture of its own, so the gathering's page makes two that can
+be sent on like any photo:
+
+- the **invitation** (the button beside the link and the QR code): the gathering's name, the days
+  it asks about, and a code that leads to its page;
+- the **result** (under "tell the group", once the time is set): the name, the day and part, who
+  can make it in the page's own words, and the same code.
+
+Each is drawn in the phone when asked for and never sent anywhere (`src/client/picture.ts`): a
+1080 × 1440 canvas over one of the two backgrounds in `src/client/art/`, which keep their middle
+three fifths empty for this, with the words set as large as fits and the code dark on a white card.
+The picture comes out as a JPEG of about 150 kB, in the page's language. `src/client/ui/Picture.tsx`
+shows it in a sheet. In WeChat a page can neither share nor download, so the picture is pressed
+and held to save it or send it on, and to follow its code: the page allows pressing and holding
+on the picture and nowhere else. Other browsers also get "share" (where the phone can share a
+file) and "save the picture".
+
+A picture a page imports (`import picture from "../art/x.webp"`) is built to
+`assets/art/<name>-<hash>.webp`, so it can be kept for a year like the scripts; only the pictures
+a page imports are built at all.
+
 ### Once the time is set
 
 The banner of the time that was set carries **Add to calendar**, for everyone
@@ -91,7 +114,7 @@ Every page also asks what's next (`src/client/ui/After.tsx`; the rules are in
 `src/engine/after.ts`):
 
 - **Tell the group**: the result as words to paste into the chat, in Chinese and in English, with
-  the gathering's link under them.
+  the gathering's link under them, and as a picture (above).
 - **Where to eat**: on to 随便 (changle.ca/eat). Only a host gets the link, so one gathering opens
   one table; everyone else is told to wait for the table's link. The link carries what is known:
   `/eat/?from=when&code=<code>&date=2026-11-21&time=18:30&occasion=friends&people=7` (lunch at
