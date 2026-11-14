@@ -78,13 +78,14 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   expect(ics).toContain(`UID:${code}@when.changle.ca\r\n`);
   expect(ics).toMatch(/DTSTART:\d{8}T010000Z\r\nDTEND:\d{8}T050000Z\r\n/);
 
-  // then every page asks what's next. The words for the group chat, in Chinese and in English:
+  // then every page asks what's next. The words for the group chat, plain unless picked otherwise, in Chinese and in English:
   await expect(guest.locator(".after")).toContainText("接着定什么");
   await host.locator(".after .copy .btn").first().click();
   await expect(host.locator(".after .copy .btn").first()).toContainText("复制好了");
-  expect(await copied(host)).toMatch(new RegExp(`^「周末火锅」定了：\\d+月\\d+日 周. 晚上。2 个人里 2 个有空。\\n\\S+/when/${code}$`));
+  expect(await copied(host)).toMatch(new RegExp(`^「周末火锅」\\n定了：\\d+月\\d+日 周. 晚上。2 个人里 2 个有空。详情见链接。\\n\\S+/when/${code}$`));
+  expect(await copied(host)).toBe(await host.locator(".after .words-text").innerText());
   await host.locator(".after .copy .btn").nth(1).click();
-  await expect.poll(() => copied(host)).toMatch(new RegExp(`^"周末火锅" is set: \\w{3}, \\w{3} \\d+, evening\\. 2 of 2 free\\.\\n\\S+/when/${code}$`));
+  await expect.poll(() => copied(host)).toMatch(new RegExp(`^"周末火锅"\\nThe time is set: \\w{3}, \\w{3} \\d+, evening\\. 2 of 2 free\\. See the link for details\\.\\n\\S+/when/${code}$`));
   // on to 随便 with the day, dinner time, the occasion and who can come: the host only, so one
   // gathering opens one table. Tonight is within the week 随便 plans for.
   await expect(host.locator(".after a[href^='/eat/']")).toHaveAttribute("href", new RegExp(`^/eat/\\?from=when&code=${code}&date=\\d{4}-\\d\\d-\\d\\d&time=18%3A30&occasion=friends&people=2$`));

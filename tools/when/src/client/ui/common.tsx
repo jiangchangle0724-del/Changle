@@ -180,8 +180,13 @@ export function CopyButton({ text, label, kind = "quiet", icon = true }: { text:
       </button>
       {state === "manual" && (
         <label class="copy-manual">
-          <span>{t("copyByHand")}</span>
-          <input type="text" readOnly value={text} onFocus={(event) => event.currentTarget.select()} />
+          {/* words of more than one line (a message with its link under it) keep their lines */}
+          <span>{t(text.includes("\n") ? "copyByHandText" : "copyByHand")}</span>
+          {text.includes("\n") ? (
+            <textarea readOnly rows={text.split("\n").length + 1} value={text} onFocus={(event) => event.currentTarget.select()} />
+          ) : (
+            <input type="text" readOnly value={text} onFocus={(event) => event.currentTarget.select()} />
+          )}
         </label>
       )}
     </div>

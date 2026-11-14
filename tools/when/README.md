@@ -14,17 +14,18 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`), times within a period to the minute (`minutes.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`), times within a period to the minute (`minutes.ts`), who the host means to ask and who of them is still to answer (`invited.ts`), when to answer by (`deadline.ts`), the words to paste into the group chat (`copy.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
-| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
+| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `ui/Words.tsx` (the words for the group chat, in a tone), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
 | `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`; what every browser test starts from is in `tests/e2e/helpers.ts`). |
 
 ### What is kept, and for how long
 
 Each gathering is one Durable Object with its own SQLite database: the gathering (its name, days,
-what was set) and one row per person (a name and their answers). Nothing else: no accounts, no
+what was set, the host's list of names and deadline) and one row per person (a name and their
+answers). Nothing else: no accounts, no
 email, no phone numbers. It deletes itself 60 days after it was made (an alarm).
 
 ### Who may change what
@@ -34,7 +35,8 @@ sends it with each request in `x-when-key`. The server keeps only the key's SHA-
 
 - A row is changed only with the key it was made with. Sending someone else's row id is refused.
 - The phone that made the gathering is its host: it sets the time, marks who must be there, sets
-  the least number of people, removes a duplicate row.
+  the least number of people, writes who it means to ask and when to answer by, removes a
+  duplicate row.
 - Another phone becomes a host with the 6-digit admin code, shown once when the gathering is made.
   Five wrong codes in a row and that gathering takes none for an hour; one network may try 20 a
   day across all gatherings, and make 30 gatherings a day.
@@ -126,6 +128,32 @@ in one go is remembered only while the page is open.
 Every quick fill, and "clear all" under the grid, can be undone for six seconds, or until the
 next tap on a slot, from the line that comes up at the bottom of the screen.
 
+### Who's still to answer, and the words for the group chat
+
+A page in WeChat can't send anyone a notification, so the page gives words to paste into the
+group chat instead (A3, 2026-11-14).
+
+- **Who's invited**: the host writes the names it means to ask, a line each or with 、，, between
+  (never split at a space, so "Mary Ann" is one name), 40 at most. A name counts as answered once
+  someone of that name has a row, even with nothing free: letters match in any case or width, so
+  "may" is "May". Under who's in, everyone sees "还差 2 个：小王、老李" (still to answer), or that
+  everyone on the list has answered. Without a list nobody is known to be missing.
+- **Answer by**: the host picks a day (today to the last day asked about) and a time, in
+  Vancouver time like everything here. The line under the gathering's name says "11月19日 周四
+  20:00前填好"; the invitation picture says it too. When it comes, every open page marks it
+  passed and shows who's still to answer as a warning. Answers are still taken after it: it only
+  marks who is late. A phone's page looks again at the deadline by its own timer; the server
+  doesn't push anything for it.
+- **Nudge** and **Invite**, under who's in until the time is set, for everyone: the words for the
+  group chat (`src/engine/copy.ts`, written by Codex in C4, read and signed off line by line). A
+  nudge names who on the list is still to answer (more than five are counted), or speaks to
+  whoever hasn't answered; an invitation says the days asked about. Both say when to answer by
+  while it is still ahead. Three tones (正经 plain, 轻松 easy, 搞笑 funny), three lines each:
+  "another one" takes the next. The page shows the words in its language as they will be pasted,
+  with a button for each language. The tone a phone last picked is kept on that phone
+  (`when.tone`) for every gathering; plain until then.
+- Once the time is set, "tell the group" uses the same words and tones for the result.
+
 ### Pictures to pass around
 
 A link pasted into WeChat shows no picture of its own, so the gathering's page makes two that can
@@ -164,8 +192,9 @@ no calendar can get Vancouver's rules wrong.
 Every page also asks what's next (`src/client/ui/After.tsx`; the rules are in
 `src/engine/after.ts`):
 
-- **Tell the group**: the result as words to paste into the chat, in Chinese and in English, with
-  the gathering's link under them, and as a picture (above).
+- **Tell the group**: the result as words to paste into the chat, in a tone (above), in Chinese
+  and in English, with the gathering's link under them, and as a picture (above). They say the
+  minutes when the time was set to them.
 - **Where to eat**: on to 随便 (changle.ca/eat). Only a host gets the link, so one gathering opens
   one table; everyone else is told to wait for the table's link. The link carries what is known:
   `/eat/?from=when&code=<code>&date=2026-11-21&time=18:30&occasion=friends&people=7` (宵夜 at

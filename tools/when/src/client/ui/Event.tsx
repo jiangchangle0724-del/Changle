@@ -4,7 +4,7 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { allFree, atTime, best, dateLabel, dayLabel, dayNotes, hoursLabel, nextAnswer, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, shortDate, slotKey, slotLabel, spanLabel, tally, vancouverDay, weekday, weekdayLabel, whenLabel } from "../../engine";
+import { addDays, allFree, atTime, best, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weekday, weekdayLabel, whenLabel } from "../../engine";
 import type { Answers, Day, EventState, Lang, Person, Quick, SlotKey, Span, Times } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
@@ -15,8 +15,9 @@ import { watch } from "../live";
 import { After } from "./After";
 import { AddToCalendar } from "./Calendar";
 import { CopyButton, IconCheck, IconClock, IconPicture, IconQr, IconStar, IconWave, Keep, Qr, Sheet, Toast, TopBar, useLang } from "./common";
-import { PictureSheet, daysLine, invitePicture } from "./Picture";
-import { TimeSheet } from "./Times";
+import { PictureSheet, daysLine, inviteLine, invitePicture } from "./Picture";
+import { field, minutesOf, TimeSheet } from "./Times";
+import { Words } from "./Words";
 
 type Open =
   | { kind: "slot"; slot: SlotKey }
@@ -27,6 +28,9 @@ type Open =
   | { kind: "qr" }
   | { kind: "invite" }
   | { kind: "created"; adminCode: string }
+  | { kind: "words"; words: "invite" | "nudge" }
+  | { kind: "invited" }
+  | { kind: "deadline" }
   | null;
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
@@ -151,6 +155,18 @@ export function EventPage({ code }: { code: string }) {
     return watch(code, { state: (state) => take(state), gone: () => setGone(true), live: () => undefined, refresh: () => void refresh() });
   }, [code]);
 
+  // the deadline passing changes the page (who's still to answer is marked): look again then
+  const deadline = snap?.state.deadline ?? null;
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (deadline === null) return;
+    const wait = deadline - Date.now();
+    if (wait <= 0) return;
+    // a timer can wait about 24 days at most; a later deadline is looked at again then
+    const timer = setTimeout(() => setTick((n) => n + 1), Math.min(wait + 100, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [deadline, tick]);
+
   // ---------- saving my row ----------
   async function flush() {
     clearTimeout(saveTimer.current);
@@ -246,6 +262,12 @@ export function EventPage({ code }: { code: string }) {
   };
   /** Settle a slot: at the stretch that suits the most, by the period, when that's narrower than the whole of it. */
   const settle = (x: Tally) => act({ do: "settle", slot: x.slot, ...(x.meet ? { from: x.meet.from, to: x.meet.to } : {}) });
+  // when to answer by, and who on the host's list is still to answer
+  const late = state.deadline !== null && Date.now() >= state.deadline;
+  const waiting = missing(state.invited, people);
+  const names = (list: readonly string[]) => list.join(lang === "zh" ? "、" : ", ");
+  /** The deadline as the group messages say it, while it is still ahead. */
+  const answerBy = (inLang: Lang) => (state.deadline !== null && !late ? deadlineLabel(state.deadline, inLang) : undefined);
   // nothing to offer: because nobody has answered, or because every slot people can make is ruled out
   const anyone = tallies.some((x) => x.yes.length + x.maybe.length > 0);
   const noBest: string = !anyone ? t("bestEmpty") : tallies.some((x) => x.out === "must") ? t("bestWaitMust") : t("bestFew", { n: state.minPeople });
@@ -381,6 +403,11 @@ export function EventPage({ code }: { code: string }) {
         <p class="meta">
           <span>{daysLine(state, lang)}</span>
           <span>{state.people.length ? t("answered", { n: state.people.length }) : t("answeredNone")}</span>
+          {state.deadline !== null && (
+            <span class="meta-deadline" data-late={late ? "" : undefined}>
+              {late ? t("deadlineOver") : t("deadlineMeta", { when: deadlineLabel(state.deadline, lang) })}
+            </span>
+          )}
         </p>
         <div class="row">
           <CopyButton text={link} label={t("copyLink")} />
@@ -619,37 +646,57 @@ export function EventPage({ code }: { code: string }) {
         )}
       </section>
 
-      {people.length > 0 && (
+      {(people.length > 0 || !state.settled) && (
         <section class="panel">
           <h2 class="panel-title">{t("peopleTitle")}</h2>
-          <ul class="people">
-            {people.map((p) => {
-              const inner = (
-                <>
-                  {p.must && (
-                    <span class="must" title={t("must")}>
-                      <IconStar />
-                    </span>
-                  )}
-                  <b>{p.name}</b>
-                  {p.id === me?.id && <small>{t("you")}</small>}
-                  <small>{Object.keys(p.answers).length === 1 ? t("slotsPickedOne") : t("slotsPicked", { n: Object.keys(p.answers).length })}</small>
-                  {p.must && <span class="sr-only">{t("must")}</span>}
-                </>
-              );
-              return (
-                <li key={p.id}>
-                  {host ? (
-                    <button type="button" class="person" onClick={() => setOpen({ kind: "person", id: p.id })}>
-                      {inner}
-                    </button>
-                  ) : (
-                    <span class="person">{inner}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          {people.length > 0 ? (
+            <ul class="people">
+              {people.map((p) => {
+                const inner = (
+                  <>
+                    {p.must && (
+                      <span class="must" title={t("must")}>
+                        <IconStar />
+                      </span>
+                    )}
+                    <b>{p.name}</b>
+                    {p.id === me?.id && <small>{t("you")}</small>}
+                    <small>{Object.keys(p.answers).length === 1 ? t("slotsPickedOne") : t("slotsPicked", { n: Object.keys(p.answers).length })}</small>
+                    {p.must && <span class="sr-only">{t("must")}</span>}
+                  </>
+                );
+                return (
+                  <li key={p.id}>
+                    {host ? (
+                      <button type="button" class="person" onClick={() => setOpen({ kind: "person", id: p.id })}>
+                        {inner}
+                      </button>
+                    ) : (
+                      <span class="person">{inner}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p class="hint">{t("answeredNone")}</p>
+          )}
+          {state.invited.length > 0 &&
+            (waiting.length > 0 ? (
+              <p class={late ? "note" : "hint"}>{t(late ? "missingLate" : "missingLine", { n: waiting.length, names: names(waiting) })}</p>
+            ) : (
+              <p class="hint">{t("missingNone")}</p>
+            ))}
+          {!state.settled && (
+            <div class="row">
+              <button type="button" class="btn btn-quiet btn-sm" onClick={() => setOpen({ kind: "words", words: "nudge" })}>
+                {t("wordsNudge")}
+              </button>
+              <button type="button" class="btn btn-quiet btn-sm" onClick={() => setOpen({ kind: "words", words: "invite" })}>
+                {t("wordsInvite")}
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -668,6 +715,24 @@ export function EventPage({ code }: { code: string }) {
                 +
               </button>
             </div>
+          </div>
+          <div class="host-row">
+            <div class="row-between">
+              <span>{t("invitedTitle")}</span>
+              <button type="button" class="link-btn" onClick={() => setOpen({ kind: "invited" })}>
+                {state.invited.length ? t("change") : t("invitedWrite")}
+              </button>
+            </div>
+            {state.invited.length > 0 && <p class="hint">{names(state.invited)}</p>}
+          </div>
+          <div class="host-row">
+            <div class="row-between">
+              <span>{t("deadlineTitle")}</span>
+              <button type="button" class="link-btn" onClick={() => setOpen({ kind: "deadline" })}>
+                {state.deadline !== null ? t("change") : t("deadlineSet")}
+              </button>
+            </div>
+            {state.deadline !== null && <p class="hint">{late ? t("deadlineOver") : deadlineLabel(state.deadline, lang)}</p>}
           </div>
         </section>
       ) : (
@@ -724,7 +789,28 @@ export function EventPage({ code }: { code: string }) {
       {open?.kind === "person" && people.some((p) => p.id === open.id) && <PersonSheet person={people.find((p) => p.id === open.id)!} onAct={(action) => (setOpen(null), void act(action))} onClose={() => setOpen(null)} />}
       {open?.kind === "claim" && <ClaimSheet code={code} onDone={() => (setOpen(null), setSnap((before) => before && { ...before, host: true }), say("claimOk"))} onClose={() => setOpen(null)} />}
       {open?.kind === "invite" && (
-        <PictureSheet picture={invitePicture(state, link, lang)} title={t("picInvite")} alt={t("picAltInvite", { title: state.title, days: daysLine(state, lang) })} file={`when-${state.code}-invite.jpg`} onClose={() => setOpen(null)} />
+        <PictureSheet picture={invitePicture(state, link, lang)} title={t("picInvite")} alt={t("picAltInvite", { title: state.title, days: inviteLine(state, lang) })} file={`when-${state.code}-invite.jpg`} onClose={() => setOpen(null)} />
+      )}
+      {open?.kind === "words" && (
+        <Sheet title={t(open.words === "nudge" ? "wordsNudgeTitle" : "wordsInviteTitle")} onClose={() => setOpen(null)}>
+          <p class="hint">{t("wordsHint")}</p>
+          <Words
+            write={(tone, inLang, pick) =>
+              open.words === "nudge"
+                ? nudgeText({ title: state.title, url: link, missing: waiting, deadline: answerBy(inLang) }, tone, inLang, pick)
+                : inviteText({ title: state.title, url: link, days: state.days, deadline: answerBy(inLang) }, tone, inLang, pick)
+            }
+          />
+        </Sheet>
+      )}
+      {open?.kind === "invited" && <InvitedSheet invited={state.invited} onSave={(list) => (setOpen(null), void act({ do: "edit", invited: list }))} onClose={() => setOpen(null)} />}
+      {open?.kind === "deadline" && (
+        <DeadlineSheet
+          state={state}
+          onSet={(at) => (setOpen(null), void act({ do: "edit", deadline: at }))}
+          onClear={() => (setOpen(null), void act({ do: "edit", deadline: null }))}
+          onClose={() => setOpen(null)}
+        />
       )}
       {open?.kind === "qr" && (
         <Sheet title={t("qr")} onClose={() => setOpen(null)}>
@@ -882,6 +968,92 @@ function PersonSheet({ person, onAct, onClose }: { person: Person; onAct: (actio
       ) : (
         <button type="button" class="link-btn danger" onClick={() => setAsking(true)}>
           {t("remove")}
+        </button>
+      )}
+    </Sheet>
+  );
+}
+
+/** The host's list of who to ask, as typed: one name a line, or with 、，, between. */
+function InvitedSheet({ invited, onSave, onClose }: { invited: string[]; onSave: (list: string[]) => void; onClose: () => void }) {
+  useLang();
+  const [text, setText] = useState(() => invited.join("\n"));
+  // as the server will keep it: each name once
+  const list = splitNames(text).filter((name, i, all) => all.findIndex((other) => sameName(other, name)) === i);
+  const many = list.length > INVITED_MAX;
+  return (
+    <Sheet
+      title={t("invitedTitle")}
+      onClose={onClose}
+      footer={
+        <button type="button" class="btn btn-primary btn-block" disabled={many} onClick={() => onSave(list)}>
+          {t("invitedSave")}
+        </button>
+      }
+    >
+      <label class="field">
+        <span class="field-label">{t("invitedHint")}</span>
+        <textarea data-autofocus rows={6} maxLength={800} value={text} placeholder={t("invitedPlaceholder")} onInput={(event) => setText(event.currentTarget.value)} />
+      </label>
+      <p class={many ? "problem" : "hint"} aria-live="polite">
+        {many ? t("invitedTooMany", { n: INVITED_MAX }) : list.length === 1 ? t("invitedCountOne") : t("invitedCount", { n: list.length })}
+      </p>
+    </Sheet>
+  );
+}
+
+/** When to answer by: a day from today to the last day asked about, and a time of it, in Vancouver. */
+function DeadlineSheet({ state, onSet, onClear, onClose }: { state: EventState; onSet: (at: number) => void; onClear: () => void; onClose: () => void }) {
+  const lang = useLang();
+  const today = vancouverDay(Date.now());
+  const days = deadlineDays(today, state.days);
+  // the deadline there is, while it's ahead; otherwise 8 in the evening, tonight if that's a while off
+  const [[day, minutes], setPick] = useState<[Day, number]>(() => {
+    if (state.deadline !== null && state.deadline > Date.now()) return [vancouverDay(state.deadline), vancouverMinutes(state.deadline)];
+    const evening = deadlineAt(today, 20 * 60) - Date.now() > 2 * 3_600_000 ? today : addDays(today, 1);
+    return [days.includes(evening) ? evening : days[days.length - 1], 20 * 60];
+  });
+  const at = deadlineAt(day, minutes);
+  const past = at <= Date.now();
+  const typed = (event: Event) => {
+    const next = minutesOf((event.currentTarget as HTMLInputElement).value);
+    if (next !== null) setPick([day, next]);
+  };
+  return (
+    <Sheet
+      title={t("deadlineTitle")}
+      onClose={onClose}
+      footer={
+        <button type="button" class="btn btn-primary btn-block" disabled={past} onClick={() => onSet(at)}>
+          {t("deadlineGo")}
+        </button>
+      }
+    >
+      <p class="hint">{t("deadlineHint")}</p>
+      <div class="deadline-fields">
+        <label class="field">
+          <span class="field-label">{t("deadlineDay")}</span>
+          <select value={day} onChange={(event) => setPick([event.currentTarget.value as Day, minutes])}>
+            {days.map((d) => (
+              <option key={d} value={d}>
+                {d === today ? t("deadlineToday", { day: dayLabel(d, lang) }) : d === addDays(today, 1) ? t("deadlineTomorrow", { day: dayLabel(d, lang) }) : dayLabel(d, lang)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">{t("deadlineTime")}</span>
+          <input type="time" step={60} value={field(minutes)} onInput={typed} onChange={typed} />
+        </label>
+      </div>
+      {past && (
+        <p class="problem" role="alert">
+          {t("deadlinePast")}
+        </p>
+      )}
+      {state.deadline !== null && (
+        <button type="button" class="link-btn" onClick={onClear}>
+          {t("deadlineClear")}
         </button>
       )}
     </Sheet>

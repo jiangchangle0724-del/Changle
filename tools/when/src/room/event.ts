@@ -6,6 +6,7 @@
 // room never keeps a key, only its SHA-256 fingerprint. A row can be changed only with the key it
 // was made with. The phone that made the gathering is its host; another phone becomes one by
 // giving the 6-digit admin code.
+import { cleanInvited, INVITED_MAX } from "../engine/invited";
 import { cleanTimes, isWhole, MIN_SPAN } from "../engine/minutes";
 import { cleanAnswers, cleanDays, parseSlot, partRange, slotsOf } from "../engine/slots";
 import { cleanText } from "../engine/text";
@@ -46,7 +47,7 @@ export type HostAction =
   /** `from` and `to`: part of it to the minute, in a gathering asked by the period (left out, or all of it: the slot itself) */
   | { do: "settle"; slot: SlotKey; from?: unknown; to?: unknown }
   | { do: "reopen" }
-  | { do: "edit"; title?: unknown; minPeople?: unknown; deadline?: unknown }
+  | { do: "edit"; title?: unknown; minPeople?: unknown; deadline?: unknown; invited?: unknown }
   | { do: "must"; id: string; must: boolean }
   | { do: "remove"; id: string };
 
@@ -86,6 +87,7 @@ export class EventRoom {
       createdAt: input.now,
       expiresAt: input.now + KEEP_MS,
       deadline: null,
+      invited: [],
       minPeople: 1,
       settled: null,
       v: 1,
@@ -100,7 +102,8 @@ export class EventRoom {
   state(): EventState | null {
     if (!this.meta) return null;
     const { hosts: _hosts, admin: _admin, ...shown } = this.meta;
-    return { ...shown, people: [...this.rows.values()].map(({ keyHash: _key, joinedAt: _joined, ...person }) => person) };
+    // a gathering made before the list came in (2026-11-14) has none
+    return { ...shown, invited: shown.invited ?? [], people: [...this.rows.values()].map(({ keyHash: _key, joinedAt: _joined, ...person }) => person) };
   }
 
   isHost(keyHash: string | null): boolean {
@@ -189,6 +192,11 @@ export class EventRoom {
           const d = action.deadline;
           if (d !== null && (typeof d !== "number" || !Number.isFinite(d) || d <= now || d > meta.expiresAt)) return fail("bad");
           meta.deadline = d === null ? null : Math.floor(d as number);
+        }
+        if (action.invited !== undefined) {
+          const invited = cleanInvited(action.invited, NAME_MAX, INVITED_MAX);
+          if (!invited) return fail("bad");
+          meta.invited = invited;
         }
         break;
       }
