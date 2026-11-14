@@ -189,9 +189,6 @@
   font-size: 14px;
   font-weight: 800;
 }
-.djp-seg > button {
-  min-height: 48px;
-}
 .djp-host-note {
   margin: 0;
   color: var(--color-text-2);

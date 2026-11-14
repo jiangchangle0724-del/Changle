@@ -66,7 +66,10 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   host winds down or the cap comes near; cool lasts 15 minutes. Nothing runs past `capAt`.
 - **The host** (`phase`) can take the night to `warm`, `build`, `peak`, `cool` or `end` at any time
   once it has started (each with a fresh clock), and after the end start another set (`again`):
-  back to `wait`, a new `set` number, the night's 🔥 kept.
+  back to `wait`, a new `set` number, the night's 🔥 kept. The host's phone has no buttons for
+  `phase` since Nov 13 (Steve: the host's card keeps 报幕 alone, "仅保留 announcement on"): the
+  night moves on by itself, the peak winding down 15 minutes before the cap (the TV's line under
+  the curve says when); the browser checks send it (`window.__djHost.phase`, the dev build only).
 - **Everyone** can press 🔥 (`fire`): a phone sends at most one per 400 ms (faster taps only burst
   on the phone), and the room takes one per 300 ms a phone (the network bunches taps up). The room
   keeps the latest 40 presses (`fires`, who and when) and a count per player for the night
@@ -368,7 +371,8 @@ deck B ┘                                                                 horn,
   its styles and tempo), what's next, then 上一曲, 暂停 or 播放, 切歌 (keys of 72 px, never grey while
   a song is coming on), the video over the whole TV, and the TV's word when it wants a tap. Then
   the song box, the 歌单 and the twelve pads (the ones that work the music wait while a whole song
-  plays or the room is held), 🔥 and ❄️, the host's controls, and 跟着跳 at the very bottom.
+  plays or the room is held), 🔥 and ❄️, the host's card (报幕 on or off; at the end, 再来一场:
+  its stretches and 结束这一场 gone on Nov 13), and 跟着跳 at the very bottom.
 - **The screens:** the TV shows the two decks (the one on the air bright, the cued one "up next"),
   the fader, who pressed which pad, and a line (`jukeText`: what comes next, 暂停 held, or a floor
   that's dragging between songs told to ask for a song everyone loves). With the build-up and DROP
