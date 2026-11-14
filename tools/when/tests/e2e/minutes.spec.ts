@@ -35,7 +35,10 @@ test("a slot's time to the minute: from the line after a tap, by keys, by draggi
   await expect(host.locator('.sheet .seg button[aria-pressed="true"]')).toHaveText("有空");
 
   // the start by keys: an hour and a half later, then a minute at a time
-  await s.start.focus();
+  // pressing a handle is enough for the keys to move it (Home: back to the period's start)
+  await s.start.click();
+  await host.keyboard.press("Home");
+  await expect(s.reads).toHaveText("18:00–23:59");
   for (let i = 0; i < 6; i++) await host.keyboard.press("PageUp");
   await expect(s.reads).toHaveText("19:30–23:59");
   await host.keyboard.press("ArrowRight");
