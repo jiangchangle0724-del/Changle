@@ -247,13 +247,14 @@ const thumbs = (push: number): P => ({
   L: { hand: hp([0.19, 0.08, 0.02]), pole: dir("chest", [1, 0, -0.6]), orient: { frame: "hips", fingers: [0.1, -0.5, 1], palm: [-1, 0, 0] }, fingers: "relaxed" },
 });
 
-// 鞠躬 bow: hands down the front of the thighs, bent at the hips
+// 鞠躬 bow: bent at the hips, the hands sliding down the front of the thighs (written on the thighs,
+// so they stay on them whatever their size)
 const bow = (k: number): P => ({
   hips: { pos: [0, -0.01, -0.05 * k], pitch: 30 * k },
   spine: { bend: 4 + 14 * k },
   head: { nod: 2 + 12 * k },
-  L: { hand: hp([0.08, -0.2 - 0.08 * k, 0.15]), pole: dir("hips", [0.6, 0, -1]), orient: { frame: "hips", fingers: [-0.1, -1, 0.15], palm: [-0.2, 0, -1] }, fingers: "flat" },
-  R: { hand: hp([-0.08, -0.2 - 0.08 * k, 0.15]), pole: dir("hips", [-0.6, 0, -1]), orient: { frame: "hips", fingers: [0.1, -1, 0.15], palm: [0.2, 0, -1] }, fingers: "flat" },
+  L: { hand: at("LeftUpLeg", [-0.01, -0.17 - 0.12 * k, 0.12]), pole: dir("hips", [0.6, 0, -1]), orient: { frame: "LeftUpLeg", fingers: [-0.1, -1, 0.1], palm: [-0.15, 0, -1] }, fingers: "flat" },
+  R: { hand: at("RightUpLeg", [0.01, -0.17 - 0.12 * k, 0.12]), pole: dir("hips", [-0.6, 0, -1]), orient: { frame: "RightUpLeg", fingers: [0.1, -1, 0.1], palm: [0.15, 0, -1] }, fingers: "flat" },
 });
 
 // 欢呼 cheer: fists up in a V, bouncing

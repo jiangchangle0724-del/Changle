@@ -1,7 +1,7 @@
 // Moves written as key poses in time (rig.ts's terms), blended between with easing and sampled
 // into keyframes: solved in the browser, for the body in front of it.
 import * as THREE from "three";
-import { ANKLE, type PoseSpec, type Rig } from "./rig";
+import { ANKLE, type KeepMem, type PoseSpec, type Rig } from "./rig";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const ease: Record<string, (u: number) => number> = {
@@ -48,7 +48,10 @@ function worldOf(rig: Rig, pose: PoseSpec, t: any, isDir: boolean, foot: boolean
     return w;
   }
   const f = rig.frameOf(t.frame);
-  const v = new THREE.Vector3(arr[0], arr[1], arr[2]).applyQuaternion(f.q);
+  const v = new THREE.Vector3(arr[0], arr[1], arr[2]);
+  // a point as the solver places it: at this body's size
+  if (!isDir) v.multiplyScalar(rig.k);
+  v.applyQuaternion(f.q);
   return isDir ? v : v.add(f.p);
 }
 
@@ -115,6 +118,8 @@ export function* baking(rig: Rig, move: Clip, base: PoseSpec): Generator<void, B
   const hips = new Float32Array(n * 3);
   const prev = new Map<string, THREE.Quaternion>();
   const inside = { before: 0, after: 0 };
+  // what the arms chose the frame before (so one kept out of the body doesn't jump about)
+  const mem: KeepMem = {};
   for (let i = 0; i < n; i++) {
     const t = Math.min(move.dur, i / fps);
     times[i] = t;
@@ -129,7 +134,7 @@ export function* baking(rig: Rig, move: Clip, base: PoseSpec): Generator<void, B
     roots.b = B.pose;
     let pose = mix(rig, A.pose, B.pose, e);
     if (move.add) pose = move.add(t, pose, move.dur);
-    const { local, hips: hp } = rig.solve(pose);
+    const { local, hips: hp } = rig.solve(pose, mem);
     inside.before = Math.max(inside.before, rig.inside.before);
     inside.after = Math.max(inside.after, rig.inside.after);
     for (const [name, q] of local) {

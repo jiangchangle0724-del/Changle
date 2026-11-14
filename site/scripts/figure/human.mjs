@@ -27,6 +27,8 @@ export const SEXES = {
     face: [["head/head-square", 0.2], ["chin/chin-width-incr", 0.1]],
     skin: "skins/young_asian_male/young_lightskinned_male_diffuse3.png",
     clothes: "clothes/male_casualsuit06/male_casualsuit06.mhclo",
+    // the suit's pieces in its texture (x, y from the top left, 0 to 1): the shirt is the top half
+    shirt: (x, y) => y < 0.43,
     shoes: "clothes/shoes06/shoes06.mhclo",
     eyebrows: "eyebrows/eyebrow001/eyebrow001.mhclo",
     eyelashes: "eyelashes/eyelashes01/eyelashes01.mhclo",
@@ -37,6 +39,8 @@ export const SEXES = {
     face: [["eyes/*-eye-scale-incr", 0.15], ["nose/nose-scale-horiz-decr", 0.2], ["mouth/mouth-upperlip-volume-incr", 0.15], ["chin/chin-width-decr", 0.15], ["head/head-invertedtriangular", 0.15]],
     skin: "skins/young_asian_female/young_lightskinned_female_diffuse3.png",
     clothes: "clothes/female_casualsuit01/female_casualsuit01.mhclo",
+    // the shirt's body is the top half, its sleeves the bottom right
+    shirt: (x, y) => y < 0.43 || (x > 0.72 && y > 0.55),
     shoes: "clothes/shoes05/shoes05.mhclo",
     eyebrows: "eyebrows/eyebrow006/eyebrow006.mhclo",
     eyelashes: "eyelashes/eyelashes02/eyelashes02.mhclo",
@@ -45,6 +49,11 @@ export const SEXES = {
 
 export const EYES = "eyes/high-poly/high-poly.mhclo";
 export const EYE_TEXTURE = "eyes/materials/brown_eye.png";
+/**
+ * The other eye colours (the page's look.ts EYE_COLORS, the same ids): MakeHuman's eye textures,
+ * each its own small file, loaded when picked; how much each is greyed (the brown in the figure is 0.45).
+ */
+export const EYE_COLORS = { brownlight: 0.35, grey: 0, blue: 0.15, bluegreen: 0.2, green: 0.2, deepblue: 0.1 };
 export const HAIRS = ["short02", "short04", "short01", "short03", "bob01", "bob02", "long01", "ponytail01", "braid01", "afro01"];
 
 /**
@@ -82,6 +91,27 @@ export const SHAPES = {
   lowerLip: ["mouth/mouth-lowerlip-volume-decr", "mouth/mouth-lowerlip-volume-incr"],
   mouthHeight: ["mouth/mouth-trans-down", "mouth/mouth-trans-up"],
   corners: ["mouth/mouth-angles-down", "mouth/mouth-angles-up"],
+};
+
+/**
+ * The body sliders, -1 to 1 like the face's (S_<id>_decr / S_<id>_incr): MakeHuman's macro
+ * targets for a young adult, as the change from this figure (average height, weight and muscle).
+ * MakeHuman's own height runs from a child's to a giant's: here 0.55 of the way down (about 12%
+ * shorter) and 0.28 of the way up (about 12% taller). The page moves the joints with them too.
+ */
+export const BODY = {
+  height: {
+    decr: (g) => [[`macrodetails/height/${g}-young-averagemuscle-averageweight-minheight`, 0.55]],
+    incr: (g) => [[`macrodetails/height/${g}-young-averagemuscle-averageweight-maxheight`, 0.28]],
+  },
+  weight: {
+    decr: (g) => [[`macrodetails/universal-${g}-young-averagemuscle-minweight`, 1], [`macrodetails/universal-${g}-young-averagemuscle-averageweight`, -1]],
+    incr: (g) => [[`macrodetails/universal-${g}-young-averagemuscle-maxweight`, 1], [`macrodetails/universal-${g}-young-averagemuscle-averageweight`, -1]],
+  },
+  muscle: {
+    decr: (g) => [[`macrodetails/universal-${g}-young-minmuscle-averageweight`, 1], [`macrodetails/universal-${g}-young-averagemuscle-averageweight`, -1]],
+    incr: (g) => [[`macrodetails/universal-${g}-young-maxmuscle-averageweight`, 1], [`macrodetails/universal-${g}-young-averagemuscle-averageweight`, -1]],
+  },
 };
 
 /** The expressions, from MakeHuman's expression units (blended by race like the face). */
@@ -252,12 +282,54 @@ const CLEAN = {
 const toLin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 const toSrgb = (c) => (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
 
+/** which pieces of a texture each pixel belongs to: each piece's faces drawn by their UVs (-1: none), a few pixels wider */
+function pieceMask(w, h, pieces) {
+  const mask = new Int8Array(w * h).fill(-1);
+  pieces.forEach(({ faces, vt }, k) => {
+    for (const f of faces)
+      for (let q = 1; q + 1 < f.t.length; q++) {
+        const tri = [f.t[0], f.t[q], f.t[q + 1]].map((t) => [vt[t * 2] * w, (1 - vt[t * 2 + 1]) * h]);
+        const [[ax, ay], [bx, by], [cx, cy]] = tri;
+        const d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+        if (Math.abs(d) < 1e-9) continue;
+        const x0 = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
+        const x1 = Math.min(w - 1, Math.ceil(Math.max(ax, bx, cx)));
+        const y0 = Math.max(0, Math.floor(Math.min(ay, by, cy)));
+        const y1 = Math.min(h - 1, Math.ceil(Math.max(ay, by, cy)));
+        for (let y = y0; y <= y1; y++)
+          for (let x = x0; x <= x1; x++) {
+            const px = x + 0.5;
+            const py = y + 0.5;
+            const l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / d;
+            const l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / d;
+            if (l1 >= -0.02 && l2 >= -0.02 && 1 - l1 - l2 >= -0.02) mask[y * w + x] = k;
+          }
+      }
+  });
+  // a little wider, so the edges blur into their own piece's colour
+  for (let it = 0; it < 4; it++) {
+    const prev = mask.slice();
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (prev[i] >= 0) continue;
+        for (const j of [i - 1, i + 1, i - w, i + w]) if (j >= 0 && j < w * h && prev[j] >= 0 && Math.abs((j % w) - x) <= 1) {
+          mask[i] = prev[j];
+          break;
+        }
+      }
+  }
+  return mask;
+}
+
 /**
  * A texture, ready for the file: { png, mean } where mean is the average colour (linear RGB) of
  * its visible pixels, for the page to tint by (skin, hair, eyebrows). grey: made grey, its
- * average at 0.5 linear, so any colour can be laid over it.
+ * average at 0.5 linear, so any colour can be laid over it. pieces ({ faces, vt } each): made
+ * grey piece by piece (the shirt and the trousers, each its own colour on the page); `colors`
+ * then says what colour each piece was (sRGB hex).
  */
-async function prepTexture(file, rel, { grey = false, desaturate = 0 } = {}) {
+async function prepTexture(file, rel, { grey = false, desaturate = 0, pieces = null } = {}) {
   const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const w = info.width;
   const h = info.height;
@@ -303,6 +375,28 @@ async function prepTexture(file, rel, { grey = false, desaturate = 0 } = {}) {
       for (let c = 0; c < 3; c++) data[i + c] = Math.round(data[i + c] + (l - data[i + c]) * desaturate);
     }
   }
+  if (pieces) {
+    const mask = pieceMask(w, h, pieces);
+    const sum = pieces.map(() => [0, 0, 0, 0]);
+    for (let i = 0; i < w * h; i++) {
+      const k = mask[i];
+      if (k < 0) continue;
+      for (let c = 0; c < 3; c++) sum[k][c] += toLin(data[i * 4 + c] / 255);
+      sum[k][3]++;
+    }
+    const means = sum.map(([r, g, b, n]) => [r / (n || 1), g / (n || 1), b / (n || 1)]);
+    const factor = means.map(([r, g, b]) => 0.5 / Math.max(0.2126 * r + 0.7152 * g + 0.0722 * b, 1e-3));
+    for (let i = 0; i < w * h; i++) {
+      const k = mask[i];
+      if (k < 0) continue;
+      const l = 0.2126 * toLin(data[i * 4] / 255) + 0.7152 * toLin(data[i * 4 + 1] / 255) + 0.0722 * toLin(data[i * 4 + 2] / 255);
+      const v = Math.round(toSrgb(Math.min(1, l * factor[k])) * 255);
+      data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v;
+    }
+    const hex = (m) => "#" + m.map((x) => Math.round(toSrgb(x) * 255).toString(16).padStart(2, "0")).join("");
+    const png = await sharp(data, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer();
+    return { png: new Uint8Array(png), mean: [0.5, 0.5, 0.5], colors: means.map(hex) };
+  }
   // the average of what shows
   const mean = [0, 0, 0];
   let count = 0;
@@ -324,6 +418,28 @@ async function prepTexture(file, rel, { grey = false, desaturate = 0 } = {}) {
   }
   const png = await sharp(data, { raw: { width: w, height: h, channels: 4 } }).png().toBuffer();
   return { png: new Uint8Array(png), mean: mean.map((x) => +x.toFixed(4)) };
+}
+
+/** which faces are the shirt's: each island of faces (joined by shared UVs) by where its middle lies in the texture */
+function shirtFaces(faces, vt, isShirt) {
+  const up = new Int32Array(vt.length / 2).map((_, i) => i);
+  const find = (i) => {
+    while (up[i] !== i) i = up[i] = up[up[i]];
+    return i;
+  };
+  for (const f of faces) for (let k = 1; k < f.t.length; k++) up[find(f.t[k])] = find(f.t[0]);
+  const mid = new Map();
+  for (const f of faces)
+    for (const t of f.t) {
+      const r = find(t);
+      const m = mid.get(r) ?? [0, 0, 0];
+      m[0] += vt[t * 2];
+      m[1] += 1 - vt[t * 2 + 1];
+      m[2]++;
+      mid.set(r, m);
+    }
+  const shirt = new Map([...mid].map(([r, [x, y, n]]) => [r, isShirt(x / n, y / n)]));
+  return faces.map((f) => shirt.get(find(f.t[0])));
 }
 
 // ------------------------------------------------------------------ the figure
@@ -377,9 +493,14 @@ export async function prepareHuman({ mpfb, assets, sex }) {
   }
 
   // 4. sizes: metres, the ground under the shoes at 0, the eyes at REF_EYE
-  const shoesAt = fit(wear.find((p) => p.name === "Shoes").proxy, V);
-  let ground = Infinity;
-  for (let i = 1; i < shoesAt.length; i += 3) ground = Math.min(ground, shoesAt[i]);
+  const shoes = wear.find((p) => p.name === "Shoes").proxy;
+  const lowest = (W) => {
+    const at = fit(shoes, W);
+    let lo = Infinity;
+    for (let i = 1; i < at.length; i += 3) lo = Math.min(lo, at[i]);
+    return lo;
+  };
+  const ground = lowest(V);
   const meanOf = (idx, W = V) => {
     const p = [0, 0, 0];
     for (const i of idx) for (let c = 0; c < 3; c++) p[c] += W[i * 3 + c] / idx.length;
@@ -389,6 +510,19 @@ export async function prepareHuman({ mpfb, assets, sex }) {
   const scale = REF_EYE / (eyeY - ground);
   const toM = (p) => [p[0] * scale, (p[1] - ground) * scale, p[2] * scale];
 
+  // the body sliders, with the shoes kept on the ground (a taller body grows from the floor up)
+  const bodyTargets = [];
+  for (const [id, dirs] of Object.entries(BODY))
+    for (const [side, list] of Object.entries(dirs)) {
+      const D = dense(n, list(g).map(([rel, w]) => [readTarget(T(rel)), w]));
+      const drop = lowest(Float64Array.from(V, (x, i) => x + D[i])) - ground;
+      // (a drop under half a millimetre is left: it would move every point, and pack worse)
+      if (Math.abs(drop * scale) > 5e-4) for (let i = 1; i < D.length; i += 3) D[i] -= drop;
+      const t = { name: `S_${id}_${side}`, D };
+      targets.push(t);
+      bodyTargets.push(t);
+    }
+
   // 5. the skeleton: MPFB's Mixamo rig, the joints where the shaped body puts them; and a bone for each eye
   const rigJson = JSON.parse(readFileSync(join(mpfb, "rigs/standard/rig.mixamo.json"), "utf8")).bones;
   const strip = (s) => s.replace(/^mixamorig:/, "");
@@ -396,10 +530,12 @@ export async function prepareHuman({ mpfb, assets, sex }) {
   for (const [full, b] of Object.entries(rigJson)) {
     const spec = b.head;
     const idx = spec.strategy === "CUBE" ? groupIdx(spec.cube_name) : spec.vertex_indices;
-    bones.set(strip(full), { name: strip(full), parent: b.parent ? strip(b.parent) : null, head: toM(meanOf(idx)) });
+    bones.set(strip(full), { name: strip(full), parent: b.parent ? strip(b.parent) : null, head: toM(meanOf(idx)), idx });
   }
-  bones.set("LeftEye", { name: "LeftEye", parent: "Head", head: toM(meanOf(groupIdx("helper-l-eye"))) });
-  bones.set("RightEye", { name: "RightEye", parent: "Head", head: toM(meanOf(groupIdx("helper-r-eye"))) });
+  for (const [side, s] of [["Left", "l"], ["Right", "r"]]) {
+    const idx = groupIdx(`helper-${s}-eye`);
+    bones.set(`${side}Eye`, { name: `${side}Eye`, parent: "Head", head: toM(meanOf(idx)), idx });
+  }
   const order = [];
   const visit = (b) => {
     if (order.includes(b)) return;
@@ -408,6 +544,9 @@ export async function prepareHuman({ mpfb, assets, sex }) {
   };
   [...bones.values()].sort((a, b) => (a.name < b.name ? -1 : 1)).forEach(visit);
   const jointOf = new Map(order.map((b, i) => [b.name, i]));
+  // where each body slider moves each joint, at full strength (metres; a joint is the mean of its vertices)
+  const bodyJoints = { bones: order.map((b) => b.name), targets: {} };
+  for (const t of bodyTargets) bodyJoints.targets[t.name] = order.flatMap((b) => meanOf(b.idx, t.D).map((x) => +(x * scale).toFixed(4)));
 
   // 6. skin weights for every base vertex (helpers too: the clothes hang on them)
   const W = JSON.parse(readFileSync(join(mpfb, "rigs/standard/weights.mixamo.json"), "utf8")).weights;
@@ -595,6 +734,20 @@ export async function prepareHuman({ mpfb, assets, sex }) {
     });
     const mhmat = p.material ? readMaterial(p.material) : {};
     const texRel = part.tex ?? (mhmat.diffuseTexture ? join(dirname(p.material), mhmat.diffuseTexture).slice(assets.length + 1) : null);
+    if (part.name === "Clothes") {
+      // the suit in two, the shirt and the trousers, each its own colour on the page: the pieces of
+      // its texture (islands of faces joined by their UVs) sorted by where they lie
+      const { faces, vt } = p.mesh;
+      const shirt = shirtFaces(faces, vt, cfg.shirt);
+      const pieces = [faces.filter((_, i) => shirt[i]), faces.filter((_, i) => !shirt[i])];
+      const tex = await prepTexture(join(assets, texRel), texRel, { pieces: pieces.map((f) => ({ faces: f, vt })) });
+      console.log(`  ${sex}: the shirt was ${tex.colors[0]}, the trousers ${tex.colors[1]}`);
+      ["Shirt", "Pants"].forEach((name, k) => {
+        const material = { name, tex: "clothes", rough: 0.8, tint: name.toLowerCase() };
+        parts.push({ ...meshData(name, P, pieces[k], vt, weightsOf, morphs), material, tex });
+      });
+      continue;
+    }
     const tex = texRel ? await prepTexture(join(assets, texRel), texRel, { grey: part.grey, desaturate: part.name === "Eyes" ? 0.45 : 0 }) : null;
     const material = { name: part.name, tex: part.name.toLowerCase(), rough: part.hair ? 0.7 : 0.8 };
     // hair: cut out (the page smooths the edges); eyebrows and eyelashes: blended over the skin
@@ -609,14 +762,16 @@ export async function prepareHuman({ mpfb, assets, sex }) {
   let height = 0;
   for (const p of parts) if (p.name === "Body" || p.name === `Hair_${HAIRS[0]}`) for (let i = 1; i < p.pos.length; i += 3) height = Math.max(height, p.pos[i]);
 
-  return { sex, order, parts, info: { sex, scale, height: +height.toFixed(3) } };
+  return { sex, order, parts, bodyJoints, info: { sex, scale, height: +height.toFixed(3) } };
 }
 
 /** a glTF document with the skeleton and the named parts of a prepared figure */
 export function docOf(prep, names) {
   const doc = new Document();
   const buffer = doc.createBuffer();
+  // the main figure's file says where the body sliders move the joints (the page moves them)
   const scene = doc.createScene("Scene");
+  if (names.includes("Body")) scene.setExtras({ body: prep.bodyJoints });
   doc.getRoot().setDefaultScene(scene);
   const nodes = new Map();
   const headOf = new Map(prep.order.map((b) => [b.name, b.head]));

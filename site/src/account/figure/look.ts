@@ -1,16 +1,21 @@
 /**
  * How a player's figure looks (Steve on Nov 14: 捏脸 with MakeHuman's free human, sliders for the
- * face shape, eyes, nose, mouth, skin and hair; each person keeps a few dozen numbers). The model
- * files carry the sliders' targets (site/scripts/figure/human.mjs, the same ids), the page mixes them.
+ * face shape, eyes, nose, mouth, skin and hair; then 身材高矮胖瘦 and the colours of the clothes and
+ * eyes; each person keeps a few dozen numbers). The model files carry the sliders' targets
+ * (site/scripts/figure/human.mjs, the same ids), the page mixes them.
  * Kept on this phone for now (localStorage); later on the account, for the games.
  */
 export type Sex = "male" | "female";
-export type ShapeGroup = "face" | "eyes" | "nose" | "mouth";
+export type ShapeGroup = "body" | "face" | "eyes" | "nose" | "mouth";
 
 /** a slider: -1 to 1, or 0 to 1 where `one` (a shape you have more or less of) */
 type Shape = { id: string; group: ShapeGroup; zh: string; en: string; one?: true };
 
 export const SHAPES = [
+  // the body: its joints move with it, and the moves are solved again for it
+  { id: "height", group: "body", zh: "身高", en: "Height" },
+  { id: "weight", group: "body", zh: "胖瘦", en: "Weight" },
+  { id: "muscle", group: "body", zh: "肌肉", en: "Muscle" },
   { id: "faceWidth", group: "face", zh: "脸宽", en: "Width" },
   { id: "faceLength", group: "face", zh: "脸长", en: "Length" },
   { id: "round", group: "face", zh: "圆脸", en: "Round", one: true },
@@ -53,6 +58,22 @@ export const HAIR_COLORS = ["#1c1714", "#3b2a1f", "#68482f", "#7f3f22", "#b98e5a
 export const SKIN_NAMES = { zh: ["白皙", "浅", "自然偏浅", "自然", "小麦", "健康", "古铜", "深", "很深"], en: ["Fair", "Light", "Light medium", "Medium", "Tan", "Warm", "Bronze", "Deep", "Very deep"] };
 export const HAIR_COLOR_NAMES = { zh: ["黑", "深棕", "棕", "栗色", "金棕", "浅金", "银灰", "酒红", "粉", "蓝", "紫"], en: ["Black", "Dark brown", "Brown", "Chestnut", "Golden brown", "Blonde", "Silver", "Wine red", "Pink", "Blue", "Purple"] };
 
+/** the eyes: the figure's own (dark brown), or another of MakeHuman's, loaded when picked (/models/figure/eyes/<id>.webp) */
+export const EYE_COLORS = [
+  { id: "brown", hex: "#3d2117", zh: "深棕", en: "Dark brown" },
+  { id: "brownlight", hex: "#7a5a33", zh: "浅棕", en: "Light brown" },
+  { id: "grey", hex: "#8b9499", zh: "灰", en: "Grey" },
+  { id: "blue", hex: "#3d6a85", zh: "蓝", en: "Blue" },
+  { id: "bluegreen", hex: "#5f9488", zh: "蓝绿", en: "Blue-green" },
+  { id: "green", hex: "#4a7a45", zh: "绿", en: "Green" },
+  { id: "deepblue", hex: "#4e4775", zh: "紫", en: "Violet" },
+] as const;
+/** the shirt's and the trousers' colours (their textures are grey: the colour is laid over them); the first ones are what they came in */
+export const SHIRT_COLORS = ["#cfcfcf", "#3e5689", "#2a2a2c", "#8d8f93", "#26334f", "#a8322f", "#e39ab4", "#e2bd45", "#3f7a52", "#b39b72", "#6b52a1", "#d9783a"] as const;
+export const SHIRT_NAMES = { zh: ["白", "蓝", "黑", "灰", "藏青", "红", "粉", "黄", "绿", "卡其", "紫", "橙"], en: ["White", "Blue", "Black", "Grey", "Navy", "Red", "Pink", "Yellow", "Green", "Khaki", "Purple", "Orange"] };
+export const PANTS_COLORS = ["#4b667f", "#2b3446", "#262628", "#77787a", "#a88f66", "#d4d0c6"] as const;
+export const PANTS_NAMES = { zh: ["牛仔蓝", "深蓝", "黑", "灰", "卡其", "白"], en: ["Denim", "Dark blue", "Black", "Grey", "Khaki", "White"] };
+
 /** the hairstyles; "none" is a buzz cut (the skin's own) */
 export const HAIRS = [
   { id: "short02", zh: "碎短发", en: "Messy short" },
@@ -78,12 +99,19 @@ export type Look = {
   skin: number;
   hair: HairId;
   hairColor: number;
+  /** indexes into EYE_COLORS, SHIRT_COLORS and PANTS_COLORS */
+  eyes: number;
+  shirt: number;
+  pants: number;
 };
 
 /** each figure's own hair is in its file; the others load when picked */
 export const FIRST_HAIR: Record<Sex, HairId> = { male: "short02", female: "long01" };
 
-export const defaultLook = (sex: Sex): Look => ({ v: 1, sex, shape: {}, skin: 3, hair: FIRST_HAIR[sex], hairColor: 1 });
+/** what each figure wears at first: the man a white T-shirt, the woman a blue one, both jeans */
+const FIRST_SHIRT: Record<Sex, number> = { male: 0, female: 1 };
+
+export const defaultLook = (sex: Sex): Look => ({ v: 1, sex, shape: {}, skin: 3, hair: FIRST_HAIR[sex], hairColor: 1, eyes: 0, shirt: FIRST_SHIRT[sex], pants: 0 });
 
 const KEY = "figure.look";
 const clamp = (x: unknown, lo: number, hi: number) => (typeof x === "number" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : 0);
@@ -96,7 +124,12 @@ export function readLook(): Look {
   } catch {
     raw = null;
   }
-  const o = raw as Partial<Look> | null;
+  return checkLook(raw);
+}
+
+/** a look from anywhere (this phone, the account), checked: what's missing or wrong takes the default */
+export function checkLook(raw: unknown): Look {
+  const o = (raw && typeof raw === "object" ? raw : null) as Partial<Look> | null;
   const sex: Sex = o?.sex === "female" ? "female" : "male";
   const look = defaultLook(sex);
   if (!o || o.v !== 1) return look;
@@ -104,9 +137,14 @@ export function readLook(): Look {
     const x = clamp(o.shape?.[s.id], "one" in s ? 0 : -1, 1);
     if (x) look.shape[s.id] = Math.round(x * 100) / 100;
   }
-  look.skin = Math.round(clamp(o.skin, 0, SKINS.length - 1));
-  look.hairColor = Math.round(clamp(o.hairColor, 0, HAIR_COLORS.length - 1));
+  // an index that's there is kept in range; one that isn't keeps the default
+  const pick = (x: unknown, n: number, d: number) => (typeof x === "number" && Number.isFinite(x) ? Math.round(clamp(x, 0, n - 1)) : d);
+  look.skin = pick(o.skin, SKINS.length, look.skin);
+  look.hairColor = pick(o.hairColor, HAIR_COLORS.length, look.hairColor);
   if (HAIRS.some((h) => h.id === o.hair)) look.hair = o.hair as HairId;
+  look.eyes = pick(o.eyes, EYE_COLORS.length, look.eyes);
+  look.shirt = pick(o.shirt, SHIRT_COLORS.length, look.shirt);
+  look.pants = pick(o.pants, PANTS_COLORS.length, look.pants);
   return look;
 }
 
@@ -118,11 +156,16 @@ export function saveLook(look: Look) {
   }
 }
 
-/** a random face (mostly mild), skin and hair, for the same body */
-export function randomLook(sex: Sex): Look {
+/** a random face (mostly mild), skin, eyes and hair, for the same body in the same clothes */
+export function randomLook(from: Look): Look {
   const r = (a: number) => Math.round((Math.random() * 2 - 1) * a * 100) / 100;
-  const look = defaultLook(sex);
+  const look = { ...defaultLook(from.sex), shirt: from.shirt, pants: from.pants };
   for (const s of SHAPES) {
+    if (s.group === "body") {
+      const x = from.shape[s.id];
+      if (x) look.shape[s.id] = x;
+      continue;
+    }
     if ("one" in s) continue;
     const x = r(0.65);
     if (Math.abs(x) > 0.08) look.shape[s.id] = x;
@@ -131,8 +174,9 @@ export function randomLook(sex: Sex): Look {
   look.shape[kind] = Math.round(Math.random() * 60) / 100;
   look.skin = Math.floor(Math.random() * SKINS.length);
   look.hair = HAIRS[Math.floor(Math.random() * HAIRS.length)].id;
-  // mostly natural hair colours, now and then a bright one
+  // mostly natural hair colours, now and then a bright one; mostly brown eyes
   look.hairColor = Math.random() < 0.8 ? Math.floor(Math.random() * 7) : 7 + Math.floor(Math.random() * 4);
+  look.eyes = Math.random() < 0.6 ? 0 : Math.floor(Math.random() * EYE_COLORS.length);
   return look;
 }
 

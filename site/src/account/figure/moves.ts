@@ -11,6 +11,8 @@ import type { HairId, Sex } from "./look";
 export const figureFile = (sex: Sex) => `/models/figure/${sex}.glb.gz`;
 /** the hairstyles other than a figure's own, one file each */
 export const hairFile = (hair: HairId, sex: Sex) => `/models/figure/hair/${hair}-${sex}.glb.gz`;
+/** the other eye colours, one small texture each (look.ts EYE_COLORS) */
+export const eyeFile = (id: string) => `/models/figure/eyes/${id}.webp`;
 
 export type PropId = "sword" | "phone" | "beer" | "shades" | "headphones";
 export type FxKind = "z" | "heart" | "note" | "tear";
