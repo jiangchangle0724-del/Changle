@@ -1,0 +1,271 @@
+{
+  "id": "space-48",
+  "world": "space",
+  "name": {
+    "zh": "主控舱交接",
+    "en": "Control Deck Handover"
+  },
+  "tier": 2,
+  "teaches": "combine",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 496
+  },
+  "goal": {
+    "x": 2300,
+    "y": 360,
+    "w": 240,
+    "h": 180
+  },
+  "checkpoints": [
+    {
+      "x": 1190,
+      "y": 496
+    },
+    {
+      "x": 1830,
+      "y": 496
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 540,
+      "y": 463
+    },
+    {
+      "x": 1374,
+      "y": 489
+    },
+    {
+      "x": 2032,
+      "y": 454
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 540,
+      "w": 390,
+      "h": 180,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 910,
+      "y": 540,
+      "w": 450,
+      "h": 180,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1800,
+      "y": 540,
+      "w": 760,
+      "h": 180,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 500,
+      "y": 390,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 720,
+      "y": 420,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 1400,
+      "y": 300,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 1650,
+      "y": 660,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 1040,
+      "y": 0,
+      "w": 36,
+      "h": 140,
+      "kind": "wall",
+      "material": "hull"
+    },
+    {
+      "x": 1960,
+      "y": 0,
+      "w": 36,
+      "h": 140,
+      "kind": "wall",
+      "material": "hull"
+    },
+    {
+      "x": 550,
+      "y": 540,
+      "w": 130,
+      "h": 180,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1440,
+      "y": 540,
+      "w": 130,
+      "h": 180,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1680,
+      "y": 370,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    }
+  ],
+  "zerog": [
+    {
+      "x": 360,
+      "y": 100,
+      "w": 590,
+      "h": 760
+    },
+    {
+      "x": 1310,
+      "y": 100,
+      "w": 540,
+      "h": 760
+    }
+  ],
+  "levers": [
+    {
+      "x": 600,
+      "y": 460,
+      "opens": "cargo"
+    },
+    {
+      "x": 960,
+      "y": 460,
+      "opens": "cargo"
+    },
+    {
+      "x": 1490,
+      "y": 460,
+      "opens": "control"
+    },
+    {
+      "x": 1860,
+      "y": 460,
+      "opens": "control"
+    }
+  ],
+  "gates": [
+    {
+      "id": "cargo",
+      "x": 1040,
+      "y": 140,
+      "w": 36,
+      "h": 400,
+      "move": {
+        "x": 0,
+        "y": -140
+      },
+      "all": true,
+      "hold": 12,
+      "speed": 400,
+      "grab": false
+    },
+    {
+      "id": "control",
+      "x": 1960,
+      "y": 140,
+      "w": 36,
+      "h": 400,
+      "move": {
+        "x": 0,
+        "y": -140
+      },
+      "all": false,
+      "hold": 12,
+      "speed": 400,
+      "grab": false
+    }
+  ],
+  "hazards": [
+    {
+      "x": 790,
+      "y": 190,
+      "w": 12,
+      "h": 150,
+      "kind": "zap"
+    },
+    {
+      "x": 500,
+      "y": 700,
+      "w": 60,
+      "h": 20,
+      "kind": "spike"
+    },
+    {
+      "x": 1580,
+      "y": 310,
+      "w": 70,
+      "h": 18,
+      "kind": "hot"
+    },
+    {
+      "x": 2230,
+      "y": 340,
+      "w": 60,
+      "h": 18,
+      "kind": "spike"
+    }
+  ],
+  "movers": [
+    {
+      "x": 1670,
+      "y": 210,
+      "w": 80,
+      "h": 16,
+      "path": [
+        {
+          "x": 1770,
+          "y": 210
+        }
+      ],
+      "speed": 45,
+      "material": "metal",
+      "deadly": true,
+      "hazard": "zap"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "deathY": 900,
+  "par": {
+    "seconds": 110,
+    "deathsPerPlayer": 8
+  },
+  "replay": "replays/space-48.json"
+}
