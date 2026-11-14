@@ -256,6 +256,10 @@
   display: flex;
   margin: 32px auto 0;
 }
+.user-actions > .hint {
+  margin: 0 0 2px;
+  text-align: center;
+}
 
 /* ---------- the games someone played ---------- */
 .history {
@@ -366,6 +370,10 @@
 }
 .people > .hint {
   padding: 10px 2px;
+}
+.blocked-people > .hint {
+  margin: 8px 2px 0;
+  font-size: var(--text-sm);
 }
 .person {
   display: flex;
