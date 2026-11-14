@@ -27,6 +27,11 @@ home. Nothing on changle.ca links here until the owner has tried it on a phone:
 | `/tuan/my/t/<group buy>/edit` | Changing a group buy: the same page, filled in. What an order names (an item, a pickup point, a delivery area) can change but not go. |
 | `/tuan/api/…` | The API (`src/server/worker.ts` lists it). |
 
+Every page is in Chinese and English, with a switch at the top right. A phone starts in the
+language it last chose here (`tuan.lang`); else in Chinese inside WeChat, whatever the phone's
+own language (group buys go round WeChat groups); else in the phone's language. What a merchant
+wrote shows as they wrote it.
+
 ## How it is made
 
 Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), like 玩什么
