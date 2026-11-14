@@ -35,8 +35,8 @@ import {
   TETHER_LEN,
 } from './config';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
-import { circleHitsBar, circleHitsRect, moverAt, spinnerAngle, spinnerArm, ventColumn, ventState } from './motion';
+import { forPlayers, gateAt, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LiftDef, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
+import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, spinnerAngle, spinnerArm, ventColumn, ventState } from './motion';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -85,6 +85,8 @@ export interface Grip {
   noodle?: number;
   /** 抓了多久（秒）。 */
   t: number;
+  /** 抓的是冰溜子（雪山，A10，`Rect.slip`）：最多抓几秒就滑。 */
+  max?: number;
 }
 
 interface GripInternal extends Grip {
@@ -398,6 +400,8 @@ export class Sim {
 
   private readonly info = new Map<number, ColInfo>();
   private readonly movers: { def: MoverDef; rb: RB }[] = [];
+  /** 雪山缆车（A10）：每根缆绳上的椅子（运动学刚体，座板和横杆两块碰撞体），在不在缆绳上（收在站里的关掉碰撞体）。 */
+  private readonly lifts: { def: LiftDef; chairs: { rb: RB; cols: Col[]; on: boolean }[] }[] = [];
   private readonly spinners: { def: SpinnerDef; rb: RB }[] = [];
   private readonly terrain: RB;
   private readonly grabShape: RAPIER.Ball;
@@ -439,6 +443,7 @@ export class Sim {
     for (const def of level.plates ?? []) this.addPlate(def);
     for (const def of level.gates ?? []) this.addGate(def);
     for (const def of level.vents ?? []) this.addVent(def);
+    for (const def of level.lifts ?? []) this.addLift(def);
     if (this.itemsOn) for (const e of level.envelopes ?? []) this.envelopes.push({ x: e.x, y: e.y, got: false });
     // 端托盘（后厨，A10）：闯关、大团队里摆上一托盘点心
     const traySpot = level.tray?.[0];
@@ -604,6 +609,28 @@ export class Sim {
     this.addRect({ ...def, material }, frictionOf(material), 0);
     const s = ventState(def, 0);
     this.vents.push({ def, on: s.on, warn: s.warn });
+  }
+
+  /** 雪山缆车（A10）：每把椅子一个运动学刚体，座板能站、横杆（缆车厢是顶）能抓，每步摆到 liftChairs 算的地方。 */
+  private addLift(def: LiftDef): void {
+    const parts = liftParts(def);
+    const chairs = liftChairs(def, 0).map((c) => {
+      const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(c.x, c.y));
+      const cols = [parts.seat, parts.top].map((r) => {
+        const col = this.world.createCollider(
+          RAPIER.ColliderDesc.cuboid(r.w / 2, r.h / 2)
+            .setTranslation(r.x + r.w / 2, r.y + r.h / 2)
+            .setFriction(frictionOf('wood'))
+            .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL)),
+          rb,
+        );
+        this.info.set(col.handle, { kind: 'moving', deadly: false });
+        col.setEnabled(c.on);
+        return col;
+      });
+      return { rb, cols, on: c.on };
+    });
+    this.lifts.push({ def, chairs });
   }
 
   /** 端托盘（后厨，A10）：一块薄薄的托盘（at 是中心），能抓能拽；抓在中间端得平，抓在一头就往下歪。 */
@@ -1021,6 +1048,21 @@ export class Sim {
     }
     for (const { def, rb } of this.spinners) rb.setNextKinematicRotation(spinnerAngle(def, this.time));
     for (const g of this.gates) g.rb.setNextKinematicTranslation({ x: g.x + g.w / 2, y: g.y + g.h / 2 });
+    // 雪山缆车：椅子走到头收进站里（关掉碰撞体，站着的掉下来、抓着的松开），从起点那头直接放出来（不扫过整根缆绳）
+    for (const lift of this.lifts) {
+      const at = liftChairs(lift.def, this.time);
+      lift.chairs.forEach((ch, k) => {
+        const c = at[k];
+        if (!c) return;
+        if (c.on !== ch.on) {
+          ch.on = c.on;
+          for (const col of ch.cols) col.setEnabled(c.on);
+          if (c.on) ch.rb.setTranslation({ x: c.x, y: c.y }, true);
+          else for (const [, e] of [...this.grips]) if (e.g.target === ch.rb) this.release(this.players[e.player] as Player, e.arm);
+        }
+        if (c.on) ch.rb.setNextKinematicTranslation({ x: c.x, y: c.y });
+      });
+    }
     if (this.drone) this.drone.rb.setNextKinematicTranslation({ x: this.drone.x, y: this.drone.y });
   }
 
@@ -1381,8 +1423,8 @@ export class Sim {
         else if (!p.grab[k] && arm.grip) this.release(p, k);
         if (arm.grip) {
           arm.grip.t += dt;
-          // 坐不住：一个地方抓太久手就滑了，一会儿抓不了（按着键也不会马上又抓回去）
-          if (slips && arm.grip.t >= CFG.lastGripMax) {
+          // 坐不住：一个地方抓太久手就滑了，一会儿抓不了（按着键也不会马上又抓回去）；雪山的冰溜子抓久了也滑
+          if (arm.grip.t >= Math.min(slips ? CFG.lastGripMax : Infinity, arm.grip.max ?? Infinity)) {
             this.release(p, k);
             arm.slipCd = CFG.slipCooldown;
             this.events.push({ type: 'slip', player: p.id, arm: k });
@@ -1628,6 +1670,7 @@ export class Sim {
       local,
     };
     if (info.kind === 'terrain' || info.kind === 'spring') grip.rect = info.rect;
+    if (info.kind === 'terrain' && info.rect.slip !== undefined) grip.max = info.rect.slip;
     if (info.kind === 'player') grip.player = info.player;
     if (info.kind === 'rope') grip.rope = info.rope;
     if (info.kind === 'noodle') grip.noodle = this.noodles.find((n) => n.id === info.noodle)?.owner;

@@ -326,8 +326,9 @@ export class Dumpling {
     const g = this.arms;
     g.clear();
     p.arms.forEach((arm, i) => {
-      // 坐不住：抓了 lastGripWarn 秒起手开始抖、圈变红，到 lastGripMax 就滑（减弱动效时只变红）
-      const warn = slips && arm.grip ? Math.min(1, Math.max(0, (arm.grip.t - CFG.lastGripWarn) / (CFG.lastGripMax - CFG.lastGripWarn))) : 0;
+      // 坐不住、雪山的冰溜子：快到滑脱前 slipWarn 秒手开始抖、圈变红，到点就滑（减弱动效时只变红）
+      const max = Math.min(slips ? CFG.lastGripMax : Infinity, arm.grip?.max ?? Infinity);
+      const warn = arm.grip && Number.isFinite(max) ? Math.min(1, Math.max(0, (arm.grip.t - (max - CFG.slipWarn)) / CFG.slipWarn)) : 0;
       const jit = warn > 0 && !this.reduced ? warn * 3 : 0;
       const pts = arm.pts;
       if (pts.length >= 2) {
