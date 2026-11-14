@@ -533,7 +533,7 @@ export function houseLevel(): Level {
       { x: 0, y: 800, w: 900, h: 300, kind: 'ground', material: 'brick' },
       // 库房：木地板，中间一个窟窿；顶上一道抓不住的大梁（门在梁的那头，翻不过去）
       { x: 900, y: 800, w: 340, h: 300, kind: 'ground', material: 'wood' },
-      { x: 1360, y: 800, w: 1340, h: 300, kind: 'ground', material: 'wood' },
+      { x: 1360, y: 800, w: 990, h: 300, kind: 'ground', material: 'wood' },
       { x: 880, y: 280, w: 980, h: 40, kind: 'wall', material: 'wood', grab: false },
       // 高柜子，钥匙在柜顶上
       { x: 1520, y: 560, w: 180, h: 240, kind: 'wall', material: 'wood' },
