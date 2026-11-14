@@ -14,7 +14,8 @@ import { EmptyState } from "../ui/EmptyState";
 import { ToastProvider, useToast } from "../ui/Toast";
 
 type Relation = "self" | "friends" | "sent" | "received" | "none" | "blocked";
-type Data = { user: PublicUser; relation: Relation; stats: Stats; recent: HistoryRow[] };
+/** blockedByMe: the block is mine, so it can be undone here (the person I blocked is told nothing) */
+type Data = { user: PublicUser; relation: Relation; stats: Stats; recent: HistoryRow[]; blockedByMe?: true };
 
 /** /u/:id: someone else's profile, and what you can do about them. */
 export function UserPage({ id, onBack }: { id: string; onBack: () => void }) {
@@ -153,6 +154,15 @@ function Profile({ id, onBack }: { id: string; onBack: () => void }) {
           <h3 className="list-title">{zh ? "最近玩的" : "Recent games"}</h3>
           <HistoryList rows={d.recent} empty={zh ? "还没玩过" : "No games yet"} />
         </>
+      )}
+
+      {d.blockedByMe && (
+        <div className="user-actions">
+          <p className="hint">{zh ? "你屏蔽了这个人：对方加不了你，也发不了消息。" : "You blocked them: they can't add or message you."}</p>
+          <button type="button" className="btn btn-ghost btn-lg btn-block user-unblock" disabled={busy} onClick={() => void act("DELETE", `/blocks/${u.id}`)}>
+            {zh ? "解除屏蔽" : "Unblock"}
+          </button>
+        </div>
       )}
 
       {d.relation !== "self" && d.relation !== "blocked" && (

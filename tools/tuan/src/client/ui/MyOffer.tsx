@@ -175,6 +175,12 @@ export function MyOfferView({ offerId }: { offerId: string }) {
               {t(state === "draft" ? "openDraft" : "reopen")}
             </button>
           )}
+          <a class="btn btn-quiet btn-sm" href={`${BASE}/my/t/${offer.id}/edit`}>
+            {t("editChange")}
+          </a>
+          <a class="btn btn-quiet btn-sm" href={`${BASE}/my/new/${page.shop.slug}?from=${offer.id}`}>
+            {t("editAgain")}
+          </a>
         </div>
       </section>
 

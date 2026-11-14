@@ -3,9 +3,10 @@
  *
  *   /                 home (party)          /g/<slug>          a game's card, over home
  *   /tools, /wish     the other home tabs   /g/<slug>/play     the game, on one phone (?c=: a link
- *                                                               of the game's own, 猜歌名's challenges)
+ *   /tools/<tool>     a tool on its page                         of the game's own, 猜歌名's challenges)
+ *                     (currency, clock, price)
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
- *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts
+ *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts (/me/figure: the 3D figure's prototype)
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
  *   /split, /split/<id>   两清: the ledgers on this phone, and one of them (not on the Tools tab yet)
  *   /settings, /login open that sheet over home (the address then goes back to /)
@@ -21,12 +22,15 @@ import { useEffect, useRef, useState } from "react";
 import { GAMES, GAME_BY_ID, isGameId, type GameId } from "./games/registry";
 import type { HomeTab } from "./home/Home";
 import type { Lang } from "./i18n";
+import { TOOLS, isToolId, type ToolId } from "./tools/ids";
 
 export type Route =
   | { kind: "home"; tab: HomeTab; game?: GameId; open?: "settings" | "login" }
   | { kind: "game"; id: GameId; c?: string }
+  | { kind: "tool"; id: ToolId }
   | { kind: "room"; code: string }
   | { kind: "me"; tab?: "friends" }
+  | { kind: "figure" }
   | { kind: "admin" }
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
@@ -61,6 +65,7 @@ export function parse(pathname: string, search = ""): Route {
   let m: RegExpExecArray | null;
   if (p === "/") return { kind: "home", tab: "party" };
   if (p === "/tools" || p === "/wish") return { kind: "home", tab: p.slice(1) as HomeTab };
+  if ((m = /^\/tools\/([a-z]+)$/.exec(p)) && isToolId(m[1])) return { kind: "tool", id: m[1] };
   if (p === "/settings") return { kind: "home", tab: "party", open: "settings" };
   if (p === "/login") return { kind: "home", tab: "party", open: "login" };
   if ((m = /^\/g\/([A-Za-z0-9-]+)(\/play)?$/.exec(p))) {
@@ -82,6 +87,7 @@ export function parse(pathname: string, search = ""): Route {
   if ((m = new RegExp(`^/t/${TABLE}$`).exec(p))) return { kind: "room", code: m[1].toUpperCase() };
   if (p === "/me") return { kind: "me" };
   if (p === "/me/friends") return { kind: "me", tab: "friends" };
+  if (p === "/me/figure") return { kind: "figure" };
   if (p === "/admin") return { kind: "admin" };
   if ((m = new RegExp(`^/u/${USER}$`).exec(p))) return { kind: "user", id: m[1] };
   if ((m = new RegExp(`^/chat/${USER}$`).exec(p))) return { kind: "chat", id: m[1] };
@@ -105,10 +111,14 @@ export function pathOf(r: Route): string {
       return r.game ? `/g/${GAME_BY_ID[r.game].slug}` : r.tab === "party" ? "/" : `/${r.tab}`;
     case "game":
       return `/g/${GAME_BY_ID[r.id].slug}/play${r.c ? `?c=${r.c}` : ""}`;
+    case "tool":
+      return `/tools/${r.id}`;
     case "room":
       return `/t/${r.code}`;
     case "me":
       return r.tab === "friends" ? "/me/friends" : "/me";
+    case "figure":
+      return "/me/figure";
     case "admin":
       return "/admin";
     case "user":
@@ -167,6 +177,8 @@ export function titleOf(r: Route, lang: Lang): string {
       return SITE;
     case "game":
       return gameTitle(r.id);
+    case "tool":
+      return named(TOOLS[r.id].zh, TOOLS[r.id].en);
     case "room":
       return named(`桌号 ${r.code}`, `Table ${r.code}`);
     case "tv":
@@ -178,6 +190,8 @@ export function titleOf(r: Route, lang: Lang): string {
     case "me":
     case "admin":
       return named("我的", "Me");
+    case "figure":
+      return named("3D 小人", "3D figure");
     case "user":
       return named("主页", "Profile");
     case "chat":

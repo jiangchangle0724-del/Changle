@@ -435,7 +435,9 @@ export class Hub extends DurableObject<HubEnv> {
       const u = this.userById(mm[1]);
       if (!u) return err(404, "none");
       const rel = this.relation(me.id, u.id);
-      return ok({ user: { ...this.publicView(u), figure: this.figure(u.id).shown }, relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [] });
+      // (blockedByMe: the block is mine, so the page can offer to undo it; the person I blocked is told nothing)
+      const mine = rel === "blocked" && !!this.one(`SELECT 1 AS x FROM blocks WHERE user_id = ? AND blocked = ?`, me.id, u.id);
+      return ok({ user: { ...this.publicView(u), figure: this.figure(u.id).shown }, relation: rel, stats: this.stats(u.id), recent: rel === "friends" || rel === "self" ? this.history(u.id, 8) : [], ...(mine ? { blockedByMe: true } : {}) });
     }
     if (path === "/users" && m === "GET") {
       const q = clean((c.body as { q?: string } | undefined)?.q ?? "", 30);
@@ -459,6 +461,12 @@ export class Hub extends DurableObject<HubEnv> {
       this.sql.exec(`INSERT OR IGNORE INTO blocks (user_id, blocked) VALUES (?, ?)`, me.id, mm[1]);
       this.parted(me.id, mm[1]);
       return ok({ ok: true });
+    }
+    if (mm && m === "DELETE") {
+      // undone: they're strangers again (the friendship went when the block came), either side may ask anew
+      this.sql.exec(`DELETE FROM blocks WHERE user_id = ? AND blocked = ?`, me.id, mm[1]);
+      this.push(me.id, { t: "friends" });
+      return ok({ relation: this.relation(me.id, mm[1]) });
     }
 
     // ---- chat ----
@@ -978,7 +986,8 @@ export class Hub extends DurableObject<HubEnv> {
       else incoming.push(view);
     }
     friends.sort((x, y) => ((y as { last: { at: number } | null }).last?.at ?? 0) - ((x as { last: { at: number } | null }).last?.at ?? 0));
-    return { friends, incoming, outgoing };
+    const blocked = (this.sql.exec(`SELECT u.* FROM blocks k JOIN users u ON u.id = k.blocked WHERE k.user_id = ? ORDER BY u.name`, me).toArray() as Row[]).map((r) => this.publicView(asUser(r)));
+    return { friends, incoming, outgoing, blocked };
   }
 
   private search(me: string, q: string) {

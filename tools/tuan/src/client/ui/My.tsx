@@ -7,7 +7,7 @@ import type { MyHome, MyOffer } from "../../api";
 import { BASE } from "../../base";
 import { ApiFail, getMy, session } from "../api";
 import { t, whenText } from "../i18n";
-import { IconNext, money, TopBar, useLang, useTitle } from "./common";
+import { IconNext, IconPlus, money, TopBar, useLang, useTitle } from "./common";
 import { OwnerPanel } from "./Owner";
 
 /** Why a merchant's page can't show what it's for. `signin`: nobody is signed in on this phone; `stale`: the sign-in it has is no longer good. */
@@ -138,6 +138,10 @@ export function My() {
               })}
             </ul>
           )}
+          <a class="btn btn-quiet btn-block" href={`${BASE}/my/new/${shop.slug}`}>
+            <IconPlus size={18} />
+            {t("editNew")}
+          </a>
         </section>
       ))}
 

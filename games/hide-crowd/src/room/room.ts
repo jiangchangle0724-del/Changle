@@ -370,6 +370,11 @@ export class Room {
       const taster = characterForOwner(this.st.game, players[0].id)!;
       Object.assign(taster, { x: STALLS[test.stall], y: ARENA.marginY + 2, velocity: { x: 0, y: 0 }, facing: -Math.PI / 2 });
       for (const other of this.st.game.characters) if (other !== taster && Math.abs(other.x - taster.x) < 14) other.y = Math.max(other.y, 40);
+      // (and the other players start well clear of every stall: one standing still at one would taste it)
+      for (const player of players.slice(1)) {
+        const body = characterForOwner(this.st.game, player.id);
+        if (body) body.y = Math.max(body.y, 40);
+      }
     }
     this.st.round++;
     this.st.result = null;

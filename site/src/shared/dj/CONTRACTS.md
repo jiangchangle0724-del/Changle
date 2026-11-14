@@ -66,7 +66,10 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   host winds down or the cap comes near; cool lasts 15 minutes. Nothing runs past `capAt`.
 - **The host** (`phase`) can take the night to `warm`, `build`, `peak`, `cool` or `end` at any time
   once it has started (each with a fresh clock), and after the end start another set (`again`):
-  back to `wait`, a new `set` number, the night's 🔥 kept.
+  back to `wait`, a new `set` number, the night's 🔥 kept. The host's phone has no buttons for
+  `phase` since Nov 13 (Steve: the host's card keeps 报幕 alone, "仅保留 announcement on"): the
+  night moves on by itself, the peak winding down 15 minutes before the cap (the TV's line under
+  the curve says when); the browser checks send it (`window.__djHost.phase`, the dev build only).
 - **Everyone** can press 🔥 (`fire`): a phone sends at most one per 400 ms (faster taps only burst
   on the phone), and the room takes one per 300 ms a phone (the network bunches taps up). The room
   keeps the latest 40 presses (`fires`, who and when) and a count per player for the night
@@ -368,11 +371,28 @@ deck B ┘                                                                 horn,
   its styles and tempo), what's next, then 上一曲, 暂停 or 播放, 切歌 (keys of 72 px, never grey while
   a song is coming on), the video over the whole TV, and the TV's word when it wants a tap. Then
   the song box, the 歌单 and the twelve pads (the ones that work the music wait while a whole song
-  plays or the room is held), 🔥 and ❄️, the host's controls, and 跟着跳 at the very bottom.
+  plays or the room is held), 🔥 and ❄️, the host's card (报幕 on or off; at the end, 再来一场:
+  its stretches and 结束这一场 gone on Nov 13), and 跟着跳 at the very bottom.
 - **The screens:** the TV shows the two decks (the one on the air bright, the cued one "up next"),
   the fader, who pressed which pad, and a line (`jukeText`: what comes next, 暂停 held, or a floor
   that's dragging between songs told to ask for a song everyone loves). With the build-up and DROP
   on (the engine's tests only), its meter, the countdown, the landed drop and `hintFor`'s hints.
+
+**弹幕** (Steve on Nov 13: "再加一个玩家可以发弹幕的功能，可以推荐几个弹幕表情之类的，也可以自定义";
+`shared/dj/danmu.ts`). Every phone has a card under 🔥 and ❄️ (`phone/DanmuPad.tsx`): twelve ready
+ones (`DANMU_READY`: emoji and short lines, each screen showing them in its own language) and a line
+of one's own (`DANMU.chars`, 24 characters). `say` (`p`, a ready one's number, or `t`, the words):
+one per `DANMU.gapMs` (1.5 s) a phone, light (sent at once, stored with the next save), the words
+cleaned to one line with the worst ones starred out (`maskDanmu`: slurs and the crudest swearing in
+both languages, whatever the spacing or dots; none that's part of an everyday word). The room keeps
+the latest `DANMU.keep` (30), numbered; the view has the ones under `DANMU.freshMs` (5 s) old, so a
+screen opened later doesn't fly old ones. The host's card has its switch (`danmu`, on by default;
+off, the lines on their way go too, and the phones say the host turned them off); another set keeps
+the switch and the count. The big screen (`DanmuLayer.tsx`) flies each new line from the right edge
+across everything, the video too, with the sender's face and name: six rows, every line at one
+speed (an empty one would cross in 8 s), a row's next line once the last one's tail is in; a flood
+waits for a free row, 8 s at most, then is dropped. With reduced motion a line stands at the left,
+fading in and out over 4 s.
 
 **The mixer** (混音台, Steve's ask on Nov 2: pro mixing, to make the music more electronic, with
 knobs). One mixer for the table (`MixerState` in `types.ts`), under every phone's deck: anyone
@@ -805,6 +825,12 @@ and is back if they can't be.
   meters, then both on the beat filling the combo to fireworks; the recap's best on the beat.
   `tests/dj.test.ts` has the routine, the beat times and a danced beat; `tests/engine.test.ts`
   the room's counts, the combo and its fireworks.
+- `python3 scripts/dj_danmu_check.py`: 弹幕 in browsers, a TV and three phones: the card on every
+  phone (twelve ready ones in its language, 48 px each), a tap flying right to left across the TV
+  with the sender's face and name, a second straight after not taken (the phone says slow down), a
+  line of one's own with the worst words starred, three at once in different rows and never on top
+  of each other, all gone once they've flown, the host's switch off (the phones say so) and on, a
+  TV with reduced motion having them stand at the left. `tests/engine.test.ts` has the room's side.
 - `python3 scripts/dj_floor3d_check.py`: the floor in 3D in browsers, TVs and up to nine phones
   (the TV told to take any WebGL, as one with a graphics chip would): the drawn floor giving way to
   the robots, one a player in their own colour under their face and name, every animation where

@@ -278,3 +278,25 @@ test("a business dinner: a budget too low for it is pointed out; places plainly 
   await expect(page.locator(".place", { hasText: "Moonlight Dessert Café" }).locator(".note")).toHaveText("不太适合商务宴请：这是甜品面包店，排在后面。");
   expect(me.errors).toEqual([]);
 });
+
+test("a place that is two cuisines counts for whoever liked either, and its card says the one they liked first (Steve, 2026-11-13)", async ({ browser }) => {
+  const me = await phone(browser, "bbq");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `bbq-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("[data-occasion=family]").click();
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  await page.getByRole("button", { name: "开始！" }).click();
+  // Northern Chinese only: 新疆烤串 grills skewers and is from Xinjiang, so it counts, saying so first.
+  await page.locator("[data-cuisine=northern]").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  const first2 = await page.locator(".place h3").evaluateAll((hs) => hs.slice(0, 2).map((h) => h.textContent));
+  expect(first2.sort()).toEqual(["示例 · 兰州牛肉面", "示例 · 新疆烤串"]);
+  await expect(page.locator(".place", { hasText: "新疆烤串" }).locator(".intro")).toContainText("🫓 东北 · 西北菜、中式烧烤 · 串串");
+  await expect(page.locator(".place", { hasText: "新疆烤串" }).locator(".reason", { hasText: "有人想吃这类" })).toBeVisible();
+  expect(me.errors).toEqual([]);
+});

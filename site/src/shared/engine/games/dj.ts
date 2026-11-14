@@ -12,6 +12,7 @@
 import { SONG_ROWS } from "../../../data/songs";
 import { ENERGY, FAKE_MIX, heatLean, LEAN_MS, mixFor, playing } from "../../dj/curve";
 import { DANCE } from "../../dj/dance";
+import { DANMU, DANMU_READY, maskDanmu } from "../../dj/danmu";
 import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, rested, styleOn } from "../../dj/deck";
 import { hintOf, styleForRequest, trackFor } from "../../dj/requests";
 import {
@@ -90,6 +91,10 @@ function fresh(set: number): RoomState {
     dance: {},
     danceBar: { bar: -1, n: 0, good: 0 },
     combo: 0,
+    danmu: [],
+    danmuN: 0,
+    danmuOn: true,
+    danmuAt: {},
   };
 }
 
@@ -113,6 +118,10 @@ function norm(s: RoomState): RoomState {
   s.dance ??= {};
   s.danceBar ??= { bar: -1, n: 0, good: 0 };
   s.combo ??= 0;
+  s.danmu ??= [];
+  s.danmuN ??= 0;
+  s.danmuOn ??= true;
+  s.danmuAt ??= {};
   // a deck saved before a field existed gets it fresh
   s.deck = { ...freshDeck(), ...s.deck };
   return s;
@@ -913,8 +922,10 @@ export const dj: GameDef<RoomState> = {
         next.voice = s.voice;
         next.shuffle = s.shuffle;
         next.juke = s.juke;
-        // the night's dancing, like its 🔥
+        // the night's dancing, like its 🔥; 弹幕's switch and its count (a screen shows each line once)
         next.dance = s.dance;
+        next.danmuOn = s.danmuOn;
+        next.danmuN = s.danmuN;
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -1043,6 +1054,28 @@ export const dj: GameDef<RoomState> = {
         const on = g.on === true;
         if (s.full === on) return api.quiet();
         s.full = on;
+        return;
+      }
+      case "say": {
+        // 弹幕 (Steve on Nov 13): a ready line (`p`) or one's own words (`t`, the worst masked), across
+        // the big screen; one per DANMU.gapMs a phone, while the host has them on. Light: a party
+        // sends lots (sent now, stored with the next save)
+        if (!s.danmuOn || (s.danmuAt[pid] ?? -Infinity) > api.now - DANMU.gapMs) return api.quiet();
+        const p = typeof g.p === "number" && Number.isInteger(g.p) && g.p >= 0 && g.p < DANMU_READY.length ? g.p : null;
+        const t = p === null ? maskDanmu(cleanAsk(g.t, DANMU.chars)) : "";
+        if (p === null && !t) return api.quiet();
+        s.danmuAt[pid] = api.now;
+        s.danmuN += 1;
+        s.danmu = keep([...s.danmu, { n: s.danmuN, pid, at: api.now, ...(p !== null ? { p } : { t }) }], DANMU.keep);
+        api.light();
+        return;
+      }
+      case "danmu": {
+        // the host, from their phone: 弹幕 on or off (off: the lines on their way go too)
+        const on = g.on === true;
+        if (!host || s.danmuOn === on) return api.quiet();
+        s.danmuOn = on;
+        if (!on) s.danmu = [];
         return;
       }
       default:
@@ -1374,6 +1407,9 @@ export const dj: GameDef<RoomState> = {
       combo: s.combo,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },
       speaker: { stalls: s.speaker.stalls, resets: s.speaker.resets, seconds: s.speaker.seconds },
+      // (the lines still flying: a screen opened later doesn't get the night's old ones)
+      danmu: s.danmu.filter((l) => api.now - l.at < DANMU.freshMs),
+      danmuOn: s.danmuOn,
     };
   },
 

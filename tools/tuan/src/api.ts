@@ -22,6 +22,8 @@ export type ApiErrorCode =
   | "paid" // paid for or handed over: only the merchant changes it now
   | "cancelled" // the order was cancelled: nothing more is done to it
   | "busy" // it changed while this was on its way: read it again
+  | "inuse" // a change to a group buy would drop an item or a place that an order names
+  | "sold" // a change to a group buy would set an item's limit below what's already ordered
   | "down" // the accounts can't be reached just now
   | "failed"; // something went wrong on the server
 
@@ -31,7 +33,7 @@ export interface ApiError {
   items?: { id: string; left: number }[];
   /** min: the least goods for delivery there, in cents */
   min?: number;
-  /** item, place: which one, counting from 0 */
+  /** item, place, sold: which one, counting from 0 */
   at?: number;
 }
 
@@ -181,6 +183,19 @@ export interface MyOfferPage {
   rules: DeliveryRule[];
   orders: Order[];
   summary: Summary;
+  now: number;
+}
+
+/**
+ * A group buy as its merchant changes it: what the document it was made from says now, each part
+ * under its id. `used`: an order names the part, so it can change but not go.
+ */
+export interface MyOfferDoc {
+  shop: Pick<Shop, "slug" | "name">;
+  offer: Pick<Offer, "id" | "status" | "title" | "note" | "closesAt" | "roster">;
+  items: (Omit<Item, "photo"> & { used: boolean })[];
+  points: (PickupPoint & { used: boolean })[];
+  rules: (DeliveryRule & { used: boolean })[];
   now: number;
 }
 

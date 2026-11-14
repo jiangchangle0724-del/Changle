@@ -76,10 +76,20 @@ export function GameSheet({
           </p>
 
           {g.ready && g.stage ? (
-            // on its own Worker (一起跳, 抓紧了): a TV or computer is the stage, phones join it there; 一起跳's
-            // stage is this device mirrored to the TV (`mirror`)
+            // on its own Worker (一起跳, 抓紧了): a TV or computer is the stage, phones join it there; the
+            // stage can be this device mirrored to the TV (`mirror`). A game that also plays on phones
+            // alone (抓紧了, `phone`) puts that first on a phone
             <div className="game-card-modes">
-              <button type="button" className="mode-btn mode-primary" onClick={bigScreen} aria-expanded={tvHelp}>
+              {g.stage.phone && phoneHere && (
+                <button type="button" className="mode-btn mode-primary" onClick={() => window.location.assign(g.stage!.phone!.url)}>
+                  <RadioTower size={22} />
+                  <span>
+                    <strong>{zh ? "用手机玩" : "Play on phones"}</strong>
+                    <small>{tr(g.stage.phone.note)}</small>
+                  </span>
+                </button>
+              )}
+              <button type="button" className={g.stage.phone && phoneHere ? "mode-btn" : "mode-btn mode-primary"} onClick={bigScreen} aria-expanded={tvHelp}>
                 <Tv size={22} />
                 <span>
                   <strong>{g.stage.mirror ? (zh ? "这台手机/电脑投屏电视" : "Mirror this phone or computer to the TV") : zh ? "电视或电脑当舞台" : "A TV or computer is the stage"}</strong>

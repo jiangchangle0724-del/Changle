@@ -120,7 +120,8 @@ with sync_playwright() as p:
     ok(until(full, 30000, 200), f"the whole floor on the beat: the combo fills ({peak[0]}) and goes off (fireworks), starting again")
 
     # the recap
-    amy.get_by_role("button", name="结束这一场").click()
+    # (the host's phone has no 结束这一场 since Nov 13: the night ends by itself; the check ends it now)
+    amy.evaluate("() => window.__djHost.phase('end')")
     ok(until(lambda: "Best on the beat: Amy" in text(tv, ".dj-end"), 5000), f"the night's recap: the best on the beat ({text(tv, '.dj-end')!r})")
     for ph in phones:
         ph.evaluate("() => clearInterval(window.__hand)")
