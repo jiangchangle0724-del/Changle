@@ -202,6 +202,22 @@ class Sfx {
           this.tone({ freq: 2640, wave: 'sine', dur: 0.25, vol: 0.08, pan, delay: 0.08 });
           break;
         }
+        case 'plate': {
+          // 踩板门（11-13）：踩下去咔哒一声，抬起来轻一点、高一点
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.on) {
+            this.tone({ freq: 220, to: 140, wave: 'square', dur: 0.06, vol: 0.18, pan, lowpass: 1400 });
+            this.noise({ dur: 0.04, vol: 0.18, filter: { type: 'bandpass', freq: 2400, q: 2 }, pan });
+          } else this.tone({ freq: 330, to: 420, wave: 'triangle', dur: 0.05, vol: 0.1, pan });
+          break;
+        }
+        case 'gate': {
+          // 门开始挪：一声低的隆隆，开往上滑、关往下滑
+          const pan = this.pan(ev.x, ev.y);
+          this.noise({ dur: 0.7, vol: 0.16, filter: { type: 'lowpass', freq: ev.open ? 300 : 500, to: ev.open ? 700 : 200 }, attack: 0.05, pan });
+          this.tone({ freq: ev.open ? 70 : 90, to: ev.open ? 95 : 60, wave: 'sawtooth', dur: 0.6, vol: 0.08, pan, lowpass: 400 });
+          break;
+        }
         case 'item': {
           // 道具（A9）：速冻叮一声加冰碴，荷叶呼的一下，拉面吸溜一声；没用成闷闷一声
           const pan = this.pan(ev.x, ev.y);

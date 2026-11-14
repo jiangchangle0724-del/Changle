@@ -117,6 +117,13 @@ export class Depth {
       if (m.deadly) boxes.push({ pts: rectPts(r), depth: 34, style: this.hazardStyle(m.hazard ?? 'spike'), alpha: 1 });
       else boxes.push({ pts: rectPts(r), depth: depthOf(r), style: this.style(m.material), alpha: 1 });
     }
+    // 踩板门（11-13）：门在物理（或快照）说的地方，踏板不动
+    (sim.gates ?? []).forEach((gv, k) => {
+      const gd = level.gates?.[k];
+      const r = { x: gv.x, y: gv.y, w: gv.w, h: gv.h };
+      if (gd && seen(r)) boxes.push({ pts: rectPts(r), depth: depthOf(r), style: this.style(gd.material), alpha: 1 });
+    });
+    for (const pd of level.plates ?? []) if (seen(pd)) boxes.push({ pts: rectPts(pd), depth: depthOf(pd), style: this.style(pd.material ?? 'metal'), alpha: 1 });
     for (const sp of level.spinners ?? []) {
       if (sp.until !== undefined && t >= sp.until) continue;
       const reach = sp.len + 30;

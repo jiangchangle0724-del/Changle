@@ -77,7 +77,7 @@ let sideAuto = !params.get('side') && mode === 'climb';
 const askedLevel = LEVELS.find((l) => l.id === params.get('level'));
 let tier: Tier = cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0);
 /** 现在这个玩法、这档难度的那一串关。 */
-const listNow = (): Level[] => levelsFor(mode, tiered(mode) ? tier : undefined);
+const listNow = (): Level[] => levelsFor(mode, tiered(mode) ? tier : undefined, side);
 /** 每种玩法、每档难度记着自己选到第几关，换回来还在那。 */
 const levelIndexOf = new Map<string, number>();
 const slot = (): string => `${mode}:${tiered(mode) ? tier : '-'}`;

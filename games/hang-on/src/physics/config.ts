@@ -153,6 +153,10 @@ export const CFG = {
   // ---- 红包（A9b）----
   /** 红包有多大（半径）：身体或手心碰到它这么近就算拿到。 */
   envelopeR: 14,
+  /** 踩板门（11-13）：门每秒挪多少像素，没人踩了还开着几秒，踏板上面多高以内算压着。 */
+  gateSpeed: 260,
+  gateHold: 0.4,
+  plateReach: 8,
 };
 
 export type Cfg = typeof CFG;

@@ -137,7 +137,7 @@ export class PhoneView {
     // 按 id 找：按人数摆过的关卡是另一个对象
     const mode = this.cast_?.mode ?? 'climb';
     const tier = tiered(mode) ? tierOfLevel(l) : undefined;
-    const list = levelsFor(mode, tier);
+    const list = levelsFor(mode, tier, this.sim.players.length > 1 ? 'multi' : 'solo');
     const title = levelTitle(l, Math.max(0, list.findIndex((x) => x.id === l.id)));
     // 和主机的倒数一样：分难度的带上难度
     return tier === undefined ? title : `${tierName(tier)} · ${title}`;

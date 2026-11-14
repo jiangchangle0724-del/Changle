@@ -3,11 +3,13 @@
  * 饼干平台会抖会消失，蜡烛顶上有火苗、被弹到就压一下；检查点是灯，亮了就发光；终点是面旗子。
  * 原版那套难的机关（A6）：要命的东西（桌上是牙签、红油锅、电炉丝；温哥华是铁栏杆尖、夜市烤炉、天车电轨），
  * 会动的平台和会转的杆子按 sim.time 摆（和物理同一套算法，手机局里别的手机也对得上）。
+ * 踩板门（11-13）：踏板是一块矮按钮，踩下去按钮沉下去、亮起来；门是一块带色条的墙，挪到物理说的地方。
+ * 踏板和它开的门同一个颜色（第几扇门一个色），看得出哪块开哪扇。
  * 静态的东西只画一次，动的每帧更新。
  */
 import { Container, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
-import type { HazardDef, Level, Rect } from '../physics/level';
+import { opensOf, type GateDef, type HazardDef, type Level, type PlateDef, type Rect } from '../physics/level';
 import { moverAt, spinnerAngle } from '../physics/motion';
 import type { SimView } from './view';
 import { glow, materialOf, OUTLINE, textures, hex, type MaterialStyle, type Palette, type Textures, type WorldId } from './art';
@@ -27,6 +29,9 @@ export class Terrain {
   private readonly hazardFx = new Graphics();
   private readonly moverC: Container[] = [];
   private readonly spinnerC: Container[] = [];
+  /** 踩板门：每块踏板的按钮（按下去换画法），每扇门一个容器（每帧挪）。 */
+  private readonly plateG: { cap: Graphics; on: boolean | null; def: PlateDef; color: number }[] = [];
+  private readonly gateC: Container[] = [];
   /** 定时塌的东西（until）：快到点抖、变淡，到点不画。base 是它这一帧本来该在的位置。 */
   private readonly timed: { c: Container; until: number; base: () => { x: number; y: number } }[] = [];
   private lampState = -2;
@@ -85,6 +90,25 @@ export class Terrain {
     }
     for (const h of level.hazards ?? []) this.hazard(this.hazardG, h);
     this.view.addChild(this.hazardG, this.hazardFx);
+    // 踩板门：门在自己的原点上画好，每帧整块挪；踏板的底座画一次，按钮按状态重画
+    const gates = level.gates ?? [];
+    gates.forEach((gd, k) => {
+      const c = new Container();
+      const g = new Graphics();
+      this.gate(g, { ...gd, x: 0, y: 0 }, linkColor(k));
+      c.addChild(g);
+      c.position.set(gd.x, gd.y);
+      this.view.addChild(c);
+      this.gateC.push(c);
+    });
+    for (const pd of level.plates ?? []) {
+      const k = gates.findIndex((gd) => opensOf(pd).includes(gd.id));
+      const base = new Graphics();
+      this.plateBase(base, pd);
+      const cap = new Graphics();
+      this.view.addChild(base, cap);
+      this.plateG.push({ cap, on: null, def: pd, color: linkColor(Math.max(0, k)) });
+    }
     for (const f of level.fading ?? []) {
       const g = new Graphics();
       this.platform(g, { ...f, kind: 'cookie' });
@@ -145,6 +169,14 @@ export class Terrain {
       const c = this.spinnerC[i];
       if (c) c.rotation = spinnerAngle(sp, sim.time);
     });
+    // 踩板门：门挪到物理（或快照）说的地方，按钮按着就沉下去、亮
+    (sim.gates ?? []).forEach((g, i) => this.gateC[i]?.position.set(g.x, g.y));
+    this.plateG.forEach((p, i) => {
+      const on = !!sim.plates?.[i]?.on;
+      if (on === p.on) return;
+      p.on = on;
+      this.plateCap(p.cap.clear(), p.def, p.color, on);
+    });
     this.drawHazardFx(sim.time);
     // 定时塌的：最后 2 秒抖、变淡（减弱动效时只变淡），到点不画
     for (const t of this.timed) {
@@ -163,6 +195,42 @@ export class Terrain {
       this.drawLamps(sim.checkpoint);
     }
     if (!this.level.arena) this.drawFlag();
+  }
+
+  // ---------------------------------------------------------------- 踩板门（11-13）
+
+  /** 门：平台的样子，加三道颜色条和中间一个锁的圆点（和开它的踏板一个色）。 */
+  private gate(g: Graphics, r: GateDef, color: number): void {
+    this.platform(g, { ...r, kind: 'wall', material: r.material ?? (this.world === 'van' ? 'metal' : 'wood') });
+    const bands = 3;
+    const vertical = r.h >= r.w;
+    for (let k = 1; k <= bands; k++) {
+      const f = k / (bands + 1);
+      if (vertical) g.rect(r.x + 3, r.y + r.h * f - 4, r.w - 6, 8);
+      else g.rect(r.x + r.w * f - 4, r.y + 3, 8, r.h - 6);
+    }
+    g.fill({ color, alpha: 0.85 });
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const rad = Math.max(5, Math.min(11, Math.min(r.w, r.h) / 3));
+    g.circle(cx, cy, rad).fill({ color: 0x241c33 }).stroke({ color, width: 3 });
+    g.circle(cx, cy - rad * 0.15, rad * 0.32).fill({ color });
+  }
+
+  /** 踏板的底座：一条深色的槽。 */
+  private plateBase(g: Graphics, r: PlateDef): void {
+    rr(g, { x: r.x, y: r.y + r.h - 6, w: r.w, h: 6 }, 3).fill({ color: 0x241c33 });
+  }
+
+  /** 踏板的按钮：没按是凸起的一块，按下去沉下去 4 px、颜色变亮、外面一圈光。 */
+  private plateCap(g: Graphics, r: PlateDef, color: number, on: boolean): void {
+    const h = Math.max(4, r.h - 6);
+    const y = r.y + (on ? 4 : 0);
+    if (on) rr(g, { x: r.x - 4, y: y - 4, w: r.w + 8, h: h + 8 }, 8).fill({ color, alpha: 0.25 });
+    rr(g, { x: r.x + 3, y, w: r.w - 6, h }, 5)
+      .fill({ color: on ? lighten(color, 0.45) : color })
+      .stroke({ color: OUTLINE, width: 2, alpha: 0.6 });
+    rr(g, { x: r.x + 8, y: y + 2, w: r.w - 16, h: 2 }, 1).fill({ color: 0xffffff, alpha: on ? 0.5 : 0.3 });
   }
 
   // ---------------------------------------------------------------- 平台
@@ -480,4 +548,16 @@ export class Terrain {
     g.circle(f.x + 40, f.y - 92 + wave * 0.5, 13).fill(0xf8c56d).stroke({ width: 2, color: 0x8a1f1a });
     g.circle(f.x + 40, f.y - 92 + wave * 0.5, 6).fill(0xe8413c);
   }
+}
+
+/** 踏板和门的配对色：第几扇门一个色。 */
+const LINK_COLORS = [0xff6b6b, 0x4ecdc4, 0xffd166, 0xa78bfa, 0x5bd96b, 0xff9f43];
+const linkColor = (k: number): number => LINK_COLORS[k % LINK_COLORS.length] as number;
+/** 往白里调一点（按下去的按钮亮一些）。 */
+function lighten(c: number, k: number): number {
+  const ch = (shift: number): number => {
+    const v = (c >> shift) & 0xff;
+    return Math.round(v + (255 - v) * k) << shift;
+  };
+  return ch(16) | ch(8) | ch(0);
 }

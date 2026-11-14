@@ -24,7 +24,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 
-const LISTS = ['rects', 'ropes', 'seesaws', 'crates', 'fading', 'springs', 'hazards', 'movers', 'spinners'];
+const LISTS = ['rects', 'ropes', 'seesaws', 'crates', 'fading', 'springs', 'hazards', 'movers', 'spinners', 'plates', 'gates'];
 
 // 一个 32 位的种子：每一次乱按只看「哪一关、哪一段、几个人、哪种摆法、第几次」，和线程怎么分无关
 function hash(text) {

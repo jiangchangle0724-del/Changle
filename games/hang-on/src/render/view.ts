@@ -75,6 +75,22 @@ export interface SpringView {
   hit: number;
 }
 
+/** 踩板门（11-13）：踏板按着没有，门开到几成（0 关、1 开）、现在在哪。 */
+export interface PlateView {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  on: boolean;
+}
+export interface GateView {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  open: number;
+}
+
 export interface SimView {
   /** 按人数摆出来的关卡（forPlayers 之后的那一版）。 */
   level: Level;
@@ -95,4 +111,7 @@ export interface SimView {
   noodles?: NoodleView[];
   /** 红包（A9b）：在哪、拿到没有。 */
   envelopes?: { x: number; y: number; got: boolean }[];
+  /** 踩板门（11-13）。 */
+  plates?: PlateView[];
+  gates?: GateView[];
 }

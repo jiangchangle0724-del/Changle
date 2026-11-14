@@ -101,6 +101,29 @@ export interface SpringDef extends Rect {
   power?: number;
 }
 
+/**
+ * 踩板门（11-13，多人非配合不可的机关）：踏板是地上一块矮按钮，有人站在上面（身体压着；冻住的人、箱子也算）就按下去；
+ * 门是一块会挪开的墙或台子，连着它的踏板按下时往 `move` 那边挪开，没人按了 `hold` 秒以后挪回来，有人挡着就停住，不夹人。
+ * 踏板本身是实的（能站），门是运动学刚体（能站能抓，抓着跟着走）。踏板离门远到一个人按着够不着门、跑不过去，就得两个人：
+ * 一个按着，一个过去；过去的那个在门那边再按一块开同一扇门的踏板，把按着的人放过来。
+ */
+export interface PlateDef extends Rect {
+  /** 开哪几扇门：门的 id，几扇用空格分开。 */
+  opens: string;
+}
+
+export interface GateDef extends Rect {
+  id: string;
+  /** 开的时候挪多少（从关着的位置算），比如往上 `{ "x": 0, "y": -220 }`。 */
+  move: Pt;
+  /** 每秒挪多少像素（默认 `CFG.gateSpeed`）。 */
+  speed?: number;
+  /** 没人按了还开着几秒（默认 `CFG.gateHold`）。 */
+  hold?: number;
+  /** 连着它的几块踏板都按着才开（默认按一块就开）。 */
+  all?: boolean;
+}
+
 export interface Level {
   id: string;
   world?: string;
@@ -123,11 +146,16 @@ export interface Level {
   hazards?: HazardDef[];
   movers?: MoverDef[];
   spinners?: SpinnerDef[];
+  /** 踩板门（11-13）：踏板和门。 */
+  plates?: PlateDef[];
+  gates?: GateDef[];
   deathY: number;
   par?: { seconds: number; deathsPerPlayer: number };
   replay?: string;
   /** 坐不住的场地：没有终点和检查点，最后还挂着的赢（画面不画旗子和灯）。 */
   arena?: boolean;
+  /** 难度（11-13）：0 简单、1 中等、2 困难。不写就按 id 末尾的号算（1 到 6 简单、7 到 12 中等、13 往后困难）；多人的关（levels/multi/）写明。 */
+  tier?: 0 | 1 | 2;
   /**
    * 红包（A9b）：藏在关里的几个红包，谁的身体或手碰到就算拿到（不碰撞、不挡路）。
    * 位置用 `npm run envelopes` 从回放里挑（回放里有人的手到过那里，够得着），闯关和大团队里才有。
@@ -146,7 +174,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -160,8 +188,16 @@ export function forPlayers(level: Level, n: number): Level {
     hazards: keep(level.hazards),
     movers: keep(level.movers),
     spinners: keep(level.spinners),
+    plates: keep(level.plates),
+    gates: keep(level.gates),
   };
 }
+
+/** 这块踏板开哪几扇门。 */
+export const opensOf = (p: PlateDef): string[] => p.opens.split(/\s+/).filter(Boolean);
+
+/** 门开到 `open`（0 关着，1 全开）时在哪（左上角）。 */
+export const gateAt = (g: GateDef, open: number): Pt => ({ x: g.x + g.move.x * open, y: g.y + g.move.y * open });
 
 /**
  * 原型里的那一关，照搬：过缝、荡绳子、攀岩、到旗子。
@@ -268,5 +304,43 @@ export function showcaseLevel(): Level {
     crates: [{ x: 1030, y: 360, w: 44, h: 60, material: 'wood' }],
     deathY: 790,
     par: { seconds: 75, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 踩板门样板（11-13）：开发页 `play.html?level=proto-04&players=2` 两个人试。不进大厅。
+ * 第一段：一扇门，门两边各一块踏板，一个人按着放另一个过去，过去的那个按那边的踏板把人放过来。
+ * 第二段：一面抓不住的高墙，墙边一块升降台（门往上挪），地上和墙顶各一块踏板：一个人踩地上的，另一个站台子上去；
+ * 上去的那个踩墙顶的，把台子再升上来接人。
+ */
+export function gatesLevel(): Level {
+  return {
+    id: 'proto-04',
+    world: 'table',
+    name: { zh: '踩板门样板', en: 'Plates and gates sampler' },
+    teaches: 'combine',
+    w: 2600,
+    h: 720,
+    spawn: { x: 100, y: 500 },
+    goal: { x: 2380, y: 150, w: 180, h: 150 },
+    checkpoints: [
+      { x: 1150, y: 500 },
+      { x: 1800, y: 260 },
+    ],
+    rects: [
+      { x: 0, y: 540, w: 1500, h: 180, kind: 'ground', material: 'cloth' },
+      { x: 1500, y: 300, w: 1100, h: 420, kind: 'wall', material: 'ceramic', grab: false },
+    ],
+    plates: [
+      { x: 300, y: 528, w: 80, h: 12, opens: 'door' },
+      { x: 1000, y: 528, w: 80, h: 12, opens: 'door' },
+      { x: 1200, y: 528, w: 80, h: 12, opens: 'lift' },
+      { x: 1700, y: 288, w: 80, h: 12, opens: 'lift' },
+    ],
+    gates: [
+      { id: 'door', x: 760, y: 200, w: 40, h: 340, move: { x: 0, y: -300 } },
+      { id: 'lift', x: 1380, y: 520, w: 110, h: 20, move: { x: 0, y: -220 }, hold: 1.2, grab: false },
+    ],
+    deathY: 900,
   };
 }

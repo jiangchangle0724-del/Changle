@@ -15,8 +15,8 @@ import type { PlayerView, SimView } from '../render/view';
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
-/** 这一点正下方最近的台面还有多远（px）；下面什么都没有就是到摔死线的距离，至少 600。 */
-export function dropBelow(level: Level, x: number, y: number, t = 0): number {
+/** 这一点正下方最近的台面还有多远（px）；下面什么都没有就是到摔死线的距离，至少 600。`extra` 是现在在哪的门（踩板门）。 */
+export function dropBelow(level: Level, x: number, y: number, t = 0, extra: readonly { x: number; y: number; w: number }[] = []): number {
   let best = Infinity;
   const consider = (r: { x: number; y: number; w: number }): void => {
     if (x < r.x - CFG.bodyR || x > r.x + r.w + CFG.bodyR || r.y < y - 6) return;
@@ -26,6 +26,8 @@ export function dropBelow(level: Level, x: number, y: number, t = 0): number {
   for (const s of level.springs ?? []) consider(s);
   for (const f of level.fading ?? []) consider(f);
   for (const m of level.movers ?? []) if (!m.deadly) consider({ ...moverAt(m, t), w: m.w });
+  for (const p of level.plates ?? []) consider(p);
+  for (const r of extra) consider(r);
   return Number.isFinite(best) ? best : Math.max(600, level.deathY - y);
 }
 
@@ -57,14 +59,14 @@ export function hazardNear(level: Level, x: number, y: number, t = 0): number {
 }
 
 /** 一个人现在有多危险（0–1）。 */
-export function playerDanger(level: Level, p: PlayerView, t = 0): number {
+export function playerDanger(level: Level, p: PlayerView, t = 0, gates: readonly { x: number; y: number; w: number }[] = []): number {
   if (p.dead || p.done) return 0;
   // 冻住的人哪也不去（A9 速冻），算安全
   if (p.itemOn === 'freeze') return 0.05;
   const { x, y, vy } = p.body;
   const grips = (p.arms[0].grip ? 1 : 0) + (p.arms[1].grip ? 1 : 0);
   // 脚下 120 px 以内有台子不算高；越过 620 px 算最高
-  const height = clamp01((dropBelow(level, x, y, t) - 120) / 500);
+  const height = clamp01((dropBelow(level, x, y, t, gates) - 120) / 500);
   const hold = grips === 2 ? 0.35 : grips === 1 ? 0.7 : 1;
   let d = height * hold;
   // 没抓东西、往下掉得快：正在摔
@@ -85,7 +87,7 @@ export interface MoodInput {
 /** 这一刻的危险和催（还没平滑）。 */
 export function moodOf(sim: SimView, opts: MoodInput = {}): { danger: number; push: number } {
   const live = sim.players.filter((p) => !p.dead && !p.done);
-  const ds = live.map((p) => playerDanger(sim.level, p, sim.time));
+  const ds = live.map((p) => playerDanger(sim.level, p, sim.time, sim.gates ?? []));
   const max = ds.length ? Math.max(...ds) : 0;
   const mean = ds.length ? ds.reduce((s, d) => s + d, 0) / ds.length : 0;
   const danger = 0.7 * max + 0.3 * mean;
