@@ -132,7 +132,8 @@ export function holds(l: Ledger, c: Change): boolean {
       return entry(c.transfer.id)?.kind === "transfer";
     case "edit": {
       const e = entry(c.entry);
-      return !!e && e.kind === "expense" && e.payer === c.to.payer && e.amount === c.to.amount && e.note === tidy(c.to.note, NOTE_MAX) && same(e.split, c.to.split);
+      // (the other currency counts only when the change said something about it)
+      return !!e && e.kind === "expense" && e.payer === c.to.payer && e.amount === c.to.amount && e.note === tidy(c.to.note, NOTE_MAX) && same(e.split, c.to.split) && (c.to.paidIn === undefined || same(e.paidIn ?? null, c.to.paidIn));
     }
     case "out": {
       const e = entry(c.entry);
