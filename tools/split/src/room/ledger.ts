@@ -232,19 +232,6 @@ export class LedgerRoom {
     return { ok: true };
   }
 
-  /**
-   * Deleted without its owner's key: only ever one of the ledgers this server's own checks left on
-   * changle.ca, whose keys weren't kept (worker.ts, CHECKS; Steve agreed on 2026-11-14). It goes as
-   * an owner's delete leaves a ledger: gone for everyone, and its id never made again.
-   */
-  retire(now: number): Ok | Fail {
-    if (!this.meta || !this.ledger) return fail("gone");
-    this.store.wipe(now);
-    this.meta = null;
-    this.ledger = null;
-    return { ok: true };
-  }
-
   /** The record after number `seq` (who changed what, in order, and when it was locked or opened), at most MAX_BATCH lines at a time. */
   since(keyHash: string | null, seq: unknown): Ok<{ seq: number; changes: Logged[] }> | Fail {
     if (!this.meta) return fail("gone");
