@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { glOf, ratioFor } from "../../party/dj/robot3d";
+import type { Look } from "./look";
 import type { MoveId } from "./moves";
-import type { Stage } from "./FigureStage";
+import type { Stage, View } from "./FigureStage";
 
 /** How the figure turned out, for the page and the checks (figure_check.py). */
 export type FigureIs = "loading" | "on" | "none" | "software" | "failed";
@@ -30,12 +31,12 @@ function engineKb(): number {
 }
 
 /**
- * The 3D figure (the prototype, Steve on Nov 13): one stand-in model with its moves, drawn with
- * three.js, which loads only here, after the page (FigureStage.ts). Drag sideways to turn it round;
- * swiping up and down still scrolls the page (touch-action: pan-y), and two fingers still zoom the
- * page. No graphics chip, or the model can't load: `onIs` says so and the page explains.
+ * The 3D figure (Steve on Nov 13, sculpted from Nov 14): MakeHuman's human with our moves, drawn
+ * with three.js, which loads only here, after the page (FigureStage.ts). Drag sideways to turn it
+ * round; swiping up and down still scrolls the page (touch-action: pan-y), and two fingers still
+ * zoom the page. No graphics chip, or the model can't load: `onIs` says so and the page explains.
  */
-export function Figure3D({ move, onIs, onStats }: { move: MoveId; onIs: (is: FigureIs) => void; onStats: (s: FigureStats) => void }) {
+export function Figure3D({ move, look, view, onIs, onStats }: { move: MoveId; look: Look; view: View; onIs: (is: FigureIs) => void; onStats: (s: FigureStats) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const flash = useRef<HTMLDivElement>(null);
   const is = useRef(onIs);
@@ -44,11 +45,21 @@ export function Figure3D({ move, onIs, onStats }: { move: MoveId; onIs: (is: Fig
   stats.current = onStats;
   const wanted = useRef<MoveId>(move);
   wanted.current = move;
+  const looks = useRef(look);
+  looks.current = look;
+  const views = useRef(view);
+  views.current = view;
   const stage = useRef<Stage | null>(null);
 
   useEffect(() => {
     stage.current?.play(move);
   }, [move]);
+  useEffect(() => {
+    stage.current?.setLook(look);
+  }, [look]);
+  useEffect(() => {
+    stage.current?.view(view);
+  }, [view]);
 
   useEffect(() => {
     const el = box.current;
@@ -68,6 +79,8 @@ export function Figure3D({ move, onIs, onStats }: { move: MoveId; onIs: (is: Fig
         const s = await mountStage(el, {
           ratio: ratioFor(el),
           first: wanted.current,
+          look: looks.current,
+          view: views.current,
           onFirstFrame: () => {
             tell("on");
             is.current("on");
@@ -87,8 +100,10 @@ export function Figure3D({ move, onIs, onStats }: { move: MoveId; onIs: (is: Fig
           return;
         }
         stage.current = s;
-        // a move picked while it loaded
+        // a move, a look or a view picked while it loaded
         s.play(wanted.current);
+        s.setLook(looks.current);
+        s.view(views.current);
       } catch (e) {
         if (import.meta.env.DEV) console.error("figure", e);
         if (!gone) {
