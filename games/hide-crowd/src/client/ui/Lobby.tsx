@@ -1,7 +1,7 @@
 // The phone before a round: who's here, the arena vote, the penalty switch (the host's), the big
-// screen, and the host's Start under the thumb.
+// screen, and the host's Start under the thumb. Practice has its own: the four places to pick from.
 import { useEffect } from "preact/hooks";
-import { ARENAS, MIN_PLAYERS, type ArenaId } from "../../engine";
+import { ARENAS, MATCH_MS, MIN_PLAYERS, SCORE_TO_WIN, type ArenaId } from "../../engine";
 import type { ClientMsg, RoomView } from "../../room/protocol";
 import { BASE, screenUrl } from "../base";
 import { t } from "../i18n";
@@ -22,6 +22,58 @@ export const ARENA_RULE: Record<ArenaId, "plazaRule" | "metroRule" | "galleryRul
   gallery: "galleryRule",
   market: "marketRule"
 };
+
+export const ARENA_SHORT: Record<ArenaId, "plazaShort" | "metroShort" | "galleryShort" | "marketShort"> = {
+  plaza: "plazaShort",
+  metro: "metroShort",
+  gallery: "galleryShort",
+  market: "marketShort"
+};
+
+/** A Chinese line breaks between its clauses, never inside one (台上一喊全 / 场出拳 reads badly). */
+const clauses = (text: string) => text.split(/(?<=，)/).map((part, index) => (
+  <span key={index} class="clause">
+    {part}
+  </span>
+));
+
+/**
+ * Practice opens here (Steve, 2026-11-13: pick the place yourself as soon as you're in): the four
+ * places as pictures, and a tap starts the round there (the room's vote and Start in one). Back from a
+ * round by Pick another arena, the place just played says so.
+ */
+export function PracticePick(props: { view: RoomView; send: (message: ClientMsg) => void }) {
+  useEffect(() => {
+    if (!location.search.includes("flat=1")) void preloadArena().catch(() => undefined);
+  }, []);
+  const last = props.view.you.vote;
+  const pick = (arena: ArenaId) => {
+    props.send({ t: "vote", arena });
+    props.send({ t: "start" });
+  };
+  return (
+    <div class="page-body practice-pick">
+      <div class="pick-head">
+        <h1 class="pick-title">{t("pickPlace")}</h1>
+        <p class="hint">{t("pickPlaceHint", { n: SCORE_TO_WIN, m: MATCH_MS / 60_000 })}</p>
+      </div>
+      <div class="pick-options">
+        {ARENAS.map((arena) => (
+          <button type="button" key={arena} class="pick-option" onClick={() => pick(arena)}>
+            <span class="pick-thumb">
+              <img src={ARENA_THUMBS[arena]} alt="" width={320} height={180} decoding="async" />
+              {last === arena && <span class="pick-tag">{t("justPlayed")}</span>}
+            </span>
+            <span class="arena-text">
+              <strong>{t(arena)}</strong>
+              <small>{clauses(t(ARENA_SHORT[arena]))}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function ArenaVote(props: { view: RoomView; onVote?: (arena: ArenaId) => void; big?: boolean }) {
   const { view } = props;

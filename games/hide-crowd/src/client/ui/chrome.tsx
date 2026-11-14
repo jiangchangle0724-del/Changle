@@ -3,6 +3,7 @@
 // back button, switches, and a few line icons drawn on a 24 grid.
 import type { ComponentChildren } from "preact";
 import { useEffect, useId, useRef } from "preact/hooks";
+import { MATCH_MS, SCORE_TO_WIN } from "../../engine";
 import { other, t, type Key } from "../i18n";
 
 /** Line icons, 24 x 24, stroked (drawn for this game). */
@@ -155,7 +156,7 @@ export function Rules({ custom }: { custom: string }) {
       <p>{t("rule2")}</p>
       <p>{t("rule3")}</p>
       <p>{t("ruleDistract")}</p>
-      <p>{t("rule4", { n: 3 })}</p>
+      <p>{t("rule4", { n: SCORE_TO_WIN, m: MATCH_MS / 60_000 })}</p>
       <p>{t(custom ? "rulePenaltyCustom" : "rulePenalty")}</p>
       <p>{t("ruleScreen")}</p>
       <p class="rules-small">{t("ruleControls")}</p>

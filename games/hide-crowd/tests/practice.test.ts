@@ -1,11 +1,12 @@
-// Practice's computer rivals, played out on a fake clock with fixed dice: a player who stands still is
-// left alone and the round lasts long enough to play, a player who walks on through the ferry horn is
+// Practice's computer rivals, played out on a fake clock with fixed dice: practice waits for a place to
+// be picked, a player who stands still is left alone and the round lasts long enough to play (the
+// rivals lie low a while after a punch, so they don't finish each other off within a minute), a player who walks on through the ferry horn is
 // spotted far more often than one who stops with the crowd (the rivals stop for it too, a beat late),
 // and at the theatre one who stands through the stage's call is spotted more than one who punches with
 // the whole crowd.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DRILL_GO_MS, DRILL_MS, SIMULATION_STEP_MS } from "../src/engine";
+import { DRILL_GO_MS, DRILL_MS, MATCH_MS, SIMULATION_STEP_MS } from "../src/engine";
 import type { ClientMsg, RoomView, ServerMsg } from "../src/room/protocol";
 
 let now = 1_700_000_000_000;
@@ -32,7 +33,7 @@ function dice(seed: number) {
 
 type Player = (step: number, view: RoomView | null) => ClientMsg | null;
 
-/** Play practice rounds (each on the seawall, its first arena): how long each lasted and how often you were spotted. */
+/** Play practice rounds (each on the seawall, picked as a player would, unless the address names a place): how long each lasted and how often you were spotted. */
 function rounds(count: number, play: Player) {
   const out: { seconds: number; spotted: number }[] = [];
   for (let round = 0; round < count; round++) {
@@ -42,8 +43,12 @@ function rounds(count: number, play: Player) {
     const connection = openPractice("en", "Me", (message: ServerMsg) => {
       if (message.t === "view") view = message.view;
     }, () => {});
+    if (!(view as RoomView | null)?.game) {
+      connection.send({ t: "vote", arena: "plaza" });
+      connection.send({ t: "start" });
+    }
     const begin = now;
-    for (let step = 0; step < 80_000 / SIMULATION_STEP_MS; step++) {
+    for (let step = 0; step < (MATCH_MS + 5_000) / SIMULATION_STEP_MS; step++) {
       now += SIMULATION_STEP_MS;
       const move = play(step, view);
       if (move) connection.send(move);
@@ -63,12 +68,48 @@ const wander = (step: number): ClientMsg => {
   return { t: "move", x: Math.cos(angle) * 0.5, y: Math.sin(angle) * 0.5 };
 };
 
+test("practice waits on the picker until a place is picked, plays there, and goes back to the picker after", () => {
+  let view: RoomView | null = null;
+  const connection = openPractice("en", "Me", (message: ServerMsg) => {
+    if (message.t === "view") view = message.view;
+  }, () => {});
+  for (let step = 0; step < 20; step++) {
+    now += SIMULATION_STEP_MS;
+    tick!();
+  }
+  assert.equal((view as RoomView | null)?.phase, "lobby");
+  assert.equal((view as RoomView | null)?.players.length, 4);
+  connection.send({ t: "vote", arena: "market" });
+  connection.send({ t: "start" });
+  now += SIMULATION_STEP_MS;
+  tick!();
+  assert.equal((view as RoomView | null)?.game?.arena, "market");
+  assert.equal((view as RoomView | null)?.game?.phase, "playing");
+  // the round runs to its end; Pick another arena goes back to the picker, the place just played marked
+  for (let step = 0; step < (MATCH_MS + 5_000) / SIMULATION_STEP_MS && (view as RoomView | null)?.game?.phase !== "over"; step++) {
+    now += SIMULATION_STEP_MS;
+    tick!();
+  }
+  assert.equal((view as RoomView | null)?.game?.phase, "over");
+  connection.send({ t: "lobby" });
+  assert.equal((view as RoomView | null)?.phase, "lobby");
+  assert.equal((view as RoomView | null)?.you.vote, "market");
+  connection.send({ t: "vote", arena: "gallery" });
+  connection.send({ t: "start" });
+  assert.equal((view as RoomView | null)?.game?.arena, "gallery");
+  assert.equal((view as RoomView | null)?.game?.phase, "playing");
+  connection.close();
+});
+
 test("a player who stands still is left alone, and a round lasts long enough to play", () => {
   const played = rounds(10, () => null);
   const lengths = played.map((round) => round.seconds).sort((a, b) => a - b);
   const median = (lengths[4] + lengths[5]) / 2;
-  assert.ok(median >= 30, `half the rounds are over within ${median.toFixed(0)} s`);
-  assert.ok(played.reduce((sum, round) => sum + round.spotted, 0) <= 2, "spotted while standing still");
+  assert.ok(median >= 90, `half the rounds are over within ${median.toFixed(0)} s`);
+  // (left alone: spotted at most once in five minutes of standing still)
+  const minutes = played.reduce((sum, round) => sum + round.seconds, 0) / 60;
+  const spotted = played.reduce((sum, round) => sum + round.spotted, 0);
+  assert.ok(spotted <= minutes / 5, `spotted ${spotted} times in ${minutes.toFixed(0)} minutes of standing still`);
 });
 
 test("walking on through the ferry horn gives a player away; stopping with the crowd doesn't", () => {

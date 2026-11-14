@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARENA, BITE_MS, MATCH_MS, SIMULATION_STEP_MS, STALLS, STUN_MS, characterForOwner } from "../src/engine";
+import { ARENA, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, characterForOwner } from "../src/engine";
 import { HOST_GRACE, HOST_HOLD, Room } from "../src/room/room";
 
 const first = "player-one";
@@ -103,9 +103,9 @@ test("players vote for an arena and the winning rule starts for every screen; no
   const quiet = twoPlayerRoom();
   const arenas: string[] = [];
   for (let round = 0; round < 5; round++) {
-    quiet.handle(first, { t: "start" }, 10 + round * 100_000);
+    quiet.handle(first, { t: "start" }, 10 + round * (MATCH_MS + 20_000));
     arenas.push(quiet.st.game!.arena);
-    quiet.advance(10 + round * 100_000 + 80_000);
+    quiet.advance(10 + round * (MATCH_MS + 20_000) + MATCH_MS + 5_000);
   }
   assert.deepEqual(arenas, ["plaza", "metro", "gallery", "market", "plaza"]);
 });
@@ -138,7 +138,7 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   room.join(third, "Cy", "en", "player", 3);
   room.handle(first, { t: "start" }, 10);
   let at = 20;
-  for (let hit = 0; hit < 3; hit++) {
+  for (let hit = 0; hit < SCORE_TO_WIN; hit++) {
     tag(room, first, second, at);
     at += 170 + STUN_MS + 50;
     room.advance(at);
@@ -147,14 +147,14 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   assert.equal(view.phase, "over");
   assert.equal(view.result?.winner, "Ari");
   assert.equal(view.result?.youWon, true);
-  assert.deepEqual(view.result?.penalty, { kind: "sip", who: ["Bo"], times: 3 });
+  assert.deepEqual(view.result?.penalty, { kind: "sip", who: ["Bo"], times: SCORE_TO_WIN });
   // the titles: the hunter's sharp eye, the one never spotted
   const titles = Object.fromEntries(view.result!.awards.map((item) => [item.name, item.award]));
   assert.equal(titles.Ari, "eagleEye");
   assert.equal(titles.Bo, "punchingBag");
   assert.equal(titles.Cy, "ghost");
   assert.equal(view.result!.awards.find((item) => item.name === "Ari")?.you, true);
-  assert.equal(view.players.find((player) => player.name === "Bo")?.tagged, 3);
+  assert.equal(view.players.find((player) => player.name === "Bo")?.tagged, SCORE_TO_WIN);
   // the round is over: every screen finds out who was who (by name, nothing else), and the winner dances
   const named = view.game!.avatars.filter((avatar) => avatar.n !== undefined);
   assert.deepEqual(named.map((avatar) => avatar.n).sort(), ["Ari", "Bo", "Cy"]);
@@ -166,8 +166,8 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   // the host can switch penalties off for the next round
   room.handle(first, { t: "penalties", on: false }, at + 1);
   room.handle(first, { t: "start" }, at + 2);
-  room.advance(at + 2 + 80_000);
-  assert.equal(room.view(first, "player", at + 80_003).result?.penalty, null);
+  room.advance(at + 2 + MATCH_MS + 5_000);
+  assert.equal(room.view(first, "player", at + MATCH_MS + 5_003).result?.penalty, null);
 });
 
 /** Stand a player still at one of the night market's stalls (everyone else far off) until it's tasted. */
@@ -236,9 +236,9 @@ test("someone who joins during a round watches it and plays the next", () => {
   assert.equal(watching.players.find((player) => player.you)?.inRound, false);
   room.handle(third, { t: "move", x: 1, y: 0 }, 8);
   assert.equal(room.st.inputs[third], undefined, "a watcher can't move anyone");
-  room.advance(5 + 80_000);
-  room.handle(first, { t: "start" }, 5 + 80_001);
-  assert.ok(room.view(third, "player", 5 + 80_002).game!.me, "in the next round");
+  room.advance(5 + MATCH_MS + 5_000);
+  room.handle(first, { t: "start" }, 5 + MATCH_MS + 5_001);
+  assert.ok(room.view(third, "player", 5 + MATCH_MS + 5_002).game!.me, "in the next round");
 });
 
 test("the host takes everyone back to the table: the room says so to every page", () => {

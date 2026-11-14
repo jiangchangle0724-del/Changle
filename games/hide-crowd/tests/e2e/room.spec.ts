@@ -1,6 +1,7 @@
 // Two phones and a big screen: joining, the vote, a round with a tag, the penalty, and playing again.
 import { expect } from "@playwright/test";
 import { bigTargets, newRoom, noErrors, noSideScroll, phone, screen, shot, test, until, view } from "./helpers";
+import type { RoomView } from "../../src/room/protocol";
 
 test("two phones join, vote and play a round: a tag scores, the most spotted takes the penalty, the host plays again", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { duel: true, roundMs: 9_000 } });
@@ -185,6 +186,21 @@ test("the theatre: a distraction turns the others' cameras; then the stage count
   await until(steve, (v) => v.arenaVotes.gallery === 2);
   await steve.getByRole("button", { name: "开始" }).click();
   await until(mia, (v) => v.phase === "playing" && v.game?.arena === "gallery");
+  // (Steve's swing on the call, below, is on screen for well under a second: his page notes it in every
+  // view that comes in, even when a busy machine handles several at once)
+  await steve.evaluate(() => {
+    const page = window as unknown as { __hide?: RoomView; __swung?: boolean };
+    let current = page.__hide;
+    page.__swung = false;
+    Object.defineProperty(window, "__hide", {
+      configurable: true,
+      get: () => current,
+      set: (next: RoomView) => {
+        current = next;
+        if (next?.game?.avatars.some((a) => a.me && (a.p === "windup" || a.p === "punch"))) page.__swung = true;
+      }
+    });
+  });
   // Mia's distraction: Steve's camera and the big screen's glance at the passer-by; Mia's own stays put
   await mia.getByRole("button", { name: "Distract, 2 left" }).dispatchEvent("pointerdown");
   // (it lasts a second and a half: both watched at once)
@@ -204,7 +220,7 @@ test("the theatre: a distraction turns the others' cameras; then the stage count
   await steve.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
   await expect(mia.locator(".drill-call.is-go")).toHaveText("Punch!");
   await shot(steve, "phone-drill-call");
-  await until(steve, (v) => v.game!.avatars.some((a) => a.me && (a.p === "windup" || a.p === "punch")), 2_000);
+  await expect.poll(() => steve.evaluate(() => (window as unknown as { __swung?: boolean }).__swung), { timeout: 3_000 }).toBe(true);
   await steve.waitForTimeout(600);
   const mine = (await view(steve))!.game!.events.filter((e) => e.byYou);
   expect(mine.filter((e) => e.t === "foul" || e.t === "swing")).toEqual([]);

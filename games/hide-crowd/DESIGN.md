@@ -28,17 +28,17 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Screen | What it shows |
 | --- | --- |
 | Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
-| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, clock, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the busker, the gong, the theatre's drill, the night market's firecrackers or its fireworks go, a pill low in the middle says so while the crowd stands still, dances, punches or scatters. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, a tagged player bursts into confetti as they go down, and a run kicks up dust. When the firecrackers land, a ring glows on the floor round each one while its fuse burns (how far its bang knocks people down), and a word says so if one knocks you down. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
+| Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, the clock in minutes and seconds, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the busker, the gong, the theatre's drill, the night market's firecrackers or its fireworks go, a pill low in the middle says so while the crowd stands still, dances, punches or scatters. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, a tagged player bursts into confetti as they go down, and a run kicks up dust. When the firecrackers land, a ring glows on the floor round each one while its fuse burns (how far its bang knocks people down), and a word says so if one knocks you down. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the full-screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen (an iPad's can: there the full-screen button does it), so the game shows the two ways round it (`ui/HomeScreen.tsx`): quickest, Safari's page menu (the three lines at the left of the address bar, aA or ··· on older iOS) and Hide Toolbar, which leaves a sliver of address and gives the game the rest; all of the screen, changle.ca on the Home Screen. A little iPhone acts out the four taps to the Home Screen (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. It opens by itself once in the first lobby, then from the lobby's line, the menu and the full-screen button. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
 | Phone, a round in Safari's bars (an iPhone) | When Safari's toolbar and tab bar take part of the screen (held sideways, the page is over 60 points shorter than the screen), a line under the top bar shows the page menu's icon and says to choose Hide Toolbar, with More ways (the guide) and a close button. It goes when the bars do, after 15 s, or for good when closed (Steve, 2026-11-12, from an iPhone in Safari). |
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
-| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again and Pick another arena, and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
+| Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again (the same place) and Pick another arena (back to the lobby; in practice, the picker), and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the four arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
-| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's, the drill's, the firecrackers' or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
+| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, minutes and seconds, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the busker's, the gong's, the drill's, the firecrackers' or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
 | Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the camera down to the winner and the confetti, the penalty stamp for seven seconds, then the result card with the round's titles. |
 | Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the full-screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
-| Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. No penalty. |
+| Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. It opens on the four places to pick from (`PracticePick` in `ui/Lobby.tsx`): "pick a place to practise", a line with the round's length and target, and four picture cards in a row (held sideways), each with its name and one line about what happens there; a tap starts the round there. At the end, Play again keeps the place and Pick another arena comes back here, the place just played tagged 刚玩过 Just played. `?arena=market` on the address starts there at once (the tests and the capture scripts use it). No penalty. |
 | Credits (`/hide/credits`, and the menu) | Where every picture and model comes from. |
 
 The big screen is laid out on a 1920 x 1080 stage scaled to the screen (`Stage` in `ui/Tv.tsx`),
@@ -134,8 +134,10 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
   while the walkways rest) and for 2.7 s everyone standing still dances on the spot: players too, so
   the way to blend in is to stop; whoever walks on stands out. The computer rivals in practice stop
   and turn with the crowd (a beat after the sound, like everyone), and grow suspicious of anyone who doesn't;
-  running makes them suspicious only when it goes on longer than a passer-by's run (1.8 s). An
-  idle player's practice round lasts about 50 s, as before (`tests/practice.test.ts` plays it out).
+  running makes them suspicious only when it goes on longer than a passer-by's run (1.8 s). After a
+  punch a rival lies low for 3 to 6 s, walking off like a passer-by (see "Longer rounds" below); an
+  idle player's practice round lasts about two and a half minutes (`tests/practice.test.ts` plays it
+  out).
 * **A knockdown draws looks** (`commotionFor`): anyone knocked down, a player or a passer-by, makes
   the passers-by within 15 units stop and turn to stare for a second or two, each a beat after the
   fall. It's what people do, and a player walking past a fall without a glance is one more thing to
@@ -222,8 +224,8 @@ game's does at the start and the end of a round, and players get the Steam origi
   beat standing), exactly as a player's punch looks, so whoever is watching for punches looks there.
   Only the player who did it hears of it ("someone across the crowd swung at nothing"); no screen
   marks it, and nobody is hit. The phone's button sits over Blend in with its count; on a computer
-  it's E, on a gamepad Y. The practice rivals use one a round each and are fooled by a passer-by's
-  swing as a person would be.
+  it's E, on a gamepad Y. The practice rivals use both (the first 12 to 70 s in, the second 40 to 80 s
+  later) and are fooled by a passer-by's swing as a person would be.
 * With reduced motion the camera doesn't move and no confetti falls.
 
 ## The theatre's drill, the glance, and the little effects
@@ -310,6 +312,38 @@ What this game does now:
   still; no flash, shock, sparks, smoke or jolt; the red paper lies on the floor; no confetti.
 * The browser tests now close every phone and screen they open (`tests/e2e/helpers.ts`), so one test
   doesn't slow the next on a busy machine.
+
+## Longer rounds, and practice's picker
+
+Steve, 2026-11-13, from a practice round (电脑 3 won 3 to 0 before he had landed a punch): let the
+player pick the place as soon as they're in, and each place's round felt too short.
+
+* **The round**: 3 minutes and first to 5 tags (`MATCH_MS`, `SCORE_TO_WIN`; it was 75 s and first to
+  3). Every line that says so follows the numbers: the rules sheet, the big screen's three steps, the
+  practice picker's line, and the online table's rules on changle.ca (`site/src/party/hide/NetHide.tsx`).
+* **The clock** reads in minutes and seconds (3:00 down to 0:00) on the phone and the big screen, red
+  in the last ten seconds as before.
+* **Practice's rivals lie low after a punch** (3 to 6 s, `LIE_LOW_MS`): they walk off like a
+  passer-by instead of going straight after the next suspect. Measured on the fake clock: before, the
+  rivals punched each other in a chain (every punch made the puncher the next target) and a practice
+  round was over in 45 s at the median, whatever the player did; with the longer round alone it was
+  62 s; with lying low too, about 2.5 minutes for a player who stands still or stops with the crowd,
+  a little over 2 for one who walks about, 2 at the theatre and the night market (more happens there).
+  They use both their distractions now, spread over the longer round.
+* **Practice opens on the picker** (`PracticePick`, `ui/Lobby.tsx`): the four places as the lobby's
+  pictures, a line about each (渡轮一鸣笛，全场停下看海 and so on, kept short for the cards; a Chinese
+  line breaks between its clauses, never inside one), and a tap starts the round there (the room's
+  vote and Start in one; the room waits in its lobby until then). After the round, Play again keeps
+  the place and Pick another arena comes back to the picker with the place just played marked. Held
+  sideways the four sit in one row, so none is below the fold even on a small phone (667 x 375).
+* A room already lets everyone pick: the lobby's vote, and Pick another arena after a round. When a
+  round ends with one button under Play again (practice, or a room without a table), that button now
+  takes the whole row.
+* Cost: a 3-minute round with four players is about 600 requests to the room (it was about 250), so
+  the free plan's 100,000 a day now covers about 150 such rounds a day (README, Cost).
+* The browser tests now watch for a quick swing in every view a page receives (not by polling), and
+  the test room's stall setting starts the other players away from every stall: both used to fail
+  now and then on a busy machine.
 
 ## Nobody is marked
 

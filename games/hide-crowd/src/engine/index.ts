@@ -14,11 +14,12 @@
 // collecting things scores): taste the four snack stalls along the back, lingering a moment at each,
 // for 2 points. Passers-by browse the stalls too, but only a player's bite makes a stall light up for
 // everyone. Twice a round a player can distract everyone (as in the Steam game): a passer-by across the
-// crowd throws a punch at nothing, and every eye goes there. First to 3 points, or the most after 75 s.
+// crowd throws a punch at nothing, and every eye goes there. First to 5 points, or the most after 3
+// minutes (Steve, 2026-11-13: 75 s and 3 points made each place feel too short).
 
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
-export const MATCH_MS = 75_000;
-export const SCORE_TO_WIN = 3;
+export const MATCH_MS = 180_000;
+export const SCORE_TO_WIN = 5;
 export const NPC_COUNT = 18;
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
