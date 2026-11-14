@@ -19,6 +19,11 @@
  *                                           signing in to start one, the account's ledgers on a second phone,
  *                                           taken off my ledgers, deleted for everyone, signed out, a sign-in
  *                                           that ran out
+ *   npx tsx scripts/split_check.ts gate     stage two's gate, as far as this machine can take it: five phones on
+ *                                           one ledger recording at once end up with the server's ledger, all
+ *                                           five; three recorded with no signal and answers lost on the way back
+ *                                           count once; one expense changed on two phones at once; one payment
+ *                                           marked on both its people's phones with no signal is recorded once
  *
  * Options: --base http://127.0.0.1:5173 (a build: `npx vite preview`, then --base http://127.0.0.1:4173),
  * --out <folder for the pictures>. CHROME=/path/to/chrome uses that browser, else Playwright's own
@@ -47,7 +52,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "gate"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -854,39 +859,41 @@ async function fits() {
   }
 }
 
+// ---------- what behave and gate share: a phone in 中文 ----------
+const t = (k: Word) => W[k].zh;
+const button = (page: Page, k: Word) => page.getByRole("button", { name: t(k), exact: true });
+const start = async (page: Page, name = "测试", people = ["阿甲", "阿乙"]) => {
+  await button(page, "start").click();
+  const sheet = page.getByRole("dialog");
+  await sheet.locator("input").nth(0).fill(name);
+  await sheet.locator("input").nth(1).fill("我");
+  for (const n of people) {
+    await sheet.locator("#split-who-else").fill(n);
+    await sheet.getByRole("button", { name: t("add"), exact: true }).click();
+  }
+  await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  await button(page, "addExpense").waitFor();
+};
+/** 两清's list on a phone signed in (starting a ledger needs that); `signed` false: one that isn't */
+const open = async (ctx: BrowserContext, signalMayGo?: boolean, signed = true) => {
+  if (signed && !signedIn.has(ctx)) await signIn(ctx);
+  const page = await ctx.newPage();
+  watch(page, signalMayGo);
+  await page.goto(`${base}/split`);
+  await button(page, signed ? "start" : "startSignIn").waitFor();
+  return page;
+};
+const amountShown = (page: Page) => page.locator(".split-add-amount output").textContent();
+const spend = async (page: Page, digits: string) => {
+  await button(page, "addExpense").click();
+  await type(page, digits);
+  await button(page, "done").click();
+  await page.locator(".split-keys").waitFor({ state: "hidden" });
+};
+const amounts = async (page: Page) => (await page.locator(".split-row-amount").allTextContents()).join(" ");
+
 // ---------- behave: what it does, beyond how it looks ----------
 async function behave() {
-  const t = (k: Word) => W[k].zh;
-  const button = (page: Page, k: Word) => page.getByRole("button", { name: t(k), exact: true });
-  const start = async (page: Page, name = "测试", people = ["阿甲", "阿乙"]) => {
-    await button(page, "start").click();
-    const sheet = page.getByRole("dialog");
-    await sheet.locator("input").nth(0).fill(name);
-    await sheet.locator("input").nth(1).fill("我");
-    for (const n of people) {
-      await sheet.locator("#split-who-else").fill(n);
-      await sheet.getByRole("button", { name: t("add"), exact: true }).click();
-    }
-    await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
-    await button(page, "addExpense").waitFor();
-  };
-  /** 两清's list on a phone signed in (starting a ledger needs that); `signed` false: one that isn't */
-  const open = async (ctx: BrowserContext, signalMayGo?: boolean, signed = true) => {
-    if (signed && !signedIn.has(ctx)) await signIn(ctx);
-    const page = await ctx.newPage();
-    watch(page, signalMayGo);
-    await page.goto(`${base}/split`);
-    await button(page, signed ? "start" : "startSignIn").waitFor();
-    return page;
-  };
-  const amountShown = (page: Page) => page.locator(".split-add-amount output").textContent();
-  const spend = async (page: Page, digits: string) => {
-    await button(page, "addExpense").click();
-    await type(page, digits);
-    await button(page, "done").click();
-    await page.locator(".split-keys").waitFor({ state: "hidden" });
-  };
-  const amounts = async (page: Page) => (await page.locator(".split-row-amount").allTextContents()).join(" ");
   const rename = async (page: Page, who: string, to: string) => {
     await button(page, "more").click();
     await page.getByRole("button", { name: re(t("members")) }).click();
@@ -1675,6 +1682,8 @@ async function behave() {
 
       // signed out: the account's ledgers leave the list; another account on the same phone doesn't see them; signed in again, they are back
       await start(pa, "留下", ["阿甲"]);
+      // (on the server, and so in the account, before signing out: one that isn't yet goes up with whoever signs in next)
+      await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held.some((h) => h.server.name === "留下" && h.acct)`);
       await button(pa, "back").click();
       await pa.locator(".split-ledger").waitFor();
       await signTo(pa, null);
@@ -1739,11 +1748,141 @@ async function behave() {
   }
 }
 
+// ---------- gate: stage two's gate, as far as phones on this machine can take it ----------
+// Five phones on one ledger, recording at the same time, end up showing what the server holds, the
+// same on all five. One with no signal records three, and they go up once each; one whose answers
+// are lost on the way back sends again, and nothing counts twice. Two people changing one expense
+// at once: all five show whichever the server took last. The one who paid and the one paid both
+// mark the payment, with no signal: it is recorded once. (On real phones, and in WeChat: Steve.)
+async function gate() {
+  if (!local) {
+    console.log("gate: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const people = ["阿甲", "阿乙", "阿丙", "阿丁"];
+  const ctxs: BrowserContext[] = [];
+  const pages: Page[] = [];
+  // the one who starts it, signed in; four friends by the invitation, two of them signed in
+  const first = await phone(390, 664, "zh");
+  ctxs.push(first);
+  const po = await open(first, true);
+  await start(po, "五部手机", people);
+  await po.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  const started = (await keptBy(po)).held[0];
+  const id = started.server.id;
+  const key = started.key;
+  pages.push(po);
+  for (const [i, name] of people.entries()) {
+    const ctx = await phone(390, 664, "zh");
+    if (i < 2) await signIn(ctx);
+    ctxs.push(ctx);
+    const page = await ctx.newPage();
+    watch(page, true);
+    await page.goto(`${base}/split/${id}#k=${key}`);
+    await page.locator(".split-who").getByRole("button", { name: re(name) }).click();
+    await button(page, "addExpense").waitFor();
+    pages.push(page);
+  }
+  const ledgerOn = async (page: Page) => (await keptBy(page)).held.find((h) => h.server.id === id)!;
+  ok((await Promise.all(pages.map(ledgerOn))).every((h) => h.server.members.length === 5), "five phones on one ledger: the one who started it, and four by the invitation (two signed in, two not)");
+
+  // 阿乙's phone: the server takes what it sends, and the answer is lost on the way back, three times
+  let lose = 3;
+  await ctxs[2].route("**/split/api/ledgers/*/changes", async (route) => {
+    if (lose <= 0) return route.fallback();
+    lose--;
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  // all five record at once, six each (phone p's j-th is p·10 + j dollars, so each is its own)
+  const amountsOf = (p: number, n: number) => Array.from({ length: n }, (_, j) => (p + 1) * 10 + j + 1);
+  await Promise.all(pages.map(async (page, p) => {
+    for (const d of amountsOf(p, 6)) await spend(page, String(d));
+  }));
+  ok(lose === 0, "(阿乙's phone lost the answer to three of its sends)");
+  // 阿丙's phone, with no signal, records three; two others record one more each meanwhile
+  await ctxs[3].setOffline(true);
+  await Promise.all([
+    (async () => {
+      for (const d of [37, 38, 39]) await spend(pages[3], String(d));
+    })(),
+    spend(pages[0], "17"),
+    spend(pages[1], "27"),
+  ]);
+  ok((await ledgerOn(pages[3])).waiting.length === 3, "阿丙's phone, with no signal, recorded three: they wait on the phone");
+  await ctxs[3].setOffline(false);
+
+  /** Everyone has sent what they had, and holds the server's ledger as it is: the server's, then. */
+  const settled = async () => {
+    for (let tries = 0; tries < 80; tries++) {
+      const server = await onServer(po, id, key);
+      const all = await Promise.all(pages.map(ledgerOn));
+      if (all.every((h) => h.waiting.length === 0 && h.seq === server.seq)) return server;
+      await po.waitForTimeout(400);
+    }
+    return null;
+  };
+  let server = await settled();
+  const recorded = [...pages.flatMap((_, p) => amountsOf(p, 6)), 37, 38, 39, 17, 27].map((d) => d * 100).sort((x, y) => x - y);
+  const live = (entries: { gone?: number; kind?: string; amount?: number }[]) => entries.filter((e) => e.kind === "expense" && e.gone === undefined);
+  const onIt = server ? live(server.ledger.entries as { gone?: number; kind?: string; amount?: number }[]).map((e) => e.amount!).sort((x, y) => x - y) : [];
+  ok(!!server && JSON.stringify(onIt) === JSON.stringify(recorded), `everything recorded is on the server once: ${onIt.length} of ${recorded.length}, none twice, none missing`);
+  const same = async () => {
+    const all = await Promise.all(pages.map(ledgerOn));
+    const theirs = JSON.stringify(server?.ledger.entries);
+    return all.every((h) => JSON.stringify(h.server.entries) === theirs && h.lost.length === 0);
+  };
+  ok(await same(), "all five hold the server's ledger, entry for entry, and none says anything didn't stick");
+  const rows = await Promise.all(pages.map(async (page) => (await page.locator(".split-row-amount").allTextContents()).sort().join(" ")));
+  ok(rows.every((r) => r === rows[0]) && rows[0].split(" ").length === recorded.length, "and all five screens show the same rows");
+
+  // two people change one expense at the same moment
+  const change = async (page: Page, from: string, to: string) => {
+    await page.locator("button.split-row", { hasText: from }).click();
+    await page.locator(".split-keys").waitFor();
+    // (an expense opened again shows its amount with its cents: "11.00")
+    while (((await amountShown(page)) ?? "").replace(/[^0-9.]/g, "") !== "0") await page.locator(".split-key").last().click();
+    await type(page, to);
+    await button(page, "saveChanges").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+  };
+  await Promise.all([change(pages[0], "$11.00", "71"), change(pages[1], "$11.00", "72")]);
+  server = await settled();
+  const changed = server ? live(server.ledger.entries as { gone?: number; kind?: string; amount?: number }[]).filter((e) => e.amount === 7100 || e.amount === 7200) : [];
+  ok(changed.length === 1 && (await same()), `two people change one expense at once: it is the one the server took last (${(changed[0]?.amount ?? 0) / 100}) on all five`);
+
+  // the one who paid and the one paid both mark the payment as made, neither with a signal
+  const settleTab = async (page: Page) => {
+    await page.getByRole("tab", { name: t("settle") }).click();
+    await page.locator(".split-row").first().waitFor();
+  };
+  for (const page of pages) await settleTab(page);
+  const plans = await Promise.all(pages.map(async (page) => (await page.locator(".split-row").allTextContents()).length));
+  ok(plans.every((n) => n === plans[0] && n > 0), `the plan to settle up has the same ${plans[0]} lines on all five`);
+  // (the first line of the plan names its two people; the phones that are theirs mark it)
+  const firstLine = (await pages[0].locator(".split-row").first().textContent()) ?? "";
+  const names = ["我", ...people];
+  const whose = names.map((n, i) => ({ n, i })).filter(({ n }) => firstLine.includes(n === "我" ? "你" : n)).map(({ i }) => i);
+  const pair = whose.length === 2 ? whose : [0, 1];
+  for (const i of pair) await ctxs[i].setOffline(true);
+  for (const i of pair) {
+    await pages[i].locator(".split-row").first().click();
+    await button(pages[i], "markPaid").click();
+    await closed(pages[i]);
+  }
+  for (const i of pair) await ctxs[i].setOffline(false);
+  server = await settled();
+  const transfers = server ? (server.ledger.entries as { kind?: string; gone?: number }[]).filter((e) => e.kind === "transfer" && e.gone === undefined) : [];
+  ok(transfers.length === 1 && (await same()), `the payment, marked on both its people's phones with no signal: recorded once (${transfers.length}), and all five show it so`);
+  for (const ctx of ctxs) await ctx.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
 if (what === "all" || what === "fits") await fits();
 if (what === "all" || what === "behave") await behave();
+if (what === "all" || what === "gate") await gate();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

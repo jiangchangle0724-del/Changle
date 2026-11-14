@@ -27,7 +27,7 @@ import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
 import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
-import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
+import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, paidId, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
 import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
 import { SESSION_KEY } from "../src/split/net";
 import { asDone, asMine, asPushed, asSnapshot } from "../src/split/shape";
@@ -486,6 +486,28 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   const undone = takeOut(l, "t2", 20);
   eq([settlement(undone).clear, standing(undone, "s", "zh")], [false, "你该收 $42.50"], "a mark taken back: Steve is owed again");
   eq(settlement(putBack(undone, "t2")).clear, true, "and put back, square again");
+
+  // the same payment marked on two phones (the one who paid, and the one paid): one id, so it counts once
+  {
+    const ready = l.entries.filter((e) => e.kind === "expense").reduce((m, e) => addExpense(m, e as Expense), startLedger(l.id, l.name, l.currency, l.members));
+    const step = settlement(ready).steps[0];
+    const onPhoneA = paidId(ready, step);
+    const onPhoneB = paidId(JSON.parse(JSON.stringify(ready)) as Ledger, { ...step });
+    eq([onPhoneA, /^[A-Za-z0-9_-]{1,64}$/.test(onPhoneA), onPhoneA.length < newId().length], [onPhoneB, true, true], "the same step of the same ledger: the same id on any phone, one the rules take, and never one a phone makes up at random");
+    const once = addTransfer(ready, { id: onPhoneA, at: 30, ...step });
+    eq([addTransfer(once, { id: onPhoneB, at: 31, ...step }) === once, settlement(once).steps[0].paid], [true, onPhoneA], "marked on both: the step is paid once, and the plan holds still");
+    const others = settlement(ready).steps.slice(1).map((s) => paidId(ready, s));
+    eq(new Set([onPhoneA, ...others]).size, 4, "each step its own id");
+    eq([paidId(ready, { ...step, amount: step.amount + 1 }) !== onPhoneA, paidId({ ...ready, id: "other-ledger" }, step) !== onPhoneA], [true, true], "another amount, another ledger: another id");
+    const markedAgain = paidId(once, step);
+    const takenBack = takeOut(once, onPhoneA, 40);
+    eq([markedAgain !== onPhoneA, paidId(takenBack, step) === markedAgain], [true, true], "marked once already (taken back or not), marking it again is a new transfer");
+    const after = addTransfer(takenBack, { id: paidId(takenBack, step), at: 41, ...step });
+    eq([settlement(after).steps[0].paid, after.entries.length], [markedAgain, once.entries.length + 1], "so a payment taken back can be marked again");
+    const moreSpent = addExpense(ready, { id: "e9", at: 50, payer: "s", amount: 1000, note: "", split: { how: "equal", among: ["s", "w"] } });
+    const goneAgain = takeOut(moreSpent, "e9", 51);
+    eq([settlement(goneAgain).steps[0], paidId(goneAgain, step) !== onPhoneA], [step, true], "an expense recorded and taken out again leaves the plan as it was, and its id new: the step is worked out from other expenses now");
+  }
 }
 
 // ---------- 6. what is kept on the phone, and what the server answers ----------
