@@ -1,6 +1,6 @@
 /*
  * 两清 (changle.ca/split) in a phone-sized browser. With the site running (`npm run dev`) and 两清's
- * server beside it (in tools/split: `npx wrangler dev --port 8794 --var ALLOW_TEST_SETTINGS:1`; a
+ * server beside it (in tools/split: `npm run dev -- --ip 127.0.0.1 --var ALLOW_TEST_SETTINGS:1`; a
  * run starts more ledgers than one network may in a day):
  *
  *   npx tsx scripts/split_check.ts          everything below

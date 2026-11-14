@@ -115,7 +115,7 @@ npx tsx tests/split-sync.test.ts    # 两清在手机上怎么同步：没信号
 npx tsx tests/split-phone.test.ts   # 两清在手机上碰浏览器的那几处（存储、网络、实时连接都是假的）：存得住、两个标签页不互相覆盖、只认服务器自己的回答、断了的连接查得出来、点开邀请就进账本、主人钥匙只在该在的请求里
 npx tsx tests/mail.test.ts          # 房间服务器代别的 Worker 发信的入口（worker/notice.ts）：放行什么、拒绝什么、信长什么样
 npx tsx scripts/budget.ts           # 构建以后：首页第一次要下载多少（gzip），超过预算 CI 不让合并
-npx tsx scripts/split_check.ts      # 两清（npm run dev 在跑，旁边 tools/split 里再开 npx wrangler dev --port 8794 --var ALLOW_TEST_SETTINGS:1）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效；断网再连上、两部手机、没存上的那一笔；发邀请、点开、选自己是哪一位；锁账本、换邀请链接；用别的货币记一笔、改汇率、没有汇率可查（walk、fits、behave 一次跑一种；ONLY=zh-320x568 只走一种大小）
+npx tsx scripts/split_check.ts      # 两清（npm run dev 在跑，旁边 tools/split 里再开 npm run dev -- --var ALLOW_TEST_SETTINGS:1）：每一屏拍图、axe、不超宽、按得到；记一笔在真手机的高度上放得下；后退键、两个标签页、动效；断网再连上、两部手机、没存上的那一笔；发邀请、点开、选自己是哪一位；锁账本、换邀请链接；用别的货币记一笔、改汇率、没有汇率可查（walk、fits、behave 一次跑一种；ONLY=zh-320x568 只走一种大小）
 python3 scripts/routes_check.py     # 浏览器里点一遍：游戏卡、后退键、旧链接、/settings、/login
 python3 scripts/dare_timer_check.py # 大冒险和国王命令的倒计时：开始、暂停、继续、时间到、重来
 python3 scripts/ui_inventory.py     # 盘点裸写的颜色、字号、阴影（docs/ui-inventory.md），清理后再跑看数字

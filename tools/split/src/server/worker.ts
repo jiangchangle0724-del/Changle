@@ -6,20 +6,28 @@
 // fingerprints of the key that opens it and of its owner's key, the id of every change it has been
 // sent, and the record of the ones that counted. It takes changes one request at a time, so two
 // phones recording at once can't cross, and it tells every phone that is listening.
+//
+// Each changle.ca account that has signed in here has one too (AccountDO): its ledgers, with their
+// keys (src/room/account.ts). Who is signed in, the rooms server says (src/server/who.ts).
 import { DurableObject } from "cloudflare:workers";
 import type { Ledger } from "../../../../site/src/split/core";
+import { AccountRoom, STARTS_PER_DAY, type AccountStore, type Kept, type Mine } from "../room/account";
 import { ID_RE, LedgerRoom, type ErrorCode, type Fail, type Logged, type Meta, type Store } from "../room/ledger";
-import { KEY_HEADER, KEY_RE, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type ApiError, type Push, type Pushed, type Since, type Snapshot } from "../room/protocol";
+import { KEY_HEADER, KEY_RE, LIVE_PROTOCOL, MEMBER_RE, NEXT_HEADER, OWNER_HEADER, type ApiError, type MineBody, type MyLedgers, type Push, type Pushed, type Since, type Snapshot } from "../room/protocol";
+import { sessionOf, sha256, whoIs } from "./who";
 
 export interface Env {
   LEDGERS: DurableObjectNamespace<LedgerDO>;
   GATES: DurableObjectNamespace<GateDO>;
-  /** local runs and tests only: "1" lifts the daily allowance below */
+  ACCOUNTS: DurableObjectNamespace<AccountDO>;
+  /** the rooms server (site/worker), which says whose a sign-in is */
+  ROOMS: Fetcher;
+  /** local runs and tests only: "1" lifts the daily allowance of new ledgers per network (not per account) */
   ALLOW_TEST_SETTINGS?: string;
 }
 
 const BASE = "/split/api";
-/** Ledgers one network may make in a day. (Signing in to make one, and a day's allowance per account, come with accounts.) */
+/** Ledgers one network may make in a day. (One account may start STARTS_PER_DAY, src/room/account.ts.) */
 const MAKES_PER_DAY = 10;
 /** The longest request read: 500 changes fit several times over. */
 const BODY_MAX = 400_000;
@@ -31,12 +39,10 @@ const refuse = (error: ApiError["error"], status: number) => json({ error } sati
 const STATUS: Record<ErrorCode, number> = { gone: 404, exists: 409, bad: 400, key: 403, full: 409, owner: 403, locked: 423 };
 /** The live connections of a ledger whose key was changed are closed with this: they were let in by the old one. */
 const KEY_CHANGED = 4403;
+/** The live connections of a ledger its owner deleted are closed with this. */
+const DELETED = 4404;
 const failed = (f: Fail) => refuse(f.error, STATUS[f.error]);
-
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+const today = () => new Date().toISOString().slice(0, 10);
 
 async function body(req: Request): Promise<Record<string, unknown> | null> {
   if (Number(req.headers.get("content-length") ?? 0) > BODY_MAX) return null;
@@ -54,14 +60,59 @@ async function body(req: Request): Promise<Record<string, unknown> | null> {
 async function allowed(req: Request, env: Env): Promise<boolean> {
   if (env.ALLOW_TEST_SETTINGS === "1") return true;
   const network = await sha256(`split:${req.headers.get("cf-connecting-ip") ?? "local"}`);
-  return env.GATES.get(env.GATES.idFromName(network)).take("make", MAKES_PER_DAY, new Date().toISOString().slice(0, 10));
+  return env.GATES.get(env.GATES.idFromName(network)).take("make", MAKES_PER_DAY, today());
+}
+
+const accountOf = (env: Env, id: string) => env.ACCOUNTS.get(env.ACCOUNTS.idFromName(`u:${id}`));
+
+/**
+ * The account a request is signed in to. Null when it carries no sign-in; a response to send
+ * back when it carries one that isn't anybody's (401 "signin") or can't be checked now (503).
+ */
+async function signedIn(req: Request, env: Env, ctx: ExecutionContext): Promise<{ id: string } | null | Response> {
+  const session = sessionOf(req);
+  if (session === null) return req.headers.has("authorization") ? refuse("signin", 401) : null;
+  const asked = await whoIs(session, env.ROOMS, (p) => ctx.waitUntil(p));
+  return asked.ok ? asked.who : refuse(asked.error, asked.error === "signin" ? 401 : 503);
+}
+
+/** "My ledgers": what a signed-in phone asks of its account. */
+async function mine(req: Request, env: Env, ctx: ExecutionContext, id: string | undefined): Promise<Response> {
+  const who = await signedIn(req, env, ctx);
+  if (who instanceof Response) return who;
+  if (!who) return refuse("signin", 401);
+  const account = accountOf(env, who.id);
+  if (id === undefined) {
+    if (req.method !== "GET") return refuse("notfound", 404);
+    return json({ ledgers: await account.list() } satisfies MyLedgers);
+  }
+  if (!ID_RE.test(id)) return refuse("notfound", 404);
+  if (req.method === "DELETE") {
+    await account.drop(id);
+    return json({ ok: true });
+  }
+  if (req.method !== "PUT") return refuse("notfound", 404);
+  // Kept only when the key opens the ledger, and the owner's key, when one comes, is its owner's.
+  const key = req.headers.get(KEY_HEADER) ?? "";
+  const owner = req.headers.get(OWNER_HEADER);
+  if (!KEY_RE.test(key) || (owner !== null && !KEY_RE.test(owner))) return refuse("bad", 400);
+  const input = (await body(req)) ?? {};
+  const stub = env.LEDGERS.get(env.LEDGERS.idFromName(id));
+  const got = await stub.read(await sha256(key));
+  if (!got.ok) return failed(got);
+  if (owner !== null && !(await stub.owned(await sha256(owner)))) return refuse("owner", 403);
+  // (who they are only if they are someone in it: one taken out since is forgotten)
+  const me = typeof input.me === "string" && MEMBER_RE.test(input.me) && got.ledger.members.some((m) => m.id === input.me) ? input.me : input.me === undefined ? undefined : null;
+  const kept = await account.keep({ id, key, owner, me });
+  return kept.ok ? json({ mine: kept.mine } satisfies MineBody) : refuse(kept.error, 409);
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return refuse("notfound", 404);
     const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean);
+    if (parts[0] === "me" && parts[1] === "ledgers" && parts.length <= 3) return mine(req, env, ctx, parts[2]);
     if (parts[0] !== "ledgers" || parts.length > 3) return refuse("notfound", 404);
 
     // the live connection: its key comes as a protocol name, because a browser can't give it a header
@@ -87,21 +138,46 @@ export default {
       if (!keyHash) return refuse("key", 403);
       // (an owner's key that isn't one makes no ledger: better than a ledger its maker can't lock)
       if (owner !== null && !ownerHash) return refuse("bad", 400);
+      // Signed in, the ledger goes into the account's list, keys and all, and counts against the
+      // account's day. (Not signed in, it is still made, for the pages from before accounts: that
+      // door closes once the pages sign in to start one.)
+      const who = await signedIn(req, env, ctx);
+      if (who instanceof Response) return who;
       const input = await body(req);
       if (!input || typeof input.id !== "string" || !ID_RE.test(input.id)) return refuse("bad", 400);
-      const stub = env.LEDGERS.get(env.LEDGERS.idFromName(input.id));
+      const id = input.id;
+      const stub = env.LEDGERS.get(env.LEDGERS.idFromName(id));
+      // (keeping it in the list is a convenience: the phone holds the keys, and puts them in its account itself when this didn't)
+      const keep = async (owned: boolean) => {
+        if (who) await accountOf(env, who.id).keep({ id, key, owner: owned && ownerHash ? owner : undefined }).catch(() => undefined);
+      };
       // a phone asking again for the ledger it has already made doesn't use up the day's allowance
+      // (and its owner's key is kept only if it is the one the ledger was made with)
       const there = await stub.read(keyHash);
-      if (there.ok) return json({ seq: there.seq, ledger: there.ledger } satisfies Snapshot);
+      if (there.ok) {
+        await keep(await stub.owned(ownerHash));
+        return json({ seq: there.seq, ledger: there.ledger } satisfies Snapshot);
+      }
       if (there.error !== "gone") return refuse("exists", 409);
       if (!(await allowed(req, env))) return refuse("limit", 429);
-      const made = await stub.create({ id: input.id, name: input.name, currency: input.currency, members: input.members, keyHash, ownerHash, now: Date.now() });
-      return made.ok ? json({ seq: made.seq, ledger: made.ledger } satisfies Snapshot, 201) : failed(made);
+      if (who && !(await accountOf(env, who.id).take(today(), STARTS_PER_DAY))) return refuse("limit", 429);
+      const made = await stub.create({ id, name: input.name, currency: input.currency, members: input.members, keyHash, ownerHash, now: Date.now() });
+      if (!made.ok) return failed(made);
+      await keep(true);
+      return json({ seq: made.seq, ledger: made.ledger } satisfies Snapshot, 201);
     }
 
     if (!ID_RE.test(parts[1] ?? "")) return refuse("notfound", 404);
     const stub = env.LEDGERS.get(env.LEDGERS.idFromName(parts[1]));
 
+    // The owner deletes it. Signed in, it also leaves the owner's list.
+    if (parts.length === 2 && req.method === "DELETE") {
+      const got = await stub.wipe(ownerHash);
+      if (!got.ok) return failed(got);
+      const who = await signedIn(req, env, ctx);
+      if (who && !(who instanceof Response)) await accountOf(env, who.id).drop(parts[1]);
+      return json({ ok: true });
+    }
     if (parts.length === 2 && req.method === "GET") {
       const since = url.searchParams.get("since");
       if (since === null) {
@@ -181,6 +257,21 @@ function sqlStore(sql: SqlStorage): Store {
         return typeof line.lock === "boolean" ? { seq: r.seq as number, at: r.at as number, lock: line.lock } : { seq: r.seq as number, at: r.at as number, sent: line as Extract<Logged, { sent: unknown }>["sent"] };
       });
     },
+    // Every table goes (the ledger, the ids it was sent, its record, the first day's `sent`), and
+    // one is made with only the time it went.
+    wipe(now) {
+      const tables = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").toArray();
+      for (const t of tables) sql.exec(`DROP TABLE IF EXISTS "${String(t.name).replaceAll('"', "")}"`);
+      sql.exec("CREATE TABLE buried (at INTEGER NOT NULL)");
+      sql.exec("INSERT INTO buried (at) VALUES (?)", now);
+      made = false;
+    },
+    buried() {
+      if (made) return null;
+      const there = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'buried'").toArray().length > 0;
+      const row = there ? sql.exec("SELECT at FROM buried LIMIT 1").toArray()[0] : undefined;
+      return row ? (row.at as number) : null;
+    },
   };
 }
 
@@ -232,6 +323,26 @@ export class LedgerDO extends DurableObject<Env> {
       for (const ws of this.ctx.getWebSockets()) {
         try {
           ws.close(KEY_CHANGED, "key");
+        } catch {
+          // a phone that just left
+        }
+      }
+    }
+    return got;
+  }
+
+  /** Is this the owner's key? */
+  async owned(ownerHash: string | null): Promise<boolean> {
+    return this.room.owns(ownerHash);
+  }
+
+  /** The owner deletes the ledger. Every phone that was listening is let go, and finds it gone when it comes back. */
+  async wipe(ownerHash: string | null): Promise<ReturnType<LedgerRoom["wipe"]>> {
+    const got = this.room.wipe(ownerHash, Date.now());
+    if (got.ok) {
+      for (const ws of this.ctx.getWebSockets()) {
+        try {
+          ws.close(DELETED, "gone");
         } catch {
           // a phone that just left
         }
@@ -294,5 +405,58 @@ export class GateDO extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     await this.ctx.storage.deleteAll();
+  }
+}
+
+/** An account's list, in the Durable Object's own SQLite. */
+function accountStore(sql: SqlStorage): AccountStore {
+  sql.exec("CREATE TABLE IF NOT EXISTS mine (id TEXT PRIMARY KEY, json TEXT NOT NULL, at INTEGER NOT NULL)");
+  sql.exec("CREATE TABLE IF NOT EXISTS started (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
+  const read = (json: unknown) => JSON.parse(json as string) as Mine;
+  return {
+    // (the last first kept first; among those kept the same moment, the last put)
+    list: () => sql.exec("SELECT json FROM mine ORDER BY at DESC, rowid DESC").toArray().map((r) => read(r.json)),
+    get: (id) => {
+      const row = sql.exec("SELECT json FROM mine WHERE id = ?", id).toArray()[0];
+      return row ? read(row.json) : null;
+    },
+    put(m) {
+      sql.exec("INSERT INTO mine (id, json, at) VALUES (?, ?, ?) ON CONFLICT (id) DO UPDATE SET json = excluded.json", m.id, JSON.stringify(m), m.at);
+    },
+    drop(id) {
+      sql.exec("DELETE FROM mine WHERE id = ?", id);
+    },
+    count: () => Number(sql.exec("SELECT count(*) AS n FROM mine").one().n),
+    used: (day) => Number(sql.exec("SELECT n FROM started WHERE day = ?", day).toArray()[0]?.n ?? 0),
+    use(day) {
+      sql.exec("DELETE FROM started WHERE day <> ?", day);
+      sql.exec("INSERT INTO started (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1", day);
+    },
+  };
+}
+
+/** One changle.ca account's ledgers ("my ledgers"), with their keys; and how many it started today. */
+export class AccountDO extends DurableObject<Env> {
+  private room: AccountRoom;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.room = new AccountRoom(accountStore(ctx.storage.sql));
+  }
+
+  async list(): Promise<Mine[]> {
+    return this.room.list();
+  }
+
+  async keep(input: { id: string; key: string; owner?: string | null; me?: string | null }): Promise<Kept> {
+    return this.room.keep({ ...input, now: Date.now() });
+  }
+
+  async drop(id: string): Promise<void> {
+    this.room.drop(id);
+  }
+
+  async take(day: string, limit: number): Promise<boolean> {
+    return this.room.take(day, limit);
   }
 }

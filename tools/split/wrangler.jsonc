@@ -8,14 +8,24 @@
   "compatibility_date": "2026-10-01",
   // With routes set, wrangler leaves the workers.dev address off, so this is its only address.
   "routes": [{ "pattern": "changle.ca/split/api/*", "zone_name": "changle.ca" }],
-  // One ledger, one Durable Object; and one small one per network for the daily allowance.
+  // One ledger, one Durable Object; one small one per network for the daily allowance; and one per
+  // changle.ca account that has signed in here, with its ledgers (src/room/account.ts).
   "durable_objects": {
     "bindings": [
       { "name": "LEDGERS", "class_name": "LedgerDO" },
-      { "name": "GATES", "class_name": "GateDO" }
+      { "name": "GATES", "class_name": "GateDO" },
+      { "name": "ACCOUNTS", "class_name": "AccountDO" }
     ]
   },
   // SQLite-backed Durable Objects work on Cloudflare's free plan.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["LedgerDO", "GateDO"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["LedgerDO", "GateDO"] },
+    { "tag": "v2", "new_sqlite_classes": ["AccountDO"] }
+  ],
+  // Accounts are changle.ca's own. This Worker asks the rooms server (site/worker) whose a sign-in
+  // is, Worker to Worker, never over the public address (src/server/who.ts), as 跟一单 does.
+  // Agreed with Steve on 2026-11-14. On this machine, `npm run dev` runs a stand-in for it
+  // (tests/rooms), which knows the test sessions in tests/accounts.ts.
+  "services": [{ "binding": "ROOMS", "service": "changle-rooms" }],
   "observability": { "enabled": true }
 }

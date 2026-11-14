@@ -11,8 +11,9 @@
 // only its SHA-256 fingerprint.
 //
 // Its owner is the phone that made it, which holds a second key nobody else is given. That key
-// opens two doors only: changing the invitation's key (the old one is turned away from then on)
-// and locking the ledger (it can be read, and takes no changes, until the owner opens it again).
+// opens three doors only: changing the invitation's key (the old one is turned away from then on),
+// locking the ledger (it can be read, and takes no changes, until the owner opens it again), and
+// deleting it. A deleted ledger is gone for everyone, and its id can't be used for another.
 import { accept, parseSent, type Sent, type Took } from "../../../../site/src/split/changes";
 import { MAX_MEMBERS, type Ledger, type Member } from "../../../../site/src/split/core";
 import { NAME_MAX, startLedger, tidy } from "../../../../site/src/split/ops";
@@ -58,6 +59,10 @@ export interface Store {
   note(logged: LoggedLock): void;
   /** The changes that counted after number `seq`, oldest first, at most `limit` of them. */
   since(seq: number, limit: number): Logged[];
+  /** Everything kept for this ledger is deleted, and only when it was deleted is kept. */
+  wipe(now: number): void;
+  /** When this ledger was deleted; null when it wasn't. */
+  buried(): number | null;
 }
 
 /** "owner": not the owner's key (or the ledger has no owner). "locked": the ledger is locked and this would change it. */
@@ -116,6 +121,8 @@ export class LedgerRoom {
    * arrived), it is the ledger already made, as it stands now, with the owner it had.
    */
   create(input: { id: unknown; name: unknown; currency: unknown; members: unknown; keyHash: string; ownerHash?: string | null; now: number }): Ok<Snapshot> | Fail {
+    // (a deleted ledger's id isn't made into another: the phones that had it would open a stranger's)
+    if (this.store.buried() !== null) return fail("gone");
     if (this.meta) return this.meta.keyHash === input.keyHash ? { ok: true, ...this.snapshot()! } : fail("exists");
     const ledger = newLedger(input);
     // (the owner's key is nobody else's: never the one that goes out in the invitation)
@@ -212,6 +219,19 @@ export class LedgerRoom {
     return { ok: true, ...this.snapshot()!, changed: true };
   }
 
+  /**
+   * The owner deletes the ledger: everything kept for it goes, and from then on it is gone for
+   * everyone (404), the owner included. There is no undoing it.
+   */
+  wipe(ownerHash: string | null, now: number): Ok | Fail {
+    if (!this.meta || !this.ledger) return fail("gone");
+    if (!this.owns(ownerHash)) return fail("owner");
+    this.store.wipe(now);
+    this.meta = null;
+    this.ledger = null;
+    return { ok: true };
+  }
+
   /** The record after number `seq` (who changed what, in order, and when it was locked or opened), at most MAX_BATCH lines at a time. */
   since(keyHash: string | null, seq: unknown): Ok<{ seq: number; changes: Logged[] }> | Fail {
     if (!this.meta) return fail("gone");
@@ -226,6 +246,7 @@ export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[
   let kept: { meta: Meta; ledger: Ledger } | null = null;
   const ids = new Map<string, boolean>();
   const log: Logged[] = [];
+  let buried: number | null = null;
   return {
     ids,
     log,
@@ -242,5 +263,12 @@ export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[
       log.push(structuredClone(logged));
     },
     since: (seq, limit) => log.filter((l) => l.seq > seq).slice(0, limit),
+    wipe(now) {
+      kept = null;
+      ids.clear();
+      log.length = 0;
+      buried = now;
+    },
+    buried: () => buried,
   };
 }
