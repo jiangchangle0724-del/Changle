@@ -176,6 +176,19 @@ export async function loadDancer(): Promise<Dancer> {
   const hairs = new Map<string, Promise<THREE.SkinnedMesh>>();
   const outfits = new Map<string, Promise<Worn>>();
 
+  /** a mesh and all it holds (geometry, materials, textures) let go of */
+  const drop = (o: THREE.Object3D) =>
+    o.traverse((x) => {
+      const m = x as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.geometry.dispose();
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mt of mats) {
+        for (const v of Object.values(mt)) if ((v as THREE.Texture)?.isTexture) (v as THREE.Texture).dispose();
+        mt.dispose();
+      }
+    });
+
   /** a skinned mesh from another file onto her bones, by name (the files share one rest pose) */
   const adopt = (m: THREE.SkinnedMesh) => {
     const own = m.skeleton.bones.map((b) => bones.get(b.name) as THREE.Bone | undefined);
@@ -214,27 +227,34 @@ export async function loadDancer(): Promise<Dancer> {
     }
     return p;
   };
-  /** the skin under an outfit left out of the drawing */
+  /** the skin under an outfit left out of the drawing: the triangles kept moved to the front of the
+   *  same index buffer (written again, not a new one each outfit), and only they drawn */
   const cover = (hide: [number, number][]) => {
-    if (!fullIndex || !weld) return;
+    const index = skin.geometry.index;
+    if (!fullIndex || !weld || !index) return;
     const hidden = new Set<number>();
     for (const [a, b] of hide) for (let v = a; v <= b; v++) hidden.add(v);
-    const keep: number[] = [];
+    const out = index.array as Uint16Array | Uint32Array;
+    let n = 0;
     for (let t = 0; t < fullIndex.length; t += 3) {
       const a = fullIndex[t], b = fullIndex[t + 1], c = fullIndex[t + 2];
       if (hidden.has(weld.getX(a)) || hidden.has(weld.getX(b)) || hidden.has(weld.getX(c))) continue;
-      keep.push(a, b, c);
+      out[n++] = a;
+      out[n++] = b;
+      out[n++] = c;
     }
-    skin.geometry.setIndex(keep);
+    index.needsUpdate = true;
+    skin.geometry.setDrawRange(0, n);
   };
 
   const wear = async (id: string) => {
     want = id;
     const w = await outfitOf(id);
     if (want !== id) return;
-    if (worn) {
-      for (const m of worn.meshes) m.removeFromParent();
-      worn.hair?.removeFromParent();
+    const old = worn;
+    if (old) {
+      for (const m of old.meshes) m.removeFromParent();
+      old.hair?.removeFromParent();
     }
     for (const m of w.meshes) body.add(m);
     if (w.hair) {
@@ -249,6 +269,12 @@ export async function loadDancer(): Promise<Dancer> {
       placeStool();
     }
     worn = w;
+    // what she had on, let go of (its textures are most of what the graphics memory holds; a phone
+    // or tablet playing the speaker has little: #559); fetched again if she wears it again
+    if (old && old !== w) {
+      outfits.delete(old.info.id);
+      for (const m of old.meshes) drop(m);
+    }
   };
 
   const bake = (budgetMs: number) => {
@@ -276,7 +302,11 @@ export async function loadDancer(): Promise<Dancer> {
   const pose = (move: string, b: number, from: { move: string; b: number } | null = null, k = 1) => {
     const a = actions.get(move) ?? actions.get("stand");
     const f = from ? actions.get(from.move) : null;
-    for (const x of actions.values()) x.setEffectiveWeight(0);
+    // only the one or two playing are worked out (the rest skipped, not just weighed at nothing)
+    for (const x of actions.values()) {
+      x.enabled = x === a || (x === f && k < 1);
+      x.setEffectiveWeight(0);
+    }
     if (!a) return;
     const at = (x: THREE.AnimationAction, beat: number) => {
       const d = x.getClip().duration;
@@ -333,20 +363,6 @@ export async function loadDancer(): Promise<Dancer> {
 
   const dispose = () => {
     mixer.stopAllAction();
-    const done = new Set<unknown>();
-    const drop = (o: THREE.Object3D) =>
-      o.traverse((x) => {
-        const m = x as THREE.Mesh;
-        if (!m.isMesh) return;
-        m.geometry.dispose();
-        const mats = Array.isArray(m.material) ? m.material : [m.material];
-        for (const mt of mats) {
-          if (done.has(mt)) continue;
-          done.add(mt);
-          for (const v of Object.values(mt)) if ((v as THREE.Texture)?.isTexture) (v as THREE.Texture).dispose();
-          mt.dispose();
-        }
-      });
     drop(root);
     for (const p of outfits.values()) void p.then((w) => w.meshes.forEach(drop)).catch(() => {});
     for (const p of hairs.values()) void p.then(drop).catch(() => {});

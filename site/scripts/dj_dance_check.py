@@ -27,6 +27,8 @@ MOVES = {m[0]: {"zh": m[1], "en": m[2], "sit": m[3] == "true"} for m in re.finda
 HOWS = re.findall(r'how: \{ zh: "([^"]+)", en: "([^"]+)" \}', _src)
 NAMES = [m["en"] for m in MOVES.values()]
 NAMES_ZH = [m["zh"] for m in MOVES.values()]
+# the dancer's outfits (src/party/dj/dancer/files.ts)
+OUTFITS = re.findall(r'\{ id: "(\w+)", style:', open(os.path.join(os.path.dirname(__file__), "../src/party/dj/dancer/files.ts")).read())
 
 # a hand that moves hard within 80 ms of every beat, as an arm's swing does (`off`: half a beat later,
 # between the beats, still outside the 150 ms window), and gently otherwise, on the phone's own clock
@@ -67,13 +69,13 @@ with sync_playwright() as p:
     ok(any(how == h[1] for h in HOWS), f"and how to do it, under it ({how!r})")
     ok(MOVES[next(k for k, m in MOVES.items() if m["en"] == first)]["sit"], "the warm-up starts sitting down")
     ok(tv.evaluate("() => document.querySelector('.dj-coach-svg').childElementCount") > 0, "the coach is drawn")
-    # the robot in 3D, where a graphics chip draws it: none here, the drawn coach stays and dances
+    # the dancer in 3D, where a graphics chip draws her: none here, the drawn coach stays and dances
     is3d = until(lambda: (lambda x: x if x in ("on", "software", "none", "slow", "small", "failed") else None)(tv.evaluate("() => window.__coach3dIs")), 20000, 200)
     if is3d == "on":
-        print("--   (this browser has a graphics chip: the robot stays on this TV)")
-        ok(tv.locator(".dj-coach-3d canvas").count() == 1 and tv.locator(".dj-coach-svg.is-off").count() == 1, "the 3D robot takes over from the drawn coach")
+        print("--   (this browser has a graphics chip: the dancer stays on this TV)")
+        ok(tv.locator(".dj-coach-3d canvas").count() == 1 and tv.locator(".dj-coach-svg.is-off").count() == 1, "the 3D dancer takes over from the drawn coach")
     else:
-        ok(tv.locator(".dj-coach-3d").count() == 0 and tv.locator(".dj-coach-svg.is-off").count() == 0, f"no graphics chip for the robot here ({is3d}): the drawn coach stays")
+        ok(tv.locator(".dj-coach-3d").count() == 0 and tv.locator(".dj-coach-svg.is-off").count() == 0, f"no graphics chip for the dancer or the robot here ({is3d}): the drawn coach stays")
         pose = lambda: tv.evaluate("() => document.querySelector('.dj-coach-svg').innerHTML.length + ':' + document.querySelector('.dj-coach-svg').innerHTML.slice(0, 4000)")
         p0 = pose()
         tv.wait_for_timeout(700)
@@ -136,19 +138,20 @@ with sync_playwright() as p:
     for ph in phones:
         ph.evaluate("() => clearInterval(window.__hand)")
 
-    # the robot itself: a second TV that takes any WebGL (after the dancing: drawn in software, it's heavy)
+    # the dancer herself: a second TV that takes any WebGL (after the dancing: drawn in software, she's heavy)
     tv2 = br.new_context(viewport={"width": 1600, "height": 900}).new_page()
     tv2.add_init_script("window.__djAnyGl = true")
     tv2.on("pageerror", lambda e: errs.append(str(e)))
     tv2.goto(BASE + "dj", wait_until="load")
     until(lambda: tv2.locator(".dj-join-code").inner_text().strip(), 15000)
     tv2.locator(".dj-start-btn").click()
-    ok(until(lambda: tv2.locator(".dj-coach-3d canvas").count() == 1 and tv2.locator(".dj-coach-svg.is-off").count() == 1, 25000), "a TV that takes any WebGL: the 3D robot loads and takes over from the drawn coach")
+    ok(until(lambda: tv2.locator(".dj-coach-3d canvas").count() == 1 and tv2.locator(".dj-coach-svg.is-off").count() == 1, 30000), "a TV that takes any WebGL: the 3D dancer loads and takes over from the drawn coach")
     c1 = until(lambda: tv2.evaluate("() => window.__coach3d"), 15000, 200) or {}
     # (between a move danced sitting and one standing it gets up for half a second: a moment after)
     c2 = until(lambda: (lambda c: c if c and c["beat"] != c1.get("beat") and c["beat"] >= 0 and c["move"] in MOVES and c["sit"] == (1 if MOVES[c["move"]]["sit"] else 0) else None)(tv2.evaluate("() => window.__coach3d")), 8000, 200)
     ok(c2, f"and dances the routine on the beat, sitting for a move danced sitting ({c2 or tv2.evaluate('() => window.__coach3d')})")
-    tv2.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-3-robot-sit.png"))
+    ok(c2 and c2.get("outfit") in OUTFITS, f"dressed in one of her outfits ({(c2 or {}).get('outfit')})")
+    tv2.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-3-dancer-sit.png"))
     # the peak: standing, the bounciest
     host2 = phone(chrome, "Dee", "en")
     host2.goto(BASE + f"#/r/{tv2.locator('.dj-join-code').inner_text().strip()}", wait_until="load")
@@ -157,9 +160,9 @@ with sync_playwright() as p:
     until(lambda: host2.evaluate("() => !!window.__djHost"), 10000)
     host2.evaluate("() => window.__djHost.phase('peak')")
     c3 = until(lambda: (lambda c: c if c and c["move"] and not MOVES[c["move"]]["sit"] and c["sit"] == 0 else None)(tv2.evaluate("() => window.__coach3d")), 10000, 200)
-    ok(c3 and text(tv2, ".dj-coach-now") in [MOVES[k]["en"] for k in ("bounce", "fistPump", "raiseRoof", "shimmy", "waveBoth", "point")], f"the peak: it gets up and dances the peak's moves ({c3}, {text(tv2, '.dj-coach-now')})")
+    ok(c3 and text(tv2, ".dj-coach-now") in [MOVES[k]["en"] for k in ("bounce", "fistPump", "raiseRoof", "shimmy", "waveBoth", "point")], f"the peak: she gets up and dances the peak's moves ({c3}, {text(tv2, '.dj-coach-now')})")
     host2.context.close()
-    tv2.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-3-robot.png"))
+    tv2.screenshot(path=os.path.join(OUT, f"dance-{WHICH}-tv-3-dancer.png"))
     tv2.context.close()
 
     bad = [e for e in errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
