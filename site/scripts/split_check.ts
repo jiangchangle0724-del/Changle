@@ -44,7 +44,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { say, W, type Word } from "../src/split/words";
@@ -354,9 +354,38 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("11b-step-paid");
   await page.keyboard.press("Escape");
   await closed(page);
-  await button("copyPlan").click();
-  await shot("11c-plan-copied");
-  ok((await page.evaluate(() => navigator.clipboard.readText())).split("\n").length === 5, `${lang} ${width}x${height}: 复制结清方案 copies the name and four transfers`);
+  // the plan as a picture, for the group chat: as this browser has it (no share sheet: the picture is saved as a file)
+  await button("sendPicture").click();
+  const picture = page.getByRole("dialog").locator(".split-picture img");
+  await picture.waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+  await shot("11c-picture");
+  const png = (await picture.evaluate((img) => ({ src: (img as HTMLImageElement).src, w: (img as HTMLImageElement).naturalWidth, h: (img as HTMLImageElement).naturalHeight }))) as { src: string; w: number; h: number };
+  ok(png.src.startsWith("data:image/png;base64,") && png.w === 1080 && png.h > 1000, `${lang} ${width}x${height}: 结清图 is a PNG 1080 wide (${png.w}x${png.h}), saved beside the screens`);
+  writeFileSync(join(out, `11e-picture-image-${lang}-${width}x${height}.png`), Buffer.from(png.src.slice(png.src.indexOf(",") + 1), "base64"));
+  await page.getByRole("dialog").getByRole("button", { name: re(t("copyAsText")) }).click();
+  await shot("11d-picture-copied");
+  ok((await page.evaluate(() => navigator.clipboard.readText())).split("\n").length === 5, `${lang} ${width}x${height}: 复制成文字 copies the name and four transfers`);
+  await page.keyboard.press("Escape");
+  await closed(page);
+  // as a phone has it: a share sheet of its own
+  await page.evaluate("navigator.share = async () => {}; navigator.canShare = () => true");
+  await button("sendPicture").click();
+  await page.getByRole("dialog").getByRole("button", { name: t("pictureShare"), exact: true }).waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+  await shot("11f-picture-phone");
+  await page.evaluate("delete navigator.share; delete navigator.canShare");
+  await page.keyboard.press("Escape");
+  await closed(page);
+  // the picture out of date (here the phone's note of it is made to say other transfers; behave records a real expense)
+  await page.evaluate(`(() => { const k = ${JSON.stringify(KEPT)}; const s = JSON.parse(localStorage.getItem(k)); for (const id in s.pictures) s.pictures[id].print = "x"; localStorage.setItem(k, JSON.stringify(s)); window.dispatchEvent(new StorageEvent("storage", { key: k })); })()`);
+  await page.locator(".split-stale").waitFor();
+  await shot("11g-picture-stale");
+  await button("sendPicture").click();
+  await picture.waitFor({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await closed(page);
+  ok((await page.locator(".split-stale").count()) === 0, `${lang} ${width}x${height}: a new picture made, the settle tab no longer says it is out of date`);
 
   // the ⋯ sheet: the invitation, then the people
   await button("more").click();
@@ -1064,9 +1093,10 @@ async function behave() {
     ok((await page.evaluate("navigator.clipboard.readText()")) === "3.50", "without the clipboard API the amount is still copied, from inside the open sheet");
     await page.keyboard.press("Escape");
     await closed(page);
-    await button(page, "copyPlan").click();
-    await page.waitForTimeout(300);
-    ok(String(await page.evaluate("navigator.clipboard.readText()")).startsWith("复制 · 结清"), "and so is the plan, from the page");
+    await button(page, "sendPicture").click();
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copyAsText")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copied")) }).waitFor({ timeout: 2000 });
+    ok(String(await page.evaluate("navigator.clipboard.readText()")).startsWith("复制 · 结清"), "and so is the plan as text, from the picture's sheet");
     await ctx.close();
   }
 
@@ -1779,7 +1809,10 @@ async function behave() {
       await pb.getByRole("dialog").getByRole("button", { name: t("revert"), exact: true }).click();
       await pa.locator(".split-row-amount", { hasText: "$30.00" }).waitFor({ timeout: 10_000 });
       await pb.getByRole("dialog").getByText(say("zh", "historyAmount", { from: "$45.00", to: "$30.00" })).waitFor({ timeout: 10_000 });
-      ok((await recordLines(pb))[0].includes(`${t("you")} · `), "改回去: the expense is what it was, on both phones, and the record's newest line is yours");
+      // (what this phone did is on top while it is on its way, and once it is there)
+      const yours = await pb.waitForFunction(`(document.querySelector("dialog[open] .split-history-line")?.textContent ?? "").includes(${JSON.stringify(`${t("you")} · `)})`, null, { timeout: 10_000 }).then(() => true, () => false);
+      const reverted = (await recordLines(pb))[0];
+      ok(yours, `改回去: the expense is what it was, on both phones, and the record's newest line is yours → ${reverted}`);
       await pb.keyboard.press("Escape");
       await closed(pb);
 
@@ -1807,6 +1840,99 @@ async function behave() {
       await pb.keyboard.press("Escape");
       await closed(pb);
       for (const ctx of [a, b]) await ctx.close();
+    }
+
+    // the 结清图: through a phone's share sheet; held, in WeChat; saved, on a computer; out of date once the plan changes
+    {
+      const sheet = (page: Page) => page.getByRole("dialog");
+      const makePicture = async (page: Page) => {
+        await button(page, "sendPicture").click();
+        await sheet(page).locator(".split-picture img").waitFor({ timeout: 15_000 });
+      };
+      const a = await phone(390, 664, "zh");
+      // a phone with a share sheet: what it is given is kept to look at, and it can be made to refuse once
+      // (as a script of its own: a function from here would bring along a helper the page doesn't have)
+      await a.addInitScript(`
+        window.shared = [];
+        Object.defineProperty(navigator, "canShare", { configurable: true, value: (d) => !!(d && d.files && d.files.length) });
+        Object.defineProperty(navigator, "share", { configurable: true, value: async (d) => {
+          const no = window.refuse;
+          window.refuse = undefined;
+          if (no) throw new DOMException("not sent", no);
+          for (const f of d.files || []) window.shared.push({ name: f.name, type: f.type, size: f.size });
+        } });
+      `);
+      const pa = await open(a);
+      await start(pa, "结清图", ["阿甲"]);
+      await spend(pa, "30");
+      await pa.getByRole("tab", { name: t("settle") }).click();
+      ok((await pa.locator(".split-stale").count()) === 0, "no picture made yet: nothing is out of date");
+      await makePicture(pa);
+      const drawn = (await sheet(pa).locator(".split-picture img").evaluate((img) => [(img as HTMLImageElement).naturalWidth, (img as HTMLImageElement).naturalHeight])) as number[];
+      await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).click();
+      await pa.waitForFunction("window.shared.length === 1");
+      const shared = (await pa.evaluate("window.shared")) as { name: string; type: string; size: number }[];
+      ok(/^all-square-\d{4}-\d{2}-\d{2}\.png$/.test(shared[0].name) && shared[0].type === "image/png" && shared[0].size > 10_000 && drawn[0] === 1080, `a phone with a share sheet: 发给朋友 hands it one picture, a PNG 1080 wide (${drawn.join("x")}, ${shared[0].size} bytes)`);
+      ok((await sheet(pa).getByText(t("pictureHoldToo")).count()) === 1 && (await sheet(pa).getByRole("button", { name: t("pictureSave"), exact: true }).count()) === 0, "and says it can be held to save it, with no button to save it as a file");
+      await pa.evaluate("window.refuse = 'AbortError'");
+      await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).click();
+      await pa.waitForTimeout(300);
+      ok((await sheet(pa).locator(".split-picture-hint.is-loud").count()) === 0, "the share sheet closed without sending: nothing more is said");
+      await pa.evaluate("window.refuse = 'NotAllowedError'");
+      await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).click();
+      await sheet(pa).locator(".split-picture-hint.is-loud", { hasText: t("pictureHold") }).waitFor({ timeout: 5000 });
+      ok((await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).count()) === 0 && (await sheet(pa).getByRole("button", { name: t("pictureSave"), exact: true }).count()) === 1, "the phone wouldn't share it: the sheet says to hold the picture, and offers to save it");
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+
+      // out of date: an expense recorded since; still so after the page is opened again; a new picture puts it right
+      await pa.getByRole("tab", { name: t("expenses") }).click();
+      await spend(pa, "12");
+      await pa.getByRole("tab", { name: t("settle") }).click();
+      await pa.locator(".split-stale", { hasText: t("pictureStale") }).waitFor({ timeout: 5000 });
+      await pa.reload();
+      await button(pa, "addExpense").waitFor();
+      await pa.getByRole("tab", { name: t("settle") }).click();
+      await pa.locator(".split-stale").waitFor({ timeout: 5000 });
+      ok(((await pa.locator(".split-stale").textContent()) ?? "").includes(say("zh", "today", { time: "" }).trim()), "an expense recorded since: the settle tab says the picture is out of date, and when it was made; so it does when the page is opened again");
+      await makePicture(pa);
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      await pa.locator(".split-row").first().click();
+      await button(pa, "markPaid").click();
+      await closed(pa);
+      await pa.waitForTimeout(500);
+      ok((await pa.locator(".split-stale").count()) === 0 && (await pa.locator(".split-row", { hasText: t("paid") }).count()) === 1, "a new picture: up to date; a transfer marked as paid since doesn't put it out of date");
+      await a.close();
+
+      // WeChat's own browser: no share sheet; the picture is held to send it or save it
+      const w = await phone(390, 664, "zh");
+      await w.addInitScript(`
+        const ua = navigator.userAgent;
+        Object.defineProperty(Navigator.prototype, "userAgent", { configurable: true, get: () => ua + " MicroMessenger/8.0.47(0x18002f2c) NetType/WIFI Language/zh_CN" });
+      `);
+      const pw = await open(w);
+      await start(pw, "微信", ["阿甲"]);
+      await spend(pw, "30");
+      await pw.getByRole("tab", { name: t("settle") }).click();
+      await makePicture(pw);
+      ok((await sheet(pw).locator(".split-picture-hint.is-loud", { hasText: t("pictureHold") }).count()) === 1 && (await sheet(pw).getByRole("button", { name: t("pictureShare"), exact: true }).count()) === 0 && (await sheet(pw).getByRole("button", { name: t("pictureSave"), exact: true }).count()) === 0, "in WeChat: hold the picture to send it or save it, said over the picture; no button to share it or to save it as a file (neither works there)");
+      ok((await sheet(pw).getByRole("button", { name: re(t("copyAsText")) }).count()) === 1, "and the plan can still be copied as text");
+      await w.close();
+
+      // a computer: no share sheet and no long press; the picture is saved as a file
+      const d = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "zh-CN", reducedMotion: "reduce", serviceWorkers: "block", acceptDownloads: true });
+      await rooms(d);
+      const pd = await open(d);
+      await start(pd, "电脑", ["阿甲"]);
+      await spend(pd, "30");
+      await pd.getByRole("tab", { name: t("settle") }).click();
+      await makePicture(pd);
+      const saving = pd.waitForEvent("download");
+      await sheet(pd).getByRole("button", { name: t("pictureSave"), exact: true }).click();
+      const file = await saving;
+      ok(/^all-square-\d{4}-\d{2}-\d{2}\.png$/.test(file.suggestedFilename()) && (await sheet(pd).locator(".split-picture-hint").count()) === 0, `a computer: 存图片 saves it as a file (${file.suggestedFilename()}), with nothing said about holding it`);
+      await d.close();
     }
   }
 

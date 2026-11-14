@@ -11,7 +11,7 @@
  * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
  * the page asks which of the people in the ledger this phone's owner is.
  */
-import { CircleAlert, ClipboardCopy, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Plus, ReceiptText, WifiOff } from "lucide-react";
+import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Plus, ReceiptText, Send, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -28,8 +28,9 @@ import { balances, expensesOf, settlement, spent, type Expense, type Ledger } fr
 import { money } from "./format";
 import { keyFrom } from "./invite";
 import { WhoStep } from "./Join";
-import { lostLine, mine, paidBy, planText, sharedHow, syncLine } from "./lines";
-import { Bar, copyText, Rolling } from "./parts";
+import { lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
+import { Bar, Rolling } from "./parts";
+import { PictureSheet } from "./PictureSheet";
 import { paidInOf } from "./rates";
 import { SettleView } from "./SettleView";
 import { tellList } from "./Ledgers";
@@ -81,6 +82,7 @@ export function LedgerPage({ id }: { id: string }) {
   /** 记一笔 is open: for a new expense (null), or to change the one with this id */
   const [entry, setEntry] = useState<{ edit: string | null } | null>(null);
   const [menu, setMenu] = useState(false);
+  const [picture, setPicture] = useState(false);
   /** the expense recorded a moment ago: its row lands (one of the three motions) */
   const [landed, setLanded] = useState<string | null>(null);
   /** what you were owed (or owed) when 记一笔 opened: the figure rolls on from there when it closes */
@@ -153,10 +155,6 @@ export function LedgerPage({ id }: { id: string }) {
     );
   }
 
-  const copyPlan = async () => {
-    const done = await copyText(planText(ledger, plan, lang));
-    toast(say(lang, done ? "planCopied" : "copyFailed"), { tone: done ? "success" : "warning" });
-  };
   const hasExpenses = expensesOf(ledger).length > 0;
   // locked by its owner: everything on the page can be read, and nothing on it changes the ledger
   const locked = ledger.locked !== undefined;
@@ -191,10 +189,10 @@ export function LedgerPage({ id }: { id: string }) {
         </section>
       ) : (
         <section className="split-panel" id="split-settle" role="tabpanel" aria-labelledby="split-settle-tab">
-          <SettleView ledger={ledger} me={me} lang={lang} plan={plan} />
+          <SettleView ledger={ledger} me={me} lang={lang} plan={plan} made={saved.pictures?.[id]} />
         </section>
       )}
-      {/* with nothing recorded there is no plan to copy: both views lead to the first expense (and a locked ledger takes none: the page has no button then) */}
+      {/* with nothing recorded there is no plan to send: both views lead to the first expense (and a locked ledger takes none: the page has no button then) */}
       {view === "list" || !hasExpenses ? (
         !locked && (
           <div className="split-dock">
@@ -205,11 +203,12 @@ export function LedgerPage({ id }: { id: string }) {
         )
       ) : (
         <div className="split-dock">
-          <Button size="lg" block icon={ClipboardCopy} onClick={() => void copyPlan()}>
-            {say(lang, "copyPlan")}
+          <Button size="lg" block icon={Send} onClick={() => setPicture(true)}>
+            {say(lang, "sendPicture")}
           </Button>
         </div>
       )}
+      <PictureSheet open={picture} onClose={() => setPicture(false)} ledger={ledger} plan={plan} lang={lang} />
       <LedgerMenu
         open={menu}
         onClose={() => setMenu(false)}

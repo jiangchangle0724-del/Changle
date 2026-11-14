@@ -11,6 +11,7 @@
  */
 import { useSyncExternalStore } from "react";
 import type { Ledger } from "./core";
+import type { Made } from "./picture";
 import { asHeld, isRecord, isText } from "./shape";
 import { shown, type Held } from "./sync";
 
@@ -26,12 +27,16 @@ export type Saved = {
   held: Held[];
   /** ledger id → the member this phone's owner is */
   me: Record<string, string>;
+  /** ledger id → when this phone last made its 结清图, and the plan then (picture.ts); none kept, none here */
+  pictures?: Record<string, Made>;
 };
 
 /** What the screens read: every ledger as it is shown (the server's, with what is waiting made on top), beside what is held of it. */
 export type View = Saved & { ledgers: Ledger[] };
 
 const NOTHING: Saved = { held: [], me: {} };
+
+const isMade = (x: unknown): x is Made => isRecord(x) && typeof x.at === "number" && Number.isFinite(x.at) && typeof x.print === "string";
 
 /** What a saved record holds, however it has been damaged: never throws, never returns half a ledger. */
 export function parseSaved(raw: string | null): Saved {
@@ -40,7 +45,8 @@ export function parseSaved(raw: string | null): Saved {
     if (!isRecord(p)) return NOTHING;
     const held = (Array.isArray(p.held) ? p.held : []).map(asHeld).filter((h): h is Held => h !== null);
     const me = isRecord(p.me) ? Object.fromEntries(Object.entries(p.me).filter((e): e is [string, string] => isText(e[1]))) : {};
-    return { held, me };
+    const pictures = isRecord(p.pictures) ? Object.entries(p.pictures).filter((e): e is [string, Made] => isMade(e[1])) : [];
+    return { held, me, ...(pictures.length ? { pictures: Object.fromEntries(pictures) } : {}) };
   } catch {
     return NOTHING;
   }
@@ -178,7 +184,7 @@ export function keepHeld(h: Held, me?: string) {
   // (one the phone holds already stays as it is, with whatever it has waiting to be sent)
   if (s.held.some((x) => x.server.id === h.server.id)) return;
   const { [h.server.id]: _stale, ...others } = s.me;
-  commit({ held: [h, ...s.held], me: me ? { ...others, [h.server.id]: me } : others });
+  commit({ ...s, held: [h, ...s.held], me: me ? { ...others, [h.server.id]: me } : others });
 }
 
 /** What the phone holds of one ledger changes (sync.ts says how). A change that leaves it as it was writes nothing. */
@@ -203,5 +209,16 @@ export function setMe(id: string, member: string) {
 export function dropHeld(id: string) {
   const s = fresh();
   const { [id]: _mine, ...me } = s.me;
-  commit({ held: s.held.filter((h) => h.server.id !== id), me });
+  const { [id]: _picture, ...pictures } = s.pictures ?? {};
+  commit({ held: s.held.filter((h) => h.server.id !== id), me, ...(Object.keys(pictures).length ? { pictures } : {}) });
+}
+
+/** When this phone last made a ledger's 结清图, and the plan then; undefined when it hasn't. */
+export const pictureMade = (id: string): Made | undefined => current().pictures?.[id];
+
+/** This phone made a ledger's 结清图 just now, of the plan as it is. */
+export function keepPicture(id: string, made: Made) {
+  const s = fresh();
+  if (!s.held.some((h) => h.server.id === id)) return;
+  commit({ ...s, pictures: { ...s.pictures, [id]: made } });
 }
