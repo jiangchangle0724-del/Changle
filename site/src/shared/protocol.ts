@@ -109,7 +109,8 @@ export type Fx =
   | "req"
   | "pad"
   | "song"
-  | "mix";
+  | "mix"
+  | "sfx";
 
 /** `say`: the penalty itself when the game names it ("15 push-ups"), shown instead of the drink. */
 /** `times`: with the table's own penalty, how many times it's done (7-8-9's pot); none is once ("two" is twice). */

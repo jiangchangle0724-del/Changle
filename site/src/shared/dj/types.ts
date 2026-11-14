@@ -658,6 +658,10 @@ export type RoomState = {
   danmuN: number;
   danmuOn: boolean;
   danmuAt: Record<string, number>;
+  /** the sound board (shared/dj/sfx.ts, Steve on Nov 13): when each phone last played one, and the
+   *  latest sounds played (each sound once per SFX_TIMES.roomGapMs for the room) */
+  sfxAt: Record<string, number>;
+  sfxLast: { i: number; at: number }[];
 };
 
 /**

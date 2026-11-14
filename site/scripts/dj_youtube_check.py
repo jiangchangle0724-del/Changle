@@ -144,7 +144,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-cat").count() == 9, 10000), f"{name}'s phone shows the deck")
         phones.append(ph)
     amy, ben, cat = phones
     pid = {n: ph.evaluate("() => window.__room.you") for n, ph in zip(("Amy", "Ben", "Cat"), phones)}
@@ -171,13 +171,15 @@ with sync_playwright() as p:
     ok(until(lambda: "is-on" in tube(tv), 2000), "it plays")
     box = tv.locator(".dj-tube").bounding_box()
     ok(box and box["x"] > 1050 and box["width"] < 500, f"in its corner, the floor and the coach in sight ({box})")
-    ok(until(lambda: "电视上在放" in text(amy, ".djk-player-kicker") and amy.locator(".djk-pad.is-echo").is_disabled(), 3000), "the phones say so, the pads that work the music waiting")
-    ok(not amy.locator(".djk-pad.is-horn").is_disabled() and not cat.locator(".djk-pad.is-siren").is_disabled(), "the air horn, the siren and the other sounds of their own still play")
+    ok(until(lambda: "电视上在放" in text(amy, ".djk-player-kicker"), 3000), "the phones say so")
     over = lambda: tv.evaluate("() => window.__fakeDj.speaker.overSong.gain.value")
-    ok(until(lambda: over() > 0.9, 4000), f"over the song the pads have their own way out ({over():.2f})")
-    n0 = tv.evaluate("() => window.__djBooth.deck().log.filter((x) => x.k === 'horn').length")
-    amy.locator(".djk-pad.is-horn").click()
-    ok(until(lambda: tv.evaluate("() => window.__djBooth.deck().log.filter((x) => x.k === 'horn').length") > n0, 3000), "Amy's air horn plays on the TV, over the song, at once")
+    ok(until(lambda: over() > 0.9, 4000), f"over the song the speaker's own sounds have their own way out ({over():.2f})")
+    # the sound board over the song (Steve's own sounds since Nov 13: straight out, not through the DJ)
+    n0 = tv.evaluate("() => (window.__sfx && window.__sfx.n) || 0")
+    amy.locator(".djk-cat.is-dj").click()
+    amy.locator(".djk-sfx").first.click()
+    ok(until(lambda: (tv.evaluate("() => (window.__sfx && window.__sfx.n) || 0")) > n0, 4000), "Amy's air horn from the board plays on the TV, over the song, at once")
+    amy.locator(".djk-board-back").click()
     ok(all(not key(ph, 2).is_disabled() for ph in phones), "anyone can skip it (切歌 on every phone, since Nov 12)")
     ok(cat.locator(".djk-player button[aria-pressed]").count() == 1, "anyone can put its video over the whole TV")
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-1-song.png"))
@@ -185,8 +187,7 @@ with sync_playwright() as p:
     tv.evaluate("() => window.__yt.end()")
     ok(until(lambda: deck(tv).get("song") is None and "is-off" in tube(tv), 4000), "it ends: the player goes out of sight, the room's song time is over")
     ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") > 0.95, 5000), "and the DJ comes back")
-    ok(until(lambda: over() < 0.05, 5000), "the pads go back through the DJ's chain")
-    ok(until(lambda: not amy.locator(".djk-pad").first.is_disabled(), 3000), "the pads that work the music too")
+    ok(until(lambda: over() < 0.05, 5000), "the speaker's own sounds go back through the DJ's chain")
 
     # the 歌单: Ben puts two more on it (held, so they wait), everyone sees the list; the host
     # switches it to 随机 and back

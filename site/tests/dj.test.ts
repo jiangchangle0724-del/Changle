@@ -8,6 +8,8 @@ import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/
 import { ALL_SECTIONS, ANY_SECTION, BED, KITS, sectionById, sectionOf } from "../src/party/dj/fake/styles";
 import { CLIP_DB, ClipDeck, clipOf, loadClip, type Clip } from "../src/party/dj/clip/clip";
 import { danceBpm, hitsOf, songQueries, songQuery, trackOf, tracksOf, unescape, ytIdOf } from "../src/shared/dj/youtube";
+import { readdirSync, statSync } from "node:fs";
+import { SFX, SFX_CATS, sfxOf, sfxUrl } from "../src/shared/dj/sfx";
 import { previewOk } from "../src/shared/songs";
 import { decodePiece, encodePiece, fileNumber, PIECE_BYTES, SONG_BYTES } from "../src/shared/dj/songwire";
 import { eqDb, filterOf, GATE_STEPS } from "../src/party/dj/speaker/mixer";
@@ -1218,6 +1220,18 @@ await test("youtube: the rooms server's /yt/bpm, against a stand-in YouTube and 
   ok(r7.body?.bpm === null && r7.body?.why === "video" && r7.asked.join() === "video", "no such video: null, \"video\"");
   const r8 = await ask("nope", {}, {}, {});
   ok(r8.status === 400 && r8.asked.length === 0, "not a video's id: refused, nothing asked");
+});
+
+await test("the sound board: every sound has its file on the site and none is left over, a name in both languages, at most 20 s; every category has some (Steve's own sounds, Nov 13)", () => {
+  const dir = new URL("../public/media/sfx/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".mp3"));
+  const want = SFX.map((x) => sfxUrl(x).split("/").pop()!);
+  ok(want.every((f) => files.includes(f)) && files.every((f) => want.includes(f)), `a file for each, none without (${files.length} files, ${want.length} sounds)`);
+  ok(SFX.every((x) => x.zh.trim() && x.en.trim() && x.s > 0.1 && x.s <= 20.01 && /^[a-z0-9-]+$/.test(x.id)), "named in both languages, an address-safe id, 20 s at most");
+  const bytes = files.reduce((n, f) => n + statSync(new URL(f, dir)).size, 0);
+  ok(bytes < 8 * 1024 * 1024, `all of them under 8 MB (${Math.round(bytes / 1024)} KB)`);
+  ok(SFX_CATS.length === 9 && SFX_CATS.every((c) => sfxOf(c.id).length > 0 && c.zh && c.en), "nine categories, each with sounds, named in both languages");
+  ok(sfxOf("rude").every((e) => SFX[e.i].cat === "rude") && sfxOf("dj")[0].i === 0, "a category's sounds, with their numbers in the room");
 });
 
 await test("youtube: a link's video id, the search answer's videos, YouTube's escapes", () => {
