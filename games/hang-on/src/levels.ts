@@ -6,7 +6,7 @@
  */
 import { pickLang } from './i18n';
 import { arenaLevels, goldArenas } from './physics/arenas';
-import { gatesLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, snowLevel, type Level } from './physics/level';
+import { gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, snowLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
 import type { Side, Tier } from './sides';
 
@@ -61,6 +61,7 @@ export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-04') return gatesLevel();
   if (id === 'proto-05') return kitchenLevel();
   if (id === 'proto-06') return snowLevel();
+  if (id === 'proto-07') return houseLevel();
   return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id);
 }
 
@@ -91,6 +92,9 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
   // 雪山（A10，C11 做关）
   lift: { zh: '坐缆椅、缆车，到站前下车', en: 'Ride the chairlift and get off before the station' },
   slip: { zh: '冰溜子抓不久，快快倒手', en: 'Ice slips out of your hands. Swap hands fast' },
+  // 老宅（A10，C12 做关）
+  key: { zh: '找到钥匙，拿到锁着的门上', en: 'Find the key and bring it to the locked door' },
+  dark: { zh: '黑屋子里点灯、提着灯笼走', en: 'Light the lamps and carry a lantern through the dark' },
 };
 
 /** 难关（13 号往后）难在哪：大厅里显示「难关：…」。 */

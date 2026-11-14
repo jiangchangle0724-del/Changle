@@ -207,6 +207,26 @@ export const CFG = {
   /** 缆椅的座板吊在缆绳下面多少像素；冰溜子快滑之前多久手开始抖。 */
   liftDrop: 70,
   slipWarn: 1.5,
+
+  // ---- 老宅（A10）----
+  /**
+   * 钥匙：多宽多厚多重（轻，一只手拿着走、挂着都不碍事）；离它的门多近就开；掉出去（掉下去、碰到要命的东西）几秒回来；
+   * 离检查点多近算它也到了这个检查点（以后掉了回这里）。有人碰锁着的门，隔多久提醒一次「门锁着」。
+   */
+  keyW: 38,
+  keyH: 14,
+  keyMass: 0.1,
+  keyReach: 26,
+  keyBack: 1,
+  keyCpR: 160,
+  lockedHint: 5,
+  /** 手提的灯笼：多宽多高多重。 */
+  lanternW: 30,
+  lanternH: 40,
+  lanternMass: 0.12,
+  /** 墙上的灯：身体、手、灯笼离它多近就点着；默认照多远。 */
+  lampTouch: 36,
+  lampR: 260,
 };
 
 export type Cfg = typeof CFG;
@@ -229,6 +249,8 @@ export const MATERIAL_FRICTION: Record<string, number> = {
   // 后厨的竹蒸笼、雪山的压实的雪（A10）
   bamboo: 0.6,
   snow: 0.7,
+  // 老宅的青砖（A10）
+  brick: 0.7,
 };
 export const DEFAULT_FRICTION = 0.6;
 

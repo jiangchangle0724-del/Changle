@@ -16,7 +16,7 @@ import { moodOf, rawIntensity, Tension } from '../audio/tension';
 import { seedOf, themeFor } from '../audio/themes';
 import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
 import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachLabel, teachText, tierOfLevel } from '../levels';
-import { modeHintText, modeLabel, modeName, notReadyText, sideName, tierName } from '../mode-text';
+import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
 import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
 import { cleanItem, ITEM_ICON, ITEM_IDS, itemsIn, type ItemId } from '../items';
@@ -1092,6 +1092,12 @@ function onEvents(): void {
     // 端托盘（后厨，A10）
     if (ev.type === 'tray' && ev.phase === 'spill') banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
     if (ev.type === 'tray' && ev.phase === 'home') banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
+    // 老宅找钥匙（A10）
+    if (ev.type === 'key') {
+      const kb = keyBanner(ev.phase);
+      if (kb) banner(kb.text, kb.kind);
+      if (ev.phase === 'unlock') music.flourish();
+    }
     if (ev.type === 'checkpoint' && sim.rules.mode !== 'race') music.flourish();
     if (ev.type === 'betrayal') banner(tr(`${name(ev.by)} 松手了`, `${name(ev.by)} let go!`), 'bad');
     if (ev.type === 'summon') {
