@@ -24,7 +24,8 @@ export function WhatsOn() {
         category="tool"
         isNew={new Date().toISOString().slice(0, 10) < NEW_UNTIL}
         line={zh ? "大温这两周去哪玩，每天早上更新" : "What's on around Vancouver in the next two weeks, updated every morning."}
-        href={`${GO}?lang=${lang}`}
+        // with the slash: changle.ca/go with a query string isn't routed to 玩什么's Worker, /go/?… is
+        href={`${GO}/?lang=${lang}`}
         onOpen={() => {}}
       />
     </section>
