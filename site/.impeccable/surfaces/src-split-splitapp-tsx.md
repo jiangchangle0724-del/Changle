@@ -175,3 +175,22 @@ What the look at the rendered screens changed (four phone sizes, both languages;
 1. In English on a 320 phone, Change back sat beside its line and left the text a third of the width: "Today" and the time broke over two lines. Where the text would get narrower than about half the line, the button goes under it; in Chinese, and in English from 390 up, it stays at the end.
 
 Verdict: holds to the contract. Still three screens and one light; the record is a sheet a tap from ⋯, and putting something right is one quiet button on the line that says what went wrong.
+
+## Stage three, step 10: the plan as a picture (2026-11-14)
+
+Shape, in the thread that built it (the plan: the settle plan "generates a picture to send to a WeChat group"; the picture says when it was made, and once more is recorded the page says it is out of date, "so nobody pays from an old picture"):
+
+- Who and when: whoever is settling up for the group, at the end of a trip or a dinner, sending the plan to the group chat, mostly WeChat. The others read it in the chat, often days later, and pay from it.
+- The settle tab's one button becomes 把结清图发到群里, Send to the group (the wireframe's own button). It opens a sheet: the picture, then 发给朋友, Share, which opens the phone's own share sheet, with the chat apps in it; then Copy as text, the plan as it was copied before, word for word.
+- WeChat's own browser can't share a file: there the sheet has no main button, and says over the picture, in the strong voice, to press and hold it to send it or save it. The picture is the one thing in 两清 a long press opens a menu on. A computer saves it as a file.
+- The picture is the page, made portable: the night, the type, the tool's amber only for the mark at the top and the 两清 stamp when everyone is square. The ledger's name, how many transfers, each transfer by name (never 你: the whole group reads it), paid or not, and last the day and time it was made, with a line saying to go by 两清 for anything recorded since. 1080 wide, as tall as its transfers.
+- Out of date: the phone keeps when it made the picture and the transfers on it. When the transfers change, the settle tab says so over the plan, in the strong voice, with when the picture was made and that a new one is needed. A transfer marked as paid doesn't make it out of date; a new picture puts it right.
+- No new motion; the amber stays where it was.
+
+What the look at the rendered screens changed (four phone sizes, both languages; the picture itself saved beside each):
+
+1. The English sheet title, The plan as a picture, ran to two lines at 320. It is The plan.
+2. The picture's last line broke 两清 across two lines. Chinese on the picture breaks anywhere but inside 两清, and never puts a comma or a full stop at the start of a line.
+3. The out-of-date line sat tight under the tabs, and its second line broke with one word left over. It has the sync line's space above it, and its lines are balanced.
+
+Verdict: holds to the contract. Still three screens and one light. The picture is the settle tab as the group sees it, and the one new thing the page says is said only when it matters: the picture someone may pay from is wrong.

@@ -16,6 +16,8 @@
  * 11. Still hidden: no way in but its address.
  * 12. The ledger's record (改动记录): every kind of line, who and when, what an edit changed, and
  *     what a line offers (an expense changed back, or brought back within 30 days).
+ * 13. The 结清图: what the picture of the plan says, when it is out of date, and what the phone
+ *     keeps of it.
  */
 import QRCode from "qrcode";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -33,6 +35,7 @@ import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAM
 import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
 import { SESSION_KEY } from "../src/split/net";
 import { historyOf, RESTORE_DAYS, whenText, type Logged } from "../src/split/history";
+import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split/picture";
 import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
@@ -903,6 +906,54 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const read = asSince({ seq: 3, changes: [{ seq: 1, at: 5, sent: { id: "c1", at: 4, by: "w", change: { do: "title", name: "x" }, extra: 1 } }, { seq: 2, at: 6, lock: true }, { seq: 3, at: 7, sent: { id: "c3" } }, null, { seq: -1, at: 1, lock: false }, { seq: 4, at: "8", lock: true }] });
   eq(read, { seq: 3, changes: [{ seq: 1, at: 5, sent: { id: "c1", at: 4, change: { do: "title", name: "x" }, by: "w" } }, { seq: 2, at: 6, lock: true }] }, "the server's record is read line by line: a change as any change is read, a lock; what is neither is left out");
   for (const x of [null, [], { seq: 1 }, { seq: "1", changes: [] }, { changes: [] }]) ok(asSince(x) === null, `${JSON.stringify(x)} is no record`);
+}
+
+// ---------- 13. the picture of the plan (结清图) ----------
+{
+  const at = new Date(2026, 10, 14, 10, 12).getTime();
+  const everyone = five.members.map((m) => m.id);
+  const spend = (l: Ledger, id: string, payer: string, amount: number) => addExpense(l, { id, at: 1, payer, amount, note: id, split: { how: "equal", among: everyone } });
+  // the plan's weekend: dinner, gas, breakfast
+  const l = spend(spend(spend(five, "e1", "w", 18600), "e2", "s", 12000), "e3", "m", 8150);
+  const plan = settlement(l);
+  const p = pictureOf(l, plan, "zh", at);
+  eq([p.mark, p.name, p.head, p.clear, p.site], ["两清 · All Square", "惠斯勒周末", "4 笔转账，全部两清", false, "changle.ca"], "the picture's top: the mark, the ledger, how many transfers settle it");
+  eq(p.rows.map((r) => [r.who, r.amount, r.status, r.paid]), [["Jason 给 小王", "$77.50", "还没转", false], ["小李 给 Steve", "$42.50", "还没转", false], ["小李 给 小王", "$31.00", "还没转", false], ["小李 给 阿美", "$4.00", "还没转", false]], "each transfer by name, never 你: the whole group reads it");
+  eq(p.asOf, "11月14日 10:12 的方案。之后又记了账的话，以两清里的为准。", "when it was made, as a date (it is read later), and what to go by after that");
+  eq(p.text, `${planText(l, plan, "zh")}\n${p.asOf}`, "and all of it as text, for a screen reader: the plan as it is copied, and when");
+  const en = pictureOf(l, plan, "en", at);
+  eq([en.head, en.rows[1].who, en.rows[1].status, en.asOf.replace(/\s/g, " ")], ["4 transfers and everyone is square", "小李 pays Steve", "Not yet", "The plan as of Nov 14, 10:12 a.m.; if more has been recorded since, All Square has the latest."], "in English");
+  const jan = new Date(2026, 0, 3, 21, 5).getTime();
+  eq([dayText(at, "zh"), dayText(at, "en"), dayText(jan, "zh"), dayText(jan, "en")].map((x) => x.replace(/\s/g, " ")), ["11月14日 10:12", "Nov 14, 10:12 a.m.", "1月3日 21:05", "Jan 3, 9:05 p.m."], "the day and time, in either language");
+
+  // paid one by one, then everyone square
+  let paid = addTransfer(l, { id: "t1", at: 10, ...plan.steps[0] });
+  const one = pictureOf(paid, settlement(paid), "zh", at);
+  eq(one.rows.map((r) => [r.status, r.paid]), [["已转", true], ["还没转", false], ["还没转", false], ["还没转", false]], "a transfer marked as paid says so");
+  plan.steps.slice(1).forEach((s, i) => (paid = addTransfer(paid, { id: `t${i + 2}`, at: 11 + i, ...s })));
+  const square = pictureOf(paid, settlement(paid), "zh", at);
+  eq([square.head, square.clear, square.rows.every((r) => r.paid), square.text.split("\n").at(-2)], ["全部两清", true, true, "全部两清了。"], "everyone square: the picture says so, and is stamped");
+  const pair = addExpense(startLedger("p", "两个人", "CAD", five.members.slice(0, 2)), { id: "x", at: 1, payer: "s", amount: 1000, note: "", split: { how: "equal", among: ["s", "w"] } });
+  eq(pictureOf(pair, settlement(pair), "en", at).head, "One transfer and everyone is square", "one transfer");
+
+  // out of date: once who pays whom, or how much, is no longer what the picture says
+  const made: Made = { at, print: stepsPrint(plan) };
+  eq([isStale(made, plan), isStale(undefined, plan)], [false, false], "just made: up to date; never made: nothing to be out of date");
+  eq(isStale(made, settlement(addTransfer(l, { id: "t1", at: 10, ...plan.steps[0] }))), false, "a transfer marked as paid since: what the picture says to pay is still right");
+  eq(isStale(made, settlement(paid)), false, "everyone paid since: still right");
+  const more = spend(l, "e4", "j", 5000);
+  eq(isStale(made, settlement(more)), true, "an expense recorded since changes who pays whom: out of date");
+  eq(isStale(made, settlement(takeOut(more, "e4", 9))), false, "taken out again: the picture is right again");
+  eq(isStale(made, settlement(editExpense(l, "e3", { payer: "m", amount: 8250, note: "e3", split: { how: "equal", among: everyone } }))), true, "an amount changed: out of date");
+  eq(isStale({ at, print: stepsPrint(settlement(five)) }, settlement(l)), true, "made before anything was recorded: out of date once something is");
+
+  // a long press on the picture opens the phone's menu (in WeChat's own browser the only way to send it); on nothing else in 两清
+  const css = read("src/split/split.css");
+  ok(/\}\s*\.split-picture img \{[^}]*-webkit-touch-callout: default;/.test(css) && (css.match(/-webkit-touch-callout/g) ?? []).length === 1, "a long press opens the phone's menu on the picture, and on nothing else in 两清");
+
+  // what the phone keeps of it, however damaged
+  eq(parseSaved(JSON.stringify({ held: [], me: {}, pictures: { L: made, bad: { at: "x", print: 1 }, worse: null, gone: { at: Infinity, print: "" } } })), { held: [], me: {}, pictures: { L: made } }, "the phone's note of each picture comes back as it was; a damaged one doesn't");
+  eq(parseSaved(JSON.stringify({ held: [], me: {}, pictures: { bad: 1 } })), { held: [], me: {} }, "and with none whole, there is none");
 }
 
 if (failed) {
