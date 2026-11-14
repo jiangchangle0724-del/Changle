@@ -1,6 +1,7 @@
 /*
- * Runs after `vite build` (npm run build). Writes one page per game, dist/g/<slug>.html, and one
- * for the tools tab, dist/tools.html: the same app as dist/index.html, with that page's own title,
+ * Runs after `vite build` (npm run build). Writes one page per game, dist/g/<slug>.html, one for
+ * the tools tab, dist/tools.html, and one per tool on its page, dist/tools/<id>.html: the same app as
+ * dist/index.html, with that page's own title,
  * description, canonical address and share-card tags, so search engines and chat apps that don't
  * run JavaScript see the right page. Cloudflare Pages serves dist/g/truth-or-dare.html at
  * /g/truth-or-dare; every other address falls back to index.html. (Never add a dist/404.html:
@@ -14,6 +15,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { GAMES } from "../src/games/registry";
 import { gameTitle } from "../src/router";
+import { TOOLS, type ToolId } from "../src/tools/ids";
 
 const SITE = "https://changle.ca";
 const NAME = "开席 Lazy Susan";
@@ -75,9 +77,18 @@ for (const g of GAMES.filter((g) => !g.hidden)) {
   n++;
 }
 write("tools.html", page({ title: `工具 Tools · ${NAME}`, description: "随便吃什么、汇率、单价、世界时钟。What to eat, currency, unit price, world clock.", path: "/tools", image: picture("default") }));
-console.log(`postbuild: ${n} game pages and the tools page in dist/`);
+const TOOL_WORDS: Record<ToolId, string> = {
+  currency: "实时汇率：加元、人民币、美元、港元一起换算。Live exchange rates: dollars, yuan and more, converted together.",
+  clock: "世界时间：各地现在几点，拖一下尺子一起变。World clock: the time in every city, all moving together.",
+  price: "单价换算：每斤、每磅、每公斤多少钱，两个包装哪个划算。The price per kg, lb or jin, and which pack is the better buy.",
+};
+const toolIds = Object.keys(TOOLS) as ToolId[];
+for (const id of toolIds) {
+  write(`tools/${id}.html`, page({ title: `${TOOLS[id].zh} ${TOOLS[id].en} · ${NAME}`, description: TOOL_WORDS[id], path: `/tools/${id}`, image: picture("default") }));
+}
+console.log(`postbuild: ${n} game pages, the tools page and ${toolIds.length} tool pages in dist/`);
 
-const paths = ["/", "/tools", ...GAMES.filter((g) => g.ready && !g.hidden).map((g) => `/g/${g.slug}`), "/eat", "/trip", "/go"];
+const paths = ["/", "/tools", ...toolIds.map((id) => `/tools/${id}`), ...GAMES.filter((g) => g.ready && !g.hidden).map((g) => `/g/${g.slug}`), "/eat", "/trip", "/go"];
 write("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((path) => `  <url><loc>${SITE}${esc(path)}</loc></url>`).join("\n")}\n</urlset>\n`);
 
 // Include content revisions as well as names: changing only the HTML must also update the worker.

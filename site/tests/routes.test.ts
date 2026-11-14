@@ -67,11 +67,20 @@ const pages: Route[] = [
   { kind: "djtest" },
   { kind: "split" },
   { kind: "split", id: "doVm5qAluIJHUA77i3DeVA" },
+  { kind: "tool", id: "currency" },
+  { kind: "tool", id: "clock" },
+  { kind: "tool", id: "price" },
 ];
 for (const r of pages) ok(same(at(pathOf(r)), r), `${pathOf(r)} round-trips`);
 // a game's own link (猜歌名's challenges) keeps its ?c=, and only one that could be one
 ok(same(at("/g/name-that-tune/play?c=MXx6aC1lbg_x"), { kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) && pathOf({ kind: "game", id: "tune", c: "MXx6aC1lbg_x" }) === "/g/name-that-tune/play?c=MXx6aC1lbg_x", "a game's link of its own (?c=) stays on the address");
 ok(same(at("/g/name-that-tune/play?c=%3Cscript%3E"), { kind: "game", id: "tune" }) && same(at("/g/name-that-tune?c=MXx6aC1lbg"), { kind: "home", tab: "party", game: "tune" }), "a ?c= that can't be one is dropped; a card has none");
+
+// a tool on its page; a name that isn't a tool is no page (home), and /tools stays the tab
+ok(same(at("/tools/currency/"), { kind: "tool", id: "currency" }), "/tools/currency/ is the currency page");
+ok(same(at("/tools/nope"), { kind: "home", tab: "party" }) && same(at("/tools/constructor"), { kind: "home", tab: "party" }), "/tools/<not a tool> is no page");
+ok(same(at("/tools"), { kind: "home", tab: "tools" }), "/tools is still the Tools tab");
+ok(titleOf({ kind: "tool", id: "price" }, "zh") === "单价换算 · 开席 Lazy Susan" && titleOf({ kind: "tool", id: "clock" }, "en") === "World clock · 开席 Lazy Susan", "a tool's page is titled with its name");
 
 // addresses written another way land on the site's own spelling
 ok(pathOf(at("/g/truth")) === "/g/truth-or-dare", "/g/truth (an old id) becomes /g/truth-or-dare");
