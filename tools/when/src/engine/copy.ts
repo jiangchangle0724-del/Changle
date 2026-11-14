@@ -27,36 +27,37 @@ function dateRange(days: Day[], lang: Lang): string {
 
 function answerBy(deadline: string | undefined, lang: Lang): string {
   if (!deadline) return "";
-  return lang === "zh" ? `请在${deadline}前填好。` : ` Please reply by ${deadline}.`;
+  // a deadline that ends in a full stop of its own ("Thursday 8 p.m.") doesn't get a second one
+  return lang === "zh" ? `请在${deadline}前填好。` : ` Please reply by ${deadline}${deadline.endsWith(".") ? "" : "."}`;
 }
 
 const INVITES: Variants<{ dates: string }> = {
   zh: {
     plain: [
       ({ dates }) => `${dates}，请点链接填有空的时间。`,
-      ({ dates }) => `约在${dates}，请在链接里选时间。`,
-      ({ dates }) => `${dates}哪天方便？请点链接填写。`,
+      ({ dates }) => `想在${dates}约个时间，请在链接里选。`,
+      ({ dates }) => `${dates}什么时候方便？请点链接填写。`,
     ],
     easy: [
-      ({ dates }) => `${dates}找天聚聚，点链接选个空。`,
-      ({ dates }) => `来约个时间吧，${dates}哪天行？点链接填。`,
-      ({ dates }) => `${dates}想一起聚，点链接说说哪天有空。`,
+      ({ dates }) => `${dates}找个时间聚聚，点链接选你有空的。`,
+      ({ dates }) => `来约个时间吧，${dates}什么时候行？点链接填。`,
+      ({ dates }) => `${dates}想一起聚聚，点链接说说什么时候有空。`,
     ],
     funny: [
       ({ dates }) => `日历开会了：${dates}，点链接选空档。`,
-      ({ dates }) => `${dates}，让日历们对个暗号，点链接填空。`,
+      ({ dates }) => `${dates}，让大家的日历碰个头，点链接填空档。`,
       ({ dates }) => `群聊征集空档：${dates}，点链接给日历投票。`,
     ],
   },
   en: {
     plain: [
       ({ dates }) => `Please mark when you're free, ${dates}, using the link.`,
-      ({ dates }) => `We're choosing a time for ${dates}. Please add your availability below.`,
-      ({ dates }) => `Which times work for you, ${dates}? Please fill in the link.`,
+      ({ dates }) => `We're picking a time, ${dates}. Please add when you're free below.`,
+      ({ dates }) => `Which times work for you, ${dates}? Please answer at the link.`,
     ],
     easy: [
       ({ dates }) => `Let's get together! What works for you, ${dates}? Pick your times below.`,
-      ({ dates }) => `Got a gap in ${dates}? Let's meet up. Tap the link and choose your times.`,
+      ({ dates }) => `Any gaps, ${dates}? Let's meet up. Tap the link and choose your times.`,
       ({ dates }) => `Time for a catch-up, ${dates}. Pop your free times in the link.`,
     ],
     funny: [
@@ -88,13 +89,13 @@ const NUDGES: Variants<{ who: string }> = {
     ],
     easy: [
       ({ who }) => `${who}，有空来链接里挑个时间吧。`,
-      ({ who }) => `${who}，来留个空档？点链接就能填。`,
-      ({ who }) => `${who}，哪天方便呀？在链接里说一声。`,
+      ({ who }) => `${who}，来填一下有空的时间？点链接就行。`,
+      ({ who }) => `${who}，什么时候方便呀？在链接里说一声。`,
     ],
     funny: [
       ({ who }) => `日历来敲门：${who}，点链接填空档。`,
       ({ who }) => `群聊还在找日期：${who}，来链接里投一票。`,
-      ({ who }) => `日历等着合影：${who}，点链接选个时间。`,
+      ({ who }) => `日历还没凑齐：${who}，点链接选个时间。`,
     ],
   },
   en: {

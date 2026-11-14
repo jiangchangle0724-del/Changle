@@ -106,6 +106,14 @@ test("deadlines are optional and used literally in every invitation and nudge", 
   }
 });
 
+test("an English deadline that ends in a full stop doesn't get a second one", () => {
+  for (const tone of tones) for (const pick of picks) {
+    const text = inviteText({ ...invite, deadline: "Thursday 8 p.m." }, tone, "en", pick);
+    assert.ok(text.includes("by Thursday 8 p.m.\n"), text);
+    assert.ok(inviteText({ ...invite, deadline: "Thu 8pm" }, tone, "en", pick).includes("by Thu 8pm.\n"));
+  }
+});
+
 test("nudges address unknown guests, name up to five, and count six or more", () => {
   const six = ["小陈", "Alex", ...names, "Sam"];
   for (const lang of languages) for (const tone of tones) for (const pick of picks) {
