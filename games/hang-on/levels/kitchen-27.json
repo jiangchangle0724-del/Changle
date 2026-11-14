@@ -1,0 +1,153 @@
+{
+  "id": "kitchen-27",
+  "world": "kitchen",
+  "tier": 1,
+  "teaches": "combine",
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "hazards": [],
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 5
+  },
+  "replay": "replays/kitchen-27.json",
+  "name": {
+    "zh": "点心上阁楼",
+    "en": "Dim Sum to the Loft"
+  },
+  "w": 2520,
+  "h": 1440,
+  "spawn": {
+    "x": 30,
+    "y": 1296
+  },
+  "goal": {
+    "x": 2160,
+    "y": 240,
+    "w": 320,
+    "h": 320
+  },
+  "checkpoints": [
+    {
+      "x": 1170,
+      "y": 816
+    },
+    {
+      "x": 1700,
+      "y": 376
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 951,
+      "y": 725
+    },
+    {
+      "x": 1468,
+      "y": 389
+    },
+    {
+      "x": 2141,
+      "y": 381
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1320,
+      "w": 960,
+      "h": 120,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 960,
+      "y": 866,
+      "w": 60,
+      "h": 454,
+      "material": "ceramic",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 960,
+      "y": 840,
+      "w": 540,
+      "h": 26,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1500,
+      "y": 426,
+      "w": 60,
+      "h": 414,
+      "material": "ceramic",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 1500,
+      "y": 400,
+      "w": 640,
+      "h": 26,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2140,
+      "y": 520,
+      "w": 340,
+      "h": 920,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2480,
+      "y": 0,
+      "w": 40,
+      "h": 1440,
+      "material": "metal",
+      "grab": false
+    }
+  ],
+  "vents": [
+    {
+      "x": 760,
+      "y": 1296,
+      "w": 180,
+      "h": 24,
+      "reach": 480,
+      "power": 1.3,
+      "phase": 1
+    },
+    {
+      "x": 1300,
+      "y": 816,
+      "w": 180,
+      "h": 24,
+      "reach": 480,
+      "power": 1.3,
+      "phase": 0,
+      "off": 8,
+      "on": 1.4
+    }
+  ],
+  "tray": [
+    {
+      "x": 1580,
+      "y": 395
+    },
+    {
+      "x": 1050,
+      "y": 835
+    },
+    {
+      "x": 1580,
+      "y": 395
+    }
+  ],
+  "deathY": 1530
+}

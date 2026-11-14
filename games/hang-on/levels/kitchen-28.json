@@ -1,0 +1,118 @@
+{
+  "id": "kitchen-28",
+  "world": "kitchen",
+  "tier": 1,
+  "teaches": "combine",
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "hazards": [],
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 5
+  },
+  "replay": "replays/kitchen-28.json",
+  "name": {
+    "zh": "蒸汽出菜线",
+    "en": "Steam to the Serving Hatch"
+  },
+  "w": 2400,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 596
+  },
+  "goal": {
+    "x": 2040,
+    "y": 160,
+    "w": 320,
+    "h": 170
+  },
+  "checkpoints": [
+    {
+      "x": 1120,
+      "y": 276
+    },
+    {
+      "x": 2070,
+      "y": 276
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 597,
+      "y": 223
+    },
+    {
+      "x": 1057,
+      "y": 45
+    },
+    {
+      "x": 1409,
+      "y": 211
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 620,
+      "w": 620,
+      "h": 100,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 620,
+      "y": 326,
+      "w": 60,
+      "h": 294,
+      "material": "ceramic",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 620,
+      "y": 300,
+      "w": 1740,
+      "h": 26,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2360,
+      "y": 0,
+      "w": 40,
+      "h": 720,
+      "material": "metal",
+      "grab": false
+    }
+  ],
+  "vents": [
+    {
+      "x": 420,
+      "y": 596,
+      "w": 180,
+      "h": 24,
+      "reach": 360,
+      "phase": 1.5,
+      "on": 2,
+      "off": 3
+    }
+  ],
+  "tray": [
+    {
+      "x": 740,
+      "y": 295
+    },
+    {
+      "x": 1000,
+      "y": 295
+    },
+    {
+      "x": 1950,
+      "y": 295
+    }
+  ],
+  "deathY": 810
+}
