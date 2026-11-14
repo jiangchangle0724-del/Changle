@@ -174,7 +174,8 @@ class Sfx {
             // 扎：短促一声啵
             this.tone({ freq: 900, to: 300, wave: 'triangle', dur: 0.09, vol: 0.3, pan });
             this.noise({ dur: 0.05, vol: 0.15, filter: { type: 'lowpass', freq: 1800 }, pan });
-          } else this.splash(pan, (sim.level.world ?? 'table') === 'table');
+          } else if (sim.level.world === 'snow') this.poof(pan);
+          else this.splash(pan, (sim.level.world ?? 'table') === 'table');
           break;
         }
         case 'respawn': {
@@ -404,6 +405,13 @@ class Sfx {
         this.tone({ freq: seat * 1.15, to: seat * 0.5, wave: 'sawtooth', dur: 0.62, attack: 0.03, vol: 0.22, vibrato: [seat * 0.06, 11], pan, lowpass: 2400 });
         this.tone({ freq: seat * 2.3, to: seat * 1.0, wave: 'square', dur: 0.5, attack: 0.03, vol: 0.05, vibrato: [seat * 0.1, 11], pan, lowpass: 3000 });
     }
+  }
+
+  /** 雪山（A10）：掉进雪坑，闷闷的噗一声，带一点雪粒的沙沙。 */
+  private poof(pan: number): void {
+    const d = 0.55;
+    this.noise({ dur: 0.45, vol: 0.45, filter: { type: 'lowpass', freq: 700, to: 180 }, attack: 0.01, pan, delay: d });
+    this.noise({ dur: 0.3, vol: 0.1, filter: { type: 'bandpass', freq: 4200, q: 1 }, attack: 0.02, pan, delay: d + 0.05 });
   }
 
   private splash(pan: number, hot: boolean): void {

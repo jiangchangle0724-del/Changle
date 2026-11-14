@@ -220,9 +220,9 @@ export class Depth {
 
   private hazardStyle(kind: NonNullable<HazardDef['kind']>): MaterialStyle {
     const w = this.world;
-    if (kind === 'hot') return w === 'van' ? HOT_VAN : w === 'kitchen' ? HOT_KITCHEN : HOT_TABLE;
-    if (kind === 'zap') return w === 'van' ? ZAP_VAN : w === 'kitchen' ? ZAP_KITCHEN : ZAP_TABLE;
-    return w === 'van' ? SPIKE_VAN : w === 'kitchen' ? SPIKE_KITCHEN : SPIKE_TABLE;
+    if (kind === 'hot') return w === 'van' ? HOT_VAN : w === 'kitchen' ? HOT_KITCHEN : w === 'snow' ? HOT_SNOW : HOT_TABLE;
+    if (kind === 'zap') return w === 'van' || w === 'snow' ? ZAP_VAN : w === 'kitchen' ? ZAP_KITCHEN : ZAP_TABLE;
+    return w === 'van' ? SPIKE_VAN : w === 'kitchen' ? SPIKE_KITCHEN : w === 'snow' ? SPIKE_SNOW : SPIKE_TABLE;
   }
 
   private cookieStyle(): MaterialStyle {
@@ -261,6 +261,9 @@ const COOKIE: MaterialStyle = { base: '#e2b06a', dark: '#a56f2e', light: '#f6d49
 const HOT_KITCHEN: MaterialStyle = { base: '#2b2b2e', dark: '#141416', light: '#55555c', detail: '#ff8a2c', texture: 'metal' };
 const ZAP_KITCHEN: MaterialStyle = { base: '#1c2430', dark: '#0d1118', light: '#3a4658', detail: '#8f9dff', texture: 'metal' };
 const SPIKE_KITCHEN: MaterialStyle = { base: '#4a3428', dark: '#2a1c14', light: '#7a5a44', detail: '#dfe6ee', texture: 'wood' };
+// 雪山（A10）：火盆是铁的，冰锥是半透明的冰
+const HOT_SNOW: MaterialStyle = { base: '#3a2f2a', dark: '#1c1512', light: '#6a5446', detail: '#ff8a2c', texture: 'metal' };
+const SPIKE_SNOW: MaterialStyle = { base: '#9cc9e6', dark: '#5f8fb0', light: '#e8f6ff', detail: '#ffffff', texture: 'ice' };
 // 物件（A9d、A10）：金元宝、红漆托盘
 const INGOT: MaterialStyle = { base: '#e8b23a', dark: '#a87418', light: '#ffe08a', detail: '#fff1b8', texture: 'metal' };
 const TRAY: MaterialStyle = { base: '#b3262b', dark: '#6e1216', light: '#e0525a', detail: '#f2c14e', texture: 'wood' };

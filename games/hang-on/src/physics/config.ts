@@ -202,6 +202,11 @@ export const CFG = {
   trayBack: 1.2,
   trayCpR: 160,
   trayGrace: 1,
+
+  // ---- 雪山（A10）----
+  /** 缆椅的座板吊在缆绳下面多少像素；冰溜子快滑之前多久手开始抖。 */
+  liftDrop: 70,
+  slipWarn: 1.5,
 };
 
 export type Cfg = typeof CFG;
@@ -221,6 +226,9 @@ export const MATERIAL_FRICTION: Record<string, number> = {
   metal: 0.3,
   noodle: 0.6,
   ice: 0.05,
+  // 后厨的竹蒸笼、雪山的压实的雪（A10）
+  bamboo: 0.6,
+  snow: 0.7,
 };
 export const DEFAULT_FRICTION = 0.6;
 

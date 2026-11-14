@@ -23,6 +23,8 @@ export interface Rect {
   players?: [number, number];
   /** 第几秒塌掉（不再回来），提前 2 秒开始抖；坐不住的场地用。不写就一直在。 */
   until?: number;
+  /** 冰溜子（雪山，A10）：一只手抓着它最多几秒就滑脱（快到时手抖、圈变红），滑了 CFG.slipCooldown 秒抓不了。不写就抓多久都行。 */
+  slip?: number;
 }
 
 export interface RopeDef {
@@ -137,6 +139,23 @@ export interface VentDef extends Rect {
   power?: number;
 }
 
+/**
+ * 雪山缆车（A10）：一根缆绳从 `from` 到 `to`（两头是站），一串缆椅沿着缆绳从 from 往 to 走，每隔 `gap` 像素一把，
+ * 走到 to 那头就收进站里（站在上面的掉下来、抓着的手松开），从 from 那头再出来。座板吊在缆绳下面 `drop` 像素（默认 CFG.liftDrop）。
+ * `kind`：`chair` 缆椅（默认，一块能站的座板，上面一根能抓的横杆）、`cabin` 缆车厢（宽的地板，上面一块顶，顶能站能抓）。
+ * `speed` 每秒多少像素，`phase` 把钟往后拨。位置只由关卡和时间算（motion.ts 的 `liftChairs`），快照不带。
+ */
+export interface LiftDef {
+  from: Pt;
+  to: Pt;
+  speed: number;
+  gap: number;
+  drop?: number;
+  kind?: 'chair' | 'cabin';
+  phase?: number;
+  players?: [number, number];
+}
+
 export interface Level {
   id: string;
   world?: string;
@@ -164,6 +183,8 @@ export interface Level {
   gates?: GateDef[];
   /** 蒸笼喷汽（后厨，A10）。 */
   vents?: VentDef[];
+  /** 雪山缆车（A10）。 */
+  lifts?: LiftDef[];
   /**
    * 端托盘（后厨，A10）：关里有一托盘点心，要端到终点才算过关（闯关、大团队）。托盘歪过 CFG.traySpill 弧度
    * 超过 CFG.traySpillTime 秒、掉下去、碰到要命的东西，点心就翻了，托盘回到存档的地方。
@@ -198,7 +219,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -215,6 +236,7 @@ export function forPlayers(level: Level, n: number): Level {
     plates: keep(level.plates),
     gates: keep(level.gates),
     vents: keep(level.vents),
+    lifts: keep(level.lifts),
   };
 }
 
@@ -411,6 +433,44 @@ export function kitchenLevel(): Level {
       { x: 1150, y: 594 },
     ],
     deathY: 980,
+    par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 雪山样板关（A10，只在开发页：`play.html?level=proto-06`）：一条缆椅从山脚坐到半山的木平台；平台上一面冰墙（`slip`，
+ * 一只手最多抓 1.6 秒就滑，得快快倒手爬上去），或者坐旁边的缆车厢上去；冰锥、火盆、漏电的电网各一处。Codex 做雪山的关时照着写 JSON。
+ */
+export function snowLevel(): Level {
+  return {
+    id: 'proto-06',
+    world: 'snow',
+    name: { zh: '雪山样板', en: 'Snow mountain sampler' },
+    teaches: 'lift',
+    w: 2400,
+    h: 1100,
+    spawn: { x: 100, y: 760 },
+    goal: { x: 2180, y: 140, w: 200, h: 160 },
+    checkpoints: [{ x: 1600, y: 466 }],
+    rects: [
+      { x: 0, y: 800, w: 520, h: 300, kind: 'ground', material: 'snow' },
+      { x: 1520, y: 500, w: 480, h: 600, kind: 'ground', material: 'wood' },
+      { x: 1880, y: 300, w: 120, h: 200, kind: 'wall', material: 'ice', slip: 1.6 },
+      { x: 2000, y: 300, w: 400, h: 800, kind: 'ground', material: 'snow' },
+      // 起点上方一块挂着冰锥的石头
+      { x: 60, y: 560, w: 200, h: 40, kind: 'step', material: 'snow' },
+    ],
+    lifts: [
+      { from: { x: 470, y: 670 }, to: { x: 1530, y: 410 }, speed: 110, gap: 250 },
+      // 缆车厢：从木平台坐到冰墙顶上（到头时地板比冰墙高 40 px，跳下去）
+      { from: { x: 1560, y: 380 }, to: { x: 1860, y: 190 }, speed: 80, gap: 300, kind: 'cabin', phase: 2 },
+    ],
+    hazards: [
+      { x: 340, y: 770, w: 30, h: 30, kind: 'zap' },
+      { x: 80, y: 600, w: 160, h: 30, kind: 'spike', dir: 'down' },
+      { x: 2080, y: 280, w: 70, h: 20, kind: 'hot' },
+    ],
+    deathY: 1180,
     par: { seconds: 90, deathsPerPlayer: 3 },
   };
 }
