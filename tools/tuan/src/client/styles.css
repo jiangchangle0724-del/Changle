@@ -560,6 +560,12 @@ textarea {
   font-size: var(--text-sm);
   font-weight: 700;
 }
+/* on a group buy's page the shop's name leads to the shop's own page: a tap target like any other */
+a.shop-name {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  text-decoration: none;
+}
 .shop-name::before {
   content: "";
   width: 8px;

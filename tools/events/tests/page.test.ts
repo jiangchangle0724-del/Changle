@@ -132,7 +132,7 @@ describe("the page", () => {
     const sat = render("day=2026-11-21");
     expect(sat).toContain("<h2>11月21日 周六</h2>");
     expect(parts(sat)).toEqual([["Saturday Match"], ["Lantern Walk"]]);
-    expect(sat).toContain('href="/go?lang=zh&#38;day=2026-11-21" aria-current="date"');
+    expect(sat).toContain('href="/go/?lang=zh&#38;day=2026-11-21" aria-current="date"');
 
     expect(chips(render(), "分类")).toEqual(["全部分类", "演出音乐 1", "吃喝市集 1", "文化展览 1", "节日庆典 1", "亲子家庭 1"]);
     expect(chips(render(), "地区")).toEqual(["全部地区", "温哥华市 3", "列治文 2"]);
@@ -155,7 +155,7 @@ describe("the page", () => {
       const links = [...html.matchAll(/<a class="(?:chip|dayc[^"]*)" href="([^"]+)">(?:(?!<\/a>).)*?<span class="n">(\d+)<span class="vh">/g)];
       expect(links.length, query).toBeGreaterThan(3);
       for (const [, link, n] of links) {
-        const target = new URLSearchParams(link.replace(/&#38;/g, "&").replace(/^\/go\?/, ""));
+        const target = new URLSearchParams(link.replace(/&#38;/g, "&").replace(/^\/go\/\?/, ""));
         expect(count(renderPage(pub, target, "zh", NOW)), `${query} → ${link}`).toBe(n);
       }
     }
@@ -169,7 +169,7 @@ describe("the page", () => {
     }
     const none = render("cat=nightlife&area=richmond");
     expect(none).toContain('<p class="empty">这天没有符合的活动。');
-    expect(none).toContain('<a href="/go?lang=zh">清除筛选</a>');
+    expect(none).toContain('<a href="/go/?lang=zh">清除筛选</a>');
   });
 
   it("says so when the runs have stopped, rather than showing an old list as today's", () => {
@@ -181,9 +181,9 @@ describe("the page", () => {
 
   it("carries the language in every link, and switches it keeping the view", () => {
     const html = render("day=2026-11-21&cat=outdoors");
-    expect(html).toContain('<a class="lang" href="/go?lang=en&#38;day=2026-11-21&#38;cat=outdoors" data-lang="en" lang="en">English</a>');
-    for (const m of html.matchAll(/href="(\/go[^"]*)"/g)) expect(m[1]).toMatch(/^\/go\?lang=(zh|en)/);
-    expect(render("", "en")).toContain('<a class="lang" href="/go?lang=zh" data-lang="zh" lang="zh-CN">中文</a>');
+    expect(html).toContain('<a class="lang" href="/go/?lang=en&#38;day=2026-11-21&#38;cat=outdoors" data-lang="en" lang="en">English</a>');
+    for (const m of html.matchAll(/href="(\/go[^"]*)"/g)) expect(m[1]).toMatch(/^\/go\/\?lang=(zh|en)/);
+    expect(render("", "en")).toContain('<a class="lang" href="/go/?lang=zh" data-lang="zh" lang="zh-CN">中文</a>');
   });
 
   it("offers the calendar feed for the category and area shown, and says what it keeps", () => {
@@ -233,7 +233,7 @@ describe("GET /go", () => {
 
   it("serves the page from what's published, in the language asked for or the browser's own", async () => {
     await env.CACHE.put(LIVE_KEY, JSON.stringify(pub));
-    const res = await get("/go?area=richmond", { "accept-language": "en-CA,en;q=0.9" });
+    const res = await get("/go/?area=richmond", { "accept-language": "en-CA,en;q=0.9" });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(res.headers.get("cache-control")).toBe("public, max-age=300");

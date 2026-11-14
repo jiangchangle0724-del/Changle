@@ -277,7 +277,10 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
       <TopBar />
 
       <section class="hero hero-offer">
-        <p class="shop-name">{page.shop.name}</p>
+        <a class="shop-name" href={`${BASE}/s/${page.shop.slug}`}>
+          {page.shop.name}
+          <IconNext size={14} />
+        </a>
         <h1>{changing ? t("changeTitle", { code: changing.order.code }) : page.offer.title}</h1>
         {changing && <p class="hint">{page.offer.title}</p>}
         {changing && (
@@ -360,6 +363,9 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
               <Lines text={page.shop.permit} />
             </div>
           )}
+          <a class="btn btn-quiet btn-block" href={`${BASE}/s/${page.shop.slug}`}>
+            {t("shopMore")}
+          </a>
         </section>
       )}
 
