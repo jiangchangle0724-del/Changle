@@ -68,6 +68,9 @@ export function Timeline({ range, span, onSpan, disabled }: { range: Span; span:
     dragging.current = end;
     track.current!.setPointerCapture(event.pointerId);
     move(end, minutes);
+    // stopping the browser's own handling also stops it giving the handle focus: give it here, so
+    // the arrow keys move what was just pressed
+    track.current!.querySelector<HTMLElement>(`[data-end="${end}"]`)?.focus({ preventScroll: true });
     event.preventDefault();
   };
   const drag = (event: PointerEvent) => dragging.current && move(dragging.current, minuteAt(event.clientX));
