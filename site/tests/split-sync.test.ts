@@ -18,10 +18,11 @@
  * 14. A ledger that is a card in the list is asked where it stands, once, and only when nothing else would say.
  * 15. Its owner locks a ledger: nobody records, what was waiting stays on the phone, and goes when it is opened again.
  * 16. Its owner changes the key: the owner's phone carries on, a friend's is shut out until it has the new invitation.
+ * 17. One payment marked as made on two phones with no signal (the one who paid, the one paid): recorded once.
  */
 import { accept, type Change, type Sent, type Took } from "../src/split/changes";
-import { balances, nextRot, portionsOf, type Expense, type Ledger } from "../src/split/core";
-import { startLedger } from "../src/split/ops";
+import { balances, nextRot, portionsOf, settlement, type Expense, type Ledger } from "../src/split/core";
+import { paidId, startLedger } from "../src/split/ops";
 import { heard, hold, holds, join, opened, shown, type Held, type MakeBody, type Pushed, type Snapshot } from "../src/split/sync";
 import { syncer, type Net, type Reply, type SyncState } from "../src/split/syncer";
 import { rng } from "./split/ledgers";
@@ -882,6 +883,35 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
   eq([await y.s.lock(true), k.ledger.locked, y.held().owner], [false, undefined, undefined], "nor lock the ledger for one: told so, that phone too has no owner's key any more");
   const asksBefore = y.asks();
   eq([await y.s.lock(true), y.asks()], [false, asksBefore], "and doesn't ask again");
+}
+
+// ---------- 17. one payment marked on two phones ----------
+{
+  const world = new World();
+  const a = phone(world, "a", hold(fresh(), "k"));
+  a.s.wake();
+  await settle();
+  a.spend("e1", 9000);
+  await settle();
+  const k = world.ledgers.get("ledger-1")!;
+  const b = phone(world, "b", join({ seq: k.seq, ledger: k.ledger }, "k"));
+  b.s.wake();
+  await settle();
+  // 小王 pays Steve back; Steve marks it on his phone, and 小王 on his, neither with a signal
+  const mark = (p: Phone) => {
+    const step = settlement(p.ledger()).steps.find((s) => s.from === "w")!;
+    return p.s.do({ do: "transfer", transfer: { id: paidId(p.ledger(), step), at: 2000, ...step } });
+  };
+  a.away();
+  b.away();
+  eq([mark(a), mark(b)], [true, true], "both phones, with no signal, mark 小王's payment to Steve as made");
+  a.back();
+  await settle();
+  b.back();
+  await settle();
+  const transfers = k.ledger.entries.filter((e) => e.kind === "transfer");
+  eq([transfers.length, settlement(k.ledger).steps.find((s) => s.from === "w")?.paid === transfers[0]?.id, settlement(k.ledger).others.length], [1, true, 0], "back: the server has it once, ticking its step off; the plan holds still");
+  eq([a.held().lost.length, b.held().lost.length, canon(a.ledger()) === canon(k.ledger), canon(b.ledger()) === canon(k.ledger)], [0, 0, true, true], "and neither phone says anything didn't stick: both show the server's ledger");
 }
 
 if (failed) {
