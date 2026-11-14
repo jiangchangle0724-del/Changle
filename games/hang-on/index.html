@@ -45,6 +45,9 @@
   .btn.quiet { background: var(--panel); color: var(--ink); }
   .btn:disabled { opacity: .45; cursor: default; }
   .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 12, 30, .55); backdrop-filter: blur(4px); padding: 24px; }
+  /* 大厅底下留出键盘说明那一条的地方；放不下就能滚（11-13 大厅多了单人多人和难度） */
+  #lobby { display: flex; overflow: auto; padding-bottom: 96px; }
+  #lobby > .card { margin: auto; }
   .card { background: var(--card); color: var(--card-ink); border-radius: 22px; padding: 26px 28px; max-width: 760px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: start; }
   .card h2 { font-family: var(--font-display); font-weight: 800; font-size: 28px; margin: 0 0 4px; text-wrap: balance; }
   .card p { margin: 0 0 8px; line-height: 1.6; font-size: 14px; }
@@ -72,7 +75,14 @@
   /* 道具（A9）：座位卡上写带的是哪一样 */
   .seat .item { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px; margin-top: 2px; background: rgba(42,31,58,.1); white-space: nowrap; }
   /* 玩法：四个键，比谁先下面两个小键 */
-  .moderow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 12px 0 2px; }
+  /* 单人多人、玩法、难度（11-13）：三组排成一串，放得下就在一行，前面一个小字说是哪一组；屏幕矮时不写小字，组之间一道竖线 */
+  .picks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin: 12px 0 2px; }
+  .pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  .pick[hidden] { display: none; }
+  .pick .lab { flex: none; font-size: 12px; font-weight: 700; opacity: .55; }
+  :is(body.phone, body.short) .picks { gap: 5px 10px; margin-top: 8px; }
+  :is(body.phone, body.short) .pick .lab { display: none; }
+  :is(body.phone, body.short) .pick + .pick:not([hidden]) { padding-left: 10px; border-left: 2px solid rgba(42,31,58,.12); }
   .modes { display: inline-flex; flex-wrap: wrap; gap: 6px; }
   .mode { font: inherit; font-weight: 700; font-size: 14px; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 0; cursor: pointer;
     background: rgba(42,31,58,.08); color: var(--card-ink); }
@@ -110,7 +120,7 @@
   .results ul.goals li.env { font-size: 13px; opacity: .8; margin-top: 2px; }
   .count small.goals { font-size: 16px; font-weight: 500; opacity: .9; margin-top: 6px; }
   .level .stars { color: #d9a21b; letter-spacing: 2px; margin-left: 6px; font-size: .9em; }
-  .envtotal { font-size: 13px; opacity: .75; text-align: center; margin: -4px 0 6px; }
+  .envtotal:not([hidden])::before { content: ' · '; }
   .results .padhint { font-size: 13px; opacity: .7; margin: 10px 0 0; }
   .count small { display: block; font-size: 22px; font-family: var(--font-body); font-weight: 700; margin-top: 10px; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
   @media (prefers-reduced-motion: reduce) { .banner { transition: opacity .18s; transform: translate(-50%, -50%); } }
@@ -234,17 +244,17 @@
       <p class="tv-only"><span data-en="Scan with your phone, or open">手机扫码加入，或者打开</span> <b id="padUrl">changle.ca/hang-on/pad</b> <span data-en="and type the room code.">输房间码。</span><span class="howto" data-en=" Hold the phone sideways: drag on the left to aim, the two big buttons on the right are your hands.">手机横着拿：左边拖是方向，右边两个大键是左右手。</span></p>
       <p class="phone-only" data-en="No TV needed. Everyone else scans this code with their phone (up to 5 more), and every phone shows the game. Hold it sideways: drag on the left to aim, the two buttons on the right are your hands.">不用电视。别的人用手机扫这个码进来（最多再来 5 个），每部手机上都有画面。手机横着拿：左边拖是方向，右边两个键是左右手。</p>
       <div class="codebig" id="codeBig" hidden>····</div>
-      <div class="moderow">
-        <div class="modes" id="modes" role="radiogroup" aria-label="玩法" data-en-label="Mode"></div>
-        <div class="modes sub" id="teams" role="radiogroup" aria-label="怎么分" data-en-label="Teams" hidden></div>
+      <div class="picks">
+        <div class="pick"><span class="lab" data-en="Players">人数</span><div class="modes" id="sides" role="radiogroup" aria-label="单人还是多人" data-en-label="Solo or multiplayer"></div></div>
+        <div class="pick" id="modeRow"><span class="lab" data-en="Mode">玩法</span><div class="modes" id="modes" role="radiogroup" aria-label="玩法" data-en-label="Mode"></div><div class="modes sub" id="teams" role="radiogroup" aria-label="怎么分" data-en-label="Teams" hidden></div></div>
+        <div class="pick" id="tierRow"><span class="lab" data-en="Difficulty">难度</span><div class="modes" id="tiers" role="radiogroup" aria-label="难度" data-en-label="Difficulty"></div></div>
       </div>
       <div class="level">
         <button class="btn quiet" id="levelPrev" type="button" aria-label="上一关" data-en-label="Previous level">‹</button>
         <span class="name" id="levelName"></span>
         <button class="btn quiet" id="levelNext" type="button" aria-label="下一关" data-en-label="Next level">›</button>
       </div>
-      <p class="level teach" id="levelTeach"></p>
-      <p class="envtotal" id="envTotal" hidden></p>
+      <p class="level teach"><span id="levelTeach"></span><span class="envtotal" id="envTotal" hidden></span></p>
       <div class="seats" id="seats"></div>
       <p id="lobbyLine" style="opacity:.75"></p>
       <div class="row">

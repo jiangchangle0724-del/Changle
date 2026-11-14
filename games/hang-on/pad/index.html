@@ -109,6 +109,11 @@
   .mcard { background: var(--card); color: var(--card-ink); border-radius: 22px; padding: 14px 16px; display: grid; gap: 10px; max-width: 760px; margin: 0 auto; box-sizing: border-box; }
   .mcard h2 { font-family: var(--font-display); font-weight: 800; font-size: 22px; margin: 0; }
   .mmodes { display: flex; flex-wrap: wrap; gap: 6px; }
+  /* 单人多人、玩法、难度（11-13）：三组排成一串，放得下就在一行，前面一个小字说是哪一组 */
+  .mpicks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+  .mrow { display: flex; align-items: center; gap: 8px; }
+  .mrow[hidden] { display: none; }
+  .mrow .lab { flex: none; font-size: 12px; font-weight: 700; opacity: .55; }
   .mmodes button { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 2px solid rgba(42,31,58,.18); background: #fff; color: var(--card-ink); font: inherit; font-weight: 700; font-size: 15px; }
   .mmodes button[aria-checked="true"] { background: var(--card-ink); color: var(--ink); border-color: var(--card-ink); }
   .mmodes button:focus-visible, .mlevel button:focus-visible, .mcard .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
@@ -262,8 +267,12 @@
   <!-- 手柄当遥控（电视局）：大厅里开局、选玩法、选关；结算时下一关、再来一次、回大厅。谁按都行 -->
   <div id="menu" hidden>
     <div class="mcard" id="mLobby">
-      <div class="mmodes" id="mModes" role="radiogroup" aria-label="玩法" data-en-label="Mode"></div>
-      <div class="mmodes" id="mTeams" role="radiogroup" aria-label="怎么分" data-en-label="Teams" hidden></div>
+      <div class="mpicks">
+        <div class="mrow"><span class="lab" data-en="Players">人数</span><div class="mmodes" id="mSides" role="radiogroup" aria-label="单人还是多人" data-en-label="Solo or multiplayer"></div></div>
+        <div class="mrow" id="mModeRow"><span class="lab" data-en="Mode">玩法</span><div class="mmodes" id="mModes" role="radiogroup" aria-label="玩法" data-en-label="Mode"></div></div>
+        <div class="mmodes" id="mTeams" role="radiogroup" aria-label="怎么分" data-en-label="Teams" hidden></div>
+        <div class="mrow" id="mTierRow"><span class="lab" data-en="Difficulty">难度</span><div class="mmodes" id="mTiers" role="radiogroup" aria-label="难度" data-en-label="Difficulty"></div></div>
+      </div>
       <div class="mlevel">
         <button id="mPrev" type="button" aria-label="上一关" data-en-label="Previous level">‹</button>
         <div class="nm"><span id="mLevel"></span><small id="mTeach"></small></div>

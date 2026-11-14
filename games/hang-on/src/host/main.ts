@@ -12,8 +12,9 @@
 import qrcode from 'qrcode-generator';
 import { heardBy, sfx } from '../audio/sfx';
 import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
-import { levelsFor, levelTitle, MIN_PLAYERS, TEAM_LEVELS, teachLabel, teachText } from '../levels';
-import { modeHintText, modeName } from '../mode-text';
+import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachLabel, teachText, tierOfLevel } from '../levels';
+import { modeHintText, modeLabel, modeName, notReadyText, sideName, tierName } from '../mode-text';
+import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
 import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
 import { cleanItem, ITEM_ICON, ITEM_IDS, itemsIn, type ItemId } from '../items';
 import { itemName } from '../item-text';
@@ -64,10 +65,21 @@ const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode })
 const MODES: GameMode[] = ['climb', 'team', 'race', 'last'];
 let mode: GameMode = MODES.find((m) => m === params.get('mode') && (m !== 'team' || TEAM_LEVELS.length > 0)) ?? 'climb';
 let teamsOn = params.get('teams') === '1';
-/** 每种玩法记着自己选到第几关，换回来还在那。 */
-const levelIndexOf: Record<GameMode, number> = { climb: 0, team: 0, race: 0, last: 0 };
-let levelIndex = Math.max(0, levelsFor(mode).findIndex((l) => l.id === params.get('level')));
-let level: Level = levelsFor(mode)[levelIndex] as Level;
+/**
+ * 单人还是多人、什么难度（11-13 Steve：「进去之后可选择单人模式和多人模式，然后选择简 中 难」）：
+ * `?side=solo|multi`、`?tier=0|1|2` 直接开到那里，`?level=` 开到那关所在的难度；没人点过单人多人就跟着人数走。
+ */
+let side: Side = cleanSide(params.get('side')) ?? (mode === 'climb' ? 'solo' : 'multi');
+let sideAuto = !params.get('side') && mode === 'climb';
+const askedLevel = LEVELS.find((l) => l.id === params.get('level'));
+let tier: Tier = cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0);
+/** 现在这个玩法、这档难度的那一串关。 */
+const listNow = (): Level[] => levelsFor(mode, tiered(mode) ? tier : undefined);
+/** 每种玩法、每档难度记着自己选到第几关，换回来还在那。 */
+const levelIndexOf = new Map<string, number>();
+const slot = (): string => `${mode}:${tiered(mode) ? tier : '-'}`;
+let levelIndex = Math.max(0, listNow().findIndex((l) => l.id === params.get('level')));
+let level: Level = listNow()[levelIndex] as Level;
 /** 画面上现在画的是哪一版关卡（按人数摆出来的那个对象）。 */
 let stageLevel: Level | null = null;
 let sim: Sim = await createSim(level, 0);
@@ -146,16 +158,60 @@ function tagName(i: number, nm: string): string {
 }
 function setMode(m: GameMode): void {
   if (m === mode) return;
-  levelIndexOf[mode] = levelIndex;
+  levelIndexOf.set(slot(), levelIndex);
   mode = m;
-  const list = levelsFor(mode);
-  levelIndex = Math.min(levelIndexOf[mode], list.length - 1);
+  relist(true);
+}
+/** 难度（闯关、比谁先）。 */
+function setTier(t: Tier): void {
+  if (t === tier || !tiered(mode)) return;
+  levelIndexOf.set(slot(), levelIndex);
+  tier = t;
+  relist(true);
+}
+/** 单人还是多人；`byHand` 是有人点的（之后不再跟着人数走）。单人只有闯关。 */
+function setSide(s: Side, byHand = true): void {
+  if (byHand) sideAuto = false;
+  if (s === side) return;
+  levelIndexOf.set(slot(), levelIndex);
+  side = s;
+  const modeChanged = !SIDE_MODES[side].includes(mode);
+  if (modeChanged) mode = 'climb';
+  relist(modeChanged);
+}
+/** 换了玩法、难度或者单人多人：回到这一串上次选到的那关，重画大厅（玩法变了或者关变了才重摆）。 */
+function relist(reset: boolean): void {
+  const list = listNow();
+  levelIndex = Math.max(0, Math.min(levelIndexOf.get(slot()) ?? 0, list.length - 1));
+  const was = level;
   level = list[levelIndex] as Level;
   renderModes();
   renderLevel();
   renderLobby();
   menuDirty = true;
-  if (phase === 'lobby') void resetSim();
+  if (phase === 'lobby' && (reset || level !== was)) void resetSim();
+}
+/** 没人点过单人多人：跟着人数走（一个人单人，两个人以上多人）。人数变了时大厅调它。 */
+function followCount(): void {
+  if (!sideAuto || phase !== 'lobby') return;
+  const want = sideFor(playerCount());
+  if (want !== side) setSide(want, false);
+}
+/** 这一边能选的玩法（大团队要有大关）。 */
+const modesNow = (): GameMode[] => SIDE_MODES[side].filter((m) => m !== 'team' || TEAM_LEVELS.length > 0);
+/** 结算页有没有「下一关」：这一档还有，或者这一档打完了接着下一档。 */
+const hasNext = (): boolean => levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2);
+/** 下一关：这一档的下一关；这一档打完了是下一档的第一关。 */
+function goNext(): void {
+  if (levelIndex < listNow().length - 1) {
+    pickLevel(levelIndex + 1);
+    return;
+  }
+  if (!tiered(mode) || tier >= 2) return;
+  levelIndexOf.set(slot(), levelIndex);
+  tier = (tier + 1) as Tier;
+  levelIndexOf.set(slot(), 0);
+  relist(true);
 }
 function setTeams(on: boolean): void {
   if (on === teamsOn) return;
@@ -166,40 +222,43 @@ function setTeams(on: boolean): void {
   menuDirty = true;
   if (phase === 'lobby') void resetSim();
 }
-/** 大厅里的玩法选择：四个键（大团队有大关才出），比谁先下面再选各跑各的还是分两队。 */
+function radioBtn(box: HTMLElement, label: string, on: boolean, click: () => void, small = false): void {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = small ? 'mode small' : 'mode';
+  b.setAttribute('role', 'radio');
+  b.setAttribute('aria-checked', String(on));
+  b.textContent = label;
+  b.addEventListener('click', () => {
+    sfx.tick();
+    click();
+  });
+  box.append(b);
+}
+/**
+ * 大厅里先选单人还是多人；多人再选玩法（一起闯关、比谁先、坐不住，大团队有大关才出），比谁先下面再选各跑各的还是分两队；
+ * 闯关、比谁先最后选难度。
+ */
 function renderModes(): void {
+  const sides = $('sides');
+  sides.innerHTML = '';
+  for (const s of SIDES) radioBtn(sides, sideName(s), s === side, () => setSide(s));
+  $('modeRow').hidden = side !== 'multi';
   const box = $('modes');
   box.innerHTML = '';
-  for (const m of MODES) {
-    if (m === 'team' && !TEAM_LEVELS.length) continue;
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'mode';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', String(m === mode));
-    b.textContent = modeName(m);
-    b.addEventListener('click', () => {
-      sfx.tick();
+  for (const m of modesNow())
+    radioBtn(box, modeLabel(m, side), m === mode, () => {
+      sideAuto = false;
       setMode(m);
     });
-    box.append(b);
-  }
   const teams = $('teams');
   teams.hidden = mode !== 'race';
   teams.innerHTML = '';
-  for (const on of [false, true]) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'mode small';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', String(on === teamsOn));
-    b.textContent = on ? tr('甜队对咸队', 'Sweet vs Savory') : tr('各跑各的', 'Free for all');
-    b.addEventListener('click', () => {
-      sfx.tick();
-      setTeams(on);
-    });
-    teams.append(b);
-  }
+  for (const on of [false, true]) radioBtn(teams, on ? tr('甜队对咸队', 'Sweet vs Savory') : tr('各跑各的', 'Free for all'), on === teamsOn, () => setTeams(on), true);
+  $('tierRow').hidden = !tiered(mode);
+  const tiers = $('tiers');
+  tiers.innerHTML = '';
+  for (const t of TIERS) radioBtn(tiers, tierName(t), t === tier, () => setTier(t));
 }
 
 // ---------- 房间 ----------
@@ -356,10 +415,10 @@ function countdown(): void {
 function name(i: number): string {
   return playerNames()[i] || `P${i + 1}`;
 }
-/** 倒数时写的：不是闯关就带上玩法。 */
+/** 倒数时写的：不是闯关就带上玩法，分难度的带上难度。 */
 function countLabel(): string {
-  const title = levelTitle(level, levelIndex);
-  return mode === 'climb' ? title : `${modeName(mode)} · ${title}`;
+  const pre = [mode === 'climb' ? '' : modeName(mode), tiered(mode) ? tierName(tier) : ''].filter(Boolean);
+  return [...pre, levelTitle(level, levelIndex)].join(' · ');
 }
 
 /** 这一局的小目标和红包（A9b）：到顶那一下算好、记下，结算页和发给手机的结算都用它；开新的一局清掉。 */
@@ -399,7 +458,7 @@ const resultsDom: ResultsDom = {
 function showResults(): void {
   renderResults(resultsDom, fullResults(), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
   const next = $<HTMLButtonElement>('nextBtn');
-  next.hidden = levelIndex >= levelsFor(mode).length - 1;
+  next.hidden = !hasNext();
   next.textContent = mode === 'last' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   $('againBtn').textContent = mode === 'climb' || mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
   // 电视局：手机上也能选下一步（电视那边可以不碰）
@@ -415,7 +474,7 @@ $('startBtn').addEventListener('click', () => {
 // 结算页：再来一次、下一关都直接倒数开局；要换人、换关走顶栏的「回大厅」
 $('againBtn').addEventListener('click', () => link?.act({ type: 'START' }));
 $('nextBtn').addEventListener('click', () => {
-  pickLevel(levelIndex + 1);
+  goNext();
   link?.act({ type: 'START' });
 });
 $('lobbyBtn').addEventListener('click', () => link?.act({ type: 'LOBBY' }));
@@ -459,7 +518,7 @@ function renderButtons(): void {
 
 // ---------- 关卡 ----------
 function pickLevel(i: number): void {
-  const list = levelsFor(mode);
+  const list = listNow();
   levelIndex = Math.max(0, Math.min(list.length - 1, i));
   level = list[levelIndex] as Level;
   renderLevel();
@@ -467,7 +526,7 @@ function pickLevel(i: number): void {
   if (phase === 'lobby') void resetSim();
 }
 function renderLevel(): void {
-  const list = levelsFor(mode);
+  const list = listNow();
   $('levelName').textContent = levelTitle(level, levelIndex);
   // 小目标的星（A9b）：这台主机上这一关拿到过几颗
   if (mode === 'climb' || mode === 'team') {
@@ -478,7 +537,7 @@ function renderLevel(): void {
     stars.setAttribute('aria-label', tr(`拿到过 ${starsOf(level.id).length} 颗星，一共 ${keys.length} 颗`, `${starsOf(level.id).length} of ${keys.length} stars`));
     $('levelName').append(stars);
   }
-  const allEnv = levelsFor('climb').reduce((s, l) => s + (l.envelopes?.length ?? 0), 0);
+  const allEnv = LEVELS.reduce((s, l) => s + (l.envelopes?.length ?? 0), 0);
   const et = $('envTotal');
   et.hidden = (mode !== 'climb' && mode !== 'team') || !allEnv;
   et.textContent = tr(`🧧 攒了 ${envelopeTotal()} / ${allEnv} 个红包`, `🧧 ${envelopeTotal()} of ${allEnv} red envelopes saved up`);
@@ -624,6 +683,7 @@ function seatCard(nm: string, color: string, look: Look, sub: string, off: boole
 }
 
 function renderLobby(): void {
+  followCount();
   const box = $('seats');
   box.innerHTML = '';
   const seats = room?.seats ?? [];
@@ -674,15 +734,15 @@ function renderLobby(): void {
     box.append(el);
   }
   const n = playerCount();
-  const min = MIN_PLAYERS[mode];
+  const notReady = notReadyText(n, side, mode);
   $('lobbyLine').textContent = !n
     ? tr('等人进来……', 'Waiting for players…')
-    : n < min
-      ? tr(`${n} 个人。${modeName(mode)}至少要 ${min} 个人。`, `${n} ${n === 1 ? 'player' : 'players'}. ${modeName(mode)} needs at least ${min}.`)
+    : notReady
+      ? pickLang(notReady)
       : phoneMode
         ? tr(`${n} 个人，到齐了就开始。`, `${n} ${n === 1 ? 'player' : 'players'}. Start when everyone is in.`)
         : tr(`${n} 个人，到齐了谁的手机上按「开始」都行。`, `${n} ${n === 1 ? 'player' : 'players'}. When everyone is in, anyone can press Start on their phone.`);
-  $<HTMLButtonElement>('startBtn').disabled = n < Math.max(1, min) || !link?.socketOpen;
+  $<HTMLButtonElement>('startBtn').disabled = !canStart();
   // 这台设备上自己玩的人换道具：点一下换下一样
   const ib = $<HTMLButtonElement>('itemBtn');
   ib.hidden = !localOn() || !items;
@@ -955,16 +1015,19 @@ let cmdLockUntil = 0;
 
 function canStart(): boolean {
   const n = playerCount();
-  return n >= Math.max(1, MIN_PLAYERS[mode]) && !!link?.socketOpen;
+  return n >= minPlayers(side, mode) && n <= maxPlayers(side) && !!link?.socketOpen;
 }
 
 function menuFor(): Menu {
-  const list = levelsFor(mode);
+  const list = listNow();
   return {
     phase,
+    side,
     mode,
-    modes: MODES.filter((m) => m !== 'team' || TEAM_LEVELS.length > 0),
+    modes: modesNow(),
     teams: teamsOn,
+    tier,
+    tiered: tiered(mode),
     level: {
       n: levelIndex + 1,
       of: list.length,
@@ -974,9 +1037,9 @@ function menuFor(): Menu {
       ...(mode === 'climb' || mode === 'team' ? { stars: starLine(starsOf(level.id), goalTargets(level, Math.max(1, playerCount())).map((g) => g.key)) } : {}),
     },
     players: playerCount(),
-    min: MIN_PLAYERS[mode],
+    min: minPlayers(side, mode),
     canStart: canStart(),
-    hasNext: levelIndex < list.length - 1,
+    hasNext: hasNext(),
     ...(phase === 'results'
       ? { results: fullResults(), names: sim.players.map((p, i) => ({ name: name(i), color: p.color })), ...(level.par ? { par: level.par.seconds } : {}) }
       : {}),
@@ -997,8 +1060,8 @@ function runCmd(c: PadCmd): void {
       link?.act({ type: 'START' });
       break;
     case 'next':
-      if (phase !== 'results' || levelIndex >= levelsFor(mode).length - 1) return;
-      pickLevel(levelIndex + 1);
+      if (phase !== 'results' || !hasNext()) return;
+      goNext();
       link?.act({ type: 'START' });
       break;
     case 'lobby':
@@ -1011,10 +1074,25 @@ function runCmd(c: PadCmd): void {
       pickLevel(levelIndex + c.d);
       break;
     case 'mode':
-      if (phase !== 'lobby' || !MODES.includes(c.mode) || (c.mode === 'team' && !TEAM_LEVELS.length)) return;
+      if (phase !== 'lobby' || !modesNow().includes(c.mode)) return;
       sfx.tick();
+      sideAuto = false;
       setMode(c.mode);
       break;
+    case 'side': {
+      const s = cleanSide(c.side);
+      if (phase !== 'lobby' || !s) return;
+      sfx.tick();
+      setSide(s);
+      break;
+    }
+    case 'tier': {
+      const t = cleanTier(c.tier);
+      if (phase !== 'lobby' || t === null) return;
+      sfx.tick();
+      setTier(t);
+      break;
+    }
     case 'teams':
       if (phase !== 'lobby') return;
       sfx.tick();
@@ -1130,7 +1208,15 @@ requestAnimationFrame(frame);
   sfx,
   CFG,
   get LEVELS() {
-    return levelsFor(mode);
+    return listNow();
+  },
+  setSide,
+  setTier,
+  get side() {
+    return side;
+  },
+  get tier() {
+    return tier;
   },
   phoneMode,
   /** 手机局房主的触屏输入（检查脚本直接改它，像在屏幕上按）。 */

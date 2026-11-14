@@ -13,6 +13,7 @@ import type { Goal } from '../goals';
 import type { ItemId } from '../items';
 import type { Look } from '../look';
 import type { GameMode, PadInput, SimEvent } from '../physics/world';
+import type { Side, Tier } from '../sides';
 
 export type { PadInput };
 
@@ -178,16 +179,23 @@ export type PadCmd =
   | { do: 'lobby' }
   | { do: 'level'; d: -1 | 1 }
   | { do: 'mode'; mode: GameMode }
-  | { do: 'teams'; on: boolean };
+  | { do: 'teams'; on: boolean }
+  | { do: 'side'; side: Side }
+  | { do: 'tier'; tier: Tier };
 
 /** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
 export interface Menu {
   phase: Phase;
+  /** 单人还是多人（11-13）。 */
+  side: Side;
   mode: GameMode;
   /** 大厅里能选的玩法（大团队有大关才有）。 */
   modes: GameMode[];
   /** 比谁先分两队。 */
   teams: boolean;
+  /** 难度（简单、中等、困难）；这个玩法分不分难度（闯关、比谁先分）。 */
+  tier: Tier;
+  tiered: boolean;
   /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）；闯关、大团队带这关拿到过的星（「★★☆」）。 */
   level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string }; stars?: string };
   players: number;

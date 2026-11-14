@@ -8,7 +8,8 @@
 import { PadLink, seatId } from '../net/pad-link';
 import { rttLevel } from '../net/latency';
 import { CODE_RE, type Cast, type FatalKey, type Menu, type PadCmd, type PadStatus, type RoomView } from '../net/protocol';
-import { modeName } from '../mode-text';
+import { modeLabel, notReadyText, sideName, tierName } from '../mode-text';
+import { SIDES, TIERS } from '../sides';
 import { renderResults, type ResultsDom } from '../results';
 import type { PhoneView } from './view';
 import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
@@ -397,22 +398,31 @@ function renderMenu(): void {
   $('backBtn').hidden = !m || (m.phase !== 'countdown' && m.phase !== 'playing');
   if (!m) return;
   if (lobby) {
+    // 先选单人还是多人（11-13），多人再选玩法，闯关、比谁先最后选难度
+    const sides = $('mSides');
+    sides.innerHTML = '';
+    for (const s of SIDES) radio(sides, sideName(s), s === m.side, () => send({ do: 'side', side: s }));
+    $('mModeRow').hidden = m.side !== 'multi';
     const modes = $('mModes');
     modes.innerHTML = '';
-    for (const mo of m.modes) radio(modes, modeName(mo), mo === m.mode, () => send({ do: 'mode', mode: mo }));
+    for (const mo of m.modes) radio(modes, modeLabel(mo, m.side), mo === m.mode, () => send({ do: 'mode', mode: mo }));
     const teams = $('mTeams');
     teams.hidden = m.mode !== 'race';
     teams.innerHTML = '';
     radio(teams, tr('各跑各的', 'Free for all'), !m.teams, () => send({ do: 'teams', on: false }));
     radio(teams, tr('甜队对咸队', 'Sweet vs Savory'), m.teams, () => send({ do: 'teams', on: true }));
+    $('mTierRow').hidden = !m.tiered;
+    const tiers = $('mTiers');
+    tiers.innerHTML = '';
+    for (const t of TIERS) radio(tiers, tierName(t), t === m.tier, () => send({ do: 'tier', tier: t }));
     $('mLevel').textContent = `${m.level.n}. ${pickLang(m.level.name)}${m.level.stars ? ` ${m.level.stars}` : ''}`;
     $('mTeach').textContent = pickLang(m.level.teach);
     $<HTMLButtonElement>('mPrev').disabled = m.level.n <= 1;
     $<HTMLButtonElement>('mNext').disabled = m.level.n >= m.level.of;
-    $('mLine').textContent =
-      m.players < m.min
-        ? tr(`${m.players} 个人。${modeName(m.mode)}至少要 ${m.min} 个人。`, `${m.players} ${m.players === 1 ? 'player' : 'players'}. ${modeName(m.mode)} needs at least ${m.min}.`)
-        : tr(`${m.players} 个人，谁按开始都行。`, `${m.players} ${m.players === 1 ? 'player' : 'players'}. Anyone can press Start.`);
+    const notReady = notReadyText(m.players, m.side, m.mode);
+    $('mLine').textContent = notReady
+      ? pickLang(notReady)
+      : tr(`${m.players} 个人，谁按开始都行。`, `${m.players} ${m.players === 1 ? 'player' : 'players'}. Anyone can press Start.`);
     $<HTMLButtonElement>('mStart').disabled = !m.canStart;
   }
   const names = m.names ?? [];
