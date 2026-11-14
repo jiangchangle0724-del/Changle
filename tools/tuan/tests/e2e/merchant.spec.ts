@@ -383,7 +383,8 @@ test("the orders download as a spreadsheet; in WeChat, which can't save files, t
   const page = await phone(browser, { session: SESSION.leader });
   await page.goto(`/tuan/my/t/${id}`);
   const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "导出表格" }).click()]);
-  expect(file.suggestedFilename()).toMatch(/^本周大米团 · 周五到货 订单 \d{4}-\d{2}-\d{2}\.csv$/);
+  // (some browsers save spaces in a file's name as underscores)
+  expect(file.suggestedFilename()).toMatch(/^本周大米团[ _]·[ _]周五到货[ _]订单[ _]\d{4}-\d{2}-\d{2}\.csv$/);
   const bytes = await readFile(await file.path());
   expect([...bytes.subarray(0, 3)], "it starts with the mark that tells Excel it's UTF-8").toEqual([0xef, 0xbb, 0xbf]);
   const rows = bytes.toString("utf8").slice(1).split("\r\n");
@@ -399,7 +400,7 @@ test("the orders download as a spreadsheet; in WeChat, which can't save files, t
   await page.evaluate(() => localStorage.setItem("tuan.lang", "en"));
   await page.reload();
   const [english] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export to a spreadsheet" }).click()]);
-  expect(english.suggestedFilename()).toMatch(/ orders \d{4}-\d{2}-\d{2}\.csv$/);
+  expect(english.suggestedFilename()).toMatch(/[ _]orders[ _]\d{4}-\d{2}-\d{2}\.csv$/);
   expect((await readFile(await english.path(), "utf8")).split("\r\n")[1]).toMatch(/^1,[2-9A-HJKMNP-Z]{6},To confirm,王阿姨,604-555-0134,,Pickup,温哥华西区,,,五常大米 10kg,bag,38\.00,/);
 
   // in WeChat: no file, but where to get it
