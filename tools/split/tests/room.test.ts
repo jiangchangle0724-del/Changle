@@ -1,10 +1,12 @@
 // One ledger's room: who may open it, that changes are taken in order and once, the record of
-// them, and that it all survives a restart. (What a change does is tested with the phone's own
-// rules: site/tests/split-changes.test.ts.)
+// them, that it all survives a restart, and that its owner can delete it. Then one account's list
+// of ledgers. (What a change does is tested with the phone's own rules:
+// site/tests/split-changes.test.ts.)
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
 import type { Expense } from "../../../site/src/split/core";
+import { AccountRoom, MAX_MINE, memoryAccountStore } from "../src/room/account";
 import { LedgerRoom, MAX_BATCH, MAX_SENT, memoryStore } from "../src/room/ledger";
 
 const NOW = Date.UTC(2026, 10, 13, 19, 0);
@@ -270,4 +272,60 @@ test("a locked ledger with its key changed: both hold", () => {
   assert.ok(done.ok && done.ledger.locked === NOW + 1 && done.seq === 1);
   assert.deepEqual(room.push("key2", [expense("e1")], NOW + 2), { ok: false, error: "locked" });
   assert.deepEqual(room.push("key", [expense("e1")], NOW + 2), { ok: false, error: "key" }, "the wrong key is told that, not that the ledger is locked");
+});
+
+test("the owner deletes the ledger: it is gone for everyone, and its id isn't made again", () => {
+  const { room, store } = make({ ownerHash: "owner" });
+  room.push("key", [expense("e1")], NOW + 1);
+  room.lock("owner", true, NOW + 2);
+  for (const who of ["key", "wrong", null]) assert.deepEqual(room.wipe(who, NOW + 3), { ok: false, error: "owner" }, `not by ${who ?? "nobody"}`);
+  assert.ok(room.read("key").ok, "(still there)");
+
+  assert.deepEqual(room.wipe("owner", NOW + 3), { ok: true }, "the owner deletes it, locked or not");
+  assert.deepEqual([store.load(), store.ids.size, store.log.length, store.buried()], [null, 0, 0, NOW + 3], "nothing of it is kept but when it went");
+  for (const got of [room.read("key"), room.push("key", [expense("e2")], NOW + 4), room.since("key", 0), room.lock("owner", false, NOW + 4), room.rekey("owner", "next"), room.wipe("owner", NOW + 4)]) {
+    assert.deepEqual(got, { ok: false, error: "gone" }, "it is gone: to its key, its owner's key, and a second delete");
+  }
+  assert.equal(room.snapshot(), null);
+  assert.deepEqual(room.create({ ...asked, now: NOW + 5 }), { ok: false, error: "gone" }, "made again with its own key: no, it is gone");
+  assert.deepEqual(room.create({ ...asked, keyHash: "another", now: NOW + 5 }), { ok: false, error: "gone" }, "nor with another: the phones that had it would open a stranger's ledger");
+  const woken = new LedgerRoom(store);
+  assert.deepEqual([woken.snapshot(), woken.read("key"), woken.create({ ...asked, now: NOW + 6 })], [null, { ok: false, error: "gone" }, { ok: false, error: "gone" }], "the same after a restart");
+
+  const { room: ownerless } = make();
+  assert.deepEqual(ownerless.wipe(null, NOW + 1), { ok: false, error: "owner" }, "a ledger with no owner can't be deleted by anyone");
+});
+
+test("an account's ledgers: kept with their keys, brought up to date, taken off", () => {
+  const store = memoryAccountStore();
+  const account = new AccountRoom(store);
+  assert.deepEqual(account.list(), []);
+  const first = account.keep({ id: "ledger-0001", key: "k1", owner: "o1", me: "s", now: NOW });
+  assert.deepEqual(first, { ok: true, mine: { id: "ledger-0001", key: "k1", owner: "o1", me: "s", at: NOW } }, "one they started: its key, the owner's key, and who they are in it");
+  account.keep({ id: "ledger-0002", key: "k2", me: "w", now: NOW + 1 });
+  assert.deepEqual(account.list().map((m) => m.id), ["ledger-0002", "ledger-0001"], "the last one kept first");
+
+  const rekeyed = account.keep({ id: "ledger-0001", key: "k1b", now: NOW + 2 });
+  assert.deepEqual(rekeyed, { ok: true, mine: { id: "ledger-0001", key: "k1b", owner: "o1", me: "s", at: NOW } }, "a new key replaces the old; what wasn't said stays, and so does when it was first kept");
+  assert.deepEqual(account.list().map((m) => m.id), ["ledger-0002", "ledger-0001"], "and it keeps its place");
+  assert.equal(account.keep({ id: "ledger-0001", key: "k1b", owner: null, now: NOW + 3 }).ok && store.get("ledger-0001")?.owner, "o1", "a phone without the owner's key doesn't take it from the others");
+  assert.deepEqual(account.keep({ id: "ledger-0001", key: "k1b", me: null, now: NOW + 3 }), { ok: true, mine: { id: "ledger-0001", key: "k1b", owner: "o1", at: NOW } }, "null takes away who they are (just looking, or taken out of it)");
+  assert.equal((account.keep({ id: "ledger-0001", key: "k1b", me: "m", now: NOW + 3 }) as { mine: { me?: string } }).mine.me, "m", "and they can be someone again");
+
+  account.drop("ledger-0002");
+  account.drop("ledger-0002");
+  assert.deepEqual(account.list().map((m) => m.id), ["ledger-0001"], "taken off (twice is once)");
+
+  for (let i = account.list().length; i < MAX_MINE; i++) assert.ok(account.keep({ id: `l-${i}`, key: "k", now: NOW }).ok);
+  assert.deepEqual(account.keep({ id: "one-more", key: "k", now: NOW }), { ok: false, error: "full" }, `an account keeps at most ${MAX_MINE}`);
+  assert.ok(account.keep({ id: "ledger-0001", key: "k1c", now: NOW }).ok, "one already kept is still brought up to date");
+});
+
+test("an account starts at most so many ledgers a day", () => {
+  const store = memoryAccountStore();
+  const account = new AccountRoom(store);
+  const day = (n: number) => Array.from({ length: n }, () => account.take("2026-11-14", 3));
+  assert.deepEqual(day(4), [true, true, true, false], "three, and no fourth");
+  assert.equal(account.take("2026-11-15", 3), true, "the next day, again");
+  assert.deepEqual([...store.days.keys()], ["2026-11-15"], "the day before is forgotten");
 });
