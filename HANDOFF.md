@@ -175,8 +175,11 @@ a D1 database, like 玩什么, and pages built like 约时间's; its brief is `d
 (`tools/split`, changle.ca/split/api; its pages are the site's own, `site/src/split`, with no card yet) is a
 Worker with one Durable Object per ledger; its brief is `docs/briefs/split.md`. Tools
 without a Worker of their own (exchange rates, world clock, unit price) live in `site/src/tools/`;
-the rates come from the rooms server's `/api/fx` (`site/worker/index.ts`), with open.er-api.com as
-the browser's fallback. Their brief: `docs/briefs/tools.md`.
+each is an amber card on the Tools tab that opens its page inside the site, /tools/<id>
+(`ToolPage.tsx`, under the games' header). A new one: its id and names in `tools/ids.ts`, its card's
+line in `ToolsTab.tsx`, its screen in `ToolPage.tsx`, and its share description in
+`scripts/postbuild.ts`. The rates come from the rooms server's `/api/fx` (`site/worker/index.ts`),
+with open.er-api.com as the browser's fallback. Their brief: `docs/briefs/tools.md`.
 
 ## Settings (names only, never the values)
 
