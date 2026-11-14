@@ -1,0 +1,271 @@
+{
+  "id": "space-47",
+  "world": "space",
+  "name": {
+    "zh": "货舱双闸",
+    "en": "Cargo Twin Locks"
+  },
+  "tier": 2,
+  "teaches": "lever",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 556
+  },
+  "goal": {
+    "x": 2300,
+    "y": 420,
+    "w": 240,
+    "h": 180
+  },
+  "checkpoints": [
+    {
+      "x": 1190,
+      "y": 556
+    },
+    {
+      "x": 1830,
+      "y": 556
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 886,
+      "y": 547
+    },
+    {
+      "x": 1618,
+      "y": 469
+    },
+    {
+      "x": 2041,
+      "y": 540
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 600,
+      "w": 430,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 900,
+      "y": 600,
+      "w": 460,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1800,
+      "y": 600,
+      "w": 760,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 500,
+      "y": 450,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 710,
+      "y": 390,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 1430,
+      "y": 430,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 1620,
+      "y": 660,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 1040,
+      "y": 0,
+      "w": 36,
+      "h": 200,
+      "kind": "wall",
+      "material": "hull"
+    },
+    {
+      "x": 1960,
+      "y": 0,
+      "w": 36,
+      "h": 200,
+      "kind": "wall",
+      "material": "hull"
+    },
+    {
+      "x": 550,
+      "y": 600,
+      "w": 130,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1440,
+      "y": 600,
+      "w": 130,
+      "h": 120,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1680,
+      "y": 430,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    }
+  ],
+  "zerog": [
+    {
+      "x": 360,
+      "y": 100,
+      "w": 590,
+      "h": 760
+    },
+    {
+      "x": 1310,
+      "y": 100,
+      "w": 540,
+      "h": 760
+    }
+  ],
+  "levers": [
+    {
+      "x": 600,
+      "y": 520,
+      "opens": "cargo"
+    },
+    {
+      "x": 960,
+      "y": 520,
+      "opens": "cargo"
+    },
+    {
+      "x": 1490,
+      "y": 520,
+      "opens": "control"
+    },
+    {
+      "x": 1860,
+      "y": 520,
+      "opens": "control"
+    }
+  ],
+  "gates": [
+    {
+      "id": "cargo",
+      "x": 1040,
+      "y": 200,
+      "w": 36,
+      "h": 400,
+      "move": {
+        "x": 0,
+        "y": -200
+      },
+      "all": true,
+      "hold": 12,
+      "speed": 400,
+      "grab": false
+    },
+    {
+      "id": "control",
+      "x": 1960,
+      "y": 200,
+      "w": 36,
+      "h": 400,
+      "move": {
+        "x": 0,
+        "y": -200
+      },
+      "all": true,
+      "hold": 12,
+      "speed": 400,
+      "grab": false
+    }
+  ],
+  "hazards": [
+    {
+      "x": 780,
+      "y": 250,
+      "w": 12,
+      "h": 150,
+      "kind": "zap"
+    },
+    {
+      "x": 480,
+      "y": 700,
+      "w": 60,
+      "h": 20,
+      "kind": "spike"
+    },
+    {
+      "x": 1580,
+      "y": 370,
+      "w": 70,
+      "h": 18,
+      "kind": "hot"
+    },
+    {
+      "x": 2230,
+      "y": 400,
+      "w": 60,
+      "h": 18,
+      "kind": "spike"
+    }
+  ],
+  "movers": [
+    {
+      "x": 1670,
+      "y": 270,
+      "w": 80,
+      "h": 16,
+      "path": [
+        {
+          "x": 1770,
+          "y": 270
+        }
+      ],
+      "speed": 45,
+      "material": "metal",
+      "deadly": true,
+      "hazard": "zap"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "deathY": 900,
+  "par": {
+    "seconds": 110,
+    "deathsPerPlayer": 8
+  },
+  "replay": "replays/space-47.json"
+}
