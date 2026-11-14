@@ -207,6 +207,117 @@
     stroke-opacity: 0;
   }
 }
+/* The spaces a question in play is about (ui/aim.ts, RoundBoard AimMarks): where it would take the
+   token. The space glows gold under what's on it, and round it a bright edge with a glow off it; they
+   breathe three times as the question comes, then hold lit (a light that never stops keeps a phone
+   drawing), and a ring spreads from the space each breath. The one asked about most (`main`) is the
+   brightest. A dashed path runs to it from the token, its dashes marching toward it, over a dark shade
+   so it shows over the map too. */
+.roundboard .aim {
+  pointer-events: none;
+  animation: aim-in 0.35s ease-out both;
+}
+.roundboard .aim-glow {
+  --o: 0.24;
+  --hi: 0.5;
+  fill: var(--coin-hi);
+  opacity: var(--o);
+  pointer-events: none;
+  animation: aim-breathe 1.2s ease-in-out 3;
+}
+.roundboard .aim-halo {
+  --o: 0.2;
+  --hi: 0.55;
+  fill: none;
+  stroke: var(--coin-hi);
+  stroke-width: 22;
+  stroke-linejoin: round;
+  opacity: var(--o);
+  animation: aim-breathe 1.2s ease-in-out 3;
+}
+.roundboard .aim-edge {
+  fill: none;
+  stroke: var(--lamp);
+  stroke-width: 5;
+  stroke-linejoin: round;
+  opacity: 0.75;
+}
+.roundboard .aim-glow.main {
+  --o: 0.34;
+  --hi: 0.68;
+}
+.roundboard .aim-sp.main .aim-halo {
+  --o: 0.32;
+  --hi: 0.8;
+}
+.roundboard .aim-sp.main .aim-edge {
+  stroke-width: 7;
+  opacity: 1;
+}
+.roundboard .aim-ring {
+  fill: none;
+  stroke: var(--coin-hi);
+  stroke-width: 5;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: aim-ring 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) 3;
+}
+.roundboard .aim-sp:not(.main) .aim-ring {
+  display: none;
+}
+.roundboard .aim-shade {
+  fill: none;
+  stroke: var(--night-shade);
+  stroke-width: 14;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+.roundboard .aim-path {
+  fill: none;
+  stroke: var(--lamp);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 16 14;
+  animation: aim-march 0.8s linear 5;
+}
+.roundboard .aim-head {
+  fill: var(--lamp);
+  stroke: var(--night-shade);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+@keyframes aim-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes aim-breathe {
+  0%,
+  100% {
+    opacity: var(--o);
+  }
+  50% {
+    opacity: var(--hi);
+  }
+}
+@keyframes aim-ring {
+  from {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes aim-march {
+  to {
+    stroke-dashoffset: -30;
+  }
+}
 /* On a dark board the tokens get the characters' paper edge (--face-edge, styles.css). */
 .roundboard .token .react {
   filter: var(--face-edge, none);
@@ -1354,6 +1465,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .roundboard .aim,
+  .roundboard .aim *,
+  .roundboard .aim-glow,
   .roundboard .token.now > .hop,
   .roundboard .pop,
   .roundboard .stamp-in,
