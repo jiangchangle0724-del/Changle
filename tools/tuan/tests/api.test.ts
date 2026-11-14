@@ -3,7 +3,7 @@
 // Every test starts its own shop and group buy, and comes from a network of its own.
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type OfferPage, type OrderPage } from "../src/api";
+import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
 import { makeCode } from "../src/engine/ids";
 import { ORDERS_PER_PHONE } from "../src/engine/order";
 import { vancouverDay } from "../src/engine/time";
@@ -425,6 +425,56 @@ describe("opening and closing", () => {
     expect((await send({ items: [{ name: "米", price: 100 }, { name: "肉", price: 1.5 }] })).data).toEqual({ error: "item", at: 1 });
     expect(said(await send({ points: [], rules: [] }))).toBe("400 places");
     expect(said(await post("/my/shops/no-such-shop/offers", offerDoc(Date.now() + DAY), { session: SESSION.leader }))).toBe("404 notfound");
+  });
+});
+
+describe("a shop's own page", () => {
+  it("shows who the shop is and its group buys, the one that closes last first; no drafts", async () => {
+    const at = await start();
+    await post(`/my/offers/${at.id}`, { do: "close" }, { session: SESSION.leader });
+    const later = await post<Made>(`/my/shops/${at.slug}/offers`, { ...offerDoc(Date.now() + 3 * DAY), title: "下周的团" }, { session: SESSION.leader });
+    const draft = await post<Made>(`/my/shops/${at.slug}/offers`, { ...offerDoc(Date.now() + 5 * DAY), title: "还在写的团", open: false }, { session: SESSION.leader });
+    expect(said(draft)).toBe("ok");
+    const shop = await get<ShopPage>(`/shops/${at.slug}`);
+    expect(said(shop)).toBe("ok");
+    expect(shop.data.shop).toEqual({ slug: at.slug, name: "大米团（测试）", kind: "leader", about: "", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com\n备注订单号", permit: "" });
+    expect(shop.data.offers.map((one) => [one.id, one.title, one.state])).toEqual([[later.data.id, "下周的团", "open"], [at.id, "本周大米团 · 周五到货", "closed"]]);
+    // nothing about orders or buyers
+    expect(Object.keys(shop.data.offers[0]).sort()).toEqual(["closesAt", "id", "state", "title"]);
+    expect(said(await get(`/shops/no-such-shop`))).toBe("404 notfound");
+    expect(said(await get(`/shops/Not%20A%20Shop`))).toBe("404 notfound");
+  });
+
+  it("isn't there while the shop waits to be let in, and says so while it's paused", async () => {
+    const at = await start();
+    await env.DB.prepare("UPDATE shops SET status = 'pending' WHERE slug = ?").bind(at.slug).run();
+    expect(said(await get(`/shops/${at.slug}`))).toBe("404 notfound");
+    await env.DB.prepare("UPDATE shops SET status = 'paused' WHERE slug = ?").bind(at.slug).run();
+    expect((await get<ShopPage>(`/shops/${at.slug}`)).data.offers.map((one) => one.state)).toEqual(["paused"]);
+  });
+
+  it("is the shop's own people's to change, and the site's owner's: not its address, who runs it, or whether it's live", async () => {
+    const at = await start();
+    const mine = await get<MyShopPage>(`/my/shops/${at.slug}`, { session: SESSION.leader });
+    expect(mine.data).toEqual({ shop: { slug: at.slug, name: "大米团（测试）", kind: "leader", about: "", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com\n备注订单号", permit: "" }, status: "live" });
+    const words = { name: "  大米团  ", kind: "farm", about: "每周一团。\n周五到货。", contact: "微信 rice-2", pay: "现金或 e-Transfer", permit: "Fraser Health 许可 FH-0001", slug: "taken-over", members: ["visitor@example.com"], status: "paused" };
+    const saved = await post<MyShopPage>(`/my/shops/${at.slug}`, words, { session: SESSION.leader });
+    expect(saved.data).toEqual({ shop: { slug: at.slug, name: "大米团", kind: "farm", about: "每周一团。\n周五到货。", contact: "微信 rice-2", pay: "现金或 e-Transfer", permit: "Fraser Health 许可 FH-0001" }, status: "live" });
+    expect((await get<ShopPage>(`/shops/${at.slug}`)).data.shop.permit).toBe("Fraser Health 许可 FH-0001");
+    // still run by the same people
+    expect(said(await get(`/my/shops/${at.slug}`, { session: SESSION.leader }))).toBe("ok");
+    expect(said(await get(`/my/shops/${at.slug}`, { session: SESSION.visitor }))).toBe("403 forbidden");
+    // the group buy shows the shop as it now says
+    expect((await page(at)).shop).toMatchObject({ name: "大米团", kind: "farm", permit: "Fraser Health 许可 FH-0001" });
+    expect(said(await post(`/my/shops/${at.slug}`, { ...words, name: " " }, { session: SESSION.leader }))).toBe("400 name");
+    expect(said(await post(`/my/shops/${at.slug}`, { ...words, kind: "factory" }, { session: SESSION.leader }))).toBe("400 bad");
+    expect(said(await post(`/my/shops/${at.slug}`, "not a shop", { session: SESSION.leader }))).toBe("400 bad");
+    expect(said(await post(`/my/shops/${at.slug}`, words, { session: SESSION.visitor }))).toBe("403 forbidden");
+    expect(said(await post(`/my/shops/${at.slug}`, words))).toBe("401 signin");
+    expect(said(await post(`/my/shops/no-such-shop`, words, { session: SESSION.leader }))).toBe("404 notfound");
+    expect(said(await post(`/my/shops/${at.slug}`, words, { session: SESSION.leader, origin: "https://elsewhere.example" }))).toBe("403 forbidden");
+    expect(said(await post(`/my/shops/${at.slug}`, { ...words, name: "站长改的" }, { session: SESSION.owner }))).toBe("ok");
+    expect((await get<ShopPage>(`/shops/${at.slug}`)).data.shop.name).toBe("站长改的");
   });
 });
 
@@ -854,8 +904,14 @@ describe("the pages", () => {
     expect(real.html).not.toContain("本周大米团");
     expect(real.html).not.toContain(mine.code);
     expect(titleOf(real.html)).toBe("跟一单 · Count Me In");
-    // changing a group buy and starting one are the same page again
-    for (const path of [`/tuan/my/t/${at.id}/edit`, "/tuan/my/t/zzzz9999/edit", `/tuan/my/new/${at.slug}`, "/tuan/my/new/no-such-shop"]) {
+    // a shop's page: its name in the title; none for a shop that isn't there
+    const shopPage = await open(`/tuan/s/${at.slug}`);
+    expect(shopPage.status).toBe(200);
+    expect(titleOf(shopPage.html)).toBe("大米团（测试） · 跟一单 Count Me In");
+    expect((await open("/tuan/s/no-such-shop")).status).toBe(404);
+    expect((await open("/tuan/s/Not%20A%20Shop")).status).toBe(404);
+    // changing a group buy, starting one, and what a shop says about itself are the same page again
+    for (const path of [`/tuan/my/t/${at.id}/edit`, "/tuan/my/t/zzzz9999/edit", `/tuan/my/new/${at.slug}`, "/tuan/my/new/no-such-shop", `/tuan/my/s/${at.slug}`, "/tuan/my/s/no-such-shop"]) {
       const res = await open(path);
       expect([path, res.status, res.html === real.html]).toEqual([path, 200, true]);
     }

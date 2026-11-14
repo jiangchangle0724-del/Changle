@@ -41,7 +41,7 @@ async function page(js, cssName, preload = []) {
 }
 
 /** The merchant's pages: none may be in what a buyer downloads. */
-const MERCHANT = ["src/client/my.tsx", "src/client/i18n-my.ts", "src/client/ui/My.tsx", "src/client/ui/MyOffer.tsx", "src/client/ui/Editor.tsx", "src/client/ui/Owner.tsx", "src/client/ui/sheets.ts"];
+const MERCHANT = ["src/client/my.tsx", "src/client/i18n-my.ts", "src/client/ui/My.tsx", "src/client/ui/MyOffer.tsx", "src/client/ui/Editor.tsx", "src/client/ui/Owner.tsx", "src/client/ui/ShopEdit.tsx", "src/client/ui/sheets.ts"];
 
 /** The files a script brings in before it runs: itself, and what it imports (not what it may import later). */
 function closure(outputs, file, seen = new Set()) {

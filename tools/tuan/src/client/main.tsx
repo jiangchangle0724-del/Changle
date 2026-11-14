@@ -2,14 +2,16 @@
 //   /tuan/ and /tuan/preview     home: how it works, and the orders placed from this phone
 //   /tuan/t/<group buy>          a group buy: pick, check out (…?change=<order> changes that order)
 //   /tuan/o/<order code>         an order
+//   /tuan/s/<shop>               a shop: who they are, and their group buys
 // and a merchant's (/tuan/my…) in one of their own, src/client/my.tsx, loaded only for them.
 import { render } from "preact";
 import { BASE } from "../base";
-import { OFFER_RE, ORDER_RE, tidyOrderCode } from "../engine/ids";
+import { OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
 import { t } from "./i18n";
 import { Home, NotFound } from "./ui/Home";
 import { OfferView } from "./ui/Offer";
 import { OrderView } from "./ui/Order";
+import { ShopView } from "./ui/Shop";
 
 const parts = location.pathname
   .slice(BASE.length)
@@ -36,6 +38,7 @@ function Page() {
     return <OfferView offerId={b} changeCode={ORDER_RE.test(change) ? change : null} />;
   }
   if (parts.length === 2 && a === "o" && ORDER_RE.test(tidyOrderCode(b))) return <OrderView code={tidyOrderCode(b)} fresh={query.get("new") === "1"} />;
+  if (parts.length === 2 && a === "s" && SLUG_RE.test(b)) return <ShopView slug={b} />;
   return <NotFound />;
 }
 
