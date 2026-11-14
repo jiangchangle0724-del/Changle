@@ -113,7 +113,7 @@ const words = Object.fromEntries(
 const client = (path) => read(`../src/client/${path}`);
 const uiFiles = readdirSync(here("../src/client/ui/"));
 /** The files of a buyer's pages: what src/client/main.tsx brings in. The build checks the same from the other side (scripts/build.mjs). */
-const buyerFiles = ["main.tsx", "api.ts", "ui/Offer.tsx", "ui/Order.tsx", "ui/Home.tsx", "ui/common.tsx"];
+const buyerFiles = ["main.tsx", "api.ts", "ui/Offer.tsx", "ui/Order.tsx", "ui/Home.tsx", "ui/Shop.tsx", "ui/common.tsx"];
 
 test("every word a person reads is there in both languages", () => {
   for (const { lines } of Object.values(words)) {

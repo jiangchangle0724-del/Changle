@@ -8,6 +8,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { vancouverClock } from "../../src/engine/time.ts";
 import { SESSION } from "../accounts.ts";
+import { offerDoc } from "../sample.ts";
 import { catchCopies, copied, DAY, fits, offerOf, order, phone, putAway, start, WECHAT, word } from "./help.ts";
 
 test.afterEach(putAway);
@@ -376,6 +377,65 @@ test("the owner fills the forms from a file: a shop and its group buy in one go"
   await expect(shop.locator(".mine li")).toHaveCount(2);
 });
 
+test("a shop's own page: the merchant says who they are, and buyers see it, with the group buys taking orders and the earlier ones", async ({ browser, request }) => {
+  const { id, slug } = await start(request);
+  const page = await phone(browser, { session: SESSION.leader });
+  await page.goto("/tuan/my");
+  const shop = page.locator(".panel", { hasText: "大米团（测试）" }).first();
+  await shop.getByRole("link", { name: "店铺资料" }).click();
+  await expect(page).toHaveURL(new RegExp(`/tuan/my/s/${slug}$`));
+  await expect(page.locator('[name="shopname"]')).toHaveValue("大米团（测试）");
+  await expect(page.locator('[name="contact"]')).toHaveValue("微信 rice-test");
+  // a name is needed
+  await page.locator('[name="shopname"]').fill(" ");
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.locator(".problem")).toHaveText("这里要写。");
+  await page.locator('[name="shopname"]').fill("大米团");
+  await page.locator('[name="kind"]').selectOption("farm");
+  await page.locator('[name="about"]').fill("每周一团，周五到货。\n米面粮油和冷冻肉。");
+  await page.locator('[name="permit"]').fill("BC 农业部门许可 AG-2026-001");
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByText("存好了。")).toBeVisible();
+  await page.reload();
+  await expect(page.locator('[name="shopname"]')).toHaveValue("大米团");
+  await expect(page.locator('[name="kind"]')).toHaveValue("farm");
+
+  // a later group buy, and the first one closed
+  const later = await request.post(`/tuan/api/my/shops/${slug}/offers`, { headers: { authorization: `Bearer ${SESSION.leader}` }, data: { ...offerDoc(Date.now() + 3 * DAY), title: "下周的团" } });
+  expect(later.status()).toBe(201);
+  await request.post(`/tuan/api/my/offers/${id}`, { headers: { authorization: `Bearer ${SESSION.leader}` }, data: { do: "close" } });
+
+  // a buyer, from the group buy's page: the shop's name leads to its own page
+  const buyer = await phone(browser);
+  await buyer.goto(`/tuan/t/${(await later.json()).id}`);
+  await buyer.locator(".hero a.shop-name").click();
+  await expect(buyer).toHaveURL(new RegExp(`/tuan/s/${slug}$`));
+  await expect(buyer).toHaveTitle("大米团 · 跟一单");
+  await expect(buyer.locator(".hero h1")).toHaveText("大米团");
+  await expect(buyer.locator(".hero .shop-name")).toHaveText("农场");
+  await expect(buyer.locator(".hero .lines")).toHaveText("每周一团，周五到货。\n米面粮油和冷冻肉。");
+  // the permit is on the first screen
+  await expect(buyer.getByText("BC 农业部门许可 AG-2026-001")).toBeInViewport();
+  const taking = buyer.locator(".panel", { has: buyer.locator(".panel-title", { hasText: "正在接单" }) });
+  await expect(taking.locator("li")).toHaveCount(1);
+  await expect(taking.locator("li")).toContainText("下周的团");
+  const earlier = buyer.locator(".panel", { has: buyer.locator(".panel-title", { hasText: "开过的团" }) });
+  await expect(earlier.locator("li")).toHaveText([/本周大米团 · 周五到货\s*已截单/]);
+  await taking.getByRole("link", { name: /下周的团/ }).click();
+  await expect(buyer.locator(".hero h1")).toHaveText("下周的团");
+  // and from the shop's panel at the foot of a group buy's page
+  await buyer.getByRole("link", { name: "这家店的其他团" }).click();
+  await expect(buyer).toHaveURL(new RegExp(`/tuan/s/${slug}$`));
+  await buyer.goto("/tuan/s/no-such-shop");
+  await expect(buyer.locator(".empty h1")).toHaveText("没有这家店");
+
+  // only the shop's own people change it
+  const other = await phone(browser, { session: SESSION.visitor });
+  await other.goto(`/tuan/my/s/${slug}`);
+  await expect(other.locator(".empty p")).toHaveText("这个账号没有这家店。");
+  await expect(other.locator('[name="shopname"]')).toHaveCount(0);
+});
+
 test("the orders download as a spreadsheet; in WeChat, which can't save files, the page says where to do it", async ({ browser, request }) => {
   const { id } = await start(request);
   await order(request, id, { name: "王阿姨", phone: "604-555-0134" }, [["五常大米", 2000], ["手切羊肉片", 1500]]);
@@ -445,7 +505,7 @@ test("the merchant's pages come in a script of their own: a buyer never download
 });
 
 test("on a small phone: the merchant's pages fit, and everything to tap is big enough", async ({ browser, request }) => {
-  const { id } = await start(request, { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团" });
+  const { id, slug } = await start(request, { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团" });
   await threeOrders(request, id);
   const page = await phone(browser, { viewport: { width: 320, height: 568 }, session: SESSION.owner });
 
@@ -456,6 +516,12 @@ test("on a small phone: the merchant's pages fit, and everything to tap is big e
   await page.locator('.panel input[type="file"]').setInputFiles({ name: "import.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await expect(page.getByRole("button", { name: "建店并开团" })).toBeVisible();
   await fits(page, "the owner's panel with a file read in");
+  await page.goto(`/tuan/my/s/${slug}`);
+  await expect(page.locator('[name="shopname"]')).toBeVisible();
+  await fits(page, "what a shop says about itself");
+  await page.goto(`/tuan/s/${slug}`);
+  await expect(page.locator(".hero h1")).toBeVisible();
+  await fits(page, "a shop's own page");
   await page.goto(`/tuan/my/t/${id}`);
   await expect(page.locator(".order")).toHaveCount(3);
   await fits(page, "a group buy's orders");

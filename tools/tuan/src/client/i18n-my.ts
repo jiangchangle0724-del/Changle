@@ -193,6 +193,14 @@ export const MY_STRINGS = {
   ownerBadJson: { zh: "这不是合法的 JSON。", en: "That isn't valid JSON." },
   ownerErr: { zh: "没成：{why}", en: "It didn't go: {why}" },
 
+  // ---------- what a shop says about itself ----------
+  shopEditTitle: { zh: "店铺资料", en: "About the shop" },
+  shopViewPublic: { zh: "看店铺主页", en: "See the shop's page" },
+  shopPermitField: { zh: "许可（选填，买家看得到）", en: "Permit (optional, buyers see it)" },
+  shopPermitHint: { zh: "私厨和农场写上卫生局或农业部门给的许可号。", en: "Home kitchens and farms: the permit number the health or farm authority gave you." },
+  shopEditNote: { zh: "店铺地址和管店的账号要改的话，找站长。", en: "To change the shop's address or who runs it, ask the site's owner." },
+  shopSaved: { zh: "存好了。", en: "Saved." },
+
   // ---------- the orders as a spreadsheet ----------
   csvButton: { zh: "导出表格", en: "Export to a spreadsheet" },
   csvHeaders: { zh: "序号,订单号,状态,称呼,电话,微信,取货方式,自提点或送货区,地址,备注,商品,单位,单价,数量,实际重量,金额,运费,应收,已收款,已取货,下单时间", en: "No.,Code,Status,Name,Phone,WeChat,How,Place,Address,Note,Item,Unit,Price,Amount,Weighed,Comes to,Delivery,To collect,Paid,Handed over,Ordered" },

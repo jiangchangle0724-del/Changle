@@ -142,6 +142,14 @@ export function My() {
             <IconPlus size={18} />
             {t("editNew")}
           </a>
+          <div class="row">
+            <a class="btn btn-quiet btn-sm" href={`${BASE}/my/s/${shop.slug}`}>
+              {t("shopEditTitle")}
+            </a>
+            <a class="btn btn-quiet btn-sm" href={`${BASE}/s/${shop.slug}`}>
+              {t("shopViewPublic")}
+            </a>
+          </div>
         </section>
       ))}
 
