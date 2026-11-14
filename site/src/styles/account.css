@@ -215,6 +215,7 @@
 }
 .me-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -949,4 +950,61 @@ button.face-dot:disabled {
 button.tag {
   min-width: var(--tap);
   min-height: var(--tap);
+}
+
+/* ---------- the 3D figure's prototype (/me/figure) ---------- */
+.figure .fig-intro {
+  margin: var(--space-1) 0 var(--space-3);
+}
+.fig-stage {
+  position: relative;
+  height: min(56vh, 520px);
+  min-height: 300px;
+  border-radius: var(--r-tile);
+  background: radial-gradient(ellipse 80% 55% at 50% 88%, color-mix(in oklab, var(--light) 22%, var(--dusk)) 0%, var(--dusk) 60%, var(--night-2) 100%);
+  box-shadow: var(--shadow-flat);
+  overflow: hidden;
+}
+.fig-canvas {
+  position: absolute;
+  inset: 0;
+}
+.fig-canvas > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+  cursor: grab;
+}
+.fig-canvas > canvas:active {
+  cursor: grabbing;
+}
+.fig-wait {
+  position: absolute;
+  inset: 0;
+  padding: var(--pad-card);
+}
+.fig-wait .ui-skeleton-region,
+.fig-wait .ui-skeleton {
+  height: 100%;
+}
+.fig-stage > .ui-empty {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+}
+.fig-moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-3);
+}
+.fig-moves .chip {
+  min-height: var(--tap-crowded);
+}
+.fig-stats {
+  margin: 0 2px var(--space-2);
+}
+.fig-note {
+  margin: 0 2px;
 }

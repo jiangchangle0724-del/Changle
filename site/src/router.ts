@@ -6,7 +6,7 @@
  *   /tools/<tool>     a tool on its page                         of the game's own, 猜歌名's challenges)
  *                     (currency, clock, price)
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
- *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts
+ *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts (/me/figure: the 3D figure's prototype)
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
  *   /split, /split/<id>   两清: the ledgers on this phone, and one of them (not on the Tools tab yet)
  *   /settings, /login open that sheet over home (the address then goes back to /)
@@ -30,6 +30,7 @@ export type Route =
   | { kind: "tool"; id: ToolId }
   | { kind: "room"; code: string }
   | { kind: "me"; tab?: "friends" }
+  | { kind: "figure" }
   | { kind: "admin" }
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
@@ -86,6 +87,7 @@ export function parse(pathname: string, search = ""): Route {
   if ((m = new RegExp(`^/t/${TABLE}$`).exec(p))) return { kind: "room", code: m[1].toUpperCase() };
   if (p === "/me") return { kind: "me" };
   if (p === "/me/friends") return { kind: "me", tab: "friends" };
+  if (p === "/me/figure") return { kind: "figure" };
   if (p === "/admin") return { kind: "admin" };
   if ((m = new RegExp(`^/u/${USER}$`).exec(p))) return { kind: "user", id: m[1] };
   if ((m = new RegExp(`^/chat/${USER}$`).exec(p))) return { kind: "chat", id: m[1] };
@@ -115,6 +117,8 @@ export function pathOf(r: Route): string {
       return `/t/${r.code}`;
     case "me":
       return r.tab === "friends" ? "/me/friends" : "/me";
+    case "figure":
+      return "/me/figure";
     case "admin":
       return "/admin";
     case "user":
@@ -186,6 +190,8 @@ export function titleOf(r: Route, lang: Lang): string {
     case "me":
     case "admin":
       return named("我的", "Me");
+    case "figure":
+      return named("3D 小人", "3D figure");
     case "user":
       return named("主页", "Profile");
     case "chat":
