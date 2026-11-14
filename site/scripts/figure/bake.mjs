@@ -1,6 +1,6 @@
 // The written moves onto a model: the skeleton read as a Rig, the props' anchors added, each move
 // solved frame by frame into a glTF animation. build.mjs uses it; on its own, onto a plain .glb
-// (build.mjs --out x.glb makes one):  node bake.mjs <in.glb> <out.glb> [move names…]
+// (build.mjs --plain <folder> writes them):  node bake.mjs <in.glb> <out.glb> [move names…]
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
@@ -20,7 +20,8 @@ export function rigOf(doc) {
     } else n.listChildren().forEach((c) => walk(c, parent));
   };
   doc.getRoot().listScenes()[0].listChildren().forEach((c) => walk(c, null));
-  return new Rig(nodes);
+  // this figure's frames, if it says (human.mjs)
+  return new Rig(nodes, doc.getRoot().getDefaultScene()?.getExtras()?.frames ?? {});
 }
 
 /** Empty nodes for props to hang on: Grip_R and Grip_L in each palm (x along the fingers, y toward the thumb's side), Head_Anchor at the head (the character's own axes). */

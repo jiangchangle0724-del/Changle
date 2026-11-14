@@ -993,17 +993,98 @@ button.tag {
   inset: 0;
   justify-content: center;
 }
-.fig-group {
-  margin-top: var(--space-4);
+.fig-tabs {
+  margin-top: var(--space-3);
 }
-.fig-moves {
+.fig-moves,
+.fig-chips {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin: var(--space-2) 0 var(--space-3);
+  margin: var(--space-3) 0;
 }
-.fig-moves .chip {
+.fig-moves .chip,
+.fig-chips .chip {
   min-height: var(--tap-crowded);
+}
+/* sculpting: the body, which part, its sliders or swatches, random and reset */
+.fig-sculpt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+}
+.fig-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.fig-row .ui-tabs {
+  flex: 1;
+}
+.fig-label {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.fig-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.fig-part .fig-chips {
+  margin: 0 0 var(--space-2);
+}
+.fig-slider {
+  display: grid;
+  grid-template-columns: minmax(4.5em, 7em) 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-crowded);
+}
+.fig-slider > span {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.fig-slider input[type="range"] {
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+.fig-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.fig-swatch {
+  width: var(--tap-crowded);
+  height: var(--tap-crowded);
+  border: 0;
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-flat);
+  cursor: pointer;
+}
+.fig-swatch[aria-checked="true"] {
+  outline: 2px solid var(--color-text);
+  outline-offset: 3px;
+}
+.fig-swatch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.fig-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* while sculpting, the figure stays in sight above the sliders */
+.figure.is-sculpt .fig-stage {
+  position: sticky;
+  top: var(--safe-top);
+  z-index: 2;
+  height: min(40vh, 400px);
+  min-height: 240px;
 }
 .fig-stats {
   margin: 0 2px var(--space-2);

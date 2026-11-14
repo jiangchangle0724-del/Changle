@@ -1,17 +1,21 @@
 """
-The 3D figure's prototype (/me/figure, Steve on Nov 13: 先做小样), on a phone-sized browser.
+The 3D figure (/me/figure: Steve on Nov 13, 先做小样; Nov 14, 捏脸 on MakeHuman's human), on a
+phone-sized browser.
 
 This machine has no graphics chip (its browser draws WebGL in software), so the page is told to
 take any WebGL (window.__figAnyGl, dev builds only) and the figure comes on as it would on a phone.
 
 What it checks: untold, the page explains that this device can't draw 3D and never downloads
-three.js; told, the figure loads (gzipped) and draws (frames counted), the 26 moves are chips of
-at least 48 px in two groups (9 of ours, 17 borrowed), each one plays its own clip, our moves hold
-their props (sword, shades, phone, beer, headphones), the selfie flashes, sleep lies down before
-its Zzz float up, crying sheds tears; dragging sideways turns the figure, the stats line names the
-file's size and the engine's; in English too; the back button goes back; the owner's /me page has
-the link (needs the rooms server with MASTER_EMAIL=master@example.test in site/worker/.dev.vars,
-skipped when the server is down); no error is thrown in any page. Screenshots go to OUT.
+three.js; told, the man's figure loads (gzipped) and draws (frames counted); the 10 moves are chips
+of at least 48 px, each playing its own clip; they hold their props (sword, shades, phone, beer,
+headphones), the selfie flashes, sleep lies down before its Zzz float up with its eyes shut, crying
+sheds tears with a sad face, the heart smiles, standing blinks; dragging sideways turns it. Then
+捏脸: the camera comes up to the face, the sliders (face 11, eyes 8, nose 6, mouth 5, at least
+44 px) reshape it, the skin and hair colours tint it, a hairstyle comes from its own file, a buzz
+cut has none, the woman's body swaps in, random and reset work, and all of it is still there after
+a reload. In English too; the back button goes back; the owner's /me page has the link (needs
+the rooms server with MASTER_EMAIL=master@example.test in site/worker/.dev.vars, skipped when the
+server is down); no error is thrown in any page. Screenshots go to OUT.
 
 Needs the site's dev server (npm run dev, port 5173); the rooms server (port 8787) only for the
 last step.
@@ -74,7 +78,7 @@ def main():
         check(pg.evaluate("window.__figIs") == "software", f"the figure reports 'software' ({pg.evaluate('window.__figIs')})")
         pg.wait_for_timeout(800)
         check(not any("three" in u or ".glb" in u for u in pg._js), "three.js and the model were not downloaded")
-        check(pg.locator(".fig-moves .chip").count() == 26 and pg.locator(".fig-moves .chip:not(:disabled)").count() == 0, "the 26 moves are shown but off")
+        check(pg.locator(".fig-moves .chip").count() == 10 and pg.locator(".fig-moves .chip:not(:disabled)").count() == 0, "the 10 moves are shown but off")
         pg.screenshot(path=f"{OUT}/figure-no-gl.png")
         ctx.close()
 
@@ -87,7 +91,8 @@ def main():
         print(f"     the figure was on after {took:.1f}s (software rendering, a development build)")
         check(pg.locator(".fig-canvas canvas").count() == 1, "one canvas in the stage")
         check(pg.evaluate("document.title").startswith("3D 小人"), f"the tab is titled 3D 小人 ({pg.evaluate('document.title')})")
-        check(any(u.endswith("/models/figure.glb.gz") for u in pg._js), "the model came from /models/figure.glb.gz")
+        check(any(u.endswith("/models/figure/male.glb.gz") for u in pg._js), "the model came from /models/figure/male.glb.gz")
+        check(not any("/models/figure/hair/" in u for u in pg._js), "no other hairstyle came down yet")
         check(any("three" in u for u in pg._js), "three.js came down on this page")
         pg.wait_for_function("typeof window.__figFps === 'number' && window.__figFps > 0", timeout=20000)
         fps = pg.evaluate("window.__figFps")
@@ -102,14 +107,15 @@ def main():
 
         # the moves: chips, big enough, each playing its own clip
         chips = pg.locator(".fig-moves .chip")
-        check(chips.count() == 26, f"26 moves ({chips.count()})")
-        groups = pg.locator(".fig-group")
-        check(groups.count() == 2 and groups.nth(0).locator(".list-title").inner_text() == "我们编的" and groups.nth(0).locator(".chip").count() == 9, "two groups: 9 of ours first")
-        check(groups.nth(0).locator(".chip").all_inner_texts()[:4] == ["摆酷", "照相", "睡觉", "挥刀"], "Steve's four lead: 摆酷 照相 睡觉 挥刀")
+        check(chips.count() == 10, f"10 moves ({chips.count()})")
+        check(chips.all_inner_texts()[:5] == ["站着", "摆酷", "照相", "睡觉", "挥刀"], "站着, then Steve's four: 摆酷 照相 睡觉 挥刀")
         boxes = chips.evaluate_all("els => els.map(e => e.getBoundingClientRect().height)")
         check(all(h >= 48 for h in boxes), f"every move is at least 48 px tall (smallest {min(boxes):.0f})")
         check(pg.locator(".fig-moves .chip[aria-pressed='true']").inner_text() == "站着", "站着 is pressed at first")
         check(pg.evaluate("window.__figMove") == "stand", "the figure stands at first")
+        pg.evaluate("window.__figBlinks = 0")
+        pg.wait_for_function("window.__figBlinks >= 1", timeout=12000)
+        check(True, "standing, it blinks")
         played = []
         for i in range(chips.count()):
             label = chips.nth(i).inner_text()
@@ -117,12 +123,10 @@ def main():
             pg.wait_for_timeout(120)
             played.append((label, pg.evaluate("window.__figMove")))
         ids = [m for _, m in played]
-        check(len(set(ids)) == 26, f"each chip plays a clip of its own ({len(set(ids))} different)")
-        check(pg.locator(".fig-moves .chip[aria-pressed='true']").inner_text() == "跑步", "the last chip pressed is the pressed one")
-        pg.locator(".fig-moves .chip", has_text="跳舞").click()
-        pg.wait_for_timeout(1200)
-        check(pg.evaluate("window.__figMove") == "dance", "跳舞 plays the dance")
-        pg.screenshot(path=f"{OUT}/figure-dance.png")
+        check(len(set(ids)) == 10, f"each chip plays a clip of its own ({len(set(ids))} different)")
+        check(pg.locator(".fig-moves .chip[aria-pressed='true']").inner_text() == "抱拳", "the last chip pressed is the pressed one")
+        clips = [c[0] for c in pg.evaluate("window.__figClips")]
+        check(set(ids) <= set(clips) and "sleep_in" in clips, f"the file has every move's clip ({len(clips)} clips)")
 
         # our moves: what they hold, and what comes off them
         def tap(label, wait=700):
@@ -138,6 +142,8 @@ def main():
         check(pg.evaluate("window.__figHeld") == [], "比心 holds nothing: the headphones are put away")
         pg.wait_for_function("window.__figFloaters > 0", timeout=4000)
         check(True, "比心 sends hearts up")
+        pg.wait_for_function("window.__figFace.smile > 0.7", timeout=3000)
+        check(True, "比心 smiles")
         pg.evaluate("window.__figFlashes = 0")
         tap("照相", 0)
         pg.wait_for_function("window.__figFlashes >= 1", timeout=8000)
@@ -147,10 +153,14 @@ def main():
         pg.wait_for_function("window.__figLooping === true", timeout=8000)
         pg.wait_for_function("window.__figFloaters > 0", timeout=5000)
         check(True, "then it sleeps, and the Zzz float up")
+        pg.wait_for_function("window.__figFace.blinkL > 0.9 && window.__figFace.blinkR > 0.9", timeout=3000)
+        check(True, "asleep, its eyes are shut")
         pg.screenshot(path=f"{OUT}/figure-sleep.png")
         tap("大哭", 0)
         pg.wait_for_function("window.__figFloaters >= 4", timeout=3000)
         check(True, "大哭 sheds tears")
+        pg.wait_for_function("window.__figFace.browsSad > 0.8 && window.__figFace.sadMouth > 0.7 && window.__figFace.blinkL < 0.5", timeout=3000)
+        check(True, "大哭 pulls a sad face, its eyes open again")
         pg.screenshot(path=f"{OUT}/figure-cry.png")
         tap("抱拳")
         check(pg.evaluate("window.__figMove") == "fist" and pg.evaluate("window.__figHeld") == [], "抱拳 plays, with empty hands")
@@ -169,6 +179,82 @@ def main():
         after = pg.evaluate("window.__figTurn")
         check(after is not None and before is not None and after - before > 0.5, f"a drag of 160 px turned it by {(after or 0) - (before or 0):.2f} rad")
         pg.screenshot(path=f"{OUT}/figure-turned.png")
+
+        # 捏脸: the camera comes up to the face, and it stands still
+        z_body = pg.evaluate("window.__figCamZ")
+        pg.locator("[role=tab]", has_text="捏脸").click()
+        pg.wait_for_function("window.__figView === 'face' && window.__figMove === 'stand'", timeout=3000)
+        pg.wait_for_timeout(1500)
+        z_face = pg.evaluate("window.__figCamZ")
+        check(z_face < 1.2 < z_body, f"捏脸 brings the camera up to the face ({z_body} m away, then {z_face})")
+        check(pg.locator(".fig-moves").count() == 0 and pg.locator("#fig-face[role=tabpanel]").count() == 1, "捏脸 shows its own panel instead of the moves")
+        parts = pg.locator(".fig-sculpt [role=radiogroup][aria-label='捏哪里'] [role=radio]")
+        check(parts.all_inner_texts() == ["脸型", "眼睛", "鼻子", "嘴", "肤色", "发型"], f"six parts to shape ({parts.all_inner_texts()})")
+        counts = {}
+        for part in ["脸型", "眼睛", "鼻子", "嘴"]:
+            parts.filter(has_text=part).click()
+            counts[part] = pg.locator(".fig-slider input[type=range]").count()
+        check(counts == {"脸型": 11, "眼睛": 8, "鼻子": 6, "嘴": 5}, f"sliders: {counts}")
+        tall = pg.locator(".fig-slider input[type=range]").evaluate_all("els => els.map(e => e.getBoundingClientRect().height)")
+        check(min(tall) >= 44, f"every slider is at least 44 px tall ({min(tall):.0f})")
+        base_sum = pg.evaluate("window.__figShapeSum")
+        parts.filter(has_text="鼻子").click()
+        pg.locator("input[data-shape=noseWidth]").fill("100")
+        pg.locator("input[data-shape=noseLength]").fill("-60")
+        pg.wait_for_function(f"window.__figShapeSum !== {base_sum}", timeout=3000)
+        check(True, "the nose's sliders reshape the face")
+        pg.screenshot(path=f"{OUT}/figure-sculpt-nose.png")
+        parts.filter(has_text="肤色").click()
+        skin0 = pg.evaluate("window.__figSkin")
+        pg.locator("[data-skin='7']").click()
+        pg.wait_for_function(f"window.__figSkin !== '{skin0}'", timeout=3000)
+        check(pg.locator("[data-skin='7']").get_attribute("aria-checked") == "true", "a skin swatch tints the skin, and stays picked")
+        parts.filter(has_text="发型").click()
+        pg.wait_for_function("window.__figView === 'bust'", timeout=3000)
+        check(True, "for hair, the camera steps back to the head and shoulders")
+        pg.locator("[data-hair=bob01]").click()
+        pg.wait_for_function("window.__figHair === 'bob01'", timeout=30000)
+        check(any(u.endswith("/models/figure/hair/bob01-male.glb.gz") for u in pg._js), "the bob comes from its own file")
+        pg.locator("[data-hair-color='8']").click()
+        pg.wait_for_timeout(1200)
+        pg.screenshot(path=f"{OUT}/figure-sculpt-hair.png")
+        pg.locator("[data-hair=none]").click()
+        pg.wait_for_function("window.__figHair === 'none'", timeout=3000)
+        check(True, "寸头 takes the hair off")
+        pg.locator("[data-hair=short02]").click()
+        pg.wait_for_function("window.__figHair === 'short02'", timeout=3000)
+        check(sum(1 for u in pg._js if "/models/figure/hair/" in u) == 1, "its own hair back, without another download")
+        pg.locator(".fig-sculpt [role=radio]", has_text="女").click()
+        pg.wait_for_function("window.__figSex === 'female' && window.__figHair === 'long01'", timeout=30000)
+        check(any(u.endswith("/models/figure/female.glb.gz") for u in pg._js), "女 swaps in the woman's body, with her own hair")
+        pg.wait_for_timeout(1500)
+        pg.screenshot(path=f"{OUT}/figure-sculpt-female.png")
+        sum_f = pg.evaluate("window.__figShapeSum")
+        pg.locator(".fig-actions button", has_text="随机").click()
+        pg.wait_for_timeout(800)
+        changed = pg.evaluate(f"window.__figShapeSum !== {sum_f}")
+        check(changed, "随机 gives another face")
+        pg.locator(".fig-actions button", has_text="还原").click()
+        pg.wait_for_function("window.__figHair === 'long01'", timeout=30000)
+        pg.wait_for_timeout(600)
+        look = pg.evaluate("JSON.parse(localStorage.getItem('figure.look'))")
+        check(look and look["sex"] == "female" and look["shape"] == {} and look["hair"] == "long01", f"还原 goes back to her first look, kept on the phone ({look})")
+        parts.filter(has_text="眼睛").click()
+        pg.locator("input[data-shape=eyeSize]").fill("70")
+        parts.filter(has_text="发型").click()
+        pg.locator("[data-hair=ponytail01]").click()
+        pg.wait_for_function("window.__figHair === 'ponytail01'", timeout=30000)
+        pg.wait_for_timeout(500)
+        pg.reload(wait_until="load")
+        pg.wait_for_function("window.__figIs === 'on' && window.__figHair === 'ponytail01'", timeout=60000)
+        look = pg.evaluate("JSON.parse(localStorage.getItem('figure.look'))")
+        check(pg.evaluate("window.__figSex") == "female" and look["shape"].get("eyeSize") == 0.7, "after a reload she's still there: the body, the eyes, the ponytail")
+        pg.locator("[role=tab]", has_text="捏脸").click()
+        pg.locator(".fig-sculpt [role=radio]", has_text="眼睛").click()
+        check(pg.locator("input[data-shape=eyeSize]").input_value() == "70", "and the slider shows it")
+        pg.locator("[role=tab]", has_text="动作").click()
+        pg.wait_for_function("window.__figView === 'body'", timeout=3000)
+        check(True, "back on 动作, the camera shows the whole figure")
 
         # ‹ on a page opened from a link goes home (router.ts: back); from /me it goes back to /me
         pg.click(".topbar .icon-btn")
@@ -191,9 +277,13 @@ def main():
         pg.goto(BASE + "me/figure", wait_until="load")
         pg.wait_for_function("window.__figIs === 'on'", timeout=60000)
         names = pg.locator(".fig-moves .chip").all_inner_texts()
-        check(names[:4] == ["Cool", "Selfie", "Sleep", "Sword"] and "Stand" in names and "Thumbs up" in names, f"the moves are in English ({names[:4]})")
-        check(pg.locator(".fig-group .list-title").all_inner_texts() == ["Ours", "Borrowed, to be replaced"], "the groups are in English")
+        check(names[:5] == ["Stand", "Cool", "Selfie", "Sleep", "Sword"] and "Fist salute" in names, f"the moves are in English ({names[:5]})")
+        check(pg.locator("[role=tab]").all_inner_texts() == ["Moves", "Face"], "the tabs are in English")
         check("A prototype" in pg.inner_text(".fig-intro"), "the introduction is in English")
+        pg.locator("[role=tab]", has_text="Face").click()
+        check(pg.locator(".fig-sculpt [role=radiogroup][aria-label='What to shape'] [role=radio]").all_inner_texts() == ["Face", "Eyes", "Nose", "Mouth", "Skin", "Hair"], "the parts are in English")
+        check(pg.locator(".fig-slider span").first.inner_text() == "Width" and pg.locator(".fig-actions button").all_inner_texts() == ["Random", "Reset"], "the sliders and buttons are in English")
+        pg.locator("[role=tab]", has_text="Moves").click()
         pg.wait_for_function("typeof window.__figFps === 'number' && window.__figFps > 0", timeout=20000)
         check("fps" in pg.inner_text(".fig-stats") and "triangles" in pg.inner_text(".fig-stats"), f"the stats line in English: {pg.inner_text('.fig-stats')}")
         pg.screenshot(path=f"{OUT}/figure-en.png")
