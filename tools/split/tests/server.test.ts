@@ -101,7 +101,7 @@ test("making a ledger, and who may open it", async () => {
 
 test("sending changes: in order, once, kept, and in the record", async () => {
   const { id, key } = await make();
-  const [e1, e2, e3] = [expense("e1"), expense("e2", 100), expense("e3")];
+  const [e1, e2, e3] = [expense("e1"), { ...expense("e2", 100), by: "w" }, expense("e3")];
   const first = await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [e1, e2] });
   assert.deepEqual([first.status, first.data.took, first.data.seq, first.data.ledger.entries.map((e) => e.id)], [200, ["new", "new"], 2, ["e1", "e2"]]);
   const again = await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [e1, e2, e3] });
@@ -110,6 +110,7 @@ test("sending changes: in order, once, kept, and in the record", async () => {
   assert.deepEqual([read.data.seq, read.data.ledger.entries.length], [3, 3], "what was sent is what is read back");
   const record = await call<Since>("GET", `/ledgers/${id}?since=1`, key);
   assert.deepEqual([record.status, record.data.seq, record.data.changes.map((l) => [l.seq, "sent" in l && l.sent.id])], [200, 3, [[2, e2.id], [3, e3.id]]]);
+  assert.deepEqual(record.data.changes.map((l) => "sent" in l && (l.sent.by ?? null)), ["w", null], "the record says who made a change, when the phone said (a phone that didn't, nobody)");
   assert.deepEqual(await call("GET", `/ledgers/${id}?since=x`, key), { status: 400, data: { error: "bad" } });
 
   assert.deepEqual(await call("POST", `/ledgers/${id}/changes`, newKey(), { changes: [expense("e9")] }), { status: 403, data: { error: "key" } });
