@@ -65,3 +65,18 @@ export const calendarFile = (code: string) => `/when/api/e/${code}/calendar.ics`
 export const saved = (page: Page) => expect(page.locator(".status")).toHaveAttribute("data-state", "saved");
 /** The n-th slot of the grid, counting along each day and then down the days. */
 export const cell = (page: Page, n: number) => page.locator(".grid .cell").nth(n);
+
+/** Close the contexts made with phone(), including when a check failed. */
+export const closePhones = (browser: Browser) => Promise.all(browser.contexts().map((context) => context.close()));
+
+/** Read the whole visible result at once, so a convergence check has one deadline per phone. */
+export const everyone = (page: Page) => page.evaluate(() => ({
+  counts: [...document.querySelectorAll(".grid-all .cell")].map((el) => ({
+    yes: el.querySelector("b")?.textContent ?? "",
+    maybe: el.querySelector("small")?.textContent ?? "",
+  })),
+  best: [...document.querySelectorAll(".best-what")].map((el) => ({
+    slot: el.querySelector("b")?.textContent ?? "",
+    reason: el.querySelector("span")?.textContent ?? "",
+  })),
+}));
