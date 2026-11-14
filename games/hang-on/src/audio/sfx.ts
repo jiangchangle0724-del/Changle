@@ -75,6 +75,11 @@ class Sfx {
     return !!this.ctx && this.ctx.state === 'running';
   }
 
+  /** 背景音乐（`music.ts`）接在这里：同一个 AudioContext，接在音效的总音量后面，静音一起管。 */
+  audio(): { ctx: AudioContext; bus: GainNode } | null {
+    return this.ctx && this.master ? { ctx: this.ctx, bus: this.master } : null;
+  }
+
   setVoice(player: number, voice: Voice): void {
     this.voices[player] = voice;
   }

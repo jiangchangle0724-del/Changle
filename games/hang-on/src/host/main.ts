@@ -10,7 +10,10 @@
  * 玩法（A7）：大厅里开局前选闯关、大团队（有大关才出）、比谁先（各跑各的或甜队对咸队）、坐不住。
  */
 import qrcode from 'qrcode-generator';
+import { music } from '../audio/music';
 import { heardBy, sfx } from '../audio/sfx';
+import { moodOf, rawIntensity, Tension } from '../audio/tension';
+import { seedOf, themeFor } from '../audio/themes';
 import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
 import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachLabel, teachText, tierOfLevel } from '../levels';
 import { modeHintText, modeLabel, modeName, notReadyText, sideName, tierName } from '../mode-text';
@@ -139,6 +142,16 @@ function setLocalItem(id: ItemId): void {
 const localIndex = (): number => (localOn() ? seatOrder.length : -1);
 
 sfx.attach(document);
+// 背景音乐（11-13）：只在开房这台设备上放（电视局是电视，手机局是房主的手机），接在音效上，静音一起管
+music.attach(() => sfx.audio());
+music.setPhase('lobby');
+const tension = new Tension();
+/** 准时那颗星的秒数（A9b），倒数时算好；音乐快到时间了会催。 */
+let timeTarget: number | undefined;
+/** 这一关放哪首：按场景，困难和坐不住放小调版。 */
+function syncMusic(): void {
+  music.scene(themeFor(level, (tiered(mode) && tier === 2) || mode === 'last'), seedOf(level.id));
+}
 sfx.panOf = (x, y) => Math.max(-1, Math.min(1, (stage.toScreen({ x, y }).x / innerWidth) * 2 - 1)) * 0.6;
 langButton($<HTMLButtonElement>('langBtn'));
 
@@ -353,6 +366,7 @@ function fatal(key: FatalKey): void {
   $('results').hidden = true;
   $('touch').hidden = true;
   document.body.dataset.phase = 'ended';
+  music.setPhase('off');
 }
 $('reopenBtn').addEventListener('click', () => void start());
 
@@ -384,6 +398,13 @@ function onPhase(next: Phase): void {
   if (next === 'countdown' && (prev === 'results' || sim.layoutFor !== playerCount())) void resetSim();
   if (next === 'countdown') countdown();
   if (next === 'results') showResults();
+  // 背景音乐：大厅、结算轻轻放，倒数从头起，玩的时候跟着紧张走
+  if (next === 'countdown') {
+    syncMusic();
+    tension.reset(0.3);
+    timeTarget = goalTargets(level, Math.max(1, playerCount())).find((g) => g.key === 'time')?.target;
+  }
+  if (next === 'lobby' || next === 'countdown' || next === 'playing' || next === 'results') music.setPhase(next);
 }
 
 let countTimer: ReturnType<typeof setInterval> | null = null;
@@ -511,7 +532,9 @@ function renderButtons(): void {
   $('kbBtn').textContent = keyboard ? tr('− 键盘退出', '− Keyboard leave') : tr('+ 键盘加入', '+ Keyboard join');
   $('relayBtn').textContent = forceRelay ? tr('绕路模式：开', 'Relay mode: on') : tr('绕路模式：关', 'Relay mode: off');
   // 手机上顶栏挤：只留图标
-  $('muteBtn').textContent = phoneMode || touchHost ? (sfx.muted ? '🔇' : '🔊') : sfx.muted ? tr('🔇 静音', '🔇 Muted') : tr('🔊 声音', '🔊 Sound');
+  const locked = !sfx.ready && !sfx.muted;
+  $('muteBtn').textContent =
+    phoneMode || touchHost ? (sfx.muted ? '🔇' : '🔊') : sfx.muted ? tr('🔇 静音', '🔇 Muted') : locked ? tr('🔈 点一下这页才有声音', '🔈 Click the page for sound') : tr('🔊 声音', '🔊 Sound');
   $('muteBtn').setAttribute('aria-label', tr('声音', 'Sound'));
   $('muteBtn').setAttribute('aria-pressed', String(sfx.muted));
 }
@@ -527,6 +550,7 @@ function pickLevel(i: number): void {
 }
 function renderLevel(): void {
   const list = listNow();
+  if (phase === 'lobby') syncMusic();
   $('levelName').textContent = levelTitle(level, levelIndex);
   // 小目标的星（A9b）：这台主机上这一关拿到过几颗
   if (mode === 'climb' || mode === 'team') {
@@ -961,6 +985,7 @@ function sendStatus(): void {
 function onEvents(): void {
   for (const ev of sim.events) {
     if (ev.type === 'win') {
+      music.win();
       scoreGoals();
       // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页；比谁先、坐不住的横幅写谁赢了
       banner(resultsTitle(resultsOf(sim), name));
@@ -969,6 +994,8 @@ function onEvents(): void {
         if (sim === won && phase === 'playing') link?.act({ type: 'FINISH' });
       }, 2600);
     }
+    if (ev.type === 'death' || ev.type === 'out') music.duck();
+    if (ev.type === 'checkpoint' && sim.rules.mode !== 'race') music.flourish();
     if (ev.type === 'betrayal') banner(tr(`${name(ev.by)} 松手了`, `${name(ev.by)} let go!`), 'bad');
     if (ev.type === 'summon') {
       const who = ev.who.map(name);
@@ -1143,6 +1170,7 @@ function heard(events: readonly SimEvent[]): readonly SimEvent[] {
   return events.filter((e) => heardBy(e, me));
 }
 
+let soundWasReady = false;
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -1153,12 +1181,20 @@ function frame(now: number): void {
       sim.step(DT);
       stage.handleEvents(sim, sim.events);
       sfx.handleEvents(sim, heard(sim.events));
+      tension.events(sim.events);
       if (phoneMode) recent.push(sim.events);
       onEvents();
       acc -= DT;
     }
+    // 背景音乐跟着局面紧张起来（有人一只手挂在深坑上、贴着要命的东西、在往下掉、快到了）
+    music.intensity = tension.update(rawIntensity(moodOf(sim, { timeTarget })), dt);
   } else {
     acc = 0;
+  }
+  // 电视那边还没点过页面：声音键说点一下才有声音（浏览器的规矩）
+  if (sfx.ready !== soundWasReady) {
+    soundWasReady = sfx.ready;
+    renderButtons();
   }
   broadcast(now);
   if (renderOn) {
@@ -1212,6 +1248,8 @@ requestAnimationFrame(frame);
   },
   setSide,
   setTier,
+  music,
+  tension,
   get side() {
     return side;
   },
