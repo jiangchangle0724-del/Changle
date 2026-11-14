@@ -134,6 +134,7 @@ const listen: Net["listen"] = (id, key, on, down) => {
 /** The real network. (The tests hand the syncer a made-up one: tests/split-sync.test.ts.) */
 export const net: Net = {
   make: (key, body) => ask("/ledgers", key, asSnapshot, body),
+  read: (id, key) => ask(`/ledgers/${id}`, key, asSnapshot),
   push: (id, key, changes) => ask(`/ledgers/${id}/changes`, key, (x) => asPushed(x, changes.length), { changes }),
   listen,
 };

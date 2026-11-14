@@ -67,3 +67,26 @@ What the look at the rendered screens changed (45 screens now, both languages, f
 5. Deleting a ledger said the ledger lives only on this phone, which stopped being true. It says what is true: it can't be opened again, and a copy stays online that can't be deleted yet. (Real deletion needs an owner, so it comes with accounts; it must be there before the tool gets its card.)
 
 Verdict: holds to the contract. The page is still one calm thing with one light; the server is heard from only when it has something to say, and then in the page's own two voices.
+
+## Stage two, step 5a: an invitation, and the one question it asks (2026-11-13)
+
+Shape, in the thread that built it (the owner had said to go on without asking; the assumptions are marked):
+
+- Who and when: one person at the table says they'll keep the bill and starts a ledger; the others are across the table or in the group chat. The one invited has one job, with no sign-up: get in, and say which of these names is theirs.
+- An invitation is not a fourth screen. It is a line in the ⋯ sheet (邀请朋友, 链接或二维码) that opens a sheet: the code to scan, two short sentences of how, one fine line saying what the link lets someone do, and the way to send it. On a phone that is the phone's own share sheet, with copying beside it; where there is no share sheet, copying alone. An empty ledger says where the invitation is, once, under 还没有账.
+- The code is night on paper, with paper all round it (a scanner needs the quiet edge). Not in the light: amber stays on the one button.
+- Arriving: the shape of the page it is about to be, then 你是哪一位？ as a page of its own. The names are lines to tap, and one tap answers. Someone the ledger doesn't have adds themselves in a field under the names. A quiet button at the foot lets someone only look; they are asked again the next time, and the answer can be changed under ⋯, 成员. (Assumption: nobody should have to type to join a ledger their name is already in.)
+- Three ways an invitation doesn't get in, each a page with its own words and one way on: nothing answered (再试一次), the link doesn't open the ledger, the ledger can't be found.
+- No new motion: three motions and no fourth.
+
+What the look at the rendered screens changed (58 screens now, both languages, four phone sizes; axe clean, nothing too wide, nothing under 44px):
+
+1. On a phone, which has a share sheet, the two buttons broke their own labels at 320px (复制链 / 接, Copy / link). The walk had not shown it: its browser has no share sheet, so it drew the one-button sheet. The pair's buttons keep less room at their sides now, the half-width button has a short word for a copy that was refused, and the walk draws the sheet both ways.
+2. In English at 320x568 the sheet ran under its own footer and the fine line was cut. The title is two words (Invite friends), the how is two sentences that each keep a line, and the fine line is one (Anyone with the link can view and edit).
+3. Chinese lines broke in the middle of a word (发到群 / 里, 这 / 个账本): there are no spaces to say where a break may fall. A sentence or two of running text now wraps between its sentences before inside one; the words mark the place. The empty state's words on 两清's pages are balanced, so none ends with a word or two alone.
+4. The pages for an invitation that doesn't get in said more than is known: 链接可能换过了 (a link can't be changed yet), 这个账本不在了 (a mistyped link looks the same). They say what may be so (the link is incomplete, or was replaced; or the ledger was deleted) and what to do: ask for it again.
+5. 你是哪一位？ was a sheet that opened by itself when the page loaded. The shared sheet puts the focus on its handle as it opens, so the first thing drawn was a focus ring nobody asked for. It is a page: the question is the page until it is answered.
+6. Under 还没有账 the hint about ⋯ broke with ⋯ starting a line. Two lines, one thought each.
+7. 删掉这个账本 no longer said what happens: with invitations, a ledger taken off a phone opens again from a link. It is 从这部手机上移除, and the question says the ledger stays online for the others.
+
+Verdict: holds to the contract. Still three screens and one light; getting someone in is a line in ⋯ on one end and one question on the other.

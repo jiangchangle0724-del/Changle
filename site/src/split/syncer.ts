@@ -23,6 +23,8 @@ export type Reply<T> = { status: number; data?: T };
 
 export interface Net {
   make(key: string, body: MakeBody): Promise<Reply<Snapshot>>;
+  /** the ledger as it stands */
+  read(id: string, key: string): Promise<Reply<Snapshot>>;
   push(id: string, key: string, changes: Sent[]): Promise<Reply<Pushed>>;
   /**
    * Listen to a ledger: `on` each time the server sends it, `down` once when the connection ends
@@ -62,6 +64,12 @@ export type Syncer = {
   wake(): void;
   /** Listen for what others record (the ledger is open on the screen), or stop (it isn't). */
   watch(on: boolean): void;
+  /**
+   * Ask the server where the ledger stands, once (its card is on the screen, in the list). Nothing
+   * is asked when the phone is listening to it or has something to send: those bring the ledger
+   * anyway. And no answer is nothing to act on: the card shows what the phone has.
+   */
+  look(): void;
   /** The screen has told the user about a change that didn't stick. */
   dismiss(id: string): void;
   stop(): void;
@@ -91,6 +99,8 @@ export function syncer(opts: {
   /** the trouble a wake is trying to get past: still what is said, until the answer comes */
   let passing: Trouble | null = null;
   let watching = opts.watching ?? true;
+  /** asked to look, and not yet done */
+  let looking = false;
   let stopped = false;
   let tries = 0;
   let unlisten: (() => void) | null = null;
@@ -168,6 +178,19 @@ export function syncer(opts: {
         else return halt(made.status === 429 ? "limit" : made.status === 409 ? "taken" : made.status === 403 ? "key" : "stuck");
       }
       listen();
+      if (looking) {
+        looking = false;
+        const h = opts.read();
+        if (h && !h.waiting.length && !unlisten) {
+          const got = await opts.net.read(h.server.id, h.key);
+          if (stopped) return;
+          const data = got.data;
+          if (got.status === 200 && data) {
+            away = false;
+            keep((x) => heard(x, data));
+          } else if (got.status === 404 || got.status === 403) return halt(got.status === 404 ? "gone" : "key");
+        }
+      }
       for (;;) {
         const h = opts.read();
         if (!h?.waiting.length) break;
@@ -184,6 +207,9 @@ export function syncer(opts: {
       }
       // the connection may have dropped while that was going on
       listen();
+      // everything went through: what was to be tried again later has just been done
+      callOff?.();
+      callOff = null;
     } finally {
       sending = false;
       passing = null;
@@ -225,6 +251,11 @@ export function syncer(opts: {
         deaf();
         if (!stopped) tell();
       }
+    },
+    look() {
+      if (stopped) return;
+      looking = true;
+      void flush();
     },
     dismiss(id) {
       keep((x) => dismiss(x, id));

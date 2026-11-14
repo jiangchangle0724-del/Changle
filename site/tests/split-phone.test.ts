@@ -5,7 +5,8 @@
  *  1. What is kept (src/split/store.ts): written at once, read back, kept apart for two tabs.
  *  2. The server as a phone reaches it (src/split/net.ts): only an answer that is the server's counts.
  *  3. The live connection: what it hears, how it ends, and how a dead one is found out.
- *  4. The three together (src/split/syncing.ts): a ledger opened, recorded in, watched, left.
+ *  4. The three together (src/split/syncing.ts): a ledger opened, recorded in, watched, left;
+ *     one joined from an invitation; the list asking after each of its ledgers.
  *
  * (What is sent when, and what the phone makes of the answers, is tests/split-sync.test.ts.)
  */
@@ -155,6 +156,8 @@ const kept = () => JSON.parse(storage.getItem("changle.split.v2") ?? "null") as 
   eq([kept()?.held.map((h) => h.server.id), kept()?.me, kept()?.held[0]?.key === KEY, tab1.heldOf("ledger-1")?.made], [["ledger-1"], { "ledger-1": "s" }, true, false], "a ledger opened is kept at once, with its key and who you are in it");
   tab1.write("ledger-1", (h) => ({ ...h, waiting: [...h.waiting, spend("e1")] }));
   eq([kept()?.held[0]?.waiting.length, shown(tab1.heldOf("ledger-1") as Held).entries.length], [1, 1], "and so is what is recorded in it");
+  tab1.keepHeld(hold(fresh("ledger-1"), "z".repeat(43)), "w");
+  eq([kept()?.held.length, kept()?.held[0]?.key === KEY, kept()?.held[0]?.waiting.length, kept()?.me], [1, true, 1, { "ledger-1": "s" }], "a ledger the phone holds already is not taken a second time: it stays as it is, key, what is waiting and all");
   const before = storage.getItem("changle.split.v2");
   tab1.write("ledger-1", (h) => h);
   tab1.write("nobody's", (h) => ({ ...h, made: true }));
@@ -178,6 +181,9 @@ const kept = () => JSON.parse(storage.getItem("changle.split.v2") ?? "null") as 
   tab1.write("ledger-1", (h) => ({ ...h, waiting: h.waiting.slice(0, 1) }));
   eq([tab1.isKept(), kept()?.held[0]?.waiting.length], [true, 1], "and when it stores again, it is kept again");
   tab1.dropHeld("ledger-1");
+  tab1.keepHeld(join({ seq: 2, ledger: fresh("ledger-3") }, KEY));
+  eq([kept()?.held.map((h) => [h.server.id, h.made, h.seq]), kept()?.me], [[["ledger-3", true, 2]], {}], "a ledger come by from an invitation is kept without knowing yet who its owner is");
+  tab1.dropHeld("ledger-3");
 }
 
 // ---------- 2. the server as a phone reaches it ----------
@@ -218,6 +224,15 @@ const { net } = await import("../src/split/net");
   answer = () => ({ status: 201, json: snapshot });
   await net.make(KEY, body);
   ok(waiting(15_000) === 0, "one that was answered isn't still being timed");
+
+  asked.length = 0;
+  answer = () => ({ status: 200, json: { ...snapshot, seq: 7 } });
+  eq(await net.read("ledger-9", KEY), { status: 200, data: { ...snapshot, seq: 7 } }, "a ledger read: where it stands");
+  eq(asked, [{ method: "GET", path: "/split/api/ledgers/ledger-9", key: KEY, body: undefined }], "at its own address, the key in a header");
+  answer = () => ({ status: 403, json: { error: "key" } });
+  eq(await net.read("ledger-9", "w".repeat(43)), { status: 403 }, "with a key that doesn't open it: the server says so");
+  answer = () => ({ status: 200, text: "<!doctype html><title>开席</title>" });
+  eq(await net.read("ledger-9", KEY), none, "and the site's own page in the server's place (a preview with no server) is no answer");
 
   asked.length = 0;
   const two = [spend("e1"), spend("e2")];
@@ -410,6 +425,49 @@ const { net } = await import("../src/split/net");
   heard.visibilitychange.forEach((fn) => fn());
   await settle();
   eq(asked.length, 0, "the page coming back to the front with nothing waiting asks the server nothing");
+
+  // an invitation: a ledger's id, and the key that opens it
+  made.set("ledger-8", { seq: 5, ledger: { ...fresh("ledger-8"), name: "别人的账本" } });
+  asked.length = 0;
+  eq(await syncing.joinLedger("ledger-8", KEY), "in", "an invitation opened: the phone is in");
+  eq([asked.map((a) => [a.method, a.path, a.key]), store.heldOf("ledger-8")?.made, store.heldOf("ledger-8")?.seq, store.heldOf("ledger-8")?.server.name, store.heldOf("ledger-8")?.key === KEY, kept()?.me["ledger-8"]],
+    [[["GET", "/split/api/ledgers/ledger-8", KEY]], true, 5, "别人的账本", true, undefined],
+    "the ledger was read once with the invitation's key, and is held with it from here on; who its owner is isn't known yet");
+  eq([await syncing.joinLedger("ledger-8", "z".repeat(43)), asked.length, store.heldOf("ledger-8")?.key === KEY], ["in", 1, true], "opened again (even by another link): the phone has it already, and nothing is asked or changed");
+  const real = answer;
+  for (const [how, want] of [
+    [{ status: 403, json: { error: "key" } }, "key"],
+    [{ status: 404, json: { error: "gone" } }, "gone"],
+    ["nothing", "away"],
+    [{ status: 200, text: "<html>" }, "away"],
+    [{ status: 400, json: { error: "bad" } }, "away"],
+  ] as [Answer, string][]) {
+    answer = () => how;
+    eq([await syncing.joinLedger("ledger-x", KEY), store.heldOf("ledger-x")], [want, null], `an invitation that doesn't get in (${want}) leaves nothing on the phone`);
+  }
+  answer = () => ({ status: 200, json: { seq: 3, ledger: fresh("ledger-y") } });
+  eq([await syncing.joinLedger("ledger-x", KEY), store.heldOf("ledger-x"), store.heldOf("ledger-y")], ["away", null, null], "an answer about some other ledger is no answer: neither is kept");
+  answer = real;
+
+  // the list of ledgers on the screen
+  asked.length = 0;
+  const leaveList = syncing.browse();
+  await settle();
+  eq(asked.map((a) => `${a.method} ${a.path.replace("/split/api/ledgers", "")}`).sort(), ["GET /ledger-4", "GET /ledger-5", "GET /ledger-6", "GET /ledger-8"], "the list of ledgers on the screen: each is asked after, once");
+  eq(store.heldOf("ledger-6")?.server.entries.length, 2, "(and what the server has is what the phone shows)");
+  asked.length = 0;
+  page.visibilityState = "hidden";
+  heard.visibilitychange.forEach((fn) => fn());
+  page.visibilityState = "visible";
+  heard.visibilitychange.forEach((fn) => fn());
+  await settle();
+  eq(asked.length, 4, "and again when the page comes back to the front");
+  leaveList();
+  asked.length = 0;
+  heard.visibilitychange.forEach((fn) => fn());
+  await settle();
+  eq(asked.length, 0, "the list left: no more asking");
+  syncing.forget("ledger-8");
 
   // a ledger taken off the phone, and 两清 left
   syncing.forget("ledger-6");
