@@ -385,6 +385,20 @@ const roster = five.members.map((x) => x.id);
   ok(keys.every((k) => /^[A-Za-z0-9_-]{43}$/.test(k)) && new Set(keys).size === keys.length, "a new key is 43 of the same, 32 random bytes: what the server takes for one (22 to 128), and no two alike");
   ok([...ids, ...keys].every((x) => /^[A-Za-z0-9]/.test(x) && /[A-Za-z0-9]$/.test(x)) && [...ids, ...keys].some((x) => /[-_]/.test(x)), "each begins and ends with a letter or a digit (a chat app leaves a last - or _ out of a link), with - and _ only inside");
   ok(parseSaved(JSON.stringify({ held: [hold(five, keys[0])], me: {} })).held[0].key === keys[0], "and a ledger just opened is kept with its key");
+
+  // its owner's phone keeps a second key, and for a moment a third (the one it is changing to); a locked ledger says so
+  const owner = "o".repeat(43);
+  const next = "n".repeat(43);
+  const back = (x: unknown) => parseSaved(JSON.stringify({ held: [x], me: {} })).held[0];
+  eq([hold(five, key, owner).owner, "owner" in hold(five, key), back(hold(five, key, owner)).owner], [owner, false, owner], "a ledger opened on this phone is kept with its owner's key; one opened without has none");
+  eq(back({ ...h, owner, next }), { ...h, owner, next }, "a key the owner is changing to is kept too, so a phone that closes before the answer still has it");
+  eq([back({ ...h, owner: "short" }), back({ ...h, owner: 5 }), back({ ...h, owner: key }), back({ ...h, next }), back({ ...h, owner, next: key }), back({ ...h, owner, next: owner }), back({ ...h, owner, next: "short" })], [h, h, h, h, { ...h, owner }, { ...h, owner }, { ...h, owner }],
+    "what isn't a key is neither: an owner's key that is the ledger's own, a key in waiting with no owner, or one that is a key the phone already has");
+  const lockedAt = { ...l, locked: 1_700_000_000_000 };
+  eq([asSnapshot({ seq: 3, ledger: lockedAt })?.ledger.locked, back({ ...h, server: lockedAt }).server.locked, asSnapshot({ seq: 3, ledger: { ...l, locked: 0 } })?.ledger.locked], [1_700_000_000_000, 1_700_000_000_000, 0], "a locked ledger comes back locked, from the server and from the phone's own storage (any number means locked, 0 too)");
+  eq(["locked" in asSnapshot({ seq: 3, ledger: { ...l, locked: "yes" } })!.ledger, "locked" in asSnapshot({ seq: 3, ledger: { ...l, locked: null } })!.ledger, "locked" in asSnapshot({ seq: 3, ledger: l })!.ledger], [false, false, false], "and one that isn't, or says so in something that isn't a number, comes back open");
+  const afterLock = shown({ ...h, server: lockedAt });
+  eq([afterLock.locked, afterLock.entries.map((e) => e.id)], [1_700_000_000_000, ["e1", "t1", "e2"]], "what a phone recorded with no signal still shows on a ledger that was locked meanwhile");
 }
 
 // ---------- 7. what the screens say about the server ----------

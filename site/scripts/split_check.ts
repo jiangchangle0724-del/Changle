@@ -71,7 +71,7 @@ const phone = async (width: number, height: number, lang: Lang, motion: "reduce"
   return ctx;
 };
 /** What a phone keeps of its ledgers (src/split/store.ts). */
-type Kept = { held: { key: string; made: boolean; seq: number; server: { id: string; members: { id: string; name: string }[]; entries: unknown[] }; waiting: unknown[]; lost: unknown[] }[]; me: Record<string, string> };
+type Kept = { held: { key: string; owner?: string; next?: string; made: boolean; seq: number; server: { id: string; members: { id: string; name: string }[]; entries: unknown[] }; waiting: unknown[]; lost: unknown[] }[]; me: Record<string, string> };
 const keptBy = async (page: Page): Promise<Kept> => JSON.parse(String(await page.evaluate(`localStorage.getItem(${JSON.stringify(KEPT)})`))) as Kept;
 /** A phone that already holds these ledgers when it opens the site (as it will after joining by a link). */
 const holding = (ctx: BrowserContext, kept: unknown) =>
@@ -259,6 +259,48 @@ async function walk(lang: Lang, width: number, height: number) {
     await page.evaluate("delete navigator.share");
     await page.keyboard.press("Escape");
     await closed(page);
+
+    // the owner's two (this phone started the ledger). Locked: every screen can be read, and nothing on it changes the ledger
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).click();
+    await page.getByRole("button", { name: re(t("unlockIt")) }).waitFor();
+    await shot("31-menu-locked");
+    await page.getByRole("button", { name: re(t("members")) }).click();
+    await page.getByRole("dialog").getByText(t("lockedPeople")).waitFor();
+    await shot("31b-people-locked");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await shot("31c-settle-locked");
+    // (a transfer nobody has marked yet: it can be looked at, its amount copied, and that is all)
+    await page.locator(".split-row", { hasNotText: t("paid") }).first().click();
+    await page.getByRole("dialog").getByText(t("locked")).waitFor();
+    await shot("31d-step-locked");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await page.getByRole("tab", { name: t("expenses") }).click();
+    await shot("31e-ledger-locked");
+    ok((await button("addExpense").count()) === 0 && (await page.locator("button.split-row").count()) === 0 && (await page.locator(".split-row.is-still").count()) > 0, `${lang} ${width}x${height}: locked, the ledger has no 记一笔 and its rows don't open`);
+    await page.goto(`${base}/split`);
+    await page.locator(".split-ledger-flag").waitFor();
+    await shot("31f-ledgers-locked");
+    await page.locator(".split-ledger").first().click();
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("unlockIt")) }).click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).waitFor();
+    // a new key for the invitation: asked about first, then the new code and link
+    await page.getByRole("button", { name: re(t("rekey")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).waitFor();
+    await shot("32-rekey-ask");
+    await page.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+    await page.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 8000 });
+    await shot("32b-rekey-done");
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+    const renewed = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop() ?? "";
+    ok(renewed !== invitation && renewed.split("#")[0] === invitation.split("#")[0] && /#k=[A-Za-z0-9_-]{43}$/.test(renewed), `${lang} ${width}x${height}: 换邀请链接 leaves the ledger's address as it was and gives it another key`);
+    invitation = renewed;
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await page.getByRole("tab", { name: t("settle") }).click();
   }
   await button("more").click();
   await page.getByRole("button", { name: re(t("members")) }).click();
@@ -399,6 +441,39 @@ async function walk(lang: Lang, width: number, height: number) {
     await theirs.locator(".split-who").getByRole("button", { name: re("小王") }).click();
     await theirs.locator(".split-standing").waitFor();
     await shot("29f-joined", theirs);
+
+    // the owner locks the ledger: a friend's phone says so, and has nothing to press; someone new can still say who they are
+    await page.locator(".split-ledger", { hasText: "惠斯勒周末" }).click();
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).click();
+    await page.getByRole("button", { name: re(t("unlockIt")) }).waitFor();
+    await theirs.locator(".split-page > .split-sync").waitFor({ timeout: 8000 });
+    await shot("33-locked-friend", theirs);
+    const late = await phone(width, height, lang);
+    await speak(late, lang);
+    const latecomer = await late.newPage();
+    watch(latecomer, true);
+    await latecomer.goto(invitation);
+    await latecomer.getByText(t("whoLocked")).waitFor({ timeout: 8000 });
+    await shot("33b-who-locked", latecomer);
+    await late.close();
+    // opened again, and then a new key: the friend's phone is shut out, and says what puts it right
+    await page.getByRole("button", { name: re(t("unlockIt")) }).click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).waitFor();
+    await page.getByRole("button", { name: re(t("rekey")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+    await page.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 8000 });
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+    invitation = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop() ?? "";
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await theirs.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+    await shot("34-key-changed", theirs);
+    await theirs.goto(invitation);
+    await theirs.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 8000 });
+    ok((await theirs.locator(".split-standing").count()) === 1, `${lang} ${width}x${height}: a friend shut out by a new key opens the new invitation and is in again`);
+    await button("back").click();
+    await button("start").waitFor();
     // invitations that don't get in: a key that doesn't open the ledger, a ledger that isn't there, no signal
     await theirs.goto(invitation.replace(/#k=.{6}/, "#k=aaaaaa").replace(/\/split\/.{4}/, "/split/zzzz"));
     await theirs.getByText(t("joinGone")).waitFor();
@@ -954,6 +1029,108 @@ async function behave() {
       await pe.locator(".split-who").waitFor({ timeout: 8000 });
       ok(true, "with no signal it says so and waits: 再试一次, with the signal back, gets in");
       for (const ctx of [a, b, c, d, e]) await ctx.close();
+    }
+
+    // the owner's two: the lock, and a new key for the invitation
+    {
+      const a = await phone(390, 664, "zh");
+      await a.grantPermissions(["clipboard-read", "clipboard-write"]);
+      const pa = await open(a, true);
+      await start(pa, "主人", ["阿甲", "阿乙"]);
+      await spend(pa, "30");
+      const mine = (await keptBy(pa)).held[0];
+      const id = mine.server.id;
+      const link = `${base}/split/${id}#k=${mine.key}`;
+      const b = await phone(390, 664, "zh");
+      const pb = await b.newPage();
+      watch(pb, true);
+      await pb.goto(link);
+      await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await pb.locator(".split-standing").waitFor();
+      const line = async (page: Page) => (await page.locator(".split-page > .split-sync").textContent()) ?? "";
+
+      await button(pb, "more").click();
+      ok((await pb.getByRole("button", { name: re(t("lockIt")) }).count()) === 0 && (await pb.getByRole("button", { name: re(t("rekey")) }).count()) === 0 && (await keptBy(pb)).held[0].owner === undefined, "a friend's phone has no owner's key, and its ⋯ has neither of the owner's lines");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+      ok(!!mine.owner && mine.owner !== mine.key, "the phone that started the ledger has one, which isn't the invitation's");
+
+      // the friend records something with no signal, and the owner locks the ledger meanwhile
+      await b.setOffline(true);
+      await spend(pb, "8");
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("lockIt")) }).click();
+      await pa.getByRole("button", { name: re(t("unlockIt")) }).waitFor({ timeout: 8000 });
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      ok((await line(pa)) === t("lockedOwner") && (await button(pa, "addExpense").count()) === 0 && (await pa.locator("button.split-row").count()) === 0, "the owner locks it with one tap: the page says so, and has no 记一笔 and no row that opens");
+      ok(typeof ((await onServer(pa, id, mine.key)).ledger as { locked?: number }).locked === "number", "and the server holds it locked");
+      await b.setOffline(false);
+      await pb.evaluate("window.dispatchEvent(new Event('online'))");
+      await pb.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+      ok((await line(pb)) === t("lockedUnsentOne") && (await keptBy(pb)).held[0].waiting.length === 1 && (await pb.locator(".split-row").count()) === 2 && (await button(pb, "addExpense").count()) === 0, "the friend's phone comes back: what it recorded stays on it and on its screen, and the page says the ledger is locked and one change can't go up");
+      ok((await onServer(pa, id, mine.key)).ledger.entries.length === 1, "nothing got into the locked ledger");
+      await pb.getByRole("tab", { name: t("settle") }).click();
+      await pb.locator(".split-row").first().click();
+      ok((await button(pb, "markPaid").count()) === 0 && (await pb.getByRole("dialog").getByText(t("locked")).count()) === 1, "a transfer can be looked at and its amount copied, and not marked as paid");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+      await pb.getByRole("tab", { name: t("expenses") }).click();
+
+      // opened again: what waited goes up by itself
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("unlockIt")) }).click();
+      await pa.getByRole("button", { name: re(t("lockIt")) }).waitFor({ timeout: 8000 });
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      await pb.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
+      await pa.locator(".split-row").nth(1).waitFor({ timeout: 8000 });
+      ok((await onServer(pa, id, mine.key)).ledger.entries.length === 2 && (await keptBy(pb)).held[0].waiting.length === 0 && (await button(pb, "addExpense").count()) === 1 && (await button(pa, "addExpense").count()) === 1, "the owner opens it again: the friend's expense goes up without anyone touching that phone, and both can record");
+
+      // a new key
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("rekey")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("rekeyNo"), exact: true }).click();
+      await closed(pa);
+      ok((await keptBy(pa)).held[0].key === mine.key, "换邀请链接 asks first, and 不换了 changes nothing");
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("rekey")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+      await pa.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 8000 });
+      await pa.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+      const link2 = String(await pa.evaluate("navigator.clipboard.readText()")).split("\n").pop() ?? "";
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      const now = (await keptBy(pa)).held[0];
+      ok(now.key !== mine.key && now.owner === mine.owner && now.next === undefined && link2 === `${base}/split/${id}#k=${now.key}`, "said yes to: the phone holds a new key, the same owner's key, and the invitation it copies carries the new one");
+      ok((await onServer(pa, id, mine.key)).ledger.name === "403" && (await onServer(pa, id, now.key)).ledger.entries.length === 2, "the server turns the old key away and opens to the new one, with everything in the ledger");
+      ok(await pa.locator(".split-page > .split-sync").count().then((n) => n === 0), "the owner's own page carries on with nothing to say");
+
+      // the friend: shut out, told why, still recording; then let in by the new invitation
+      await pb.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+      ok((await line(pb)) === t("troubleKey"), "the friend's page says the link was changed, and what to do");
+      await spend(pb, "5");
+      ok((await keptBy(pb)).held[0].waiting.length === 1 && (await pb.locator(".split-row").count()) === 3, "it still records, on the phone");
+      await pb.goto(link2);
+      await pb.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
+      await pa.locator(".split-row").nth(2).waitFor({ timeout: 8000 });
+      ok(pb.url() === `${base}/split/${id}` && (await keptBy(pb)).held[0].key === now.key && (await keptBy(pb)).held[0].waiting.length === 0 && (await onServer(pa, id, now.key)).ledger.entries.length === 3 && (await keptBy(pb)).me[id] !== undefined,
+        "the new invitation opened on it: the phone takes the new key, is still who it was, and what it kept goes up; the owner sees it");
+      const c = await phone(390, 664, "zh");
+      const pc = await c.newPage();
+      watch(pc, true);
+      await pc.goto(link);
+      await pc.getByText(t("joinKey")).waitFor({ timeout: 8000 });
+      ok(true, "someone opening the old invitation is told it doesn't open the ledger");
+
+      // taking the ledger off the owner's phone says what goes with it
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("deleteLedger")) }).click();
+      ok((await pa.getByRole("dialog").getByText(t("deleteOwner")).count()) === 1, "taking the ledger off its owner's phone says that the lock and the link go with it");
+      await button(pb, "more").click();
+      await pb.getByRole("button", { name: re(t("deleteLedger")) }).click();
+      ok((await pb.getByRole("dialog").getByText(t("deleteOwner")).count()) === 0, "(a friend's phone is told no such thing)");
+      for (const ctx of [a, b, c]) await ctx.close();
     }
   }
 

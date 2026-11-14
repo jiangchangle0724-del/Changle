@@ -52,7 +52,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 30 个对话，每个�
 | 工具 · 心愿单与打赏 | [wishlist.md](wishlist.md) | changle.ca/wish |
 | 工具 · 跟一单 | [tuan.md](tuan.md) | changle.ca/tuan（接口、买家和商家的页面上线了，藏着：没有入口，首页是 `/tuan/preview`，商家入口是 `/tuan/my`；商家可以自己开团、改团；线上有一家测试店和一个测试团，Steve 下过第一单，还差三个朋友各下一单） |
 | 工具 · 约时间 | [when.md](when.md) | changle.ca/when（上线了，工具页的第一张卡片；A3 在做） |
-| 工具 · 两清 | [split.md](split.md) | changle.ca/split（账本存在服务器上，发邀请链接或二维码就能加入；先藏着：工具页上没有入口） |
+| 工具 · 两清 | [split.md](split.md) | changle.ca/split（账本存在服务器上，发邀请链接或二维码就能加入，开账本的人能锁账本、换链接；先藏着：工具页上没有入口） |
 
 ## 开场白
 

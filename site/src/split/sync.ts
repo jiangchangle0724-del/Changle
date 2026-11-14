@@ -23,6 +23,13 @@ export type MakeBody = { id: string; name: string; currency: string; members: Me
 export type Held = {
   /** the key that opens this ledger (from the phone that made it, or from the invitation link) */
   key: string;
+  /**
+   * the owner's key: only the phone that made the ledger has one, and no invitation carries it. It
+   * changes the invitation's key and locks the ledger (tools/split/src/room/ledger.ts).
+   */
+  owner?: string;
+  /** the key the owner is changing to, kept from the moment it is asked for until the server has it: then it is `key` */
+  next?: string;
   /** has the server made it yet? A ledger opened with no signal is made on the first send. */
   made: boolean;
   /** the number of the server's last change, as last heard */
@@ -40,8 +47,8 @@ export const SEND_MOST = 500;
 /** Changes that didn't stick, kept for the screen until it has said so. */
 export const LOST_MOST = 50;
 
-/** A ledger just opened on this phone. The server hasn't heard of it yet. */
-export const hold = (ledger: Ledger, key: string): Held => ({ key, made: false, seq: 0, server: ledger, waiting: [], lost: [] });
+/** A ledger just opened on this phone, which owns it when it has made an owner's key for it. The server hasn't heard of it yet. */
+export const hold = (ledger: Ledger, key: string, owner?: string): Held => ({ key, ...(owner ? { owner } : {}), made: false, seq: 0, server: ledger, waiting: [], lost: [] });
 
 /** A ledger someone else opened, as the server gave it to this phone. */
 export const join = (snapshot: Snapshot, key: string): Held => ({ key, made: true, seq: snapshot.seq, server: snapshot.ledger, waiting: [], lost: [] });
@@ -52,10 +59,49 @@ export const shown = (h: Held): Ledger => rebase(h.server, h.waiting);
 /** What the server is asked to make, the first time. (Until it is made, `server` is the ledger as it was opened.) */
 export const makeBody = (h: Held): MakeBody => ({ id: h.server.id, name: h.server.name, currency: h.server.currency, members: h.server.members });
 
-/** The phone does something. Null when the ledger as shown doesn't allow it. */
+/** The phone does something. Null when the ledger as shown doesn't allow it, or is locked. */
 export function act(h: Held, change: Change, id: string, at: number): Held | null {
-  return applyChange(shown(h), change) ? { ...h, waiting: [...h.waiting, { id, at, change }] } : null;
+  const now = shown(h);
+  return now.locked === undefined && applyChange(now, change) ? { ...h, waiting: [...h.waiting, { id, at, change }] } : null;
 }
+
+/**
+ * The owner asks for a new key for the invitation. It is kept on the phone before anything is
+ * sent: the server may have it and the answer be lost, and a phone that forgot the key it asked
+ * for would be shut out of its own ledger. One at a time; and never one of the keys it has.
+ */
+export const rekeying = (h: Held, next: string): Held => (h.owner && h.made && !h.next && next !== h.key && next !== h.owner ? { ...h, next } : h);
+
+/** The server has the new key: it is the key now. */
+export function rekeyed(h: Held, next: string): Held {
+  if (h.next !== next) return h;
+  const { next: _asked, ...rest } = h;
+  return { ...rest, key: next };
+}
+
+/** The server won't take the key that was asked for: the ledger's key stays as it was. */
+export function keyStays(h: Held): Held {
+  if (h.next === undefined) return h;
+  const { next: _asked, ...rest } = h;
+  return rest;
+}
+
+/**
+ * The server says this phone's owner's key isn't the ledger's owner's (the ledger was made without
+ * one: by an older page, or while the server was being changed). The phone stops holding it, so
+ * its screens don't offer what the server will never do.
+ */
+export function notOwner(h: Held): Held {
+  if (h.owner === undefined) return h;
+  const { owner: _key, next: _asked, ...rest } = h;
+  return rest;
+}
+
+/**
+ * Another key for a ledger this phone holds, with the ledger as that key read it: a new
+ * invitation, opened after the owner changed the key. What was waiting to be sent still is.
+ */
+export const opened = (h: Held, key: string, s: Snapshot): Held => ({ ...heard(h, s), key });
 
 /**
  * The server says where the ledger stands (on making it, on the live connection). News older than

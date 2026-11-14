@@ -102,7 +102,9 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
         category="tool"
         title={line ? paysLine(ledger, line.from, line.to, me, lang) : ""}
         footer={
+          // (a locked ledger keeps its transfers as they are: the amount can still be copied)
           line &&
+          ledger.locked === undefined &&
           (line.paid ? (
             <Button
               tone="quiet"
@@ -151,7 +153,8 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
             <span className="ui-visually-hidden" role="status">
               {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
             </span>
-            <p className="split-note">{say(lang, line.paid ? "paid" : "noMoney")}</p>
+            {/* (a locked ledger can't be told a transfer was made: it says why, in place of how) */}
+            <p className="split-note">{say(lang, line.paid ? "paid" : ledger.locked !== undefined ? "locked" : "noMoney")}</p>
           </div>
         )}
       </Sheet>

@@ -3,8 +3,8 @@
  * what the phone keeps (store.ts), the server (net.ts), and for each ledger that has something to
  * send or is open on the screen, one syncer (syncer.ts) between the two.
  *
- * The screens come here to open a ledger, to change one (`record`), and to hear how the sending
- * is going. A ledger that is open on the screen also listens for what other phones record; the
+ * The screens come here to open a ledger, to change one (`record`), to lock it or change its key
+ * (its owner's phone only), and to hear how the sending is going. A ledger that is open on the screen also listens for what other phones record; the
  * others only send what they have. All of it stops when 两清 is left.
  */
 import { useSyncExternalStore } from "react";
@@ -12,7 +12,7 @@ import type { Change } from "./changes";
 import type { Ledger } from "./core";
 import { net } from "./net";
 import { dropHeld, everyHeld, heldOf, keepHeld, newId, newKey, write } from "./store";
-import { hold, holds, join, shown } from "./sync";
+import { hold, holds, join, opened, shown } from "./sync";
 import { syncer, type Syncer, type SyncState } from "./syncer";
 
 type Running = { syncer: Syncer; state: SyncState; watchers: number };
@@ -132,7 +132,21 @@ export type Joined = "in" | "key" | "gone" | "away";
  * among the people in it isn't known yet: the ledger's page asks).
  */
 export async function joinLedger(id: string, key: string): Promise<Joined> {
-  if (heldOf(id)) return "in";
+  const has = heldOf(id);
+  if (has) {
+    // An invitation with another key than the phone's: its owner may have changed the key since
+    // this phone came in. It is tried, and kept only if it opens the ledger; an old link, or a
+    // wrong one, changes nothing. What this phone had waiting to send stays, and goes with the new key.
+    if (has.key !== key && has.next !== key) {
+      const now = await net.read(id, key);
+      const data = now.data;
+      if (now.status === 200 && data?.ledger.id === id && heldOf(id)) {
+        write(id, (h) => opened(h, key, data));
+        run(id)?.syncer.rekeyed();
+      }
+    }
+    return "in";
+  }
   const got = await net.read(id, key);
   // (an answer about some other ledger is no answer: only the one asked for is kept)
   if (got.status === 200 && got.data?.ledger.id === id) {
@@ -143,10 +157,26 @@ export async function joinLedger(id: string, key: string): Promise<Joined> {
   return got.status === 403 ? "key" : got.status === 404 ? "gone" : "away";
 }
 
-/** A new ledger, held on this phone from this moment and made on the server as soon as it can be reached. */
+/**
+ * A new ledger, held on this phone from this moment and made on the server as soon as it can be
+ * reached. This phone is its owner: it makes the key that opens the ledger, and a second one that
+ * it never gives out.
+ */
 export function openLedger(ledger: Ledger, me: string) {
-  keepHeld(hold(ledger, newKey()), me);
+  keepHeld(hold(ledger, newKey(), newKey()), me);
   run(ledger.id)?.syncer.wake();
+}
+
+/** The owner locks a ledger, or opens it again. False when it couldn't be done just now (no signal). */
+export const lockLedger = (id: string, locked: boolean): Promise<boolean> => run(id)?.syncer.lock(locked) ?? Promise.resolve(false);
+
+/**
+ * The owner changes the key that opens a ledger: every invitation sent so far stops working. The
+ * phone holds the new key from this moment (`next`), and it is the ledger's key once the server
+ * has it, which what the phone holds then shows.
+ */
+export function rekeyLedger(id: string) {
+  run(id)?.syncer.rekey(newKey());
 }
 
 /**
@@ -179,5 +209,8 @@ const subscribe = (listener: () => void) => {
   };
 };
 
-/** How the sending is going for one ledger; redraws when it changes. */
-export const useSync = (id: string): SyncState => useSyncExternalStore(subscribe, () => running.get(id)?.state ?? IDLE);
+/** How the sending is going for one ledger, as of now. */
+export const syncOf = (id: string): SyncState => running.get(id)?.state ?? IDLE;
+
+/** The same, for a screen: redraws when it changes. */
+export const useSync = (id: string): SyncState => useSyncExternalStore(subscribe, () => syncOf(id));

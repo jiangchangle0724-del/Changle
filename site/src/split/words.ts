@@ -91,6 +91,7 @@ export const W = {
   justLook: { zh: "先看看账本", en: "Just have a look" },
   whoNotListed: { zh: "名单里没有你？", en: "Not on the list?" },
   addMe: { zh: "加上我", en: "Add me" },
+  whoLocked: { zh: "账本锁上了，现在加不了人。", en: "This ledger is locked, so nobody can be added right now." },
   nameListed: { zh: "名单里已经有这个名字了。是你的话，点上面的名字。", en: "That name is already on the list. If it's you, tap it above." },
   slow: { zh: "网有点慢，马上就好", en: "Slow connection, nearly there" },
   joinAway: { zh: "没连上", en: "Couldn't connect" },
@@ -112,12 +113,27 @@ export const W = {
     en: "Too many ledgers started today. This one can go online tomorrow; until then it stays on this phone.",
   },
   troubleGone: { zh: "云端没有这个账本了，现在只在这部手机上。", en: "This ledger is no longer online. It's only on this phone now." },
-  troubleKey: { zh: "这部手机打不开云端的这个账本了，这里记的发不上去。", en: "This phone can no longer open this ledger online. What's recorded here can't be sent." },
+  troubleKey: {
+    zh: "邀请链接换过了，这部手机暂时打不开云端的账本。点开新的邀请链接就接上，这里记的还留着。",
+    en: "The invite link was changed, so this phone can't open the ledger online for now. Open the new invite link to carry on. What's recorded here is kept.",
+  },
   troubleTaken: { zh: "这个账本存不到云端，只在这部手机上。重开一个账本就好。", en: "This ledger can't be kept online, so it's only on this phone. Starting a new one fixes it." },
   troubleStuck: {
     zh: "云端没收下这部手机发去的改动，先留在手机上。过一会儿再打开试试。",
     en: "The server didn't take what this phone sent, so it stays on this phone. Try opening it again in a while.",
   },
+  // locked by its owner: it can be read, and nothing can be changed
+  locked: { zh: "账本锁上了，只能看。", en: "This ledger is locked. It's read-only." },
+  lockedOwner: { zh: "账本锁上了，只能看。要改，先在 ⋯ 里打开。", en: "This ledger is locked. To change it, unlock it from ⋯ first." },
+  lockedUnsentOne: {
+    zh: "账本锁上了，这里有 1 处改动发不上去。请开账本的人打开账本。",
+    en: "This ledger is locked, so 1 change here can't be sent. Ask whoever started it to unlock it.",
+  },
+  lockedUnsent: {
+    zh: "账本锁上了，这里有 {n} 处改动发不上去。请开账本的人打开账本。",
+    en: "This ledger is locked, so {n} changes here can't be sent. Ask whoever started it to unlock it.",
+  },
+  cardLocked: { zh: "已锁上", en: "Locked" },
   lostOne: { zh: "有 1 处改动没存上", en: "1 change wasn't saved" },
   lostMany: { zh: "有 {n} 处改动没存上", en: "{n} changes weren't saved" },
   lostWhy: { zh: "账本在别的手机上先改过，所以没存上。还需要的话，再做一次。", en: "The ledger was changed on another phone first. Redo whatever is still needed." },
@@ -141,7 +157,30 @@ export const W = {
     zh: "移除以后，要有邀请链接才能再打开。账本本身还在云端，别人照样能用。",
     en: "Once it's off this phone, it takes an invite link to open it again. The ledger itself stays online, and the others can still use it.",
   },
+  // (added for the phone that started the ledger: its owner's key goes with it)
+  deleteOwner: {
+    zh: "这部手机是开账本的那部。移除以后，就没有人能锁账本、换链接了。",
+    en: "This is the phone that started the ledger. Once it's removed, nobody can lock the ledger or change its link.",
+  },
   deleteYes: { zh: "移除", en: "Remove" },
+  // the owner's: only on the phone that started the ledger
+  lockIt: { zh: "锁上账本", en: "Lock the ledger" },
+  lockItHint: { zh: "只能看，不能改", en: "Read-only" },
+  unlockIt: { zh: "打开账本", en: "Unlock the ledger" },
+  unlockItHint: { zh: "大家又能改", en: "Editable" },
+  lockFailed: { zh: "没连上，没锁上。再试一次。", en: "Couldn't connect, so it isn't locked. Try again." },
+  unlockFailed: { zh: "没连上，还锁着。再试一次。", en: "Couldn't connect, so it's still locked. Try again." },
+  lockedPeople: { zh: "账本锁上了，成员改不了。", en: "This ledger is locked, so its people can't be changed." },
+  rekey: { zh: "换邀请链接", en: "Change the link" },
+  rekeyAsk: {
+    zh: "换了以后，现在这条链接和二维码就作废了。\n已经加入的人，要点开新链接才能接着记。",
+    en: "The link and code you have now will stop working.\nPeople already in will need the new link to carry on.",
+  },
+  rekeyYes: { zh: "换链接", en: "Change it" },
+  rekeyNo: { zh: "不换了", en: "Keep it" },
+  rekeying: { zh: "正在换链接…", en: "Changing the link…" },
+  rekeyWaiting: { zh: "没连上。有信号以后自动换好。", en: "Not connected. It changes as soon as there's a signal." },
+  rekeyDone: { zh: "换好了，旧链接已经作废。", en: "Changed. The old link no longer works." },
   keep: { zh: "先留着", en: "Keep it" },
   save: { zh: "存好", en: "Save" },
 

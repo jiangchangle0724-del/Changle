@@ -10,22 +10,32 @@
  *  - An answer that says this phone can't go on (the key no longer opens the ledger, the ledger is
  *    gone, too many ledgers today): stop sending and say which. The phone still records.
  *  - It listens only to a ledger that is open on the screen. One that isn't still sends what it has.
+ *  - A locked ledger takes nothing: what is waiting stays on the phone, and goes when the ledger
+ *    is opened again. (That isn't a trouble: the ledger itself says it is locked.)
+ *  - The phone that made the ledger is its owner. It can lock it, and change the key that opens
+ *    it; a key it has asked for is seen through before anything else is sent.
  *
  * What the phone holds is never kept here: it is read from the store each time and changed by
  * saying how, so another tab open on the same ledger, or the ledger being taken off this phone,
  * is simply what is read next.
  */
 import type { Change, Sent } from "./changes";
-import { act, answered, dismiss, heard, makeBody, toSend, type Held, type MakeBody, type Pushed, type Snapshot } from "./sync";
+import { act, answered, dismiss, heard, keyStays, makeBody, notOwner, rekeyed, rekeying, toSend, type Held, type MakeBody, type Pushed, type Snapshot } from "./sync";
 
 /** What came back. Status 0: nothing did (no signal, timed out). */
 export type Reply<T> = { status: number; data?: T };
 
 export interface Net {
-  make(key: string, body: MakeBody): Promise<Reply<Snapshot>>;
+  /** `owner`: the owner's key, when this phone has made one for the ledger */
+  make(key: string, body: MakeBody, owner?: string): Promise<Reply<Snapshot>>;
   /** the ledger as it stands */
   read(id: string, key: string): Promise<Reply<Snapshot>>;
+  /** status 423: the ledger is locked, and something in `changes` is new to it */
   push(id: string, key: string, changes: Sent[]): Promise<Reply<Pushed>>;
+  /** the owner changes the key that opens the ledger to `next` */
+  rekey(id: string, owner: string, next: string): Promise<Reply<Snapshot>>;
+  /** the owner locks the ledger, or opens it again */
+  lock(id: string, owner: string, locked: boolean): Promise<Reply<Snapshot>>;
   /**
    * Listen to a ledger: `on` each time the server sends it, `down` once when the connection ends
    * (with the status when the server refused it, otherwise 0). Returns how to stop listening;
@@ -72,6 +82,23 @@ export type Syncer = {
   look(): void;
   /** The screen has told the user about a change that didn't stick. */
   dismiss(id: string): void;
+  /**
+   * The owner locks the ledger, or opens it again. True when the server did it (or it was already
+   * so); false when nothing answered, or this phone isn't the owner (told so by the server, it
+   * stops holding an owner's key).
+   */
+  lock(locked: boolean): Promise<boolean>;
+  /**
+   * The owner changes the key that opens the ledger to `next`: the old invitation stops working.
+   * The key is kept on the phone and seen through, now or when there is a signal (what the phone
+   * holds says when: `next` is gone and `key` is the new one).
+   */
+  rekey(next: string): void;
+  /**
+   * The phone has been given another key for the ledger (a new invitation, after its owner changed
+   * the key): what the old key couldn't do is tried again.
+   */
+  rekeyed(): void;
   stop(): void;
 };
 
@@ -146,7 +173,10 @@ export function syncer(opts: {
         live = true;
         away = false;
         tries = 0;
+        const was = opts.read();
         keep((x) => heard(x, s));
+        // the owner has opened a ledger that was locked: what this phone kept waiting can go now
+        if (was?.server.locked !== undefined && s.ledger.locked === undefined && was.waiting.length) void flush();
       },
       (status) => {
         if (stopped) return;
@@ -168,7 +198,7 @@ export function syncer(opts: {
       const first = opts.read();
       if (!first) return;
       if (!first.made) {
-        const made = await opts.net.make(first.key, makeBody(first));
+        const made = await opts.net.make(first.key, makeBody(first), first.owner);
         if (stopped) return;
         const data = made.data;
         if ((made.status === 200 || made.status === 201) && data) {
@@ -176,6 +206,26 @@ export function syncer(opts: {
           keep((x) => heard({ ...x, made: true }, data));
         } else if (made.status === 0 || made.status >= 500) return retry();
         else return halt(made.status === 429 ? "limit" : made.status === 409 ? "taken" : made.status === 403 ? "key" : "stuck");
+      }
+      // A key the owner asked for comes before everything else: the server may already have it
+      // (the answer was lost, or the page was closed), and then the old one opens nothing.
+      const mine = opts.read();
+      if (mine?.owner && mine.next) {
+        const next = mine.next;
+        // (the server lets go of every phone the old key let in, this one too: it stops listening
+        // first, so that isn't taken for the key having been changed by someone else)
+        deaf();
+        const got = await opts.net.rekey(mine.server.id, mine.owner, next);
+        if (stopped) return;
+        const data = got.data;
+        if (got.status === 200 && data) {
+          tries = 0;
+          away = false;
+          keep((x) => heard(rekeyed(x, next), data));
+        } else if (got.status === 0 || got.status >= 500) return retry();
+        else if (got.status === 404) return halt("gone");
+        // (403: this phone isn't the ledger's owner after all; anything else: the server won't have this key)
+        else keep(got.status === 403 ? notOwner : keyStays);
       }
       listen();
       if (looking) {
@@ -202,6 +252,19 @@ export function syncer(opts: {
           tries = 0;
           away = false;
           keep((x) => answered(x, batch, data));
+        } else if (got.status === 423) {
+          // Locked: nothing is taken until its owner opens it, and what is waiting stays on the
+          // phone. A phone that isn't listening may not have heard it was locked: it asks once,
+          // so the page can say why nothing is going up.
+          tries = 0;
+          away = false;
+          if (h.server.locked === undefined && !unlisten) {
+            const now = await opts.net.read(h.server.id, h.key);
+            if (stopped) return;
+            const stands = now.data;
+            if (now.status === 200 && stands) keep((x) => heard(x, stands));
+          }
+          break;
         } else if (got.status === 0 || got.status >= 500 || got.status === 429) return retry();
         else return halt(got.status === 404 ? "gone" : got.status === 403 ? "key" : "stuck");
       }
@@ -259,6 +322,35 @@ export function syncer(opts: {
     },
     dismiss(id) {
       keep((x) => dismiss(x, id));
+    },
+    async lock(locked) {
+      const h = opts.read();
+      if (stopped || !h?.owner || !h.made) return false;
+      const got = await opts.net.lock(h.server.id, h.owner, locked);
+      const data = got.data;
+      if (stopped) return false;
+      if (got.status === 403) keep(notOwner);
+      if (got.status !== 200 || !data) return false;
+      away = false;
+      keep((x) => heard(x, data));
+      // opened again: what was kept waiting while it was locked goes now
+      if (!locked) void flush();
+      return true;
+    },
+    rekey(next) {
+      if (stopped) return;
+      keep((x) => rekeying(x, next));
+      void flush();
+    },
+    rekeyed() {
+      if (stopped) return;
+      if (trouble === "key") trouble = null;
+      deaf();
+      callOff?.();
+      callOff = null;
+      tries = 0;
+      tell();
+      void flush();
     },
     stop() {
       stopped = true;

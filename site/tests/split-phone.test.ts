@@ -75,7 +75,7 @@ const page = { visibilityState: "visible", addEventListener: listenTo, removeEve
 const storage = new Storage();
 
 /** One request the page made, and how the test answers it. */
-type Asked = { method: string; path: string; key: string | null; body: unknown };
+type Asked = { method: string; path: string; key: string | null; body: unknown; owner?: string; next?: string };
 type Answer = { status: number; json?: unknown; text?: string } | "nothing" | "hangs";
 const asked: Asked[] = [];
 let answer: (a: Asked) => Answer = () => "nothing";
@@ -88,7 +88,7 @@ class Socket {
   closed = false;
   onopen: (() => void) | null = null;
   onmessage: ((e: { data: unknown }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((e: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
   constructor(
     public url: string,
@@ -111,8 +111,8 @@ class Socket {
   says(data: unknown) {
     this.onmessage?.({ data: typeof data === "string" ? data : JSON.stringify(data) });
   }
-  drops() {
-    this.onclose?.();
+  drops(code = 1006) {
+    this.onclose?.({ code });
   }
 }
 const lastSocket = () => Socket.all[Socket.all.length - 1];
@@ -124,7 +124,7 @@ Object.assign(globalThis, {
   localStorage: storage,
   WebSocket: Socket,
   fetch: async (url: string, init: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal } = {}) => {
-    const a: Asked = { method: init.method ?? "GET", path: url, key: init.headers?.["x-split-key"] ?? null, body: init.body ? JSON.parse(init.body) : undefined };
+    const a: Asked = { method: init.method ?? "GET", path: url, key: init.headers?.["x-split-key"] ?? null, body: init.body ? JSON.parse(init.body) : undefined, owner: init.headers?.["x-split-owner"], next: init.headers?.["x-split-next"] };
     asked.push(a);
     const how = answer(a);
     if (how === "nothing") throw new TypeError("Failed to fetch");
@@ -244,6 +244,31 @@ const { net } = await import("../src/split/net");
   eq(await net.push("ledger-9", KEY, two), none, "an answer that accounts for fewer changes than were sent is no answer: they are sent again");
   answer = () => ({ status: 200, json: { ...pushed, took: ["new", "maybe"] } });
   eq(await net.push("ledger-9", KEY, two), none, "nor is one in a word the server doesn't use");
+  answer = () => ({ status: 423, json: { error: "locked" } });
+  eq(await net.push("ledger-9", KEY, two), { status: 423 }, "a locked ledger turning changes away is the server's answer: 423");
+  answer = () => ({ status: 423, text: "Locked" });
+  eq(await net.push("ledger-9", KEY, two), none, "the same number from something that isn't the server is no answer");
+
+  // the owner's: its key goes with the request that makes the ledger, and alone on its two
+  const OWNER = "o".repeat(43);
+  const NEXT = "n".repeat(43);
+  asked.length = 0;
+  answer = () => ({ status: 201, json: snapshot });
+  await net.make(KEY, body, OWNER);
+  eq(asked, [{ method: "POST", path: "/split/api/ledgers", key: KEY, body, owner: OWNER }], "a ledger made by its owner: the owner's key in a header of its own beside the key");
+  asked.length = 0;
+  const locked = { seq: 3, ledger: { ...ledger, locked: 99 } };
+  answer = () => ({ status: 200, json: locked });
+  eq(await net.lock("ledger-9", OWNER, true), { status: 200, data: locked }, "the owner locks the ledger: it comes back locked, and since when");
+  eq(asked, [{ method: "POST", path: "/split/api/ledgers/ledger-9/lock", key: null, body: { locked: true }, owner: OWNER }], "asked with the owner's key alone, in a header");
+  asked.length = 0;
+  answer = () => ({ status: 200, json: snapshot });
+  eq(await net.rekey("ledger-9", OWNER, NEXT), { status: 200, data: snapshot }, "the owner changes the key");
+  eq(asked, [{ method: "POST", path: "/split/api/ledgers/ledger-9/key", key: null, body: undefined, owner: OWNER, next: NEXT }], "the owner's key and the new one each in a header: neither in the address, and nothing in the body");
+  answer = () => ({ status: 403, json: { error: "owner" } });
+  eq([await net.rekey("ledger-9", KEY, NEXT), await net.lock("ledger-9", KEY, true)], [{ status: 403 }, { status: 403 }], "a key that isn't the owner's is refused by the server, in its own word");
+  answer = () => ({ status: 403, text: "<html>Blocked</html>" });
+  eq(await net.lock("ledger-9", OWNER, true), none, "and something in between saying no is no answer here either");
 }
 
 // ---------- 3. the live connection ----------
@@ -289,6 +314,24 @@ const { net } = await import("../src/split/net");
     await settle();
     eq([ends, asked.map((a) => [a.method, a.path, a.key])], [[status], [["GET", "/split/api/ledgers/ledger-9", KEY]]], `refused before it opened, and asked why: ${why} → ${status}`);
   }
+
+  // let go by the server because the owner changed the key: asked the same way, so it is known at once
+  reset();
+  answer = () => ({ status: 403, json: { error: "key" } });
+  listen();
+  ws = lastSocket();
+  ws.opens();
+  ws.drops(4403);
+  await settle();
+  eq([ends, asked.map((a) => [a.method, a.path, a.key])], [[403], [["GET", "/split/api/ledgers/ledger-9", KEY]]], "let go with the server's own number for a changed key: the ledger is asked for once, and the key is known not to open it");
+  reset();
+  answer = () => ({ status: 200, json: { seq: 3, ledger } });
+  listen();
+  ws = lastSocket();
+  ws.opens();
+  ws.drops(4403);
+  await settle();
+  eq(ends, [0], "(and if the key does open it after all, it was only a dropped line)");
 
   // stopped by the page
   reset();
@@ -365,6 +408,13 @@ const { net } = await import("../src/split/net");
     const at = made.get(id);
     if (!at) return { status: 404, json: { error: "gone" } };
     if (a.method === "GET") return { status: 200, json: at };
+    if (a.path.endsWith("/key")) return { status: 200, json: at };
+    if (a.path.endsWith("/lock")) {
+      const { locked: _since, ...open } = at.ledger;
+      at.ledger = (a.body as { locked: boolean }).locked ? { ...open, locked: 5 } : open;
+      at.seq += 1;
+      return { status: 200, json: at };
+    }
     const changes = (a.body as { changes: Sent[] }).changes;
     for (const c of changes) if (c.change.do === "expense") at.ledger = { ...at.ledger, entries: [...at.ledger.entries, c.change.expense] };
     at.seq += changes.length;
@@ -433,8 +483,26 @@ const { net } = await import("../src/split/net");
   eq([asked.map((a) => [a.method, a.path, a.key]), store.heldOf("ledger-8")?.made, store.heldOf("ledger-8")?.seq, store.heldOf("ledger-8")?.server.name, store.heldOf("ledger-8")?.key === KEY, kept()?.me["ledger-8"]],
     [[["GET", "/split/api/ledgers/ledger-8", KEY]], true, 5, "别人的账本", true, undefined],
     "the ledger was read once with the invitation's key, and is held with it from here on; who its owner is isn't known yet");
-  eq([await syncing.joinLedger("ledger-8", "z".repeat(43)), asked.length, store.heldOf("ledger-8")?.key === KEY], ["in", 1, true], "opened again (even by another link): the phone has it already, and nothing is asked or changed");
+  eq([await syncing.joinLedger("ledger-8", KEY), asked.length], ["in", 1], "the same invitation opened again: the phone has the ledger already, and nothing is asked");
   const real = answer;
+  // (from here the server knows which key opens ledger-8)
+  let opens = KEY;
+  answer = (a) => (a.path.includes("ledger-8") && a.key !== opens ? { status: 403, json: { error: "key" } } : real(a));
+  eq([await syncing.joinLedger("ledger-8", "z".repeat(43)), asked.length, store.heldOf("ledger-8")?.key === KEY], ["in", 2, true], "a link with another key that doesn't open the ledger (an old invitation, a mangled one): tried once, and the phone keeps the key it has");
+
+  // its owner changes the key: what this phone has opens nothing, until a new invitation is opened on it
+  const NEW = "n".repeat(43);
+  opens = NEW;
+  ok(syncing.record("ledger-8", spend("j1").change), "(something recorded on a phone whose key was changed under it)");
+  await settle();
+  eq([syncing.syncOf("ledger-8").trouble, store.heldOf("ledger-8")?.waiting.length], ["key", 1], "the owner changed the key: this phone's opens nothing, it says so, and keeps what it recorded");
+  asked.length = 0;
+  eq(await syncing.joinLedger("ledger-8", NEW), "in", "the new invitation, opened on a phone that has the ledger");
+  await settle();
+  eq([store.heldOf("ledger-8")?.key === NEW, syncing.syncOf("ledger-8").trouble, store.heldOf("ledger-8")?.waiting.length, made.get("ledger-8")?.ledger.entries.length, asked.every((a) => a.key === NEW), kept()?.held.find((h) => h.server.id === "ledger-8")?.key === NEW],
+    [true, null, 0, 1, true, true],
+    "the phone takes the new key and keeps it, is out of trouble, and what it had kept goes up with the new key");
+  answer = real;
   for (const [how, want] of [
     [{ status: 403, json: { error: "key" } }, "key"],
     [{ status: 404, json: { error: "gone" } }, "gone"],
@@ -467,6 +535,43 @@ const { net } = await import("../src/split/net");
   heard.visibilitychange.forEach((fn) => fn());
   await settle();
   eq(asked.length, 0, "the list left: no more asking");
+
+  // the phone that starts a ledger is its owner
+  asked.length = 0;
+  syncing.openLedger(fresh("ledger-o"), "s");
+  await settle();
+  const mine = store.heldOf("ledger-o")!;
+  ok(typeof mine.owner === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]{41}[A-Za-z0-9]$/.test(mine.owner) && mine.owner !== mine.key, "a ledger started here: the phone makes an owner's key for it, another one than the key that opens it");
+  eq(asked.filter((a) => a.method === "POST").map((a) => [a.path, a.key === mine.key, a.owner === mine.owner]), [["/split/api/ledgers", true, true]], "and sends it once, with the request that makes the ledger");
+  ok(kept()?.held.find((h) => h.server.id === "ledger-o")?.owner === mine.owner && store.heldOf("ledger-8")?.owner === undefined, "it is kept with the ledger; a ledger this phone came into by an invitation has none");
+
+  asked.length = 0;
+  eq([await syncing.lockLedger("ledger-8", true), asked.length], [false, 0], "a ledger that isn't this phone's to lock: nothing is asked");
+  eq(await syncing.lockLedger("ledger-o", true), true, "the owner locks its ledger");
+  eq([asked.map((a) => [a.method, a.path, a.key, a.owner === mine.owner, a.body]), store.heldOf("ledger-o")?.server.locked, kept()?.held.find((h) => h.server.id === "ledger-o")?.server.locked],
+    [[["POST", "/split/api/ledgers/ledger-o/lock", null, true, { locked: true }]], 5, 5],
+    "asked once, with the owner's key; the phone holds the ledger locked, and keeps it so");
+  ok(!syncing.record("ledger-o", spend("o1").change) && store.heldOf("ledger-o")?.waiting.length === 0, "locked: nothing is recorded on it");
+  eq([await syncing.lockLedger("ledger-o", false), store.heldOf("ledger-o")?.server.locked], [true, undefined], "opened again");
+  ok(syncing.record("ledger-o", spend("o1").change), "and it records as before");
+  await settle();
+  const real2 = answer;
+  answer = () => "nothing";
+  eq([await syncing.lockLedger("ledger-o", true), store.heldOf("ledger-o")?.server.locked], [false, undefined], "with no signal it isn't locked, and the screen is told so");
+  answer = real2;
+
+  asked.length = 0;
+  syncing.rekeyLedger("ledger-o");
+  const during = store.heldOf("ledger-o")!;
+  ok(!!during.next && during.next !== during.key && during.next !== during.owner && kept()?.held.find((h) => h.server.id === "ledger-o")?.next === during.next, "the owner changes the key: a new one is made, and kept before anything is sent");
+  await settle();
+  const after = store.heldOf("ledger-o")!;
+  eq([after.key === during.next, after.next, after.owner === mine.owner, asked.filter((a) => a.method === "POST").map((a) => [a.path, a.key, a.owner === mine.owner, a.next === during.next])],
+    [true, undefined, true, [["/split/api/ledgers/ledger-o/key", null, true, true]]],
+    "the server has it: it is the ledger's key on this phone now, asked for once with the owner's key");
+  syncing.rekeyLedger("ledger-8");
+  ok(store.heldOf("ledger-8")?.next === undefined, "a ledger that isn't this phone's keeps its key");
+  syncing.forget("ledger-o");
   syncing.forget("ledger-8");
 
   // a ledger taken off the phone, and 两清 left

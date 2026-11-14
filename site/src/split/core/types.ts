@@ -62,4 +62,10 @@ export type Ledger = {
   currency: string;
   members: Member[];
   entries: Entry[];
+  /**
+   * when its owner locked it, if it is locked: any number here means locked. A locked ledger can be
+   * read and takes no changes until its owner opens it again. Only the server sets this (no change
+   * a phone sends can); the sums take no notice of it.
+   */
+  locked?: number;
 };

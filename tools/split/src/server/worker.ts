@@ -3,14 +3,13 @@
 // is in src/room/protocol.ts.
 //
 // Each ledger is one Durable Object (LedgerDO) with its own small SQLite database: the ledger, the
-// fingerprint of the key that opens it, the id of every change it has been sent, and the record of
-// the ones that counted. It takes changes one request at a time, so two phones recording at once
-// can't cross, and it tells every phone that is listening.
+// fingerprints of the key that opens it and of its owner's key, the id of every change it has been
+// sent, and the record of the ones that counted. It takes changes one request at a time, so two
+// phones recording at once can't cross, and it tells every phone that is listening.
 import { DurableObject } from "cloudflare:workers";
-import type { Sent } from "../../../../site/src/split/changes";
 import type { Ledger } from "../../../../site/src/split/core";
-import { ID_RE, LedgerRoom, type ErrorCode, type Fail, type Meta, type Store } from "../room/ledger";
-import { KEY_HEADER, KEY_RE, LIVE_PROTOCOL, type ApiError, type Push, type Pushed, type Since, type Snapshot } from "../room/protocol";
+import { ID_RE, LedgerRoom, type ErrorCode, type Fail, type Logged, type Meta, type Store } from "../room/ledger";
+import { KEY_HEADER, KEY_RE, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type ApiError, type Push, type Pushed, type Since, type Snapshot } from "../room/protocol";
 
 export interface Env {
   LEDGERS: DurableObjectNamespace<LedgerDO>;
@@ -29,7 +28,9 @@ const HASH_HEADER = "x-split-key-hash";
 
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 const refuse = (error: ApiError["error"], status: number) => json({ error } satisfies ApiError, status);
-const STATUS: Record<ErrorCode, number> = { gone: 404, exists: 409, bad: 400, key: 403, full: 409 };
+const STATUS: Record<ErrorCode, number> = { gone: 404, exists: 409, bad: 400, key: 403, full: 409, owner: 403, locked: 423 };
+/** The live connections of a ledger whose key was changed are closed with this: they were let in by the old one. */
+const KEY_CHANGED = 4403;
 const failed = (f: Fail) => refuse(f.error, STATUS[f.error]);
 
 async function sha256(text: string): Promise<string> {
@@ -78,9 +79,14 @@ export default {
 
     const key = req.headers.get(KEY_HEADER) ?? "";
     const keyHash = KEY_RE.test(key) ? await sha256(key) : null;
+    // the owner's key: on the request that makes the ledger, and on the owner's two
+    const owner = req.headers.get(OWNER_HEADER);
+    const ownerHash = owner !== null && KEY_RE.test(owner) ? await sha256(owner) : null;
 
     if (parts.length === 1 && req.method === "POST") {
       if (!keyHash) return refuse("key", 403);
+      // (an owner's key that isn't one makes no ledger: better than a ledger its maker can't lock)
+      if (owner !== null && !ownerHash) return refuse("bad", 400);
       const input = await body(req);
       if (!input || typeof input.id !== "string" || !ID_RE.test(input.id)) return refuse("bad", 400);
       const stub = env.LEDGERS.get(env.LEDGERS.idFromName(input.id));
@@ -89,7 +95,7 @@ export default {
       if (there.ok) return json({ seq: there.seq, ledger: there.ledger } satisfies Snapshot);
       if (there.error !== "gone") return refuse("exists", 409);
       if (!(await allowed(req, env))) return refuse("limit", 429);
-      const made = await stub.create({ id: input.id, name: input.name, currency: input.currency, members: input.members, keyHash, now: Date.now() });
+      const made = await stub.create({ id: input.id, name: input.name, currency: input.currency, members: input.members, keyHash, ownerHash, now: Date.now() });
       return made.ok ? json({ seq: made.seq, ledger: made.ledger } satisfies Snapshot, 201) : failed(made);
     }
 
@@ -110,6 +116,18 @@ export default {
       if (!input) return refuse("bad", 400);
       const got = await stub.push(keyHash, input.changes);
       return got.ok ? json({ seq: got.seq, ledger: got.ledger, took: got.took } satisfies Pushed) : failed(got);
+    }
+    if (parts.length === 3 && parts[2] === "key" && req.method === "POST") {
+      const next = req.headers.get(NEXT_HEADER) ?? "";
+      if (!KEY_RE.test(next)) return refuse("bad", 400);
+      const got = await stub.rekey(ownerHash, await sha256(next));
+      return got.ok ? json({ seq: got.seq, ledger: got.ledger } satisfies Snapshot) : failed(got);
+    }
+    if (parts.length === 3 && parts[2] === "lock" && req.method === "POST") {
+      const input = await body(req);
+      if (!input) return refuse("bad", 400);
+      const got = await stub.lock(ownerHash, input.locked);
+      return got.ok ? json({ seq: got.seq, ledger: got.ledger } satisfies Snapshot) : failed(got);
     }
     return refuse("notfound", 404);
   },
@@ -150,10 +168,18 @@ function sqlStore(sql: SqlStorage): Store {
       sql.exec("INSERT OR IGNORE INTO heard (id, counted) VALUES (?, ?)", id, logged ? 1 : 0);
       if (logged) sql.exec("INSERT INTO log (seq, at, json) VALUES (?, ?, ?)", logged.seq, logged.at, JSON.stringify(logged.sent));
     },
+    // (a line that is no change is kept as {"lock": true or false}, where a change's line is the change as it was sent)
+    note(logged) {
+      ready();
+      sql.exec("INSERT INTO log (seq, at, json) VALUES (?, ?, ?)", logged.seq, logged.at, JSON.stringify({ lock: logged.lock }));
+    },
     since(seq, limit) {
       if (!made) return [];
       const rows = sql.exec("SELECT seq, at, json FROM log WHERE seq > ? ORDER BY seq LIMIT ?", seq, limit).toArray();
-      return rows.map((r) => ({ seq: r.seq as number, at: r.at as number, sent: JSON.parse(r.json as string) as Sent }));
+      return rows.map((r): Logged => {
+        const line = JSON.parse(r.json as string) as { lock?: unknown };
+        return typeof line.lock === "boolean" ? { seq: r.seq as number, at: r.at as number, lock: line.lock } : { seq: r.seq as number, at: r.at as number, sent: line as Extract<Logged, { sent: unknown }>["sent"] };
+      });
     },
   };
 }
@@ -197,6 +223,28 @@ export class LedgerDO extends DurableObject<Env> {
 
   async since(keyHash: string | null, seq: number): Promise<ReturnType<LedgerRoom["since"]>> {
     return this.room.since(keyHash, seq);
+  }
+
+  /** The owner changes the key. Every phone that was listening was let in by the old one: they are let go, and come back with the new one or not at all. */
+  async rekey(ownerHash: string | null, nextHash: string): Promise<ReturnType<LedgerRoom["rekey"]>> {
+    const got = this.room.rekey(ownerHash, nextHash);
+    if (got.ok && got.changed) {
+      for (const ws of this.ctx.getWebSockets()) {
+        try {
+          ws.close(KEY_CHANGED, "key");
+        } catch {
+          // a phone that just left
+        }
+      }
+    }
+    return got;
+  }
+
+  /** The owner locks the ledger, or opens it again: every phone that is listening sees it. */
+  async lock(ownerHash: string | null, locked: unknown): Promise<ReturnType<LedgerRoom["lock"]>> {
+    const got = this.room.lock(ownerHash, locked, Date.now());
+    if (got.ok && got.changed) this.tell();
+    return got;
   }
 
   /** The live connection: a phone listens here and is sent the ledger now, and again whenever it changes. */

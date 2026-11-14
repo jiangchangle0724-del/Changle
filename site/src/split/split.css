@@ -161,6 +161,8 @@
   color: var(--color-text-2);
   font-size: var(--text-sm);
   line-height: var(--leading);
+  /* (two lines of it are two even lines, not one and a word) */
+  text-wrap: balance;
 }
 .split-sync svg {
   flex: none;
@@ -237,6 +239,23 @@
 /* the shared empty state's words, on 两清's pages: no line left with a word or two on it */
 .split-page .ui-empty-body {
   text-wrap: balance;
+}
+/* the link has just been changed: said once, under what the new one lets someone do */
+.split-invite-done {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading);
+  text-align: start;
+}
+.split-invite-done svg {
+  flex: none;
+  width: var(--text-md);
+  height: var(--text-md);
+  margin-top: calc((var(--text-sm) * var(--leading) - var(--text-md)) / 2);
 }
 /* the code is night on paper, with paper all round it: a scanner needs the quiet edge */
 .split-qr {
@@ -329,6 +348,11 @@
 }
 .split-row:active {
   background: var(--color-line-soft);
+}
+/* in a locked ledger a row is only a row: nothing answers a tap */
+.split-row.is-still {
+  cursor: default;
+  background: transparent;
 }
 @media (hover: hover) {
   .split-row:hover {
@@ -588,6 +612,10 @@ label.split-field:focus-within {
 }
 .split-menu-row > strong:last-child {
   flex: 1;
+}
+/* (a line with no words on its right still ends in its arrow, at the edge) */
+.split-menu-row > strong + svg {
+  margin-inline-start: auto;
 }
 /* the sheet's last line has nothing under it to be ruled off from */
 .split-menu-row:last-child {

@@ -16,11 +16,13 @@
  * 12. News the phone already has changes nothing; two tabs on one ledger are told once.
  * 13. The ledger is taken off the phone with a request on its way: nothing is written back.
  * 14. A ledger that is a card in the list is asked where it stands, once, and only when nothing else would say.
+ * 15. Its owner locks a ledger: nobody records, what was waiting stays on the phone, and goes when it is opened again.
+ * 16. Its owner changes the key: the owner's phone carries on, a friend's is shut out until it has the new invitation.
  */
 import { accept, type Change, type Sent, type Took } from "../src/split/changes";
 import { balances, nextRot, portionsOf, type Expense, type Ledger } from "../src/split/core";
 import { startLedger } from "../src/split/ops";
-import { heard, hold, join, shown, type Held, type MakeBody, type Pushed, type Snapshot } from "../src/split/sync";
+import { heard, hold, join, opened, shown, type Held, type MakeBody, type Pushed, type Snapshot } from "../src/split/sync";
 import { syncer, type Net, type Reply, type SyncState } from "../src/split/syncer";
 import { rng } from "./split/ledgers";
 
@@ -41,15 +43,15 @@ const settle = async () => {
 };
 
 // ---------- a server, as the phones see it ----------
-type Kept = { key: string; ledger: Ledger; seq: number; seen: Map<string, boolean>; ears: Set<(s: Snapshot) => void> };
+type Kept = { key: string; owner?: string; ledger: Ledger; seq: number; seen: Map<string, boolean>; ears: Set<(s: Snapshot) => void>; lines: Set<(status: number) => void> };
 class World {
   ledgers = new Map<string, Kept>();
   makes = 0;
-  make(key: string, body: MakeBody): Reply<Snapshot> {
+  make(key: string, body: MakeBody, owner?: string): Reply<Snapshot> {
     const there = this.ledgers.get(body.id);
     if (there) return there.key === key ? { status: 200, data: { seq: there.seq, ledger: there.ledger } } : { status: 409 };
     const ledger = startLedger(body.id, body.name, body.currency, body.members);
-    this.ledgers.set(body.id, { key, ledger, seq: 0, seen: new Map(), ears: new Set() });
+    this.ledgers.set(body.id, { key, owner, ledger, seq: 0, seen: new Map(), ears: new Set(), lines: new Set() });
     this.makes++;
     return { status: 201, data: { seq: 0, ledger } };
   }
@@ -62,6 +64,8 @@ class World {
     const k = this.ledgers.get(id);
     if (!k) return { status: 404 };
     if (k.key !== key) return { status: 403 };
+    // locked, it takes nothing new (what it took before it still answers for)
+    if (k.ledger.locked !== undefined && changes.some((s) => k.seen.get(s.id) === undefined)) return { status: 423 };
     const took: Took[] = [];
     for (const s of changes) {
       const got = accept(k.ledger, k.seen, s);
@@ -71,6 +75,30 @@ class World {
     }
     if (took.includes("new")) for (const ear of [...k.ears]) ear({ seq: k.seq, ledger: k.ledger });
     return { status: 200, data: { seq: k.seq, ledger: k.ledger, took } };
+  }
+  /** The owner changes the key: whoever was listening was let in by the old one, and is let go. */
+  rekey(id: string, owner: string, next: string): Reply<Snapshot> {
+    const k = this.ledgers.get(id);
+    if (!k) return { status: 404 };
+    if (!k.owner || k.owner !== owner) return { status: 403 };
+    if (k.key !== next) {
+      k.key = next;
+      for (const drop of [...k.lines]) drop(403);
+    }
+    return { status: 200, data: { seq: k.seq, ledger: k.ledger } };
+  }
+  /** The owner locks the ledger, or opens it: a number of its own, and everyone listening is told. */
+  lock(id: string, owner: string, locked: boolean): Reply<Snapshot> {
+    const k = this.ledgers.get(id);
+    if (!k) return { status: 404 };
+    if (!k.owner || k.owner !== owner) return { status: 403 };
+    if ((k.ledger.locked !== undefined) !== locked) {
+      const { locked: _since, ...open } = k.ledger;
+      k.ledger = locked ? { ...open, locked: 777 } : open;
+      k.seq++;
+      for (const ear of [...k.ears]) ear({ seq: k.seq, ledger: k.ledger });
+    }
+    return { status: 200, data: { seq: k.seq, ledger: k.ledger } };
   }
 }
 
@@ -105,9 +133,11 @@ function phone(world: World, name: string, from: Held | OnPhone, watching?: bool
     }
   };
   const net: Net = {
-    make: (key, body) => answer(() => world.make(key, body), signal.makeSays),
+    make: (key, body, owner) => answer(() => world.make(key, body, owner), signal.makeSays),
     read: (id, key) => answer(() => world.read(id, key), 0),
     push: (id, key, changes) => answer(() => world.push(id, key, changes), signal.pushSays),
+    rekey: (id, owner, next) => answer(() => world.rekey(id, owner, next), 0),
+    lock: (id, owner, locked) => answer(() => world.lock(id, owner, locked), 0),
     listen(id, key, on, down) {
       const k = world.ledgers.get(id);
       const refused = !signal.on ? 0 : !k ? 404 : k.key !== key ? 403 : -1;
@@ -117,11 +147,16 @@ function phone(world: World, name: string, from: Held | OnPhone, watching?: bool
       }
       k.ears.add(on);
       const drop = (status: number) => {
+        k.lines.delete(drop);
         if (k.ears.delete(on)) down(status);
       };
       lines.push(drop);
+      k.lines.add(drop);
       queueMicrotask(() => k.ears.has(on) && on({ seq: k.seq, ledger: k.ledger }));
-      return () => void k.ears.delete(on);
+      return () => {
+        k.lines.delete(drop);
+        k.ears.delete(on);
+      };
     },
   };
   const timers: { run: () => void; off: boolean }[] = [];
@@ -135,6 +170,8 @@ function phone(world: World, name: string, from: Held | OnPhone, watching?: bool
     make: (...args) => (asks++, net.make(...args)),
     read: (...args) => (reads++, net.read(...args)),
     push: (...args) => (asks++, net.push(...args)),
+    rekey: (...args) => (asks++, net.rekey(...args)),
+    lock: (...args) => (asks++, net.lock(...args)),
     listen: (...args) => (listens++, net.listen(...args)),
   };
   const s = syncer({
@@ -661,6 +698,165 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
   c.s.look();
   await settle();
   eq(c.s.state().trouble, "gone", "or that the ledger is gone");
+}
+
+// ---------- 15. the owner locks the ledger ----------
+{
+  const world = new World();
+  const a = phone(world, "a", hold(fresh(), "k", "own"));
+  a.s.wake();
+  await settle();
+  const k = world.ledgers.get("ledger-1")!;
+  eq([k.owner, k.key], ["own", "k"], "the phone that opens a ledger sends an owner's key of its own with it");
+  a.spend("e1");
+  await settle();
+  const b = phone(world, "b", join({ seq: k.seq, ledger: k.ledger }, "k"));
+  b.s.wake();
+  const c = phone(world, "c", join({ seq: k.seq, ledger: k.ledger }, "k"), false);
+  await settle();
+
+  const before = b.asks();
+  eq([await b.s.lock(true), b.asks(), k.ledger.locked], [false, before, undefined], "a phone that isn't the owner's has nothing to lock with: nothing is asked");
+  a.signal.on = false;
+  eq([await a.s.lock(true), a.ledger().locked], [false, undefined], "the owner, with no signal: not locked, and the screen is told so");
+  a.signal.on = true;
+
+  // one friend records with no signal, and another's answer is lost, just before the lock
+  b.away();
+  b.spend("b1");
+  c.signal.loseAnswers = 1;
+  c.spend("c1");
+  await settle();
+  eq([ids(k.ledger), c.held().waiting.length], [["e1", "c1"], 1], "(a friend's expense is in, though its phone never heard so)");
+
+  eq([await a.s.lock(true), a.ledger().locked !== undefined, k.seq], [true, true, 3], "the owner locks it: the ledger says so, under a number of its own");
+  ok(!a.spend("e2") && a.held().waiting.length === 0, "locked, the owner's own phone records nothing either");
+  c.fire();
+  await settle();
+  eq([c.held().waiting.length, c.held().server.locked !== undefined, c.s.state().trouble], [0, true, null], "the phone whose answer was lost asks again and hears its expense is in: a locked ledger still answers for what it took");
+  ok(!c.spend("c2"), "and now it knows the ledger is locked, it records nothing");
+
+  b.back();
+  await settle();
+  eq([b.held().waiting.length, ids(b.ledger()), b.ledger().locked !== undefined, b.s.state().trouble, b.s.state().away, b.waits(), b.s.state().live], [1, ["e1", "c1", "b1"], true, null, false, 0, true],
+    "the one that recorded with no signal comes back: its expense stays on the phone and on its screen, the ledger is seen to be locked, and that is no trouble and nothing to keep trying");
+  eq(ids(k.ledger), ["e1", "c1"], "nothing got into the locked ledger");
+
+  // a phone that isn't listening and hadn't heard
+  const d = phone(world, "d", join({ seq: 1, ledger: { ...k.ledger, entries: k.ledger.entries.slice(0, 1), locked: undefined } as Ledger }, "k"), false);
+  ok(d.spend("d1"), "a phone that hasn't heard records as usual");
+  await settle();
+  eq([d.held().waiting.length, d.held().server.locked !== undefined, d.reads(), d.s.state().trouble, d.waits()], [1, true, 1, null, 0], "it is turned away, asks once where the ledger stands, and finds it locked: what it recorded waits");
+  d.s.wake();
+  await settle();
+  eq([d.held().waiting.length, d.reads()], [1, 1], "woken while it is still locked: tried once more, and it knows why without asking again");
+
+  const lockedAt = k.seq;
+  eq([await a.s.lock(false), a.ledger().locked, k.ledger.locked, k.seq > lockedAt], [true, undefined, undefined, true], "the owner opens it again");
+  await settle();
+  eq([b.held().waiting.length, ids(k.ledger), b.ledger().locked], [0, ["e1", "c1", "b1"], undefined], "a phone that is listening hears it is open, and what it kept goes up by itself");
+  eq(d.held().waiting.length, 1, "(one that isn't listening hasn't heard yet)");
+  d.s.wake();
+  await settle();
+  eq([d.held().waiting.length, ids(k.ledger), d.ledger().locked], [0, ["e1", "c1", "b1", "d1"], undefined], "and sends what it kept the next time it wakes");
+  ok(a.spend("e2"), "and the owner records again");
+  await settle();
+
+  // the owner's key on a second phone (as it will be once ledgers follow an account), which hadn't heard of a lock
+  await a.s.lock(true);
+  const o2 = phone(world, "o2", { ...join({ seq: 1, ledger: { ...k.ledger, entries: k.ledger.entries.slice(0, 1), locked: undefined } as Ledger }, "k"), owner: "own" }, false);
+  o2.spend("o1");
+  await settle();
+  eq([o2.held().waiting.length, o2.ledger().locked !== undefined], [1, true], "(the owner's other phone records, is turned away, and sees the lock)");
+  eq([await o2.s.lock(false), k.ledger.locked], [true, undefined], "it opens the ledger itself");
+  await settle();
+  eq([o2.held().waiting.length, ids(k.ledger).includes("o1")], [0, true], "and what it had kept goes up at once, with nothing to wake it");
+  eq([a.atOnce(), b.atOnce(), c.atOnce(), d.atOnce()].map((n) => n <= 2), [true, true, true, true], "(the lock is the one request that may go beside another)");
+}
+
+// ---------- 16. the owner changes the key ----------
+{
+  const world = new World();
+  const a = phone(world, "a", hold(fresh(), "k", "own"));
+  a.s.wake();
+  await settle();
+  const k = world.ledgers.get("ledger-1")!;
+  a.spend("e1");
+  await settle();
+  const b = phone(world, "b", join({ seq: k.seq, ledger: k.ledger }, "k"));
+  b.s.wake();
+  await settle();
+
+  b.s.rekey("k9");
+  await settle();
+  eq([b.held().next, k.key], [undefined, "k"], "a phone that isn't the owner's changes no key");
+  a.s.rekey("own");
+  a.s.rekey("k");
+  eq(a.held().next, undefined, "and the owner's doesn't change it to a key it already has");
+
+  a.s.rekey("k2");
+  eq([a.held().key, a.held().next], ["k", "k2"], "the owner asks for a new key: it is kept on the phone before anything is sent");
+  a.s.rekey("k3");
+  eq(a.held().next, "k2", "one at a time: asking again while one is on its way changes nothing");
+  await settle();
+  eq([k.key, a.held().key, a.held().next, a.s.state().live, a.s.state().trouble, a.held().owner], ["k2", "k2", undefined, true, null, "own"], "the server has it: it is the phone's key now, and the phone is listening again with it");
+
+  eq([b.s.state().trouble, b.s.state().live], ["key", false], "the friend's phone was let go, and its old key opens nothing: it says so");
+  ok(b.spend("b1") && b.held().waiting.length === 1, "it still records, and keeps what it records");
+  await settle();
+  eq(ids(k.ledger), ["e1"], "(none of which goes anywhere)");
+  // the friend opens the new invitation
+  b.box.held = opened(b.held(), "k2", world.read("ledger-1", "k2").data!);
+  b.s.rekeyed();
+  await settle();
+  eq([b.s.state().trouble, b.s.state().live, b.held().waiting.length, ids(k.ledger), b.held().key], [null, true, 0, ["e1", "b1"], "k2"], "given the new invitation's key: it is in again, listening, and what it kept goes up");
+
+  // the answer is lost
+  a.signal.loseAnswers = 1;
+  a.s.rekey("k3");
+  await settle();
+  eq([k.key, a.held().key, a.held().next, a.waits()], ["k3", "k2", "k3", 1], "the answer is lost: the server has the new key, the phone holds the old one and the new, and will ask again");
+  a.fire();
+  await settle();
+  eq([a.held().key, a.held().next, a.s.state().live, a.s.state().trouble], ["k3", undefined, true, null], "asked again: already so. The new key is the phone's");
+  a.signal.loseAnswers = 1;
+  a.s.rekey("k3b");
+  await settle();
+  a.spend("e2");
+  await settle();
+  eq([k.key, a.held().key, a.held().next, a.held().waiting.length, ids(k.ledger)], ["k3b", "k3b", undefined, 0, ["e1", "b1", "e2"]], "recording something meanwhile asks again at once: the key first, then the expense, sent with the new key and never the old");
+
+  // the page is closed before the answer: the next time 两清 opens, it is seen through first
+  const closed: Held = { ...a.held(), next: "k4" };
+  k.key = "k4";
+  const a2 = phone(world, "a2", closed);
+  a2.s.wake();
+  await settle();
+  eq([a2.held().key, a2.held().next, a2.s.state().trouble, a2.s.state().live], ["k4", undefined, null, true], "a phone that closed with a key on its way opens again and finishes it, before its old key can be refused");
+
+  // no signal: asked for, kept, and done when the signal is back, ahead of what was recorded meanwhile
+  a2.away();
+  a2.s.rekey("k5");
+  ok(a2.spend("e3"), "(with no signal the owner still records)");
+  await settle();
+  eq([k.key, a2.held().next], ["k4", "k5"], "with no signal the new key waits on the phone");
+  a2.back();
+  await settle();
+  eq([k.key, a2.held().key, a2.held().next, a2.held().waiting.length, ids(k.ledger).includes("e3")], ["k5", "k5", undefined, 0, true], "the signal back: the key is changed first, then what was recorded goes up with it");
+
+  // a phone that thinks it is the owner and isn't
+  const x = phone(world, "x", { ...join({ seq: k.seq, ledger: k.ledger }, "k5"), owner: "not-the-owner" });
+  x.s.wake();
+  await settle();
+  x.s.rekey("k6");
+  await settle();
+  eq([k.key, x.held().key, x.held().next, x.held().owner, x.s.state().trouble, x.s.state().live], ["k5", "k5", undefined, undefined, null, true], "the server won't change the key for a phone that isn't the owner's: its key stays as it was, it carries on, and it stops thinking it is the owner");
+  const y = phone(world, "y", { ...join({ seq: k.seq, ledger: k.ledger }, "k5"), owner: "not-the-owner-either" });
+  y.s.wake();
+  await settle();
+  eq([await y.s.lock(true), k.ledger.locked, y.held().owner], [false, undefined, undefined], "nor lock the ledger for one: told so, that phone too has no owner's key any more");
+  const asksBefore = y.asks();
+  eq([await y.s.lock(true), y.asks()], [false, asksBefore], "and doesn't ask again");
 }
 
 if (failed) {

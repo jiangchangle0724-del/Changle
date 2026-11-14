@@ -9,6 +9,10 @@
 //
 // Who may open it: whoever holds the key in the invitation link. The room never keeps the key,
 // only its SHA-256 fingerprint.
+//
+// Its owner is the phone that made it, which holds a second key nobody else is given. That key
+// opens two doors only: changing the invitation's key (the old one is turned away from then on)
+// and locking the ledger (it can be read, and takes no changes, until the owner opens it again).
 import { accept, parseSent, type Sent, type Took } from "../../../../site/src/split/changes";
 import { MAX_MEMBERS, type Ledger, type Member } from "../../../../site/src/split/core";
 import { NAME_MAX, startLedger, tidy } from "../../../../site/src/split/ops";
@@ -26,14 +30,21 @@ const TEXT_MOST = 400;
 export type Meta = {
   /** the fingerprint of the key that opens this ledger */
   keyHash: string;
+  /** the fingerprint of its owner's key; a ledger made before there were owners has none, and no owner */
+  ownerHash?: string;
   madeAt: number;
   /** how many changes have counted: the last one's number */
   seq: number;
   /** how many changes it has been sent, counted or not */
   sent: number;
 };
-/** A change that counted: its number, when the server took it, and the change as it was sent. */
-export type Logged = { seq: number; at: number; sent: Sent };
+/**
+ * One line of the record: a change that counted (its number, when the server took it, and the
+ * change as it was sent), or the ledger being locked or opened again by its owner.
+ */
+export type LoggedChange = { seq: number; at: number; sent: Sent };
+export type LoggedLock = { seq: number; at: number; lock: boolean };
+export type Logged = LoggedChange | LoggedLock;
 export type Snapshot = { seq: number; ledger: Ledger };
 
 export interface Store {
@@ -42,12 +53,15 @@ export interface Store {
   /** Has this ledger been sent a change with this id, and did it count? Undefined when it hasn't. */
   seen(id: string): boolean | undefined;
   /** Remember a change's id and whether it counted, and the change itself when it did. */
-  keep(id: string, logged: Logged | null): void;
+  keep(id: string, logged: LoggedChange | null): void;
+  /** Add a line to the record that is no phone's change (the ledger locked, or opened again). */
+  note(logged: LoggedLock): void;
   /** The changes that counted after number `seq`, oldest first, at most `limit` of them. */
   since(seq: number, limit: number): Logged[];
 }
 
-export type ErrorCode = "gone" | "exists" | "bad" | "key" | "full";
+/** "owner": not the owner's key (or the ledger has no owner). "locked": the ledger is locked and this would change it. */
+export type ErrorCode = "gone" | "exists" | "bad" | "key" | "full" | "owner" | "locked";
 export type Fail = { ok: false; error: ErrorCode };
 export type Ok<T = object> = { ok: true } & T;
 const fail = (error: ErrorCode): Fail => ({ ok: false, error });
@@ -87,19 +101,26 @@ export class LedgerRoom {
     return this.meta !== null && keyHash !== null && keyHash === this.meta.keyHash;
   }
 
+  /** Is this the owner's key? (No key is, for a ledger with no owner.) */
+  owns(ownerHash: string | null): boolean {
+    return this.meta?.ownerHash !== undefined && ownerHash !== null && ownerHash === this.meta.ownerHash;
+  }
+
   snapshot(): Snapshot | null {
     return this.meta && this.ledger ? { seq: this.meta.seq, ledger: this.ledger } : null;
   }
 
   /**
-   * A new ledger, opened by this key from now on. Asked for again with the same key (a phone that
-   * wasn't sure its request arrived), it is the ledger already made, as it stands now.
+   * A new ledger, opened by this key from now on, and owned by whoever holds the owner's key (when
+   * one is given). Asked for again with the same key (a phone that wasn't sure its request
+   * arrived), it is the ledger already made, as it stands now, with the owner it had.
    */
-  create(input: { id: unknown; name: unknown; currency: unknown; members: unknown; keyHash: string; now: number }): Ok<Snapshot> | Fail {
+  create(input: { id: unknown; name: unknown; currency: unknown; members: unknown; keyHash: string; ownerHash?: string | null; now: number }): Ok<Snapshot> | Fail {
     if (this.meta) return this.meta.keyHash === input.keyHash ? { ok: true, ...this.snapshot()! } : fail("exists");
     const ledger = newLedger(input);
-    if (!ledger) return fail("bad");
-    this.meta = { keyHash: input.keyHash, madeAt: input.now, seq: 0, sent: 0 };
+    // (the owner's key is nobody else's: never the one that goes out in the invitation)
+    if (!ledger || input.ownerHash === input.keyHash) return fail("bad");
+    this.meta = { keyHash: input.keyHash, ...(input.ownerHash ? { ownerHash: input.ownerHash } : {}), madeAt: input.now, seq: 0, sent: 0 };
     this.ledger = ledger;
     this.store.save(this.meta, ledger);
     return { ok: true, ...this.snapshot()! };
@@ -126,6 +147,9 @@ export class LedgerRoom {
       sent.push(s);
     }
     const fresh = new Set(sent.map((s) => s.id).filter((id) => this.store.seen(id) === undefined));
+    // Locked, it takes nothing new. What it took before it still answers for: a phone whose answer
+    // was lost has to hear that its change is in, or it would say the change is stuck outside.
+    if (this.ledger.locked !== undefined && fresh.size) return fail("locked");
     if (this.meta.sent + fresh.size > MAX_SENT) return fail("full");
 
     const meta = { ...this.meta };
@@ -151,7 +175,44 @@ export class LedgerRoom {
     return { ok: true, ...this.snapshot()!, took };
   }
 
-  /** The changes that counted after number `seq` (the record: who changed what, in order), at most MAX_BATCH at a time. */
+  /**
+   * The owner changes the key: from now on only the new one opens the ledger, and the old
+   * invitation is turned away. Nothing in the ledger changes. Asked again with the same new key
+   * (the answer was lost), it is already so.
+   */
+  rekey(ownerHash: string | null, nextHash: string): Ok<Snapshot & { changed: boolean }> | Fail {
+    if (!this.meta || !this.ledger) return fail("gone");
+    if (!this.owns(ownerHash)) return fail("owner");
+    if (nextHash === this.meta.ownerHash) return fail("bad");
+    const changed = nextHash !== this.meta.keyHash;
+    if (changed) {
+      this.meta = { ...this.meta, keyHash: nextHash };
+      this.store.save(this.meta, this.ledger);
+    }
+    return { ok: true, ...this.snapshot()!, changed };
+  }
+
+  /**
+   * The owner locks the ledger, or opens it again. It is something everyone sees in the ledger, so
+   * it has a number of its own and a line in the record, like a change. Asked for what is already
+   * so, nothing happens (a ledger locked twice keeps the time it was first locked).
+   */
+  lock(ownerHash: string | null, locked: unknown, now: number): Ok<Snapshot & { changed: boolean }> | Fail {
+    if (!this.meta || !this.ledger) return fail("gone");
+    if (!this.owns(ownerHash)) return fail("owner");
+    if (typeof locked !== "boolean") return fail("bad");
+    if (locked === (this.ledger.locked !== undefined)) return { ok: true, ...this.snapshot()!, changed: false };
+    const { locked: _since, ...open } = this.ledger;
+    const ledger: Ledger = locked ? { ...open, locked: now } : open;
+    const meta = { ...this.meta, seq: this.meta.seq + 1 };
+    this.store.note({ seq: meta.seq, at: now, lock: locked });
+    this.meta = meta;
+    this.ledger = ledger;
+    this.store.save(meta, ledger);
+    return { ok: true, ...this.snapshot()!, changed: true };
+  }
+
+  /** The record after number `seq` (who changed what, in order, and when it was locked or opened), at most MAX_BATCH lines at a time. */
   since(keyHash: string | null, seq: unknown): Ok<{ seq: number; changes: Logged[] }> | Fail {
     if (!this.meta) return fail("gone");
     if (!this.opens(keyHash)) return fail("key");
@@ -176,6 +237,9 @@ export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[
     keep(id, logged) {
       ids.set(id, logged !== null);
       if (logged) log.push(structuredClone(logged));
+    },
+    note(logged) {
+      log.push(structuredClone(logged));
     },
     since: (seq, limit) => log.filter((l) => l.seq > seq).slice(0, limit),
   };
