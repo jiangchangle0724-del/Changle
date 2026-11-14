@@ -40,12 +40,13 @@ export type BoothDj = {
 /** The host's songs being added: how far along, and the ones that couldn't be. */
 export type Adding = { done: number; total: number; name: string };
 
-/** A song file the host's phone is sending (songwire.ts): its pieces so far. */
+/** A song file a player's phone is sending (songwire.ts): its pieces so far. */
 type Incoming = { by: string; id: string; n: number; size: number; name: string; type: string; parts: (Uint8Array | null)[]; got: number; at: number };
-/** Songs from the host's phone are kept in this computer's memory (not on its disk): this much at most. */
+/** Songs from the phones are kept in this computer's memory (not on its disk): this much at most. */
 const PHONE_SONGS_BYTES = 400 * 1024 * 1024;
-/** files coming in at once, and how long one may go quiet before it's given up on */
-const INCOMING_MAX = 3;
+/** files coming in at once (each phone sends one at a time: everyone can, since Nov 13), and how
+ *  long one may go quiet before it's given up on */
+const INCOMING_MAX = 6;
 const INCOMING_MS = 60_000;
 
 /**
@@ -128,26 +129,27 @@ const statusOf = (b: PageBooth): BoothStatus => (b.speaker ? "on" : b.starting ?
 const tell = (b: PageBooth) => b.listeners.forEach((fn) => fn());
 
 /**
- * The host's song files, listened to one at a time (each is decoded and its beat found: a second
- * or two a song), added to the night's list as they're done; one already there isn't added again.
- * `told`: how each went (a song from the host's phone: the phone hears it).
+ * Song files, listened to one at a time (each is decoded and its beat found: a second or two a
+ * song), added to the night's list as they're done; one already there isn't added again. `told`:
+ * how each went, with its id on the list (a song from a phone: the phone hears it); `by`, the
+ * player whose phone sent them.
  */
-function addSongs(b: PageBooth, files: File[], told?: (f: File, r: SongSent) => void) {
+function addSongs(b: PageBooth, files: File[], told?: (f: File, r: SongSent, id: string) => void, by?: string) {
   const todo = files.filter((f) => {
     const ok = SONG_FILES.test(f.name) || f.type.startsWith("audio/");
-    if (!ok) told?.(f, "kind");
+    if (!ok) told?.(f, "kind", "");
     return ok;
   });
   b.queue = b.queue.then(async () => {
     for (let i = 0; i < todo.length; i++) {
       const f = todo[i];
       if (b.crate.length >= CRATE_MAX) {
-        todo.slice(i).forEach((x) => told?.(x, "full"));
+        todo.slice(i).forEach((x) => told?.(x, "full", ""));
         break;
       }
       const id = songId(f);
       if (b.crate.some((s) => s.id === id)) {
-        told?.(f, "there");
+        told?.(f, "there", id);
         continue;
       }
       b.adding = { done: i, total: todo.length, name: f.name };
@@ -155,10 +157,10 @@ function addSongs(b: PageBooth, files: File[], told?: (f: File, r: SongSent) => 
       const r = await readSong(f, id);
       if (typeof r === "string") b.failed = [...b.failed, { name: f.name, why: r }].slice(-20);
       else {
-        b.crate = [...b.crate, r];
+        b.crate = [...b.crate, by ? { ...r, by } : r];
         b.local.setCrate(b.crate);
       }
-      told?.(f, typeof r === "string" ? r : "added");
+      told?.(f, typeof r === "string" ? r : "added", id);
       tell(b);
       // a breath for the page between songs
       await new Promise((ok) => window.setTimeout(ok, 30));
@@ -169,11 +171,12 @@ function addSongs(b: PageBooth, files: File[], told?: (f: File, r: SongSent) => 
 }
 
 /**
- * A piece of a song file the host's phone sends (songwire.ts, passed on by the rooms server): kept
- * until the file is whole, then listened to like this computer's own; `told`: how it went, for
- * that phone. Files that go quiet for a minute are given up on.
+ * A piece of a song file a player's phone sends (songwire.ts, passed on by the rooms server; anyone
+ * at the table since Nov 13): kept until the file is whole, then listened to like this computer's
+ * own, as theirs; `told`: how it went, for that phone (with the song's id on the list: one already
+ * there goes on their 歌单 too). Files that go quiet for a minute are given up on.
  */
-function takePiece(b: PageBooth, p: { h: SongPiece; bytes: Uint8Array }, told: (by: string, id: number, r: SongSent) => void) {
+function takePiece(b: PageBooth, p: { h: SongPiece; bytes: Uint8Array }, told: (by: string, id: number, r: SongSent, song: string) => void) {
   const by = p.h.by;
   if (!by) return;
   const now = Date.now();
@@ -192,14 +195,19 @@ function takePiece(b: PageBooth, p: { h: SongPiece; bytes: Uint8Array }, told: (
   if (f.got < f.n) return;
   b.incoming.delete(key);
   const num = fileNumber(f.id);
-  if (b.fromPhone + f.size > PHONE_SONGS_BYTES) return told(by, num, "full");
+  if (b.fromPhone + f.size > PHONE_SONGS_BYTES) return told(by, num, "full", "");
   const size = f.size;
   // (the same file sent again has the same id: its name and size)
   const file = new File(f.parts as Uint8Array<ArrayBuffer>[], f.name, { type: f.type, lastModified: 0 });
-  addSongs(b, [file], (_, r) => {
-    if (r === "added") b.fromPhone += size;
-    told(by, num, r);
-  });
+  addSongs(
+    b,
+    [file],
+    (_, r, song) => {
+      if (r === "added") b.fromPhone += size;
+      told(by, num, r, song);
+    },
+    by,
+  );
 }
 
 /** Where the speaker may stream Lyria from (the table's relay), when the table may (`v.lab`). */
@@ -569,7 +577,7 @@ export function useBooth({
   }, [speaker]);
 
   const addFiles = useCallback((files: File[]) => addSongs(booth, files), [booth]);
-  const takeSongPiece = useCallback((p: { h: SongPiece; bytes: Uint8Array }, told: (by: string, id: number, r: SongSent) => void) => takePiece(booth, p, told), [booth]);
+  const takeSongPiece = useCallback((p: { h: SongPiece; bytes: Uint8Array }, told: (by: string, id: number, r: SongSent, song: string) => void) => takePiece(booth, p, told), [booth]);
   const clearSongs = useCallback(() => {
     booth.crate = [];
     booth.failed = [];

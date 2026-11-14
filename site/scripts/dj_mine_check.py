@@ -1,8 +1,12 @@
-"""打碟 · DJ Booth, 我的歌 from the host's phone, in browsers: the TV starts the night; Amy (the host)
-sends two song files and a broken one from her phone; they go in pieces through the table to the
-TV, which listens to each and adds the two (her phone hears how each went: added, can't be played,
-already there); a phone that isn't the host's can't send any; Amy switches the night to her songs
-from her phone, the TV hands the music over, and she switches back.
+"""打碟 · DJ Booth, songs from the phones (Steve on Nov 13: "要允许所有玩家都可以上传自己的歌上去，不仅是
+host"; before, 我的歌 on the host's phone alone), in browsers: the TV starts the night; Ben (not the
+host) sends two song files and a broken one from his phone; they go in pieces through the table to
+the TV, which listens to each and adds the two (his phone hears how each went: on the playlist,
+can't be played); they're his on the 歌单 at once, by name, and the first plays whole on the TV in
+its own sound (the DJ quiet under it, a card saying whose); 暂停 stops it where it is, 播放 carries it
+on from there, 切歌 brings his second; Amy sends the same file: the TV had it, it's on her 歌单 too;
+someone who sits down and sends one as someone else gets it as their own; the host's phone has no
+我的歌 card; the TV opened again loses the files, and the songs from them leave the 歌单.
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
 usage: python3 scripts/dj_mine_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
@@ -64,7 +68,24 @@ make_song(INTRUDER, 124, seconds=50, seed=3)
 
 
 def sent(ph):
-    return ph.locator(".djp-mine-sent li").all_inner_texts()
+    return ph.locator(".djk-send-done li").all_inner_texts()
+
+
+def text(pg, sel):
+    loc = pg.locator(sel)
+    return loc.first.inner_text() if loc.count() else ""
+
+
+def deck(pg):
+    return (view(pg) or {}).get("deck") or {}
+
+
+def song(tv):
+    return tv.evaluate("() => window.__phoneSong || null") or {}
+
+
+def key(ph, i):
+    return ph.locator(".djk-key").nth(i)
 
 
 with sync_playwright() as p:
@@ -80,39 +101,72 @@ with sync_playwright() as p:
     ok(until(lambda: (view(tv) or {}).get("phase") == "warm", 15000), f"{WHICH}: the night starts on the stand-in ({code})")
 
     phones = []
-    for name in ("Amy", "Ben"):
+    for name in ("Amy", "Ben", "Cat"):
         ph = phone(chrome, name, "zh")
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the deck")
+        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the booth")
         phones.append(ph)
-    amy, ben = phones
-    ok(until(lambda: amy.locator(".djp-mine").count() == 1, 4000) and ben.locator(".djp-mine").count() == 0, "我的歌 on the host's phone (Amy's), not on Ben's")
-    ok("电视上有 0 首" in amy.locator(".djp-mine .djp-host-label").inner_text(), "the TV has none yet")
-    ok(amy.locator(".djp-mine .btn-primary").is_disabled(), "nothing to switch to yet")
+    amy, ben, cat = phones
+    pid = {n: me for n, me in zip(("Amy", "Ben", "Cat"), [x.evaluate("() => window.__room && window.__room.you") for x in phones])}
+    ok(amy.locator(".djp-mine").count() == 0, "the host's phone has no 我的歌 card any more")
+    ok(all(ph.locator(".djk-send button").count() == 1 and "从手机传歌" in ph.locator(".djk-send button").inner_text() for ph in phones), "every phone can send songs from itself, under the song box")
 
-    # Amy sends two songs and a broken file from her phone
-    amy.locator(".djp-mine input[type=file]").set_input_files([ALPHA, BROKEN, BETA])
-    ok(until(lambda: "正在传" in (amy.locator(".djp-mine-now").inner_text() if amy.locator(".djp-mine-now").count() else "") or len(sent(amy)) > 0, 8000, 50), "her phone says it's sending")
-    ok(until(lambda: len(sent(amy)) == 3, 60000, 250), f"each one's word back from the TV: {sent(amy)}")
-    rows = sent(amy)
-    ok(any("First Song" in r and "加好了" in r for r in rows) and any("Second Song" in r and "加好了" in r for r in rows), "the two songs: added")
+    # Ben sends two songs and a broken file from his phone
+    ben.locator(".djk-send input[type=file]").set_input_files([ALPHA, BROKEN, BETA])
+    ok(until(lambda: "正在传" in text(ben, ".djk-send-now") or len(sent(ben)) > 0, 8000, 50), "his phone says it's sending")
+    ok(until(lambda: len(sent(ben)) == 3, 60000, 250), f"each one's word back from the TV: {sent(ben)}")
+    rows = sent(ben)
+    ok(any("First Song" in r and "加进歌单了" in r for r in rows) and any("Second Song" in r and "加进歌单了" in r for r in rows), "the two songs: on the playlist")
     ok(any("broken.mp3" in r and "放不了" in r for r in rows), "the broken one: can't be played")
     ok(until(lambda: (view(tv) or {}).get("crateN") == 2, 6000), "the room has their names")
-    ok(until(lambda: "电视上有 2 首" in amy.locator(".djp-mine .djp-host-label").inner_text(), 4000), "her phone: 2 on the TV")
-    tv.locator(".dj-local-btn").click()
-    names = tv.locator(".dj-local-list li").all_inner_texts()
-    ok(len(names) == 2 and any("First Song" in n and "Alpha" in n and "126 BPM" in n for n in names), f"on the TV, listened to like its own: {names}")
-    tv.locator(".dj-local-x").click()
-    amy.locator(".djp-mine input[type=file]").set_input_files([ALPHA])
-    ok(until(lambda: len(sent(amy)) == 4 and "已经有这首" in sent(amy)[-1], 30000, 250), f"the same song again: the TV has it already ({sent(amy)[-1] if sent(amy) else ''})")
-    amy.screenshot(path=os.path.join(OUT, f"mine-{WHICH}-phone-1.png"), full_page=True)
+    ben.screenshot(path=os.path.join(OUT, f"mine-{WHICH}-phone-1.png"), full_page=True)
 
-    # a phone that isn't the host's can't send one (straight at the rooms server, as it would have to)
+    # his on the 歌单 at once; the first plays whole on the TV, in its own sound
+    def theirs():
+        d = deck(tv)
+        return [r for r in ([d.get("song") and d.get("now")] + [d.get("up")] + (d.get("reqs") or [])) if r and r.get("local")]
+    ok(until(lambda: len(theirs()) == 2 and all(r["by"] == pid["Ben"] for r in theirs()), 8000), f"both on the 歌单 as Ben's ({[(r.get('text'), r.get('by')) for r in theirs()]})")
+    ok(until(lambda: (deck(tv).get("song") or {}).get("local") and song(tv).get("playing"), 30000, 200), f"the first plays whole on the TV ({deck(tv).get('song')}, {song(tv)})")
+    first = deck(tv)["song"]
+    t0 = time.time()
+    ok(first["by"] == pid["Ben"] and not first.get("yt") and song(tv).get("local") == first["local"], "his song file, not a video")
+    ok(until(lambda: tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") < 0.05, 4000), "the DJ quiet under it")
+    ok(until(lambda: ("Ben 传的歌" in text(tv, ".dj-file") or "Ben's song" in text(tv, ".dj-file")) and "First Song" in text(tv, ".dj-file"), 4000), f"a card on the TV says whose and what ({text(tv, '.dj-file')!r})")
+    ok(tv.locator(".dj-tube.is-on").count() == 0, "and no video")
+    ok(until(lambda: "First Song" in text(cat, ".djk-player-title") and "Ben" in text(cat, ".djk-player-by"), 4000), f"Cat's player names it ({text(cat, '.djk-player-now')!r})")
+    ok(cat.locator(".djk-player .btn-ghost").count() == 0, "no video to put over the whole TV")
+    tv.screenshot(path=os.path.join(OUT, f"mine-{WHICH}-tv-1.png"))
+
+    # 暂停 and 播放: stopped where it is, carried on from there
+    tv.wait_for_timeout(2500)
+    key(cat, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 0) > 0 and song(tv).get("playing") is False, 4000), f"Cat pauses: the song stops ({song(tv)})")
+    t_held = time.time()
+    tv.wait_for_timeout(1500)
+    key(cat, 1).click()
+    ok(until(lambda: song(tv).get("playing") is True, 4000), "播放: it carries on")
+    held = time.time() - t_held
+    played = time.time() - t0 - held
+    ok(2 < song(tv).get("from", 0) < played + 0.5, f"from where it was, not its start, the pause not counted ({song(tv).get('from', 0):.1f} s in, {played:.1f} s played, {held:.1f} s held)")
+    ok(tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") < 0.05, "the DJ still quiet under it")
+
+    # 切歌: his second
+    tv.wait_for_timeout(1600)
+    key(amy, 2).click()
+    ok(until(lambda: (deck(tv).get("song") or {}).get("local") not in (None, first["local"]) and song(tv).get("playing") and song(tv).get("local") != first["local"], 20000, 200), f"Amy skips it: Ben's second plays ({deck(tv).get('song')})")
+    ok(until(lambda: "Second Song" in text(tv, ".dj-file"), 4000), "the card says so")
+
+    # the same file from Amy's phone: the TV had it, it's hers on the 歌单 too
+    amy.locator(".djk-send input[type=file]").set_input_files([ALPHA])
+    ok(until(lambda: len(sent(amy)) == 1 and "已经有这首" in sent(amy)[0], 30000, 250), f"Amy sends the same song: the TV had it ({sent(amy)})")
+    ok(until(lambda: any(r["by"] == pid["Amy"] and r.get("text") == "First Song" for r in theirs()), 4000), "on the 歌单 as hers")
+
+    # someone who sits down and sends one as someone else (straight at the rooms server): it's theirs
     with open(INTRUDER, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
-    said = ben.evaluate(
+    said = cat.evaluate(
         """async ([url, b64]) => {
           const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
           const ws = new WebSocket(url);
@@ -130,37 +184,21 @@ with sync_playwright() as p:
             out.set([0x53, 0x4f, 0x4e, 0x47]); new DataView(out.buffer).setUint32(4, head.length, true); out.set(head, 8); out.set(part, 8 + head.length);
             ws.send(out.buffer);
           }
-          await new Promise((ok) => setTimeout(ok, 500));
+          for (let i = 0; i < 80; i++) await new Promise((ok) => setTimeout(ok, 100));
           ws.close();
           return room;
         }""",
         [f"{ROOMS}/room/{code}/ws", b64],
     )
-    ok(said, "a phone that isn't the host's sits down and sends a song's pieces")
-    tv.wait_for_timeout(5000)
-    ok((view(tv) or {}).get("crateN") == 2, "the TV never gets them")
+    ok(said, "someone sits down and sends a song's pieces, saying they're someone else's")
+    ok(until(lambda: (view(tv) or {}).get("crateN") == 3, 10000), "the TV gets it")
+    ok(until(lambda: any(r.get("text") == "Not Yours" and r["by"] == "pintruder01" for r in theirs()), 4000), "as the sender's own, never the name they gave")
+    ok(not any(r["by"] == "p-host-spoof" for r in theirs()), "nobody else's")
 
-    # Amy switches the night to her songs from her phone, and back
-    amy.locator(".djp-mine .btn-primary").click()
-    ok(until(lambda: (view(tv) or {}).get("mine") is True, 4000), "用我的歌放 on her phone: the room has it")
-    ok(until(lambda: (view(tv) or {}).get("source") == "local" and tv.evaluate("() => window.__djBooth.source") == "local", 20000, 250), "the TV hands the music to her songs")
-    ok(until(lambda: "正在放你的歌" in amy.locator(".djp-mine").inner_text(), 4000), "her phone says so")
-    on_song = ((view(tv) or {}).get("onDecks") or {}).get("a" if ((view(tv) or {}).get("deck") or {}).get("fader", 0) < 0.5 else "b") or {}
-    ok(on_song.get("t") in ("First Song", "Second Song"), f"one of hers on the air ({on_song.get('t')})")
-    tv.wait_for_timeout(1500)
-    st = tv.evaluate("() => window.__djBooth.stats()")
-    ok(st["state"] == "playing" and st["stalls"] == 0, f"playing, no gap ({st})")
-    tv.screenshot(path=os.path.join(OUT, f"mine-{WHICH}-tv-1.png"))
-    amy.screenshot(path=os.path.join(OUT, f"mine-{WHICH}-phone-2.png"), full_page=True)
-    amy.locator(".djp-mine .btn-ghost").last.click()
-    ok(until(lambda: (view(tv) or {}).get("source") == "fake" and tv.evaluate("() => window.__djBooth.source") == "fake", 10000), "换回试音版 DJ on her phone: the stand-in plays again")
-    tv.locator(".dj-local-btn").click()
-    ok(tv.locator(".dj-local-go .tv-btn-main").count() == 1, "and the TV's own switch agrees")
-
-    # the TV opened again: the songs went with the page (they were in its memory), and the room's names for them
+    # the TV opened again: the files went with the page, and the songs from them leave the 歌单
     tv.reload(wait_until="load")
-    ok(until(lambda: (view(tv) or {}).get("crateN") == 0, 15000, 250), "the TV opened again: its songs went with the page, and so do the room's names for them")
-    ok(until(lambda: "电视上有 0 首" in amy.locator(".djp-mine .djp-host-label").inner_text(), 4000), "her phone: none on the TV")
+    ok(until(lambda: (view(tv) or {}).get("crateN") == 0, 15000, 250), "the TV opened again: its files went with the page, and so do the room's names for them")
+    ok(until(lambda: not theirs(), 4000), f"and the songs from them leave the 歌单 ({theirs()})")
 
     bad = [e for e in errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not bad, f"no errors {bad[:3]}")

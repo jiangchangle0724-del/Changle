@@ -14,6 +14,7 @@ import { ytInfo, ytSearch } from "./youtube";
 import { EmptyState } from "../../../ui/EmptyState";
 import { Skeleton } from "../../../ui/Skeleton";
 import { Player, type G } from "./Player";
+import { SendSongs } from "./SendSongs";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -62,6 +63,8 @@ export function DeckPad({ v }: { v: DjView }) {
     <section className="djk" aria-label={zh ? "点歌" : "Songs"}>
       <Player v={v} me={me} g={g} zh={zh} nameOf={nameOf} />
       <Requests v={v} me={me} g={g} zh={zh} />
+      {/* a song file from this phone onto the 歌单 (anyone, Steve on Nov 13) */}
+      <SendSongs v={v} zh={zh} />
       <Playlist v={v} me={me} g={g} zh={zh} />
       <section className="djk-sounds" aria-label={zh ? "音效" : "Sounds"}>
         <span className="djk-sounds-title">{zh ? "音效：电视上下一拍响" : "Sounds: on the TV from the next beat"}</span>
@@ -450,8 +453,8 @@ export function Requests({ v, me, g, zh, each = DECK.reqEach }: { v: DjView; me:
                   : `The line is full (${DECK.reqMax} songs). Try again in a bit`
                 : d.local
                   ? zh
-                    ? `搜主人的这 ${v.crateN} 首歌，点中了下一首就放原曲`
-                    : `Search the host's ${v.crateN} songs. The one you pick plays next`
+                    ? `搜电视上的这 ${v.crateN} 首歌，点中了下一首就放原曲`
+                    : `Search the TV's ${v.crateN} songs. The one you pick plays next`
                   : noTube === "nokey"
                     ? zh
                       ? "输入歌名或歌手，或者贴一个 YouTube 链接。自动搜 YouTube 还没开通：要在电视上放整首，就贴这首歌的链接"
@@ -497,7 +500,7 @@ export function Requests({ v, me, g, zh, each = DECK.reqEach }: { v: DjView; me:
         />
       )}
       {!need && hits.length + onTube.length > 0 && (
-        <ul className="djk-req-hits" aria-label={d.local ? (zh ? "主人的歌" : "The host's songs") : zh ? "找到的歌" : "Songs found"}>
+        <ul className="djk-req-hits" aria-label={d.local ? (zh ? "电视上的歌" : "The TV's songs") : zh ? "找到的歌" : "Songs found"}>
           {hits.map((h) => (
             <li key={h.id}>
               <button type="button" className="djk-req-hit" onClick={() => setPick(h)}>

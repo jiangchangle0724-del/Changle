@@ -1433,3 +1433,48 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
+
+/* songs from this phone (phone/SendSongs.tsx): onto the 歌单, anyone's */
+.djk-send {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.djk-send-note,
+.djk-send-now {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.djk-send-now {
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.djk-send-done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.djk-send-done li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.djk-send-done li.is-ok {
+  color: var(--color-text);
+}
+.djk-send-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

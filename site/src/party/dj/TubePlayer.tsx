@@ -59,7 +59,9 @@ export function TubePlayer({
   const up = d.up?.yt ? d.up : null;
   const drop = d.drop;
   const coming: Target | null = !d.song && up && drop && (drop.hits.length > 0 || drop.auto) && drop.to !== onAir(d) ? { id: up.id, yt: up.yt!, by: up.by, at: drop.at, bar: drop.bar, room: false } : null;
-  const target: Target | null = d.song ? { ...d.song, room: true } : coming;
+  // (a song file from a phone plays in PhoneSong.tsx, not here)
+  const tubeSong = d.song?.yt ? { ...d.song, yt: d.song.yt } : null;
+  const target: Target | null = tubeSong ? { ...tubeSong, room: true } : coming;
   // the song up next, got ready while the DJ plays
   const next = !target && up ? up : null;
   // 暂停 (the phones' player): the song held where it is, the DJ quiet with it, till 播放
@@ -142,7 +144,7 @@ export function TubePlayer({
   }, []);
 
   // YouTube's player loads as soon as a song from YouTube is asked for, not on its drop
-  const asked = !!up || !!d.song || d.reqs.some((r) => !!r.yt);
+  const asked = !!up || !!tubeSong || d.reqs.some((r) => !!r.yt);
   useEffect(() => {
     if (asked) void loadYt().catch(() => {});
   }, [asked]);
@@ -193,11 +195,13 @@ export function TubePlayer({
 
   // 暂停 holds the DJ too (no song, or one not heard yet); 播放 brings it back, unless a song it gave
   // way to plays on
+  // (a phone's song file playing: PhoneSong.tsx holds the DJ back while it plays)
+  const fileSong = !!d.song?.local;
   useEffect(() => {
     if (!speaker) return;
     if (held) speaker.giveWay(true, 0.4);
-    else if (!away.current) speaker.giveWay(false, 0.8);
-  }, [held, speaker]);
+    else if (!away.current && !fileSong) speaker.giveWay(false, 0.8);
+  }, [held, speaker, fileSong]);
 
   // this browser wants a tap on the video (Safari, an iPhone: the night's first song), or this
   // page's sound stopped: the room keeps it, the phones say so (said again whenever the room has it
@@ -212,7 +216,7 @@ export function TubePlayer({
   // tap), ready while it's up next and as its drop comes; over the whole TV while it plays when
   // someone asks from their phone; out of sight between songs (paused, kept)
   const heard = status === "playing" || status === "tap" || status === "paused" || (status === "ad" && !!target);
-  const mode = d.song || (target && heard) ? "on" : next || target ? "next" : "off";
+  const mode = tubeSong || (target && heard) ? "on" : next || target ? "next" : "off";
   const who = target?.by ?? next?.by ?? null;
   const req = target && v.deck.now?.id === target.id ? v.deck.now : null;
   const title = req?.text ?? null;

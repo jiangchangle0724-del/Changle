@@ -210,9 +210,11 @@ function swapped(s: RoomState, api: Api) {
     d.reqOn[d.up.by] = api.now;
     d.heard = keep([...d.heard, d.up], DECK.heardMax);
     // 真歌时间: a song from YouTube plays whole on the big screen, from the drop's bar (the screen
-    // had it ready while it was up next; the DJ lets go with the drop's boom)
-    if (d.up.yt) {
-      d.song = { id: d.up.id, yt: d.up.yt, by: d.up.by, at: api.now };
+    // had it ready while it was up next; the DJ lets go with the drop's boom); so does a song file a
+    // phone sent it (Nov 13), unless the night plays the host's songs on the decks
+    const whole = d.up.yt ? { yt: d.up.yt } : d.up.local && !d.local ? { local: d.up.local } : null;
+    if (whole) {
+      d.song = { id: d.up.id, ...whole, by: d.up.by, at: api.now };
       // (a switch that landed while the room was paused: its time starts with 播放)
       if (!d.paused) api.timer("song", d.song.at + DECK.songMaxMs);
     }
@@ -341,7 +343,8 @@ function autoDrop(s: RoomState, api: Api, key: "req" | "end", beats: number = DE
   // 点歌模式 doesn't wait for the DJ's deck to have a YouTube song's style: the song plays whole
   // (the DJ quiet under it), and that deck has its length to get there
   const juke = s.juke;
-  const side = juke && d.up?.yt && key === "req" ? offAir(d) : cued(d, s.source === "lyria");
+  const whole = !!d.up?.yt || (!!d.up?.local && !d.local);
+  const side = juke && whole && key === "req" ? offAir(d) : cued(d, s.source === "lyria");
   if (!side) {
     api.timer(key, api.now + (key === "end" ? 3000 : 5000));
     return;
@@ -437,17 +440,19 @@ function fromYt(v: unknown): { id: string; t: string; a: string } | null {
  * A song asked for (`by`: a player, or the big screen's own 点歌, `SHARED_BY`): its remix goes on
  * the deck off the air, in its style; `each`, how many `by` can have in the 歌单 (the one up next
  * counted). False: not taken (too soon after their last, the list full, or nothing to play).
+ * `gap`: one a second from a phone (a song file it sent, the moment the big screen has it: no).
  */
-function ask(s: RoomState, by: string, g: { [k: string]: unknown }, api: Api, each: number): boolean {
+function ask(s: RoomState, by: string, g: { [k: string]: unknown }, api: Api, each: number, gap = true): boolean {
   const d = s.deck;
   const now = api.now;
-  if (s.phase === "end" || (d.reqAt[by] ?? -Infinity) > now - DECK.reqGapMs) return false;
+  if (s.phase === "end" || (gap && (d.reqAt[by] ?? -Infinity) > now - DECK.reqGapMs)) return false;
   const theirs = d.reqs.filter((r) => r.by === by).length + (d.up?.by === by ? 1 : 0);
   if (d.reqs.length >= DECK.reqMax || theirs >= each) return false;
   let r: SongReq;
-  if (d.local) {
-    // a night of the host's songs: one of them (named for everyone: they're the host's)
-    const c = typeof g.local === "string" ? s.crate.find((x) => x.id === g.local) : undefined;
+  const c = typeof g.local === "string" ? s.crate.find((x) => x.id === g.local) : undefined;
+  if (d.local || c) {
+    // a song file on the big screen's computer (named for everyone): on a night of the host's
+    // songs the only kind, on the decks; else one a phone sent, played whole like a YouTube one
     if (!c) return false;
     r = { id: trackId(s, api), by, text: c.t, ...(c.a ? { artist: c.a } : {}), local: c.id, style: styleForRequest(`${c.t} ${c.a}`), track: trackFor(c.t), at: now };
   } else {
@@ -1189,19 +1194,26 @@ export const dj: GameDef<RoomState> = {
         const crate: CrateSong[] = [];
         for (const row of (g.songs as unknown[]).slice(0, CRATE_MAX)) {
           if (!Array.isArray(row)) continue;
-          const [id, t, a, bpm, sec] = row as unknown[];
+          const [id, t, a, bpm, sec, from] = row as unknown[];
           if (typeof id !== "string" || !SONG_ID.test(id) || seen.has(id)) continue;
-          const title = cleanAsk(t, 40);
+          // (a name from a file anyone at the table may have sent: the worst words starred, as in 弹幕)
+          const title = maskDanmu(cleanAsk(t, 40));
           const b = within(bpm, 40, 250);
           const len = within(sec, 20, 1800);
           if (!title || b === null || len === null) continue;
           seen.add(id);
-          crate.push({ id, t: title, a: cleanAsk(a, 30), bpm: Math.round(b * 10) / 10, s: Math.round(len) });
+          // (sent from a phone: whose, while they're at the table)
+          const by = typeof from === "string" && from && api.has(from) ? from : null;
+          crate.push({ id, t: title, a: maskDanmu(cleanAsk(a, 30)), bpm: Math.round(b * 10) / 10, s: Math.round(len), ...(by ? { by } : {}) });
         }
         if (JSON.stringify(crate) === JSON.stringify(s.crate)) return false;
+        const before = new Set(s.crate.map((x) => x.id));
         s.crate = crate;
         s.crateV += 1;
         d.crateAt = api.now;
+        // a song file a phone sent (Steve on Nov 13: everyone's, not only the host's): on the 歌单
+        // the moment the big screen has it, theirs, played whole when its turn comes
+        for (const c of crate) if (c.by && !before.has(c.id)) ask(s, c.by, { local: c.id }, api, DECK.reqEach, false);
         // songs no longer there leave the line and the decks
         const has = new Set(crate.map((x) => x.id));
         d.reqs = d.reqs.filter((r) => !r.local || has.has(r.local));
@@ -1211,6 +1223,8 @@ export const dj: GameDef<RoomState> = {
         }
         for (const side of ["a", "b"] as const) if (d.songs[side] && !has.has(d.songs[side]!)) d.songs[side] = null;
         d.played = d.played.filter((id) => has.has(id));
+        // (one playing whole that's gone: the big screen can't play it, the next comes on)
+        if (d.song?.local && !has.has(d.song.local)) songOver(s, api);
         refill(s, api);
         nextReq(s, api);
         return true;
@@ -1275,12 +1289,14 @@ export const dj: GameDef<RoomState> = {
         return true;
       }
       case "song": {
-        // how a song file sent from the host's phone went: told to that phone
+        // how a song file sent from a player's phone went: told to that phone
         const code = typeof g.code === "number" && Number.isInteger(g.code) && g.code >= 0 && g.code < SONG_SENT.length ? g.code : -1;
         const id = typeof g.id === "number" && Number.isSafeInteger(g.id) && g.id >= 0 ? g.id : -1;
         // (to a phone still at the table, a host who just watches too)
         if (!fromSpeaker(s, sid, api) || typeof g.by !== "string" || !api.online(g.by) || code < 0 || id < 0) return false;
         api.fx("song", g.by, [code, id]);
+        // the same song file as one the big screen has already (`local`): on the 歌单 as theirs too
+        if (SONG_SENT[code] === "there" && typeof g.local === "string") ask(s, g.by, { local: g.local }, api, DECK.reqEach, false);
         return true;
       }
       case "ending": {

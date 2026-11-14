@@ -14,7 +14,6 @@ import { RecapLines } from "./RecapLines";
 import { DancePad } from "./phone/DancePad";
 import { DanmuPad } from "./phone/DanmuPad";
 import { DeckPad } from "./phone/DeckPad";
-import { MySongs } from "./phone/MySongs";
 import "../../styles/dj.css";
 import "../../styles/dj-phone.css";
 
@@ -100,8 +99,8 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
       </p>
       <p>
         {zh
-          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。还能发弹幕：点现成的或者自己写一句，带着你的名字从电视上飘过去。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
-          : "Everyone can ask for songs on their phone: type a song or paste a YouTube link, and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. Send comments too: a ready one or your own words fly across the TV with your name. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
+          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，也能从手机里传歌（MP3、M4A 这些），点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。还能发弹幕：点现成的或者自己写一句，带着你的名字从电视上飘过去。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
+          : "Everyone can ask for songs on their phone: type a song, paste a YouTube link or send a song file from the phone (MP3, M4A and the like), and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. Send comments too: a ready one or your own words fly across the TV with your name. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
       </p>
       <p>
         {zh
@@ -210,8 +209,6 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
             )}
           </section>
         )}
-        {/* the host's songs: on the TV's computer, sent there from this phone, and the switch to them */}
-        {isHost && v.phase !== "end" && <MySongs v={v} />}
 
         {/* 跟着跳: the phone in the dancing hand, following the coach on the TV (at the very bottom, Steve on Nov 12) */}
         {v.phase !== "end" && <DancePad v={v} g={g} zh={zh} />}
