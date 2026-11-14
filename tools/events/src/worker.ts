@@ -1,6 +1,7 @@
 // 玩什么 · What's On at changle.ca/go. Every morning at 06:00 Vancouver time the scheduled run
 // gathers the next 14 days (src/run.ts) and publishes them to KV (src/publish.ts); the API reads
-// that one file, so it answers at once. The page itself comes after gate A (docs/whats-on-v2.md).
+// that one file, so it answers at once.
+//   GET /go              the page: one day at a time, by category, area and price (src/page.ts)
 //   GET /go/api/events   the events, filtered: from, to (YYYY-MM-DD), cat, area, tag (comma lists)
 //   GET /go/api/events.ics  the same, as a calendar to subscribe to (src/ics.ts)
 //   GET /go/api/status   the last run, step by step (the fetch log), and what's published
@@ -11,7 +12,9 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { useArrival } from "./arrival";
 import { receiveHandoff } from "./handoff";
 import { toIcs } from "./ics";
-import { AREA_LABEL, CATEGORY_LABEL, renderPreview, TAG_LABEL } from "./preview";
+import { AREA_LABEL, CATEGORY_LABEL, TAG_LABEL } from "./labels";
+import { pickLang, renderPage } from "./page";
+import { renderPreview } from "./preview";
 import { LIVE_KEY, publish } from "./publish";
 import { filterEvents, readQuery } from "./query";
 import { fetchStep, runDay, type StepArgs, type StepRunner } from "./run";
@@ -74,10 +77,6 @@ async function status(env: Env): Promise<Response> {
   return json({ run: last?.run ?? null, progress, steps, published: pub ? { runId: pub.runId, generatedAt: pub.generatedAt, from: pub.from, to: pub.to, count: pub.count } : null });
 }
 
-const PAGE = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>玩什么 · What's On</title>
-<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0e0c22;color:#f5f4fd;font:16px/1.5 system-ui,-apple-system,"PingFang SC",sans-serif;text-align:center;padding:24px}h1{font-size:1.6rem;margin:0 0 8px}p{color:#b6b4d0;margin:4px 0}a{color:#f5f4fd}</style></head>
-<body><main><h1>玩什么 · What's On</h1><p>大温这两周去哪玩，正在准备中。</p><p>Greater Vancouver's next two weeks, coming soon.</p><p><a href="https://changle.ca">changle.ca</a></p></main></body></html>`;
-
 export default {
   // (ctx is optional for the tests, which call fetch without one: the steps are then called directly)
   async fetch(req, env, ctx?: ExecutionContext) {
@@ -92,7 +91,11 @@ export default {
     if (path === "/go/api/events") return listEvents(url, env);
     if (path === "/go/api/events.ics") return listEvents(url, env, true);
     if (path === "/go/api/status") return status(env);
-    if (path === "/go") return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
+    if (path === "/go")
+      // what's on, for everyone (src/page.ts); in the language asked for, else the browser's own
+      return new Response(renderPage(await published(env), url.searchParams, pickLang(url.searchParams, req.headers.get("accept-language"))), {
+        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300", vary: "Accept-Language" },
+      });
     if (path === "/go/preview")
       return new Response(renderPreview(await published(env), url.searchParams), {
         headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex, nofollow" },
