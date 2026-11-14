@@ -1,7 +1,7 @@
 // What the phone-in-a-browser tests share: a shop and a group buy made through the API (as the
 // owner's panel and a merchant's own pages do), the merchant's own view of it, a phone of its own
 // (a browser context: its own storage), and catching what a page copies.
-import { expect, type APIRequestContext, type Browser, type Page } from "@playwright/test";
+import { expect, type APIRequestContext, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import type { Made, MyOfferPage, OfferPage, OrderPage } from "../../src/api";
 import { SESSION } from "../accounts.ts";
 import { offerDoc } from "../sample.ts";
@@ -22,6 +22,15 @@ export async function start(request: APIRequestContext, more: Record<string, unk
   return { id, url: `/tuan/t/${id}`, slug };
 }
 
+/** A shop with no group buy in it yet, run by the leader's account. Both engines use one database: each run's shop has a name of its own. */
+export async function shopOnly(request: APIRequestContext): Promise<{ slug: string; name: string }> {
+  const slug = `new-${word()}`;
+  const name = `新开的小店 ${slug.slice(4)}`;
+  const shop = await request.post("/tuan/api/admin/shops", { headers: as(SESSION.owner), data: { slug, name, contact: "微信 new-shop", pay: "e-Transfer: pay@example.com", members: ["leader@example.com"] } });
+  expect(shop.status(), await shop.text()).toBe(200);
+  return { slug, name };
+}
+
 /** Everything the merchant sees of a group buy. */
 export const sheets = async (request: APIRequestContext, id: string) => (await (await request.get(`/tuan/api/my/offers/${id}`, { headers: as(SESSION.leader) })).json()) as MyOfferPage;
 
@@ -37,10 +46,17 @@ export async function order(request: APIRequestContext, id: string, who: { name:
   return (await sent.json()) as OrderPage;
 }
 
+const phones: BrowserContext[] = [];
+/** Put away the phones a test used (each spec does, after every test): one browser serves the whole run, and it shouldn't end it holding dozens. */
+export async function putAway(): Promise<void> {
+  for (const context of phones.splice(0)) await context.close();
+}
+
 /** A phone of its own. `session`: signed in at changle.ca with that account (the site keeps the sign-in in the phone's storage). */
 export async function phone(browser: Browser, options: Parameters<Browser["newContext"]>[0] & { session?: string } = {}): Promise<Page> {
   const { session, ...rest } = options;
   const context = await browser.newContext(rest);
+  phones.push(context);
   if (session) await context.addInitScript((token) => localStorage.setItem("changle.session", token), session);
   return context.newPage();
 }

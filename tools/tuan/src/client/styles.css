@@ -1167,6 +1167,16 @@ textarea {
   flex-shrink: 0;
   color: var(--color-text-2);
 }
+/* a row that opens a sheet (a part of a group buy being written): the same row as a link's */
+.row-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--tap-crowded);
+  padding: var(--space-3) 0;
+  text-align: start;
+}
 
 /* ---------- a merchant's pages ---------- */
 .fresh {

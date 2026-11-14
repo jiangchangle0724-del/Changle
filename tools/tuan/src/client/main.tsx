@@ -4,9 +4,12 @@
 //   /tuan/o/<order code>         an order
 //   /tuan/my                     a merchant's home: their shops and group buys (signed in)
 //   /tuan/my/t/<group buy>       a group buy's orders and sheets, for its merchant
+//   /tuan/my/t/<group buy>/edit  changing it
+//   /tuan/my/new/<shop>          starting one in a shop (…?from=<group buy> starts from that one)
 import { render } from "preact";
 import { BASE } from "../base";
-import { OFFER_RE, ORDER_RE, tidyOrderCode } from "../engine/ids";
+import { OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
+import { Editor } from "./ui/Editor";
 import { Home, NotFound } from "./ui/Home";
 import { My } from "./ui/My";
 import { MyOfferView } from "./ui/MyOffer";
@@ -40,6 +43,11 @@ function Page() {
   if (parts.length === 2 && a === "o" && ORDER_RE.test(tidyOrderCode(b))) return <OrderView code={tidyOrderCode(b)} fresh={query.get("new") === "1"} />;
   if (parts.length === 1 && a === "my") return <My />;
   if (parts.length === 3 && a === "my" && b === "t" && OFFER_RE.test(parts[2])) return <MyOfferView offerId={parts[2]} />;
+  if (parts.length === 4 && a === "my" && b === "t" && OFFER_RE.test(parts[2]) && parts[3] === "edit") return <Editor slug={null} from={null} offerId={parts[2]} />;
+  if (parts.length === 3 && a === "my" && b === "new" && SLUG_RE.test(parts[2])) {
+    const from = query.get("from") ?? "";
+    return <Editor slug={parts[2]} from={OFFER_RE.test(from) ? from : null} offerId={null} />;
+  }
   return <NotFound />;
 }
 

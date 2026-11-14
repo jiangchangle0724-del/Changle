@@ -7,7 +7,9 @@
 import { expect, test } from "@playwright/test";
 import { vancouverClock } from "../../src/engine/time.ts";
 import { SESSION } from "../accounts.ts";
-import { catchCopies, copied, DAY, fits, offerOf, order, phone, start, word } from "./help.ts";
+import { catchCopies, copied, DAY, fits, offerOf, order, phone, putAway, start, word } from "./help.ts";
+
+test.afterEach(putAway);
 
 /** Three friends' orders, as in the plan's bar for this stage: counted goods, something by weight, pickup at two points and one delivery. */
 async function threeOrders(request: Parameters<typeof start>[0], id: string) {
