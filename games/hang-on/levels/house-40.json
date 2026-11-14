@@ -1,0 +1,233 @@
+{
+  "id": "house-40",
+  "world": "house",
+  "name": {
+    "zh": "天井灯影",
+    "en": "Lanterns in the Lightwell"
+  },
+  "tier": 1,
+  "teaches": "combine",
+  "w": 2440,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 456
+  },
+  "goal": {
+    "x": 2260,
+    "y": 440,
+    "w": 170,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1224,
+      "y": 496
+    },
+    {
+      "x": 2240,
+      "y": 576
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 1370,
+      "y": 421
+    },
+    {
+      "x": 983,
+      "y": 433
+    },
+    {
+      "x": 1906,
+      "y": 529
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 480,
+      "w": 700,
+      "h": 240,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 700,
+      "y": 520,
+      "w": 220,
+      "h": 200,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 990,
+      "y": 520,
+      "w": 210,
+      "h": 200,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 920,
+      "y": 640,
+      "w": 70,
+      "h": 80,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 1200,
+      "y": 560,
+      "w": 500,
+      "h": 160,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 1700,
+      "y": 600,
+      "w": 140,
+      "h": 120,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1910,
+      "y": 600,
+      "w": 530,
+      "h": 120,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1840,
+      "y": 700,
+      "w": 70,
+      "h": 20,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 340,
+      "y": 400,
+      "w": 150,
+      "h": 80,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 720,
+      "y": 100,
+      "w": 220,
+      "h": 40,
+      "kind": "ground",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 1380,
+      "y": 440,
+      "w": 180,
+      "h": 120,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 490,
+      "y": 440,
+      "w": 110,
+      "h": 40,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1560,
+      "y": 500,
+      "w": 140,
+      "h": 60,
+      "kind": "ground",
+      "material": "wood"
+    }
+  ],
+  "gates": [
+    {
+      "id": "well-door",
+      "x": 820,
+      "y": 140,
+      "w": 32,
+      "h": 380,
+      "move": {
+        "x": 0,
+        "y": -140
+      },
+      "grab": false
+    }
+  ],
+  "keys": [
+    {
+      "x": 415,
+      "y": 393,
+      "opens": "well-door"
+    }
+  ],
+  "dark": [
+    {
+      "x": 270,
+      "y": 140,
+      "w": 650,
+      "h": 580
+    },
+    {
+      "x": 1200,
+      "y": 220,
+      "w": 630,
+      "h": 500
+    }
+  ],
+  "lamps": [
+    {
+      "x": 620,
+      "y": 447,
+      "r": 220,
+      "off": true
+    },
+    {
+      "x": 1520,
+      "y": 406,
+      "r": 240,
+      "off": true
+    }
+  ],
+  "lanterns": [
+    {
+      "x": 1110,
+      "y": 500
+    }
+  ],
+  "hazards": [
+    {
+      "x": 924,
+      "y": 622,
+      "w": 62,
+      "h": 18,
+      "kind": "hot"
+    },
+    {
+      "x": 1844,
+      "y": 682,
+      "w": 62,
+      "h": 18,
+      "kind": "zap"
+    }
+  ],
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 3
+  },
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 800,
+  "replay": "replays/house-40.json"
+}

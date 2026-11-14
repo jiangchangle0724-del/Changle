@@ -1,0 +1,194 @@
+{
+  "id": "house-42",
+  "world": "house",
+  "name": {
+    "zh": "藏书楼夜渡",
+    "en": "Night Crossing of the Library"
+  },
+  "tier": 2,
+  "teaches": "combine",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 40,
+    "y": 616
+  },
+  "goal": {
+    "x": 2440,
+    "y": 320,
+    "w": 110,
+    "h": 160
+  },
+  "checkpoints": [
+    {
+      "x": 1240,
+      "y": 480
+    },
+    {
+      "x": 2080,
+      "y": 456
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 556,
+      "y": 424
+    },
+    {
+      "x": 1487,
+      "y": 407
+    },
+    {
+      "x": 2254,
+      "y": 344
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 640,
+      "w": 420,
+      "h": 80,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 420,
+      "y": 700,
+      "w": 160,
+      "h": 20,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 580,
+      "y": 560,
+      "w": 780,
+      "h": 160,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1360,
+      "y": 700,
+      "w": 160,
+      "h": 20,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 1520,
+      "y": 480,
+      "w": 1040,
+      "h": 240,
+      "kind": "ground",
+      "material": "brick"
+    },
+    {
+      "x": 780,
+      "y": 340,
+      "w": 510,
+      "h": 40,
+      "kind": "ground",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 2320,
+      "y": 140,
+      "w": 180,
+      "h": 40,
+      "kind": "ground",
+      "material": "wood",
+      "grab": false
+    }
+  ],
+  "hazards": [
+    {
+      "x": 440,
+      "y": 680,
+      "w": 120,
+      "h": 20,
+      "kind": "spike"
+    },
+    {
+      "x": 1380,
+      "y": 672,
+      "w": 120,
+      "h": 28,
+      "kind": "hot"
+    },
+    {
+      "x": 1110,
+      "y": 380,
+      "w": 60,
+      "h": 18,
+      "kind": "zap"
+    }
+  ],
+  "spinners": [
+    {
+      "pivot": {
+        "x": 2320,
+        "y": 310
+      },
+      "arms": 2,
+      "len": 55,
+      "h": 12,
+      "spin": -0.8,
+      "deadly": true,
+      "hazard": "zap"
+    }
+  ],
+  "keys": [
+    {
+      "x": 2300,
+      "y": 473,
+      "opens": "library-lock"
+    }
+  ],
+  "gates": [
+    {
+      "id": "library-lock",
+      "x": 2380,
+      "y": 180,
+      "w": 24,
+      "h": 300,
+      "move": {
+        "x": 0,
+        "y": -180
+      },
+      "grab": false
+    }
+  ],
+  "dark": [
+    {
+      "x": 1800,
+      "y": 180,
+      "w": 760,
+      "h": 540
+    }
+  ],
+  "lamps": [
+    {
+      "x": 1860,
+      "y": 456,
+      "r": 280,
+      "off": true
+    },
+    {
+      "x": 2230,
+      "y": 456,
+      "r": 240
+    }
+  ],
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 8
+  },
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 800,
+  "replay": "replays/house-42.json"
+}
