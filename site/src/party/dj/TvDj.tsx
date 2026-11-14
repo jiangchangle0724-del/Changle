@@ -93,17 +93,21 @@ export default function TvDj({ v }: { v: DjView }) {
   const { speaker, dj } = booth;
   // the sound board (Steve's own sounds, Nov 13): in this page's own sound, the files fetched ahead
   // once the music's on
-  const sfx = useMemo(() => (speaker ? new SfxPlayer(speaker.ctx) : null), [speaker]);
+  // (made where it's let go: one kept from a page shown again would be one already let go)
+  const sfx = useRef<SfxPlayer | null>(null);
   useEffect(() => {
-    if (!sfx) return;
-    const t = window.setTimeout(() => void sfx.prefetch(), 3000);
+    if (!speaker) return;
+    const p = new SfxPlayer(speaker.ctx);
+    sfx.current = p;
+    const t = window.setTimeout(() => void p.prefetch(), 3000);
     return () => {
       window.clearTimeout(t);
-      sfx.dispose();
+      p.dispose();
+      if (sfx.current === p) sfx.current = null;
     };
-  }, [sfx]);
+  }, [speaker]);
   // every pad (an older phone's) or sound pressed at the table plays here
-  const chips = usePadEvents(booth.pad, (i) => void sfx?.play(i));
+  const chips = usePadEvents(booth.pad, (i) => void sfx.current?.play(i));
 
   // opened from the game's card as the shared phone (Steve on Nov 11: "直接开始播放音乐"): the
   // card's tap woke the sound, so the music starts with no tap here
@@ -114,22 +118,20 @@ export default function TvDj({ v }: { v: DjView }) {
       void ctx.close().catch(() => {});
       return;
     }
-    primeVoice();
+    // (no voice primed here: it's no tap, and on an iPhone a voice stops the music: announce.ts)
     booth.start(ctx);
     // (once, on the page's first look)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // its sound stopped (a phone's screen locked, a call, a song's video taking the sound): any tap on
   // the page wakes it, not only its button (the shared phone's 点歌 button, its sheet, the video's
-  // corner)
+  // corner). The tap only wakes the sound: a voice primed in it stopped an iPhone's again at once
+  // (Steve on Nov 14: "点开始也没用")
   const stopped = booth.status === "on" && booth.stopped;
   const wakeSound = booth.wake;
   useEffect(() => {
     if (!stopped) return;
-    const wake = () => {
-      primeVoice();
-      wakeSound();
-    };
+    const wake = () => wakeSound();
     const opts = { capture: true } as const;
     document.addEventListener("touchend", wake, opts);
     document.addEventListener("click", wake, opts);
@@ -292,8 +294,8 @@ export default function TvDj({ v }: { v: DjView }) {
     },
     [dj, speaker],
   );
-  // 报幕: who the song coming in is from, as its countdown starts
-  useAnnounce(v, speaker, nameOf, zh, live && v.voice !== false);
+  // 报幕: who the song coming in is from, as its countdown starts (said, and shown)
+  const say = useAnnounce(v, speaker, nameOf, zh, live && v.voice !== false);
 
   // the moment the music itself reaches a new stretch of the night (not the host's tap, which can
   // come up to a phrase earlier): its name, big, on the beat it lands
@@ -316,8 +318,8 @@ export default function TvDj({ v }: { v: DjView }) {
 
   return (
     <div className={`dj-stage is-${stage} ${live ? "is-live" : ""}`} ref={root}>
-      <div className="dj-sky" aria-hidden="true" />
-      <div className="dj-beams" aria-hidden="true">
+      <div className="dj-sky" data-lit aria-hidden="true" />
+      <div className="dj-beams" data-lit aria-hidden="true">
         {[0, 1, 2, 3, 4].map((k) => (
           <span key={k} style={{ ["--k" as string]: k }} />
         ))}
@@ -363,6 +365,11 @@ export default function TvDj({ v }: { v: DjView }) {
       <DanmuLayer v={v} zh={zh} />
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
+      {say && !banner && (
+        <div key={say.n} className="dj-drop is-say" role="status">
+          <span className="dj-drop-name">{say.text}</span>
+        </div>
+      )}
       <PadChips chips={chips} lines={(v.deck?.up ? 1 : 0) + (v.deck?.now ? 1 : 0) + (mixerShows(v.deck?.mixer) ? 1 : 0)} />
       {v.deck && <Countdown v={v} />}
       {v.deck && <DropParty v={v} />}
@@ -398,7 +405,7 @@ export default function TvDj({ v }: { v: DjView }) {
         </div>
       </footer>
 
-      <div className="dj-flash" aria-hidden="true" />
+      <div className="dj-flash" data-lit aria-hidden="true" />
       <KeepAwake on={live && v.phase !== "end"} />
 
       {silent && live && v.phase !== "wait" && (
@@ -424,14 +431,7 @@ export default function TvDj({ v }: { v: DjView }) {
       {/* the big screen's own 点歌 (the shared phone), and a phone held upright asked to turn sideways */}
       <SharedPhone v={v} />
       {live && booth.stopped && (
-        <button
-          type="button"
-          className="dj-wake"
-          onClick={() => {
-            primeVoice();
-            booth.wake();
-          }}
-        >
+        <button type="button" className="dj-wake" onClick={() => booth.wake()}>
           <Play size={30} strokeWidth={2.6} />
           {zh ? "声音停了，点一下接着放" : "The sound stopped. Tap to carry on"}
         </button>

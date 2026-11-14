@@ -697,6 +697,22 @@ function lastAt(list: { pid: string; at: number }[], pid: string) {
 const keep = <X>(list: X[], n: number) => (list.length > n ? list.slice(-n) : list);
 
 /**
+ * A sound from the board (`who`: a player, or the big screen's own, SHARED_BY): sound `i` on the
+ * big screen at once, over whatever plays; one per SFX_TIMES.takeMs from each, and the same sound
+ * once per SFX_TIMES.roomGapMs for the room. True when it plays.
+ */
+function sfx(s: RoomState, who: string, g: { [k: string]: unknown }, api: Api): boolean {
+  const i = typeof g.i === "number" && Number.isInteger(g.i) && g.i >= 0 && g.i < SFX.length ? g.i : -1;
+  const now = api.now;
+  if (i < 0 || s.phase === "end" || (s.sfxAt[who] ?? -Infinity) > now - SFX_TIMES.takeMs) return false;
+  if (s.sfxLast.some((x) => x.i === i && x.at > now - SFX_TIMES.roomGapMs)) return false;
+  s.sfxAt[who] = now;
+  s.sfxLast = keep([...s.sfxLast.filter((x) => x.at > now - SFX_TIMES.roomGapMs), { i, at: now }], 20);
+  api.fx("sfx", who, [i]);
+  return true;
+}
+
+/**
  * The screen that is the speaker: the one giving the bars (any screen until one has, or once it has
  * said nothing at all for DECK.speakerQuietMs: it says the bars every 10 s while it plays). Another
  * screen with the table's code can't speak for it. Whatever the speaker says, taken or not, shows
@@ -1080,20 +1096,12 @@ export const dj: GameDef<RoomState> = {
         api.light();
         return;
       }
-      case "sfx": {
-        // the sound board (Steve on Nov 13: his own sounds, in categories, for everyone): sound `i`
-        // on the big screen at once, over whatever plays; one per SFX_TIMES.takeMs a phone, and the
-        // same sound once per SFX_TIMES.roomGapMs for the room. Light: a party presses lots
-        const i = typeof g.i === "number" && Number.isInteger(g.i) && g.i >= 0 && g.i < SFX.length ? g.i : -1;
-        const now = api.now;
-        if (i < 0 || s.phase === "end" || (s.sfxAt[pid] ?? -Infinity) > now - SFX_TIMES.takeMs) return api.quiet();
-        if (s.sfxLast.some((x) => x.i === i && x.at > now - SFX_TIMES.roomGapMs)) return api.quiet();
-        s.sfxAt[pid] = now;
-        s.sfxLast = keep([...s.sfxLast.filter((x) => x.at > now - SFX_TIMES.roomGapMs), { i, at: now }], 20);
+      case "sfx":
+        // the sound board (Steve on Nov 13: his own sounds, in categories, for everyone). Light: a
+        // party presses lots
+        if (!sfx(s, pid, g, api)) return api.quiet();
         api.light();
-        api.fx("sfx", pid, [i]);
         return;
-      }
       case "danmu": {
         // the host, from their phone: 弹幕 on or off (off: the lines on their way go too)
         const on = g.on === true;
@@ -1254,6 +1262,9 @@ export const dj: GameDef<RoomState> = {
       // (another screen with the code can't)
       case "req":
         return fromSpeaker(s, sid, api) && ask(s, SHARED_BY, g, api, DECK.reqMax);
+      // its own 音效 too (Steve on Nov 14: "投屏的手机也可以发音效"), as the table's
+      case "sfx":
+        return fromSpeaker(s, sid, api) && sfx(s, SHARED_BY, g, api);
       case "unreq":
         return fromSpeaker(s, sid, api) && unask(s, g.id, SHARED_BY, false, api);
       case "play":

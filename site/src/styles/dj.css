@@ -426,11 +426,18 @@
 /* the shared phone (SharedPhone.tsx): its 点歌 button in the page's own pixels (a phone's stage is
    drawn at under half size), at the right edge between the code to scan and the song's corner (on a
    phone sideways, in the band beside the stage) */
-.dj-share-btn {
+/* the shared phone's two buttons, 点歌 and under it 音效, at the screen's right edge (in the page's own pixels) */
+.dj-share-col {
   position: fixed;
   top: 27%;
   right: max(var(--space-3), env(safe-area-inset-right));
   z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.dj-share-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1137,6 +1144,11 @@
     0 0 24px color-mix(in oklab, var(--gel) 85%, transparent),
     0 0 80px color-mix(in oklab, var(--gel) 60%, transparent),
     0 8px 30px rgba(0, 0, 0, 0.6);
+}
+/* 报幕 across the floor: who the song coming in is from (said too, where the screen's voice can: announce.ts) */
+.dj-drop.is-say .dj-drop-name {
+  font-size: 76px;
+  text-align: center;
 }
 .dj-drop-line {
   color: var(--moon);

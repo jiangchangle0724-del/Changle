@@ -23,10 +23,14 @@ export class SfxPlayer {
   private out: GainNode;
   private gone = false;
 
-  constructor(private ctx: AudioContext) {
+  /** `to`: where its sound goes (the speakers themselves, unless given: a phone's own sound bus) */
+  constructor(
+    private ctx: AudioContext,
+    to?: AudioNode,
+  ) {
     this.out = ctx.createGain();
     this.out.gain.value = 0.9;
-    this.out.connect(ctx.destination);
+    this.out.connect(to ?? ctx.destination);
   }
 
   /** Every file fetched ahead, one at a time (a press then only waits for its decoding). */

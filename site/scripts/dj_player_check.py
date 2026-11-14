@@ -202,7 +202,7 @@ with sync_playwright() as p:
     tv.locator(".dj-start-btn").click()
     ok(until(lambda: tv.evaluate("() => !!(window.__djBooth && window.__djBooth.stats() && window.__djBooth.stats().state === 'playing')"), 20000), "the TV, opened again, plays on after its start tap")
     # (the big screen's own 点歌 sheet open over it: it gets out of the way, so the tap lands on the video)
-    tv.locator(".dj-share-btn").click()
+    tv.locator(".dj-share-btn:not(.is-sounds)").click()
     ok(until(lambda: tv.locator(".ui-sheet[open] .dj-share").count() == 1, 4000), "the TV's own 点歌 sheet is open")
     ask(amy, T_ID)
     ok(until(lambda: amy.locator(".djk-player-tap").count() == 1, 20000), f"the TV wants a tap on its video: the phones say so ({text(amy, '.djk-player-tap')!r})")
