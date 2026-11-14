@@ -175,10 +175,11 @@ with sync_playwright() as p:
     s1 = f3(tv)["bots"]
     ok(s1[pid["Amy"]]["mic"] and s1[pid["Ben"]]["mic"] and not s1[pid["Cat"]]["mic"], "a microphone for each at the table (none for Cat, away)")
     ok(until(lambda: all(f3(tv)["bots"][pid[n]]["clip"] in DANCES for n in ("Amy", "Ben")), 3000), f"they dance over the song ({[f3(tv)['bots'][pid[n]]['clip'] for n in ('Amy', 'Ben')]})")
-    t0, b0 = time.time(), f3(tv)["beat"]
+    # (by the page's own clock at each frame: a slow frame or a slow answer from the page doesn't count)
+    s0 = f3(tv)
     tv.wait_for_timeout(3000)
-    t1, b1 = time.time(), f3(tv)["beat"]
-    rate = (b1 - b0) / (t1 - t0) * 60
+    s1 = f3(tv)
+    rate = (s1["beat"] - s0["beat"]) / (s1["beatAt"] - s0["beatAt"]) * 60000
     ok(abs(rate - SONG_BPM) < 6, f"to the song's own tempo, not the DJ's 125 ({rate:.0f} BPM, the song's {SONG_BPM})")
     song_at = deck(tv)["song"]["at"]
     # (the rooms server runs on this machine: its clock is the page's)

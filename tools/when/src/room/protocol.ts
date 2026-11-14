@@ -25,7 +25,8 @@ export type Saved = { id: string; state: EventState };
 
 /** POST /when/api/e/<code>/host */
 export type HostBody = HostAction;
-export type Hosted = { state: EventState };
+/** `id`: the row just filled in for someone (代填) */
+export type Hosted = { state: EventState; id?: string };
 
 /** POST /when/api/e/<code>/claim */
 export type ClaimBody = { adminCode: string };

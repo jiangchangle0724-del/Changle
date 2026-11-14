@@ -80,6 +80,7 @@ export function Floor3D({
   singing,
   fires,
   shown,
+  covered = false,
   onReady,
   onFail,
 }: {
@@ -96,6 +97,9 @@ export function Floor3D({
   fires: RefObject<Map<string, number>>;
   /** in sight (the drawn floor stays until the robots are dancing) */
   shown: boolean;
+  /** a song's video over the whole TV: none of the floor in sight, so none of it drawn (the coach is,
+   *  over the video: one 3D picture at a time on a phone playing the speaker) */
+  covered?: boolean;
   onReady: () => void;
   onFail: () => void;
 }) {
@@ -106,8 +110,8 @@ export function Floor3D({
   const ready = useRef(onReady);
   ready.current = onReady;
   // what the frames read without a render of their own
-  const live = useRef({ seats, dance, level, singing });
-  live.current = { seats, dance, level, singing };
+  const live = useRef({ seats, dance, level, singing, covered });
+  live.current = { seats, dance, level, singing, covered };
   // the scene's own place, set once it's built: lays the dancers out again when the table changes
   const relay = useRef<(() => void) | null>(null);
   const seatKey = seats.map((s) => `${s.id}:${s.uid ? (s.ac ?? 0) : ""}`).join(",");
@@ -197,7 +201,7 @@ export function Floor3D({
         };
         const bots = new Map<string, Bot>();
         // what the last frame and layout did, for the checks
-        const seen = { sing: false, beat: NaN, rows: 1 };
+        const seen = { sing: false, beat: NaN, beatAt: 0, rows: 1 };
 
         // a microphone on a stand in front of each of them while a song plays (the robot has no
         // mouth to sing with: it dances at the mic, brows up on the long notes, notes going up)
@@ -398,6 +402,7 @@ export function Floor3D({
             rows: seen.rows,
             singing: seen.sing,
             beat: seen.beat,
+            beatAt: seen.beatAt,
             bots: Object.fromEntries(
               [...bots.values()].map((x) => {
                 const a = x.on ? x.acts.get(x.on) : undefined;
@@ -444,6 +449,7 @@ export function Floor3D({
             }
           }
           raf = requestAnimationFrame(frame);
+          if (live.current.covered) return;
           const dt = Math.min(0.1, step / 1000);
           const { seats: list, dance: hot } = live.current;
           // (local runs: the checks can have them sing without a song, dj_floor3d_check.py)
@@ -537,6 +543,7 @@ export function Floor3D({
           renderer.render(scene, camera);
           seen.sing = sing;
           seen.beat = b;
+          seen.beatAt = t;
         };
         tell(watch ? "watching" : "on");
         frame();

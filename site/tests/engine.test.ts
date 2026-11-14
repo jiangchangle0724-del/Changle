@@ -3711,6 +3711,13 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   advance(dr.at - clock + 5);
   const song = dv("p1").deck.song;
   ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock, "it lands: the whole song plays from the drop's bar (the big screen has it ready, the DJ lets go with the boom)");
+  // 跟着跳 on it: the speaker says where its beats fall, so every phone dances to the song
+  ok(!sc("songbeat", { id: "other", off: 0, bpm: 96, slow: false }) && !sc("songbeat", { id: song!.id, off: 0, bpm: 500 }) && !sc("songbeat", { id: song!.id, off: -5, bpm: 96 }) && !sc("songbeat", { id: song!.id, off: 0, bpm: "96" }), "another song's beat, or a tempo or a first beat that isn't one: not taken");
+  e.screenHello("tv-yt2", true, "dj");
+  ok(!e.screenAct("tv-yt2", { x: "songbeat", id: song!.id, off: 0, bpm: 96, slow: false }), "another screen's: not taken");
+  ok(sc("songbeat", { id: song!.id, off: 250, bpm: 95.99, slow: true }) && JSON.stringify(dv("p3").deck.song?.beat) === JSON.stringify({ off: 250, bpm: 95.99, slow: true }), "the speaker's: every phone reads where the song's beats fall, and that it's slow");
+  ok(!sc("songbeat", { id: song!.id, off: 250, bpm: 95.99, slow: true }), "said again, the same: nothing new");
+  ok(sc("songbeat", { id: song!.id, off: 0, bpm: 128 }) && JSON.stringify(dv("p1").deck.song?.beat) === JSON.stringify({ off: 0, bpm: 128, slow: false }), "its tempo found after it started: the new one");
   ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "echo" })) && nothing(g("p1", "pad", { pad: "brake" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no fader, none of the pads that work the music");
   ok(!nothing(g("p1", "pad", { pad: "horn" })) && !nothing(g("p2", "pad", { pad: "siren" })), "but the pads that are a sound of their own play over it (Steve: the effects to hype the floor)");
   ok(!sc("songdone", { id: "other" }), "the big screen's word for another song: not taken");

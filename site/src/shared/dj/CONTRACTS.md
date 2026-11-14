@@ -36,7 +36,7 @@ It is built inside the site, not as its own project: the rules run on the site's
 | The 12 styles' Lyria presets | `site/src/shared/dj/presets.ts` (C1) |
 | The speaker's screen | `site/src/party/dj/TvDj.tsx` (in the big screen, `site/src/tv/TvApp.tsx`) |
 | The phone | `site/src/party/dj/NetDj.tsx`, `site/src/styles/dj-phone.css` |
-| Lights and dancers | `site/src/party/dj/Floor.tsx` (the lights, the drawn floor), `Floor3D.tsx` (the robots), `robot3d.ts` (what they share with the coach), `site/src/styles/dj.css` |
+| Lights and dancers | `site/src/party/dj/Floor.tsx` (the lights, the drawn floor), `Floor3D.tsx` (the robots), `robot3d.ts` (what they share with the coach); the coach: `Coach.tsx`, `Coach3D.tsx`, `coach/` (its robot and moves), `site/src/styles/dj.css` |
 | The speaker on its own (no table) | `site/src/party/dj/TestPage.tsx`, at changle.ca/dj/test |
 | Lyria: the relay on the rooms server | `site/worker/lyria.ts` (in the table's Durable Object, `index.ts`) |
 | Lyria: the speaker's side | `site/src/party/dj/lyria/` (`LyriaDj.ts`, `prompts.ts`, `beat.ts`), switched in `useBooth.ts` |
@@ -107,17 +107,34 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   the songs asked for, who was most fired up, the perfect drops, whether the sound held up (the
   speaker's `stats`, now in the view as `speaker`); a phone adds the player's own line.
 - **跟着跳, dancing along** (Steve on Nov 2: "电视那边是要玩家进行与舞蹈相匹配的舞蹈"; his plan's 一起跳,
-  `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`): a 3D robot (`Coach3D.tsx`,
-  three.js loaded only there, a CC0 model in `public/models/robot.glb` with its own dances, each
-  animation stretched to whole beats and set to the speaker's beat every frame), or Name That
+  `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`) all night, whole songs too
+  (Steve on Nov 14: "这个左边的机器人要一直在那里不能消失"; over a song's video filling the TV, a
+  little smaller, down in its corner, under the 弹幕): a 3D robot made in code (`coach/robot.ts`,
+  Nov 14: "更拟人真实细腻": a humanlike body in a glossy shell, a visor face with eyes that blink
+  and smile, headphones, a stool; its arms and legs reach by two-bone IK, nothing downloaded but
+  three.js, loaded only there), each move a plain function of the beat (`coach/poses.ts`), set from
+  the speaker's beat every frame, one move flowing into the next over half a second (sitting down
+  and standing up too), the camera closer when it sits, its lights the room's colour; or Name That
   Tune's drawn performer while it loads and on a screen with no graphics chip for it (no WebGL,
   WebGL drawn in software, where three.js isn't even downloaded, or its frames under 20 a second
   in its first seconds: the robot would take the TV's processor from the music and the page; a
   phone playing the speaker gets the robot when its chip keeps up, Steve's TV being an iPhone shown
-  on a computer over AirPlay),
-  dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
-  16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
-  the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand
+  on a computer over AirPlay; the drawn one dances each move's nearest standing one, `drawn`),
+  dancing the routine on the speaker's own beat: fifteen simple moves that go with any song
+  (Steve on Nov 14: "有站着的有坐着的，慢摇，快摇"; `shared/dj/dance.ts`, `DANCE_MOVES`), nine
+  standing and six sitting, each with a line under its name saying how to do it ("下面有文字告诉大家
+  怎么跳", both languages, two lines at most). Which moves, in what order, follow the room's stretch
+  of the night (`ROUTINES`, `moodOf`): the warm-up mostly sitting, getting up at its end; the build
+  standing; the peak the bounciest (快摇 first); the wind-down and a slow song (under 90 BPM by its
+  own tempo, `slowSong`) the gentle ones (慢摇 first), standing then sitting. 16 beats each, named
+  big, the next one called in its last 4 beats. Every phone and the room know the move from the
+  same beat count and stretch (`moveAt`), with nothing more sent. A whole song playing: the speaker
+  says where its beats fall (`songbeat`: its id, the first beat `off` ms after `song.at`, the dance
+  tempo, `slow`; said again until the room has it, again when its tempo is found), kept as
+  `deck.song.beat` (a pause moves `song.at`, so the beats move with it); the coach and every phone
+  dance to those (`songGrid`), and a phone still sends the room its bars by the room's own count (a
+  song's bar ending in one already sent stays on the phone). While 暂停 holds the music a phone counts
+  nothing, and starts again from the next bar. A phone held in the dancing hand
   (`phone/DancePad.tsx`; iOS and newer Chrome ask for the motion sensor on the start tap) reads its
   motion with gravity taken out; a beat is danced when the hand moves at least 2.5 m/s² within
   150 ms of it (`danced`, the plan's easy mode: you moved, near the beat), counted from when the
@@ -172,6 +189,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `juke` `{ on }` | the speaker | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), the booth's only way since Nov 12 ("不需要drop了": on in a new booth, and once in one saved before, `rev` 2). Off (the build-up and DROP, still in the engine) only from the speaker's word, which no page sends: the engine's tests use it, and the big screen switches a booth an older page turned off back on. Another set keeps it. |
 | `full` `{ on }` | anyone, or the speaker | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
 | `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
+| `songbeat` `{ id, off, bpm, slow }` | the speaker | 跟着跳 on a whole song: where its beats fall (the first `off` ms after `song.at`, 0 to 60 s; the dance tempo, 60 to 200; `slow`, a slow song). Only the song playing; the same again, nothing more. Kept in `deck.song.beat`. |
 | `song` `{ by, id, code, local? }` | the speaker | How a song file sent from a player's phone went (below): an `fx` event `song` for that phone; one the TV had already (`there`, `local` its id): on that player's 歌单 too. |
 | `nosong` `{ id }` | the speaker | The video of the song up next won't play here (YouTube said so while the TV got it ready): it comes off that song (`ytNo`), whose drop plays the DJ's remix alone. Only the song up next with a video; said again, nothing more. |
 | `req` `{ text, song?, yt? }`, `unreq` `{ id }` | the speaker | The shared phone's own 点歌 (below): a song asked for as the table's (`SHARED_BY`), up to the table's 30 (not three); only its own taken back. |
@@ -801,10 +819,10 @@ light), only in the build and the peak, and not at all with reduced motion. Anyt
 every frame changes only opacity or a transform.
 
 **The dancers in 3D** (`Floor3D.tsx`; Steve on Nov 5: the players "跟着音乐的节奏跳舞和有感情的唱歌",
-as smooth as the coach, and he chose little robots). Where the coach's robot can be drawn (the same
+as smooth as the coach, and he chose little robots). Where the robots can be drawn (the coach's
 checks: a graphics chip, 20 frames a second or more in the first seconds, the model loaded; one
-load of three.js and the model for both, `robot3d.ts`), everyone at the table is the coach's robot,
-its body in their own colour (their avatar's), their face and name over its head, the host's
+load of three.js for both, `robot3d.ts`), everyone at the table is the little CC0 robot (the
+coach's own until Nov 14, when the coach got its own humanlike one), its body in their own colour (their avatar's), their face and name over its head, the host's
 ringed. On the speaker's beat each one's animation is stretched to whole beats and set to where the
 beat is every frame, as the coach's: easy moves in the warm-up and the wind-down, the full set in
 the build, the big ones at the peak and for anyone keeping up with the coach (跟着跳), the move
@@ -818,13 +836,15 @@ one name each, "Jay Chou 晴天" for a title naming both in two scripts), the si
 first and the next when one has no tempo, then a cover's, five tracks at most (`tracksOf`); none:
 `{ bpm: null, why }`, `video`, `match` or `tempo`; `danceBpm` folds the tempo into 70 to 140),
 the DJ's until it's there or when there's none, counted from the song's start (`song.at`), whether
-or not the page's own sound is running, the lights kicking on its beats. A microphone on a stand
+or not the page's own sound is running, the lights kicking on its beats (the coach and the phones'
+跟着跳 on the same beats: `songbeat` above). A microphone on a stand
 rises in front of each, brows up as a line opens out and knitted on its long notes, notes in their
 colour going up from them; the song over, back to the DJ's beat. Paused, they stand easy. More than 8: two
 rows, the back one on a step behind and between (its edge lit in the booth's pink), its tags over
 the heads, the front row's under the feet. With reduced motion they stand easy (no dancing,
 jumping or swaying; the notes stand still). The drawn floor stays until the robots are dancing,
-and is back if they can't be.
+and is back if they can't be. While a song's video covers the whole TV, none of the floor is drawn
+(the coach is, over the video: one 3D picture at a time on a phone playing the speaker).
 
 ## Limits
 

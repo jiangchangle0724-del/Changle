@@ -1426,3 +1426,11 @@ html.has-sheet body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* filling in for someone: the panel says so in the room's light, so it isn't mistaken for one's own */
+.panel[data-proxy] {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.proxy-bar .you b {
+  color: var(--gel);
+}

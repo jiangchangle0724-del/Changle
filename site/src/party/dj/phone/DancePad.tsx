@@ -2,7 +2,7 @@ import { Footprints, Smartphone } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRoom } from "../../../online/RoomContext";
 import { haptic } from "../../../lib/sfx";
-import { beatOf, beatTime, DANCE, danced, danceShare, moveAt } from "../../../shared/dj/dance";
+import { beatOf, beatTime, DANCE, danced, danceShare, moodOf, moveAt, songGrid } from "../../../shared/dj/dance";
 import type { DjView } from "../../../shared/protocol";
 
 type G = (x: string, data?: Record<string, unknown>) => void;
@@ -27,7 +27,9 @@ async function askMotion(): Promise<boolean> {
  * 跟着跳 on a phone (Steve on Nov 2: dance to match the dance on the TV; his plan's 一起跳): hold the
  * phone in your dancing hand and follow the coach. The phone reads its motion (gravity taken out),
  * checks each beat (moved, within 150 ms of it: the plan's easy mode), shows how it went, and sends
- * the room each bar's count. The move and the next one, from the same beat count as the TV.
+ * the room each bar's count. The move, how to do it and the next one, from the same beat count and
+ * routine as the TV. A whole song playing: its own beats (where the speaker said they fall), so the
+ * hand is checked against the music heard, not the DJ under it; the room still counts its own bars.
  */
 export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
   const { me, now } = useRoom();
@@ -39,9 +41,19 @@ export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
   const samples = useRef<Sample[]>([]);
   const since = useRef(0);
   const live = v.phase !== "wait" && v.phase !== "end";
+  // the room's bars (what it counts the dancing on), and the beats danced to: a whole song's own
   const grid = v.deck?.grid ?? null;
   const gridRef = useRef(grid);
   gridRef.current = grid;
+  const held = !!v.deck?.paused;
+  const songBeats = v.deck?.song && !held ? songGrid(v.deck.song) : null;
+  const beats = songBeats ?? grid;
+  const beatsRef = useRef(beats);
+  beatsRef.current = beats;
+  // (which beats, or none while 暂停 holds the music: when they change, the count starts again from there)
+  const beatsKey = held ? "held" : songBeats ? `${v.deck?.song?.id}:${songBeats.at}:${songBeats.bpm}` : "dj";
+  const keyRef = useRef(beatsKey);
+  keyRef.current = beatsKey;
   // the checks move a pretend hand on this phone's own clock (dj_dance_check.py)
   useEffect(() => {
     if (import.meta.env.DEV) (window as unknown as { __danceNow?: () => number }).__danceNow = now;
@@ -83,11 +95,22 @@ export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
     if (!on || !live) return;
     let lastBeat = -1;
     let lastBar = -1;
+    let sent = -1;
+    let key = keyRef.current;
     const look = () => {
-      const gr = gridRef.current;
-      if (!gr) return;
+      const gr = beatsRef.current;
+      const room = gridRef.current;
+      if (!gr || !room) return;
       const t = now();
       const b = Math.floor(beatOf(gr, t - DANCE.windowMs - 60));
+      if (key !== keyRef.current) {
+        // a song started or ended, or the music held or back: its beats from the next bar on
+        key = keyRef.current;
+        lastBeat = b;
+        lastBar = Math.floor(b / 4);
+      }
+      // (held: nothing to dance to, nothing counted)
+      if (key === "held") return setBeat(-1);
       setBeat(Math.floor(beatOf(gr, t)));
       if (b <= lastBeat) return;
       // only beats the whole of whose window this phone was listening for
@@ -106,7 +129,10 @@ export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
               samples.current,
               beats.map((x) => beatTime(gr, x)),
             ).filter(Boolean).length;
-            g("dance", { bar: barN, n, of: 4 });
+            // (to the room as its own bar, the one this bar ended in; a song's bar ending in one already sent stays here)
+            const roomBar = Math.floor(beatOf(room, beatTime(gr, 4 * barN + 3)) / 4);
+            if (roomBar > sent) g("dance", { bar: roomBar, n, of: 4 });
+            sent = Math.max(sent, roomBar);
             setBar({ n, of: 4 });
           }
           lastBar = barN;
@@ -127,7 +153,7 @@ export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
   };
 
   const L = (x: { zh: string; en: string }) => (zh ? x.zh : x.en);
-  const m = beat >= 0 ? moveAt(beat) : null;
+  const m = beat >= 0 ? moveAt(beat, moodOf(v.phase, v.deck?.song?.beat?.slow)) : null;
   const mine = v.dance?.[me];
   return (
     <section className={`djk-dance ${on ? "is-on" : ""}`} aria-label={zh ? "跟着跳" : "Dance along"}>
@@ -149,6 +175,7 @@ export function DancePad({ v, g, zh }: { v: DjView; g: G; zh: boolean }) {
           {m && (
             <div className="djk-dance-move">
               <span className="djk-dance-now">{L(m.move)}</span>
+              <span className="djk-dance-how">{L(m.move.how)}</span>
               <span className="djk-dance-next">{m.left <= DANCE.showNext ? (zh ? `${m.left} 拍后：${L(m.next)}` : `In ${m.left}: ${L(m.next)}`) : zh ? `接下来：${L(m.next)}` : `Next: ${L(m.next)}`}</span>
             </div>
           )}
