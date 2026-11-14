@@ -19,12 +19,16 @@
  *    ledger's own currency; the other, with its rate, is kept to show, and nothing here or on any
  *    phone multiplies them again. A change to such an expense says what becomes of the other
  *    amount (ops.ts, ExpenseEdit).
+ *  - An expense's receipt photos are ids of files the server keeps (tools/split). A change carries
+ *    the ids, never a file; one that doesn't mention them leaves them as they were.
  */
 import { MAX_MEMBERS, problem, type Expense, type Ledger, type Member, type Split, type Transfer } from "./core";
 import { addMember, addTransfer, editExpense, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, takeOut, tidy, type ExpenseEdit } from "./ops";
 
 /** The most entries (expenses and transfers, taken out or not) one ledger holds. */
 export const MAX_ENTRIES = 2000;
+/** The most receipt photos and files one expense keeps. */
+export const MAX_FILES = 10;
 
 /** What can be changed about an expense after it is recorded (ops.ts says what `paidIn` means said, said null, and not said). */
 export type Edit = ExpenseEdit;
@@ -75,6 +79,7 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
       if (l.entries.length >= MAX_ENTRIES || find(e.id) || !isTurn(e.rot) || !isTime(e.at) || problem(e, roster)) return null;
       const kept: Expense = { kind: "expense", id: e.id, at: e.at, payer: e.payer, amount: e.amount, note: tidy(e.note, NOTE_MAX), split: e.split, rot: e.rot };
       if (e.paidIn) kept.paidIn = { currency: e.paidIn.currency, amount: e.paidIn.amount, rate: e.paidIn.rate };
+      if (e.files?.length) kept.files = [...e.files];
       return { ...l, entries: [...l.entries, kept] };
     }
     case "edit": {
@@ -181,6 +186,12 @@ function asPaidIn(p: unknown): NonNullable<Expense["paidIn"]> | null {
   return { currency: p.currency, amount: p.amount, rate: p.rate };
 }
 
+/** An expense's receipt photos, when what arrived is a list of them: at most MAX_FILES ids, none twice. */
+function asFiles(x: unknown): string[] | null {
+  if (!Array.isArray(x) || x.length > MAX_FILES || !x.every(isId) || new Set(x).size !== x.length) return null;
+  return [...x];
+}
+
 /** The four things every expense says, new or changed. */
 function asSaid(x: unknown): Pick<Expense, "payer" | "amount" | "note" | "split"> | null {
   if (!isRecord(x) || !isId(x.payer) || !isTime(x.amount) || !isText(x.note)) return null;
@@ -192,19 +203,37 @@ function asEdit(x: unknown): Edit | null {
   const said = asSaid(x);
   if (!said || !isRecord(x)) return null;
   // said not at all, said null, or said: three different things (ops.ts, ExpenseEdit)
-  if (x.paidIn === undefined) return said;
-  if (x.paidIn === null) return { ...said, paidIn: null };
-  const paidIn = asPaidIn(x.paidIn);
-  return paidIn && { ...said, paidIn };
+  let edit: Edit = said;
+  if (x.paidIn === null) edit = { ...edit, paidIn: null };
+  else if (x.paidIn !== undefined) {
+    const paidIn = asPaidIn(x.paidIn);
+    if (!paidIn) return null;
+    edit = { ...edit, paidIn };
+  }
+  if (x.files === null) edit = { ...edit, files: null };
+  else if (x.files !== undefined) {
+    const files = asFiles(x.files);
+    if (!files) return null;
+    edit = { ...edit, files };
+  }
+  return edit;
 }
 
 function asExpense(x: unknown): Omit<Expense, "gone"> | null {
   const said = asSaid(x);
   if (!said || !isRecord(x) || !isId(x.id) || !isTime(x.at) || !isTurn(x.rot)) return null;
-  const expense: Omit<Expense, "gone"> = { kind: "expense", id: x.id, at: x.at, ...said, rot: x.rot };
-  if (x.paidIn === undefined) return expense;
-  const paidIn = asPaidIn(x.paidIn);
-  return paidIn && { ...expense, paidIn };
+  let expense: Omit<Expense, "gone"> = { kind: "expense", id: x.id, at: x.at, ...said, rot: x.rot };
+  if (x.paidIn !== undefined) {
+    const paidIn = asPaidIn(x.paidIn);
+    if (!paidIn) return null;
+    expense = { ...expense, paidIn };
+  }
+  if (x.files !== undefined) {
+    const files = asFiles(x.files);
+    if (!files) return null;
+    if (files.length) expense = { ...expense, files };
+  }
+  return expense;
 }
 
 function asChange(x: Record<string, unknown>): Change | null {

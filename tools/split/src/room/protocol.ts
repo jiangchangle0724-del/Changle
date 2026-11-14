@@ -9,9 +9,15 @@
 //   POST /split/api/ledgers/<id>/lock       its owner locks it, or opens it      LockBody → Snapshot
 //   DELETE /split/api/ledgers/<id>          its owner deletes it                 → { ok: true }
 //
+//   GET    /split/api/ledgers/<id>/files         its receipt photos and files      → Files
+//   PUT    /split/api/ledgers/<id>/files/<file>  store one, signed in; the body is the file (a FILE_TYPES type, at most FILE_MAX) → Stored (201; 200 when it was stored already)
+//   GET    /split/api/ledgers/<id>/files/<file>  the file itself
+//   DELETE /split/api/ledgers/<id>/files/<file>  take it off the ledger and out of the bucket → { ok: true }
+//
 //   GET    /split/api/me/ledgers            my ledgers, keys and all             → MyLedgers
 //   PUT    /split/api/me/ledgers/<id>       keep one in my ledgers (or update it) { me? } → MineBody
 //   DELETE /split/api/me/ledgers/<id>       take one off my ledgers (the ledger stays) → { ok: true }
+//   GET    /split/api/me/files              how much of my room my files use     → Storage
 //
 // Every request but the owner's two carries the key from the invitation link in the KEY_HEADER. A
 // browser can't put a header on a WebSocket, so the live connection gives it as its second
@@ -29,10 +35,18 @@
 // takes its key in the KEY_HEADER, which has to open it, and the owner's key in the OWNER_HEADER
 // when the phone has it, which has to be the owner's. A sign-in that is nobody's gets 401
 // "signin"; when the rooms server can't say whose it is, 503 "down".
+//
+// A ledger's files (receipt photos, and PDFs): whoever holds the key reads them and takes one off,
+// as they can change any expense. Storing one also needs a sign-in, and is charged to that account:
+// at most QUOTA in all its files ("quota", 413), and UPLOADS_PER_DAY a day ("limit", 429). A file is
+// one of FILE_TYPES, and is what it says it is (its first bytes), at most FILE_MAX ("big", 413). Its
+// id is the phone's own, so a phone that isn't sure its file arrived sends it again, and is charged
+// once. The file itself comes back only with the key; it has no address of its own, and the answer
+// says it is to be shown, not run.
 import type { Sent, Took } from "../../../../site/src/split/changes";
 import type { Ledger, Member } from "../../../../site/src/split/core";
-import type { Mine } from "./account";
-import type { ErrorCode, Logged, Snapshot } from "./ledger";
+import type { Mine, Storage } from "./account";
+import type { ErrorCode, FileInfo, Logged, Snapshot } from "./ledger";
 
 export const KEY_HEADER = "x-split-key";
 export const OWNER_HEADER = "x-split-owner";
@@ -42,6 +56,16 @@ export const KEY_RE = /^[A-Za-z0-9_-]{22,128}$/;
 export const LIVE_PROTOCOL = "split.v1";
 /** A person's id in a ledger, as phones make them. */
 export const MEMBER_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** What a file may be: a photo (the phone sends it as a JPEG it made smaller), or a PDF. */
+export const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
+const MB = 1024 * 1024;
+/** The biggest file. */
+export const FILE_MAX = 10 * MB;
+/** All of one account's files, in every ledger (the plan's 每人 500 MB). */
+export const QUOTA = 500 * MB;
+/** When the phone says the room is running out. */
+export const WARN_AT = 400 * MB;
 
 export type MakeBody = { id: string; name: string; currency: string; members: Member[] };
 export type PushBody = { changes: Sent[] };
@@ -53,16 +77,21 @@ export type Since = { seq: number; changes: Logged[] };
 export type MyLedgers = { ledgers: Mine[] };
 /** One of my ledgers, as it is now kept. */
 export type MineBody = { mine: Mine };
-export type { Mine, Snapshot };
+/** A ledger's files, the first stored first. */
+export type Files = { files: FileInfo[] };
+/** A file stored, and the bytes the sender's account now uses, of its quota. */
+export type Stored = { file: FileInfo; used: number; quota: number };
+export type { FileInfo, Mine, Snapshot, Storage };
 
 /**
- * "limit": this network, or this account, has made today's allowance of ledgers. "notfound": no
- * such address. "signin": the sign-in is nobody's (401). "down": the rooms server can't say whose
- * it is now (503). (From ErrorCode, the two that came with owners: "owner" is 403, and "locked" is
+ * "limit": this network, or this account, has made today's allowance of ledgers (or sent today's
+ * files). "quota": a file would take the account past its room. "big": a file bigger than
+ * FILE_MAX. "notfound": no such address. "signin": the sign-in is nobody's (401). "down": the
+ * rooms server can't say whose it is now, or the bucket didn't take a file (503). (From ErrorCode, the two that came with owners: "owner" is 403, and "locked" is
  * 423: the ledger is locked, and the request had something new in it. "full" is 409 for my
  * ledgers too: an account keeps at most MAX_MINE.)
  */
-export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" };
+export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" | "quota" | "big" };
 
 /** What the live connection sends: the whole ledger, and the number of its last change. */
 export type Push = { t: "ledger"; seq: number; ledger: Ledger };

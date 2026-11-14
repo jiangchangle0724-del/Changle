@@ -191,7 +191,7 @@ with open.er-api.com as the browser's fallback. Their brief: `docs/briefs/tools.
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 约时间 (`tools/when`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts the daily allowances) |
 | 跟一单 (`tools/tuan`) | none | none |
-| 两清 (`tools/split`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts a network's daily allowance of new ledgers, not an account's) |
+| 两清 (`tools/split`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts a network's daily allowance of new ledgers, not an account's), `TEST_QUOTA` (tests only, with it: an account's room for files, in bytes) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 藏在人群里 (`games/hide-crowd`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (optional, never needed live: the libraries' hand-over from a run outside GitHub) | `ALLOW_TEST` (local and tests only) |

@@ -1,6 +1,7 @@
 // The server itself, run on this machine (`wrangler dev`, Cloudflare's own runtime): the addresses,
-// the key, the Durable Object's SQLite, the live connection, and a changle.ca account's ledgers
-// (with a stand-in for the rooms server that says whose a sign-in is: tests/rooms).
+// the key, the Durable Object's SQLite, the live connection, a changle.ca account's ledgers (with a
+// stand-in for the rooms server that says whose a sign-in is: tests/rooms), and receipt photos in
+// the bucket (which wrangler keeps on disk here; an account's room is TEST_QUOTA bytes, to fill).
 // `npm run test:server`.
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -10,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type MineBody, type MyLedgers, type Push, type Pushed, type Since, type Snapshot } from "../src/room/protocol";
+import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type MineBody, type MyLedgers, type Push, type Pushed, type Since, type Snapshot, type Storage, type Stored } from "../src/room/protocol";
 import { SESSION } from "./accounts";
 
 const PORT = 8794;
@@ -20,10 +21,12 @@ let server: ChildProcess;
 // Each run starts with nothing kept: an account's day of ledgers, or its list, from an earlier run
 // on this machine would change what these tests see.
 const kept = mkdtempSync(join(tmpdir(), "split-server-test-"));
+/** An account's room for files here: small, so a test can fill it. */
+const TEST_QUOTA = 300_000;
 
 before(async () => {
   // (with the stand-in rooms server beside it, which says whose the test sessions are: tests/rooms)
-  server = spawn("npx", ["wrangler", "dev", "-c", "wrangler.jsonc", "-c", "tests/rooms/wrangler.jsonc", "--port", String(PORT), "--ip", "127.0.0.1", "--var", "ALLOW_TEST_SETTINGS:1", "--persist-to", kept], {
+  server = spawn("npx", ["wrangler", "dev", "-c", "wrangler.jsonc", "-c", "tests/rooms/wrangler.jsonc", "--port", String(PORT), "--ip", "127.0.0.1", "--var", "ALLOW_TEST_SETTINGS:1", "--var", `TEST_QUOTA:${TEST_QUOTA}`, "--persist-to", kept], {
     stdio: "ignore",
     detached: true,
     env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" },
@@ -245,6 +248,102 @@ test("addresses that aren't there", async () => {
 });
 
 const mineOf = async (session: string) => (await call<MyLedgers>("GET", "/me/ledgers", null, undefined, as(session))).data.ledgers;
+
+/** A JPEG's first bytes, then `size` bytes in all. */
+const jpeg = (size: number, fill = 7) => Uint8Array.from({ length: size }, (_, i) => (i === 0 ? 0xff : i === 1 ? 0xd8 : i === 2 ? 0xff : fill));
+const pdf = (size: number) => Uint8Array.from({ length: size }, (_, i) => "%PDF-1.7".charCodeAt(i) || 32);
+async function putFile(ledger: string, file: string, bytes: Uint8Array, key: string | null, more: Record<string, string> = {}, type = "image/jpeg") {
+  const res = await fetch(`${API}/ledgers/${ledger}/files/${file}`, { method: "PUT", headers: { ...(key ? { [KEY_HEADER]: key } : {}), "content-type": type, ...more }, body: bytes });
+  return { status: res.status, data: (await res.json()) as Stored & { error?: string } };
+}
+const storageOf = async (who: Record<string, string>) => (await call<Storage>("GET", "/me/files", null, undefined, who)).data;
+
+test("receipt photos: stored by a signed-in phone with the key, read back as they were, charged once", async () => {
+  const { id, key } = await make();
+  const steve = someone();
+  const photo = jpeg(1_000);
+  for (const [why, got, want] of [
+    ["no sign-in", await putFile(id, "f-0000001", photo, key), { status: 401, data: { error: "signin" } }],
+    ["a sign-in that is nobody's", await putFile(id, "f-0000001", photo, key, as("nobody")), { status: 401, data: { error: "signin" } }],
+    ["the wrong key", await putFile(id, "f-0000001", photo, newKey(), steve), { status: 403, data: { error: "key" } }],
+    ["no key", await putFile(id, "f-0000001", photo, null, steve), { status: 403, data: { error: "key" } }],
+    ["a ledger that isn't there", await putFile(newId(), "f-0000001", photo, key, steve), { status: 404, data: { error: "gone" } }],
+    ["a page, not a photo", await putFile(id, "f-0000001", photo, key, steve, "text/html"), { status: 400, data: { error: "bad" } }],
+    ["a JPEG said to be a PNG", await putFile(id, "f-0000001", photo, key, steve, "image/png"), { status: 400, data: { error: "bad" } }],
+    ["nothing at all", await putFile(id, "f-0000001", new Uint8Array(), key, steve), { status: 400, data: { error: "bad" } }],
+    ["bigger than FILE_MAX", await putFile(id, "f-0000001", jpeg(FILE_MAX + 1), key, steve), { status: 413, data: { error: "big" } }],
+    ["an id that isn't one", await putFile(id, "a.b", photo, key, steve), { status: 404, data: { error: "notfound" } }],
+  ] as const) assert.deepEqual(got, want, why);
+  assert.deepEqual(await storageOf(steve), { used: 0, quota: TEST_QUOTA, ledgers: [] }, "none of that was kept, or charged");
+
+  const first = await putFile(id, "f-0000001", photo, key, steve);
+  assert.equal(first.status, 201);
+  assert.deepEqual([first.data.file.id, first.data.file.size, first.data.file.type, first.data.used, first.data.quota, "by" in first.data.file], ["f-0000001", 1_000, "image/jpeg", 1_000, TEST_QUOTA, false], "stored, and charged to the account that sent it");
+  const again = await putFile(id, "f-0000001", jpeg(1_000, 9), key, steve);
+  assert.deepEqual([again.status, again.data.file, again.data.used], [200, first.data.file, 1_000], "sent again with the same id: the file already kept, charged once");
+
+  const read = await fetch(`${API}/ledgers/${id}/files/f-0000001`, { headers: { [KEY_HEADER]: key } });
+  assert.equal(read.status, 200);
+  assert.deepEqual(new Uint8Array(await read.arrayBuffer()), photo, "read back as it was sent the first time");
+  assert.deepEqual(
+    ["content-type", "x-content-type-options", "content-security-policy", "cache-control"].map((h) => read.headers.get(h)),
+    ["image/jpeg", "nosniff", "default-src 'none'; sandbox", "private, max-age=31536000, immutable"],
+    "as what it is, to be shown and never run, kept only on the phone that asked",
+  );
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files/f-0000001`, newKey()), { status: 403, data: { error: "key" } }, "not with the wrong key");
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files/f-0000001`, null), { status: 403, data: { error: "key" } }, "nor with none");
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files/f-nope0001`, key), { status: 404, data: { error: "gone" } }, "an id it doesn't have");
+
+  const friend = someone();
+  assert.equal((await putFile(id, "f-0000002", pdf(2_000), key, friend, "application/pdf")).status, 201, "a friend signed in stores a PDF");
+  assert.deepEqual((await call<Files>("GET", `/ledgers/${id}/files`, key)).data.files.map((f) => [f.id, f.size, f.type, "by" in f]), [["f-0000001", 1_000, "image/jpeg", false], ["f-0000002", 2_000, "application/pdf", false]], "the ledger's files, the first stored first, and not whose account sent each");
+  assert.deepEqual([(await storageOf(steve)).used, (await storageOf(friend)).used], [1_000, 2_000], "each charged for their own");
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files`, newKey()), { status: 403, data: { error: "key" } });
+
+  // an expense says which photos are its own: the server takes it, and a later change about the note keeps them
+  const withPhoto = { ...expense("e1"), change: { do: "expense", expense: { kind: "expense", id: "e1", at: Date.now(), payer: "s", amount: 3000, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0, files: ["f-0000001", "f-0000002"] } } } as Sent;
+  const pushed = await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [withPhoto] });
+  assert.deepEqual([pushed.data.took, pushed.data.ledger.entries[0]?.kind === "expense" && pushed.data.ledger.entries[0].files], [["new"], ["f-0000001", "f-0000002"]], "an expense with its photos");
+});
+
+test("receipt photos: taken off by anyone with the key, the room back to whoever sent them; never past the quota", async () => {
+  const { id, key } = await make();
+  const steve = someone();
+  assert.equal((await putFile(id, "big-0001", jpeg(150_000), key, steve)).status, 201);
+  assert.equal((await putFile(id, "big-0002", jpeg(140_000), key, steve)).status, 201);
+  assert.deepEqual(await putFile(id, "big-0003", jpeg(10_001), key, steve), { status: 413, data: { error: "quota" } }, `${TEST_QUOTA} bytes in all: one past it is turned away`);
+  assert.equal((await putFile(id, "big-0003", jpeg(10_000), key, steve)).status, 201, "up to it, taken");
+  assert.deepEqual(await storageOf(steve), { used: TEST_QUOTA, quota: TEST_QUOTA, ledgers: [{ id, bytes: TEST_QUOTA, count: 3 }] });
+
+  assert.deepEqual(await call("DELETE", `/ledgers/${id}/files/big-0001`, newKey()), { status: 403, data: { error: "key" } });
+  assert.deepEqual(await call("DELETE", `/ledgers/${id}/files/big-0001`, key), { status: 200, data: { ok: true } }, "taken off by someone with the key, signed in or not");
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files/big-0001`, key), { status: 404, data: { error: "gone" } }, "and gone");
+  assert.deepEqual(await call("DELETE", `/ledgers/${id}/files/big-0001`, key), { status: 404, data: { error: "gone" } }, "taken off twice: gone");
+  assert.equal((await storageOf(steve)).used, 150_000, "its room is back to the account that sent it");
+  assert.equal((await putFile(id, "big-0004", jpeg(140_000), key, steve)).status, 201, "and can be used again");
+  assert.deepEqual((await call<Files>("GET", `/ledgers/${id}/files`, key)).data.files.map((f) => f.id), ["big-0002", "big-0003", "big-0004"]);
+});
+
+test("receipt photos: a locked ledger takes none and lets none go; a deleted one hands every account its room back", async () => {
+  const id = newId();
+  const key = newKey();
+  const owner = newKey();
+  const steve = someone();
+  const friend = someone();
+  assert.equal((await call("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, { [OWNER_HEADER]: owner, ...steve })).status, 201);
+  assert.equal((await putFile(id, "lk-00001", jpeg(1_000), key, steve)).status, 201);
+  assert.equal((await putFile(id, "lk-00002", jpeg(2_000), key, friend)).status, 201);
+  assert.equal((await call("POST", `/ledgers/${id}/lock`, null, { locked: true }, { [OWNER_HEADER]: owner })).status, 200);
+  assert.deepEqual(await putFile(id, "lk-00003", jpeg(1_000), key, steve), { status: 423, data: { error: "locked" } }, "locked: no new photo");
+  assert.deepEqual(await call("DELETE", `/ledgers/${id}/files/lk-00001`, key), { status: 423, data: { error: "locked" } }, "nor one taken off");
+  assert.equal((await fetch(`${API}/ledgers/${id}/files/lk-00001`, { headers: { [KEY_HEADER]: key } })).status, 200, "but they can still be seen");
+  assert.equal((await putFile(id, "lk-00001", jpeg(1_000), key, steve)).status, 200, "and one stored already, sent again, hears it is there");
+
+  assert.deepEqual(await call("DELETE", `/ledgers/${id}`, null, undefined, { [OWNER_HEADER]: owner }), { status: 200, data: { ok: true } }, "the owner deletes the ledger");
+  assert.deepEqual([await storageOf(steve), await storageOf(friend)], [{ used: 0, quota: TEST_QUOTA, ledgers: [] }, { used: 0, quota: TEST_QUOTA, ledgers: [] }], "every account that sent it photos has its room back");
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files/lk-00001`, key), { status: 404, data: { error: "gone" } });
+  assert.deepEqual(await call("GET", "/me/files", null), { status: 401, data: { error: "signin" } }, "my files need a sign-in");
+});
 
 test("signed in, a ledger made is kept in the account's list, keys and all", async () => {
   const id = newId();

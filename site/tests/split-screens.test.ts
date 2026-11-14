@@ -307,7 +307,7 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, paidIn: null }, null, null], "in the ledger's own, it says there is no other currency; while something is wrong with it, it says nothing at all");
 
   // opened again
-  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
+  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
   const again = draftOf(recorded.entries[0] as Expense, recorded);
   eq([again.text, again.currency, again.rate, again.asking, again.untouched], ["30.00", "USD", "1.40", false, false], "an expense paid in dollars opens in dollars, at the rate it was recorded at");
   eq([saying(again, recorded), applyChange(recorded, { do: "edit", entry: "e", to: saying(again, recorded)! })], [saying(thirty, five), null], "saved untouched, it says what it said, and nothing changes");
@@ -337,7 +337,7 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
         if (draftProblem(d, l)?.what !== "amount") bad = `${text} ${other} in a ${settle} ledger: ${JSON.stringify(draftProblem(d, l))}`;
         continue;
       }
-      const { paidIn, ...said } = to;
+      const { paidIn, files: _files, ...said } = to;
       const made = applyChange(l, { do: "expense", expense: { kind: "expense", id: "e", at: NOW, ...said, rot: 0, ...(paidIn ? { paidIn } : {}) } });
       const e = made?.entries[0] as Expense | undefined;
       if (!made || !e || JSON.stringify(paidInOf(e, made)) !== JSON.stringify(paidIn) || e.amount !== convert(paidIn?.amount ?? 0, decimalsOf(other), paidIn?.rate ?? "", decimalsOf(settle))) bad = `${text} ${other} in a ${settle} ledger isn't kept as it was said`;
@@ -815,7 +815,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
   eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
   const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
-  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
   const backAgain = applyChange(now, edit!.change)!;
   const { rot: _r1, ...was } = dinner;
   const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
@@ -877,6 +877,23 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     }
     return { l, lg };
   };
+
+  // photos added, then one taken off: the record says so, and changing it back puts them back as they were
+  {
+    const { l, lg } = play([
+      { do: "expense", expense: { ...gas, files: ["p1"] } },
+      { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油费", split: gas.split, files: ["p1", "p2"] } },
+      { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油费", split: gas.split, files: ["p2"] } },
+    ]);
+    const lines = historyOf(l, lg, [], "s", "zh", clock);
+    eq(lines.map((x) => x.detail ?? ""), ["去掉了照片", "加了照片", ""], "photos added, then one taken off: each edit says which");
+    eq(historyOf(l, lg, [], "s", "en", clock).map((x) => x.detail ?? ""), ["Photo taken off", "Photo added", ""], "in English");
+    eq((applyChange(l, lines[0].action!.change)!.entries[0] as Expense).files, ["p1", "p2"], "changed back: both photos again");
+    const swapped = play([{ do: "expense", expense: { ...gas, files: ["p1"] } }, { do: "edit", entry: "e2", to: { payer: "w", amount: 13000, note: "油费", split: gas.split, files: ["p3"] } }]);
+    eq(historyOf(swapped.l, swapped.lg, [], "s", "zh", clock)[0].detail, "金额 $120.00 改成 $130.00，加了照片，去掉了照片", "one swapped for another, with the amount: all of it said");
+    const untold = play([{ do: "expense", expense: { ...gas, files: ["p1"] } }, { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油", split: gas.split } }]);
+    eq([historyOf(untold.l, untold.lg, [], "s", "zh", clock)[0].detail, (untold.l.entries[0] as Expense).files], ["备注改成 油", ["p1"]], "an edit that doesn't mention the photos (a page from before them): they stay, and nothing is said of them");
+  }
 
   // deleted, brought back and deleted again: only the latest deletion offers to bring it back
   {
