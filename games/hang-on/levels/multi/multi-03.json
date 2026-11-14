@@ -1,0 +1,142 @@
+{
+  "id": "multi-03",
+  "world": "table",
+  "tier": 0,
+  "name": {
+    "zh": "茶盘上下层",
+    "en": "Tea Tray Mezzanine"
+  },
+  "teaches": "combine",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 526
+  },
+  "goal": {
+    "x": 2360,
+    "y": 70,
+    "w": 160,
+    "h": 150
+  },
+  "checkpoints": [
+    {
+      "x": 1040,
+      "y": 526
+    },
+    {
+      "x": 2160,
+      "y": 186
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 560,
+      "w": 1880,
+      "h": 160,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 530,
+      "y": 0,
+      "w": 180,
+      "h": 280,
+      "kind": "wall",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 1880,
+      "y": 240,
+      "w": 680,
+      "h": 480,
+      "kind": "wall",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 1880,
+      "y": 220,
+      "w": 680,
+      "h": 20,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 330,
+      "y": 400,
+      "w": 120,
+      "h": 160,
+      "kind": "step",
+      "material": "wood"
+    }
+  ],
+  "plates": [
+    {
+      "x": 195,
+      "y": 548,
+      "w": 110,
+      "h": 12,
+      "opens": "g0"
+    },
+    {
+      "x": 855,
+      "y": 548,
+      "w": 110,
+      "h": 12,
+      "opens": "g0"
+    },
+    {
+      "x": 1255,
+      "y": 548,
+      "w": 110,
+      "h": 12,
+      "opens": "g1"
+    },
+    {
+      "x": 1935,
+      "y": 208,
+      "w": 110,
+      "h": 12,
+      "opens": "g1"
+    }
+  ],
+  "gates": [
+    {
+      "id": "g0",
+      "x": 600,
+      "y": 280,
+      "w": 40,
+      "h": 280,
+      "move": {
+        "x": 0,
+        "y": -220
+      },
+      "speed": 360,
+      "hold": 0,
+      "grab": false
+    },
+    {
+      "id": "g1",
+      "x": 1660,
+      "y": 560,
+      "w": 220,
+      "h": 20,
+      "move": {
+        "x": 0,
+        "y": -340
+      },
+      "speed": 110,
+      "hold": 0,
+      "material": "wood"
+    }
+  ],
+  "deathY": 880,
+  "par": {
+    "seconds": 60,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/multi-03.p4.json"
+}

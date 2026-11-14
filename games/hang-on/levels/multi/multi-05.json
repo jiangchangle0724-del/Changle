@@ -1,0 +1,158 @@
+{
+  "id": "multi-05",
+  "world": "table",
+  "tier": 1,
+  "name": {
+    "zh": "叠碟接力台",
+    "en": "Plate Stack Shuttles"
+  },
+  "teaches": "hold",
+  "w": 2560,
+  "h": 1440,
+  "spawn": {
+    "x": 100,
+    "y": 1306
+  },
+  "goal": {
+    "x": 2360,
+    "y": 180,
+    "w": 160,
+    "h": 120
+  },
+  "checkpoints": [
+    {
+      "x": 1200,
+      "y": 926
+    },
+    {
+      "x": 2050,
+      "y": 546
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 1340,
+      "w": 840,
+      "h": 100,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 840,
+      "y": 980,
+      "w": 320,
+      "h": 460,
+      "kind": "wall",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 840,
+      "y": 960,
+      "w": 320,
+      "h": 20,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1160,
+      "y": 960,
+      "w": 630,
+      "h": 480,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1790,
+      "y": 600,
+      "w": 770,
+      "h": 840,
+      "kind": "wall",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 1790,
+      "y": 580,
+      "w": 770,
+      "h": 20,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 2220,
+      "y": 300,
+      "w": 340,
+      "h": 280,
+      "kind": "wall",
+      "material": "ceramic"
+    }
+  ],
+  "plates": [
+    {
+      "x": 215,
+      "y": 1328,
+      "w": 110,
+      "h": 12,
+      "opens": "g0"
+    },
+    {
+      "x": 895,
+      "y": 948,
+      "w": 110,
+      "h": 12,
+      "opens": "g0"
+    },
+    {
+      "x": 1165,
+      "y": 948,
+      "w": 110,
+      "h": 12,
+      "opens": "g1"
+    },
+    {
+      "x": 1845,
+      "y": 568,
+      "w": 110,
+      "h": 12,
+      "opens": "g1"
+    }
+  ],
+  "gates": [
+    {
+      "id": "g0",
+      "x": 620,
+      "y": 1340,
+      "w": 220,
+      "h": 20,
+      "move": {
+        "x": 0,
+        "y": -380
+      },
+      "speed": 110,
+      "hold": 0,
+      "material": "wood"
+    },
+    {
+      "id": "g1",
+      "x": 1570,
+      "y": 960,
+      "w": 220,
+      "h": 20,
+      "move": {
+        "x": 0,
+        "y": -380
+      },
+      "speed": 110,
+      "hold": 0,
+      "material": "wood"
+    }
+  ],
+  "deathY": 1600,
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/multi-05.p4.json"
+}
