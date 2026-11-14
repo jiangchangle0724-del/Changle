@@ -1022,6 +1022,16 @@ button.tag {
 .fig-row .ui-tabs {
   flex: 1;
 }
+/* the parts to shape: two rows of four (seven don't fit on one row of a phone) */
+.fig-parts .ui-tabs-segmented {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-radius: var(--r-tile);
+}
+.fig-parts .ui-tab {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
 .fig-label {
   color: var(--color-text-2);
   font-size: var(--text-sm);
@@ -1034,6 +1044,10 @@ button.tag {
 }
 .fig-part .fig-chips {
   margin: 0 0 var(--space-2);
+}
+/* a row of swatches under the sliders, with its name above it */
+.fig-part > .fig-label {
+  margin-top: var(--space-2);
 }
 .fig-slider {
   display: grid;

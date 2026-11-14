@@ -12,9 +12,11 @@ Held poses of the figure's moves, through the real page, side by side in one pic
 e.g.  python3 look.py /tmp/sword.png 'sword:0,0.85,1.12,1.65' 'sleep:0.6,1.8,2.6::intro'
 
 Needs the site's dev server (npm run dev, port 5173), the built figure in public/models, and
-Playwright for Python. CELL=300 sets each picture's width.
+Playwright for Python. CELL=300 sets each picture's width. LOOK='{"v":1,"sex":"female","shape":{"weight":1}}'
+dresses it first (a look as look.ts keeps it; what's left out is the default).
 """
 import io
+import json
 import os
 import sys
 
@@ -31,6 +33,8 @@ with sync_playwright() as p:
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
     pg.add_init_script("window.__figAnyGl = true;")
+    if os.environ.get("LOOK"):
+        pg.add_init_script(f"localStorage.setItem('figure.look', {json.dumps(os.environ['LOOK'])});")
     pg.goto("http://127.0.0.1:5173/me/figure", wait_until="load")
     pg.wait_for_function("window.__figIs === 'on'", timeout=120000)
     pg.wait_for_selector(".fig-stats")

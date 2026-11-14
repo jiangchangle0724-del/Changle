@@ -88,6 +88,7 @@ export const HANDS: Record<string, HandShape> = {
 
 // ---------------------------------------------------------------- the body, as shapes the limbs keep out of
 
+
 /**
  * A piece of the body the arms and legs keep out of: an elliptic capsule (a segment with an oval
  * cross-section and round ends) or an ellipsoid (a == b), fixed to a bone, in that bone's rest
@@ -155,20 +156,27 @@ export function fitBody(points: ArrayLike<number>, boneOf: ArrayLike<number>, na
     const fr = ax.clone().cross(u).normalize();
     const as: number[] = [];
     const fs: number[] = [];
+    const ts: number[] = [];
     for (const i of ids) {
       const rel = new THREE.Vector3(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]).sub(h);
       const along = rel.dot(u) / L;
       if (along < -0.15 || along > 1.15) continue;
       as.push(rel.dot(ax));
       fs.push(rel.dot(fr));
+      ts.push(rel.dot(u));
     }
     if (as.length < 8) continue;
     const a0 = (pct(as, 0.02) + pct(as, 0.98)) / 2;
     const f0 = (pct(fs, 0.02) + pct(fs, 0.98)) / 2;
     const ra = (pct(as, 0.98) - pct(as, 0.02)) / 2;
     const rf = (pct(fs, 0.98) - pct(fs, 0.02)) / 2;
+    // its length: as far along the bone as its points go (2 cm more each end, to meet the next
+    // piece), round ends included; a fat chest's round top would otherwise reach up to the chin
+    const t0 = pct(ts, 0.02) - 0.02;
+    const t1 = pct(ts, 0.98) + 0.02;
+    const rEnd = Math.min(ra, rf, (t1 - t0) / 2);
     const off = ax.clone().multiplyScalar(a0).add(fr.clone().multiplyScalar(f0));
-    out.push({ name: s.name, bone: s.bone, part: s.part, side: s.side, a: off.clone(), b: off.clone().add(axis), ax, fr, r: [ra, rf, Math.min(ra, rf)] });
+    out.push({ name: s.name, bone: s.bone, part: s.part, side: s.side, a: off.clone().add(u.clone().multiplyScalar(t0 + rEnd)), b: off.clone().add(u.clone().multiplyScalar(t1 - rEnd)), ax, fr, r: [ra, rf, rEnd] });
   }
   // the head: an ellipsoid round the head's own points
   const hb = heads.get("Head");
@@ -188,24 +196,29 @@ export function fitBody(points: ArrayLike<number>, boneOf: ArrayLike<number>, na
  * Where this body's chest, head and hips frames sit, so the moves' points (written on the first
  * stand-in) land at the same places on it: the chest's front 0.155 m ahead of the chest frame, the
  * eyes 0.0872 m above and 0.083 m ahead of the head's, the hip joints' midpoint a little above the
- * hips'. points: the skin and clothes at rest (world, metres).
+ * hips' (each times the body's size against the stand-in's, as the points are). points: the skin
+ * and clothes at rest (world, metres).
  */
 export function figureFrames(points: ArrayLike<number>, heads: Map<string, THREE.Vector3>): Record<string, V3> {
   const at = (n: string) => heads.get(n) ?? new THREE.Vector3();
   const sp = at("Spine2");
+  const eyes = at("LeftEye").clone().add(at("RightEye")).multiplyScalar(0.5);
+  const k = eyes.y > 0 ? eyes.y / REF_EYE : 1;
   let front = -Infinity;
   for (let i = 0; i < points.length; i += 3) if (Math.abs(points[i]) < 0.04 && Math.abs(points[i + 1] - sp.y) < 0.03) front = Math.max(front, points[i + 2]);
-  if (!Number.isFinite(front)) front = sp.z + 0.155;
-  const eyes = at("LeftEye").clone().add(at("RightEye")).multiplyScalar(0.5);
+  if (!Number.isFinite(front)) front = sp.z + 0.155 * k;
   const legs = at("LeftUpLeg").clone().add(at("RightUpLeg")).multiplyScalar(0.5);
   const hd = at("Head");
   const hips = at("Hips");
   return {
-    chest: [0, 0, front - sp.z - 0.155],
-    head: [0, eyes.y - hd.y - 0.0872, eyes.z - hd.z - 0.083],
-    hips: [legs.x - hips.x, legs.y - 0.0053 - hips.y, legs.z + 0.0031 - hips.z],
+    chest: [0, 0, front - sp.z - 0.155 * k],
+    head: [0, eyes.y - hd.y - 0.0872 * k, eyes.z - hd.z - 0.083 * k],
+    hips: [legs.x - hips.x, legs.y - 0.0053 * k - hips.y, legs.z + 0.0031 * k - hips.z],
   };
 }
+
+/** what each arm chose last frame, keeping out of the body: its hand target and elbow direction (world) */
+export type KeepMem = Partial<Record<string, { T: THREE.Vector3; pole: THREE.Vector3 }>>;
 
 /** a ball to keep out of the body: its centre (world) and radius */
 type Probe = { p: THREE.Vector3; r: number };
@@ -368,7 +381,8 @@ export class Rig {
   }
 
   /** Solves a pose: returns { local: Map(name → Quaternion), hips: Vector3 (the Hips translation) } and keeps the world state for drawing and checks. */
-  solve(pose: PoseSpec) {
+  /** a pose solved onto the bones; `mem` carries what the frame before chose (a clip solved frame by frame), so an arm kept out doesn't jump about */
+  solve(pose: PoseSpec, mem?: KeepMem) {
     const D = new Map<string, THREE.Quaternion>();
     const P = new Map<string, THREE.Vector3>();
     const local = new Map<string, THREE.Quaternion>();
@@ -385,8 +399,9 @@ export class Rig {
     const point = (spec: any) => {
       if (!spec) return null;
       if (!spec.frame || spec.frame === "char") return this.charPoint(spec.p);
+      // (written for the first stand-in: a bigger body, a bigger reach)
       const fr = frame(spec.frame);
-      return v3(spec.p).applyQuaternion(fr.q).add(fr.p);
+      return v3(spec.p).multiplyScalar(this.k).applyQuaternion(fr.q).add(fr.p);
     };
     const dirOf = (spec: any, fallbackFrame: string): THREE.Vector3 => {
       const arr = Array.isArray(spec) ? spec : spec.d;
@@ -581,6 +596,7 @@ export class Rig {
         let r = reach(T, pole);
         let dep = depth(r);
         before = Math.max(before, dep.worst);
+        const written = { T: T.clone(), pole: pole.clone() };
         for (let it = 0; it < 6 && dep.worst > 0.004; it++) {
           if (dep.arm) {
             // the elbow: round its circle, the way that comes out soonest
@@ -607,6 +623,40 @@ export class Rig {
             dep = depth(r);
           }
         }
+        // still in (a body much bigger or smaller than the moves were written on): a wider look,
+        // the elbow anywhere round its circle and the hand moved out a little in a few ways; the
+        // least deep wins, then the nearest to what was written and to the frame before
+        const last = mem?.[side];
+        if (dep.worst > 0.008) {
+          const ways: THREE.Vector3[] = [];
+          if (dep.arm) ways.push(dep.arm.clone().normalize());
+          if (dep.hand) ways.push(dep.hand.clone().normalize());
+          // out from the body's middle, level
+          const out = written.T.clone().sub(P.get("Spine1") as THREE.Vector3).setY(0);
+          if (out.lengthSq() > 1e-6) ways.push(out.normalize());
+          // and out to its own side, forward, and up
+          const hq = D.get("Hips") as THREE.Quaternion;
+          ways.push(X.clone().multiplyScalar(s).applyQuaternion(hq).setY(0).normalize(), Z.clone().applyQuaternion(hq).setY(0).normalize(), Y.clone());
+          let best = { cost: Infinity, T, pole, r, dep };
+          // from where the move put the hand, and from where the quick fix took it
+          const starts = written.T.distanceTo(T) > 0.01 ? [written, { T, pole }] : [written];
+          for (const from of starts)
+            for (const far of [0, 0.03, 0.06, 0.1, 0.14])
+              for (const way of far ? ways : [null]) {
+                const Tc = way ? from.T.clone().addScaledVector(way, far) : from.T.clone();
+                const axis = Tc.clone().sub(S).normalize();
+                for (let ang = -150; ang <= 180; ang += 30) {
+                  const pc = from.pole.clone().applyAxisAngle(axis, ang * deg);
+                  const rc = reach(Tc, pc);
+                  const dc = depth(rc);
+                  let cost = dc.worst * 100 + Tc.distanceTo(written.T) + Math.abs(ang) / 1800;
+                  if (last) cost += (pc.angleTo(last.pole) / Math.PI) * 0.3 + Tc.distanceTo(last.T) * 2;
+                  if (cost < best.cost) best = { cost, T: Tc, pole: pc, r: rc, dep: dc };
+                }
+              }
+          if (best.dep.worst < dep.worst) ({ T, pole, r, dep } = best);
+        }
+        if (mem) mem[side] = { T: T.clone(), pole: pole.clone() };
         after = Math.max(after, dep.worst);
         if (this.debug && dep.worst > 0.01)
           for (const x of probes(r)) {

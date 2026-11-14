@@ -13,10 +13,12 @@ Zzz float up with its eyes shut, fainting falls first and then lies with its eye
 sheds tears with a sad face, the heart smiles, dancing sends notes up, the thumbs-up winks, standing
 blinks; dragging sideways turns it. (That the moves keep their arms out of the body is
 tests/figure.test.ts, in CI.) Then
-捏脸: the camera comes up to the face, the sliders (face 11, eyes 8, nose 6, mouth 5, at least
-44 px) reshape it, the skin and hair colours tint it, a hairstyle comes from its own file, a buzz
-cut has none, the woman's body swaps in, random and reset work, and all of it is still there after
-a reload. In English too; the back button goes back; the owner's /me page has the link (needs
+捏脸: the camera comes up to the face, the sliders (face 11, eyes 8, nose 6, mouth 5, build 3, at
+least 44 px) reshape it, an eye colour comes from its own small file, the skin and hair colours
+tint it, a hairstyle comes from its own file, a buzz cut has none; the build's sliders make it
+taller, shorter, heavier (the camera stays, the skeleton follows, the move still plays); the
+shirt and trousers take their colours; the woman's body swaps in with the same build, random
+keeps the build and clothes, reset and a reload work. In English too; the back button goes back; the owner's /me page has the link (needs
 the rooms server with MASTER_EMAIL=master@example.test in site/worker/.dev.vars, skipped when the
 server is down); no error is thrown in any page. Screenshots go to OUT.
 
@@ -54,7 +56,7 @@ def phone(browser, locale="zh-CN", any_gl=True):
     page.on("pageerror", lambda e: errors.append(f"pageerror {e}"))
     page.on("console", lambda m: m.type == "error" and errors.append(f"console {m.text}"))
     page._js = []
-    page.on("request", lambda r: page._js.append(r.url) if r.url.endswith(".js") or ".js?" in r.url or ".glb" in r.url else None)
+    page.on("request", lambda r: page._js.append(r.url) if r.url.endswith(".js") or ".js?" in r.url or ".glb" in r.url or "/models/figure/" in r.url else None)
     return ctx, page
 
 
@@ -205,12 +207,13 @@ def main():
         check(z_face < 1.2 < z_body, f"捏脸 brings the camera up to the face ({z_body} m away, then {z_face})")
         check(pg.locator(".fig-moves").count() == 0 and pg.locator("#fig-face[role=tabpanel]").count() == 1, "捏脸 shows its own panel instead of the moves")
         parts = pg.locator(".fig-sculpt [role=radiogroup][aria-label='捏哪里'] [role=radio]")
-        check(parts.all_inner_texts() == ["脸型", "眼睛", "鼻子", "嘴", "肤色", "发型"], f"six parts to shape ({parts.all_inner_texts()})")
+        check(parts.all_inner_texts() == ["脸型", "眼睛", "鼻子", "嘴", "发型", "身材", "衣服"], f"seven parts to shape ({parts.all_inner_texts()})")
         counts = {}
-        for part in ["脸型", "眼睛", "鼻子", "嘴"]:
+        for part in ["脸型", "眼睛", "鼻子", "嘴", "身材"]:
             parts.filter(has_text=part).click()
             counts[part] = pg.locator(".fig-slider input[type=range]").count()
-        check(counts == {"脸型": 11, "眼睛": 8, "鼻子": 6, "嘴": 5}, f"sliders: {counts}")
+        check(counts == {"脸型": 11, "眼睛": 8, "鼻子": 6, "嘴": 5, "身材": 3}, f"sliders: {counts}")
+        parts.filter(has_text="脸型").click()
         tall = pg.locator(".fig-slider input[type=range]").evaluate_all("els => els.map(e => e.getBoundingClientRect().height)")
         check(min(tall) >= 44, f"every slider is at least 44 px tall ({min(tall):.0f})")
         base_sum = pg.evaluate("window.__figShapeSum")
@@ -220,11 +223,53 @@ def main():
         pg.wait_for_function(f"window.__figShapeSum !== {base_sum}", timeout=3000)
         check(True, "the nose's sliders reshape the face")
         pg.screenshot(path=f"{OUT}/figure-sculpt-nose.png")
-        parts.filter(has_text="肤色").click()
+        parts.filter(has_text="眼睛").click()
+        check(pg.locator("[data-eyes]").count() == 7, "seven eye colours under the eyes")
+        pg.locator("[data-eyes='3']").click()
+        pg.wait_for_function("window.__figEyes === 'blue'", timeout=10000)
+        check(any(u.endswith("/models/figure/eyes/blue.webp") for u in pg._js), "blue eyes, from their own small file")
+        pg.wait_for_timeout(600)
+        pg.screenshot(path=f"{OUT}/figure-sculpt-eyes.png")
+
+        # the build: the camera steps back to the whole figure, taller is taller, the skeleton follows
+        parts.filter(has_text="身材").click()
+        pg.wait_for_function("window.__figView === 'body'", timeout=3000)
+        check(True, "for the build, the camera shows the whole figure")
+        pg.wait_for_timeout(1500)
+        eye0 = pg.evaluate("window.__figEyeY")
+        cam0 = pg.evaluate("window.__figCamZ")
+        pg.locator("input[data-shape=height]").fill("100")
+        pg.wait_for_function(f"window.__figEyeY > {eye0} + 0.15", timeout=5000)
+        cam1 = pg.evaluate("window.__figCamZ")
+        check(abs(cam1 - cam0) < 0.01, f"身高 up: the eyes from {eye0} m to {pg.evaluate('window.__figEyeY')} m, the camera where it was ({cam0} m, {cam1} m)")
+        pg.wait_for_timeout(800)
+        pg.screenshot(path=f"{OUT}/figure-build-tall.png")
+        pg.locator("input[data-shape=height]").fill("-100")
+        pg.wait_for_function(f"window.__figEyeY < {eye0} - 0.15", timeout=5000)
+        check(True, f"身高 down: the eyes at {pg.evaluate('window.__figEyeY')} m")
+        sum0 = pg.evaluate("window.__figShapeSum")
+        pg.locator("input[data-shape=weight]").fill("100")
+        pg.locator("input[data-shape=muscle]").fill("60")
+        pg.wait_for_function(f"window.__figShapeSum !== {sum0} && window.__figBody.includes('S_weight_incr') && window.__figBody.includes('S_muscle_incr')", timeout=5000)
+        check(True, "胖瘦 and 肌肉 reshape the body, and the skeleton follows")
+        pg.wait_for_timeout(800)
+        pg.screenshot(path=f"{OUT}/figure-build-short-heavy.png")
+        check(pg.locator(".fig-swatches[aria-label='肤色'] [role=radio]").count() == 9, "the skin colours are under the build")
         skin0 = pg.evaluate("window.__figSkin")
         pg.locator("[data-skin='7']").click()
         pg.wait_for_function(f"window.__figSkin !== '{skin0}'", timeout=3000)
         check(pg.locator("[data-skin='7']").get_attribute("aria-checked") == "true", "a skin swatch tints the skin, and stays picked")
+
+        # the clothes: the shirt and the trousers take their colours
+        parts.filter(has_text="衣服").click()
+        check(pg.locator("[data-shirt]").count() == 12 and pg.locator("[data-pants]").count() == 6, "12 shirt colours and 6 for the trousers")
+        shirt0 = pg.evaluate("window.__figShirt")
+        pg.locator("[data-shirt='5']").click()
+        pg.locator("[data-pants='2']").click()
+        pg.wait_for_function(f"window.__figShirt !== '{shirt0}'", timeout=3000)
+        check(pg.locator("[data-shirt='5']").get_attribute("aria-checked") == "true", "a red shirt, black trousers")
+        pg.wait_for_timeout(600)
+        pg.screenshot(path=f"{OUT}/figure-clothes.png")
         parts.filter(has_text="发型").click()
         pg.wait_for_function("window.__figView === 'bust'", timeout=3000)
         check(True, "for hair, the camera steps back to the head and shoulders")
@@ -243,18 +288,24 @@ def main():
         pg.locator(".fig-sculpt [role=radio]", has_text="女").click()
         pg.wait_for_function("window.__figSex === 'female' && window.__figHair === 'long01'", timeout=30000)
         check(any(u.endswith("/models/figure/female.glb.gz") for u in pg._js), "女 swaps in the woman's body, with her own hair")
+        pg.wait_for_function(f"window.__figEyeY < {eye0} - 0.15 && window.__figBody.includes('S_weight_incr')", timeout=5000)
+        check(True, "with the same build (short and heavy)")
         pg.wait_for_timeout(1500)
         pg.screenshot(path=f"{OUT}/figure-sculpt-female.png")
         sum_f = pg.evaluate("window.__figShapeSum")
+        pg.wait_for_timeout(400)
+        was = pg.evaluate("JSON.parse(localStorage.getItem('figure.look'))")
         pg.locator(".fig-actions button", has_text="随机").click()
         pg.wait_for_timeout(800)
         changed = pg.evaluate(f"window.__figShapeSum !== {sum_f}")
-        check(changed, "随机 gives another face")
+        kept = pg.evaluate("JSON.parse(localStorage.getItem('figure.look'))")
+        same = all(kept["shape"].get(k) == was["shape"].get(k) for k in ["height", "weight", "muscle"]) and kept["shirt"] == was["shirt"] and kept["pants"] == was["pants"] == 2
+        check(changed and same, f"随机 gives another face, the same build and clothes (height {kept['shape'].get('height')}, weight {kept['shape'].get('weight')}, shirt {kept['shirt']}, trousers {kept['pants']})")
         pg.locator(".fig-actions button", has_text="还原").click()
         pg.wait_for_function("window.__figHair === 'long01'", timeout=30000)
         pg.wait_for_timeout(600)
         look = pg.evaluate("JSON.parse(localStorage.getItem('figure.look'))")
-        check(look and look["sex"] == "female" and look["shape"] == {} and look["hair"] == "long01", f"还原 goes back to her first look, kept on the phone ({look})")
+        check(look and look["sex"] == "female" and look["shape"] == {} and look["hair"] == "long01" and look["shirt"] == 1 and look["pants"] == 0 and look["eyes"] == 0, f"还原 goes back to her first look, kept on the phone ({look})")
         parts.filter(has_text="眼睛").click()
         pg.locator("input[data-shape=eyeSize]").fill("70")
         parts.filter(has_text="发型").click()
@@ -297,7 +348,7 @@ def main():
         check(pg.locator("[role=tab]").all_inner_texts() == ["Moves", "Face"], "the tabs are in English")
         check("A prototype" in pg.inner_text(".fig-intro"), "the introduction is in English")
         pg.locator("[role=tab]", has_text="Face").click()
-        check(pg.locator(".fig-sculpt [role=radiogroup][aria-label='What to shape'] [role=radio]").all_inner_texts() == ["Face", "Eyes", "Nose", "Mouth", "Skin", "Hair"], "the parts are in English")
+        check(pg.locator(".fig-sculpt [role=radiogroup][aria-label='What to shape'] [role=radio]").all_inner_texts() == ["Face", "Eyes", "Nose", "Mouth", "Hair", "Build", "Clothes"], "the parts are in English")
         check(pg.locator(".fig-slider span").first.inner_text() == "Width" and pg.locator(".fig-actions button").all_inner_texts() == ["Random", "Reset"], "the sliders and buttons are in English")
         pg.locator("[role=tab]", has_text="Moves").click()
         pg.wait_for_function("typeof window.__figFps === 'number' && window.__figFps > 0", timeout=20000)
