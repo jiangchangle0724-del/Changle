@@ -149,6 +149,24 @@ try {
   await host.locator('#lobbyBtn').click();
   check('回大厅按钮在倒数遮罩上可点击并回到大厅', await phase('lobby') >= 0 && await host.locator('#lobby').isVisible());
   await screenshot(host, 'back-to-lobby');
+  // 手柄当遥控：电视那边不碰，手柄上选关、开始、玩的时候回大厅（谁按都行）
+  const menuUp = await until(() => pads[0].page.evaluate(() => !document.getElementById('menu').hidden && !document.getElementById('mLobby').hidden), 4000);
+  check('大厅里手柄上有菜单（选玩法、选关、开始）', menuUp >= 0);
+  await screenshot(pads[0].page, 'pad-menu-lobby');
+  await pads[1].page.locator('#mNext').click();
+  check('手柄 2 点「›」，电视上换到第 3 关', (await until(() => host.evaluate(() => hangOn.level.id === 'table-03'), 4000)) >= 0);
+  await pads[0].page.locator('#mPrev').click();
+  check('手柄 1 点「‹」，换回第 2 关，两个手柄上都跟着变', (await until(async () => (await host.evaluate(() => hangOn.level.id === 'table-02')) && (await pads[1].page.evaluate(() => document.getElementById('mLevel').textContent.startsWith('2.'))), 4000)) >= 0);
+  await pads[1].page.locator('#mStart').click();
+  assert(check('手柄上按「开始」进入倒数', (await phase('countdown')) >= 0));
+  assert(await phase('playing') >= 0);
+  const backKey = pads[0].page.locator('#backBtn');
+  check('玩的时候手柄上有「回大厅」', await backKey.isVisible());
+  await backKey.click();
+  await sleep(300);
+  check('「回大厅」按一下不算（要再按一下）', await host.evaluate(() => hangOn.phase === 'playing'));
+  await backKey.click();
+  check('再按一下回到大厅', (await phase('lobby')) >= 0);
   // 手机投屏到电视时用电视局：横着的手机只有 393 高，开始键不用滚就看得见、点得到，底下的键盘说明不出来
   const tvPhone = await context({ viewport: { width: 852, height: 393 }, isMobile: true, hasTouch: true });
   await tvPhone.page.goto(`${BASE}/hang-on/?render=0&lang=zh&phone=0`);
