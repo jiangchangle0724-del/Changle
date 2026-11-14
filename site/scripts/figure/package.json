@@ -2,7 +2,7 @@
   "name": "figure-build",
   "private": true,
   "type": "module",
-  "description": "Builds site/public/models/figure.glb (the 3D figure's prototype): see README.md",
+  "description": "Builds site/public/models/figure.glb.gz (the 3D figure's prototype): see README.md",
   "scripts": {
     "build": "node build.mjs"
   },
