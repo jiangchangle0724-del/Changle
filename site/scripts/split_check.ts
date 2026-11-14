@@ -14,14 +14,16 @@
  *                                           no signal and back, two phones on one ledger, a change that didn't
  *                                           stick, a day's allowance used up, an answer that isn't the server's;
  *                                           an invitation sent and opened (as a chat app hands it over, too),
- *                                           ones that don't get in, the list asking after its ledgers
+ *                                           ones that don't get in, the list asking after its ledgers; an
+ *                                           expense paid in another currency, changed, and with no rates to be had
  *
  * Options: --base http://127.0.0.1:5173 (a build: `npx vite preview`, then --base http://127.0.0.1:4173),
  * --out <folder for the pictures>. CHROME=/path/to/chrome uses that browser, else Playwright's own
  * (`npx playwright install chromium`).
  *
  * Nothing leaves the machine: the ledgers go to the server running on it, every phone here starts
- * with none, and the names in them are made up. Pointed anywhere else (--base a preview, or
+ * with none, and the names in them are made up. The site's exchange rates are made up too (RATES),
+ * so the rooms server isn't asked for them. Pointed anywhere else (--base a preview, or
  * changle.ca), the server is left alone: every phone here is given no way to reach it, so it shows
  * what a phone with no signal shows, and the checks that need a server are skipped. A ledger made
  * on the real server can't be deleted yet, so this never makes one there.
@@ -48,11 +50,21 @@ const local = ["127.0.0.1", "localhost", "[::1]"].includes(new URL(base).hostnam
 if (!local) console.log(`${base} is not this machine: its server is left alone (every phone here has no signal), and the checks that need one are skipped\n`);
 const API = "**/split/api/**";
 const KEPT = "changle.split.v2";
+/** Where the site asks for exchange rates (the rooms server, src/tools/fx.ts), and what these phones are told instead: so many of each for one US dollar. */
+const FX = /\/api\/fx$/;
+const RATES = { CAD: 1.4012, CNY: 7.1, USD: 1, HKD: 7.8, EUR: 0.92, GBP: 0.79, JPY: 153.6, KRW: 1389.5, TWD: 32.3, SGD: 1.34, AUD: 1.52 };
+/** Where the site keeps the last rates it was given. */
+const FX_KEPT = "changle.fx.v1";
 
 let failed = 0;
 const ok = (cond: unknown, msg: string) => {
   if (!cond) failed++;
   console.log(cond ? "ok  " : "FAIL", msg);
+};
+/** The fields named in `want` are what `got` has (in any order), and it has none of them missing. */
+const eqJson = (got: Record<string, unknown>, want: Record<string, unknown>, msg: string) => {
+  const pick = JSON.stringify(Object.fromEntries(Object.keys(want).map((k) => [k, got[k]])));
+  ok(pick === JSON.stringify(want), `${msg}${pick === JSON.stringify(want) ? "" : ` → ${pick}`}`);
 };
 const browser = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME, args: ["--no-sandbox"] } : {});
 const errors: string[] = [];
@@ -68,7 +80,14 @@ const phone = async (width: number, height: number, lang: Lang, motion: "reduce"
     await ctx.route(API, (route) => route.abort("internetdisconnected"));
     await ctx.routeWebSocket(/\/split\/api\//, (ws) => void ws.close());
   }
+  await ctx.route(FX, (route) => route.fulfill({ json: { rates: RATES, at: Date.now() - 3_600_000, source: "check" } }));
+  await ctx.route("https://open.er-api.com/**", (route) => route.abort("internetdisconnected"));
   return ctx;
+};
+/** From here on this phone gets no rates from anywhere, and has none kept. */
+const noRates = async (ctx: BrowserContext, page: Page) => {
+  await ctx.route(FX, (route) => route.abort("internetdisconnected"));
+  await page.evaluate(`localStorage.removeItem(${JSON.stringify(FX_KEPT)})`);
 };
 /** What a phone keeps of its ledgers (src/split/store.ts). */
 type Kept = { held: { key: string; owner?: string; next?: string; made: boolean; seq: number; server: { id: string; members: { id: string; name: string }[]; entries: unknown[] }; waiting: unknown[]; lost: unknown[] }[]; me: Record<string, string> };
@@ -520,6 +539,85 @@ async function walk(lang: Lang, width: number, height: number) {
   await page.getByRole("radio", { name: t("amounts"), exact: true }).click();
   await shot("25-amounts-long");
 
+  // another currency: the button in the corner, the currencies, what the amount comes to, the rate
+  await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(page);
+  await button("close").first().click();
+  await button("back").click();
+  await button("start").waitFor();
+  sheet = await startSheet(lang === "zh" ? "东京五天" : "Five days in Tokyo", lang === "zh" ? "我" : "Me", lang === "zh" ? ["小王", "阿美"] : ["Wang", "Mei"]);
+  await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  const cur = (zh: string, code: string) => page.getByRole("dialog").getByRole("button", { name: lang === "zh" ? zh : code, exact: true });
+  const corner = page.locator(".split-currency button");
+  const comes = page.locator(".split-add-comes");
+  const whole = async (what: string) => {
+    const m = (await page.evaluate(`(() => { const t = document.querySelector(".split-bar-title"); return { cut: t.scrollWidth - t.clientWidth, scrolls: document.scrollingElement.scrollHeight - innerHeight, key: document.querySelector(".split-key").getBoundingClientRect().height }; })()`)) as { cut: number; scrolls: number; key: number };
+    // (shorter than 535 the page scrolls on purpose: split.css)
+    ok(m.cut <= 0 && (height < 535 || (m.scrolls <= 0 && m.key >= 44)), `${lang} ${width}x${height}: ${what}: the title shows whole, nothing scrolls, keys ${Math.round(m.key)}px${m.cut > 0 ? `, but the title is cut by ${m.cut}px` : ""}${m.scrolls > 0 ? `, but the page scrolls ${m.scrolls}px` : ""}`);
+  };
+  await button("addExpense").click();
+  await type(page, "86.40");
+  await corner.click();
+  await cur("美元", "USD").waitFor();
+  await shot("40-currencies");
+  await cur("美元", "USD").click();
+  await closed(page);
+  await comes.waitFor();
+  await shot("41-abroad");
+  await whole("paid in another currency");
+  await comes.click();
+  await page.getByRole("dialog").locator("input").waitFor();
+  await shot("42-rate");
+  await page.getByRole("dialog").locator("input").fill("1.38");
+  await shot("42b-rate-typed");
+  await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(page);
+  await page.getByRole("button", { name: re(t("sharedBy")) }).click();
+  await shot("43-share-abroad");
+  await page.getByRole("radio", { name: t("amounts"), exact: true }).click();
+  await page.getByRole("dialog").locator(".split-person-field input").first().fill("40");
+  await shot("43b-amounts-abroad");
+  await page.getByRole("radio", { name: t("evenly"), exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(page);
+  await button("done").click();
+  await button("addExpense").waitFor();
+  await shot("44-ledger-abroad");
+  await page.locator("button.split-row").first().click();
+  await comes.waitFor();
+  await shot("45-edit-abroad");
+  await whole("an expense paid in another currency, being changed (the currency and the bin share the corner)");
+  await button("close").first().click();
+  await button("addExpense").click();
+  await comes.waitFor();
+  await shot("46-next-abroad");
+  await corner.click();
+  await cur("日元", "JPY").click();
+  await closed(page);
+  await type(page, "9999999999");
+  await shot("47-yen-most");
+  await whole("the most yen there can be");
+  for (let i = 0; i < 10; i++) await page.locator(".split-key").last().click();
+  await corner.click();
+  await cur("韩元", "KRW").click();
+  await closed(page);
+  await type(page, "1");
+  await page.locator(".split-add-comes.is-loud").waitFor();
+  await shot("48-too-little");
+  // no rates to be had (the screen is opened afresh: it had today's from the last sheet)
+  await button("close").first().click();
+  await noRates(ctx, page);
+  await button("addExpense").click();
+  await type(page, "20");
+  await corner.click();
+  await cur("欧元", "EUR").click();
+  await closed(page);
+  await page.locator(".split-add-comes.is-loud").waitFor({ timeout: 20_000 });
+  await shot("49-needs-rate");
+  await comes.click();
+  await page.getByRole("dialog").locator("input").waitFor();
+  await shot("49b-rate-none");
+
   const unique = [...new Set(findings)];
   ok(!unique.length, `${lang} ${width}x${height}: ${shots} screens, nothing found by axe, nothing too wide, nothing too small to press${unique.length ? `\n     ${unique.join("\n     ")}` : ""}`);
   await ctx.close();
@@ -576,6 +674,26 @@ async function fits() {
       })()`)) as { scrolls: number; linesEnd: number; keysStart: number; key: number; said: boolean };
       ok(m.scrolls <= 0 && m.linesEnd <= m.keysStart && m.key >= 44 && m.said, `${lang} ${w}x${h} (${phoneName}): 记一笔 shows whole, keys ${m.key}px tall, ${m.keysStart - m.linesEnd}px to spare${m.scrolls > 0 ? `, but the page scrolls ${m.scrolls}px` : ""}${m.said ? "" : ", but it doesn't say the parts don't add up"}`);
       await page.screenshot({ path: join(out, `fits-${lang}-${w}x${h}.png`) });
+      // the same expense paid in another currency: a line more under the amount, and the screen is an expense being changed, so the currency and the bin share the corner
+      await page.locator(".split-currency button").click();
+      await page.getByRole("dialog").getByRole("button", { name: lang === "zh" ? "美元" : "USD", exact: true }).click();
+      await closed(page);
+      await page.locator(".split-add-comes").waitFor();
+      await page.waitForTimeout(200);
+      const a = (await page.evaluate(`(() => {
+        const box = (s) => document.querySelector(s).getBoundingClientRect();
+        const title = document.querySelector(".split-bar-title");
+        return {
+          scrolls: document.scrollingElement.scrollHeight - window.innerHeight,
+          linesEnd: Math.round(box("label.split-field").bottom),
+          keysStart: Math.round(box(".split-keys").top),
+          key: Math.floor(box(".split-key").height),
+          line: Math.floor(box(".split-add-comes").height),
+          cut: title.scrollWidth - title.clientWidth,
+        };
+      })()`)) as { scrolls: number; linesEnd: number; keysStart: number; key: number; line: number; cut: number };
+      ok(a.scrolls <= 0 && a.linesEnd <= a.keysStart && a.key >= 44 && a.line >= 44 && a.cut <= 0, `${lang} ${w}x${h} (${phoneName}): paid in another currency it still shows whole, keys ${a.key}px tall, the amount and its line ${a.line}px to press${a.scrolls > 0 ? `, but the page scrolls ${a.scrolls}px` : ""}${a.cut > 0 ? `, but the title is cut by ${a.cut}px` : ""}`);
+      await page.screenshot({ path: join(out, `fits-abroad-${lang}-${w}x${h}.png`) });
       await ctx.close();
     }
   }
@@ -787,6 +905,108 @@ async function behave() {
     ok(seen.some((s) => s.includes(t("addExpense"))) && seen.some((s) => s.includes("12 个饺子")), "Tab reaches the row and the button");
     const wide = Number(await page.evaluate("document.querySelector('.split-page').getBoundingClientRect().width"));
     ok(wide <= 560, `on a computer the page keeps to one column (${wide}px wide)`);
+    await ctx.close();
+  }
+
+  // an expense paid in another currency (on the phone: the server has its own turn further down)
+  {
+    const ctx = await phone(390, 664, "zh");
+    const page = await open(ctx, true);
+    const asked: string[] = [];
+    page.on("request", (r) => FX.test(new URL(r.url()).pathname) && asked.push(r.url()));
+    await start(page, "东京", ["阿甲", "阿乙"]);
+    await spend(page, "30");
+    ok(asked.length === 0, "an expense in the ledger's own currency asks nothing about rates");
+    const corner = page.locator(".split-currency button");
+    const comes = page.locator(".split-add-comes");
+    const said = async () => ((await comes.textContent()) ?? "").replace(/\s+/g, " ");
+    const pick = async (name: string) => {
+      await corner.click();
+      await page.getByRole("dialog").getByRole("button", { name, exact: true }).click();
+      await closed(page);
+    };
+    const wipe = async (digits: number) => {
+      for (let i = 0; i < digits; i++) await page.locator(".split-key").last().click();
+    };
+    const top = async () => ((await page.locator(".split-row-amount").first().textContent()) ?? "").replace(/\s+/g, "");
+
+    await button(page, "addExpense").click();
+    ok((await corner.textContent())?.includes("加元") && (await comes.count()) === 0, "记一笔 says in its corner what the amount is typed in: the ledger's currency, and nothing about a rate");
+    await corner.click();
+    await page.getByRole("dialog").getByRole("button", { name: "日元", exact: true }).waitFor();
+    await page.goBack();
+    await closed(page);
+    ok(await page.locator(".split-keys").isVisible(), "the phone's back button closes the currencies, and 记一笔 is still there");
+    await type(page, "3000.5");
+    await pick("日元");
+    await comes.waitFor();
+    ok(asked.length >= 1, "opening the currencies asks for today's rates");
+    ok((await amountShown(page)) === "JP¥3,000" && (await said()).includes("折合 $27.37") && (await said()).includes("汇率 0.0091224"), `yen picked: the digits before the point stay, and the line under the amount says what it comes to and at what rate (${await amountShown(page)}, ${await said()})`);
+    ok(await page.locator(".split-key", { hasText: /^\.$/ }).isDisabled(), "yen has no cents, so the point is off");
+    await button(page, "done").click();
+    await page.locator(".split-row").first().waitFor();
+    ok((await top()) === "$27.37JP¥3,000" && (await page.locator(".split-standing-sub").textContent())?.includes("$57.37"), `the row says what it counts for, and under it what was paid; the total is in the ledger's currency (${await top()})`);
+
+    // the next one
+    const before = asked.length;
+    await button(page, "addExpense").click();
+    await comes.waitFor();
+    ok((await amountShown(page)) === "JP¥0" && (await corner.textContent())?.includes("日元") && (await said()).includes("1 日元 = 0.0091224 加元") && asked.length === before, `the next expense starts in yen at the same rate, and asks nothing (${await said()})`);
+    await type(page, "1000");
+
+    // the rate, by hand
+    await comes.click();
+    const rate = page.getByRole("dialog").locator("input");
+    ok((await rate.inputValue()) === "0.0091224", "the line under the amount opens the rate");
+    await rate.fill("0,01x");
+    ok((await rate.inputValue()) === "0.01" && (await page.getByRole("dialog").getByText(say("zh", "comesToFrom", { paid: "JP¥1,000", amount: "$10.00" })).count()) === 1, "a rate typed with a comma is a rate, and what the amount comes to at it shows at once");
+    await page.getByRole("dialog").getByRole("button", { name: say("zh", "useToday", { rate: "0.0091224" }), exact: true }).click();
+    ok((await rate.inputValue()) === "0.0091224", "用今天的汇率 puts today's back");
+    await rate.fill("0.01");
+    await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+    await closed(page);
+    ok((await said()).includes("折合 $10.00") && (await said()).includes("汇率 0.01"), "the line says the new rate");
+    await button(page, "done").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    ok((await top()) === "$10.00JP¥1,000", "recorded at the rate that was typed");
+
+    // changed
+    await page.locator("button.split-row").first().click();
+    await comes.waitFor();
+    ok((await amountShown(page)) === "JP¥1,000" && (await said()).includes("汇率 0.01"), "opened again, it is in yen at the rate it was recorded at, not today's");
+    await wipe(4);
+    await type(page, "2500");
+    await button(page, "saveChanges").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    ok((await top()) === "$25.00JP¥2,500", "changed to 2,500 yen: it counts for 25.00 at its own rate");
+    await page.locator("button.split-row").first().click();
+    await pick("加元");
+    ok((await amountShown(page)) === "$2,500" && (await comes.count()) === 0, "put back into the ledger's currency: the digits stay, and the line about the rate goes");
+    await wipe(4);
+    await type(page, "45");
+    await button(page, "saveChanges").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    ok((await top()) === "$45.00", "and it is an expense of 45.00 with no other currency to it");
+
+    // no rates to be had
+    await noRates(ctx, page);
+    await button(page, "addExpense").click();
+    ok((await amountShown(page)) === "$0", "the last expense being in the ledger's currency, the next starts there");
+    await type(page, "20");
+    await pick("欧元");
+    await page.locator(".split-add-comes.is-loud").waitFor({ timeout: 20_000 });
+    ok((await said()).includes(t("needRate")) && (await button(page, "done").isDisabled()), "with no rates to be had, and no expense in euros before, it says a rate is needed and can't be recorded yet");
+    await comes.click();
+    ok(await page.getByRole("dialog").getByText(t("rateNone")).waitFor({ timeout: 20_000 }).then(() => true, () => false), "the rate's sheet says why there is none, and to type one");
+    await page.getByRole("dialog").locator("input").fill("1.5");
+    await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+    await closed(page);
+    ok((await said()).includes("折合 $30.00") && (await button(page, "done").isEnabled()), "a rate typed in, it comes to 30.00 and can be recorded");
+    await button(page, "done").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    await button(page, "addExpense").click();
+    await comes.waitFor();
+    ok((await amountShown(page)) === "€0" && (await said()).includes("1 欧元 = 1.5 加元"), "and the next one starts in euros at that rate, still with no rates from anywhere");
     await ctx.close();
   }
 
@@ -1131,6 +1351,55 @@ async function behave() {
       await pb.getByRole("button", { name: re(t("deleteLedger")) }).click();
       ok((await pb.getByRole("dialog").getByText(t("deleteOwner")).count()) === 0, "(a friend's phone is told no such thing)");
       for (const ctx of [a, b, c]) await ctx.close();
+    }
+
+    // an expense paid in another currency: what the server holds, and what another phone shows and changes
+    {
+      const a = await phone(390, 664, "zh");
+      const pa = await open(a, true);
+      await start(pa, "货币", ["阿甲", "阿乙"]);
+      const mine = (await keptBy(pa)).held[0];
+      const id = mine.server.id;
+      const b = await phone(390, 664, "zh");
+      const pb = await b.newPage();
+      watch(pb, true);
+      await pb.goto(`${base}/split/${id}#k=${mine.key}`);
+      await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await button(pb, "addExpense").waitFor();
+      type Abroad = { amount: number; paidIn?: { currency: string; amount: number; rate: string } };
+      const first = async () => (await onServer(pa, id, mine.key)).ledger.entries[0] as unknown as Abroad;
+      const pick = async (page: Page, name: string) => {
+        await page.locator(".split-currency button").click();
+        await page.getByRole("dialog").getByRole("button", { name, exact: true }).click();
+        await closed(page);
+      };
+      const top = async (page: Page) => ((await page.locator(".split-row-amount").first().textContent()) ?? "").replace(/\s+/g, "");
+
+      await button(pa, "addExpense").click();
+      await type(pa, "3000");
+      await pick(pa, "日元");
+      await button(pa, "done").click();
+      await pb.locator(".split-row-amount small").waitFor({ timeout: 8000 });
+      eqJson(await first(), { amount: 2737, paidIn: { currency: "JPY", amount: 3000, rate: "0.0091224" } }, "3,000 yen recorded on one phone: the server holds what it counts for, what was paid, and the rate");
+      ok((await top(pb)) === "$27.37JP¥3,000" && (await pb.locator(".split-figure").textContent())?.includes("$9.12"), "the other phone shows both amounts, and owes its third of what it counts for");
+
+      await pb.locator("button.split-row").first().click();
+      await pb.locator(".split-add-comes").waitFor();
+      for (let i = 0; i < 4; i++) await pb.locator(".split-key").last().click();
+      await type(pb, "5000");
+      await button(pb, "saveChanges").click();
+      await pa.locator(".split-row-amount", { hasText: "JP¥5,000" }).waitFor({ timeout: 8000 });
+      eqJson(await first(), { amount: 4561, paidIn: { currency: "JPY", amount: 5000, rate: "0.0091224" } }, "changed to 5,000 yen on the other phone: both amounts change on the server, at the same rate");
+
+      await pa.locator("button.split-row").first().click();
+      await pick(pa, "加元");
+      for (let i = 0; i < 4; i++) await pa.locator(".split-key").last().click();
+      await type(pa, "45");
+      await button(pa, "saveChanges").click();
+      await pb.locator(".split-row-amount", { hasText: /^\$45\.00$/ }).waitFor({ timeout: 8000 });
+      const plain = await first();
+      ok(plain.amount === 4500 && !("paidIn" in plain) && (await pb.locator(".split-row-amount small").count()) === 0, "put back into the ledger's currency: the server holds 45.00 and no other currency, and the other phone's row has one amount");
+      for (const ctx of [a, b]) await ctx.close();
     }
   }
 
