@@ -1,0 +1,154 @@
+{
+  "id": "snow-33",
+  "world": "snow",
+  "tier": 1,
+  "name": {
+    "zh": "林梢暖厢",
+    "en": "Cabin above the Pines"
+  },
+  "teaches": "combine",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 636
+  },
+  "goal": {
+    "x": 2410,
+    "y": 90,
+    "w": 150,
+    "h": 150
+  },
+  "checkpoints": [
+    {
+      "x": 1100,
+      "y": 566
+    },
+    {
+      "x": 1840,
+      "y": 356
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 746,
+      "y": 504
+    },
+    {
+      "x": 1677,
+      "y": 496
+    },
+    {
+      "x": 2040,
+      "y": 224
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 670,
+      "w": 350,
+      "h": 50,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1000,
+      "y": 610,
+      "w": 300,
+      "h": 110,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "material": "ice",
+      "slip": 1.8,
+      "x": 1800,
+      "y": 400,
+      "w": 270,
+      "h": 320
+    },
+    {
+      "kind": "ground",
+      "material": "ice",
+      "slip": 1.4,
+      "x": 2070,
+      "y": 250,
+      "w": 490,
+      "h": 470
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 2250,
+      "y": 74,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 2120,
+      "y": 74,
+      "w": 40,
+      "h": 16
+    }
+  ],
+  "lifts": [
+    {
+      "from": {
+        "x": 280,
+        "y": 550
+      },
+      "to": {
+        "x": 1240,
+        "y": 480
+      },
+      "speed": 30,
+      "gap": 320,
+      "kind": "cabin"
+    },
+    {
+      "from": {
+        "x": 1190,
+        "y": 490
+      },
+      "to": {
+        "x": 2000,
+        "y": 240
+      },
+      "speed": 26,
+      "gap": 280
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 2250,
+      "y": 90,
+      "w": 40,
+      "h": 16,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 2120,
+      "y": 90,
+      "w": 40,
+      "h": 16,
+      "kind": "spike",
+      "dir": "down"
+    }
+  ],
+  "deathY": 880,
+  "par": {
+    "seconds": 110,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/snow-33.json"
+}

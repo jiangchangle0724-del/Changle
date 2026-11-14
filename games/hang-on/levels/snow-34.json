@@ -1,0 +1,153 @@
+{
+  "id": "snow-34",
+  "world": "snow",
+  "tier": 1,
+  "name": {
+    "zh": "云脊换乘",
+    "en": "Cloud Ridge Transfer"
+  },
+  "teaches": "combine",
+  "w": 2400,
+  "h": 1400,
+  "spawn": {
+    "x": 100,
+    "y": 1323
+  },
+  "goal": {
+    "x": 2300,
+    "y": 100,
+    "w": 100,
+    "h": 124
+  },
+  "checkpoints": [
+    {
+      "x": 1000,
+      "y": 895
+    },
+    {
+      "x": 2020,
+      "y": 197
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 369,
+      "y": 1051
+    },
+    {
+      "x": 1611,
+      "y": 525
+    },
+    {
+      "x": 1860,
+      "y": 256
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1352,
+      "w": 360,
+      "h": 48,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 900,
+      "y": 932,
+      "w": 350,
+      "h": 468,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1250,
+      "y": 806,
+      "w": 180,
+      "h": 594,
+      "material": "ice",
+      "slip": 1.5
+    },
+    {
+      "kind": "ground",
+      "x": 1940,
+      "y": 234,
+      "w": 460,
+      "h": 1166,
+      "material": "snow"
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 1270,
+      "y": 624,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 2220,
+      "y": 74,
+      "w": 40,
+      "h": 16
+    }
+  ],
+  "lifts": [
+    {
+      "from": {
+        "x": 290,
+        "y": 1242
+      },
+      "to": {
+        "x": 1190,
+        "y": 550
+      },
+      "speed": 34,
+      "gap": 320,
+      "kind": "cabin"
+    },
+    {
+      "from": {
+        "x": 1360,
+        "y": 690
+      },
+      "to": {
+        "x": 2000,
+        "y": 0
+      },
+      "speed": 20,
+      "gap": 260
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 1270,
+      "y": 640,
+      "w": 40,
+      "h": 16,
+      "kind": "zap",
+      "dir": "down"
+    },
+    {
+      "x": 2220,
+      "y": 90,
+      "w": 40,
+      "h": 16,
+      "kind": "spike",
+      "dir": "down"
+    }
+  ],
+  "deathY": 1560,
+  "par": {
+    "seconds": 120,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/snow-34.json"
+}
