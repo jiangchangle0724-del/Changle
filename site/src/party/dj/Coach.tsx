@@ -1,9 +1,9 @@
 import { Footprints } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { gsap } from "../../lib/anim";
 import { confetti } from "../../lib/confetti";
 import { useRoomEvent } from "../../online/RoomContext";
-import { DANCE, moveAt } from "../../shared/dj/dance";
+import { DANCE, moveAt, type Mood } from "../../shared/dj/dance";
 import { Choreo } from "../tune/moves";
 import { Performer } from "../tune/performer";
 import { Coach3D } from "./Coach3D";
@@ -14,12 +14,15 @@ const VIEWBOX = "44 10 112 286";
 type Clock = { beat: () => number; energy: () => number; bpm: () => number };
 
 /**
- * 跟着跳 on the big screen (Steve on Nov 2: the TV is for dancing along; his plan's 一起跳): a coach,
- * Name That Tune's performer, dancing the routine's move on the speaker's own beat, its name big,
- * the next one coming in the last beats before it, and how the whole floor is doing together. Every
- * phone knows the same move from the same beat count (shared/dj/dance.ts).
+ * 跟着跳 on the big screen (Steve on Nov 2: the TV is for dancing along; his plan's 一起跳): a coach
+ * dancing the routine's move on the speaker's own beat (the robot, coach/robot.ts; Name That Tune's
+ * performer where it can't be shown), its name big, a line saying how to do it (Steve on Nov 14:
+ * "下面有文字告诉大家怎么跳"), the next one coming in the last beats before it, and how the whole floor
+ * is doing together. On all night, whole songs too (Nov 14: "要一直在那里不能消失"): `over` the video
+ * when it fills the TV. Every phone knows the same move from the same beat count and the night's
+ * stretch (`mood`, shared/dj/dance.ts).
  */
-export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean; combo: number; dancers: number }) {
+export function Coach({ clock, zh, mood, over, combo, dancers }: { clock: Clock; zh: boolean; mood: Mood; over: boolean; combo: number; dancers: number }) {
   const svg = useRef<SVGSVGElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [beat, setBeat] = useState(-1);
@@ -27,6 +30,9 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
   const [three, setThree] = useState<"try" | "on" | "off">("try");
   const threeOn = useRef(false);
   threeOn.current = three === "on";
+  const moodNow = useRef(mood);
+  moodNow.current = mood;
+  const [getMood] = useState(() => () => moodNow.current);
   // the whole floor danced together long enough: fireworks
   useRoomEvent((e) => {
     if (e.k !== "fx" || e.fx !== "dance") return;
@@ -57,7 +63,8 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
         return;
       }
       const i = Math.floor(b);
-      c.pinMove = moveAt(i).move.id;
+      // (the drawn coach has no stool: a move danced sitting, its nearest standing one)
+      c.pinMove = moveAt(i, moodNow.current).move.drawn;
       // (the drawn coach rests while the robot dances)
       if (!threeOn.current) c.frame(dt, now, b * period, i, period, clock.energy(), 0);
       if (i !== last) setBeat((last = i));
@@ -70,11 +77,32 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
     };
   }, [clock]);
 
-  const m = beat >= 0 ? moveAt(beat) : null;
+  const m = beat >= 0 ? moveAt(beat, mood) : null;
   const soon = !!m && m.left <= DANCE.showNext;
   const L = (x: { zh: string; en: string }) => (zh ? x.zh : x.en);
+  // the move's name on one line: smaller when it's long (an English one, say), so the card stays its size
+  const nowEl = useRef<HTMLSpanElement>(null);
+  const name = m ? L(m.move) : "";
+  useLayoutEffect(() => {
+    const fit = () => {
+      const el = nowEl.current;
+      if (!el) return;
+      el.style.removeProperty("--fit");
+      const k = el.clientWidth / el.scrollWidth;
+      if (k < 1) el.style.setProperty("--fit", String(Math.max(0.6, Math.floor(k * 100) / 100)));
+    };
+    fit();
+    // (again once the display font is in)
+    let gone = false;
+    void document.fonts?.ready.then(() => {
+      if (!gone) fit();
+    });
+    return () => {
+      gone = true;
+    };
+  }, [name]);
   return (
-    <aside className={`dj-coach ${m ? "is-on" : ""}`} aria-label={zh ? "跟着跳" : "Dance along"}>
+    <aside className={`dj-coach ${m ? "is-on" : ""} ${over ? "is-over" : ""}`} aria-label={zh ? "跟着跳" : "Dance along"}>
       <canvas ref={canvas} className="dj-coach-confetti" aria-hidden="true" />
       <span className="dj-coach-title">
         <Footprints size={22} aria-hidden="true" />
@@ -82,11 +110,17 @@ export function Coach({ clock, zh, combo, dancers }: { clock: Clock; zh: boolean
       </span>
       <div className="dj-coach-stage">
         <svg className={`dj-coach-svg ${three === "on" ? "is-off" : ""}`} viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
-        {three !== "off" && <Coach3D clock={clock} onReady={() => setThree("on")} onFail={() => setThree("off")} />}
+        {three !== "off" && <Coach3D clock={clock} mood={getMood} onReady={() => setThree("on")} onFail={() => setThree("off")} />}
       </div>
       {m ? (
         <div className="dj-coach-moves">
-          <span className="dj-coach-now">{L(m.move)}</span>
+          <span className="dj-coach-now" ref={nowEl}>
+            {name}
+          </span>
+          {/* how to do it (keyed: it comes in again with each move) */}
+          <span key={m.move.id} className="dj-coach-how">
+            <span>{L(m.move.how)}</span>
+          </span>
           <span className={`dj-coach-next ${soon ? "is-soon" : ""}`}>
             {soon ? (zh ? `${m.left} 拍后：${L(m.next)}` : `In ${m.left}: ${L(m.next)}`) : zh ? `接下来：${L(m.next)}` : `Next: ${L(m.next)}`}
           </span>

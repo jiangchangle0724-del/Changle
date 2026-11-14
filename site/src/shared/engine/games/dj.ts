@@ -1280,6 +1280,19 @@ export const dj: GameDef<RoomState> = {
         s.deck.tap = on;
         return true;
       }
+      case "songbeat": {
+        // 跟着跳 on a whole song: where its beats fall as the speaker counts them (its tempo found
+        // after it started: said again then), so the phones dance to the song, not the DJ under it
+        const d = s.deck;
+        const off = within(g.off, 0, 60_000);
+        const bpm = within(g.bpm, 60, 200);
+        if (!fromSpeaker(s, sid, api) || !d.song || d.song.id !== g.id || off === null || bpm === null) return false;
+        const beat = { off: Math.round(off), bpm: Math.round(bpm * 100) / 100, slow: g.slow === true };
+        const was = d.song.beat;
+        if (was && was.off === beat.off && was.bpm === beat.bpm && was.slow === beat.slow) return false;
+        d.song = { ...d.song, beat };
+        return true;
+      }
       // (the build-up and DROP back on: no page asks for it now; the engine's tests do)
       case "juke":
         return fromSpeaker(s, sid, api) && setJuke(s, g.on === true, api);
