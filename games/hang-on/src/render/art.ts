@@ -1,17 +1,17 @@
 /**
- * 美术底子（A3）：每个世界的色板（年夜饭桌、温哥华海湾，A10 加了中餐馆后厨），和程序画出来的贴图（茶布、木头、瓷、钢、冰、面条……）。
+ * 美术底子（A3）：每个世界的色板（年夜饭桌、温哥华海湾，A10 加了中餐馆后厨、雪山缆车），和程序画出来的贴图（茶布、木头、瓷、钢、冰、雪、面条……）。
  * 全是代码画的，没有图片文件：下载小，风格统一，也不会有原版的任何东西。
  * 贴图在一张离屏 canvas 上画好，交给 Pixi 当纹理；粒子共用一张小图集。
  */
 import { FillGradient, Rectangle, Texture, type Graphics } from 'pixi.js';
 
-export type WorldId = 'table' | 'van' | 'kitchen';
+export type WorldId = 'table' | 'van' | 'kitchen' | 'snow';
 
 /** 关卡的 world 字段 → 画哪个世界（没写、不认识的按年夜饭桌）。 */
-export const worldOf = (w: string | undefined): WorldId => (w === 'van' || w === 'kitchen' ? w : 'table');
+export const worldOf = (w: string | undefined): WorldId => (w === 'van' || w === 'kitchen' || w === 'snow' ? w : 'table');
 
-/** 台子没写材质时每个世界用什么：桌上是木头，温哥华和后厨是钢。 */
-export const WORLD_MATERIAL: Record<WorldId, string> = { table: 'wood', van: 'metal', kitchen: 'metal' };
+/** 台子没写材质时每个世界用什么：桌上和雪山是木头（雪山的木头上积着雪），温哥华和后厨是钢。 */
+export const WORLD_MATERIAL: Record<WorldId, string> = { table: 'wood', van: 'metal', kitchen: 'metal', snow: 'wood' };
 
 export interface Palette {
   /** 天空 / 房间的上下两色。 */
@@ -78,6 +78,21 @@ export const PALETTES: Record<WorldId, Palette> = {
     lampOn: '#ffc46b',
     lampOff: '#5b5148',
   },
+  // 雪山缆车（A10）：黄昏的雪山，天是冷蓝到浅粉，掉下去是冰缝
+  snow: {
+    skyTop: '#22355a',
+    skyBottom: '#d9b9c8',
+    far: '#7f93b8',
+    mid: '#5b7099',
+    near: '#2d3d5e',
+    abyssLine: '#eaf6ff',
+    abyssTop: '#9cc6e4',
+    abyssBottom: '#1b2c46',
+    haze: '#d4e6ff',
+    flag: '#e8413c',
+    lampOn: '#ffd27a',
+    lampOff: '#4f5d75',
+  },
 };
 
 /** 地形材质的颜色：主体、暗部、亮边、花纹。 */
@@ -87,7 +102,7 @@ export interface MaterialStyle {
   light: string;
   detail: string;
   /** 贴图的名字（textures() 里的键）。 */
-  texture: 'cloth' | 'wood' | 'ceramic' | 'metal' | 'ice';
+  texture: 'cloth' | 'wood' | 'ceramic' | 'metal' | 'ice' | 'snow';
 }
 
 export const MATERIALS: Record<string, MaterialStyle> = {
@@ -99,6 +114,8 @@ export const MATERIALS: Record<string, MaterialStyle> = {
   noodle: { base: '#f3dc9a', dark: '#c9a860', light: '#fff4c8', detail: '#e0c070', texture: 'wood' },
   // 竹蒸笼（后厨，A10）
   bamboo: { base: '#d9b77a', dark: '#9c7a3c', light: '#f3dfae', detail: '#b8924f', texture: 'wood' },
+  // 压实的雪（雪山，A10）
+  snow: { base: '#eef4fa', dark: '#b4c6da', light: '#ffffff', detail: '#d3e1ef', texture: 'snow' },
 };
 export const DEFAULT_MATERIAL: MaterialStyle = MATERIALS.wood as MaterialStyle;
 
@@ -255,6 +272,30 @@ function metal(m: MaterialStyle): HTMLCanvasElement {
 }
 
 /** 冰：淡蓝底，斜着的亮痕。 */
+/** 压实的雪：白底，几团淡蓝的影子，一些亮晶晶的点。 */
+function snowTex(m: MaterialStyle): HTMLCanvasElement {
+  const [c, ctx] = canvas(128, 128);
+  ctx.fillStyle = m.base;
+  ctx.fillRect(0, 0, 128, 128);
+  const r = rng(77);
+  ctx.fillStyle = m.dark;
+  ctx.globalAlpha = 0.16;
+  for (let k = 0; k < 10; k++) {
+    ctx.beginPath();
+    ctx.ellipse(r() * 128, r() * 128, 10 + r() * 18, 5 + r() * 8, 0, 0, 7);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.95;
+  for (let k = 0; k < 18; k++) {
+    ctx.beginPath();
+    ctx.arc(r() * 128, r() * 128, 0.8 + r() * 1.1, 0, 7);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  return c;
+}
+
 function ice(m: MaterialStyle): HTMLCanvasElement {
   const [c, ctx] = canvas(128, 128);
   ctx.fillStyle = m.base;
@@ -353,6 +394,7 @@ export interface Textures {
   ceramic: Texture;
   metal: Texture;
   ice: Texture;
+  snow: Texture;
   particles: ParticleFrames;
 }
 
@@ -366,6 +408,7 @@ export function textures(): Textures {
     ceramic: textureOf(ceramic(MATERIALS.ceramic as MaterialStyle)),
     metal: textureOf(metal(MATERIALS.metal as MaterialStyle)),
     ice: textureOf(ice(MATERIALS.ice as MaterialStyle)),
+    snow: textureOf(snowTex(MATERIALS.snow as MaterialStyle)),
     particles: particleAtlas(),
   };
   return cache;

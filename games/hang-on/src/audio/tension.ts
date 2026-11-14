@@ -9,7 +9,7 @@
  */
 import { CFG } from '../physics/config';
 import type { Level, Rect } from '../physics/level';
-import { moverAt, spinnerAngle, spinnerArm } from '../physics/motion';
+import { liftChairs, moverAt, spinnerAngle, spinnerArm } from '../physics/motion';
 import type { SimEvent } from '../physics/world';
 import type { PlayerView, SimView } from '../render/view';
 
@@ -27,8 +27,9 @@ export function dropBelow(level: Level, x: number, y: number, t = 0, extra: read
   for (const f of level.fading ?? []) consider(f);
   for (const m of level.movers ?? []) if (!m.deadly) consider({ ...moverAt(m, t), w: m.w });
   for (const p of level.plates ?? []) consider(p);
-  // 蒸笼（后厨，A10）也是台子
+  // 蒸笼（后厨，A10）也是台子；缆车的座板（雪山，A10）在缆绳上的那几把也是
   for (const v of level.vents ?? []) consider(v);
+  for (const l of level.lifts ?? []) for (const c of liftChairs(l, t)) if (c.on) consider({ x: c.x - 36, y: c.y - 6, w: 72 });
   for (const r of extra) consider(r);
   return Number.isFinite(best) ? best : Math.max(600, level.deathY - y);
 }

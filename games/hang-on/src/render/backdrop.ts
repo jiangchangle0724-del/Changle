@@ -3,6 +3,7 @@
  * 年夜饭桌：红灯笼、碗、茶壶、蒸笼的剪影，蒸汽往上飘。
  * 温哥华：傍晚的天、雪山、吊桥、楼群的灯、海边的树；冰关下雨。
  * 中餐馆后厨（A10）：白瓷砖墙、调料架、挂着的锅铲和炒锅、一排灶眼的火光，热气往上飘。
+ * 雪山缆车（A10）：黄昏里的雪峰、半山的松树和缆车塔架、亮着灯的木屋，一直下雪。
  * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
  *
  * 远景画（可选）：地址由外面给（`src/render/plates.ts` 找 `games/hang-on/art/<世界>-far.webp`，来源写在 art/README.md），
@@ -22,7 +23,7 @@ interface Layer {
 }
 
 /** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷），前面的平台和人才跳得出来。 */
-const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f };
+const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f, snow: 0xa8b2c8 };
 /** 远景画显出来以后藏掉的剪影层：最远和中间那层（画里已经有了），只留最近那层压在画前面。 */
 const PLATE_HIDES = [0, 1];
 
@@ -47,6 +48,7 @@ export class Backdrop {
   private steamT = 0;
   private rayT = 0;
   private rainT = 0;
+  private snowT = 0;
   private plate: Sprite | null = null;
   /** 远景画外面套一层：糊一点（景深，A8），糊好的样子存成一张图，镜头动时只挪这层。 */
   private plateC: Container | null = null;
@@ -133,6 +135,7 @@ export class Backdrop {
         g.clear();
         if (this.world === 'table') this.tableLayer(g, i, period, H);
         else if (this.world === 'kitchen') this.kitchenLayer(g, i, period, H);
+        else if (this.world === 'snow') this.snowLayer(g, i, period, H);
         else this.vanLayer(g, i, period, H);
       }
       l.g[1].x = period;
@@ -144,7 +147,7 @@ export class Backdrop {
   /** 几道斜光：年夜饭桌是灯笼的暖光、后厨是灯管下的暖光，温哥华是路灯的冷光。从画面上沿斜着往右下。 */
   private drawRays(W: number, H: number): void {
     const g = this.rays.clear();
-    const warm = this.world !== 'van';
+    const warm = this.world === 'table' || this.world === 'kitchen';
     const color = warm ? 0xffc27a : 0xa8c8ff;
     const beams = warm ? [0.12, 0.36, 0.63, 0.86] : [0.2, 0.55, 0.82];
     for (const [i, fx] of beams.entries()) {
@@ -190,7 +193,8 @@ export class Backdrop {
       l.c.x = -(off % l.period);
       l.c.y = -(camY - levelH / 2) * l.f * 0.35 * zoom;
     }
-    if (this.world !== 'van') this.steam(dt);
+    if (this.world === 'table' || this.world === 'kitchen') this.steam(dt);
+    if (this.world === 'snow') this.snowfall(dt);
     if (this.rain) this.rainfall(dt);
   }
 
@@ -521,6 +525,109 @@ export class Backdrop {
       g.rect(0, base, P, H - base).fill(col);
       for (let px = 40; px < P; px += 46) g.rect(px, base - 30, 6, 32).fill(col);
       g.rect(0, base - 34, P, 8).fill(col);
+    }
+  }
+
+  // ---------------------------------------------------------------- 雪山缆车（A10）
+
+  private snowLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(500 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 远处的雪峰：一排尖顶，顶上一顶白帽子
+      const base = H * 0.66;
+      const col = hex(pal.far);
+      const peaks: [number, number][] = [];
+      let x = 0;
+      while (x < P + 260) {
+        peaks.push([x, base - 120 - r() * 220]);
+        x += 180 + r() * 220;
+      }
+      g.moveTo(-10, H).lineTo(-10, base);
+      for (const [px, py] of peaks) g.lineTo(px, py);
+      g.lineTo(P + 10, base).lineTo(P + 10, H).closePath().fill(col);
+      for (const [px, py] of peaks) {
+        const cap = 40 + r() * 30;
+        g.moveTo(px, py).lineTo(px - cap, py + cap * 1.1).lineTo(px - cap * 0.45, py + cap * 0.85).lineTo(px - cap * 0.1, py + cap * 1.15).lineTo(px + cap * 0.35, py + cap * 0.9).lineTo(px + cap, py + cap * 1.1).closePath().fill({ color: 0xffffff, alpha: 0.7 });
+      }
+    } else if (i === 1) {
+      // 半山：缓坡、一片松树、缆车塔架和缆绳、一间亮着灯的木屋
+      const col = hex(pal.mid);
+      const hy = H * 0.74;
+      g.moveTo(-10, H).lineTo(-10, hy);
+      for (let x = 0; x <= P + 40; x += 80) g.lineTo(x, hy - 30 * Math.sin((x / P) * Math.PI * 4) - 20);
+      g.lineTo(P + 10, H).closePath().fill(col);
+      for (let k = 0; k < 16; k++) {
+        const px = r() * P;
+        this.pine(g, px, hy - 10 - r() * 30, 50 + r() * 50, col);
+      }
+      const towers = [0.15, 0.48, 0.81];
+      const cy = H * 0.3;
+      g.moveTo(0, cy + 30).lineTo(P, cy - 10).stroke({ width: 2, color: col, alpha: 0.9 });
+      for (const f of towers) {
+        const tx = f * P;
+        const ty = cy + 30 - 40 * f;
+        g.moveTo(tx, ty).lineTo(tx, hy).stroke({ width: 7, color: col });
+        g.moveTo(tx - 26, ty).lineTo(tx + 26, ty).stroke({ width: 5, color: col });
+      }
+      // 木屋
+      const lx = 0.64 * P;
+      g.rect(lx - 70, hy - 70, 140, 70).fill(col);
+      g.poly([lx - 90, hy - 66, lx, hy - 130, lx + 90, hy - 66]).fill(col);
+      g.poly([lx - 92, hy - 64, lx, hy - 130, lx + 92, hy - 64, lx + 80, hy - 60, lx, hy - 118, lx - 80, hy - 60]).fill({ color: 0xffffff, alpha: 0.75 });
+      for (const wx of [-40, 12]) {
+        glow(g, lx + wx + 14, hy - 40, 70, pal.lampOn, 0.25);
+        g.rect(lx + wx, hy - 52, 28, 22).fill(hex(pal.lampOn));
+      }
+    } else {
+      // 近处：雪堆和几棵大松树，几团冷光斑
+      for (let k = 0; k < 6; k++) {
+        const x = r() * P;
+        const y = H * (0.2 + r() * 0.6);
+        const rad = 50 + r() * 80;
+        for (let s = 0; s < 3; s++) g.circle(x, y, rad * (1 - s * 0.3)).fill({ color: hex(pal.haze), alpha: 0.02 + s * 0.012 });
+      }
+      const hy = H * 0.9;
+      const col = hex(pal.near);
+      g.moveTo(-10, H).lineTo(-10, hy);
+      for (let x = 0; x <= P + 60; x += 120) g.quadraticCurveTo(x + 60, hy - 40 - r() * 30, x + 120, hy);
+      g.lineTo(P + 10, H).closePath().fill(col);
+      for (const f of [0.1, 0.42, 0.77]) this.pine(g, f * P, hy, 170 + r() * 60, col, true);
+    }
+  }
+
+  /** 一棵松树：三层三角，snow 的话每层边上积一道雪。 */
+  private pine(g: Graphics, x: number, y: number, h: number, col: number, snowy = false): void {
+    const w = h * 0.55;
+    g.rect(x - w * 0.06, y - h * 0.18, w * 0.12, h * 0.2).fill(col);
+    for (let k = 0; k < 3; k++) {
+      const top = y - h + k * h * 0.24;
+      const bot = top + h * 0.46;
+      const half = w * (0.32 + k * 0.1);
+      g.poly([x, top, x + half, bot, x - half, bot]).fill(col);
+      if (snowy) g.poly([x - half, bot, x - half * 0.5, bot - h * 0.06, x, bot - h * 0.02, x + half * 0.5, bot - h * 0.06, x + half, bot]).fill({ color: 0xffffff, alpha: 0.6 });
+    }
+  }
+
+  /** 下雪：一片片慢慢飘下来，左右晃。 */
+  private snowfall(dt: number): void {
+    this.snowT += dt;
+    const every = 0.05;
+    while (this.snowT >= every) {
+      this.snowT -= every;
+      this.fx.burst({
+        x: Math.random() * (this.W + 200) - 100,
+        y: -20,
+        n: 1,
+        texture: 'circle',
+        colors: [0xffffff, 0xeaf4ff],
+        speed: [50, 110],
+        angle: Math.PI / 2 + (Math.random() - 0.5) * 0.5,
+        spread: 0.3,
+        life: [7, 10],
+        size: [3, 7],
+        alpha: 0.8,
+      });
     }
   }
 

@@ -75,6 +75,8 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
   if (sim.gates?.length) snap.gt = sim.gates.map((g) => r3(g.open));
   if (sim.gold) snap.gd = [sim.gold.need, sim.gold.holder, ...sim.gold.holdT.map(r2)];
   if (sim.tray) snap.ty = [sim.tray.prop, sim.tray.spilled ? 1 : 0];
+  const ic = sim.players.flatMap((p, i) => p.arms.flatMap((a, k) => (a.grip?.max !== undefined ? [i, k, r1(a.grip.max)] : [])));
+  if (ic.length) snap.ic = ic;
   if (sim.drone) snap.dr = [r1(sim.drone.x), r1(sim.drone.y), Math.max(0, DRONE_PHASES.indexOf(sim.drone.phase))];
   if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
@@ -417,6 +419,12 @@ export class RemoteSim implements SimView {
       p.itemOn = itemOf(row[28]);
       p.itemLeft = Math.max(0, (row[29] ?? 0) - since);
     });
+    // 冰溜子（雪山）：抓着它的手最多抓几秒
+    const ic = s.ic ?? [];
+    for (let k = 0; k + 2 < ic.length; k += 3) {
+      const grip = this.players[ic[k] ?? -1]?.arms[ic[k + 1] ?? -1]?.grip;
+      if (grip) grip.max = ic[k + 2];
+    }
     (s.nd ?? []).forEach((row, i) => {
       const n = this.noodles[i];
       if (n) n.left = Math.max(0, (row[1] ?? 0) - since);

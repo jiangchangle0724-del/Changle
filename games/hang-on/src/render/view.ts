@@ -14,7 +14,8 @@ export interface ArmView {
   /** 肩、两个肘、手心。 */
   pts: Pt[];
   /** 抓着什么就有，t 是抓了多久（秒）。 */
-  grip: { t: number } | null;
+  /** 抓着的话：抓了几秒；max 是冰溜子（雪山）最多抓几秒就滑。 */
+  grip: { t: number; max?: number } | null;
 }
 
 export interface PlayerView {

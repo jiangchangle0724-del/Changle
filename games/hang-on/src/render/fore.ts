@@ -59,11 +59,11 @@ export class Foreground {
       this.view.addChild(s);
       return s;
     };
-    // 年夜饭桌和后厨是暖的光斑和热气，温哥华是城里的灯
-    const warmWorld = world !== 'van';
-    const r = rng(world === 'table' ? 31 : world === 'kitchen' ? 43 : 57);
+    // 年夜饭桌和后厨是暖的光斑和热气，温哥华是城里的灯，雪山是冷的雪光
+    const warmWorld = world === 'table' || world === 'kitchen';
+    const r = rng(world === 'table' ? 31 : world === 'kitchen' ? 43 : world === 'snow' ? 61 : 57);
     const warm = [0xffb35c, 0xff8a5b, 0xffd27a];
-    const city = [0xffd27a, 0x8ec5e8, 0xf28ca6, 0xa8c8ff];
+    const city = world === 'snow' ? [0xeaf4ff, 0xbcd8ff, 0xffd27a] : [0xffd27a, 0x8ec5e8, 0xf28ca6, 0xa8c8ff];
     for (let i = 0; i < 9; i++) {
       // 光斑：多数贴着下沿，少数在左右上角
       const low = r() < 0.75;
