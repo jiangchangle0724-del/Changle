@@ -2,129 +2,216 @@
   "id": "team-05",
   "world": "van",
   "name": {
-    "zh": "雨棚同撑",
-    "en": "Rain Awning Crew"
+    "zh": "雨下搬舱",
+    "en": "Rainy Hold Crew"
   },
   "teaches": "counterweight",
-  "w": 2880,
+  "w": 2560,
   "h": 720,
   "spawn": {
-    "x": 260,
-    "y": 316
+    "x": 120,
+    "y": 406
   },
   "goal": {
-    "x": 2680,
-    "y": 60,
+    "x": 2360,
+    "y": 440,
     "w": 160,
-    "h": 200
+    "h": 160
   },
   "checkpoints": [
     {
-      "x": 1220,
-      "y": 336
+      "x": 1000,
+      "y": 576
     },
     {
-      "x": 1925,
-      "y": 376
-    },
-    {
-      "x": 2590,
-      "y": 236
+      "x": 1980,
+      "y": 576
     }
   ],
   "rects": [
     {
       "kind": "ground",
       "x": 0,
-      "y": 340,
-      "w": 580,
-      "h": 380,
+      "y": 305,
+      "w": 530,
+      "h": 20,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 590,
-      "y": 550,
-      "w": 580,
-      "h": 170,
+      "x": 0,
+      "y": 430,
+      "w": 650,
+      "h": 290,
       "material": "wood"
-    },
-    {
-      "kind": "ground",
-      "x": 1180,
-      "y": 360,
-      "w": 320,
-      "h": 360,
-      "material": "metal"
-    },
-    {
-      "kind": "ground",
-      "x": 1570,
-      "y": 440,
-      "w": 260,
-      "h": 280,
-      "material": "metal"
-    },
-    {
-      "kind": "ground",
-      "x": 1900,
-      "y": 400,
-      "w": 220,
-      "h": 320,
-      "material": "metal"
-    },
-    {
-      "kind": "ground",
-      "x": 2190,
-      "y": 320,
-      "w": 260,
-      "h": 400,
-      "material": "metal"
     },
     {
       "kind": "ground",
       "x": 2520,
-      "y": 260,
-      "w": 320,
-      "h": 460,
-      "material": "metal"
-    },
-    {
-      "kind": "ground",
-      "x": 2840,
-      "y": 80,
+      "y": 440,
       "w": 40,
-      "h": 640,
+      "h": 280,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 1530,
+      "x": 850,
+      "y": 475,
+      "w": 730,
+      "h": 20,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 850,
+      "y": 600,
+      "w": 850,
+      "h": 120,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1900,
+      "y": 600,
+      "w": 620,
+      "h": 120,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 650,
+      "y": 714,
+      "w": 200,
+      "h": 6,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1700,
+      "y": 714,
+      "w": 200,
+      "h": 6,
+      "material": "wood"
+    }
+  ],
+  "hazards": [
+    {
+      "x": 0,
+      "y": 289,
+      "w": 530,
+      "h": 16,
+      "kind": "zap"
+    },
+    {
+      "x": 850,
+      "y": 459,
+      "w": 730,
+      "h": 16,
+      "kind": "zap"
+    },
+    {
+      "x": 750,
       "y": 440,
-      "w": 40,
-      "h": 280,
-      "material": "metal",
+      "w": 20,
+      "h": 24,
+      "kind": "zap",
+      "players": [
+        5,
+        6
+      ]
+    },
+    {
+      "x": 1800,
+      "y": 440,
+      "w": 20,
+      "h": 24,
+      "kind": "zap",
+      "players": [
+        5,
+        6
+      ]
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [
+    {
+      "x": 400,
+      "y": 330,
+      "w": 150,
+      "h": 100,
+      "material": "wood",
+      "mass": 20,
       "players": [
         4,
         4
       ]
-    }
-  ],
-  "seesaws": [
+    },
     {
-      "pivot": {
-        "x": 880,
-        "y": 460
-      },
-      "w": 580,
-      "h": 18,
-      "material": "metal"
+      "x": 400,
+      "y": 330,
+      "w": 150,
+      "h": 100,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        5,
+        5
+      ]
+    },
+    {
+      "x": 400,
+      "y": 330,
+      "w": 150,
+      "h": 100,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        6,
+        6
+      ]
+    },
+    {
+      "x": 1260,
+      "y": 500,
+      "w": 150,
+      "h": 100,
+      "material": "wood",
+      "mass": 20,
+      "players": [
+        4,
+        4
+      ]
+    },
+    {
+      "x": 1260,
+      "y": 500,
+      "w": 150,
+      "h": 100,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        5,
+        5
+      ]
+    },
+    {
+      "x": 1260,
+      "y": 500,
+      "w": 150,
+      "h": 100,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        6,
+        6
+      ]
     }
   ],
-  "ropes": [],
-  "crates": [],
   "fading": [],
   "springs": [],
+  "movers": [],
+  "spinners": [],
   "deathY": 790,
   "par": {
     "seconds": 120,

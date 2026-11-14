@@ -2,108 +2,112 @@
   "id": "team-04",
   "world": "van",
   "name": {
-    "zh": "煤港压舷",
-    "en": "Coal Harbour Ballast"
+    "zh": "港塔递班",
+    "en": "Harbour Tower Relay"
   },
-  "teaches": "counterweight",
-  "w": 2560,
-  "h": 720,
+  "teaches": "relay",
+  "w": 3600,
+  "h": 2160,
   "spawn": {
-    "x": 140,
-    "y": 416
+    "x": 120,
+    "y": 2036
   },
   "goal": {
-    "x": 2360,
-    "y": 40,
+    "x": 3400,
+    "y": 400,
     "w": 160,
-    "h": 200
+    "h": 160
   },
   "checkpoints": [
     {
-      "x": 1120,
-      "y": 436
+      "x": 1230,
+      "y": 2036
     },
     {
-      "x": 2070,
-      "y": 216
+      "x": 2110,
+      "y": 1286
+    },
+    {
+      "x": 2900,
+      "y": 536
     }
   ],
   "rects": [
     {
       "kind": "ground",
       "x": 0,
-      "y": 440,
-      "w": 460,
-      "h": 280,
+      "y": 2060,
+      "w": 1700,
+      "h": 100,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 470,
-      "y": 640,
-      "w": 600,
-      "h": 80,
+      "x": 1970,
+      "y": 1310,
+      "w": 530,
+      "h": 850,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 1080,
-      "y": 460,
-      "w": 300,
-      "h": 260,
-      "material": "metal"
+      "x": 2770,
+      "y": 560,
+      "w": 790,
+      "h": 1600,
+      "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 1450,
+      "x": 3560,
       "y": 400,
-      "w": 190,
-      "h": 320,
-      "material": "metal"
-    },
-    {
-      "kind": "ground",
-      "x": 1710,
-      "y": 320,
-      "w": 220,
-      "h": 400,
-      "material": "metal"
-    },
-    {
-      "kind": "ground",
-      "x": 2000,
-      "y": 240,
-      "w": 520,
-      "h": 480,
-      "material": "metal"
-    },
-    {
-      "kind": "ground",
-      "x": 2520,
-      "y": 60,
       "w": 40,
-      "h": 660,
+      "h": 1760,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 1730,
+      "y": 1380,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 2530,
+      "y": 630,
+      "w": 160,
+      "h": 40,
       "material": "wood"
     }
   ],
-  "seesaws": [
+  "hazards": [
     {
-      "pivot": {
-        "x": 770,
-        "y": 550
-      },
-      "w": 600,
-      "h": 18,
-      "material": "metal"
+      "x": 1960,
+      "y": 1354,
+      "w": 18,
+      "h": 806,
+      "kind": "zap"
+    },
+    {
+      "x": 2760,
+      "y": 604,
+      "w": 18,
+      "h": 1556,
+      "kind": "zap"
     }
   ],
   "ropes": [],
+  "seesaws": [],
   "crates": [],
   "fading": [],
   "springs": [],
-  "deathY": 790,
+  "movers": [],
+  "spinners": [],
+  "deathY": 2230,
   "par": {
-    "seconds": 120,
+    "seconds": 160,
     "deathsPerPlayer": 6
   },
   "replay": "replays/team-04.p4.json"

@@ -2,140 +2,160 @@
   "id": "team-03",
   "world": "table",
   "name": {
-    "zh": "满席传盘",
-    "en": "Reunion Platter Relay"
+    "zh": "长席分工",
+    "en": "Reunion Shift"
   },
   "teaches": "combine",
-  "w": 3200,
-  "h": 720,
+  "w": 3600,
+  "h": 1440,
   "spawn": {
-    "x": 220,
-    "y": 336
+    "x": 120,
+    "y": 1256
   },
   "goal": {
-    "x": 3000,
-    "y": 20,
+    "x": 3400,
+    "y": 370,
     "w": 160,
-    "h": 200
+    "h": 160
   },
   "checkpoints": [
     {
-      "x": 1220,
-      "y": 356
+      "x": 1100,
+      "y": 1256
     },
     {
-      "x": 1855,
-      "y": 236
+      "x": 1870,
+      "y": 506
     },
     {
-      "x": 2840,
-      "y": 196
+      "x": 3120,
+      "y": 506
     }
   ],
   "rects": [
     {
       "kind": "ground",
       "x": 0,
-      "y": 360,
-      "w": 540,
-      "h": 360,
-      "material": "cloth"
-    },
-    {
-      "kind": "ground",
-      "x": 550,
-      "y": 570,
-      "w": 620,
-      "h": 150,
+      "y": 1280,
+      "w": 1500,
+      "h": 160,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 1180,
-      "y": 380,
-      "w": 290,
-      "h": 340,
-      "material": "ceramic"
-    },
-    {
-      "kind": "ground",
-      "x": 1540,
-      "y": 320,
-      "w": 220,
-      "h": 400,
-      "material": "ceramic"
-    },
-    {
-      "kind": "ground",
-      "x": 1830,
-      "y": 260,
-      "w": 240,
-      "h": 460,
-      "material": "ceramic"
-    },
-    {
-      "kind": "ground",
-      "x": 2140,
-      "y": 340,
-      "w": 230,
-      "h": 380,
-      "material": "ceramic"
-    },
-    {
-      "kind": "ground",
-      "x": 2440,
-      "y": 280,
-      "w": 260,
-      "h": 440,
-      "material": "ceramic"
-    },
-    {
-      "kind": "ground",
-      "x": 2770,
-      "y": 220,
-      "w": 390,
-      "h": 500,
-      "material": "ceramic"
-    },
-    {
-      "kind": "ground",
-      "x": 3160,
-      "y": 40,
-      "w": 40,
-      "h": 680,
+      "x": 1770,
+      "y": 530,
+      "w": 1030,
+      "h": 910,
       "material": "wood"
     },
     {
       "kind": "ground",
-      "x": 1500,
-      "y": 320,
+      "x": 3000,
+      "y": 530,
+      "w": 560,
+      "h": 910,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 3560,
+      "y": 370,
       "w": 40,
-      "h": 400,
-      "material": "ceramic",
+      "h": 1070,
+      "material": "wood"
+    },
+    {
+      "kind": "peg",
+      "x": 1530,
+      "y": 600,
+      "w": 160,
+      "h": 40,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 2050,
+      "y": 350,
+      "w": 630,
+      "h": 20,
+      "material": "wood"
+    }
+  ],
+  "hazards": [
+    {
+      "x": 1760,
+      "y": 574,
+      "w": 18,
+      "h": 866,
+      "kind": "hot"
+    },
+    {
+      "x": 2050,
+      "y": 334,
+      "w": 630,
+      "h": 16,
+      "kind": "zap"
+    },
+    {
+      "x": 2980,
+      "y": 590,
+      "w": 20,
+      "h": 40,
+      "kind": "zap",
+      "players": [
+        5,
+        6
+      ]
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [
+    {
+      "x": 2330,
+      "y": 375,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 20,
       "players": [
         4,
         4
       ]
-    }
-  ],
-  "seesaws": [
+    },
     {
-      "pivot": {
-        "x": 860,
-        "y": 480
-      },
-      "w": 620,
-      "h": 18,
-      "material": "wood"
+      "x": 2330,
+      "y": 375,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 25,
+      "players": [
+        5,
+        5
+      ]
+    },
+    {
+      "x": 2330,
+      "y": 375,
+      "w": 150,
+      "h": 155,
+      "material": "wood",
+      "mass": 37,
+      "players": [
+        6,
+        6
+      ]
     }
   ],
-  "ropes": [],
-  "crates": [],
   "fading": [],
   "springs": [],
-  "deathY": 790,
+  "movers": [],
+  "spinners": [],
+  "deathY": 1510,
   "par": {
-    "seconds": 120,
+    "seconds": 160,
     "deathsPerPlayer": 6
   },
   "replay": "replays/team-03.p4.json"

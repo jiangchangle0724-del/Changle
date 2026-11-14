@@ -508,7 +508,12 @@ function teamValidate(level, id, physics) {
   if (['team-03', 'team-06'].includes(id))
     assert.equal(level.teaches, 'combine', `${id}: world finale must teach combine`);
   assert(
-    finite(level.w) && finite(level.h) && level.w > 0 && level.h > 0 && level.w <= 3600 && level.h <= 2200,
+    finite(level.w) &&
+      finite(level.h) &&
+      level.w > 0 &&
+      level.h > 0 &&
+      level.w <= 3600 &&
+      level.h <= 2200,
     `${id}: invalid size`,
   );
   point(level.spawn);
@@ -525,7 +530,9 @@ function teamValidate(level, id, physics) {
   } else assert(level.w >= 2400 && level.w <= 3600, `${id}: width must be 2400–3600`);
   assert(level.spawn.x <= 600, `${id}: spawn outside first screen`);
   assert(
-    level.goal.x >= level.w - 480 && level.goal.w <= 400 && level.goal.x + level.goal.w >= level.w - 160,
+    level.goal.x >= level.w - 480 &&
+      level.goal.w <= 400 &&
+      level.goal.x + level.goal.w >= level.w - 160,
     `${id}: goal must be at the route end`,
   );
   assert(finite(level.deathY) && level.deathY > level.spawn.y, `${id}: invalid deathY`);
@@ -626,7 +633,10 @@ function teamValidate(level, id, physics) {
     });
     for (let a = 0; a < boxes.length; a++)
       for (let b = a + 1; b < boxes.length; b++)
-        assert(!overlaps(boxes[a], boxes[b]), `${id}: platforms ${a}/${b} overlap with ${n} players`);
+        assert(
+          !overlaps(boxes[a], boxes[b]),
+          `${id}: platforms ${a}/${b} overlap with ${n} players`,
+        );
     for (const rope of laid.ropes ?? []) {
       point(rope.anchor);
       assert(
@@ -638,11 +648,16 @@ function teamValidate(level, id, physics) {
         `${id}: invalid rope`,
       );
     }
+    for (const r of laid.crates ?? [])
+      assert(r.mass === undefined || (finite(r.mass) && r.mass > 0), id + ': invalid crate mass');
     for (const r of laid.fading ?? [])
       for (const k of ['on', 'off', 'phase'])
         assert(r[k] === undefined || (finite(r[k]) && r[k] >= 0), `${id}: invalid fading ${k}`);
     for (const r of laid.springs ?? [])
-      assert(r.power === undefined || (finite(r.power) && r.power > 0), `${id}: invalid spring power`);
+      assert(
+        r.power === undefined || (finite(r.power) && r.power > 0),
+        `${id}: invalid spring power`,
+      );
     for (const [i, at] of [level.spawn, ...cps].entries())
       for (let player = 0; player < 6; player++) {
         const p = { x: at.x + player * (i === 0 ? 44 : 30), y: at.y };
@@ -659,6 +674,10 @@ function teamValidate(level, id, physics) {
           `${id}: ${label} lacks permanent footing within 80px for P${player + 1} with ${n} players`,
         );
         assert(
+          !(laid.crates ?? []).some((r) => physics.circleHitsRect(p, 24 - 1e-6, r)),
+          id + ': ' + label + ' overlaps a crate for P' + (player + 1) + ' with ' + n + ' players',
+        );
+        assert(
           !(laid.hazards ?? []).some((h) => circleHits(p, 84, h)),
           `${id}: ${label} is too close to a hazard for P${player + 1}`,
         );
@@ -666,43 +685,54 @@ function teamValidate(level, id, physics) {
   }
 }
 async function inspectTeam(physics, level, replay) {
-  let chainSeconds = 0,
-    weightSeconds = 0,
-    maxChain = 0,
-    maxWeight = 0,
-    chainRun = 0,
+  const sections = Array.from({ length: level.checkpoints.length + 1 }, () => ({
+    chain: 0,
+    weight: 0,
+    push: 0,
+    relays: 0,
+    chainLongest: 0,
+    weightLongest: 0,
+    pushLongest: 0,
+  }));
+  let chainRun = 0,
     weightRun = 0,
-    chainLongest = 0,
-    weightLongest = 0;
+    pushRun = 0,
+    lastSegment = -1;
   let propUse = [],
-    ropeUse = [];
+    ropeUse = [],
+    starts = [];
   const wrapped = {
     ...physics,
     createSim: async (...args) => {
       const sim = await physics.createSim(...args, { mode: 'team' });
       propUse = sim.props.map(() => 0);
       ropeUse = sim.ropes.map(() => 0);
+      starts = sim.props.map((p) => ({ x: p.x, y: p.y }));
       const original = sim.step.bind(sim);
       sim.step = (dt) => {
+        const segment = sim.checkpoint + 1,
+          before = sim.players.map((p) =>
+            p.arms.map((a) => a.grip && { kind: a.grip.kind, player: a.grip.player }),
+          ),
+          velocities = sim.players.map((p) => ({ ...p.body }));
         original(dt);
-        // A directed path with distinct, living, airborne players, rooted at a
-        // terrain/rope grip. A cycle or a grounded middle player cannot count.
+        const ev = sections[segment];
+        if (segment !== lastSegment) {
+          chainRun = weightRun = pushRun = 0;
+          lastSegment = segment;
+        }
         function depth(p, seen = new Set()) {
           if (!p || p.dead || p.ground || seen.has(p.id)) return 0;
           const path = new Set([...seen, p.id]);
-          let d = p.arms.some((a) => ['terrain', 'rope'].includes(a.grip?.kind)) ? 1 : 0;
+          let n = p.arms.some((a) => ['terrain', 'rope'].includes(a.grip?.kind)) ? 1 : 0;
           for (const a of p.arms)
             if (a.grip?.kind === 'player') {
               const up = depth(sim.players[a.grip.player], path);
-              if (up) d = Math.max(d, up + 1);
+              if (up) n = Math.max(n, up + 1);
             }
-          return d;
+          return n;
         }
-        const count = Math.max(0, ...sim.players.map((p) => depth(p)));
-        maxChain = Math.max(maxChain, count);
-        if (count >= 3) chainSeconds += dt;
-        chainRun = count >= 3 ? chainRun + dt : 0;
-        chainLongest = Math.max(chainLongest, chainRun);
+        const chain = Math.max(0, ...sim.players.map((p) => depth(p))) >= 3;
         sim.ropes.forEach((_, i) => {
           if (
             sim.players.some(
@@ -711,42 +741,101 @@ async function inspectTeam(physics, level, replay) {
           )
             ropeUse[i] += dt;
         });
-        let weighted = false;
-        sim.props.forEach((prop, index) => {
-          const touching = sim.players.some(
-            (p) => !p.dead && p.arms.some((a) => a.grip?.kind === 'prop' && a.grip.prop === index),
-          );
-          if (touching) propUse[index] += dt;
-          if (prop.kind !== 'seesaw' || Math.abs(prop.angle) <= 0.05) return;
+        let weight = false,
+          push = false;
+        sim.props.forEach((prop, i) => {
           const c = Math.cos(prop.angle),
             ss = Math.sin(prop.angle);
           const users = sim.players.filter((p) => {
             if (p.dead) return false;
-            if (p.arms.some((a) => a.grip?.kind === 'prop' && a.grip.prop === index)) return true;
+            if (p.arms.some((a) => a.grip?.kind === 'prop' && a.grip.prop === i)) return true;
             const dx = p.body.x - prop.x,
-              dy = p.body.y - prop.y;
-            const localX = dx * c + dy * ss,
-              localY = -dx * ss + dy * c;
-            return (
-              p.ground &&
-              Math.abs(localX) <= prop.w / 2 + physics.CFG.bodyR &&
-              Math.abs(localY + prop.h / 2 + physics.CFG.bodyR) <= 12
-            );
+              dy = p.body.y - prop.y,
+              x = dx * c + dy * ss,
+              y = -dx * ss + dy * c;
+            if (prop.kind === 'seesaw')
+              return (
+                p.ground &&
+                Math.abs(x) <= prop.w / 2 + physics.CFG.bodyR &&
+                Math.abs(y + prop.h / 2 + physics.CFG.bodyR) <= 12
+              );
+            return physics.circleHitsRect({ x, y }, physics.CFG.bodyR + 3, {
+              x: -prop.w / 2,
+              y: -prop.h / 2,
+              w: prop.w,
+              h: prop.h,
+            });
           }).length;
-          maxWeight = Math.max(maxWeight, users);
-          if (users >= 3) weighted = true;
+          if (users) propUse[i] += dt;
+          if (prop.kind === 'seesaw' && Math.abs(prop.angle) > 0.05 && users >= 3) weight = true;
+          if (
+            prop.kind === 'crate' &&
+            users >= 3 &&
+            prop.x - starts[i].x >= 40 &&
+            prop.rb.linvel().x > 1
+          )
+            push = true;
         });
-        if (weighted) weightSeconds += dt;
-        weightRun = weighted ? weightRun + dt : 0;
-        weightLongest = Math.max(weightLongest, weightRun);
+        if (chain) ev.chain += dt;
+        if (weight) ev.weight += dt;
+        if (push) ev.push += dt;
+        chainRun = chain ? chainRun + dt : 0;
+        weightRun = weight ? weightRun + dt : 0;
+        pushRun = push ? pushRun + dt : 0;
+        ev.chainLongest = Math.max(ev.chainLongest, chainRun);
+        ev.weightLongest = Math.max(ev.weightLongest, weightRun);
+        ev.pushLongest = Math.max(ev.pushLongest, pushRun);
+        const released = new Set();
+        sim.players.forEach((p, i) =>
+          p.arms.forEach((a, j) => {
+            const old = before[i][j];
+            if (
+              old?.kind === 'player' &&
+              !a.grip &&
+              !p.dead &&
+              !sim.players[old.player].dead &&
+              !p.grab[j]
+            ) {
+              const v = velocities[old.player];
+              if (
+                v.vx > 150 &&
+                v.vy < -100 &&
+                v.x > level.spawn.x + 50 &&
+                !released.has(old.player)
+              ) {
+                released.add(old.player);
+                ev.relays++;
+              }
+            }
+          }),
+        );
       };
       return sim;
     },
   };
   const inspected = await inspect(wrapped, level, replay);
+  const kinds = (s) =>
+    [
+      s.chainLongest >= 0.25 ? 'chain' : null,
+      s.weightLongest >= 0.25 ? 'counterweight' : null,
+      s.pushLongest >= 0.25 ? 'push' : null,
+      s.relays ? 'relay' : null,
+    ].filter(Boolean);
+  let idle = 0,
+    longestIdle = 0;
+  for (const frame of replay.frames) {
+    const stopped = frame.every((p) => Math.hypot(p.ax, p.ay) < 0.12 && !p.gl && !p.gr);
+    idle = stopped ? idle + replay.dt : 0;
+    longestIdle = Math.max(longestIdle, idle);
+  }
   return {
     ...inspected,
-    team: { chainSeconds, weightSeconds, maxChain, maxWeight, chainLongest, weightLongest, propUse, ropeUse },
+    team: {
+      sections: sections.map((s) => ({ ...s, kinds: kinds(s) })),
+      propUse,
+      ropeUse,
+      longestIdle,
+    },
   };
 }
 async function checkTeams(physics, existing) {
@@ -755,7 +844,9 @@ async function checkTeams(physics, existing) {
     throw e;
   });
   const found = files.filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5));
-  found.forEach((id) => assert(teamIds.includes(id), `unexpected team level ${id}: team-01…team-06 only`));
+  found.forEach((id) =>
+    assert(teamIds.includes(id), `unexpected team level ${id}: team-01…team-06 only`),
+  );
   const replayFiles = await readdir(join(teamDir, 'replays')).catch((e) => {
     if (e.code === 'ENOENT') return [];
     throw e;
@@ -765,16 +856,32 @@ async function checkTeams(physics, existing) {
     .filter((f) => f.endsWith('.json'))
     .forEach((f) => assert(allowed.includes(f), `unexpected team replay ${f}`));
   const entries = [];
+  const readme = await readFile(join(teamDocs, 'README.md'), 'utf8');
+  const manifest = readme.match(/<!-- C9_TEAM_SECTIONS (.+) -->/);
+  assert(
+    manifest,
+    'team README: missing C9_TEAM_SECTIONS manifest (zero-based section indices from full probe)',
+  );
+  const hardSections = JSON.parse(manifest[1]);
   if (found.length) {
     console.log('\nTeam levels (4–6 players)');
     console.log(
-      '| Level | Players | Seconds | Deaths (P1…) | All reached | Par ratio | Size | Checkpoint segments (s) | 3+ chain / counterweight (s) | Relays | Solo cleared |',
+      '| Level | Players | Seconds | Deaths (P1…) | All reached | Par ratio | Size | Checkpoint segments (s) | 3+ chain / weight+push (s) | Relays | Solo cleared |',
     );
     console.log('| --- | ---: | ---: | --- | :---: | ---: | --- | --- | --- | ---: | --- |');
   }
   for (const id of teamIds.filter((id) => found.includes(id))) {
     const level = await readJSON(join(teamDir, `${id}.json`));
     teamValidate(level, id, physics);
+    const hard = hardSections[id];
+    assert(
+      Array.isArray(hard) &&
+        new Set(hard).size === hard.length &&
+        hard.length >= 2 &&
+        hard.every((k) => Number.isInteger(k) && k >= 0 && k <= level.checkpoints.length) &&
+        hard.some((k) => k > 0),
+      id + ': needs at least two distinct probe-blocked sections, including one after the opening',
+    );
     const replays = [];
     for (const group of teamLayoutGroups(level))
       for (const n of group) {
@@ -795,9 +902,38 @@ async function checkTeams(physics, existing) {
           segments = times.slice(1).map((v, i) => v - times[i]),
           ratio = result.seconds / level.par.seconds;
         assert(
-          team.chainLongest >= 0.25 || team.weightLongest >= 0.25,
-          `${id} (${n} players): needs three airborne players in a rooted chain for 0.25s or three players using a seesaw tilted over 0.05 for 0.25s`,
+          team.longestIdle <= 3 + 1e-6,
+          id + ' (' + n + ' players): all-inputs idle exceeds 3s: ' + team.longestIdle.toFixed(2),
         );
+        for (const k of hard)
+          assert(
+            team.sections[k].kinds.length,
+            id +
+              ' (' +
+              n +
+              ' players): probe-blocked section ' +
+              k +
+              ' has no actual 3+ rooted chain, 3+ weight/push, or relay',
+          );
+        assert(
+          hard.some(
+            (k) =>
+              team.sections[k].chainLongest >= 0.25 ||
+              team.sections[k].weightLongest >= 0.25 ||
+              team.sections[k].pushLongest >= 0.25,
+          ),
+          id + ' (' + n + ' players): blocked sections need an actual 3+ chain or 3+ weight/push',
+        );
+        if (level.teaches === 'longchain')
+          assert(
+            hard.some((k) => team.sections[k].chainLongest >= 0.25),
+            id + ': longchain lesson needs a 3+ rooted chain for 0.25s in a blocked section',
+          );
+        if (level.teaches === 'relay')
+          assert(
+            hard.reduce((v, k) => v + team.sections[k].relays, 0) >= 2,
+            id + ': relay lesson needs at least two throws in blocked sections',
+          );
         assert(
           result.won,
           `${id} (${n} players): replay did not reach the goal: ${JSON.stringify(result.final)}`,
@@ -818,9 +954,19 @@ async function checkTeams(physics, existing) {
         );
         if (level.teaches === 'combine')
           assert(
-            [team.weightLongest >= 0.25, team.chainLongest >= 0.25, evidence.throws >= 1].filter(Boolean)
-              .length >= 2,
-            `${id} (${n} players): combine needs two actual teamwork mechanics`,
+            hard.some((a, i) =>
+              hard
+                .slice(i + 1)
+                .some((b) =>
+                  team.sections[a].kinds.some((ka) =>
+                    team.sections[b].kinds.some((kb) => ka !== kb),
+                  ),
+                ),
+            ),
+            id +
+              ' (' +
+              n +
+              ' players): combine needs two different mechanics in two distinct blocked sections',
           );
         team.propUse.forEach((v, i) => assert(v >= 0.25, `${id}: prop ${i} bypassed`));
         team.ropeUse.forEach((v, i) => assert(v >= 0.25, `${id}: rope ${i} bypassed`));
@@ -834,23 +980,73 @@ async function checkTeams(physics, existing) {
           assert(laid.spinners[i].deadly || v >= 0.25, `${id}: spinning bar ${i} bypassed`),
         );
         evidence.near.forEach((v, i) => assert(v, `${id}: deadly thing ${i} outside route`));
+        // A solo control uses this team's selected geometry, with range tags removed
+        // so runReplay's one-player setup cannot discard 4/5/6-only mechanisms.
+        const soloLevel = { ...laid };
+        for (const key of [
+          'rects',
+          'ropes',
+          'seesaws',
+          'crates',
+          'fading',
+          'springs',
+          'hazards',
+          'movers',
+          'spinners',
+        ])
+          soloLevel[key] = (laid[key] ?? []).map(({ players, ...item }) => item);
         for (let p = 0; p < n; p++) {
           const solo = { ...replay, players: 1, frames: replay.frames.map((f) => [f[p]]) };
           assert.equal(
             (await physics.runReplay(level, solo)).won,
             false,
+            `${id}.p${n}: P${p + 1} solo bypass (original layout selection)`,
+          );
+          assert.equal(
+            (await physics.runReplay(soloLevel, solo)).won,
+            false,
             `${id}.p${n}: P${p + 1} solo bypass`,
           );
         }
         console.log(
-          `| ${id} | ${n} | ${result.seconds.toFixed(2)} | ${result.deaths.join(' / ')} | YES | ${ratio.toFixed(3)} | ${level.w}×${level.h} | ${segments.map((v) => v.toFixed(2)).join(' / ')} | ${team.chainSeconds.toFixed(2)} / ${team.weightSeconds.toFixed(2)} | ${evidence.throws} | 0/${n} |`,
+          `| ${id} | ${n} | ${result.seconds.toFixed(2)} | ${result.deaths.join(' / ')} | YES | ${ratio.toFixed(3)} | ${level.w}×${level.h} | ${segments.map((v) => v.toFixed(2)).join(' / ')} | ${team.sections.reduce((v, s) => v + s.chain, 0).toFixed(2)} / ${team.sections.reduce((v, s) => v + s.weight + s.push, 0).toFixed(2)} | ${team.sections.reduce((v, s) => v + s.relays, 0)} | 0/${n} |`,
+        );
+        console.log(id + '.p' + n + ' sections (zero-based):');
+        console.log(
+          '| Section | Needs crew (probe) | Replay mechanics | Longest chain / weight / push (s) | Relays |',
+        );
+        console.log('| ---: | :---: | --- | --- | ---: |');
+        team.sections.forEach((s, k) =>
+          console.log(
+            '| ' +
+              k +
+              ' | ' +
+              (hard.includes(k) ? 'YES' : 'no') +
+              ' | ' +
+              (s.kinds.join(', ') || '—') +
+              ' | ' +
+              [s.chainLongest, s.weightLongest, s.pushLongest]
+                .map((v) => v.toFixed(2))
+                .join(' / ') +
+              ' | ' +
+              s.relays +
+              ' |',
+          ),
         );
         replays.push({ replay, result, evidence, team, segments });
       }
-    entries.push({ level, replay: replays.find((r) => r.replay.players === 6).replay, replays });
+    entries.push({
+      level,
+      hard,
+      replay: replays.find((r) => r.replay.players === 6).replay,
+      replays,
+    });
     if (!process.argv.includes('--screenshots') && !process.argv.includes('--team-screenshots')) {
       const png = await readFile(join(teamDocs, `${id}.png`));
-      assert(png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), `${id}: invalid PNG`);
+      assert(
+        png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
+        `${id}: invalid PNG`,
+      );
       assert.equal(png.readUInt32BE(16), 1280);
       assert.equal(png.readUInt32BE(20), 720);
     }
@@ -869,24 +1065,75 @@ async function checkTeams(physics, existing) {
           `${a.level.id}/${b.level.id}: repeated team opening`,
         );
     }
-  if (entries.length === 6)
+  if (entries.length === 6) {
     assert(
-      entries.filter(({ level }) => {
-        if (teamLayoutGroups(level).length < 2) return false;
-        const four = physics.forPlayers(level, 4);
-        return [5, 6].some((n) => {
-          const more = physics.forPlayers(level, n);
-          const surface = (l) => surfaceCells(l).size;
-          const ropes = (l) => (l.ropes ?? []).reduce((v, r) => v + r.segments, 0);
-          return (
-            surface(more) < surface(four) ||
-            ropes(more) < ropes(four) ||
-            dangersOf(more).length > dangersOf(four).length
-          );
-        });
-      }).length >= 3,
-      'team levels: at least three must get harder with 5/6 players',
+      entries.some(({ level }) => level.teaches === 'longchain'),
+      'team levels: missing longchain lesson',
     );
+    assert(
+      entries.some(({ level }) => level.teaches === 'relay'),
+      'team levels: missing relay lesson',
+    );
+    const scaled = entries.filter(({ level, hard }) => {
+      const inHard = (item) => {
+        const x = item.x ?? item.anchor?.x ?? item.pivot?.x;
+        return hard.some(
+          (k) =>
+            x >= (k ? level.checkpoints[k - 1].x : level.spawn.x) &&
+            x <= (level.checkpoints[k]?.x ?? level.goal.x + level.goal.w),
+        );
+      };
+      const four = physics.forPlayers(level, 4);
+      return [5, 6].some((n) => {
+        const more = physics.forPlayers(level, n);
+        const area = (l) => surfaceCells({ ...l, rects: (l.rects ?? []).filter(inHard) }).size;
+        const ropes = (l) => (l.ropes ?? []).filter(inHard).reduce((v, r) => v + r.segments, 0);
+        const danger = (l) => dangersOf(l).filter((d) => inHard(dangerBox(d))).length;
+        const higher =
+          (more.rects ?? [])
+            .filter(inHard)
+            .some(
+              (r) =>
+                r.kind === 'peg' &&
+                !present(r, 4) &&
+                (four.rects ?? [])
+                  .filter(inHard)
+                  .some(
+                    (b) =>
+                      b.kind === 'peg' &&
+                      !present(b, n) &&
+                      r.x < b.x + b.w &&
+                      b.x < r.x + r.w &&
+                      r.y < b.y,
+                  ),
+            ) ||
+          (more.ropes ?? [])
+            .filter(inHard)
+            .some(
+              (r) =>
+                !present(r, 4) &&
+                (four.ropes ?? [])
+                  .filter(inHard)
+                  .some(
+                    (b) =>
+                      !present(b, n) &&
+                      r.anchor.x === b.anchor.x &&
+                      r.anchor.y + r.segments * r.segLen < b.anchor.y + b.segments * b.segLen,
+                  ),
+            );
+        return (
+          area(more) < area(four) ||
+          ropes(more) < ropes(four) ||
+          danger(more) > danger(four) ||
+          higher
+        );
+      });
+    });
+    assert(
+      scaled.length >= 3,
+      'team levels: at least three must get harder with 5/6 players inside probe-blocked sections',
+    );
+  }
   if (
     entries.length &&
     (process.argv.includes('--screenshots') ||
@@ -968,8 +1215,14 @@ async function serveTeams(entries, screenshot) {
     const playwright = createRequire(import.meta.url)(
       process.env.HANG_ON_PLAYWRIGHT || join(root, 'node_modules/playwright'),
     );
-    browser = await playwright.chromium.launch({ headless: true, executablePath: process.env.HANG_ON_CHROMIUM || undefined });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+    browser = await playwright.chromium.launch({
+      headless: true,
+      executablePath: process.env.HANG_ON_CHROMIUM || undefined,
+    });
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 720 },
+      deviceScaleFactor: 1,
+    });
     for (const { level } of entries) {
       await page.goto(`${url}/?id=${level.id}`);
       await page.waitForFunction(() => window.ready === true);
@@ -982,7 +1235,6 @@ async function serveTeams(entries, screenshot) {
     await new Promise((ok) => server.close(ok));
   }
 }
-
 try {
   const files = (await readdir(levelsDir)).filter((f) => f.endsWith('.json')).sort();
   const found = files.map((f) => f.slice(0, -'.json'.length));
