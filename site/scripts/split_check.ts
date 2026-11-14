@@ -467,6 +467,12 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("undo").click();
   await page.waitForTimeout(200);
   await shot("17b-put-back");
+  // its note changed, for the record to say what changed
+  await page.locator(".split-row").first().click();
+  const noteField = page.locator("label.split-field input");
+  await noteField.fill(`${await noteField.inputValue()}和酒`);
+  await button("saveChanges").click();
+  await page.locator(".split-keys").waitFor({ state: "hidden" });
 
   // everyone pays
   await page.getByRole("tab", { name: t("settle") }).click();
@@ -481,6 +487,17 @@ async function walk(lang: Lang, width: number, height: number) {
   ok((await page.locator(".split-seal").count()) === 1, `${lang} ${width}x${height}: all four marked, the page is stamped 两清`);
   await page.getByRole("tab", { name: t("expenses") }).click();
   await shot("12b-ledger-square");
+
+  // the record: what was done, by whom, when; with no server to ask, what this phone has waiting, and why there is no more
+  await button("more").click();
+  await page.getByRole("button", { name: re(t("history")) }).click();
+  const record = page.getByRole("dialog").locator(".split-history-line").first();
+  await record.waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+  await shot(local ? "37-history" : "37-history-unreached");
+  ok((await page.getByRole("dialog").getByRole("button", { name: t("revert"), exact: true }).count()) === 1 && (await page.getByRole("dialog").getByText(t("historyEdit").split("{")[0], { exact: false }).count()) >= 1, `${lang} ${width}x${height}: 改动记录 has the note's change, and offers to change it back`);
+  await page.keyboard.press("Escape");
+  await closed(page);
   await page.goto(`${base}/split`);
   await button("start").waitFor();
   await shot("14-ledgers");
@@ -506,6 +523,14 @@ async function walk(lang: Lang, width: number, height: number) {
     await page.getByRole("dialog").getByRole("button", { name: t("removeMineYes"), exact: true }).click();
     await page.getByRole("dialog").locator(".split-note", { hasText: t("removeFailed") }).waitFor({ timeout: 20_000 });
     await shot("26d-remove-failed");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    // the record needs the server too: it says so, with what this phone has waiting under it
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("history")) }).click();
+    await page.getByRole("dialog").getByText(t("historyFailed")).waitFor({ timeout: 20_000 });
+    await shot("26e-history-failed");
+    ok((await page.getByRole("dialog").getByText(t("notSentYet"), { exact: false }).count()) >= 1, `${lang} ${width}x${height}: with no signal, 改动记录 says it can't be read, and shows what is waiting on this phone`);
     await page.keyboard.press("Escape");
     await closed(page);
     await button("back").click();
@@ -1714,6 +1739,74 @@ async function behave() {
       ok(!!now && now !== account && after.made && after.waiting.length === 0 && after.acct === now && (await myLedgers(pa)).ledgers.some((m) => m.id === after.server.id) && (await onServer(pa, after.server.id, after.key)).ledger.entries.length === 1,
         "signed in again (here as another account): the ledger goes up with what was recorded, into that account's ledgers");
       for (const ctx of [a, a2, g]) await ctx.close();
+    }
+
+    // the record (改动记录): who did what; an edit changed back, a deleted expense brought back, from another phone
+    {
+      const a = await phone(390, 664, "zh");
+      const pa = await open(a, true);
+      await start(pa, "记录", ["阿甲"]);
+      await spend(pa, "30");
+      await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0 && JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made`);
+      const kept = (await keptBy(pa)).held[0];
+      const b = await phone(390, 664, "zh");
+      const pb = await b.newPage();
+      watch(pb, true);
+      await pb.goto(`${base}/split/${kept.server.id}#k=${kept.key}`);
+      await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await button(pb, "addExpense").waitFor();
+      const openRecord = async (page: Page) => {
+        await button(page, "more").click();
+        await page.getByRole("button", { name: re(t("history")) }).click();
+      };
+      const recordLines = async (page: Page) => (await page.getByRole("dialog").locator(".split-history-line").allTextContents()).map((x) => x.replace(/\s+/g, " ").trim());
+      await openRecord(pb);
+      await pb.getByRole("dialog").locator(".split-history-line").first().waitFor();
+      const first = await recordLines(pb);
+      ok(first.length === 1 && first[0].startsWith(`${say("zh", "historyExpense", { what: `${t("noNote")} $30.00` })}我 · ${t("today").split(" ")[0]}`), `another phone's record: what was done, by whom (by name), and when → ${first[0]}`);
+
+      // changed on the first phone while the record is open on the second: it reads it again
+      await pa.locator("button.split-row").first().click();
+      await pa.locator(".split-keys").waitFor();
+      while (((await amountShown(pa)) ?? "").replace(/[^0-9.]/g, "") !== "0") await pa.locator(".split-key").last().click();
+      await type(pa, "45");
+      await button(pa, "saveChanges").click();
+      await pa.locator(".split-keys").waitFor({ state: "hidden" });
+      await pb.getByRole("dialog").getByText(say("zh", "historyAmount", { from: "$30.00", to: "$45.00" })).waitFor({ timeout: 10_000 });
+      ok((await recordLines(pb))[0].startsWith(say("zh", "historyEdit", { what: `${t("noNote")} $45.00` })), "changed on the other phone, with the record open: the record reads it again, and says what changed");
+
+      // changed back from the record
+      await pb.getByRole("dialog").getByRole("button", { name: t("revert"), exact: true }).click();
+      await pa.locator(".split-row-amount", { hasText: "$30.00" }).waitFor({ timeout: 10_000 });
+      await pb.getByRole("dialog").getByText(say("zh", "historyAmount", { from: "$45.00", to: "$30.00" })).waitFor({ timeout: 10_000 });
+      ok((await recordLines(pb))[0].includes(`${t("you")} · `), "改回去: the expense is what it was, on both phones, and the record's newest line is yours");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+
+      // deleted on the first phone, brought back from the record on the second
+      await pa.locator("button.split-row").first().click();
+      await button(pa, "deleteExpense").click();
+      await pa.locator(".split-row").waitFor({ state: "detached", timeout: 5000 });
+      await pb.locator(".split-row").waitFor({ state: "detached", timeout: 10_000 });
+      await openRecord(pb);
+      await pb.getByRole("dialog").getByRole("button", { name: t("restore"), exact: true }).click();
+      await pa.locator(".split-row-amount", { hasText: "$30.00" }).waitFor({ timeout: 10_000 });
+      await pb.getByRole("dialog").getByText(say("zh", "historyBack", { what: `${t("noNote")} $30.00` })).waitFor({ timeout: 10_000 });
+      ok((await onServer(pa, kept.server.id, kept.key)).ledger.entries.filter((e) => e.gone === undefined).length === 1, "恢复: the deleted expense is back, on the server and both phones, and the record says so");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+
+      // no signal: the record can't be read, and says so; with one again, 再试一次 reads it
+      await b.setOffline(true);
+      await openRecord(pb);
+      await pb.getByRole("dialog").getByText(t("historyFailed")).waitFor({ timeout: 20_000 });
+      await b.setOffline(false);
+      await pb.getByRole("dialog").getByRole("button", { name: t("retry"), exact: true }).click();
+      await pb.getByRole("dialog").locator(".split-history-line").first().waitFor({ timeout: 10_000 });
+      ok((await pb.getByRole("dialog").getByText(t("historyFailed")).count()) === 0 && (await recordLines(pb)).length === 5, "no signal: the record says it can't be read; 再试一次 with a signal reads all five lines");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+      for (const ctx of [a, b]) await ctx.close();
     }
   }
 

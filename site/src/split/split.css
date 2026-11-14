@@ -680,6 +680,24 @@ label.split-field {
 label.split-field:focus-within {
   border-bottom-color: var(--gel);
 }
+/* 改动记录: a line for each thing done, newest first; one that offers something has its button at the
+   end, or under it where the line would get too narrow (English on a small phone) */
+.split-history-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-3);
+}
+.split-history-line > .split-row-text {
+  flex: 1 1 55%;
+}
+.split-history-line > .ui-button {
+  flex: none;
+}
+.split-history-line .split-note {
+  margin: 0;
+}
 /* in the ⋯ sheet a line leads with its icon and reads left to right */
 .split-menu-row > svg:first-child {
   color: var(--color-text);
