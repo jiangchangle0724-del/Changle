@@ -182,11 +182,15 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
           if (songNow.current !== songShown) {
             songShown = songNow.current;
             const next = outfitFor(songShown, wearing, moodNow.current());
-            void dancer.wear(next).then(() => {
-              if (gone || dancer.wearing() !== next) return;
-              wearing = next;
-              changeAt = performance.now();
-            });
+            dancer
+              .wear(next)
+              .then(() => {
+                if (gone || dancer.wearing() !== next) return;
+                wearing = next;
+                changeAt = performance.now();
+              })
+              // (its file didn't come: she keeps on what she has, and tries again next song)
+              .catch(() => {});
           }
           const b = clock.beat();
           const on = Number.isFinite(b) && b >= 0;
@@ -211,7 +215,7 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
           frameFor(sit);
           // the outfit's flash: bright, fading
           const c = changeAt >= 0 ? (t - changeAt) / 1000 / CHANGE_S : 1;
-          renderer.toneMappingExposure = 0.9 + (c < 1 ? 1.6 * (1 - c) * (1 - c) : 0);
+          renderer.toneMappingExposure = 0.9 + (c < 1 ? 1.0 * (1 - c) * (1 - c) : 0);
           dancer.root.updateMatrixWorld(true);
           camera.updateMatrixWorld(true);
           dancer.live(dt, camera);
