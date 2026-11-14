@@ -1418,3 +1418,62 @@
 .djt-actions .btn {
   flex: 1 1 200px;
 }
+
+/* 弹幕: lines from the phones across the whole screen, over the video too (DanmuLayer.tsx: each
+   row's lines at one speed, their times set there); with reduced motion they stand at the left */
+.dj-danmu {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dj-danmu-line {
+  position: absolute;
+  top: calc(12vh + var(--lane) * 9vh);
+  left: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--color-scrim);
+  box-shadow: var(--shadow-flat);
+  white-space: nowrap;
+  animation: dj-danmu-fly var(--dur) linear var(--wait) both;
+}
+.dj-danmu-who {
+  color: var(--color-text-2);
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.dj-danmu-text {
+  color: var(--color-text);
+  font-size: var(--text-2xl);
+  font-weight: 900;
+  line-height: var(--leading-tight);
+}
+@keyframes dj-danmu-fly {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-100vw - 100%));
+  }
+}
+@keyframes dj-danmu-still {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  10%,
+  85% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dj-danmu-line {
+    left: var(--gutter);
+    animation-name: dj-danmu-still;
+  }
+}

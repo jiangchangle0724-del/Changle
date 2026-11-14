@@ -461,16 +461,17 @@
   font-weight: 800;
 }
 
-/* the host's switch for 报幕 (the big screen saying who a song is from) */
-.djp-voice {
+/* the host's switches: 报幕 (the big screen saying who a song is from) and 弹幕 (two side by side: 48 px) */
+.djp-voice,
+.djp-danmu-switch {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
   gap: var(--space-2);
-  min-height: 40px;
+  min-height: var(--tap-crowded);
   padding: 0 var(--space-4);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--color-surface);
   color: var(--color-text-2);
   font: inherit;
@@ -479,7 +480,8 @@
   box-shadow: inset 0 0 0 1px var(--color-line);
   cursor: pointer;
 }
-.djp-voice[aria-pressed="true"] {
+.djp-voice[aria-pressed="true"],
+.djp-danmu-switch[aria-pressed="true"] {
   color: var(--color-text);
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
@@ -1350,4 +1352,84 @@
   margin: 0;
   color: var(--color-text-2);
   font-size: var(--text-sm);
+}
+
+/* 弹幕 on a phone (phone/DanmuPad.tsx): the ready ones, and a line of one's own */
+.djk-danmu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--r-sheet);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+.djk-danmu-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--gel-cyan);
+  font-size: var(--text-md);
+  font-weight: 900;
+}
+.djk-danmu-note,
+.djk-danmu-sent {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.djk-danmu-sent {
+  min-height: calc(var(--text-sm) * var(--leading));
+  color: var(--gel-cyan);
+  font-weight: 700;
+}
+.djk-danmu-ready {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.djk-danmu-chip {
+  min-height: var(--tap-crowded);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 800;
+  cursor: pointer;
+}
+.djk-danmu-chip:active:not(:disabled) {
+  background: var(--gel-cyan);
+  color: var(--color-on-accent);
+}
+.djk-danmu-chip:disabled {
+  color: var(--color-text-3);
+  cursor: default;
+}
+.djk-danmu-chip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.djk-danmu-own {
+  display: flex;
+  gap: var(--space-2);
+}
+.djk-danmu-input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--r-field);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+}
+.djk-danmu-input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
