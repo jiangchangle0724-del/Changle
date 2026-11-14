@@ -148,7 +148,7 @@ with sync_playwright() as p:
 
     # the night's recap
     # (the host's phone has no 结束这一场 since Nov 13: the night ends by itself; the check ends it now)
-    ok(amy.locator(".djp-host:not(.djp-mine) button").count() == 1 and amy.locator(".djp-seg").count() == 0, "the host's card: 报幕 alone (no stretches, no 结束这一场)")
+    ok(amy.locator(".djp-host:not(.djp-mine) button").count() == 2 and amy.locator(".djp-seg").count() == 0, "the host's card: 报幕 and 弹幕 alone (no stretches, no 结束这一场)")
     amy.evaluate("() => window.__djHost.phase('end')")
     ok(until(lambda: (view(tv) or {}).get("phase") == "end", 5000), "the set ends")
     ok(until(lambda: amy.get_by_role("button", name="再来一场").count() == 1, 4000), "over: the host's card has 再来一场")

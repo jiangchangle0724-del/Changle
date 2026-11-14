@@ -1,4 +1,4 @@
-import { Crown, Flame, Megaphone, MonitorSpeaker, Play, Snowflake } from "lucide-react";
+import { Crown, Flame, Megaphone, MessageSquareText, MonitorSpeaker, Play, Snowflake } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
@@ -12,6 +12,7 @@ import { useStore } from "../../store";
 import { TIMES_MIN, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
 import { DancePad } from "./phone/DancePad";
+import { DanmuPad } from "./phone/DanmuPad";
 import { DeckPad } from "./phone/DeckPad";
 import { MySongs } from "./phone/MySongs";
 import "../../styles/dj.css";
@@ -20,7 +21,7 @@ import "../../styles/dj-phone.css";
 /**
  * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The player at the
  * top (上一曲, 暂停 or 播放, 切歌: anyone), the song box and the 歌单, the sound pads, a 🔥 to push the
- * DJ, for the host 报幕 on or off (and at the end another set), and at the very bottom 跟着跳 (Steve
+ * DJ, 弹幕 to the TV, for the host 报幕 and 弹幕 on or off (and at the end another set), and at the very bottom 跟着跳 (Steve
  * on Nov 12: the deck's turntables, mixer, crossfader and DROP gone, dancing along moved down, and
  * the card with the night's stretch at the top gone too; on Nov 13: the host's stretches and 结束这一场
  * gone, "仅保留 announcement on": the night moves on by itself).
@@ -99,8 +100,8 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
       </p>
       <p>
         {zh
-          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
-          : "Everyone can ask for songs on their phone: type a song or paste a YouTube link, and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
+          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。还能发弹幕：点现成的或者自己写一句，带着你的名字从电视上飘过去。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
+          : "Everyone can ask for songs on their phone: type a song or paste a YouTube link, and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. Send comments too: a ready one or your own words fly across the TV with your name. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
       </p>
       <p>
         {zh
@@ -182,6 +183,9 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
           </section>
         )}
 
+        {/* 弹幕: a line across the TV (Steve on Nov 13) */}
+        <DanmuPad v={v} g={g} zh={zh} />
+
         {isHost && (
           <section className="djp-host" aria-label={zh ? "主人" : "Host"}>
             <span className="djp-host-label">
@@ -192,6 +196,11 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
             <button type="button" className="djp-voice" aria-pressed={v.voice !== false} onClick={() => g("voice", { on: v.voice === false })}>
               <Megaphone size={16} strokeWidth={2.4} />
               {v.voice !== false ? (zh ? "语音报幕：开" : "Announcements: on") : zh ? "语音报幕：关" : "Announcements: off"}
+            </button>
+            {/* 弹幕 on the TV (the switch for the new thing on the table, with 报幕) */}
+            <button type="button" className="djp-danmu-switch" aria-pressed={v.danmuOn !== false} onClick={() => g("danmu", { on: v.danmuOn === false })}>
+              <MessageSquareText size={16} strokeWidth={2.4} />
+              {v.danmuOn !== false ? (zh ? "弹幕：开" : "Comments on the TV: on") : zh ? "弹幕：关" : "Comments on the TV: off"}
             </button>
             {v.phase === "end" && (
               <button type="button" className="btn btn-primary btn-block" onClick={() => g("again")}>
