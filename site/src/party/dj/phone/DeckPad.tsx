@@ -31,7 +31,7 @@ export type { G } from "./Player";
  * plays at once. The room plays the songs asked for one after another (点歌模式).
  */
 export function DeckPad({ v }: { v: DjView }) {
-  const { g, me } = useRoom();
+  const { g, me, room } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
   const nameOf = useDjNames(zh);
@@ -46,8 +46,9 @@ export function DeckPad({ v }: { v: DjView }) {
       {/* a song file from this phone onto the 歌单 (anyone, Steve on Nov 13) */}
       <SendSongs v={v} zh={zh} />
       <Playlist v={v} me={me} g={g} zh={zh} />
-      {/* the sound board: categories, then their sounds, on the TV at once (Steve's own, Nov 13) */}
-      {v.phase !== "end" && <SoundBoard g={g} zh={zh} nameOf={nameOf} />}
+      {/* the sound board: categories, then their sounds, on the TV at once (Steve's own, Nov 13); with
+          no TV on, on this phone (Nov 14) */}
+      {v.phase !== "end" && <SoundBoard g={g} zh={zh} nameOf={nameOf} here={!(room?.screens ?? 0)} />}
     </section>
   );
 }

@@ -74,6 +74,9 @@ type PageBooth = {
   blocked: { key: string; why: LyriaWhy } | null;
   speaker: Speaker | null;
   starting: boolean;
+  /** a fresh sound being made in place of a stopped one (`renew`), and how many have been */
+  renewing: boolean;
+  renewed: number;
   error: boolean;
   listeners: Set<() => void>;
   dj: BoothDj;
@@ -95,6 +98,8 @@ function pageBooth(): PageBooth {
       blocked: null,
       speaker: null,
       starting: false,
+      renewing: false,
+      renewed: 0,
       error: false,
       listeners: new Set(),
     } as unknown as PageBooth;
@@ -127,6 +132,57 @@ function pageBooth(): PageBooth {
 }
 const statusOf = (b: PageBooth): BoothStatus => (b.speaker ? "on" : b.starting ? "starting" : b.error ? "error" : "idle");
 const tell = (b: PageBooth) => b.listeners.forEach((fn) => fn());
+
+/**
+ * A fresh sound for the booth, made inside the tap that asks for it (Steve on Nov 14: on the shared
+ * phone the sound stopped and a tap didn't bring it back). An iPhone's can stay stopped whatever
+ * it's told (WebKit bug 273511: its state "interrupted"; or "running" while its clock stands still),
+ * or play wrong once its sound went to the TV at another rate (speaker.ts, `ownRate`): a new one,
+ * made now, plays right. Whichever DJ played goes on into it (from a new stream, as after any
+ * restart; Lyria, at one of the owner's tables, starts again by itself); the old one is closed.
+ */
+function renew(b: PageBooth) {
+  const old = b.speaker;
+  if (!old || b.renewing) return;
+  let sp: Speaker;
+  try {
+    sp = new Speaker();
+  } catch {
+    old.resume();
+    return;
+  }
+  b.renewing = true;
+  sp.ready()
+    .then(() => {
+      if (b.speaker !== old) return sp.close();
+      if (b.lyria) {
+        const l = b.lyria;
+        b.lyria = null;
+        l.stop();
+      }
+      if (b.using === "local") b.local.attach(sp);
+      else {
+        b.using = "fake";
+        b.fake.attach(sp);
+      }
+      b.speaker = sp;
+      b.renewed += 1;
+      old.close();
+    })
+    .catch(() => {
+      sp.close();
+      old.resume();
+    })
+    .finally(() => {
+      b.renewing = false;
+      tell(b);
+    });
+}
+
+/** A sound whose clock runs this far off the page's (a share of its speed) is playing wrong. */
+const DRIFT = 0.03;
+/** Taps on a stopped sound this close together are one (a touch, then its click). */
+const WAKE_ONCE_MS = 700;
 
 /**
  * Song files, listened to one at a time (each is decoded and its beat found: a second or two a
@@ -529,26 +585,67 @@ export function useBooth({
   // the phone or tablet stopped the sound (the screen locked, a call): it takes a tap to wake it
   const [stopped, setStopped] = useState(false);
   const wakes = useRef(0);
+  // a sound stuck past waking (its clock stood still, or ran at the wrong speed), and taps since it
+  // last played that only woke it
+  const stuck = useRef(false);
+  const tried = useRef(0);
+  const lastWake = useRef(-Infinity);
   useEffect(() => {
     if (!speaker) return;
+    stuck.current = false;
+    tried.current = 0;
     // (also stopped: a sound that says it's running while its clock stands still, as a tablet's
     // can after the screen went dark: nudged once by itself, then the tap wakes it)
     let last = speaker.ctx.currentTime;
     let still = 0;
+    // (and one whose clock runs at the wrong speed against the page's, over the last 8 seconds: an
+    // iPhone's whose sound went somewhere at another rate)
+    const marks: { a: number; p: number }[] = [];
+    let off = 0;
     const id = window.setInterval(() => {
       const t = speaker.ctx.currentTime;
-      still = speaker.running && document.visibilityState === "visible" && t === last ? still + 1 : 0;
+      const p = performance.now();
+      const looking = document.visibilityState === "visible";
+      still = speaker.running && looking && t === last ? still + 1 : 0;
       last = t;
       if (still === 3) speaker.nudge();
-      setStopped(!speaker.running || still >= 5);
+      if (speaker.running && looking && still === 0) {
+        marks.push({ a: t, p });
+        if (marks.length > 9) marks.shift();
+        const r = marks.length === 9 ? (t - marks[0].a) / ((p - marks[0].p) / 1000) : 1;
+        off = Math.abs(r - 1) > DRIFT ? off + 1 : 0;
+      } else {
+        marks.length = 0;
+        off = 0;
+      }
+      stuck.current = still >= 5 || off >= 3;
+      const no = !speaker.running || stuck.current;
+      if (!no) tried.current = 0;
+      setStopped(no);
     }, 1000);
     return () => window.clearInterval(id);
   }, [speaker]);
+  // a tap: woken; a fresh sound instead when it's stuck past that (`renew`), or a tap that woke it
+  // already didn't keep it going
   const wake = useCallback(() => {
-    speaker?.resume();
+    const sp = booth.speaker;
+    // (one tap is a touch and a click: once)
+    const t = performance.now();
+    if (!sp || t - lastWake.current < WAKE_ONCE_MS) return;
+    lastWake.current = t;
     wakes.current += 1;
+    if ((sp.ctx.state as string) === "interrupted" || stuck.current || tried.current > 0) renew(booth);
+    else {
+      sp.resume();
+      tried.current += 1;
+    }
     setStopped(false);
-  }, [speaker]);
+  }, [booth]);
+  // local runs: the checks stop the sound and look for a fresh one (dj_shared_check.py)
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __djSound?: unknown }).__djSound = { renewed: () => booth.renewed, ctx: () => booth.speaker?.ctx ?? null, stopped: () => stopped };
+  }, [booth, stopped]);
 
   // once a minute: stalls since the last report, times the sound had to be woken, seconds played
   useEffect(() => {

@@ -34,8 +34,11 @@ const MOVES: ((b: number, a: number) => { x: number; y: number; r: number; s: nu
 
 /**
  * The lights and the dancers, driven from the speaker's own clock, frame by frame (no React
- * renders): `root` gets --pulse (the kick, for the lights), --flash (at most 3 a second), --beat
- * (where in the beat we are) and --spin (for the records); every `[data-dancer]` inside it moves.
+ * renders): every `[data-lit]` inside `root` gets --pulse (the kick, for the lights), --flash (at
+ * most 3 a second), --beat (where in the beat we are) and --spin (for the records); every
+ * `[data-dancer]` inside it moves. Only the few elements that use them get the values: set on the
+ * stage itself, all of its four hundred elements were worked out again every frame (Steve on Nov
+ * 14: the shared phone stuttered; a phone's processor spent half its time on that).
  */
 export function useFloorLoop(root: RefObject<HTMLElement | null>, clock: Clock, level: number, fires: RefObject<Map<string, number>>) {
   const lv = useRef(level);
@@ -65,10 +68,10 @@ export function useFloorLoop(root: RefObject<HTMLElement | null>, clock: Clock, 
       }
       lastE = e;
       flash *= Math.exp(-dt / 0.09);
-      el.style.setProperty("--pulse", pulse.toFixed(3));
-      el.style.setProperty("--flash", flash.toFixed(3));
-      el.style.setProperty("--beat", on ? (b - Math.floor(b)).toFixed(3) : "0");
-      el.style.setProperty("--spin", on ? `${((b * 0.444) % 1) * 360}deg` : "0deg");
+      const lit = { "--pulse": pulse.toFixed(3), "--flash": flash.toFixed(3), "--beat": on ? (b - Math.floor(b)).toFixed(3) : "0", "--spin": on ? `${((b * 0.444) % 1) * 360}deg` : "0deg" };
+      el.querySelectorAll<HTMLElement>("[data-lit]").forEach((x) => {
+        for (const [k, val] of Object.entries(lit)) x.style.setProperty(k, val);
+      });
       // the dancers: the night's energy sets how big they move; idle, a slow sway
       const a = calm ? 0.25 : 0.35 + 0.75 * lv.current;
       const list = el.querySelectorAll<HTMLElement>("[data-dancer]");

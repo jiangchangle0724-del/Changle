@@ -5941,5 +5941,33 @@ test("dj: the sound board (Steve on Nov 13: his own sounds, in categories, \"把
   ok(SFX_CATS.every((c) => SFX.some((x) => x.cat === c.id)) && new Set(SFX.map((x) => x.id)).size === SFX.length, "every category has sounds; every sound its own name");
 });
 
+test("dj: the shared phone's own 音效 (Steve on Nov 14: \"投屏的手机也可以发音效\"): the speaker plays sounds as the table's, under the same gaps; another screen with the code can't", () => {
+  const e = new RoomEngine(freshRoom("DJSS", clock), host);
+  e.screenHello("tv-ss", true, "dj");
+  e.hello("p1", "Amy", false);
+  e.flush();
+  const scr = (sid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.screenAct(sid, { x, ...rest });
+    return e.flush();
+  };
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const played = (o: Output) => o.events.filter((x) => x.k === "fx" && x.fx === "sfx").map((x) => (x as { pid?: string; data?: number[] }).pid + ":" + ((x as { data?: number[] }).data ?? []).join());
+  scr("tv-ss", "live", { source: "fake" });
+  // (the speaker says the bars: from then on it's the one)
+  scr("tv-ss", "grid", { at: clock, bar: 0, bpm: 125 });
+  const horn = SFX.findIndex((x) => x.id === "dj-airhorn");
+  ok(played(scr("tv-ss", "sfx", { i: horn })).join() === `${SHARED_BY}:${horn}`, "the speaker's air horn: played, as the table's");
+  ok(played(scr("tv-ss", "sfx", { i: 1 })).length === 0, "another from it straight after: not taken");
+  ok(played(g("p1", "sfx", { i: horn })).length === 0, "the same one from Amy a moment later: once for the room");
+  e.screenHello("tv-other", true, "dj");
+  e.flush();
+  clock += SFX_TIMES.roomGapMs;
+  ok(played(scr("tv-other", "sfx", { i: 2 })).length === 0, "another screen with the table's code: nothing");
+  ok(played(scr("tv-ss", "sfx", { i: 2 })).join() === `${SHARED_BY}:2`, "the speaker again a moment on: plays");
+});
+
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");
 process.exit(failures ? 1 : 0);

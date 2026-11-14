@@ -5,7 +5,9 @@ What it checks: every phone shows the nine categories first (in its language), n
 opens its sounds, ‹ and the phone's back button go back to the categories; a tap plays the sound on the
 TV at once (its own sound, the file from the site), a chip there saying who played what; the same
 sound from someone else straight after isn't played twice; different ones at once all play (four at
-most together); the TV has fetched the files ahead.
+most together); the TV has fetched the files ahead. With no TV on (Steve on Nov 14: "手机在没有连接
+电视的时候也可以在自己的手机上播放音效"), the board says so and a sound plays on the phone that pressed
+it (one with its sound on), the others told who played what.
 
 Needs the two local servers (site/README.md).
 usage: python3 scripts/dj_sfx_check.py
@@ -100,6 +102,25 @@ with sync_playwright() as p:
     ok(until(lambda: played(tv)["n"] >= n1 + 6, 6000), f"six different ones in a row all play ({played(tv)['n'] - n1})")
     ok(played(tv)["voices"] <= 4, f"four at most together ({played(tv)['voices']})")
     ok(until(lambda: (tv.evaluate("() => window.__sfxFetched || 0")) >= len(sfx), 30000, 500), f"the TV fetched every file ahead ({tv.evaluate('() => window.__sfxFetched || 0')} of {len(sfx)})")
+
+    # no TV on (Nov 14): the phone that presses plays it itself (Cal's sound is on; Amy's off, as set)
+    cal = phone(br, "Cal", "zh", sound=True)
+    cal.goto(BASE + f"#/r/{code}", wait_until="load")
+    cal.locator(".join-card input").fill("Cal")
+    cal.locator(".join-card button[type=submit]").click()
+    ok(until(lambda: cal.locator(".djk-cat").count() == 9, 10000), "Cal sits down: the board")
+    ok("点了电视上马上响" in text(cal, ".djk-board-title"), f"a TV on: they play there ({text(cal, '.djk-board-title')!r})")
+    tv.context.close()
+    ok(until(lambda: "电视没开" in text(cal, ".djk-board-title"), 15000), f"the TV gone: the board says so ({text(cal, '.djk-board-title')!r})")
+    cal.locator(".djk-cat.is-funny").click()
+    pick = cal.locator(".djk-sfx").nth(2)
+    name = pick.inner_text().strip()
+    pick.click()
+    ok(until(lambda: cal.evaluate("() => !!window.__sfx && window.__sfx.n >= 1"), 6000), f"it plays on Cal's phone ({cal.evaluate('() => window.__sfx || null')})")
+    ok(until(lambda: f"Cal · {name}" in text(amy, ".djk-said"), 3000), f"Amy's phone says who played what ({text(amy, '.djk-said')!r})")
+    ok(amy.evaluate("() => !window.__sfx"), "it doesn't play on hers")
+    cal.screenshot(path=os.path.join(OUT, "sfx-cal-2-no-tv.png"))
+    phones.append(cal)
 
     bad = [e for e in errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not bad, f"no errors {bad[:3]}")

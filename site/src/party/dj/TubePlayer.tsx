@@ -197,10 +197,12 @@ export function TubePlayer({
   // way to plays on
   // (a phone's song file playing: PhoneSong.tsx holds the DJ back while it plays)
   const fileSong = !!d.song?.local;
+  // (a fresh speaker, made when the sound stopped, mid-song: it gives way too)
   useEffect(() => {
     if (!speaker) return;
     if (held) speaker.giveWay(true, 0.4);
-    else if (!away.current && !fileSong) speaker.giveWay(false, 0.8);
+    else if (away.current) speaker.giveWay(true, 0.3);
+    else if (!fileSong) speaker.giveWay(false, 0.8);
   }, [held, speaker, fileSong]);
 
   // this browser wants a tap on the video (Safari, an iPhone: the night's first song), or this

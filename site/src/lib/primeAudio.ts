@@ -9,9 +9,11 @@ let primed: AudioContext | null = null;
 export function primeAudio() {
   try {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    // (an iPhone's or iPad's at the rate it plays at itself: the DJ booth's speaker.ts, ownRate)
+    const own = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     let c: AudioContext;
     try {
-      c = new AC({ sampleRate: 48000, latencyHint: "playback" });
+      c = own ? new AC({ latencyHint: "playback" }) : new AC({ sampleRate: 48000, latencyHint: "playback" });
     } catch {
       c = new AC();
     }

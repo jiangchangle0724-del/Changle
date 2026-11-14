@@ -97,7 +97,8 @@ export function PhoneSong({ v, crate, speaker, now, zh, nameOf, done }: { v: DjV
       }
       return;
     }
-    if (playing.current?.key === key) return;
+    // (a fresh speaker, made when the sound stopped: the song goes on in it, from where the room is)
+    if (playing.current?.key === key && playing.current.gain.context === ctx) return;
     stop();
     let gone = false;
     void decode(file).then((buf) => {

@@ -4,6 +4,7 @@ import { useRoom, useRoomEvent } from "../../../online/RoomContext";
 import { haptic } from "../../../lib/sfx";
 import { useBackCloses } from "../../../router";
 import { SFX, SFX_CATS, SFX_TIMES, sfxOf, type SfxCat } from "../../../shared/dj/sfx";
+import { playHere } from "../sfx/here";
 import { SFX_ICON } from "../sfx/look";
 import type { G } from "./Player";
 
@@ -11,10 +12,13 @@ import type { G } from "./Player";
  * The sound board on every phone (Steve on Nov 13: "首先对我的这些音效进行细致的分类…玩家看到的会先是这些
  * 分类进去之后才可以播放音效。把你的音效全部替换掉"): the categories first; a category opens its sounds
  * (the phone's back button, or ‹, goes back to the categories); a tap plays the sound on the TV at
- * once. Under it, who just played what.
+ * once. Under it, who just played what. Also on the shared phone's 音效 sheet (`me`: the table's,
+ * SHARED_BY; Nov 14). With no big screen on at the table (`here`), a sound plays on the phone
+ * that pressed it (Nov 14: "手机在没有连接电视的时候也可以在自己的手机上播放音效").
  */
-export function SoundBoard({ g, zh, nameOf }: { g: G; zh: boolean; nameOf: (pid: string) => string }) {
-  const { me } = useRoom();
+export function SoundBoard({ g, zh, nameOf, me: who, here = false }: { g: G; zh: boolean; nameOf: (pid: string) => string; me?: string; here?: boolean }) {
+  const { me: seat } = useRoom();
+  const me = who ?? seat;
   const [cat, setCat] = useState<SfxCat | null>(null);
   useBackCloses(cat !== null, () => setCat(null));
   const at = useRef(0);
@@ -24,6 +28,7 @@ export function SoundBoard({ g, zh, nameOf }: { g: G; zh: boolean; nameOf: (pid:
     if (t - at.current < SFX_TIMES.gapMs) return;
     at.current = t;
     g("sfx", { i });
+    if (here) playHere(i);
     haptic(12);
     setHit((h) => ({ i, n: (h?.n ?? 0) + 1 }));
   };
@@ -50,7 +55,19 @@ export function SoundBoard({ g, zh, nameOf }: { g: G; zh: boolean; nameOf: (pid:
     <section className="djk-board" aria-label={zh ? "音效" : "Sounds"}>
       {!open ? (
         <>
-          <span className="djk-board-title">{zh ? "音效：选一类，点了电视上马上响" : "Sounds: pick a kind, they play on the TV at once"}</span>
+          <span className="djk-board-title">
+            {who
+              ? zh
+                ? "音效：选一类，点了马上响"
+                : "Sounds: pick a kind, they play at once"
+              : here
+                ? zh
+                  ? "音效：电视没开，点了在这台手机上响"
+                  : "Sounds: no TV on, so they play on this phone"
+                : zh
+                  ? "音效：选一类，点了电视上马上响"
+                  : "Sounds: pick a kind, they play on the TV at once"}
+          </span>
           <div className="djk-cats">
             {SFX_CATS.map((c) => {
               const Icon = SFX_ICON[c.id];

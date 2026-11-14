@@ -46,7 +46,7 @@ export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
     const gain = side === "a" ? Math.cos((d.fader * Math.PI) / 2) : Math.sin((d.fader * Math.PI) / 2);
     return (
       <div className={`dk-deck ${on === side ? "is-on" : ""} ${cue === side ? "is-cued" : ""}`} style={{ ["--gain" as string]: gain } as CSSProperties}>
-        <span className="dk-record" aria-hidden="true" />
+        <span className="dk-record" data-lit aria-hidden="true" />
         <span className="dk-style">
           <span className="dk-side">{side.toUpperCase()}</span> {d.local ? (song ? song.t : zh ? "准备中" : "Loading") : style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}
         </span>
@@ -89,12 +89,12 @@ export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
         <span className="dk-fader-who">{held ? (zh ? `${nameOf(d.faderBy!)} 在推推子` : `${nameOf(d.faderBy!)} on the crossfader`) : " "}</span>
         {v.juke ? (
           // 点歌模式: no build-up to fill
-          <div className="dk-meter is-juke">
+          <div className="dk-meter is-juke" data-lit>
             <ListMusic size={22} aria-hidden="true" />
             <span className="dk-meter-word">{zh ? "点歌模式 · 一首接一首" : "Jukebox · one after another"}</span>
           </div>
         ) : (
-          <div className={`dk-meter ${d.drop ? "is-full" : ""}`} style={{ ["--level" as string]: level } as CSSProperties}>
+          <div className={`dk-meter ${d.drop ? "is-full" : ""}`} data-lit style={{ ["--level" as string]: level } as CSSProperties}>
             <span className="dk-meter-fill" />
             <span className="dk-meter-word">{zh ? "蓄力" : "Build-up"}</span>
             <span className="dk-meter-pct tabular">{Math.round(level * 100)}%</span>

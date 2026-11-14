@@ -88,15 +88,15 @@ export function DjTestPage() {
       </header>
 
       <div className={`djt-stage dj-stage is-live is-${stage}`} ref={root}>
-        <div className="dj-sky" aria-hidden="true" />
-        <div className="dj-beams" aria-hidden="true">
+        <div className="dj-sky" data-lit aria-hidden="true" />
+        <div className="dj-beams" data-lit aria-hidden="true">
           {[0, 1, 2, 3, 4].map((k) => (
             <span key={k} style={{ ["--k" as string]: k }} />
           ))}
         </div>
         <div className="dj-plane" aria-hidden="true" />
         <Floor seats={DANCERS} flames={[]} />
-        <div className="dj-flash" aria-hidden="true" />
+        <div className="dj-flash" data-lit aria-hidden="true" />
       </div>
 
       <main className="djt-body">

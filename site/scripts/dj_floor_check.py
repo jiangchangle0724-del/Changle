@@ -119,9 +119,12 @@ with sync_playwright() as p:
     ok(said(tv) == [], "nothing said yet")
     ask(ben, "reggaeton uno")
     ok(until(lambda: (deck(tv).get("up") or {}).get("by") == pid["Ben"], 4000), "Ben's song is up next (latin)")
+    # (what shows across the floor, kept as it comes: it's up for a few seconds only)
+    tv.evaluate("() => { window.__shown = []; new MutationObserver(() => { for (const el of document.querySelectorAll('.dj-drop.is-say')) if (!window.__shown.includes(el.textContent)) window.__shown.push(el.textContent); }).observe(document.body, { childList: true, subtree: true }); }")
     drop_into(tv, phones, "latin", pid["Ben"])
     ok("Next up, a request from Ben" in said(tv), f"报幕: as the switch started the TV said who it's from ({said(tv)})")
     ok(len(said(tv)) == 1, "once")
+    ok("Next up, a request from Ben" in tv.evaluate("() => window.__shown"), f"and showed it across the floor (an iPhone only shows it: Nov 14) ({tv.evaluate('() => window.__shown')})")
     # (Latin plays half a minute or more, so the recap counts it: the next switch lands on time now)
     tv.wait_for_timeout(32000)
 
