@@ -22,6 +22,8 @@ export interface Env {
   ACCOUNTS: DurableObjectNamespace<AccountDO>;
   /** the rooms server (site/worker), which says whose a sign-in is */
   ROOMS: Fetcher;
+  /** receipt photos (stage three): the private bucket split-files, read and written only here */
+  FILES: R2Bucket;
   /** local runs and tests only: "1" lifts the daily allowance of new ledgers per network (not per account) */
   ALLOW_TEST_SETTINGS?: string;
 }
