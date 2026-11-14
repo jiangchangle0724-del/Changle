@@ -106,7 +106,7 @@ with sync_playwright() as p:
         ph.goto(BASE + f"#/r/{code}", wait_until="load")
         ph.locator(".join-card input").fill(name)
         ph.locator(".join-card button[type=submit]").click()
-        ok(until(lambda: ph.locator(".djk-pad").count() == 12, 10000), f"{name}'s phone shows the booth")
+        ok(until(lambda: ph.locator(".djk-cat").count() == 9, 10000), f"{name}'s phone shows the booth")
         phones.append(ph)
     amy, ben, cat = phones
     pid = {n: me for n, me in zip(("Amy", "Ben", "Cat"), [x.evaluate("() => window.__room && window.__room.you") for x in phones])}

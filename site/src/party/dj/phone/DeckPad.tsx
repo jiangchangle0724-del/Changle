@@ -1,20 +1,21 @@
 import { ClipboardPaste, ListMusic, ListOrdered, Search, Shuffle, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useRoom, useTicker } from "../../../online/RoomContext";
 import { reqOrder, rested } from "../../../shared/dj/deck";
-import { DECK, MOVES, OVER_SONG, PAD_IDS, REQ_CHARS, type PadId } from "../../../shared/dj/types";
+import { DECK, REQ_CHARS } from "../../../shared/dj/types";
 import type { DjView, ReqView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
 import { useStore } from "../../../store";
 import { dataUrl } from "../../../online/config";
 import type { CrateSong } from "../../../shared/dj/types";
-import { PADS, songName } from "../deck/words";
+import { songName } from "../deck/words";
 import { ytIdOf, type YtHit } from "../../../shared/dj/youtube";
 import { ytInfo, ytSearch } from "./youtube";
 import { EmptyState } from "../../../ui/EmptyState";
 import { Skeleton } from "../../../ui/Skeleton";
 import { Player, type G } from "./Player";
 import { SendSongs } from "./SendSongs";
+import { SoundBoard } from "./SoundBoard";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -22,42 +23,21 @@ import { useDjNames } from "../names";
 
 export type { G } from "./Player";
 
-const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
-
 /**
  * 打碟 · DJ Booth on a phone (Steve on Nov 12: the turntables, the mixer, the crossfader and the
  * build-up and DROP gone, "不需要drop了"): the player at the top (上一曲, 暂停 or 播放, 切歌, for
- * anyone at the table), the song box, the night's 歌单, and the sound pads, which the big screen
- * plays on the next beat. The room plays the songs asked for one after another (点歌模式).
+ * anyone at the table), the song box, songs from this phone, the night's 歌单, and the sound board
+ * (Steve's own sounds in categories since Nov 13; the twelve pads before), which the big screen
+ * plays at once. The room plays the songs asked for one after another (点歌模式).
  */
 export function DeckPad({ v }: { v: DjView }) {
   const { g, me } = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
   const nameOf = useDjNames(zh);
-  const d = v.deck;
   const playingNow = v.phase !== "wait" && v.phase !== "end";
-  // the pads that work the music wait while a whole song plays on the TV, or the room is paused
-  // (the ones that are a sound of their own play over it)
-  const live = playingNow && !d.song && !d.paused;
   // (the 歌单's order: one player's two songs 10 minutes apart)
   useTicker(playingNow, 4000);
-
-  /* ---------------- someone else's pad, or song, for a moment */
-  const [said, setSaid] = useState<{ id: number; text: string }[]>([]);
-  const seq = useRef(0);
-  const say = (text: string) => {
-    const id = ++seq.current;
-    setSaid((l) => [...l.slice(-2), { id, text }]);
-    window.setTimeout(() => setSaid((l) => l.filter((x) => x.id !== id)), 2000);
-  };
-  useRoomEvent((e) => {
-    if (e.k !== "fx" || !e.pid || e.pid === me) return;
-    if (e.fx === "pad") {
-      const pad = PAD_IDS[e.data?.[0] ?? -1];
-      if (pad) say(`${nameOf(e.pid)} · ${L(PADS[pad].name, zh)}`);
-    } else if (e.fx === "req") say(zh ? `${nameOf(e.pid)} 点了一首歌` : `${nameOf(e.pid)} asked for a song`);
-  });
 
   return (
     <section className="djk" aria-label={zh ? "点歌" : "Songs"}>
@@ -66,42 +46,9 @@ export function DeckPad({ v }: { v: DjView }) {
       {/* a song file from this phone onto the 歌单 (anyone, Steve on Nov 13) */}
       <SendSongs v={v} zh={zh} />
       <Playlist v={v} me={me} g={g} zh={zh} />
-      <section className="djk-sounds" aria-label={zh ? "音效" : "Sounds"}>
-        <span className="djk-sounds-title">{zh ? "音效：电视上下一拍响" : "Sounds: on the TV from the next beat"}</span>
-        <div className="djk-pads">
-          {PAD_IDS.map((p) => (
-            <Pad key={p} pad={p} live={live || (playingNow && (!!d.song || !!d.paused) && OVER_SONG.includes(p))} braking={MOVES.includes(p) && !!d.drop} g={g} zh={zh} />
-          ))}
-        </div>
-        <p className="djk-said" aria-live="polite">
-          {said.map((x) => (
-            <span key={x.id}>{x.text}</span>
-          ))}
-        </p>
-      </section>
+      {/* the sound board: categories, then their sounds, on the TV at once (Steve's own, Nov 13) */}
+      {v.phase !== "end" && <SoundBoard g={g} zh={zh} nameOf={nameOf} />}
     </section>
-  );
-}
-
-/** One effect pad: it plays on the big screen from the next beat. */
-function Pad({ pad, live, braking, g, zh }: { pad: PadId; live: boolean; braking: boolean; g: G; zh: boolean }) {
-  const p = PADS[pad];
-  const Icon = p.icon;
-  const at = useRef(0);
-  const [hit, setHit] = useState(0);
-  const press = () => {
-    const tNow = performance.now();
-    if (tNow - at.current < DECK.padGapMs) return;
-    at.current = tNow;
-    g("pad", { pad });
-    haptic(12);
-    setHit((n) => n + 1);
-  };
-  return (
-    <button type="button" className={`djk-pad is-${pad}`} disabled={!live || braking} onClick={press} title={L(p.what, zh)}>
-      <Icon size={24} key={hit} className={hit ? "is-hit" : ""} aria-hidden="true" />
-      <span>{L(p.name, zh)}</span>
-    </button>
   );
 }
 

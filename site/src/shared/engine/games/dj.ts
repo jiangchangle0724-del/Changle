@@ -13,6 +13,7 @@ import { SONG_ROWS } from "../../../data/songs";
 import { ENERGY, FAKE_MIX, heatLean, LEAN_MS, mixFor, playing } from "../../dj/curve";
 import { DANCE } from "../../dj/dance";
 import { DANMU, DANMU_READY, maskDanmu } from "../../dj/danmu";
+import { SFX, SFX_TIMES } from "../../dj/sfx";
 import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, rested, styleOn } from "../../dj/deck";
 import { hintOf, styleForRequest, trackFor } from "../../dj/requests";
 import {
@@ -95,6 +96,8 @@ function fresh(set: number): RoomState {
     danmuN: 0,
     danmuOn: true,
     danmuAt: {},
+    sfxAt: {},
+    sfxLast: [],
   };
 }
 
@@ -122,6 +125,8 @@ function norm(s: RoomState): RoomState {
   s.danmuN ??= 0;
   s.danmuOn ??= true;
   s.danmuAt ??= {};
+  s.sfxAt ??= {};
+  s.sfxLast ??= [];
   // a deck saved before a field existed gets it fresh
   s.deck = { ...freshDeck(), ...s.deck };
   return s;
@@ -1073,6 +1078,20 @@ export const dj: GameDef<RoomState> = {
         s.danmuN += 1;
         s.danmu = keep([...s.danmu, { n: s.danmuN, pid, at: api.now, ...(p !== null ? { p } : { t }) }], DANMU.keep);
         api.light();
+        return;
+      }
+      case "sfx": {
+        // the sound board (Steve on Nov 13: his own sounds, in categories, for everyone): sound `i`
+        // on the big screen at once, over whatever plays; one per SFX_TIMES.takeMs a phone, and the
+        // same sound once per SFX_TIMES.roomGapMs for the room. Light: a party presses lots
+        const i = typeof g.i === "number" && Number.isInteger(g.i) && g.i >= 0 && g.i < SFX.length ? g.i : -1;
+        const now = api.now;
+        if (i < 0 || s.phase === "end" || (s.sfxAt[pid] ?? -Infinity) > now - SFX_TIMES.takeMs) return api.quiet();
+        if (s.sfxLast.some((x) => x.i === i && x.at > now - SFX_TIMES.roomGapMs)) return api.quiet();
+        s.sfxAt[pid] = now;
+        s.sfxLast = keep([...s.sfxLast.filter((x) => x.at > now - SFX_TIMES.roomGapMs), { i, at: now }], 20);
+        api.light();
+        api.fx("sfx", pid, [i]);
         return;
       }
       case "danmu": {

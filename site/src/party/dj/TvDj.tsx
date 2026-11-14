@@ -28,6 +28,7 @@ import { danceBpm } from "../../shared/dj/youtube";
 import { ytBpm } from "./phone/youtube";
 import { DanmuLayer } from "./DanmuLayer";
 import { PhoneSong } from "./PhoneSong";
+import { SfxPlayer } from "./sfx/player";
 import "../../styles/dj.css";
 import { useDjNames } from "./names";
 
@@ -90,8 +91,19 @@ export default function TvDj({ v }: { v: DjView }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crateKey, g]);
   const { speaker, dj } = booth;
-  // the beginner deck: every pad pressed at the table plays here, on the next beat
-  const chips = usePadEvents(booth.pad);
+  // the sound board (Steve's own sounds, Nov 13): in this page's own sound, the files fetched ahead
+  // once the music's on
+  const sfx = useMemo(() => (speaker ? new SfxPlayer(speaker.ctx) : null), [speaker]);
+  useEffect(() => {
+    if (!sfx) return;
+    const t = window.setTimeout(() => void sfx.prefetch(), 3000);
+    return () => {
+      window.clearTimeout(t);
+      sfx.dispose();
+    };
+  }, [sfx]);
+  // every pad (an older phone's) or sound pressed at the table plays here
+  const chips = usePadEvents(booth.pad, (i) => void sfx?.play(i));
 
   // opened from the game's card as the shared phone (Steve on Nov 11: "直接开始播放音乐"): the
   // card's tap woke the sound, so the music starts with no tap here
