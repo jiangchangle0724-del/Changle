@@ -4,10 +4,14 @@ export type Lang = "zh" | "en";
 
 /** A Vancouver calendar day: "2026-11-21". */
 export type Day = string;
-/** A part of a day; "day" is the whole day (a gathering asked about by the day). */
-export type Part = "am" | "pm" | "eve" | "day";
-/** Asked by the half day (morning, afternoon, evening) or by the day. */
-export type Grain = "half" | "day";
+/**
+ * A part of a day. By the period: dawn 凌晨 0:00–6:00, morning 早上 6:00–11:00, noon 中午
+ * 11:00–14:00, afternoon 下午 14:00–18:00, eve 晚上 18:00–23:59. By the half day, as gatherings
+ * made before 2026-11-14 were asked: am, pm, eve. "day" is the whole day.
+ */
+export type Part = "dawn" | "morning" | "noon" | "afternoon" | "am" | "pm" | "eve" | "day";
+/** Asked by the period of the day (凌晨 to 晚上), or by the day. "half" (上午, 下午, 晚上) is how gatherings made before 2026-11-14 were asked. */
+export type Grain = "periods" | "day" | "half";
 /** One thing people answer: a day and a part, "2026-11-21:eve". */
 export type SlotKey = string;
 /** 2: free (有空). 1: could move things (可以调). A slot not in someone's answers: not free. */

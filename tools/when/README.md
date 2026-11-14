@@ -46,6 +46,23 @@ when a connection drops). The server pushes the gathering to every open page ove
 (`/when/api/e/<code>/ws`, hibernating, so an idle gathering costs nothing). When the socket is down
 the page asks again every ten seconds, and the moment it comes back to the front.
 
+### Periods of the day
+
+A new gathering asks by the period of the day, five to a day, each with its hours at the top of
+its column (`partsOf("periods")` in `src/engine/slots.ts`):
+
+| 凌晨 Night | 早上 Morning | 中午 Midday | 下午 Afternoon | 晚上 Evening |
+| --- | --- | --- | --- | --- |
+| 0:00–6:00 | 6:00–11:00 | 11:00–14:00 | 14:00–18:00 | 18:00–23:59 |
+
+or by the day. In sentences 凌晨 is "early hours" in English: 凌晨 on a Saturday is what English
+calls Friday night. Gatherings made before 2026-11-14 were asked by the half day (上午, 下午,
+晚上); they open and save as they always did, and a page opened before then can still make one.
+
+The grid's side shows each day short ("周一 11/16") so the five keep a crowded tap target's width
+from a 375px phone up; on a narrower phone the day's name goes on a line of its own above its
+five.
+
 ### Holidays on the grid
 
 Above a day in the grid, one line says what that day is, in the page's language
@@ -65,7 +82,9 @@ that the grid says nothing until the next years are added there.
 
 In "my times", three chips above the grid fill in many slots with one tap: **all free**,
 **weekends** (when some of the days, but not all, are weekend days) and **evenings** (when the
-gathering asks by the half day). There, a day's name is a button too, and fills in its row. Each
+gathering asks by the period). There, a day's name is a button too, and fills in its row. None
+of them covers 凌晨: nobody who says "any time" means the middle of the night, and someone who
+does taps those themselves (the line that comes up says so). Each
 says "free" for every slot it covers and is lit while they all are; pressed then, it takes them
 back. The rules are in `src/engine/quick.ts`.
 
@@ -117,8 +136,9 @@ Every page also asks what's next (`src/client/ui/After.tsx`; the rules are in
   the gathering's link under them, and as a picture (above).
 - **Where to eat**: on to 随便 (changle.ca/eat). Only a host gets the link, so one gathering opens
   one table; everyone else is told to wait for the table's link. The link carries what is known:
-  `/eat/?from=when&code=<code>&date=2026-11-21&time=18:30&occasion=friends&people=7` (lunch at
-  12:00 for a morning or an afternoon, dinner at 18:30 otherwise; `people` is everyone who is free
+  `/eat/?from=when&code=<code>&date=2026-11-21&time=18:30&occasion=friends&people=7` (宵夜 at
+  0:30 in the early hours, 早茶 at 10:00 in the morning, lunch at 12:00 at midday and for the old
+  half days' morning and afternoon, afternoon tea at 15:00, dinner at 18:30 otherwise; `people` is everyone who is free
   or could move things for that slot). 随便 doesn't read these yet, so the page also says which
   day and time to pick there. 随便 plans meals for today and the six days after: for a day further
   off, the button waits until that week. Inside WeChat, where Google refuses its sign-in, a note
