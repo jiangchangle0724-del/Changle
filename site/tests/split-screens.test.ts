@@ -3,32 +3,43 @@
  * Run with `npx tsx tests/split-screens.test.ts`
  *  1. The keypad: what the amount reads after each key, and what a typed field lets through.
  *  2. Money as it is written for a person to read.
- *  3. 记一笔 while it is filled in: a draft, the three ways of sharing, moving between them.
+ *  3. 记一笔 while it is filled in: a draft, the three ways of sharing, moving between them;
+ *     and paid in another currency: the rate it starts with, what it comes to, what is kept.
  *  4. What can be done to a ledger: every change, and every change that is refused.
  *  5. The plan's example weekend, recorded the way the screens record it, and the lines they say.
  *  6. What is kept on the phone, and what the server answers, however either comes back.
  *  7. What the screens say about the server: nothing while in step, and what didn't stick by name.
  *  8. An invitation: the link, the key in it, what is pasted into the chat, the code to scan.
  *  9. Words: both languages for every one, the same blanks in each, none left unused.
- * 10. The screens write nothing of their own: tokens only, and no words outside the table.
+ * 10. The screens write nothing of their own: tokens only, and no words outside the table. The
+ *     site's sign-in is read by the name the site keeps it under.
  * 11. Still hidden: no way in but its address.
+ * 12. The ledger's record (改动记录): every kind of line, who and when, what an edit changed, and
+ *     what a line offers (an expense changed back, or brought back within 30 days).
+ * 13. The 结清图: what the picture of the plan says, when it is out of date, and what the phone
+ *     keeps of it.
  */
 import QRCode from "qrcode";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { balances, expensesOf, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
-import { amountOf, blankDraft, draftOf, draftProblem, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
+import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, decimalsOf, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
 import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
-import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
-import { asPushed, asSnapshot } from "../src/split/shape";
+import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, paidId, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
+import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
+import { SESSION_KEY } from "../src/split/net";
+import { historyOf, RESTORE_DAYS, whenText, type Logged } from "../src/split/history";
+import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split/picture";
+import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
+import { listed } from "../src/split/syncing";
 import { say, W, type Word } from "../src/split/words";
 import { CURRENCIES } from "../src/tools/money";
 import { randomLedger, rng } from "./split/ledgers";
@@ -132,24 +143,26 @@ const five: Ledger = startLedger("L", "惠斯勒周末", "CAD", [
   { id: "l", name: "小李" },
 ]);
 const roster = five.members.map((x) => x.id);
+/** The moment the drafts here are made at. */
+const NOW = Date.UTC(2026, 10, 13, 19, 0);
 {
-  const blank = blankDraft(five, "s");
-  eq([blank.payer, blank.how, blank.among, blank.text], ["s", "equal", roster, ""], "a new expense starts paid by you, shared equally by everyone");
-  eq(blankDraft(five, undefined).payer, "s", "with nobody known as you, by the first on the roster");
-  eq(blankDraft(five, "gone").payer, "s", "and the same when 'you' is no longer in the ledger");
-  eq(draftProblem(blank, five, 2), { what: "amount" }, "nothing typed yet");
-  eq(draftProblem({ ...blank, text: "0" }, five, 2), { what: "amount" }, "zero isn't an amount");
-  eq(draftProblem({ ...blank, text: "0.00" }, five, 2), { what: "amount" }, "nor is 0.00");
+  const blank = blankDraft(five, "s", NOW);
+  eq([blank.payer, blank.how, blank.among, blank.text, blank.currency, blank.rate], ["s", "equal", roster, "", "CAD", ""], "a new expense starts paid by you, shared equally by everyone, in the ledger's currency");
+  eq(blankDraft(five, undefined, NOW).payer, "s", "with nobody known as you, by the first on the roster");
+  eq(blankDraft(five, "gone", NOW).payer, "s", "and the same when 'you' is no longer in the ledger");
+  eq(draftProblem(blank, five), { what: "amount" }, "nothing typed yet");
+  eq(draftProblem({ ...blank, text: "0" }, five), { what: "amount" }, "zero isn't an amount");
+  eq(draftProblem({ ...blank, text: "0.00" }, five), { what: "amount" }, "nor is 0.00");
   const d: Draft = { ...blank, text: "86.40" };
-  eq(draftProblem(d, five, 2), null, "86.40 between five can be recorded");
-  eq(amountOf(d, 2), 8640, "as 8640 cents");
+  eq(draftProblem(d, five), null, "86.40 between five can be recorded");
+  eq(amountOf(d, five), 8640, "as 8640 cents");
   eq(splitOf(d, 2), { how: "equal", among: roster }, "shared equally by all five");
 
   // four of the five
   const four: Draft = { ...d, among: ["s", "w", "m", "j"] };
   eq(sharers(four, five, 2), ["s", "w", "m", "j"], "one person left out");
   eq(sharers({ ...d, among: ["j", "s"] }, five, 2), ["s", "j"], "who takes part is read in roster order, whatever order they were ticked in");
-  eq(draftProblem({ ...d, among: [] }, five, 2), { what: "nobody" }, "everyone left out");
+  eq(draftProblem({ ...d, among: [] }, five), { what: "nobody" }, "everyone left out");
 
   // by shares: the same people, one share each to start
   const byShares = shareBy(four, "shares", five, 2, 0);
@@ -158,7 +171,7 @@ const roster = five.members.map((x) => x.id);
   const family: Draft = { ...byShares, shares: { ...byShares.shares, s: 2, j: 0 } };
   eq(sharers(family, five, 2), ["s", "w", "m"], "no shares takes no part");
   eq(splitOf(family, 2), { how: "shares", shares: { s: 2, w: 1, m: 1 } }, "and isn't kept");
-  eq(draftProblem(family, five, 2), null, "2 : 1 : 1 can be recorded");
+  eq(draftProblem(family, five), null, "2 : 1 : 1 can be recorded");
   eq(shareBy({ ...d, among: [] }, "shares", five, 2, 0).shares, { s: 1, w: 1, m: 1, j: 1, l: 1 }, "from nobody, by shares starts with everyone");
 
   // by amounts: each starts from exactly what they bore the way it was shared before, whoever's turn the odd cents are
@@ -166,24 +179,170 @@ const roster = five.members.map((x) => x.id);
     const fromShares = shareBy(family, "exact", five, 2, rot);
     const was = portions(8640, splitOf(family, 2), rot, roster);
     eq(Object.fromEntries(Object.entries(fromShares.amounts).map(([id, text]) => [id, toMinor(text, 2)])), was, `turn ${rot}: by amounts starts from what 2 : 1 : 1 gave each`);
-    ok(draftProblem(fromShares, five, 2) === null, `turn ${rot}: and adds up before anyone changes a figure`);
+    ok(draftProblem(fromShares, five) === null, `turn ${rot}: and adds up before anyone changes a figure`);
     const odd: Draft = { ...d, text: "100", among: ["s", "w", "m"] };
     eq(Object.fromEntries(Object.entries(shareBy(odd, "exact", five, 2, rot).amounts).map(([id, text]) => [id, toMinor(text, 2)])), portions(10000, splitOf(odd, 2), rot, roster), `turn ${rot}: $100 between three, the odd cent where the sheet showed it`);
   }
   const typedOut = shareBy(four, "exact", five, 2, 0);
   eq(typedOut.amounts, { s: "21.60", w: "21.60", m: "21.60", j: "21.60" }, "86.40 between four, typed out");
-  eq(draftProblem({ ...typedOut, amounts: { ...typedOut.amounts, s: "40" } }, five, 2), { what: "sum", off: -1840 }, "40 for one of them is 18.40 too much");
-  eq(draftProblem({ ...typedOut, amounts: { s: "40", w: "40" } }, five, 2), { what: "sum", off: 640 }, "40 and 40 leaves 6.40 to share");
+  eq(draftProblem({ ...typedOut, amounts: { ...typedOut.amounts, s: "40" } }, five), { what: "sum", off: -1840 }, "40 for one of them is 18.40 too much");
+  eq(draftProblem({ ...typedOut, amounts: { s: "40", w: "40" } }, five), { what: "sum", off: 640 }, "40 and 40 leaves 6.40 to share");
   eq(sharers({ ...typedOut, amounts: { s: "40", w: "0", m: "", j: "0.00" } }, five, 2), ["s"], "0, 0.00 and nothing typed take no part");
-  eq(draftProblem({ ...typedOut, amounts: {} }, five, 2), { what: "nobody" }, "no figures at all");
+  eq(draftProblem({ ...typedOut, amounts: {} }, five), { what: "nobody" }, "no figures at all");
   eq(shareBy({ ...typedOut, amounts: { s: "40", w: "46.40" } }, "equal", five, 2, 0).among, ["s", "w"], "back to equal keeps who had a figure");
   eq(shareBy({ ...blank, how: "shares", shares: {} }, "exact", five, 2, 0).amounts, {}, "with no amount typed, by amounts starts empty");
 
   // yen
   const yen = startLedger("Y", "北海道", "JPY", five.members);
-  const y: Draft = { ...blankDraft(yen, "s"), text: "1000", among: ["s", "w", "m"] };
+  const y: Draft = { ...blankDraft(yen, "s", NOW), text: "1000", among: ["s", "w", "m"] };
   eq(shareBy(y, "exact", yen, 0, 1).amounts, { s: "333", w: "334", m: "333" }, "1,000 yen between three, the odd yen on the second");
-  eq(draftProblem({ ...y, text: "12.5" }, yen, 0), { what: "amount" }, "12.5 yen isn't an amount");
+  eq(draftProblem({ ...y, text: "12.5" }, yen), { what: "amount" }, "12.5 yen isn't an amount");
+}
+{
+  // ----- paid in another currency -----
+  const HOUR = 3_600_000;
+  const DAY = 24 * HOUR;
+  /** The site's rates as its server gives them: so many of each for one US dollar. */
+  const RATES = { CAD: 1.4012, CNY: 7.1, USD: 1, HKD: 7.8, EUR: 0.92, GBP: 0.79, JPY: 153.6, KRW: 1389.5, TWD: 32.3, SGD: 1.34, AUD: 1.52 };
+  const even: Split = { how: "equal", among: roster };
+  const plain = (l: Ledger, id: string, at: number, cents: number) => applyChange(l, { do: "expense", expense: { kind: "expense", id, at, payer: "s", amount: cents, note: "", split: even, rot: nextRot(l) } })!;
+  const inUsd = (l: Ledger, id: string, at: number, cents: number, rate: string, over: Partial<Expense> = {}) =>
+    applyChange(l, { do: "expense", expense: { kind: "expense", id, at, payer: "s", amount: convert(cents, 2, rate, 2)!, note: "", split: even, rot: nextRot(l), paidIn: { currency: "USD", amount: cents, rate }, ...over } })!;
+  const startsIn = (l: Ledger) => {
+    const d = blankDraft(l, "s", NOW);
+    return [d.currency, d.rate, d.asking];
+  };
+
+  // how a rate is written, and typed
+  eq(
+    [1.4012345, 150.1234, 0.0091234567, 0.00098765432, 1, 100, 1389.5, 12345.678, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, 1e9, 1e-9].map(rateText),
+    ["1.4012", "150.12", "0.0091235", "0.00098765", "1", "100", "1389.5", "12346", "", "", "", "", "", ""],
+    "a rate is written with five figures that count, at most 8 decimals and no zeros trailing; what isn't a rate is written as nothing",
+  );
+  {
+    const r = rng(77);
+    let bad = "";
+    for (let i = 0; i < 3000 && !bad; i++) {
+      const x = 10 ** (-6 + r() * 14);
+      const text = rateText(x);
+      if (!isRate(text) || /e/i.test(text)) bad = `${x} is written "${text}"`;
+      else if (x >= 1e-3 && Math.abs(Number(text) - x) > x * 6e-5) bad = `${x} is written "${text}", which is another rate`;
+    }
+    ok(!bad, `3,000 rates from a millionth to a hundred million are each written as a rate, and the same rate to five figures${bad ? ` (${bad})` : ""}`);
+  }
+  eq(
+    [todaysRate(RATES, "USD", "CAD"), todaysRate(RATES, "JPY", "CAD"), todaysRate(RATES, "CAD", "JPY"), todaysRate(RATES, "KRW", "CAD"), todaysRate(RATES, "CAD", "CAD")],
+    ["1.4012", "0.0091224", "109.62", "0.0010084", "1"],
+    "today's rate between two currencies comes out of the site's rates per US dollar: so many of the second for one of the first",
+  );
+  eq([todaysRate(null, "USD", "CAD"), todaysRate(undefined, "USD", "CAD"), todaysRate({ CAD: 1.4 }, "USD", "CAD"), todaysRate({ ...RATES, USD: 0 }, "USD", "CAD"), todaysRate(RATES, "XAU", "CAD")], ["", "", "", "", ""], "with no rates, or either currency missing, there is none");
+  eq(
+    ["1.4", "1.40", "01.4", ".5", "1..2", "1,38", "1。38", "abc", "1.123456789", "1234567890", "0.0", "00", "1.2.3", "$ 1.38 "].map(asRateText),
+    ["1.4", "1.40", "1.4", "0.5", "1.2", "1.38", "1.38", "", "1.12345678", "123456789", "0.0", "0", "1.23", "1.38"],
+    "a rate typed or pasted is held to digits and one point, 9 before it and 8 after; a comma or a Chinese full stop is the point",
+  );
+  eq(["1.", "1.40", "5", "0", "0.0", "0.", "", "."].map(settled), ["1", "1.40", "5", "", "", "", "", ""], "the rate as it is used: a point left hanging is dropped, and nothing, or zero, is no rate");
+
+  // which currency a new expense starts in
+  eq(startsIn(five), ["CAD", "", false], "an empty ledger: the ledger's own");
+  const trip = inUsd(five, "u1", NOW - HOUR, 3000, "1.38");
+  eq(startsIn(trip), ["USD", "1.38", false], "the last expense was paid in US dollars an hour ago: the next starts in dollars at that one's rate, with nothing to ask for");
+  eq(startsIn(plain(trip, "c1", NOW - 60_000, 500)), ["CAD", "", false], "an expense in the ledger's own currency since then: back to that");
+  eq([startsIn(inUsd(five, "u1", NOW - RECENT, 3000, "1.38")), startsIn(inUsd(five, "u1", NOW - RECENT - 1, 3000, "1.38"))], [["USD", "1.38", false], ["CAD", "", false]], "it leads for thirty days and no longer");
+  eq(startsIn(applyChange(plain(trip, "c1", NOW - 60_000, 500), { do: "out", entry: "c1", at: NOW })!), ["USD", "1.38", false], "an expense taken out leads nothing: the one before it does");
+  eq(startsIn(applyChange(trip, { do: "out", entry: "u1", at: NOW })!), ["CAD", "", false], "(and the same the other way)");
+  eq(
+    [startsIn(inUsd(five, "u1", NOW - HOUR, 3000, "1.38", { amount: 9999 })), startsIn(inUsd(five, "u1", NOW - HOUR, 3000, "1.38", { paidIn: { currency: "XAU", amount: 3000, rate: "1.38" } })), startsIn(inUsd(five, "u1", NOW - HOUR, 3000, "1.38", { paidIn: { currency: "CAD", amount: 4140, rate: "1" } }))],
+    [["CAD", "", false], ["CAD", "", false], ["CAD", "", false]],
+    "an other currency the screens can't vouch for leads nothing: one that doesn't come to the amount, one the site doesn't know, the ledger's own written as if it were another",
+  );
+
+  // what an expense says it was paid in, when it can be shown
+  const u1 = trip.entries[0] as Expense;
+  eq([paidInOf(u1, trip), paidInOf({ ...u1, amount: 4141 }, trip), paidInOf({ ...u1, paidIn: { currency: "USD", amount: 3000, rate: "0" } }, trip), paidInOf({ ...u1, paidIn: { currency: "USD", amount: 0, rate: "1.38" } }, trip), paidInOf(u1, { currency: "USD" }), paidInOf(plain(five, "c", 1, 500).entries[0] as Expense, five)], [{ currency: "USD", amount: 3000, rate: "1.38" }, null, null, null, null, null], "30 dollars at 1.38 that counts for 41.40 can be shown; a cent out, no rate, nothing paid, the ledger's own currency, or no other currency at all can't");
+  const yenTrip = applyChange(startLedger("Y", "北海道", "JPY", five.members), { do: "expense", expense: { kind: "expense", id: "u", at: NOW, payer: "s", amount: 4608, note: "", split: even, rot: 0, paidIn: { currency: "USD", amount: 3000, rate: "153.6" } } })!;
+  eq(paidInOf(yenTrip.entries[0] as Expense, yenTrip)?.amount, 3000, "(a ledger in yen: 30 dollars at 153.6 is 4,608 yen, with no cents to it)");
+  const twice = inUsd(inUsd(trip, "u2", NOW - 30 * 60_000, 1000, "1.39"), "u3", NOW - 60_000, 1000, "1.41", { amount: 1 });
+  eq([lastPaidIn(twice, "USD"), lastPaidIn(twice, "JPY"), lastPaidIn(applyChange(twice, { do: "out", entry: "u2", at: NOW })!, "USD")], [{ rate: "1.39", at: NOW - 30 * 60_000 }, null, { rate: "1.38", at: NOW - HOUR }], "the last expense in a currency is the last one still in the ledger that can be shown");
+
+  // picking a currency
+  const typed864: Draft = { ...blankDraft(five, "s", NOW), text: "86.40" };
+  const picked = payIn(typed864, "USD", five, RATES, NOW);
+  eq([picked.currency, picked.rate, picked.asking, picked.text, paidOf(picked), amountOf(picked, five), abroad(picked, five)], ["USD", "1.4012", false, "86.40", 8640, 12106, true], "US dollars picked with today's rates known: 86.40 dollars at 1.4012 comes to 121.06");
+  ok(payIn(picked, "USD", five, RATES, NOW) === picked, "picking the currency it is already in changes nothing");
+  eq([startingRate(trip, "USD", RATES, NOW), startingRate(trip, "USD", RATES, NOW + RECENT), startingRate(trip, "JPY", RATES, NOW), startingRate(trip, "USD", null, NOW + RECENT), startingRate(five, "USD", undefined, NOW)], ["1.38", "1.4012", "0.0091224", "", ""], "the rate it starts with: the last one's in that currency while that is recent, else today's, else none yet");
+  const waiting = payIn(typed864, "USD", five, null, NOW);
+  eq([waiting.rate, waiting.asking, amountOf(waiting, five), draftProblem(waiting, five)], ["", true, null, { what: "rate" }], "picked with no rate to be had yet: it asks, comes to nothing yet, and can't be recorded");
+  eq([payIn(typed864, "JPY", five, RATES, NOW).text, payIn(payIn(typed864, "JPY", five, RATES, NOW), "CAD", five, RATES, NOW).text, payIn({ ...typed864, text: "86." }, "KRW", five, RATES, NOW).text, payIn({ ...typed864, text: "" }, "JPY", five, RATES, NOW).text], ["86", "86", "86", ""], "a currency with no cents keeps the digits before the point");
+  const home = payIn(picked, "CAD", five, RATES, NOW);
+  eq([home.currency, home.rate, home.asking, amountOf(home, five), abroad(home, five)], ["CAD", "", false, 8640, false], "back to the ledger's own: no rate, and the amount is what was typed");
+
+  // today's rates come, or don't
+  eq([rated(waiting, five, RATES, false).rate, rated(waiting, five, RATES, false).asking], ["1.4012", false], "today's rates come: a draft that was asking takes today's");
+  ok(rated(waiting, five, null, false) === waiting && rated(waiting, five, { CAD: 1.4 }, false) === waiting, "not here yet: it goes on asking");
+  eq([rated(waiting, five, null, true).rate, rated(waiting, five, null, true).asking, draftProblem(rated(waiting, five, null, true), five)], ["", false, { what: "rate" }], "they won't come, and the ledger has no expense in that currency: it stops asking, and the rate is left to be typed");
+  const old = inUsd(five, "u1", NOW - 40 * DAY, 3000, "1.33");
+  const stale = payIn({ ...blankDraft(old, "s", NOW), text: "10" }, "USD", old, null, NOW);
+  eq([stale.asking, rated(stale, old, null, true).rate, rated(stale, old, RATES, true).rate], [true, "1.33", "1.4012"], "they won't come, and the last expense in that currency is from forty days ago: its rate is better than none (today's, when there is one, is better than it)");
+  const byHand: Draft = { ...picked, rate: "1.5" };
+  ok(rated(byHand, five, RATES, false) === byHand && rated({ ...byHand, rate: "" }, five, RATES, true).rate === "", "a draft that isn't asking is left alone: a rate someone typed, or cleared, is never replaced");
+
+  // what it comes to, and what stops it
+  const thirty: Draft = { ...picked, text: "30", rate: "1.40" };
+  eq([amountOf(thirty, five), amountOf({ ...thirty, rate: "1." }, five), amountOf({ ...thirty, rate: "" }, five), amountOf({ ...thirty, text: "" }, five)], [4200, 3000, null, null], "30 dollars at 1.40 counts for 42.00; a rate still being typed (1.) is 1; no rate or no amount comes to nothing");
+  eq(amountOf(payIn({ ...typed864, text: "3000" }, "JPY", five, RATES, NOW), five), 2737, "3,000 yen at 0.0091224 counts for 27.37");
+  eq(amountOf({ ...blankDraft(yenTrip, "s", NOW - 40 * DAY), text: "30", currency: "USD", rate: "153.6" }, yenTrip), 4608, "in a ledger kept in yen, 30 dollars at 153.6 counts for 4,608 yen");
+  eq([draftProblem({ ...thirty, currency: "KRW", text: "1", rate: "0.001" }, five), draftProblem({ ...thirty, currency: "JPY", text: "1", rate: "0.005" }, five)], [{ what: "amount" }, null], "one won at 0.001 comes to a tenth of a cent, which is no amount; one yen at 0.005 is half a cent, which is one");
+  const won = startLedger("K", "首尔", "KRW", five.members);
+  eq(draftProblem({ ...blankDraft(won, "s", NOW), text: "99999999.99", currency: "USD", rate: "1400" }, won), { what: "amount" }, "an amount that comes to more than one expense can be can't be recorded");
+  const byAmounts = shareBy({ ...thirty, among: ["s", "w"] }, "exact", five, 2, 0);
+  eq([byAmounts.amounts, draftProblem(byAmounts, five), draftProblem({ ...byAmounts, amounts: { s: "15", w: "15" } }, five)], [{ s: "21.00", w: "21.00" }, null, { what: "sum", off: 1200 }], "shared by amounts, the amounts are in the ledger's currency and add up to what it comes to: 15 and 15 leaves 12.00 of the 42.00");
+
+  // what is said to the ledger
+  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, paidIn: { currency: "USD", amount: 3000, rate: "1.40" } }, "paid in another currency, an expense says both amounts and the rate as it was typed");
+  eq(saying({ ...thirty, rate: "1." }, five)?.paidIn, { currency: "USD", amount: 3000, rate: "1" }, "(a rate left at 1. is kept as 1)");
+  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, paidIn: null }, null, null], "in the ledger's own, it says there is no other currency; while something is wrong with it, it says nothing at all");
+
+  // opened again
+  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
+  const again = draftOf(recorded.entries[0] as Expense, recorded);
+  eq([again.text, again.currency, again.rate, again.asking, again.untouched], ["30.00", "USD", "1.40", false, false], "an expense paid in dollars opens in dollars, at the rate it was recorded at");
+  eq([saying(again, recorded), applyChange(recorded, { do: "edit", entry: "e", to: saying(again, recorded)! })], [saying(thirty, five), null], "saved untouched, it says what it said, and nothing changes");
+  ok(rated(again, recorded, { ...RATES, CAD: 1.5 }, false) === again, "today's rate, whatever it is by then, doesn't touch it");
+  const dearer = applyChange(recorded, { do: "edit", entry: "e", to: saying({ ...again, text: "35" }, recorded)! })!;
+  eq([(dearer.entries[0] as Expense).amount, (dearer.entries[0] as Expense).paidIn], [4900, { currency: "USD", amount: 3500, rate: "1.40" }], "changed to 35 dollars: it counts for 49.00 at the same rate, and the ledger holds both");
+  const inCad = applyChange(recorded, { do: "edit", entry: "e", to: saying(payIn(again, "CAD", recorded, RATES, NOW), recorded)! })!;
+  eq([(inCad.entries[0] as Expense).amount, "paidIn" in inCad.entries[0]], [3000, false], "changed to the ledger's own currency: 30.00, and no other currency left in the ledger");
+  const odd = inUsd(five, "x", NOW - HOUR, 3000, "1.38", { amount: 9999 });
+  const cant = draftOf(odd.entries[0] as Expense, odd);
+  eq([cant.text, cant.currency, cant.untouched, "paidIn" in saying(cant, odd)!, applyChange(odd, { do: "edit", entry: "x", to: saying({ ...cant, note: "lunch" }, odd)! })?.entries[0]], ["99.99", "CAD", true, false, { ...odd.entries[0], note: "lunch" }], "an expense whose other currency can't be shown opens as what it counts for, and a change to it says nothing of that currency: its note changed, the rest is as it was");
+  eq([payIn(cant, "USD", odd, RATES, NOW).untouched, saying(payIn(cant, "USD", odd, RATES, NOW), odd)?.paidIn, saying(payIn(payIn(cant, "USD", odd, RATES, NOW), "CAD", odd, RATES, NOW), odd)?.paidIn], [false, { currency: "USD", amount: 9999, rate: "1.4012" }, null], "once a currency is picked for it here, the change speaks for it");
+
+  // any amount, any currency: recorded, shown, opened and saved again, it is the same expense
+  {
+    const r = rng(2026);
+    let bad = "";
+    let done = 0;
+    for (let i = 0; i < 2000 && !bad; i++) {
+      const settle = CURRENCIES[Math.floor(r() * CURRENCIES.length)].code;
+      const other = CURRENCIES.filter((c) => c.code !== settle)[Math.floor(r() * (CURRENCIES.length - 1))].code;
+      const l = startLedger("L", "x", settle, five.members);
+      const text = decimalsOf(other) ? fromMinor(1 + Math.floor(r() * 10 ** (1 + Math.floor(r() * 7))), 2) : String(1 + Math.floor(r() * 10 ** (1 + Math.floor(r() * 7))));
+      const d = payIn({ ...blankDraft(l, "s", NOW), text }, other, l, RATES, NOW);
+      const to = saying(d, l);
+      if (!to) {
+        if (draftProblem(d, l)?.what !== "amount") bad = `${text} ${other} in a ${settle} ledger: ${JSON.stringify(draftProblem(d, l))}`;
+        continue;
+      }
+      const { paidIn, ...said } = to;
+      const made = applyChange(l, { do: "expense", expense: { kind: "expense", id: "e", at: NOW, ...said, rot: 0, ...(paidIn ? { paidIn } : {}) } });
+      const e = made?.entries[0] as Expense | undefined;
+      if (!made || !e || JSON.stringify(paidInOf(e, made)) !== JSON.stringify(paidIn) || e.amount !== convert(paidIn?.amount ?? 0, decimalsOf(other), paidIn?.rate ?? "", decimalsOf(settle))) bad = `${text} ${other} in a ${settle} ledger isn't kept as it was said`;
+      else if (JSON.stringify(saying(draftOf(e, made), made)) !== JSON.stringify(to) || applyChange(made, { do: "edit", entry: "e", to: saying(draftOf(e, made), made)! }) !== null) bad = `${text} ${other} in a ${settle} ledger: opened and saved untouched, it changed`;
+      done++;
+    }
+    ok(!bad && done > 1500, `${done} expenses in every pair of the site's currencies: each is kept as it was said, can be shown, and opened and saved untouched changes nothing${bad ? ` (${bad})` : ""}`);
+  }
 }
 {
   // an expense opened and saved untouched is the same expense: over the made-up ledgers
@@ -195,11 +354,15 @@ const roster = five.members.map((x) => x.id);
     const before = JSON.stringify([balances(l), nextRot(l), spent(l)]);
     let now = l;
     for (const e of expensesOf(l)) {
-      const d = draftOf(e, dec);
-      if (draftProblem(d, l, dec) !== null || amountOf(d, dec) !== e.amount || d.payer !== e.payer) bad = `seed ${seed} ${e.id}: the draft isn't the expense`;
-      now = editExpense(now, e.id, { payer: d.payer, amount: amountOf(d, dec) ?? 0, note: d.note, split: splitOf(d, dec) });
+      const d = draftOf(e, l);
+      const to = saying(d, l);
+      if (!to || amountOf(d, l) !== e.amount || d.payer !== e.payer || JSON.stringify(to.split) !== JSON.stringify(splitOf(d, dec))) bad = `seed ${seed} ${e.id}: the draft isn't the expense`;
+      // (these ledgers' other currencies are made up and don't come to their amounts: the screens can't show them, and leave them be)
+      if (to && (abroad(d, l) || "paidIn" in to !== (e.paidIn === undefined))) bad = `seed ${seed} ${e.id}: a made-up other currency was read as a real one, or spoken for`;
+      if (to) now = editExpense(now, e.id, to);
       checked++;
     }
+    if (!bad && JSON.stringify(now.entries.map((e) => (e.kind === "expense" ? e.paidIn : 0))) !== JSON.stringify(l.entries.map((e) => (e.kind === "expense" ? e.paidIn : 0)))) bad = `seed ${seed}: saving untouched changed what an expense says it was paid in`;
     if (!bad && JSON.stringify([balances(now), nextRot(now), spent(now)]) !== before) bad = `seed ${seed}: saving untouched moved a balance`;
     if (!bad && now.entries.some((e, i) => e.kind === "expense" && (e.rot !== (l.entries[i] as Expense).rot || e.at !== l.entries[i].at || e.id !== l.entries[i].id))) bad = `seed ${seed}: an edit moved an id, a time or a turn`;
   }
@@ -280,9 +443,9 @@ const roster = five.members.map((x) => x.id);
 {
   let l = five;
   const record = (id: string, me: string, text: string, payer: string | null, note: string) => {
-    const d = { ...blankDraft(l, me), text, note, ...(payer ? { payer } : {}) };
+    const d = { ...blankDraft(l, me, NOW), text, note, ...(payer ? { payer } : {}) };
     // (记一笔 sends the expense as a change, with the turn for the odd cents the ledger shows it then)
-    const expense = { kind: "expense" as const, id, at: l.entries.length + 1, payer: d.payer, amount: amountOf(d, 2)!, note: d.note, split: splitOf(d, 2), rot: nextRot(l) };
+    const expense = { kind: "expense" as const, id, at: l.entries.length + 1, payer: d.payer, amount: amountOf(d, l)!, note: d.note, split: splitOf(d, 2), rot: nextRot(l) };
     const sameAsBefore = addExpense(l, expense);
     l = applyChange(l, { do: "expense", expense }) ?? l;
     ok(JSON.stringify(l) === JSON.stringify(sameAsBefore), `${note}: recorded as a change, the ledger is what recording it on the phone alone made it`);
@@ -329,6 +492,28 @@ const roster = five.members.map((x) => x.id);
   const undone = takeOut(l, "t2", 20);
   eq([settlement(undone).clear, standing(undone, "s", "zh")], [false, "你该收 $42.50"], "a mark taken back: Steve is owed again");
   eq(settlement(putBack(undone, "t2")).clear, true, "and put back, square again");
+
+  // the same payment marked on two phones (the one who paid, and the one paid): one id, so it counts once
+  {
+    const ready = l.entries.filter((e) => e.kind === "expense").reduce((m, e) => addExpense(m, e as Expense), startLedger(l.id, l.name, l.currency, l.members));
+    const step = settlement(ready).steps[0];
+    const onPhoneA = paidId(ready, step);
+    const onPhoneB = paidId(JSON.parse(JSON.stringify(ready)) as Ledger, { ...step });
+    eq([onPhoneA, /^[A-Za-z0-9_-]{1,64}$/.test(onPhoneA), onPhoneA.length < newId().length], [onPhoneB, true, true], "the same step of the same ledger: the same id on any phone, one the rules take, and never one a phone makes up at random");
+    const once = addTransfer(ready, { id: onPhoneA, at: 30, ...step });
+    eq([addTransfer(once, { id: onPhoneB, at: 31, ...step }) === once, settlement(once).steps[0].paid], [true, onPhoneA], "marked on both: the step is paid once, and the plan holds still");
+    const others = settlement(ready).steps.slice(1).map((s) => paidId(ready, s));
+    eq(new Set([onPhoneA, ...others]).size, 4, "each step its own id");
+    eq([paidId(ready, { ...step, amount: step.amount + 1 }) !== onPhoneA, paidId({ ...ready, id: "other-ledger" }, step) !== onPhoneA], [true, true], "another amount, another ledger: another id");
+    const markedAgain = paidId(once, step);
+    const takenBack = takeOut(once, onPhoneA, 40);
+    eq([markedAgain !== onPhoneA, paidId(takenBack, step) === markedAgain], [true, true], "marked once already (taken back or not), marking it again is a new transfer");
+    const after = addTransfer(takenBack, { id: paidId(takenBack, step), at: 41, ...step });
+    eq([settlement(after).steps[0].paid, after.entries.length], [markedAgain, once.entries.length + 1], "so a payment taken back can be marked again");
+    const moreSpent = addExpense(ready, { id: "e9", at: 50, payer: "s", amount: 1000, note: "", split: { how: "equal", among: ["s", "w"] } });
+    const goneAgain = takeOut(moreSpent, "e9", 51);
+    eq([settlement(goneAgain).steps[0], paidId(goneAgain, step) !== onPhoneA], [step, true], "an expense recorded and taken out again leaves the plan as it was, and its id new: the step is worked out from other expenses now");
+  }
 }
 
 // ---------- 6. what is kept on the phone, and what the server answers ----------
@@ -385,6 +570,29 @@ const roster = five.members.map((x) => x.id);
   ok(keys.every((k) => /^[A-Za-z0-9_-]{43}$/.test(k)) && new Set(keys).size === keys.length, "a new key is 43 of the same, 32 random bytes: what the server takes for one (22 to 128), and no two alike");
   ok([...ids, ...keys].every((x) => /^[A-Za-z0-9]/.test(x) && /[A-Za-z0-9]$/.test(x)) && [...ids, ...keys].some((x) => /[-_]/.test(x)), "each begins and ends with a letter or a digit (a chat app leaves a last - or _ out of a link), with - and _ only inside");
   ok(parseSaved(JSON.stringify({ held: [hold(five, keys[0])], me: {} })).held[0].key === keys[0], "and a ledger just opened is kept with its key");
+
+  // its owner's phone keeps a second key, and for a moment a third (the one it is changing to); a locked ledger says so
+  const owner = "o".repeat(43);
+  const next = "n".repeat(43);
+  const back = (x: unknown) => parseSaved(JSON.stringify({ held: [x], me: {} })).held[0];
+  eq([hold(five, key, owner).owner, "owner" in hold(five, key), back(hold(five, key, owner)).owner], [owner, false, owner], "a ledger opened on this phone is kept with its owner's key; one opened without has none");
+  eq(back({ ...h, owner, next }), { ...h, owner, next }, "a key the owner is changing to is kept too, so a phone that closes before the answer still has it");
+  eq([back({ ...h, owner: "short" }), back({ ...h, owner: 5 }), back({ ...h, owner: key }), back({ ...h, next }), back({ ...h, owner, next: key }), back({ ...h, owner, next: owner }), back({ ...h, owner, next: "short" })], [h, h, h, h, { ...h, owner }, { ...h, owner }, { ...h, owner }],
+    "what isn't a key is neither: an owner's key that is the ledger's own, a key in waiting with no owner, or one that is a key the phone already has");
+  const lockedAt = { ...l, locked: 1_700_000_000_000 };
+  eq([asSnapshot({ seq: 3, ledger: lockedAt })?.ledger.locked, back({ ...h, server: lockedAt }).server.locked, asSnapshot({ seq: 3, ledger: { ...l, locked: 0 } })?.ledger.locked], [1_700_000_000_000, 1_700_000_000_000, 0], "a locked ledger comes back locked, from the server and from the phone's own storage (any number means locked, 0 too)");
+  eq(["locked" in asSnapshot({ seq: 3, ledger: { ...l, locked: "yes" } })!.ledger, "locked" in asSnapshot({ seq: 3, ledger: { ...l, locked: null } })!.ledger, "locked" in asSnapshot({ seq: 3, ledger: l })!.ledger], [false, false, false], "and one that isn't, or says so in something that isn't a number, comes back open");
+  const afterLock = shown({ ...h, server: lockedAt });
+  eq([afterLock.locked, afterLock.entries.map((e) => e.id)], [1_700_000_000_000, ["e1", "t1", "e2"]], "what a phone recorded with no signal still shows on a ledger that was locked meanwhile");
+
+  // which account's "my ledgers" a ledger is in, on this phone; and the server's list of them
+  eq([back({ ...h, acct: "u1a2b3c4d5e6f" }).acct, back({ ...h, acct: "" }).acct, back({ ...h, acct: 7 }).acct, back({ ...h, acct: "has space" }).acct, back({ ...h, acct: "x".repeat(65) }).acct], ["u1a2b3c4d5e6f", undefined, undefined, undefined, undefined], "a ledger kept with the account it is in comes back with it; what isn't an account's id, without");
+  ok(listed({}, null) && listed({}, "u1") && listed({ acct: "u1" }, "u1") && !listed({ acct: "u1" }, null) && !listed({ acct: "u1" }, "u2"), "the list shows the phone's own ledgers, and the account's to that account signed in only");
+  const m1 = { id: "ledger-1", key, at: 5, owner, me: "s" };
+  eq(asMine({ ledgers: [{ me: "s", owner, at: 5, key, id: "ledger-1" }, { id: "ledger-2", key, at: 6, extra: 1 }] }), [m1, { id: "ledger-2", key, at: 6 }], "the server's list of my ledgers is read with what each has, and nothing extra");
+  eq(asMine({ ledgers: [{ ...m1, id: "x" }, { ...m1, key: "short" }, { ...m1, at: -1 }, { ...m1, owner: key }, { ...m1, me: 5 }, { ...m1, me: "has space" }, null, 7] }), [{ id: "ledger-1", key, at: 5, me: "s" }, { id: "ledger-1", key, at: 5, owner }, { id: "ledger-1", key, at: 5, owner }], "one that isn't a ledger's is left out (an id or a key that isn't one, no time); an owner's key that is the key, or who they are that isn't an id, is left off it");
+  for (const x of [null, [], { ledgers: 5 }, { error: "signin" }]) ok(asMine(x) === null, `${JSON.stringify(x)} is no list`);
+  ok(asDone({ ok: true }) === true && asDone({ ok: 1 }) === null && asDone(null) === null, "the server saying it is done, and only that");
 }
 
 // ---------- 7. what the screens say about the server ----------
@@ -537,6 +745,9 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
   }
 }
 
+// the site's sign-in, read by the name the site keeps it under (net.ts can't import it): if the site renames it, this says so
+ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 sends the site's sign-in, read from where the site keeps it (${SESSION_KEY}, src/lib/api.ts)`);
+
 // ---------- 11. still hidden ----------
 {
   // 两清 gets its card on the Tools tab when all three gates in docs/split.md are passed, and not before.
@@ -547,6 +758,202 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
   const naming = elsewhere.filter((p) => /["'`(]\/split(\/|["'`)])|kind:\s*["']split["']|split\/SplitApp/.test(read(p)));
   ok(!naming.length, `nothing links to /split yet (${elsewhere.length} files looked at)${naming.length ? `: ${naming.join(", ")}` : ""}`);
   ok(!/split/i.test(read("public/robots.txt")) && !/["'`]\/split/.test(read("scripts/postbuild.ts")), "and it isn't in the sitemap or robots.txt");
+}
+
+// ---------- 12. the ledger's record ----------
+{
+  const day = 86_400_000;
+  const clock = new Date(2026, 10, 14, 9, 43).getTime();
+  const start = startLedger("R", "周末", "CAD", [
+    { id: "s", name: "Steve" },
+    { id: "w", name: "小王" },
+    { id: "m", name: "阿美" },
+  ]);
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "w", amount: 18600, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0 };
+  const gas: Expense = { kind: "expense", id: "e2", at: 2, payer: "w", amount: 12000, note: "油费", split: { how: "equal", among: ["s", "w"] }, rot: 1 };
+  const steps: [Change, string | undefined, number][] = [
+    [{ do: "expense", expense: dinner }, "s", clock - 3 * day],
+    [{ do: "expense", expense: gas }, "w", clock - 3 * day + 60_000],
+    [{ do: "edit", entry: "e1", to: { payer: "s", amount: 20000, note: "晚饭和酒", split: dinner.split } }, "m", clock - 2 * day],
+    [{ do: "out", entry: "e2", at: clock - day }, "w", clock - day],
+    [{ do: "member", member: { id: "j", name: "Jason" } }, "s", clock - day + 1],
+    [{ do: "rename", member: "j", name: "JJ" }, "w", clock - day + 2],
+    [{ do: "rename", member: "m", name: "美美" }, "m", clock - day + 3],
+    [{ do: "transfer", transfer: { id: "t1", at: clock - 1000, from: "w", to: "s", amount: 5000 } }, "w", clock - 1000],
+    [{ do: "out", entry: "t1", at: clock - 900 }, "s", clock - 900],
+    [{ do: "title", name: "周末二" }, undefined, clock - 500],
+    [{ do: "title", name: "周末三" }, "gone-person", clock - 400],
+  ];
+  let now = start;
+  const log: Logged[] = [];
+  steps.forEach(([change, by, at], i) => {
+    now = applyChange(now, change) ?? now;
+    // (the server's time is when it got there: a few seconds after the phone made it)
+    log.push({ seq: i + 1, at: at + 5_000, sent: { id: `c${i}`, at, change, ...(by ? { by } : {}) } });
+  });
+  // locked and opened again, between the payment and the titles
+  log.push({ seq: 99, at: clock - 800, lock: true }, { seq: 100, at: clock - 700, lock: false });
+  const lines = historyOf(now, log, [], "s", "zh", clock);
+  eq(lines.map((l) => l.text), [
+    "打开了账本",
+    "锁上了账本",
+    "改了账本名：周末三",
+    "改了账本名：周末二",
+    "撤销了已转：小王 给 Steve $50.00",
+    "标了已转：小王 给 Steve $50.00",
+    "改名：改成 美美",
+    "改名：Jason 改成 JJ",
+    "加了一个人：Jason",
+    "删了一笔：油费 $120.00",
+    "改了一笔：晚饭和酒 $200.00",
+    "记了一笔：油费 $120.00",
+    "记了一笔：晚饭 $186.00",
+  ], "every kind of line, newest first by the record's numbers (a lock among them where it came), in the words of what didn't stick");
+  eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
+  eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
+  const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  const backAgain = applyChange(now, edit!.change)!;
+  const { rot: _r1, ...was } = dinner;
+  const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
+  eq(isNow, was, "and changing it back makes it what it was, field for field");
+  eq(lines.find((l) => l.text.startsWith("删了一笔"))?.action, { word: "restore", change: { do: "back", entry: "e2" } }, "a deleted expense offers to come back");
+  eq(lines.filter((l) => l.action).length, 2, "nothing else offers anything (a payment taken back is marked again on the settle tab)");
+  eq(lines.map((l) => l.at), [...log].sort((a, b) => a.seq - b.seq).map((l) => ("sent" in l ? l.sent.at : l.at)).reverse(), "each line is when it was done: on the phone that did it (the server's time only for a lock)");
+  eq(historyOf(now, [...log].reverse(), [], "s", "zh", clock), lines, "the record goes by its numbers, whatever order its lines came in");
+
+  // what this phone hasn't sent: on top, and the latest edit now
+  const waiting = [{ id: "p1", at: clock - 10, by: "s", change: { do: "edit", entry: "e1", to: { payer: "s", amount: 21000, note: "晚饭和酒", split: dinner.split } } as Change }];
+  const withWaiting = historyOf(applyChange(now, waiting[0].change)!, log, waiting, "s", "zh", clock);
+  eq([withWaiting[0].text, withWaiting[0].pending, withWaiting[0].detail, withWaiting[0].action?.word], ["改了一笔：晚饭和酒 $210.00", true, "金额 $200.00 改成 $210.00", "revert"], "what this phone hasn't sent is on top, said the same way");
+  eq(withWaiting.filter((l) => l.action?.word === "revert").length, 1, "only the latest edit of an expense offers to change it back");
+
+  // locked: nothing to offer; deleted too long ago: no coming back; brought back already: nothing to bring
+  eq(historyOf({ ...now, locked: clock - 600 }, log, [], "s", "zh", clock).filter((l) => l.action).length, 0, "a locked ledger offers nothing");
+  eq(historyOf(now, log, [], "s", "zh", clock + RESTORE_DAYS * day).find((l) => l.text.startsWith("删了一笔"))?.action, undefined, `deleted more than ${RESTORE_DAYS} days ago: it can't be brought back from here`);
+  eq(historyOf(now, log, [], "s", "zh", clock + RESTORE_DAYS * day - day - 1).find((l) => l.text.startsWith("删了一笔"))?.action?.word, "restore", `within ${RESTORE_DAYS} days it can`);
+  const restored = applyChange(now, { do: "back", entry: "e2" })!;
+  const restoredLog: Logged[] = [...log, { seq: 101, at: clock, sent: { id: "c101", at: clock, by: "w", change: { do: "back", entry: "e2" } } }];
+  const afterBack = historyOf(restored, restoredLog, [], "s", "zh", clock);
+  eq([afterBack[0].text, afterBack.find((l) => l.text.startsWith("删了一笔"))?.action], ["恢复了一笔：油费 $120.00", undefined], "brought back: the line says so, and the deletion offers nothing more");
+  const goneAgain = applyChange(now, { do: "out", entry: "e1", at: clock })!;
+  eq(historyOf(goneAgain, [...log, { seq: 101, at: clock, sent: { id: "c101", at: clock, change: { do: "out", entry: "e1", at: clock } } }], [], "s", "zh", clock).find((l) => l.text.startsWith("改了一笔"))?.action, undefined, "an expense deleted since offers no changing back");
+
+  // whoever paid it before has been taken off since: changing it back wouldn't go through, so it isn't offered
+  {
+    const e3: Expense = { kind: "expense", id: "e3", at: 3, payer: "j", amount: 3000, note: "门票", split: { how: "equal", among: ["s", "w"] }, rot: 0 };
+    const more: Change[] = [
+      { do: "member", member: { id: "j", name: "Jason" } },
+      { do: "expense", expense: e3 },
+      { do: "edit", entry: "e3", to: { payer: "s", amount: 3000, note: "门票", split: e3.split } },
+    ];
+    let l = start;
+    const lg: Logged[] = [];
+    const go = (change: Change) => {
+      const next = applyChange(l, change);
+      ok(next !== null, `${change.do} goes through`);
+      l = next ?? l;
+      lg.push({ seq: lg.length + 1, at: clock, sent: { id: `d${lg.length}`, at: clock, change } });
+    };
+    more.forEach(go);
+    eq(historyOf(l, lg, [], "s", "zh", clock)[0].action?.word, "revert", "Jason still in the ledger: the change of who paid can be changed back");
+    go({ do: "remove", member: "j" });
+    const offers = historyOf(l, lg, [], "s", "zh", clock);
+    eq([offers[0].text, offers.find((x) => x.text.startsWith("改了一笔"))?.action], ["去掉了一个人：Jason", undefined], "Jason taken off since: changing it back to him wouldn't go through, so it isn't offered");
+  }
+
+  // a few changes, each as the server keeps it
+  const play = (changes: Change[]) => {
+    let l = start;
+    const lg: Logged[] = [];
+    for (const change of changes) {
+      const next = applyChange(l, change);
+      ok(next !== null, `${change.do} goes through`);
+      l = next ?? l;
+      lg.push({ seq: lg.length + 1, at: clock, sent: { id: `f${lg.length}`, at: clock, change } });
+    }
+    return { l, lg };
+  };
+
+  // deleted, brought back and deleted again: only the latest deletion offers to bring it back
+  {
+    const { l, lg } = play([{ do: "expense", expense: gas }, { do: "out", entry: "e2", at: clock - 3000 }, { do: "back", entry: "e2" }, { do: "out", entry: "e2", at: clock - 1000 }]);
+    eq(historyOf(l, lg, [], "s", "zh", clock).map((x) => x.action?.word ?? ""), ["restore", "", "", ""], "deleted twice: only the latest deletion offers to bring it back");
+  }
+
+  // paid in another currency, its amount changed without saying: the other currency goes, and changing back brings it back
+  {
+    const car: Expense = { kind: "expense", id: "e5", at: 5, payer: "s", amount: 4200, note: "租车", split: { how: "equal", among: ["s", "w"] }, rot: 0, paidIn: { currency: "USD", amount: 3000, rate: "1.4" } };
+    const { l, lg } = play([{ do: "expense", expense: car }, { do: "edit", entry: "e5", to: { payer: "s", amount: 5000, note: "租车", split: car.split } }]);
+    const [edit] = historyOf(l, lg, [], "s", "zh", clock);
+    eq([edit.detail, (l.entries[0] as Expense).paidIn], ["金额 $42.00 改成 $50.00，货币或汇率改了", undefined], "an amount changed without saying the currency: no longer in US dollars, and the record says so");
+    const { rot: _r3, ...back } = applyChange(l, edit.action!.change)!.entries[0] as Expense;
+    const { rot: _r4, ...asWas } = car;
+    eq(back, asWas, "changed back: paid in US dollars again, at the same rate, as it was");
+  }
+
+  // in English, and a record that is empty
+  const en = historyOf(now, log, [], "s", "en", clock);
+  eq([en.at(-1)?.text, en.find((l) => l.text.startsWith("Edited"))?.detail, en.at(-7)?.text, en[0].who, en.at(-1)?.who], ["New expense: 晚饭 $186.00", "Amount $186.00 to $200.00, now paid by you, note now 晚饭和酒", "Renamed someone 美美", "Whoever started it", "You"], "in English: the same lines, the detail starting as a sentence does");
+  eq(historyOf(start, [], [], "s", "zh", clock), [], "nothing done yet: an empty record");
+
+  // when, as the record says it
+  const at = (d: number, h: number, mi: number, y = 2026, mo = 10) => new Date(y, mo, d, h, mi).getTime();
+  eq([whenText(at(14, 9, 5), clock, "zh"), whenText(at(13, 21, 30), clock, "zh"), whenText(at(2, 8, 0), clock, "zh"), whenText(at(30, 18, 0, 2025, 11), clock, "zh")], ["今天 09:05", "昨天 21:30", "11月2日 08:00", "2025年12月30日 18:00"], "when, in 中文: today, yesterday, a day this year, a day another year");
+  eq([whenText(at(14, 9, 5), clock, "en"), whenText(at(13, 21, 30), clock, "en"), whenText(at(2, 8, 0), clock, "en")].map((x) => x.replace(/\s/g, " ")), ["Today 9:05 a.m.", "Yesterday 9:30 p.m.", "Nov 2 8:00 a.m."], "and in English");
+
+  // the record as the server answers it
+  const read = asSince({ seq: 3, changes: [{ seq: 1, at: 5, sent: { id: "c1", at: 4, by: "w", change: { do: "title", name: "x" }, extra: 1 } }, { seq: 2, at: 6, lock: true }, { seq: 3, at: 7, sent: { id: "c3" } }, null, { seq: -1, at: 1, lock: false }, { seq: 4, at: "8", lock: true }] });
+  eq(read, { seq: 3, changes: [{ seq: 1, at: 5, sent: { id: "c1", at: 4, change: { do: "title", name: "x" }, by: "w" } }, { seq: 2, at: 6, lock: true }] }, "the server's record is read line by line: a change as any change is read, a lock; what is neither is left out");
+  for (const x of [null, [], { seq: 1 }, { seq: "1", changes: [] }, { changes: [] }]) ok(asSince(x) === null, `${JSON.stringify(x)} is no record`);
+}
+
+// ---------- 13. the picture of the plan (结清图) ----------
+{
+  const at = new Date(2026, 10, 14, 10, 12).getTime();
+  const everyone = five.members.map((m) => m.id);
+  const spend = (l: Ledger, id: string, payer: string, amount: number) => addExpense(l, { id, at: 1, payer, amount, note: id, split: { how: "equal", among: everyone } });
+  // the plan's weekend: dinner, gas, breakfast
+  const l = spend(spend(spend(five, "e1", "w", 18600), "e2", "s", 12000), "e3", "m", 8150);
+  const plan = settlement(l);
+  const p = pictureOf(l, plan, "zh", at);
+  eq([p.mark, p.name, p.head, p.clear, p.site], ["两清 · All Square", "惠斯勒周末", "4 笔转账，全部两清", false, "changle.ca"], "the picture's top: the mark, the ledger, how many transfers settle it");
+  eq(p.rows.map((r) => [r.who, r.amount, r.status, r.paid]), [["Jason 给 小王", "$77.50", "还没转", false], ["小李 给 Steve", "$42.50", "还没转", false], ["小李 给 小王", "$31.00", "还没转", false], ["小李 给 阿美", "$4.00", "还没转", false]], "each transfer by name, never 你: the whole group reads it");
+  eq(p.asOf, "11月14日 10:12 的方案。之后又记了账的话，以两清里的为准。", "when it was made, as a date (it is read later), and what to go by after that");
+  eq(p.text, `${planText(l, plan, "zh")}\n${p.asOf}`, "and all of it as text, for a screen reader: the plan as it is copied, and when");
+  const en = pictureOf(l, plan, "en", at);
+  eq([en.head, en.rows[1].who, en.rows[1].status, en.asOf.replace(/\s/g, " ")], ["4 transfers and everyone is square", "小李 pays Steve", "Not yet", "The plan as of Nov 14, 10:12 a.m.; if more has been recorded since, All Square has the latest."], "in English");
+  const jan = new Date(2026, 0, 3, 21, 5).getTime();
+  eq([dayText(at, "zh"), dayText(at, "en"), dayText(jan, "zh"), dayText(jan, "en")].map((x) => x.replace(/\s/g, " ")), ["11月14日 10:12", "Nov 14, 10:12 a.m.", "1月3日 21:05", "Jan 3, 9:05 p.m."], "the day and time, in either language");
+
+  // paid one by one, then everyone square
+  let paid = addTransfer(l, { id: "t1", at: 10, ...plan.steps[0] });
+  const one = pictureOf(paid, settlement(paid), "zh", at);
+  eq(one.rows.map((r) => [r.status, r.paid]), [["已转", true], ["还没转", false], ["还没转", false], ["还没转", false]], "a transfer marked as paid says so");
+  plan.steps.slice(1).forEach((s, i) => (paid = addTransfer(paid, { id: `t${i + 2}`, at: 11 + i, ...s })));
+  const square = pictureOf(paid, settlement(paid), "zh", at);
+  eq([square.head, square.clear, square.rows.every((r) => r.paid), square.text.split("\n").at(-2)], ["全部两清", true, true, "全部两清了。"], "everyone square: the picture says so, and is stamped");
+  const pair = addExpense(startLedger("p", "两个人", "CAD", five.members.slice(0, 2)), { id: "x", at: 1, payer: "s", amount: 1000, note: "", split: { how: "equal", among: ["s", "w"] } });
+  eq(pictureOf(pair, settlement(pair), "en", at).head, "One transfer and everyone is square", "one transfer");
+
+  // out of date: once who pays whom, or how much, is no longer what the picture says
+  const made: Made = { at, print: stepsPrint(plan) };
+  eq([isStale(made, plan), isStale(undefined, plan)], [false, false], "just made: up to date; never made: nothing to be out of date");
+  eq(isStale(made, settlement(addTransfer(l, { id: "t1", at: 10, ...plan.steps[0] }))), false, "a transfer marked as paid since: what the picture says to pay is still right");
+  eq(isStale(made, settlement(paid)), false, "everyone paid since: still right");
+  const more = spend(l, "e4", "j", 5000);
+  eq(isStale(made, settlement(more)), true, "an expense recorded since changes who pays whom: out of date");
+  eq(isStale(made, settlement(takeOut(more, "e4", 9))), false, "taken out again: the picture is right again");
+  eq(isStale(made, settlement(editExpense(l, "e3", { payer: "m", amount: 8250, note: "e3", split: { how: "equal", among: everyone } }))), true, "an amount changed: out of date");
+  eq(isStale({ at, print: stepsPrint(settlement(five)) }, settlement(l)), true, "made before anything was recorded: out of date once something is");
+
+  // a long press on the picture opens the phone's menu (in WeChat's own browser the only way to send it); on nothing else in 两清
+  const css = read("src/split/split.css");
+  ok(/\}\s*\.split-picture img \{[^}]*-webkit-touch-callout: default;/.test(css) && (css.match(/-webkit-touch-callout/g) ?? []).length === 1, "a long press opens the phone's menu on the picture, and on nothing else in 两清");
+
+  // what the phone keeps of it, however damaged
+  eq(parseSaved(JSON.stringify({ held: [], me: {}, pictures: { L: made, bad: { at: "x", print: 1 }, worse: null, gone: { at: Infinity, print: "" } } })), { held: [], me: {}, pictures: { L: made } }, "the phone's note of each picture comes back as it was; a damaged one doesn't");
+  eq(parseSaved(JSON.stringify({ held: [], me: {}, pictures: { bad: 1 } })), { held: [], me: {} }, "and with none whole, there is none");
 }
 
 if (failed) {

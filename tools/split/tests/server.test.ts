@@ -1,19 +1,29 @@
 // The server itself, run on this machine (`wrangler dev`, Cloudflare's own runtime): the addresses,
-// the key, the Durable Object's SQLite, and the live connection. `npm run test:server`.
+// the key, the Durable Object's SQLite, the live connection, and a changle.ca account's ledgers
+// (with a stand-in for the rooms server that says whose a sign-in is: tests/rooms).
+// `npm run test:server`.
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { KEY_HEADER, LIVE_PROTOCOL, type Push, type Pushed, type Since, type Snapshot } from "../src/room/protocol";
+import { KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type MineBody, type MyLedgers, type Push, type Pushed, type Since, type Snapshot } from "../src/room/protocol";
+import { SESSION } from "./accounts";
 
 const PORT = 8794;
 const HOST = `127.0.0.1:${PORT}`;
 const API = `http://${HOST}/split/api`;
 let server: ChildProcess;
+// Each run starts with nothing kept: an account's day of ledgers, or its list, from an earlier run
+// on this machine would change what these tests see.
+const kept = mkdtempSync(join(tmpdir(), "split-server-test-"));
 
 before(async () => {
-  server = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--var", "ALLOW_TEST_SETTINGS:1"], {
+  // (with the stand-in rooms server beside it, which says whose the test sessions are: tests/rooms)
+  server = spawn("npx", ["wrangler", "dev", "-c", "wrangler.jsonc", "-c", "tests/rooms/wrangler.jsonc", "--port", String(PORT), "--ip", "127.0.0.1", "--var", "ALLOW_TEST_SETTINGS:1", "--persist-to", kept], {
     stdio: "ignore",
     detached: true,
     env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" },
@@ -35,18 +45,19 @@ after(async () => {
     try {
       process.kill(-server.pid!, signal);
     } catch {
-      return; // already gone
+      break; // already gone
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
+  rmSync(kept, { recursive: true, force: true });
 });
 
 const newId = () => `t${randomUUID().replaceAll("-", "").slice(0, 21)}`;
 const newKey = () => `${randomUUID()}${randomUUID()}`.replaceAll("-", "");
-async function call<T>(method: string, path: string, key: string | null, body?: unknown): Promise<{ status: number; data: T }> {
+async function call<T>(method: string, path: string, key: string | null, body?: unknown, more: Record<string, string> = {}): Promise<{ status: number; data: T }> {
   const res = await fetch(`${API}${path}`, {
     method,
-    headers: { ...(key ? { [KEY_HEADER]: key } : {}), ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    headers: { ...(key ? { [KEY_HEADER]: key } : {}), ...(body === undefined ? {} : { "content-type": "application/json" }), ...more },
     body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
   });
   return { status: res.status, data: (await res.json()) as T };
@@ -62,10 +73,13 @@ const expense = (id: string, amount = 3000): Sent => ({
   at: Date.now(),
   change: { do: "expense", expense: { kind: "expense", id, at: Date.now(), payer: "s", amount, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0 } },
 });
+const as = (session: string) => ({ authorization: `Bearer ${session}` });
+/** A sign-in of an account of its own (the stand-in rooms server takes any "test-account-…": tests/accounts.ts), so no test runs out of an account's day. */
+const someone = () => as(`test-account-${randomUUID().replaceAll("-", "").slice(0, 12)}`);
 async function make() {
   const id = newId();
   const key = newKey();
-  const made = await call<Snapshot>("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three });
+  const made = await call<Snapshot>("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, someone());
   return { id, key, made };
 }
 
@@ -81,13 +95,13 @@ test("making a ledger, and who may open it", async () => {
   assert.deepEqual(await call("GET", `/ledgers/${id}?key=${key}`, null), { status: 403, data: { error: "key" } }, "the key is never read from the address");
   assert.deepEqual(await call("GET", `/ledgers/${newId()}`, key), { status: 404, data: { error: "gone" } });
   assert.deepEqual(await call("POST", "/ledgers", null, { id: newId(), name: "x", currency: "CAD", members: three }), { status: 403, data: { error: "key" } });
-  assert.deepEqual(await call("POST", "/ledgers", key, { id: newId(), name: "x", currency: "XXX", members: three }), { status: 400, data: { error: "bad" } });
+  assert.deepEqual(await call("POST", "/ledgers", key, { id: newId(), name: "x", currency: "XXX", members: three }, someone()), { status: 400, data: { error: "bad" } });
   assert.deepEqual(await call("POST", "/ledgers", key, "{not json"), { status: 400, data: { error: "bad" } });
 });
 
 test("sending changes: in order, once, kept, and in the record", async () => {
   const { id, key } = await make();
-  const [e1, e2, e3] = [expense("e1"), expense("e2", 100), expense("e3")];
+  const [e1, e2, e3] = [expense("e1"), { ...expense("e2", 100), by: "w" }, expense("e3")];
   const first = await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [e1, e2] });
   assert.deepEqual([first.status, first.data.took, first.data.seq, first.data.ledger.entries.map((e) => e.id)], [200, ["new", "new"], 2, ["e1", "e2"]]);
   const again = await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [e1, e2, e3] });
@@ -95,7 +109,8 @@ test("sending changes: in order, once, kept, and in the record", async () => {
   const read = await call<Snapshot>("GET", `/ledgers/${id}`, key);
   assert.deepEqual([read.data.seq, read.data.ledger.entries.length], [3, 3], "what was sent is what is read back");
   const record = await call<Since>("GET", `/ledgers/${id}?since=1`, key);
-  assert.deepEqual([record.status, record.data.seq, record.data.changes.map((l) => [l.seq, l.sent.id])], [200, 3, [[2, e2.id], [3, e3.id]]]);
+  assert.deepEqual([record.status, record.data.seq, record.data.changes.map((l) => [l.seq, "sent" in l && l.sent.id])], [200, 3, [[2, e2.id], [3, e3.id]]]);
+  assert.deepEqual(record.data.changes.map((l) => "sent" in l && (l.sent.by ?? null)), ["w", null], "the record says who made a change, when the phone said (a phone that didn't, nobody)");
   assert.deepEqual(await call("GET", `/ledgers/${id}?since=x`, key), { status: 400, data: { error: "bad" } });
 
   assert.deepEqual(await call("POST", `/ledgers/${id}/changes`, newKey(), { changes: [expense("e9")] }), { status: 403, data: { error: "key" } });
@@ -148,10 +163,177 @@ test("a phone that is listening hears what another phone records", async () => {
   assert.deepEqual([await opened(newKey()), await opened(null), await opened(key, newId())], [false, false, false], "no live connection with the wrong key, with none, or to a ledger that isn't there");
 });
 
+test("the owner's two: the lock, and a new key for the invitation", async () => {
+  const id = newId();
+  const key = newKey();
+  const owner = newKey();
+  const asOwner = { [OWNER_HEADER]: owner };
+  const ledger = { id, name: "周末", currency: "CAD", members: three };
+  assert.deepEqual(await call("POST", "/ledgers", newKey(), { ...ledger, id: newId() }, { [OWNER_HEADER]: "short" }), { status: 400, data: { error: "bad" } }, "an owner's key that isn't one makes no ledger");
+  assert.deepEqual(await call("POST", "/ledgers", key, { ...ledger, id: newId() }, { [OWNER_HEADER]: key, ...someone() }), { status: 400, data: { error: "bad" } }, "nor does one that is the invitation's key");
+  assert.equal((await call("POST", "/ledgers", key, ledger, { ...asOwner, ...someone() })).status, 201);
+
+  const heard: Push[] = [];
+  const ws = new WebSocket(`ws://${HOST}/split/api/ledgers/${id}/live`, [LIVE_PROTOCOL, key]);
+  ws.addEventListener("message", (e) => heard.push(JSON.parse(String(e.data)) as Push));
+  const closed = new Promise<number>((resolve) => ws.addEventListener("close", (e) => resolve(e.code)));
+  const until = async (count: number) => {
+    for (let i = 0; i < 100 && heard.length < count; i++) await new Promise((r) => setTimeout(r, 100));
+    assert.equal(heard.length, count, "what the listening phone was sent");
+  };
+  await until(1);
+
+  // the lock
+  const lock = `/ledgers/${id}/lock`;
+  assert.deepEqual(await call("POST", lock, key, { locked: true }), { status: 403, data: { error: "owner" } }, "not with the invitation's key");
+  assert.deepEqual(await call("POST", lock, null, { locked: true }, { [OWNER_HEADER]: key }), { status: 403, data: { error: "owner" } }, "nor with it in the owner's place");
+  assert.deepEqual(await call("POST", lock, null, { locked: true }, { [OWNER_HEADER]: newKey() }), { status: 403, data: { error: "owner" } });
+  assert.deepEqual(await call("POST", lock, null, { locked: "yes" }, asOwner), { status: 400, data: { error: "bad" } });
+  assert.deepEqual(await call("POST", `/ledgers/${newId()}/lock`, null, { locked: true }, asOwner), { status: 404, data: { error: "gone" } });
+  const locked = await call<Snapshot>("POST", lock, null, { locked: true }, asOwner);
+  assert.deepEqual([locked.status, locked.data.seq, typeof locked.data.ledger.locked], [200, 1, "number"], "locked by its owner");
+  await until(2);
+  assert.deepEqual([heard[1].seq, heard[1].ledger.locked], [1, locked.data.ledger.locked], "the phone that is listening sees it at once");
+  const e1 = expense("e1");
+  assert.deepEqual(await call("POST", `/ledgers/${id}/changes`, key, { changes: [e1] }), { status: 423, data: { error: "locked" } }, "locked, it takes nothing");
+  assert.equal((await call<Snapshot>("GET", `/ledgers/${id}`, key)).data.ledger.locked, locked.data.ledger.locked, "and can be read");
+  assert.equal((await call<Snapshot>("POST", lock, null, { locked: true }, asOwner)).data.seq, 1, "locked again: already so");
+  const opened = await call<Snapshot>("POST", lock, null, { locked: false }, asOwner);
+  assert.deepEqual([opened.status, opened.data.seq, "locked" in opened.data.ledger], [200, 2, false], "opened again");
+  const taken = await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [e1] });
+  assert.deepEqual([taken.status, taken.data.took, taken.data.seq], [200, ["new"], 3]);
+  await until(4);
+  const record = await call<Since>("GET", `/ledgers/${id}?since=0`, key);
+  assert.deepEqual(record.data.changes.map((l) => ("lock" in l ? `${l.lock ? "locked" : "opened"} ${l.seq}` : `${l.sent.change.do} ${l.seq}`)), ["locked 1", "opened 2", "expense 3"], "the record keeps when it was locked and opened");
+
+  // a new key
+  const rekey = `/ledgers/${id}/key`;
+  const next = newKey();
+  assert.deepEqual(await call("POST", rekey, key, undefined, { [NEXT_HEADER]: next }), { status: 403, data: { error: "owner" } }, "not with the invitation's key");
+  assert.deepEqual(await call("POST", rekey, null, undefined, { ...asOwner, [NEXT_HEADER]: "short" }), { status: 400, data: { error: "bad" } });
+  assert.deepEqual(await call("POST", rekey, null, undefined, asOwner), { status: 400, data: { error: "bad" } }, "no new key given");
+  assert.deepEqual(await call("POST", rekey, null, undefined, { ...asOwner, [NEXT_HEADER]: owner }), { status: 400, data: { error: "bad" } }, "the invitation's key can't be the owner's");
+  assert.equal((await call("GET", `/ledgers/${id}`, key)).status, 200, "none of those changed the key");
+  const done = await call<Snapshot>("POST", rekey, null, undefined, { ...asOwner, [NEXT_HEADER]: next });
+  assert.deepEqual([done.status, done.data.seq, done.data.ledger.entries.length], [200, 3, 1], "the owner changes the key: the ledger is as it was");
+  assert.equal(await closed, 4403, "the phone that was listening is let go");
+  assert.deepEqual(await call("GET", `/ledgers/${id}`, key), { status: 403, data: { error: "key" } }, "the old key opens nothing");
+  assert.deepEqual(await call("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e2")] }), { status: 403, data: { error: "key" } });
+  assert.equal((await call<Snapshot>("GET", `/ledgers/${id}`, next)).data.seq, 3, "the new one does");
+  assert.equal((await call("POST", rekey, null, undefined, { ...asOwner, [NEXT_HEADER]: next })).status, 200, "asked again: already so");
+  const opens = (k: string) =>
+    new Promise<boolean>((resolve) => {
+      const s = new WebSocket(`ws://${HOST}/split/api/ledgers/${id}/live`, [LIVE_PROTOCOL, k]);
+      s.addEventListener("open", () => (s.close(), resolve(true)));
+      s.addEventListener("error", () => resolve(false));
+      s.addEventListener("close", () => resolve(false));
+    });
+  assert.deepEqual([await opens(key), await opens(next)], [false, true], "and only the new key listens");
+
+  // a ledger made with no owner's key has no owner
+  const plain = await make();
+  assert.deepEqual(await call("POST", `/ledgers/${plain.id}/lock`, null, { locked: true }, asOwner), { status: 403, data: { error: "owner" } });
+  assert.deepEqual(await call("POST", `/ledgers/${plain.id}/key`, null, undefined, { [OWNER_HEADER]: plain.key, [NEXT_HEADER]: next }), { status: 403, data: { error: "owner" } });
+});
+
 test("addresses that aren't there", async () => {
   const { id, key } = await make();
-  for (const [method, path] of [["GET", ""], ["GET", "/ledgers"], ["GET", "/ledgers/abc"], ["PUT", `/ledgers/${id}`], ["GET", `/ledgers/${id}/changes`], ["POST", `/ledgers/${id}/nope`], ["GET", `/ledgers/${id}/live/more`], ["GET", "/other"]]) {
+  for (const [method, path] of [["GET", ""], ["GET", "/ledgers"], ["GET", "/ledgers/abc"], ["PUT", `/ledgers/${id}`], ["GET", `/ledgers/${id}/changes`], ["POST", `/ledgers/${id}/nope`], ["GET", `/ledgers/${id}/key`], ["GET", `/ledgers/${id}/lock`], ["GET", `/ledgers/${id}/live/more`], ["GET", "/other"]]) {
     assert.deepEqual(await call(method, path, key, method === "GET" ? undefined : {}), { status: 404, data: { error: "notfound" } }, `${method} ${path}`);
   }
   assert.equal((await fetch(`${API}/ledgers/${id}/live`, { headers: { [KEY_HEADER]: key } })).status, 426, "the live address is a WebSocket's");
+});
+
+const mineOf = async (session: string) => (await call<MyLedgers>("GET", "/me/ledgers", null, undefined, as(session))).data.ledgers;
+
+test("signed in, a ledger made is kept in the account's list, keys and all", async () => {
+  const id = newId();
+  const key = newKey();
+  const owner = newKey();
+  const ledger = { id, name: "周末", currency: "CAD", members: three };
+  assert.deepEqual(await call("POST", "/ledgers", key, ledger, { [OWNER_HEADER]: owner, ...as(SESSION.nobody) }), { status: 401, data: { error: "signin" } }, "a sign-in that is nobody's makes nothing");
+  assert.deepEqual(await call("POST", "/ledgers", key, ledger, { [OWNER_HEADER]: owner, ...as(SESSION.down) }), { status: 503, data: { error: "down" } }, "nor does one the rooms server can't answer for now");
+  assert.deepEqual(await call("POST", "/ledgers", key, ledger, { [OWNER_HEADER]: owner, authorization: "Bearer x" }), { status: 401, data: { error: "signin" } }, "nor what isn't a sign-in");
+  assert.equal((await call("GET", `/ledgers/${id}`, key)).status, 404, "(none of them made it)");
+
+  const before = (await mineOf(SESSION.steve)).length;
+  assert.equal((await call("POST", "/ledgers", key, ledger, { [OWNER_HEADER]: owner, ...as(SESSION.steve) })).status, 201);
+  const mine = await mineOf(SESSION.steve);
+  assert.equal(mine.length, before + 1);
+  assert.deepEqual({ ...mine[0], at: 0 }, { id, key, owner, at: 0 }, "the last one made is first, with its key and the owner's key");
+  assert.equal((await call("POST", "/ledgers", key, ledger, { [OWNER_HEADER]: owner, ...as(SESSION.steve) })).status, 200, "asked for again: the same ledger");
+  assert.equal((await mineOf(SESSION.steve)).length, before + 1, "and still once in the list");
+  assert.ok(!(await mineOf(SESSION.wang)).some((m) => m.id === id), "another account's list doesn't have it");
+  assert.equal((await call("POST", "/ledgers", key, ledger, { [OWNER_HEADER]: newKey(), ...as(SESSION.wang) })).status, 200, "asked for by another account with the key and some other owner's key");
+  assert.deepEqual(Object.keys((await mineOf(SESSION.wang)).find((m) => m.id === id) ?? {}).sort(), ["at", "id", "key"], "that account keeps the key, and not an owner's key that isn't the owner's");
+
+  for (const [session, want] of [[null, { status: 401, data: { error: "signin" } }], [SESSION.nobody, { status: 401, data: { error: "signin" } }], [SESSION.down, { status: 503, data: { error: "down" } }]] as const) {
+    assert.deepEqual(await call("GET", "/me/ledgers", null, undefined, session ? as(session) : {}), want, `my ledgers asked by ${session ?? "nobody signed in"}`);
+  }
+  const unsigned = { ...ledger, id: newId() };
+  const unsignedKey = newKey();
+  assert.deepEqual(await call("POST", "/ledgers", unsignedKey, unsigned), { status: 401, data: { error: "signin" } }, "not signed in, no ledger is made");
+  assert.equal((await call("GET", `/ledgers/${unsigned.id}`, unsignedKey)).status, 404, "(it wasn't)");
+  assert.equal((await call("POST", "/ledgers", key, ledger)).status, 200, "a ledger already made, asked for again with its key, needs no sign-in: nothing new is made");
+});
+
+test("a ledger joined is kept in the account's list when its key opens it", async () => {
+  const { id, key } = await make();
+  const at = `/me/ledgers/${id}`;
+  const wang = as(SESSION.wang);
+  assert.deepEqual(await call("PUT", at, newKey(), { me: "w" }, wang), { status: 403, data: { error: "key" } }, "not with a key that doesn't open it");
+  assert.deepEqual(await call("PUT", `/me/ledgers/${newId()}`, key, { me: "w" }, wang), { status: 404, data: { error: "gone" } }, "nor one that isn't there");
+  assert.deepEqual(await call("PUT", at, null, { me: "w" }, wang), { status: 400, data: { error: "bad" } }, "nor with no key");
+  assert.deepEqual(await call("PUT", at, key, { me: "w" }, { ...wang, [OWNER_HEADER]: newKey() }), { status: 403, data: { error: "owner" } }, "nor with an owner's key that isn't its owner's");
+  assert.deepEqual(await call("PUT", at, key, { me: "w" }), { status: 401, data: { error: "signin" } }, "nor signed in to nobody");
+  assert.ok(!(await mineOf(SESSION.wang)).some((m) => m.id === id), "(none of them kept it)");
+
+  const kept = await call<MineBody>("PUT", at, key, { me: "w" }, wang);
+  assert.deepEqual([kept.status, { ...kept.data.mine, at: 0 }], [200, { id, key, me: "w", at: 0 }], "kept, with who they are in it");
+  assert.deepEqual({ ...(await mineOf(SESSION.wang)).find((m) => m.id === id), at: 0 }, { id, key, me: "w", at: 0 });
+  assert.deepEqual({ ...(await call<MineBody>("PUT", at, key, { me: "nobody-in-it" }, wang)).data.mine, at: 0 }, { id, key, at: 0 }, "someone who isn't in it is forgotten");
+  assert.equal((await call<MineBody>("PUT", at, key, {}, wang)).data.mine.me, undefined);
+  assert.equal((await call<MineBody>("PUT", at, key, { me: "m" }, wang)).data.mine.me, "m");
+  assert.equal((await call<MineBody>("PUT", at, key, undefined, wang)).data.mine.me, "m", "saying nothing of who they are keeps it");
+
+  assert.deepEqual(await call("DELETE", at, null, undefined, wang), { status: 200, data: { ok: true } }, "taken off the list");
+  assert.ok(!(await mineOf(SESSION.wang)).some((m) => m.id === id));
+  assert.equal((await call("GET", `/ledgers/${id}`, key)).status, 200, "the ledger itself is still there");
+  assert.deepEqual(await call("DELETE", at, null, undefined, wang), { status: 200, data: { ok: true } }, "twice is once");
+});
+
+test("an account starts at most ten ledgers a day", async () => {
+  const someone = as(`test-account-${randomUUID().replaceAll("-", "").slice(0, 12)}`);
+  for (let i = 0; i < 10; i++) assert.equal((await call("POST", "/ledgers", newKey(), { id: newId(), name: "周末", currency: "CAD", members: three }, someone)).status, 201, `the ${i + 1}th`);
+  const eleventh = { id: newId(), name: "周末", currency: "CAD", members: three };
+  const key = newKey();
+  assert.deepEqual(await call("POST", "/ledgers", key, eleventh, someone), { status: 429, data: { error: "limit" } }, "an eleventh, no");
+  assert.equal((await call("GET", `/ledgers/${eleventh.id}`, key)).status, 404, "(it wasn't made)");
+  assert.equal((await call("POST", "/ledgers", key, eleventh, as(SESSION.wang))).status, 201, "another account, yes");
+});
+
+test("the owner deletes a ledger: gone for everyone, and off the owner's list", async () => {
+  const id = newId();
+  const key = newKey();
+  const owner = newKey();
+  assert.equal((await call("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, { [OWNER_HEADER]: owner, ...as(SESSION.steve) })).status, 201);
+  assert.equal((await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e1")] })).status, 200);
+  assert.equal((await call("PUT", `/me/ledgers/${id}`, key, { me: "w" }, as(SESSION.wang))).status, 200, "(a friend keeps it too)");
+  const ws = new WebSocket(`ws://${HOST}/split/api/ledgers/${id}/live`, [LIVE_PROTOCOL, key]);
+  const closed = new Promise<number>((resolve) => ws.addEventListener("close", (e) => resolve(e.code)));
+  await new Promise((resolve) => ws.addEventListener("message", resolve, { once: true }));
+
+  for (const who of [{ [KEY_HEADER]: key }, { [OWNER_HEADER]: key }, { [OWNER_HEADER]: newKey() }, {}] as Record<string, string>[]) {
+    assert.deepEqual(await call("DELETE", `/ledgers/${id}`, null, undefined, who), { status: 403, data: { error: "owner" } }, "only the owner's key deletes it");
+  }
+  assert.deepEqual(await call("DELETE", `/ledgers/${newId()}`, null, undefined, { [OWNER_HEADER]: owner }), { status: 404, data: { error: "gone" } });
+  assert.deepEqual(await call("DELETE", `/ledgers/${id}`, null, undefined, { [OWNER_HEADER]: owner, ...as(SESSION.steve) }), { status: 200, data: { ok: true } }, "the owner deletes it");
+  assert.equal(await closed, 4404, "the phone that was listening is let go");
+  assert.deepEqual(await call("GET", `/ledgers/${id}`, key), { status: 404, data: { error: "gone" } }, "it is gone");
+  assert.deepEqual(await call("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e2")] }), { status: 404, data: { error: "gone" } });
+  assert.deepEqual(await call("GET", `/ledgers/${id}?since=0`, key), { status: 404, data: { error: "gone" } }, "its record too");
+  assert.deepEqual(await call("DELETE", `/ledgers/${id}`, null, undefined, { [OWNER_HEADER]: owner }), { status: 404, data: { error: "gone" } }, "deleted twice: gone");
+  assert.deepEqual(await call("POST", "/ledgers", key, { id, name: "周末", currency: "CAD", members: three }, { [OWNER_HEADER]: owner, ...someone() }), { status: 404, data: { error: "gone" } }, "its id isn't made into another ledger");
+  assert.ok(!(await mineOf(SESSION.steve)).some((m) => m.id === id), "it is off its owner's list");
+  assert.deepEqual(await call("PUT", `/me/ledgers/${id}`, key, {}, as(SESSION.wang)), { status: 404, data: { error: "gone" } }, "and can't be kept again by anyone");
 });

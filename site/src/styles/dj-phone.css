@@ -197,40 +197,6 @@
   line-height: var(--leading);
 }
 /* 我的歌 on the host's phone: the song being sent, and how the last few went */
-.djp-mine-now {
-  margin: 0;
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: 14px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.djp-mine-sent {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--color-text-2);
-  font-size: 13px;
-  font-weight: 600;
-}
-.djp-mine-sent li {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-.djp-mine-sent li.is-ok {
-  color: var(--color-text);
-}
-.djp-mine-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .djp-pop,
   .djp-others span {

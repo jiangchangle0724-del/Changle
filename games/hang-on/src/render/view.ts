@@ -14,7 +14,8 @@ export interface ArmView {
   /** 肩、两个肘、手心。 */
   pts: Pt[];
   /** 抓着什么就有，t 是抓了多久（秒）。 */
-  grip: { t: number } | null;
+  /** 抓着的话：抓了几秒；max 是冰溜子（雪山）最多抓几秒就滑。 */
+  grip: { t: number; max?: number } | null;
 }
 
 export interface PlayerView {
@@ -48,7 +49,7 @@ export interface NoodleView {
 }
 
 export interface PropView {
-  kind: 'seesaw' | 'crate';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern';
   w: number;
   h: number;
   x: number;
@@ -75,6 +76,22 @@ export interface SpringView {
   hit: number;
 }
 
+/** 踩板门（11-13）：踏板按着没有，门开到几成（0 关、1 开）、现在在哪。 */
+export interface PlateView {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  on: boolean;
+}
+export interface GateView {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  open: number;
+}
+
 export interface SimView {
   /** 按人数摆出来的关卡（forPlayers 之后的那一版）。 */
   level: Level;
@@ -93,4 +110,21 @@ export interface SimView {
   springs: SpringView[];
   /** 道具放下来的拉面（A9）。 */
   noodles?: NoodleView[];
+  /** 红包（A9b）：在哪、拿到没有。 */
+  envelopes?: { x: number; y: number; got: boolean }[];
+  /** 踩板门（11-13）。 */
+  plates?: PlateView[];
+  gates?: GateView[];
+  /** 抢金元宝（A9d）：每个人这一局抓着元宝攒了几秒、要攒几秒、现在谁一个人抓着（-1 没有）。 */
+  gold?: { holdT: number[]; need: number; holder: number } | null;
+  /** 端托盘（后厨，A10）：托盘是第几个物件、点心翻了没有（翻了画空托盘）。蒸笼喷汽按关卡和 time 画，不用带。 */
+  tray?: { prop: number; spilled: boolean } | null;
+  /** 老宅找钥匙（A10）：每把钥匙是第几个物件、找到没有、用掉没有（插在锁里了就不画）。灯笼就是 kind 为 lantern 的物件。 */
+  keys?: { prop: number; found: boolean; used: boolean }[];
+  /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
+  lamps?: { x: number; y: number; r: number; on: boolean }[];
+  /** 拉杆（太空站，A10）：把手在哪、有没有人抓着。失重区按关卡画，不用带。 */
+  levers?: PlateView[];
+  /** 卡太久来帮手（A9c）：外卖无人机提手的中间、在干什么；没来是 null。 */
+  drone?: { x: number; y: number; phase: string } | null;
 }

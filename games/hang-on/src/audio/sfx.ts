@@ -75,6 +75,11 @@ class Sfx {
     return !!this.ctx && this.ctx.state === 'running';
   }
 
+  /** 背景音乐（`music.ts`）接在这里：同一个 AudioContext，接在音效的总音量后面，静音一起管。 */
+  audio(): { ctx: AudioContext; bus: GainNode } | null {
+    return this.ctx && this.master ? { ctx: this.ctx, bus: this.master } : null;
+  }
+
   setVoice(player: number, voice: Voice): void {
     this.voices[player] = voice;
   }
@@ -169,7 +174,9 @@ class Sfx {
             // 扎：短促一声啵
             this.tone({ freq: 900, to: 300, wave: 'triangle', dur: 0.09, vol: 0.3, pan });
             this.noise({ dur: 0.05, vol: 0.15, filter: { type: 'lowpass', freq: 1800 }, pan });
-          } else this.splash(pan, sim.level.world !== 'van');
+          } else if (sim.level.world === 'snow') this.poof(pan);
+          else if (sim.level.world === 'space') this.drift(pan);
+          else this.splash(pan, (sim.level.world ?? 'table') === 'table');
           break;
         }
         case 'respawn': {
@@ -189,6 +196,126 @@ class Sfx {
           this.tone({ freq: 880, wave: 'sine', dur: 0.4, vol: 0.3, delay: 0.12 });
           this.tone({ freq: 1319, wave: 'triangle', dur: 0.5, vol: 0.12, delay: 0.12 });
           break;
+        case 'envelope': {
+          // 红包（A9b）：叮叮两声，像铜钱
+          const pan = this.pan(ev.x, ev.y);
+          this.tone({ freq: 1320, wave: 'triangle', dur: 0.12, vol: 0.28, pan });
+          this.tone({ freq: 1760, wave: 'triangle', dur: 0.22, vol: 0.24, pan, delay: 0.08 });
+          this.tone({ freq: 2640, wave: 'sine', dur: 0.25, vol: 0.08, pan, delay: 0.08 });
+          break;
+        }
+        case 'gold': {
+          // 抢金元宝（A9d）：抓住叮当一声；每攒一秒响一下，越来越高；元宝回到中间呼一声
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.player < 0) {
+            this.noise({ dur: 0.4, vol: 0.14, filter: { type: 'bandpass', freq: 900, q: 1, to: 2600 }, attack: 0.05, pan });
+            break;
+          }
+          if (ev.t === 0) {
+            this.tone({ freq: 1568, wave: 'triangle', dur: 0.14, vol: 0.22, pan });
+            this.tone({ freq: 2093, wave: 'triangle', dur: 0.2, vol: 0.18, pan, delay: 0.06 });
+          } else this.tone({ freq: 660 + ev.t * 110, wave: 'sine', dur: 0.1, vol: 0.2, pan });
+          break;
+        }
+        case 'drone': {
+          // 外卖无人机（A9c）：来了叮咚一声加嗡嗡；带人走往上嗡一声；飞走嗡声往下
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'arrive') {
+            this.tone({ freq: 988, wave: 'sine', dur: 0.25, vol: 0.22, pan });
+            this.tone({ freq: 784, wave: 'sine', dur: 0.4, vol: 0.22, pan, delay: 0.22 });
+          }
+          const [f0, f1] = ev.phase === 'leave' ? [190, 120] : ev.phase === 'carry' ? [150, 210] : [120, 170];
+          this.tone({ freq: f0, to: f1, wave: 'sawtooth', dur: 1.4, vol: 0.06, pan, lowpass: 900, vibrato: [8, 31] });
+          this.noise({ dur: 1.2, vol: 0.05, filter: { type: 'bandpass', freq: 1800, q: 0.8 }, attack: 0.2, pan });
+          break;
+        }
+        case 'vent': {
+          // 蒸笼喷汽（后厨，A10）：快喷了盖子咔哒咔哒跳三下，喷了呲的一声长汽；离大家远的那几摞不响（一关好几摞，不吵）
+          const near = sim.players.some((p) => !p.dead && Math.hypot(p.body.x - ev.x, p.body.y - ev.y) < 700);
+          if (!near || !this.throttle(`vent${ev.index}`, 0.3)) break;
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'warn') {
+            for (let k = 0; k < 3; k++) this.noise({ dur: 0.03, vol: 0.12, filter: { type: 'bandpass', freq: 1800 + k * 300, q: 3 }, pan, delay: k * 0.13 });
+          } else {
+            this.noise({ dur: 1.1, vol: 0.16, filter: { type: 'bandpass', freq: 3600, to: 1500, q: 0.9 }, attack: 0.04, pan });
+            this.noise({ dur: 0.5, vol: 0.08, filter: { type: 'lowpass', freq: 600 }, attack: 0.02, pan });
+          }
+          break;
+        }
+        case 'tray': {
+          // 端托盘（后厨，A10）：翻了是盘子哐当一声加点心掉一地；回来了轻轻叮咚；端进终点亮三声
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'spill') {
+            this.tone({ freq: 1250, to: 820, wave: 'triangle', dur: 0.35, vol: 0.22, pan, vibrato: [9, 40] });
+            this.noise({ dur: 0.18, vol: 0.22, filter: { type: 'highpass', freq: 2500 }, pan });
+            for (let k = 0; k < 3; k++) this.tone({ freq: 240 - k * 30, to: 120, wave: 'sine', dur: 0.08, vol: 0.2, pan, delay: 0.12 + k * 0.09 });
+          } else if (ev.phase === 'back') {
+            this.tone({ freq: 523, wave: 'sine', dur: 0.14, vol: 0.14, pan });
+            this.tone({ freq: 659, wave: 'sine', dur: 0.2, vol: 0.14, pan, delay: 0.1 });
+          } else {
+            for (const [k, f] of [784, 988, 1175].entries()) this.tone({ freq: f, wave: 'triangle', dur: 0.22, vol: 0.18, pan, delay: k * 0.08 });
+          }
+          break;
+        }
+        case 'key': {
+          // 老宅找钥匙（A10）：找到了叮铃铃一串；开锁咔哒一声加两下亮的；掉了回来呼一声；门锁着哐啷哐啷晃两下
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'found') {
+            for (const [k, f] of [1568, 2093, 2637].entries()) this.tone({ freq: f, wave: 'triangle', dur: 0.16, vol: 0.18, pan, delay: k * 0.06 });
+          } else if (ev.phase === 'unlock') {
+            this.noise({ dur: 0.05, vol: 0.25, filter: { type: 'bandpass', freq: 2600, q: 3 }, pan });
+            this.tone({ freq: 180, to: 120, wave: 'square', dur: 0.08, vol: 0.18, pan, lowpass: 1200, delay: 0.05 });
+            this.tone({ freq: 1047, wave: 'sine', dur: 0.25, vol: 0.2, pan, delay: 0.14 });
+            this.tone({ freq: 1568, wave: 'triangle', dur: 0.4, vol: 0.16, pan, delay: 0.22 });
+          } else if (ev.phase === 'back') {
+            this.noise({ dur: 0.35, vol: 0.12, filter: { type: 'bandpass', freq: 900, q: 1, to: 2400 }, attack: 0.05, pan });
+          } else if (this.throttle(`locked${ev.index}`, 1)) {
+            for (let k = 0; k < 2; k++) {
+              this.noise({ dur: 0.06, vol: 0.2, filter: { type: 'bandpass', freq: 1500 + k * 400, q: 4 }, pan, delay: k * 0.14 });
+              this.tone({ freq: 140, to: 100, wave: 'square', dur: 0.06, vol: 0.12, pan, lowpass: 800, delay: k * 0.14 });
+            }
+          }
+          break;
+        }
+        case 'lever': {
+          // 太空站的拉杆：拉下去咔嗒一声加一声短的「嘀」，松开轻一点
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.on) {
+            this.noise({ dur: 0.05, vol: 0.2, filter: { type: 'bandpass', freq: 1800, q: 3 }, pan });
+            this.tone({ freq: 880, wave: 'square', dur: 0.07, vol: 0.08, pan, lowpass: 2400, delay: 0.05 });
+          } else this.tone({ freq: 440, to: 330, wave: 'triangle', dur: 0.06, vol: 0.1, pan });
+          break;
+        }
+        case 'float': {
+          // 飘进失重区：呼的一声往上，飘出来往下
+          if (!this.throttle(`float${ev.player}`, 0.5)) break;
+          const pan = this.pan(ev.x, ev.y);
+          this.tone({ freq: ev.on ? 300 : 520, to: ev.on ? 620 : 260, wave: 'sine', dur: 0.35, vol: 0.1, pan, vibrato: [6, 7] });
+          break;
+        }
+        case 'lamp': {
+          // 墙上的灯点着了：噗的一小声，加一点暖的嗡
+          const pan = this.pan(ev.x, ev.y);
+          this.noise({ dur: 0.25, vol: 0.14, filter: { type: 'bandpass', freq: 700, to: 1800, q: 1.2 }, attack: 0.02, pan });
+          this.tone({ freq: 392, to: 523, wave: 'sine', dur: 0.3, vol: 0.12, pan });
+          break;
+        }
+        case 'plate': {
+          // 踩板门（11-13）：踩下去咔哒一声，抬起来轻一点、高一点
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.on) {
+            this.tone({ freq: 220, to: 140, wave: 'square', dur: 0.06, vol: 0.18, pan, lowpass: 1400 });
+            this.noise({ dur: 0.04, vol: 0.18, filter: { type: 'bandpass', freq: 2400, q: 2 }, pan });
+          } else this.tone({ freq: 330, to: 420, wave: 'triangle', dur: 0.05, vol: 0.1, pan });
+          break;
+        }
+        case 'gate': {
+          // 门开始挪：一声低的隆隆，开往上滑、关往下滑
+          const pan = this.pan(ev.x, ev.y);
+          this.noise({ dur: 0.7, vol: 0.16, filter: { type: 'lowpass', freq: ev.open ? 300 : 500, to: ev.open ? 700 : 200 }, attack: 0.05, pan });
+          this.tone({ freq: ev.open ? 70 : 90, to: ev.open ? 95 : 60, wave: 'sawtooth', dur: 0.6, vol: 0.08, pan, lowpass: 400 });
+          break;
+        }
         case 'item': {
           // 道具（A9）：速冻叮一声加冰碴，荷叶呼的一下，拉面吸溜一声；没用成闷闷一声
           const pan = this.pan(ev.x, ev.y);
@@ -322,6 +449,20 @@ class Sfx {
         this.tone({ freq: seat * 1.15, to: seat * 0.5, wave: 'sawtooth', dur: 0.62, attack: 0.03, vol: 0.22, vibrato: [seat * 0.06, 11], pan, lowpass: 2400 });
         this.tone({ freq: seat * 2.3, to: seat * 1.0, wave: 'square', dur: 0.5, attack: 0.03, vol: 0.05, vibrato: [seat * 0.1, 11], pan, lowpass: 3000 });
     }
+  }
+
+  /** 太空站（A10）：飘出舱外，一声长长的呼，越来越远。 */
+  private drift(pan: number): void {
+    const d = 0.55;
+    this.noise({ dur: 0.9, vol: 0.18, filter: { type: 'bandpass', freq: 1400, to: 300, q: 1.2 }, attack: 0.05, pan, delay: d });
+    this.tone({ freq: 520, to: 140, wave: 'sine', dur: 0.8, vol: 0.12, pan, delay: d });
+  }
+
+  /** 雪山（A10）：掉进雪坑，闷闷的噗一声，带一点雪粒的沙沙。 */
+  private poof(pan: number): void {
+    const d = 0.55;
+    this.noise({ dur: 0.45, vol: 0.45, filter: { type: 'lowpass', freq: 700, to: 180 }, attack: 0.01, pan, delay: d });
+    this.noise({ dur: 0.3, vol: 0.1, filter: { type: 'bandpass', freq: 4200, q: 1 }, attack: 0.02, pan, delay: d + 0.05 });
   }
 
   private splash(pan: number, hot: boolean): void {
@@ -461,6 +602,9 @@ export function heardBy(ev: SimEvent, me: number): boolean {
     case 'item':
       return ev.ok || ev.player === me;
     case 'itemEnd':
+      return true;
+    // 红包是大家的
+    case 'envelope':
       return true;
     default:
       return !('player' in ev) || ev.player === me;

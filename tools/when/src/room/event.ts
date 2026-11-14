@@ -6,9 +6,11 @@
 // room never keeps a key, only its SHA-256 fingerprint. A row can be changed only with the key it
 // was made with. The phone that made the gathering is its host; another phone becomes one by
 // giving the 6-digit admin code.
-import { cleanAnswers, cleanDays, slotsOf } from "../engine/slots";
+import { cleanInvited, INVITED_MAX } from "../engine/invited";
+import { cleanTimes, isWhole, MIN_SPAN } from "../engine/minutes";
+import { cleanAnswers, cleanDays, parseSlot, partRange, slotsOf } from "../engine/slots";
 import { cleanText } from "../engine/text";
-import type { Day, EventState, Grain, Person, Settled, SlotKey } from "../engine/types";
+import type { Day, EventState, Grain, Person, SlotKey } from "../engine/types";
 
 export const MAX_PEOPLE = 40;
 export const NAME_MAX = 16;
@@ -42,10 +44,13 @@ export type Ok<T = object> = { ok: true } & T;
 const fail = (error: ErrorCode): Fail => ({ ok: false, error });
 
 export type HostAction =
-  | { do: "settle"; slot: SlotKey }
+  /** `from` and `to`: part of it to the minute, in a gathering asked by the period (left out, or all of it: the slot itself) */
+  | { do: "settle"; slot: SlotKey; from?: unknown; to?: unknown }
   | { do: "reopen" }
-  | { do: "edit"; title?: unknown; minPeople?: unknown; deadline?: unknown }
+  | { do: "edit"; title?: unknown; minPeople?: unknown; deadline?: unknown; invited?: unknown }
   | { do: "must"; id: string; must: boolean }
+  /** fill in for someone (代填): a new row of that name without `id`; with it, one made this way before */
+  | { do: "proxy"; id?: unknown; name: unknown; answers: unknown; times?: unknown }
   | { do: "remove"; id: string };
 
 export class EventRoom {
@@ -73,7 +78,8 @@ export class EventRoom {
     if (this.meta) return fail("exists");
     const title = cleanText(input.title, TITLE_MAX);
     const days = cleanDays(input.days, input.today);
-    const grain: Grain | null = input.grain === "half" || input.grain === "day" ? input.grain : null;
+    // "half" is still taken from a page opened before the periods came in (2026-11-14)
+    const grain: Grain | null = input.grain === "periods" || input.grain === "day" || input.grain === "half" ? input.grain : null;
     if (!title || !days || !grain) return fail("bad");
     this.meta = {
       code: input.code,
@@ -83,6 +89,7 @@ export class EventRoom {
       createdAt: input.now,
       expiresAt: input.now + KEEP_MS,
       deadline: null,
+      invited: [],
       minPeople: 1,
       settled: null,
       v: 1,
@@ -97,7 +104,8 @@ export class EventRoom {
   state(): EventState | null {
     if (!this.meta) return null;
     const { hosts: _hosts, admin: _admin, ...shown } = this.meta;
-    return { ...shown, people: [...this.rows.values()].map(({ keyHash: _key, joinedAt: _joined, ...person }) => person) };
+    // a gathering made before the list came in (2026-11-14) has none
+    return { ...shown, invited: shown.invited ?? [], people: [...this.rows.values()].map(({ keyHash: _key, joinedAt: _joined, ...person }) => person) };
   }
 
   isHost(keyHash: string | null): boolean {
@@ -115,12 +123,13 @@ export class EventRoom {
    * Save someone's own row: their name and their answers. The first save makes the row. A row is
    * changed only with the key that made it; a key has one row.
    */
-  saveMine(input: { id?: unknown; keyHash: string; newId: () => string; name: unknown; answers: unknown; now: number }): Ok<{ id: string; fresh: boolean }> | Fail {
+  saveMine(input: { id?: unknown; keyHash: string; newId: () => string; name: unknown; answers: unknown; times?: unknown; now: number }): Ok<{ id: string; fresh: boolean }> | Fail {
     const meta = this.meta;
     if (!meta) return fail("gone");
     const name = cleanText(input.name, NAME_MAX);
     if (!name) return fail("name");
     const answers = cleanAnswers(input.answers, new Set(slotsOf(meta.days, meta.grain)));
+    const times = cleanTimes(input.times, answers, meta.grain);
     const mine = this.rowOf(input.keyHash);
     if (typeof input.id === "string" && this.rows.has(input.id) && input.id !== mine) return fail("forbidden");
     let row = mine ? this.rows.get(mine)! : null;
@@ -136,22 +145,36 @@ export class EventRoom {
       row.answers = answers;
       row.at = input.now;
     }
+    // only the slots someone is free for part of carry a time
+    if (Object.keys(times).length) row.times = times;
+    else delete row.times;
     this.store.saveRow(row);
     this.bump();
     return { ok: true, id: row.id, fresh };
   }
 
-  /** Something only a host's phone may do. */
-  hostAct(keyHash: string | null, action: HostAction, now: number): Ok | Fail {
+  /** Something only a host's phone may do. `newId` names a row filled in for someone; its id comes back. */
+  hostAct(keyHash: string | null, action: HostAction, now: number, newId: () => string = () => Math.random().toString(36).slice(2, 12)): Ok<{ id?: string }> | Fail {
     const meta = this.meta;
     if (!meta) return fail("gone");
     if (!this.isHost(keyHash)) return fail("forbidden");
+    let made: string | undefined;
     switch (action?.do) {
       case "settle": {
         const at = slotsOf(meta.days, meta.grain).indexOf(action.slot);
         if (at < 0) return fail("bad");
-        const [day, part] = action.slot.split(":") as [Day, Settled["part"]];
-        meta.settled = { day, part, at: now };
+        const { day, part } = parseSlot(action.slot)!;
+        const range = partRange(meta.grain, part);
+        if (!range || (action.from === undefined && action.to === undefined)) {
+          meta.settled = { day, part, at: now };
+          break;
+        }
+        const { from, to } = action;
+        if (!Number.isInteger(from) || !Number.isInteger(to)) return fail("bad");
+        const [f, t] = [from as number, to as number];
+        if (f < range[0] || t > range[1] || t - f < MIN_SPAN) return fail("bad");
+        // the whole period is the slot itself: no minutes, as with an answer
+        meta.settled = isWhole([f, t], range) ? { day, part, at: now } : { day, part, at: now, from: f, to: t };
         break;
       }
       case "reopen":
@@ -173,6 +196,11 @@ export class EventRoom {
           if (d !== null && (typeof d !== "number" || !Number.isFinite(d) || d <= now || d > meta.expiresAt)) return fail("bad");
           meta.deadline = d === null ? null : Math.floor(d as number);
         }
+        if (action.invited !== undefined) {
+          const invited = cleanInvited(action.invited, NAME_MAX, INVITED_MAX);
+          if (!invited) return fail("bad");
+          meta.invited = invited;
+        }
         break;
       }
       case "must": {
@@ -180,6 +208,34 @@ export class EventRoom {
         if (!row) return fail("bad");
         row.must = action.must === true;
         this.store.saveRow(row);
+        break;
+      }
+      case "proxy": {
+        // a row no phone holds the key to: only a host changes it, and a host changes no other row
+        const name = cleanText(action.name, NAME_MAX);
+        if (!name) return fail("name");
+        const answers = cleanAnswers(action.answers, new Set(slotsOf(meta.days, meta.grain)));
+        const times = cleanTimes(action.times, answers, meta.grain);
+        let row: Row;
+        if (action.id === undefined) {
+          if (this.rows.size >= MAX_PEOPLE) return fail("full");
+          let id = newId();
+          while (this.rows.has(id)) id = newId();
+          row = { id, name, must: false, proxy: true, answers, at: now, keyHash: "", joinedAt: now };
+          this.rows.set(id, row);
+        } else {
+          const had = typeof action.id === "string" ? this.rows.get(action.id) : undefined;
+          if (!had) return fail("bad");
+          if (!had.proxy) return fail("forbidden");
+          row = had;
+          row.name = name;
+          row.answers = answers;
+          row.at = now;
+        }
+        if (Object.keys(times).length) row.times = times;
+        else delete row.times;
+        this.store.saveRow(row);
+        made = row.id;
         break;
       }
       case "remove": {
@@ -191,7 +247,7 @@ export class EventRoom {
         return fail("bad");
     }
     this.bump();
-    return { ok: true };
+    return made ? { ok: true, id: made } : { ok: true };
   }
 
   /** The salt to fingerprint a typed admin code with, or why no code is being taken right now. */

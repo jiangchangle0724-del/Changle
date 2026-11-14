@@ -49,6 +49,15 @@ export const IconCalendar = ({ size = 18 }: IconProps) =>
     </>,
     2,
   );
+export const IconClock = ({ size = 18 }: IconProps) =>
+  svg(
+    size,
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>,
+    2,
+  );
 export const IconPicture = ({ size = 18 }: IconProps) =>
   svg(
     size,
@@ -171,8 +180,13 @@ export function CopyButton({ text, label, kind = "quiet", icon = true }: { text:
       </button>
       {state === "manual" && (
         <label class="copy-manual">
-          <span>{t("copyByHand")}</span>
-          <input type="text" readOnly value={text} onFocus={(event) => event.currentTarget.select()} />
+          {/* words of more than one line (a message with its link under it) keep their lines */}
+          <span>{t(text.includes("\n") ? "copyByHandText" : "copyByHand")}</span>
+          {text.includes("\n") ? (
+            <textarea readOnly rows={text.split("\n").length + 1} value={text} onFocus={(event) => event.currentTarget.select()} />
+          ) : (
+            <input type="text" readOnly value={text} onFocus={(event) => event.currentTarget.select()} />
+          )}
         </label>
       )}
     </div>
@@ -196,12 +210,32 @@ export function Qr({ text, label }: { text: string; label: string }) {
 }
 
 /** A short line that comes and goes at the bottom of the screen; with `action`, it carries one thing to press. */
+/** Text whose times stay on one line: a line never ends at "19:30–". */
+export function Keep({ text }: { text: string }) {
+  const parts = text.split(/(\d{1,2}:\d{2}–\d{1,2}:\d{2})/);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 ? (
+          <span key={i} class="nowrap">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 export function Toast({ text, action }: { text: string | null; action?: { label: string; run: () => void } }) {
   return (
     <div class="toast-wrap" aria-live="polite">
       {text && (
         <div class="toast" data-action={action ? "" : undefined}>
-          <span>{text}</span>
+          <span>
+            <Keep text={text} />
+          </span>
           {action && (
             <button type="button" class="link-btn" onClick={action.run}>
               {action.label}

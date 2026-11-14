@@ -13,6 +13,9 @@ export type CalendarEntry = {
   part: Part;
   /** When it was set, in milliseconds. */
   setAt: number;
+  /** The minutes of the day it runs, when the time was set to the minute (a gathering asked by the period). */
+  from?: number;
+  to?: number;
 };
 
 const address = (entry: CalendarEntry): string => `https://changle.ca/when/${entry.code}`;
@@ -23,6 +26,9 @@ const utc = (ms: number): string => new Date(ms).toISOString().replace(/[-:]|\.\
 function range(entry: CalendarEntry): { start: string; end: string; allDay: boolean } {
   if (entry.part === "day") {
     return { start: date(entry.day), end: date(addDays(entry.day, 1)), allDay: true };
+  }
+  if (entry.from !== undefined && entry.to !== undefined) {
+    return { start: utc(instant(entry.day, 0, entry.from)), end: utc(instant(entry.day, 0, entry.to)), allDay: false };
   }
   const hours = PART_HOURS[entry.part];
   return {

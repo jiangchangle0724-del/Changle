@@ -8,7 +8,8 @@
  *     the deck's own sounds (horn, riser, roll, impact: fx.ts) ──────────┘
  *
  * Its own AudioContext at 48 kHz (Lyria's rate), tuned for steady playback rather than quick
- * reactions. Open it from inside a tap: iPhone and Safari start audio only from one.
+ * reactions; an iPhone's or iPad's at its own rate (`ownRate`). Open it from inside a tap: iPhone
+ * and Safari start audio only from one.
  */
 import { impulse } from "../../../lib/audio/engine";
 import { MixerChain } from "./mixer";
@@ -37,6 +38,28 @@ export type SpeakerOptions = {
 
 /** how far the music dips while the TV speaks (报幕) */
 const DUCK = 0.4;
+
+/**
+ * An iPhone or iPad: its sound runs at the rate the phone itself plays at (Steve on Nov 14: the
+ * shared phone stuttered). One held at 48 kHz comes out distorted once the phone's sound goes
+ * somewhere at another rate, AirPlay to the TV or Bluetooth (WebKit bugs 258864, 259899); one made
+ * at the phone's own rate plays right. The player resamples the stream (it already did for an older
+ * Safari that picks its own rate).
+ */
+export function ownRate(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+/** A new context, its rate as above (an older Safari can't be told one: it picks its own). */
+export function newContext(rate: number): AudioContext {
+  const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  try {
+    return ownRate() ? new AC({ latencyHint: "playback" }) : new AC({ sampleRate: rate, latencyHint: "playback" });
+  } catch {
+    return new AC();
+  }
+}
 
 export class Speaker {
   readonly ctx: AudioContext;
@@ -76,16 +99,7 @@ export class Speaker {
   constructor(opts: SpeakerOptions = {}) {
     this.opts = { rate: opts.rate ?? 48000, prebuffer: opts.prebuffer ?? 2.5, resume: opts.resume ?? 1.5, seconds: opts.seconds ?? 16 };
     this.rate = this.opts.rate;
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    let ctx: AudioContext;
-    if (opts.ctx) ctx = opts.ctx;
-    else
-      try {
-        ctx = new AC({ sampleRate: this.rate, latencyHint: "playback" });
-      } catch {
-        // an older Safari picks its own rate: the player resamples
-        ctx = new AC();
-      }
+    const ctx = opts.ctx ?? newContext(this.rate);
     this.ctx = ctx;
     void ctx.resume().catch(() => {});
     try {

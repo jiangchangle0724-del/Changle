@@ -71,6 +71,11 @@ export type GameMeta = {
     note?: T;
     /** the stage is this phone or computer, mirrored to the TV (一起跳, Steve 11-11): the button and its help say so */
     mirror?: boolean;
+    /**
+     * it also plays on phones alone, with no TV (抓紧了's phones-only room, Steve 11-13: 「用手机玩」): on a
+     * phone the card's first button opens `url` (a computer is the stage, so it gets no such button)
+     */
+    phone?: { url: string; note: T };
   };
   /**
    * its kind, which colors its card (decided 2026-11-01: cards by kind, not one color per game; the
@@ -408,8 +413,8 @@ export const GAMES: GameMeta[] = [
     name: t("打碟", "DJ Booth"),
     blurb: t("电视当音箱，大家用手机一起打碟", "The TV is the speaker. Everyone DJs from their phone."),
     how: t(
-      "公用手机投屏到电视当音箱（或者电视、电脑打开 changle.ca/dj），在上面点 YouTube 的歌。扫码进来，每台手机都是打碟台：推子在两个碟之间混，效果键卡在拍子上，一起狂点蓄力，跟着倒数按 DROP，踩准了就是完美 Drop。新手也不会乱。",
-      "A shared phone mirrored to the TV is the speaker (or open changle.ca/dj on a TV or computer), and songs from YouTube are picked on it. Scan in and every phone is a deck: the crossfader mixes two decks, the pads land on the beat, everyone taps the build-up together and presses DROP on the count. Hit it right for a perfect drop. Nothing a beginner presses can go wrong.",
+      "公用手机投屏到电视当音箱（或者电视、电脑打开 changle.ca/dj）。扫码进来，每台手机都能点歌、传自己的歌，电视上一首接一首放整首，谁都能暂停、切歌。手机上还有分好类的音效、弹幕和跟着跳。",
+      "A shared phone mirrored to the TV is the speaker (or open changle.ca/dj on a TV or computer). Scan in and every phone can ask for songs or send its own, and the TV plays them whole, one after another. Anyone can pause or skip. Phones also get a sound board, comments across the TV, and dance along.",
     ),
     minPlayers: 1,
     maxPlayers: 15,
@@ -512,10 +517,14 @@ export const GAMES: GameMeta[] = [
     category: "online",
     minutes: 15,
     ready: true,
+    // three ways in (Steve 11-13): phones alone, this device as the stage on the TV, or join a stage.
+    // `?phone=0` keeps a phone on the stage (opened on a phone, /hang-on/ is a phones-only room)
     stage: {
-      screen: "/hang-on/",
+      screen: "/hang-on/?phone=0",
       join: "/hang-on/pad/",
-      note: t("游戏在大屏上，手机当手柄。没有电视，一部手机也能开", "The game plays there and phones are controllers. No TV? One phone can host."),
+      note: t("电视上放画面，大家用手机当手柄", "The game shows on the TV. Phones are the controllers."),
+      mirror: true,
+      phone: { url: "/hang-on/?phone=1", note: t("不用电视，大家都在自己手机上玩", "No TV needed. Everyone plays on their own phone.") },
     },
     newUntil: "2026-12-11",
   },

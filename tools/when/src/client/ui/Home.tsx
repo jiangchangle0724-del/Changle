@@ -21,7 +21,7 @@ export function Home() {
   const [title, setTitle] = useState("");
   const [span, setSpan] = useState(SPAN_START);
   const [picked, setPicked] = useState<Set<Day>>(() => new Set(Array.from({ length: SPAN_START }, (_, i) => addDays(today, i))));
-  const [grain, setGrain] = useState<Grain>("half");
+  const [grain, setGrain] = useState<Grain>("periods");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Key | null>(null);
   const recent = useMemo(() => recents(), []);
@@ -130,9 +130,9 @@ export function Home() {
             {t("grainLabel")}
           </span>
           <div class="choice" role="group" aria-labelledby="grain-label">
-            <button type="button" aria-pressed={grain === "half"} onClick={() => setGrain("half")}>
-              <b>{t("grainHalf")}</b>
-              <small>{t("grainHalfSub")}</small>
+            <button type="button" aria-pressed={grain === "periods"} onClick={() => setGrain("periods")}>
+              <b>{t("grainPeriods")}</b>
+              <small>{t("grainPeriodsSub")}</small>
             </button>
             <button type="button" aria-pressed={grain === "day"} onClick={() => setGrain("day")}>
               <b>{t("grainDay")}</b>

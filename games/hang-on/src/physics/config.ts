@@ -149,6 +149,95 @@ export const CFG = {
   leafFall: 150,
   leafDrift: 260,
   leafAccel: 900,
+
+  // ---- 红包（A9b）----
+  /** 红包有多大（半径）：身体或手心碰到它这么近就算拿到。 */
+  envelopeR: 14,
+  /**
+   * 卡太久来帮手（A9c，外卖无人机）：这一段卡了 helpAfter 秒、摔了 helpDeaths 次以上，或者卡了 helpLate 秒，
+   * 就飞来一架无人机，挂着外卖袋悬在落在最后的人头上 droneHang 像素；droneWait 秒没人抓就走，有人抓就带到下一个检查点（或终点），
+   * 在那悬 droneDrop 秒再走。每秒飞 droneSpeed 像素。
+   */
+  helpAfter: 60,
+  helpDeaths: 3,
+  helpLate: 120,
+  droneHang: 120,
+  droneWait: 20,
+  droneDrop: 3,
+  droneSpeed: 170,
+  /** 抢金元宝（A9d）：抓在手里攒够几秒赢一局，先赢几局的赢这一场；元宝掉下去多久回到中间。 */
+  goldHold: 5,
+  goldRounds: 5,
+  ingotBack: 1,
+  /** 踩板门（11-13）：门每秒挪多少像素，没人踩了还开着几秒，踏板上面多高以内算压着。 */
+  gateSpeed: 260,
+  gateHold: 0.4,
+  plateReach: 8,
+
+  // ---- 后厨（A10）----
+  /**
+   * 蒸笼喷汽：默认喷几秒、停几秒，喷之前几秒盖子跳着提醒；汽柱多高（从蒸笼顶往上）。汽里往上托：
+   * 加速度（比重力大得多，人一进去就往上走）、最快往上多快（power 1）；汽柱最上面那 ventFade 成越往上越弱，人在顶上晃一晃再出来。
+   * 胳膊和物件（箱子、托盘）托的力气是身体的几成。
+   */
+  ventOn: 1.4,
+  ventOff: 2.2,
+  ventWarn: 0.6,
+  ventReach: 300,
+  ventAccel: 5200,
+  ventLift: 620,
+  ventFade: 0.35,
+  ventArm: 0.6,
+  /**
+   * 端托盘：托盘多宽多厚多重（轻、底下滑：一只手抓着中间拖着走、挂着都是平的，重了或者涩了一拖就翻）；
+   * 歪过多少弧度、歪多久点心就翻；翻了几秒后回到存档的地方；
+   * 托盘离检查点多近算它也过了这个检查点（以后翻了回这里）；回来以后几秒里不算翻（落下来晃一晃）。
+   */
+  trayW: 92,
+  trayH: 10,
+  trayMass: 0.15,
+  trayFriction: 0.2,
+  traySpill: 0.7,
+  traySpillTime: 0.3,
+  trayBack: 1.2,
+  trayCpR: 160,
+  trayGrace: 1,
+
+  // ---- 雪山（A10）----
+  /** 缆椅的座板吊在缆绳下面多少像素；冰溜子快滑之前多久手开始抖。 */
+  liftDrop: 70,
+  slipWarn: 1.5,
+
+  // ---- 老宅（A10）----
+  /**
+   * 钥匙：多宽多厚多重（轻，一只手拿着走、挂着都不碍事）；离它的门多近就开；掉出去（掉下去、碰到要命的东西）几秒回来；
+   * 离检查点多近算它也到了这个检查点（以后掉了回这里）。有人碰锁着的门，隔多久提醒一次「门锁着」。
+   */
+  keyW: 38,
+  keyH: 14,
+  keyMass: 0.1,
+  keyReach: 26,
+  keyBack: 1,
+  keyCpR: 160,
+  lockedHint: 5,
+  /** 手提的灯笼：多宽多高多重。 */
+  lanternW: 30,
+  lanternH: 40,
+  lanternMass: 0.12,
+  /** 墙上的灯：身体、手、灯笼离它多近就点着；默认照多远。 */
+  lampTouch: 36,
+  lampR: 260,
+
+  // ---- 太空站（A10）----
+  /**
+   * 失重区：没抓着东西时摇杆喷气，往摇杆那边每秒加多少速度、喷到多快就不再加（推墙、拽着队友甩出去可以更快）；
+   * 飘着、没抓东西时的阻尼（慢慢停下来，不会一直飘走）。
+   */
+  floatThrust: 260,
+  floatMax: 170,
+  floatDamp: 0.35,
+  /** 飘着时胳膊的线性阻尼（伸手的力反过来加在身体上，胳膊阻尼大了人就像在糖浆里，所以失重时调小）。 */
+  floatArmDamp: 1.5,
 };
 
 export type Cfg = typeof CFG;
@@ -168,6 +257,12 @@ export const MATERIAL_FRICTION: Record<string, number> = {
   metal: 0.3,
   noodle: 0.6,
   ice: 0.05,
+  // 后厨的竹蒸笼、雪山的压实的雪（A10）
+  bamboo: 0.6,
+  snow: 0.7,
+  // 老宅的青砖、太空站的白舱壁（A10）
+  brick: 0.7,
+  hull: 0.5,
 };
 export const DEFAULT_FRICTION = 0.6;
 

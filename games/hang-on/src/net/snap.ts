@@ -7,13 +7,16 @@
  *
  * 这个文件不引物理（只要类型），手机的画面包里不会带 Rapier。
  */
-import { forPlayers, type Level, type Pt } from '../physics/level';
+import { CFG } from '../physics/config';
+import { forPlayers, gateAt, leverRect, type GateDef, type Level, type Pt } from '../physics/level';
 import type { Face, Rules, SimEvent } from '../physics/world';
 import { ITEM_IDS, type ItemId } from '../items';
-import type { FadingView, NoodleView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
+import type { FadingView, GateView, NoodleView, PlateView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
 import { SNAP_EVENT_SENDS, SNAP_EVENTS_MAX, type Snap } from './protocol';
 
 export const FACES: Face[] = ['idle', 'grab', 'fly', 'scream', 'win'];
+/** 外卖无人机（A9c）在干什么，快照里按下标。 */
+const DRONE_PHASES = ['arrive', 'wait', 'carry', 'drop', 'leave'];
 /** 一个人一行的长度：10 个标量 + 两条胳膊（各 8 个坐标 + 抓了几秒）+ 道具（A9：哪样、还剩几秒）。 */
 const PLAYER_LEN = 10 + 2 * 9 + 2;
 /** 快照里正在起作用的道具：0 没有，1 起是 ITEM_IDS 的下标加一。 */
@@ -27,6 +30,8 @@ const JUMP = 250;
 const r1 = (v: number): number => Math.round(v * 10) / 10;
 const r2 = (v: number): number => Math.round(v * 100) / 100;
 const r3 = (v: number): number => Math.round(v * 1000) / 1000;
+/** 物件的种类在快照里的号（按位置）：0 跷跷板、1 箱子、2 金元宝、3 托盘、4 钥匙、5 灯笼。 */
+const PROP_KINDS: PropView['kind'][] = ['seesaw', 'crate', 'ingot', 'tray', 'key', 'lantern'];
 
 /** 事件里的坐标、速度也只要一位小数。 */
 function slim(ev: SimEvent): SimEvent {
@@ -62,10 +67,21 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
     p,
     ...(sim.layoutFor !== undefined && sim.layoutFor !== sim.players.length ? { np: sim.layoutFor } : {}),
     r: sim.ropes.map((rope) => rope.pts.flatMap((q) => [r1(q.x), r1(q.y)])),
-    o: sim.props.map((o) => [r1(o.x), r1(o.y), r3(o.angle), o.w, o.h, o.kind === 'seesaw' ? 0 : 1]),
+    o: sim.props.map((o) => [r1(o.x), r1(o.y), r3(o.angle), o.w, o.h, PROP_KINDS.indexOf(o.kind)]),
     f: sim.fadings.flatMap((f) => [f.on ? 1 : 0, r2(f.left)]),
     s: sim.springs.map((s) => (Number.isFinite(s.hit) ? r2(Math.min(s.hit, 99)) : -1)),
   };
+  if (sim.envelopes?.length) snap.en = sim.envelopes.reduce((m, e, k) => (e.got ? m | (1 << k) : m), 0);
+  if (sim.plates?.length) snap.pl = sim.plates.reduce((m, q, k) => (q.on ? m | (1 << k) : m), 0);
+  if (sim.gates?.length) snap.gt = sim.gates.map((g) => r3(g.open));
+  if (sim.gold) snap.gd = [sim.gold.need, sim.gold.holder, ...sim.gold.holdT.map(r2)];
+  if (sim.tray) snap.ty = [sim.tray.prop, sim.tray.spilled ? 1 : 0];
+  const ic = sim.players.flatMap((p, i) => p.arms.flatMap((a, k) => (a.grip?.max !== undefined ? [i, k, r1(a.grip.max)] : [])));
+  if (ic.length) snap.ic = ic;
+  if (sim.keys?.length) snap.ky = sim.keys.flatMap((k) => [k.prop, (k.found ? 1 : 0) + (k.used ? 2 : 0)]);
+  if (sim.lamps?.length) snap.lm = sim.lamps.reduce((m, l, k) => (l.on ? m | (1 << k) : m), 0);
+  if (sim.levers?.length) snap.lr = sim.levers.reduce((m, l, k) => (l.on ? m | (1 << k) : m), 0);
+  if (sim.drone) snap.dr = [r1(sim.drone.x), r1(sim.drone.y), Math.max(0, DRONE_PHASES.indexOf(sim.drone.phase))];
   if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
     snap.e = events.list.map(slim);
@@ -123,6 +139,23 @@ export class RemoteSim implements SimView {
   fadings: FadingView[] = [];
   springs: SpringView[] = [];
   noodles: NoodleView[] = [];
+  envelopes: { x: number; y: number; got: boolean }[] = [];
+  /** 踩板门（11-13）：踏板按着没有跟着快照走（不匀）；门开到几成跟着匀，位置按关卡算。 */
+  plates: PlateView[] = [];
+  gates: (GateView & { def: GateDef })[] = [];
+  /** 端托盘（后厨，A10）：托盘是第几个物件、点心翻了没有（不匀，位置跟着物件匀）。 */
+  tray: { prop: number; spilled: boolean } | null = null;
+  /** 老宅（A10）：钥匙找到没有、用掉没有（不匀，位置跟着物件匀）；墙上的灯在哪按关卡摆，亮没亮跟着快照走。 */
+  keys: { prop: number; found: boolean; used: boolean }[] = [];
+  lamps: { x: number; y: number; r: number; on: boolean }[] = [];
+  /** 拉杆（太空站，A10）：位置按关卡摆，有没有人抓着跟着快照走。 */
+  levers: PlateView[] = [];
+  /** 抢金元宝（A9d）：每个人攒了几秒（不匀，快照来了就换）。 */
+  gold: { holdT: number[]; need: number; holder: number } | null = null;
+  /** 外卖无人机（A9c）：位置跟着匀，来了、走了直接出现、消失。 */
+  drone: { x: number; y: number; phase: string } | null = null;
+  /** envelopes 是按哪一版关卡摆的（换关就重摆）。 */
+  private envFor: Level | null = null;
   /** 收到过的最新序号。 */
   seq = -1;
   /** 关卡是按几个人摆的（快照的 np，没有就是人数）。 */
@@ -244,7 +277,7 @@ export class RemoteSim implements SimView {
       changed = true;
     }
     if (force || this.props.length !== s.o.length) {
-      this.props = s.o.map((o) => ({ kind: o[5] === 0 ? 'seesaw' : 'crate', w: o[3] ?? 0, h: o[4] ?? 0, x: 0, y: 0, angle: 0 }));
+      this.props = s.o.map((o) => ({ kind: PROP_KINDS[o[5] ?? 1] ?? 'crate', w: o[3] ?? 0, h: o[4] ?? 0, x: 0, y: 0, angle: 0 }));
       changed = true;
     }
     const fd = this.level.fading ?? [];
@@ -258,6 +291,34 @@ export class RemoteSim implements SimView {
     const nd = s.nd ?? [];
     if (force || this.noodles.length !== nd.length || this.noodles.some((n, i) => n.pts.length * 2 + 2 !== (nd[i]?.length ?? 0) || n.owner !== nd[i]?.[0])) {
       this.noodles = nd.map((row) => ({ owner: row[0] ?? 0, left: 0, pts: Array.from({ length: Math.max(0, row.length - 2) / 2 }, pt) }));
+      changed = true;
+    }
+    const gd = this.level.gates ?? [];
+    const gt = s.gt ?? [];
+    if (force || this.gates.length !== gt.length) {
+      this.gates = gt.map((_, i) => {
+        const d = gd[i] as GateDef;
+        return { def: d, x: d?.x ?? 0, y: d?.y ?? 0, w: d?.w ?? 0, h: d?.h ?? 0, open: 0 };
+      });
+      changed = true;
+    }
+    if (force || !!this.drone !== !!s.dr) {
+      this.drone = s.dr ? { x: 0, y: 0, phase: 'arrive' } : null;
+      changed = true;
+    }
+    const pd = this.level.plates ?? [];
+    if (force || this.plates.length !== pd.length) {
+      this.plates = pd.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, on: false }));
+      changed = true;
+    }
+    const vd = this.level.levers ?? [];
+    if (force || this.levers.length !== vd.length) {
+      this.levers = vd.map((d) => ({ ...leverRect(d), on: false }));
+      changed = true;
+    }
+    const ld = this.level.lamps ?? [];
+    if (force || this.lamps.length !== ld.length) {
+      this.lamps = ld.map((d) => ({ x: d.x, y: d.y, r: d.r ?? CFG.lampR, on: !d.off }));
       changed = true;
     }
     const sd = this.level.springs ?? [];
@@ -281,6 +342,8 @@ export class RemoteSim implements SimView {
     for (const flat of s.r) for (const v of flat) out.push(v);
     for (const o of s.o) out.push(o[0] ?? 0, o[1] ?? 0, o[2] ?? 0);
     for (const row of s.nd ?? []) for (let i = 2; i < row.length; i++) out.push(row[i] ?? 0);
+    for (const v of s.gt ?? []) out.push(v);
+    if (s.dr) out.push(s.dr[0], s.dr[1]);
     // 时间也跟着匀：会动的平台按时间画，和匀过的人对得上（站在上面不抖）
     out.push(s.t);
     return out;
@@ -324,6 +387,18 @@ export class RemoteSim implements SimView {
         q.y = c[i++] as number;
       }
     }
+    for (const g of this.gates) {
+      g.open = c[i++] as number;
+      if (g.def) {
+        const at = gateAt(g.def, g.open);
+        g.x = at.x;
+        g.y = at.y;
+      }
+    }
+    if (this.drone) {
+      this.drone.x = c[i++] as number;
+      this.drone.y = c[i++] as number;
+    }
     this.time = c[i++] as number;
   }
 
@@ -331,6 +406,29 @@ export class RemoteSim implements SimView {
   private discrete(s: Snap, since: number): void {
     this.won = s.w === 1;
     this.checkpoint = s.cp;
+    if (this.drone && s.dr) this.drone.phase = DRONE_PHASES[s.dr[2]] ?? 'wait';
+    this.gold = s.gd ? { need: s.gd[0] ?? 5, holder: s.gd[1] ?? -1, holdT: s.gd.slice(2) } : null;
+    this.tray = s.ty ? { prop: s.ty[0], spilled: s.ty[1] === 1 } : null;
+    const ky = s.ky ?? [];
+    this.keys = Array.from({ length: Math.floor(ky.length / 2) }, (_, k) => ({ prop: ky[k * 2] ?? 0, found: ((ky[k * 2 + 1] ?? 0) & 1) !== 0, used: ((ky[k * 2 + 1] ?? 0) & 2) !== 0 }));
+    const lm = s.lm ?? 0;
+    this.lamps.forEach((l, k) => (l.on = (lm & (1 << k)) !== 0));
+    const lr = s.lr ?? 0;
+    this.levers.forEach((l, k) => (l.on = (lr & (1 << k)) !== 0));
+    const pl = s.pl ?? 0;
+    this.plates.forEach((q, k) => (q.on = (pl & (1 << k)) !== 0));
+    // 红包：位置在关卡里，拿没拿到跟着快照走；这一局没有红包（不写 en）就不画
+    const en = s.en;
+    if (en === undefined) {
+      this.envelopes = [];
+      this.envFor = null;
+    } else {
+      if (this.envFor !== this.level) {
+        this.envFor = this.level;
+        this.envelopes = (this.level.envelopes ?? []).map((d) => ({ x: d.x, y: d.y, got: false }));
+      }
+      this.envelopes.forEach((e, k) => (e.got = (en & (1 << k)) !== 0));
+    }
     s.p.forEach((row, i) => {
       const p = this.players[i];
       if (!p) return;
@@ -346,6 +444,12 @@ export class RemoteSim implements SimView {
       p.itemOn = itemOf(row[28]);
       p.itemLeft = Math.max(0, (row[29] ?? 0) - since);
     });
+    // 冰溜子（雪山）：抓着它的手最多抓几秒
+    const ic = s.ic ?? [];
+    for (let k = 0; k + 2 < ic.length; k += 3) {
+      const grip = this.players[ic[k] ?? -1]?.arms[ic[k + 1] ?? -1]?.grip;
+      if (grip) grip.max = ic[k + 2];
+    }
     (s.nd ?? []).forEach((row, i) => {
       const n = this.noodles[i];
       if (n) n.left = Math.max(0, (row[1] ?? 0) - since);

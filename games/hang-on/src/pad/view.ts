@@ -7,14 +7,16 @@
  */
 import { heardBy, sfx } from '../audio/sfx';
 import { tr } from '../i18n';
-import { levelById, LEVELS, levelsFor, levelTitle } from '../levels';
+import { levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
+import { keyBanner, tierName } from '../mode-text';
+import { tiered } from '../sides';
 import type { Level } from '../physics/level';
 import type { SimEvent } from '../physics/world';
 import type { Cast, Phase, RoomView, Snap } from '../net/protocol';
 import { RemoteSim } from '../net/snap';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
-import { renderResults, resultsTitle, type ResultsDom } from '../results';
+import { renderGoldScore, renderResults, resultsTitle, type ResultsDom } from '../results';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -48,6 +50,8 @@ export class PhoneView {
       betrayTitle: $('vBetrayTitle'),
       betrayList: $('vBetrayList'),
       betrayNone: $('vBetrayNone'),
+      goalTitle: $('vGoalTitle'),
+      goalList: $('vGoalList'),
     };
     sfx.attach(document);
     if (stage) {
@@ -94,6 +98,9 @@ export class PhoneView {
 
   /** 房主发来样子名单：谁是谁、什么颜色、什么样子；到了结算页还带着结算的数。 */
   cast(c: Cast): void {
+    // 抢金元宝：房主那边开了新的一局，和电视上一样写「第 N 局」
+    const was = this.cast_?.gold?.round;
+    if (c.gold && was !== undefined && c.gold.round > was && this.phase === 'playing') this.banner(tr(`第 ${c.gold.round} 局`, `Round ${c.gold.round}`));
     this.cast_ = c;
     this.me = c.me;
     // 玩法：坐不住时手抓久了要抖；比谁先分队时头顶的名字带上队
@@ -131,8 +138,12 @@ export class PhoneView {
   private levelName(): string {
     const l = this.sim.level;
     // 按 id 找：按人数摆过的关卡是另一个对象
-    const list = levelsFor(this.cast_?.mode ?? 'climb');
-    return levelTitle(l, Math.max(0, list.findIndex((x) => x.id === l.id)));
+    const mode = this.cast_?.mode ?? 'climb';
+    const tier = tiered(mode) ? tierOfLevel(l) : undefined;
+    const list = levelsFor(mode, tier, this.sim.players.length > 1 ? 'multi' : 'solo');
+    const title = levelTitle(l, Math.max(0, list.findIndex((x) => x.id === l.id)));
+    // 和主机的倒数一样：分难度的带上难度
+    return tier === undefined ? title : `${tierName(tier)} · ${title}`;
   }
 
   private showLevel(): void {
@@ -172,6 +183,13 @@ export class PhoneView {
     $('vWait').hidden = this.phase !== 'lobby';
     $('vLevel').textContent = this.levelName();
     $('vCount').hidden = this.phase !== 'countdown' || !this.countTimer;
+    // 抢金元宝的比分（「第 2 局 · 阿一 1 · 阿二 0」）
+    const gold = this.phase === 'playing' && this.cast_?.mode === 'gold' ? this.cast_.gold : undefined;
+    $('vGold').hidden = !gold;
+    if (gold) {
+      const players = this.cast_?.players ?? [];
+      renderGoldScore($('vGoldScore'), gold.round, gold.wins, (i) => players[i]?.name || `P${i + 1}`, (i) => players[i]?.color ?? '#fff');
+    }
     const res = this.phase === 'results' ? this.cast_?.results : undefined;
     $('vResults').hidden = !res;
     if (res && this.cast_) {
@@ -220,6 +238,17 @@ export class PhoneView {
         this.banner(tr(`${name(ev.player)} 把 ${who.join('、')} 拉了回来`, `${name(ev.player)} pulled ${who.join(' & ')} back`));
       }
       if (ev.type === 'checkpoint' && mode !== 'race') this.banner(tr('检查点 ✓', 'Checkpoint ✓'));
+      if (ev.type === 'drone' && ev.phase === 'arrive') this.banner(tr('🛸 外卖到了！抓住袋子底下的横杆', '🛸 Delivery! Grab the bar under the bag'));
+      if (ev.type === 'tray' && ev.phase === 'spill') this.banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
+      if (ev.type === 'tray' && ev.phase === 'home') this.banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
+      if (ev.type === 'key') {
+        const kb = keyBanner(ev.phase);
+        if (kb) this.banner(kb.text, kb.kind);
+      }
+      if (ev.type === 'envelope') {
+        const got = this.sim.envelopes.filter((e) => e.got).length;
+        this.banner(tr(`🧧 ${name(ev.player)} 拿到红包 ${got}/${this.sim.envelopes.length}`, `🧧 ${name(ev.player)} got an envelope ${got}/${this.sim.envelopes.length}`));
+      }
     }
   }
 

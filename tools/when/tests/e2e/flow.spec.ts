@@ -4,7 +4,7 @@
 // has its own storage.
 import { expect, test } from "@playwright/test";
 import { addDays, dayNoteText, vancouverDay } from "../../src/engine";
-import { ANDROID, KEY, WECHAT, calendarFile, catchCopies, cell, copied, join, make, phone, saved } from "./helpers";
+import { ANDROID, KEY, WECHAT, at, calendarFile, catchCopies, cell, copied, join, make, phone, saved } from "./helpers";
 
 test("make, fill in on two phones, set the time", async ({ browser }) => {
   const host = await phone(browser);
@@ -14,23 +14,25 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   expect((await host.request.get(calendarFile(code))).status(), "no calendar file before a time is set").toBe(404);
   await expect(host.locator(".event-head h1")).toHaveText("周末火锅");
 
+  // the grid asks by the period, each with its hours
+  await expect(host.locator(".grid-heads span")).toHaveText(["", "凌晨0–6", "早上6–11", "中午11–14", "下午14–18", "晚上18–24"]);
   // tapping a slot before giving a name asks for the name instead
-  await cell(host, 2).click();
+  await cell(host, at(0, "eve")).click();
   await expect(host.locator(".name-form .problem")).toBeVisible();
   await host.fill(".name-form input", "Steve");
   await host.click(".name-form .btn");
   await expect(host.locator(".you")).toContainText("Steve");
 
   // one tap is free, two is could-move-things, three clears
-  await cell(host, 2).click();
-  await expect(cell(host, 2)).toHaveAttribute("data-mine", "yes");
-  await cell(host, 5).click();
-  await cell(host, 5).click();
-  await expect(cell(host, 5)).toHaveAttribute("data-mine", "maybe");
-  await cell(host, 8).click();
-  await cell(host, 8).click();
-  await cell(host, 8).click();
-  await expect(cell(host, 8)).toHaveAttribute("data-mine", "no");
+  await cell(host, at(0, "eve")).click();
+  await expect(cell(host, at(0, "eve"))).toHaveAttribute("data-mine", "yes");
+  await cell(host, at(1, "eve")).click();
+  await cell(host, at(1, "eve")).click();
+  await expect(cell(host, at(1, "eve"))).toHaveAttribute("data-mine", "maybe");
+  await cell(host, at(2, "eve")).click();
+  await cell(host, at(2, "eve")).click();
+  await cell(host, at(2, "eve")).click();
+  await expect(cell(host, at(2, "eve"))).toHaveAttribute("data-mine", "no");
   await saved(host);
 
   // a guest opens the link on another phone: sees the host's answers, adds their own
@@ -38,15 +40,15 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   await join(guest, url, "阿May");
   await expect(guest.locator(".meta")).toContainText("2");
   await expect(guest.locator(".link-btn", { hasText: "我是发起人" })).toBeVisible();
-  await cell(guest, 2).click();
-  await cell(guest, 4).click();
+  await cell(guest, at(0, "eve")).click();
+  await cell(guest, at(1, "afternoon")).click();
   await saved(guest);
 
   // the host's page catches up by itself
   await host.click(".seg button:nth-child(2)");
   await expect(host.locator(".meta")).toContainText("2");
-  await expect(cell(host, 2).locator("b")).toHaveText("2");
-  await expect(cell(host, 4).locator("b")).toHaveText("1");
+  await expect(cell(host, at(0, "eve")).locator("b")).toHaveText("2");
+  await expect(cell(host, at(1, "afternoon")).locator("b")).toHaveText("1");
   await expect(host.locator(".best li").first()).toContainText("2 个人里 2 个有空");
 
   // a guest has no way to set the time; the host does, and the guest's page shows it
@@ -76,13 +78,14 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   expect(ics).toContain(`UID:${code}@when.changle.ca\r\n`);
   expect(ics).toMatch(/DTSTART:\d{8}T010000Z\r\nDTEND:\d{8}T050000Z\r\n/);
 
-  // then every page asks what's next. The words for the group chat, in Chinese and in English:
+  // then every page asks what's next. The words for the group chat, plain unless picked otherwise, in Chinese and in English:
   await expect(guest.locator(".after")).toContainText("接着定什么");
   await host.locator(".after .copy .btn").first().click();
   await expect(host.locator(".after .copy .btn").first()).toContainText("复制好了");
-  expect(await copied(host)).toMatch(new RegExp(`^「周末火锅」定了：\\d+月\\d+日 周. 晚上。2 个人里 2 个有空。\\n\\S+/when/${code}$`));
+  expect(await copied(host)).toMatch(new RegExp(`^「周末火锅」\\n定了：\\d+月\\d+日 周. 晚上。2 个人里 2 个有空。详情见链接。\\n\\S+/when/${code}$`));
+  expect(await copied(host)).toBe(await host.locator(".after .words-text").innerText());
   await host.locator(".after .copy .btn").nth(1).click();
-  await expect.poll(() => copied(host)).toMatch(new RegExp(`^"周末火锅" is set: \\w{3}, \\w{3} \\d+, evening\\. 2 of 2 free\\.\\n\\S+/when/${code}$`));
+  await expect.poll(() => copied(host)).toMatch(new RegExp(`^"周末火锅"\\nThe time is set: \\w{3}, \\w{3} \\d+, evening\\. 2 of 2 free\\. See the link for details\\.\\n\\S+/when/${code}$`));
   // on to 随便 with the day, dinner time, the occasion and who can come: the host only, so one
   // gathering opens one table. Tonight is within the week 随便 plans for.
   await expect(host.locator(".after a[href^='/eat/']")).toHaveAttribute("href", new RegExp(`^/eat/\\?from=when&code=${code}&date=\\d{4}-\\d\\d-\\d\\d&time=18%3A30&occasion=friends&people=2$`));
@@ -103,8 +106,8 @@ test("a day more than a week away: 随便 opens for it that week, and reopening 
   const host = await phone(browser);
   const { url, code } = await make(host, "下下周烧烤");
   await join(host, url, "Steve");
-  // three slots a day: the 27th is the evening eight days from today
-  await cell(host, 26).click();
+  // the evening eight days from today
+  await cell(host, at(8, "eve")).click();
   await saved(host);
   await host.click(".seg button:nth-child(2)");
   await host.locator(".best li").first().locator(".btn").click();
@@ -117,7 +120,7 @@ test("a day more than a week away: 随便 opens for it that week, and reopening 
   await expect(host.locator(".after button:disabled")).toHaveText("Come back that week");
   await expect(host.locator(".after .panel-title")).toHaveText("What's next?");
   // the host picks again: nothing is set, so there's nothing to ask
-  await host.locator(".set button.link-btn").click();
+  await host.locator(".set button.link-btn", { hasText: "Choose again" }).click();
   await expect(host.locator(".set")).toHaveCount(0);
   await expect(host.locator(".after")).toHaveCount(0);
   expect((await host.request.get(calendarFile(code))).status(), "and the calendar file goes with it").toBe(404);
@@ -155,7 +158,8 @@ test("a holiday among the days is said above its day, in both languages", async 
 test("quick fill: weekends, evenings, a whole day, everything; one tap takes such a slot back; undo", async ({ browser }) => {
   const page = await phone(browser);
   const { url } = await make(page, "周末火锅");
-  // fourteen days in a row, three slots each: two weekends among them
+  // fourteen days in a row, five periods each: two weekends among them. Quick fills leave 凌晨 out,
+  // so they cover four periods a day
   const days = 14;
   const free = page.locator('.grid .cell[data-mine="yes"]');
   const chip = (name: string) => page.locator(".quick button", { hasText: name });
@@ -170,7 +174,8 @@ test("quick fill: weekends, evenings, a whole day, everything; one tap takes suc
 
   // weekends, and off again
   await chip("周末都行").click();
-  await expect(free).toHaveCount(4 * 3);
+  await expect(free).toHaveCount(4 * 4);
+  await expect(page.locator(".toast")).toContainText("凌晨除外");
   await expect(chip("周末都行")).toHaveAttribute("aria-pressed", "true");
   await chip("周末都行").click();
   await expect(free).toHaveCount(0);
@@ -184,38 +189,41 @@ test("quick fill: weekends, evenings, a whole day, everything; one tap takes suc
   await expect(page.locator(".toast")).toContainText("没空的点一下就去掉");
   await saved(page);
   // a slot filled that way goes with one tap (one tapped by hand would become "could move things")
-  await cell(page, 2).click();
-  await expect(cell(page, 2)).toHaveAttribute("data-mine", "no");
+  await cell(page, at(0, "eve")).click();
+  await expect(cell(page, at(0, "eve"))).toHaveAttribute("data-mine", "no");
   await expect(chip("晚上都行")).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".toast")).toHaveCount(0);
   // from there it's the usual round: free, could move things
-  await cell(page, 2).click();
-  await expect(cell(page, 2)).toHaveAttribute("data-mine", "yes");
-  await cell(page, 2).click();
-  await expect(cell(page, 2)).toHaveAttribute("data-mine", "maybe");
+  await cell(page, at(0, "eve")).click();
+  await expect(cell(page, at(0, "eve"))).toHaveAttribute("data-mine", "yes");
+  await cell(page, at(0, "eve")).click();
+  await expect(cell(page, at(0, "eve"))).toHaveAttribute("data-mine", "maybe");
 
   // a whole day by its name (the second day), and back
   const day = page.locator("button.grid-date").nth(1);
   await day.click();
   await expect(day).toHaveAttribute("aria-pressed", "true");
-  for (const n of [3, 4, 5]) await expect(cell(page, n)).toHaveAttribute("data-mine", "yes");
+  const daytime = (["morning", "noon", "afternoon", "eve"] as const).map((part) => at(1, part));
+  for (const n of daytime) await expect(cell(page, n)).toHaveAttribute("data-mine", "yes");
+  await expect(cell(page, at(1, "dawn"))).toHaveAttribute("data-mine", "no");
   await day.click();
-  for (const n of [3, 4, 5]) await expect(cell(page, n)).toHaveAttribute("data-mine", "no");
+  for (const n of daytime) await expect(cell(page, n)).toHaveAttribute("data-mine", "no");
   // twelve evenings are left free, and the first is a maybe
   await expect(free).toHaveCount(days - 2);
 
   // everything; undo brings back exactly what was there
   await chip("全都行").click();
-  await expect(free).toHaveCount(days * 3);
+  await expect(free).toHaveCount(days * 4);
+  await expect(cell(page, at(5, "dawn"))).toHaveAttribute("data-mine", "no");
   await undo.click();
   await expect(free).toHaveCount(days - 2);
-  await expect(cell(page, 2)).toHaveAttribute("data-mine", "maybe");
+  await expect(cell(page, at(0, "eve"))).toHaveAttribute("data-mine", "maybe");
   await expect(page.locator(".toast")).toHaveCount(0);
 
   // clear all, and undo that too
   await clear.click();
   await expect(free).toHaveCount(0);
-  await expect(cell(page, 2)).toHaveAttribute("data-mine", "no");
+  await expect(cell(page, at(0, "eve"))).toHaveAttribute("data-mine", "no");
   await expect(page.locator(".toast")).toContainText("去掉了");
   await undo.click();
   await expect(free).toHaveCount(days - 2);
@@ -227,13 +235,13 @@ test("quick fill: weekends, evenings, a whole day, everything; one tap takes suc
   await expect(page.locator(".seg button:nth-child(2)")).toHaveAttribute("aria-pressed", "true");
   await page.click(".seg button:nth-child(1)");
   await expect(free).toHaveCount(days - 2);
-  await expect(cell(page, 2)).toHaveAttribute("data-mine", "maybe");
-  await cell(page, 8).click();
-  await expect(cell(page, 8)).toHaveAttribute("data-mine", "maybe");
+  await expect(cell(page, at(0, "eve"))).toHaveAttribute("data-mine", "maybe");
+  await cell(page, at(2, "eve")).click();
+  await expect(cell(page, at(2, "eve"))).toHaveAttribute("data-mine", "maybe");
 
   // in English; and everyone's view has no quick fill
   await page.click(".bar-lang");
-  await expect(page.locator(".quick button")).toHaveText(["All free", "Weekends", "Evenings"]);
+  await expect(page.locator(".quick button")).toHaveText(["All free", "Weekends", "Evenings", "To the minute"]);
   await page.click(".seg button:nth-child(2)");
   await expect(page.locator(".quick")).toHaveCount(0);
   await expect(page.locator("button.grid-date")).toHaveCount(0);
@@ -288,7 +296,7 @@ test("inside WeChat the page says how to get out; an Android phone goes to Googl
   const host = await (await browser.newContext({ userAgent: WECHAT })).newPage();
   const { url, code } = await make(host, "生日饭");
   await join(host, url, "Steve");
-  await cell(host, 4).click(); // tomorrow afternoon
+  await cell(host, at(1, "afternoon")).click(); // tomorrow afternoon, 14:00 to 18:00
   await saved(host);
   await host.click(".seg button:nth-child(2)");
   await host.locator(".best li").first().locator(".btn").click();
@@ -310,7 +318,7 @@ test("inside WeChat the page says how to get out; an Android phone goes to Googl
   const google = new URL((await main.getAttribute("href"))!);
   expect(google.origin + google.pathname).toBe("https://calendar.google.com/calendar/render");
   expect(google.searchParams.get("text")).toBe("生日饭");
-  expect(google.searchParams.get("dates")).toMatch(/^\d{8}T200000Z\/\d{8}T000000Z$/);
+  expect(google.searchParams.get("dates")).toMatch(/^\d{8}T210000Z\/\d{8}T010000Z$/);
   await expect(android.locator(".set a.link-btn")).toHaveAttribute("href", calendarFile(code));
   await expect(android.locator(".set a.link-btn")).toHaveText("下载日历文件");
 });

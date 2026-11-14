@@ -6,8 +6,9 @@ import { coaching } from "../src/party/limbo/coach";
 import { limboLift, limboStyle } from "../src/party/limbo/music";
 import { GROOVES } from "../src/lib/music";
 import { styleForRequest, trackFor } from "../src/shared/dj/requests";
-import { DECK, MIX_FX, MIXER, SHARED_BY } from "../src/shared/dj/types";
+import { DECK, MIX_FX, MIXER, SHARED_BY, SONG_SENT } from "../src/shared/dj/types";
 import { DANMU, DANMU_READY } from "../src/shared/dj/danmu";
+import { SFX, SFX_CATS, SFX_TIMES } from "../src/shared/dj/sfx";
 import { freshRoom, RoomEngine, type Output } from "../src/shared/engine/room";
 import { sortHand } from "../src/shared/euchre";
 import { headToHeadPoints, nextWriters, presentMs } from "../src/shared/punchline";
@@ -3710,6 +3711,13 @@ test("dj: a song found on YouTube: every field checked, its name only for its pl
   advance(dr.at - clock + 5);
   const song = dv("p1").deck.song;
   ok(!!song && song.yt === ID && song.by === "p2" && song.at === clock, "it lands: the whole song plays from the drop's bar (the big screen has it ready, the DJ lets go with the boom)");
+  // 跟着跳 on it: the speaker says where its beats fall, so every phone dances to the song
+  ok(!sc("songbeat", { id: "other", off: 0, bpm: 96, slow: false }) && !sc("songbeat", { id: song!.id, off: 0, bpm: 500 }) && !sc("songbeat", { id: song!.id, off: -5, bpm: 96 }) && !sc("songbeat", { id: song!.id, off: 0, bpm: "96" }), "another song's beat, or a tempo or a first beat that isn't one: not taken");
+  e.screenHello("tv-yt2", true, "dj");
+  ok(!e.screenAct("tv-yt2", { x: "songbeat", id: song!.id, off: 0, bpm: 96, slow: false }), "another screen's: not taken");
+  ok(sc("songbeat", { id: song!.id, off: 250, bpm: 95.99, slow: true }) && JSON.stringify(dv("p3").deck.song?.beat) === JSON.stringify({ off: 250, bpm: 95.99, slow: true }), "the speaker's: every phone reads where the song's beats fall, and that it's slow");
+  ok(!sc("songbeat", { id: song!.id, off: 250, bpm: 95.99, slow: true }), "said again, the same: nothing new");
+  ok(sc("songbeat", { id: song!.id, off: 0, bpm: 128 }) && JSON.stringify(dv("p1").deck.song?.beat) === JSON.stringify({ off: 0, bpm: 128, slow: false }), "its tempo found after it started: the new one");
   ok(nothing(g("p1", "charge", { n: 8 })) && nothing(g("p1", "pad", { pad: "echo" })) && nothing(g("p1", "pad", { pad: "brake" })) && nothing(g("p1", "fader", { value: 0.3 })), "while it plays the deck waits: no build-up, no fader, none of the pads that work the music");
   ok(!nothing(g("p1", "pad", { pad: "horn" })) && !nothing(g("p2", "pad", { pad: "siren" })), "but the pads that are a sound of their own play over it (Steve: the effects to hype the floor)");
   ok(!sc("songdone", { id: "other" }), "the big screen's word for another song: not taken");
@@ -5816,6 +5824,156 @@ test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕�
   advance(DANMU.gapMs);
   g("p2", "say", { p: 0 });
   ok(dv("p1").danmuOn === true && lines().at(-1)!.n === 5 + DANMU.keep + 5 + 2, `another set: the count carries on (${lines().at(-1)!.n})`);
+});
+
+test("dj: songs from the phones (Steve on Nov 13: \"要允许所有玩家都可以上传自己的歌上去，不仅是host\"): a song file a phone sent goes on the 歌单 as theirs the moment the big screen has it, plays whole like a YouTube one, the next after it; one the big screen had already goes on theirs too; one the big screen no longer has is skipped", () => {
+  const e = new RoomEngine(freshRoom("DJPS", clock), host);
+  e.screenHello("tv-ps", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+    ["p3", "Cat"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const deck = () => dv("p3").deck;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}) => {
+    const took = e.screenAct("tv-ps", { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const land = () => {
+    for (let i = 0; i < 40 && !deck().drop; i++) advance(250);
+    const sw = deck().drop!;
+    advance(sw.at - clock + 5);
+  };
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  const row = (id: string, t: string, by: string) => [id, t, "Band", 120, 200, by];
+
+  // Ben's file: the big screen has it, and it's his on the 歌单 at once
+  ok(sc("crate", { songs: [row("sben1", "Ben Song", "p2")] }), "the big screen says it has Ben's file");
+  ok(deck().up?.by === "p2" && deck().up?.local === "sben1" && deck().up?.text === "Ben Song", `up next: Ben's, by its name (${JSON.stringify(deck().up)})`);
+  ok(dv("p1").deck.up?.text === "Ben Song" && dv("p2").crateN === 1, "named for everyone");
+  land();
+  ok(deck().song?.local === "sben1" && deck().song?.by === "p2" && !deck().song?.yt && deck().heard.at(-1)?.local === "sben1", "on its bar it plays whole on the big screen (a file, not a video)");
+  // Cat's two, while Ben's plays: in line behind it, not cutting it short
+  sc("crate", { songs: [row("sben1", "Ben Song", "p2"), row("scat1", "Cat One", "p3"), row("scat2", "Cat Two", "p3")] });
+  ok(deck().up?.local === "scat1" && deck().reqs.map((r) => r.local).join() === "scat2", `Cat's two, sent at once, both on the 歌单 (${deck().up?.local}, ${deck().reqs.map((r) => r.local).join()})`);
+  advance(30_000);
+  ok(deck().song?.local === "sben1" && deck().drop === null, "nothing cuts Ben's short");
+  ok(sc("songdone", { id: deck().song!.id }) && deck().song === null, "it ends on the big screen: the DJ for a moment");
+  land();
+  ok(deck().song?.local === "scat1" && deck().song?.by === "p3", "then Cat's first, whole");
+  // 切歌 and 上一曲 as with any song
+  ok(!!g("p2", "next").changed || deck().song === null, "Ben skips it");
+  land();
+  ok(deck().song?.local === "scat2", "Cat's second comes on");
+  advance(DECK.ctlGapMs);
+  g("p1", "prev");
+  land();
+  ok(deck().song?.local === "scat1" && deck().up?.local === "scat2", "上一曲: the one before again, the one that was on next after it");
+  // the same file sent from Amy's phone: the big screen had it, it goes on her 歌单 too
+  const before = deck().reqs.length;
+  ok(sc("song", { by: "p1", id: 7, code: SONG_SENT.indexOf("there"), local: "sben1" }), "the big screen tells Amy's phone it had that one");
+  ok(deck().reqs.length === before + 1 && deck().reqs.at(-1)!.by === "p1" && deck().reqs.at(-1)!.local === "sben1", "on the 歌单 as hers");
+  ok(!sc("song", { by: "p1", id: 8, code: SONG_SENT.indexOf("there"), local: "nope" }) || deck().reqs.length === before + 1, "one it doesn't have: nothing");
+  // a file from someone who isn't at the table: on the big screen, not on anyone's 歌单 (the big
+  // screen says its list once a second at most)
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [row("sben1", "Ben Song", "p2"), row("scat1", "Cat One", "p3"), row("scat2", "Cat Two", "p3"), row("sx", "Stranger", "p9")] });
+  ok(!deck().reqs.some((r) => r.local === "sx") && dv("p1").crateN === 4, "a file from someone not at the table: kept, not asked for");
+  // a file's name with the worst words in it: starred, as in 弹幕
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [row("sben1", "Ben Song", "p2"), row("scat1", "Cat One", "p3"), row("scat2", "Cat Two", "p3"), row("sx", "Stranger", "p9"), ["srude", "傻逼 Song", "fuck band", 120, 200, "p2"]] });
+  ok(deck().reqs.at(-1)!.text === "** Song" && deck().reqs.at(-1)!.artist === "**** band", `a rude file name, starred (${deck().reqs.at(-1)!.text} · ${deck().reqs.at(-1)!.artist})`);
+  // the big screen opened again: its files are gone, so is the song playing and the ones waiting
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [] });
+  ok(deck().song === null && !deck().reqs.some((r) => r.local) && deck().up?.local === undefined, "the big screen without them: the song playing ends, the waiting ones go");
+  // the host's songs on the decks (the big screen's own switch, 用我的歌放) still play them there
+  advance(DECK.gridGapMs);
+  sc("crate", { songs: [row("smine", "Mine", "")] });
+  ok(!deck().reqs.some((r) => r.local === "smine") && deck().up?.local !== "smine", "the big screen's own file: not on anyone's 歌单");
+});
+
+test("dj: the sound board (Steve on Nov 13: his own sounds, in categories, \"把你的音效全部替换掉\"): a sound by its number, on the big screen at once; one per phone a moment, the same one for the room once in a while; nothing else", () => {
+  const e = new RoomEngine(freshRoom("DJSF", clock), host);
+  e.screenHello("tv-sf", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  const played = (o: Output) => o.events.filter((x) => x.k === "fx" && x.fx === "sfx").map((x) => (x as { pid?: string; data?: number[] }).pid + ":" + ((x as { data?: number[] }).data ?? []).join());
+  const bbq = SFX.findIndex((x) => x.id === "rude-bbq");
+  const o = g("p2", "sfx", { i: bbq });
+  ok(o.light && !o.persist && played(o).join() === `p2:${bbq}`, "Ben's 芭比Q了: the screens hear it at once (light), his and its number (before the music too)");
+  ok(nothing(g("p2", "sfx", { i: 0 })), "another from him straight after: not taken");
+  ok(nothing(g("p1", "sfx", { i: bbq })), "the same one from Amy a moment later: not taken (one for the room)");
+  ok(played(g("p1", "sfx", { i: 0 })).join() === "p1:0", "a different one from her: it plays");
+  advance(SFX_TIMES.takeMs);
+  ok(nothing(g("p2", "sfx", { i: bbq })), "the same one again before the room's gap: not yet");
+  ok(played(g("p2", "sfx", { i: 2 })).join() === "p2:2", "another from him once his moment's up (a little under the phone's own gap: the network bunches presses)");
+  advance(SFX_TIMES.roomGapMs);
+  ok(played(g("p2", "sfx", { i: bbq })).join() === `p2:${bbq}`, "a moment on: again");
+  advance(SFX_TIMES.roomGapMs);
+  ok(nothing(g("p1", "sfx", { i: -1 })) && nothing(g("p1", "sfx", { i: SFX.length })) && nothing(g("p1", "sfx", { i: 1.5 })) && nothing(g("p1", "sfx", { i: "0" })) && nothing(g("p1", "sfx", {})), "no such sound: nothing");
+  e.screenAct("tv-sf", { x: "live", source: "fake" });
+  e.flush();
+  g("p1", "phase", { phase: "end" });
+  advance(SFX_TIMES.roomGapMs);
+  ok(nothing(g("p2", "sfx", { i: 3 })), "the set over: none");
+  ok(SFX_CATS.every((c) => SFX.some((x) => x.cat === c.id)) && new Set(SFX.map((x) => x.id)).size === SFX.length, "every category has sounds; every sound its own name");
+});
+
+test("dj: the shared phone's own 音效 (Steve on Nov 14: \"投屏的手机也可以发音效\"): the speaker plays sounds as the table's, under the same gaps; another screen with the code can't", () => {
+  const e = new RoomEngine(freshRoom("DJSS", clock), host);
+  e.screenHello("tv-ss", true, "dj");
+  e.hello("p1", "Amy", false);
+  e.flush();
+  const scr = (sid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.screenAct(sid, { x, ...rest });
+    return e.flush();
+  };
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const played = (o: Output) => o.events.filter((x) => x.k === "fx" && x.fx === "sfx").map((x) => (x as { pid?: string; data?: number[] }).pid + ":" + ((x as { data?: number[] }).data ?? []).join());
+  scr("tv-ss", "live", { source: "fake" });
+  // (the speaker says the bars: from then on it's the one)
+  scr("tv-ss", "grid", { at: clock, bar: 0, bpm: 125 });
+  const horn = SFX.findIndex((x) => x.id === "dj-airhorn");
+  ok(played(scr("tv-ss", "sfx", { i: horn })).join() === `${SHARED_BY}:${horn}`, "the speaker's air horn: played, as the table's");
+  ok(played(scr("tv-ss", "sfx", { i: 1 })).length === 0, "another from it straight after: not taken");
+  ok(played(g("p1", "sfx", { i: horn })).length === 0, "the same one from Amy a moment later: once for the room");
+  e.screenHello("tv-other", true, "dj");
+  e.flush();
+  clock += SFX_TIMES.roomGapMs;
+  ok(played(scr("tv-other", "sfx", { i: 2 })).length === 0, "another screen with the table's code: nothing");
+  ok(played(scr("tv-ss", "sfx", { i: 2 })).join() === `${SHARED_BY}:2`, "the speaker again a moment on: plays");
 });
 
 console.log(failures ? `\n${failures} failure(s)` : "\nall passed");

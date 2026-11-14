@@ -119,7 +119,7 @@ it('真实开始按钮经过房间阶段机进入倒数，顶栏回大厅返回 
   expect(host.phase).toBe('lobby');
   harness.elements.get('startBtn')!.click();
   expect(host.phase).toBe('countdown');
-  expect(harness.elements.get('countLevel')!.textContent).toMatch(/^1\./);
+  expect(harness.elements.get('countLevel')!.textContent).toMatch(/^简单 · 1\. /);
   harness.elements.get('lobbyBtn')!.click();
   await Promise.resolve();
   expect(host.phase).toBe('lobby');

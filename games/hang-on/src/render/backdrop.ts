@@ -2,6 +2,10 @@
  * 背景（A3）：天空渐变加三层视差剪影，屏幕空间，跟着镜头慢慢走。
  * 年夜饭桌：红灯笼、碗、茶壶、蒸笼的剪影，蒸汽往上飘。
  * 温哥华：傍晚的天、雪山、吊桥、楼群的灯、海边的树；冰关下雨。
+ * 中餐馆后厨（A10）：白瓷砖墙、调料架、挂着的锅铲和炒锅、一排灶眼的火光，热气往上飘。
+ * 雪山缆车（A10）：黄昏里的雪峰、半山的松树和缆车塔架、亮着灯的木屋，一直下雪。
+ * 老宅找钥匙（A10）：月夜，一轮大月亮；远处白墙黛瓦的马头墙，院子里的老梅树、月亮门、透着暖光的窗棂，近处红漆柱子和挂落；萤火虫飘。
+ * 太空站（A10）：深空，满天星、紫蓝的星云、一颗带光环的大行星；远处空间站的桁架和太阳能板，中间一节节舱段（圆舷窗亮着），近处的钢梁；偶尔一颗流星。
  * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
  *
  * 远景画（可选）：地址由外面给（`src/render/plates.ts` 找 `games/hang-on/art/<世界>-far.webp`，来源写在 art/README.md），
@@ -21,7 +25,7 @@ interface Layer {
 }
 
 /** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷），前面的平台和人才跳得出来。 */
-const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc };
+const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f, snow: 0xa8b2c8, house: 0x9a9cb8, space: 0x9c9cc8 };
 /** 远景画显出来以后藏掉的剪影层：最远和中间那层（画里已经有了），只留最近那层压在画前面。 */
 const PLATE_HIDES = [0, 1];
 
@@ -46,6 +50,9 @@ export class Backdrop {
   private steamT = 0;
   private rayT = 0;
   private rainT = 0;
+  private snowT = 0;
+  private flyT = 0;
+  private starT = 0;
   private plate: Sprite | null = null;
   /** 远景画外面套一层：糊一点（景深，A8），糊好的样子存成一张图，镜头动时只挪这层。 */
   private plateC: Container | null = null;
@@ -125,12 +132,18 @@ export class Backdrop {
     this.skyGrad ??= new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.skyTop }, { offset: 1, color: this.pal.skyBottom }] });
     sky.rect(0, 0, W, H).fill(this.skyGrad);
     if (this.world === 'van') this.stars(sky, W, H);
+    if (this.world === 'house') this.moon(sky, W, H);
+    if (this.world === 'space') this.deepSpace(sky, W, H);
     const period = Math.max(1600, Math.ceil(W / 100) * 100);
     this.layers.forEach((l, i) => {
       l.period = period;
       for (const g of l.g) {
         g.clear();
         if (this.world === 'table') this.tableLayer(g, i, period, H);
+        else if (this.world === 'kitchen') this.kitchenLayer(g, i, period, H);
+        else if (this.world === 'snow') this.snowLayer(g, i, period, H);
+        else if (this.world === 'house') this.houseLayer(g, i, period, H);
+        else if (this.world === 'space') this.spaceLayer(g, i, period, H);
         else this.vanLayer(g, i, period, H);
       }
       l.g[1].x = period;
@@ -139,11 +152,11 @@ export class Backdrop {
     this.drawRays(W, H);
   }
 
-  /** 几道斜光：年夜饭桌是灯笼的暖光，温哥华是路灯的冷光。从画面上沿斜着往右下。 */
+  /** 几道斜光：年夜饭桌是灯笼的暖光、后厨是灯管下的暖光，温哥华是路灯的冷光，老宅是月光。从画面上沿斜着往右下。 */
   private drawRays(W: number, H: number): void {
     const g = this.rays.clear();
-    const warm = this.world === 'table';
-    const color = warm ? 0xffc27a : 0xa8c8ff;
+    const warm = this.world === 'table' || this.world === 'kitchen';
+    const color = warm ? 0xffc27a : this.world === 'house' ? 0xc8d4ff : this.world === 'space' ? 0x9a8cff : 0xa8c8ff;
     const beams = warm ? [0.12, 0.36, 0.63, 0.86] : [0.2, 0.55, 0.82];
     for (const [i, fx] of beams.entries()) {
       const x = fx * W;
@@ -188,7 +201,10 @@ export class Backdrop {
       l.c.x = -(off % l.period);
       l.c.y = -(camY - levelH / 2) * l.f * 0.35 * zoom;
     }
-    if (this.world === 'table') this.steam(dt);
+    if (this.world === 'table' || this.world === 'kitchen') this.steam(dt);
+    if (this.world === 'snow') this.snowfall(dt);
+    if (this.world === 'house') this.fireflies(dt);
+    if (this.world === 'space') this.shootingStars(dt);
     if (this.rain) this.rainfall(dt);
   }
 
@@ -321,6 +337,114 @@ export class Backdrop {
     }
   }
 
+  // ---------------------------------------------------------------- 中餐馆后厨（A10）
+
+  private kitchenLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(300 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 白瓷砖墙：浅浅的砖缝；一道调料架，上面瓶瓶罐罐；远处的灶台
+      const col = hex(pal.far);
+      const top = H * 0.08;
+      const hy = H * 0.62;
+      for (let x = 0; x <= P; x += 64) g.moveTo(x, top).lineTo(x, hy).stroke({ width: 2, color: 0xffffff, alpha: 0.05 });
+      for (let y = top; y <= hy; y += 64) g.moveTo(0, y).lineTo(P, y).stroke({ width: 2, color: 0xffffff, alpha: 0.05 });
+      const sy = H * 0.3;
+      g.rect(0, sy, P, 10).fill(col);
+      for (let k = 0; k < 14; k++) {
+        const x = (k + 0.3 + r() * 0.4) * (P / 14);
+        if (r() < 0.5) this.bottle(g, x, sy, 26 + r() * 14, 60 + r() * 40, col);
+        else this.jar(g, x, sy, 36 + r() * 20, 30 + r() * 26, col);
+      }
+      g.rect(0, hy, P, H - hy).fill(col);
+      this.wok(g, 0.15 * P, hy, 170, col);
+      this.steamers(g, 0.38 * P, hy, 120, 4, col);
+      this.pot(g, 0.62 * P, hy, 150, 120, col);
+      this.wok(g, 0.86 * P, hy, 190, col);
+    } else if (i === 1) {
+      // 一根横杆上挂着炒勺、锅铲、漏勺、菜刀和炒锅；下面一排灶台，锅子冒着热气
+      const col = hex(pal.mid);
+      const ry = H * 0.06;
+      g.rect(0, ry, P, 8).fill(col);
+      const tools = 12;
+      for (let k = 0; k < tools; k++) {
+        const x = (k + 0.5) * (P / tools) + (r() - 0.5) * 30;
+        const len = 110 + r() * 80;
+        g.moveTo(x, ry + 8).lineTo(x, ry + 26).stroke({ width: 3, color: col });
+        const kind = k % 4;
+        if (kind === 0) this.ladle(g, x, ry + 26, len, col);
+        else if (kind === 1) this.spatula(g, x, ry + 26, len, col);
+        else if (kind === 2) this.cleaver(g, x, ry + 26, col);
+        else this.wok(g, x, ry + 26 + 70, 120, col, true);
+      }
+      const hy = H * 0.72;
+      g.rect(0, hy, P, H - hy).fill(col);
+      this.pot(g, 0.1 * P, hy, 210, 150, col);
+      this.steamers(g, 0.32 * P, hy, 170, 3, col);
+      this.wok(g, 0.55 * P, hy, 260, col);
+      this.bottle(g, 0.7 * P, hy, 40, 110, col);
+      this.bottle(g, 0.74 * P, hy, 34, 90, col);
+      this.pot(g, 0.9 * P, hy, 180, 110, col);
+    } else {
+      // 近景：灶火的暖光一团一团，最下面一排灶眼和火苗
+      for (let k = 0; k < 7; k++) {
+        const x = r() * P;
+        const y = H * (0.25 + r() * 0.6);
+        const rad = 50 + r() * 90;
+        for (let s = 0; s < 3; s++) g.circle(x, y, rad * (1 - s * 0.3)).fill({ color: hex(pal.haze), alpha: 0.025 + s * 0.015 });
+      }
+      const hy = H * 0.88;
+      const col = hex(pal.near);
+      for (let k = 0; k < 5; k++) {
+        const x = (k + 0.5) * (P / 5);
+        glow(g, x, hy, 120, '#ff8a3c', 0.18);
+        for (const dx of [-26, -9, 9, 26]) g.ellipse(x + dx, hy - 6, 6, 14).fill({ color: 0x6fa8ff, alpha: 0.35 });
+      }
+      g.rect(0, hy, P, H - hy).fill(col);
+      this.wok(g, 0.3 * P, hy - 4, 300, col);
+      this.steamers(g, 0.78 * P, hy, 240, 2, col);
+    }
+  }
+
+  /** 炒锅：一口浅的圆底锅，一边一根长柄；hang 是挂在杆上的（锅口朝外，柄朝上）。 */
+  private wok(g: Graphics, x: number, y: number, w: number, col: number, hang = false): void {
+    if (hang) {
+      g.ellipse(x, y, w / 2, w / 2).fill(col);
+      g.moveTo(x, y - w / 2).lineTo(x, y - w / 2 - 40).stroke({ width: 7, color: col, cap: 'round' });
+      return;
+    }
+    const h = w * 0.28;
+    g.moveTo(x - w / 2, y - h).quadraticCurveTo(x, y + h * 0.9, x + w / 2, y - h).closePath().fill(col);
+    g.moveTo(x + w * 0.45, y - h * 0.9).lineTo(x + w * 0.95, y - h * 1.4).stroke({ width: 9, color: col, cap: 'round' });
+  }
+
+  private pot(g: Graphics, x: number, y: number, w: number, h: number, col: number): void {
+    g.roundRect(x - w / 2, y - h, w, h, 10).fill(col);
+    g.roundRect(x - w / 2 - 8, y - h - 8, w + 16, 12, 5).fill(col);
+    g.roundRect(x - w / 2 - 22, y - h * 0.75, 22, 12, 5).fill(col);
+    g.roundRect(x + w / 2, y - h * 0.75, 22, 12, 5).fill(col);
+  }
+
+  private jar(g: Graphics, x: number, y: number, w: number, h: number, col: number): void {
+    g.roundRect(x - w / 2, y - h, w, h, 8).fill(col);
+    g.roundRect(x - w * 0.36, y - h - 8, w * 0.72, 10, 4).fill(col);
+  }
+
+  private ladle(g: Graphics, x: number, y: number, len: number, col: number): void {
+    g.moveTo(x, y).lineTo(x, y + len).stroke({ width: 5, color: col, cap: 'round' });
+    g.ellipse(x, y + len + 12, 18, 14).fill(col);
+  }
+
+  private spatula(g: Graphics, x: number, y: number, len: number, col: number): void {
+    g.moveTo(x, y).lineTo(x, y + len).stroke({ width: 5, color: col, cap: 'round' });
+    g.roundRect(x - 17, y + len - 4, 34, 40, 6).fill(col);
+  }
+
+  private cleaver(g: Graphics, x: number, y: number, col: number): void {
+    g.roundRect(x - 5, y, 10, 50, 4).fill(col);
+    g.roundRect(x - 28, y + 46, 56, 70, 4).fill(col);
+  }
+
   // ---------------------------------------------------------------- 温哥华
 
   private stars(g: Graphics, W: number, H: number): void {
@@ -411,6 +535,374 @@ export class Backdrop {
       g.rect(0, base, P, H - base).fill(col);
       for (let px = 40; px < P; px += 46) g.rect(px, base - 30, 6, 32).fill(col);
       g.rect(0, base - 34, P, 8).fill(col);
+    }
+  }
+
+  // ---------------------------------------------------------------- 雪山缆车（A10）
+
+  private snowLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(500 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 远处的雪峰：一排尖顶，顶上一顶白帽子
+      const base = H * 0.66;
+      const col = hex(pal.far);
+      const peaks: [number, number][] = [];
+      let x = 0;
+      while (x < P + 260) {
+        peaks.push([x, base - 120 - r() * 220]);
+        x += 180 + r() * 220;
+      }
+      g.moveTo(-10, H).lineTo(-10, base);
+      for (const [px, py] of peaks) g.lineTo(px, py);
+      g.lineTo(P + 10, base).lineTo(P + 10, H).closePath().fill(col);
+      for (const [px, py] of peaks) {
+        const cap = 40 + r() * 30;
+        g.moveTo(px, py).lineTo(px - cap, py + cap * 1.1).lineTo(px - cap * 0.45, py + cap * 0.85).lineTo(px - cap * 0.1, py + cap * 1.15).lineTo(px + cap * 0.35, py + cap * 0.9).lineTo(px + cap, py + cap * 1.1).closePath().fill({ color: 0xffffff, alpha: 0.7 });
+      }
+    } else if (i === 1) {
+      // 半山：缓坡、一片松树、缆车塔架和缆绳、一间亮着灯的木屋
+      const col = hex(pal.mid);
+      const hy = H * 0.74;
+      g.moveTo(-10, H).lineTo(-10, hy);
+      for (let x = 0; x <= P + 40; x += 80) g.lineTo(x, hy - 30 * Math.sin((x / P) * Math.PI * 4) - 20);
+      g.lineTo(P + 10, H).closePath().fill(col);
+      for (let k = 0; k < 16; k++) {
+        const px = r() * P;
+        this.pine(g, px, hy - 10 - r() * 30, 50 + r() * 50, col);
+      }
+      const towers = [0.15, 0.48, 0.81];
+      const cy = H * 0.3;
+      g.moveTo(0, cy + 30).lineTo(P, cy - 10).stroke({ width: 2, color: col, alpha: 0.9 });
+      for (const f of towers) {
+        const tx = f * P;
+        const ty = cy + 30 - 40 * f;
+        g.moveTo(tx, ty).lineTo(tx, hy).stroke({ width: 7, color: col });
+        g.moveTo(tx - 26, ty).lineTo(tx + 26, ty).stroke({ width: 5, color: col });
+      }
+      // 木屋
+      const lx = 0.64 * P;
+      g.rect(lx - 70, hy - 70, 140, 70).fill(col);
+      g.poly([lx - 90, hy - 66, lx, hy - 130, lx + 90, hy - 66]).fill(col);
+      g.poly([lx - 92, hy - 64, lx, hy - 130, lx + 92, hy - 64, lx + 80, hy - 60, lx, hy - 118, lx - 80, hy - 60]).fill({ color: 0xffffff, alpha: 0.75 });
+      for (const wx of [-40, 12]) {
+        glow(g, lx + wx + 14, hy - 40, 70, pal.lampOn, 0.25);
+        g.rect(lx + wx, hy - 52, 28, 22).fill(hex(pal.lampOn));
+      }
+    } else {
+      // 近处：雪堆和几棵大松树，几团冷光斑
+      for (let k = 0; k < 6; k++) {
+        const x = r() * P;
+        const y = H * (0.2 + r() * 0.6);
+        const rad = 50 + r() * 80;
+        for (let s = 0; s < 3; s++) g.circle(x, y, rad * (1 - s * 0.3)).fill({ color: hex(pal.haze), alpha: 0.02 + s * 0.012 });
+      }
+      const hy = H * 0.9;
+      const col = hex(pal.near);
+      g.moveTo(-10, H).lineTo(-10, hy);
+      for (let x = 0; x <= P + 60; x += 120) g.quadraticCurveTo(x + 60, hy - 40 - r() * 30, x + 120, hy);
+      g.lineTo(P + 10, H).closePath().fill(col);
+      for (const f of [0.1, 0.42, 0.77]) this.pine(g, f * P, hy, 170 + r() * 60, col, true);
+    }
+  }
+
+  /** 一棵松树：三层三角，snow 的话每层边上积一道雪。 */
+  private pine(g: Graphics, x: number, y: number, h: number, col: number, snowy = false): void {
+    const w = h * 0.55;
+    g.rect(x - w * 0.06, y - h * 0.18, w * 0.12, h * 0.2).fill(col);
+    for (let k = 0; k < 3; k++) {
+      const top = y - h + k * h * 0.24;
+      const bot = top + h * 0.46;
+      const half = w * (0.32 + k * 0.1);
+      g.poly([x, top, x + half, bot, x - half, bot]).fill(col);
+      if (snowy) g.poly([x - half, bot, x - half * 0.5, bot - h * 0.06, x, bot - h * 0.02, x + half * 0.5, bot - h * 0.06, x + half, bot]).fill({ color: 0xffffff, alpha: 0.6 });
+    }
+  }
+
+  // ---------------------------------------------------------------- 老宅找钥匙（A10）
+
+  /** 月亮：右上角一轮大的，一圈月晕，几颗星。 */
+  private moon(g: Graphics, W: number, H: number): void {
+    const r = rng(77);
+    for (let k = 0; k < 40; k++) g.circle(r() * W, r() * H * 0.5, 0.6 + r() * 1.2).fill({ color: 0xffffff, alpha: 0.25 + r() * 0.5 });
+    const mx = W * 0.78;
+    const my = H * 0.2;
+    const mr = Math.max(38, Math.min(W, H) * 0.07);
+    glow(g, mx, my, mr * 6, '#c8d4ff', 0.16);
+    g.circle(mx, my, mr).fill(0xf4f0dc);
+    // 月亮上几块淡淡的影子
+    for (const [dx, dy, s] of [[-0.3, -0.2, 0.22], [0.25, 0.15, 0.3], [-0.05, 0.4, 0.16]] as const) g.circle(mx + dx * mr, my + dy * mr, s * mr).fill({ color: 0xd8d2b8, alpha: 0.55 });
+  }
+
+  private houseLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(700 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 远处：一排白墙黛瓦的马头墙（墙头一级级往上的阶梯，每级顶上一道黛瓦，两头翘起来）
+      const base = H * 0.74;
+      const col = hex(pal.far);
+      let x = -60;
+      while (x < P + 60) {
+        const w = 180 + r() * 220;
+        const top = base - 120 - r() * 130;
+        const step = 26;
+        const xs = [x, x + w * 0.16, x + w * 0.32, x + w * 0.68, x + w * 0.84, x + w];
+        const ys = [top + step * 2, top + step, top, top, top + step, top + step * 2];
+        // 墙面：月光下青白，压暗
+        g.moveTo(x, H);
+        for (let k = 0; k < 5; k++) g.lineTo(xs[k] as number, ys[k] as number).lineTo(xs[k + 1] as number, ys[k] as number);
+        g.lineTo(x + w, H).closePath().fill({ color: 0x9aa2c4, alpha: 0.3 });
+        // 墙头的黛瓦：每一级一条，两头翘
+        for (let k = 0; k < 5; k++) {
+          const x0 = (xs[k] as number) - 6;
+          const x1 = (xs[k + 1] as number) + 6;
+          const y = ys[k] as number;
+          g.rect(x0, y - 7, x1 - x0, 9).fill(col);
+          g.poly([x0, y - 7, x0 - 5, y - 13, x0 + 6, y - 7]).fill(col);
+          g.poly([x1, y - 7, x1 + 5, y - 13, x1 - 6, y - 7]).fill(col);
+        }
+        // 墙上一扇小窗
+        if (r() > 0.4) g.rect(x + w * 0.45, top + 40, w * 0.1, 26).fill({ color: col, alpha: 0.8 });
+        x += w + 20 + r() * 60;
+      }
+      g.rect(-10, base, P + 20, H - base).fill(col);
+    } else if (i === 1) {
+      // 院子对面：一溜屋子，翘角的屋檐，窗棂里透着暖光；一个月亮门；一棵老梅树开着白花
+      const col = hex(pal.mid);
+      const hy = H * 0.8;
+      g.rect(-10, hy, P + 20, H - hy).fill(col);
+      const eave = H * 0.42;
+      g.rect(-10, eave + 26, P + 20, hy - eave - 26).fill({ color: col, alpha: 0.85 });
+      // 屋檐：一道厚的黛瓦，底边一排瓦当的小半圆
+      g.rect(-10, eave, P + 20, 26).fill(col);
+      for (let x = 0; x < P + 20; x += 22) g.circle(x, eave + 26, 7).fill(col);
+      // 几扇窗：暖光，一格格的窗棂
+      for (const f of [0.08, 0.3, 0.56, 0.86]) {
+        const wx = f * P;
+        const wy = eave + 70;
+        const ww = 120;
+        const wh = 90;
+        glow(g, wx + ww / 2, wy + wh / 2, 180, pal.lampOn, 0.22);
+        g.rect(wx, wy, ww, wh).fill({ color: hex(pal.lampOn), alpha: 0.55 });
+        for (let k = 1; k < 6; k++) g.moveTo(wx + (ww * k) / 6, wy).lineTo(wx + (ww * k) / 6, wy + wh);
+        for (let k = 1; k < 4; k++) g.moveTo(wx, wy + (wh * k) / 4).lineTo(wx + ww, wy + (wh * k) / 4);
+        g.stroke({ width: 3, color: col });
+        g.rect(wx, wy, ww, wh).stroke({ width: 6, color: col });
+      }
+      // 月亮门：白墙上一个圆洞，洞里是更远的院子（亮一点）
+      const gx = 0.72 * P;
+      const gy = hy - 90;
+      g.rect(gx - 120, eave + 26, 240, hy - eave - 26).fill({ color: 0xa8aecb, alpha: 0.16 });
+      g.circle(gx, gy, 78).fill({ color: hex(pal.skyBottom), alpha: 0.9 });
+      g.circle(gx, gy, 78).stroke({ width: 6, color: col });
+      // 老梅树：弯弯曲曲几根枝，枝头几朵白梅
+      const tx = 0.18 * P;
+      const branches: number[][] = [];
+      const grow = (x: number, y: number, a: number, len: number, depth: number): void => {
+        const x1 = x + Math.cos(a) * len;
+        const y1 = y + Math.sin(a) * len;
+        g.moveTo(x, y).lineTo(x1, y1).stroke({ width: Math.max(2, depth * 3.2), color: col, cap: 'round' });
+        if (depth <= 1) {
+          branches.push([x1, y1]);
+          return;
+        }
+        grow(x1, y1, a - 0.35 - r() * 0.4, len * (0.62 + r() * 0.2), depth - 1);
+        grow(x1, y1, a + 0.3 + r() * 0.45, len * (0.55 + r() * 0.2), depth - 1);
+      };
+      grow(tx, hy, -Math.PI / 2 - 0.15, 110, 4);
+      for (const [bx, by] of branches) {
+        for (let k = 0; k < 3; k++) g.circle((bx as number) + (r() - 0.5) * 24, (by as number) + (r() - 0.5) * 20, 3.5 + r() * 2).fill({ color: 0xfff2f4, alpha: 0.85 });
+      }
+    } else {
+      // 近处：红漆柱子，柱子之间上头一道木雕的挂落；两盏红灯笼
+      const col = hex(pal.near);
+      const red = 0x3a1620;
+      for (const f of [0.02, 0.5]) {
+        const px = f * P;
+        g.rect(px, 0, 34, H).fill({ color: red, alpha: 0.75 });
+        g.rect(px + 5, 0, 6, H).fill({ color: 0xffffff, alpha: 0.04 });
+        g.rect(px - 8, H * 0.9, 50, H * 0.1).fill(col);
+      }
+      // 挂落：一道横梁，底下一排回纹格子
+      g.rect(-10, 0, P + 20, 22).fill(col);
+      for (let x = 0; x < P; x += 36) {
+        g.rect(x + 4, 22, 28, 18).stroke({ width: 3, color: col });
+        g.rect(x + 12, 28, 12, 6).stroke({ width: 2, color: col });
+      }
+      for (const f of [0.26, 0.74]) {
+        const lx = f * P;
+        const ly = 110 + r() * 40;
+        g.moveTo(lx, 40).lineTo(lx, ly - 30).stroke({ width: 2, color: col });
+        glow(g, lx, ly, 120, '#ff7a4f', 0.28);
+        g.ellipse(lx, ly, 26, 30).fill(0xc8302c);
+        g.ellipse(lx, ly, 12, 30).stroke({ width: 1.5, color: 0x7a1414, alpha: 0.7 });
+        g.rect(lx - 12, ly - 34, 24, 6).fill(0x2a1a14);
+        g.rect(lx - 12, ly + 28, 24, 6).fill(0x2a1a14);
+        g.moveTo(lx, ly + 34).lineTo(lx, ly + 54).stroke({ width: 3, color: 0xd8a03c });
+      }
+      // 几团月光的光斑
+      for (let k = 0; k < 5; k++) {
+        const x = r() * P;
+        const y = H * (0.3 + r() * 0.5);
+        const rad = 40 + r() * 70;
+        for (let s = 0; s < 3; s++) g.circle(x, y, rad * (1 - s * 0.3)).fill({ color: hex(pal.haze), alpha: 0.015 + s * 0.01 });
+      }
+    }
+  }
+
+  /** 萤火虫：几只小绿光慢慢飘，一闪一闪（院子里）。 */
+  private fireflies(dt: number): void {
+    this.flyT += dt;
+    const every = 0.5;
+    while (this.flyT >= every) {
+      this.flyT -= every;
+      this.fx.burst({
+        x: Math.random() * this.W,
+        y: this.H * (0.35 + Math.random() * 0.55),
+        n: 1,
+        texture: 'puff',
+        colors: [0xd8ff8a, 0xfff2a0],
+        speed: [8, 26],
+        angle: -Math.PI / 2 + (Math.random() - 0.5) * 2,
+        spread: 1,
+        life: [3, 5],
+        size: [10, 16],
+        alpha: 0.7,
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- 太空站（A10）
+
+  /** 深空：满天星（大小亮暗不一）、两团星云、右下角一颗带光环的大行星和一颗小卫星。 */
+  private deepSpace(g: Graphics, W: number, H: number): void {
+    const r = rng(91);
+    glow(g, W * 0.25, H * 0.3, Math.max(W, H) * 0.5, '#6a3cc8', 0.2);
+    glow(g, W * 0.7, H * 0.55, Math.max(W, H) * 0.45, '#1f8aa8', 0.16);
+    for (let k = 0; k < 170; k++) {
+      const big = r() < 0.08;
+      g.circle(r() * W, r() * H, big ? 1.6 + r() * 1.2 : 0.5 + r() * 0.9).fill({ color: r() < 0.2 ? 0xbfe3ff : 0xffffff, alpha: 0.35 + r() * 0.6 });
+    }
+    // 大行星：蓝绿的球，几道横的云带，一圈大气的光，一道斜的光环
+    const pr = Math.max(H * 0.42, 200);
+    const px = W * 0.84;
+    const py = H * 1.02;
+    glow(g, px, py, pr * 2.6, '#58c8ff', 0.18);
+    g.circle(px, py, pr).fill(0x2a5c8a);
+    for (let k = 0; k < 6; k++) {
+      const y = py - pr + (pr * 2 * (k + 0.5)) / 6;
+      const half = Math.sqrt(Math.max(0, pr * pr - (y - py) * (y - py)));
+      g.ellipse(px, y, half * 0.98, pr * 0.06).fill({ color: k % 2 ? 0x3f8fb0 : 0x7fc8d8, alpha: 0.45 });
+    }
+    g.circle(px, py, pr).stroke({ width: 6, color: 0x9fe8ff, alpha: 0.35 });
+    g.ellipse(px, py - pr * 0.1, pr * 1.6, pr * 0.22).stroke({ width: 5, color: 0xd8c8ff, alpha: 0.45 });
+    // 小卫星
+    g.circle(W * 0.18, H * 0.16, 18).fill(0xc8c4d8);
+    g.circle(W * 0.18 - 5, H * 0.16 - 3, 5).fill({ color: 0x8a86a0, alpha: 0.6 });
+  }
+
+  private spaceLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(900 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 远处：空间站的长桁架，挂着一对对太阳能板
+      const col = hex(pal.far);
+      const y = H * 0.36;
+      g.rect(-10, y - 4, P + 20, 8).fill(col);
+      for (let x = 0; x < P; x += 40) g.moveTo(x, y - 4).lineTo(x + 20, y + 4).moveTo(x + 20, y - 4).lineTo(x + 40, y + 4).stroke({ width: 2, color: col });
+      for (const f of [0.1, 0.35, 0.62, 0.86]) {
+        const x = f * P;
+        for (const side of [-1, 1]) {
+          const top = side < 0 ? y - 120 : y + 12;
+          g.rect(x - 70, top, 140, 108).fill({ color: 0x2c3a80, alpha: 0.55 });
+          for (let k = 1; k < 5; k++) g.moveTo(x - 70 + 28 * k, top).lineTo(x - 70 + 28 * k, top + 108);
+          for (let k = 1; k < 3; k++) g.moveTo(x - 70, top + 36 * k).lineTo(x + 70, top + 36 * k);
+          g.stroke({ width: 1.5, color: col });
+          g.moveTo(x, y).lineTo(x, side < 0 ? top + 108 : top).stroke({ width: 3, color: col });
+        }
+      }
+    } else if (i === 1) {
+      // 中间：一节节圆柱的舱段，圆舷窗亮着；一个天线锅
+      const col = hex(pal.mid);
+      const y = H * 0.66;
+      let x = -40;
+      while (x < P + 40) {
+        const w = 220 + r() * 160;
+        const h = 90 + r() * 40;
+        g.roundRect(x, y - h / 2, w, h, h / 2).fill(col);
+        g.roundRect(x + 10, y - h / 2 + 6, w - 20, 8, 4).fill({ color: 0xffffff, alpha: 0.06 });
+        for (let wx = x + 40; wx < x + w - 30; wx += 46) {
+          glow(g, wx, y, 26, '#7fe3ff', 0.25);
+          g.circle(wx, y, 9).fill({ color: 0x9fe8ff, alpha: 0.75 });
+          g.circle(wx, y, 9).stroke({ width: 3, color: 0x2a3060 });
+        }
+        g.rect(x + w, y - 14, 40, 28).fill(col);
+        x += w + 40;
+      }
+      const dx = 0.5 * P;
+      g.moveTo(dx, y - 60).lineTo(dx, y - 140).stroke({ width: 4, color: col });
+      g.moveTo(dx - 50, y - 150).quadraticCurveTo(dx, y - 110, dx + 50, y - 150).closePath().fill(col);
+    } else {
+      // 近处：上下两道钢梁（工字钢加三角撑），几盏一闪一闪的小灯
+      const col = hex(pal.near);
+      for (const [y0, h] of [[0, 26], [H - 30, 30]] as const) {
+        g.rect(-10, y0, P + 20, h).fill(col);
+        for (let x = 0; x < P; x += 60) g.moveTo(x, y0 + (y0 ? 0 : h)).lineTo(x + 30, y0 + (y0 ? -30 : h + 30)).lineTo(x + 60, y0 + (y0 ? 0 : h)).stroke({ width: 4, color: col });
+      }
+      for (let k = 0; k < 6; k++) {
+        const x = r() * P;
+        glow(g, x, 18, 30, k % 2 ? '#ff6b6b' : '#7fe3ff', 0.4);
+        g.circle(x, 18, 3).fill(k % 2 ? 0xff6b6b : 0x7fe3ff);
+      }
+      for (let k = 0; k < 5; k++) {
+        const x = r() * P;
+        const y = H * (0.25 + r() * 0.5);
+        const rad = 50 + r() * 90;
+        for (let s2 = 0; s2 < 3; s2++) g.circle(x, y, rad * (1 - s2 * 0.3)).fill({ color: hex(pal.haze), alpha: 0.012 + s2 * 0.008 });
+      }
+    }
+  }
+
+  /** 流星：隔几秒一颗，从右上往左下划过去。 */
+  private shootingStars(dt: number): void {
+    this.starT += dt;
+    if (this.starT < 3.5) return;
+    this.starT = Math.random() * 1.5;
+    this.fx.burst({
+      x: this.W * (0.3 + Math.random() * 0.7),
+      y: this.H * Math.random() * 0.3,
+      n: 1,
+      texture: 'dot',
+      colors: [0xffffff, 0xbfe3ff],
+      speed: [700, 900],
+      angle: Math.PI * 0.8,
+      spread: 0.05,
+      life: [0.6, 0.8],
+      size: [3, 4],
+      alpha: 0.9,
+      stretch: 9,
+    });
+  }
+
+  /** 下雪：一片片慢慢飘下来，左右晃。 */
+  private snowfall(dt: number): void {
+    this.snowT += dt;
+    const every = 0.05;
+    while (this.snowT >= every) {
+      this.snowT -= every;
+      this.fx.burst({
+        x: Math.random() * (this.W + 200) - 100,
+        y: -20,
+        n: 1,
+        texture: 'circle',
+        colors: [0xffffff, 0xeaf4ff],
+        speed: [50, 110],
+        angle: Math.PI / 2 + (Math.random() - 0.5) * 0.5,
+        spread: 0.3,
+        life: [7, 10],
+        size: [3, 7],
+        alpha: 0.8,
+      });
     }
   }
 

@@ -134,12 +134,12 @@ with sync_playwright() as p:
     st = tv.evaluate("() => window.__djBooth.stats()")
     ok(st["state"] == "playing", f"no gap at the hand-over ({st})")
 
-    # pads on the song's own beat
-    amy.locator(".djk-pad.is-echo").click()
-    ben.locator(".djk-pad.is-horn").click()
-    ok(until(lambda: len([e for e in (log(tv) or {}).get("log", []) if e["k"] in ("echo", "horn")]) >= 2, 4000), "pads play")
-    pads = [e for e in log(tv)["log"] if e["k"] in ("echo", "horn")]
-    ok(all(on_beat(e) for e in pads), f"on the song's beat, to the millisecond ({[round(e['beat'], 3) for e in pads]})")
+    # a sound from the board over her songs (the pads that played on the beat are gone since Nov 13)
+    n0 = tv.evaluate("() => (window.__sfx && window.__sfx.n) || 0")
+    ben.locator(".djk-cat.is-hype").click()
+    ben.locator(".djk-sfx").first.click()
+    ok(until(lambda: (tv.evaluate("() => (window.__sfx && window.__sfx.n) || 0")) > n0, 4000), "a sound from the board plays over them")
+    ben.locator(".djk-board-back").click()
 
     # Ben asks for one by name (Amy holds the room, so it waits up next while the speaker gets it ready)
     key(amy, 1).click()

@@ -1,12 +1,12 @@
 import { defineConfig } from 'vite';
 
-// 三个页面：/（主机）、/pad/（手柄）、/play.html（物理开发页）。build 出到 dist/hang-on，Worker 的静态
+// 四个页面：/（主机）、/pad/（手柄）、/play.html（物理开发页）、/music.html（背景音乐试听）。build 出到 dist/hang-on，Worker 的静态
 // 资源根是 dist，所以线上就是 changle.ca/hang-on/、/hang-on/pad/。
 export default defineConfig({
   base: '/hang-on/',
   build: {
     outDir: 'dist/hang-on',
-    rollupOptions: { input: { host: 'index.html', pad: 'pad/index.html', play: 'play.html' } },
+    rollupOptions: { input: { host: 'index.html', pad: 'pad/index.html', play: 'play.html', music: 'music.html' } },
     target: 'es2022',
     chunkSizeWarningLimit: 4000,
   },

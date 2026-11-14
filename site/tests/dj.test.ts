@@ -1,6 +1,6 @@
 /* 打碟 · DJ Booth: the speaker's player and the stand-in DJ, without a sound card.
    Run with `npx tsx tests/dj.test.ts`. The booth's room rules are in engine.test.ts. */
-import { beatOf, beatTime, DANCE_MOVES, danced, moveAt } from "../src/shared/dj/dance";
+import { beatOf, beatTime, DANCE_MOVES, danced, moodOf, moveAt, ROUTINES, slowSong, songGrid, type Mood } from "../src/shared/dj/dance";
 import { BY_PHASE, nextSection, renderOrder } from "../src/party/dj/fake/arrange";
 import { FakeDj, pack } from "../src/party/dj/fake/FakeDj";
 import type { Rendered } from "../src/party/dj/fake/render";
@@ -8,6 +8,8 @@ import { beatFrames, SECTIONS, sectionFrames, type Section } from "../src/party/
 import { ALL_SECTIONS, ANY_SECTION, BED, KITS, sectionById, sectionOf } from "../src/party/dj/fake/styles";
 import { CLIP_DB, ClipDeck, clipOf, loadClip, type Clip } from "../src/party/dj/clip/clip";
 import { danceBpm, hitsOf, songQueries, songQuery, trackOf, tracksOf, unescape, ytIdOf } from "../src/shared/dj/youtube";
+import { readdirSync, statSync } from "node:fs";
+import { SFX, SFX_CATS, sfxOf, sfxUrl } from "../src/shared/dj/sfx";
 import { previewOk } from "../src/shared/songs";
 import { decodePiece, encodePiece, fileNumber, PIECE_BYTES, SONG_BYTES } from "../src/shared/dj/songwire";
 import { eqDb, filterOf, GATE_STEPS } from "../src/party/dj/speaker/mixer";
@@ -1220,6 +1222,18 @@ await test("youtube: the rooms server's /yt/bpm, against a stand-in YouTube and 
   ok(r8.status === 400 && r8.asked.length === 0, "not a video's id: refused, nothing asked");
 });
 
+await test("the sound board: every sound has its file on the site and none is left over, a name in both languages, at most 20 s; every category has some (Steve's own sounds, Nov 13)", () => {
+  const dir = new URL("../public/media/sfx/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".mp3"));
+  const want = SFX.map((x) => sfxUrl(x).split("/").pop()!);
+  ok(want.every((f) => files.includes(f)) && files.every((f) => want.includes(f)), `a file for each, none without (${files.length} files, ${want.length} sounds)`);
+  ok(SFX.every((x) => x.zh.trim() && x.en.trim() && x.s > 0.1 && x.s <= 20.01 && /^[a-z0-9-]+$/.test(x.id)), "named in both languages, an address-safe id, 20 s at most");
+  const bytes = files.reduce((n, f) => n + statSync(new URL(f, dir)).size, 0);
+  ok(bytes < 8 * 1024 * 1024, `all of them under 8 MB (${Math.round(bytes / 1024)} KB)`);
+  ok(SFX_CATS.length === 9 && SFX_CATS.every((c) => sfxOf(c.id).length > 0 && c.zh && c.en), "nine categories, each with sounds, named in both languages");
+  ok(sfxOf("rude").every((e) => SFX[e.i].cat === "rude") && sfxOf("dj")[0].i === 0, "a category's sounds, with their numbers in the room");
+});
+
 await test("youtube: a link's video id, the search answer's videos, YouTube's escapes", () => {
   const id = "dQw4w9WgXcQ";
   const links = [`https://www.youtube.com/watch?v=${id}&t=42`, `youtu.be/${id}`, `https://m.youtube.com/watch?v=${id}`, `https://music.youtube.com/watch?v=${id}&list=x`, `https://www.youtube.com/shorts/${id}`, `https://www.youtube-nocookie.com/embed/${id}`];
@@ -1234,8 +1248,22 @@ await test("youtube: a link's video id, the search answer's videos, YouTube's es
 
 
 await test("dance along: the routine on the beat count, a beat danced near it, the speaker's bars as times", () => {
-  ok(moveAt(0).move.id === "stepClap" && moveAt(15).left === 1 && moveAt(16).move.id === "raiseRoof" && moveAt(15).next.id === "raiseRoof", "a move for 16 beats, then the next");
-  ok(moveAt(-1).move.id === DANCE_MOVES[DANCE_MOVES.length - 1].id && moveAt(16 * DANCE_MOVES.length).move.id === "stepClap", "the routine goes round (before the first beat too)");
+  ok(moveAt(0).move.id === "stepClap" && moveAt(15).left === 1 && moveAt(16).move.id === "point" && moveAt(15).next.id === "point", "a move for 16 beats, then the next");
+  const n = ROUTINES.build.length;
+  ok(moveAt(-1).move.id === ROUTINES.build[n - 1] && moveAt(16 * n).move.id === "stepClap", "the routine goes round (before the first beat too)");
+  // the night's stretches: the warm-up mostly sitting and getting up at its end, the build and the
+  // peak standing (快摇 first at the peak), the wind-down and a slow song the gentle ones
+  const sits = (m: Mood) => ROUTINES[m].map((id) => DANCE_MOVES[id].sit);
+  ok(sits("warm").join() === "true,true,true,true,false,false" && !sits("build").includes(true) && !sits("peak").includes(true), "sitting at the start, standing up for the build and the peak");
+  ok(moveAt(0, "peak").move.id === "bounce" && DANCE_MOVES.bounce.zh === "快摇" && moveAt(0, "cool").move.id === "sway" && DANCE_MOVES.sway.zh === "慢摇", "the peak starts with 快摇, the wind-down with 慢摇");
+  ok(sits("cool").includes(true) && sits("cool").includes(false) && ROUTINES.slow.join() === ROUTINES.cool.join(), "the wind-down and a slow song: standing and sitting, gentle");
+  const ids = Object.keys(DANCE_MOVES) as (keyof typeof DANCE_MOVES)[];
+  ok(ids.every((id) => (Object.keys(ROUTINES) as Mood[]).some((m) => ROUTINES[m].includes(id))), "every move is danced in some stretch");
+  ok(ids.every((id) => DANCE_MOVES[id].how.zh.length >= 6 && DANCE_MOVES[id].how.en.length >= 10 && DANCE_MOVES[id].how.en.length <= 48), "each says how, in both languages (short enough for two lines on the TV)");
+  ok(ids.filter((id) => DANCE_MOVES[id].sit).every((id) => DANCE_MOVES[id].how.zh.startsWith("坐着") && DANCE_MOVES[id].how.en.startsWith("Seated")), "the sitting ones say so");
+  ok(moodOf("peak") === "peak" && moodOf("warm") === "warm" && moodOf("wait") === "build" && moodOf("end") === "build" && moodOf("peak", true) === "slow", "the routine: the room's stretch, or slow for a slow song");
+  ok(slowSong(72) && slowSong(89.9) && !slowSong(90) && !slowSong(128) && !slowSong(null) && !slowSong(0) && !slowSong(undefined), "a slow song: under 90 by its own tempo (unknown: not)");
+  ok(songGrid(null) === null && songGrid({ at: 5000 }) === null && JSON.stringify(songGrid({ at: 5000, beat: { off: 250, bpm: 96 } })) === JSON.stringify({ at: 5250, bar: 0, bpm: 96 }), "a whole song's own beats: from its first beat, once the speaker has said where");
   const gr = { at: 10_000, bar: 5, bpm: 125 };
   ok(beatTime(gr, 20) === 10_000 && beatTime(gr, 21) === 10_480 && Math.abs(beatOf(gr, 10_240) - 20.5) < 1e-9, "beats as server times, and back");
   const near = [{ t: 10_000 + 120, a: 4 }, { t: 10_480 - 200, a: 9 }, { t: 10_960, a: 1.5 }];

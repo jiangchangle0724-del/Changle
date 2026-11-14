@@ -195,6 +195,27 @@ interface Notes {
   /** Which ends float the amount off: a phone's wallet counts its own (Cash). */
   outLabel: boolean;
   inLabel: boolean;
+  /** How far down each end's amount is moved (px), off another one at the same spot (`stackLabels`). */
+  outDy?: number;
+  inDy?: number;
+}
+
+/**
+ * Amounts that would float off one spot on top of one another (several teams paying this one at
+ * once, their tokens all off one edge of a phone's map) stand one under another instead.
+ */
+function stackLabels(add: Notes[]) {
+  const placed: [number, number][] = [];
+  const place = (x: number, y: number) => {
+    let dy = 0;
+    while (placed.some(([px, py]) => Math.abs(px - x) < 72 && Math.abs(py - (y + dy)) < 30)) dy += 34;
+    placed.push([x, y + dy]);
+    return dy;
+  };
+  for (const c of add) {
+    if (c.outLabel) c.outDy = place(c.x0, c.y0);
+    if (c.inLabel) c.inDy = place(c.x1, c.y1);
+  }
 }
 
 /**
@@ -394,6 +415,7 @@ export function MoneyFx({ v, phone, after }: { v: RoomView; phone?: boolean; aft
             add.push({ id: Date.now() * 10 + i, x0, y0, x1, y1, bills: notesFor(m.amount), amount: m.amount, delay: i * NEXT_MS, outLabel: m.dir > 0 && team, inLabel: m.dir < 0 && team });
           });
         if (!add.length) return;
+        stackLabels(add);
         setFlights((list) => [...list, ...add]);
         // (a riffle as each payment's notes leave the hand)
         for (const c of add) timers.current.push(window.setTimeout(() => sfx.riffle(c.bills.length), c.delay));
@@ -422,12 +444,12 @@ export function MoneyFx({ v, phone, after }: { v: RoomView; phone?: boolean; aft
             </span>
           ))}
           {c.outLabel && (
-            <span class="money-amount out num" style={{ left: `${c.x0}px`, top: `${c.y0}px`, animationDelay: `${c.delay}ms` }}>
+            <span class="money-amount out num" style={{ left: `${c.x0}px`, top: `${c.y0 + (c.outDy ?? 0)}px`, animationDelay: `${c.delay}ms` }}>
               −{money(c.amount)}
             </span>
           )}
           {c.inLabel && (
-            <span class="money-amount in num" style={{ left: `${c.x1}px`, top: `${c.y1}px`, animationDelay: `${c.delay + 750}ms` }}>
+            <span class="money-amount in num" style={{ left: `${c.x1}px`, top: `${c.y1 + (c.inDy ?? 0)}px`, animationDelay: `${c.delay + 750}ms` }}>
               +{money(c.amount)}
             </span>
           )}

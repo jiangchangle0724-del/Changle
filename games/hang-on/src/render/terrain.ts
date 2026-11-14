@@ -3,14 +3,25 @@
  * 饼干平台会抖会消失，蜡烛顶上有火苗、被弹到就压一下；检查点是灯，亮了就发光；终点是面旗子。
  * 原版那套难的机关（A6）：要命的东西（桌上是牙签、红油锅、电炉丝；温哥华是铁栏杆尖、夜市烤炉、天车电轨），
  * 会动的平台和会转的杆子按 sim.time 摆（和物理同一套算法，手机局里别的手机也对得上）。
+ * 踩板门（11-13）：踏板是一块矮按钮，踩下去按钮沉下去、亮起来；门是一块带色条的墙，挪到物理说的地方。
+ * 踏板和它开的门同一个颜色（第几扇门一个色），看得出哪块开哪扇。
+ * 中餐馆后厨（A10）：要命的东西是一排刀、坐在火上的炒锅、灭蚊灯；蒸笼是一摞竹蒸笼，快喷了盖子跳，喷的时候一柱白汽往上冒；
+ * 检查点是出菜口的保温灯。
+ * 雪山缆车（A10）：台子上都积着一层雪；要命的东西是冰锥、篝火、漏电的电轨；缆绳两头是站的大轮子，缆椅、缆车厢按 liftChairs 摆；
+ * 检查点是木屋的马灯；冰溜子（`slip`）是一层亮晶晶的冰壳。
+ * 老宅找钥匙（A10）：木头台子上一道红漆，青砖墙顶一道黛瓦；要命的东西是一地碎瓷片、炭盆、漏电的老电线；检查点是灯台上的油灯；
+ * 钥匙开的门是一扇钉着铜钉的木门，中间挂一把铜锁（开了锁就没了）；墙上的灯是烛台，灭着的只有一根灯芯。
+ * 太空站（A10）：白舱壁顶上一道青色的灯带，扶手是金属的把杆；要命的东西是撕开的铝板碎片、推进器的喷口（喷蓝白的火）、
+ * 激光栅栏（两头发射器，中间一道红光）；检查点是信标灯；失重区是一块淡淡的光场，里面浮着小光点；拉杆拉下去把手往下扳、灯变绿，
+ * 拉杆底座和它开的门同一个颜色。
  * 静态的东西只画一次，动的每帧更新。
  */
 import { Container, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
-import type { HazardDef, Level, Rect } from '../physics/level';
-import { moverAt, spinnerAngle } from '../physics/motion';
+import { leverRect, opensOf, type GateDef, type HazardDef, type Level, type LiftDef, type PlateDef, type Rect, type VentDef } from '../physics/level';
+import { liftChairs, moverAt, spinnerAngle, ventColumn, ventState } from '../physics/motion';
 import type { SimView } from './view';
-import { glow, materialOf, OUTLINE, textures, hex, type MaterialStyle, type Palette, type Textures, type WorldId } from './art';
+import { glow, materialOf, OUTLINE, textures, hex, WORLD_MATERIAL, type MaterialStyle, type Palette, type Textures, type WorldId } from './art';
 
 const rr = (g: Graphics, r: Rect, rad: number): Graphics => g.roundRect(r.x, r.y, r.w, r.h, Math.min(rad, r.h / 2, r.w / 2));
 
@@ -27,6 +38,21 @@ export class Terrain {
   private readonly hazardFx = new Graphics();
   private readonly moverC: Container[] = [];
   private readonly spinnerC: Container[] = [];
+  /** 踩板门：每块踏板的按钮（按下去换画法），每扇门一个容器（每帧挪）。 */
+  private readonly plateG: { cap: Graphics; on: boolean | null; def: PlateDef; color: number }[] = [];
+  private readonly gateC: Container[] = [];
+  /** 蒸笼（后厨，A10）：每摞的盖子（每帧按喷汽的钟跳、抬），和所有汽柱画在一层。 */
+  private readonly ventLids: Graphics[] = [];
+  private readonly steamG = new Graphics();
+  /** 雪山缆车（A10）：每根缆绳上的椅子，每帧挪到 liftChairs 算的地方，收在站里的不画。 */
+  private readonly chairC: Container[][] = [];
+  /** 老宅（A10）：钥匙开的门上的铜锁（第几扇门，门一动就不画），墙上的烛台（每帧画火苗）。 */
+  private readonly locks: (Graphics | undefined)[] = [];
+  private readonly sconceG = new Graphics();
+  /** 太空站（A10）：失重区的光场（每帧画浮着的光点）、拉杆（每帧按拉没拉画），拉杆的颜色跟它开的门。 */
+  private readonly floatG = new Graphics();
+  private readonly leverG = new Graphics();
+  private readonly leverColors: number[] = [];
   /** 定时塌的东西（until）：快到点抖、变淡，到点不画。base 是它这一帧本来该在的位置。 */
   private readonly timed: { c: Container; until: number; base: () => { x: number; y: number } }[] = [];
   private lampState = -2;
@@ -40,7 +66,7 @@ export class Terrain {
     private readonly reduced = false,
   ) {
     this.tex = textures();
-    this.view.addChild(this.goal, this.ground, this.lamps, this.flag);
+    this.view.addChild(this.floatG, this.goal, this.ground, this.lamps, this.flag);
     // 坐不住的场地没有终点和旗子
     if (!level.arena) this.drawGoal();
     for (const r of level.rects) {
@@ -85,6 +111,64 @@ export class Terrain {
     }
     for (const h of level.hazards ?? []) this.hazard(this.hazardG, h);
     this.view.addChild(this.hazardG, this.hazardFx);
+    // 踩板门：门在自己的原点上画好，每帧整块挪；踏板的底座画一次，按钮按状态重画
+    const gates = level.gates ?? [];
+    const keyed = new Set((level.keys ?? []).map((k) => k.opens));
+    gates.forEach((gd, k) => {
+      const c = new Container();
+      const g = new Graphics();
+      c.addChild(g);
+      if (keyed.has(gd.id)) {
+        // 钥匙开的门（老宅）：木门加一把铜锁
+        this.lockedDoor(g, { ...gd, x: 0, y: 0 });
+        const lock = new Graphics();
+        this.padlock(lock, gd.w / 2, gd.h / 2);
+        c.addChild(lock);
+        this.locks[k] = lock;
+      } else this.gate(g, { ...gd, x: 0, y: 0 }, linkColor(k));
+      c.position.set(gd.x, gd.y);
+      this.view.addChild(c);
+      this.gateC.push(c);
+    });
+    for (const ld of level.levers ?? []) this.leverColors.push(linkColor(Math.max(0, gates.findIndex((gd) => opensOf(ld).includes(gd.id)))));
+    for (const pd of level.plates ?? []) {
+      const k = gates.findIndex((gd) => opensOf(pd).includes(gd.id));
+      const base = new Graphics();
+      this.plateBase(base, pd);
+      const cap = new Graphics();
+      this.view.addChild(base, cap);
+      this.plateG.push({ cap, on: null, def: pd, color: linkColor(Math.max(0, k)) });
+    }
+    // 蒸笼：竹圈画一次，盖子单独一块（快喷了跳、喷的时候抬起来），汽柱每帧画
+    for (const v of level.vents ?? []) {
+      const c = new Container();
+      const body = new Graphics();
+      this.steamer(body, v);
+      const lid = new Graphics();
+      this.steamerLid(lid, v);
+      lid.position.set(v.x + v.w / 2, v.y);
+      c.addChild(body, lid);
+      this.view.addChild(c);
+      this.ventLids.push(lid);
+      if (v.until !== undefined) this.timed.push({ c, until: v.until, base: () => ({ x: 0, y: 0 }) });
+    }
+    this.view.addChild(this.steamG, this.sconceG, this.leverG);
+    // 缆车：缆绳和两头的大轮子画一次，椅子每帧挪
+    for (const l of level.lifts ?? []) {
+      const cable = new Graphics();
+      this.cable(cable, l);
+      this.view.addChild(cable);
+      this.chairC.push(
+        liftChairs(l, 0).map(() => {
+          const c = new Container();
+          const g = new Graphics();
+          this.chair(g, l);
+          c.addChild(g);
+          this.view.addChild(c);
+          return c;
+        }),
+      );
+    }
     for (const f of level.fading ?? []) {
       const g = new Graphics();
       this.platform(g, { ...f, kind: 'cookie' });
@@ -145,7 +229,31 @@ export class Terrain {
       const c = this.spinnerC[i];
       if (c) c.rotation = spinnerAngle(sp, sim.time);
     });
+    // 踩板门：门挪到物理（或快照）说的地方，按钮按着就沉下去、亮；钥匙开的门一开，锁就没了
+    (sim.gates ?? []).forEach((g, i) => {
+      this.gateC[i]?.position.set(g.x, g.y);
+      const lock = this.locks[i];
+      if (lock) lock.visible = g.open < 0.01;
+    });
+    this.drawSconces(sim);
+    this.drawFloat(sim.time);
+    this.drawLevers(sim);
+    this.plateG.forEach((p, i) => {
+      const on = !!sim.plates?.[i]?.on;
+      if (on === p.on) return;
+      p.on = on;
+      this.plateCap(p.cap.clear(), p.def, p.color, on);
+    });
     this.drawHazardFx(sim.time);
+    this.drawVents(sim.time);
+    (this.level.lifts ?? []).forEach((l, i) => {
+      liftChairs(l, sim.time).forEach((c, k) => {
+        const ch = this.chairC[i]?.[k];
+        if (!ch) return;
+        ch.visible = c.on;
+        ch.position.set(c.x, c.y);
+      });
+    });
     // 定时塌的：最后 2 秒抖、变淡（减弱动效时只变淡），到点不画
     for (const t of this.timed) {
       const left = t.until - sim.time;
@@ -165,15 +273,52 @@ export class Terrain {
     if (!this.level.arena) this.drawFlag();
   }
 
+  // ---------------------------------------------------------------- 踩板门（11-13）
+
+  /** 门：平台的样子，加三道颜色条和中间一个锁的圆点（和开它的踏板一个色）。 */
+  private gate(g: Graphics, r: GateDef, color: number): void {
+    this.platform(g, { ...r, kind: 'wall', material: r.material ?? WORLD_MATERIAL[this.world] });
+    const bands = 3;
+    const vertical = r.h >= r.w;
+    for (let k = 1; k <= bands; k++) {
+      const f = k / (bands + 1);
+      if (vertical) g.rect(r.x + 3, r.y + r.h * f - 4, r.w - 6, 8);
+      else g.rect(r.x + r.w * f - 4, r.y + 3, 8, r.h - 6);
+    }
+    g.fill({ color, alpha: 0.85 });
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const rad = Math.max(5, Math.min(11, Math.min(r.w, r.h) / 3));
+    g.circle(cx, cy, rad).fill({ color: 0x241c33 }).stroke({ color, width: 3 });
+    g.circle(cx, cy - rad * 0.15, rad * 0.32).fill({ color });
+  }
+
+  /** 踏板的底座：一条深色的槽。 */
+  private plateBase(g: Graphics, r: PlateDef): void {
+    rr(g, { x: r.x, y: r.y + r.h - 6, w: r.w, h: 6 }, 3).fill({ color: 0x241c33 });
+  }
+
+  /** 踏板的按钮：没按是凸起的一块，按下去沉下去 4 px、颜色变亮、外面一圈光。 */
+  private plateCap(g: Graphics, r: PlateDef, color: number, on: boolean): void {
+    const h = Math.max(4, r.h - 6);
+    const y = r.y + (on ? 4 : 0);
+    if (on) rr(g, { x: r.x - 4, y: y - 4, w: r.w + 8, h: h + 8 }, 8).fill({ color, alpha: 0.25 });
+    rr(g, { x: r.x + 3, y, w: r.w - 6, h }, 5)
+      .fill({ color: on ? lighten(color, 0.45) : color })
+      .stroke({ color: OUTLINE, width: 2, alpha: 0.6 });
+    rr(g, { x: r.x + 8, y: y + 2, w: r.w - 16, h: 2 }, 1).fill({ color: 0xffffff, alpha: on ? 0.5 : 0.3 });
+  }
+
   // ---------------------------------------------------------------- 平台
 
   private platform(g: Graphics, r: Rect): void {
-    const m = materialOf(r.material ?? (this.world === 'van' ? 'metal' : 'wood'));
+    const m = materialOf(r.material ?? WORLD_MATERIAL[this.world]);
     const tex = this.tex[m.texture];
     const thin = r.h <= 26 && r.w >= r.h * 3;
     if (r.kind === 'peg') return this.peg(g, r);
     if (r.kind === 'cookie') return this.cookie(g, r, m);
-    if (thin && (m.texture === 'wood' || r.material === 'noodle')) return this.chopstick(g, r, m);
+    // 细木条：桌上、温哥华画成筷子；后厨是砧板、雪山是木板（照常画木头）
+    if (thin && (this.world === 'table' || this.world === 'van') && (m.texture === 'wood' || r.material === 'noodle')) return this.chopstick(g, r, m);
     const rad = m.texture === 'ceramic' ? 14 : m.texture === 'cloth' ? 6 : 10;
     rr(g, r, rad).fill({ texture: tex, textureSpace: 'global' });
     if (m.texture === 'ice') rr(g, r, rad).fill({ color: 0xffffff, alpha: 0.12 });
@@ -193,6 +338,85 @@ export class Terrain {
     }
     if (r.grab === false) this.sheen(g, r);
     rr(g, r, rad).stroke({ width: 3, color: hex(m.dark), alpha: 0.85 });
+    // 冰溜子（雪山）：一层亮晶晶的冰壳；雪山的台子顶上积一层雪
+    if (r.slip !== undefined) this.iceCrust(g, r);
+    else if (this.world === 'snow' && r.material !== 'ice') this.snowCap(g, r);
+    else if (this.world === 'house') this.houseTrim(g, r, m);
+    else if (this.world === 'space' && m.texture === 'hull' && r.w >= 40) {
+      // 白舱壁顶上一道青色灯带
+      g.roundRect(r.x + 6, r.y + 3, r.w - 12, 3, 1.5).fill({ color: 0x7fe3ff, alpha: 0.75 });
+    }
+  }
+
+  /** 老宅：青砖的台子顶上一道黛瓦（一排瓦当），木头的顶下一道红漆。 */
+  private houseTrim(g: Graphics, r: Rect, m: MaterialStyle): void {
+    if (m.texture === 'brick') {
+      g.roundRect(r.x - 3, r.y - 3, r.w + 6, 8, 3).fill(0x2a2d3c);
+      for (let x = r.x + 6; x < r.x + r.w - 2; x += 14) g.circle(x, r.y + 5, 3.2).fill(0x2a2d3c);
+      g.roundRect(r.x - 1, r.y - 2, r.w + 2, 2, 1).fill({ color: 0xffffff, alpha: 0.18 });
+    } else if (m.texture === 'wood' && r.h >= 14) {
+      const y = r.y + Math.min(12, r.h * 0.3) + 1;
+      g.rect(r.x + 4, y, r.w - 8, 3).fill({ color: 0xa8322c, alpha: 0.8 });
+    }
+  }
+
+  /** 台子顶上的一层雪：比台子宽一点，边上鼓几个包、挂几滴。 */
+  private snowCap(g: Graphics, r: Rect): void {
+    const h = Math.min(9, r.h * 0.45);
+    g.roundRect(r.x - 3, r.y - 3, r.w + 6, h + 3, (h + 3) / 2).fill(0xf6fbff);
+    for (let x = r.x + 10; x < r.x + r.w - 6; x += 26 + ((x * 7) % 11)) g.circle(x, r.y - 2, 4 + ((x * 13) % 4)).fill(0xf6fbff);
+    if (r.w >= 60) {
+      for (const f of [0.22, 0.68]) {
+        const x = r.x + r.w * f;
+        g.moveTo(x - 4, r.y + h - 1).quadraticCurveTo(x, r.y + h + 7, x + 4, r.y + h - 1).closePath().fill(0xf6fbff);
+      }
+    }
+    g.roundRect(r.x - 3, r.y + h - 2, r.w + 6, 2, 1).fill({ color: 0x9fb8d2, alpha: 0.5 });
+  }
+
+  /** 冰溜子：一层半透明的冰壳，几道亮斜纹，一看就抓不牢。 */
+  private iceCrust(g: Graphics, r: Rect): void {
+    rr(g, r, 10).fill({ color: 0xcfeaff, alpha: 0.45 });
+    for (let k = 0; k < Math.max(2, Math.floor((r.w + r.h) / 60)); k++) {
+      const x = r.x + 8 + ((k * 37) % Math.max(1, r.w - 16));
+      const y = r.y + 10 + ((k * 53) % Math.max(1, r.h - 30));
+      g.moveTo(x, y + 16).lineTo(x + 12, y).stroke({ width: 3, color: 0xffffff, alpha: 0.7, cap: 'round' });
+    }
+    rr(g, r, 10).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
+  }
+
+  // ---------------------------------------------------------------- 雪山缆车（A10）
+
+  /** 缆绳：两头一个大轮子（站），中间一根钢缆。 */
+  private cable(g: Graphics, l: LiftDef): void {
+    g.moveTo(l.from.x, l.from.y).lineTo(l.to.x, l.to.y).stroke({ width: 3.5, color: 0x2a2f3a, alpha: 0.95 });
+    for (const p of [l.from, l.to]) {
+      g.circle(p.x, p.y, 22).fill(0x3b4352).stroke({ width: 3, color: OUTLINE });
+      for (let k = 0; k < 6; k++) {
+        const a = (k * Math.PI) / 3;
+        g.moveTo(p.x, p.y).lineTo(p.x + Math.cos(a) * 18, p.y + Math.sin(a) * 18).stroke({ width: 2, color: 0x8a96aa });
+      }
+      g.circle(p.x, p.y, 5).fill(0xd3dbe6);
+    }
+  }
+
+  /** 一把缆椅 / 一节缆车厢（原点是座板、地板的中心）：吊杆挂在缆绳上，椅子是红座板加一根横杆，车厢是带窗的小盒子。 */
+  private chair(g: Graphics, l: LiftDef): void {
+    const drop = l.drop ?? CFG.liftDrop;
+    if (l.kind === 'cabin') {
+      g.moveTo(0, -drop).lineTo(0, -96).stroke({ width: 4, color: 0x3b4352 });
+      g.roundRect(-60, -96, 120, 102, 10).fill({ color: 0xbfe0f5, alpha: 0.28 }).stroke({ width: 4, color: 0xd8262f });
+      g.roundRect(-60, -96, 120, 12, 5).fill(0xd8262f).stroke({ width: 2, color: OUTLINE, alpha: 0.7 });
+      g.roundRect(-60, -6, 120, 12, 5).fill(0x8c9aab).stroke({ width: 2, color: OUTLINE, alpha: 0.7 });
+      g.moveTo(0, -84).lineTo(0, -6).stroke({ width: 3, color: 0xd8262f, alpha: 0.8 });
+    } else {
+      g.moveTo(0, -drop).lineTo(0, -46).stroke({ width: 4, color: 0x3b4352 });
+      g.moveTo(-28, -46).lineTo(-30, 0).moveTo(28, -46).lineTo(30, 0).stroke({ width: 3, color: 0x5a6676 });
+      g.roundRect(-28, -50, 56, 8, 4).fill(0x8c9aab).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+      g.roundRect(-36, -6, 72, 12, 5).fill(0xd8262f).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+      g.roundRect(-32, -5, 64, 3, 1.5).fill({ color: 0xffffff, alpha: 0.4 });
+    }
+    g.circle(0, -drop, 5).fill(0x2a2f3a);
   }
 
   /** 不能抓的面：一层亮亮的斜纹，像铺了膜。 */
@@ -215,6 +439,14 @@ export class Terrain {
   }
 
   private peg(g: Graphics, r: Rect): void {
+    if (this.world === 'space') {
+      // 太空站的扶手：一根金属把杆，两头一个托架，中间两道黄色的标记
+      g.roundRect(r.x - 4, r.y + r.h / 2 - 3, 8, r.h, 2).fill(0x3a4052);
+      g.roundRect(r.x + r.w - 4, r.y + r.h / 2 - 3, 8, r.h, 2).fill(0x3a4052);
+      g.roundRect(r.x, r.y, r.w, r.h, r.h / 2).fill(0xc8d0de).stroke({ width: 2, color: OUTLINE, alpha: 0.7 });
+      for (const f of [0.3, 0.7]) g.rect(r.x + r.w * f - 3, r.y + 1, 6, r.h - 2).fill({ color: 0xf6c445, alpha: 0.9 });
+      return;
+    }
     g.roundRect(r.x, r.y, r.w, r.h, 5).fill(0xf3d9a4);
     g.roundRect(r.x, r.y + r.h - 5, r.w, 5, 3).fill({ color: 0x000000, alpha: 0.18 });
     g.roundRect(r.x, r.y, r.w, r.h, 5).stroke({ width: 2, color: OUTLINE, alpha: 0.6 });
@@ -242,9 +474,14 @@ export class Terrain {
 
   /** 要命的东西的底子：尖的画一排尖头，烫的画一锅红油（或一炉炭），带电的画电炉丝（或黄黑电轨）。 */
   private hazard(g: Graphics, h: HazardDef): void {
-    const van = this.world === 'van';
     const kind = h.kind ?? 'spike';
-    if (kind === 'spike') return this.spikes(g, h, van);
+    // 雪山的电用温哥华那种黄黑电轨（缆车的电轨漏电）
+    const van = this.world === 'van' || (this.world === 'snow' && kind === 'zap');
+    if (kind === 'spike') return this.spikes(g, h, this.world);
+    if (this.world === 'kitchen') return this.kitchenHazard(g, h);
+    if (this.world === 'house') return this.houseHazard(g, h);
+    if (this.world === 'space') return this.spaceHazard(g, h);
+    if (this.world === 'snow' && kind === 'hot') return this.campfire(g, h);
     if (kind === 'hot') {
       if (van) {
         // 夜市烤炉：铁盒子，炭火，铁网
@@ -293,17 +530,22 @@ export class Terrain {
     rr(g, h, 8).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
   }
 
-  /** 一排尖头（桌上是牙签，温哥华是铁栏杆尖），朝 dir 那边。 */
-  private spikes(g: Graphics, h: HazardDef, van: boolean): void {
+  /** 一排尖头（桌上是牙签，温哥华是铁栏杆尖，后厨是插在刀架上的一排刀），朝 dir 那边。 */
+  private spikes(g: Graphics, h: HazardDef, world: WorldId): void {
+    const van = world === 'van';
+    const kitchen = world === 'kitchen';
+    const snow = world === 'snow';
+    if (world === 'house') return this.shards(g, h);
+    if (world === 'space') return this.debris(g, h);
     const dir = h.dir ?? 'up';
     const vertical = dir === 'up' || dir === 'down';
     const span = vertical ? h.w : h.h;
     const depth = vertical ? h.h : h.w;
-    const n = Math.max(1, Math.round(span / (van ? 26 : 18)));
+    const n = Math.max(1, Math.round(span / (van ? 26 : kitchen ? 22 : snow ? 20 : 18)));
     const step = span / n;
-    // 桌上是竹签（浅竹色），温哥华是铁栏杆尖（深铁色）；描深边，隔着电视也看得清
-    const stick = van ? 0x4a5466 : 0xf0d9a8;
-    const tip = van ? 0xc9d3e0 : 0xfff4dc;
+    // 桌上是竹签（浅竹色），温哥华是铁栏杆尖（深铁色），后厨是钢刀（亮钢色），雪山是冰锥（冰蓝）；描深边，隔着电视也看得清
+    const stick = van ? 0x4a5466 : kitchen ? 0xc9d3dc : snow ? 0xa8d4ef : 0xf0d9a8;
+    const tip = van ? 0xc9d3e0 : kitchen || snow ? 0xffffff : 0xfff4dc;
     // 底座：桌上是一小条豆腐干一样的托，温哥华是横铁杆
     const base = Math.min(10, depth * 0.3);
     const baseR: Rect = dir === 'up' ? { x: h.x, y: h.y + h.h - base, w: h.w, h: base } : dir === 'down' ? { x: h.x, y: h.y, w: h.w, h: base } : dir === 'left' ? { x: h.x + h.w - base, y: h.y, w: base, h: h.h } : { x: h.x, y: h.y, w: base, h: h.h };
@@ -321,13 +563,206 @@ export class Terrain {
       const [x0, y0, x1, y1, x2, y2] = pts as [number, number, number, number, number, number];
       g.poly([x1, y1, x1 + (x0 - x1) * 0.35, y1 + (y0 - y1) * 0.35, x1 + (x2 - x1) * 0.35, y1 + (y2 - y1) * 0.35]).fill(tip);
     }
-    g.roundRect(baseR.x, baseR.y, baseR.w, baseR.h, 3).fill(van ? 0x2a303b : 0xc99a5b).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+    g.roundRect(baseR.x, baseR.y, baseR.w, baseR.h, 3).fill(van ? 0x2a303b : kitchen ? 0x4a3428 : snow ? 0xe6f2fb : 0xc99a5b).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+  }
+
+  /** 老宅（A10）的尖：一地碎瓷片，白釉、青花边，高高低低的尖碴朝 dir 那边。 */
+  private shards(g: Graphics, h: HazardDef): void {
+    const dir = h.dir ?? 'up';
+    const vertical = dir === 'up' || dir === 'down';
+    const span = vertical ? h.w : h.h;
+    const n = Math.max(2, Math.round(span / 16));
+    const step = span / n;
+    for (let k = 0; k < n; k++) {
+      const a = (vertical ? h.x : h.y) + step * k;
+      const tall = 0.55 + 0.45 * (((k * 7 + 3) % 5) / 4);
+      const lean = (((k * 5) % 3) - 1) * step * 0.25;
+      let pts: number[];
+      if (dir === 'up') pts = [a, h.y + h.h, a + step / 2 + lean, h.y + h.h * (1 - tall), a + step, h.y + h.h];
+      else if (dir === 'down') pts = [a, h.y, a + step / 2 + lean, h.y + h.h * tall, a + step, h.y];
+      else if (dir === 'left') pts = [h.x + h.w, a, h.x + h.w * (1 - tall), a + step / 2 + lean, h.x + h.w, a + step];
+      else pts = [h.x, a, h.x + h.w * tall, a + step / 2 + lean, h.x, a + step];
+      g.poly(pts).fill(0xf1ece0).stroke({ width: 2, color: OUTLINE, alpha: 0.9, join: 'miter' });
+      // 青花的一道边
+      const [x0, y0, x1, y1] = pts as [number, number, number, number];
+      g.moveTo(x0 + (x1 - x0) * 0.2, y0 + (y1 - y0) * 0.2).lineTo(x0 + (x1 - x0) * 0.55, y0 + (y1 - y0) * 0.55).stroke({ width: 2, color: 0x3b5ba5, alpha: 0.8 });
+    }
+  }
+
+  /** 太空站（A10）的尖：撕开的铝板碎片，参差的尖角朝 dir 那边，边上一道橙色的标记。 */
+  private debris(g: Graphics, h: HazardDef): void {
+    const dir = h.dir ?? 'up';
+    const vertical = dir === 'up' || dir === 'down';
+    const span = vertical ? h.w : h.h;
+    const n = Math.max(2, Math.round(span / 20));
+    const step = span / n;
+    const base = Math.min(8, (vertical ? h.h : h.w) * 0.3);
+    for (let k = 0; k < n; k++) {
+      const a = (vertical ? h.x : h.y) + step * k;
+      const tall = 0.6 + 0.4 * (((k * 3 + 1) % 4) / 3);
+      const lean = (((k * 7) % 3) - 1) * step * 0.3;
+      let pts: number[];
+      if (dir === 'up') pts = [a, h.y + h.h, a + step * 0.3, h.y + h.h * (1 - tall * 0.6), a + step / 2 + lean, h.y + h.h * (1 - tall), a + step, h.y + h.h];
+      else if (dir === 'down') pts = [a, h.y, a + step * 0.3, h.y + h.h * tall * 0.6, a + step / 2 + lean, h.y + h.h * tall, a + step, h.y];
+      else if (dir === 'left') pts = [h.x + h.w, a, h.x + h.w * (1 - tall * 0.6), a + step * 0.3, h.x + h.w * (1 - tall), a + step / 2 + lean, h.x + h.w, a + step];
+      else pts = [h.x, a, h.x + h.w * tall * 0.6, a + step * 0.3, h.x + h.w * tall, a + step / 2 + lean, h.x, a + step];
+      g.poly(pts).fill(0xa9b2c4).stroke({ width: 2, color: OUTLINE, alpha: 0.9, join: 'miter' });
+    }
+    const baseR: Rect = dir === 'up' ? { x: h.x, y: h.y + h.h - base, w: h.w, h: base } : dir === 'down' ? { x: h.x, y: h.y, w: h.w, h: base } : dir === 'left' ? { x: h.x + h.w - base, y: h.y, w: base, h: h.h } : { x: h.x, y: h.y, w: base, h: h.h };
+    g.rect(baseR.x, baseR.y, baseR.w, baseR.h).fill(0x5f6a80).stroke({ width: 1.5, color: OUTLINE, alpha: 0.8 });
+    g.rect(baseR.x + 2, baseR.y + 1, Math.max(2, baseR.w - 4), Math.max(2, Math.min(3, baseR.h - 2))).fill({ color: 0xf28b3c, alpha: 0.85 });
+  }
+
+  /** 太空站（A10）的烫和电：推进器的喷口（喷口朝上，火在 drawHazardFx 里喷），激光栅栏（两头发射器，中间一道红光）。 */
+  private spaceHazard(g: Graphics, h: HazardDef): void {
+    if ((h.kind ?? 'spike') === 'hot') {
+      // 喷口：上宽下窄的一只钟，底座一块深灰
+      g.roundRect(h.x + h.w * 0.2, h.y + h.h * 0.65, h.w * 0.6, h.h * 0.35, 3).fill(0x2a2f3e);
+      g.poly([h.x, h.y, h.x + h.w, h.y, h.x + h.w * 0.68, h.y + h.h * 0.7, h.x + h.w * 0.32, h.y + h.h * 0.7]).fill(0x4a5266).stroke({ width: 2, color: OUTLINE, alpha: 0.9 });
+      g.roundRect(h.x + 3, h.y, h.w - 6, Math.min(6, h.h * 0.3), 3).fill(0x7fd8ff);
+      return;
+    }
+    const vertical = h.h >= h.w;
+    // 发射器：两头两块黑盒子，一颗红灯
+    const e = Math.min(14, (vertical ? h.h : h.w) * 0.2);
+    const ends: Rect[] = vertical ? [{ x: h.x - 4, y: h.y, w: h.w + 8, h: e }, { x: h.x - 4, y: h.y + h.h - e, w: h.w + 8, h: e }] : [{ x: h.x, y: h.y - 4, w: e, h: h.h + 8 }, { x: h.x + h.w - e, y: h.y - 4, w: e, h: h.h + 8 }];
+    for (const r of ends) {
+      rr(g, r, 3).fill(0x1a1d2a).stroke({ width: 2, color: OUTLINE, alpha: 0.9 });
+      g.circle(r.x + r.w / 2, r.y + r.h / 2, 2.5).fill(0xff4d6d);
+    }
+  }
+
+  /** 老宅（A10）的烫和电：铜炭盆（盆里一层红炭，火苗在 drawHazardFx 里），钉在木板上的老电线（两股拧着，绝缘皮破了）。 */
+  private houseHazard(g: Graphics, h: HazardDef): void {
+    if ((h.kind ?? 'spike') === 'hot') {
+      const lip = Math.min(8, h.h * 0.3);
+      // 三条腿、一个敞口的铜盆
+      g.moveTo(h.x + h.w * 0.2, h.y + h.h * 0.7).lineTo(h.x + h.w * 0.12, h.y + h.h).moveTo(h.x + h.w * 0.8, h.y + h.h * 0.7).lineTo(h.x + h.w * 0.88, h.y + h.h).stroke({ width: 4, color: 0x3a2614, cap: 'round' });
+      g.poly([h.x - 3, h.y + lip * 0.4, h.x + h.w + 3, h.y + lip * 0.4, h.x + h.w * 0.82, h.y + h.h * 0.78, h.x + h.w * 0.18, h.y + h.h * 0.78]).fill(0x8a5e2e).stroke({ width: 2.5, color: OUTLINE, alpha: 0.9 });
+      g.roundRect(h.x - 4, h.y, h.w + 8, lip, lip / 2).fill(0xb98a48).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+      for (let x = h.x + 8; x < h.x + h.w - 4; x += 12) g.circle(x, h.y + lip * 0.6, Math.min(5, h.h * 0.2)).fill({ color: 0xff6a2c, alpha: 0.95 });
+      return;
+    }
+    rr(g, h, 4).fill(0x3a2a22);
+    const vertical = h.h > h.w;
+    const len = vertical ? h.h : h.w;
+    const mid = vertical ? h.x + h.w / 2 : h.y + h.h / 2;
+    for (const [phase, color] of [[0, 0x1c1c1c], [Math.PI, 0xb86a3a]] as const) {
+      for (let t = 0; t <= len; t += 6) {
+        const o = Math.sin(t / 8 + phase) * Math.min(4, (vertical ? h.w : h.h) * 0.25);
+        const x = vertical ? mid + o : h.x + t;
+        const y = vertical ? h.y + t : mid + o;
+        if (t === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+      g.stroke({ width: 3, color });
+    }
+    // 绝缘皮破开的地方：露出亮铜
+    const bx = vertical ? h.x + h.w / 2 : h.x + h.w * 0.5;
+    const by = vertical ? h.y + h.h * 0.5 : h.y + h.h / 2;
+    g.circle(bx, by, 4).fill(0xffd27a);
+    rr(g, h, 4).stroke({ width: 2.5, color: OUTLINE, alpha: 0.9 });
+  }
+
+  /** 雪山（A10）的烫：一圈石头围着的篝火，两根木柴，炭火发红（火苗在 drawHazardFx 里跳）。 */
+  private campfire(g: Graphics, h: HazardDef): void {
+    g.roundRect(h.x, h.y + h.h * 0.4, h.w, h.h * 0.6, 6).fill(0x4a1c10);
+    for (let x = h.x + 8; x < h.x + h.w - 4; x += 14) g.circle(x, h.y + h.h * 0.62, Math.min(6, h.h * 0.3)).fill({ color: 0xff6a2c, alpha: 0.9 });
+    g.moveTo(h.x + 6, h.y + h.h * 0.85).lineTo(h.x + h.w - 6, h.y + h.h * 0.35).stroke({ width: 7, color: 0x6b4226, cap: 'round' });
+    g.moveTo(h.x + 6, h.y + h.h * 0.35).lineTo(h.x + h.w - 6, h.y + h.h * 0.85).stroke({ width: 7, color: 0x7a4c2c, cap: 'round' });
+    for (let x = h.x; x <= h.x + h.w; x += Math.max(12, h.w / 5)) g.ellipse(x, h.y + h.h - 3, 8, 6).fill(0x8a929e).stroke({ width: 1.5, color: OUTLINE, alpha: 0.7 });
+  }
+
+  /** 后厨（A10）的烫和电：坐在火上的炒锅（锅里一层滚油，一根锅柄），灭蚊灯（黑壳子里一格格蓝紫光的电网）。 */
+  private kitchenHazard(g: Graphics, h: HazardDef): void {
+    if ((h.kind ?? 'spike') === 'hot') {
+      const iron = 0x2b2b2e;
+      // 炉架
+      g.roundRect(h.x + h.w * 0.15, h.y + h.h * 0.7, h.w * 0.7, h.h * 0.3, 3).fill(0x1a1a1c);
+      // 锅身：圆底，锅口正好是这块的上沿
+      g.moveTo(h.x, h.y).quadraticCurveTo(h.x + h.w / 2, h.y + h.h * 1.5, h.x + h.w, h.y).closePath().fill(iron);
+      g.moveTo(h.x + h.w - 6, h.y + 3).lineTo(h.x + h.w + 24, h.y - 8).stroke({ width: 6, color: iron, cap: 'round' });
+      // 滚油
+      const lip = Math.max(4, Math.min(9, h.h * 0.32));
+      g.roundRect(h.x + 5, h.y - 1, h.w - 10, lip, lip / 2).fill(0xd8661f);
+      g.roundRect(h.x + 12, h.y, h.w - 24, 2.5, 1.2).fill({ color: 0xffd08a, alpha: 0.75 });
+      g.moveTo(h.x, h.y).quadraticCurveTo(h.x + h.w / 2, h.y + h.h * 1.5, h.x + h.w, h.y).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
+      return;
+    }
+    rr(g, h, 6).fill(0x1c2430);
+    g.roundRect(h.x + 4, h.y + 4, h.w - 8, Math.max(2, h.h - 8), 3).fill({ color: 0x5b63ff, alpha: 0.55 });
+    for (let x = h.x + 8; x < h.x + h.w - 4; x += 7) g.moveTo(x, h.y + 4).lineTo(x, h.y + h.h - 4).stroke({ width: 1.5, color: 0xc9d0ff, alpha: 0.8 });
+    rr(g, h, 6).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
+  }
+
+  // ---------------------------------------------------------------- 蒸笼（后厨，A10）
+
+  /** 一摞竹蒸笼：几层竹圈，一道道竹篾；最上面一条留给盖子（盖子另画）。 */
+  private steamer(g: Graphics, v: VentDef): void {
+    const m = materialOf(v.material ?? 'bamboo');
+    const lid = Math.min(12, v.h * 0.3);
+    const body: Rect = { x: v.x, y: v.y + lid, w: v.w, h: v.h - lid };
+    rr(g, body, 6).fill(hex(m.base));
+    const tiers = Math.max(1, Math.round(body.h / 18));
+    for (let k = 1; k < tiers; k++) {
+      const y = body.y + (body.h * k) / tiers;
+      g.moveTo(body.x + 2, y).lineTo(body.x + body.w - 2, y).stroke({ width: 3, color: hex(m.dark), alpha: 0.8 });
+    }
+    for (let x = body.x + 8; x < body.x + body.w - 4; x += 9) g.moveTo(x, body.y + 3).lineTo(x, body.y + body.h - 3).stroke({ width: 1, color: hex(m.detail), alpha: 0.45 });
+    rr(g, body, 6).stroke({ width: 3, color: hex(m.dark), alpha: 0.9 });
+  }
+
+  /** 蒸笼盖：原点在盖子上沿的中间（物理的台面就在这），比蒸笼宽一点，中间一个把手。 */
+  private steamerLid(g: Graphics, v: VentDef): void {
+    const m = materialOf(v.material ?? 'bamboo');
+    const lid = Math.min(12, v.h * 0.3);
+    g.roundRect(-v.w / 2 - 3, 0, v.w + 6, lid, 4).fill(hex(m.light)).stroke({ width: 2.5, color: hex(m.dark), alpha: 0.9 });
+    for (let x = -v.w / 2 + 6; x < v.w / 2 - 2; x += 10) g.moveTo(x, 2).lineTo(x + 4, lid - 2).stroke({ width: 1, color: hex(m.detail), alpha: 0.5 });
+    g.roundRect(-8, -4, 16, 6, 3).fill(hex(m.dark));
+  }
+
+  /** 每帧：蒸笼盖快喷了跳、喷的时候抬起来，汽柱一团团往上冒（按 ventState，和物理同一个钟）。 */
+  private drawVents(t: number): void {
+    const g = this.steamG.clear();
+    (this.level.vents ?? []).forEach((v, i) => {
+      const lid = this.ventLids[i];
+      if (v.until !== undefined && t >= v.until) return;
+      const s = ventState(v, t);
+      const cx = v.x + v.w / 2;
+      if (lid) {
+        const lift = s.on ? 8 * Math.min(1, s.k * 8) * Math.min(1, (1 - s.k) * 8) : 0;
+        const rattle = s.warn && !this.reduced ? Math.random() : 0;
+        lid.position.set(cx, v.y - lift - rattle * 3);
+        lid.rotation = s.warn && !this.reduced ? (Math.random() - 0.5) * 0.12 : s.on ? 0.06 * Math.sin(t * 20) * (this.reduced ? 0 : 1) : 0;
+      }
+      if (s.warn) {
+        // 快喷了：盖子边上漏几缕汽
+        for (let k = 0; k < 3; k++) {
+          const u = (t * 1.5 + k / 3) % 1;
+          g.circle(cx + (k - 1) * v.w * 0.38, v.y - 4 - u * 26, 5 + u * 8).fill({ color: 0xffffff, alpha: 0.3 * (1 - u) });
+        }
+      }
+      if (!s.on) return;
+      const col = ventColumn(v);
+      const a = Math.min(1, s.k * 5, (1 - s.k) * 5);
+      g.rect(col.x + 6, col.y, col.w - 12, col.h).fill({ color: 0xffffff, alpha: 0.06 * a });
+      const n = 9;
+      for (let k = 0; k < n; k++) {
+        const u = (t * 1.6 + k / n) % 1;
+        const y = v.y - u * col.h;
+        const x = cx + Math.sin(k * 2.3 + t * 4) * v.w * 0.22 * (0.4 + u);
+        g.circle(x, y, v.w * 0.28 * (0.6 + u * 0.9)).fill({ color: 0xffffff, alpha: 0.26 * (1 - u) * a });
+      }
+    });
   }
 
   /** 会动的那一层：红油冒泡、烤炉冒火星、电丝闪、电轨打火花。 */
   private drawHazardFx(t: number): void {
     const g = this.hazardFx.clear();
     const van = this.world === 'van';
+    const kitchen = this.world === 'kitchen';
+    // 雪山的电用温哥华那一套颜色
+    const coldZap = van || this.world === 'snow';
     const all: HazardDef[] = [...(this.level.hazards ?? [])];
     for (const m of this.level.movers ?? []) {
       if (!m.deadly) continue;
@@ -344,6 +779,27 @@ export class Terrain {
           if (van) {
             // 火星往上飘
             g.circle(x, h.y - u * 60, 2.2 * (1 - u)).fill({ color: 0xffb347, alpha: 1 - u });
+          } else if (this.world === 'space') {
+            // 推进器：一柱蓝白的火往上喷，一节节往上散
+            const fx = h.x + h.w / 2 + Math.sin(t * 9 + k) * 2;
+            const w0 = h.w * 0.32 * (1 - u * 0.5);
+            g.ellipse(fx, h.y - u * 70, w0, 10 + 8 * (1 - u)).fill({ color: u < 0.35 ? 0xffffff : u < 0.7 ? 0x9fe8ff : 0x5b7cff, alpha: 0.8 * (1 - u) });
+          } else if (this.world === 'house') {
+            // 炭盆：几小簇火苗，火星往上飘
+            const fx = h.x + ((k + 0.5) * h.w) / n + Math.sin(t * 6 + k * 2) * 3;
+            g.ellipse(fx, h.y - u * 18, 5 * (1 - u) + 2, 10 * (1 - u) + 3).fill({ color: u < 0.45 ? 0xffd27a : 0xff6a2c, alpha: 0.9 * (1 - u) });
+            g.circle(x, h.y - 6 - u * 60, 1.8 * (1 - u)).fill({ color: 0xffb347, alpha: 1 - u });
+          } else if (this.world === 'snow') {
+            // 篝火：火苗往上蹿，带几颗火星
+            const fx = h.x + h.w / 2 + Math.sin(t * 5 + k * 2) * h.w * 0.25;
+            g.ellipse(fx, h.y + h.h * 0.3 - u * 34, 7 * (1 - u) + 2, 14 * (1 - u) + 4).fill({ color: u < 0.45 ? 0xffd27a : 0xff6a2c, alpha: 0.9 * (1 - u) });
+            g.circle(x, h.y - u * 70, 2 * (1 - u)).fill({ color: 0xffb347, alpha: 1 - u });
+          } else if (kitchen) {
+            // 炒锅：锅底的火舌往两边舔，锅里冒油烟
+            const side = k % 2 ? 1 : -1;
+            const fx = h.x + h.w / 2 + side * h.w * (0.25 + 0.2 * u);
+            g.ellipse(fx, h.y + h.h * 0.55 - u * 14, 6 * (1 - u) + 2, 12 * (1 - u) + 4).fill({ color: u < 0.5 ? 0xffb347 : 0xff6a2c, alpha: 0.85 * (1 - u) });
+            g.circle(x, h.y - 8 - u * 46, 6 + u * 12).fill({ color: 0xdedede, alpha: 0.14 * (1 - u) });
           } else {
             // 泡：在油面上鼓起来、破
             const r = 3 + 6 * Math.sin(u * Math.PI);
@@ -352,10 +808,22 @@ export class Terrain {
             g.circle(x + 6, h.y - 10 - u * 50, 8 + u * 14).fill({ color: 0xffffff, alpha: 0.12 * (1 - u) });
           }
         }
-        glow(g, h.x + h.w / 2, h.y, Math.max(60, h.w * 0.6), van ? '#ff7a2f' : '#ff5a3c', 0.18);
+        glow(g, h.x + h.w / 2, h.y, Math.max(60, h.w * 0.6), this.world === 'space' ? '#7fd8ff' : van ? '#ff7a2f' : kitchen ? '#ff8a2c' : '#ff5a3c', 0.18);
+      } else if (kind === 'zap' && this.world === 'space') {
+        // 激光栅栏：中间一道红光，闪
+        const flick = this.reduced ? 1 : 0.7 + 0.3 * Math.abs(Math.sin(t * 31 + i));
+        const vertical = h.h >= h.w;
+        glow(g, h.x + h.w / 2, h.y + h.h / 2, Math.max(h.w, h.h) * 0.6, '#ff4d6d', 0.18 * flick);
+        if (vertical) {
+          g.rect(h.x + h.w / 2 - 3, h.y, 6, h.h).fill({ color: 0xff4d6d, alpha: 0.55 * flick });
+          g.rect(h.x + h.w / 2 - 1, h.y, 2, h.h).fill({ color: 0xffffff, alpha: 0.9 * flick });
+        } else {
+          g.rect(h.x, h.y + h.h / 2 - 3, h.w, 6).fill({ color: 0xff4d6d, alpha: 0.55 * flick });
+          g.rect(h.x, h.y + h.h / 2 - 1, h.w, 2).fill({ color: 0xffffff, alpha: 0.9 * flick });
+        }
       } else if (kind === 'zap') {
         const flick = 0.55 + 0.45 * Math.abs(Math.sin(t * 23 + i));
-        glow(g, h.x + h.w / 2, h.y + h.h / 2, Math.max(50, Math.max(h.w, h.h) * 0.5), van ? '#7fd8ff' : '#ff7a2f', 0.22 * flick);
+        glow(g, h.x + h.w / 2, h.y + h.h / 2, Math.max(50, Math.max(h.w, h.h) * 0.5), coldZap ? '#7fd8ff' : kitchen ? '#8f9dff' : '#ff7a2f', 0.22 * flick);
         // 两三道电弧在上面跳
         const arcs = Math.max(1, Math.floor(h.w / 90));
         for (let k = 0; k < arcs; k++) {
@@ -369,7 +837,7 @@ export class Terrain {
             y -= 6 + ((seed + s) % 5) * 2;
             g.lineTo(x, y);
           }
-          g.stroke({ width: 2, color: van ? 0xbff0ff : 0xffd27a, alpha: flick });
+          g.stroke({ width: 2, color: coldZap ? 0xbff0ff : kitchen ? 0xe4e8ff : 0xffd27a, alpha: flick });
         }
       }
     });
@@ -384,8 +852,8 @@ export class Terrain {
       rr(g, r, 4).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
       return;
     }
-    const m = materialOf(material ?? (this.world === 'van' ? 'metal' : 'wood'));
-    if (this.world === 'van' && !material) {
+    const m = materialOf(material ?? WORLD_MATERIAL[this.world]);
+    if (this.world !== 'table' && !material) {
       rr(g, r, 5).fill({ texture: this.tex.metal, textureSpace: 'global' });
       for (let x = 14; x < len - 6; x += 30) g.circle(x, 0, 2.5).fill(0x8a96aa);
       rr(g, r, 5).stroke({ width: 3, color: hex(m.dark), alpha: 0.9 });
@@ -451,12 +919,150 @@ export class Terrain {
         g.ellipse(cp.x, cp.y - 10, 16, 20).fill(on ? 0xff5a3c : 0x6b3a3a).stroke({ width: 2, color: OUTLINE });
         g.ellipse(cp.x, cp.y - 10, 16, 20).stroke({ width: 1.2, color: col, alpha: on ? 0.7 : 0.3 });
         g.roundRect(cp.x - 7, cp.y + 9, 14, 5, 2).fill(0xd9a441);
+      } else if (this.world === 'snow') {
+        // 木屋的马灯：方的灯框，亮的时候一团暖光
+        if (on) glow(g, cp.x, cp.y - 18, 70, col, 0.4);
+        g.roundRect(cp.x - 10, cp.y - 36, 20, 6, 2).fill(0x3b4352);
+        g.roundRect(cp.x - 9, cp.y - 31, 18, 22, 4).fill(on ? 0xffd27a : 0x4f5d75).stroke({ width: 2, color: OUTLINE });
+        g.moveTo(cp.x - 9, cp.y - 20).lineTo(cp.x + 9, cp.y - 20).stroke({ width: 1.5, color: OUTLINE, alpha: 0.5 });
+        g.roundRect(cp.x - 11, cp.y - 10, 22, 5, 2).fill(0x3b4352);
+      } else if (this.world === 'space') {
+        // 信标：一根短桅杆，顶上一个圆灯罩，亮的时候青色的光
+        if (on) glow(g, cp.x, cp.y - 30, 70, col, 0.45);
+        g.roundRect(cp.x - 12, cp.y - 20, 24, 10, 3).fill(0x3a4052).stroke({ width: 2, color: OUTLINE });
+        g.circle(cp.x, cp.y - 30, 10).fill(on ? 0x7fe3ff : 0x3a4268).stroke({ width: 2, color: OUTLINE });
+        g.circle(cp.x - 3, cp.y - 33, 3).fill({ color: 0xffffff, alpha: on ? 0.8 : 0.3 });
+      } else if (this.world === 'house') {
+        // 灯台上的油灯：一根细杆、一个灯盏，亮的时候一朵小火苗
+        if (on) glow(g, cp.x, cp.y - 34, 70, col, 0.4);
+        g.ellipse(cp.x, cp.y - 26, 13, 5).fill(0x8a5e2e).stroke({ width: 2, color: OUTLINE });
+        if (on) {
+          g.moveTo(cp.x - 4, cp.y - 30).quadraticCurveTo(cp.x - 5, cp.y - 40, cp.x, cp.y - 48).quadraticCurveTo(cp.x + 5, cp.y - 40, cp.x + 4, cp.y - 30).closePath().fill(0xffb347);
+          g.ellipse(cp.x, cp.y - 35, 2.5, 5).fill(0xfff1a8);
+        } else g.rect(cp.x - 1, cp.y - 34, 2, 6).fill(0x2a1a14);
+      } else if (this.world === 'kitchen') {
+        // 出菜口的保温灯：铁灯罩，亮的时候灯泡发橙光
+        if (on) glow(g, cp.x, cp.y - 8, 70, col, 0.38);
+        g.poly([cp.x - 18, cp.y - 10, cp.x - 8, cp.y - 34, cp.x + 8, cp.y - 34, cp.x + 18, cp.y - 10]).fill(0x8c9aab).stroke({ width: 2, color: OUTLINE });
+        g.ellipse(cp.x, cp.y - 9, 9, 6).fill(on ? 0xffc46b : 0x5b5148).stroke({ width: 1.5, color: OUTLINE });
       } else {
         // 浮标灯
         if (on) glow(g, cp.x, cp.y - 24, 60, col, 0.35);
         g.roundRect(cp.x - 9, cp.y - 32, 18, 16, 4).fill(on ? 0x9be8ff : 0x3f4f73).stroke({ width: 2, color: OUTLINE });
         g.roundRect(cp.x - 12, cp.y - 16, 24, 8, 3).fill(0xe8413c).stroke({ width: 2, color: OUTLINE });
       }
+    });
+  }
+
+  // ---------------------------------------------------------------- 老宅（A10）
+
+  /** 钥匙开的门：一扇木门，深色的框，三道横档，一排排铜钉。 */
+  private lockedDoor(g: Graphics, r: GateDef): void {
+    const m = materialOf(r.material ?? 'wood');
+    rr(g, r, 6).fill({ texture: this.tex[m.texture], textureSpace: 'global' });
+    rr(g, r, 6).fill({ color: 0x3a1a10, alpha: 0.35 });
+    const vertical = r.h >= r.w;
+    const len = vertical ? r.h : r.w;
+    const n = Math.max(2, Math.round(len / 110));
+    for (let k = 1; k < n; k++) {
+      const f = k / n;
+      if (vertical) g.rect(r.x + 2, r.y + r.h * f - 4, r.w - 4, 8);
+      else g.rect(r.x + r.w * f - 4, r.y + 2, 8, r.h - 4);
+    }
+    g.fill({ color: 0x2a140c, alpha: 0.6 });
+    for (let k = 0; k < n; k++) {
+      for (let j = 0; j < 3; j++) {
+        const a = (k + 0.5) / n;
+        const b = (j + 1) / 4;
+        const x = vertical ? r.x + r.w * b : r.x + r.w * a;
+        const y = vertical ? r.y + r.h * a : r.y + r.h * b;
+        g.circle(x, y, 2.6).fill(0xd8a03c);
+      }
+    }
+    rr(g, r, 6).stroke({ width: 3, color: 0x2a140c, alpha: 0.95 });
+  }
+
+  /** 铜锁：锁身、锁梁、锁眼，(x, y) 是锁身中间。 */
+  private padlock(g: Graphics, x: number, y: number): void {
+    g.moveTo(x - 8, y - 4).lineTo(x - 8, y - 14).arc(x, y - 14, 8, Math.PI, 0).lineTo(x + 8, y - 4).stroke({ width: 4, color: 0x8a6a2a, cap: 'round' });
+    g.roundRect(x - 14, y - 6, 28, 22, 5).fill(0xd8a03c).stroke({ width: 2.5, color: OUTLINE });
+    g.roundRect(x - 11, y - 4, 22, 4, 2).fill({ color: 0xfff1b8, alpha: 0.6 });
+    g.circle(x, y + 4, 3).fill(0x2a1a14);
+    g.rect(x - 1.2, y + 5, 2.4, 6).fill(0x2a1a14);
+  }
+
+  /** 墙上的烛台：铁托架、一个小盏、一根白蜡烛；亮着的有火苗（每帧晃），灭着的只有一根灯芯。(x, y) 是火苗的地方。 */
+  private drawSconces(sim: SimView): void {
+    const g = this.sconceG.clear();
+    const lamps = sim.lamps ?? [];
+    if (!lamps.length) return;
+    lamps.forEach((l, i) => {
+      const { x, y } = l;
+      g.moveTo(x, y + 30).lineTo(x - 14, y + 42).stroke({ width: 3, color: 0x2a2226, cap: 'round' });
+      g.ellipse(x, y + 28, 11, 4).fill(0x8a5e2e).stroke({ width: 1.5, color: OUTLINE, alpha: 0.8 });
+      g.roundRect(x - 4, y + 8, 8, 20, 2).fill(0xf3ecdd).stroke({ width: 1.5, color: OUTLINE, alpha: 0.7 });
+      g.rect(x - 0.8, y + 3, 1.6, 6).fill(0x2a1a14);
+      if (!l.on) return;
+      const sway = this.reduced ? 0 : Math.sin(this.t * 7 + i) * 1.5;
+      glow(g, x, y, 60, '#ffb347', 0.35);
+      g.moveTo(x - 4, y + 4).quadraticCurveTo(x - 5, y - 4, x + sway, y - 12).quadraticCurveTo(x + 5, y - 4, x + 4, y + 4).closePath().fill(0xffb347);
+      g.ellipse(x + sway * 0.4, y - 1, 2, 4).fill(0xfff1a8);
+    });
+  }
+
+  // ---------------------------------------------------------------- 太空站（A10）
+
+  /** 失重区：一块淡淡的光场，虚线框，里面浮着几颗慢慢转圈的小光点（按 sim.time 摆，手机局也对得上）。 */
+  private drawFloat(t: number): void {
+    const zones = this.level.zerog ?? [];
+    const g = this.floatG.clear();
+    if (!zones.length) return;
+    zones.forEach((z, i) => {
+      g.rect(z.x, z.y, z.w, z.h).fill({ color: 0x7fe3ff, alpha: 0.07 });
+      const dash = 18;
+      for (let x = z.x; x < z.x + z.w; x += dash * 2) {
+        const x1 = Math.min(z.x + z.w, x + dash);
+        g.moveTo(x, z.y).lineTo(x1, z.y).moveTo(x, z.y + z.h).lineTo(x1, z.y + z.h);
+      }
+      for (let y = z.y; y < z.y + z.h; y += dash * 2) {
+        const y1 = Math.min(z.y + z.h, y + dash);
+        g.moveTo(z.x, y).lineTo(z.x, y1).moveTo(z.x + z.w, y).lineTo(z.x + z.w, y1);
+      }
+      g.stroke({ width: 2, color: 0x7fe3ff, alpha: 0.35 });
+      const n = Math.max(6, Math.round((z.w * z.h) / 40000));
+      for (let k = 0; k < n; k++) {
+        const fx = ((k * 0.618 + i * 0.37) % 1) * z.w;
+        const fy = ((k * 0.382 + i * 0.21) % 1) * z.h;
+        const a = (this.reduced ? 0 : t * 0.4) + k;
+        g.circle(z.x + fx + Math.cos(a) * 18, z.y + fy + Math.sin(a * 1.3) * 14, 2.2).fill({ color: 0xbff0ff, alpha: 0.55 });
+      }
+    });
+  }
+
+  /** 拉杆：墙上一块底座（和它开的门一个颜色），一根把手；拉下去把手往下扳、灯变绿。 */
+  private drawLevers(sim: SimView): void {
+    const g = this.leverG.clear();
+    (this.level.levers ?? []).forEach((ld, i) => {
+      const r = leverRect(ld);
+      const on = !!sim.levers?.[i]?.on;
+      const color = this.leverColors[i] ?? 0xffd166;
+      const cx = r.x + r.w / 2;
+      const cy = r.y + r.h / 2;
+      rr(g, { x: cx - 18, y: cy - 30, w: 36, h: 60 }, 6).fill(0x2a2f3e).stroke({ width: 3, color });
+      g.circle(cx, cy - 20, 4).fill(on ? 0x5bd96b : 0xff4d6d);
+      // 把手：没拉是水平的一根，拉下去往下斜（物理上的把手不动，只是画法）
+      const tilt = on ? 0.45 : 0;
+      const hw = r.w / 2;
+      const c = Math.cos(tilt);
+      const s = Math.sin(tilt);
+      const pts = [
+        [-hw, -r.h / 2],
+        [hw, -r.h / 2],
+        [hw, r.h / 2],
+        [-hw, r.h / 2],
+      ].flatMap(([x, y]) => [cx + (x as number) * c - (y as number) * s, cy + (x as number) * s + (y as number) * c]);
+      g.poly(pts).fill(on ? lighten(color, 0.4) : 0xc8d0de).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+      if (on) glow(g, cx, cy, 50, '#' + color.toString(16).padStart(6, '0'), 0.3);
     });
   }
 
@@ -480,4 +1086,16 @@ export class Terrain {
     g.circle(f.x + 40, f.y - 92 + wave * 0.5, 13).fill(0xf8c56d).stroke({ width: 2, color: 0x8a1f1a });
     g.circle(f.x + 40, f.y - 92 + wave * 0.5, 6).fill(0xe8413c);
   }
+}
+
+/** 踏板和门的配对色：第几扇门一个色。 */
+const LINK_COLORS = [0xff6b6b, 0x4ecdc4, 0xffd166, 0xa78bfa, 0x5bd96b, 0xff9f43];
+const linkColor = (k: number): number => LINK_COLORS[k % LINK_COLORS.length] as number;
+/** 往白里调一点（按下去的按钮亮一些）。 */
+function lighten(c: number, k: number): number {
+  const ch = (shift: number): number => {
+    const v = (c >> shift) & 0xff;
+    return Math.round(v + (255 - v) * k) << shift;
+  };
+  return ch(16) | ch(8) | ch(0);
 }

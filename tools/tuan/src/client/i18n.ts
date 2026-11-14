@@ -1,6 +1,8 @@
 // Every word a person reads, in Chinese and in English. The language is the one this phone last
-// chose here, else the phone's own; the switch at the top right changes it at any time. What a
-// merchant wrote (names, notes, how to pay) shows as they wrote it.
+// chose here; else Chinese inside WeChat, whatever language the phone is in (Steve, 2026-11-14:
+// group buys are passed around in WeChat groups); else the phone's own. The switch at the top
+// right changes it at any time. What a merchant wrote (names, notes, how to pay) shows as they
+// wrote it.
 import type { Unit } from "../engine/types";
 
 export type Lang = "zh" | "en";
@@ -379,7 +381,10 @@ const stored = (): Lang | null => {
   }
 };
 
-let lang: Lang = stored() ?? (/^zh\b/i.test(navigator.language || "zh") ? "zh" : "en");
+/** WeChat's own browser, WeCom's, and a mini program's pages all say so in the user agent. */
+const inWeChat = (): boolean => /MicroMessenger/i.test(navigator.userAgent);
+
+let lang: Lang = stored() ?? (inWeChat() || /^zh\b/i.test(navigator.language || "zh") ? "zh" : "en");
 const listeners = new Set<() => void>();
 
 export const getLang = (): Lang => lang;

@@ -15,6 +15,7 @@
     "ip-check": "node scripts/ip-check.mjs",
     "levels": "node scripts/run-levels.mjs",
     "probe": "node scripts/probe.mjs",
+    "envelopes": "node scripts/envelopes.mjs",
     "link-check": "node scripts/link-check.mjs",
     "lobby-check": "node scripts/lobby-check.mjs",
     "phone-check": "node scripts/phone-check.mjs",

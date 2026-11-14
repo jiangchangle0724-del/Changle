@@ -1,4 +1,4 @@
-import { ListMusic, Smartphone } from "lucide-react";
+import { AudioLines, ListMusic, Smartphone } from "lucide-react";
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { GAMES } from "../../games/registry";
@@ -9,6 +9,7 @@ import { Skeleton } from "../../ui/Skeleton";
 
 // the song box and the rest come with the phone's deck: loaded the first time the sheet opens
 const SharedSongs = lazy(() => import("./SharedSongs"));
+const SharedSounds = lazy(() => import("./SharedSounds"));
 
 const GEL = GAMES.find((g) => g.id === "dj")?.gel;
 
@@ -20,36 +21,51 @@ const GEL = GAMES.find((g) => g.id === "dj")?.gel;
  * the whole TV), the song box and the playlist, all as the table's (the room takes them from the
  * speaker only). Held upright, a phone is asked to turn sideways: the TV shows the phone as it's
  * held, and a page can't turn an iPhone (an Android phone turned when the game's card opened this).
+ * Under 点歌, 音效 (Steve on Nov 14): the phones' sound board, as the table's, playing here at once
+ * (on the TV, or from the phone itself when it isn't shown on one).
  */
 export function SharedPhone({ v }: { v: DjView }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<"songs" | "sounds" | null>(null);
   const d = v.deck;
   const waiting = d.reqs.length + (d.up ? 1 : 0);
   // its own YouTube player wants a tap on the video (an iPhone's, the night's first song): the sheet
   // gets out of the way, so the tap lands on the video
   const tap = !!d.tap;
   useEffect(() => {
-    if (tap) setOpen(false);
+    if (tap) setOpen(null);
   }, [tap]);
   return createPortal(
     <>
       {v.phase !== "end" && (
         <>
-          <button type="button" className="dj-share-btn" style={{ ["--gel" as string]: GEL } as CSSProperties} onClick={() => setOpen(true)} aria-haspopup="dialog">
-            <ListMusic size={26} aria-hidden="true" />
-            <span>{zh ? "点歌" : "Songs"}</span>
-            {waiting > 0 && (
-              <span className="dj-share-n tabular" aria-label={zh ? `歌单 ${waiting} 首` : `${waiting} on the playlist`}>
-                {waiting}
-              </span>
-            )}
-          </button>
-          <Sheet open={open} onClose={() => setOpen(false)} lang={lang} title={zh ? "点歌" : "Ask for a song"} gel={GEL}>
-            {open && (
+          <div className="dj-share-col" style={{ ["--gel" as string]: GEL } as CSSProperties}>
+            <button type="button" className="dj-share-btn" onClick={() => setOpen("songs")} aria-haspopup="dialog">
+              <ListMusic size={26} aria-hidden="true" />
+              <span>{zh ? "点歌" : "Songs"}</span>
+              {waiting > 0 && (
+                <span className="dj-share-n tabular" aria-label={zh ? `歌单 ${waiting} 首` : `${waiting} on the playlist`}>
+                  {waiting}
+                </span>
+              )}
+            </button>
+            <button type="button" className="dj-share-btn is-sounds" onClick={() => setOpen("sounds")} aria-haspopup="dialog">
+              <AudioLines size={26} aria-hidden="true" />
+              <span>{zh ? "音效" : "Sounds"}</span>
+            </button>
+          </div>
+          <Sheet open={open === "songs"} onClose={() => setOpen(null)} lang={lang} title={zh ? "点歌" : "Ask for a song"} gel={GEL}>
+            {open === "songs" && (
               <Suspense fallback={<Skeleton lang={lang} lines={4} />}>
                 <SharedSongs v={v} />
+              </Suspense>
+            )}
+          </Sheet>
+          <Sheet open={open === "sounds"} onClose={() => setOpen(null)} lang={lang} title={zh ? "音效" : "Sounds"} gel={GEL}>
+            {open === "sounds" && (
+              <Suspense fallback={<Skeleton lang={lang} lines={4} />}>
+                <SharedSounds />
               </Suspense>
             )}
           </Sheet>

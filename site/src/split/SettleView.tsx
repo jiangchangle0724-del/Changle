@@ -1,9 +1,11 @@
 /**
  * 结清: who pays whom, in the fewest transfers. A row opens one transfer: the amount to copy, and
  * marking it as paid (or taking that back). The list holds still while people pay one by one
- * (core/ledger.ts, settlement), and when the last one is paid the page is stamped 两清.
+ * (core/ledger.ts, settlement), and when the last one is paid the page is stamped 两清. When the
+ * 结清图 this phone last made says other transfers than these, the page says it is out of date
+ * (picture.ts).
  */
-import { Check, Copy, Scale } from "lucide-react";
+import { Check, Copy, ImageOff, Scale } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Lang } from "../i18n";
 import { sizeClass } from "../tools/money";
@@ -13,16 +15,18 @@ import { Sheet } from "../ui/Sheet";
 import { useToast } from "../ui/Toast";
 import { expensesOf, type Ledger, type Settlement } from "./core";
 import { money } from "./format";
+import { whenText } from "./history";
 import { paysLine } from "./lines";
+import { paidId } from "./ops";
 import { copyText } from "./parts";
-import { newId } from "./store";
+import { isStale, type Made } from "./picture";
 import { record } from "./syncing";
 import { say, W } from "./words";
 
 /** One transfer on the screen: a step of the plan, or one already made that the plan no longer holds. */
 type Line = { from: string; to: string; amount: number; paid?: string };
 
-export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: string | undefined; lang: Lang; plan: Settlement }) {
+export function SettleView({ ledger, me, lang, plan, made }: { ledger: Ledger; me: string | undefined; lang: Lang; plan: Settlement; made?: Made }) {
   const toast = useToast();
   const [open, setOpen] = useState<Line | null>(null);
   // the transfer the sheet shows, kept while the sheet slides away so it doesn't empty on its way out
@@ -73,6 +77,16 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
 
   return (
     <>
+      {/* the picture this phone last sent the group: out of date once who pays whom, or how much, has changed */}
+      {made && isStale(made, plan) && (
+        <div className="split-stale">
+          <p className="split-sync is-loud">
+            <ImageOff aria-hidden="true" />
+            {say(lang, "pictureStale")}
+          </p>
+          <p className="split-stale-body">{say(lang, "pictureStaleBody", { when: whenText(made.at, Date.now(), lang) })}</p>
+        </div>
+      )}
       {plan.clear ? (
         <div className={`split-square${stamping ? " is-stamping" : ""}`}>
           <p className="split-seal" aria-hidden="true">
@@ -102,7 +116,9 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
         category="tool"
         title={line ? paysLine(ledger, line.from, line.to, me, lang) : ""}
         footer={
+          // (a locked ledger keeps its transfers as they are: the amount can still be copied)
           line &&
+          ledger.locked === undefined &&
           (line.paid ? (
             <Button
               tone="quiet"
@@ -121,7 +137,8 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
               block
               icon={Check}
               onClick={() => {
-                const done = record(ledger.id, { do: "transfer", transfer: { id: newId(), at: Date.now(), from: line.from, to: line.to, amount: line.amount } });
+                // (the same id on the phone of the one who paid and of the one paid: marked on both, it counts once)
+                const done = record(ledger.id, { do: "transfer", transfer: { id: paidId(ledger, line), at: Date.now(), from: line.from, to: line.to, amount: line.amount } });
                 setOpen(null);
                 // (the sheet is closing, so the page can say it)
                 if (!done) toast(say(lang, "notSaved"), { tone: "warning" });
@@ -151,7 +168,8 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
             <span className="ui-visually-hidden" role="status">
               {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
             </span>
-            <p className="split-note">{say(lang, line.paid ? "paid" : "noMoney")}</p>
+            {/* (a locked ledger can't be told a transfer was made: it says why, in place of how) */}
+            <p className="split-note">{say(lang, line.paid ? "paid" : ledger.locked !== undefined ? "locked" : "noMoney")}</p>
           </div>
         )}
       </Sheet>

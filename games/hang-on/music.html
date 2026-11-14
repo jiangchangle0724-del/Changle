@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>抓紧了 · 背景音乐</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Noto+Sans+SC:wght@500;700&display=swap">
+<style>
+  :root {
+    --ink: #fff6e9; --ink-soft: #d9d2e8; --panel: rgba(16, 20, 40, .62); --card: #f7ede1; --card-ink: #2a1f3a;
+    --hot: #ff6b6b; --calm: #63b3ed;
+    --font-display: "Baloo 2", "Noto Sans SC", system-ui, sans-serif;
+    --font-body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  body { margin: 0; min-height: 100vh; background: linear-gradient(#1d2a4a, #3a3f7c); color: var(--ink); font-family: var(--font-body); line-height: 1.6; }
+  main { max-width: 620px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top, 0px)) 16px 40px; display: grid; gap: 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-family: var(--font-display); font-weight: 800; font-size: 26px; margin: 0; line-height: 1.2; }
+  h1 small { display: block; font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--ink-soft); }
+  .card { background: var(--card); color: var(--card-ink); border-radius: 20px; padding: 16px; display: grid; gap: 12px; }
+  .card h2 { font-family: var(--font-display); font-size: 15px; margin: 0; opacity: .7; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { font: inherit; }
+  .btn { min-height: 48px; padding: 0 16px; border-radius: 999px; border: 2px solid rgba(42,31,58,.18); background: #fff; color: var(--card-ink); font-weight: 700; font-size: 15px; cursor: pointer; }
+  .btn[aria-pressed="true"], .btn[aria-checked="true"] { background: var(--card-ink); color: var(--ink); border-color: var(--card-ink); }
+  .btn.big { flex: 1 1 100%; font-size: 17px; }
+  .btn:focus-visible { outline: 3px solid #ffd166; outline-offset: 2px; }
+  .lang { min-height: 44px; padding: 0 14px; border-radius: 999px; border: 0; background: rgba(255,255,255,.14); color: var(--ink); font-weight: 700; cursor: pointer; }
+  .meter { display: grid; gap: 6px; }
+  .meter input { width: 100%; min-height: 44px; accent-color: var(--card-ink); }
+  .meter .scale { display: flex; justify-content: space-between; font-size: 12px; opacity: .7; }
+  .now { font-family: var(--font-display); font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .bar { height: 10px; border-radius: 999px; background: rgba(42,31,58,.12); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--calm), #ffd166 60%, var(--hot)); transition: width .1s linear; }
+  p.note { font-size: 13px; color: var(--ink-soft); margin: 0; }
+  .card p { margin: 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><span data-en="Hang On · Music">抓紧了 · 背景音乐</span><small data-en="Every scene has its own tune, and it speeds up when someone is about to fall.">每个场景一首，有人快掉下去时音乐变快变紧。</small></h1>
+    <button class="lang" id="langBtn" type="button">EN</button>
+  </header>
+
+  <section class="card">
+    <h2 data-en="Scene">场景</h2>
+    <div class="row" id="themes" role="radiogroup" aria-label="场景" data-en-label="Scene"></div>
+    <button class="btn big" id="playBtn" type="button" data-en="Play">放</button>
+  </section>
+
+  <section class="card">
+    <h2 data-en="How tense">紧张</h2>
+    <div class="row">
+      <button class="btn" type="button" data-i="0.35" data-en="Climbing">平常在爬</button>
+      <button class="btn" type="button" data-i="0.7" data-en="Danger">危险</button>
+      <button class="btn" type="button" data-i="0.97" data-en="About to fall">快掉下去了</button>
+    </div>
+    <div class="meter">
+      <input type="range" id="tension" min="0" max="1" step="0.01" value="0.35" aria-label="紧张" data-en-label="Tension">
+      <div class="scale"><span data-en="Calm">平静</span><span data-en="Crisis">危机</span></div>
+    </div>
+    <div class="row" style="align-items:center;justify-content:space-between">
+      <span class="now" id="bpm">— bpm</span>
+      <div class="bar" style="flex:1;margin-left:12px"><i id="level"></i></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 data-en="Moments">事件</h2>
+    <div class="row">
+      <button class="btn" type="button" id="cpBtn" data-en="Checkpoint">过检查点</button>
+      <button class="btn" type="button" id="fallBtn" data-en="Someone falls">有人摔了</button>
+      <button class="btn" type="button" id="winBtn" data-en="Reach the top">到顶</button>
+    </div>
+    <button class="btn big" id="demoBtn" type="button" data-en="40-second demo: calm, danger, crisis, calm, top">40 秒演示：平常、危险、危机、平常、到顶</button>
+  </section>
+
+  <p class="note" data-en="In the game the tension follows the players: hanging by one hand over a drop, next to spikes or a hot wok, falling, the last stretch, or racing the clock. Hard levels play a darker, faster version of their scene.">游戏里紧张跟着玩家走：一只手挂在深坑上、贴着尖刺热锅、往下掉、最后一段、准时那颗星快没了。难关放同一个场景的小调版，更暗更快。</p>
+</main>
+<script type="module" src="./src/dev/music.ts"></script>
+</body>
+</html>

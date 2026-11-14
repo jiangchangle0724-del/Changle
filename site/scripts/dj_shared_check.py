@@ -8,9 +8,12 @@ is asked instead) and starts the music with no other tap, in 点歌模式. Its �
 sheet: a pasted link goes in as the shared phone's (not one of anyone's three), the badge counts the
 playlist, the TV names it 公用手机's, and it plays whole in its corner; the phones at the table read
 it by name and only the host can take it out; the sheet has the phones' player (Steve on Nov 12):
-it pauses the song and carries it on, skips it; it takes its own song back and switches 随机. Its
-Held upright, the phone is asked to turn
-sideways (or keep it upright). On a computer the card's button is 这台电脑当音箱 and starts the music
+it pauses the song and carries it on, skips it; it takes its own song back and switches 随机. Under
+点歌, 音效 (Steve on Nov 14): the phones' sound board, its sounds the table's, played here at once and
+said on the phones. Its sound stopped (Nov 14: "点开始也没用"): a tap wakes it; stuck the way an
+iPhone's can be ("interrupted"), the tap makes it a fresh sound and the music goes on. The stage
+fits the screen as it turns, and when the page's box changes without a turn. Held upright, the
+phone is asked to turn sideways (or keep it upright). On a computer the card's button is 这台电脑当音箱 and starts the music
 the same way; the booth opened at its address still asks for the tap that starts the party.
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
@@ -98,7 +101,7 @@ with sync_playwright() as p:
     amy, ben = phones
 
     # 点歌 on the shared phone
-    share = sp.locator(".dj-share-btn")
+    share = sp.locator(".dj-share-btn:not(.is-sounds)")
     ok(share.count() == 1 and "点歌" in share.inner_text(), "the shared phone's 点歌 button")
     box = share.bounding_box()
     ok(box and box["width"] >= 48 and box["height"] >= 48, f"big enough to tap ({box and round(box['width'])} x {box and round(box['height'])})")
@@ -153,6 +156,66 @@ with sync_playwright() as p:
     ok((view(sp) or {}).get("juke") is True, "still 点歌模式 (there's nothing else now)")
     sp.screenshot(path=os.path.join(OUT, "shared-4b-player.png"))
     sp.keyboard.press("Escape")
+    ok(until(lambda: sp.locator(".ui-sheet[open]").count() == 0, 4000), "closed")
+
+    # 音效 under 点歌 (Nov 14): the board, as the table's, played here at once
+    snd = sp.locator(".dj-share-btn.is-sounds")
+    ok(snd.count() == 1 and "音效" in snd.inner_text(), "the shared phone's 音效 button")
+    b1, b2 = share.bounding_box(), snd.bounding_box()
+    ok(b2 and b2["width"] >= 48 and b2["height"] >= 48 and b2["y"] >= b1["y"] + b1["height"], f"big enough, under 点歌 ({b2 and round(b2['width'])} x {b2 and round(b2['height'])})")
+    tb = sp.locator(".dj-tube").bounding_box()
+    ok(not tb or sp.locator(".dj-tube.is-off").count() == 1 or b2["x"] >= tb["x"] + tb["width"] - 2, "beside the video too, not over it")
+    snd.click()
+    ok(until(lambda: sp.locator(".ui-sheet[open] .dj-share .djk-cat").count() == 9, 6000), "it opens the board: the nine kinds")
+    ok("音效" in text(sp, ".ui-sheet[open] .ui-sheet-heading") and "点了马上响" in text(sp, ".ui-sheet[open] .djk-board-title"), f"titled 音效 ({text(sp, '.ui-sheet[open] .djk-board-title')!r})")
+    sp.locator(".ui-sheet[open] .djk-cat.is-funny").click()
+    ok(until(lambda: sp.locator(".ui-sheet[open] .djk-sfx").count() > 0, 3000), "a kind opens")
+    n0 = sp.evaluate("() => (window.__sfx || { n: 0 }).n")
+    first = sp.locator(".ui-sheet[open] .djk-sfx").first
+    name = first.inner_text().strip()
+    first.click()
+    ok(until(lambda: sp.evaluate("() => (window.__sfx || { n: 0 }).n") == n0 + 1, 4000), "it plays here at once")
+    ok(until(lambda: f"你 · {name}" in text(sp, ".ui-sheet[open] .djk-said"), 3000), f"the sheet says so ({text(sp, '.ui-sheet[open] .djk-said')!r})")
+    ok(until(lambda: f"公用手机 · {name}" in text(ben, ".djk-said"), 3000), f"Ben's phone: the shared phone's ({text(ben, '.djk-said')!r})")
+    sp.screenshot(path=os.path.join(OUT, "shared-4c-sounds.png"))
+    sp.go_back()
+    ok(until(lambda: sp.locator(".ui-sheet[open] .djk-cat").count() == 9, 3000), "the phone's back button: back to the kinds")
+    sp.go_back()
+    ok(until(lambda: sp.locator(".ui-sheet[open]").count() == 0, 3000), "and again: the sheet closes, still the speaker")
+
+    # its sound stopped (Nov 14): a tap wakes it; stuck as an iPhone's can be, a fresh sound
+    ok(sp.evaluate("() => window.__djSound.ctx().state") == "running", "the sound runs")
+    sp.evaluate("() => window.__djSound.ctx().suspend()")
+    ok(until(lambda: sp.locator(".dj-wake").count() == 1, 4000), "stopped: 声音停了，点一下接着放")
+    sp.locator(".dj-wake").click()
+    ok(until(lambda: sp.evaluate("() => window.__djSound.ctx().state") == "running" and sp.locator(".dj-wake").count() == 0, 4000), "a tap wakes it")
+    ok(sp.evaluate("() => window.__djSound.renewed()") == 0, "the same sound (one tap, not two: the touch and its click)")
+    old = sp.evaluate_handle("() => window.__djSound.ctx()")
+    sp.evaluate("() => { const c = window.__djSound.ctx(); Object.defineProperty(c, 'state', { get: () => 'interrupted', configurable: true }); }")
+    ok(until(lambda: sp.locator(".dj-wake").count() == 1, 4000), "an iPhone's stuck ('interrupted'): stopped")
+    sp.locator(".dj-wake").click()
+    ok(until(lambda: sp.evaluate("() => window.__djSound.renewed()") == 1, 5000), "the tap makes a fresh sound")
+    ok(sp.evaluate("(old) => window.__djSound.ctx() !== old && window.__djSound.ctx().state === 'running' && old.state === 'interrupted'", old), "a new one, running")
+    ok(until(lambda: sp.locator(".dj-wake").count() == 0 and sp.evaluate("() => window.__djBooth.stats().state") == "playing", 10000), "the music goes on in it")
+    sp.evaluate("() => { window.__sfx = null; }")
+    sp.wait_for_timeout(1600)
+    snd.click()
+    until(lambda: sp.locator(".ui-sheet[open] .djk-cat").count() == 9, 6000)
+    sp.locator(".ui-sheet[open] .djk-cat.is-hype").click()
+    sp.locator(".ui-sheet[open] .djk-sfx").first.click()
+    ok(until(lambda: sp.evaluate("() => !!window.__sfx && window.__sfx.n >= 1"), 4000), "the board plays on the fresh sound")
+    sp.keyboard.press("Escape")
+    until(lambda: sp.locator(".ui-sheet[open]").count() == 0, 4000)
+
+    # the stage fits the screen: as it turns, and when the page's box changes without a turn
+    def fits(w, h):
+        bx = sp.locator(".tv-canvas").bounding_box()
+        return bx and bx["width"] <= w + 1 and bx["height"] <= h + 1 and (abs(bx["width"] - w) <= 1.5 or abs(bx["height"] - h) <= 1.5)
+    ok(fits(844, 390), "the stage fills the sideways screen")
+    sp.evaluate("() => { document.querySelector('.tv-fit').style.bottom = '90px'; }")
+    ok(until(lambda: fits(844, 300), 3000), "the box gets shorter with no turn (a browser bar): the stage follows")
+    sp.evaluate("() => { document.querySelector('.tv-fit').style.bottom = ''; }")
+    ok(until(lambda: fits(844, 390), 3000), "and back")
 
     # held upright: asked to turn sideways, or keep it so
     sp.evaluate("() => document.fullscreenElement && document.exitFullscreen()")
@@ -165,6 +228,7 @@ with sync_playwright() as p:
     ok(sp.locator(".dj-turn").count() == 0, "就竖着用: it goes")
     sp.set_viewport_size({"width": 844, "height": 390})
     ok(sp.locator(".dj-turn").count() == 0, "sideways: nothing to ask")
+    ok(until(lambda: fits(844, 390), 3000), "turned back sideways: the stage fills the screen again")
 
     errs = [e for e in sp._errs + [x for ph in phones for x in ph._errs] if "WebSocket" not in e and "favicon" not in e]
     ok(not errs, f"no errors {errs[:3]}")
@@ -179,7 +243,7 @@ with sync_playwright() as p:
     pb.click()
     ok(until(lambda: (view(pc) or {}).get("phase") == "warm", 20000) and pc.locator(".dj-start").count() == 0, "the music starts with no other tap")
     ok(not pc.evaluate("() => !!document.fullscreenElement"), "no full screen on a computer")
-    ok(pc.locator(".dj-share-btn").inner_text().strip() == "Songs", "its own 点歌, in English")
+    ok(pc.locator(".dj-share-btn:not(.is-sounds)").inner_text().strip() == "Songs" and pc.locator(".dj-share-btn.is-sounds").inner_text().strip() == "Sounds", "its own 点歌 and 音效, in English")
     pc.wait_for_timeout(1200)
     pc.screenshot(path=os.path.join(OUT, "shared-6-computer.png"))
     pc.context.close()

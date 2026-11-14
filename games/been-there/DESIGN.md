@@ -135,7 +135,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/art/satellite.ts`, `SatMap.ts`, `src/client/media/map/`, `scripts/satellite.mjs` | The real world in the middle: where the sun is, the pictures (made by the script from NASA's), and their painting under the board. |
 | `src/client/art/dice.tsx`, `Passport.tsx`, `LandingCard.tsx`, `icons.tsx`, `texture.ts` | Dice, the passport, the arrival card, small icons, paper grain and stamp speckle. |
 | `src/client/globe/` | The big screen's 3D globe (three.js): the real world day and night, city lights, flights. |
-| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, banknotes, cards; `notes.ts` the bills a sum is paid in), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
+| `src/client/ui/` | The screens: `Game.tsx` (phone), `Screen.tsx` (big screen), `Board.tsx` and `mapView.ts` (the board, and its size and drag on a phone), `Decision.tsx` (the questions a team answers; `aim.ts` the spaces they're about, lit on the board), `Trivia.tsx` (the waiting teams' quiz: the pop-up and the card to read), `TurnClock.tsx` (the turn clock's countdown), `Moments.tsx` (dice, banknotes, cards; `notes.ts` the bills a sum is paid in), `Ride.tsx` and `ridePlan.ts` (the first-person move), `Touchdown.tsx`, `Finale.tsx`, `Lobby.tsx`, `Home.tsx`, `Settings.tsx`, `Fullscreen.tsx`, `common.tsx` (team colours, chips, buttons). |
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
 | `src/client/music.ts`, `ui/localSong.ts`, `ui/Local.tsx`, `src/client/local.ts`, `src/client/songs.json` | Being there: the local hit a second visit plays (the player; which song, when, on which device; "Now playing"), the arrival card's local part, prices in local money, and the data (songs, hellos, exchange rates). |
 | `src/client/bgm.ts`, `ui/bgmPlan.ts`, `ui/Bgm.tsx`, `src/client/bgm.json`, `src/client/media/music/`, `scripts/music.mjs`, `scripts/music/` | The game's music: the player; what plays, how loud and on which device; the files and their loop points; the score and the script that plays and mixes it. |
@@ -580,6 +580,27 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   phone, in the play window, as the window comes back up after the team's own move (drawn while it
   was away, it would turn over with nobody watching); on the big screen, in the middle of the board
   once the token is there. With reduced motion it's simply there, face up, and no deck.
+* **Where a question would take you** (`ui/aim.ts`, `AimMarks` in `art/RoundBoard.tsx`): while a
+  question about a space is up, that space is lit on every screen, once the move that brought the
+  question has played: it glows gold under what's on it, with a bright edge and a glow off it, breathing
+  three times as the question comes (a ring spreading each breath) and then holding lit. Beijing's
+  中轴线 lights the space straight across, with a dashed path to it from the token through the middle
+  of the board (the axis), its dashes marching toward an arrow; a car permit, the three spaces it can
+  take the token to, as thrown first and brightest, with a path round the ring; an Air Miles card,
+  the four routes; an auction, the city up for sale; New York's vote, the city whose rent it's about;
+  a card's free house (or a typhoon, a sale) and Mumbai's dabbawalas, the team's own cities it can go
+  on or come off. On a phone the map goes to the space (one question, one place: not for a choice
+  spread round the board), above the play window, zooming in to the middle size at least so it can
+  reach either side of the board (`aim` in `ui/mapView.ts`); on the phone asked, even after a drag.
+  With reduced motion it's lit and still.
+* **A token sent straight to a space** (`straight` in `art/RoundBoard.tsx`, `straightMoves` in
+  `ui/Board.tsx`) flies there over the middle of the board in one long hop (1.1 s), rather than
+  walking half the ring: Beijing's jump (along the path the question showed), an Air Miles card's
+  route, a tango's partners changing places, a team sent to Immigration (on another team's phone,
+  its token walks to where the throw took it with the throw, stands there a moment, then flies on).
+  On the phone whose own token flies, the table turns to its new resting place only once it's down.
+* **Amounts that would float off one spot** (several teams paying this one at once, their tokens
+  off one edge of a phone's map) stand one under another (`stackLabels` in `ui/Moments.tsx`).
 * **A full set** (`ui/Sets.tsx`): the moment a team owns a whole group (rent there doubles, and it can
   build), its spaces light up in its colour one after another, 0.18 s apart once the owner's stamp
   is down, then glow together twice and go out by 3.2 s (`.set-lit`, Istanbul with them when it

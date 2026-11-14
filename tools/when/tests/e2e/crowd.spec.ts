@@ -1,17 +1,19 @@
 import { expect, test } from "@playwright/test";
-import { addDays, slotLabel, vancouverDay, type Day } from "../../src/engine";
+import { addDays, partsOf, slotLabel, vancouverDay, type Day } from "../../src/engine";
 import { cell, closePhones, everyone, join, make, phone, saved } from "./helpers";
 
 test.afterEach(async ({ browser }) => { await closePhones(browser); });
 
 // Count by hand, independently of the page's ranking and tally functions. Empty slots are blank.
+// A new gathering asks by the period: five slots a day.
+const PARTS = partsOf("periods");
 function result(days: Day[], counts: number[], guests: number) {
   const top = counts.map((count, i) => ({ count, i })).filter(({ count }) => count > 0)
     .sort((a, b) => b.count - a.count || a.i - b.i).slice(0, 3);
   return {
     counts: counts.map((n) => ({ yes: n ? String(n) : "", maybe: "" })),
     best: top.map(({ count, i }) => ({
-      slot: slotLabel(days[Math.floor(i / 3)], (["am", "pm", "eve"] as const)[i % 3], "zh"),
+      slot: slotLabel(days[Math.floor(i / PARTS.length)], PARTS[i % PARTS.length], "zh"),
       reason: `${guests} 个人里 ${count} 个有空`,
     })),
   };
@@ -26,7 +28,7 @@ for (const count of [2, 5, 8]) {
     const guests = await Promise.all(Array.from({ length: count }, () => phone(browser)));
     await Promise.all(guests.map((page, i) => join(page, url, `朋友${i + 1}`)));
     await Promise.all(guests.map(saved));
-    const counts = Array<number>(9).fill(0);
+    const counts = Array<number>(days.length * PARTS.length).fill(0);
     for (let i = 0; i < count; i++) { counts[i]++; counts[8]++; }
     const expected = result(days, counts, count);
 
@@ -55,7 +57,7 @@ test("eight simultaneous answers to one slot survive on every phone and after ev
   await Promise.all(guests.map(saved));
   await Promise.all(guests.map((page) => cell(page, 7).click()));
   const deadline = Date.now() + 5000;
-  const counts = Array<number>(9).fill(0);
+  const counts = Array<number>(days.length * PARTS.length).fill(0);
   counts[7] = 8;
   const expected = result(days, counts, 8);
   const pages = [host, ...guests];

@@ -1,10 +1,10 @@
 import type { ComponentChildren, RefObject, VNode } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
-import { BOARD, CITY_AT, ROUTES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
+import { BOARD, CITY_AT, ROUTES, ROUTE_SPACES, SERVICES, groupAt, priceOf, rentAt, type GameEvent } from "../../engine";
 import type { FeedItem, RoomView } from "../../room/protocol";
 import type { Mood } from "../art/characters";
 import { Dice } from "../art/dice";
-import { RoundBoard, TOKEN_R, TOKEN_SCALE, angleOf, rentSpace, xy, type BoardFx, type Fallen, type Rig, type SpaceMark, type TokenMark, type WorldMark } from "../art/RoundBoard";
+import { RoundBoard, STRAIGHT_MS, TOKEN_R, TOKEN_SCALE, angleOf, rentSpace, xy, type BoardFx, type Fallen, type Rig, type SpaceMark, type TokenMark, type WorldMark } from "../art/RoundBoard";
 import type { Flight } from "../art/RouteMap";
 import { colon, getLang, groupName, money, spaceName, t, tx, type Key } from "../i18n";
 import { MAP_SIZES, prefs, type MapSize } from "../prefs";
@@ -23,6 +23,7 @@ import { sfx } from "../sound";
 import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
 import { useWorldMoment } from "./World";
+import { aimOf, type Aim } from "./aim";
 
 export { reducedMotion };
 
@@ -156,6 +157,55 @@ function useRentFx(v: RoomView, rig: { current: Rig | null }, tv: boolean) {
       );
     }
   }, [lastId]);
+}
+
+/**
+ * The tokens just sent straight to a space, not walked there by a throw: across the middle by Beijing's
+ * Central Axis (the way the lit path showed: ui/aim.ts), over to a route by an Air Miles card, changing
+ * places with a tango's partner, to Immigration. The board flies them there over the middle of the
+ * board (art/RoundBoard.tsx `straight`). By seat: when it set off (performance.now() ms).
+ */
+function straightMoves(v: RoomView): Record<number, number> {
+  const out: Record<number, number> = {};
+  const now = serverNow();
+  const last: Record<number, GameEvent> = {};
+  for (const f of v.feed) {
+    if (f.t !== "game") continue;
+    const e = f.e;
+    if (!("p" in e) || typeof e.p !== "number") continue;
+    const before = last[e.p];
+    last[e.p] = e;
+    if (e.t !== "move" || now - f.at > STRAIGHT_MS + 1500) continue;
+    const jumped = before?.t === "rule" && before.city === "beijing";
+    const flown = before?.t === "card" && before.id === "miles" && ROUTE_SPACES.includes(e.to);
+    if (jumped || flown) out[e.p] = performance.now() + (f.at - now);
+  }
+  // (a tango's partners change places, and a team sent to Immigration goes there, the same way)
+  for (const f of v.feed) {
+    if (f.t !== "game" || now - f.at > STRAIGHT_MS + 1500) continue;
+    const e = f.e;
+    const t = performance.now() + (f.at - now);
+    if (e.t === "rule" && e.city === "buenosaires" && e.accepted && typeof e.partner === "number") out[e.p] = out[e.partner] = t;
+    if (e.t === "jail") out[e.p] = t;
+  }
+  return out;
+}
+
+/**
+ * The spaces the question in play is about (ui/aim.ts), once the move that brought it has played:
+ * none while a move plays (the token gets there first: nothing tells where a move ends before it does),
+ * drawn again as it's over.
+ */
+function useAim(v: RoomView): Aim | null {
+  const aim = aimOf(v);
+  const m = aim ? moveInPlay(v) : null;
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!m) return;
+    const id = window.setTimeout(() => tick((n) => n + 1), Math.max(0, m.ready - serverNow()) + 30);
+    return () => clearTimeout(id);
+  }, [m?.ready]);
+  return aim && !m ? aim : null;
 }
 
 /** When the token of `seat` is down on the space a feed item (`id`) came with (server time): its move's
@@ -294,13 +344,14 @@ export function Board({
   const walking = (seat: number) => fallen.some((f) => f.seat === seat && performance.now() < f.start - 30);
   // The other teams' tokens walk in step with their thrower's ride (a phone), and land with a stamp.
   const others = big ? [] : s.ps.flatMap((p, seat) => ((p.out && !walking(seat)) || v.you.seats.includes(seat) ? [] : [seat]));
-  const walks: Record<number, { start: number; per: number }> = {};
+  const walks: Record<number, { start: number; per: number; via?: number }> = {};
   const landings: { seat: number; at: number; land: number }[] = [];
   const nowS = serverNow();
   for (const seat of others) {
     const w = walkOf(v, seat, nowS);
     if (!w) continue;
-    walks[seat] = { start: performance.now() + (w.start - nowS), per: w.per };
+    // (sent on from where the walk ends, to Immigration: it walks there, then flies on)
+    walks[seat] = { start: performance.now() + (w.start - nowS), per: w.per, via: w.to !== s.ps[seat].pos ? w.to : undefined };
     landings.push({ seat, at: w.to, land: w.land });
   }
   const still = useRef<{ key: number; board: VNode } | null>(null);
@@ -348,6 +399,12 @@ export function Board({
   const lean = boardLean(!!big);
   // (a full set just made lights up its spaces: ui/Sets.tsx)
   const sets = useNewSets(v);
+  // (the spaces the question in play is about, lit: where a jump would land)
+  const aim = useAim(v);
+  // (a token sent straight to a space by a question answered flies there over the middle; this phone's
+  // own lands before the table turns under it)
+  const straight = straightMoves(v);
+  const ownFlight = Math.max(0, ...v.you.seats.map((seat) => straight[seat] ?? 0));
   // The big screen's globe shows the real world itself; anywhere else (and on a big screen that can't
   // show the globe) the board draws it flat, under the ring.
   const sat = !(globe && globeWanted());
@@ -375,6 +432,9 @@ export function Board({
       lit={litSets(v, sets)}
       fallen={fallen}
       visited={[...new Set(s.ps.flatMap((p) => p.stamps ?? []))]}
+      aim={aim}
+      straight={straight}
+      turnAfter={ownFlight ? ownFlight + STRAIGHT_MS + 120 : 0}
     />
   );
   // A ride turns the table itself, every frame: while it plays the table isn't drawn again (the same
@@ -395,6 +455,9 @@ export function Board({
     moveKey: `${s.turn}:${s.ps[s.turn]?.pos}`,
     reduced: reducedMotion(),
     look: zoomable ? (builtHere(v) ?? bigRentHere(v)) : null,
+    // (the space a question is about, above the play window: at the middle size at least, so the map can
+    // go to it whichever side of the board it's on)
+    aim: zoomable && aim?.look ? { at: aim.spaces[0], key: aim.key, push: ZOOM.m, mine: v.you.seats.includes(aim.who) } : null,
     // (where a point of the board shows in the box, the board leaning back as it rests)
     place: (x, y, rot) => {
       const p = project(x, y, rest(rot, lean), 1000);

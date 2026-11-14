@@ -145,7 +145,7 @@ try {
     await screenshot(host, 'next-countdown-after-start');
   }
   const nextTitle = await host.locator('#countLevel').textContent();
-  check('倒数的关卡名是第 2 关', await host.evaluate(() => hangOn.level.id === 'table-02') && /^2\s*[·.]/.test(nextTitle), nextTitle);
+  check('倒数的关卡名是第 2 关', await host.evaluate(() => hangOn.level.id === 'table-02') && /^简单 · 2\. /.test(nextTitle), nextTitle);
   await host.locator('#lobbyBtn').click();
   check('回大厅按钮在倒数遮罩上可点击并回到大厅', await phase('lobby') >= 0 && await host.locator('#lobby').isVisible());
   await screenshot(host, 'back-to-lobby');
@@ -157,6 +157,19 @@ try {
   check('手柄 2 点「›」，电视上换到第 3 关', (await until(() => host.evaluate(() => hangOn.level.id === 'table-03'), 4000)) >= 0);
   await pads[0].page.locator('#mPrev').click();
   check('手柄 1 点「‹」，换回第 2 关，两个手柄上都跟着变', (await until(async () => (await host.evaluate(() => hangOn.level.id === 'table-02')) && (await pads[1].page.evaluate(() => document.getElementById('mLevel').textContent.startsWith('2.'))), 4000)) >= 0);
+  // 单人、多人和难度（11-13）：两个人进来没人点过，自己是多人；困难是 13 号往后；单人只能一个人玩
+  check('两个人进来自动是「多人」，电视和手柄上都是', (await host.evaluate(() => hangOn.side === 'multi')) && (await host.locator('#sides [aria-checked=true]').textContent()) === '多人' && (await pads[0].page.locator('#mSides [aria-checked=true]').textContent()) === '多人');
+  await pads[0].page.locator('#mTiers button', { hasText: '困难' }).click();
+  check('手柄上点「困难」，电视上换到 13 号那关，倒数前的关名从 1 数', (await until(async () => (await host.evaluate(() => hangOn.level.id === 'table-13' && hangOn.tier === 2)) && /^1\. /.test(await host.locator('#levelName').textContent()), 4000)) >= 0);
+  await pads[1].page.locator('#mSides button', { hasText: '单人' }).click();
+  const soloBlocked = await until(async () => (await host.evaluate(() => hangOn.side === 'solo')) && (await host.locator('#startBtn').isDisabled()) && /单人只能一个人玩/.test(await pads[0].page.locator('#mLine').textContent()), 4000);
+  check('手柄上点「单人」：两个人开不了，手柄上说单人只能一个人玩', soloBlocked >= 0);
+  check('单人没有玩法那一行', await host.locator('#modeRow').isHidden() && await pads[0].page.locator('#mModeRow').isHidden());
+  await pads[1].page.locator('#mSides button', { hasText: '多人' }).click();
+  await pads[0].page.locator('#mTiers button', { hasText: '简单' }).click();
+  check('换回多人、简单：回到刚才选的第 2 关', (await until(() => host.evaluate(() => hangOn.side === 'multi' && hangOn.tier === 0 && hangOn.level.id === 'table-02'), 4000)) >= 0);
+  await screenshot(pads[0].page, 'pad-menu-sides');
+  await screenshot(host, 'lobby-sides');
   await pads[1].page.locator('#mStart').click();
   assert(check('手柄上按「开始」进入倒数', (await phase('countdown')) >= 0));
   assert(await phase('playing') >= 0);

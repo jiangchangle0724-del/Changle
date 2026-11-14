@@ -16,9 +16,9 @@ export function AddToCalendar({ state }: { state: EventState }) {
   useLang();
   const [stuck, setStuck] = useState(false);
   if (!state.settled) return null;
-  const { day, part, at } = state.settled;
+  const { day, part, at, from, to } = state.settled;
   const file = `${BASE}/api/e/${state.code}/calendar.ics`;
-  const google = googleCalendarUrl({ code: state.code, title: state.title, day, part, setAt: at });
+  const google = googleCalendarUrl({ code: state.code, title: state.title, day, part, setAt: at, from, to });
 
   if (inWeChat())
     return (

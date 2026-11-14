@@ -7,7 +7,9 @@
 // The view follows the token of the team on turn, in step as it walks (so it never shows where a token
 // will land before it gets there), until the player drags the map to look round: then it stays where
 // they left it until the turn passes or the size changes. With the play window up over the bottom of
-// the board, the token stands in the middle of the part the window leaves (`cover`). This phone's own move (ui/Ride.tsx) takes the
+// the board, the token stands in the middle of the part the window leaves (`cover`). While a question
+// about a space is up (where a jump would land: ui/aim.ts), the view looks at that space instead, zoomed
+// in at least to the middle size (`aim`). This phone's own move (ui/Ride.tsx) takes the
 // view over where the map is (release), its camera starting from there and coming back to the map's
 // size over where the token landed (adopt): one camera, no jump at either end. Every change of view
 // eases toward where it's going; with reduced motion it is simply there.
@@ -59,6 +61,10 @@ export interface MapViewOptions {
    * on it: `push`, the zoom to look at it with at least), keyed so each looks again; from `from`
    * (performance.now() ms: the rent's token down on the city), or now. */
   look?: { at: number; key: string; from?: number; push?: number } | null;
+  /** The space the question in play is about (ui/aim.ts: where a jump would land), looked at for as long
+   * as the question is up, with the zoom `push` at least, in place of the token; keyed by the question.
+   * On the phone asked (`mine`), even after a drag. */
+  aim?: { at: number; key: string; push: number; mine: boolean } | null;
   /** Where a point of the board (board units, before the table turns) shows in the box, the table
    * turned to `rot`: board units from the box's middle (the board leaning back as it rests: the map
    * is the board as it shows). None: the table only turns. */
@@ -127,8 +133,8 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
     v.h = box.clientHeight;
     /** Looking at a city now (`look`). */
     const looking = (now = performance.now()) => v.lookAt !== null && now >= v.lookFrom && now < v.lookUntil;
-    /** The zoom the view eases to: the size picked, or more while it pushes in on a city. */
-    const goal = () => Math.max(1, opts.current.zoom, looking() ? v.lookPush : 1);
+    /** The zoom the view eases to: the size picked, or more while it pushes in on a city (or a question's). */
+    const goal = () => Math.max(1, opts.current.zoom, looking() ? v.lookPush : 1, opts.current.aim?.push ?? 1);
     write.current = () => {
       const { z, w, h } = v;
       let tf = "";
@@ -150,12 +156,18 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
       const a = (rot * Math.PI) / 180;
       return [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
     };
-    /** Where the followed token stands now (or the city looked at), as it shows in the box, or null. */
+    /** Where the followed token stands now (or the city looked at, or the space a question is about), as
+     * it shows in the box, or null. */
     const target = (): [number, number] | null => {
       const seat = opts.current.follow;
       const r = rig.current;
       if (r && v.lookAt !== null && looking()) {
         const [x, y] = xy(angleOf(v.lookAt), LOOK_R);
+        return shown(x, y, r);
+      }
+      const aim = opts.current.aim;
+      if (r && aim) {
+        const [x, y] = xy(angleOf(aim.at), LOOK_R);
         return shown(x, y, r);
       }
       if (seat === null || !r) return null;
@@ -338,6 +350,16 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
     v.vx = v.vy = 0;
     kick.current(v.lookUntil - now + 1500);
   }, [o.look?.key]);
+  // A question about a space comes up: go there (the phone asked, even after a drag); answered, back to
+  // the team on turn.
+  useEffect(() => {
+    const v = view.current;
+    if (o.aim?.mine) {
+      v.held = false;
+      v.vx = v.vy = 0;
+    }
+    kick.current(WATCH_MS);
+  }, [o.aim?.key]);
 
   return {
     recentre: () => {

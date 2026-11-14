@@ -68,16 +68,25 @@ export function planText(l: Ledger, plan: Settlement, lang: Lang): string {
   return lines.join("\n");
 }
 
-const TROUBLE: Record<Trouble, Word> = { limit: "troubleLimit", gone: "troubleGone", key: "troubleKey", taken: "troubleTaken", stuck: "troubleStuck" };
+const TROUBLE: Record<Trouble, Word> = { limit: "troubleLimit", gone: "troubleGone", key: "troubleKey", taken: "troubleTaken", stuck: "troubleStuck", signin: "troubleSignin" };
 
 /**
  * What to say about a ledger and the server, when there is something to say; null while the two
  * are in step, or a change is simply on its way (the page says nothing then). `loud` is for what
  * won't sort itself out: the phone can't go on sending, and its owner has to know. The rest is
  * for a phone with no signal, and passes when the signal is back.
+ *
+ * A locked ledger says so for as long as it is locked (`lock`: its mark is a lock): quietly, as
+ * the state of things, and in the strong voice on a phone that recorded something before it heard,
+ * which can't go up until the ledger's owner opens it. `mine`: this phone is the owner's.
  */
-export function syncLine(h: Pick<Held, "made" | "waiting">, s: Pick<SyncState, "away" | "trouble">, lang: Lang): { text: string; loud: boolean } | null {
+export function syncLine(h: Pick<Held, "made" | "waiting"> & { locked?: boolean; mine?: boolean }, s: Pick<SyncState, "away" | "trouble">, lang: Lang): { text: string; loud: boolean; lock?: true } | null {
   if (s.trouble) return { text: say(lang, TROUBLE[s.trouble]), loud: true };
+  if (h.locked) {
+    const n = h.waiting.length;
+    if (n) return { text: n === 1 ? say(lang, "lockedUnsentOne") : say(lang, "lockedUnsent", { n }), loud: true, lock: true };
+    return { text: say(lang, h.mine ? "lockedOwner" : "locked"), loud: false, lock: true };
+  }
   if (!s.away) return null;
   if (!h.made) return { text: say(lang, "notMade"), loud: false };
   const n = h.waiting.length;

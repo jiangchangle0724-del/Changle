@@ -29,8 +29,8 @@ export const MATCH = 0.08;
 /** decoded songs kept (about 90 MB a four-minute song) */
 const KEEP = 3;
 
-/** One of the host's songs, found on this computer and listened to (crate.ts). */
-export type LocalSong = { id: string; title: string; artist: string; file: File; beat: SongBeat; seconds: number };
+/** One of the song files on this computer, listened to (crate.ts): the host's own, or (`by`) one a player's phone sent. */
+export type LocalSong = { id: string; title: string; artist: string; file: File; beat: SongBeat; seconds: number; by?: string };
 
 type Pcm = { l: Float32Array; r: Float32Array };
 type Deck = {

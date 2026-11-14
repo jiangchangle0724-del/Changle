@@ -11,8 +11,9 @@
  * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
  * the page asks which of the people in the ledger this phone's owner is.
  */
-import { CircleAlert, ClipboardCopy, CloudOff, Ellipsis, FileQuestion, Link2Off, Plus, ReceiptText, WifiOff } from "lucide-react";
+import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Plus, ReceiptText, Send, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
 import { back, go, mark, useBackCloses } from "../router";
 import { useStore } from "../store";
@@ -27,9 +28,12 @@ import { balances, expensesOf, settlement, spent, type Expense, type Ledger } fr
 import { money } from "./format";
 import { keyFrom } from "./invite";
 import { WhoStep } from "./Join";
-import { lostLine, mine, paidBy, planText, sharedHow, syncLine } from "./lines";
-import { Bar, copyText, Rolling } from "./parts";
+import { lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
+import { Bar, Rolling } from "./parts";
+import { PictureSheet } from "./PictureSheet";
+import { paidInOf } from "./rates";
 import { SettleView } from "./SettleView";
+import { tellList } from "./Ledgers";
 import { LedgerMenu } from "./Sheets";
 import { heldOf, useSaved } from "./store";
 import type { Held } from "./sync";
@@ -41,6 +45,8 @@ type View = "list" | "settle";
 export function LedgerPage({ id }: { id: string }) {
   const { lang } = useStore();
   const toast = useToast();
+  const { me: user, status, openSignIn } = useAccount();
+  const account = status === "in" && user ? user.id : null;
   const saved = useSaved();
   const at = saved.held.findIndex((h) => h.server.id === id);
   const ledger: Ledger | undefined = saved.ledgers[at];
@@ -53,15 +59,16 @@ export function LedgerPage({ id }: { id: string }) {
   useEffect(() => (here ? watch(id) : undefined), [id, here]);
 
   // An invitation: this address, with the ledger's key after the #. A phone that doesn't hold the
-  // ledger reads it from the server with that key. Once it is held the key comes off the address,
-  // so it isn't in what the phone's browser shares or remembers of this page.
+  // ledger reads it from the server with that key. One that does shows what it has meanwhile, and
+  // takes the invitation's key if it is another one that opens the ledger (its owner changed the
+  // key). Either way the key then comes off the address, so it isn't in what the phone's browser
+  // shares or remembers of this page.
   const [arrival, setArrival] = useState<"joining" | Exclude<Joined, "in"> | null>(() => (keyFrom(window.location.hash) && !heldOf(id) ? "joining" : null));
   const arrive = useCallback(() => {
     const key = keyFrom(window.location.hash);
     if (!key) return;
     const done = () => window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
-    if (heldOf(id)) return done();
-    setArrival("joining");
+    if (!heldOf(id)) setArrival("joining");
     void joinLedger(id, key).then((how) => (how === "in" ? done() : setArrival(how)));
   }, [id]);
   useEffect(() => {
@@ -75,6 +82,7 @@ export function LedgerPage({ id }: { id: string }) {
   /** 记一笔 is open: for a new expense (null), or to change the one with this id */
   const [entry, setEntry] = useState<{ edit: string | null } | null>(null);
   const [menu, setMenu] = useState(false);
+  const [picture, setPicture] = useState(false);
   /** the expense recorded a moment ago: its row lands (one of the three motions) */
   const [landed, setLanded] = useState<string | null>(null);
   /** what you were owed (or owed) when 记一笔 opened: the figure rolls on from there when it closes */
@@ -147,12 +155,10 @@ export function LedgerPage({ id }: { id: string }) {
     );
   }
 
-  const copyPlan = async () => {
-    const done = await copyText(planText(ledger, plan, lang));
-    toast(say(lang, done ? "planCopied" : "copyFailed"), { tone: done ? "success" : "warning" });
-  };
   const hasExpenses = expensesOf(ledger).length > 0;
-  const line = syncLine(held, sync, lang);
+  // locked by its owner: everything on the page can be read, and nothing on it changes the ledger
+  const locked = ledger.locked !== undefined;
+  const line = syncLine({ made: held.made, waiting: held.waiting, locked, mine: !!held.owner }, sync, lang);
   const openEntry = (edit: string | null) => {
     setRollFrom(Math.abs(me ? (balances(ledger)[me] ?? 0) : 0));
     setEntry({ edit });
@@ -174,31 +180,54 @@ export function LedgerPage({ id }: { id: string }) {
           { key: "settle", label: say(lang, "settle"), panelId: "split-settle" },
         ]}
       />
-      <SyncNote ledger={ledger} lost={held.lost} line={line} lang={lang} />
+      <SyncNote ledger={ledger} lost={held.lost} line={line} lang={lang} onSignIn={sync.trouble === "signin" ? () => openSignIn() : undefined} />
       {view === "list" ? (
         <section className="split-panel" id="split-list" role="tabpanel" aria-labelledby="split-list-tab">
           {/* an empty ledger says so once, in the list's own empty state */}
           {hasExpenses && <Standing ledger={ledger} me={me} lang={lang} rollFrom={rollFrom} />}
-          <ExpenseList ledger={ledger} me={me} lang={lang} landed={landed} onLanded={() => setLanded(null)} onOpen={openEntry} />
+          <ExpenseList ledger={ledger} me={me} lang={lang} landed={landed} onLanded={() => setLanded(null)} onOpen={locked ? undefined : openEntry} />
         </section>
       ) : (
         <section className="split-panel" id="split-settle" role="tabpanel" aria-labelledby="split-settle-tab">
-          <SettleView ledger={ledger} me={me} lang={lang} plan={plan} />
+          <SettleView ledger={ledger} me={me} lang={lang} plan={plan} made={saved.pictures?.[id]} />
         </section>
       )}
-      <div className="split-dock">
-        {/* with nothing recorded there is no plan to copy: both views lead to the first expense */}
-        {view === "list" || !hasExpenses ? (
-          <Button size="lg" block icon={Plus} onClick={() => openEntry(null)}>
-            {say(lang, "addExpense")}
+      {/* with nothing recorded there is no plan to send: both views lead to the first expense (and a locked ledger takes none: the page has no button then) */}
+      {view === "list" || !hasExpenses ? (
+        !locked && (
+          <div className="split-dock">
+            <Button size="lg" block icon={Plus} onClick={() => openEntry(null)}>
+              {say(lang, "addExpense")}
+            </Button>
+          </div>
+        )
+      ) : (
+        <div className="split-dock">
+          <Button size="lg" block icon={Send} onClick={() => setPicture(true)}>
+            {say(lang, "sendPicture")}
           </Button>
-        ) : (
-          <Button size="lg" block icon={ClipboardCopy} onClick={() => void copyPlan()}>
-            {say(lang, "copyPlan")}
-          </Button>
-        )}
-      </div>
-      <LedgerMenu open={menu} onClose={() => setMenu(false)} ledger={ledger} me={me} lang={lang} status={line} inviteKey={held.key} made={held.made} onDeleted={toList} />
+        </div>
+      )}
+      <PictureSheet open={picture} onClose={() => setPicture(false)} ledger={ledger} plan={plan} lang={lang} />
+      <LedgerMenu
+        open={menu}
+        onClose={() => setMenu(false)}
+        ledger={ledger}
+        me={me}
+        lang={lang}
+        status={line}
+        inviteKey={held.key}
+        made={held.made}
+        owner={!!held.owner}
+        changing={!!held.next}
+        away={sync.away}
+        mine={!!account && held.acct === account}
+        signIn={sync.trouble === "signin"}
+        onDeleted={(erased) => {
+          if (erased) tellList("erased");
+          toList();
+        }}
+      />
     </div>
   );
 }
@@ -212,7 +241,7 @@ const LOST_NAMED = 3;
  * it, one line when what was recorded here hasn't gone up (quiet: it will) or can't (in the page's
  * strong voice, with a mark). Neither takes the light: that is for the one button and what is chosen.
  */
-function SyncNote({ ledger, lost, line, lang }: { ledger: Ledger; lost: Held["lost"]; line: ReturnType<typeof syncLine>; lang: Lang }) {
+function SyncNote({ ledger, lost, line, lang, onSignIn }: { ledger: Ledger; lost: Held["lost"]; line: ReturnType<typeof syncLine>; lang: Lang; onSignIn?: () => void }) {
   return (
     <>
       {lost.length > 0 && (
@@ -235,9 +264,17 @@ function SyncNote({ ledger, lost, line, lang }: { ledger: Ledger; lost: Held["lo
       )}
       {line && (
         <p className={`split-sync${line.loud ? " is-loud" : ""}`}>
-          {line.loud ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
+          {line.lock ? <Lock aria-hidden="true" /> : line.loud ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
           {line.text}
         </p>
+      )}
+      {/* the sign-in ran out before the ledger went up: what puts it right is one tap away */}
+      {line && onSignIn && (
+        <div className="split-sync-act">
+          <Button tone="quiet" size="sm" icon={LogIn} onClick={onSignIn}>
+            {say(lang, "signIn")}
+          </Button>
+        </div>
       )}
       {/* read out when it changes; the line itself comes and goes */}
       <span className="ui-visually-hidden" role="status">
@@ -276,8 +313,12 @@ function Standing({ ledger, me, lang, rollFrom }: { ledger: Ledger; me: string |
   );
 }
 
-/** The expenses, newest first: what it was, who paid and how it was shared, how much. A row opens the expense to change it. The one just recorded lands (one of the three motions). */
-function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: Ledger; me: string | undefined; lang: Lang; landed: string | null; onLanded: () => void; onOpen: (id: string) => void }) {
+/**
+ * The expenses, newest first: what it was, who paid and how it was shared, how much. A row opens
+ * the expense to change it; in a locked ledger (no `onOpen`) a row is only a row. The one just
+ * recorded lands (one of the three motions).
+ */
+function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: Ledger; me: string | undefined; lang: Lang; landed: string | null; onLanded: () => void; onOpen?: (id: string) => void }) {
   const rows = [...expensesOf(ledger)].reverse();
   const landedRow = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -289,29 +330,44 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
         icon={ReceiptText}
         title={say(lang, "noExpenses")}
         body={
-          // two things a new ledger wants next, a line each
-          <>
-            {say(lang, "noExpensesBody")}
-            <br />
-            {say(lang, "inviteHint")}
-          </>
+          // two things a new ledger wants next, a line each (a locked one wants neither)
+          onOpen && (
+            <>
+              {say(lang, "noExpensesBody")}
+              <br />
+              {say(lang, "inviteHint")}
+            </>
+          )
         }
       />
     );
+  const row = (e: Expense, paid = paidInOf(e, ledger)) => (
+    <>
+      <span className="split-row-text">
+        <strong className={e.note ? undefined : "is-quiet"}>{e.note || say(lang, "noNote")}</strong>
+        <span>
+          {paidBy(e, ledger, me, lang)} · {sharedHow(e, ledger, me, lang)}
+        </span>
+      </span>
+      <span className="split-row-amount">
+        {money(e.amount, ledger.currency, lang)}
+        {/* paid in another currency: what was paid, under what it counts for */}
+        {paid && <small>{money(paid.amount, paid.currency, lang)}</small>}
+      </span>
+    </>
+  );
   return (
     <ul className="split-rows">
       {rows.map((e) => (
         // the landing is over when the wash of light on the row has faded (split.css): the mark comes off, so the row never lands twice
         <li key={e.id} ref={e.id === landed ? landedRow : undefined} className={e.id === landed ? "is-landing" : undefined} onAnimationEnd={e.id === landed ? (ev) => ev.animationName === "split-lit" && onLanded() : undefined}>
-          <button type="button" className="split-row" onClick={() => onOpen(e.id)}>
-            <span className="split-row-text">
-              <strong className={e.note ? undefined : "is-quiet"}>{e.note || say(lang, "noNote")}</strong>
-              <span>
-                {paidBy(e, ledger, me, lang)} · {sharedHow(e, ledger, me, lang)}
-              </span>
-            </span>
-            <span className="split-row-amount">{money(e.amount, ledger.currency, lang)}</span>
-          </button>
+          {onOpen ? (
+            <button type="button" className="split-row" onClick={() => onOpen(e.id)}>
+              {row(e)}
+            </button>
+          ) : (
+            <div className="split-row is-still">{row(e)}</div>
+          )}
         </li>
       ))}
     </ul>

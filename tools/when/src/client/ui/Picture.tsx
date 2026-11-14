@@ -3,7 +3,7 @@
 // nor download, so pressing and holding the picture is how it's saved or sent on: the page allows
 // that on the picture and nowhere else. Other browsers get buttons for both as well.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { dateLabel, dayLabel, reason, slotLabel } from "../../engine";
+import { dateLabel, dayLabel, deadlineLabel, reason, whenLabel } from "../../engine";
 import type { EventState, Lang, Person, Tally } from "../../engine";
 import inviteBg from "../art/invite-bg.webp";
 import resultBg from "../art/result-bg.webp";
@@ -22,14 +22,22 @@ export const daysLine = (state: EventState, lang: Lang): string => {
   return state.days.length === 1 ? dayLabel(first, lang) : t("rangeTo", { from: dateLabel(first, lang), to: dateLabel(state.days[state.days.length - 1], lang) });
 };
 
-/** The invitation: what it is, which days, a code that leads to its page. */
+/** Which days, and when to answer by while that is still ahead: the invitation's line under its question. */
+export function inviteLine(state: EventState, lang: Lang): string {
+  const days = daysLine(state, lang);
+  if (state.deadline === null || state.deadline <= Date.now()) return days;
+  return `${days}${lang === "zh" ? "，" : ". "}${t("deadlineMeta", { when: deadlineLabel(state.deadline, lang) })}`;
+}
+
+/** The invitation: what it is, which days (and by when), a code that leads to its page. */
 export function invitePicture(state: EventState, link: string, lang: Lang): Picture {
-  return { kind: "invite", brand: BRAND, title: state.title, headline: t("picAsk"), detail: daysLine(state, lang), scan: t("picScanInvite"), url: link, site: bare(link), backdrop: inviteBg };
+  return { kind: "invite", brand: BRAND, title: state.title, headline: t("picAsk"), detail: inviteLine(state, lang), scan: t("picScanInvite"), url: link, site: bare(link), backdrop: inviteBg };
 }
 
 /** The result: when it is and who can make it, in the words the page uses. */
 export function resultPicture(state: EventState, tally: Tally, people: readonly Person[], link: string, lang: Lang): Picture {
-  return { kind: "result", brand: BRAND, title: state.title, label: t("picSet"), headline: slotLabel(tally.day, tally.part, lang), detail: reason(tally, people, lang), scan: t("picScanResult"), url: link, site: bare(link), backdrop: resultBg };
+  const headline = whenLabel(tally.day, tally.part, lang, state.settled?.from, state.settled?.to);
+  return { kind: "result", brand: BRAND, title: state.title, label: t("picSet"), headline, detail: reason(tally, people, lang), scan: t("picScanResult"), url: link, site: bare(link), backdrop: resultBg };
 }
 
 type Made = "drawing" | "failed" | { src: string; file: File | null };

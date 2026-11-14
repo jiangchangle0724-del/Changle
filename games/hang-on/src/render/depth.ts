@@ -14,7 +14,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { HazardDef, Level, Pt, Rect } from '../physics/level';
 import { moverAt, spinnerAngle } from '../physics/motion';
 import type { SimView } from './view';
-import { hex, materialOf, mix, OUTLINE, type MaterialStyle, type WorldId } from './art';
+import { hex, materialOf, mix, OUTLINE, WORLD_MATERIAL, type MaterialStyle, type WorldId } from './art';
 
 /** 焦距（世界像素）：越小透视越猛。800 时 80 px 厚的台子，离镜头中心 300 px 的地方露出约 27 px 的侧面。 */
 export const FOCAL = 800;
@@ -88,7 +88,7 @@ export class Depth {
   }
 
   private style(material: string | undefined): MaterialStyle {
-    return materialOf(material ?? (this.world === 'van' ? 'metal' : 'wood'));
+    return materialOf(material ?? WORLD_MATERIAL[this.world]);
   }
 
   /** 每帧：镜头中心 vp，看得见的范围 view。 */
@@ -117,6 +117,13 @@ export class Depth {
       if (m.deadly) boxes.push({ pts: rectPts(r), depth: 34, style: this.hazardStyle(m.hazard ?? 'spike'), alpha: 1 });
       else boxes.push({ pts: rectPts(r), depth: depthOf(r), style: this.style(m.material), alpha: 1 });
     }
+    // 踩板门（11-13）：门在物理（或快照）说的地方，踏板不动
+    (sim.gates ?? []).forEach((gv, k) => {
+      const gd = level.gates?.[k];
+      const r = { x: gv.x, y: gv.y, w: gv.w, h: gv.h };
+      if (gd && seen(r)) boxes.push({ pts: rectPts(r), depth: depthOf(r), style: this.style(gd.material), alpha: 1 });
+    });
+    for (const pd of level.plates ?? []) if (seen(pd)) boxes.push({ pts: rectPts(pd), depth: depthOf(pd), style: this.style(pd.material ?? 'metal'), alpha: 1 });
     for (const sp of level.spinners ?? []) {
       if (sp.until !== undefined && t >= sp.until) continue;
       const reach = sp.len + 30;
@@ -137,6 +144,11 @@ export class Depth {
       if ((h.kind ?? 'spike') === 'spike' || !seen(h)) continue;
       boxes.push({ pts: rectPts(h), depth: h.kind === 'hot' ? 60 : 30, style: this.hazardStyle(h.kind ?? 'zap'), alpha: 1 });
     }
+    // 蒸笼（后厨，A10）：竹子的侧面
+    for (const v of level.vents ?? []) {
+      if (v.until !== undefined && t >= v.until) continue;
+      if (seen(v)) boxes.push({ pts: rectPts(v), depth: Math.max(60, Math.min(110, v.w)), style: this.style(v.material ?? 'bamboo'), alpha: 1 });
+    }
     sim.fadings.forEach((f) => {
       if (!seen(f)) return;
       const alpha = f.on ? (f.left < 0.8 ? 0.45 + 0.55 * (f.left / 0.8) : 1) : f.left < 0.35 ? 0.6 * (1 - f.left / 0.35) : 0;
@@ -144,13 +156,16 @@ export class Depth {
       boxes.push({ pts: rectPts(f), depth: depthOf({ ...f, kind: 'cookie' }), style: this.cookieStyle(), alpha });
     });
     for (const prop of sim.props) {
+      // 钥匙、灯笼（老宅）是小的、不方的东西，不画侧面
+      if (prop.kind === 'key' || prop.kind === 'lantern') continue;
       const c = Math.cos(prop.angle);
       const s = Math.sin(prop.angle);
       const at = (lx: number, ly: number): Pt => ({ x: prop.x + lx * c - ly * s, y: prop.y + lx * s + ly * c });
       const w = prop.w / 2;
       const hh = prop.h / 2;
-      const style = this.style(this.world === 'van' ? 'metal' : 'wood');
-      boxes.push({ pts: [at(-w, -hh), at(w, -hh), at(w, hh), at(-w, hh)], depth: prop.kind === 'crate' ? Math.min(90, prop.w) : 50, style, alpha: 1 });
+      const style = prop.kind === 'tray' ? TRAY : prop.kind === 'ingot' ? INGOT : this.style(undefined);
+      const depth = prop.kind === 'crate' ? Math.min(90, prop.w) : prop.kind === 'tray' ? 40 : 50;
+      boxes.push({ pts: [at(-w, -hh), at(w, -hh), at(w, hh), at(-w, hh)], depth, style, alpha: 1 });
     }
     // 离镜头远的先画：近处的侧面压在远处的上面
     boxes.sort((a, b) => dist2(b, vp) - dist2(a, vp));
@@ -206,10 +221,10 @@ export class Depth {
   }
 
   private hazardStyle(kind: NonNullable<HazardDef['kind']>): MaterialStyle {
-    const van = this.world === 'van';
-    if (kind === 'hot') return van ? HOT_VAN : HOT_TABLE;
-    if (kind === 'zap') return van ? ZAP_VAN : ZAP_TABLE;
-    return van ? SPIKE_VAN : SPIKE_TABLE;
+    const w = this.world;
+    if (kind === 'hot') return w === 'van' ? HOT_VAN : w === 'kitchen' ? HOT_KITCHEN : w === 'snow' ? HOT_SNOW : w === 'house' ? HOT_HOUSE : w === 'space' ? HOT_SPACE : HOT_TABLE;
+    if (kind === 'zap') return w === 'van' || w === 'snow' ? ZAP_VAN : w === 'kitchen' ? ZAP_KITCHEN : w === 'house' ? ZAP_HOUSE : w === 'space' ? ZAP_SPACE : ZAP_TABLE;
+    return w === 'van' ? SPIKE_VAN : w === 'kitchen' ? SPIKE_KITCHEN : w === 'snow' ? SPIKE_SNOW : w === 'house' ? SPIKE_HOUSE : w === 'space' ? SPIKE_SPACE : SPIKE_TABLE;
   }
 
   private cookieStyle(): MaterialStyle {
@@ -244,3 +259,21 @@ const ZAP_VAN: MaterialStyle = { base: '#1f1f24', dark: '#0e0e12', light: '#f6c4
 const SPIKE_TABLE: MaterialStyle = { base: '#c99a5b', dark: '#8a5a2b', light: '#f0d9a8', detail: '#fff4dc', texture: 'wood' };
 const SPIKE_VAN: MaterialStyle = { base: '#4a5466', dark: '#2a303b', light: '#c9d3e0', detail: '#c9d3e0', texture: 'metal' };
 const COOKIE: MaterialStyle = { base: '#e2b06a', dark: '#a56f2e', light: '#f6d49a', detail: '#a56f2e', texture: 'wood' };
+// 后厨（A10）：炒锅是生铁，灭蚊灯是黑塑料壳，刀架是深色木头
+const HOT_KITCHEN: MaterialStyle = { base: '#2b2b2e', dark: '#141416', light: '#55555c', detail: '#ff8a2c', texture: 'metal' };
+const ZAP_KITCHEN: MaterialStyle = { base: '#1c2430', dark: '#0d1118', light: '#3a4658', detail: '#8f9dff', texture: 'metal' };
+const SPIKE_KITCHEN: MaterialStyle = { base: '#4a3428', dark: '#2a1c14', light: '#7a5a44', detail: '#dfe6ee', texture: 'wood' };
+// 雪山（A10）：火盆是铁的，冰锥是半透明的冰
+const HOT_SNOW: MaterialStyle = { base: '#3a2f2a', dark: '#1c1512', light: '#6a5446', detail: '#ff8a2c', texture: 'metal' };
+const SPIKE_SNOW: MaterialStyle = { base: '#9cc9e6', dark: '#5f8fb0', light: '#e8f6ff', detail: '#ffffff', texture: 'ice' };
+// 老宅（A10）：炭盆是铜的，老电线钉在深色木板上，碎瓷片是白瓷
+const HOT_HOUSE: MaterialStyle = { base: '#6b4a2a', dark: '#3a2614', light: '#a8783e', detail: '#ff8a2c', texture: 'metal' };
+const ZAP_HOUSE: MaterialStyle = { base: '#3a2a22', dark: '#1e1410', light: '#5e463a', detail: '#ffd27a', texture: 'wood' };
+const SPIKE_HOUSE: MaterialStyle = { base: '#e8e2d4', dark: '#a8a090', light: '#ffffff', detail: '#3b5ba5', texture: 'ceramic' };
+// 太空站（A10）：推进器是深灰的喷口，激光栅栏的发射器是黑的，碎片是撕开的铝板
+const HOT_SPACE: MaterialStyle = { base: '#3a4052', dark: '#1c2030', light: '#6a7488', detail: '#7fd8ff', texture: 'metal' };
+const ZAP_SPACE: MaterialStyle = { base: '#1a1d2a', dark: '#0b0d14', light: '#3a4058', detail: '#ff4d6d', texture: 'metal' };
+const SPIKE_SPACE: MaterialStyle = { base: '#a9b2c4', dark: '#5f6a80', light: '#e8eef8', detail: '#f28b3c', texture: 'metal' };
+// 物件（A9d、A10）：金元宝、红漆托盘
+const INGOT: MaterialStyle = { base: '#e8b23a', dark: '#a87418', light: '#ffe08a', detail: '#fff1b8', texture: 'metal' };
+const TRAY: MaterialStyle = { base: '#b3262b', dark: '#6e1216', light: '#e0525a', detail: '#f2c14e', texture: 'wood' };

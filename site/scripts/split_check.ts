@@ -1,6 +1,6 @@
 /*
  * 两清 (changle.ca/split) in a phone-sized browser. With the site running (`npm run dev`) and 两清's
- * server beside it (in tools/split: `npx wrangler dev --port 8794 --var ALLOW_TEST_SETTINGS:1`; a
+ * server beside it (in tools/split: `npm run dev -- --ip 127.0.0.1 --var ALLOW_TEST_SETTINGS:1`; a
  * run starts more ledgers than one network may in a day):
  *
  *   npx tsx scripts/split_check.ts          everything below
@@ -14,24 +14,37 @@
  *                                           no signal and back, two phones on one ledger, a change that didn't
  *                                           stick, a day's allowance used up, an answer that isn't the server's;
  *                                           an invitation sent and opened (as a chat app hands it over, too),
- *                                           ones that don't get in, the list asking after its ledgers
+ *                                           ones that don't get in, the list asking after its ledgers; an
+ *                                           expense paid in another currency, changed, and with no rates to be had;
+ *                                           signing in to start one, the account's ledgers on a second phone,
+ *                                           taken off my ledgers, deleted for everyone, signed out, a sign-in
+ *                                           that ran out
+ *   npx tsx scripts/split_check.ts gate     stage two's gate, as far as this machine can take it: five phones on
+ *                                           one ledger recording at once end up with the server's ledger, all
+ *                                           five; three recorded with no signal and answers lost on the way back
+ *                                           count once; one expense changed on two phones at once; one payment
+ *                                           marked on both its people's phones with no signal is recorded once
  *
  * Options: --base http://127.0.0.1:5173 (a build: `npx vite preview`, then --base http://127.0.0.1:4173),
  * --out <folder for the pictures>. CHROME=/path/to/chrome uses that browser, else Playwright's own
  * (`npx playwright install chromium`).
  *
  * Nothing leaves the machine: the ledgers go to the server running on it, every phone here starts
- * with none, and the names in them are made up. Pointed anywhere else (--base a preview, or
+ * with none, and the names in them are made up. The site's rooms server is never asked either:
+ * each phone has a stand-in for it (rooms), with made-up exchange rates (RATES) and made-up
+ * accounts. Starting a ledger needs a changle.ca sign-in, so the phones that start ledgers are
+ * signed in, each as an account of its own that the local 两清 server knows too (its stand-in for
+ * the rooms server, tools/split/tests/rooms). Pointed anywhere else (--base a preview, or
  * changle.ca), the server is left alone: every phone here is given no way to reach it, so it shows
- * what a phone with no signal shows, and the checks that need a server are skipped. A ledger made
- * on the real server can't be deleted yet, so this never makes one there.
+ * what a phone with no signal shows, and the checks that need a server are skipped. This never
+ * makes a ledger on the real server: its keys aren't kept, so it couldn't be deleted.
  *
  * (Inside page.evaluate, no named functions: tsx wraps them in a helper the page doesn't have.)
  */
 import AxeBuilder from "@axe-core/playwright";
 import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { say, W, type Word } from "../src/split/words";
@@ -39,7 +52,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "gate"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -48,11 +61,21 @@ const local = ["127.0.0.1", "localhost", "[::1]"].includes(new URL(base).hostnam
 if (!local) console.log(`${base} is not this machine: its server is left alone (every phone here has no signal), and the checks that need one are skipped\n`);
 const API = "**/split/api/**";
 const KEPT = "changle.split.v2";
+/** Where the site asks for exchange rates (the rooms server, src/tools/fx.ts), and what these phones are told instead: so many of each for one US dollar. */
+const FX = /\/api\/fx$/;
+const RATES = { CAD: 1.4012, CNY: 7.1, USD: 1, HKD: 7.8, EUR: 0.92, GBP: 0.79, JPY: 153.6, KRW: 1389.5, TWD: 32.3, SGD: 1.34, AUD: 1.52 };
+/** Where the site keeps the last rates it was given. */
+const FX_KEPT = "changle.fx.v1";
 
 let failed = 0;
 const ok = (cond: unknown, msg: string) => {
   if (!cond) failed++;
   console.log(cond ? "ok  " : "FAIL", msg);
+};
+/** The fields named in `want` are what `got` has (in any order), and it has none of them missing. */
+const eqJson = (got: Record<string, unknown>, want: Record<string, unknown>, msg: string) => {
+  const pick = JSON.stringify(Object.fromEntries(Object.keys(want).map((k) => [k, got[k]])));
+  ok(pick === JSON.stringify(want), `${msg}${pick === JSON.stringify(want) ? "" : ` → ${pick}`}`);
 };
 const browser = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME, args: ["--no-sandbox"] } : {});
 const errors: string[] = [];
@@ -62,16 +85,110 @@ const watch = (page: Page, signalMayGo = !local) => {
   page.on("console", (m) => m.type() === "error" && !(signalMayGo && noSignal.test(m.text())) && errors.push(`${page.url()}: ${m.text()}`));
   page.on("pageerror", (e) => errors.push(`${page.url()}: ${e}`));
 };
+/** The site's own address: anything a page asks for at /api/ anywhere else is the rooms server's. */
+const site = new URL(base).origin;
+/** A changle.ca account of a phone's own: "test-account-" and this name is its session (tools/split/tests/accounts.ts). */
+const anAccount = () => `check${randomBytes(9).toString("base64url")}`;
+const sessionOf = (account: string) => `test-account-${account}`;
+/** The account as the rooms server describes it to its own phone (src/account/AccountContext.tsx, SelfUser). */
+const userOf = (account: string) => ({ id: account, name: "Check", city: "", gender: "", bio: "", av: 0, ac: 2, handle: account, since: 0, email: "check@example.com", phone: "", admin: false });
+/** Where the site keeps who is signed in on a phone (src/lib/api.ts, src/account/AccountContext.tsx). */
+const SESSION = "changle.session";
+const ME = "changle.me";
+/**
+ * The rooms server (site/worker), as these phones see it: a stand-in, so the real one is never
+ * asked. The site is open, no sign-in is kept in a cookie, today's rates are RATES, and every
+ * "test-account-…" session is that account. Signing in through the site's own sheet signs the
+ * phone in as a new account of its own. Anything else asked of it is a finding.
+ */
+const rooms = async (ctx: BrowserContext) => {
+  await ctx.route(
+    (url) => url.origin !== site && url.pathname.startsWith("/api/"),
+    (route) => {
+      const req = route.request();
+      const at = new URL(req.url()).pathname;
+      const who = /^Bearer test-account-([A-Za-z0-9_-]{7,60})$/.exec(req.headers().authorization ?? "")?.[1];
+      const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+      if (at === "/api/status") return json(200, { paused: false });
+      if (at === "/api/fx") return json(200, { rates: RATES, at: Date.now() - 3_600_000, source: "check" });
+      if (at === "/api/auth/restore") return route.fulfill({ status: 204 });
+      if (at === "/api/auth/keep" || at === "/api/auth/logout") return json(200, { ok: true });
+      if (at === "/api/me" && req.method() === "GET") return who ? json(200, { user: userOf(who) }) : json(401, { error: "signin" });
+      if (at === "/api/auth/code") return json(200, { sent: true, dev: "123456" });
+      if (at === "/api/auth/verify") {
+        const account = anAccount();
+        return json(200, { token: sessionOf(account), user: userOf(account) });
+      }
+      errors.push(`a page asked the rooms server for ${req.method()} ${at}, which these checks have no stand-in for`);
+      return route.abort("failed");
+    },
+  );
+  // (the live line a signed-in page keeps open: it hears nothing, and answers a ping)
+  await ctx.routeWebSocket(
+    (url) => url.origin.replace(/^ws/, "http") !== site && url.pathname === "/api/live",
+    (ws) => ws.onMessage((m) => m === "ping" && ws.send("pong")),
+  );
+};
 const phone = async (width: number, height: number, lang: Lang, motion: "reduce" | "no-preference" = "reduce") => {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: lang === "zh" ? "zh-CN" : "en-CA", reducedMotion: motion, serviceWorkers: "block" });
+  await rooms(ctx);
   if (!local) {
     await ctx.route(API, (route) => route.abort("internetdisconnected"));
     await ctx.routeWebSocket(/\/split\/api\//, (ws) => void ws.close());
   }
+  await ctx.route("https://open.er-api.com/**", (route) => route.abort("internetdisconnected"));
   return ctx;
 };
+const signedIn = new WeakSet<BrowserContext>();
+/**
+ * This phone is signed in to changle.ca from its first page on, as `account` (a new one of its own
+ * unless given): what the site keeps on a phone that is. Once: signing out on it later stays so.
+ */
+const signIn = async (ctx: BrowserContext, account = anAccount()) => {
+  signedIn.add(ctx);
+  await ctx.addInitScript(
+    ([s, session, m, me]) => {
+      try {
+        if (localStorage.getItem("check.signed")) return;
+        localStorage.setItem("check.signed", "1");
+        localStorage.setItem(s, session);
+        localStorage.setItem(m, me);
+      } catch {
+        /* (a page with no storage of its own) */
+      }
+    },
+    [SESSION, sessionOf(account), ME, JSON.stringify(userOf(account))] as const,
+  );
+  return account;
+};
+/** The site's own sign-in sheet, open on the page: an email, the code (the stand-in's comes filled in), and signed in as a new account. */
+const viaSheet = async (page: Page, lang: Lang) => {
+  await page.locator("#si-email").fill("check@example.com");
+  await page.getByRole("button", { name: lang === "zh" ? "发验证码" : "Send me a code", exact: true }).click();
+  await page.getByRole("button", { name: lang === "zh" ? "确认" : "Confirm", exact: true }).click();
+  await page.locator("#si-email, .otp-input").waitFor({ state: "detached" });
+};
+/** Who the page is signed in as, by what the site keeps (null: nobody). */
+const signedAs = async (page: Page) => /^test-account-(.+)$/.exec(String(await page.evaluate(`localStorage.getItem(${JSON.stringify(SESSION)})`)))?.[1] ?? null;
+/** Signed out, as the site does it (what it keeps of the sign-in comes off the phone), or signed in again as `account`; then the page loaded afresh. */
+const signTo = async (page: Page, account: string | null) => {
+  await page.evaluate(
+    account
+      ? `localStorage.setItem(${JSON.stringify(SESSION)}, ${JSON.stringify(sessionOf(account))}); localStorage.setItem(${JSON.stringify(ME)}, ${JSON.stringify(JSON.stringify(userOf(account)))})`
+      : `localStorage.removeItem(${JSON.stringify(SESSION)}); localStorage.removeItem(${JSON.stringify(ME)})`,
+  );
+  await page.reload();
+};
+/** The signed-in account's ledgers as the server keeps them ("my ledgers"), asked for with the page's sign-in. */
+const myLedgers = async (page: Page) =>
+  (await page.evaluate(`fetch("/split/api/me/ledgers", { headers: { authorization: "Bearer " + localStorage.getItem(${JSON.stringify(SESSION)}) } }).then((r) => (r.ok ? r.json() : { ledgers: [] }))`)) as { ledgers: { id: string; key: string; owner?: string; me?: string }[] };
+/** From here on this phone gets no rates from anywhere, and has none kept. */
+const noRates = async (ctx: BrowserContext, page: Page) => {
+  await ctx.route(FX, (route) => route.abort("internetdisconnected"));
+  await page.evaluate(`localStorage.removeItem(${JSON.stringify(FX_KEPT)})`);
+};
 /** What a phone keeps of its ledgers (src/split/store.ts). */
-type Kept = { held: { key: string; made: boolean; seq: number; server: { id: string; members: { id: string; name: string }[]; entries: unknown[] }; waiting: unknown[]; lost: unknown[] }[]; me: Record<string, string> };
+type Kept = { held: { key: string; owner?: string; next?: string; acct?: string; made: boolean; seq: number; server: { id: string; name: string; members: { id: string; name: string }[]; entries: unknown[] }; waiting: unknown[]; lost: unknown[] }[]; me: Record<string, string> };
 const keptBy = async (page: Page): Promise<Kept> => JSON.parse(String(await page.evaluate(`localStorage.getItem(${JSON.stringify(KEPT)})`))) as Kept;
 /** A phone that already holds these ledgers when it opens the site (as it will after joining by a link). */
 const holding = (ctx: BrowserContext, kept: unknown) =>
@@ -141,8 +258,9 @@ async function walk(lang: Lang, width: number, height: number) {
     for (const s of small) findings.push(`${name}: smaller than 44px: ${s}`);
   };
 
-  const startSheet = async (name: string, me: string, others: string[], currency?: string) => {
-    await button("start").click();
+  /** 开一个账本's sheet, filled in (`press`: opened by its button; or already open) */
+  const startSheet = async (name: string, me: string, others: string[], currency?: string, press = true) => {
+    if (press) await button("start").click();
     const sheet = page.getByRole("dialog");
     await sheet.locator("input").nth(0).fill(name);
     await sheet.locator("input").nth(1).fill(me);
@@ -170,8 +288,18 @@ async function walk(lang: Lang, width: number, height: number) {
   };
 
   await page.goto(`${base}/split`);
-  await button("start").waitFor();
+  await button("startSignIn").waitFor();
   await shot("01-empty");
+  // starting one needs a sign-in: the button opens the site's own sheet, and signed in, the sheet it was pressed for opens
+  await button("startSignIn").click();
+  await page.locator("#si-email").waitFor();
+  await shot("01b-sign-in");
+  await viaSheet(page, lang);
+  await page.getByRole("dialog").locator("#split-who-else").waitFor();
+  ok(!!(await signedAs(page)), `${lang} ${width}x${height}: signed in from 两清's list, 开一个账本 opens by itself`);
+  await page.keyboard.press("Escape");
+  await closed(page);
+  await shot("01c-empty-signed-in");
   let sheet = await startSheet("惠斯勒周末", "Steve", ["小王", "阿美", "Jason", "小李"]);
   await shot("02-start");
   await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
@@ -226,9 +354,38 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("11b-step-paid");
   await page.keyboard.press("Escape");
   await closed(page);
-  await button("copyPlan").click();
-  await shot("11c-plan-copied");
-  ok((await page.evaluate(() => navigator.clipboard.readText())).split("\n").length === 5, `${lang} ${width}x${height}: 复制结清方案 copies the name and four transfers`);
+  // the plan as a picture, for the group chat: as this browser has it (no share sheet: the picture is saved as a file)
+  await button("sendPicture").click();
+  const picture = page.getByRole("dialog").locator(".split-picture img");
+  await picture.waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+  await shot("11c-picture");
+  const png = (await picture.evaluate((img) => ({ src: (img as HTMLImageElement).src, w: (img as HTMLImageElement).naturalWidth, h: (img as HTMLImageElement).naturalHeight }))) as { src: string; w: number; h: number };
+  ok(png.src.startsWith("data:image/png;base64,") && png.w === 1080 && png.h > 1000, `${lang} ${width}x${height}: 结清图 is a PNG 1080 wide (${png.w}x${png.h}), saved beside the screens`);
+  writeFileSync(join(out, `11e-picture-image-${lang}-${width}x${height}.png`), Buffer.from(png.src.slice(png.src.indexOf(",") + 1), "base64"));
+  await page.getByRole("dialog").getByRole("button", { name: re(t("copyAsText")) }).click();
+  await shot("11d-picture-copied");
+  ok((await page.evaluate(() => navigator.clipboard.readText())).split("\n").length === 5, `${lang} ${width}x${height}: 复制成文字 copies the name and four transfers`);
+  await page.keyboard.press("Escape");
+  await closed(page);
+  // as a phone has it: a share sheet of its own
+  await page.evaluate("navigator.share = async () => {}; navigator.canShare = () => true");
+  await button("sendPicture").click();
+  await page.getByRole("dialog").getByRole("button", { name: t("pictureShare"), exact: true }).waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+  await shot("11f-picture-phone");
+  await page.evaluate("delete navigator.share; delete navigator.canShare");
+  await page.keyboard.press("Escape");
+  await closed(page);
+  // the picture out of date (here the phone's note of it is made to say other transfers; behave records a real expense)
+  await page.evaluate(`(() => { const k = ${JSON.stringify(KEPT)}; const s = JSON.parse(localStorage.getItem(k)); for (const id in s.pictures) s.pictures[id].print = "x"; localStorage.setItem(k, JSON.stringify(s)); window.dispatchEvent(new StorageEvent("storage", { key: k })); })()`);
+  await page.locator(".split-stale").waitFor();
+  await shot("11g-picture-stale");
+  await button("sendPicture").click();
+  await picture.waitFor({ timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await closed(page);
+  ok((await page.locator(".split-stale").count()) === 0, `${lang} ${width}x${height}: a new picture made, the settle tab no longer says it is out of date`);
 
   // the ⋯ sheet: the invitation, then the people
   await button("more").click();
@@ -259,6 +416,56 @@ async function walk(lang: Lang, width: number, height: number) {
     await page.evaluate("delete navigator.share");
     await page.keyboard.press("Escape");
     await closed(page);
+
+    // the owner's two (this phone started the ledger). Locked: every screen can be read, and nothing on it changes the ledger
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).click();
+    await page.getByRole("button", { name: re(t("unlockIt")) }).waitFor();
+    await shot("31-menu-locked");
+    await page.getByRole("button", { name: re(t("members")) }).click();
+    await page.getByRole("dialog").getByText(t("lockedPeople")).waitFor();
+    await shot("31b-people-locked");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await shot("31c-settle-locked");
+    // (a transfer nobody has marked yet: it can be looked at, its amount copied, and that is all)
+    await page.locator(".split-row", { hasNotText: t("paid") }).first().click();
+    await page.getByRole("dialog").getByText(t("locked")).waitFor();
+    await shot("31d-step-locked");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await page.getByRole("tab", { name: t("expenses") }).click();
+    await shot("31e-ledger-locked");
+    ok((await button("addExpense").count()) === 0 && (await page.locator("button.split-row").count()) === 0 && (await page.locator(".split-row.is-still").count()) > 0, `${lang} ${width}x${height}: locked, the ledger has no 记一笔 and its rows don't open`);
+    await page.goto(`${base}/split`);
+    await page.locator(".split-ledger-flag").waitFor();
+    await shot("31f-ledgers-locked");
+    await page.locator(".split-ledger").first().click();
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("unlockIt")) }).click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).waitFor();
+    // a new key for the invitation: asked about first, then the new code and link
+    await page.getByRole("button", { name: re(t("rekey")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).waitFor();
+    await shot("32-rekey-ask");
+    await page.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+    await page.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 8000 });
+    await shot("32b-rekey-done");
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+    const renewed = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop() ?? "";
+    ok(renewed !== invitation && renewed.split("#")[0] === invitation.split("#")[0] && /#k=[A-Za-z0-9_-]{43}$/.test(renewed), `${lang} ${width}x${height}: 换邀请链接 leaves the ledger's address as it was and gives it another key`);
+    invitation = renewed;
+    await page.keyboard.press("Escape");
+    await closed(page);
+    // the owner's third: deleting the ledger for everyone, asked about first
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("eraseIt")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("eraseYes"), exact: true }).waitFor();
+    await shot("35-erase-ask");
+    await page.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await page.getByRole("tab", { name: t("settle") }).click();
   }
   await button("more").click();
   await page.getByRole("button", { name: re(t("members")) }).click();
@@ -273,7 +480,8 @@ async function walk(lang: Lang, width: number, height: number) {
   await page.keyboard.press("Escape");
   await closed(page);
   await button("more").click();
-  await page.getByRole("button", { name: re(t("deleteLedger")) }).click();
+  // (signed in, once the server has it the ledger is in the account's ledgers, and comes off those)
+  await page.getByRole("button", { name: re(t(local ? "removeMine" : "deleteLedger")) }).click();
   await shot("13b-menu-delete-ask");
   await button("keep").click();
   await page.keyboard.press("Escape");
@@ -288,6 +496,12 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("undo").click();
   await page.waitForTimeout(200);
   await shot("17b-put-back");
+  // its note changed, for the record to say what changed
+  await page.locator(".split-row").first().click();
+  const noteField = page.locator("label.split-field input");
+  await noteField.fill(`${await noteField.inputValue()}和酒`);
+  await button("saveChanges").click();
+  await page.locator(".split-keys").waitFor({ state: "hidden" });
 
   // everyone pays
   await page.getByRole("tab", { name: t("settle") }).click();
@@ -302,6 +516,17 @@ async function walk(lang: Lang, width: number, height: number) {
   ok((await page.locator(".split-seal").count()) === 1, `${lang} ${width}x${height}: all four marked, the page is stamped 两清`);
   await page.getByRole("tab", { name: t("expenses") }).click();
   await shot("12b-ledger-square");
+
+  // the record: what was done, by whom, when; with no server to ask, what this phone has waiting, and why there is no more
+  await button("more").click();
+  await page.getByRole("button", { name: re(t("history")) }).click();
+  const record = page.getByRole("dialog").locator(".split-history-line").first();
+  await record.waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(300);
+  await shot(local ? "37-history" : "37-history-unreached");
+  ok((await page.getByRole("dialog").getByRole("button", { name: t("revert"), exact: true }).count()) === 1 && (await page.getByRole("dialog").getByText(t("historyEdit").split("{")[0], { exact: false }).count()) >= 1, `${lang} ${width}x${height}: 改动记录 has the note's change, and offers to change it back`);
+  await page.keyboard.press("Escape");
+  await closed(page);
   await page.goto(`${base}/split`);
   await button("start").waitFor();
   await shot("14-ledgers");
@@ -322,6 +547,19 @@ async function walk(lang: Lang, width: number, height: number) {
     await shot("26-unsent");
     await button("more").click();
     await shot("26b-menu-unsent");
+    // taking it off my ledgers needs the server: with no signal, nothing changes, and the sheet says so
+    await page.getByRole("button", { name: re(t("removeMine")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("removeMineYes"), exact: true }).click();
+    await page.getByRole("dialog").locator(".split-note", { hasText: t("removeFailed") }).waitFor({ timeout: 20_000 });
+    await shot("26d-remove-failed");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    // the record needs the server too: it says so, with what this phone has waiting under it
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("history")) }).click();
+    await page.getByRole("dialog").getByText(t("historyFailed")).waitFor({ timeout: 20_000 });
+    await shot("26e-history-failed");
+    ok((await page.getByRole("dialog").getByText(t("notSentYet"), { exact: false }).count()) >= 1, `${lang} ${width}x${height}: with no signal, 改动记录 says it can't be read, and shows what is waiting on this phone`);
     await page.keyboard.press("Escape");
     await closed(page);
     await button("back").click();
@@ -370,6 +608,21 @@ async function walk(lang: Lang, width: number, height: number) {
     await button("back").click();
     await button("start").waitFor();
 
+    // the sign-in ran out before the ledger could go up: said in the strong voice, with the sign-in one tap away
+    await ctx.route("**/split/api/ledgers", (route) => (route.request().method() === "POST" ? route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "signin" }) }) : route.fallback()));
+    sheet = await startSheet("周三午饭", "Steve", ["小王"]);
+    await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+    await page.locator(".split-sync-act").waitFor();
+    await shot("28c-signin");
+    await button("more").click();
+    await page.getByRole("dialog").getByRole("button", { name: t("signIn"), exact: true }).waitFor();
+    await shot("28d-menu-signin");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await ctx.unroute("**/split/api/ledgers");
+    await button("back").click();
+    await button("start").waitFor();
+
     // someone else's phone, opening the invitation: asked which one they are, then in
     const guest = await phone(width, height, lang);
     await speak(guest, lang);
@@ -399,6 +652,47 @@ async function walk(lang: Lang, width: number, height: number) {
     await theirs.locator(".split-who").getByRole("button", { name: re("小王") }).click();
     await theirs.locator(".split-standing").waitFor();
     await shot("29f-joined", theirs);
+    // (joined signed out: not the owner, and the ledger is that phone's alone)
+    await theirs.getByRole("button", { name: t("more"), exact: true }).click();
+    await theirs.getByRole("dialog").getByRole("button", { name: re(t("deleteLedger")) }).click();
+    await theirs.getByRole("dialog").getByRole("button", { name: t("deleteYes"), exact: true }).waitFor();
+    await shot("29g-menu-guest", theirs);
+    await theirs.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
+    await theirs.keyboard.press("Escape");
+    await closed(theirs);
+
+    // the owner locks the ledger: a friend's phone says so, and has nothing to press; someone new can still say who they are
+    await page.locator(".split-ledger", { hasText: "惠斯勒周末" }).click();
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).click();
+    await page.getByRole("button", { name: re(t("unlockIt")) }).waitFor();
+    await theirs.locator(".split-page > .split-sync").waitFor({ timeout: 8000 });
+    await shot("33-locked-friend", theirs);
+    const late = await phone(width, height, lang);
+    await speak(late, lang);
+    const latecomer = await late.newPage();
+    watch(latecomer, true);
+    await latecomer.goto(invitation);
+    await latecomer.getByText(t("whoLocked")).waitFor({ timeout: 8000 });
+    await shot("33b-who-locked", latecomer);
+    await late.close();
+    // opened again, and then a new key: the friend's phone is shut out, and says what puts it right
+    await page.getByRole("button", { name: re(t("unlockIt")) }).click();
+    await page.getByRole("button", { name: re(t("lockIt")) }).waitFor();
+    await page.getByRole("button", { name: re(t("rekey")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+    await page.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 8000 });
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+    invitation = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop() ?? "";
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await theirs.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+    await shot("34-key-changed", theirs);
+    await theirs.goto(invitation);
+    await theirs.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 8000 });
+    ok((await theirs.locator(".split-standing").count()) === 1, `${lang} ${width}x${height}: a friend shut out by a new key opens the new invitation and is in again`);
+    await button("back").click();
+    await button("start").waitFor();
     // invitations that don't get in: a key that doesn't open the ledger, a ledger that isn't there, no signal
     await theirs.goto(invitation.replace(/#k=.{6}/, "#k=aaaaaa").replace(/\/split\/.{4}/, "/split/zzzz"));
     await theirs.getByText(t("joinGone")).waitFor();
@@ -416,6 +710,18 @@ async function walk(lang: Lang, width: number, height: number) {
     await other.getByText(t("joinAway")).waitFor();
     await shot("30c-join-away", other);
     await elsewhere.close();
+
+    // its owner deletes the ledger: gone from the owner's list, and a friend's page says so
+    await theirs.goto(invitation);
+    await theirs.locator(".split-standing").waitFor();
+    await page.locator(".split-ledger", { hasText: "惠斯勒周末" }).click();
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("eraseIt")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("eraseYes"), exact: true }).click();
+    await page.getByText(t("erased")).waitFor({ timeout: 8000 });
+    await shot("36-erased");
+    await theirs.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+    await shot("36b-erased-friend", theirs);
     await guest.close();
   }
 
@@ -444,6 +750,85 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("24-shares-long");
   await page.getByRole("radio", { name: t("amounts"), exact: true }).click();
   await shot("25-amounts-long");
+
+  // another currency: the button in the corner, the currencies, what the amount comes to, the rate
+  await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(page);
+  await button("close").first().click();
+  await button("back").click();
+  await button("start").waitFor();
+  sheet = await startSheet(lang === "zh" ? "东京五天" : "Five days in Tokyo", lang === "zh" ? "我" : "Me", lang === "zh" ? ["小王", "阿美"] : ["Wang", "Mei"]);
+  await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  const cur = (zh: string, code: string) => page.getByRole("dialog").getByRole("button", { name: lang === "zh" ? zh : code, exact: true });
+  const corner = page.locator(".split-currency button");
+  const comes = page.locator(".split-add-comes");
+  const whole = async (what: string) => {
+    const m = (await page.evaluate(`(() => { const t = document.querySelector(".split-bar-title"); return { cut: t.scrollWidth - t.clientWidth, scrolls: document.scrollingElement.scrollHeight - innerHeight, key: document.querySelector(".split-key").getBoundingClientRect().height }; })()`)) as { cut: number; scrolls: number; key: number };
+    // (shorter than 535 the page scrolls on purpose: split.css)
+    ok(m.cut <= 0 && (height < 535 || (m.scrolls <= 0 && m.key >= 44)), `${lang} ${width}x${height}: ${what}: the title shows whole, nothing scrolls, keys ${Math.round(m.key)}px${m.cut > 0 ? `, but the title is cut by ${m.cut}px` : ""}${m.scrolls > 0 ? `, but the page scrolls ${m.scrolls}px` : ""}`);
+  };
+  await button("addExpense").click();
+  await type(page, "86.40");
+  await corner.click();
+  await cur("美元", "USD").waitFor();
+  await shot("40-currencies");
+  await cur("美元", "USD").click();
+  await closed(page);
+  await comes.waitFor();
+  await shot("41-abroad");
+  await whole("paid in another currency");
+  await comes.click();
+  await page.getByRole("dialog").locator("input").waitFor();
+  await shot("42-rate");
+  await page.getByRole("dialog").locator("input").fill("1.38");
+  await shot("42b-rate-typed");
+  await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(page);
+  await page.getByRole("button", { name: re(t("sharedBy")) }).click();
+  await shot("43-share-abroad");
+  await page.getByRole("radio", { name: t("amounts"), exact: true }).click();
+  await page.getByRole("dialog").locator(".split-person-field input").first().fill("40");
+  await shot("43b-amounts-abroad");
+  await page.getByRole("radio", { name: t("evenly"), exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+  await closed(page);
+  await button("done").click();
+  await button("addExpense").waitFor();
+  await shot("44-ledger-abroad");
+  await page.locator("button.split-row").first().click();
+  await comes.waitFor();
+  await shot("45-edit-abroad");
+  await whole("an expense paid in another currency, being changed (the currency and the bin share the corner)");
+  await button("close").first().click();
+  await button("addExpense").click();
+  await comes.waitFor();
+  await shot("46-next-abroad");
+  await corner.click();
+  await cur("日元", "JPY").click();
+  await closed(page);
+  await type(page, "9999999999");
+  await shot("47-yen-most");
+  await whole("the most yen there can be");
+  for (let i = 0; i < 10; i++) await page.locator(".split-key").last().click();
+  await corner.click();
+  await cur("韩元", "KRW").click();
+  await closed(page);
+  await type(page, "1");
+  await page.locator(".split-add-comes.is-loud").waitFor();
+  await shot("48-too-little");
+  // no rates to be had (the screen is opened afresh: it had today's from the last sheet)
+  await button("close").first().click();
+  await noRates(ctx, page);
+  await button("addExpense").click();
+  await type(page, "20");
+  await corner.click();
+  await cur("欧元", "EUR").click();
+  await closed(page);
+  await page.locator(".split-add-comes.is-loud").waitFor({ timeout: 20_000 });
+  await shot("49-needs-rate");
+  await comes.click();
+  await page.getByRole("dialog").locator("input").waitFor();
+  await shot("49b-rate-none");
 
   const unique = [...new Set(findings)];
   ok(!unique.length, `${lang} ${width}x${height}: ${shots} screens, nothing found by axe, nothing too wide, nothing too small to press${unique.length ? `\n     ${unique.join("\n     ")}` : ""}`);
@@ -481,6 +866,8 @@ async function fits() {
     for (const [w, h, phoneName] of sizes) {
       const ctx = await phone(w, h, lang);
       await speak(ctx, lang);
+      // (signed in: a ledger is made on the server only for a phone that is)
+      await signIn(ctx);
       await holding(ctx, saved);
       const page = await ctx.newPage();
       watch(page);
@@ -501,42 +888,66 @@ async function fits() {
       })()`)) as { scrolls: number; linesEnd: number; keysStart: number; key: number; said: boolean };
       ok(m.scrolls <= 0 && m.linesEnd <= m.keysStart && m.key >= 44 && m.said, `${lang} ${w}x${h} (${phoneName}): 记一笔 shows whole, keys ${m.key}px tall, ${m.keysStart - m.linesEnd}px to spare${m.scrolls > 0 ? `, but the page scrolls ${m.scrolls}px` : ""}${m.said ? "" : ", but it doesn't say the parts don't add up"}`);
       await page.screenshot({ path: join(out, `fits-${lang}-${w}x${h}.png`) });
+      // the same expense paid in another currency: a line more under the amount, and the screen is an expense being changed, so the currency and the bin share the corner
+      await page.locator(".split-currency button").click();
+      await page.getByRole("dialog").getByRole("button", { name: lang === "zh" ? "美元" : "USD", exact: true }).click();
+      await closed(page);
+      await page.locator(".split-add-comes").waitFor();
+      await page.waitForTimeout(200);
+      const a = (await page.evaluate(`(() => {
+        const box = (s) => document.querySelector(s).getBoundingClientRect();
+        const title = document.querySelector(".split-bar-title");
+        return {
+          scrolls: document.scrollingElement.scrollHeight - window.innerHeight,
+          linesEnd: Math.round(box("label.split-field").bottom),
+          keysStart: Math.round(box(".split-keys").top),
+          key: Math.floor(box(".split-key").height),
+          line: Math.floor(box(".split-add-comes").height),
+          cut: title.scrollWidth - title.clientWidth,
+        };
+      })()`)) as { scrolls: number; linesEnd: number; keysStart: number; key: number; line: number; cut: number };
+      ok(a.scrolls <= 0 && a.linesEnd <= a.keysStart && a.key >= 44 && a.line >= 44 && a.cut <= 0, `${lang} ${w}x${h} (${phoneName}): paid in another currency it still shows whole, keys ${a.key}px tall, the amount and its line ${a.line}px to press${a.scrolls > 0 ? `, but the page scrolls ${a.scrolls}px` : ""}${a.cut > 0 ? `, but the title is cut by ${a.cut}px` : ""}`);
+      await page.screenshot({ path: join(out, `fits-abroad-${lang}-${w}x${h}.png`) });
       await ctx.close();
     }
   }
 }
 
+// ---------- what behave and gate share: a phone in 中文 ----------
+const t = (k: Word) => W[k].zh;
+const button = (page: Page, k: Word) => page.getByRole("button", { name: t(k), exact: true });
+const start = async (page: Page, name = "测试", people = ["阿甲", "阿乙"]) => {
+  await button(page, "start").click();
+  const sheet = page.getByRole("dialog");
+  await sheet.locator("input").nth(0).fill(name);
+  await sheet.locator("input").nth(1).fill("我");
+  for (const n of people) {
+    await sheet.locator("#split-who-else").fill(n);
+    await sheet.getByRole("button", { name: t("add"), exact: true }).click();
+  }
+  await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  await button(page, "addExpense").waitFor();
+};
+/** 两清's list on a phone signed in (starting a ledger needs that); `signed` false: one that isn't */
+const open = async (ctx: BrowserContext, signalMayGo?: boolean, signed = true) => {
+  if (signed && !signedIn.has(ctx)) await signIn(ctx);
+  const page = await ctx.newPage();
+  watch(page, signalMayGo);
+  await page.goto(`${base}/split`);
+  await button(page, signed ? "start" : "startSignIn").waitFor();
+  return page;
+};
+const amountShown = (page: Page) => page.locator(".split-add-amount output").textContent();
+const spend = async (page: Page, digits: string) => {
+  await button(page, "addExpense").click();
+  await type(page, digits);
+  await button(page, "done").click();
+  await page.locator(".split-keys").waitFor({ state: "hidden" });
+};
+const amounts = async (page: Page) => (await page.locator(".split-row-amount").allTextContents()).join(" ");
+
 // ---------- behave: what it does, beyond how it looks ----------
 async function behave() {
-  const t = (k: Word) => W[k].zh;
-  const button = (page: Page, k: Word) => page.getByRole("button", { name: t(k), exact: true });
-  const start = async (page: Page, name = "测试", people = ["阿甲", "阿乙"]) => {
-    await button(page, "start").click();
-    const sheet = page.getByRole("dialog");
-    await sheet.locator("input").nth(0).fill(name);
-    await sheet.locator("input").nth(1).fill("我");
-    for (const n of people) {
-      await sheet.locator("#split-who-else").fill(n);
-      await sheet.getByRole("button", { name: t("add"), exact: true }).click();
-    }
-    await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
-    await button(page, "addExpense").waitFor();
-  };
-  const open = async (ctx: BrowserContext, signalMayGo?: boolean) => {
-    const page = await ctx.newPage();
-    watch(page, signalMayGo);
-    await page.goto(`${base}/split`);
-    await button(page, "start").waitFor();
-    return page;
-  };
-  const amountShown = (page: Page) => page.locator(".split-add-amount output").textContent();
-  const spend = async (page: Page, digits: string) => {
-    await button(page, "addExpense").click();
-    await type(page, digits);
-    await button(page, "done").click();
-    await page.locator(".split-keys").waitFor({ state: "hidden" });
-  };
-  const amounts = async (page: Page) => (await page.locator(".split-row-amount").allTextContents()).join(" ");
   const rename = async (page: Page, who: string, to: string) => {
     await button(page, "more").click();
     await page.getByRole("button", { name: re(t("members")) }).click();
@@ -552,6 +963,7 @@ async function behave() {
   // the back button, links, a reload
   {
     const ctx = await phone(390, 664, "zh");
+    await signIn(ctx);
     const page = await ctx.newPage();
     watch(page);
     await page.goto(`${base}/`);
@@ -605,10 +1017,11 @@ async function behave() {
     ok(path(page) === ledger && (await page.getByRole("tab", { name: t("settle") }).getAttribute("aria-selected")) === "true", "back on a transfer's sheet closes it and stays on 结清");
 
     await button(page, "more").click();
-    await page.getByRole("button", { name: re(t("deleteLedger")) }).click();
-    await button(page, "deleteYes").click();
+    // (signed in, a ledger the server has is in the account's ledgers: it comes off those)
+    await page.getByRole("button", { name: re(t(local ? "removeMine" : "deleteLedger")) }).click();
+    await button(page, local ? "removeMineYes" : "deleteYes").click();
     await button(page, "start").waitFor();
-    ok(path(page) === "/split" && (await page.locator(".split-ledger").count()) === 0, "deleting a ledger lands on the list, and the ledger is gone from it");
+    ok(path(page) === "/split" && (await page.locator(".split-ledger").count()) === 0, "taking a ledger off lands on the list, and the ledger is gone from it");
     await page.goBack();
     await page.waitForTimeout(600);
     ok(path(page) !== ledger, `back after deleting doesn't open the deleted ledger (now at ${path(page)})`);
@@ -648,6 +1061,8 @@ async function behave() {
   // a browser that won't store anything (a private window)
   {
     const ctx = await phone(390, 664, "zh");
+    // (signed in before storing stops: what the site keeps of a sign-in is there to read)
+    await signIn(ctx);
     await ctx.addInitScript("Storage.prototype.setItem = function () { throw new DOMException('no', 'QuotaExceededError'); };");
     const page = await open(ctx);
     await start(page);
@@ -678,15 +1093,17 @@ async function behave() {
     ok((await page.evaluate("navigator.clipboard.readText()")) === "3.50", "without the clipboard API the amount is still copied, from inside the open sheet");
     await page.keyboard.press("Escape");
     await closed(page);
-    await button(page, "copyPlan").click();
-    await page.waitForTimeout(300);
-    ok(String(await page.evaluate("navigator.clipboard.readText()")).startsWith("复制 · 结清"), "and so is the plan, from the page");
+    await button(page, "sendPicture").click();
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copyAsText")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copied")) }).waitFor({ timeout: 2000 });
+    ok(String(await page.evaluate("navigator.clipboard.readText()")).startsWith("复制 · 结清"), "and so is the plan as text, from the picture's sheet");
     await ctx.close();
   }
 
   // a real keyboard, on a computer
   {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "zh-CN", reducedMotion: "reduce", serviceWorkers: "block" });
+    await rooms(ctx);
     const page = await open(ctx);
     await start(page);
     await button(page, "addExpense").click();
@@ -712,6 +1129,108 @@ async function behave() {
     ok(seen.some((s) => s.includes(t("addExpense"))) && seen.some((s) => s.includes("12 个饺子")), "Tab reaches the row and the button");
     const wide = Number(await page.evaluate("document.querySelector('.split-page').getBoundingClientRect().width"));
     ok(wide <= 560, `on a computer the page keeps to one column (${wide}px wide)`);
+    await ctx.close();
+  }
+
+  // an expense paid in another currency (on the phone: the server has its own turn further down)
+  {
+    const ctx = await phone(390, 664, "zh");
+    const page = await open(ctx, true);
+    const asked: string[] = [];
+    page.on("request", (r) => FX.test(new URL(r.url()).pathname) && asked.push(r.url()));
+    await start(page, "东京", ["阿甲", "阿乙"]);
+    await spend(page, "30");
+    ok(asked.length === 0, "an expense in the ledger's own currency asks nothing about rates");
+    const corner = page.locator(".split-currency button");
+    const comes = page.locator(".split-add-comes");
+    const said = async () => ((await comes.textContent()) ?? "").replace(/\s+/g, " ");
+    const pick = async (name: string) => {
+      await corner.click();
+      await page.getByRole("dialog").getByRole("button", { name, exact: true }).click();
+      await closed(page);
+    };
+    const wipe = async (digits: number) => {
+      for (let i = 0; i < digits; i++) await page.locator(".split-key").last().click();
+    };
+    const top = async () => ((await page.locator(".split-row-amount").first().textContent()) ?? "").replace(/\s+/g, "");
+
+    await button(page, "addExpense").click();
+    ok((await corner.textContent())?.includes("加元") && (await comes.count()) === 0, "记一笔 says in its corner what the amount is typed in: the ledger's currency, and nothing about a rate");
+    await corner.click();
+    await page.getByRole("dialog").getByRole("button", { name: "日元", exact: true }).waitFor();
+    await page.goBack();
+    await closed(page);
+    ok(await page.locator(".split-keys").isVisible(), "the phone's back button closes the currencies, and 记一笔 is still there");
+    await type(page, "3000.5");
+    await pick("日元");
+    await comes.waitFor();
+    ok(asked.length >= 1, "opening the currencies asks for today's rates");
+    ok((await amountShown(page)) === "JP¥3,000" && (await said()).includes("折合 $27.37") && (await said()).includes("汇率 0.0091224"), `yen picked: the digits before the point stay, and the line under the amount says what it comes to and at what rate (${await amountShown(page)}, ${await said()})`);
+    ok(await page.locator(".split-key", { hasText: /^\.$/ }).isDisabled(), "yen has no cents, so the point is off");
+    await button(page, "done").click();
+    await page.locator(".split-row").first().waitFor();
+    ok((await top()) === "$27.37JP¥3,000" && (await page.locator(".split-standing-sub").textContent())?.includes("$57.37"), `the row says what it counts for, and under it what was paid; the total is in the ledger's currency (${await top()})`);
+
+    // the next one
+    const before = asked.length;
+    await button(page, "addExpense").click();
+    await comes.waitFor();
+    ok((await amountShown(page)) === "JP¥0" && (await corner.textContent())?.includes("日元") && (await said()).includes("1 日元 = 0.0091224 加元") && asked.length === before, `the next expense starts in yen at the same rate, and asks nothing (${await said()})`);
+    await type(page, "1000");
+
+    // the rate, by hand
+    await comes.click();
+    const rate = page.getByRole("dialog").locator("input");
+    ok((await rate.inputValue()) === "0.0091224", "the line under the amount opens the rate");
+    await rate.fill("0,01x");
+    ok((await rate.inputValue()) === "0.01" && (await page.getByRole("dialog").getByText(say("zh", "comesToFrom", { paid: "JP¥1,000", amount: "$10.00" })).count()) === 1, "a rate typed with a comma is a rate, and what the amount comes to at it shows at once");
+    await page.getByRole("dialog").getByRole("button", { name: say("zh", "useToday", { rate: "0.0091224" }), exact: true }).click();
+    ok((await rate.inputValue()) === "0.0091224", "用今天的汇率 puts today's back");
+    await rate.fill("0.01");
+    await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+    await closed(page);
+    ok((await said()).includes("折合 $10.00") && (await said()).includes("汇率 0.01"), "the line says the new rate");
+    await button(page, "done").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    ok((await top()) === "$10.00JP¥1,000", "recorded at the rate that was typed");
+
+    // changed
+    await page.locator("button.split-row").first().click();
+    await comes.waitFor();
+    ok((await amountShown(page)) === "JP¥1,000" && (await said()).includes("汇率 0.01"), "opened again, it is in yen at the rate it was recorded at, not today's");
+    await wipe(4);
+    await type(page, "2500");
+    await button(page, "saveChanges").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    ok((await top()) === "$25.00JP¥2,500", "changed to 2,500 yen: it counts for 25.00 at its own rate");
+    await page.locator("button.split-row").first().click();
+    await pick("加元");
+    ok((await amountShown(page)) === "$2,500" && (await comes.count()) === 0, "put back into the ledger's currency: the digits stay, and the line about the rate goes");
+    await wipe(4);
+    await type(page, "45");
+    await button(page, "saveChanges").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    ok((await top()) === "$45.00", "and it is an expense of 45.00 with no other currency to it");
+
+    // no rates to be had
+    await noRates(ctx, page);
+    await button(page, "addExpense").click();
+    ok((await amountShown(page)) === "$0", "the last expense being in the ledger's currency, the next starts there");
+    await type(page, "20");
+    await pick("欧元");
+    await page.locator(".split-add-comes.is-loud").waitFor({ timeout: 20_000 });
+    ok((await said()).includes(t("needRate")) && (await button(page, "done").isDisabled()), "with no rates to be had, and no expense in euros before, it says a rate is needed and can't be recorded yet");
+    await comes.click();
+    ok(await page.getByRole("dialog").getByText(t("rateNone")).waitFor({ timeout: 20_000 }).then(() => true, () => false), "the rate's sheet says why there is none, and to type one");
+    await page.getByRole("dialog").locator("input").fill("1.5");
+    await page.getByRole("dialog").getByRole("button", { name: t("ok"), exact: true }).click();
+    await closed(page);
+    ok((await said()).includes("折合 $30.00") && (await button(page, "done").isEnabled()), "a rate typed in, it comes to 30.00 and can be recorded");
+    await button(page, "done").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+    await button(page, "addExpense").click();
+    await comes.waitFor();
+    ok((await amountShown(page)) === "€0" && (await said()).includes("1 欧元 = 1.5 加元"), "and the next one starts in euros at that rate, still with no rates from anywhere");
     await ctx.close();
   }
 
@@ -780,7 +1299,8 @@ async function behave() {
       const first = (await keptBy(pa)).held[0];
       const id = first.server.id;
       const b = await phone(390, 664, "zh");
-      await holding(b, { held: [{ ...first, waiting: [], lost: [] }], me: { [id]: first.server.members[1].id } });
+      // (as joining gives it: the key, and neither the owner's key nor the first phone's account)
+      await holding(b, { held: [{ ...first, owner: undefined, acct: undefined, waiting: [], lost: [] }], me: { [id]: first.server.members[1].id } });
       const pb = await b.newPage();
       watch(pb, true);
       await pb.goto(`${base}/split/${id}`);
@@ -955,6 +1475,465 @@ async function behave() {
       ok(true, "with no signal it says so and waits: 再试一次, with the signal back, gets in");
       for (const ctx of [a, b, c, d, e]) await ctx.close();
     }
+
+    // the owner's two: the lock, and a new key for the invitation
+    {
+      const a = await phone(390, 664, "zh");
+      await a.grantPermissions(["clipboard-read", "clipboard-write"]);
+      const pa = await open(a, true);
+      await start(pa, "主人", ["阿甲", "阿乙"]);
+      await spend(pa, "30");
+      const mine = (await keptBy(pa)).held[0];
+      const id = mine.server.id;
+      const link = `${base}/split/${id}#k=${mine.key}`;
+      const b = await phone(390, 664, "zh");
+      const pb = await b.newPage();
+      watch(pb, true);
+      await pb.goto(link);
+      await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await pb.locator(".split-standing").waitFor();
+      const line = async (page: Page) => (await page.locator(".split-page > .split-sync").textContent()) ?? "";
+
+      await button(pb, "more").click();
+      ok((await pb.getByRole("button", { name: re(t("lockIt")) }).count()) === 0 && (await pb.getByRole("button", { name: re(t("rekey")) }).count()) === 0 && (await keptBy(pb)).held[0].owner === undefined, "a friend's phone has no owner's key, and its ⋯ has neither of the owner's lines");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+      ok(!!mine.owner && mine.owner !== mine.key, "the phone that started the ledger has one, which isn't the invitation's");
+
+      // the friend records something with no signal, and the owner locks the ledger meanwhile
+      await b.setOffline(true);
+      await spend(pb, "8");
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("lockIt")) }).click();
+      await pa.getByRole("button", { name: re(t("unlockIt")) }).waitFor({ timeout: 8000 });
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      ok((await line(pa)) === t("lockedOwner") && (await button(pa, "addExpense").count()) === 0 && (await pa.locator("button.split-row").count()) === 0, "the owner locks it with one tap: the page says so, and has no 记一笔 and no row that opens");
+      ok(typeof ((await onServer(pa, id, mine.key)).ledger as { locked?: number }).locked === "number", "and the server holds it locked");
+      await b.setOffline(false);
+      await pb.evaluate("window.dispatchEvent(new Event('online'))");
+      await pb.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+      ok((await line(pb)) === t("lockedUnsentOne") && (await keptBy(pb)).held[0].waiting.length === 1 && (await pb.locator(".split-row").count()) === 2 && (await button(pb, "addExpense").count()) === 0, "the friend's phone comes back: what it recorded stays on it and on its screen, and the page says the ledger is locked and one change can't go up");
+      ok((await onServer(pa, id, mine.key)).ledger.entries.length === 1, "nothing got into the locked ledger");
+      await pb.getByRole("tab", { name: t("settle") }).click();
+      await pb.locator(".split-row").first().click();
+      ok((await button(pb, "markPaid").count()) === 0 && (await pb.getByRole("dialog").getByText(t("locked")).count()) === 1, "a transfer can be looked at and its amount copied, and not marked as paid");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+      await pb.getByRole("tab", { name: t("expenses") }).click();
+
+      // opened again: what waited goes up by itself
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("unlockIt")) }).click();
+      await pa.getByRole("button", { name: re(t("lockIt")) }).waitFor({ timeout: 8000 });
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      await pb.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
+      await pa.locator(".split-row").nth(1).waitFor({ timeout: 8000 });
+      ok((await onServer(pa, id, mine.key)).ledger.entries.length === 2 && (await keptBy(pb)).held[0].waiting.length === 0 && (await button(pb, "addExpense").count()) === 1 && (await button(pa, "addExpense").count()) === 1, "the owner opens it again: the friend's expense goes up without anyone touching that phone, and both can record");
+
+      // a new key
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("rekey")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("rekeyNo"), exact: true }).click();
+      await closed(pa);
+      ok((await keptBy(pa)).held[0].key === mine.key, "换邀请链接 asks first, and 不换了 changes nothing");
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("rekey")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+      await pa.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 8000 });
+      await pa.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+      const link2 = String(await pa.evaluate("navigator.clipboard.readText()")).split("\n").pop() ?? "";
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      const now = (await keptBy(pa)).held[0];
+      ok(now.key !== mine.key && now.owner === mine.owner && now.next === undefined && link2 === `${base}/split/${id}#k=${now.key}`, "said yes to: the phone holds a new key, the same owner's key, and the invitation it copies carries the new one");
+      ok((await onServer(pa, id, mine.key)).ledger.name === "403" && (await onServer(pa, id, now.key)).ledger.entries.length === 2, "the server turns the old key away and opens to the new one, with everything in the ledger");
+      ok(await pa.locator(".split-page > .split-sync").count().then((n) => n === 0), "the owner's own page carries on with nothing to say");
+
+      // the friend: shut out, told why, still recording; then let in by the new invitation
+      await pb.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+      ok((await line(pb)) === t("troubleKey"), "the friend's page says the link was changed, and what to do");
+      await spend(pb, "5");
+      ok((await keptBy(pb)).held[0].waiting.length === 1 && (await pb.locator(".split-row").count()) === 3, "it still records, on the phone");
+      await pb.goto(link2);
+      await pb.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
+      await pa.locator(".split-row").nth(2).waitFor({ timeout: 8000 });
+      // (the owner hears it over the live line the moment the server has it, which can be before the answer reaches the phone that sent it)
+      await pb.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`, undefined, { timeout: 8000 });
+      const theirsNow = await keptBy(pb);
+      const parts = { address: pb.url() === `${base}/split/${id}`, key: theirsNow.held[0].key === now.key, sent: theirsNow.held[0].waiting.length === 0, there: (await onServer(pa, id, now.key)).ledger.entries.length === 3, who: theirsNow.me[id] !== undefined };
+      ok(Object.values(parts).every(Boolean), `the new invitation opened on it: the phone takes the new key, is still who it was, and what it kept goes up; the owner sees it${Object.values(parts).every(Boolean) ? "" : ` → ${JSON.stringify(parts)}`}`);
+      const c = await phone(390, 664, "zh");
+      const pc = await c.newPage();
+      watch(pc, true);
+      await pc.goto(link);
+      await pc.getByText(t("joinKey")).waitFor({ timeout: 8000 });
+      ok(true, "someone opening the old invitation is told it doesn't open the ledger");
+
+      // taking the ledger off the owner's ledgers says what goes with it
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("removeMine")) }).click();
+      ok((await pa.getByRole("dialog").getByText(t("removeMineOwner")).count()) === 1, "taking the ledger off its owner's ledgers says that the lock, the link and deleting it go with it");
+      await button(pb, "more").click();
+      await pb.getByRole("button", { name: re(t("deleteLedger")) }).click();
+      ok((await pb.getByRole("dialog").getByText(t("deleteOwner")).count()) === 0 && (await pb.getByRole("dialog").getByText(t("removeMineOwner")).count()) === 0, "(a friend's phone, signed out, takes it off that phone only, and is told no such thing)");
+      for (const ctx of [a, b, c]) await ctx.close();
+    }
+
+    // an expense paid in another currency: what the server holds, and what another phone shows and changes
+    {
+      const a = await phone(390, 664, "zh");
+      const pa = await open(a, true);
+      await start(pa, "货币", ["阿甲", "阿乙"]);
+      const mine = (await keptBy(pa)).held[0];
+      const id = mine.server.id;
+      const b = await phone(390, 664, "zh");
+      const pb = await b.newPage();
+      watch(pb, true);
+      await pb.goto(`${base}/split/${id}#k=${mine.key}`);
+      await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await button(pb, "addExpense").waitFor();
+      type Abroad = { amount: number; paidIn?: { currency: string; amount: number; rate: string } };
+      const first = async () => (await onServer(pa, id, mine.key)).ledger.entries[0] as unknown as Abroad;
+      const pick = async (page: Page, name: string) => {
+        await page.locator(".split-currency button").click();
+        await page.getByRole("dialog").getByRole("button", { name, exact: true }).click();
+        await closed(page);
+      };
+      const top = async (page: Page) => ((await page.locator(".split-row-amount").first().textContent()) ?? "").replace(/\s+/g, "");
+
+      await button(pa, "addExpense").click();
+      await type(pa, "3000");
+      await pick(pa, "日元");
+      await button(pa, "done").click();
+      await pb.locator(".split-row-amount small").waitFor({ timeout: 8000 });
+      eqJson(await first(), { amount: 2737, paidIn: { currency: "JPY", amount: 3000, rate: "0.0091224" } }, "3,000 yen recorded on one phone: the server holds what it counts for, what was paid, and the rate");
+      ok((await top(pb)) === "$27.37JP¥3,000" && (await pb.locator(".split-figure").textContent())?.includes("$9.12"), "the other phone shows both amounts, and owes its third of what it counts for");
+
+      await pb.locator("button.split-row").first().click();
+      await pb.locator(".split-add-comes").waitFor();
+      for (let i = 0; i < 4; i++) await pb.locator(".split-key").last().click();
+      await type(pb, "5000");
+      await button(pb, "saveChanges").click();
+      await pa.locator(".split-row-amount", { hasText: "JP¥5,000" }).waitFor({ timeout: 8000 });
+      eqJson(await first(), { amount: 4561, paidIn: { currency: "JPY", amount: 5000, rate: "0.0091224" } }, "changed to 5,000 yen on the other phone: both amounts change on the server, at the same rate");
+
+      await pa.locator("button.split-row").first().click();
+      await pick(pa, "加元");
+      for (let i = 0; i < 4; i++) await pa.locator(".split-key").last().click();
+      await type(pa, "45");
+      await button(pa, "saveChanges").click();
+      await pb.locator(".split-row-amount", { hasText: /^\$45\.00$/ }).waitFor({ timeout: 8000 });
+      const plain = await first();
+      ok(plain.amount === 4500 && !("paidIn" in plain) && (await pb.locator(".split-row-amount small").count()) === 0, "put back into the ledger's currency: the server holds 45.00 and no other currency, and the other phone's row has one amount");
+      for (const ctx of [a, b]) await ctx.close();
+    }
+
+    // signed in: the account's ledgers
+    {
+      // signed out, the list's one button signs in first, through the site's own sheet
+      const a = await phone(390, 664, "zh");
+      const pa = await open(a, true, false);
+      ok((await button(pa, "start").count()) === 0, "signed out, the list's one button is 登录，开一个账本");
+      await button(pa, "startSignIn").click();
+      await pa.locator("#si-email").waitFor();
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      ok(!(await signedAs(pa)) && (await pa.getByRole("dialog").count()) === 0, "the sign-in closed without signing in: nothing else opens");
+      await button(pa, "startSignIn").click();
+      await viaSheet(pa, "zh");
+      const sheet = pa.getByRole("dialog");
+      await sheet.locator("#split-who-else").waitFor();
+      const account = (await signedAs(pa)) ?? "";
+      ok(!!account, "signed in through it, the sheet 开一个账本 was pressed for opens by itself");
+      await sheet.locator("input").nth(0).fill("账号");
+      await sheet.locator("input").nth(1).fill("我");
+      for (const n of ["阿甲", "阿乙"]) {
+        await sheet.locator("#split-who-else").fill(n);
+        await sheet.getByRole("button", { name: t("add"), exact: true }).click();
+      }
+      await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+      await button(pa, "addExpense").waitFor();
+      await spend(pa, "30");
+      await pa.waitForTimeout(800);
+      const kept = await keptBy(pa);
+      const first = kept.held[0];
+      const id = first.server.id;
+      const listed = (await myLedgers(pa)).ledgers;
+      ok(listed.length === 1 && listed[0].id === id && listed[0].key === first.key && !!first.owner && listed[0].owner === first.owner && listed[0].me === kept.me[id] && first.acct === account,
+        "made signed in: the server keeps it in the account's ledgers, with the owner's key and who they are in it, and the phone holds it as the account's");
+
+      // the same account, signed in on another phone
+      const a2 = await phone(390, 664, "zh");
+      await signIn(a2, account);
+      const pa2 = await open(a2, true);
+      await pa2.locator(".split-ledger").click({ timeout: 8000 });
+      await pa2.locator(".split-row").first().waitFor();
+      const second = await keptBy(pa2);
+      ok(second.held.length === 1 && second.held[0].owner === first.owner && second.held[0].acct === account && second.me[id] === kept.me[id] && (await amounts(pa2)) === "$30.00",
+        "another phone signed in to the same account has the ledger, with what was recorded, as its owner, and as the same person in it");
+      await button(pa2, "more").click();
+      ok((await pa2.getByRole("button", { name: re(t("lockIt")) }).count()) === 1 && (await pa2.getByRole("button", { name: re(t("eraseIt")) }).count()) === 1, "and its ⋯ has the owner's lines");
+      await pa2.keyboard.press("Escape");
+      await closed(pa2);
+
+      // a friend joins signed out, and signs in later
+      const g = await phone(390, 664, "zh");
+      const pg = await g.newPage();
+      watch(pg, true);
+      await pg.goto(`${base}/split/${id}#k=${first.key}`);
+      await pg.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await pg.locator(".split-standing").waitFor();
+      ok((await keptBy(pg)).held[0].acct === undefined && !(await signedAs(pg)), "a friend signed out joins by the invitation: the ledger is that phone's alone");
+      const friend = anAccount();
+      await signTo(pg, friend);
+      await pg.locator(".split-standing").waitFor();
+      await pg.waitForTimeout(800);
+      const theirs = (await myLedgers(pg)).ledgers;
+      ok(theirs.length === 1 && theirs[0].id === id && theirs[0].me === (await keptBy(pg)).me[id] && theirs[0].owner === undefined && (await keptBy(pg)).held[0].acct === friend,
+        "signed in, it goes to their account, with who they are in it, and no owner's key");
+
+      // taken off my ledgers on one phone: off the account, and then off its other phone; the ledger stays for the others
+      await a2.setOffline(true);
+      await button(pa2, "more").click();
+      await pa2.getByRole("button", { name: re(t("removeMine")) }).click();
+      await pa2.getByRole("dialog").getByRole("button", { name: t("removeMineYes"), exact: true }).click();
+      await pa2.getByRole("dialog").locator(".split-note", { hasText: t("removeFailed") }).waitFor({ timeout: 20_000 });
+      ok((await keptBy(pa2)).held.length === 1, "with no signal it can't come off the account's ledgers: the sheet says so, and nothing changes");
+      await a2.setOffline(false);
+      await pa2.getByRole("button", { name: re(t("removeMine")) }).click();
+      await pa2.getByRole("dialog").getByRole("button", { name: t("removeMineYes"), exact: true }).click();
+      await button(pa2, "start").waitFor();
+      ok((await pa2.locator(".split-ledger").count()) === 0 && (await keptBy(pa2)).held.length === 0 && (await myLedgers(pa2)).ledgers.length === 0, "with one, it comes off this phone and off the account");
+      await button(pa, "back").click();
+      await pa.locator(".split-ledger").waitFor();
+      await pa.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+      await pa.locator(".split-ledger").waitFor({ state: "detached", timeout: 8000 });
+      ok((await keptBy(pa)).held.length === 0, "the account's other phone takes it off too, the next time it comes to the front");
+      ok((await onServer(pg, id, first.key)).ledger.entries.length === 1 && (await keptBy(pg)).held.length === 1, "and the ledger is still there for the others");
+
+      // its owner deletes one, for everyone
+      await start(pa, "删掉", ["阿甲"]);
+      await spend(pa, "12");
+      const doomed = (await keptBy(pa)).held.find((h) => h.server.name === "删掉")!;
+      const gone = doomed.server.id;
+      await pg.goto(`${base}/split/${gone}#k=${doomed.key}`);
+      await pg.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await pg.locator(".split-standing").waitFor();
+      await pg.waitForTimeout(800);
+      ok((await myLedgers(pg)).ledgers.some((m) => m.id === gone), "(a friend signed in joins it: it is in their account too)");
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("eraseIt")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
+      ok((await keptBy(pa)).held.some((h) => h.server.id === gone) && (await onServer(pa, gone, doomed.key)).ledger.entries.length === 1, "删掉账本 asks first, and 先留着 changes nothing");
+      await pa.getByRole("button", { name: re(t("eraseIt")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("eraseYes"), exact: true }).click();
+      await pa.getByText(t("erased")).waitFor({ timeout: 8000 });
+      ok(path(pa) === "/split" && !(await keptBy(pa)).held.some((h) => h.server.id === gone) && !(await myLedgers(pa)).ledgers.some((m) => m.id === gone), "deleted: the owner's page goes to the list and says so, and it is off the phone and the account");
+      ok((await onServer(pa, gone, doomed.key)).ledger.name === "404", "and the server has it no more");
+      await pg.locator(".split-page > .split-sync.is-loud").waitFor({ timeout: 15_000 });
+      ok((await syncSaid(pg)) === t("troubleGone") && (await pg.locator(".split-row").count()) === 1, "a friend's page open on it says it was deleted, and keeps what it shows");
+
+      // signed out: the account's ledgers leave the list; another account on the same phone doesn't see them; signed in again, they are back
+      await start(pa, "留下", ["阿甲"]);
+      // (on the server, and so in the account, before signing out: one that isn't yet goes up with whoever signs in next)
+      await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held.some((h) => h.server.name === "留下" && h.acct)`);
+      await button(pa, "back").click();
+      await pa.locator(".split-ledger").waitFor();
+      await signTo(pa, null);
+      await button(pa, "startSignIn").waitFor();
+      ok((await pa.locator(".split-ledger").count()) === 0 && (await keptBy(pa)).held.length === 1, "signed out, the account's ledgers leave the list (they stay on the phone, out of sight)");
+      await signTo(pa, anAccount());
+      await button(pa, "start").waitFor();
+      await pa.waitForTimeout(500);
+      ok((await pa.locator(".split-ledger").count()) === 0, "signed in on the same phone as someone else, they stay out of sight");
+      await signTo(pa, account);
+      await pa.locator(".split-ledger", { hasText: "留下" }).waitFor({ timeout: 8000 });
+      ok((await pa.locator(".split-ledger").count()) === 1, "signed in again as the account, they are back");
+
+      // the sign-in ran out before a ledger could go up
+      await a.route("**/split/api/ledgers", (route) => (route.request().method() === "POST" ? route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "signin" }) }) : route.fallback()));
+      await start(pa, "过期", ["阿甲"]);
+      await pa.locator(".split-sync-act").waitFor({ timeout: 8000 });
+      await spend(pa, "9");
+      const waiting = (await keptBy(pa)).held.find((h) => h.server.name === "过期")!;
+      ok((await syncSaid(pa)) === t("troubleSignin") && !waiting.made && waiting.waiting.length === 1, "the sign-in ran out before the ledger went up: the page says so with 登录 under it, and records all the same, on the phone");
+      await a.unroute("**/split/api/ledgers");
+      await pa.locator(".split-sync-act").getByRole("button", { name: t("signIn"), exact: true }).click();
+      await viaSheet(pa, "zh");
+      await pa.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
+      await pa.waitForTimeout(800);
+      const after = (await keptBy(pa)).held.find((h) => h.server.name === "过期")!;
+      const now = await signedAs(pa);
+      ok(!!now && now !== account && after.made && after.waiting.length === 0 && after.acct === now && (await myLedgers(pa)).ledgers.some((m) => m.id === after.server.id) && (await onServer(pa, after.server.id, after.key)).ledger.entries.length === 1,
+        "signed in again (here as another account): the ledger goes up with what was recorded, into that account's ledgers");
+      for (const ctx of [a, a2, g]) await ctx.close();
+    }
+
+    // the record (改动记录): who did what; an edit changed back, a deleted expense brought back, from another phone
+    {
+      const a = await phone(390, 664, "zh");
+      const pa = await open(a, true);
+      await start(pa, "记录", ["阿甲"]);
+      await spend(pa, "30");
+      await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0 && JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made`);
+      const kept = (await keptBy(pa)).held[0];
+      const b = await phone(390, 664, "zh");
+      const pb = await b.newPage();
+      watch(pb, true);
+      await pb.goto(`${base}/split/${kept.server.id}#k=${kept.key}`);
+      await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await button(pb, "addExpense").waitFor();
+      const openRecord = async (page: Page) => {
+        await button(page, "more").click();
+        await page.getByRole("button", { name: re(t("history")) }).click();
+      };
+      const recordLines = async (page: Page) => (await page.getByRole("dialog").locator(".split-history-line").allTextContents()).map((x) => x.replace(/\s+/g, " ").trim());
+      await openRecord(pb);
+      await pb.getByRole("dialog").locator(".split-history-line").first().waitFor();
+      const first = await recordLines(pb);
+      ok(first.length === 1 && first[0].startsWith(`${say("zh", "historyExpense", { what: `${t("noNote")} $30.00` })}我 · ${t("today").split(" ")[0]}`), `another phone's record: what was done, by whom (by name), and when → ${first[0]}`);
+
+      // changed on the first phone while the record is open on the second: it reads it again
+      await pa.locator("button.split-row").first().click();
+      await pa.locator(".split-keys").waitFor();
+      while (((await amountShown(pa)) ?? "").replace(/[^0-9.]/g, "") !== "0") await pa.locator(".split-key").last().click();
+      await type(pa, "45");
+      await button(pa, "saveChanges").click();
+      await pa.locator(".split-keys").waitFor({ state: "hidden" });
+      await pb.getByRole("dialog").getByText(say("zh", "historyAmount", { from: "$30.00", to: "$45.00" })).waitFor({ timeout: 10_000 });
+      ok((await recordLines(pb))[0].startsWith(say("zh", "historyEdit", { what: `${t("noNote")} $45.00` })), "changed on the other phone, with the record open: the record reads it again, and says what changed");
+
+      // changed back from the record
+      await pb.getByRole("dialog").getByRole("button", { name: t("revert"), exact: true }).click();
+      await pa.locator(".split-row-amount", { hasText: "$30.00" }).waitFor({ timeout: 10_000 });
+      await pb.getByRole("dialog").getByText(say("zh", "historyAmount", { from: "$45.00", to: "$30.00" })).waitFor({ timeout: 10_000 });
+      // (what this phone did is on top while it is on its way, and once it is there)
+      const yours = await pb.waitForFunction(`(document.querySelector("dialog[open] .split-history-line")?.textContent ?? "").includes(${JSON.stringify(`${t("you")} · `)})`, null, { timeout: 10_000 }).then(() => true, () => false);
+      const reverted = (await recordLines(pb))[0];
+      ok(yours, `改回去: the expense is what it was, on both phones, and the record's newest line is yours → ${reverted}`);
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+
+      // deleted on the first phone, brought back from the record on the second
+      await pa.locator("button.split-row").first().click();
+      await button(pa, "deleteExpense").click();
+      await pa.locator(".split-row").waitFor({ state: "detached", timeout: 5000 });
+      await pb.locator(".split-row").waitFor({ state: "detached", timeout: 10_000 });
+      await openRecord(pb);
+      await pb.getByRole("dialog").getByRole("button", { name: t("restore"), exact: true }).click();
+      await pa.locator(".split-row-amount", { hasText: "$30.00" }).waitFor({ timeout: 10_000 });
+      await pb.getByRole("dialog").getByText(say("zh", "historyBack", { what: `${t("noNote")} $30.00` })).waitFor({ timeout: 10_000 });
+      ok((await onServer(pa, kept.server.id, kept.key)).ledger.entries.filter((e) => e.gone === undefined).length === 1, "恢复: the deleted expense is back, on the server and both phones, and the record says so");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+
+      // no signal: the record can't be read, and says so; with one again, 再试一次 reads it
+      await b.setOffline(true);
+      await openRecord(pb);
+      await pb.getByRole("dialog").getByText(t("historyFailed")).waitFor({ timeout: 20_000 });
+      await b.setOffline(false);
+      await pb.getByRole("dialog").getByRole("button", { name: t("retry"), exact: true }).click();
+      await pb.getByRole("dialog").locator(".split-history-line").first().waitFor({ timeout: 10_000 });
+      ok((await pb.getByRole("dialog").getByText(t("historyFailed")).count()) === 0 && (await recordLines(pb)).length === 5, "no signal: the record says it can't be read; 再试一次 with a signal reads all five lines");
+      await pb.keyboard.press("Escape");
+      await closed(pb);
+      for (const ctx of [a, b]) await ctx.close();
+    }
+
+    // the 结清图: through a phone's share sheet; held, in WeChat; saved, on a computer; out of date once the plan changes
+    {
+      const sheet = (page: Page) => page.getByRole("dialog");
+      const makePicture = async (page: Page) => {
+        await button(page, "sendPicture").click();
+        await sheet(page).locator(".split-picture img").waitFor({ timeout: 15_000 });
+      };
+      const a = await phone(390, 664, "zh");
+      // a phone with a share sheet: what it is given is kept to look at, and it can be made to refuse once
+      // (as a script of its own: a function from here would bring along a helper the page doesn't have)
+      await a.addInitScript(`
+        window.shared = [];
+        Object.defineProperty(navigator, "canShare", { configurable: true, value: (d) => !!(d && d.files && d.files.length) });
+        Object.defineProperty(navigator, "share", { configurable: true, value: async (d) => {
+          const no = window.refuse;
+          window.refuse = undefined;
+          if (no) throw new DOMException("not sent", no);
+          for (const f of d.files || []) window.shared.push({ name: f.name, type: f.type, size: f.size });
+        } });
+      `);
+      const pa = await open(a);
+      await start(pa, "结清图", ["阿甲"]);
+      await spend(pa, "30");
+      await pa.getByRole("tab", { name: t("settle") }).click();
+      ok((await pa.locator(".split-stale").count()) === 0, "no picture made yet: nothing is out of date");
+      await makePicture(pa);
+      const drawn = (await sheet(pa).locator(".split-picture img").evaluate((img) => [(img as HTMLImageElement).naturalWidth, (img as HTMLImageElement).naturalHeight])) as number[];
+      await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).click();
+      await pa.waitForFunction("window.shared.length === 1");
+      const shared = (await pa.evaluate("window.shared")) as { name: string; type: string; size: number }[];
+      ok(/^all-square-\d{4}-\d{2}-\d{2}\.png$/.test(shared[0].name) && shared[0].type === "image/png" && shared[0].size > 10_000 && drawn[0] === 1080, `a phone with a share sheet: 发给朋友 hands it one picture, a PNG 1080 wide (${drawn.join("x")}, ${shared[0].size} bytes)`);
+      ok((await sheet(pa).getByText(t("pictureHoldToo")).count()) === 1 && (await sheet(pa).getByRole("button", { name: t("pictureSave"), exact: true }).count()) === 0, "and says it can be held to save it, with no button to save it as a file");
+      await pa.evaluate("window.refuse = 'AbortError'");
+      await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).click();
+      await pa.waitForTimeout(300);
+      ok((await sheet(pa).locator(".split-picture-hint.is-loud").count()) === 0, "the share sheet closed without sending: nothing more is said");
+      await pa.evaluate("window.refuse = 'NotAllowedError'");
+      await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).click();
+      await sheet(pa).locator(".split-picture-hint.is-loud", { hasText: t("pictureHold") }).waitFor({ timeout: 5000 });
+      ok((await sheet(pa).getByRole("button", { name: t("pictureShare"), exact: true }).count()) === 0 && (await sheet(pa).getByRole("button", { name: t("pictureSave"), exact: true }).count()) === 1, "the phone wouldn't share it: the sheet says to hold the picture, and offers to save it");
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+
+      // out of date: an expense recorded since; still so after the page is opened again; a new picture puts it right
+      await pa.getByRole("tab", { name: t("expenses") }).click();
+      await spend(pa, "12");
+      await pa.getByRole("tab", { name: t("settle") }).click();
+      await pa.locator(".split-stale", { hasText: t("pictureStale") }).waitFor({ timeout: 5000 });
+      await pa.reload();
+      await button(pa, "addExpense").waitFor();
+      await pa.getByRole("tab", { name: t("settle") }).click();
+      await pa.locator(".split-stale").waitFor({ timeout: 5000 });
+      ok(((await pa.locator(".split-stale").textContent()) ?? "").includes(say("zh", "today", { time: "" }).trim()), "an expense recorded since: the settle tab says the picture is out of date, and when it was made; so it does when the page is opened again");
+      await makePicture(pa);
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+      await pa.locator(".split-row").first().click();
+      await button(pa, "markPaid").click();
+      await closed(pa);
+      await pa.waitForTimeout(500);
+      ok((await pa.locator(".split-stale").count()) === 0 && (await pa.locator(".split-row", { hasText: t("paid") }).count()) === 1, "a new picture: up to date; a transfer marked as paid since doesn't put it out of date");
+      await a.close();
+
+      // WeChat's own browser: no share sheet; the picture is held to send it or save it
+      const w = await phone(390, 664, "zh");
+      await w.addInitScript(`
+        const ua = navigator.userAgent;
+        Object.defineProperty(Navigator.prototype, "userAgent", { configurable: true, get: () => ua + " MicroMessenger/8.0.47(0x18002f2c) NetType/WIFI Language/zh_CN" });
+      `);
+      const pw = await open(w);
+      await start(pw, "微信", ["阿甲"]);
+      await spend(pw, "30");
+      await pw.getByRole("tab", { name: t("settle") }).click();
+      await makePicture(pw);
+      ok((await sheet(pw).locator(".split-picture-hint.is-loud", { hasText: t("pictureHold") }).count()) === 1 && (await sheet(pw).getByRole("button", { name: t("pictureShare"), exact: true }).count()) === 0 && (await sheet(pw).getByRole("button", { name: t("pictureSave"), exact: true }).count()) === 0, "in WeChat: hold the picture to send it or save it, said over the picture; no button to share it or to save it as a file (neither works there)");
+      ok((await sheet(pw).getByRole("button", { name: re(t("copyAsText")) }).count()) === 1, "and the plan can still be copied as text");
+      await w.close();
+
+      // a computer: no share sheet and no long press; the picture is saved as a file
+      const d = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "zh-CN", reducedMotion: "reduce", serviceWorkers: "block", acceptDownloads: true });
+      await rooms(d);
+      const pd = await open(d);
+      await start(pd, "电脑", ["阿甲"]);
+      await spend(pd, "30");
+      await pd.getByRole("tab", { name: t("settle") }).click();
+      await makePicture(pd);
+      const saving = pd.waitForEvent("download");
+      await sheet(pd).getByRole("button", { name: t("pictureSave"), exact: true }).click();
+      const file = await saving;
+      ok(/^all-square-\d{4}-\d{2}-\d{2}\.png$/.test(file.suggestedFilename()) && (await sheet(pd).locator(".split-picture-hint").count()) === 0, `a computer: 存图片 saves it as a file (${file.suggestedFilename()}), with nothing said about holding it`);
+      await d.close();
+    }
   }
 
   // the three motions, with motion allowed
@@ -988,11 +1967,141 @@ async function behave() {
   }
 }
 
+// ---------- gate: stage two's gate, as far as phones on this machine can take it ----------
+// Five phones on one ledger, recording at the same time, end up showing what the server holds, the
+// same on all five. One with no signal records three, and they go up once each; one whose answers
+// are lost on the way back sends again, and nothing counts twice. Two people changing one expense
+// at once: all five show whichever the server took last. The one who paid and the one paid both
+// mark the payment, with no signal: it is recorded once. (On real phones, and in WeChat: Steve.)
+async function gate() {
+  if (!local) {
+    console.log("gate: skipped (it starts a ledger, so it needs the server on this machine)");
+    return;
+  }
+  const people = ["阿甲", "阿乙", "阿丙", "阿丁"];
+  const ctxs: BrowserContext[] = [];
+  const pages: Page[] = [];
+  // the one who starts it, signed in; four friends by the invitation, two of them signed in
+  const first = await phone(390, 664, "zh");
+  ctxs.push(first);
+  const po = await open(first, true);
+  await start(po, "五部手机", people);
+  await po.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made === true`);
+  const started = (await keptBy(po)).held[0];
+  const id = started.server.id;
+  const key = started.key;
+  pages.push(po);
+  for (const [i, name] of people.entries()) {
+    const ctx = await phone(390, 664, "zh");
+    if (i < 2) await signIn(ctx);
+    ctxs.push(ctx);
+    const page = await ctx.newPage();
+    watch(page, true);
+    await page.goto(`${base}/split/${id}#k=${key}`);
+    await page.locator(".split-who").getByRole("button", { name: re(name) }).click();
+    await button(page, "addExpense").waitFor();
+    pages.push(page);
+  }
+  const ledgerOn = async (page: Page) => (await keptBy(page)).held.find((h) => h.server.id === id)!;
+  ok((await Promise.all(pages.map(ledgerOn))).every((h) => h.server.members.length === 5), "five phones on one ledger: the one who started it, and four by the invitation (two signed in, two not)");
+
+  // 阿乙's phone: the server takes what it sends, and the answer is lost on the way back, three times
+  let lose = 3;
+  await ctxs[2].route("**/split/api/ledgers/*/changes", async (route) => {
+    if (lose <= 0) return route.fallback();
+    lose--;
+    await route.fetch();
+    await route.abort("connectionreset");
+  });
+  // all five record at once, six each (phone p's j-th is p·10 + j dollars, so each is its own)
+  const amountsOf = (p: number, n: number) => Array.from({ length: n }, (_, j) => (p + 1) * 10 + j + 1);
+  await Promise.all(pages.map(async (page, p) => {
+    for (const d of amountsOf(p, 6)) await spend(page, String(d));
+  }));
+  ok(lose === 0, "(阿乙's phone lost the answer to three of its sends)");
+  // 阿丙's phone, with no signal, records three; two others record one more each meanwhile
+  await ctxs[3].setOffline(true);
+  await Promise.all([
+    (async () => {
+      for (const d of [37, 38, 39]) await spend(pages[3], String(d));
+    })(),
+    spend(pages[0], "17"),
+    spend(pages[1], "27"),
+  ]);
+  ok((await ledgerOn(pages[3])).waiting.length === 3, "阿丙's phone, with no signal, recorded three: they wait on the phone");
+  await ctxs[3].setOffline(false);
+
+  /** Everyone has sent what they had, and holds the server's ledger as it is: the server's, then. */
+  const settled = async () => {
+    for (let tries = 0; tries < 80; tries++) {
+      const server = await onServer(po, id, key);
+      const all = await Promise.all(pages.map(ledgerOn));
+      if (all.every((h) => h.waiting.length === 0 && h.seq === server.seq)) return server;
+      await po.waitForTimeout(400);
+    }
+    return null;
+  };
+  let server = await settled();
+  const recorded = [...pages.flatMap((_, p) => amountsOf(p, 6)), 37, 38, 39, 17, 27].map((d) => d * 100).sort((x, y) => x - y);
+  const live = (entries: { gone?: number; kind?: string; amount?: number }[]) => entries.filter((e) => e.kind === "expense" && e.gone === undefined);
+  const onIt = server ? live(server.ledger.entries as { gone?: number; kind?: string; amount?: number }[]).map((e) => e.amount!).sort((x, y) => x - y) : [];
+  ok(!!server && JSON.stringify(onIt) === JSON.stringify(recorded), `everything recorded is on the server once: ${onIt.length} of ${recorded.length}, none twice, none missing`);
+  const same = async () => {
+    const all = await Promise.all(pages.map(ledgerOn));
+    const theirs = JSON.stringify(server?.ledger.entries);
+    return all.every((h) => JSON.stringify(h.server.entries) === theirs && h.lost.length === 0);
+  };
+  ok(await same(), "all five hold the server's ledger, entry for entry, and none says anything didn't stick");
+  const rows = await Promise.all(pages.map(async (page) => (await page.locator(".split-row-amount").allTextContents()).sort().join(" ")));
+  ok(rows.every((r) => r === rows[0]) && rows[0].split(" ").length === recorded.length, "and all five screens show the same rows");
+
+  // two people change one expense at the same moment
+  const change = async (page: Page, from: string, to: string) => {
+    await page.locator("button.split-row", { hasText: from }).click();
+    await page.locator(".split-keys").waitFor();
+    // (an expense opened again shows its amount with its cents: "11.00")
+    while (((await amountShown(page)) ?? "").replace(/[^0-9.]/g, "") !== "0") await page.locator(".split-key").last().click();
+    await type(page, to);
+    await button(page, "saveChanges").click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+  };
+  await Promise.all([change(pages[0], "$11.00", "71"), change(pages[1], "$11.00", "72")]);
+  server = await settled();
+  const changed = server ? live(server.ledger.entries as { gone?: number; kind?: string; amount?: number }[]).filter((e) => e.amount === 7100 || e.amount === 7200) : [];
+  ok(changed.length === 1 && (await same()), `two people change one expense at once: it is the one the server took last (${(changed[0]?.amount ?? 0) / 100}) on all five`);
+
+  // the one who paid and the one paid both mark the payment as made, neither with a signal
+  const settleTab = async (page: Page) => {
+    await page.getByRole("tab", { name: t("settle") }).click();
+    await page.locator(".split-row").first().waitFor();
+  };
+  for (const page of pages) await settleTab(page);
+  const plans = await Promise.all(pages.map(async (page) => (await page.locator(".split-row").allTextContents()).length));
+  ok(plans.every((n) => n === plans[0] && n > 0), `the plan to settle up has the same ${plans[0]} lines on all five`);
+  // (the first line of the plan names its two people; the phones that are theirs mark it)
+  const firstLine = (await pages[0].locator(".split-row").first().textContent()) ?? "";
+  const names = ["我", ...people];
+  const whose = names.map((n, i) => ({ n, i })).filter(({ n }) => firstLine.includes(n === "我" ? "你" : n)).map(({ i }) => i);
+  const pair = whose.length === 2 ? whose : [0, 1];
+  for (const i of pair) await ctxs[i].setOffline(true);
+  for (const i of pair) {
+    await pages[i].locator(".split-row").first().click();
+    await button(pages[i], "markPaid").click();
+    await closed(pages[i]);
+  }
+  for (const i of pair) await ctxs[i].setOffline(false);
+  server = await settled();
+  const transfers = server ? (server.ledger.entries as { kind?: string; gone?: number }[]).filter((e) => e.kind === "transfer" && e.gone === undefined) : [];
+  ok(transfers.length === 1 && (await same()), `the payment, marked on both its people's phones with no signal: recorded once (${transfers.length}), and all five show it so`);
+  for (const ctx of ctxs) await ctx.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
 if (what === "all" || what === "fits") await fits();
 if (what === "all" || what === "behave") await behave();
+if (what === "all" || what === "gate") await gate();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

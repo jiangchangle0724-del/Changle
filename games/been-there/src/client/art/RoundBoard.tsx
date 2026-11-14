@@ -656,6 +656,12 @@ function BoardDefs() {
   );
 }
 
+/** A token sent straight to a space (Beijing's Central Axis, an Air Miles route: ui/Board.tsx
+ * straightMoves): how long its flight over the middle of the board takes (ms), and how high it goes. */
+export const STRAIGHT_MS = 1100;
+const STRAIGHT_HOP = 90;
+/** A token sent on from where its walk ended (to Immigration) stands there this long first (ms). */
+const SENT_ON_MS = 450;
 /** A token walking round: how high it hops (board units) and how long it stays squashed as it lands (ms). */
 const HOP = { h: 22, land: 160 };
 
@@ -748,6 +754,93 @@ function Gavel() {
   );
 }
 
+/** The spaces a question in play is about (ui/aim.ts): where it would take the token. */
+export interface AimMark {
+  /** The spaces lit, the one asked about most first. */
+  spaces: number[];
+  /** Where the token stands: a path from there to the first space, round the ring as it walks, or
+   * straight across the middle (`across`). */
+  from?: number;
+  across?: boolean;
+  /** One question: each new one lights up anew. */
+  key: string;
+}
+
+/** A path's arrow: how long, and half how wide (board units). */
+const ARROW = { l: 34, w: 17 };
+
+/** An arrow with its tip at (tx, ty), pointing along (ux, uy). */
+function arrowAt(tx: number, ty: number, ux: number, uy: number): string {
+  const bx = tx - ux * ARROW.l;
+  const by = ty - uy * ARROW.l;
+  const px = -uy * ARROW.w;
+  const py = ux * ARROW.w;
+  const p = (x: number, y: number) => `${x.toFixed(1)} ${y.toFixed(1)}`;
+  return `M${p(tx, ty)}L${p(bx + px, by + py)}L${p(bx - px, by - py)}Z`;
+}
+
+/** The path from where a token stands to the space a question is about, and its arrow; none if the
+ * question has no path. Round the ring the way the tokens walk, or straight across the middle. */
+function aimPath(aim: AimMark): { d: string; head: string } | null {
+  const to = aim.spaces[0];
+  if (aim.from === undefined || to === undefined || to === aim.from) return null;
+  if (aim.across) {
+    // (from under the token, through the middle of the board, to just short of where it would stand)
+    const [x0, y0] = xy(angleOf(aim.from), RT - 30);
+    const [tx, ty] = xy(angleOf(to), RT - 24);
+    const len = Math.hypot(tx - x0, ty - y0);
+    const ux = (tx - x0) / len;
+    const uy = (ty - y0) / len;
+    return { d: `M${x0.toFixed(1)} ${y0.toFixed(1)}L${(tx - ux * ARROW.l).toFixed(1)} ${(ty - uy * ARROW.l).toFixed(1)}`, head: arrowAt(tx, ty, ux, uy) };
+  }
+  // (clockwise, as the spaces count: from just past the token to just short of the space's middle)
+  const a0 = angleOf(aim.from) + 5;
+  let tip = angleOf(to) - 4;
+  while (tip <= a0) tip += 360;
+  const base = tip - ((ARROW.l / RT) * 180) / Math.PI;
+  const [x0, y0] = xy(a0, RT);
+  const [x1, y1] = xy(base, RT);
+  const [tx, ty] = xy(tip, RT);
+  const th = (tip * Math.PI) / 180;
+  return {
+    d: `M${x0.toFixed(1)} ${y0.toFixed(1)}A${RT} ${RT} 0 ${base - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`,
+    head: arrowAt(tx, ty, Math.cos(th), Math.sin(th)),
+  };
+}
+
+/**
+ * The spaces a question in play is about, lit so the players see where it would take the token (the
+ * spaces themselves glow gold under what's on them: RoundBoard). Round each, a bright edge with a
+ * glow off it, breathing three times as the question comes and then holding lit (a light that never
+ * stops keeps a phone drawing); a ring spreads from it each breath. The one asked about most comes
+ * first, brightest. A dashed path runs to it from the token, its dashes marching toward it. art.css .aim.
+ */
+function AimMarks({ aim }: { aim: AimMark }) {
+  const path = aimPath(aim);
+  return (
+    <g class="aim" aria-hidden="true">
+      {path && (
+        <>
+          <path class="aim-shade" d={path.d} />
+          <path class="aim-path" d={path.d} />
+          <path class="aim-head" d={path.head} />
+        </>
+      )}
+      {aim.spaces.map((at, i) => {
+        const d = wedge(at, CORNER[BOARD[at].k] ? RO + 6 : RO);
+        const [cx, cy] = xy(angleOf(at), (RI + RO) / 2);
+        return (
+          <g key={at} class={i === 0 ? "aim-sp main" : "aim-sp"}>
+            <path class="aim-halo" d={d} />
+            <path class="aim-edge" d={d} />
+            <circle class="aim-ring" cx={cx.toFixed(1)} cy={cy.toFixed(1)} r="40" />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 /** A team that has just made a full set: its spaces light up one after another in its colour. */
 export interface LitSet {
   key: string;
@@ -811,6 +904,9 @@ export function RoundBoard({
   lit,
   fallen,
   visited,
+  aim,
+  straight,
+  turnAfter = 0,
 }: {
   marks: (SpaceMark | null)[];
   tokens: TokenMark[];
@@ -836,8 +932,9 @@ export function RoundBoard({
    * on the big screen, 9 o'clock (270) on a phone. */
   focusAt?: number;
   /** When other teams' tokens start walking and how long a space takes (performance.now() ms), so
-   * they move in step with the thrower's ride. */
-  walks?: Record<number, { start: number; per: number }>;
+   * they move in step with the thrower's ride; and where the walk ends when the token was sent on from
+   * there (`via`: to Immigration), to fly straight on from there once it's walked it. */
+  walks?: Record<number, { start: number; per: number; via?: number }>;
   /** The real world in the middle (art/SatMap.ts), under the board: on a phone or a laptop, and on the big
    * screen when its globe can't be shown. */
   sat?: boolean;
@@ -856,6 +953,14 @@ export function RoundBoard({
   /** Teams gone broke a moment ago (`Fallen`): their tokens fall over (not with reduced motion), and
    * their cities go after their stamp. */
   fallen?: Fallen[];
+  /** The spaces the question in play is about (`AimMark`, ui/aim.ts): lit, with a path from the token. */
+  aim?: AimMark | null;
+  /** Tokens sent straight to a space (by seat: when they set off, performance.now() ms): they fly there
+   * over the middle of the board, rather than walking round (`STRAIGHT_MS`). */
+  straight?: Record<number, number>;
+  /** The table waits until then (performance.now() ms) to turn to its new resting place: this phone's
+   * own token flying straight across lands first, in sight. */
+  turnAfter?: number;
   /** The cities the teams have been to: little planes fly between them over the map (`MapLife`). */
   visited?: string[];
 }) {
@@ -928,6 +1033,8 @@ export function RoundBoard({
     };
   });
 
+  const turnAfterRef = useRef(turnAfter);
+  turnAfterRef.current = turnAfter;
   useLayoutEffect(() => {
     // A move turns the table itself, and gives it back where it rests.
     if (riding !== undefined && riding !== null) return;
@@ -939,6 +1046,29 @@ export function RoundBoard({
       apply(start + delta);
       return;
     }
+    // (a token flying straight across lands before the table turns under it)
+    const wait = turnAfterRef.current - performance.now();
+    if (wait > 0) {
+      let later = 0;
+      let undo: (() => void) | void;
+      const go = () => {
+        later = 0;
+        undo = turnFrom(start, delta, svg);
+      };
+      later = window.setTimeout(go, wait);
+      return () => {
+        if (later) {
+          clearTimeout(later);
+          apply(start + delta);
+        } else if (undo) undo();
+      };
+    }
+    return turnFrom(start, delta, svg);
+  }, [focus, focusAt, reduced, riding]);
+
+  /** Turn the table from `start` by `delta` degrees: round, or, a long way, dipping out and back turned.
+   * Returns how to stop it (where it would have come to). */
+  function turnFrom(start: number, delta: number, svg: SVGSVGElement | null): () => void {
     let raf = 0;
     if (Math.abs(delta) > FADE_PAST) {
       // A long way round: the board dips out and comes back turned, rather than spinning.
@@ -982,17 +1112,20 @@ export function RoundBoard({
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [focus, focusAt, reduced, riding]);
+  }
 
   // Tokens walk around the ring to their new space, with a little hop on each one: in step with the
-  // thrower's ride when we know its beat (`walks`), at once otherwise.
+  // thrower's ride when we know its beat (`walks`), at once otherwise. One sent straight to a space
+  // (`straight`) flies there instead, over the middle of the board, in one long hop.
   const shown = useRef(new Map<number, number>());
   const walksRef = useRef(walks);
   walksRef.current = walks;
+  const straightRef = useRef(straight);
+  straightRef.current = straight;
   const posKey = tokens.map((t) => `${t.seat}:${t.at}`).join(",");
   useLayoutEffect(() => {
     const g = ref.current;
-    const moves: { seat: number; from: number; delta: number; el: SVGGElement; fan: number; ring: number; start: number; per: number; pressed: number }[] = [];
+    const moves: { seat: number; from: number; delta: number; el: SVGGElement; fan: number; ring: number; start: number; per: number; pressed: number; straight: boolean }[] = [];
     for (const tk of tokens) {
       const from = shown.current.get(tk.seat);
       shown.current.set(tk.seat, tk.at);
@@ -1003,10 +1136,29 @@ export function RoundBoard({
       if (!el) continue;
       const w = walksRef.current?.[tk.seat];
       const now = performance.now();
+      const fly = straightRef.current?.[tk.seat];
+      const straight = fly !== undefined && fly > now - 4000;
+      const shortest = (d: number) => {
+        const k = ((d % BOARD.length) + BOARD.length) % BOARD.length;
+        return k > BOARD.length / 2 ? k - BOARD.length : k;
+      };
+      if (w?.via !== undefined && w.via !== tk.at && w.via !== from) {
+        // Walked to where the throw took it, in step, then sent straight on from there (to Immigration):
+        // the walk, a moment on the space, then the flight over the middle.
+        const fan = Number(el.dataset.fan ?? 0);
+        const ring = Number(el.dataset.ring ?? RT);
+        const d1 = shortest(w.via - from);
+        const d2 = shortest(tk.at - w.via);
+        const start = w.start > now - 4000 ? w.start : now;
+        moves.push({ seat: tk.seat, from, delta: d1, el, fan, ring, start, per: w.per, pressed: 0, straight: false });
+        if (d2) moves.push({ seat: tk.seat, from: w.via, delta: d2, el, fan, ring, start: Math.max(now, start + w.per * Math.abs(d1) + SENT_ON_MS), per: STRAIGHT_MS / Math.abs(d2), pressed: 0, straight: true });
+        continue;
+      }
       // (a beat we know of: the walk starts when the thrower's does, a space at its pace; otherwise now)
-      const start = w && w.start > now - 4000 ? w.start : now;
-      const per = w ? w.per : Math.min(1800, 220 + Math.abs(delta) * 120) / Math.max(1, Math.abs(delta));
-      moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT), start, per, pressed: 0 });
+      // (a flight the board couldn't show as it set off, under a move's camera, sets off now)
+      const start = straight ? Math.max(fly!, now) : w && w.start > now - 4000 ? w.start : now;
+      const per = straight ? STRAIGHT_MS / Math.abs(delta) : w ? w.per : Math.min(1800, 220 + Math.abs(delta) * 120) / Math.max(1, Math.abs(delta));
+      moves.push({ seat: tk.seat, from, delta, el, fan: Number(el.dataset.fan ?? 0), ring: Number(el.dataset.ring ?? RT), start, per, pressed: 0, straight });
     }
     if (!moves.length) return;
     // A hop to each space: up and stretched a little in the air, its shadow staying on the board and
@@ -1020,18 +1172,37 @@ export function RoundBoard({
       moves.forEach((m, i) => {
         const dur = Math.max(1, m.per * Math.abs(m.delta));
         const e = now - m.start;
+        // (a flight that waits for its walk: the walk has the token till then)
+        if (m.straight && e < 0) {
+          going = true;
+          return;
+        }
         const p = Math.max(0, Math.min(1, e / dur));
         if (e < dur + HOP.land) going = true;
-        const at = m.from + m.delta * p;
-        const done = Math.abs(m.delta) * p;
-        const u = done - Math.floor(done);
-        const air = p > 0 && p < 1 ? Math.sin(Math.PI * u) : 0;
-        const hop = air * HOP.h;
-        // (since it last landed: on a space on the way, a quick push off it; on the last one, settling)
-        const since = p >= 1 ? e - dur : done >= 1 ? u * m.per : Infinity;
-        const land = p >= 1 ? HOP.land : Math.min(HOP.land, 0.15 * m.per);
+        let x: number, y: number, air: number, hop: number, since: number, land: number;
+        if (m.straight) {
+          // (straight over the middle, easing off and in, high up in the air between)
+          const q = p < 0.5 ? 2 * p * p : 1 - 2 * (1 - p) * (1 - p);
+          const [x0, y0] = xy(angleOf(m.from) + m.fan, m.ring);
+          const [x1, y1] = xy(angleOf(m.from + m.delta) + m.fan, m.ring);
+          x = x0 + (x1 - x0) * q;
+          y = y0 + (y1 - y0) * q;
+          air = p > 0 && p < 1 ? Math.sin(Math.PI * p) : 0;
+          hop = air * STRAIGHT_HOP;
+          since = p >= 1 ? e - dur : Infinity;
+          land = HOP.land;
+        } else {
+          const at = m.from + m.delta * p;
+          const done = Math.abs(m.delta) * p;
+          const u = done - Math.floor(done);
+          air = p > 0 && p < 1 ? Math.sin(Math.PI * u) : 0;
+          hop = air * HOP.h;
+          // (since it last landed: on a space on the way, a quick push off it; on the last one, settling)
+          since = p >= 1 ? e - dur : done >= 1 ? u * m.per : Infinity;
+          land = p >= 1 ? HOP.land : Math.min(HOP.land, 0.15 * m.per);
+          [x, y] = xy(angleOf(at) + m.fan, m.ring);
+        }
         const squash = since < land ? (1 - since / land) * (p >= 1 ? 1 : 0.6) : 0;
-        const [x, y] = xy(angleOf(at) + m.fan, m.ring);
         m.el.dataset.x = x.toFixed(1);
         m.el.dataset.y = y.toFixed(1);
         m.el.setAttribute("transform", `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(-rot.current).toFixed(2)}) translate(0 ${(-hop).toFixed(1)})${up}`);
@@ -1213,6 +1384,8 @@ export function RoundBoard({
           return (
             <g key={at} data-at={at} class={`sp k-${sp.k}${at === active ? " active" : ""}${mark?.mortgaged ? " mort" : ""}`} onClick={onPick ? () => onPick(at) : undefined}>
               <path d={wedge(at, corner ? RO + 6 : RO)} class={corner ? "wedge corner-w" : "wedge"} style={group ? { fill: TINT[group.id] } : undefined} />
+              {/* (a space a question is about glows gold under what's on it: AimMarks) */}
+              {aim?.spaces.includes(at) && <path key={aim.key} class={aim.spaces[0] === at ? "aim-glow main" : "aim-glow"} d={wedge(at, corner ? RO + 6 : RO)} aria-hidden="true" />}
               {group && <path d={band(at)} fill={group.color} />}
               {group && (
                 <Up x={bx} y={by} rot={r}>
@@ -1310,6 +1483,8 @@ export function RoundBoard({
         <path class="board-gloss" d={GLOSS_D} fill="url(#rb-gloss)" aria-hidden="true" />
         {/* (a space a token steps on lights for a moment: pressSpace draws in here) */}
         <g class="presses" aria-hidden="true" />
+        {/* (the spaces a question in play is about, and the path to the one it's most about) */}
+        {aim && <AimMarks key={aim.key} aim={aim} />}
         {/* (a full set just made: its spaces light up one after another, then together) */}
         {!reduced &&
           lit?.map((l) => (

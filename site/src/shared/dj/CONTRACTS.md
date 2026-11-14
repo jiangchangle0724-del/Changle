@@ -31,11 +31,12 @@ It is built inside the site, not as its own project: the rules run on the site's
 | The stand-in DJ | `site/src/party/dj/fake/` (`sections.ts` house, `styles.ts` the other 11, `arrange.ts`, `render.ts`, `FakeDj.ts`) |
 | The beginner deck: shared rules (pure) | `site/src/shared/dj/deck.ts` |
 | The beginner deck on the speaker | `site/src/party/dj/deck/driver.ts`, the sounds in `speaker/fx.ts`, the screen in `deck/TvDeck.tsx` |
-| The phone: the player, the song box, the 歌单, the pads | `site/src/party/dj/phone/Player.tsx`, `phone/DeckPad.tsx`; words in `deck/words.ts`; styles `site/src/styles/dj-deck.css` |
+| The phone: the player, the song box, the 歌单, the sound board | `site/src/party/dj/phone/Player.tsx`, `phone/DeckPad.tsx`, `phone/SoundBoard.tsx`; words in `deck/words.ts`; styles `site/src/styles/dj-deck.css` |
+| The sound board: its list, its files, the TV's player | `site/src/shared/dj/sfx.ts` (the kinds and the sounds, made with the files by `site/scripts/sfx_make.py` from `sfx_catalog.py`), `site/public/media/sfx/`; `site/src/party/dj/sfx/player.ts`, the kinds' icons `sfx/look.ts` |
 | The 12 styles' Lyria presets | `site/src/shared/dj/presets.ts` (C1) |
 | The speaker's screen | `site/src/party/dj/TvDj.tsx` (in the big screen, `site/src/tv/TvApp.tsx`) |
 | The phone | `site/src/party/dj/NetDj.tsx`, `site/src/styles/dj-phone.css` |
-| Lights and dancers | `site/src/party/dj/Floor.tsx` (the lights, the drawn floor), `Floor3D.tsx` (the robots), `robot3d.ts` (what they share with the coach), `site/src/styles/dj.css` |
+| Lights and dancers | `site/src/party/dj/Floor.tsx` (the lights, the drawn floor), `Floor3D.tsx` (the robots), `robot3d.ts` (what they share with the coach); the coach: `Coach.tsx`, `Coach3D.tsx`, `coach/` (its robot and moves), `site/src/styles/dj.css` |
 | The speaker on its own (no table) | `site/src/party/dj/TestPage.tsx`, at changle.ca/dj/test |
 | Lyria: the relay on the rooms server | `site/worker/lyria.ts` (in the table's Durable Object, `index.ts`) |
 | Lyria: the speaker's side | `site/src/party/dj/lyria/` (`LyriaDj.ts`, `prompts.ts`, `beat.ts`), switched in `useBooth.ts` |
@@ -90,9 +91,14 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
 - **报幕** (the plan: "偶尔用语音报幕「下面这首来自 Jackie」"): as the countdown into a song asked
   for starts (the drop goes to the deck it's on), the big screen says who it's from in its own
   language ("下面这首来自 Ben", "Next up, a request from Ben"), once a song, with the browser's
-  own voice, the music dipping about 8 dB under it (`Speaker.duck`, after the ceiling). No voice
-  for that language (a Cantonese one doesn't count for Chinese): it stays quiet. The start tap
-  lets the page talk later (`primeVoice`); the host turns it off from their phone (`voice`).
+  own voice, the music dipping about 8 dB under it (`Speaker.duck`, after the ceiling), and shows
+  it across the floor for 3.2 s (`.dj-drop.is-say`). No voice for that language (a Cantonese one
+  doesn't count for Chinese): only shown. **An iPhone or iPad never speaks it, only shows it**
+  (`voiceSafe`; Steve on Nov 14: the shared phone's music stopped by itself and a tap didn't bring
+  it back): there the page's voice stops the page's other sound (WebKit bug 218815) and the sound
+  can stay stopped whatever the page does (bug 273511). The start tap lets the page talk later
+  (`primeVoice`, nowhere else: not in a tap that wakes the sound, not on the shared phone's start,
+  which is no tap); the host turns it off from their phone (`voice`).
 - **今晚回顾, the night's recap** (the plan's C8): the deck keeps what went on the air and when
   (`aired`: a style, the host's songs `mine`, or `off` when a set ends) and the songs asked for that
   played (`heard`, the latest 30; a typed name shows only to its player and the host, as in the
@@ -101,17 +107,34 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   the songs asked for, who was most fired up, the perfect drops, whether the sound held up (the
   speaker's `stats`, now in the view as `speaker`); a phone adds the player's own line.
 - **跟着跳, dancing along** (Steve on Nov 2: "电视那边是要玩家进行与舞蹈相匹配的舞蹈"; his plan's 一起跳,
-  `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`): a 3D robot (`Coach3D.tsx`,
-  three.js loaded only there, a CC0 model in `public/models/robot.glb` with its own dances, each
-  animation stretched to whole beats and set to the speaker's beat every frame), or Name That
+  `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`) all night, whole songs too
+  (Steve on Nov 14: "这个左边的机器人要一直在那里不能消失"; over a song's video filling the TV, a
+  little smaller, down in its corner, under the 弹幕): a 3D robot made in code (`coach/robot.ts`,
+  Nov 14: "更拟人真实细腻": a humanlike body in a glossy shell, a visor face with eyes that blink
+  and smile, headphones, a stool; its arms and legs reach by two-bone IK, nothing downloaded but
+  three.js, loaded only there), each move a plain function of the beat (`coach/poses.ts`), set from
+  the speaker's beat every frame, one move flowing into the next over half a second (sitting down
+  and standing up too), the camera closer when it sits, its lights the room's colour; or Name That
   Tune's drawn performer while it loads and on a screen with no graphics chip for it (no WebGL,
   WebGL drawn in software, where three.js isn't even downloaded, or its frames under 20 a second
   in its first seconds: the robot would take the TV's processor from the music and the page; a
   phone playing the speaker gets the robot when its chip keeps up, Steve's TV being an iPhone shown
-  on a computer over AirPlay),
-  dancing the routine on the speaker's own beat: ten moves (`shared/dj/dance.ts`, `DANCE_MOVES`),
-  16 beats each, named big, the next one called in its last 4 beats. Every phone and the room know
-  the move from the same beat count (`moveAt`), with nothing sent. A phone held in the dancing hand
+  on a computer over AirPlay; the drawn one dances each move's nearest standing one, `drawn`),
+  dancing the routine on the speaker's own beat: fifteen simple moves that go with any song
+  (Steve on Nov 14: "有站着的有坐着的，慢摇，快摇"; `shared/dj/dance.ts`, `DANCE_MOVES`), nine
+  standing and six sitting, each with a line under its name saying how to do it ("下面有文字告诉大家
+  怎么跳", both languages, two lines at most). Which moves, in what order, follow the room's stretch
+  of the night (`ROUTINES`, `moodOf`): the warm-up mostly sitting, getting up at its end; the build
+  standing; the peak the bounciest (快摇 first); the wind-down and a slow song (under 90 BPM by its
+  own tempo, `slowSong`) the gentle ones (慢摇 first), standing then sitting. 16 beats each, named
+  big, the next one called in its last 4 beats. Every phone and the room know the move from the
+  same beat count and stretch (`moveAt`), with nothing more sent. A whole song playing: the speaker
+  says where its beats fall (`songbeat`: its id, the first beat `off` ms after `song.at`, the dance
+  tempo, `slow`; said again until the room has it, again when its tempo is found), kept as
+  `deck.song.beat` (a pause moves `song.at`, so the beats move with it); the coach and every phone
+  dance to those (`songGrid`), and a phone still sends the room its bars by the room's own count (a
+  song's bar ending in one already sent stays on the phone). While 暂停 holds the music a phone counts
+  nothing, and starts again from the next bar. A phone held in the dancing hand
   (`phone/DancePad.tsx`; iOS and newer Chrome ask for the motion sensor on the start tap) reads its
   motion with gravity taken out; a beat is danced when the hand moves at least 2.5 m/s² within
   150 ms of it (`danced`, the plan's easy mode: you moved, near the beat), counted from when the
@@ -149,6 +172,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `knob` `{ style, value }` | anyone | The player's knob for one of the 12 styles, −1 (less) to 1 (more) on a 0.25 grid; 0 takes it back. Kept in `knobs[pid]`. Light: while a finger drags, send at most one every 250 ms and the last on release. |
 | `drop` `{ c? }` | anyone | DROP, pressed in a drop's countdown (the beginner deck, below): counts once a phone, graded by `c`, the phone's estimate of the server's clock (never later than now, never more than a second earlier); the latest 20 that counted in `drops`, an `fx` event `drop` (`data: [1]` when perfect). Anything else is quiet. Light. |
 | `pad` `{ pad }`, `charge` `{ n }`, `vote` `{ style }`, `fader` `{ value }` | anyone | The beginner deck, below. |
+| `sfx` `{ i }` | anyone, and the speaker (the shared phone's 音效, as the table's: `SHARED_BY`) | One of the sound board's sounds (音效, below): its place in `SFX`. Not after the end; a phone sends one per `SFX_TIMES.gapMs` (600 ms) and the room takes one per `takeMs` (500 ms: the network bunches presses), the same sound once for the room per `roomGapMs` (1.5 s: two people on one sound at once is one). Kept for that in `sfxAt` and `sfxLast` (the latest 20); an `fx` event `sfx` (`data: [i]`). Light. |
 | `grid` `{ at, bar, bpm }` | the speaker | Where its bars fall, below. |
 | `ask` `{ text, style? }` | anyone | A song described in 2 to 120 characters (one line, invisible characters taken out; an emoji or a Chinese character is one), with a style if they picked one: a `Track` added to `queue` as `queued`, an `fx` event `ask`. One waiting song a player, 12 for the table; more is ignored. |
 | `unask` `{ id }` | its player, or the host | Takes back a song while it is `queued` (or `refused`, `failed`); once it is being checked or made it is the song pipeline's. |
@@ -165,7 +189,8 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `juke` `{ on }` | the speaker | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), the booth's only way since Nov 12 ("不需要drop了": on in a new booth, and once in one saved before, `rev` 2). Off (the build-up and DROP, still in the engine) only from the speaker's word, which no page sends: the engine's tests use it, and the big screen switches a booth an older page turned off back on. Another set keeps it. |
 | `full` `{ on }` | anyone, or the speaker | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
 | `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
-| `song` `{ by, id, code }` | the speaker | How a song file sent from the host's phone went (below): an `fx` event `song` for that phone. |
+| `songbeat` `{ id, off, bpm, slow }` | the speaker | 跟着跳 on a whole song: where its beats fall (the first `off` ms after `song.at`, 0 to 60 s; the dance tempo, 60 to 200; `slow`, a slow song). Only the song playing; the same again, nothing more. Kept in `deck.song.beat`. |
+| `song` `{ by, id, code, local? }` | the speaker | How a song file sent from a player's phone went (below): an `fx` event `song` for that phone; one the TV had already (`there`, `local` its id): on that player's 歌单 too. |
 | `nosong` `{ id }` | the speaker | The video of the song up next won't play here (YouTube said so while the TV got it ready): it comes off that song (`ytNo`), whose drop plays the DJ's remix alone. Only the song up next with a video; said again, nothing more. |
 | `req` `{ text, song?, yt? }`, `unreq` `{ id }` | the speaker | The shared phone's own 点歌 (below): a song asked for as the table's (`SHARED_BY`), up to the table's 30 (not three); only its own taken back. |
 
@@ -190,7 +215,10 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 ## The speaker
 
 One sound chain on its own AudioContext at 48 kHz with `latencyHint: "playback"` (opened from a
-tap, which iPhone and Safari require):
+tap, which iPhone and Safari require). **An iPhone's or iPad's runs at the rate the phone plays
+at** (`ownRate`, `newContext`; also `lib/primeAudio.ts`; Steve on Nov 14: the shared phone
+stuttered): one held at 48 kHz comes out distorted once the phone's sound goes somewhere at another
+rate, AirPlay to the TV or Bluetooth (WebKit bugs 258864, 259899); the player resamples the stream.
 
 ```
 PCM chunks → player (AudioWorklet) → master gain → glue compressor → limiter (−1.5 dB) → speakers
@@ -215,7 +243,16 @@ PCM chunks → player (AudioWorklet) → master gain → glue compressor → lim
 - **Energy:** the 45–140 Hz band against its own recent loudest, 0 to 1: the lights pulse with the
   kick at any volume.
 - **Stopped sound:** an iPhone or iPad stops it when the screen locks or a call comes in; the
-  screen then shows one button that wakes it (`resume`).
+  screen then shows one button that wakes it, and any tap on the page does too (one tap is a touch
+  and a click: one wake, `WAKE_ONCE_MS`). Stopped means: not running; running while its clock stood
+  still for 5 s (nudged at 3: suspend and resume); or its clock running more than 3 % off the page's
+  over 8 s (`DRIFT`). A tap wakes it (`resume`), but makes a **fresh sound** instead (`renew` in
+  `useBooth.ts`, a new context made inside the tap) when it's an iPhone's stuck "interrupted"
+  (WebKit bug 273511: `resume` does nothing), when its clock stood still or drifted, or when a tap
+  already woke it and it stopped again. Whichever DJ played goes on into the fresh one from a new
+  stream (Lyria starts again by itself), the old one closed; what holds the speaker follows it (the
+  sound board's player, a song from a phone carrying on from where the room is, the DJ giving way
+  under a YouTube song).
 - **One per page** (`useBooth.ts`): the speaker and the stand-in DJ (with what it has recorded)
   live as long as the page, not the screen showing them. When the host closes the booth and opens
   it again, the music comes back without another tap on the TV; a double tap on start makes one
@@ -278,7 +315,7 @@ styles' prompts (C1's presets) instead, a few seconds behind.
 
 | Command | What the room does |
 | --- | --- |
-| `pad` `{ pad }` | One of the twelve (`PAD_IDS`, in their order on the phones): `echo`, `sweep`, `horn` (气笛, the air horn), `brake`, `siren`, `laser`, `scratch`, `rewind` (those four Steve's ask on Nov 1, for more club sounds), `vinyl`, `bassdrop`, `reverse`, `whistle` (Steve on Nov 2: "more DJ sound effects like airhorn blasts, vinyl record"), while music plays. Over a whole song from YouTube (真歌时间, below) only the pads that are a sound of their own (`OVER_SONG`: `horn`, `siren`, `laser`, `vinyl`, `bassdrop`, `reverse`, `whistle`; Steve on Nov 2: the effects to hype the floor over the song too); the others wait. A hand on a phone's record sends the moves too (`scratch`, `rewind`, `brake`, below). A phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn); a move of the music itself (`MOVES`: the brake, a scratch, a rewind) once per 4 s for the room (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. |
+| `pad` `{ pad }` | One of the twelve (`PAD_IDS`, in their order on the phones): `echo`, `sweep`, `horn` (气笛, the air horn), `brake`, `siren`, `laser`, `scratch`, `rewind` (those four Steve's ask on Nov 1, for more club sounds), `vinyl`, `bassdrop`, `reverse`, `whistle` (Steve on Nov 2: "more DJ sound effects like airhorn blasts, vinyl record"), while music plays. Over a whole song from YouTube (真歌时间, below) only the pads that are a sound of their own (`OVER_SONG`: `horn`, `siren`, `laser`, `vinyl`, `bassdrop`, `reverse`, `whistle`; Steve on Nov 2: the effects to hype the floor over the song too); the others wait. A hand on a phone's record sends the moves too (`scratch`, `rewind`, `brake`, below). A phone sends one per 600 ms and the room takes one per 500 ms (the network bunches presses), the same pad once for the room per 150 ms (two people on the horn at once is one horn); a move of the music itself (`MOVES`: the brake, a scratch, a rewind) once per 4 s for the room (`brakeAt`) and never while a drop is on its way. Kept in `pads` (latest 12), an `fx` event `pad` (`data: [index in PAD_IDS]`). Light. The speaker plays it from its next beat. Since Nov 13 no phone sends it (the sound board took the pads' place, below); the room and the speaker still take it from a page opened before. |
 | `charge` `{ n }` | Taps on the build-up (a phone sends what it has every 250 ms, 8 at most, and a last `0` once its taps stop, so nothing is left waiting). Added a few times a second (`foldMs`), and only then told (quiet in between): 0.03 a tap, never faster than 0.25 a second for the room, falling back 0.12 a second after 1.5 s without a tap (`chargeNow`). Light, except the tap that fills it: that arms the drop and sets its timer, a real change. |
 | `vote` `{ style }` | A phone's pick for what plays next (the same again takes it back; one per 300 ms a phone; none while a drop is on its way, which lands on the deck the floor had cued, and the phones show the picks waiting). The most picked (a tie: the one picked last) goes on the deck **off the air** (the one the fader leans away from), unless it's what's on the air. Picks start over whenever the decks swap. |
 | `fader` `{ value }` | 0 (all A) to 1 (all B), on a 0.01 grid, only while deck B has a style. Whoever moves it holds it for 1.2 s after their last move (`faderBy`, `faderAt`); the others' moves are quiet till then. A phone sends at most every 120 ms while a finger drags, and the last on release. Light. `mix.weights` follows the decks and the fader (`deckWeights`). |
@@ -370,11 +407,11 @@ deck B ┘                                                                 horn,
   (`phone/Player.tsx`): what the TV plays and whose (no song: what the DJ plays, the host's song or
   its styles and tempo), what's next, then 上一曲, 暂停 or 播放, 切歌 (keys of 72 px, never grey while
   a song is coming on), the video over the whole TV, and the TV's word when it wants a tap. Then
-  the song box, the 歌单 and the twelve pads (the ones that work the music wait while a whole song
-  plays or the room is held), 🔥 and ❄️, the host's card (报幕 on or off; at the end, 再来一场:
-  its stretches and 结束这一场 gone on Nov 13), and 跟着跳 at the very bottom.
+  the song box, 从手机传歌, the 歌单 and the sound board (音效, below; the twelve pads until Nov 13),
+  🔥 and ❄️, 弹幕, the host's card (报幕 and 弹幕 on or off; at the end, 再来一场: its stretches and
+  结束这一场 gone on Nov 13), and 跟着跳 at the very bottom.
 - **The screens:** the TV shows the two decks (the one on the air bright, the cued one "up next"),
-  the fader, who pressed which pad, and a line (`jukeText`: what comes next, 暂停 held, or a floor
+  the fader, who played which sound, and a line (`jukeText`: what comes next, 暂停 held, or a floor
   that's dragging between songs told to ask for a song everyone loves). With the build-up and DROP
   on (the engine's tests only), its meter, the countdown, the landed drop and `hintFor`'s hints.
 
@@ -393,6 +430,35 @@ across everything, the video too, with the sender's face and name: six rows, eve
 speed (an empty one would cross in 8 s), a row's next line once the last one's tail is in; a flood
 waits for a free row, 8 s at most, then is dropped. With reduced motion a line stands at the left,
 fading in and out over 4 s.
+
+**音效, the sound board** (Steve on Nov 13: "首先对我的这些音效进行细致的分类…玩家看到的会先是这些分类
+进去之后才可以播放音效。把你的音效全部替换掉", and three more he sent: "再加这三个"). Steve's own sound
+files took the twelve made-up pads' place: 87 of them in nine kinds (`SFX_CATS` in `shared/dj/sfx.ts`:
+DJ 音效, DJ 喊麦, 高潮, 搞笑, 震惊, 失败, 嘲讽, 神曲, and 粗口 · 慎点 for the swearing ones), each with its
+name in both languages. Every phone (`phone/SoundBoard.tsx`, last in `DeckPad`) shows the kinds first
+(a tile each, 84 px, with its icon and how many); one opens its sounds (two to a row), ‹ 分类 or the
+phone's back button goes back to the kinds; a tap sends `sfx` (above), with a small buzz, and the
+board's line says who just played what (and who asked for a song). Nothing waits for the beat or
+for a song: a sound plays at once over whatever is on, paused or not, a whole song or the DJ.
+- **The files:** `site/public/media/sfx/<id>.mp3`, 5.5 MB together (one mono MP3 at 96 kb/s each,
+  44.1 kHz, no tags), made by `site/scripts/sfx_make.py` from Steve's folder (`sfx_catalog.py` says
+  which file is which sound, its kind, names and where it's cut): silence at the start cut, 20 s at
+  most (faded out over 0.8 s), the tail under −60 dB cut, and every one at the same loudness (its loud
+  part at −17 dBFS, peaks under −1 dBFS: a quiet clip and a blasting one land alike). The room knows a
+  sound by its place in `SFX`, so new ones only go on the end (`tests/dj.test.ts` checks every one has
+  its file and no file is left over, the names in both languages, 20 s at most, 8 MB at most for all).
+- **No TV on** (`room.screens` 0; Steve on Nov 14: "手机在没有连接电视的时候也可以在自己的手机上播放
+  音效"): the board says so and a sound plays on the phone that pressed it (`sfx/here.ts`, through the
+  site's own sound, `lib/audio/engine.ts`: quiet when that phone's sound is off); the room still
+  takes it, so the others' phones say who played what.
+- **The TV** (`sfx/player.ts`, in `TvDj.tsx`; made in the effect that lets it go, not in a memo:
+  a page shown again kept one already let go, and the board went silent): fetches every file 3 s
+  after its sound is on, one after the other, and keeps them as they came (compressed); a sound is decoded the first time it plays and kept
+  decoded while there's room (60 s of sound, about 11 MB; the oldest let go); it goes straight out of the speaker's
+  own sound (not through the DJ's chain, so a held room or a song doesn't hold it), four at most at
+  once (a fifth stops the oldest, faded). A chip on the TV says who played what in the kind's colour.
+- **The old pads** stay in the engine and the speaker (`pad` above, `speaker/fx.ts`, `club.ts`) for a
+  page opened before the change; no phone shows them.
 
 **The mixer** (混音台, Steve's ask on Nov 2: pro mixing, to make the music more electronic, with
 knobs). One mixer for the table (`MixerState` in `types.ts`), under every phone's deck: anyone
@@ -569,8 +635,11 @@ iPhone lets a page make sound only inside a tap; the speaker takes that context)
 screen and sideways where a page may (Android; an iPhone can't be turned by a page) and opens the
 booth, which starts the music with no other tap (点歌模式: nobody needs to be at the table). The booth opened at its own address still asks for its tap (开始派对). On any speaker, a 点歌
 button at the right edge, in the page's own pixels (`SharedPhone.tsx`), opens a sheet with the phones'
-own player, song box and playlist (`SharedSongs.tsx`, `phone/Player.tsx`, `phone/DeckPad.tsx`): the
-room takes them from the speaker only (another screen with the code can't) as the table's,
+own player, song box and playlist (`SharedSongs.tsx`, `phone/Player.tsx`, `phone/DeckPad.tsx`), and
+under it (Steve on Nov 14: "点歌按钮的下面也设置一个音效按钮") an 音效 button opening the phones' sound
+board (`SharedSounds.tsx`; the `sfx` action, below), playing here at once: on the TV when the phone
+is shown there, from the phone itself when it isn't. The room takes them from the speaker only
+(another screen with the code can't) as the table's,
 `SHARED_BY` (`~shared`), named 公用手机 / Shared phone wherever the booth says who asked
 (`names.ts`): up to the table's 30, its own taken back, 暂停, 播放, 切歌 and 上一曲, 随机 switched, the
 video over the whole TV. Everyone reads its songs' names (they were typed on the
@@ -599,31 +668,43 @@ wish is the room's (`mine`, from the TV's 我的歌 or the host's phone, below; 
 and the speaker, once it has songs, says so as the source (`live`/`src` with `local`); the stand-in
 comes back with 换回试音版 DJ.
 
-**From the host's phone** (Nov 2, Steve: "this should work on the phone too"). Under the host's
-controls, 我的歌: how many songs the TV's computer has, the same switch (`mine` `{ on }`: the host
-only; the TV's own panel sends it as the speaker), and songs on the phone sent to the TV. A file goes
-in pieces over the phone's own line to the table, as binary messages (`shared/dj/songwire.ts`:
-"SONG", the header's length, a JSON header `{ id, i, n, size, name, type }`, 256 KB of the file;
-30 MB a file at most): the rooms server takes them only from the host's phone at a DJ booth, 60 MB
-a minute at most, checks each (its length right for where it falls in the file), marks it as theirs
-(`by`, never the phone's word) and passes it straight on to the big screens; it keeps nothing. The TV
-puts the file back together (three at a time at most; one that goes quiet for a minute is given up
-on), keeps it in memory (400 MB of phone songs at most), and listens to it like one chosen on its
-own computer; then it tells the room how it went (`song` `{ by, id, code }`, `SONG_SENT`: added,
-not a sound file, too short, too long, can't be played, no room, already there) and the room tells
-that phone (an `fx` event `song`, `data: [code, the file's number]`). The phone sends one file at a
-time, a megabyte waiting on its line at most and under the table's minute, and says each one's
-word back (or that the line dropped, or the TV didn't answer in 90 s). Only the host: a song's name
-comes from its file, and nothing a player sends reaches the big screen unchecked.
+**From the phones** (Nov 2, Steve: "this should work on the phone too", the host's phone; since
+Nov 13 everyone's: "要允许所有玩家都可以上传自己的歌上去，不仅是host", and the host's 我的歌 card with
+its switch to them gone from the phone). Under the song box on every phone, 从手机传歌
+(`phone/SendSongs.tsx`): songs on the phone sent to the TV, each going on the sender's 歌单 the
+moment the TV has it, played whole when its turn comes (below). A file goes in pieces over the
+phone's own line to the table, as binary messages (`shared/dj/songwire.ts`: "SONG", the header's
+length, a JSON header `{ id, i, n, size, name, type }`, 256 KB of the file; 30 MB a file at most):
+the rooms server takes them from anyone seated at a DJ booth, 60 MB a minute a phone at most,
+checks each (its length right for where it falls in the file), marks it as theirs (`by`, never the
+phone's word) and passes it straight on to the big screens; it keeps nothing. The TV puts the file
+back together (six at a time at most; one that goes quiet for a minute is given up on), keeps it in
+memory (400 MB of phone songs at most), listens to it like one chosen on its own computer, and keeps
+whose it is (`LocalSong.by`); then it tells the room how it went (`song` `{ by, id, code, local? }`,
+`SONG_SENT`: added, not a sound file, too short, too long, can't be played, no room, already
+there) and the room tells that phone (an `fx` event `song`, `data: [code, the file's number]`). The
+phone sends one file at a time, a megabyte waiting on its line at most and under the table's
+minute, and says each one's word back (on the playlist; or that the line dropped, or the TV didn't
+answer in 90 s). A song's name comes from its file: the room stars out the worst words in it, as in
+弹幕's (`maskDanmu`).
 
 **The room** (`games/dj.ts`): the speaker's list as `crate` (`{ x: "crate", songs: [id, title,
-artist, bpm, seconds][] }`, once a second at most, from the speaker; kept with the next set too),
+artist, bpm, seconds, the phone that sent it or ""][] }`, once a second at most, from the speaker;
+kept with the next set too; a song new to it from a phone at the table goes on that player's 歌单
+at once, their 30 counted, no second's gap; a song the list no longer has leaves the 歌单, and one
+playing whole ends),
 fetched by the phones over HTTP (`GET /room/CODE/data`: it's big, so it doesn't come with every
 view; the view has `crateN` and `crateV`, and `onDecks`, the two songs on the decks by name). On a
 night of them (`deck.local`) each deck has one of the songs (`deck.songs`): the one on the air
 keeps its own, and the deck off the air the next, one not played tonight (`played`; all played,
-they start over), or the one asked for (`req` with `local`: named for everyone, they're the host's;
-a name typed in isn't taken). There are no styles to pick. A drop swaps to the deck off the air
+they start over), or the one asked for (`req` with `local`: named for everyone; a name typed in
+isn't taken). Any other night a song file asked for (from a phone) plays whole like a YouTube one
+(`deck.song` with `local`, no `yt`; `phone`'s player names it, with no video to put over the TV): on
+the speaker `PhoneSong.tsx` plays it in the page's own sound (no tap: the music's on already) from
+the room's moment for it, the DJ giving way under it and coming back after (`songdone` at its end);
+the next one from a phone is decoded while the one before plays; 暂停 stops it where it is, 播放
+carries it on from there; a corner card where the video sits says whose it is and what. The floor
+dances to its own beat, heard when it came (`beat.first`, `beat.bpm`). There are no styles to pick. A drop swaps to the deck off the air
 once the speaker says it has that song (`decks` with `sa`/`sb`: `cued`). The speaker says when the
 song on the air is nearly over (`ending`, 40 s before its end): the DJ starts the countdown into the
 next itself, once that deck has it (else 3 s later).
@@ -728,17 +809,20 @@ TV (speaker) ──/room/CODE/lyria?sid=<its screen id>──▶ the table's Dur
 ## The lights and the dancers
 
 Every frame, from the speaker's clock (no React renders): `--pulse` (the kick), `--flash`,
-`--beat` and `--spin` on the stage element, and a transform on every `[data-dancer]`. Feet land on
+`--beat` and `--spin` on every `[data-lit]` element (the sky, the beams, the flash, the records, the
+meter: only they use them; set on the stage itself, all of its four hundred elements were worked out
+again every frame, half of a slowed phone's time: Steve on Nov 14, the shared phone stuttered), and
+a transform on every `[data-dancer]`. Feet land on
 the beat (each dancer keeps one of four moves); how big they move follows the stretch's energy. A
 flash fires on a strong kick, **never more than three a second** (the usual line for flashing
 light), only in the build and the peak, and not at all with reduced motion. Anything that changes
 every frame changes only opacity or a transform.
 
 **The dancers in 3D** (`Floor3D.tsx`; Steve on Nov 5: the players "跟着音乐的节奏跳舞和有感情的唱歌",
-as smooth as the coach, and he chose little robots). Where the coach's robot can be drawn (the same
+as smooth as the coach, and he chose little robots). Where the robots can be drawn (the coach's
 checks: a graphics chip, 20 frames a second or more in the first seconds, the model loaded; one
-load of three.js and the model for both, `robot3d.ts`), everyone at the table is the coach's robot,
-its body in their own colour (their avatar's), their face and name over its head, the host's
+load of three.js for both, `robot3d.ts`), everyone at the table is the little CC0 robot (the
+coach's own until Nov 14, when the coach got its own humanlike one), its body in their own colour (their avatar's), their face and name over its head, the host's
 ringed. On the speaker's beat each one's animation is stretched to whole beats and set to where the
 beat is every frame, as the coach's: easy moves in the warm-up and the wind-down, the full set in
 the build, the big ones at the peak and for anyone keeping up with the coach (跟着跳), the move
@@ -752,13 +836,15 @@ one name each, "Jay Chou 晴天" for a title naming both in two scripts), the si
 first and the next when one has no tempo, then a cover's, five tracks at most (`tracksOf`); none:
 `{ bpm: null, why }`, `video`, `match` or `tempo`; `danceBpm` folds the tempo into 70 to 140),
 the DJ's until it's there or when there's none, counted from the song's start (`song.at`), whether
-or not the page's own sound is running, the lights kicking on its beats. A microphone on a stand
+or not the page's own sound is running, the lights kicking on its beats (the coach and the phones'
+跟着跳 on the same beats: `songbeat` above). A microphone on a stand
 rises in front of each, brows up as a line opens out and knitted on its long notes, notes in their
 colour going up from them; the song over, back to the DJ's beat. Paused, they stand easy. More than 8: two
 rows, the back one on a step behind and between (its edge lit in the booth's pink), its tags over
 the heads, the front row's under the feet. With reduced motion they stand easy (no dancing,
 jumping or swaying; the notes stand still). The drawn floor stays until the robots are dancing,
-and is back if they can't be.
+and is back if they can't be. While a song's video covers the whole TV, none of the floor is drawn
+(the coach is, over the video: one 3D picture at a time on a phone playing the speaker).
 
 ## Limits
 
@@ -773,13 +859,15 @@ and is back if they can't be.
   beginner deck (pads on a leash, the build-up, the countdown, DROP on the cue, misses and the DJ's
   own drop, picks, the fader held, new bars), songs asked for by name (the 歌单: 30 each, a hundred in all, 随机 or 按顺序; up next on the deck
   off the air, the drop or the fader plays it, the DJ's own drop into it, taking back, the end of a
-  set, who reads a typed name), and the private Lyria test's `lab` and `src`.
+  set, who reads a typed name), the sound board (`sfx`: a phone's gap, the room's for one sound, a
+  number that isn't one, none after the end), and the private Lyria test's `lab` and `src`.
 - `npx tsx tests/dj.test.ts`: the player on a pretend audio thread (prebuffer, fades, stalls,
   resampling, flush, overflow, reports, two decks and the crossfader, the brake), Lyria's PCM
   format, the stand-in's sections and order, every style's sections, the two decks in step;
   Lyria's side without Google: what the relay lets through, the beat from the kick, the prompts
   for each stretch (every word from the guide), the Lyria DJ (hand-over, seconds ahead, pausing
-  Lyria, the stretch heard, reconnecting, stopping with a reason).
+  Lyria, the stretch heard, reconnecting, stopping with a reason); the sound board's files (every
+  sound's there and none left over, named in both languages, 20 s at most, 8 MB at most in all).
 - `python3 scripts/dj_check.py`: with the local servers running, the speaker test page in WebKit
   and Chromium (phone and desktop sizes) and a whole table (a TV, two phones). Results:
   `docs/dj-booth-sound-check.md`.
@@ -788,7 +876,7 @@ and is back if they can't be.
 - `npx tsx tests/dj-presets.test.ts`: the 12 Lyria presets (C1).
 - `python3 scripts/dj_local_check.py [chromium|webkit]`: a night of the host's songs in browsers:
   three made-up song files added on the TV (their tempos heard), the switch to them, the phones'
-  decks and the next song by name, pads on the song's beat, a song asked for from them up next and
+  decks and the next song by name, a sound from the board over them, a song asked for from them up next and
   dropped into (its loud part on the drop's bar, the player's crossfader there), the DJ dropping
   into the next as one ends, and back to the stand-in. `tests/dj.test.ts` has the beat finder on
   made-up songs, the tags, and the local DJ on a pretend speaker; `tests/engine.test.ts` the room's
@@ -798,9 +886,8 @@ and is back if they can't be.
   buffers a video's start, plays an ad first, refuses a video kept on YouTube, and can want a tap
   like Safari; the rooms server's lookups stood in for, the key on or off): a pasted link waiting
   ready in the TV's corner (held at 0:00, never heard) and heard on its drop's bar, the DJ playing
-  up to the bar and letting go on it; the phones' decks waiting but for the pads that are a sound of
-  their own (the air horn over the song, at once, on its own way out), who can skip it; it ends, and
-  the DJ comes back; the 歌单 on every phone, who can take one out, the TV's count, the host's 随机;
+  up to the bar and letting go on it; the speaker's own sounds on their own way out over it, the air
+  horn from the board on the TV at once; anyone can skip it; it ends, and the DJ comes back; the 歌单 on every phone, who can take one out, the TV's count, the host's 随机;
   a song picked from the list with the key on (one search, none while typing it, an ad played out
   muted first, on its bar); no key: a list song asks for its link (YouTube's search a tap away, a
   pasted link plays it whole, or the remix alone); a video that won't play here comes off its song
@@ -811,13 +898,16 @@ and is back if they can't be.
   `tests/dj.test.ts` has the links, the search answer and the TV's player against the same stand-in
   (ready, on its moment within 40 ms, the roll for a press that comes late, an ad, a video that
   won't play, a browser that wants a tap); `tests/engine.test.ts` the room's side.
-- `python3 scripts/dj_mine_check.py [chromium|webkit]`: 我的歌 from the host's phone in browsers:
-  two made-up songs and a broken file sent from the host's phone, each one's word back (added,
-  can't be played, the same one again: already there), the TV listening to them like its own; a
-  phone that isn't the host's sending pieces straight at the rooms server, never reaching the TV;
-  the switch to her songs from her phone (the TV hands the music over, no gap) and back.
-  `tests/dj.test.ts` has the pieces (read back byte for byte, every bad one turned away);
-  `tests/engine.test.ts` the switch and the word back.
+- `python3 scripts/dj_mine_check.py [chromium|webkit]`: songs from the phones in browsers: no
+  我的歌 card on the host's phone, 从手机传歌 on every one; two made-up songs and a broken file sent
+  from Ben's (not the host's), each one's word back (on the playlist, can't be played), both his on
+  the 歌单 at once, the first whole on the TV in its own sound (the DJ quiet under it, a card saying
+  whose, no video), 暂停 stopping it and 播放 carrying it on from there, 切歌 bringing his second;
+  the same file from Amy's phone (the TV had it: on her 歌单 too); someone sitting down and sending
+  one as someone else getting it as their own; the TV opened again losing the files, and the songs
+  from them leaving the 歌单. `tests/dj.test.ts` has the pieces (read back byte for byte, every bad
+  one turned away); `tests/engine.test.ts` the room's side (on the 歌单 by itself, whole, 切歌 and
+  上一曲, already there, someone not at the table, the TV without them).
 - `python3 scripts/dj_dance_check.py [chromium|webkit]`: dancing along in browsers, a TV and two
   phones: the coach drawn, moving, named, the next move called, then changing; two phones dancing
   with a pretend hand on their own clock (Amy's moving on the beats, Ben's between them): each
@@ -831,6 +921,15 @@ and is back if they can't be.
   line of one's own with the worst words starred, three at once in different rows and never on top
   of each other, all gone once they've flown, the host's switch off (the phones say so) and on, a
   TV with reduced motion having them stand at the left. `tests/engine.test.ts` has the room's side.
+- `python3 scripts/dj_sfx_check.py`: the sound board in browsers, a TV and two phones (one in
+  English): the nine kinds first in each phone's language (no old pads, no sounds till one's opened,
+  each big enough to hit); a kind opening its sounds, ‹ and the phone's back button back to the kinds
+  (still on the booth); a sound from Amy on the TV at once (its file), a chip there and her phone
+  saying who played what; Ben's same one straight after not played twice; six different ones in a
+  row all playing, four at most together; every file fetched ahead; with the TV gone, the board
+  saying so and a sound playing on the phone that pressed it (its sound on), the others told, not
+  played. `tests/engine.test.ts` has the room's side (the shared phone's own too), `tests/dj.test.ts`
+  the files.
 - `python3 scripts/dj_floor3d_check.py`: the floor in 3D in browsers, TVs and up to nine phones
   (the TV told to take any WebGL, as one with a graphics chip would): the drawn floor giving way to
   the robots, one a player in their own colour under their face and name, every animation where
@@ -850,21 +949,26 @@ and is back if they can't be.
   opening the booth full screen with the music on and 点歌模式, no other tap; the 点歌 sheet (the
   player at its top, a pasted link in as the shared phone's, the badge, the TV and the phones naming
   it 公用手机, only the host taking it out; the song paused, carried on and skipped, its own taken
-  back, 随机); held upright, the ask to turn sideways; a computer's 这台电脑当音箱 the same way; the
-  booth's own address still asking for 开始派对.
+  back, 随机); the 音效 button under 点歌 (beside the video, not over it; the board, a sound played
+  here at once, the phones saying it's the shared phone's; the back button back to the kinds, then
+  out); its sound stopped (a tap wakes it, one tap one wake) and stuck the way an iPhone's can be
+  ("interrupted": the tap makes a fresh sound, the music goes on in it, the board plays on it); the
+  stage filling the screen as it turns and when the page's box changes with no turn (a browser
+  bar); held upright, the ask to turn sideways; a computer's 这台电脑当音箱 and its 音效, in English;
+  the booth's own address still asking for 开始派对.
 - `python3 scripts/dj_player_check.py`: the phones' player in browsers, a TV and three phones (one
   in English): the page in its order (the player the very first thing, the song box, the 歌单, the
-  pads, 跟着跳 at the very bottom) with none of the deck that's gone; a song coming on by itself;
-  暂停 (the TV's video held where it is, the DJ quiet, the TV and the phones saying so) and 播放 (on
-  from there); 切歌, its keys not grey while the next comes on; 上一曲 (the one before again, the
+  sound board, 跟着跳 at the very bottom) with none of the deck that's gone; a song coming on by itself;
+  暂停 (the TV's video held where it is, the DJ quiet, the TV and the phones saying so, a sound from the
+  board still playing) and 播放 (on from there); 切歌, its keys not grey while the next comes on; 上一曲 (the one before again, the
   skipped one after it); the DJ held and back between songs; one phone asking for six songs in a
   row; a TV that wants a tap on its video saying so on the phones, its own sheet getting out of the
   way.
 - `python3 scripts/dj_floor_check.py [chromium|webkit]`: what the plan asked of the floor, in
   browsers, a TV and three phones: ❄️ beside 🔥 (the phones and the TV counting it, the room's
   energy leaning down, then up with 🔥, the TV's line when it's cold); 报幕 as the switch into Ben's
-  song starts (what the TV meant to say: headless browsers have no voices), and nothing once the
-  host turns it off; Ben's second song waiting behind Amy's (held with 暂停; his phone says why); the night's
+  song starts (what the TV meant to say: headless browsers have no voices; and shown across the
+  floor), and nothing once the host turns it off; Ben's second song waiting behind Amy's (held with 暂停; his phone says why); the night's
   recap on the TV and the phones (a typed name only for its player). `tests/engine.test.ts` has the
   room's side.
 - (Retired on Nov 12 with the deck they drove, in git's history: `dj_turntable_check.py`, the phone

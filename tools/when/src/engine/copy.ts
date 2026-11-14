@@ -1,11 +1,13 @@
 // Short messages to paste into the group chat. The page chooses the tone and variant.
-import { dateLabel, slotLabel } from "./slots";
+import { whenLabel } from "./minutes";
+import { dateLabel } from "./slots";
 import type { Day, Lang, Part } from "./types";
 
 export type Tone = "plain" | "easy" | "funny";
 export type InviteWords = { title: string; url: string; days: Day[]; deadline?: string };
 export type NudgeWords = { title: string; url: string; missing: string[]; deadline?: string };
-export type ResultWords = { title: string; url: string; day: Day; part: Part; coming: number; asked: number; maybe: string[] };
+/** `from` and `to`: the minutes, when the time was set to part of its period. */
+export type ResultWords = { title: string; url: string; day: Day; part: Part; from?: number; to?: number; coming: number; asked: number; maybe: string[] };
 
 type Variants<Words> = Record<Lang, Record<Tone, readonly ((words: Words) => string)[]>>;
 
@@ -170,6 +172,6 @@ const RESULTS: Variants<{ when: string; who: string }> = {
 
 /** Maybes are separate from the free count, just as on the gathering's page. */
 export function resultText(words: ResultWords, tone: Tone, lang: Lang, pick = 0): string {
-  const body = choose(RESULTS, { when: slotLabel(words.day, words.part, lang), who: attendance(words, lang) }, tone, lang, pick);
+  const body = choose(RESULTS, { when: whenLabel(words.day, words.part, lang, words.from, words.to), who: attendance(words, lang) }, tone, lang, pick);
   return message(words.title, body, words.url, lang);
 }

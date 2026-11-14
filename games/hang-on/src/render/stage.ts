@@ -12,8 +12,9 @@ import type { SimEvent } from '../physics/world';
 import { moverAt } from '../physics/motion';
 import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
-import { CONFETTI, hex, OUTLINE, PALETTES, textures, type Palette, type Textures, type WorldId } from './art';
+import { CONFETTI, glow, hex, OUTLINE, PALETTES, textures, worldOf, type Palette, type Textures, type WorldId } from './art';
 import { Backdrop } from './backdrop';
+import { Darkness } from './dark';
 import { Depth } from './depth';
 import { Dumpling } from './dumpling';
 import { Foreground } from './fore';
@@ -54,6 +55,12 @@ export class Stage {
   private readonly abyssBody = new Graphics();
   private readonly abyssTop = new Graphics();
   private readonly propsG = new Graphics();
+  /** 红包（A9b）。 */
+  private readonly envG = new Graphics();
+  /** 外卖无人机（A9c）。 */
+  private readonly droneG = new Graphics();
+  /** 抢金元宝（A9d）：头上的进度圈。 */
+  private readonly holdG = new Graphics();
   /** 落在台子上的影子（A8）。 */
   private readonly shadowsG = new Graphics();
   private readonly ropesG = new Graphics();
@@ -74,6 +81,8 @@ export class Stage {
   private readonly watch = new FrameWatch();
   private depth: Depth | null = null;
   private terrain: Terrain | null = null;
+  /** 黑屋子（老宅，A10）：关卡有 `dark` 才有。 */
+  private dark: Darkness | null = null;
   private world_: WorldId = 'table';
   private pal: Palette = PALETTES.table;
   private dumplings: Dumpling[] = [];
@@ -109,7 +118,7 @@ export class Stage {
       this.fx.cap = 150;
       this.screenFx.cap = 60;
     }
-    this.world.addChild(this.abyssBody, this.propsG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
+    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.droneG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.holdG, this.fx.view, this.abyssTop);
     this.root.addChild(this.screenFx.view, this.world, this.vignette, this.flash);
     app.stage.addChild(this.root);
   }
@@ -157,6 +166,7 @@ export class Stage {
     this.app.renderer.resize(W, H);
     this.backdrop?.resize(W, H);
     this.fore?.resize(W, H);
+    this.dark?.resize(W, H);
     const v = this.vignette.clear();
     // 暗角只压四边。Pixi 画放射渐变时先拿最后一个颜色铺满整张图，所以最后一个必须透明：
     // 原来最后是 0.42 的黑，整个画面（连中间）都蒙了一层，亮度只剩六成（A8 查出来的）。
@@ -183,7 +193,7 @@ export class Stage {
 
   /** 换关：重建背景、关卡画面、深渊。 */
   setLevel(level: Level): void {
-    this.world_ = level.world === 'van' ? 'van' : 'table';
+    this.world_ = worldOf(level.world);
     this.pal = PALETTES[this.world_];
     this.backdrop?.destroy();
     this.depth?.view.destroy({ children: true });
@@ -207,12 +217,28 @@ export class Stage {
     this.world.addChildAt(this.depth.view, 1);
     this.terrain = new Terrain(level, this.world_, this.pal, this.reduced);
     this.world.addChildAt(this.terrain.view, 2);
+    // 黑屋子（老宅）：光照图盖在世界上面（canvas 画的时候退成世界里最上面一层暗）
+    this.dark?.destroy();
+    this.dark = null;
+    if (level.dark?.length) {
+      this.dark = new Darkness(this.app.renderer, level, this.reduced);
+      if (this.dark.fallback) this.world.addChild(this.dark.fallback);
+      else this.root.addChildAt(this.dark.view, this.root.getChildIndex(this.world) + 1);
+      this.dark.resize(this.W, this.H);
+    }
     const a = this.abyssBody.clear();
     this.abyssGrad?.destroy();
     this.abyssGrad = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.abyssTop }, { offset: 1, color: this.pal.abyssBottom }] });
     a.rect(-3000, level.deathY - 8, level.w + 6000, 1400).fill(this.abyssGrad);
-    this.cam.x = level.spawn.x;
-    this.cam.y = level.spawn.y - 60;
+    // 场地（坐不住、抢金元宝）只有一屏：镜头一开始就看全场，抢元宝每局换场地时不从边上摇过来
+    if (level.arena) {
+      this.cam.x = level.w / 2;
+      this.cam.y = level.h / 2;
+      this.cam.z = Math.min(this.W / level.w, this.H / level.h);
+    } else {
+      this.cam.x = level.spawn.x;
+      this.cam.y = level.spawn.y - 60;
+    }
     this.screenFx.clear();
     this.fx.clear();
   }
@@ -311,6 +337,52 @@ export class Stage {
           if (cp) this.fx.burst({ x: cp.x, y: cp.y - 10, n: 14, texture: 'star', colors: [hex(this.pal.lampOn), 0xffffff], speed: [60, 200], life: [0.5, 0.9], size: [6, 12], gravity: 300, spin: 8, grow: 0.3 });
           break;
         }
+        case 'envelope': {
+          // 红包（A9b）：金币和星星往上崩，一圈金光
+          this.fx.burst({ x: ev.x, y: ev.y, n: 14, texture: 'circle', colors: [0xf6c453, 0xffe08a, 0xd8262f], speed: [120, 320], angle: -Math.PI / 2, spread: 1.4, life: [0.5, 0.9], size: [5, 10], gravity: 700, spin: 6, flip: this.reduced ? 0 : 10 });
+          this.fx.burst({ x: ev.x, y: ev.y, n: 6, texture: 'star', colors: [0xffffff, 0xffe08a], speed: [60, 180], life: [0.4, 0.7], size: [8, 13], drag: 3, spin: 8, grow: 0.3 });
+          this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.3, 0.3], size: [26, 26], grow: 2.8, alpha: 0.9 });
+          break;
+        }
+        case 'tray': {
+          // 端托盘（后厨，A10）：翻了点心往外飞；回来了一圈光；端进终点撒一把纸屑
+          if (ev.phase === 'spill') {
+            this.fx.burst({ x: ev.x, y: ev.y - 10, n: 7, texture: 'circle', colors: [0xf4efe6, 0xf2c75c, 0xfbf6ee], speed: [140, 320], angle: -Math.PI / 2, spread: 1.5, life: [0.6, 1], size: [10, 16], gravity: 1100, spin: 6 });
+            this.fx.burst({ x: ev.x, y: ev.y, n: 5, texture: 'puff', colors: [0xffffff], speed: [20, 70], angle: -Math.PI / 2, spread: 1, life: [0.4, 0.7], size: [12, 20], grow: 1.8, alpha: 0.4, drag: 2 });
+          } else if (ev.phase === 'back') {
+            this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.35, 0.35], size: [30, 30], grow: 2.6, alpha: 0.8 });
+          } else {
+            this.fx.burst({ x: ev.x, y: ev.y - 10, n: 18, texture: 'square', colors: CONFETTI.map(hex), speed: [120, 300], angle: -Math.PI / 2, spread: 1.2, life: [0.6, 1.1], size: [5, 9], gravity: 600, spin: 10, flip: this.reduced ? 0 : 10 });
+          }
+          break;
+        }
+        case 'key': {
+          // 钥匙（老宅，A10）：找到了一把金星；开了门一圈金光加一把星星；掉了回来一圈光；锁着的门晃一下（不出特效）
+          if (ev.phase === 'found') {
+            this.fx.burst({ x: ev.x, y: ev.y, n: 10, texture: 'star', colors: [0xffe08a, 0xffffff], speed: [80, 220], life: [0.4, 0.8], size: [7, 12], drag: 3, spin: 8, grow: 0.3 });
+          } else if (ev.phase === 'unlock') {
+            this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.4, 0.4], size: [30, 30], grow: 3.4, alpha: 0.9 });
+            this.fx.burst({ x: ev.x, y: ev.y, n: this.reduced ? 8 : 22, texture: 'star', colors: [0xffe08a, 0xffffff, 0xd8a03c], speed: [120, 340], life: [0.5, 1], size: [7, 13], gravity: 300, spin: 9, grow: 0.3 });
+            if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 3);
+          } else if (ev.phase === 'back') {
+            this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.35, 0.35], size: [24, 24], grow: 2.6, alpha: 0.8 });
+          }
+          break;
+        }
+        case 'float': {
+          // 太空站：飘进失重区一圈淡淡的青光
+          if (ev.on) this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0x7fe3ff], speed: [0, 0], life: [0.4, 0.4], size: [30, 30], grow: 2.2, alpha: 0.5 });
+          break;
+        }
+        case 'lever':
+          // 拉杆拉下去：一小把星星
+          if (ev.on) this.fx.burst({ x: ev.x, y: ev.y, n: 6, texture: 'star', colors: [0x5bd96b, 0xffffff], speed: [60, 160], life: [0.3, 0.5], size: [6, 10], drag: 3, spin: 8, grow: 0.3 });
+          break;
+        case 'lamp':
+          // 墙上的灯点着了：一小把火星往上飘
+          this.fx.burst({ x: ev.x, y: ev.y, n: 8, texture: 'circle', colors: [0xffd27a, 0xffb347, 0xfff1a8], speed: [40, 120], angle: -Math.PI / 2, spread: 1, life: [0.4, 0.8], size: [3, 6], drag: 2, grow: 0.3 });
+          this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.3, 0.3], size: [16, 16], grow: 3, alpha: 0.7 });
+          break;
         case 'item': {
           const p = sim.players[ev.player];
           const at = ev.item === 'noodle' ? { x: ev.x, y: ev.y } : (p?.body ?? { x: ev.x, y: ev.y });
@@ -388,7 +460,7 @@ export class Stage {
 
   private splash(x: number, y: number): void {
     const table = this.world_ === 'table';
-    const colors = table ? [0xe8584a, 0xff8a5b, 0xffd166] : [0x9fd3e8, 0xffffff, 0x6aa6d6];
+    const colors = table ? [0xe8584a, 0xff8a5b, 0xffd166] : this.world_ === 'space' ? [0x7fe3ff, 0xffffff, 0x8a7cff] : [0x9fd3e8, 0xffffff, 0x6aa6d6];
     this.fx.burst({ x, y: y - 4, n: 22, texture: 'drop', colors, speed: [200, 520], angle: -Math.PI / 2, spread: 0.9, life: [0.5, 0.9], size: [8, 16], gravity: 1400, spin: 6 });
     this.fx.burst({ x, y: y - 4, n: 10, texture: 'circle', colors, speed: [100, 300], angle: -Math.PI / 2, spread: 1.2, life: [0.3, 0.6], size: [5, 12], gravity: 1200 });
     this.fx.burst({ x, y: y - 10, n: 4, texture: 'puff', colors: [0xffffff], speed: [30, 80], angle: -Math.PI / 2, spread: 0.6, life: [0.8, 1.4], size: [40, 80], grow: 2.2, alpha: 0.35, drag: 1 });
@@ -438,6 +510,14 @@ export class Stage {
         x1 = Math.max(x1, p.body.x);
         y0 = Math.min(y0, p.body.y);
         y1 = Math.max(y1, p.body.y);
+      }
+      // 端托盘（后厨，A10）：托盘也在镜头里（落在后面了就拉远，一眼看见忘在哪了）
+      const tray = sim.tray && !sim.tray.spilled ? sim.props[sim.tray.prop] : undefined;
+      if (tray) {
+        x0 = Math.min(x0, tray.x);
+        x1 = Math.max(x1, tray.x);
+        y0 = Math.min(y0, tray.y);
+        y1 = Math.max(y1, tray.y);
       }
       tx = (x0 + x1) / 2;
       ty = (y0 + y1) / 2 - 50;
@@ -518,6 +598,9 @@ export class Stage {
     if (this.detail > 0) this.depth?.update(sim, { x: cam.x, y: cam.y, halfW: this.W / 2 / cam.z, halfH: this.H / 2 / cam.z });
     this.terrain?.update(sim, dt);
     this.drawProps(sim);
+    this.drawEnvelopes(sim);
+    this.drawDrone(sim);
+    this.drawHold(sim);
     this.drawShadows(sim);
     this.drawRopes(sim);
     this.drawTrails(sim);
@@ -528,6 +611,7 @@ export class Stage {
     this.drawAbyss(sim, dt);
     this.fx.update(dt);
     this.screenFx.update(dt);
+    this.dark?.update(sim, this.world, dt);
     this.app.renderer.render(this.app.stage);
   }
 
@@ -578,7 +662,7 @@ export class Stage {
   private drawProps(sim: SimView): void {
     const g = this.propsG.clear();
     const table = this.world_ === 'table';
-    for (const prop of sim.props) {
+    sim.props.forEach((prop, index) => {
       const w = prop.w;
       const h = prop.h;
       // 本地坐标：先画到原点，再用 Graphics 的变换太贵；直接算四个角
@@ -602,6 +686,16 @@ export class Stage {
         }
         g.circle(prop.x, prop.y, 6).fill(0x3a2a2a);
         g.circle(prop.x - 1.5, prop.y - 1.5, 2).fill({ color: 0xffffff, alpha: 0.4 });
+      } else if (prop.kind === 'ingot') {
+        this.drawIngot(g, prop.x, prop.y, prop.angle, w, h);
+      } else if (prop.kind === 'tray') {
+        this.drawTray(g, prop.x, prop.y, prop.angle, w, h, !!sim.tray?.spilled);
+      } else if (prop.kind === 'key') {
+        // 钥匙（老宅）：插进锁里了就不画；还没人找到的一闪一闪
+        const k = (sim.keys ?? []).find((q) => q.prop === index);
+        if (!k?.used) this.drawKey(g, prop.x, prop.y, prop.angle, w, !k?.found);
+      } else if (prop.kind === 'lantern') {
+        this.drawLantern(g, prop.x, prop.y, prop.angle, w, h);
       } else {
         // 箱子：年夜饭桌上是蒸笼，温哥华是货箱
         g.poly(pts).fill({ texture: table ? this.tex.wood : this.tex.metal, textureSpace: 'global' });
@@ -622,7 +716,232 @@ export class Stage {
         }
         g.poly(pts).stroke({ width: 3, color: table ? 0x8a5a2b : 0x5a6676, join: 'round' });
       }
+    });
+  }
+
+  /**
+   * 外卖无人机（A9c）：四个旋翼的小飞机，下面吊着一个外卖袋，袋子底下一根横杆就是提手（物理里能抓的那一条）。
+   * 等人抓的时候提手一闪一闪；旋翼一直转（减弱动效时不晃）。
+   */
+  private drawDrone(sim: SimView): void {
+    const g = this.droneG.clear();
+    const d = sim.drone;
+    if (!d) return;
+    const x = d.x;
+    const y = d.y;
+    const spin = this.reduced ? 1 : 0.55 + 0.45 * Math.abs(Math.sin(this.t * 38));
+    const tilt = this.reduced ? 0 : Math.sin(this.t * 1.8) * 2;
+    // 吊绳
+    g.moveTo(x - 16, y - 46).lineTo(x - 22, y - 74).moveTo(x + 16, y - 46).lineTo(x + 22, y - 74).stroke({ width: 2, color: 0x3a2a2a, alpha: 0.8 });
+    // 机身和四根臂
+    const by = y - 84 + tilt;
+    g.roundRect(x - 30, by - 7, 60, 16, 7).fill(0x3b4250).stroke({ width: 2.5, color: 0x1f232b });
+    for (const sx of [-1, 1]) {
+      g.moveTo(x + sx * 22, by).lineTo(x + sx * 46, by - 6).stroke({ width: 4, color: 0x1f232b });
+      g.ellipse(x + sx * 46, by - 10, 20 * spin, 4).fill({ color: 0xcfd8e3, alpha: 0.55 });
+      g.circle(x + sx * 46, by - 8, 3).fill(0x1f232b);
     }
+    // 两个小灯，一红一绿，闪
+    const blink = Math.floor(this.t * 3) % 2 === 0;
+    g.circle(x - 22, by + 2, 2.5).fill(blink ? 0xff4d4d : 0x7a2a2a);
+    g.circle(x + 22, by + 2, 2.5).fill(blink ? 0x7aff8a : 0x2a5a32);
+    // 外卖袋：红的，一道白边
+    g.roundRect(x - 22, y - 48, 44, 38, 5).fill(0xd8262f).stroke({ width: 2.5, color: 0x7a0f18 });
+    g.rect(x - 22, y - 34, 44, 7).fill({ color: 0xffffff, alpha: 0.85 });
+    g.circle(x, y - 30, 5).fill(0xf6c453);
+    // 提手：横杆，等人抓的时候一闪一闪地发光
+    if (d.phase === 'wait' && !this.reduced) g.roundRect(x - 34, y - 9, 68, 18, 9).fill({ color: 0xffd27a, alpha: 0.25 + 0.2 * Math.sin(this.t * 6) });
+    g.moveTo(x - 20, y - 10).lineTo(x - 26, y).moveTo(x + 20, y - 10).lineTo(x + 26, y).stroke({ width: 2.5, color: 0x3a2a2a });
+    g.roundRect(x - 28, y - 4, 56, 9, 4).fill(0xf6c453).stroke({ width: 2, color: 0x8a5a14 });
+  }
+
+  /**
+   * 金元宝（A9d）：两头翘起的船形，中间鼓一个包，金色，一道高光；四周一圈暖光。
+   * 角度跟着物理转（元宝会被抢得翻过来）。
+   */
+  private drawIngot(g: Graphics, x: number, y: number, angle: number, w: number, h: number): void {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+    g.circle(x, y, w * 0.9).fill({ color: 0xffd27a, alpha: 0.16 });
+    // 船身：下面圆、两头翘
+    const hw = w / 2;
+    const boat = [at(-hw - 4, -h * 0.25), at(-hw + 6, h * 0.5), at(hw - 6, h * 0.5), at(hw + 4, -h * 0.25), at(hw - 8, -h * 0.05), at(-hw + 8, -h * 0.05)].flat();
+    g.poly(boat).fill(0xe8a823).stroke({ width: 2.5, color: 0x8a5a14, join: 'round' });
+    // 中间鼓起的包
+    const [bx, by] = at(0, -h * 0.12);
+    g.ellipse(bx, by, w * 0.26, h * 0.42).fill(0xf6c453).stroke({ width: 2, color: 0x8a5a14 });
+    const [hx, hy] = at(-w * 0.07, -h * 0.28);
+    g.ellipse(hx, hy, w * 0.08, h * 0.12).fill({ color: 0xffffff, alpha: 0.55 });
+    // 船身上一道亮边
+    const [ax, ay] = at(-hw + 2, -h * 0.12);
+    const [cx, cy] = at(hw - 2, -h * 0.12);
+    g.moveTo(ax, ay).lineTo(cx, cy).stroke({ width: 2, color: 0xfff1c2, alpha: 0.7 });
+  }
+
+  /**
+   * 端托盘（后厨，A10）：红漆托盘，一道金边，上面站着三样点心（虾饺、烧卖、叉烧包），跟着托盘转。
+   * 点心翻了就只剩空托盘（翻出去的点心是 handleEvents 里撒的粒子）。
+   */
+  private drawTray(g: Graphics, x: number, y: number, angle: number, w: number, h: number, spilled: boolean): void {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+    const hw = w / 2;
+    const hh = h / 2;
+    g.poly([at(-hw, -hh), at(hw, -hh), at(hw - 5, hh), at(-hw + 5, hh)].flat()).fill(0xb3262b).stroke({ width: 2.5, color: 0x5a0f12, join: 'round' });
+    const [rx0, ry0] = at(-hw + 3, -hh + 1.5);
+    const [rx1, ry1] = at(hw - 3, -hh + 1.5);
+    g.moveTo(rx0, ry0).lineTo(rx1, ry1).stroke({ width: 2, color: 0xf2c14e, alpha: 0.9 });
+    if (spilled) return;
+    const ink = { width: 1.5, color: 0x8a5a2b };
+    // 虾饺：半透明的白皮，透出一点虾的粉
+    const [ax, ay] = at(-hw * 0.6, -hh - 9);
+    g.circle(ax, ay, 9).fill({ color: 0xf4efe6, alpha: 0.95 }).stroke(ink);
+    g.circle(ax + 1, ay + 1, 4.5).fill({ color: 0xf3a08c, alpha: 0.55 });
+    // 烧卖：黄的方墩，顶上一点蟹籽橙
+    g.poly([at(-8, -hh - 1), at(8, -hh - 1), at(9, -hh - 17), at(-9, -hh - 17)].flat()).fill(0xf2c75c).stroke({ ...ink, join: 'round' });
+    const [ox, oy] = at(0, -hh - 17);
+    g.circle(ox, oy, 3.2).fill(0xe8622a);
+    // 叉烧包：白白的圆包子，顶上一个红点
+    const [bx, by] = at(hw * 0.6, -hh - 10);
+    g.circle(bx, by, 10).fill(0xfbf6ee).stroke(ink);
+    const [dx, dy] = at(hw * 0.6, -hh - 17);
+    g.circle(dx, dy, 2.4).fill(0xd8262f);
+  }
+
+  /**
+   * 钥匙（老宅，A10）：一把老铜钥匙，圆环柄、一根杆、末端两个齿，柄上拴一绺红穗子（穗子总往下垂）。
+   * 还没人找到的钥匙每隔一会儿闪一下（一颗小星星），摸黑也看得见。
+   */
+  private drawKey(g: Graphics, x: number, y: number, angle: number, w: number, unfound: boolean): void {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+    const hw = w / 2;
+    const brass = 0xe0aa3e;
+    const dark = 0x7a5214;
+    // 红穗子：从柄的下沿往下垂
+    const [tx, ty] = at(-hw + 7, 6);
+    const sway = this.reduced ? 0 : Math.sin(this.t * 3 + x * 0.01) * 2;
+    g.moveTo(tx, ty).lineTo(tx + sway, ty + 14).stroke({ width: 2, color: 0x8a1414 });
+    for (const dx of [-3, 0, 3]) g.moveTo(tx + sway, ty + 12).lineTo(tx + sway + dx, ty + 22).stroke({ width: 2.2, color: 0xd8262f, cap: 'round' });
+    // 杆和齿
+    g.poly([at(-hw + 12, -2.5), at(hw, -2.5), at(hw, 2.5), at(-hw + 12, 2.5)].flat()).fill(brass).stroke({ width: 1.8, color: dark, join: 'round' });
+    for (const lx of [hw - 4, hw - 11]) g.poly([at(lx, 2), at(lx + 4, 2), at(lx + 4, 8), at(lx, 8)].flat()).fill(brass).stroke({ width: 1.5, color: dark, join: 'round' });
+    // 圆环柄
+    const [bx, by] = at(-hw + 7, 0);
+    g.circle(bx, by, 7.5).fill(brass).stroke({ width: 1.8, color: dark });
+    g.circle(bx, by, 3).fill(0x3a2a1a);
+    const [hx, hy] = at(-hw + 4, -3);
+    g.circle(hx, hy, 1.8).fill({ color: 0xfff1b8, alpha: 0.8 });
+    if (unfound && !this.reduced) {
+      const u = (this.t * 0.6 + x * 0.003) % 1;
+      if (u < 0.25) {
+        const k = Math.sin((u / 0.25) * Math.PI);
+        const [sx, sy] = at(hw - 6, -6);
+        g.moveTo(sx - 7 * k, sy).lineTo(sx + 7 * k, sy).moveTo(sx, sy - 7 * k).lineTo(sx, sy + 7 * k).stroke({ width: 2, color: 0xffffff, alpha: k, cap: 'round' });
+      }
+    }
+  }
+
+  /** 手提的灯笼（老宅，A10）：红纸灯笼，上下两个金箍，几道竹骨，顶上一根提杆，底下一绺穗子；里面一团暖光。 */
+  private drawLantern(g: Graphics, x: number, y: number, angle: number, w: number, h: number): void {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+    const hw = w / 2;
+    const hh = h / 2;
+    glow(g, x, y, 70, '#ffb070', 0.35);
+    // 提杆
+    const [p0x, p0y] = at(0, -hh + 2);
+    const [p1x, p1y] = at(0, -hh - 14);
+    g.moveTo(p0x, p0y).lineTo(p1x, p1y).stroke({ width: 2.5, color: 0x6b4a2a, cap: 'round' });
+    const [k0x, k0y] = at(-8, -hh - 14);
+    const [k1x, k1y] = at(8, -hh - 14);
+    g.moveTo(k0x, k0y).lineTo(k1x, k1y).stroke({ width: 3.5, color: 0x6b4a2a, cap: 'round' });
+    // 灯笼身：一圈红纸（用多边形近似椭圆，跟着转）
+    const body: number[] = [];
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      body.push(...at(Math.cos(a) * hw, Math.sin(a) * (hh - 4)));
+    }
+    g.poly(body).fill(0xd8302c).stroke({ width: 2, color: 0x6e1216 });
+    const inner: number[] = [];
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      inner.push(...at(Math.cos(a) * hw * 0.55, Math.sin(a) * (hh - 10)));
+    }
+    g.poly(inner).fill({ color: 0xffc36b, alpha: 0.55 });
+    for (const f of [-0.5, 0, 0.5]) {
+      const [ax, ay] = at(hw * f, -hh + 6);
+      const [mx, my] = at(hw * f * 1.35, 0);
+      const [bx, by] = at(hw * f, hh - 6);
+      g.moveTo(ax, ay).quadraticCurveTo(mx, my, bx, by).stroke({ width: 1.2, color: 0x7a1414, alpha: 0.7 });
+    }
+    // 上下金箍
+    for (const ly of [-hh + 3, hh - 3]) {
+      g.poly([at(-hw * 0.5, ly - 3), at(hw * 0.5, ly - 3), at(hw * 0.5, ly + 3), at(-hw * 0.5, ly + 3)].flat()).fill(0xd8a03c).stroke({ width: 1.5, color: 0x5a3a14 });
+    }
+    // 穗子往下垂
+    const [tx, ty] = at(0, hh);
+    g.moveTo(tx, ty).lineTo(tx, ty + 12).stroke({ width: 3, color: 0xd8a03c, cap: 'round' });
+  }
+
+  /** 抢金元宝（A9d）：每个人头上一圈进度（攒了几秒 / 要几秒），一个人抓着时那一圈亮。 */
+  private drawHold(sim: SimView): void {
+    const g = this.holdG.clear();
+    const gold = sim.gold;
+    if (!gold) return;
+    sim.players.forEach((p, i) => {
+      const t = gold.holdT[i] ?? 0;
+      if (p.dead || t <= 0) return;
+      const k = Math.min(1, t / gold.need);
+      const x = p.body.x;
+      const y = p.body.y - 52;
+      const on = gold.holder === i;
+      g.circle(x, y, 13).fill({ color: 0x241c33, alpha: 0.7 });
+      // 弧从正上方起（先挪过去，不然会从上一个点连一条线过来）
+      g.moveTo(x, y - 13)
+        .arc(x, y, 13, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2)
+        .stroke({ width: 5, color: on ? 0xffd27a : 0xc9a24a, alpha: on ? 1 : 0.7, cap: 'round' });
+      g.circle(x, y, 4).fill(on ? 0xffd27a : 0xc9a24a);
+    });
+  }
+
+  /**
+   * 红包（A9b）：一个小红包，正面一个金色的圆封口，背后一圈暖光，轻轻上下飘、左右晃（减弱动效时不动）。拿到了就不画。
+   */
+  private drawEnvelopes(sim: SimView): void {
+    const g = this.envG.clear();
+    const list = sim.envelopes ?? [];
+    list.forEach((e, k) => {
+      if (e.got) return;
+      const bob = this.reduced ? 0 : Math.sin(this.t * 2.4 + k * 1.7) * 4;
+      const tilt = this.reduced ? 0 : Math.sin(this.t * 1.6 + k) * 0.12;
+      const x = e.x;
+      const y = e.y + bob;
+      const w = 24;
+      const h = 32;
+      const c = Math.cos(tilt);
+      const s = Math.sin(tilt);
+      const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+      // 暖光
+      g.circle(x, y, 30).fill({ color: 0xffd27a, alpha: 0.18 });
+      g.circle(x, y, 20).fill({ color: 0xffd27a, alpha: 0.22 });
+      const body = [at(-w / 2, -h / 2), at(w / 2, -h / 2), at(w / 2, h / 2), at(-w / 2, h / 2)].flat();
+      g.poly(body).fill(0xd8262f);
+      g.poly(body).stroke({ width: 2.5, color: 0x7a0f18, join: 'round' });
+      // 封口的翻盖：上面一个倒三角，深一点
+      g.poly([at(-w / 2, -h / 2), at(w / 2, -h / 2), at(0, -h / 2 + 11)].flat()).fill(0xb51d26);
+      const [sx, sy] = at(0, -h / 2 + 11);
+      g.circle(sx, sy, 6).fill(0xf6c453);
+      g.circle(sx, sy, 6).stroke({ width: 1.5, color: 0xb8862b });
+      // 一道亮边
+      const [hx0, hy0] = at(-w / 2 + 4, -h / 2 + 15);
+      const [hx1, hy1] = at(-w / 2 + 4, h / 2 - 5);
+      g.moveTo(hx0, hy0).lineTo(hx1, hy1).stroke({ width: 2, color: 0xff8a8a, alpha: 0.7, cap: 'round' });
+    });
   }
 
   /**
@@ -765,6 +1084,17 @@ export class Stage {
         g.ellipse(x, y + 14 + bob, 11, 6).fill(0xd8321f).stroke({ width: 1.5, color: 0x7a1a0f });
         g.ellipse(x, y + 14 + bob, 5, 2.5).fill(0xffb36b);
         g.circle(x + 50, y + 18 - bob, 5).fill(0x9bcf83).stroke({ width: 1.2, color: 0x4b7a3a });
+      } else if (this.world_ === 'space') {
+        // 太空站：护盾外面漂着几块碎片，慢慢翻
+        const a = this.reduced ? 0 : this.t * 0.6 + x * 0.01;
+        const c = Math.cos(a) * 7;
+        const s2 = Math.sin(a) * 7;
+        g.poly([x - c, y + 14 + bob - s2, x + s2, y + 14 + bob - c, x + c, y + 14 + bob + s2, x - s2, y + 14 + bob + c]).fill(0x8a94aa).stroke({ width: 1.2, color: 0x3a4052 });
+      } else if (this.world_ === 'house') {
+        // 老宅的荷花池：浮着荷叶，隔几片一个粉的花苞
+        g.ellipse(x, y + 12 + bob * 0.5, 22, 7).fill(0x3f6b3a).stroke({ width: 1.5, color: 0x1f3a1c });
+        g.moveTo(x, y + 12 + bob * 0.5).lineTo(x + 12, y + 7 + bob * 0.5).stroke({ width: 1.5, color: 0x1f3a1c });
+        if (Math.round(x / 110) % 3 === 0) g.ellipse(x + 46, y + 4 - bob, 6, 9).fill(0xf2a0b8).stroke({ width: 1.2, color: 0x8a3a52 });
       } else {
         g.moveTo(x - 16, y + 12 + bob).quadraticCurveTo(x, y + 6 + bob, x + 16, y + 12 + bob).stroke({ width: 2.5, color: 0xffffff, alpha: 0.45, cap: 'round' });
       }

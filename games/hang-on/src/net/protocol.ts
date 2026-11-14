@@ -9,9 +9,11 @@
  *
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
+import type { Goal } from '../goals';
 import type { ItemId } from '../items';
 import type { Look } from '../look';
 import type { GameMode, PadInput, SimEvent } from '../physics/world';
+import type { Side, Tier } from '../sides';
 
 export type { PadInput };
 
@@ -122,7 +124,7 @@ export interface Snap {
   p: number[][];
   /** 每根绳一行：各点 x, y 摊平；第一个是锚，最后一个是把手。 */
   r: number[][];
-  /** 每个物件一行：x, y, 角度, 宽, 高, 种类(0 跷跷板, 1 箱子)。 */
+  /** 每个物件一行：x, y, 角度, 宽, 高, 种类(0 跷跷板, 1 箱子, 2 金元宝, 3 托盘, 4 钥匙, 5 灯笼)。 */
   o: number[][];
   /** 每块饼干两个数：在不在(0/1)、还有几秒切换。 */
   f: number[];
@@ -130,6 +132,25 @@ export interface Snap {
   s: number[];
   /** 道具拉面（A9），每根一行：谁放的、还剩几秒、各点 x, y 摊平（第一个是锚）。没有就不写。 */
   nd?: number[][];
+  /** 红包（A9b）：拿到了哪几个（第 k 个拿到了，第 k 位是 1）。这一局没有红包就不写。 */
+  en?: number;
+  /** 踩板门（11-13）：按着的踏板（按位）、每扇门开到几成。 */
+  pl?: number;
+  gt?: number[];
+  /** 抢金元宝（A9d）：[要攒几秒, 现在谁一个人抓着, 每个人攒了几秒…]。 */
+  gd?: number[];
+  /** 端托盘（后厨，A10）：[托盘是第几个物件, 点心翻了没有（1 翻了）]。 */
+  ty?: [number, number];
+  /** 抓着冰溜子的手（雪山，A10）：每三个数一组 [第几个人, 哪只手, 最多抓几秒]，手机上手要抖。 */
+  ic?: number[];
+  /** 钥匙（老宅，A10）：每两个数一组 [是第几个物件, 1 找到了 + 2 用掉了（插在锁里）]。 */
+  ky?: number[];
+  /** 墙上的灯（老宅，A10）：亮着的（第 k 盏亮着，第 k 位是 1）。 */
+  lm?: number;
+  /** 拉杆（太空站，A10）：有人抓着的（第 k 根拉着，第 k 位是 1）。 */
+  lr?: number;
+  /** 外卖无人机（A9c）：提手在哪、在干什么（0 飞来 1 等 2 带人 3 放人 4 飞走）。 */
+  dr?: [number, number, number];
   /**
    * 最近发生的事（声音、特效用），ek 是第一件的编号，后面的依次加一。
    * 同一件事跟着好几轮快照走（丢一两张也收得到），手机按编号只放一次。
@@ -158,6 +179,12 @@ export interface Results {
    * 坐不住是撑了多久，赢的在前、先出局的在后。[玩家, 秒]
    */
   order?: [number, number | null][];
+  /** 小目标（A9b，闯关和大团队）：每个达到没有、是不是这一局第一次拿到这颗星。 */
+  goals?: Goal[];
+  /** 抢金元宝（A9d）：这一场每个人赢了几局。 */
+  rounds?: number[];
+  /** 红包（A9b）：这一局拿到几个、这关一共几个、这一局新拿到几个（以前没拿过的）、这台主机一共攒了几个。 */
+  envelopes?: { got: number; of: number; fresh: number; total: number };
 }
 
 /**
@@ -171,18 +198,25 @@ export type PadCmd =
   | { do: 'lobby' }
   | { do: 'level'; d: -1 | 1 }
   | { do: 'mode'; mode: GameMode }
-  | { do: 'teams'; on: boolean };
+  | { do: 'teams'; on: boolean }
+  | { do: 'side'; side: Side }
+  | { do: 'tier'; tier: Tier };
 
 /** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
 export interface Menu {
   phase: Phase;
+  /** 单人还是多人（11-13）。 */
+  side: Side;
   mode: GameMode;
   /** 大厅里能选的玩法（大团队有大关才有）。 */
   modes: GameMode[];
   /** 比谁先分两队。 */
   teams: boolean;
-  /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）。 */
-  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string } };
+  /** 难度（简单、中等、困难）；这个玩法分不分难度（闯关、比谁先分）。 */
+  tier: Tier;
+  tiered: boolean;
+  /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）；闯关、大团队带这关拿到过的星（「★★☆」）。 */
+  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string }; stars?: string };
   players: number;
   /** 这个玩法至少几个人。 */
   min: number;
@@ -204,6 +238,8 @@ export interface Cast {
   /** 这一局的玩法（A7）和比谁先的分队，横幅、结算页、画面（坐不住时手抓久了要抖）用。 */
   mode?: GameMode;
   teams?: number[];
+  /** 抢金元宝（A9d）这一场：打到第几局、每个人赢了几局（手机局的手机上写比分）。 */
+  gold?: { round: number; wins: number[] };
 }
 
 /**

@@ -4,8 +4,8 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { allFree, best, dateLabel, dayLabel, dayNotes, nextAnswer, partLabel, partsOf, quickFill, quickSlots, reason, slotKey, slotLabel, tally, vancouverDay, weekday, weekdayLabel } from "../../engine";
-import type { Answers, Day, EventState, Lang, Person, Quick, SlotKey } from "../../engine";
+import { addDays, allFree, atTime, best, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weekday, weekdayLabel, whenLabel } from "../../engine";
+import type { Answers, Day, EventState, Lang, Person, Quick, SlotKey, Span, Times } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
 import type { Snapshot } from "../../room/protocol";
@@ -14,20 +14,47 @@ import { t, type Key } from "../i18n";
 import { watch } from "../live";
 import { After } from "./After";
 import { AddToCalendar } from "./Calendar";
-import { CopyButton, IconCheck, IconPicture, IconQr, IconStar, IconWave, Qr, Sheet, Toast, TopBar, useLang } from "./common";
-import { PictureSheet, daysLine, invitePicture } from "./Picture";
+import { CopyButton, IconCheck, IconClock, IconPicture, IconQr, IconStar, IconWave, Keep, Qr, Sheet, Toast, TopBar, useLang } from "./common";
+import { PictureSheet, daysLine, inviteLine, invitePicture } from "./Picture";
+import { field, minutesOf, TimeSheet } from "./Times";
+import { Words } from "./Words";
 
-type Open = { kind: "slot"; slot: SlotKey } | { kind: "person"; id: string } | { kind: "claim" } | { kind: "qr" } | { kind: "invite" } | { kind: "created"; adminCode: string } | null;
+type Open =
+  | { kind: "slot"; slot: SlotKey }
+  | { kind: "time"; slot: SlotKey }
+  | { kind: "setTime" }
+  | { kind: "person"; id: string }
+  | { kind: "claim" }
+  | { kind: "qr" }
+  | { kind: "invite" }
+  | { kind: "created"; adminCode: string }
+  | { kind: "words"; words: "invite" | "nudge" }
+  | { kind: "invited" }
+  | { kind: "deadline" }
+  | { kind: "proxy" }
+  | null;
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
 const SAVE_AFTER_MS = 450;
 const RETRY_SAVE_MS = 3000;
 /** How long "undo" stays up after a quick fill. */
 const UNDO_MS = 6000;
-const same = (a: Answers, b: Answers) => {
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+/** How long "set its time" stays up after a slot is tapped. */
+const TAPPED_MS = 5000;
+/** My row as this phone has it: my answers, and the part of a slot I gave where it isn't all of it. */
+type Row = { answers: Answers; times: Times };
+const same = (a: Row, b: Row) => {
+  const keys = Object.keys(a.answers);
+  const spans = Object.keys(a.times);
+  return (
+    keys.length === Object.keys(b.answers).length &&
+    keys.every((key) => a.answers[key] === b.answers[key]) &&
+    spans.length === Object.keys(b.times).length &&
+    spans.every((key) => a.times[key][0] === b.times[key]?.[0] && a.times[key][1] === b.times[key]?.[1])
+  );
 };
+/** Times only for slots that are answered. */
+const keepTimes = (answers: Answers, times: Times): Times => Object.fromEntries(Object.entries(times).filter(([slot]) => answers[slot] !== undefined));
 /** 0 to 4: how full a slot is, for its shade. Any one free person is at least 1. */
 const heat = (yes: number, total: number) => (yes === 0 || total === 0 ? 0 : Math.max(1, Math.ceil((yes / total) * 4)));
 
@@ -56,7 +83,7 @@ export function EventPage({ code }: { code: string }) {
   const [reach, setReach] = useState(true);
   const [name, setName] = useState(savedName);
   const [naming, setNaming] = useState(false);
-  const [draft, setDraft] = useState<Answers | null>(null);
+  const [draft, setDraft] = useState<Row | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [mode, setMode] = useState<"fill" | "all">("fill");
   const [open, setOpen] = useState<Open>(null);
@@ -64,20 +91,30 @@ export function EventPage({ code }: { code: string }) {
   // the slots a quick fill said "free" for and nobody has tapped since: one tap takes such a slot back
   const [quick, setQuick] = useState<ReadonlySet<SlotKey>>(() => new Set());
   // what the last quick fill replaced, while it can still be taken back
-  const [undo, setUndo] = useState<{ answers: Answers; quick: ReadonlySet<SlotKey>; said: Key } | null>(null);
+  const [undo, setUndo] = useState<{ row: Row; quick: ReadonlySet<SlotKey>; said: Key } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout>>();
+  // by the period: tapping a slot opens its time to the minute instead of going round
+  const [minuteMode, setMinuteMode] = useState(false);
+  // the slot just tapped, while "set its time" is offered for it
+  const [tapped, setTapped] = useState<SlotKey | null>(null);
+  const tappedTimer = useRef<ReturnType<typeof setTimeout>>();
   const [nudge, setNudge] = useState(false);
   const nameField = useRef<HTMLInputElement>(null);
+  const fillPanel = useRef<HTMLElement>(null);
+  // a host filling in for someone (代填): the grid then fills in that row, not this phone's own
+  const [proxy, setProxy] = useState<{ id: string } | null>(null);
+  // whose row the draft is: a draft always goes to the row it was made for
+  const draftFor = useRef<string | null>(null);
 
   // the latest of everything, for the timers and callbacks that outlive a render
-  const now = useRef({ snap, draft, name });
-  now.current = { snap, draft, name };
+  const now = useRef({ snap, draft, name, proxy });
+  now.current = { snap, draft, name, proxy };
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
   const saving = useRef(false);
   const firstLook = useRef(true);
 
-  const say = (key: Key) => {
-    setToast(t(key));
+  const say = (key: Key, vars?: Record<string, string | number>) => {
+    setToast(t(key, vars));
     setTimeout(() => setToast(null), 2600);
   };
 
@@ -124,19 +161,41 @@ export function EventPage({ code }: { code: string }) {
     return watch(code, { state: (state) => take(state), gone: () => setGone(true), live: () => undefined, refresh: () => void refresh() });
   }, [code]);
 
+  // the deadline passing changes the page (who's still to answer is marked): look again then
+  const deadline = snap?.state.deadline ?? null;
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (deadline === null) return;
+    const wait = deadline - Date.now();
+    if (wait <= 0) return;
+    // a timer can wait about 24 days at most; a later deadline is looked at again then
+    const timer = setTimeout(() => setTick((n) => n + 1), Math.min(wait + 100, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [deadline, tick]);
+
+  // the row being filled in for someone is gone (another host removed it): back to this phone's own
+  useEffect(() => {
+    if (proxy && snap && !snap.state.people.some((p) => p.id === proxy.id)) {
+      setProxy(null);
+      setDraft(null);
+    }
+  }, [snap, proxy]);
+
   // ---------- saving my row ----------
   async function flush() {
     clearTimeout(saveTimer.current);
     if (saving.current) return;
-    const { snap: at, draft: answers, name: typed } = now.current;
+    const { snap: at, draft: row, name: typed, proxy: filling } = now.current;
+    const target = row ? draftFor.current : (filling?.id ?? null);
+    if (target) return void flushFor(target, row);
     const mine = at?.me ? at.state.people.find((p) => p.id === at.me) : undefined;
-    const sending = answers ?? mine?.answers ?? {};
+    const sending: Row = row ?? { answers: mine?.answers ?? {}, times: mine?.times ?? {} };
     const as = typed.trim();
     if (!at || !as) return;
     saving.current = true;
     setSaveState("saving");
     try {
-      const saved = await api.save(code, { id: at.me ?? undefined, name: as, answers: sending });
+      const saved = await api.save(code, { id: at.me ?? undefined, name: as, answers: sending.answers, times: sending.times });
       saveName(as);
       setReach(true);
       take(saved.state, { me: saved.id });
@@ -155,11 +214,48 @@ export function EventPage({ code }: { code: string }) {
       saveTimer.current = setTimeout(() => void flush(), RETRY_SAVE_MS);
     }
   }
+  /** Save the row being filled in for someone: its name as it is, the answers as tapped. */
+  async function flushFor(id: string, row: Row | null) {
+    const was = now.current.snap?.state.people.find((p) => p.id === id);
+    if (!was) return void setDraft(null);
+    const sending: Row = row ?? { answers: was.answers, times: was.times ?? {} };
+    saving.current = true;
+    setSaveState("saving");
+    try {
+      const done = await api.host(code, { do: "proxy", id, name: was.name, answers: sending.answers, times: sending.times });
+      setReach(true);
+      take(done.state);
+      saving.current = false;
+      if (now.current.draft && !same(now.current.draft, sending)) return void flush();
+      setDraft(null);
+      setSaveState("saved");
+    } catch (error) {
+      saving.current = false;
+      const why = error instanceof ApiFail ? error.code : "network";
+      if (why === "notfound" || why === "gone") return setGone(true);
+      // the row went, or this phone stopped being a host: back to its own row
+      if (why === "bad" || why === "forbidden") return (setDraft(null), setProxy(null), setSaveState("idle"), say("failed"));
+      if (why === "network") setReach(false);
+      setSaveState("failed");
+      saveTimer.current = setTimeout(() => void flush(), RETRY_SAVE_MS);
+    }
+  }
+  /** Everything tapped is saved, or couldn't be for now: true when nothing is left to send. */
+  async function saveAll(): Promise<boolean> {
+    for (let i = 0; i < 40 && (saving.current || now.current.draft); i++) {
+      if (saving.current) await new Promise((done) => setTimeout(done, 100));
+      else {
+        await flush();
+        if (now.current.draft && !saving.current) break;
+      }
+    }
+    return !saving.current && !now.current.draft;
+  }
   const saveSoon = () => {
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => void flush(), SAVE_AFTER_MS);
   };
-  useEffect(() => () => (clearTimeout(saveTimer.current), clearTimeout(undoTimer.current)), []);
+  useEffect(() => () => (clearTimeout(saveTimer.current), clearTimeout(undoTimer.current), clearTimeout(tappedTimer.current)), []);
 
   if (gone) {
     return (
@@ -189,9 +285,13 @@ export function EventPage({ code }: { code: string }) {
   const { state, host } = snap;
   const me = snap.me ? state.people.find((p) => p.id === snap.me) : undefined;
   const joined = !!me;
-  const mine: Answers = draft ?? me?.answers ?? {};
-  // everyone as shown: my row carries what I've tapped, saved or not yet
-  const people: Person[] = me ? state.people.map((p) => (p.id === me.id ? { ...p, answers: mine } : p)) : state.people;
+  // the row the grid fills in: this phone's own, or the one a host is filling in for someone
+  const proxyRow = proxy ? state.people.find((p) => p.id === proxy.id) : undefined;
+  const editing = proxy ? proxyRow : me;
+  const mine: Answers = draft?.answers ?? editing?.answers ?? {};
+  const myTimes: Times = draft?.times ?? editing?.times ?? {};
+  // everyone as shown: the row being filled in carries what was tapped, saved or not yet
+  const people: Person[] = editing ? state.people.map((p) => (p.id === editing.id ? { ...p, answers: mine, times: myTimes } : p)) : state.people;
   const tallies = tally({ days: state.days, grain: state.grain, people, minPeople: state.minPeople });
   const top = best(tallies);
   const rankOf = (slot: SlotKey) => top.findIndex((x) => x.slot === slot) + 1;
@@ -200,7 +300,30 @@ export function EventPage({ code }: { code: string }) {
   const weekendSlots = quickSlots({ kind: "weekends" }, state.days, state.grain);
   const eveningSlots = quickSlots({ kind: "evenings" }, state.days, state.grain);
   const settledSlot = state.settled ? slotKey(state.settled.day, state.settled.part) : null;
-  const settledTally = settledSlot ? tallies.find((x) => x.slot === settledSlot) : undefined;
+  const setOne = settledSlot ? tallies.find((x) => x.slot === settledSlot) : undefined;
+  // the time that was set, counting who is free for all of it (by the period, to the minute)
+  const settledTally = setOne && atTime(setOne, people, state.grain, state.settled?.from, state.settled?.to);
+  /** The minutes a slot stands for, by the period; null otherwise. */
+  const rangeOf = (slot: SlotKey): Span | null => {
+    const at = parseSlot(slot);
+    return at && partRange(state.grain, at.part);
+  };
+  /** The part of a slot I gave, or the whole of it. */
+  const mySpan = (slot: SlotKey, range: Span): Span => (myTimes[slot] ? [myTimes[slot][0], myTimes[slot][1]] : range);
+  /** What the line at the bottom says about the slot just tapped: its time, or that it's all of it. */
+  const tappedLine = (slot: SlotKey): string => {
+    const { day, part } = parseSlot(slot)!;
+    const given = myTimes[slot];
+    return given ? whenLabel(day, part, lang, given[0], given[1]) : t("timeTapped", { when: slotLabel(day, part, lang) });
+  };
+  /** Settle a slot: at the stretch that suits the most, by the period, when that's narrower than the whole of it. */
+  const settle = (x: Tally) => act({ do: "settle", slot: x.slot, ...(x.meet ? { from: x.meet.from, to: x.meet.to } : {}) });
+  // when to answer by, and who on the host's list is still to answer
+  const late = state.deadline !== null && Date.now() >= state.deadline;
+  const waiting = missing(state.invited, people);
+  const names = (list: readonly string[]) => list.join(lang === "zh" ? "、" : ", ");
+  /** The deadline as the group messages say it, while it is still ahead. */
+  const answerBy = (inLang: Lang) => (state.deadline !== null && !late ? deadlineLabel(state.deadline, inLang) : undefined);
   // nothing to offer: because nobody has answered, or because every slot people can make is ruled out
   const anyone = tallies.some((x) => x.yes.length + x.maybe.length > 0);
   const noBest: string = !anyone ? t("bestEmpty") : tallies.some((x) => x.out === "must") ? t("bestWaitMust") : t("bestFew", { n: state.minPeople });
@@ -213,25 +336,34 @@ export function EventPage({ code }: { code: string }) {
 
   /** Nothing is filled in before there's a name: ask for it. True when it had to. */
   function nameless(): boolean {
-    if (name.trim()) return false;
+    if (proxy || name.trim()) return false;
     setNudge(true);
     setNaming(true);
     nameField.current?.focus();
     return true;
   }
 
-  /** My answers are these now: show them, and save them in a moment. */
-  function put(answers: Answers) {
-    setDraft(answers);
+  /** My answers are these now (and my times, for the slots still answered): show them, and save them in a moment. */
+  function put(answers: Answers, times: Times = myTimes) {
+    draftFor.current = proxy?.id ?? null;
+    setDraft({ answers, times: keepTimes(answers, times) });
     setSaveState("saving");
     saveSoon();
   }
 
   const forgetUndo = () => (clearTimeout(undoTimer.current), setUndo(null));
+  const forgetTapped = () => (clearTimeout(tappedTimer.current), setTapped(null));
 
   function tap(slot: SlotKey) {
     if (mode === "all") return setOpen({ kind: "slot", slot });
     if (nameless()) return;
+    const range = rangeOf(slot);
+    if (minuteMode && range) {
+      // to the minute: the slot's own sheet. One not answered yet starts as free, all of it
+      if (mine[slot] === undefined) put({ ...mine, [slot]: 2 });
+      forgetUndo();
+      return setOpen({ kind: "time", slot });
+    }
     const next = { ...mine };
     // a slot filled in one go and not touched since: one tap says "not this one"
     const to = quick.has(slot) && next[slot] === 2 ? undefined : nextAnswer(next[slot]);
@@ -240,6 +372,48 @@ export function EventPage({ code }: { code: string }) {
     if (quick.has(slot)) setQuick(new Set([...quick].filter((x) => x !== slot)));
     forgetUndo();
     put(next);
+    // by the period: a moment to set the time of what was just tapped, to the minute
+    forgetTapped();
+    if (range && to) {
+      setTapped(slot);
+      tappedTimer.current = setTimeout(() => setTapped(null), TAPPED_MS);
+    }
+  }
+
+  /** My answer to one slot, from its sheet: free, could move things, or not free (undefined). */
+  function answerSlot(slot: SlotKey, answer: Answers[string] | undefined) {
+    const next = { ...mine };
+    if (answer) next[slot] = answer;
+    else delete next[slot];
+    if (quick.has(slot)) setQuick(new Set([...quick].filter((x) => x !== slot)));
+    put(next);
+  }
+
+  /** The part of one slot I'm free for, from its sheet; all of it keeps no time. */
+  function spanSlot(slot: SlotKey, span: Span) {
+    const range = rangeOf(slot)!;
+    const times = { ...myTimes };
+    if (span[0] === range[0] && span[1] === range[1]) delete times[slot];
+    else times[slot] = [span[0], span[1]];
+    if (quick.has(slot)) setQuick(new Set([...quick].filter((x) => x !== slot)));
+    put(mine, times);
+  }
+
+  /** The same answer and time for the same period on the other days I answered. */
+  function sameForOthers(slot: SlotKey) {
+    const { part } = parseSlot(slot)!;
+    const range = rangeOf(slot)!;
+    const span = mySpan(slot, range);
+    const others = Object.keys(mine).filter((key) => key !== slot && parseSlot(key)?.part === part);
+    const answers = { ...mine };
+    const times = { ...myTimes };
+    for (const key of others) {
+      answers[key] = mine[slot];
+      if (span[0] === range[0] && span[1] === range[1]) delete times[key];
+      else times[key] = [span[0], span[1]];
+    }
+    put(answers, times);
+    say("timeSameDone", { n: others.length });
   }
 
   /** A quick fill (or, with "none", clearing everything): many slots at once, and a moment to take it back. */
@@ -250,7 +424,10 @@ export function EventPage({ code }: { code: string }) {
     const marks = new Set(which.kind === "none" ? [] : quick);
     for (const slot of slots) filling ? marks.add(slot) : marks.delete(slot);
     clearTimeout(undoTimer.current);
-    setUndo({ answers: mine, quick, said: filling ? "quickFilled" : "quickCleared" });
+    // "everything" and "this whole day" leave out 凌晨: say so where there is one
+    const skipped = filling && (which.kind === "all" || which.kind === "day" || which.kind === "weekends") && partsOf(state.grain).includes("dawn");
+    forgetTapped();
+    setUndo({ row: { answers: mine, times: myTimes }, quick, said: filling ? (skipped ? "quickFilledDawn" : "quickFilled") : "quickCleared" });
     undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS);
     setQuick(marks);
     put(which.kind === "none" ? {} : quickFill(mine, slots));
@@ -259,8 +436,51 @@ export function EventPage({ code }: { code: string }) {
   function takeBack() {
     if (!undo) return;
     setQuick(undo.quick);
-    put(undo.answers);
+    put(undo.row.answers, undo.row.times);
     forgetUndo();
+    forgetTapped();
+  }
+
+  /** Fill in for someone (代填): `id`, a row filled in for someone before; or a new one of `name`. */
+  async function fillFor(target: { id: string } | { name: string }) {
+    if (!(await saveAll())) return say("failed");
+    let id = "id" in target ? target.id : null;
+    if (!id) {
+      try {
+        const done = await api.host(code, { do: "proxy", name: (target as { name: string }).name, answers: {} });
+        take(done.state);
+        id = done.id ?? null;
+      } catch {
+        return say("failed");
+      }
+    }
+    if (!id) return;
+    setOpen(null);
+    setDraft(null);
+    forgetUndo();
+    forgetTapped();
+    setQuick(new Set());
+    setMode("fill");
+    setProxy({ id });
+    // to the grid, once the sheet has closed: closing it steps the history back, which puts the
+    // page back where it was
+    let went = false;
+    const go = () => {
+      if (went) return;
+      went = true;
+      requestAnimationFrame(() => fillPanel.current?.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+    };
+    addEventListener("popstate", go, { once: true });
+    setTimeout(go, 400);
+  }
+  /** Back to this phone's own row, once what was tapped for the other is saved. */
+  async function doneFilling() {
+    if (!(await saveAll())) return say("failed");
+    setDraft(null);
+    forgetUndo();
+    forgetTapped();
+    setQuick(new Set());
+    setProxy(null);
   }
 
   function submitName(event: Event) {
@@ -271,7 +491,9 @@ export function EventPage({ code }: { code: string }) {
     void flush();
   }
 
-  const showNameField = !joined || naming;
+  const showNameField = !proxy && (!joined || naming);
+  // a row filled in for someone who has since filled in for themselves: one to remove
+  const twice = host ? people.filter((p) => p.proxy && people.some((o) => !o.proxy && sameName(o.name, p.name))) : [];
 
   return (
     <div class="page">
@@ -282,6 +504,11 @@ export function EventPage({ code }: { code: string }) {
         <p class="meta">
           <span>{daysLine(state, lang)}</span>
           <span>{state.people.length ? t("answered", { n: state.people.length }) : t("answeredNone")}</span>
+          {state.deadline !== null && (
+            <span class="meta-deadline" data-late={late ? "" : undefined}>
+              {late ? t("deadlineOver") : t("deadlineMeta", { when: deadlineLabel(state.deadline, lang) })}
+            </span>
+          )}
         </p>
         <div class="row">
           <CopyButton text={link} label={t("copyLink")} />
@@ -299,21 +526,42 @@ export function EventPage({ code }: { code: string }) {
       {state.settled && settledTally && (
         <section class="set" aria-live="polite">
           <span class="set-tag">{t("settledTitle")}</span>
-          <strong>{slotLabel(state.settled.day, state.settled.part, lang)}</strong>
+          <strong>
+            <Keep text={whenLabel(state.settled.day, state.settled.part, lang, state.settled.from, state.settled.to)} />
+          </strong>
           <p>{reason(settledTally, people, lang)}</p>
           <AddToCalendar state={state} />
           {host && (
-            <button type="button" class="link-btn on-gel" onClick={() => act({ do: "reopen" })}>
-              {t("reopen")}
-            </button>
+            <div class="row set-host">
+              {settledSlot && rangeOf(settledSlot) && (
+                <button type="button" class="link-btn on-gel" onClick={() => setOpen({ kind: "setTime" })}>
+                  {t("setTime")}
+                </button>
+              )}
+              <button type="button" class="link-btn on-gel" onClick={() => act({ do: "reopen" })}>
+                {t("reopen")}
+              </button>
+            </div>
           )}
         </section>
       )}
 
       {state.settled && settledTally && <After state={state} tally={settledTally} people={people} host={host} link={link} />}
 
-      <section class="panel">
-        {showNameField ? (
+      <section class="panel" ref={fillPanel} data-proxy={proxyRow ? "" : undefined}>
+        {proxyRow ? (
+          <div class="row-between proxy-bar">
+            <p class="you">
+              {/* the words around the name, in either language's order, with the name itself in bold */}
+              {t("proxyFor", { name: "\u0000" })
+                .split("\u0000")
+                .map((words, i) => (i ? [<b key="name">{proxyRow.name}</b>, words] : words))}
+            </p>
+            <button type="button" class="link-btn" onClick={() => void doneFilling()}>
+              {t("proxyDone")}
+            </button>
+          </div>
+        ) : showNameField ? (
           <form class="name-form" onSubmit={submitName}>
             <label class="field">
               <span class="field-label">{t("nameLabel")}</span>
@@ -347,7 +595,7 @@ export function EventPage({ code }: { code: string }) {
             {t("modeAll")}
           </button>
         </div>
-        <p class="hint">{t(mode === "all" ? "allHint" : state.grain === "half" ? "fillHintRows" : "fillHint")}</p>
+        <p class="hint">{t(mode === "all" ? "allHint" : minuteMode && state.grain === "periods" ? "minuteHint" : state.grain !== "day" ? "fillHintRows" : "fillHint")}</p>
         {mode === "fill" && (
           <div class="quick" role="group" aria-label={t("quickLabel")}>
             <button type="button" aria-pressed={allFree(mine, everySlot)} onClick={() => fill({ kind: "all" })}>
@@ -363,22 +611,34 @@ export function EventPage({ code }: { code: string }) {
                 {t("quickEvenings")}
               </button>
             )}
+            {state.grain === "periods" && (
+              <button type="button" class="quick-minutes" aria-pressed={minuteMode} onClick={() => (setMinuteMode(!minuteMode), setTapped(null))}>
+                <IconClock />
+                {t("minuteMode")}
+              </button>
+            )}
           </div>
         )}
 
         <div class={`grid grid-${state.grain} grid-${mode}`}>
-          {state.grain === "half" && (
+          {state.grain !== "day" && (
             <div class="grid-row grid-heads" aria-hidden="true">
               <span />
-              {parts.map((part) => (
-                <span key={part}>{partLabel(part, lang)}</span>
-              ))}
+              {parts.map((part) => {
+                const range = partRange(state.grain, part);
+                return (
+                  <span key={part}>
+                    {partHeading(part, lang)}
+                    {range && <small>{hoursLabel(range)}</small>}
+                  </span>
+                );
+              })}
             </div>
           )}
           {state.days.map((day) => (
             <div class="grid-row" key={day} data-weekend={weekday(day) % 6 === 0 ? "" : undefined}>
               <DayNotes day={day} days={state.days} lang={lang} />
-              {mode === "fill" && state.grain === "half" ? (
+              {mode === "fill" && state.grain !== "day" ? (
                 <button
                   type="button"
                   class="grid-date"
@@ -387,12 +647,12 @@ export function EventPage({ code }: { code: string }) {
                   onClick={() => fill({ kind: "day", day })}
                 >
                   <b>{weekdayLabel(day, lang)}</b>
-                  <small>{dateLabel(day, lang)}</small>
+                  <small>{(state.grain === "periods" ? shortDate : dateLabel)(day, lang)}</small>
                 </button>
               ) : (
                 <span class="grid-date">
                   <b>{weekdayLabel(day, lang)}</b>
-                  <small>{dateLabel(day, lang)}</small>
+                  <small>{(state.grain === "periods" ? shortDate : dateLabel)(day, lang)}</small>
                 </span>
               )}
               {parts.map((part) => {
@@ -400,7 +660,9 @@ export function EventPage({ code }: { code: string }) {
                 const tl = tallies.find((x) => x.slot === slot)!;
                 const answer = mine[slot];
                 const rank = rankOf(slot);
-                const label = `${slotLabel(day, part, lang)}: ${mode === "fill" ? t(answer === 2 ? "legendFree" : answer === 1 ? "legendMaybe" : "legendNo") : reason(tl, people, lang)}`;
+                const range = partRange(state.grain, part);
+                const given = mode === "fill" && answer !== undefined && range && myTimes[slot] ? mySpan(slot, range) : null;
+                const label = `${slotLabel(day, part, lang)}${given ? ` ${spanLabel(given)}` : ""}: ${mode === "fill" ? t(answer === 2 ? "legendFree" : answer === 1 ? "legendMaybe" : "legendNo") : reason(tl, people, lang)}`;
                 return (
                   <button
                     type="button"
@@ -417,6 +679,9 @@ export function EventPage({ code }: { code: string }) {
                       <>
                         {answer === 2 ? <IconCheck size={22} /> : answer === 1 ? <IconWave size={22} /> : null}
                         {tl.yes.length > 0 && <small class="cell-count">{tl.yes.length}</small>}
+                        {given && range && (
+                          <i class="cell-span" style={{ "--from": `${((given[0] - range[0]) / (range[1] - range[0])) * 100}%`, "--to": `${((given[1] - range[0]) / (range[1] - range[0])) * 100}%` }} />
+                        )}
                       </>
                     ) : (
                       <>
@@ -478,11 +743,13 @@ export function EventPage({ code }: { code: string }) {
                   {i + 1}
                 </i>
                 <button type="button" class="best-what" onClick={() => setOpen({ kind: "slot", slot: x.slot })}>
-                  <b>{slotLabel(x.day, x.part, lang)}</b>
+                  <b>
+                    <Keep text={whenLabel(x.day, x.part, lang, x.meet?.from, x.meet?.to)} />
+                  </b>
                   <span>{reason(x, people, lang)}</span>
                 </button>
                 {host && x.slot !== settledSlot && (
-                  <button type="button" class="btn btn-primary btn-sm" onClick={() => act({ do: "settle", slot: x.slot })}>
+                  <button type="button" class="btn btn-primary btn-sm" onClick={() => settle(x)}>
                     {t("pick")}
                   </button>
                 )}
@@ -492,37 +759,63 @@ export function EventPage({ code }: { code: string }) {
         )}
       </section>
 
-      {people.length > 0 && (
+      {(people.length > 0 || !state.settled) && (
         <section class="panel">
           <h2 class="panel-title">{t("peopleTitle")}</h2>
-          <ul class="people">
-            {people.map((p) => {
-              const inner = (
-                <>
-                  {p.must && (
-                    <span class="must" title={t("must")}>
-                      <IconStar />
-                    </span>
-                  )}
-                  <b>{p.name}</b>
-                  {p.id === me?.id && <small>{t("you")}</small>}
-                  <small>{t("slotsPicked", { n: Object.keys(p.answers).length })}</small>
-                  {p.must && <span class="sr-only">{t("must")}</span>}
-                </>
-              );
-              return (
-                <li key={p.id}>
-                  {host ? (
-                    <button type="button" class="person" onClick={() => setOpen({ kind: "person", id: p.id })}>
-                      {inner}
-                    </button>
-                  ) : (
-                    <span class="person">{inner}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          {people.length > 0 ? (
+            <ul class="people">
+              {people.map((p) => {
+                const inner = (
+                  <>
+                    {p.must && (
+                      <span class="must" title={t("must")}>
+                        <IconStar />
+                      </span>
+                    )}
+                    <b>{p.name}</b>
+                    {p.id === me?.id && <small>{t("you")}</small>}
+                    {p.proxy && <small>{t("proxyTag")}</small>}
+                    <small>{Object.keys(p.answers).length === 1 ? t("slotsPickedOne") : t("slotsPicked", { n: Object.keys(p.answers).length })}</small>
+                    {p.must && <span class="sr-only">{t("must")}</span>}
+                  </>
+                );
+                return (
+                  <li key={p.id}>
+                    {host ? (
+                      <button type="button" class="person" onClick={() => setOpen({ kind: "person", id: p.id })}>
+                        {inner}
+                      </button>
+                    ) : (
+                      <span class="person">{inner}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p class="hint">{t("answeredNone")}</p>
+          )}
+          {twice.map((p) => (
+            <p key={p.id} class="note">
+              {t("proxyTwice", { name: p.name })}
+            </p>
+          ))}
+          {state.invited.length > 0 &&
+            (waiting.length > 0 ? (
+              <p class={late ? "note" : "hint"}>{t(late ? "missingLate" : "missingLine", { n: waiting.length, names: names(waiting) })}</p>
+            ) : (
+              <p class="hint">{t("missingNone")}</p>
+            ))}
+          {!state.settled && (
+            <div class="row">
+              <button type="button" class="btn btn-quiet btn-sm" onClick={() => setOpen({ kind: "words", words: "nudge" })}>
+                {t("wordsNudge")}
+              </button>
+              <button type="button" class="btn btn-quiet btn-sm" onClick={() => setOpen({ kind: "words", words: "invite" })}>
+                {t("wordsInvite")}
+              </button>
+            </div>
+          )}
         </section>
       )}
 
@@ -542,6 +835,32 @@ export function EventPage({ code }: { code: string }) {
               </button>
             </div>
           </div>
+          <div class="host-row">
+            <div class="row-between">
+              <span>{t("invitedTitle")}</span>
+              <button type="button" class="link-btn" onClick={() => setOpen({ kind: "invited" })}>
+                {state.invited.length ? t("change") : t("invitedWrite")}
+              </button>
+            </div>
+            {state.invited.length > 0 && <p class="hint">{names(state.invited)}</p>}
+          </div>
+          <div class="host-row">
+            <div class="row-between">
+              <span>{t("deadlineTitle")}</span>
+              <button type="button" class="link-btn" onClick={() => setOpen({ kind: "deadline" })}>
+                {state.deadline !== null ? t("change") : t("deadlineSet")}
+              </button>
+            </div>
+            {state.deadline !== null && <p class="hint">{late ? t("deadlineOver") : deadlineLabel(state.deadline, lang)}</p>}
+          </div>
+          <div class="host-row">
+            <div class="row-between">
+              <span>{t("proxyTitle")}</span>
+              <button type="button" class="link-btn" onClick={() => setOpen({ kind: "proxy" })}>
+                {t("proxyStart")}
+              </button>
+            </div>
+          </div>
         </section>
       ) : (
         <button type="button" class="link-btn center" onClick={() => setOpen({ kind: "claim" })}>
@@ -551,11 +870,75 @@ export function EventPage({ code }: { code: string }) {
 
       <p class="foot">{t("deletedOn", { day: dayLabel(vancouverDay(state.expiresAt), lang) })}</p>
 
-      {open?.kind === "slot" && <SlotSheet tl={tallies.find((x) => x.slot === open.slot)!} state={state} people={people} host={host} settled={open.slot === settledSlot} onPick={() => (setOpen(null), void act({ do: "settle", slot: open.slot }))} onClose={() => setOpen(null)} />}
-      {open?.kind === "person" && people.some((p) => p.id === open.id) && <PersonSheet person={people.find((p) => p.id === open.id)!} onAct={(action) => (setOpen(null), void act(action))} onClose={() => setOpen(null)} />}
+      {open?.kind === "slot" && <SlotSheet tl={tallies.find((x) => x.slot === open.slot)!} state={state} people={people} host={host} settled={open.slot === settledSlot} onPick={() => (setOpen(null), void settle(tallies.find((x) => x.slot === open.slot)!))} onClose={() => setOpen(null)} />}
+      {open?.kind === "time" && rangeOf(open.slot) && (
+        <TimeSheet
+          title={slotLabel(parseSlot(open.slot)!.day, parseSlot(open.slot)!.part, lang)}
+          range={rangeOf(open.slot)!}
+          span={mySpan(open.slot, rangeOf(open.slot)!)}
+          onSpan={(span) => spanSlot(open.slot, span)}
+          disabled={mine[open.slot] === undefined}
+          top={
+            <div class="seg seg-3" role="group" aria-label={slotLabel(parseSlot(open.slot)!.day, parseSlot(open.slot)!.part, lang)}>
+              {([2, 1, undefined] as const).map((answer) => (
+                <button key={String(answer)} type="button" aria-pressed={mine[open.slot] === answer} onClick={() => answerSlot(open.slot, answer)}>
+                  {t(answer === 2 ? "legendFree" : answer === 1 ? "legendMaybe" : "legendNo")}
+                </button>
+              ))}
+            </div>
+          }
+          bottom={
+            mine[open.slot] !== undefined &&
+            Object.keys(mine).some((key) => key !== open.slot && parseSlot(key)?.part === parseSlot(open.slot)!.part) && (
+              <button type="button" class="link-btn" onClick={() => sameForOthers(open.slot)}>
+                {t("timeSame", { part: partLabel(parseSlot(open.slot)!.part, lang) })}
+              </button>
+            )
+          }
+          footer={
+            <button type="button" class="btn btn-primary btn-block" onClick={() => setOpen(null)}>
+              {t("timeDone")}
+            </button>
+          }
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {open?.kind === "setTime" && state.settled && settledSlot && rangeOf(settledSlot) && (
+        <SetTimeSheet
+          tl={tallies.find((x) => x.slot === settledSlot)!}
+          state={state}
+          people={people}
+          range={rangeOf(settledSlot)!}
+          onSet={(span) => (setOpen(null), void act({ do: "settle", slot: settledSlot, from: span[0], to: span[1] }))}
+          onClose={() => setOpen(null)}
+        />
+      )}
+      {open?.kind === "person" && people.some((p) => p.id === open.id) && <PersonSheet person={people.find((p) => p.id === open.id)!} onAct={(action) => (setOpen(null), void act(action))} onFill={(id) => void fillFor({ id })} onClose={() => setOpen(null)} />}
+      {open?.kind === "proxy" && <ProxySheet people={people} onStart={(name) => void fillFor(people.find((p) => p.proxy && sameName(p.name, name)) ?? { name })} onClose={() => setOpen(null)} />}
       {open?.kind === "claim" && <ClaimSheet code={code} onDone={() => (setOpen(null), setSnap((before) => before && { ...before, host: true }), say("claimOk"))} onClose={() => setOpen(null)} />}
       {open?.kind === "invite" && (
-        <PictureSheet picture={invitePicture(state, link, lang)} title={t("picInvite")} alt={t("picAltInvite", { title: state.title, days: daysLine(state, lang) })} file={`when-${state.code}-invite.jpg`} onClose={() => setOpen(null)} />
+        <PictureSheet picture={invitePicture(state, link, lang)} title={t("picInvite")} alt={t("picAltInvite", { title: state.title, days: inviteLine(state, lang) })} file={`when-${state.code}-invite.jpg`} onClose={() => setOpen(null)} />
+      )}
+      {open?.kind === "words" && (
+        <Sheet title={t(open.words === "nudge" ? "wordsNudgeTitle" : "wordsInviteTitle")} onClose={() => setOpen(null)}>
+          <p class="hint">{t("wordsHint")}</p>
+          <Words
+            write={(tone, inLang, pick) =>
+              open.words === "nudge"
+                ? nudgeText({ title: state.title, url: link, missing: waiting, deadline: answerBy(inLang) }, tone, inLang, pick)
+                : inviteText({ title: state.title, url: link, days: state.days, deadline: answerBy(inLang) }, tone, inLang, pick)
+            }
+          />
+        </Sheet>
+      )}
+      {open?.kind === "invited" && <InvitedSheet invited={state.invited} onSave={(list) => (setOpen(null), void act({ do: "edit", invited: list }))} onClose={() => setOpen(null)} />}
+      {open?.kind === "deadline" && (
+        <DeadlineSheet
+          state={state}
+          onSet={(at) => (setOpen(null), void act({ do: "edit", deadline: at }))}
+          onClear={() => (setOpen(null), void act({ do: "edit", deadline: null }))}
+          onClose={() => setOpen(null)}
+        />
       )}
       {open?.kind === "qr" && (
         <Sheet title={t("qr")} onClose={() => setOpen(null)}>
@@ -584,27 +967,70 @@ export function EventPage({ code }: { code: string }) {
           </div>
         </Sheet>
       )}
-      <Toast text={toast ?? (undo ? t(undo.said) : null)} action={!toast && undo ? { label: t("undo"), run: takeBack } : undefined} />
+      <Toast
+        text={toast ?? (undo ? t(undo.said) : tapped ? tappedLine(tapped) : null)}
+        action={toast ? undefined : undo ? { label: t("undo"), run: takeBack } : tapped ? { label: t("timeAdjust"), run: () => (setTapped(null), setOpen({ kind: "time", slot: tapped })) } : undefined}
+      />
     </div>
   );
 }
 
-function Names({ ids, people }: { ids: string[]; people: Person[] }) {
+/** People, each with the part of the slot they gave when it isn't all of it. */
+function Names({ ids, people, slot }: { ids: string[]; people: Person[]; slot: SlotKey }) {
   if (!ids.length) return <p class="hint">{t("slotNobody")}</p>;
   return (
     <ul class="names">
       {ids.map((id) => {
         const p = people.find((x) => x.id === id);
+        const given = p?.times?.[slot];
         return (
           p && (
             <li key={id}>
               {p.must && <IconStar />}
               {p.name}
+              {given && <small class="nowrap">{spanLabel([given[0], given[1]])}</small>}
             </li>
           )
         );
       })}
     </ul>
+  );
+}
+
+/** A host adjusts the time that was set, to the minute, seeing who is free for all of it. */
+function SetTimeSheet({ tl, state, people, range, onSet, onClose }: { tl: Tally; state: EventState; people: Person[]; range: Span; onSet: (span: Span) => void; onClose: () => void }) {
+  const lang = useLang();
+  const settled = state.settled!;
+  const [span, setSpan] = useState<Span>([settled.from ?? range[0], settled.to ?? range[1]]);
+  return (
+    <TimeSheet
+      title={t("setTime")}
+      hint={t("setTimeHint", { range: spanLabel(range) })}
+      range={range}
+      span={span}
+      onSpan={setSpan}
+      top={
+        <>
+          <p class="set-time-day">{slotLabel(settled.day, settled.part, lang)}</p>
+          {tl.meet && (
+            <p class="hint">
+              <Keep text={t("timeMeet", { span: spanLabel([tl.meet.from, tl.meet.to]) })} />
+            </p>
+          )}
+        </>
+      }
+      bottom={
+        <p class="hint" aria-live="polite">
+          {t("setTimeCount", { why: reason(atTime(tl, people, state.grain, span[0], span[1]), people, lang) })}
+        </p>
+      }
+      footer={
+        <button type="button" class="btn btn-primary btn-block" onClick={() => onSet(span)}>
+          {t("setTimeGo")}
+        </button>
+      }
+      onClose={onClose}
+    />
   );
 }
 
@@ -623,27 +1049,41 @@ function SlotSheet({ tl, state, people, host, settled, onPick, onClose }: { tl: 
       }
     >
       {tl.out && <p class="note">{tl.out === "must" ? t("outMust") : t("outFew", { n: state.minPeople })}</p>}
+      {tl.meet && (
+        <p class="slot-meet">
+          <Keep text={t("timeMeet", { span: spanLabel([tl.meet.from, tl.meet.to]) })} />
+          <small>{reason(tl, people, lang)}</small>
+        </p>
+      )}
       <h3 class="list-title">
         {t("slotFree")} <small>{tl.yes.length}</small>
       </h3>
-      <Names ids={tl.yes} people={people} />
+      <Names ids={tl.yes} people={people} slot={tl.slot} />
       <h3 class="list-title">
         {t("slotMaybe")} <small>{tl.maybe.length}</small>
       </h3>
-      <Names ids={tl.maybe} people={people} />
+      <Names ids={tl.maybe} people={people} slot={tl.slot} />
       <h3 class="list-title">
         {t("slotNo")} <small>{tl.no.length}</small>
       </h3>
-      <Names ids={tl.no} people={people} />
+      <Names ids={tl.no} people={people} slot={tl.slot} />
     </Sheet>
   );
 }
 
-function PersonSheet({ person, onAct, onClose }: { person: Person; onAct: (action: HostAction) => void; onClose: () => void }) {
+function PersonSheet({ person, onAct, onFill, onClose }: { person: Person; onAct: (action: HostAction) => void; onFill: (id: string) => void; onClose: () => void }) {
   useLang();
   const [asking, setAsking] = useState(false);
   return (
     <Sheet title={person.name} onClose={onClose}>
+      {person.proxy && (
+        <>
+          <button type="button" class="btn btn-quiet btn-block" onClick={() => onFill(person.id)}>
+            {t("proxyEdit", { name: person.name })}
+          </button>
+          <p class="hint">{t("proxyNote")}</p>
+        </>
+      )}
       <button type="button" class="btn btn-quiet btn-block" aria-pressed={person.must} onClick={() => onAct({ do: "must", id: person.id, must: !person.must })}>
         <IconStar size={16} />
         {person.must ? t("unmarkMust") : t("markMust")}
@@ -664,6 +1104,127 @@ function PersonSheet({ person, onAct, onClose }: { person: Person; onAct: (actio
       ) : (
         <button type="button" class="link-btn danger" onClick={() => setAsking(true)}>
           {t("remove")}
+        </button>
+      )}
+    </Sheet>
+  );
+}
+
+/** Fill in for someone (代填): whose times. A name filled in for before goes on with that row. */
+function ProxySheet({ people, onStart, onClose }: { people: Person[]; onStart: (name: string) => void; onClose: () => void }) {
+  useLang();
+  const [typed, setTyped] = useState("");
+  const name = typed.trim();
+  // someone of that name filled in for themselves: nothing to do for them
+  const self = name ? people.find((p) => !p.proxy && sameName(p.name, name)) : undefined;
+  const before = name ? people.find((p) => p.proxy && sameName(p.name, name)) : undefined;
+  return (
+    <Sheet title={t("proxyTitle")} onClose={onClose}>
+      <form
+        class="claim"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (name && !self) onStart(name);
+        }}
+      >
+        <p class="hint">{t("proxyNote")}</p>
+        <label class="field">
+          <span class="field-label">{t("proxyWho")}</span>
+          <input data-autofocus type="text" maxLength={16} value={typed} placeholder={t("proxyPlaceholder")} enterkeyhint="go" onInput={(event) => setTyped(event.currentTarget.value)} />
+        </label>
+        {self && (
+          <p class="problem" role="alert">
+            {t("proxySelf", { name: self.name })}
+          </p>
+        )}
+        <button type="submit" class="btn btn-primary btn-block" disabled={!name || !!self}>
+          {before ? t("proxyGoOn", { name: before.name }) : t("proxyGo")}
+        </button>
+      </form>
+    </Sheet>
+  );
+}
+
+/** The host's list of who to ask, as typed: one name a line, or with 、，, between. */
+function InvitedSheet({ invited, onSave, onClose }: { invited: string[]; onSave: (list: string[]) => void; onClose: () => void }) {
+  useLang();
+  const [text, setText] = useState(() => invited.join("\n"));
+  // as the server will keep it: each name once
+  const list = splitNames(text).filter((name, i, all) => all.findIndex((other) => sameName(other, name)) === i);
+  const many = list.length > INVITED_MAX;
+  return (
+    <Sheet
+      title={t("invitedTitle")}
+      onClose={onClose}
+      footer={
+        <button type="button" class="btn btn-primary btn-block" disabled={many} onClick={() => onSave(list)}>
+          {t("invitedSave")}
+        </button>
+      }
+    >
+      <label class="field">
+        <span class="field-label">{t("invitedHint")}</span>
+        <textarea data-autofocus rows={6} maxLength={800} value={text} placeholder={t("invitedPlaceholder")} onInput={(event) => setText(event.currentTarget.value)} />
+      </label>
+      <p class={many ? "problem" : "hint"} aria-live="polite">
+        {many ? t("invitedTooMany", { n: INVITED_MAX }) : list.length === 1 ? t("invitedCountOne") : t("invitedCount", { n: list.length })}
+      </p>
+    </Sheet>
+  );
+}
+
+/** When to answer by: a day from today to the last day asked about, and a time of it, in Vancouver. */
+function DeadlineSheet({ state, onSet, onClear, onClose }: { state: EventState; onSet: (at: number) => void; onClear: () => void; onClose: () => void }) {
+  const lang = useLang();
+  const today = vancouverDay(Date.now());
+  const days = deadlineDays(today, state.days);
+  // the deadline there is, while it's ahead; otherwise 8 in the evening, tonight if that's a while off
+  const [[day, minutes], setPick] = useState<[Day, number]>(() => {
+    if (state.deadline !== null && state.deadline > Date.now()) return [vancouverDay(state.deadline), vancouverMinutes(state.deadline)];
+    const evening = deadlineAt(today, 20 * 60) - Date.now() > 2 * 3_600_000 ? today : addDays(today, 1);
+    return [days.includes(evening) ? evening : days[days.length - 1], 20 * 60];
+  });
+  const at = deadlineAt(day, minutes);
+  const past = at <= Date.now();
+  const typed = (event: Event) => {
+    const next = minutesOf((event.currentTarget as HTMLInputElement).value);
+    if (next !== null) setPick([day, next]);
+  };
+  return (
+    <Sheet
+      title={t("deadlineTitle")}
+      onClose={onClose}
+      footer={
+        <button type="button" class="btn btn-primary btn-block" disabled={past} onClick={() => onSet(at)}>
+          {t("deadlineGo")}
+        </button>
+      }
+    >
+      <p class="hint">{t("deadlineHint")}</p>
+      <div class="deadline-fields">
+        <label class="field">
+          <span class="field-label">{t("deadlineDay")}</span>
+          <select value={day} onChange={(event) => setPick([event.currentTarget.value as Day, minutes])}>
+            {days.map((d) => (
+              <option key={d} value={d}>
+                {d === today ? t("deadlineToday", { day: dayLabel(d, lang) }) : d === addDays(today, 1) ? t("deadlineTomorrow", { day: dayLabel(d, lang) }) : dayLabel(d, lang)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">{t("deadlineTime")}</span>
+          <input type="time" step={60} value={field(minutes)} onInput={typed} onChange={typed} />
+        </label>
+      </div>
+      {past && (
+        <p class="problem" role="alert">
+          {t("deadlinePast")}
+        </p>
+      )}
+      {state.deadline !== null && (
+        <button type="button" class="link-btn" onClick={onClear}>
+          {t("deadlineClear")}
         </button>
       )}
     </Sheet>
