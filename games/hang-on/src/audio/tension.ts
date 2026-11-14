@@ -27,6 +27,8 @@ export function dropBelow(level: Level, x: number, y: number, t = 0, extra: read
   for (const f of level.fading ?? []) consider(f);
   for (const m of level.movers ?? []) if (!m.deadly) consider({ ...moverAt(m, t), w: m.w });
   for (const p of level.plates ?? []) consider(p);
+  // 蒸笼（后厨，A10）也是台子
+  for (const v of level.vents ?? []) consider(v);
   for (const r of extra) consider(r);
   return Number.isFinite(best) ? best : Math.max(600, level.deathY - y);
 }
@@ -144,11 +146,13 @@ export class Tension {
     return clamp01(this.value + this.bump);
   }
 
-  /** 事件：摔死、出局、背叛往上顶；过检查点松一口气。 */
+  /** 事件：摔死、出局、背叛、托盘翻了往上顶；过检查点松一口气。 */
   events(evs: readonly SimEvent[]): void {
     for (const e of evs) {
       if (e.type === 'death' || e.type === 'out') this.kick(0.3);
       else if (e.type === 'betrayal') this.kick(0.2);
+      // 后厨的托盘翻了：往上顶一下
+      else if (e.type === 'tray' && e.phase === 'spill') this.kick(0.2);
       else if (e.type === 'checkpoint') this.kick(-0.2);
     }
   }

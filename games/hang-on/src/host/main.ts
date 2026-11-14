@@ -478,6 +478,20 @@ function goldTotals(): Pick<Results, 'rounds' | 'time' | 'deaths'> {
   };
 }
 
+/**
+ * 端托盘（后厨，A10）：大家都到终点了、托盘还没端到，过几秒提醒一次（不然大家站在终点不知道为什么不过关）。
+ */
+let trayHintAt = 0;
+function trayHint(now: number): void {
+  const tray = sim.tray;
+  if (!tray || tray.home || sim.won || phase !== 'playing' || now - trayHintAt < 5000) return;
+  const g = sim.level.goal;
+  const allIn = sim.players.length > 0 && sim.players.every((p) => !p.dead && p.body.x > g.x && p.body.x < g.x + g.w && p.body.y > g.y && p.body.y < g.y + g.h);
+  if (!allIn) return;
+  trayHintAt = now;
+  banner(tr('点心还没端到，回去把托盘端过来', "The dim sum isn't here yet. Go back for the tray"), 'bad');
+}
+
 /** 抢金元宝的比分：「阿一 2 · 阿二 1」。 */
 function goldScore(): string {
   return goldWins()
@@ -1075,6 +1089,9 @@ function onEvents(): void {
     }
     if (ev.type === 'death' || ev.type === 'out') music.duck();
     if (ev.type === 'drone' && ev.phase === 'arrive') banner(tr('🛸 外卖到了！抓住袋子底下的横杆，带你去下一个检查点', '🛸 Delivery! Grab the bar under the bag for a lift to the next checkpoint'));
+    // 端托盘（后厨，A10）
+    if (ev.type === 'tray' && ev.phase === 'spill') banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
+    if (ev.type === 'tray' && ev.phase === 'home') banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
     if (ev.type === 'checkpoint' && sim.rules.mode !== 'race') music.flourish();
     if (ev.type === 'betrayal') banner(tr(`${name(ev.by)} 松手了`, `${name(ev.by)} let go!`), 'bad');
     if (ev.type === 'summon') {
@@ -1283,6 +1300,7 @@ function frame(now: number): void {
     stage.draw(sim, dt);
   }
   $('clock').textContent = sim.time.toFixed(1);
+  trayHint(now);
   $('deaths').textContent = String(sim.players.reduce((s, p) => s + p.deaths, 0));
   $('alive').textContent = String(sim.players.filter((p) => !p.dead).length);
   // 抢金元宝（A9d）：第几局、比分

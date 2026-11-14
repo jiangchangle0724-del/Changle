@@ -12,7 +12,7 @@ import type { SimEvent } from '../physics/world';
 import { moverAt } from '../physics/motion';
 import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
-import { CONFETTI, hex, OUTLINE, PALETTES, textures, type Palette, type Textures, type WorldId } from './art';
+import { CONFETTI, hex, OUTLINE, PALETTES, textures, worldOf, type Palette, type Textures, type WorldId } from './art';
 import { Backdrop } from './backdrop';
 import { Depth } from './depth';
 import { Dumpling } from './dumpling';
@@ -189,7 +189,7 @@ export class Stage {
 
   /** 换关：重建背景、关卡画面、深渊。 */
   setLevel(level: Level): void {
-    this.world_ = level.world === 'van' ? 'van' : 'table';
+    this.world_ = worldOf(level.world);
     this.pal = PALETTES[this.world_];
     this.backdrop?.destroy();
     this.depth?.view.destroy({ children: true });
@@ -331,6 +331,18 @@ export class Stage {
           this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.3, 0.3], size: [26, 26], grow: 2.8, alpha: 0.9 });
           break;
         }
+        case 'tray': {
+          // 端托盘（后厨，A10）：翻了点心往外飞；回来了一圈光；端进终点撒一把纸屑
+          if (ev.phase === 'spill') {
+            this.fx.burst({ x: ev.x, y: ev.y - 10, n: 7, texture: 'circle', colors: [0xf4efe6, 0xf2c75c, 0xfbf6ee], speed: [140, 320], angle: -Math.PI / 2, spread: 1.5, life: [0.6, 1], size: [10, 16], gravity: 1100, spin: 6 });
+            this.fx.burst({ x: ev.x, y: ev.y, n: 5, texture: 'puff', colors: [0xffffff], speed: [20, 70], angle: -Math.PI / 2, spread: 1, life: [0.4, 0.7], size: [12, 20], grow: 1.8, alpha: 0.4, drag: 2 });
+          } else if (ev.phase === 'back') {
+            this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.35, 0.35], size: [30, 30], grow: 2.6, alpha: 0.8 });
+          } else {
+            this.fx.burst({ x: ev.x, y: ev.y - 10, n: 18, texture: 'square', colors: CONFETTI.map(hex), speed: [120, 300], angle: -Math.PI / 2, spread: 1.2, life: [0.6, 1.1], size: [5, 9], gravity: 600, spin: 10, flip: this.reduced ? 0 : 10 });
+          }
+          break;
+        }
         case 'item': {
           const p = sim.players[ev.player];
           const at = ev.item === 'noodle' ? { x: ev.x, y: ev.y } : (p?.body ?? { x: ev.x, y: ev.y });
@@ -458,6 +470,14 @@ export class Stage {
         x1 = Math.max(x1, p.body.x);
         y0 = Math.min(y0, p.body.y);
         y1 = Math.max(y1, p.body.y);
+      }
+      // 端托盘（后厨，A10）：托盘也在镜头里（落在后面了就拉远，一眼看见忘在哪了）
+      const tray = sim.tray && !sim.tray.spilled ? sim.props[sim.tray.prop] : undefined;
+      if (tray) {
+        x0 = Math.min(x0, tray.x);
+        x1 = Math.max(x1, tray.x);
+        y0 = Math.min(y0, tray.y);
+        y1 = Math.max(y1, tray.y);
       }
       tx = (x0 + x1) / 2;
       ty = (y0 + y1) / 2 - 50;
@@ -627,6 +647,8 @@ export class Stage {
         g.circle(prop.x - 1.5, prop.y - 1.5, 2).fill({ color: 0xffffff, alpha: 0.4 });
       } else if (prop.kind === 'ingot') {
         this.drawIngot(g, prop.x, prop.y, prop.angle, w, h);
+      } else if (prop.kind === 'tray') {
+        this.drawTray(g, prop.x, prop.y, prop.angle, w, h, !!sim.tray?.spilled);
       } else {
         // 箱子：年夜饭桌上是蒸笼，温哥华是货箱
         g.poly(pts).fill({ texture: table ? this.tex.wood : this.tex.metal, textureSpace: 'global' });
@@ -650,9 +672,6 @@ export class Stage {
     }
   }
 
-  /**
-   * 红包（A9b）：一个小红包，正面一个金色的圆封口，背后一圈暖光，轻轻上下飘、左右晃（减弱动效时不动）。拿到了就不画。
-   */
   /**
    * 外卖无人机（A9c）：四个旋翼的小飞机，下面吊着一个外卖袋，袋子底下一根横杆就是提手（物理里能抓的那一条）。
    * 等人抓的时候提手一闪一闪；旋翼一直转（减弱动效时不晃）。
@@ -713,6 +732,37 @@ export class Stage {
     g.moveTo(ax, ay).lineTo(cx, cy).stroke({ width: 2, color: 0xfff1c2, alpha: 0.7 });
   }
 
+  /**
+   * 端托盘（后厨，A10）：红漆托盘，一道金边，上面站着三样点心（虾饺、烧卖、叉烧包），跟着托盘转。
+   * 点心翻了就只剩空托盘（翻出去的点心是 handleEvents 里撒的粒子）。
+   */
+  private drawTray(g: Graphics, x: number, y: number, angle: number, w: number, h: number, spilled: boolean): void {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+    const hw = w / 2;
+    const hh = h / 2;
+    g.poly([at(-hw, -hh), at(hw, -hh), at(hw - 5, hh), at(-hw + 5, hh)].flat()).fill(0xb3262b).stroke({ width: 2.5, color: 0x5a0f12, join: 'round' });
+    const [rx0, ry0] = at(-hw + 3, -hh + 1.5);
+    const [rx1, ry1] = at(hw - 3, -hh + 1.5);
+    g.moveTo(rx0, ry0).lineTo(rx1, ry1).stroke({ width: 2, color: 0xf2c14e, alpha: 0.9 });
+    if (spilled) return;
+    const ink = { width: 1.5, color: 0x8a5a2b };
+    // 虾饺：半透明的白皮，透出一点虾的粉
+    const [ax, ay] = at(-hw * 0.6, -hh - 9);
+    g.circle(ax, ay, 9).fill({ color: 0xf4efe6, alpha: 0.95 }).stroke(ink);
+    g.circle(ax + 1, ay + 1, 4.5).fill({ color: 0xf3a08c, alpha: 0.55 });
+    // 烧卖：黄的方墩，顶上一点蟹籽橙
+    g.poly([at(-8, -hh - 1), at(8, -hh - 1), at(9, -hh - 17), at(-9, -hh - 17)].flat()).fill(0xf2c75c).stroke({ ...ink, join: 'round' });
+    const [ox, oy] = at(0, -hh - 17);
+    g.circle(ox, oy, 3.2).fill(0xe8622a);
+    // 叉烧包：白白的圆包子，顶上一个红点
+    const [bx, by] = at(hw * 0.6, -hh - 10);
+    g.circle(bx, by, 10).fill(0xfbf6ee).stroke(ink);
+    const [dx, dy] = at(hw * 0.6, -hh - 17);
+    g.circle(dx, dy, 2.4).fill(0xd8262f);
+  }
+
   /** 抢金元宝（A9d）：每个人头上一圈进度（攒了几秒 / 要几秒），一个人抓着时那一圈亮。 */
   private drawHold(sim: SimView): void {
     const g = this.holdG.clear();
@@ -734,6 +784,9 @@ export class Stage {
     });
   }
 
+  /**
+   * 红包（A9b）：一个小红包，正面一个金色的圆封口，背后一圈暖光，轻轻上下飘、左右晃（减弱动效时不动）。拿到了就不画。
+   */
   private drawEnvelopes(sim: SimView): void {
     const g = this.envG.clear();
     const list = sim.envelopes ?? [];

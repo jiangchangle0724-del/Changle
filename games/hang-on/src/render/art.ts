@@ -1,11 +1,17 @@
 /**
- * 美术底子（A3）：两个世界的色板，和程序画出来的贴图（茶布、木头、瓷、钢、冰、面条……）。
+ * 美术底子（A3）：每个世界的色板（年夜饭桌、温哥华海湾，A10 加了中餐馆后厨），和程序画出来的贴图（茶布、木头、瓷、钢、冰、面条……）。
  * 全是代码画的，没有图片文件：下载小，风格统一，也不会有原版的任何东西。
  * 贴图在一张离屏 canvas 上画好，交给 Pixi 当纹理；粒子共用一张小图集。
  */
 import { FillGradient, Rectangle, Texture, type Graphics } from 'pixi.js';
 
-export type WorldId = 'table' | 'van';
+export type WorldId = 'table' | 'van' | 'kitchen';
+
+/** 关卡的 world 字段 → 画哪个世界（没写、不认识的按年夜饭桌）。 */
+export const worldOf = (w: string | undefined): WorldId => (w === 'van' || w === 'kitchen' ? w : 'table');
+
+/** 台子没写材质时每个世界用什么：桌上是木头，温哥华和后厨是钢。 */
+export const WORLD_MATERIAL: Record<WorldId, string> = { table: 'wood', van: 'metal', kitchen: 'metal' };
 
 export interface Palette {
   /** 天空 / 房间的上下两色。 */
@@ -57,6 +63,21 @@ export const PALETTES: Record<WorldId, Palette> = {
     lampOn: '#9be8ff',
     lampOff: '#3f4f73',
   },
+  // 中餐馆后厨（A10）：上面是熏暗的不锈钢和瓷砖，下面是灶火的暖光；掉下去是一池洗碗水
+  kitchen: {
+    skyTop: '#1d282c',
+    skyBottom: '#b9643a',
+    far: '#2c3a3f',
+    mid: '#344549',
+    near: '#222d33',
+    abyssLine: '#eef8ff',
+    abyssTop: '#7fb0c4',
+    abyssBottom: '#1c3747',
+    haze: '#ffb07a',
+    flag: '#e8413c',
+    lampOn: '#ffc46b',
+    lampOff: '#5b5148',
+  },
 };
 
 /** 地形材质的颜色：主体、暗部、亮边、花纹。 */
@@ -76,6 +97,8 @@ export const MATERIALS: Record<string, MaterialStyle> = {
   metal: { base: '#8c9aab', dark: '#5a6676', light: '#d3dbe6', detail: '#6f7d8f', texture: 'metal' },
   ice: { base: '#bfe6f6', dark: '#7fb9d6', light: '#ffffff', detail: '#9fd3ec', texture: 'ice' },
   noodle: { base: '#f3dc9a', dark: '#c9a860', light: '#fff4c8', detail: '#e0c070', texture: 'wood' },
+  // 竹蒸笼（后厨，A10）
+  bamboo: { base: '#d9b77a', dark: '#9c7a3c', light: '#f3dfae', detail: '#b8924f', texture: 'wood' },
 };
 export const DEFAULT_MATERIAL: MaterialStyle = MATERIALS.wood as MaterialStyle;
 

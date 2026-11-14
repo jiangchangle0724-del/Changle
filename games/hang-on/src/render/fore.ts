@@ -59,13 +59,15 @@ export class Foreground {
       this.view.addChild(s);
       return s;
     };
-    const r = rng(world === 'table' ? 31 : 57);
+    // 年夜饭桌和后厨是暖的光斑和热气，温哥华是城里的灯
+    const warmWorld = world !== 'van';
+    const r = rng(world === 'table' ? 31 : world === 'kitchen' ? 43 : 57);
     const warm = [0xffb35c, 0xff8a5b, 0xffd27a];
     const city = [0xffd27a, 0x8ec5e8, 0xf28ca6, 0xa8c8ff];
     for (let i = 0; i < 9; i++) {
       // 光斑：多数贴着下沿，少数在左右上角
       const low = r() < 0.75;
-      const color = (world === 'table' ? warm : city)[i % (world === 'table' ? warm.length : city.length)] as number;
+      const color = (warmWorld ? warm : city)[i % (warmWorld ? warm.length : city.length)] as number;
       this.blobs.push({
         x: r() * P,
         y: low ? 0.86 + r() * 0.22 : 0.02 + r() * 0.14,
@@ -77,7 +79,7 @@ export class Foreground {
         s: sprite(color),
       });
     }
-    if (world === 'table' && !still) {
+    if (warmWorld && !still) {
       for (let i = 0; i < 5; i++) this.blobs.push({ x: r() * P, y: 0.95 + r() * 0.1, r: 90 + r() * 60, color: 0xffffff, alpha: 0.07, phase: r() * 6.28, steam: true, s: sprite(0xffffff) });
     }
   }

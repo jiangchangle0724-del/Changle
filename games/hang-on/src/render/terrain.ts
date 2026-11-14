@@ -5,14 +5,16 @@
  * 会动的平台和会转的杆子按 sim.time 摆（和物理同一套算法，手机局里别的手机也对得上）。
  * 踩板门（11-13）：踏板是一块矮按钮，踩下去按钮沉下去、亮起来；门是一块带色条的墙，挪到物理说的地方。
  * 踏板和它开的门同一个颜色（第几扇门一个色），看得出哪块开哪扇。
+ * 中餐馆后厨（A10）：要命的东西是一排刀、坐在火上的炒锅、灭蚊灯；蒸笼是一摞竹蒸笼，快喷了盖子跳，喷的时候一柱白汽往上冒；
+ * 检查点是出菜口的保温灯。
  * 静态的东西只画一次，动的每帧更新。
  */
 import { Container, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
-import { opensOf, type GateDef, type HazardDef, type Level, type PlateDef, type Rect } from '../physics/level';
-import { moverAt, spinnerAngle } from '../physics/motion';
+import { opensOf, type GateDef, type HazardDef, type Level, type PlateDef, type Rect, type VentDef } from '../physics/level';
+import { moverAt, spinnerAngle, ventColumn, ventState } from '../physics/motion';
 import type { SimView } from './view';
-import { glow, materialOf, OUTLINE, textures, hex, type MaterialStyle, type Palette, type Textures, type WorldId } from './art';
+import { glow, materialOf, OUTLINE, textures, hex, WORLD_MATERIAL, type MaterialStyle, type Palette, type Textures, type WorldId } from './art';
 
 const rr = (g: Graphics, r: Rect, rad: number): Graphics => g.roundRect(r.x, r.y, r.w, r.h, Math.min(rad, r.h / 2, r.w / 2));
 
@@ -32,6 +34,9 @@ export class Terrain {
   /** 踩板门：每块踏板的按钮（按下去换画法），每扇门一个容器（每帧挪）。 */
   private readonly plateG: { cap: Graphics; on: boolean | null; def: PlateDef; color: number }[] = [];
   private readonly gateC: Container[] = [];
+  /** 蒸笼（后厨，A10）：每摞的盖子（每帧按喷汽的钟跳、抬），和所有汽柱画在一层。 */
+  private readonly ventLids: Graphics[] = [];
+  private readonly steamG = new Graphics();
   /** 定时塌的东西（until）：快到点抖、变淡，到点不画。base 是它这一帧本来该在的位置。 */
   private readonly timed: { c: Container; until: number; base: () => { x: number; y: number } }[] = [];
   private lampState = -2;
@@ -109,6 +114,20 @@ export class Terrain {
       this.view.addChild(base, cap);
       this.plateG.push({ cap, on: null, def: pd, color: linkColor(Math.max(0, k)) });
     }
+    // 蒸笼：竹圈画一次，盖子单独一块（快喷了跳、喷的时候抬起来），汽柱每帧画
+    for (const v of level.vents ?? []) {
+      const c = new Container();
+      const body = new Graphics();
+      this.steamer(body, v);
+      const lid = new Graphics();
+      this.steamerLid(lid, v);
+      lid.position.set(v.x + v.w / 2, v.y);
+      c.addChild(body, lid);
+      this.view.addChild(c);
+      this.ventLids.push(lid);
+      if (v.until !== undefined) this.timed.push({ c, until: v.until, base: () => ({ x: 0, y: 0 }) });
+    }
+    this.view.addChild(this.steamG);
     for (const f of level.fading ?? []) {
       const g = new Graphics();
       this.platform(g, { ...f, kind: 'cookie' });
@@ -178,6 +197,7 @@ export class Terrain {
       this.plateCap(p.cap.clear(), p.def, p.color, on);
     });
     this.drawHazardFx(sim.time);
+    this.drawVents(sim.time);
     // 定时塌的：最后 2 秒抖、变淡（减弱动效时只变淡），到点不画
     for (const t of this.timed) {
       const left = t.until - sim.time;
@@ -201,7 +221,7 @@ export class Terrain {
 
   /** 门：平台的样子，加三道颜色条和中间一个锁的圆点（和开它的踏板一个色）。 */
   private gate(g: Graphics, r: GateDef, color: number): void {
-    this.platform(g, { ...r, kind: 'wall', material: r.material ?? (this.world === 'van' ? 'metal' : 'wood') });
+    this.platform(g, { ...r, kind: 'wall', material: r.material ?? WORLD_MATERIAL[this.world] });
     const bands = 3;
     const vertical = r.h >= r.w;
     for (let k = 1; k <= bands; k++) {
@@ -236,12 +256,13 @@ export class Terrain {
   // ---------------------------------------------------------------- 平台
 
   private platform(g: Graphics, r: Rect): void {
-    const m = materialOf(r.material ?? (this.world === 'van' ? 'metal' : 'wood'));
+    const m = materialOf(r.material ?? WORLD_MATERIAL[this.world]);
     const tex = this.tex[m.texture];
     const thin = r.h <= 26 && r.w >= r.h * 3;
     if (r.kind === 'peg') return this.peg(g, r);
     if (r.kind === 'cookie') return this.cookie(g, r, m);
-    if (thin && (m.texture === 'wood' || r.material === 'noodle')) return this.chopstick(g, r, m);
+    // 细木条：桌上、温哥华画成筷子；后厨是砧板（照常画木头）
+    if (thin && this.world !== 'kitchen' && (m.texture === 'wood' || r.material === 'noodle')) return this.chopstick(g, r, m);
     const rad = m.texture === 'ceramic' ? 14 : m.texture === 'cloth' ? 6 : 10;
     rr(g, r, rad).fill({ texture: tex, textureSpace: 'global' });
     if (m.texture === 'ice') rr(g, r, rad).fill({ color: 0xffffff, alpha: 0.12 });
@@ -312,7 +333,8 @@ export class Terrain {
   private hazard(g: Graphics, h: HazardDef): void {
     const van = this.world === 'van';
     const kind = h.kind ?? 'spike';
-    if (kind === 'spike') return this.spikes(g, h, van);
+    if (kind === 'spike') return this.spikes(g, h, this.world);
+    if (this.world === 'kitchen') return this.kitchenHazard(g, h);
     if (kind === 'hot') {
       if (van) {
         // 夜市烤炉：铁盒子，炭火，铁网
@@ -361,17 +383,19 @@ export class Terrain {
     rr(g, h, 8).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
   }
 
-  /** 一排尖头（桌上是牙签，温哥华是铁栏杆尖），朝 dir 那边。 */
-  private spikes(g: Graphics, h: HazardDef, van: boolean): void {
+  /** 一排尖头（桌上是牙签，温哥华是铁栏杆尖，后厨是插在刀架上的一排刀），朝 dir 那边。 */
+  private spikes(g: Graphics, h: HazardDef, world: WorldId): void {
+    const van = world === 'van';
+    const kitchen = world === 'kitchen';
     const dir = h.dir ?? 'up';
     const vertical = dir === 'up' || dir === 'down';
     const span = vertical ? h.w : h.h;
     const depth = vertical ? h.h : h.w;
-    const n = Math.max(1, Math.round(span / (van ? 26 : 18)));
+    const n = Math.max(1, Math.round(span / (van ? 26 : kitchen ? 22 : 18)));
     const step = span / n;
-    // 桌上是竹签（浅竹色），温哥华是铁栏杆尖（深铁色）；描深边，隔着电视也看得清
-    const stick = van ? 0x4a5466 : 0xf0d9a8;
-    const tip = van ? 0xc9d3e0 : 0xfff4dc;
+    // 桌上是竹签（浅竹色），温哥华是铁栏杆尖（深铁色），后厨是钢刀（亮钢色）；描深边，隔着电视也看得清
+    const stick = van ? 0x4a5466 : kitchen ? 0xc9d3dc : 0xf0d9a8;
+    const tip = van ? 0xc9d3e0 : kitchen ? 0xffffff : 0xfff4dc;
     // 底座：桌上是一小条豆腐干一样的托，温哥华是横铁杆
     const base = Math.min(10, depth * 0.3);
     const baseR: Rect = dir === 'up' ? { x: h.x, y: h.y + h.h - base, w: h.w, h: base } : dir === 'down' ? { x: h.x, y: h.y, w: h.w, h: base } : dir === 'left' ? { x: h.x + h.w - base, y: h.y, w: base, h: h.h } : { x: h.x, y: h.y, w: base, h: h.h };
@@ -389,13 +413,97 @@ export class Terrain {
       const [x0, y0, x1, y1, x2, y2] = pts as [number, number, number, number, number, number];
       g.poly([x1, y1, x1 + (x0 - x1) * 0.35, y1 + (y0 - y1) * 0.35, x1 + (x2 - x1) * 0.35, y1 + (y2 - y1) * 0.35]).fill(tip);
     }
-    g.roundRect(baseR.x, baseR.y, baseR.w, baseR.h, 3).fill(van ? 0x2a303b : 0xc99a5b).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+    g.roundRect(baseR.x, baseR.y, baseR.w, baseR.h, 3).fill(van ? 0x2a303b : kitchen ? 0x4a3428 : 0xc99a5b).stroke({ width: 2, color: OUTLINE, alpha: 0.8 });
+  }
+
+  /** 后厨（A10）的烫和电：坐在火上的炒锅（锅里一层滚油，一根锅柄），灭蚊灯（黑壳子里一格格蓝紫光的电网）。 */
+  private kitchenHazard(g: Graphics, h: HazardDef): void {
+    if ((h.kind ?? 'spike') === 'hot') {
+      const iron = 0x2b2b2e;
+      // 炉架
+      g.roundRect(h.x + h.w * 0.15, h.y + h.h * 0.7, h.w * 0.7, h.h * 0.3, 3).fill(0x1a1a1c);
+      // 锅身：圆底，锅口正好是这块的上沿
+      g.moveTo(h.x, h.y).quadraticCurveTo(h.x + h.w / 2, h.y + h.h * 1.5, h.x + h.w, h.y).closePath().fill(iron);
+      g.moveTo(h.x + h.w - 6, h.y + 3).lineTo(h.x + h.w + 24, h.y - 8).stroke({ width: 6, color: iron, cap: 'round' });
+      // 滚油
+      const lip = Math.max(4, Math.min(9, h.h * 0.32));
+      g.roundRect(h.x + 5, h.y - 1, h.w - 10, lip, lip / 2).fill(0xd8661f);
+      g.roundRect(h.x + 12, h.y, h.w - 24, 2.5, 1.2).fill({ color: 0xffd08a, alpha: 0.75 });
+      g.moveTo(h.x, h.y).quadraticCurveTo(h.x + h.w / 2, h.y + h.h * 1.5, h.x + h.w, h.y).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
+      return;
+    }
+    rr(g, h, 6).fill(0x1c2430);
+    g.roundRect(h.x + 4, h.y + 4, h.w - 8, Math.max(2, h.h - 8), 3).fill({ color: 0x5b63ff, alpha: 0.55 });
+    for (let x = h.x + 8; x < h.x + h.w - 4; x += 7) g.moveTo(x, h.y + 4).lineTo(x, h.y + h.h - 4).stroke({ width: 1.5, color: 0xc9d0ff, alpha: 0.8 });
+    rr(g, h, 6).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
+  }
+
+  // ---------------------------------------------------------------- 蒸笼（后厨，A10）
+
+  /** 一摞竹蒸笼：几层竹圈，一道道竹篾；最上面一条留给盖子（盖子另画）。 */
+  private steamer(g: Graphics, v: VentDef): void {
+    const m = materialOf(v.material ?? 'bamboo');
+    const lid = Math.min(12, v.h * 0.3);
+    const body: Rect = { x: v.x, y: v.y + lid, w: v.w, h: v.h - lid };
+    rr(g, body, 6).fill(hex(m.base));
+    const tiers = Math.max(1, Math.round(body.h / 18));
+    for (let k = 1; k < tiers; k++) {
+      const y = body.y + (body.h * k) / tiers;
+      g.moveTo(body.x + 2, y).lineTo(body.x + body.w - 2, y).stroke({ width: 3, color: hex(m.dark), alpha: 0.8 });
+    }
+    for (let x = body.x + 8; x < body.x + body.w - 4; x += 9) g.moveTo(x, body.y + 3).lineTo(x, body.y + body.h - 3).stroke({ width: 1, color: hex(m.detail), alpha: 0.45 });
+    rr(g, body, 6).stroke({ width: 3, color: hex(m.dark), alpha: 0.9 });
+  }
+
+  /** 蒸笼盖：原点在盖子上沿的中间（物理的台面就在这），比蒸笼宽一点，中间一个把手。 */
+  private steamerLid(g: Graphics, v: VentDef): void {
+    const m = materialOf(v.material ?? 'bamboo');
+    const lid = Math.min(12, v.h * 0.3);
+    g.roundRect(-v.w / 2 - 3, 0, v.w + 6, lid, 4).fill(hex(m.light)).stroke({ width: 2.5, color: hex(m.dark), alpha: 0.9 });
+    for (let x = -v.w / 2 + 6; x < v.w / 2 - 2; x += 10) g.moveTo(x, 2).lineTo(x + 4, lid - 2).stroke({ width: 1, color: hex(m.detail), alpha: 0.5 });
+    g.roundRect(-8, -4, 16, 6, 3).fill(hex(m.dark));
+  }
+
+  /** 每帧：蒸笼盖快喷了跳、喷的时候抬起来，汽柱一团团往上冒（按 ventState，和物理同一个钟）。 */
+  private drawVents(t: number): void {
+    const g = this.steamG.clear();
+    (this.level.vents ?? []).forEach((v, i) => {
+      const lid = this.ventLids[i];
+      if (v.until !== undefined && t >= v.until) return;
+      const s = ventState(v, t);
+      const cx = v.x + v.w / 2;
+      if (lid) {
+        const lift = s.on ? 8 * Math.min(1, s.k * 8) * Math.min(1, (1 - s.k) * 8) : 0;
+        const rattle = s.warn && !this.reduced ? Math.random() : 0;
+        lid.position.set(cx, v.y - lift - rattle * 3);
+        lid.rotation = s.warn && !this.reduced ? (Math.random() - 0.5) * 0.12 : s.on ? 0.06 * Math.sin(t * 20) * (this.reduced ? 0 : 1) : 0;
+      }
+      if (s.warn) {
+        // 快喷了：盖子边上漏几缕汽
+        for (let k = 0; k < 3; k++) {
+          const u = (t * 1.5 + k / 3) % 1;
+          g.circle(cx + (k - 1) * v.w * 0.38, v.y - 4 - u * 26, 5 + u * 8).fill({ color: 0xffffff, alpha: 0.3 * (1 - u) });
+        }
+      }
+      if (!s.on) return;
+      const col = ventColumn(v);
+      const a = Math.min(1, s.k * 5, (1 - s.k) * 5);
+      g.rect(col.x + 6, col.y, col.w - 12, col.h).fill({ color: 0xffffff, alpha: 0.06 * a });
+      const n = 9;
+      for (let k = 0; k < n; k++) {
+        const u = (t * 1.6 + k / n) % 1;
+        const y = v.y - u * col.h;
+        const x = cx + Math.sin(k * 2.3 + t * 4) * v.w * 0.22 * (0.4 + u);
+        g.circle(x, y, v.w * 0.28 * (0.6 + u * 0.9)).fill({ color: 0xffffff, alpha: 0.26 * (1 - u) * a });
+      }
+    });
   }
 
   /** 会动的那一层：红油冒泡、烤炉冒火星、电丝闪、电轨打火花。 */
   private drawHazardFx(t: number): void {
     const g = this.hazardFx.clear();
     const van = this.world === 'van';
+    const kitchen = this.world === 'kitchen';
     const all: HazardDef[] = [...(this.level.hazards ?? [])];
     for (const m of this.level.movers ?? []) {
       if (!m.deadly) continue;
@@ -412,6 +520,12 @@ export class Terrain {
           if (van) {
             // 火星往上飘
             g.circle(x, h.y - u * 60, 2.2 * (1 - u)).fill({ color: 0xffb347, alpha: 1 - u });
+          } else if (kitchen) {
+            // 炒锅：锅底的火舌往两边舔，锅里冒油烟
+            const side = k % 2 ? 1 : -1;
+            const fx = h.x + h.w / 2 + side * h.w * (0.25 + 0.2 * u);
+            g.ellipse(fx, h.y + h.h * 0.55 - u * 14, 6 * (1 - u) + 2, 12 * (1 - u) + 4).fill({ color: u < 0.5 ? 0xffb347 : 0xff6a2c, alpha: 0.85 * (1 - u) });
+            g.circle(x, h.y - 8 - u * 46, 6 + u * 12).fill({ color: 0xdedede, alpha: 0.14 * (1 - u) });
           } else {
             // 泡：在油面上鼓起来、破
             const r = 3 + 6 * Math.sin(u * Math.PI);
@@ -420,10 +534,10 @@ export class Terrain {
             g.circle(x + 6, h.y - 10 - u * 50, 8 + u * 14).fill({ color: 0xffffff, alpha: 0.12 * (1 - u) });
           }
         }
-        glow(g, h.x + h.w / 2, h.y, Math.max(60, h.w * 0.6), van ? '#ff7a2f' : '#ff5a3c', 0.18);
+        glow(g, h.x + h.w / 2, h.y, Math.max(60, h.w * 0.6), van ? '#ff7a2f' : kitchen ? '#ff8a2c' : '#ff5a3c', 0.18);
       } else if (kind === 'zap') {
         const flick = 0.55 + 0.45 * Math.abs(Math.sin(t * 23 + i));
-        glow(g, h.x + h.w / 2, h.y + h.h / 2, Math.max(50, Math.max(h.w, h.h) * 0.5), van ? '#7fd8ff' : '#ff7a2f', 0.22 * flick);
+        glow(g, h.x + h.w / 2, h.y + h.h / 2, Math.max(50, Math.max(h.w, h.h) * 0.5), van ? '#7fd8ff' : kitchen ? '#8f9dff' : '#ff7a2f', 0.22 * flick);
         // 两三道电弧在上面跳
         const arcs = Math.max(1, Math.floor(h.w / 90));
         for (let k = 0; k < arcs; k++) {
@@ -437,7 +551,7 @@ export class Terrain {
             y -= 6 + ((seed + s) % 5) * 2;
             g.lineTo(x, y);
           }
-          g.stroke({ width: 2, color: van ? 0xbff0ff : 0xffd27a, alpha: flick });
+          g.stroke({ width: 2, color: van ? 0xbff0ff : kitchen ? 0xe4e8ff : 0xffd27a, alpha: flick });
         }
       }
     });
@@ -452,8 +566,8 @@ export class Terrain {
       rr(g, r, 4).stroke({ width: 3, color: OUTLINE, alpha: 0.9 });
       return;
     }
-    const m = materialOf(material ?? (this.world === 'van' ? 'metal' : 'wood'));
-    if (this.world === 'van' && !material) {
+    const m = materialOf(material ?? WORLD_MATERIAL[this.world]);
+    if (this.world !== 'table' && !material) {
       rr(g, r, 5).fill({ texture: this.tex.metal, textureSpace: 'global' });
       for (let x = 14; x < len - 6; x += 30) g.circle(x, 0, 2.5).fill(0x8a96aa);
       rr(g, r, 5).stroke({ width: 3, color: hex(m.dark), alpha: 0.9 });
@@ -519,6 +633,11 @@ export class Terrain {
         g.ellipse(cp.x, cp.y - 10, 16, 20).fill(on ? 0xff5a3c : 0x6b3a3a).stroke({ width: 2, color: OUTLINE });
         g.ellipse(cp.x, cp.y - 10, 16, 20).stroke({ width: 1.2, color: col, alpha: on ? 0.7 : 0.3 });
         g.roundRect(cp.x - 7, cp.y + 9, 14, 5, 2).fill(0xd9a441);
+      } else if (this.world === 'kitchen') {
+        // 出菜口的保温灯：铁灯罩，亮的时候灯泡发橙光
+        if (on) glow(g, cp.x, cp.y - 8, 70, col, 0.38);
+        g.poly([cp.x - 18, cp.y - 10, cp.x - 8, cp.y - 34, cp.x + 8, cp.y - 34, cp.x + 18, cp.y - 10]).fill(0x8c9aab).stroke({ width: 2, color: OUTLINE });
+        g.ellipse(cp.x, cp.y - 9, 9, 6).fill(on ? 0xffc46b : 0x5b5148).stroke({ width: 1.5, color: OUTLINE });
       } else {
         // 浮标灯
         if (on) glow(g, cp.x, cp.y - 24, 60, col, 0.35);

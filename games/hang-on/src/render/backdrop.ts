@@ -2,6 +2,7 @@
  * 背景（A3）：天空渐变加三层视差剪影，屏幕空间，跟着镜头慢慢走。
  * 年夜饭桌：红灯笼、碗、茶壶、蒸笼的剪影，蒸汽往上飘。
  * 温哥华：傍晚的天、雪山、吊桥、楼群的灯、海边的树；冰关下雨。
+ * 中餐馆后厨（A10）：白瓷砖墙、调料架、挂着的锅铲和炒锅、一排灶眼的火光，热气往上飘。
  * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
  *
  * 远景画（可选）：地址由外面给（`src/render/plates.ts` 找 `games/hang-on/art/<世界>-far.webp`，来源写在 art/README.md），
@@ -21,7 +22,7 @@ interface Layer {
 }
 
 /** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷），前面的平台和人才跳得出来。 */
-const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc };
+const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f };
 /** 远景画显出来以后藏掉的剪影层：最远和中间那层（画里已经有了），只留最近那层压在画前面。 */
 const PLATE_HIDES = [0, 1];
 
@@ -131,6 +132,7 @@ export class Backdrop {
       for (const g of l.g) {
         g.clear();
         if (this.world === 'table') this.tableLayer(g, i, period, H);
+        else if (this.world === 'kitchen') this.kitchenLayer(g, i, period, H);
         else this.vanLayer(g, i, period, H);
       }
       l.g[1].x = period;
@@ -139,10 +141,10 @@ export class Backdrop {
     this.drawRays(W, H);
   }
 
-  /** 几道斜光：年夜饭桌是灯笼的暖光，温哥华是路灯的冷光。从画面上沿斜着往右下。 */
+  /** 几道斜光：年夜饭桌是灯笼的暖光、后厨是灯管下的暖光，温哥华是路灯的冷光。从画面上沿斜着往右下。 */
   private drawRays(W: number, H: number): void {
     const g = this.rays.clear();
-    const warm = this.world === 'table';
+    const warm = this.world !== 'van';
     const color = warm ? 0xffc27a : 0xa8c8ff;
     const beams = warm ? [0.12, 0.36, 0.63, 0.86] : [0.2, 0.55, 0.82];
     for (const [i, fx] of beams.entries()) {
@@ -188,7 +190,7 @@ export class Backdrop {
       l.c.x = -(off % l.period);
       l.c.y = -(camY - levelH / 2) * l.f * 0.35 * zoom;
     }
-    if (this.world === 'table') this.steam(dt);
+    if (this.world !== 'van') this.steam(dt);
     if (this.rain) this.rainfall(dt);
   }
 
@@ -319,6 +321,114 @@ export class Backdrop {
       };
       this.fx.burst(b);
     }
+  }
+
+  // ---------------------------------------------------------------- 中餐馆后厨（A10）
+
+  private kitchenLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(300 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 白瓷砖墙：浅浅的砖缝；一道调料架，上面瓶瓶罐罐；远处的灶台
+      const col = hex(pal.far);
+      const top = H * 0.08;
+      const hy = H * 0.62;
+      for (let x = 0; x <= P; x += 64) g.moveTo(x, top).lineTo(x, hy).stroke({ width: 2, color: 0xffffff, alpha: 0.05 });
+      for (let y = top; y <= hy; y += 64) g.moveTo(0, y).lineTo(P, y).stroke({ width: 2, color: 0xffffff, alpha: 0.05 });
+      const sy = H * 0.3;
+      g.rect(0, sy, P, 10).fill(col);
+      for (let k = 0; k < 14; k++) {
+        const x = (k + 0.3 + r() * 0.4) * (P / 14);
+        if (r() < 0.5) this.bottle(g, x, sy, 26 + r() * 14, 60 + r() * 40, col);
+        else this.jar(g, x, sy, 36 + r() * 20, 30 + r() * 26, col);
+      }
+      g.rect(0, hy, P, H - hy).fill(col);
+      this.wok(g, 0.15 * P, hy, 170, col);
+      this.steamers(g, 0.38 * P, hy, 120, 4, col);
+      this.pot(g, 0.62 * P, hy, 150, 120, col);
+      this.wok(g, 0.86 * P, hy, 190, col);
+    } else if (i === 1) {
+      // 一根横杆上挂着炒勺、锅铲、漏勺、菜刀和炒锅；下面一排灶台，锅子冒着热气
+      const col = hex(pal.mid);
+      const ry = H * 0.06;
+      g.rect(0, ry, P, 8).fill(col);
+      const tools = 12;
+      for (let k = 0; k < tools; k++) {
+        const x = (k + 0.5) * (P / tools) + (r() - 0.5) * 30;
+        const len = 110 + r() * 80;
+        g.moveTo(x, ry + 8).lineTo(x, ry + 26).stroke({ width: 3, color: col });
+        const kind = k % 4;
+        if (kind === 0) this.ladle(g, x, ry + 26, len, col);
+        else if (kind === 1) this.spatula(g, x, ry + 26, len, col);
+        else if (kind === 2) this.cleaver(g, x, ry + 26, col);
+        else this.wok(g, x, ry + 26 + 70, 120, col, true);
+      }
+      const hy = H * 0.72;
+      g.rect(0, hy, P, H - hy).fill(col);
+      this.pot(g, 0.1 * P, hy, 210, 150, col);
+      this.steamers(g, 0.32 * P, hy, 170, 3, col);
+      this.wok(g, 0.55 * P, hy, 260, col);
+      this.bottle(g, 0.7 * P, hy, 40, 110, col);
+      this.bottle(g, 0.74 * P, hy, 34, 90, col);
+      this.pot(g, 0.9 * P, hy, 180, 110, col);
+    } else {
+      // 近景：灶火的暖光一团一团，最下面一排灶眼和火苗
+      for (let k = 0; k < 7; k++) {
+        const x = r() * P;
+        const y = H * (0.25 + r() * 0.6);
+        const rad = 50 + r() * 90;
+        for (let s = 0; s < 3; s++) g.circle(x, y, rad * (1 - s * 0.3)).fill({ color: hex(pal.haze), alpha: 0.025 + s * 0.015 });
+      }
+      const hy = H * 0.88;
+      const col = hex(pal.near);
+      for (let k = 0; k < 5; k++) {
+        const x = (k + 0.5) * (P / 5);
+        glow(g, x, hy, 120, '#ff8a3c', 0.18);
+        for (const dx of [-26, -9, 9, 26]) g.ellipse(x + dx, hy - 6, 6, 14).fill({ color: 0x6fa8ff, alpha: 0.35 });
+      }
+      g.rect(0, hy, P, H - hy).fill(col);
+      this.wok(g, 0.3 * P, hy - 4, 300, col);
+      this.steamers(g, 0.78 * P, hy, 240, 2, col);
+    }
+  }
+
+  /** 炒锅：一口浅的圆底锅，一边一根长柄；hang 是挂在杆上的（锅口朝外，柄朝上）。 */
+  private wok(g: Graphics, x: number, y: number, w: number, col: number, hang = false): void {
+    if (hang) {
+      g.ellipse(x, y, w / 2, w / 2).fill(col);
+      g.moveTo(x, y - w / 2).lineTo(x, y - w / 2 - 40).stroke({ width: 7, color: col, cap: 'round' });
+      return;
+    }
+    const h = w * 0.28;
+    g.moveTo(x - w / 2, y - h).quadraticCurveTo(x, y + h * 0.9, x + w / 2, y - h).closePath().fill(col);
+    g.moveTo(x + w * 0.45, y - h * 0.9).lineTo(x + w * 0.95, y - h * 1.4).stroke({ width: 9, color: col, cap: 'round' });
+  }
+
+  private pot(g: Graphics, x: number, y: number, w: number, h: number, col: number): void {
+    g.roundRect(x - w / 2, y - h, w, h, 10).fill(col);
+    g.roundRect(x - w / 2 - 8, y - h - 8, w + 16, 12, 5).fill(col);
+    g.roundRect(x - w / 2 - 22, y - h * 0.75, 22, 12, 5).fill(col);
+    g.roundRect(x + w / 2, y - h * 0.75, 22, 12, 5).fill(col);
+  }
+
+  private jar(g: Graphics, x: number, y: number, w: number, h: number, col: number): void {
+    g.roundRect(x - w / 2, y - h, w, h, 8).fill(col);
+    g.roundRect(x - w * 0.36, y - h - 8, w * 0.72, 10, 4).fill(col);
+  }
+
+  private ladle(g: Graphics, x: number, y: number, len: number, col: number): void {
+    g.moveTo(x, y).lineTo(x, y + len).stroke({ width: 5, color: col, cap: 'round' });
+    g.ellipse(x, y + len + 12, 18, 14).fill(col);
+  }
+
+  private spatula(g: Graphics, x: number, y: number, len: number, col: number): void {
+    g.moveTo(x, y).lineTo(x, y + len).stroke({ width: 5, color: col, cap: 'round' });
+    g.roundRect(x - 17, y + len - 4, 34, 40, 6).fill(col);
+  }
+
+  private cleaver(g: Graphics, x: number, y: number, col: number): void {
+    g.roundRect(x - 5, y, 10, 50, 4).fill(col);
+    g.roundRect(x - 28, y + 46, 56, 70, 4).fill(col);
   }
 
   // ---------------------------------------------------------------- 温哥华

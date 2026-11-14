@@ -2,7 +2,7 @@
  * 背景音乐的曲子（11-13）：每个场景一首，全是现场合成（`music.ts`），没有音频文件，旋律都是自己写的。
  * 一首曲子 = 调、和弦（一小节一个，四小节一轮）、几段两小节的旋律、伴奏的节奏型、一套音色和鼓。
  * 难关（13 号往后）是同一个场景的小调版：同样的乐器，更暗、更快、鼓更多。坐不住用小调版，一开始就紧一点。
- * 新场景（后厨、雪山缆车、老宅、太空站）做好时在这里加一首，`themeFor` 里接上。
+ * 新场景做好时在这里加一首，`themeFor` 里接上（后厨 A10 加了；雪山缆车、老宅、太空站还没有）。
  *
  * 写法：一小节 16 格（十六分音符）。
  * - 旋律：一格一个字。`0`–`9` 是音阶里第几个音（0 是主音，五声音阶里 5 是高八度的主音），`a`–`e` 是低八度的 0–4，
@@ -174,11 +174,74 @@ const VAN_HARD: Theme = {
   swing: 0.06,
 };
 
-export const THEMES: Record<string, Theme> = { table: TABLE, 'table-hard': TABLE_HARD, van: VAN, 'van-hard': VAN_HARD };
+/**
+ * 中餐馆后厨（A10）：忙，切菜一样的木鱼一串串，马林巴领（像刀落在砧板上），琵琶弹，笙铺底，大鼓和锣；
+ * G 宫调五声（G A B D E），一点不摇摆，干脆。
+ */
+const KITCHEN: Theme = {
+  id: 'kitchen',
+  name: { zh: '中餐馆后厨', en: 'Restaurant Kitchen' },
+  bpm: [112, 146],
+  root: 55,
+  scale: PENTA_MAJOR,
+  // G | Em | C | D
+  chords: [
+    { root: 0, tones: [0, 4, 7, 12, 16] },
+    { root: 9, tones: [0, 3, 7, 12, 15] },
+    { root: 5, tones: [0, 4, 7, 12, 16] },
+    { root: 7, tones: [0, 4, 7, 12, 16] },
+  ],
+  melody: [
+    ['3.3.5.3.2.3.4---', '5.5.4.3.2.1.2---'],
+    ['5.53.5.6.5.3.2..', '3.32.1.2.3.0----'],
+    ['7.7.6.5.6.7.8---', '7.6.5.4.5.3.2---'],
+    ['3.5.6.5.3.2.1.2.', '3.2.1.0.1.2.0---'],
+  ],
+  arp: { calm: '0...2...3...2...', groove: '0.2.3.2.4.2.3.2.' },
+  bass: { groove: 'r...f...r...f.o.', crisis: 'r.r.f.r.r.r.f.o.' },
+  drums: {
+    groove: { kick: 'x.......x.......', perc: 'x.x.x.x...x.x.x.', snare: '....o.......o...' },
+    crisis: { kick: 'x...x...x...x.x.', snare: '....x.......x.xo', hat: 'x.o.x.o.x.o.x.o.', perc: 'x.xxx.xxx.xxx.xx', cym: 'x...............' },
+  },
+  lead: 'marimba',
+  arpTone: 'pipa',
+  pad: 'sheng',
+  kit: 'cny',
+};
+
+/** 后厨的难关：E 羽调（E G A B D），晚市最忙的时候，更急、鼓更密。 */
+const KITCHEN_HARD: Theme = {
+  ...KITCHEN,
+  id: 'kitchen-hard',
+  name: { zh: '中餐馆后厨 · 难关', en: 'Restaurant Kitchen · Hard' },
+  bpm: [118, 154],
+  root: 64,
+  scale: PENTA_MINOR,
+  // Em | Em | C | D
+  chords: [
+    { root: 0, tones: [0, 3, 7, 12, 15] },
+    { root: 0, tones: [0, 3, 7, 12, 15] },
+    { root: 8, tones: [0, 4, 7, 12, 16] },
+    { root: 10, tones: [0, 4, 7, 12, 16] },
+  ],
+  melody: [
+    ['0.0.3.4.3.0.3.5.', '4.3.2.1.0---....'],
+    ['5.5.4.3.4.5.7.5.', '4.3.4.2.3--.....'],
+    ['0.3.4.5.7.5.4.3.', '4.3.2.3.0--.....'],
+    ['7.7.5.4.5.4.3.2.', '3.2.1.2.0---....'],
+  ],
+  bass: { groove: 'r.r.f...r.r.f.o.', crisis: 'r.r.r.r.f.f.r.o.' },
+  drums: {
+    groove: { kick: 'x.......x...x...', perc: 'x.x.x.x.x.x.x.x.', snare: '....o.......o...' },
+    crisis: { kick: 'x.x.x.x.x.x.x.x.', snare: '....x.......x.xx', hat: 'xoxoxoxoxoxoxoxo', perc: 'xxxxxxxxxxxxxxxx', cym: 'x.......x.......', tom: '............x.x.' },
+  },
+};
+
+export const THEMES: Record<string, Theme> = { table: TABLE, 'table-hard': TABLE_HARD, van: VAN, 'van-hard': VAN_HARD, kitchen: KITCHEN, 'kitchen-hard': KITCHEN_HARD };
 
 /** 这一关放哪首：按场景（world），难关和坐不住用小调版。没写的场景先用年夜饭桌。 */
 export function themeFor(level: { world?: string; arena?: boolean }, hard: boolean): Theme {
-  const world = level.world === 'van' ? 'van' : 'table';
+  const world = level.world === 'van' || level.world === 'kitchen' ? level.world : 'table';
   return THEMES[hard || level.arena ? `${world}-hard` : world] as Theme;
 }
 
