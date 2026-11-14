@@ -63,6 +63,12 @@ export const calendarFile = (code: string) => `/when/api/e/${code}/calendar.ics`
 
 /** The page has saved this phone's answers. */
 export const saved = (page: Page) => expect(page.locator(".status")).toHaveAttribute("data-state", "saved");
+/**
+ * Where a slot sits in the grid of a gathering asked by the period, as every new one is: five to
+ * a day (凌晨, 早上, 中午, 下午, 晚上), along each day and then down the days. For `cell`.
+ */
+const PERIOD = { dawn: 0, morning: 1, noon: 2, afternoon: 3, eve: 4 } as const;
+export const at = (row: number, part: keyof typeof PERIOD) => row * 5 + PERIOD[part];
 /** The n-th slot of the grid, counting along each day and then down the days. */
 export const cell = (page: Page, n: number) => page.locator(".grid .cell").nth(n);
 

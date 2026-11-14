@@ -9,7 +9,8 @@
 ## 文件
 
 - 画面：`site/src/account/`（登录 `SignIn.tsx`、个人页 `MePage.tsx`、资料 `ProfileForm.tsx`、AI 头像编辑器 `avatar/`、好友 `Friends.tsx`、聊天 `ChatPage.tsx`、别人的页 `UserPage.tsx`、战绩 `History.tsx`、后台 `AdminPage.tsx` 和 `AdminScenes.tsx`；`AdminCards.tsx` 是一本正经那个对话的）
-- 3D 小人的小样：`site/src/account/figure/`（页面 `FigurePage.tsx`、three.js 的部分 `Figure3D.tsx`、动作表 `moves.ts`）、模型 `site/public/models/figure.glb`（来历和许可在 `LICENSES.md`）；`Figure3D.tsx` 借用打碟的 `party/dj/robot3d.ts` 里的 `glOf()`（有没有图形芯片）和 `ratioFor()`，没改那个文件
+- 3D 小人的小样：`site/src/account/figure/`（页面 `FigurePage.tsx`；React 的壳 `Figure3D.tsx`；three.js 的那一块 `FigureStage.ts`，和它一起懒加载的道具 `props.ts`、冒出来的东西 `fx.ts`；动作表 `moves.ts`）、模型 `site/public/models/figure.glb.gz`（gzip 过，页面自己解压；来历和许可在 `LICENSES.md`）；`Figure3D.tsx` 借用打碟的 `party/dj/robot3d.ts` 里的 `glOf()`（有没有图形芯片）和 `ratioFor()`，没改那个文件
+- 做模型、编动作：`site/scripts/figure/`（自己的 package.json；`build.mjs` 做模型，`moves.mjs` 编动作，`rig.mjs` 把姿势解到骨头上，`look.py`、`play.py` 看效果；怎么用见那里的 README）
 - 服务器：`site/worker/hub.ts` 里的账号、好友、聊天、记录、后台部分；画头像 `site/worker/draw.ts`；代发信的入口 `site/worker/mail.ts`（具名入口 `Mail`）和它的规矩 `site/worker/notice.ts`
 - 本地替身：`site/scripts/fake_mail.mjs`（假的 Resend）、`site/scripts/mail_door/`（绑着 Mail 入口的替身 Worker，只给检查用）
 - Cloudflare 里的钥匙（只写名字）：`RESEND_API_KEY`（登录邮件和代发的信）、`GEMINI_API_KEY`（头像）
@@ -27,7 +28,7 @@
 - `npx tsx tests/draw.test.ts`、`npx tsx tests/cutout.test.ts`：头像的提示词和抠图
 - 手机尺寸的浏览器（要房间服务器和网站都在跑，`site/README.md`「自己跑起来」）：`python3 scripts/account_check.py`（登录、资料、好友、聊天、一桌人的头像、屏蔽后的角标；加 `--solo` 连单机战绩一起，多等一分钟）、`python3 scripts/admin_check.py`（后台：踢人、拉黑、暂停、每月头像、保持登录）、`python3 scripts/perk_check.py`（许愿的奖励）、`python3 scripts/stage_check.py`（头像上猜歌名的台）
 - `python3 scripts/mail_door_check.py`：代发信从头到尾（怎么跑在它开头）
-- `python3 scripts/figure_check.py`：3D 小人的小样（要网站的开发服务器，`VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev`；最后一步站长的入口要房间服务器）。这台机器没有图形芯片，脚本用 `window.__figAnyGl`（只在开发构建里认）让页面照画
+- `python3 scripts/figure_check.py`：3D 小人的小样，44 条（要网站的开发服务器，`VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev`；最后一步站长的入口要房间服务器）。这台机器没有图形芯片，脚本用 `window.__figAnyGl`（只在开发构建里认）让页面照画；`__figSeek`、`__figCam`、`__figHeld`、`__figFloaters`、`__figFlashes` 也只在开发构建里有
 - 这四个浏览器脚本（account、admin、perk、stage）最后都有一条「页面里没有抛出错误」：页面报了错（哪怕被「这里出了点问题」接住了）就算失败。
 
 ## 定过的事
@@ -40,7 +41,13 @@
 - 2026-11-13 Steve 定的（跟一单的档案）：订单邮件由房间服务器代发，新 Worker 上不再放钥匙。
 - 2026-11-13 Steve 定的：头像「画成」的第三个选项就叫「中性」（10-30 他写的是「双性别」，今天确认用「中性」）；屏蔽要能解除，做成好友页里的「已屏蔽」名单。
 - 2026-11-13 Steve 提的 3D 小人（原话：生成 3D 版本的人的模型，要更真实拟人一些，人物会动，可以摆酷、照相、睡觉、挥刀……再多设计一些动作，玩家可以自己选；最后还能捏脸；这样在 DJ、跳舞、戏精里能有更完美的呈现）。当天给他讲了三条路（自己用 three.js 建并捏脸、AI 把现有头像转 3D、现成网页捏人服务已基本没了），他定「先做小样」。小样的规矩：不花钱、不开 R2、首页不碰（three.js 只在这一页懒加载）、模型 1 MB 以内。
-- 3D 小人小样的取舍（这个对话定的）：替身人模用 Ready Player Me 的样例男模加他们动作库的 17 段动作（许可只许配 RPM 的人模，不能挪到别的模型上，详见 `LICENSES.md`）；走路、跑步把髋骨的位移去掉，原地动；慢动作的关键帧减半（每秒 15 帧，中间插值），快的（跳舞、蹦迪、跑、走）保持 30；旋转量化成 16 位、meshopt 压缩；衣服上的 RPM 标志抹掉了。页面上的动作名是我起的中英文（站着、挥手、敬礼、鼓掌、点赞、欢呼、鞠躬、摊手、思考、眺望、秀肌肉、伸懒腰、看表、跳舞、蹦迪、走路、跑步）。Steve 要的睡觉、挥刀、照相这套免费动作里没有；「摆酷」先用秀肌肉顶着。
+- 3D 小人小样的取舍（这个对话定的）：替身人模用 Ready Player Me 的样例男模加他们动作库的 17 段动作（许可只许配 RPM 的人模，不能挪到别的模型上，详见 `LICENSES.md`）；走路、跑步把髋骨的位移去掉，原地动；慢动作的关键帧减半（每秒 15 帧，中间插值），快的（跳舞、蹦迪、跑、走）保持 30；旋转量化成 16 位、meshopt 压缩；衣服上的 RPM 标志抹掉了。页面上的动作名是我起的中英文（站着、挥手、敬礼、鼓掌、点赞、欢呼、鞠躬、摊手、思考、眺望、秀肌肉、伸懒腰、看表、跳舞、蹦迪、走路、跑步）。
+- 2026-11-14 Steve 看完小样回「可以」。按「效果和流畅度行」往下做：他点名的摆酷、照相、睡觉、挥刀和我加的干杯、比心、打碟、大哭、抱拳，都是这个对话自己编的（`site/scripts/figure/moves.mjs`），不用别人的动作，所以不管以后走哪条路、换什么人模，只要骨头名是 Mixamo 那套（Hips、Spine、LeftArm……，AI 转 3D 的自动绑骨也是这套）都能用。这个对话定的：
+  - 动作写成关键姿势（手、脚、身子、视线），`rig.mjs` 解到骨头上：两节骨头的伸手（IK）、肘和膝的朝向、手心手指的朝向、十种手型、前臂分走一半手腕的扭转；姿势之间按缓动插值，叠呼吸和抽泣。
+  - 照相是自拍（举手机、比耶，然后一手叉腰，两次闪光，最后低头看照片）；睡觉先打哈欠伸懒腰、蹲下、侧身倒下，再蜷着睡，头枕在手上，冒 Zzz；挥刀是双手握刀、举到右肩、斜劈、收势，有刀光；干杯是举杯、碰杯、喝、擦嘴；比心是头顶比大心左右晃，冒爱心；打碟戴耳机、一手按耳机一手搓碟、踩点点头，冒音符；大哭是两个拳头揉眼睛、仰天大哭，眼泪往两边飞；抱拳是右拳左掌、拱两下、鞠躬。英文名：Cool、Selfie、Sleep、Sword、Cheers、Heart、DJ、Cry、Fist salute。
+  - 道具（刀、粉色手机、啤酒、墨镜、耳机）用代码拼的简单形状，挂在模型里的三个空节点上（两手手心、头），换动作时长出来、缩回去；Zzz、爱心、音符、眼泪是画出来的小贴片，颜色取设计 tokens。
+  - 页面上动作分两组：「我们编的」9 个在前，「借来的，以后换掉」17 个在后。默认还是站着。
+  - 模型 gzip 后放上去（`figure.glb.gz`）：Cloudflare 不压 .glb，而模型里一半是动作的 JSON，压完 858 KB 变 331 KB，比原来的 687 KB 还小。页面用浏览器自带的 DecompressionStream 解压，旧 Safari 用 three.js 自带的 fflate。
 - 2026-11-13 代发信入口的规矩，这个对话定的，Steve 可以改（都在 `site/worker/notice.ts` 和 `hub.ts` 的 `notice()`，改起来都小）：
   - 只有具名入口 `Mail`（`WorkerEntrypoint`），从 Service Binding 调 `env.MAIL.send(notice)`。rooms.changle.ca 上没有对应的地址。
   - 给什么：`{ app, to, subject, text, link?, lang }`。`app` 先只认 `"tuan"`；`to` 必须是 changle.ca 注册过、没被拉黑的账号的登录邮箱，别人一律不发；标题一行、120 字以内；正文纯文字 2000 字以内，换行保留；链接只能是 https://changle.ca 下面的（本地跑可以是 localhost）；`lang` 是 zh 或 en。
@@ -51,9 +58,9 @@
 
 ## 现在
 
-2026-11-13：账号这块都在线上。代发信的入口上线了（#457），等跟一单那边接上。AI 头像编辑器崩页面的 bug 修了（下面「最近的改动」）。3D 小人的小样在 changle.ca/me/figure（站长 /me 底部有入口，别人只能靠网址），等 Steve 在手机上看效果和流畅度再定下一步。
+2026-11-14：账号这块都在线上。代发信的入口上线了（#457），等跟一单那边接上。3D 小人的小样在 changle.ca/me/figure（站长 /me 底部有入口，别人只能靠网址），Steve 看过说「可以」；这次加了自己编的 9 个动作、道具和特效，等他再看。
 
-- 3D 小人的小样：一个替身人模、17 个动作按钮、左右拖动转圈、页面底下一行数字（模型 KB、面数、帧率、引擎 KB）。模型 687 KB（Cloudflare 不压 .glb，线上就是这个数），three.js 那块 192 KB gzip（和打碟共用一份缓存），加载器和解码器 21 KB；首页的首次下载只多了 0.1 KB。本地 figure_check 29 条全过（软件渲染 15 到 22 帧，手机上有芯片会快得多）。
+- 3D 小人的小样：一个替身人模、26 个动作（自己编的 9 个 + 借来的 17 个）、左右拖动转圈、页面底下一行数字（模型 KB、面数、帧率、引擎 KB）。模型下载 331 KB（gzip），three.js 那块 192 KB gzip（和打碟共用一份缓存），这一页自己的代码 17 KB；首页的首次下载没变（122.2 KB）。本地 figure_check 44 条全过（软件渲染 17 到 23 帧，手机上有芯片会快得多）。
 
 - 登录、个人页、照片或 AI 头像、好友、聊天、战绩、后台，都有。11 月 13 日本地四个检查脚本全过（admin 40 条、account 24 条、perk 10 条、stage 10 条）。
 - 代发信：本地从替身 Worker 经 Service Binding 调过，61 封里 60 封到了假 Resend，第 61 封回 full；拒绝的、被拉黑的、Resend 报错的都对；验证码邮件改走 `deliver()` 以后也发了一遍。线上还没有谁调过它。
@@ -64,11 +71,11 @@
 
 1. 代发信：后台看不到今天发了几封（`mails` 表里有）；要的话在 /admin 加一行。
 
-3D 小人，小样之后（等 Steve 看完定）：
+3D 小人，接下来（等 Steve 再看一眼）：
 
-1. 走哪条路：自己建（three.js 人模 + 滑杆捏脸 + Mixamo 动作，不花钱、工作量大、像本人靠捏）还是 AI 把现有动漫头像转 3D（Meshy、Tripo 之类，每人几毛到两块加币，像本人、质量不稳、生成后不能捏脸）。Steve 可以自己拿现在的头像去这两家的免费额度试几张，把 .glb 发过来，我放进这个页面比一比（image-to-3D 要注册账号，这个对话里做不了）。
-2. 不管哪条路：缺的动作（睡觉、挥刀、照相）要从 Mixamo 拿（要 Steve 的 Adobe 账号登录下载）或自己做；模型存哪（现在是网站的静态文件，每个玩家一个模型就要开 Cloudflare R2，开它要 Steve 点头）；给 DJ、跳舞、戏精各自的对话一个「小人」组件去接。
-3. 替身人模和 RPM 的动作在真版本上线前要换掉（许可只许配 RPM 的人模）。
+1. 捏脸，也就是走哪条路：自己建（免费的写实人模 + 滑杆捏脸，每个玩家只存几十个数字，不用 R2；像本人靠捏）还是 AI 把头像转 3D（Meshy、Tripo 之类，每人几毛到两块加币，像本人、质量不稳、生成后不能捏；每人一个模型要开 R2，开它要 Steve 点头）。自己编的动作两条路都能用。下一步我想先做「自己建」的捏脸小样：MakeHuman 的人模（CC0，可以随便用），几根滑杆（脸型、眼睛、鼻子、嘴、肤色、发型），看写实程度和手机上的大小。
+2. 不管哪条路：给 DJ、跳舞、戏精各自的对话一个「小人」组件去接（`FigureStage.ts` 已经和 React 分开，就是为这个）；借来的 17 个动作和替身人模在真版本上线前要换掉（许可只许配 RPM 的人模），要的话照 `moves.mjs` 的写法补自己的。
+3. 动作还可以再加：比如戏精用的晕倒、跳舞用的几段舞（跳舞的动作自己编会比较费工，Mixamo 有现成的，但要 Steve 的 Adobe 账号登录下载）。
 
 修掉的（留着备查）：
 
@@ -81,11 +88,13 @@
 
 - 「工具 · 跟一单」：代发信的入口有了（`site/worker/mail.ts`，合并上线即生效）。接法：`tools/tuan/wrangler.jsonc` 的 `services` 里加 `{ "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }`，调 `await env.MAIL.send({ app: "tuan", to: 商家登录邮箱, subject, text, link: "https://changle.ca/tuan/…", lang })`，回话和限制见上面「定过的事」。测试里的替身照 `site/scripts/mail_door/index.ts` 反过来写一个 `export class Mail extends WorkerEntrypoint { send() {} }` 就行。合并通知（每家店第一单马上发，之后最多半小时一封）在跟一单那边做。
 - 「平台 · 首页与上线」知道一下：11 月 13 日这个对话在 `site/src/App.tsx` 的 `useSoloHistory` 里加了一个 `keepalive: true`，`site/src/lib/api.ts` 的 `api()` 多了 `keepalive` 这个选项（透传给 fetch），别的没动。
+- 打碟那个对话，供参考（不急）：Cloudflare 不压 .glb，`site/public/models/robot.glb` 线上是 453 KB，gzip 以后 130 KB。想省的话可以照 3D 小人的做法：放 `robot.glb.gz`，用 `site/src/account/figure/FigureStage.ts` 里 `fetchModel()` 那样解压（DecompressionStream，旧 Safari 用 three.js 自带的 fflate）。
 
 ## 最近的改动
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-14 账号：3D 小人自己编的 9 个动作（摆酷、照相、睡觉、挥刀、干杯、比心、打碟、大哭、抱拳），道具和特效，模型 gzip 后 331 KB；做模型的工具进仓库（site/scripts/figure/） (#522)
 - 2026-11-13 账号：3D 小人的小样（/me/figure：替身人模、17 个动作、拖动转圈、大小和帧率；figure_check.py） (#503)
 - 2026-11-13 账号：屏蔽可以解除（好友页的「已屏蔽」名单、对方主页上的「解除屏蔽」）
 - 2026-11-13 账号：单机战绩在页面走的时候也记得上（keepalive）；account_check 的单机那步修好 (#468)
@@ -114,3 +123,4 @@
 - 2026-11-13 修了未读角标（#464）和单机战绩两件。account_check 里「切回动漫头像只要一步」那条偶尔会错，是脚本在表单还没刷出「真照片」时就点了下去（那时点「动漫头像」等于重画），改成先等表单。
 - 2026-11-13 Steve 定了「中性」留着、屏蔽要能解除。做了解除：服务器一条路由、好友页一节、对方主页一个按钮，account_check 32 条全过。
 - 2026-11-13 Steve 提了 3D 小人，定「先做小样」。找免费人模和动作：three.js 示例里的 Xbot、Soldier、Michelle、readyplayer.me 都能用，Ready Player Me 在 GitHub 的动作库（200 多段真人动捕、GLB 不走 LFS）许可只配 RPM 的人模，于是用它自带的样例男模（`Masculine_TPose.glb`）配它的动作。动作是看着每段的预览和自己渲染的分镜认出来的，17 段挑好后合进一个文件（gltf-transform：把动作的通道按骨头名搬到人模上、重采样、量化、meshopt；衣服上的 RPM 标志用 OpenCV 补掉）。页面照打碟 Coach3D 的做法：three.js 懒加载，没图形芯片就说明，不下载引擎。第一版相机把 T 字形姿势的臂展当宽度，人太小，改成按身高算。本地 figure_check 29 条、account_check 32 条全过。
+- 2026-11-14 Steve 回「可以」。做了自己编动作的这一套：`rig.mjs`（按关键姿势解骨头）、`anim.mjs`（插值、缓动、采样）、`moves.mjs`（9 个动作 10 段）、`bake.mjs`（写进 glTF，加三个挂道具的空节点）、`build.mjs`（从 RPM 动作库的原文件一路做到 `figure.glb.gz`，两次做出来的文件一样）。页面那边把 three.js 的部分搬进 `FigureStage.ts`，加了道具、Zzz 爱心音符眼泪、自拍闪光、刀光，睡觉先播一次躺下再循环。每个动作都在页面里停帧看过正面、侧面、过渡，也实时播过。发现模型里一半是动作的 JSON（309 KB），而 Cloudflare 不压 .glb，就改成 gzip 后上传。本地 figure_check 44 条全过，生产构建、首页预算、路由和 tokens 测试都过。

@@ -36,6 +36,19 @@ test("making a gathering", () => {
   assert.deepEqual(room.create({ code: "abcdefgh", title: "x", days: [SAT], grain: "day", hostHash: "other", adminHash: "x", adminSalt: "x", now: NOW, today: TODAY }), { ok: false, error: "exists" });
 });
 
+test("a gathering asked by the period, as new ones are; one asked by the half day still opens and saves", () => {
+  const periods = make({ grain: "periods" });
+  assert.deepEqual(periods.made, { ok: true });
+  assert.equal(periods.room.state()!.grain, "periods");
+  assert.deepEqual(periods.save("k1", "阿May", { [`${SAT}:noon`]: 2, [`${SAT}:eve`]: 1, [`${SAT}:am`]: 2 }), { ok: true, id: "p1", fresh: true });
+  assert.deepEqual(periods.room.state()!.people[0].answers, { [`${SAT}:noon`]: 2, [`${SAT}:eve`]: 1 }, "only this gathering's slots are kept");
+  const half = make({ grain: "half" });
+  assert.deepEqual(half.made, { ok: true });
+  half.save("k1", "老王", { [`${SAT}:am`]: 2, [`${SAT}:noon`]: 2 });
+  assert.deepEqual(half.room.state()!.people[0].answers, { [`${SAT}:am`]: 2 });
+  assert.deepEqual(make({ grain: "hours" }).made, { ok: false, error: "bad" });
+});
+
 test("what can't be made", () => {
   assert.deepEqual(make({ title: "   " }).made, { ok: false, error: "bad" });
   assert.deepEqual(make({ days: [] }).made, { ok: false, error: "bad" });

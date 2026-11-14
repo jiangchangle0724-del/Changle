@@ -73,7 +73,8 @@ export class EventRoom {
     if (this.meta) return fail("exists");
     const title = cleanText(input.title, TITLE_MAX);
     const days = cleanDays(input.days, input.today);
-    const grain: Grain | null = input.grain === "half" || input.grain === "day" ? input.grain : null;
+    // "half" is still taken from a page opened before the periods came in (2026-11-14)
+    const grain: Grain | null = input.grain === "periods" || input.grain === "day" || input.grain === "half" ? input.grain : null;
     if (!title || !days || !grain) return fail("bad");
     this.meta = {
       code: input.code,

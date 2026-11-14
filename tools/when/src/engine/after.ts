@@ -12,13 +12,20 @@ export function resultText(input: { title: string; day: Day; part: Part; tally: 
   return lang === "zh" ? `「${input.title}」定了：${when}。${why}。\n${input.url}` : `"${input.title}" is set: ${when}. ${why}.\n${input.url}`;
 }
 
-/** The meal 随便 starts from: lunch at noon for a morning or an afternoon, dinner at 6:30 otherwise. Changeable there. */
-export const mealTime = (part: Part): string => (part === "am" || part === "pm" ? "12:00" : "18:30");
+/**
+ * The meal 随便 starts from: 宵夜 at 0:30 in the early hours, 早茶 at 10:00 in the morning, lunch at
+ * noon (and for the half days' morning and afternoon), afternoon tea at 15:00, dinner at 18:30
+ * otherwise. Changeable there.
+ */
+const MEAL: Partial<Record<Part, string>> = { dawn: "0:30", morning: "10:00", noon: "12:00", am: "12:00", pm: "12:00", afternoon: "15:00" };
+export const mealTime = (part: Part): string => (MEAL[part] ?? "18:30").padStart(5, "0");
 
 /** That time the way 随便 shows it in its own list: "18:30", "6:30 p.m.". */
 export function mealLabel(part: Part, lang: Lang): string {
-  const lunch = part === "am" || part === "pm";
-  return lang === "zh" ? mealTime(part) : lunch ? "12:00 p.m." : "6:30 p.m.";
+  const time = mealTime(part);
+  if (lang === "zh") return time.replace(/^0(?=\d:)/, "");
+  const [h, m] = time.split(":").map(Number);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "a.m." : "p.m."}`;
 }
 
 /** 随便 plans a meal today or in the six days after (it knows opening hours that far ahead). */

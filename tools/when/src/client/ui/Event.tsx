@@ -4,7 +4,7 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { allFree, best, dateLabel, dayLabel, dayNotes, nextAnswer, partLabel, partsOf, quickFill, quickSlots, reason, slotKey, slotLabel, tally, vancouverDay, weekday, weekdayLabel } from "../../engine";
+import { allFree, best, dateLabel, dayLabel, dayNotes, hoursLabel, nextAnswer, partHeading, partRange, partsOf, quickFill, quickSlots, reason, shortDate, slotKey, slotLabel, tally, vancouverDay, weekday, weekdayLabel } from "../../engine";
 import type { Answers, Day, EventState, Lang, Person, Quick, SlotKey } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
@@ -250,7 +250,9 @@ export function EventPage({ code }: { code: string }) {
     const marks = new Set(which.kind === "none" ? [] : quick);
     for (const slot of slots) filling ? marks.add(slot) : marks.delete(slot);
     clearTimeout(undoTimer.current);
-    setUndo({ answers: mine, quick, said: filling ? "quickFilled" : "quickCleared" });
+    // "everything" and "this whole day" leave out 凌晨: say so where there is one
+    const skipped = filling && (which.kind === "all" || which.kind === "day" || which.kind === "weekends") && partsOf(state.grain).includes("dawn");
+    setUndo({ answers: mine, quick, said: filling ? (skipped ? "quickFilledDawn" : "quickFilled") : "quickCleared" });
     undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS);
     setQuick(marks);
     put(which.kind === "none" ? {} : quickFill(mine, slots));
@@ -347,7 +349,7 @@ export function EventPage({ code }: { code: string }) {
             {t("modeAll")}
           </button>
         </div>
-        <p class="hint">{t(mode === "all" ? "allHint" : state.grain === "half" ? "fillHintRows" : "fillHint")}</p>
+        <p class="hint">{t(mode === "all" ? "allHint" : state.grain !== "day" ? "fillHintRows" : "fillHint")}</p>
         {mode === "fill" && (
           <div class="quick" role="group" aria-label={t("quickLabel")}>
             <button type="button" aria-pressed={allFree(mine, everySlot)} onClick={() => fill({ kind: "all" })}>
@@ -367,18 +369,24 @@ export function EventPage({ code }: { code: string }) {
         )}
 
         <div class={`grid grid-${state.grain} grid-${mode}`}>
-          {state.grain === "half" && (
+          {state.grain !== "day" && (
             <div class="grid-row grid-heads" aria-hidden="true">
               <span />
-              {parts.map((part) => (
-                <span key={part}>{partLabel(part, lang)}</span>
-              ))}
+              {parts.map((part) => {
+                const range = partRange(state.grain, part);
+                return (
+                  <span key={part}>
+                    {partHeading(part, lang)}
+                    {range && <small>{hoursLabel(range)}</small>}
+                  </span>
+                );
+              })}
             </div>
           )}
           {state.days.map((day) => (
             <div class="grid-row" key={day} data-weekend={weekday(day) % 6 === 0 ? "" : undefined}>
               <DayNotes day={day} days={state.days} lang={lang} />
-              {mode === "fill" && state.grain === "half" ? (
+              {mode === "fill" && state.grain !== "day" ? (
                 <button
                   type="button"
                   class="grid-date"
@@ -387,12 +395,12 @@ export function EventPage({ code }: { code: string }) {
                   onClick={() => fill({ kind: "day", day })}
                 >
                   <b>{weekdayLabel(day, lang)}</b>
-                  <small>{dateLabel(day, lang)}</small>
+                  <small>{(state.grain === "periods" ? shortDate : dateLabel)(day, lang)}</small>
                 </button>
               ) : (
                 <span class="grid-date">
                   <b>{weekdayLabel(day, lang)}</b>
-                  <small>{dateLabel(day, lang)}</small>
+                  <small>{(state.grain === "periods" ? shortDate : dateLabel)(day, lang)}</small>
                 </span>
               )}
               {parts.map((part) => {

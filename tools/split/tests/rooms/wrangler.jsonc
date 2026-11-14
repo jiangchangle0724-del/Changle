@@ -1,0 +1,9 @@
+// The stand-in rooms server (worker.ts), under the real one's name, so 两清's binding to
+// `changle-rooms` reaches it on this machine: `npm run dev`, and the tests (`npm run test:server`).
+// Never published.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "changle-rooms",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01"
+}
