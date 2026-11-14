@@ -6,7 +6,8 @@
  *  3. Phones that were offline: whatever order their changes arrive in, nothing is lost, nothing
  *     is doubled, and everyone stands where the ledger says.
  *  4. Three expenses recorded with no signal (the plan's gate 2), the reply lost, sent again.
- *  5. Two phones change the same expense: the later one stands.
+ *  5. Two phones change the same expense: the later one stands. An expense paid in another
+ *     currency, changed: what is said about that currency, said null, and not said.
  *  6. What changes nothing, and that it really changes nothing.
  *  7. What arrives from the network: junk is no change, and nothing extra rides in.
  *  8. Thousands of changes of every kind, sound and not: the ledger stays sound.
@@ -182,6 +183,33 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   const refused = sent({ do: "rename", member: "a", name: "B" });
   const twice = serve(start, [refused, sent(to(5000)), refused, refused]);
   eq(twice.took, ["nothing", "new", "nothing", "nothing"], "a change that changed nothing says so every time it is sent, so a phone whose answer was lost still learns it didn't stick");
+
+  // paid in another currency: 30 US dollars at 1.40, which counts for 42 Canadian
+  const usd = { currency: "USD", amount: 3000, rate: "1.40" };
+  const said = { payer: "a", note: "", split: { how: "equal", among: ["a", "b"] } as Split };
+  const abroad = applyChange(l, { do: "expense", expense: { kind: "expense", id: "e", at: 1, ...said, amount: 4200, rot: 0, paidIn: usd } })!;
+  const now = (x: Ledger | null) => (x ? { amount: (x.entries[0] as Expense).amount, paidIn: (x.entries[0] as Expense).paidIn ?? "none" } : "nothing changed");
+  const edit = (to: Omit<Partial<Expense>, "paidIn"> & { paidIn?: Expense["paidIn"] | null }, from = abroad) => now(applyChange(from, { do: "edit", entry: "e", to: { ...said, amount: 4200, ...to } }));
+  eq(edit({ amount: 4900, paidIn: { currency: "USD", amount: 3500, rate: "1.40" } }), { amount: 4900, paidIn: { currency: "USD", amount: 3500, rate: "1.40" } }, "an expense paid in another currency is changed to 35 dollars: the change says both amounts, and both are kept");
+  eq(edit({ paidIn: { currency: "USD", amount: 3000, rate: "1.39" }, amount: 4170 }), { amount: 4170, paidIn: { currency: "USD", amount: 3000, rate: "1.39" } }, "the rate alone is changed");
+  eq(edit({ amount: 4200, paidIn: { currency: "JPY", amount: 4600, rate: "0.00913" } }), { amount: 4200, paidIn: { currency: "JPY", amount: 4600, rate: "0.00913" } }, "the currency is changed, and the amount it counts for happens to stay");
+  eq(edit({ amount: 4200, paidIn: null }), { amount: 4200, paidIn: "none" }, "said null, it is an expense in the ledger's own currency from then on, even at the same amount");
+  eq(edit({ amount: 5000, paidIn: null }), { amount: 5000, paidIn: "none" }, "and at another amount");
+  eq(edit({ note: "lunch" }), { amount: 4200, paidIn: usd }, "a change that says nothing about the currency (a page from before) and leaves the amount alone: the other currency stays");
+  eq(edit({ amount: 5000 }), { amount: 5000, paidIn: "none" }, "one that says nothing and changes the amount: the other currency goes, since 30 dollars no longer comes to it");
+  eq(edit({}), "nothing changed", "one that says nothing and changes nothing is no change");
+  eq(edit({ paidIn: usd }), "nothing changed", "nor is one that says what the expense already says");
+  eq(edit({ paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, amount: 4200 }, applyChange(abroad, { do: "out", entry: "e", at: 9 })!), "nothing changed", "(taken out or not)");
+  eq(edit({ amount: 4200, paidIn: usd }, start), { amount: 4200, paidIn: usd }, "an expense in the ledger's currency can be changed into one paid in another");
+  eq(
+    [edit({ paidIn: { currency: "USD", amount: 3000, rate: "0" } }), edit({ paidIn: { currency: "USD", amount: 0, rate: "1.40" } }), edit({ paidIn: { currency: "USD", amount: 30.5, rate: "1.40" } }), edit({ amount: 5000, paidIn: { currency: "USD", amount: 3000, rate: "x" } })],
+    ["nothing changed", "nothing changed", "nothing changed", "nothing changed"],
+    "a change whose other currency isn't sound (no rate, nothing paid, half a cent) changes nothing at all, the amount included",
+  );
+  const kept = (applyChange(abroad, { do: "edit", entry: "e", to: { ...said, amount: 4900, paidIn: { currency: "USD", amount: 3500, rate: "1.40", extra: 1 } as Expense["paidIn"] } })!.entries[0] as Expense).paidIn;
+  eq(Object.keys(kept ?? {}).sort(), ["amount", "currency", "rate"], "only the three things an other currency has are kept");
+  const two = serve(abroad, [sent({ do: "edit", entry: "e", to: { ...said, amount: 5000 } }), sent({ do: "edit", entry: "e", to: { ...said, amount: 4170, paidIn: { currency: "USD", amount: 3000, rate: "1.39" } } })]);
+  eq([two.took, now(two.ledger)], [["new", "new"], { amount: 4170, paidIn: { currency: "USD", amount: 3000, rate: "1.39" } }], "an old page and a new one change the same expense: the one that arrives second stands, whole");
 }
 
 // ---------- 6. what changes nothing ----------
@@ -243,13 +271,17 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   }
   ok(round === total, `${total} changes sent as text arrive as the same changes → ${round}`);
   const good = { id: "c", at: 1, change: { do: "expense", expense: { kind: "expense", id: "e", at: 1, payer: "a", amount: 100, note: "x", split: { how: "equal", among: ["a"] }, rot: 0 } } };
+  const edited = { payer: "a", amount: 100, note: "x", split: { how: "equal", among: ["a"] } };
   const junk: unknown[] = [
     null, 7, "x", [], {}, { id: "c" }, { ...good, id: "has space" }, { ...good, id: "x".repeat(65) }, { ...good, at: "1" }, { ...good, at: null }, { ...good, change: null }, { ...good, change: { do: "nope" } },
     { ...good, change: { do: "expense" } }, { ...good, change: { do: "expense", expense: { ...good.change.expense, rot: "0" } } }, { ...good, change: { do: "expense", expense: { ...good.change.expense, note: 5 } } },
     { ...good, change: { do: "expense", expense: { ...good.change.expense, note: "x".repeat(401) } } }, { ...good, change: { do: "expense", expense: { ...good.change.expense, split: { how: "equal", among: "a" } } } },
     { ...good, change: { do: "expense", expense: { ...good.change.expense, split: { how: "shares", shares: { a: "1" } } } } }, { ...good, change: { do: "expense", expense: { ...good.change.expense, split: { how: "exact", amounts: { "a b": 1 } } } } },
     { ...good, change: { do: "expense", expense: { ...good.change.expense, paidIn: { currency: "usd", amount: 1, rate: "1" } } } }, { ...good, change: { do: "expense", expense: { ...good.change.expense, split: { how: "equal", among: Array.from({ length: MAX_MEMBERS + 1 }, (_, i) => `p${i}`) } } } },
-    { ...good, change: { do: "edit", entry: "e" } }, { ...good, change: { do: "out", entry: "e" } }, { ...good, change: { do: "back" } }, { ...good, change: { do: "transfer", transfer: { id: "t", at: 1, from: "a", to: "b" } } },
+    { ...good, change: { do: "edit", entry: "e" } }, { ...good, change: { do: "edit", entry: "e", to: { ...edited, paidIn: 5 } } }, { ...good, change: { do: "edit", entry: "e", to: { ...edited, paidIn: "USD" } } }, { ...good, change: { do: "edit", entry: "e", to: { ...edited, paidIn: [] } } },
+    { ...good, change: { do: "edit", entry: "e", to: { ...edited, paidIn: { currency: "USD", amount: "5", rate: "1" } } } }, { ...good, change: { do: "edit", entry: "e", to: { ...edited, paidIn: { currency: "US", amount: 5, rate: "1" } } } }, { ...good, change: { do: "edit", entry: "e", to: { ...edited, paidIn: { currency: "USD", amount: 5, rate: 1.4 } } } },
+    { ...good, change: { do: "edit", entry: "e", to: { ...edited, paidIn: { currency: "USD", amount: 5, rate: "1".repeat(21) } } } }, { ...good, change: { do: "expense", expense: { ...good.change.expense, paidIn: null } } },
+    { ...good, change: { do: "out", entry: "e" } }, { ...good, change: { do: "back" } }, { ...good, change: { do: "transfer", transfer: { id: "t", at: 1, from: "a", to: "b" } } },
     { ...good, change: { do: "member", member: { id: "m" } } }, { ...good, change: { do: "rename", member: "m" } }, { ...good, change: { do: "remove" } }, { ...good, change: { do: "title" } }, { ...good, change: { do: "title", name: 5 } },
   ];
   const read = junk.map((j) => {
@@ -262,6 +294,13 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   ok(read.every((x) => x === null), `${junk.length} things that aren't changes are read as none, and none of them crashes it`);
   const loaded = parseSent({ ...good, extra: 1, change: { ...good.change, extra: 2, expense: { ...good.change.expense, gone: 5, extra: 3, split: { how: "equal", among: ["a"], extra: 4 }, paidIn: { currency: "USD", amount: 5, rate: "1.4", extra: 5 } } } });
   eq(loaded, { ...good, change: { do: "expense", expense: { ...good.change.expense, paidIn: { currency: "USD", amount: 5, rate: "1.4" } } } }, "only a change's own fields are read: nothing extra rides in, and an expense can't arrive already taken out");
+  const asSent = (to: object) => parseSent({ id: "c", at: 1, change: { do: "edit", entry: "e", to } })?.change;
+  eq(
+    [asSent(edited), asSent({ ...edited, paidIn: null }), asSent({ ...edited, extra: 1, rot: 3, paidIn: { currency: "USD", amount: 5, rate: "1.4", extra: 2 } })],
+    [{ do: "edit", entry: "e", to: edited }, { do: "edit", entry: "e", to: { ...edited, paidIn: null } }, { do: "edit", entry: "e", to: { ...edited, paidIn: { currency: "USD", amount: 5, rate: "1.4" } } }],
+    "a change to an expense arrives saying nothing about another currency, saying there is none, or saying which: each as it was sent, with nothing extra",
+  );
+  ok(!("paidIn" in (asSent(edited) as { to: object }).to), "(said nothing is nothing there at all, not a null)");
 }
 
 // ---------- 8. anything at all ----------

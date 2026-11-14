@@ -22,7 +22,7 @@
 import { accept, type Change, type Sent, type Took } from "../src/split/changes";
 import { balances, nextRot, portionsOf, type Expense, type Ledger } from "../src/split/core";
 import { startLedger } from "../src/split/ops";
-import { heard, hold, join, opened, shown, type Held, type MakeBody, type Pushed, type Snapshot } from "../src/split/sync";
+import { heard, hold, holds, join, opened, shown, type Held, type MakeBody, type Pushed, type Snapshot } from "../src/split/sync";
 import { syncer, type Net, type Reply, type SyncState } from "../src/split/syncer";
 import { rng } from "./split/ledgers";
 
@@ -406,6 +406,18 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
   eq([lost.map((s) => s.change.do), b.ledger().members.map((m) => m.name), ids(b.ledger()), (b.ledger().entries[0] as Expense).gone], [["rename"], ["Steve", "小王", "Zed"], ["e1", "e2"], 3], "meanwhile the other took that name and took the same expense out: only the rename didn't stick, and only it is said");
   b.s.dismiss(lost[0].id);
   eq(b.held().lost.length, 0, "once the screen has said so, it is off the list");
+
+  // a change to an expense paid in another currency: does the ledger say what the change was for?
+  const said = { payer: "s", note: "", split: { how: "equal" as const, among: ["s", "w"] } };
+  const usd = { currency: "USD", amount: 3000, rate: "1.40" };
+  const abroad: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, paidIn: usd }] };
+  const plain: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0 }] };
+  const to = (paidIn?: Expense["paidIn"] | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(paidIn === undefined ? {} : { paidIn }) } });
+  eq(
+    [holds(abroad, to({ rate: "1.40", amount: 3000, currency: "USD" })), holds(abroad, to({ ...usd, rate: "1.39" })), holds(abroad, to(null)), holds(abroad, to()), holds(plain, to(null)), holds(plain, to(usd)), holds(plain, to())],
+    [true, false, false, true, true, false, true],
+    "a change that says the other currency is done when the ledger says the same one, one that says there is none when it has none, and one that says nothing whatever it has",
+  );
 }
 
 // ---------- 7. when the phone can't go on ----------
