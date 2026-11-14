@@ -12,8 +12,9 @@
 - 3D 小人的小样：`site/src/account/figure/`（页面 `FigurePage.tsx`，动作和捏脸两页；React 的壳 `Figure3D.tsx`；three.js 的那一块 `FigureStage.ts`，和它一起懒加载的道具 `props.ts`、冒出来的东西 `fx.ts`；动作表和每个动作的表情 `moves.ts`；捏脸的滑杆、肤色、发型、存在手机上的那几十个数字 `look.ts`）、模型 `site/public/models/figure/`（男女各一个主文件，别的发型一款一个文件在 `hair/` 里，都 gzip 过，页面自己解压；来历和许可在 `LICENSES.md`）；`Figure3D.tsx` 借用打碟的 `party/dj/robot3d.ts` 里的 `glOf()`（有没有图形芯片）和 `ratioFor()`，没改那个文件
 - 编动作：`site/src/account/figure/pose/`（`keys.ts` 写关键姿势，`anim.ts` 插值采样，`rig.ts` 解到骨头上，手和胳膊不穿身体）；页面拿到身体后现解，`body.ts` 从模型量出骨架和身体的形状，身材滑杆一动把骨架挪过去；`shape.ts` 在 CPU 上混滑杆的形状
 - 别的眼睛颜色：`site/public/models/figure/eyes/<颜色>.webp`（一张 4 KB，选了才下载）
+- 小人长什么样（`Look`，几十个数字）：`site/src/shared/figureLook.ts`（滑杆、颜色、发型的表，`checkLook` 检查，页面和服务器共用）；手机上存 `look.ts`（localStorage `figure.look`），账号上存 `useLookSync.ts` 和 hub 的 `looks` 表
 - 做模型：`site/scripts/figure/`（自己的 package.json；`human.mjs` 把 MakeHuman 的人做成我们的小人，`build.mjs` 做出所有文件，`look.py`、`play.py` 看效果；要下载的两样素材和怎么用见那里的 README）
-- 服务器：`site/worker/hub.ts` 里的账号、好友、聊天、记录、后台部分；画头像 `site/worker/draw.ts`；代发信的入口 `site/worker/mail.ts`（具名入口 `Mail`）和它的规矩 `site/worker/notice.ts`
+- 服务器：`site/worker/hub.ts` 里的账号、好友、聊天、记录、后台部分（3D 小人的样子：`looks` 表和 `GET`、`PUT /api/me/look`）；画头像 `site/worker/draw.ts`；代发信的入口 `site/worker/mail.ts`（具名入口 `Mail`）和它的规矩 `site/worker/notice.ts`
 - 本地替身：`site/scripts/fake_mail.mjs`（假的 Resend）、`site/scripts/mail_door/`（绑着 Mail 入口的替身 Worker，只给检查用）
 - Cloudflare 里的钥匙（只写名字）：`RESEND_API_KEY`（登录邮件和代发的信）、`GEMINI_API_KEY`（头像）
 - 共用文件里我们的几行：`site/worker/index.ts` 的 `export { Mail }`；`.github/workflows/site.yml` 的 `tests/mail.test.ts`、`tests/figure.test.ts` 两行；`HANDOFF.md` 房间服务器那一行和 Settings 表里的 `DEV_MAIL_URL`；`site/src/router.ts` 和 `App.tsx` 里 `/me/figure`（`kind: "figure"`）的几行
@@ -31,7 +32,7 @@
 - `npx tsx tests/draw.test.ts`、`npx tsx tests/cutout.test.ts`：头像的提示词和抠图
 - 手机尺寸的浏览器（要房间服务器和网站都在跑，`site/README.md`「自己跑起来」）：`python3 scripts/account_check.py`（登录、资料、好友、聊天、一桌人的头像、屏蔽后的角标；加 `--solo` 连单机战绩一起，多等一分钟）、`python3 scripts/admin_check.py`（后台：踢人、拉黑、暂停、每月头像、保持登录）、`python3 scripts/perk_check.py`（许愿的奖励）、`python3 scripts/stage_check.py`（头像上猜歌名的台）
 - `python3 scripts/mail_door_check.py`：代发信从头到尾（怎么跑在它开头）
-- `python3 scripts/figure_check.py`：3D 小人的小样，73 条（要网站的开发服务器，`VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev`；最后一步站长的入口要房间服务器，不开它页面会报连不上的错，最后一条就不过）。这台机器没有图形芯片，脚本用 `window.__figAnyGl`（只在开发构建里认）让页面照画；`__figSeek`、`__figCam`、`__figHeld`、`__figFloaters`、`__figFlashes`、`__figFace`、`__figBlinks`、`__figView`、`__figHair`、`__figSex`、`__figSkin`、`__figShapeSum` 也只在开发构建里有
+- `python3 scripts/figure_check.py`：3D 小人的小样，83 条（最后几条要房间服务器：存进账号、另一部手机登录拿到）（要网站的开发服务器，`VITE_ROOMS_URL=ws://127.0.0.1:8787 npm run dev`；最后一步站长的入口要房间服务器，不开它页面会报连不上的错，最后一条就不过）。这台机器没有图形芯片，脚本用 `window.__figAnyGl`（只在开发构建里认）让页面照画；`__figSeek`、`__figCam`、`__figHeld`、`__figFloaters`、`__figFlashes`、`__figFace`、`__figBlinks`、`__figView`、`__figHair`、`__figSex`、`__figSkin`、`__figShapeSum` 也只在开发构建里有
 - 这四个浏览器脚本（account、admin、perk、stage）最后都有一条「页面里没有抛出错误」：页面报了错（哪怕被「这里出了点问题」接住了）就算失败。
 
 ## 定过的事
@@ -68,6 +69,7 @@
   - 身材 3 根滑杆：身高（最多矮或高约 12%）、胖瘦、肌肉，用 MakeHuman 年轻成人的 macro target。骨架跟着挪（滑杆一停就挪，动作重解），镜头不跟着拉远，所以高矮看得出来（为此全身的镜头留了最高那档的空，默认的小人比以前小 6%）。「随机」只换脸、肤色、眼睛和头发，不动身材和衣服。
   - 衣服颜色：上衣 12 种（白、蓝、黑、灰、藏青、红、粉、黄、绿、卡其、紫、橙），裤子 6 种（牛仔蓝、深蓝、黑、灰、卡其、白），衣服贴图做成灰的再上色，第一种是原来的颜色。眼睛 7 种（深棕、浅棕、灰、蓝、蓝绿、绿、紫），MakeHuman 自己的眼睛贴图。
   - 捏脸分 7 块，两行：脸型、眼睛（下面是眼睛颜色）、鼻子、嘴、发型、身材（下面是肤色）、衣服（上衣、裤子）。身材和衣服看全身。换男女时身材、肤色、发色、眼睛、裤子都带过去，上衣回到那个身体自己的（男白女蓝）。
+  - 存进账号：登录了，小人存在账号上（`looks` 表，一个账号一行 JSON，`src/shared/figureLook.ts` 的 `checkLook` 检查，最长 4000 字，一小时最多存 300 次；删账号时一起删）。打开页面先从账号取，账号上的为准（换手机登录就是你的小人）；账号上还没有，或者取的时候你已经改了，就把手机上的存上去。之后每次改完 1.2 秒存一次，关页面时没存的那次也发出去。没登录只存在手机上，捏脸下面一行字说存在哪，没登录的旁边有「登录」。
   - 各种身材都不穿身体：CI 里每个动作在 10 种身材上解（高、矮、胖、瘦、壮、软，和高胖壮、矮胖软、高瘦），都在 2.5 厘米以内。为此改了三处：身体各段按它那些点的长度量（以前胖的人胸口那段的圆头一直伸到下巴）；写在胸、髋、头上的点也按身体大小缩放；手臂卡在身体里时再找一圈（手肘绕一整圈，手往外、往前、往上挪一点），挑最浅的、离写的最近的、和上一帧最接近的。鞠躬的手改成写在大腿上。
 - 2026-11-13 代发信入口的规矩，这个对话定的，Steve 可以改（都在 `site/worker/notice.ts` 和 `hub.ts` 的 `notice()`，改起来都小）：
   - 只有具名入口 `Mail`（`WorkerEntrypoint`），从 Service Binding 调 `env.MAIL.send(notice)`。rooms.changle.ca 上没有对应的地址。
@@ -94,7 +96,7 @@
 
 3D 小人，接下来（等 Steve 看捏脸）：
 
-1. 存进账号：现在只存在手机上（`figure.look`）。小人进游戏前，账号里加一个字段存这几十个数字（`look.ts` 的 `Look`），别人的手机才看得到你的样子。
+1. 别人看得到你的小人：现在只有你自己能取（`GET /api/me/look`）。小人进游戏时，加一条按人取的（比如 `GET /api/users/<id>/look`，好友或同桌才给），或者进房间时带上。
 2. 给 DJ、跳舞、戏精各自的对话一个「小人」组件去接：`FigureStage.ts` 的 `mountStage(el, { look, first, view, … })`，有 `play`、`setLook`、`view`。
 4. 张嘴的表情要牙齿和舌头（MakeHuman 的素材里有，没放进来，所以现在的表情都不张嘴）。
 5. 女的默认和男的一样高（眼睛都在 1.73 米，动作是按这个高度写的）；想要女的默认矮一点，`look.ts` 的 `defaultLook` 给女的一个负的身高就行。
@@ -117,7 +119,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-14 账号：3D 小人的身材（身高、胖瘦、肌肉，骨架跟着动，动作重解）、上衣和裤子的颜色、眼睛颜色；各种身材上都不穿身体（CI 查 10 种）
+- 2026-11-14 账号：3D 小人存进账号（登录了就存，换手机登录拿得到）
+- 2026-11-14 账号：3D 小人的身材（身高、胖瘦、肌肉，骨架跟着动，动作重解）、上衣和裤子的颜色、眼睛颜色；各种身材上都不穿身体（CI 查 10 种） (#551)
 - 2026-11-14 账号：3D 小人的动作在页面上现解，手和胳膊不穿身体（CI 查）；补 11 个常用动作，一共 21 个；衣服肩膀不裂、皮肤不从袖子里戳出来 (#545)
 - 2026-11-14 账号：3D 小人换成 MakeHuman 的写实人模，能捏脸（男女、30 根滑杆、肤色、11 款发型和发色，存在手机上），会眨眼、有表情；借来的 RPM 人模和动作拿掉 (#539)
 - 2026-11-14 账号：3D 小人自己编的 9 个动作（摆酷、照相、睡觉、挥刀、干杯、比心、打碟、大哭、抱拳），道具和特效，模型 gzip 后 331 KB；做模型的工具进仓库（site/scripts/figure/） (#522)
@@ -153,3 +156,4 @@
 - 2026-11-14 Steve 回「1」，走自己建捏脸。读了 MakeHuman 的格式（base.obj、target、mhclo 贴合、mhmat、表情单元、MPFB2 的 Mixamo 骨架和权重），自己写了转换（`human.mjs`：塑形、贴合衣服头发眼睛眉毛睫毛、删掉衣服下的身体、30 根滑杆和 9 个表情做成 morph target、骨架、权重、贴图去标志和做成可上色的灰色）。动作照旧在 `rig.mjs` 里解：手肘的转轴改成从静止的 A 字姿势算，胸、头、髋三个坐标系按身体挪（不然男的抱胳膊会插进胸口），脚踝高度按这个身体。页面那边：滑杆的 morph 在 CPU 上混再重算法线（发现一个两字节的属性在文件里被补成四字节，按数组直接读会错位，满身条纹，改成一个个读），头发从单独的文件挂到同一副骨架上，镜头三档（全身、脸、头和肩），表情和眨眼，换身体时原地换人。修了一个老问题：换到照相时会凭空闪一下（上一个动作的时间没清）。figure_check 改写，66 条全过，生产构建、首页预算、tsc、tokens、routes 都过。
 - 2026-11-14 Steve 要动作更真实（睡觉时手穿过身体）、补常用动作、存进账号、衣服或眼睛颜色、高矮胖瘦。先做动作：把解姿势的代码从做模型的脚本搬到页面上（`pose/`），加了身体的形状和不穿身体的解法，查出原来的问题有三处（抱胳膊插进胸口 5 厘米、睡觉下面那只手穿过胸口、挥刀举起时左前臂扫过胸口），都重编了；衣服权重和袖子下的皮肤顺手修了。补了 11 个动作，每个都停帧看过正面和侧面。新加 `tests/figure.test.ts`（CI 里跑，两秒）。模型男女重做，动作不在里面，各小了 40 KB。figure_check 全过。
 - 2026-11-14 动作那块合并上线（#545）。接着做身材、衣服和眼睛颜色：身材的 target 和每根滑杆挪关节的量做进模型，页面上骨架跟着挪、每块网格重新绑、身体形状重量、动作重解；一套衣服拆成上衣和裤子，贴图做灰；眼睛换贴图。CI 的测试加上 10 种身材，一开始有 36 处穿身体（胖的鞠躬、矮的睡觉、软的躺下最多 12 厘米），改了身体的量法、点的缩放、卡住时的搜索和鞠躬，全过。捏脸那排 7 个字挤成竖排，改成两行。figure_check 全过。
+- 2026-11-14 身材和颜色合并上线（#551）。做存进账号：hub 加 `looks` 表和两条路由，`Look` 的表和检查搬到 `src/shared/figureLook.ts` 给服务器用（`look.ts` 只剩手机上存取），页面加 `useLookSync`。本地两部「手机」（两个浏览器）登录同一个账号走了一遍：一部改身高和上衣，一秒多后账号里有了，另一部打开就是那个样子。figure_check 83 条全过，房间服务器的 tsc 也过。

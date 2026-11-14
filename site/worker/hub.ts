@@ -7,6 +7,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
+import { checkLook } from "../src/shared/figureLook";
 import { cleanNotice, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
@@ -139,6 +140,8 @@ export class Hub extends DurableObject<HubEnv> {
     // the anime figure an AI drew for someone (whole, and the round crop their avatar shows), kept
     // while a photo is the avatar so switching back is one tap; `shown` is which of the two is up
     q(`CREATE TABLE IF NOT EXISTS figures (user_id TEXT PRIMARY KEY, mime TEXT NOT NULL, full BLOB NOT NULL, round BLOB NOT NULL, choices TEXT NOT NULL, shown INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)`);
+    // the 3D figure's look (/me/figure): a few dozen numbers, as src/shared/figureLook.ts checks them
+    q(`CREATE TABLE IF NOT EXISTS looks (user_id TEXT PRIMARY KEY, look TEXT NOT NULL, updated_at INTEGER NOT NULL)`);
     // AI drawings counted per day (k: e:<email>, ip:<address>, all)
     q(`CREATE TABLE IF NOT EXISTS draws (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
     // notices sent for other Workers, counted per day (k: the app; worker/notice.ts)
@@ -390,6 +393,19 @@ export class Hub extends DurableObject<HubEnv> {
       this.sql.exec(`UPDATE figures SET shown = 1 WHERE user_id = ?`, me.id);
       this.showFigure(me.id);
       return ok({ user: this.selfView(this.userById(me.id)!) });
+    }
+    // the 3D figure's look, kept on the account (the phone keeps it too, and sends it up a moment after each change)
+    if (path === "/me/look" && m === "GET") {
+      const r = this.one(`SELECT look, updated_at FROM looks WHERE user_id = ?`, me.id);
+      return ok({ look: r ? checkLook(JSON.parse(String(r.look))) : null, at: r ? Number(r.updated_at) : 0 });
+    }
+    if (path === "/me/look" && m === "PUT") {
+      if (!b.look || typeof b.look !== "object" || JSON.stringify(b.look).length > 4000) return err(400, "bad");
+      if (!this.allow(`look:${me.id}`, 300, 3600_000)) return err(429, "slow-down");
+      const look = checkLook(b.look);
+      const at = Date.now();
+      this.sql.exec(`INSERT INTO looks (user_id, look, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET look = excluded.look, updated_at = excluded.updated_at`, me.id, JSON.stringify(look), at);
+      return ok({ look, at });
     }
     if (path === "/me/avatar" && m === "DELETE") {
       this.sql.exec(`DELETE FROM avatars WHERE user_id = ?`, me.id);
@@ -904,6 +920,7 @@ export class Hub extends DurableObject<HubEnv> {
       `DELETE FROM devices WHERE user_id = ?`,
       `DELETE FROM avatars WHERE user_id = ?`,
       `DELETE FROM figures WHERE user_id = ?`,
+      `DELETE FROM looks WHERE user_id = ?`,
       `DELETE FROM history WHERE user_id = ?`,
       `DELETE FROM friends WHERE a = ? OR b = ?`,
       `DELETE FROM messages WHERE a = ? OR b = ?`,
