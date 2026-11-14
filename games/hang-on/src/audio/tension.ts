@@ -96,7 +96,11 @@ export function moodOf(sim: SimView, opts: MoodInput = {}): { danger: number; pu
   const danger = 0.7 * max + 0.3 * mean;
   let push = 0;
   const mode = sim.rules?.mode ?? 'climb';
-  if (mode === 'last') {
+  if (mode === 'gold' && sim.gold) {
+    // 抢元宝：有人快攒够了越来越紧
+    const most = Math.max(0, ...sim.gold.holdT);
+    push = Math.min(1, most / sim.gold.need) * 0.9;
+  } else if (mode === 'last') {
     // 坐不住：剩的人越少越紧
     const n = live.length;
     push = n <= 2 ? 0.85 : n === 3 ? 0.5 : 0.2;

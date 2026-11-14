@@ -64,13 +64,14 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
     p,
     ...(sim.layoutFor !== undefined && sim.layoutFor !== sim.players.length ? { np: sim.layoutFor } : {}),
     r: sim.ropes.map((rope) => rope.pts.flatMap((q) => [r1(q.x), r1(q.y)])),
-    o: sim.props.map((o) => [r1(o.x), r1(o.y), r3(o.angle), o.w, o.h, o.kind === 'seesaw' ? 0 : 1]),
+    o: sim.props.map((o) => [r1(o.x), r1(o.y), r3(o.angle), o.w, o.h, o.kind === 'seesaw' ? 0 : o.kind === 'ingot' ? 2 : 1]),
     f: sim.fadings.flatMap((f) => [f.on ? 1 : 0, r2(f.left)]),
     s: sim.springs.map((s) => (Number.isFinite(s.hit) ? r2(Math.min(s.hit, 99)) : -1)),
   };
   if (sim.envelopes?.length) snap.en = sim.envelopes.reduce((m, e, k) => (e.got ? m | (1 << k) : m), 0);
   if (sim.plates?.length) snap.pl = sim.plates.reduce((m, q, k) => (q.on ? m | (1 << k) : m), 0);
   if (sim.gates?.length) snap.gt = sim.gates.map((g) => r3(g.open));
+  if (sim.gold) snap.gd = [sim.gold.need, sim.gold.holder, ...sim.gold.holdT.map(r2)];
   if (sim.drone) snap.dr = [r1(sim.drone.x), r1(sim.drone.y), Math.max(0, DRONE_PHASES.indexOf(sim.drone.phase))];
   if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
@@ -133,6 +134,8 @@ export class RemoteSim implements SimView {
   /** 踩板门（11-13）：踏板按着没有跟着快照走（不匀）；门开到几成跟着匀，位置按关卡算。 */
   plates: PlateView[] = [];
   gates: (GateView & { def: GateDef })[] = [];
+  /** 抢金元宝（A9d）：每个人攒了几秒（不匀，快照来了就换）。 */
+  gold: { holdT: number[]; need: number; holder: number } | null = null;
   /** 外卖无人机（A9c）：位置跟着匀，来了、走了直接出现、消失。 */
   drone: { x: number; y: number; phase: string } | null = null;
   /** envelopes 是按哪一版关卡摆的（换关就重摆）。 */
@@ -258,7 +261,7 @@ export class RemoteSim implements SimView {
       changed = true;
     }
     if (force || this.props.length !== s.o.length) {
-      this.props = s.o.map((o) => ({ kind: o[5] === 0 ? 'seesaw' : 'crate', w: o[3] ?? 0, h: o[4] ?? 0, x: 0, y: 0, angle: 0 }));
+      this.props = s.o.map((o) => ({ kind: o[5] === 0 ? 'seesaw' : o[5] === 2 ? 'ingot' : 'crate', w: o[3] ?? 0, h: o[4] ?? 0, x: 0, y: 0, angle: 0 }));
       changed = true;
     }
     const fd = this.level.fading ?? [];
@@ -378,6 +381,7 @@ export class RemoteSim implements SimView {
     this.won = s.w === 1;
     this.checkpoint = s.cp;
     if (this.drone && s.dr) this.drone.phase = DRONE_PHASES[s.dr[2]] ?? 'wait';
+    this.gold = s.gd ? { need: s.gd[0] ?? 5, holder: s.gd[1] ?? -1, holdT: s.gd.slice(2) } : null;
     const pl = s.pl ?? 0;
     this.plates.forEach((q, k) => (q.on = (pl & (1 << k)) !== 0));
     // 红包：位置在关卡里，拿没拿到跟着快照走；这一局没有红包（不写 en）就不画

@@ -137,6 +137,8 @@ export interface Snap {
   /** 踩板门（11-13）：按着的踏板（按位）、每扇门开到几成。 */
   pl?: number;
   gt?: number[];
+  /** 抢金元宝（A9d）：[要攒几秒, 现在谁一个人抓着, 每个人攒了几秒…]。 */
+  gd?: number[];
   /** 外卖无人机（A9c）：提手在哪、在干什么（0 飞来 1 等 2 带人 3 放人 4 飞走）。 */
   dr?: [number, number, number];
   /**
@@ -169,6 +171,8 @@ export interface Results {
   order?: [number, number | null][];
   /** 小目标（A9b，闯关和大团队）：每个达到没有、是不是这一局第一次拿到这颗星。 */
   goals?: Goal[];
+  /** 抢金元宝（A9d）：这一场每个人赢了几局。 */
+  rounds?: number[];
   /** 红包（A9b）：这一局拿到几个、这关一共几个、这一局新拿到几个（以前没拿过的）、这台主机一共攒了几个。 */
   envelopes?: { got: number; of: number; fresh: number; total: number };
 }
@@ -224,6 +228,8 @@ export interface Cast {
   /** 这一局的玩法（A7）和比谁先的分队，横幅、结算页、画面（坐不住时手抓久了要抖）用。 */
   mode?: GameMode;
   teams?: number[];
+  /** 抢金元宝（A9d）这一场：打到第几局、每个人赢了几局（手机局的手机上写比分）。 */
+  gold?: { round: number; wins: number[] };
 }
 
 /**

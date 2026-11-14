@@ -64,3 +64,65 @@ export function arenaLevels(): Level[] {
     },
   ];
 }
+
+/**
+ * 抢金元宝（A9d）的场地：不塌。中间一块台子上放金元宝，左右两块台子是各人站的地方（摔了也回那），
+ * 上面几根横杆、一块会动的台子（温哥华）好绕着抢。底下是红油锅（桌上）或者海水（温哥华）：掉下去一秒多以后回自己那边。
+ */
+export function goldArenas(): Level[] {
+  const sides = (y: number): { x: number; y: number }[] => [
+    { x: 130, y },
+    { x: 1150, y },
+    { x: 200, y },
+    { x: 1080, y },
+    { x: 270, y },
+    { x: 1010, y },
+  ];
+  return [
+    {
+      id: 'gold-01',
+      world: 'table',
+      name: { zh: '元宝席', en: 'Gold Banquet' },
+      arena: true,
+      w: 1280,
+      h: 720,
+      spawn: { x: 130, y: 496 },
+      goal: NO_GOAL,
+      checkpoints: [],
+      rects: [
+        { kind: 'ground', x: 500, y: 430, w: 280, h: 26, material: 'ceramic' },
+        { kind: 'step', x: 90, y: 520, w: 220, h: 24, material: 'wood' },
+        { kind: 'step', x: 970, y: 520, w: 220, h: 24, material: 'wood' },
+        { kind: 'peg', x: 300, y: 300, w: 140, h: 18, material: 'wood' },
+        { kind: 'peg', x: 840, y: 300, w: 140, h: 18, material: 'wood' },
+        { kind: 'step', x: 560, y: 170, w: 160, h: 22, material: 'ceramic' },
+      ],
+      hazards: [{ x: 0, y: 680, w: 1280, h: 40, kind: 'hot' }],
+      ingot: { x: 640, y: 415 },
+      spawns: sides(496),
+      deathY: 800,
+    },
+    {
+      id: 'gold-02',
+      world: 'van',
+      name: { zh: '金元宝浮台', en: 'Gold on the Floats' },
+      arena: true,
+      w: 1280,
+      h: 720,
+      spawn: { x: 130, y: 516 },
+      goal: NO_GOAL,
+      checkpoints: [],
+      rects: [
+        { kind: 'ground', x: 520, y: 450, w: 240, h: 26, material: 'metal' },
+        { kind: 'step', x: 90, y: 540, w: 220, h: 24, material: 'metal' },
+        { kind: 'step', x: 970, y: 540, w: 220, h: 24, material: 'metal' },
+        { kind: 'peg', x: 250, y: 330, w: 140, h: 18, material: 'wood' },
+        { kind: 'peg', x: 890, y: 330, w: 140, h: 18, material: 'wood' },
+      ],
+      movers: [{ x: 360, y: 210, w: 140, h: 20, material: 'metal', path: [{ x: 780, y: 210 }], speed: 110, wait: 0.8 }],
+      ingot: { x: 640, y: 435 },
+      spawns: sides(516),
+      deathY: 800,
+    },
+  ];
+}

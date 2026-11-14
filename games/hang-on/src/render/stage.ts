@@ -58,6 +58,8 @@ export class Stage {
   private readonly envG = new Graphics();
   /** 外卖无人机（A9c）。 */
   private readonly droneG = new Graphics();
+  /** 抢金元宝（A9d）：头上的进度圈。 */
+  private readonly holdG = new Graphics();
   /** 落在台子上的影子（A8）。 */
   private readonly shadowsG = new Graphics();
   private readonly ropesG = new Graphics();
@@ -113,7 +115,7 @@ export class Stage {
       this.fx.cap = 150;
       this.screenFx.cap = 60;
     }
-    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.droneG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
+    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.droneG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.holdG, this.fx.view, this.abyssTop);
     this.root.addChild(this.screenFx.view, this.world, this.vignette, this.flash);
     app.stage.addChild(this.root);
   }
@@ -215,8 +217,15 @@ export class Stage {
     this.abyssGrad?.destroy();
     this.abyssGrad = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.abyssTop }, { offset: 1, color: this.pal.abyssBottom }] });
     a.rect(-3000, level.deathY - 8, level.w + 6000, 1400).fill(this.abyssGrad);
-    this.cam.x = level.spawn.x;
-    this.cam.y = level.spawn.y - 60;
+    // 场地（坐不住、抢金元宝）只有一屏：镜头一开始就看全场，抢元宝每局换场地时不从边上摇过来
+    if (level.arena) {
+      this.cam.x = level.w / 2;
+      this.cam.y = level.h / 2;
+      this.cam.z = Math.min(this.W / level.w, this.H / level.h);
+    } else {
+      this.cam.x = level.spawn.x;
+      this.cam.y = level.spawn.y - 60;
+    }
     this.screenFx.clear();
     this.fx.clear();
   }
@@ -531,6 +540,7 @@ export class Stage {
     this.drawProps(sim);
     this.drawEnvelopes(sim);
     this.drawDrone(sim);
+    this.drawHold(sim);
     this.drawShadows(sim);
     this.drawRopes(sim);
     this.drawTrails(sim);
@@ -615,6 +625,8 @@ export class Stage {
         }
         g.circle(prop.x, prop.y, 6).fill(0x3a2a2a);
         g.circle(prop.x - 1.5, prop.y - 1.5, 2).fill({ color: 0xffffff, alpha: 0.4 });
+      } else if (prop.kind === 'ingot') {
+        this.drawIngot(g, prop.x, prop.y, prop.angle, w, h);
       } else {
         // 箱子：年夜饭桌上是蒸笼，温哥华是货箱
         g.poly(pts).fill({ texture: table ? this.tex.wood : this.tex.metal, textureSpace: 'global' });
@@ -675,6 +687,51 @@ export class Stage {
     if (d.phase === 'wait' && !this.reduced) g.roundRect(x - 34, y - 9, 68, 18, 9).fill({ color: 0xffd27a, alpha: 0.25 + 0.2 * Math.sin(this.t * 6) });
     g.moveTo(x - 20, y - 10).lineTo(x - 26, y).moveTo(x + 20, y - 10).lineTo(x + 26, y).stroke({ width: 2.5, color: 0x3a2a2a });
     g.roundRect(x - 28, y - 4, 56, 9, 4).fill(0xf6c453).stroke({ width: 2, color: 0x8a5a14 });
+  }
+
+  /**
+   * 金元宝（A9d）：两头翘起的船形，中间鼓一个包，金色，一道高光；四周一圈暖光。
+   * 角度跟着物理转（元宝会被抢得翻过来）。
+   */
+  private drawIngot(g: Graphics, x: number, y: number, angle: number, w: number, h: number): void {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+    g.circle(x, y, w * 0.9).fill({ color: 0xffd27a, alpha: 0.16 });
+    // 船身：下面圆、两头翘
+    const hw = w / 2;
+    const boat = [at(-hw - 4, -h * 0.25), at(-hw + 6, h * 0.5), at(hw - 6, h * 0.5), at(hw + 4, -h * 0.25), at(hw - 8, -h * 0.05), at(-hw + 8, -h * 0.05)].flat();
+    g.poly(boat).fill(0xe8a823).stroke({ width: 2.5, color: 0x8a5a14, join: 'round' });
+    // 中间鼓起的包
+    const [bx, by] = at(0, -h * 0.12);
+    g.ellipse(bx, by, w * 0.26, h * 0.42).fill(0xf6c453).stroke({ width: 2, color: 0x8a5a14 });
+    const [hx, hy] = at(-w * 0.07, -h * 0.28);
+    g.ellipse(hx, hy, w * 0.08, h * 0.12).fill({ color: 0xffffff, alpha: 0.55 });
+    // 船身上一道亮边
+    const [ax, ay] = at(-hw + 2, -h * 0.12);
+    const [cx, cy] = at(hw - 2, -h * 0.12);
+    g.moveTo(ax, ay).lineTo(cx, cy).stroke({ width: 2, color: 0xfff1c2, alpha: 0.7 });
+  }
+
+  /** 抢金元宝（A9d）：每个人头上一圈进度（攒了几秒 / 要几秒），一个人抓着时那一圈亮。 */
+  private drawHold(sim: SimView): void {
+    const g = this.holdG.clear();
+    const gold = sim.gold;
+    if (!gold) return;
+    sim.players.forEach((p, i) => {
+      const t = gold.holdT[i] ?? 0;
+      if (p.dead || t <= 0) return;
+      const k = Math.min(1, t / gold.need);
+      const x = p.body.x;
+      const y = p.body.y - 52;
+      const on = gold.holder === i;
+      g.circle(x, y, 13).fill({ color: 0x241c33, alpha: 0.7 });
+      // 弧从正上方起（先挪过去，不然会从上一个点连一条线过来）
+      g.moveTo(x, y - 13)
+        .arc(x, y, 13, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2)
+        .stroke({ width: 5, color: on ? 0xffd27a : 0xc9a24a, alpha: on ? 1 : 0.7, cap: 'round' });
+      g.circle(x, y, 4).fill(on ? 0xffd27a : 0xc9a24a);
+    });
   }
 
   private drawEnvelopes(sim: SimView): void {

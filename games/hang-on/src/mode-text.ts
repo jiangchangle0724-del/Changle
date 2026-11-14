@@ -12,6 +12,7 @@ const NAMES: Record<GameMode, Text> = {
   team: { zh: '大团队', en: 'Big team' },
   race: { zh: '比谁先', en: 'Race' },
   last: { zh: '坐不住', en: 'Last one hanging' },
+  gold: { zh: '抢元宝', en: 'Grab the gold' },
 };
 
 export const modeName = (m: GameMode): string => pickLang(NAMES[m]);
@@ -23,6 +24,7 @@ export function modeHintText(m: GameMode, teams: boolean): Text {
     return teams
       ? { zh: '甜队对咸队，哪一队的人先都到顶就赢', en: 'Team Sweet vs Team Savory. The first team with everyone at the top wins' }
       : { zh: '各跑各的，先到顶的赢，拽别人也算', en: 'Every dumpling for themselves. First to the top wins, and grabbing others is fair game' };
+  if (m === 'gold') return { zh: '抢中间那个金元宝，只有你一个人抓着时攒时间，攒够 5 秒赢一局，先赢 5 局的赢', en: 'Grab the gold ingot. It only counts while you alone hold it: 5 seconds wins a round, and the first to 5 rounds wins' };
   if (m === 'last') return { zh: '摔了不复活，平台会塌，最后还挂着的赢', en: 'No respawns and the platforms crumble. The last one hanging wins' };
   return { zh: '大家一起到顶，摔了回检查点', en: 'Everyone reaches the top together. Fall and you come back at the last checkpoint' };
 }

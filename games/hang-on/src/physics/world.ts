@@ -226,7 +226,7 @@ export interface Noodle {
 }
 
 export interface Prop {
-  kind: 'seesaw' | 'crate';
+  kind: 'seesaw' | 'crate' | 'ingot';
   rb: RB;
   w: number;
   h: number;
@@ -244,8 +244,9 @@ export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap';
  * - team 大团队：规则和闯关一样，关卡是给 4 到 6 个人的大关。
  * - race 比谁先：各跑各的（或者分两队），先到终点的赢；每个人（每队）有自己的检查点，到了终点就停在那。
  * - last 坐不住：摔了不复活，平台一块块塌，一个地方抓久了手会滑，最后还挂着的赢。
+ * - gold 抢金元宝（A9d）：场地中间一个金元宝，抓在手里（只有你一个人抓着）攒够 CFG.goldHold 秒赢一局；摔了回自己那边。
  */
-export type GameMode = 'climb' | 'team' | 'race' | 'last';
+export type GameMode = 'climb' | 'team' | 'race' | 'last' | 'gold';
 export interface Rules {
   mode: GameMode;
   /** 比谁先分两队时：每个人在第几队（0 或 1）。不写就是各跑各的。 */
@@ -286,6 +287,8 @@ export type SimEvent =
   | { type: 'win'; who?: number[] }
   /** 拿到一个红包（A9b）：第几个、谁拿的、在哪。 */
   | { type: 'envelope'; index: number; player: number; x: number; y: number }
+  /** 抢金元宝（A9d）：有人抓住了元宝（t 是他这一局攒了几秒，整秒报一次）；元宝掉下去回到中间（player 是 -1）。 */
+  | { type: 'gold'; player: number; t: number; x: number; y: number }
   /** 外卖无人机（A9c）：飞来了（arrive）、有人抓着开始带（carry）、飞走了（leave）；x、y 是提手在哪。 */
   | { type: 'drone'; phase: 'arrive' | 'carry' | 'leave'; x: number; y: number }
   /** 踩板门（11-13）：踏板按下去 / 弹起来了；门开始开 / 开始关（x、y 是踏板、门的中间）。 */
@@ -369,6 +372,8 @@ export class Sim {
   readonly noodles: Noodle[] = [];
   /** 红包（A9b）：关里藏的几个，拿到没有（闯关和大团队才有）。 */
   readonly envelopes: { x: number; y: number; got: boolean }[] = [];
+  /** 抢金元宝（A9d）：元宝是第几个物件、每个人这一局抓着它攒了几秒、元宝掉下去了多久、现在谁一个人抓着（没有是 -1）。 */
+  gold: { prop: number; holdT: number[]; need: number; lostT: number; holder: number } | null = null;
   /** 外卖无人机（A9c）：x、y 是外卖袋提手的中间；没来是 null。 */
   drone: { phase: DronePhase; x: number; y: number; t: number; hover: Pt; path: Pt[]; rb: RB; col: Col } | null = null;
   /** 这一段卡了几秒、摔了几次（过一个检查点清零），无人机走了也清零。 */
@@ -425,6 +430,13 @@ export class Sim {
     if (this.itemsOn) for (const e of level.envelopes ?? []) this.envelopes.push({ x: e.x, y: e.y, got: false });
 
     this.setPlayers(nPlayers);
+    // 抢金元宝（A9d）：中间放一个元宝
+    if (rules.mode === 'gold' && level.ingot) {
+      const prop = this.props.length;
+      this.addCrate({ x: level.ingot.x - 23, y: level.ingot.y - 13, w: 46, h: 26, mass: 0.6 }, 0.9);
+      (this.props[prop] as Prop).kind = 'ingot';
+      this.gold = { prop, holdT: this.players.map(() => 0), need: CFG.goldHold, lostT: 0, holder: -1 };
+    }
   }
 
   // ---------------------------------------------------------------- 关卡物件
@@ -739,6 +751,46 @@ export class Sim {
     }
   }
 
+  /**
+   * 抢金元宝（A9d）每一步：只有一个人的手抓着元宝，他就攒时间（几个人同时抓着谁都不算）；攒够就赢这一局。
+   * 元宝掉出场地（掉进锅里、摔死线下面）一秒后回到中间，抓着它的手松开。
+   */
+  private tickGold(dt: number): void {
+    const g = this.gold;
+    if (!g || this.won) return;
+    const prop = this.props[g.prop] as Prop;
+    const holders = this.players.filter((p) => !p.dead && p.arms.some((a) => a.grip?.kind === 'prop' && a.grip.prop === g.prop));
+    if (holders.length !== 1) g.holder = -1;
+    else {
+      const p = holders[0] as Player;
+      const before = g.holdT[p.id] ?? 0;
+      const after = before + dt;
+      g.holdT[p.id] = after;
+      if (g.holder !== p.id || Math.floor(after) > Math.floor(before)) this.events.push({ type: 'gold', player: p.id, t: Math.floor(after), x: prop.x, y: prop.y });
+      g.holder = p.id;
+      if (after >= g.need) {
+        this.won = true;
+        this.winT = 0;
+        this.winners = [p.id];
+        this.events.push({ type: 'win', who: [p.id] });
+        p.face = 'win';
+        return;
+      }
+    }
+    // 掉出去了：一秒后回到中间
+    const lost = prop.y > this.level.deathY || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 12, h));
+    g.lostT = lost ? g.lostT + dt : 0;
+    if (g.lostT >= CFG.ingotBack && this.level.ingot) {
+      for (const [, e] of [...this.grips]) if (e.g.target === prop.rb) this.release(this.players[e.player] as Player, e.arm);
+      prop.rb.setTranslation(this.level.ingot, true);
+      prop.rb.setLinvel({ x: 0, y: 0 }, true);
+      prop.rb.setAngvel(0, true);
+      prop.rb.setRotation(0, true);
+      g.lostT = 0;
+      this.events.push({ type: 'gold', player: -1, t: 0, x: this.level.ingot.x, y: this.level.ingot.y });
+    }
+  }
+
   /** 叫无人机：悬在离下一个目标最远的那个活着的人头上。 */
   private callDrone(): void {
     const target = this.nextTarget();
@@ -987,6 +1039,9 @@ export class Sim {
 
   /** 第 i 个玩家的复活点：最近激活的检查点，没有就是起点；几个人并排错开。 */
   private spawnPoint(i: number): Pt {
+    // 抢金元宝：每个人站自己那个位置（摔了也回那）
+    const sp = this.rules.mode === 'gold' ? this.level.spawns : undefined;
+    if (sp?.length) return sp[i % sp.length] as Pt;
     // 比谁先：回自己（自己那一队）到过的检查点
     const at = this.rules.mode === 'race' ? (this.cpOf[this.teamOf(i)] ?? -1) : this.checkpoint;
     const cp = at >= 0 ? this.level.checkpoints?.[at] : undefined;
@@ -1199,6 +1254,7 @@ export class Sim {
       prop.angle = prop.rb.rotation();
     }
     this.lifeAndDeath(dt);
+    this.tickGold(dt);
     this.acts();
     this.pickEnvelopes();
     this.checkpoints();
@@ -1234,7 +1290,7 @@ export class Sim {
       p.pendingAct = null;
       if (!act || p.dead || p.done || act !== 'summon') continue;
       // 坐不住摔了就出局；比谁先各跑各的没有队友可以拉
-      if (this.rules.mode === 'last' || (this.rules.mode === 'race' && !this.rules.teams)) continue;
+      if (this.rules.mode === 'last' || this.rules.mode === 'gold' || (this.rules.mode === 'race' && !this.rules.teams)) continue;
       const who: number[] = [];
       for (const q of this.players) {
         if (!q.dead || q.done) continue;
@@ -1798,6 +1854,7 @@ export class Sim {
     if (this.won || this.players.length === 0) return;
     if (this.rules.mode === 'race') return this.checkRace();
     if (this.rules.mode === 'last') return this.checkLast();
+    if (this.rules.mode === 'gold') return;
     const allIn = this.players.every((p) => !p.dead && this.inGoal(p));
     if (allIn) {
       this.won = true;

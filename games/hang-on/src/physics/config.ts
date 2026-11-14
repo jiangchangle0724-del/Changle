@@ -158,6 +158,10 @@ export const CFG = {
    * 就飞来一架无人机，挂着外卖袋悬在落在最后的人头上 droneHang 像素；droneWait 秒没人抓就走，有人抓就带到下一个检查点（或终点），
    * 在那悬 droneDrop 秒再走。每秒飞 droneSpeed 像素。
    */
+  /** 抢金元宝（A9d）：抓在手里攒够几秒赢一局，先赢几局的赢这一场；元宝掉下去多久回到中间。 */
+  goldHold: 5,
+  goldRounds: 5,
+  ingotBack: 1,
   helpAfter: 60,
   helpDeaths: 3,
   helpLate: 120,

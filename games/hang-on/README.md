@@ -12,9 +12,10 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/physics/extras.test.ts` | 检查点、跷跷板和箱子、回放、步长 |
 | `src/physics/gameplay.test.ts` | A3 的玩法：饼干平台、弹簧蜡烛、背叛判定、召唤、落地事件 |
 | `src/physics/hazards.test.ts` | A6 的机关：碰到就死的尖刺、烫、电，会动的台子，会转的杆子，按人数摆的关 |
-| `src/physics/arenas.ts` | 坐不住（A7）的两个场地：转盘（桌上）、海湾浮台（温哥华），平台按 `until` 一块块塌 |
+| `src/physics/arenas.ts` | 坐不住（A7）的两个场地：转盘（桌上）、海湾浮台（温哥华），平台按 `until` 一块块塌；抢金元宝（A9d）的两个场地：元宝席、金元宝浮台 |
 | `src/physics/modes.test.ts` | A7：6 个人每关都站得住、每个检查点都复活得了，比谁先（各跑各的、分两队）、坐不住、定时塌、手滑 |
 | `src/physics/drone.test.ts` | 卡太久来帮手（A9c，外卖无人机）：没打开帮手不来、比谁先坐不住不来、卡久了来没人抓就走、摔多了早来、抓住带到下一个检查点 |
+| `src/physics/gold.test.ts` | 抢金元宝（A9d）：两块场地站得住、一个人抓着攒够 5 秒赢、两个人一起抓谁都不算、元宝掉出去回中间、摔了回自己那边 |
 | `src/physics/gates.test.ts` | 踩板门（11-13）：踩着开门、走开过一会儿关、有人挡着不夹人、箱子也算、几块一起按、按人数摆、手机局快照 |
 | `src/physics/items.test.ts` | A9 的道具：速冻（冻住不掉、队友能站能抓、冷却）、拉面（要先抓着墙、垂下来能挂人、到点断）、荷叶（掉得慢、能横着飘），比谁先和坐不住里没有 |
 | `src/items.ts`、`src/item-text.ts` | 道具（A9）有哪几样、小图标（物理和房间协议也用，什么都不 import）；名字和一句话说明（中英两套） |
@@ -52,7 +53,7 @@ npm run lobby-check # 同上：大厅、结算、下一关
 npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
                     # 背景音乐试听：npm run dev 以后开 http://localhost:8787/hang-on/music.html
 npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，proto-04 是踩板门样板关，?helper=1&helpLate=5 打开外卖无人机、卡 5 秒就来，
-                    #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 试玩法，?phone=1 照手机的画法画，
+                    #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 / ?mode=gold&level=gold-01 试玩法，?phone=1 照手机的画法画，
                     #   ?item=freeze / noodle / leaf 每人带一样道具，P1 按 F、P2 按 P 用）
 npm run levels      # 关卡验收：每关的规则加回放（-- --screenshots 重拍 docs/levels/ 的截图）
 npm run envelopes   # 红包：从四人回放里给每关挑 3 个藏红包的地方（回放或关卡改了以后重跑）
@@ -67,8 +68,8 @@ npm run ip-check    # 法律线，CI 里为零才合并
 
 ## 玩法（A7）
 
-大厅里开局前先选单人还是多人（没人点过就跟着人数走），多人再选玩法：一起闯关、大团队（4 到 6 个人的大关，C9 做好才出）、比谁先（各跑各的，或者甜队对咸队）、坐不住（摔了不复活，平台会塌，一个地方抓久了手会滑，最后挂着的赢）。闯关和比谁先最后选难度：简单（1 到 6 关和彩蛋关）、中等（7 到 12 关）、困难（13 号往后）。
-最多 6 个人：电视局 6 个手柄，手机局房主加 5 部手机。规则在 `CONTRACTS.md`「玩法契约」；主机页 `?mode=race&teams=1`、`?mode=last`、`?side=solo&tier=2` 直接开到那里。
+大厅里开局前先选单人还是多人（没人点过就跟着人数走），多人再选玩法：一起闯关、大团队（4 到 6 个人的大关，C9 做好才出）、比谁先（各跑各的，或者甜队对咸队）、坐不住（摔了不复活，平台会塌，一个地方抓久了手会滑，最后挂着的赢）、抢金元宝（只有你一个人抓着元宝时攒时间，攒够 5 秒赢一局，先赢 5 局的赢）。闯关和比谁先最后选难度：简单（1 到 6 关和彩蛋关）、中等（7 到 12 关）、困难（13 号往后）。
+最多 6 个人：电视局 6 个手柄，手机局房主加 5 部手机。规则在 `CONTRACTS.md`「玩法契约」；主机页 `?mode=race&teams=1`、`?mode=last`、`?mode=gold`、`?side=solo&tier=2` 直接开到那里。
 
 ## 小目标和红包（A9b）
 

@@ -5,7 +5,7 @@
  * 大团队用 levels/team/ 里的大关（C9），坐不住用场地（src/physics/arenas.ts）。
  */
 import { pickLang } from './i18n';
-import { arenaLevels } from './physics/arenas';
+import { arenaLevels, goldArenas } from './physics/arenas';
 import { gatesLevel, machinesLevel, sampleLevel, showcaseLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
 import type { Side, Tier } from './sides';
@@ -23,6 +23,8 @@ export const LEVELS: Level[] = [...sorted(files), showcaseLevel()];
 export const TEAM_LEVELS: Level[] = sorted(teamFiles);
 /** 坐不住的场地。 */
 export const ARENAS: Level[] = arenaLevels();
+/** 抢金元宝（A9d）的场地。 */
+export const GOLD_ARENAS: Level[] = goldArenas();
 /**
  * 多人非配合不可的关（11-13，Codex 的 C14 做，放进 levels/multi/）：多人的一起闯关按难度从这里选，
  * 这一档还没有的时候用和单人一样的那一串。
@@ -43,6 +45,7 @@ export function tierOfLevel(l: Level): Tier {
 export function levelsFor(mode: GameMode, tier?: Tier, side: Side = 'solo'): Level[] {
   if (mode === 'team') return TEAM_LEVELS;
   if (mode === 'last') return ARENAS;
+  if (mode === 'gold') return GOLD_ARENAS;
   if (tier === undefined) return LEVELS;
   if (mode === 'climb' && side === 'multi') {
     const multi = MULTI_LEVELS.filter((l) => tierOfLevel(l) === tier);
@@ -56,7 +59,7 @@ export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-02') return machinesLevel('table');
   if (id === 'proto-03') return machinesLevel('van');
   if (id === 'proto-04') return gatesLevel();
-  return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id);
+  return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id);
 }
 
 /** 关卡教的那件事，给人看的话。 */

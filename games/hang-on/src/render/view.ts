@@ -48,7 +48,7 @@ export interface NoodleView {
 }
 
 export interface PropView {
-  kind: 'seesaw' | 'crate';
+  kind: 'seesaw' | 'crate' | 'ingot';
   w: number;
   h: number;
   x: number;
@@ -114,6 +114,8 @@ export interface SimView {
   /** 踩板门（11-13）。 */
   plates?: PlateView[];
   gates?: GateView[];
+  /** 抢金元宝（A9d）：每个人这一局抓着元宝攒了几秒、要攒几秒、现在谁一个人抓着（-1 没有）。 */
+  gold?: { holdT: number[]; need: number; holder: number } | null;
   /** 卡太久来帮手（A9c）：外卖无人机提手的中间、在干什么；没来是 null。 */
   drone?: { x: number; y: number; phase: string } | null;
 }

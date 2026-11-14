@@ -202,6 +202,19 @@ class Sfx {
           this.tone({ freq: 2640, wave: 'sine', dur: 0.25, vol: 0.08, pan, delay: 0.08 });
           break;
         }
+        case 'gold': {
+          // 抢金元宝（A9d）：抓住叮当一声；每攒一秒响一下，越来越高；元宝回到中间呼一声
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.player < 0) {
+            this.noise({ dur: 0.4, vol: 0.14, filter: { type: 'bandpass', freq: 900, q: 1, to: 2600 }, attack: 0.05, pan });
+            break;
+          }
+          if (ev.t === 0) {
+            this.tone({ freq: 1568, wave: 'triangle', dur: 0.14, vol: 0.22, pan });
+            this.tone({ freq: 2093, wave: 'triangle', dur: 0.2, vol: 0.18, pan, delay: 0.06 });
+          } else this.tone({ freq: 660 + ev.t * 110, wave: 'sine', dur: 0.1, vol: 0.2, pan });
+          break;
+        }
         case 'drone': {
           // 外卖无人机（A9c）：来了叮咚一声加嗡嗡；带人走往上嗡一声；飞走嗡声往下
           const pan = this.pan(ev.x, ev.y);

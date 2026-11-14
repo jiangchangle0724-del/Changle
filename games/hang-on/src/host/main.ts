@@ -32,7 +32,7 @@ import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
-import { renderResults, resultsOf, resultsTitle, teamName, type ResultsDom } from '../results';
+import { renderGoldScore, renderResults, resultsOf, resultsTitle, teamName, type ResultsDom } from '../results';
 import { goalsOf, goalTargets, starLine, type Goal } from '../goals';
 import { goalText } from '../goal-text';
 import { envelopeTotal, record, starsOf } from './progress';
@@ -65,7 +65,7 @@ document.body.dataset.phase = 'lobby';
 const canvas = $<HTMLCanvasElement>('stage');
 const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
 /** 玩法（A7）：开局前在大厅里选；`?mode=race` 之类直接开到那个玩法（检查脚本用），`?teams=1` 比谁先分两队。 */
-const MODES: GameMode[] = ['climb', 'team', 'race', 'last'];
+const MODES: GameMode[] = ['climb', 'team', 'race', 'last', 'gold'];
 let mode: GameMode = MODES.find((m) => m === params.get('mode') && (m !== 'team' || TEAM_LEVELS.length > 0)) ?? 'climb';
 let teamsOn = params.get('teams') === '1';
 /**
@@ -146,6 +146,11 @@ sfx.attach(document);
 music.attach(() => sfx.audio());
 music.setPhase('lobby');
 const tension = new Tension();
+/** 抢金元宝（A9d）这一场：第几局、每个人赢了几局（从大厅或结算页开局时清零）。 */
+let goldRound = 1;
+let roundWins: number[] = [];
+/** 打完的那几局加起来用了多久、每个人摔了几次（每局重摆场地，结算页写整场的）。 */
+let goldPast = { time: 0, deaths: [] as number[] };
 /** 准时那颗星的秒数（A9b），倒数时算好；音乐快到时间了会催。 */
 let timeTarget: number | undefined;
 /** 这一关放哪首：按场景，困难和坐不住放小调版。 */
@@ -387,6 +392,7 @@ function onPhase(next: Phase): void {
   // 坐不住：数还有几个人挂着，不数摔了几次
   $('deathChip').hidden = !playing || mode === 'last';
   $('aliveChip').hidden = !playing || mode !== 'last';
+  $('goldChip').hidden = !playing || mode !== 'gold';
   // 底下那条说明只在大厅里有用，玩的时候别挡着画面
   $('note').hidden = next !== 'lobby';
   // 手机局：倒数和玩的时候房主的摇杆、抓键压在画面上；页面的样式（横过来的提示）按阶段走
@@ -401,6 +407,11 @@ function onPhase(next: Phase): void {
   if (next === 'countdown') countdown();
   if (next === 'results') showResults();
   // 背景音乐：大厅、结算轻轻放，倒数从头起，玩的时候跟着紧张走
+  if (next === 'countdown' && mode === 'gold') {
+    goldRound = 1;
+    roundWins = Array.from({ length: Math.max(1, playerCount()) }, () => 0);
+    goldPast = { time: 0, deaths: [] };
+  }
   if (next === 'countdown') {
     syncMusic();
     tension.reset(0.3);
@@ -446,9 +457,71 @@ function countLabel(): string {
 
 /** 这一局的小目标和红包（A9b）：到顶那一下算好、记下，结算页和发给手机的结算都用它；开新的一局清掉。 */
 let lastGoals: { goals: Goal[]; envelopes: NonNullable<Results['envelopes']> } | null = null;
-/** 结算的数：玩的那一局的，加上小目标。 */
+/** 结算的数：玩的那一局的，加上小目标；抢金元宝加上这一场每个人赢了几局。 */
 function fullResults(): Results {
-  return { ...resultsOf(sim), ...(lastGoals ? { goals: lastGoals.goals, envelopes: lastGoals.envelopes } : {}) };
+  return {
+    ...resultsOf(sim),
+    ...(lastGoals ? { goals: lastGoals.goals, envelopes: lastGoals.envelopes } : {}),
+    ...(sim.rules.mode === 'gold' ? goldTotals() : {}),
+  };
+}
+
+/** 抢金元宝每个人赢了几局（半路进来的人从 0 算）。 */
+const goldWins = (): number[] => sim.players.map((_, i) => roundWins[i] ?? 0);
+
+/** 抢金元宝的结算：每个人赢了几局，整场用了多久、每个人一共摔了几次。 */
+function goldTotals(): Pick<Results, 'rounds' | 'time' | 'deaths'> {
+  return {
+    rounds: goldWins(),
+    time: Math.round((goldPast.time + sim.time) * 100) / 100,
+    deaths: sim.players.map((p, i) => p.deaths + (goldPast.deaths[i] ?? 0)),
+  };
+}
+
+/** 抢金元宝的比分：「阿一 2 · 阿二 1」。 */
+function goldScore(): string {
+  return goldWins()
+    .map((n, i) => `${name(i)} ${n}`)
+    .join(' · ');
+}
+
+/**
+ * 抢金元宝（A9d）：有人赢了一局。先赢 CFG.goldRounds 局的赢这一场（庆祝一下再出结算页）；
+ * 还没有就过两秒换下一张场地（几张轮着来，从大厅选的那张开始），接着下一局（房间还在玩，不用再倒数）。
+ */
+function goldWin(w: number | undefined): void {
+  if (w === undefined) return;
+  roundWins[w] = (roundWins[w] ?? 0) + 1;
+  castDirty = true;
+  const done = (roundWins[w] ?? 0) >= CFG.goldRounds;
+  const won = sim;
+  if (done) {
+    music.win();
+    banner(tr(`${name(w)} 赢了这一场！`, `${name(w)} wins the match!`));
+    setTimeout(() => {
+      if (sim === won && phase === 'playing') link?.act({ type: 'FINISH' });
+    }, 2600);
+    return;
+  }
+  // 这一局用的时间和摔的次数先记下，下一局重摆场地就没了
+  goldPast.time += sim.time;
+  sim.players.forEach((p, i) => (goldPast.deaths[i] = (goldPast.deaths[i] ?? 0) + p.deaths));
+  music.flourish();
+  banner(tr(`${name(w)} 拿下第 ${goldRound} 局　${goldScore()}`, `${name(w)} takes round ${goldRound}   ${goldScore()}`));
+  setTimeout(() => {
+    if (sim !== won || phase !== 'playing') return;
+    goldRound++;
+    const list = listNow();
+    if (list.length > 1) {
+      levelIndex = (levelIndex + 1) % list.length;
+      level = list[levelIndex] as Level;
+      renderLevel();
+      menuDirty = true;
+      // 换了世界就换曲子（下一小节换过去）
+      syncMusic();
+    }
+    void resetSim().then(() => banner(tr(`第 ${goldRound} 局`, `Round ${goldRound}`)));
+  }, 2000);
 }
 /** 闯关、大团队：到顶了，算这一局的小目标、记下拿到的星和红包。 */
 function scoreGoals(): void {
@@ -482,7 +555,7 @@ function showResults(): void {
   renderResults(resultsDom, fullResults(), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
   const next = $<HTMLButtonElement>('nextBtn');
   next.hidden = !hasNext();
-  next.textContent = mode === 'last' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  next.textContent = mode === 'last' || mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   $('againBtn').textContent = mode === 'climb' || mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
   // 电视局：手机上也能选下一步（电视那边可以不碰）
   $('padHint').hidden = phoneMode;
@@ -937,14 +1010,14 @@ function feedInputs(): void {
 /** 第 i 个人的队友里摔下去还没回来的有几个：闯关、大团队是全队，比谁先分队是自己队，各跑各的和坐不住没有队友可拉。 */
 function teamDead(i: number): number {
   const m = sim.rules.mode;
-  if (m === 'last' || (m === 'race' && !sim.rules.teams)) return 0;
+  if (m === 'last' || m === 'gold' || (m === 'race' && !sim.rules.teams)) return 0;
   return sim.players.filter((q, j) => j !== i && q.dead && !q.done && (m !== 'race' || teamOf(j) === teamOf(i))).length;
 }
 function sendStatus(): void {
   if (phoneMode) {
     // 房主的「召唤」键：有队友摔下去还没回来才亮；没有队友可拉的玩法不出
     const me = localIndex();
-    touchSummon.hidden = sim.rules.mode === 'last' || (sim.rules.mode === 'race' && !sim.rules.teams);
+    touchSummon.hidden = sim.rules.mode === 'last' || sim.rules.mode === 'gold' || (sim.rules.mode === 'race' && !sim.rules.teams);
     touchSummon.disabled = !(phase === 'playing' && teamDead(me) > 0);
     // 房主的道具键：这个玩法有道具才出
     const p = sim.players[me];
@@ -986,6 +1059,10 @@ function sendStatus(): void {
 
 function onEvents(): void {
   for (const ev of sim.events) {
+    if (ev.type === 'win' && sim.rules.mode === 'gold') {
+      goldWin(ev.who?.[0]);
+      continue;
+    }
     if (ev.type === 'win') {
       music.win();
       scoreGoals();
@@ -1034,6 +1111,7 @@ function castFor(seat: string): Cast {
     ...(phase === 'results' ? { results: fullResults() } : {}),
     mode: sim.rules.mode,
     ...(sim.rules.teams ? { teams: sim.rules.teams } : {}),
+    ...(sim.rules.mode === 'gold' ? { gold: { round: goldRound, wins: goldWins() } } : {}),
   };
 }
 
@@ -1207,6 +1285,10 @@ function frame(now: number): void {
   $('clock').textContent = sim.time.toFixed(1);
   $('deaths').textContent = String(sim.players.reduce((s, p) => s + p.deaths, 0));
   $('alive').textContent = String(sim.players.filter((p) => !p.dead).length);
+  // 抢金元宝（A9d）：第几局、比分
+  if (mode === 'gold' && phase === 'playing') {
+    renderGoldScore($('goldScore'), goldRound, goldWins(), name, (i) => sim.players[i]?.color ?? '#fff');
+  }
   // 红包（A9b）：这一局拿到几个了
   const envN = sim.envelopes.length;
   $('envChip').hidden = !envN || (phase !== 'playing' && phase !== 'countdown');

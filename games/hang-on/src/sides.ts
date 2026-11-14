@@ -14,8 +14,8 @@ export const SIDES: Side[] = ['solo', 'multi'];
 export type Tier = 0 | 1 | 2;
 export const TIERS: Tier[] = [0, 1, 2];
 
-/** 单人只有闯关；多人能选的玩法（大团队要有大关才出，主机那边再筛）。 */
-export const SIDE_MODES: Record<Side, GameMode[]> = { solo: ['climb'], multi: ['climb', 'race', 'last', 'team'] };
+/** 单人只有闯关；多人能选的玩法（大团队要有大关才出，主机那边再筛；抢元宝是 A9d）。 */
+export const SIDE_MODES: Record<Side, GameMode[]> = { solo: ['climb'], multi: ['climb', 'race', 'last', 'gold', 'team'] };
 
 /** 这个玩法分不分难度：闯关、比谁先分；坐不住是场地，大团队是大关，不分。 */
 export const tiered = (m: GameMode): boolean => m === 'climb' || m === 'race';
