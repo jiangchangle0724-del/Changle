@@ -47,6 +47,7 @@ export type MakeBody = { id: string; name: string; currency: string; members: Me
 export type PushBody = { changes: Sent[] };
 export type LockBody = { locked: boolean };
 export type Pushed = Snapshot & { took: Took[] };
+/** The record: each change as it was sent (with who made it, `sent.by`, when the phone said), its number and when it arrived. */
 export type Since = { seq: number; changes: Logged[] };
 /** My ledgers, the last one kept first. */
 export type MyLedgers = { ledgers: Mine[] };

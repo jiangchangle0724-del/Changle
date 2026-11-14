@@ -49,8 +49,14 @@ export type Change =
   /** the ledger renamed */
   | { do: "title"; name: string };
 
-/** A change as it travels: with an id of its own, so it counts once, and when the phone made it. */
-export type Sent = { id: string; at: number; change: Change };
+/**
+ * A change as it travels: with an id of its own, so it counts once, and when the phone made it.
+ * `by` is who made it, as far as the phone knows: the person in the ledger its owner said they are
+ * ("这是我", an id on the roster). The ledger's record says it; nothing is decided by it (anyone with
+ * the key could say they are anyone, the way anyone can say who paid). Pages from before it, and a
+ * phone that hasn't said, send none.
+ */
+export type Sent = { id: string; at: number; change: Change; by?: string };
 
 const isTime = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
 const isTurn = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
@@ -242,5 +248,6 @@ function asChange(x: Record<string, unknown>): Change | null {
 export function parseSent(x: unknown): Sent | null {
   if (!isRecord(x) || !isId(x.id) || !isTime(x.at) || !isRecord(x.change)) return null;
   const change = asChange(x.change);
-  return change && { id: x.id, at: x.at, change };
+  // (who made it is only ever an id: anything else, and it is as if it said nobody)
+  return change && { id: x.id, at: x.at, change, ...(isId(x.by) ? { by: x.by } : {}) };
 }
