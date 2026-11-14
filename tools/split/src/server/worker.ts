@@ -8,12 +8,36 @@
 // phones recording at once can't cross, and it tells every phone that is listening.
 //
 // Each changle.ca account that has signed in here has one too (AccountDO): its ledgers, with their
-// keys (src/room/account.ts). Who is signed in, the rooms server says (src/server/who.ts).
+// keys (src/room/account.ts), and the room its files use. Who is signed in, the rooms server says
+// (src/server/who.ts).
+//
+// Receipt photos and files are in the private bucket split-files (FILES), each at
+// "<ledger>/<file>". The Worker puts them there and reads them back; the ledger keeps the list, and
+// the sender's account is charged for each before it goes in.
 import { DurableObject } from "cloudflare:workers";
 import type { Ledger } from "../../../../site/src/split/core";
-import { AccountRoom, STARTS_PER_DAY, type AccountStore, type Kept, type Mine } from "../room/account";
-import { ID_RE, LedgerRoom, type ErrorCode, type Fail, type Logged, type Meta, type Store } from "../room/ledger";
-import { KEY_HEADER, KEY_RE, LIVE_PROTOCOL, MEMBER_RE, NEXT_HEADER, OWNER_HEADER, type ApiError, type MineBody, type MyLedgers, type Push, type Pushed, type Since, type Snapshot } from "../room/protocol";
+import { AccountRoom, STARTS_PER_DAY, type AccountFile, type AccountStore, type Kept, type Mine, type Reserved, type Storage } from "../room/account";
+import { ID_RE, LedgerRoom, type ErrorCode, type Fail, type FileInfo, type Logged, type Meta, type Store, type StoredFile } from "../room/ledger";
+import {
+  FILE_MAX,
+  FILE_TYPES,
+  KEY_HEADER,
+  KEY_RE,
+  LIVE_PROTOCOL,
+  MEMBER_RE,
+  NEXT_HEADER,
+  OWNER_HEADER,
+  QUOTA,
+  type ApiError,
+  type Files,
+  type MineBody,
+  type MyLedgers,
+  type Push,
+  type Pushed,
+  type Since,
+  type Snapshot,
+  type Stored,
+} from "../room/protocol";
 import { sessionOf, sha256, whoIs } from "./who";
 
 export interface Env {
@@ -22,8 +46,12 @@ export interface Env {
   ACCOUNTS: DurableObjectNamespace<AccountDO>;
   /** the rooms server (site/worker), which says whose a sign-in is */
   ROOMS: Fetcher;
+  /** receipt photos (stage three): the private bucket split-files, read and written only here */
+  FILES: R2Bucket;
   /** local runs and tests only: "1" lifts the daily allowance of new ledgers per network (not per account) */
   ALLOW_TEST_SETTINGS?: string;
+  /** with ALLOW_TEST_SETTINGS only: an account's room for files, in bytes, smaller than QUOTA, for the tests to fill */
+  TEST_QUOTA?: string;
 }
 
 const BASE = "/split/api";
@@ -64,6 +92,114 @@ async function allowed(req: Request, env: Env): Promise<boolean> {
 }
 
 const accountOf = (env: Env, id: string) => env.ACCOUNTS.get(env.ACCOUNTS.idFromName(`u:${id}`));
+
+/** An account's room for files: QUOTA, or a smaller one the tests set. */
+const quotaOf = (env: Env) => (env.ALLOW_TEST_SETTINGS === "1" && /^\d{1,12}$/.test(env.TEST_QUOTA ?? "") ? Number(env.TEST_QUOTA) : QUOTA);
+
+/** Where a ledger's file is in the bucket. */
+const fileKey = (ledger: string, id: string) => `${ledger}/${id}`;
+
+/** Does a file start the way one of its kind does? (A file that says it is a photo and isn't, isn't kept.) */
+function looksLike(bytes: Uint8Array, type: string): boolean {
+  const starts = (...b: number[]) => b.every((x, i) => bytes[i] === x);
+  const text = (from: number, s: string) => [...s].every((c, i) => bytes[from + i] === c.charCodeAt(0));
+  if (type === "image/jpeg") return starts(0xff, 0xd8, 0xff);
+  if (type === "image/png") return starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+  if (type === "image/webp") return text(0, "RIFF") && text(8, "WEBP");
+  if (type === "application/pdf") return text(0, "%PDF-");
+  return false;
+}
+
+/**
+ * A file goes back to a phone holding the key: as what it is, kept on that phone (it never changes:
+ * an id is never used for another file), and only ever shown, never run.
+ */
+function fileResponse(object: R2ObjectBody, file: FileInfo): Response {
+  return new Response(object.body, {
+    headers: {
+      "content-type": file.type,
+      "content-length": String(object.size),
+      "cache-control": "private, max-age=31536000, immutable",
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; sandbox",
+      "content-disposition": "inline",
+    },
+  });
+}
+
+/**
+ * A ledger's files: listed, stored, read, and taken off. Every one needs the key; storing one
+ * also needs a sign-in, and is charged to that account before it goes in the bucket.
+ */
+async function files(req: Request, env: Env, ctx: ExecutionContext, stub: DurableObjectStub<LedgerDO>, ledger: string, id: string | undefined, keyHash: string | null): Promise<Response> {
+  if (id === undefined) {
+    if (req.method !== "GET") return refuse("notfound", 404);
+    const got = await stub.listFiles(keyHash);
+    return got.ok ? json({ files: got.files } satisfies Files) : failed(got);
+  }
+  if (!ID_RE.test(id)) return refuse("notfound", 404);
+  if (req.method === "GET") {
+    const got = await stub.file(keyHash, id);
+    if (!got.ok) return failed(got);
+    const object = await env.FILES.get(fileKey(ledger, id));
+    return object ? fileResponse(object, got.file) : refuse("gone", 404);
+  }
+  if (req.method === "DELETE") {
+    const got = await stub.unstore(keyHash, id);
+    if (!got.ok) return failed(got);
+    // (it is off the ledger whatever happens here; a file left behind is found by the nightly check)
+    try {
+      await env.FILES.delete(fileKey(ledger, id));
+      await accountOf(env, got.file.by).release(ledger, [id]);
+    } catch (e) {
+      console.error("split: a file taken off its ledger wasn't let go", e);
+    }
+    return json({ ok: true });
+  }
+  if (req.method !== "PUT") return refuse("notfound", 404);
+
+  const who = await signedIn(req, env, ctx);
+  if (who instanceof Response) return who;
+  if (!who) return refuse("signin", 401);
+  const type = (req.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (!(FILE_TYPES as readonly string[]).includes(type)) return refuse("bad", 400);
+  if (Number(req.headers.get("content-length") ?? 0) > FILE_MAX) return refuse("big", 413);
+  // (the key, before a body of up to 10 MB is read; a file stored already is that file, charged once)
+  const may = await stub.mayStore(keyHash, id);
+  if (!may.ok) return failed(may);
+  const account = accountOf(env, who.id);
+  const quota = quotaOf(env);
+  if (may.kept) return json({ file: may.kept, used: await account.used(), quota } satisfies Stored);
+  const bytes = new Uint8Array(await req.arrayBuffer());
+  if (bytes.length > FILE_MAX) return refuse("big", 413);
+  if (!bytes.length || !looksLike(bytes, type)) return refuse("bad", 400);
+  const room = await account.reserve({ ledger, id, size: bytes.length, day: today(), quota });
+  if (!room.ok) return refuse(room.error, room.error === "quota" ? 413 : 429);
+  const at = Date.now();
+  try {
+    await env.FILES.put(fileKey(ledger, id), bytes, { httpMetadata: { contentType: type }, customMetadata: { by: who.id, at: String(at) } });
+  } catch {
+    await account.release(ledger, [id]);
+    return refuse("down", 503);
+  }
+  const kept = await stub.stored({ id, size: bytes.length, type, by: who.id, at });
+  if (!kept.ok) {
+    // (the ledger was locked or deleted meanwhile: the file goes, and so does its charge)
+    await env.FILES.delete(fileKey(ledger, id));
+    await account.release(ledger, [id]);
+    return failed(kept);
+  }
+  return json({ file: kept.file, used: room.used, quota } satisfies Stored, 201);
+}
+
+/** "My files": how much of its room a signed-in account's files use, in all and in each ledger. */
+async function myFiles(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (req.method !== "GET") return refuse("notfound", 404);
+  const who = await signedIn(req, env, ctx);
+  if (who instanceof Response) return who;
+  if (!who) return refuse("signin", 401);
+  return json((await accountOf(env, who.id).storage(quotaOf(env))) satisfies Storage);
+}
 
 /**
  * The account a request is signed in to. Null when it carries no sign-in; a response to send
@@ -113,7 +249,8 @@ export default {
     if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return refuse("notfound", 404);
     const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean);
     if (parts[0] === "me" && parts[1] === "ledgers" && parts.length <= 3) return mine(req, env, ctx, parts[2]);
-    if (parts[0] !== "ledgers" || parts.length > 3) return refuse("notfound", 404);
+    if (parts[0] === "me" && parts[1] === "files" && parts.length === 2) return myFiles(req, env, ctx);
+    if (parts[0] !== "ledgers" || parts.length > 4) return refuse("notfound", 404);
 
     // the live connection: its key comes as a protocol name, because a browser can't give it a header
     if (parts.length === 3 && parts[2] === "live" && req.method === "GET") {
@@ -170,6 +307,8 @@ export default {
 
     if (!ID_RE.test(parts[1] ?? "")) return refuse("notfound", 404);
     const stub = env.LEDGERS.get(env.LEDGERS.idFromName(parts[1]));
+    if (parts[2] === "files") return files(req, env, ctx, stub, parts[1], parts[3], keyHash);
+    if (parts.length > 3) return refuse("notfound", 404);
 
     // The owner deletes it. Signed in, it also leaves the owner's list.
     if (parts.length === 2 && req.method === "DELETE") {
@@ -214,14 +353,21 @@ export default {
 function sqlStore(sql: SqlStorage): Store {
   // every change this ledger was sent, and whether it counted
   const HEARD = "CREATE TABLE IF NOT EXISTS heard (id TEXT PRIMARY KEY, counted INTEGER NOT NULL) WITHOUT ROWID";
+  // its receipt photos and files: what is in the bucket for it, and whose account sent each
+  const FILES = "CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, size INTEGER NOT NULL, type TEXT NOT NULL, by TEXT NOT NULL, at INTEGER NOT NULL)";
   let made = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'").toArray().length > 0;
   // A ledger made on the server's first day has a table named `sent` with ids only. It gets the
-  // new table here and the old one is left as it is, not read.
-  if (made) sql.exec(HEARD);
+  // new table here and the old one is left as it is, not read. (A ledger made before files gets
+  // their table here too.)
+  if (made) {
+    sql.exec(HEARD);
+    sql.exec(FILES);
+  }
   const ready = () => {
     if (made) return;
     sql.exec("CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY CHECK (id = 1), json TEXT NOT NULL, ledger TEXT NOT NULL)");
     sql.exec(HEARD);
+    sql.exec(FILES);
     sql.exec("CREATE TABLE IF NOT EXISTS log (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, json TEXT NOT NULL)");
     made = true;
   };
@@ -273,8 +419,27 @@ function sqlStore(sql: SqlStorage): Store {
       const row = there ? sql.exec("SELECT at FROM buried LIMIT 1").toArray()[0] : undefined;
       return row ? (row.at as number) : null;
     },
+    files() {
+      if (!made) return [];
+      return sql.exec("SELECT id, size, type, by, at FROM files ORDER BY at, rowid").toArray().map(asStoredFile);
+    },
+    file(id) {
+      if (!made) return null;
+      const row = sql.exec("SELECT id, size, type, by, at FROM files WHERE id = ?", id).toArray()[0];
+      return row ? asStoredFile(row) : null;
+    },
+    putFile(f) {
+      ready();
+      sql.exec("INSERT OR IGNORE INTO files (id, size, type, by, at) VALUES (?, ?, ?, ?, ?)", f.id, f.size, f.type, f.by, f.at);
+    },
+    dropFile(id) {
+      if (made) sql.exec("DELETE FROM files WHERE id = ?", id);
+    },
+    fileCount: () => (made ? Number(sql.exec("SELECT count(*) AS n FROM files").one().n) : 0),
   };
 }
+
+const asStoredFile = (r: Record<string, SqlStorageValue>): StoredFile => ({ id: String(r.id), size: Number(r.size), type: String(r.type), by: String(r.by), at: Number(r.at) });
 
 /** One ledger. */
 export class LedgerDO extends DurableObject<Env> {
@@ -337,19 +502,56 @@ export class LedgerDO extends DurableObject<Env> {
     return this.room.owns(ownerHash);
   }
 
-  /** The owner deletes the ledger. Every phone that was listening is let go, and finds it gone when it comes back. */
-  async wipe(ownerHash: string | null): Promise<ReturnType<LedgerRoom["wipe"]>> {
+  /**
+   * The owner deletes the ledger. Every phone that was listening is let go, and finds it gone when
+   * it comes back. Its files go from the bucket, and each sender's account has their room back.
+   */
+  async wipe(ownerHash: string | null): Promise<Fail | { ok: true }> {
     const got = this.room.wipe(ownerHash, Date.now());
-    if (got.ok) {
-      for (const ws of this.ctx.getWebSockets()) {
-        try {
-          ws.close(DELETED, "gone");
-        } catch {
-          // a phone that just left
-        }
+    if (!got.ok) return got;
+    this.letGo();
+    // (the ledger is gone whatever happens here; a file left behind is found by the nightly check)
+    try {
+      const keys = got.files.map((f) => fileKey(got.id, f.id));
+      for (let i = 0; i < keys.length; i += 1000) await this.env.FILES.delete(keys.slice(i, i + 1000));
+      const by = new Map<string, string[]>();
+      for (const f of got.files) by.set(f.by, [...(by.get(f.by) ?? []), f.id]);
+      for (const [account, ids] of by) await accountOf(this.env, account).release(got.id, ids);
+    } catch (e) {
+      console.error("split: a deleted ledger's files weren't all let go", e);
+    }
+    return { ok: true };
+  }
+
+  async mayStore(keyHash: string | null, id: string): Promise<ReturnType<LedgerRoom["mayStore"]>> {
+    return this.room.mayStore(keyHash, id);
+  }
+
+  async stored(file: StoredFile): Promise<ReturnType<LedgerRoom["stored"]>> {
+    return this.room.stored(file);
+  }
+
+  async file(keyHash: string | null, id: string): Promise<ReturnType<LedgerRoom["file"]>> {
+    return this.room.file(keyHash, id);
+  }
+
+  async listFiles(keyHash: string | null): Promise<ReturnType<LedgerRoom["listFiles"]>> {
+    return this.room.listFiles(keyHash);
+  }
+
+  async unstore(keyHash: string | null, id: string): Promise<ReturnType<LedgerRoom["unstore"]>> {
+    return this.room.unstore(keyHash, id);
+  }
+
+  /** Every phone listening to a ledger that is gone is let go. */
+  private letGo() {
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.close(DELETED, "gone");
+      } catch {
+        // a phone that just left
       }
     }
-    return got;
   }
 
   /** The owner locks the ledger, or opens it again: every phone that is listening sees it. */
@@ -413,6 +615,9 @@ export class GateDO extends DurableObject<Env> {
 function accountStore(sql: SqlStorage): AccountStore {
   sql.exec("CREATE TABLE IF NOT EXISTS mine (id TEXT PRIMARY KEY, json TEXT NOT NULL, at INTEGER NOT NULL)");
   sql.exec("CREATE TABLE IF NOT EXISTS started (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
+  sql.exec("CREATE TABLE IF NOT EXISTS files (ledger TEXT NOT NULL, id TEXT NOT NULL, size INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (ledger, id))");
+  sql.exec("CREATE TABLE IF NOT EXISTS sent (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
+  const asFile = (r: Record<string, SqlStorageValue>): AccountFile => ({ ledger: String(r.ledger), id: String(r.id), size: Number(r.size), at: Number(r.at) });
   const read = (json: unknown) => JSON.parse(json as string) as Mine;
   return {
     // (the last first kept first; among those kept the same moment, the last put)
@@ -432,6 +637,22 @@ function accountStore(sql: SqlStorage): AccountStore {
     use(day) {
       sql.exec("DELETE FROM started WHERE day <> ?", day);
       sql.exec("INSERT INTO started (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1", day);
+    },
+    fileOf(ledger, id) {
+      const row = sql.exec("SELECT ledger, id, size, at FROM files WHERE ledger = ? AND id = ?", ledger, id).toArray()[0];
+      return row ? asFile(row) : null;
+    },
+    addFile(f) {
+      sql.exec("INSERT OR IGNORE INTO files (ledger, id, size, at) VALUES (?, ?, ?, ?)", f.ledger, f.id, f.size, f.at);
+    },
+    dropFile(ledger, id) {
+      sql.exec("DELETE FROM files WHERE ledger = ? AND id = ?", ledger, id);
+    },
+    files: () => sql.exec("SELECT ledger, id, size, at FROM files ORDER BY at, rowid").toArray().map(asFile),
+    uploads: (day) => Number(sql.exec("SELECT n FROM sent WHERE day = ?", day).toArray()[0]?.n ?? 0),
+    upload(day) {
+      sql.exec("DELETE FROM sent WHERE day <> ?", day);
+      sql.exec("INSERT INTO sent (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1", day);
     },
   };
 }
@@ -459,5 +680,21 @@ export class AccountDO extends DurableObject<Env> {
 
   async take(day: string, limit: number): Promise<boolean> {
     return this.room.take(day, limit);
+  }
+
+  async used(): Promise<number> {
+    return this.room.used();
+  }
+
+  async reserve(input: { ledger: string; id: string; size: number; day: string; quota: number }): Promise<Reserved> {
+    return this.room.reserve({ ...input, now: Date.now() });
+  }
+
+  async release(ledger: string, ids: string[]): Promise<number> {
+    return this.room.release(ledger, ids);
+  }
+
+  async storage(quota: number): Promise<Storage> {
+    return this.room.storage(quota);
   }
 }

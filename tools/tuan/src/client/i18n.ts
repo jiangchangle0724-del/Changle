@@ -30,7 +30,6 @@ const STRINGS = {
 
   // ---------- home ----------
   homeLine: { zh: "团长开团，你跟一单。不用注册，钱直接付给商家。", en: "A merchant starts a group buy, you add your order. No sign-up, and you pay the merchant directly." },
-  previewNote: { zh: "预览版：还在试用，先不对外。", en: "Preview: still being tried out, not public yet." },
   homeHow: { zh: "怎么跟单", en: "How it works" },
   homeHow1: { zh: "点开商家发在群里的链接", en: "Open the link a merchant posted in the group" },
   homeHow2: { zh: "选好东西，填称呼和电话，下单", en: "Pick what you want, leave a name and a phone number, place the order" },
@@ -90,6 +89,12 @@ const STRINGS = {
   contact: { zh: "联系商家", en: "Contact" },
   howToPay: { zh: "怎么付款", en: "How to pay" },
   permit: { zh: "许可", en: "Permit" },
+  shopOpen: { zh: "正在接单", en: "Taking orders" },
+  shopPast: { zh: "开过的团", en: "Earlier group buys" },
+  shopNone: { zh: "现在没有在开的团。", en: "No group buy is taking orders just now." },
+  shopGoneTitle: { zh: "没有这家店", en: "No such shop" },
+  shopGoneBody: { zh: "地址可能抄错了，或者这家店还没开张。", en: "The address may be mistyped, or the shop isn't open yet." },
+  shopMore: { zh: "这家店的其他团", en: "This shop's other group buys" },
   kindLeader: { zh: "团长", en: "Group-buy leader" },
   kindKitchen: { zh: "私厨", en: "Home kitchen" },
   kindFarm: { zh: "农场", en: "Farm" },

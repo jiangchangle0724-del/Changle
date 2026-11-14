@@ -73,6 +73,8 @@ with sync_playwright() as p:
 
     # the shared phone, sideways
     sp = speaker(br, "zh", viewport={"width": 844, "height": 390}, device_scale_factor=2, is_mobile=True, has_touch=True)
+    # (it's drawn the way an iPhone or iPad gets it: device.ts)
+    sp.add_init_script("window.__djLight = true")
     sp.goto(BASE + "g/dj-booth", wait_until="load")
     btn = sp.locator(".mode-btn.mode-primary")
     ok(until(lambda: "公用手机（投屏电视）" in btn.inner_text(), 8000), f"on a phone the card offers the shared phone first ({btn.inner_text()!r})")
@@ -120,6 +122,23 @@ with sync_playwright() as p:
     tb = sp.locator(".dj-tube").bounding_box()
     sb = share.bounding_box()
     ok(tb and sb and sb["x"] >= tb["x"] + tb["width"] - 2, "the 点歌 button beside the video's corner, not over it")
+    # an iPhone or iPad (Steve on Nov 14: putting the video over the TV, the shared phone reloaded):
+    # YouTube's player stays 640 by 360 inside, drawn to fill its corner, so it never streams in 4K
+    player = lambda: sp.evaluate("""() => { const f = document.querySelector('.dj-tube-frame'), s = document.querySelector('.dj-tube-slot');
+      if (!f || !s) return null; const a = f.getBoundingClientRect(), b = s.getBoundingClientRect();
+      return { w: f.offsetWidth, h: f.offsetHeight, fill: Math.abs(a.width - b.width) < 1.5 && Math.abs(a.height - b.height) < 1.5 && Math.abs(a.left - b.left) < 1.5 && Math.abs(a.top - b.top) < 1.5 }; }""")
+    pl = player()
+    ok(sp.locator(".dj-stage.is-light").count() == 1 and pl and pl["w"] == 640 and pl["h"] == 360 and pl["fill"], f"an iPhone's speaker: YouTube's player 640 by 360 inside, drawn to fill its corner ({pl})")
+    ben.locator(".djk-player button[aria-pressed]").click()
+    ok(until(lambda: sp.locator(".dj-tube.is-full").count() == 1, 4000), "Ben puts the video over the whole TV")
+    sp.wait_for_timeout(400)
+    pl = player()
+    full = sp.locator(".dj-tube-slot").bounding_box()
+    stage = sp.locator(".tv-canvas").bounding_box()
+    ok(pl and pl["w"] == 640 and pl["h"] == 360 and pl["fill"] and full and stage and abs(full["width"] - stage["width"]) < 2, f"the same 640 by 360 inside, drawn over the whole TV: nothing to load again ({pl}, {full and round(full['width'])} of {stage and round(stage['width'])})")
+    sp.screenshot(path=os.path.join(OUT, "shared-4-full.png"))
+    ben.locator(".djk-player button[aria-pressed]").click()
+    ok(until(lambda: sp.locator(".dj-tube.is-full").count() == 0 and (player() or {}).get("fill"), 4000), "and back in its corner")
     ok(until(lambda: "公用手机" in text(ben, ".djk-player-by"), 6000), f"Ben's phone says whose song plays ({text(ben, '.djk-player-now')!r})")
     sp.wait_for_timeout(800)
     sp.screenshot(path=os.path.join(OUT, "shared-4-song.png"))

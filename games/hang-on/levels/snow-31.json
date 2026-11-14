@@ -1,0 +1,130 @@
+{
+  "id": "snow-31",
+  "world": "snow",
+  "tier": 0,
+  "name": {
+    "zh": "暮雪候车台",
+    "en": "Dusk Snow Station"
+  },
+  "teaches": "lift",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 90,
+    "y": 606
+  },
+  "goal": {
+    "x": 2360,
+    "y": 280,
+    "w": 200,
+    "h": 180
+  },
+  "checkpoints": [
+    {
+      "x": 980,
+      "y": 536
+    },
+    {
+      "x": 1740,
+      "y": 446
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 419,
+      "y": 517
+    },
+    {
+      "x": 1233,
+      "y": 204
+    },
+    {
+      "x": 1955,
+      "y": 387
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "material": "snow",
+      "x": 0,
+      "y": 640,
+      "w": 350,
+      "h": 80
+    },
+    {
+      "kind": "ground",
+      "material": "snow",
+      "x": 900,
+      "y": 580,
+      "w": 250,
+      "h": 140
+    },
+    {
+      "kind": "ground",
+      "material": "snow",
+      "x": 1650,
+      "y": 490,
+      "w": 250,
+      "h": 230
+    },
+    {
+      "kind": "ground",
+      "material": "snow",
+      "x": 2310,
+      "y": 430,
+      "w": 250,
+      "h": 290
+    }
+  ],
+  "lifts": [
+    {
+      "from": {
+        "x": 285,
+        "y": 520
+      },
+      "to": {
+        "x": 1100,
+        "y": 450
+      },
+      "speed": 26,
+      "gap": 240
+    },
+    {
+      "from": {
+        "x": 1080,
+        "y": 460
+      },
+      "to": {
+        "x": 1860,
+        "y": 360
+      },
+      "speed": 28,
+      "gap": 240
+    },
+    {
+      "from": {
+        "x": 1830,
+        "y": 370
+      },
+      "to": {
+        "x": 2500,
+        "y": 310
+      },
+      "speed": 26,
+      "gap": 240
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "deathY": 880,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/snow-31.json"
+}

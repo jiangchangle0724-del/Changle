@@ -1,0 +1,219 @@
+{
+  "id": "snow-35",
+  "world": "snow",
+  "tier": 2,
+  "name": {
+    "zh": "雪檐抛接",
+    "en": "Snow Cornice Relay"
+  },
+  "teaches": "slip",
+  "w": 2400,
+  "h": 1400,
+  "spawn": {
+    "x": 100,
+    "y": 1262
+  },
+  "goal": {
+    "x": 2300,
+    "y": 135,
+    "w": 100,
+    "h": 105
+  },
+  "checkpoints": [
+    {
+      "x": 960,
+      "y": 724
+    },
+    {
+      "x": 1900,
+      "y": 218
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 476,
+      "y": 957
+    },
+    {
+      "x": 1579,
+      "y": 321
+    },
+    {
+      "x": 2066,
+      "y": 219
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 1287,
+      "w": 300,
+      "h": 113,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 300,
+      "y": 1157,
+      "w": 180,
+      "h": 243,
+      "material": "ice",
+      "slip": 1
+    },
+    {
+      "kind": "ground",
+      "x": 480,
+      "y": 1028,
+      "w": 180,
+      "h": 372,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 660,
+      "y": 898,
+      "w": 180,
+      "h": 502,
+      "material": "ice",
+      "slip": 0.9
+    },
+    {
+      "kind": "ground",
+      "x": 840,
+      "y": 768,
+      "w": 400,
+      "h": 632,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1240,
+      "y": 639,
+      "w": 180,
+      "h": 761,
+      "material": "ice",
+      "slip": 0.8
+    },
+    {
+      "kind": "ground",
+      "x": 1420,
+      "y": 509,
+      "w": 180,
+      "h": 891,
+      "material": "snow"
+    },
+    {
+      "kind": "ground",
+      "x": 1600,
+      "y": 380,
+      "w": 180,
+      "h": 1020,
+      "material": "ice",
+      "slip": 0.7
+    },
+    {
+      "kind": "ground",
+      "x": 1780,
+      "y": 250,
+      "w": 620,
+      "h": 1150,
+      "material": "snow"
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 360,
+      "y": 981,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 900,
+      "y": 592,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 1480,
+      "y": 333,
+      "w": 40,
+      "h": 16
+    },
+    {
+      "kind": "peg",
+      "material": "wood",
+      "x": 1840,
+      "y": 74,
+      "w": 40,
+      "h": 16
+    }
+  ],
+  "lifts": [],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 360,
+      "y": 997,
+      "w": 40,
+      "h": 16,
+      "kind": "spike",
+      "dir": "down"
+    },
+    {
+      "x": 900,
+      "y": 608,
+      "w": 40,
+      "h": 16,
+      "kind": "hot",
+      "dir": "down"
+    },
+    {
+      "x": 1480,
+      "y": 349,
+      "w": 40,
+      "h": 16,
+      "kind": "zap",
+      "dir": "down"
+    },
+    {
+      "x": 1840,
+      "y": 90,
+      "w": 40,
+      "h": 16,
+      "kind": "spike",
+      "dir": "down"
+    }
+  ],
+  "deathY": 1560,
+  "par": {
+    "seconds": 90,
+    "deathsPerPlayer": 8
+  },
+  "replay": "replays/snow-35.json",
+  "movers": [
+    {
+      "x": 680,
+      "y": 718,
+      "w": 30,
+      "h": 24,
+      "path": [
+        {
+          "x": 760,
+          "y": 718
+        }
+      ],
+      "speed": 35,
+      "deadly": true,
+      "hazard": "zap"
+    }
+  ]
+}

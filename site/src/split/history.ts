@@ -98,7 +98,7 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
         const after = edited(before, c.to);
         entries.set(c.entry, after);
         const there = inNow(c.entry);
-        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null } };
+        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null } };
         // (only where it would go through: whoever paid it or shared it may have been taken off since)
         const offer = !locked && lastEdit.get(c.entry) === s.key && !!there && there.gone === undefined && applyChange(now, back) !== null;
         lines.push(line(say(lang, "historyEdit", { what: expense(after) }), {
@@ -160,9 +160,12 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
 /** An expense as an edit leaves it (the same rules as ops.ts, editExpense, without asking the roster). */
 function edited(before: Expense, to: Extract<Change, { do: "edit" }>["to"]): Expense {
   const paidIn = to.paidIn === undefined ? (to.amount === before.amount ? before.paidIn : undefined) : (to.paidIn ?? undefined);
+  const files = to.files === undefined ? before.files : (to.files ?? undefined);
   const next: Expense = { ...before, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
   if (paidIn) next.paidIn = { currency: paidIn.currency, amount: paidIn.amount, rate: paidIn.rate };
   else delete next.paidIn;
+  if (files?.length) next.files = [...files];
+  else delete next.files;
   return next;
 }
 
@@ -176,6 +179,11 @@ function changed(before: Expense, after: Expense, me: string | undefined, lang: 
   if (before.note !== after.note) parts.push(after.note ? say(lang, "historyNote", { note: after.note }) : say(lang, "historyNoteGone"));
   if (!same(before.split, after.split)) parts.push(say(lang, "historySplit"));
   if (!same(before.paidIn, after.paidIn)) parts.push(say(lang, "historyCurrency"));
+  // (photos: some added, some taken off, or both)
+  const had = new Set(before.files ?? []);
+  const has = new Set(after.files ?? []);
+  if ([...has].some((f) => !had.has(f))) parts.push(say(lang, "historyFilesAdded"));
+  if ([...had].some((f) => !has.has(f))) parts.push(say(lang, "historyFilesRemoved"));
   if (!parts.length) return undefined;
   const text = parts.join(say(lang, "historyAnd"));
   // (a line of its own, so it starts as a sentence does)

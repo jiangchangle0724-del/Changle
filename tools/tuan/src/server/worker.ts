@@ -1,20 +1,26 @@
 // 跟一单 · Count Me In: the server. One Worker at changle.ca/tuan, with its own D1 database.
 //
 // The pages (one file for all of them, src/client; what each shows is decided on the phone):
-//   /tuan/ and /tuan/preview                  home
+//   /tuan/                                    home, the one page search engines may list (/tuan and
+//                                             /tuan/preview, where it was before it was on the site's Tools tab, lead here)
 //   /tuan/t/<id>                              a group buy, with its name in the page's title
+//   /tuan/s/<shop>                            a shop: who they are, and their group buys
 //   /tuan/o/<code>                            an order
 //   /tuan/my, /tuan/my/t/<id>                 a merchant's home, and one group buy's orders and sheets
 //   /tuan/my/new/<shop>, /tuan/my/t/<id>/edit starting a group buy in a shop, and changing one
+//   /tuan/my/s/<shop>                         what a shop says about itself, for its own people to change
 //   /tuan/assets/…                            the script, the styles and the fonts: plain files
 // The API (the shapes are in src/api.ts). Anyone, no sign-in:
 //   GET  /tuan/api/offers/<id>                a group buy: the goods, what's left, who's in
+//   GET  /tuan/api/shops/<slug>               a shop and its group buys
 //   POST /tuan/api/offers/<id>/orders         place an order
 //   GET  /tuan/api/orders/<code>              the buyer's own order (the phone number's last four digits in the x-tail header)
 //   POST /tuan/api/orders/<code>              the buyer changes it (x-tail), while the group buy is open
 //   POST /tuan/api/orders/<code>/cancel       the buyer cancels it (x-tail), while the group buy is open
 // A merchant, signed in with their changle.ca account (src/server/who.ts):
 //   GET  /tuan/api/my                         their shops and group buys
+//   GET  /tuan/api/my/shops/<slug>            what a shop says about itself
+//   POST /tuan/api/my/shops/<slug>            change it: name, kind, about, contact, how to pay, permit (not its address, who runs it, or whether it's live)
 //   POST /tuan/api/my/shops/<slug>/offers     start a group buy
 //   GET  /tuan/api/my/offers/<id>             every order in it, and the sheets (src/engine/summary.ts)
 //   POST /tuan/api/my/offers/<id>             open it, close it
@@ -23,7 +29,7 @@
 //   POST /tuan/api/my/orders/<code>           confirm, mark paid or handed over, cancel, weigh
 // The site's owner:
 //   POST /tuan/api/admin/shops                set a shop up, or change one
-import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Me, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type OfferPage, type OrderPage } from "../api";
+import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Me, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopCard, type ShopPage } from "../api";
 import { BASE } from "../base";
 import { planEdit, type Used } from "../engine/edit";
 import { makeCode, OFFER_LENGTH, OFFER_RE, ORDER_LENGTH, ORDER_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
@@ -31,14 +37,14 @@ import { finalGoods, MILLI } from "../engine/money";
 import { readOffer } from "../engine/offer";
 import { isOpen, KEY_RE, LINES_MAX, ORDERS_MAX, takeOrder, without, type Refused } from "../engine/order";
 import { phoneDigits, phoneKey, TAIL_RE, tailOf } from "../engine/phone";
-import { readShop } from "../engine/shop";
+import { readShop, readShopWords } from "../engine/shop";
 import { summarize } from "../engine/summary";
-import { weighed, type OfferBook, type Order } from "../engine/types";
-import { offerPage, orderPage } from "../engine/view";
+import { weighed, type OfferBook, type Order, type Shop } from "../engine/types";
+import { offerPage, orderPage, stateOf } from "../engine/view";
 import { bump, networkOf, used } from "./gate";
 import { flush, notify } from "./notify";
 import { ensureSchema } from "./schema";
-import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, offerHead, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveEdit, saveShop, setOfferStatus, shopBySlug, shopsOf, usedOf, weighOrder } from "./store";
+import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, offerHead, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveEdit, saveShop, saveShopWords, setOfferStatus, shopBySlug, shopOffers, shopsOf, usedOf, weighOrder } from "./store";
 import { tokenOf, whoIs, type Who } from "./who";
 
 /** The most an order's body may be, and a whole group buy's. */
@@ -115,6 +121,16 @@ async function publicBook(db: D1Database, offerId: string): Promise<OfferBook | 
 }
 
 // ---------- buyers ----------
+
+const cardOf = (shop: Shop): ShopCard => ({ slug: shop.slug, name: shop.name, kind: shop.kind, about: shop.about, contact: shop.contact, pay: shop.pay, permit: shop.permit });
+
+/** A shop's own page. A shop the owner hasn't let in yet isn't there. */
+async function seeShop(db: D1Database, slug: string, now: number): Promise<Response> {
+  const shop = await shopBySlug(db, slug);
+  if (!shop || shop.status === "pending") return refuse("notfound");
+  const offers = (await shopOffers(db, shop.id)).map((offer) => ({ id: offer.id, title: offer.title, closesAt: offer.closesAt, state: stateOf({ shop, offer }, now) }));
+  return json({ shop: cardOf(shop), offers, now } satisfies ShopPage);
+}
 
 async function seeOffer(db: D1Database, offerId: string, now: number): Promise<Response> {
   const book = await publicBook(db, offerId);
@@ -302,6 +318,24 @@ async function saveDoc(req: Request, db: D1Database, who: Who, offerId: string, 
   return myDoc(db, who, offerId, now);
 }
 
+/** What a shop says about itself, for its own people to read and change. */
+async function myShop(db: D1Database, who: Who, slug: string): Promise<Response> {
+  const shop = await shopBySlug(db, slug);
+  if (!shop) return refuse("notfound");
+  if (!(await runs(db, who, shop.id))) return refuse("forbidden");
+  return json({ shop: cardOf(shop), status: shop.status } satisfies MyShopPage);
+}
+
+async function saveMyShop(req: Request, db: D1Database, who: Who, slug: string): Promise<Response> {
+  const shop = await shopBySlug(db, slug);
+  if (!shop) return refuse("notfound");
+  if (!(await runs(db, who, shop.id))) return refuse("forbidden");
+  const read = readShopWords(await body(req, ORDER_BODY_MAX));
+  if (!read.ok) return refuse(read.error);
+  await saveShopWords(db, shop.id, read.words);
+  return myShop(db, who, slug);
+}
+
 async function moveOffer(req: Request, db: D1Database, who: Who, offerId: string, now: number): Promise<Response> {
   const input = await body(req, ORDER_BODY_MAX);
   if (!input || (input.do !== "open" && input.do !== "close")) return refuse("bad");
@@ -391,7 +425,8 @@ async function makeShop(req: Request, db: D1Database, now: number): Promise<Resp
  * one thing of Cloudflare's: the visitor statistics it adds to every page of changle.ca (Web
  * Analytics, from static.cloudflareinsights.com, reporting to this site's own /cdn-cgi/rum or to
  * cloudflareinsights.com). An order's address holds its code, so no other site is told where a
- * visitor came from. Not for search engines: a group buy is for the people its link was sent to.
+ * visitor came from. Not for search engines, home aside: a group buy is for the people its link
+ * was sent to, an order for its buyer, and a merchant's pages for the merchant.
  */
 const PAGE_HEADERS: Record<string, string> = {
   "cache-control": "no-store",
@@ -402,12 +437,16 @@ const PAGE_HEADERS: Record<string, string> = {
 };
 const plain = (text: string, status: number) => new Response(text, { status, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "x-robots-tag": "noindex, nofollow" } });
 
-/** The one file every page is, under `status`; with `title`, named for what it shows (the tab, and the card a shared link becomes). */
-async function shell(env: Env, url: URL, title: string | null, status: number): Promise<Response> {
+/**
+ * The one file every page is, under `status`; with `title`, named for what it shows (the tab, and
+ * the card a shared link becomes). `listed`: search engines may list it (home only).
+ */
+async function shell(env: Env, url: URL, title: string | null, status: number, listed = false): Promise<Response> {
   const file = await env.ASSETS.fetch(new URL(`${BASE}/`, url));
   if (!file.ok) return plain("not found", 404);
   const headers = new Headers(file.headers);
   for (const [name, value] of Object.entries(PAGE_HEADERS)) headers.set(name, value);
+  if (listed) headers.delete("x-robots-tag");
   const res = new Response(file.body, { status, headers });
   if (!title) return res;
   const named = `${title} · 跟一单 Count Me In`;
@@ -427,13 +466,26 @@ async function page(req: Request, env: Env, url: URL, parts: string[]): Promise<
   if (parts[0] === "assets") return plain("not found", 404);
   const [a, b] = parts;
   const n = parts.length;
-  if (n === 0 || (n === 1 && a === "preview")) return shell(env, url, null, 200);
+  // home is at /tuan/; /tuan, and the preview it was until it went on the site's Tools tab, lead there
+  if ((n === 0 && url.pathname === BASE) || (n === 1 && a === "preview")) return Response.redirect(new URL(`${BASE}/`, url).toString(), 301);
+  if (n === 0) return shell(env, url, null, 200, true);
   if (n === 2 && a === "o" && ORDER_RE.test(tidyOrderCode(b))) return shell(env, url, null, 200);
   // a merchant's pages say nothing by themselves: what they show comes from the API, once signed in
   if (a === "my") {
     const group = b === "t" && OFFER_RE.test(parts[2] ?? "");
-    // home; a group buy's orders; changing it; starting one in a shop
-    if (n === 1 || (n === 3 && group) || (n === 4 && group && parts[3] === "edit") || (n === 3 && b === "new" && SLUG_RE.test(parts[2]))) return shell(env, url, null, 200);
+    // home; a group buy's orders; changing it; starting one in a shop; what a shop says about itself
+    if (n === 1 || (n === 3 && group) || (n === 4 && group && parts[3] === "edit") || (n === 3 && (b === "new" || b === "s") && SLUG_RE.test(parts[2]))) return shell(env, url, null, 200);
+  }
+  if (n === 2 && a === "s" && SLUG_RE.test(b)) {
+    let shop: Shop | null;
+    try {
+      await ensureSchema(env.DB);
+      shop = await shopBySlug(env.DB, b);
+    } catch (e) {
+      console.error("tuan page", url.pathname, e);
+      return shell(env, url, null, 200);
+    }
+    return shop && shop.status !== "pending" ? shell(env, url, shop.name, 200) : shell(env, url, null, 404);
   }
   if (n === 2 && a === "t" && OFFER_RE.test(b)) {
     let head: { title: string; shop: string } | null;
@@ -465,6 +517,7 @@ async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, ur
   const [a, b, c, d] = parts;
   const n = parts.length;
 
+  if (n === 2 && a === "shops" && SLUG_RE.test(b ?? "") && get) return seeShop(db, b, now);
   if (a === "offers" && OFFER_RE.test(b ?? "")) {
     if (n === 2 && get) return seeOffer(db, b, now);
     if (n === 3 && c === "orders" && post) return placeOrder(req, env, ctx, b, now);
@@ -483,6 +536,10 @@ async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, ur
       return refuse("notfound");
     }
     if (n === 1 && get) return json({ me: { name: who.name, email: who.email, owner: who.owner } satisfies Me, shops: await shopsOf(db, who.email, who.owner), now } satisfies MyHome);
+    if (n === 3 && b === "shops" && SLUG_RE.test(c ?? "")) {
+      if (get) return myShop(db, who, c);
+      if (post) return saveMyShop(req, db, who, c);
+    }
     if (n === 4 && b === "shops" && SLUG_RE.test(c ?? "") && d === "offers" && post) return startOffer(req, db, who, c, now);
     if (n === 3 && b === "offers" && OFFER_RE.test(c ?? "")) {
       if (get) return myOffer(db, who, c, now);

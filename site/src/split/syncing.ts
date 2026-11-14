@@ -16,7 +16,8 @@ import { useSyncExternalStore } from "react";
 import type { Change } from "./changes";
 import type { Ledger } from "./core";
 import type { Logged } from "./history";
-import { deleteLedger, mineNet, net, recordNet } from "./net";
+import { deleteLedger, fileNet, mineNet, net, recordNet } from "./net";
+import { shrink, troubleOf, type PhotoTrouble } from "./photos";
 import type { Mine } from "./shape";
 import { dropHeld, everyHeld, heldOf, keepHeld, meOf, newId, newKey, setMe, write } from "./store";
 import { hold, holds, join, notOwner, opened, shown, type Held } from "./sync";
@@ -214,6 +215,57 @@ export function record(id: string, change: Change): boolean {
 export function dismissLost(id: string, changes: string[]) {
   const r = run(id);
   for (const change of changes) r?.syncer.dismiss(change);
+}
+
+/**
+ * A receipt photo (or PDF) for one of this ledger's expenses: made smaller, then stored at the
+ * server under an id of its own, charged to the account signed in. What comes back is that id
+ * (for the expense to keep) and how much of its room the account now uses; or why it couldn't be.
+ * Not queued like a change: a photo goes now, or the screen says why it didn't.
+ */
+export async function sendPhoto(id: string, file: File): Promise<{ ok: true; file: string; used: number; quota: number } | { ok: false; trouble: PhotoTrouble }> {
+  const h = heldOf(id);
+  if (!h) return { ok: false, trouble: "gone" };
+  // (a ledger made with no signal isn't on the server yet: nothing to keep a photo with)
+  if (!h.made) return { ok: false, trouble: "notYet" };
+  const made = await shrink(file);
+  if ("error" in made) return { ok: false, trouble: made.error };
+  const fileId = newId();
+  const got = await fileNet.put(id, h.key, fileId, made.blob, made.type);
+  if (got.data) {
+    remember(id, fileId, made.blob);
+    return { ok: true, file: fileId, used: got.data.used, quota: got.data.quota };
+  }
+  return { ok: false, trouble: troubleOf(got.status, got.error) };
+}
+
+/** Photos this phone has, by "<ledger>/<file>": the picture to show (an address on this page), and what kind of file it is. */
+const pictures = new Map<string, Promise<{ url: string; type: string } | null>>();
+function remember(id: string, file: string, blob: Blob) {
+  pictures.set(`${id}/${file}`, Promise.resolve({ url: URL.createObjectURL(blob), type: blob.type }));
+}
+
+/**
+ * A ledger's photo, to show: fetched once with the key, then kept while the page is open. Null when
+ * it can't be had (gone from the server, or no signal: asked for again next time).
+ */
+export function photoOf(id: string, file: string): Promise<{ url: string; type: string } | null> {
+  const at = `${id}/${file}`;
+  const there = pictures.get(at);
+  if (there) return there;
+  const h = heldOf(id);
+  if (!h) return Promise.resolve(null);
+  const asked = fileNet.get(id, h.key, file).then((got) => (got.data ? { url: URL.createObjectURL(got.data), type: got.data.type } : null));
+  pictures.set(at, asked);
+  // (no answer: not remembered, so it is asked for again)
+  void asked.then((got) => got === null && pictures.delete(at));
+  return asked;
+}
+
+/** A photo no expense keeps any more, taken off the server (its sender's room comes back). Done as best it can: one left behind is found later. */
+export function dropPhoto(id: string, file: string) {
+  const h = heldOf(id);
+  if (h) void fileNet.drop(id, h.key, file);
 }
 
 /** A ledger off this phone: its syncer stopped, what is held of it dropped. */

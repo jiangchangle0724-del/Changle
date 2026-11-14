@@ -1,0 +1,109 @@
+{
+  "id": "kitchen-25",
+  "world": "kitchen",
+  "tier": 0,
+  "name": {
+    "zh": "早班第一笼",
+    "en": "First Basket of the Shift"
+  },
+  "teaches": "steam",
+  "w": 2400,
+  "h": 720,
+  "spawn": {
+    "x": 120,
+    "y": 596
+  },
+  "goal": {
+    "x": 2020,
+    "y": 390,
+    "w": 360,
+    "h": 190
+  },
+  "checkpoints": [
+    {
+      "x": 1100,
+      "y": 256
+    },
+    {
+      "x": 2030,
+      "y": 536
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 680,
+      "y": 261
+    },
+    {
+      "x": 1265,
+      "y": 257
+    },
+    {
+      "x": 1819,
+      "y": 524
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 40,
+      "y": 620,
+      "w": 640,
+      "h": 100,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 680,
+      "y": 306,
+      "w": 60,
+      "h": 314,
+      "material": "ceramic",
+      "grab": false
+    },
+    {
+      "kind": "ground",
+      "x": 680,
+      "y": 280,
+      "w": 540,
+      "h": 26,
+      "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "x": 1220,
+      "y": 560,
+      "w": 1160,
+      "h": 160,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2380,
+      "y": 350,
+      "w": 20,
+      "h": 370,
+      "material": "metal"
+    }
+  ],
+  "vents": [
+    {
+      "x": 510,
+      "y": 580,
+      "w": 160,
+      "h": 40,
+      "reach": 350,
+      "phase": 1
+    }
+  ],
+  "hazards": [],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 810,
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/kitchen-25.json"
+}

@@ -1,15 +1,17 @@
 // 跟一单 · Count Me In: the phone pages. A buyer's are in this script:
-//   /tuan/ and /tuan/preview     home: how it works, and the orders placed from this phone
+//   /tuan/                       home: how it works, the orders placed from this phone, the way in for merchants
 //   /tuan/t/<group buy>          a group buy: pick, check out (…?change=<order> changes that order)
 //   /tuan/o/<order code>         an order
+//   /tuan/s/<shop>               a shop: who they are, and their group buys
 // and a merchant's (/tuan/my…) in one of their own, src/client/my.tsx, loaded only for them.
 import { render } from "preact";
 import { BASE } from "../base";
-import { OFFER_RE, ORDER_RE, tidyOrderCode } from "../engine/ids";
+import { OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
 import { t } from "./i18n";
 import { Home, NotFound } from "./ui/Home";
 import { OfferView } from "./ui/Offer";
 import { OrderView } from "./ui/Order";
+import { ShopView } from "./ui/Shop";
 
 const parts = location.pathname
   .slice(BASE.length)
@@ -30,12 +32,13 @@ if (history.state?.sheet || history.state?.checkout) history.replaceState(null, 
 
 function Page() {
   const [a, b] = parts;
-  if (parts.length === 0 || (parts.length === 1 && a === "preview")) return <Home preview={a === "preview"} />;
+  if (parts.length === 0) return <Home />;
   if (parts.length === 2 && a === "t" && OFFER_RE.test(b)) {
     const change = tidyOrderCode(query.get("change") ?? "");
     return <OfferView offerId={b} changeCode={ORDER_RE.test(change) ? change : null} />;
   }
   if (parts.length === 2 && a === "o" && ORDER_RE.test(tidyOrderCode(b))) return <OrderView code={tidyOrderCode(b)} fresh={query.get("new") === "1"} />;
+  if (parts.length === 2 && a === "s" && SLUG_RE.test(b)) return <ShopView slug={b} />;
   return <NotFound />;
 }
 

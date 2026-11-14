@@ -2,10 +2,12 @@
  * 记一笔: the whole screen while an expense is typed in. Two taps record one: the amount on the
  * keypad, then 记好了. Who paid starts as you and it starts shared equally by everyone; either opens
  * only when it needs changing. So does the currency: it is the one the last expense was paid in,
- * and the button in the corner changes it.
+ * and the button in the corner changes it. Receipt photos have a button at the end of the note's
+ * line (Photos.tsx): each goes to the server as it is chosen, and the expense keeps their ids.
  */
 import { Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
 import { useRates, type FxState } from "../tools/fx";
 import { CURRENCIES, sizeClass } from "../tools/money";
@@ -14,6 +16,7 @@ import { Pill } from "../ui/Pill";
 import { Sheet } from "../ui/Sheet";
 import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
+import { MAX_FILES } from "./changes";
 import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger } from "./core";
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, money, typed } from "./format";
@@ -21,10 +24,12 @@ import { asAmountText, press, type Key } from "./input";
 import { nameFor } from "./lines";
 import { NOTE_MAX } from "./ops";
 import { Bar, Keypad } from "./parts";
+import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
+import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
 import { asRateText, lastPaidIn, settled, todaysRate } from "./rates";
 import { newId } from "./store";
-import { record } from "./syncing";
-import { say } from "./words";
+import { dropPhoto, record, sendPhoto } from "./syncing";
+import { say, type Word } from "./words";
 
 type Props = {
   ledger: Ledger;
@@ -40,6 +45,9 @@ type Props = {
 
 /** A currency as these screens name it in a tight place: its name in Chinese (两 to 四 characters), its code in English. */
 const shortName = (currency: string, lang: Lang) => (lang === "zh" ? currencyName(currency, lang) : currency);
+
+/** Where this phone remembers it has said an account's photos are filling up (said once, until they go back under). */
+const WARNED = "changle.split.photoWarned";
 
 /** Today's rates, asked for only while something on the screen wants them (the site's own source, tools/fx.ts: one request, then once a minute). */
 function TodaysRates({ onChange }: { onChange: (fx: FxState) => void }) {
@@ -62,6 +70,87 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   // the turn for the odd cents this expense has (or will get), so the parts shown are the parts recorded
   const rot = editing ? editing.rot : nextRot(ledger);
 
+  // Receipt photos: the ids this expense will keep. Each photo goes to the server as it is chosen.
+  // One sent from this screen and never saved with the expense was never in the ledger, so it goes
+  // from the server again when it is taken off or the screen closes. One the expense had stays
+  // there when it is taken off (改回去 in the record brings it back): the nightly check clears
+  // photos nothing uses (13c).
+  const { me: account, status, openSignIn, signInOpen } = useAccount();
+  const signedIn = status === "in";
+  const [files, setFiles] = useState<string[]>(() => editing?.files ?? []);
+  const [sending, setSending] = useState(0);
+  const [photos, setPhotos] = useState(false);
+  const picker = useRef<HTMLInputElement>(null);
+  const sentHere = useRef(new Set<string>());
+  const saved = useRef(false);
+  const left = useRef(false);
+  useEffect(() => {
+    left.current = false;
+    return () => {
+      left.current = true;
+      if (!saved.current) for (const f of sentHere.current) dropPhoto(ledger.id, f);
+    };
+  }, []);
+  // why a photo didn't go: said in the photos' sheet while that is open (a toast would be under
+  // it, out of reach), as a toast otherwise
+  const [photoNote, setPhotoNote] = useState<{ word: Word; text: string } | null>(null);
+  const sheetOpen = useRef(false);
+  sheetOpen.current = photos;
+  const tell = (word: Word, fill?: Record<string, string>) => {
+    const text = say(lang, word, fill);
+    if (sheetOpen.current) return setPhotoNote({ word, text });
+    toast(text, { tone: "warning", ...(word === "photoSignIn" ? { action: { label: say(lang, "signIn"), onClick: () => openSignIn() } } : {}) });
+  };
+  const pick = async (chosen: File[]) => {
+    setPhotoNote(null);
+    const room = MAX_FILES - files.length - sending;
+    if (chosen.length > room) tell("photoMax");
+    for (const file of chosen.slice(0, Math.max(0, room))) {
+      setSending((n) => n + 1);
+      const got = await sendPhoto(ledger.id, file);
+      setSending((n) => n - 1);
+      // (the screen closed while it went: nothing will keep it)
+      if (got.ok && left.current) {
+        dropPhoto(ledger.id, got.file);
+        continue;
+      }
+      if (!got.ok) {
+        tell(TROUBLE_WORD[got.trouble]);
+        continue;
+      }
+      sentHere.current.add(got.file);
+      setFiles((f) => [...f, got.file]);
+      // filling up: said once, until the account is under it again
+      try {
+        const who = account?.id ?? "";
+        if (got.used < WARN_AT) localStorage.removeItem(WARNED);
+        else if (localStorage.getItem(WARNED) !== who) {
+          localStorage.setItem(WARNED, who);
+          tell("photoWarn", { used: megabytes(got.used) });
+        }
+      } catch {
+        // a phone that keeps nothing says it each time it is over
+      }
+    }
+  };
+  // the camera straight away when there is nothing to look at first; otherwise the photos
+  const pressPhoto = () => (files.length || sending || !signedIn ? setPhotos(true) : picker.current?.click());
+  // 登录 in the photos' sheet: the sheet gives way to the site's sign-in (which is drawn under any
+  // sheet still open), and comes back once someone is signed in anew; closed without that, it doesn't
+  const backAfter = useRef<{ was: typeof account } | null>(null);
+  useEffect(() => {
+    const wanted = backAfter.current;
+    if (!wanted || signInOpen) return;
+    backAfter.current = null;
+    if (signedIn && account && account !== wanted.was) setPhotos(true);
+  }, [account, signedIn, signInOpen]);
+  const signInFromSheet = () => {
+    backAfter.current = { was: account };
+    setPhotos(false);
+    setPhotoNote(null);
+    openSignIn();
+  };
+
   const type = (k: Key) => setDraft((d) => ({ ...d, text: press(d.text, k, decimalsOf(d.currency)) }));
 
   // Today's rates are asked for while the currency is being picked, the rate looked at, or a rate
@@ -75,7 +164,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   // a real keyboard types the amount too (a computer, or a phone with one attached)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (sheet || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (sheet || photos || e.metaKey || e.ctrlKey || e.altKey) return;
       const at = e.target as HTMLElement | null;
       if (at && (at.tagName === "INPUT" || at.tagName === "TEXTAREA")) return;
       if (/^[0-9.]$/.test(e.key)) type(e.key as Key);
@@ -89,14 +178,17 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
 
   const save = () => {
     const to = saying(draft, ledger);
-    if (!to) return;
+    if (!to || sending) return;
     const id = editing ? editing.id : newId();
-    const { paidIn, ...said } = to;
+    const { paidIn, files: _unsaid, ...said } = to;
     // a new expense goes as it is recorded here, its turn for the odd cents included: the parts shown are the parts everyone gets
-    const done = editing ? record(ledger.id, { do: "edit", entry: id, to }) : record(ledger.id, { do: "expense", expense: { kind: "expense", id, at: Date.now(), ...said, rot, ...(paidIn ? { paidIn } : {}) } });
+    const done = editing
+      ? record(ledger.id, { do: "edit", entry: id, to: { ...to, files: files.length ? files : null } })
+      : record(ledger.id, { do: "expense", expense: { kind: "expense", id, at: Date.now(), ...said, rot, ...(paidIn ? { paidIn } : {}), ...(files.length ? { files } : {}) } });
     // (refused only when the ledger changed under this screen: someone on another phone got there first)
-    if (done) onSaved(id);
-    else toast(say(lang, "notSaved"), { tone: "warning" });
+    if (!done) return toast(say(lang, "notSaved"), { tone: "warning" });
+    saved.current = true;
+    onSaved(id);
   };
 
   const shown = typed(draft.text, draft.currency, lang);
@@ -189,18 +281,23 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
             </strong>
             <ChevronRight aria-hidden="true" />
           </button>
-          <label className="split-field">
-            <span>{say(lang, "note")}</span>
-            <input value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} onKeyDown={doneLeaves} maxLength={NOTE_MAX} placeholder={say(lang, "noteHint")} enterKeyHint="done" autoComplete="off" />
-          </label>
+          {/* the note, typed in place, and its receipt photos at the end of the line */}
+          <div className="split-note-row">
+            <label className="split-field">
+              <span>{say(lang, "note")}</span>
+              <input value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} onKeyDown={doneLeaves} maxLength={NOTE_MAX} placeholder={say(lang, "noteHint")} enterKeyHint="done" autoComplete="off" />
+            </label>
+            <PhotoButton ledger={ledger.id} files={files} sending={sending > 0} lang={lang} onPress={pressPhoto} />
+            <PhotoPicker input={picker} onPick={(chosen) => void pick(chosen)} />
+          </div>
         </div>
         <span className="ui-visually-hidden" role="status">
-          {off || (comes?.loud ? comes.text : "")}
+          {off || (comes?.loud ? comes.text : sending ? say(lang, "photoSending") : "")}
         </span>
       </div>
       <div className="split-dock">
         <Keypad onKey={type} decimals={decimalsOf(draft.currency)} lang={lang} />
-        <Button size="lg" block disabled={!!wrong} onClick={save}>
+        <Button size="lg" block disabled={!!wrong || sending > 0} onClick={save}>
           {say(lang, editing ? "saveChanges" : "done")}
         </Button>
       </div>
@@ -209,6 +306,27 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
       <CurrencySheet open={sheet === "currency"} onClose={() => setSheet(null)} ledger={ledger} lang={lang} value={draft.currency} onPick={(currency) => setDraft((d) => payIn(d, currency, ledger, fx?.rates, Date.now()))} />
       <RateSheet open={sheet === "rate" && away} onClose={() => setSheet(null)} ledger={ledger} lang={lang} draft={draft} fx={fx} onChange={setDraft} />
       {wantsRates && <TodaysRates onChange={setFx} />}
+      <PhotosSheet
+        open={photos}
+        onClose={() => {
+          setPhotos(false);
+          setPhotoNote(null);
+        }}
+        ledger={ledger.id}
+        files={files}
+        sending={sending > 0}
+        // (the server said the sign-in has run out: as signed out, with 登录)
+        signedIn={signedIn && photoNote?.word !== "photoSignIn"}
+        note={photoNote?.text ?? null}
+        lang={lang}
+        onPick={(chosen) => void pick(chosen)}
+        onRemove={(f) => {
+          setFiles((now) => now.filter((x) => x !== f));
+          // (sent from here and never saved: nothing can bring it back, so it goes now)
+          if (sentHere.current.delete(f)) dropPhoto(ledger.id, f);
+        }}
+        onSignIn={signInFromSheet}
+      />
     </div>
   );
 }

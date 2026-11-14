@@ -31,6 +31,7 @@ import { PhoneSong } from "./PhoneSong";
 import { SfxPlayer } from "./sfx/player";
 import "../../styles/dj.css";
 import { useDjNames } from "./names";
+import { appleTouch } from "./device";
 
 /**
  * 打碟 · DJ Booth on the big screen, which is also the speaker: the one device the music comes
@@ -194,6 +195,8 @@ export default function TvDj({ v }: { v: DjView }) {
   });
 
   const root = useRef<HTMLDivElement>(null);
+  // an iPhone or iPad as the speaker: drawn lighter (device.ts)
+  const [light] = useState(appleTouch);
   // (暂停 on a phone: the floor rests with the music)
   const held = useRef(false);
   held.current = !!v.deck?.paused;
@@ -283,6 +286,8 @@ export default function TvDj({ v }: { v: DjView }) {
     .filter((f) => f.seat && f.n > 0)
     .slice(0, 3);
   const live = booth.status === "on";
+  // what's on the air, for the dancer's outfit (a new one each): a whole song, a song asked for, or the DJ's own set
+  const onAir = v.deck ? (v.deck.song?.id ?? v.deck.now?.id ?? `set:${v.deck.aired[v.deck.aired.length - 1]?.at ?? 0}`) : null;
   const silent = live && (v.phase === "wait" || state !== "playing") && v.phase !== "end";
   const tonight = Object.values(v.total).reduce((a, b) => a + b, 0);
   // ❄️ this minute, and the DJ reading the floor (读场: Lyria leans its energy with it)
@@ -330,7 +335,7 @@ export default function TvDj({ v }: { v: DjView }) {
   }, [v.phase]);
 
   return (
-    <div className={`dj-stage is-${stage} ${live ? "is-live" : ""}`} ref={root}>
+    <div className={`dj-stage is-${stage} ${live ? "is-live" : ""} ${light ? "is-light" : ""}`} ref={root}>
       <div className="dj-sky" data-lit aria-hidden="true" />
       <div className="dj-beams" data-lit aria-hidden="true">
         {[0, 1, 2, 3, 4].map((k) => (
@@ -371,7 +376,7 @@ export default function TvDj({ v }: { v: DjView }) {
         />
       )}
       {/* (all night, whole songs too: over the video when it's over the whole TV) */}
-      {live && v.phase !== "end" && <Coach clock={coachClock} zh={zh} mood={moodOf(v.phase, beat?.slow)} over={covered} combo={v.combo ?? 0} dancers={dancing.n} />}
+      {live && v.phase !== "end" && <Coach clock={coachClock} zh={zh} mood={moodOf(v.phase, beat?.slow)} over={covered} combo={v.combo ?? 0} dancers={dancing.n} song={onAir} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
       {/* a song file a phone sent, whole, in this page's own sound */}
       {live && v.deck && <PhoneSong v={v} crate={booth.crate} speaker={speaker} now={now} zh={zh} nameOf={nameOf} done={(id) => g("songdone", { id })} />}

@@ -14,6 +14,11 @@
 // opens three doors only: changing the invitation's key (the old one is turned away from then on),
 // locking the ledger (it can be read, and takes no changes, until the owner opens it again), and
 // deleting it. A deleted ledger is gone for everyone, and its id can't be used for another.
+//
+// Receipt photos and files: the bytes are in the bucket (src/server/worker.ts), and the ledger
+// keeps a list of what is there, each with whose account sent it. Whoever holds the key reads them,
+// and takes one off; storing one also needs a sign-in, which is the Worker's to check, as is how
+// much room the sender's account has (account.ts). A locked ledger takes no new file and lets none go.
 import { accept, parseSent, type Sent, type Took } from "../../../../site/src/split/changes";
 import { MAX_MEMBERS, type Ledger, type Member } from "../../../../site/src/split/core";
 import { NAME_MAX, startLedger, tidy } from "../../../../site/src/split/ops";
@@ -48,6 +53,14 @@ export type LoggedLock = { seq: number; at: number; lock: boolean };
 export type Logged = LoggedChange | LoggedLock;
 export type Snapshot = { seq: number; ledger: Ledger };
 
+/** A receipt photo or file kept with a ledger: its id (the phone's), its size in bytes, what kind it is, whose account sent it, and when. */
+export type StoredFile = { id: string; size: number; type: string; by: string; at: number };
+/** A file as anyone holding the key is told of it: not whose account sent it. */
+export type FileInfo = Omit<StoredFile, "by">;
+/** The most files one ledger keeps. */
+export const MAX_LEDGER_FILES = 2000;
+const info = ({ by: _by, ...rest }: StoredFile): FileInfo => rest;
+
 export interface Store {
   load(): { meta: Meta; ledger: Ledger } | null;
   save(meta: Meta, ledger: Ledger): void;
@@ -63,6 +76,12 @@ export interface Store {
   wipe(now: number): void;
   /** When this ledger was deleted; null when it wasn't. */
   buried(): number | null;
+  /** Every file kept, the first stored first. */
+  files(): StoredFile[];
+  file(id: string): StoredFile | null;
+  putFile(file: StoredFile): void;
+  dropFile(id: string): void;
+  fileCount(): number;
 }
 
 /** "owner": not the owner's key (or the ledger has no owner). "locked": the ledger is locked and this would change it. */
@@ -221,15 +240,74 @@ export class LedgerRoom {
 
   /**
    * The owner deletes the ledger: everything kept for it goes, and from then on it is gone for
-   * everyone (404), the owner included. There is no undoing it.
+   * everyone (404), the owner included. There is no undoing it. What comes back is its id and the
+   * files it kept, for the bucket to let go of them and their senders' accounts to have the room back.
    */
-  wipe(ownerHash: string | null, now: number): Ok | Fail {
+  wipe(ownerHash: string | null, now: number): Ok<{ id: string; files: StoredFile[] }> | Fail {
     if (!this.meta || !this.ledger) return fail("gone");
     if (!this.owns(ownerHash)) return fail("owner");
+    const id = this.ledger.id;
+    const files = this.store.files();
     this.store.wipe(now);
     this.meta = null;
     this.ledger = null;
-    return { ok: true };
+    return { ok: true, id, files };
+  }
+
+  /**
+   * May a file with this id be stored here, by whoever holds this key? The file already kept with
+   * that id, when there is one (a phone sending it again: nothing more is stored or charged);
+   * refused when the ledger is locked, or keeps as many files as it may.
+   */
+  mayStore(keyHash: string | null, id: string): Ok<{ kept: FileInfo | null }> | Fail {
+    if (!this.meta || !this.ledger) return fail("gone");
+    if (!this.opens(keyHash)) return fail("key");
+    const kept = this.store.file(id);
+    if (kept) return { ok: true, kept: info(kept) };
+    if (this.ledger.locked !== undefined) return fail("locked");
+    if (this.store.fileCount() >= MAX_LEDGER_FILES) return fail("full");
+    return { ok: true, kept: null };
+  }
+
+  /** A file is in the bucket now: it goes on the ledger's list. Told again, it is there already, as it was first kept. */
+  stored(file: StoredFile): Ok<{ file: FileInfo }> | Fail {
+    if (!this.meta || !this.ledger) return fail("gone");
+    const kept = this.store.file(file.id);
+    if (kept) return { ok: true, file: info(kept) };
+    if (this.ledger.locked !== undefined) return fail("locked");
+    if (this.store.fileCount() >= MAX_LEDGER_FILES) return fail("full");
+    this.store.putFile(file);
+    return { ok: true, file: info(file) };
+  }
+
+  /** One file, for whoever holds the key ("gone" when there is none with that id). */
+  file(keyHash: string | null, id: string): Ok<{ file: FileInfo }> | Fail {
+    if (!this.meta) return fail("gone");
+    if (!this.opens(keyHash)) return fail("key");
+    const kept = this.store.file(id);
+    return kept ? { ok: true, file: info(kept) } : fail("gone");
+  }
+
+  /** Every file kept with the ledger, the first stored first, for whoever holds the key. */
+  listFiles(keyHash: string | null): Ok<{ files: FileInfo[] }> | Fail {
+    if (!this.meta) return fail("gone");
+    if (!this.opens(keyHash)) return fail("key");
+    return { ok: true, files: this.store.files().map(info) };
+  }
+
+  /**
+   * Whoever holds the key takes a file off the ledger (not while it is locked). What comes back is
+   * its record, whose account sent it included: the bucket lets go of it, and that account has the
+   * room back. Taken off twice, it is gone.
+   */
+  unstore(keyHash: string | null, id: string): Ok<{ file: StoredFile }> | Fail {
+    if (!this.meta || !this.ledger) return fail("gone");
+    if (!this.opens(keyHash)) return fail("key");
+    const kept = this.store.file(id);
+    if (!kept) return fail("gone");
+    if (this.ledger.locked !== undefined) return fail("locked");
+    this.store.dropFile(id);
+    return { ok: true, file: kept };
   }
 
   /** The record after number `seq` (who changed what, in order, and when it was locked or opened), at most MAX_BATCH lines at a time. */
@@ -242,14 +320,25 @@ export class LedgerRoom {
 }
 
 /** A store that lives only as long as the test does. */
-export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[] } {
+export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[]; kept: Map<string, StoredFile> } {
   let kept: { meta: Meta; ledger: Ledger } | null = null;
   const ids = new Map<string, boolean>();
   const log: Logged[] = [];
+  const files = new Map<string, StoredFile>();
   let buried: number | null = null;
   return {
     ids,
     log,
+    kept: files,
+    files: () => [...files.values()].map((f) => structuredClone(f)),
+    file: (id) => (files.has(id) ? structuredClone(files.get(id)!) : null),
+    putFile(f) {
+      files.set(f.id, structuredClone(f));
+    },
+    dropFile(id) {
+      files.delete(id);
+    },
+    fileCount: () => files.size,
     load: () => (kept ? structuredClone(kept) : null),
     save(meta, ledger) {
       kept = structuredClone({ meta, ledger });
@@ -267,6 +356,7 @@ export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[
       kept = null;
       ids.clear();
       log.length = 0;
+      files.clear();
       buried = now;
     },
     buried: () => buried,

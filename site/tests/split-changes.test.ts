@@ -12,9 +12,10 @@
  *  7. What arrives from the network: junk is no change, and nothing extra rides in.
  *  8. Thousands of changes of every kind, sound and not: the ledger stays sound.
  *  9. The phone's own view: the server's ledger with what is still waiting on top.
+ * 10. Receipt photos: an expense carries their ids; a change that doesn't mention them leaves them.
  */
 import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
-import { accept, applyChange, MAX_ENTRIES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
+import { accept, applyChange, MAX_ENTRIES, MAX_FILES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
 import { addExpense, startLedger } from "../src/split/ops";
 import { asLedger } from "../src/split/shape";
 import { randomLedger, rng } from "./split/ledgers";
@@ -384,6 +385,45 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   const server = startLedger("L", "x", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }, { id: "c", name: "Cy" }]);
   const waiting = [sent({ do: "rename", member: "a", name: "Cy" }), sent({ do: "expense", expense: { kind: "expense", id: "e", at: 1, payer: "a", amount: 300, note: "", split: { how: "equal", among: ["a", "b", "c"] }, rot: 0 } })];
   eq(rebase(server, waiting), { ...server, entries: [(waiting[1].change as Extract<Change, { do: "expense" }>).expense] }, "a waiting change that no longer fits (the name was taken meanwhile) is left out, and the rest still shows");
+}
+
+// ---------- 10. receipt photos ----------
+{
+  const start = startLedger("P", "照片", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);
+  const among: Split = { how: "equal", among: ["a", "b"] };
+  const lunch = { kind: "expense" as const, id: "e1", at: 1, payer: "a", amount: 3000, note: "午饭", split: among, rot: 0 };
+  const said = { payer: "a", amount: 3000, note: "午饭", split: among };
+  const read = (change: unknown) => parseSent({ id: "c", at: 1, change })?.change ?? null;
+
+  // what arrives: a list of ids, at most MAX_FILES, none twice; anything else is no change at all
+  eq(read({ do: "expense", expense: { ...lunch, files: ["f1", "f2"] } }), { do: "expense", expense: { ...lunch, files: ["f1", "f2"] } }, "an expense with two photos is read with them, in their order");
+  eq(read({ do: "expense", expense: { ...lunch, files: [] } }), { do: "expense", expense: lunch }, "an empty list is no photos");
+  const ten = Array.from({ length: MAX_FILES }, (_, i) => `f${i}`);
+  eq((read({ do: "expense", expense: { ...lunch, files: ten } }) as Extract<Change, { do: "expense" }> | null)?.expense.files?.length, MAX_FILES, `${MAX_FILES} photos, the most one expense keeps`);
+  for (const files of [[...ten, "f99"], ["f1", "f1"], ["a b"], [7], "f1", { f: 1 }, null]) eq(read({ do: "expense", expense: { ...lunch, files } }), null, `photos said as ${JSON.stringify(files)}: not a change`);
+  eq(read({ do: "edit", entry: "e1", to: { ...said, files: ["f3"] } }), { do: "edit", entry: "e1", to: { ...said, files: ["f3"] } }, "an edit that says the photos");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, files: null } }), { do: "edit", entry: "e1", to: { ...said, files: null } }, "an edit that says there are none");
+  eq(read({ do: "edit", entry: "e1", to: said }), { do: "edit", entry: "e1", to: said }, "an edit that doesn't say");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, files: ["f1", "f1"] } }), null, "an edit with a photo twice: not a change");
+
+  // what they do
+  const withTwo = applyChange(start, { do: "expense", expense: { ...lunch, files: ["f1", "f2"] } })!;
+  eq((withTwo.entries[0] as Expense).files, ["f1", "f2"], "recorded with its photos");
+  eq((applyChange(start, { do: "expense", expense: lunch })!.entries[0] as Expense).files, undefined, "recorded without: no `files` at all");
+  const kept = applyChange(withTwo, { do: "edit", entry: "e1", to: { ...said, amount: 3500 } })!;
+  eq([(kept.entries[0] as Expense).amount, (kept.entries[0] as Expense).files], [3500, ["f1", "f2"]], "an edit that doesn't mention them (a page from before photos) keeps them");
+  eq((applyChange(withTwo, { do: "edit", entry: "e1", to: { ...said, files: ["f2", "f3"] } })!.entries[0] as Expense).files, ["f2", "f3"], "an edit that says them sets them");
+  const none = applyChange(withTwo, { do: "edit", entry: "e1", to: { ...said, files: null } })!;
+  eq([(none.entries[0] as Expense).files, "files" in none.entries[0]], [undefined, false], "an edit that says none takes them all off");
+  eq((applyChange(withTwo, { do: "edit", entry: "e1", to: { ...said, files: [] } })!.entries[0] as Expense).files, undefined, "and so does an empty list");
+  eq(applyChange(withTwo, { do: "edit", entry: "e1", to: { ...said, files: ["f1", "f2"] } }), null, "an edit to the photos it already has changes nothing");
+  eq(applyChange(start, { do: "edit", entry: "e1", to: { ...said, files: null } }), null, "and neither does taking none off an expense that has none");
+  eq(balances(none), balances(withTwo), "photos change nobody's share");
+  // sent and taken by the server, as any change is
+  const served = serve(start, [sent({ do: "expense", expense: { ...lunch, files: ["f1"] } }), sent({ do: "edit", entry: "e1", to: { ...said, note: "午饭和茶" } })]);
+  eq([(served.ledger.entries[0] as Expense).files, (served.ledger.entries[0] as Expense).note, served.took], [["f1"], "午饭和茶", ["new", "new"]], "the server takes them, and a later edit about the note keeps them");
+  eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads them back from the server's ledger");
+  eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], files: "f1" }] })?.entries, [], "a ledger whose photos aren't a list leaves that entry out");
 }
 
 if (failed) {

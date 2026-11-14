@@ -11,7 +11,7 @@
  * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
  * the page asks which of the people in the ledger this phone's owner is.
  */
-import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Plus, ReceiptText, Send, WifiOff } from "lucide-react";
+import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Paperclip, Plus, ReceiptText, Send, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -347,6 +347,13 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
         <strong className={e.note ? undefined : "is-quiet"}>{e.note || say(lang, "noNote")}</strong>
         <span>
           {paidBy(e, ledger, me, lang)} · {sharedHow(e, ledger, me, lang)}
+          {/* with receipt photos: a clip, which opening the expense shows */}
+          {!!e.files?.length && (
+            <>
+              <Paperclip aria-hidden="true" />
+              <span className="ui-visually-hidden"> {say(lang, "photoMark")}</span>
+            </>
+          )}
         </span>
       </span>
       <span className="split-row-amount">

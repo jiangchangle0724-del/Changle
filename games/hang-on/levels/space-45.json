@@ -1,0 +1,164 @@
+{
+  "id": "space-45",
+  "world": "space",
+  "name": {
+    "zh": "太阳翼检修",
+    "en": "Solar Wing Service"
+  },
+  "tier": 1,
+  "teaches": "combine",
+  "w": 2560,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 516
+  },
+  "goal": {
+    "x": 2300,
+    "y": 360,
+    "w": 240,
+    "h": 180
+  },
+  "checkpoints": [
+    {
+      "x": 1150,
+      "y": 516
+    },
+    {
+      "x": 1730,
+      "y": 516
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 878,
+      "y": 417
+    },
+    {
+      "x": 1418,
+      "y": 500
+    },
+    {
+      "x": 1935,
+      "y": 379
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 560,
+      "w": 500,
+      "h": 160,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1050,
+      "y": 560,
+      "w": 450,
+      "h": 160,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 1500,
+      "y": 560,
+      "w": 1060,
+      "h": 160,
+      "kind": "ground",
+      "material": "hull"
+    },
+    {
+      "x": 530,
+      "y": 420,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 730,
+      "y": 340,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 920,
+      "y": 420,
+      "w": 70,
+      "h": 14,
+      "kind": "peg",
+      "material": "metal"
+    },
+    {
+      "x": 1950,
+      "y": 0,
+      "w": 36,
+      "h": 240,
+      "kind": "wall",
+      "material": "hull"
+    }
+  ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [
+    {
+      "x": 820,
+      "y": 180,
+      "w": 12,
+      "h": 130,
+      "kind": "zap"
+    },
+    {
+      "x": 1640,
+      "y": 350,
+      "w": 50,
+      "h": 20,
+      "kind": "hot"
+    }
+  ],
+  "movers": [],
+  "spinners": [],
+  "zerog": [
+    {
+      "x": 450,
+      "y": 180,
+      "w": 650,
+      "h": 460
+    }
+  ],
+  "levers": [
+    {
+      "x": 1870,
+      "y": 480,
+      "opens": "solar"
+    }
+  ],
+  "gates": [
+    {
+      "id": "solar",
+      "x": 1950,
+      "y": 240,
+      "w": 36,
+      "h": 320,
+      "move": {
+        "x": 0,
+        "y": -240
+      },
+      "hold": 3,
+      "speed": 450,
+      "grab": false
+    }
+  ],
+  "deathY": 900,
+  "par": {
+    "seconds": 110,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/space-45.json"
+}

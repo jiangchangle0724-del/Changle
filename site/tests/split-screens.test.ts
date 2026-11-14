@@ -19,6 +19,7 @@
  * 13. The 结清图: what the picture of the plan says, when it is out of date, and what the phone
  *     keeps of it.
  * 14. 导出账目: the ledger as CSV, each person's column adding up to where they stand.
+ * 15. Receipt photos: how small a photo is made, how its room is said, why one didn't go.
  */
 import QRCode from "qrcode";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -39,6 +40,7 @@ import { historyOf, RESTORE_DAYS, whenText, type Logged } from "../src/split/his
 import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split/picture";
 import { csvOf } from "../src/split/csv";
 import { datedName } from "../src/split/share";
+import { fitWithin, megabytes, PHOTO_EDGE, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
 import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
@@ -307,7 +309,7 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, paidIn: null }, null, null], "in the ledger's own, it says there is no other currency; while something is wrong with it, it says nothing at all");
 
   // opened again
-  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
+  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
   const again = draftOf(recorded.entries[0] as Expense, recorded);
   eq([again.text, again.currency, again.rate, again.asking, again.untouched], ["30.00", "USD", "1.40", false, false], "an expense paid in dollars opens in dollars, at the rate it was recorded at");
   eq([saying(again, recorded), applyChange(recorded, { do: "edit", entry: "e", to: saying(again, recorded)! })], [saying(thirty, five), null], "saved untouched, it says what it said, and nothing changes");
@@ -337,7 +339,7 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
         if (draftProblem(d, l)?.what !== "amount") bad = `${text} ${other} in a ${settle} ledger: ${JSON.stringify(draftProblem(d, l))}`;
         continue;
       }
-      const { paidIn, ...said } = to;
+      const { paidIn, files: _files, ...said } = to;
       const made = applyChange(l, { do: "expense", expense: { kind: "expense", id: "e", at: NOW, ...said, rot: 0, ...(paidIn ? { paidIn } : {}) } });
       const e = made?.entries[0] as Expense | undefined;
       if (!made || !e || JSON.stringify(paidInOf(e, made)) !== JSON.stringify(paidIn) || e.amount !== convert(paidIn?.amount ?? 0, decimalsOf(other), paidIn?.rate ?? "", decimalsOf(settle))) bad = `${text} ${other} in a ${settle} ledger isn't kept as it was said`;
@@ -815,7 +817,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
   eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
   const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
-  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
   const backAgain = applyChange(now, edit!.change)!;
   const { rot: _r1, ...was } = dinner;
   const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
@@ -877,6 +879,23 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     }
     return { l, lg };
   };
+
+  // photos added, then one taken off: the record says so, and changing it back puts them back as they were
+  {
+    const { l, lg } = play([
+      { do: "expense", expense: { ...gas, files: ["p1"] } },
+      { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油费", split: gas.split, files: ["p1", "p2"] } },
+      { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油费", split: gas.split, files: ["p2"] } },
+    ]);
+    const lines = historyOf(l, lg, [], "s", "zh", clock);
+    eq(lines.map((x) => x.detail ?? ""), ["去掉了照片", "加了照片", ""], "photos added, then one taken off: each edit says which");
+    eq(historyOf(l, lg, [], "s", "en", clock).map((x) => x.detail ?? ""), ["Photo taken off", "Photo added", ""], "in English");
+    eq((applyChange(l, lines[0].action!.change)!.entries[0] as Expense).files, ["p1", "p2"], "changed back: both photos again");
+    const swapped = play([{ do: "expense", expense: { ...gas, files: ["p1"] } }, { do: "edit", entry: "e2", to: { payer: "w", amount: 13000, note: "油费", split: gas.split, files: ["p3"] } }]);
+    eq(historyOf(swapped.l, swapped.lg, [], "s", "zh", clock)[0].detail, "金额 $120.00 改成 $130.00，加了照片，去掉了照片", "one swapped for another, with the amount: all of it said");
+    const untold = play([{ do: "expense", expense: { ...gas, files: ["p1"] } }, { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油", split: gas.split } }]);
+    eq([historyOf(untold.l, untold.lg, [], "s", "zh", clock)[0].detail, (untold.l.entries[0] as Expense).files], ["备注改成 油", ["p1"]], "an edit that doesn't mention the photos (a page from before them): they stay, and nothing is said of them");
+  }
 
   // deleted, brought back and deleted again: only the latest deletion offers to bring it back
   {
@@ -1004,6 +1023,28 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(formulas, ["'=1+1", "'+1", "'-1", "'@x"], "a note that starts like a formula gets a ' in front");
   eq(rows(csvOf(five, "zh")).length, 2, "nothing recorded: the headings and the totals");
   eq([datedName(at(14, 10, 12), "csv"), datedName(new Date(2026, 0, 3).getTime(), "png")], ["all-square-2026-11-14.csv", "all-square-2026-01-03.png"], "the file's name: plain letters, and the day");
+}
+
+// ---------- 15. receipt photos ----------
+{
+  eq([fitWithin(4032, 3024), fitWithin(3024, 4032), fitWithin(1200, 900), fitWithin(1600, 10), fitWithin(20000, 1)], [{ width: 1600, height: 1200 }, { width: 1200, height: 1600 }, { width: 1200, height: 900 }, { width: 1600, height: 10 }, { width: PHOTO_EDGE, height: 1 }], "a phone's photo, its long side made 1600, its shape kept; one smaller already left as it is; never thinner than a pixel");
+  eq([megabytes(0), megabytes(1), megabytes(1024 * 1024), megabytes(412.4 * 1024 * 1024), megabytes(500 * 1024 * 1024)], ["0", "1", "1", "412", "500"], "megabytes as they are said: whole ones, and never 0 for something that takes room");
+  const cases: [number, unknown, PhotoTrouble][] = [
+    [401, "signin", "signin"],
+    [413, "quota", "quota"],
+    [413, "big", "big"],
+    [429, "limit", "limit"],
+    [423, "locked", "locked"],
+    [403, "key", "key"],
+    [404, "gone", "gone"],
+    // (an address the server doesn't have: as good as no answer)
+    [404, "notfound", "away"],
+    [400, "bad", "bad"],
+    [0, undefined, "away"],
+  ];
+  eq(cases.map(([status, error]) => troubleOf(status, error)), cases.map(([, , t]) => t), "each answer of the server's said as its own trouble; no answer is no connection");
+  const words = Object.values(TROUBLE_WORD);
+  ok(words.every((w) => W[w].zh.endsWith("。") && /[.]$/.test(W[w].en)), "and each trouble said in a sentence, in both languages");
 }
 
 if (failed) {

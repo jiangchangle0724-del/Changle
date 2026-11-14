@@ -1,6 +1,6 @@
-// Home: how it works, the orders placed from this phone, and a way to open an order by its code.
-// (A list of shops with group buys open comes when the tool is public; until then a buyer arrives
-// by a merchant's link.) /tuan/preview is the same page, saying it is a preview.
+// Home: how it works, the orders placed from this phone, a way to open an order by its code, and
+// the way in for merchants. A buyer mostly arrives by a merchant's link; this is where the site's
+// Tools tab leads. (A list of shops with group buys open may come later.)
 import { useState } from "preact/hooks";
 import { BASE } from "../../base";
 import { ORDER_RE, tidyOrderCode } from "../../engine/ids";
@@ -8,7 +8,7 @@ import { myOrders } from "../api";
 import { t, whenText } from "../i18n";
 import { IconNext, TopBar, useLang, useTitle } from "./common";
 
-export function Home({ preview }: { preview: boolean }) {
+export function Home() {
   useLang();
   const orders = myOrders();
   const [code, setCode] = useState("");
@@ -19,12 +19,9 @@ export function Home({ preview }: { preview: boolean }) {
       <section class="hero">
         <h1>{t("brand")}</h1>
         <p>{t("homeLine")}</p>
-        {preview && <p class="state state-shut">{t("previewNote")}</p>}
-        {preview && (
-          <a class="link-btn" href={`${BASE}/my`}>
-            {t("myLink")}
-          </a>
-        )}
+        <a class="link-btn" href={`${BASE}/my`}>
+          {t("myLink")}
+        </a>
       </section>
 
       <section class="panel">

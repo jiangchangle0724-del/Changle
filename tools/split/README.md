@@ -27,7 +27,7 @@ Builds), or a change there will publish the site and leave the server behind.
 | `src/room/protocol.ts` | What the phones and the server say to each other, address by address. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a ledger (`LedgerDO`, SQLite), the one per account (`AccountDO`, SQLite), the daily allowance of new ledgers per network (`GateDO`). |
 | `src/server/who.ts` | Whose a sign-in is: asked of the rooms server over the `ROOMS` binding. |
-| `tests/` | The room and the account (`npm test`), and the server itself on Cloudflare's own runtime (`npm run test:server`, which starts `wrangler dev` with the stand-in rooms server in `tests/rooms`, which knows the sessions in `tests/accounts.ts`). |
+| `tests/` | The room and the account (`npm test`), and the server itself on Cloudflare's own runtime (`npm run test:server`, which starts `wrangler dev` with the stand-in rooms server in `tests/rooms`, which knows the sessions in `tests/accounts.ts`, and a bucket kept on disk; an account's room there is `TEST_QUOTA` bytes, small enough to fill). |
 
 What a change does, that it counts once, and what is refused are **not** here: those rules are the
 phone's own, `site/src/split/changes.ts` (with `ops.ts` and `core/`), imported from there so the
@@ -50,6 +50,27 @@ are: that is what lets a new phone signed in to the account open its ledgers, an
 owner. Only that account's sign-in reads them. No email, no names, no addresses: the account is
 its id at the rooms server. A network's address is kept only as a fingerprint, for two days, to
 count the ledgers it made today.
+
+Receipt photos and PDFs go in one R2 bucket, `split-files` (the `FILES` binding), made in the
+dashboard on 2026-11-14: private, no public address, read and written only by this Worker, each
+file at `<ledger>/<file id>`. The ledger keeps the list of its files (id, size, kind, when, and which
+account sent it); the account keeps every file it sent that is still kept, which is what its room
+of 500 MB is counted from (the plan's 云存储, `docs/split.md`).
+
+### Receipt photos
+
+- Whoever holds the key lists a ledger's files, reads one, and takes one off (as they can change
+  any expense). Storing one also needs a sign-in, and is charged to that account before the file
+  goes in the bucket; taking it off, or the owner deleting the ledger, gives that account the room
+  back, whoever does it.
+- A file is a JPEG, PNG, WebP or PDF, and starts the way one does; at most 10 MB. Its id is the
+  phone's, so one sent again (the phone wasn't sure it arrived) is the same file, charged once.
+- A file comes back only with the key, as what it is, to be shown and never run
+  (`Content-Security-Policy: sandbox`, `nosniff`), and is kept on the phone that asked.
+- A locked ledger takes no new file and lets none go; its files can still be read.
+- An expense says which files are its own (`files`, ids only: the phone's rules,
+  `site/src/split/changes.ts`). Nothing here checks that an expense's ids are files the ledger
+  has: a phone shows one that isn't as missing.
 
 ### Who may open a ledger
 
@@ -103,7 +124,8 @@ address), and keeps the answer five minutes under the session's fingerprint. The
 
 500 changes in one request; 20,000 changes sent to one ledger in its life; 2,000 entries in a
 ledger and 30 people (the phone's own rules); 10 new ledgers a day from one network, and 10 from
-one account; 300 ledgers on one account's list.
+one account; 300 ledgers on one account's list. Files: 10 MB each, 500 MB in all for one account,
+200 a day from one account, 2,000 in one ledger, 10 on one expense.
 
 ## Running it
 

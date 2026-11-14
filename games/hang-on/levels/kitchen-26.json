@@ -1,0 +1,96 @@
+{
+  "id": "kitchen-26",
+  "world": "kitchen",
+  "tier": 0,
+  "name": {
+    "zh": "洗碗池边的点心",
+    "en": "Dim Sum by the Sink"
+  },
+  "teaches": "tray",
+  "w": 2480,
+  "h": 720,
+  "spawn": {
+    "x": 300,
+    "y": 416
+  },
+  "goal": {
+    "x": 2120,
+    "y": 280,
+    "w": 340,
+    "h": 180
+  },
+  "checkpoints": [
+    {
+      "x": 950,
+      "y": 416
+    },
+    {
+      "x": 1880,
+      "y": 416
+    }
+  ],
+  "envelopes": [
+    {
+      "x": 455,
+      "y": 322
+    },
+    {
+      "x": 1112,
+      "y": 421
+    },
+    {
+      "x": 1739,
+      "y": 313
+    }
+  ],
+  "rects": [
+    {
+      "kind": "ground",
+      "x": 0,
+      "y": 440,
+      "w": 1080,
+      "h": 280,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 1120,
+      "y": 440,
+      "w": 1340,
+      "h": 280,
+      "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "x": 2460,
+      "y": 280,
+      "w": 20,
+      "h": 440,
+      "material": "metal"
+    }
+  ],
+  "tray": [
+    {
+      "x": 220,
+      "y": 435
+    },
+    {
+      "x": 850,
+      "y": 435
+    },
+    {
+      "x": 1740,
+      "y": 435
+    }
+  ],
+  "hazards": [],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "deathY": 810,
+  "par": {
+    "seconds": 100,
+    "deathsPerPlayer": 3
+  },
+  "replay": "replays/kitchen-26.json"
+}

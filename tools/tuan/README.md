@@ -12,19 +12,23 @@ The plan is `docs/tuan.md`; where it stands and what's next is in `docs/briefs/t
 pages a buyer sees (a group buy, the cart, checkout, the order); and the pages a merchant sees
 (their group buys, a group buy's orders with their marks, the two sheets). **The second stage (A2)
 has begun**: a merchant starts a group buy and changes one on their phone, from nothing or from
-their last one. A shop is still set up by the site's owner, by hand, from a panel on the merchant's
-home. Nothing on changle.ca links here until the owner has tried it on a phone:
-`/tuan/preview` is home with a line saying so, and no search engine is let in.
+their last one, and says who the shop is (its own page, with its group buys). A shop is still set
+up by the site's owner, by hand, from a panel on the merchant's home. Since 2026-11-14 the tool has
+a card on the site's Tools tab (`site/src/tools/Tuan.tsx`), which opens home, `/tuan/`: the one page
+search engines may list (it's in the site's sitemap). Every other page stays out of them: a group
+buy is for the people its link was sent to.
 
 | Address | What |
 | --- | --- |
-| `/tuan/`, `/tuan/preview` | Home: how it works, the orders placed from this phone, and opening an order by its code. |
+| `/tuan/` | Home: how it works, the orders placed from this phone, opening an order by its code, and the way in for merchants. The Tools tab's card opens it; `/tuan` and `/tuan/preview` (where it was before it was on the tab) lead here. |
 | `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
+| `/tuan/s/<shop>` | A shop's own page: what it is, what it says about itself, its permit, how to reach it and pay it, the group buys taking orders (the one that closes soonest first) and the earlier ones. A group buy's page links here from the shop's name. A shop not yet opened isn't there. |
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
 | `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. The site's owner also gets the panel that sets a shop up and starts a group buy from a document, typed in or filled in from a file. |
 | `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each, and every order as a spreadsheet to download (CSV: one row a line, `src/engine/csv.ts`; WeChat can't save files, so there the page says to open it in a browser). The new-order mail's button leads here. |
 | `/tuan/my/new/<shop>` | Starting a group buy in a shop: its name, the goods, when it closes, where the goods go. With `?from=<group buy>` it starts from that one. What's typed is kept on the phone until it's sent. |
 | `/tuan/my/t/<group buy>/edit` | Changing a group buy: the same page, filled in. What an order names (an item, a pickup point, a delivery area) can change but not go. |
+| `/tuan/my/s/<shop>` | What a shop says about itself, for its merchant to change: its name, what kind it is, the introduction, how to reach it, how to pay, the permit. Its address and who runs it stay with the site's owner. |
 | `/tuan/api/…` | The API (`src/server/worker.ts` lists it). |
 
 Every page is in Chinese and English, with a switch at the top right. A phone starts in the
@@ -47,7 +51,7 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 | `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`. |
 | `src/server/gate.ts` | The daily allowances. |
 | `src/server/schema.ts` | Applies `migrations/` (numbered files, each once, in order) when the Worker starts. Nothing to run by hand. |
-| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is; a buyer's pages), `my.tsx` (the merchant's pages, a script of their own), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` and `i18n-my.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
+| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is; a buyer's pages), `my.tsx` (the merchant's pages, a script of their own), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/Shop.tsx` (a shop's own page), `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/ShopEdit.tsx` (what a shop says, for its merchant), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` and `i18n-my.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
 | `scripts/build.mjs` | Builds the pages into `dist/client/tuan` (esbuild). wrangler runs it before `wrangler dev` and `wrangler deploy`. |
 | `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/editor.spec.ts` for starting and changing a group buy, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
 
@@ -58,7 +62,7 @@ One HTML file for every page; the address decides what shows. A buyer's pages ar
 come in a script of their own (`src/client/my.tsx`, with their words in `src/client/i18n-my.ts`)
 that is fetched only at `/tuan/my…`, so a buyer's phone never downloads them. The build stops if
 any of the merchant's pages ends up in what a buyer downloads, and prints the sizes (a buyer's
-page about 66 KB, 23 KB gzipped, on 2026-11-14; it was 124 KB in one script). The scripts, styles
+page about 69 KB, 24 KB gzipped, on 2026-11-14; it was 124 KB in one script). The scripts, styles
 and fonts carry a hash in their names and are kept by phones for a year; the page itself is never
 kept (`no-store`), so a new version arrives on the next visit. A content-security policy lets
 nothing run or load but the site's own files (and Cloudflare's visitor statistics).
@@ -89,7 +93,7 @@ nothing run or load but the site's own files (and Cloudflare's visitor statistic
   The page reads again every minute while it's looked at, and whenever it's come back to.
 - **The sheets' text** (`ui/sheets.ts`): a pickup line carries the last four digits of the buyer's
   phone number (such a list is often posted in the group), a delivery line the whole number and
-  the address. A spreadsheet file comes later (`docs/codex-tasks/tuan/T1-orders-csv.md`).
+  the address. The same orders as a spreadsheet: `src/engine/csv.ts`, one row a line.
 - **Design**: `docs/DESIGN.md`. Colors, sizes, corners, shadows and timings come from the site's
   tokens (`src/client/tokens.css` is a copy; `tests/design.test.mjs` fails if it differs or if
   `styles.css` writes a color, a type size, a shadow or a duration out). A tool's color is amber.
@@ -130,6 +134,9 @@ they agree after a crowd of orders, changes and cancellations at once.
 - **Anyone with the link** sees a group buy: the goods, what's left, and the list of who's in
   (place in line, name, how many things; nameless or hidden if the merchant chose). Never a phone
   number or an address.
+- **Anyone** sees a shop's own page once the shop is open (`live` or `paused`; one still `pending`
+  isn't there): what the merchant wrote about it, how to reach and pay it, its permit, and its
+  last 30 group buys, drafts left out. A paused shop's group buys show as paused.
 - **A buyer** signs in to nothing. An order opens with its 6-character code and the last four
   digits of the phone number it was placed with (sent in the `x-tail` header). A wrong code and a
   wrong number get the same answer. While the group buy is open, and until the order is marked
@@ -138,7 +145,10 @@ they agree after a crowd of orders, changes and cancellations at once.
   the site keeps on the phone (`Authorization: Bearer …`); this Worker asks the rooms server
   (`site/worker`) whose it is, Worker to Worker through the `ROOMS` binding (`GET /api/me`), and
   keeps the answer for five minutes under the session's fingerprint. `shop_members` says which
-  accounts (by email) run which shop. Only they see buyers' phone numbers and addresses.
+  accounts (by email) run which shop. Only they see buyers' phone numbers and addresses. They
+  also change what the shop says about itself (`/tuan/api/my/shops/<slug>`, the same rules as
+  setting it up: a name is needed, the rest may be empty); its address, whether it's open and who
+  runs it are the owner's.
 - **Changing a group buy** (`src/engine/edit.ts`): the merchant's page sends the whole document
   again, each item, pickup point and delivery area that stays under its id. A part with an id is
   changed where it is, so the orders that name it still do, and keep the name and price they were
@@ -249,5 +259,6 @@ Connected to Cloudflare on 13 November 2026: merging into `main` deploys it. The
   `wrangler.jsonc`), and they are published with the Worker as its static assets.
 - The site knows `/tuan` is another Worker's (one line each): `site/src/router.ts` (`elsewhere`),
   `site/scripts/sw.template.js` (the offline cache leaves it alone), `site/public/robots.txt`
-  (`Disallow: /tuan/api/`) and `site/vite.config.ts` (the local proxy). Its card in the Tools tab
-  comes when the owner has tried the pages.
+  (`Disallow: /tuan/api/`) and `site/vite.config.ts` (the local proxy). Since 2026-11-14 also its
+  card, `site/src/tools/Tuan.tsx` (one line in `site/src/tools/ToolsTab.tsx`, after 随便), and home
+  in the sitemap (`site/scripts/postbuild.ts`).

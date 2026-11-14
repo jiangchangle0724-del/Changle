@@ -4,6 +4,7 @@ import { useStore } from "../store";
 import { Tile } from "../ui/Tile";
 import { TOOLS, type ToolId } from "./ids";
 import { Suibian } from "./Suibian";
+import { Tuan } from "./Tuan";
 import { WhatsOn } from "./WhatsOn";
 import { When, WHEN_ON_TAB } from "./When";
 // the tools' styles come with the tab, not with the home page
@@ -32,7 +33,8 @@ const ON_A_PAGE: { id: ToolId; icon: LucideIcon; line: T }[] = [
 
 /**
  * Everyday tools, each a card in a tool's amber: when to meet (约时间, at /when; its card follows
- * `WHEN_ON_TAB`), what's on around town (玩什么, at /go), where to eat (随便, at /eat), and money,
+ * `WHEN_ON_TAB`), what's on around town (玩什么, at /go), where to eat (随便, at /eat), group buys
+ * (跟一单, at /tuan), and money,
  * time across cities and price per unit,
  * which open on a page of their own (/tools/currency, /tools/clock, /tools/price; ToolPage.tsx).
  */
@@ -43,6 +45,7 @@ export function ToolsTab() {
       {WHEN_ON_TAB && <When />}
       <WhatsOn />
       <Suibian />
+      <Tuan />
       {ON_A_PAGE.map((t) => (
         <Tile key={t.id} name={TOOLS[t.id]} lang={lang} icon={t.icon} category="tool" line={t.line[lang]} href={`/tools/${t.id}`} onOpen={() => {}} />
       ))}

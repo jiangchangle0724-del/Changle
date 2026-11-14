@@ -18,7 +18,10 @@
  *                                           expense paid in another currency, changed, and with no rates to be had;
  *                                           signing in to start one, the account's ledgers on a second phone,
  *                                           taken off my ledgers, deleted for everyone, signed out, a sign-in
- *                                           that ran out
+ *                                           that ran out; receipt photos
+ *   npx tsx scripts/split_check.ts photos   behave's receipt photos alone: made smaller and kept on the server,
+ *                                           seen on a friend's phone, taken off and changed back, sent and not
+ *                                           kept, what can't go and why, ten at most, the back button
  *   npx tsx scripts/split_check.ts gate     stage two's gate, as far as this machine can take it: five phones on
  *                                           one ledger recording at once end up with the server's ledger, all
  *                                           five; three recorded with no signal and answers lost on the way back
@@ -52,7 +55,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "gate"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -216,6 +219,38 @@ const type = async (page: Page, digits: string) => {
   for (const d of digits) await key(page, d);
 };
 const path = (page: Page) => new URL(page.url()).pathname;
+/**
+ * A receipt as a phone's camera takes one (3024 by 4032, a few MB): a JPEG drawn in the page, so the
+ * page's own shrinking has a real photo to make smaller. `mark` is printed on it, to tell two apart.
+ */
+const receipt = async (page: Page, mark = "1", width = 3024, height = 4032) =>
+  Buffer.from(
+    String(
+      await page.evaluate(`(async () => {
+        const w = ${width}, h = ${height};
+        const c = new OffscreenCanvas(w, h);
+        const g = c.getContext("2d");
+        g.fillStyle = "#efe9dc"; g.fillRect(0, 0, w, h);
+        // (a camera's noise, so the JPEG is as big as a photo's)
+        for (let i = 0; i < 9000; i++) { g.fillStyle = "rgba(60,50,40," + (Math.random() * 0.25) + ")"; g.fillRect(Math.random() * w, Math.random() * h, 6 + Math.random() * 30, 6 + Math.random() * 30); }
+        g.fillStyle = "#2a2622"; g.textAlign = "center"; g.font = "bold " + Math.round(w / 11) + "px sans-serif";
+        g.fillText("CAFE ${mark}", w / 2, h * 0.12);
+        g.textAlign = "left"; g.font = Math.round(w / 20) + "px monospace";
+        ["2 x Poutine     24.00", "1 x Burger      18.50", "3 x Beer        27.00", "Tax              9.10", "TOTAL           78.60"].forEach((l, i) => g.fillText(l, w * 0.1, h * (0.3 + i * 0.09)));
+        const b = await c.convertToBlob({ type: "image/jpeg", quality: 0.92 });
+        const bytes = new Uint8Array(await b.arrayBuffer());
+        let s = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return btoa(s);
+      })()`),
+    ),
+    "base64",
+  );
+/** A PDF, as far as its first bytes go (the server looks at those). */
+const aPdf = (mark = "1") => Buffer.from(`%PDF-1.7\n% invoice ${mark}\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n`);
+/** A ledger's photos as the server lists them, asked for with the key. */
+const filesOn = async (page: Page, id: string, key: string) =>
+  (await page.evaluate(`fetch("/split/api/ledgers/${id}/files", { headers: { "x-split-key": ${JSON.stringify(key)} } }).then((r) => (r.ok ? r.json() : { files: [], status: r.status }))`)) as { files: { id: string; size: number; type: string }[]; status?: number };
 
 // ---------- walk: every screen, looked at and checked ----------
 async function walk(lang: Lang, width: number, height: number) {
@@ -250,6 +285,8 @@ async function walk(lang: Lang, width: number, height: number) {
       const found: string[] = [];
       const top = document.querySelector("dialog[open]") ?? document.body;
       for (const el of top.querySelectorAll<HTMLElement>("button, a[href], input, [role=radio], [role=checkbox], [role=tab]")) {
+        // (hidden on purpose, as the photo picker a button opens: nothing to press)
+        if (el.closest(".ui-visually-hidden")) continue;
         const r = el.getBoundingClientRect();
         if (r.width && r.height && (r.height < 43.5 || r.width < 43.5)) found.push(`${el.tagName.toLowerCase()}.${el.className} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 16)}" ${Math.round(r.width)}x${Math.round(r.height)}`);
       }
@@ -496,12 +533,46 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("undo").click();
   await page.waitForTimeout(200);
   await shot("17b-put-back");
-  // its note changed, for the record to say what changed
+  // its note changed, for the record to say what changed; and, where there is a server to keep them, a receipt's photo and a PDF on it
   await page.locator(".split-row").first().click();
   const noteField = page.locator("label.split-field input");
   await noteField.fill(`${await noteField.inputValue()}和酒`);
+  const picker = page.locator(".split-note-row input[type=file]");
+  if (local) {
+    await picker.setInputFiles({ name: "IMG_2041.jpg", mimeType: "image/jpeg", buffer: await receipt(page) });
+    await page.locator(".split-photo-button img").waitFor({ timeout: 20_000 });
+    await shot("16c-edit-photo");
+    await page.locator(".split-photo-button").click();
+    await page.locator(".split-photo-tile img").waitFor();
+    await shot("16d-photos");
+    await page.locator(".split-photo-tile").first().click();
+    await page.locator(".split-photo-whole img").waitFor();
+    await shot("16e-photo-whole");
+    const whole = (await page.locator(".split-photo-whole img").evaluate((img) => [(img as HTMLImageElement).naturalWidth, (img as HTMLImageElement).naturalHeight])) as number[];
+    ok(whole.join("x") === "1200x1600", `${lang} ${width}x${height}: a camera's photo of a receipt goes 1600 on its long side (${whole.join("x")})`);
+    await page.keyboard.press("Escape");
+    await page.locator(".split-photo-tile").first().waitFor();
+    await page.locator("dialog[open] input[type=file]").setInputFiles({ name: "invoice.pdf", mimeType: "application/pdf", buffer: aPdf() });
+    await page.locator(".split-photo-tile .split-thumb.is-pdf").waitFor({ timeout: 20_000 });
+    await shot("16f-photos-two");
+    await page.locator(".split-photo-tile").nth(1).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("photoOpen"), exact: true }).waitFor();
+    await shot("16g-photo-pdf");
+    await page.keyboard.press("Escape");
+    await page.locator(".split-photo-tile").first().waitFor();
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await page.locator(".split-photo-count").waitFor();
+    await shot("16h-edit-photos");
+  } else {
+    // (no server to keep it: said at once)
+    await picker.setInputFiles({ name: "IMG_2041.jpg", mimeType: "image/jpeg", buffer: await receipt(page) });
+    await page.locator(".ui-toast", { hasText: t("photoNotYet") }).waitFor();
+    await shot("16c-photo-not-yet");
+  }
   await button("saveChanges").click();
   await page.locator(".split-keys").waitFor({ state: "hidden" });
+  if (local) ok((await page.locator(".split-row .lucide-paperclip").count()) === 1, `${lang} ${width}x${height}: saved, the expense's row has a paperclip`);
 
   // everyone pays
   await page.getByRole("tab", { name: t("settle") }).click();
@@ -676,6 +747,18 @@ async function walk(lang: Lang, width: number, height: number) {
     await theirs.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
     await theirs.keyboard.press("Escape");
     await closed(theirs);
+    // the receipts on a friend's phone: seen with the key; adding one needs a sign-in
+    await theirs.locator("button.split-row:has(.lucide-paperclip)").click();
+    await theirs.locator(".split-photo-button img").waitFor({ timeout: 15_000 });
+    await shot("29h-friend-photo", theirs);
+    await theirs.locator(".split-photo-button").click();
+    await theirs.getByRole("dialog").getByText(t("photoSignIn")).waitFor();
+    await theirs.locator(".split-photo-tile img").waitFor();
+    await shot("29i-friend-photos", theirs);
+    await theirs.keyboard.press("Escape");
+    await closed(theirs);
+    await theirs.getByRole("button", { name: t("close"), exact: true }).first().click();
+    await theirs.locator(".split-keys").waitFor({ state: "hidden" });
 
     // the owner locks the ledger: a friend's phone says so, and has nothing to press; someone new can still say who they are
     await page.locator(".split-ledger", { hasText: "惠斯勒周末" }).click();
@@ -961,6 +1044,246 @@ const spend = async (page: Page, digits: string) => {
   await page.locator(".split-keys").waitFor({ state: "hidden" });
 };
 const amounts = async (page: Page) => (await page.locator(".split-row-amount").allTextContents()).join(" ");
+
+// ---------- photos: receipt photos, part of behave (and alone: `photos`) ----------
+/** Receipt photos: made smaller and kept on the server, on a friend's phone too; taken off, changed back; what can't go, and why. */
+async function photos() {
+  const until = async (check: () => Promise<boolean>, ms = 10_000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 200))) if (await check()) return true;
+    return false;
+  };
+  const a = await phone(390, 664, "zh");
+  const pa = await open(a, true);
+  await start(pa, "小票", ["阿甲"]);
+  await spend(pa, "78.60");
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0 && JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made`);
+  const kept = (await keptBy(pa)).held[0];
+  const id = kept.server.id;
+  const listed = async () => (await filesOn(pa, id, kept.key)).files;
+  const kept1 = async () => ((await onServer(pa, id, kept.key)).ledger.entries as { files?: string[] }[])[0]?.files ?? [];
+  const sheetNote = (page: Page) => page.locator("dialog[open] .split-photos-foot [role=status]");
+  /** The next photo this phone sends waits at the door: what comes back lets it through, once it has come. */
+  const holdNext = async () => {
+    const at = `**/split/api/ledgers/${id}/files/*`;
+    let came!: () => void;
+    let go!: () => void;
+    const arrived = new Promise<void>((r) => (came = r));
+    const through = new Promise<void>((r) => (go = r));
+    await a.route(at, async (route) => {
+      if (route.request().method() === "PUT") {
+        came();
+        await through;
+      }
+      await route.fallback();
+    });
+    return async () => {
+      await arrived;
+      go();
+      await a.unroute(at);
+    };
+  };
+
+  // the camera, pressed with nothing on the expense yet: the phone's picker, straight away; busy while it goes
+  await pa.locator("button.split-row").first().click();
+  let release = await holdNext();
+  const choosing = pa.waitForEvent("filechooser");
+  await pa.locator(".split-photo-button").click();
+  const original = await receipt(pa, "A");
+  await (await choosing).setFiles({ name: "IMG_0001.jpg", mimeType: "image/jpeg", buffer: original });
+  await pa.locator(".split-photo-button[aria-busy=true] .ui-button-progress").waitFor();
+  ok(await button(pa, "saveChanges").isDisabled(), "the camera with no photo yet opens the phone's picker; while the photo goes, the button turns and 改好了 waits");
+  await release();
+  await pa.locator(".split-photo-button img").waitFor({ timeout: 20_000 });
+  const [jpeg] = await listed();
+  const served = (await pa.evaluate(`fetch("/split/api/ledgers/${id}/files/${jpeg?.id}", { headers: { "x-split-key": ${JSON.stringify(kept.key)} } }).then(async (r) => { const b = await r.blob(); const i = await createImageBitmap(b); return { type: r.headers.get("content-type"), csp: r.headers.get("content-security-policy") ?? "", sniff: r.headers.get("x-content-type-options"), size: b.size, w: i.width, h: i.height }; })`)) as { type: string; csp: string; sniff: string; size: number; w: number; h: number };
+  ok(jpeg?.type === "image/jpeg" && served.w === 1200 && served.h === 1600 && served.size === jpeg.size && served.size < original.length / 2 && served.csp.includes("sandbox") && served.sniff === "nosniff", `the server keeps it as the phone made it: a JPEG ${served.w}x${served.h}, ${Math.round(served.size / 1024)} KB of the camera's ${Math.round(original.length / 1024)} KB, given back only to be looked at`);
+  ok((await kept1()).length === 0, "and the expense has no photo until 改好了");
+  await button(pa, "saveChanges").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok(await until(async () => (await kept1()).join() === jpeg?.id), "改好了: the expense keeps the photo's id on the server");
+  ok((await pa.locator("button.split-row .lucide-paperclip").count()) === 1 && (await pa.locator("button.split-row").first().textContent())?.includes(t("photoMark")), "and its row has a paperclip, which a screen reader reads");
+
+  // a friend's phone (joined by the link, signed out): sees it, and adding one needs a sign-in, which the sheet gives
+  const b = await phone(390, 664, "zh");
+  const pb = await b.newPage();
+  watch(pb, true);
+  await pb.goto(`${base}/split/${id}#k=${kept.key}`);
+  await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+  await pb.locator("button.split-row:has(.lucide-paperclip)").click();
+  await pb.locator(".split-photo-button img").waitFor({ timeout: 15_000 });
+  await pb.locator(".split-photo-button").click();
+  await pb.getByRole("dialog").getByText(t("photoSignIn")).waitFor();
+  ok((await pb.locator("dialog[open] .split-photo-tile img").count()) === 1 && (await pb.locator("dialog[open] .split-photos-foot").getByRole("button", { name: t("addPhoto"), exact: true }).count()) === 0, "a friend's phone, signed out, sees the photo with the key; the sheet says adding one needs a sign-in, and has no button for it");
+  // (closed without signing in, it stays closed)
+  await pb.locator("dialog[open] .split-photos-foot").getByRole("button", { name: t("signIn"), exact: true }).click();
+  await closed(pb);
+  await pb.locator("#si-email").waitFor();
+  await pb.keyboard.press("Escape");
+  await pb.locator("#si-email").waitFor({ state: "detached" });
+  await pb.waitForTimeout(500);
+  ok((await pb.locator("dialog[open]").count()) === 0 && (await pb.locator(".split-keys").isVisible()), "登录 in the sheet, the sign-in closed without signing in: back on the expense, the sheet stays closed");
+  await pb.locator(".split-photo-button").click();
+  await pb.locator("dialog[open] .split-photos-foot").getByRole("button", { name: t("signIn"), exact: true }).click();
+  await closed(pb);
+  await viaSheet(pb, "zh");
+  await pb.locator("dialog[open] .split-photos-foot").getByRole("button", { name: t("addAnother"), exact: true }).waitFor();
+  ok(true, "登录 there: the sheet gives way to the site's sign-in, and once signed in it is back, with 再加一张");
+  const pdf = aPdf("B");
+  const fromSheet = pb.waitForEvent("filechooser");
+  await pb.locator("dialog[open] .split-photos-foot").getByRole("button", { name: t("addAnother"), exact: true }).click();
+  await (await fromSheet).setFiles({ name: "invoice.pdf", mimeType: "application/pdf", buffer: pdf });
+  await pb.locator("dialog[open] .split-photo-tile .split-thumb.is-pdf").waitFor({ timeout: 15_000 });
+  // the PDF opens in the phone's own viewer
+  await pb.locator("dialog[open] .split-photo-tile").nth(1).click();
+  const viewer = b.waitForEvent("page");
+  await pb.getByRole("dialog").getByRole("button", { name: t("photoOpen"), exact: true }).click();
+  const shown = await viewer;
+  ok(shown.url().startsWith("blob:"), `再加一张 opens the picker from the sheet; a PDF goes as it is, and 打开 PDF opens it in a tab of its own (${shown.url().slice(0, 5)})`);
+  await shown.close();
+  await pb.keyboard.press("Escape");
+  await pb.locator("dialog[open] .split-photo-tile").first().waitFor();
+  await pb.keyboard.press("Escape");
+  await closed(pb);
+  await button(pb, "saveChanges").click();
+  await pb.locator(".split-keys").waitFor({ state: "hidden" });
+  const theirs = (await pb.evaluate(`fetch("/split/api/me/files", { headers: { authorization: "Bearer " + localStorage.getItem(${JSON.stringify(SESSION)}) } }).then((r) => r.json())`)) as { used: number; ledgers: { id: string; count: number }[] };
+  ok(await until(async () => (await kept1()).length === 2), "saved on the friend's phone, the expense keeps both");
+  ok(theirs.used === pdf.length && theirs.ledgers[0]?.id === id && theirs.ledgers[0]?.count === 1, `and the PDF takes the friend's room, not the owner's (${theirs.used} bytes)`);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].server.entries[0].files?.length === 2`, null, { timeout: 10_000 });
+  await pa.locator("button.split-row").first().click();
+  await pa.locator(".split-photo-count", { hasText: "2" }).waitFor({ timeout: 10_000 });
+  ok(true, "the owner's phone has the friend's PDF too, without touching anything");
+
+  // taken off: off the expense, still on the server (改回去 brings it back), and the record says so
+  await pa.locator(".split-photo-button").click();
+  await pa.locator("dialog[open] .split-photo-tile").nth(1).click();
+  await pa.getByRole("dialog").getByRole("button", { name: t("photoRemove"), exact: true }).click();
+  await pa.locator("dialog[open] .split-photo-tile").first().waitFor();
+  ok((await pa.locator("dialog[open] .split-photo-tile").count()) === 1, "去掉这张 takes it off the sheet");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await button(pa, "saveChanges").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok(await until(async () => (await kept1()).length === 1), "saved, the expense keeps the one");
+  ok((await listed()).length === 2, "and the PDF stays on the server: the record can bring it back");
+  await button(pa, "more").click();
+  await pa.getByRole("button", { name: re(t("history")) }).click();
+  await pa.getByRole("dialog").getByText(t("historyFilesRemoved")).waitFor({ timeout: 10_000 });
+  await pa.getByRole("dialog").getByRole("button", { name: t("revert"), exact: true }).first().click();
+  ok(await until(async () => (await kept1()).length === 2), "改动记录 says a photo was taken off; 改回去 puts it back on the expense");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+
+  // sent and never saved: gone from the server again, however the screen is left
+  await pa.locator("button.split-row").first().click();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles({ name: "IMG_0002.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "C", 900, 1200) });
+  await pa.locator(".split-photo-count", { hasText: "3" }).waitFor({ timeout: 15_000 });
+  ok((await listed()).length === 3, "a third photo goes to the server as it is chosen");
+  await button(pa, "close").first().click();
+  ok(await until(async () => (await listed()).length === 2), "the screen closed without 改好了: it goes from the server again");
+  await pa.locator("button.split-row").first().click();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles({ name: "IMG_0003.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "D", 900, 1200) });
+  await pa.locator(".split-photo-count", { hasText: "3" }).waitFor({ timeout: 15_000 });
+  await pa.locator(".split-photo-button").click();
+  await pa.locator("dialog[open] .split-photo-tile").nth(2).click();
+  await pa.getByRole("dialog").getByRole("button", { name: t("photoRemove"), exact: true }).click();
+  ok(await until(async () => (await listed()).length === 2), "one sent and taken off again before saving goes at once");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  // (and one still on its way when the screen closes, as it lands)
+  release = await holdNext();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles({ name: "IMG_0004.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "E", 900, 1200) });
+  await pa.locator(".split-photo-button[aria-busy=true]").waitFor();
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  await release();
+  await pa.waitForTimeout(1500);
+  ok((await listed()).length === 2 && (await kept1()).length === 2, "one still on its way when the screen closed goes again once it lands; the expense keeps its two");
+
+  // what can't go, said in the sheet while it is open (a toast would be under it), and nothing is sent
+  await pa.locator("button.split-row").first().click();
+  await pa.locator(".split-photo-button").click();
+  const sheetPicker = pa.locator("dialog[open] input[type=file]");
+  const said = async (file: { name: string; mimeType: string; buffer: Buffer }, word: Word) => {
+    await sheetPicker.setInputFiles(file);
+    await sheetNote(pa).filter({ hasText: W[word].zh }).waitFor({ timeout: 15_000 });
+    return (await pa.locator(".ui-toast").count()) === 0;
+  };
+  const before = (await listed()).length;
+  ok(await said({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("just words") }, "photoBad"), "a file that is neither a photo nor a PDF: said in the sheet, in its strong voice");
+  ok(await said({ name: "huge.pdf", mimeType: "application/pdf", buffer: Buffer.concat([aPdf("F"), Buffer.alloc(10 * 1024 * 1024)]) }, "photoBig"), "a PDF over 10 MB: said in the sheet");
+  await a.setOffline(true);
+  ok(await said({ name: "IMG_0005.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "G", 600, 800) }, "photoAway"), "no signal: said in the sheet");
+  await a.setOffline(false);
+  ok((await listed()).length === before, "and none of the three went to the server");
+  // the server's own refusals (made up here: this server has room for them all)
+  const refuse = async (status: number, error: string) =>
+    a.route(`**/split/api/ledgers/${id}/files/*`, (route) => (route.request().method() === "PUT" ? route.fulfill({ status, contentType: "application/json", body: JSON.stringify({ error }) }) : route.fallback()));
+  await refuse(413, "quota");
+  ok(await said({ name: "IMG_0006.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "H", 600, 800) }, "photoQuota"), "the account's 500 MB used up: said in the sheet");
+  await a.unroute(`**/split/api/ledgers/${id}/files/*`);
+  await refuse(429, "limit");
+  ok(await said({ name: "IMG_0007.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "I", 600, 800) }, "photoLimit"), "today's 200 sent: said in the sheet");
+  await a.unroute(`**/split/api/ledgers/${id}/files/*`);
+  await refuse(401, "signin");
+  await sheetPicker.setInputFiles({ name: "IMG_0008.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "J", 600, 800) });
+  await pa.locator("dialog[open] .split-photos-foot").getByRole("button", { name: t("signIn"), exact: true }).waitFor({ timeout: 15_000 });
+  ok((await pa.locator("dialog[open] .split-photos-foot").getByText(t("photoSignIn")).count()) === 1, "the sign-in run out on the server: the sheet asks for it again, with 登录");
+  await a.unroute(`**/split/api/ledgers/${id}/files/*`);
+  // filling up: said once, until the account is under it again
+  let used = 420 * 1024 * 1024;
+  await a.route(`**/split/api/ledgers/${id}/files/*`, (route) => (route.request().method() === "PUT" ? route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ file: { id: route.request().url().split("/").pop(), size: 1, type: "image/jpeg", at: 1 }, used, quota: 500 * 1024 * 1024 }) }) : route.fallback()));
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  const sendOne = async (mark: string) => {
+    const n = await pa.locator(".split-photo-count").textContent();
+    await pa.locator(".split-note-row input[type=file]").setInputFiles({ name: `IMG_${mark}.jpg`, mimeType: "image/jpeg", buffer: await receipt(pa, mark, 300, 400) });
+    await pa.waitForFunction(`document.querySelector(".split-photo-count")?.textContent !== ${JSON.stringify(n)}`, null, { timeout: 10_000 });
+    await pa.waitForTimeout(300);
+    return (await pa.locator(".ui-toast", { hasText: say("zh", "photoWarn", { used: "420" }) }).count()) === 1;
+  };
+  ok(await sendOne("K"), "past 400 MB: a toast says how much is used");
+  await pa.locator(".ui-toast").waitFor({ state: "detached", timeout: 10_000 });
+  ok(!(await sendOne("L")), "and doesn't say it again with the next photo");
+  used = 100 * 1024 * 1024;
+  await sendOne("M");
+  used = 420 * 1024 * 1024;
+  await pa.locator(".ui-toast").waitFor({ state: "detached", timeout: 10_000 });
+  ok(await sendOne("N"), "under it again, then over: said again");
+  // 10 at most: the sheet says so, and has no button
+  while (Number(await pa.locator(".split-photo-count").textContent()) < 10) await sendOne(`O${await pa.locator(".split-photo-count").textContent()}`);
+  await pa.locator(".split-photo-button").click();
+  await sheetNote(pa).filter({ hasText: t("photoMax") }).waitFor();
+  ok((await pa.locator("dialog[open] .split-photos-foot .ui-button").count()) === 0 && (await pa.locator("dialog[open] .split-photo-tile").count()) === 10, "ten on an expense: the sheet says that is the most, and has no button for more");
+  // the back button: the photo, then the sheet, then 记一笔, each closed in turn
+  await pa.locator("dialog[open] .split-photo-tile").first().click();
+  await pa.locator(".split-photo-whole img").waitFor();
+  await pa.goBack();
+  await pa.locator("dialog[open] .split-photo-tile").first().waitFor();
+  ok((await pa.locator(".split-photo-whole img").isVisible()) === false, "back on a photo seen whole: the sheet of photos again");
+  await pa.goBack();
+  await closed(pa);
+  ok(await pa.locator(".split-keys").isVisible(), "back again: the sheet closes, 记一笔 stays");
+  await pa.goBack();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  ok(path(pa) === `/split/${id}`, "and again: 记一笔 closes, on the ledger (nothing saved, so the eight it sent go again)");
+  await a.unroute(`**/split/api/ledgers/${id}/files/*`);
+  ok((await kept1()).length === 2, "the expense still keeps its two");
+
+  // a ledger not on the server yet: no photo, said at once
+  await a.setOffline(true);
+  await button(pa, "back").click();
+  await start(pa, "还没存上", ["阿乙"]);
+  await spend(pa, "12");
+  await pa.locator("button.split-row").first().click();
+  const notYet = pa.waitForEvent("filechooser");
+  await pa.locator(".split-photo-button").click();
+  await (await notYet).setFiles({ name: "IMG_0009.jpg", mimeType: "image/jpeg", buffer: await receipt(pa, "P", 600, 800) });
+  await pa.locator(".ui-toast", { hasText: t("photoNotYet") }).waitFor({ timeout: 10_000 });
+  ok(true, "a ledger not saved online yet: the toast says photos wait for a signal");
+  await a.setOffline(false);
+  for (const ctx of [a, b]) await ctx.close();
+}
 
 // ---------- behave: what it does, beyond how it looks ----------
 async function behave() {
@@ -1777,6 +2100,13 @@ async function behave() {
       ok((await syncSaid(pa)) === t("troubleSignin") && !waiting.made && waiting.waiting.length === 1, "the sign-in ran out before the ledger went up: the page says so with 登录 under it, and records all the same, on the phone");
       await a.unroute("**/split/api/ledgers");
       await pa.locator(".split-sync-act").getByRole("button", { name: t("signIn"), exact: true }).click();
+      await pa.locator("#si-email").waitFor();
+      await pa.keyboard.press("Escape");
+      await pa.locator("#si-email").waitFor({ state: "detached" });
+      // (the ⋯ sheet's 登录 too: the sheet gives way, since the site's sign-in is drawn under any sheet still open)
+      await button(pa, "more").click();
+      await pa.getByRole("dialog").getByRole("button", { name: t("signIn"), exact: true }).click();
+      await closed(pa);
       await viaSheet(pa, "zh");
       await pa.locator(".split-page > .split-sync").waitFor({ state: "detached", timeout: 15_000 });
       await pa.waitForTimeout(800);
@@ -1857,6 +2187,8 @@ async function behave() {
       await closed(pb);
       for (const ctx of [a, b]) await ctx.close();
     }
+
+    await photos();
 
     // the 结清图: through a phone's share sheet; held, in WeChat; saved, on a computer; out of date once the plan changes
     {
@@ -2158,6 +2490,8 @@ const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
 if (what === "all" || what === "fits") await fits();
 if (what === "all" || what === "behave") await behave();
+// (the photos alone, as behave has them: quicker when they are being worked on)
+if (what === "photos" && local) await photos();
 if (what === "all" || what === "gate") await gate();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
