@@ -147,6 +147,8 @@ export interface Snap {
   ky?: number[];
   /** 墙上的灯（老宅，A10）：亮着的（第 k 盏亮着，第 k 位是 1）。 */
   lm?: number;
+  /** 拉杆（太空站，A10）：有人抓着的（第 k 根拉着，第 k 位是 1）。 */
+  lr?: number;
   /** 外卖无人机（A9c）：提手在哪、在干什么（0 飞来 1 等 2 带人 3 放人 4 飞走）。 */
   dr?: [number, number, number];
   /**

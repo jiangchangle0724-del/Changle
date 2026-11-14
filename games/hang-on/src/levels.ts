@@ -6,7 +6,7 @@
  */
 import { pickLang } from './i18n';
 import { arenaLevels, goldArenas } from './physics/arenas';
-import { gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, snowLevel, type Level } from './physics/level';
+import { gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, snowLevel, spaceLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
 import type { Side, Tier } from './sides';
 
@@ -62,6 +62,7 @@ export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-05') return kitchenLevel();
   if (id === 'proto-06') return snowLevel();
   if (id === 'proto-07') return houseLevel();
+  if (id === 'proto-08') return spaceLevel();
   return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id);
 }
 
@@ -95,6 +96,9 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
   // 老宅（A10，C12 做关）
   key: { zh: '找到钥匙，拿到锁着的门上', en: 'Find the key and bring it to the locked door' },
   dark: { zh: '黑屋子里点灯、提着灯笼走', en: 'Light the lamps and carry a lantern through the dark' },
+  // 太空站（A10，C13 做关）
+  float: { zh: '失重舱里抓着扶手飘过去，摇杆能轻轻喷气', en: 'Float through zero gravity. Push off the handrails, and the stick gives a little thrust' },
+  lever: { zh: '几个人一起拉住拉杆，舱门才开', en: 'Hold the levers together to open the hatch' },
 };
 
 /** 难关（13 号往后）难在哪：大厅里显示「难关：…」。 */

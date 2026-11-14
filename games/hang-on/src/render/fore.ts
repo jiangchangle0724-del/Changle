@@ -61,9 +61,9 @@ export class Foreground {
     };
     // 年夜饭桌和后厨是暖的光斑和热气，温哥华是城里的灯，雪山是冷的雪光，老宅是月光和灯笼的红光
     const warmWorld = world === 'table' || world === 'kitchen';
-    const r = rng(world === 'table' ? 31 : world === 'kitchen' ? 43 : world === 'snow' ? 61 : world === 'house' ? 67 : 57);
+    const r = rng(world === 'table' ? 31 : world === 'kitchen' ? 43 : world === 'snow' ? 61 : world === 'house' ? 67 : world === 'space' ? 71 : 57);
     const warm = [0xffb35c, 0xff8a5b, 0xffd27a];
-    const city = world === 'snow' ? [0xeaf4ff, 0xbcd8ff, 0xffd27a] : world === 'house' ? [0xc8d4ff, 0xff7a4f, 0xffc36b] : [0xffd27a, 0x8ec5e8, 0xf28ca6, 0xa8c8ff];
+    const city = world === 'snow' ? [0xeaf4ff, 0xbcd8ff, 0xffd27a] : world === 'house' ? [0xc8d4ff, 0xff7a4f, 0xffc36b] : world === 'space' ? [0x7fe3ff, 0x8a7cff, 0xff8ad8] : [0xffd27a, 0x8ec5e8, 0xf28ca6, 0xa8c8ff];
     for (let i = 0; i < 9; i++) {
       // 光斑：多数贴着下沿，少数在左右上角
       const low = r() < 0.75;

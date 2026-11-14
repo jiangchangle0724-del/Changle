@@ -227,6 +227,17 @@ export const CFG = {
   /** 墙上的灯：身体、手、灯笼离它多近就点着；默认照多远。 */
   lampTouch: 36,
   lampR: 260,
+
+  // ---- 太空站（A10）----
+  /**
+   * 失重区：没抓着东西时摇杆喷气，往摇杆那边每秒加多少速度、喷到多快就不再加（推墙、拽着队友甩出去可以更快）；
+   * 飘着、没抓东西时的阻尼（慢慢停下来，不会一直飘走）。
+   */
+  floatThrust: 260,
+  floatMax: 170,
+  floatDamp: 0.35,
+  /** 飘着时胳膊的线性阻尼（伸手的力反过来加在身体上，胳膊阻尼大了人就像在糖浆里，所以失重时调小）。 */
+  floatArmDamp: 1.5,
 };
 
 export type Cfg = typeof CFG;
@@ -249,8 +260,9 @@ export const MATERIAL_FRICTION: Record<string, number> = {
   // 后厨的竹蒸笼、雪山的压实的雪（A10）
   bamboo: 0.6,
   snow: 0.7,
-  // 老宅的青砖（A10）
+  // 老宅的青砖、太空站的白舱壁（A10）
   brick: 0.7,
+  hull: 0.5,
 };
 export const DEFAULT_FRICTION = 0.6;
 

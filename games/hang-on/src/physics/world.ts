@@ -35,7 +35,7 @@ import {
   TETHER_LEN,
 } from './config';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LiftDef, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
+import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
 import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, spinnerAngle, spinnerArm, ventColumn, ventState } from './motion';
 
 type RB = RAPIER.RigidBody;
@@ -171,6 +171,8 @@ export interface Player {
   pendingItem: boolean;
   /** 上一次没用成（拉面没抓着墙）是第几秒：没用成的事件 1 秒只报一次。 */
   itemFailAt: number;
+  /** 在太空站的失重区里（A10）：没有重力，没抓东西时摇杆喷气。 */
+  floating: boolean;
 }
 
 /** 饼干平台的当前样子（画面用）。 */
@@ -235,6 +237,8 @@ export interface Prop {
   x: number;
   y: number;
   angle: number;
+  /** 在失重区里飘着（太空站，A10）。 */
+  floating?: boolean;
 }
 
 /** 怎么死的：掉下去，或者碰到尖的、烫的、带电的。 */
@@ -307,6 +311,9 @@ export type SimEvent =
   | { type: 'key'; index: number; phase: 'found' | 'unlock' | 'back' | 'locked'; x: number; y: number }
   /** 老宅（A10）：第几盏灭着的灯被点着了。 */
   | { type: 'lamp'; index: number; x: number; y: number }
+  /** 太空站（A10）：第几根拉杆被拉下去 / 松开了（x、y 是把手的中间）；有人飘进 / 飘出失重区。 */
+  | { type: 'lever'; index: number; on: boolean; x: number; y: number }
+  | { type: 'float'; player: number; on: boolean; x: number; y: number }
   /** 用道具（A9）：ok 是用成了没有（拉面要先抓着墙或台子）；x、y 是在哪用的。 */
   | { type: 'item'; player: number; item: ItemId; ok: boolean; x: number; y: number }
   /** 道具的劲过了：速冻化开、荷叶收起、拉面断了（x、y 是在哪）。 */
@@ -412,6 +419,8 @@ export class Sim {
   readonly lanterns: { prop: number; cp: number; lostT: number; home: Pt }[] = [];
   /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
   readonly lamps: { x: number; y: number; r: number; on: boolean }[] = [];
+  /** 太空站的拉杆（A10）：把手在哪（抓的是这块地形）、有没有人抓着。 */
+  readonly levers: { def: LeverDef; rect: Rect; x: number; y: number; w: number; h: number; on: boolean }[] = [];
   private noodleSeq = 0;
 
   private readonly info = new Map<number, ColInfo>();
@@ -457,6 +466,7 @@ export class Sim {
     for (const def of level.movers ?? []) this.addMover(def);
     for (const def of level.spinners ?? []) this.addSpinner(def);
     for (const def of level.plates ?? []) this.addPlate(def);
+    for (const def of level.levers ?? []) this.addLever(def);
     for (const def of level.gates ?? []) this.addGate(def);
     for (const def of level.vents ?? []) this.addVent(def);
     for (const def of level.lifts ?? []) this.addLift(def);
@@ -719,6 +729,13 @@ export class Sim {
     this.plates.push({ def, x: def.x, y: def.y, w: def.w, h: def.h, on: false });
   }
 
+  /** 拉杆（太空站，A10）：墙上一根能抓的把手（实的小块地形），有人抓着就算拉下去（`tickGates` 里量）。 */
+  private addLever(def: LeverDef): void {
+    const rect = leverRect(def);
+    this.addRect(rect, frictionOf('metal'), 0);
+    this.levers.push({ def, rect, x: rect.x, y: rect.y, w: rect.w, h: rect.h, on: false });
+  }
+
   /** 门：运动学刚体，能站能抓（和会动的平台一样，抓着跟着走），开到几成由踏板管。 */
   private addGate(def: GateDef): void {
     const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(def.x + def.w / 2, def.y + def.h / 2));
@@ -738,6 +755,13 @@ export class Sim {
    */
   private tickGates(dt: number): void {
     if (!this.plates.length && !this.gates.length) return;
+    // 拉杆（太空站）：有活着的人的手抓着把手就算拉下去
+    this.levers.forEach((lv, k) => {
+      const on = this.players.some((p) => !p.dead && p.arms.some((a) => a.grip?.kind === 'terrain' && a.grip.rect === lv.rect));
+      if (on === lv.on) return;
+      lv.on = on;
+      this.events.push({ type: 'lever', index: k, on, x: lv.x + lv.w / 2, y: lv.y + lv.h / 2 });
+    });
     const reach = CFG.plateReach;
     this.plates.forEach((pl, k) => {
       const top = { x: pl.x, y: pl.y - reach, w: pl.w, h: reach };
@@ -752,7 +776,7 @@ export class Sim {
       }
     });
     this.gates.forEach((g, k) => {
-      const mine = this.plates.filter((pl) => opensOf(pl.def).includes(g.def.id));
+      const mine: { on: boolean }[] = [...this.plates.filter((pl) => opensOf(pl.def).includes(g.def.id)), ...this.levers.filter((lv) => opensOf(lv.def).includes(g.def.id))];
       // 钥匙开了的门（老宅，A10）一直开着
       const want = g.unlocked || (mine.length > 0 && (g.def.all ? mine.every((pl) => pl.on) : mine.some((pl) => pl.on)));
       g.holdT = want ? (g.def.hold ?? CFG.gateHold) : Math.max(0, g.holdT - dt);
@@ -1086,6 +1110,36 @@ export class Sim {
     for (const [, e] of [...this.grips]) if (e.g.target === prop.rb) this.release(this.players[e.player] as Player, e.arm);
   }
 
+  /**
+   * 失重区（太空站，A10）每一步：身体中心在失重区里的人，身体和胳膊都不受重力（出来了恢复）；物件（跷跷板除外）也一样。
+   * 只在进出的那一步改重力倍数。
+   */
+  private tickZeroG(): void {
+    const zones = this.level.zerog;
+    if (!zones?.length) return;
+    const inZone = (q: Pt): boolean => zones.some((z) => q.x >= z.x && q.x <= z.x + z.w && q.y >= z.y && q.y <= z.y + z.h);
+    for (const p of this.players) {
+      const on = !p.dead && !p.done && inZone(p.body);
+      if (on === p.floating) continue;
+      p.floating = on;
+      p.rb.setGravityScale(on ? 0 : 1, true);
+      for (const arm of p.arms) {
+        for (const rb of arm.segs) {
+          rb.setGravityScale(on ? 0 : CFG.armGravity, true);
+          rb.setLinearDamping(on ? CFG.floatArmDamp : CFG.armDamp);
+        }
+      }
+      this.events.push({ type: 'float', player: p.id, on, x: p.body.x, y: p.body.y });
+    }
+    for (const prop of this.props) {
+      if (prop.kind === 'seesaw') continue;
+      const on = inZone(prop);
+      if (on === !!prop.floating) continue;
+      prop.floating = on;
+      prop.rb.setGravityScale(on ? 0 : 1, true);
+    }
+  }
+
   /** 墙上灭着的灯（老宅，A10）：活着的人的身体、手，或者灯笼碰到就点着。 */
   private tickLamps(): void {
     this.lamps.forEach((l, i) => {
@@ -1282,6 +1336,7 @@ export class Sim {
       itemLeft: 0,
       pendingItem: false,
       itemFailAt: -10,
+      floating: false,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -1534,6 +1589,7 @@ export class Sim {
     this.tickItems(dt);
     this.tickGates(dt);
     this.tickDrone(dt);
+    this.tickZeroG();
     const pulls = this.pullCounts(dt);
     for (const p of this.players) {
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
@@ -1699,7 +1755,13 @@ export class Sim {
     body.resetForces(false);
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const gripping = p.arms.filter((a) => a.grip);
-    body.setLinearDamping(gripping.length && !p.ground ? CFG.hangDamp : CFG.bodyDamp);
+    // 失重区里没抓东西：阻尼大一点（慢慢停下来），摇杆往那边轻轻喷气，喷到 floatMax 就不再加
+    body.setLinearDamping(p.floating && !gripping.length ? CFG.floatDamp : gripping.length && !p.ground ? CFG.hangDamp : CFG.bodyDamp);
+    if (p.floating && !gripping.length && aimed) {
+      const v = body.linvel();
+      const mag = Math.hypot(p.aim.x, p.aim.y) || 1;
+      if ((v.x * p.aim.x + v.y * p.aim.y) / mag < CFG.floatMax) body.addForce({ x: CFG.bodyMass * CFG.floatThrust * p.aim.x, y: CFG.bodyMass * CFG.floatThrust * p.aim.y }, true);
+    }
     p.bodyCol.setFriction(gripping.length && aimed ? CFG.bodyFrictionPulling : CFG.bodyFriction);
     if (gripping.length && aimed && pulls) {
       // 挂着时摇杆指「身体想去哪」，不是「手指哪」：往上推翻上去，左右推是荡。
@@ -1744,7 +1806,11 @@ export class Sim {
       const hx = sx + dx * CFG.reach;
       const hy = sy + dy * CFG.reach;
       const k = CFG.reachK * armMass;
-      last.addForceAtPoint({ x: k * (hx - arm.hand.x), y: k * (hy - arm.hand.y) }, arm.hand, true);
+      const fx = k * (hx - arm.hand.x);
+      const fy = k * (hy - arm.hand.y);
+      last.addForceAtPoint({ x: fx, y: fy }, arm.hand, true);
+      // 失重区（太空站）：伸手的力反过来加在身体上（不然光挥胳膊人就飘走了）；有重力的地方照旧
+      if (p.floating) body.addForce({ x: -fx, y: -fy }, true);
       // 肩电机：上臂指向摇杆方向
       const target = Math.atan2(dy, dx);
       const err = wrapAngle(target - seg0.rotation());

@@ -175,6 +175,7 @@ class Sfx {
             this.tone({ freq: 900, to: 300, wave: 'triangle', dur: 0.09, vol: 0.3, pan });
             this.noise({ dur: 0.05, vol: 0.15, filter: { type: 'lowpass', freq: 1800 }, pan });
           } else if (sim.level.world === 'snow') this.poof(pan);
+          else if (sim.level.world === 'space') this.drift(pan);
           else this.splash(pan, (sim.level.world ?? 'table') === 'table');
           break;
         }
@@ -274,6 +275,22 @@ class Sfx {
               this.tone({ freq: 140, to: 100, wave: 'square', dur: 0.06, vol: 0.12, pan, lowpass: 800, delay: k * 0.14 });
             }
           }
+          break;
+        }
+        case 'lever': {
+          // 太空站的拉杆：拉下去咔嗒一声加一声短的「嘀」，松开轻一点
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.on) {
+            this.noise({ dur: 0.05, vol: 0.2, filter: { type: 'bandpass', freq: 1800, q: 3 }, pan });
+            this.tone({ freq: 880, wave: 'square', dur: 0.07, vol: 0.08, pan, lowpass: 2400, delay: 0.05 });
+          } else this.tone({ freq: 440, to: 330, wave: 'triangle', dur: 0.06, vol: 0.1, pan });
+          break;
+        }
+        case 'float': {
+          // 飘进失重区：呼的一声往上，飘出来往下
+          if (!this.throttle(`float${ev.player}`, 0.5)) break;
+          const pan = this.pan(ev.x, ev.y);
+          this.tone({ freq: ev.on ? 300 : 520, to: ev.on ? 620 : 260, wave: 'sine', dur: 0.35, vol: 0.1, pan, vibrato: [6, 7] });
           break;
         }
         case 'lamp': {
@@ -432,6 +449,13 @@ class Sfx {
         this.tone({ freq: seat * 1.15, to: seat * 0.5, wave: 'sawtooth', dur: 0.62, attack: 0.03, vol: 0.22, vibrato: [seat * 0.06, 11], pan, lowpass: 2400 });
         this.tone({ freq: seat * 2.3, to: seat * 1.0, wave: 'square', dur: 0.5, attack: 0.03, vol: 0.05, vibrato: [seat * 0.1, 11], pan, lowpass: 3000 });
     }
+  }
+
+  /** 太空站（A10）：飘出舱外，一声长长的呼，越来越远。 */
+  private drift(pan: number): void {
+    const d = 0.55;
+    this.noise({ dur: 0.9, vol: 0.18, filter: { type: 'bandpass', freq: 1400, to: 300, q: 1.2 }, attack: 0.05, pan, delay: d });
+    this.tone({ freq: 520, to: 140, wave: 'sine', dur: 0.8, vol: 0.12, pan, delay: d });
   }
 
   /** 雪山（A10）：掉进雪坑，闷闷的噗一声，带一点雪粒的沙沙。 */

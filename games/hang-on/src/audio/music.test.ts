@@ -74,7 +74,9 @@ describe('曲子', () => {
     expect(themeFor({ world: 'snow', arena: true }, false).id).toBe('snow-hard');
     expect(themeFor({ world: 'house' }, false).id).toBe('house');
     expect(themeFor({ world: 'house' }, true).id).toBe('house-hard');
-    expect(themeFor({ world: 'space' }, false).id).toBe('table');
+    expect(themeFor({ world: 'space' }, false).id).toBe('space');
+    expect(themeFor({ world: 'space', arena: true }, false).id).toBe('space-hard');
+    expect(themeFor({ world: 'moon' }, false).id).toBe('table');
     expect(seedOf('table-01')).not.toBe(seedOf('table-02'));
   });
 });

@@ -57,6 +57,23 @@ const SCENES = {
                 ? 'at least two need a lamp to light'
                 : null,
   },
+  // C13 太空站：space-43…48（CONTRACTS「太空站（A10，C13 做关）」）
+  space: {
+    first: 43,
+    teaches: new Set(['float', 'lever', ...SCENE_TEACHES]),
+    need: (l) => (l.zerog?.length ?? 0) > 0 || (l.levers?.length ?? 0) > 0,
+    needText: 'zero-gravity zones or levers',
+    mix: (count) =>
+      count((l) => l.zerog?.length) < 4
+        ? 'at least four need zero gravity'
+        : count((l) => l.levers?.length) < 3
+          ? 'at least three need levers'
+          : count((l) => l.zerog?.length && l.levers?.length) < 2
+            ? 'at least two need both zero gravity and levers'
+            : count((l) => (l.gates ?? []).some((g) => g.all && (l.levers ?? []).filter((v) => v.opens.split(/\s+/).includes(g.id)).length >= 2)) < 2
+              ? 'at least two need a hatch that several levers open together (all)'
+              : null,
+  },
 };
 for (const [name, s] of Object.entries(SCENES)) s.ids = Array.from({ length: 6 }, (_, i) => `${name}-${s.first + i}`);
 const sceneIds = Object.values(SCENES).flatMap((s) => s.ids);
@@ -88,7 +105,7 @@ const identities = {
 };
 const contains = (r, p) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 const inside = (level, p) => p.x >= 0 && p.x <= level.w && p.y >= 0 && p.y <= level.h;
-const materials = new Set(['cloth', 'wood', 'ceramic', 'metal', 'noodle', 'ice', 'bamboo', 'snow', 'brick']);
+const materials = new Set(['cloth', 'wood', 'ceramic', 'metal', 'noodle', 'ice', 'bamboo', 'snow', 'brick', 'hull']);
 const temporary = await mkdtemp(join(tmpdir(), 'hang-on-levels-'));
 const readJSON = async (path) => JSON.parse(await readFile(path, 'utf8'));
 const finite = (n) => typeof n === 'number' && Number.isFinite(n);
@@ -114,7 +131,7 @@ const together = (a, b) => {
   const [b0, b1] = b.players ?? [1, 6];
   return a0 <= b1 && b0 <= a1;
 };
-const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark];
+const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers];
 /**
  * 1 到 TESTED_PLAYERS 个人各摆出来什么样，一样的归一组。每组都要有一份回放证明能过：
  * 4 个人的是 replays/<id>.json，别的组是 replays/<id>.p<人数>.json。
@@ -192,13 +209,13 @@ function gates(level, id) {
     point(g.move);
     assert(Math.hypot(g.move.x, g.move.y) >= Math.min(g.w, g.h), `${id}: gate ${g.id} must move at least its own thickness`);
     for (const f of [0, 1]) assert(inside(level, { x: g.x + g.move.x * f, y: g.y + g.move.y * f }) && inside(level, { x: g.x + g.w + g.move.x * f, y: g.y + g.h + g.move.y * f }), `${id}: gate ${g.id} leaves the level`);
-    const mine = ps.filter((p) => p.opens.split(/\s+/).includes(g.id));
+    const mine = [...ps, ...(level.levers ?? [])].filter((p) => p.opens.split(/\s+/).includes(g.id));
     if (keyed.has(g.id)) {
-      assert(!mine.length, `${id}: gate ${g.id} opens with a key; it can't also have plates`);
+      assert(!mine.length, `${id}: gate ${g.id} opens with a key; it can't also have plates or levers`);
       continue;
     }
-    assert(mine.length, `${id}: gate ${g.id} has no plate`);
-    for (const p of mine) assert(together(p, g), `${id}: plate for gate ${g.id} is never there with it`);
+    assert(mine.length, `${id}: gate ${g.id} has no plate or lever`);
+    for (const p of mine) assert(together(p, g), `${id}: a plate or lever for gate ${g.id} is never there with it`);
   }
   for (const p of ps) {
     rectangle(p);
@@ -326,6 +343,41 @@ function house(level, id) {
   }
 }
 
+/**
+ * 太空站（A10）：失重区在关里（可以框到摔死线）、至少 200 × 200、最多 6 块；拉杆在关里，开的门都有，把手不压在台子里；
+ * 一扇写了 all 的门有几根拉杆，就得两两隔开 300 px 以上（一个人两只手够不着两根，得几个人一起拉）。
+ * 拉杆的把手大小和 level.ts 的 leverRect 一样（默认 44 × 14）。
+ */
+const leverBox = (l) => ({ x: l.x - (l.w ?? 44) / 2, y: l.y - (l.h ?? 14) / 2, w: l.w ?? 44, h: l.h ?? 14 });
+function space(level, id) {
+  const zones = level.zerog ?? [];
+  assert(zones.length <= 6, `${id}: at most six zero-gravity zones`);
+  for (const z of zones) {
+    rectangle(z);
+    assert(z.w >= 200 && z.h >= 200, `${id}: a zero-gravity zone is at least 200 × 200`);
+    assert(z.x >= 0 && z.y >= 0 && z.x + z.w <= level.w && z.y + z.h <= Math.max(level.h, level.deathY), `${id}: a zero-gravity zone leaves the level`);
+  }
+  const levers = level.levers ?? [];
+  const gateIds = new Set((level.gates ?? []).map((g) => g.id));
+  for (const l of levers) {
+    point(l);
+    assert(typeof l.opens === 'string' && l.opens, `${id}: a lever names the gates it opens`);
+    for (const g of l.opens.split(/\s+/).filter(Boolean)) assert(gateIds.has(g), `${id}: lever opens unknown gate ${g}`);
+    assert(l.w === undefined || (finite(l.w) && l.w >= 24 && l.w <= 120), `${id}: lever w must be 24–120`);
+    assert(l.h === undefined || (finite(l.h) && l.h >= 8 && l.h <= 40), `${id}: lever h must be 8–40`);
+    const box = leverBox(l);
+    assert(inside(level, box) && inside(level, { x: box.x + box.w, y: box.y + box.h }), `${id}: lever outside the level`);
+    for (const r of level.rects) assert(!together(r, l) || !overlaps(r, box), `${id}: lever at (${l.x}, ${l.y}) sits inside a platform`);
+  }
+  for (const g of level.gates ?? []) {
+    if (!g.all) continue;
+    const mine = levers.filter((l) => l.opens.split(/\s+/).includes(g.id));
+    for (let a = 0; a < mine.length; a++) for (let b = a + 1; b < mine.length; b++) {
+      assert(Math.hypot(mine[a].x - mine[b].x, mine[a].y - mine[b].y) >= 300, `${id}: levers for gate ${g.id} (all) must be at least 300 px apart so one player can't hold two`);
+    }
+  }
+}
+
 function machines(level, id) {
   const hazardKinds = new Set(['spike', 'hot', 'zap']);
   const dirs = new Set(['up', 'down', 'left', 'right']);
@@ -421,6 +473,7 @@ function validate(level, replay, id) {
   kitchen(level, id);
   snow(level, id);
   house(level, id);
+  space(level, id);
   assert(level.rects.length + (level.fading?.length ?? 0) + (level.springs?.length ?? 0) <= 60, id + ': platforms exceed 60');
   point(level.spawn);
   assert(inside(level, level.spawn), id + ': spawn outside level');
@@ -528,7 +581,8 @@ async function inspect(physics, level, replay) {
   // chainBySeg / throwsBySeg：每一段（出生到第一个检查点是第 0 段）里成串挂了几秒、丢了几次人
   const evidence = { chainSeconds: 0, throws: 0, chainBySeg: [], throwsBySeg: [], ropeGrabs: 0, propGrabs: 0, maxTilt: 0, checkpointTimes: [], cookieGrabs: (laid.fading ?? []).map(() => 0), springBounces: (laid.springs ?? []).map(() => 0), iceGrabs: 0,
     moverUse: (laid.movers ?? []).map(() => 0), spinnerUse: (laid.spinners ?? []).map(() => 0), near: dangers.map(() => false), gateOpen: (laid.gates ?? []).map(() => 0),
-    ventRide: (laid.vents ?? []).map(() => 0), traySpills: 0, liftRide: (laid.lifts ?? []).map(() => 0), icyGrabs: laid.rects.map(() => 0) };
+    ventRide: (laid.vents ?? []).map(() => 0), traySpills: 0, liftRide: (laid.lifts ?? []).map(() => 0), icyGrabs: laid.rects.map(() => 0),
+    floatTime: (laid.zerog ?? []).map(() => 0), leverPulled: (laid.levers ?? []).map(() => false) };
   const bars = (s) => { const angle = spinnerAngle(s, sim.time); return Array.from({ length: s.arms }, (_, j) => spinnerArm(s, j, angle)); };
   const holding = (p, hit) => p.arms.some((a) => a.grip?.kind === 'terrain' && hit(a.hand, CFG.handR + CFG.grabPad));
   sim.step = (dt) => {
@@ -601,6 +655,9 @@ async function inspect(physics, level, replay) {
       if (ridden) evidence.liftRide[k] += dt;
     });
     for (const e of sim.events) if (e.type === 'grab' && e.kind === 'terrain') laid.rects.forEach((r, k) => { if (r.slip !== undefined && contains({ x: r.x - 12, y: r.y - 12, w: r.w + 24, h: r.h + 24 }, e)) evidence.icyGrabs[k]++; });
+    // 太空站：每块失重区里有人飘过（身体在里面）、每根拉杆有人拉过
+    (laid.zerog ?? []).forEach((z, k) => { if (live.some((p) => contains(z, p.body))) evidence.floatTime[k] += dt; });
+    for (const e of sim.events) if (e.type === 'lever' && e.on) evidence.leverPulled[e.index] = true;
     dangers.forEach((d, k) => {
       if (evidence.near[k]) return;
       let hit;
@@ -639,7 +696,7 @@ const replay=await (await fetch('/replays/'+id)).json();
 const sim=await createSim(level,replay.players||4), canvas=document.querySelector('canvas');
 const stage=await Stage.create(canvas,{plates:{table:'/art/table-far.webp',van:'/art/van-far.webp'}});
 stage.setLevel(sim.level);stage.syncPlayers(sim);
-const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet',steam:'后厨 · 蒸笼喷汽 / Kitchen · Ride the steam',tray:'后厨 · 端托盘 / Kitchen · Carry the tray',lift:'雪山 · 坐缆车 / Snow · Ride the lift',slip:'雪山 · 冰溜子 / Snow · Icy holds',key:'老宅 · 找钥匙开门 / Old house · Find the key',dark:'老宅 · 黑屋子 / Old house · In the dark'};
+const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet',steam:'后厨 · 蒸笼喷汽 / Kitchen · Ride the steam',tray:'后厨 · 端托盘 / Kitchen · Carry the tray',lift:'雪山 · 坐缆车 / Snow · Ride the lift',slip:'雪山 · 冰溜子 / Snow · Icy holds',key:'老宅 · 找钥匙开门 / Old house · Find the key',dark:'老宅 · 黑屋子 / Old house · In the dark',float:'太空站 · 失重 / Space · Zero gravity',lever:'太空站 · 一起拉杆 / Space · Pull the levers together'};
 document.querySelector('h1').textContent=id+' · '+level.name.zh+' · '+level.name.en;
 document.querySelector('#lesson').textContent=lessons[level.teaches];
 const marks=document.querySelector('#marks');
@@ -735,7 +792,7 @@ try {
   for (const id of ids) assert(replayFiles.includes(`${id}.json`), `${id}: needs its own replay`);
   // 别的人数的回放：replays/<id>.p<人数>.json，只给按人数摆的关、每种摆法一份
   const extraReplays = replayFiles.filter((f) => !files.includes(f)).map((f) => {
-    const m = /^((?:table|van|kitchen|snow|house)-\d{2})\.p([1-6])\.json$/.exec(f);
+    const m = /^((?:table|van|kitchen|snow|house|space)-\d{2})\.p([1-6])\.json$/.exec(f);
     assert(m && ids.includes(m[1]), `unexpected replay ${f} (extra replays are <level>.p<players>.json)`);
     return { file: f, id: m[1], players: Number(m[2]) };
   });
@@ -779,6 +836,9 @@ try {
     // 老宅：每把钥匙都开了门；主回放里每盏灭着的灯都有人点着
     evidence.keysUsed.forEach((used, k) => assert(used, `${id} (${replay.players} players): key ${k} never opened its gate`));
     if (main) evidence.lampsLit.forEach((on, k) => assert(on, `${id}: lamp ${k} at (${laid.lamps[k].x}, ${laid.lamps[k].y}) is never lit`));
+    // 太空站：每块失重区都有人飘过 1 秒、每根拉杆都有人拉过（每份回放）
+    evidence.floatTime.forEach((t, k) => assert(t >= 1, `${id} (${replay.players} players): nobody floated through zero-gravity zone ${k}`));
+    evidence.leverPulled.forEach((on, k) => assert(on, `${id} (${replay.players} players): lever ${k} is never pulled`));
     return { result, evidence };
   }
   for (const id of ids) {
