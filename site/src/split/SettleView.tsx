@@ -14,8 +14,8 @@ import { useToast } from "../ui/Toast";
 import { expensesOf, type Ledger, type Settlement } from "./core";
 import { money } from "./format";
 import { paysLine } from "./lines";
+import { paidId } from "./ops";
 import { copyText } from "./parts";
-import { newId } from "./store";
 import { record } from "./syncing";
 import { say, W } from "./words";
 
@@ -123,7 +123,8 @@ export function SettleView({ ledger, me, lang, plan }: { ledger: Ledger; me: str
               block
               icon={Check}
               onClick={() => {
-                const done = record(ledger.id, { do: "transfer", transfer: { id: newId(), at: Date.now(), from: line.from, to: line.to, amount: line.amount } });
+                // (the same id on the phone of the one who paid and of the one paid: marked on both, it counts once)
+                const done = record(ledger.id, { do: "transfer", transfer: { id: paidId(ledger, line), at: Date.now(), from: line.from, to: line.to, amount: line.amount } });
                 setOpen(null);
                 // (the sheet is closing, so the page can say it)
                 if (!done) toast(say(lang, "notSaved"), { tone: "warning" });
