@@ -4,7 +4,7 @@
  * one who opens it is asked one thing, once: which of the people in the ledger they are.
  */
 import { Check, ChevronRight, Copy, Share2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { Lang } from "../i18n";
 import { savedName } from "../online/config";
 import { Button } from "../ui/Button";
@@ -18,12 +18,42 @@ import { newId, setMe } from "./store";
 import { record } from "./syncing";
 import { say } from "./words";
 
+type InviteProps = {
+  open: boolean;
+  onClose: () => void;
+  ledger: Ledger;
+  /** the key that opens the ledger */
+  inviteKey: string;
+  /** the server has the ledger (one started with no signal can't be joined until it has) */
+  ready: boolean;
+  lang: Lang;
+  /** opened by the ledger's owner to change the key, which makes every invitation sent so far stop working: asked about first */
+  change?: boolean;
+  /** a new key is on its way to the server: until it is there, there is no link to show */
+  changing?: boolean;
+  /** nothing has answered lately (so the new key is waiting for a signal) */
+  away?: boolean;
+  onRekey?: () => void;
+};
+
 /**
- * The invitation, to show and to send. `inviteKey` is the key that opens the ledger; `ready` is
- * whether the server has the ledger yet (one started with no signal can't be joined until it has).
+ * The invitation, to show and to send. Its owner can also open this sheet to change it: that is
+ * asked about first (it shuts out everyone who came in by the old one until they have the new),
+ * then the sheet waits for the server, and shows the new code and link, ready to send.
  */
-export function InviteSheet({ open, onClose, ledger, inviteKey, ready, lang }: { open: boolean; onClose: () => void; ledger: Ledger; inviteKey: string; ready: boolean; lang: Lang }) {
+export function InviteSheet({ open, onClose, ledger, inviteKey, ready, lang, change, changing, away, onRekey }: InviteProps) {
   const link = inviteLink(window.location.origin, ledger.id, inviteKey);
+  /** the ledger's key when the owner said yes to changing it, on this sheet: once the key is another one, it is done */
+  const [was, setWas] = useState<string | null>(null);
+  // Each time it opens it starts over: nothing said yes to, nothing just done. (Before it is
+  // drawn, so last time's doesn't show for a moment; and not when it closes, so what it says
+  // doesn't change while it slides away.)
+  useLayoutEffect(() => {
+    if (open) setWas(null);
+  }, [open]);
+  /** "change the link?" is on the sheet, in place of the invitation, until its owner has answered */
+  const asking = !!change && was === null;
+  const changed = was !== null && !changing && inviteKey !== was;
   // (drawn when the sheet is first wanted, not with every ledger page)
   const qr = useMemo(() => (open && ready ? qrPath(link) : null), [open, ready, link]);
   // "copied" is said on the button itself: a toast would sit behind the open sheet
@@ -51,9 +81,9 @@ export function InviteSheet({ open, onClose, ledger, inviteKey, ready, lang }: {
       onClose={onClose}
       lang={lang}
       category="tool"
-      title={say(lang, "inviteTitle")}
+      title={say(lang, asking || changing ? "rekey" : "inviteTitle")}
       footer={
-        !ready ? undefined : canShare ? (
+        !ready || asking || changing ? undefined : canShare ? (
           // a phone's own share sheet reaches the chat app in one step; copying is the other way
           <div className="split-pair">
             <Button tone="quiet" icon={copied === "done" ? Check : Copy} onClick={() => void copy()}>
@@ -70,7 +100,30 @@ export function InviteSheet({ open, onClose, ledger, inviteKey, ready, lang }: {
         )
       }
     >
-      {ready ? (
+      {changing ? (
+        <p className="split-invite-who" role="status">
+          {say(lang, away ? "rekeyWaiting" : "rekeying")}
+        </p>
+      ) : asking ? (
+        <div className="split-ask" role="alert">
+          <p>
+            <Sentences text={say(lang, "rekeyAsk")} lang={lang} />
+          </p>
+          <div className="split-pair">
+            <Button tone="quiet" onClick={onClose}>
+              {say(lang, "rekeyNo")}
+            </Button>
+            <Button
+              onClick={() => {
+                setWas(inviteKey);
+                onRekey?.();
+              }}
+            >
+              {say(lang, "rekeyYes")}
+            </Button>
+          </div>
+        </div>
+      ) : ready ? (
         <div className="split-invite">
           {qr && (
             <div className="split-qr">
@@ -82,7 +135,15 @@ export function InviteSheet({ open, onClose, ledger, inviteKey, ready, lang }: {
           <p>
             <Sentences text={say(lang, "inviteHow")} lang={lang} />
           </p>
-          <p className="split-invite-who">{say(lang, "inviteWho")}</p>
+          {/* just changed: said in the place of the fine line, which the owner has read before */}
+          {changed ? (
+            <p className="split-invite-done" role="status">
+              <Check aria-hidden="true" />
+              {say(lang, "rekeyDone")}
+            </p>
+          ) : (
+            <p className="split-invite-who">{say(lang, "inviteWho")}</p>
+          )}
           {/* said aloud once; the button keeps a name of its own */}
           <span className="ui-visually-hidden" role="status">
             {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
@@ -110,6 +171,8 @@ export function WhoStep({ ledger, lang, onSkip }: { ledger: Ledger; lang: Lang; 
   const fresh = tidy(name, NAME_MAX);
   const taken = !!fresh && nameTaken(ledger, fresh);
   const full = ledger.members.length >= MAX_MEMBERS;
+  // (a locked ledger takes nobody new: whoever is in it can still say which one they are)
+  const locked = ledger.locked !== undefined;
   return (
     <div className="split-who">
       <header className="split-plan-head">
@@ -129,10 +192,12 @@ export function WhoStep({ ledger, lang, onSkip }: { ledger: Ledger; lang: Lang; 
           </li>
         ))}
       </ul>
+      {locked && <p className="split-note">{say(lang, "whoLocked")}</p>}
       <form
+        hidden={locked}
         onSubmit={(e) => {
           e.preventDefault();
-          if (!fresh || taken || full) return;
+          if (!fresh || taken || full || locked) return;
           const member = newId();
           // (refused only when another phone took the name or the last place a moment ago: the note under the field says which)
           if (record(ledger.id, { do: "member", member: { id: member, name: fresh } })) setMe(ledger.id, member);

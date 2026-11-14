@@ -38,7 +38,10 @@ const isMember = (x: unknown): x is Member => isRecord(x) && isText(x.id) && isT
 export function asLedger(x: unknown): Ledger | null {
   if (!isRecord(x) || !isText(x.id) || !isText(x.name) || !isText(x.currency) || !Array.isArray(x.members) || !Array.isArray(x.entries)) return null;
   const members = x.members.filter(isMember);
-  return members.length ? { id: x.id, name: x.name, currency: x.currency, members, entries: x.entries.filter(isEntry) } : null;
+  if (!members.length) return null;
+  const ledger: Ledger = { id: x.id, name: x.name, currency: x.currency, members, entries: x.entries.filter(isEntry) };
+  if (isCount(x.locked)) ledger.locked = x.locked;
+  return ledger;
 }
 
 /** The server saying where a ledger stands. */
@@ -66,5 +69,10 @@ const asChanges = (x: unknown): Sent[] => (Array.isArray(x) ? x.map(parseSent).f
 export function asHeld(x: unknown): Held | null {
   if (!isRecord(x) || !isText(x.key) || !KEY.test(x.key) || typeof x.made !== "boolean" || !isSeq(x.seq)) return null;
   const server = asLedger(x.server);
-  return server && { key: x.key, made: x.made, seq: x.seq, server, waiting: asChanges(x.waiting), lost: asChanges(x.lost) };
+  if (!server) return null;
+  const held: Held = { key: x.key, made: x.made, seq: x.seq, server, waiting: asChanges(x.waiting), lost: asChanges(x.lost) };
+  // (the owner's key, and a key being changed to: each only when it is one, and not the key itself)
+  if (isText(x.owner) && KEY.test(x.owner) && x.owner !== x.key) held.owner = x.owner;
+  if (held.owner && isText(x.next) && KEY.test(x.next) && x.next !== x.key && x.next !== x.owner) held.next = x.next;
+  return held;
 }

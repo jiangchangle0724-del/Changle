@@ -1,5 +1,5 @@
 /** changle.ca/split: the ledgers on this phone, and starting a new one. */
-import { ChevronRight, CircleAlert, CloudOff, Plus, ReceiptText } from "lucide-react";
+import { ChevronRight, CircleAlert, CloudOff, Lock, Plus, ReceiptText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BiTitle, LangTab } from "../components/TopBar";
 import type { Lang } from "../i18n";
@@ -71,7 +71,8 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
 function LedgerCard({ ledger, held, me, lang }: { ledger: Ledger; held: Held; me: string | undefined; lang: Lang }) {
   const sync = useSync(ledger.id);
   const mine = standing(ledger, me, lang);
-  const flag = held.lost.length ? "cardLost" : (held.waiting.length || !held.made) && (sync.away || sync.trouble) ? "cardUnsent" : null;
+  // (one thing at most: what didn't stick, then what hasn't gone up, then that the ledger is locked)
+  const flag = held.lost.length ? "cardLost" : (held.waiting.length || !held.made) && (sync.away || sync.trouble) ? "cardUnsent" : ledger.locked !== undefined ? "cardLocked" : null;
   return (
     <a className="split-ledger" href={`/split/${ledger.id}`}>
       <span className="split-ledger-text">
@@ -82,7 +83,7 @@ function LedgerCard({ ledger, held, me, lang }: { ledger: Ledger; held: Held; me
         {mine && <span className="split-ledger-standing">{mine}</span>}
         {flag && (
           <span className={`split-ledger-flag${flag === "cardLost" ? " is-loud" : ""}`}>
-            {flag === "cardLost" ? <CircleAlert aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
+            {flag === "cardLost" ? <CircleAlert aria-hidden="true" /> : flag === "cardLocked" ? <Lock aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
             {say(lang, flag)}
           </span>
         )}
