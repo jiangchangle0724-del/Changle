@@ -119,7 +119,7 @@ test("a day more than a week away: 随便 opens for it that week, and reopening 
   await expect(host.locator(".after button:disabled")).toHaveText("Come back that week");
   await expect(host.locator(".after .panel-title")).toHaveText("What's next?");
   // the host picks again: nothing is set, so there's nothing to ask
-  await host.locator(".set button.link-btn").click();
+  await host.locator(".set button.link-btn", { hasText: "Choose again" }).click();
   await expect(host.locator(".set")).toHaveCount(0);
   await expect(host.locator(".after")).toHaveCount(0);
   expect((await host.request.get(calendarFile(code))).status(), "and the calendar file goes with it").toBe(404);
@@ -240,7 +240,7 @@ test("quick fill: weekends, evenings, a whole day, everything; one tap takes suc
 
   // in English; and everyone's view has no quick fill
   await page.click(".bar-lang");
-  await expect(page.locator(".quick button")).toHaveText(["All free", "Weekends", "Evenings"]);
+  await expect(page.locator(".quick button")).toHaveText(["All free", "Weekends", "Evenings", "To the minute"]);
   await page.click(".seg button:nth-child(2)");
   await expect(page.locator(".quick")).toHaveCount(0);
   await expect(page.locator("button.grid-date")).toHaveCount(0);

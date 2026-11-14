@@ -4,7 +4,7 @@
 // so one gathering doesn't end up with several; everyone else waits for the table's link.
 // 随便 doesn't read what the link carries yet, so the page says what to pick there.
 import { useState } from "preact/hooks";
-import { addDays, dayLabel, EAT_DAYS_AHEAD, eatLink, eatWhen, mealLabel, reason, resultText, slotLabel, vancouverDay } from "../../engine";
+import { addDays, counted, dayLabel, EAT_DAYS_AHEAD, eatLink, eatWhen, mealLabel, reason, resultText, vancouverDay, whenLabel } from "../../engine";
 import type { EventState, Lang, Person, Tally } from "../../engine";
 import { t } from "../i18n";
 import { CopyButton, IconPicture, inWeChat, useLang } from "./common";
@@ -14,11 +14,14 @@ export function After({ state, tally, people, host, link }: { state: EventState;
   const lang = useLang();
   const [picture, setPicture] = useState(false);
   if (!state.settled) return null;
-  const { day, part } = state.settled;
+  const { day, part, from, to } = state.settled;
   const when = eatWhen(day, vancouverDay(Date.now()));
-  const coming = tally.yes.length + tally.maybe.length;
-  const eat = eatLink({ code: state.code, day, part, coming });
-  const words = (inLang: Lang) => resultText({ title: state.title, day, part, tally, people, url: link }, inLang);
+  // who can come at the time that was set (the tally passed in counts them for it)
+  const { yes, maybe } = counted(tally);
+  const coming = yes.length + maybe.length;
+  // a time set to the minute: the meal starts when it does
+  const eat = eatLink({ code: state.code, day, part, from, coming });
+  const words = (inLang: Lang) => resultText({ title: state.title, day, part, from, to, tally, people, url: link }, inLang);
   const other: Lang = lang === "zh" ? "en" : "zh";
 
   return (
@@ -54,7 +57,7 @@ export function After({ state, tally, people, host, link }: { state: EventState;
               <a class="btn btn-quiet" href={eat}>
                 {t("eatGo")}
               </a>
-              <p class="hint">{t("eatPick", { when: dayLabel(day, lang), time: mealLabel(part, lang) })}</p>
+              <p class="hint">{t("eatPick", { when: dayLabel(day, lang), time: mealLabel(part, lang, from) })}</p>
               {inWeChat() && (
                 <>
                   <p class="note">{t("eatWeChat")}</p>
@@ -78,7 +81,7 @@ export function After({ state, tally, people, host, link }: { state: EventState;
         <PictureSheet
           picture={resultPicture(state, tally, people, link, lang)}
           title={t("picResult")}
-          alt={t("picAltResult", { title: state.title, when: slotLabel(day, part, lang), who: reason(tally, people, lang) })}
+          alt={t("picAltResult", { title: state.title, when: whenLabel(day, part, lang, from, to), who: reason(tally, people, lang) })}
           file={`when-${state.code}-result.jpg`}
           onClose={() => setPicture(false)}
         />

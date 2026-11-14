@@ -144,8 +144,8 @@ export default {
     if (parts.length === 4 && what === CALENDAR_FILE && req.method === "GET") {
       const state = (await stub.snapshot(null))?.state;
       if (!state?.settled) return new Response("not found", { status: 404, headers: { "cache-control": "no-store" } });
-      const { day, part, at } = state.settled;
-      return new Response(toIcs({ code: state.code, title: state.title, day, part, setAt: at }), {
+      const { day, part, at, from, to } = state.settled;
+      return new Response(toIcs({ code: state.code, title: state.title, day, part, setAt: at, from, to }), {
         headers: {
           "content-type": "text/calendar; charset=utf-8",
           "content-disposition": `inline; filename="when-${state.code}.ics"`,
@@ -278,7 +278,7 @@ export class EventDO extends DurableObject<Env> {
 
   async saveMine(keyHash: string, input: Record<string, unknown>): Promise<WithState<{ id: string }> | Fail> {
     if (!(await this.live())) return { ok: false, error: "gone" };
-    const saved = this.room.saveMine({ id: input.id, keyHash, newId: () => makeCode(rand, 10), name: input.name, answers: input.answers, now: Date.now() });
+    const saved = this.room.saveMine({ id: input.id, keyHash, newId: () => makeCode(rand, 10), name: input.name, answers: input.answers, times: input.times, now: Date.now() });
     return saved.ok ? { ok: true, id: saved.id, state: this.changed() } : saved;
   }
 

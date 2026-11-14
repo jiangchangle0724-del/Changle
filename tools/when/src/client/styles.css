@@ -579,6 +579,9 @@ input {
   background: var(--color-surface);
   box-shadow: var(--shadow-flat);
 }
+.seg-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
 .seg button {
   min-height: var(--tap);
   border-radius: var(--r-pill);
@@ -606,6 +609,12 @@ input {
   font-size: var(--text-sm);
   font-weight: 700;
   transition: background-color var(--dur-exit) var(--ease-out);
+}
+/* "to the minute" is a switch, not a fill: it says so with a clock */
+.quick-minutes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 .quick button[aria-pressed="true"] {
   background: var(--gel);
@@ -746,6 +755,27 @@ button.grid-date b {
   background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
   box-shadow: inset 0 0 0 2px var(--gel);
   color: var(--gel);
+}
+/* my times: the part of a slot I gave, when it isn't all of it, as a line across the top of the
+   cell, lit from where it starts to where it ends */
+.cell-span {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  right: 7px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, currentColor 25%, transparent);
+}
+.cell-span::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--from);
+  right: calc(100% - var(--to));
+  border-radius: inherit;
+  background: currentColor;
 }
 .cell-count {
   position: absolute;
@@ -1059,6 +1089,11 @@ html.has-sheet body {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+/* the part of a slot someone gave, after their name */
+.names li small {
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+}
 .names li {
   display: inline-flex;
   align-items: center;
@@ -1213,4 +1248,122 @@ html.has-sheet body {
   .cell:active {
     transform: none;
   }
+}
+
+/* ---------- a time within a period, to the minute ---------- */
+.time-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.time-fields .field {
+  flex: 1;
+}
+.time-fields input {
+  padding: 0 var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+.time-fields input:disabled {
+  color: var(--color-text-3);
+}
+.time-dash {
+  padding-bottom: var(--space-3);
+  color: var(--color-text-2);
+}
+/* a time like 19:30–20:30 never breaks at its dash */
+.nowrap {
+  white-space: nowrap;
+}
+/* the period as a line, the part chosen lit, a handle at each end; the line stops half a handle
+   short of each side so the handles stay on the sheet */
+.timeline {
+  padding-top: var(--space-2);
+}
+.timeline-track {
+  position: relative;
+  height: var(--tap-crowded);
+  margin: 0 calc(var(--tap) / 2);
+  touch-action: none;
+  cursor: pointer;
+}
+.timeline-rail,
+.timeline-fill {
+  position: absolute;
+  top: 50%;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: var(--r-pill);
+}
+.timeline-rail {
+  left: 0;
+  right: 0;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.timeline-fill {
+  left: var(--from);
+  right: calc(100% - var(--to));
+  background: var(--gel);
+}
+.timeline-handle {
+  position: absolute;
+  top: 50%;
+  left: var(--at);
+  width: var(--tap);
+  height: var(--tap);
+  margin: calc(var(--tap) / -2) 0 0 calc(var(--tap) / -2);
+  border-radius: var(--r-pill);
+}
+.timeline-handle::after {
+  content: "";
+  position: absolute;
+  inset: 11px;
+  border: 3px solid var(--gel);
+  border-radius: var(--r-pill);
+  background: var(--color-text);
+  box-shadow: var(--shadow-float);
+}
+.timeline-ticks {
+  position: relative;
+  height: 1.4em;
+  margin: 0 calc(var(--tap) / 2);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.timeline-ticks span {
+  position: absolute;
+  left: var(--at);
+  transform: translateX(-50%);
+}
+.timeline[data-disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.time-foot {
+  min-height: var(--tap);
+}
+.time-now {
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.set-time-day {
+  font-weight: 800;
+}
+/* the best stretch of a slot, at the top of its sheet */
+.slot-meet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-weight: 700;
+}
+.slot-meet small {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+/* a host's two moves on the set time */
+.set-host {
+  gap: var(--space-4);
 }

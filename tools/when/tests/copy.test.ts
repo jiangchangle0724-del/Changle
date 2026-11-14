@@ -134,7 +134,7 @@ test("every result uses the shared date/part label and agrees with rank's attend
     for (const part of ["am", "pm", "eve", "day"] as Part[]) for (const count of [0, 1, 3, 4, 40]) {
       const maybe = Array.from({ length: count }, (_, i) => names[i % names.length]);
       const people: Person[] = Array.from({ length: count + 7 }, (_, i) => ({ id: String(i), name: maybe[i - 7] ?? `person-${i}`, must: false, proxy: false, answers: {}, at: 0 }));
-      const tally: Tally = { slot: `${result.day}:${part}`, day: result.day, part, yes: people.slice(0, 7).map((p) => p.id), maybe: people.slice(7).map((p) => p.id), no: [], out: null };
+      const tally: Tally = { slot: `${result.day}:${part}`, day: result.day, part, yes: people.slice(0, 7).map((p) => p.id), maybe: people.slice(7).map((p) => p.id), no: [], meet: null, out: null };
       const text = resultText({ ...result, part, asked: people.length, maybe }, tone, lang, pick);
       assert.ok(text.includes(slotLabel(result.day, part, lang)), text);
       assert.ok(text.includes(reason(tally, people, lang)), text);
