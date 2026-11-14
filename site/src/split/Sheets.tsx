@@ -98,7 +98,15 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
             {!status ? say(lang, "synced") : status.lock && !status.loud ? say(lang, "locked") : status.text}
           </p>
           {signIn && (
-            <Button tone="quiet" icon={LogIn} onClick={() => openSignIn()}>
+            // (this sheet gives way: the site's sign-in is drawn under any sheet still open)
+            <Button
+              tone="quiet"
+              icon={LogIn}
+              onClick={() => {
+                onClose();
+                openSignIn();
+              }}
+            >
               {say(lang, "signIn")}
             </Button>
           )}
