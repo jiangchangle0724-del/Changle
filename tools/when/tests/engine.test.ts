@@ -167,12 +167,15 @@ test("many maybes are counted, not listed", () => {
 // ---------- once the time is set ----------
 
 test("the words to paste back into the group chat", async () => {
-  const { eatLink, eatWhen, mealLabel, mealTime, resultText } = await import("../src/engine");
+  const { eatLink, eatWhen, mealLabel, mealTime, resultText, resultWords } = await import("../src/engine");
   const people = [person("老王", free(`${SAT}:eve`)), person("Jenny", free(`${SAT}:eve`)), person("阿May", { [`${SAT}:eve`]: 1 })];
   const [t] = tally({ days: [SAT], grain: "half", people, minPeople: 1 }).filter((x) => x.slot === `${SAT}:eve`);
   const url = "https://changle.ca/when/abcdefgh";
-  assert.equal(resultText({ title: "周末火锅", day: SAT, part: "eve", tally: t, people, url }, "zh"), `「周末火锅」定了：11月21日 周六 晚上。3 个人里 2 个有空，阿May 可以调。\n${url}`);
-  assert.equal(resultText({ title: "Hot pot", day: SAT, part: "eve", tally: t, people, url }, "en"), `"Hot pot" is set: Sat, Nov 21, evening. 2 of 3 free, 阿May could move things.\n${url}`);
+  // who the words count: as the page does, the free and, by name, who could move things
+  const words = resultWords({ title: "周末火锅", day: SAT, part: "eve", tally: t, people, url });
+  assert.deepEqual(words, { title: "周末火锅", url, day: SAT, part: "eve", from: undefined, to: undefined, coming: 2, asked: 3, maybe: ["阿May"] });
+  assert.equal(resultText(words, "plain", "zh"), `「周末火锅」\n定了：11月21日 周六 晚上。3 个人里 2 个有空，阿May 可以调。详情见链接。\n${url}`);
+  assert.equal(resultText({ ...words, title: "Hot pot" }, "plain", "en"), `"Hot pot"\nThe time is set: Sat, Nov 21, evening. 2 of 3 free, 阿May could move things. See the link for details.\n${url}`);
 
   // on to 随便: lunch for a morning or an afternoon, dinner otherwise; everyone who can come
   assert.equal(mealTime("am"), "12:00");

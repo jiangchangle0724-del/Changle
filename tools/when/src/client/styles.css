@@ -67,7 +67,9 @@ a {
   text-decoration: none;
 }
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
   color: inherit;
 }
@@ -80,7 +82,8 @@ button {
   cursor: pointer;
   touch-action: manipulation;
 }
-input {
+input,
+textarea {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -255,7 +258,10 @@ input {
   font-weight: 700;
 }
 .field input,
-.copy-manual input {
+.field textarea,
+.field select,
+.copy-manual input,
+.copy-manual textarea {
   width: 100%;
   min-height: 50px;
   padding: 0 var(--space-4);
@@ -266,8 +272,16 @@ input {
   color: var(--color-text);
   font-size: var(--text-md);
 }
-.field input::placeholder {
+.field input::placeholder,
+.field textarea::placeholder {
   color: var(--color-text-3);
+}
+/* a list of names, or words of more than one line to copy by hand */
+.field textarea,
+.copy-manual textarea {
+  padding: var(--space-3) var(--space-4);
+  line-height: var(--leading);
+  resize: vertical;
 }
 .field input[aria-invalid="true"] {
   box-shadow: inset 0 0 0 2px var(--color-danger);
@@ -500,6 +514,9 @@ input {
   gap: var(--space-1) var(--space-4);
   color: var(--color-text-2);
   font-size: var(--text-sm);
+}
+.meta-deadline[data-late] {
+  color: var(--color-warning);
 }
 /* the time that was set: the one lit thing on the page */
 .set {
@@ -1366,4 +1383,46 @@ html.has-sheet body {
 /* a host's two moves on the set time */
 .set-host {
   gap: var(--space-4);
+}
+
+/* the words for the group chat: what will be pasted, as it will read */
+.words {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+}
+.words .seg,
+.words-text {
+  align-self: stretch;
+}
+.words-text {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  line-height: var(--leading);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* the host's list and deadline: a line each, what's set under it */
+.host-row {
+  display: flex;
+  flex-direction: column;
+}
+.host-row .hint {
+  overflow-wrap: anywhere;
+}
+.deadline-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-3);
+}
+/* a narrow phone: the day on a line of its own, so "(today)" isn't cut off */
+@media (max-width: 374px) {
+  .deadline-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
