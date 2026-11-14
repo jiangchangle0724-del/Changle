@@ -181,6 +181,18 @@ export interface LampDef extends Pt {
   players?: [number, number];
 }
 
+/**
+ * 太空站的拉杆（A10）：墙上一根把手（(x, y) 是中心，默认 44 × 14，能抓），有人的手抓着它就算拉下去了；
+ * 开 `opens` 那几扇门（和踏板一样，门的 id 用空格分开）。门写 `all` 就要连着它的拉杆、踏板同时都按着才开：
+ * 几根拉杆隔得远，一个人抓不过来，得几个人一起拉。
+ */
+export interface LeverDef extends Pt {
+  opens: string;
+  w?: number;
+  h?: number;
+  players?: [number, number];
+}
+
 export interface Level {
   id: string;
   world?: string;
@@ -224,6 +236,11 @@ export interface Level {
   lanterns?: LanternDef[];
   lamps?: LampDef[];
   dark?: Rect[];
+  /**
+   * 太空站（A10）：失重区（这些矩形里没有重力，人、胳膊、物件飘着；没抓着东西时摇杆轻轻喷气挪一点）和拉杆。
+   */
+  zerog?: Rect[];
+  levers?: LeverDef[];
   deathY: number;
   par?: { seconds: number; deathsPerPlayer: number };
   replay?: string;
@@ -252,7 +269,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -274,11 +291,20 @@ export function forPlayers(level: Level, n: number): Level {
     lanterns: keep(level.lanterns),
     lamps: keep(level.lamps),
     dark: keep(level.dark),
+    zerog: keep(level.zerog),
+    levers: keep(level.levers),
   };
 }
 
+/** 拉杆的那块把手（矩形）。 */
+export const leverRect = (l: LeverDef): Rect => {
+  const w = l.w ?? 44;
+  const h = l.h ?? 14;
+  return { x: l.x - w / 2, y: l.y - h / 2, w, h, kind: 'lever', material: 'metal' };
+};
+
 /** 这块踏板开哪几扇门。 */
-export const opensOf = (p: PlateDef): string[] => p.opens.split(/\s+/).filter(Boolean);
+export const opensOf = (p: { opens: string }): string[] => p.opens.split(/\s+/).filter(Boolean);
 
 /** 门开到 `open`（0 关着，1 全开）时在哪（左上角）。 */
 export const gateAt = (g: GateDef, open: number): Pt => ({ x: g.x + g.move.x * open, y: g.y + g.move.y * open });
@@ -555,6 +581,55 @@ export function houseLevel(): Level {
       { x: 1400, y: 784, w: 80, h: 16, kind: 'spike' },
       { x: 2060, y: 772, w: 70, h: 28, kind: 'hot' },
       { x: 2230, y: 624, w: 50, h: 16, kind: 'zap' },
+    ],
+    deathY: 1180,
+    par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 太空站样板关（A10，只在开发页：`play.html?level=proto-08&players=2`）：气闸舱的甲板，往右是一段失重舱（`zerog`，
+ * 底下没有地板，只有几根扶手，飘出失重舱就掉下去），中间一道激光栅栏；对面的甲板上两根拉杆隔得老远，两个人一起拉着，
+ * 舱门才开（门 `all`）；门后是控制室，推进器的尾焰、一地碎片。Codex 做太空站的关时照着写 JSON。
+ */
+export function spaceLevel(): Level {
+  return {
+    id: 'proto-08',
+    world: 'space',
+    name: { zh: '太空站样板', en: 'Space station sampler' },
+    teaches: 'float',
+    w: 2800,
+    h: 1100,
+    spawn: { x: 100, y: 760 },
+    goal: { x: 2580, y: 380, w: 200, h: 160 },
+    checkpoints: [{ x: 1780, y: 666 }],
+    rects: [
+      // 气闸舱的甲板
+      { x: 0, y: 800, w: 700, h: 300, kind: 'ground', material: 'hull' },
+      // 失重舱的顶（抓不住的白舱壁）和几根扶手
+      { x: 700, y: 120, w: 1000, h: 40, kind: 'wall', material: 'hull', grab: false },
+      { x: 820, y: 560, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1000, y: 430, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1210, y: 560, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1420, y: 400, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      { x: 1580, y: 540, w: 60, h: 14, kind: 'peg', material: 'metal' },
+      // 对面的甲板，一个高一点的台子（第二根拉杆在上面），舱门后面是控制室
+      { x: 1700, y: 700, w: 640, h: 400, kind: 'ground', material: 'hull' },
+      { x: 2080, y: 520, w: 120, h: 180, kind: 'step', material: 'metal' },
+      { x: 2340, y: 700, w: 100, h: 400, kind: 'ground', material: 'hull' },
+      { x: 2440, y: 540, w: 360, h: 560, kind: 'ground', material: 'hull' },
+      { x: 2300, y: 120, w: 140, h: 180, kind: 'wall', material: 'hull', grab: false },
+    ],
+    zerog: [{ x: 700, y: 160, w: 1000, h: 640 }],
+    levers: [
+      { x: 1830, y: 620, opens: 'hatch' },
+      { x: 2140, y: 470, opens: 'hatch' },
+    ],
+    gates: [{ id: 'hatch', x: 2300, y: 300, w: 40, h: 400, move: { x: 0, y: -280 }, all: true, hold: 3, grab: false }],
+    hazards: [
+      { x: 1290, y: 260, w: 12, h: 200, kind: 'zap' },
+      { x: 1960, y: 684, w: 70, h: 16, kind: 'spike' },
+      { x: 2470, y: 520, w: 50, h: 20, kind: 'hot' },
     ],
     deathY: 1180,
     par: { seconds: 90, deathsPerPlayer: 3 },

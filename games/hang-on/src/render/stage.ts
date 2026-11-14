@@ -369,6 +369,15 @@ export class Stage {
           }
           break;
         }
+        case 'float': {
+          // 太空站：飘进失重区一圈淡淡的青光
+          if (ev.on) this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0x7fe3ff], speed: [0, 0], life: [0.4, 0.4], size: [30, 30], grow: 2.2, alpha: 0.5 });
+          break;
+        }
+        case 'lever':
+          // 拉杆拉下去：一小把星星
+          if (ev.on) this.fx.burst({ x: ev.x, y: ev.y, n: 6, texture: 'star', colors: [0x5bd96b, 0xffffff], speed: [60, 160], life: [0.3, 0.5], size: [6, 10], drag: 3, spin: 8, grow: 0.3 });
+          break;
         case 'lamp':
           // 墙上的灯点着了：一小把火星往上飘
           this.fx.burst({ x: ev.x, y: ev.y, n: 8, texture: 'circle', colors: [0xffd27a, 0xffb347, 0xfff1a8], speed: [40, 120], angle: -Math.PI / 2, spread: 1, life: [0.4, 0.8], size: [3, 6], drag: 2, grow: 0.3 });
@@ -451,7 +460,7 @@ export class Stage {
 
   private splash(x: number, y: number): void {
     const table = this.world_ === 'table';
-    const colors = table ? [0xe8584a, 0xff8a5b, 0xffd166] : [0x9fd3e8, 0xffffff, 0x6aa6d6];
+    const colors = table ? [0xe8584a, 0xff8a5b, 0xffd166] : this.world_ === 'space' ? [0x7fe3ff, 0xffffff, 0x8a7cff] : [0x9fd3e8, 0xffffff, 0x6aa6d6];
     this.fx.burst({ x, y: y - 4, n: 22, texture: 'drop', colors, speed: [200, 520], angle: -Math.PI / 2, spread: 0.9, life: [0.5, 0.9], size: [8, 16], gravity: 1400, spin: 6 });
     this.fx.burst({ x, y: y - 4, n: 10, texture: 'circle', colors, speed: [100, 300], angle: -Math.PI / 2, spread: 1.2, life: [0.3, 0.6], size: [5, 12], gravity: 1200 });
     this.fx.burst({ x, y: y - 10, n: 4, texture: 'puff', colors: [0xffffff], speed: [30, 80], angle: -Math.PI / 2, spread: 0.6, life: [0.8, 1.4], size: [40, 80], grow: 2.2, alpha: 0.35, drag: 1 });
@@ -1075,6 +1084,12 @@ export class Stage {
         g.ellipse(x, y + 14 + bob, 11, 6).fill(0xd8321f).stroke({ width: 1.5, color: 0x7a1a0f });
         g.ellipse(x, y + 14 + bob, 5, 2.5).fill(0xffb36b);
         g.circle(x + 50, y + 18 - bob, 5).fill(0x9bcf83).stroke({ width: 1.2, color: 0x4b7a3a });
+      } else if (this.world_ === 'space') {
+        // 太空站：护盾外面漂着几块碎片，慢慢翻
+        const a = this.reduced ? 0 : this.t * 0.6 + x * 0.01;
+        const c = Math.cos(a) * 7;
+        const s2 = Math.sin(a) * 7;
+        g.poly([x - c, y + 14 + bob - s2, x + s2, y + 14 + bob - c, x + c, y + 14 + bob + s2, x - s2, y + 14 + bob + c]).fill(0x8a94aa).stroke({ width: 1.2, color: 0x3a4052 });
       } else if (this.world_ === 'house') {
         // 老宅的荷花池：浮着荷叶，隔几片一个粉的花苞
         g.ellipse(x, y + 12 + bob * 0.5, 22, 7).fill(0x3f6b3a).stroke({ width: 1.5, color: 0x1f3a1c });

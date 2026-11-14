@@ -8,7 +8,7 @@
  * 这个文件不引物理（只要类型），手机的画面包里不会带 Rapier。
  */
 import { CFG } from '../physics/config';
-import { forPlayers, gateAt, type GateDef, type Level, type Pt } from '../physics/level';
+import { forPlayers, gateAt, leverRect, type GateDef, type Level, type Pt } from '../physics/level';
 import type { Face, Rules, SimEvent } from '../physics/world';
 import { ITEM_IDS, type ItemId } from '../items';
 import type { FadingView, GateView, NoodleView, PlateView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
@@ -80,6 +80,7 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
   if (ic.length) snap.ic = ic;
   if (sim.keys?.length) snap.ky = sim.keys.flatMap((k) => [k.prop, (k.found ? 1 : 0) + (k.used ? 2 : 0)]);
   if (sim.lamps?.length) snap.lm = sim.lamps.reduce((m, l, k) => (l.on ? m | (1 << k) : m), 0);
+  if (sim.levers?.length) snap.lr = sim.levers.reduce((m, l, k) => (l.on ? m | (1 << k) : m), 0);
   if (sim.drone) snap.dr = [r1(sim.drone.x), r1(sim.drone.y), Math.max(0, DRONE_PHASES.indexOf(sim.drone.phase))];
   if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
@@ -147,6 +148,8 @@ export class RemoteSim implements SimView {
   /** 老宅（A10）：钥匙找到没有、用掉没有（不匀，位置跟着物件匀）；墙上的灯在哪按关卡摆，亮没亮跟着快照走。 */
   keys: { prop: number; found: boolean; used: boolean }[] = [];
   lamps: { x: number; y: number; r: number; on: boolean }[] = [];
+  /** 拉杆（太空站，A10）：位置按关卡摆，有没有人抓着跟着快照走。 */
+  levers: PlateView[] = [];
   /** 抢金元宝（A9d）：每个人攒了几秒（不匀，快照来了就换）。 */
   gold: { holdT: number[]; need: number; holder: number } | null = null;
   /** 外卖无人机（A9c）：位置跟着匀，来了、走了直接出现、消失。 */
@@ -308,6 +311,11 @@ export class RemoteSim implements SimView {
       this.plates = pd.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, on: false }));
       changed = true;
     }
+    const vd = this.level.levers ?? [];
+    if (force || this.levers.length !== vd.length) {
+      this.levers = vd.map((d) => ({ ...leverRect(d), on: false }));
+      changed = true;
+    }
     const ld = this.level.lamps ?? [];
     if (force || this.lamps.length !== ld.length) {
       this.lamps = ld.map((d) => ({ x: d.x, y: d.y, r: d.r ?? CFG.lampR, on: !d.off }));
@@ -405,6 +413,8 @@ export class RemoteSim implements SimView {
     this.keys = Array.from({ length: Math.floor(ky.length / 2) }, (_, k) => ({ prop: ky[k * 2] ?? 0, found: ((ky[k * 2 + 1] ?? 0) & 1) !== 0, used: ((ky[k * 2 + 1] ?? 0) & 2) !== 0 }));
     const lm = s.lm ?? 0;
     this.lamps.forEach((l, k) => (l.on = (lm & (1 << k)) !== 0));
+    const lr = s.lr ?? 0;
+    this.levers.forEach((l, k) => (l.on = (lr & (1 << k)) !== 0));
     const pl = s.pl ?? 0;
     this.plates.forEach((q, k) => (q.on = (pl & (1 << k)) !== 0));
     // 红包：位置在关卡里，拿没拿到跟着快照走；这一局没有红包（不写 en）就不画

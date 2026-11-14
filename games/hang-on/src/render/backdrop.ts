@@ -5,6 +5,7 @@
  * 中餐馆后厨（A10）：白瓷砖墙、调料架、挂着的锅铲和炒锅、一排灶眼的火光，热气往上飘。
  * 雪山缆车（A10）：黄昏里的雪峰、半山的松树和缆车塔架、亮着灯的木屋，一直下雪。
  * 老宅找钥匙（A10）：月夜，一轮大月亮；远处白墙黛瓦的马头墙，院子里的老梅树、月亮门、透着暖光的窗棂，近处红漆柱子和挂落；萤火虫飘。
+ * 太空站（A10）：深空，满天星、紫蓝的星云、一颗带光环的大行星；远处空间站的桁架和太阳能板，中间一节节舱段（圆舷窗亮着），近处的钢梁；偶尔一颗流星。
  * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
  *
  * 远景画（可选）：地址由外面给（`src/render/plates.ts` 找 `games/hang-on/art/<世界>-far.webp`，来源写在 art/README.md），
@@ -24,7 +25,7 @@ interface Layer {
 }
 
 /** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷），前面的平台和人才跳得出来。 */
-const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f, snow: 0xa8b2c8, house: 0x9a9cb8 };
+const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f, snow: 0xa8b2c8, house: 0x9a9cb8, space: 0x9c9cc8 };
 /** 远景画显出来以后藏掉的剪影层：最远和中间那层（画里已经有了），只留最近那层压在画前面。 */
 const PLATE_HIDES = [0, 1];
 
@@ -51,6 +52,7 @@ export class Backdrop {
   private rainT = 0;
   private snowT = 0;
   private flyT = 0;
+  private starT = 0;
   private plate: Sprite | null = null;
   /** 远景画外面套一层：糊一点（景深，A8），糊好的样子存成一张图，镜头动时只挪这层。 */
   private plateC: Container | null = null;
@@ -131,6 +133,7 @@ export class Backdrop {
     sky.rect(0, 0, W, H).fill(this.skyGrad);
     if (this.world === 'van') this.stars(sky, W, H);
     if (this.world === 'house') this.moon(sky, W, H);
+    if (this.world === 'space') this.deepSpace(sky, W, H);
     const period = Math.max(1600, Math.ceil(W / 100) * 100);
     this.layers.forEach((l, i) => {
       l.period = period;
@@ -140,6 +143,7 @@ export class Backdrop {
         else if (this.world === 'kitchen') this.kitchenLayer(g, i, period, H);
         else if (this.world === 'snow') this.snowLayer(g, i, period, H);
         else if (this.world === 'house') this.houseLayer(g, i, period, H);
+        else if (this.world === 'space') this.spaceLayer(g, i, period, H);
         else this.vanLayer(g, i, period, H);
       }
       l.g[1].x = period;
@@ -152,7 +156,7 @@ export class Backdrop {
   private drawRays(W: number, H: number): void {
     const g = this.rays.clear();
     const warm = this.world === 'table' || this.world === 'kitchen';
-    const color = warm ? 0xffc27a : this.world === 'house' ? 0xc8d4ff : 0xa8c8ff;
+    const color = warm ? 0xffc27a : this.world === 'house' ? 0xc8d4ff : this.world === 'space' ? 0x9a8cff : 0xa8c8ff;
     const beams = warm ? [0.12, 0.36, 0.63, 0.86] : [0.2, 0.55, 0.82];
     for (const [i, fx] of beams.entries()) {
       const x = fx * W;
@@ -200,6 +204,7 @@ export class Backdrop {
     if (this.world === 'table' || this.world === 'kitchen') this.steam(dt);
     if (this.world === 'snow') this.snowfall(dt);
     if (this.world === 'house') this.fireflies(dt);
+    if (this.world === 'space') this.shootingStars(dt);
     if (this.rain) this.rainfall(dt);
   }
 
@@ -765,6 +770,118 @@ export class Backdrop {
         alpha: 0.7,
       });
     }
+  }
+
+  // ---------------------------------------------------------------- 太空站（A10）
+
+  /** 深空：满天星（大小亮暗不一）、两团星云、右下角一颗带光环的大行星和一颗小卫星。 */
+  private deepSpace(g: Graphics, W: number, H: number): void {
+    const r = rng(91);
+    glow(g, W * 0.25, H * 0.3, Math.max(W, H) * 0.5, '#6a3cc8', 0.2);
+    glow(g, W * 0.7, H * 0.55, Math.max(W, H) * 0.45, '#1f8aa8', 0.16);
+    for (let k = 0; k < 170; k++) {
+      const big = r() < 0.08;
+      g.circle(r() * W, r() * H, big ? 1.6 + r() * 1.2 : 0.5 + r() * 0.9).fill({ color: r() < 0.2 ? 0xbfe3ff : 0xffffff, alpha: 0.35 + r() * 0.6 });
+    }
+    // 大行星：蓝绿的球，几道横的云带，一圈大气的光，一道斜的光环
+    const pr = Math.max(H * 0.42, 200);
+    const px = W * 0.84;
+    const py = H * 1.02;
+    glow(g, px, py, pr * 2.6, '#58c8ff', 0.18);
+    g.circle(px, py, pr).fill(0x2a5c8a);
+    for (let k = 0; k < 6; k++) {
+      const y = py - pr + (pr * 2 * (k + 0.5)) / 6;
+      const half = Math.sqrt(Math.max(0, pr * pr - (y - py) * (y - py)));
+      g.ellipse(px, y, half * 0.98, pr * 0.06).fill({ color: k % 2 ? 0x3f8fb0 : 0x7fc8d8, alpha: 0.45 });
+    }
+    g.circle(px, py, pr).stroke({ width: 6, color: 0x9fe8ff, alpha: 0.35 });
+    g.ellipse(px, py - pr * 0.1, pr * 1.6, pr * 0.22).stroke({ width: 5, color: 0xd8c8ff, alpha: 0.45 });
+    // 小卫星
+    g.circle(W * 0.18, H * 0.16, 18).fill(0xc8c4d8);
+    g.circle(W * 0.18 - 5, H * 0.16 - 3, 5).fill({ color: 0x8a86a0, alpha: 0.6 });
+  }
+
+  private spaceLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(900 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 远处：空间站的长桁架，挂着一对对太阳能板
+      const col = hex(pal.far);
+      const y = H * 0.36;
+      g.rect(-10, y - 4, P + 20, 8).fill(col);
+      for (let x = 0; x < P; x += 40) g.moveTo(x, y - 4).lineTo(x + 20, y + 4).moveTo(x + 20, y - 4).lineTo(x + 40, y + 4).stroke({ width: 2, color: col });
+      for (const f of [0.1, 0.35, 0.62, 0.86]) {
+        const x = f * P;
+        for (const side of [-1, 1]) {
+          const top = side < 0 ? y - 120 : y + 12;
+          g.rect(x - 70, top, 140, 108).fill({ color: 0x2c3a80, alpha: 0.55 });
+          for (let k = 1; k < 5; k++) g.moveTo(x - 70 + 28 * k, top).lineTo(x - 70 + 28 * k, top + 108);
+          for (let k = 1; k < 3; k++) g.moveTo(x - 70, top + 36 * k).lineTo(x + 70, top + 36 * k);
+          g.stroke({ width: 1.5, color: col });
+          g.moveTo(x, y).lineTo(x, side < 0 ? top + 108 : top).stroke({ width: 3, color: col });
+        }
+      }
+    } else if (i === 1) {
+      // 中间：一节节圆柱的舱段，圆舷窗亮着；一个天线锅
+      const col = hex(pal.mid);
+      const y = H * 0.66;
+      let x = -40;
+      while (x < P + 40) {
+        const w = 220 + r() * 160;
+        const h = 90 + r() * 40;
+        g.roundRect(x, y - h / 2, w, h, h / 2).fill(col);
+        g.roundRect(x + 10, y - h / 2 + 6, w - 20, 8, 4).fill({ color: 0xffffff, alpha: 0.06 });
+        for (let wx = x + 40; wx < x + w - 30; wx += 46) {
+          glow(g, wx, y, 26, '#7fe3ff', 0.25);
+          g.circle(wx, y, 9).fill({ color: 0x9fe8ff, alpha: 0.75 });
+          g.circle(wx, y, 9).stroke({ width: 3, color: 0x2a3060 });
+        }
+        g.rect(x + w, y - 14, 40, 28).fill(col);
+        x += w + 40;
+      }
+      const dx = 0.5 * P;
+      g.moveTo(dx, y - 60).lineTo(dx, y - 140).stroke({ width: 4, color: col });
+      g.moveTo(dx - 50, y - 150).quadraticCurveTo(dx, y - 110, dx + 50, y - 150).closePath().fill(col);
+    } else {
+      // 近处：上下两道钢梁（工字钢加三角撑），几盏一闪一闪的小灯
+      const col = hex(pal.near);
+      for (const [y0, h] of [[0, 26], [H - 30, 30]] as const) {
+        g.rect(-10, y0, P + 20, h).fill(col);
+        for (let x = 0; x < P; x += 60) g.moveTo(x, y0 + (y0 ? 0 : h)).lineTo(x + 30, y0 + (y0 ? -30 : h + 30)).lineTo(x + 60, y0 + (y0 ? 0 : h)).stroke({ width: 4, color: col });
+      }
+      for (let k = 0; k < 6; k++) {
+        const x = r() * P;
+        glow(g, x, 18, 30, k % 2 ? '#ff6b6b' : '#7fe3ff', 0.4);
+        g.circle(x, 18, 3).fill(k % 2 ? 0xff6b6b : 0x7fe3ff);
+      }
+      for (let k = 0; k < 5; k++) {
+        const x = r() * P;
+        const y = H * (0.25 + r() * 0.5);
+        const rad = 50 + r() * 90;
+        for (let s2 = 0; s2 < 3; s2++) g.circle(x, y, rad * (1 - s2 * 0.3)).fill({ color: hex(pal.haze), alpha: 0.012 + s2 * 0.008 });
+      }
+    }
+  }
+
+  /** 流星：隔几秒一颗，从右上往左下划过去。 */
+  private shootingStars(dt: number): void {
+    this.starT += dt;
+    if (this.starT < 3.5) return;
+    this.starT = Math.random() * 1.5;
+    this.fx.burst({
+      x: this.W * (0.3 + Math.random() * 0.7),
+      y: this.H * Math.random() * 0.3,
+      n: 1,
+      texture: 'dot',
+      colors: [0xffffff, 0xbfe3ff],
+      speed: [700, 900],
+      angle: Math.PI * 0.8,
+      spread: 0.05,
+      life: [0.6, 0.8],
+      size: [3, 4],
+      alpha: 0.9,
+      stretch: 9,
+    });
   }
 
   /** 下雪：一片片慢慢飘下来，左右晃。 */

@@ -222,9 +222,9 @@ export class Depth {
 
   private hazardStyle(kind: NonNullable<HazardDef['kind']>): MaterialStyle {
     const w = this.world;
-    if (kind === 'hot') return w === 'van' ? HOT_VAN : w === 'kitchen' ? HOT_KITCHEN : w === 'snow' ? HOT_SNOW : w === 'house' ? HOT_HOUSE : HOT_TABLE;
-    if (kind === 'zap') return w === 'van' || w === 'snow' ? ZAP_VAN : w === 'kitchen' ? ZAP_KITCHEN : w === 'house' ? ZAP_HOUSE : ZAP_TABLE;
-    return w === 'van' ? SPIKE_VAN : w === 'kitchen' ? SPIKE_KITCHEN : w === 'snow' ? SPIKE_SNOW : w === 'house' ? SPIKE_HOUSE : SPIKE_TABLE;
+    if (kind === 'hot') return w === 'van' ? HOT_VAN : w === 'kitchen' ? HOT_KITCHEN : w === 'snow' ? HOT_SNOW : w === 'house' ? HOT_HOUSE : w === 'space' ? HOT_SPACE : HOT_TABLE;
+    if (kind === 'zap') return w === 'van' || w === 'snow' ? ZAP_VAN : w === 'kitchen' ? ZAP_KITCHEN : w === 'house' ? ZAP_HOUSE : w === 'space' ? ZAP_SPACE : ZAP_TABLE;
+    return w === 'van' ? SPIKE_VAN : w === 'kitchen' ? SPIKE_KITCHEN : w === 'snow' ? SPIKE_SNOW : w === 'house' ? SPIKE_HOUSE : w === 'space' ? SPIKE_SPACE : SPIKE_TABLE;
   }
 
   private cookieStyle(): MaterialStyle {
@@ -270,6 +270,10 @@ const SPIKE_SNOW: MaterialStyle = { base: '#9cc9e6', dark: '#5f8fb0', light: '#e
 const HOT_HOUSE: MaterialStyle = { base: '#6b4a2a', dark: '#3a2614', light: '#a8783e', detail: '#ff8a2c', texture: 'metal' };
 const ZAP_HOUSE: MaterialStyle = { base: '#3a2a22', dark: '#1e1410', light: '#5e463a', detail: '#ffd27a', texture: 'wood' };
 const SPIKE_HOUSE: MaterialStyle = { base: '#e8e2d4', dark: '#a8a090', light: '#ffffff', detail: '#3b5ba5', texture: 'ceramic' };
+// 太空站（A10）：推进器是深灰的喷口，激光栅栏的发射器是黑的，碎片是撕开的铝板
+const HOT_SPACE: MaterialStyle = { base: '#3a4052', dark: '#1c2030', light: '#6a7488', detail: '#7fd8ff', texture: 'metal' };
+const ZAP_SPACE: MaterialStyle = { base: '#1a1d2a', dark: '#0b0d14', light: '#3a4058', detail: '#ff4d6d', texture: 'metal' };
+const SPIKE_SPACE: MaterialStyle = { base: '#a9b2c4', dark: '#5f6a80', light: '#e8eef8', detail: '#f28b3c', texture: 'metal' };
 // 物件（A9d、A10）：金元宝、红漆托盘
 const INGOT: MaterialStyle = { base: '#e8b23a', dark: '#a87418', light: '#ffe08a', detail: '#fff1b8', texture: 'metal' };
 const TRAY: MaterialStyle = { base: '#b3262b', dark: '#6e1216', light: '#e0525a', detail: '#f2c14e', texture: 'wood' };
