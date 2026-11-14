@@ -21,6 +21,7 @@ import { planText } from "./lines";
 import { lookOf, paint, pngOf } from "./paint";
 import { copyText } from "./parts";
 import { pictureOf, stepsPrint } from "./picture";
+import { byFinger, canShareFile, datedName, inWeChat, saveFile, shareFile } from "./share";
 import { keepPicture } from "./store";
 import { say } from "./words";
 
@@ -35,24 +36,6 @@ const dataUrlOf = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob);
   });
 
-/**
- * The picture's file name: the same in either language, and in plain letters (a computer set to a
- * language without Chinese can't save a file named in it, and saves it as "download" instead).
- */
-const fileName = (at: number) => {
-  const d = new Date(at);
-  return `all-square-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}.png`;
-};
-
-const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
-const touch = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-const canShare = (file: File) => {
-  try {
-    return typeof navigator.canShare === "function" && typeof navigator.share === "function" && navigator.canShare({ files: [file] });
-  } catch {
-    return false;
-  }
-};
 
 export function PictureSheet({ open, onClose, ledger, plan, lang }: { open: boolean; onClose: () => void; ledger: Ledger; plan: Settlement; lang: Lang }) {
   /** being made (undefined), couldn't be (null), or made */
@@ -85,7 +68,7 @@ export function PictureSheet({ open, onClose, ledger, plan, lang }: { open: bool
         const png = await pngOf(canvas);
         const url = await dataUrlOf(png);
         if (gone) return;
-        setMade({ file: new File([png], fileName(at), { type: "image/png" }), url, width: canvas.width, height: canvas.height, text: p.text });
+        setMade({ file: new File([png], datedName(at, "png"), { type: "image/png" }), url, width: canvas.width, height: canvas.height, text: p.text });
         keepPicture(l.id, { at, print: stepsPrint(now) });
       } catch {
         if (!gone) setMade(null);
@@ -96,28 +79,12 @@ export function PictureSheet({ open, onClose, ledger, plan, lang }: { open: bool
     };
   }, [open, content]);
 
-  const shareable = !!made && !unshared && canShare(made.file);
+  const shareable = !!made && !unshared && canShareFile(made.file);
   const weChat = inWeChat();
-  const share = async () => {
-    if (!made) return;
-    try {
-      // (the picture alone: a chat app given words beside it may send only the words)
-      await navigator.share({ files: [made.file] });
-    } catch (e) {
-      // closed without sending: nothing to say; anything else, and the picture is to be held instead
-      if (!(e instanceof DOMException && e.name === "AbortError")) setUnshared(true);
-    }
-  };
-  const save = () => {
-    if (!made) return;
-    const link = document.createElement("a");
-    link.href = made.url;
-    link.download = made.file.name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-  const hint = !made ? null : shareable ? "pictureHoldToo" : weChat || unshared ? "pictureHold" : touch() ? "pictureHoldToo" : null;
+  // closed without sending: nothing to say; refused, and the picture is to be held (or saved) instead
+  const share = async () => made && (await shareFile(made.file)) === "refused" && setUnshared(true);
+  const save = () => made && saveFile(made.file);
+  const hint = !made ? null : shareable ? "pictureHoldToo" : weChat || unshared ? "pictureHold" : byFinger() ? "pictureHoldToo" : null;
 
   return (
     <Sheet

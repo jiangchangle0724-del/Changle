@@ -23,7 +23,7 @@ Always:
 
 | Card | What | Files | When |
 | --- | --- | --- | --- |
-| [T1](T1-orders-csv.md) | A group buy's orders as a CSV file's text | `src/engine/csv.ts` (new), `tests/csv.test.ts` (new) | not sent yet |
+| [T1](T1-orders-csv.md) | A group buy's orders as a CSV file's text | `src/engine/csv.ts` (new), `tests/csv.test.ts` (new) | sent 2026-11-14 (branch `codex/tuan-t1-orders-csv`) |
 
 What to send Codex, one card at a time:
 

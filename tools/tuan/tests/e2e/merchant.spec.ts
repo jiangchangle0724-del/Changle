@@ -375,6 +375,34 @@ test("the owner fills the forms from a file: a shop and its group buy in one go"
   await expect(shop.locator(".mine li")).toHaveCount(2);
 });
 
+test("the merchant's pages come in a script of their own: a buyer never downloads it, and when it can't be fetched the page says so", async ({ browser, request }) => {
+  const { url } = await start(request);
+  const page = await phone(browser, { session: SESSION.leader });
+  const scripts: string[] = [];
+  page.on("request", (sent) => {
+    if (sent.url().endsWith(".js")) scripts.push(new URL(sent.url()).pathname);
+  });
+  const theirs = (name: string) => scripts.some((path) => new RegExp(`/tuan/assets/${name}-[A-Z0-9]+\\.js$`).test(path));
+  // a buyer's pages: the group buy, an order, home
+  await page.goto(url);
+  await expect(page.locator(".item").first()).toBeVisible();
+  await page.goto("/tuan/");
+  await expect(page.locator(".hero h1")).toBeVisible();
+  expect(theirs("app")).toBe(true);
+  expect(theirs("my"), "a buyer's page never downloads the merchant's").toBe(false);
+  // a merchant's page fetches it
+  await page.goto("/tuan/my");
+  await expect(page.locator(".panel", { hasText: "大米团（测试）" }).first()).toBeVisible();
+  expect(theirs("my")).toBe(true);
+  // when it can't be fetched: said so, and trying again brings it
+  await page.route(/\/tuan\/assets\/my-[A-Z0-9]+\.js$/, (route) => route.abort());
+  await page.reload();
+  await expect(page.locator(".empty p")).toHaveText("连不上，看看网络再试一次");
+  await page.unroute(/\/tuan\/assets\/my-[A-Z0-9]+\.js$/);
+  await page.getByRole("button", { name: "再试一次" }).click();
+  await expect(page.locator(".panel", { hasText: "大米团（测试）" }).first()).toBeVisible();
+});
+
 test("on a small phone: the merchant's pages fit, and everything to tap is big enough", async ({ browser, request }) => {
   const { id } = await start(request, { title: "本周大米团 · 周五到货 · 冷冻肉和米面粮油一起团" });
   await threeOrders(request, id);

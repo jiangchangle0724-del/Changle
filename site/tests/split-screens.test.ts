@@ -18,6 +18,7 @@
  *     what a line offers (an expense changed back, or brought back within 30 days).
  * 13. The 结清图: what the picture of the plan says, when it is out of date, and what the phone
  *     keeps of it.
+ * 14. 导出账目: the ledger as CSV, each person's column adding up to where they stand.
  */
 import QRCode from "qrcode";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -36,6 +37,8 @@ import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRa
 import { SESSION_KEY } from "../src/split/net";
 import { historyOf, RESTORE_DAYS, whenText, type Logged } from "../src/split/history";
 import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split/picture";
+import { csvOf } from "../src/split/csv";
+import { datedName } from "../src/split/share";
 import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
@@ -954,6 +957,53 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   // what the phone keeps of it, however damaged
   eq(parseSaved(JSON.stringify({ held: [], me: {}, pictures: { L: made, bad: { at: "x", print: 1 }, worse: null, gone: { at: Infinity, print: "" } } })), { held: [], me: {}, pictures: { L: made } }, "the phone's note of each picture comes back as it was; a damaged one doesn't");
   eq(parseSaved(JSON.stringify({ held: [], me: {}, pictures: { bad: 1 } })), { held: [], me: {} }, "and with none whole, there is none");
+}
+
+// ---------- 14. the ledger as CSV (导出账目) ----------
+{
+  const at = (d: number, h: number, mi: number) => new Date(2026, 10, d, h, mi).getTime();
+  const everyone = five.members.map((m) => m.id);
+  const spend = (l: Ledger, id: string, when: number, payer: string, amount: number, note: string, more: Partial<Expense> = {}) => addExpense(l, { id, at: when, payer, amount, note, split: { how: "equal", among: everyone }, ...more });
+  const l = spend(spend(spend(five, "e1", at(13, 19, 30), "w", 18600, "晚饭"), "e2", at(14, 9, 5), "s", 12000, "油费"), "e3", at(14, 10, 0), "m", 8150, "早餐");
+  const rows = (csv: string) => csv.slice(1).split("\r\n").slice(0, -1);
+  const csv = csvOf(l, "zh");
+  eq([csv.charCodeAt(0), csv.endsWith("\r\n"), csv.split("\r\n").length], [0xfeff, true, 6], "a byte-order mark first (so Excel reads Chinese), and every line ends CR LF");
+  eq(rows(csv), [
+    "日期,类型,备注,谁付的,金额,货币,Steve,小王,阿美,Jason,小李",
+    "2026-11-13 19:30,花销,晚饭,小王,186.00,CAD,-37.20,148.80,-37.20,-37.20,-37.20",
+    "2026-11-14 09:05,花销,油费,Steve,120.00,CAD,96.00,-24.00,-24.00,-24.00,-24.00",
+    "2026-11-14 10:00,花销,早餐,阿美,81.50,CAD,-16.30,-16.30,65.20,-16.30,-16.30",
+    ",合计,,,387.50,CAD,42.50,108.50,4.00,-77.50,-77.50",
+  ], "the plan's weekend: a row for each expense, a column for each person, and the totals: where everyone stands");
+
+  // a payment, one taken out, and each column adding up to where its person stands
+  const paid = takeOut(addTransfer(spend(l, "e4", at(14, 11, 0), "j", 999, "咖啡"), { id: "t1", at: at(14, 12, 0), from: "j", to: "w", amount: 7750 }), "e4", at(14, 11, 5));
+  const lines = rows(csvOf(paid, "zh"));
+  eq([lines.length, lines[4], lines.at(-1)], [6, "2026-11-14 12:00,转账,Jason 给 小王,Jason,77.50,CAD,0.00,-77.50,0.00,77.50,0.00", ",合计,,,387.50,CAD,42.50,31.00,4.00,0.00,-77.50"], "a payment: for the one who made it, against the one paid; a deleted expense isn't there");
+  const nums = (line: string) => line.split(",").slice(6).map((x) => Math.round(Number(x) * 100));
+  const body = lines.slice(1, -1).map(nums);
+  ok(body.every((r) => r.reduce((a, b) => a + b, 0) === 0), "every row adds up to nothing across the people");
+  eq(everyone.map((_, i) => body.reduce((a, r) => a + r[i], 0)), everyone.map((id) => balances(paid)[id]), "and each person's column adds up to where they stand");
+  eq(nums(lines.at(-1)!), everyone.map((id) => balances(paid)[id]), "which is the last row");
+
+  // paid in another currency: three columns more, in a ledger that has any
+  const away = spend(spend(l, "e5", at(14, 13, 0), "s", 4200, "租车", { paidIn: { currency: "USD", amount: 3000, rate: "1.4" } }), "e6", at(14, 14, 0), "w", 2730, "拉面", { paidIn: { currency: "JPY", amount: 3000, rate: "0.0091" } });
+  const abroad = rows(csvOf(away, "en"));
+  eq([abroad[0], abroad[1], abroad[4], abroad[5]], [
+    "Date,Type,Note,Paid by,Amount,Currency,Paid in,Amount paid,Rate,Steve,小王,阿美,Jason,小李",
+    "2026-11-13 19:30,Expense,晚饭,小王,186.00,CAD,,,,-37.20,148.80,-37.20,-37.20,-37.20",
+    "2026-11-14 13:00,Expense,租车,Steve,42.00,CAD,USD,30.00,1.4,33.60,-8.40,-8.40,-8.40,-8.40",
+    "2026-11-14 14:00,Expense,拉面,小王,27.30,CAD,JPY,3000,0.0091,-5.46,21.84,-5.46,-5.46,-5.46",
+  ], "in English; paid in another currency: what was paid, in that currency's own units, and at what rate");
+
+  // what someone typed: quoted where CSV needs it, and never taken for a formula
+  const odd = addExpense(startLedger("o", "o", "JPY", [{ id: "a", name: "=A" }, { id: "b", name: "B,C" }]), { id: "x", at: at(14, 8, 0), payer: "b", amount: 3001, note: '晚饭, "大"餐', split: { how: "equal", among: ["a", "b"] } });
+  const oddRows = csvOf(odd, "zh").slice(1).split("\r\n");
+  eq([oddRows[0], oddRows[1]], ["日期,类型,备注,谁付的,金额,货币,'=A,\"B,C\"", "2026-11-14 08:00,花销,\"晚饭, \"\"大\"\"餐\",\"B,C\",3001,JPY,-1501,1501"], "a comma or a quote: in quotes; a name like a formula: shown, not run; yen in whole yen, the odd one to whose turn it is");
+  const formulas = ["=1+1", "+1", "-1", "@x"].map((note, i) => rows(csvOf(spend(five, `f${i}`, at(14, 8, 0), "s", 500, note), "zh"))[1].split(",")[2]);
+  eq(formulas, ["'=1+1", "'+1", "'-1", "'@x"], "a note that starts like a formula gets a ' in front");
+  eq(rows(csvOf(five, "zh")).length, 2, "nothing recorded: the headings and the totals");
+  eq([datedName(at(14, 10, 12), "csv"), datedName(new Date(2026, 0, 3).getTime(), "png")], ["all-square-2026-11-14.csv", "all-square-2026-01-03.png"], "the file's name: plain letters, and the day");
 }
 
 if (failed) {

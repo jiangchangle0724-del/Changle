@@ -787,7 +787,8 @@ describe("the pages", () => {
       expect([path, res.status]).toEqual([path, 200]);
       expect(res.headers.get("content-type")).toMatch(/^text\/html/);
       expect(res.html).toContain('<div id="app"></div>');
-      expect(res.html).toMatch(/<script src="\/tuan\/assets\/app-[A-Z0-9]+\.js" defer><\/script>/);
+      expect(res.html).toMatch(/<script type="module" src="\/tuan\/assets\/app-[A-Z0-9]+\.js"><\/script>/);
+      expect(res.html).toMatch(/<link rel="modulepreload" href="\/tuan\/assets\/chunk-[A-Z0-9]+\.js" \/>/);
       expect(res.html).toMatch(/<link rel="stylesheet" href="\/tuan\/assets\/app-[A-Z0-9]+\.css" \/>/);
       expect(res.headers.get("cache-control")).toBe("no-store");
       expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
