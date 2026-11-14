@@ -4,7 +4,7 @@
 // bottom; someone's diet moves a place down within that, with a line on its card saying why and
 // what can still be ordered. The occasion and the meal weigh a lot (occasion.ts): a place that
 // plainly isn't for them comes after the ones that are, with a line on its card too.
-import { CUISINES } from "./cuisines";
+import { cuisinesOf } from "./cuisines";
 import { LAST_ORDER_BEFORE_CLOSE, MIN_MINUTES_BEFORE_CLOSE, PLANNED_FROM, RANGES, distanceMeters, travelMinutes, vancouverClock } from "./clock";
 import { check, type Concern } from "./limits";
 import { occasionFit, type Fit, type OccasionId } from "./occasion";
@@ -58,11 +58,25 @@ export function minutesToLastOrder(p: Place, now: number, at = now): number | un
   return last === undefined ? undefined : Math.round((last - Math.max(at, now)) / 60_000);
 }
 
-/** How many places of each cuisine are on the list (shown on round 1's menu once it's known). */
+/**
+ * How many places of each cuisine are on the list (shown on round 1's menu once it's known). A place
+ * that is two cuisines counts for both.
+ */
 export function counts(places: Place[]): Partial<Record<CuisineId, number>> {
   const n: Partial<Record<CuisineId, number>> = {};
-  for (const p of places) n[p.cuisine] = (n[p.cuisine] ?? 0) + 1;
+  for (const p of places) for (const c of cuisinesOf(p)) n[c] = (n[c] ?? 0) + 1;
   return n;
+}
+
+/**
+ * Round 1 for one place: the most people who liked any of its cuisines, the most who said no to
+ * any, and the ones liked, most liked first (a hot pot place that grills skewers is liked by
+ * whoever liked skewers).
+ */
+export function moodFor(p: Place, likes: Partial<Record<CuisineId, number>>, bans: Partial<Record<CuisineId, number>>): { likes: number; bans: number; liked: CuisineId[] } {
+  const kinds = cuisinesOf(p);
+  const liked = kinds.filter((c) => (likes[c] ?? 0) > 0).sort((a, b) => (likes[b] ?? 0) - (likes[a] ?? 0));
+  return { likes: Math.max(0, ...kinds.map((c) => likes[c] ?? 0)), bans: Math.max(0, ...kinds.map((c) => bans[c] ?? 0)), liked };
 }
 
 /** Is someone at the table severely allergic to something this cuisine often uses? */
@@ -178,7 +192,7 @@ interface Scored {
   p: Place;
   /** 0: a cuisine more people liked than refused; 1: the rest; 2: more refused than liked; 3: a severe allergy. */
   tier: number;
-  /** Likes minus refusals for its cuisine. */
+  /** Likes minus refusals for its cuisines (moodFor). */
   net: number;
   /** Points off for the diet (demotion()). */
   down: number;
@@ -209,7 +223,8 @@ export function rank(input: RankInput): string[] {
     .map((p) => {
       const concerns = check(p, input.limits).concerns;
       const severe = concerns.some((c) => c.k === "allergy" && c.level === "severe");
-      const net = (input.likes[p.cuisine] ?? 0) - (input.bans[p.cuisine] ?? 0);
+      const mood = moodFor(p, input.likes, input.bans);
+      const net = mood.likes - mood.bans;
       const down = demotion(concerns);
       const off = !!fitFor(p, input).off;
       return { p, tier: severe ? 3 : net > 0 ? 0 : net < 0 ? 2 : 1, net, down, off, s: score(p, input) - down };

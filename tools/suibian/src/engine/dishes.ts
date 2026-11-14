@@ -229,7 +229,9 @@ function inKitchen(d: string, cuisine?: CuisineId): string {
   if (d === "bbq" && (cuisine === "korean" || cuisine === "kbbq")) return "kbbq";
   if (d === "bbq" && (cuisine === "japanese" || cuisine === "izakaya")) return "yakiniku";
   if (d === "bbq" && cuisine === "chinese_bbq") return "skewers";
-  if (d === "bbq" && (cuisine === "cantonese" || cuisine === "hk_cafe" || cuisine === "chinese")) return "siu_mei";
+  if (d === "bbq" && (cuisine === "cantonese" || cuisine === "hk_cafe")) return "siu_mei";
+  // A Chinese barbecue place nothing more is known about: roast meats or skewers, so neither.
+  if (d === "bbq" && cuisine === "chinese") return "";
   if (d === "lamian" && (cuisine === "ramen" || cuisine === "japanese" || cuisine === "izakaya")) return "ramen";
   return d;
 }
@@ -239,7 +241,7 @@ export function dishesFor(name: string, types: readonly string[] = [], cuisine?:
   const found: string[] = [];
   const add = (d: string) => {
     const x = inKitchen(d, cuisine);
-    if (!found.includes(x)) found.push(x);
+    if (x && !found.includes(x)) found.push(x);
   };
   for (const [re, d] of BY_NAME) if (re.test(name)) add(d);
   for (const t of types) if (BY_TYPE[t]) add(BY_TYPE[t]);

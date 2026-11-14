@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, distanceMeters, dishesFor, guessCuisine, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type CuisineId, type Lang, type OccasionId, type Place, type PlaceKind, type RangeId, type SearchCall, type Traits } from "../engine";
+import { RANGES, cuisineGuess, distanceMeters, dishesFor, foundBy, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type CuisineGuess, type CuisineId, type Lang, type OccasionId, type Place, type PlaceKind, type RangeId, type SearchCall, type Traits } from "../engine";
 import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
@@ -206,6 +206,14 @@ export function summaryFrom(g: GSummary | undefined): Place["summary"] {
 const LODGING = /^(lodging|hotel|motel|resort_hotel|inn|bed_and_breakfast|extended_stay_hotel|hostel|guest_house|campground|rv_park|cottage|farmstay|japanese_inn|budget_japanese_inn|private_guest_room)$/;
 
 export function fromGoogle(g: GPlace): Place | null {
+  return placeFrom(g)?.p ?? null;
+}
+
+/** A place's Google types: its main one when Google gives no list. */
+const typesOf = (g: GPlace) => g.types ?? (g.primaryType ? [g.primaryType] : []);
+
+/** A place from Google, with what its name, types and descriptions say it is (see foundBy). */
+function placeFrom(g: GPlace): { p: Place; guess: CuisineGuess } | null {
   if (!g.id || !g.location || !g.displayName?.text) return null;
   if (g.businessStatus && g.businessStatus !== "OPERATIONAL") return null;
   if (g.primaryType && LODGING.test(g.primaryType)) return null;
@@ -213,13 +221,16 @@ export function fromGoogle(g: GPlace): Place | null {
   const level = g.priceLevel ? LEVEL_PRICE[g.priceLevel] : undefined;
   const start = g.priceRange?.startPrice?.units ? Number(g.priceRange.startPrice.units) : undefined;
   const end = g.priceRange?.endPrice?.units ? Number(g.priceRange.endPrice.units) : undefined;
-  const cuisine = guessCuisine(name, g.primaryType, g.types);
+  // Its name, its types, and Google's descriptions of it ("Chinese BBQ skewers and hot pot").
+  const guess = cuisineGuess(name, g.primaryType, g.types, `${g.editorialSummary?.text ?? ""} ${g.generativeSummary?.overview?.text ?? ""}`);
+  const cuisine = guess.cuisine;
   const close = g.currentOpeningHours?.nextCloseTime ? Date.parse(g.currentOpeningHours.nextCloseTime) : NaN;
   const halalText = `${name} ${g.editorialSummary?.text ?? ""}`;
-  return {
+  const p: Place = {
     id: g.id,
     name,
     cuisine,
+    ...(guess.also.length ? { also: guess.also } : {}),
     lat: g.location.latitude,
     lng: g.location.longitude,
     rating: g.rating,
@@ -227,7 +238,7 @@ export function fromGoogle(g: GPlace): Place | null {
     price: start ?? level?.[0],
     priceTo: start !== undefined ? end : undefined,
     priceLabel: level?.[1],
-    dishes: orNone(dishesFor(name, g.types ?? (g.primaryType ? [g.primaryType] : []), cuisine)),
+    dishes: orNone(dishesFor(name, typesOf(g), cuisine)),
     openNow: g.currentOpeningHours?.openNow,
     closesAt: Number.isFinite(close) ? close : undefined,
     hours: hoursFrom(g.currentOpeningHours?.periods),
@@ -243,6 +254,7 @@ export function fromGoogle(g: GPlace): Place | null {
     address: g.shortFormattedAddress,
     ...curatedFor(name, g.shortFormattedAddress),
   };
+  return { p, guess };
 }
 
 const orNone = <T>(xs: T[]) => (xs.length ? xs : undefined);
@@ -298,12 +310,6 @@ function call(key: string, c: SearchCall, lang: Lang): Promise<{ places?: GPlace
 }
 
 /**
- * A Text Search for a cuisine Google has no type for ("Sichuan restaurant") answers with places of
- * that cuisine; when the name doesn't tell (a 川菜 place called "Chef Tony"), it's that cuisine.
- */
-const general = (c: CuisineId | undefined): CuisineId[] => (c === "hk_cafe" ? ["chinese", "other", "cafe"] : ["chinese", "other"]);
-
-/**
  * Restaurants for one pick: the searches searchPlan() lays out (at most four, Google returns 20 per
  * search), merged. A search that fails (a daily cap running out, a hiccup) doesn't lose the others;
  * all of them failing is thrown, for the room or the page to report.
@@ -314,22 +320,30 @@ export async function searchGoogle(key: string, center: Center, range: RangeId, 
   const failed = got.flatMap((g) => (g.status === "rejected" ? [g.reason] : []));
   if (failed.length === got.length) throw failed[0];
   if (failed.length) console.error("places", `${failed.length} of ${got.length} searches failed`, String(failed[0]));
-  const seen = new Map<string, Place>();
-  got.forEach((g, i) => {
-    if (g.status !== "fulfilled") return;
+  const seen = new Map<string, { p: Place; guess: CuisineGuess; g: GPlace }>();
+  /** Places a Text Search for a cuisine found ("Sichuan restaurant"), whichever search found them first. */
+  const found: [string, CuisineId][] = [];
+  got.forEach((r, i) => {
+    if (r.status !== "fulfilled") return;
     const c = plan[i];
-    for (const x of g.value.places ?? []) {
-      if (seen.has(x.id)) continue;
-      const p = fromGoogle(x);
-      if (!p) continue;
-      if (c.text) {
-        if (distanceMeters(c.center, p) > c.radius) continue;
-        if (c.cuisine && general(c.cuisine).includes(p.cuisine)) p.cuisine = c.cuisine;
-      }
-      seen.set(p.id, p);
+    for (const x of r.value.places ?? []) {
+      const it = seen.get(x.id) ?? placeFrom(x);
+      if (!it) continue;
+      if (c.text && distanceMeters(c.center, it.p) > c.radius) continue;
+      if (!seen.has(x.id)) seen.set(x.id, { ...it, g: x });
+      if (c.text && c.cuisine) found.push([x.id, c.cuisine]);
     }
   });
-  return [...seen.values()];
+  // What those searches say about places nothing else said much about (foundBy).
+  for (const [id, c] of found) {
+    const it = seen.get(id)!;
+    it.guess = foundBy(it.guess, c);
+  }
+  return [...seen.values()].map(({ p, guess, g }) => {
+    if (guess.cuisine === p.cuisine && guess.also.join() === (p.also ?? []).join()) return p;
+    const { also: _also, ...rest } = p;
+    return { ...rest, cuisine: guess.cuisine, ...(guess.also.length ? { also: guess.also } : {}), dishes: orNone(dishesFor(p.name, typesOf(g), guess.cuisine)) };
+  });
 }
 
 interface GDetails {

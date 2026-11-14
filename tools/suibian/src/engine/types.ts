@@ -77,7 +77,10 @@ export interface Place {
   /** Google place_id (the only Google field we may keep). Demo places start with "demo-". */
   id: string;
   name: string;
+  /** Its main cuisine: what its card says first (cuisineGuess). */
   cuisine: CuisineId;
+  /** Other cuisines it plainly is too (a hot pot place that grills skewers): round 1's 👍 and 🚫 count for them. */
+  also?: CuisineId[];
   lat: number;
   lng: number;
   /** Google rating 1–5 and how many people rated. */
