@@ -5,6 +5,7 @@
 //   /tuan/t/<id>                              a group buy, with its name in the page's title
 //   /tuan/o/<code>                            an order
 //   /tuan/my, /tuan/my/t/<id>                 a merchant's home, and one group buy's orders and sheets
+//   /tuan/my/new/<shop>, /tuan/my/t/<id>/edit starting a group buy in a shop, and changing one
 //   /tuan/assets/…                            the script, the styles and the fonts: plain files
 // The API (the shapes are in src/api.ts). Anyone, no sign-in:
 //   GET  /tuan/api/offers/<id>                a group buy: the goods, what's left, who's in
@@ -17,11 +18,14 @@
 //   POST /tuan/api/my/shops/<slug>/offers     start a group buy
 //   GET  /tuan/api/my/offers/<id>             every order in it, and the sheets (src/engine/summary.ts)
 //   POST /tuan/api/my/offers/<id>             open it, close it
+//   GET  /tuan/api/my/offers/<id>/doc         the group buy as its document, each part under its id (to change it, or to start the next one from)
+//   POST /tuan/api/my/offers/<id>/doc         change it: the whole document again (src/engine/edit.ts)
 //   POST /tuan/api/my/orders/<code>           confirm, mark paid or handed over, cancel, weigh
 // The site's owner:
 //   POST /tuan/api/admin/shops                set a shop up, or change one
-import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Me, type Moved, type MyHome, type MyOfferPage, type OfferPage, type OrderPage } from "../api";
+import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Me, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type OfferPage, type OrderPage } from "../api";
 import { BASE } from "../base";
+import { planEdit, type Used } from "../engine/edit";
 import { makeCode, OFFER_LENGTH, OFFER_RE, ORDER_LENGTH, ORDER_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
 import { finalGoods, MILLI } from "../engine/money";
 import { readOffer } from "../engine/offer";
@@ -34,7 +38,7 @@ import { offerPage, orderPage } from "../engine/view";
 import { bump, networkOf, used } from "./gate";
 import { flush, notify } from "./notify";
 import { ensureSchema } from "./schema";
-import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, offerHead, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveShop, setOfferStatus, shopBySlug, shopsOf, weighOrder } from "./store";
+import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, offerHead, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveEdit, saveShop, setOfferStatus, shopBySlug, shopsOf, usedOf, weighOrder } from "./store";
 import { tokenOf, whoIs, type Who } from "./who";
 
 /** The most an order's body may be, and a whole group buy's. */
@@ -60,7 +64,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   forbidden: 403,
   notfound: 404,
   // fine as a request, but not as things stand
-  closed: 409, soldout: 409, perbuyer: 409, many: 409, full: 409, paid: 409, cancelled: 409, busy: 409,
+  closed: 409, soldout: 409, perbuyer: 409, many: 409, full: 409, paid: 409, cancelled: 409, busy: 409, inuse: 409, sold: 409,
   limit: 429, locked: 429,
   failed: 500,
   down: 503,
@@ -266,6 +270,38 @@ async function startOffer(req: Request, db: D1Database, who: Who, slug: string, 
   return refuse("failed");
 }
 
+/** A group buy as the document it was made from, each part under its id, for its merchant to change (or to start the next one from). */
+function docOf(book: OfferBook, used: Used, now: number): MyOfferDoc {
+  const { shop, offer } = book;
+  return {
+    shop: { slug: shop.slug, name: shop.name },
+    offer: { id: offer.id, status: offer.status, title: offer.title, note: offer.note, closesAt: offer.closesAt, roster: offer.roster },
+    items: book.items.map(({ photo: _photo, ...item }) => ({ ...item, used: used.items.has(item.id) })),
+    points: book.points.map((point) => ({ ...point, used: used.points.has(point.id) })),
+    rules: book.rules.map((rule) => ({ ...rule, used: used.rules.has(rule.id) })),
+    now,
+  };
+}
+
+async function myDoc(db: D1Database, who: Who, offerId: string, now: number): Promise<Response> {
+  const book = await loadBook(db, offerId);
+  if (!book) return refuse("notfound");
+  if (!(await runs(db, who, book.shop.id))) return refuse("forbidden");
+  return json(docOf(book, await usedOf(db, offerId), now) satisfies MyOfferDoc);
+}
+
+/** A merchant's change to a group buy: the whole document again, the parts that stay under their ids. */
+async function saveDoc(req: Request, db: D1Database, who: Who, offerId: string, now: number): Promise<Response> {
+  const book = await loadBook(db, offerId);
+  if (!book) return refuse("notfound");
+  if (!(await runs(db, who, book.shop.id))) return refuse("forbidden");
+  const plan = planEdit(book, await usedOf(db, offerId), await body(req, OFFER_BODY_MAX), now);
+  if (!plan.ok) return refuse(plan.error, plan.at === undefined ? {} : { at: plan.at });
+  // an order came in between the reading and the writing, and it names something this would drop or outgrow
+  if (!(await saveEdit(db, offerId, plan.edit, () => makeCode(rand, 10, true)))) return refuse("busy");
+  return myDoc(db, who, offerId, now);
+}
+
 async function moveOffer(req: Request, db: D1Database, who: Who, offerId: string, now: number): Promise<Response> {
   const input = await body(req, ORDER_BODY_MAX);
   if (!input || (input.do !== "open" && input.do !== "close")) return refuse("bad");
@@ -394,7 +430,11 @@ async function page(req: Request, env: Env, url: URL, parts: string[]): Promise<
   if (n === 0 || (n === 1 && a === "preview")) return shell(env, url, null, 200);
   if (n === 2 && a === "o" && ORDER_RE.test(tidyOrderCode(b))) return shell(env, url, null, 200);
   // a merchant's pages say nothing by themselves: what they show comes from the API, once signed in
-  if (a === "my" && (n === 1 || (n === 3 && b === "t" && OFFER_RE.test(parts[2])))) return shell(env, url, null, 200);
+  if (a === "my") {
+    const group = b === "t" && OFFER_RE.test(parts[2] ?? "");
+    // home; a group buy's orders; changing it; starting one in a shop
+    if (n === 1 || (n === 3 && group) || (n === 4 && group && parts[3] === "edit") || (n === 3 && b === "new" && SLUG_RE.test(parts[2]))) return shell(env, url, null, 200);
+  }
   if (n === 2 && a === "t" && OFFER_RE.test(b)) {
     let head: { title: string; shop: string } | null;
     try {
@@ -447,6 +487,10 @@ async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, ur
     if (n === 3 && b === "offers" && OFFER_RE.test(c ?? "")) {
       if (get) return myOffer(db, who, c, now);
       if (post) return moveOffer(req, db, who, c, now);
+    }
+    if (n === 4 && b === "offers" && OFFER_RE.test(c ?? "") && d === "doc") {
+      if (get) return myDoc(db, who, c, now);
+      if (post) return saveDoc(req, db, who, c, now);
     }
     if (n === 3 && b === "orders" && post) return moveOrder(req, db, who, c, now);
   }

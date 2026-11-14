@@ -1,7 +1,7 @@
 // Talking to the server, and what this phone remembers: what's in the cart of each group buy, the
 // name and phone number last ordered with, and the orders placed from here (each with the last
 // four digits that open it). Nothing is kept anywhere else: a buyer has no account.
-import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferPage, type OfferMove, type OfferPage, type OrderInput, type OrderMove, type OrderPage } from "../api";
+import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type OfferMove, type OfferPage, type OrderInput, type OrderMove, type OrderPage } from "../api";
 import { BASE } from "../base";
 import type { How } from "../engine/types";
 
@@ -47,6 +47,20 @@ export interface Me {
 }
 export const savedMe = (): Me => ({ name: "", phone: "", wechat: "", how: "", address: "", ...readJson<Partial<Me>>("tuan.me", {}) });
 export const saveMe = (me: Me): void => write("tuan.me", JSON.stringify(me));
+
+/** A group buy a merchant is still writing for a shop, kept on this phone until it's sent: a form this long shouldn't be lost to a phone call. */
+export function savedDraft<T extends object>(slug: string): T | null {
+  const kept = readJson<Record<string, unknown>>(`tuan.new.${slug}`, {});
+  return Object.keys(kept).length ? (kept as T) : null;
+}
+export const saveDraft = (slug: string, draft: object): void => write(`tuan.new.${slug}`, JSON.stringify(draft));
+export function dropDraft(slug: string): void {
+  try {
+    localStorage.removeItem(`tuan.new.${slug}`);
+  } catch {
+    // private mode: there was nothing kept
+  }
+}
 
 /** An order placed from this phone. */
 export interface Mine {
@@ -140,6 +154,10 @@ export const getMy = (): Promise<MyHome> => ask("/my", { signedIn: true });
 export const getMyOffer = (offerId: string): Promise<MyOfferPage> => ask(`/my/offers/${offerId}`, { signedIn: true });
 export const moveOffer = (offerId: string, move: OfferMove): Promise<MyOfferPage> => ask(`/my/offers/${offerId}`, { method: "POST", body: move, signedIn: true });
 export const moveOrder = (code: string, move: OrderMove): Promise<Moved> => ask(`/my/orders/${code}`, { method: "POST", body: move, signedIn: true });
+/** A group buy as its document, each part under its id: to change it, or to start the next one from. */
+export const getMyDoc = (offerId: string): Promise<MyOfferDoc> => ask(`/my/offers/${offerId}/doc`, { signedIn: true });
+/** Change a group buy: the whole document again, the parts that stay under their ids (src/engine/edit.ts). */
+export const saveMyDoc = (offerId: string, doc: unknown): Promise<MyOfferDoc> => ask(`/my/offers/${offerId}/doc`, { method: "POST", body: doc, signedIn: true });
 /** Start a group buy in a shop from the document a merchant sends (src/engine/offer.ts says what's in it). */
 export const startOffer = (slug: string, offer: unknown): Promise<Made> => ask(`/my/shops/${slug}/offers`, { method: "POST", body: offer, signedIn: true });
 /** The site's owner only: set a shop up, or change one (src/engine/shop.ts). */

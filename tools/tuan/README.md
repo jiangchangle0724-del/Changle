@@ -10,9 +10,10 @@ The plan is `docs/tuan.md`; where it stands and what's next is in `docs/briefs/t
 
 **The first stage (A1) is built**: the Worker, its database and the API; mail to the merchant; the
 pages a buyer sees (a group buy, the cart, checkout, the order); and the pages a merchant sees
-(their group buys, a group buy's orders with their marks, the two sheets). There is no editor yet:
-a shop is set up and a group buy started by the site's owner, by hand, from a panel on the
-merchant's home. Nothing on changle.ca links here until the owner has tried it on a phone:
+(their group buys, a group buy's orders with their marks, the two sheets). **The second stage (A2)
+has begun**: a merchant starts a group buy and changes one on their phone, from nothing or from
+their last one. A shop is still set up by the site's owner, by hand, from a panel on the merchant's
+home. Nothing on changle.ca links here until the owner has tried it on a phone:
 `/tuan/preview` is home with a line saying so, and no search engine is let in.
 
 | Address | What |
@@ -22,6 +23,8 @@ merchant's home. Nothing on changle.ca links here until the owner has tried it o
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
 | `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. The site's owner also gets the panel that sets a shop up and starts a group buy from a document, typed in or filled in from a file. |
 | `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each. The new-order mail's button leads here. |
+| `/tuan/my/new/<shop>` | Starting a group buy in a shop: its name, the goods, when it closes, where the goods go. With `?from=<group buy>` it starts from that one. What's typed is kept on the phone until it's sent. |
+| `/tuan/my/t/<group buy>/edit` | Changing a group buy: the same page, filled in. What an order names (an item, a pickup point, a delivery area) can change but not go. |
 | `/tuan/api/…` | The API (`src/server/worker.ts` lists it). |
 
 ## How it is made
@@ -31,7 +34,7 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: what a group buy is made of (`types.ts`), money and amounts (`money.ts`), taking and changing an order (`order.ts`), starting a group buy (`offer.ts`), a shop (`shop.ts`), the merchant's sheets (`summary.ts`), who is shown what (`view.ts`), codes (`ids.ts`), phone numbers (`phone.ts`), Vancouver days (`time.ts`), tidying what people type (`text.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: what a group buy is made of (`types.ts`), money and amounts (`money.ts`), taking and changing an order (`order.ts`), starting a group buy (`offer.ts`) and changing one (`edit.ts`), a shop (`shop.ts`), the merchant's sheets (`summary.ts`), who is shown what (`view.ts`), codes (`ids.ts`), phone numbers (`phone.ts`), Vancouver days (`time.ts`), tidying what people type (`text.ts`). |
 | `src/api.ts` | What a phone and the server say to each other: every shape, every error code. |
 | `src/server/worker.ts` | The Worker: the routes (listed at the top of the file) and what each does. It serves the pages too: one file for all of them, with a group buy's name put in its page's title. |
 | `src/server/store.ts` | Everything kept in D1, read and written here and nowhere else. |
@@ -39,9 +42,9 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 | `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`. |
 | `src/server/gate.ts` | The daily allowances. |
 | `src/server/schema.ts` | Applies `migrations/` (numbered files, each once, in order) when the Worker starts. Nothing to run by hand. |
-| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
+| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
 | `scripts/build.mjs` | Builds the pages into `dist/client/tuan` (esbuild). wrangler runs it before `wrangler dev` and `wrangler deploy`. |
-| `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
+| `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/editor.spec.ts` for starting and changing a group buy, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
 
 ### The pages
 
@@ -126,6 +129,14 @@ they agree after a crowd of orders, changes and cancellations at once.
   (`site/worker`) whose it is, Worker to Worker through the `ROOMS` binding (`GET /api/me`), and
   keeps the answer for five minutes under the session's fingerprint. `shop_members` says which
   accounts (by email) run which shop. Only they see buyers' phone numbers and addresses.
+- **Changing a group buy** (`src/engine/edit.ts`): the merchant's page sends the whole document
+  again, each item, pickup point and delivery area that stays under its id. A part with an id is
+  changed where it is, so the orders that name it still do, and keep the name and price they were
+  placed at; a part without one is new; a part that isn't in the document goes, unless an order
+  names it (a cancelled order too), and then nothing is changed. An item an order names keeps the
+  unit it was sold in, and its limit can't be set below what's ordered. A document that names a
+  part that has gone since it was read is behind, and is refused whole. A draft opens with the
+  change that says so; open and closed are changed only by the buttons for that.
 - **The site's owner** (the rooms server's `MASTER_EMAIL`) sets shops up by hand for now
   (`POST /tuan/api/admin/shops`), and may look after any shop. The panel's forms can be filled in
   from a file (`src/client/ui/Owner.tsx`): a group buy's document as

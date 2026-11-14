@@ -7,16 +7,9 @@
 import { useState } from "preact/hooks";
 import type { MyHome } from "../../api";
 import { BASE } from "../../base";
-import { vancouverClock, vancouverTime } from "../../engine/time";
+import { fromField, toField } from "../../engine/time";
 import { ApiFail, saveShop, startOffer } from "../api";
 import { t } from "../i18n";
-
-/** Vancouver's clock as a date-and-time field writes it ("2026-11-20T20:00"), and back: whatever time zone the phone is set to. */
-const toField = (ms: number): string => vancouverClock(ms).replace(" ", "T");
-function fromField(text: string): number | null {
-  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(text);
-  return m ? vancouverTime(m[1], Number(m[2]), Number(m[3])) : null;
-}
 
 /** A made-up group buy to try the pages with: a few counted things and one by weight. */
 const SAMPLE = {

@@ -15,3 +15,11 @@ export function vancouverTime(day: string, hour: number, minute = 0): number {
   const [y, m, d] = day.split("-").map(Number);
   return Date.UTC(y, m - 1, d, hour, minute) - OFFSET_MS;
 }
+
+/** Vancouver's clock as a date-and-time field writes it ("2026-11-20T20:00"), whatever time zone the phone is set to. */
+export const toField = (ms: number): string => vancouverClock(ms).replace(" ", "T");
+/** …and the moment such a field says, or null when it doesn't say one. */
+export function fromField(text: string): number | null {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(text);
+  return m ? vancouverTime(m[1], Number(m[2]), Number(m[3])) : null;
+}
