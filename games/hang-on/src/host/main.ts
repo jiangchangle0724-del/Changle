@@ -28,6 +28,10 @@ import { drawLook } from '../pad/look-preview';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 import { renderResults, resultsOf, resultsTitle, teamName, type ResultsDom } from '../results';
+import { goalsOf, goalTargets, starLine, type Goal } from '../goals';
+import { goalText } from '../goal-text';
+import { envelopeTotal, record, starsOf } from './progress';
+import type { Results } from '../net/protocol';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -336,8 +340,12 @@ function countdown(): void {
   let n = 3;
   // 开局镜头从终点扫回起点（A8）
   stage.intro(2.6);
+  lastGoals = null;
   $('countNum').textContent = String(n);
   $('countLevel').textContent = countLabel();
+  const gl = goalsLine();
+  $('countGoals').hidden = !gl;
+  $('countGoals').textContent = gl;
   sfx.countdown(n);
   if (countTimer) clearInterval(countTimer);
   countTimer = setInterval(() => {
@@ -362,6 +370,29 @@ function countLabel(): string {
   return mode === 'climb' ? title : `${modeName(mode)} · ${title}`;
 }
 
+/** 这一局的小目标和红包（A9b）：到顶那一下算好、记下，结算页和发给手机的结算都用它；开新的一局清掉。 */
+let lastGoals: { goals: Goal[]; envelopes: NonNullable<Results['envelopes']> } | null = null;
+/** 结算的数：玩的那一局的，加上小目标。 */
+function fullResults(): Results {
+  return { ...resultsOf(sim), ...(lastGoals ? { goals: lastGoals.goals, envelopes: lastGoals.envelopes } : {}) };
+}
+/** 闯关、大团队：到顶了，算这一局的小目标、记下拿到的星和红包。 */
+function scoreGoals(): void {
+  if (sim.rules.mode !== 'climb' && sim.rules.mode !== 'team') return;
+  const got = sim.envelopes.flatMap((e, k) => (e.got ? [k] : []));
+  const goals = goalsOf(sim.level, sim.players.length, { time: sim.time, deaths: sim.players.map((p) => p.deaths), envelopes: got.length });
+  const rec = record(sim.level.id, goals, got);
+  lastGoals = { goals: rec.goals, envelopes: { got: got.length, of: sim.envelopes.length, fresh: rec.newEnvelopes, total: envelopeTotal() } };
+  renderLevel();
+}
+/** 倒数时写的这一关的小目标（闯关、大团队）。 */
+function goalsLine(): string {
+  if (mode !== 'climb' && mode !== 'team') return '';
+  return goalTargets(sim.level, playerCount())
+    .map((g) => `☆ ${goalText(g.key, g.target)}`)
+    .join(tr('　', '  ·  '));
+}
+
 const resultsDom: ResultsDom = {
   title: $('winTitle'),
   time: $('winTime'),
@@ -370,9 +401,11 @@ const resultsDom: ResultsDom = {
   betrayTitle: $('betrayTitle'),
   betrayList: $('betrayList'),
   betrayNone: $('betrayNone'),
+  goalTitle: $('goalTitle'),
+  goalList: $('goalList'),
 };
 function showResults(): void {
-  renderResults(resultsDom, resultsOf(sim), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
+  renderResults(resultsDom, fullResults(), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
   const next = $<HTMLButtonElement>('nextBtn');
   next.hidden = levelIndex >= levelsFor(mode).length - 1;
   next.textContent = mode === 'last' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
@@ -440,6 +473,19 @@ function pickLevel(i: number): void {
 function renderLevel(): void {
   const list = levelsFor(mode);
   $('levelName').textContent = levelTitle(level, levelIndex);
+  // 小目标的星（A9b）：这台主机上这一关拿到过几颗
+  if (mode === 'climb' || mode === 'team') {
+    const keys = goalTargets(level, Math.max(1, playerCount())).map((g) => g.key);
+    const stars = document.createElement('span');
+    stars.className = 'stars';
+    stars.textContent = starLine(starsOf(level.id), keys);
+    stars.setAttribute('aria-label', tr(`拿到过 ${starsOf(level.id).length} 颗星，一共 ${keys.length} 颗`, `${starsOf(level.id).length} of ${keys.length} stars`));
+    $('levelName').append(stars);
+  }
+  const allEnv = levelsFor('climb').reduce((s, l) => s + (l.envelopes?.length ?? 0), 0);
+  const et = $('envTotal');
+  et.hidden = (mode !== 'climb' && mode !== 'team') || !allEnv;
+  et.textContent = tr(`🧧 攒了 ${envelopeTotal()} / ${allEnv} 个红包`, `🧧 ${envelopeTotal()} of ${allEnv} red envelopes saved up`);
   // 闯关、大团队写这关教什么；比谁先、坐不住写这个玩法怎么赢（场地自己的说明和它一样）
   $('levelTeach').textContent = mode === 'climb' || mode === 'team' ? teachLabel(level) : modeHint(mode);
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
@@ -856,6 +902,7 @@ function sendStatus(): void {
 function onEvents(): void {
   for (const ev of sim.events) {
     if (ev.type === 'win') {
+      scoreGoals();
       // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页；比谁先、坐不住的横幅写谁赢了
       banner(resultsTitle(resultsOf(sim), name));
       const won = sim;
@@ -872,6 +919,10 @@ function onEvents(): void {
     if (ev.type === 'checkpoint' && sim.rules.mode !== 'race') banner(tr('检查点 ✓', 'Checkpoint ✓'));
     if (ev.type === 'finish') banner(tr(`${name(ev.player)} 到了！第 ${ev.place} 个`, `${name(ev.player)} made it! #${ev.place}`));
     if (ev.type === 'out') banner(tr(`${name(ev.player)} 出局`, `${name(ev.player)} is out`), 'bad');
+    if (ev.type === 'envelope') {
+      const got = sim.envelopes.filter((e) => e.got).length;
+      banner(tr(`🧧 ${name(ev.player)} 拿到红包 ${got}/${sim.envelopes.length}`, `🧧 ${name(ev.player)} got an envelope ${got}/${sim.envelopes.length}`));
+    }
     if (ev.type === 'item' && !ev.ok) {
       itemFails[ev.player] = (itemFails[ev.player] ?? 0) + 1;
       // 房主自己（手机局、键盘）没用成：屏幕上提示一下；别人的提示在各自手柄上
@@ -891,7 +942,7 @@ function castFor(seat: string): Cast {
   return {
     me: seatOrder.indexOf(seat),
     players: sim.players.map((p, i) => ({ name: names[i] || `P${i + 1}`, color: p.color, look: playerLook(i) })),
-    ...(phase === 'results' ? { results: resultsOf(sim) } : {}),
+    ...(phase === 'results' ? { results: fullResults() } : {}),
     mode: sim.rules.mode,
     ...(sim.rules.teams ? { teams: sim.rules.teams } : {}),
   };
@@ -950,6 +1001,10 @@ function frame(now: number): void {
   $('clock').textContent = sim.time.toFixed(1);
   $('deaths').textContent = String(sim.players.reduce((s, p) => s + p.deaths, 0));
   $('alive').textContent = String(sim.players.filter((p) => !p.dead).length);
+  // 红包（A9b）：这一局拿到几个了
+  const envN = sim.envelopes.length;
+  $('envChip').hidden = !envN || (phase !== 'playing' && phase !== 'countdown');
+  if (envN) $('envs').textContent = `${sim.envelopes.filter((e) => e.got).length}/${envN}`;
   if (now - statusAt >= STATUS_MS) {
     statusAt = now;
     sendStatus();

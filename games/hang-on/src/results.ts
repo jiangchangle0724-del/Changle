@@ -3,6 +3,7 @@
  * 主机页和手机局里别的手机共用：主机算出 Results，自己画一份，也装进 Cast 发给每部手机，各自按自己的语言画。
  * 手柄页也用，只引 i18n。
  */
+import { goalText } from './goal-text';
 import { tr } from './i18n';
 import type { Results } from './net/protocol';
 import type { GameMode, Rules } from './physics/world';
@@ -69,6 +70,9 @@ export interface ResultsDom {
   betrayTitle: HTMLElement;
   betrayList: HTMLElement;
   betrayNone: HTMLElement;
+  /** 小目标（A9b）：标题和一行一个；没有就不画。 */
+  goalTitle?: HTMLElement;
+  goalList?: HTMLElement;
 }
 
 /** 结算页的大标题。 */
@@ -155,4 +159,40 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
   }
   // 「没人松手害人，好队友」只在大家一队的时候说
   dom.betrayNone.hidden = r.betrayals.length > 0 || mode === 'last' || (mode === 'race' && !r.teams);
+  renderGoals(dom, r);
+}
+
+/** 小目标（A9b）：一行一个，达到的打勾，这一局第一次拿到的星带个「新」；下面一行红包。 */
+function renderGoals(dom: ResultsDom, r: Results): void {
+  if (!dom.goalTitle || !dom.goalList) return;
+  const goals = r.goals ?? [];
+  dom.goalTitle.hidden = goals.length === 0;
+  dom.goalList.innerHTML = '';
+  dom.goalList.hidden = goals.length === 0;
+  for (const g of goals) {
+    const li = document.createElement('li');
+    li.className = g.ok ? 'ok' : 'miss';
+    const mark = document.createElement('span');
+    mark.className = 'mark';
+    mark.textContent = g.ok ? '★' : '☆';
+    mark.setAttribute('aria-label', g.ok ? tr('达到了', 'Done') : tr('没达到', 'Missed'));
+    const text = document.createElement('span');
+    text.textContent = goalText(g.key, g.target);
+    li.append(mark, text);
+    if (g.fresh) {
+      const t = document.createElement('span');
+      t.className = 'tag';
+      t.textContent = tr('新的星', 'New star');
+      li.append(t);
+    }
+    dom.goalList.append(li);
+  }
+  const e = r.envelopes;
+  if (e && e.of) {
+    const li = document.createElement('li');
+    li.className = 'env';
+    const fresh = e.fresh ? tr(`，新拿到 ${e.fresh} 个`, `, ${e.fresh} new`) : '';
+    li.textContent = tr(`🧧 这一局拿到 ${e.got} / ${e.of} 个红包${fresh}，一共攒了 ${e.total} 个`, `🧧 ${e.got} of ${e.of} red envelopes this run${fresh}. ${e.total} saved up in all`);
+    dom.goalList.append(li);
+  }
 }

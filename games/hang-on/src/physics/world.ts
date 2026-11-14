@@ -279,6 +279,8 @@ export type SimEvent =
   | { type: 'slip'; player: number; arm: number }
   /** 这一局结束：闯关是大家都到了；比谁先、坐不住带赢的人（平局可能几个，坐不住一个人玩摔了是空的）。 */
   | { type: 'win'; who?: number[] }
+  /** 拿到一个红包（A9b）：第几个、谁拿的、在哪。 */
+  | { type: 'envelope'; index: number; player: number; x: number; y: number }
   /** 用道具（A9）：ok 是用成了没有（拉面要先抓着墙或台子）；x、y 是在哪用的。 */
   | { type: 'item'; player: number; item: ItemId; ok: boolean; x: number; y: number }
   /** 道具的劲过了：速冻化开、荷叶收起、拉面断了（x、y 是在哪）。 */
@@ -355,6 +357,8 @@ export class Sim {
   winners: number[] = [];
   /** 道具放下来的拉面（A9）。 */
   readonly noodles: Noodle[] = [];
+  /** 红包（A9b）：关里藏的几个，拿到没有（闯关和大团队才有）。 */
+  readonly envelopes: { x: number; y: number; got: boolean }[] = [];
   private noodleSeq = 0;
 
   private readonly info = new Map<number, ColInfo>();
@@ -397,6 +401,7 @@ export class Sim {
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
     for (const def of level.movers ?? []) this.addMover(def);
     for (const def of level.spinners ?? []) this.addSpinner(def);
+    if (this.itemsOn) for (const e of level.envelopes ?? []) this.envelopes.push({ x: e.x, y: e.y, got: false });
 
     this.setPlayers(nPlayers);
   }
@@ -978,6 +983,7 @@ export class Sim {
     }
     this.lifeAndDeath(dt);
     this.acts();
+    this.pickEnvelopes();
     this.checkpoints();
     this.checkEnd();
     for (const p of this.players) this.updateFace(p);
@@ -1280,6 +1286,22 @@ export class Sim {
     const end = pts[pts.length - 1] as Pt;
     rope.handle.x = end.x;
     rope.handle.y = end.y;
+  }
+
+  /** 红包（A9b）：活着的人身体或手心碰到就算拿到（只读位置，不影响物理）。 */
+  private pickEnvelopes(): void {
+    this.envelopes.forEach((e, k) => {
+      if (e.got) return;
+      for (const p of this.players) {
+        if (p.dead) continue;
+        const near = (q: Pt, r: number): boolean => Math.hypot(q.x - e.x, q.y - e.y) <= r + CFG.envelopeR;
+        if (near(p.body, CFG.bodyR) || p.arms.some((a) => near(a.hand, CFG.handR))) {
+          e.got = true;
+          this.events.push({ type: 'envelope', index: k, player: p.id, x: e.x, y: e.y });
+          return;
+        }
+      }
+    });
   }
 
   // ---------------------------------------------------------------- 道具（A9）

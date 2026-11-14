@@ -158,6 +158,12 @@
   .vres h3 { font-family: var(--font-display); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 10px 0 0; opacity: .6; }
   .vres ul { list-style: none; padding: 0; margin: 4px 0 0; font-size: 14px; display: grid; gap: 3px; }
   .vres .none { opacity: .6; font-size: 13px; margin: 4px 0 0; }
+  .vres ul.goals li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .vres ul.goals .mark { font-size: 17px; line-height: 1; color: #d9a21b; }
+  .vres ul.goals li.miss { opacity: .6; }
+  .vres ul.goals li.miss .mark { color: inherit; }
+  .vres ul.goals .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  .vres ul.goals li.env { font-size: 13px; opacity: .8; }
   .vres .next { font-size: 13px; opacity: .7; margin: 10px 0 0; }
   .banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.6); opacity: 0; font-family: var(--font-display); font-weight: 800; font-size: 32px; line-height: 1.1;
     color: var(--ink); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.4); pointer-events: none; transition: opacity .18s, transform .18s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap; text-align: center; }
@@ -242,6 +248,8 @@
     <h2 id="vWinTitle">到顶了！</h2>
     <div class="big" id="vWinTime">0.0 s</div>
     <p class="par" id="vWinPar"></p>
+    <h3 id="vGoalTitle" hidden data-en="Goals">小目标</h3>
+    <ul class="goals" id="vGoalList" hidden></ul>
     <ol id="vDeathList"></ol>
     <h3 id="vBetrayTitle" data-en="Betrayals">背叛榜</h3>
     <ul id="vBetrayList"></ul>

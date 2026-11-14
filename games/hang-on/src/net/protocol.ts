@@ -9,6 +9,7 @@
  *
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
+import type { Goal } from '../goals';
 import type { ItemId } from '../items';
 import type { Look } from '../look';
 import type { GameMode, PadInput, SimEvent } from '../physics/world';
@@ -130,6 +131,8 @@ export interface Snap {
   s: number[];
   /** 道具拉面（A9），每根一行：谁放的、还剩几秒、各点 x, y 摊平（第一个是锚）。没有就不写。 */
   nd?: number[][];
+  /** 红包（A9b）：拿到了哪几个（第 k 个拿到了，第 k 位是 1）。这一局没有红包就不写。 */
+  en?: number;
   /**
    * 最近发生的事（声音、特效用），ek 是第一件的编号，后面的依次加一。
    * 同一件事跟着好几轮快照走（丢一两张也收得到），手机按编号只放一次。
@@ -158,6 +161,10 @@ export interface Results {
    * 坐不住是撑了多久，赢的在前、先出局的在后。[玩家, 秒]
    */
   order?: [number, number | null][];
+  /** 小目标（A9b，闯关和大团队）：每个达到没有、是不是这一局第一次拿到这颗星。 */
+  goals?: Goal[];
+  /** 红包（A9b）：这一局拿到几个、这关一共几个、这一局新拿到几个（以前没拿过的）、这台主机一共攒了几个。 */
+  envelopes?: { got: number; of: number; fresh: number; total: number };
 }
 
 /** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */

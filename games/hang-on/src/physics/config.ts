@@ -149,6 +149,10 @@ export const CFG = {
   leafFall: 150,
   leafDrift: 260,
   leafAccel: 900,
+
+  // ---- 红包（A9b）----
+  /** 红包有多大（半径）：身体或手心碰到它这么近就算拿到。 */
+  envelopeR: 14,
 };
 
 export type Cfg = typeof CFG;

@@ -101,6 +101,16 @@
   .results h3 { font-family: var(--font-display); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; margin: 14px 0 0; opacity: .6; }
   .results ul { list-style: none; padding: 0; margin: 6px 0 0; font-size: 15px; display: grid; gap: 4px; }
   .results .par { font-size: 13px; opacity: .7; margin: 0 0 6px; }
+  /* 小目标（A9b）：达到的星是金色的，没达到的淡一点 */
+  .results ul.goals li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .results ul.goals .mark { font-size: 18px; line-height: 1; color: #d9a21b; }
+  .results ul.goals li.miss { opacity: .6; }
+  .results ul.goals li.miss .mark { color: inherit; }
+  .results ul.goals .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  .results ul.goals li.env { font-size: 13px; opacity: .8; margin-top: 2px; }
+  .count small.goals { font-size: 16px; font-weight: 500; opacity: .9; margin-top: 6px; }
+  .level .stars { color: #d9a21b; letter-spacing: 2px; margin-left: 6px; font-size: .9em; }
+  .envtotal { font-size: 13px; opacity: .75; text-align: center; margin: -4px 0 6px; }
   .count small { display: block; font-size: 22px; font-family: var(--font-body); font-weight: 700; margin-top: 10px; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
   @media (prefers-reduced-motion: reduce) { .banner { transition: opacity .18s; transform: translate(-50%, -50%); } }
   @media (max-width: 720px) { .card { grid-template-columns: 1fr; } .qr { width: 160px; height: 160px; } .codebig { font-size: 44px; } .count { font-size: 110px; } }
@@ -203,6 +213,7 @@
     <span class="chip code" id="codeChip" hidden title="房间码" data-en-title="Room code"><span data-en="Room">房间</span> <b id="code">····</b></span>
     <span class="chip" id="clockChip" hidden>⏱ <b id="clock">0.0</b></span>
     <span class="chip" id="deathChip" hidden>💀 <b id="deaths">0</b></span>
+    <span class="chip" id="envChip" hidden title="红包" data-en-title="Red envelopes">🧧 <b id="envs">0</b></span>
     <span class="chip" id="aliveChip" hidden title="还挂着的" data-en-title="Still hanging">🙋 <b id="alive">0</b></span>
     <button class="btn quiet" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
     <button class="btn quiet" id="langBtn" type="button">EN</button>
@@ -232,6 +243,7 @@
         <button class="btn quiet" id="levelNext" type="button" aria-label="下一关" data-en-label="Next level">›</button>
       </div>
       <p class="level teach" id="levelTeach"></p>
+      <p class="envtotal" id="envTotal" hidden></p>
       <div class="seats" id="seats"></div>
       <p id="lobbyLine" style="opacity:.75"></p>
       <div class="row">
@@ -245,7 +257,7 @@
   </div>
 </div>
 
-<div class="overlay" id="countdown" hidden><div class="count"><span id="countNum">3</span><small id="countLevel"></small></div></div>
+<div class="overlay" id="countdown" hidden><div class="count"><span id="countNum">3</span><small id="countLevel"></small><small class="goals" id="countGoals" hidden></small></div></div>
 
 <div class="overlay" id="results" hidden>
   <div class="card results" style="grid-template-columns:1fr;max-width:520px">
@@ -253,6 +265,8 @@
       <h2 id="winTitle">到顶了！</h2>
       <div class="big" id="winTime">0.0 s</div>
       <p class="par" id="winPar"></p>
+      <h3 id="goalTitle" hidden data-en="Goals">小目标</h3>
+      <ul class="goals" id="goalList" hidden></ul>
       <ol id="deathList"></ol>
       <h3 id="betrayTitle" data-en="Betrayals">背叛榜</h3>
       <ul id="betrayList"></ul>

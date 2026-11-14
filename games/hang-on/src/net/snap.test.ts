@@ -121,6 +121,41 @@ describe('手机局快照', () => {
     sim.destroy();
   });
 
+  test('红包（A9b）：拿到了哪几个跟着快照走；关里没有红包就不画', async () => {
+    const level: Level = {
+      id: 'snap-env',
+      w: 1400,
+      h: 900,
+      spawn: { x: 100, y: 500 },
+      goal: { x: 1200, y: 100, w: 150, h: 150 },
+      rects: [{ x: 0, y: 540, w: 300, h: 200, kind: 'ground', material: 'wood' }],
+      deathY: 1000,
+      envelopes: [
+        { x: 150, y: 500 },
+        { x: 600, y: 100 },
+        { x: 900, y: 100 },
+      ],
+    };
+    const sim = await createSim(level, 1);
+    sim.teleport(0, 150, 540 - 24);
+    for (let i = 0; i < 30; i++) sim.step(1 / 60);
+    const snap = encodeSnap(sim, 1);
+    expect(snap.en).toBe(1);
+    const view = new RemoteSim(() => level, level);
+    view.apply(snap, 1000);
+    expect(view.envelopes.map((e) => [e.x, e.y, e.got])).toEqual([
+      [150, 500, true],
+      [600, 100, false],
+      [900, 100, false],
+    ]);
+    sim.destroy();
+    const plain = await createSim(level, 2, { mode: 'race' });
+    const v2 = new RemoteSim(() => level, level);
+    v2.apply(encodeSnap(plain, 1), 1000);
+    expect(v2.envelopes).toHaveLength(0);
+    plain.destroy();
+  });
+
   test('一张快照有多大：四个人加机关，压成文字不到 2.5 KB', async () => {
     const level = pick((l) => !!l.ropes?.length && !!l.seesaws?.length);
     const sim = await played(level, 4, 1);
