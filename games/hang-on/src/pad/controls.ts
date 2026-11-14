@@ -1,7 +1,7 @@
 /**
- * 手机上的操作：左半边按住拖动是浮动摇杆，右边两个大键按住就是抓。
+ * 手机上的操作：左半边按住拖动是浮动摇杆，右边两个大键按住就是抓，抓键上面一个道具键（A9，按一下用）。
  * 手柄页和手机局的房主页共用（房主那部手机也要能玩）。在 root 里找 .stickzone、.stick、.knob、
- * 两个 .grab（右手那个带 .r），把 pointer 事件接上。
+ * 两个 .grab（右手那个带 .r）和 .itembtn（可以没有），把 pointer 事件接上。
  *
  * 触摸的默认动作（双击放大、长按菜单、拖着拖着滚页面）只在摇杆区和两个抓键上掐：掐在整个 root 上的话，
  * root 里别的按钮（召唤、换样子）在真手机上就点不动了（touchend 被掐，浏览器不发 click）。
@@ -14,6 +14,8 @@ export interface Controls {
   readonly aim: { x: number; y: number };
   /** 两只手按没按着。 */
   readonly grab: { l: boolean; r: boolean };
+  /** 道具键按过没有（读了就清掉）。手指一按下就算，不等抬起来。 */
+  takeItem(): boolean;
 }
 
 const STICK_R = 54;
@@ -40,8 +42,10 @@ export function bindControls(root: HTMLElement): Controls {
   const grabR = q('.grab.r');
   const aim = { x: 0, y: 0 };
   const grab = { l: false, r: false };
+  const itemBtn = root.querySelector<HTMLButtonElement>('.itembtn');
+  let itemTapped = false;
 
-  for (const el of [zone, grabL, grabR]) {
+  for (const el of [zone, grabL, grabR, ...(itemBtn ? [itemBtn] : [])]) {
     for (const type of ['touchstart', 'touchend', 'touchmove'] as const) {
       el.addEventListener(type, (e) => e.preventDefault(), { passive: false });
     }
@@ -111,5 +115,24 @@ export function bindControls(root: HTMLElement): Controls {
   hold(grabL, 'l');
   hold(grabR, 'r');
 
-  return { aim, grab };
+  // 道具键：手指按下去就用（掐了 touchend 浏览器不发 click，所以不靠 click；键盘、读屏点的 click 也算）
+  if (itemBtn) {
+    itemBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (!itemBtn.disabled) itemTapped = true;
+    });
+    itemBtn.addEventListener('click', (e) => {
+      if (e.detail === 0 && !itemBtn.disabled) itemTapped = true;
+    });
+  }
+
+  return {
+    aim,
+    grab,
+    takeItem() {
+      const t = itemTapped;
+      itemTapped = false;
+      return t;
+    },
+  };
 }

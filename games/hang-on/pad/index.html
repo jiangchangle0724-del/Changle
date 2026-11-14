@@ -70,6 +70,34 @@
   .bar .summon { background: var(--warn); color: var(--card-ink); font-weight: 800; border: 0; border-radius: 999px; padding: 6px 16px; min-height: 44px; font-size: 14px; }
   .bar .summon:disabled { opacity: .35; }
 
+  /* 道具（A9）：抓键上面一条道具键，按一下用；用了以后从左往右慢慢充满，满了才能再用 */
+  .itembtn { grid-column: 1 / -1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; border-radius: 18px;
+    border: 3px solid var(--ink); background: rgba(255,246,233,.12); color: var(--ink); font-family: var(--font-display); font-weight: 800; font-size: 20px; touch-action: none; }
+  .itembtn .ic { font-size: 26px; line-height: 1; position: relative; }
+  .itembtn .nm { position: relative; }
+  .itembtn .fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--ready, 1) * 100%); background: rgba(255,246,233,.22); transition: width .25s linear; }
+  .itembtn:disabled { opacity: .6; border-style: dashed; }
+  .itembtn.on { border-color: var(--p3); background: rgba(142,197,232,.3); }
+  .itembtn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
+  .itemtip { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(50% + 40px); background: var(--warn); color: var(--card-ink); font-weight: 700; font-size: 14px;
+    border-radius: 999px; padding: 8px 14px; pointer-events: none; opacity: 0; transition: opacity .2s; max-width: 70vw; text-align: center; }
+  .itemtip.on { opacity: 1; }
+  .items { padding: 16px 18px 18px; display: grid; gap: 10px; }
+  .items h2 { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0; }
+  .items .note { font-size: 13px; opacity: .7; margin: 0; line-height: 1.5; }
+  .ilist { display: grid; gap: 8px; }
+  .items .row { display: flex; margin-top: 4px; }
+  .items .row .btn { flex: 1; background: var(--card-ink); color: var(--ink); }
+  .iopt { display: grid; grid-template-columns: 44px 1fr; gap: 2px 10px; text-align: left; padding: 10px 12px; border-radius: 14px; border: 2px solid rgba(42,31,58,.15);
+    background: #fff; color: var(--card-ink); min-height: 64px; font: inherit; cursor: pointer; }
+  .iopt[aria-checked="true"] { border-color: var(--card-ink); background: #fff3dc; }
+  .iopt:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
+  .iopt .ic { font-size: 30px; grid-row: span 2; align-self: center; text-align: center; }
+  .iopt .nm { font-weight: 800; font-size: 16px; }
+  .iopt .hint { font-size: 13px; opacity: .75; line-height: 1.45; }
+  @media (min-width: 560px) { .ilist { grid-template-columns: 1fr 1fr 1fr; } .iopt { grid-template-columns: 1fr; text-align: center; } .iopt .ic { grid-row: auto; } }
+  @media (prefers-reduced-motion: reduce) { .itembtn .fill, .itemtip { transition: none; } }
+
   /* 手柄 */
   #pad { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr; }
   .bar { display: flex; align-items: center; gap: 8px; padding: calc(6px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px)); font-size: 13px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
@@ -90,7 +118,7 @@
   .stickzone .hint { position: absolute; inset: 0; padding: 16px; box-sizing: border-box; display: grid; place-items: center; font-size: 14px; color: var(--ink-soft); text-align: center; line-height: 1.5; pointer-events: none; }
   .stick { position: absolute; width: 140px; height: 140px; margin: -70px 0 0 -70px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); pointer-events: none; }
   .stick .knob { position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%; background: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,.3); }
-  .grabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grabs { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; gap: 10px; }
   .grab { border-radius: 22px; border: 3px solid var(--glove-l); background: rgba(99,179,237,.14); color: var(--ink); font-family: var(--font-display); font-weight: 800; font-size: 26px; display: grid; place-items: center; line-height: 1.1; text-align: center; touch-action: none; }
   .grab span, .grab small { display: block; }
   .grab small { font-family: var(--font-body); font-weight: 500; font-size: 12px; opacity: .8; margin-top: 4px; }
@@ -146,6 +174,7 @@
     <div class="field"><label for="code" data-en="Room code">房间码</label><input id="code" class="code" inputmode="latin" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="ABCD" required></div>
     <div class="field"><label for="name" data-en="Name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="糯米团" data-en-ph="Dumpling"></div>
     <button class="btn quiet" id="lookBtn" type="button"><canvas id="lookMini" width="44" height="44" style="width:22px;height:22px" aria-hidden="true"></canvas><span id="lookSummary">换个样子</span></button>
+    <button class="btn quiet" id="itemBtn" type="button"><span id="itemIcon" aria-hidden="true">🧊</span><span id="itemSummary">道具：速冻</span></button>
     <p class="err" id="err" role="alert"></p>
     <button class="btn" id="joinBtn" type="submit" data-en="Join">加入</button>
   </form>
@@ -161,6 +190,7 @@
     <span class="chip">⏱ <b class="ms" id="rtt">—</b></span>
     <span class="chip" id="path">连接中</span>
     <button class="chip btn" id="lookBtn2" type="button" data-en="Look">样子</button>
+    <button class="chip btn" id="itemBtn2" type="button" data-en="Item">道具</button>
     <button class="summon" id="summonBtn" type="button" disabled data-en="Summon">召唤队友</button>
     <button class="chip btn vonly" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
     <span class="conn" id="conn">连接中…</span>
@@ -171,6 +201,7 @@
       <div class="stick" id="stick" hidden><div class="knob" id="knob"></div></div>
     </div>
     <div class="grabs">
+      <button class="itembtn" id="itemUse" type="button" hidden><span class="fill" aria-hidden="true"></span><span class="ic" id="itemUseIcon" aria-hidden="true">🧊</span><span class="nm" id="itemUseName">速冻</span></button>
       <button class="grab" id="grabL" type="button" aria-label="左手抓" data-en-label="Left hand: grab"><span data-en="Left">左手</span><small data-en="hold = grab">按住 = 抓</small></button>
       <button class="grab r" id="grabR" type="button" aria-label="右手抓" data-en-label="Right hand: grab"><span data-en="Right">右手</span><small data-en="hold = grab">按住 = 抓</small></button>
     </div>
@@ -193,6 +224,15 @@
     </div>
   </div>
 </dialog>
+<dialog id="itemDlg" aria-label="带一样道具" data-en-label="Pick an item">
+  <div class="items">
+    <h2 data-en="Pick an item">带一样道具</h2>
+    <p class="note" data-en="Works in Climb and Big team. After you use it, it takes a little while to recharge.">闯关和大团队里能用。用了以后要等一会儿才能再用。</p>
+    <div class="ilist" id="itemList" role="radiogroup"></div>
+    <div class="row"><button class="btn" id="itemDone" type="button" data-en="Done">就这样</button></div>
+  </div>
+</dialog>
+<div class="itemtip" id="itemTip" role="status" aria-live="polite"></div>
 <!-- 手机局：等开始、倒数、结算、横幅（src/pad/view.ts 管） -->
 <div class="vwait" id="vWait" hidden><span data-en="Waiting for the host to start">等房主开始</span> · <span id="vLevel"></span></div>
 <div class="vwait bad" id="vHost" hidden data-en="The host's phone dropped out. Waiting for it to come back…">房主的手机断线了，等它回来……</div>

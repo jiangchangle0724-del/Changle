@@ -15,6 +15,7 @@ import {
 } from './protocol';
 import { RoomSocket, wsUrl } from './socket';
 import { ICE_SERVERS } from './ice';
+import type { ItemId } from '../items';
 import type { Look } from '../look';
 
 export interface PadLinkEvents {
@@ -59,6 +60,7 @@ export class PadLink {
   private lastRelayAt = 0;
   private seq = 1;
   private look: Look | null = null;
+  private item: ItemId | null = null;
 
   constructor(
     readonly code: string,
@@ -75,6 +77,7 @@ export class PadLink {
         if (open) {
           this.relay({ k: 'hello' });
           if (this.look) this.relay({ k: 'look', look: this.look });
+          if (this.item) this.relay({ k: 'item', item: this.item });
         }
         this.ev.onConn?.({ socket: open, direct: this.direct });
       },
@@ -85,6 +88,12 @@ export class PadLink {
   setLook(look: Look): void {
     this.look = look;
     if (this.socketOpen) this.relay({ k: 'look', look });
+  }
+
+  /** 告诉主机自己带哪样道具（A9）；每次重新连上房间也会再说一遍。 */
+  setItem(item: ItemId): void {
+    this.item = item;
+    if (this.socketOpen) this.relay({ k: 'item', item });
   }
 
   get isDirect(): boolean {

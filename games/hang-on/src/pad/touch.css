@@ -1,6 +1,7 @@
 /*
  * 压在画面上的摇杆和抓键：手机局里房主那部手机（主机页的 #touch），和别的手机看画面时（手柄页的 #pad.touch）。
- * 左边整块是摇杆区（看不见，按下去才出圈），右下角两个抓键挨着放，一个拇指压在中间能同时抓两只手。
+ * 左边整块是摇杆区（看不见，按下去才出圈），右下角两个抓键挨着放，一个拇指压在中间能同时抓两只手；
+ * 有道具（A9）时抓键上面多一条道具键。
  * 都半透明，画面要看得见。controls.ts 引这个文件，两个页面都带上。
  */
 .touch .zones {
@@ -86,9 +87,48 @@
   user-select: none;
 }
 .touch .grab small { display: none; }
+.touch .grabs:has(.itembtn:not([hidden])) {
+  grid-template-rows: 46px 1fr;
+  height: min(58vh, 214px);
+}
+.touch .itembtn {
+  grid-column: 1 / -1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  border-radius: 16px;
+  border: 3px solid var(--ink, #fff6e9);
+  background: rgba(16, 20, 40, 0.35);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  color: var(--ink, #fff6e9);
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-weight: 800;
+  font-size: 16px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.touch .itembtn .ic { font-size: 20px; line-height: 1; position: relative; }
+.touch .itembtn .nm { position: relative; }
+.touch .itembtn .fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--ready, 1) * 100%);
+  background: rgba(255, 246, 233, 0.28);
+  transition: width 0.25s linear;
+}
+.touch .itembtn:disabled { opacity: 0.65; border-style: dashed; }
+.touch .itembtn.on { border-color: #8ec5e8; background: rgba(142, 197, 232, 0.35); }
 .touch .grab.r { border-color: var(--glove-r, #f6ad55); background: rgba(246, 173, 85, 0.26); }
 .touch .grab.down { background: var(--glove-l, #63b3ed); color: var(--card-ink, #2a1f3a); text-shadow: none; }
 .touch .grab.r.down { background: var(--glove-r, #f6ad55); }
 @media (prefers-reduced-motion: reduce) {
   .touch .stickzone .hint { transition: none; }
+  .touch .itembtn .fill { transition: none; }
 }

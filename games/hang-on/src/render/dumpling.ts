@@ -73,6 +73,9 @@ export class Dumpling {
   private readonly extras = new Graphics();
   private readonly glasses = new Graphics();
   private readonly hat = new Graphics();
+  /** 道具（A9）：冻住时的冰块、撑开的荷叶，压在人上面。 */
+  private readonly itemG = new Graphics();
+  private itemKey = '';
   private readonly label: Text;
 
   private color = '#ffffff';
@@ -100,7 +103,7 @@ export class Dumpling {
     this.inner.addChild(this.body, this.face, this.extras, this.glasses, this.hat);
     this.stretchC.addChild(this.inner);
     this.bodyC.addChild(this.stretchC);
-    this.view.addChild(this.shadow, this.arms, this.bodyC, this.label);
+    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.label);
     this.setColor(color);
     this.setLook(look);
   }
@@ -211,8 +214,69 @@ export class Dumpling {
 
     this.drawArms(p, slips);
     this.drawFace(p, time);
-    this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - 4);
+    this.drawItem(p, time);
+    this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - (p.itemOn === 'leaf' && !p.dead ? 34 : 4));
     this.label.alpha = sinking ? 0 : 1;
+  }
+
+  /**
+   * 道具（A9）。速冻：整个人封在一块冰里（半透明，脸看得见），快化的最后 0.8 秒一闪一闪。
+   * 荷叶：头顶撑一片大荷叶，叶柄连到头上，跟着摇杆轻轻歪（减弱动效时不歪、不闪）。
+   */
+  private drawItem(p: PlayerView, time: number): void {
+    const g = this.itemG;
+    const on = p.dead ? null : (p.itemOn ?? null);
+    const left = p.itemLeft ?? 0;
+    if (!on) {
+      if (this.itemKey) {
+        g.clear();
+        this.itemKey = '';
+      }
+      return;
+    }
+    const x = this.bodyC.x;
+    const y = this.bodyC.y;
+    g.clear();
+    this.itemKey = on;
+    if (on === 'freeze') {
+      const s = R + 9;
+      const blink = left < 0.8 && !this.reduced ? 0.55 + 0.45 * Math.abs(Math.sin(time * 18)) : 1;
+      g.roundRect(x - s, y - s, s * 2, s * 2, 12).fill({ color: 0xbfe8ff, alpha: 0.42 * blink });
+      g.roundRect(x - s, y - s, s * 2, s * 2, 12).stroke({ width: 3, color: 0xffffff, alpha: 0.85 * blink });
+      // 冰面的反光：左上两道斜的亮条
+      g.moveTo(x - s + 8, y - s + 22).lineTo(x - s + 22, y - s + 8).stroke({ width: 4, color: 0xffffff, alpha: 0.75 * blink, cap: 'round' });
+      g.moveTo(x - s + 9, y - s + 34).lineTo(x - s + 34, y - s + 9).stroke({ width: 2.5, color: 0xffffff, alpha: 0.5 * blink, cap: 'round' });
+      // 右下角一点霜
+      g.circle(x + s - 9, y + s - 9, 3).fill({ color: 0xffffff, alpha: 0.7 * blink });
+      return;
+    }
+    // 荷叶
+    const tilt = this.reduced ? 0 : Math.max(-0.35, Math.min(0.35, p.aim.x * 0.3 + Math.sin(time * 2.2 + p.id) * 0.05));
+    const top = y - R - this.hatHeight() - 26;
+    const cx = x + Math.sin(tilt) * 26;
+    const cy = top + (1 - Math.cos(tilt)) * 26;
+    const w = 46;
+    const h = 15;
+    // 叶柄
+    g.moveTo(x, y - R + 4).quadraticCurveTo(x + Math.sin(tilt) * 10, (y - R + top) / 2, cx, cy + 4).stroke({ width: 4, color: 0x4e8a3c, cap: 'round' });
+    // 叶面：一个扁的半圆盖，边上一圈深一点，几条叶脉
+    const pts: number[] = [];
+    for (let k = 0; k <= 16; k++) {
+      const a = Math.PI + (k / 16) * Math.PI;
+      const lx = Math.cos(a) * w;
+      const ly = Math.sin(a) * h;
+      pts.push(cx + lx * Math.cos(tilt) - ly * Math.sin(tilt), cy + lx * Math.sin(tilt) + ly * Math.cos(tilt));
+    }
+    const rim = (k: number): [number, number] => [pts[k * 2] as number, pts[k * 2 + 1] as number];
+    g.poly(pts).fill(0x6dbb5a);
+    g.poly(pts).stroke({ width: 3, color: 0x3f7a33, join: 'round' });
+    for (const k of [2, 5, 8, 11, 14]) {
+      const [ex, ey] = rim(k);
+      g.moveTo(cx, cy).lineTo(cx + (ex - cx) * 0.85, cy + (ey - cy) * 0.85).stroke({ width: 1.6, color: 0x3f7a33, alpha: 0.8 });
+    }
+    // 高光
+    const [hx, hy] = rim(5);
+    g.moveTo(cx - 6, cy - 4).lineTo(cx + (hx - cx) * 0.6, cy + (hy - cy) * 0.6).stroke({ width: 3, color: 0xd8f5c4, alpha: 0.6, cap: 'round' });
   }
 
   private hatHeight(): number {

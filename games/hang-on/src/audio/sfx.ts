@@ -189,6 +189,39 @@ class Sfx {
           this.tone({ freq: 880, wave: 'sine', dur: 0.4, vol: 0.3, delay: 0.12 });
           this.tone({ freq: 1319, wave: 'triangle', dur: 0.5, vol: 0.12, delay: 0.12 });
           break;
+        case 'item': {
+          // 道具（A9）：速冻叮一声加冰碴，荷叶呼的一下，拉面吸溜一声；没用成闷闷一声
+          const pan = this.pan(ev.x, ev.y);
+          if (!ev.ok) {
+            this.tone({ freq: 180, to: 120, wave: 'square', dur: 0.08, vol: 0.18, pan, lowpass: 500 });
+          } else if (ev.item === 'freeze') {
+            this.tone({ freq: 1400, to: 2200, wave: 'sine', dur: 0.12, vol: 0.28, pan });
+            this.tone({ freq: 1900, wave: 'triangle', dur: 0.3, vol: 0.14, pan, delay: 0.06 });
+            this.noise({ dur: 0.12, vol: 0.14, filter: { type: 'highpass', freq: 6000 }, pan });
+          } else if (ev.item === 'leaf') {
+            this.noise({ dur: 0.35, vol: 0.2, filter: { type: 'bandpass', freq: 900, to: 300, q: 1.5 }, pan });
+            this.tone({ freq: 500, to: 700, wave: 'sine', dur: 0.15, vol: 0.15, pan });
+          } else {
+            this.tone({ freq: 220, to: 520, wave: 'triangle', dur: 0.26, vol: 0.3, pan, vibrato: [18, 24] });
+            this.noise({ dur: 0.2, vol: 0.1, filter: { type: 'lowpass', freq: 1200 }, pan, delay: 0.05 });
+          }
+          break;
+        }
+        case 'itemEnd': {
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.item === 'freeze') {
+            // 冰化开：咔一声
+            this.noise({ dur: 0.12, vol: 0.22, filter: { type: 'highpass', freq: 3000 }, pan });
+            this.tone({ freq: 900, to: 400, wave: 'triangle', dur: 0.1, vol: 0.18, pan });
+          } else if (ev.item === 'noodle') {
+            // 面条断了：嘣
+            this.tone({ freq: 600, to: 200, wave: 'triangle', dur: 0.09, vol: 0.25, pan });
+            this.noise({ dur: 0.05, vol: 0.12, filter: { type: 'lowpass', freq: 2000 }, pan });
+          } else {
+            this.noise({ dur: 0.25, vol: 0.12, filter: { type: 'bandpass', freq: 500, to: 250, q: 1.5 }, pan });
+          }
+          break;
+        }
         case 'bounce': {
           const s = sim.springs[ev.spring];
           const pan = s ? this.pan(s.x, s.y) : 0;
@@ -423,6 +456,11 @@ export function heardBy(ev: SimEvent, me: number): boolean {
       return ev.player === me || ev.who.includes(me);
     // 比谁先有人到了：大家都听得见
     case 'finish':
+      return true;
+    // 道具（A9）：用成的、劲过了的大家都听得见（谁冻住了、面条垂下来了、断了）；没用成的只给自己
+    case 'item':
+      return ev.ok || ev.player === me;
+    case 'itemEnd':
       return true;
     default:
       return !('player' in ev) || ev.player === me;
