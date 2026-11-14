@@ -7,10 +7,10 @@
  *
  * 这个文件不引物理（只要类型），手机的画面包里不会带 Rapier。
  */
-import { forPlayers, type Level, type Pt } from '../physics/level';
+import { forPlayers, gateAt, type GateDef, type Level, type Pt } from '../physics/level';
 import type { Face, Rules, SimEvent } from '../physics/world';
 import { ITEM_IDS, type ItemId } from '../items';
-import type { FadingView, NoodleView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
+import type { FadingView, GateView, NoodleView, PlateView, PlayerView, PropView, RopeView, SimView, SpringView } from '../render/view';
 import { SNAP_EVENT_SENDS, SNAP_EVENTS_MAX, type Snap } from './protocol';
 
 export const FACES: Face[] = ['idle', 'grab', 'fly', 'scream', 'win'];
@@ -67,6 +67,8 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
     s: sim.springs.map((s) => (Number.isFinite(s.hit) ? r2(Math.min(s.hit, 99)) : -1)),
   };
   if (sim.envelopes?.length) snap.en = sim.envelopes.reduce((m, e, k) => (e.got ? m | (1 << k) : m), 0);
+  if (sim.plates?.length) snap.pl = sim.plates.reduce((m, q, k) => (q.on ? m | (1 << k) : m), 0);
+  if (sim.gates?.length) snap.gt = sim.gates.map((g) => r3(g.open));
   if (sim.noodles?.length) snap.nd = sim.noodles.map((nd) => [nd.owner, r2(nd.left), ...nd.pts.flatMap((q) => [r1(q.x), r1(q.y)])]);
   if (events && events.list.length) {
     snap.e = events.list.map(slim);
@@ -125,6 +127,9 @@ export class RemoteSim implements SimView {
   springs: SpringView[] = [];
   noodles: NoodleView[] = [];
   envelopes: { x: number; y: number; got: boolean }[] = [];
+  /** 踩板门（11-13）：踏板按着没有跟着快照走（不匀）；门开到几成跟着匀，位置按关卡算。 */
+  plates: PlateView[] = [];
+  gates: (GateView & { def: GateDef })[] = [];
   /** envelopes 是按哪一版关卡摆的（换关就重摆）。 */
   private envFor: Level | null = null;
   /** 收到过的最新序号。 */
@@ -264,6 +269,20 @@ export class RemoteSim implements SimView {
       this.noodles = nd.map((row) => ({ owner: row[0] ?? 0, left: 0, pts: Array.from({ length: Math.max(0, row.length - 2) / 2 }, pt) }));
       changed = true;
     }
+    const gd = this.level.gates ?? [];
+    const gt = s.gt ?? [];
+    if (force || this.gates.length !== gt.length) {
+      this.gates = gt.map((_, i) => {
+        const d = gd[i] as GateDef;
+        return { def: d, x: d?.x ?? 0, y: d?.y ?? 0, w: d?.w ?? 0, h: d?.h ?? 0, open: 0 };
+      });
+      changed = true;
+    }
+    const pd = this.level.plates ?? [];
+    if (force || this.plates.length !== pd.length) {
+      this.plates = pd.map((d) => ({ x: d.x, y: d.y, w: d.w, h: d.h, on: false }));
+      changed = true;
+    }
     const sd = this.level.springs ?? [];
     if (force || this.springs.length !== s.s.length) {
       this.springs = s.s.map((_, i) => {
@@ -285,6 +304,7 @@ export class RemoteSim implements SimView {
     for (const flat of s.r) for (const v of flat) out.push(v);
     for (const o of s.o) out.push(o[0] ?? 0, o[1] ?? 0, o[2] ?? 0);
     for (const row of s.nd ?? []) for (let i = 2; i < row.length; i++) out.push(row[i] ?? 0);
+    for (const v of s.gt ?? []) out.push(v);
     // 时间也跟着匀：会动的平台按时间画，和匀过的人对得上（站在上面不抖）
     out.push(s.t);
     return out;
@@ -328,6 +348,14 @@ export class RemoteSim implements SimView {
         q.y = c[i++] as number;
       }
     }
+    for (const g of this.gates) {
+      g.open = c[i++] as number;
+      if (g.def) {
+        const at = gateAt(g.def, g.open);
+        g.x = at.x;
+        g.y = at.y;
+      }
+    }
     this.time = c[i++] as number;
   }
 
@@ -335,6 +363,8 @@ export class RemoteSim implements SimView {
   private discrete(s: Snap, since: number): void {
     this.won = s.w === 1;
     this.checkpoint = s.cp;
+    const pl = s.pl ?? 0;
+    this.plates.forEach((q, k) => (q.on = (pl & (1 << k)) !== 0));
     // 红包：位置在关卡里，拿没拿到跟着快照走；这一局没有红包（不写 en）就不画
     const en = s.en;
     if (en === undefined) {

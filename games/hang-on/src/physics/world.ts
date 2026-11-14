@@ -35,7 +35,7 @@ import {
   TETHER_LEN,
 } from './config';
 import type { ItemId } from '../items';
-import { forPlayers, type FadingDef, type HazardDef, type Level, type MoverDef, type Pt, type Rect, type SpinnerDef, type SpringDef } from './level';
+import { forPlayers, gateAt, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef } from './level';
 import { circleHitsBar, circleHitsRect, moverAt, spinnerAngle, spinnerArm } from './motion';
 
 type RB = RAPIER.RigidBody;
@@ -103,8 +103,8 @@ type ColInfo =
   | { kind: 'player'; player: number; part: 'body' | 'arm' | 'hand'; arm: number }
   | { kind: 'prop'; prop: number }
   | { kind: 'spring'; spring: number; rect: Rect }
-  /** 会动的平台、会转的杆子：抓着算抓地形；deadly 的不能抓。 */
-  | { kind: 'moving'; deadly: boolean };
+  /** 会动的平台、会转的杆子、门：抓着算抓地形；deadly 的、写了 grab: false 的门不能抓。 */
+  | { kind: 'moving'; deadly: boolean; noGrab?: boolean };
 
 export interface Arm {
   side: -1 | 1;
@@ -281,6 +281,9 @@ export type SimEvent =
   | { type: 'win'; who?: number[] }
   /** 拿到一个红包（A9b）：第几个、谁拿的、在哪。 */
   | { type: 'envelope'; index: number; player: number; x: number; y: number }
+  /** 踩板门（11-13）：踏板按下去 / 弹起来了；门开始开 / 开始关（x、y 是踏板、门的中间）。 */
+  | { type: 'plate'; index: number; on: boolean; x: number; y: number }
+  | { type: 'gate'; index: number; open: boolean; x: number; y: number }
   /** 用道具（A9）：ok 是用成了没有（拉面要先抓着墙或台子）；x、y 是在哪用的。 */
   | { type: 'item'; player: number; item: ItemId; ok: boolean; x: number; y: number }
   /** 道具的劲过了：速冻化开、荷叶收起、拉面断了（x、y 是在哪）。 */
@@ -359,6 +362,9 @@ export class Sim {
   readonly noodles: Noodle[] = [];
   /** 红包（A9b）：关里藏的几个，拿到没有（闯关和大团队才有）。 */
   readonly envelopes: { x: number; y: number; got: boolean }[] = [];
+  /** 踩板门（11-13）：踏板按着没有；门开到几成（0 关、1 开）、现在在哪。 */
+  readonly plates: { def: PlateDef; x: number; y: number; w: number; h: number; on: boolean }[] = [];
+  readonly gates: { def: GateDef; rb: RB; x: number; y: number; w: number; h: number; open: number; holdT: number; opening: boolean }[] = [];
   private noodleSeq = 0;
 
   private readonly info = new Map<number, ColInfo>();
@@ -401,6 +407,8 @@ export class Sim {
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
     for (const def of level.movers ?? []) this.addMover(def);
     for (const def of level.spinners ?? []) this.addSpinner(def);
+    for (const def of level.plates ?? []) this.addPlate(def);
+    for (const def of level.gates ?? []) this.addGate(def);
     if (this.itemsOn) for (const e of level.envelopes ?? []) this.envelopes.push({ x: e.x, y: e.y, got: false });
 
     this.setPlayers(nPlayers);
@@ -568,6 +576,69 @@ export class Sim {
     }
   }
 
+  /** 踏板：一块实的矮台子（能站），有人压着就算按下（`tickGates` 里量）。 */
+  private addPlate(def: PlateDef): void {
+    this.addRect(def, frictionOf(def.material ?? 'metal'), 0);
+    this.plates.push({ def, x: def.x, y: def.y, w: def.w, h: def.h, on: false });
+  }
+
+  /** 门：运动学刚体，能站能抓（和会动的平台一样，抓着跟着走），开到几成由踏板管。 */
+  private addGate(def: GateDef): void {
+    const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(def.x + def.w / 2, def.y + def.h / 2));
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.cuboid(def.w / 2, def.h / 2)
+        .setFriction(frictionOf(def.material ?? 'wood'))
+        .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL)),
+      rb,
+    );
+    this.info.set(col.handle, { kind: 'moving', deadly: false, noGrab: def.grab === false });
+    this.gates.push({ def, rb, x: def.x, y: def.y, w: def.w, h: def.h, open: 0, holdT: 0, opening: false });
+  }
+
+  /**
+   * 踩板门每一步：哪块踏板有人压着（身体贴着踏板上沿；冻住的人、箱子也算），连着的门往开或者往关挪；
+   * 关的时候门要去的地方有人的身子就停住等（不夹人），站在门顶上的也算挡着。
+   */
+  private tickGates(dt: number): void {
+    if (!this.plates.length && !this.gates.length) return;
+    const reach = CFG.plateReach;
+    this.plates.forEach((pl, k) => {
+      const top = { x: pl.x, y: pl.y - reach, w: pl.w, h: reach };
+      let on = this.players.some((p) => !p.dead && !p.done && circleHitsRect(p.body, CFG.bodyR, top));
+      if (!on)
+        on = this.props.some(
+          (pr) => pr.kind === 'crate' && pr.y + pr.h / 2 >= pl.y - reach && pr.y + pr.h / 2 <= pl.y + reach && pr.x + pr.w / 2 > pl.x && pr.x - pr.w / 2 < pl.x + pl.w,
+        );
+      if (on !== pl.on) {
+        pl.on = on;
+        this.events.push({ type: 'plate', index: k, on, x: pl.x + pl.w / 2, y: pl.y });
+      }
+    });
+    this.gates.forEach((g, k) => {
+      const mine = this.plates.filter((pl) => opensOf(pl.def).includes(g.def.id));
+      const want = mine.length > 0 && (g.def.all ? mine.every((pl) => pl.on) : mine.some((pl) => pl.on));
+      g.holdT = want ? (g.def.hold ?? CFG.gateHold) : Math.max(0, g.holdT - dt);
+      const opening = want || g.holdT > 0;
+      const len = Math.hypot(g.def.move.x, g.def.move.y) || 1;
+      const d = ((g.def.speed ?? CFG.gateSpeed) * dt) / len;
+      let next = opening ? Math.min(1, g.open + d) : Math.max(0, g.open - d);
+      if (next < g.open) {
+        const at = gateAt(g.def, next);
+        const box = { x: at.x - 2, y: at.y - 2, w: g.w + 4, h: g.h + 4 };
+        if (this.players.some((p) => !p.dead && circleHitsRect(p.body, CFG.bodyR, box))) next = g.open;
+      }
+      if (opening !== g.opening && (opening ? g.open < 1 : g.open > 0)) {
+        const at = gateAt(g.def, g.open);
+        this.events.push({ type: 'gate', index: k, open: opening, x: at.x + g.w / 2, y: at.y + g.h / 2 });
+      }
+      g.opening = opening;
+      g.open = next;
+      const at = gateAt(g.def, next);
+      g.x = at.x;
+      g.y = at.y;
+    });
+  }
+
   /** 会转的杆子：运动学刚体在轴心，每根杆子一个长条碰撞体，每步转到 spinnerAngle 算的角度。 */
   private addSpinner(def: SpinnerDef): void {
     const rb = this.world.createRigidBody(
@@ -601,6 +672,7 @@ export class Sim {
       rb.setNextKinematicTranslation({ x: at.x + def.w / 2, y: at.y + def.h / 2 });
     }
     for (const { def, rb } of this.spinners) rb.setNextKinematicRotation(spinnerAngle(def, this.time));
+    for (const g of this.gates) g.rb.setNextKinematicTranslation({ x: g.x + g.w / 2, y: g.y + g.h / 2 });
   }
 
   /**
@@ -938,6 +1010,7 @@ export class Sim {
     this.tickCrumbles();
     for (const s of this.springs) s.hit += dt;
     this.tickItems(dt);
+    this.tickGates(dt);
     const pulls = this.pullCounts(dt);
     for (const p of this.players) {
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
@@ -1144,7 +1217,7 @@ export class Sim {
         if (info.player === p.id || !other || other.dead) return true;
       }
       if (info.kind === 'terrain' && info.rect.grab === false) return true;
-      if (info.kind === 'moving' && info.deadly) return true;
+      if (info.kind === 'moving' && (info.deadly || info.noGrab)) return true;
       const proj = col.projectPoint(h, true);
       if (!proj) return true;
       const d = proj.isInside ? 0 : dist(proj.point, h);

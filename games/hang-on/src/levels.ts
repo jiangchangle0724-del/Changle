@@ -6,12 +6,13 @@
  */
 import { pickLang } from './i18n';
 import { arenaLevels } from './physics/arenas';
-import { machinesLevel, sampleLevel, showcaseLevel, type Level } from './physics/level';
+import { gatesLevel, machinesLevel, sampleLevel, showcaseLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
-import type { Tier } from './sides';
+import type { Side, Tier } from './sides';
 
 const files = import.meta.glob('../levels/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
 const teamFiles = import.meta.glob('../levels/team/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
+const multiFiles = import.meta.glob('../levels/multi/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
 
 /** id 末尾的号（table-01 → 1，van-19 → 19），没有号的排最后。 */
 const order = (l: Level): number => Number(/(\d+)$/.exec(l.id)?.[1] ?? Infinity);
@@ -22,28 +23,40 @@ export const LEVELS: Level[] = [...sorted(files), showcaseLevel()];
 export const TEAM_LEVELS: Level[] = sorted(teamFiles);
 /** 坐不住的场地。 */
 export const ARENAS: Level[] = arenaLevels();
+/**
+ * 多人非配合不可的关（11-13，Codex 的 C14 做，放进 levels/multi/）：多人的一起闯关按难度从这里选，
+ * 这一档还没有的时候用和单人一样的那一串。
+ */
+export const MULTI_LEVELS: Level[] = sorted(multiFiles);
 
 /**
  * 闯关、比谁先的难度（11-13）：1 到 6 关简单（彩蛋关「桌上杂技」bonus-01 也是 1 号，排在简单最后），7 到 12 关中等，13 号往后（难关）困难。
  * 单人、多人现在是同一串；多人非配合不可的新关做好以后，多人有自己的几串。
  */
 export function tierOfLevel(l: Level): Tier {
+  if (l.tier !== undefined) return l.tier;
   const n = order(l);
   return n <= 6 ? 0 : n <= 12 ? 1 : 2;
 }
 
-/** 每种玩法从哪一串里选关；闯关、比谁先按难度分（不给难度是全部）。 */
-export function levelsFor(mode: GameMode, tier?: Tier): Level[] {
+/** 每种玩法从哪一串里选关；闯关、比谁先按难度分（不给难度是全部）。多人的一起闯关这一档有多人的关就用多人的。 */
+export function levelsFor(mode: GameMode, tier?: Tier, side: Side = 'solo'): Level[] {
   if (mode === 'team') return TEAM_LEVELS;
   if (mode === 'last') return ARENAS;
-  return tier === undefined ? LEVELS : LEVELS.filter((l) => tierOfLevel(l) === tier);
+  if (tier === undefined) return LEVELS;
+  if (mode === 'climb' && side === 'multi') {
+    const multi = MULTI_LEVELS.filter((l) => tierOfLevel(l) === tier);
+    if (multi.length) return multi;
+  }
+  return LEVELS.filter((l) => tierOfLevel(l) === tier);
 }
 
 export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-01') return sampleLevel();
   if (id === 'proto-02') return machinesLevel('table');
   if (id === 'proto-03') return machinesLevel('van');
-  return LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id);
+  if (id === 'proto-04') return gatesLevel();
+  return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id);
 }
 
 /** 关卡教的那件事，给人看的话。 */
@@ -60,6 +73,9 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
   ice: { zh: '滑', en: 'Slippery' },
   combine: { zh: '全套', en: 'Everything' },
   all: { zh: '全套', en: 'Everything' },
+  // 多人的关（C14）：踩着队友上去、一个人按着踏板一个人过门
+  boost: { zh: '踩着队友上去', en: 'Boost a friend' },
+  hold: { zh: '一个按着，一个过去', en: 'Hold it for a friend' },
   // 大团队的大关（C9）
   longchain: { zh: '三个人以上连成一串', en: 'A chain of three or more' },
   counterweight: { zh: '几个人一起压', en: 'Weigh it down together' },

@@ -2,7 +2,7 @@
  * 单人、多人和三档难度（11-13）：哪关在哪档、几个人能开、大厅里写什么。
  */
 import { describe, expect, test } from 'vitest';
-import { LEVELS, levelsFor, tierOfLevel } from './levels';
+import { LEVELS, levelsFor, MULTI_LEVELS, tierOfLevel } from './levels';
 import { notReadyText } from './mode-text';
 import { maxPlayers, minPlayers, SIDE_MODES, sideFor, tiered } from './sides';
 
@@ -15,6 +15,16 @@ describe('难度', () => {
     expect(ids(2).at(-1)).toBe('van-24');
     expect(ids(0).length + ids(1).length + ids(2).length).toBe(LEVELS.length);
     for (const l of LEVELS) expect(levelsFor('climb', tierOfLevel(l))).toContain(l);
+  });
+
+  test('多人的一起闯关：这一档有多人的关（levels/multi/）就用多人的，没有就和单人一样', () => {
+    for (const t of [0, 1, 2] as const) {
+      const multi = MULTI_LEVELS.filter((l) => tierOfLevel(l) === t);
+      expect(levelsFor('climb', t, 'multi')).toEqual(multi.length ? multi : levelsFor('climb', t, 'solo'));
+      // 比谁先还是单人那一串（一个人过得去的关）
+      expect(levelsFor('race', t, 'multi')).toEqual(levelsFor('climb', t, 'solo'));
+    }
+    expect(tierOfLevel({ ...LEVELS[0]!, tier: 2 })).toBe(2);
   });
 
   test('闯关、比谁先分难度，坐不住、大团队不分（给了难度也是整串）', () => {

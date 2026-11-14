@@ -65,7 +65,7 @@ const together = (a, b) => {
   const [b0, b1] = b.players ?? [1, 6];
   return a0 <= b1 && b0 <= a1;
 };
-const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners];
+const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates];
 /**
  * 1 到 TESTED_PLAYERS 个人各摆出来什么样，一样的归一组。每组都要有一份回放证明能过：
  * 4 个人的是 replays/<id>.json，别的组是 replays/<id>.p<人数>.json。
@@ -127,6 +127,33 @@ function dangerBox(d) {
  * A6 的机关（CONTRACTS「关卡契约」）：要命的东西、会动的平台、会转的杆子、按人数的范围。
  * 哪一关用都按这个查，写错了马上报，不等回放跑出怪事。
  */
+/**
+ * 踩板门（11-13）：每块踏板开的门都有、每扇门都有踏板开；踏板是矮的、底下垫着台子；门开着、关着都在关里，
+ * 关着的时候真挡路（碰得到地形）；按人数摆的时候，踏板和它开的门同时在。
+ */
+function gates(level, id) {
+  const gs = level.gates ?? [];
+  const ps = level.plates ?? [];
+  const ids = new Set();
+  for (const g of gs) {
+    rectangle(g);
+    assert(typeof g.id === 'string' && g.id && !ids.has(g.id), `${id}: gate ids must be unique strings`);
+    ids.add(g.id);
+    point(g.move);
+    assert(Math.hypot(g.move.x, g.move.y) >= Math.min(g.w, g.h), `${id}: gate ${g.id} must move at least its own thickness`);
+    for (const f of [0, 1]) assert(inside(level, { x: g.x + g.move.x * f, y: g.y + g.move.y * f }) && inside(level, { x: g.x + g.w + g.move.x * f, y: g.y + g.h + g.move.y * f }), `${id}: gate ${g.id} leaves the level`);
+    const mine = ps.filter((p) => p.opens.split(/\s+/).includes(g.id));
+    assert(mine.length, `${id}: gate ${g.id} has no plate`);
+    for (const p of mine) assert(together(p, g), `${id}: plate for gate ${g.id} is never there with it`);
+  }
+  for (const p of ps) {
+    rectangle(p);
+    assert(p.h >= 8 && p.h <= 20 && p.w >= 48 && p.w <= 200, `${id}: plates are 8–20 px high and 48–200 px wide`);
+    for (const g of p.opens.split(/\s+/).filter(Boolean)) assert(ids.has(g), `${id}: plate opens unknown gate ${g}`);
+    assert(level.rects.some((r) => together(r, p) && Math.abs(r.y - (p.y + p.h)) <= 2 && r.x <= p.x + 4 && r.x + r.w >= p.x + p.w - 4), `${id}: plate at (${p.x}, ${p.y}) must sit on a platform`);
+  }
+}
+
 function machines(level, id) {
   const hazardKinds = new Set(['spike', 'hot', 'zap']);
   const dirs = new Set(['up', 'down', 'left', 'right']);
@@ -205,9 +232,10 @@ function validate(level, replay, id) {
   assert(level.w <= 3600 && level.h <= 2200, id + ': at most three screens per axis');
   assert(level.goal.x >= level.w - 480 && level.goal.w <= 400 && level.goal.x + level.goal.w >= level.w - 160, id + ': goal must use the extended level');
   assert(level.spawn.x <= 600, id + ': spawn must retain the first-screen lesson');
-  const moving = (level.ropes ?? []).reduce((sum, r) => sum + r.segments, 0) + (level.seesaws?.length ?? 0) + (level.crates?.length ?? 0) + (level.movers?.length ?? 0) + (level.spinners?.length ?? 0);
-  assert(moving <= 40, id + ': moving objects exceed 40 (rope links + seesaws + crates + movers + spinners)');
+  const moving = (level.ropes ?? []).reduce((sum, r) => sum + r.segments, 0) + (level.seesaws?.length ?? 0) + (level.crates?.length ?? 0) + (level.movers?.length ?? 0) + (level.spinners?.length ?? 0) + (level.gates?.length ?? 0);
+  assert(moving <= 40, id + ': moving objects exceed 40 (rope links + seesaws + crates + movers + spinners + gates)');
   machines(level, id);
+  gates(level, id);
   assert(level.rects.length + (level.fading?.length ?? 0) + (level.springs?.length ?? 0) <= 60, id + ': platforms exceed 60');
   point(level.spawn);
   assert(inside(level, level.spawn), id + ': spawn outside level');
@@ -314,7 +342,7 @@ async function inspect(physics, level, replay) {
   const dangers = dangersOf(laid);
   // chainBySeg / throwsBySeg：每一段（出生到第一个检查点是第 0 段）里成串挂了几秒、丢了几次人
   const evidence = { chainSeconds: 0, throws: 0, chainBySeg: [], throwsBySeg: [], ropeGrabs: 0, propGrabs: 0, maxTilt: 0, checkpointTimes: [], cookieGrabs: (laid.fading ?? []).map(() => 0), springBounces: (laid.springs ?? []).map(() => 0), iceGrabs: 0,
-    moverUse: (laid.movers ?? []).map(() => 0), spinnerUse: (laid.spinners ?? []).map(() => 0), near: dangers.map(() => false) };
+    moverUse: (laid.movers ?? []).map(() => 0), spinnerUse: (laid.spinners ?? []).map(() => 0), near: dangers.map(() => false), gateOpen: (laid.gates ?? []).map(() => 0) };
   const bars = (s) => { const angle = spinnerAngle(s, sim.time); return Array.from({ length: s.arms }, (_, j) => spinnerArm(s, j, angle)); };
   const holding = (p, hit) => p.arms.some((a) => a.grip?.kind === 'terrain' && hit(a.hand, CFG.handR + CFG.grabPad));
   sim.step = (dt) => {
@@ -368,6 +396,7 @@ async function inspect(physics, level, replay) {
       const hit = (c, rr) => arms.some((b) => circleHitsBar(c, rr, b));
       if (live.some((p) => hit(p.body, CFG.bodyR + 3) || holding(p, hit))) evidence.spinnerUse[i] += dt;
     });
+    sim.gates.forEach((g, k) => (evidence.gateOpen[k] = Math.max(evidence.gateOpen[k], g.open)));
     dangers.forEach((d, k) => {
       if (evidence.near[k]) return;
       let hit;
@@ -530,6 +559,8 @@ try {
     evidence.moverUse.forEach((t, i) => assert(laid.movers[i].deadly || t >= 0.25, `${id} (${replay.players} players): moving platform ${i} was bypassed`));
     evidence.spinnerUse.forEach((t, i) => assert(laid.spinners[i].deadly || t >= 0.25, `${id} (${replay.players} players): spinning bar ${i} was bypassed`));
     evidence.near.forEach((n, k) => assert(n, `${id}: deadly thing ${k} is never within ${NEAR}px of the route`));
+    // 踩板门：每扇门回放里都真开过（全开）
+    evidence.gateOpen.forEach((o, k) => assert(o >= 0.99, `${id} (${replay.players} players): gate ${laid.gates[k].id} never opened`));
     return { result, evidence };
   }
   for (const id of ids) {
