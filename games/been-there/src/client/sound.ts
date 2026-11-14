@@ -532,6 +532,10 @@ export const sfx = {
     dir > 0
       ? swell(0.55, { type: "bandpass", freq: 260, sweep: 1500, q: 0.9, vol: 0.05 })
       : swell(0.6, { type: "bandpass", freq: 1500, sweep: 240, q: 0.9, vol: 0.04 }),
+  /** Banknotes leaving a hand (ui/Moments.tsx MoneyFx): a riffle, a flick for each, as they set off. */
+  riffle: (n: number) => {
+    for (let i = 0; i < Math.min(n, 6); i++) burst(0.03, { type: "bandpass", freq: 2600 + ((i * 530) % 1400), q: 0.9, vol: 0.045, at: i * 0.07 });
+  },
   /** A card off the pile. */
   card: () => {
     burst(0.07, { type: "highpass", freq: 2200, vol: 0.06 });

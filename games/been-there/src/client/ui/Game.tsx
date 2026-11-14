@@ -13,7 +13,7 @@ import { Decision, pendingSummary } from "./Decision";
 import { feedText } from "./feedText";
 import { ForfeitHold } from "./Forfeit";
 import { FullscreenButton, FullscreenGuide } from "./Fullscreen";
-import { CardFace, Cash, CoinFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
+import { CardFace, Cash, MoneyFx, MiniDice, RollMoment, cardThisTurn, rollBefore, useFresh } from "./Moments";
 import { Police, doublesKind } from "./Doubles";
 import { SetCall } from "./Sets";
 import { DealCall } from "./Deal";
@@ -98,7 +98,7 @@ export function Game({ v }: { v: RoomView }) {
   // is only the card for a phone it isn't for, to read: the one to answer pops up, QuizPop.)
   const parts: Record<Part, preact.JSX.Element> = {
     arrival: <Arrival key="arrival" v={v} after={arriveAt} />,
-    card: <TurnCard key="card" v={v} />,
+    card: <TurnCard key="card" v={v} wait={riding && !urgent} />,
     decision: <Decision key="decision" v={v} />,
     news: <NewsBanner key="news" v={v} />,
     world: <WorldBanner key="world" v={v} />,
@@ -229,7 +229,7 @@ export function Game({ v }: { v: RoomView }) {
       {dancingHere && <SambaLesson v={v} size="full" />}
       {/* (with the money: this team's ride's stamp, another team's token landing here; the later of
           the two if another team throws while this team's ride is still on) */}
-      <CoinFx v={v} phone after={Math.max(holdUntil, playing && !v.you.seats.includes(playing.seat) ? playing.ready : 0)} />
+      <MoneyFx v={v} phone after={Math.max(holdUntil, playing && !v.you.seats.includes(playing.seat) ? playing.ready : 0)} />
       <SpeedMeter />
       <TurnCall myMove={myMove} />
       <Touchdown v={v} after={rideEnd(ride)} />
@@ -339,10 +339,12 @@ function latestOf<T>(v: RoomView, pick: (f: FeedItem) => T | null): { id: number
   return null;
 }
 
-/** The card your team drew this turn, until the turn passes (spectators see the team on turn's). */
-function TurnCard({ v }: { v: RoomView }) {
+/** The card your team drew this turn, until the turn passes (spectators see the team on turn's). On
+ * the team's own move it comes off its deck as the window comes back up (`wait`: the window is away
+ * for the ride, and a card drawn there would turn over with nobody watching). */
+function TurnCard({ v, wait }: { v: RoomView; wait?: boolean }) {
   const card = cardThisTurn(v);
-  if (!card || (v.you.seats.length > 0 && !v.you.seats.includes(card.x.p))) return null;
+  if (wait || !card || (v.you.seats.length > 0 && !v.you.seats.includes(card.x.p))) return null;
   return <CardFace v={v} card={card} />;
 }
 
@@ -698,7 +700,7 @@ function usePhoneSounds(v: RoomView, myMove: boolean, cash: number, ride: RidePl
       sfx.ask();
       buzz(BUZZ.offer);
     }
-    // (money in and out: the wallet's till and pay sound, as the coins get there, ui/Moments.tsx Cash)
+    // (money in and out: the wallet's till and pay sound, as the notes get there, ui/Moments.tsx Cash)
     prev.current = { myMove, feed: lastId(v) || p.feed, cash, ask, offers, auction: !!g.auction };
   });
 }
