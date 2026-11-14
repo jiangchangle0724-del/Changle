@@ -51,6 +51,15 @@
   --coin: #e0a526;
   --coin-hi: #ffe08a;
   --coin-edge: #93640c;
+  /* Banknotes, the money that flies: printed paper with a pastel for each bill, as a board game's
+     bank has (ui/notes.ts), in the paper's navy ink. */
+  --note-1: #f4efe3;
+  --note-5: #f1bfcb;
+  --note-10: #f3df8a;
+  --note-20: #b5d99f;
+  --note-50: #a7c8ea;
+  --note-100: #efcca0;
+  --note-500: #f0a564;
   /* The auctioneer's gavel: turned wood, with brass bands. */
   --gavel: #b07a45;
   --gavel-dark: #5e3a1f;

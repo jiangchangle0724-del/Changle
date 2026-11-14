@@ -1,6 +1,6 @@
-// The moments of a turn, animated: dice landing, coins changing hands, a card turning over, cash
-// counting up or down. All of it is decoration over the game: it never takes a tap, and with reduced
-// motion it isn't drawn (the numbers, the cards and the log still say everything).
+// The moments of a turn, animated: dice landing, banknotes changing hands, a card coming off its deck,
+// cash counting up or down. All of it is decoration over the game: it never takes a tap, and with
+// reduced motion it isn't drawn (the numbers, the cards and the log still say everything).
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BOARD, JOURNEY_CARDS, POSTCARDS, houseCostAt, priceOf, type GameEvent, type GameState } from "../../engine";
 import type { FeedItem, RoomView } from "../../room/protocol";
@@ -13,6 +13,7 @@ import { reducedMotion } from "./Board";
 import { SeatChip } from "./common";
 import { rideUrgent, type RidePlan } from "./ridePlan";
 import { DoublesCall, Police, doublesKind } from "./Doubles";
+import { notesFor } from "./notes";
 
 interface Hit<T> {
   id: number;
@@ -132,13 +133,19 @@ export function cardThisTurn(v: RoomView): Hit<CardEvent> | null {
   return null;
 }
 
-/** A drawn card, turning over from its back as it appears. */
+/** A drawn card, coming off the top of its deck face down and turning over as it appears. */
 export function CardFace({ v, card, big }: { v: RoomView; card: Hit<CardEvent>; big?: boolean }) {
   const e = card.x;
   const c = (e.deck === "journey" ? JOURNEY_CARDS : POSTCARDS).find((x) => x.id === e.id);
   if (!c) return null;
   return (
     <div class={`drawn-card deck-${e.deck}${big ? " big" : ""}`} key={card.id}>
+      {/* (the deck it's drawn from: the backs under it, which sink away once it's off: styles.css) */}
+      <div class="card-deck" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
       <div class="card-turn">
         <div class="card-back" aria-hidden="true">
           <span>{t(e.deck === "journey" ? "journey" : "postcard")}</span>
@@ -173,13 +180,15 @@ export function useFreshCard(v: RoomView, showAt = 0): Hit<CardEvent> | null {
   return hit && hit.x.t === "card" && wait <= 0 ? { id: hit.id, at: hit.at, x: hit.x } : null;
 }
 
-interface Coins {
+/** A payment's flight: its banknotes, from where to where. */
+interface Notes {
   id: number;
   x0: number;
   y0: number;
   x1: number;
   y1: number;
-  n: number;
+  /** The bills that fly (notesFor). */
+  bills: number[];
   amount: number;
   /** When it sets off after the others of its moment (ms). */
   delay: number;
@@ -189,9 +198,9 @@ interface Coins {
 }
 
 /**
- * A phone's wallet, its cash in the top bar: a batch for each moment its money moved (CoinFx adds them),
+ * A phone's wallet, its cash in the top bar: a batch for each moment its money moved (MoneyFx adds them),
  * with when its cash shows the change (`due`: the move's decision window, or now; performance.now()
- * ms), when the first of its coins touches the wallet (`at`: the first to land, or the first to leave),
+ * ms), when the first of its notes touches the wallet (`at`: the first to land, or the first to leave),
  * and whether its money going out has a sound of its own already (`quiet`: a city bought, a building
  * put up). Cash counts as the batch its change comes with gets there: one each, as the computer's teams
  * move one after another.
@@ -280,12 +289,16 @@ function walletMoves(e: GameEvent, mine: (seat: number) => boolean, s: GameState
   return out;
 }
 
-/** How many coins fly for an amount. */
-const coinsFor = (amount: number) => Math.min(9, 3 + Math.floor(amount / 60));
-/** A coin's flight, and when (into it) the first of its coins lands (ms; styles.css .coin-y). */
+/**
+ * How high a flight goes (px from the top of the screen): 110 px over its higher end, but never off
+ * the top (a phone's wallet is right under it: its money would spend half its flight out of sight).
+ */
+const arcTop = (y0: number, y1: number) => Math.max(10, Math.min(y0, y1) - 110);
+/** A note's flight, and when (into it) the first of a payment's notes lands (ms; styles.css .money-y). */
 const FLY_MS = 900;
 const LANDS_MS = 840;
-/** A phone's payments in one moment set off this far apart (ms). */
+/** A payment's notes set off this far apart (ms; styles.css), and a phone's payments in one moment this far. */
+const NOTE_MS = 70;
 const NEXT_MS = 280;
 
 /** Who pays whom in a game event (-1 is the bank): none, one payment, or a deal's both ways. */
@@ -302,16 +315,17 @@ function moneyOf(e: GameEvent): { from: number; to: number; amount: number }[] {
   return [];
 }
 
-/** Coins fly from whoever pays to whoever is paid, token to token (the bank is the middle of the
- * board), once the token that moved has landed (`after`, server time: the move's stamp): on the big
- * screen, every payment (a deal's both ways). On a phone (`phone`), the money in and out of its own team, the bank's too,
+/** Banknotes fly from whoever pays to whoever is paid, token to token (the bank is the middle of the
+ * board), once the token that moved has landed (`after`, server time: the move's stamp), in the bills
+ * the sum is paid in (notesFor), fluttering as paper does, with a riffle: on the big screen, every
+ * payment (a deal's both ways). On a phone (`phone`), the money in and out of its own team, the bank's too,
  * flies into its wallet (the cash in the top bar) or out of it, to or from the token, the space (a
  * city bought, a building, the salary's corner) or the middle of the board; the cash counts as the
- * coins get there (`wallet`, Cash). */
-export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; after?: number }) {
+ * notes get there (`wallet`, Cash). */
+export function MoneyFx({ v, phone, after }: { v: RoomView; phone?: boolean; after?: number }) {
   const seen = useRef(v.feed[v.feed.length - 1]?.id ?? 0);
   const timers = useRef<number[]>([]);
-  const [flights, setFlights] = useState<Coins[]>([]);
+  const [flights, setFlights] = useState<Notes[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   useEffect(() => {
     const news = v.feed.filter((f) => f.id > seen.current);
@@ -343,7 +357,7 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
     const purseOn = phone && purse.length > 0 && !!wallet0;
     if (!moves.length && !purseOn) return;
     const wait = after && after > serverNow() ? after - serverNow() + 180 : walk + 120;
-    // (the wallet counts as the first coins land in it, or the first leave it)
+    // (the wallet counts as the first notes land in it, or the first leave it)
     if (purseOn && batch) batch.at = performance.now() + wait + Math.min(...purse.map((m, i) => i * NEXT_MS + (m.dir > 0 ? LANDS_MS : 0)));
     timers.current.push(
       window.setTimeout(() => {
@@ -366,10 +380,10 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
           const lot = document.querySelector(`.p-mine .lot[data-at="${end.at}"]`);
           return inView(mid(lot) ?? mid(board.querySelector(`.sp[data-at="${end.at}"] .wedge`)) ?? where(-1));
         };
-        const add: Coins[] = moves.map((m) => {
+        const add: Notes[] = moves.map((m) => {
           const [x0, y0] = where(m.from);
           const [x1, y1] = where(m.to);
-          return { id: m.id, x0, y0, x1, y1, n: coinsFor(m.amount), amount: m.amount, delay: 0, outLabel: true, inLabel: true };
+          return { id: m.id, x0, y0, x1, y1, bills: notesFor(m.amount), amount: m.amount, delay: 0, outLabel: true, inLabel: true };
         });
         const purse0 = purseOn ? mid(document.querySelector(".top .cash-tick")) : null;
         if (purse0)
@@ -377,38 +391,43 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
             const [bx, by] = endOf(m.end);
             const team = "seat" in m.end;
             const [x0, y0, x1, y1] = m.dir > 0 ? [bx, by, ...purse0] : [...purse0, bx, by];
-            add.push({ id: Date.now() * 10 + i, x0, y0, x1, y1, n: coinsFor(m.amount), amount: m.amount, delay: i * NEXT_MS, outLabel: m.dir > 0 && team, inLabel: m.dir < 0 && team });
+            add.push({ id: Date.now() * 10 + i, x0, y0, x1, y1, bills: notesFor(m.amount), amount: m.amount, delay: i * NEXT_MS, outLabel: m.dir > 0 && team, inLabel: m.dir < 0 && team });
           });
         if (!add.length) return;
         setFlights((list) => [...list, ...add]);
-        const longest = Math.max(...add.map((c) => c.delay + (c.n - 1) * 70 + FLY_MS));
+        // (a riffle as each payment's notes leave the hand)
+        for (const c of add) timers.current.push(window.setTimeout(() => sfx.riffle(c.bills.length), c.delay));
+        const longest = Math.max(...add.map((c) => c.delay + (c.bills.length - 1) * NOTE_MS + FLY_MS));
         timers.current.push(window.setTimeout(() => setFlights((list) => list.filter((c) => !add.includes(c))), longest + 1400));
       }, wait),
     );
   }, [v.feed[v.feed.length - 1]?.id]);
   if (!flights.length) return null;
   return (
-    <div class="coin-fx" aria-hidden="true">
+    <div class="money-fx" aria-hidden="true">
       {flights.map((c) => (
         <div key={c.id}>
-          {Array.from({ length: c.n }, (_, i) => (
+          {c.bills.map((bill, i) => (
             <span
               key={i}
-              class="coin-x"
-              style={{ left: `${c.x0}px`, top: `${c.y0}px`, "--dx": `${c.x1 - c.x0}px`, "--delay": `${c.delay + i * 70}ms` }}
+              class="money-x"
+              style={{ left: `${c.x0}px`, top: `${c.y0}px`, "--dx": `${c.x1 - c.x0}px`, "--delay": `${c.delay + i * NOTE_MS}ms` }}
             >
-              <span class="coin-y" style={{ "--dy": `${c.y1 - c.y0}px`, "--peak": `${Math.min(0, c.y1 - c.y0) - 110}px` }}>
-                <i class="coin" />
+              <span class="money-y" style={{ "--dy": `${c.y1 - c.y0}px`, "--peak": `${arcTop(c.y0, c.y1) - c.y0}px` }}>
+                {/* (each at its own slant, as notes leave a hand) */}
+                <i class="note" data-bill={bill} style={{ "--tilt": `${((c.id + i * 47) % 37) - 18}deg` }}>
+                  <b>{bill}</b>
+                </i>
               </span>
             </span>
           ))}
           {c.outLabel && (
-            <span class="coin-amount out num" style={{ left: `${c.x0}px`, top: `${c.y0}px`, animationDelay: `${c.delay}ms` }}>
+            <span class="money-amount out num" style={{ left: `${c.x0}px`, top: `${c.y0}px`, animationDelay: `${c.delay}ms` }}>
               −{money(c.amount)}
             </span>
           )}
           {c.inLabel && (
-            <span class="coin-amount in num" style={{ left: `${c.x1}px`, top: `${c.y1}px`, animationDelay: `${c.delay + 750}ms` }}>
+            <span class="money-amount in num" style={{ left: `${c.x1}px`, top: `${c.y1}px`, animationDelay: `${c.delay + 750}ms` }}>
               +{money(c.amount)}
             </span>
           )}
@@ -418,8 +437,8 @@ export function CoinFx({ v, phone, after }: { v: RoomView; phone?: boolean; afte
   );
 }
 
-/** A phone's cash in its top bar (its wallet): it counts to its new amount as the coins get there
- * (CoinFx: the first to land in it, or the first to leave), with the change floating off ("+$200",
+/** A phone's cash in its top bar (its wallet): it counts to its new amount as the notes get there
+ * (MoneyFx: the first to land in it, or the first to leave), with the change floating off ("+$200",
  * "−$120"), a bump as money comes in and a dip as it goes, and the till or the pay sound. */
 export function Cash({ n }: { n: number }) {
   const [shown, setShown] = useState(n);
@@ -457,7 +476,7 @@ export function Cash({ n }: { n: number }) {
       };
       raf = requestAnimationFrame(step);
     };
-    // (decided a moment later, once this update's coins are on their way: CoinFx runs after this)
+    // (decided a moment later, once this update's notes are on their way: MoneyFx runs after this)
     timer = window.setTimeout(() => {
       const t = performance.now();
       const mine = batchesAt(t);
