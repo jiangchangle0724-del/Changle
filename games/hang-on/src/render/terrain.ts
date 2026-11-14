@@ -1018,7 +1018,7 @@ export class Terrain {
     const g = this.floatG.clear();
     if (!zones.length) return;
     zones.forEach((z, i) => {
-      g.rect(z.x, z.y, z.w, z.h).fill({ color: 0x7fe3ff, alpha: 0.05 });
+      g.rect(z.x, z.y, z.w, z.h).fill({ color: 0x7fe3ff, alpha: 0.07 });
       const dash = 18;
       for (let x = z.x; x < z.x + z.w; x += dash * 2) {
         const x1 = Math.min(z.x + z.w, x + dash);

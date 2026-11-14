@@ -814,7 +814,7 @@ export class Backdrop {
         const x = f * P;
         for (const side of [-1, 1]) {
           const top = side < 0 ? y - 120 : y + 12;
-          g.rect(x - 70, top, 140, 108).fill({ color: 0x2c3a80, alpha: 0.85 });
+          g.rect(x - 70, top, 140, 108).fill({ color: 0x2c3a80, alpha: 0.55 });
           for (let k = 1; k < 5; k++) g.moveTo(x - 70 + 28 * k, top).lineTo(x - 70 + 28 * k, top + 108);
           for (let k = 1; k < 3; k++) g.moveTo(x - 70, top + 36 * k).lineTo(x + 70, top + 36 * k);
           g.stroke({ width: 1.5, color: col });
