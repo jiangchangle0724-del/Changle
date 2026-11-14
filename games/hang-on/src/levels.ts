@@ -1,13 +1,14 @@
 /**
  * 关卡表：levels/*.json 里所有关，按 id 末尾的号排（table-01 … van-12 是 C1 的 12 关，13 号往后是难关）；
  * 最后附上彩蛋关「桌上杂技」。A1 的手感原型关不进大厅，开发页 `?level=proto-01` 还能开。
- * 每种玩法有自己的一串（`levelsFor`）：闯关和比谁先用这一串，大团队用 levels/team/ 里的大关（C9），
- * 坐不住用场地（src/physics/arenas.ts）。
+ * 每种玩法有自己的一串（`levelsFor`）：闯关和比谁先按难度分三串（简单 1 到 6 关和彩蛋关，中等 7 到 12 关，困难 13 号往后），
+ * 大团队用 levels/team/ 里的大关（C9），坐不住用场地（src/physics/arenas.ts）。
  */
 import { pickLang } from './i18n';
 import { arenaLevels } from './physics/arenas';
 import { machinesLevel, sampleLevel, showcaseLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
+import type { Tier } from './sides';
 
 const files = import.meta.glob('../levels/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
 const teamFiles = import.meta.glob('../levels/team/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
@@ -22,15 +23,21 @@ export const TEAM_LEVELS: Level[] = sorted(teamFiles);
 /** 坐不住的场地。 */
 export const ARENAS: Level[] = arenaLevels();
 
-/** 每种玩法从哪一串里选关。 */
-export function levelsFor(mode: GameMode): Level[] {
-  if (mode === 'team') return TEAM_LEVELS;
-  if (mode === 'last') return ARENAS;
-  return LEVELS;
+/**
+ * 闯关、比谁先的难度（11-13）：1 到 6 关简单（彩蛋关「桌上杂技」bonus-01 也是 1 号，排在简单最后），7 到 12 关中等，13 号往后（难关）困难。
+ * 单人、多人现在是同一串；多人非配合不可的新关做好以后，多人有自己的几串。
+ */
+export function tierOfLevel(l: Level): Tier {
+  const n = order(l);
+  return n <= 6 ? 0 : n <= 12 ? 1 : 2;
 }
 
-/** 每种玩法最少几个人才能开。 */
-export const MIN_PLAYERS: Record<GameMode, number> = { climb: 1, team: 4, race: 2, last: 2 };
+/** 每种玩法从哪一串里选关；闯关、比谁先按难度分（不给难度是全部）。 */
+export function levelsFor(mode: GameMode, tier?: Tier): Level[] {
+  if (mode === 'team') return TEAM_LEVELS;
+  if (mode === 'last') return ARENAS;
+  return tier === undefined ? LEVELS : LEVELS.filter((l) => tierOfLevel(l) === tier);
+}
 
 export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-01') return sampleLevel();

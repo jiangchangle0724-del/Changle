@@ -519,7 +519,7 @@ export class Room {
     const ctx = { center: st.center, range: st.range, limits: table, now, at, occasion: st.occasion };
     const cards = this.liveCards().map((cid, i) => {
       const p = st.places.find((x) => x.id === cid)!;
-      return cardView(p, i + 1, ctx, { likes: likes[p.cuisine] ?? 0, bans: bans[p.cuisine] ?? 0 });
+      return cardView(p, i + 1, ctx, E.moodFor(p, likes, bans));
     });
     this.cache = { rev, cards };
     return this.cache;
@@ -529,7 +529,7 @@ export class Room {
   private winnerCard(won: E.Place, table: E.Limits, now: number): NonNullable<RoomView["winner"]> {
     const st = this.st;
     const { likes, bans } = this.moodCounts();
-    const card = cardView(won, st.cards.indexOf(won.id) + 1, { center: st.center, range: st.range, limits: table, now, at: this.when(now), occasion: st.occasion }, { likes: likes[won.cuisine] ?? 0, bans: bans[won.cuisine] ?? 0 });
+    const card = cardView(won, st.cards.indexOf(won.id) + 1, { center: st.center, range: st.range, limits: table, now, at: this.when(now), occasion: st.occasion }, E.moodFor(won, likes, bans));
     const v = E.check(won, table);
     const severe = v.concerns.some((c) => c.k === "allergy" && c.level === "severe");
     return { ...card, unsafe: !v.ok ? "budget" : severe ? "severe" : false };

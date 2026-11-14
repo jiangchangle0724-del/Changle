@@ -26,6 +26,7 @@ import { TubePlayer } from "./TubePlayer";
 import { danceShare } from "../../shared/dj/dance";
 import { danceBpm } from "../../shared/dj/youtube";
 import { ytBpm } from "./phone/youtube";
+import { DanmuLayer } from "./DanmuLayer";
 import "../../styles/dj.css";
 import { useDjNames } from "./names";
 
@@ -336,6 +337,8 @@ export default function TvDj({ v }: { v: DjView }) {
       {live && v.phase !== "end" && !v.deck?.song && <Coach clock={coachClock} zh={zh} combo={v.combo ?? 0} dancers={dancing.n} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
       {!dancers.length && <p className="dj-empty">{zh ? "舞池空着，扫码上来" : "The floor's empty. Scan in."}</p>}
+      {/* 弹幕 from the phones, across everything (the video too) */}
+      <DanmuLayer v={v} zh={zh} />
 
       {banner && <DropBanner key={banner.n} phase={banner.phase} />}
       <PadChips chips={chips} lines={(v.deck?.up ? 1 : 0) + (v.deck?.now ? 1 : 0) + (mixerShows(v.deck?.mixer) ? 1 : 0)} />

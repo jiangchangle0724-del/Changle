@@ -189,6 +189,14 @@ class Sfx {
           this.tone({ freq: 880, wave: 'sine', dur: 0.4, vol: 0.3, delay: 0.12 });
           this.tone({ freq: 1319, wave: 'triangle', dur: 0.5, vol: 0.12, delay: 0.12 });
           break;
+        case 'envelope': {
+          // 红包（A9b）：叮叮两声，像铜钱
+          const pan = this.pan(ev.x, ev.y);
+          this.tone({ freq: 1320, wave: 'triangle', dur: 0.12, vol: 0.28, pan });
+          this.tone({ freq: 1760, wave: 'triangle', dur: 0.22, vol: 0.24, pan, delay: 0.08 });
+          this.tone({ freq: 2640, wave: 'sine', dur: 0.25, vol: 0.08, pan, delay: 0.08 });
+          break;
+        }
         case 'item': {
           // 道具（A9）：速冻叮一声加冰碴，荷叶呼的一下，拉面吸溜一声；没用成闷闷一声
           const pan = this.pan(ev.x, ev.y);
@@ -461,6 +469,9 @@ export function heardBy(ev: SimEvent, me: number): boolean {
     case 'item':
       return ev.ok || ev.player === me;
     case 'itemEnd':
+      return true;
+    // 红包是大家的
+    case 'envelope':
       return true;
     default:
       return !('player' in ev) || ev.player === me;

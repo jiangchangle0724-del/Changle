@@ -1,4 +1,4 @@
-import { Crown, Flame, Megaphone, MonitorSpeaker, Play, Snowflake, Square } from "lucide-react";
+import { Crown, Flame, Megaphone, MessageSquareText, MonitorSpeaker, Play, Snowflake } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
@@ -6,12 +6,13 @@ import { haptic } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
 import { useRoom, useRoomEvent, useTicker } from "../../online/RoomContext";
-import { FIRE_GAP_MS, SET_PHASES, type SetPhase } from "../../shared/dj/types";
+import { FIRE_GAP_MS } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
-import { phaseName, TIMES_MIN, useHeat } from "./parts";
+import { TIMES_MIN, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
 import { DancePad } from "./phone/DancePad";
+import { DanmuPad } from "./phone/DanmuPad";
 import { DeckPad } from "./phone/DeckPad";
 import { MySongs } from "./phone/MySongs";
 import "../../styles/dj.css";
@@ -20,9 +21,10 @@ import "../../styles/dj-phone.css";
 /**
  * 打碟 · DJ Booth on a phone: no sound here (it all comes out of the big screen). The player at the
  * top (上一曲, 暂停 or 播放, 切歌: anyone), the song box and the 歌单, the sound pads, a 🔥 to push the
- * DJ, for the host the night's four stretches and the end of the set, and at the very bottom 跟着跳
- * (Steve on Nov 12: the deck's turntables, mixer, crossfader and DROP gone, dancing along moved
- * down, and the card with the night's stretch at the top gone too).
+ * DJ, 弹幕 to the TV, for the host 报幕 and 弹幕 on or off (and at the end another set), and at the very bottom 跟着跳 (Steve
+ * on Nov 12: the deck's turntables, mixer, crossfader and DROP gone, dancing along moved down, and
+ * the card with the night's stretch at the top gone too; on Nov 13: the host's stretches and 结束这一场
+ * gone, "仅保留 announcement on": the night moves on by itself).
  */
 export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   // the speaker is the only music: the lounge loop stays off on this phone
@@ -79,6 +81,16 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
   });
   const chills = v.colds.filter((c) => now() - c.at < 60_000).length;
 
+  // (the browser checks move the night along themselves: the host has no buttons for it now)
+  useEffect(() => {
+    if (!import.meta.env.DEV || !isHost) return;
+    const w = window as unknown as { __djHost?: { phase: (p: string) => void } };
+    w.__djHost = { phase: (p) => g("phase", { phase: p }) };
+    return () => {
+      delete w.__djHost;
+    };
+  }, [isHost, g]);
+
   const rules = (
     <>
       <p>
@@ -88,13 +100,13 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
       </p>
       <p>
         {zh
-          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
-          : "Everyone can ask for songs on their phone: type a song or paste a YouTube link, and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
+          ? "每个人的手机上都能点歌：输入歌名或者贴 YouTube 链接，点的歌按顺序在电视上放整首，两首之间 DJ 接几秒，没人点歌的时候 DJ 一直放。最上面的播放键谁都能按：上一曲、暂停、播放、切歌。下面十二个音效键（喇叭、警笛、搓碟……）在电视上下一拍响。还能发弹幕：点现成的或者自己写一句，带着你的名字从电视上飘过去。最下面是跟着跳：拿着手机跟电视上的教练一起跳。"
+          : "Everyone can ask for songs on their phone: type a song or paste a YouTube link, and the TV plays them whole, in turn, the DJ for a few seconds between them (and on its own when nobody's asked for one). The player at the top is anyone's: previous, pause, play, next. The twelve sound pads below (air horn, siren, scratch and more) play on the TV from the next beat. Send comments too: a ready one or your own words fly across the TV with your name. At the very bottom, dance along: hold the phone and follow the coach on the TV."}
       </p>
       <p>
         {zh
-          ? `一晚分四段：暖场 ${TIMES_MIN.warm} 分钟，推高 ${TIMES_MIN.build} 分钟，然后是顶点，主人决定什么时候收尾，收尾 ${TIMES_MIN.cool} 分钟后结束。主人随时可以把它拖到任何一段。每场最长 ${TIMES_MIN.cap} 小时。`
-          : `A night in four stretches: ${TIMES_MIN.warm} minutes of warm-up, ${TIMES_MIN.build} of build, then the peak until the host winds it down, and ${TIMES_MIN.cool} minutes later it's over. The host can move it to any stretch at any time. A set runs ${TIMES_MIN.cap} hours at most.`}
+          ? `一晚分四段，自己往下走：暖场 ${TIMES_MIN.warm} 分钟，推高 ${TIMES_MIN.build} 分钟，然后是顶点，最后 ${TIMES_MIN.cool} 分钟收尾。一场 ${TIMES_MIN.cap} 小时。`
+          : `A night in four stretches, moving on by itself: ${TIMES_MIN.warm} minutes of warm-up, ${TIMES_MIN.build} of build, then the peak, and the last ${TIMES_MIN.cool} minutes wind down. A set runs ${TIMES_MIN.cap} hours.`}
       </p>
     </>
   );
@@ -171,34 +183,29 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
           </section>
         )}
 
+        {/* 弹幕: a line across the TV (Steve on Nov 13) */}
+        <DanmuPad v={v} g={g} zh={zh} />
+
         {isHost && (
           <section className="djp-host" aria-label={zh ? "主人" : "Host"}>
             <span className="djp-host-label">
               <Crown size={14} strokeWidth={2.4} />
-              {zh ? "主人：把今晚拖到" : "Host: take the night to"}
+              {zh ? "主人" : "Host"}
             </span>
-            <div className="seg djp-seg" role="group">
-              {SET_PHASES.map((p: SetPhase) => (
-                <button key={p} type="button" aria-pressed={v.phase === p} disabled={v.phase === "wait" || v.phase === "end"} onClick={() => g("phase", { phase: p })}>
-                  {phaseName(p, zh)}
-                </button>
-              ))}
-            </div>
-            {v.phase !== "end" && <p className="djp-host-note">{zh ? "DJ 等这一段 8 小节放完再换，最多 15 秒，大屏上会报出来" : "The DJ switches when these 8 bars end, 15 seconds at most; the big screen announces it"}</p>}
             {/* 报幕: the big screen says who a song asked for is from */}
             <button type="button" className="djp-voice" aria-pressed={v.voice !== false} onClick={() => g("voice", { on: v.voice === false })}>
               <Megaphone size={16} strokeWidth={2.4} />
               {v.voice !== false ? (zh ? "语音报幕：开" : "Announcements: on") : zh ? "语音报幕：关" : "Announcements: off"}
             </button>
-            {v.phase === "end" ? (
+            {/* 弹幕 on the TV (the switch for the new thing on the table, with 报幕) */}
+            <button type="button" className="djp-danmu-switch" aria-pressed={v.danmuOn !== false} onClick={() => g("danmu", { on: v.danmuOn === false })}>
+              <MessageSquareText size={16} strokeWidth={2.4} />
+              {v.danmuOn !== false ? (zh ? "弹幕：开" : "Comments on the TV: on") : zh ? "弹幕：关" : "Comments on the TV: off"}
+            </button>
+            {v.phase === "end" && (
               <button type="button" className="btn btn-primary btn-block" onClick={() => g("again")}>
                 <Play size={17} />
                 {zh ? "再来一场" : "Another set"}
-              </button>
-            ) : (
-              <button type="button" className="btn btn-ghost btn-block" disabled={v.phase === "wait"} onClick={() => g("phase", { phase: "end" })}>
-                <Square size={15} />
-                {zh ? "结束这一场" : "End this set"}
               </button>
             )}
           </section>

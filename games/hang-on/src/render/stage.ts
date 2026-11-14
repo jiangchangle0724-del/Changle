@@ -54,6 +54,8 @@ export class Stage {
   private readonly abyssBody = new Graphics();
   private readonly abyssTop = new Graphics();
   private readonly propsG = new Graphics();
+  /** 红包（A9b）。 */
+  private readonly envG = new Graphics();
   /** 落在台子上的影子（A8）。 */
   private readonly shadowsG = new Graphics();
   private readonly ropesG = new Graphics();
@@ -109,7 +111,7 @@ export class Stage {
       this.fx.cap = 150;
       this.screenFx.cap = 60;
     }
-    this.world.addChild(this.abyssBody, this.propsG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
+    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.fx.view, this.abyssTop);
     this.root.addChild(this.screenFx.view, this.world, this.vignette, this.flash);
     app.stage.addChild(this.root);
   }
@@ -309,6 +311,13 @@ export class Stage {
         case 'checkpoint': {
           const cp = sim.level.checkpoints?.[ev.index];
           if (cp) this.fx.burst({ x: cp.x, y: cp.y - 10, n: 14, texture: 'star', colors: [hex(this.pal.lampOn), 0xffffff], speed: [60, 200], life: [0.5, 0.9], size: [6, 12], gravity: 300, spin: 8, grow: 0.3 });
+          break;
+        }
+        case 'envelope': {
+          // 红包（A9b）：金币和星星往上崩，一圈金光
+          this.fx.burst({ x: ev.x, y: ev.y, n: 14, texture: 'circle', colors: [0xf6c453, 0xffe08a, 0xd8262f], speed: [120, 320], angle: -Math.PI / 2, spread: 1.4, life: [0.5, 0.9], size: [5, 10], gravity: 700, spin: 6, flip: this.reduced ? 0 : 10 });
+          this.fx.burst({ x: ev.x, y: ev.y, n: 6, texture: 'star', colors: [0xffffff, 0xffe08a], speed: [60, 180], life: [0.4, 0.7], size: [8, 13], drag: 3, spin: 8, grow: 0.3 });
+          this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.3, 0.3], size: [26, 26], grow: 2.8, alpha: 0.9 });
           break;
         }
         case 'item': {
@@ -518,6 +527,7 @@ export class Stage {
     if (this.detail > 0) this.depth?.update(sim, { x: cam.x, y: cam.y, halfW: this.W / 2 / cam.z, halfH: this.H / 2 / cam.z });
     this.terrain?.update(sim, dt);
     this.drawProps(sim);
+    this.drawEnvelopes(sim);
     this.drawShadows(sim);
     this.drawRopes(sim);
     this.drawTrails(sim);
@@ -623,6 +633,41 @@ export class Stage {
         g.poly(pts).stroke({ width: 3, color: table ? 0x8a5a2b : 0x5a6676, join: 'round' });
       }
     }
+  }
+
+  /**
+   * 红包（A9b）：一个小红包，正面一个金色的圆封口，背后一圈暖光，轻轻上下飘、左右晃（减弱动效时不动）。拿到了就不画。
+   */
+  private drawEnvelopes(sim: SimView): void {
+    const g = this.envG.clear();
+    const list = sim.envelopes ?? [];
+    list.forEach((e, k) => {
+      if (e.got) return;
+      const bob = this.reduced ? 0 : Math.sin(this.t * 2.4 + k * 1.7) * 4;
+      const tilt = this.reduced ? 0 : Math.sin(this.t * 1.6 + k) * 0.12;
+      const x = e.x;
+      const y = e.y + bob;
+      const w = 24;
+      const h = 32;
+      const c = Math.cos(tilt);
+      const s = Math.sin(tilt);
+      const at = (lx: number, ly: number): [number, number] => [x + lx * c - ly * s, y + lx * s + ly * c];
+      // 暖光
+      g.circle(x, y, 30).fill({ color: 0xffd27a, alpha: 0.18 });
+      g.circle(x, y, 20).fill({ color: 0xffd27a, alpha: 0.22 });
+      const body = [at(-w / 2, -h / 2), at(w / 2, -h / 2), at(w / 2, h / 2), at(-w / 2, h / 2)].flat();
+      g.poly(body).fill(0xd8262f);
+      g.poly(body).stroke({ width: 2.5, color: 0x7a0f18, join: 'round' });
+      // 封口的翻盖：上面一个倒三角，深一点
+      g.poly([at(-w / 2, -h / 2), at(w / 2, -h / 2), at(0, -h / 2 + 11)].flat()).fill(0xb51d26);
+      const [sx, sy] = at(0, -h / 2 + 11);
+      g.circle(sx, sy, 6).fill(0xf6c453);
+      g.circle(sx, sy, 6).stroke({ width: 1.5, color: 0xb8862b });
+      // 一道亮边
+      const [hx0, hy0] = at(-w / 2 + 4, -h / 2 + 15);
+      const [hx1, hy1] = at(-w / 2 + 4, h / 2 - 5);
+      g.moveTo(hx0, hy0).lineTo(hx1, hy1).stroke({ width: 2, color: 0xff8a8a, alpha: 0.7, cap: 'round' });
+    });
   }
 
   /**

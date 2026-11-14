@@ -240,3 +240,22 @@ describe('荷叶', () => {
     sim.destroy();
   });
 });
+
+describe('红包（A9b）', () => {
+  test('身体或手碰到就拿到，只报一次；比谁先、坐不住里没有红包', async () => {
+    const lv = { ...level(), envelopes: [{ x: 150, y: 500 }, { x: 900, y: 100 }] };
+    const sim = await createSim(lv, 1);
+    expect(sim.envelopes.map((e) => e.got)).toEqual([false, false]);
+    sim.teleport(0, 150, 540 - CFG.bodyR);
+    const events = run(sim, 0.5);
+    expect(events.filter((e) => e.type === 'envelope')).toHaveLength(1);
+    expect(events.find((e) => e.type === 'envelope')).toMatchObject({ index: 0, player: 0 });
+    expect(sim.envelopes.map((e) => e.got)).toEqual([true, false]);
+    sim.destroy();
+    for (const mode of ['race', 'last'] as const) {
+      const other = await createSim(lv, 2, { mode });
+      expect(other.envelopes).toHaveLength(0);
+      other.destroy();
+    }
+  });
+});

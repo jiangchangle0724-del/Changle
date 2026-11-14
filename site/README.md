@@ -125,6 +125,7 @@ python3 scripts/watch_test.py       # 每个游戏自己的大屏画面：两台
 python3 scripts/lastcard_check.py   # 最后一张：三部手机、一部只看的手机、两台电视，在手机上点着打两场，谁的手牌都不外泄
 python3 scripts/account_check.py    # 登录、资料、好友、聊天
 python3 scripts/mail_door_check.py  # 别的 Worker 经房间服务器发信（Mail 入口）：从 Service Binding 进来、查收件人、每天的上限、假 Resend 收到的信；公网进不来
+python3 scripts/figure_check.py     # 3D 小人的小样（/me/figure）：没有图形芯片时的说明、小人加载和画出来、17 个动作、拖动转圈、英文、站长 /me 上的入口
 python3 scripts/tune_quiz_check.py  # 猜歌名选择题连玩 20 首（单机和联机），看报错和内存
 python3 scripts/dj_check.py         # 打碟：音箱在 WebKit（Safari 的内核）和 Chromium 里出声，一桌手机按 🔥
 ```

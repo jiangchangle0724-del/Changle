@@ -93,4 +93,6 @@ export interface SimView {
   springs: SpringView[];
   /** 道具放下来的拉面（A9）。 */
   noodles?: NoodleView[];
+  /** 红包（A9b）：在哪、拿到没有。 */
+  envelopes?: { x: number; y: number; got: boolean }[];
 }

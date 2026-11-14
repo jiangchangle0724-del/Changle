@@ -135,8 +135,9 @@ test("search: a drive asks the whole area and three parts of it, so more than th
 });
 
 test("search: round 1's liked cuisines get their own searches: by Google's type, or by words where it has none", async () => {
-  // A 川菜 place whose name doesn't say so, one just outside the circle, and one found twice.
-  const tony = { ...golden, id: "ChIJtony", displayName: { text: "Chef Tony" }, location: { latitude: center.lat + 0.004, longitude: center.lng } };
+  // A 川菜 place whose name and descriptions don't say so, one just outside the circle, and one found
+  // twice (its description says Cantonese: so it stays).
+  const tony = { ...golden, id: "ChIJtony", displayName: { text: "Chef Tony" }, generativeSummary: undefined, location: { latitude: center.lat + 0.004, longitude: center.lng } };
   const far = { ...golden, id: "ChIJfar", displayName: { text: "Corner Spot" }, location: { latitude: center.lat + 0.0071, longitude: center.lng + 0.0105 } };
   const pot = { ...golden, id: "ChIJpot", displayName: { text: "Liuyishou" }, types: ["chinese_restaurant", "hot_pot_restaurant", "restaurant"] };
   mockFetch([
@@ -162,6 +163,25 @@ test("search: round 1's liked cuisines get their own searches: by Google's type,
   assert.equal(by("ChIJtony").cuisine, "sichuan", "found by the Sichuan search, its name doesn't say otherwise");
   assert.equal(by("ChIJgolden").cuisine, "cantonese", "its name says Cantonese");
   assert.equal(by("ChIJpot").cuisine, "hotpot", "Google's other types say hot pot");
+});
+
+test("search: a place the cuisine search found counts as that cuisine, whichever search found it first (Steve, 2026-11-13)", async () => {
+  // The Meat Up BBQ: an English name, Google's barbecue type, nothing more. The whole circle's most
+  // popular finds it first; the search for Chinese barbecue skewers finds it too. American
+  // barbecue whose description says so stays American, whatever finds it.
+  const meatUp = { ...golden, id: "ChIJmeat", displayName: { text: "The Meat Up BBQ" }, primaryType: "barbecue_restaurant", types: ["barbecue_restaurant", "restaurant", "food"], generativeSummary: undefined };
+  const memphis = { ...meatUp, id: "ChIJmemphis", displayName: { text: "Memphis Blues Barbeque House" }, generativeSummary: { overview: { text: "Southern-style BBQ: brisket, ribs and pulled pork." } } };
+  mockFetch([
+    [/places:searchText$/, () => json({ places: [meatUp, memphis] })],
+    [/places:searchNearby$/, () => json({ places: [meatUp, memphis, golden] })],
+  ]);
+  const places = await searchGoogle("KEY", center, "walk10", "en", { liked: ["chinese_bbq"] });
+  const by = (id: string) => places.find((p) => p.id === id)!;
+  assert.equal(by("ChIJmeat").cuisine, "chinese_bbq");
+  assert.deepEqual(by("ChIJmeat").dishes, ["skewers"], "what it mainly serves, for skewers");
+  assert.equal(by("ChIJmemphis").cuisine, "steak");
+  assert.equal(by("ChIJgolden").cuisine, "cantonese");
+  assert.deepEqual(by("ChIJgolden").also, ["seafood"], "a Chinese seafood restaurant is a seafood place too");
 });
 
 test("search: one search failing (a daily cap running out) keeps what the others found", async () => {

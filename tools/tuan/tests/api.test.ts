@@ -3,7 +3,7 @@
 // Every test starts its own shop and group buy, and comes from a network of its own.
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferPage, type OfferPage, type OrderPage } from "../src/api";
+import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type OfferPage, type OrderPage } from "../src/api";
 import { makeCode } from "../src/engine/ids";
 import { ORDERS_PER_PHONE } from "../src/engine/order";
 import { vancouverDay } from "../src/engine/time";
@@ -428,6 +428,173 @@ describe("opening and closing", () => {
   });
 });
 
+describe("changing a group buy", () => {
+  const docOf = async (at: Started, session: string = SESSION.leader) => get<MyOfferDoc>(`/my/offers/${at.id}/doc`, { session });
+  const save = (at: Started, doc: unknown, session: string = SESSION.leader) => post<MyOfferDoc & ApiError>(`/my/offers/${at.id}/doc`, doc, { session });
+  /** The document as the editor sends it back: what it read, the group buy's own fields on top. */
+  const asSent = ({ offer, items, points, rules }: MyOfferDoc) => ({ title: offer.title, note: offer.note, closesAt: offer.closesAt, roster: offer.roster, items, points, rules });
+
+  it("gives the merchant its document, each part under its id, and says which parts orders name", async () => {
+    const at = await start();
+    await place(at, [["五常大米", 2000]]);
+    await place(at, [["土鸡蛋", 1000]], { phone: "604-555-0177", how: "delivery", pickupId: undefined, ruleId: at.rule("列治文"), address: "8888 No. 3 Rd" });
+    const doc = (await docOf(at)).data;
+    expect(doc.shop).toEqual({ slug: at.slug, name: "大米团（测试）" });
+    expect(doc.offer).toMatchObject({ id: at.id, status: "open", title: "本周大米团 · 周五到货", roster: "names" });
+    expect(doc.items.map((i) => [i.name, i.used, i.sold])).toEqual([["五常大米 10kg", true, 2000], ["东北珍珠米 15lb", false, 0], ["黄小米 2lb", false, 0], ["土鸡蛋 30 枚", true, 1000], ["手切羊肉片", false, 0]]);
+    expect(doc.items[0]).toMatchObject({ id: at.item("五常大米"), section: "米面", detail: "当季新米", price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null });
+    expect(doc.items[0]).not.toHaveProperty("photo");
+    expect(doc.points.map((p) => [p.name, p.used])).toEqual([["温哥华西区", true], ["大学区", false], ["本拿比", false]]);
+    expect(doc.rules.map((r) => [r.label, r.used])).toEqual([["温哥华（Downtown 除外）", false], ["本拿比", false], ["列治文", true]]);
+    // reading it tells the merchant nothing about orders, so the mail still goes
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM orders WHERE offer_id = ? AND noticed = 0").bind(at.id).first<{ n: number }>())?.n).toBeGreaterThan(0);
+  });
+
+  it("changes a group buy that has orders where it stands: prices, limits, words, a new item, a new place", async () => {
+    const at = await start();
+    const first = (await place(at, [["五常大米", 2000], ["手切羊肉片", 1500]])).data.order;
+    const doc = (await docOf(at)).data;
+    const sent = asSent(doc);
+    sent.title = "本周大米团 · 改到周六到货";
+    sent.note = "周四晚上截单。";
+    sent.closesAt = doc.offer.closesAt + DAY;
+    sent.roster = "anon";
+    sent.items = [
+      { ...doc.items[4], price: 1799, detail: "按磅称重，肥瘦相间" }, // the lamb goes first, and costs more
+      { ...doc.items[0], stock: 3000, perBuyer: 3000 }, // the rice: three bags left to sell in all
+      doc.items[3],
+      { section: "蛋肉", name: "走地鸡 一只", price: 2600, unit: "each", stock: 5000 } as never, // new
+    ]; // …and the two nobody ordered are gone
+    sent.points = [{ ...doc.points[0], hours: "周六 4–7pm" }, { name: "列治文", address: "时代坊附近", hours: "周六 2–4pm" } as never];
+    sent.rules = [{ ...doc.rules[2], fee: 600, freeFrom: 8800 }];
+    const saved = await save(at, sent);
+    expect(said(saved)).toBe("ok");
+
+    const now = await page(at);
+    expect(now.offer).toMatchObject({ title: "本周大米团 · 改到周六到货", note: "周四晚上截单。", closesAt: doc.offer.closesAt + DAY, roster: "anon", state: "open" });
+    expect(now.items.map((i) => [i.name, i.price, i.left])).toEqual([["手切羊肉片", 1799, null], ["五常大米 10kg", 3800, 1000], ["土鸡蛋 30 枚", 1350, 10_000], ["走地鸡 一只", 2600, 5000]]);
+    // the parts that stayed are the same parts: the order still names them
+    expect(now.items[0].id).toBe(at.item("手切羊肉片"));
+    expect(now.items[1].id).toBe(at.item("五常大米"));
+    expect(now.points.map((p) => [p.id === at.point("温哥华西区"), p.name, p.hours])).toEqual([[true, "温哥华西区", "周六 4–7pm"], [false, "列治文", "周六 2–4pm"]]);
+    expect(now.rules).toEqual([{ id: at.rule("列治文"), label: "列治文", min: 0, fee: 600, freeFrom: 8800, hours: "每天 6–9pm" }]);
+    expect(now.roster).toEqual([{ seq: 1, name: null, pieces: 3 }]);
+    // the order keeps what it was placed at; the new price is for what comes next
+    const mine = (await get<OrderPage>(`/orders/${first.code}`, { tail: "0134" })).data;
+    expect(mine.order.lines.map((l) => [l.name, l.price, l.qty])).toEqual([["五常大米 10kg", 3800, 2000], ["手切羊肉片", 1699, 1500]]);
+    expect(mine.point?.hours).toBe("周六 4–7pm");
+    const next = await post<OrderPage>(`/offers/${at.id}/orders`, { key: key(), name: "Leo", phone: "604-555-0177", how: "pickup", pickupId: now.points[1].id, lines: [{ itemId: now.items[0].id, qty: 1000 }, { itemId: now.items[3].id, qty: 1000 }] });
+    expect(next.data.order.goods).toBe(1799 + 2600);
+    // the answer is the document as it now stands
+    expect(saved.data.items.map((i) => [i.name, i.used])).toEqual([["手切羊肉片", true], ["五常大米 10kg", true], ["土鸡蛋 30 枚", false], ["走地鸡 一只", false]]);
+    // and the sheets still add up
+    const all = await sheets(at);
+    expect(all.summary.items.map((i) => [i.name, i.qty])).toEqual([["手切羊肉片", 2500], ["五常大米 10kg", 2000], ["走地鸡 一只", 1000]]);
+  });
+
+  it("keeps what an order names: it can't go, its unit can't change, its limit can't drop below what's ordered", async () => {
+    const at = await start();
+    await place(at, [["五常大米", 2000]]);
+    const doc = (await docOf(at)).data;
+    const sent = () => asSent(doc);
+    const without = (name: string) => doc.items.filter((i) => !i.name.startsWith(name));
+    expect(said(await save(at, { ...sent(), items: without("五常大米") }))).toBe("409 inuse");
+    expect(said(await save(at, { ...sent(), points: doc.points.slice(1) }))).toBe("409 inuse");
+    expect((await save(at, { ...sent(), items: doc.items.map((i) => (i.used ? { ...i, unit: "box" } : i)) })).data).toEqual({ error: "item", at: 0 });
+    expect((await save(at, { ...sent(), items: doc.items.map((i) => (i.used ? { ...i, stock: 1000 } : i)) })).data).toEqual({ error: "sold", at: 0 });
+    // down to exactly what's ordered is fine: it's sold out from here on
+    expect(said(await save(at, { ...sent(), items: doc.items.map((i) => (i.used ? { ...i, stock: 2000 } : i)) }))).toBe("ok");
+    expect((await page(at)).items[0].left).toBe(0);
+    expect(said(await place(at, [["五常大米", 1000]], { phone: "604-555-0177" }))).toBe("409 soldout");
+    // what nobody ordered can go, and a cancelled order still holds on to what it held
+    expect(said(await save(at, { ...sent(), items: without("东北珍珠米") }))).toBe("ok");
+    const order = (await sheets(at)).orders[0];
+    await post(`/my/orders/${order.code}`, { do: "cancel" }, { session: SESSION.leader });
+    expect(said(await save(at, { ...sent(), items: without("东北珍珠米").filter((i) => !i.used) }))).toBe("409 inuse");
+    // nothing of a refused change is kept
+    expect((await page(at)).items.map((i) => i.name)).toEqual(["五常大米 10kg", "黄小米 2lb", "土鸡蛋 30 枚", "手切羊肉片"]);
+  });
+
+  it("refuses a document that is behind the group buy, or isn't one", async () => {
+    const at = await start();
+    const doc = (await docOf(at)).data;
+    const sent = asSent(doc);
+    // the same part twice, a part of another group buy, a part that has gone since it was read
+    expect(said(await save(at, { ...sent, items: [...doc.items, doc.items[0]] }))).toBe("409 busy");
+    const other = await start();
+    const theirs = (await docOf(other)).data;
+    expect(said(await save(at, { ...sent, items: [...doc.items, theirs.items[0]] }))).toBe("409 busy");
+    expect((await page(other)).items).toHaveLength(5);
+    expect(said(await save(at, { ...sent, items: doc.items.slice(1) }))).toBe("ok");
+    expect(said(await save(at, sent))).toBe("409 busy");
+    // the same checks as for a new one
+    const now = asSent((await docOf(at)).data);
+    expect(said(await save(at, { ...now, title: " " }))).toBe("400 title");
+    expect(said(await save(at, { ...now, closesAt: Date.now() - 1 }))).toBe("400 closes");
+    expect((await save(at, { ...now, items: [now.items[0], { name: "肉", price: -1 }] })).data).toEqual({ error: "item", at: 1 });
+    expect(said(await save(at, { ...now, items: [] }))).toBe("400 items");
+    expect(said(await save(at, { ...now, points: [], rules: [] }))).toBe("400 places");
+    expect(said(await save(at, "not a document"))).toBe("400 bad");
+    expect(said(await post(`/my/offers/zzzz9999/doc`, now, { session: SESSION.leader }))).toBe("404 notfound");
+  });
+
+  it("opens a draft with the change that says so, and not otherwise; a closing time left alone may have passed", async () => {
+    const at = await start({ open: false });
+    const doc = (await docOf(at)).data;
+    expect(doc.offer.status).toBe("draft");
+    // a draft is its merchant's to rewrite from top to bottom
+    const sent = { ...asSent(doc), title: "草稿改了名", items: [{ section: "", name: "只卖这一样", price: 500, unit: "each" }], points: [{ name: "只在这里取" }], rules: [] };
+    expect((await save(at, sent)).data.offer).toMatchObject({ status: "draft", title: "草稿改了名" });
+    expect(said(await get(`/offers/${at.id}`))).toBe("404 notfound");
+    const again = asSent((await docOf(at)).data);
+    expect((await save(at, { ...again, open: false })).data.offer.status).toBe("draft");
+    expect((await save(at, { ...again, open: true })).data.offer.status).toBe("open");
+    expect((await page(at)).items.map((i) => i.name)).toEqual(["只卖这一样"]);
+    // open stays open, and closed stays closed, whatever the document says
+    expect((await save(at, { ...again, open: false })).data.offer.status).toBe("open");
+    await post(`/my/offers/${at.id}`, { do: "close" }, { session: SESSION.leader });
+    expect((await save(at, { ...again, open: true })).data.offer.status).toBe("closed");
+    // past its time: the words can still be put right, and a new time has to be ahead
+    await post(`/my/offers/${at.id}`, { do: "open" }, { session: SESSION.leader });
+    const past = Date.now() - DAY;
+    await env.DB.prepare("UPDATE offers SET closes_at = ? WHERE id = ?").bind(past, at.id).run();
+    expect((await save(at, { ...again, closesAt: past, note: "下周再开。" })).data.offer).toMatchObject({ closesAt: past, note: "下周再开。" });
+    expect((await page(at)).offer.state).toBe("closed");
+    expect(said(await save(at, { ...again, closesAt: past + 1 }))).toBe("400 closes");
+    expect(said(await save(at, { ...again, closesAt: Date.now() + DAY }))).toBe("ok");
+    expect((await page(at)).offer.state).toBe("open");
+  });
+
+  it("is for those who run the shop, and the site's owner", async () => {
+    const at = await start();
+    const doc = (await docOf(at)).data;
+    expect(said(await get(`/my/offers/${at.id}/doc`))).toBe("401 signin");
+    expect(said(await docOf(at, SESSION.visitor))).toBe("403 forbidden");
+    expect(said(await save(at, asSent(doc), SESSION.visitor))).toBe("403 forbidden");
+    expect(said(await docOf(at, SESSION.owner))).toBe("ok");
+    expect(said(await save(at, { ...asSent(doc), title: "站长改的" }, SESSION.owner))).toBe("ok");
+    expect((await page(at)).offer.title).toBe("站长改的");
+    // from another site's page, never
+    expect(said(await post(`/my/offers/${at.id}/doc`, asSent(doc), { session: SESSION.leader, origin: "https://elsewhere.example" }))).toBe("403 forbidden");
+  });
+
+  it("gives way to an order that arrives while the change is on its way", async () => {
+    const at = await start();
+    const doc = (await docOf(at)).data;
+    // read, then someone orders the eggs, then the change that drops the eggs arrives: as the tables see it
+    const { saveEdit } = await import("../src/server/store");
+    await place(at, [["土鸡蛋", 1000]]);
+    const plan = { title: doc.offer.title, note: doc.offer.note, closesAt: doc.offer.closesAt, roster: doc.offer.roster, publish: false, items: [], points: [], rules: [], gone: { items: [at.item("土鸡蛋")], points: [], rules: [] } };
+    expect(await saveEdit(env.DB, at.id, plan, () => makeCode(rand, 10, true))).toBe(false);
+    expect((await page(at)).items).toHaveLength(5);
+    // …and a limit set below what has just been ordered
+    const eggs = doc.items.find((i) => i.name.startsWith("土鸡蛋"))!;
+    const low = { ...plan, gone: { items: [], points: [], rules: [] }, items: [{ ...eggs, photo: null, stock: 0 }] };
+    expect(await saveEdit(env.DB, at.id, low, () => makeCode(rand, 10, true))).toBe(false);
+    expect((await page(at)).items.find((i) => i.name.startsWith("土鸡蛋"))?.left).toBe(9000);
+  });
+});
+
 describe("who may do what", () => {
   it("shows a group buy's orders only to those who run its shop, and to the site's owner", async () => {
     const at = await start();
@@ -686,6 +853,12 @@ describe("the pages", () => {
     expect(real.html).not.toContain("本周大米团");
     expect(real.html).not.toContain(mine.code);
     expect(titleOf(real.html)).toBe("跟一单 · Count Me In");
+    // changing a group buy and starting one are the same page again
+    for (const path of [`/tuan/my/t/${at.id}/edit`, "/tuan/my/t/zzzz9999/edit", `/tuan/my/new/${at.slug}`, "/tuan/my/new/no-such-shop"]) {
+      const res = await open(path);
+      expect([path, res.status, res.html === real.html]).toEqual([path, 200, true]);
+    }
+    for (const path of [`/tuan/my/t/${at.id}/orders`, "/tuan/my/new", "/tuan/my/new/Not%20A%20Shop", `/tuan/my/new/${at.slug}/more`]) expect([path, (await open(path)).status]).toEqual([path, 404]);
     // …and the API still wants the sign-in
     expect(said(await get(`/my/offers/${at.id}`))).toBe("401 signin");
     expect(said(await get(`/my/offers/${at.id}`, { session: SESSION.visitor }))).toBe("403 forbidden");

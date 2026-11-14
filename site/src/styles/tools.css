@@ -1,18 +1,9 @@
 /* ---------- tools: house lights up ---------- */
+/* the tab: one card per tool, in a tool's amber, like the games' cards on the home page */
 .tools {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-.tool-nav {
-  display: flex;
-  gap: 8px;
-}
-/* a narrow phone: the four chips fit on one line without their icons */
-@media (max-width: 370px) {
-  .tool-nav .chip svg {
-    display: none;
-  }
+  gap: var(--space-3);
 }
 .tool {
   padding: 18px 16px 16px;
@@ -20,11 +11,21 @@
   background: var(--dusk);
   box-shadow: var(--shadow-flat);
 }
-/* the chips at the top jump here: clear of the header */
-.tool,
-.tool-eat,
-.tool-when {
-  scroll-margin-top: 96px;
+/* a tool on its page (/tools/<id>, ToolPage.tsx): the header names it, so the panel's own title is
+   left for screen readers (it still labels the panel) and its controls keep to the right */
+.tool-page {
+  gap: var(--space-4);
+}
+.tool-page .tool-title {
+  display: none;
+}
+.tool-page .tool-head {
+  justify-content: flex-end;
+  min-height: 0;
+}
+/* nothing else in the head (the clock with no time picked): no empty row */
+.tool-page .tool-head:not(:has(> :not(.tool-title))) {
+  display: none;
 }
 .tool-head {
   display: flex;

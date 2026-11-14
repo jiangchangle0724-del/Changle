@@ -5,6 +5,7 @@
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
 import type { Dancer } from "./dj/dance";
+import type { DanmuLine } from "./dj/danmu";
 import type { CrateSong, DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
 import type { LcColor, LcPending } from "./lastcard/cards";
 import type { StraightFaceView } from "./straightface/types";
@@ -774,6 +775,9 @@ export type DjView = {
   combo: number;
   /** the speaker's reports added up this night (the recap, 今晚回顾: how the sound held up) */
   speaker: { stalls: number; resets: number; seconds: number };
+  /** 弹幕: the latest lines (the big screen flies the new ones) and the host's switch (none from a rooms server before Nov 13) */
+  danmu?: DanmuLine[];
+  danmuOn?: boolean;
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */

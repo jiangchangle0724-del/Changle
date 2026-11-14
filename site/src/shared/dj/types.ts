@@ -5,6 +5,7 @@
  */
 import type { T } from "../../i18n";
 import type { Dancer } from "./dance";
+import type { DanmuLine } from "./danmu";
 
 /* ------------------------------------------------------------------ the night */
 
@@ -648,6 +649,12 @@ export type RoomState = {
   dance: Record<string, Dancer>;
   danceBar: { bar: number; n: number; good: number };
   combo: number;
+  /** 弹幕 (shared/dj/danmu.ts, Steve on Nov 13): the latest lines and their count, the host's switch,
+   *  and when each phone sent its last */
+  danmu: DanmuLine[];
+  danmuN: number;
+  danmuOn: boolean;
+  danmuAt: Record<string, number>;
 };
 
 /**

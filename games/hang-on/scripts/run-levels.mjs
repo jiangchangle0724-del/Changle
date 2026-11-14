@@ -221,6 +221,13 @@ function validate(level, replay, id) {
     assert(Number.isInteger(level.par.deathsPerPlayer) && level.par.deathsPerPlayer >= 0);
   }
   assert.equal(level.replay, `replays/${id}.json`);
+  // 红包（A9b）：每关 3 个，在关里，不碰台子（npm run envelopes 挑的）
+  assert.equal(level.envelopes?.length, 3, id + ': needs three red envelopes (npm run envelopes)');
+  for (const e of level.envelopes) {
+    point(e);
+    assert(inside(level, e), id + ': red envelope outside level');
+    assert(!level.rects.some((r) => e.x > r.x - 14 && e.x < r.x + r.w + 14 && e.y > r.y - 14 && e.y < r.y + r.h + 14), id + `: red envelope (${e.x}, ${e.y}) touches a platform`);
+  }
   // A3 implements cookie platforms (fading) and candle springs: allowed, but they must be well formed.
   for (const f of level.fading ?? []) {
     for (const k of ['on', 'off', 'phase']) assert(f[k] === undefined || (finite(f[k]) && f[k] >= 0), `${id}: fading ${k} must be a number of seconds`);
@@ -376,7 +383,10 @@ async function inspect(physics, level, replay) {
     });
   };
   try {
-    return { result: await runReplay(level, replay, sim), evidence, laid };
+    const result = await runReplay(level, replay, sim);
+    // 红包（A9b）：回放里每个都有人拿到过（够得着）
+    evidence.envelopes = sim.envelopes.map((e) => e.got);
+    return { result, evidence, laid };
   } finally {
     sim.destroy();
   }
@@ -509,6 +519,7 @@ try {
     assert(evidence.cookieGrabs.every(n => n > 0), id + ': cookie was bypassed (needs terrain grab point inside every cookie)');
     assert(evidence.springBounces.every(n => n > 0), id + ': candle was bypassed (needs bounce from every candle)');
     assert.equal(evidence.checkpointTimes.length, level.checkpoints.length, id + ': replay missed checkpoint');
+    if (main) evidence.envelopes.forEach((got, k) => assert(got, `${id}: red envelope ${k} is never reached in the replay (rerun npm run envelopes)`));
     if (main) assert(segments.every(t => t >= 15 && t <= 60), id + ': checkpoint segment outside 15–60s: ' + segments.map(t => t.toFixed(2)).join('/'));
     assert(result.won, `${id} (${replay.players} players): replay did not reach the goal: ${JSON.stringify(result.final)}`);
     if (main) assert(ratio >= 0.5 && ratio <= 2, `${id}: time outside par × [0.5, 2]`);
@@ -604,7 +615,7 @@ try {
     assert.equal(png.readUInt32BE(20), 720);
   }
   if (process.argv.includes('--screenshots') || process.argv.includes('--serve')) await serve(entries, process.argv.includes('--screenshots'));
-  console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, object budgets and solo controls PASS`);
+  console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS`);
 } catch (error) {
   console.error(`levels: FAIL — ${error.message}`);
   process.exitCode = 1;
