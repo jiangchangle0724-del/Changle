@@ -10,6 +10,7 @@
  *  5. Signed in: the phone's ledgers and the account's "my ledgers" made one; taking a ledger off
  *     the account, and its owner deleting it for everyone.
  *  6. A ledger's record (改动记录), read from the server a batch at a time.
+ *  7. The 结清图: when this phone last made a ledger's picture, kept beside the ledger.
  *
  * (What is sent when, and what the phone makes of the answers, is tests/split-sync.test.ts.)
  */
@@ -878,6 +879,30 @@ const { net } = await import("../src/split/net");
   asked.length = 0;
   eq([await syncing.recordOf("rec-2"), asked.length], [[], 0], "a ledger not on the server yet: nothing to ask for, and nothing there");
   eq(await syncing.recordOf("not-on-this-phone"), null, "and none for a ledger this phone doesn't hold");
+}
+
+// ---------- 7. the 结清图: when it was made, kept beside the ledger ----------
+{
+  const store = await import("../src/split/store");
+  const raw = () => JSON.parse(storage.getItem("changle.split.v2") ?? "null") as { pictures?: Record<string, unknown> } | null;
+  store.keepHeld(hold(fresh("pic-1"), KEY), "s");
+  store.keepHeld(hold(fresh("pic-2"), KEY), "w");
+  eq([store.pictureMade("pic-1"), raw()?.pictures], [undefined, undefined], "a ledger whose picture this phone hasn't made: nothing kept");
+  store.keepPicture("pic-1", { at: 5, print: "s>w:100" });
+  store.keepPicture("pic-2", { at: 6, print: "w>s:200" });
+  eq([store.pictureMade("pic-1"), raw()?.pictures], [{ at: 5, print: "s>w:100" }, { "pic-1": { at: 5, print: "s>w:100" }, "pic-2": { at: 6, print: "w>s:200" } }], "made: when, and the plan then, kept at once for each ledger");
+  store.keepPicture("pic-1", { at: 7, print: "" });
+  store.keepPicture("not-on-this-phone", { at: 8, print: "x" });
+  eq(raw()?.pictures, { "pic-1": { at: 7, print: "" }, "pic-2": { at: 6, print: "w>s:200" } }, "made again: the new one stands; for a ledger the phone doesn't hold, nothing");
+  store.keepHeld(hold(fresh("pic-3"), KEY));
+  store.setMe("pic-3", "s");
+  store.write("pic-3", (h) => ({ ...h, made: true }));
+  eq(Object.keys(raw()?.pictures ?? {}), ["pic-1", "pic-2"], "another ledger opened, someone chosen, a ledger written: the pictures stay");
+  store.dropHeld("pic-1");
+  eq([store.pictureMade("pic-1"), raw()?.pictures], [undefined, { "pic-2": { at: 6, print: "w>s:200" } }], "a ledger taken off the phone takes its picture's note with it");
+  store.dropHeld("pic-2");
+  store.dropHeld("pic-3");
+  eq(raw()?.pictures, undefined, "and with none left, none is kept");
 }
 
 if (failed) {
