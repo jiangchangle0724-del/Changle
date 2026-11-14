@@ -156,6 +156,31 @@ export interface LiftDef {
   players?: [number, number];
 }
 
+/**
+ * 老宅找钥匙（A10）：一把钥匙（物件，能抓、能拽、能丢），开 `opens` 那扇门（GateDef 的 id）。钥匙碰到它的门（离门不到
+ * CFG.keyReach）门就开了，一直开着，钥匙插在锁里没了。门只由钥匙开（不连踏板）。钥匙掉下去、碰到要命的东西，
+ * 过 CFG.keyBack 秒回来：回到它到过的最后一个（大家激活过的）检查点，没到过就回开局的地方。(x, y) 是钥匙的中心。
+ */
+export interface KeyDef extends Pt {
+  opens: string;
+  players?: [number, number];
+}
+
+/** 手提的灯笼（老宅，A10）：一个物件，拿着走照亮周围；碰到灭着的灯就点着它。掉了和钥匙一样回来。(x, y) 是灯笼的中心。 */
+export interface LanternDef extends Pt {
+  players?: [number, number];
+}
+
+/**
+ * 墙上的灯（老宅，A10）：一盏油灯 / 一支蜡烛，亮着照亮周围 `r` 像素（默认 CFG.lampR）。`off`：一开始灭着，
+ * 有人（身体、手）或者灯笼碰一下就点着，点着了一直亮。只管看得见看不见，不碰撞、不挡路。
+ */
+export interface LampDef extends Pt {
+  r?: number;
+  off?: boolean;
+  players?: [number, number];
+}
+
 export interface Level {
   id: string;
   world?: string;
@@ -191,6 +216,14 @@ export interface Level {
    * 第一个点是开局托盘放在哪（中心），第 j + 1 个是托盘过了第 j 个检查点以后翻了回哪；没写的用前一个。
    */
   tray?: Pt[];
+  /**
+   * 老宅找钥匙（A10）：钥匙（开锁着的门）、手提的灯笼、墙上的灯、黑屋子。黑屋子（`dark` 里的矩形）里看不清，
+   * 只有灯、灯笼、每个人自己身上那一圈、亮了的检查点照得到的地方看得见；只管画面，物理照常。
+   */
+  keys?: KeyDef[];
+  lanterns?: LanternDef[];
+  lamps?: LampDef[];
+  dark?: Rect[];
   deathY: number;
   par?: { seconds: number; deathsPerPlayer: number };
   replay?: string;
@@ -219,7 +252,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -237,6 +270,10 @@ export function forPlayers(level: Level, n: number): Level {
     gates: keep(level.gates),
     vents: keep(level.vents),
     lifts: keep(level.lifts),
+    keys: keep(level.keys),
+    lanterns: keep(level.lanterns),
+    lamps: keep(level.lamps),
+    dark: keep(level.dark),
   };
 }
 
@@ -469,6 +506,55 @@ export function snowLevel(): Level {
       { x: 340, y: 770, w: 30, h: 30, kind: 'zap' },
       { x: 80, y: 600, w: 160, h: 30, kind: 'spike', dir: 'down' },
       { x: 2080, y: 280, w: 70, h: 20, kind: 'hot' },
+    ],
+    deathY: 1180,
+    par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 老宅样板关（A10，只在开发页：`play.html?level=proto-07`）：月下的院子，往右是一间黑着的库房（`dark`），门口一盏手提灯笼、
+ * 墙上一支灭着的蜡烛（碰一下就点着），地板中间一个窟窿，一地碎瓷片；钥匙在高柜子顶上，拿下来端到库房尽头那扇锁着的门，
+ * 门就开了；门后是厅堂，炭盆、漏电的老电线，台阶上去是终点。Codex 做老宅的关时照着写 JSON。
+ */
+export function houseLevel(): Level {
+  return {
+    id: 'proto-07',
+    world: 'house',
+    name: { zh: '老宅样板', en: 'Old house sampler' },
+    teaches: 'key',
+    w: 2700,
+    h: 1100,
+    spawn: { x: 100, y: 760 },
+    goal: { x: 2480, y: 300, w: 200, h: 160 },
+    checkpoints: [{ x: 1950, y: 766 }],
+    rects: [
+      // 院子：青砖地
+      { x: 0, y: 800, w: 900, h: 300, kind: 'ground', material: 'brick' },
+      // 库房：木地板，中间一个窟窿；顶上一道抓不住的大梁（门在梁的那头，翻不过去）
+      { x: 900, y: 800, w: 340, h: 300, kind: 'ground', material: 'wood' },
+      { x: 1360, y: 800, w: 1340, h: 300, kind: 'ground', material: 'wood' },
+      { x: 880, y: 280, w: 980, h: 40, kind: 'wall', material: 'wood', grab: false },
+      // 高柜子，钥匙在柜顶上
+      { x: 1520, y: 560, w: 180, h: 240, kind: 'wall', material: 'wood' },
+      // 门后的厅堂：一级台阶，再上去是青砖的高台
+      { x: 2150, y: 640, w: 200, h: 160, kind: 'step', material: 'wood' },
+      { x: 2350, y: 460, w: 350, h: 640, kind: 'ground', material: 'brick' },
+    ],
+    gates: [{ id: 'door', x: 1820, y: 320, w: 40, h: 480, move: { x: 0, y: -260 }, grab: false }],
+    keys: [{ x: 1610, y: 552, opens: 'door' }],
+    lanterns: [{ x: 960, y: 780 }],
+    lamps: [
+      { x: 1180, y: 650, off: true },
+      { x: 1700, y: 420, r: 200, off: true },
+      { x: 2260, y: 520 },
+    ],
+    // 黑屋子连着地板一起黑（地板下面的窟窿也看不清）
+    dark: [{ x: 900, y: 320, w: 920, h: 780 }],
+    hazards: [
+      { x: 1400, y: 784, w: 80, h: 16, kind: 'spike' },
+      { x: 2060, y: 772, w: 70, h: 28, kind: 'hot' },
+      { x: 2230, y: 624, w: 50, h: 16, kind: 'zap' },
     ],
     deathY: 1180,
     par: { seconds: 90, deathsPerPlayer: 3 },

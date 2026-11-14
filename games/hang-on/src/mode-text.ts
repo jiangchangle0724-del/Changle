@@ -51,3 +51,17 @@ export function notReadyText(n: number, side: Side, mode: GameMode): Text | null
   const label = side === 'multi' && mode === 'climb' ? { zh: '多人', en: 'Multiplayer' } : NAMES[mode];
   return { zh: `${n} 个人。${label.zh}至少要 ${min} 个人。`, en: `${who(n)}. ${label.en} needs at least ${min}.` };
 }
+
+/** 老宅找钥匙（A10）的横幅：找到钥匙、门开了、钥匙掉了、门锁着（电视上和每部手机上一样）。 */
+export function keyBanner(phase: 'found' | 'unlock' | 'back' | 'locked'): { text: string; kind: 'good' | 'bad' } | null {
+  switch (phase) {
+    case 'found':
+      return { text: pickLang({ zh: '🗝️ 找到钥匙了！拿到锁着的门上', en: '🗝️ Found a key! Bring it to the locked door' }), kind: 'good' };
+    case 'unlock':
+      return { text: pickLang({ zh: '🔓 门开了', en: '🔓 The door is open' }), kind: 'good' };
+    case 'back':
+      return { text: pickLang({ zh: '钥匙掉了，回到原来的地方', en: 'The key fell and went back' }), kind: 'bad' };
+    case 'locked':
+      return { text: pickLang({ zh: '🔒 门锁着，先找钥匙', en: '🔒 Locked. Find the key first' }), kind: 'bad' };
+  }
+}

@@ -2,7 +2,7 @@
  * 背景音乐的曲子（11-13）：每个场景一首，全是现场合成（`music.ts`），没有音频文件，旋律都是自己写的。
  * 一首曲子 = 调、和弦（一小节一个，四小节一轮）、几段两小节的旋律、伴奏的节奏型、一套音色和鼓。
  * 难关（13 号往后）是同一个场景的小调版：同样的乐器，更暗、更快、鼓更多。坐不住用小调版，一开始就紧一点。
- * 新场景做好时在这里加一首，`themeFor` 里接上（后厨、雪山 A10 加了；老宅、太空站还没有）。
+ * 新场景做好时在这里加一首，`themeFor` 里接上（后厨、雪山、老宅 A10 加了；太空站还没有）。
  *
  * 写法：一小节 16 格（十六分音符）。
  * - 旋律：一格一个字。`0`–`9` 是音阶里第几个音（0 是主音，五声音阶里 5 是高八度的主音），`a`–`e` 是低八度的 0–4，
@@ -302,11 +302,75 @@ const SNOW_HARD: Theme = {
   swing: 0.06,
 };
 
-export const THEMES: Record<string, Theme> = { table: TABLE, 'table-hard': TABLE_HARD, van: VAN, 'van-hard': VAN_HARD, kitchen: KITCHEN, 'kitchen-hard': KITCHEN_HARD, snow: SNOW, 'snow-hard': SNOW_HARD };
+/**
+ * 老宅找钥匙（A10）：夜里蹑手蹑脚找东西，马林巴领（像敲木头），卡林巴弹（像八音盒），笙铺底，木鱼一下下像老钟在走；
+ * A 羽调五声（A C D E G），和弦里有一个 E 大三（升 G），听着有点悬；一点摇摆，像踮着脚走。
+ */
+const HOUSE: Theme = {
+  id: 'house',
+  name: { zh: '老宅找钥匙', en: 'The Old House' },
+  bpm: [86, 118],
+  root: 57,
+  scale: PENTA_MINOR,
+  // Am | F | Dm | E
+  chords: [
+    { root: 0, tones: [0, 3, 7, 12, 15] },
+    { root: 8, tones: [0, 4, 7, 12, 16] },
+    { root: 5, tones: [0, 3, 7, 12, 15] },
+    { root: 7, tones: [0, 4, 7, 12, 16] },
+  ],
+  melody: [
+    ['0.0.3.....2.1...', '0.1.2.3.4---....'],
+    ['5...4.3.4.3.2...', '3.2.1.2.0---....'],
+    ['0.0.3...5.4.3...', '4.5.6.5.4.3.2...'],
+    ['7.6.5.4.3...2.1.', '2.1.0.1.0---....'],
+  ],
+  arp: { calm: '0...3...2...4...', groove: '0.2.3.2.4.2.3.2.' },
+  bass: { groove: 'r.......f.......', crisis: 'r.r.f.r.r.r.f.o.' },
+  drums: {
+    groove: { kick: 'x.......x.......', perc: 'x...x...x...x...' },
+    crisis: { kick: 'x...x...x...x.x.', snare: '....x.......x...', hat: 'x.o.x.o.x.o.x.o.', tom: '............xxx.', cym: 'x...............' },
+  },
+  lead: 'marimba',
+  arpTone: 'kalimba',
+  pad: 'sheng',
+  kit: 'cny',
+  swing: 0.14,
+};
+
+/** 老宅的难关：C 羽调（C Eb F G Bb），蜡烛快灭了，更急、鼓更密。 */
+const HOUSE_HARD: Theme = {
+  ...HOUSE,
+  id: 'house-hard',
+  name: { zh: '老宅找钥匙 · 难关', en: 'The Old House · Hard' },
+  bpm: [100, 136],
+  root: 60,
+  // Cm | Ab | Bb | G
+  chords: [
+    { root: 0, tones: [0, 3, 7, 12, 15] },
+    { root: 8, tones: [0, 4, 7, 12, 16] },
+    { root: 10, tones: [0, 4, 7, 12, 16] },
+    { root: 7, tones: [0, 4, 7, 12, 16] },
+  ],
+  melody: [
+    ['0.0.1.0.3.2.1...', '0.0.1.2.3---....'],
+    ['5.4.3.4.5.6.5...', '4.3.2.1.2---....'],
+    ['0.3.0.4.0.5.4.3.', '2.3.2.1.0---....'],
+    ['7.6.5.6.4.5.3.4.', '2.3.1.2.0---....'],
+  ],
+  bass: { groove: 'r...r...f...r...', crisis: 'r.r.r.r.f.f.r.o.' },
+  drums: {
+    groove: { kick: 'x.....x.x.......', perc: 'x...x...x...x.x.', snare: '....o.......o...' },
+    crisis: { kick: 'x.x.x.x.x.x.x.x.', snare: '....x.......x.xx', hat: 'xoxoxoxoxoxoxoxo', tom: '........x.x.xxx.', cym: 'x.......x.......' },
+  },
+  swing: 0.08,
+};
+
+export const THEMES: Record<string, Theme> = { table: TABLE, 'table-hard': TABLE_HARD, van: VAN, 'van-hard': VAN_HARD, kitchen: KITCHEN, 'kitchen-hard': KITCHEN_HARD, snow: SNOW, 'snow-hard': SNOW_HARD, house: HOUSE, 'house-hard': HOUSE_HARD };
 
 /** 这一关放哪首：按场景（world），难关和坐不住用小调版。没写的场景先用年夜饭桌。 */
 export function themeFor(level: { world?: string; arena?: boolean }, hard: boolean): Theme {
-  const world = level.world === 'van' || level.world === 'kitchen' || level.world === 'snow' ? level.world : 'table';
+  const world = level.world === 'van' || level.world === 'kitchen' || level.world === 'snow' || level.world === 'house' ? level.world : 'table';
   return THEMES[hard || level.arena ? `${world}-hard` : world] as Theme;
 }
 

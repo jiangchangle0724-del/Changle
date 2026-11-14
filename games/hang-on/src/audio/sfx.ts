@@ -256,6 +256,33 @@ class Sfx {
           }
           break;
         }
+        case 'key': {
+          // 老宅找钥匙（A10）：找到了叮铃铃一串；开锁咔哒一声加两下亮的；掉了回来呼一声；门锁着哐啷哐啷晃两下
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'found') {
+            for (const [k, f] of [1568, 2093, 2637].entries()) this.tone({ freq: f, wave: 'triangle', dur: 0.16, vol: 0.18, pan, delay: k * 0.06 });
+          } else if (ev.phase === 'unlock') {
+            this.noise({ dur: 0.05, vol: 0.25, filter: { type: 'bandpass', freq: 2600, q: 3 }, pan });
+            this.tone({ freq: 180, to: 120, wave: 'square', dur: 0.08, vol: 0.18, pan, lowpass: 1200, delay: 0.05 });
+            this.tone({ freq: 1047, wave: 'sine', dur: 0.25, vol: 0.2, pan, delay: 0.14 });
+            this.tone({ freq: 1568, wave: 'triangle', dur: 0.4, vol: 0.16, pan, delay: 0.22 });
+          } else if (ev.phase === 'back') {
+            this.noise({ dur: 0.35, vol: 0.12, filter: { type: 'bandpass', freq: 900, q: 1, to: 2400 }, attack: 0.05, pan });
+          } else if (this.throttle(`locked${ev.index}`, 1)) {
+            for (let k = 0; k < 2; k++) {
+              this.noise({ dur: 0.06, vol: 0.2, filter: { type: 'bandpass', freq: 1500 + k * 400, q: 4 }, pan, delay: k * 0.14 });
+              this.tone({ freq: 140, to: 100, wave: 'square', dur: 0.06, vol: 0.12, pan, lowpass: 800, delay: k * 0.14 });
+            }
+          }
+          break;
+        }
+        case 'lamp': {
+          // 墙上的灯点着了：噗的一小声，加一点暖的嗡
+          const pan = this.pan(ev.x, ev.y);
+          this.noise({ dur: 0.25, vol: 0.14, filter: { type: 'bandpass', freq: 700, to: 1800, q: 1.2 }, attack: 0.02, pan });
+          this.tone({ freq: 392, to: 523, wave: 'sine', dur: 0.3, vol: 0.12, pan });
+          break;
+        }
         case 'plate': {
           // 踩板门（11-13）：踩下去咔哒一声，抬起来轻一点、高一点
           const pan = this.pan(ev.x, ev.y);

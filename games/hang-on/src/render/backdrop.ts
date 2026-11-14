@@ -4,6 +4,7 @@
  * 温哥华：傍晚的天、雪山、吊桥、楼群的灯、海边的树；冰关下雨。
  * 中餐馆后厨（A10）：白瓷砖墙、调料架、挂着的锅铲和炒锅、一排灶眼的火光，热气往上飘。
  * 雪山缆车（A10）：黄昏里的雪峰、半山的松树和缆车塔架、亮着灯的木屋，一直下雪。
+ * 老宅找钥匙（A10）：月夜，一轮大月亮；远处白墙黛瓦的马头墙，院子里的老梅树、月亮门、透着暖光的窗棂，近处红漆柱子和挂落；萤火虫飘。
  * 剪影全部程序画，每层是一张周期为 P 的图，画两份接起来滚。
  *
  * 远景画（可选）：地址由外面给（`src/render/plates.ts` 找 `games/hang-on/art/<世界>-far.webp`，来源写在 art/README.md），
@@ -23,7 +24,7 @@ interface Layer {
 }
 
 /** 远景画压暗：乘上这个颜色（年夜饭桌偏暖，温哥华偏冷），前面的平台和人才跳得出来。 */
-const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f, snow: 0xa8b2c8 };
+const PLATE_TINT: Record<WorldId, number> = { table: 0xa4968f, van: 0xa0a6bc, kitchen: 0xa69a8f, snow: 0xa8b2c8, house: 0x9a9cb8 };
 /** 远景画显出来以后藏掉的剪影层：最远和中间那层（画里已经有了），只留最近那层压在画前面。 */
 const PLATE_HIDES = [0, 1];
 
@@ -49,6 +50,7 @@ export class Backdrop {
   private rayT = 0;
   private rainT = 0;
   private snowT = 0;
+  private flyT = 0;
   private plate: Sprite | null = null;
   /** 远景画外面套一层：糊一点（景深，A8），糊好的样子存成一张图，镜头动时只挪这层。 */
   private plateC: Container | null = null;
@@ -128,6 +130,7 @@ export class Backdrop {
     this.skyGrad ??= new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.skyTop }, { offset: 1, color: this.pal.skyBottom }] });
     sky.rect(0, 0, W, H).fill(this.skyGrad);
     if (this.world === 'van') this.stars(sky, W, H);
+    if (this.world === 'house') this.moon(sky, W, H);
     const period = Math.max(1600, Math.ceil(W / 100) * 100);
     this.layers.forEach((l, i) => {
       l.period = period;
@@ -136,6 +139,7 @@ export class Backdrop {
         if (this.world === 'table') this.tableLayer(g, i, period, H);
         else if (this.world === 'kitchen') this.kitchenLayer(g, i, period, H);
         else if (this.world === 'snow') this.snowLayer(g, i, period, H);
+        else if (this.world === 'house') this.houseLayer(g, i, period, H);
         else this.vanLayer(g, i, period, H);
       }
       l.g[1].x = period;
@@ -144,11 +148,11 @@ export class Backdrop {
     this.drawRays(W, H);
   }
 
-  /** 几道斜光：年夜饭桌是灯笼的暖光、后厨是灯管下的暖光，温哥华是路灯的冷光。从画面上沿斜着往右下。 */
+  /** 几道斜光：年夜饭桌是灯笼的暖光、后厨是灯管下的暖光，温哥华是路灯的冷光，老宅是月光。从画面上沿斜着往右下。 */
   private drawRays(W: number, H: number): void {
     const g = this.rays.clear();
     const warm = this.world === 'table' || this.world === 'kitchen';
-    const color = warm ? 0xffc27a : 0xa8c8ff;
+    const color = warm ? 0xffc27a : this.world === 'house' ? 0xc8d4ff : 0xa8c8ff;
     const beams = warm ? [0.12, 0.36, 0.63, 0.86] : [0.2, 0.55, 0.82];
     for (const [i, fx] of beams.entries()) {
       const x = fx * W;
@@ -195,6 +199,7 @@ export class Backdrop {
     }
     if (this.world === 'table' || this.world === 'kitchen') this.steam(dt);
     if (this.world === 'snow') this.snowfall(dt);
+    if (this.world === 'house') this.fireflies(dt);
     if (this.rain) this.rainfall(dt);
   }
 
@@ -606,6 +611,159 @@ export class Backdrop {
       const half = w * (0.32 + k * 0.1);
       g.poly([x, top, x + half, bot, x - half, bot]).fill(col);
       if (snowy) g.poly([x - half, bot, x - half * 0.5, bot - h * 0.06, x, bot - h * 0.02, x + half * 0.5, bot - h * 0.06, x + half, bot]).fill({ color: 0xffffff, alpha: 0.6 });
+    }
+  }
+
+  // ---------------------------------------------------------------- 老宅找钥匙（A10）
+
+  /** 月亮：右上角一轮大的，一圈月晕，几颗星。 */
+  private moon(g: Graphics, W: number, H: number): void {
+    const r = rng(77);
+    for (let k = 0; k < 40; k++) g.circle(r() * W, r() * H * 0.5, 0.6 + r() * 1.2).fill({ color: 0xffffff, alpha: 0.25 + r() * 0.5 });
+    const mx = W * 0.78;
+    const my = H * 0.2;
+    const mr = Math.max(38, Math.min(W, H) * 0.07);
+    glow(g, mx, my, mr * 6, '#c8d4ff', 0.16);
+    g.circle(mx, my, mr).fill(0xf4f0dc);
+    // 月亮上几块淡淡的影子
+    for (const [dx, dy, s] of [[-0.3, -0.2, 0.22], [0.25, 0.15, 0.3], [-0.05, 0.4, 0.16]] as const) g.circle(mx + dx * mr, my + dy * mr, s * mr).fill({ color: 0xd8d2b8, alpha: 0.55 });
+  }
+
+  private houseLayer(g: Graphics, i: number, P: number, H: number): void {
+    const r = rng(700 + i);
+    const pal = this.pal;
+    if (i === 0) {
+      // 远处：一排白墙黛瓦的马头墙（墙头一级级往上的阶梯，每级顶上一道黛瓦，两头翘起来）
+      const base = H * 0.74;
+      const col = hex(pal.far);
+      let x = -60;
+      while (x < P + 60) {
+        const w = 180 + r() * 220;
+        const top = base - 120 - r() * 130;
+        const step = 26;
+        const xs = [x, x + w * 0.16, x + w * 0.32, x + w * 0.68, x + w * 0.84, x + w];
+        const ys = [top + step * 2, top + step, top, top, top + step, top + step * 2];
+        // 墙面：月光下青白，压暗
+        g.moveTo(x, H);
+        for (let k = 0; k < 5; k++) g.lineTo(xs[k] as number, ys[k] as number).lineTo(xs[k + 1] as number, ys[k] as number);
+        g.lineTo(x + w, H).closePath().fill({ color: 0x9aa2c4, alpha: 0.3 });
+        // 墙头的黛瓦：每一级一条，两头翘
+        for (let k = 0; k < 5; k++) {
+          const x0 = (xs[k] as number) - 6;
+          const x1 = (xs[k + 1] as number) + 6;
+          const y = ys[k] as number;
+          g.rect(x0, y - 7, x1 - x0, 9).fill(col);
+          g.poly([x0, y - 7, x0 - 5, y - 13, x0 + 6, y - 7]).fill(col);
+          g.poly([x1, y - 7, x1 + 5, y - 13, x1 - 6, y - 7]).fill(col);
+        }
+        // 墙上一扇小窗
+        if (r() > 0.4) g.rect(x + w * 0.45, top + 40, w * 0.1, 26).fill({ color: col, alpha: 0.8 });
+        x += w + 20 + r() * 60;
+      }
+      g.rect(-10, base, P + 20, H - base).fill(col);
+    } else if (i === 1) {
+      // 院子对面：一溜屋子，翘角的屋檐，窗棂里透着暖光；一个月亮门；一棵老梅树开着白花
+      const col = hex(pal.mid);
+      const hy = H * 0.8;
+      g.rect(-10, hy, P + 20, H - hy).fill(col);
+      const eave = H * 0.42;
+      g.rect(-10, eave + 26, P + 20, hy - eave - 26).fill({ color: col, alpha: 0.85 });
+      // 屋檐：一道厚的黛瓦，底边一排瓦当的小半圆
+      g.rect(-10, eave, P + 20, 26).fill(col);
+      for (let x = 0; x < P + 20; x += 22) g.circle(x, eave + 26, 7).fill(col);
+      // 几扇窗：暖光，一格格的窗棂
+      for (const f of [0.08, 0.3, 0.56, 0.86]) {
+        const wx = f * P;
+        const wy = eave + 70;
+        const ww = 120;
+        const wh = 90;
+        glow(g, wx + ww / 2, wy + wh / 2, 180, pal.lampOn, 0.22);
+        g.rect(wx, wy, ww, wh).fill({ color: hex(pal.lampOn), alpha: 0.55 });
+        for (let k = 1; k < 6; k++) g.moveTo(wx + (ww * k) / 6, wy).lineTo(wx + (ww * k) / 6, wy + wh);
+        for (let k = 1; k < 4; k++) g.moveTo(wx, wy + (wh * k) / 4).lineTo(wx + ww, wy + (wh * k) / 4);
+        g.stroke({ width: 3, color: col });
+        g.rect(wx, wy, ww, wh).stroke({ width: 6, color: col });
+      }
+      // 月亮门：白墙上一个圆洞，洞里是更远的院子（亮一点）
+      const gx = 0.72 * P;
+      const gy = hy - 90;
+      g.rect(gx - 120, eave + 26, 240, hy - eave - 26).fill({ color: 0xa8aecb, alpha: 0.16 });
+      g.circle(gx, gy, 78).fill({ color: hex(pal.skyBottom), alpha: 0.9 });
+      g.circle(gx, gy, 78).stroke({ width: 6, color: col });
+      // 老梅树：弯弯曲曲几根枝，枝头几朵白梅
+      const tx = 0.18 * P;
+      const branches: number[][] = [];
+      const grow = (x: number, y: number, a: number, len: number, depth: number): void => {
+        const x1 = x + Math.cos(a) * len;
+        const y1 = y + Math.sin(a) * len;
+        g.moveTo(x, y).lineTo(x1, y1).stroke({ width: Math.max(2, depth * 3.2), color: col, cap: 'round' });
+        if (depth <= 1) {
+          branches.push([x1, y1]);
+          return;
+        }
+        grow(x1, y1, a - 0.35 - r() * 0.4, len * (0.62 + r() * 0.2), depth - 1);
+        grow(x1, y1, a + 0.3 + r() * 0.45, len * (0.55 + r() * 0.2), depth - 1);
+      };
+      grow(tx, hy, -Math.PI / 2 - 0.15, 110, 4);
+      for (const [bx, by] of branches) {
+        for (let k = 0; k < 3; k++) g.circle((bx as number) + (r() - 0.5) * 24, (by as number) + (r() - 0.5) * 20, 3.5 + r() * 2).fill({ color: 0xfff2f4, alpha: 0.85 });
+      }
+    } else {
+      // 近处：红漆柱子，柱子之间上头一道木雕的挂落；两盏红灯笼
+      const col = hex(pal.near);
+      const red = 0x3a1620;
+      for (const f of [0.02, 0.5]) {
+        const px = f * P;
+        g.rect(px, 0, 34, H).fill({ color: red, alpha: 0.75 });
+        g.rect(px + 5, 0, 6, H).fill({ color: 0xffffff, alpha: 0.04 });
+        g.rect(px - 8, H * 0.9, 50, H * 0.1).fill(col);
+      }
+      // 挂落：一道横梁，底下一排回纹格子
+      g.rect(-10, 0, P + 20, 22).fill(col);
+      for (let x = 0; x < P; x += 36) {
+        g.rect(x + 4, 22, 28, 18).stroke({ width: 3, color: col });
+        g.rect(x + 12, 28, 12, 6).stroke({ width: 2, color: col });
+      }
+      for (const f of [0.26, 0.74]) {
+        const lx = f * P;
+        const ly = 110 + r() * 40;
+        g.moveTo(lx, 40).lineTo(lx, ly - 30).stroke({ width: 2, color: col });
+        glow(g, lx, ly, 120, '#ff7a4f', 0.28);
+        g.ellipse(lx, ly, 26, 30).fill(0xc8302c);
+        g.ellipse(lx, ly, 12, 30).stroke({ width: 1.5, color: 0x7a1414, alpha: 0.7 });
+        g.rect(lx - 12, ly - 34, 24, 6).fill(0x2a1a14);
+        g.rect(lx - 12, ly + 28, 24, 6).fill(0x2a1a14);
+        g.moveTo(lx, ly + 34).lineTo(lx, ly + 54).stroke({ width: 3, color: 0xd8a03c });
+      }
+      // 几团月光的光斑
+      for (let k = 0; k < 5; k++) {
+        const x = r() * P;
+        const y = H * (0.3 + r() * 0.5);
+        const rad = 40 + r() * 70;
+        for (let s = 0; s < 3; s++) g.circle(x, y, rad * (1 - s * 0.3)).fill({ color: hex(pal.haze), alpha: 0.015 + s * 0.01 });
+      }
+    }
+  }
+
+  /** 萤火虫：几只小绿光慢慢飘，一闪一闪（院子里）。 */
+  private fireflies(dt: number): void {
+    this.flyT += dt;
+    const every = 0.5;
+    while (this.flyT >= every) {
+      this.flyT -= every;
+      this.fx.burst({
+        x: Math.random() * this.W,
+        y: this.H * (0.35 + Math.random() * 0.55),
+        n: 1,
+        texture: 'puff',
+        colors: [0xd8ff8a, 0xfff2a0],
+        speed: [8, 26],
+        angle: -Math.PI / 2 + (Math.random() - 0.5) * 2,
+        spread: 1,
+        life: [3, 5],
+        size: [10, 16],
+        alpha: 0.7,
+      });
     }
   }
 
