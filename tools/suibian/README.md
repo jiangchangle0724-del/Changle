@@ -79,9 +79,24 @@ what's left: walking, the nearest; inside a drive, smaller circles turned a diff
 time; for any distance, other neighbourhoods picked at random. A search that fails doesn't lose the
 others. Everything those searches find that is open and within budget is on the list, in a fixed
 order: the same places give the same ranking (no random nudge, no "seen lately"; both went with the
-list, 2026-11-11). A place's cuisine comes from Google's primary type when that says enough, then
-from its name (JOEY, Cactus Club and Earls are American, 兰州拉面 is Northern Chinese), then from its
-other Google types; a Text Search's results Google only calls "Chinese" take that search's cuisine.
+list, 2026-11-11).
+
+**What a place is** (`cuisineGuess()` in `src/engine/cuisines.ts`). Steve, 2026-11-13: a table that
+wanted 中式烧烤 · 串串 got Earls and Cactus Club before The Meat Up BBQ, an all-you-can-eat skewer
+and hot pot place: nothing in its English name said skewers, and Google's "barbecue restaurant"
+counted as steak. Now a place's cuisine comes from its Google types, its name and Google's
+descriptions of it together, and a place can be more than one (`also`): The Meat Up is hot pot and
+Chinese barbecue, a Cantonese seafood restaurant is seafood too, Kintaro Ramen is ramen and
+Japanese. Round 1's 👍 and 🚫 count for every cuisine a place is, so whoever liked either finds it
+first, and its card names the one they liked first ("🍢 中式烧烤 · 串串、火锅"); allergies are checked
+for each of them. Google's main type decides unless the name says something more specific (海港酒家
+is Cantonese though Google calls it a seafood restaurant; JOEY, Cactus Club and Earls are American;
+兰州拉面 is Northern Chinese, not ramen). Types that mean different food in different kitchens are read
+with the name, the other types and the description: "barbecue" is Korean, Japanese yakiniku, Chinese
+skewers or Cantonese roast meats (烧腊), or American; "seafood" at a Chinese place is Cantonese. When
+nothing says what it is (a "Chinese restaurant" called Golden Spot, a barbecue place with an English
+name), a Text Search for a cuisine that finds it decides, whichever search found it first.
+`KNOWN` in `tests/engine.test.ts` has real Greater Vancouver names for every cuisine on the menu.
 
 **What it's for** (`src/engine/occasion.ts`). Steve, 2026-11-11: a business dinner put a 4.5★ bagel
 shop first. Each occasion now weighs everything we know about a place, a Google star being worth

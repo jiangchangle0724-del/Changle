@@ -218,4 +218,11 @@ export const AVOID_GENERIC: Record<AllergenId, Text> = {
   gluten: { zh: "面、饺子、面包、炸物的外皮和酱油里都有小麦，点的时候说一声。", en: "Noodles, dumplings, bread, batter and soy sauce all have wheat: mention it when ordering." },
 };
 
-export const avoidTip = (a: AllergenId, c: CuisineId): Text => AVOID_TIPS[a]?.[c] ?? AVOID_GENERIC[a];
+/** What someone who doesn't eat `a` can still order there: the first of a place's cuisines with a tip of its own. */
+export function avoidTip(a: AllergenId, c: CuisineId | readonly CuisineId[]): Text {
+  for (const x of typeof c === "string" ? [c] : c) {
+    const tip = AVOID_TIPS[a]?.[x];
+    if (tip) return tip;
+  }
+  return AVOID_GENERIC[a];
+}
