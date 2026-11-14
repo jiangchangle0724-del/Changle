@@ -4,10 +4,12 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
-import { makeCode } from "../src/engine/ids";
+import testShopAddress from "../migrations/0003_test_shop_address.sql";
+import { makeCode, SLUG_RE } from "../src/engine/ids";
 import { ORDERS_PER_PHONE } from "../src/engine/order";
 import { vancouverDay } from "../src/engine/time";
 import { networkOf, sha256 } from "../src/server/gate";
+import { statements } from "../src/server/schema";
 import type { Notice } from "../src/server/mail";
 import { whoKey } from "../src/server/who";
 import worker from "../src/server/worker";
@@ -443,6 +445,21 @@ describe("a shop's own page", () => {
     expect(Object.keys(shop.data.offers[0]).sort()).toEqual(["closesAt", "id", "state", "title"]);
     expect(said(await get(`/shops/no-such-shop`))).toBe("404 notfound");
     expect(said(await get(`/shops/Not%20A%20Shop`))).toBe("404 notfound");
+  });
+
+  it("of the test shop isn't at the address written in this repository (migrations/0003)", async () => {
+    // the Worker applied the file to an empty table; here it meets a shop at that address
+    const at = await start();
+    await env.DB.prepare("UPDATE shops SET slug = 'damituan-test' WHERE slug = ?").bind(at.slug).run();
+    expect(said(await get(`/shops/damituan-test`))).toBe("ok");
+    for (const sql of statements(testShopAddress)) await env.DB.prepare(sql).run();
+    expect(said(await get(`/shops/damituan-test`))).toBe("404 notfound");
+    const slug = (await get<OfferPage>(`/offers/${at.id}`)).data.shop.slug;
+    expect(slug).toMatch(/^damituan-test-[0-9a-f]{8}$/);
+    expect(SLUG_RE.test(slug)).toBe(true);
+    // the same shop: its group buy, at the same link, and its people
+    expect((await get<ShopPage>(`/shops/${slug}`)).data.offers.map((one) => one.id)).toEqual([at.id]);
+    expect(said(await get(`/my/shops/${slug}`, { session: SESSION.leader }))).toBe("ok");
   });
 
   it("isn't there while the shop waits to be let in, and says so while it's paused", async () => {
