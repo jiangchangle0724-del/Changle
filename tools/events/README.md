@@ -10,8 +10,12 @@ Vancouver calendar, the Vancouver and Richmond public libraries' events (handed 
 anyone can walk into: open to all or the community, in person on the Vancouver campus), and
 Ticketmaster once its key is set; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
 `/go/api/events` and `/go/api/status` answer, and `/go/preview` shows what's published day by day
-(in Chinese, or English with `?lang=en`; not linked from anywhere and not indexed) to check the run by eye. Still to come: Chinese summaries (A3), duplicates across sources (A4), more sources, the
-calendar feed and the page itself (`/go` says "coming soon" until gate A is passed).
+(in Chinese, or English with `?lang=en`; not linked from anywhere and not indexed) to check the run by eye.
+The page itself is at `/go` (src/page.ts), on the Tools tab of changle.ca since 14 November (Steve's
+call, ahead of gate A): one day at a time, by category, area and price, in Chinese or English, with
+the calendar feed (`/go/api/events.ics`) to subscribe to; search engines are asked to leave it out
+until it's promoted. Still to come: Chinese summaries (A3), duplicates across sources (A4), more
+sources.
 
 The library pieces C4, C5, C9 and C12 are in (Codex, reviewed 1 November). What their reviews
 left for A4, the dedupe step:
