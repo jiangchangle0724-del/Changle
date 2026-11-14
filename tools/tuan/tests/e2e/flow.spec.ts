@@ -10,6 +10,9 @@ import { SESSION } from "../accounts.ts";
 import { offerDoc } from "../sample.ts";
 import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, putAway, sheets, start, word } from "./help.ts";
 
+/** WeChat's browser on an iPhone that is set to English (WeChat says its own language at the end). */
+const WECHAT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50(0x18003200) NetType/WIFI Language/en";
+
 test.afterEach(putAway);
 
 const add = (page: Page, name: string) => page.getByRole("button", { name: `加一份 ${name}` }).click();
@@ -362,6 +365,30 @@ test("in English, and the choice stays", async ({ browser, request }) => {
   await expect(page.locator(".chip")).toHaveText(["Waiting for the merchant", "No. 1", "Not paid yet"]);
   await page.getByRole("button", { name: "中文" }).click();
   await expect(page.locator(".chip")).toHaveText(["待商家确认", "第 1 位", "未付款"]);
+});
+
+test("in WeChat it starts in Chinese, whatever language the phone is in; a choice made there stays", async ({ browser, request }) => {
+  const { url } = await start(request);
+  // a phone set to English: English in its own browser…
+  const browserPage = await phone(browser, { locale: "en-US" });
+  await browserPage.goto(url);
+  await expect(browserPage.locator("html")).toHaveAttribute("lang", "en");
+  await expect(browserPage.locator(".state")).toContainText("Closes");
+  // …and Chinese in WeChat, the merchant's pages too
+  const wechat = await phone(browser, { locale: "en-US", userAgent: WECHAT });
+  await wechat.goto(url);
+  await expect(wechat.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(wechat.locator(".state")).toContainText("截单");
+  await expect(wechat).toHaveTitle(/跟一单$/);
+  await wechat.goto("/tuan/my");
+  await expect(wechat.locator(".panel-title")).toHaveText("商家请先登录");
+  // the switch still works there, and what was chosen stays
+  await wechat.goto(url);
+  await wechat.getByRole("button", { name: "English" }).click();
+  await expect(wechat.locator("html")).toHaveAttribute("lang", "en");
+  await wechat.reload();
+  await expect(wechat.locator("html")).toHaveAttribute("lang", "en");
+  await expect(wechat.locator(".state")).toContainText("Closes");
 });
 
 test("a group buy that has closed, one that isn't public yet, and addresses that are nothing", async ({ browser, request }) => {
