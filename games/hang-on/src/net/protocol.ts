@@ -160,6 +160,40 @@ export interface Results {
   order?: [number, number | null][];
 }
 
+/**
+ * 手柄当遥控（11-13 Steve：「手机或者电脑投屏那边不做任何控制，只是提供大屏幕展示」）：
+ * 开局、选玩法、选关、下一关、再来一次、回大厅都能在手柄上按，谁按都行，主机照做（和在主机页上点一样）。
+ */
+export type PadCmd =
+  | { do: 'start' }
+  | { do: 'again' }
+  | { do: 'next' }
+  | { do: 'lobby' }
+  | { do: 'level'; d: -1 | 1 }
+  | { do: 'mode'; mode: GameMode }
+  | { do: 'teams'; on: boolean };
+
+/** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
+export interface Menu {
+  phase: Phase;
+  mode: GameMode;
+  /** 大厅里能选的玩法（大团队有大关才有）。 */
+  modes: GameMode[];
+  /** 比谁先分两队。 */
+  teams: boolean;
+  /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）。 */
+  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string } };
+  players: number;
+  /** 这个玩法至少几个人。 */
+  min: number;
+  canStart: boolean;
+  hasNext: boolean;
+  /** 结算页（结算的时候才有）：数，和每个人的名字、颜色，这一关的标准用时。 */
+  results?: Results;
+  names?: { name: string; color: string }[];
+  par?: number;
+}
+
 /** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */
 export interface Cast {
   /** 收的这部手机是第几个人。 */
@@ -189,6 +223,10 @@ export type LinkMsg =
   | { k: 'look'; look: Look }
   /** 手柄选的道具（A9），和样子一样只走房间（要可靠），连上时发一次、改了再发。 */
   | { k: 'item'; item: ItemId }
+  /** 手柄当遥控：按了开始、下一关……（走房间，要可靠）。 */
+  | { k: 'cmd'; c: PadCmd }
+  /** 主机给手柄的菜单（走房间）。 */
+  | { k: 'menu'; m: Menu }
   | { k: 'sdp'; sdp: { type: 'offer' | 'answer'; sdp: string } }
   | { k: 'ice'; ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null }
   | { k: 'ping'; id: number; at: number }

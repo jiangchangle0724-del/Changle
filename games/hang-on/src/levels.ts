@@ -4,7 +4,7 @@
  * 每种玩法有自己的一串（`levelsFor`）：闯关和比谁先用这一串，大团队用 levels/team/ 里的大关（C9），
  * 坐不住用场地（src/physics/arenas.ts）。
  */
-import { pickLang, tr } from './i18n';
+import { pickLang } from './i18n';
 import { arenaLevels } from './physics/arenas';
 import { machinesLevel, sampleLevel, showcaseLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
@@ -69,13 +69,18 @@ const HARD: Record<string, { zh: string; en: string }> = {
   gauntlet: { zh: '连环机关', en: 'Gauntlet' },
 };
 
-export function teachLabel(l: Level): string {
-  if (l.arena) return tr('平台一块块塌，一个地方抓久了手会滑', 'Platforms crumble one by one, and hands slip if you hang on too long');
-  if (!l.teaches) return '';
+/** 「这关教：…」「难关：…」，中英两套（手柄当遥控时发给手机，手机按自己的语言显示）。 */
+export function teachText(l: Level): { zh: string; en: string } {
+  if (l.arena) return { zh: '平台一块块塌，一个地方抓久了手会滑', en: 'Platforms crumble one by one, and hands slip if you hang on too long' };
+  if (!l.teaches) return { zh: '', en: '' };
   const h = HARD[l.teaches];
-  if (h) return tr(`难关：${h.zh}`, `Hard level: ${h.en}`);
+  if (h) return { zh: `难关：${h.zh}`, en: `Hard level: ${h.en}` };
   const t = TEACHES[l.teaches];
-  return tr(`这关教：${t?.zh ?? l.teaches}`, `This level teaches: ${t?.en ?? l.teaches}`);
+  return { zh: `这关教：${t?.zh ?? l.teaches}`, en: `This level teaches: ${t?.en ?? l.teaches}` };
+}
+
+export function teachLabel(l: Level): string {
+  return pickLang(teachText(l));
 }
 
 /** 关卡给人看的名字（当前语言）。 */

@@ -12,7 +12,7 @@ import type { Change } from "./changes";
 import type { Ledger } from "./core";
 import { net } from "./net";
 import { dropHeld, everyHeld, heldOf, keepHeld, newId, newKey, write } from "./store";
-import { hold, holds, shown } from "./sync";
+import { hold, holds, join, shown } from "./sync";
 import { syncer, type Syncer, type SyncState } from "./syncer";
 
 type Running = { syncer: Syncer; state: SyncState; watchers: number };
@@ -104,6 +104,43 @@ export function watch(id: string): () => void {
     // (a moment later, for the same reason: the page may only be redrawing itself)
     window.setTimeout(() => r.watchers === 0 && r.syncer.watch(false));
   };
+}
+
+/**
+ * The list of ledgers is on the screen: ask the server where each one stands, now and whenever the
+ * page comes back to the front, so a card says what you owe after what others recorded. Returns
+ * how to stop (the list is left).
+ */
+export function browse(): () => void {
+  const lookAll = () => {
+    for (const h of everyHeld()) run(h.server.id)?.syncer.look();
+  };
+  const onBack = () => {
+    if (document.visibilityState === "visible") lookAll();
+  };
+  lookAll();
+  document.addEventListener("visibilitychange", onBack);
+  return () => document.removeEventListener("visibilitychange", onBack);
+}
+
+/** How opening an invitation went: the phone holds the ledger now; or the link's key doesn't open it; or the ledger is gone; or nothing answered. */
+export type Joined = "in" | "key" | "gone" | "away";
+
+/**
+ * Someone opened an invitation: a ledger's id, and the key that opens it. The ledger is read from
+ * the server with that key, and from then on this phone holds it like any other (who its owner is
+ * among the people in it isn't known yet: the ledger's page asks).
+ */
+export async function joinLedger(id: string, key: string): Promise<Joined> {
+  if (heldOf(id)) return "in";
+  const got = await net.read(id, key);
+  // (an answer about some other ledger is no answer: only the one asked for is kept)
+  if (got.status === 200 && got.data?.ledger.id === id) {
+    // (not twice: another tab may have opened the same invitation meanwhile)
+    if (!heldOf(id)) keepHeld(join(got.data, key));
+    return "in";
+  }
+  return got.status === 403 ? "key" : got.status === 404 ? "gone" : "away";
 }
 
 /** A new ledger, held on this phone from this moment and made on the server as soon as it can be reached. */

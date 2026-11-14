@@ -2,6 +2,7 @@
 // move a place down the list and say what can still be ordered there (the owner's call, 2026-11-11:
 // show everything in range and budget, ranked). The table's limits are the union of everyone's,
 // and nobody's name is attached.
+import { cuisinesOf } from "./cuisines";
 import type { AllergenId, AllergyLevel, Budget, CuisineId, CustomItem, Limits, Place, Text } from "./types";
 
 export const ALLERGENS: Record<AllergenId, Text> = {
@@ -134,20 +135,24 @@ export interface Verdict {
   concerns: Concern[];
 }
 
-/** May this table go to this place, and what should the card warn about? */
+/**
+ * May this table go to this place, and what should the card warn about? A place that is more than
+ * one cuisine (a Cantonese seafood restaurant) is checked as each of them.
+ */
 export function check(place: Place, l: Limits): Verdict {
   const warnings: Warning[] = [];
   const concerns: Concern[] = [];
+  const kinds = cuisinesOf(place);
   for (const [a, level] of Object.entries(l.allergies) as [AllergenId, AllergyLevel][]) {
     warnings.push({ k: "allergy", allergen: a, level });
-    if (COMMON_IN[a]?.includes(place.cuisine)) concerns.push({ k: "allergy", allergen: a, level });
+    if (kinds.some((c) => COMMON_IN[a]?.includes(c))) concerns.push({ k: "allergy", allergen: a, level });
   }
   for (const c of l.custom) warnings.push({ k: "custom", name: c.name, level: c.level });
   if (place.cuisine === "other" && Object.values(l.allergies).includes("severe")) warnings.push({ k: "unknownCuisine" });
-  if (l.halal && place.halal !== "yes") concerns.push({ k: "halal", likely: HALAL_LIKELY.includes(place.cuisine) });
+  if (l.halal && place.halal !== "yes") concerns.push({ k: "halal", likely: kinds.some((c) => HALAL_LIKELY.includes(c)) });
   if (l.vegetarian) {
     if (place.veg === false) concerns.push({ k: "veg", known: true });
-    else if (place.veg === undefined && !VEG_FRIENDLY.includes(place.cuisine)) concerns.push({ k: "veg", known: false });
+    else if (place.veg === undefined && !kinds.some((c) => VEG_FRIENDLY.includes(c))) concerns.push({ k: "veg", known: false });
   }
   if (l.budget) {
     if (place.price === undefined) warnings.push({ k: "priceUnknown" });

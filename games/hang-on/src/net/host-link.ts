@@ -13,6 +13,8 @@ import {
   type FatalKey,
   type HostAction,
   type LinkMsg,
+  type Menu,
+  type PadCmd,
   type PadInput,
   type PadStatus,
   type RelayTo,
@@ -52,6 +54,8 @@ export interface HostLinkEvents {
   onInput?(peer: PadPeer, input: PadInput): void;
   onLook?(peer: PadPeer, look: Look): void;
   onItem?(peer: PadPeer, item: ItemId): void;
+  /** 手柄当遥控：按了开始、下一关……。 */
+  onCmd?(peer: PadPeer, cmd: PadCmd): void;
   onFatal?(key: FatalKey): void;
   onSocket?(open: boolean): void;
 }
@@ -118,6 +122,13 @@ export class HostLink {
     this.relay(seat, { k: 'cast', c });
   }
 
+  /** 给一个手柄发菜单（开局、选关、结算）。要可靠，走房间。 */
+  menu(seat: string, m: Menu): void {
+    const p = this.peers.get(seat);
+    if (!p || !p.connected) return;
+    this.relay(seat, { k: 'menu', m });
+  }
+
   /** 关掉一切（离开页面）。 */
   close(): void {
     clearInterval(this.pingTimer);
@@ -182,6 +193,9 @@ export class HostLink {
       case 'item':
         p.item = cleanItem(data.item);
         this.ev.onItem?.(p, p.item);
+        return;
+      case 'cmd':
+        if (data.c && typeof data.c === 'object') this.ev.onCmd?.(p, data.c);
         return;
       case 'sdp':
         if (data.sdp.type === 'answer' && p.pc) void this.acceptAnswer(p.pc, data.sdp);

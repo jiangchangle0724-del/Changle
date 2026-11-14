@@ -211,6 +211,69 @@
   justify-self: start;
 }
 
+/* ---------- an invitation: the code to scan, and what the link lets someone do ---------- */
+.split-invite {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+.split-invite p {
+  margin: 0;
+  line-height: var(--leading);
+  text-wrap: balance;
+}
+.split-invite-who {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+/* a sentence stays whole while there is room for it (parts.tsx, Sentences) */
+.split-sentence {
+  display: inline-block;
+  text-wrap: balance;
+}
+/* the shared empty state's words, on 两清's pages: no line left with a word or two on it */
+.split-page .ui-empty-body {
+  text-wrap: balance;
+}
+/* the code is night on paper, with paper all round it: a scanner needs the quiet edge */
+.split-qr {
+  width: calc(var(--space-12) * 4 + var(--space-8));
+  max-width: 100%;
+  padding: var(--space-4);
+  border-radius: var(--r-field);
+  background: var(--color-paper);
+}
+.split-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  fill: var(--color-bg);
+}
+/* "which one are you?": the page an invitation opens on. The question, the names to tap, a way to
+   add yourself, and at the foot a quiet way past for someone who only wants a look */
+.split-who {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--space-4);
+}
+.split-who > .split-people {
+  margin-top: 0;
+}
+.split-who > .ui-button {
+  align-self: center;
+  margin-top: auto;
+}
+/* a ledger on its way from the server: the shape of the page it is about to be */
+.split-arriving {
+  display: grid;
+  gap: var(--space-6);
+  padding-top: var(--space-6);
+}
+
 /* ---------- a ledger: where you stand, then what was paid ---------- */
 .split-panel {
   display: flex;
@@ -698,6 +761,10 @@ label.split-field:focus-within {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
+}
+/* two side by side on a narrow phone: an icon and four characters stay on one line */
+.split-pair .ui-button {
+  padding-inline: var(--space-3);
 }
 
 /* ---------- people, in the sheets: who paid, who shares, who is in the ledger ---------- */

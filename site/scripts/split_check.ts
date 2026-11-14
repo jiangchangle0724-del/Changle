@@ -12,7 +12,9 @@
  *   npx tsx scripts/split_check.ts behave   the back button, links, a reload, two tabs, a browser that stores
  *                                           nothing, one without the clipboard, a real keyboard, the three motions;
  *                                           no signal and back, two phones on one ledger, a change that didn't
- *                                           stick, a day's allowance used up, an answer that isn't the server's
+ *                                           stick, a day's allowance used up, an answer that isn't the server's;
+ *                                           an invitation sent and opened (as a chat app hands it over, too),
+ *                                           ones that don't get in, the list asking after its ledgers
  *
  * Options: --base http://127.0.0.1:5173 (a build: `npx vite preview`, then --base http://127.0.0.1:4173),
  * --out <folder for the pictures>. CHROME=/path/to/chrome uses that browser, else Playwright's own
@@ -90,7 +92,8 @@ const speak = (ctx: BrowserContext, lang: Lang) =>
     if (!localStorage.getItem("lazysusan.settings.v1")) localStorage.setItem("lazysusan.settings.v1", settings);
   }, JSON.stringify({ lang, players: [], sound: false, music: false, customPenalty: "" }));
 const re = (s: string) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-const closed = (page: Page) => page.getByRole("dialog").waitFor({ state: "hidden" });
+/** Every sheet is shut (one sheet opening another leaves two open for a moment). */
+const closed = (page: Page) => page.waitForFunction(`!document.querySelector("dialog[open]")`);
 const key = (page: Page, d: string) => page.locator(".split-key", { hasText: new RegExp(`^${d === "." ? "\\." : d}$`) }).click();
 const type = async (page: Page, digits: string) => {
   for (const d of digits) await key(page, d);
@@ -110,13 +113,13 @@ async function walk(lang: Lang, width: number, height: number) {
   const button = (k: Word) => page.getByRole("button", { name: t(k), exact: true });
 
   let shots = 0;
-  const shot = async (name: string) => {
+  const shot = async (name: string, on: Page = page) => {
     shots++;
-    await page.waitForTimeout(350);
-    await page.screenshot({ path: join(out, `${name}-${lang}-${width}x${height}.png`) });
-    const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    await on.waitForTimeout(350);
+    await on.screenshot({ path: join(out, `${name}-${lang}-${width}x${height}.png`) });
+    const results = await new AxeBuilder({ page: on }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     for (const v of results.violations) for (const n of v.nodes) findings.push(`${name}: axe ${v.impact} ${v.id} ${JSON.stringify(n.target)}`);
-    const wide = await page.evaluate(() => {
+    const wide = await on.evaluate(() => {
       const w = document.documentElement.clientWidth;
       const found: string[] = [];
       for (const el of document.querySelectorAll<HTMLElement>("body *")) {
@@ -126,7 +129,7 @@ async function walk(lang: Lang, width: number, height: number) {
       return { scroll: document.documentElement.scrollWidth - w, found: found.slice(0, 4) };
     });
     if (wide.scroll > 0 || wide.found.length) findings.push(`${name}: wider than the phone by ${wide.scroll}px ${wide.found.join(" | ")}`);
-    const small = await page.evaluate(() => {
+    const small = await on.evaluate(() => {
       const found: string[] = [];
       const top = document.querySelector("dialog[open]") ?? document.body;
       for (const el of top.querySelectorAll<HTMLElement>("button, a[href], input, [role=radio], [role=checkbox], [role=tab]")) {
@@ -227,9 +230,37 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("11c-plan-copied");
   ok((await page.evaluate(() => navigator.clipboard.readText())).split("\n").length === 5, `${lang} ${width}x${height}: 复制结清方案 copies the name and four transfers`);
 
-  // the ⋯ sheet and the people
+  // the ⋯ sheet: the invitation, then the people
   await button("more").click();
   await shot("13-menu");
+  await page.getByRole("button", { name: re(t("invite")) }).click();
+  await page.getByRole("dialog").getByText(local ? t("inviteHow").split("\n")[0] : t("inviteNotYet")).waitFor();
+  await shot("13c-invite");
+  let invitation = "";
+  if (local) {
+    await page.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+    await shot("13d-invite-copied");
+    invitation = (await page.evaluate(() => navigator.clipboard.readText())).split("\n").pop() ?? "";
+    ok(/\/split\/[A-Za-z0-9_-]{22}#k=[A-Za-z0-9_-]{43}$/.test(invitation), `${lang} ${width}x${height}: 复制邀请链接 copies the ledger's address with its key after the #`);
+  }
+  await page.keyboard.press("Escape");
+  await closed(page);
+  if (local) {
+    // as a phone shows it: phones have a share sheet of their own, which this browser doesn't, so two buttons sit side by side
+    await page.evaluate("navigator.share = async () => {}");
+    await button("more").click();
+    await page.getByRole("button", { name: re(t("invite")) }).click();
+    await page.getByRole("dialog").getByRole("button", { name: t("sendInvite"), exact: true }).waitFor();
+    await shot("13e-invite-phone");
+    await page.getByRole("dialog").getByRole("button", { name: t("copyLink"), exact: true }).click();
+    await shot("13f-invite-phone-copied");
+    const tall = await page.evaluate(`[...document.querySelectorAll("dialog[open] .split-pair .ui-button")].map((b) => b.getBoundingClientRect().height)`) as number[];
+    ok(tall.length === 2 && tall.every((h) => h < 56), `${lang} ${width}x${height}: 复制链接 and 发给朋友 sit side by side, each on one line (${tall.map(Math.round).join(", ")}px tall)`);
+    await page.evaluate("delete navigator.share");
+    await page.keyboard.press("Escape");
+    await closed(page);
+  }
+  await button("more").click();
   await page.getByRole("button", { name: re(t("members")) }).click();
   await page.getByRole("dialog").getByText(t("addPerson")).waitFor();
   await shot("15-people");
@@ -338,6 +369,54 @@ async function walk(lang: Lang, width: number, height: number) {
     await ctx.unroute("**/split/api/ledgers");
     await button("back").click();
     await button("start").waitFor();
+
+    // someone else's phone, opening the invitation: asked which one they are, then in
+    const guest = await phone(width, height, lang);
+    await speak(guest, lang);
+    const theirs = await guest.newPage();
+    watch(theirs, true);
+    let hold = false;
+    await guest.route(API, async (route) => {
+      // (held back while the page that waits for the server is looked at)
+      while (hold) await new Promise((r) => setTimeout(r, 100));
+      await route.fallback();
+    });
+    hold = true;
+    await theirs.goto(invitation);
+    await theirs.locator(".ui-skeleton-slow").waitFor({ timeout: 5000 });
+    await shot("29-joining", theirs);
+    hold = false;
+    await theirs.locator(".split-who").waitFor();
+    await shot("29b-who", theirs);
+    await theirs.locator("#split-add-me").fill("Jason");
+    await shot("29c-who-listed", theirs);
+    await theirs.locator("#split-add-me").fill("Wilhelmina Featherstone");
+    await shot("29d-who-new", theirs);
+    await theirs.getByRole("button", { name: t("justLook"), exact: true }).click();
+    await theirs.locator(".split-rows").first().waitFor();
+    await shot("29e-just-looking", theirs);
+    await theirs.reload();
+    await theirs.locator(".split-who").getByRole("button", { name: re("小王") }).click();
+    await theirs.locator(".split-standing").waitFor();
+    await shot("29f-joined", theirs);
+    // invitations that don't get in: a key that doesn't open the ledger, a ledger that isn't there, no signal
+    await theirs.goto(invitation.replace(/#k=.{6}/, "#k=aaaaaa").replace(/\/split\/.{4}/, "/split/zzzz"));
+    await theirs.getByText(t("joinGone")).waitFor();
+    await shot("30-join-gone", theirs);
+    const elsewhere = await phone(width, height, lang);
+    await speak(elsewhere, lang);
+    const other = await elsewhere.newPage();
+    watch(other, true);
+    await other.goto(invitation.replace(/#k=.{6}/, "#k=aaaaaa"));
+    await other.getByText(t("joinKey")).waitFor();
+    await shot("30b-join-key", other);
+    await elsewhere.route(API, (route) => route.abort("internetdisconnected"));
+    await other.goto(`${base}/split`);
+    await other.goto(invitation);
+    await other.getByText(t("joinAway")).waitFor();
+    await shot("30c-join-away", other);
+    await elsewhere.close();
+    await guest.close();
   }
 
   // yen (no decimals), the longest names, the most an entry can be
@@ -774,6 +853,108 @@ async function behave() {
       ok((await keptBy(page)).held[0].made, "and is made when the real server answers");
       await ctx.close();
     }
+
+    // an invitation: sent from one phone, opened on others
+    {
+      const a = await phone(390, 664, "zh");
+      await a.grantPermissions(["clipboard-read", "clipboard-write"]);
+      const pa = await open(a, true);
+      await start(pa, "邀请", ["阿甲", "阿乙"]);
+      await spend(pa, "30");
+      await button(pa, "more").click();
+      await pa.getByRole("button", { name: re(t("invite")) }).click();
+      await pa.getByRole("dialog").getByText(t("inviteHow").split("\n")[0]).waitFor();
+      const code = await pa.getByRole("dialog").locator(".split-qr svg").evaluate((svg) => ({ box: svg.getAttribute("viewBox") ?? "", squares: (svg.querySelector("path")?.getAttribute("d") ?? "").split("M").length - 1, name: svg.getAttribute("aria-label") }));
+      ok(Number(code.box.split(" ")[2]) >= 21 && code.squares > 100 && code.name === t("qrLabel"), `the invitation shows a code to scan (${code.box.split(" ")[2]} squares wide)`);
+      await pa.getByRole("dialog").getByRole("button", { name: re(t("copyInvite")) }).click();
+      await pa.getByRole("dialog").getByRole("button", { name: re(t("copied")) }).waitFor({ timeout: 2000 });
+      const pasted = String(await pa.evaluate("navigator.clipboard.readText()")).split("\n");
+      const link = pasted[pasted.length - 1];
+      const mine = (await keptBy(pa)).held[0];
+      ok(pasted.length === 2 && pasted[0] === say("zh", "inviteLine", { name: "邀请" }) && link === `${base}/split/${mine.server.id}#k=${mine.key}`, "复制邀请链接 copies a line saying what it is, then the ledger's address with its key after the #");
+      await pa.keyboard.press("Escape");
+      await closed(pa);
+
+      // a friend opens it
+      const b = await phone(390, 664, "zh");
+      const pb = await b.newPage();
+      watch(pb, true);
+      const asked: string[] = [];
+      pb.on("request", (r) => r.url().includes("/split/api/") && asked.push(r.url()));
+      await pb.goto(link);
+      await pb.locator(".split-who").waitFor({ timeout: 8000 });
+      const theirs = await keptBy(pb);
+      ok(theirs.held[0].key === mine.key && theirs.held[0].made && theirs.me[mine.server.id] === undefined, "opened on another phone: the ledger is read from the server and held there, and the page asks which one they are");
+      ok(pb.url() === `${base}/split/${mine.server.id}` && asked.length > 0 && asked.every((u) => !u.includes(mine.key)), "the key is off the address once it is in, and was in no address the server was asked at");
+      await pb.locator("#split-add-me").fill("阿乙");
+      ok((await pb.locator("#split-add-me-note").textContent()) === t("nameListed") && (await pb.getByRole("button", { name: t("addMe"), exact: true }).isDisabled()), "typing a name that is on the list points back at the list");
+      await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+      await pb.locator(".split-standing").waitFor();
+      ok((await pb.locator(".split-standing-words").textContent()) === t("youOwe") && (await pb.locator(".split-figure").textContent())?.includes("$10.00"), "one tap on their name and they are in, seeing what they owe");
+      await pb.reload();
+      await pb.locator(".split-standing").waitFor();
+      ok((await pb.locator(".split-who").count()) === 0, "a reload doesn't ask again");
+
+      // another friend, whose chat app handed the address over with things of its own added
+      const c = await phone(390, 664, "zh");
+      const pc = await c.newPage();
+      watch(pc, true);
+      await pc.goto(link.replace("#", "/?from=singlemessage&isappinstalled=0#"));
+      await pc.locator(".split-who").waitFor({ timeout: 8000 });
+      ok(pc.url() === `${base}/split/${mine.server.id}`, "an address a chat app added to (a slash, a ?from=…) still gets in, and is tidied");
+      await pc.locator("#split-add-me").fill("老陈");
+      await pc.getByRole("button", { name: t("addMe"), exact: true }).click();
+      await pc.locator(".split-standing").waitFor();
+      await pa.locator(".split-standing-sub", { hasText: say("zh", "people", { n: 4 }) }).waitFor({ timeout: 5000 });
+      ok((await pc.locator(".split-standing-lead").textContent()) === t("youSquare"), "someone the ledger didn't have adds themselves, is in, and the first phone sees four people");
+
+      // only a look
+      const d = await phone(390, 664, "zh");
+      const pd = await d.newPage();
+      watch(pd, true);
+      await pd.goto(link);
+      await pd.getByRole("button", { name: t("justLook"), exact: true }).click();
+      await pd.locator(".split-row").first().waitFor();
+      ok((await pd.locator(".split-standing-lead").textContent())?.includes("$30.00") && (await pd.locator(".split-standing-words").count()) === 0, "someone who only wants a look gets one: what was spent, and nothing about \"you\"");
+      await pd.reload();
+      ok(await pd.locator(".split-who").waitFor({ timeout: 8000 }).then(() => true, () => false), "and is asked again the next time");
+
+      // the phone that sent it opens its own invitation
+      await pa.goto(link);
+      await pa.locator(".split-row").first().waitFor();
+      await pa.waitForFunction("!location.hash");
+      ok(pa.url() === `${base}/split/${mine.server.id}` && (await keptBy(pa)).held.length === 1, "a phone that already holds the ledger just opens it, and the key comes off the address");
+
+      // the list asks after its ledgers
+      await button(pb, "back").click();
+      await pb.locator(".split-ledger-standing").waitFor();
+      await spend(pa, "60");
+      await pb.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+      // 阿甲 owed a third of 30; the 60 is split among the four there are now
+      const card = pb.locator(".split-ledger-standing", { hasText: "$25.00" });
+      ok(await card.waitFor({ timeout: 8000 }).then(() => true, () => false), `on the list, a ledger's card says what you owe after what someone else recorded, without opening it (${(await pb.locator(".split-ledger-standing").first().textContent()) ?? ""})`);
+
+      // invitations that don't get in
+      const e = await phone(390, 664, "zh");
+      const pe = await e.newPage();
+      watch(pe, true);
+      await pe.goto(`${base}/split/${mine.server.id}#k=${"a".repeat(43)}`);
+      await pe.getByText(t("joinKey")).waitFor({ timeout: 8000 });
+      ok((await keptBy(pe).catch(() => null))?.held.length !== 1, "a link whose key doesn't open the ledger says so, and leaves nothing on the phone");
+      await pe.goto(`${base}/split`);
+      await pe.goto(`${base}/split/${"z".repeat(22)}#k=${mine.key}`);
+      await pe.getByText(t("joinGone")).waitFor({ timeout: 8000 });
+      ok(true, "one to a ledger that isn't there says that");
+      await e.route(API, (route) => route.abort("internetdisconnected"));
+      await pe.goto(`${base}/split`);
+      await pe.goto(link);
+      await pe.getByText(t("joinAway")).waitFor({ timeout: 8000 });
+      await e.unroute(API);
+      await button(pe, "retry").click();
+      await pe.locator(".split-who").waitFor({ timeout: 8000 });
+      ok(true, "with no signal it says so and waits: 再试一次, with the signal back, gets in");
+      for (const ctx of [a, b, c, d, e]) await ctx.close();
+    }
   }
 
   // the three motions, with motion allowed
@@ -807,7 +988,9 @@ async function behave() {
   }
 }
 
-if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) await walk(lang, w, h);
+// (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
+const only = process.env.ONLY?.split(",");
+if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
 if (what === "all" || what === "fits") await fits();
 if (what === "all" || what === "behave") await behave();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");

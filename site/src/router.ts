@@ -366,7 +366,8 @@ function current(first = false): Route {
   const r = parse(window.location.pathname, window.location.search);
   // the address as the site writes it: a game's old id, a trailing slash, a page that isn't one
   const canonical = pathOf(r);
-  if (canonical !== here()) window.history.replaceState(mark(), "", canonical);
+  // (an invitation to one of 两清's ledgers carries its key after the #: that stays on while the address is tidied)
+  if (canonical !== here()) window.history.replaceState(mark(), "", r.kind === "split" ? canonical + window.location.hash : canonical);
   return r;
 }
 

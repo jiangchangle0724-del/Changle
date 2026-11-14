@@ -11,7 +11,7 @@ import { Skeleton } from "../ui/Skeleton";
 import { useToast } from "../ui/Toast";
 
 type FriendRow = PublicUser & { last: { from: string; body: string; at: number } | null; unread: number };
-type Lists = { friends: FriendRow[]; incoming: PublicUser[]; outgoing: PublicUser[] };
+type Lists = { friends: FriendRow[]; incoming: PublicUser[]; outgoing: PublicUser[]; blocked: PublicUser[] };
 type Found = PublicUser & { relation: "self" | "friends" | "sent" | "received" | "none" | "blocked" };
 
 export function useFriends() {
@@ -84,6 +84,15 @@ export function FriendsPanel({ lists, reload, failed, loading }: { lists: Lists 
   const drop = async (id: string) => {
     try {
       await api(`/friends/${id}`, { method: "DELETE" });
+      reload();
+    } catch {
+      toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
+    }
+  };
+  const unblock = async (id: string) => {
+    try {
+      await api(`/blocks/${id}`, { method: "DELETE" });
+      sfx.pop();
       reload();
     } catch {
       toast(zh ? "没成功，再试一次" : "That didn't go through. Try again");
@@ -212,6 +221,29 @@ export function FriendsPanel({ lists, reload, failed, loading }: { lists: Lists 
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {!!lists?.blocked.length && (
+        <section className="blocked-people">
+          <h3 className="list-title">{zh ? "已屏蔽" : "Blocked"}</h3>
+          <ul className="people">
+            {lists.blocked.map((u) => (
+              <li key={u.id} className="person">
+                <a className="person-main" href={`/u/${u.id}`}>
+                  <Avatar uid={u.id} name={u.name} av={u.av} ac={u.ac} size={40} frame={u.frame} />
+                  <span>
+                    <strong>{u.name}</strong>
+                    <small>{u.city}</small>
+                  </span>
+                </a>
+                <button type="button" className="link-btn unblock" onClick={() => void unblock(u.id)}>
+                  {zh ? "解除" : "Unblock"}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="hint">{zh ? "解除以后，你们得重新加好友。" : "Once unblocked, you'd add each other as friends again."}</p>
         </section>
       )}
     </div>
