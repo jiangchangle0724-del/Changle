@@ -1,5 +1,5 @@
 /**
- * 跟着跳's moves for the dancer (shared/dj/dance.ts's DANCE_MOVES, the same ids), written as key
+ * The dancer's moves (shared/dj/dance.ts's DANCE_MOVES, the same ids; all standing since Nov 14), written as key
  * poses in the accounts' pose language (src/account/figure/pose: where the hands and feet go, which
  * way the body bends; README in site/scripts/figure/) and solved on the page for her body, the arms
  * kept out of it. A clip's time is in beats: `dur` beats long, looping, played from the speaker's
@@ -8,7 +8,6 @@
  */
 import { over, type Clip } from "../../../account/figure/pose/anim";
 import type { PoseSpec, V3 } from "../../../account/figure/pose/rig";
-import { DANCE_MOVES } from "../../../shared/dj/dance";
 
 type P = PoseSpec;
 
@@ -30,27 +29,10 @@ export const BASE: P = {
   legR: { foot: ch([-0.075, 0.126, -0.04]), pole: dir("hips", [-0.1, 0, 1]), footYaw: -10 },
 };
 
-/** how far behind where she stands the stool is (the moves' metres): she sits back onto it */
-export const STOOL_BACK = 0.3;
-
-/** sitting on the stool, upright, feet on the floor, hands on the thighs */
-export const SIT: P = {
-  hips: { pos: [0, -0.43, -STOOL_BACK], pitch: 0, roll: 0, yaw: 0 },
-  spine: { bend: 4, side: 0, twist: 0 },
-  head: { nod: 2, turn: 0, tilt: 0 },
-  L: { hand: hp([0.13, 0.03, 0.22]), pole: dir("chest", [1, -0.2, -0.4]), orient: { frame: "hips", fingers: [0.05, -0.2, 1], palm: [0, -1, 0] }, fingers: "relaxed" },
-  R: { hand: hp([-0.13, 0.03, 0.22]), pole: dir("chest", [-1, -0.2, -0.4]), orient: { frame: "hips", fingers: [-0.05, -0.2, 1], palm: [0, -1, 0] }, fingers: "relaxed" },
-  legL: { foot: ch([0.13, 0.126, 0.13]), pole: dir("hips", [0.2, 0.3, 1]), footYaw: 6 },
-  legR: { foot: ch([-0.13, 0.126, 0.13]), pole: dir("hips", [-0.2, 0.3, 1]), footYaw: -6 },
-};
-
 const stand = (p: P): P => over(BASE, p);
-const sit = (p: P): P => over(SIT, p);
 
 /** a beat's bounce: knees down on the beat (k: 0 up, 1 down) */
 const down = (k: number, depth = 0.05): P => ({ hips: { pos: [0, -0.02 - depth * k, 0] } });
-
-// ---------------------------------------------------------------- standing
 
 // 慢摇 sway: the weight from one foot to the other over two beats, hips rolling, arms swinging easy
 const sway = (s: number, mid: boolean): P =>
@@ -176,71 +158,6 @@ const twist = (s: number): P =>
     legR: { foot: ch([-0.08, 0.126, 0.0]), pole: dir("char", [0.5 * s, 0, 1]), footYaw: -10 + 25 * s },
   });
 
-// ---------------------------------------------------------------- sitting
-
-// 坐着摇 seated sway: leaning from side to side, hands tapping the thighs
-const seatSway = (s: number, tap: boolean): P =>
-  sit({
-    hips: { roll: -3 * s },
-    spine: { side: 7 * s, bend: 3 },
-    head: { tilt: 6 * s, nod: tap ? 6 : 0 },
-    L: { hand: hp([0.13, tap ? 0.03 : 0.08, 0.24]) },
-    R: { hand: hp([-0.13, tap ? 0.03 : 0.08, 0.24]) },
-  });
-
-// 拍腿拍手 slap and clap: both hands slap the knees twice, then two claps
-const slap = (onKnees: boolean): P =>
-  sit({
-    spine: { bend: onKnees ? 14 : 8 },
-    head: { nod: onKnees ? 10 : 4 },
-    L: { hand: hp([0.12, onKnees ? 0.04 : 0.12, 0.36]), orient: { frame: "hips", fingers: [0, -0.3, 1], palm: [0, -1, 0] }, fingers: "flat" },
-    R: { hand: hp([-0.12, onKnees ? 0.04 : 0.12, 0.36]), orient: { frame: "hips", fingers: [0, -0.3, 1], palm: [0, -1, 0] }, fingers: "flat" },
-  });
-const clapSit = (together: boolean): P =>
-  sit({
-    spine: { bend: 2 },
-    head: { nod: together ? 6 : -2 },
-    L: { hand: cs([together ? 0.022 : 0.12, -0.06, 0.33]), pole: dir("chest", [1, -0.7, -0.2]), orient: { frame: "chest", fingers: [-0.15, 0.75, 0.65], palm: [-1, 0, 0] }, fingers: "flat" },
-    R: { hand: cs([together ? -0.022 : -0.12, -0.06, 0.33]), pole: dir("chest", [-1, -0.7, -0.2]), orient: { frame: "chest", fingers: [0.15, 0.75, 0.65], palm: [1, 0, 0] }, fingers: "flat" },
-  });
-
-// 坐着举手 seated roof: hands up, pushing up on the beat
-const seatRoof = (up: boolean): P =>
-  sit({
-    spine: { bend: up ? -2 : 4 },
-    head: { nod: up ? -10 : 3 },
-    L: { clav: { up: up ? 16 : 8 }, hand: up ? cs([0.17, 0.72, 0.04]) : hd([0.19, 0.16, 0.02]), pole: dir("chest", [1, -0.2, -0.3]), orient: { frame: "chest", fingers: [-0.2, 0.1, -1], palm: [0, 1, 0] }, fingers: "flat" },
-    R: { clav: { up: up ? 16 : 8 }, hand: up ? cs([-0.17, 0.72, 0.04]) : hd([-0.19, 0.16, 0.02]), pole: dir("chest", [-1, -0.2, -0.3]), orient: { frame: "chest", fingers: [0.2, 0.1, -1], palm: [0, 1, 0] }, fingers: "flat" },
-  });
-
-// 点头打拍子 nod along: a nod on each beat, the right hand snapping by the shoulder
-const SNAP_SET = { Index: [10, 12, 6, 0], Middle: [18, 22, 10, 0], Ring: [80, 90, 60, 0], Pinky: [85, 90, 60, 0], Thumb: { across: 34, curl: [8, 18, 12], spread: 0 } };
-const SNAPPED = { Index: [14, 14, 8, 0], Middle: [82, 92, 60, 0], Ring: [82, 92, 60, 0], Pinky: [86, 92, 60, 0], Thumb: { across: 12, curl: [0, 6, 4], spread: 10 } };
-const nod = (dn: boolean): P =>
-  sit({
-    spine: { bend: dn ? 6 : 2, side: -2 },
-    head: { nod: dn ? 16 : -2, tilt: -3 },
-    R: { hand: cs([-0.24, 0.12, 0.2]), pole: dir("chest", [-1, -0.8, -0.1]), orient: { frame: "chest", fingers: [0, 1, 0.3], palm: [0.6, 0, 1] }, fingers: dn ? SNAPPED : SNAP_SET },
-  });
-
-// 划船 row: reaching forward, then pulling back, every two beats
-const row = (reach: boolean): P =>
-  sit({
-    hips: { pitch: reach ? 8 : -4 },
-    spine: { bend: reach ? 14 : -6 },
-    head: { nod: reach ? -6 : 4 },
-    L: { hand: reach ? cs([0.14, -0.08, 0.56]) : cs([0.2, -0.24, 0.1]), pole: dir("chest", [1, -0.6, -0.3]), orient: { frame: "chest", fingers: [0, -0.3, 1], palm: [-1, -0.2, 0] }, fingers: "fist" },
-    R: { hand: reach ? cs([-0.14, -0.08, 0.56]) : cs([-0.2, -0.24, 0.1]), pole: dir("chest", [-1, -0.6, -0.3]), orient: { frame: "chest", fingers: [0, -0.3, 1], palm: [1, -0.2, 0] }, fingers: "fist" },
-  });
-
-// 坐着挥手 seated wave: one hand up, waving slowly from side to side
-const seatWave = (s: number): P =>
-  sit({
-    spine: { side: 3 * s, bend: 2 },
-    head: { tilt: 4 * s, nod: -3 },
-    R: { clav: { up: 12 }, hand: cs([-0.22 + 0.12 * s, 0.68, 0.1]), pole: dir("chest", [-1, 0, -0.3]), orient: { frame: "chest", fingers: [0.35 * s, 1, 0.1], palm: [0, 0.05, 1] }, fingers: "open" },
-  });
-
 // ---------------------------------------------------------------- the clips
 
 /** keys every `step` beats from a pose function of the key's number */
@@ -248,7 +165,6 @@ const every = (n: number, step: number, f: (i: number) => P, ease = "inout") => 
 
 export const CLIPS: Clip[] = [
   { name: "stand", dur: 4, fps: 6, keys: [{ t: 0, pose: stand({}) }, { t: 2, pose: stand({ spine: { bend: 2 }, head: { nod: 2 } }) }] },
-  { name: "sit", dur: 4, fps: 6, keys: [{ t: 0, pose: sit({}) }, { t: 2, pose: sit({ spine: { bend: 5 } }) }] },
   { name: "sway", dur: 4, fps: 8, keys: every(4, 1, (i) => sway(i % 4 < 2 ? (i % 4 === 0 ? 1 : 0) : i % 4 === 2 ? -1 : 0, i % 2 === 1)) },
   { name: "bounce", dur: 2, fps: 12, keys: every(4, 0.5, (i) => bounce(i % 2 === 0, i < 2 ? 1 : -1), "inout") },
   { name: "stepClap", dur: 4, fps: 10, keys: [{ t: 0, pose: stepOut(1) }, { t: 1, pose: stepIn(1), ease: "out" }, { t: 2, pose: stepOut(-1) }, { t: 3, pose: stepIn(-1), ease: "out" }] },
@@ -258,13 +174,4 @@ export const CLIPS: Clip[] = [
   { name: "waveBoth", dur: 4, fps: 8, keys: [{ t: 0, pose: waves(1) }, { t: 2, pose: waves(-1) }] },
   { name: "shimmy", dur: 1, fps: 24, keys: every(4, 0.25, (i) => shimmy(i % 2 ? -1 : 1), "inout") },
   { name: "twist", dur: 2, fps: 12, keys: [{ t: 0, pose: twist(1) }, { t: 1, pose: twist(-1) }] },
-  { name: "seatSway", dur: 4, fps: 8, keys: every(4, 1, (i) => seatSway(i < 2 ? 1 : -1, i % 2 === 0)) },
-  { name: "kneeClap", dur: 4, fps: 12, keys: [{ t: 0, pose: slap(true), ease: "snap" }, { t: 0.5, pose: slap(false) }, { t: 1, pose: slap(true), ease: "snap" }, { t: 1.5, pose: clapSit(false) }, { t: 2, pose: clapSit(true), ease: "snap" }, { t: 2.5, pose: clapSit(false) }, { t: 3, pose: clapSit(true), ease: "snap" }, { t: 3.5, pose: slap(false) }] },
-  { name: "seatRoof", dur: 2, fps: 12, keys: every(4, 0.5, (i) => seatRoof(i % 2 === 0), "out") },
-  { name: "nod", dur: 1, fps: 16, keys: [{ t: 0, pose: nod(true), ease: "snap" }, { t: 0.5, pose: nod(false) }] },
-  { name: "row", dur: 2, fps: 10, keys: [{ t: 0, pose: row(true) }, { t: 1, pose: row(false) }] },
-  { name: "seatWave", dur: 4, fps: 8, keys: [{ t: 0, pose: seatWave(1) }, { t: 2, pose: seatWave(-1) }] },
 ];
-
-/** which clips are danced sitting (the stool's there for them) */
-export const SITTING = new Set<string>(["sit", ...Object.entries(DANCE_MOVES).filter(([, m]) => m.sit).map(([id]) => id)]);

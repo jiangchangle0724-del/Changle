@@ -1,5 +1,5 @@
 /**
- * 跟着跳's dancer, in the site's own files (made by site/scripts/dj-dancer/, README.md there): her
+ * The big screen's dancer, in the site's own files (made by site/scripts/dj-dancer/, README.md there): her
  * body, each hairstyle, each outfit. The outfits here are the ones the build makes (its outfits.mjs,
  * the same ids, checked by tests/dancer.test.ts); a song picks one by its id, so the TV and anyone
  * looking agree, and the next song brings the next look.

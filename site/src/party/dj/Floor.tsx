@@ -102,27 +102,26 @@ export function useFloorLoop(root: RefObject<HTMLElement | null>, clock: Clock, 
 /** One flame going up from someone who pressed 🔥. */
 export type Flame = { id: number; pid: string };
 
-/** The dancers: everyone at the table, in one row (two when it's crowded), names underfoot. */
-export function Floor({ seats, flames, host, dance }: { seats: SeatView[]; flames: Flame[]; host?: string; dance?: Record<string, { share: number; hot: boolean }> }) {
+/**
+ * The dancers: everyone at the table, in one row (two when it's crowded), names underfoot. `narrow`:
+ * beside a song's video in the middle of the TV (Steve on Nov 14: the players and the video swap
+ * places, the video bigger), smaller and in rows of four.
+ */
+export function Floor({ seats, flames, host, narrow = false }: { seats: SeatView[]; flames: Flame[]; host?: string; narrow?: boolean }) {
   const n = seats.length;
-  const h = n <= 4 ? 250 : n <= 6 ? 215 : n <= 8 ? 185 : n <= 12 ? 160 : 140;
-  const rows = n > 8 ? [seats.slice(Math.ceil(n / 2)), seats.slice(0, Math.ceil(n / 2))] : [seats];
+  const h = narrow ? (n <= 2 ? 190 : n <= 4 ? 150 : n <= 8 ? 120 : 100) : n <= 4 ? 250 : n <= 6 ? 215 : n <= 8 ? 185 : n <= 12 ? 160 : 140;
+  // (the back rows first: the front one is drawn last, over them)
+  const rows = narrow ? Array.from({ length: Math.ceil(n / 4) }, (_, k) => seats.slice(k * 4, k * 4 + 4)).reverse() : n > 8 ? [seats.slice(Math.ceil(n / 2)), seats.slice(0, Math.ceil(n / 2))] : [seats];
   return (
-    <div className="dj-floor" style={{ ["--fig-h" as string]: `${h}px` }} aria-hidden="true">
+    <div className={`dj-floor ${narrow ? "is-narrow" : ""}`} style={{ ["--fig-h" as string]: `${h}px` }} aria-hidden="true">
       {rows.map((row, k) => (
-        <div key={k} className={`dj-row ${rows.length > 1 && k === 0 ? "is-back" : ""}`}>
+        <div key={k} className={`dj-row ${rows.length > 1 && k < rows.length - 1 ? "is-back" : ""}`}>
           {row.map((s) => (
             <div key={s.id} className={`dj-dancer ${s.on ? "" : "is-away"}`}>
               <div className="dj-body" data-dancer={s.id}>
                 <Figure seat={s} />
               </div>
               <span className={`dj-name ${s.id === host ? "is-host" : ""}`}>{s.name}</span>
-              {/* 跟着跳: how well they're following the coach (the share of beats on the beat), lit while they keep it up */}
-              {dance?.[s.id] && (
-                <span className={`dj-dance-meter ${dance[s.id].hot ? "is-hot" : ""}`} style={{ ["--share" as string]: dance[s.id].share }}>
-                  <span />
-                </span>
-              )}
               {flames
                 .filter((f) => f.pid === s.id)
                 .map((f) => (

@@ -4,7 +4,7 @@
 import { Activity, AudioLines, AudioWaveform, Binary, Bomb, Disc, Disc2, Megaphone, OctagonPause, Repeat2, Rewind, Siren, Undo2, Waves, Wind, Zap, type LucideIcon } from "lucide-react";
 import type { T } from "../../../i18n";
 import type { Hint } from "../../../shared/dj/deck";
-import { MIX_FX, type DeckSide, type MixFx, type MixKnob, type PadId } from "../../../shared/dj/types";
+import { MIX_FX, type DeckSide, type MixFx, type PadId } from "../../../shared/dj/types";
 
 const t = (zh: string, en: string): T => ({ zh, en });
 
@@ -22,15 +22,6 @@ export const PADS: Record<PadId, { name: T; icon: LucideIcon; what: T }> = {
   reverse: { name: t("反向镲", "Reverse"), icon: Undo2, what: t("倒放的镲片，两拍涨上去", "A crash played backwards, swelling for two beats") },
   whistle: { name: t("口哨", "Whistle"), icon: Wind, what: t("桑巴口哨，嘀嘀嘀", "A samba whistle") },
 };
-
-/** The mixer's knobs (混音台), and what each end of the filter does. */
-export const KNOBS: Record<MixKnob, T> = {
-  low: t("低音", "Low"),
-  mid: t("中音", "Mid"),
-  high: t("高音", "High"),
-  filter: t("滤波", "Filter"),
-};
-export const FILTER_ENDS = { dark: t("闷", "Dark"), thin: t("薄", "Thin") };
 
 /** The mixer's effects. */
 export const MIX_EFFECTS: Record<MixFx, { name: T; icon: LucideIcon; what: T }> = {
@@ -94,20 +85,6 @@ export function reqLine(r: { text: string | null; artist?: string }, who: string
   const song = songName(r, zh);
   if (zh) return song ? `${who} 点的 ${song}` : `${who} 点了一首歌`;
   return song ? `${who} asked for ${song}` : `${who} asked for a song`;
-}
-
-/**
- * What's on the air for whoever asked: "正在放：周杰伦《晴天》，Amy 点的" (the host's own song itself;
- * or `clip`, its clip playing, then the remix), or "正在放：周杰伦《晴天》 Remix，Amy 点的" (the remix alone).
- */
-export function nowLine(r: { text: string | null; artist?: string; local?: string }, who: string, zh: boolean, clip = false): string {
-  const song = songName(r, zh);
-  if (r.local || clip) {
-    if (zh) return song ? `正在放：${song}，${who} 点的` : `正在放：${who} 点的歌`;
-    return song ? `Now: ${song}, for ${who}` : `Now: ${who}'s song`;
-  }
-  if (zh) return song ? `正在放：${song} Remix，${who} 点的` : `正在放：${who} 点的歌的 Remix`;
-  return song ? `Now: a remix of ${song}, for ${who}` : `Now: a remix of ${who}'s song`;
 }
 
 /** Under a song asked for that brings its clip: whose 30 seconds they are, and what comes after. */

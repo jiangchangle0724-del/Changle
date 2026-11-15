@@ -1,7 +1,8 @@
 /*
- * 跟着跳's dancer (src/party/dj/dancer/, made by scripts/dj-dancer/): her files and her moves, as
- * the TV page reads and solves them. Run with `npx tsx tests/dancer.test.ts`
- *  1. Every move of the routine (shared/dj/dance.ts) has its clip, and standing and sitting theirs.
+ * The big screen's dancer (src/party/dj/dancer/, made by scripts/dj-dancer/): her files and her moves,
+ * as the TV page reads and solves them. Run with `npx tsx tests/dancer.test.ts`
+ *  1. Every move of the routine (shared/dj/dance.ts) has its clip, and standing has its own; none
+ *     sitting (Steve on Nov 14: "她也不需要坐着了").
  *  2. Her body loads (read with three.js like the page, without the textures): its parts, the
  *     expressions the page plays, which skin vertex each of its points is (to leave the covered out).
  *  3. Every outfit the page picks has its file, named the same, with its hair, its pieces hung on her
@@ -20,7 +21,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { restNodes, rigFor } from "../src/account/figure/body";
 import { bake } from "../src/account/figure/pose/anim";
 import { OUTFITS, STYLES_FOR, outfitFor } from "../src/party/dj/dancer/files";
-import { BASE, CLIPS, SITTING } from "../src/party/dj/dancer/moves";
+import { BASE, CLIPS } from "../src/party/dj/dancer/moves";
 import { DANCE_MOVES } from "../src/shared/dj/dance";
 
 let failed = 0;
@@ -40,8 +41,8 @@ const DEEPEST = 0.025;
 // 1. the moves
 const names = new Set(CLIPS.map((c) => c.name));
 ok(names.size === CLIPS.length, `${CLIPS.length} clips, all named differently`);
-for (const [id, m] of Object.entries(DANCE_MOVES)) ok(names.has(id) && SITTING.has(id) === m.sit, `${id} (${m.zh}) has its clip, danced ${m.sit ? "sitting" : "standing"}`);
-ok(names.has("stand") && names.has("sit"), "and standing and sitting have theirs (between moves, before the music)");
+for (const [id, m] of Object.entries(DANCE_MOVES)) ok(names.has(id), `${id} (${m.zh}) has its clip`);
+ok(names.has("stand") && !names.has("sit") && names.size === Object.keys(DANCE_MOVES).length + 1, "and standing has its own (between moves, before the music); nothing else, no sitting");
 
 /** the file without its pictures (three.js would need a browser to read them) */
 function withoutTextures(glb: Uint8Array): ArrayBuffer {

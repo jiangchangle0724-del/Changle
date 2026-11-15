@@ -413,8 +413,8 @@ export const GAMES: GameMeta[] = [
     name: t("打碟", "DJ Booth"),
     blurb: t("电视当音箱，大家用手机一起打碟", "The TV is the speaker. Everyone DJs from their phone."),
     how: t(
-      "公用手机投屏到电视当音箱（或者电视、电脑打开 changle.ca/dj）。扫码进来，每台手机都能点歌、传自己的歌，电视上一首接一首放整首，谁都能暂停、切歌。手机上还有分好类的音效、弹幕和跟着跳。",
-      "A shared phone mirrored to the TV is the speaker (or open changle.ca/dj on a TV or computer). Scan in and every phone can ask for songs or send its own, and the TV plays them whole, one after another. Anyone can pause or skip. Phones also get a sound board, comments across the TV, and dance along.",
+      "公用手机投屏到电视当音箱（或者电视、电脑打开 changle.ca/dj）。扫码进来，每台手机都能点歌、传自己的歌，电视上一首接一首放整首，谁都能暂停、切歌。手机上还有分好类的音效和弹幕，电视上有个女生一直跳舞带气氛。",
+      "A shared phone mirrored to the TV is the speaker (or open changle.ca/dj on a TV or computer). Scan in and every phone can ask for songs or send its own, and the TV plays them whole, one after another. Anyone can pause or skip. Phones also get a sound board and comments across the TV, and a dancer on the TV keeps the room going.",
     ),
     minPlayers: 1,
     maxPlayers: 15,

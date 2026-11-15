@@ -1,8 +1,9 @@
 /**
- * 跟着跳's coach on the big screen (Steve on Nov 14: "优化一下机器人的形象，要更拟人真实细腻一些"): a
+ * The robot on the big screen, where the dancer can't be shown (跟着跳's coach till that went on Nov 14;
+ * Steve on Nov 14: "优化一下机器人的形象，要更拟人真实细腻一些"): a
  * humanlike robot built here from rounded shapes (nothing to download): a glossy white shell over dark
  * metal joints, a black glass visor with eyes that glow in the room's light, DJ headphones, a light on
- * its chest that beats with the music, and a stool for the moves danced sitting down. Its joints are
+ * its chest that beats with the music, and a stool (for moves danced sitting: none since Nov 14). Its joints are
  * plain nodes: a pose (poses.ts) sets where the hips are and how the spine and head lean, and puts the
  * hands and feet somewhere; the arms and legs reach there by themselves (two bones each, elbows out
  * and down, knees forward).

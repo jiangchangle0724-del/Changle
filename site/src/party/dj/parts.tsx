@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { T } from "../../i18n";
 import { useRoom, useRoomEvent } from "../../online/RoomContext";
-import { DJ_TIMES, SET_PHASES, type CrateSong, type DjPhase, type Mix, type Scale, type Source, type StyleId } from "../../shared/dj/types";
-import { useStore } from "../../store";
+import { DJ_TIMES, type DjPhase, type Mix, type Scale, type StyleId } from "../../shared/dj/types";
 
 const t = (zh: string, en: string): T => ({ zh, en });
 
@@ -60,63 +59,6 @@ export function mixLine(mix: Mix, zh: boolean) {
   const parts = [styles.join(" × "), `${mix.bpm} BPM`];
   if (key) parts.push(zh ? `${key} 小调` : `${key} minor`);
   return parts.join(" · ");
-}
-
-export const sourceName = (s: Source, zh: boolean) => (s === "fake" ? (zh ? "试音版 DJ" : "Sound-check DJ") : s === "local" ? (zh ? "你的歌" : "Your songs") : zh ? "AI DJ · 实验" : "AI DJ · lab");
-
-/** What's playing, in one line. */
-export function NowPlaying({ v, song }: { v: { mix: Mix; source: Source }; song?: CrateSong | null }) {
-  const { lang } = useStore();
-  const zh = lang === "zh";
-  return (
-    <span className="dj-now">
-      <span className="dj-now-src">{sourceName(v.source, zh)}</span>
-      {/* the host's song on the air, or the styles the DJ plays */}
-      <span className="dj-now-mix">{song ? `${song.a ? `${song.a} · ` : ""}${song.t} · ${Math.round(song.bpm)} BPM` : mixLine(v.mix, zh)}</span>
-    </span>
-  );
-}
-
-/** How long until the night moves on by itself (the peak: until it winds down, near the set's end). */
-export function phaseHint(v: { phase: DjPhase; nextAt: number; capAt?: number }, now: number, zh: boolean) {
-  const mins = v.nextAt ? Math.max(1, Math.ceil((v.nextAt - now) / 60_000)) : 0;
-  // (the peak has no clock of its own since the host's buttons went, Nov 13: it winds down a stretch before the cap)
-  const left = v.capAt ? Math.max(1, Math.ceil((v.capAt - DJ_TIMES.cool - now) / 60_000)) : 0;
-  const span = left >= 90 ? (zh ? `${Math.round(left / 6) / 10} 小时` : `${Math.round(left / 6) / 10} h`) : zh ? `${left} 分钟` : `${left} min`;
-  switch (v.phase) {
-    case "wait":
-      return zh ? "大屏上点「开始派对」就开场" : "Press Start the party on the big screen";
-    case "warm":
-      return zh ? `${mins} 分钟后推高` : `Build in ${mins} min`;
-    case "build":
-      return zh ? `${mins} 分钟后到顶点` : `Peak in ${mins} min`;
-    case "peak":
-      return left ? (zh ? `顶点：${span}后收尾` : `The peak: winding down in ${span}`) : zh ? "顶点" : "The peak";
-    case "cool":
-      return zh ? `${mins} 分钟后结束` : `Ends in ${mins} min`;
-    case "end":
-      return zh ? "主人可以再来一场" : "The host can start another set";
-  }
-}
-
-/** The night in four stretches, the one we're in lit. */
-export function NightCurve({ v, now }: { v: { phase: DjPhase; nextAt: number; capAt?: number }; now: number }) {
-  const { lang } = useStore();
-  const zh = lang === "zh";
-  const at = SET_PHASES.indexOf(v.phase as (typeof SET_PHASES)[number]);
-  return (
-    <div className="dj-curve">
-      <ol className="dj-curve-steps">
-        {SET_PHASES.map((p, k) => (
-          <li key={p} className={`${k === at ? "is-on" : ""} ${at > k || v.phase === "end" ? "is-past" : ""}`} style={{ ["--h" as string]: [0.4, 0.65, 1, 0.45][k] }}>
-            <span className="dj-curve-bar" />
-            <span className="dj-curve-name">{phaseName(p, zh)}</span>
-          </li>
-        ))}
-      </ol>
-      <span className="dj-curve-hint">{phaseHint(v, now, zh)}</span>
-    </div>
-  );
 }
 
 /** How long each stretch lasts by itself, for the rules. */

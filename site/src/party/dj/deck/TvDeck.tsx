@@ -1,14 +1,14 @@
-import { Disc3, ListMusic, Music2, SlidersHorizontal, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Disc3, ListMusic, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useRoom, useRoomEvent, useTicker } from "../../../online/RoomContext";
 import { heatLean } from "../../../shared/dj/curve";
-import { chargeNow, COLD_LEAN, countdown, cued, hintFor, loaded, offAir, onAir } from "../../../shared/dj/deck";
-import { DECK, MIX_FX, MIX_KNOBS, PAD_IDS, type DeckSide, type MixerState, type PadId } from "../../../shared/dj/types";
+import { COLD_LEAN, countdown, hintFor, offAir } from "../../../shared/dj/deck";
+import { MIX_FX, PAD_IDS, type PadId } from "../../../shared/dj/types";
 import type { DjView } from "../../../shared/protocol";
 import { confetti } from "../../../lib/confetti";
 import { useStore } from "../../../store";
-import { NowPlaying, STYLE_NAMES } from "../parts";
-import { CLIP_CREDIT, hintText, jukeText, KNOBS, MIX_EFFECTS, mixSaid, nowLine, PADS, reqLine } from "./words";
+import { STYLE_NAMES } from "../parts";
+import { CLIP_CREDIT, hintText, jukeText, MIX_EFFECTS, mixSaid, PADS, reqLine } from "./words";
 // the design tokens (docs/DESIGN.md) aren't loaded site-wide yet: the deck brings them (same values as global.css)
 import "../../../styles/tokens.css";
 import "../../../styles/dj-deck.css";
@@ -19,90 +19,29 @@ import { SFX_ICON } from "../sfx/look";
 const L = (x: { zh: string; en: string }, zh: boolean) => (zh ? x.zh : x.en);
 
 /**
- * 打碟 · DJ Booth: the beginner deck on the big screen. The two decks with their styles (the one
- * on the air turning), the songs asked for (the one playing, the one up next), the crossfader and
- * who has it, the build-up's meter, the countdown to the drop, who did what, and the next thing a
- * beginner could try.
+ * 打碟 · DJ Booth on the big screen, up top: the song asked for that's up next (Steve on Nov 14: "这大个
+ * 部分可以删了，只保留我圈出来的部分": the decks, the crossfader, the song on the air and the mixer that
+ * were round it are gone; the song playing says itself on its video). `clip`: the song on the air is
+ * playing its clip here (Apple Music's preview, then the DJ's remix): Apple's credit, under it.
  */
-/** `clip`: the song asked for that's on the air is playing its clip here (not only its remix). */
-export function DeckBoard({ v, clip = false }: { v: DjView; clip?: boolean }) {
-  const { now } = useRoom();
+export function UpNext({ v, clip = false }: { v: DjView; clip?: boolean }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const nameOf = useDjNames(zh);
   const d = v.deck;
-  const live = v.phase !== "wait" && v.phase !== "end";
-  const t = now();
-  useTicker(live && (chargeNow(d, t) > 0 || !!d.drop || (!!d.faderBy && t - d.faderAt < DECK.faderHoldMs)), 100);
-  const on = onAir(d);
-  const level = chargeNow(d, t);
-  const held = !!d.faderBy && t - d.faderAt < DECK.faderHoldMs;
-  const cue = cued(d, v.source === "lyria");
-  const loading = cue ? null : loaded(d);
-  const deck = (side: DeckSide) => {
-    const style = side === "a" ? d.a : d.b;
-    // (a night of the host's songs: the deck's song by name)
-    const song = d.local ? v.onDecks[side] : null;
-    const gain = side === "a" ? Math.cos((d.fader * Math.PI) / 2) : Math.sin((d.fader * Math.PI) / 2);
-    return (
-      <div className={`dk-deck ${on === side ? "is-on" : ""} ${cue === side ? "is-cued" : ""}`} style={{ ["--gain" as string]: gain } as CSSProperties}>
-        <span className="dk-record" data-lit aria-hidden="true" />
-        <span className="dk-style">
-          <span className="dk-side">{side.toUpperCase()}</span> {d.local ? (song ? song.t : zh ? "准备中" : "Loading") : style ? L(STYLE_NAMES[style], zh) : zh ? "空着" : "Empty"}
-        </span>
-        {song?.a && <span className="dk-artist">{song.a}</span>}
-        {cue === side && <span className="dk-cued">{zh ? "下一首" : "Up next"}</span>}
-        {loading === side && <span className="dk-cued is-loading">{zh ? "准备中" : "Loading"}</span>}
-      </div>
-    );
-  };
+  if (!d.up && !clip) return null;
   return (
-    <div className={`dk-board ${live ? "is-live" : ""}`}>
-      {deck("a")}
-      <div className="dk-mid">
-        <NowPlaying v={v} song={d.local ? v.onDecks[on] : null} />
-        {d.now && (
-          <span className="dk-req is-now">
-            <Music2 size={24} aria-hidden="true" />
-            <span>
-              {nowLine(d.now, nameOf(d.now.by), zh, clip || d.song?.id === d.now.id)}
-              {clip && <small className="dk-req-credit">{L(CLIP_CREDIT, zh)}</small>}
-            </span>
+    <div className="dk-up">
+      {d.up && (
+        <span className="dk-req is-up">
+          <ListMusic size={26} aria-hidden="true" />
+          <span>
+            {zh ? `下一首：${reqLine(d.up, nameOf(d.up.by), zh)}` : `Up next: ${reqLine(d.up, nameOf(d.up.by), zh)}`}
+            {d.reqs.length > 0 && <small>{zh ? ` · 歌单里还有 ${d.reqs.length} 首${v.shuffle ? "，随机放" : ""}` : ` · ${d.reqs.length} more on the playlist${v.shuffle ? ", shuffled" : ""}`}</small>}
           </span>
-        )}
-        {d.up && (
-          <span className="dk-req is-up">
-            <ListMusic size={24} aria-hidden="true" />
-            <span>
-              {zh ? `下一首：${reqLine(d.up, nameOf(d.up.by), zh)}` : `Up next: ${reqLine(d.up, nameOf(d.up.by), zh)}`}
-              {d.reqs.length > 0 && <small>{zh ? ` · 歌单里还有 ${d.reqs.length} 首${v.shuffle ? "，随机放" : ""}` : ` · ${d.reqs.length} more on the playlist${v.shuffle ? ", shuffled" : ""}`}</small>}
-            </span>
-          </span>
-        )}
-        <div className="dk-fader" aria-hidden="true">
-          <span className="dk-fader-end">A</span>
-          <span className="dk-fader-track">
-            <span className="dk-fader-knob" style={{ ["--x" as string]: d.fader } as CSSProperties} />
-          </span>
-          <span className="dk-fader-end">B</span>
-        </div>
-        <span className="dk-fader-who">{held ? (zh ? `${nameOf(d.faderBy!)} 在推推子` : `${nameOf(d.faderBy!)} on the crossfader`) : " "}</span>
-        {v.juke ? (
-          // 点歌模式: no build-up to fill
-          <div className="dk-meter is-juke" data-lit>
-            <ListMusic size={22} aria-hidden="true" />
-            <span className="dk-meter-word">{zh ? "点歌模式 · 一首接一首" : "Jukebox · one after another"}</span>
-          </div>
-        ) : (
-          <div className={`dk-meter ${d.drop ? "is-full" : ""}`} data-lit style={{ ["--level" as string]: level } as CSSProperties}>
-            <span className="dk-meter-fill" />
-            <span className="dk-meter-word">{zh ? "蓄力" : "Build-up"}</span>
-            <span className="dk-meter-pct tabular">{Math.round(level * 100)}%</span>
-          </div>
-        )}
-        {d.mixer && <MixStrip m={d.mixer} zh={zh} />}
-      </div>
-      {deck("b")}
+        </span>
+      )}
+      {clip && <small className="dk-up-credit">{L(CLIP_CREDIT, zh)}</small>}
     </div>
   );
 }
@@ -176,40 +115,6 @@ export function DropParty({ v }: { v: DjView }) {
 
 type Chip = { id: number; text: string; kind: PadId | "req" | "mix" | `sfx-${SfxCat}`; icon: LucideIcon };
 
-/** The board shows the mixer (a line of its own) once anyone has touched it. */
-export const mixerShows = (m: MixerState | undefined) => !!m && (MIX_KNOBS.some((k) => m.knobs[k] !== 0) || MIX_FX.some((f) => !!m.fx[f]));
-
-/**
- * The mixer, when anyone has touched it (as the music plays it stays out of the way): each knob
- * turned, as a little bar from the middle, and each effect that's on, lit.
- */
-function MixStrip({ m, zh }: { m: MixerState; zh: boolean }) {
-  const knobs = MIX_KNOBS.filter((k) => m.knobs[k] !== 0);
-  const fx = MIX_FX.filter((f) => !!m.fx[f]);
-  if (!mixerShows(m)) return null;
-  return (
-    <div className="dk-mix" aria-label={zh ? "混音台" : "Mixer"}>
-      {knobs.map((k) => (
-        <span key={k} className="dk-mix-knob" style={{ ["--v" as string]: m.knobs[k] } as CSSProperties}>
-          <span className="dk-mix-name">{L(KNOBS[k], zh)}</span>
-          <span className="dk-mix-bar" aria-hidden="true">
-            <span />
-          </span>
-        </span>
-      ))}
-      {fx.map((f) => {
-        const Icon = MIX_EFFECTS[f].icon;
-        return (
-          <span key={f} className={`dk-mix-fx is-${f}`}>
-            <Icon size={20} aria-hidden="true" />
-            {L(MIX_EFFECTS[f].name, zh)}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
 /** Who pressed which pad or sound (played on the speaker, `play` and `playSfx`) or asked for a song, for a moment. */
 export function usePadEvents(play: (pad: PadId) => void, playSfx?: (i: number) => void) {
   const { lang } = useStore();
@@ -245,10 +150,10 @@ export function usePadEvents(play: (pad: PadId) => void, playSfx?: (i: number) =
   return chips;
 }
 
-/** `lines`: the songs-asked-for lines the board has now (each makes it taller: the chips sit below it). */
-export function PadChips({ chips, lines = 0 }: { chips: Chip[]; lines?: number }) {
+/** Who did what, for a moment, under the song up next. */
+export function PadChips({ chips }: { chips: Chip[] }) {
   return (
-    <div className="dk-chips" aria-live="polite" style={{ ["--lines" as string]: lines } as CSSProperties}>
+    <div className="dk-chips" aria-live="polite">
       {chips.map((c) => {
         const Icon = c.icon;
         return (

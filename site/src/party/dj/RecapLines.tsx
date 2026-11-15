@@ -49,12 +49,6 @@ export function RecapLines({ v, zh, line, note }: { v: DjView; zh: boolean; line
           {r.perfect.map((f) => (zh ? `${nameOf(f.pid)} ${f.n} 次` : `${nameOf(f.pid)} ×${f.n}`)).join(sep)}
         </p>
       )}
-      {r.onBeat && (
-        <p className={line}>
-          {zh ? `跳得最准：${nameOf(r.onBeat.pid)}，${Math.round(r.onBeat.share * 100)}% 踩在拍子上` : `Best on the beat: ${nameOf(r.onBeat.pid)}, ${Math.round(r.onBeat.share * 100)}% of beats`}
-          {r.mostDanced && r.mostDanced.pid !== r.onBeat.pid && (zh ? ` · 跳得最多：${nameOf(r.mostDanced.pid)}，${r.mostDanced.hits} 拍` : ` · Danced the most: ${nameOf(r.mostDanced.pid)}, ${r.mostDanced.hits} beats`)}
-        </p>
-      )}
       {v.speaker && v.speaker.seconds > 0 && (
         <p className={note}>{r.stalls === 0 ? (zh ? "今晚声音一直没断" : "The sound never broke tonight") : zh ? `今晚声音卡了 ${r.stalls} 次` : `The sound stalled ${r.stalls} ${r.stalls === 1 ? "time" : "times"} tonight`}</p>
       )}

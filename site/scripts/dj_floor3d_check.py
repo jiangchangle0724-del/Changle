@@ -94,7 +94,8 @@ def join(br, code, name):
 def tv_page(br, any_gl=True, extra="", **ctx):
     tv = br.new_context(viewport={"width": 1600, "height": 900}, **ctx).new_page()
     if any_gl:
-        tv.add_init_script("window.__djAnyGl = true;" + extra)
+        # (the dancer on the left left drawn: in software she takes the frames this check times)
+        tv.add_init_script("window.__djAnyGl = true; window.__djDancerOff = true;" + extra)
     tv.route("https://www.youtube.com/iframe_api", lambda r: r.fulfill(status=200, body=FAKE_YT, headers={"Content-Type": "text/javascript"}))
     tv.route("http://127.0.0.1:8787/api/yt/**", yt_api)
     tv.route("https://audio-ssl.itunes.apple.com/**", lambda r: r.abort())

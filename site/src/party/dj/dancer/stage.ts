@@ -1,6 +1,6 @@
 /**
- * 跟着跳's dancer in three.js: her body (files.ts), dressed in an outfit (its garments and hair hung
- * on her own skeleton, the skin under them left out), dancing the routine's moves. The moves are
+ * The big screen's dancer in three.js: her body (files.ts), dressed in an outfit (its garments and hair
+ * hung on her own skeleton, the skin under them left out), dancing the routine's moves. The moves are
  * solved here for her body by the accounts' pose solver (src/account/figure/pose: the arms kept out
  * of the body), a few clips a frame, and played set from the speaker's beat: a clip's time is in beats.
  */
@@ -76,42 +76,6 @@ function dress(m: THREE.Mesh, hairColor: string | null) {
   m.frustumCulled = false;
 }
 
-/** a low stool in chrome and dark leather: `seat(y)` sets how high its top is */
-function makeStool(): THREE.Group {
-  const g = new THREE.Group();
-  g.name = "Stool";
-  const chrome = new THREE.MeshStandardMaterial({ color: 0xd8d8e0, metalness: 1, roughness: 0.22 });
-  const leather = new THREE.MeshStandardMaterial({ color: 0x241a26, roughness: 0.45 });
-  // the cushion: a lathed profile, rounded at its edge
-  const prof: THREE.Vector2[] = [];
-  for (let i = 0; i <= 10; i++) {
-    const a = (i / 10) * (Math.PI / 2);
-    prof.push(new THREE.Vector2(0.155 + 0.03 * Math.sin(a), 0.03 * (1 - Math.cos(a))));
-  }
-  prof.unshift(new THREE.Vector2(0, 0));
-  prof.push(new THREE.Vector2(0.185, 0.03), new THREE.Vector2(0.185, 0.045));
-  for (let i = 0; i <= 8; i++) {
-    const a = (i / 8) * (Math.PI / 2);
-    prof.push(new THREE.Vector2(0.185 - 0.025 * (1 - Math.cos(a)), 0.045 + 0.025 * Math.sin(a)));
-  }
-  prof.push(new THREE.Vector2(0, 0.07));
-  const seat = new THREE.Mesh(new THREE.LatheGeometry(prof, 40), leather);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.03, 1, 20), chrome);
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.025, 40), chrome);
-  base.position.y = 0.0125;
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.011, 10, 40), chrome);
-  ring.rotation.x = Math.PI / 2;
-  g.add(seat, pole, base, ring);
-  g.userData.seat = (y: number) => {
-    seat.position.y = y - 0.07;
-    pole.scale.y = y - 0.08;
-    pole.position.y = (y - 0.08) / 2;
-    ring.position.y = Math.max(0.15, y * 0.45);
-  };
-  g.userData.seat(0.45);
-  return g;
-}
-
 export type Dancer = {
   root: THREE.Group;
   /** her eyes' height, for framing */
@@ -123,8 +87,6 @@ export type Dancer = {
   bake(budgetMs: number): boolean;
   /** the pose for a beat: `move` at `b` beats into it, eased in from `from` (k of the way) */
   pose(move: string, b: number, from?: { move: string; b: number } | null, k?: number): void;
-  /** the stool, shown as much as k (0: gone, 1: there) */
-  stool(k: number): void;
   /** blinks, the eyes on the camera, a smile */
   live(dt: number, camera: THREE.Camera): void;
   /** what's been solved, by name: for the checks (how deep the arms went into her) */
@@ -155,21 +117,6 @@ export async function loadDancer(): Promise<Dancer> {
   const todo = [...CLIPS];
   let solving: { name: string; gen: Generator<void, Baked> } | null = null;
   const eyesY = ((bones.get("LeftEye") as THREE.Object3D).getWorldPosition(new THREE.Vector3()).y + (bones.get("RightEye") as THREE.Object3D).getWorldPosition(new THREE.Vector3()).y) / 2;
-
-  // her stool, behind where she stands (she sits back onto it): its seat where the sitting clip puts her
-  const stool = makeStool();
-  root.add(stool);
-  let stoolSet = false;
-  const placeStool = () => {
-    const a = actions.get("sit");
-    if (!a || stoolSet) return;
-    stoolSet = true;
-    pose("sit", 0);
-    body.updateMatrixWorld(true);
-    const hips = (bones.get("Hips") as THREE.Object3D).getWorldPosition(new THREE.Vector3()).sub(root.getWorldPosition(new THREE.Vector3()));
-    stool.position.set(0, 0, hips.z - 0.03);
-    stool.userData.seat(hips.y - 0.105 + body.position.y);
-  };
 
   let worn: Worn | null = null;
   let want: string | null = null;
@@ -264,10 +211,6 @@ export async function loadDancer(): Promise<Dancer> {
     for (const m of meshes) if (m.name === "Eyebrows") dress(m, w.info.hairColor);
     cover(w.info.hide);
     body.position.y = w.info.lift;
-    if (stoolSet) {
-      stoolSet = false;
-      placeStool();
-    }
     worn = w;
     // what she had on, let go of (its textures are most of what the graphics memory holds; a phone
     // or tablet playing the speaker has little: #559); fetched again if she wears it again
@@ -292,7 +235,6 @@ export async function loadDancer(): Promise<Dancer> {
         a.play();
         a.setEffectiveWeight(0);
         actions.set(solving.name, a);
-        if (solving.name === "sit") placeStool();
         solving = null;
       }
     }
@@ -368,20 +310,5 @@ export async function loadDancer(): Promise<Dancer> {
     for (const p of hairs.values()) void p.then(drop).catch(() => {});
   };
 
-  const stoolMats: THREE.Material[] = [];
-  stool.traverse((x) => {
-    const m = (x as THREE.Mesh).material as THREE.Material | undefined;
-    if (m && !stoolMats.includes(m)) stoolMats.push(m);
-  });
-  const showStool = (k: number) => {
-    stool.visible = k > 0.01;
-    for (const m of stoolMats) {
-      m.transparent = k < 0.99;
-      m.opacity = k;
-      m.depthWrite = k >= 0.99;
-    }
-  };
-  showStool(0);
-
-  return { root, eyes: eyesY, wear, wearing: () => worn?.info.id ?? null, bake, pose, stool: showStool, live, solved: () => baked, dispose };
+  return { root, eyes: eyesY, wear, wearing: () => worn?.info.id ?? null, bake, pose, live, solved: () => baked, dispose };
 }

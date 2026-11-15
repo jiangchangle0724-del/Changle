@@ -4,8 +4,8 @@ and two phones.
 
 What it checks: a phone has the player at the very top (上一曲, 暂停 or 播放, 切歌; the card with the
 night's stretch gone, Steve's second message that night), then the song box, the 歌单 and the sound
-pads, and 跟着跳 at the very bottom; no turntables, mixer, crossfader, build-up, DROP, picks or switch
-to them. A song asked for plays by itself; anyone pauses it (the TV's video stops where it is, the
+pads (跟着跳 at the very bottom gone on Nov 14); no turntables, mixer, crossfader, build-up, DROP,
+picks or switch to them. A song asked for plays by itself; anyone pauses it (the TV's video stops where it is, the
 DJ stays quiet) and carries it on (from there, not from its start); 切歌 brings the next on in a few
 seconds, its keys not grey while it comes on; 上一曲 the one before, the one that was playing first
 on the 歌单 again; paused between songs, the DJ goes quiet too and comes back on 播放. One phone asks
@@ -94,11 +94,11 @@ with sync_playwright() as p:
     amy, ben, cat = phones
     ok("Previous" in key(cat, 0).inner_text() and "Pause" in key(cat, 1).inner_text() and "Next" in key(cat, 2).inner_text(), "in English too")
 
-    # the page: the player first, then the song box, the 歌单, the pads; 跟着跳 at the very bottom
+    # the page: the player first, then the song box, the 歌单, the pads; no 跟着跳 (Steve on Nov 14)
     order = ben.evaluate("""() => [...document.querySelectorAll('.djk > *')].map((e) => e.className.split(' ')[0])""")
     ok(order[:2] == ["djk-player", "djk-req"] and order[-1] == "djk-board", f"the player at the top, the song box under it, the sound board last ({order})")
     last = ben.evaluate("""() => { const kids = [...document.querySelector('.djp').children]; return kids[kids.length - 1].className; }""")
-    ok("djk-dance" in last, f"跟着跳 at the very bottom of the page ({last!r})")
+    ok(ben.locator(".djk-dance").count() == 0 and "djk-dance" not in last, f"no 跟着跳 at the bottom any more (Steve on Nov 14: \"把跟着跳的功能也删了\"; the last thing: {last!r})")
     first = ben.evaluate("""() => document.querySelector('.djp').firstElementChild.className""")
     ok(ben.locator(".djp-now").count() == 0 and first.startswith("djk"), f"no card with the night's stretch at the top: the player is the first thing ({first!r})")
     gone = ben.evaluate("""() => ['.djk-console', '.djk-platter', '.djk-vinyl', '.djk-fader', '.djk-mix', '.djk-charge', '.djk-drop', '.djk-picks', '.djk-juke', '.djk-hint', '.djk-song'].filter((s) => document.querySelector(s))""")

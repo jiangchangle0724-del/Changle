@@ -106,45 +106,28 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   every phone show the same recap (`recap.ts`): minutes of music, 🔥, the styles played longest,
   the songs asked for, who was most fired up, the perfect drops, whether the sound held up (the
   speaker's `stats`, now in the view as `speaker`); a phone adds the player's own line.
-- **跟着跳, dancing along** (Steve on Nov 2: "电视那边是要玩家进行与舞蹈相匹配的舞蹈"; his plan's 一起跳,
-  `docs/dance-along.md`, easy mode). The TV shows a coach (`Coach.tsx`) all night, whole songs too
-  (Steve on Nov 14: "这个左边的机器人要一直在那里不能消失"; over a song's video filling the TV, a
-  little smaller, down in its corner, under the 弹幕): a 3D robot made in code (`coach/robot.ts`,
-  Nov 14: "更拟人真实细腻": a humanlike body in a glossy shell, a visor face with eyes that blink
-  and smile, headphones, a stool; its arms and legs reach by two-bone IK, nothing downloaded but
-  three.js, loaded only there), each move a plain function of the beat (`coach/poses.ts`), set from
-  the speaker's beat every frame, one move flowing into the next over half a second (sitting down
-  and standing up too), the camera closer when it sits, its lights the room's colour; or Name That
-  Tune's drawn performer while it loads and on a screen with no graphics chip for it (no WebGL,
-  WebGL drawn in software, where three.js isn't even downloaded, or its frames under 20 a second
-  in its first seconds: the robot would take the TV's processor from the music and the page; a
-  phone playing the speaker gets the robot when its chip keeps up, Steve's TV being an iPhone shown
-  on a computer over AirPlay; the drawn one dances each move's nearest standing one, `drawn`),
-  dancing the routine on the speaker's own beat: fifteen simple moves that go with any song
-  (Steve on Nov 14: "有站着的有坐着的，慢摇，快摇"; `shared/dj/dance.ts`, `DANCE_MOVES`), nine
-  standing and six sitting, each with a line under its name saying how to do it ("下面有文字告诉大家
-  怎么跳", both languages, two lines at most). Which moves, in what order, follow the room's stretch
-  of the night (`ROUTINES`, `moodOf`): the warm-up mostly sitting, getting up at its end; the build
-  standing; the peak the bounciest (快摇 first); the wind-down and a slow song (under 90 BPM by its
-  own tempo, `slowSong`) the gentle ones (慢摇 first), standing then sitting. 16 beats each, named
-  big, the next one called in its last 4 beats. Every phone and the room know the move from the
-  same beat count and stretch (`moveAt`), with nothing more sent. A whole song playing: the speaker
-  says where its beats fall (`songbeat`: its id, the first beat `off` ms after `song.at`, the dance
-  tempo, `slow`; said again until the room has it, again when its tempo is found), kept as
-  `deck.song.beat` (a pause moves `song.at`, so the beats move with it); the coach and every phone
-  dance to those (`songGrid`), and a phone still sends the room its bars by the room's own count (a
-  song's bar ending in one already sent stays on the phone). While 暂停 holds the music a phone counts
-  nothing, and starts again from the next bar. A phone held in the dancing hand
-  (`phone/DancePad.tsx`; iOS and newer Chrome ask for the motion sensor on the start tap) reads its
-  motion with gravity taken out; a beat is danced when the hand moves at least 2.5 m/s² within
-  150 ms of it (`danced`, the plan's easy mode: you moved, near the beat), counted from when the
-  phone is listening (a moment after the tap). The phone says how each beat went, and sends each
-  whole bar it listened to (`dance`). The room keeps every dancer's
-  night (beats danced of beats sent, bars, a streak of bars with 3 of 4 or more) and the floor's
-  combo: a bar where 70% of those dancing hit 3 of 4 lifts it by an eighth, any other bar drops it a
-  quarter; full, the TV sets off fireworks (an `fx` event `dance`) and it starts again. The TV
-  shows a meter under each dancer (lit while they keep it up) and how many are dancing; the recap
-  names the best on the beat (four bars or more) and who danced the most beats.
+- **The dancer on the big screen** (till Nov 14 跟着跳's coach: Steve on Nov 2, "电视那边是要玩家进行与
+  舞蹈相匹配的舞蹈"; on Nov 14 he took 跟着跳 out, "把跟着跳的功能也删了", and made her a bar's dancer
+  lifting the room, "她更像一个在酒吧跳舞的角色来烘托气氛的", standing, "她也不需要坐着了", only her
+  with no card or words, "仅保留人物"). On the left of the TV all night (`Coach.tsx`), whole songs
+  too (over a song's video filling the TV: a little smaller, down in its corner, under the 弹幕,
+  letting taps through to the video): the realistic dancer in 3D (`Dancer3D.tsx`, `dancer/`, a new
+  outfit each song); a robot made in code (`coach/robot.ts`, `coach/poses.ts`) where she can't be
+  shown; Name That Tune's drawn performer while they load and on a screen with no graphics chip for
+  them (no WebGL, WebGL drawn in software, where three.js isn't even downloaded, or frames under 20
+  a second in the first seconds). She dances the routine on the speaker's own beat (a whole song's
+  own beat while one plays, found on the TV; nothing about it goes to the room now): nine simple
+  standing moves (`shared/dj/dance.ts`, `DANCE_MOVES`), which and in what order following the
+  room's stretch of the night (`ROUTINES`, `moodOf`; a slow song, under 90 BPM by its own tempo,
+  the gentle ones), 16 beats each (`moveAt`). The phones have nothing of hers. Gone with 跟着跳
+  (Nov 14): the phones' dance pad and its motion sensor, the room's `dance` and `songbeat` (an older
+  page's are taken as nothing), the dancers' counts, the floor's combo and its fireworks, the
+  meters under the dancers, the recap's best on the beat.
+- **The TV's layout** (Steve on Nov 14): up top, only the song asked for that's up next (`UpNext`,
+  `deck/TvDeck.tsx`; the decks, crossfader, build-up meter, the song on the air and the mixer round
+  it are gone); a song from YouTube in the middle, big (840 wide), the floor moving to its right
+  under the code to scan while one is up next or playing (`has-tube` on the stage; the 3D floor
+  lays itself out again to its box); no night's curve at the bottom, the 🔥 count on the right.
 - **The speaker** is a big screen, so it has no seat: it talks to the game through
   `RoomEngine.screenAct` (the rooms server passes a screen's game actions there; only games with a
   `screen` handler listen, and a screen can never act for a seat). A screen can't be kicked and
@@ -188,8 +171,8 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `shuffle` `{ on }` | the host, or the speaker | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
 | `juke` `{ on }` | the speaker | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), the booth's only way since Nov 12 ("不需要drop了": on in a new booth, and once in one saved before, `rev` 2). Off (the build-up and DROP, still in the engine) only from the speaker's word, which no page sends: the engine's tests use it, and the big screen switches a booth an older page turned off back on. Another set keeps it. |
 | `full` `{ on }` | anyone, or the speaker | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
-| `dance` `{ bar, n, of }` | anyone | 跟着跳 (below): the beats its player danced (`n`) of the bar's (`of`, 1 to 4) in bar `bar` of the speaker's count. Only while music plays and the speaker has said its bars, a bar that has come (not one ahead), at most 3 bars late, each bar once a player. Kept in `dance[pid]` for the night; settles the floor's combo. Light. |
-| `songbeat` `{ id, off, bpm, slow }` | the speaker | 跟着跳 on a whole song: where its beats fall (the first `off` ms after `song.at`, 0 to 60 s; the dance tempo, 60 to 200; `slow`, a slow song). Only the song playing; the same again, nothing more. Kept in `deck.song.beat`. |
+| `dance` `{ bar, n, of }` | anyone | 跟着跳's bar, until Nov 14 when Steve took 跟着跳 out: an older phone's is taken as nothing. |
+| `songbeat` `{ id, off, bpm, slow }` | the speaker | Where a whole song's beats fall for 跟着跳, until Nov 14: an older speaker's is taken as nothing, nothing stored. |
 | `song` `{ by, id, code, local? }` | the speaker | How a song file sent from a player's phone went (below): an `fx` event `song` for that phone; one the TV had already (`there`, `local` its id): on that player's 歌单 too. |
 | `nosong` `{ id }` | the speaker | The video of the song up next won't play here (YouTube said so while the TV got it ready): it comes off that song (`ytNo`), whose drop plays the DJ's remix alone. Only the song up next with a video; said again, nothing more. |
 | `req` `{ text, song?, yt? }`, `unreq` `{ id }` | the speaker | The shared phone's own 点歌 (below): a song asked for as the table's (`SHARED_BY`), up to the table's 30 (not three); only its own taken back. |
@@ -409,10 +392,11 @@ deck B ┘                                                                 horn,
   a song is coming on), the video over the whole TV, and the TV's word when it wants a tap. Then
   the song box, 从手机传歌, the 歌单 and the sound board (音效, below; the twelve pads until Nov 13),
   🔥 and ❄️, 弹幕, the host's card (报幕 and 弹幕 on or off; at the end, 再来一场: its stretches and
-  结束这一场 gone on Nov 13), and 跟着跳 at the very bottom.
-- **The screens:** the TV shows the two decks (the one on the air bright, the cued one "up next"),
-  the fader, who played which sound, and a line (`jukeText`: what comes next, 暂停 held, or a floor
-  that's dragging between songs told to ask for a song everyone loves). With the build-up and DROP
+  结束这一场 gone on Nov 13); 跟着跳 at the very bottom until Nov 14.
+- **The screens:** the TV shows the song asked for that's up next (the two decks, the fader and the
+  rest of the board round it went on Nov 14), who played which sound, and a line (`jukeText`: what
+  comes next, 暂停 held, or a floor that's dragging between songs told to ask for a song everyone
+  loves). With the build-up and DROP
   on (the engine's tests only), its meter, the countdown, the landed drop and `hintFor`'s hints.
 
 **弹幕** (Steve on Nov 13: "再加一个玩家可以发弹幕的功能，可以推荐几个弹幕表情之类的，也可以自定义";
@@ -831,7 +815,7 @@ load of three.js for both, `robot3d.ts`), everyone at the table is the little CC
 coach's own until Nov 14, when the coach got its own humanlike one), its body in their own colour (their avatar's), their face and name over its head, the host's
 ringed. On the speaker's beat each one's animation is stretched to whole beats and set to where the
 beat is every frame, as the coach's: easy moves in the warm-up and the wind-down, the full set in
-the build, the big ones at the peak and for anyone keeping up with the coach (跟着跳), the move
+the build, the big ones at the peak, the move
 changing every two bars, each robot starting at a different place in the list. A 🔥 makes its owner
 jump (its tag going up with it); someone away sits down, greyed. Over a whole song from YouTube,
 which the page can't hear, they dance to the song's own beat (Steve on Nov 12: "机器人没有跟着音乐一起
@@ -842,8 +826,8 @@ one name each, "Jay Chou 晴天" for a title naming both in two scripts), the si
 first and the next when one has no tempo, then a cover's, five tracks at most (`tracksOf`); none:
 `{ bpm: null, why }`, `video`, `match` or `tempo`; `danceBpm` folds the tempo into 70 to 140),
 the DJ's until it's there or when there's none, counted from the song's start (`song.at`), whether
-or not the page's own sound is running, the lights kicking on its beats (the coach and the phones'
-跟着跳 on the same beats: `songbeat` above). A microphone on a stand
+or not the page's own sound is running, the lights kicking on its beats (the dancer on the left on
+the same beats). A microphone on a stand
 rises in front of each, brows up as a line opens out and knitted on its long notes, notes in their
 colour going up from them; the song over, back to the DJ's beat. Paused, they stand easy. More than 8: two
 rows, the back one on a step behind and between (its edge lit in the booth's pink), its tags over
@@ -914,13 +898,14 @@ and is back if they can't be. While a song's video covers the whole TV, none of 
   from them leaving the 歌单. `tests/dj.test.ts` has the pieces (read back byte for byte, every bad
   one turned away); `tests/engine.test.ts` the room's side (on the 歌单 by itself, whole, 切歌 and
   上一曲, already there, someone not at the table, the TV without them).
-- `python3 scripts/dj_dance_check.py [chromium|webkit]`: dancing along in browsers, a TV and two
-  phones: the coach drawn, moving, named, the next move called, then changing; two phones dancing
-  with a pretend hand on their own clock (Amy's moving on the beats, Ben's between them): each
-  phone's word for its beats and bars, the room's counts (Amy about all, Ben none), the TV's
-  meters, then both on the beat filling the combo to fireworks; the recap's best on the beat.
-  `tests/dj.test.ts` has the routine, the beat times and a danced beat; `tests/engine.test.ts`
-  the room's counts, the combo and its fireworks.
+- `python3 scripts/dj_dancer_check.py [chromium|webkit]`: the TV after Steve's Nov 14 trim, in
+  browsers, a TV and two phones: up top only the song up next; no night's curve; the dancer on the
+  left, only her (no card, no words), drawn and dancing where there's no graphics chip; the phones
+  without 跟着跳; a song from YouTube in the middle, big, the floor moving to its right and back once
+  it's skipped; the recap without dancing; then a TV told to take any WebGL: her in 3D, standing,
+  the peak's moves at the peak, a new outfit for a new song. `tests/dj.test.ts` has the routine;
+  `tests/engine.test.ts` that an older phone's `dance` and an older speaker's `songbeat` change
+  nothing.
 - `python3 scripts/dj_danmu_check.py`: 弹幕 in browsers, a TV and three phones: the card on every
   phone (twelve ready ones in its language, 48 px each), a tap flying right to left across the TV
   with the sender's face and name, a second straight after not taken (the phone says slow down), a
@@ -964,7 +949,7 @@ and is back if they can't be. While a song's video covers the whole TV, none of 
   the booth's own address still asking for 开始派对.
 - `python3 scripts/dj_player_check.py`: the phones' player in browsers, a TV and three phones (one
   in English): the page in its order (the player the very first thing, the song box, the 歌单, the
-  sound board, 跟着跳 at the very bottom) with none of the deck that's gone; a song coming on by itself;
+  sound board; no 跟着跳 since Nov 14) with none of the deck that's gone; a song coming on by itself;
   暂停 (the TV's video held where it is, the DJ quiet, the TV and the phones saying so, a sound from the
   board still playing) and 播放 (on from there); 切歌, its keys not grey while the next comes on; 上一曲 (the one before again, the
   skipped one after it); the DJ held and back between songs; one phone asking for six songs in a

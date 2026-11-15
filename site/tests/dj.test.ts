@@ -1,6 +1,6 @@
 /* 打碟 · DJ Booth: the speaker's player and the stand-in DJ, without a sound card.
    Run with `npx tsx tests/dj.test.ts`. The booth's room rules are in engine.test.ts. */
-import { beatOf, beatTime, DANCE_MOVES, danced, moodOf, moveAt, ROUTINES, slowSong, songGrid, type Mood } from "../src/shared/dj/dance";
+import { DANCE_MOVES, moodOf, moveAt, ROUTINES, slowSong, type Mood } from "../src/shared/dj/dance";
 import { BY_PHASE, nextSection, renderOrder } from "../src/party/dj/fake/arrange";
 import { FakeDj, pack } from "../src/party/dj/fake/FakeDj";
 import type { Rendered } from "../src/party/dj/fake/render";
@@ -1247,27 +1247,18 @@ await test("youtube: a link's video id, the search answer's videos, YouTube's es
 });
 
 
-await test("dance along: the routine on the beat count, a beat danced near it, the speaker's bars as times", () => {
+await test("the dancer on the TV: her routine on the beat count, all standing (Steve on Nov 14: 跟着跳 and sitting down taken out)", () => {
   ok(moveAt(0).move.id === "stepClap" && moveAt(15).left === 1 && moveAt(16).move.id === "point" && moveAt(15).next.id === "point", "a move for 16 beats, then the next");
   const n = ROUTINES.build.length;
   ok(moveAt(-1).move.id === ROUTINES.build[n - 1] && moveAt(16 * n).move.id === "stepClap", "the routine goes round (before the first beat too)");
-  // the night's stretches: the warm-up mostly sitting and getting up at its end, the build and the
-  // peak standing (快摇 first at the peak), the wind-down and a slow song the gentle ones
-  const sits = (m: Mood) => ROUTINES[m].map((id) => DANCE_MOVES[id].sit);
-  ok(sits("warm").join() === "true,true,true,true,false,false" && !sits("build").includes(true) && !sits("peak").includes(true), "sitting at the start, standing up for the build and the peak");
+  // the night's stretches: the peak the bounciest (快摇 first), the wind-down and a slow song the gentle ones
   ok(moveAt(0, "peak").move.id === "bounce" && DANCE_MOVES.bounce.zh === "快摇" && moveAt(0, "cool").move.id === "sway" && DANCE_MOVES.sway.zh === "慢摇", "the peak starts with 快摇, the wind-down with 慢摇");
-  ok(sits("cool").includes(true) && sits("cool").includes(false) && ROUTINES.slow.join() === ROUTINES.cool.join(), "the wind-down and a slow song: standing and sitting, gentle");
+  ok(moveAt(0, "warm").move.id === "sway" && ROUTINES.slow.join() === ROUTINES.cool.join(), "the warm-up starts easy; a slow song dances the wind-down's");
   const ids = Object.keys(DANCE_MOVES) as (keyof typeof DANCE_MOVES)[];
   ok(ids.every((id) => (Object.keys(ROUTINES) as Mood[]).some((m) => ROUTINES[m].includes(id))), "every move is danced in some stretch");
-  ok(ids.every((id) => DANCE_MOVES[id].how.zh.length >= 6 && DANCE_MOVES[id].how.en.length >= 10 && DANCE_MOVES[id].how.en.length <= 48), "each says how, in both languages (short enough for two lines on the TV)");
-  ok(ids.filter((id) => DANCE_MOVES[id].sit).every((id) => DANCE_MOVES[id].how.zh.startsWith("坐着") && DANCE_MOVES[id].how.en.startsWith("Seated")), "the sitting ones say so");
+  ok(ids.every((id) => !("sit" in DANCE_MOVES[id])) && ids.every((id) => !("how" in DANCE_MOVES[id])), "none sitting, and no words for how to do it (nobody's told to follow her now)");
   ok(moodOf("peak") === "peak" && moodOf("warm") === "warm" && moodOf("wait") === "build" && moodOf("end") === "build" && moodOf("peak", true) === "slow", "the routine: the room's stretch, or slow for a slow song");
   ok(slowSong(72) && slowSong(89.9) && !slowSong(90) && !slowSong(128) && !slowSong(null) && !slowSong(0) && !slowSong(undefined), "a slow song: under 90 by its own tempo (unknown: not)");
-  ok(songGrid(null) === null && songGrid({ at: 5000 }) === null && JSON.stringify(songGrid({ at: 5000, beat: { off: 250, bpm: 96 } })) === JSON.stringify({ at: 5250, bar: 0, bpm: 96 }), "a whole song's own beats: from its first beat, once the speaker has said where");
-  const gr = { at: 10_000, bar: 5, bpm: 125 };
-  ok(beatTime(gr, 20) === 10_000 && beatTime(gr, 21) === 10_480 && Math.abs(beatOf(gr, 10_240) - 20.5) < 1e-9, "beats as server times, and back");
-  const near = [{ t: 10_000 + 120, a: 4 }, { t: 10_480 - 200, a: 9 }, { t: 10_960, a: 1.5 }];
-  ok(danced(near, [10_000, 10_480, 10_960]).join() === "true,false,false", "a beat is danced with a real move within 150 ms of it (too far, or too gentle, isn't)");
 });
 
 /* ------------------------------------------------------------------ 真歌时间: the TV's YouTube player (tube.ts), against a stand-in */
