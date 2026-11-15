@@ -19,6 +19,12 @@
 // keeps a list of what is there, each with whose account sent it. Whoever holds the key reads them,
 // and takes one off; storing one also needs a sign-in, which is the Worker's to check, as is how
 // much room the sender's account has (account.ts). A locked ledger takes no new file and lets none go.
+//
+// A file no expense on the ledger uses (taken off one, or on one deleted) is kept UNUSED_DAYS from
+// when it stopped being used, so 改回去 and 恢复 in the record can still bring it back; the nightly
+// check lets it go after that. Its sender can let it go sooner, from their account (the storage
+// page), unless it was stored less than SETTLING_MS ago: then it may be on its way onto an expense
+// that is still being written. A deleted account's files all go.
 import { accept, parseSent, type Sent, type Took } from "../../../../site/src/split/changes";
 import { MAX_MEMBERS, type Ledger, type Member } from "../../../../site/src/split/core";
 import { NAME_MAX, startLedger, tidy } from "../../../../site/src/split/ops";
@@ -60,6 +66,33 @@ export type FileInfo = Omit<StoredFile, "by">;
 /** The most files one ledger keeps. */
 export const MAX_LEDGER_FILES = 2000;
 const info = ({ by: _by, ...rest }: StoredFile): FileInfo => rest;
+/** How long a file no expense uses is kept: as long as a deleted expense can be brought back (site/src/split/history.ts, RESTORE_DAYS). */
+export const UNUSED_DAYS = 30;
+/** A file on no expense, stored less than this long ago, may be on its way onto one (记一笔 still open). */
+export const SETTLING_MS = 60 * 60 * 1000;
+const DAY_MS = 86_400_000;
+/** How many of one account's files, and how big. */
+export type Count = { count: number; bytes: number };
+/** One account's files in a ledger: all of them, and those no expense uses that it may clear now. */
+export type Usage = Count & { unused: Count };
+
+/**
+ * The files the ledger's expenses use: those on an expense still in it. A file on a deleted one
+ * isn't, from when it was deleted (`since`); one used again is used.
+ */
+export function usedFiles(ledger: Ledger): { used: Set<string>; since: Map<string, number> } {
+  const used = new Set<string>();
+  const since = new Map<string, number>();
+  for (const e of ledger.entries) {
+    if (e.kind !== "expense" || !e.files) continue;
+    for (const f of e.files) {
+      if (e.gone === undefined) used.add(f);
+      else since.set(f, Math.min(since.get(f) ?? Infinity, e.gone));
+    }
+  }
+  for (const f of used) since.delete(f);
+  return { used, since };
+}
 
 export interface Store {
   load(): { meta: Meta; ledger: Ledger } | null;
@@ -80,8 +113,13 @@ export interface Store {
   files(): StoredFile[];
   file(id: string): StoredFile | null;
   putFile(file: StoredFile): void;
+  /** A file off the list (its mark, if it has one, with it). */
   dropFile(id: string): void;
   fileCount(): number;
+  /** The files the nightly check found no expense uses, each with since when. */
+  unused(): Map<string, number>;
+  markUnused(id: string, since: number): void;
+  clearUnused(id: string): void;
 }
 
 /** "owner": not the owner's key (or the ledger has no owner). "locked": the ledger is locked and this would change it. */
@@ -310,6 +348,84 @@ export class LedgerRoom {
     return { ok: true, file: kept };
   }
 
+  /**
+   * The nightly check. Every file no expense uses is marked from when it stopped being used (one on
+   * a deleted expense, from when that was deleted; any other, from the first night it is found
+   * so); one used again loses its mark. Those marked UNUSED_DAYS ago or more come off the list, and
+   * are returned for the bucket to let go of them and their senders to have the room back. What is
+   * left: how many files the ledger still keeps. (Locked or not: what nobody can see isn't the
+   * lock's to keep.)
+   */
+  nightly(now: number): { gone: StoredFile[]; left: number } {
+    if (!this.meta || !this.ledger) return { gone: [], left: 0 };
+    const { used, since } = usedFiles(this.ledger);
+    const marks = this.store.unused();
+    const gone: StoredFile[] = [];
+    for (const f of this.store.files()) {
+      if (used.has(f.id)) {
+        if (marks.has(f.id)) this.store.clearUnused(f.id);
+        continue;
+      }
+      const from = Math.min(marks.get(f.id) ?? now, since.get(f.id) ?? now);
+      if (now - from >= UNUSED_DAYS * DAY_MS) {
+        this.store.dropFile(f.id);
+        gone.push(f);
+      } else if (marks.get(f.id) !== from) this.store.markUnused(f.id, from);
+    }
+    // (a mark left from a file gone some other way)
+    for (const id of marks.keys()) if (!this.store.file(id)) this.store.clearUnused(id);
+    return { gone, left: this.store.fileCount() };
+  }
+
+  /** Is this file on the list? */
+  keeps(id: string): boolean {
+    return this.meta !== null && this.store.file(id) !== null;
+  }
+
+  /** One account's files here, and of those how many it may clear now. Null when the ledger isn't there. */
+  usage(account: string, now: number): Usage | null {
+    if (!this.meta || !this.ledger) return null;
+    const { used } = usedFiles(this.ledger);
+    const all: Count = { count: 0, bytes: 0 };
+    const unused: Count = { count: 0, bytes: 0 };
+    for (const f of this.store.files()) {
+      if (f.by !== account) continue;
+      all.count += 1;
+      all.bytes += f.size;
+      if (!used.has(f.id) && now - f.at >= SETTLING_MS) {
+        unused.count += 1;
+        unused.bytes += f.size;
+      }
+    }
+    return { ...all, unused };
+  }
+
+  /**
+   * An account clears its files here that no expense uses (and that weren't stored just now): off
+   * the list, and returned for the bucket and the account. 改回去 can't bring them back after this.
+   */
+  dropUnused(account: string, now: number): StoredFile[] {
+    if (!this.meta || !this.ledger) return [];
+    const { used } = usedFiles(this.ledger);
+    const gone = this.store.files().filter((f) => f.by === account && !used.has(f.id) && now - f.at >= SETTLING_MS);
+    for (const f of gone) this.store.dropFile(f.id);
+    return gone;
+  }
+
+  /** An account is deleted: every file it sent here comes off the list, and is returned for the bucket. (Expenses keep their ids, and show the photo as gone.) */
+  dropBy(account: string): StoredFile[] {
+    if (!this.meta) return [];
+    const gone = this.store.files().filter((f) => f.by === account);
+    for (const f of gone) this.store.dropFile(f.id);
+    return gone;
+  }
+
+  /** One account's files as the list has them, for the account's nightly check; null when the ledger isn't there. */
+  filesBy(account: string): StoredFile[] | null {
+    if (!this.meta) return null;
+    return this.store.files().filter((f) => f.by === account);
+  }
+
   /** The record after number `seq` (who changed what, in order, and when it was locked or opened), at most MAX_BATCH lines at a time. */
   since(keyHash: string | null, seq: unknown): Ok<{ seq: number; changes: Logged[] }> | Fail {
     if (!this.meta) return fail("gone");
@@ -320,16 +436,25 @@ export class LedgerRoom {
 }
 
 /** A store that lives only as long as the test does. */
-export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[]; kept: Map<string, StoredFile> } {
+export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[]; kept: Map<string, StoredFile>; marks: Map<string, number> } {
   let kept: { meta: Meta; ledger: Ledger } | null = null;
   const ids = new Map<string, boolean>();
   const log: Logged[] = [];
   const files = new Map<string, StoredFile>();
+  const marks = new Map<string, number>();
   let buried: number | null = null;
   return {
     ids,
     log,
     kept: files,
+    marks,
+    unused: () => new Map(marks),
+    markUnused(id, since) {
+      marks.set(id, since);
+    },
+    clearUnused(id) {
+      marks.delete(id);
+    },
     files: () => [...files.values()].map((f) => structuredClone(f)),
     file: (id) => (files.has(id) ? structuredClone(files.get(id)!) : null),
     putFile(f) {
@@ -337,6 +462,7 @@ export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[
     },
     dropFile(id) {
       files.delete(id);
+      marks.delete(id);
     },
     fileCount: () => files.size,
     load: () => (kept ? structuredClone(kept) : null),
@@ -357,6 +483,7 @@ export function memoryStore(): Store & { ids: Map<string, boolean>; log: Logged[
       ids.clear();
       log.length = 0;
       files.clear();
+      marks.clear();
       buried = now;
     },
     buried: () => buried,

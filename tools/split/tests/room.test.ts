@@ -7,7 +7,8 @@ import test from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
 import type { Expense } from "../../../site/src/split/core";
 import { AccountRoom, MAX_MINE, memoryAccountStore, UPLOADS_PER_DAY } from "../src/room/account";
-import { LedgerRoom, MAX_BATCH, MAX_LEDGER_FILES, MAX_SENT, memoryStore, type StoredFile } from "../src/room/ledger";
+import { LedgerRoom, MAX_BATCH, MAX_LEDGER_FILES, MAX_SENT, memoryStore, SETTLING_MS, UNUSED_DAYS, usedFiles, type StoredFile } from "../src/room/ledger";
+import { nextNight } from "../src/room/nightly";
 
 const NOW = Date.UTC(2026, 10, 13, 19, 0);
 const three = [
@@ -388,4 +389,106 @@ test("an account starts at most so many ledgers a day", () => {
   assert.deepEqual(day(4), [true, true, true, false], "three, and no fourth");
   assert.equal(account.take("2026-11-15", 3), true, "the next day, again");
   assert.deepEqual([...store.days.keys()], ["2026-11-15"], "the day before is forgotten");
+});
+
+const DAY = 86_400_000;
+const sent = (id: string, change: Sent["change"], at = NOW): Sent => ({ id, at, change });
+const edit = (entry: string, files: string[] | null): Sent["change"] => ({ do: "edit", entry, to: { payer: "s", amount: 3000, note: "", split: { how: "equal", among: ["s", "w", "m"] }, files } });
+
+test("the files a ledger's expenses use: those on an expense still in it", () => {
+  const { room } = make();
+  room.push("key", [expense("e1", { files: ["a", "b"] }), expense("e2", { files: ["c"] }), expense("e3", { files: ["b"] }), expense("e4")], NOW);
+  room.push("key", [sent("o1", { do: "out", entry: "e2", at: NOW + 5 }), sent("o2", { do: "out", entry: "e3", at: NOW + 6 })], NOW + 6);
+  const { used, since } = usedFiles(room.snapshot()!.ledger);
+  assert.deepEqual([[...used].sort(), [...since]], [["a", "b"], [["c", NOW + 5]]], "a deleted expense's photo isn't used, from when it was deleted; one on a deleted expense and a live one is used");
+});
+
+test("the nightly check: a file no expense uses is kept thirty days from when it stopped being used, then let go", () => {
+  const { room, store } = make({ ownerHash: "owner" });
+  const photo = (id: string): StoredFile => ({ id, size: 1_000, type: "image/jpeg", by: id === "d" ? "u2" : "u1", at: NOW });
+  for (const f of ["a", "b", "c", "d"]) room.stored(photo(f));
+  // a: on an expense; b: on one deleted a day later; c: taken off an expense on day 2; d: never on one
+  room.push("key", [expense("e1", { files: ["a", "c"] }), expense("e2", { files: ["b"] })], NOW);
+  room.push("key", [sent("o1", { do: "out", entry: "e2", at: NOW + DAY }, NOW + DAY)], NOW + DAY);
+  room.push("key", [sent("x1", edit("e1", ["a"]), NOW + 2 * DAY)], NOW + 2 * DAY);
+  const night = (d: number) => room.nightly(NOW + d * DAY);
+  assert.deepEqual(night(3), { gone: [], left: 4 }, "the third night: nothing goes");
+  assert.deepEqual([...store.marks].sort(), [["b", NOW + DAY], ["c", NOW + 3 * DAY], ["d", NOW + 3 * DAY]], "each unused one marked: the deleted expense's from when it was deleted, the others from the night they were found so");
+  assert.deepEqual(night(4), { gone: [], left: 4 }, "found again, a mark keeps its time");
+  assert.deepEqual(store.marks.get("c"), NOW + 3 * DAY);
+  assert.deepEqual(night(UNUSED_DAYS + 1), { gone: [photo("b")], left: 3 }, `${UNUSED_DAYS} days after its expense was deleted: that photo goes, its sender with it (for the room)`);
+  // c is put back on its expense (改回去) before its thirty days are up
+  room.push("key", [sent("x2", edit("e1", ["a", "c"]), NOW + (UNUSED_DAYS + 2) * DAY)], NOW + (UNUSED_DAYS + 2) * DAY);
+  assert.deepEqual(night(UNUSED_DAYS + 2), { gone: [], left: 3 }, "changed back: used again, it loses its mark");
+  assert.deepEqual([...store.marks.keys()], ["d"]);
+  assert.deepEqual(night(UNUSED_DAYS + 3), { gone: [photo("d")], left: 2 }, "never on an expense: thirty days after it was first found so");
+  room.lock("owner", true, NOW + (UNUSED_DAYS + 4) * DAY);
+  room.stored(photo("e"));
+  assert.equal(store.kept.has("e"), false, "(locked: no new file)");
+  room.lock("owner", false, NOW + (UNUSED_DAYS + 4) * DAY);
+  assert.deepEqual([night(40).gone, night(100).gone], [[], []], "what is used stays, however long");
+  assert.ok(room.keeps("a") && !room.keeps("b") && !room.keeps("nope"));
+  const woken = new LedgerRoom(store);
+  assert.deepEqual(woken.nightly(NOW + 101 * DAY), { gone: [], left: 2 }, "the same after a restart");
+  woken.wipe("owner", NOW + 102 * DAY);
+  assert.deepEqual([woken.nightly(NOW + 200 * DAY), store.marks.size], [{ gone: [], left: 0 }, 0], "a deleted ledger: nothing left to check");
+});
+
+test("an account's files in a ledger: how many no expense uses, cleared now (not one just stored), and all of them when the account is deleted", () => {
+  const { room, store } = make();
+  const photo = (id: string, by: string, at = NOW): StoredFile => ({ id, size: id.length * 100, type: "image/jpeg", by, at });
+  room.stored(photo("used1", "u1"));
+  room.stored(photo("loose1", "u1"));
+  room.stored(photo("fresh1", "u1", NOW + 2 * DAY - SETTLING_MS + 1));
+  room.stored(photo("theirs", "u2"));
+  room.stored(photo("theirsLoose", "u2"));
+  room.push("key", [expense("e1", { files: ["used1", "theirs"] })], NOW);
+  const now = NOW + 2 * DAY;
+  assert.deepEqual(room.usage("u1", now), { count: 3, bytes: 1_700, unused: { count: 1, bytes: 600 } }, "u1's three: one on an expense, one on none, one on none but stored in the last hour (it may be on its way onto one)");
+  assert.deepEqual(room.usage("u2", now), { count: 2, bytes: 1_700, unused: { count: 1, bytes: 1_100 } });
+  assert.deepEqual(room.usage("nobody", now), { count: 0, bytes: 0, unused: { count: 0, bytes: 0 } });
+  assert.deepEqual(room.dropUnused("u1", now), [photo("loose1", "u1")], "cleared now: the one on no expense, not the one just stored, nor another account's");
+  assert.deepEqual(room.dropUnused("u1", now), [], "twice is once");
+  assert.deepEqual(room.filesBy("u1")?.map((f) => f.id), ["used1", "fresh1"], "what is left of u1's, as the list has it");
+  assert.deepEqual(room.dropBy("u1").map((f) => f.id), ["used1", "fresh1"], "u1 deleted: every one of theirs goes, on an expense or not");
+  assert.deepEqual([...store.kept.keys()], ["theirs", "theirsLoose"], "another account's stay, on an expense or not");
+  const [kept] = room.snapshot()!.ledger.entries;
+  assert.equal(kept.kind === "expense" ? kept.files?.join() : "", "used1,theirs", "the expense keeps both ids (its photo shows as gone)");
+  room.wipe(null, now);
+  assert.equal(room.snapshot()?.ledger.id, asked.id, "(only the owner deletes it: this one has none)");
+  const gone = make({ ownerHash: "owner" });
+  gone.room.wipe("owner", now);
+  assert.deepEqual([gone.room.usage("u1", now), gone.room.filesBy("u1"), gone.room.dropUnused("u1", now), gone.room.dropBy("u1")], [null, null, [], []], "a ledger that is gone: nothing to tell, nothing to drop");
+});
+
+test("an account checked against the ledgers: charged for what they keep, and nothing kept once it is deleted", () => {
+  const store = memoryAccountStore();
+  const account = new AccountRoom(store);
+  const quota = 10_000;
+  const day = "2026-11-14";
+  assert.equal(account.self(), null, "not told who it is yet");
+  account.reserve({ ledger: "L1", id: "f1", size: 400, now: NOW, day, quota, account: "u1" });
+  account.reserve({ ledger: "L1", id: "f2", size: 300, now: NOW, day, quota });
+  account.reserve({ ledger: "L2", id: "f3", size: 200, now: NOW, day, quota });
+  assert.deepEqual([account.self(), account.ledgersWithFiles()], ["u1", ["L1", "L2"]], "told with its first file; and the ledgers its files are in");
+  assert.equal(account.settle("L1", [{ id: "f1", size: 400, at: NOW }, { id: "f9", size: 50, at: NOW }]), 650, "the ledger keeps f1 and an f9 it wasn't charged for, not f2: so it is charged");
+  assert.deepEqual(account.storage(quota).ledgers, [{ id: "L1", bytes: 450, count: 2 }, { id: "L2", bytes: 200, count: 1 }]);
+  assert.equal(account.settle("L1", [{ id: "f1", size: 410, at: NOW }, { id: "f9", size: 50, at: NOW }]), 660, "the size the ledger has is the one charged");
+  assert.equal(account.settle("L2", []), 460, "a ledger that keeps none of its files (or is gone): none charged");
+  assert.deepEqual(account.ledgersWithFiles(), ["L1"]);
+  account.keep({ id: "L1", key: "k", now: NOW });
+  account.take(day, 10);
+  account.wipe();
+  assert.deepEqual([account.list(), account.used(), account.self(), account.ledgersWithFiles(), store.days.size, store.sent.size], [[], 0, null, [], 0, 0], "deleted: its ledgers, its room, its days, who it is, all gone");
+});
+
+test("the night: in the small hours on the coast, a minute of its own for each, never the minute it is now", () => {
+  const at = (s: string) => Date.parse(s);
+  const night = nextNight("ledger-0001", at("2026-11-14T23:00:00Z"));
+  assert.equal(new Date(night).toISOString().slice(0, 13), "2026-11-15T10", "after the night's hour: the next day's, at 10:00 UTC (2 a.m. in Vancouver)");
+  assert.equal(nextNight("ledger-0001", at("2026-11-14T03:00:00Z")), night - DAY, "before it: that day's");
+  assert.equal(nextNight("ledger-0001", night), night + DAY, "at the minute itself: the next day's");
+  assert.equal(nextNight("ledger-0001", night - 30_000), night + DAY, "half a minute before it: the next day's too");
+  const minutes = new Set(Array.from({ length: 50 }, (_, i) => new Date(nextNight(`ledger-${i}`, at("2026-11-14T23:00:00Z"))).getUTCMinutes()));
+  assert.ok(minutes.size > 20, `fifty ledgers wake at ${minutes.size} different minutes of the hour`);
 });

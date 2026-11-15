@@ -1,9 +1,11 @@
 // The stand-in rooms server (worker.ts), under the real one's name, so 两清's binding to
 // `changle-rooms` reaches it on this machine: `npm run dev`, and the tests (`npm run test:server`).
-// Never published.
+// Bound back to 两清's `Internal` entrypoint, as the real one is (site/worker), to say an account
+// is deleted. Never published.
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "changle-rooms",
   "main": "worker.ts",
-  "compatibility_date": "2026-10-01"
+  "compatibility_date": "2026-10-01",
+  "services": [{ "binding": "SPLIT", "service": "split", "entrypoint": "Internal" }]
 }

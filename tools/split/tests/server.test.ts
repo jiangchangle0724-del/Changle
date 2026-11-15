@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type MineBody, type MyLedgers, type Push, type Pushed, type Since, type Snapshot, type Storage, type Stored } from "../src/room/protocol";
+import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type MineBody, type MyFiles, type MyLedgers, type Push, type Pushed, type Since, type Snapshot, type Stored } from "../src/room/protocol";
 import { SESSION } from "./accounts";
 
 const PORT = 8794;
@@ -256,7 +256,9 @@ async function putFile(ledger: string, file: string, bytes: Uint8Array, key: str
   const res = await fetch(`${API}/ledgers/${ledger}/files/${file}`, { method: "PUT", headers: { ...(key ? { [KEY_HEADER]: key } : {}), "content-type": type, ...more }, body: bytes });
   return { status: res.status, data: (await res.json()) as Stored & { error?: string } };
 }
-const storageOf = async (who: Record<string, string>) => (await call<Storage>("GET", "/me/files", null, undefined, who)).data;
+/** My files, as of `later` ms from now (by then what was just stored has settled: ledger.ts, SETTLING_MS). */
+const storageOf = async (who: Record<string, string>, later = 0) => (await call<MyFiles>("GET", `/me/files${later ? `?at=${Date.now() + later}` : ""}`, null, undefined, who)).data;
+const nothing = { count: 0, bytes: 0 };
 
 test("receipt photos: stored by a signed-in phone with the key, read back as they were, charged once", async () => {
   const { id, key } = await make();
@@ -274,7 +276,7 @@ test("receipt photos: stored by a signed-in phone with the key, read back as the
     ["bigger than FILE_MAX", await putFile(id, "f-0000001", jpeg(FILE_MAX + 1), key, steve), { status: 413, data: { error: "big" } }],
     ["an id that isn't one", await putFile(id, "a.b", photo, key, steve), { status: 404, data: { error: "notfound" } }],
   ] as const) assert.deepEqual(got, want, why);
-  assert.deepEqual(await storageOf(steve), { used: 0, quota: TEST_QUOTA, ledgers: [] }, "none of that was kept, or charged");
+  assert.deepEqual(await storageOf(steve), { used: 0, quota: TEST_QUOTA, unused: nothing, ledgers: [] }, "none of that was kept, or charged");
 
   const first = await putFile(id, "f-0000001", photo, key, steve);
   assert.equal(first.status, 201);
@@ -313,7 +315,7 @@ test("receipt photos: taken off by anyone with the key, the room back to whoever
   assert.equal((await putFile(id, "big-0002", jpeg(140_000), key, steve)).status, 201);
   assert.deepEqual(await putFile(id, "big-0003", jpeg(10_001), key, steve), { status: 413, data: { error: "quota" } }, `${TEST_QUOTA} bytes in all: one past it is turned away`);
   assert.equal((await putFile(id, "big-0003", jpeg(10_000), key, steve)).status, 201, "up to it, taken");
-  assert.deepEqual(await storageOf(steve), { used: TEST_QUOTA, quota: TEST_QUOTA, ledgers: [{ id, bytes: TEST_QUOTA, count: 3 }] });
+  assert.deepEqual(await storageOf(steve), { used: TEST_QUOTA, quota: TEST_QUOTA, unused: nothing, ledgers: [{ id, bytes: TEST_QUOTA, count: 3, unused: nothing }] }, "(none on an expense, but all just stored: none to clear yet)");
 
   assert.deepEqual(await call("DELETE", `/ledgers/${id}/files/big-0001`, newKey()), { status: 403, data: { error: "key" } });
   assert.deepEqual(await call("DELETE", `/ledgers/${id}/files/big-0001`, key), { status: 200, data: { ok: true } }, "taken off by someone with the key, signed in or not");
@@ -340,9 +342,94 @@ test("receipt photos: a locked ledger takes none and lets none go; a deleted one
   assert.equal((await putFile(id, "lk-00001", jpeg(1_000), key, steve)).status, 200, "and one stored already, sent again, hears it is there");
 
   assert.deepEqual(await call("DELETE", `/ledgers/${id}`, null, undefined, { [OWNER_HEADER]: owner }), { status: 200, data: { ok: true } }, "the owner deletes the ledger");
-  assert.deepEqual([await storageOf(steve), await storageOf(friend)], [{ used: 0, quota: TEST_QUOTA, ledgers: [] }, { used: 0, quota: TEST_QUOTA, ledgers: [] }], "every account that sent it photos has its room back");
+  assert.deepEqual([await storageOf(steve), await storageOf(friend)], [{ used: 0, quota: TEST_QUOTA, unused: nothing, ledgers: [] }, { used: 0, quota: TEST_QUOTA, unused: nothing, ledgers: [] }], "every account that sent it photos has its room back");
   assert.deepEqual(await call("GET", `/ledgers/${id}/files/lk-00001`, key), { status: 404, data: { error: "gone" } });
   assert.deepEqual(await call("GET", "/me/files", null), { status: 401, data: { error: "signin" } }, "my files need a sign-in");
+});
+
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+/** The Expense change for an expense with these photos. */
+const withFiles = (entry: string, files: string[]): Sent => ({ ...expense(entry), change: { do: "expense", expense: { kind: "expense", id: entry, at: Date.now(), payer: "s", amount: 3000, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0, files } } }) as Sent;
+const editFiles = (entry: string, files: string[] | null): Sent => ({ id: `c${++n}-${randomUUID()}`, at: Date.now(), change: { do: "edit", entry, to: { payer: "s", amount: 3000, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, files } } });
+const listed = async (id: string, key: string) => (await call<Files>("GET", `/ledgers/${id}/files`, key)).data.files.map((f) => f.id);
+const inBucket = async (id: string, key: string, file: string) => (await fetch(`${API}/ledgers/${id}/files/${file}`, { headers: { [KEY_HEADER]: key } })).status;
+/** The account a "test-account-…" sign-in is (tests/accounts.ts). */
+const accountIn = (who: Record<string, string>) => who.authorization.replace("Bearer test-account-", "");
+
+test("receipt photos no expense uses: counted on my files once settled, cleared now, the room back", async () => {
+  const { id, key } = await make();
+  const steve = someone();
+  const friend = someone();
+  for (const [f, size, who] of [["on-0001", 1_000, steve], ["off-0001", 2_000, steve], ["loose-001", 3_000, steve], ["theirs-01", 4_000, friend]] as const) assert.equal((await putFile(id, f, jpeg(size), key, who)).status, 201);
+  assert.equal((await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [withFiles("e1", ["on-0001", "off-0001", "theirs-01"])] })).status, 200);
+  assert.deepEqual(await storageOf(steve), { used: 6_000, quota: TEST_QUOTA, unused: nothing, ledgers: [{ id, count: 3, bytes: 6_000, unused: nothing }] }, "just stored: the one on no expense may be on its way onto one, so none to clear");
+  assert.deepEqual((await storageOf(steve, 2 * HOUR)).unused, { count: 1, bytes: 3_000 }, "two hours on: the one on no expense");
+  assert.equal((await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [editFiles("e1", ["on-0001", "theirs-01"])] })).status, 200, "one taken off the expense");
+  const later = await storageOf(steve, 2 * HOUR);
+  assert.deepEqual([later.unused, later.ledgers[0]?.unused], [{ count: 2, bytes: 5_000 }, { count: 2, bytes: 5_000 }], "now two of steve's, in all and in that ledger");
+  assert.deepEqual((await storageOf(friend, 2 * HOUR)).unused, nothing, "the friend's is on the expense");
+
+  assert.deepEqual(await call("DELETE", "/me/files/unused", null), { status: 401, data: { error: "signin" } }, "clearing needs a sign-in");
+  assert.deepEqual(await call("GET", "/me/files/unused", null, undefined, steve), { status: 404, data: { error: "notfound" } });
+  const cleared = await call<MyFiles>("DELETE", `/me/files/unused?at=${Date.now() + 2 * HOUR}`, null, undefined, steve);
+  assert.deepEqual([cleared.status, cleared.data.used, cleared.data.unused], [200, 1_000, nothing], "cleared: the two go, and the room with them");
+  assert.deepEqual(await listed(id, key), ["on-0001", "theirs-01"], "off the ledger's list");
+  assert.deepEqual([await inBucket(id, key, "off-0001"), await inBucket(id, key, "loose-001"), await inBucket(id, key, "on-0001")], [404, 404, 200], "not to be had; the one on the expense is");
+  assert.equal((await call<{ swept: number }>("POST", "/test/night", null, { ledger: id, at: Date.now() + 2 * HOUR })).data.swept, 0, "and out of the bucket: the night finds nothing of them there");
+  assert.equal((await storageOf(friend)).used, 4_000, "the friend's room as it was");
+  assert.equal((await call<MyFiles>("DELETE", `/me/files/unused?at=${Date.now() + 2 * HOUR}`, null, undefined, steve)).data.used, 1_000, "twice is once");
+});
+
+test("the nightly check: a photo no expense has used for thirty days goes; so does what the bucket has and no ledger lists", async () => {
+  const { id, key } = await make();
+  const steve = someone();
+  for (const f of ["used-0001", "gone-0001", "none-0001"]) assert.equal((await putFile(id, f, jpeg(1_000), key, steve)).status, 201);
+  assert.equal((await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [withFiles("e1", ["used-0001"]), withFiles("e2", ["gone-0001"])] })).status, 200);
+  assert.equal((await call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [{ id: `c${++n}-${randomUUID()}`, at: Date.now(), change: { do: "out", entry: "e2", at: Date.now() } }] })).status, 200, "the expense with the second photo deleted");
+  assert.deepEqual(await call("POST", "/test/loose", null, { ledger: id, file: "stray-001" }), { status: 200, data: { ok: true } }, "(and a file in the bucket the ledger doesn't list: a put whose list went wrong)");
+  const night = async (later: number) => (await call<{ gone: number; swept: number; left: number }>("POST", "/test/night", null, { ledger: id, at: Date.now() + later })).data;
+  assert.deepEqual(await night(2 * HOUR), { gone: 0, swept: 1, left: 3 }, "tonight: none of the ledger's go; the stray one does");
+  assert.equal(await inBucket(id, key, "stray-001"), 404);
+  assert.deepEqual(await night(5 * DAY), { gone: 0, swept: 0, left: 3 }, "five days on: nothing yet (改回去 and 恢复 can still bring them back)");
+  assert.deepEqual(await night(31 * DAY), { gone: 2, swept: 0, left: 1 }, "thirty-one days on: the deleted expense's photo, and the one on no expense, go");
+  assert.deepEqual(await listed(id, key), ["used-0001"]);
+  assert.deepEqual([await inBucket(id, key, "gone-0001"), await inBucket(id, key, "none-0001"), await inBucket(id, key, "used-0001")], [404, 404, 200], "out of the bucket; the one on an expense stays");
+  assert.equal((await storageOf(steve)).used, 1_000, "and their sender has the room back");
+});
+
+test("the nightly check of an account: charged for what the ledgers keep, no more and no less", async () => {
+  const { id, key } = await make();
+  const steve = someone();
+  const account = accountIn(steve);
+  assert.equal((await putFile(id, "real-0001", jpeg(1_000), key, steve)).status, 201);
+  assert.equal((await call("POST", "/test/charge", null, { ledger: id, file: "phantom1", account })).status, 200, "(charged for a file no ledger keeps: a room given back that went wrong)");
+  assert.equal((await storageOf(steve)).used, 2_234, "charged for both");
+  assert.deepEqual(await call("POST", "/test/night", null, { account }), { status: 200, data: { used: 1_000 } }, "its night: only what the ledger keeps");
+  assert.deepEqual((await storageOf(steve)).ledgers, [{ id, count: 1, bytes: 1_000, unused: nothing }]);
+  const gone = newId();
+  assert.equal((await call("POST", "/test/charge", null, { ledger: gone, file: "phantom2", account })).status, 200, "(and for a file in a ledger that isn't there)");
+  assert.deepEqual((await storageOf(steve)).used, 1_000, "my files leave a ledger that isn't there out, and its room is back");
+});
+
+test("an account deleted: the rooms server tells this one, and every photo it sent goes, from every ledger; nothing is kept for it", async () => {
+  const one = await make();
+  const two = await make();
+  const steve = someone();
+  const friend = someone();
+  assert.equal((await call("PUT", `/me/ledgers/${one.id}`, one.key, {}, steve)).status, 200, "(steve keeps a ledger in his list)");
+  for (const [l, f, who] of [[one, "s-0000001", steve], [one, "s-0000002", steve], [two, "s-0000003", steve], [one, "f-0000001", friend]] as const) assert.equal((await putFile(l.id, f, jpeg(1_000), l.key, who)).status, 201);
+  assert.equal((await call<Pushed>("POST", `/ledgers/${one.id}/changes`, one.key, { changes: [withFiles("e1", ["s-0000001", "f-0000001"])] })).status, 200);
+  assert.deepEqual(await call("POST", "/test/account-gone", null, undefined, steve), { status: 200, data: { files: 3, left: 0 } }, "the rooms server says steve's account is deleted (its stand-in, through its binding to Internal, as the real one does)");
+  assert.deepEqual([await listed(one.id, one.key), await listed(two.id, two.key)], [["f-0000001"], []], "his photos are off both ledgers, on an expense or not");
+  for (const [l, f] of [[one, "s-0000001"], [one, "s-0000002"], [two, "s-0000003"]] as const) assert.equal(await inBucket(l.id, l.key, f), 404, `${f} not to be had`);
+  for (const l of [one, two]) assert.equal((await call<{ swept: number }>("POST", "/test/night", null, { ledger: l.id, at: Date.now() + 2 * HOUR })).data.swept, 0, "and out of the bucket: the night finds nothing of them there");
+  assert.equal(await inBucket(one.id, one.key, "f-0000001"), 200, "the friend's stays");
+  const [e1] = (await call<Snapshot>("GET", `/ledgers/${one.id}`, one.key)).data.ledger.entries;
+  assert.equal(e1?.kind === "expense" ? e1.files?.join() : "", "s-0000001,f-0000001", "the expense is as it was (his photo shows as gone)");
+  assert.deepEqual([await storageOf(steve), (await call<MyLedgers>("GET", "/me/ledgers", null, undefined, steve)).data.ledgers], [{ used: 0, quota: TEST_QUOTA, unused: nothing, ledgers: [] }, []], "nothing kept for him: no room used, no ledgers");
+  assert.equal((await storageOf(friend)).used, 1_000, "the friend's room as it was");
+  assert.deepEqual(await call("POST", "/test/account-gone", null, undefined, steve), { status: 200, data: { files: 0, left: 0 } }, "told twice: nothing more to do");
 });
 
 test("signed in, a ledger made is kept in the account's list, keys and all", async () => {

@@ -23,11 +23,12 @@ Builds), or a change there will publish the site and leave the server behind.
 | Folder | What |
 | --- | --- |
 | `src/room/ledger.ts` | One ledger on the server: who may open it, who owns it, the order changes arrived in, the record of them, deleting it. Plain logic over a small store, so it is tested without Cloudflare. |
-| `src/room/account.ts` | One changle.ca account's ledgers ("my ledgers"), with their keys, and how many it started today. Plain logic too. |
+| `src/room/account.ts` | One changle.ca account's ledgers ("my ledgers"), with their keys, and how many it started today; the room its files use. Plain logic too. |
+| `src/room/nightly.ts` | When the nightly checks run: 10:00 UTC (2 or 3 a.m. in Vancouver), each ledger and account at a minute of its own. |
 | `src/room/protocol.ts` | What the phones and the server say to each other, address by address. |
-| `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a ledger (`LedgerDO`, SQLite), the one per account (`AccountDO`, SQLite), the daily allowance of new ledgers per network (`GateDO`). |
+| `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a ledger (`LedgerDO`, SQLite), the one per account (`AccountDO`, SQLite), the daily allowance of new ledgers per network (`GateDO`), and `Internal`, the entrypoint only the rooms server reaches (an account deleted). |
 | `src/server/who.ts` | Whose a sign-in is: asked of the rooms server over the `ROOMS` binding. |
-| `tests/` | The room and the account (`npm test`), and the server itself on Cloudflare's own runtime (`npm run test:server`, which starts `wrangler dev` with the stand-in rooms server in `tests/rooms`, which knows the sessions in `tests/accounts.ts`, and a bucket kept on disk; an account's room there is `TEST_QUOTA` bytes, small enough to fill). |
+| `tests/` | The room and the account (`npm test`), and the server itself on Cloudflare's own runtime (`npm run test:server`, which starts `wrangler dev` with the stand-in rooms server in `tests/rooms`, which knows the sessions in `tests/accounts.ts`, is bound back to `Internal` as the real one is, and says an account is deleted the way the real one does; and a bucket kept on disk; an account's room there is `TEST_QUOTA` bytes, small enough to fill). |
 
 What a change does, that it counts once, and what is refused are **not** here: those rules are the
 phone's own, `site/src/split/changes.ts` (with `ops.ts` and `core/`), imported from there so the
@@ -71,6 +72,22 @@ of 500 MB is counted from (the plan's 云存储, `docs/split.md`).
 - An expense says which files are its own (`files`, ids only: the phone's rules,
   `site/src/split/changes.ts`). Nothing here checks that an expense's ids are files the ledger
   has: a phone shows one that isn't as missing.
+- A file no expense uses (taken off one, or on one deleted) is kept 30 days from when it stopped
+  being used, so 改回去 and 恢复 can bring it back. Its sender can let it go sooner: "my files"
+  says how many of theirs no expense uses, and `DELETE /me/files/unused` clears them, from every
+  ledger (not one stored in the last hour, which may be on its way onto an expense).
+- Every night (a Durable Object alarm, set when a ledger or an account gets its first file, at
+  10:00 UTC and a minute of its own: `src/room/nightly.ts`) each ledger with files lets go of
+  those no expense has used for 30 days, and of anything under its prefix in the bucket that its
+  list doesn't have; a deleted ledger's leftovers go the same way, an hour or two after it is
+  deleted. Each account with files is made to be charged for what the ledgers really keep (the
+  plan's 以实际为准).
+- When a changle.ca account is deleted, the rooms server says so through a Service Binding to
+  this Worker's `Internal` entrypoint (`accountGone(id)`; no address of changle.ca leads there).
+  Every file the account sent goes, from every ledger and the bucket, and then all that was kept
+  for it: its ledgers, its room. Ledgers keep its name and its expenses; their photos show as gone.
+  A ledger that can't be reached is tried again an hour later. (The rooms server's side of this:
+  `site/worker`, its `SPLIT` binding.)
 
 ### Who may open a ledger
 
@@ -149,4 +166,7 @@ browser's live connection, which says it comes from 127.0.0.1:5173, is turned aw
 another site. Open the pages at that address, not localhost, for the live connection to work.) A day's allowance of ten new ledgers per network
 applies here too: for anything that starts more (the site's `scripts/split_check.ts` does), run it
 as `npm run dev -- --var ALLOW_TEST_SETTINGS:1`. (That lifts the network's allowance only; an
-account's stays.)
+account's stays. It also opens the test addresses under `/split/api/test/`: a ledger's or an
+account's nightly check run now, or as of a day to come; an account deleted, through the stand-in
+rooms server; a stray file in the bucket; an account charged for a file no ledger keeps. And "my
+files" can be asked as of a later time, `?at=`. None of it is there on changle.ca.)
