@@ -32,5 +32,7 @@
   // this Worker reads and writes it; a photo has no address of its own. On this machine,
   // `wrangler dev` keeps a stand-in for it on disk.
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "split-files" }],
+  // Reading receipts (src/server/read.ts) needs one secret, GEMINI_API_KEY, which Steve adds in the
+  // dashboard (Settings, Variables and Secrets); it is never written here. Without it nothing is read.
   "observability": { "enabled": true }
 }

@@ -191,7 +191,7 @@ with open.er-api.com as the browser's fallback. Their brief: `docs/briefs/tools.
 | 随便 (`tools/suibian`) | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `GOOGLE_PLACES_KEY` | `ALLOW_TEST_SETTINGS` (tests only) |
 | 约时间 (`tools/when`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts the daily allowances) |
 | 跟一单 (`tools/tuan`) | none | none |
-| 两清 (`tools/split`) | none | `ALLOW_TEST_SETTINGS` (local and tests only: lifts a network's daily allowance of new ledgers, not an account's, and opens the test addresses under `/split/api/test/`), `TEST_QUOTA` (tests only, with it: an account's room for files, in bytes) |
+| 两清 (`tools/split`) | `GEMINI_API_KEY` (reading receipts: without it nothing is read; Steve adds it) | `GEMINI_READ_MODEL` (optional: the model that reads receipts); `ALLOW_TEST_SETTINGS` (local and tests only: lifts a network's daily allowance of new ledgers, not an account's, and opens the test addresses under `/split/api/test/`), with it `TEST_QUOTA` (tests only: an account's room for files, in bytes), `FAKE_READ` (`1`: receipts read by a stand-in, no Google) and `TEST_READ_BUDGET` (tests only: the month's budget for reading, in millionths of a dollar) |
 | 到此一游 (`games/been-there`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 藏在人群里 (`games/hide-crowd`) | none | `ALLOW_TEST_SETTINGS`, `STANDALONE` (local only) |
 | 玩什么 (`tools/events`) | `TICKETMASTER_KEY` (Ticketmaster; skipped without it), `EVENTS_HANDOFF_KEY` (optional, never needed live: the libraries' hand-over from a run outside GitHub) | `ALLOW_TEST` (local and tests only) |

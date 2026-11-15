@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type Push, type Pushed, type Since, type Snapshot, type Stored } from "../src/room/protocol";
+import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type Push, type Pushed, type ReadReply, type Since, type Snapshot, type Stored } from "../src/room/protocol";
 import { SESSION, STRANGER } from "./accounts";
 
 const PORT = 8794;
@@ -23,10 +23,15 @@ let server: ChildProcess;
 const kept = mkdtempSync(join(tmpdir(), "split-server-test-"));
 /** An account's room for files here: small, so a test can fill it. */
 const TEST_QUOTA = 300_000;
+/**
+ * The month's budget for reading receipts here, in millionths of a dollar: fifty readings by the
+ * stand-in for Google (src/server/read.ts, fakeRead: 400 each), so a test can spend it.
+ */
+const TEST_READ_BUDGET = 20_000;
 
 before(async () => {
   // (with the stand-in rooms server beside it, which says whose the test sessions are: tests/rooms)
-  server = spawn("npx", ["wrangler", "dev", "-c", "wrangler.jsonc", "-c", "tests/rooms/wrangler.jsonc", "--port", String(PORT), "--ip", "127.0.0.1", "--var", "ALLOW_TEST_SETTINGS:1", "--var", `TEST_QUOTA:${TEST_QUOTA}`, "--persist-to", kept], {
+  server = spawn("npx", ["wrangler", "dev", "-c", "wrangler.jsonc", "-c", "tests/rooms/wrangler.jsonc", "--port", String(PORT), "--ip", "127.0.0.1", "--var", "ALLOW_TEST_SETTINGS:1", "--var", `TEST_QUOTA:${TEST_QUOTA}`, "--var", "FAKE_READ:1", "--var", `TEST_READ_BUDGET:${TEST_READ_BUDGET}`, "--persist-to", kept], {
     stdio: "ignore",
     detached: true,
     env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" },
@@ -574,6 +579,35 @@ test("an account sends at most fifty invitations a day", async () => {
   assert.deepEqual(await invitesOf(friends[50].headers), [], "(it didn't go)");
   const [ben, cal] = circle("Ben", "Cal");
   assert.equal((await inviting(id, key, { to: cal.id }, ben.headers)).status, 201, "another account, yes");
+});
+
+/** A photo whose bytes say what the stand-in for Google reads off it ("receipt:42.50 CAD Café"). */
+const saying = (text: string) => Uint8Array.from([0xff, 0xd8, 0xff, ...new TextEncoder().encode(` ${text}`)]);
+const reading = (ledger: string, file: string, key: string | null, headers: Record<string, string>) => call<ReadReply>("POST", `/ledgers/${ledger}/files/${file}/read`, key, undefined, headers);
+
+test("reading a receipt: signed in, with the key, a file of the ledger's; so many a day, and not past the month's budget", async () => {
+  const { id, key } = await make();
+  const [amy, ben, cal] = circle("Amy", "Ben", "Cal");
+  const lunch = newId();
+  assert.equal((await putFile(id, lunch, saying("receipt:42.50 CAD Tim Hortons"), key, amy.headers)).status, 201);
+  assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons" } } }, "read: the total, its currency, the shop");
+  const blank = newId();
+  assert.equal((await putFile(id, blank, saying("receipt:none"), key, amy.headers)).status, 201);
+  assert.deepEqual(await reading(id, blank, key, ben.headers), { status: 200, data: { read: null } }, "nothing to read on it: said as nothing (and anyone in the ledger may ask, not only who sent it)");
+
+  assert.deepEqual(await reading(id, lunch, key, {}), { status: 401, data: { error: "signin" } }, "signed out, no");
+  assert.deepEqual(await reading(id, lunch, newKey(), amy.headers), { status: 403, data: { error: "key" } }, "without the key, no");
+  assert.deepEqual(await reading(id, newId(), key, amy.headers), { status: 404, data: { error: "gone" } }, "a file the ledger doesn't have");
+  assert.deepEqual(await reading(newId(), lunch, key, amy.headers), { status: 404, data: { error: "gone" } }, "a ledger there isn't");
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files/${lunch}/read`, key, undefined, amy.headers), { status: 404, data: { error: "notfound" } }, "asked any other way, no such address");
+  assert.deepEqual(await call("POST", `/ledgers/${id}/files/${lunch}/look`, key, undefined, amy.headers), { status: 404, data: { error: "notfound" } });
+
+  // so many a day for an account (two read above: Amy one, Ben one)
+  for (let i = 1; i < 30; i++) assert.equal((await reading(id, lunch, key, amy.headers)).status, 200, `Amy's ${i + 1}th`);
+  assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 429, data: { error: "limit" } }, "a thirty-first today, no");
+  // and the month's budget for the whole site: 31 readings so far, 12,400 of 20,000; nineteen more spend it
+  for (let i = 0; i < 19; i++) assert.equal((await reading(id, lunch, key, i < 15 ? ben.headers : cal.headers)).status, 200, `the ${32 + i}th this month`);
+  assert.deepEqual(await reading(id, lunch, key, cal.headers), { status: 429, data: { error: "budget" } }, "the month's money spent: nothing more is read, for anyone");
 });
 
 test("the owner deletes a ledger: gone for everyone, and off the owner's list", async () => {

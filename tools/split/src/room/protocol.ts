@@ -14,6 +14,7 @@
 //   PUT    /split/api/ledgers/<id>/files/<file>  store one, signed in; the body is the file (a FILE_TYPES type, at most FILE_MAX) → Stored (201; 200 when it was stored already)
 //   GET    /split/api/ledgers/<id>/files/<file>  the file itself
 //   DELETE /split/api/ledgers/<id>/files/<file>  take it off the ledger and out of the bucket → { ok: true }
+//   POST   /split/api/ledgers/<id>/files/<file>/read  read it as a receipt, signed in → ReadReply
 //
 //   GET    /split/api/me/ledgers            my ledgers, keys and all             → MyLedgers
 //   PUT    /split/api/me/ledgers/<id>       keep one in my ledgers (or update it) { me? } → MineBody
@@ -54,6 +55,13 @@
 // (through a Service Binding to its `Internal` entrypoint: no address leads there), and every file
 // the account sent goes, from every ledger, with all that was kept for the account.
 //
+// Reading a receipt (src/server/read.ts): a file of the ledger's, sent to Google's Gemini to read
+// the total, its currency and the shop, for the phone to fill in. Signed in, with the key; at most
+// READS_PER_DAY a day for an account ("limit", 429), and READ_BUDGET a month for the site, after
+// which nothing is read until the next month ("budget", 429). Without Google's key, nothing is
+// ("off", 403); Google not answering, or failing, is "failed" (502). `read` is null when there was
+// nothing to read: no receipt, or no total on it.
+//
 // Inviting a friend: whoever holds the key, signed in, can invite someone who is their friend on
 // changle.ca (the rooms server says so; "friends", 403, when it doesn't), at most INVITES_PER_DAY a
 // day ("limit"). A locked ledger takes nobody new ("locked"). The invitation waits in the friend's
@@ -62,6 +70,7 @@
 // site's chat. Nothing is sent by mail. An account deleted takes the invitations waiting for it.
 import type { Sent, Took } from "../../../../site/src/split/changes";
 import type { Ledger, Member } from "../../../../site/src/split/core";
+import type { Read, ReadReply } from "../server/read";
 import type { Invite, Invited, Mine, Storage } from "./account";
 import type { Count, ErrorCode, FileInfo, Logged, Snapshot } from "./ledger";
 
@@ -112,18 +121,20 @@ export type InviteBody = { to: string; member?: string };
 export type InviteSent = { invite: Invited };
 /** The invitations waiting for me, the newest first. */
 export type MyInvites = { invites: Invite[] };
-export type { Count, FileInfo, Invite, Invited, Mine, Snapshot, Storage };
+export type { Count, FileInfo, Invite, Invited, Mine, Read, ReadReply, Snapshot, Storage };
 
 /**
  * "limit": this network, or this account, has made today's allowance of ledgers (or sent today's
  * files). "quota": a file would take the account past its room. "big": a file bigger than
  * FILE_MAX. "notfound": no such address. "signin": the sign-in is nobody's (401). "down": the
  * rooms server can't say whose it is now, or the bucket didn't take a file (503). "friends": the one
- * invited isn't a friend on changle.ca, or isn't anyone there (403). (From ErrorCode, the two that came with owners: "owner" is 403, and "locked" is
+ * invited isn't a friend on changle.ca, or isn't anyone there (403). Reading a receipt: "off" (403),
+ * nothing is read here (no key); "budget" (429), the month's money for reading is spent; "failed"
+ * (502), Google couldn't read it. (From ErrorCode, the two that came with owners: "owner" is 403, and "locked" is
  * 423: the ledger is locked, and the request had something new in it. "full" is 409 for my
  * ledgers too: an account keeps at most MAX_MINE.)
  */
-export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" | "quota" | "big" | "friends" };
+export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" | "quota" | "big" | "friends" | "off" | "budget" | "failed" };
 
 /** What the live connection sends: the whole ledger, and the number of its last change. */
 export type Push = { t: "ledger"; seq: number; ledger: Ledger };
