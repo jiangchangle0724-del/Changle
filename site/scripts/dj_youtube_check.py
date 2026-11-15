@@ -8,15 +8,15 @@ first when told to, refuses a video its owner keeps on YouTube, and, like Safari
 the video before it plays with sound. The rooms server's YouTube lookups are stood in for on the
 phones (the key on, or off).
 
-What it checks: a song up next waits ready in a corner of the TV (loaded, its start buffered, held
-at 0:00: the room held with 暂停 on a phone, so it waits there); on its switch's bar it starts
-(within a fraction of a second, heard) and comes to the middle, the DJ letting go on that bar, not
-before; it ends, or anyone skips it (切歌), and the DJ comes back. An ad plays out muted in the corner before the song is ready. A song picked from the
+What it checks: a song up next waits ready in the middle of the TV (loaded, its start buffered, held
+at 0:00: the room held with 暂停 on a phone, so it waits there; the floor to its right, Steve on Nov
+14); on its switch's bar it starts (within a fraction of a second, heard), the DJ letting go on that
+bar, not before; it ends, or anyone skips it (切歌), and the DJ comes back. An ad plays out muted in the middle before the song is ready. A song picked from the
 song list goes in with its video when the search finds one (one search, none while typing it); with
 no key the phone asks for the song's link (YouTube's own search a tap away), and a link pasted
 there plays it whole; or it goes in as the remix alone. A video YouTube won't play here comes off
 the song (its player's phone says why) and its drop plays the remix. A TV that wants a tap: one tap
-on the video in its corner and it starts by itself on its bar; untapped, the DJ plays on until
+on the video in the middle and it starts by itself on its bar; untapped, the DJ plays on until
 someone taps. Over a song the pads that are a sound of their own still play; the 歌单 on every
 phone, the host's 随机; the songs one after another, a few seconds of DJ between them (点歌模式, the
 booth's only way since Nov 12). Nothing goes to Apple.
@@ -151,7 +151,7 @@ with sync_playwright() as p:
     ok("YouTube" in text(ben, ".djk-req-note"), f"the phone says what asking does ({text(ben, '.djk-req-note')!r})")
     ok("is-off" in tube(tv), "no song from YouTube yet: the TV's player is out of sight")
 
-    # Ben pastes a link: it waits ready in a corner of the TV (Amy holds the room, so it waits), and
+    # Ben pastes a link: it waits ready in the middle of the TV (Amy holds the room, so it waits), and
     # starts on its bar once she carries on
     hold(tv, amy)
     ben.locator(".djk-req-input").fill(f"https://youtu.be/{BEN_ID}?si=abc")
@@ -160,7 +160,7 @@ with sync_playwright() as p:
     ben.locator(".djk-req-send").click()
     ok(until(lambda: any(r.get("yt") == BEN_ID for r in [deck(tv).get("up") or {}] + deck(tv).get("reqs", [])), 4000), "the room has it, with its video")
     ok((deck(tv).get("up") or {}).get("text") is None, "the TV doesn't read its name before it plays")
-    ok(until(lambda: "is-next" in tube(tv), 3000), "the TV shows it up next, in a corner")
+    ok(until(lambda: "is-next" in tube(tv), 3000), "the TV shows it up next, in the middle")
     ok(until(lambda: said(tv, "准备好了", "Ready"), 8000), f"it gets ready there ({text(tv, '.dj-tube-note')!r})")
     st = tv.evaluate("() => window.__yt && { video: window.__yt.video, state: window.__yt.state, t: window.__yt.t, muted: window.__yt.muted, heard: window.__yt.heard.length }")
     ok(st and st["video"] == BEN_ID and st["state"] == 2 and st["t"] < 0.5 and not st["muted"] and st["heard"] == 0, f"loaded, its start buffered, held at 0:00 with its sound on, never heard ({st})")
@@ -170,10 +170,10 @@ with sync_playwright() as p:
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-1-drop.png"))
     ok(until(lambda: "is-on" in tube(tv), 2000), "it plays")
     box = tv.locator(".dj-tube").bounding_box()
-    ok(box and box["x"] > 1050 and box["width"] < 500, f"in its corner, the floor and the coach in sight ({box})")
-    ok(until(lambda: tv.locator(".dj-coach.is-on").count() == 1, 4000), "the coach stays through the song (Steve on Nov 14: it never goes), dancing to it")
-    sb = until(lambda: (deck(tv).get("song") or {}).get("beat"), 6000)
-    ok(sb and 60 <= sb["bpm"] <= 200 and sb["off"] == 0, f"the speaker tells the room where the song's beats fall, so the phones dance to it ({sb})")
+    fl = tv.locator(".dj-floor, .dj-floor3d").first.bounding_box()
+    ok(box and 360 <= box["x"] <= 400 and box["width"] >= 800 and fl and fl["x"] >= box["x"] + box["width"], f"in the middle, big, the floor to its right (Steve on Nov 14: they swap places; {box}, the floor {fl})")
+    ok(until(lambda: tv.locator(".dj-coach").count() == 1 and tv.locator(".dj-coach-now, .dj-coach-how, .dj-coach-combo").count() == 0, 4000), "the dancer stays through the song (Steve on Nov 14: she never goes), only her, no words")
+    ok("beat" not in (deck(tv).get("song") or {}), "nothing about the song's beats for the phones (跟着跳 taken out on Nov 14)")
     ok(until(lambda: "电视上在放" in text(amy, ".djk-player-kicker"), 3000), "the phones say so")
     over = lambda: tv.evaluate("() => window.__fakeDj.speaker.overSong.gain.value")
     ok(until(lambda: over() > 0.9, 4000), f"over the song the speaker's own sounds have their own way out ({over():.2f})")
@@ -219,7 +219,7 @@ with sync_playwright() as p:
     carry_on(tv, amy)
 
     # Cat picks Shape of You from the song list (the key is on): one search finds its video, none
-    # while she types; an ad plays out muted in the TV's corner, then it's ready, and it starts on its drop
+    # while she types; an ad plays out muted in the middle of the TV, then it is ready, and it starts on its drop
     tv.evaluate(f"() => {{ window.__ytConf.ads['{CAT_ID}'] = 2500; window.__yt.adLeft['{CAT_ID}'] = 2500; }}")
     hold(tv, amy)
     n_search = len(searches)
@@ -231,7 +231,7 @@ with sync_playwright() as p:
     cat.locator(".djk-req-send").click()
     ok(until(lambda: (deck(tv).get("up") or {}).get("yt") == CAT_ID and (deck(tv).get("up") or {}).get("song") is not None, 5000), "it goes in by its name on the list, with the video the search found")
     ok(len(searches) == n_search + 1, f"one search for it ({searches[n_search:]})")
-    ok(until(lambda: said(tv, "广告", "an ad"), 6000), f"YouTube's ad plays first, muted, in its corner ({text(tv, '.dj-tube-note')!r})")
+    ok(until(lambda: said(tv, "广告", "an ad"), 6000), f"YouTube's ad plays first, muted, in the middle ({text(tv, '.dj-tube-note')!r})")
     ok(until(lambda: said(tv, "准备好了", "Ready"), 10000), "then it's ready")
     ok(tv.evaluate(f"() => window.__yt.heard.filter((x) => x.video === '{CAT_ID}').length") == 0, "the ad was never heard, nor the song yet")
     drop_into(tv, phones, pid["Cat"])
@@ -313,7 +313,7 @@ with sync_playwright() as p:
     ok(until(lambda: ben.locator(".djk-req-hit.is-yt").count() > 0, 4000), "Ben pastes another")
     ben.locator(".djk-req-hit.is-yt").first.click()
     ben.locator(".djk-req-send").click()
-    ok(until(lambda: said(tv, "点一下视频", "one tap on the video"), 15000), f"ready in its corner, the TV asks for one tap on the video ({text(tv, '.dj-tube-note')!r})")
+    ok(until(lambda: said(tv, "点一下视频", "one tap on the video"), 15000), f"ready in the middle, the TV asks for one tap on the video ({text(tv, '.dj-tube-note')!r})")
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-2-tap-first.png"))
     tv.evaluate("() => window.__yt.userTap()")
     ok(until(lambda: said(tv, "准备好了", "Ready"), 4000), "tapped: it's held ready again, and may start by itself")
@@ -346,7 +346,7 @@ with sync_playwright() as p:
 
     # 点歌模式 (Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"; the only
     # way since Nov 12): no build-up, DROP or picks; a song asked for starts by itself a few seconds
-    # on, in its corner; anyone puts its video over the whole TV and back; the next follows on its own
+    # on, in the middle; anyone puts its video over the whole TV and back; the next follows on its own
     ok((view(tv) or {}).get("juke") is True, "点歌模式, nobody switching it on")
     ok(ben.locator(".djk-charge").count() == 0 and ben.locator(".djk-drop").count() == 0 and ben.locator(".djk-picks").count() == 0, "the phones: no build-up, no DROP, no picks")
     ok(until(lambda: "一首接一首" in text(tv, ".dk-hint") or "one after another" in text(tv, ".dk-hint"), 4000), f"the TV says how it plays ({text(tv, '.dk-hint')!r})")
@@ -360,19 +360,20 @@ with sync_playwright() as p:
     ok(until(lambda: heard_at(tv, JK1) is not None, 15000), "it starts by itself")
     ok(tv.locator(".dk-dropped").count() == 0, "no DROP party")
     box = tv.locator(".dj-tube").bounding_box()
-    ok(box and box["x"] > 1050 and box["width"] < 500, f"in its corner ({box})")
+    ok(box and 360 <= box["x"] <= 400 and box["width"] >= 800, f"in the middle ({box})")
     cat.locator(".djk-player button[aria-pressed]").click()
     ok(until(lambda: "is-full" in tube(tv), 3000), "Cat puts its video over the whole TV")
     tv.wait_for_timeout(int(1000))
     box = tv.locator(".dj-tube").bounding_box()
     ok(box and box["x"] < 2 and box["width"] > 1590, f"the whole TV ({box})")
     cb = tv.locator(".dj-coach.is-over").bounding_box() if tv.locator(".dj-coach.is-over").count() else None
-    on_top = cb and tv.evaluate("([x, y]) => { const e = document.elementFromPoint(x, y); return !!(e && e.closest('.dj-coach')); }", [cb["x"] + cb["width"] / 2, cb["y"] + cb["height"] / 2])
-    ok(cb and on_top and cb["x"] < 60 and cb["y"] + cb["height"] > 820, f"the coach stays, over the video, down in its corner ({cb})")
+    # (she lets taps through to the video under her, pointer-events none: drawn above it, by her layer)
+    on_top = cb and tv.evaluate("() => Number(getComputedStyle(document.querySelector('.dj-coach')).zIndex) > Number(getComputedStyle(document.querySelector('.dj-tube')).zIndex) && getComputedStyle(document.querySelector('.dj-coach')).pointerEvents === 'none'")
+    ok(cb and on_top and cb["x"] < 60 and cb["y"] + cb["height"] > 820, f"the dancer stays, over the video, down in its corner ({cb})")
     tv.screenshot(path=os.path.join(OUT, f"youtube-{WHICH}-tv-5-full.png"))
     cat.locator(".djk-player button[aria-pressed]").click()
-    ok(until(lambda: "is-full" not in tube(tv), 3000), "and back in its corner")
-    ok(until(lambda: tv.locator(".dj-coach.is-on").count() == 1 and tv.locator(".dj-coach.is-over").count() == 0, 3000), "the coach back in its place")
+    ok(until(lambda: "is-full" not in tube(tv), 3000), "and back in the middle")
+    ok(until(lambda: tv.locator(".dj-coach").count() == 1 and tv.locator(".dj-coach.is-over").count() == 0, 3000), "the dancer back in her place")
     cat.wait_for_timeout(5200)
     cat.locator(".djk-req-input").fill(f"https://youtu.be/{JK2}")
     ok(until(lambda: cat.locator(".djk-req-hit.is-yt").count() > 0, 4000), "Cat asks for the next")

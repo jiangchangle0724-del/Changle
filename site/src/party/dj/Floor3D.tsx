@@ -37,7 +37,7 @@ const MOVES: { clip: string; beats: number }[] = [
   { clip: "Dance", beats: 4 },
   { clip: "ThumbsUp", beats: 2 },
 ];
-/** the peak, and anyone keeping up with the coach (跟着跳, two bars in a row or more): the big moves */
+/** the peak: the big moves */
 const HOT: { clip: string; beats: number }[] = [
   { clip: "Jump", beats: 2 },
   { clip: "Dance", beats: 4 },
@@ -74,7 +74,6 @@ export function Floor3D({
   seats,
   flames,
   host,
-  dance,
   clock,
   level,
   singing,
@@ -87,7 +86,6 @@ export function Floor3D({
   seats: SeatView[];
   flames: Flame[];
   host?: string;
-  dance?: Record<string, { share: number; hot: boolean }>;
   clock: Clock;
   /** the night's energy, 0 to 1: how much the moves fill out */
   level: number;
@@ -110,8 +108,8 @@ export function Floor3D({
   const ready = useRef(onReady);
   ready.current = onReady;
   // what the frames read without a render of their own
-  const live = useRef({ seats, dance, level, singing, covered });
-  live.current = { seats, dance, level, singing, covered };
+  const live = useRef({ seats, level, singing, covered });
+  live.current = { seats, level, singing, covered };
   // the scene's own place, set once it's built: lays the dancers out again when the table changes
   const relay = useRef<(() => void) | null>(null);
   const seatKey = seats.map((s) => `${s.id}:${s.uid ? (s.ac ?? 0) : ""}`).join(",");
@@ -301,7 +299,8 @@ export function Floor3D({
             }
           });
           const n = list.length;
-          const two = n > 8;
+          // (two rows sooner in a narrow floor: beside a song's video, Steve on Nov 14)
+          const two = n > (W() < H() ? 3 : 8);
           const back = two ? list.slice(Math.ceil(n / 2)) : [];
           const front = two ? list.slice(0, Math.ceil(n / 2)) : list;
           const rise = two ? tall * 0.78 : 0;
@@ -380,6 +379,9 @@ export function Floor3D({
           lay();
         };
         window.addEventListener("resize", onResize);
+        // (its box changes size too: beside a song's video, and back in the middle after it)
+        const sized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => lay());
+        sized?.observe(el);
 
         // one move at a time, crossfaded in a quarter of a second
         const play = (b: Bot, clip: string) => {
@@ -451,7 +453,7 @@ export function Floor3D({
           raf = requestAnimationFrame(frame);
           if (live.current.covered) return;
           const dt = Math.min(0.1, step / 1000);
-          const { seats: list, dance: hot } = live.current;
+          const { seats: list } = live.current;
           // (local runs: the checks can have them sing without a song, dj_floor3d_check.py)
           const sing = live.current.singing || (import.meta.env.DEV && (window as unknown as { __floor3dSing?: boolean }).__floor3dSing === true);
           const b = clock.beat();
@@ -488,7 +490,7 @@ export function Floor3D({
             let lift = 0;
             if (beat) {
               const lv = live.current.level;
-              const list2 = hot?.[s.id]?.hot || lv >= 0.8 ? HOT : lv >= 0.5 ? MOVES : EASY;
+              const list2 = lv >= 0.8 ? HOT : lv >= 0.5 ? MOVES : EASY;
               const m = list2[(bot.k * 3 + Math.floor(b / 8)) % list2.length];
               const a = play(bot, m.clip) ?? play(bot, "Dance");
               if (a) {
@@ -551,6 +553,7 @@ export function Floor3D({
         stop = () => {
           cancelAnimationFrame(raf);
           window.removeEventListener("resize", onResize);
+          sized?.disconnect();
           relay.current = null;
           for (const b of bots.values()) drop(b);
           bots.clear();
@@ -613,11 +616,6 @@ export function Floor3D({
           >
             <Avatar uid={s.uid} name={s.name} av={s.av ?? 0} ac={s.uid ? s.ac : colorFor(s.id)} size={av} frame={s.fr} />
             <span className={`dj-name ${s.id === host ? "is-host" : ""}`}>{s.name}</span>
-            {dance?.[s.id] && (
-              <span className={`dj-dance-meter ${dance[s.id].hot ? "is-hot" : ""}`} style={{ ["--share" as string]: dance[s.id].share }}>
-                <span />
-              </span>
-            )}
             {flames
               .filter((f) => f.pid === s.id)
               .map((f) => (

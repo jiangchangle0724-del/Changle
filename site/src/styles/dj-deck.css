@@ -593,91 +593,6 @@
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
-/* 跟着跳 on a phone: start it, then the move, a word on every beat, the bar's count */
-.djk-dance {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--r-sheet);
-  background: var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--color-line);
-}
-.djk-dance.is-on {
-  box-shadow: inset 0 0 0 2px var(--gel-mint);
-}
-.djk-dance-title {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--gel-mint);
-  font-size: var(--text-md);
-  font-weight: 900;
-}
-.djk-dance-note {
-  margin: 0;
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-}
-.djk-dance-move {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-}
-.djk-dance-now {
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: 900;
-}
-/* how to do it, under its name */
-.djk-dance-how {
-  max-width: 32ch;
-  color: var(--color-text);
-  font-size: var(--text-md);
-  font-weight: 700;
-  line-height: var(--leading);
-  text-align: center;
-  text-wrap: balance;
-}
-.djk-dance-next {
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-.djk-dance-beat {
-  display: grid;
-  place-items: center;
-  min-height: 64px;
-  border-radius: var(--r-panel);
-  background: var(--color-raised);
-  color: var(--color-text-2);
-  font-size: var(--text-lg);
-  font-weight: 900;
-}
-.djk-dance-beat.is-hit {
-  background: color-mix(in oklab, var(--gel-mint) 30%, var(--color-raised));
-  color: var(--color-text);
-  animation: djk-dance-hit 0.3s var(--ease-out);
-}
-.djk-dance-beat.is-miss {
-  color: var(--color-text-2);
-}
-@keyframes djk-dance-hit {
-  from {
-    scale: 1.06;
-  }
-}
-.djk-dance-score {
-  min-height: 1.4em;
-  margin: 0;
-  color: var(--color-text-2);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  text-align: center;
-}
-
 /* the night's recap (今晚回顾) on a phone, once the set is over */
 .djp-recap {
   display: flex;
@@ -768,102 +683,35 @@
 
 /* ------------------------------------------------------------------ the big screen */
 
-.dk-board {
+/* up top: the song asked for that's up next (Steve on Nov 14: the board round it gone, only it kept) */
+.dk-up {
   position: absolute;
-  top: 28px;
+  top: 40px;
   left: 50%;
   z-index: 5;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-4) var(--space-6);
-  border-radius: var(--r-sheet);
-  background: color-mix(in oklab, var(--color-bg) 88%, transparent);
-  box-shadow:
-    var(--shadow-flat),
-    0 0 0 1px color-mix(in oklab, var(--gel) 35%, transparent),
-    var(--shadow-float);
+  gap: var(--space-2);
+  max-width: 760px;
   translate: -50% 0;
 }
-.dk-deck {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  width: 150px;
-  opacity: calc(0.4 + 0.6 * var(--gain));
-  transition: opacity var(--dur-emphasis) var(--ease-out);
-}
-.dk-record {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 104px;
-  height: 104px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 50% 50%, var(--gel) 0 19%, var(--color-bg) 19.5% 21%, transparent 21.5%),
-    repeating-radial-gradient(circle at 50% 50%, var(--color-sheet) 0 2px, var(--color-bg) 2px 4px);
-  box-shadow: 0 0 0 4px var(--color-surface);
-  transform: rotate(var(--spin));
-  will-change: transform;
-}
-.dk-deck:last-child .dk-record {
-  transform: rotate(calc(var(--spin) * -1 + 140deg));
-}
-.dk-deck.is-on .dk-record {
-  box-shadow:
-    0 0 0 4px var(--gel),
-    0 0 30px color-mix(in oklab, var(--gel) 60%, transparent);
-}
-.dk-side {
-  color: var(--gel);
-  font-family: var(--font-display);
-  font-weight: 900;
-}
-.dk-style {
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--color-text);
+.dk-up .dk-req {
+  padding: var(--space-2) var(--space-6);
+  box-shadow: var(--shadow-float);
   font-size: var(--text-xl);
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.dk-artist {
-  max-width: 100%;
-  margin-top: calc(-1 * var(--space-2));
-  overflow: hidden;
-  color: var(--color-text-2);
+.dk-up .dk-req small {
   font-size: var(--text-md);
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.dk-cued {
-  padding: 0 var(--space-3);
+/* (a song's clip playing: Apple Music's credit) */
+.dk-up-credit {
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--r-pill);
-  background: var(--gel-2);
-  color: var(--color-on-accent);
-  font-size: var(--text-sm);
-  font-weight: 800;
-}
-.dk-cued.is-loading {
-  background: var(--color-raised);
+  background: color-mix(in oklab, var(--color-bg) 78%, transparent);
   color: var(--color-text-2);
-}
-.dk-mid {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  width: 420px;
-}
-.dk-fader {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 .dk-req {
   display: flex;
@@ -902,73 +750,10 @@
   font-weight: 600;
   white-space: normal;
 }
-.dk-fader-end {
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 900;
-}
-.dk-fader-track {
-  position: relative;
-  flex: 1;
-  height: 10px;
-  margin: 0 15px;
-  border-radius: var(--r-pill);
-  background: var(--color-raised);
-}
-.dk-fader-knob {
-  position: absolute;
-  top: 50%;
-  left: calc(var(--x) * 100%);
-  width: 30px;
-  height: 40px;
-  border-radius: var(--r-small);
-  background: var(--color-text);
-  box-shadow: var(--shadow-float);
-  translate: -50% -50%;
-  transition: left 0.12s linear;
-}
-.dk-fader-who {
-  min-height: 1.4em;
-  color: var(--color-text-2);
-  font-size: var(--text-md);
-  font-weight: 700;
-}
-.dk-meter {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 32px;
-  padding: 0 var(--space-3);
-  overflow: hidden;
-  border-radius: var(--r-pill);
-  background: var(--color-surface);
-  font-weight: 900;
-}
-.dk-meter-fill {
-  position: absolute;
-  inset: 0;
-  width: calc(var(--level) * 100%);
-  background: linear-gradient(90deg, color-mix(in oklab, var(--dk-build) 40%, transparent), var(--dk-build));
-}
-.dk-meter > span:not(.dk-meter-fill) {
-  position: relative;
-}
-.dk-meter.is-full {
-  box-shadow: 0 0 calc(10px + 30px * var(--pulse)) var(--dk-build);
-}
-/* 点歌模式: no build-up, the mode's name in its place */
-.dk-meter.is-juke {
-  justify-content: center;
-  gap: var(--space-2);
-  color: var(--moon);
-}
-
 .dk-chips {
   position: absolute;
-  /* below the board, which grows a line for each song asked for it shows */
-  top: calc(236px + var(--lines, 0) * 40px);
+  /* under the song up next */
+  top: 108px;
   left: 50%;
   z-index: 6;
   display: flex;
@@ -1031,63 +816,6 @@
 }
 .dk-chip.is-mix {
   --pad: var(--dk-pump);
-}
-
-/* the mixer on the board, once anyone has touched it: knobs turned (a bar from the middle), effects on */
-.dk-mix {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-  width: 100%;
-}
-.dk-mix-knob,
-.dk-mix-fx {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 32px;
-  padding: 0 var(--space-3);
-  border-radius: var(--r-pill);
-  background: var(--color-surface);
-  font-size: var(--text-sm);
-  font-weight: 800;
-}
-.dk-mix-name {
-  color: var(--color-text-2);
-}
-.dk-mix-bar {
-  position: relative;
-  width: 48px;
-  height: 8px;
-  border-radius: var(--r-pill);
-  background: var(--color-raised);
-}
-.dk-mix-bar > span {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(50% + min(var(--v), 0) * 50%);
-  width: calc(max(var(--v), calc(var(--v) * -1)) * 50%);
-  border-radius: var(--r-pill);
-  background: var(--color-accent);
-}
-.dk-mix-fx {
-  --pad: var(--dk-pump);
-  background: color-mix(in oklab, var(--pad) 26%, var(--color-surface));
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--pad) 70%, transparent);
-}
-.dk-mix-fx svg {
-  color: var(--pad);
-}
-.dk-mix-fx.is-gate {
-  --pad: var(--dk-gate);
-}
-.dk-mix-fx.is-flange {
-  --pad: var(--dk-flange);
-}
-.dk-mix-fx.is-crush {
-  --pad: var(--dk-crush);
 }
 
 /* above the dancers' heads: between the deck and the floor */
@@ -1181,12 +909,11 @@
   pointer-events: none;
 }
 
-/* bottom centre, between the night's curve and the 🔥 */
-/* between the night's curve and the 🔥 count (a long English one on two lines, never over them) */
+/* bottom centre, left of the 🔥 count (a long English one on two lines, never over it) */
 .dk-hint {
   position: absolute;
   bottom: 36px;
-  left: 840px;
+  left: 800px;
   z-index: 5;
   display: flex;
   align-items: center;

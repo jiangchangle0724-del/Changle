@@ -4,7 +4,6 @@
  * the song pipeline. CONTRACTS.md beside this file says how they fit together.
  */
 import type { T } from "../../i18n";
-import type { Dancer } from "./dance";
 import type { DanmuLine } from "./danmu";
 
 /* ------------------------------------------------------------------ the night */
@@ -337,10 +336,8 @@ export type DeckState = {
   /** 真歌时间: a song asked for from YouTube (`yt`), or a song file a phone sent the big screen
    *  (`local`, Nov 13), plays whole on the big screen (from `at`, after the DJ fades out, moved on by
    *  the time a pause took); the deck waits until it ends, someone skips it, or 12 minutes of it have
-   *  played. `beat`: where its beats fall, as the speaker counts them for 跟着跳 (beat 0 `off` ms after
-   *  `at`, at the dance tempo `bpm`; `slow`: a slow song, danced to the slow routine), so every phone
-   *  dances to the song and not the DJ underneath */
-  song: { id: string; yt?: string; local?: string; by: string; at: number; beat?: SongBeat } | null;
+   *  played */
+  song: { id: string; yt?: string; local?: string; by: string; at: number } | null;
   /** 暂停 (the phones' player, Steve on Nov 12: "一键播放，切歌，暂停，上一曲"): the room's music held
    *  since this server time, 0 while it plays. The song's video stops where it is and the DJ goes
    *  quiet; nothing comes up next until 播放 */
@@ -567,7 +564,6 @@ export type DjCommand =
   | { x: "juke"; on: boolean }
   /** anyone at the table: the song's video over the whole TV, or back in its corner */
   | { x: "full"; on: boolean }
-  | { x: "dance"; bar: number; n: number; of: number }
   // the mixer (anyone at the table)
   /** a knob, -1 to 1 (0: as the music plays) */
   | { x: "mix"; knob: MixKnob; value: number }
@@ -582,12 +578,7 @@ export type DjCommand =
    *  ready): it comes off that song, which plays as the DJ's remix alone */
   | { x: "nosong"; id: string }
   /** the speaker: its YouTube player wants a tap on the video (or doesn't any more) */
-  | { x: "tap"; on: boolean }
-  /** the speaker: where the whole song's beats fall (said again until the room has it) */
-  | ({ x: "songbeat"; id: string } & SongBeat);
-
-/** A whole song's beat for 跟着跳 (DeckState.song.beat). */
-export type SongBeat = { off: number; bpm: number; slow: boolean };
+  | { x: "tap"; on: boolean };
 
 /** Most 🔥 or ❄️ a phone sends: one per this many ms. */
 export const FIRE_GAP_MS = 400;
@@ -655,10 +646,6 @@ export type RoomState = {
   rev?: number;
   /** the song's video over the whole TV (anyone at the table, Steve on Nov 5), else in its corner */
   full: boolean;
-  /** 跟着跳 (shared/dj/dance.ts): each dancer's night, the bar the floor is being counted on, and the floor's combo (0 to 1) */
-  dance: Record<string, Dancer>;
-  danceBar: { bar: number; n: number; good: number };
-  combo: number;
   /** 弹幕 (shared/dj/danmu.ts, Steve on Nov 13): the latest lines and their count, the host's switch,
    *  and when each phone sent its last */
   danmu: DanmuLine[];

@@ -6,15 +6,15 @@ import { SeatFace } from "../../online/People";
 import { playersOf } from "../../online/players";
 import { ENERGY, heatLean } from "../../shared/dj/curve";
 import { decodePiece } from "../../shared/dj/songwire";
-import { SONG_SENT, type DjPhase, type SongBeat } from "../../shared/dj/types";
+import { SONG_SENT, type DjPhase } from "../../shared/dj/types";
 import type { DjView } from "../../shared/protocol";
 import { useStore } from "../../store";
 import { joinLink, useQr, Wordmark } from "../../tv/parts";
 import { Floor, useFloorLoop, type Flame } from "./Floor";
 import { Floor3D } from "./Floor3D";
-import { Countdown, DeckBoard, DropParty, HintLine, mixerShows, PadChips, usePadEvents } from "./deck/TvDeck";
+import { Countdown, DropParty, HintLine, PadChips, UpNext, usePadEvents } from "./deck/TvDeck";
 import { LocalPanel } from "./local/LocalPanel";
-import { FloorGrid, NightCurve, phaseName, useHeardPhase, useHeat } from "./parts";
+import { FloorGrid, phaseName, useHeardPhase, useHeat } from "./parts";
 import { RecapLines } from "./RecapLines";
 import { SharedPhone } from "./SharedPhone";
 import { useBooth } from "./useBooth";
@@ -23,7 +23,7 @@ import { primeVoice, useAnnounce } from "./announce";
 import { useWakeLock } from "../sensors";
 import { Coach } from "./Coach";
 import { TubePlayer } from "./TubePlayer";
-import { danceShare, moodOf, slowSong } from "../../shared/dj/dance";
+import { moodOf, slowSong } from "../../shared/dj/dance";
 import { danceBpm } from "../../shared/dj/youtube";
 import { ytBpm } from "./phone/youtube";
 import { DanmuLayer } from "./DanmuLayer";
@@ -36,8 +36,13 @@ import { appleTouch } from "./device";
 /**
  * 打碟 · DJ Booth on the big screen, which is also the speaker: the one device the music comes
  * out of. A tap starts the sound; from then the stand-in DJ plays the night's phase, the lights
- * follow the kick, everyone at the table dances on the beat, and every 🔥 shows whose it was.
+ * follow the kick, everyone at the table dances on the beat, a dancer on the left keeps the room
+ * going, and every 🔥 shows whose it was. A song's video plays in the middle, the floor to its right
+ * (Steve on Nov 14).
  */
+
+/** Where a whole song's beats fall for the dancers: beat 0 `off` ms after it starts, at `bpm`; `slow`: a slow song. */
+type SongBeat = { off: number; bpm: number; slow: boolean };
 export default function TvDj({ v }: { v: DjView }) {
   const { room, code, g, now } = useRoom();
   const { lang, sound } = useStore();
@@ -204,7 +209,7 @@ export default function TvDj({ v }: { v: DjView }) {
   // song's own tempo (the rooms server finds it by its title; the DJ's, until then or when it
   // can't), counted from the song's start, whether or not this page's own sound is running
   const song = booth.status === "on" && v.deck?.song ? v.deck.song : null;
-  // (its video over the whole TV: the floor out of sight, the coach over it)
+  // (its video over the whole TV: the floor out of sight, the dancer over it)
   const covered = !!v.full && !!v.deck?.song?.yt;
   const yt = song?.yt ?? null;
   const [tempo, setTempo] = useState<{ yt: string; bpm: number | null } | null>(null);
@@ -224,19 +229,6 @@ export default function TvDj({ v }: { v: DjView }) {
   const beat: SongBeat | null = !song ? null : { off: file ? Math.round(file.beat.first * 1000) : 0, bpm: danceBpm(own ?? v.deck?.grid?.bpm ?? 120), slow: slowSong(own) };
   const songBeat = useRef<{ at: number; bpm: number } | null>(null);
   songBeat.current = song && beat ? { at: song.at + beat.off, bpm: beat.bpm } : null;
-  // and the phones are told, so they dance to the song too (said again until the room has it)
-  const said = v.deck?.song?.beat;
-  const sayBeat = !!song && !!beat && !(said && said.off === beat.off && said.bpm === beat.bpm && said.slow === beat.slow);
-  const songId = song?.id;
-  useEffect(() => {
-    if (!sayBeat || !songId || !beat) return;
-    const say = () => g("songbeat", { id: songId, off: beat.off, bpm: beat.bpm, slow: beat.slow });
-    say();
-    const id = window.setInterval(say, 3000);
-    return () => window.clearInterval(id);
-    // (the beat by its parts: a new object each render)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sayBeat, songId, beat?.off, beat?.bpm, beat?.slow, g]);
   const clock = useMemo(
     () => ({
       beat: () => {
@@ -263,7 +255,7 @@ export default function TvDj({ v }: { v: DjView }) {
   const heard = useHeardPhase(dj, booth.status === "on");
   const stage: DjPhase = v.phase === "end" || v.phase === "wait" ? v.phase : (heard ?? v.phase);
   useFloorLoop(root, clock, ENERGY[stage].density, fires);
-  // 跟着跳: the coach dances on the same clock, at the speaker's tempo (a song's, while one plays)
+  // the dancer dances on the same clock, at the speaker's tempo (a song's, while one plays)
   const bpmNow = useRef(125);
   bpmNow.current = songBeat.current?.bpm ?? v.deck?.grid?.bpm ?? 125;
   const coachClock = useMemo(() => ({ ...clock, bpm: () => bpmNow.current }), [clock]);
@@ -294,15 +286,8 @@ export default function TvDj({ v }: { v: DjView }) {
   const chills = v.colds.filter((c) => now() - c.at < 60_000).length;
   const lean = heatLean(v.fires, v.colds, now());
   const reads = v.source === "lyria" && Math.abs(lean) >= 0.2 ? (lean > 0 ? (zh ? "DJ 读到了：大家很嗨，加劲" : "The DJ reads the floor: hot, pushing on") : zh ? "DJ 读到了：有点冷，收一收" : "The DJ reads the floor: cold, easing off") : null;
-  // 跟着跳: who's dancing now (a bar sent in the last four), how well, and who's keeping it up
-  const grid = v.deck?.grid;
-  const barNow = grid ? grid.bar + Math.floor((now() - grid.at) / (240_000 / grid.bpm)) : -1;
-  const dancing = { n: 0, floor: {} as Record<string, { share: number; hot: boolean }> };
-  for (const [pid, d] of Object.entries(v.dance ?? {})) {
-    if (barNow - d.bar > 4) continue;
-    dancing.n++;
-    dancing.floor[pid] = { share: danceShare(d), hot: d.streak >= 2 };
-  }
+  // a song from YouTube up next or playing: its video in the middle, the floor to its right
+  const tubeUp = live && !!(v.deck?.song?.yt || v.deck?.up?.yt);
   // (真歌时间: TubePlayer tells the speaker when to give way to a whole song from YouTube, on its
   // drop's bar as this speaker plays it, and when to come back)
   const barTime = useMemo(
@@ -335,7 +320,7 @@ export default function TvDj({ v }: { v: DjView }) {
   }, [v.phase]);
 
   return (
-    <div className={`dj-stage is-${stage} ${live ? "is-live" : ""} ${light ? "is-light" : ""}`} ref={root}>
+    <div className={`dj-stage is-${stage} ${live ? "is-live" : ""} ${light ? "is-light" : ""} ${tubeUp ? "has-tube" : ""}`} ref={root}>
       <div className="dj-sky" data-lit aria-hidden="true" />
       <div className="dj-beams" data-lit aria-hidden="true">
         {[0, 1, 2, 3, 4].map((k) => (
@@ -354,17 +339,16 @@ export default function TvDj({ v }: { v: DjView }) {
       </header>
 
       {/* (a rooms server a moment behind the site, mid-deploy, sends no deck yet) */}
-      {v.deck && <DeckBoard v={v} clip={booth.clipOn} />}
-      <JoinCard code={code} big={!seats.length} />
+      {v.deck && <UpNext v={v} clip={booth.clipOn} />}
+      <JoinCard code={code} big={!seats.length && !tubeUp} />
 
       {/* the floor: the robots once they're dancing (a graphics chip that keeps up), the drawn one till then or instead */}
-      {floor3d !== "on" && <Floor seats={dancers} flames={flames} host={room?.host} dance={dancing.floor} />}
+      {floor3d !== "on" && <Floor seats={dancers} flames={flames} host={room?.host} narrow={tubeUp} />}
       {floor3d !== "off" && (
         <Floor3D
           seats={dancers}
           flames={flames}
           host={room?.host}
-          dance={dancing.floor}
           clock={clock}
           level={ENERGY[stage].density}
           singing={!!song && !v.deck?.paused}
@@ -376,7 +360,7 @@ export default function TvDj({ v }: { v: DjView }) {
         />
       )}
       {/* (all night, whole songs too: over the video when it's over the whole TV) */}
-      {live && v.phase !== "end" && <Coach clock={coachClock} zh={zh} mood={moodOf(v.phase, beat?.slow)} over={covered} combo={v.combo ?? 0} dancers={dancing.n} song={onAir} />}
+      {live && v.phase !== "end" && <Coach clock={coachClock} mood={moodOf(v.phase, beat?.slow)} over={covered} song={onAir} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
       {/* a song file a phone sent, whole, in this page's own sound */}
       {live && v.deck && <PhoneSong v={v} crate={booth.crate} speaker={speaker} now={now} zh={zh} nameOf={nameOf} done={(id) => g("songdone", { id })} />}
@@ -390,13 +374,12 @@ export default function TvDj({ v }: { v: DjView }) {
           <span className="dj-drop-name">{say.text}</span>
         </div>
       )}
-      <PadChips chips={chips} lines={(v.deck?.up ? 1 : 0) + (v.deck?.now ? 1 : 0) + (mixerShows(v.deck?.mixer) ? 1 : 0)} />
+      <PadChips chips={chips} />
       {v.deck && <Countdown v={v} />}
       {v.deck && <DropParty v={v} />}
       {live && v.deck && <HintLine v={v} />}
 
       <footer className="dj-foot">
-        <NightCurve v={v} now={now()} />
         <div className="dj-heat">
           <span className="dj-heat-n tabular">
             <FlameIcon size={30} strokeWidth={2.4} />

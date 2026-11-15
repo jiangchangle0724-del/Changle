@@ -1,9 +1,10 @@
 /**
- * How the coach robot (robot.ts) dances each of the routine's moves (shared/dj/dance.ts): plain
- * functions of the beat, so it lands on the music however the frames fall. A pose says where the hips
- * are and how the spine, chest and head lean; where the hands go (in the chest's own space, so they
- * move with the body) and the feet (on the floor); whether it sits, its eyes, its chest light. Two
- * poses blend, so one move flows into the next (sitting down and standing up included).
+ * How the robot (robot.ts: the dancer where she can't be shown) dances each of the routine's moves
+ * (shared/dj/dance.ts): plain functions of the beat, so it lands on the music however the frames
+ * fall. A pose says where the hips are and how the spine, chest and head lean; where the hands go (in
+ * the chest's own space, so they move with the body) and the feet (on the floor); whether it sits (it
+ * doesn't since Nov 14: the routine is all standing), its eyes, its chest light. Two poses blend, so
+ * one move flows into the next.
  */
 import type { MoveId } from "../../../shared/dj/dance";
 import { DIMS } from "./robot";
@@ -56,28 +57,6 @@ export function standPose(): Pose {
     feet: [
       [0.12, 0.02, 0],
       [-0.12, 0.02, 0],
-    ],
-    happy: 0,
-    glow: 0.35,
-  };
-}
-
-/** Sitting on the stool: feet out in front, hands on the knees. */
-export function sitPose(): Pose {
-  return {
-    sit: 1,
-    hips: [0, D.sit, -0.02],
-    pelvis: lean(-0.05),
-    spine: lean(0.04),
-    chest: lean(0.03),
-    head: still,
-    hands: [
-      [0.14, -0.19, 0.36],
-      [-0.14, -0.19, 0.36],
-    ],
-    feet: [
-      [0.14, 0.4, 0],
-      [-0.14, 0.4, 0],
     ],
     happy: 0,
     glow: 0.35,
@@ -264,104 +243,6 @@ export const POSES: Record<MoveId, Mover> = {
     ];
     p.happy = 1;
     p.glow = 0.3 + 0.5 * onBeat(b);
-    return p;
-  },
-  // 坐着摇: sitting, the upper body side to side over two beats, the hands tapping the knees
-  seatSway: (b) => {
-    const p = sitPose();
-    const s = side(b, 2);
-    const tap = 1 - hit(b);
-    p.spine = lean(0.04, 0.1 * s);
-    p.chest = lean(0.03, 0.06 * s);
-    p.head = lean(0.06 * onBeat(b), 0.1 * s);
-    p.hands = [
-      [0.14 + 0.02 * s, -0.19 + 0.05 * tap * 0.5, 0.36],
-      [-0.14 + 0.02 * s, -0.19 + 0.05 * tap * 0.5, 0.36],
-    ];
-    p.glow = 0.3 + 0.4 * onBeat(b);
-    return p;
-  },
-  // 拍腿拍手: sitting, the knees twice, then a clap twice (four beats)
-  kneeClap: (b) => {
-    const p = sitPose();
-    const bar = ((b % 4) + 4) % 4;
-    // 0 to 1: how far towards the clap (it moves just before beat 2 and back before beat 0)
-    const toClap = bar < 1.6 ? 0 : bar < 2 ? (bar - 1.6) / 0.4 : bar < 3.6 ? 1 : 1 - (bar - 3.6) / 0.4;
-    const e = toClap * toClap * (3 - 2 * toClap);
-    const d = onBeat(b);
-    const knee: [P3, P3] = [
-      [0.14, -0.19 + 0.06 * (1 - d), 0.36],
-      [-0.14, -0.19 + 0.06 * (1 - d), 0.36],
-    ];
-    const apart = 0.02 + 0.16 * (1 - d);
-    const clap: [P3, P3] = [
-      [apart, 0.12, 0.3],
-      [-apart, 0.12, 0.3],
-    ];
-    p.hands = [0, 1].map((i) => knee[i].map((v, j) => v + (clap[i][j] - v) * e)) as [P3, P3];
-    p.spine = lean(0.06 + 0.06 * (1 - e) * d);
-    p.head = lean(0.08 * d);
-    p.happy = e > 0.5 ? 1 : 0;
-    p.glow = 0.3 + 0.6 * d;
-    return p;
-  },
-  // 坐着举手: sitting, both hands up, pushing on every beat
-  seatRoof: (b) => {
-    const p = sitPose();
-    const push = hit(b);
-    p.spine = lean(-0.04);
-    p.chest = lean(-0.05, 0, 0.04 * side(b));
-    p.head = lean(-0.1 - 0.05 * push);
-    p.hands = [
-      [0.21, 0.72 + 0.1 * push, 0.08],
-      [-0.21, 0.72 + 0.1 * push, 0.08],
-    ];
-    p.happy = 1;
-    p.glow = 0.4 + 0.6 * push;
-    return p;
-  },
-  // 点头打拍子: sitting, a nod on every beat, the right hand up snapping, the left on the knee
-  nod: (b) => {
-    const p = sitPose();
-    const d = onBeat(b);
-    const flick = hit(b);
-    p.spine = lean(0.05 + 0.03 * d);
-    p.chest = lean(0.03 * d, 0, 0.08);
-    p.head = lean(0.26 * d - 0.04, 0.05 * side(b, 2));
-    p.hands = [
-      [0.14, -0.19, 0.36],
-      [-0.24 + 0.02 * flick, 0.26 + 0.03 * flick, 0.2],
-    ];
-    p.glow = 0.3 + 0.6 * d;
-    return p;
-  },
-  // 划船: sitting, both hands reach forward and pull back over two beats, leaning with it
-  row: (b) => {
-    const p = sitPose();
-    const r = 0.5 - 0.5 * Math.cos(Math.PI * b);
-    p.spine = lean(0.18 * r - 0.04);
-    p.chest = lean(0.06 * r);
-    p.head = lean(-0.06 * r);
-    p.hands = [
-      [0.17, 0.04 + 0.02 * r, 0.12 + 0.36 * r],
-      [-0.17, 0.04 + 0.02 * r, 0.12 + 0.36 * r],
-    ];
-    p.glow = 0.3 + 0.5 * r;
-    return p;
-  },
-  // 坐着挥手: sitting, the right hand up high waving slowly over two beats, the left on the knee
-  seatWave: (b) => {
-    const p = sitPose();
-    const s = side(b, 1);
-    p.spine = lean(0.02, -0.05 * s);
-    p.chest = lean(-0.02, -0.04 * s, -0.05);
-    p.head = lean(-0.08, 0.06 * s, -0.08);
-    p.hands = [
-      [0.14, -0.19, 0.36],
-      [-0.24 + 0.17 * s, 0.76 - 0.05 * Math.abs(s), 0.12],
-    ];
-    p.happy = 1;
-    p.glow = 0.3 + 0.4 * onBeat(b);
     return p;
   },
 };

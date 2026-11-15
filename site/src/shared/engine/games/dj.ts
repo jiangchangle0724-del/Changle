@@ -11,7 +11,6 @@
  */
 import { SONG_ROWS } from "../../../data/songs";
 import { ENERGY, FAKE_MIX, heatLean, LEAN_MS, mixFor, playing } from "../../dj/curve";
-import { DANCE } from "../../dj/dance";
 import { DANMU, DANMU_READY, maskDanmu } from "../../dj/danmu";
 import { SFX, SFX_TIMES } from "../../dj/sfx";
 import { aim, beatAt, beatMsOf, chargeNow, cued, deckWeights, freshDeck, grade, hasB, leader, offAir, onAir, reaim, reqOrder, rested, styleOn } from "../../dj/deck";
@@ -89,9 +88,6 @@ function fresh(set: number): RoomState {
     juke: true,
     rev: 2,
     full: false,
-    dance: {},
-    danceBar: { bar: -1, n: 0, good: 0 },
-    combo: 0,
     danmu: [],
     danmuN: 0,
     danmuOn: true,
@@ -118,9 +114,11 @@ function norm(s: RoomState): RoomState {
     s.rev = 2;
   }
   s.full ??= false;
-  s.dance ??= {};
-  s.danceBar ??= { bar: -1, n: 0, good: 0 };
-  s.combo ??= 0;
+  // (跟着跳's counts, kept by a booth from before Steve took it out on Nov 14: let go of)
+  const old = s as unknown as Record<string, unknown>;
+  delete old.dance;
+  delete old.danceBar;
+  delete old.combo;
   s.danmu ??= [];
   s.danmuN ??= 0;
   s.danmuOn ??= true;
@@ -948,8 +946,7 @@ export const dj: GameDef<RoomState> = {
         next.voice = s.voice;
         next.shuffle = s.shuffle;
         next.juke = s.juke;
-        // the night's dancing, like its 🔥; 弹幕's switch and its count (a screen shows each line once)
-        next.dance = s.dance;
+        // 弹幕's switch and its count (a screen shows each line once)
         next.danmuOn = s.danmuOn;
         next.danmuN = s.danmuN;
         Object.assign(s, next);
@@ -1018,38 +1015,6 @@ export const dj: GameDef<RoomState> = {
         const on = g.on === true;
         if (!host || s.mine === on) return api.quiet();
         s.mine = on;
-        return;
-      }
-      case "dance": {
-        // 跟着跳: a phone's count of the beats its player danced in one bar (shared/dj/dance.ts).
-        // Light: every dancer sends one a bar
-        const d = s.deck;
-        const grid = d.grid;
-        const bar = typeof g.bar === "number" && Number.isSafeInteger(g.bar) ? g.bar : null;
-        const of = typeof g.of === "number" && Number.isInteger(g.of) && g.of >= 1 && g.of <= 4 ? g.of : null;
-        const n = typeof g.n === "number" && Number.isInteger(g.n) && of !== null && g.n >= 0 && g.n <= of ? g.n : null;
-        if (!playing(s.phase) || !grid || bar === null || of === null || n === null) return api.quiet();
-        // a bar that's over (as the room counts the speaker's bars), not long ago, and not sent before
-        const now = grid.bar + Math.floor((api.now - grid.at) / (240_000 / grid.bpm));
-        const me = s.dance[pid];
-        if (bar > now || bar < now - DANCE.lateBars || (me && bar <= me.bar)) return api.quiet();
-        const good = n / of >= 0.75;
-        s.dance[pid] = { hits: (me?.hits ?? 0) + n, of: (me?.of ?? 0) + of, bars: (me?.bars ?? 0) + 1, bar, streak: good ? (me?.streak ?? 0) + 1 : 0 };
-        // the floor's combo: a bar settles when the first count for a later one arrives
-        const f = s.danceBar;
-        if (bar > f.bar) {
-          if (f.bar >= 0 && f.n > 0) {
-            s.combo = f.good / f.n >= DANCE.goodShare ? Math.min(1, s.combo + DANCE.comboUp) : Math.max(0, s.combo - DANCE.comboDown);
-            if (s.combo >= 1) {
-              // the whole floor danced it: fireworks on the big screen, and the combo starts again
-              api.fx("dance", pid, [f.bar]);
-              s.combo = 0;
-            }
-          }
-          s.danceBar = { bar, n: 0, good: 0 };
-        }
-        if (bar === s.danceBar.bar) s.danceBar = { bar, n: s.danceBar.n + 1, good: s.danceBar.good + (good ? 1 : 0) };
-        api.light();
         return;
       }
       case "play":
@@ -1280,19 +1245,6 @@ export const dj: GameDef<RoomState> = {
         s.deck.tap = on;
         return true;
       }
-      case "songbeat": {
-        // 跟着跳 on a whole song: where its beats fall as the speaker counts them (its tempo found
-        // after it started: said again then), so the phones dance to the song, not the DJ under it
-        const d = s.deck;
-        const off = within(g.off, 0, 60_000);
-        const bpm = within(g.bpm, 60, 200);
-        if (!fromSpeaker(s, sid, api) || !d.song || d.song.id !== g.id || off === null || bpm === null) return false;
-        const beat = { off: Math.round(off), bpm: Math.round(bpm * 100) / 100, slow: g.slow === true };
-        const was = d.song.beat;
-        if (was && was.off === beat.off && was.bpm === beat.bpm && was.slow === beat.slow) return false;
-        d.song = { ...d.song, beat };
-        return true;
-      }
       // (the build-up and DROP back on: no page asks for it now; the engine's tests do)
       case "juke":
         return fromSpeaker(s, sid, api) && setJuke(s, g.on === true, api);
@@ -1462,8 +1414,6 @@ export const dj: GameDef<RoomState> = {
       shuffle: s.shuffle,
       juke: s.juke,
       full: s.full,
-      dance: s.dance,
-      combo: s.combo,
       onDecks: { a: crateSong(s, s.deck.songs.a), b: crateSong(s, s.deck.songs.b) },
       speaker: { stalls: s.speaker.stalls, resets: s.speaker.resets, seconds: s.speaker.seconds },
       // (the lines still flying: a screen opened later doesn't get the night's old ones)

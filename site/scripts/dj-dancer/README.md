@@ -1,6 +1,6 @@
-# 跟着跳的舞者：做模型、做衣服
+# 打碟的舞者：做模型、做衣服
 
-做出 `site/public/models/dancer/` 里的文件：打碟电视上「跟着跳」那位跳舞的女生（打碟对话管，档案 `docs/briefs/dj.md`）。
+做出 `site/public/models/dancer/` 里的文件：打碟电视左边那位跳舞带气氛的女生（11 月 14 日是「跟着跳」的教练，当晚跟着跳拿掉了；打碟对话管，档案 `docs/briefs/dj.md`）。
 只在改她的身体、衣服、发型时跑，CI 不跑。动作不在文件里：电视页面拿到她的身体后现解（`site/src/party/dj/dancer/moves.ts`）。
 
 ## 里面是什么
@@ -76,4 +76,4 @@ node build.mjs /tmp/mpfb2/src/mpfb/data /tmp/mh-assets --plain /tmp/dancer     #
 
 动作在 `site/src/party/dj/dancer/moves.ts`，用账号对话的姿势语言写（`site/src/account/figure/pose/`，说明在
 `site/scripts/figure/README.md` 的「编一个动作」）：关键姿势、缓动、页面上现解，手和胳膊不会穿进身体。一个片段的时间单位是拍，
-页面按音箱的拍子放。坐着的动作坐在她身后的凳子上（凳子坐着时淡入）。测试把每个片段在她身上解一遍，进身体超过 2.5 厘米就不过。
+页面按音箱的拍子放。都是站着的（11 月 14 日 Steve：「她也不需要坐着了」，坐着的动作和凳子拿掉了）。测试把每个片段在她身上解一遍，进身体超过 2.5 厘米就不过。

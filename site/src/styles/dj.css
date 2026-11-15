@@ -383,6 +383,12 @@
   gap: 0;
   pointer-events: none;
 }
+/* beside a song's video in the middle (Steve on Nov 14: the players and the video swap places): in
+   the right-hand column, under the code to scan */
+.dj-stage.has-tube .dj-floor {
+  left: 1232px;
+  right: 16px;
+}
 .dj-row {
   display: flex;
   align-items: flex-end;
@@ -524,17 +530,23 @@
     transform: rotate(-90deg);
   }
 }
-/* the floor in 3D (Floor3D.tsx): the robots drawn between the coach and the song's corner, low on
-   the stage as the drawn floor; each one's face and name over its head (a crowded floor's front
-   row: under its feet, the back row standing over their heads) */
+/* the floor in 3D (Floor3D.tsx): the robots drawn between the dancer and the right edge, low on the
+   stage as the drawn floor; each one's face and name over its head (a crowded floor's front row:
+   under its feet, the back row standing over their heads). A song's video in the middle: in the
+   right-hand column instead, under the code to scan (Steve on Nov 14: they swap places) */
 .dj-floor3d {
   position: absolute;
-  left: 350px;
+  left: 400px;
   bottom: 118px;
   z-index: 4;
-  width: 780px;
+  width: 800px;
   height: 470px;
   pointer-events: none;
+}
+.dj-stage.has-tube .dj-floor3d {
+  left: 1232px;
+  width: 352px;
+  height: 600px;
 }
 .dj-floor3d canvas {
   position: absolute;
@@ -634,43 +646,20 @@
     transform: translate(calc(-50% - var(--fig-h) * 0.07), calc(var(--fig-h) * -0.14));
   }
 }
-/* 跟着跳: how well each dancer follows the coach, under their name; lit while they keep it up */
-.dj-dance-meter {
-  width: calc(var(--fig-h) * 0.5);
-  height: 8px;
-  margin-top: 6px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(7, 4, 12, 0.7);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-}
-.dj-dance-meter span {
-  display: block;
-  width: calc(var(--share) * 100%);
-  height: 100%;
-  border-radius: inherit;
-  background: var(--gel-mint);
-  transition: width 0.6s var(--ease-out);
-}
-.dj-dance-meter.is-hot span {
-  background: linear-gradient(90deg, var(--gel-mint), var(--gel-lemon));
-  box-shadow: 0 0 12px var(--gel-lemon);
-}
-
-/* 真歌时间: a whole song from YouTube, in YouTube's own player, in a corner (top right, under the
-   code to scan): ready there while it's up next, and playing there, the floor and the coach in
-   sight (Steve on Nov 5: "不全屏的时候...只保持现在的位置大小"); over the whole TV when someone
-   asks from their phone. One player all night: out of sight between songs (paused, never playing),
-   never moved out of the page (an iframe moved in the page loads again) */
+/* 真歌时间: a whole song from YouTube, in YouTube's own player, in the middle of the TV (Steve on Nov
+   14: where the players were, and bigger; they go to its right): ready there while it's up next, and
+   playing there, the dancer and the floor in sight; over the whole TV when someone asks from their
+   phone. One player all night: out of sight between songs (paused, never playing), never moved out
+   of the page (an iframe moved in the page loads again) */
 .dj-tube {
   position: absolute;
-  top: 330px;
-  left: 1120px;
+  top: 128px;
+  left: 380px;
   z-index: 11;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  width: 440px;
+  width: 840px;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--r-panel);
   background: rgba(10, 6, 18, 0.94);
@@ -769,9 +758,10 @@
     transition: none;
   }
 }
-/* an iPhone or iPad as the speaker (device.ts): YouTube's player stays 640 by 360 inside, drawn
-   smaller in its corner and 2.5 times bigger over the whole TV, so it streams the same picture both
-   ways (up to 1080p, never 4K) and nothing loads again when it goes over the TV */
+/* an iPhone or iPad as the speaker (device.ts): YouTube's player stays 640 by 360 inside, drawn a
+   little bigger in the middle (its slot 808 wide) and 2.5 times bigger over the whole TV, so it
+   streams the same picture both ways (up to 1080p, never 4K) and nothing loads again when it goes
+   over the TV */
 .dj-stage.is-light .dj-tube {
   transition: none;
 }
@@ -779,74 +769,41 @@
   inset: 0 auto auto 0;
   width: 640px;
   height: 360px;
-  transform: scale(0.6375);
+  transform: scale(1.2625);
   transform-origin: 0 0;
 }
 .dj-stage.is-light .dj-tube.is-full .dj-tube-frame {
   transform: scale(2.5);
 }
 
-/* 跟着跳: the coach on the left of the floor (its name on the card's top edge), the move's name, how
-   to do it, the next, the floor together */
+/* the dancer, on the left all night: only her, no card and no words (Steve on Nov 14) */
 .dj-coach {
   position: absolute;
-  top: 226px;
-  left: 40px;
+  top: 120px;
+  left: 8px;
   z-index: 6;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 300px;
-  padding: 22px 18px 16px;
-  border-radius: 28px;
-  background: rgba(10, 6, 18, 0.72);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-  text-align: center;
+  width: 372px;
+  height: 760px;
+  pointer-events: none;
 }
-/* over a whole song's video filling the TV (Steve on Nov 14: the coach never goes): above it, under
-   the 弹幕, a little smaller, down in the corner */
+/* over a whole song's video filling the TV (Steve on Nov 14: she never goes): above it, under the
+   弹幕, a little smaller, down in the corner */
 .dj-coach.is-over {
   z-index: 41;
   top: auto;
-  bottom: var(--space-6);
-  left: var(--space-6);
-  transform: scale(0.86);
+  bottom: 0;
+  left: 0;
+  transform: scale(0.8);
   transform-origin: left bottom;
-}
-.dj-coach-confetti {
-  position: absolute;
-  inset: -40px;
-  width: calc(100% + 80px);
-  height: calc(100% + 80px);
-  pointer-events: none;
-}
-.dj-coach-title {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: var(--space-1) var(--space-4);
-  border-radius: var(--r-pill);
-  background: var(--night);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-  white-space: nowrap;
-  transform: translate(-50%, -50%);
-  color: var(--gel);
-  font-size: 20px;
-  font-weight: 900;
-  letter-spacing: 0.06em;
 }
 .dj-coach-stage {
   position: relative;
   display: grid;
   place-items: center;
   width: 100%;
-  height: 286px;
+  height: 100%;
 }
-/* the robot (Coach3D.tsx): over the drawn coach, which hides once the robot is in */
+/* her in 3D (Dancer3D.tsx), or the robot (Coach3D.tsx): over the drawn one, which hides once she's in */
 .dj-coach-3d {
   position: absolute;
   inset: 0;
@@ -860,100 +817,10 @@
   visibility: hidden;
 }
 .dj-coach-svg {
-  height: 250px;
+  height: 72%;
   width: auto;
   aspect-ratio: 112 / 286;
   overflow: visible;
-}
-.dj-coach-moves {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  gap: 4px;
-  min-width: 0;
-}
-/* one line (Coach.tsx sets --fit for a long one) */
-.dj-coach-now {
-  overflow: hidden;
-  white-space: nowrap;
-  color: var(--moon);
-  font-family: var(--font-display);
-  font-size: calc(38px * var(--fit, 1));
-  font-weight: 900;
-  /* (the line as tall either way) */
-  line-height: calc(38px * 1.1);
-}
-/* how to do it: two lines at most, room kept for two (one line sits in the middle of it) so the card
-   doesn't jump */
-.dj-coach-how {
-  display: grid;
-  place-items: center;
-  min-height: calc(2 * var(--leading) * var(--text-lg));
-  color: var(--moon);
-  font-size: var(--text-lg);
-  font-weight: 700;
-  line-height: var(--leading);
-  animation: dj-coach-how var(--dur-emphasis) var(--ease-out);
-}
-.dj-coach-how > span {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  text-wrap: balance;
-}
-@keyframes dj-coach-how {
-  from {
-    opacity: 0;
-  }
-}
-.dj-coach-next {
-  color: var(--haze);
-  font-size: 19px;
-  font-weight: 800;
-}
-.dj-coach-next.is-soon {
-  color: var(--gel-lemon);
-  animation: dj-coach-soon 0.48s ease-out infinite alternate;
-}
-@keyframes dj-coach-soon {
-  to {
-    opacity: 0.55;
-  }
-}
-.dj-coach-combo {
-  position: relative;
-  width: 100%;
-  height: 34px;
-  margin-top: 4px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-}
-.dj-coach-combo-fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--gel-mint), var(--gel-lemon));
-  transition: width 0.6s var(--ease-out);
-}
-.dj-coach-combo-text {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 100%;
-  /* one line, never a second one cut off under the bar */
-  white-space: nowrap;
-  color: var(--moon);
-  font-size: 14px;
-  font-weight: 800;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
-@media (prefers-reduced-motion: reduce) {
-  .dj-coach-next.is-soon {
-    animation: none;
-  }
 }
 
 .dj-name {
@@ -1008,7 +875,7 @@
   text-align: center;
 }
 
-/* along the bottom: where the night is, and the heat */
+/* along the bottom, on the right: the heat (the night's curve beside it went on Nov 14) */
 .dj-foot {
   position: absolute;
   left: 48px;
@@ -1017,54 +884,8 @@
   z-index: 6;
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 30px;
-}
-.dj-curve {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.dj-curve-steps {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.dj-curve-steps li {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 96px;
-}
-.dj-curve-bar {
-  width: 100%;
-  height: calc(var(--h) * 46px);
-  border-radius: 8px 8px 3px 3px;
-  background: var(--dusk-3);
-}
-.dj-curve-steps li.is-past .dj-curve-bar {
-  background: color-mix(in oklab, var(--gel) 35%, var(--dusk-3));
-}
-.dj-curve-steps li.is-on .dj-curve-bar {
-  background: var(--gel);
-  box-shadow: 0 0 22px color-mix(in oklab, var(--gel) 70%, transparent);
-}
-.dj-curve-name {
-  color: var(--color-text-2);
-  font-size: 17px;
-  font-weight: 800;
-}
-.dj-curve-steps li.is-on .dj-curve-name {
-  color: var(--moon);
-}
-.dj-curve-hint {
-  color: var(--haze);
-  font-size: 18px;
-  font-weight: 700;
 }
 .dj-heat {
   display: flex;

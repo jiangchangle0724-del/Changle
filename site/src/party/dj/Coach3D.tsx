@@ -12,18 +12,19 @@ const tell = (is: Is) => {
   if (import.meta.env.DEV) (window as unknown as { __coach3dIs?: Is }).__coach3dIs = is;
 };
 
-/** One move flowing into the next (sitting down or standing up included), in seconds. */
+/** One move flowing into the next, in seconds. */
 const BLEND_S = 0.55;
 /** a blink, and the gaps between blinks */
 const BLINK_S = 0.14;
 
 /**
- * 跟着跳's coach in 3D (Steve on Nov 2: "3D 舞者"; Nov 14: "更拟人真实细腻一些"): the robot built in
- * coach/robot.ts dancing the routine's move (coach/poses.ts), set from where the speaker's beat is
- * every frame, so it lands on the beat however the frames fall; one move flows into the next. Its
- * lights take the room's colour. Three.js loads only here, after the page. No graphics chip for it,
- * its frames too slow, or three.js can't load: `onFail`, the drawn coach. A phone playing the speaker
- * gets it too when its chip keeps up (his TV is an iPhone shown over AirPlay).
+ * The robot in 3D (Steve on Nov 2: "3D 舞者"; Nov 14: "更拟人真实细腻一些"), where the dancer can't be
+ * shown (it was 跟着跳's coach till that was taken out on Nov 14): built in coach/robot.ts, dancing the
+ * routine's move (coach/poses.ts), set from where the speaker's beat is every frame, so it lands on
+ * the beat however the frames fall; one move flows into the next. Its lights take the room's colour.
+ * Three.js loads only here, after the page. No graphics chip for it, its frames too slow, or three.js
+ * can't load: `onFail`, the drawn dancer. A phone playing the speaker gets it too when its chip keeps
+ * up (his TV is an iPhone shown over AirPlay).
  */
 export function Coach3D({ clock, mood, onReady, onFail }: { clock: Clock; mood: () => Mood; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -82,17 +83,15 @@ export function Coach3D({ clock, mood, onReady, onFail }: { clock: Clock; mood: 
         scene.add(rig.root);
         const camera = new T.PerspectiveCamera(26, w / h, 0.1, 50);
         const tan = Math.tan((camera.fov * Math.PI) / 360);
-        // framed to how it dances: standing, feet to its hands up high; sitting, closer, a little from
-        // above and turned a little, so the stool and its knees read
-        const frameFor = (sit: number) => {
-          const top = 2.12 - 0.42 * sit;
+        // framed to how it dances: its feet to its hands up high, as wide as its arms reach out
+        {
+          const top = 2.12;
           const bottom = -0.04;
           const mid = (top + bottom) / 2;
-          const dist = ((top - bottom) / 2 / tan) * 1.03;
-          camera.position.set(0, mid + 0.08 + 0.2 * sit, dist);
+          camera.position.set(0, mid + 0.08, Math.max(((top - bottom) / 2 / tan) * 1.03, 0.62 / tan / camera.aspect));
           camera.lookAt(0, mid, 0);
-          rig.root.rotation.y = 0.06 + 0.32 * sit;
-        };
+          rig.root.rotation.y = 0.06;
+        }
 
         let cur: MoveId | null = null;
         let from: Pose | null = null;
@@ -153,11 +152,10 @@ export function Coach3D({ clock, mood, onReady, onFail }: { clock: Clock; mood: 
             blink = u < 1 ? Math.sin(Math.PI * u) : 0;
             if (u >= 1) nextBlink = t + 2200 + Math.random() * 3200;
           }
-          frameFor(pose.sit);
           applyPose(T, rig, pose, blink);
           renderer.render(scene, camera);
           // (the checks read what it dances, and what drawing it costs: dj_dance_check.py)
-          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, beat: b, sit: pose.sit, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, beat: b, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
         };
         tell(watch ? "watching" : "on");
         frame();

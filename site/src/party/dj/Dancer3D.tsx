@@ -11,19 +11,19 @@ const tell = (is: Is) => {
   if (import.meta.env.DEV) (window as unknown as { __coach3dIs?: Is }).__coach3dIs = is;
 };
 
-/** One move flowing into the next (sitting down or standing up included), in seconds. */
+/** One move flowing into the next, in seconds. */
 const BLEND_S = 0.55;
 /** The flash of an outfit changing, in seconds. */
 const CHANGE_S = 0.45;
 
 /**
- * 跟着跳's coach as a dancer (Steve on Nov 14: "真人亚洲美女跳舞…很多件衣服和装饰…变装…不能有ai错觉"):
- * MakeHuman's realistic woman (dancer/, site/scripts/dj-dancer/) dancing the routine's move, set from
- * the speaker's beat every frame; a new outfit each song (`song`, the same one for that song
- * everywhere), changed with a flash of light; a stool behind her for the moves danced sitting. The
- * moves are solved here for her body (the accounts' pose solver: her arms never go through her). Her
- * rim lights take the room's colour. No graphics chip, her frames too slow, or her files can't load:
- * `onFail` (the robot, then the drawn coach).
+ * The dancer on the big screen in 3D (Steve on Nov 14: "真人亚洲美女跳舞…很多件衣服和装饰…变装…不能有ai
+ * 错觉"; the same evening, a bar's dancer lifting the room, standing, no more sitting): MakeHuman's
+ * realistic woman (dancer/, site/scripts/dj-dancer/) dancing the routine's move, set from the
+ * speaker's beat every frame; a new outfit each song (`song`, the same one for that song everywhere),
+ * changed with a flash of light. The moves are solved here for her body (the accounts' pose solver:
+ * her arms never go through her). Her rim lights take the room's colour. No graphics chip, her frames
+ * too slow, or her files can't load: `onFail` (the robot, then the drawn dancer).
  */
 export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock; mood: () => Mood; song: string | null; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
@@ -51,12 +51,7 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadDancer }, { SITTING }] = await Promise.all([
-          import("three"),
-          import("three/examples/jsm/environments/RoomEnvironment.js"),
-          import("./dancer/stage"),
-          import("./dancer/moves"),
-        ]);
+        const [T, { RoomEnvironment }, { loadDancer }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/stage")]);
         if (gone) return;
         const dancer = await loadDancer();
         if (gone) {
@@ -124,22 +119,18 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
 
         const camera = new T.PerspectiveCamera(24, w / h, 0.1, 50);
         const tan = Math.tan((camera.fov * Math.PI) / 360);
-        // framed to how she dances: standing, her feet to her hands up high; sitting, closer, a little
-        // from above and turned a little, so the stool and her knees read
-        const frameFor = (sit: number) => {
-          const top = 2.0 - 0.38 * sit;
-          const bottom = -0.04;
-          const mid = (top + bottom) / 2;
-          const dist = Math.max(((top - bottom) / 2 / tan) * 1.04, 1.0 / tan / camera.aspect);
-          camera.position.set(0, mid + 0.1 + 0.22 * sit, dist);
-          camera.lookAt(0, mid, 0);
-          dancer.root.rotation.y = 0.05 + 0.34 * sit;
-        };
+        // framed to how she dances: her feet to her hands up high, as wide as her arms reach out, turned
+        // a little to the room
+        const top = 2.0;
+        const bottom = -0.04;
+        const mid = (top + bottom) / 2;
+        camera.position.set(0, mid + 0.1, Math.max(((top - bottom) / 2 / tan) * 1.04, 0.6 / tan / camera.aspect));
+        camera.lookAt(0, mid, 0);
+        dancer.root.rotation.y = 0.05;
 
         let cur: string | null = null;
         let from: { move: string; b: number; at: number } | null = null;
         let lastB = 0;
-        let sit = 0;
         let gelAt = 0;
         let prev = performance.now();
         let watch = watchFrames();
@@ -195,8 +186,8 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
           const b = clock.beat();
           const on = Number.isFinite(b) && b >= 0;
           const want = on ? moveAt(Math.floor(b), moodNow.current()).move.id : "stand";
-          // (a move not solved yet: standing, or sitting, till it is)
-          const ready2 = dancer.solved().has(want) ? want : SITTING.has(want) && dancer.solved().has("sit") ? "sit" : "stand";
+          // (a move not solved yet: standing, till it is)
+          const ready2 = dancer.solved().has(want) ? want : "stand";
           const beatNow = on ? b : t / 600;
           if (ready2 !== cur) {
             // the new one flows in from wherever it is now
@@ -209,10 +200,6 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
           dancer.pose(cur, beatNow, from && k < 1 ? from : null, ease);
           lastB = beatNow;
           if (k >= 1) from = null;
-          const sitWant = SITTING.has(cur) ? 1 : 0;
-          sit += (sitWant - sit) * Math.min(1, dt / 0.35);
-          dancer.stool(sit);
-          frameFor(sit);
           // the outfit's flash: bright, fading
           const c = changeAt >= 0 ? (t - changeAt) / 1000 / CHANGE_S : 1;
           renderer.toneMappingExposure = 0.9 + (c < 1 ? 1.0 * (1 - c) * (1 - c) : 0);
@@ -221,7 +208,7 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
           dancer.live(dt, camera);
           renderer.render(scene, camera);
           // (the checks read what she dances and wears, and what drawing her costs: dj_dance_check.py)
-          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: on ? want : null, beat: b, sit: Math.round(sit), outfit: wearing, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: on ? want : null, beat: b, outfit: wearing, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
         };
         tell(watch ? "watching" : "on");
         frame();

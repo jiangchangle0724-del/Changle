@@ -4,7 +4,6 @@
  */
 import type { T } from "../i18n";
 import type { Rank, Suit } from "../data/rogue13";
-import type { Dancer } from "./dj/dance";
 import type { DanmuLine } from "./dj/danmu";
 import type { CrateSong, DeckState, DjPhase, Mix, Source, SongReq, StyleId, Track } from "./dj/types";
 import type { LcColor, LcPending } from "./lastcard/cards";
@@ -103,7 +102,6 @@ export type Fx =
   | "level"
   | "fire"
   | "cold"
-  | "dance"
   | "drop"
   | "ask"
   | "req"
@@ -771,9 +769,6 @@ export type DjView = {
   juke: boolean;
   /** the song's video over the whole TV (anyone's switch), else in its corner */
   full: boolean;
-  /** 跟着跳: each dancer's night, and the floor's combo (0 to 1; full: fireworks) */
-  dance: Record<string, Dancer>;
-  combo: number;
   /** the speaker's reports added up this night (the recap, 今晚回顾: how the sound held up) */
   speaker: { stalls: number; resets: number; seconds: number };
   /** 弹幕: the latest lines (the big screen flies the new ones) and the host's switch (none from a rooms server before Nov 13) */
