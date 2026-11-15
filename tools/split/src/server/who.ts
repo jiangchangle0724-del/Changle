@@ -5,9 +5,21 @@
 //
 // A sign-in found is kept for five minutes under the session's fingerprint, so a phone going
 // through its ledgers asks once. One not found isn't kept: signing in again works at once.
+import { ACCOUNT_RE } from "../room/protocol";
 
-export type Who = { id: string };
+/** A signed-in account: its id, and how changle.ca shows it (its name; its photo's version, 0 for none; the colour of its letter), which an invitation it sends carries. */
+export type Who = { id: string; name: string; av: number; ac?: number };
 export type Asked = { ok: true; who: Who } | { ok: false; error: "signin" | "down" };
+/** As much of a name as an invitation shows. */
+const NAME_MOST = 40;
+
+/** The account the rooms server describes (`user` in its answer), as 两清 keeps it; null when it isn't one. (Kept answers from before names were kept have only the id.) */
+function asWho(user: Record<string, unknown> | undefined): Who | null {
+  if (!user || typeof user.id !== "string" || !ACCOUNT_RE.test(user.id)) return null;
+  const av = typeof user.av === "number" && Number.isSafeInteger(user.av) && user.av >= 0 ? user.av : 0;
+  const ac = typeof user.ac === "number" && Number.isSafeInteger(user.ac) && user.ac >= 0 ? user.ac : undefined;
+  return { id: user.id, name: typeof user.name === "string" ? user.name.trim().slice(0, NAME_MOST) : "", av, ...(ac === undefined ? {} : { ac }) };
+}
 
 /** A session as the site makes them (site/worker/hub.ts). */
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,80}$/;
@@ -34,7 +46,8 @@ export async function whoIs(token: string, rooms: Fetcher, waitUntil?: (p: Promi
   // (keeping the answer is a saving, not something signing in depends on: a cache that fails is passed by)
   try {
     const kept = await caches.default.match(key);
-    if (kept) return { ok: true, who: await kept.json<Who>() };
+    const who = kept ? asWho(await kept.json<Record<string, unknown>>()) : null;
+    if (who) return { ok: true, who };
   } catch {
     // ask
   }
@@ -53,10 +66,34 @@ export async function whoIs(token: string, rooms: Fetcher, waitUntil?: (p: Promi
   } catch {
     return { ok: false, error: "down" };
   }
-  if (!user || typeof user.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(user.id)) return { ok: false, error: "signin" };
-  const who: Who = { id: user.id };
+  const who = asWho(user);
+  if (!who) return { ok: false, error: "signin" };
   const keep = caches.default.put(key, new Response(JSON.stringify(who), { headers: { "content-type": "application/json", "cache-control": `max-age=${KEEP_SECONDS}` } })).catch(() => {});
   if (waitUntil) waitUntil(keep);
   else await keep;
   return { ok: true, who };
+}
+
+/**
+ * Is `other` a friend, on changle.ca, of the account signed in with `token`? The rooms server says
+ * (`GET /api/users/<other>`, whose `relation` is "friends" for one), Worker to Worker as above.
+ * "no": not friends, or no such account. "signin" and "down" as for `whoIs`. Never kept: a
+ * friendship can end at any moment.
+ */
+export async function friendOf(token: string, other: string, rooms: Fetcher): Promise<"yes" | "no" | "signin" | "down"> {
+  if (!ACCOUNT_RE.test(other)) return "no";
+  let res: Response;
+  try {
+    res = await rooms.fetch(`https://rooms.changle.ca/api/users/${other}`, { headers: { authorization: `Bearer ${token}` } });
+  } catch {
+    return "down";
+  }
+  if (res.status === 404) return "no";
+  if (res.status === 401 || res.status === 403) return "signin";
+  if (!res.ok) return "down";
+  try {
+    return (await res.json<{ relation?: unknown }>()).relation === "friends" ? "yes" : "no";
+  } catch {
+    return "down";
+  }
 }

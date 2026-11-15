@@ -20,10 +20,11 @@
 // through `Internal`, and its files go.
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import type { Ledger } from "../../../../site/src/split/core";
-import { AccountRoom, STARTS_PER_DAY, type AccountFile, type AccountStore, type Kept, type Mine, type Reserved, type Storage } from "../room/account";
+import { AccountRoom, INVITES_PER_DAY, STARTS_PER_DAY, type AccountFile, type AccountStore, type Invite, type Invited, type Kept, type Mine, type Reserved, type Storage } from "../room/account";
 import { ID_RE, LedgerRoom, SETTLING_MS, type Count, type ErrorCode, type Fail, type FileInfo, type Logged, type Meta, type Store, type StoredFile, type Usage } from "../room/ledger";
 import { nextNight } from "../room/nightly";
 import {
+  ACCOUNT_RE,
   FILE_MAX,
   FILE_TYPES,
   KEY_HEADER,
@@ -35,8 +36,10 @@ import {
   QUOTA,
   type ApiError,
   type Files,
+  type InviteSent,
   type MineBody,
   type MyFiles,
+  type MyInvites,
   type MyLedgers,
   type Push,
   type Pushed,
@@ -44,7 +47,7 @@ import {
   type Snapshot,
   type Stored,
 } from "../room/protocol";
-import { sessionOf, sha256, whoIs } from "./who";
+import { friendOf, sessionOf, sha256, whoIs, type Who } from "./who";
 
 export interface Env {
   LEDGERS: DurableObjectNamespace<LedgerDO>;
@@ -265,7 +268,7 @@ async function forgetAccount(env: Env, account: string): Promise<{ files: number
 /** What only the rooms server reaches, through a Service Binding to this entrypoint (no address of changle.ca leads here): an account deleted. */
 export class Internal extends WorkerEntrypoint<Env> {
   async accountGone(account: unknown): Promise<{ files: number; left: number }> {
-    if (typeof account !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(account)) return { files: 0, left: 0 };
+    if (typeof account !== "string" || !ACCOUNT_RE.test(account)) return { files: 0, left: 0 };
     return forgetAccount(this.env, account);
   }
 }
@@ -302,11 +305,51 @@ async function testOnly(req: Request, env: Env, what: string | undefined): Promi
  * The account a request is signed in to. Null when it carries no sign-in; a response to send
  * back when it carries one that isn't anybody's (401 "signin") or can't be checked now (503).
  */
-async function signedIn(req: Request, env: Env, ctx: ExecutionContext): Promise<{ id: string } | null | Response> {
+async function signedIn(req: Request, env: Env, ctx: ExecutionContext): Promise<Who | null | Response> {
   const session = sessionOf(req);
   if (session === null) return req.headers.has("authorization") ? refuse("signin", 401) : null;
   const asked = await whoIs(session, env.ROOMS, (p) => ctx.waitUntil(p));
   return asked.ok ? asked.who : refuse(asked.error, asked.error === "signin" ? 401 : 503);
+}
+
+/**
+ * Someone in a ledger (they hold its key) invites a friend of theirs on changle.ca: signed in, and
+ * the two friends there, as the rooms server says. The invitation waits in the friend's account
+ * (src/room/account.ts), with the key the inviter sent, the ledger's name, who sent it, and the
+ * person in the ledger it is for when that came (and is someone in it).
+ */
+async function invite(req: Request, env: Env, ctx: ExecutionContext, stub: DurableObjectStub<LedgerDO>, ledger: string, key: string, keyHash: string | null): Promise<Response> {
+  const session = sessionOf(req);
+  const who = await signedIn(req, env, ctx);
+  if (who instanceof Response) return who;
+  if (!who || !session) return refuse("signin", 401);
+  const input = await body(req);
+  const to = typeof input?.to === "string" && ACCOUNT_RE.test(input.to) ? input.to : null;
+  if (!input || !to || to === who.id || (input.member !== undefined && (typeof input.member !== "string" || !MEMBER_RE.test(input.member)))) return refuse("bad", 400);
+  const got = await stub.read(keyHash);
+  if (!got.ok) return failed(got);
+  // (a locked ledger takes nobody new)
+  if (got.ledger.locked !== undefined) return refuse("locked", 423);
+  // (counted before the rooms server is asked: a phone that keeps asking about strangers stops too)
+  if (!(await accountOf(env, who.id).mayInvite(today(), INVITES_PER_DAY))) return refuse("limit", 429);
+  const friend = await friendOf(session, to, env.ROOMS);
+  if (friend !== "yes") return friend === "no" ? refuse("friends", 403) : refuse(friend, friend === "signin" ? 401 : 503);
+  const member = typeof input.member === "string" && got.ledger.members.some((m) => m.id === input.member) ? input.member : undefined;
+  const from = { id: who.id, name: who.name, av: who.av, ...(who.ac === undefined ? {} : { ac: who.ac }) };
+  const invited = await accountOf(env, to).invited({ ledger, key, name: got.ledger.name, from, ...(member ? { member } : {}), at: Date.now() });
+  return json({ invite: invited } satisfies InviteSent, invited === "sent" ? 201 : 200);
+}
+
+/** The invitations waiting for the signed-in account; and one it says no to (or has used), which goes. */
+async function myInvites(req: Request, env: Env, ctx: ExecutionContext, ledger: string | undefined): Promise<Response> {
+  const who = await signedIn(req, env, ctx);
+  if (who instanceof Response) return who;
+  if (!who) return refuse("signin", 401);
+  const account = accountOf(env, who.id);
+  if (ledger === undefined) return req.method === "GET" ? json({ invites: await account.invites() } satisfies MyInvites) : refuse("notfound", 404);
+  if (!ID_RE.test(ledger) || req.method !== "DELETE") return refuse("notfound", 404);
+  await account.uninvite(ledger);
+  return json({ ok: true });
 }
 
 /** "My ledgers": what a signed-in phone asks of its account. */
@@ -347,6 +390,7 @@ export default {
     const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean);
     if (parts[0] === "me" && parts[1] === "ledgers" && parts.length <= 3) return mine(req, env, ctx, parts[2]);
     if (parts[0] === "me" && parts[1] === "files" && parts.length <= 3) return myFiles(req, env, ctx, parts[2]);
+    if (parts[0] === "me" && parts[1] === "invites" && parts.length <= 3) return myInvites(req, env, ctx, parts[2]);
     if (parts[0] === "test" && parts.length === 2) return testOnly(req, env, parts[1]);
     if (parts[0] !== "ledgers" || parts.length > 4) return refuse("notfound", 404);
 
@@ -437,6 +481,7 @@ export default {
       const got = await stub.rekey(ownerHash, await sha256(next));
       return got.ok ? json({ seq: got.seq, ledger: got.ledger } satisfies Snapshot) : failed(got);
     }
+    if (parts.length === 3 && parts[2] === "invites" && req.method === "POST") return invite(req, env, ctx, stub, parts[1], key, keyHash);
     if (parts.length === 3 && parts[2] === "lock" && req.method === "POST") {
       const input = await body(req);
       if (!input) return refuse("bad", 400);
@@ -817,9 +862,29 @@ function accountStore(sql: SqlStorage): AccountStore {
   sql.exec("CREATE TABLE IF NOT EXISTS sent (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
   // which account this is (told with its first file); and whether it is deleted, and its files are still going
   sql.exec("CREATE TABLE IF NOT EXISTS self (id INTEGER PRIMARY KEY CHECK (id = 1), account TEXT NOT NULL, forgetting INTEGER NOT NULL DEFAULT 0)");
+  // invitations from friends waiting for this account; and how many it sent today
+  sql.exec("CREATE TABLE IF NOT EXISTS invites (ledger TEXT PRIMARY KEY, json TEXT NOT NULL, at INTEGER NOT NULL)");
+  sql.exec("CREATE TABLE IF NOT EXISTS invited (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
   const asFile = (r: Record<string, SqlStorageValue>): AccountFile => ({ ledger: String(r.ledger), id: String(r.id), size: Number(r.size), at: Number(r.at) });
   const read = (json: unknown) => JSON.parse(json as string) as Mine;
   return {
+    // (the newest first; among those sent the same moment, the last put: a replaced one is put again, so it gets a new rowid)
+    invites: () =>
+      sql
+        .exec("SELECT json FROM invites ORDER BY at DESC, rowid DESC")
+        .toArray()
+        .map((r) => JSON.parse(r.json as string) as Invite),
+    putInvite(invite) {
+      sql.exec("INSERT OR REPLACE INTO invites (ledger, json, at) VALUES (?, ?, ?)", invite.ledger, JSON.stringify(invite), invite.at);
+    },
+    dropInvite(ledger) {
+      sql.exec("DELETE FROM invites WHERE ledger = ?", ledger);
+    },
+    inviting: (day) => Number(sql.exec("SELECT n FROM invited WHERE day = ?", day).toArray()[0]?.n ?? 0),
+    invite(day) {
+      sql.exec("DELETE FROM invited WHERE day <> ?", day);
+      sql.exec("INSERT INTO invited (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1", day);
+    },
     // (the last first kept first; among those kept the same moment, the last put)
     list: () => sql.exec("SELECT json FROM mine ORDER BY at DESC, rowid DESC").toArray().map((r) => read(r.json)),
     get: (id) => {
@@ -863,7 +928,7 @@ function accountStore(sql: SqlStorage): AccountStore {
     },
     // (the tables stay, empty)
     wipe() {
-      for (const t of ["mine", "started", "files", "sent", "self"]) sql.exec(`DELETE FROM ${t}`);
+      for (const t of ["mine", "started", "files", "sent", "self", "invites", "invited"]) sql.exec(`DELETE FROM ${t}`);
     },
   };
 }
@@ -971,5 +1036,22 @@ export class AccountDO extends DurableObject<Env> {
 
   async storage(quota: number): Promise<Storage> {
     return this.room.storage(quota);
+  }
+
+  /** A friend invites this account to a ledger (src/room/account.ts, `invited`). */
+  async invited(invite: Invite): Promise<Invited> {
+    return this.room.invited(invite, Date.now());
+  }
+
+  async invites(): Promise<Invite[]> {
+    return this.room.invites(Date.now());
+  }
+
+  async uninvite(ledger: string): Promise<void> {
+    this.room.uninvite(ledger);
+  }
+
+  async mayInvite(day: string, limit: number): Promise<boolean> {
+    return this.room.mayInvite(day, limit);
   }
 }

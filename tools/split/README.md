@@ -28,7 +28,7 @@ Builds), or a change there will publish the site and leave the server behind.
 | `src/room/protocol.ts` | What the phones and the server say to each other, address by address. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a ledger (`LedgerDO`, SQLite), the one per account (`AccountDO`, SQLite), the daily allowance of new ledgers per network (`GateDO`), and `Internal`, the entrypoint only the rooms server reaches (an account deleted). |
 | `src/server/who.ts` | Whose a sign-in is: asked of the rooms server over the `ROOMS` binding. |
-| `tests/` | The room and the account (`npm test`), and the server itself on Cloudflare's own runtime (`npm run test:server`, which starts `wrangler dev` with the stand-in rooms server in `tests/rooms`, which knows the sessions in `tests/accounts.ts`, is bound back to `Internal` as the real one is, and says an account is deleted the way the real one does; and a bucket kept on disk; an account's room there is `TEST_QUOTA` bytes, small enough to fill). |
+| `tests/` | The room and the account (`npm test`), and the server itself on Cloudflare's own runtime (`npm run test:server`, which starts `wrangler dev` with the stand-in rooms server in `tests/rooms`, which knows the sessions in `tests/accounts.ts` and who is friends with whom, is bound back to `Internal` as the real one is, and says an account is deleted the way the real one does; and a bucket kept on disk; an account's room there is `TEST_QUOTA` bytes, small enough to fill). |
 
 What a change does, that it counts once, and what is refused are **not** here: those rules are the
 phone's own, `site/src/split/changes.ts` (with `ops.ts` and `core/`), imported from there so the
@@ -137,12 +137,35 @@ address), and keeps the answer five minutes under the session's fingerprint. The
 - `DELETE /me/ledgers/<id>`: off the list. The ledger itself stays.
 - A sign-in that is nobody's: 401 `signin`. When the rooms server can't say: 503 `down`.
 
+### Inviting a friend on changle.ca
+
+Besides the link and the QR code, someone in a ledger can invite a friend of theirs on changle.ca
+by their account. Nothing goes by mail.
+
+- `POST …/ledgers/<id>/invites`, signed in, with the key, `{ "to": "<account id>", "member":
+  "<person's id>" }` (`member` when the phone knows who in the ledger the friend is): the
+  invitation waits in the friend's account (201 `{ "invite": "sent" }`). The same one again is 200
+  `again`; a ledger the friend keeps already, 200 `in`. Only a friend: this Worker asks the rooms
+  server, with the inviter's sign-in, `GET /api/users/<id>` (its `relation`), and anyone else is
+  403 `friends`. A locked ledger takes nobody new (423 `locked`). 50 a day from one account (429
+  `limit`), counted before the rooms server is asked.
+- The invitation carries the key the inviter sent, the ledger's name then, who sent it (their
+  name and photo on changle.ca, from the rooms server's `/api/me`), and the person it is for. A key
+  changed since makes it one that no longer opens the ledger, as it does a link.
+- `GET /me/invites`: the invitations waiting, the newest first. `DELETE /me/invites/<id>`: said no
+  to. Keeping the ledger (`PUT /me/ledgers/<id>`, which joining does) uses it up. One waits 30
+  days, and an account has at most 30 waiting (a new one pushes out the oldest). An account
+  deleted takes the ones waiting for it.
+- The phone that invited tells the friend itself, with a message in the site's chat (the friend
+  finds the invitation at changle.ca/split). Nothing here sends one.
+
 ### Limits
 
 500 changes in one request; 20,000 changes sent to one ledger in its life; 2,000 entries in a
 ledger and 30 people (the phone's own rules); 10 new ledgers a day from one network, and 10 from
 one account; 300 ledgers on one account's list. Files: 10 MB each, 500 MB in all for one account,
-200 a day from one account, 2,000 in one ledger, 10 on one expense.
+200 a day from one account, 2,000 in one ledger, 10 on one expense. Invitations to friends: 50 a
+day from one account; 30 waiting for one, each for 30 days.
 
 ## Running it
 
@@ -156,7 +179,9 @@ npm run dev           # http://localhost:8794/split/api, with the stand-in rooms
 
 `npm run dev` runs the stand-in rooms server beside the Worker (`tests/rooms`), so a sign-in works
 on this machine with the test sessions in `tests/accounts.ts`, and with any session
-`test-account-<name>` (the site's `scripts/split_check.ts` gives each phone its own). The real
+`test-account-<name>` (the site's `scripts/split_check.ts` gives each phone its own). Two such
+accounts whose names start the same up to an `_` (`tripA_Amy`, `tripA_Ben`) are friends, and the
+one after the `_` is the name. The real
 rooms server is never asked from here.
 
 The site's own dev server (`npm run dev` in `site`) passes `/split/api` on to this one, so the
