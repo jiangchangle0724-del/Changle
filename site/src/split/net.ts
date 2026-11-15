@@ -216,6 +216,32 @@ export const fileNet = {
   drop: (id: string, key: string, file: string) => fileAsk(`/ledgers/${id}/files/${file}`, "DELETE", { [KEY_HEADER]: key }, async () => true as const),
 };
 
+/** How many of an account's files, and how big. */
+export type Room = { count: number; bytes: number };
+/**
+ * An account's room for photos, as the storage page shows it (the server's MyFiles,
+ * tools/split/src/room/protocol.ts): the bytes used of the quota, how many no expense uses, and each
+ * ledger they are in, the most first.
+ */
+export type MyRoom = { used: number; quota: number; unused: Room; ledgers: ({ id: string } & Room & { unused: Room })[] };
+const isBytes = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
+const isRoom = (x: unknown): x is Room => isRecord(x) && isBytes(x.count) && isBytes(x.bytes);
+const asMyRoom = async (res: Response): Promise<MyRoom | null> => {
+  const x: unknown = await res.json().catch(() => null);
+  if (!isRecord(x) || !isBytes(x.used) || !isBytes(x.quota) || !isRoom(x.unused) || !Array.isArray(x.ledgers)) return null;
+  const ledgers: MyRoom["ledgers"] = [];
+  for (const l of x.ledgers as unknown[]) {
+    if (!isRecord(l) || !isText(l.id) || !isBytes(l.count) || !isBytes(l.bytes) || !isRoom(l.unused)) return null;
+    ledgers.push({ id: l.id, count: l.count, bytes: l.bytes, unused: { count: l.unused.count, bytes: l.unused.bytes } });
+  }
+  return { used: x.used, quota: x.quota, unused: { count: x.unused.count, bytes: x.unused.bytes }, ledgers };
+};
+/** The signed-in account's room for photos: how much is used; and its photos no expense uses, cleared now (the answer is the room as it is then). */
+export const roomNet = {
+  get: () => fileAsk("/me/files", "GET", signedIn(), asMyRoom),
+  clear: () => fileAsk("/me/files/unused", "DELETE", signedIn(), asMyRoom),
+};
+
 /** The owner deletes a ledger, for everyone. (Signed in, it leaves the owner's list too: the server does that.) */
 export const deleteLedger = (id: string, owner: string): Promise<Reply<true>> => ask(`/ledgers/${id}`, { ...signedIn(), [OWNER_HEADER]: owner }, asDone, undefined, "DELETE");
 

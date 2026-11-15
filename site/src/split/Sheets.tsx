@@ -2,10 +2,10 @@
  * The ledger's ⋯ sheet: everything that isn't one of the three screens. Whether the ledger is in
  * step with the server, inviting someone, the people (who is who, adding and renaming) in a sheet
  * of their own, the ledger's name, the language, and taking the ledger off this phone (signed in:
- * off my ledgers). On the phone that started the ledger, its owner's three: locking it and opening
+ * off my ledgers). Signed in, the account's photo storage. On the phone that started the ledger, its owner's three: locking it and opening
  * it again, a new invitation, and deleting it for everyone.
  */
-import { ChevronRight, CircleAlert, CloudCheck, CloudOff, FileSpreadsheet, History, ListX, Lock, LockOpen, LogIn, Pencil, RefreshCw, Trash2, UserPlus, Users, X } from "lucide-react";
+import { ChevronRight, CircleAlert, CloudCheck, CloudOff, FileSpreadsheet, HardDrive, History, ListX, Lock, LockOpen, LogIn, Pencil, RefreshCw, Trash2, UserPlus, Users, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import { LangTab } from "../components/TopBar";
@@ -18,6 +18,7 @@ import { ExportSheet } from "./ExportSheet";
 import { HistorySheet } from "./HistorySheet";
 import { InviteSheet } from "./Join";
 import { inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, tidy } from "./ops";
+import { StorageSheet } from "./StorageSheet";
 import { newId } from "./store";
 import { eraseLedger, iAm, lockLedger, record, rekeyLedger, removeLedger } from "./syncing";
 import { say } from "./words";
@@ -48,10 +49,11 @@ type MenuProps = {
 };
 
 export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey, made, owner, changing, away, mine, signIn, onDeleted }: MenuProps) {
-  const { openSignIn } = useAccount();
+  const { openSignIn, status: account } = useAccount();
   const [people, setPeople] = useState(false);
   const [history, setHistory] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [storage, setStorage] = useState(false);
   /** the invitation's sheet is up: to send it, or (its owner) to change it */
   const [inviting, setInviting] = useState<"send" | "change" | null>(null);
   const [name, setName] = useState(ledger.name);
@@ -162,6 +164,22 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
             <span>{say(lang, "exportHint")}</span>
             <ChevronRight aria-hidden="true" />
           </button>
+          {/* (an account's room: photos are sent signed in) */}
+          {account === "in" && (
+            <button
+              type="button"
+              className="split-field split-menu-row"
+              onClick={() => {
+                onClose();
+                setStorage(true);
+              }}
+            >
+              <HardDrive aria-hidden="true" />
+              <strong>{say(lang, "storage")}</strong>
+              <span>{say(lang, "storageHint")}</span>
+              <ChevronRight aria-hidden="true" />
+            </button>
+          )}
           {/* the owner's two. One tap locks, and the same line opens it again; changing the link is asked about first, on the invitation's own sheet */}
           {owner && made && (
             <>
@@ -262,6 +280,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
       </Sheet>
       <HistorySheet open={history} onClose={() => setHistory(false)} ledger={ledger} me={me} lang={lang} />
       <ExportSheet open={exporting} onClose={() => setExporting(false)} ledger={ledger} lang={lang} />
+      <StorageSheet open={storage} onClose={() => setStorage(false)} ledger={ledger.id} lang={lang} />
       <Sheet open={people} onClose={() => setPeople(false)} lang={lang} category="tool" title={say(lang, "members")}>
         <People ledger={ledger} me={me} lang={lang} />
       </Sheet>

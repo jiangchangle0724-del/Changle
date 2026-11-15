@@ -11,7 +11,8 @@
  *     the account, and its owner deleting it for everyone.
  *  6. A ledger's record (改动记录), read from the server a batch at a time.
  *  7. The 结清图: when this phone last made a ledger's picture, kept beside the ledger.
- *  8. Receipt photos: sent with the key and the sign-in, shown from what this phone has, taken off.
+ *  8. Receipt photos: sent with the key and the sign-in, shown from what this phone has, taken off;
+ *     the account's room for them, and its photos no expense uses, cleared.
  *
  * (What is sent when, and what the phone makes of the answers, is tests/split-sync.test.ts.)
  */
@@ -994,6 +995,31 @@ const { net } = await import("../src/split/net");
   syncing.dropPhoto("not-on-this-phone", "x");
   await settle();
   eq(asked.map((a) => [a.method, at(a.path)?.[1], at(a.path)?.[2], a.key === K]), [["DELETE", "pho-1", "old-photo", true]], "a photo no expense keeps is taken off with the key (for a ledger this phone holds)");
+  // the account's room (照片空间): asked for, and cleared, with the sign-in
+  const { roomNet } = await import("../src/split/net");
+  const room = { used: 2_000, quota: 524_288_000, unused: { count: 1, bytes: 500 }, ledgers: [{ id: "pho-1", count: 2, bytes: 2_000, unused: { count: 1, bytes: 500 } }] };
+  let reply: Answer = { status: 200, json: room };
+  answer = (a) => (a.path.endsWith("/me/files") || a.path.endsWith("/me/files/unused") ? reply : "nothing");
+  storage.setItem("changle.session", "session-2");
+  asked.length = 0;
+  eq([await roomNet.get(), asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.auth])], [{ status: 200, data: room }, [["GET", "/me/files", "Bearer session-2"]]], "the room, asked for with the sign-in");
+  reply = { status: 200, json: { ...room, used: 1_500, unused: { count: 0, bytes: 0 }, ledgers: [{ ...room.ledgers[0], count: 1, bytes: 1_500, unused: { count: 0, bytes: 0 } }] } };
+  asked.length = 0;
+  eq([(await roomNet.clear()).data?.used, asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.auth])], [1_500, [["DELETE", "/me/files/unused", "Bearer session-2"]]], "cleared: and the answer is the room as it is then");
+  const bad: [Answer, string][] = [
+    [{ status: 200, text: "<html>a hotel's sign-in page</html>" }, "a page that isn't the room"],
+    [{ status: 200, json: { ...room, used: -1 } }, "less than nothing used"],
+    [{ status: 200, json: { ...room, ledgers: [{ id: "x", count: 1 }] } }, "a ledger without its bytes"],
+    [{ status: 200, json: { ...room, unused: null } }, "no count of the unused"],
+  ];
+  const heard: number[] = [];
+  for (const [how] of bad) {
+    reply = how;
+    heard.push((await roomNet.get()).status);
+  }
+  eq(heard, bad.map(() => 0), `none of these is the server's answer: ${bad.map(([, why]) => why).join("; ")}`);
+  reply = { status: 401, json: { error: "signin" } };
+  eq(await roomNet.get(), { status: 401, error: "signin" }, "the sign-in run out: said as such");
   storage.removeItem("changle.session");
 }
 

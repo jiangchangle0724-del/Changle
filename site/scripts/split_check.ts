@@ -21,7 +21,7 @@
  *                                           that ran out; receipt photos
  *   npx tsx scripts/split_check.ts photos   behave's receipt photos alone: made smaller and kept on the server,
  *                                           seen on a friend's phone, taken off and changed back, sent and not
- *                                           kept, what can't go and why, ten at most, the back button
+ *                                           kept, what can't go and why, ten at most, the back button; 照片空间
  *   npx tsx scripts/split_check.ts gate     stage two's gate, as far as this machine can take it: five phones on
  *                                           one ledger recording at once end up with the server's ledger, all
  *                                           five; three recorded with no signal and answers lost on the way back
@@ -573,6 +573,42 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("saveChanges").click();
   await page.locator(".split-keys").waitFor({ state: "hidden" });
   if (local) ok((await page.locator(".split-row .lucide-paperclip").count()) === 1, `${lang} ${width}x${height}: saved, the expense's row has a paperclip`);
+
+  // 照片空间 (signed in, in ⋯): how much of the room the photos take, and where they are
+  const openStorage = async () => {
+    await button("more").click();
+    await page.getByRole("dialog").getByRole("button", { name: re(t("storage")) }).click();
+  };
+  await openStorage();
+  if (local) {
+    await page.locator(".split-storage-used").waitFor({ timeout: 10_000 });
+    await shot("16i-storage");
+    // (and as the server would say it weeks on: most of the room used, photos no expense uses, clearing them)
+    const MB = 1024 * 1024;
+    const here = path(page).split("/").pop()!;
+    const nothing = { count: 0, bytes: 0 };
+    const weeksOn = { used: 412 * MB, quota: 500 * MB, unused: { count: 3, bytes: 2 * MB }, ledgers: [{ id: "a-ledger-elsewhere", count: 1_300, bytes: 400 * MB, unused: nothing }, { id: here, count: 14, bytes: 12 * MB, unused: { count: 3, bytes: 2 * MB } }] };
+    await page.route("**/split/api/me/files", (route) => route.fulfill({ json: weeksOn }));
+    await page.route("**/split/api/me/files/unused", (route) => route.fulfill({ json: { ...weeksOn, used: 410 * MB, unused: nothing, ledgers: [weeksOn.ledgers[0], { id: here, count: 11, bytes: 10 * MB, unused: nothing }] } }));
+    await page.keyboard.press("Escape");
+    await closed(page);
+    await openStorage();
+    await page.locator(".split-storage-ledgers").getByText(t("storageElsewhere")).waitFor();
+    await shot("16j-storage-unused");
+    await page.getByRole("dialog").getByRole("button", { name: t("storageClear"), exact: true }).click();
+    await page.getByRole("dialog").getByText(t("storageClearAsk")).waitFor();
+    await shot("16k-storage-ask");
+    await page.getByRole("dialog").getByRole("button", { name: t("storageClearYes"), exact: true }).click();
+    await page.getByRole("dialog").locator(".split-note", { hasText: say(lang, "storageCleared", { mb: "2" }) }).waitFor();
+    await shot("16l-storage-cleared");
+    await page.unroute("**/split/api/me/files");
+    await page.unroute("**/split/api/me/files/unused");
+  } else {
+    await page.getByRole("dialog").getByText(t("storageAway")).waitFor();
+    await shot("16i-storage-away");
+  }
+  await page.keyboard.press("Escape");
+  await closed(page);
 
   // everyone pays
   await page.getByRole("tab", { name: t("settle") }).click();
@@ -1283,6 +1319,112 @@ async function photos() {
   ok(true, "a ledger not saved online yet: the toast says photos wait for a signal");
   await a.setOffline(false);
   for (const ctx of [a, b]) await ctx.close();
+
+  // 照片空间 (⋯, signed in): the room as the server keeps it; photos no expense uses, cleared after asking
+  const c = await phone(390, 664, "zh");
+  const pc = await open(c, true);
+  const settled = (page: Page) => page.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held.every((h) => h.made && !h.waiting.length)`, null, { timeout: 15_000 });
+  await start(pc, "空间", ["阿丙"]);
+  await spend(pc, "20");
+  await settled(pc);
+  const space = (await keptBy(pc)).held.find((h) => h.server.name === "空间")!;
+  const spaceFiles = async () => (await filesOn(pc, space.server.id, space.key)).files;
+  await pc.locator("button.split-row").first().click();
+  await pc.locator(".split-note-row input[type=file]").setInputFiles([
+    { name: "IMG_0101.jpg", mimeType: "image/jpeg", buffer: await receipt(pc, "S", 900, 1200) },
+    { name: "bill.pdf", mimeType: "application/pdf", buffer: aPdf("S") },
+  ]);
+  await pc.locator(".split-photo-count", { hasText: "2" }).waitFor({ timeout: 15_000 });
+  await button(pc, "saveChanges").click();
+  await pc.locator(".split-keys").waitFor({ state: "hidden" });
+  const storageRow = () => pc.getByRole("dialog").getByRole("button", { name: re(t("storage")) });
+  const openStorage = async () => {
+    await button(pc, "more").click();
+    await storageRow().click();
+  };
+  await openStorage();
+  await pc.locator(".split-storage-ledgers li").first().waitFor({ timeout: 10_000 });
+  const keptBytes = (await spaceFiles()).reduce((n, f) => n + f.size, 0);
+  const meter = await pc.locator("[role=meter]").getAttribute("aria-valuenow");
+  const line = await pc.locator(".split-storage-ledgers li").first().textContent();
+  ok(Number(meter) === keptBytes && line?.includes("空间") && line.includes(t("storageThis")) && line.includes("2 张") && (await pc.getByRole("dialog").getByRole("button", { name: t("storageClear"), exact: true }).count()) === 0, `the storage sheet: the bar is the bytes the server keeps (${meter}), this ledger by its name, 2 张, and nothing to clear`);
+  await pc.keyboard.press("Escape");
+  await closed(pc);
+
+  // one taken off; the server asked as of two hours on (what was just stored has settled by then: ledger.ts, SETTLING_MS)
+  await pc.locator("button.split-row").first().click();
+  await pc.locator(".split-photo-button").click();
+  await pc.locator("dialog[open] .split-photo-tile").nth(1).click();
+  await pc.getByRole("dialog").getByRole("button", { name: t("photoRemove"), exact: true }).click();
+  await pc.locator("dialog[open] .split-photo-tile").first().waitFor();
+  await pc.keyboard.press("Escape");
+  await closed(pc);
+  await button(pc, "saveChanges").click();
+  await pc.locator(".split-keys").waitFor({ state: "hidden" });
+  await settled(pc);
+  await c.route("**/split/api/me/files**", (route) => route.continue({ url: `${route.request().url().split("?")[0]}?at=${Date.now() + 2 * 60 * 60 * 1000}` }));
+  await openStorage();
+  await pc.getByRole("dialog").getByText(say("zh", "storageUnused", { n: 1, mb: "1" })).waitFor({ timeout: 10_000 });
+  await pc.getByRole("dialog").getByRole("button", { name: t("storageClear"), exact: true }).click();
+  await pc.getByRole("dialog").getByText(t("storageClearAsk")).waitFor();
+  await pc.getByRole("dialog").getByRole("button", { name: t("keep"), exact: true }).click();
+  await pc.getByRole("dialog").getByRole("button", { name: t("storageClear"), exact: true }).waitFor();
+  ok((await spaceFiles()).length === 2, "one taken off an expense and settled: the sheet says it is on no expense; 现在清掉 asks first, and 先留着 clears nothing");
+  await pc.getByRole("dialog").getByRole("button", { name: t("storageClear"), exact: true }).click();
+  await pc.getByRole("dialog").getByRole("button", { name: t("storageClearYes"), exact: true }).click();
+  await pc.getByRole("dialog").locator(".split-note", { hasText: say("zh", "storageCleared", { mb: "1" }) }).waitFor({ timeout: 10_000 });
+  const after = await spaceFiles();
+  ok(after.length === 1 && after[0].type === "image/jpeg" && Number(await pc.locator("[role=meter]").getAttribute("aria-valuenow")) === after[0].size && (await pc.getByRole("dialog").getByRole("button", { name: t("storageClear"), exact: true }).count()) === 0, "清掉: the PDF goes from the server, the bar is the photo left, and there is nothing more to clear");
+  await c.unroute("**/split/api/me/files**");
+  await pc.keyboard.press("Escape");
+  await closed(pc);
+
+  // a ledger taken off this phone, with a photo in it still: named as one not on this phone
+  await button(pc, "more").click();
+  await pc.getByRole("button", { name: re(t("removeMine")) }).click();
+  await button(pc, "removeMineYes").click();
+  await button(pc, "start").waitFor();
+  await start(pc, "第二个", ["阿丁"]);
+  await settled(pc);
+  await openStorage();
+  await pc.locator(".split-storage-ledgers li").first().waitFor({ timeout: 10_000 });
+  ok((await pc.locator(".split-storage-ledgers li").first().textContent())?.startsWith(t("storageElsewhere")) === true, "a ledger taken off this phone, with a photo of the account's still in it: named as one not on this phone");
+  await pc.keyboard.press("Escape");
+  await closed(pc);
+
+  // no signal: said, with 再试一次
+  await c.setOffline(true);
+  await openStorage();
+  await pc.getByRole("dialog").getByText(t("storageAway")).waitFor({ timeout: 10_000 });
+  await c.setOffline(false);
+  await pc.getByRole("dialog").getByRole("button", { name: t("retry"), exact: true }).click();
+  await pc.locator(".split-storage-used").waitFor({ timeout: 10_000 });
+  ok(true, "no signal: the sheet says it can't see the room; 再试一次 with a signal, it can");
+  await pc.keyboard.press("Escape");
+  await closed(pc);
+
+  // the sign-in run out: the sheet says so, and makes way for the site's sign-in
+  await c.route("**/split/api/me/files", (route) => route.fulfill({ status: 401, json: { error: "signin" } }));
+  await openStorage();
+  await pc.getByRole("dialog").getByText(t("storageSignIn")).waitFor({ timeout: 10_000 });
+  await pc.getByRole("dialog").getByRole("button", { name: t("signIn"), exact: true }).click();
+  await closed(pc);
+  await pc.locator("#si-email").waitFor();
+  ok(true, "the sign-in run out: the sheet says so; 登录 there gives way to the site's sign-in");
+  await pc.keyboard.press("Escape");
+  await c.unroute("**/split/api/me/files");
+
+  // signed out (a friend who joined by the link): no storage in ⋯
+  const second = (await keptBy(pc)).held.find((h) => h.server.name === "第二个")!;
+  const d = await phone(390, 664, "zh");
+  const pd = await d.newPage();
+  watch(pd, true);
+  await pd.goto(`${base}/split/${second.server.id}#k=${second.key}`);
+  await pd.locator(".split-who").getByRole("button", { name: re("阿丁") }).click();
+  await pd.getByRole("button", { name: t("more"), exact: true }).click();
+  await pd.getByRole("dialog").getByRole("button", { name: re(t("export")) }).waitFor();
+  ok((await pd.getByRole("dialog").getByRole("button", { name: re(t("storage")) }).count()) === 0, "signed out, ⋯ has no 照片空间");
+  for (const ctx of [c, d]) await ctx.close();
 }
 
 // ---------- behave: what it does, beyond how it looks ----------
