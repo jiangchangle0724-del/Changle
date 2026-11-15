@@ -770,6 +770,8 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const build = read("scripts/postbuild.ts");
   ok(/write\("split\.html", page\(\{[^\n]*path: "\/split"/.test(build) && /const paths = \[[^\n]*"\/split"\]/.test(build), "the build gives /split a page of its own, and puts it in the sitemap");
   ok(/^\/split\/\*\n {2}X-Robots-Tag: noindex$/m.test(read("public/_headers")), "a ledger's own address still isn't indexed");
+  const sample = Object.entries(W).filter(([, w]) => /小样|first look|preview/i.test(`${w.zh} ${w.en}`)).map(([k]) => k);
+  ok(!sample.length, `nothing a player reads calls it a first look any more${sample.length ? `: ${sample.join(", ")}` : ""}`);
 }
 
 // ---------- 12. the ledger's record ----------

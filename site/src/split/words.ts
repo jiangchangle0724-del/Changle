@@ -17,9 +17,9 @@ export const W = {
   start: { zh: "开一个账本", en: "Start a ledger" },
   // signed out, the same button signs in first: starting a ledger needs a changle.ca account
   startSignIn: { zh: "登录，开一个账本", en: "Sign in to start a ledger" },
-  preview: {
-    zh: "小样：账本存在云端，登录以后换手机也都在。在账本里点「邀请」，叫朋友一起记。",
-    en: "A first look: ledgers are kept online, and signed in they follow you to any phone. Tap Invite in a ledger to bring friends in.",
+  keptOnline: {
+    zh: "账本存在云端，登录以后换手机也都在。在账本里点「邀请」，叫朋友一起记。",
+    en: "Ledgers are kept online, and signed in they follow you to any phone. Tap Invite in a ledger to bring friends in.",
   },
   notKept: {
     zh: "这个浏览器不让存东西（可能开了无痕模式），关掉页面账本就没了。",

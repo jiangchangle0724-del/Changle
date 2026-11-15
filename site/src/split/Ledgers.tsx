@@ -105,7 +105,7 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
         !invitations.waiting.length && <EmptyState icon={ReceiptText} title={say(lang, "noLedgers")} body={say(lang, "noLedgersBody")} />
       )}
       <p className="split-fine" role={isKept() ? undefined : "alert"}>
-        {say(lang, isKept() ? "preview" : "notKept")}
+        {say(lang, isKept() ? "keptOnline" : "notKept")}
       </p>
       <div className="split-dock">
         {/* (while the page is still finding out who is signed in, it says what it will do, and does it once it knows) */}

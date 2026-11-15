@@ -219,6 +219,7 @@
   - 卡片是普通的链接，主站的路由接住，不重新加载页面（语言、登录都带着）。
   - /split 有了自己的一页（标题「两清 All Square · 开席 Lazy Susan」，说明里写了拍小票自动填金额），进了站点地图；/split/<账本号> 还是不收录（`_headers`）；robots.txt 挡着 /split/api/。
   - 邀请链接在聊天软件里的预览还是首页的标题和说明（见「交给别的对话」）。
+  - 账本列表下面那句小字原来是「小样：账本存在云端……」（英文 "A first look: …"），上了工具页就不是小样了，去掉了这几个字（上线以后在 changle.ca 上看到的，另一个小 PR）。`tests/split-screens.test.ts` 第 11 节查玩家看到的字里没有「小样」「first look」「preview」。
 - 这个对话定的小费和税（2026-11-15，Steve 定的见「11-15 晚上 Steve 定的」；分两个 PR：账本格式和服务器是这一个，画面是下一个）：
   - 存在哪儿：一笔花销可以带 `tip` 和 `tax`（`core/types.ts`），用付的那种货币（有 `paidIn` 就是它，没有就是账本的货币）的最小单位，各自大于 0，两个加起来不超过付了多少（`ops.ts` 的 `soundExtras`）。只是记下来给人看、给总结加起来，谁该付多少完全不看它们（金额本来就含着）。
   - 改一笔的时候（`ops.ts` 的 `afterEdit`，改动记录用同一份）：说了就照着改；说 null（或 0）就去掉；不说的时候，付的钱（那种货币、那个数）没变就留着，变了就去掉（是从原来那张小票上读的，总数变了就不一定对了）。旧页面不知道它们，改备注、改分法都留着，改金额就去掉。说了但放不下（加起来比付的多）的改动整个不收。
@@ -479,6 +480,7 @@
 
 提交记录原文，最新的在上面。
 
+- 2026-11-15 两清: no longer called a first look on the list page, now that it's on the Tools tab
 - 2026-11-15 两清: on the Tools tab, with a page of its own for search engines, in the sitemap, its API kept out by robots.txt
 - 2026-11-15 两清: the day each expense was spent, and a tip and tax typed with no receipt; the export and the picture say them
 - 2026-11-15 两清: an expense can keep the day it was spent, and the server reads it off the receipt
@@ -690,3 +692,5 @@
   - 本机看了工具页：320x568 和 390x664，中英文，卡片和别的工具卡一样，axe 没报、没超宽；点卡片不重新加载页面就到 /split，后退回到工具页。build 出来的 `split.html` 标题和 canonical 对，站点地图 32 个地址（多了 /split）。首页 js 122.6 KB（预算 123），卡片在工具页那个文件里，不在首页。
   - 截图：以为 `tools-zh`、`tools-en` 会变，加了 `update-screenshots` 标签让 CI 重拍；重拍出来没有不同（这两张只拍工具页第一屏，卡片在下面），基准没换，`site / visual` 照旧绿。
   - 当时开着的 PR（#439、#373、#364、#235）不碰这些文件。
+  - 合并上线：PR #595，11-15 09:22 UTC。在 changle.ca 上查了：/split 的标题是「两清 All Square · 开席 Lazy Susan」，站点地图里有 /split，robots.txt 有那一行，/split/<账本号> 带着 noindex；用浏览器（没登录）开工具页，两清的卡片在跟一单下面，点了不重新加载页面就到 /split，列表上是「还没有账本」和「登录，开一个账本」。
+- 2026-11-15 列表页那句小字去掉「小样：」（这一个 PR）。上线以后在 changle.ca 上看到的：上了工具页，不该再说是小样。`words.ts` 那一句改名 `keptOnline`，中英文都去掉了开头；第 11 节加了一条，把「小样」放回去它就红（试过）。
