@@ -1,6 +1,8 @@
-# C14 · 验收记录 / Validation
+# C14 · 合入四个场景后的验收 / Integrated validation
 
-所有命令在独立 worktree 的 `games/hang-on` 执行，Node v22.23.5。完整 `npm run probe` 没有 `--quick` 或次数/时长覆盖：每种布局单人 200 次、双人 100 次（C9），每次 60 秒。所有临时破坏都在 finally 中按原字节恢复，恢复后重新跑完整验收。
+已将 `origin/main`（`45443092`）合入 `codex/ho-c14-multi-levels`。只修订 multi-01 的布局、三份回放及截图/文档，四个场景、大关、物理和验收/探路脚本均保持原字节。全部 63 个关卡 JSON 按相同 40px 上沿格子公式审计，没有多人关超过 60%；multi-01 全库最大为 36.36%，九关全库最大为 44.80%。
+
+以下是本轮重新运行的完整输出；命令均在独立 worktree 的 `games/hang-on` 执行，Node v22.23.5。完整 `npm run probe` 没有 `--quick` 或次数/时长覆盖：每种布局单人 200 次、双人 100 次（C9），每次 60 秒。
 
 ## npm test
 
@@ -14,8 +16,8 @@
 
  Test Files  24 passed (24)
       Tests  207 passed (207)
-   Start at  14:19:05
-   Duration  13.30s (tests 87%, import 7%, transform 6%, worker 1%)
+   Start at  16:48:32
+   Duration  16.08s (tests 75%, transform 18%, import 7%)
 ```
 
 ## npm run typecheck
@@ -31,7 +33,7 @@
 > @changle/hang-on@0.1.0 ip-check
 > node scripts/ip-check.mjs
 
-ip-check: 0 处（查了 3398 个文件）
+ip-check: 0 处（查了 3536 个文件）
 ```
 
 ## npm run levels（完整输出）
@@ -70,6 +72,46 @@ ip-check: 0 处（查了 3398 个文件）
 | van-22 | 2 | 73.28 | 4 / 6 | YES | 0.407 | 2560×1440 | 35.13 / 18.17 / 19.98 | — / — | 13.6,0.0,12.0,11.8 |
 | van-23 | 4 | 97.73 | 2 / 1 / 0 / 1 | YES | 0.652 | 2560×720 | 18.22 / 22.13 / 57.38 | — / — | 10.0,0.0,29.8,0.0 |
 | van-24 | 4 | 155.19 | 4 / 4 / 5 / 6 | YES | 0.862 | 3000×720 | 35.20 / 52.18 / 36.82 / 30.99 | — / — | 24.3,0.0,42.9,0.0 |
+| kitchen-25 | 4 | 98.59 | 2 / 1 / 0 / 0 | YES | 0.986 | 2400×720 | 35.08 / 16.40 / 47.11 | — / — | — |
+| kitchen-25 | 1 | 34.07 | 0 | YES | 0.341 | 2400×720 | 17.05 / 16.43 / 0.58 | — / — | — |
+| kitchen-26 | 4 | 57.09 | 0 / 0 / 0 / 0 | YES | 0.571 | 2480×720 | 15.02 / 23.93 / 18.14 | — / — | — |
+| kitchen-26 | 1 | 58.00 | 0 | YES | 0.580 | 2480×720 | 22.87 / 11.08 / 24.05 | — / — | — |
+| kitchen-27 | 4 | 68.86 | 0 / 0 / 0 / 0 | YES | 0.765 | 2520×1440 | 18.65 / 16.62 / 33.59 | — / — | — |
+| kitchen-27 | 1 | 40.36 | 0 | YES | 0.448 | 2520×1440 | 18.67 / 10.88 / 10.81 | — / — | — |
+| kitchen-28 | 4 | 62.99 | 2 / 1 / 0 / 0 | YES | 0.630 | 2400×720 | 20.75 / 18.87 / 23.37 | — / — | — |
+| kitchen-28 | 1 | 29.07 | 0 | YES | 0.291 | 2400×720 | 15.62 / 12.02 / 1.43 | — / — | — |
+| kitchen-29 | 4 | 91.35 | 0 / 0 / 0 / 0 | YES | 0.761 | 3600×720 | 24.05 / 18.78 / 19.40 / 29.12 | — / — | 0.0 |
+| kitchen-30 | 4 | 85.76 | 0 / 0 / 0 / 0 | YES | 0.715 | 3400×720 | 25.42 / 18.73 / 24.87 / 16.74 | — / — | 0.0 |
+| snow-31 | 4 | 69.97 | 0 / 0 / 0 / 0 | YES | 0.777 | 2560×720 | 26.65 / 17.10 / 26.22 | — / — | — |
+| snow-31 | 1 | 128.93 | 1 | YES | 1.433 | 2560×720 | 26.80 / 23.40 / 78.73 | — / — | — |
+| snow-32 | 4 | 50.57 | 0 / 0 / 0 / 0 | YES | 0.562 | 2400×1400 | 17.07 / 17.35 / 16.15 | — / — | — |
+| snow-32 | 1 | 25.77 | 0 | YES | 0.286 | 2400×1400 | 7.62 / 8.42 / 9.73 | — / — | — |
+| snow-33 | 4 | 66.90 | 0 / 0 / 0 / 0 | YES | 0.608 | 2560×720 | 25.98 / 21.73 / 19.18 | — / — | — |
+| snow-33 | 1 | 80.23 | 1 | YES | 0.729 | 2560×720 | 28.93 / 43.07 / 8.23 | — / — | — |
+| snow-34 | 4 | 88.53 | 1 / 0 / 2 / 3 | YES | 0.738 | 2400×1400 | 24.72 / 45.65 / 18.16 | — / — | — |
+| snow-34 | 1 | 131.19 | 1 | YES | 1.093 | 2400×1400 | 33.70 / 93.45 / 4.04 | — / — | — |
+| snow-35 | 4 | 46.95 | 1 / 0 / 0 / 1 | YES | 0.522 | 2400×1400 | 15.23 / 15.37 / 16.35 | — / — | 0.0 |
+| snow-36 | 4 | 71.34 | 1 / 3 / 0 / 0 | YES | 0.595 | 2560×720 | 20.97 / 23.47 / 26.91 | — / — | 0.0 |
+| house-37 | 4 | 75.76 | 0 / 1 / 0 / 0 | YES | 0.758 | 2480×720 | 24.52 / 31.47 / 19.78 | — / — | — |
+| house-37 | 1 | 42.87 | 0 | YES | 0.429 | 2480×720 | 32.20 / 7.28 / 3.38 | — / — | — |
+| house-38 | 4 | 81.86 | 0 / 0 / 0 / 0 | YES | 0.744 | 2560×720 | 29.88 / 30.78 / 21.19 | — / — | — |
+| house-38 | 1 | 20.39 | 0 | YES | 0.185 | 2560×720 | 11.05 / 6.92 / 2.42 | — / — | — |
+| house-39 | 4 | 69.70 | 0 / 0 / 0 / 0 | YES | 0.697 | 2440×1440 | 17.07 / 28.70 / 23.93 | — / — | — |
+| house-39 | 1 | 24.74 | 0 | YES | 0.247 | 2440×1440 | 11.08 / 11.92 / 1.74 | — / — | — |
+| house-40 | 4 | 51.62 | 0 / 0 / 0 / 1 | YES | 0.516 | 2440×720 | 15.03 / 15.55 / 21.03 | — / — | — |
+| house-40 | 1 | 32.81 | 0 | YES | 0.328 | 2440×720 | 17.18 / 14.88 / 0.74 | — / — | — |
+| house-41 | 4 | 62.87 | 2 / 0 / 0 / 0 | YES | 0.524 | 2560×720 | 15.67 / 30.38 / 16.82 | — / — | 0.0 |
+| house-42 | 4 | 66.77 | 0 / 1 / 5 / 0 | YES | 0.668 | 2560×720 | 15.60 / 24.03 / 27.13 | — / — | 0.0 |
+| space-43 | 4 | 68.57 | 0 / 0 / 0 / 0 | YES | 0.571 | 2400×720 | 18.03 / 28.65 / 21.88 | — / — | — |
+| space-43 | 1 | 72.23 | 0 | YES | 0.602 | 2400×720 | 29.52 / 23.10 / 19.62 | — / — | — |
+| space-44 | 4 | 65.16 | 0 / 0 / 0 / 0 | YES | 0.543 | 2400×720 | 26.32 / 18.32 / 20.52 | — / — | — |
+| space-44 | 1 | 61.69 | 0 | YES | 0.514 | 2400×720 | 29.40 / 17.17 / 15.12 | — / — | — |
+| space-45 | 4 | 59.21 | 0 / 0 / 0 / 0 | YES | 0.538 | 2560×720 | 17.83 / 26.03 / 15.34 | — / — | — |
+| space-45 | 1 | 58.27 | 0 | YES | 0.530 | 2560×720 | 29.07 / 17.82 / 11.38 | — / — | — |
+| space-46 | 4 | 52.99 | 0 / 0 / 0 / 0 | YES | 0.530 | 2560×720 | 16.88 / 19.55 / 16.56 | — / — | — |
+| space-46 | 1 | 44.94 | 0 | YES | 0.449 | 2560×720 | 17.37 / 16.22 / 11.36 | — / — | — |
+| space-47 | 4 | 89.76 | 0 / 0 / 0 / 0 | YES | 0.816 | 2560×720 | 22.22 / 16.37 / 51.18 | — / — | 0.0 |
+| space-48 | 4 | 82.59 | 0 / 0 / 0 / 0 | YES | 0.751 | 2560×720 | 37.40 / 21.85 / 23.34 | — / — | 0.0 |
 table-06: solo projections 0/4 cleared; chain=0.35s, throws=0
 van-10: solo projections 0/4 cleared; chain=0.00s, throws=4
 table-13: solo projections 0/4 cleared; chain=6.78s, throws=11
@@ -84,6 +126,14 @@ van-21: solo projections 0/4 cleared; chain=12.60s, throws=4
 van-22: solo projections 0/4 cleared; chain=24.10s, throws=6
 van-23: solo projections 0/4 cleared; chain=7.07s, throws=4
 van-24: solo projections 0/4 cleared; chain=13.90s, throws=6
+kitchen-29: solo projections 0/4 cleared; chain=0.33s, throws=4
+kitchen-30: solo projections 0/4 cleared; chain=0.38s, throws=6
+snow-35: solo projections 0/4 cleared; chain=2.28s, throws=42
+snow-36: solo projections 0/4 cleared; chain=20.22s, throws=89
+house-41: solo projections 0/4 cleared; chain=0.00s, throws=7
+house-42: solo projections 0/4 cleared; chain=0.00s, throws=7
+space-47: solo projections 0/4 cleared; chain=0.95s, throws=0
+space-48: solo projections 0/4 cleared; chain=0.87s, throws=1
 
 Team levels (4–6 players)
 | Level | Players | Seconds | Deaths (P1…) | All reached | Par ratio | Size | Checkpoint segments (s) | 3+ chain / weight+push (s) | Relays | Solo cleared |
@@ -230,9 +280,9 @@ team-06.p6 sections (zero-based):
 Multi levels (2–4 players)
 | Level | Players | Seconds | Deaths (P1…) | All reached | Par ratio | Size | Checkpoint segments (s) | Cooperation per section (chain s / boost s / throws / plate crossings) | Solo cleared | Idle max (s) |
 | --- | ---: | ---: | --- | :---: | ---: | --- | --- | --- | --- | ---: |
-| multi-01 | 2 | 54.29 | 0 / 0 | YES | 0.543 | 2480×720 | 16.72 / 22.33 / 15.24 | 0.00/0.00/0/1; 0.00/0.00/0/1; 0.00/0.00/0/0 | 0/2 | 0.00 |
-| multi-01 | 3 | 60.23 | 0 / 0 / 0 | YES | 0.602 | 2480×720 | 18.07 / 15.50 / 26.67 | 0.00/0.00/0/1; 0.00/0.00/0/2; 0.00/0.00/0/0 | 0/3 | 0.00 |
-| multi-01 | 4 | 67.56 | 0 / 0 / 0 / 0 | YES | 0.676 | 2480×720 | 15.50 / 21.20 / 30.86 | 0.00/0.00/0/1; 0.02/0.00/4/3; 0.00/0.00/1/0 | 0/4 | 0.00 |
+| multi-01 | 2 | 51.98 | 0 / 0 | YES | 0.520 | 2480×720 | 15.30 / 15.57 / 21.12 | 0.00/0.00/0/1; 0.00/0.00/0/1; 0.00/0.00/0/0 | 0/2 | 0.00 |
+| multi-01 | 3 | 62.79 | 0 / 0 / 0 | YES | 0.628 | 2480×720 | 19.22 / 18.32 / 25.26 | 0.00/0.00/0/1; 0.00/0.00/0/2; 0.00/0.00/3/0 | 0/3 | 0.00 |
+| multi-01 | 4 | 61.86 | 0 / 0 / 0 / 0 | YES | 0.619 | 2480×720 | 15.10 / 24.80 / 21.96 | 0.02/0.00/0/1; 0.00/0.00/0/3; 0.05/0.00/0/0 | 0/4 | 0.00 |
 | multi-02 | 2 | 87.04 | 0 / 0 | YES | 0.725 | 3600×1440 | 30.02 / 17.98 / 19.98 / 19.06 | 0.00/0.00/0/2; 0.00/0.00/0/1; 0.00/0.00/0/1; 0.00/0.00/0/0 | 0/2 | 2.63 |
 | multi-02 | 3 | 117.55 | 0 / 0 / 0 | YES | 0.980 | 3600×1440 | 48.40 / 16.17 / 33.17 / 19.82 | 0.22/0.00/0/3; 0.00/0.00/0/1; 0.00/0.00/1/2; 0.00/0.00/0/0 | 0/3 | 0.45 |
 | multi-02 | 4 | 145.55 | 0 / 0 / 0 / 0 | YES | 1.213 | 3600×1440 | 32.00 / 44.10 / 18.87 / 50.58 | 0.50/0.00/1/2; 0.00/0.00/1/4; 0.00/0.00/0/1; 0.00/0.00/3/2 | 0/4 | 2.20 |
@@ -257,7 +307,7 @@ Multi levels (2–4 players)
 | multi-09 | 2 | 76.75 | 0 / 0 | YES | 0.512 | 3600×720 | 15.28 / 28.65 / 15.07 / 17.75 | 0.00/0.00/0/2; 0.00/0.00/0/4; 0.00/0.00/0/1; 0.00/0.00/0/1 | 0/2 | 0.65 |
 | multi-09 | 3 | 121.88 | 0 / 0 / 0 | YES | 0.813 | 3600×720 | 16.77 / 37.18 / 37.50 / 30.43 | 0.05/0.00/0/1; 0.00/0.00/2/11; 0.08/0.00/0/2; 0.03/0.00/0/2 | 0/3 | 1.87 |
 | multi-09 | 4 | 143.63 | 0 / 0 / 0 / 0 | YES | 0.958 | 3600×720 | 17.17 / 51.15 / 17.70 / 57.61 | 0.02/0.00/0/1; 0.20/0.00/2/5; 0.03/0.00/3/2; 0.05/0.00/3/3 | 0/4 | 2.05 |
-levels: 12/12 base + 12/12 hard + 6/6 team + 0/6 kitchen + 0/6 snow + 0/6 house + 0/6 space + 9/9 multi PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS
+levels: 12/12 base + 12/12 hard + 6/6 team + 6/6 kitchen + 6/6 snow + 6/6 house + 6/6 space + 9/9 multi PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS
 ```
 
 ## npm run probe（完整输出）
@@ -313,9 +363,9 @@ levels: 12/12 base + 12/12 hard + 6/6 team + 0/6 kitchen + 0/6 snow + 0/6 house 
 Multi levels: 1 player × 200 attempts × 60s on each 2/3/4-player layout
 | Level | Layout | Section | From → To | Solo | Needs partners |
 | --- | --- | ---: | --- | --- | :---: |
-| multi-01 | 2/3/4 | 1 | (100,566) → (1030,566) | 0/200; max x=719 | YES |
-| multi-01 | 2/3/4 | 2 | (1030,566) → (1780,566) | cleared on attempt 1 | NO |
-| multi-01 | 2/3/4 | 3 | (1780,566) → (2360,525) | cleared on attempt 1 | NO |
+| multi-01 | 2/3/4 | 1 | (100,606) → (1030,606) | 0/200; max x=720 | YES |
+| multi-01 | 2/3/4 | 2 | (1030,606) → (1780,606) | cleared on attempt 1 | NO |
+| multi-01 | 2/3/4 | 3 | (1780,606) → (2360,565) | cleared on attempt 1 | NO |
 | multi-02 | 2/3/4 | 1 | (100,1266) → (1230,1266) | 0/200; max x=851 | YES |
 | multi-02 | 2/3/4 | 2 | (1230,1266) → (2240,486) | 0/200; max x=2099 | YES |
 | multi-02 | 2/3/4 | 3 | (2240,486) → (2660,486) | cleared on attempt 3 | NO |
@@ -354,12 +404,12 @@ multi-06: solo-blocked sections (zero-based): 0,1; PASS
 multi-07: solo-blocked sections (zero-based): 0,1,2; PASS
 multi-08: solo-blocked sections (zero-based): 0,1,2; PASS
 multi-09: solo-blocked sections (zero-based): 0,1,2; PASS
-probe: 6 个大关每关至少两段 1 个人和 2 个人乱按都过不去 PASS；1307 秒
+probe: 6 个大关每关至少两段 1 个人和 2 个人乱按都过不去 PASS；1100 秒
 ```
 
-## 故意改坏的反例 / Failure injection
+## 原轮次保留的反例 / Prior failure-injection evidence
 
-删回放、删踏板用从 `scripts/run-levels.mjs` 原样载入的 C14 验收函数；改墙用实际 `npm run probe -- multi-06`，仍为 200 次、60 秒。三次均以退出码 1 拒绝。修复不是放松规则：测试后恢复原文件，再跑上面的完整验收。
+以下三项来自 PR 初版，保留供审查；本轮未再次注入破坏，验收/探路脚本也没有修改。删回放、删踏板原来用从 `scripts/run-levels.mjs` 原样载入的 C14 验收函数；改墙用实际 `npm run probe -- multi-06`（200 次、60 秒）。当时三项都以退出码 1 拒绝并按原字节恢复。本轮的新完整验收与原有反例记录分开列示。
 
 ### Delete multi-01.p3 replay
 

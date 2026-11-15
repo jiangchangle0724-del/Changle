@@ -1,6 +1,25 @@
 # C14 · 多人自己的关 / Multiplayer levels
 
-从 `origin/main` 的 `96d88c89` 建立独立 worktree，分支 `codex/ho-c14-multi-levels`。只修改多人数据、本目录和两个脚本的 C14 段。C1/C8/C9 的检查、数据、物理与复活均保持原值。
+初版从 `origin/main` 的 `96d88c89` 建立独立 worktree，分支 `codex/ho-c14-multi-levels`。本轮合入最新 `origin/main`（`45443092`，含后厨、雪山、老宅、太空站的 24 关），只调整 multi-01 和它的回放、截图、文档；其余八张多人关保留原字节。场景关、大关、物理及验收/探路脚本均未修改。
+
+## 四个场景合入后的重合检查 / Layout overlap after integration
+
+原 multi-01 与 space-43 的平台格子重合为 68.49%。multi-01 的台面从 y=600 下移至 y=640，出生点、检查点、门和踏板同步下移 40px；底板缩为 80px 厚，保持在 2480 × 720 关界内。三份 60Hz 回放重新录制，合作机制与验收阈值保留。
+
+按验收器相同的 40px 上沿格子与交集/并集公式，对全部 63 个关卡 JSON 扫描：多人按 2/3/4 人摆法，其他关额外覆盖 1–6 人摆法；没有超过 60% 的组合。
+
+| 多人关 / Level | 最大重合 / Maximum | 最近的关 / Closest level | 人数摆法 / Layouts |
+| --- | ---: | --- | --- |
+| multi-01 | 36.36% | multi-08 | 2 / 2 |
+| multi-02 | 44.80% | team-01 | 2 / 1 |
+| multi-03 | 42.59% | table-01 | 2 / 1 |
+| multi-04 | 33.09% | house-38 | 2 / 1 |
+| multi-05 | 15.22% | kitchen-27 | 2 / 1 |
+| multi-06 | 25.76% | house-41 | 2 / 1 |
+| multi-07 | 20.37% | table-18 | 2 / 1 |
+| multi-08 | 36.36% | multi-01 | 2 / 2 |
+| multi-09 | 23.42% | house-42 | 2 / 1 |
+
 
 <!-- C14_MULTI_SECTIONS {"multi-01":[0],"multi-02":[0,1],"multi-03":[0,1],"multi-04":[0,1],"multi-05":[0,1],"multi-06":[0,1],"multi-07":[0,1,2],"multi-08":[0,1,2],"multi-09":[0,1,2]} -->
 
@@ -9,7 +28,7 @@ Zero-based blocked sections are verified with 200 deterministic solo attempts of
 
 | ID | 名称 / Name | tier | teaches | 长 × 高 / Size | 检查点 / Checkpoints | par 秒 / deaths per player | 单人受阻段 / Solo-blocked sections |
 | --- | --- | ---: | --- | --- | --- | --- | --- |
-| multi-01 | 你先请 / After You | 0 | hold | 2480 × 720 | (1030,566) → (1780,566) | 100 / 6 | 0 |
+| multi-01 | 你先请 / After You | 0 | hold | 2480 × 720 | (1030,606) → (1780,606) | 100 / 6 | 0 |
 | multi-02 | 云边换班 / Shift Above the Bay | 0 | hold | 3600 × 1440 | (1230,1266) → (2240,486) → (2660,486) | 120 / 6 | 0, 1 |
 | multi-03 | 茶盘上下层 / Tea Tray Mezzanine | 0 | combine | 2560 × 720 | (1040,526) → (2160,186) | 60 / 6 | 0, 1 |
 | multi-04 | 潮汐双闸 / Tidal Airlocks | 1 | hold | 3600 × 720 | (1080,486) → (2100,566) → (2700,566) | 100 / 6 | 0, 1 |
@@ -28,7 +47,7 @@ The geometry stays the same for two, three and four players; every size has its 
 
 完整门楣封住上方；先踩西侧板放同伴过门，再由东侧板接回守板的人。末段在木桌上集合。 / A sealed lintel and reciprocal plates; swap who holds the door.
 
-- g0: 门 / door (740, 320), move (0, -220), hold 0s；踏板 / plates (335,588) ↔ (995,588)。
+- g0: 门 / door (740, 360), move (0, -220), hold 0s；踏板 / plates (335,628) ↔ (995,628)。
 
 ![multi-01，双人全关 / two-player full level](multi-01.png)
 
@@ -124,7 +143,7 @@ Node 22；全部 27 份回放零死亡；每个手柄在原始及固定多人布
 
 | Level | 2 players (s) | 3 players (s) | 4 players (s) | 全部分段范围 / Segments (s) | 最大暂停 / Max idle (s) | Solo cleared |
 | --- | ---: | ---: | ---: | --- | ---: | --- |
-| multi-01 | 54.29 | 60.23 | 67.56 | 15.24–30.86 | 0.00 | 0/2, 0/3, 0/4 |
+| multi-01 | 51.98 | 62.79 | 61.86 | 15.10–25.26 | 0.00 | 0/2, 0/3, 0/4 |
 | multi-02 | 87.04 | 117.55 | 145.55 | 16.17–50.58 | 2.63 | 0/2, 0/3, 0/4 |
 | multi-03 | 47.74 | 82.56 | 111.28 | 15.18–49.72 | 0.73 | 0/2, 0/3, 0/4 |
 | multi-04 | 128.77 | 138.04 | 163.23 | 22.52–56.50 | 0.00 | 0/2, 0/3, 0/4 |
