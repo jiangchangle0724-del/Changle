@@ -590,7 +590,10 @@ test("reading a receipt: signed in, with the key, a file of the ledger's; so man
   const [amy, ben, cal] = circle("Amy", "Ben", "Cal");
   const lunch = newId();
   assert.equal((await putFile(id, lunch, saying("receipt:42.50 CAD Tim Hortons"), key, amy.headers)).status, 201);
-  assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons" } } }, "read: the total, its currency, the shop");
+  assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons", tip: null, tax: null } } }, "read: the total, its currency, the shop (no tip or tax on it)");
+  const dinner = newId();
+  assert.equal((await putFile(id, dinner, saying("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25"), key, amy.headers)).status, 201);
+  assert.deepEqual(await reading(id, dinner, key, amy.headers), { status: 200, data: { read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25" } } }, "and the tip and tax in the total, when it has them");
   const blank = newId();
   assert.equal((await putFile(id, blank, saying("receipt:none"), key, amy.headers)).status, 201);
   assert.deepEqual(await reading(id, blank, key, ben.headers), { status: 200, data: { read: null } }, "nothing to read on it: said as nothing (and anyone in the ledger may ask, not only who sent it)");
@@ -602,12 +605,30 @@ test("reading a receipt: signed in, with the key, a file of the ledger's; so man
   assert.deepEqual(await call("GET", `/ledgers/${id}/files/${lunch}/read`, key, undefined, amy.headers), { status: 404, data: { error: "notfound" } }, "asked any other way, no such address");
   assert.deepEqual(await call("POST", `/ledgers/${id}/files/${lunch}/look`, key, undefined, amy.headers), { status: 404, data: { error: "notfound" } });
 
-  // so many a day for an account (two read above: Amy one, Ben one)
-  for (let i = 1; i < 30; i++) assert.equal((await reading(id, lunch, key, amy.headers)).status, 200, `Amy's ${i + 1}th`);
+  // so many a day for an account (three read above: Amy two, Ben one)
+  for (let i = 2; i < 30; i++) assert.equal((await reading(id, lunch, key, amy.headers)).status, 200, `Amy's ${i + 1}th`);
   assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 429, data: { error: "limit" } }, "a thirty-first today, no");
-  // and the month's budget for the whole site: 31 readings so far, 12,400 of 20,000; nineteen more spend it
+  // and the month's budget for the whole site: 31 readings so far (all of Amy's 30, Ben's one), 12,400 of 20,000; nineteen more spend it
   for (let i = 0; i < 19; i++) assert.equal((await reading(id, lunch, key, i < 15 ? ben.headers : cal.headers)).status, 200, `the ${32 + i}th this month`);
   assert.deepEqual(await reading(id, lunch, key, cal.headers), { status: 429, data: { error: "budget" } }, "the month's money spent: nothing more is read, for anyone");
+});
+
+test("an expense's tip and tax: kept, and what an edit does with them", async () => {
+  const { id, key } = await make();
+  const at = Date.now();
+  const dinner = { kind: "expense", id: "e1", at, payer: "s", amount: 12300, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0 };
+  const said = { payer: "s", amount: 12300, note: "晚饭", split: dinner.split };
+  const push = (change: unknown) => call<Pushed>("POST", `/ledgers/${id}/changes`, key, { changes: [{ id: `c${++n}-${randomUUID()}`, at: Date.now(), change }] });
+  const first = async () => (await call<Snapshot>("GET", `/ledgers/${id}`, key)).data.ledger.entries[0] as Record<string, unknown>;
+  assert.deepEqual((await push({ do: "expense", expense: { ...dinner, tip: 1800, tax: 525 } })).data.took, ["new"]);
+  assert.deepEqual([(await first()).tip, (await first()).tax], [1800, 525], "recorded with them, and served with them");
+  assert.deepEqual((await push({ do: "edit", entry: "e1", to: { ...said, note: "晚饭和酒" } })).data.took, ["new"]);
+  assert.deepEqual([(await first()).tip, (await first()).tax], [1800, 525], "an edit that doesn't mention them, what was paid the same: they stay");
+  assert.deepEqual((await push({ do: "edit", entry: "e1", to: { ...said, note: "晚饭和酒", tip: 99999 } })).data.took, ["nothing"], "one with a tip bigger than what was paid: nothing");
+  assert.deepEqual((await push({ do: "edit", entry: "e1", to: { ...said, note: "晚饭和酒", tip: null } })).data.took, ["new"]);
+  const after = await first();
+  assert.deepEqual(["tip" in after, after.tax], [false, 525], "one that says there is no tip: it goes, and the tax stays");
+  assert.deepEqual((await push({ do: "expense", expense: { ...dinner, id: "e2", tip: 10000, tax: 3000 } })).data.took, ["nothing"], "an expense whose tip and tax come to more than it: not recorded");
 });
 
 test("the owner deletes a ledger: gone for everyone, and off the owner's list", async () => {

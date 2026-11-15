@@ -52,28 +52,56 @@ export function addExpense(l: Ledger, e: NewExpense): Ledger {
  * expense keeps what it had while its amount stays the same, and loses it when the amount changes:
  * an amount in another currency that no longer comes to what the expense counts for would be a
  * lie. `files` too: the ids it has now; null (or none), for an expense with no photos; or not at
- * all, and it keeps the ones it had (a page from before photos can't take them away).
+ * all, and it keeps the ones it had (a page from before photos can't take them away). `tip` and
+ * `tax` the same three ways: what they are now; null (or 0), for none; or not at all, and they stay
+ * while what was paid, in the currency it was paid in, stays (they were read off that receipt).
  */
-export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> & { paidIn?: Expense["paidIn"] | null; files?: string[] | null };
+export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> & { paidIn?: Expense["paidIn"] | null; files?: string[] | null; tip?: number | null; tax?: number | null };
+
+/** What was paid, in the currency it was paid in: the other currency's amount when there is one, else the ledger's. Tip and tax are in it. */
+export const paidAmount = (e: Pick<Expense, "amount" | "paidIn">) => (e.paidIn ? e.paidIn.amount : e.amount);
+
+/**
+ * Whether an expense's tip and tax can be kept: each, when there is one, a whole number of the
+ * smallest units above zero, and the two together no more than was paid. (They are only kept and
+ * shown: what anyone owes never comes from them.)
+ */
+export function soundExtras(e: Pick<Expense, "amount" | "paidIn" | "tip" | "tax">): boolean {
+  const one = (n: number | undefined) => n === undefined || (Number.isSafeInteger(n) && n > 0);
+  return one(e.tip) && one(e.tax) && (e.tip ?? 0) + (e.tax ?? 0) <= paidAmount(e);
+}
+
+/**
+ * An expense as an edit leaves it (ExpenseEdit says what each way of saying a field means), or null
+ * when the tip and tax it would be left with can't be kept. The record (history.ts) reads old
+ * edits with these same rules.
+ */
+export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
+  const paidIn = to.paidIn === undefined ? (to.amount === e.amount ? e.paidIn : undefined) : (to.paidIn ?? undefined);
+  const files = to.files === undefined ? e.files : (to.files ?? undefined);
+  const samePaid = (paidIn?.currency ?? "") === (e.paidIn?.currency ?? "") && paidAmount({ amount: to.amount, paidIn }) === paidAmount(e);
+  const tip = to.tip === undefined ? (samePaid ? e.tip : undefined) : to.tip || undefined;
+  const tax = to.tax === undefined ? (samePaid ? e.tax : undefined) : to.tax || undefined;
+  if (!soundExtras({ amount: to.amount, paidIn, tip, tax })) return null;
+  // (every field keeps its place, so an expense changed to what it already says is the same, letter for letter)
+  const next: Expense = { ...e, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
+  if (paidIn) next.paidIn = { currency: paidIn.currency, amount: paidIn.amount, rate: paidIn.rate };
+  else delete next.paidIn;
+  if (files?.length) next.files = [...files];
+  else delete next.files;
+  if (tip) next.tip = tip;
+  else delete next.tip;
+  if (tax) next.tax = tax;
+  else delete next.tax;
+  return next;
+}
 
 /** An expense changed. Its id, its time and its turn for the odd cents stay. */
 export function editExpense(l: Ledger, id: string, to: ExpenseEdit): Ledger {
   if (problem({ payer: to.payer, amount: to.amount, split: to.split, paidIn: to.paidIn ?? undefined }, roster(l))) return l;
-  return {
-    ...l,
-    entries: l.entries.map((e) => {
-      if (e.id !== id || e.kind !== "expense") return e;
-      const paidIn = to.paidIn === undefined ? (to.amount === e.amount ? e.paidIn : undefined) : (to.paidIn ?? undefined);
-      const files = to.files === undefined ? e.files : (to.files ?? undefined);
-      // (every field keeps its place, so an expense changed to what it already says is the same, letter for letter)
-      const next: Expense = { ...e, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
-      if (paidIn) next.paidIn = { currency: paidIn.currency, amount: paidIn.amount, rate: paidIn.rate };
-      else delete next.paidIn;
-      if (files?.length) next.files = [...files];
-      else delete next.files;
-      return next;
-    }),
-  };
+  const was = l.entries.find((e): e is Expense => e.id === id && e.kind === "expense");
+  const next = was && afterEdit(was, to);
+  return next ? { ...l, entries: l.entries.map((e) => (e === was ? next : e)) } : l;
 }
 
 /** An entry taken out (an expense deleted, a transfer un-marked): it stays in the ledger, counting for nothing. */

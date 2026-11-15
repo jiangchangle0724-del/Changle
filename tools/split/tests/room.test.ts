@@ -556,10 +556,10 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.equal((readRequest("QUJD", "application/pdf", "JPY", false) as { generationConfig: Record<string, unknown> }).generationConfig.thinkingConfig, undefined, "and asked again without it, for a model that doesn't take that");
 
   const read = (said: unknown, currency = "CAD") => readAnswer(answered(said), currency);
-  assert.deepEqual(read({ receipt: true, total: "42.50", currency: "CAD", merchant: "Tim Hortons" }), { total: "42.50", currency: "CAD", merchant: "Tim Hortons" });
-  assert.deepEqual(read({ receipt: true, total: "$1,234.5", currency: "usd", merchant: "  Costco\nWholesale  " }), { total: "1234.50", currency: "USD", merchant: "Costco Wholesale" }, "a sign, a thousands separator, one decimal, a code in small letters, a name on two lines: all made plain");
-  assert.deepEqual(read({ receipt: true, total: "3,200", currency: "JPY", merchant: null }), { total: "3200", currency: "JPY", merchant: null }, "yen, which has no cents");
-  assert.deepEqual(read({ receipt: true, total: "12.5", currency: "THB" }), { total: "12.50", currency: null, merchant: null }, "a currency no ledger can be in: none said");
+  assert.deepEqual(read({ receipt: true, total: "42.50", currency: "CAD", merchant: "Tim Hortons" }), { total: "42.50", currency: "CAD", merchant: "Tim Hortons", tip: null, tax: null });
+  assert.deepEqual(read({ receipt: true, total: "$1,234.5", currency: "usd", merchant: "  Costco\nWholesale  " }), { total: "1234.50", currency: "USD", merchant: "Costco Wholesale", tip: null, tax: null }, "a sign, a thousands separator, one decimal, a code in small letters, a name on two lines: all made plain");
+  assert.deepEqual(read({ receipt: true, total: "3,200", currency: "JPY", merchant: null }), { total: "3200", currency: "JPY", merchant: null, tip: null, tax: null }, "yen, which has no cents");
+  assert.deepEqual(read({ receipt: true, total: "12.5", currency: "THB" }), { total: "12.50", currency: null, merchant: null, tip: null, tax: null }, "a currency no ledger can be in: none said");
   assert.equal(read({ receipt: true, total: "12.50", currency: "KRW" }), null, "cents in a currency without them: no total");
   assert.equal(read({ receipt: false, total: "12.00" }), null, "not a receipt, whatever else it says");
   assert.equal(read({ receipt: true, total: null }), null, "no total on it");
@@ -569,6 +569,27 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.equal(readAnswer(null, "CAD"), null);
   assert.equal(read({ receipt: true, total: "9.99", merchant: "x".repeat(80) })?.merchant?.length, 40, "a long name, cut short");
 
+  // the tip and tax in the total: written like it, no more than it, and both none when together they come to more
+  const extras = (tip: unknown, tax: unknown, total = "123.00", currency = "CAD") => {
+    // (the ledger's in dollars: a receipt that says yen is read in yen)
+    const got = read({ receipt: true, total, currency, merchant: "Joe's", tip, tax }, "CAD");
+    return got && [got.tip, got.tax];
+  };
+  assert.deepEqual(extras("18.00", "5.25"), ["18.00", "5.25"], "a tip and tax read as the total is");
+  assert.deepEqual(extras("$18", "5.5"), ["18", "5.50"], "a sign dropped, one decimal written with two");
+  assert.deepEqual(extras(null, "5.25"), [null, "5.25"], "no tip on it");
+  assert.deepEqual(extras("0", "0.00"), [null, null], "a tip and tax of nothing are none");
+  assert.deepEqual(extras("-2.00", "(1.00)"), [null, null], "money back is no tip or tax");
+  assert.deepEqual(extras("124.00", "5.25"), [null, "5.25"], "a tip bigger than the total is a misreading: that one goes");
+  assert.deepEqual(extras("100.00", "30.00"), [null, null], "a tip and tax that come to more than the total: both go");
+  assert.deepEqual(extras("100.00", "23.00"), ["100.00", "23.00"], "ones that come to all of it stay");
+  assert.deepEqual(extras("abc", 7), [null, null], "a tip that isn't a sum, a tax that isn't text: none");
+  assert.deepEqual(extras("1,000", "80", "3200", "JPY"), ["1000", "80"], "yen: whole yen, as the total");
+  assert.deepEqual(extras("10.50", "80", "3200", "JPY"), [null, "80"], "a tip in yen with cents: none");
+  assert.equal(read({ receipt: true, total: "9.99" })?.tip, null, "an answer that doesn't mention them: none");
+  assert.ok(String(asked.contents[0].parts[0].text).includes("suggested tip"), "and the words say a suggested tip is no tip");
+  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax"], "they are asked for in the shape given");
+
   assert.equal(costOf(answered({}, { promptTokenCount: 1500, candidatesTokenCount: 60, thoughtsTokenCount: 40 }), READ_MODELS[0].model), Math.ceil(1500 * 0.25 + 100 * 1.5), "what went in, and what came out with the thinking, at the model's prices: millionths of a dollar");
   assert.equal(costOf({ usageMetadata: { promptTokenCount: 1000 } }, "gemini-3.5-flash-lite"), 300, "another model, its prices");
   assert.equal(costOf(null, READ_MODELS[0].model), 0, "nothing said: nothing counted");
@@ -577,8 +598,9 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.equal(Buffer.from(base64(bytes), "base64").equals(Buffer.from(bytes)), true, "a photo bigger than one piece, as base64 and back, is itself");
   assert.equal(monthOf(Date.UTC(2026, 10, 30, 23, 59)), "2026-11");
   const fake = (text: string) => fakeRead(new TextEncoder().encode(`\xff\xd8\xff ${text}`), "CAD");
-  assert.deepEqual(fake("receipt:42.50 CAD Test Café"), { ok: true, read: { total: "42.50", currency: "CAD", merchant: "Test Café" }, cost: 400 }, "the stand-in for Google reads what the file says");
+  assert.deepEqual(fake("receipt:42.50 CAD Test Café"), { ok: true, read: { total: "42.50", currency: "CAD", merchant: "Test Café", tip: null, tax: null }, cost: 400 }, "the stand-in for Google reads what the file says");
   assert.deepEqual(fake("receipt:none"), { ok: true, read: null, cost: 400 }, "and a file that says it is no receipt is none");
+  assert.deepEqual(fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25"), { ok: true, read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25" }, cost: 400 }, "the stand-in reads a tip and tax the file says, after the shop");
 });
 
 test("the night: in the small hours on the coast, a minute of its own for each, never the minute it is now", () => {

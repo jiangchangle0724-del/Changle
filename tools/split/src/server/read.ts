@@ -1,5 +1,6 @@
 // Reading a receipt: what it says was paid in all, in what currency, and at which shop, so the
-// phone can fill those in for a person to check. The photo (or PDF) goes to Google's Gemini (the
+// phone can fill those in for a person to check; and of that, how much went to the tip and to tax,
+// which the expense keeps to show and to sum up (site/src/split/core/types.ts). The photo (or PDF) goes to Google's Gemini (the
 // cheapest model that reads well: GEMINI_READ_MODEL, else the first of READ_MODELS that Google
 // serves), which answers in JSON in a shape it is given. Nothing is kept by Google's paid API
 // beyond what abuse monitoring needs; nothing here keeps anything either.
@@ -12,8 +13,11 @@
 // functions, tested without Cloudflare (tests/room.test.ts). Locally, and in the tests, a stand-in
 // answers instead of Google (`fakeRead`): there is no key there, and no way out to Google.
 
-/** What was read: the total as written (digits, a dot before the cents), its currency if it can be told, the shop. */
-export type Read = { total: string; currency: string | null; merchant: string | null };
+/**
+ * What was read: the total as written (digits, a dot before the cents), its currency if it can be
+ * told, the shop, and the tip and tax in the total, written like it (none when the receipt shows none).
+ */
+export type Read = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null };
 export type ReadReply = { read: Read | null };
 /** A reading's cost, and what came of it. `cost`: millionths of a dollar. */
 export type Reading = { ok: true; read: Read | null; cost: number } | { ok: false; why: "key" | "busy" | "failed"; detail?: string; cost: number };
@@ -49,6 +53,8 @@ export function readRequest(b64: string, type: string, currency: string, thinkin
     "Write it with digits and a dot before the cents, no currency sign and no thousands separators (1234.56). For a currency with no cents, digits only.",
     `Say its currency as an ISO 4217 code when the receipt shows it (a sign, a code, the country or the language). A bare "$" is ${currency}.`,
     "Say the shop or restaurant's name as the receipt shows it, short.",
+    "Read the tip in that total, written the same way: a tip or gratuity that was added, or a service charge. Not the suggested tip amounts some receipts print. Null when there is none.",
+    "Read the tax in that total, written the same way: all the taxes together (GST, PST, HST, sales tax, VAT, consumption tax), added or included. Null when it isn't shown.",
     "If it isn't a receipt or a bill, or the total can't be read, say receipt false, and nothing else.",
   ].join(" ");
   return {
@@ -62,6 +68,8 @@ export function readRequest(b64: string, type: string, currency: string, thinkin
           total: { type: "STRING", nullable: true },
           currency: { type: "STRING", nullable: true },
           merchant: { type: "STRING", nullable: true },
+          tip: { type: "STRING", nullable: true },
+          tax: { type: "STRING", nullable: true },
         },
         required: ["receipt"],
       },
@@ -86,8 +94,9 @@ function asTotal(x: unknown, currency: string): string | null {
 
 /**
  * What Google answered, read: the total (null when it read none, or none that is a total), the
- * currency (one a ledger can be in, else none), the shop (short, plain). `currency` is the ledger's,
- * for a total with none of its own.
+ * currency (one a ledger can be in, else none), the shop (short, plain), the tip and the tax (each
+ * written like the total and no more than it; both none when together they come to more). `currency`
+ * is the ledger's, for a total with none of its own.
  */
 export function readAnswer(answer: unknown, currency: string): Read | null {
   const text = (answer as { candidates?: { content?: { parts?: { text?: unknown }[] } }[] } | null)?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text;
@@ -104,7 +113,15 @@ export function readAnswer(answer: unknown, currency: string): Read | null {
   const total = asTotal(said.total, known ?? currency);
   if (!total) return null;
   const shop = typeof said.merchant === "string" ? said.merchant.replace(CONTROL_RE, " ").replace(/\s+/g, " ").trim().slice(0, MERCHANT_MOST) : "";
-  return { total, currency: known, merchant: shop || null };
+  // (a part bigger than the whole is a misreading: that one goes; two that add up to more, both)
+  const part = (x: unknown) => {
+    const p = asTotal(x, known ?? currency);
+    return p && Number(p) <= Number(total) ? p : null;
+  };
+  let tip = part(said.tip);
+  let tax = part(said.tax);
+  if (tip && tax && Number(tip) + Number(tax) > Number(total)) tip = tax = null;
+  return { total, currency: known, merchant: shop || null, tip, tax };
 }
 
 /** What a reading cost, in millionths of a dollar: what went in, and what came out (thinking too), at the model's prices. */
@@ -163,13 +180,17 @@ export async function readReceipt(key: string, bytes: Uint8Array, type: string, 
 
 /**
  * The stand-in for Google, locally and in the tests (no key there, and no way out to Google): it
- * "reads" what the file's own bytes say after "receipt:" (`total currency merchant`), and a file
- * saying "receipt:none" is no receipt. Each reading costs 400 millionths, as if Google had said so.
+ * "reads" what the file's own bytes say after "receipt:" (`total currency merchant`, the shop's
+ * name maybe followed by `tip=…` and `tax=…`), and a file saying "receipt:none" is no receipt.
+ * Each reading costs 400 millionths, as if Google had said so.
  */
 export function fakeRead(bytes: Uint8Array, currency: string): Reading {
   const text = new TextDecoder().decode(bytes);
   const said = /receipt:(\S+)(?: (\S+))?(?: ([^\n]+))?/.exec(text);
   if (!said || said[1] === "none") return { ok: true, read: null, cost: 400 };
-  const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], currency: said[2] ?? null, merchant: said[3] ?? null }) }] } }] };
+  const rest = said[3] ?? "";
+  const part = (k: string) => new RegExp(`(?:^| )${k}=(\\S+)`).exec(rest)?.[1] ?? null;
+  const merchant = rest.replace(/(?:^| )(?:tip|tax)=\S+/g, "").trim() || null;
+  const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], currency: said[2] ?? null, merchant, tip: part("tip"), tax: part("tax") }) }] } }] };
   return { ok: true, read: readAnswer(answer, currency), cost: 400 };
 }

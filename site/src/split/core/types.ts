@@ -44,6 +44,14 @@ export type Expense = {
    * ledger's key; nothing here sums them, and an expense with none has no `files`.
    */
   files?: string[];
+  /**
+   * what its receipt says went to the tip, and to tax: in the currency it was paid in (`paidIn`'s
+   * when there is one, else the ledger's), in smallest units, each above zero, the two together no
+   * more than was paid (ops.ts, soundExtras). Kept to show and to sum up: they never change what
+   * anyone owes, since the amount already holds them. An expense with neither has neither.
+   */
+  tip?: number;
+  tax?: number;
   /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };
