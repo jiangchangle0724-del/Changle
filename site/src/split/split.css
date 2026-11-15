@@ -693,9 +693,23 @@
 /* Paid in another currency: under the amount, what it comes to in the ledger's. The line is too
    thin a thing to press, so the button is the whole block: it lies over the amount, which shows
    through it, and the line is at its foot. */
-.split-add-amount.is-abroad {
+.split-add-amount:is(.is-abroad, .is-read) {
   position: relative;
   padding-bottom: calc(var(--text-sm) * var(--leading-tight) + var(--space-2));
+}
+/* a receipt read for its amount: being read, read (check it), or nothing read. Said quietly in the
+   place of the rate's line, which comes first when there is one */
+.split-add-read {
+  position: absolute;
+  inset: auto 0 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-tight);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .split-add-comes {
   position: absolute;
@@ -1186,11 +1200,11 @@ label.split-field:focus-within {
   }
   /* with the line under it, the amount goes one more size down: the two together are no taller
      than a thing to press has to be, and the keys keep their height */
-  .split-add-amount.is-abroad {
+  .split-add-amount:is(.is-abroad, .is-read) {
     min-height: var(--tap);
     padding-bottom: calc(var(--text-sm) * var(--leading-tight) + var(--space-1));
   }
-  .split-add-amount.is-abroad > .split-figure {
+  .split-add-amount:is(.is-abroad, .is-read) > .split-figure {
     font-size: var(--text-xl);
   }
   .split-add .split-field {

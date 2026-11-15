@@ -16,9 +16,9 @@ import { useSyncExternalStore } from "react";
 import type { Change } from "./changes";
 import type { Ledger } from "./core";
 import type { Logged } from "./history";
-import { deleteLedger, fileNet, mineNet, net, recordNet } from "./net";
+import { deleteLedger, fileNet, mineNet, net, readNet, recordNet } from "./net";
 import { shrink, troubleOf, type PhotoTrouble } from "./photos";
-import type { Mine } from "./shape";
+import type { Mine, Reading } from "./shape";
 import { dropHeld, everyHeld, heldOf, keepHeld, meOf, newId, newKey, setMe, write } from "./store";
 import { hold, holds, join, notOwner, opened, shown, type Held } from "./sync";
 import { syncer, type Syncer, type SyncState } from "./syncer";
@@ -237,6 +237,25 @@ export async function sendPhoto(id: string, file: File): Promise<{ ok: true; fil
     return { ok: true, file: fileId, used: got.data.used, quota: got.data.quota };
   }
   return { ok: false, trouble: troubleOf(got.status, got.error) };
+}
+
+/** Reading receipts can't be had on this page (the site has no key for it, or this month's is spent): not asked again until the page is opened anew. */
+let readingOff = false;
+/**
+ * A receipt just sent, read by the server: what it says was paid (null: nothing could be read, or
+ * nothing answered). "off": reading isn't to be had now (no key, the month spent, today's used up),
+ * and isn't asked for again on this page.
+ */
+export async function readPhoto(id: string, file: string): Promise<Reading | null | "off"> {
+  const h = heldOf(id);
+  if (readingOff || !h?.made) return "off";
+  const got = await readNet(id, h.key, file);
+  if (got.data) return got.data.read;
+  if (got.error === "off" || got.error === "budget" || got.error === "limit") {
+    readingOff = true;
+    return "off";
+  }
+  return null;
 }
 
 /** Photos this phone has, by "<ledger>/<file>": the picture to show (an address on this page), and what kind of file it is. */

@@ -17,7 +17,7 @@ import { Sheet } from "../ui/Sheet";
 import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 import { MAX_FILES } from "./changes";
-import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger } from "./core";
+import { MAX_SHARES, nextRot, portions, toMinor, type Decimals, type Expense, type Ledger } from "./core";
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, money, typed } from "./format";
 import { asAmountText, press, type Key } from "./input";
@@ -28,7 +28,7 @@ import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
 import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
 import { asRateText, lastPaidIn, settled, todaysRate } from "./rates";
 import { newId } from "./store";
-import { dropPhoto, record, sendPhoto } from "./syncing";
+import { dropPhoto, readPhoto, record, sendPhoto } from "./syncing";
 import { say, type Word } from "./words";
 
 type Props = {
@@ -101,6 +101,38 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     if (sheetOpen.current) return setPhotoNote({ word, text });
     toast(text, { tone: "warning", ...(word === "photoSignIn" ? { action: { label: say(lang, "signIn"), onClick: () => openSignIn() } } : {}) });
   };
+  // Reading a receipt: the first one sent while there is no amount yet goes to the server, which has
+  // Google read what was paid; that fills the amount, its currency, and an empty note, for the person
+  // to check. Said under the amount: being read, read (until the amount is changed), or nothing read
+  // (until a key is pressed). What was typed meanwhile is never replaced.
+  const [reading, setReading] = useState<"busy" | "none" | null>(null);
+  /** what the reading put in, as "<currency> <amount>": while the draft still says it, it says where it came from */
+  const [fromReceipt, setFromReceipt] = useState<string | null>(null);
+  const readAsked = useRef(false);
+  const draftNow = useRef(draft);
+  draftNow.current = draft;
+  const fxNow = useRef(fx);
+  fxNow.current = fx;
+  const readIt = async (file: string) => {
+    readAsked.current = true;
+    setReading("busy");
+    const got = await readPhoto(ledger.id, file);
+    if (left.current) return;
+    const d = draftNow.current;
+    // (not to be had on this page: nothing said, and nothing asked again)
+    if (got === "off") return setReading(null);
+    // (nothing read: the next photo may say more)
+    if (!got) readAsked.current = false;
+    if (d.text) return setReading(null);
+    if (!got) return setReading("none");
+    const other = got.currency && got.currency !== d.currency && CURRENCIES.some((c) => c.code === got.currency) ? got.currency : null;
+    const next = other ? payIn(d, other, ledger, fxNow.current?.rates, Date.now()) : d;
+    // (a total the currency can't be, like cents in yen: none)
+    if (toMinor(got.total, decimalsOf(next.currency)) === null) return setReading("none");
+    setDraft({ ...next, text: got.total, note: next.note || got.merchant || "" });
+    setFromReceipt(`${next.currency} ${got.total}`);
+    setReading(null);
+  };
   const pick = async (chosen: File[]) => {
     setPhotoNote(null);
     const room = MAX_FILES - files.length - sending;
@@ -120,6 +152,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
       }
       sentHere.current.add(got.file);
       setFiles((f) => [...f, got.file]);
+      if (!readAsked.current && !draftNow.current.text && !editing) void readIt(got.file);
       // filling up: said once, until the account is under it again
       try {
         const who = account?.id ?? "";
@@ -151,7 +184,10 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     openSignIn();
   };
 
-  const type = (k: Key) => setDraft((d) => ({ ...d, text: press(d.text, k, decimalsOf(d.currency)) }));
+  const type = (k: Key) => {
+    setReading((r) => (r === "none" ? null : r));
+    setDraft((d) => ({ ...d, text: press(d.text, k, decimalsOf(d.currency)) }));
+  };
 
   // Today's rates are asked for while the currency is being picked, the rate looked at, or a rate
   // waited for; an expense in the currency and at the rate of the last one asks for nothing.
@@ -208,6 +244,8 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         : wrong?.what === "amount"
           ? { text: say(lang, amount === 0 ? "tooLittle" : "tooMuch"), loud: true }
           : { text: say(lang, "comesTo", { amount: money(amount ?? 0, ledger.currency, lang) }), more: say(lang, "rateIs", { rate }) };
+  // the line under the amount about the receipt: only when there is no rate to say there instead
+  const readLine = comes ? null : reading === "busy" ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fromReceipt === `${draft.currency} ${draft.text}` ? say(lang, "readFromReceipt") : null;
   const shareSummary = !who.length
     ? say(lang, "nobody")
     : draft.how === "equal"
@@ -250,7 +288,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         }
       />
       <div className="split-add-main">
-        <div className={`split-add-amount${comes ? " is-abroad" : ""}`}>
+        <div className={`split-add-amount${comes ? " is-abroad" : readLine ? " is-read" : ""}`}>
           <output className={`split-figure ${sizeClass(shown)}${draft.text ? "" : " is-empty"}`} aria-label={say(lang, "amount")}>
             {shown}
           </output>
@@ -266,6 +304,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
               </span>
             </button>
           )}
+          {readLine && <p className="split-add-read">{readLine}</p>}
         </div>
         <div className="split-fields">
           <button type="button" className="split-field" onClick={() => setSheet("payer")}>
@@ -292,7 +331,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
           </div>
         </div>
         <span className="ui-visually-hidden" role="status">
-          {off || (comes?.loud ? comes.text : sending ? say(lang, "photoSending") : "")}
+          {off || (comes?.loud ? comes.text : sending ? say(lang, "photoSending") : (readLine ?? ""))}
         </span>
       </div>
       <div className="split-dock">
