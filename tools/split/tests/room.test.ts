@@ -9,6 +9,7 @@ import type { Expense } from "../../../site/src/split/core";
 import { AccountRoom, INVITE_DAYS, MAX_INVITES, MAX_MINE, memoryAccountStore, UPLOADS_PER_DAY, type Invite } from "../src/room/account";
 import { LedgerRoom, MAX_BATCH, MAX_LEDGER_FILES, MAX_SENT, memoryStore, SETTLING_MS, UNUSED_DAYS, usedFiles, type StoredFile } from "../src/room/ledger";
 import { nextNight } from "../src/room/nightly";
+import { base64, costOf, fakeRead, monthOf, readAnswer, readRequest, READ_MODELS } from "../src/server/read";
 
 const NOW = Date.UTC(2026, 10, 13, 19, 0);
 const three = [
@@ -528,6 +529,56 @@ test("invitations wait thirty days, at most thirty of them; an account sends so 
 
   amy.wipe();
   assert.deepEqual([store.invites(), store.asked.size], [[], 0], "deleted: the invitations waiting for it, and its day, gone too");
+});
+
+test("an account has so many receipts read a day", () => {
+  const store = memoryAccountStore();
+  const account = new AccountRoom(store);
+  const day = (n: number) => Array.from({ length: n }, () => account.mayRead("2026-11-14", 3));
+  assert.deepEqual(day(4), [true, true, true, false], "three, and no fourth");
+  assert.equal(account.mayRead("2026-11-15", 3), true, "the next day, again");
+  assert.deepEqual([...store.read.keys()], ["2026-11-15"], "the day before is forgotten");
+  account.wipe();
+  assert.equal(store.read.size, 0, "and it goes with the account");
+});
+
+/** What Google's model answers, saying `said` (as its JSON text) and what it used. */
+const answered = (said: unknown, use: Record<string, number> = {}) => ({ candidates: [{ content: { parts: [{ text: typeof said === "string" ? said : JSON.stringify(said) }] } }], usageMetadata: use });
+
+test("reading a receipt: what is asked, what is taken from the answer, and what it cost", () => {
+  const asked = readRequest("QUJD", "image/jpeg", "CAD", true) as { contents: { parts: Record<string, unknown>[] }[]; generationConfig: Record<string, unknown> };
+  const parts = asked.contents[0].parts;
+  assert.deepEqual(parts[1], { inline_data: { mime_type: "image/jpeg", data: "QUJD" } }, "the photo goes as itself, with its type");
+  assert.ok(String(parts[0].text).includes('A bare "$" is CAD'), "and the words say what a bare $ is: the ledger's currency");
+  assert.equal(asked.generationConfig.responseMimeType, "application/json", "the answer is JSON");
+  assert.deepEqual((asked.generationConfig.responseSchema as { required: string[] }).required, ["receipt"], "in the shape it is given");
+  assert.deepEqual(asked.generationConfig.thinkingConfig, { thinkingLevel: "minimal" }, "thinking as little as the model will");
+  assert.equal((readRequest("QUJD", "application/pdf", "JPY", false) as { generationConfig: Record<string, unknown> }).generationConfig.thinkingConfig, undefined, "and asked again without it, for a model that doesn't take that");
+
+  const read = (said: unknown, currency = "CAD") => readAnswer(answered(said), currency);
+  assert.deepEqual(read({ receipt: true, total: "42.50", currency: "CAD", merchant: "Tim Hortons" }), { total: "42.50", currency: "CAD", merchant: "Tim Hortons" });
+  assert.deepEqual(read({ receipt: true, total: "$1,234.5", currency: "usd", merchant: "  Costco\nWholesale  " }), { total: "1234.50", currency: "USD", merchant: "Costco Wholesale" }, "a sign, a thousands separator, one decimal, a code in small letters, a name on two lines: all made plain");
+  assert.deepEqual(read({ receipt: true, total: "3,200", currency: "JPY", merchant: null }), { total: "3200", currency: "JPY", merchant: null }, "yen, which has no cents");
+  assert.deepEqual(read({ receipt: true, total: "12.5", currency: "THB" }), { total: "12.50", currency: null, merchant: null }, "a currency no ledger can be in: none said");
+  assert.equal(read({ receipt: true, total: "12.50", currency: "KRW" }), null, "cents in a currency without them: no total");
+  assert.equal(read({ receipt: false, total: "12.00" }), null, "not a receipt, whatever else it says");
+  assert.equal(read({ receipt: true, total: null }), null, "no total on it");
+  for (const total of ["0", "0.00", "-5", "12.345", "abc", "123456789.00", ""]) assert.equal(read({ receipt: true, total }), null, `no total: ${JSON.stringify(total)}`);
+  assert.equal(read("not json"), null, "an answer that isn't JSON");
+  assert.equal(readAnswer({ candidates: [] }, "CAD"), null, "no answer at all");
+  assert.equal(readAnswer(null, "CAD"), null);
+  assert.equal(read({ receipt: true, total: "9.99", merchant: "x".repeat(80) })?.merchant?.length, 40, "a long name, cut short");
+
+  assert.equal(costOf(answered({}, { promptTokenCount: 1500, candidatesTokenCount: 60, thoughtsTokenCount: 40 }), READ_MODELS[0].model), Math.ceil(1500 * 0.25 + 100 * 1.5), "what went in, and what came out with the thinking, at the model's prices: millionths of a dollar");
+  assert.equal(costOf({ usageMetadata: { promptTokenCount: 1000 } }, "gemini-3.5-flash-lite"), 300, "another model, its prices");
+  assert.equal(costOf(null, READ_MODELS[0].model), 0, "nothing said: nothing counted");
+
+  const bytes = Uint8Array.from({ length: 70_000 }, (_, i) => (i * 7) % 256);
+  assert.equal(Buffer.from(base64(bytes), "base64").equals(Buffer.from(bytes)), true, "a photo bigger than one piece, as base64 and back, is itself");
+  assert.equal(monthOf(Date.UTC(2026, 10, 30, 23, 59)), "2026-11");
+  const fake = (text: string) => fakeRead(new TextEncoder().encode(`\xff\xd8\xff ${text}`), "CAD");
+  assert.deepEqual(fake("receipt:42.50 CAD Test Café"), { ok: true, read: { total: "42.50", currency: "CAD", merchant: "Test Café" }, cost: 400 }, "the stand-in for Google reads what the file says");
+  assert.deepEqual(fake("receipt:none"), { ok: true, read: null, cost: 400 }, "and a file that says it is no receipt is none");
 });
 
 test("the night: in the small hours on the coast, a minute of its own for each, never the minute it is now", () => {

@@ -23,6 +23,7 @@ import type { Ledger } from "../../../../site/src/split/core";
 import { AccountRoom, INVITES_PER_DAY, STARTS_PER_DAY, type AccountFile, type AccountStore, type Invite, type Invited, type Kept, type Mine, type Reserved, type Storage } from "../room/account";
 import { ID_RE, LedgerRoom, SETTLING_MS, type Count, type ErrorCode, type Fail, type FileInfo, type Logged, type Meta, type Store, type StoredFile, type Usage } from "../room/ledger";
 import { nextNight } from "../room/nightly";
+import { fakeRead, monthOf, READ_BUDGET, READS_PER_DAY, readReceipt, type ReadReply } from "./read";
 import {
   ACCOUNT_RE,
   FILE_MAX,
@@ -61,6 +62,14 @@ export interface Env {
   ALLOW_TEST_SETTINGS?: string;
   /** with ALLOW_TEST_SETTINGS only: an account's room for files, in bytes, smaller than QUOTA, for the tests to fill */
   TEST_QUOTA?: string;
+  /** Google's Gemini key, for reading receipts: a secret, added in Cloudflare by Steve. Without it nothing is read ("off") */
+  GEMINI_API_KEY?: string;
+  /** optional: the model that reads receipts, when not the first of READ_MODELS (src/server/read.ts) */
+  GEMINI_READ_MODEL?: string;
+  /** with ALLOW_TEST_SETTINGS only: "1" reads receipts with the stand-in for Google (src/server/read.ts, fakeRead) */
+  FAKE_READ?: string;
+  /** with ALLOW_TEST_SETTINGS only: the month's budget for reading, in millionths of a dollar, small enough for the tests to spend */
+  TEST_READ_BUDGET?: string;
 }
 
 const BASE = "/split/api";
@@ -104,6 +113,11 @@ const accountOf = (env: Env, id: string) => env.ACCOUNTS.get(env.ACCOUNTS.idFrom
 
 /** An account's room for files: QUOTA, or a smaller one the tests set. */
 const quotaOf = (env: Env) => (env.ALLOW_TEST_SETTINGS === "1" && /^\d{1,12}$/.test(env.TEST_QUOTA ?? "") ? Number(env.TEST_QUOTA) : QUOTA);
+/** The month's budget for reading receipts, in millionths of a dollar (a smaller one in the tests). */
+const budgetOf = (env: Env) => (env.ALLOW_TEST_SETTINGS === "1" && /^\d{1,12}$/.test(env.TEST_READ_BUDGET ?? "") ? Number(env.TEST_READ_BUDGET) : READ_BUDGET);
+/** Receipts are read with the stand-in for Google (local runs and the tests only). */
+const fakeReading = (env: Env) => env.ALLOW_TEST_SETTINGS === "1" && env.FAKE_READ === "1";
+const budget = (env: Env) => env.GATES.get(env.GATES.idFromName("read-budget"));
 
 /** Where a ledger's file is in the bucket. */
 const fileKey = (ledger: string, id: string) => `${ledger}/${id}`;
@@ -352,6 +366,41 @@ async function myInvites(req: Request, env: Env, ctx: ExecutionContext, ledger: 
   return json({ ok: true });
 }
 
+/**
+ * One of a ledger's files read as a receipt: the total, its currency, the shop (src/server/read.ts),
+ * for the phone to fill in and the person to check. Signed in, with the key. Each account has
+ * READS_PER_DAY a day ("limit", 429), and the month READ_BUDGET ("budget", 429: nothing more is
+ * read until the month is over). Without Google's key nothing is read ("off", 403). What Google
+ * couldn't do is "failed" (502). The file goes to Google only for this, and nothing is kept.
+ */
+async function readFile(req: Request, env: Env, ctx: ExecutionContext, stub: DurableObjectStub<LedgerDO>, ledger: string, id: string, keyHash: string | null): Promise<Response> {
+  if (req.method !== "POST" || !ID_RE.test(id)) return refuse("notfound", 404);
+  const fake = fakeReading(env);
+  if (!env.GEMINI_API_KEY && !fake) return refuse("off", 403);
+  const who = await signedIn(req, env, ctx);
+  if (who instanceof Response) return who;
+  if (!who) return refuse("signin", 401);
+  const file = await stub.file(keyHash, id);
+  if (!file.ok) return failed(file);
+  // (the ledger's own currency: a "$" on its own is that)
+  const there = await stub.read(keyHash);
+  if (!there.ok) return failed(there);
+  const month = monthOf(Date.now());
+  if (!(await budget(env).mayRead(month, budgetOf(env)))) return refuse("budget", 429);
+  if (!(await accountOf(env, who.id).mayRead(today(), READS_PER_DAY))) return refuse("limit", 429);
+  const object = await env.FILES.get(fileKey(ledger, id));
+  if (!object) return refuse("gone", 404);
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  const currency = there.ledger.currency;
+  const reading = fake ? fakeRead(bytes, currency) : await readReceipt(env.GEMINI_API_KEY ?? "", bytes, file.file.type, currency, env.GEMINI_READ_MODEL);
+  if (reading.cost) await budget(env).spend(month, reading.cost);
+  if (!reading.ok) {
+    console.error("split: a receipt wasn't read", reading.why, reading.detail ?? "");
+    return refuse("failed", 502);
+  }
+  return json({ read: reading.read } satisfies ReadReply);
+}
+
 /** "My ledgers": what a signed-in phone asks of its account. */
 async function mine(req: Request, env: Env, ctx: ExecutionContext, id: string | undefined): Promise<Response> {
   const who = await signedIn(req, env, ctx);
@@ -392,7 +441,8 @@ export default {
     if (parts[0] === "me" && parts[1] === "files" && parts.length <= 3) return myFiles(req, env, ctx, parts[2]);
     if (parts[0] === "me" && parts[1] === "invites" && parts.length <= 3) return myInvites(req, env, ctx, parts[2]);
     if (parts[0] === "test" && parts.length === 2) return testOnly(req, env, parts[1]);
-    if (parts[0] !== "ledgers" || parts.length > 4) return refuse("notfound", 404);
+    // (a ledger's address has at most four parts; a file read as a receipt, five)
+    if (parts[0] !== "ledgers" || parts.length > 5 || (parts.length === 5 && !(parts[2] === "files" && parts[4] === "read"))) return refuse("notfound", 404);
 
     // the live connection: its key comes as a protocol name, because a browser can't give it a header
     if (parts.length === 3 && parts[2] === "live" && req.method === "GET") {
@@ -449,6 +499,7 @@ export default {
 
     if (!ID_RE.test(parts[1] ?? "")) return refuse("notfound", 404);
     const stub = env.LEDGERS.get(env.LEDGERS.idFromName(parts[1]));
+    if (parts.length === 5) return readFile(req, env, ctx, stub, parts[1], parts[3], keyHash);
     if (parts[2] === "files") return files(req, env, ctx, stub, parts[1], parts[3], keyHash);
     if (parts.length > 3) return refuse("notfound", 404);
 
@@ -852,6 +903,24 @@ export class GateDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     await this.ctx.storage.deleteAll();
   }
+
+  // The month's spending on reading receipts, in millionths of a dollar, on an instance of its own
+  // ("read-budget", which takes nothing else, so its alarm is never set).
+
+  /** Is any of this month's budget left? */
+  async mayRead(month: string, cap: number): Promise<boolean> {
+    return ((await this.ctx.storage.get<number>(`read:${month}`)) ?? 0) < cap;
+  }
+
+  /** A reading's cost, counted against its month; months before it are forgotten. What the month has spent now. */
+  async spend(month: string, cost: number): Promise<number> {
+    const key = `read:${month}`;
+    const spent = ((await this.ctx.storage.get<number>(key)) ?? 0) + cost;
+    const old = [...(await this.ctx.storage.list({ prefix: "read:" })).keys()].filter((k) => k !== key);
+    if (old.length) await this.ctx.storage.delete(old);
+    await this.ctx.storage.put(key, spent);
+    return spent;
+  }
 }
 
 /** An account's list, in the Durable Object's own SQLite. */
@@ -865,6 +934,8 @@ function accountStore(sql: SqlStorage): AccountStore {
   // invitations from friends waiting for this account; and how many it sent today
   sql.exec("CREATE TABLE IF NOT EXISTS invites (ledger TEXT PRIMARY KEY, json TEXT NOT NULL, at INTEGER NOT NULL)");
   sql.exec("CREATE TABLE IF NOT EXISTS invited (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
+  // receipts read for it today
+  sql.exec("CREATE TABLE IF NOT EXISTS readings (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
   const asFile = (r: Record<string, SqlStorageValue>): AccountFile => ({ ledger: String(r.ledger), id: String(r.id), size: Number(r.size), at: Number(r.at) });
   const read = (json: unknown) => JSON.parse(json as string) as Mine;
   return {
@@ -879,6 +950,11 @@ function accountStore(sql: SqlStorage): AccountStore {
     },
     dropInvite(ledger) {
       sql.exec("DELETE FROM invites WHERE ledger = ?", ledger);
+    },
+    readings: (day) => Number(sql.exec("SELECT n FROM readings WHERE day = ?", day).toArray()[0]?.n ?? 0),
+    reading(day) {
+      sql.exec("DELETE FROM readings WHERE day <> ?", day);
+      sql.exec("INSERT INTO readings (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1", day);
     },
     inviting: (day) => Number(sql.exec("SELECT n FROM invited WHERE day = ?", day).toArray()[0]?.n ?? 0),
     invite(day) {
@@ -928,7 +1004,7 @@ function accountStore(sql: SqlStorage): AccountStore {
     },
     // (the tables stay, empty)
     wipe() {
-      for (const t of ["mine", "started", "files", "sent", "self", "invites", "invited"]) sql.exec(`DELETE FROM ${t}`);
+      for (const t of ["mine", "started", "files", "sent", "self", "invites", "invited", "readings"]) sql.exec(`DELETE FROM ${t}`);
     },
   };
 }
@@ -1053,5 +1129,9 @@ export class AccountDO extends DurableObject<Env> {
 
   async mayInvite(day: string, limit: number): Promise<boolean> {
     return this.room.mayInvite(day, limit);
+  }
+
+  async mayRead(day: string, limit: number): Promise<boolean> {
+    return this.room.mayRead(day, limit);
   }
 }

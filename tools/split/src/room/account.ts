@@ -70,6 +70,10 @@ export interface AccountStore {
   inviting(day: string): number;
   /** One more sent on this day. Days before it are forgotten. */
   invite(day: string): void;
+  /** Receipts this account had read on this day (a date). */
+  readings(day: string): number;
+  /** One more read on this day. Days before it are forgotten. */
+  reading(day: string): void;
   /** Everything kept for the account goes. */
   wipe(): void;
 }
@@ -151,6 +155,13 @@ export class AccountRoom {
   mayInvite(day: string, limit: number): boolean {
     if (this.store.inviting(day) >= limit) return false;
     this.store.invite(day);
+    return true;
+  }
+
+  /** One more receipt read for this account today, when today's aren't used up; false when they are. */
+  mayRead(day: string, limit: number): boolean {
+    if (this.store.readings(day) >= limit) return false;
+    this.store.reading(day);
     return true;
   }
 
@@ -238,7 +249,7 @@ export class AccountRoom {
 }
 
 /** A store that lives only as long as the test does. */
-export function memoryAccountStore(): AccountStore & { days: Map<string, number>; sent: Map<string, number>; asked: Map<string, number> } {
+export function memoryAccountStore(): AccountStore & { days: Map<string, number>; sent: Map<string, number>; asked: Map<string, number>; read: Map<string, number> } {
   const kept = new Map<string, Mine>();
   const days = new Map<string, number>();
   const files = new Map<string, AccountFile>();
@@ -251,10 +262,19 @@ export function memoryAccountStore(): AccountStore & { days: Map<string, number>
   const invites = new Map<string, { invite: Invite; put: number }>();
   /** invitations sent, by day */
   const asked = new Map<string, number>();
+  /** receipts read, by day */
+  const read = new Map<string, number>();
   return {
     days,
     sent,
     asked,
+    read,
+    readings: (day) => read.get(day) ?? 0,
+    reading(day) {
+      const n = (read.get(day) ?? 0) + 1;
+      read.clear();
+      read.set(day, n);
+    },
     self: () => me,
     setSelf(account) {
       me = account;
@@ -280,6 +300,7 @@ export function memoryAccountStore(): AccountStore & { days: Map<string, number>
       when.clear();
       invites.clear();
       asked.clear();
+      read.clear();
       me = null;
     },
     fileOf: (ledger, id) => (files.has(at(ledger, id)) ? structuredClone(files.get(at(ledger, id))!) : null),

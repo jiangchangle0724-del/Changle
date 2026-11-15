@@ -137,6 +137,30 @@ address), and keeps the answer five minutes under the session's fingerprint. The
 - `DELETE /me/ledgers/<id>`: off the list. The ledger itself stays.
 - A sign-in that is nobody's: 401 `signin`. When the rooms server can't say: 503 `down`.
 
+### Reading a receipt
+
+`POST …/ledgers/<id>/files/<file>/read`, signed in, with the key: one of the ledger's photos (or a
+PDF) is sent to Google's Gemini (`src/server/read.ts`), which says what was paid in all, in what
+currency and at which shop, in JSON of a shape it is given. The answer is `{ "read": { "total":
+"42.50", "currency": "CAD", "merchant": "Tim Hortons" } }` (the total as digits with a dot; the
+currency only when it is one a ledger can be in; either of the other two can be null), or `{
+"read": null }` when it isn't a receipt or has no total on it. The phone fills them in for the
+person to check; nothing is kept here or by Google beyond the answer.
+
+- It costs money, Steve's 2 dollars a month at most (agreed 2026-11-14): each reading's cost is
+  worked out from what Google says it used, at the model's prices (`READ_MODELS`: Gemini 3.1
+  Flash-Lite, then 3.5 Flash-Lite if Google no longer serves the first), and counted on a Durable
+  Object of its own (`GateDO` "read-budget"); once the month has spent its `READ_BUDGET`, nothing is
+  read until the next month (429 `budget`). About half a cent buys ten readings.
+- 30 a day for one account (429 `limit`).
+- Without the secret `GEMINI_API_KEY` (Steve adds it in Cloudflare) nothing is read (403 `off`),
+  and the phone shows nothing of it. Google failing or not answering is 502 `failed`.
+- Locally and in the tests there is no key and no way out to Google: with `ALLOW_TEST_SETTINGS`,
+  `FAKE_READ=1` reads with a stand-in (`fakeRead`) that reads what the file's own bytes say after
+  `receipt:`, at 400 millionths of a dollar a reading, and `TEST_READ_BUDGET` makes the month's
+  budget small enough to spend. The request to Google and the reading of its answer are tested
+  without the network (`tests/room.test.ts`).
+
 ### Inviting a friend on changle.ca
 
 Besides the link and the QR code, someone in a ledger can invite a friend of theirs on changle.ca
@@ -165,7 +189,8 @@ by their account. Nothing goes by mail.
 ledger and 30 people (the phone's own rules); 10 new ledgers a day from one network, and 10 from
 one account; 300 ledgers on one account's list. Files: 10 MB each, 500 MB in all for one account,
 200 a day from one account, 2,000 in one ledger, 10 on one expense. Invitations to friends: 50 a
-day from one account; 30 waiting for one, each for 30 days.
+day from one account; 30 waiting for one, each for 30 days. Receipts read: 30 a day for one
+account, and 2 dollars a month for the site.
 
 ## Running it
 
@@ -194,4 +219,5 @@ as `npm run dev -- --var ALLOW_TEST_SETTINGS:1`. (That lifts the network's allow
 account's stays. It also opens the test addresses under `/split/api/test/`: a ledger's or an
 account's nightly check run now, or as of a day to come; an account deleted, through the stand-in
 rooms server; a stray file in the bucket; an account charged for a file no ledger keeps. And "my
-files" can be asked as of a later time, `?at=`. None of it is there on changle.ca.)
+files" can be asked as of a later time, `?at=`. None of it is there on changle.ca.) Add
+`--var FAKE_READ:1` for receipts to be read by the stand-in for Google (the site's checks do).
