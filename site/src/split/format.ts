@@ -16,6 +16,17 @@ export const signOf = (currency: string) => CURRENCY_BY_CODE[currency]?.symbol ?
 /** The currency's name in the reader's language. */
 export const currencyName = (currency: string, lang: Lang) => CURRENCY_BY_CODE[currency]?.[lang] ?? currency;
 
+/**
+ * A day ("2026-11-12") as the page says it: 11月12日, Nov 12; with its year when that isn't
+ * `thisYear` (2025年11月12日, Nov 12, 2025); with its weekday when asked (11月12日周三, Wed, Nov 12).
+ * A day is a day on the calendar, the same wherever it is read, so it is read and said in UTC.
+ */
+export function dayName(day: string, lang: Lang, thisYear: number, weekday = false): string {
+  const [y, m, d] = day.split("-").map(Number);
+  const options: Intl.DateTimeFormatOptions = { timeZone: "UTC", month: lang === "zh" ? "long" : "short", day: "numeric", ...(y === thisYear ? {} : { year: "numeric" }), ...(weekday ? { weekday: "short" } : {}) };
+  return new Intl.DateTimeFormat(lang === "zh" ? "zh-CN" : "en-CA", options).format(new Date(Date.UTC(y, m - 1, d)));
+}
+
 const groupers = new Map<string, Intl.NumberFormat>();
 /** A whole number with its digits in threes, the way the reader's language groups them. */
 function grouped(whole: string, lang: Lang): string {

@@ -56,7 +56,19 @@ export function addExpense(l: Ledger, e: NewExpense): Ledger {
  * `tax` the same three ways: what they are now; null (or 0), for none; or not at all, and they stay
  * while what was paid, in the currency it was paid in, stays (they were read off that receipt).
  */
-export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> & { paidIn?: Expense["paidIn"] | null; files?: string[] | null; tip?: number | null; tax?: number | null };
+export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> & { paidIn?: Expense["paidIn"] | null; files?: string[] | null; tip?: number | null; tax?: number | null; date?: string | null };
+
+/**
+ * A day as an expense keeps it: "2026-11-15", a day the calendar has (no 30 February), between the
+ * years 2000 and 2100. (`date` on an edit is said like `files`: a day; null for none, when the day
+ * it was recorded stands for it; or not at all, and it stays.)
+ */
+export function isDay(x: unknown): x is string {
+  if (typeof x !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(x)) return false;
+  const [y, m, d] = x.split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d));
+  return y >= 2000 && y <= 2100 && day.getUTCMonth() === m - 1 && day.getUTCDate() === d;
+}
 
 /** What was paid, in the currency it was paid in: the other currency's amount when there is one, else the ledger's. Tip and tax are in it. */
 export const paidAmount = (e: Pick<Expense, "amount" | "paidIn">) => (e.paidIn ? e.paidIn.amount : e.amount);
@@ -73,7 +85,7 @@ export function soundExtras(e: Pick<Expense, "amount" | "paidIn" | "tip" | "tax"
 
 /**
  * An expense as an edit leaves it (ExpenseEdit says what each way of saying a field means), or null
- * when the tip and tax it would be left with can't be kept. The record (history.ts) reads old
+ * when the tip and tax it would be left with can't be kept, or the day isn't one. The record (history.ts) reads old
  * edits with these same rules.
  */
 export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
@@ -82,7 +94,8 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
   const samePaid = (paidIn?.currency ?? "") === (e.paidIn?.currency ?? "") && paidAmount({ amount: to.amount, paidIn }) === paidAmount(e);
   const tip = to.tip === undefined ? (samePaid ? e.tip : undefined) : to.tip || undefined;
   const tax = to.tax === undefined ? (samePaid ? e.tax : undefined) : to.tax || undefined;
-  if (!soundExtras({ amount: to.amount, paidIn, tip, tax })) return null;
+  const date = to.date === undefined ? e.date : (to.date ?? undefined);
+  if (!soundExtras({ amount: to.amount, paidIn, tip, tax }) || (date !== undefined && !isDay(date))) return null;
   // (every field keeps its place, so an expense changed to what it already says is the same, letter for letter)
   const next: Expense = { ...e, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
   if (paidIn) next.paidIn = { currency: paidIn.currency, amount: paidIn.amount, rate: paidIn.rate };
@@ -93,6 +106,8 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
   else delete next.tip;
   if (tax) next.tax = tax;
   else delete next.tax;
+  if (date) next.date = date;
+  else delete next.date;
   return next;
 }
 

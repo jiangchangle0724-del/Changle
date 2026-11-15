@@ -218,11 +218,11 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     const to = saying(draft, ledger);
     if (!to || sending) return;
     const id = editing ? editing.id : newId();
-    const { paidIn, files: _unsaid, tip, tax, ...said } = to;
+    const { paidIn, files: _unsaid, tip, tax, date, ...said } = to;
     // a new expense goes as it is recorded here, its turn for the odd cents included: the parts shown are the parts everyone gets
     const done = editing
       ? record(ledger.id, { do: "edit", entry: id, to: { ...to, files: files.length ? files : null } })
-      : record(ledger.id, { do: "expense", expense: { kind: "expense", id, at: Date.now(), ...said, rot, ...(paidIn ? { paidIn } : {}), ...(files.length ? { files } : {}), ...(tip ? { tip } : {}), ...(tax ? { tax } : {}) } });
+      : record(ledger.id, { do: "expense", expense: { kind: "expense", id, at: Date.now(), ...said, rot, ...(paidIn ? { paidIn } : {}), ...(files.length ? { files } : {}), ...(tip ? { tip } : {}), ...(tax ? { tax } : {}), ...(date ? { date } : {}) } });
     // (refused only when the ledger changed under this screen: someone on another phone got there first)
     if (!done) return toast(say(lang, "notSaved"), { tone: "warning" });
     saved.current = true;

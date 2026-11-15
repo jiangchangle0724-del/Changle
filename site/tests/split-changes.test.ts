@@ -15,6 +15,7 @@
  * 10. Receipt photos: an expense carries their ids; a change that doesn't mention them leaves them.
  * 11. Tip and tax: kept to show, in the currency paid in, never more than was paid, never part of
  *     anyone's share; a change that doesn't mention them keeps them while what was paid stays.
+ * 12. The day an expense was spent: a day the calendar has; a change that doesn't mention it leaves it.
  */
 import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
 import { accept, applyChange, MAX_ENTRIES, MAX_FILES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
@@ -483,6 +484,42 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads them back from the server's ledger");
   eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], tip: "1800" }] })?.entries, [], "a ledger whose tip isn't a number leaves that entry out");
   eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], tax: null }] })?.entries, [], "and so does one whose tax is null");
+}
+
+// ---------- 12. the day it was spent ----------
+{
+  const start = startLedger("D", "日期", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);
+  const among: Split = { how: "equal", among: ["a", "b"] };
+  const lunch = { kind: "expense" as const, id: "e1", at: 1, payer: "a", amount: 2000, note: "午饭", split: among, rot: 0 };
+  const said = { payer: "a", amount: 2000, note: "午饭", split: among };
+  const read = (change: unknown) => parseSent({ id: "c", at: 1, change })?.change ?? null;
+  const day = (l: Ledger | null) => (l ? ((l.entries[0] as Expense).date ?? ("date" in l.entries[0] ? "there, empty" : "none")) : "not taken");
+
+  // what arrives
+  eq(read({ do: "expense", expense: { ...lunch, date: "2026-11-12" } }), { do: "expense", expense: { ...lunch, date: "2026-11-12" } }, "an expense with the day it was spent is read with it");
+  for (const bad of ["2026-02-30", "2026-13-01", "2026-1-5", "26-11-12", "2026/11/12", "1999-12-31", "2101-01-01", "", null, 20261112, ["2026-11-12"]]) eq(read({ do: "expense", expense: { ...lunch, date: bad } }), null, `a day said as ${JSON.stringify(bad)}: not a change`);
+  eq([read({ do: "expense", expense: { ...lunch, date: "2000-01-01" } }) !== null, read({ do: "expense", expense: { ...lunch, date: "2100-12-31" } }) !== null, read({ do: "expense", expense: { ...lunch, date: "2028-02-29" } }) !== null], [true, true, true], "the first and last days it takes, and a leap day");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, date: "2026-11-13" } }), { do: "edit", entry: "e1", to: { ...said, date: "2026-11-13" } }, "an edit that says a day");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, date: null } }), { do: "edit", entry: "e1", to: { ...said, date: null } }, "an edit that says none");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, date: "2026-02-29" } }), null, "an edit to a day the calendar hasn't (2026 is no leap year): not a change");
+
+  // what they do
+  const dated = applyChange(start, { do: "expense", expense: { ...lunch, date: "2026-11-12" } });
+  eq(day(dated), "2026-11-12", "recorded with its day");
+  eq(day(applyChange(start, { do: "expense", expense: lunch })), "none", "recorded without one: no `date` at all");
+  eq(applyChange(start, { do: "expense", expense: { ...lunch, date: "2026-11-31" } }), null, "a day the calendar hasn't: not recorded");
+  eq(balances(dated!), balances(applyChange(start, { do: "expense", expense: lunch })!), "the day changes nobody's share");
+  eq(day(applyChange(dated!, { do: "edit", entry: "e1", to: { ...said, amount: 2500, note: "午饭和茶" } })), "2026-11-12", "an edit that doesn't mention it leaves it, whatever else it changes");
+  eq(day(applyChange(dated!, { do: "edit", entry: "e1", to: { ...said, date: "2026-11-10" } })), "2026-11-10", "one that says another day changes it");
+  eq(day(applyChange(dated!, { do: "edit", entry: "e1", to: { ...said, date: null } })), "none", "one that says none takes it off");
+  eq(applyChange(dated!, { do: "edit", entry: "e1", to: { ...said, date: "2026-11-12" } }), null, "one to the day it already has changes nothing");
+  eq(applyChange(dated!, { do: "edit", entry: "e1", to: { ...said, date: "2026-04-31" } }), null, "and one to a day the calendar hasn't changes nothing");
+
+  // sent and taken by the server, and read back by a phone
+  const served = serve(start, [sent({ do: "expense", expense: { ...lunch, date: "2026-11-12" } }), sent({ do: "edit", entry: "e1", to: { ...said, note: "午饭和茶" } })]);
+  eq([day(served.ledger), served.took], ["2026-11-12", ["new", "new"]], "the server takes it, and a later edit about the note keeps it");
+  eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads it back");
+  eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], date: "2026-11-31" }] })?.entries, [], "a ledger with a day the calendar hasn't leaves that entry out");
 }
 
 if (failed) {

@@ -17,7 +17,7 @@
 import type { Lang } from "../i18n";
 import { applyChange, type Change, type Sent } from "./changes";
 import type { Entry, Expense, Ledger, Transfer } from "./core";
-import { money } from "./format";
+import { dayName, money } from "./format";
 import { afterEdit, NAME_MAX, NOTE_MAX, tidy } from "./ops";
 import { say } from "./words";
 
@@ -98,7 +98,7 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
         const after = edited(before, c.to);
         entries.set(c.entry, after);
         const there = inNow(c.entry);
-        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null, tip: before.tip ?? null, tax: before.tax ?? null } };
+        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null, tip: before.tip ?? null, tax: before.tax ?? null, date: before.date ?? null } };
         // (only where it would go through: whoever paid it or shared it may have been taken off since)
         const offer = !locked && lastEdit.get(c.entry) === s.key && !!there && there.gone === undefined && applyChange(now, back) !== null;
         lines.push(line(say(lang, "historyEdit", { what: expense(after) }), {
@@ -162,7 +162,7 @@ const edited = (before: Expense, to: Extract<Change, { do: "edit" }>["to"]): Exp
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-/** What an edit changed, said briefly: the amount, who paid, the note, how it is shared, the other currency, the photos, the tip and the tax. */
+/** What an edit changed, said briefly: the amount, who paid, the note, how it is shared, the other currency, the photos, the tip, the tax and the day. */
 function changed(before: Expense, after: Expense, me: string | undefined, lang: Lang, nameOf: (id: string) => string, amount: (n: number) => string, currency: string): string | undefined {
   const parts: string[] = [];
   if (before.amount !== after.amount) parts.push(say(lang, "historyAmount", { from: amount(before.amount), to: amount(after.amount) }));
@@ -179,6 +179,7 @@ function changed(before: Expense, after: Expense, me: string | undefined, lang: 
   const paidIn = (n: number) => money(n, after.paidIn?.currency ?? currency, lang);
   if (before.tip !== after.tip) parts.push(after.tip ? say(lang, "historyTip", { amount: paidIn(after.tip) }) : say(lang, "historyTipGone"));
   if (before.tax !== after.tax) parts.push(after.tax ? say(lang, "historyTax", { amount: paidIn(after.tax) }) : say(lang, "historyTaxGone"));
+  if (before.date !== after.date) parts.push(after.date ? say(lang, "historyDate", { day: dayName(after.date, lang, new Date(after.at).getFullYear()) }) : say(lang, "historyDateGone"));
   if (!parts.length) return undefined;
   const text = parts.join(say(lang, "historyAnd"));
   // (a line of its own, so it starts as a sentence does)

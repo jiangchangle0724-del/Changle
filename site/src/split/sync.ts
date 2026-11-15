@@ -138,7 +138,7 @@ export function holds(l: Ledger, c: Change): boolean {
       return entry(c.transfer.id)?.kind === "transfer";
     case "edit": {
       const e = entry(c.entry);
-      // (the other currency, the photos, the tip and the tax count only when the change said something about them)
+      // (the other currency, the photos, the tip, the tax and the day count only when the change said something about them)
       return (
         !!e &&
         e.kind === "expense" &&
@@ -149,7 +149,8 @@ export function holds(l: Ledger, c: Change): boolean {
         (c.to.paidIn === undefined || same(e.paidIn ?? null, c.to.paidIn)) &&
         (c.to.files === undefined || same(e.files ?? [], c.to.files ?? [])) &&
         (c.to.tip === undefined || (e.tip ?? 0) === (c.to.tip ?? 0)) &&
-        (c.to.tax === undefined || (e.tax ?? 0) === (c.to.tax ?? 0))
+        (c.to.tax === undefined || (e.tax ?? 0) === (c.to.tax ?? 0)) &&
+        (c.to.date === undefined || (e.date ?? null) === (c.to.date ?? null))
       );
     }
     case "out": {
