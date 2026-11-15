@@ -231,3 +231,16 @@ What the look at the rendered screens changed (four phone sizes, both languages;
 
 Verdict: holds to the contract. Still three screens and one light; a photo is one button at the end of a line that was already there, and a sheet like the others.
 
+## Stage three, step 13c: 照片空间, the storage sheet (2026-11-15)
+
+Shape: the plan's 在哪看, "菜单里的存储页：已用多少，哪个账本占得最多". One more row in ⋯ (signed in only: photos are sent signed in), opening a sheet like the others.
+
+- The figure first: how many MB are used, large, in the display face, with "of 500 MB" beside it; then a bar, the tool's amber light on the raised track (red once full, a sliver even when little is used), then one line on what the room left holds, in receipts (the plan's 300 KB each: "about 1,700"), which the page says in its strong voice past 400 MB.
+- Where the photos are: each ledger, the most first, by name when this phone holds it, marked 这个账本 for the one the sheet was opened from; one this phone doesn't hold is said as such (the server never names a ledger: someone shut out by a new link would see its new name).
+- Photos on no expense any more: how many and how big, that they clear themselves after 30 days, and 现在清掉, asked first in the sheet's own words (the record's 改回去 and 恢复 can't bring them back after), then what was freed.
+- Nothing moves; the bar is drawn in an SVG as wide as the track, so no style is written on an element.
+
+What the look at the rendered sheet changed: at 1 MB the bar showed nothing at all (a sliver now); the counts had no thousands separator while the receipts line did (both have it now).
+
+Verdict: holds to the contract. A row in the menu and a sheet; the numbers are the account's, asked of the server each time.
+

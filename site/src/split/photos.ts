@@ -38,6 +38,14 @@ export function fitWithin(width: number, height: number, edge = PHOTO_EDGE): { w
 }
 
 /** Megabytes as the phone says them: whole ones, never 0 for something that takes room. */
+/** A receipt, as the plan counts them (about 300 KB once made smaller): what the room left is said in. */
+const RECEIPT = 300 * 1000;
+/** About how many more receipts the room left holds: in hundreds past a thousand, as it is said. */
+export function receiptsLeft(used: number, quota: number): number {
+  const n = Math.max(0, Math.floor((quota - used) / RECEIPT));
+  return n >= 1000 ? Math.floor(n / 100) * 100 : n;
+}
+
 export const megabytes = (bytes: number) => String(bytes > 0 ? Math.max(1, Math.round(bytes / MB)) : 0);
 
 /** Why a photo wasn't added, as the server (or this phone) says it. */

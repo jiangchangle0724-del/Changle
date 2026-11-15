@@ -40,7 +40,7 @@ import { historyOf, RESTORE_DAYS, whenText, type Logged } from "../src/split/his
 import { dayText, isStale, pictureOf, stepsPrint, type Made } from "../src/split/picture";
 import { csvOf } from "../src/split/csv";
 import { datedName } from "../src/split/share";
-import { fitWithin, megabytes, PHOTO_EDGE, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
+import { fitWithin, megabytes, PHOTO_EDGE, QUOTA, receiptsLeft, TROUBLE_WORD, troubleOf, type PhotoTrouble } from "../src/split/photos";
 import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shape";
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
@@ -1045,6 +1045,11 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(cases.map(([status, error]) => troubleOf(status, error)), cases.map(([, , t]) => t), "each answer of the server's said as its own trouble; no answer is no connection");
   const words = Object.values(TROUBLE_WORD);
   ok(words.every((w) => W[w].zh.endsWith("。") && /[.]$/.test(W[w].en)), "and each trouble said in a sentence, in both languages");
+
+  // 照片空间: the room left, in receipts
+  const MB = 1024 * 1024;
+  eq([receiptsLeft(0, QUOTA), receiptsLeft(412 * MB, QUOTA), receiptsLeft(499.9 * MB, QUOTA), receiptsLeft(QUOTA, QUOTA), receiptsLeft(QUOTA + 5, QUOTA)], [1_700, 307, 0, 0, 0], "about how many more receipts fit: in hundreds past a thousand, never below none");
+  ok(W.storageNone.zh.includes(new Intl.NumberFormat("zh-CN").format(receiptsLeft(0, QUOTA))) && W.storageNone.en.includes(new Intl.NumberFormat("en-CA").format(receiptsLeft(0, QUOTA))), "an empty room says the receipts it holds as the room left would say them");
 }
 
 if (failed) {
