@@ -1,7 +1,8 @@
 /**
- * Getting someone else into a ledger, both ends of it. The one who is in sends an invitation: a
- * QR code to scan across the table, and the link to paste into the group chat (invite.ts). The
- * one who opens it is asked one thing, once: which of the people in the ledger they are.
+ * Getting someone else into a ledger, both ends of it. The one who is in sends an invitation: to a
+ * friend on changle.ca (Friends.tsx), a QR code to scan across the table, or the link to paste into
+ * the group chat (invite.ts). The one who opens it is asked one thing, once: which of the people in
+ * the ledger they are.
  */
 import { Check, ChevronRight, Copy, Share2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
@@ -10,6 +11,7 @@ import { savedName } from "../online/config";
 import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { Face } from "./AddExpense";
+import { FriendsToInvite } from "./Friends";
 import { MAX_MEMBERS, type Ledger } from "./core";
 import { inviteLink, inviteText, qrPath } from "./invite";
 import { NAME_MAX, nameTaken, tidy } from "./ops";
@@ -37,7 +39,8 @@ type InviteProps = {
 };
 
 /**
- * The invitation, to show and to send. Its owner can also open this sheet to change it: that is
+ * The invitation, to show and to send: friends on changle.ca first, each a tap away; then the code
+ * and the link, for everyone else. Its owner can also open this sheet to change the link: that is
  * asked about first (it shuts out everyone who came in by the old one until they have the new),
  * then the sheet waits for the server, and shows the new code and link, ready to send.
  */
@@ -123,34 +126,47 @@ export function InviteSheet({ open, onClose, ledger, inviteKey, ready, lang, cha
             </Button>
           </div>
         </div>
-      ) : ready ? (
-        <div className="split-invite">
-          {qr && (
-            <div className="split-qr">
-              <svg viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label={say(lang, "qrLabel")} shapeRendering="crispEdges">
-                <path d={qr.d} />
-              </svg>
-            </div>
-          )}
-          <p>
-            <Sentences text={say(lang, "inviteHow")} lang={lang} />
-          </p>
-          {/* just changed: said in the place of the fine line, which the owner has read before */}
-          {changed ? (
-            <p className="split-invite-done" role="status">
-              <Check aria-hidden="true" />
-              {say(lang, "rekeyDone")}
-            </p>
-          ) : (
-            <p className="split-invite-who">{say(lang, "inviteWho")}</p>
-          )}
-          {/* said aloud once; the button keeps a name of its own */}
-          <span className="ui-visually-hidden" role="status">
-            {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
-          </span>
-        </div>
       ) : (
-        <p className="split-invite-who">{say(lang, "inviteNotYet")}</p>
+        <div className="split-invite-all">
+          <FriendsToInvite ledger={ledger} lang={lang} open={open} ready={ready} onLeave={onClose} />
+          <section className="split-invite" aria-labelledby="split-invite-link">
+            <h3 id="split-invite-link" className="split-friends-head">
+              {say(lang, "orLink")}
+            </h3>
+            {ready ? (
+              <>
+                {qr && (
+                  <div className="split-qr">
+                    <svg viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label={say(lang, "qrLabel")} shapeRendering="crispEdges">
+                      <path d={qr.d} />
+                    </svg>
+                  </div>
+                )}
+                <p>
+                  <Sentences text={say(lang, "inviteHow")} lang={lang} />
+                </p>
+                {/* just changed: said in the place of the fine line, which the owner has read before */}
+                {changed ? (
+                  <p className="split-invite-done" role="status">
+                    <Check aria-hidden="true" />
+                    {say(lang, "rekeyDone")}
+                  </p>
+                ) : (
+                  <p className="split-invite-who">{say(lang, "inviteWho")}</p>
+                )}
+                {/* said aloud once; the button keeps a name of its own */}
+                <span className="ui-visually-hidden" role="status">
+                  {copied ? say(lang, copied === "done" ? "copied" : "copyFailed") : ""}
+                </span>
+              </>
+            ) : (
+              // (a ledger just started is on its way to the server for a moment: only with no signal is that worth more than a word)
+              <p className="split-invite-who" role="status">
+                {say(lang, away ? "inviteNotYet" : "inviteMaking")}
+              </p>
+            )}
+          </section>
+        </div>
       )}
     </Sheet>
   );

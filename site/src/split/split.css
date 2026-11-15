@@ -142,6 +142,55 @@
   width: var(--text-sm);
   height: var(--text-sm);
 }
+/* invitations from friends, over the ledgers: each like a ledger's card, with who sent it, 加入, and
+   a way to turn it down */
+.split-invitations {
+  margin: var(--space-2) 0 var(--space-6);
+}
+.split-section-head {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.split-invitation {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--pad-card);
+  padding-inline-end: var(--space-2);
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+.split-invitation-text {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.split-invitation-text strong {
+  font: 700 var(--text-lg) / var(--leading-tight) var(--font-display);
+  overflow-wrap: anywhere;
+}
+.split-invitation-text > span {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+}
+.split-invitation-text .split-ledger-flag {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  line-height: var(--leading);
+}
+.split-invitation-text .split-ledger-flag.is-loud {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.split-invitation-text > .ui-button {
+  margin-top: var(--space-2);
+}
 .split-fine {
   margin: var(--space-6) 0 0;
   color: var(--color-text-2);
@@ -262,6 +311,36 @@
   height: var(--text-md);
   margin-top: calc((var(--text-sm) * var(--leading) - var(--text-md)) / 2);
 }
+/* the invitation's sheet: friends on changle.ca first, then the code and the link for everyone else.
+   Both parts head their own, start-aligned, and the code's part is centred under its head */
+.split-invite-all {
+  display: grid;
+  gap: var(--space-6);
+}
+.split-friends {
+  display: grid;
+  gap: var(--space-1);
+}
+.split-friends > .ui-button {
+  justify-self: start;
+}
+.split-friends > .split-people {
+  margin-top: 0;
+}
+.split-friends-head {
+  margin: 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.split-invite > .split-friends-head {
+  justify-self: stretch;
+  text-align: start;
+}
+/* a friend's line: their face, their name, and the button that invites them (which says once it has) */
+.split-friends .split-person > .ui-button {
+  flex: none;
+}
 /* the code is night on paper, with paper all round it: a scanner needs the quiet edge */
 .split-qr {
   width: calc(var(--space-12) * 4 + var(--space-8));
@@ -323,6 +402,68 @@
   color: var(--color-text-2);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+}
+
+/* who is in it, as faces that open the people, and 邀请 beside them: under where you stand, over the
+   rows (or over the empty state). Quiet: the light is for the one button at the thumb */
+.split-crew {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+.split-standing + .split-crew {
+  margin-top: calc(var(--space-2) * -1);
+}
+/* with nothing recorded it heads the list's empty state, clear of the tabs */
+.split-panel > .split-crew:first-child {
+  margin-top: var(--space-4);
+}
+.split-crew-faces {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0;
+  border: 0;
+  color: var(--color-text-2);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.split-crew-pile {
+  display: flex;
+  flex: none;
+}
+/* the faces overlap, each ringed in the page's own colour so the one behind reads as behind */
+.split-crew-pile > .split-face {
+  color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+.split-crew-pile > .split-face + .split-face {
+  margin-inline-start: calc(var(--space-2) * -1);
+}
+.split-face.is-more {
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+/* on the narrowest phones the faces say how many (the words are still read out), and 邀请 keeps its
+   place beside them */
+@media (max-width: 359px) {
+  .split-crew-count {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 /* rows: what it was and how it was shared on the left, the amount on the right, a hairline between */

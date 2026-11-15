@@ -244,3 +244,17 @@ What the look at the rendered sheet changed: at 1 MB the bar showed nothing at a
 
 Verdict: holds to the contract. A row in the menu and a sheet; the numbers are the account's, asked of the server each time.
 
+
+## Inviting friends on changle.ca (2026-11-15)
+
+Shape: Steve asked for a way to invite the site's friends from 还有谁 and from the ledger itself, "somewhere, made to look good", besides copying the link (mail is not part of it, his choice). Who and when: whoever starts a ledger, right after starting it, at the table or on the way; and anyone in it later, when someone new joins the trip. The friend learns of it in the site's chat and finds it waiting on 两清's own page.
+
+- The ledger: under where you stand, a row that says who is in it, as overlapping faces (four at most, then +N) with how many people, and 邀请 beside them, quiet: the light stays on 记一笔. The faces open the people. With nothing recorded, the same row heads the empty state, clear of the tabs. "5 个人 · 共花 …" became "共花 …": the faces carry the count. A locked ledger has the faces and no 邀请.
+- The invitation sheet: the site's friends first, a line each (their face on changle.ca, their name, 邀请, which says 已邀请 once done and can't be pressed again), three shown and 还有 N 位 for the rest; one line saying what the friend gets, which becomes what went wrong when something did. Then 或者发链接、扫码, start-aligned like the friends' heading, over the code and the link as before. Signed out: one line and 登录. No friends: one line saying where they come from.
+- Starting a ledger: under 还有谁's chips, the friends as pills, lit when picked, like the currency below; one picked joins the chips with their face on changle.ca, and the line under the pills says they get the invitation as the ledger starts. A name typed that is a friend's becomes them.
+- Once started, the ledger comes up with its invitation open: sending it is the next thing anyone does. Before the server has the ledger it says 正在准备邀请, not the no-signal line.
+- The page of ledgers: invitations first, under a small heading, each card like a ledger's (who sent it, by their face; the ledger's name; 加入, quiet) with ✕ to turn it down. Nothing moves anywhere.
+
+What the look at the rendered screens changed: on an empty ledger the faces sat on the tabs' line (they are spaced from it now); the faces' ring is the page's own colour, so the one behind reads as behind.
+
+Verdict: holds to the contract. Still three screens and one light; inviting is a quiet row on the ledger and a section on the sheet that was already there.

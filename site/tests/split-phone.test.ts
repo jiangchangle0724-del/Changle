@@ -13,6 +13,8 @@
  *  7. The 结清图: when this phone last made a ledger's picture, kept beside the ledger.
  *  8. Receipt photos: sent with the key and the sign-in, shown from what this phone has, taken off;
  *     the account's room for them, and its photos no expense uses, cleared.
+ *  9. Invitations to friends on changle.ca: sent with the key and the sign-in, and the ones waiting
+ *     for the account; only the server's own answers count.
  *
  * (What is sent when, and what the phone makes of the answers, is tests/split-sync.test.ts.)
  */
@@ -1021,6 +1023,83 @@ const { net } = await import("../src/split/net");
   reply = { status: 401, json: { error: "signin" } };
   eq(await roomNet.get(), { status: 401, error: "signin" }, "the sign-in run out: said as such");
   storage.removeItem("changle.session");
+}
+
+// ---------- 9. invitations to friends ----------
+{
+  const { inviteNet } = await import("../src/split/net");
+  storage.setItem("changle.session", "session-3");
+  const L = "inv-ledger-1";
+  let reply: Answer = { status: 201, json: { invite: "sent" } };
+  answer = (a) => (a.path.includes("/invites") ? reply : "nothing");
+  asked.length = 0;
+  const sent = await inviteNet.send(L, KEY, "uamy0000001", "m");
+  const body = JSON.parse(await (asked[0]?.blob?.text() ?? Promise.resolve("null"))) as unknown;
+  eq(
+    [sent, asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.key === KEY, a.auth, a.type]), body],
+    [{ status: 201, data: "sent" }, [["POST", `/ledgers/${L}/invites`, true, "Bearer session-3", "application/json"]], { to: "uamy0000001", member: "m" }],
+    "an invitation goes to the ledger's own address, with its key and the sign-in: to whom, and who in the ledger they are",
+  );
+  asked.length = 0;
+  await inviteNet.send(L, KEY, "uamy0000001");
+  eq(JSON.parse(await (asked[0]?.blob?.text() ?? Promise.resolve("null"))), { to: "uamy0000001" }, "with nobody said, nobody is sent");
+  reply = { status: 200, json: { invite: "again" } };
+  eq((await inviteNet.send(L, KEY, "uamy0000001")).data, "again", "the same one again");
+  reply = { status: 200, json: { invite: "in" } };
+  eq((await inviteNet.send(L, KEY, "uamy0000001")).data, "in", "one of theirs already");
+  const refusals: [Answer, unknown][] = [
+    [{ status: 403, json: { error: "friends" } }, { status: 403, error: "friends" }],
+    [{ status: 423, json: { error: "locked" } }, { status: 423, error: "locked" }],
+    [{ status: 429, json: { error: "limit" } }, { status: 429, error: "limit" }],
+    [{ status: 401, json: { error: "signin" } }, { status: 401, error: "signin" }],
+    [{ status: 403, json: { error: "key" } }, { status: 403, error: "key" }],
+  ];
+  const got: unknown[] = [];
+  for (const [how] of refusals) {
+    reply = how;
+    got.push(await inviteNet.send(L, KEY, "uamy0000001"));
+  }
+  eq(got, refusals.map(([, want]) => want), "the server's refusals, each named: not a friend, locked, today's used up, the sign-in, the key");
+  const notTheServer: [Answer, string][] = [
+    [{ status: 200, json: { invite: "maybe" } }, "an answer that isn't one of the three"],
+    [{ status: 200, text: "<html>a hotel's sign-in page</html>" }, "a page"],
+    [{ status: 403, text: "Forbidden" }, "a firewall's no"],
+    [{ status: 503, json: { error: "down" } }, "the server's bad day"],
+  ];
+  const heard: number[] = [];
+  for (const [how] of notTheServer) {
+    reply = how;
+    heard.push((await inviteNet.send(L, KEY, "uamy0000001")).status);
+  }
+  eq(heard, notTheServer.map(() => 0), `none of these is the server's answer: ${notTheServer.map(([, why]) => why).join("; ")}`);
+
+  // the ones waiting for this account
+  const from = { id: "usteve000001", name: "Steve", av: 3, ac: 2 };
+  const one = { ledger: "inv-ledger-2", key: KEY, name: "周末", from, member: "w", at: 5 };
+  reply = { status: 200, json: { invites: [one, { ...one, ledger: "inv-ledger-3", member: undefined, from: { id: "uwang0000001", name: "小王" } }, { ...one, key: "short" }, { ...one, from: { name: "nobody" } }, "junk"] } };
+  asked.length = 0;
+  eq(
+    [await inviteNet.waiting(), asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.auth])],
+    [{ status: 200, data: [one, { ledger: "inv-ledger-3", key: KEY, name: "周末", from: { id: "uwang0000001", name: "小王", av: 0 }, at: 5 }] }, [["GET", "/me/invites", "Bearer session-3"]]],
+    "the invitations waiting, with the sign-in: any that isn't one (a key too short, nobody it is from) left out, a photo it doesn't say none",
+  );
+  reply = { status: 200, json: { ledgers: [] } };
+  eq((await inviteNet.waiting()).status, 0, "an answer that isn't a list of them is none");
+  reply = { status: 200, json: { ok: true } };
+  asked.length = 0;
+  eq([await inviteNet.drop("inv-ledger-2"), asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.auth])], [{ status: 200, data: true }, [["DELETE", "/me/invites/inv-ledger-2", "Bearer session-3"]]], "one turned down");
+  storage.removeItem("changle.session");
+}
+
+// ---------- the site's friends list, as 两清 reads it ----------
+{
+  const { asFriends } = await import("../src/split/shape");
+  eq(
+    asFriends({ friends: [{ id: "uamy0000001", name: "Amy", av: 2, ac: 7, city: "", last: null, unread: 0 }, { id: "ubob0000001", name: "Bob" }, { id: "bad id!", name: "x" }, { name: "no id" }, 7], incoming: [] }),
+    [{ id: "uamy0000001", name: "Amy", av: 2, ac: 7 }, { id: "ubob0000001", name: "Bob", av: 0 }],
+    "each friend's id, name and face; anyone who isn't one left out",
+  );
+  eq([asFriends({ incoming: [] }), asFriends(null), asFriends({ friends: "x" })], [null, null, null], "and no list is none");
 }
 
 if (failed) {

@@ -27,6 +27,10 @@
  *                                           five; three recorded with no signal and answers lost on the way back
  *                                           count once; one expense changed on two phones at once; one payment
  *                                           marked on both its people's phones with no signal is recorded once
+ *   npx tsx scripts/split_check.ts friends  friends on changle.ca: picked while starting a ledger and invited
+ *                                           as it is made, invited from the invitation, told in the chat; their
+ *                                           invitations joined, turned down, and out of date once the link
+ *                                           changed; signed out, a locked ledger, an account with no friends
  *
  * Options: --base http://127.0.0.1:5173 (a build: `npx vite preview`, then --base http://127.0.0.1:4173),
  * --out <folder for the pictures>. CHROME=/path/to/chrome uses that browser, else Playwright's own
@@ -55,7 +59,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -90,11 +94,29 @@ const watch = (page: Page, signalMayGo = !local) => {
 };
 /** The site's own address: anything a page asks for at /api/ anywhere else is the rooms server's. */
 const site = new URL(base).origin;
-/** A changle.ca account of a phone's own: "test-account-" and this name is its session (tools/split/tests/accounts.ts). */
-const anAccount = () => `check${randomBytes(9).toString("base64url")}`;
+/**
+ * A changle.ca account of a phone's own: "test-account-" and this is its session
+ * (tools/split/tests/accounts.ts). Its name there is what follows the "_" (Check); and every
+ * account is in a circle of its own (what comes before the "_"), whose other accounts are its
+ * friends: both rooms servers, the stand-in here and the one beside 两清's server, say so.
+ */
+const anAccount = (name = "Check") => `ck${randomBytes(6).toString("hex")}_${name}`;
 const sessionOf = (account: string) => `test-account-${account}`;
+/** Who else is in an account's circle: its friends on changle.ca, by the name after the "_" in their account, and the name they go by there. */
+const CAST: [string, string][] = [
+  ["Amy", "阿美"],
+  ["Wang", "小王"],
+  ["Jason", "Jason"],
+  ["Li", "小李"],
+  ["Mia", "Mia"],
+];
+const circleOf = (account: string) => account.slice(0, account.indexOf("_"));
+/** A friend of `account`'s, by the name after the "_" in theirs. */
+const friendOf = (account: string, name: string) => `${circleOf(account)}_${name}`;
 /** The account as the rooms server describes it to its own phone (src/account/AccountContext.tsx, SelfUser). */
 const userOf = (account: string) => ({ id: account, name: "Check", city: "", gender: "", bio: "", av: 0, ac: 2, handle: account, since: 0, email: "check@example.com", phone: "", admin: false });
+/** The messages phones sent in the site's chat, to whom and what: an invitation's friend is told there. */
+const chats: { from: string; to: string; body: string }[] = [];
 /** Where the site keeps who is signed in on a phone (src/lib/api.ts, src/account/AccountContext.tsx). */
 const SESSION = "changle.session";
 const ME = "changle.me";
@@ -118,6 +140,19 @@ const rooms = async (ctx: BrowserContext) => {
       if (at === "/api/auth/keep" || at === "/api/auth/logout") return json(200, { ok: true });
       if (at === "/api/me" && req.method() === "GET") return who ? json(200, { user: userOf(who) }) : json(401, { error: "signin" });
       if (at === "/api/auth/code") return json(200, { sent: true, dev: "123456" });
+      // an account's friends: the others in its circle (an account with none has none)
+      if (at === "/api/friends" && req.method() === "GET") {
+        if (!who) return json(401, { error: "signin" });
+        const friends = who.includes("_") ? CAST.map(([key, name], i) => ({ id: friendOf(who, key), name, city: "", gender: "", bio: "", av: 0, ac: i + 3, handle: key, since: 0, last: null, unread: 0 })).filter((f) => f.id !== who) : [];
+        return json(200, { friends, incoming: [], outgoing: [], blocked: [] });
+      }
+      const chat = /^\/api\/chat\/([A-Za-z0-9_-]+)$/.exec(at)?.[1];
+      if (chat && req.method() === "POST") {
+        if (!who) return json(401, { error: "signin" });
+        const body = String((req.postDataJSON() as { body?: unknown } | null)?.body ?? "");
+        chats.push({ from: who, to: chat, body });
+        return json(200, { message: { id: chats.length, from: who, body, at: Date.now(), read: false } });
+      }
       if (at === "/api/auth/verify") {
         const account = anAccount();
         return json(200, { token: sessionOf(account), user: userOf(account) });
@@ -214,6 +249,12 @@ const speak = (ctx: BrowserContext, lang: Lang) =>
 const re = (s: string) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 /** Every sheet is shut (one sheet opening another leaves two open for a moment). */
 const closed = (page: Page) => page.waitForFunction(`!document.querySelector("dialog[open]")`);
+/** A ledger just started comes up with its invitation open: closed, for what comes next. */
+const pastInvite = async (page: Page) => {
+  await page.locator("dialog[open] .split-invite-all").waitFor();
+  await page.keyboard.press("Escape");
+  await closed(page);
+};
 const key = (page: Page, d: string) => page.locator(".split-key", { hasText: new RegExp(`^${d === "." ? "\\." : d}$`) }).click();
 const type = async (page: Page, digits: string) => {
   for (const d of digits) await key(page, d);
@@ -338,8 +379,51 @@ async function walk(lang: Lang, width: number, height: number) {
   await closed(page);
   await shot("01c-empty-signed-in");
   let sheet = await startSheet("惠斯勒周末", "Steve", ["小王", "阿美", "Jason", "小李"]);
+  // a friend on changle.ca, picked: the name typed is them now, and they get an invitation as it starts
+  await sheet.getByRole("button", { name: "Jason", exact: true, pressed: false }).click();
+  await sheet.getByText(t("pickedNote").split("\n")[0]).waitFor();
   await shot("02-start");
   await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  // it comes up with its invitation open: the friend picked is invited as soon as the server has the ledger
+  if (local) {
+    await page.locator("dialog[open] .split-person", { hasText: "Jason" }).getByRole("button", { name: t("friendInvited"), exact: true }).waitFor({ timeout: 15_000 });
+    await page.locator("dialog[open] .split-qr").waitFor();
+  } else await page.locator("dialog[open] .split-invite-all").waitFor();
+  await shot("02b-started");
+  if (local) {
+    const me = (await signedAs(page)) ?? "";
+    const told = chats.filter((c) => c.from === me && c.to === friendOf(me, "Jason"));
+    ok(told.length === 1 && told[0].body.includes("惠斯勒周末") && told[0].body.includes("changle.ca/split"), `${lang} ${width}x${height}: the friend picked is told in the site's chat, once: the ledger's name, and where to find it`);
+    const jasonsId = (await keptBy(page)).held[0].server.members.find((m) => m.name === "Jason")?.id;
+    const waiting = (await page.evaluate(`fetch("/split/api/me/invites", { headers: { authorization: "Bearer ${sessionOf(friendOf(me, "Jason"))}" } }).then((r) => r.json())`)) as { invites: { name: string; member?: string; from: { name: string } }[] };
+    ok(waiting.invites.length === 1 && waiting.invites[0].name === "惠斯勒周末" && waiting.invites[0].member === jasonsId && waiting.invites[0].from.name === "Check", `${lang} ${width}x${height}: and the invitation waits in their account, from Check, for the Jason in the ledger`);
+  }
+  await page.keyboard.press("Escape");
+  await closed(page);
+  if (local) {
+    // the friend picked when the ledger started, on their own phone: the invitation waits on their
+    // page of ledgers; 加入, and the ledger opens, with them as the Jason in it, nothing asked
+    const me = (await signedAs(page)) ?? "";
+    const jasons = await phone(width, height, lang);
+    await speak(jasons, lang);
+    await signIn(jasons, friendOf(me, "Jason"));
+    const jp = await jasons.newPage();
+    watch(jp, true);
+    await jp.goto(`${base}/split`);
+    await jp.locator(".split-invitation").waitFor();
+    await shot("14b-invitation", jp);
+    await jp.locator(".split-invitation").getByRole("button", { name: t("inviteJoin"), exact: true }).click();
+    await jp.locator(".split-crew").waitFor();
+    const theirs = await keptBy(jp);
+    const there = theirs.held.find((h) => h.server.name === "惠斯勒周末");
+    ok(!!there && theirs.me[there.server.id] === there.server.members.find((m) => m.name === "Jason")?.id, `${lang} ${width}x${height}: 加入 opens the ledger on the friend's phone, as the Jason in it, without asking`);
+    await shot("14c-invitation-joined", jp);
+    await jp.goto(`${base}/split`);
+    await jp.locator(".split-ledger").first().waitFor();
+    await jp.waitForTimeout(800);
+    ok((await jp.locator(".split-invitation").count()) === 0, `${lang} ${width}x${height}: and the invitation is used up: the ledger is on their list instead`);
+    await jasons.close();
+  }
   await button("addExpense").waitFor();
   await shot("03-ledger-empty");
   await page.getByRole("tab", { name: t("settle") }).click();
@@ -653,6 +737,7 @@ async function walk(lang: Lang, width: number, height: number) {
   await page.goto(`${base}/split`);
   await button("start").waitFor();
   await shot("14-ledgers");
+
   await page.goto(`${base}/split/aaaaaaaaaaaaaaaaaaaaaa`);
   await button("myLedgers").waitFor();
   await shot("18-missing");
@@ -721,6 +806,10 @@ async function walk(lang: Lang, width: number, height: number) {
     await ctx.route("**/split/api/ledgers", (route) => (route.request().method() === "POST" ? route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ error: "limit" }) }) : route.fallback()));
     sheet = await startSheet("周二晚饭", "Steve", ["小王"]);
     await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+    // (its invitation can't be ready: the sheet says why, and is closed)
+    await page.getByRole("dialog").getByText(t("inviteNotYet")).waitFor();
+    await page.keyboard.press("Escape");
+    await closed(page);
     await page.locator(".split-page > .split-sync.is-loud").waitFor();
     await shot("28-trouble");
     await button("more").click();
@@ -735,6 +824,9 @@ async function walk(lang: Lang, width: number, height: number) {
     await ctx.route("**/split/api/ledgers", (route) => (route.request().method() === "POST" ? route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "signin" }) }) : route.fallback()));
     sheet = await startSheet("周三午饭", "Steve", ["小王"]);
     await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+    await page.getByRole("dialog").getByText(t("inviteNotYet")).waitFor();
+    await page.keyboard.press("Escape");
+    await closed(page);
     await page.locator(".split-sync-act").waitFor();
     await shot("28c-signin");
     await button("more").click();
@@ -864,6 +956,7 @@ async function walk(lang: Lang, width: number, height: number) {
   sheet = await startSheet("Hokkaido ski trip with the whole office", "Bartholomew-Alexander", ["Wilhelmina Featherstone", "欧阳娜娜的朋友小明同学"], lang === "zh" ? "日元" : "JPY");
   await shot("19-start-long");
   await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  await pastInvite(page);
   await fill("9999999999", "Wilhelmina", "Lift passes, four days, the whole group x");
   await shot("20-add-yen");
   await button("done").click();
@@ -894,6 +987,7 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("start").waitFor();
   sheet = await startSheet(lang === "zh" ? "东京五天" : "Five days in Tokyo", lang === "zh" ? "我" : "Me", lang === "zh" ? ["小王", "阿美"] : ["Wang", "Mei"]);
   await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  await pastInvite(page);
   const cur = (zh: string, code: string) => page.getByRole("dialog").getByRole("button", { name: lang === "zh" ? zh : code, exact: true });
   const corner = page.locator(".split-currency button");
   const comes = page.locator(".split-add-comes");
@@ -1061,6 +1155,7 @@ const start = async (page: Page, name = "测试", people = ["阿甲", "阿乙"])
     await sheet.getByRole("button", { name: t("add"), exact: true }).click();
   }
   await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+  await pastInvite(page);
   await button(page, "addExpense").waitFor();
 };
 /** 两清's list on a phone signed in (starting a ledger needs that); `signed` false: one that isn't */
@@ -1906,7 +2001,7 @@ async function behave() {
       await pc.locator("#split-add-me").fill("老陈");
       await pc.getByRole("button", { name: t("addMe"), exact: true }).click();
       await pc.locator(".split-standing").waitFor();
-      await pa.locator(".split-standing-sub", { hasText: say("zh", "people", { n: 4 }) }).waitFor({ timeout: 5000 });
+      await pa.locator(".split-crew-faces", { hasText: say("zh", "people", { n: 4 }) }).waitFor({ timeout: 5000 });
       ok((await pc.locator(".split-standing-lead").textContent()) === t("youSquare"), "someone the ledger didn't have adds themselves, is in, and the first phone sees four people");
 
       // only a look
@@ -2135,6 +2230,7 @@ async function behave() {
         await sheet.getByRole("button", { name: t("add"), exact: true }).click();
       }
       await sheet.getByRole("button", { name: t("startIt"), exact: true }).click();
+      await pastInvite(pa);
       await button(pa, "addExpense").waitFor();
       await spend(pa, "30");
       await pa.waitForTimeout(800);
@@ -2627,6 +2723,167 @@ async function gate() {
   for (const ctx of ctxs) await ctx.close();
 }
 
+// ---------- friends: inviting friends on changle.ca, and their invitations ----------
+async function friends() {
+  /** The invitations waiting for an account, as the server keeps them. */
+  const waitingFor = async (page: Page, account: string) =>
+    ((await page.evaluate(`fetch("/split/api/me/invites", { headers: { authorization: "Bearer ${sessionOf(account)}" } }).then((r) => r.json())`)) as { invites: { ledger: string; name: string; member?: string; from: { id: string; name: string } }[] }).invites;
+  const sheet = (page: Page) => page.locator("dialog[open]");
+  const row = (page: Page, name: string) => sheet(page).locator(".split-person", { hasText: name });
+
+  const ctx = await phone(390, 664, "zh");
+  const steve = await signIn(ctx);
+  // (a refusal on purpose, and the link changed further down, each leave the browser saying a request was refused)
+  const page = await open(ctx, true);
+  // starting one: a name typed, and two friends picked (one picked, taken back, and picked again)
+  await button(page, "start").click();
+  const starting = page.getByRole("dialog");
+  await starting.locator("input").nth(0).fill("周五火锅");
+  await starting.locator("input").nth(1).fill("我");
+  await starting.locator("#split-who-else").fill("阿甲");
+  await starting.getByRole("button", { name: t("add"), exact: true }).click();
+  const pills = starting.locator("fieldset", { hasText: t("pickFriends") }).getByRole("button");
+  ok((await pills.allTextContents()).join(",") === CAST.map(([, name]) => name).join(","), `开一个账本: the friends on changle.ca to pick, every one (${(await pills.allTextContents()).join(",")})`);
+  await starting.getByRole("button", { name: "阿美", exact: true, pressed: false }).click();
+  await starting.getByRole("button", { name: "Mia", exact: true, pressed: false }).click();
+  await starting.getByRole("button", { name: "Mia", exact: true, pressed: true }).click();
+  const chips = () => starting.locator(".split-chips .ui-roster-name").allTextContents();
+  ok((await chips()).join(",") === "阿甲,阿美", `picked, a friend is one of the people; picked again, taken back (${(await chips()).join(",")})`);
+  await starting.getByRole("button", { name: "Mia", exact: true, pressed: false }).click();
+  await starting.getByText(t("pickedNote").split("\n")[0]).waitFor();
+  await starting.getByRole("button", { name: t("startIt"), exact: true }).click();
+
+  // it comes up with the invitation open: the two picked are invited as the server has the ledger, and told in the chat
+  await row(page, "阿美").getByRole("button", { name: t("friendInvited"), exact: true }).waitFor({ timeout: 15_000 });
+  await sheet(page).getByRole("button", { name: t("friendsMore").replace("{n}", "2"), exact: true }).click();
+  await row(page, "Mia").getByRole("button", { name: t("friendInvited"), exact: true }).waitFor();
+  const kept = await keptBy(page);
+  const ledger = kept.held[0].server;
+  const idOf = (name: string) => ledger.members.find((m) => m.name === name)?.id;
+  const amy = friendOf(steve, "Amy");
+  const mia = friendOf(steve, "Mia");
+  const wang = friendOf(steve, "Wang");
+  const toAmy = await waitingFor(page, amy);
+  const toMia = await waitingFor(page, mia);
+  ok(toAmy.length === 1 && toAmy[0].ledger === ledger.id && toAmy[0].member === idOf("阿美") && toMia[0]?.member === idOf("Mia") && toAmy[0].from.id === steve, "each friend picked has the invitation waiting in their account, for the person made for them");
+  const told = chats.filter((c) => c.from === steve);
+  ok(told.length === 2 && told.some((c) => c.to === amy) && told.some((c) => c.to === mia) && told.every((c) => c.body.includes("周五火锅")), `and each is told once in the site's chat (${told.length})`);
+
+  // one invited from the sheet: someone who isn't in the ledger, so nobody in it is said for them
+  await row(page, "小王").getByRole("button", { name: t("inviteShort"), exact: true }).click();
+  await row(page, "小王").getByRole("button", { name: t("friendInvited"), exact: true }).waitFor();
+  ok((await row(page, "小王").getByRole("button").isDisabled()) && (await waitingFor(page, wang))[0]?.member === undefined, "邀请 on a friend's line: invited (and the button says so, and can't be pressed again); nobody in the ledger is said for them");
+  ok(chats.filter((c) => c.from === steve && c.to === wang).length === 1, "told in the chat too");
+  // a friend who isn't one any more, as the server says
+  await page.route("**/split/api/ledgers/*/invites", (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "friends" }) }));
+  await row(page, "Jason").getByRole("button", { name: t("inviteShort"), exact: true }).click();
+  await sheet(page).getByText(t("friendNotFriend").replace("{who}", "Jason")).waitFor();
+  ok((await row(page, "Jason").getByRole("button", { name: t("inviteShort"), exact: true }).isEnabled()) && !chats.some((c) => c.to === friendOf(steve, "Jason")), "not a friend any more: said under the list, by name; the line can be tried again, and nobody is told");
+  await page.unroute("**/split/api/ledgers/*/invites");
+  await page.keyboard.press("Escape");
+  await closed(page);
+
+  // the ledger's page: the faces open the people, 邀请 the invitation, which still knows who was invited
+  await page.locator(".split-crew-faces").click();
+  await page.getByRole("dialog").getByText(t("addPerson")).waitFor();
+  ok(true, "the faces open the people");
+  await page.keyboard.press("Escape");
+  await closed(page);
+  await page.locator(".split-crew").getByRole("button", { name: t("inviteShort"), exact: true }).click();
+  await row(page, "小王").getByRole("button", { name: t("friendInvited"), exact: true }).waitFor();
+  ok(true, "邀请 opens the invitation, and a friend invited earlier is still said to be");
+  await page.keyboard.press("Escape");
+  await closed(page);
+
+  // 小王's phone: the invitation waits on the page of ledgers; joined, they say which one they are (nobody was said)
+  const wangs = await phone(390, 664, "zh");
+  await signIn(wangs, wang);
+  const wp = await wangs.newPage();
+  // (their phone is let go when the link changes, further down: the browser says a request was refused)
+  watch(wp, true);
+  await wp.goto(`${base}/split`);
+  const card = wp.locator(".split-invitation", { hasText: "周五火锅" });
+  await card.waitFor();
+  ok((await card.textContent())?.includes(t("invitedBy").replace("{who}", "Check")), "the invitation says who sent it");
+  ok((await wp.locator(".ui-empty").count()) === 0, "and with it on the page, the page isn't empty");
+  await card.getByRole("button", { name: t("inviteJoin"), exact: true }).click();
+  await wp.locator(".split-who").waitFor();
+  await wp.locator("#split-add-me").fill("小王");
+  await wp.getByRole("button", { name: t("addMe"), exact: true }).click();
+  await wp.locator(".split-crew").waitFor();
+  await wp.waitForTimeout(1500);
+  ok((await waitingFor(wp, wang)).length === 0 && (await myLedgers(wp)).ledgers.some((l) => l.id === ledger.id), "joined: the ledger is in 小王's account, and the invitation is used up");
+
+  // Mia's phone: turned down
+  const mias = await phone(390, 664, "zh");
+  await signIn(mias, mia);
+  const mp = await mias.newPage();
+  watch(mp);
+  await mp.goto(`${base}/split`);
+  await mp.locator(".split-invitation").getByRole("button", { name: t("inviteNo").replace("{name}", "周五火锅"), exact: true }).click();
+  await mp.locator(".split-invitation").waitFor({ state: "detached" });
+  await mp.waitForTimeout(800);
+  await mp.reload();
+  await button(mp, "start").waitFor();
+  await mp.waitForTimeout(1500);
+  ok((await mp.locator(".split-invitation").count()) === 0 && (await waitingFor(mp, mia)).length === 0, "turned down: gone from the page, and from the account");
+
+  // a phone with the link, signed out: the invitation sheet says signing in brings friends
+  const link = `${base}/split/${ledger.id}#k=${kept.held[0].key}`;
+  const guests = await phone(390, 664, "zh");
+  const gp = await guests.newPage();
+  watch(gp);
+  await gp.goto(link);
+  await gp.getByRole("button", { name: t("justLook"), exact: true }).click();
+  await gp.locator(".split-crew").getByRole("button", { name: t("inviteShort"), exact: true }).click();
+  await sheet(gp).getByText(t("friendsSignIn")).waitFor();
+  ok((await sheet(gp).getByRole("button", { name: t("signIn"), exact: true }).count()) === 1 && (await sheet(gp).locator(".split-qr").count()) === 1, "signed out: a line saying signing in brings your friends, a way to, and the code and link as ever");
+  await guests.close();
+
+  // the owner changes the link: 阿美's invitation no longer opens the ledger, and says so
+  await button(page, "more").click();
+  await page.getByRole("button", { name: re(t("rekey")) }).click();
+  await page.getByRole("dialog").getByRole("button", { name: t("rekeyYes"), exact: true }).click();
+  await page.getByRole("dialog").getByText(t("rekeyDone")).waitFor({ timeout: 15_000 });
+  await row(page, "小王").getByRole("button", { name: t("inviteShort"), exact: true }).waitFor();
+  ok(true, "the link changed: the friends invited with the old one can be invited again");
+  await page.keyboard.press("Escape");
+  await closed(page);
+  const amys = await phone(390, 664, "zh");
+  await signIn(amys, amy);
+  const ap = await amys.newPage();
+  watch(ap, true);
+  await ap.goto(`${base}/split`);
+  await ap.locator(".split-invitation").getByRole("button", { name: t("inviteJoin"), exact: true }).click();
+  await ap.locator(".split-invitation").getByText(t("inviteStale")).waitFor();
+  await ap.waitForTimeout(800);
+  ok((await ap.locator(".split-invitation").getByRole("button", { name: t("inviteJoin"), exact: true }).count()) === 0 && (await waitingFor(ap, amy)).length === 0, "阿美 opens hers: it says it no longer opens the ledger, and is gone from her account");
+
+  // locked: nobody new, so no 邀请 (the faces still open the people)
+  await button(page, "more").click();
+  await page.getByRole("button", { name: re(t("lockIt")) }).click();
+  await page.getByRole("button", { name: re(t("unlockIt")) }).waitFor();
+  await page.keyboard.press("Escape");
+  await closed(page);
+  ok((await page.locator(".split-crew .ui-button").count()) === 0 && (await page.locator(".split-crew-faces").count()) === 1, "a locked ledger: the faces, and no 邀请");
+
+  // an account with no friends on changle.ca: nothing to pick, and the invitation says where friends come from
+  const lone = await phone(390, 664, "zh");
+  await signIn(lone, `lone${randomBytes(6).toString("hex")}`);
+  const lp = await open(lone);
+  await button(lp, "start").click();
+  await lp.getByRole("dialog").locator("#split-who-else").waitFor();
+  await lp.waitForTimeout(800);
+  ok((await lp.getByRole("dialog").getByText(t("pickFriends")).count()) === 0, "no friends: nothing to pick while starting");
+  await lp.keyboard.press("Escape");
+  await closed(lp);
+  await start(lp, "独自", ["阿甲"]).catch(() => undefined);
+  await lp.locator(".split-crew").getByRole("button", { name: t("inviteShort"), exact: true }).click();
+  await sheet(lp).getByText(t("friendsNone")).waitFor();
+  ok(true, "and the invitation says friends there can be invited here");
+  for (const c of [ctx, wangs, mias, amys, lone]) await c.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -2635,6 +2892,7 @@ if (what === "all" || what === "behave") await behave();
 // (the photos alone, as behave has them: quicker when they are being worked on)
 if (what === "photos" && local) await photos();
 if (what === "all" || what === "gate") await gate();
+if ((what === "all" || what === "friends") && local) await friends();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);

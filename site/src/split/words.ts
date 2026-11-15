@@ -18,8 +18,8 @@ export const W = {
   // signed out, the same button signs in first: starting a ledger needs a changle.ca account
   startSignIn: { zh: "登录，开一个账本", en: "Sign in to start a ledger" },
   preview: {
-    zh: "小样：账本存在云端，登录以后换手机也都在。在账本右上角的 ⋯ 里邀请朋友一起记。",
-    en: "A first look: ledgers are kept online, and signed in they follow you to any phone. Invite friends from the ⋯ menu of a ledger.",
+    zh: "小样：账本存在云端，登录以后换手机也都在。在账本里点「邀请」，叫朋友一起记。",
+    en: "A first look: ledgers are kept online, and signed in they follow you to any phone. Tap Invite in a ledger to bring friends in.",
   },
   notKept: {
     zh: "这个浏览器不让存东西（可能开了无痕模式），关掉页面账本就没了。",
@@ -55,7 +55,7 @@ export const W = {
   views: { zh: "账目和结清", en: "Expenses and settling up" },
   noExpenses: { zh: "还没有账", en: "Nothing here yet" },
   noExpensesBody: { zh: "点下面的「记一笔」，记下第一笔。", en: "Tap Add expense below to record the first one." },
-  inviteHint: { zh: "想和朋友一起记，点右上角的 ⋯。", en: "To record together, invite friends from ⋯ at the top." },
+  inviteHint: { zh: "想和朋友一起记，点上面的「邀请」。", en: "To record together, tap Invite above." },
   addExpense: { zh: "记一笔", en: "Add expense" },
   paidByYou: { zh: "你付", en: "You paid" },
   paidBy: { zh: "{who}付", en: "{who} paid" },
@@ -71,8 +71,8 @@ export const W = {
   missing: { zh: "这部手机上没有这个账本", en: "This ledger isn't on this phone" },
   // (a line break in a sentence or two of running text is where it may wrap first: Chinese has no spaces to say so)
   missingBody: {
-    zh: "账本要用邀请链接打开。\n请账本里的人从 ⋯ 里发一条给你。",
-    en: "A ledger opens with an invite link.\nAsk someone in it to send you one from its ⋯ menu.",
+    zh: "账本要用邀请链接打开。\n请账本里的人点「邀请」，发一条给你。",
+    en: "A ledger opens with an invite link.\nAsk someone in it to tap Invite and send you one.",
   },
   myLedgers: { zh: "看我的账本", en: "My ledgers" },
 
@@ -88,6 +88,38 @@ export const W = {
   sendInvite: { zh: "发给朋友", en: "Share" },
   inviteLine: { zh: "来「{name}」一起记账：", en: 'Join the ledger "{name}" on All Square:' },
   qrLabel: { zh: "邀请链接的二维码", en: "QR code of the invite link" },
+  // (a ledger just started: the invitation is on its way to the server for a moment)
+  inviteMaking: { zh: "正在准备邀请", en: "Getting the invitation ready" },
+
+  // inviting friends on changle.ca: from the ledger, and while starting one
+  inviteShort: { zh: "邀请", en: "Invite" },
+  friendsHead: { zh: "网站上的好友", en: "Your friends on changle.ca" },
+  friendInvited: { zh: "已邀请", en: "Invited" },
+  friendIn: { zh: "已在账本里", en: "Already in" },
+  friendsMore: { zh: "还有 {n} 位", en: "{n} more" },
+  friendsNote: { zh: "TA 会在两清里看到邀请，\n也会收到你发的一条消息。", en: "They'll find the invitation in All Square,\nwith a message from you." },
+  friendsSignIn: { zh: "登录以后，能直接邀请网站上的好友。", en: "Sign in to invite your friends on changle.ca." },
+  friendsNone: { zh: "在网站上加了好友，就能在这里直接邀请。", en: "Once you have friends on changle.ca, you can invite them here." },
+  friendsReading: { zh: "正在找你的好友", en: "Finding your friends" },
+  friendsAway: { zh: "好友没加载出来，检查一下网络。", en: "Couldn't load your friends. Check your connection." },
+  orLink: { zh: "或者发链接、扫码", en: "Or send the link" },
+  friendAway: { zh: "没邀请上 {who}，检查一下网络再试。", en: "Couldn't invite {who}. Check your connection and try again." },
+  friendNotFriend: { zh: "{who} 已经不是你的好友了。", en: "{who} isn't your friend on changle.ca anymore." },
+  friendLocked: { zh: "账本锁上了，进不了新人。", en: "The ledger is locked, so nobody new can join." },
+  friendLimit: { zh: "今天邀请得太多了，明天再来。", en: "That's enough invitations for today. Try again tomorrow." },
+  friendSignIn: { zh: "登录过期了，重新登录再邀请。", en: "Your sign-in ran out. Sign in again to invite." },
+  // the message the friend gets in the site's chat, from whoever invited them
+  inviteChat: { zh: "邀请你一起记账：两清的账本「{name}」。打开 changle.ca/split 就能加入。", en: 'Come and split the bills with me in "{name}" on All Square. Open changle.ca/split to join.' },
+  pickFriends: { zh: "从网站好友里选", en: "Or pick friends on changle.ca" },
+  pickedNote: { zh: "选上的好友会收到邀请，\n账本一开就发。", en: "The friends you pick get an invitation\nas soon as the ledger starts." },
+
+  // invitations from friends, waiting on the page of ledgers
+  invitesHead: { zh: "邀请你的账本", en: "Invitations" },
+  invitedBy: { zh: "{who} 邀请你一起记账", en: "{who} invited you" },
+  inviteJoin: { zh: "加入", en: "Join" },
+  inviteNo: { zh: "不加入「{name}」", en: 'Turn down "{name}"' },
+  inviteStale: { zh: "这个邀请打不开账本了，找邀请你的人再发一个。", en: "This invitation doesn't open the ledger anymore. Ask for a new one." },
+  inviteGone: { zh: "这个账本已经删了。", en: "This ledger was deleted." },
   whoTitle: { zh: "你是哪一位？", en: "Which one are you?" },
   whoBody: { zh: "点你的名字。\n以后这部手机上的「你」就是这个人。", en: 'Tap your name.\nFrom then on, "you" on this phone is that person.' },
   justLook: { zh: "先看看账本", en: "Just have a look" },

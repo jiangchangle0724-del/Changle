@@ -12,6 +12,7 @@ import { savedName } from "../online/config";
 import { go } from "../router";
 import { useStore } from "../store";
 import { CURRENCIES } from "../tools/money";
+import { Avatar } from "../account/Avatar";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { Pill } from "../ui/Pill";
@@ -22,11 +23,17 @@ import { MAX_MEMBERS, spent, type Ledger } from "./core";
 import { money } from "./format";
 import { standing } from "./lines";
 import { LEDGER_NAME_MAX, NAME_MAX, startLedger, tidy } from "./ops";
+import { Invitations, PickFriends, useInvitations } from "./Friends";
+import { justStarted, pickFriends } from "./invites";
 import { Bar } from "./parts";
+import type { Person } from "./shape";
 import { isKept, newId, useSaved } from "./store";
 import type { Held } from "./sync";
 import { browse, listed, openLedger, useSync } from "./syncing";
 import { say, W, type Word } from "./words";
+
+/** A friend's face in the chips of the others: the size of a small chip's face (src/ui/RosterChip.css, .ui-roster-sm). */
+const FACE = 32;
 
 /**
  * Something for the list to say when it comes up, said by the page that sends you there (a ledger
@@ -71,6 +78,7 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
     if (status !== "loading") openSignIn();
   };
   const shown = saved.ledgers.flatMap((l, i) => (listed(saved.held[i], account) ? [{ ledger: l, held: saved.held[i] }] : []));
+  const invitations = useInvitations(account);
   return (
     <div className="split-page">
       <Bar
@@ -83,6 +91,7 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
           </span>
         }
       />
+      <Invitations lang={lang} {...invitations} />
       {shown.length ? (
         <ul className="split-ledgers">
           {shown.map(({ ledger: l, held }) => (
@@ -92,7 +101,8 @@ export function Ledgers({ onBack }: { onBack: () => void }) {
           ))}
         </ul>
       ) : (
-        <EmptyState icon={ReceiptText} title={say(lang, "noLedgers")} body={say(lang, "noLedgersBody")} />
+        // (invitations waiting are something to show: the empty state is for a page with nothing)
+        !invitations.waiting.length && <EmptyState icon={ReceiptText} title={say(lang, "noLedgers")} body={say(lang, "noLedgersBody")} />
       )}
       <p className="split-fine" role={isKept() ? undefined : "alert"}>
         {say(lang, isKept() ? "preview" : "notKept")}
@@ -137,33 +147,58 @@ function LedgerCard({ ledger, held, me, lang }: { ledger: Ledger; held: Held; me
   );
 }
 
-/** The sheet that starts a ledger: its name, you, the others, and the currency it settles in. */
+/** One of the others in a ledger being started: a name typed, or a friend on changle.ca picked (by their name there). */
+type Other = { name: string; friend?: Person };
+
+/**
+ * The sheet that starts a ledger: its name, you, the others (typed, or friends on changle.ca
+ * picked, who get an invitation as it starts), and the currency it settles in. Once started, the
+ * ledger comes up with its invitation open, for everyone else.
+ */
 function StartLedger({ open, onClose, lang }: { open: boolean; onClose: () => void; lang: Lang }) {
   const [name, setName] = useState("");
   const [me, setMe] = useState(() => tidy(savedName(), NAME_MAX));
-  const [others, setOthers] = useState<string[]>([]);
+  const [others, setOthers] = useState<Other[]>([]);
   const [next, setNext] = useState("");
   const [currency, setCurrency] = useState("CAD");
+  /** a friend picked whose name is already someone's here: said under the friends */
+  const [clash, setClash] = useState<"nameTaken" | "full" | null>(null);
 
   const fresh = tidy(next, NAME_MAX);
   const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
-  const taken = !!fresh && (same(fresh, tidy(me, NAME_MAX)) || others.some((o) => same(o, fresh)));
+  const taken = !!fresh && (same(fresh, tidy(me, NAME_MAX)) || others.some((o) => same(o.name, fresh)));
   const full = others.length + 1 >= MAX_MEMBERS;
   const addOther = () => {
     if (!fresh || taken || full) return;
-    setOthers([...others, fresh]);
+    setOthers([...others, { name: fresh }]);
     setNext("");
   };
   // a name typed but not added yet still counts: people forget the Add button
-  const everyoneElse = fresh && !taken && !full ? [...others, fresh] : others;
-  const ready = !!tidy(name, LEDGER_NAME_MAX) && !!tidy(me, NAME_MAX) && everyoneElse.length > 0 && !everyoneElse.some((o) => same(o, tidy(me, NAME_MAX)));
+  const everyoneElse: Other[] = fresh && !taken && !full ? [...others, { name: fresh }] : others;
+  const ready = !!tidy(name, LEDGER_NAME_MAX) && !!tidy(me, NAME_MAX) && everyoneElse.length > 0 && !everyoneElse.some((o) => same(o.name, tidy(me, NAME_MAX)));
+  const picked = new Set(others.flatMap((o) => (o.friend ? [o.friend.id] : [])));
+  /** A friend picked, or picked again to take back. A name typed that is theirs becomes them; one that is someone else's here can't be had twice. */
+  const pick = (friend: Person) => {
+    setClash(null);
+    if (picked.has(friend.id)) return setOthers(others.filter((o) => o.friend?.id !== friend.id));
+    const theirs = tidy(friend.name, NAME_MAX);
+    const typed = others.findIndex((o) => !o.friend && same(o.name, theirs));
+    if (typed >= 0) return setOthers(others.map((o, i) => (i === typed ? { ...o, friend } : o)));
+    if (!theirs || same(theirs, tidy(me, NAME_MAX)) || others.some((o) => same(o.name, theirs))) return setClash("nameTaken");
+    if (full) return setClash("full");
+    setOthers([...others, { name: theirs, friend }]);
+  };
 
   const start = () => {
     if (!ready) return;
     const mine = newId();
-    const ledger = startLedger(newId(), name, currency, [{ id: mine, name: me }, ...everyoneElse.map((n) => ({ id: newId(), name: n }))]);
+    const people = everyoneElse.map((o) => ({ ...o, id: newId() }));
+    const ledger = startLedger(newId(), name, currency, [{ id: mine, name: me }, ...people.map(({ id, name: n }) => ({ id, name: n }))]);
     // (it is held on this phone from here on, and made on the server as soon as that can be reached)
     openLedger(ledger, mine);
+    // the friends picked are invited once the server has it, as the person made for each
+    pickFriends(ledger.id, people.flatMap((p) => (p.friend ? [{ to: p.friend.id, name: p.friend.name, member: p.id }] : [])));
+    justStarted(ledger.id);
     go({ kind: "split", id: ledger.id });
   };
 
@@ -216,13 +251,21 @@ function StartLedger({ open, onClose, lang }: { open: boolean; onClose: () => vo
           {others.length > 0 && (
             <ul className="split-chips">
               {others.map((o) => (
-                <li key={o}>
-                  <RosterChip name={o} lang={lang} size="sm" onRemove={() => setOthers(others.filter((x) => x !== o))} />
+                <li key={o.name}>
+                  {/* a friend picked shows their face on changle.ca */}
+                  <RosterChip
+                    name={o.name}
+                    lang={lang}
+                    size="sm"
+                    face={o.friend && <Avatar uid={o.friend.id} name={o.friend.name} av={o.friend.av} ac={o.friend.ac} size={FACE} />}
+                    onRemove={() => setOthers(others.filter((x) => x !== o))}
+                  />
                 </li>
               ))}
             </ul>
           )}
         </div>
+        <PickFriends lang={lang} open={open} picked={picked} onPick={pick} note={clash && say(lang, clash, { n: MAX_MEMBERS })} />
         <fieldset className="split-choice">
           <legend className="field-label">{say(lang, "settleIn")}</legend>
           <div className="split-pills">
