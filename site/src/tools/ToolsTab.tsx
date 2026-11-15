@@ -3,6 +3,7 @@ import type { T } from "../i18n";
 import { useStore } from "../store";
 import { Tile } from "../ui/Tile";
 import { TOOLS, type ToolId } from "./ids";
+import { Split } from "./Split";
 import { Suibian } from "./Suibian";
 import { Tuan } from "./Tuan";
 import { WhatsOn } from "./WhatsOn";
@@ -34,7 +35,7 @@ const ON_A_PAGE: { id: ToolId; icon: LucideIcon; line: T }[] = [
 /**
  * Everyday tools, each a card in a tool's amber: when to meet (约时间, at /when; its card follows
  * `WHEN_ON_TAB`), what's on around town (玩什么, at /go), where to eat (随便, at /eat), group buys
- * (跟一单, at /tuan), and money,
+ * (跟一单, at /tuan), a trip's bills (两清, at /split), and money,
  * time across cities and price per unit,
  * which open on a page of their own (/tools/currency, /tools/clock, /tools/price; ToolPage.tsx).
  */
@@ -46,6 +47,7 @@ export function ToolsTab() {
       <WhatsOn />
       <Suibian />
       <Tuan />
+      <Split />
       {ON_A_PAGE.map((t) => (
         <Tile key={t.id} name={TOOLS[t.id]} lang={lang} icon={t.icon} category="tool" line={t.line[lang]} href={`/tools/${t.id}`} onOpen={() => {}} />
       ))}

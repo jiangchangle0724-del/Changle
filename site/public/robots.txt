@@ -5,6 +5,7 @@ Disallow: /when/api/
 Disallow: /go/api/
 Disallow: /tuan/api/
 Disallow: /trip/api/
+Disallow: /split/api/
 Content-signal: search=yes, ai-input=no, ai-train=no
 
 # Search engines may index changle.ca. No AI may train on it, or fetch it for someone to copy.

@@ -8,7 +8,7 @@
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
  *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts (/me/figure: the 3D figure's prototype)
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
- *   /split, /split/<id>   两清: the ledgers on this phone, and one of them (not on the Tools tab yet)
+ *   /split, /split/<id>   两清: the ledgers on this phone, and one of them (its card is on the Tools tab)
  *   /settings, /login open that sheet over home (the address then goes back to /)
  *
  * Links from before (changle.ca/#/g/truth, /#/r/ABCD, /#/tv/ABCD) are rewritten on arrival, so
