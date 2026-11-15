@@ -16,13 +16,12 @@ import { useToast } from "../ui/Toast";
 import { expensesOf, type Ledger, type Settlement } from "./core";
 import { money } from "./format";
 import { whenText } from "./history";
-import { nameFor, paysLine } from "./lines";
+import { paysLine, summaryLines } from "./lines";
 import { paidId } from "./ops";
 import { copyText } from "./parts";
 import { isStale, type Made } from "./picture";
-import { summaryOf, type Most } from "./summary";
 import { record } from "./syncing";
-import { say, W, type Word } from "./words";
+import { say, W } from "./words";
 
 /** One transfer on the screen: a step of the plan, or one already made that the plan no longer holds. */
 type Line = { from: string; to: string; amount: number; paid?: string };
@@ -179,34 +178,23 @@ export function SettleView({ ledger, me, lang, plan, made }: { ledger: Ledger; m
   );
 }
 
-/**
- * 总结: what the ledger came to, a line each. Spent in all, and in how many expenses; the tips and
- * tax the receipts said, and how many receipts said them (only when any did); who paid the most and
- * whose share came to the most, both of them when two came to the same.
- */
+/** 总结: what the ledger came to, a line each (lines.ts, summaryLines): its name, the sum, and what it is over. */
 function Summary({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; lang: Lang }) {
-  const s = summaryOf(ledger);
-  const sum = (n: number) => money(n, ledger.currency, lang);
-  const names = (m: Most) => m.who.map((id) => nameFor(ledger, id, me, lang) || say(lang, "someone")).join(say(lang, "nameAnd"));
-  const counted = (n: number, one: Word, many: Word) => (n === 1 ? say(lang, one) : say(lang, many, { n }));
-  const line = (term: Word, value: string, more: string) => (
-    <div>
-      <dt>{say(lang, term)}</dt>
-      <dd>
-        {value}
-        <small>{more}</small>
-      </dd>
-    </div>
-  );
+  const lines = summaryLines(ledger, me, lang);
+  if (!lines.length) return null;
   return (
     <>
       <h3 className="split-subhead">{say(lang, "summary")}</h3>
       <dl className="split-summary">
-        {line("summarySpent", sum(s.spent), counted(s.count, "summaryCountOne", "summaryCount"))}
-        {s.tipped > 0 && line("summaryTips", sum(s.tips), counted(s.tipped, "summaryReceiptsOne", "summaryReceipts"))}
-        {s.taxed > 0 && line("summaryTax", sum(s.tax), counted(s.taxed, "summaryReceiptsOne", "summaryReceipts"))}
-        {s.paidMost && line("summaryPaidMost", names(s.paidMost), sum(s.paidMost.amount))}
-        {s.spentMost && line("summarySpentMost", names(s.spentMost), sum(s.spentMost.amount))}
+        {lines.map((x) => (
+          <div key={x.term}>
+            <dt>{x.term}</dt>
+            <dd>
+              {x.value}
+              <small>{x.more}</small>
+            </dd>
+          </div>
+        ))}
       </dl>
     </>
   );

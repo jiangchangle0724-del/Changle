@@ -16,6 +16,18 @@ export const signOf = (currency: string) => CURRENCY_BY_CODE[currency]?.symbol ?
 /** The currency's name in the reader's language. */
 export const currencyName = (currency: string, lang: Lang) => CURRENCY_BY_CODE[currency]?.[lang] ?? currency;
 
+/** The day a moment falls on, on this phone's calendar: "2026-11-15". */
+export function localDay(at: number): string {
+  const d = new Date(at);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** The day before a day ("2026-11-15" → "2026-11-14"). */
+export function dayBefore(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
+}
+
 /**
  * A day ("2026-11-12") as the page says it: 11月12日, Nov 12; with its year when that isn't
  * `thisYear` (2025年11月12日, Nov 12, 2025); with its weekday when asked (11月12日周三, Wed, Nov 12).

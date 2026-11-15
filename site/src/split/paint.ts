@@ -41,7 +41,7 @@ const font = (weight: number, size: number, family: string) => `${weight} ${size
 
 /** Wait (a little) for the page's fonts in the weights the picture uses: a canvas draws in whatever has loaded. */
 async function fontsFor(look: Look) {
-  const faces = [font(700, 13, look.display), font(800, 30, look.display), font(800, 20, look.display), font(400, 14, look.body), font(500, 17, look.body), font(600, 14, look.body), font(700, 18, look.body)];
+  const faces = [font(700, 13, look.display), font(800, 30, look.display), font(800, 20, look.display), font(400, 14, look.body), font(500, 17, look.body), font(600, 14, look.body), font(700, 18, look.body), font(700, 17, look.body)];
   const loading = Promise.all(faces.map((f) => document.fonts.load(f, `${W.name.zh} ${W.name.en} $0.`).catch(() => []))).then(() => document.fonts.ready);
   await Promise.race([loading, new Promise((done) => setTimeout(done, 3000))]);
 }
@@ -179,6 +179,28 @@ function layout(ctx: CanvasRenderingContext2D, p: Picture, look: Look, draw: boo
       ctx.textBaseline = "top";
     }
     y += 2 * r + 12 * U;
+  }
+
+  // 总结: what the ledger came to, a line each, its name on the left and its sum on the right
+  if (p.summary.length) {
+    y += 22 * U;
+    ctx.font = font(600, 14, look.body);
+    text(p.summaryHead, PAD, y, look.text2);
+    y += 14 * U * 1.5 + 4 * U;
+    for (const line of p.summary) {
+      rule(y);
+      y += 12 * U;
+      ctx.font = font(700, 17, look.body);
+      // (names too many for the line are cut, never the sum after them)
+      const after = ` · ${line.more}`;
+      const value = fit(ctx, line.value, INNER * 0.64 - ctx.measureText(after).width) + after;
+      const wide = ctx.measureText(value).width;
+      text(value, WIDTH - PAD, y, look.text, "right");
+      ctx.font = font(500, 17, look.body);
+      text(fit(ctx, line.term, INNER - wide - 16 * U), PAD, y, look.text2);
+      y += 17 * U * 1.3 + 12 * U;
+    }
+    rule(y);
   }
 
   // when it was made, and what to go by after that; and where 两清 lives

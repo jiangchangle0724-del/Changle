@@ -1,8 +1,10 @@
 /**
  * 导出账目: a ledger as a CSV file, to open in a spreadsheet (docs/split.md: "export the expenses as
  * CSV"; "people can export their own data"). One row per expense or payment still in the ledger,
- * in the order they were recorded: when, which kind, the note, who paid, how much (in the ledger's currency, and in the
- * one it was paid in, if another), then a column for each person: what that row does to where they
+ * in the order they were recorded: the day (an expense's, the day it was spent; a payment's, the day
+ * it was recorded), which kind, the note, who paid, how much (in the ledger's currency, and in the
+ * one it was paid in, if another), the tip and the tax (in the ledger's currency, at the expense's
+ * own rate; only in a ledger that has any), then a column for each person: what that row does to where they
  * stand (what they paid, less their part of it; a payment counts for the one who made it and against
  * the one paid). The last row adds each column up, so each person's total is where they stand, the
  * number the settle tab works from. Deleted entries aren't in it: they count for nothing (the record
@@ -16,7 +18,9 @@
  */
 import type { Lang } from "../i18n";
 import { balances, fromMinor, portionsOf, spent, type Ledger } from "./core";
-import { decimalsOf } from "./format";
+import { decimalsOf, localDay } from "./format";
+import { spentOn } from "./lines";
+import { inLedger } from "./summary";
 import { say } from "./words";
 
 /** Excel's sign that the file is UTF-8. */
@@ -27,13 +31,6 @@ const field = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` 
 /** Text someone typed (a note, a name): never read as a formula. */
 const text = (v: string) => (/^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
 
-/** When, as a spreadsheet reads it: 2026-11-14 10:12, on this phone's clock. */
-const stamp = (at: number) => {
-  const d = new Date(at);
-  const two = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
-};
-
 /** The ledger as CSV, its headings in `lang`. */
 export function csvOf(l: Ledger, lang: Lang): string {
   const cents = decimalsOf(l.currency);
@@ -42,6 +39,10 @@ export function csvOf(l: Ledger, lang: Lang): string {
   const live = l.entries.filter((e) => e.gone === undefined);
   // the columns for another currency, only in a ledger that has any
   const abroad = live.some((e) => e.kind === "expense" && e.paidIn);
+  // and for the tip and tax, only in one that has any
+  const extras = live.some((e) => e.kind === "expense" && (e.tip || e.tax));
+  let tips = 0;
+  let taxes = 0;
   const rows: string[][] = [
     [
       say(lang, "csvWhen"),
@@ -51,6 +52,7 @@ export function csvOf(l: Ledger, lang: Lang): string {
       say(lang, "csvAmount"),
       say(lang, "csvCurrency"),
       ...(abroad ? [say(lang, "csvPaidIn"), say(lang, "csvPaidInAmount"), say(lang, "csvRate")] : []),
+      ...(extras ? [say(lang, "csvTip"), say(lang, "csvTax")] : []),
       ...l.members.map((m) => text(m.name)),
     ],
   ];
@@ -62,15 +64,19 @@ export function csvOf(l: Ledger, lang: Lang): string {
       add(e.payer, e.amount);
       for (const [id, part] of Object.entries(portionsOf(e, l))) add(id, -part);
       const other = e.paidIn ? [e.paidIn.currency, fromMinor(e.paidIn.amount, decimalsOf(e.paidIn.currency)), e.paidIn.rate] : ["", "", ""];
-      row = [stamp(e.at), say(lang, "csvExpense"), text(e.note), text(name(e.payer)), plain(e.amount), l.currency, ...(abroad ? other : [])];
+      const tip = e.tip ? inLedger(e.tip, e) : 0;
+      const tax = e.tax ? inLedger(e.tax, e) : 0;
+      tips += tip;
+      taxes += tax;
+      row = [spentOn(e), say(lang, "csvExpense"), text(e.note), text(name(e.payer)), plain(e.amount), l.currency, ...(abroad ? other : []), ...(extras ? [tip ? plain(tip) : "", tax ? plain(tax) : ""] : [])];
     } else {
       add(e.from, e.amount);
       add(e.to, -e.amount);
-      row = [stamp(e.at), say(lang, "csvPayment"), text(say(lang, "pictureWho", { from: name(e.from), to: name(e.to) })), text(name(e.from)), plain(e.amount), l.currency, ...(abroad ? ["", "", ""] : [])];
+      row = [localDay(e.at), say(lang, "csvPayment"), text(say(lang, "pictureWho", { from: name(e.from), to: name(e.to) })), text(name(e.from)), plain(e.amount), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? ["", ""] : [])];
     }
     rows.push([...row, ...l.members.map((m) => plain(parts.get(m.id) ?? 0))]);
   }
   const stand = balances(l);
-  rows.push(["", say(lang, "csvTotal"), "", "", plain(spent(l)), l.currency, ...(abroad ? ["", "", ""] : []), ...l.members.map((m) => plain(stand[m.id] ?? 0))]);
+  rows.push(["", say(lang, "csvTotal"), "", "", plain(spent(l)), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? [plain(tips), plain(taxes)] : []), ...l.members.map((m) => plain(stand[m.id] ?? 0))]);
   return BOM + rows.map((r) => r.map(field).join(",")).join("\r\n") + "\r\n";
 }

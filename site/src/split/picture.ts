@@ -7,6 +7,7 @@
  *
  * Everyone in the group reads it, so it names people by name, never 你, as the plan copied as text
  * does (lines.ts, planText). It says when it was made as a date, not "today": it is read later.
+ * Under the plan, 总结: what the ledger came to (lines.ts, summaryLines), so the group sees it too.
  *
  * Out of date: when the phone makes the picture it keeps, for that ledger, when, and the plan's
  * transfers as they were then (who pays whom, and how much). Once the plan's transfers are no longer
@@ -16,7 +17,7 @@
 import type { Lang } from "../i18n";
 import type { Ledger, Settlement } from "./core";
 import { money } from "./format";
-import { nameFor, planText } from "./lines";
+import { nameFor, planText, summaryLines } from "./lines";
 import { say, W } from "./words";
 
 /** A transfer on the picture: who pays whom, how much, and whether it has been paid. */
@@ -32,6 +33,9 @@ export type Picture = {
   head: string;
   clear: boolean;
   rows: PictureRow[];
+  /** 总结, and its lines: what each is, its sum, and what it is over (painted after the sum, never cut) */
+  summaryHead: string;
+  summary: { term: string; value: string; more: string }[];
   /** when it was made, and what to go by after that */
   asOf: string;
   /** where 两清 lives */
@@ -61,6 +65,7 @@ export function dayText(at: number, lang: Lang): string {
 /** The picture of a ledger's plan, made at `at`. */
 export function pictureOf(l: Ledger, plan: Settlement, lang: Lang, at: number): Picture {
   const name = (id: string) => nameFor(l, id, undefined, lang) || say(lang, "someone");
+  const summary = summaryLines(l, undefined, lang);
   return {
     mark: `${W.name.zh} · ${W.name.en}`,
     name: l.name,
@@ -72,8 +77,10 @@ export function pictureOf(l: Ledger, plan: Settlement, lang: Lang, at: number): 
       status: say(lang, s.paid ? "paid" : "notPaid"),
       paid: !!s.paid,
     })),
+    summaryHead: say(lang, "summary"),
+    summary,
     asOf: say(lang, "pictureAsOf", { when: dayText(at, lang) }),
     site: "changle.ca",
-    text: `${planText(l, plan, lang)}\n${say(lang, "pictureAsOf", { when: dayText(at, lang) })}`,
+    text: [planText(l, plan, lang), ...summary.map((x) => `${x.term} ${x.value} · ${x.more}`), say(lang, "pictureAsOf", { when: dayText(at, lang) })].join("\n"),
   };
 }

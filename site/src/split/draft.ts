@@ -10,7 +10,7 @@
  */
 import type { Rates } from "../tools/money";
 import { allot, convert, expensesOf, fromMinor, isAmount, problem, toMinor, type Decimals, type Expense, type Ledger, type Problem, type Split } from "./core";
-import { decimalsOf } from "./format";
+import { decimalsOf, localDay } from "./format";
 import type { ExpenseEdit } from "./ops";
 import { lastPaidIn, paidInOf, RECENT, settled, startingRate, todaysRate } from "./rates";
 
@@ -46,6 +46,12 @@ export type Draft = {
    */
   tip: string;
   tax: string;
+  /**
+   * the day it was spent ("2026-11-15"): today for a new one; for one opened, the day it says, or
+   * empty when it says none (the day it was recorded stands for it, and nothing is said of it).
+   * Read off a receipt, or picked.
+   */
+  date: string;
 };
 
 /**
@@ -72,6 +78,7 @@ export function blankDraft(l: Ledger, me: string | undefined, now: number): Draf
     note: "",
     tip: "",
     tax: "",
+    date: localDay(now),
   };
 }
 
@@ -97,6 +104,7 @@ export function draftOf(e: Expense, l: Ledger): Draft {
     note: e.note,
     tip: inPaid(e.tip),
     tax: inPaid(e.tax),
+    date: e.date ?? "",
   };
 }
 
@@ -224,7 +232,7 @@ export function draftProblem(d: Draft, l: Ledger): Problem | null {
  */
 export function saying(d: Draft, l: Ledger): ExpenseEdit | null {
   if (draftProblem(d, l)) return null;
-  const said = { payer: d.payer, amount: amountOf(d, l) ?? 0, note: d.note, split: splitOf(d, decimalsOf(l.currency)) };
+  const said = { payer: d.payer, amount: amountOf(d, l) ?? 0, note: d.note, split: splitOf(d, decimalsOf(l.currency)), ...(d.date ? { date: d.date } : {}) };
   if (abroad(d, l)) return { ...said, paidIn: { currency: d.currency, amount: paidOf(d) ?? 0, rate: settled(d.rate) }, ...extrasOf(d) };
   // (paid in a currency these screens can't show: that, and its tip and tax, unsaid)
   return d.untouched ? said : { ...said, paidIn: null, ...extrasOf(d) };

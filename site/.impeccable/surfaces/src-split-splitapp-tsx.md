@@ -285,3 +285,17 @@ Shape: having tried reading on a real receipt, Steve asked for the tip and tax t
 What the look at the rendered screens changed: the English line first said "From the receipt, with tip … · tax …" and lost the tax on a 320-wide phone; the sheet's two fields were bare numbers, so its heading now names the currency.
 
 Verdict: holds to the contract. No new screen and no new control on 记一笔's face: one line that was already there says more, the receipt's sheet gains two fields, and 结清 ends with a short list.
+
+## The day it was spent, a tip and tax typed by hand, and 总结 on the picture (2026-11-15)
+
+Shape: Steve asked for each expense to keep the day it was spent, read off the receipt or typed when it isn't on one; and to finish what was left of the tip and tax (typed without a receipt, in the export, on the picture). Unattended: he was asleep and said to go ahead and put 两清 on the Tools page when done. Who and when: the person paying, often days later, catching up on a trip's receipts; the day is what tells one 早餐 from another.
+
+- 记一笔 had no room for another row (it fits whole at 553 high). The day goes beside 记好了 instead: a quiet pill, as tall as 记好了, with a calendar and 今天, 昨天 or 11月12日. Pressing it opens one sheet, 日期、小费和税: the phone's own date picker (nothing after today) and the two fields that used to be under the receipt's photos, so a tip can be typed with no receipt at all. The line under the amount (含小费 … · 税 …) opens the same sheet.
+- A new expense is spent today. A receipt read fills in its day, unless a day was already picked by hand; an expense opened again shows its day, or the day it was recorded when it says none (and saving it says nothing of one).
+- The ledger's list is by day, the latest first, each day's name small and quiet above its rows (今天, 昨天, 11月12日周四; another year's with the year). Within a day, the latest recorded first. This settles what stage one left for Steve: rows have their day, as a heading rather than on every row.
+- The export's first column is the day it was spent; Tip and Tax columns come only in a ledger that has any, in the ledger's currency, totalled in the last row.
+- The picture ends with 总结 under the plan, names never 你, the sum on the right. When everyone in the ledger came to the most (a trip shared evenly throughout), naming them all said nothing and, on the picture, pushed the sum off the edge: it says 一样多 · 每人 $77.50. Names too many for the line are cut, never the sum after them.
+
+What the look at the rendered screens changed: the date field sat at the start of its row and now sits at the end like the amounts; the gap above the first day's heading was too big; the picture's 花得最多 listed all five names and lost its sum (now 一样多).
+
+Verdict: holds to the contract. No new screen: one quiet button in the dock, one sheet, day headings in the list, and the summary on the picture the group already gets.
