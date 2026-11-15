@@ -1,0 +1,221 @@
+{
+  "id": "multi-09",
+  "world": "table",
+  "tier": 2,
+  "name": {
+    "zh": "合席登高",
+    "en": "Together at the Top"
+  },
+  "teaches": "combine",
+  "w": 3600,
+  "h": 720,
+  "spawn": {
+    "x": 100,
+    "y": 666
+  },
+  "goal": {
+    "x": 3400,
+    "y": 130,
+    "w": 160,
+    "h": 150
+  },
+  "checkpoints": [
+    {
+      "x": 1140,
+      "y": 306
+    },
+    {
+      "x": 2110,
+      "y": 466
+    },
+    {
+      "x": 3230,
+      "y": 246
+    }
+  ],
+  "rects": [
+    {
+      "x": 0,
+      "y": 700,
+      "w": 820,
+      "h": 20,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 820,
+      "y": 360,
+      "w": 440,
+      "h": 360,
+      "kind": "wall",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 820,
+      "y": 340,
+      "w": 440,
+      "h": 20,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1260,
+      "y": 500,
+      "w": 1030,
+      "h": 220,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 1600,
+      "y": 0,
+      "w": 180,
+      "h": 220,
+      "kind": "wall",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 2290,
+      "y": 640,
+      "w": 630,
+      "h": 80,
+      "kind": "ground",
+      "material": "wood"
+    },
+    {
+      "x": 2920,
+      "y": 300,
+      "w": 680,
+      "h": 420,
+      "kind": "wall",
+      "material": "wood",
+      "grab": false
+    },
+    {
+      "x": 2920,
+      "y": 280,
+      "w": 680,
+      "h": 20,
+      "kind": "ground",
+      "material": "wood"
+    }
+  ],
+  "plates": [
+    {
+      "x": 325,
+      "y": 688,
+      "w": 110,
+      "h": 12,
+      "opens": "g0"
+    },
+    {
+      "x": 875,
+      "y": 328,
+      "w": 110,
+      "h": 12,
+      "opens": "g0"
+    },
+    {
+      "x": 1265,
+      "y": 488,
+      "w": 110,
+      "h": 12,
+      "opens": "g1"
+    },
+    {
+      "x": 1925,
+      "y": 488,
+      "w": 110,
+      "h": 12,
+      "opens": "g1"
+    },
+    {
+      "x": 2295,
+      "y": 628,
+      "w": 110,
+      "h": 12,
+      "opens": "g2"
+    },
+    {
+      "x": 2975,
+      "y": 268,
+      "w": 110,
+      "h": 12,
+      "opens": "g2"
+    }
+  ],
+  "gates": [
+    {
+      "id": "g0",
+      "x": 600,
+      "y": 700,
+      "w": 220,
+      "h": 20,
+      "move": {
+        "x": 0,
+        "y": -360
+      },
+      "speed": 110,
+      "hold": 0,
+      "material": "wood"
+    },
+    {
+      "id": "g1",
+      "x": 1670,
+      "y": 220,
+      "w": 40,
+      "h": 280,
+      "move": {
+        "x": 0,
+        "y": -220
+      },
+      "speed": 360,
+      "hold": 0,
+      "grab": false
+    },
+    {
+      "id": "g2",
+      "x": 2700,
+      "y": 640,
+      "w": 220,
+      "h": 20,
+      "move": {
+        "x": 0,
+        "y": -360
+      },
+      "speed": 110,
+      "hold": 0,
+      "material": "wood"
+    }
+  ],
+  "deathY": 880,
+  "par": {
+    "seconds": 150,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/multi-09.p4.json",
+  "spinners": [
+    {
+      "pivot": {
+        "x": 1570,
+        "y": 300
+      },
+      "arms": 2,
+      "len": 65,
+      "h": 12,
+      "spin": 0.7,
+      "deadly": true
+    }
+  ],
+  "hazards": [
+    {
+      "x": 695,
+      "y": 175,
+      "w": 65,
+      "h": 16,
+      "kind": "spike"
+    }
+  ]
+}

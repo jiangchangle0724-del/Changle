@@ -264,6 +264,56 @@ export function teamProbeFailure({ id, teamSections }) {
   return `${id}: 1 个人和 2 个人乱按都过不去的段只有 ${teamSections.length} 段${which}；大关要至少两段，而且不能只有第一段`;
 }
 
+// C14 — multiplayer probes are separate from C9's one-and-two-player rules.
+const multiProbeIds = Array.from({ length: 9 }, (_, i) => `multi-0${i + 1}`);
+export async function probeMultiLevels(entries, { solo = 200, seconds = 60, threads: size = Math.max(1, Math.min(8, availableParallelism())), log = () => {} } = {}) {
+  const temporary = await mkdtemp(join(tmpdir(), 'hang-on-multi-probe-'));
+  let workers;
+  try {
+    const bundle = join(temporary, 'physics.mjs');
+    await build({ stdin: { contents: "export {createSim} from './src/physics/world'; export {CFG} from './src/physics/config'; export {forPlayers} from './src/physics/level';", resolveDir: root }, bundle: true, platform: 'node', format: 'esm', outfile: bundle, logLevel: 'silent' });
+    const { forPlayers } = await import(pathToFileURL(bundle).href);
+    workers = pool(size, pathToFileURL(bundle).href);
+    log(`\nMulti levels: 1 player × ${solo} attempts × ${seconds}s on each 2/3/4-player layout`);
+    log('| Level | Layout | Section | From → To | Solo | Needs partners |');
+    log('| --- | --- | ---: | --- | --- | :---: |');
+    const results = [];
+    for (const { level } of entries) {
+      if (!multiProbeIds.includes(level.id)) throw new Error(`unexpected multi level ${level.id}: multi-01…multi-09 only`);
+      const groups = [];
+      for (const n of [2, 3, 4]) {
+        const laid = fixedLayout(forPlayers, level, n);
+        const sig = JSON.stringify(LISTS.map(k => laid[k] ?? []));
+        const same = groups.find(g => g.sig === sig);
+        if (same) same.counts.push(n);
+        else groups.push({ sig, laid, counts: [n] });
+      }
+      const cps = level.checkpoints ?? [];
+      const starts = [{ ...level.spawn, spread: 44 }, ...cps.map(p => ({ ...p, spread: 30 }))];
+      const sections = starts.map((_, index) => ({ index, blocked: true, layouts: [] }));
+      for (const { laid, counts } of groups) for (const section of sections) {
+        const k = section.index, start = starts[k];
+        const one = await probe(workers, { level: laid, section: k, start, spread: start.spread, targets: cps.slice(k), goal: level.goal, seconds, players: 1, tries: solo, key: `${level.id}|${k}|1|${counts.join('')}` });
+        section.blocked &&= one.first < 0;
+        section.layouts.push({ counts, one });
+        const to = cps[k] ?? { x: level.goal.x + level.goal.w / 2, y: level.goal.y + level.goal.h / 2 };
+        log(`| ${level.id} | ${counts.join('/')} | ${k + 1} | (${start.x},${start.y}) → (${to.x},${to.y}) | ${one.first < 0 ? `0/${solo}; max x=${Math.round(one.far)}` : `cleared on attempt ${one.first + 1}`} | ${one.first < 0 ? 'YES' : 'NO'} |`);
+      }
+      results.push({ id: level.id, tier: level.tier, sections, blocked: sections.filter(s => s.blocked).map(s => s.index) });
+    }
+    return results;
+  } finally {
+    await workers?.close();
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+export function multiProbeFailure({ id, tier, blocked }) {
+  const need = tier === 0 ? 1 : 2;
+  if (blocked.length >= need && (tier === 0 || blocked.some(k => k > 0))) return null;
+  return `${id}: only ${blocked.length} solo-blocked sections (${blocked.map(k => k + 1).join(',') || 'none'}); tier ${tier} needs ${need}${tier ? ', including one after the opening' : ''} on every 2/3/4-player layout`;
+}
+
+
 async function main() {
   const levelsDir = join(root, 'levels');
   const teamDir = join(levelsDir, 'team');
@@ -283,8 +333,15 @@ async function main() {
   };
   const ids = args.filter((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && args[i - 1] !== '--quick'));
   const entries = [];
+  const multiEntries = [];
+  const multiDir = join(levelsDir, 'multi');
   if (ids.length) {
     for (const id of ids) {
+      if (id.startsWith('multi-')) {
+        if (!multiProbeIds.includes(id)) throw new Error(`unexpected multi id ${id}`);
+        multiEntries.push({ level: JSON.parse(await readFile(join(multiDir, `${id}.json`), 'utf8')) });
+        continue;
+      }
       const team = await readFile(join(teamDir, `${id}.json`), 'utf8').catch(() => null);
       const text = team ?? (await readFile(join(levelsDir, `${id}.json`), 'utf8').catch(() => null));
       if (!text) throw new Error(`没有这一关：${id}`);
@@ -293,16 +350,29 @@ async function main() {
   } else {
     const files = (await readdir(teamDir).catch(() => [])).filter((f) => f.endsWith('.json')).sort();
     for (const f of files) entries.push({ level: JSON.parse(await readFile(join(teamDir, f), 'utf8')), team: true });
-    if (!entries.length) {
+    for (const f of (await readdir(multiDir).catch(() => [])).filter(f => f.endsWith('.json')).sort()) multiEntries.push({ level: JSON.parse(await readFile(join(multiDir, f), 'utf8')) });
+    if (!entries.length && !multiEntries.length) {
       console.log('probe: 还没有大关（levels/team），没东西可查');
       return;
     }
   }
   const started = Date.now();
   const results = await probeLevels(entries, options);
+  const multiResults = await probeMultiLevels(multiEntries, options);
   const took = `${((Date.now() - started) / 1000).toFixed(0)} 秒`;
   // 不点名的时候查大关的规则；点了名只报告
-  const failures = ids.length ? [] : results.map(teamProbeFailure).filter(Boolean);
+  const failures = [...(ids.length ? [] : results.map(teamProbeFailure)), ...multiResults.map(multiProbeFailure)].filter(Boolean);
+  if (multiResults.length) {
+    const docs = await readFile(resolve(root, '../../docs/levels/multi/README.md'), 'utf8');
+    const manifest = /<!-- C14_MULTI_SECTIONS (.+) -->/.exec(docs);
+    if (!manifest) failures.push('multi README: missing C14_MULTI_SECTIONS manifest');
+    else {
+      const declared = JSON.parse(manifest[1]);
+      for (const r of multiResults) for (const k of declared[r.id] ?? []) if (!r.blocked.includes(k))
+        failures.push(`${r.id}: declared cooperation section ${k} is solo-reachable on at least one 2/3/4-player layout`);
+    }
+  }
+  for (const r of multiResults) console.log(`${r.id}: solo-blocked sections (zero-based): ${r.blocked.join(",")}; ${multiProbeFailure(r) ?? "PASS"}`);
   if (failures.length) {
     for (const f of failures) console.error(`probe: FAIL — ${f}`);
     console.error(`probe: FAIL（${failures.length}）；${took}`);
