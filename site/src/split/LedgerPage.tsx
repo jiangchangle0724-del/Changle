@@ -11,7 +11,7 @@
  * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
  * the page asks which of the people in the ledger this phone's owner is.
  */
-import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Paperclip, Plus, ReceiptText, Send, WifiOff } from "lucide-react";
+import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Paperclip, Plus, ReceiptText, Send, UserPlus, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -23,10 +23,11 @@ import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
 import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
-import { AddExpense } from "./AddExpense";
+import { AddExpense, Face } from "./AddExpense";
 import { balances, expensesOf, settlement, spent, type Expense, type Ledger } from "./core";
 import { money } from "./format";
 import { keyFrom } from "./invite";
+import { doneStarting, invitePicked, wasStarted } from "./invites";
 import { WhoStep } from "./Join";
 import { lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
 import { Bar, Rolling } from "./parts";
@@ -82,12 +83,21 @@ export function LedgerPage({ id }: { id: string }) {
   /** 记一笔 is open: for a new expense (null), or to change the one with this id */
   const [entry, setEntry] = useState<{ edit: string | null } | null>(null);
   const [menu, setMenu] = useState(false);
+  /** the invitation's sheet: to send it, or (its owner) to change it. A ledger just started comes up with it open */
+  const [inviting, setInviting] = useState<"send" | "change" | null>(() => (wasStarted(id) ? "send" : null));
+  useEffect(() => doneStarting(id), [id]);
+  const [people, setPeople] = useState(false);
   const [picture, setPicture] = useState(false);
   /** the expense recorded a moment ago: its row lands (one of the three motions) */
   const [landed, setLanded] = useState<string | null>(null);
   /** what you were owed (or owed) when 记一笔 opened: the figure rolls on from there when it closes */
   const [rollFrom, setRollFrom] = useState<number | null>(null);
   useBackCloses(!!entry, () => setEntry(null));
+  // friends picked when the ledger started are invited once the server has it (and someone is signed in to invite them)
+  const made = !!held?.made;
+  useEffect(() => {
+    if (made && account) void invitePicked(id, lang);
+  }, [made, account, id, lang]);
   // who pays whom: worked out again only when the ledger itself has changed
   const plan = useMemo(() => (ledger ? settlement(ledger) : null), [ledger]);
 
@@ -185,6 +195,7 @@ export function LedgerPage({ id }: { id: string }) {
         <section className="split-panel" id="split-list" role="tabpanel" aria-labelledby="split-list-tab">
           {/* an empty ledger says so once, in the list's own empty state */}
           {hasExpenses && <Standing ledger={ledger} me={me} lang={lang} rollFrom={rollFrom} />}
+          <Crew ledger={ledger} lang={lang} onPeople={() => setPeople(true)} onInvite={locked ? undefined : () => setInviting("send")} />
           <ExpenseList ledger={ledger} me={me} lang={lang} landed={landed} onLanded={() => setLanded(null)} onOpen={locked ? undefined : openEntry} />
         </section>
       ) : (
@@ -220,13 +231,18 @@ export function LedgerPage({ id }: { id: string }) {
         made={held.made}
         owner={!!held.owner}
         changing={!!held.next}
-        away={sync.away}
+        // (a ledger the server can't make now, whatever the reason, has no invitation to show either)
+        away={sync.away || !!sync.trouble}
         mine={!!account && held.acct === account}
         signIn={sync.trouble === "signin"}
         onDeleted={(erased) => {
           if (erased) tellList("erased");
           toList();
         }}
+        inviting={inviting}
+        onInviting={setInviting}
+        people={people}
+        onPeople={setPeople}
       />
     </div>
   );
@@ -286,14 +302,13 @@ function SyncNote({ ledger, lost, line, lang, onSignIn }: { ledger: Ledger; lost
 
 /**
  * Where you stand, as a sentence: the words, then the amount, the largest thing on the page. With
- * nothing owed either way the words are the headline themselves. Under it, how many people have
- * spent how much. (Shown once there is an expense to stand on.)
+ * nothing owed either way the words are the headline themselves. Under it, how much was spent (who
+ * by is the faces under that: Crew). (Shown once there is an expense to stand on.)
  */
 function Standing({ ledger, me, lang, rollFrom }: { ledger: Ledger; me: string | undefined; lang: Lang; rollFrom: number | null }) {
   // a phone that doesn't know which of these people is its owner says what was spent, and nothing about "you"
   const who = mine(ledger, me);
   const net = who ? (balances(ledger)[who] ?? 0) : 0;
-  const people = say(lang, "people", { n: ledger.members.length });
   const total = say(lang, "spent", { amount: money(spent(ledger), ledger.currency, lang) });
   return (
     <div className="split-standing">
@@ -308,7 +323,38 @@ function Standing({ ledger, me, lang, rollFrom }: { ledger: Ledger; me: string |
       ) : (
         <p className="split-standing-lead">{who ? say(lang, "youSquare") : total}</p>
       )}
-      <p className="split-standing-sub">{who ? `${people} · ${total}` : people}</p>
+      {(net !== 0 || who) && <p className="split-standing-sub">{total}</p>}
+    </div>
+  );
+}
+
+/** Faces shown in a row before the rest are counted. */
+const CREW_FACES = 4;
+
+/**
+ * Who is in the ledger, as their faces, and the way to bring more in: the faces open the people,
+ * 邀请 the invitation. A locked ledger takes nobody new (no `onInvite`: no 邀请).
+ */
+function Crew({ ledger, lang, onPeople, onInvite }: { ledger: Ledger; lang: Lang; onPeople: () => void; onInvite?: () => void }) {
+  const rest = ledger.members.length - CREW_FACES;
+  const people = say(lang, "people", { n: ledger.members.length });
+  return (
+    <div className="split-crew">
+      {/* (named by how many: on the narrowest phones that is read out, and not shown beside the faces) */}
+      <button type="button" className="split-crew-faces" onClick={onPeople}>
+        <span className="split-crew-pile" aria-hidden="true">
+          {ledger.members.slice(0, rest > 0 ? CREW_FACES - 1 : CREW_FACES).map((m) => (
+            <Face key={m.id} name={m.name} />
+          ))}
+          {rest > 0 && <span className="split-face is-more">+{rest + 1}</span>}
+        </span>
+        <span className="split-crew-count">{people}</span>
+      </button>
+      {onInvite && (
+        <Button tone="quiet" size="sm" icon={UserPlus} onClick={onInvite}>
+          {say(lang, "inviteShort")}
+        </Button>
+      )}
     </div>
   );
 }

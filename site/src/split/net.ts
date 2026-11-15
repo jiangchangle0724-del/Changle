@@ -1,7 +1,7 @@
 /**
  * 两清's server as a phone reaches it: making a ledger, sending changes, the live connection that
  * brings what other phones record, the owner's three requests (a new key, the lock, deleting it),
- * and the signed-in account's own list of ledgers. What is said at each address is the server's
+ * the signed-in account's own list of ledgers, and invitations to friends. What is said at each address is the server's
  * own file, tools/split/src/room/protocol.ts. When to call any of this is syncer.ts and
  * syncing.ts; this is only the calls.
  *
@@ -11,7 +11,7 @@
  * isn't the server.
  */
 import { KINDS } from "./photos";
-import { asDone, asMine, asPushed, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
+import { asDone, asInvitations, asInviteSent, asMine, asPushed, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
 import type { Net, Reply } from "./syncer";
 
 const API = "/split/api";
@@ -190,7 +190,7 @@ async function fileAsk<T>(path: string, method: string, keys: Record<string, str
       return data === null ? { status: 0 } : { status: res.status, data };
     }
     const said: unknown = await res.json().catch(() => null);
-    if (res.status >= 500 || !isRecord(said) || !isText(said.error) || ![...REFUSALS, "quota", "big"].includes(said.error)) return { status: 0 };
+    if (res.status >= 500 || !isRecord(said) || !isText(said.error) || ![...REFUSALS, "quota", "big", "friends"].includes(said.error)) return { status: 0 };
     return { status: res.status, error: said.error };
   } catch {
     return { status: 0 };
@@ -254,3 +254,20 @@ export const mineNet = {
   drop: (id: string): Promise<Reply<true>> => ask(`/me/ledgers/${id}`, signedIn(), asDone, undefined, "DELETE"),
 };
 export type MineNet = typeof mineNet;
+
+/** A request with a JSON body, as fileAsk sends one. */
+const asJson = (body: unknown) => new Blob([JSON.stringify(body)]);
+const read = <T>(as: (x: unknown) => T | null) => async (res: Response) => as(await res.json().catch(() => null));
+
+/**
+ * Invitations to friends on changle.ca. One is sent signed in, with the ledger's key, to a friend's
+ * account, with the person in the ledger they are when the phone knows (what came of it, or the
+ * error the server named: "friends", "locked", "limit", "signin"…). And the signed-in account's own:
+ * the ones waiting for it, and one it says no to.
+ */
+export const inviteNet = {
+  send: (id: string, key: string, to: string, member?: string) =>
+    fileAsk(`/ledgers/${id}/invites`, "POST", { ...signedIn(), [KEY_HEADER]: key }, read(asInviteSent), asJson({ to, ...(member ? { member } : {}) }), "application/json"),
+  waiting: () => fileAsk("/me/invites", "GET", signedIn(), read(asInvitations)),
+  drop: (id: string) => fileAsk(`/me/invites/${id}`, "DELETE", signedIn(), read(asDone)),
+};

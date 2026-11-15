@@ -46,16 +46,19 @@ type MenuProps = {
   signIn: boolean;
   /** off this phone; `erased`: deleted for everyone */
   onDeleted: (erased?: boolean) => void;
+  /** the invitation's sheet, up: to send it, or (its owner) to change it. The ledger's page opens it too (its 邀请), so the page keeps whether it is up */
+  inviting: "send" | "change" | null;
+  onInviting: (how: "send" | "change" | null) => void;
+  /** the people's sheet, up (the page opens it too, from the faces) */
+  people: boolean;
+  onPeople: (open: boolean) => void;
 };
 
-export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey, made, owner, changing, away, mine, signIn, onDeleted }: MenuProps) {
+export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey, made, owner, changing, away, mine, signIn, onDeleted, inviting, onInviting, people, onPeople }: MenuProps) {
   const { openSignIn, status: account } = useAccount();
-  const [people, setPeople] = useState(false);
   const [history, setHistory] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [storage, setStorage] = useState(false);
-  /** the invitation's sheet is up: to send it, or (its owner) to change it */
-  const [inviting, setInviting] = useState<"send" | "change" | null>(null);
   const [name, setName] = useState(ledger.name);
   /** taking it off: being asked about, on its way to the server, or the last time nothing answered */
   const [deleting, setDeleting] = useState<"ask" | "busy" | "failed" | null>(null);
@@ -117,7 +120,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
             className="split-field split-menu-row"
             onClick={() => {
               onClose();
-              setInviting("send");
+              onInviting("send");
             }}
           >
             <UserPlus aria-hidden="true" />
@@ -130,7 +133,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
             className="split-field split-menu-row"
             onClick={() => {
               onClose();
-              setPeople(true);
+              onPeople(true);
             }}
           >
             <Users aria-hidden="true" />
@@ -197,7 +200,7 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
                 className="split-field split-menu-row"
                 onClick={() => {
                   onClose();
-                  setInviting("change");
+                  onInviting("change");
                 }}
               >
                 <RefreshCw aria-hidden="true" />
@@ -281,10 +284,10 @@ export function LedgerMenu({ open, onClose, ledger, me, lang, status, inviteKey,
       <HistorySheet open={history} onClose={() => setHistory(false)} ledger={ledger} me={me} lang={lang} />
       <ExportSheet open={exporting} onClose={() => setExporting(false)} ledger={ledger} lang={lang} />
       <StorageSheet open={storage} onClose={() => setStorage(false)} ledger={ledger.id} lang={lang} />
-      <Sheet open={people} onClose={() => setPeople(false)} lang={lang} category="tool" title={say(lang, "members")}>
+      <Sheet open={people} onClose={() => onPeople(false)} lang={lang} category="tool" title={say(lang, "members")}>
         <People ledger={ledger} me={me} lang={lang} />
       </Sheet>
-      <InviteSheet open={inviting !== null} onClose={() => setInviting(null)} ledger={ledger} inviteKey={inviteKey} ready={made} lang={lang} change={inviting === "change"} changing={changing} away={away} onRekey={() => rekeyLedger(ledger.id)} />
+      <InviteSheet open={inviting !== null} onClose={() => onInviting(null)} ledger={ledger} inviteKey={inviteKey} ready={made} lang={lang} change={inviting === "change"} changing={changing} away={away} onRekey={() => rekeyLedger(ledger.id)} />
     </>
   );
 }

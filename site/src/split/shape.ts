@@ -110,6 +110,45 @@ export function asMine(x: unknown): Mine[] | null {
 /** The server saying it is done (`{ ok: true }`); null when it isn't that. */
 export const asDone = (x: unknown): true | null => (isRecord(x) && x.ok === true ? true : null);
 
+/** Someone on changle.ca as the screens show them: their account, name, and photo (`av`: its version, 0 for none; `ac`: the colour of their letter). */
+export type Person = { id: string; name: string; av: number; ac?: number };
+const asPerson = (x: unknown): Person | null => {
+  if (!isRecord(x) || !isText(x.id) || !ACCT.test(x.id) || !isText(x.name)) return null;
+  const person: Person = { id: x.id, name: x.name, av: isSeq(x.av) ? x.av : 0 };
+  if (isSeq(x.ac)) person.ac = x.ac;
+  return person;
+};
+
+/** The signed-in account's friends, from the site's own list (`GET /api/friends`, its `friends`); null when what came isn't that list. Anyone in it who isn't a person is left out. */
+export function asFriends(x: unknown): Person[] | null {
+  if (!isRecord(x) || !Array.isArray(x.friends)) return null;
+  return x.friends.flatMap((f: unknown) => asPerson(f) ?? []);
+}
+
+/**
+ * An invitation from a friend, waiting for the signed-in account (tools/split/src/room/account.ts,
+ * Invite): to which ledger, with the key that opens it and its name when it was sent; who sent it;
+ * the person in the ledger it is for, when they said; and when.
+ */
+export type Invitation = { ledger: string; key: string; name: string; from: Person; member?: string; at: number };
+
+/** The invitations waiting, as the server lists them; null when what came isn't that list. Any that isn't an invitation is left out. */
+export function asInvitations(x: unknown): Invitation[] | null {
+  if (!isRecord(x) || !Array.isArray(x.invites)) return null;
+  return x.invites.flatMap((i: unknown): Invitation[] => {
+    const from = isRecord(i) ? asPerson(i.from) : null;
+    if (!isRecord(i) || !from || !isText(i.ledger) || !LEDGER_ID.test(i.ledger) || !isText(i.key) || !KEY.test(i.key) || !isText(i.name) || !isSeq(i.at)) return [];
+    const invitation: Invitation = { ledger: i.ledger, key: i.key, name: i.name, from, at: i.at };
+    if (isText(i.member) && MEMBER.test(i.member)) invitation.member = i.member;
+    return [invitation];
+  });
+}
+
+/** What came of inviting a friend: an invitation now waits for them, the same one already did, or the ledger is theirs already. */
+export type InviteOutcome = "sent" | "again" | "in";
+/** The server's answer to an invitation (`{ invite }`); null when it isn't one. */
+export const asInviteSent = (x: unknown): InviteOutcome | null => (isRecord(x) && (x.invite === "sent" || x.invite === "again" || x.invite === "in") ? x.invite : null);
+
 const asChanges = (x: unknown): Sent[] => (Array.isArray(x) ? x.map(parseSent).filter((s): s is Sent => s !== null) : []);
 
 /**
