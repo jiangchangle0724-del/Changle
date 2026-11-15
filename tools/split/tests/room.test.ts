@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
 import type { Expense } from "../../../site/src/split/core";
-import { AccountRoom, MAX_MINE, memoryAccountStore, UPLOADS_PER_DAY } from "../src/room/account";
+import { AccountRoom, INVITE_DAYS, MAX_INVITES, MAX_MINE, memoryAccountStore, UPLOADS_PER_DAY, type Invite } from "../src/room/account";
 import { LedgerRoom, MAX_BATCH, MAX_LEDGER_FILES, MAX_SENT, memoryStore, SETTLING_MS, UNUSED_DAYS, usedFiles, type StoredFile } from "../src/room/ledger";
 import { nextNight } from "../src/room/nightly";
 
@@ -480,6 +480,54 @@ test("an account checked against the ledgers: charged for what they keep, and no
   account.take(day, 10);
   account.wipe();
   assert.deepEqual([account.list(), account.used(), account.self(), account.ledgersWithFiles(), store.days.size, store.sent.size], [[], 0, null, [], 0, 0], "deleted: its ledgers, its room, its days, who it is, all gone");
+});
+
+const steve = { id: "usteve", name: "Steve", av: 2, ac: 4 };
+const invitation = (ledger: string, at = NOW, more: Partial<Invite> = {}): Invite => ({ ledger, key: `key-${ledger}`, name: "周末", from: steve, at, ...more });
+
+test("an invitation from a friend: waits in their account, once, until they keep the ledger or say no", () => {
+  const store = memoryAccountStore();
+  const amy = new AccountRoom(store);
+  assert.deepEqual(amy.invites(NOW), [], "nothing waiting");
+  assert.equal(amy.invited(invitation("L1", NOW, { member: "m" }), NOW), "sent");
+  assert.deepEqual(amy.invites(NOW), [invitation("L1", NOW, { member: "m" })], "as it was sent: the ledger, its key and name, who sent it, and who in it they are");
+  assert.equal(amy.invited(invitation("L1", NOW + 5), NOW + 5), "again", "the same one again (from anyone): nothing new");
+  assert.equal(amy.invites(NOW + 5)[0].at, NOW, "and the one waiting is as it was");
+  assert.equal(amy.invited(invitation("L1", NOW + 6, { key: "key-L1-new" }), NOW + 6), "sent", "with another key (the owner changed it): it takes the place of the old one");
+  assert.deepEqual(amy.invites(NOW + 6).map((i) => [i.ledger, i.key]), [["L1", "key-L1-new"]]);
+  amy.invited(invitation("L2", NOW + 7), NOW + 7);
+  assert.deepEqual(amy.invites(NOW + 7).map((i) => i.ledger), ["L2", "L1"], "the newest first");
+
+  amy.keep({ id: "L1", key: "key-L1-new", now: NOW + 8 });
+  assert.deepEqual(amy.invites(NOW + 8).map((i) => i.ledger), ["L2"], "keeping the ledger uses the invitation up");
+  assert.equal(amy.invited(invitation("L1", NOW + 9), NOW + 9), "in", "inviting someone to a ledger of theirs: nothing kept");
+  assert.deepEqual(amy.invites(NOW + 9).map((i) => i.ledger), ["L2"]);
+  amy.uninvite("L2");
+  amy.uninvite("L2");
+  assert.deepEqual(amy.invites(NOW + 9), [], "said no to (twice is once)");
+});
+
+test("invitations wait thirty days, at most thirty of them; an account sends so many a day; and all of it goes with the account", () => {
+  const store = memoryAccountStore();
+  const amy = new AccountRoom(store);
+  amy.invited(invitation("old", NOW), NOW);
+  amy.invited(invitation("newer", NOW + DAY), NOW + DAY);
+  assert.deepEqual(amy.invites(NOW + INVITE_DAYS * DAY - 1).map((i) => i.ledger), ["newer", "old"], "a moment short of thirty days: still there");
+  assert.deepEqual(amy.invites(NOW + INVITE_DAYS * DAY).map((i) => i.ledger), ["newer"], "thirty days on: gone");
+  assert.deepEqual(store.invites().map((i) => i.ledger), ["newer"], "and not only out of sight");
+
+  for (let i = 0; i < MAX_INVITES + 3; i++) amy.invited(invitation(`L${i}`, NOW + 2 * DAY + i), NOW + 2 * DAY + i);
+  const left = amy.invites(NOW + 3 * DAY).map((i) => i.ledger);
+  assert.equal(left.length, MAX_INVITES, `at most ${MAX_INVITES} wait`);
+  assert.deepEqual([left[0], left.at(-1), left.includes("newer")], [`L${MAX_INVITES + 2}`, "L3", false], "a new one past them pushes the oldest out");
+
+  const day = (n: number) => Array.from({ length: n }, () => amy.mayInvite("2026-11-14", 3));
+  assert.deepEqual(day(4), [true, true, true, false], "three a day, and no fourth");
+  assert.equal(amy.mayInvite("2026-11-15", 3), true, "the next day, again");
+  assert.deepEqual([...store.asked.keys()], ["2026-11-15"], "the day before is forgotten");
+
+  amy.wipe();
+  assert.deepEqual([store.invites(), store.asked.size], [[], 0], "deleted: the invitations waiting for it, and its day, gone too");
 });
 
 test("the night: in the small hours on the coast, a minute of its own for each, never the minute it is now", () => {

@@ -17,9 +17,26 @@
 // the bucket, and the room comes back when it is taken off, or its ledger is deleted. Each night
 // it is checked against what the ledgers really keep (the plan's 以实际为准: `settle`). A deleted
 // account's everything goes.
+//
+// Invitations from friends on changle.ca: someone in a ledger invites a friend of theirs, and the
+// invitation waits in the friend's account until they join (keeping the ledger takes it away), say
+// no, or INVITE_DAYS pass. It carries the ledger's key, as an invitation link does; a key changed
+// since makes it one that no longer opens the ledger, as it does a link. Whether the two are
+// friends, and whether the key opens the ledger, is the Worker's to check before anything is kept.
 
 /** One of an account's ledgers. `owner`: the owner's key, for a ledger they started. `me`: the id of the person in it they are. `at`: when it was first kept. */
 export type Mine = { id: string; key: string; owner?: string; me?: string; at: number };
+
+/** Who sent an invitation, as changle.ca shows them: their account, name, and photo (`av`: its version, 0 for none; `ac`: the colour of their letter). */
+export type Sender = { id: string; name: string; av: number; ac?: number };
+/**
+ * An invitation waiting in an account: to which ledger, with the key that opens it and the
+ * ledger's name when it was sent; who sent it; the person in the ledger it is for, when the sender
+ * said (the friend is that one, and isn't asked); and when.
+ */
+export type Invite = { ledger: string; key: string; name: string; from: Sender; member?: string; at: number };
+/** What came of inviting someone: a new invitation is waiting for them ("sent"), the same one already was ("again"), or the ledger is one of theirs already ("in"). */
+export type Invited = "sent" | "again" | "in";
 
 export interface AccountStore {
   /** Every ledger kept, the last one kept first. */
@@ -44,6 +61,15 @@ export interface AccountStore {
   /** Which account this is (told with the first file it sends, for the nightly check to ask the ledgers by). */
   self(): string | null;
   setSelf(account: string): void;
+  /** Invitations waiting for this account, the newest first. */
+  invites(): Invite[];
+  /** One waiting (it replaces the one to the same ledger). */
+  putInvite(invite: Invite): void;
+  dropInvite(ledger: string): void;
+  /** Invitations this account sent on this day (a date). */
+  inviting(day: string): number;
+  /** One more sent on this day. Days before it are forgotten. */
+  invite(day: string): void;
   /** Everything kept for the account goes. */
   wipe(): void;
 }
@@ -54,6 +80,13 @@ export const MAX_MINE = 300;
 export const STARTS_PER_DAY = 10;
 /** Files one account may send in a day: a trip's worth of receipts many times over. It stops a runaway phone. */
 export const UPLOADS_PER_DAY = 200;
+/** Invitations one account may send in a day, to friends: a few trips' worth of friends. It stops a runaway phone. */
+export const INVITES_PER_DAY = 50;
+/** How long an invitation waits for its friend, in days. */
+export const INVITE_DAYS = 30;
+/** Invitations one account keeps waiting; a new one past these pushes out the oldest. */
+export const MAX_INVITES = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** A file this account sent, still kept: in which ledger, its id there, its size in bytes, and when. */
 export type AccountFile = { ledger: string; id: string; size: number; at: number };
@@ -83,7 +116,47 @@ export class AccountRoom {
     const me = input.me === null ? undefined : typeof input.me === "string" ? input.me : was?.me;
     const mine: Mine = { id: input.id, key: input.key, ...(owner ? { owner } : {}), ...(me ? { me } : {}), at: was?.at ?? input.now };
     if (!was || JSON.stringify(was) !== JSON.stringify(mine)) this.store.put(mine);
+    // (one of theirs now: an invitation to it has done its job)
+    this.store.dropInvite(input.id);
     return { ok: true, mine };
+  }
+
+  /**
+   * A friend invites this account to a ledger. Nothing is kept when the ledger is one of the
+   * account's already ("in"), or the same invitation, with the same key, is already waiting
+   * ("again"). Otherwise it waits here ("sent"), in place of one to the same ledger with an older
+   * key; and past MAX_INVITES, the oldest goes.
+   */
+  invited(invite: Invite, now: number): Invited {
+    if (this.store.get(invite.ledger)) return "in";
+    this.expire(now);
+    if (this.store.invites().some((i) => i.ledger === invite.ledger && i.key === invite.key)) return "again";
+    this.store.putInvite(invite);
+    for (const old of this.store.invites().slice(MAX_INVITES)) this.store.dropInvite(old.ledger);
+    return "sent";
+  }
+
+  /** The invitations waiting for this account (none older than INVITE_DAYS), the newest first. */
+  invites(now: number): Invite[] {
+    this.expire(now);
+    return this.store.invites();
+  }
+
+  /** Not for them (or used): the invitation to this ledger goes. */
+  uninvite(ledger: string): void {
+    this.store.dropInvite(ledger);
+  }
+
+  /** One more invitation sent by this account today, when today's aren't used up; false when they are. */
+  mayInvite(day: string, limit: number): boolean {
+    if (this.store.inviting(day) >= limit) return false;
+    this.store.invite(day);
+    return true;
+  }
+
+  /** Invitations that have waited INVITE_DAYS go. */
+  private expire(now: number): void {
+    for (const i of this.store.invites()) if (now - i.at >= INVITE_DAYS * DAY_MS) this.store.dropInvite(i.ledger);
   }
 
   /** No longer in this account's list. (The ledger itself is untouched.) */
@@ -165,7 +238,7 @@ export class AccountRoom {
 }
 
 /** A store that lives only as long as the test does. */
-export function memoryAccountStore(): AccountStore & { days: Map<string, number>; sent: Map<string, number> } {
+export function memoryAccountStore(): AccountStore & { days: Map<string, number>; sent: Map<string, number>; asked: Map<string, number> } {
   const kept = new Map<string, Mine>();
   const days = new Map<string, number>();
   const files = new Map<string, AccountFile>();
@@ -174,12 +247,30 @@ export function memoryAccountStore(): AccountStore & { days: Map<string, number>
   let order = 0;
   const when = new Map<string, number>();
   let me: string | null = null;
+  /** invitations waiting, each with when it was put (the later put first among those sent the same moment, as the SQLite store has them) */
+  const invites = new Map<string, { invite: Invite; put: number }>();
+  /** invitations sent, by day */
+  const asked = new Map<string, number>();
   return {
     days,
     sent,
+    asked,
     self: () => me,
     setSelf(account) {
       me = account;
+    },
+    invites: () => [...invites.values()].sort((a, b) => b.invite.at - a.invite.at || b.put - a.put).map((x) => structuredClone(x.invite)),
+    putInvite(invite) {
+      invites.set(invite.ledger, { invite: structuredClone(invite), put: ++order });
+    },
+    dropInvite(ledger) {
+      invites.delete(ledger);
+    },
+    inviting: (day) => asked.get(day) ?? 0,
+    invite(day) {
+      const n = (asked.get(day) ?? 0) + 1;
+      asked.clear();
+      asked.set(day, n);
     },
     wipe() {
       kept.clear();
@@ -187,6 +278,8 @@ export function memoryAccountStore(): AccountStore & { days: Map<string, number>
       files.clear();
       sent.clear();
       when.clear();
+      invites.clear();
+      asked.clear();
       me = null;
     },
     fileOf: (ledger, id) => (files.has(at(ledger, id)) ? structuredClone(files.get(at(ledger, id))!) : null),

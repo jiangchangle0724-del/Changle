@@ -11,8 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type MineBody, type MyFiles, type MyLedgers, type Push, type Pushed, type Since, type Snapshot, type Stored } from "../src/room/protocol";
-import { SESSION } from "./accounts";
+import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type Push, type Pushed, type Since, type Snapshot, type Stored } from "../src/room/protocol";
+import { SESSION, STRANGER } from "./accounts";
 
 const PORT = 8794;
 const HOST = `127.0.0.1:${PORT}`;
@@ -496,6 +496,84 @@ test("an account starts at most ten ledgers a day", async () => {
   assert.deepEqual(await call("POST", "/ledgers", key, eleventh, someone), { status: 429, data: { error: "limit" } }, "an eleventh, no");
   assert.equal((await call("GET", `/ledgers/${eleventh.id}`, key)).status, 404, "(it wasn't made)");
   assert.equal((await call("POST", "/ledgers", key, eleventh, as(SESSION.wang))).status, 201, "another account, yes");
+});
+
+/** Two (or more) accounts of a test's own that are friends on changle.ca: the stand-in makes friends of names that start the same up to an "_" (tests/accounts.ts). */
+const circle = (...names: string[]) => {
+  const tag = `c${randomUUID().replaceAll("-", "").slice(0, 10)}`;
+  return names.map((name) => ({ id: `${tag}_${name}`, headers: as(`test-account-${tag}_${name}`) }));
+};
+const invitesOf = async (headers: Record<string, string>) => (await call<MyInvites>("GET", "/me/invites", null, undefined, headers)).data.invites;
+const inviting = (id: string, key: string, body: unknown, headers: Record<string, string>) => call<InviteSent>("POST", `/ledgers/${id}/invites`, key, body, headers);
+
+test("inviting a friend on changle.ca: it waits in their account until they keep the ledger, or say no", async () => {
+  const { id, key } = await make();
+  // (Steve and 小王 are friends: tests/accounts.ts)
+  const steve = as(SESSION.steve);
+  const wang = as(SESSION.wang);
+  const before = await invitesOf(wang);
+  assert.deepEqual(await inviting(id, key, { to: "uwang00000001", member: "w" }, steve), { status: 201, data: { invite: "sent" } }, "anyone with the key, signed in, invites a friend");
+  const waiting = (await invitesOf(wang)).filter((i) => !before.some((b) => b.ledger === i.ledger));
+  assert.deepEqual(
+    waiting.map((i) => ({ ...i, at: 0 })),
+    [{ ledger: id, key, name: "周末", from: { id: "usteve0000001", name: "Steve", av: 0 }, member: "w", at: 0 }],
+    "it waits in the friend's account: the ledger, the key, its name, who sent it (as changle.ca names them), and the person in it they are",
+  );
+  assert.ok(Math.abs(waiting[0].at - Date.now()) < 60_000, "and when");
+  assert.deepEqual(await inviting(id, key, { to: "uwang00000001" }, steve), { status: 200, data: { invite: "again" } }, "the same one again: nothing new");
+
+  assert.equal((await call("PUT", `/me/ledgers/${id}`, key, { me: "w" }, wang)).status, 200, "小王 keeps the ledger (joined)");
+  assert.ok(!(await invitesOf(wang)).some((i) => i.ledger === id), "and the invitation is used up");
+  assert.deepEqual(await inviting(id, key, { to: "uwang00000001" }, steve), { status: 200, data: { invite: "in" } }, "inviting someone to a ledger of theirs: nothing new");
+
+  const [amy, ben] = circle("Amy", "Ben");
+  assert.deepEqual(await inviting(id, key, { to: ben.id, member: "nobody" }, amy.headers), { status: 201, data: { invite: "sent" } });
+  assert.deepEqual(
+    (await invitesOf(ben.headers)).map((i) => [i.ledger, i.from.name, i.member ?? null]),
+    [[id, "Amy", null]],
+    "a person who isn't in the ledger isn't said",
+  );
+  assert.deepEqual(await call("DELETE", `/me/invites/${id}`, null, undefined, ben.headers), { status: 200, data: { ok: true } }, "Ben says no");
+  assert.deepEqual(await invitesOf(ben.headers), [], "and it is gone");
+  assert.deepEqual(await call("DELETE", `/me/invites/${id}`, null, undefined, ben.headers), { status: 200, data: { ok: true } }, "twice is once");
+});
+
+test("who may invite whom: signed in, with the key, a friend, to a ledger that takes people", async () => {
+  const { id, key } = await make();
+  const [amy, ben] = circle("Amy", "Ben");
+  const [stranger] = circle("Cal");
+  const to = { to: ben.id };
+  assert.deepEqual(await inviting(id, key, to, {}), { status: 401, data: { error: "signin" } }, "signed out, no");
+  assert.deepEqual(await inviting(id, key, to, as(SESSION.nobody)), { status: 401, data: { error: "signin" } }, "a sign-in that is nobody's, no");
+  assert.deepEqual(await inviting(id, key, to, as(SESSION.down)), { status: 503, data: { error: "down" } }, "the rooms server can't say whose it is: not now");
+  assert.deepEqual(await inviting(id, newKey(), to, amy.headers), { status: 403, data: { error: "key" } }, "without the key, no");
+  assert.deepEqual(await inviting(newId(), key, to, amy.headers), { status: 404, data: { error: "gone" } }, "no such ledger");
+  assert.deepEqual(await inviting(id, key, { to: stranger.id }, amy.headers), { status: 403, data: { error: "friends" } }, "someone who isn't a friend, no");
+  assert.deepEqual(await inviting(id, key, { to: STRANGER }, amy.headers), { status: 403, data: { error: "friends" } }, "someone changle.ca has never heard of, no");
+  assert.deepEqual(await invitesOf(stranger.headers), [], "(nothing waits for them)");
+  for (const bad of [{}, { to: amy.id }, { to: "not an id!" }, { to: 7 }, { to: ben.id, member: "?" }, "{not json"])
+    assert.deepEqual(await inviting(id, key, bad, amy.headers), { status: 400, data: { error: "bad" } }, `not an invitation: ${JSON.stringify(bad)}`);
+
+  const owner = newKey();
+  const lockedId = newId();
+  const lockedKey = newKey();
+  assert.equal((await call("POST", "/ledgers", lockedKey, { id: lockedId, name: "锁了", currency: "CAD", members: three }, { [OWNER_HEADER]: owner, ...someone() })).status, 201);
+  assert.equal((await call("POST", `/ledgers/${lockedId}/lock`, null, { locked: true }, { [OWNER_HEADER]: owner })).status, 200);
+  assert.deepEqual(await inviting(lockedId, lockedKey, to, amy.headers), { status: 423, data: { error: "locked" } }, "a locked ledger takes nobody new");
+
+  assert.deepEqual(await call("GET", "/me/invites", null), { status: 401, data: { error: "signin" } }, "my invitations: signed in only");
+  assert.deepEqual(await call("POST", "/me/invites", null, {}, ben.headers), { status: 404, data: { error: "notfound" } });
+  assert.deepEqual(await call("DELETE", "/me/invites/no!", null, undefined, ben.headers), { status: 404, data: { error: "notfound" } });
+});
+
+test("an account sends at most fifty invitations a day", async () => {
+  const { id, key } = await make();
+  const [amy, ...friends] = circle("Amy", ...Array.from({ length: 51 }, (_, i) => `F${i}`));
+  for (let i = 0; i < 50; i++) assert.equal((await inviting(id, key, { to: friends[i].id }, amy.headers)).status, 201, `the ${i + 1}th`);
+  assert.deepEqual(await inviting(id, key, { to: friends[50].id }, amy.headers), { status: 429, data: { error: "limit" } }, "a fifty-first, no");
+  assert.deepEqual(await invitesOf(friends[50].headers), [], "(it didn't go)");
+  const [ben, cal] = circle("Ben", "Cal");
+  assert.equal((await inviting(id, key, { to: cal.id }, ben.headers)).status, 201, "another account, yes");
 });
 
 test("the owner deletes a ledger: gone for everyone, and off the owner's list", async () => {

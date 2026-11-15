@@ -24,3 +24,19 @@ export const ACCOUNTS: Record<string, { id: string; name: string; email: string 
  * give every phone one of its own, so no account runs out of its day's ledgers.
  */
 export const ANYONE = /^test-account-([A-Za-z0-9_-]{7,60})$/;
+
+/**
+ * Who is a friend of whom on changle.ca, as the stand-in says when 两清 asks before an invitation
+ * (GET /api/users/<id>, its `relation`): Steve and 小王 are friends. And two "test-account-"
+ * accounts whose names start the same up to an "_" are friends ("tripA_steve" and "tripA_amy"),
+ * so a test or a check in a browser makes friends of its own by naming them so.
+ */
+export const FRIENDS: [string, string][] = [["usteve0000001", "uwang00000001"]];
+/** An account the stand-in has never heard of: GET /api/users/<this> is 404. */
+export const STRANGER = "unobody000001";
+export function relation(a: string, b: string): "self" | "friends" | "none" {
+  if (a === b) return "self";
+  if (FRIENDS.some(([x, y]) => (x === a && y === b) || (x === b && y === a))) return "friends";
+  const circle = (id: string) => (id.includes("_") ? id.slice(0, id.indexOf("_")) : null);
+  return circle(a) !== null && circle(a) === circle(b) ? "friends" : "none";
+}

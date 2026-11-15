@@ -8,6 +8,7 @@
 //   POST /split/api/ledgers/<id>/key        its owner changes the key            → Snapshot
 //   POST /split/api/ledgers/<id>/lock       its owner locks it, or opens it      LockBody → Snapshot
 //   DELETE /split/api/ledgers/<id>          its owner deletes it                 → { ok: true }
+//   POST /split/api/ledgers/<id>/invites    invite a friend on changle.ca, signed in  InviteBody → InviteSent (201 for a new one; 200 when nothing new)
 //
 //   GET    /split/api/ledgers/<id>/files         its receipt photos and files      → Files
 //   PUT    /split/api/ledgers/<id>/files/<file>  store one, signed in; the body is the file (a FILE_TYPES type, at most FILE_MAX) → Stored (201; 200 when it was stored already)
@@ -19,6 +20,8 @@
 //   DELETE /split/api/me/ledgers/<id>       take one off my ledgers (the ledger stays) → { ok: true }
 //   GET    /split/api/me/files              how much of my room my files use, and how much no expense uses → MyFiles
 //   DELETE /split/api/me/files/unused       those no expense uses go now, from every ledger (not one stored in the last hour) → MyFiles
+//   GET    /split/api/me/invites            the invitations from friends waiting for me → MyInvites
+//   DELETE /split/api/me/invites/<id>       the one to this ledger goes (said no to, or used) → { ok: true }
 //
 // Every request but the owner's two carries the key from the invitation link in the KEY_HEADER. A
 // browser can't put a header on a WebSocket, so the live connection gives it as its second
@@ -50,9 +53,16 @@
 // sooner from "my files". When a changle.ca account is deleted, the rooms server tells this server
 // (through a Service Binding to its `Internal` entrypoint: no address leads there), and every file
 // the account sent goes, from every ledger, with all that was kept for the account.
+//
+// Inviting a friend: whoever holds the key, signed in, can invite someone who is their friend on
+// changle.ca (the rooms server says so; "friends", 403, when it doesn't), at most INVITES_PER_DAY a
+// day ("limit"). A locked ledger takes nobody new ("locked"). The invitation waits in the friend's
+// account, key and all, for INVITE_DAYS, until they keep the ledger (putting it in "my ledgers"
+// takes it away) or say no. The phone that invited tells the friend itself, with a message in the
+// site's chat. Nothing is sent by mail. An account deleted takes the invitations waiting for it.
 import type { Sent, Took } from "../../../../site/src/split/changes";
 import type { Ledger, Member } from "../../../../site/src/split/core";
-import type { Mine, Storage } from "./account";
+import type { Invite, Invited, Mine, Storage } from "./account";
 import type { Count, ErrorCode, FileInfo, Logged, Snapshot } from "./ledger";
 
 export const KEY_HEADER = "x-split-key";
@@ -63,6 +73,8 @@ export const KEY_RE = /^[A-Za-z0-9_-]{22,128}$/;
 export const LIVE_PROTOCOL = "split.v1";
 /** A person's id in a ledger, as phones make them. */
 export const MEMBER_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/** A changle.ca account's id, as far as 两清 needs to know one (the rooms server makes them). */
+export const ACCOUNT_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** What a file may be: a photo (the phone sends it as a JPEG it made smaller), or a PDF. */
 export const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
@@ -94,17 +106,24 @@ export type Stored = { file: FileInfo; used: number; quota: number };
  * the ones it holds.)
  */
 export type MyFiles = { used: number; quota: number; unused: Count; ledgers: { id: string; count: number; bytes: number; unused: Count }[] };
-export type { Count, FileInfo, Mine, Snapshot, Storage };
+/** A friend to invite (their changle.ca account), and the person in the ledger they are, when the phone knows. */
+export type InviteBody = { to: string; member?: string };
+/** What came of it (src/room/account.ts, `Invited`). */
+export type InviteSent = { invite: Invited };
+/** The invitations waiting for me, the newest first. */
+export type MyInvites = { invites: Invite[] };
+export type { Count, FileInfo, Invite, Invited, Mine, Snapshot, Storage };
 
 /**
  * "limit": this network, or this account, has made today's allowance of ledgers (or sent today's
  * files). "quota": a file would take the account past its room. "big": a file bigger than
  * FILE_MAX. "notfound": no such address. "signin": the sign-in is nobody's (401). "down": the
- * rooms server can't say whose it is now, or the bucket didn't take a file (503). (From ErrorCode, the two that came with owners: "owner" is 403, and "locked" is
+ * rooms server can't say whose it is now, or the bucket didn't take a file (503). "friends": the one
+ * invited isn't a friend on changle.ca, or isn't anyone there (403). (From ErrorCode, the two that came with owners: "owner" is 403, and "locked" is
  * 423: the ledger is locked, and the request had something new in it. "full" is 409 for my
  * ledgers too: an account keeps at most MAX_MINE.)
  */
-export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" | "quota" | "big" };
+export type ApiError = { error: ErrorCode | "limit" | "notfound" | "signin" | "down" | "quota" | "big" | "friends" };
 
 /** What the live connection sends: the whole ledger, and the number of its last change. */
 export type Push = { t: "ledger"; seq: number; ledger: Ledger };
