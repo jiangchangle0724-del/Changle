@@ -13,7 +13,7 @@
  *  9. Words: both languages for every one, the same blanks in each, none left unused.
  * 10. The screens write nothing of their own: tokens only, and no words outside the table. The
  *     site's sign-in is read by the name the site keeps it under.
- * 11. Still hidden: no way in but its address.
+ * 11. On the Tools tab: its card, robots.txt and the sitemap; nothing else names it.
  * 12. The ledger's record (改动记录): every kind of line, who and when, what an edit changed, and
  *     what a line offers (an expense changed back, or brought back within 30 days).
  * 13. The 结清图: what the picture of the plan says, when it is out of date, and what the phone
@@ -754,16 +754,22 @@ const bare = (p: string) => read(p).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^
 // the site's sign-in, read by the name the site keeps it under (net.ts can't import it): if the site renames it, this says so
 ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 sends the site's sign-in, read from where the site keeps it (${SESSION_KEY}, src/lib/api.ts)`);
 
-// ---------- 11. still hidden ----------
+// ---------- 11. on the Tools tab ----------
 {
-  // 两清 gets its card on the Tools tab when all three gates in docs/split.md are passed, and not before.
-  // Until then its address is the only way in: nothing in the site but the router and the app shell may name it.
-  // (its own check in a browser, scripts/split_check.ts, opens it by its address too)
-  const mayNameIt = new Set(["src/router.ts", "src/App.tsx", "scripts/split_check.ts"]);
+  // 两清 went on the Tools tab on 2026-11-15 (Steve: once the purchase date was done, without waiting
+  // for his ten expenses on a phone). Its card is the way in; the router and the app shell know its
+  // pages; the build gives /split its own head and puts it in the sitemap; robots.txt keeps the API out.
+  // Nothing else in the site names it (its own check in a browser, scripts/split_check.ts, opens it by its address).
+  const mayNameIt = new Set(["src/router.ts", "src/App.tsx", "src/tools/Split.tsx", "scripts/postbuild.ts", "scripts/split_check.ts"]);
   const elsewhere = [...walk("src"), ...walk("scripts"), "index.html"].filter((p) => /\.(tsx?|mjs|js|json|html|css)$/.test(p) && !p.startsWith("src/split/") && !mayNameIt.has(p));
   const naming = elsewhere.filter((p) => /["'`(]\/split(\/|["'`)])|kind:\s*["']split["']|split\/SplitApp/.test(read(p)));
-  ok(!naming.length, `nothing links to /split yet (${elsewhere.length} files looked at)${naming.length ? `: ${naming.join(", ")}` : ""}`);
-  ok(!/split/i.test(read("public/robots.txt")) && !/["'`]\/split/.test(read("scripts/postbuild.ts")), "and it isn't in the sitemap or robots.txt");
+  ok(!naming.length, `only its card, the router, the app shell and the build name /split (${elsewhere.length} other files looked at)${naming.length ? `: ${naming.join(", ")}` : ""}`);
+  const card = read("src/tools/Split.tsx");
+  ok(/export const SPLIT = "\/split";/.test(card) && /href=\{SPLIT\}/.test(card) && /category="tool"/.test(card) && /<Split \/>/.test(read("src/tools/ToolsTab.tsx")), "its card is on the Tools tab, a tool's, and leads to /split");
+  ok(/^Disallow: \/split\/api\/$/m.test(read("public/robots.txt")), "robots.txt keeps its API out");
+  const build = read("scripts/postbuild.ts");
+  ok(/write\("split\.html", page\(\{[^\n]*path: "\/split"/.test(build) && /const paths = \[[^\n]*"\/split"\]/.test(build), "the build gives /split a page of its own, and puts it in the sitemap");
+  ok(/^\/split\/\*\n {2}X-Robots-Tag: noindex$/m.test(read("public/_headers")), "a ledger's own address still isn't indexed");
 }
 
 // ---------- 12. the ledger's record ----------
