@@ -24,6 +24,12 @@ export const mine = (l: Ledger, me: string | undefined) => (me && l.members.some
 /** A member's name as this phone's owner reads it: 你 for themselves. */
 export const nameFor = (l: Ledger, id: string, me: string | undefined, lang: Lang) => (id === me ? say(lang, "you") : nameOf(l, id));
 
+/** An expense's tip and tax, said in the currency it was paid in ("小费 $18.00 · 税 $5.25"); null with neither. */
+export function extrasText(tip: number | null | undefined, tax: number | null | undefined, currency: string, lang: Lang): string | null {
+  const parts = [tip ? say(lang, "extraTip", { amount: money(tip, currency, lang) }) : "", tax ? say(lang, "extraTax", { amount: money(tax, currency, lang) }) : ""].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 /**
  * Where you stand in a ledger, in words, for its card in the list: owed, owing, square, or nothing
  * recorded yet. Empty when the phone doesn't know which of the people you are.

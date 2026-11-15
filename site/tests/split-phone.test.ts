@@ -1102,13 +1102,17 @@ const { net } = await import("../src/split/net");
   asked.length = 0;
   eq(
     [await readNet("read-ledger-1", KEY, "file-1"), asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.key === KEY, a.auth])],
-    [{ status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons" } } }, [["POST", "/ledgers/read-ledger-1/files/file-1/read", true, "Bearer session-4"]]],
-    "asked of the file's own address, with the key and the sign-in: the total, its currency, the shop",
+    [{ status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons", tip: null, tax: null } } }, [["POST", "/ledgers/read-ledger-1/files/file-1/read", true, "Bearer session-4"]]],
+    "asked of the file's own address, with the key and the sign-in: the total, its currency, the shop (a server from before tips says none)",
   );
   reply = { status: 200, json: { read: null } };
   eq((await readNet("read-ledger-1", KEY, "file-1")).data, { read: null }, "nothing on it to read: said as nothing");
   reply = { status: 200, json: { read: { total: "3200", currency: "jpy", merchant: "   " } } };
-  eq((await readNet("read-ledger-1", KEY, "file-1")).data, { read: { total: "3200", currency: null, merchant: null } }, "a currency that isn't a code, and a blank shop: none of either");
+  eq((await readNet("read-ledger-1", KEY, "file-1")).data, { read: { total: "3200", currency: null, merchant: null, tip: null, tax: null } }, "a currency that isn't a code, and a blank shop: none of either");
+  reply = { status: 200, json: { read: { total: "123.00", currency: "CAD", merchant: "Joe's", tip: "18.00", tax: "5.25" } } };
+  eq((await readNet("read-ledger-1", KEY, "file-1")).data, { read: { total: "123.00", currency: "CAD", merchant: "Joe's", tip: "18.00", tax: "5.25" } }, "the tip and tax in the total");
+  reply = { status: 200, json: { read: { total: "123.00", currency: "CAD", merchant: null, tip: "18,00", tax: 5.25 } } };
+  eq((await readNet("read-ledger-1", KEY, "file-1")).data, { read: { total: "123.00", currency: "CAD", merchant: null, tip: null, tax: null } }, "a tip that isn't digits with a dot, a tax that isn't text: none of either (the total still stands)");
   const refusals: [Answer, unknown][] = [
     [{ status: 403, json: { error: "off" } }, { status: 403, error: "off" }],
     [{ status: 429, json: { error: "budget" } }, { status: 429, error: "budget" }],

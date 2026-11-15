@@ -3,7 +3,7 @@
  * marking it as paid (or taking that back). The list holds still while people pay one by one
  * (core/ledger.ts, settlement), and when the last one is paid the page is stamped 两清. When the
  * 结清图 this phone last made says other transfers than these, the page says it is out of date
- * (picture.ts).
+ * (picture.ts). At its foot, 总结: what the ledger came to (summary.ts).
  */
 import { Check, Copy, ImageOff, Scale } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -16,12 +16,13 @@ import { useToast } from "../ui/Toast";
 import { expensesOf, type Ledger, type Settlement } from "./core";
 import { money } from "./format";
 import { whenText } from "./history";
-import { paysLine } from "./lines";
+import { nameFor, paysLine } from "./lines";
 import { paidId } from "./ops";
 import { copyText } from "./parts";
 import { isStale, type Made } from "./picture";
+import { summaryOf, type Most } from "./summary";
 import { record } from "./syncing";
-import { say, W } from "./words";
+import { say, W, type Word } from "./words";
 
 /** One transfer on the screen: a step of the plan, or one already made that the plan no longer holds. */
 type Line = { from: string; to: string; amount: number; paid?: string };
@@ -109,6 +110,7 @@ export function SettleView({ ledger, me, lang, plan, made }: { ledger: Ledger; m
           <ul className="split-rows">{plan.others.map((t) => row({ from: t.from, to: t.to, amount: t.amount, paid: t.id }, t.id))}</ul>
         </>
       )}
+      <Summary ledger={ledger} me={me} lang={lang} />
       <Sheet
         open={!!open}
         onClose={() => setOpen(null)}
@@ -173,6 +175,39 @@ export function SettleView({ ledger, me, lang, plan, made }: { ledger: Ledger; m
           </div>
         )}
       </Sheet>
+    </>
+  );
+}
+
+/**
+ * 总结: what the ledger came to, a line each. Spent in all, and in how many expenses; the tips and
+ * tax the receipts said, and how many receipts said them (only when any did); who paid the most and
+ * whose share came to the most, both of them when two came to the same.
+ */
+function Summary({ ledger, me, lang }: { ledger: Ledger; me: string | undefined; lang: Lang }) {
+  const s = summaryOf(ledger);
+  const sum = (n: number) => money(n, ledger.currency, lang);
+  const names = (m: Most) => m.who.map((id) => nameFor(ledger, id, me, lang) || say(lang, "someone")).join(say(lang, "nameAnd"));
+  const counted = (n: number, one: Word, many: Word) => (n === 1 ? say(lang, one) : say(lang, many, { n }));
+  const line = (term: Word, value: string, more: string) => (
+    <div>
+      <dt>{say(lang, term)}</dt>
+      <dd>
+        {value}
+        <small>{more}</small>
+      </dd>
+    </div>
+  );
+  return (
+    <>
+      <h3 className="split-subhead">{say(lang, "summary")}</h3>
+      <dl className="split-summary">
+        {line("summarySpent", sum(s.spent), counted(s.count, "summaryCountOne", "summaryCount"))}
+        {s.tipped > 0 && line("summaryTips", sum(s.tips), counted(s.tipped, "summaryReceiptsOne", "summaryReceipts"))}
+        {s.taxed > 0 && line("summaryTax", sum(s.tax), counted(s.taxed, "summaryReceiptsOne", "summaryReceipts"))}
+        {s.paidMost && line("summaryPaidMost", names(s.paidMost), sum(s.paidMost.amount))}
+        {s.spentMost && line("summarySpentMost", names(s.spentMost), sum(s.spentMost.amount))}
+      </dl>
     </>
   );
 }

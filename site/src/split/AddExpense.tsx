@@ -18,10 +18,10 @@ import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 import { MAX_FILES } from "./changes";
 import { MAX_SHARES, nextRot, portions, toMinor, type Decimals, type Expense, type Ledger } from "./core";
-import { abroad, amountOf, blankDraft, draftOf, draftProblem, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, money, typed } from "./format";
 import { asAmountText, press, type Key } from "./input";
-import { nameFor } from "./lines";
+import { extrasText, nameFor } from "./lines";
 import { NOTE_MAX } from "./ops";
 import { Bar, Keypad } from "./parts";
 import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
@@ -102,9 +102,9 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     toast(text, { tone: "warning", ...(word === "photoSignIn" ? { action: { label: say(lang, "signIn"), onClick: () => openSignIn() } } : {}) });
   };
   // Reading a receipt: the first one sent while there is no amount yet goes to the server, which has
-  // Google read what was paid; that fills the amount, its currency, and an empty note, for the person
-  // to check. Said under the amount: being read, read (until the amount is changed), or nothing read
-  // (until a key is pressed). What was typed meanwhile is never replaced.
+  // Google read what was paid; that fills the amount, its currency, an empty note, and the tip and tax
+  // in it, for the person to check. Said under the amount: being read, read (until the amount is
+  // changed), or nothing read (until a key is pressed). What was typed meanwhile is never replaced.
   const [reading, setReading] = useState<"busy" | "none" | null>(null);
   /** what the reading put in, as "<currency> <amount>": while the draft still says it, it says where it came from */
   const [fromReceipt, setFromReceipt] = useState<string | null>(null);
@@ -129,7 +129,9 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     const next = other ? payIn(d, other, ledger, fxNow.current?.rates, Date.now()) : d;
     // (a total the currency can't be, like cents in yen: none)
     if (toMinor(got.total, decimalsOf(next.currency)) === null) return setReading("none");
-    setDraft({ ...next, text: got.total, note: next.note || got.merchant || "" });
+    // (the tip and tax in it, when they are sums that currency can be)
+    const part = (x: string | null) => (x && toMinor(x, decimalsOf(next.currency)) !== null ? x : "");
+    setDraft({ ...next, text: got.total, note: next.note || got.merchant || "", tip: part(got.tip), tax: part(got.tax) });
     setFromReceipt(`${next.currency} ${got.total}`);
     setReading(null);
   };
@@ -244,12 +246,18 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         : wrong?.what === "amount"
           ? { text: say(lang, amount === 0 ? "tooLittle" : "tooMuch"), loud: true }
           : { text: say(lang, "comesTo", { amount: money(amount ?? 0, ledger.currency, lang) }), more: say(lang, "rateIs", { rate }) };
-  // the line under the amount about the receipt: only when there is no rate to say there instead
-  const readLine = comes ? null : reading === "busy" ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fromReceipt === `${draft.currency} ${draft.text}` ? say(lang, "readFromReceipt") : null;
+  // The line under the amount about the receipt, only when there is no rate to say there instead:
+  // being read, nothing read, read. A tip and tax the expense will keep are said there too (just read,
+  // or since), and pressing that opens the receipt's sheet, where they can be put right.
+  const fresh = fromReceipt === `${draft.currency} ${draft.text}`;
+  const extras = extrasOf(draft);
+  const extrasSaid = extrasText(extras.tip, extras.tax, draft.currency, lang);
+  const readLine = comes ? null : reading === "busy" ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !extrasSaid ? say(lang, "readFromReceipt") : null;
+  const extrasLine = comes || reading || !extrasSaid ? null : say(lang, fresh ? "readExtras" : "withExtras", { extras: extrasSaid });
   // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
   // the ledger on the server, and nothing has said reading isn't to be had here): the line opens the
   // camera, as the button at the end of the note's line does. A key pressed, and it gives way.
-  const hint = !editing && !draft.text && !comes && !readLine && !reading && !files.length && !sending && signedIn && readingOn(ledger.id);
+  const hint = !editing && !draft.text && !comes && !readLine && !extrasLine && !reading && !files.length && !sending && signedIn && readingOn(ledger.id);
   const shareSummary = !who.length
     ? say(lang, "nobody")
     : draft.how === "equal"
@@ -292,7 +300,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         }
       />
       <div className="split-add-main">
-        <div className={`split-add-amount${comes ? " is-abroad" : readLine || hint ? " is-read" : ""}`}>
+        <div className={`split-add-amount${comes ? " is-abroad" : readLine || extrasLine || hint ? " is-read" : ""}`}>
           <output className={`split-figure ${sizeClass(shown)}${draft.text ? "" : " is-empty"}`} aria-label={say(lang, "amount")}>
             {shown}
           </output>
@@ -309,6 +317,16 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
             </button>
           )}
           {readLine && <p className="split-add-read">{readLine}</p>}
+          {extrasLine && (
+            // (like the rate's line: the whole block answers the tap, the line at its foot)
+            <button type="button" className="split-add-extras" onClick={() => setPhotos(true)}>
+              <span>
+                <span>{extrasLine}</span>
+                <span className="ui-visually-hidden"> {say(lang, "changeExtras")}</span>
+                <ChevronRight aria-hidden="true" />
+              </span>
+            </button>
+          )}
           {hint && (
             // (like the rate's line: the whole block answers the tap, the line at its foot)
             <button type="button" className="split-add-hint" onClick={pressPhoto}>
@@ -344,7 +362,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
           </div>
         </div>
         <span className="ui-visually-hidden" role="status">
-          {off || (comes?.loud ? comes.text : sending ? say(lang, "photoSending") : (readLine ?? ""))}
+          {off || (comes?.loud ? comes.text : sending ? say(lang, "photoSending") : (readLine ?? (fresh && extrasLine ? extrasLine : "")))}
         </span>
       </div>
       <div className="split-dock">
@@ -370,6 +388,9 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         // (the server said the sign-in has run out: as signed out, with 登录)
         signedIn={signedIn && photoNote?.word !== "photoSignIn"}
         note={photoNote?.text ?? null}
+        // (the tip and tax on the receipt: with a receipt, or with what one said)
+        extras={files.length || draft.tip || draft.tax ? { tip: draft.tip, tax: draft.tax, currency: draft.currency, over: extrasOver(draft) } : null}
+        onExtras={(to) => setDraft((d) => ({ ...d, ...to }))}
         lang={lang}
         onPick={(chosen) => void pick(chosen)}
         onRemove={(f) => {

@@ -3039,6 +3039,55 @@ async function reading() {
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
 
+  // a receipt with a tip and tax in it: kept with the expense, said under the amount and on its row,
+  // put right in the receipt's sheet; and summed up at the foot of 结清
+  await button(pa, "addExpense").click();
+  await attach("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25");
+  const extras = pa.locator(".split-add-extras");
+  await extras.waitFor({ timeout: 15_000 });
+  ok((await amount()) === "$123.00" && (await extras.textContent())?.includes("从小票读的，含小费 $18.00 · 税 $5.25"), `a receipt with a tip and tax: the amount, and the line says what of it was tip and tax (${await extras.textContent()})`);
+  await pa.screenshot({ path: join(out, "read-extras-zh-390x664.png") });
+  await extras.click();
+  const fields = pa.locator("dialog[open] .split-extras input");
+  await fields.first().waitFor();
+  ok((await fields.nth(0).inputValue()) === "18.00" && (await fields.nth(1).inputValue()) === "5.25", "pressing it opens the receipt's sheet, the tip and tax there to put right");
+  await pa.screenshot({ path: join(out, "read-extras-sheet-zh-390x664.png") });
+  await fields.nth(0).fill("200");
+  await pa.locator("dialog[open] .split-extras .split-note").waitFor();
+  ok(true, "a tip that with the tax comes to more than the expense: the sheet says it won't be kept");
+  await pa.screenshot({ path: join(out, "read-extras-over-zh-390x664.png") });
+  await fields.nth(0).fill("20,5");
+  ok((await fields.nth(0).inputValue()) === "20.5" && (await pa.locator("dialog[open] .split-extras .split-note").count()) === 0, "put right (a comma typed is a dot): nothing said");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25"), `back on the expense, the line says the tip as put right (${await extras.textContent()})`);
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  await pa.locator(".split-row-extras", { hasText: "小费 $20.50 · 税 $5.25" }).waitFor();
+  ok(true, "its row says the tip and tax");
+  await pa.screenshot({ path: join(out, "read-extras-row-zh-390x664.png") });
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  const onServer = (await keptBy(pa)).held[0].server.entries as { note?: string; tip?: number; tax?: number }[];
+  const joes = onServer.find((e) => e.note === "Joe's Diner");
+  ok(joes?.tip === 2050 && joes?.tax === 525, `the server keeps them (${joes?.tip}, ${joes?.tax})`);
+  await pa.locator(".split-row", { hasText: "Joe's Diner" }).click();
+  await pa.locator(".split-keys").waitFor();
+  ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25") && !(await extras.textContent())?.includes("从小票"), "opened again, the line says the tip and tax it keeps");
+  for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
+  await type(pa, "10");
+  ok((await extras.count()) === 0, "the amount typed down below them: the line goes (they wouldn't be kept)");
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  await pa.getByRole("tab", { name: t("settle") }).click();
+  const summary = pa.locator(".split-summary");
+  await summary.waitFor();
+  const summed = async (k: Word) => (await summary.locator("div", { has: pa.locator("dt", { hasText: new RegExp(`^${t(k)}$`) }) }).locator("dd").innerText()).replace(/\s+/g, " ");
+  const got = [await summed("summarySpent"), await summed("summaryTips"), await summed("summaryTax"), await summed("summaryPaidMost"), await summed("summarySpentMost")];
+  ok(JSON.stringify(got) === JSON.stringify(["$126.00 2 笔", "$20.50 1 张小票上的", "$5.25 1 张小票上的", "你 $126.00", "你、阿甲 $63.00"]), `结清 ends with the summary: spent, tips, tax, who paid the most, whose share came to the most (${got.join(" | ")})`);
+  await summary.scrollIntoViewIfNeeded();
+  await pa.screenshot({ path: join(out, "read-summary-zh-390x664.png") });
+  await pa.getByRole("tab", { name: t("expenses") }).click();
+
   // reading not to be had (no key, the month spent): nothing said, and not asked again on this page
   await a.unroute("**/split/api/ledgers/*/files/*/read");
   await a.route("**/split/api/ledgers/*/files/*/read", (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "off" }) }));

@@ -29,7 +29,7 @@ import { money } from "./format";
 import { keyFrom } from "./invite";
 import { doneStarting, invitePicked, wasStarted } from "./invites";
 import { WhoStep } from "./Join";
-import { lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
+import { extrasText, lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
 import { Bar, Rolling } from "./parts";
 import { PictureSheet } from "./PictureSheet";
 import { paidInOf } from "./rates";
@@ -387,7 +387,7 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
         }
       />
     );
-  const row = (e: Expense, paid = paidInOf(e, ledger)) => (
+  const row = (e: Expense, paid = paidInOf(e, ledger), extras = extrasText(e.tip, e.tax, e.paidIn?.currency ?? ledger.currency, lang)) => (
     <>
       <span className="split-row-text">
         <strong className={e.note ? undefined : "is-quiet"}>{e.note || say(lang, "noNote")}</strong>
@@ -401,6 +401,8 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
             </>
           )}
         </span>
+        {/* the tip and tax its receipt said, in the currency it was paid in */}
+        {extras && <span className="split-row-extras">{extras}</span>}
       </span>
       <span className="split-row-amount">
         {money(e.amount, ledger.currency, lang)}

@@ -39,6 +39,13 @@ export type Draft = {
   /** shared by amounts: what was typed for each */
   amounts: Record<string, string>;
   note: string;
+  /**
+   * what the receipt says went to the tip, and to tax, in `currency` as read or typed ("18.00");
+   * empty for none. Kept with the expense when they fit in what was paid (extrasOf); a currency
+   * picked anew empties them, since they were in the old one.
+   */
+  tip: string;
+  tax: string;
 };
 
 /**
@@ -63,6 +70,8 @@ export function blankDraft(l: Ledger, me: string | undefined, now: number): Draf
     shares: {},
     amounts: {},
     note: "",
+    tip: "",
+    tax: "",
   };
 }
 
@@ -71,18 +80,23 @@ export function draftOf(e: Expense, l: Ledger): Draft {
   const s = e.split;
   const decimals = decimalsOf(l.currency);
   const paid = paidInOf(e, l);
+  // (paid in a currency these screens can't show: that, and its tip and tax, are left unsaid)
+  const untouched = !paid && e.paidIn !== undefined;
+  const inPaid = (n: number | undefined) => (n && !untouched ? fromMinor(n, decimalsOf(paid ? paid.currency : l.currency)) : "");
   return {
     text: paid ? fromMinor(paid.amount, decimalsOf(paid.currency)) : fromMinor(e.amount, decimals),
     currency: paid ? paid.currency : l.currency,
     rate: paid ? paid.rate : "",
     asking: false,
-    untouched: !paid && e.paidIn !== undefined,
+    untouched,
     payer: e.payer,
     how: s.how,
     among: s.how === "equal" ? [...s.among] : [],
     shares: s.how === "shares" ? { ...s.shares } : {},
     amounts: s.how === "exact" ? Object.fromEntries(Object.entries(s.amounts).map(([id, n]) => [id, n ? fromMinor(n, decimals) : ""])) : {},
     note: e.note,
+    tip: inPaid(e.tip),
+    tax: inPaid(e.tax),
   };
 }
 
@@ -111,9 +125,32 @@ export function amountOf(d: Draft, l: Ledger): number | null {
 export function payIn(d: Draft, currency: string, l: Ledger, today: Rates | null | undefined, now: number): Draft {
   if (currency === d.currency) return d;
   const text = decimalsOf(currency) === 0 ? d.text.split(".")[0] : d.text;
-  if (currency === l.currency) return { ...d, text, currency, rate: "", asking: false, untouched: false };
+  // (a tip and tax were in the old currency)
+  if (currency === l.currency) return { ...d, text, currency, rate: "", asking: false, untouched: false, tip: "", tax: "" };
   const rate = startingRate(l, currency, today, now);
-  return { ...d, text, currency, rate, asking: !rate, untouched: false };
+  return { ...d, text, currency, rate, asking: !rate, untouched: false, tip: "", tax: "" };
+}
+
+/** A tip and tax typed that together come to more than the amount: they won't be kept (extrasOf), and the receipt's sheet says so. */
+export function extrasOver(d: Draft): boolean {
+  const decimals = decimalsOf(d.currency);
+  return (toMinor(d.tip, decimals) ?? 0) + (toMinor(d.tax, decimals) ?? 0) > (paidOf(d) ?? 0);
+}
+
+/**
+ * The tip and tax as the expense keeps them: each in the smallest units of the currency it is paid
+ * in, null for none (empty, or not a sum in that currency); both null when together they come to
+ * more than the amount typed (ops.ts, soundExtras: the ledger wouldn't take them).
+ */
+export function extrasOf(d: Draft): { tip: number | null; tax: number | null } {
+  const decimals = decimalsOf(d.currency);
+  const sum = (text: string) => {
+    const n = toMinor(text, decimals);
+    return n ? n : null;
+  };
+  const tip = sum(d.tip);
+  const tax = sum(d.tax);
+  return (tip ?? 0) + (tax ?? 0) <= (paidOf(d) ?? 0) ? { tip, tax } : { tip: null, tax: null };
 }
 
 /**
@@ -188,6 +225,7 @@ export function draftProblem(d: Draft, l: Ledger): Problem | null {
 export function saying(d: Draft, l: Ledger): ExpenseEdit | null {
   if (draftProblem(d, l)) return null;
   const said = { payer: d.payer, amount: amountOf(d, l) ?? 0, note: d.note, split: splitOf(d, decimalsOf(l.currency)) };
-  if (abroad(d, l)) return { ...said, paidIn: { currency: d.currency, amount: paidOf(d) ?? 0, rate: settled(d.rate) } };
-  return d.untouched ? said : { ...said, paidIn: null };
+  if (abroad(d, l)) return { ...said, paidIn: { currency: d.currency, amount: paidOf(d) ?? 0, rate: settled(d.rate) }, ...extrasOf(d) };
+  // (paid in a currency these screens can't show: that, and its tip and tax, unsaid)
+  return d.untouched ? said : { ...said, paidIn: null, ...extrasOf(d) };
 }
