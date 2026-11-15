@@ -144,6 +144,19 @@ export function asInvitations(x: unknown): Invitation[] | null {
   });
 }
 
+/** What was read off a receipt (tools/split/src/server/read.ts, Read): the total as digits with a dot, its currency when it could be told, the shop. */
+export type Reading = { total: string; currency: string | null; merchant: string | null };
+/** The server's answer to reading a receipt: what was read, or nothing (`read` null); null when the answer isn't that. */
+export function asReadReply(x: unknown): { read: Reading | null } | null {
+  if (!isRecord(x) || !("read" in x)) return null;
+  if (x.read === null) return { read: null };
+  const r = x.read;
+  if (!isRecord(r) || !isText(r.total) || !/^\d{1,10}(\.\d{1,2})?$/.test(r.total)) return null;
+  const currency = isText(r.currency) && /^[A-Z]{3}$/.test(r.currency) ? r.currency : null;
+  const merchant = isText(r.merchant) && r.merchant.trim() ? r.merchant.trim().slice(0, 40) : null;
+  return { read: { total: r.total, currency, merchant } };
+}
+
 /** What came of inviting a friend: an invitation now waits for them, the same one already did, or the ledger is theirs already. */
 export type InviteOutcome = "sent" | "again" | "in";
 /** The server's answer to an invitation (`{ invite }`); null when it isn't one. */

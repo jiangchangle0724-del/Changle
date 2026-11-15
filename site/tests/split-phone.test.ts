@@ -15,6 +15,8 @@
  *     the account's room for them, and its photos no expense uses, cleared.
  *  9. Invitations to friends on changle.ca: sent with the key and the sign-in, and the ones waiting
  *     for the account; only the server's own answers count.
+ * 10. A receipt read for its amount: asked with the key and the sign-in; what was read, or nothing;
+ *     reading not to be had, said as such; only the server's own answers count.
  *
  * (What is sent when, and what the phone makes of the answers, is tests/split-sync.test.ts.)
  */
@@ -1088,6 +1090,49 @@ const { net } = await import("../src/split/net");
   reply = { status: 200, json: { ok: true } };
   asked.length = 0;
   eq([await inviteNet.drop("inv-ledger-2"), asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.auth])], [{ status: 200, data: true }, [["DELETE", "/me/invites/inv-ledger-2", "Bearer session-3"]]], "one turned down");
+  storage.removeItem("changle.session");
+}
+
+// ---------- 10. a receipt read for its amount ----------
+{
+  const { readNet } = await import("../src/split/net");
+  storage.setItem("changle.session", "session-4");
+  let reply: Answer = { status: 200, json: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons" } } };
+  answer = (a) => (a.path.endsWith("/read") ? reply : "nothing");
+  asked.length = 0;
+  eq(
+    [await readNet("read-ledger-1", KEY, "file-1"), asked.map((a) => [a.method, a.path.replace("/split/api", ""), a.key === KEY, a.auth])],
+    [{ status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons" } } }, [["POST", "/ledgers/read-ledger-1/files/file-1/read", true, "Bearer session-4"]]],
+    "asked of the file's own address, with the key and the sign-in: the total, its currency, the shop",
+  );
+  reply = { status: 200, json: { read: null } };
+  eq((await readNet("read-ledger-1", KEY, "file-1")).data, { read: null }, "nothing on it to read: said as nothing");
+  reply = { status: 200, json: { read: { total: "3200", currency: "jpy", merchant: "   " } } };
+  eq((await readNet("read-ledger-1", KEY, "file-1")).data, { read: { total: "3200", currency: null, merchant: null } }, "a currency that isn't a code, and a blank shop: none of either");
+  const refusals: [Answer, unknown][] = [
+    [{ status: 403, json: { error: "off" } }, { status: 403, error: "off" }],
+    [{ status: 429, json: { error: "budget" } }, { status: 429, error: "budget" }],
+    [{ status: 429, json: { error: "limit" } }, { status: 429, error: "limit" }],
+    [{ status: 401, json: { error: "signin" } }, { status: 401, error: "signin" }],
+  ];
+  const got: unknown[] = [];
+  for (const [how] of refusals) {
+    reply = how;
+    got.push(await readNet("read-ledger-1", KEY, "file-1"));
+  }
+  eq(got, refusals.map(([, want]) => want), "the server's refusals, each named: no reading here, the month spent, today's used up, the sign-in");
+  const notTheServer: [Answer, string][] = [
+    [{ status: 200, json: { read: { total: "12,50" } } }, "a total that isn't digits with a dot"],
+    [{ status: 200, json: { total: "12.50" } }, "an answer without a reading"],
+    [{ status: 200, text: "<html>a hotel's sign-in page</html>" }, "a page"],
+    [{ status: 502, json: { error: "failed" } }, "Google failing"],
+  ];
+  const heard: number[] = [];
+  for (const [how] of notTheServer) {
+    reply = how;
+    heard.push((await readNet("read-ledger-1", KEY, "file-1")).status);
+  }
+  eq(heard, notTheServer.map(() => 0), `none of these is a reading: ${notTheServer.map(([, why]) => why).join("; ")}`);
   storage.removeItem("changle.session");
 }
 

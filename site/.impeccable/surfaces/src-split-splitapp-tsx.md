@@ -258,3 +258,16 @@ Shape: Steve asked for a way to invite the site's friends from 还有谁 and fro
 What the look at the rendered screens changed: on an empty ledger the faces sat on the tabs' line (they are spaced from it now); the faces' ring is the page's own colour, so the one behind reads as behind.
 
 Verdict: holds to the contract. Still three screens and one light; inviting is a quiet row on the ledger and a section on the sheet that was already there.
+
+## Reading a receipt for its amount (2026-11-15)
+
+Shape: Steve asked for the amount to fill itself in once a receipt's photo is up (approved at 2 dollars a month at most). Who and when: whoever paid, at the till, photo in hand; the amount is the one thing 记一笔 can't be saved without, and typing it is the slowest part.
+
+- Only when it helps: the first receipt sent while the amount is still empty is read. An amount typed first is never replaced, nor anything typed while the reading is out; an expense being changed isn't read.
+- Said in the one place there is for a line under the amount, quietly, like the rate's line (which comes first when there is one): Google 正在读小票上的金额 while it is out (saying who reads it is saying the photo went to Google), then 金额是从小票上读的，看一眼对不对 until the amount is changed, or 没读出金额，手填一下 until a key is pressed.
+- Read in another currency: 记一笔 changes to it, as picking it in the corner would, and the rate's line says what it comes to. An empty note takes the shop's name.
+- Not to be had (no key yet, the month's 2 dollars spent, the day's used up): nothing is said and nothing changes, and the page doesn't ask again. Nothing moves.
+
+What the look at the rendered screens changed: nothing; the line takes the rate line's room, so 记一笔 still fits whole at every height the fits check measures.
+
+Verdict: holds to the contract. No new control and no new screen: a photo that was already one tap away now also fills in the amount, and says so where the amount is.

@@ -91,6 +91,11 @@ export const W = {
   // (a ledger just started: the invitation is on its way to the server for a moment)
   inviteMaking: { zh: "正在准备邀请", en: "Getting the invitation ready" },
 
+  // a receipt read for its amount (by Google, through the server): said under the amount
+  readingReceipt: { zh: "Google 正在读小票上的金额", en: "Google is reading the receipt" },
+  readFromReceipt: { zh: "金额是从小票上读的，看一眼对不对", en: "Read off the receipt. Check it's right" },
+  readNothing: { zh: "没读出金额，手填一下", en: "Couldn't read a total. Type it in" },
+
   // inviting friends on changle.ca: from the ledger, and while starting one
   inviteShort: { zh: "邀请", en: "Invite" },
   friendsHead: { zh: "网站上的好友", en: "Your friends on changle.ca" },

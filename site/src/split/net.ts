@@ -11,7 +11,7 @@
  * isn't the server.
  */
 import { KINDS } from "./photos";
-import { asDone, asInvitations, asInviteSent, asMine, asPushed, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
+import { asDone, asInvitations, asInviteSent, asMine, asPushed, asReadReply, asSince, asSnapshot, isRecord, isText, type Mine, type Since } from "./shape";
 import type { Net, Reply } from "./syncer";
 
 const API = "/split/api";
@@ -190,7 +190,7 @@ async function fileAsk<T>(path: string, method: string, keys: Record<string, str
       return data === null ? { status: 0 } : { status: res.status, data };
     }
     const said: unknown = await res.json().catch(() => null);
-    if (res.status >= 500 || !isRecord(said) || !isText(said.error) || ![...REFUSALS, "quota", "big", "friends"].includes(said.error)) return { status: 0 };
+    if (res.status >= 500 || !isRecord(said) || !isText(said.error) || ![...REFUSALS, "quota", "big", "friends", "off", "budget"].includes(said.error)) return { status: 0 };
     return { status: res.status, error: said.error };
   } catch {
     return { status: 0 };
@@ -206,6 +206,10 @@ const asStored = async (res: Response): Promise<Stored | null> => {
   if (!isRecord(x) || !isRecord(x.file) || !isText(x.file.id) || typeof x.used !== "number" || typeof x.quota !== "number") return null;
   return { id: x.file.id, used: x.used, quota: x.quota };
 };
+
+/** A receipt read by the server (signed in, with the key: tools/split/src/room/protocol.ts): what it says was paid. Google can take a few seconds. */
+export const readNet = (id: string, key: string, file: string) =>
+  fileAsk(`/ledgers/${id}/files/${file}/read`, "POST", { ...signedIn(), [KEY_HEADER]: key }, async (res) => asReadReply(await res.json().catch(() => null)), undefined, undefined, 40_000);
 
 /** A ledger's files at the server: one stored (signed in; a photo can take a while on a slow line), read back as it is, or taken off. */
 export const fileNet = {

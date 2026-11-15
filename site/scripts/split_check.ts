@@ -27,6 +27,9 @@
  *                                           five; three recorded with no signal and answers lost on the way back
  *                                           count once; one expense changed on two phones at once; one payment
  *                                           marked on both its people's phones with no signal is recorded once
+ *   npx tsx scripts/split_check.ts read     a receipt read for its amount, by the stand-in for Google (the
+ *                                           server run with --var FAKE_READ:1): read and said so, not read
+ *                                           over what was typed, nothing on it, another currency, none to be had
  *   npx tsx scripts/split_check.ts friends  friends on changle.ca: picked while starting a ledger and invited
  *                                           as it is made, invited from the invitation, told in the chat; their
  *                                           invitations joined, turned down, and out of date once the link
@@ -59,7 +62,7 @@ import { say, W, type Word } from "../src/split/words";
 type Lang = "zh" | "en";
 const args = process.argv.slice(2);
 const flag = (name: string) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends"].includes(a)) ?? "all";
+const what = args.find((a) => ["walk", "fits", "behave", "photos", "gate", "friends", "read"].includes(a)) ?? "all";
 const base = flag("--base") ?? "http://127.0.0.1:5173";
 const out = flag("--out") ?? join(tmpdir(), "split-check");
 mkdirSync(out, { recursive: true });
@@ -657,6 +660,28 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("saveChanges").click();
   await page.locator(".split-keys").waitFor({ state: "hidden" });
   if (local) ok((await page.locator(".split-row .lucide-paperclip").count()) === 1, `${lang} ${width}x${height}: saved, the expense's row has a paperclip`);
+
+  // a receipt read for its amount (the server reads with its stand-in for Google here: FAKE_READ),
+  // being read and read; then closed without recording it
+  if (local) {
+    await button("addExpense").click();
+    let hold = true;
+    const at = "**/split/api/ledgers/*/files/*/read";
+    await ctx.route(at, async (route) => {
+      while (hold) await new Promise((r) => setTimeout(r, 100));
+      await route.fallback();
+    });
+    await page.locator(".split-note-row input[type=file]").setInputFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:42.50 CAD Tim Hortons") });
+    await page.locator(".split-add-read", { hasText: t("readingReceipt") }).waitFor({ timeout: 15_000 });
+    await shot("16m-read-busy");
+    hold = false;
+    await page.locator(".split-add-read", { hasText: t("readFromReceipt") }).waitFor({ timeout: 15_000 });
+    await shot("16n-read-done");
+    ok((await page.locator(".split-add-amount output").textContent()) === "$42.50", `${lang} ${width}x${height}: the receipt read fills in the amount`);
+    await ctx.unroute(at);
+    await button("close").first().click();
+    await page.locator(".split-keys").waitFor({ state: "hidden" });
+  }
 
   // 照片空间 (signed in, in ⋯): how much of the room the photos take, and where they are
   const openStorage = async () => {
@@ -2884,6 +2909,111 @@ async function friends() {
   for (const c of [ctx, wangs, mias, amys, lone]) await c.close();
 }
 
+// ---------- reading: a receipt read for its amount ----------
+async function reading() {
+  const a = await phone(390, 664, "zh");
+  // (one read refused on purpose, further down, leaves the browser saying so)
+  const pa = await open(a, true);
+  await start(pa, "小票", ["阿甲"]);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made`);
+  const asked: string[] = [];
+  pa.on("request", (r) => {
+    if (/\/files\/[^/]+\/read$/.test(new URL(r.url()).pathname)) asked.push(r.method());
+  });
+  const amount = () => pa.locator(".split-add-amount output").textContent();
+  const line = pa.locator(".split-add-read");
+  const attach = (text: string) => pa.locator(".split-note-row input[type=file]").setInputFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: aPdf(text) });
+
+  // a receipt sent while there is no amount: read, the amount and the note filled in, and said where they came from
+  await button(pa, "addExpense").click();
+  let hold = true;
+  await a.route("**/split/api/ledgers/*/files/*/read", async (route) => {
+    while (hold) await new Promise((r) => setTimeout(r, 100));
+    await route.fallback();
+  });
+  await attach("receipt:42.50 CAD Tim Hortons");
+  await line.filter({ hasText: t("readingReceipt") }).waitFor({ timeout: 15_000 });
+  await pa.screenshot({ path: join(out, "read-busy-zh-390x664.png") });
+  ok(true, "while it is read, the line under the amount says Google is reading it");
+  hold = false;
+  await line.filter({ hasText: t("readFromReceipt") }).waitFor({ timeout: 15_000 });
+  await pa.screenshot({ path: join(out, "read-done-zh-390x664.png") });
+  ok((await amount()) === "$42.50" && (await pa.locator(".split-note-row input:not([type=file])").inputValue()) === "Tim Hortons" && asked.length === 1, `read: the amount ($42.50) and the note (the shop) filled in, and said to be off the receipt (asked ${asked.length} time)`);
+  await pa.keyboard.press("Backspace");
+  ok((await line.count()) === 0 && (await amount()) !== "$42.50", `the amount changed: it is the person's now, and the line goes (${await amount()})`);
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // an amount typed first: nothing is read
+  await button(pa, "addExpense").click();
+  await type(pa, "9");
+  await attach("receipt:42.50 CAD Tim Hortons");
+  await pa.locator(".split-photo-button img, .split-photo-button .split-thumb").first().waitFor({ timeout: 15_000 });
+  await pa.waitForTimeout(800);
+  ok(asked.length === 1 && (await amount()) === "$9", "with an amount typed first, the receipt isn't read: what was typed stands");
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // an amount typed while it is being read: what was typed stands, and nothing of the reading goes in
+  await button(pa, "addExpense").click();
+  hold = true;
+  await attach("receipt:42.50 CAD Tim Hortons");
+  await line.filter({ hasText: t("readingReceipt") }).waitFor({ timeout: 15_000 });
+  await type(pa, "8");
+  const answered = pa.waitForResponse((r) => /\/files\/[^/]+\/read$/.test(new URL(r.url()).pathname));
+  hold = false;
+  await answered;
+  await pa.waitForTimeout(400);
+  const note = await pa.locator(".split-note-row input:not([type=file])").inputValue();
+  ok((await amount()) === "$8" && !note && (await line.count()) === 0, `typed while it was being read: what was typed stands, the note stays empty, the line goes (${await amount()} ${JSON.stringify(note)})`);
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // nothing on it to read: said, until a key is pressed
+  await button(pa, "addExpense").click();
+  await attach("receipt:none");
+  await line.filter({ hasText: t("readNothing") }).waitFor({ timeout: 15_000 });
+  ok((await amount()) === "$0" || !(await amount())?.match(/[1-9]/), "nothing read: the amount stays empty, and the line says to type it");
+  await type(pa, "5");
+  ok((await line.count()) === 0, "a key pressed: the line goes");
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // nothing read off one: the next photo is read
+  await button(pa, "addExpense").click();
+  await attach("receipt:none");
+  await line.filter({ hasText: t("readNothing") }).waitFor({ timeout: 15_000 });
+  await attach("receipt:7.25 CAD Second Cup");
+  await line.filter({ hasText: t("readFromReceipt") }).waitFor({ timeout: 15_000 });
+  ok((await amount()) === "$7.25", `nothing read off the first: the next photo is read (${await amount()})`);
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // paid in another currency: the currency is the receipt's, at a rate, and the rate's line is said instead
+  await button(pa, "addExpense").click();
+  await attach("receipt:3200 JPY Ichiran Ramen");
+  await pa.locator(".split-add-comes").waitFor({ timeout: 15_000 });
+  ok((await amount()) === "JP¥3,200" && (await pa.locator(".split-currency").textContent())?.includes("日元") && (await line.count()) === 0, `in yen: the currency changes to the receipt's, the rate's line is said, not the receipt's (${await amount()})`);
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // reading not to be had (no key, the month spent): nothing said, and not asked again on this page
+  await a.unroute("**/split/api/ledgers/*/files/*/read");
+  await a.route("**/split/api/ledgers/*/files/*/read", (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "off" }) }));
+  const before = asked.length;
+  for (const mark of ["receipt:12.00 CAD A", "receipt:13.00 CAD B"]) {
+    await button(pa, "addExpense").click();
+    await attach(mark);
+    await pa.locator(".split-photo-button .split-thumb, .split-photo-button img").first().waitFor({ timeout: 15_000 });
+    await pa.waitForTimeout(800);
+    ok((await line.count()) === 0 && !(await amount())?.match(/[1-9]/), `no reading to be had: nothing said, nothing filled in (${mark.slice(-1)})`);
+    await button(pa, "close").first().click();
+    await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  }
+  ok(asked.length === before + 1, `and asked once on this page, not again (${asked.length - before})`);
+  await a.close();
+}
+
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)
 const only = process.env.ONLY?.split(",");
 if (what === "all" || what === "walk") for (const lang of ["zh", "en"] as const) for (const [w, h] of [[390, 844], [390, 664], [375, 553], [320, 568]]) if (!only || only.includes(`${lang}-${w}x${h}`)) await walk(lang, w, h);
@@ -2893,6 +3023,7 @@ if (what === "all" || what === "behave") await behave();
 if (what === "photos" && local) await photos();
 if (what === "all" || what === "gate") await gate();
 if ((what === "all" || what === "friends") && local) await friends();
+if ((what === "all" || what === "read") && local) await reading();
 ok(errors.length === 0, errors.length ? `console errors:\n${errors.join("\n")}` : "no console errors anywhere");
 await browser.close();
 console.log(failed ? `\n${failed} FAILED (pictures in ${out})` : `\nall good (pictures in ${out})`);
