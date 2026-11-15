@@ -433,6 +433,16 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("03b-settle-empty");
   await page.getByRole("tab", { name: t("expenses") }).click();
 
+  // a new expense with nothing typed: the line saying a receipt fills it in, and the screen still whole
+  await button("addExpense").click();
+  await page.locator(".split-add-hint").waitFor({ timeout: 8000 });
+  const fit = (await page.evaluate(`(() => ({ scrolls: document.scrollingElement.scrollHeight - innerHeight, key: document.querySelector(".split-key").getBoundingClientRect().height }))()`)) as { scrolls: number; key: number };
+  // (shorter than 535 the page scrolls on purpose: split.css)
+  ok(height < 535 || (fit.scrolls <= 0 && fit.key >= 44), `${lang} ${width}x${height}: a new expense says a receipt fills it in, and nothing scrolls, keys ${Math.round(fit.key)}px`);
+  await shot("04-add-hint");
+  await button("close").first().click();
+  await page.locator(".split-keys").waitFor({ state: "hidden" });
+
   // the plan's three expenses
   await fill("186", "小王", "晚饭");
   await shot("04-add");
@@ -1265,6 +1275,13 @@ async function photos() {
   watch(pb, true);
   await pb.goto(`${base}/split/${id}#k=${kept.key}`);
   await pb.locator(".split-who").getByRole("button", { name: re("阿甲") }).click();
+  // (signed out, a new expense doesn't say a receipt fills it in: reading one needs a sign-in)
+  await button(pb, "addExpense").click();
+  await pb.locator(".split-keys").waitFor();
+  await pb.waitForTimeout(300);
+  ok((await pb.locator(".split-add-hint").count()) === 0, "a friend's phone, signed out: a new expense doesn't say a receipt fills it in (reading one needs a sign-in)");
+  await button(pb, "close").first().click();
+  await pb.locator(".split-keys").waitFor({ state: "hidden" });
   await pb.locator("button.split-row:has(.lucide-paperclip)").click();
   await pb.locator(".split-photo-button img").waitFor({ timeout: 15_000 });
   await pb.locator(".split-photo-button").click();
@@ -2923,15 +2940,22 @@ async function reading() {
   const amount = () => pa.locator(".split-add-amount output").textContent();
   const line = pa.locator(".split-add-read");
   const attach = (text: string) => pa.locator(".split-note-row input[type=file]").setInputFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: aPdf(text) });
+  const hint = pa.locator(".split-add-hint");
 
-  // a receipt sent while there is no amount: read, the amount and the note filled in, and said where they came from
+  // a new expense with nothing typed says a receipt can fill it in; the line opens the camera
   await button(pa, "addExpense").click();
+  await hint.filter({ hasText: t("readHint") }).waitFor();
+  await pa.screenshot({ path: join(out, "read-hint-zh-390x664.png") });
+  const box = await hint.boundingBox();
+  ok(!!box && box.height >= 44, `a new expense says a receipt fills the amount in, on a block big enough to press (${Math.round(box?.height ?? 0)}px)`);
   let hold = true;
   await a.route("**/split/api/ledgers/*/files/*/read", async (route) => {
     while (hold) await new Promise((r) => setTimeout(r, 100));
     await route.fallback();
   });
-  await attach("receipt:42.50 CAD Tim Hortons");
+  const [chooser] = await Promise.all([pa.waitForEvent("filechooser"), hint.click()]);
+  await chooser.setFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:42.50 CAD Tim Hortons") });
+  ok(true, "and pressing it opens the photo picker, as the camera button does");
   await line.filter({ hasText: t("readingReceipt") }).waitFor({ timeout: 15_000 });
   await pa.screenshot({ path: join(out, "read-busy-zh-390x664.png") });
   ok(true, "while it is read, the line under the amount says Google is reading it");
@@ -2946,11 +2970,29 @@ async function reading() {
 
   // an amount typed first: nothing is read
   await button(pa, "addExpense").click();
+  await hint.waitFor();
   await type(pa, "9");
+  ok((await hint.count()) === 0, "a key pressed: the hint gives way to the amount");
   await attach("receipt:42.50 CAD Tim Hortons");
   await pa.locator(".split-photo-button img, .split-photo-button .split-thumb").first().waitFor({ timeout: 15_000 });
   await pa.waitForTimeout(800);
   ok(asked.length === 1 && (await amount()) === "$9", "with an amount typed first, the receipt isn't read: what was typed stands");
+  await pa.locator(".split-key").last().click();
+  await pa.waitForTimeout(300);
+  ok(!(await amount())?.match(/[1-9]/) && (await hint.count()) === 0, "a receipt already there, the amount taken back to nothing: no hint");
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // an expense being changed (no photo), its amount taken back to nothing: no hint either
+  await button(pa, "addExpense").click();
+  await type(pa, "3");
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  await pa.locator(".split-row").first().click();
+  await pa.locator(".split-keys").waitFor();
+  for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
+  await pa.waitForTimeout(300);
+  ok(!(await amount())?.match(/[1-9]/) && (await hint.count()) === 0, "an expense being changed, its amount taken back to nothing: no hint");
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
 
@@ -3001,8 +3043,12 @@ async function reading() {
   await a.unroute("**/split/api/ledgers/*/files/*/read");
   await a.route("**/split/api/ledgers/*/files/*/read", (route) => route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "off" }) }));
   const before = asked.length;
+  const hinted: boolean[] = [];
   for (const mark of ["receipt:12.00 CAD A", "receipt:13.00 CAD B"]) {
     await button(pa, "addExpense").click();
+    await pa.locator(".split-keys").waitFor();
+    await pa.waitForTimeout(300);
+    hinted.push((await hint.count()) > 0);
     await attach(mark);
     await pa.locator(".split-photo-button .split-thumb, .split-photo-button img").first().waitFor({ timeout: 15_000 });
     await pa.waitForTimeout(800);
@@ -3011,6 +3057,7 @@ async function reading() {
     await pa.locator(".split-keys").waitFor({ state: "hidden" });
   }
   ok(asked.length === before + 1, `and asked once on this page, not again (${asked.length - before})`);
+  ok(hinted[0] && !hinted[1], "and once it isn't to be had, a new expense no longer says a receipt fills it in");
   await a.close();
 }
 

@@ -271,3 +271,5 @@ Shape: Steve asked for the amount to fill itself in once a receipt's photo is up
 What the look at the rendered screens changed: nothing; the line takes the rate line's room, so 记一笔 still fits whole at every height the fits check measures.
 
 Verdict: holds to the contract. No new control and no new screen: a photo that was already one tap away now also fills in the amount, and says so where the amount is.
+
+Then (2026-11-15) Steve asked for players to be told: a new expense with nothing typed says 拍张小票，金额自动填上 / "Snap the receipt to fill this in" in that same line, a small camera before it, quiet like the rest. Like the rate's line, the whole amount block answers the tap and opens the photo picker, the same as the camera at the end of the note's line. It is said only where it is true: signed in, the ledger on the server, reading still to be had on this page, no photo yet, not an expense being changed. The first key pressed gives the line back to the amount. Looked at on the smallest phones: the amount goes a size down as it does for the rate's line, and nothing scrolls.

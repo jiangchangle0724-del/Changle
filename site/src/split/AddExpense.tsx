@@ -5,7 +5,7 @@
  * and the button in the corner changes it. Receipt photos have a button at the end of the note's
  * line (Photos.tsx): each goes to the server as it is chosen, and the expense keeps their ids.
  */
-import { Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
+import { Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -28,7 +28,7 @@ import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
 import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
 import { asRateText, lastPaidIn, settled, todaysRate } from "./rates";
 import { newId } from "./store";
-import { dropPhoto, readPhoto, record, sendPhoto } from "./syncing";
+import { dropPhoto, readingOn, readPhoto, record, sendPhoto } from "./syncing";
 import { say, type Word } from "./words";
 
 type Props = {
@@ -246,6 +246,10 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
           : { text: say(lang, "comesTo", { amount: money(amount ?? 0, ledger.currency, lang) }), more: say(lang, "rateIs", { rate }) };
   // the line under the amount about the receipt: only when there is no rate to say there instead
   const readLine = comes ? null : reading === "busy" ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fromReceipt === `${draft.currency} ${draft.text}` ? say(lang, "readFromReceipt") : null;
+  // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
+  // the ledger on the server, and nothing has said reading isn't to be had here): the line opens the
+  // camera, as the button at the end of the note's line does. A key pressed, and it gives way.
+  const hint = !editing && !draft.text && !comes && !readLine && !reading && !files.length && !sending && signedIn && readingOn(ledger.id);
   const shareSummary = !who.length
     ? say(lang, "nobody")
     : draft.how === "equal"
@@ -288,7 +292,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         }
       />
       <div className="split-add-main">
-        <div className={`split-add-amount${comes ? " is-abroad" : readLine ? " is-read" : ""}`}>
+        <div className={`split-add-amount${comes ? " is-abroad" : readLine || hint ? " is-read" : ""}`}>
           <output className={`split-figure ${sizeClass(shown)}${draft.text ? "" : " is-empty"}`} aria-label={say(lang, "amount")}>
             {shown}
           </output>
@@ -305,6 +309,15 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
             </button>
           )}
           {readLine && <p className="split-add-read">{readLine}</p>}
+          {hint && (
+            // (like the rate's line: the whole block answers the tap, the line at its foot)
+            <button type="button" className="split-add-hint" onClick={pressPhoto}>
+              <span>
+                <Camera aria-hidden="true" />
+                <span>{say(lang, "readHint")}</span>
+              </span>
+            </button>
+          )}
         </div>
         <div className="split-fields">
           <button type="button" className="split-field" onClick={() => setSheet("payer")}>

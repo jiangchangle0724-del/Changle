@@ -241,6 +241,8 @@ export async function sendPhoto(id: string, file: File): Promise<{ ok: true; fil
 
 /** Reading receipts can't be had on this page (the site has no key for it, or this month's is spent): not asked again until the page is opened anew. */
 let readingOff = false;
+/** Whether a receipt sent now for this ledger may be read: it is on the server, and nothing has said reading can't be had, on this page. */
+export const readingOn = (id: string) => !readingOff && !!heldOf(id)?.made;
 /**
  * A receipt just sent, read by the server: what it says was paid (null: nothing could be read, or
  * nothing answered). "off": reading isn't to be had now (no key, the month spent, today's used up),

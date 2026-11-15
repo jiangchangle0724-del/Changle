@@ -711,7 +711,9 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.split-add-comes {
+/* (and a new expense's line saying a receipt can fill it in, which opens the camera) */
+.split-add-comes,
+.split-add-hint {
   position: absolute;
   inset: 0;
   display: flex;
@@ -729,7 +731,8 @@
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
-.split-add-comes > span {
+.split-add-comes > span,
+.split-add-hint > span {
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -737,7 +740,8 @@
   max-width: 100%;
   white-space: nowrap;
 }
-.split-add-comes > span > span {
+.split-add-comes > span > span,
+.split-add-hint > span > span {
   flex: none;
 }
 /* an amount so long that the two don't fit on the line: the rate is cut short, the amount never */
@@ -747,7 +751,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.split-add-comes svg {
+.split-add-comes svg,
+.split-add-hint svg {
   flex: none;
   width: var(--text-sm);
   height: var(--text-sm);
