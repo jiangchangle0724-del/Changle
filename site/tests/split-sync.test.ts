@@ -436,6 +436,15 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
     [true, true, false, false, true, true, true, false],
     "tip and tax: done when the ledger says what the change said of each, none when it has none, and whatever it has when the change says nothing",
   );
+  // and one with the day it was spent
+  const dated: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, date: "2026-11-12" }] };
+  const on = (date?: string | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(date === undefined ? {} : { date }) } });
+  const plainAt: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0 }] };
+  eq(
+    [holds(dated, on("2026-11-12")), holds(dated, on("2026-11-13")), holds(dated, on(null)), holds(dated, on()), holds(plainAt, on(null)), holds(plainAt, on("2026-11-12"))],
+    [true, false, false, true, true, false],
+    "the day: done when the ledger has the day the change said, none when it has none, and whatever it has when the change says nothing",
+  );
 }
 
 // ---------- 7. when the phone can't go on ----------

@@ -52,6 +52,12 @@ export type Expense = {
    */
   tip?: number;
   tax?: number;
+  /**
+   * the day it was spent, as the calendar of whoever recorded it says ("2026-11-15"): read off its
+   * receipt, or picked (ops.ts, isDay). Without one, the day it was recorded (`at`) stands for it.
+   * Shown and sorted by; what anyone owes never depends on it.
+   */
+  date?: string;
   /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };

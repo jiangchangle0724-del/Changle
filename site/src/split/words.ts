@@ -248,6 +248,8 @@ export const W = {
   historyTipGone: { zh: "去掉了小费", en: "tip taken off" },
   historyTax: { zh: "税改成 {amount}", en: "tax now {amount}" },
   historyTaxGone: { zh: "去掉了税", en: "tax taken off" },
+  historyDate: { zh: "日期改成 {day}", en: "date now {day}" },
+  historyDateGone: { zh: "去掉了日期", en: "date taken off" },
   historyAnd: { zh: "，", en: ", " },
   startedIt: { zh: "开账本的人", en: "Whoever started it" },
   someone: { zh: "有人", en: "Someone" },
