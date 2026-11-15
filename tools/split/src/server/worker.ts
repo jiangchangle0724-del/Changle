@@ -13,11 +13,16 @@
 //
 // Receipt photos and files are in the private bucket split-files (FILES), each at
 // "<ledger>/<file>". The Worker puts them there and reads them back; the ledger keeps the list, and
-// the sender's account is charged for each before it goes in.
-import { DurableObject } from "cloudflare:workers";
+// the sender's account is charged for each before it goes in. Every night (an alarm on each ledger
+// with files, and on each account with files: src/room/nightly.ts) a ledger lets go of files no
+// expense has used for 30 days, and anything in the bucket it doesn't keep; an account makes what it
+// is charged what the ledgers keep. When a changle.ca account is deleted, the rooms server says so
+// through `Internal`, and its files go.
+import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
 import type { Ledger } from "../../../../site/src/split/core";
 import { AccountRoom, STARTS_PER_DAY, type AccountFile, type AccountStore, type Kept, type Mine, type Reserved, type Storage } from "../room/account";
-import { ID_RE, LedgerRoom, type ErrorCode, type Fail, type FileInfo, type Logged, type Meta, type Store, type StoredFile } from "../room/ledger";
+import { ID_RE, LedgerRoom, SETTLING_MS, type Count, type ErrorCode, type Fail, type FileInfo, type Logged, type Meta, type Store, type StoredFile, type Usage } from "../room/ledger";
+import { nextNight } from "../room/nightly";
 import {
   FILE_MAX,
   FILE_TYPES,
@@ -31,6 +36,7 @@ import {
   type ApiError,
   type Files,
   type MineBody,
+  type MyFiles,
   type MyLedgers,
   type Push,
   type Pushed,
@@ -173,7 +179,7 @@ async function files(req: Request, env: Env, ctx: ExecutionContext, stub: Durabl
   const bytes = new Uint8Array(await req.arrayBuffer());
   if (bytes.length > FILE_MAX) return refuse("big", 413);
   if (!bytes.length || !looksLike(bytes, type)) return refuse("bad", 400);
-  const room = await account.reserve({ ledger, id, size: bytes.length, day: today(), quota });
+  const room = await account.reserve({ ledger, id, size: bytes.length, day: today(), quota, account: who.id });
   if (!room.ok) return refuse(room.error, room.error === "quota" ? 413 : 429);
   const at = Date.now();
   try {
@@ -192,13 +198,104 @@ async function files(req: Request, env: Env, ctx: ExecutionContext, stub: Durabl
   return json({ file: kept.file, used: room.used, quota } satisfies Stored, 201);
 }
 
-/** "My files": how much of its room a signed-in account's files use, in all and in each ledger. */
-async function myFiles(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  if (req.method !== "GET") return refuse("notfound", 404);
+/** "My files": how much of its room a signed-in account's files use; and its files no expense uses, cleared now. */
+async function myFiles(req: Request, env: Env, ctx: ExecutionContext, what: string | undefined): Promise<Response> {
+  if (!(what === undefined ? req.method === "GET" : what === "unused" && req.method === "DELETE")) return refuse("notfound", 404);
   const who = await signedIn(req, env, ctx);
   if (who instanceof Response) return who;
   if (!who) return refuse("signin", 401);
-  return json((await accountOf(env, who.id).storage(quotaOf(env))) satisfies Storage);
+  // (the tests ask as of an hour or two from now, when what they just stored has settled)
+  const later = new URL(req.url).searchParams.get("at") ?? "";
+  const now = env.ALLOW_TEST_SETTINGS === "1" && /^\d{1,15}$/.test(later) ? Number(later) : Date.now();
+  if (what === "unused") await clearUnused(env, who.id, now);
+  return json((await myRoom(env, who.id, now)) satisfies MyFiles);
+}
+
+const ledgerOf = (env: Env, id: string) => env.LEDGERS.get(env.LEDGERS.idFromName(id));
+const none = (): Count => ({ count: 0, bytes: 0 });
+
+/** An account's room as the storage page shows it: each ledger asked how many of its files there no expense uses. (One that is gone gives its room back here.) */
+async function myRoom(env: Env, account: string, now: number): Promise<MyFiles> {
+  const stub = accountOf(env, account);
+  const room = await stub.storage(quotaOf(env));
+  const asked: (Usage | null | undefined)[] = await Promise.all(room.ledgers.map((l) => ledgerOf(env, l.id).usage(account, now).catch(() => undefined)));
+  let used = room.used;
+  for (const [i, l] of room.ledgers.entries()) if (asked[i] === null) used = await stub.settle(l.id, []);
+  const ledgers = room.ledgers.flatMap((l, i) => (asked[i] === null ? [] : [{ ...l, unused: asked[i]?.unused ?? none() }]));
+  const unused = ledgers.reduce((a, l) => ({ count: a.count + l.unused.count, bytes: a.bytes + l.unused.bytes }), none());
+  return { used, quota: room.quota, unused, ledgers };
+}
+
+/** The storage page's 现在清掉: an account's files no expense uses go now, from every ledger (not one stored in the last hour). */
+async function clearUnused(env: Env, account: string, now: number): Promise<void> {
+  const stub = accountOf(env, account);
+  for (const ledger of await stub.ledgersWithFiles()) {
+    try {
+      const gone = await ledgerOf(env, ledger).dropUnused(account, now);
+      if (gone.length) await stub.release(ledger, gone.map((f) => f.id));
+    } catch (e) {
+      console.error("split: an account's unused files in a ledger weren't cleared", e);
+    }
+  }
+}
+
+/** Every key under a ledger's prefix in the bucket that isn't on its list goes (one put in the last hour may still be on its way onto the list). */
+async function sweep(env: Env, ledger: string, keeps: (file: string) => boolean, now: number): Promise<number> {
+  let cursor: string | undefined;
+  let swept = 0;
+  do {
+    const page = await env.FILES.list({ prefix: `${ledger}/`, cursor, limit: 1000 });
+    const loose = page.objects.filter((o) => !keeps(o.key.slice(ledger.length + 1)) && now - o.uploaded.getTime() >= SETTLING_MS).map((o) => o.key);
+    if (loose.length) await env.FILES.delete(loose);
+    swept += loose.length;
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return swept;
+}
+
+/**
+ * A changle.ca account is deleted: every file it sent goes, from every ledger and the bucket, and
+ * then all that was kept for it here (its ledgers, its room). The ledgers keep its name, and its
+ * expenses; their photos show as gone. What can't be reached now is tried again in an hour.
+ */
+async function forgetAccount(env: Env, account: string): Promise<{ files: number; left: number }> {
+  return accountOf(env, account).forget(account);
+}
+
+/** What only the rooms server reaches, through a Service Binding to this entrypoint (no address of changle.ca leads here): an account deleted. */
+export class Internal extends WorkerEntrypoint<Env> {
+  async accountGone(account: unknown): Promise<{ files: number; left: number }> {
+    if (typeof account !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(account)) return { files: 0, left: 0 };
+    return forgetAccount(this.env, account);
+  }
+}
+
+/**
+ * Local runs and tests only (ALLOW_TEST_SETTINGS): a ledger's nightly check, as of a time to come;
+ * an account's; an account deleted, the way the rooms server does it (the stand-in, through its
+ * binding to `Internal`: tests/rooms); and two things that go wrong only rarely, for the nightly
+ * checks to put right: a file in the bucket no ledger lists, and an account charged for a file no
+ * ledger keeps.
+ */
+async function testOnly(req: Request, env: Env, what: string | undefined): Promise<Response> {
+  if (env.ALLOW_TEST_SETTINGS !== "1" || req.method !== "POST") return refuse("notfound", 404);
+  const input = (await body(req)) ?? {};
+  const ledger = typeof input.ledger === "string" && ID_RE.test(input.ledger) ? input.ledger : null;
+  const file = typeof input.file === "string" && ID_RE.test(input.file) ? input.file : null;
+  if (what === "night" && ledger) {
+    const at = typeof input.at === "number" && Number.isFinite(input.at) ? input.at : Date.now();
+    return json(await ledgerOf(env, ledger).nightlyAt(at));
+  }
+  if (what === "night" && typeof input.account === "string") return json({ used: await accountOf(env, input.account).check() });
+  if (what === "account-gone") return env.ROOMS.fetch(new Request("https://rooms.split.invalid/api/me", { method: "DELETE", headers: { authorization: req.headers.get("authorization") ?? "" } }));
+  if (what === "loose" && ledger && file) {
+    await env.FILES.put(fileKey(ledger, file), new Uint8Array([0xff, 0xd8, 0xff, 0]), { httpMetadata: { contentType: "image/jpeg" } });
+    return json({ ok: true });
+  }
+  if (what === "charge" && ledger && file && typeof input.account === "string") {
+    return json(await accountOf(env, input.account).reserve({ ledger, id: file, size: 1234, day: today(), quota: quotaOf(env), account: input.account }));
+  }
+  return refuse("bad", 400);
 }
 
 /**
@@ -249,7 +346,8 @@ export default {
     if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return refuse("notfound", 404);
     const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean);
     if (parts[0] === "me" && parts[1] === "ledgers" && parts.length <= 3) return mine(req, env, ctx, parts[2]);
-    if (parts[0] === "me" && parts[1] === "files" && parts.length === 2) return myFiles(req, env, ctx);
+    if (parts[0] === "me" && parts[1] === "files" && parts.length <= 3) return myFiles(req, env, ctx, parts[2]);
+    if (parts[0] === "test" && parts.length === 2) return testOnly(req, env, parts[1]);
     if (parts[0] !== "ledgers" || parts.length > 4) return refuse("notfound", 404);
 
     // the live connection: its key comes as a protocol name, because a browser can't give it a header
@@ -355,6 +453,8 @@ function sqlStore(sql: SqlStorage): Store {
   const HEARD = "CREATE TABLE IF NOT EXISTS heard (id TEXT PRIMARY KEY, counted INTEGER NOT NULL) WITHOUT ROWID";
   // its receipt photos and files: what is in the bucket for it, and whose account sent each
   const FILES = "CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, size INTEGER NOT NULL, type TEXT NOT NULL, by TEXT NOT NULL, at INTEGER NOT NULL)";
+  // its files the nightly check found no expense uses, and since when
+  const UNUSED = "CREATE TABLE IF NOT EXISTS unused (id TEXT PRIMARY KEY, since INTEGER NOT NULL) WITHOUT ROWID";
   let made = sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'meta'").toArray().length > 0;
   // A ledger made on the server's first day has a table named `sent` with ids only. It gets the
   // new table here and the old one is left as it is, not read. (A ledger made before files gets
@@ -362,12 +462,14 @@ function sqlStore(sql: SqlStorage): Store {
   if (made) {
     sql.exec(HEARD);
     sql.exec(FILES);
+    sql.exec(UNUSED);
   }
   const ready = () => {
     if (made) return;
     sql.exec("CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY CHECK (id = 1), json TEXT NOT NULL, ledger TEXT NOT NULL)");
     sql.exec(HEARD);
     sql.exec(FILES);
+    sql.exec(UNUSED);
     sql.exec("CREATE TABLE IF NOT EXISTS log (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, json TEXT NOT NULL)");
     made = true;
   };
@@ -433,9 +535,18 @@ function sqlStore(sql: SqlStorage): Store {
       sql.exec("INSERT OR IGNORE INTO files (id, size, type, by, at) VALUES (?, ?, ?, ?, ?)", f.id, f.size, f.type, f.by, f.at);
     },
     dropFile(id) {
-      if (made) sql.exec("DELETE FROM files WHERE id = ?", id);
+      if (!made) return;
+      sql.exec("DELETE FROM files WHERE id = ?", id);
+      sql.exec("DELETE FROM unused WHERE id = ?", id);
     },
     fileCount: () => (made ? Number(sql.exec("SELECT count(*) AS n FROM files").one().n) : 0),
+    unused: () => new Map(made ? sql.exec("SELECT id, since FROM unused").toArray().map((r) => [String(r.id), Number(r.since)] as const) : []),
+    markUnused(id, since) {
+      if (made) sql.exec("INSERT INTO unused (id, since) VALUES (?, ?) ON CONFLICT (id) DO UPDATE SET since = excluded.since", id, since);
+    },
+    clearUnused(id) {
+      if (made) sql.exec("DELETE FROM unused WHERE id = ?", id);
+    },
   };
 }
 
@@ -510,6 +621,11 @@ export class LedgerDO extends DurableObject<Env> {
     const got = this.room.wipe(ownerHash, Date.now());
     if (!got.ok) return got;
     this.letGo();
+    // (anything of its own the bucket still has goes in a little while, by a night that comes early)
+    this.ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS sweep (id TEXT NOT NULL)");
+    this.ctx.storage.sql.exec("DELETE FROM sweep");
+    this.ctx.storage.sql.exec("INSERT INTO sweep (id) VALUES (?)", got.id);
+    await this.ctx.storage.setAlarm(Date.now() + 2 * SETTLING_MS);
     // (the ledger is gone whatever happens here; a file left behind is found by the nightly check)
     try {
       const keys = got.files.map((f) => fileKey(got.id, f.id));
@@ -528,7 +644,89 @@ export class LedgerDO extends DurableObject<Env> {
   }
 
   async stored(file: StoredFile): Promise<ReturnType<LedgerRoom["stored"]>> {
-    return this.room.stored(file);
+    const got = this.room.stored(file);
+    // (a ledger with files has its nightly check)
+    const id = this.room.snapshot()?.ledger.id;
+    if (got.ok && id && (await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(nextNight(id, Date.now()));
+    return got;
+  }
+
+  /** The nightly check (its alarm). */
+  async alarm(): Promise<void> {
+    await this.nightlyAt(Date.now());
+  }
+
+  /**
+   * The nightly check, as of `now`: files no expense has used for 30 days go, from the list, the
+   * bucket and their senders' room; so does anything in the bucket the list doesn't have. A
+   * deleted ledger's leftovers in the bucket go too, and then it has no night again.
+   */
+  async nightlyAt(now: number): Promise<{ gone: number; swept: number; left: number }> {
+    const id = this.room.snapshot()?.ledger.id;
+    if (!id) {
+      const sweeping = this.ctx.storage.sql.exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'sweep'").toArray().length > 0;
+      const left = sweeping ? this.ctx.storage.sql.exec("SELECT id FROM sweep LIMIT 1").toArray()[0] : undefined;
+      return { gone: 0, swept: left ? await sweep(this.env, String(left.id), () => false, now) : 0, left: 0 };
+    }
+    const { gone, left } = this.room.nightly(now);
+    await this.letGoOf(id, gone);
+    let swept = 0;
+    try {
+      swept = await sweep(this.env, id, (file) => this.room.keeps(file), now);
+    } catch (e) {
+      console.error("split: a ledger's bucket wasn't swept", e);
+    }
+    if (left > 0) await this.ctx.storage.setAlarm(nextNight(id, now));
+    return { gone: gone.length, swept, left };
+  }
+
+  /** Files off the list go from the bucket, and their senders have the room back. (One left behind is the next night's.) */
+  private async letGoOf(id: string, files: StoredFile[]): Promise<void> {
+    if (!files.length) return;
+    try {
+      const keys = files.map((f) => fileKey(id, f.id));
+      for (let i = 0; i < keys.length; i += 1000) await this.env.FILES.delete(keys.slice(i, i + 1000));
+      const by = new Map<string, string[]>();
+      for (const f of files) by.set(f.by, [...(by.get(f.by) ?? []), f.id]);
+      for (const [account, ids] of by) await accountOf(this.env, account).release(id, ids);
+    } catch (e) {
+      console.error("split: files off a ledger's list weren't all let go", e);
+    }
+  }
+
+  /** One account's files here, for its storage page; null when the ledger is gone. */
+  async usage(account: string, now: number): Promise<Usage | null> {
+    return this.room.usage(account, now);
+  }
+
+  /** An account clears its files here that no expense uses: off the list and out of the bucket; returned, for the account's room. */
+  async dropUnused(account: string, now: number): Promise<StoredFile[]> {
+    const id = this.room.snapshot()?.ledger.id;
+    const gone = this.room.dropUnused(account, now);
+    if (id && gone.length) {
+      try {
+        await this.env.FILES.delete(gone.map((f) => fileKey(id, f.id)));
+      } catch (e) {
+        console.error("split: cleared files weren't let go (the nightly check sweeps them)", e);
+      }
+    }
+    return gone;
+  }
+
+  /** An account is deleted: every file it sent here goes, off the list and out of the bucket. How many. */
+  async dropBy(account: string): Promise<number> {
+    const id = this.room.snapshot()?.ledger.id;
+    const gone = this.room.dropBy(account);
+    if (id && gone.length) {
+      const keys = gone.map((f) => fileKey(id, f.id));
+      for (let i = 0; i < keys.length; i += 1000) await this.env.FILES.delete(keys.slice(i, i + 1000));
+    }
+    return gone.length;
+  }
+
+  /** One account's files as the list has them (the account's nightly check); null when the ledger is gone. */
+  async filesBy(account: string): Promise<StoredFile[] | null> {
+    return this.room.filesBy(account);
   }
 
   async file(keyHash: string | null, id: string): Promise<ReturnType<LedgerRoom["file"]>> {
@@ -617,6 +815,8 @@ function accountStore(sql: SqlStorage): AccountStore {
   sql.exec("CREATE TABLE IF NOT EXISTS started (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
   sql.exec("CREATE TABLE IF NOT EXISTS files (ledger TEXT NOT NULL, id TEXT NOT NULL, size INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (ledger, id))");
   sql.exec("CREATE TABLE IF NOT EXISTS sent (day TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID");
+  // which account this is (told with its first file); and whether it is deleted, and its files are still going
+  sql.exec("CREATE TABLE IF NOT EXISTS self (id INTEGER PRIMARY KEY CHECK (id = 1), account TEXT NOT NULL, forgetting INTEGER NOT NULL DEFAULT 0)");
   const asFile = (r: Record<string, SqlStorageValue>): AccountFile => ({ ledger: String(r.ledger), id: String(r.id), size: Number(r.size), at: Number(r.at) });
   const read = (json: unknown) => JSON.parse(json as string) as Mine;
   return {
@@ -654,6 +854,17 @@ function accountStore(sql: SqlStorage): AccountStore {
       sql.exec("DELETE FROM sent WHERE day <> ?", day);
       sql.exec("INSERT INTO sent (day, n) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET n = n + 1", day);
     },
+    self: () => {
+      const row = sql.exec("SELECT account FROM self WHERE id = 1").toArray()[0];
+      return row ? String(row.account) : null;
+    },
+    setSelf(account) {
+      sql.exec("INSERT INTO self (id, account) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET account = excluded.account", account);
+    },
+    // (the tables stay, empty)
+    wipe() {
+      for (const t of ["mine", "started", "files", "sent", "self"]) sql.exec(`DELETE FROM ${t}`);
+    },
   };
 }
 
@@ -686,8 +897,72 @@ export class AccountDO extends DurableObject<Env> {
     return this.room.used();
   }
 
-  async reserve(input: { ledger: string; id: string; size: number; day: string; quota: number }): Promise<Reserved> {
-    return this.room.reserve({ ...input, now: Date.now() });
+  async reserve(input: { ledger: string; id: string; size: number; day: string; quota: number; account: string }): Promise<Reserved> {
+    const got = this.room.reserve({ ...input, now: Date.now() });
+    // (an account with files has its nightly check)
+    if (got.ok && got.fresh && (await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(nextNight(`u:${input.account}`, Date.now()));
+    return got;
+  }
+
+  async ledgersWithFiles(): Promise<string[]> {
+    return this.room.ledgersWithFiles();
+  }
+
+  async settle(ledger: string, kept: { id: string; size: number; at: number }[]): Promise<number> {
+    return this.room.settle(ledger, kept);
+  }
+
+  /** The nightly check (its alarm): an account deleted, its files still going; otherwise what it is charged made what the ledgers keep. */
+  async alarm(): Promise<void> {
+    const me = this.room.self();
+    if (me && this.forgetting()) await this.forget(me);
+    else await this.check();
+  }
+
+  /** What this account is charged for, made what each ledger its files are in really keeps of them. The bytes used now. */
+  async check(): Promise<number> {
+    const me = this.room.self();
+    if (!me) return this.room.used();
+    for (const ledger of this.room.ledgersWithFiles()) {
+      try {
+        this.room.settle(ledger, (await this.env.LEDGERS.get(this.env.LEDGERS.idFromName(ledger)).filesBy(me)) ?? []);
+      } catch (e) {
+        console.error("split: an account's files in a ledger weren't checked", e);
+      }
+    }
+    if (this.room.ledgersWithFiles().length) await this.ctx.storage.setAlarm(nextNight(`u:${me}`, Date.now()));
+    return this.room.used();
+  }
+
+  private forgetting(): boolean {
+    return this.ctx.storage.sql.exec("SELECT forgetting FROM self WHERE id = 1").toArray()[0]?.forgetting === 1;
+  }
+
+  /**
+   * The account is deleted: every file it sent goes from each ledger and the bucket, and then all
+   * that is kept for it here. A ledger that can't be reached now is tried again in an hour (and
+   * until then the account is remembered as being forgotten).
+   */
+  async forget(account: string): Promise<{ files: number; left: number }> {
+    this.ctx.storage.sql.exec("INSERT INTO self (id, account, forgetting) VALUES (1, ?, 1) ON CONFLICT (id) DO UPDATE SET account = excluded.account, forgetting = 1", account);
+    let files = 0;
+    let left = 0;
+    for (const ledger of this.room.ledgersWithFiles()) {
+      try {
+        files += await this.env.LEDGERS.get(this.env.LEDGERS.idFromName(ledger)).dropBy(account);
+        this.room.settle(ledger, []);
+      } catch (e) {
+        left += 1;
+        console.error("split: a deleted account's files in a ledger didn't go yet", e);
+      }
+    }
+    if (left) {
+      await this.ctx.storage.setAlarm(Date.now() + 60 * 60 * 1000);
+      return { files, left };
+    }
+    this.room.wipe();
+    await this.ctx.storage.deleteAlarm();
+    return { files, left };
   }
 
   async release(ledger: string, ids: string[]): Promise<number> {

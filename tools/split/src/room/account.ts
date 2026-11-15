@@ -14,7 +14,9 @@
 //
 // The account's room for receipt photos and files (the plan's 每人 500 MB): every file it has sent
 // that is still kept somewhere, which ledger and how big. A file is charged here before it goes in
-// the bucket, and the room comes back when it is taken off, or its ledger is deleted.
+// the bucket, and the room comes back when it is taken off, or its ledger is deleted. Each night
+// it is checked against what the ledgers really keep (the plan's 以实际为准: `settle`). A deleted
+// account's everything goes.
 
 /** One of an account's ledgers. `owner`: the owner's key, for a ledger they started. `me`: the id of the person in it they are. `at`: when it was first kept. */
 export type Mine = { id: string; key: string; owner?: string; me?: string; at: number };
@@ -39,6 +41,11 @@ export interface AccountStore {
   uploads(day: string): number;
   /** One more sent on this day. Days before it are forgotten. */
   upload(day: string): void;
+  /** Which account this is (told with the first file it sends, for the nightly check to ask the ledgers by). */
+  self(): string | null;
+  setSelf(account: string): void;
+  /** Everything kept for the account goes. */
+  wipe(): void;
 }
 
 /** Ledgers one account keeps. Far more than anyone travels with; it stops a runaway phone, not a person. */
@@ -101,7 +108,8 @@ export class AccountRoom {
    * again: `fresh` false). Refused when it would take the account past `quota` ("quota"), or
    * today's files are used up ("limit"). What comes back is the bytes used, this one counted.
    */
-  reserve(input: { ledger: string; id: string; size: number; now: number; day: string; quota: number }): Reserved {
+  reserve(input: { ledger: string; id: string; size: number; now: number; day: string; quota: number; account?: string }): Reserved {
+    if (input.account && this.store.self() !== input.account) this.store.setSelf(input.account);
     const used = this.used();
     if (this.store.fileOf(input.ledger, input.id)) return { ok: true, used, fresh: false };
     if (used + input.size > input.quota) return { ok: false, error: "quota" };
@@ -115,6 +123,33 @@ export class AccountRoom {
   release(ledger: string, ids: string[]): number {
     for (const id of ids) this.store.dropFile(ledger, id);
     return this.used();
+  }
+
+  /** The ledgers this account's files are in. */
+  ledgersWithFiles(): string[] {
+    return [...new Set(this.store.files().map((f) => f.ledger))];
+  }
+
+  /**
+   * The nightly check, for one ledger: what the account is charged for there becomes what the
+   * ledger keeps of its files (none, for a ledger that is gone). The bytes used now.
+   */
+  settle(ledger: string, kept: { id: string; size: number; at: number }[]): number {
+    const have = new Map(this.store.files().filter((f) => f.ledger === ledger).map((f) => [f.id, f]));
+    const there = new Map(kept.map((f) => [f.id, f]));
+    for (const [id, f] of have) if (!there.has(id) || there.get(id)!.size !== f.size) this.store.dropFile(ledger, id);
+    for (const [id, f] of there) if (!have.has(id) || have.get(id)!.size !== f.size) this.store.addFile({ ledger, id, size: f.size, at: f.at });
+    return this.used();
+  }
+
+  /** Which account this is, when it has sent a file. */
+  self(): string | null {
+    return this.store.self();
+  }
+
+  /** The account is deleted: its ledgers, its room, its days, all of it goes. */
+  wipe(): void {
+    this.store.wipe();
   }
 
   /** How much of `quota` this account's files use, in all and in each ledger, the most first. */
@@ -138,9 +173,22 @@ export function memoryAccountStore(): AccountStore & { days: Map<string, number>
   const at = (ledger: string, id: string) => `${ledger}/${id}`;
   let order = 0;
   const when = new Map<string, number>();
+  let me: string | null = null;
   return {
     days,
     sent,
+    self: () => me,
+    setSelf(account) {
+      me = account;
+    },
+    wipe() {
+      kept.clear();
+      days.clear();
+      files.clear();
+      sent.clear();
+      when.clear();
+      me = null;
+    },
     fileOf: (ledger, id) => (files.has(at(ledger, id)) ? structuredClone(files.get(at(ledger, id))!) : null),
     addFile(f) {
       files.set(at(f.ledger, f.id), structuredClone(f));

@@ -17,7 +17,8 @@
 //   GET    /split/api/me/ledgers            my ledgers, keys and all             → MyLedgers
 //   PUT    /split/api/me/ledgers/<id>       keep one in my ledgers (or update it) { me? } → MineBody
 //   DELETE /split/api/me/ledgers/<id>       take one off my ledgers (the ledger stays) → { ok: true }
-//   GET    /split/api/me/files              how much of my room my files use     → Storage
+//   GET    /split/api/me/files              how much of my room my files use, and how much no expense uses → MyFiles
+//   DELETE /split/api/me/files/unused       those no expense uses go now, from every ledger (not one stored in the last hour) → MyFiles
 //
 // Every request but the owner's two carries the key from the invitation link in the KEY_HEADER. A
 // browser can't put a header on a WebSocket, so the live connection gives it as its second
@@ -43,10 +44,16 @@
 // id is the phone's own, so a phone that isn't sure its file arrived sends it again, and is charged
 // once. The file itself comes back only with the key; it has no address of its own, and the answer
 // says it is to be shown, not run.
+//
+// A file no expense uses (taken off one, or on one deleted) is kept UNUSED_DAYS for 改回去 and 恢复,
+// then the nightly check lets it go, and its sender has the room back. Its sender can let it go
+// sooner from "my files". When a changle.ca account is deleted, the rooms server tells this server
+// (through a Service Binding to its `Internal` entrypoint: no address leads there), and every file
+// the account sent goes, from every ledger, with all that was kept for the account.
 import type { Sent, Took } from "../../../../site/src/split/changes";
 import type { Ledger, Member } from "../../../../site/src/split/core";
 import type { Mine, Storage } from "./account";
-import type { ErrorCode, FileInfo, Logged, Snapshot } from "./ledger";
+import type { Count, ErrorCode, FileInfo, Logged, Snapshot } from "./ledger";
 
 export const KEY_HEADER = "x-split-key";
 export const OWNER_HEADER = "x-split-owner";
@@ -81,7 +88,13 @@ export type MineBody = { mine: Mine };
 export type Files = { files: FileInfo[] };
 /** A file stored, and the bytes the sender's account now uses, of its quota. */
 export type Stored = { file: FileInfo; used: number; quota: number };
-export type { FileInfo, Mine, Snapshot, Storage };
+/**
+ * My files, as the storage page shows them: the bytes used of the quota, how many no expense uses
+ * (and may go now), and each ledger they are in, the most first. (No ledger's name: a phone names
+ * the ones it holds.)
+ */
+export type MyFiles = { used: number; quota: number; unused: Count; ledgers: { id: string; count: number; bytes: number; unused: Count }[] };
+export type { Count, FileInfo, Mine, Snapshot, Storage };
 
 /**
  * "limit": this network, or this account, has made today's allowance of ledgers (or sent today's
