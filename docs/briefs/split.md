@@ -454,7 +454,7 @@
 
 ## 交给别的对话
 
-- 工具 · 生活小工具（2026-11-15，告诉你们一声）：工具页多了两清的卡片（`site/src/tools/Split.tsx`，`ToolsTab.tsx` 里一行，排在跟一单后面、汇率前面）。截图 `tools-zh`、`tools-en` 跟着换了（第一屏多了这张卡片，汇率往下挪）。`postbuild.ts` 里工具页 `tools.html` 的说明（随便吃什么、汇率、单价、世界时钟）没提两清，要不要加你们定。
+- 工具 · 生活小工具（2026-11-15，告诉你们一声）：工具页多了两清的卡片（`site/src/tools/Split.tsx`，`ToolsTab.tsx` 里一行，排在跟一单后面、汇率前面）。截图 `tools-zh`、`tools-en` 没变：它们只拍工具页第一屏，两清的卡片在下面（加了 `update-screenshots` 标签重拍过，没有不同）。`postbuild.ts` 里工具页 `tools.html` 的说明（随便吃什么、汇率、单价、世界时钟）没提两清，要不要加你们定。
 - 平台 · 首页与上线（2026-11-15）：`robots.txt` 加了 `Disallow: /split/api/`，`postbuild.ts` 加了 `split.html` 和站点地图里的 /split（都只加了两清自己的一行）。想请你们看一件事：邀请链接是 /split/<账本号>，聊天软件抓预览时拿到的是 index.html（首页的标题和说明），不是两清的。`_redirects` 里加一行 `/split/* /split.html 200` 的话，预览就是两清的标题和说明；这个文件现在没有，加不加、会不会碰到 Pages 回退到 index.html 的规矩，由你们定。
 - 平台 · 账号与头像（邀请网站好友，2026-11-15，两清这边做完了，告诉你们一声，再请你们看一件事）：
   1. 两清的服务器发邀请前，拿邀请人的登录通过 Service Binding 问房间服务器 `GET /api/users/<id>`，看回来的 `relation` 是不是 `friends`（`tools/split/src/server/who.ts` 的 `friendOf`）；名字和头像（`name`、`av`、`ac`）从 `GET /api/me` 来。两清的页面在浏览器里直接用 `GET /api/friends`（读 `friends` 里每人的 `id`、`name`、`av`、`ac`）和 `POST /api/chat/<id>`（邀请人自己的登录发一条消息，告诉对方去两清看邀请）。这几个地址、`relation` 的说法、好友名单的样子要改的话说一声。
@@ -688,5 +688,5 @@
 - 2026-11-15 上工具页（这一个 PR）。Steve 01:09 说做完直接上，不再等他用手机记 10 笔、在微信里点邀请链接。细节见「定过的事」里的上工具页。
   - 卡片 `site/src/tools/Split.tsx`（照 `Tuan.tsx`），`ToolsTab.tsx` 一行；`robots.txt` 一行；`postbuild.ts` 写 `split.html`、站点地图加 /split；`router.ts` 那行注释；`HANDOFF.md` 两清那两处；`tests/split-screens.test.ts` 第 11 节从「还藏着」换成查卡片、robots.txt、站点地图、账本页不收录。
   - 本机看了工具页：320x568 和 390x664，中英文，卡片和别的工具卡一样，axe 没报、没超宽；点卡片不重新加载页面就到 /split，后退回到工具页。build 出来的 `split.html` 标题和 canonical 对，站点地图 32 个地址（多了 /split）。首页 js 122.6 KB（预算 123），卡片在工具页那个文件里，不在首页。
-  - 截图：`tools-zh`、`tools-en` 换了，加了 `update-screenshots` 标签让 CI 重拍。
+  - 截图：以为 `tools-zh`、`tools-en` 会变，加了 `update-screenshots` 标签让 CI 重拍；重拍出来没有不同（这两张只拍工具页第一屏，卡片在下面），基准没换，`site / visual` 照旧绿。
   - 当时开着的 PR（#439、#373、#364、#235）不碰这些文件。
