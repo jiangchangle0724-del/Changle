@@ -26,13 +26,14 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
-import { abroad, amountOf, blankDraft, draftOf, draftProblem, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, decimalsOf, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
-import { lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
+import { extrasText, lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, standing, syncLine } from "../src/split/lines";
+import { inLedger, summaryOf } from "../src/split/summary";
 import { addExpense, addMember, addTransfer, editExpense, inAnyEntry, LEDGER_NAME_MAX, NAME_MAX, nameTaken, NOTE_MAX, paidId, putBack, removeMember, renameLedger, renameMember, startLedger, takeOut, tidy } from "../src/split/ops";
 import { asRateText, lastPaidIn, paidInOf, rateText, RECENT, settled, startingRate, todaysRate } from "../src/split/rates";
 import { SESSION_KEY } from "../src/split/net";
@@ -304,12 +305,12 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq([byAmounts.amounts, draftProblem(byAmounts, five), draftProblem({ ...byAmounts, amounts: { s: "15", w: "15" } }, five)], [{ s: "21.00", w: "21.00" }, null, { what: "sum", off: 1200 }], "shared by amounts, the amounts are in the ledger's currency and add up to what it comes to: 15 and 15 leaves 12.00 of the 42.00");
 
   // what is said to the ledger
-  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, paidIn: { currency: "USD", amount: 3000, rate: "1.40" } }, "paid in another currency, an expense says both amounts and the rate as it was typed");
+  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax)");
   eq(saying({ ...thirty, rate: "1." }, five)?.paidIn, { currency: "USD", amount: 3000, rate: "1" }, "(a rate left at 1. is kept as 1)");
-  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, paidIn: null }, null, null], "in the ledger's own, it says there is no other currency; while something is wrong with it, it says nothing at all");
+  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
 
   // opened again
-  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
+  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, tip, tax, ...said }) => said)(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
   const again = draftOf(recorded.entries[0] as Expense, recorded);
   eq([again.text, again.currency, again.rate, again.asking, again.untouched], ["30.00", "USD", "1.40", false, false], "an expense paid in dollars opens in dollars, at the rate it was recorded at");
   eq([saying(again, recorded), applyChange(recorded, { do: "edit", entry: "e", to: saying(again, recorded)! })], [saying(thirty, five), null], "saved untouched, it says what it said, and nothing changes");
@@ -339,7 +340,7 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
         if (draftProblem(d, l)?.what !== "amount") bad = `${text} ${other} in a ${settle} ledger: ${JSON.stringify(draftProblem(d, l))}`;
         continue;
       }
-      const { paidIn, files: _files, ...said } = to;
+      const { paidIn, files: _files, tip: _tip, tax: _tax, ...said } = to;
       const made = applyChange(l, { do: "expense", expense: { kind: "expense", id: "e", at: NOW, ...said, rot: 0, ...(paidIn ? { paidIn } : {}) } });
       const e = made?.entries[0] as Expense | undefined;
       if (!made || !e || JSON.stringify(paidInOf(e, made)) !== JSON.stringify(paidIn) || e.amount !== convert(paidIn?.amount ?? 0, decimalsOf(other), paidIn?.rate ?? "", decimalsOf(settle))) bad = `${text} ${other} in a ${settle} ledger isn't kept as it was said`;
@@ -1072,6 +1073,64 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const MB = 1024 * 1024;
   eq([receiptsLeft(0, QUOTA), receiptsLeft(412 * MB, QUOTA), receiptsLeft(499.9 * MB, QUOTA), receiptsLeft(QUOTA, QUOTA), receiptsLeft(QUOTA + 5, QUOTA)], [1_700, 307, 0, 0, 0], "about how many more receipts fit: in hundreds past a thousand, never below none");
   ok(W.storageNone.zh.includes(new Intl.NumberFormat("zh-CN").format(receiptsLeft(0, QUOTA))) && W.storageNone.en.includes(new Intl.NumberFormat("en-CA").format(receiptsLeft(0, QUOTA))), "an empty room says the receipts it holds as the room left would say them");
+}
+
+// ---------- 16. a receipt's tip and tax on the screen, and the summary ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }, { id: "m", name: "阿美" }];
+  const start = startLedger("X", "周末", "CAD", people);
+  const even: Split = { how: "equal", among: ["s", "w", "m"] };
+  const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 12300, note: "Joe's", split: even, rot: 0, tip: 1800, tax: 525 };
+  const withDinner: Ledger = { ...start, entries: [dinner] };
+
+  // the draft: none to start; an expense opened says its own, in the currency it was paid in
+  const fresh = blankDraft(start, "s", 1);
+  eq([fresh.tip, fresh.tax], ["", ""], "a new expense starts with no tip or tax");
+  const opened = draftOf(dinner, withDinner);
+  eq([opened.tip, opened.tax], ["18.00", "5.25"], "an expense opened says the tip and tax it keeps");
+  eq([saying(opened, withDinner)?.tip, saying(opened, withDinner)?.tax], [1800, 525], "and saved as it is, says them as they were");
+  const usdDinner: Expense = { ...dinner, amount: 16000, paidIn: { currency: "USD", amount: 12000, rate: "1.3333" }, tip: 1800, tax: 900 };
+  const inUsd = draftOf(usdDinner, { ...start, entries: [usdDinner] });
+  eq([inUsd.currency, inUsd.tip, inUsd.tax], ["USD", "18.00", "9.00"], "paid in US dollars: said in US dollars");
+  const yen: Expense = { ...dinner, amount: 3488, paidIn: { currency: "JPY", amount: 3200, rate: "0.0109" }, tip: 300, tax: 290 };
+  eq([draftOf(yen, { ...start, entries: [yen] }).tip, draftOf(yen, { ...start, entries: [yen] }).tax], ["300", "290"], "in yen: whole yen");
+  const odd: Expense = { ...dinner, paidIn: { currency: "XTS", amount: 9000, rate: "1.3667" }, tip: 1000 };
+  const oddDraft = draftOf(odd, { ...start, entries: [odd] });
+  eq([oddDraft.tip, "tip" in (saying(oddDraft, { ...start, entries: [odd] }) ?? {})], ["", false], "paid in a currency these screens can't show: not shown, and left unsaid (the ledger keeps it)");
+  // a currency picked anew empties them: they were in the old one
+  eq([payIn(opened, "USD", withDinner, null, 1).tip, payIn(opened, "USD", withDinner, null, 1).tax], ["", ""], "a currency picked anew: no tip or tax");
+  eq([payIn(inUsd, "CAD", withDinner, null, 1).tip, payIn(inUsd, "USD", withDinner, null, 1).tip], ["", "18.00"], "back to the ledger's own: none either; the same one again changes nothing");
+  // what is kept: sums in that currency, and none when together they are more than the amount
+  eq(extrasOf({ ...opened, tip: "20", tax: "" }), { tip: 2000, tax: null }, "a tip typed, the tax emptied");
+  eq(extrasOf({ ...opened, tip: "abc", tax: "0" }), { tip: null, tax: null }, "a tip that isn't a sum, a tax of nothing: none");
+  eq(extrasOf({ ...opened, tip: "18.005" }), { tip: null, tax: 525 }, "a tip with more cents than dollars have: none");
+  eq([extrasOf({ ...opened, tip: "100", tax: "30" }), extrasOver({ ...opened, tip: "100", tax: "30" })], [{ tip: null, tax: null }, true], "together more than the amount ($123.00): neither is kept, and the sheet says so");
+  eq([extrasOf({ ...opened, tip: "100", tax: "23" }), extrasOver({ ...opened, tip: "100", tax: "23" })], [{ tip: 10000, tax: 2300 }, false], "together all of it: both kept");
+  eq([extrasOf({ ...opened, text: "10" }), extrasOver({ ...opened, text: "10" })], [{ tip: null, tax: null }, true], "the amount typed down below them: neither");
+  eq([saying({ ...opened, text: "10" }, withDinner)?.tip, saying({ ...opened, text: "10" }, withDinner)?.tax], [null, null], "and saved so, it says there are none");
+  const saved = applyChange(withDinner, { do: "edit", entry: "e1", to: saying({ ...opened, tip: "20" }, withDinner)! });
+  eq([(saved?.entries[0] as Expense | undefined)?.tip, (saved?.entries[0] as Expense | undefined)?.tax], [2000, 525], "a tip put right in the sheet goes into the ledger");
+
+  // said on the row and under the amount: in the currency it was paid in
+  eq([extrasText(1800, 525, "CAD", "zh"), extrasText(1800, 525, "CAD", "en")], ["小费 $18.00 · 税 $5.25", "tip $18.00 · tax $5.25"], "a tip and tax, in both languages");
+  eq([extrasText(null, 900, "USD", "zh"), extrasText(300, undefined, "JPY", "en"), extrasText(undefined, null, "CAD", "zh")], ["税 US$9.00", "tip JP¥300", null], "one of them, in the currency paid in; neither: nothing to say");
+
+  // the summary
+  const tickets: Expense = { kind: "expense", id: "e2", at: 2, payer: "w", amount: 6000, note: "票", split: { how: "shares", shares: { w: 2, m: 1 } }, rot: 0 };
+  const usdLunch: Expense = { kind: "expense", id: "e3", at: 3, payer: "s", amount: 4000, note: "午饭", split: even, rot: 0, paidIn: { currency: "USD", amount: 3000, rate: "1.3333" }, tip: 450, tax: 300 };
+  const gone: Expense = { kind: "expense", id: "e4", at: 4, payer: "m", amount: 99900, note: "删掉的", split: even, rot: 0, tip: 5000, gone: 5 };
+  const paidBack = { kind: "transfer" as const, id: "t1", at: 6, from: "w", to: "s", amount: 2000 };
+  const trip: Ledger = { ...start, entries: [dinner, tickets, usdLunch, gone, paidBack] };
+  const sum = summaryOf(trip);
+  eq([sum.spent, sum.count], [12300 + 6000 + 4000, 3], "spent in all, over the expenses that count (not one deleted, not a transfer)");
+  eq([inLedger(450, usdLunch), inLedger(300, usdLunch), inLedger(1800, dinner)], [600, 400, 1800], "a tip or tax paid in another currency comes across at its expense's own rate");
+  eq([sum.tips, sum.tipped, sum.tax, sum.taxed], [1800 + 600, 2, 525 + 400, 2], "the tips and tax the receipts said, and on how many");
+  eq(sum.paidMost, { who: ["s"], amount: 12300 + 4000 }, "who paid the most");
+  const shares = (id: string) => [dinner, tickets, usdLunch].reduce((a, e) => a + (portions(e.amount, e.split, e.rot, ["s", "w", "m"])[id] ?? 0), 0);
+  eq(sum.spentMost, { who: ["w"], amount: shares("w") }, `whose share came to the most (小王 ${shares("w")}, against 阿美 ${shares("m")} and Steve ${shares("s")})`);
+  const pair = summaryOf({ ...start, entries: [{ ...tickets, payer: "w", split: { how: "equal", among: ["m", "w"] } }, { ...tickets, id: "e5", payer: "s", split: { how: "equal", among: ["w", "m"] } }] });
+  eq([pair.paidMost, pair.spentMost], [{ who: ["s", "w"], amount: 6000 }, { who: ["w", "m"], amount: 6000 }], "two who came to the same: both, in the roster's order");
+  eq(summaryOf(start), { spent: 0, count: 0, tips: 0, tipped: 0, tax: 0, taxed: 0, paidMost: null, spentMost: null }, "nothing spent: nothing to say of anyone");
 }
 
 if (failed) {

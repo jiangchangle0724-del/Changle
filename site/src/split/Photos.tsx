@@ -15,6 +15,8 @@ import { useBackCloses } from "../router";
 import { Button } from "../ui/Button";
 import { Sheet } from "../ui/Sheet";
 import { MAX_FILES } from "./changes";
+import { currencyName, decimalsOf, money } from "./format";
+import { asAmountText } from "./input";
 import { PDF, PICKS } from "./photos";
 import { photoOf } from "./syncing";
 import { say } from "./words";
@@ -119,6 +121,8 @@ export function PhotosSheet({
   sending,
   signedIn,
   note,
+  extras,
+  onExtras,
   lang,
   onPick,
   onRemove,
@@ -132,6 +136,12 @@ export function PhotosSheet({
   signedIn: boolean;
   /** why the last photo didn't go, said here (a toast would be under the sheet) */
   note: string | null;
+  /**
+   * the tip and tax on the receipt, as typed (in `currency`), to be put right here; `over`: together
+   * they come to more than the expense, so they won't be kept. None: the expense has no receipt.
+   */
+  extras: { tip: string; tax: string; currency: string; over: boolean } | null;
+  onExtras: (to: { tip?: string; tax?: string }) => void;
   lang: Lang;
   onPick: (chosen: File[]) => void;
   onRemove: (file: string) => void;
@@ -230,6 +240,31 @@ export function PhotosSheet({
             ))}
           </ul>
         )
+      )}
+      {/* the tip and tax on the receipt (read off it, or typed), under its photos: put right here */}
+      {!seen && extras && (
+        <div className="split-extras">
+          <h3 className="split-subhead">{say(lang, "extrasHead", { currency: lang === "zh" ? currencyName(extras.currency, lang) : extras.currency })}</h3>
+          {(["tip", "tax"] as const).map((k) => (
+            <label key={k} className="split-field">
+              <span>{say(lang, k === "tip" ? "extrasTip" : "extrasTax")}</span>
+              <input
+                value={extras[k]}
+                onChange={(e) => onExtras({ [k]: asAmountText(e.target.value, decimalsOf(extras.currency)) })}
+                inputMode="decimal"
+                enterKeyHint="done"
+                autoComplete="off"
+                placeholder={money(0, extras.currency, lang)}
+              />
+            </label>
+          ))}
+          {extras.over && (
+            <p className="split-note is-off" role="status">
+              <CircleAlert aria-hidden="true" />
+              {say(lang, "extrasOver")}
+            </p>
+          )}
+        </div>
       )}
     </Sheet>
   );

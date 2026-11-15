@@ -598,6 +598,44 @@
   font-size: var(--text-sm);
   font-weight: 700;
 }
+/* 总结: what the ledger came to, a line each: its name on the left, the sum on the right and what it
+   is over (how many expenses, how many receipts, or whose it is) small under it */
+.split-summary {
+  margin: 0;
+}
+.split-summary > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.split-summary dt {
+  flex: none;
+  color: var(--color-text-2);
+}
+.split-summary dd {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
+  text-align: end;
+  overflow-wrap: anywhere;
+}
+.split-summary dd small {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+/* the tip and tax on a receipt, under its photos in the receipt's sheet */
+.split-extras {
+  margin-top: var(--space-2);
+}
 
 /* everyone is square: the tool's own name, stamped like a seal on a settled bill */
 .split-square {
@@ -711,9 +749,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* (and a new expense's line saying a receipt can fill it in, which opens the camera) */
+/* (and a new expense's line saying a receipt can fill it in, which opens the camera; and the tip
+   and tax its receipt said, which open the receipt's sheet to put them right) */
 .split-add-comes,
-.split-add-hint {
+.split-add-hint,
+.split-add-extras {
   position: absolute;
   inset: 0;
   display: flex;
@@ -732,7 +772,8 @@
   cursor: pointer;
 }
 .split-add-comes > span,
-.split-add-hint > span {
+.split-add-hint > span,
+.split-add-extras > span {
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -744,6 +785,12 @@
 .split-add-hint > span > span {
   flex: none;
 }
+/* the tip and tax: cut short on a narrow phone, the arrow never */
+.split-add-extras > span > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* an amount so long that the two don't fit on the line: the rate is cut short, the amount never */
 .split-add-comes > span > .split-add-comes-more {
   flex: 0 1 auto;
@@ -752,7 +799,8 @@
   text-overflow: ellipsis;
 }
 .split-add-comes svg,
-.split-add-hint svg {
+.split-add-hint svg,
+.split-add-extras svg {
   flex: none;
   width: var(--text-sm);
   height: var(--text-sm);

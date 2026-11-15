@@ -273,3 +273,15 @@ What the look at the rendered screens changed: nothing; the line takes the rate 
 Verdict: holds to the contract. No new control and no new screen: a photo that was already one tap away now also fills in the amount, and says so where the amount is.
 
 Then (2026-11-15) Steve asked for players to be told: a new expense with nothing typed says 拍张小票，金额自动填上 / "Snap the receipt to fill this in" in that same line, a small camera before it, quiet like the rest. Like the rate's line, the whole amount block answers the tap and opens the photo picker, the same as the camera at the end of the note's line. It is said only where it is true: signed in, the ledger on the server, reading still to be had on this page, no photo yet, not an expense being changed. The first key pressed gives the line back to the amount. Looked at on the smallest phones: the amount goes a size down as it does for the rate's line, and nothing scrolls.
+
+## A receipt's tip and tax, and the summary (2026-11-15)
+
+Shape: having tried reading on a real receipt, Steve asked for the tip and tax to be kept too, so that at the end the group can see what went to tips and to tax, who paid the most and who spent the most. Not a way to give the tip to one person: shown is enough, he said, people will share it out themselves (by amounts, say).
+
+- Read with the total, kept with the expense, never part of anyone's share. Said where the receipt already speaks: the line under the amount, which now reads 从小票读的，含小费 $18.00 · 税 $5.25 (English: "Receipt: tip $18.00 · tax $5.25") and, later, 含小费 …. Like the rate's line, the whole block answers the tap; it opens the receipt's sheet, where the two can be put right under its photos. When the rate's line is there it keeps the place, and the receipt's sheet is where they are seen.
+- On the ledger, a third quiet line on the expense's row, in the currency it was paid in.
+- 总结 at the foot of 结清: a plain list in the field rows' manner, a name on the left, the sum on the right and what it is over small under it (how many expenses, how many receipts, whose it is). No chart: five numbers read faster than a picture of them.
+
+What the look at the rendered screens changed: the English line first said "From the receipt, with tip … · tax …" and lost the tax on a 320-wide phone; the sheet's two fields were bare numbers, so its heading now names the currency.
+
+Verdict: holds to the contract. No new screen and no new control on 记一笔's face: one line that was already there says more, the receipt's sheet gains two fields, and 结清 ends with a short list.
