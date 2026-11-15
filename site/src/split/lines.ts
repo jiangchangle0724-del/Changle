@@ -7,7 +7,8 @@
 import type { Lang } from "../i18n";
 import type { Sent } from "./changes";
 import { balances, expensesOf, type Expense, type Ledger, type Settlement } from "./core";
-import { money } from "./format";
+import { summaryOf, type Most } from "./summary";
+import { dayBefore, dayName, localDay, money } from "./format";
 import { NAME_MAX, NOTE_MAX, tidy } from "./ops";
 import type { Held } from "./sync";
 import type { SyncState, Trouble } from "./syncer";
@@ -23,6 +24,51 @@ export const mine = (l: Ledger, me: string | undefined) => (me && l.members.some
 
 /** A member's name as this phone's owner reads it: 你 for themselves. */
 export const nameFor = (l: Ledger, id: string, me: string | undefined, lang: Lang) => (id === me ? say(lang, "you") : nameOf(l, id));
+
+/** The day an expense was spent: the one it says, or else the day it was recorded, on this phone's calendar. */
+export const spentOn = (e: Pick<Expense, "date" | "at">) => e.date ?? localDay(e.at);
+
+/** A day as a person reads it next to today: 今天, 昨天, or the day (with its weekday when asked, its year when it isn't this one). */
+export function dayLabel(day: string, today: string, lang: Lang, weekday = false): string {
+  if (day === today) return say(lang, "dayToday");
+  if (day === dayBefore(today)) return say(lang, "dayYesterday");
+  return dayName(day, lang, Number(today.slice(0, 4)), weekday);
+}
+
+/** Expenses by the day they were spent, latest day first; within a day, the latest recorded first. */
+export function byDay<E extends Pick<Expense, "date" | "at">>(expenses: readonly E[]): [string, E[]][] {
+  const days = new Map<string, E[]>();
+  for (const e of [...expenses].reverse()) {
+    const day = spentOn(e);
+    days.set(day, [...(days.get(day) ?? []), e]);
+  }
+  return [...days.entries()].sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0));
+}
+
+/**
+ * 总结 (summary.ts) as lines a page or a picture says: what each is, its sum, and what it is over
+ * (how many expenses, or whose it is). Nothing while nothing has been spent; the tips and the tax
+ * only when some expense has them. `me` is 你 on a page, and nobody on a picture the group reads.
+ * When everyone in the ledger came to the most (a trip shared evenly throughout), naming them all
+ * says nothing: it says 一样多, and what each came to.
+ */
+export function summaryLines(l: Ledger, me: string | undefined, lang: Lang): { term: string; value: string; more: string }[] {
+  const s = summaryOf(l);
+  if (!s.count) return [];
+  const sum = (n: number) => money(n, l.currency, lang);
+  const counted = (n: number, one: Word, many: Word) => (n === 1 ? say(lang, one) : say(lang, many, { n }));
+  const most = (term: Word, m: Most) =>
+    m.who.length > 1 && m.who.length === l.members.length
+      ? { term: say(lang, term), value: say(lang, "summaryAllSame"), more: say(lang, "summaryEach", { amount: sum(m.amount) }) }
+      : { term: say(lang, term), value: m.who.map((id) => nameFor(l, id, me, lang) || say(lang, "someone")).join(say(lang, "nameAnd")), more: sum(m.amount) };
+  return [
+    { term: say(lang, "summarySpent"), value: sum(s.spent), more: counted(s.count, "summaryCountOne", "summaryCount") },
+    ...(s.tipped ? [{ term: say(lang, "summaryTips"), value: sum(s.tips), more: counted(s.tipped, "summaryOnOne", "summaryOn") }] : []),
+    ...(s.taxed ? [{ term: say(lang, "summaryTax"), value: sum(s.tax), more: counted(s.taxed, "summaryOnOne", "summaryOn") }] : []),
+    ...(s.paidMost ? [most("summaryPaidMost", s.paidMost)] : []),
+    ...(s.spentMost ? [most("summarySpentMost", s.spentMost)] : []),
+  ];
+}
 
 /** An expense's tip and tax, said in the currency it was paid in ("小费 $18.00 · 税 $5.25"); null with neither. */
 export function extrasText(tip: number | null | undefined, tax: number | null | undefined, currency: string, lang: Lang): string | null {

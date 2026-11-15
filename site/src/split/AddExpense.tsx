@@ -5,7 +5,7 @@
  * and the button in the corner changes it. Receipt photos have a button at the end of the note's
  * line (Photos.tsx): each goes to the server as it is chosen, and the expense keeps their ids.
  */
-import { Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -19,10 +19,10 @@ import { useToast } from "../ui/Toast";
 import { MAX_FILES } from "./changes";
 import { MAX_SHARES, nextRot, portions, toMinor, type Decimals, type Expense, type Ledger } from "./core";
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
-import { currencyName, decimalsOf, money, typed } from "./format";
+import { currencyName, decimalsOf, localDay, money, typed } from "./format";
 import { asAmountText, press, type Key } from "./input";
-import { extrasText, nameFor } from "./lines";
-import { NOTE_MAX } from "./ops";
+import { dayLabel, extrasText, nameFor } from "./lines";
+import { isDay, NOTE_MAX } from "./ops";
 import { Bar, Keypad } from "./parts";
 import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
 import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
@@ -61,7 +61,13 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   // (the ledger's own currency: what everything about sharing is in)
   const decimals = decimalsOf(ledger.currency);
   const [draft, setDraft] = useState<Draft>(() => (editing ? draftOf(editing, ledger) : blankDraft(ledger, me, Date.now())));
-  const [sheet, setSheet] = useState<"payer" | "share" | "currency" | "rate" | null>(null);
+  const [sheet, setSheet] = useState<"payer" | "share" | "currency" | "rate" | "details" | null>(null);
+  // The day it was spent: today for a new one, or what it says; one that says none was spent the day
+  // it was recorded. Said on the button beside 记好了, which opens the sheet where it is picked (with
+  // the tip and tax). A day picked here is never replaced by one read off a receipt.
+  const today = localDay(Date.now());
+  const day = draft.date || localDay(editing?.at ?? Date.now());
+  const dayPicked = useRef(false);
   const [fx, setFx] = useState<FxState | null>(null);
   const amount = amountOf(draft, ledger);
   const wrong = draftProblem(draft, ledger);
@@ -129,9 +135,9 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     const next = other ? payIn(d, other, ledger, fxNow.current?.rates, Date.now()) : d;
     // (a total the currency can't be, like cents in yen: none)
     if (toMinor(got.total, decimalsOf(next.currency)) === null) return setReading("none");
-    // (the tip and tax in it, when they are sums that currency can be)
+    // (the tip and tax in it, when they are sums that currency can be; the day, unless one was picked)
     const part = (x: string | null) => (x && toMinor(x, decimalsOf(next.currency)) !== null ? x : "");
-    setDraft({ ...next, text: got.total, note: next.note || got.merchant || "", tip: part(got.tip), tax: part(got.tax) });
+    setDraft({ ...next, text: got.total, note: next.note || got.merchant || "", tip: part(got.tip), tax: part(got.tax), date: got.date && !dayPicked.current ? got.date : next.date });
     setFromReceipt(`${next.currency} ${got.total}`);
     setReading(null);
   };
@@ -319,7 +325,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
           {readLine && <p className="split-add-read">{readLine}</p>}
           {extrasLine && (
             // (like the rate's line: the whole block answers the tap, the line at its foot)
-            <button type="button" className="split-add-extras" onClick={() => setPhotos(true)}>
+            <button type="button" className="split-add-extras" onClick={() => setSheet("details")}>
               <span>
                 <span>{extrasLine}</span>
                 <span className="ui-visually-hidden"> {say(lang, "changeExtras")}</span>
@@ -367,14 +373,35 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
       </div>
       <div className="split-dock">
         <Keypad onKey={type} decimals={decimalsOf(draft.currency)} lang={lang} />
-        <Button size="lg" block disabled={!!wrong || sending > 0} onClick={save}>
-          {say(lang, editing ? "saveChanges" : "done")}
-        </Button>
+        <div className="split-dock-row">
+          {/* the day it was spent: opens the sheet where it, and the tip and tax, can be changed */}
+          <button type="button" className="split-day-button" onClick={() => setSheet("details")}>
+            <CalendarDays aria-hidden="true" />
+            <span className="ui-visually-hidden">{say(lang, "spentDay")} </span>
+            {dayLabel(day, today, lang)}
+          </button>
+          <Button size="lg" block disabled={!!wrong || sending > 0} onClick={save}>
+            {say(lang, editing ? "saveChanges" : "done")}
+          </Button>
+        </div>
       </div>
       <PayerSheet open={sheet === "payer"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} value={draft.payer} onPick={(payer) => setDraft({ ...draft, payer })} />
       <ShareSheet open={sheet === "share"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} decimals={decimals} rot={rot} draft={draft} onChange={setDraft} />
       <CurrencySheet open={sheet === "currency"} onClose={() => setSheet(null)} ledger={ledger} lang={lang} value={draft.currency} onPick={(currency) => setDraft((d) => payIn(d, currency, ledger, fx?.rates, Date.now()))} />
       <RateSheet open={sheet === "rate" && away} onClose={() => setSheet(null)} ledger={ledger} lang={lang} draft={draft} fx={fx} onChange={setDraft} />
+      <DetailsSheet
+        open={sheet === "details"}
+        onClose={() => setSheet(null)}
+        lang={lang}
+        draft={draft}
+        day={day}
+        today={today}
+        onDay={(date) => {
+          dayPicked.current = true;
+          setDraft((d) => ({ ...d, date }));
+        }}
+        onExtras={(to) => setDraft((d) => ({ ...d, ...to }))}
+      />
       {wantsRates && <TodaysRates onChange={setFx} />}
       <PhotosSheet
         open={photos}
@@ -388,9 +415,6 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         // (the server said the sign-in has run out: as signed out, with 登录)
         signedIn={signedIn && photoNote?.word !== "photoSignIn"}
         note={photoNote?.text ?? null}
-        // (the tip and tax on the receipt: with a receipt, or with what one said)
-        extras={files.length || draft.tip || draft.tax ? { tip: draft.tip, tax: draft.tax, currency: draft.currency, over: extrasOver(draft) } : null}
-        onExtras={(to) => setDraft((d) => ({ ...d, ...to }))}
         lang={lang}
         onPick={(chosen) => void pick(chosen)}
         onRemove={(f) => {
@@ -517,6 +541,58 @@ export function Face({ name }: { name: string }) {
     <span className="split-face" aria-hidden="true">
       {([...name.trim()][0] ?? "").toUpperCase()}
     </span>
+  );
+}
+
+/**
+ * 日期、小费和税: the day it was spent (the phone's own date picker; no day after today), and the
+ * tip and tax in what was paid, in the currency it was paid in, to type or put right. Says when
+ * together they come to more than the expense, so they won't be kept.
+ */
+function DetailsSheet({ open, onClose, lang, draft, day, today, onDay, onExtras }: { open: boolean; onClose: () => void; lang: Lang; draft: Draft; day: string; today: string; onDay: (day: string) => void; onExtras: (to: { tip?: string; tax?: string }) => void }) {
+  const over = extrasOver(draft);
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      lang={lang}
+      category="tool"
+      title={say(lang, "details")}
+      footer={
+        <Button block onClick={onClose}>
+          {say(lang, "ok")}
+        </Button>
+      }
+    >
+      <div className="split-details">
+        <label className="split-field">
+          <span>{say(lang, "spentDay")}</span>
+          <input type="date" value={day} min="2000-01-01" max={today} onChange={(e) => isDay(e.target.value) && e.target.value <= today && onDay(e.target.value)} />
+        </label>
+        <div className="split-extras">
+          <h3 className="split-subhead">{say(lang, "extrasHead", { currency: lang === "zh" ? currencyName(draft.currency, lang) : draft.currency })}</h3>
+          {(["tip", "tax"] as const).map((k) => (
+            <label key={k} className="split-field">
+              <span>{say(lang, k === "tip" ? "extrasTip" : "extrasTax")}</span>
+              <input
+                value={draft[k]}
+                onChange={(e) => onExtras({ [k]: asAmountText(e.target.value, decimalsOf(draft.currency)) })}
+                inputMode="decimal"
+                enterKeyHint="done"
+                autoComplete="off"
+                placeholder={money(0, draft.currency, lang)}
+              />
+            </label>
+          ))}
+          {over && (
+            <p className="split-note is-off" role="status">
+              <CircleAlert aria-hidden="true" />
+              {say(lang, "extrasOver")}
+            </p>
+          )}
+        </div>
+      </div>
+    </Sheet>
   );
 }
 

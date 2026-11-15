@@ -57,6 +57,8 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { localDay } from "../src/split/format";
+import { dayLabel } from "../src/split/lines";
 import { say, W, type Word } from "../src/split/words";
 
 type Lang = "zh" | "en";
@@ -365,7 +367,7 @@ async function walk(lang: Lang, width: number, height: number) {
       await page.getByRole("radio", { name: re(payer) }).click();
       await closed(page);
     }
-    if (note) await page.locator("label.split-field input").fill(note);
+    if (note) await page.locator(".split-note-row label.split-field input").fill(note);
   };
 
   await page.goto(`${base}/split`);
@@ -632,7 +634,7 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("17b-put-back");
   // its note changed, for the record to say what changed; and, where there is a server to keep them, a receipt's photo and a PDF on it
   await page.locator(".split-row").first().click();
-  const noteField = page.locator("label.split-field input");
+  const noteField = page.locator(".split-note-row label.split-field input");
   await noteField.fill(`${await noteField.inputValue()}和酒`);
   const picker = page.locator(".split-note-row input[type=file]");
   if (local) {
@@ -1730,7 +1732,7 @@ async function behave() {
     ok((await amountShown(page)) === "$12.34", "typing on a keyboard fills the amount, to the cent");
     await page.keyboard.press("Backspace");
     ok((await amountShown(page)) === "$12.3", "Backspace takes a digit off");
-    await page.locator("label.split-field input").click();
+    await page.locator(".split-note-row label.split-field input").click();
     await page.keyboard.type("12 个饺子");
     ok((await amountShown(page)) === "$12.3", "typing in the note leaves the amount alone");
     await page.keyboard.press("Enter");
@@ -3039,18 +3041,25 @@ async function reading() {
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
 
-  // a receipt with a tip and tax in it: kept with the expense, said under the amount and on its row,
-  // put right in the receipt's sheet; and summed up at the foot of 结清
+  // a receipt with a tip, tax and a day in it: kept with the expense, said under the amount, beside
+  // 记好了 and on its row, put right in the sheet with the day, the tip and the tax; summed up at the foot of 结清
+  const today = localDay(Date.now());
+  const ago = (days: number) => localDay(Date.now() - days * 86_400_000);
+  const dayButton = pa.locator(".split-day-button");
   await button(pa, "addExpense").click();
-  await attach("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25");
+  ok((await dayButton.innerText()).includes(t("dayToday")), `a new expense is spent today (${await dayButton.innerText()})`);
+  await attach(`receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25 date=${ago(5)}`);
   const extras = pa.locator(".split-add-extras");
   await extras.waitFor({ timeout: 15_000 });
   ok((await amount()) === "$123.00" && (await extras.textContent())?.includes("从小票读的，含小费 $18.00 · 税 $5.25"), `a receipt with a tip and tax: the amount, and the line says what of it was tip and tax (${await extras.textContent()})`);
+  ok((await dayButton.innerText()).includes(dayLabel(ago(5), today, "zh")), `and beside 记好了, the day on the receipt (${await dayButton.innerText()})`);
   await pa.screenshot({ path: join(out, "read-extras-zh-390x664.png") });
   await extras.click();
   const fields = pa.locator("dialog[open] .split-extras input");
+  const dayField = pa.locator('dialog[open] input[type="date"]');
   await fields.first().waitFor();
-  ok((await fields.nth(0).inputValue()) === "18.00" && (await fields.nth(1).inputValue()) === "5.25", "pressing it opens the receipt's sheet, the tip and tax there to put right");
+  ok((await fields.nth(0).inputValue()) === "18.00" && (await fields.nth(1).inputValue()) === "5.25" && (await dayField.inputValue()) === ago(5), "pressing it opens the sheet with the day, the tip and the tax, to put right");
+  ok((await dayField.getAttribute("max")) === today, "no day after today can be picked");
   await pa.screenshot({ path: join(out, "read-extras-sheet-zh-390x664.png") });
   await fields.nth(0).fill("200");
   await pa.locator("dialog[open] .split-extras .split-note").waitFor();
@@ -3058,18 +3067,22 @@ async function reading() {
   await pa.screenshot({ path: join(out, "read-extras-over-zh-390x664.png") });
   await fields.nth(0).fill("20,5");
   ok((await fields.nth(0).inputValue()) === "20.5" && (await pa.locator("dialog[open] .split-extras .split-note").count()) === 0, "put right (a comma typed is a dot): nothing said");
+  await dayField.fill(ago(6));
   await pa.keyboard.press("Escape");
   await closed(pa);
   ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25"), `back on the expense, the line says the tip as put right (${await extras.textContent()})`);
+  ok((await dayButton.innerText()).includes(dayLabel(ago(6), today, "zh")), `and the day picked (${await dayButton.innerText()})`);
   await button(pa, "done").click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
   await pa.locator(".split-row-extras", { hasText: "小费 $20.50 · 税 $5.25" }).waitFor();
   ok(true, "its row says the tip and tax");
+  const dayOf = (note: string) => pa.locator(".split-day", { has: pa.locator(".split-row", { hasText: note }) }).locator(".split-day-head").innerText();
+  ok((await dayOf("Joe's Diner")) === dayLabel(ago(6), today, "zh", true) && (await dayOf(t("noNote"))) === dayLabel(today, today, "zh", true), `and it is under its own day, the one recorded today under 今天 (${await dayOf("Joe's Diner")}, ${await dayOf(t("noNote"))})`);
   await pa.screenshot({ path: join(out, "read-extras-row-zh-390x664.png") });
   await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
-  const onServer = (await keptBy(pa)).held[0].server.entries as { note?: string; tip?: number; tax?: number }[];
+  const onServer = (await keptBy(pa)).held[0].server.entries as { note?: string; tip?: number; tax?: number; date?: string }[];
   const joes = onServer.find((e) => e.note === "Joe's Diner");
-  ok(joes?.tip === 2050 && joes?.tax === 525, `the server keeps them (${joes?.tip}, ${joes?.tax})`);
+  ok(joes?.tip === 2050 && joes?.tax === 525 && joes?.date === ago(6), `the server keeps them, and the day (${joes?.tip}, ${joes?.tax}, ${joes?.date})`);
   await pa.locator(".split-row", { hasText: "Joe's Diner" }).click();
   await pa.locator(".split-keys").waitFor();
   ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25") && !(await extras.textContent())?.includes("从小票"), "opened again, the line says the tip and tax it keeps");
@@ -3078,12 +3091,42 @@ async function reading() {
   ok((await extras.count()) === 0, "the amount typed down below them: the line goes (they wouldn't be kept)");
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // a day picked first stays when a receipt with another day is read
+  await button(pa, "addExpense").click();
+  await dayButton.click();
+  await dayField.waitFor();
+  await dayField.fill(ago(3));
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await attach(`receipt:9.00 CAD Kiosk date=${ago(8)}`);
+  await extras.or(pa.locator(".split-add-read")).first().waitFor({ timeout: 15_000 });
+  await pa.waitForFunction(`!document.querySelector(".split-add-read")?.textContent?.includes(${JSON.stringify(t("readingReceipt"))})`);
+  ok((await amount()) === "$9.00" && (await dayButton.innerText()).includes(dayLabel(ago(3), today, "zh")), `a day picked by hand stays when a receipt with another day is read (${await dayButton.innerText()})`);
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // no receipt: a tip typed in the same sheet, from the button beside 记好了
+  await button(pa, "addExpense").click();
+  await type(pa, "50");
+  await dayButton.click();
+  await fields.first().waitFor();
+  await fields.nth(0).fill("5");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  ok((await extras.textContent())?.includes("含小费 $5.00"), `no receipt: a tip typed in the sheet, said under the amount (${await extras.textContent()})`);
+  await pa.screenshot({ path: join(out, "read-tip-typed-zh-390x664.png") });
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  await pa.locator(".split-row-extras", { hasText: "小费 $5.00" }).waitFor();
+  ok(true, "and on its row");
+
   await pa.getByRole("tab", { name: t("settle") }).click();
   const summary = pa.locator(".split-summary");
   await summary.waitFor();
   const summed = async (k: Word) => (await summary.locator("div", { has: pa.locator("dt", { hasText: new RegExp(`^${t(k)}$`) }) }).locator("dd").innerText()).replace(/\s+/g, " ");
   const got = [await summed("summarySpent"), await summed("summaryTips"), await summed("summaryTax"), await summed("summaryPaidMost"), await summed("summarySpentMost")];
-  ok(JSON.stringify(got) === JSON.stringify(["$126.00 2 笔", "$20.50 1 张小票上的", "$5.25 1 张小票上的", "你 $126.00", "你、阿甲 $63.00"]), `结清 ends with the summary: spent, tips, tax, who paid the most, whose share came to the most (${got.join(" | ")})`);
+  ok(JSON.stringify(got) === JSON.stringify(["$176.00 3 笔", "$25.50 2 笔里的", "$5.25 1 笔里的", "你 $176.00", "一样多 每人 $88.00"]), `结清 ends with the summary: spent, tips, tax, who paid the most, whose share came to the most (both: 一样多) (${got.join(" | ")})`);
   await summary.scrollIntoViewIfNeeded();
   await pa.screenshot({ path: join(out, "read-summary-zh-390x664.png") });
   await pa.getByRole("tab", { name: t("expenses") }).click();

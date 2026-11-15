@@ -25,11 +25,11 @@ import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 import { AddExpense, Face } from "./AddExpense";
 import { balances, expensesOf, settlement, spent, type Expense, type Ledger } from "./core";
-import { money } from "./format";
+import { localDay, money } from "./format";
 import { keyFrom } from "./invite";
 import { doneStarting, invitePicked, wasStarted } from "./invites";
 import { WhoStep } from "./Join";
-import { extrasText, lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
+import { byDay, dayLabel, extrasText, lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
 import { Bar, Rolling } from "./parts";
 import { PictureSheet } from "./PictureSheet";
 import { paidInOf } from "./rates";
@@ -360,12 +360,14 @@ function Crew({ ledger, lang, onPeople, onInvite }: { ledger: Ledger; lang: Lang
 }
 
 /**
- * The expenses, newest first: what it was, who paid and how it was shared, how much. A row opens
- * the expense to change it; in a locked ledger (no `onOpen`) a row is only a row. The one just
- * recorded lands (one of the three motions).
+ * The expenses by the day they were spent, the latest day first, under its name (今天, 昨天, 11月12日周三);
+ * in a day, the latest recorded first. Each says what it was, who paid and how it was shared, how
+ * much. A row opens the expense to change it; in a locked ledger (no `onOpen`) a row is only a row.
+ * The one just recorded lands (one of the three motions).
  */
 function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: Ledger; me: string | undefined; lang: Lang; landed: string | null; onLanded: () => void; onOpen?: (id: string) => void }) {
-  const rows = [...expensesOf(ledger)].reverse();
+  const rows = expensesOf(ledger);
+  const today = localDay(Date.now());
   const landedRow = useRef<HTMLLIElement>(null);
   useEffect(() => {
     if (landed) landedRow.current?.scrollIntoView({ block: "nearest" });
@@ -412,19 +414,26 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
     </>
   );
   return (
-    <ul className="split-rows">
-      {rows.map((e) => (
-        // the landing is over when the wash of light on the row has faded (split.css): the mark comes off, so the row never lands twice
-        <li key={e.id} ref={e.id === landed ? landedRow : undefined} className={e.id === landed ? "is-landing" : undefined} onAnimationEnd={e.id === landed ? (ev) => ev.animationName === "split-lit" && onLanded() : undefined}>
-          {onOpen ? (
-            <button type="button" className="split-row" onClick={() => onOpen(e.id)}>
-              {row(e)}
-            </button>
-          ) : (
-            <div className="split-row is-still">{row(e)}</div>
-          )}
-        </li>
+    <>
+      {byDay(rows).map(([day, spent]) => (
+        <section key={day} className="split-day">
+          <h3 className="split-day-head">{dayLabel(day, today, lang, true)}</h3>
+          <ul className="split-rows">
+            {spent.map((e) => (
+              // the landing is over when the wash of light on the row has faded (split.css): the mark comes off, so the row never lands twice
+              <li key={e.id} ref={e.id === landed ? landedRow : undefined} className={e.id === landed ? "is-landing" : undefined} onAnimationEnd={e.id === landed ? (ev) => ev.animationName === "split-lit" && onLanded() : undefined}>
+                {onOpen ? (
+                  <button type="button" className="split-row" onClick={() => onOpen(e.id)}>
+                    {row(e)}
+                  </button>
+                ) : (
+                  <div className="split-row is-still">{row(e)}</div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </>
   );
 }
