@@ -18,7 +18,7 @@ import type { Lang } from "../i18n";
 import { applyChange, type Change, type Sent } from "./changes";
 import type { Entry, Expense, Ledger, Transfer } from "./core";
 import { money } from "./format";
-import { NAME_MAX, NOTE_MAX, tidy } from "./ops";
+import { afterEdit, NAME_MAX, NOTE_MAX, tidy } from "./ops";
 import { say } from "./words";
 
 /** A line of the record as the server keeps it: a change that counted, or the ledger locked or opened. */
@@ -98,11 +98,11 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
         const after = edited(before, c.to);
         entries.set(c.entry, after);
         const there = inNow(c.entry);
-        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null } };
+        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null, tip: before.tip ?? null, tax: before.tax ?? null } };
         // (only where it would go through: whoever paid it or shared it may have been taken off since)
         const offer = !locked && lastEdit.get(c.entry) === s.key && !!there && there.gone === undefined && applyChange(now, back) !== null;
         lines.push(line(say(lang, "historyEdit", { what: expense(after) }), {
-          detail: changed(before, after, me, lang, nameOf, amount),
+          detail: changed(before, after, me, lang, nameOf, amount, now.currency),
           ...(offer ? { action: { word: "revert" as const, change: back } } : {}),
         }));
         break;
@@ -157,22 +157,13 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
   return lines.reverse();
 }
 
-/** An expense as an edit leaves it (the same rules as ops.ts, editExpense, without asking the roster). */
-function edited(before: Expense, to: Extract<Change, { do: "edit" }>["to"]): Expense {
-  const paidIn = to.paidIn === undefined ? (to.amount === before.amount ? before.paidIn : undefined) : (to.paidIn ?? undefined);
-  const files = to.files === undefined ? before.files : (to.files ?? undefined);
-  const next: Expense = { ...before, payer: to.payer, amount: to.amount, note: tidy(to.note, NOTE_MAX), split: to.split };
-  if (paidIn) next.paidIn = { currency: paidIn.currency, amount: paidIn.amount, rate: paidIn.rate };
-  else delete next.paidIn;
-  if (files?.length) next.files = [...files];
-  else delete next.files;
-  return next;
-}
+/** An expense as an edit leaves it (the same rules as ops.ts, editExpense, without asking the roster); one the rules wouldn't take leaves it as it was. */
+const edited = (before: Expense, to: Extract<Change, { do: "edit" }>["to"]): Expense => afterEdit(before, to) ?? before;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-/** What an edit changed, said briefly: the amount, who paid, the note, how it is shared, the other currency. */
-function changed(before: Expense, after: Expense, me: string | undefined, lang: Lang, nameOf: (id: string) => string, amount: (n: number) => string): string | undefined {
+/** What an edit changed, said briefly: the amount, who paid, the note, how it is shared, the other currency, the photos, the tip and the tax. */
+function changed(before: Expense, after: Expense, me: string | undefined, lang: Lang, nameOf: (id: string) => string, amount: (n: number) => string, currency: string): string | undefined {
   const parts: string[] = [];
   if (before.amount !== after.amount) parts.push(say(lang, "historyAmount", { from: amount(before.amount), to: amount(after.amount) }));
   if (before.payer !== after.payer) parts.push(after.payer === me ? say(lang, "historyPayerYou") : say(lang, "historyPayer", { who: nameOf(after.payer) || say(lang, "someone") }));
@@ -184,6 +175,10 @@ function changed(before: Expense, after: Expense, me: string | undefined, lang: 
   const has = new Set(after.files ?? []);
   if ([...has].some((f) => !had.has(f))) parts.push(say(lang, "historyFilesAdded"));
   if ([...had].some((f) => !has.has(f))) parts.push(say(lang, "historyFilesRemoved"));
+  // (tip and tax are in the currency it was paid in)
+  const paidIn = (n: number) => money(n, after.paidIn?.currency ?? currency, lang);
+  if (before.tip !== after.tip) parts.push(after.tip ? say(lang, "historyTip", { amount: paidIn(after.tip) }) : say(lang, "historyTipGone"));
+  if (before.tax !== after.tax) parts.push(after.tax ? say(lang, "historyTax", { amount: paidIn(after.tax) }) : say(lang, "historyTaxGone"));
   if (!parts.length) return undefined;
   const text = parts.join(say(lang, "historyAnd"));
   // (a line of its own, so it starts as a sentence does)

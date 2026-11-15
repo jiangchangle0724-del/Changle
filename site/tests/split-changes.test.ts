@@ -13,6 +13,8 @@
  *  8. Thousands of changes of every kind, sound and not: the ledger stays sound.
  *  9. The phone's own view: the server's ledger with what is still waiting on top.
  * 10. Receipt photos: an expense carries their ids; a change that doesn't mention them leaves them.
+ * 11. Tip and tax: kept to show, in the currency paid in, never more than was paid, never part of
+ *     anyone's share; a change that doesn't mention them keeps them while what was paid stays.
  */
 import { balances, expensesOf, MAX_MEMBERS, nextRot, portionsOf, type Entry, type Expense, type Ledger, type Split } from "../src/split/core";
 import { accept, applyChange, MAX_ENTRIES, MAX_FILES, parseSent, rebase, type Change, type Sent, type Took } from "../src/split/changes";
@@ -424,6 +426,63 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   eq([(served.ledger.entries[0] as Expense).files, (served.ledger.entries[0] as Expense).note, served.took], [["f1"], "午饭和茶", ["new", "new"]], "the server takes them, and a later edit about the note keeps them");
   eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads them back from the server's ledger");
   eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], files: "f1" }] })?.entries, [], "a ledger whose photos aren't a list leaves that entry out");
+}
+
+// ---------- 11. tip and tax ----------
+{
+  const start = startLedger("T", "小费", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);
+  const among: Split = { how: "equal", among: ["a", "b"] };
+  const dinner = { kind: "expense" as const, id: "e1", at: 1, payer: "a", amount: 12300, note: "晚饭", split: among, rot: 0 };
+  const said = { payer: "a", amount: 12300, note: "晚饭", split: among };
+  const read = (change: unknown) => parseSent({ id: "c", at: 1, change })?.change ?? null;
+  const one = (l: Ledger | null) => (l?.entries[0] ?? null) as Expense | null;
+  const has = (l: Ledger | null) => [one(l)?.tip ?? "none", one(l)?.tax ?? "none", !!l && "tip" in l.entries[0], !!l && "tax" in l.entries[0]];
+
+  // what arrives: whole numbers of the smallest units; 0 is none; anything else is no change at all
+  eq(read({ do: "expense", expense: { ...dinner, tip: 1800, tax: 500 } }), { do: "expense", expense: { ...dinner, tip: 1800, tax: 500 } }, "an expense with a tip and tax is read with them");
+  eq(read({ do: "expense", expense: { ...dinner, tip: 0, tax: 0 } }), { do: "expense", expense: dinner }, "a tip or tax of 0 is none");
+  for (const tip of [-1, 1.5, "1800", null, Number.NaN, Number.POSITIVE_INFINITY, [1800], { n: 1 }]) eq(read({ do: "expense", expense: { ...dinner, tip } }), null, `a tip said as ${JSON.stringify(tip)}: not a change`);
+  eq(read({ do: "expense", expense: { ...dinner, tax: "500" } }), null, "a tax that isn't a number: not a change");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, tip: 2000, tax: null } }), { do: "edit", entry: "e1", to: { ...said, tip: 2000, tax: null } }, "an edit that says the tip, and that there is no tax");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, tip: 0 } }), { do: "edit", entry: "e1", to: { ...said, tip: null } }, "an edit that says a tip of 0 says there is none");
+  eq(read({ do: "edit", entry: "e1", to: said }), { do: "edit", entry: "e1", to: said }, "an edit that doesn't say");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, tax: -5 } }), null, "an edit with a tax below 0: not a change");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, tip: "18" } }), null, "an edit with a tip that isn't a number: not a change");
+
+  // what they do
+  const both = applyChange(start, { do: "expense", expense: { ...dinner, tip: 1800, tax: 500 } });
+  eq(has(both), [1800, 500, true, true], "recorded with its tip and tax");
+  eq(has(applyChange(start, { do: "expense", expense: dinner })), ["none", "none", false, false], "recorded without: no `tip` or `tax` at all");
+  eq(applyChange(start, { do: "expense", expense: { ...dinner, tip: 11900, tax: 500 } }), null, "a tip and tax that come to more than was paid: not recorded");
+  eq(has(applyChange(start, { do: "expense", expense: { ...dinner, tip: 11800, tax: 500 } })).slice(0, 2), [11800, 500], "ones that come to all of it are");
+  for (const tip of [1.5, -100, Number.NaN]) eq(applyChange(start, { do: "expense", expense: { ...dinner, tip } }), null, `a tip of ${tip}: not recorded`);
+  eq(balances(both!), balances(applyChange(start, { do: "expense", expense: dinner })!), "the tip and tax change nobody's share");
+  // paid in another currency: in that currency, and no more than was paid in it
+  const usd = { ...dinner, amount: 16000, paidIn: { currency: "USD", amount: 12000, rate: "1.3333" } };
+  eq(has(applyChange(start, { do: "expense", expense: { ...usd, tip: 1800, tax: 900 } })).slice(0, 2), [1800, 900], "paid in another currency: kept as said (in that currency)");
+  eq(applyChange(start, { do: "expense", expense: { ...usd, tip: 11000, tax: 1500 } }), null, "and what they can't come to more than is what was paid in it (US$120.00), not the ledger's $160.00");
+
+  // edits: said, said null, not said
+  eq(has(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, note: "晚饭和酒" } })).slice(0, 2), [1800, 500], "an edit that doesn't mention them, what was paid the same: they stay");
+  eq(has(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, amount: 13000 } })), ["none", "none", false, false], "an edit that doesn't mention them, the amount changed (a page from before them): they go, read off a total it no longer has");
+  eq(has(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, amount: 13000, tip: 2500, tax: 500 } })).slice(0, 2), [2500, 500], "an edit that says them sets them");
+  eq(has(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, tip: null } })), ["none", 500, false, true], "an edit that says no tip takes the tip off, and keeps the tax it didn't mention");
+  eq(has(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, tip: null, tax: null } })), ["none", "none", false, false], "and one that says neither takes both off");
+  eq(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, tip: 1800, tax: 500 } }), null, "an edit to what they already are changes nothing");
+  eq(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, amount: 2000, tip: 1800, tax: 500 } }), null, "one that says them with an amount they no longer fit in changes nothing");
+  eq(applyChange(both!, { do: "edit", entry: "e1", to: { ...said, tip: 1.5 } }), null, "and nor does one with half a cent of tip");
+  const usdTip = applyChange(start, { do: "expense", expense: { ...usd, tip: 1800 } })!;
+  eq(has(applyChange(usdTip, { do: "edit", entry: "e1", to: { ...said, amount: 16000, paidIn: null } })), ["none", "none", false, false], "paid in the ledger's currency after all, the amount the same: the tip, in US dollars, goes");
+  eq(has(applyChange(usdTip, { do: "edit", entry: "e1", to: { ...said, amount: 16200, paidIn: { currency: "USD", amount: 12000, rate: "1.35" } } })).slice(0, 1), [1800], "the rate changed, what was paid in US dollars the same: the tip stays");
+  eq(has(applyChange(usdTip, { do: "edit", entry: "e1", to: { ...said, amount: 17000, paidIn: { currency: "USD", amount: 12500, rate: "1.36" } } })).slice(0, 1), ["none"], "what was paid in US dollars changed: it goes");
+  eq(has(applyChange(usdTip, { do: "edit", entry: "e1", to: { ...said, amount: 2300, paidIn: { currency: "CNY", amount: 12000, rate: "0.1917" } } })).slice(0, 1), ["none"], "paid in yuan instead, the same number of them: it goes too (it was dollars)");
+
+  // sent and taken by the server, as any change is, and read back by a phone
+  const served = serve(start, [sent({ do: "expense", expense: { ...dinner, tip: 1800, tax: 500 } }), sent({ do: "edit", entry: "e1", to: { ...said, note: "晚饭和茶" } })]);
+  eq([...has(served.ledger).slice(0, 2), served.took], [1800, 500, ["new", "new"]], "the server takes them, and a later edit about the note keeps them");
+  eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads them back from the server's ledger");
+  eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], tip: "1800" }] })?.entries, [], "a ledger whose tip isn't a number leaves that entry out");
+  eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], tax: null }] })?.entries, [], "and so does one whose tax is null");
 }
 
 if (failed) {

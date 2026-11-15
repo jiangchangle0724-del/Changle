@@ -428,6 +428,14 @@ const ids = (l: Ledger) => l.entries.map((e) => e.id);
     [true, false, false, true, true, true, false],
     "photos: done when the ledger has the same ones in the same order, none when it has none, and whatever it has when the change says nothing",
   );
+  // and one with a tip and tax
+  const tipped: Ledger = { ...fresh(), entries: [{ kind: "expense", id: "x", at: 1, ...said, amount: 4200, rot: 0, tip: 600, tax: 200 }] };
+  const extras = (tip?: number | null, tax?: number | null): Change => ({ do: "edit", entry: "x", to: { ...said, amount: 4200, ...(tip === undefined ? {} : { tip }), ...(tax === undefined ? {} : { tax }) } });
+  eq(
+    [holds(tipped, extras(600, 200)), holds(tipped, extras(600)), holds(tipped, extras(700, 200)), holds(tipped, extras(600, null)), holds(tipped, extras()), holds(plain, extras(null, null)), holds(plain, extras(0)), holds(plain, extras(600))],
+    [true, true, false, false, true, true, true, false],
+    "tip and tax: done when the ledger says what the change said of each, none when it has none, and whatever it has when the change says nothing",
+  );
 }
 
 // ---------- 7. when the phone can't go on ----------

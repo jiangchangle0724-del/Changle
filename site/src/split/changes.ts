@@ -21,9 +21,12 @@
  *    amount (ops.ts, ExpenseEdit).
  *  - An expense's receipt photos are ids of files the server keeps (tools/split). A change carries
  *    the ids, never a file; one that doesn't mention them leaves them as they were.
+ *  - An expense's tip and tax are what its receipt says went to each: kept to show and to sum up,
+ *    never part of what anyone owes. A change that doesn't mention them keeps them while what was
+ *    paid stays the same (ops.ts, ExpenseEdit).
  */
 import { MAX_MEMBERS, problem, type Expense, type Ledger, type Member, type Split, type Transfer } from "./core";
-import { addMember, addTransfer, editExpense, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, takeOut, tidy, type ExpenseEdit } from "./ops";
+import { addMember, addTransfer, editExpense, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
 
 /** The most entries (expenses and transfers, taken out or not) one ledger holds. */
 export const MAX_ENTRIES = 2000;
@@ -76,10 +79,12 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
   switch (c.do) {
     case "expense": {
       const e = c.expense;
-      if (l.entries.length >= MAX_ENTRIES || find(e.id) || !isTurn(e.rot) || !isTime(e.at) || problem(e, roster)) return null;
+      if (l.entries.length >= MAX_ENTRIES || find(e.id) || !isTurn(e.rot) || !isTime(e.at) || problem(e, roster) || !soundExtras(e)) return null;
       const kept: Expense = { kind: "expense", id: e.id, at: e.at, payer: e.payer, amount: e.amount, note: tidy(e.note, NOTE_MAX), split: e.split, rot: e.rot };
       if (e.paidIn) kept.paidIn = { currency: e.paidIn.currency, amount: e.paidIn.amount, rate: e.paidIn.rate };
       if (e.files?.length) kept.files = [...e.files];
+      if (e.tip) kept.tip = e.tip;
+      if (e.tax) kept.tax = e.tax;
       return { ...l, entries: [...l.entries, kept] };
     }
     case "edit": {
@@ -216,6 +221,14 @@ function asEdit(x: unknown): Edit | null {
     if (!files) return null;
     edit = { ...edit, files };
   }
+  // (tip and tax: a whole number of the smallest units, 0 or null for none)
+  for (const k of ["tip", "tax"] as const) {
+    if (x[k] === null) edit = { ...edit, [k]: null };
+    else if (x[k] !== undefined) {
+      if (!isTurn(x[k])) return null;
+      edit = { ...edit, [k]: x[k] || null };
+    }
+  }
   return edit;
 }
 
@@ -232,6 +245,11 @@ function asExpense(x: unknown): Omit<Expense, "gone"> | null {
     const files = asFiles(x.files);
     if (!files) return null;
     if (files.length) expense = { ...expense, files };
+  }
+  for (const k of ["tip", "tax"] as const) {
+    if (x[k] === undefined) continue;
+    if (!isTurn(x[k])) return null;
+    if (x[k]) expense = { ...expense, [k]: x[k] };
   }
   return expense;
 }

@@ -56,7 +56,7 @@
 // the account sent goes, from every ledger, with all that was kept for the account.
 //
 // Reading a receipt (src/server/read.ts): a file of the ledger's, sent to Google's Gemini to read
-// the total, its currency and the shop, for the phone to fill in. Signed in, with the key; at most
+// the total, its currency, the shop, and the tip and tax in the total, for the phone to fill in. Signed in, with the key; at most
 // READS_PER_DAY a day for an account ("limit", 429), and READ_BUDGET a month for the site, after
 // which nothing is read until the next month ("budget", 429). Without Google's key, nothing is
 // ("off", 403); Google not answering, or failing, is "failed" (502). `read` is null when there was
