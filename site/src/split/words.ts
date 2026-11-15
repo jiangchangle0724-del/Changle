@@ -95,6 +95,7 @@ export const W = {
   readingReceipt: { zh: "Google 正在读小票上的金额", en: "Google is reading the receipt" },
   readFromReceipt: { zh: "金额是从小票上读的，看一眼对不对", en: "Read off the receipt. Check it's right" },
   readNothing: { zh: "没读出金额，手填一下", en: "Couldn't read a total. Type it in" },
+  readHint: { zh: "拍张小票，金额自动填上", en: "Snap the receipt to fill this in" },
 
   // inviting friends on changle.ca: from the ledger, and while starting one
   inviteShort: { zh: "邀请", en: "Invite" },
