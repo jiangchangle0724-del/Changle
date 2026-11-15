@@ -26,6 +26,8 @@ export type HubEnv = {
   ROOMS?: DurableObjectNamespace;
   /** the DJ booth's Lyria test: hours a month, all tables together (default 20) */
   DJ_LYRIA_HOURS?: string;
+  /** 两清 (tools/split), its Internal entrypoint: told when an account is deleted, it lets go of that account's receipt photos and ledgers */
+  SPLIT?: { accountGone(account: string): Promise<unknown> };
 };
 
 export type Call = { method: string; path: string; token: string; device: string; ip: string; body?: unknown; bytes?: ArrayBuffer; type?: string };
@@ -940,6 +942,8 @@ export class Hub extends DurableObject<HubEnv> {
         /* gone */
       }
     }
+    // 两清 keeps its own for an account (receipt photos, ledgers with their keys): told, it lets them go
+    if (this.env.SPLIT) this.ctx.waitUntil(this.env.SPLIT.accountGone(id).catch((e) => console.error("hub: 两清 wasn't told an account is gone", e)));
   }
 
   /* ================= 戏精大赏's public library ================= */
