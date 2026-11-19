@@ -4,6 +4,8 @@
 // the first pass over ~700 events takes about a quarter of it, a day's new events a few percent).
 // Every hour the Worker asks which events the page shows still lack them (src/worker.ts); a new text
 // from the source (text_hash) is written again. The source's own words stay what they are.
+// The same text in a source (a weekly storytime's every date, a show's three nights: its "twins") is
+// asked once and gets the same Chinese, and a name written two ways goes the commonest way (settle).
 import { vanParts, windowOf } from "./time";
 import { CATEGORIES, type Category } from "./types";
 
@@ -32,6 +34,10 @@ export interface ToWrite {
   venue: string | null;
   /** The source's own labels, as stored (a JSON array): "Music", "Rock"; "Storytimes", "Babies". */
   labels?: string | null;
+  /** Its text (title, description, venue), hashed: what it shares with its twins in the source. */
+  textHash?: string | null;
+  /** Answers it couldn't use for this text and these instructions so far, its twins' included. */
+  tries?: number;
 }
 
 /** What it wrote: the name and the sentence, and a category or none. */
@@ -139,23 +145,32 @@ export function readAnswer(text: string, count: number): (Written | null)[] {
  * ai_hash when written; "!" before it when the answer for it couldn't be used (ai_tries counts those).
  */
 const TARGET = "coalesce(e.text_hash, '') || ':' || ?7";
+/** The tries so far: the most any of its twins has had (they're asked as one), or its own without a hash. */
+const TRIES = `CASE WHEN e.text_hash IS NULL THEN (CASE WHEN e.ai_hash IS '!' || ${TARGET} THEN e.ai_tries ELSE 0 END)
+  ELSE coalesce((SELECT max(g.ai_tries) FROM events g WHERE g.source = e.source AND g.text_hash = e.text_hash AND g.ai_hash = '!' || e.text_hash || ':' || ?7), 0) END`;
 
-/** Only these events (ids), when given: the catch-up hands each step its own. */
+/**
+ * Only these events (ids), when given: the catch-up hands each step its own. Of twins, only the
+ * soonest: what it's given is kept for all of them (keepWritten).
+ */
 export async function toWrite(db: D1Database, runId: string, fromMs: number, toMs: number, limit = AI_BATCH, ids: string[] | null = null): Promise<ToWrite[]> {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.source, e.title, e.description, v.name AS venue, e.source_categories AS labels
-         FROM events e
-         LEFT JOIN venues v ON v.id = e.venue_id
-         LEFT JOIN sources s ON s.id = e.source
-        WHERE e.start_utc < ?2 AND e.end_utc >= ?1
-          AND e.status != 'cancelled' AND e.visibility = 'live' AND e.duplicate_of IS NULL
-          AND (e.last_seen = ?3 OR s.last_ok_run IS NOT ?3)
-          AND (e.summary_by IS NULL OR e.summary_by = 'ai')
-          AND (e.title_zh IS NULL OR e.ai_hash IS NOT ${TARGET})
-          AND NOT (e.ai_hash IS '!' || ${TARGET} AND e.ai_tries >= ?5)
-          AND (?6 IS NULL OR e.id IN (SELECT value FROM json_each(?6)))
-        ORDER BY e.start_utc, e.id
+      `SELECT id, source, title, description, venue, labels, textHash, tries FROM (
+         SELECT e.id, e.source, e.title, e.description, v.name AS venue, e.source_categories AS labels,
+                e.text_hash AS textHash, ${TRIES} AS tries, e.start_utc,
+                row_number() OVER (PARTITION BY e.source, coalesce(e.text_hash, e.id) ORDER BY e.start_utc, e.id) AS twin
+           FROM events e
+           LEFT JOIN venues v ON v.id = e.venue_id
+           LEFT JOIN sources s ON s.id = e.source
+          WHERE e.start_utc < ?2 AND e.end_utc >= ?1
+            AND e.status != 'cancelled' AND e.visibility = 'live' AND e.duplicate_of IS NULL
+            AND (e.last_seen = ?3 OR s.last_ok_run IS NOT ?3)
+            AND (e.summary_by IS NULL OR e.summary_by = 'ai')
+            AND (e.title_zh IS NULL OR e.ai_hash IS NOT ${TARGET})
+            AND (?6 IS NULL OR e.id IN (SELECT value FROM json_each(?6))))
+        WHERE twin = 1 AND tries < ?5
+        ORDER BY start_utc, id
         LIMIT ?4`,
     )
     .bind(fromMs, toMs, runId, limit, AI_TRIES, ids ? JSON.stringify(ids) : null, AI_VERSION)
@@ -163,13 +178,35 @@ export async function toWrite(db: D1Database, runId: string, fromMs: number, toM
   return results;
 }
 
-/** Keeps what was written; counts a try against each event it couldn't use. A category only where the parsers gave none. */
+/** An event (?id), and its twins (?hash, ?source) that the AI may write for (not Steve's words): the rows a write goes to. */
+const twinsOf = (id: number, hash: number, source: number) =>
+  `(id = ?${id} OR (?${hash} IS NOT NULL AND source = ?${source} AND text_hash = ?${hash} AND (summary_by IS NULL OR summary_by = 'ai')))`;
+
+/**
+ * Keeps what was written, for the event and its twins; counts a try against each it couldn't use
+ * (and its twins: they're asked as one). A category only where the parsers gave none.
+ */
 export async function keepWritten(db: D1Database, events: ToWrite[], written: (Written | null)[]): Promise<{ wrote: number; failed: number }> {
   const stmts: D1PreparedStatement[] = [];
-  const failed: string[] = [];
+  let failed = 0;
   events.forEach((e, i) => {
     const got = written[i];
-    if (!got || !grounded(got, e)) return void failed.push(e.id);
+    const twins = [e.textHash ?? null, e.source ?? null] as const;
+    if (!got || !grounded(got, e)) {
+      failed++;
+      // an event is asked because its Chinese is missing or out of date (older instructions, a changed
+      // text): when the answer can't be used, the old Chinese goes too, and the page shows the source's
+      // words until a good one comes (v2's "知名阿拉伯DJ" stayed up after v3 turned the new one down)
+      return void stmts.push(
+        db
+          .prepare(
+            `UPDATE events SET title_zh = NULL, summary_zh = NULL, summary_by = NULL,
+               ai_tries = ?3, ai_hash = '!' || coalesce(text_hash, '') || ':' || ?2
+             WHERE ${twinsOf(1, 4, 5)}`,
+          )
+          .bind(e.id, AI_VERSION, (e.tries ?? 0) + 1, ...twins),
+      );
+    }
     const w = KEEP_TITLE.has(e.source ?? "") ? { ...got, titleZh: e.title } : got;
     stmts.push(
       db
@@ -177,27 +214,72 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
           `UPDATE events SET title_zh = ?2, summary_zh = ?3, summary_by = 'ai', ai_hash = coalesce(text_hash, '') || ':' || ?5, ai_tries = 0,
              category = CASE WHEN ?4 IS NOT NULL AND (category IS NULL OR category_by = 'ai') THEN ?4 ELSE category END,
              category_by = CASE WHEN ?4 IS NOT NULL AND (category IS NULL OR category_by = 'ai') THEN 'ai' ELSE category_by END
-           WHERE id = ?1`,
+           WHERE ${twinsOf(1, 6, 7)}`,
         )
-        .bind(e.id, w.titleZh, w.summaryZh, w.category, AI_VERSION),
+        .bind(e.id, w.titleZh, w.summaryZh, w.category, AI_VERSION, ...twins),
     );
   });
-  // an event is asked because its Chinese is missing or out of date (older instructions, a changed
-  // text): when the answer can't be used, the old Chinese goes too, and the page shows the source's
-  // words until a good one comes (v2's "知名阿拉伯DJ" stayed up after v3 turned the new one down)
-  if (failed.length)
-    stmts.push(
-      db
-        .prepare(
-          `UPDATE events SET title_zh = NULL, summary_zh = NULL, summary_by = NULL,
-             ai_tries = CASE WHEN ai_hash IS '!' || coalesce(text_hash, '') || ':' || ?2 THEN ai_tries + 1 ELSE 1 END,
-             ai_hash = '!' || coalesce(text_hash, '') || ':' || ?2
-           WHERE id IN (SELECT value FROM json_each(?1))`,
-        )
-        .bind(JSON.stringify(failed), AI_VERSION),
-    );
   if (stmts.length) await db.batch(stmts);
-  return { wrote: events.length - failed.length, failed: failed.length };
+  return { wrote: events.length - failed, failed };
+}
+
+/**
+ * Twins that say it otherwise (written before they were asked as one) or not yet (a new date of a
+ * weekly event) get the commonest answer among them; then a name the AI wrote two ways, at two
+ * branches or in two texts ("婴儿时光", "婴儿时间"), goes the commonest way, a translation before the
+ * English kept. Only answers for these instructions count; Ticketmaster's names stay as they are.
+ * Only what the page shows, not over yet. Returns how many events it changed.
+ */
+export async function settle(db: D1Database, fromMs: number, toMs: number): Promise<number> {
+  const [twins, names] = await db.batch([
+    db
+      .prepare(
+        `WITH done AS MATERIALIZED (
+           SELECT source, text_hash, count(*) AS n, min(id) AS first FROM events
+            WHERE text_hash IS NOT NULL AND summary_by = 'ai' AND title_zh IS NOT NULL AND ai_hash = text_hash || ':' || ?3
+              AND start_utc < ?2 AND end_utc >= ?1
+            GROUP BY source, text_hash, title_zh, summary_zh
+         ), best AS MATERIALIZED (
+           SELECT d.source, d.text_hash, c.title_zh, c.summary_zh, c.category, c.category_by
+             FROM (SELECT *, row_number() OVER (PARTITION BY source, text_hash ORDER BY n DESC, first) AS r FROM done) d
+             JOIN events c ON c.id = d.first
+            WHERE d.r = 1
+         )
+         UPDATE events SET title_zh = best.title_zh, summary_zh = best.summary_zh, summary_by = 'ai',
+                ai_hash = events.text_hash || ':' || ?3, ai_tries = 0,
+                category = CASE WHEN best.category_by = 'ai' AND (events.category IS NULL OR events.category_by = 'ai') THEN best.category ELSE events.category END,
+                category_by = CASE WHEN best.category_by = 'ai' AND (events.category IS NULL OR events.category_by = 'ai') THEN 'ai' ELSE events.category_by END
+           FROM best
+          WHERE events.source = best.source AND events.text_hash = best.text_hash
+            AND events.start_utc < ?2 AND events.end_utc >= ?1
+            AND (events.summary_by IS NULL OR events.summary_by = 'ai')
+            AND (events.title_zh IS NOT best.title_zh OR events.summary_zh IS NOT best.summary_zh
+                 OR events.ai_hash IS NOT events.text_hash || ':' || ?3
+                 OR (best.category_by = 'ai' AND (events.category IS NULL OR events.category_by = 'ai') AND events.category IS NOT best.category))`,
+      )
+      .bind(fromMs, toMs, AI_VERSION),
+    db
+      .prepare(
+        `WITH named AS MATERIALIZED (
+           SELECT title, title_zh, count(*) AS n FROM events
+            WHERE summary_by = 'ai' AND title_zh IS NOT NULL AND ai_hash = coalesce(text_hash, '') || ':' || ?3
+              AND source NOT IN (SELECT value FROM json_each(?4))
+              AND start_utc < ?2 AND end_utc >= ?1
+            GROUP BY title, title_zh
+         ), best AS MATERIALIZED (
+           SELECT title, title_zh FROM (
+             SELECT title, title_zh, row_number() OVER (PARTITION BY title ORDER BY title_zh = title, n DESC, title_zh) AS r FROM named)
+            WHERE r = 1
+         )
+         UPDATE events SET title_zh = best.title_zh
+           FROM best
+          WHERE events.title = best.title AND events.title_zh IS NOT NULL AND events.title_zh != best.title_zh
+            AND events.summary_by = 'ai' AND events.source NOT IN (SELECT value FROM json_each(?4))
+            AND events.start_utc < ?2 AND events.end_utc >= ?1`,
+      )
+      .bind(fromMs, toMs, AI_VERSION, JSON.stringify([...KEEP_TITLE])),
+  ]);
+  return (twins.meta.changes ?? 0) + (names.meta.changes ?? 0);
 }
 
 /**
@@ -293,9 +375,9 @@ export interface Translator {
 }
 
 /**
- * Every hour: what the published page still lacks in Chinese, a few requests at a time (each a step
- * of its own), until none is left, a round writes nothing, or the time is up; then the page again,
- * unless this morning's run is under way (it publishes them itself).
+ * Every hour: the twins first (settle), then what the published page still lacks in Chinese, a few
+ * requests at a time (each a step of its own), until none is left, a round writes nothing, or the
+ * time is up; then the page again, unless this morning's run is under way (it publishes them itself).
  */
 export async function catchUp(
   t: Translator,
@@ -303,18 +385,21 @@ export async function catchUp(
   runId: string | null,
   now = Date.now(),
   opts: { rounds?: number; parallel?: number; maxMs?: number } = {},
-): Promise<{ wrote: number; steps: number; published: boolean }> {
+): Promise<{ wrote: number; settled: number; steps: number; published: boolean }> {
   // at most 30 steps and the publish: Cloudflare allows 32 calls a request (CONTRACTS.md)
   const { rounds = 10, parallel = 3, maxMs = 12 * 60_000 } = opts;
-  if (!runId) return { wrote: 0, steps: 0, published: false };
+  if (!runId) return { wrote: 0, settled: 0, steps: 0, published: false };
   const w = windowOf(runId);
+  const from = Math.max(now, w.fromMs);
   const started = Date.now();
+  // the new dates of what's written already, before anything is asked
+  let settled = await settle(db, from, w.toMs);
   let wrote = 0;
   let steps = 0;
   for (let round = 0; round < rounds && Date.now() - started < maxMs; round++) {
     // the round's events, then each step its own share of them (side by side, they'd take the same
     // ones otherwise: one step's writes shift what the next one's "next 15" are)
-    const ids = (await toWrite(db, runId, Math.max(now, w.fromMs), w.toMs, AI_BATCH * parallel)).map((e) => e.id);
+    const ids = (await toWrite(db, runId, from, w.toMs, AI_BATCH * parallel)).map((e) => e.id);
     if (!ids.length) break;
     const shares = Array.from({ length: Math.ceil(ids.length / AI_BATCH) }, (_, k) => ids.slice(k * AI_BATCH, (k + 1) * AI_BATCH));
     const done = await Promise.all(shares.map((share, k) => t.translate({ runId, ids: share, part: round * parallel + k })));
@@ -324,8 +409,10 @@ export async function catchUp(
     // that was the last of them, or nothing usable came back (the allowance, the model: next hour)
     if (ids.length < AI_BATCH * parallel || wroteNow === 0) break;
   }
+  // the names just written, the commonest way
+  if (wrote) settled += await settle(db, from, w.toMs);
   const today = await db.prepare("SELECT published_at FROM runs WHERE run_id = ?1").bind(vanParts(now).date).first<{ published_at: string | null }>();
-  if (!wrote || (today && !today.published_at)) return { wrote, steps, published: false };
-  await t.publish({ runId, note: `Chinese for ${wrote} events` });
-  return { wrote, steps, published: true };
+  if (!(wrote || settled) || (today && !today.published_at)) return { wrote, settled, steps, published: false };
+  await t.publish({ runId, note: `Chinese for ${wrote} events` + (settled ? `, ${settled} made like their twins or names` : "") });
+  return { wrote, settled, steps, published: true };
 }

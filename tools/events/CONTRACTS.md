@@ -114,6 +114,13 @@ is the AI's. An answer that praises ("知名") or names a people or country noth
 ("中国新生代歌手" from "Ele Yan") isn't kept (`grounded`). The AI's category goes in `category`
 with `category_by` "ai", only where the parsers gave none. Its steps are logged as source `ai`
 (`found` asked, `updated` written).
+Twins (0005, index `events_text` on `source, text_hash`): the same text in a source, a weekly
+storytime's every date or a show's three nights. Only the soonest is asked; its answer, or its try,
+goes to them all (`ai_tries` is the most any of them has had). Every hour, before asking, `settle`
+gives twins that lack it or say it otherwise (written before) the commonest answer among them, then
+renames a name the AI wrote two ways for one English title (two branches' "Babytime") the
+commonest way, a translation before the English kept, a tie by the name itself. Only answers for the
+current `AI_VERSION` count; Steve's words, the parsers' categories and Ticketmaster's names stay.
 Never edit a migration that has gone out; add the next number and list it in `src/schema.ts`.
 Each `fetch_log` row says how its step got its answer: `via` is `fetch` or `handoff` (below), and
 `note` why, in a few words.

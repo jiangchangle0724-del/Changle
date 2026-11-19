@@ -12,6 +12,7 @@ import {
   grounded,
   messages,
   readAnswer,
+  settle,
   translateStep,
   writeSome,
   type RunModel,
@@ -254,6 +255,32 @@ describe("writing and keeping it", () => {
     expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).asked).toBe(1);
   });
 
+  it("the same text in a source (every date of a weekly event) is asked once, and all its dates get the same Chinese", async () => {
+    const baby = (n: number) => event(n, { title: "Babytime", description: "Songs and rhymes for babies." });
+    await storeEvents(env.DB, RUN, [baby(1), baby(2), baby(3), event(4)]);
+    const { run, asked } = model();
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 2, failed: 0, error: null });
+    // the soonest date stands for them all
+    expect(asked[0].map((i) => i.title)).toEqual(["Babytime", "Event 4"]);
+    for (const id of ["vpl:e1", "vpl:e2", "vpl:e3"]) expect(await row(id)).toMatchObject({ title_zh: "中文名1", summary_by: "ai", category: "arts", ai_tries: 0 });
+    const third = await row("vpl:e3");
+    expect(third?.ai_hash).toBe(`${third?.text_hash}:${AI_VERSION}`);
+    expect(await row("vpl:e4")).toMatchObject({ title_zh: "中文名2" });
+    expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).asked).toBe(0);
+  });
+
+  it("an answer it can't use counts a try for every date of it; after three, a new date isn't asked either", async () => {
+    const baby = (n: number) => event(n, { title: "Babytime", description: "Songs and rhymes for babies." });
+    await storeEvents(env.DB, RUN, [baby(1), baby(2)]);
+    const { run, asked } = model((items) => items.map((i) => ({ n: i.n, t: "x", s: "no Chinese", c: null })));
+    for (let i = 0; i < 3; i++) expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toMatchObject({ asked: 1, wrote: 0, failed: 1 });
+    expect(await row("vpl:e1")).toMatchObject({ title_zh: null, ai_tries: 3 });
+    expect(await row("vpl:e2")).toMatchObject({ title_zh: null, ai_tries: 3 });
+    await storeEvents(env.DB, RUN, [baby(1), baby(2), baby(3)]);
+    expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).asked).toBe(0);
+    expect(asked).toHaveLength(3);
+  });
+
   it("when the AI can't be asked (the day's allowance used up), nothing counts against the events", async () => {
     await ensureSchema(env.DB);
     await storeEvents(env.DB, RUN, [event(1)]);
@@ -296,6 +323,63 @@ describe("writing and keeping it", () => {
   });
 });
 
+describe("what's written two ways", () => {
+  const place = (name: string) => ({ name, address: "1 Main St.", city: "Vancouver" });
+  const baby = (n: number, at = "Central Library") => event(n, { title: "Babytime", description: "Songs and rhymes for babies.", place: place(at) });
+  /** As if written before twins were asked as one. */
+  const written = (id: string, titleZh: string, summaryZh: string, version = AI_VERSION) =>
+    env.DB.prepare("UPDATE events SET title_zh = ?2, summary_zh = ?3, summary_by = 'ai', ai_hash = text_hash || ':' || ?4 WHERE id = ?1").bind(id, titleZh, summaryZh, version).run();
+
+  it("twins go the commonest way; then a name written two ways (two branches) goes the commonest way, but not Ticketmaster's", async () => {
+    await storeEvents(env.DB, RUN, [baby(1), baby(2), baby(3), baby(4, "Kits Branch"), baby(5, "Firehall Branch"), event(6, { source: "ticketmaster", title: "Babytime" })]);
+    await written("vpl:e1", "婴儿时光", "唱歌念童谣的婴儿活动。");
+    await written("vpl:e2", "婴儿时光", "唱歌念童谣的婴儿活动。");
+    await written("vpl:e3", "婴儿时间", "给婴儿的唱歌活动。");
+    await written("vpl:e4", "婴儿时间", "给婴儿的唱歌活动。");
+    await written("vpl:e5", "婴儿故事时间", "给婴儿的唱歌活动。");
+    await written("ticketmaster:e6", "Babytime", "一场演出。");
+    // e3 like its twins; then e4 and e5 named like the most
+    expect(await settle(env.DB, NOW, W.toMs)).toBe(3);
+    expect(await row("vpl:e3")).toMatchObject({ title_zh: "婴儿时光", summary_zh: "唱歌念童谣的婴儿活动。" });
+    // the name goes the commonest way; the sentence is each text's own
+    expect(await row("vpl:e4")).toMatchObject({ title_zh: "婴儿时光", summary_zh: "给婴儿的唱歌活动。" });
+    expect(await row("vpl:e5")).toMatchObject({ title_zh: "婴儿时光" });
+    expect(await row("ticketmaster:e6")).toMatchObject({ title_zh: "Babytime" });
+    expect(await settle(env.DB, NOW, W.toMs)).toBe(0);
+  });
+
+  it("a new date of what's written gets its Chinese without asking; older instructions' answers don't count", async () => {
+    await storeEvents(env.DB, RUN, [baby(1), baby(2, "Kits Branch")]);
+    await written("vpl:e1", "婴儿时光", "唱歌念童谣的婴儿活动。");
+    await written("vpl:e2", "宝宝时间", "给婴儿的唱歌活动。", "v2");
+    await storeEvents(env.DB, RUN, [baby(1), baby(2, "Kits Branch"), baby(3)]);
+    // e3 from its twin; e2's old answer takes the name of the one written for these instructions
+    expect(await settle(env.DB, NOW, W.toMs)).toBe(2);
+    const third = await row("vpl:e3");
+    expect(third).toMatchObject({ title_zh: "婴儿时光", summary_zh: "唱歌念童谣的婴儿活动。", summary_by: "ai", ai_tries: 0 });
+    expect(third?.ai_hash).toBe(`${third?.text_hash}:${AI_VERSION}`);
+    expect(await row("vpl:e2")).toMatchObject({ title_zh: "婴儿时光" });
+    const { run, asked } = model();
+    // only e2 is left to write again, for these instructions
+    expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).asked).toBe(1);
+    expect(asked[0][0]).toMatchObject({ title: "Babytime" });
+  });
+
+  it("only the AI's words: Steve's stay, and so does a category the parsers gave; the AI's goes with the rest", async () => {
+    await storeEvents(env.DB, RUN, [baby(1), baby(2), baby(3), baby(4)]);
+    await written("vpl:e1", "婴儿时光", "唱歌念童谣的婴儿活动。");
+    await env.DB.prepare("UPDATE events SET category = 'family', category_by = 'ai' WHERE id = 'vpl:e1'").run();
+    await env.DB.prepare("UPDATE events SET title_zh = '宝宝时间', summary_zh = 'Steve 写的。', summary_by = 'steve' WHERE id = 'vpl:e2'").run();
+    await env.DB.prepare("UPDATE events SET category = 'arts', category_by = 'rule' WHERE id = 'vpl:e3'").run();
+    await written("vpl:e3", "宝宝时间", "给婴儿的唱歌活动。");
+    // two answers once each: the first event's wins (e1); e3 and e4 take it
+    expect(await settle(env.DB, NOW, W.toMs)).toBe(2);
+    expect(await row("vpl:e2")).toMatchObject({ title_zh: "宝宝时间", summary_zh: "Steve 写的。", summary_by: "steve" });
+    expect(await row("vpl:e3")).toMatchObject({ title_zh: "婴儿时光", summary_zh: "唱歌念童谣的婴儿活动。", category: "arts", category_by: "rule" });
+    expect(await row("vpl:e4")).toMatchObject({ title_zh: "婴儿时光", category: "family", category_by: "ai" });
+  });
+});
+
 describe("the hourly catch-up", () => {
   /** The steps as the Worker runs them, with a stand-in model; and what each step was given. */
   function steps(answer?: (items: { n: number; title: string }[]) => unknown) {
@@ -320,7 +404,7 @@ describe("the hourly catch-up", () => {
     await storeEvents(env.DB, RUN, Array.from({ length: 100 }, (_, i) => event(i + 1)));
     const { t, given, published } = steps();
     // 45, 45, then 10
-    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 100, steps: 7, published: true });
+    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 100, settled: 0, steps: 7, published: true });
     expect(given.map((ids) => ids.length)).toEqual([15, 15, 15, 15, 15, 15, 10]);
     // no event given to two steps
     expect(new Set(given.flat()).size).toBe(100);
@@ -331,16 +415,29 @@ describe("the hourly catch-up", () => {
   it("stops at a round that writes nothing (the AI can't be asked, or says nothing usable), and publishes nothing", async () => {
     await storeEvents(env.DB, RUN, Array.from({ length: 100 }, (_, i) => event(i + 1)));
     const { t, given, published } = steps(() => "I can't help with that.");
-    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, steps: 3, published: false });
+    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, settled: 0, steps: 3, published: false });
     expect(given).toHaveLength(3);
     expect(published).toEqual([]);
   });
 
   it("nothing waiting: no step, no publishing", async () => {
     const { t, given, published } = steps();
-    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, steps: 0, published: false });
+    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, settled: 0, steps: 0, published: false });
     expect(given).toEqual([]);
     expect(published).toEqual([]);
+  });
+
+  it("a new date of what's written: its Chinese from its twin, nothing asked, and the page again", async () => {
+    const baby = (n: number) => event(n, { title: "Babytime", description: "Songs and rhymes for babies." });
+    await storeEvents(env.DB, RUN, [baby(1), baby(2)]);
+    const first = steps();
+    expect(await catchUp(first.t, env.DB, RUN, NOW)).toEqual({ wrote: 1, settled: 0, steps: 1, published: true });
+    await storeEvents(env.DB, RUN, [baby(1), baby(2), baby(3)]);
+    const { t, given, published } = steps();
+    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, settled: 1, steps: 0, published: true });
+    expect(given).toEqual([]);
+    expect(published).toEqual([RUN]);
+    expect(await row("vpl:e3")).toMatchObject({ title_zh: "中文名1" });
   });
 
   it("leaves the publishing to this morning's run while it's under way; nothing without a published list", async () => {
@@ -349,6 +446,6 @@ describe("the hourly catch-up", () => {
     const { t, published } = steps();
     expect(await catchUp(t, env.DB, RUN, NOW)).toMatchObject({ wrote: 5, published: false });
     expect(published).toEqual([]);
-    expect(await catchUp(steps().t, env.DB, null, NOW)).toEqual({ wrote: 0, steps: 0, published: false });
+    expect(await catchUp(steps().t, env.DB, null, NOW)).toEqual({ wrote: 0, settled: 0, steps: 0, published: false });
   });
 });
