@@ -174,7 +174,15 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
         .bind(e.id, w.titleZh, w.summaryZh, w.category, AI_VERSION),
     );
   });
-  if (failed.length) stmts.push(db.prepare("UPDATE events SET ai_tries = ai_tries + 1 WHERE id IN (SELECT value FROM json_each(?1))").bind(JSON.stringify(failed)));
+  // an event is asked because its Chinese is missing or out of date (older instructions, a changed
+  // text): when the answer can't be used, the old Chinese goes too, and the page shows the source's
+  // words until a good one comes (v2's "知名阿拉伯DJ" stayed up after v3 turned the new one down)
+  if (failed.length)
+    stmts.push(
+      db
+        .prepare("UPDATE events SET ai_tries = ai_tries + 1, title_zh = NULL, summary_zh = NULL, summary_by = NULL WHERE id IN (SELECT value FROM json_each(?1))")
+        .bind(JSON.stringify(failed)),
+    );
   if (stmts.length) await db.batch(stmts);
   return { wrote: events.length - failed.length, failed: failed.length };
 }

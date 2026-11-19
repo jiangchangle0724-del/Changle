@@ -216,6 +216,14 @@ describe("writing and keeping it", () => {
     expect(await row("ticketmaster:e2")).toMatchObject({ title_zh: null, ai_tries: 1 });
   });
 
+  it("when the new answer can't be used, Chinese from older instructions goes too: the source's words show until a good one comes", async () => {
+    await storeEvents(env.DB, RUN, [event(1, { source: "ticketmaster", title: "Saliah in Vancouver" })]);
+    await env.DB.prepare("UPDATE events SET title_zh = 'Saliah 温哥华演出', summary_zh = '知名阿拉伯DJ带来电子音乐演出', summary_by = 'ai', ai_hash = text_hash || ':v2'").run();
+    const { run } = model((items) => [{ n: items[0].n, t: "Saliah 温哥华演出", s: "知名阿拉伯DJ带来电子音乐演出", c: "nightlife" }]);
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toMatchObject({ asked: 1, wrote: 0, failed: 1 });
+    expect(await row("ticketmaster:e1")).toMatchObject({ title_zh: null, summary_zh: null, summary_by: null, ai_tries: 1 });
+  });
+
   it("Chinese from older instructions is written again (a new AI_VERSION), and the source's labels go with the event", async () => {
     await storeEvents(env.DB, RUN, [event(1, { sourceCategories: ["Music", "Rock"] })]);
     await env.DB.prepare("UPDATE events SET title_zh = 'old', summary_zh = 'old', summary_by = 'ai', ai_hash = text_hash || ':v2'").run();
