@@ -154,6 +154,8 @@ async function fx(req: Request, ctx: ExecutionContext) {
 async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Promise<Response> {
   const path = url.pathname.replace(/^\/api/, "");
   if (path === "/fx" && req.method === "GET") return fx(req, ctx);
+  // the time, so every phone and TV plays the background music on the same beat (lib/station.ts)
+  if (path === "/time" && req.method === "GET") return cors(json({ now: Date.now() }), req);
   // 打碟's songs from YouTube: a link's title, a search (the owner's key)
   if (path.startsWith("/yt/") && req.method === "GET") {
     const res = await youtube(path, url, env, ctx);

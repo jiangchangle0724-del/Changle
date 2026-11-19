@@ -2,7 +2,7 @@ import { Crown, Smartphone, Volume2, VolumeX } from "lucide-react";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { GAME_BY_ID, type GameId } from "../games/registry";
 import { gsap, reduced } from "../lib/anim";
-import { holdBackground, startGroove } from "../lib/music";
+import { holdBackground, startBackground, stopBackground } from "../lib/music";
 import { sfx, unlockAudio } from "../lib/sfx";
 import { isCode, newCode } from "../online/config";
 import { SeatFace } from "../online/People";
@@ -27,6 +27,8 @@ import { TvLoadingStage } from "./TvLoading";
 import "./states.css";
 // the DJ booth brings the speaker (its own sound chain and music): only DJ tables load it
 const TvDj = lazy(() => import("../party/dj/TvDj"));
+/** Games with music of their own, on the phones and here, or with a stage of their own: no background music under them. */
+const OWN_MUSIC = new Set<GameId | null>(["limbo", "tune", "drama", "freeze", "dj", "punchline", "trip", "hide", "dance", "hangon"]);
 
 /**
  * changle.ca/tv: a TV or a computer becomes the table's big screen. It opens a table (or shows
@@ -38,9 +40,7 @@ const TvDj = lazy(() => import("../party/dj/TvDj"));
  */
 export function TvApp({ code: given, game }: { code?: string; game?: GameId }) {
   const [table, setTable] = useState(() => ({ code: given && isCode(given) ? given : newCode(), create: !given || !isCode(given), n: 0 }));
-  // the big screen brings its own music: the lounge loop stays off while it is up
-  useEffect(() => holdBackground(), []);
-  // and it never dims or sleeps in the middle of a game
+  // it never dims or sleeps in the middle of a game
   useWakeLock(true);
   useEffect(() => {
     document.documentElement.classList.add("tv-mode");
@@ -67,6 +67,16 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   // a game with a view of its own sounds its moments here too (a card dealt, a reveal, the win)
   const own = hasTvView(room?.game?.id);
   useScreenFx(audio && own);
+  // the background music plays here as on the phones, the same song on the same beat
+  // (lib/station.ts), from the click that lets this screen make a sound; a game with a soundtrack
+  // of its own holds it while it is up, as it does on the phones
+  useEffect(() => {
+    if (!audio) return;
+    startBackground("tv");
+    return () => stopBackground("tv");
+  }, [audio]);
+  const soundtrack = OWN_MUSIC.has(room?.game?.id ?? room?.playing ?? null);
+  useEffect(() => (soundtrack ? holdBackground() : undefined), [soundtrack]);
 
   // a fresh code that turned out to be taken: quietly try another
   useEffect(() => {
@@ -312,7 +322,6 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
   // (a seat that just watches isn't one of the players the game needs)
   const need = Math.max(0, ONLINE_MIN[gid] - playersOf(room.seats).length);
   const [joining, setJoining] = useState(false);
-  useGroove(audio && sound, "lounge", 0.5);
 
   const card = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -420,14 +429,6 @@ function SeatChip({ seat, host, sound }: { seat: SeatView; host: boolean; sound:
       <span className="tv-seat-name">{seat.name}</span>
     </li>
   );
-}
-
-function useGroove(on: boolean, id: "lounge" | "funk" | "disco", volume: number) {
-  useEffect(() => {
-    if (!on) return;
-    const h = startGroove(id, { volume });
-    return () => h?.stop(0.8);
-  }, [on, id, volume]);
 }
 
 /* ------------------------------------------------------------------ the games */

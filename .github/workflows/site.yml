@@ -53,6 +53,7 @@ jobs:
       - run: npx tsx tests/performer.test.ts
       - run: npx tsx tests/tokens.test.ts
       - run: npx tsx tests/scroll-lock.test.ts
+      - run: npx tsx tests/station.test.ts
       - run: npx tsx tests/routes.test.ts
       - run: npx tsx tests/duration.test.ts
       - run: npx tsx tests/tools.test.ts

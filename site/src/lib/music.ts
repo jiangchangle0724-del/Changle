@@ -1,10 +1,10 @@
 /**
- * Music for the party: a small step sequencer that plays original grooves (dance games and the
- * background set, lib/nightset.ts), and a melody player for Name That Tune. Everything is scheduled on the
- * audio clock, and grooves can start on a shared wall-clock moment so every phone at an online
- * table lands on the same beat.
+ * Music for the party: a small step sequencer that plays original grooves (dance games, and the
+ * background music: lib/station.ts, lib/nightset.ts), and a melody player for Name That Tune.
+ * Everything is scheduled on the audio clock, and grooves can start on a shared wall-clock moment
+ * so every phone at an online table lands on the same beat.
  */
-import { bus, clap, crash, ctxTimeAt, hat, kick, midiHz, note, onAudioReset, shaker, snare, tom, burst, type Bus, type Inst } from "./audio/engine";
+import { bus, clap, clave, crash, ctxTimeAt, hat, kick, midiHz, note, onAudioReset, shaker, snare, tom, burst, type Bus, type Inst } from "./audio/engine";
 
 type Hits = number[]; // 16 velocities (0 = silent)
 export const v = (s: string): Hits => s.split("").map((ch) => (ch === "." ? 0 : ch === "x" ? 1 : ch === "o" ? 0.55 : ch === "-" ? 0.3 : 0));
@@ -17,6 +17,8 @@ export type Style = {
   kick?: Hits;
   snare?: Hits;
   clap?: Hits;
+  /** a rim click (bossa nova's clave) */
+  rim?: Hits;
   hat?: Hits;
   ohat?: Hits;
   shaker?: Hits;
@@ -246,6 +248,7 @@ export function playStep(b: Bus, s: Style, step: number, t: number, stepS: numbe
   if (s.kick?.[i]) kick(b, { ...o, peak: 0.75 * s.kick[i] });
   if (s.snare?.[i]) snare(b, { ...o, peak: 0.3 * s.snare[i] });
   if (s.clap?.[i]) clap(b, { ...o, peak: 0.24 * s.clap[i] });
+  if (s.rim?.[i]) clave(b, { ...o, peak: 0.1 * s.rim[i], pitch: 0.7 });
   if (s.hat?.[i]) hat(b, { ...o, peak: 0.08 * s.hat[i] });
   if (s.ohat?.[i]) hat(b, { ...o, open: true, peak: 0.06 * s.ohat[i] });
   if (s.shaker?.[i]) shaker(b, { ...o, peak: 0.06 * s.shaker[i] });
@@ -262,34 +265,27 @@ export function playStep(b: Bus, s: Style, step: number, t: number, stepS: numbe
   if (s.crackle && Math.random() < 0.5) burst(b, { ...o, at: t + Math.random() * stepS, dur: 0.001, decay: 0.004, type: "highpass", f: 3000 + Math.random() * 4000, q: 0.7, peak: 0.02 + Math.random() * 0.03, wet: 0 });
 }
 
-/* ---------------- background: the night's set ---------------- */
+/* ---------------- background: the station ---------------- */
 
-// The music around the site is a set of original songs in different styles (lib/nightset.ts),
-// livelier than the lofi loop it replaced (Steve 2026-11-05). Each visit shuffles them; each song
-// plays an intro, the groove, a break that rolls into the drop, and an outro that rolls into the
-// next song. The songs download when the music first starts, not with this file.
-type NightSet = typeof import("./nightset");
-let nightset: Promise<NightSet> | null = null;
-const loadSet = () => (nightset ??= import("./nightset"));
+// The music around the site is one programme for everyone (lib/station.ts): the same song on the
+// same beat on every phone and TV, its style following Vancouver's time of day and day of the week
+// (Steve 2026-11-19: two phones side by side played two different songs). Each song plays an intro,
+// the groove, a break that rolls into the drop, and an outro (lib/nightset.ts). The songs and the
+// programme download when the music first starts, not with this file.
+type Station = typeof import("./station");
+type Slot = import("./station").Slot;
+type Song = import("./nightset").Song;
+let station: Promise<Station> | null = null;
+const loadStation = () => (station ??= import("./station"));
 
 type SetPlayer = { stop: (fade?: number) => void };
 let background: SetPlayer | null = null;
-let wanted = false;
+/** who wants the music on: the site's setting ("site"), the big screen ("tv", without the setting) */
+const wants = new Set<string>();
 let holds = 0;
-/** this visit's order, and where in it we are, so the set goes on after a game had the speaker */
-let order: number[] = [];
-let at = -1;
+let starting = false;
 /** the set's level on the music bus: these songs are busier than the lofi loop (0.4 x 0.8) was */
 const SET_VOLUME = 0.42;
-
-function shuffled(n: number) {
-  const a = Array.from({ length: n }, (_, i) => i);
-  for (let i = n - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 /** The last half bar before a drop or the next song: the drums give way to a snare roll. */
 function roll(b: Bus, i: number, t: number, dest: AudioNode) {
@@ -297,71 +293,114 @@ function roll(b: Bus, i: number, t: number, dest: AudioNode) {
   snare(b, { at: t, abs: true, dest, peak: 0.1 + 0.03 * (i - 8) });
 }
 
-const DRUMS = ["kick", "snare", "clap", "tom"] as const;
+const DRUMS = ["kick", "snare", "clap", "rim", "tom"] as const;
 
-/**
- * The set's playhead: which song, section and step, and when the next step falls. `until` puts
- * every step before `horizon` (audio-clock seconds) on the clock; `pick` chooses each next song
- * (the visit's shuffled order; a test renders the songs in turn).
- */
-export function setCursor(m: NightSet, b: Bus, dest: AudioNode, startAt: number, pick: () => number) {
-  let song = m.SONGS[0].style;
-  let stepS = 0;
-  let sec = 0;
-  let loop = 0;
-  let step = 0;
-  let style = song;
-  let fill = song;
-  const enter = () => {
-    style = m.sectionStyle(song, m.FORM[sec]);
-    fill = m.sectionStyle(style, { loops: 0, mute: [...DRUMS] });
-  };
-  const next = () => {
-    song = m.SONGS[pick()].style;
-    stepS = 60 / song.bpm / 4;
-    sec = 0;
-    loop = 0;
-    step = 0;
-    enter();
-  };
-  next();
-  let nextTime = startAt;
-  return {
-    until(horizon: number) {
-      while (nextTime < horizon) {
-        const section = m.FORM[sec];
-        const swing = step % 2 === 1 ? (song.swing ?? 0) * stepS : 0;
-        const t = nextTime + swing;
-        if (section.crash && loop === 0 && step === 0) crash(b, { at: t, abs: true, dest, peak: 0.1, decay: 1.2 });
-        if (section.fill && loop === section.loops - 1 && step >= 56) {
-          playStep(b, fill, step, t, stepS, dest);
-          roll(b, step % 16, t, dest);
-        } else playStep(b, style, step, t, stepS, dest);
-        nextTime += stepS;
-        if (++step === 64) {
-          step = 0;
-          if (++loop === section.loops) {
-            loop = 0;
-            if (++sec === m.FORM.length) next();
-            else enter();
-          }
-        }
-      }
-    },
-  };
+/** A song's parts as each section of the arrangement plays them, and the same without drums (a fill). */
+const partsOf = new WeakMap<Song, { styles: Style[]; fills: Style[] }>();
+
+/** Sixteenth `n` of a song's arrangement, at `t` on the audio clock (the station plays these; a check renders them offline). */
+export function songStep(b: Bus, st: Station, song: Song, n: number, t: number, dest: AudioNode) {
+  const p = st.placeOf(n);
+  if (!p) return;
+  let parts = partsOf.get(song);
+  if (!parts) {
+    const styles = st.FORM.map((sec) => st.sectionStyle(song.style, sec));
+    parts = { styles, fills: styles.map((s) => st.sectionStyle(s, { loops: 0, mute: [...DRUMS] })) };
+    partsOf.set(song, parts);
+  }
+  const stepS = st.stepMs(song) / 1000;
+  const when = t + (n % 2 === 1 ? (song.style.swing ?? 0) * stepS : 0);
+  if (!song.calm && p.sec.crash && p.loop === 0 && p.step === 0) crash(b, { at: when, abs: true, dest, peak: 0.1, decay: 1.2 });
+  if (p.sec.fill && p.loop === p.sec.loops - 1 && p.step >= 56) {
+    playStep(b, parts.fills[p.k], p.step, when, stepS, dest);
+    if (!song.calm) roll(b, p.step % 16, when, dest);
+  } else playStep(b, parts.styles[p.k], p.step, when, stepS, dest);
 }
 
-function playSet(m: NightSet): SetPlayer | null {
+function playStation(st: Station): SetPlayer | null {
   const b = bus();
   if (!b) return null;
-  if (order.length !== m.SONGS.length) order = shuffled(m.SONGS.length);
-  const out = b.c.createGain();
+  const c = b.c;
+  const out = c.createGain();
   out.gain.value = SET_VOLUME;
   out.connect(b.music);
-  const cursor = setCursor(m, b, out, b.c.currentTime + 0.08, () => order[(at = (at + 1) % order.length)]);
+
+  // When a sound put on the audio clock at t comes out of the speaker, in performance.now()
+  // milliseconds: t * 1000 + lag. Measured every tick and smoothed, so the beat doesn't wobble; it
+  // follows the audio clock's own drift, which in an hour would part two phones by a beat.
+  let lag = NaN;
+  const measure = () => {
+    const late = ((c.baseLatency || 0) + ((c as { outputLatency?: number }).outputLatency || 0)) * 1000;
+    let a = performance.now() - c.currentTime * 1000 + late;
+    try {
+      const ts = c.getOutputTimestamp?.();
+      if (ts?.contextTime && ts.performanceTime) {
+        const o = ts.performanceTime - ts.contextTime * 1000;
+        if (Math.abs(o - a) < 500) a = o;
+      }
+    } catch {
+      /* not in this browser */
+    }
+    lag = Number.isNaN(lag) || Math.abs(a - lag) > 40 ? a : lag + (a - lag) * 0.05;
+  };
+  /** the audio clock's seconds for a moment on the server's clock */
+  const at = (serverMs: number) => (st.perfOf(serverMs) - lag) / 1000;
+
+  // every song through a gain of its own: the last song of a mood fades out as the next mood begins
+  const lane = (s: Slot) => {
+    const g = c.createGain();
+    g.connect(out);
+    if (s.cut) {
+      const end = at(s.end);
+      g.gain.setValueAtTime(1, Math.max(c.currentTime, end - 2));
+      g.gain.linearRampToValueAtTime(0, Math.max(c.currentTime + 0.05, end));
+    }
+    window.setTimeout(() => g.disconnect(), Math.max(0, s.end - st.serverNow()) + 5000);
+    return g;
+  };
+  measure();
+  let now = st.serverNow();
+  let slot = st.slotAt(now + 150);
+  let n = 0;
+  let dest = lane(slot);
+  // a stopped audio clock (the page hidden, an iPhone's interruption, not unlocked yet) plays
+  // nothing: what was put on it meanwhile would all sound at once when it starts again
+  let lastCt = -1;
+  const tick = () => {
+    const ct = c.currentTime;
+    const stopped = c.state !== "running" || ct === lastCt;
+    lastCt = ct;
+    if (stopped) return;
+    st.slew();
+    measure();
+    now = st.serverNow();
+    for (let guard = 0; guard < 128; guard++) {
+      // far behind (the page stood still): straight to the song playing now
+      if (slot.end <= now) {
+        slot = st.slotAt(now + 40);
+        n = 0;
+        dest = lane(slot);
+      }
+      // a little behind, or just joined: on from the next sixteenth
+      if (slot.start + n * slot.step < now + 40) n = Math.max(n, Math.ceil((now + 40 - slot.start) / slot.step));
+      const t = slot.start + n * slot.step;
+      if (t >= slot.end) {
+        slot = st.nextSlot(slot);
+        n = 0;
+        dest = lane(slot);
+        continue;
+      }
+      if (t >= now + 160) break;
+      songStep(b, st, slot.song, n, at(t), dest);
+      n++;
+    }
+    // (for the checks: what this phone is playing, and on which clock)
+    if (import.meta.env.DEV) (window as unknown as { __station?: unknown }).__station = { id: slot.song.id, mood: slot.mood, start: slot.start, step: slot.step, n, now, lag, ctx: c.currentTime };
+  };
   let dead = false;
+  tick();
   const timer = window.setInterval(() => {
-    if (!dead) cursor.until(b.c.currentTime + 0.14);
+    if (!dead) tick();
   }, 25);
   return {
     stop(fade = 0.02) {
@@ -369,7 +408,7 @@ function playSet(m: NightSet): SetPlayer | null {
       dead = true;
       window.clearInterval(timer);
       try {
-        const t = b.c.currentTime;
+        const t = c.currentTime;
         out.gain.cancelScheduledValues(t);
         out.gain.setTargetAtTime(0, t, fade);
       } catch {
@@ -380,35 +419,48 @@ function playSet(m: NightSet): SetPlayer | null {
   };
 }
 
-// a context an iPhone wouldn't bring back is replaced (engine.ts): the set starts again on the new one
+/** Start the music if it's wanted and nothing holds it (the server's clock first, the first time). */
+function resume() {
+  if (background || holds > 0 || starting || !wants.size) return;
+  starting = true;
+  void loadStation()
+    .then((st) => st.ready().then(() => st))
+    .then((st) => {
+      if (wants.size && !holds && !background) background = playStation(st);
+    })
+    .catch(() => {
+      station = null; // offline: the next start tries again
+    })
+    .finally(() => {
+      starting = false;
+    });
+}
+
+// a context an iPhone wouldn't bring back is replaced (engine.ts): the music starts again on the new one
 onAudioReset(() => {
   if (!background) return;
   background.stop(0);
   background = null;
-  if (wanted && !holds) startBackground();
+  resume();
 });
 
-export function startBackground() {
-  wanted = true;
-  if (background || holds > 0) return;
-  void loadSet()
-    .then((m) => {
-      if (wanted && !holds && !background) background = playSet(m);
-    })
-    .catch(() => {
-      nightset = null; // offline: the next start tries again
-    });
+/** The music on (`by`: the site's setting, or the big screen, which plays it without one). */
+export function startBackground(by = "site") {
+  wants.add(by);
+  resume();
 }
 
-export function stopBackground() {
-  wanted = false;
+export function stopBackground(by = "site") {
+  wants.delete(by);
+  if (wants.size) return;
   background?.stop(0.4);
   background = null;
 }
 
 /**
- * A screen with its own soundtrack (the Punchline show, the big screen) silences the lounge
- * music while it is up; the music comes back when the last such screen goes away.
+ * A screen with its own soundtrack (the Punchline show, a dance game) silences the background
+ * music while it is up; the music comes back, where the programme is by then, when the last such
+ * screen goes away.
  */
 export function holdBackground(): () => void {
   holds += 1;
@@ -419,7 +471,7 @@ export function holdBackground(): () => void {
     if (released) return;
     released = true;
     holds = Math.max(0, holds - 1);
-    if (!holds && wanted) startBackground();
+    if (!holds) resume();
   };
 }
 
