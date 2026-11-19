@@ -1,21 +1,23 @@
 # MoneyLens security assessment
 
-Version 0.4, 19 November 2026. It records the choices the requirements leave to this document
+Version 0.5, 19 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
 policy are added here as they are built. The threats are in [`threat-model.md`](threat-model.md).
 
 This describes a design and its limits. It is not a statement that the product is secure, and it
-has not yet had the independent review SEC-15 requires before Phase 3. Versions 0.2 to 0.4 follow
-the three rounds of SEC-9 review of the vault code (pull request #653), which changed the format
-before any vault existed. After the first: wrappers are tied to their vault, the passphrase
+has not yet had the independent review SEC-15 requires before Phase 3. Versions 0.2 to 0.5 follow
+the rounds of SEC-9 review of the vault code (pull request #653), which changed the format before
+any vault existed. After the first: wrappers are tied to their vault, the passphrase
 normalization folds what phone keyboards rewrite, and the recovery code carries a check. After the
 second: the normalization folds compatibility forms first and gives the same result when applied
 twice, unlocking can tell a record for another vault from a wrong secret, and the passphrase floor
 no longer turns away what password generators make (measured in 1.4). After the third: the
 normalization also folds the quotation marks of other languages, the wave dash, and any run of
-hyphens and dashes; and keyboard runs typed three keys at a time are patterns.
+hyphens and dashes; and keyboard runs typed three keys at a time are patterns. The fourth round
+approved the code, and recommended dropping more of the characters nobody sees while the format
+could still change, which was done.
 
 ## 1. The vault
 
@@ -109,20 +111,29 @@ screens cannot skip them.
 give the same bytes. In this order:
 
 1. compatibility forms such as full-width and half-width letters and marks (NFKC);
-2. emoji and ideographic variation selectors, the zero-width space, the soft hyphen and the
-   byte-order mark dropped; then NFKC once more, because dropping a character can bring a letter
-   and its accent together;
-3. every kind of quotation mark to a straight one: curly and low ones, primes, guillemets, corner
-   brackets. A phone puts the marks of its keyboard's language where a straight one was typed,
+2. characters nobody sees dropped: emoji and ideographic variation selectors, the zero-width
+   space, the soft hyphen, the byte-order mark, the word joiner, the Mongolian vowel separator,
+   and the marks that say which way text runs, which come along when a passphrase is copied out
+   of a chat or a document. The zero-width joiner and non-joiner stay, because they hold emoji
+   together and spell words in Persian and the Indic scripts. Then NFKC once more, because
+   dropping a character can bring a letter and its accent together;
+3. every kind of quotation mark and apostrophe to a straight one: curly and low ones, the prime,
+   guillemets, corner brackets, and the letters a Ukrainian or a Hawaiian keyboard types for an
+   apostrophe. A phone puts the marks of its keyboard's language where a straight one was typed,
    and a Simplified and a Traditional Chinese keyboard quote differently;
 4. the wave dash to a tilde: a Japanese keyboard types the one on a Mac and a full-width tilde,
    which step 1 has already made a tilde, on Windows;
-5. any hyphen, dash or minus sign, and any run of them, to one hyphen. Apps disagree about what
-   two or three typed hyphens become: an em dash on a phone and in Word, an en dash and an em
-   dash in Google Docs. So "a--b", "a-b" and "a—b" are one passphrase, and a run counts as one
-   character when the length is checked;
-6. the ideographic full stop to a period;
+5. any hyphen, dash of any length or minus sign, and any run of them, to one hyphen. Apps
+   disagree about what two or three typed hyphens become: an em dash on a phone and in Word, an
+   en dash and an em dash in Google Docs. So "a--b", "a-b" and "a—b" are one passphrase, and a
+   run counts as one character when the length is checked;
+6. the ideographic full stop to a period, and the dot between the parts of a name to one middle
+   dot, whichever of three an input method typed;
 7. runs of spaces to one, and no space at either end.
+
+Two of these were folded without a device to confirm that keyboards really differ in them: the
+apostrophe letters in step 3 and the middle dots in step 6. Folding costs nothing if they turn
+out not to occur, and could not be added later without a new wrapper version.
 
 Compatibility forms go first so that what they turn into is folded too: a half-width ideographic
 full stop becomes the same period as a full-width one. Applying it twice gives what applying it
@@ -194,9 +205,16 @@ pronounceable passwords is the exception to all of this: its output is meant to 
 and about half of it is refused until it is 20 characters long. At 12 to 14 letters such a
 password is about as hard to guess as three words picked at random, which the floor accepts; it
 is refused only because it reads as one or two long words, and the floor cannot tell it from
-them. The screens should say "make it longer, or add a word" to someone it happens to. One more
-thing a person may meet: of the 12-character strings with marks measured here, about 1 in 900
-had two hyphens in a row, counted as 11 characters, and was refused as too short.
+them. The screens should say "make it longer, or add a word" to someone it happens to.
+
+One more thing a person may meet. A 12-character password with two hyphens in a row counts as 11
+characters and is refused as too short: about 1 in 900 of the strings with marks measured here,
+and about 1 in 430 where the hyphen is a larger share of the generator's alphabet (base64url; the
+reviewer's measurement). The fourth review suggests counting the length before runs are folded,
+which the format allows, since the floor is not part of how the key is made. It is left for the
+passphrase screens, together with a thing that has to be settled at the same time: counted that
+way, a short secret padded with hyphens ("xq--------mz") would pass the length rule, as one
+padded with other marks already does.
 
 The tests hold the first eight of these kinds under a fixed limit, from 0.5% for the rarest to
 about twice the figure shown for the three hard ones. The third review measured the same kinds with
@@ -309,6 +327,11 @@ Phase 1 exit.
   offered (ARCH-7). Not built.
 - Whether iOS applies smart punctuation and automatic capitals in a passphrase field once "show
   passphrase" turns it into a text field. To be checked on a real phone when the screens exist.
+  The same goes for its turning two spaces into a full stop and a space: "tidal  marmot" would
+  become "tidal. marmot", which the normalization cannot fold back, because a person can see
+  those are different.
+- The length rule and repeated characters: whether a run of hyphens should count at its typed
+  length, and what padding with one repeated character should count for (1.4).
 - What phones and computers set to French type for a straight quotation mark. The guillemets are
   folded (1.4), but if a no-break space is put inside them as well, the two spellings still
   differ. Not checked on a device; nobody here had one set to French.

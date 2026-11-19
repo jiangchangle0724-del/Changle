@@ -309,6 +309,23 @@ test("the same passphrase from every keyboard", () => {
   same(cp(0x845b), cp(0x845b, 0xe0100));
   same("tidal marmot", `ti${cp(0x200b)}dal marmot`);
   same("a--b", `a-${cp(0x200b)}-b`);
+  // marks nobody sees that come along when text is copied from a chat or a document: which way the text runs, the word joiner, the Mongolian vowel separator
+  for (const unseen of [[0x200e], [0x200f], [0x61c], [0x2060], [0x180e], [0x202b, 0x202c], [0x2067, 0x2069], [0x202d, 0x2066, 0x206f]]) {
+    same("tidal marmot", `tidal${cp(unseen[0]!)} marmot${cp(...unseen.slice(1))}`);
+  }
+  // but the joiners stay, which hold an emoji together and spell words in Persian
+  const family = cp(0x1f468, 0x200d, 0x1f469, 0x200d, 0x1f467);
+  assert.equal(normalizePassphrase(family), family);
+  assert.notEqual(normalizePassphrase(`a${cp(0x200c)}b`), normalizePassphrase("ab"));
+  // the longest dashes are dashes too; the long mark of katakana is a letter and stays one
+  same("a-b", `a${cp(0x2e3a)}b`);
+  same("a-b", `a${cp(0x2e3b)}b`);
+  assert.notEqual(normalizePassphrase(`${cp(0x30e9, 0x30fc, 0x30e1, 0x30f3)}`), normalizePassphrase(`${cp(0x30e9)}-${cp(0x30e1, 0x30f3)}`));
+  // the letters a Ukrainian or a Hawaiian keyboard types where others type an apostrophe
+  same("don't stop", `don${cp(0x2bc)}t stop`);
+  same("don't stop", `don${cp(0x2bb)}t stop`);
+  // the dot between the parts of a name, from a Chinese keyboard, a Japanese one (full and half width) and some Traditional Chinese ones
+  for (const dot of [0x30fb, 0xff65, 0x2027]) same(`a${cp(0xb7)}b`, `a${cp(dot)}b`);
   // and what stays different: capitals, and which words
   assert.notEqual(normalizePassphrase("Tidal marmot"), normalizePassphrase("tidal marmot"));
   assert.notEqual(normalizePassphrase("tidalmarmot"), normalizePassphrase("tidal marmot"));
@@ -317,7 +334,8 @@ test("the same passphrase from every keyboard", () => {
 
 test("normalizing twice changes nothing more", () => {
   const pool = [0x20, 0x27, 0x22, 0x2d, 0x2e, 0x61, 0x41, 0x31, 0xa0, 0xad, 0xe9, 0x301, 0x2010, 0x2013, 0x2014, 0x2015, 0x2018, 0x2019, 0x201c, 0x201d, 0x2026, 0x2032, 0x2033, 0x200b, 0x2212, 0x3000, 0x3002, 0x4e00, 0x845b, 0xfe0f, 0xfe31, 0xfe58, 0xfeff, 0xff0d, 0xff21, 0xff41, 0xff61, 0x1f600, 0x2764, 0xe0100, 0xfdfa, 0x212a, 0x17f,
-    0x7e, 0xab, 0xbb, 0x2039, 0x203a, 0x300c, 0x300d, 0x300e, 0x300f, 0x301c, 0x301d, 0x3030, 0xfe63, 0xff5e, 0xff62, 0xff63, 0x2d, 0x2d, 0x2014];
+    0x7e, 0xab, 0xbb, 0x2039, 0x203a, 0x300c, 0x300d, 0x300e, 0x300f, 0x301c, 0x301d, 0x3030, 0xfe63, 0xff5e, 0xff62, 0xff63, 0x2d, 0x2d, 0x2014,
+    0x61c, 0x180e, 0x200c, 0x200d, 0x200e, 0x200f, 0x202b, 0x202c, 0x2060, 0x2066, 0x2069, 0x2e3a, 0x2e3b, 0x2bb, 0x2bc, 0xb7, 0x2027, 0x30fb, 0xff65, 0x30fc];
   const next = dice(7);
   for (let i = 0; i < 5000; i++) {
     const text = String.fromCodePoint(...Array.from({ length: 1 + next(12) }, () => pool[next(pool.length)]!));

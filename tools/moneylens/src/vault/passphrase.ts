@@ -38,13 +38,15 @@ export type Weak = "too-short" | "too-long" | "pattern" | "common" | "few-words"
  * Phones, word processors and Chinese keyboards rewrite what is typed: straight quotes become the
  * quotation marks of the keyboard's language, two or three hyphens become a dash (which dash
  * depends on the app), a full stop becomes an ideographic one, letters come out full-width, an
- * emoji gains or loses its variation selector. All of those are folded back, in this order:
+ * emoji gains or loses its variation selector, and text copied out of a chat or a document brings
+ * marks along that nobody sees. All of those are folded back, in this order:
  *
  * 1. compatibility forms (NFKC), so that what they turn into is folded too;
  * 2. characters nobody sees are dropped, and NFKC again, because taking one out can bring a
  *    letter and its accent together;
- * 3. every kind of quotation mark becomes a straight one, a wave dash becomes a tilde, any dash
- *    and any run of dashes or hyphens becomes one hyphen, an ideographic full stop a period;
+ * 3. every kind of quotation mark and apostrophe becomes a straight one, a wave dash becomes a
+ *    tilde, any dash and any run of dashes or hyphens becomes one hyphen, an ideographic full stop
+ *    a period, and the middle dots of the different input methods one middle dot;
  * 4. runs of spaces become one space, and there is none at either end.
  *
  * Capitals are kept: they are the user's own. Doing it twice changes nothing more.
@@ -53,18 +55,24 @@ export function normalizePassphrase(text: string): string {
   return (
     text
       .normalize("NFKC")
-      // variation selectors, the zero-width space, the soft hyphen, the byte-order mark: before the folds, so that two hyphens with one of these between them are a run
-      .replace(/[\ufe00-\ufe0f\u200b\u00ad\ufeff\u{e0100}-\u{e01ef}]/gu, "")
+      // Variation selectors, the soft hyphen, the zero-width space, the word joiner and its invisible
+      // neighbours, the byte-order mark, the Mongolian vowel separator, and the marks that say which
+      // way text runs. Before the folds, so that two hyphens with one of these between them are a
+      // run. The zero-width joiner and non-joiner stay: they hold emoji together and spell words in
+      // Persian and the Indic scripts.
+      .replace(/[\ufe00-\ufe0f\u00ad\u061c\u180e\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\u{e0100}-\u{e01ef}]/gu, "")
       .normalize("NFKC")
-      // single: curly, low, the prime, single guillemets, white corner brackets
-      .replace(/[\u2018\u2019\u201a\u201b\u2032\u2039\u203a\u300e\u300f]/g, "'")
+      // single: curly, low, the prime, single guillemets, white corner brackets, and the letters some keyboards type for an apostrophe
+      .replace(/[\u2018\u2019\u201a\u201b\u2032\u2039\u203a\u300e\u300f\u02bb\u02bc]/g, "'")
       // double: curly, low, guillemets, corner brackets, the double-prime marks of vertical Chinese (NFKC has made a double prime two single ones)
       .replace(/[\u201c\u201d\u201e\u201f\u00ab\u00bb\u300c\u300d\u301d\u301e\u301f]/g, '"')
       // the wave dash a Mac types where Windows types a full-width tilde (which NFKC has made "~")
       .replace(/[\u301c\u3030]/g, "~")
-      // hyphens, dashes and the minus sign. A run is one: two hyphens are an em dash on a phone and an en dash in Google Docs, three are an em dash in both
-      .replace(/[-\u2010-\u2015\u2212]+/g, "-")
+      // hyphens, dashes of every length and the minus sign. A run is one: two hyphens are an em dash on a phone and an en dash in Google Docs, three are an em dash in both
+      .replace(/[-\u2010-\u2015\u2212\u2e3a\u2e3b]+/g, "-")
       .replace(/\u3002/g, ".")
+      // the dot between the parts of a name: a Japanese keyboard's, and the one some Traditional Chinese ones type
+      .replace(/[\u2027\u30fb]/g, "\u00b7")
       .replace(/\s+/g, " ")
       .trim()
   );
