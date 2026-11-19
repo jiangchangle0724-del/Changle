@@ -301,7 +301,9 @@ export class Rig {
       this.eyes.push(e);
       const shine = new Mesh(new SphereGeometry(0.007, 8, 6), new MeshBasicMaterial({ color: 0xffffff }));
       this.owned.push(shine.geometry, shine.material as Material);
-      shine.position.set(0.25, 0.35, 0.8);
+      // (up and to the side on the eye's front: in the eye's own space, where it's 0.025 round; at
+      // (0.25, 0.35, 0.8) it floated 0.4 m over the head, two white dots over the coach till 18 Nov)
+      shine.position.set(0.25, 0.35, 0.8).multiplyScalar(0.025);
       e.add(shine);
       const arc = this.part(new TorusGeometry(0.021, 0.0065, 6, 14, Math.PI), "eye", h, [x * 1.08, 0.142, 0.15], false);
       f.arcs.push(arc);

@@ -708,6 +708,12 @@ body.fireworks {
   inset: 0;
   display: block;
 }
+/* between dances (screen.ts frameLobby): the coach standing by below the players, as tall as the
+   room left down to the bottom of the screen (set there, with this margin: LOBBY_GAP) */
+.lobby-coach {
+  margin-top: 16px;
+  max-width: 960px;
+}
 .is-moves .moves-page {
   display: grid;
   gap: 16px;
