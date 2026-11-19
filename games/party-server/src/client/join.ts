@@ -15,7 +15,7 @@ import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, r
 import { BeatJudge, type Batch, type Judged, type Verdict } from "../shared/taps";
 import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tapTime, tr, wsUrl } from "./common";
 import { MotionSense } from "./motion";
-import { awardName, bodyHint, danceName, difficultyName, moveName, remindText, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
+import { awardName, bodyHint, danceName, difficultyName, moveName, remindBox, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
 
 const app = document.getElementById("app")!;
 const flash = document.getElementById("flash")!;
@@ -525,7 +525,7 @@ function myResults(r: Results): HTMLElement {
   const dn = danceName(r.routineId);
   if (dn) box.append(el("p", "dance-stage", `${dn} · ${difficultyName(r.difficulty)}`));
   // every few dances: have some water, or a rest (the TV says it too)
-  if (r.remind) box.append(el("p", "remind", remindText(r.remind)));
+  if (r.remind) box.append(remindBox(r.remind));
   const me = r.players.find((p) => p.id === myId);
   if (!me) {
     box.append(el("p", "lead", tr("这一首你没有动手机。下一首拿着手机跳，或者每一拍点一下，就能上榜。", "Your phone didn't move this time. Dance with it in hand, or tap on every beat, to get on the board.")));
