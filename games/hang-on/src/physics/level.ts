@@ -251,6 +251,11 @@ export interface Level {
    * 不写就不开（还没按手酸重录过的关；简单的关不写）。
    */
   stamina?: boolean;
+  /**
+   * 长关（A13，Steve 11-18「关太短太直」）：路绕、至少 6 段、两样以上新机关（验收器 longLevel 查）。
+   * 大厅里「这关教」前面写「长关」。
+   */
+  long?: boolean;
   world?: string;
   name?: { zh: string; en: string };
   teaches?: string;

@@ -16,9 +16,11 @@ const baseIds = Array.from({ length: 12 }, (_, i) => `${i < 6 ? 'table' : 'van'}
 // C8 的难关：table-13…18、van-19…24（CONTRACTS「关卡契约 · 难关」）。可以分批交，在的每一关都要过全部难关规则。
 const hardIds = Array.from({ length: 12 }, (_, i) => `${i < 6 ? 'table' : 'van'}-${String(i + 13).padStart(2, '0')}`);
 const isHard = (id) => hardIds.includes(id);
+// 新机关（A12）教的词，长关（A13）多半教这几个
+const NEW_TEACHES = ['tide', 'crumble', 'pendulum', 'wind'];
 // 第三轮的新场景（A10 起，Codex 的 C10…C13 做关），每个场景六关、写明难度（简单、中等、困难各两关）。可以分批交，在的每一关都要过这个场景的全部规则。
 // need：这个场景的关得有它自己的机关；mix：六关到齐了才查的搭配（返回没过的那一条，或者 null）。
-const SCENE_TEACHES = ['combine', 'spike', 'hot', 'zap', 'mover', 'spinner', 'gauntlet'];
+const SCENE_TEACHES = ['combine', 'spike', 'hot', 'zap', 'mover', 'spinner', 'gauntlet', ...NEW_TEACHES];
 const SCENES = {
   // C10 中餐馆后厨：kitchen-25…30（CONTRACTS「后厨（A10，C10 做关）」）
   kitchen: {
@@ -392,6 +394,43 @@ function newMechanics(level, id) {
   }
 }
 
+/**
+ * 长关（A13，Steve 11-18「关太短太直」，选了「新做一批长关替换最短的」）：写了 long: true 的关。
+ * 路要绕（检查点不用一直往右）、长（出生点经过每个检查点到终点至少 LONG_ROUTE 像素）、分成至少 6 段；
+ * 用上至少两样新机关；中等、困难按手酸录（stamina: true）；困难的会动、会转、会荡的东西至少 6 个，其中至少 2 个快的。
+ * 主回放（多人关每份回放）至少 LONG_SECONDS 秒。
+ */
+const LONG_ROUTE = 6000;
+const LONG_SECONDS = 150;
+const LONG_CHECKPOINTS = 5;
+function routeLength(level) {
+  const pts = [level.spawn, ...(level.checkpoints ?? []), { x: level.goal.x + level.goal.w / 2, y: level.goal.y + level.goal.h / 2 }];
+  return pts.slice(1).reduce((sum, p, i) => sum + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0);
+}
+const fastMachines = (level) =>
+  (level.movers ?? []).filter((m) => m.speed >= 120).length +
+  (level.spinners ?? []).filter((sp) => Math.abs(sp.spin) >= 1.5).length +
+  (level.pendulums ?? []).filter((p) => p.period <= 2.4).length;
+const machineCount = (level) => (level.movers?.length ?? 0) + (level.spinners?.length ?? 0) + (level.pendulums?.length ?? 0);
+const newKinds = (level) => [level.tide, level.rects.some((r) => r.crumble !== undefined), level.pendulums?.length, level.winds?.length].filter(Boolean).length;
+function longLevel(level, id, tier) {
+  if (level.long === undefined) return;
+  assert.equal(level.long, true, `${id}: long is true or left out`);
+  const cps = level.checkpoints ?? [];
+  assert(cps.length >= LONG_CHECKPOINTS, `${id}: a long level needs at least ${LONG_CHECKPOINTS} checkpoints (${LONG_CHECKPOINTS + 1} segments), has ${cps.length}`);
+  const route = routeLength(level);
+  assert(route >= LONG_ROUTE, `${id}: a long level's route (spawn → checkpoints → goal) must be at least ${LONG_ROUTE} px, is ${Math.round(route)}`);
+  assert(newKinds(level) >= 2, `${id}: a long level uses at least two of the new machines (tide, crumbling platforms, pendulums, wind)`);
+  // 简单的长关不追人：不涨潮，摆锤不烫
+  if (tier === 0) assert(!level.tide && !(level.pendulums ?? []).some((p) => p.deadly), `${id}: an easy long level has no tide and no deadly pendulums`);
+  if (tier >= 1) assert.equal(level.stamina, true, `${id}: a medium or hard long level is recorded with tired hands (stamina: true)`);
+  if (tier >= 1) assert(machineCount(level) >= 3, `${id}: a medium long level needs at least three moving, spinning or swinging things`);
+  if (tier === 2) {
+    assert(machineCount(level) >= 6, `${id}: a hard long level needs at least six moving, spinning or swinging things, has ${machineCount(level)}`);
+    assert(fastMachines(level) >= 2, `${id}: a hard long level needs at least two fast ones (mover ≥ 120 px/s, spinner ≥ 1.5 rad/s, pendulum period ≤ 2.4 s)`);
+  }
+}
+
 function space(level, id) {
   const zones = level.zerog ?? [];
   assert(zones.length <= 6, `${id}: at most six zero-gravity zones`);
@@ -486,6 +525,8 @@ function validate(level, replay, id) {
   assert(finite(level.w) && level.w > 0 && finite(level.h) && level.h > 0);
   const scene = sceneOf(id);
   const cook = scene !== undefined;
+  const long = level.long === true;
+  assert(level.long === undefined || cook, `${id}: only levels of the new scenes (and multi levels) can be long`);
   // 新场景的关写明难度；困难那一档按难关的规矩查
   if (cook) assert([0, 1, 2].includes(level.tier), `${id}: a ${scene} level states its tier (0 easy, 1 medium, 2 hard)`);
   const hard = isHard(id) || (cook && level.tier === 2);
@@ -518,12 +559,16 @@ function validate(level, replay, id) {
   house(level, id);
   space(level, id);
   newMechanics(level, id);
+  longLevel(level, id, tierOf(level));
   assert(level.rects.length + (level.fading?.length ?? 0) + (level.springs?.length ?? 0) <= 60, id + ': platforms exceed 60');
   point(level.spawn);
   assert(inside(level, level.spawn), id + ': spawn outside level');
   rectangle(level.goal);
   assert(finite(level.deathY) && level.deathY > level.spawn.y);
-  if (hard) {
+  if (long) {
+    assert(level.par.seconds >= LONG_SECONDS && level.par.seconds <= 360, id + `: long par must be ${LONG_SECONDS}–360 s`);
+    assert(Number.isInteger(level.par.deathsPerPlayer) && level.par.deathsPerPlayer >= (hard ? 2 : 0) && level.par.deathsPerPlayer <= 10, id + ': long par deaths must be 0–10 per player (hard 2–10)');
+  } else if (hard) {
     assert(level.par.seconds >= 60 && level.par.seconds <= 240, id + ': hard par must be 1–4 minutes');
     assert(Number.isInteger(level.par.deathsPerPlayer) && level.par.deathsPerPlayer >= 2 && level.par.deathsPerPlayer <= 8, id + ': hard par deaths must be 2–8 per player');
   } else {
@@ -573,7 +618,8 @@ function validate(level, replay, id) {
     for (let n = 1; n <= TESTED_PLAYERS; n++) for (let player = 0; player < Math.min(n, 4); player++) assert(level.rects.some(r => present(r, n) && r.until === undefined &&
       cp.x + player * 30 - 24 >= r.x && cp.x + player * 30 + 24 <= r.x + r.w &&
       r.y - cp.y >= 24 && r.y - cp.y <= 80 && r.w >= 48), id + ': checkpoint ' + index + ' lacks permanent footing within 80px for P' + (player + 1) + (n < 4 ? ` with ${n} players` : ''));
-    if (index) assert(cp.x > cps[index - 1].x && Math.hypot(cp.x - cps[index - 1].x, cp.y - cps[index - 1].y) >= 120, id + ': checkpoints must follow the route');
+    // 长关的路会绕回来，检查点不用一直往右，只要按路上的顺序、隔得开
+    if (index) assert((long || cp.x > cps[index - 1].x) && Math.hypot(cp.x - cps[index - 1].x, cp.y - cps[index - 1].y) >= 120, id + ': checkpoints must follow the route');
   }
   // These routes go right, including the two stair routes that turn upward. Each occupied
   // horizontal screen needs a flag; climbing levels also need at least one flag per vertical view.
@@ -758,7 +804,7 @@ const replay=await (await fetch('/replays/'+id)).json();
 const sim=await createSim(level,replay.players||4), canvas=document.querySelector('canvas');
 const stage=await Stage.create(canvas,{plates:{table:'/art/table-far.webp',van:'/art/van-far.webp'}});
 stage.setLevel(sim.level);stage.syncPlayers(sim);
-const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet',steam:'后厨 · 蒸笼喷汽 / Kitchen · Ride the steam',tray:'后厨 · 端托盘 / Kitchen · Carry the tray',lift:'雪山 · 坐缆车 / Snow · Ride the lift',slip:'雪山 · 冰溜子 / Snow · Icy holds',key:'老宅 · 找钥匙开门 / Old house · Find the key',dark:'老宅 · 黑屋子 / Old house · In the dark',float:'太空站 · 失重 / Space · Zero gravity',lever:'太空站 · 一起拉杆 / Space · Pull the levers together'};
+const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet',steam:'后厨 · 蒸笼喷汽 / Kitchen · Ride the steam',tray:'后厨 · 端托盘 / Kitchen · Carry the tray',lift:'雪山 · 坐缆车 / Snow · Ride the lift',slip:'雪山 · 冰溜子 / Snow · Icy holds',key:'老宅 · 找钥匙开门 / Old house · Find the key',dark:'老宅 · 黑屋子 / Old house · In the dark',float:'太空站 · 失重 / Space · Zero gravity',lever:'太空站 · 一起拉杆 / Space · Pull the levers together',tide:'涨潮 / Rising tide',crumble:'会塌的台子 / Crumbling platforms',pendulum:'摆锤 / Pendulums',wind:'阵风 / Gusts'};
 document.querySelector('h1').textContent=id+' · '+level.name.zh+' · '+level.name.en;
 document.querySelector('#lesson').textContent=lessons[level.teaches];
 const marks=document.querySelector('#marks');
@@ -1618,16 +1664,17 @@ function multiLayouts(level, physics) {
 }
 function multiUnranged(level) {
   const out = { ...level };
-  for (const key of ['rects', 'ropes', 'seesaws', 'crates', 'fading', 'springs', 'hazards', 'movers', 'spinners', 'plates', 'gates', 'vents', 'lifts', 'keys', 'lanterns', 'lamps', 'dark', 'zerog', 'levers'])
+  for (const key of ['rects', 'ropes', 'seesaws', 'crates', 'fading', 'springs', 'hazards', 'movers', 'spinners', 'plates', 'gates', 'vents', 'lifts', 'keys', 'lanterns', 'lamps', 'dark', 'zerog', 'levers', 'pendulums', 'winds'])
     if (out[key]) out[key] = out[key].map(({ players, ...item }) => item);
   return out;
 }
 function multiValidate(l, id, physics) {
   assert.equal(l.id, id);
   assert.equal(l.tier, Math.floor((Number(id.slice(-2)) - 1) / 3), `${id}: wrong tier`);
-  assert(['table', 'van'].includes(l.world), `${id}: world must be table or van`);
+  // 长关（A13）可以用四个新场景的世界
+  assert(['table', 'van', ...(l.long ? ['kitchen', 'snow', 'house', 'space'] : [])].includes(l.world), `${id}: world must be table or van${l.long ? ' or a new scene' : ' (a long level may use a new scene)'}`);
   assert(typeof l.name?.zh === 'string' && l.name.zh.trim() && typeof l.name?.en === 'string' && l.name.en.trim(), `${id}: missing bilingual name`);
-  assert(['chain', 'throw', 'boost', 'hold', 'counterweight', 'relay', 'combine'].includes(l.teaches), `${id}: invalid multi lesson`);
+  assert(['chain', 'throw', 'boost', 'hold', 'counterweight', 'relay', 'combine', ...NEW_TEACHES].includes(l.teaches), `${id}: invalid multi lesson`);
   if (Number(id.slice(-2)) % 3 === 0) assert.equal(l.teaches, 'combine', `${id}: tier finale must teach combine`);
   point(l.spawn); rectangle(l.goal);
   assert(finite(l.w) && finite(l.h) && l.w > 0 && l.h > 0 && l.w <= 3600 && l.h <= 2200, `${id}: invalid size`);
@@ -1636,20 +1683,26 @@ function multiValidate(l, id, physics) {
   else assert(l.w >= 2400, `${id}: horizontal width must be 2400–3600`);
   assert(l.goal.x >= l.w - 480 && l.goal.w <= 400 && l.goal.x + l.goal.w >= l.w - 160, `${id}: goal must be at route end`);
   assert(finite(l.deathY) && l.deathY > l.spawn.y, `${id}: invalid deathY`);
-  assert(finite(l.par?.seconds) && l.par.seconds >= (l.tier === 2 ? 120 : 60) && l.par.seconds <= (l.tier === 0 ? 120 : 240), `${id}: par outside tier budget`);
-  assert(Number.isInteger(l.par.deathsPerPlayer) && l.par.deathsPerPlayer >= 1 && l.par.deathsPerPlayer <= 6, `${id}: deaths budget must be 1–6`);
+  if (l.long) assert(finite(l.par?.seconds) && l.par.seconds >= LONG_SECONDS && l.par.seconds <= 360, `${id}: long par must be ${LONG_SECONDS}–360 s`);
+  else assert(finite(l.par?.seconds) && l.par.seconds >= (l.tier === 2 ? 120 : 60) && l.par.seconds <= (l.tier === 0 ? 120 : 240), `${id}: par outside tier budget`);
+  assert(Number.isInteger(l.par.deathsPerPlayer) && l.par.deathsPerPlayer >= 1 && l.par.deathsPerPlayer <= (l.long ? 10 : 6), `${id}: deaths budget must be 1–${l.long ? 10 : 6}`);
+  newMechanics(l, id);
+  longLevel(l, id, l.tier);
   assert.equal(l.replay, `replays/${id}.p4.json`);
   for (const it of layoutLists(l).flatMap(v => v ?? [])) if (it.players !== undefined)
     assert(Array.isArray(it.players) && it.players.length === 2 && it.players.every(Number.isInteger) && it.players[0] >= 1 && it.players[1] <= 6 && it.players[0] <= it.players[1], `${id}: invalid players range`);
   const cps = l.checkpoints;
   assert(Array.isArray(cps) && cps.length, `${id}: missing checkpoints`);
-  cps.forEach((p, i) => { point(p); assert(inside(l, p), `${id}: checkpoint outside level`); if (i) assert(p.x > cps[i - 1].x && Math.hypot(p.x - cps[i - 1].x, p.y - cps[i - 1].y) >= 120, `${id}: checkpoint order`); });
+  cps.forEach((p, i) => { point(p); assert(inside(l, p), `${id}: checkpoint outside level`); if (i) assert((l.long || p.x > cps[i - 1].x) && Math.hypot(p.x - cps[i - 1].x, p.y - cps[i - 1].y) >= 120, `${id}: checkpoint order`); });
   for (let x = 0; x < Math.ceil(l.w / 1280); x++) assert(cps.some(p => Math.floor(p.x / 1280) === x), `${id}: horizontal screen ${x + 1} lacks checkpoint`);
   if (l.h > 720) for (let y = 0; y < Math.ceil(l.h / 720); y++) assert(cps.some(p => Math.floor(p.y / 720) === y), `${id}: vertical screen ${y + 1} lacks checkpoint`);
   for (const n of [2, 3, 4]) {
     const laid = multiUnranged(physics.forPlayers(l, n));
     machines(laid, id); gates(laid, id);
-    const moving = (laid.ropes ?? []).reduce((v, r) => v + r.segments, 0) + ['seesaws', 'crates', 'movers', 'spinners', 'gates', 'pendulums'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0);
+    // 长关可以用新场景的世界和它们的机关（A13）：照单人关的规矩查
+    kitchen(laid, id); snow(laid, id); house(laid, id); space(laid, id);
+    const chairs = (laid.lifts ?? []).reduce((sum, lf) => sum + Math.floor(Math.hypot(lf.to.x - lf.from.x, lf.to.y - lf.from.y) / Math.max(40, lf.gap)) + 1, 0);
+    const moving = (laid.ropes ?? []).reduce((v, r) => v + r.segments, 0) + ['seesaws', 'crates', 'movers', 'spinners', 'gates', 'pendulums', 'keys', 'lanterns'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0) + chairs;
     assert(moving <= 40, `${id}: moving objects exceed 40`);
     assert(dangersOf(laid).length <= 40, `${id}: deadly things exceed 40`);
     const boxes = [...laid.rects, ...(laid.fading ?? []), ...(laid.springs ?? []), ...(laid.crates ?? []), ...(laid.seesaws ?? []).map(s => ({ x: s.pivot.x - s.w / 2, y: s.pivot.y - (s.h ?? 14) / 2, w: s.w, h: s.h ?? 14, material: s.material }))];
@@ -1663,7 +1716,7 @@ function multiValidate(l, id, physics) {
       assert(!boxes.some(r => physics.circleHitsRect(p, 24 - 1e-6, r)), `${id}: respawn overlaps a platform`);
     }
     const danger = dangersOf(laid);
-    if (l.tier === 0) assert(!danger.length, `${id}: easy level must have no deadly things`);
+    if (l.tier === 0) assert(!danger.length && !laid.tide && !(laid.pendulums ?? []).some((p) => p.deadly), `${id}: easy level must have no deadly things (no tide, no deadly pendulums either)`);
     if (l.tier === 2) assert(danger.length && ((laid.movers?.length ?? 0) + (laid.spinners?.length ?? 0)) > 0, `${id}: hard level needs deadly things and moving machinery`);
   }
 }
@@ -1743,6 +1796,7 @@ async function checkMulti(physics, existing) {
     const hard = hardSections[id], need = level.tier === 0 ? 1 : 2;
     assert(Array.isArray(hard) && new Set(hard).size === hard.length && hard.length >= need && hard.every(k => Number.isInteger(k) && k >= 0 && k <= level.checkpoints.length) && (!level.tier || hard.some(k => k > 0)), `${id}: invalid solo-blocked sections`);
     const replays = [];
+    const crumbledAt = new Set();
     for (const group of multiLayouts(level, physics)) for (const n of group) {
       const filename = `${id}.p${n}.json`;
       assert(replayFiles.includes(filename), `${id}: missing ${n}-player multi replay (levels/multi/replays/${filename})`);
@@ -1756,6 +1810,7 @@ async function checkMulti(physics, existing) {
       assert.equal(evidence.checkpointTimes.length, level.checkpoints.length, `${id}.p${n}: missed checkpoint`);
       assert(segments.every(t => t >= 15 && t <= 60), `${id}.p${n}: checkpoint segment outside 15–60s: ${segments.map(t => t.toFixed(2)).join('/')}`);
       assert(ratio >= .5 && ratio <= 2, `${id}.p${n}: time outside par × [0.5, 2]`);
+      if (level.long) assert(result.seconds >= LONG_SECONDS, `${id}.p${n}: a long level's replay takes at least ${LONG_SECONDS} s, took ${result.seconds.toFixed(1)}`);
       assert(result.deaths.reduce((a, b) => a + b, 0) <= level.par.deathsPerPlayer * n, `${id}.p${n}: deaths exceed budget`);
       assert(longestIdle <= 3 + 1e-6, `${id}.p${n}: all players idle for ${longestIdle.toFixed(2)}s`);
       const cooperated = s => s.chain >= .25 || s.boost >= .25 || s.throws > 0 || s.holds > 0;
@@ -1765,6 +1820,18 @@ async function checkMulti(physics, existing) {
       evidence.moverUse.forEach((t, i) => assert(laid.movers[i].deadly || t >= .25, `${id}.p${n}: moving platform ${i} bypassed`));
       evidence.spinnerUse.forEach((t, i) => assert(laid.spinners[i].deadly || t >= .25, `${id}.p${n}: spinning bar ${i} bypassed`));
       evidence.near.forEach((v, i) => assert(v, `${id}.p${n}: deadly thing ${i} outside route`));
+      // 新机关（A12）：涨潮追得上人，摆锤旁边有人过，阵风刮到过人（每份回放）；会塌的台子下面按整关查
+      if (laid.tide) assert(evidence.tideGap <= 400, `${id}.p${n}: the tide never gets within 400 px of the lowest player (closest ${Math.round(evidence.tideGap)})`);
+      evidence.pendulumNear.forEach((near, k) => assert(near, `${id}.p${n}: nobody passes pendulum ${k}`));
+      evidence.windHit.forEach((t, k) => assert(t >= 0.5, `${id}.p${n}: nobody is caught by wind ${k}`));
+      laid.rects.forEach((r, k) => { if (r.crumble !== undefined && evidence.crumbled[k]) crumbledAt.add(`${r.x},${r.y},${r.w}`); });
+      // 新场景的机关（长关能用）：蒸笼托过人、托盘端进终点、缆车有人坐、钥匙开了门、失重区有人飘、拉杆有人拉
+      evidence.ventRide.forEach((t, k) => assert(t >= 0.25, `${id}.p${n}: steamer ${k} never lifted anyone`));
+      if (laid.tray?.length) assert(evidence.trayHome === true, `${id}.p${n}: the tray did not end in the goal`);
+      evidence.liftRide.forEach((t, k) => assert(t >= 1, `${id}.p${n}: nobody rode lift ${k}`));
+      evidence.keysUsed.forEach((used, k) => assert(used, `${id}.p${n}: key ${k} never opened its gate`));
+      evidence.floatTime.forEach((t, k) => assert(t >= 1, `${id}.p${n}: nobody floated through zero-gravity zone ${k}`));
+      evidence.leverPulled.forEach((on, k) => assert(on, `${id}.p${n}: lever ${k} is never pulled`));
       for (let player = 0; player < n; player++) {
         const solo = { ...replay, players: 1, frames: replay.frames.map(f => [f[player]]) };
         assert.equal((await physics.runReplay(level, solo)).won, false, `${id}.p${n}: P${player + 1} solo bypass (original layout)`);
@@ -1773,6 +1840,8 @@ async function checkMulti(physics, existing) {
       console.log(`| ${id} | ${n} | ${result.seconds.toFixed(2)} | ${result.deaths.join(' / ')} | YES | ${ratio.toFixed(3)} | ${level.w}×${level.h} | ${segments.map(t => t.toFixed(2)).join(' / ')} | ${sections.map(s => `${s.chain.toFixed(2)}/${s.boost.toFixed(2)}/${s.throws}/${s.holds}`).join('; ')} | 0/${n} | ${longestIdle.toFixed(2)} |`);
       replays.push({ replay, result, evidence, sections });
     }
+    // 每块会塌的台子至少在一份回放里有人碰塌过
+    for (const r of level.rects) if (r.crumble !== undefined) assert(crumbledAt.has(`${r.x},${r.y},${r.w}`), `${id}: crumbling platform at (${r.x}, ${r.y}) is never touched in any replay`);
     if (!process.argv.includes('--multi-screenshots')) {
       const png = await readFile(join(multiDocs, `${id}.png`));
       assert(png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])), `${id}: invalid PNG`);
@@ -1799,7 +1868,7 @@ async function checkMulti(physics, existing) {
 
 /** C14 screenshots: only the multiplayer directory, two-player layout, original Pixi stage. */
 async function screenshotMulti(entries) {
-  const source = browserSource.replace("||'table-01'", "||'multi-01'").replace('lessons[level.teaches]', "({hold:'一个按着，一个过去 / Hold it for a friend',combine:'门与升降台接力 / Doors and lifts together'})[level.teaches]");
+  const source = browserSource.replace("||'table-01'", "||'multi-01'").replace('lessons[level.teaches]', "({...lessons,boost:'踩着队友上去 / Boost a friend',hold:'一个按着，一个过去 / Hold it for a friend',counterweight:'几个人一起压 / Weigh it down together',relay:'一个个递上去 / Pass each other up',combine:'门与升降台接力 / Doors and lifts together'})[level.teaches]");
   const bundle = await build({ stdin: { contents: source, resolveDir: root }, bundle: true, platform: 'browser', format: 'esm', write: false, logLevel: 'silent' });
   const tokens = await readFile(resolve(root, '../../site/src/styles/tokens.css'));
   const server = createServer((req, res) => {
@@ -1874,6 +1943,7 @@ try {
     if (main) assert(segments.every(t => t >= 15 && t <= 60), id + ': checkpoint segment outside 15–60s: ' + segments.map(t => t.toFixed(2)).join('/'));
     assert(result.won, `${id} (${replay.players} players): replay did not reach the goal: ${JSON.stringify(result.final)}`);
     if (main) assert(ratio >= 0.5 && ratio <= 2, `${id}: time outside par × [0.5, 2]`);
+    if (main && level.long) assert(result.seconds >= LONG_SECONDS, `${id}: a long level's main replay takes at least ${LONG_SECONDS} s, took ${result.seconds.toFixed(1)}`);
     else assert(ratio <= 2, `${id} (${replay.players} players): time over par × 2`);
     assert(result.deaths.every((d) => d <= level.par.deathsPerPlayer * 4), `${id}: too many deaths`);
     assert(result.deaths.reduce((sum, d) => sum + d, 0) <= level.par.deathsPerPlayer * 4, `${id}: team deaths exceed budget`);
@@ -2026,6 +2096,9 @@ try {
   const hardish = new Set(climbing.filter((e) => tierOf(e.level) >= 1).map((e) => e.level.id));
   const tired = new Set(climbing.filter((e) => staminaOn(e.level)).map((e) => e.level.id));
   console.log(`stamina: ${tired.size}/${hardish.size} medium and hard levels replayed with tired hands`);
+  // 长关（A13）：有几关、各多长
+  const longs = climbing.filter((e) => e.level.long);
+  console.log(`long: ${longs.length} long levels${longs.length ? ` (${longs.map((e) => `${e.level.id} ${Math.round(routeLength(e.level))} px`).join(', ')})` : ''}`);
   console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard + ${teamEntries.length}/6 team + ${sceneCounts.join(' + ')} + ${multiEntries.length}/9 multi PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS`);
 } catch (error) {
   console.error(`levels: FAIL — ${error.message}`);

@@ -2,7 +2,7 @@
  * 单人、多人和三档难度（11-13）：哪关在哪档、几个人能开、大厅里写什么。
  */
 import { describe, expect, test } from 'vitest';
-import { LEVELS, levelsFor, MULTI_LEVELS, tierOfLevel } from './levels';
+import { LEVELS, levelsFor, MULTI_LEVELS, teachText, tierOfLevel } from './levels';
 import type { Level } from './physics/level';
 import { notReadyText } from './mode-text';
 import { maxPlayers, minPlayers, SIDE_MODES, sideFor, tiered } from './sides';
@@ -60,5 +60,18 @@ describe('单人和多人', () => {
     expect(notReadyText(1, 'multi', 'climb')).toEqual({ zh: '1 个人。多人至少要 2 个人。', en: '1 player. Multiplayer needs at least 2.' });
     expect(notReadyText(3, 'multi', 'team')?.zh).toContain('至少要 4 个人');
     for (const t of [notReadyText(2, 'solo', 'climb'), notReadyText(1, 'multi', 'last')]) expect(t?.en).toMatch(/[A-Za-z]/);
+  });
+
+  test('长关（A13）的「这关教」前面写长关，中英都有；新机关的四个词都有中英', () => {
+    const base = LEVELS.find((l) => l.id === 'kitchen-29') as Level;
+    const plain = teachText({ ...base, long: undefined });
+    const long = teachText({ ...base, long: true });
+    expect(long.zh).toBe(`长关 · ${plain.zh}`);
+    expect(long.en).toBe(`Long level · ${plain.en}`);
+    for (const word of ['tide', 'crumble', 'pendulum', 'wind']) {
+      const t = teachText({ ...base, teaches: word });
+      expect(t.zh).not.toContain(word);
+      expect(t.en).not.toContain(`: ${word}`);
+    }
   });
 });
