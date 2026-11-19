@@ -363,6 +363,10 @@ input {
   height: var(--tap);
   border-radius: var(--r-pill);
   background: var(--color-raised);
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.icon-btn:active {
+  transform: scale(0.94);
 }
 
 /* ---------- sheets ---------- */
@@ -416,6 +420,7 @@ html.has-sheet body {
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4) var(--space-4);
   overflow-y: auto;
+  overscroll-behavior: contain; /* (scrolled to its end, the page behind doesn't start moving) */
   -webkit-overflow-scrolling: touch;
 }
 .sheet-body:last-child {
@@ -433,6 +438,32 @@ html.has-sheet body {
   from {
     opacity: 0;
     transform: translateY(var(--motion-shift));
+  }
+}
+/* closing (common.tsx): faster than it came, and the page is tappable at once */
+.scrim-leaving {
+  pointer-events: none;
+  animation: fade-out var(--dur-exit) var(--ease-out) forwards;
+}
+.scrim-leaving .sheet {
+  animation: sink var(--dur-exit) var(--ease-out) forwards;
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sink {
+  to {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+/* something small that has just appeared because of a tap */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
   }
 }
 .toast-wrap {
@@ -641,6 +672,7 @@ a.shop-name {
   margin: 0 calc(var(--side) * -1);
   padding: var(--space-2) var(--side);
   overflow-x: auto;
+  overscroll-behavior-x: contain; /* (swiped to its end, the browser doesn't take it as "go back") */
   background: var(--color-bg);
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -659,6 +691,13 @@ a.shop-name {
   font-size: var(--text-sm);
   font-weight: 700;
   white-space: nowrap;
+  transition:
+    transform var(--dur-exit) var(--ease-out),
+    background-color var(--dur-enter) var(--ease-out),
+    color var(--dur-enter) var(--ease-out);
+}
+.tab:active {
+  transform: scale(0.94);
 }
 .tab[aria-current="true"],
 .tab[aria-pressed="true"] {
@@ -704,6 +743,7 @@ a.shop-name {
   border-radius: var(--r-field);
   object-fit: cover;
   background: var(--color-surface);
+  transition: opacity var(--dur-enter) var(--ease-out);
 }
 /* a picture in the list is the way to the large one */
 .item-photo-btn {
@@ -712,16 +752,26 @@ a.shop-name {
   padding: 0;
   border-radius: var(--r-field);
   cursor: zoom-in;
+  transition: transform var(--dur-exit) var(--ease-out);
 }
-/* the large picture: all of it, as tall as the phone allows */
+.item-photo-btn:active {
+  transform: scale(0.94);
+}
+/* the large picture: all of it, as tall as the phone allows, in a frame whose size is known
+   before the picture comes (nothing below it jumps when it does) */
 .look-photo {
   display: block;
   width: 100%;
-  height: auto;
+  aspect-ratio: 4 / 3;
   max-height: 58vh;
   object-fit: contain;
   border-radius: var(--r-panel);
   background: var(--color-surface);
+  transition: opacity var(--dur-enter) var(--ease-out);
+}
+/* (until it has come: then it fades in, src/client/ui/Offer.tsx) */
+.photo-waiting {
+  opacity: 0;
 }
 .look-photo-low {
   max-height: 30vh;
@@ -829,6 +879,15 @@ a.shop-name {
   height: var(--tap-crowded);
   border-radius: var(--r-pill);
   color: var(--color-text);
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.step:active:not(:disabled) {
+  transform: scale(0.9);
+}
+/* the + that became a stepper: it grows out of where the + was */
+.stepper-new {
+  transform-origin: right center;
+  animation: pop-in var(--dur-enter) var(--ease-pop);
 }
 .step-more {
   background: var(--gel);
@@ -885,6 +944,13 @@ a.shop-name {
   backdrop-filter: var(--blur-glass);
   box-shadow: var(--shadow-sheet);
   transform: translateX(-50%);
+  /* it comes up from the bottom edge when the first thing goes in */
+  animation: dock-in var(--dur-enter) var(--ease-out);
+}
+@keyframes dock-in {
+  from {
+    transform: translate(-50%, 100%);
+  }
 }
 .dock-cart {
   flex: 1 1 auto;
@@ -894,6 +960,10 @@ a.shop-name {
   min-width: 0;
   min-height: 50px;
   text-align: left;
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.dock-cart:active {
+  transform: scale(0.97);
 }
 .dock-count {
   color: var(--color-text-2);
@@ -905,6 +975,19 @@ a.shop-name {
 .dock-total {
   font-size: var(--text-lg);
   font-weight: 800;
+}
+/* a number in the cart that has just changed (each is drawn anew then) ticks: it starts a little
+   larger, in the tool's light, and settles */
+.dock-count,
+.dock-total {
+  transform-origin: left center;
+  animation: tick var(--dur-enter) var(--ease-out);
+}
+@keyframes tick {
+  from {
+    color: var(--gel);
+    transform: scale(1.08);
+  }
 }
 .cart-lines {
   display: flex;
@@ -1158,6 +1241,12 @@ a.shop-name {
   color: var(--color-success);
   font-size: var(--text-lg);
   font-weight: 800;
+  /* the one moment of this tool that may show a little joy: the order went in */
+  transform-origin: left center;
+  animation: pop-in var(--dur-emphasis) var(--ease-pop);
+}
+.code-new {
+  animation: rise var(--dur-emphasis) var(--ease-out);
 }
 .code {
   font-family: var(--font-display);
@@ -1509,11 +1598,40 @@ a.shop-name {
 
 @media (prefers-reduced-motion: reduce) {
   .btn,
-  .add {
+  .add,
+  .icon-btn,
+  .item-photo-btn,
+  .step,
+  .dock-cart {
     transition: none;
   }
+  .tab {
+    transition:
+      background-color var(--dur-enter) var(--ease-out),
+      color var(--dur-enter) var(--ease-out);
+  }
   .btn:active:not(:disabled),
-  .add:active {
+  .add:active,
+  .icon-btn:active,
+  .tab:active,
+  .item-photo-btn:active,
+  .step:active:not(:disabled),
+  .dock-cart:active {
     transform: none;
+  }
+  /* what came up or grew only fades in; a number that changed only changes color */
+  .dock,
+  .stepper-new,
+  .hero p.placed {
+    animation-name: fade;
+  }
+  .dock-count,
+  .dock-total {
+    animation-name: tint;
+  }
+}
+@keyframes tint {
+  from {
+    color: var(--gel);
   }
 }
