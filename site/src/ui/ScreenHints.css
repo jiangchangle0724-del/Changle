@@ -42,15 +42,53 @@
   font-size: var(--text-sm);
   line-height: var(--leading);
 }
+/* the toolbar card: the phone in 3D on the left, the steps beside it */
+.ui-hint-wide {
+  align-items: center;
+  max-width: calc(var(--page-max) * 1.3);
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - var(--space-6));
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ui-hint-wide .ui-demo {
+  flex: 0 0 min(40%, calc(var(--page-max) / 2));
+}
 .ui-hint-steps {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  margin-top: var(--space-2);
   padding-left: var(--space-6);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   line-height: var(--leading);
 }
+/* the step the phone is at is lit; the others wait a shade back */
+.ui-hint-steps li {
+  transition: color var(--dur-enter) var(--ease-out);
+}
+.ui-hint-steps:has(li[data-on]) li:not([data-on]) {
+  color: var(--color-text-2);
+}
+.ui-hint-steps li::marker {
+  color: var(--color-text-2);
+  font-weight: 800;
+}
+.ui-hint-steps li[data-on]::marker {
+  color: var(--color-accent);
+}
 .ui-hint-also {
-  margin-top: var(--space-4);
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+}
+/* held upright (only on the preview page: the card closes when the phone turns), one above the other */
+@media (orientation: portrait) {
+  .ui-hint-wide {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ui-hint-wide .ui-demo {
+    flex-basis: auto;
+  }
 }
 .ui-hint-row {
   display: flex;

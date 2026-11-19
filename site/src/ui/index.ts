@@ -6,6 +6,7 @@ export { Sheet } from "./Sheet";
 export { Tabs } from "./Tabs";
 export { Pill } from "./Pill";
 export { ScreenHints } from "./ScreenHints";
+export { ToolbarDemo } from "./ToolbarDemo";
 export { RosterChip } from "./RosterChip";
 export { OTPInput } from "./OTPInput";
 export { Toast, ToastProvider, useToast } from "./Toast";
