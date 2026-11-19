@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Mood } from "../../shared/dj/dance";
-import { danceAt, danceNext, IDLES, idleAt, OUTFIT, type Look } from "./dancer/dances";
+import { DANCE_BEATS, danceAt, danceNext, IDLES, idleAt, OUTFIT, WALK, type Look } from "./dancer/dances";
 import type { Her } from "./dancer/her";
 import { anyGl, glOf, ratioFor, SLOW_MS, WATCH_FRAMES, WATCH_MS, watchFrames } from "./robot3d";
 
@@ -16,6 +16,17 @@ const tell = (is: Is) => {
 const BLEND_S = 0.6;
 /** Changing outfits: a flash of light over her this long, the new one in at its brightest. */
 const CHANGE_S = 0.5;
+/**
+ * Walking the stage: her place when she stays put (the left of the TV, her box's middle, in the
+ * stage's pixels), how near its edges she goes, how fast she turns (a quarter turn in about a third
+ * of a second), and how often, at a new dance, she walks somewhere else.
+ */
+const HOME_PX = 194;
+const EDGE_PX = 140;
+const TURN_RAD_S = 4.5;
+const WALK_CHANCE = 0.5;
+/** facing the room, turned a little */
+const FACE = 0.05;
 
 /**
  * The dancer on the big screen in 3D (Steve on Nov 14: "我要跟真人看起来一样，要达到我给你照片这个水平…
@@ -27,14 +38,18 @@ const CHANGE_S = 0.5;
  * Her look follows the music (Nov 18): its outfit fetched when it's first wanted, changed in a flash
  * of light; its dances. Her rim lights take the room's colour. No graphics chip, her frames too slow,
  * or her files can't load: `onFail` (the robot, then the drawn dancer). `light` (an iPhone or iPad as
- * the speaker): one outfit kept at a time.
+ * the speaker): one outfit kept at a time. `roam` (Nov 18): whether she may walk the whole stage now (no
+ * song's video in the middle): now and then, at a new dance, she walks somewhere else on it (her own
+ * canvas the stage's width, she behind the floor); otherwise back to her place on the left.
  */
-export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: { clock: Clock; mood: () => Mood; look: () => Look; light?: boolean; onReady: () => void; onFail: () => void }) {
+export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFail }: { clock: Clock; mood: () => Mood; look: () => Look; roam: () => boolean; light?: boolean; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
   const fail = useRef(onFail);
   const moodNow = useRef(mood);
   const lookNow = useRef(look);
+  const roamNow = useRef(roam);
+  roamNow.current = roam;
   ready.current = onReady;
   fail.current = onFail;
   moodNow.current = mood;
@@ -159,8 +174,28 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
         const mid = (top + bottom) / 2;
         camera.position.set(0, mid + 0.1, Math.max(((top - bottom) / 2 / tan) * 1.04, 0.6 / tan / camera.aspect));
         camera.lookAt(0, mid, 0);
-        const turn = 0.05;
-        her.root.rotation.y = turn;
+        her.root.rotation.y = FACE;
+        // the canvas changing size (a full song's video: down in the corner): the camera keeps her height
+        let cw = w;
+        const resize = new ResizeObserver(() => {
+          const nw = el.clientWidth || cw;
+          const nh = el.clientHeight || h;
+          if (nw === cw && nh === renderer.domElement.height / renderer.getPixelRatio()) return;
+          cw = nw;
+          renderer.setSize(nw, nh);
+          camera.aspect = nw / nh;
+          camera.updateProjectionMatrix();
+        });
+        resize.observe(el);
+        // where she is on the stage, and where she's going: her canvas's pixels to her floor's metres
+        const toX = (px: number) => (px / cw - 0.5) * 2 * camera.position.z * tan * camera.aspect;
+        const homeX = () => toX(Math.min(HOME_PX, cw / 2));
+        let x = homeX();
+        let goal = x;
+        let rot = FACE;
+        let block = -1;
+        let walking = false;
+        const walkId = WALK?.id ?? (import.meta.env.DEV ? ((window as unknown as { __djWalk?: string }).__djWalk ?? null) : null);
 
         let cur = firstIdle;
         let curT = 0;
@@ -210,10 +245,46 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
           const bpm = clock.bpm() || 120;
           const sec = (t - start) / 1000;
           const lk = lookNow.current();
+          // walking the stage: at a new dance, now and then, somewhere else on it; with a song's video
+          // in the middle (or no beat), back to her place
+          const free = !!walkId && on && roamNow.current() && cw > 600;
+          const blk = on ? Math.floor(b / DANCE_BEATS) : -1;
+          if (blk !== block) {
+            block = blk;
+            if (free && Math.random() < WALK_CHANCE) {
+              const lo = toX(EDGE_PX);
+              const hi = toX(cw - EDGE_PX);
+              // (far enough to be a walk, not a shuffle)
+              let to = x;
+              for (let tries = 0; tries < 6 && Math.abs(to - x) < 1; tries++) to = lo + Math.random() * (hi - lo);
+              if (Math.abs(to - x) >= 1) goal = to;
+            }
+          }
+          if (!free) goal = homeX();
+          const gap2 = goal - x;
+          if (Math.abs(gap2) > 0.02 && walkId && her!.knows(walkId)) {
+            // turned to where she's going, then walking, a stride a beat
+            const face = Math.sign(gap2) * (Math.PI / 2);
+            rot += Math.max(-TURN_RAD_S * dt, Math.min(TURN_RAD_S * dt, face - rot));
+            if (Math.abs(face - rot) < 0.25) {
+              const v = (WALK?.stride ?? 0.5) * ((on ? bpm : 110) / 60);
+              x += Math.sign(gap2) * Math.min(Math.abs(gap2), v * dt);
+            }
+            walking = true;
+          } else {
+            // there (or nowhere to walk to): turned back to the room
+            if (Math.abs(gap2) > 0.02 && walkId) void her!.learn(walkId).catch(() => {});
+            rot += Math.max(-TURN_RAD_S * dt, Math.min(TURN_RAD_S * dt, FACE - rot));
+            walking = Math.abs(FACE - rot) > 0.3;
+          }
+          her!.root.position.x = x;
+          her!.root.rotation.y = rot;
+          shadow.position.x = x;
+          flash.position.x = x;
           // the dance for this beat (and the next one fetched ahead); with no song, standing easy at her
-          // own tempo
+          // own tempo; walking, her walk
           const idle = idleAt(sec);
-          let want = on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
+          let want = walking && walkId && her!.knows(walkId) ? walkId : on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
           if (on) void her!.learn(danceNext(Math.floor(b), lk, bpm)).catch(() => {});
           if (!her!.knows(want)) {
             void her!.learn(want).catch(() => {});
@@ -239,7 +310,8 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
               const old = her!;
               scene.remove(old.root);
               her = change.to;
-              her.root.rotation.y = turn;
+              her.root.rotation.y = rot;
+              her.root.position.x = x;
               scene.add(her.root);
               // (an iPhone or iPad keeps one: the old one let go, fetched again if it's wanted again)
               if (light) {
@@ -255,7 +327,7 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
           }
           // with the music on, her time is its beat (a sway a ballad's dances include too); standing easy
           // with none, the seconds at the idle's own tempo
-          const rateOf = (id: string) => (on ? bpm : (idleBpm(id) ?? bpm)) / 60;
+          const rateOf = (id: string) => (on ? bpm : id === walkId ? 110 : (idleBpm(id) ?? bpm)) / 60;
           const tWant = on ? b : sec * rateOf(want);
           if (want !== cur) {
             // the new one flows in from wherever the last one is
@@ -280,12 +352,13 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
           her!.root.updateMatrixWorld(true);
           renderer.render(scene, camera);
           // (the checks read what she dances and wears, and what drawing her costs: dj_dancer_check.py)
-          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, dancing: on, beat: b, look: lk, outfit: her!.outfit, outfits: [...outfits.keys()], calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, dancing: on, beat: b, look: lk, outfit: her!.outfit, outfits: [...outfits.keys()], x: Math.round(((x / (camera.position.z * tan * camera.aspect)) / 2 + 0.5) * cw), walking, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
         };
         tell(watch ? "watching" : "on");
         frame();
         stop = () => {
           cancelAnimationFrame(raf);
+          resize.disconnect();
           for (const o of outfits.values()) o.dispose();
           outfits.clear();
           shadow.geometry.dispose();
@@ -314,7 +387,8 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
       stop();
     };
   }, [clock, light]);
-  return <div className="dj-coach-3d" ref={box} aria-hidden="true" />;
+  // (as wide as the stage once she can walk it)
+  return <div className={`dj-coach-3d ${WALK || (import.meta.env.DEV && (window as unknown as { __djWalk?: string }).__djWalk) ? "is-wide" : ""}`} ref={box} aria-hidden="true" />;
 }
 
 /** an idle's own tempo (none: a dance, danced on the song's) */

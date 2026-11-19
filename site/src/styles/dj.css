@@ -805,7 +805,8 @@
   position: absolute;
   top: 120px;
   left: 8px;
-  z-index: 6;
+  /* (behind the floor's dancers when she walks across the stage) */
+  z-index: 3;
   width: 372px;
   height: 760px;
   pointer-events: none;
@@ -831,6 +832,14 @@
 .dj-coach-3d {
   position: absolute;
   inset: 0;
+}
+/* (once she can walk the stage: her canvas as wide as it, from its left edge) */
+.dj-coach-3d.is-wide {
+  inset: 0 auto 0 -8px;
+  width: 1600px;
+}
+.dj-coach.is-over .dj-coach-3d.is-wide {
+  left: 0;
 }
 .dj-coach-3d canvas {
   display: block;

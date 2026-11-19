@@ -364,7 +364,7 @@ export default function TvDj({ v }: { v: DjView }) {
       )}
       {/* (all night, whole songs too: over the video when it's over the whole TV) */}
       {/* (the host can turn her off from their phone) */}
-      {live && v.phase !== "end" && v.dancer !== false && <Coach clock={coachClock} mood={mood} look={look} light={light} over={covered} />}
+      {live && v.phase !== "end" && v.dancer !== false && <Coach clock={coachClock} mood={mood} look={look} roam={!tubeUp} light={light} over={covered} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
       {/* a song file a phone sent, whole, in this page's own sound */}
       {live && v.deck && <PhoneSong v={v} crate={booth.crate} speaker={speaker} now={now} zh={zh} nameOf={nameOf} done={(id) => g("songdone", { id })} />}

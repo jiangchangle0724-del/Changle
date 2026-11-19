@@ -56,6 +56,12 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] 
   { id: "idle2", bpm: 111, looks: ["sweet"] },
 ];
 
+/**
+ * Her walk across the stage (Steve on Nov 18: "她是可以在整个舞台从左到右走动的"): a walk cycle, a step a beat
+ * (`stride` metres a step), between two of her dances now and then. None yet: she dances where she is.
+ */
+export const WALK: { id: string; bpm: number; stride: number } | null = null;
+
 /** Standing, swaying a little, when no song plays: at their own tempo. */
 export const IDLES: readonly { id: string; bpm: number }[] = [
   { id: "idle", bpm: 120.1 },
