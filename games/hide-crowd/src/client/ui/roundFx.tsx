@@ -1,11 +1,11 @@
 // What a round sounds like, and the crowd's moments on screen. On a phone: your own punches, hits and
 // spills, your bites at the night market's stalls, the ferry horn, the bike's bell and its crash, the
-// busker, the gong, the stage's count, the firecrackers or the fireworks, the last five seconds, the
-// whistle and the fanfare. On the big screen (and
+// busker, the transit hall's lights going out, the gong, the stage's count, the firecrackers or the
+// fireworks, the last five seconds, the whistle and the fanfare. On the big screen (and
 // in practice): every punch, hit and bite in the room, and a light loop for the place. And the
 // theatre's drill, counted big in the middle of the screen.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS } from "../../engine";
+import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS } from "../../engine";
 import type { AwardView, EventView, GameView } from "../../room/protocol";
 import { t, type Key } from "../i18n";
 import { buzz, installAudioUnlock, sfx, startMusic, stopMusic } from "../sound";
@@ -74,11 +74,13 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
     if (thrown) sfx.whoosh();
   }, [game.avatars]);
 
-  // the ferry horn, the bike's bell, the busker, the gong, the stage's count, the firecrackers, the fireworks
+  // the ferry horn, the bike's bell, the busker, the lights going out, the gong, the stage's count, the
+  // firecrackers, the fireworks
   useEffect(() => {
     if (moment === "horn") sfx.horn();
     if (moment === "bike") sfx.bell(game.moment?.bike?.sinceMs ?? 0);
     if (moment === "dance") sfx.busker();
+    if (moment === "blackout") sfx.lightsOut(Math.max(0, BLACKOUT_MS - (game.moment?.endsInMs ?? BLACKOUT_MS)));
     if (moment === "gong") sfx.gong();
     if (moment === "drill") sfx.drill(Math.max(0, DRILL_MS - (game.moment?.endsInMs ?? DRILL_MS)));
     if (moment === "crackers") sfx.crackers((game.moment?.crackers ?? []).map((cracker) => ({ landsInMs: cracker.landsInMs, bangsInMs: cracker.bangsInMs })));
@@ -121,6 +123,7 @@ const MOMENT: Record<NonNullable<GameView["moment"]>["kind"], { text: Key; icon:
   horn: { text: "momentHorn", icon: "ship" },
   bike: { text: "momentBike", icon: "bike" },
   dance: { text: "momentDance", icon: "note" },
+  blackout: { text: "momentBlackout", icon: "bulb" },
   gong: { text: "momentGong", icon: "gong" },
   drill: { text: "momentDrill", icon: "fist" },
   crackers: { text: "momentCrackers", icon: "cracker" },

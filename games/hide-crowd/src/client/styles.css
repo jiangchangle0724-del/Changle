@@ -27,6 +27,8 @@
   /* the night market's firecrackers: their red paper, and the smoke of a bang */
   --arena-cracker: #d4282c;
   --arena-smoke: #cfc8bd;
+  /* a phone's screen lit in the transit hall's dark (src/client/ui/lights.ts) */
+  --arena-screen: #cfe6ff;
   /* the seawall's bike (src/client/ui/bike.ts): its frame, its tyres, its leather saddle and grips, its wicker basket */
   --arena-bike: #2f9fb0;
   --arena-tyre: #1d1f24;
@@ -2036,6 +2038,10 @@ html.is-tv body::before {
 }
 /* the night market's firecrackers, flat: once one lands, the ring of how far it will knock people
    down (the blast's 6.5 across the floor's 100 x 58), beating; then its bang */
+/* the transit hall's lights out, flat: the whole floor goes dark */
+.flat-arena.is-dark {
+  filter: brightness(0.32) saturate(0.6);
+}
 /* the seawall's bike, flat: its line (chevrons running the way it rides) and the bike as a short bar */
 .flat-bike-lane {
   position: absolute;

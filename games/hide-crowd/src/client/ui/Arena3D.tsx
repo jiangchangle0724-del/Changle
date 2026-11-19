@@ -6,7 +6,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
+import { ARENA, BLACKOUT_MS, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
 import type { ArenaId, MomentKind, Pose } from "../../engine";
 import type { AvatarView, BikeView, CrackerView } from "../../room/protocol";
 import { BASE } from "../base";
@@ -19,6 +19,7 @@ import { addCinema } from "./cinema";
 import { addCrackers } from "./crackers";
 import { addEffects } from "./effects";
 import { addExtras, type Extras } from "./extras";
+import { addPhones, blackoutDark, DARK_KEEPS } from "./lights";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 import { Shake, TRAUMA } from "./shake";
 import { addFloorArt, type FloorArtPalette } from "./floorArt";
@@ -118,6 +119,7 @@ interface Palette {
   star: string;
   /** the night market's firecrackers: their paper, and the smoke of their bang */
   cracker: string;
+  screen: string;
   bike: string;
   tyre: string;
   saddle: string;
@@ -228,6 +230,7 @@ function readPalette(): Palette {
     stall3: read("--stall-3", "#d99a2b"),
     star: read("--arena-star", "#f5df3b"),
     cracker: read("--arena-cracker", "#d4282c"),
+    screen: read("--arena-screen", "#cfe6ff"),
     bike: read("--arena-bike", "#2f9fb0"),
     tyre: read("--arena-tyre", "#1d1f24"),
     saddle: read("--arena-saddle", "#6b4630"),
@@ -1000,6 +1003,8 @@ export function Arena3D(props: Props) {
     scene.add(fill);
 
     lightPlace(props.arena, palette, ambient, key, fill);
+    // (how bright each light is, for the transit hall's lights going out)
+    const lit = { ambient: ambient.intensity, key: key.intensity, fill: fill.intensity };
     const groundTexture = addGround(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
     // (and what lies on it: paths, leaves, puddles, the way out)
     const floorArt = addFloorArt(scene, props.arena, floorArtPalette(palette), renderer.capabilities.getMaxAnisotropy());
@@ -1072,6 +1077,8 @@ export function Arena3D(props: Props) {
       mesh.frustumCulled = false;
       scene.add(mesh);
     }
+    // the transit hall's phones, lit in the dark
+    const phones = props.arena === "metro" ? addPhones(scene, palette.screen, MAX_CHARACTERS) : null;
     // the seawall's bike, with its line on the floor while it comes (its shadow is the people's)
     const bike = props.arena === "plaza" ? addBike(scene, { frame: palette.bike, tyre: palette.tyre, steel: palette.steel, saddle: palette.saddle, wicker: palette.wicker, bread: palette.stone, lane: palette.warn, laneEdge: palette.grime }, shadowMat) : null;
     // the people: until their file is in (it's fetched while the lobby is up), simple stand-ins in each look's colours
@@ -1255,6 +1262,7 @@ export function Arena3D(props: Props) {
     const moodAt = (x: number, z: number, now: number): Mood => {
       const kind = moment.current?.kind;
       if (kind === "fireworks") return "sky";
+      if (kind === "blackout") return "dark";
       while (bangs.length && now - bangs[0].at > 900) bangs.shift();
       for (const bang of bangs) if (Math.hypot(bang.x - x, bang.z - z) < STARTLE) return "fright";
       return kind === "horn" || kind === "gong" || kind === "bike" ? "watch" : "calm";
@@ -1355,6 +1363,13 @@ export function Arena3D(props: Props) {
           })
         );
       }
+      // the transit hall's lights going out: they flicker off, and on again (on this page's clock)
+      if (props.arena === "metro") {
+        const out = crowd?.kind === "blackout" && crowd.endsInMs !== undefined ? blackoutDark(BLACKOUT_MS - crowd.endsInMs + Math.max(0, Date.now() - receivedAt.current), reduced) : 0;
+        ambient.intensity = lit.ambient * (1 - (1 - DARK_KEEPS.ambient) * out);
+        key.intensity = lit.key * (1 - (1 - DARK_KEEPS.key) * out);
+        fill.intensity = lit.fill * (1 - (1 - DARK_KEEPS.fill) * out);
+      }
       // the seawall's bike: its line and how far along it is (on this page's clock)
       if (bike) {
         const coming = crowd?.kind === "bike" ? crowd.bike : undefined;
@@ -1397,6 +1412,7 @@ export function Arena3D(props: Props) {
       const clock = reduced ? 0 : time / 1000;
       let localVisual: Visual | undefined;
       let winnerVisual: Visual | undefined;
+      phones?.begin();
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
         let worldX = avatar.x;
@@ -1479,6 +1495,8 @@ export function Arena3D(props: Props) {
           // (at the night market, anyone standing at a stall eats: the same rule as the tasting, for every body)
           const atStall = props.arena === "market" && stallAt(worldX, worldY) >= 0;
           person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current, moodAt(visual.x, visual.z, time), reduced, atStall);
+          // (the lights out: whoever looks at their phone lights it)
+          if (phones && person.phoneLit > 0.02) phones.add(person.phonePosition(headAt), visual.facing, person.phoneLit, camera);
           if (person.hitFx) {
             person.hitFx = false;
             if (!reduced) burst(visual.x, visual.z, time, "spark");
@@ -1515,6 +1533,7 @@ export function Arena3D(props: Props) {
           tag.sprite.visible = true;
         }
       }
+      phones?.end();
       for (let index = tagCount; index < tags.length; index++) tags[index].sprite.visible = false;
       // names close together stack instead of covering each other (the winner's first, then front to
       // back: the others lift)
@@ -1622,6 +1641,7 @@ export function Arena3D(props: Props) {
       }
       extras?.dispose();
       bike?.dispose();
+      phones?.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {
           object.geometry.dispose();

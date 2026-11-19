@@ -16,8 +16,9 @@
 // everyone. Twice a round a player can distract everyone (as in the Steam game): a passer-by across the
 // crowd throws a punch at nothing, and every eye goes there. By the seawall a cyclist now and then rings
 // their bell and rides straight through the crowd: the passers-by step out of its way, and anyone still
-// in its path goes down for all to see. First to 5 points, or the most after 3 minutes (Steve,
-// 2026-11-13: 75 s and 3 points made each place feel too short).
+// in its path goes down for all to see. In the transit hall the lights go out now and then: the
+// passers-by stop and look at their phones in the dark. First to 5 points, or the most after 3 minutes
+// (Steve, 2026-11-13: 75 s and 3 points made each place feel too short).
 
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
 export const MATCH_MS = 180_000;
@@ -104,6 +105,13 @@ export const BIKE_REACH = 3;
 /** how far either side of its line the passers-by step to */
 export const BIKE_CLEAR = 6.5;
 export const BIKE_MS = Math.ceil(((ARENA.width + 2 * BIKE_OFF) / BIKE_SPEED) * 1_000) + 300;
+/**
+ * The transit hall's lights going out (2026-11-19, the big upgrade's events): they flicker and go out
+ * for a few seconds, and back on, inside one of the walkways' quiet spells (like the busker). In the
+ * dark the passers-by stop where they are and look at their phones (whoever stands still lights
+ * theirs: a player too), so whoever walks on is a dark shape among lit faces.
+ */
+export const BLACKOUT_MS = 3_100;
 const ALL_STALLS = (1 << 4) - 1;
 
 /** The stall a spot is in front of, or -1. */
@@ -115,11 +123,12 @@ export function stallAt(x: number, y: number): number {
 export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" | "dance";
 /**
  * the moments the whole crowd reacts to: the ferry horn and the bike by the seawall (everyone steps
- * out of its way and watches it go by), the busker in the transit hall, the gong and the drill at the
- * theatre (the performer counts three and everyone punches), the night market's firecrackers (everyone
- * gets clear) and fireworks
+ * out of its way and watches it go by), the busker and the lights going out in the transit hall (in
+ * the dark everyone stops and looks at their phone), the gong and the drill at the theatre (the
+ * performer counts three and everyone punches), the night market's firecrackers (everyone gets clear)
+ * and fireworks
  */
-export type MomentKind = "horn" | "bike" | "dance" | "gong" | "drill" | "crackers" | "fireworks";
+export type MomentKind = "horn" | "bike" | "dance" | "blackout" | "gong" | "drill" | "crackers" | "fireworks";
 export type ArenaId = "plaza" | "metro" | "gallery" | "market";
 export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery", "market"];
 export interface Vector { x: number; y: number }
@@ -599,8 +608,16 @@ const MOMENTS: Record<ArenaId, { first: number; every: number; beats: readonly M
     ]
   },
   // a busker strikes up and the whole hall dances on the spot (always in one of the walkway's quiet
-  // spells, which come every 6 s: nobody dances while the floor carries them)
-  metro: { first: 8_800, every: 18_000, beats: [{ kind: "dance", lasts: 2_700, look: null }] },
+  // spells, which come every 6 s: nobody dances while the floor carries them), then the lights go out
+  // and everyone stops where they are (in a quiet spell too)
+  metro: {
+    first: 8_800,
+    every: 18_000,
+    beats: [
+      { kind: "dance", lasts: 2_700, look: null },
+      { kind: "blackout", lasts: BLACKOUT_MS, look: null }
+    ]
+  },
   // the stage: the drill (everyone punches on the call), then the gong (everyone stops and looks)
   gallery: {
     first: 12_000,

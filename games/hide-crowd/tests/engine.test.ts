@@ -351,28 +351,37 @@ test("the ferry horn turns the passers-by to the sea, the gong to the stage, the
       // (the theatre's drill, first and every other time, stops and turns the crowd to the stage too;
       // its punch on the call has its own test, as do the night market's firecrackers, which come first
       // and send the crowd every which way, and the seawall's bike, which comes after the horn)
-      assert.equal(moment.kind, { plaza: now < 23_000 ? "horn" : "bike", metro: "dance", gallery: now < 29_000 ? "drill" : "gong", market: now < 26_000 ? "crackers" : "fireworks" }[arena]);
+      assert.equal(moment.kind, { plaza: now < 23_000 ? "horn" : "bike", metro: now < 26_800 ? "dance" : "blackout", gallery: now < 29_000 ? "drill" : "gong", market: now < 26_000 ? "crackers" : "fireworks" }[arena]);
       if (moment.kind === "crackers" || moment.kind === "bike") continue;
       // (everyone has reacted, and turned, a second and a half in)
       if (now - moment.startsAt < 1_500) continue;
       for (const character of match.characters.filter((item) => item.kind === "npc" && now >= item.stunnedUntil)) {
-        assert.ok(Math.hypot(character.velocity.x, character.velocity.y) < 0.6, `${arena}: ${character.id} stops`);
+        // (on the floor: the transit hall's walkways may carry them on, in the dark)
+        const drift = environmentalDrift(arena, 0, now);
+        assert.ok(Math.hypot(character.velocity.x - drift.x, character.velocity.y - drift.y) < 0.6, `${arena}: ${character.id} stops`);
         if (moment.look) {
           const want = Math.atan2(moment.look.y - character.y, moment.look.x - character.x);
           assert.ok(Math.abs(Math.atan2(Math.sin(character.facing - want), Math.cos(character.facing - want))) < 0.4, `${arena}: ${character.id} looks`);
-        } else assert.equal(character.pose, "dance", `${arena}: ${character.id} dances`);
+        } else if (moment.kind === "dance") assert.equal(character.pose, "dance", `${arena}: ${character.id} dances`);
+        // (in the dark nobody dances: everyone stands, and looks at their phone)
+        else assert.ok(character.pose === "idle" || character.pose === "glance", `${arena}: ${character.id} stands in the dark`);
       }
     }
     assert.ok(first > 0 && first < 13_000, `${arena}: the first moment comes early in the round`);
   }
-  // the busker only plays while the walkway rests: nobody dances while the floor carries them
+  // the busker only plays, and the lights only go out, while the walkway rests: nobody dances or stands
+  // in the dark while the floor carries them
   let dances = 0;
+  let dark = 0;
   for (let now = 0; now < MATCH_MS; now += 50) {
-    if (crowdMoment("metro", 0, now)?.kind !== "dance") continue;
-    dances++;
+    const kind = crowdMoment("metro", 0, now)?.kind;
+    if (kind !== "dance" && kind !== "blackout") continue;
+    if (kind === "dance") dances++;
+    else dark++;
     assert.equal(environmentalDrift("metro", 0, now).x, 0, `the walkway is still at ${now} ms`);
   }
   assert.ok(dances * 50 >= 3 * 2_600, "the busker plays a few times a round");
+  assert.ok(dark * 50 >= 3 * 3_000, "the lights go out a few times a round");
 });
 
 test("while the busker plays, a player standing still dances like everyone, and one who walks on doesn't", () => {
@@ -553,7 +562,8 @@ test("the theatre's moments take turns: the drill, where every passer-by punches
   assert.equal(crowdMoment("gallery", 0, 12_100)?.kind, "drill");
   assert.equal(crowdMoment("gallery", 0, 29_100)?.kind, "gong");
   assert.equal(crowdMoment("gallery", 0, 46_100)?.kind, "drill");
-  assert.equal(crowdMoment("metro", 0, 26_900)?.kind, "dance", "a place with one moment keeps it");
+  assert.equal(crowdMoment("metro", 0, 26_900)?.kind, "blackout", "the transit hall's lights go out after the busker");
+  assert.equal(crowdMoment("metro", 0, 44_900)?.kind, "dance", "and the busker comes back");
   let match = createMatch(players, 0, 31, "gallery");
   const punched = new Set<string>();
   for (let now = 50; now <= 12_000 + DRILL_GO_MS + 600; now += 50) {
