@@ -7,10 +7,13 @@ import { holdBackground } from "../lib/music";
 import { unlockAudio } from "../lib/sfx";
 import { setSoundEnabled } from "../lib/sound";
 import { useRoom } from "../online/RoomContext";
+import { DANCE } from "../party/dance/link";
+import { HANGON } from "../party/hangon/link";
 import { hideUrl, markWent as markWentHide } from "../party/hide/link";
+import { markWent as markWentStage, type StageLink } from "../party/stage/link";
 import { useWakeLock } from "../party/sensors";
 import { markWent, tripUrl } from "../party/trip/link";
-import type { GameView, HideView, TripView } from "../shared/protocol";
+import type { DanceView, GameView, HangOnView, HideView, TripView } from "../shared/protocol";
 import { useStore } from "../store";
 import { TvCorner, TvPenalties, TvReactions } from "./moments";
 import { siteHost } from "./parts";
@@ -65,6 +68,8 @@ export default function Watch({ v }: { v: GameView }) {
   let body: ReactNode;
   if (v.id === "trip") body = <TripAway v={v} />;
   else if (v.id === "hide") body = <HideAway v={v} />;
+  else if (v.id === "dance") body = <StageAway v={v} link={DANCE} />;
+  else if (v.id === "hangon") body = <StageAway v={v} link={HANGON} />;
   else if (v.id === "dj") body = <DjAway />;
   else body = <TvView v={v} sound={showSound} fallback={<Loading />} />;
 
@@ -73,7 +78,7 @@ export default function Watch({ v }: { v: GameView }) {
       <div className={`watch-turn ${turned ? "is-turned" : ""}`} style={{ width: W, height: H }}>
         <div className="watch-canvas" style={{ transform: `translate(-50%, -50%) scale(${k})`, ["--gel" as string]: GAME_BY_ID[v.id].gel } as CSSProperties}>
           {body}
-          {v.id !== "dj" && v.id !== "trip" && v.id !== "hide" && <TvCorner code={code} />}
+          {v.id !== "dj" && v.id !== "trip" && v.id !== "hide" && v.id !== "dance" && v.id !== "hangon" && <TvCorner code={code} />}
           <TvReactions />
           {/* (this phone already stamps a penalty out loud, as every phone at the table does) */}
           {room && <TvPenalties room={room} sound={false} />}
@@ -244,6 +249,33 @@ function HideAway({ v }: { v: HideView }) {
         }}
       >
         {zh ? "打开藏在人群里的大屏" : "Open its big screen"}
+      </button>
+    </Away>
+  );
+}
+
+/** 一起跳 and 抓紧了 play on pages of their own too, each with a stage of its own (party/stage): the way there. */
+function StageAway({ v, link }: { v: DanceView | HangOnView; link: StageLink }) {
+  const { code } = useRoom();
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const name = zh ? GAME_BY_ID[link.id].name.zh : GAME_BY_ID[link.id].name.en;
+  const stage = zh ? link.stageName.zh : link.stageName.en;
+  if (!v.code) return <Away icon={link.icon} title={zh ? `${name}：主人的手机正在开局` : `${name}: the host's phone is opening the game`} />;
+  // a phones-only room (抓紧了 opened when no big screen was at the table): the host's phone is its stage
+  if (v.id === "hangon" && v.phone)
+    return <Away icon={link.icon} title={zh ? "这局是在主人的手机上开的" : "This game was opened on the host's phone"} text={zh ? `主人的手机就是${stage}，大家都在自己手机上看。` : `That phone is the ${stage}, and everyone watches on their own phone.`} />;
+  return (
+    <Away icon={link.icon} title={zh ? `${name}有自己的${stage}` : `${name} has a ${stage} of its own`} text={zh ? link.stageLead.zh : link.stageLead.en}>
+      <button
+        type="button"
+        className="tv-btn tv-btn-main"
+        onClick={() => {
+          markWentStage(link.id, v.code!, true);
+          window.location.assign(link.stageUrl(v.code!, code));
+        }}
+      >
+        {zh ? `打开${name}的${stage}` : `Open its ${stage}`}
       </button>
     </Away>
   );

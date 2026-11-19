@@ -113,8 +113,9 @@ function LobbyBoard() {
 
   const spin = () => {
     if (sweeping) return;
-    // (never onto a game that needs its big screen first, like the DJ booth: that's picked on purpose)
-    const spinnable = (i: number) => !GAME_BY_ID[ONLINE_GAMES[i]].hidden && !GAME_BY_ID[ONLINE_GAMES[i]].speaker;
+    // (never onto a game that needs its big screen first, like the DJ booth, or one with a stage of its
+    // own that everyone leaves the table for, like 一起跳: those are picked on purpose)
+    const spinnable = (i: number) => !GAME_BY_ID[ONLINE_GAMES[i]].hidden && !GAME_BY_ID[ONLINE_GAMES[i]].speaker && !GAME_BY_ID[ONLINE_GAMES[i]].stage;
     const options = onBoard.filter((i) => players >= ONLINE_MIN[ONLINE_GAMES[i]] && i !== front && spinnable(i));
     const pool = options.length ? options : onBoard.filter(spinnable);
     const target = pool[Math.floor(Math.random() * pool.length)];

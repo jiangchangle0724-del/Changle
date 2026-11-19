@@ -46,6 +46,7 @@ jobs:
       - run: npx tsx tests/dj-sound.test.ts
       - run: npx tsx tests/trip.test.ts
       - run: npx tsx tests/hide.test.ts
+      - run: npx tsx tests/stage.test.ts
       - run: npx tsx tests/draw.test.ts
       - run: npx tsx tests/mail.test.ts
       - run: npx tsx tests/cutout.test.ts
