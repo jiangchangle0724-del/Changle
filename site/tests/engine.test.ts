@@ -593,6 +593,7 @@ function closeEnough() {
   t.g("p2", "guess", { text: "时钟" });
   let v = t.view<V>("p1");
   ok(!v.solved.length && v.guesses.filter((x) => x.text.startsWith("时钟")).length === 3, "时钟 is not 钟表 by itself");
+  ok(v.guesses.map((x) => x.n).join() === "1,2,3,4", `each guess has its own number, for the screens to tell them apart (${v.guesses.map((x) => x.n).join()})`);
   // nobody but the drawer can count a guess: not a guesser, not the host who isn't drawing
   t.g("p1", "accept", { text: "时钟" });
   ok(!t.view<V>("p1").solved.length, "a guesser can't count their own guess");
@@ -605,6 +606,7 @@ function closeEnough() {
   ok(v.scores.p1 === 4 && v.scores.p3 === 2 && v.scores.p2 === 2 && v.scores.p0 === 4, `scored as right guesses (${JSON.stringify(v.scores)})`);
   ok(!v.guesses.some((x) => x.text.includes("时钟")), "the counted guess no longer shows to anyone");
   ok(v.guesses.filter((x) => x.ok).length === 3 && v.guesses.some((x) => x.pid === "p2" && x.text === "闹钟"), `one 'got it' each, and the other guesses stay (${JSON.stringify(v.guesses)})`);
+  ok(v.guesses.map((x) => `${x.n}${x.ok ? "ok" : ""}`).join() === "1ok,2,3ok,4ok", `a guess counted as right keeps its number (${v.guesses.map((x) => `${x.n}${x.ok ? "ok" : ""}`).join()})`);
   ok(t.events.filter((e) => e.k === "fx" && e.fx === "correct").length - before === 3, "the room hears each one");
   ok(v.phase === "result" && !t.pens().length, "all three have it: the round is over, nobody drinks");
 
@@ -625,6 +627,11 @@ function closeEnough() {
   (u.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "飞机");
   u.g("p2", "guess", { text: "plane" });
   ok(!u.view<V>("p0").solved.length, "a new round starts with nothing counted");
+  // the numbers go on from round to round, and past 40 guesses the list keeps the last 40, numbered
+  ok(u.view<V>("p0").guesses[0].n === 3, `the new round's first guess is the game's third (${u.view<V>("p0").guesses[0].n})`);
+  for (let i = 0; i < 45; i++) u.g("p2", "guess", { text: `猜${i}` });
+  const ns = u.view<V>("p0").guesses.map((x) => x.n ?? 0);
+  ok(ns.length === 40 && ns[0] === 9 && ns[39] === 48 && ns.every((n, i) => !i || n === ns[i - 1] + 1), `the last 40, each with its number (${ns[0]}..${ns[39]}, ${ns.length})`);
 }
 
 test("draw: nobody left to guess: the round ends, and the drawer doesn't drink for it", () => {

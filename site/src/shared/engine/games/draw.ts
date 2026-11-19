@@ -10,7 +10,8 @@ type S = {
   d: D;
   word: number | null;
   endsAt: number;
-  guesses: { pid: string; text: string; ok: boolean }[];
+  /** `n`: the guess's own number in the game, so a screen can tell guesses apart as the list changes. */
+  guesses: { pid: string; text: string; ok: boolean; n?: number }[];
   solved: string[];
   scores: Record<string, number>;
   round: number;
@@ -23,6 +24,8 @@ type S = {
   close?: string[];
   /** This round ended with nobody left to guess: nobody got it, and nobody is penalized for that. */
   alone?: boolean;
+  /** The last number a guess was given (they count up all game, never again from 1). */
+  seq?: number;
 };
 
 const ROUND_MS = DRAW_ROUND_MS;
@@ -165,12 +168,14 @@ export const draw: GameDef<S> = {
         const text = clean(g.text, DRAW_GUESS_MAX);
         if (!text) return;
         const w = DRAW_WORDS[s.word];
+        const n = (s.seq ?? 0) + 1;
+        s.seq = n;
         if (drawMatches(text, w) || (s.close ?? []).some((c) => same(text, c))) {
           // (a right guess says who, never what)
-          s.guesses.push({ pid, text: "", ok: true });
+          s.guesses.push({ pid, text: "", ok: true, n });
           solve(s, pid, api);
         } else {
-          s.guesses.push({ pid, text, ok: false });
+          s.guesses.push({ pid, text, ok: false, n });
         }
         if (s.guesses.length > 40) s.guesses = s.guesses.slice(-40);
         return;
@@ -189,7 +194,8 @@ export const draw: GameDef<S> = {
           // (it's now a right answer, so it no longer shows: typed again by someone who has it, or by
           // someone who has left or is just watching, it goes)
           else if (x.pid !== s.drawer && api.has(x.pid) && !s.solved.includes(x.pid) && !now.includes(x.pid)) {
-            kept.push({ pid: x.pid, text: "", ok: true });
+            // (the same guess, now a right one: it keeps its number)
+            kept.push({ pid: x.pid, text: "", ok: true, n: x.n });
             now.push(x.pid);
           }
         }
