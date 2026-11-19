@@ -88,6 +88,14 @@
 .tvlb-scene .limbo-3d {
   width: 800px;
 }
+/* the 3D stage's floor fades out at the sides and the foot instead of stopping at the canvas's
+   edge: on the TV's open stage there is no box round it as there is on a phone */
+.tvlb-scene .limbo-3d {
+  -webkit-mask-image: linear-gradient(to right, transparent, var(--night) 12%, var(--night) 88%, transparent), linear-gradient(to top, transparent, var(--night) 16%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, var(--night) 12%, var(--night) 88%, transparent), linear-gradient(to top, transparent, var(--night) 16%);
+  mask-composite: intersect;
+}
 
 /* the blind round: who has locked, then everyone's angle against the target */
 .tvlb-locked,

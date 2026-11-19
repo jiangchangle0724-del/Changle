@@ -183,14 +183,39 @@
 
 /* the card under its cover */
 .tvtd-cover {
-  width: 300px;
+  /* the phones' cover (components.css .cloche-dome), larger: the gel in stripes, an eye on it */
+  display: grid;
+  place-items: center;
+  width: 460px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-panel);
+  background:
+    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--color-paper) 14%, transparent) 0 22px, transparent 22px 44px),
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--color-paper) 35%, transparent), transparent 60%),
+    var(--gel);
+  box-shadow: var(--glow);
   filter: drop-shadow(0 18px 30px color-mix(in oklab, var(--tvx-ink) 60%, transparent));
-  animation: tvtd-rattle 2.6s ease-in-out 0.6s infinite;
+  transform-origin: 50% 100%;
+  animation:
+    tvtd-drop 0.45s var(--ease-pop) both,
+    tvtd-rattle 2.6s ease-in-out 0.6s infinite;
 }
-.tvtd-cover svg {
-  display: block;
-  width: 100%;
-  height: auto;
+.tvtd-cover-mark {
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  color: var(--gel);
+}
+/* a fresh cover drops on, as on the phones */
+@keyframes tvtd-drop {
+  from {
+    opacity: 0;
+    translate: 0 -30%;
+    rotate: 2deg;
+  }
 }
 @keyframes tvtd-rattle {
   0%,

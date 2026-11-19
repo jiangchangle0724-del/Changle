@@ -52,7 +52,7 @@ const RIFFLE_MS = 820;
  * moment a fresh deck is dealt from, when the pile gathers back and the deck riffles before the
  * card turns over. `openedOn`: the card already up when this phone arrived (dealt without ceremony).
  */
-function useTable(v: RogueView, cardKey: string, openedOn: string) {
+export function useTable(v: RogueView, cardKey: string, openedOn: string) {
   const [holding, setHolding] = useState<string | null>(null);
   const [shuffling, setShuffling] = useState(false);
   const lastRank = useRef<Rank | null>(null);

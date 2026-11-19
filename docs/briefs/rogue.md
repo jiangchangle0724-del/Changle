@@ -51,7 +51,7 @@
 ## 交给别的对话
 
 - 平台 · 大屏：`TvRogue.tsx` 的照相机只在定格阶段画钟。现在「谁动了」阶段也有 20 秒时限（`ROGUE_MS.judge`，`interrupt.endsAt` 已经是那个时刻），大屏可以照样画一个钟，不画也不影响。
-- 平台 · 大屏：大屏的牌已经自动换成新牌面（`PlayingCard` 还从 `games/Rogue13` 导出）。想要牌堆厚度跟着 `v.left` 变、牌飞到弃牌堆，可以改用 `rogueCards.tsx` 的 `RogueTable`（`canDraw={false}`），底下的技能牌也可以用 `HeldCard`。不改也不影响。
+- 平台 · 大屏：大屏的牌已经自动换成新牌面（`PlayingCard` 还从 `games/Rogue13` 导出）。想要牌堆厚度跟着 `v.left` 变、牌飞到弃牌堆，可以改用 `rogueCards.tsx` 的 `RogueTable`（`canDraw={false}`），底下的技能牌也可以用 `HeldCard`。不改也不影响。（2026-11-19 全站设计做了，Steve 要电视和手机画面一致）
 - 平台 · 全站设计：游戏壳的底部按钮换了意思还留在原地，快速点两下会连走两步。2026-11-04 在 main 上粗查，我从来没有、最佳称号、额头便利贴都这样（流氓十三张自己修了，见「定过的事」）。要么壳里统一挡一下，要么各游戏自己挡。
 - 平台 · 联机：`site/scripts/net_test.py`（`watch_test.py` 大概也是）在大厅点游戏还用 `.lobby .tile[data-tile=…]`，大厅的格子已经换成 `.board-cell[data-tile=…] .ui-tile`，所以 2026-11-13 跑 `net_test.py rogue` 一个游戏都开不起来，卡在 `start_game` 那一行。改那一行就好。流氓十三张自己的联机检查是拿改了选择器的临时脚本跑的。
 

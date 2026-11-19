@@ -1,4 +1,4 @@
-import { Crown } from "lucide-react";
+import { Crown, Snowflake } from "lucide-react";
 import { useEffect } from "react";
 import { Lineup } from "../../components/Figure";
 import { startGroove, type GrooveId } from "../../lib/music";
@@ -15,11 +15,14 @@ import "../../styles/tv-freeze.css";
 /** how long everyone holds still before the phones judge (the server's FREEZE_MS) */
 const FREEZE_MS = 3800;
 
+/** the snowflakes that spin in when the music cuts (parts.tsx FreezeFlash, on the phones) */
+const FLAKES = [0, 1, 2, 3, 4, 5, 6, 7];
+
 /**
  * 木头人蹦迪 on the big screen: the dance floor and everyone dancing while the track plays, then
- * "不许动！" the instant it cuts, as on every phone. When it cuts is a surprise, so nothing here
- * counts down to it. Who moved shows as the phones catch them, then who's out, and the last one
- * standing.
+ * "定住！" the instant it cuts, as on every phone: a white flash that settles into ice, snowflakes
+ * spinning in. When it cuts is a surprise, so nothing here counts down to it. Who moved shows as
+ * the phones catch them, then who's out, and the last one standing.
  */
 export default function TvFreeze({ v, sound }: TvViewProps<FreezeView>) {
   const { zh, tx } = useLang();
@@ -81,6 +84,16 @@ export default function TvFreeze({ v, sound }: TvViewProps<FreezeView>) {
           <DanceFloor groove={v.groove} />
         </div>
       )}
+      {frozen && (
+        <>
+          <i className="tvfz-flash" aria-hidden="true" />
+          <span className="tvfz-flakes" aria-hidden="true">
+            {FLAKES.map((i) => (
+              <Snowflake key={i} className="tvfz-flake" size={44 + (i % 3) * 22} />
+            ))}
+          </span>
+        </>
+      )}
       <div className="tvfz-top">
         {v.phase === "result" ? (
           <h1 className={`tvfz-big ${caught.length ? "is-caught" : "is-still"}`}>
@@ -92,7 +105,7 @@ export default function TvFreeze({ v, sound }: TvViewProps<FreezeView>) {
           </h1>
         ) : frozen ? (
           <h1 className="tvfz-stop">
-            <Bi t={{ zh: "不许动！", en: "Freeze!" }} />
+            <Bi t={{ zh: "定住！", en: "Freeze!" }} />
           </h1>
         ) : (
           <p className="tvfz-dance">{tx("跳起来！音乐一停就别动", "Dance! When the music stops, don't move")}</p>
