@@ -1,6 +1,7 @@
 // Talking to the server, and what this phone remembers: its key for each gathering (made here, never
 // shown, sent with every request), the name last used, and the gatherings it has opened.
 import { BASE } from "../base";
+import { sameName } from "../engine/invited";
 import type { HostAction } from "../room/event";
 import { KEY_HEADER, type ApiError, type Claimed, type CreateBody, type Created, type Hosted, type SaveBody, type Saved, type Snapshot } from "../room/protocol";
 
@@ -55,6 +56,24 @@ export function remember(entry: Recent): void {
   write("when.recent", JSON.stringify([entry, ...fresh].slice(0, 12)));
 }
 export const forget = (code: string): void => write("when.recent", JSON.stringify(recents().filter((r) => r.code !== code)));
+
+/** The people of a gathering this phone hosts, kept for the next one (同一帮人再约). */
+export type Crew = { code: string; title: string; names: string[]; at: number };
+export function crews(): Crew[] {
+  try {
+    const list: unknown = JSON.parse(read("when.crews") ?? "[]");
+    return Array.isArray(list) ? (list as Crew[]).filter((c) => c && typeof c.code === "string" && typeof c.title === "string" && Array.isArray(c.names) && c.names.length > 0) : [];
+  } catch {
+    return [];
+  }
+}
+/** Newest first, three at most; one the same as a newer one isn't kept twice; forgotten after 60 days. */
+export function rememberCrew(crew: Crew): void {
+  if (crew.names.length === 0) return;
+  const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((name) => b.some((other) => sameName(other, name)));
+  const rest = crews().filter((c) => c.code !== crew.code && !same(c.names, crew.names) && crew.at - c.at < 60 * 86_400_000);
+  write("when.crews", JSON.stringify([crew, ...rest].slice(0, 3)));
+}
 
 /** An answer that wasn't the thing asked for; `network` when the server couldn't be reached at all. */
 export class ApiFail extends Error {

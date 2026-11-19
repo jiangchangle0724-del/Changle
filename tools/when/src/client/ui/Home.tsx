@@ -4,7 +4,7 @@ import { useMemo, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import { addDays, dateLabel, dayLabel, MAX_DAYS, vancouverDay, weekday } from "../../engine";
 import type { Day, Grain } from "../../engine";
-import { adoptKey, api, ApiFail, newKey, recents, remember } from "../api";
+import { adoptKey, api, ApiFail, crews, newKey, recents, remember, type Crew } from "../api";
 import { t, type Key } from "../i18n";
 import { TopBar, useLang } from "./common";
 
@@ -25,6 +25,9 @@ export function Home() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<Key | null>(null);
   const recent = useMemo(() => recents(), []);
+  // the people of gatherings this phone hosted: one tap brings a list along (同一帮人再约)
+  const crewList = useMemo(() => crews(), []);
+  const [crew, setCrew] = useState<Crew | null>(null);
 
   // whole weeks, Monday first, from the week today is in to the week the last day is in
   const last = addDays(today, span - 1);
@@ -56,6 +59,8 @@ export function Home() {
       const made = await api.create({ title: name, days: [...picked].sort(), grain }, key);
       adoptKey(made.code, key);
       remember({ code: made.code, title: made.state.title, mine: true, at: Date.now() });
+      // the same people as before: their names are the new gathering's list (it can do without)
+      if (crew) await api.host(made.code, { do: "edit", invited: crew.names }).catch(() => undefined);
       try {
         // shown once on the gathering's page, then forgotten
         sessionStorage.setItem(`when.fresh.${made.code}`, made.adminCode);
@@ -140,6 +145,27 @@ export function Home() {
             </button>
           </div>
         </div>
+
+        {crewList.length > 0 && (
+          <div class="field">
+            <span class="field-label" id="crew-label">
+              {t("invitedTitle")}
+            </span>
+            <div class="quick" role="group" aria-labelledby="crew-label">
+              <button type="button" aria-pressed={!crew} onClick={() => setCrew(null)}>
+                {t("crewNone")}
+              </button>
+              {crewList.map((c) => (
+                <button key={c.code} type="button" aria-pressed={crew?.code === c.code} onClick={() => setCrew(c)}>
+                  {t("crewChip", { title: c.title, n: c.names.length })}
+                </button>
+              ))}
+            </div>
+            <p class="hint" aria-live="polite">
+              {crew ? crew.names.join(lang === "zh" ? "、" : ", ") : t("crewHint")}
+            </p>
+          </div>
+        )}
 
         {problem && (
           <p class="problem" role="alert">

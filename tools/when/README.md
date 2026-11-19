@@ -214,6 +214,19 @@ group chat instead (A3, 2026-11-14).
   (`when.tone`) for every gathering; plain until then.
 - Once the time is set, "tell the group" uses the same words and tones for the result.
 
+### The same people again (同一帮人再约)
+
+A host's phone remembers who each gathering it hosts is for (A4, 2026-11-19): the host's list, then
+everyone else who answered, without the host's own name (`crewOf` in `src/engine/invited.ts`),
+kept in that phone's browser (`when.crews`: the three newest, the same list kept once, forgotten
+after 60 days). Nothing about it goes to the server until it is used.
+
+- The home page, once there is one, asks "要请谁" with a chip for each ("周末火锅（6 人）") and
+  "先不写", which is chosen until another is tapped. The new gathering starts with that list, so
+  "还差谁" works from the first minute.
+- In the list's sheet on a gathering, "跟以前哪次一样" brings one in, onto the names already typed
+  (each name once); the host still saves it.
+
 ### Filling in for someone
 
 A host can fill in for parents, or a friend without WeChat (代填, A3, 2026-11-14). Under the host's

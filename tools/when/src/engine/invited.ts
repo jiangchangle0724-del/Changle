@@ -31,3 +31,19 @@ export function cleanInvited(input: unknown, nameMax: number, most: number): str
 
 /** Who on the list has no row yet, in the list's order. Someone with a row has answered, even with no slot free. */
 export const missing = (invited: readonly string[], people: readonly Pick<Person, "name">[]): string[] => invited.filter((name) => !people.some((p) => sameName(p.name, name)));
+
+/**
+ * Who to ask next time (同一帮人再约): the host's list, then everyone else who answered, each name
+ * once, without the host's own name; at most `most`.
+ */
+export function crewOf(invited: readonly string[], people: readonly Pick<Person, "name">[], self: string | null, most = INVITED_MAX): string[] {
+  const out: string[] = [];
+  for (const name of [...invited, ...people.map((p) => p.name)]) {
+    if (out.length >= most) break;
+    if ((self === null || !sameName(name, self)) && !out.some((had) => sameName(had, name))) out.push(name);
+  }
+  return out;
+}
+
+/** `names` with those of `more` not on it yet: a remembered list brought onto what is already typed. */
+export const withNames = (names: readonly string[], more: readonly string[]): string[] => [...names, ...more.filter((name) => !names.some((had) => sameName(had, name)))];
