@@ -404,9 +404,12 @@ select {
 .code {
   font-family: var(--font-display);
   line-height: var(--leading-tight);
-  font-size: var(--text-3xl);
+  /* beside the QR code on a phone: four wide digits have to fit on one line */
+  font-size: var(--text-2xl);
   font-weight: 800;
   letter-spacing: 0.12em;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 .people {
   list-style: none;
