@@ -259,6 +259,34 @@ function gearShapes(look: Look, head: { top: number; brow: number; back: number;
  * the parts made here (the face's mouth and brows, the look's gear), each on its bone; and the face's
  * five shapes, as morph targets that move only the eyes, the mouth and the brows.
  */
+/** The face's made parts (a mouth, two brows) for each body, laid on its skin once (oneShape). */
+const facesMade = new WeakMap<THREE.Object3D, { mouth: THREE.BufferGeometry; brows: THREE.BufferGeometry[] }>();
+
+/**
+ * Only the skin a face part could lie on: the triangles at the front of the body (z of 0 or more) and
+ * from `low` up. Feeling for the skin through these is a few hundred tests a point, not thousands
+ * (2026-11-19: the twelve looks took half a second to build, and froze the lobby while they did).
+ */
+function faceSkin(geometry: THREE.BufferGeometry, low: number): THREE.BufferGeometry {
+  const position = geometry.getAttribute("position");
+  const index = geometry.getIndex();
+  const count = index ? index.count : position.count;
+  const kept: number[] = [];
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  for (let corner = 0; corner + 2 < count; corner += 3) {
+    a.fromBufferAttribute(position, index ? index.getX(corner) : corner);
+    b.fromBufferAttribute(position, index ? index.getX(corner + 1) : corner + 1);
+    c.fromBufferAttribute(position, index ? index.getX(corner + 2) : corner + 2);
+    if (Math.max(a.y, b.y, c.y) < low || Math.max(a.z, b.z, c.z) < 0) continue;
+    kept.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  }
+  const skin = new THREE.BufferGeometry();
+  skin.setAttribute("position", new THREE.Float32BufferAttribute(kept, 3));
+  return skin;
+}
+
 function oneShape(source: THREE.Object3D, look: Look): THREE.BufferGeometry {
   source.updateMatrixWorld(true);
   let body: THREE.SkinnedMesh | null = null;
@@ -325,27 +353,37 @@ function oneShape(source: THREE.Object3D, look: Look): THREE.BufferGeometry {
   const eyeWidth = head.eyes.max.x - head.eyes.min.x;
   const eyeHeight = head.eyes.max.y - head.eyes.min.y;
   const eyeMiddle = head.eyes.getCenter(new THREE.Vector3());
-  // (each laid on the face: its points pushed out to the skin, wherever the face curves away)
-  const skin = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
-  const feel = new THREE.Raycaster();
-  const surface = (x: number, y: number, fallback: number) => {
-    feel.set(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1));
-    return feel.intersectObject(skin)[0]?.point.z ?? fallback;
-  };
-  const onFace = (shape: THREE.BufferGeometry, lift: number) => {
-    const positions = shape.getAttribute("position");
-    shape.computeBoundingBox();
-    const back = shape.boundingBox!.min.z;
-    for (let vertex = 0; vertex < positions.count; vertex++) {
-      const x = positions.getX(vertex);
-      const y = positions.getY(vertex);
-      positions.setZ(vertex, surface(x, y, head.front) + lift + (positions.getZ(vertex) - back));
-    }
-    return shape;
-  };
+  // (each laid on the face: its points pushed out to the skin, wherever the face curves away; the same
+  // for every look on this body, so worked out once a body: feeling for the skin is the slow part)
+  let face = facesMade.get(source);
+  if (!face) {
+    const skin = new THREE.Mesh(faceSkin(geometry, head.eyes.min.y - eyeHeight * 4), new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    const feel = new THREE.Raycaster();
+    const surface = (x: number, y: number, fallback: number) => {
+      feel.set(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1));
+      return feel.intersectObject(skin)[0]?.point.z ?? fallback;
+    };
+    const onFace = (shape: THREE.BufferGeometry, lift: number) => {
+      const positions = shape.getAttribute("position");
+      shape.computeBoundingBox();
+      const back = shape.boundingBox!.min.z;
+      for (let vertex = 0; vertex < positions.count; vertex++) {
+        const x = positions.getX(vertex);
+        const y = positions.getY(vertex);
+        positions.setZ(vertex, surface(x, y, head.front) + lift + (positions.getZ(vertex) - back));
+      }
+      return shape;
+    };
+    face = {
+      mouth: onFace(piece(new THREE.BoxGeometry(eyeWidth * 0.44, eyeHeight * 0.3, 0.004, 6, 1, 1), [eyeMiddle.x, head.eyes.min.y - eyeHeight * 1.4, 0]), -0.0015),
+      brows: [-1, 1].map((side) => onFace(piece(new THREE.BoxGeometry(eyeWidth * 0.3, eyeHeight * 0.24, 0.004, 3, 1, 1), [eyeMiddle.x + side * eyeWidth * 0.3, head.eyes.max.y + eyeHeight * 0.4, 0], [0, 0, side * -0.08]), -0.0015))
+    };
+    skin.geometry.dispose();
+    facesMade.set(source, face);
+  }
   const made: Made[] = [
-    { shape: onFace(piece(new THREE.BoxGeometry(eyeWidth * 0.44, eyeHeight * 0.3, 0.004, 6, 1, 1), [eyeMiddle.x, head.eyes.min.y - eyeHeight * 1.4, 0]), -0.0015), cell: "mouth", bone: "", face: "mouth" },
-    ...[-1, 1].map((side): Made => ({ shape: onFace(piece(new THREE.BoxGeometry(eyeWidth * 0.3, eyeHeight * 0.24, 0.004, 3, 1, 1), [eyeMiddle.x + side * eyeWidth * 0.3, head.eyes.max.y + eyeHeight * 0.4, 0], [0, 0, side * -0.08]), -0.0015), cell: "brows", bone: "", face: "brows" }))
+    { shape: face.mouth.clone(), cell: "mouth", bone: "", face: "mouth" },
+    ...face.brows.map((brow): Made => ({ shape: brow.clone(), cell: "brows", bone: "", face: "brows" }))
   ];
   // (the head's measurements in the head bone's own frame, for the gear on it)
   const local = fromBody(headBone);

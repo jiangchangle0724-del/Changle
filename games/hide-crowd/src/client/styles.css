@@ -39,6 +39,22 @@
   --arena-petal: #ee9fb6;
   --arena-daisy: #fbf4e2;
   --arena-sea: #3b8db5;
+  /* what lies on the floors beyond their pattern (src/client/ui/floorArt.ts): the seawall's paving and
+     its footpath's gravel, the cedars' shade, November's leaves, the courtyard's ginkgo and moss, the
+     station's steel and yellow guide strip, road markings, and the grime of floors (stains, joints) */
+  --arena-path: #c8bfae;
+  --arena-path-2: #a89d8b;
+  --arena-gravel: #cdbb98;
+  --arena-shade: #173018;
+  --arena-leaf-1: #d9822b;
+  --arena-leaf-2: #b8432c;
+  --arena-leaf-3: #e2b43c;
+  --arena-ginkgo: #e9b827;
+  --arena-moss: #6d8a3a;
+  --arena-steel: #9aa1a9;
+  --arena-tactile: #f0c02e;
+  --arena-marking: #f6f2e8;
+  --arena-grime: #14120f;
   /* the night market, after dark: the parking lot's asphalt and its paint, the bulbs, the dusk sky,
      and the four stalls' canvas (the same colours as the Blender set) */
   --arena-asphalt: #2c303b;
@@ -908,6 +924,14 @@ button.arena-option:active {
   display: block;
   width: 100%;
   height: 100%;
+}
+/* the 3D view's edges fall a little into the night, so the eye goes to the crowd */
+.arena--3d::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 78% 72% at 50% 54%, transparent 60%, color-mix(in oklab, var(--arena-bg) 32%, transparent) 100%);
 }
 .arena__fps {
   position: absolute;

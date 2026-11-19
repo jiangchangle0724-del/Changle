@@ -37,3 +37,13 @@ test("type sizes, spacing and timings come from the tokens", () => {
   const fonts = [...rest.matchAll(/\bfont:\s*([^;]+);/g)].map((m) => m[1].trim()).filter((value) => value !== "inherit" && !/var\(--text-[a-z0-9]+\)/.test(value));
   assert.deepEqual(fonts, [], "font shorthands use --text-*");
 });
+
+test("every colour the 3D view reads is defined: in the game's block, or the site's tokens", () => {
+  const view = readFileSync(here("../src/client/ui/Arena3D.tsx"), "utf8");
+  const tokens = readFileSync(here("../src/client/tokens.css"), "utf8");
+  const block = styles.slice(0, styles.indexOf("/* ---------- the room ---------- */"));
+  const names = [...view.matchAll(/read\("(--[a-z0-9-]+)"/g)].map((match) => match[1]);
+  assert.ok(names.length > 40, "the view reads its colours with read(…)");
+  const missing = names.filter((name) => !block.includes(`${name}:`) && !tokens.includes(`${name}:`));
+  assert.deepEqual(missing, [], "define each in the game's block at the top of styles.css");
+});
