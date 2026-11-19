@@ -185,6 +185,59 @@ test("leave: seat freed, host handed on, game told", () => {
   ok(t.eng.d.host === "p1", "returning player is not host again");
 });
 
+test("host away: the table passes to a player who is here, never to a watcher, and waits for someone to come back", () => {
+  // p0 hosts, p1 only watches (the phone on the TV, say), p2 plays
+  const t = setup(3);
+  t.act("p1", { a: "watch", on: true });
+  // the host and the player go off (to another game's page): the grace runs out with no player here
+  t.eng.setOnline("p0", false);
+  t.eng.setOnline("p2", false);
+  t.eng.flush();
+  t.advance(26_000);
+  ok(t.eng.d.host === "p0", "no player here: the watcher doesn't take the table, the host keeps it");
+  // the player comes back: the clock starts again, and runs out with the host still away
+  t.eng.setOnline("p2", true);
+  t.eng.flush();
+  t.advance(10_000);
+  ok(t.eng.d.host === "p0", "right after someone comes back the host still has the grace period");
+  t.advance(16_000);
+  ok(t.eng.d.host === "p2", "then the player who came back hosts");
+  ok(t.events.some((e) => e.k === "host" && e.pid === "p2"), "host event");
+  // the old host comes back: a player now
+  ok(t.eng.hello("p0", "Host", false) === null, "the old host sits back down");
+  t.eng.flush();
+  ok(t.eng.d.host === "p2", "and isn't host again");
+});
+
+test("host away: back in time keeps the table; a late arrival while the host is away starts the clock", () => {
+  const t = setup(2);
+  t.eng.setOnline("p0", false);
+  t.eng.setOnline("p1", false);
+  t.eng.flush();
+  t.advance(26_000);
+  ok(t.eng.d.host === "p0", "nobody here: the host keeps the table");
+  ok(t.eng.hello("p9", "New", false) === null, "a new player sits down while the host is away");
+  t.eng.flush();
+  ok(t.eng.d.timers.some((x) => x.key === "host-away"), "the clock starts again");
+  t.advance(20_000);
+  t.eng.setOnline("p0", true);
+  t.eng.flush();
+  t.advance(10_000);
+  ok(t.eng.d.host === "p0", "back in time: still the host");
+  ok(!t.eng.d.timers.some((x) => x.key === "host-away"), "and the clock is off");
+});
+
+test("host leaves: the table passes to a player, to a watcher only when there is no player left", () => {
+  const t = setup(3);
+  t.act("p1", { a: "watch", on: true });
+  t.eng.setOnline("p2", false);
+  t.eng.flush();
+  t.act("p0", { a: "leave" });
+  ok(t.eng.d.host === "p2", "the player who is away hosts, not the watcher who is here");
+  t.act("p2", { a: "leave" });
+  ok(t.eng.d.host === "p1", "nobody else: the watcher hosts");
+});
+
 test("just watching: at the table, out of the game, no turns, no penalties", () => {
   // (the dice use the shared random sequence: put it back afterwards so later tests see the same)
   const s0 = seed;
