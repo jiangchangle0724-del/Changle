@@ -826,7 +826,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(lines.map((l) => l.who), ["开账本的人", "开账本的人", "有人", "有人", "你", "小王", "美美", "小王", "你", "小王", "美美", "小王", "你"], "who: you, by today's names; whoever started it for a lock; someone for a phone that didn't say, or a person no longer in the ledger");
   eq(lines.find((l) => l.text.startsWith("改了一笔"))?.detail, "金额 $186.00 改成 $200.00，改成你付，备注改成 晚饭和酒", "an edit says what it changed");
   const edit = lines.find((l) => l.text.startsWith("改了一笔"))?.action;
-  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
+  eq(edit, { word: "revert", change: { do: "edit", entry: "e1", to: { payer: "w", amount: 18600, note: "晚饭", split: dinner.split, paidIn: null, files: null, tip: null, tax: null, date: null, merchant: null, place: null, payment: null } } }, "the latest edit of an expense still in the ledger offers to change it back to what it was");
   const backAgain = applyChange(now, edit!.change)!;
   const { rot: _r1, ...was } = dinner;
   const { rot: _r2, ...isNow } = backAgain.entries.find((e) => e.id === "e1") as Expense;
@@ -934,6 +934,16 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     eq(dayLines.map((x) => x.detail ?? ""), ["去掉了日期", "日期改成 2025年12月31日", "日期改成 11月12日", ""], "the day it was spent: said as a day, with its year when it isn't the year the expense was recorded in");
     eq(historyOf(dayed.l, dayed.lg, [], "s", "en", clock)[2].detail, "Date now Nov 12", "in English");
     eq((applyChange(dayed.l, dayLines[0].action!.change)!.entries[0] as Expense).date, "2025-12-31", "changed back: the day it had");
+    const shopped = play([
+      { do: "expense", expense: { ...gas, merchant: "Shell", place: "Langley, BC", payment: "Visa" } },
+      { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油费", split: gas.split, merchant: "Chevron", payment: null } },
+      { do: "edit", entry: "e2", to: { payer: "w", amount: 12000, note: "油费", split: gas.split, place: "Aldergrove, BC", payment: "Mastercard" } },
+    ]);
+    const shopLines = historyOf(shopped.l, shopped.lg, [], "s", "zh", clock);
+    eq(shopLines.map((x) => x.detail ?? ""), ["地点改成 Aldergrove, BC，支付方式改成 Mastercard", "名称改成 Chevron，去掉了支付方式", ""], "the business, the place and what paid: what each was changed to, or that it was taken off");
+    eq(historyOf(shopped.l, shopped.lg, [], "s", "en", clock)[1].detail, "Name now Chevron, paid with taken off", "in English");
+    const backShop = applyChange(shopped.l, shopLines[0].action!.change)!.entries[0] as Expense;
+    eq([backShop.merchant, backShop.place, backShop.payment], ["Chevron", "Langley, BC", undefined], "changed back: the place it had, and no payment again");
     const moved = play([{ do: "expense", expense: { ...gas, tip: 1500 } }, { do: "edit", entry: "e2", to: { payer: "w", amount: 13000, note: "油费", split: gas.split } }]);
     eq([historyOf(moved.l, moved.lg, [], "s", "zh", clock)[0].detail, (moved.l.entries[0] as Expense).tip], ["金额 $120.00 改成 $130.00，去掉了小费", undefined], "one that changes the amount and doesn't mention them: the tip goes, and the record says so");
   }

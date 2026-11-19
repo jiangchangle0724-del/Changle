@@ -58,6 +58,15 @@ export type Expense = {
    * Shown and sorted by; what anyone owes never depends on it.
    */
   date?: string;
+  /**
+   * where it was bought and how it was paid, as its receipt says or as someone typed them: the
+   * business ("McDonald's"), the place ("Aldergrove, BC") and what paid ("Mastercard"). Each one
+   * line of at most DETAIL_MAX characters (ops.ts), never empty: an expense without one has none.
+   * Shown, and nothing more: what anyone owes never depends on them.
+   */
+  merchant?: string;
+  place?: string;
+  payment?: string;
   /** when it was taken out, if it was: any number here means taken out (0 too), and it counts for nothing */
   gone?: number;
 };

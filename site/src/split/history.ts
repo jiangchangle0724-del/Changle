@@ -18,8 +18,12 @@ import type { Lang } from "../i18n";
 import { applyChange, type Change, type Sent } from "./changes";
 import type { Entry, Expense, Ledger, Transfer } from "./core";
 import { dayName, money } from "./format";
-import { afterEdit, NAME_MAX, NOTE_MAX, tidy } from "./ops";
-import { say } from "./words";
+import { afterEdit, DETAILS, NAME_MAX, NOTE_MAX, tidy, type Detail } from "./ops";
+import { say, type Word } from "./words";
+
+/** How the record says an expense's business, place or what paid it changed, or was taken off. */
+const DETAIL_SAID: Record<Detail, Word> = { merchant: "historyMerchant", place: "historyPlace", payment: "historyPayment" };
+const DETAIL_GONE: Record<Detail, Word> = { merchant: "historyMerchantGone", place: "historyPlaceGone", payment: "historyPaymentGone" };
 
 /** A line of the record as the server keeps it: a change that counted, or the ledger locked or opened. */
 export type Logged = { seq: number; at: number; sent: Sent } | { seq: number; at: number; lock: boolean };
@@ -98,7 +102,7 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
         const after = edited(before, c.to);
         entries.set(c.entry, after);
         const there = inNow(c.entry);
-        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null, tip: before.tip ?? null, tax: before.tax ?? null, date: before.date ?? null } };
+        const back: Change = { do: "edit", entry: c.entry, to: { payer: before.payer, amount: before.amount, note: before.note, split: before.split, paidIn: before.paidIn ?? null, files: before.files ?? null, tip: before.tip ?? null, tax: before.tax ?? null, date: before.date ?? null, merchant: before.merchant ?? null, place: before.place ?? null, payment: before.payment ?? null } };
         // (only where it would go through: whoever paid it or shared it may have been taken off since)
         const offer = !locked && lastEdit.get(c.entry) === s.key && !!there && there.gone === undefined && applyChange(now, back) !== null;
         lines.push(line(say(lang, "historyEdit", { what: expense(after) }), {
@@ -180,6 +184,7 @@ function changed(before: Expense, after: Expense, me: string | undefined, lang: 
   if (before.tip !== after.tip) parts.push(after.tip ? say(lang, "historyTip", { amount: paidIn(after.tip) }) : say(lang, "historyTipGone"));
   if (before.tax !== after.tax) parts.push(after.tax ? say(lang, "historyTax", { amount: paidIn(after.tax) }) : say(lang, "historyTaxGone"));
   if (before.date !== after.date) parts.push(after.date ? say(lang, "historyDate", { day: dayName(after.date, lang, new Date(after.at).getFullYear()) }) : say(lang, "historyDateGone"));
+  for (const k of DETAILS) if (before[k] !== after[k]) parts.push(after[k] ? say(lang, DETAIL_SAID[k], { text: after[k] }) : say(lang, DETAIL_GONE[k]));
   if (!parts.length) return undefined;
   const text = parts.join(say(lang, "historyAnd"));
   // (a line of its own, so it starts as a sentence does)
