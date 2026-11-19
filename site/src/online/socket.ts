@@ -12,6 +12,13 @@ type Handlers = {
   onOffset: (ms: number) => void;
   /** a binary message (the DJ booth's song files, passed on by the rooms server to a big screen) */
   onBytes?: (data: ArrayBuffer) => void;
+  /**
+   * Whether what this phone shows is known to be current. False from the moment the page is hidden
+   * (locked, another app) or the line is lost: the table may have moved on without us hearing.
+   * True again once the server has answered on the same line (so everything it sent before has
+   * arrived), or a fresh view has come down a new line.
+   */
+  onFresh?: (fresh: boolean) => void;
 };
 
 const PING_MS = 15_000;
@@ -31,6 +38,9 @@ export class RoomSocket {
   private bestRtt = Infinity;
   private lastHeard = 0;
   private queue: ClientMsg[] = [];
+  /** the ping whose answer makes the view current again (see Handlers.onFresh), while one is wanted */
+  private freshAsk: number | null = null;
+  private fresh = true;
   status: Status = "connecting";
 
   constructor(
@@ -126,6 +136,13 @@ export class RoomSocket {
     this.h.onStatus(s);
   }
 
+  private setFresh(fresh: boolean) {
+    if (!fresh) this.freshAsk = null;
+    if (this.fresh === fresh) return;
+    this.fresh = fresh;
+    this.h.onFresh?.(fresh);
+  }
+
   private open() {
     if (this.stopped) return;
     this.clearTimers();
@@ -169,6 +186,12 @@ export class RoomSocket {
           this.bestRtt = rtt;
           this.h.onOffset(msg.s - (msg.c + rtt / 2));
         }
+        // the line answered after the page came back: whatever the table sent while we were away
+        // has arrived before this (the same line keeps its order), so the view is current
+        if (this.freshAsk !== null && msg.c >= this.freshAsk) {
+          this.freshAsk = null;
+          this.setFresh(true);
+        }
         return;
       }
       if (msg.t === "error") {
@@ -186,6 +209,9 @@ export class RoomSocket {
         if (this.bestRtt === Infinity) this.h.onOffset(msg.now - Date.now());
       }
       this.h.onMessage(msg);
+      // a view down a new line is current by definition (the hand-off waits for it: the message
+      // handler has seen it already)
+      if (msg.t === "room" && this.freshAsk === null && !this.fresh) this.setFresh(true);
     };
     ws.onclose = (e) => {
       if (this.ws !== ws) return;
@@ -229,21 +255,31 @@ export class RoomSocket {
     if (this.stopped) return;
     this.attempts += 1;
     this.setStatus("reconnecting");
+    this.setFresh(false);
     const delay = now ? 150 : Math.min(8000, 300 * Math.pow(1.9, this.attempts - 1)) * (0.8 + Math.random() * 0.4);
     this.clearRetry();
     this.retryTimer = window.setTimeout(() => this.open(), delay);
   }
 
   private onVisible = () => {
-    if (document.visibilityState !== "visible" || this.stopped) return;
+    if (this.stopped) return;
+    if (document.visibilityState !== "visible") {
+      // locked or put away: the table may move on while this phone hears nothing (the screen it
+      // shows when it wakes is the old one for a moment: taps made on it wait, see onFresh)
+      this.setFresh(false);
+      return;
+    }
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.setFresh(false);
       this.attempts = 0;
       this.clearRetry();
       this.open();
       return;
     }
-    // the socket may be a ghost after sleep: if nothing answers soon, redial
+    // the socket may be a ghost after sleep: if nothing answers soon, redial. Its answer, when it
+    // comes, is also what makes the view current again
     const asked = Date.now();
+    this.freshAsk = asked;
     this.ping();
     window.setTimeout(() => {
       if (!this.stopped && this.lastHeard < asked) this.drop();

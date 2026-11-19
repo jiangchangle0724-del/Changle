@@ -80,6 +80,15 @@ type RoomApi = {
 
 const Ctx = createContext<RoomApi | null>(null);
 
+/** A move made on a screen that may be stale waits this long at most for the view to be known current. */
+const HOLD_MS = 6000;
+
+/**
+ * A move in the game (a vote, an answer, a guess, a spin): made on a stale screen it would land in
+ * the next round. Table-keeping (leaving, renaming, a reaction, a penalty taken) is fine any time.
+ */
+const inGame = (a: Action) => a.a === "g" || (a.a === "spin" && a.scope !== "lobby");
+
 export function RoomProvider({ code, name, create, children, screen = false, game }: { code: string; name: string; create: boolean; children: ReactNode; screen?: boolean; game?: string }) {
   const me = useMemo(() => (screen ? screenId() : phoneId()), [screen]);
   const [status, setStatus] = useState<Status>("connecting");
@@ -96,6 +105,15 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
   const nameRef = useRef(name);
   // events can arrive before React has rendered the room message just before them
   const roomRef = useRef<RoomView | null>(null);
+  // Whether the screen is known to be current (socket.ts, onFresh). Right after the phone wakes
+  // from its lock screen, or while the line is being redialled, it still shows the view from
+  // before, and the table may have moved on: a vote tapped then went to the next round. Moves made
+  // in that moment wait here, each with the game as it looked when it was made; once the view is
+  // current they go out only if the game still looks the same, else they're dropped (the screen
+  // has changed under the tap, and the player sees the new one).
+  const fresh = useRef(true);
+  const held = useRef<{ a: Action; game: string; at: number }[]>([]);
+  const gameNow = () => JSON.stringify(roomRef.current?.game ?? null);
 
   const onMessage = useCallback(
     (m: ServerMsg) => {
@@ -146,6 +164,14 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
             offsetRef.current = ms;
             setOffset(ms);
           },
+          onFresh: (f) => {
+            fresh.current = f;
+            if (!f) return;
+            const waiting = held.current.splice(0);
+            const now = Date.now();
+            const game = gameNow();
+            for (const w of waiting) if (w.game === game && now - w.at < HOLD_MS) sock.current?.send({ t: "act", a: w.a });
+          },
         },
         { screen, game },
       );
@@ -187,6 +213,10 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
   }, [seated, code]);
 
   const act = useCallback((a: Action) => {
+    if (!fresh.current && inGame(a)) {
+      held.current.push({ a, game: gameNow(), at: Date.now() });
+      return;
+    }
     sock.current?.send({ t: "act", a });
   }, []);
   const g = useCallback((x: string, rest: Record<string, unknown> = {}) => act({ a: "g", g: { x, ...rest } }), [act]);
