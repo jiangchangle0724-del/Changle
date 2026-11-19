@@ -37,7 +37,7 @@ function usePicture(ledger: string, file: string | undefined): Picture {
 }
 
 /** A photo as small as a tile: the picture, a PDF's mark, or that it is gone. */
-function Thumb({ ledger, file, lang }: { ledger: string; file: string; lang: Lang }) {
+export function Thumb({ ledger, file, lang }: { ledger: string; file: string; lang: Lang }) {
   const picture = usePicture(ledger, file);
   if (picture === undefined) return <span className="split-thumb is-loading" />;
   if (picture === null)

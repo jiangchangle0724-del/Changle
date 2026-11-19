@@ -9,6 +9,13 @@ and settings: [HANDOFF.md](HANDOFF.md).
 This folder is **v1**: "now" tables (everyone together, deciding live). It is its own Cloudflare
 Worker (`suibian`), separate from 到此一游, and shares no code or storage with it.
 
+**How it looks.** A night room with an amber light, the tool's color on changle.ca. Every color,
+type size, space, corner, shadow and timing comes from `src/client/tokens.css`, copied unchanged
+from `site/src/styles/tokens.css` and checked by `tests/design.test.ts`. Figtree is the text face,
+Unbounded the display face; Chinese falls back to the device's system fonts. Both web fonts and
+their SIL Open Font License 1.1 texts live in `src/client/fonts/` (licences in `licences/`), copied
+from 约时间; the build serves the fonts under `/eat/fonts/` and both licences at `/eat/licences.txt`.
+
 How a table goes:
 
 1. The host signs in with Google, says what the meal is for (随便吃吃, friends, a date, colleagues,

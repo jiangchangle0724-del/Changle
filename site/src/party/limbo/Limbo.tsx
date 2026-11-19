@@ -17,7 +17,6 @@ import {
   FollowMeter,
   HOLD_MS,
   LeanGauge,
-  LimboScene,
   ModePicker,
   SteadyMeter,
   TiltMeter,
@@ -33,6 +32,7 @@ import {
   variantLine,
   type LimboPick,
 } from "./parts";
+import { LimboStage, nameColor, type StageFigure } from "./Stage";
 import "../../styles/party.css";
 
 type Mode = LimboPick;
@@ -174,6 +174,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           ? coaching("moving", { lean: follow.lean, target: follow.at, lost: follow.lost })
           : coaching(kind, { lean: pose.lean, target: angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt }),
     grid,
+    zh ? "zh" : "en",
   );
 
   const leaningBlind = blind && phase.k === "try" && sensors === "on";
@@ -368,8 +369,8 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       </p>
       <p>
         {zh
-          ? "稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 2 秒就出局。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。"
-          : "Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down; follow it down and back up, and lose it for over two seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random."}
+          ? "稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 3 秒就出局。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。"
+          : "Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down; follow it down and back up, and lose it for over three seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random."}
       </p>
       <p>
         {zh
@@ -391,6 +392,18 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const tag = blind || realBar ? "" : barTag(bar, zh, mode === "party");
   // a moving bar sways while someone follows it, and waits at its top otherwise
   const sway = moving ? { bar, startAt: phase.k === "try" ? phase.t0 : Number.MAX_SAFE_INTEGER, clock: phoneClock } : undefined;
+  // who stands on the stage: everyone before the game and at a real bar, otherwise whoever's turn it is,
+  // leaning as the phone reads them (blind lean shows the target, never their own angle)
+  const liveLean = kind === "classic" ? lean.lean : moving ? follow.lean : pose.lean;
+  const fig = (id: string, pose: StageFigure["pose"], extra?: Partial<StageFigure>): StageFigure => ({ id, color: nameColor(name[id] ?? id), name: name[id] ?? "", pose, ...extra });
+  const figures: StageFigure[] =
+    phase.k === "setup"
+      ? people.map((p) => fig(p.id, "idle"))
+      : phase.k === "bar"
+        ? alive.map((id) => fig(id, passed.includes(id) ? "pass" : failed.includes(id) ? "fail" : "idle"))
+        : cur
+          ? [fig(cur.id, phase.k === "try" ? "lean" : phase.k === "verdict" ? (phase.ok ? "pass" : "fail") : "idle", { lean: trying ? liveLean : undefined, side: trying && kind === "tilt" ? pose.side : undefined, full: true })]
+          : [];
 
   const actions =
     phase.k === "setup" ? (
@@ -435,7 +448,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   return (
     <GameShell title={GAME_BY_ID.limbo.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: cur?.id, out: phase.k === "setup" ? [] : phase.k === "end" && phase.winner ? people.filter((p) => p.id !== phase.winner).map((p) => p.id) : people.filter((p) => !alive.includes(p.id) || (!blind && failed.includes(p.id))).map((p) => p.id) }} status={phase.k !== "setup" ? { kind: "round", current: level + 1 } : undefined} actions={actions}>
       <div className="lb">
-        {phase.k !== "end" && <LimboScene angle={angle} level={level} side={kind === "tilt" ? bar.side : 0} sway={sway} />}
+        {phase.k !== "end" && <LimboStage angle={angle} level={level} side={kind === "tilt" ? bar.side : 0} sway={sway} figures={figures} />}
         {phase.k !== "setup" && phase.k !== "end" && (
           <p className="lb-level">
             {!blind && !realBar && <strong className="tabular">{angle}°</strong>}

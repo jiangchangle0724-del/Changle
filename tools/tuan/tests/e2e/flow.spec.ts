@@ -7,6 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { OfferPage } from "../../src/api";
 import { SESSION } from "../accounts.ts";
+import { JPEG_BASE64 } from "../photo.ts";
 import { offerDoc } from "../sample.ts";
 import { as, catchCopies, copied, DAY, fits, ORDER_URL, phone, putAway, sheets, start, WECHAT, word } from "./help.ts";
 
@@ -430,6 +431,54 @@ test("a group buy that has closed, one that isn't public yet, and addresses that
   await expect(page.getByRole("link", { name: "商家入口：我的团" })).toHaveAttribute("href", "/tuan/my");
   // every other page stays out of search engines
   expect((await page.goto(url))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
+});
+
+test("sheets: from the large picture to the weight picker one at a time, each closed by the back button, and one going never closes the next", async ({ browser, request }) => {
+  const { id, url, slug } = await start(request);
+  // a picture on the lamb, which is sold by weight (sent as a merchant's phone sends it, then the group buy changed to name it)
+  const jpeg = { name: "photo.jpg", mimeType: "image/jpeg", buffer: Buffer.from(JPEG_BASE64, "base64") };
+  const sent = await request.post(`/tuan/api/my/shops/${slug}/photos`, { headers: as(SESSION.leader), multipart: { large: jpeg, small: jpeg } });
+  // (201 the first time; both browsers' runs share one database, so the second is told it's there: 200)
+  expect([200, 201], await sent.text()).toContain(sent.status());
+  const { id: photo } = (await sent.json()) as { id: string };
+  const doc = await (await request.get(`/tuan/api/my/offers/${id}/doc`, { headers: as(SESSION.leader) })).json();
+  const strip = <T extends { used?: unknown; sold?: unknown }>({ used: _used, sold: _sold, ...rest }: T) => rest;
+  const changed = await request.post(`/tuan/api/my/offers/${id}/doc`, {
+    headers: as(SESSION.leader),
+    data: { title: doc.offer.title, note: doc.offer.note, closesAt: doc.offer.closesAt, roster: doc.offer.roster, items: doc.items.map((item: { name: string; used?: unknown; sold?: unknown }) => ({ ...strip(item), ...(item.name === "手切羊肉片" ? { photo } : {}) })), points: doc.points.map(strip), rules: doc.rules.map(strip) },
+  });
+  expect(changed.status(), await changed.text()).toBe(200);
+
+  const page = await phone(browser);
+  await page.goto(url);
+  // the large picture hands over to the picker: the picker stays (the large one going must not take its step)
+  await page.getByRole("button", { name: "看大图：手切羊肉片" }).click();
+  await expect(page.getByRole("dialog", { name: "手切羊肉片" }).locator("img.look-photo")).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "选重量" }).click();
+  const picker = page.getByRole("dialog", { name: "手切羊肉片" });
+  await expect(picker.getByRole("button", { name: /^加入/ })).toBeVisible();
+  await page.waitForTimeout(400);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(picker.getByRole("button", { name: /^加入/ })).toBeVisible();
+  // the back button closes it, and the page is where it was
+  await page.goBack();
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  await expect(page).toHaveURL(url);
+
+  // closed by its button while the next one is opened at once: the next one stays, and the back button closes it
+  await page.getByRole("button", { name: "看大图：手切羊肉片" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "关闭" }).click();
+  await page.getByRole("button", { name: "选重量：手切羊肉片" }).click();
+  await page.waitForTimeout(400);
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page.getByRole("dialog").getByRole("button", { name: /^加入/ }).click();
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  await expect(dock(page).locator(".dock-count")).toHaveText("1 件");
+  // nothing is left behind in the history: one more back leaves the page
+  await page.getByRole("button", { name: "看大图：手切羊肉片" }).click();
+  await page.goBack();
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  await expect(page).toHaveURL(url);
 });
 
 test("on a small phone: nothing runs off the side, and everything to tap is big enough", async ({ browser, request }) => {

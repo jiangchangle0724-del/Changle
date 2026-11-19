@@ -35,6 +35,7 @@ and tests). The decisions taken, where it stands and what is next: `docs/briefs/
 | `transfers.ts` | Pairing moves between the user's own accounts and card payments (ACC-4) |
 | `classify.ts` | Categories, rules, merchant aliases, the dictionary, and their order (CLS-1 to CLS-3) |
 | `analytics.ts` | Income, spending and totals by category, per currency |
+| `recurring.ts` | Subscriptions and regular bills found in past transactions |
 | `model.ts`, `ids.ts` | The shapes kept in the vault; random 128-bit identifiers (ISO-3) |
 
 `src/vault/`: the vault's cryptography, the browser's own WebCrypto and nothing else. What it does

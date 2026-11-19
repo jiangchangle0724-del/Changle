@@ -1,4 +1,4 @@
-import { Check, UserPlus } from "lucide-react";
+import { Check, Tv, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAccount, type PublicUser } from "../account/AccountContext";
 import { Avatar, colorFor } from "../account/Avatar";
@@ -7,6 +7,7 @@ import { api, ApiError } from "../lib/api";
 import { sfx } from "../lib/sfx";
 import type { SeatView } from "../shared/protocol";
 import { useStore } from "../store";
+import { useRoom } from "./RoomContext";
 import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
 import { ToastProvider, useToast } from "../ui/Toast";
@@ -19,7 +20,7 @@ export function SeatFace({ seat, size = 40, className = "" }: { seat: SeatView |
 
 type Relation = "self" | "friends" | "sent" | "received" | "none" | "blocked";
 
-/** Tap a face at the table: who they are, and a friend request without leaving the game. */
+/** Tap a face at the table: who they are, a friend request without leaving the game, and for the host, the table's own buttons. */
 export function PersonSheet({ seat, onClose }: { seat: SeatView | null; onClose: () => void }) {
   return <ToastProvider><Person seat={seat} onClose={onClose} /></ToastProvider>;
 }
@@ -27,6 +28,7 @@ export function PersonSheet({ seat, onClose }: { seat: SeatView | null; onClose:
 function Person({ seat, onClose }: { seat: SeatView | null; onClose: () => void }) {
   const toast = useToast();
   const { me, status, openSignIn } = useAccount();
+  const table = useRoom();
   const { lang } = useStore();
   const zh = lang === "zh";
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -85,6 +87,25 @@ function Person({ seat, onClose }: { seat: SeatView | null; onClose: () => void 
           {user?.bio && <p className="person-card-bio">{user.bio}</p>}
 
           {!uid && <p className="hint">{zh ? `${seat.name} 还没有 changle 账号，暂时加不了好友。` : `${seat.name} hasn't signed up yet, so you can't add them for now.`}</p>}
+
+          {/* the host picks which phone is the TV: that seat sits the games out and shows the big screen's view */}
+          {table.isHost && seat.id !== table.me && (
+            <div className="person-card-table">
+              <button
+                type="button"
+                className="btn btn-ghost btn-block"
+                aria-pressed={!!seat.watch}
+                onClick={() => {
+                  table.act({ a: "watch", pid: seat.id, on: !seat.watch });
+                  onClose();
+                }}
+              >
+                <Tv size={17} />
+                {seat.watch ? (zh ? "让 TA 回来玩" : "Back to playing") : zh ? "用这台手机投屏电视" : "Use this phone as the TV"}
+              </button>
+              <p className="hint">{seat.watch ? (zh ? "这台手机正在投屏：游戏里显示大屏画面，TA 不参加。" : "This phone is the TV: in a game it shows the big screen's view, and they sit it out.") : zh ? "TA 的手机会显示大屏画面，投到电视上；TA 不参加游戏。" : "Their phone shows the big screen's view, to mirror to a TV; they sit the games out."}</p>
+            </div>
+          )}
 
           {uid && status !== "in" && (
             <>

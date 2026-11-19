@@ -214,9 +214,35 @@ export class RoomEngine {
     }
     if (!d.host || !d.seats.some((s) => s.id === d.host)) d.host = pid;
     if (pid === d.host) this.clearTimer("host-away");
+    else this.hostAway();
     if (back) this.presence(pid, true);
     this.out.changed = true;
     return null;
+  }
+
+  /**
+   * The host's phone is away (locked, or off at another game's page): if it stays away for a while,
+   * the table passes to a player who is here. Started when the host drops, and again whenever
+   * someone arrives or comes back while the host is still away (the clock may have run out with
+   * nobody here to take over: everyone was off at 到此一游 or 藏在人群里).
+   */
+  private hostAway() {
+    const d = this.d;
+    const cur = d.seats.find((s) => s.id === d.host);
+    if (!cur || cur.on || d.timers.some((x) => x.key === "host-away")) return;
+    this.setTimer("host-away", this.h.now() + HOST_GRACE);
+  }
+
+  /**
+   * Who takes the table from a host who is gone: a player who is here, else (the host left the
+   * table for good, `forGood`) a player who is away, then someone who only watches. A seat that
+   * just watches is never chosen while the host is merely away: it may be the phone mirrored to
+   * the TV, and it would leave the table the moment it opened a game's big screen.
+   */
+  private nextHost(forGood: boolean): SeatData | undefined {
+    const others = this.d.seats.filter((s) => s.id !== this.d.host);
+    const players = others.filter((s) => !s.watch);
+    return players.find((s) => s.on) ?? (forGood ? players[0] ?? others.find((s) => s.on) ?? others[0] : undefined);
   }
 
   /**
@@ -266,6 +292,7 @@ export class RoomEngine {
     seat.on = on;
     if (!on && pid === this.d.host) this.setTimer("host-away", this.h.now() + HOST_GRACE);
     if (on && pid === this.d.host) this.clearTimer("host-away");
+    if (on && pid !== this.d.host) this.hostAway();
     this.presence(pid, on);
     this.out.changed = true;
   }
@@ -290,7 +317,7 @@ export class RoomEngine {
     this.out.kicked.push(pid);
     this.event({ k: "left", pid });
     if (d.host === pid) {
-      const next = d.seats.find((s) => s.on) ?? d.seats[0];
+      const next = this.nextHost(true);
       d.host = next?.id ?? "";
       this.clearTimer("host-away");
       if (next) this.event({ k: "host", pid: next.id });
@@ -380,7 +407,7 @@ export class RoomEngine {
         if (g && d.game) g.def.leave?.(d.game.s, pid, this.api());
         this.event({ k: "left", pid });
         if (d.host === pid) {
-          const next = d.seats.find((s) => s.on) ?? d.seats[0];
+          const next = this.nextHost(true);
           d.host = next?.id ?? "";
           this.clearTimer("host-away");
           if (next) this.event({ k: "host", pid: next.id });
@@ -570,9 +597,11 @@ export class RoomEngine {
       this.d.timers = this.d.timers.filter((x) => x !== ready);
       this.out.changed = true;
       if (ready.key === "host-away") {
+        // the host is still away: a player who is here takes the table. Nobody here? It waits for
+        // the next one to arrive or come back (hostAway starts the clock again)
         const cur = this.d.seats.find((s) => s.id === this.d.host);
         if (cur?.on) continue;
-        const next = this.d.seats.find((s) => s.on);
+        const next = this.nextHost(false);
         if (next) {
           this.d.host = next.id;
           this.event({ k: "host", pid: next.id });

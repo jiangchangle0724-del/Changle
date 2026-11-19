@@ -1,7 +1,7 @@
 // Who the host means to ask, who of them is still to answer, and when to answer by (A3, 2026-11-14).
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cleanInvited, deadlineAt, deadlineDays, deadlineLabel, inviteText, missing, nudgeText, sameName, splitNames, vancouverMinutes } from "../src/engine";
+import { cleanInvited, crewOf, deadlineAt, deadlineDays, deadlineLabel, inviteText, missing, nudgeText, sameName, splitNames, vancouverMinutes, withNames } from "../src/engine";
 import { EventRoom, MAX_PEOPLE, memoryStore, NAME_MAX } from "../src/room/event";
 
 const NOW = Date.UTC(2026, 10, 13, 2, 0); // 12 November, 7 p.m. in Vancouver
@@ -85,4 +85,12 @@ test("a gathering kept before the list came in opens with none", () => {
   room.create({ code: "abcdefgh", title: "周末火锅", days: [SAT], grain: "half", hostHash: "host", adminHash: "a", adminSalt: "s", now: NOW, today: TODAY });
   delete (store.meta as { invited?: string[] }).invited;
   assert.deepEqual(new EventRoom(store).state()!.invited, []);
+});
+
+test("the same people next time: the list first, then whoever else answered, each once, never the host", () => {
+  const people = [{ name: "Steve" }, { name: "老李" }, { name: "阿may" }, { name: "妈妈" }];
+  assert.deepEqual(crewOf(["阿May", "小王"], people, "Steve"), ["阿May", "小王", "老李", "妈妈"]);
+  assert.deepEqual(crewOf([], people, null), ["Steve", "老李", "阿may", "妈妈"], "a host who didn't fill in has no name to leave out");
+  assert.deepEqual(crewOf(["a", "b", "c"], [], null, 2), ["a", "b"]);
+  assert.deepEqual(withNames(["Tom", "阿may"], ["阿May", "小王"]), ["Tom", "阿may", "小王"], "brought onto what's typed: the same name isn't added twice");
 });

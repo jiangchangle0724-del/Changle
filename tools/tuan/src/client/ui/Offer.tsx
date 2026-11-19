@@ -10,7 +10,7 @@ import { phoneDigits } from "../../engine/phone";
 import { weighed, type DeliveryRule, type How } from "../../engine/types";
 import { ApiFail, changeOrder, getOffer, getOrder, newKey, photoUrl, placeOrder, rememberOrder, saveCart, savedCart, savedMe, saveMe, tailOf, type Cart } from "../api";
 import { leftText, t, unitName, whenText } from "../i18n";
-import { Copyable, emailIn, IconBack, IconClock, IconNext, IconPin, IconPlus, Lines, money, priceText, qtyText, Sheet, Stepper, Toast, TopBar, useLang, useTitle } from "./common";
+import { Copyable, emailIn, IconBack, IconClock, IconNext, IconPin, IconPlus, Lines, money, priceText, qtyText, Sheet, Stepper, Toast, TopBar, useDrawn, useLang, useTitle } from "./common";
 
 interface Line {
   item: PublicItem;
@@ -380,8 +380,11 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
       {lines.length > 0 && open && (
         <div class="dock">
           <button type="button" class="dock-cart" onClick={() => setCartOpen(true)}>
-            <span class="dock-count">{t("cartCount", { n: pieces })}</span>
-            <span class="dock-total">
+            {/* (each number is drawn anew when it changes, and so ticks: the cart heard the tap) */}
+            <span class="dock-count" key={`n${pieces}`}>
+              {t("cartCount", { n: pieces })}
+            </span>
+            <span class="dock-total" key={`m${goods}`}>
               {estimate ? `${t("estimate")} ` : ""}
               {money(goods)}
             </span>
@@ -510,6 +513,22 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
 }
 
 /** An item's picture in the list: tapped, the large one; one that doesn't come gives way to the item's first character. */
+/** A picture: hidden until it has come, then faded in, so it doesn't appear in pieces (one already here just shows). */
+function useComing() {
+  const img = useRef<HTMLImageElement>(null);
+  const [waiting, setWaiting] = useState(false);
+  useLayoutEffect(() => {
+    if (img.current && !img.current.complete) setWaiting(true);
+  }, []);
+  return { img, waiting, came: () => setWaiting(false) };
+}
+
+/** The small picture for the list (it says nothing a screen reader needs: the row says it) or the large one. */
+function Photo({ id, small, name, low = false, onError }: { id: string; small: boolean; name: string; low?: boolean; onError?: () => void }) {
+  const { img, waiting, came } = useComing();
+  return <img ref={img} class={`${small ? "item-photo" : low ? "look-photo look-photo-low" : "look-photo"}${waiting ? " photo-waiting" : ""}`} src={photoUrl(id, small)} alt={small ? "" : name} width={small ? 72 : undefined} height={small ? 72 : undefined} loading={small ? "lazy" : undefined} decoding="async" onLoad={came} onError={onError} />;
+}
+
 function Thumb({ item, onLook }: { item: PublicItem; onLook: () => void }) {
   const [broken, setBroken] = useState(false);
   if (!item.photo || broken) {
@@ -521,12 +540,13 @@ function Thumb({ item, onLook }: { item: PublicItem; onLook: () => void }) {
   }
   return (
     <button type="button" class="item-photo-btn" aria-label={t("look", { name: item.name })} onClick={onLook}>
-      <img class="item-photo" src={photoUrl(item.photo, true)} alt="" width={72} height={72} loading="lazy" decoding="async" onError={() => setBroken(true)} />
+      <Photo id={item.photo} small name={item.name} onError={() => setBroken(true)} />
     </button>
   );
 }
 
 function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLook }: { item: PublicItem; qty: number; room: number; open: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onLook: () => void }) {
+  const drawn = useDrawn();
   const byWeight = weighed(item.unit);
   const gone = room < item.least;
   return (
@@ -551,7 +571,7 @@ function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLoo
             {qty ? qtyText(item.unit, qty) : <IconPlus />}
           </button>
         ) : qty ? (
-          <Stepper text={qtyText(item.unit, qty)} lessLabel={t("less", { name: item.name })} moreLabel={t("more", { name: item.name })} onLess={onLess} onMore={onMore} canMore={canMore} />
+          <Stepper text={qtyText(item.unit, qty)} lessLabel={t("less", { name: item.name })} moreLabel={t("more", { name: item.name })} onLess={onLess} onMore={onMore} canMore={canMore} arrives={drawn.current} />
         ) : (
           <button type="button" class="add" aria-label={t("add", { name: item.name })} onClick={onMore}>
             <IconPlus />
@@ -563,6 +583,7 @@ function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLoo
 
 /** An item's picture, large, with what it is and the same way into the cart as its row. */
 function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose }: { item: PublicItem & { photo: string }; qty: number; open: boolean; gone: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onClose: () => void }) {
+  const drawn = useDrawn();
   const byWeight = weighed(item.unit);
   return (
     <Sheet
@@ -576,7 +597,7 @@ function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose 
             </button>
           ) : qty ? (
             <div class="look-step">
-              <Stepper large text={qtyText(item.unit, qty)} lessLabel={t("less", { name: item.name })} moreLabel={t("more", { name: item.name })} onLess={onLess} onMore={onMore} canMore={canMore} />
+              <Stepper large text={qtyText(item.unit, qty)} lessLabel={t("less", { name: item.name })} moreLabel={t("more", { name: item.name })} onLess={onLess} onMore={onMore} canMore={canMore} arrives={drawn.current} />
             </div>
           ) : (
             <button type="button" class="btn btn-primary btn-block" onClick={onMore}>
@@ -586,7 +607,7 @@ function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose 
         ) : undefined
       }
     >
-      <img class="look-photo" src={photoUrl(item.photo, false)} alt={item.name} decoding="async" />
+      <Photo id={item.photo} small={false} name={item.name} />
       {item.detail && <Lines class="look-detail" text={item.detail} />}
       {item.allergens && <p class="item-note">{t("allergens", { a: item.allergens })}</p>}
       <p class="item-price">
@@ -634,7 +655,7 @@ function Picker({ item, qty, max, onSet, onClose }: { item: PublicItem; qty: num
         </div>
       }
     >
-      {item.photo && <img class="look-photo look-photo-low" src={photoUrl(item.photo, false)} alt={item.name} decoding="async" />}
+      {item.photo && <Photo id={item.photo} small={false} name={item.name} low />}
       <p class="hint">
         {priceText(item.price, item.unit)} · {t("byWeight")}
       </p>

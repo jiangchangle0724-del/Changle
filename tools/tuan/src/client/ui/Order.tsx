@@ -99,7 +99,8 @@ export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
             <IconCheck /> {t("placed")}
           </p>
         )}
-        <h1>
+        {/* just placed: the code comes up with the tick (said once, see above) */}
+        <h1 class={fresh && !gone ? "code-new" : undefined}>
           <span class="code">{order.code}</span>
         </h1>
         <p class="hint">

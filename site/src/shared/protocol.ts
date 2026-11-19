@@ -34,12 +34,18 @@ export type GameId =
   | "dj"
   | "hide"
   | "lastcard"
-  | "straightface";
+  | "straightface"
+  | "dance"
+  | "hangon";
 /**
  * Every game, in the same spectrum order as the front door's board. New games that aren't on the
  * board yet go on the end (a table's `front` is an index into this list).
+ *
+ * `hangon` (抓紧了) has its table game ready (engine, phone and big screen, like 一起跳) but is not on
+ * the list yet: its own page can't yet take over a room the table opened (`?room=CODE`, asked of the
+ * hang-on chat in docs/briefs/hang-on.md). Once it can, it goes on the end here.
  */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"];
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface", "dance"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
   drama: 1,
@@ -62,6 +68,8 @@ export const ONLINE_MIN: Record<GameId, number> = {
   hide: 2,
   lastcard: 2,
   straightface: 3,
+  dance: 1,
+  hangon: 1,
 };
 
 export type PenaltyKind = "sip" | "two" | "full" | "everyone" | "safe";
@@ -624,6 +632,31 @@ export type HideView = {
 };
 
 /**
+ * 一起跳 · Dance Along runs on its own server at changle.ca/party, the same way: the table only knows
+ * the room there. The host's phone opens it, every phone follows as a dancer, and the big screen (or
+ * a phone that only watches) opens its stage.
+ */
+export type DanceView = {
+  id: "dance";
+  /** the room's 4-character code at changle.ca/party, once the host's phone has opened one */
+  code: string | null;
+  at: number;
+};
+
+/**
+ * 抓紧了 · Hang On runs on its own server at changle.ca/hang-on, the same way. `phone`: the room was
+ * opened as a phones-only game (no big screen at the table then): the host's phone is its stage and
+ * plays too, and a big screen that turns up later only says so.
+ */
+export type HangOnView = {
+  id: "hangon";
+  /** the room's 4-character code at changle.ca/hang-on, once the host's phone has opened one */
+  code: string | null;
+  phone: boolean;
+  at: number;
+};
+
+/**
  * 戏精大赏: a few players act a scene, one of them secretly the culprit; the rest guess who and
  * rate the acting. An actor's own card (`me`) reaches only that actor until the reveal.
  */
@@ -775,6 +808,8 @@ export type DjView = {
   /** 弹幕: the latest lines (the big screen flies the new ones) and the host's switch (none from a rooms server before Nov 13) */
   danmu?: DanmuLine[];
   danmuOn?: boolean;
+  /** the dancer on the big screen (the host's switch; none from a rooms server before Nov 19: on) */
+  dancer?: boolean;
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */
@@ -801,6 +836,8 @@ export type GameView =
   | DramaView
   | TripView
   | HideView
+  | DanceView
+  | HangOnView
   | RogueView
   | TruthView
   | UndercoverView

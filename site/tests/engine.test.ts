@@ -185,6 +185,59 @@ test("leave: seat freed, host handed on, game told", () => {
   ok(t.eng.d.host === "p1", "returning player is not host again");
 });
 
+test("host away: the table passes to a player who is here, never to a watcher, and waits for someone to come back", () => {
+  // p0 hosts, p1 only watches (the phone on the TV, say), p2 plays
+  const t = setup(3);
+  t.act("p1", { a: "watch", on: true });
+  // the host and the player go off (to another game's page): the grace runs out with no player here
+  t.eng.setOnline("p0", false);
+  t.eng.setOnline("p2", false);
+  t.eng.flush();
+  t.advance(26_000);
+  ok(t.eng.d.host === "p0", "no player here: the watcher doesn't take the table, the host keeps it");
+  // the player comes back: the clock starts again, and runs out with the host still away
+  t.eng.setOnline("p2", true);
+  t.eng.flush();
+  t.advance(10_000);
+  ok(t.eng.d.host === "p0", "right after someone comes back the host still has the grace period");
+  t.advance(16_000);
+  ok(t.eng.d.host === "p2", "then the player who came back hosts");
+  ok(t.events.some((e) => e.k === "host" && e.pid === "p2"), "host event");
+  // the old host comes back: a player now
+  ok(t.eng.hello("p0", "Host", false) === null, "the old host sits back down");
+  t.eng.flush();
+  ok(t.eng.d.host === "p2", "and isn't host again");
+});
+
+test("host away: back in time keeps the table; a late arrival while the host is away starts the clock", () => {
+  const t = setup(2);
+  t.eng.setOnline("p0", false);
+  t.eng.setOnline("p1", false);
+  t.eng.flush();
+  t.advance(26_000);
+  ok(t.eng.d.host === "p0", "nobody here: the host keeps the table");
+  ok(t.eng.hello("p9", "New", false) === null, "a new player sits down while the host is away");
+  t.eng.flush();
+  ok(t.eng.d.timers.some((x) => x.key === "host-away"), "the clock starts again");
+  t.advance(20_000);
+  t.eng.setOnline("p0", true);
+  t.eng.flush();
+  t.advance(10_000);
+  ok(t.eng.d.host === "p0", "back in time: still the host");
+  ok(!t.eng.d.timers.some((x) => x.key === "host-away"), "and the clock is off");
+});
+
+test("host leaves: the table passes to a player, to a watcher only when there is no player left", () => {
+  const t = setup(3);
+  t.act("p1", { a: "watch", on: true });
+  t.eng.setOnline("p2", false);
+  t.eng.flush();
+  t.act("p0", { a: "leave" });
+  ok(t.eng.d.host === "p2", "the player who is away hosts, not the watcher who is here");
+  t.act("p2", { a: "leave" });
+  ok(t.eng.d.host === "p1", "nobody else: the watcher hosts");
+});
+
 test("just watching: at the table, out of the game, no turns, no penalties", () => {
   // (the dice use the shared random sequence: put it back afterwards so later tests see the same)
   const s0 = seed;
@@ -1565,9 +1618,11 @@ test("limbo coach: what the phone says to someone who can't see it", () => {
   const up = coaching("moving", { lean: 54, target: 12, lost: 0.7 });
   ok(up.say === "up" && up.urgency >= 0.7, "past a moving bar: come up, and urgently once the second is running out");
   ok(coaching("moving", { lean: 32, target: 18, lost: 0 }).urgency < 0.5, "just off it, with time: not urgent yet");
+  // (the band is FOLLOW_DEG wide, 12; the warning starts 4 short of its edge)
   const edge = coaching("moving", { lean: 9, target: 18 });
   ok(edge.say === "down" && edge.soft === true && edge.urgency === 0, "still within the band but drifting to its edge: the quiet warning");
   ok(coaching("moving", { lean: 28, target: 18 }).soft === true && !coaching("moving", { lean: 2, target: 18 }).soft, "the warning is the band's edge, not off it");
+  ok(coaching("moving", { lean: 11, target: 18 }).say === "on" && coaching("moving", { lean: 33, target: 18 }).say === "up" && !coaching("moving", { lean: 33, target: 18 }).soft, "within 8: with it; past 12: off it");
   // classic and hold steady: short, then there (the hold is heard)
   const short = coaching("classic", { lean: 5, target: 20, hold: 0 });
   ok(short.say === "down" && short.hold === 0, "short of the bar: lean back more");
@@ -5936,6 +5991,34 @@ test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕�
   advance(DANMU.gapMs);
   g("p2", "say", { p: 0 });
   ok(dv("p1").danmuOn === true && lines().at(-1)!.n === 5 + DANMU.keep + 5 + 2, `another set: the count carries on (${lines().at(-1)!.n})`);
+});
+
+test("dj: the dancer on the big screen, the host's switch (Steve on Nov 18: \"需要有个按钮可以关闭模特跳舞\"): on to start with, only the host turns her off or on, another set keeps it", () => {
+  const e = new RoomEngine(freshRoom("DJDN", clock), host);
+  e.screenHello("tv-dn", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  ok(dv("p2").dancer === true, "on from the start, every view reads it");
+  ok(nothing(g("p2", "dancer", { on: false })) && dv("p1").dancer === true, "only the host turns her off");
+  ok(!nothing(g("p1", "dancer", { on: false })) && dv("p2").dancer === false, "the host does: every view reads it");
+  ok(nothing(g("p1", "dancer", { on: false })), "off again: nothing");
+  ok(nothing(g("p2", "dancer", { on: true })) && dv("p1").dancer === false, "nor on again, but the host");
+  e.screenAct("tv-dn", { x: "live", source: "fake" });
+  e.flush();
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p2").dancer === false, "another set keeps it");
+  ok(!nothing(g("p1", "dancer", { on: true })) && dv("p2").dancer === true, "the host turns her on again");
 });
 
 test("dj: songs from the phones (Steve on Nov 13: \"要允许所有玩家都可以上传自己的歌上去，不仅是host\"): a song file a phone sent goes on the 歌单 as theirs the moment the big screen has it, plays whole like a YouTube one, the next after it; one the big screen had already goes on theirs too; one the big screen no longer has is skipped", () => {

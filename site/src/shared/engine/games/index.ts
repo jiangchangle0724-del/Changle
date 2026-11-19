@@ -18,9 +18,10 @@ import { superlatives } from "./superlatives";
 import { truth } from "./truth";
 import { trip } from "./trip";
 import { hide } from "./hide";
+import { dance, hangon } from "./stage";
 import { tune } from "./tune";
 import { undercover } from "./undercover";
 import { wheel } from "./wheel";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const GAMES: Record<GameId, GameDef<any>> = { truth, drama, rogue, trip, superlatives, king, postit, limbo, prompts, euchre, dice, freeze, wheel, undercover, tune, punchline, draw, dj, hide, lastcard, straightface };
+export const GAMES: Record<GameId, GameDef<any>> = { truth, drama, rogue, trip, superlatives, king, postit, limbo, prompts, euchre, dice, freeze, wheel, undercover, tune, punchline, draw, dj, hide, lastcard, straightface, dance, hangon };

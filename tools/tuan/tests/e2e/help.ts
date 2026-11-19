@@ -76,6 +76,18 @@ export const copied = (page: Page) => page.evaluate(() => (window as unknown as 
  * sideways inside their own strip).
  */
 export async function fits(page: Page, where: string): Promise<void> {
+  // (sizes are measured when nothing is still moving: a stepper popping in is smaller for a moment)
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((motion) => motion.effect?.getComputedTiming().endTime !== Infinity)
+          .map((motion) => motion.finished.catch(() => undefined)),
+      ),
+      new Promise((done) => setTimeout(done, 2000)),
+    ]),
+  );
   const found = await page.evaluate(() => {
     const name = (el: Element) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 20)}"`;
     const small: string[] = [];

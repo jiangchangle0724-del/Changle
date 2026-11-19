@@ -59,6 +59,31 @@ screen empty and out of reach, a blurry background, a double tap that zoomed) wa
   when the Blender set arrives (the sets have no floor of their own) and reaches past every edge of
   the screen. Until 2026-11-11 the set's arrival removed the stand-in venue floor and all, and the crowd
   walked on the backdrop.
+* **What lies on the floor** (2026-11-18, the big upgrade: the floor filled most of the screen and read
+  as one flat colour; `ui/floorArt.ts`). One canvas, drawn once from fixed dice, over the part of the
+  floor any screen sees in front of the set (29 x 13.6, `FLOOR_ART_AREA`; `tests/camera.test.ts`
+  checks it reaches every edge of a phone, a tablet and a TV), laid just over the floor and under the
+  rules' marks and the people's shadows. The seawall: its paved path along the railing with a cycling
+  side and a walking side, a gravel footpath across the lawn, the lawn lusher and thinner in patches,
+  the cedars' dappled shade, the benches' and planters' shadows, November's leaves. The transit hall:
+  the yellow guide strip along the front, the way out painted at both sides (出口, EXIT), steel drain
+  covers and scuffs. The courtyard: a path of big slabs from the gate to the stage, a carved lotus in
+  the middle (under the spotlight), the stage's shadow, drain grates and moss by the side galleries,
+  ginkgo leaves. The night market: puddles from the rain holding the stalls' colours and their bulbs,
+  the lot's repairs, its worn arrows and 慢 SLOW, oil stains, tyre marks, cracks, a manhole, the
+  litter of a good night (a few napkins and skewers, not a snow of white squares). Its colours are
+  `--arena-path` … `--arena-grime` in the game's block.
+* **Each place has its own light** (`lightPlace`): the seawall a low November sun, warm, with the sky's
+  blue in the shade and the lawn's green under everything; the transit hall even and white from
+  above; the courtyard golden, late in the afternoon, from the side. The night market lights itself
+  (`ui/market.ts`). The 3D view's edges fall a little into the night (a soft vignette, CSS), so the
+  eye goes to the crowd.
+* **Everyone stands on the floor.** The people's shadows are darker in the middle, where the feet are
+  (0.42), and lie above the transit hall's walkways: until 2026-11-18 they were under the belts there,
+  so nobody had one.
+* **The walkways look like walkways**: steel pallets grooved the way they travel (the belt slides with
+  the room's drift, as before), a yellow line along each edge, and a comb plate at each end where the
+  belt goes under the floor. Belts, rails, lines and plates are one draw each (they were twelve).
 * **No stretched backdrop.** The three AI pictures (1536 x 768) used to be wrapped round the scene as a
   360° panorama: about six times their size on a phone, so blurry, and their painted lawn looked like
   floor that nobody could reach. The arena doesn't draw them any more; the lobby's thumbnails are crops
@@ -409,7 +434,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/chrome.tsx` | Top bar, bilingual title, icon buttons and line icons, the switch, the sheet, the rules. |
 | `src/client/ui/Lobby.tsx`, `Play.tsx`, `Controls.tsx`, `Result.tsx`, `Penalty.tsx`, `Menu.tsx` | The phone's screens. |
 | `src/client/ui/Tv.tsx` | The big screen. |
-| `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
+| `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `floorArt.ts`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor and what lies on it, each place's light, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
 | `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/crackers.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); its firecrackers (the throw, the ring, the fuse, the bang, the red paper); the camera's opening sweep, the glance at a distraction, the winner's shot, the confetti for the winner and for a tag; the punches' swooshes, the dizzy stars, the dust and the bangs' smoke. |
 | `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
 | `tools/blender/` | The scripts that build the 3D sets and the people's files. |
@@ -429,7 +454,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `market-dressing.glb` | 100 KB | The night market's 3D set: four stalls and their snacks, string lights, lanterns, tables | The same script (as the `bpy` module, which can't compress meshes: glTF-Transform's meshopt does, through npx) | ours |
 | `fonts/unbounded.woff2`, `fonts/figtree.woff2` | 30 KB, 23 KB | Unbounded and Figtree, Latin subsets | Google Fonts, via `games/been-there` | SIL Open Font License 1.1 |
 
-The floors, the walkways, the spotlight and the sea are drawn by the game's own code. There are no
+The floors and what lies on them, the walkways, the spotlight and the sea are drawn by the game's own code. There are no
 sound files: every sound is made in the page (`src/client/sound.ts`). The code libraries (Preact, three.js, qrcode-generator, all MIT) are
 listed with their licences in `dist/client/hide/licences.txt`, which the build writes and the
 credits page links to.
@@ -464,7 +489,8 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 * **The frame-rate budget** (`renderQuality.ts`) measures every second and lowers the pixel density
   (2.25, 1.6, 1.15) when frames run slow; real-time shadows are off. Each person is one skinned body
   (about 2,600 faces, 23 bones, skinned on the graphics chip) with their hair, bag and eyes in it: one
-  draw each, so a whole round is 33 to 47 draws (it was 101 to 115). `?fps=1` on a room's address shows
+  draw each, so a whole round is about 36 to 62 draws (it was 101 to 115; the night market, with its
+  lights and stalls, is the most). `?fps=1` on a room's address shows
   the meter on a real phone: frames a second, frame times, the quality, the draws, and how long the
   page itself takes a frame (moving everyone and handing the picture over; the rest is the graphics
   chip's).
@@ -483,8 +509,8 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
    on the controls is kept from the browser; a button waiting for its move stays a live target
    (`aria-disabled`, not `disabled`), so a quick second tap lands on it instead of falling through as a
    double tap; Safari's pinch is off during a round.
-4. **The floor fills the screen** and stays under the Blender set; the rules' marks are drawn whatever
-   set is up (above).
+4. **The floor fills the screen** and stays under the Blender set, and what lies on it reaches every
+   edge in front of the set; the rules' marks are drawn whatever set is up (above).
 5. **Nothing leaves the big screen** at 1920 x 1080 and 1280 x 720 (`tests/e2e/tv.spec.ts`).
 6. **Night colours only**, from the tokens; the gel carries night-coloured text.
 7. **Both languages**, switchable in the menu at any time; no em dashes or curly quotes.

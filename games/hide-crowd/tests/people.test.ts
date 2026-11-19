@@ -268,3 +268,14 @@ test("a foul knocks the puncher back but not down", async () => {
   const lowest = Math.min(...frames.map((frame) => frame.head));
   assert.ok(lowest > standing * 0.85, `the head stays up: ${lowest.toFixed(2)} (standing ${standing.toFixed(2)})`);
 });
+
+test("the twelve looks are built in a blink (the lobby builds them while it's up: a slow build froze it)", async () => {
+  // (fresh files: each body's face is laid on its skin once, the first time it's built)
+  const fresh = await Promise.all([parse("crowd-people.glb"), parse("crowd-people-f.glb")]);
+  kitFrom(...(await files));
+  const started = performance.now();
+  kitFrom(...fresh);
+  const took = performance.now() - started;
+  // (it took about 500 ms here before 2026-11-19, about 25 ms after; a slow machine has room to spare)
+  assert.ok(took < 250, `${took.toFixed(0)} ms`);
+});

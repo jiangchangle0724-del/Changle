@@ -63,6 +63,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-19 随便 S1: the night skin, from the site's tokens (#647)
+- 2026-11-18 随便: task cards for the night redesign (S1 skin, S2 screens, S3 motion) (#624)
 - 2026-11-18 随便: 自助 · 放题 (all you can eat) on round 1's menu (#606)
 - 2026-11-18 随便: demo restaurants in the host's language, and no Google line under them (#602)
 - 2026-11-18 随便: what was left of picking alone goes (its rating, its "就它了", its account data) (#599)
@@ -101,3 +103,4 @@
 - 2026-11-18 Steve 说「继续」：做了 #597（微信里默认中文，跟一单档案转来的全站规矩）、#599（删一个人挑的旧代码，11-15 以后可删）、#602（演示模式两个老问题）。隐私页字号的提醒查过：检查工具读不到 `/eat/app.css`，以为标题和正文都是 16px；页面实际是 32、21、16px，带上真的样式表再查就没有问题。没改页面，只在本机记了这条忽略（隐私页和条款页）。三个都 CI 绿了合并，Cloudflare 部署成功；线上验过 /eat/rate 回首页、旧的单人评分接口 404、页面脚本和 main 一样。
 - 2026-11-18 晚上 Steve：第 1 轮的选项里要有 all you can eat。做了 #606（见「定过的事」），CI 绿了合并，Cloudflare 部署成功，线上页面脚本和 main 一样。
 - 2026-11-18 Steve 发来藏在人群里对话找到的游戏手感技能，要随便的动画、交互和页面设计大改，规则不变，能用 ChatGPT 就用。画了五屏样稿给他看，写了 S1–S3 三张 Codex 卡；浏览器测试可以用电脑自己的 Chrome 了（`PW_CHROME=1`），Codex 在 Steve 电脑上装不了 Playwright 的浏览器时用。
+- 2026-11-19 Steve 在电脑操作里允许了 ChatGPT（Codex 在 Windows 上就是 ChatGPT 这个程序，左上角切到 Codex，新对话选 This computer），在他电脑上发了 S1。Codex 半小时开了 #647：只改卡上的文件，118 个单元测试和 10 个浏览器测试都过。审过：截图看了首页、饮食卡、大厅、两轮、结果、评分、隐私页，390 和 1280 宽，中英文；大厅的桌号在二维码旁边折成了两行（745 / 0），改成小一档、不折行，推在 PR 上。合并后发 S2。

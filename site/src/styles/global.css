@@ -666,7 +666,8 @@ p {
 .sheet {
   width: 100%;
   max-width: 560px;
-  max-height: min(88dvh, 860px);
+  /* no taller than its backdrop, which on an iPhone is the screen above the keyboard (ui/screenAnchor) */
+  max-height: min(88dvh, 860px, 100%);
   display: flex;
   flex-direction: column;
   background: var(--dusk);

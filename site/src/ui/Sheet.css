@@ -4,7 +4,8 @@
   margin: 0 auto;
   width: 100%;
   max-width: var(--page-max);
-  max-height: calc(100dvh - var(--safe-top) - var(--space-4));
+  /* (--screen-h: the screen's own height, set on an iPhone by ui/screenAnchor: the keyboard takes its share) */
+  max-height: min(calc(100dvh - var(--safe-top) - var(--space-4)), calc(var(--screen-h, 100dvh) - var(--space-4)));
   padding: 0;
   border: 0;
   border-radius: var(--r-sheet) var(--r-sheet) 0 0;

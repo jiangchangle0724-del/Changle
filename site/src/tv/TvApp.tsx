@@ -14,6 +14,9 @@ import { cameBackFromEnd, markWent, tripUrl, wentTo } from "../party/trip/link";
 import { ONLINE_GAMES, ONLINE_MIN, type GameView, type RoomView, type SeatView, type TripView } from "../shared/protocol";
 import { TablePenalty, useStore } from "../store";
 import { TvHide } from "../party/hide/TvHide";
+import { DANCE } from "../party/dance/link";
+import { HANGON } from "../party/hangon/link";
+import { TvStage } from "../party/stage/TvStage";
 import "../styles/tv.css";
 import { useCodeField } from "../online/codeField";
 import { TvCorner, TvPenalties, TvReactions, useScreenFx } from "./moments";
@@ -102,6 +105,8 @@ function TvScreen({ create, onFresh, onJoin, onAgain }: { create: boolean; onFre
   else if (room.game && own) body = <TvView v={room.game} sound={audio} fallback={<TvNotice title={zh ? GAME_BY_ID[room.game.id].name.zh : GAME_BY_ID[room.game.id].name.en} spinning />} />;
   else if (room.game?.id === "trip") body = <TvTrip v={room.game} table={code} />;
   else if (room.game?.id === "hide") body = <TvHide v={room.game} table={code} Notice={TvNotice} />;
+  else if (room.game?.id === "dance") body = <TvStage v={room.game} link={DANCE} table={code} Notice={TvNotice} />;
+  else if (room.game?.id === "hangon") body = <TvStage v={room.game} link={HANGON} table={code} Notice={TvNotice} />;
   else if (room.game?.id === "dj")
     body = (
       <Suspense fallback={<TvNotice title={zh ? "正在打开 DJ 台…" : "Opening the DJ booth…"} spinning />}>
@@ -374,6 +379,10 @@ function TvLobby({ room, audio, onJoin }: { room: RoomView; audio: boolean; onJo
           <span className="tv-front-note">{zh ? "到此一游在大屏幕上有自己的页面，开始以后这块屏幕自己过去" : "Been There, Bought That has its own big-screen page. This screen goes there when it starts."}</span>
         ) : gid === "hide" ? (
           <span className="tv-front-note">{zh ? "藏在人群里在大屏幕上有自己的页面，开始以后这块屏幕自己过去" : "Hide in the Crowd has its own big-screen page. This screen goes there when it starts."}</span>
+        ) : gid === "dance" ? (
+          <span className="tv-front-note">{zh ? "一起跳的舞台是它自己的页面，开始以后这块屏幕自己过去" : "Dance Along's stage is a page of its own. This screen goes there when it starts."}</span>
+        ) : gid === "hangon" ? (
+          <span className="tv-front-note">{zh ? "抓紧了的大屏是它自己的页面，开始以后这块屏幕自己过去" : "Hang On's big screen is a page of its own. This screen goes there when it starts."}</span>
         ) : (
           <span className="tv-front-note">{zh ? "这个游戏在手机上玩，大屏幕上是它的手机画面和座位" : "This one plays on the phones. The big screen shows the phone screen and the seats."}</span>
         )}

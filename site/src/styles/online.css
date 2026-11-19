@@ -1114,3 +1114,41 @@ button.bowl:disabled {
   font-size: var(--text-xs);
   font-weight: 700;
 }
+
+/* ---------- mirroring: a phone that is the TV ---------- */
+.lobby-cast {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 12px;
+}
+.lobby-cast.is-on {
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 10px 12px 10px 16px;
+  border-radius: var(--r-panel);
+  background: var(--dusk-2);
+  text-align: left;
+}
+.lobby-cast.is-on > svg {
+  flex: none;
+  color: var(--gel-amber);
+}
+.lobby-cast-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  line-height: var(--leading-tight);
+}
+.lobby-cast-text strong {
+  font-size: var(--text-sm);
+}
+.lobby-cast-text small {
+  color: var(--haze);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.lobby-cast.is-on .btn {
+  flex: none;
+}

@@ -4,12 +4,12 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { addDays, allFree, atTime, best, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel } from "../../engine";
+import { addDays, allFree, atTime, best, crewOf, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel, withNames } from "../../engine";
 import type { Answers, Day, EventState, Here, Lang, Part, Person, Quick, SlotKey, Span, Times, Weather } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
 import type { Snapshot } from "../../room/protocol";
-import { api, ApiFail, forget, remember, savedName, saveName } from "../api";
+import { api, ApiFail, crews, forget, remember, rememberCrew, savedName, saveName, type Crew } from "../api";
 import { t, type Key } from "../i18n";
 import { watch } from "../live";
 import { After } from "./After";
@@ -267,6 +267,12 @@ export function EventPage({ code }: { code: string }) {
   const done = useFinished(snap?.state.people, [snap?.me, proxy?.id]);
   // Vancouver's forecast, when any of the days asked about is in the coming week
   const forecast = useForecast(snap?.state.days);
+  // a host's phone keeps who this gathering's people are, to ask them again next time (同一帮人再约)
+  useEffect(() => {
+    if (!snap?.host) return;
+    const self = snap.state.people.find((p) => p.id === snap.me)?.name ?? null;
+    rememberCrew({ code, title: snap.state.title, names: crewOf(snap.state.invited, snap.state.people, self), at: Date.now() });
+  }, [snap?.host, snap?.state.v]);
 
   if (gone) {
     return (
@@ -961,7 +967,14 @@ export function EventPage({ code }: { code: string }) {
           />
         </Sheet>
       )}
-      {open?.kind === "invited" && <InvitedSheet invited={state.invited} onSave={(list) => (setOpen(null), void act({ do: "edit", invited: list }))} onClose={() => setOpen(null)} />}
+      {open?.kind === "invited" && (
+        <InvitedSheet
+          invited={state.invited}
+          crews={crews().filter((c) => c.code !== code)}
+          onSave={(list) => (setOpen(null), void act({ do: "edit", invited: list }))}
+          onClose={() => setOpen(null)}
+        />
+      )}
       {open?.kind === "deadline" && (
         <DeadlineSheet
           state={state}
@@ -1195,7 +1208,7 @@ function ProxySheet({ people, onStart, onClose }: { people: Person[]; onStart: (
 }
 
 /** The host's list of who to ask, as typed: one name a line, or with 、，, between. */
-function InvitedSheet({ invited, onSave, onClose }: { invited: string[]; onSave: (list: string[]) => void; onClose: () => void }) {
+function InvitedSheet({ invited, crews, onSave, onClose }: { invited: string[]; crews: Crew[]; onSave: (list: string[]) => void; onClose: () => void }) {
   useLang();
   const [text, setText] = useState(() => invited.join("\n"));
   // as the server will keep it: each name once
@@ -1211,6 +1224,21 @@ function InvitedSheet({ invited, onSave, onClose }: { invited: string[]; onSave:
         </button>
       }
     >
+      {crews.length > 0 && (
+        <div class="field">
+          <span class="field-label" id="crews-label">
+            {t("crewFrom")}
+          </span>
+          {/* the people of a gathering hosted before, brought onto what's typed */}
+          <div class="quick" role="group" aria-labelledby="crews-label">
+            {crews.map((c) => (
+              <button key={c.code} type="button" onClick={() => setText(withNames(splitNames(text), c.names).join("\n"))}>
+                {t("crewChip", { title: c.title, n: c.names.length })}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <label class="field">
         <span class="field-label">{t("invitedHint")}</span>
         <textarea data-autofocus rows={6} maxLength={800} value={text} placeholder={t("invitedPlaceholder")} onInput={(event) => setText(event.currentTarget.value)} />

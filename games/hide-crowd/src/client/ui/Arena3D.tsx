@@ -3,6 +3,7 @@ import type { ComponentChildren } from "preact";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
 import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, steerVelocity } from "../../engine";
@@ -17,6 +18,7 @@ import { addCinema } from "./cinema";
 import { addCrackers } from "./crackers";
 import { addEffects } from "./effects";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
+import { addFloorArt, type FloorArtPalette } from "./floorArt";
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
 export function preloadPeople(): void {
@@ -84,6 +86,21 @@ interface Palette {
   petal: string;
   daisy: string;
   sea: string;
+  /** what lies on the floors beyond their pattern (floorArt.ts): the seawall's paving and gravel, the
+   * cedars' shade, fallen leaves, moss, steel, the station's yellow strip, road paint and grime */
+  path: string;
+  path2: string;
+  gravel: string;
+  shade: string;
+  leaf1: string;
+  leaf2: string;
+  leaf3: string;
+  ginkgo: string;
+  moss: string;
+  steel: string;
+  tactile: string;
+  marking: string;
+  grime: string;
   /** the night market: the lot's asphalt and paint, the bulbs, the dusk, the four stalls' canvas */
   asphalt: string;
   asphalt2: string;
@@ -118,6 +135,8 @@ const FLOOR_BOX: FloorBox = {
   height: 3.1
 };
 const MARKER_Y = 2.82;
+/** the people's shadows lie over the floor, its art and the transit hall's walkways (0.012) */
+const SHADOW_Y = 0.016;
 /** the floor reaches past every edge of the screen (the camera sees about 12 units behind the crowd on a big screen) */
 const GROUND_SIZE = { x: 48, z: 36, centerZ: -4 };
 /** the seawall's stone edge, just beyond the set's railing; the sea lies past it */
@@ -178,6 +197,19 @@ function readPalette(): Palette {
     petal: read("--arena-petal", "#ee9fb6"),
     daisy: read("--arena-daisy", "#fbf4e2"),
     sea: read("--arena-sea", "#3b8db5"),
+    path: read("--arena-path", "#c8bfae"),
+    path2: read("--arena-path-2", "#a89d8b"),
+    gravel: read("--arena-gravel", "#cdbb98"),
+    shade: read("--arena-shade", "#173018"),
+    leaf1: read("--arena-leaf-1", "#d9822b"),
+    leaf2: read("--arena-leaf-2", "#b8432c"),
+    leaf3: read("--arena-leaf-3", "#e2b43c"),
+    ginkgo: read("--arena-ginkgo", "#e9b827"),
+    moss: read("--arena-moss", "#6d8a3a"),
+    steel: read("--arena-steel", "#9aa1a9"),
+    tactile: read("--arena-tactile", "#f0c02e"),
+    marking: read("--arena-marking", "#f6f2e8"),
+    grime: read("--arena-grime", "#14120f"),
     asphalt: read("--arena-asphalt", "#2c303b"),
     asphalt2: read("--arena-asphalt-2", "#3a3f4d"),
     paint: read("--arena-paint", "#e6dcc0"),
@@ -207,6 +239,76 @@ function marketPalette(palette: Palette): MarketPalette {
     sparks: [palette.bulb, palette.me, palette.accent, palette.stall2, palette.stall1],
     ink: palette.ink
   };
+}
+
+function floorArtPalette(palette: Palette): FloorArtPalette {
+  return {
+    lawn: palette.lawn,
+    lawn2: palette.lawn2,
+    lawnLight: palette.lawnLight,
+    tile: palette.tile,
+    tile2: palette.tile2,
+    stone: palette.stone,
+    stone2: palette.stone2,
+    petal: palette.petal,
+    daisy: palette.daisy,
+    path: palette.path,
+    path2: palette.path2,
+    gravel: palette.gravel,
+    shade: palette.shade,
+    leaves: [palette.leaf1, palette.leaf2, palette.leaf3],
+    ginkgo: palette.ginkgo,
+    moss: palette.moss,
+    steel: palette.steel,
+    tactile: palette.tactile,
+    asphalt: palette.asphalt,
+    asphalt2: palette.asphalt2,
+    dusk: palette.dusk,
+    paint: palette.paint,
+    bulb: palette.bulb,
+    stalls: [palette.stall0, palette.stall1, palette.stall2, palette.stall3],
+    white: palette.marking,
+    dark: palette.grime,
+    font: palette.font
+  };
+}
+
+/**
+ * Each place's daylight (the night market lights itself: market.ts). The seawall: a low November sun,
+ * warm, with the sky's blue in the shade and the lawn's green under everything. The transit hall:
+ * even, white, from above, as a station's lights are. The courtyard: late afternoon, golden, from the
+ * side, the warm stone throwing it back.
+ */
+function lightPlace(arena: ArenaId, palette: Palette, ambient: THREE.HemisphereLight, key: THREE.DirectionalLight, fill: THREE.DirectionalLight): void {
+  const mix = (a: string, b: string, amount: number) => new THREE.Color(a).lerp(new THREE.Color(b), amount);
+  if (arena === "plaza") {
+    ambient.color.copy(mix(palette.ink, palette.sea, 0.2));
+    ambient.groundColor.copy(mix(palette.lawn2, palette.bg, 0.35));
+    ambient.intensity = 2.5;
+    key.color.copy(mix(palette.ink, palette.bulb, 0.3));
+    key.intensity = 3.3;
+    key.position.set(-9, 14, 9);
+    fill.color.copy(mix(palette.ink, palette.sea, 0.45));
+    fill.intensity = 0.9;
+  } else if (arena === "metro") {
+    ambient.color.copy(mix(palette.ink, palette.marking, 0.6));
+    ambient.groundColor.copy(mix(palette.tile2, palette.bg, 0.4));
+    ambient.intensity = 2.8;
+    key.color.copy(mix(palette.ink, palette.marking, 0.75));
+    key.intensity = 2.7;
+    key.position.set(-2, 18, 5);
+    fill.color.copy(mix(palette.ink, palette.steel, 0.4));
+    fill.intensity = 0.95;
+  } else if (arena === "gallery") {
+    ambient.color.copy(mix(palette.ink, palette.stone, 0.2));
+    ambient.groundColor.copy(mix(palette.stone2, palette.bg, 0.45));
+    ambient.intensity = 2.4;
+    key.color.copy(mix(palette.ink, palette.bulb, 0.6));
+    key.intensity = 3.4;
+    key.position.set(-11, 12, 7);
+    fill.color.copy(mix(palette.ink, palette.sea, 0.5));
+    fill.intensity = 0.7;
+  }
 }
 
 function lightTint(palette: Palette): string {
@@ -405,9 +507,11 @@ function createSoftShadowTexture(): THREE.CanvasTexture {
   if (context) {
     const center = canvas.width / 2;
     const gradient = context.createRadialGradient(center, center, 2, center, center, center);
+    // (a dark middle where the feet are, fading wide: the people stand on the floor, not over it)
     gradient.addColorStop(0, "rgb(255,255,255)");
-    gradient.addColorStop(0.42, "rgb(212,212,212)");
-    gradient.addColorStop(0.76, "rgb(88,88,88)");
+    gradient.addColorStop(0.26, "rgb(238,238,238)");
+    gradient.addColorStop(0.56, "rgb(150,150,150)");
+    gradient.addColorStop(0.8, "rgb(52,52,52)");
     gradient.addColorStop(1, "rgb(0,0,0)");
     context.fillStyle = gradient;
     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -467,24 +571,64 @@ function createSoftRectTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas);
 }
 
-/** The moving walkway's belt: dark ridged rubber, drawn once and slid along as the walkway runs. */
+/**
+ * The moving walkway's belt, drawn once and slid along as the walkway runs: one repeat is three of its
+ * steel pallets, each grooved along the way it travels, with a dark joint between them.
+ */
 function createBeltTexture(palette: Palette): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 256;
+  canvas.width = 384;
   canvas.height = 256;
   const context = canvas.getContext("2d");
   if (context) {
-    context.fillStyle = "#" + new THREE.Color(palette.surface2).lerp(new THREE.Color(palette.tile2), 0.18).getHexString();
-    context.fillRect(0, 0, 256, 256);
-    for (let x = 0; x < 256; x += 16) {
-      context.fillStyle = palette.line;
-      context.fillRect(x, 0, 5, 256);
+    const mix = (a: string, b: string, amount: number) => "#" + new THREE.Color(a).lerp(new THREE.Color(b), amount).getHexString();
+    const panel = mix(palette.surface2, palette.steel, 0.3);
+    context.fillStyle = mix(palette.surface2, palette.grime, 0.5);
+    context.fillRect(0, 0, 384, 256);
+    for (let pallet = 0; pallet < 3; pallet++) {
+      const x = pallet * 128;
+      const sheen = context.createLinearGradient(x, 0, x + 128, 0);
+      sheen.addColorStop(0, mix(panel, palette.steel, 0.12));
+      sheen.addColorStop(1, panel);
+      context.fillStyle = sheen;
+      context.fillRect(x + 4, 0, 120, 256);
+      // the grooves, and the light catching each ridge
+      for (let y = 2; y < 256; y += 8) {
+        context.fillStyle = mix(panel, palette.grime, 0.45);
+        context.fillRect(x + 4, y, 120, 3);
+        context.fillStyle = mix(panel, palette.steel, 0.35);
+        context.fillRect(x + 4, y + 3, 120, 1);
+      }
     }
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+/** The plates at a walkway's ends, where the belt goes under the floor: steel, with its yellow comb. */
+function createCombTexture(palette: Palette): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 256;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = palette.steel;
+    context.fillRect(0, 0, 64, 256);
+    // a tread of raised diamonds
+    context.fillStyle = "#" + new THREE.Color(palette.steel).lerp(new THREE.Color(palette.grime), 0.35).getHexString();
+    for (let y = 6; y < 256; y += 14) for (let x = 8; x < 48; x += 14) context.fillRect(x + ((y / 14) % 2) * 7, y, 6, 3);
+    // the comb's teeth, yellow, at the edge that meets the belt (the texture's right side)
+    context.fillStyle = palette.tactile;
+    context.fillRect(48, 0, 16, 256);
+    context.fillStyle = palette.grime;
+    for (let y = 0; y < 256; y += 8) context.fillRect(56, y + 5, 8, 3);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
@@ -510,31 +654,55 @@ function addRuleMarks(scene: THREE.Scene, arena: ArenaId, palette: Palette): Rul
   };
   const marks: RuleMarks = { belt: null, beltRepeat: 1, dispose: () => owned.forEach((value) => value.dispose()) };
   if (arena === "metro") {
-    // four walkways side by side, edge to edge with the crowd's floor
+    // four walkways side by side, edge to edge with the crowd's floor: their belts, the steel between
+    // them, a yellow line along each belt's edges and a comb plate at each end (one draw each, merged)
     const lanes = 4;
     const depth = FLOOR_BOX.near - FLOOR_BOX.far + 0.6;
     const laneDepth = depth / lanes;
     const width = 2 * (FLOOR_BOX.halfWidth + 0.9);
     const belt = keep(createBeltTexture(palette));
     marks.belt = belt;
+    const plate = 0.42;
     marks.beltRepeat = 1.2;
-    belt.repeat.set(width / marks.beltRepeat, 1);
-    const beltMaterial = keep(new THREE.MeshStandardMaterial({ color: "#ffffff", map: belt, roughness: 0.7, metalness: 0.05 }));
-    const railMaterial = keep(new THREE.MeshStandardMaterial({ color: palette.muted, roughness: 0.35, metalness: 0.6 }));
-    const laneGeometry = keep(new THREE.PlaneGeometry(width, laneDepth - 0.16));
-    const railGeometry = keep(new THREE.BoxGeometry(width + 0.3, 0.06, 0.14));
+    belt.repeat.set((width - 2 * plate) / marks.beltRepeat, 1);
+    const comb = keep(createCombTexture(palette));
+    const flat = (sizeX: number, sizeZ: number, x: number, z: number, turn = 0) => {
+      const geometry = new THREE.PlaneGeometry(sizeX, sizeZ);
+      geometry.rotateX(-Math.PI / 2);
+      if (turn) geometry.rotateY(turn);
+      geometry.translate(x, 0, z);
+      return geometry;
+    };
+    const belts: THREE.BufferGeometry[] = [];
+    const rails: THREE.BufferGeometry[] = [];
+    const lines: THREE.BufferGeometry[] = [];
+    const plates: THREE.BufferGeometry[] = [];
     for (let lane = 0; lane < lanes; lane++) {
       const z = FLOOR_BOX.far - 0.3 + laneDepth * (lane + 0.5);
-      const mesh = new THREE.Mesh(laneGeometry, beltMaterial);
-      mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(0, 0.012, z);
-      scene.add(mesh);
+      belts.push(flat(width - 2 * plate, laneDepth - 0.16, 0, z));
       for (const edge of [-1, 1]) {
-        const rail = new THREE.Mesh(railGeometry, railMaterial);
-        rail.position.set(0, 0.03, z + edge * (laneDepth / 2 - 0.04));
-        scene.add(rail);
+        const rail = new THREE.BoxGeometry(width + 0.3, 0.06, 0.14);
+        rail.translate(0, 0.03 - 0.012, z + edge * (laneDepth / 2 - 0.04));
+        rails.push(rail);
+        lines.push(flat(width - 2 * plate, 0.06, 0, z + edge * (laneDepth / 2 - 0.16)));
+        // (the comb's yellow teeth face the belt: the texture's right side turns toward the middle)
+        plates.push(flat(plate, laneDepth - 0.16, edge * (width / 2 - plate / 2), z, edge < 0 ? 0 : Math.PI));
       }
     }
+    const merge = (parts: THREE.BufferGeometry[]) => {
+      const merged = keep(mergeGeometries(parts, false)!);
+      for (const part of parts) part.dispose();
+      return merged;
+    };
+    const walkway = (geometry: THREE.BufferGeometry, material: THREE.Material, y: number) => {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.y = y;
+      scene.add(mesh);
+    };
+    walkway(merge(belts), keep(new THREE.MeshStandardMaterial({ color: "#ffffff", map: belt, roughness: 0.55, metalness: 0.08 })), 0.012);
+    walkway(merge(rails), keep(new THREE.MeshStandardMaterial({ color: palette.muted, roughness: 0.32, metalness: 0.55 })), 0.012);
+    walkway(merge(lines), keep(new THREE.MeshStandardMaterial({ color: palette.tactile, roughness: 0.6 })), 0.013);
+    walkway(merge(plates), keep(new THREE.MeshStandardMaterial({ color: "#ffffff", map: comb, roughness: 0.4, metalness: 0.2 })), 0.013);
   } else if (arena === "gallery") {
     // the rules' spotlight: 28 x 34 of the floor's 100 x 58, in the middle
     const glow = keep(createSoftRectTexture());
@@ -820,7 +988,10 @@ export function Arena3D(props: Props) {
     fill.position.set(8, 9, -11);
     scene.add(fill);
 
+    lightPlace(props.arena, palette, ambient, key, fill);
     const groundTexture = addGround(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
+    // (and what lies on it: paths, leaves, puddles, the way out)
+    const floorArt = addFloorArt(scene, props.arena, floorArtPalette(palette), renderer.capabilities.getMaxAnisotropy());
     const ruleMarks = addRuleMarks(scene, props.arena, palette);
     // (the night market's lights, its stalls' pools and its fireworks stay whichever set is showing)
     const market: Market | null = props.arena === "market" ? addMarket(scene, marketPalette(palette), ambient, key, fill) : null;
@@ -881,7 +1052,7 @@ export function Arena3D(props: Props) {
     shadowGeometry.rotateX(-Math.PI / 2);
     const impactRingMat = Object.assign(new THREE.MeshBasicMaterial({ color: palette.warn, transparent: true, opacity: 0.82, depthWrite: false }), { userData: { paletteToken: "warn" } });
     const shadowTexture = createSoftShadowTexture();
-    const shadowMat = Object.assign(new THREE.MeshBasicMaterial({ color: darkTint(palette), alphaMap: shadowTexture, transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }), { userData: { paletteToken: "ink" } });
+    const shadowMat = Object.assign(new THREE.MeshBasicMaterial({ color: darkTint(palette), alphaMap: shadowTexture, transparent: true, opacity: 0.42, depthWrite: false, toneMapped: false }), { userData: { paletteToken: "ink" } });
     const impactRings = new THREE.InstancedMesh(impactRingGeometry, impactRingMat, MAX_CHARACTERS);
     const shadows = new THREE.InstancedMesh(shadowGeometry, shadowMat, MAX_CHARACTERS);
     for (const mesh of [impactRings, shadows]) {
@@ -1276,7 +1447,7 @@ export function Arena3D(props: Props) {
         const staggered = avatar.p === "stunned";
         const ringPulse = staggered && !reduced ? 1 + Math.abs(Math.sin(clock * 12 + index)) * 0.55 : 0;
         if (ringPulse > 0) writeInstance(impactRings, activeImpactRings++, dummy, visual.x, 0.055, visual.z, 0, ringPulse, ringPulse, ringPulse);
-        writeInstance(shadows, index, dummy, visual.x + 0.12, 0.005, visual.z - 0.08, 0, staggered ? 1.0 : 0.78, 1, staggered ? 0.86 : 0.7);
+        writeInstance(shadows, index, dummy, visual.x + 0.12, SHADOW_Y, visual.z - 0.08, 0, staggered ? 1.0 : 0.78, 1, staggered ? 0.86 : 0.7);
         if (kit) {
           const person = people[index] ?? (people[index] = kit.spawn(index));
           if (!person.root.parent) scene.add(person.root);
@@ -1435,6 +1606,7 @@ export function Arena3D(props: Props) {
         tag.texture.dispose();
       }
       groundTexture.dispose();
+      floorArt.dispose();
       ruleMarks.dispose();
       market?.dispose();
       cinema.dispose();
