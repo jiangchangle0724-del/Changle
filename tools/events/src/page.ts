@@ -129,13 +129,28 @@ const titleLang = (title: string): Lang => (/[\u3400-\u9fff]/.test(title) ? "zh"
 /** Words only a screen reader hears ("43" on a chip is "43 events"). */
 const hidden = (text: string) => `<span class="vh">${text}</span>`;
 
+/** The source's picture of the event, over https; none when it has none. */
+function picture(e: PublicEvent): string {
+  const src = e.imageUrl ? webUrl(e.imageUrl.replace(/^http:\/\//i, "https://")) : null;
+  // decorative (the name says what it is); lazy, and no address of this page sent with it
+  return src ? `<img class="pic" src="${esc(src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : "";
+}
+
+const langAttr = (text: string, lang: Lang) => {
+  const own = titleLang(text);
+  return own === lang ? "" : ` lang="${own === "zh" ? "zh-CN" : "en"}"`;
+};
+
 function eventItem(e: PublicEvent, day: string, lang: Lang): string {
   const zh = lang === "zh";
   const L = (p: Pair) => (zh ? p[0] : p[1]);
   const url = webUrl(e.url);
-  const title = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(e.title)}</a>` : esc(e.title);
-  const own = titleLang(e.title);
-  const titleAttr = own === lang ? "" : ` lang="${own === "zh" ? "zh-CN" : "en"}"`;
+  // on the Chinese page the name in Chinese when it has one, and the source's own under it, small:
+  // that's the name at the door and on the source's page
+  const name = zh && e.titleZh ? e.titleZh : e.title;
+  const original = name !== e.title ? e.title : null;
+  const title = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(name)}</a>` : esc(name);
+  const titleAttr = langAttr(name, lang);
   // the street is enough next to the area ("3461 Ross Drive", not the city, province and postcode);
   // it opens a map, since nothing on the page can be copied (the site's rule)
   const street = e.address ? e.address.split(",")[0].trim() : "";
@@ -154,8 +169,10 @@ function eventItem(e: PublicEvent, day: string, lang: Lang): string {
   facts.push(sourceName(e.sourceName, lang));
   return (
     `<li class="ev"><p class="when">${whenLines(e, day, lang).map((l) => `<span>${esc(l)}</span>`).join("")}</p><div class="what">` +
+    picture(e) +
     (flags.length ? `<p class="flags">${flags.join("")}</p>` : "") +
     `<h3 class="title"${titleAttr}>${title}</h3>` +
+    (original ? `<p class="orig"${langAttr(original, lang)}>${esc(original)}</p>` : "") +
     (summary ? `<p class="sum">${esc(summary)}</p>` : "") +
     (where.length || street
       ? `<p class="place">${where.map(esc).join(" · ")}${street ? `<span class="addr"><a href="${esc(map)}" target="_blank" rel="noopener noreferrer">${esc(street)}${hidden(zh ? "（地图）" : " (map)")}</a></span>` : ""}</p>`
@@ -295,6 +312,9 @@ h1{font-size:var(--text-2xl);line-height:var(--leading-tight);margin:var(--space
 .title a{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
 .title a:hover{text-decoration-color:var(--gel)}
 .title a::after{content:"";position:absolute;inset:0}
+.pic{display:block;width:100%;max-width:22rem;aspect-ratio:3/1;object-fit:cover;border-radius:var(--r-small);background:var(--dusk);margin:0 0 var(--space-2)}
+.orig{color:var(--haze);font-size:var(--text-xs);overflow-wrap:anywhere}
+.sum{font-size:var(--text-sm)}
 .place{color:var(--haze);font-size:var(--text-sm);overflow-wrap:anywhere}
 .addr{display:block;color:var(--fog)}
 .addr a{position:relative;z-index:1;display:inline-block;padding:var(--space-3) 0;margin:calc(-1 * var(--space-3)) 0;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}

@@ -16,6 +16,7 @@ interface Row {
   id: string;
   source: string;
   title: string;
+  title_zh: string | null;
   summary_zh: string | null;
   summary_en: string | null;
   start_at: string;
@@ -51,7 +52,7 @@ export async function publish(env: Env, runId: string, note: string | null = nul
   await ensureSchema(env.DB);
   const w = windowOf(runId);
   const { results } = await env.DB.prepare(
-    `SELECT e.id, e.source, e.title, e.summary_zh, e.summary_en, e.start_at, e.end_at, e.all_day, e.time_tbd, e.status,
+    `SELECT e.id, e.source, e.title, e.title_zh, e.summary_zh, e.summary_en, e.start_at, e.end_at, e.all_day, e.time_tbd, e.status,
             v.name AS venue_name, v.address AS venue_address, v.area AS venue_area, v.area_check AS venue_area_check,
             e.category, e.tags, e.price_min, e.is_free, e.lang, e.url, e.image_url, e.featured, e.updated_at
        FROM events e
@@ -67,6 +68,7 @@ export async function publish(env: Env, runId: string, note: string | null = nul
   const events: PublicEvent[] = results.map((r) => ({
     id: r.id,
     title: r.title,
+    titleZh: r.title_zh,
     summaryZh: r.summary_zh,
     summaryEn: r.summary_en,
     start: r.start_at,

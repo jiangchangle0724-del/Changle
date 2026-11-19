@@ -9,6 +9,7 @@
 ## 文件
 
 - 全部代码（自己的服务器，Worker `changle-events`，D1、KV、每天的定时任务）：`tools/events/`
+- 中文名和介绍（A3）：`tools/events/src/ai.ts`，每小时 5 分的定时任务（`wrangler.jsonc` 第二个 cron），Workers AI（绑定 `AI`）
 - 每天的检查：GitHub 每天 02:23 的任务 `.github/workflows/events-health.yml`，脚本 `tools/events/scripts/health.ts`，判断和开关 issue 的代码 `tools/events/src/health.ts`
 - 两个图书馆的接力：GitHub 每天 5:50 的任务 `.github/workflows/events-libraries.yml`，脚本 `tools/events/scripts/libraries.ts`，两头的代码 `tools/events/src/handoff.ts`，核对 GitHub 登录凭证的代码 `tools/events/src/oidc.ts`，晚到的页来了就读 `tools/events/src/arrival.ts`
 - Codex 的任务卡：`docs/codex-tasks/C*.md`（目录在 `docs/codex-tasks/README.md`）
@@ -39,6 +40,7 @@
 - 接力不用钥匙，用 GitHub 自己的登录凭证（OIDC）证明是我们的任务，谁都不用设（11 月 5 日；#211）。原因：钥匙要 Steve 自己做、自己粘贴到两边，助手不能替他处理钥匙，一直没加上。钥匙那条路留着，只给 GitHub 以外跑脚本用。
 - 接力交到 Worker 自己的地址 `changle-events.jiangchangle0724.workers.dev`，不走 changle.ca（11 月 5 日 Steve 同意合并 #246）。
 - 交来晚的页来了就读，一个图书馆最后一页到了就重新发布清单；一个来源抓到一半失败，保留它之前列着的活动（11 月 11 日 Steve 说开工；#299、#300）。
+- 中文页面（11 月 19 日 Steve 要的）：活动名显示中文译名，原名小字在下面，再一句中文说明是什么活动；有图的配来源网站的图（3:1，懒加载，不带 referrer），没图就不放。中文由 Workers AI 写（`@cf/qwen/qwen3-30b-a3b-fp8`，免费额度内，不用钥匙），每小时补一次；只给没分类的活动分类，不动来源给的分类。名字规则：艺人、乐队、巡演、场馆等保留英文，本地球队用通行中文名（试过不加这条，Canucks 被写成「维多利亚喷气机队」）。
 - 来源出错时的通知：GitHub 每天检查一次前一天那一轮，有问题就在仓库里开一个 issue 并 @ Steve，GitHub 发邮件给他；同样的问题不再说，问题变了才评论，好了自己关。不用钥匙，用任务自己的 GitHub 凭证（只能写 issue）。仓库是公开的，issue 也公开，所以错误里的 key、token 一律抹掉（11 月 18 日 Steve 说「继续」，按这个方案做）。
 
 ## 现在
@@ -63,7 +65,8 @@
 - 页面以后可以加：活动图片（581 个有图，现在不放，为了快）、「这个周末」一键、搜索；先看大家怎么用。
 - 页面的耗时会跟着活动数涨：现在 664 个，读 JSON 0.8 毫秒、出页面约 1 毫秒；活动多到四倍约 6 毫秒，八倍光读 JSON 就超过一次请求的 10 毫秒。来源再多之前，改成每个 Worker 把读好的清单留在内存里，或者每天单独发布一份。
 - 页面上的日历订阅（苹果、Google）还没人真订过：Google 和 iCloud 从它们自己的服务器来取，可能被机器人防护挡。上线后请 Steve 用手机点一次 Google 日历的链接，日历里有活动就是通了；空的就先把那个链接拿掉，要放行得改 Cloudflare 的设置，先问 Steve。
-- A3 中文简介（页面上有位置，现在全是空的）；A4 去重（README 里有 C4、C5 审查留下的注意事项）；验收门 A。
+- A3 中文名和介绍已上线；还没做：英文页的一句话介绍（summary_en 一直是空的）、日历订阅里的中文名、预览页显示中文名。AI 写错的名字现在只能等来源改文字或改提示词，没有手动改的地方（summary_by 'steve' 留着给以后）。
+- A4 去重（README 里有 C4、C5 审查留下的注意事项）；验收门 A。
 - 加新来源（11 月 18 日查过）：SFU 已接上（见记录）。还能接的：新西敏图书馆（nwpl.ca 的活动日历页有 JSON-LD，C2 能读）；高贵林图书馆用 Communico（coquitlam.libnet.info）；素里图书馆、北温市图书馆是 Drupal 的活动页，没找到 feed；BiblioCommons 上 surrey、fvrl、coqlibrary、nvcl、portmoody 都有站点但活动是 0。这几个大多是讲故事、英语角、新移民服务，和温哥华、列治文图书馆一类，好处是补上三联市、素里、北岸。SUCCESS 中侨（successbc.ca）有 The Events Calendar 的 iCal（`/events/?ical=1`）和 JSON（`/wp-json/tribe/events/v1/events`），但两周只有 7 个、4 个是线上的，而且都是医护求职说明会，先不接；中华文化园（vancouverchinesegarden.com）有 Cloudflare 的人机验证，读不了；中华文化中心（cccvan.com）是 Wix，没有 feed；华裔博物馆 `/events/` 是 404；陈氏演艺中心、市立剧院、科学馆、温哥华美术馆没找到 feed；vancouver.ca 挡（403）。和 Ticketmaster 重的场馆（比如 Commodore）等 A4 去重做了再接。
 
 ## 交给别的对话
@@ -74,6 +77,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-19 What's On: the Chinese page shows each event's name in Chinese, a sentence on what it is, and the source's picture
 - 2026-11-18 What's On: SFU's calendar joins the morning run, what anyone can walk into
 - 2026-11-18 What's On: a daily health check opens an issue when a source wasn't read
 - 2026-11-14 What's On: link to /go/ with the slash, so the page opens from the Tools tab and its filters
@@ -138,3 +142,4 @@
 - 2026-11-18 每天的检查（来源出错时通知）：GitHub 每天 02:23（温哥华）跑 `events-health`，到 Worker 自己的地址读 `/go/api/status`（那个地址现在也答这个，别的照样 404），判断前一天：清单里的每个来源那天或之后读完了没有、那一轮发布了没有、发布数有没有不到之前几轮中位数的一半；状态页三次都打不开也算问题。有问题就开 issue（标题「玩什么：11月18日的检查没过」），正文 @ Steve、一条一条写哪个来源、上次读完是哪天、最后的错误，末尾一行隐藏标记记着是哪几样问题；第二天还是这几样就不说话，变了才评论，好了评论一句并关掉。`/go/api/status` 多了 `sources`（只列代码里还有的来源）和 `history`（最近 8 轮各发布多少）。新测试 16 个；全部 629 个都过。
 - 2026-11-18 合并 #603 后在 GitHub 上手动跑了一次 `events-health`：从 GitHub 的机器读 Worker 自己地址上的状态没被挡，6 个来源都读完、发布 644 个，没开 issue（「nothing to do」）。
 - 2026-11-18 接 SFU（events.sfu.ca，LiveWhale 的 JSON v2，`src/parsers/livewhale.ts`）：两周约 180 个，每页 50 个、4 页，一页读起来约 1 毫秒（第一次 5 毫秒）。按 SFU 自己的「Public」受众筛，加上 UBC 那条规矩（见定过的事），第一页 50 个留 8 个（展览、讲座、电影、毕业展、Western Front 的声音演出），最后一页 28 个留 6 个。LiveWhale 把系列活动的每一场单独给一个号，id 用条目号加日期；但多天的全天活动（展览、捐食物）每天重复同一个号，这种合成一个活动，从第一天到最后一天（`repeats_start`、`repeats_end`），页面上就收进「进行中」，不会每天占一行。地方没写城市的按校区算（本拿比、温哥华、素里）。价钱：Free 是免费，写了金额的取最低最高，「from $10」只有最低，捐款、随意付是不知道。顺手改了 `placeFromText`：「Vancouver BC V6B 1L6」写在一段里时城市读对，街道不再当城市（UBC、Luma、JSON-LD 共用，测试都过）。`sfu` 那一步排在 UBC 后面、Ticketmaster 前面。噪音：「Holiday Food Drive」（捐食物，11 月 17 日到 12 月 9 日）也标了 Public，先留着（收在进行中里），等 A3 的 AI 再判断。
+- 2026-11-19 中文名、介绍和图片（Steve 11 月 18 日夜里看了页面，说选中文活动名还是英文、要中文说明是什么活动、要配图）。Workers AI 选 `@cf/qwen/qwen3-30b-a3b-fp8`：中文好，最便宜的一档（输入 0.051、输出 0.335 美元每百万 token）；GLM、Kimi、DeepSeek v4 要付费计划。先在 Cloudflare 的 AI Playground（不用登录）用 15 个真实活动试了两版提示词：第一版把 Canucks 编成「维多利亚喷气机队」，加了「名字保留英文、本地球队用通行中文名」后对了；介绍 20 到 40 字，像样。Playground 的显示把每个字重复了一遍，是它界面的问题（Worker 不走流式）。做法：迁移 0004 加 title_zh、text_hash、ai_hash、ai_tries；`store.ts` 每次存都算 text_hash（标题、说明、场地），文字变了 ai_tries 归零、重写一次；每小时 5 分 `catchUp` 三个一组调 `Steps.translate`（每步一次 AI 请求、15 个活动），最多 10 轮（Cloudflare 一个请求最多 32 次调用）或 12 分钟，写了就重新发布（早上那一轮在跑时不发布，留给它）。答案逐个对象解析，截断只丢最后一个；没中文、太长的不收，一个活动三次不行就先放英文。测试里 `remoteBindings: false`（AI 绑定在本地要登录）。图片：图书馆用 BiblioCommons 的 full 横幅（760×230 左右），Ticketmaster 改成至少 600 宽里最小的 16:9（原来是 2048 宽的大图），UBC 从 iCal 的 ATTACH 读，SFU 要了 thumbnail 字段。页面图片 3:1、最宽 22rem，放在每行最上面。

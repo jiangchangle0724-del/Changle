@@ -31,6 +31,8 @@ export interface LwEvent {
   cost?: string | number | null;
   summary?: string | null;
   group_title?: string | null;
+  /** The event's picture, cropped by LiveWhale ("…/live/image/gid/111/width/491/height/246/crop/1/…") */
+  thumbnail?: string | null;
   event_types?: string[] | null;
   event_types_audience?: string[] | null;
   event_types_campus?: string[] | null;
@@ -152,7 +154,7 @@ export function parseLiveWhale(page: LwPage, source: string): NormalizedEvent[] 
       sourceCategories: labels,
       tags,
       lang: null,
-      imageUrl: null,
+      imageUrl: typeof ev.thumbnail === "string" && /^https?:\/\//i.test(ev.thumbnail) ? ev.thumbnail : null,
       organizer: text(ev.group_title) || null,
     });
   }
