@@ -11,6 +11,7 @@ import { useArrival } from "../src/arrival";
 import { keepHandoff } from "../src/handoff";
 import { LIVE_KEY, publish } from "../src/publish";
 import { fetchStep, runDay, type StepRunner } from "../src/run";
+import { SOURCES } from "../src/sources";
 import { vanParts } from "../src/time";
 import worker from "../src/worker";
 import type { Published } from "../src/types";
@@ -407,6 +408,11 @@ describe("the API", () => {
     expect(status.body.run).toBe("2026-10-31");
     expect((status.body.steps as unknown[]).length).toBe(10);
     expect(status.body.progress).toMatchObject({ nextSource: null, steps: 9, triggers: 1 });
+    // for the daily health check (src/health.ts): how each source last went, and what the runs published
+    const ids = (status.body.sources as { id: string }[]).map((s) => s.id);
+    expect(ids).toEqual(SOURCES.map((s) => s.id).sort());
+    expect(status.body.sources).toContainEqual({ id: "vpl", name: "Vancouver Public Library", enabled: 1, lastOkRun: "2026-10-31", lastError: null });
+    expect(status.body.history).toEqual([{ run: "2026-10-31", count: all.body.count }]);
   });
   it("is honest before the first run", async () => {
     expect((await api("/go/api/events")).status).toBe(503);
