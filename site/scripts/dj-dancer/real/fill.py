@@ -1,8 +1,8 @@
-"""The places neither design photo saw well (bake.py took the model's own colour there), filled from
-the nearest place a photo did see, where that's close by and the model's colour is far off it: the
-grooves between strands of her hair (TRELLIS coloured some of them like her blouse: white streaks in
-her hair once she turns), a fold, the inside of a pleat. Her sides, which no photo sees head on but
-which the model coloured well, keep the model's colour.
+"""Her hair where neither design photo saw it well (bake.py took the model's own colour there), filled
+from the nearest place a photo did see: the grooves between its strands (TRELLIS coloured some of
+them like her blouse: white streaks in her hair once she turns). Only the hair: behind her neck or
+over her head, a light texel next to dark hair a photo saw. Elsewhere the model's own colour stays
+(her face's undersides: filled from the nearest seen, the shadow of her nose spread grey).
 Writes <work>/baked.png over bake.py's (that one kept as baked_photo.png).
 usage: python3 fill.py <work dir> [S]"""
 import os, sys
@@ -32,7 +32,13 @@ ok = np.isfinite(d)
 idx = np.nonzero(poor)[0][ok]
 near = C[seen][i[ok]]
 lum = lambda c: c @ np.array([0.299, 0.587, 0.114])
-far_off = np.abs(lum(C[idx]) - lum(near)) > 0.22
+# (TRELLIS's units: her height from her feet; her neck's middle, front to back)
+y0, y1 = P[:, 1].min(), P[:, 1].max()
+hy = (X[:, 1] - y0) / (y1 - y0)
+pv = (P[:, 1] - y0) / (y1 - y0)
+neck_z = np.median(P[(pv > 0.83) & (pv < 0.86), 2])
+hairy = (X[:, 2] < neck_z) | (hy > 0.93)
+far_off = (lum(C[idx]) - lum(near) > 0.22) & (lum(near) < 0.3) & hairy[idx]
 C2 = C.copy()
 C2[idx[far_off]] = near[far_off]
 out = img.copy()

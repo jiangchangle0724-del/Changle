@@ -22,7 +22,8 @@ const CHANGE_S = 0.5;
  * 包括动作这些方面都需要去深度优化"; a bar's dancer lifting the room, standing): since Nov 18 the design he
  * chose (a TRELLIS.2 model with the design's photos on it, dancer/her.ts) dancing real dancers' motion
  * capture (dancer/dances.ts): the dance set from the speaker's beat every frame, a beat of the song a
- * beat of the dance; with no song, standing easy. Her hair and skirt swing as she moves (springs).
+ * beat of the dance; with no song, standing easy. Her hair and skirt swing as she moves (springs);
+ * she blinks.
  * Her look follows the music (Nov 18): its outfit fetched when it's first wanted, changed in a flash
  * of light; its dances. Her rim lights take the room's colour. No graphics chip, her frames too slow,
  * or her files can't load: `onFail` (the robot, then the drawn dancer). `light` (an iPhone or iPad as
@@ -172,6 +173,9 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
         const gaps: number[] = [];
         // changing outfits: the new one, and when the flash began
         let change: { to: Her; at: number; swapped: boolean } | null = null;
+        // her blinks: every two to six seconds, now and then twice running
+        let blinkAt = prev + 1500;
+        let twice = false;
         const frame = () => {
           const t = performance.now();
           const gap = t - prev;
@@ -220,10 +224,12 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
           const outfit = OUTFIT[lk];
           if (!change && outfit !== her!.outfit) {
             const next = outfits.get(outfit);
+            // (in it once it has the dance she's on: the change mid-step, not back to standing)
             if (next && next.knows(cur)) {
               change = { to: next, at: t, swapped: false };
               next.still();
-            } else if (!loading.has(outfit)) void fetchOutfit(outfit, [cur, want]);
+            } else if (next) void next.learn(cur).catch(() => {});
+            else if (!loading.has(outfit)) void fetchOutfit(outfit, [cur, want]);
           }
           if (change) {
             const k = (t - change.at) / 1000 / CHANGE_S;
@@ -264,6 +270,13 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
           if (k >= 1) from = null;
           // her hair and skirt follow
           her!.swing(dt);
+          // (a blink: shutting in 70 ms, shut 40, opening in 120)
+          const bt = (t - blinkAt) / 1000;
+          her!.blink(bt < 0 ? 0 : bt < 0.07 ? bt / 0.07 : bt < 0.11 ? 1 : bt < 0.23 ? 1 - (bt - 0.11) / 0.12 : 0);
+          if (bt >= 0.23) {
+            blinkAt = t + (twice ? 160 : 2000 + Math.random() * 4000);
+            twice = !twice && Math.random() < 0.2;
+          }
           her!.root.updateMatrixWorld(true);
           renderer.render(scene, camera);
           // (the checks read what she dances and wears, and what drawing her costs: dj_dancer_check.py)

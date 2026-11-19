@@ -10,7 +10,7 @@ import { MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 const [dir, jfile, texfile, out, ...rest] = process.argv.slice(2);
 await MeshoptEncoder.ready; await MeshoptDecoder.ready;
 const raw = (n, T) => { const b = readFileSync(join(dir, n)); return new T(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); };
@@ -37,7 +37,10 @@ const prim = doc.createPrimitive()
   .setAttribute('POSITION', acc('VEC3', P)).setAttribute('NORMAL', acc('VEC3', N)).setAttribute('TEXCOORD_0', acc('VEC2', UV))
   .setAttribute('JOINTS_0', acc('VEC4', J4)).setAttribute('WEIGHTS_0', acc('VEC4', W4))
   .setIndices(acc('SCALAR', I));
-const webp = await sharp(texfile).webp({ quality: 86, effort: 6 }).toBuffer();
+// (its alpha, from eyes.py: where her eyes are, for the page's blink; lossless, so the marks stay)
+const webp = await sharp(texfile).webp({ quality: 86, alphaQuality: 100, effort: 6 }).toBuffer();
+const lidFile = join(dirname(texfile), 'lid.json');
+const lid = existsSync(lidFile) ? JSON.parse(readFileSync(lidFile, 'utf8')).lid : null;
 const tex = doc.createTexture('her').setImage(webp).setMimeType('image/webp');
 const mat = doc.createMaterial('Her').setBaseColorTexture(tex).setRoughnessFactor(0.62).setMetallicFactor(0);
 prim.setMaterial(mat);
@@ -66,7 +69,7 @@ const springs = SP && {
   colliders: Object.fromEntries(Object.entries(SP.colliders).map(([k, c]) => [k, { bone: c.bone, a: off(c.bone, c.a), ...(c.b ? { b: off(c.bone, c.b) } : {}), r: Math.round(c.r * 1e4) / 1e4 }])),
 };
 const height = Math.round(Math.max(...Array.from({ length: P.length / 3 }, (_, i) => P[i * 3 + 1])) * 100) / 100;
-scene.setExtras({ dancer: { height, eyes: at('Head')[1] + 0.07, ...(springs ? { springs } : {}), made: 'TRELLIS.2 model of the design, photos baked on, skinned by distance through her (site/scripts/dj-dancer/real)' } });
+scene.setExtras({ dancer: { height, eyes: at('Head')[1] + 0.07, ...(springs ? { springs } : {}), ...(lid ? { lid } : {}), made: 'TRELLIS.2 model of the design, photos baked on, skinned by distance through her (site/scripts/dj-dancer/real)' } });
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
 const plainIdx = rest.indexOf('--plain');
 if (plainIdx >= 0) writeFileSync(rest[plainIdx + 1], await io.writeBinary(doc));

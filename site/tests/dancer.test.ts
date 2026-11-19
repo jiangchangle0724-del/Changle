@@ -4,7 +4,7 @@
  *  1. Each outfit's model loads (three.js, like the page, without its picture): one skinned mesh on
  *     the Mixamo-named skeleton the dances are made for, every vertex on four bones at most that add up
  *     to one, standing on the floor, about as tall as she was designed; her hair's swinging bones (and
- *     a skirt's) there, with the shapes they're kept off.
+ *     a skirt's) there, with the shapes they're kept off; her lids' colour for her blink.
  *  2. Every dance and idle the page picks has its file; each reads, turns only bones she has, loops
  *     whole bars, and its own tempo is the one the page plans with (dances.ts).
  *  3. Played as the page plays it (three.js clips, time in beats), in each outfit: her feet stay near
@@ -115,6 +115,9 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   const tall = box.max.y - box.min.y;
   ok(Math.abs(box.min.y) < 0.01 && tall > 1.65 && tall < 1.8, `${at} standing on the floor, ${tall.toFixed(2)} m tall`);
   ok(m.geometry.index && m.geometry.index.count / 3 < 80000, `${at} ${m.geometry.index ? m.geometry.index.count / 3 : 0} triangles: light enough for a TV`);
+  // her blink: the colour of her lids (where her eyes are is in her picture's alpha, eyes.py)
+  const lid = (gltf.scene.userData as { dancer?: { lid?: number[] } }).dancer?.lid;
+  ok(Array.isArray(lid) && lid.length === 3 && lid.every((v) => v > 0.3 && v < 1), `${at} her lids' colour, for her blink (${lid?.join(", ")})`);
   // her springs: the hair's bones (and a skirt's), each in her skeleton, the shapes they're kept off on her bones
   const sp = (gltf.scene.userData as { dancer?: { springs?: SpringData } }).dancer?.springs;
   const groups = sp?.groups.map((g) => g.name) ?? [];

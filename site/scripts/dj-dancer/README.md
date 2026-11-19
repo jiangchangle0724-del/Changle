@@ -51,13 +51,14 @@ python3 metres.py work                              # 换成米：穿靴子 1.74
 python3 joints.py work/m                            # 从形状找关节：腿和胳膊看正面剪影，深度看前后的表面，脊柱按 MakeHuman 的比例；画一张 joints.png 来看
 python3 cull.py work/m work/mc                      # 去掉模型里面那层朝里的皮（TRELLIS 的模型是一层 3.5 毫米厚的壳），藏着的外表面留着
 node simplify.mjs work/mc work/ms 62000             # 减到 6.2 万个三角形（meshoptimizer，UV 的缝保住）
-python3 fill.py work                                # 两张照片都没看清的地方（头发丝之间的缝、褶子里面），离得近又颜色差太多的，用最近的照片颜色补（不然她一转身头发里有白条）
+python3 fill.py work                                # 头发上两张照片都没看清的地方（发丝之间的缝），TRELLIS 涂成了浅色的，用最近的照片里的头发颜色补（不然她一转身头发里有白条）
+python3 eyes.py work photos 560,87 600,87           # 眼睛在贴图里的哪里（写进贴图的透明通道），和眼皮的颜色（lid.json）：页面上让她眨眼
 python3 weights.py work/mc work/ms work/m/joints.json work/baked.png   # 蒙皮权重：按穿过她身体的距离（体素），不会跨到手或者另一条腿上；背心只跟胸走
 python3 springs.py work/ms work/m/joints.json work/baked.png outfit.json  # 头发发梢（和裙子）自己的骨头，页面上用弹簧甩；outfit.json 写头发和裙子在多高
 node build_glb.mjs work/ms work/m/joints.json work/baked.png ../../../public/models/dancer/her.glb.gz
 ```
 
-`fill.py` 在 `bake.py` 后面跑（`bake.py` 的那张存成 `baked_photo.png`）；`outfit.json` 例子：
+`fill.py` 在 `bake.py` 后面跑（`bake.py` 的那张存成 `baked_photo.png`），然后 `eyes.py`（眼睛的位置是设计图正面照里的像素，三张设计图都在 (560,87) 和 (600,87) 附近）；`outfit.json` 例子：
 `{"hair": {"top": 1.36, "bottom": 1.17, "chains": 3, "bones": 2}, "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}`
 （头发只让发梢甩：模型里头发上半截和后背长在一起，整片甩会把后背的颜色拉出来；裙子从腰到裙摆，腿在裙子里面动）
 

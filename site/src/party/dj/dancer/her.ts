@@ -69,6 +69,8 @@ export type Her = {
   pose(dance: string, t: number, from?: { dance: string; t: number } | null, k?: number): void;
   /** after `pose`: her hair and skirt swing on `dt` seconds */
   swing(dt: number): void;
+  /** her eyes closed this much (0 open, 1 shut): her lids come down them (a blink) */
+  blink(k: number): void;
   /** her hair and skirt back at rest (she was away a while) */
   still(): void;
   dispose(): void;
@@ -96,8 +98,37 @@ export async function loadHer(outfit = "club"): Promise<Her> {
   });
   if (!hipsBone) throw new Error("no hips");
   const hipsRest = (hipsBone as THREE.Object3D).position.clone();
-  const extras = (gltf.scene.userData as { dancer?: { eyes?: number; springs?: SpringData } }).dancer;
+  const extras = (gltf.scene.userData as { dancer?: { eyes?: number; springs?: SpringData; lid?: [number, number, number] } }).dancer;
   const springs = makeSprings(extras?.springs, bones);
+  // her blink (Steve on Nov 18: her face looked stiff): her texture's alpha says where her eyes are and
+  // how far down each texel is (scripts/dj-dancer/real/eyes.py); a lid the colour of the skin above
+  // them comes down that far, a darker line at its edge (her lashes). The texture stays opaque
+  const blinkU = { value: 0 };
+  const lidU = { value: new THREE.Color().setRGB(...(extras?.lid ?? [0.64, 0.5, 0.47]), THREE.SRGBColorSpace) };
+  gltf.scene.traverse((x) => {
+    const m = x as THREE.SkinnedMesh;
+    if (!m.isSkinnedMesh || !extras?.lid) return;
+    const mat = m.material as THREE.MeshStandardMaterial;
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uBlink = blinkU;
+      sh.uniforms.uLid = lidU;
+      sh.fragmentShader = sh.fragmentShader
+        .replace("void main() {", "uniform float uBlink;\nuniform vec3 uLid;\nvoid main() {")
+        .replace(
+          "#include <map_fragment>",
+          `#include <map_fragment>
+#ifdef USE_MAP
+  if ( uBlink > 0.0 && sampledDiffuseColor.a < 0.9 ) {
+    float t = sampledDiffuseColor.a / 0.8;
+    float lid = smoothstep( t - 0.12, t + 0.04, uBlink );
+    float lash = 1.0 - 0.3 * smoothstep( 0.15, 0.0, abs( t - uBlink ) ) * step( 0.05, uBlink );
+    diffuseColor.rgb = mix( diffuseColor.rgb, uLid * lash, lid );
+  }
+#endif`,
+        );
+    };
+    mat.customProgramCacheKey = () => "dancer-blink";
+  });
   const mixer = new THREE.AnimationMixer(gltf.scene);
   const actions = new Map<string, THREE.AnimationAction>();
   const learning = new Map<string, Promise<void>>();
@@ -169,6 +200,9 @@ export async function loadHer(outfit = "club"): Promise<Her> {
     knows: (id) => actions.has(id),
     pose,
     swing: (dt) => springs?.update(root, dt),
+    blink: (k) => {
+      blinkU.value = k;
+    },
     still: () => springs?.reset(),
     dispose,
   };

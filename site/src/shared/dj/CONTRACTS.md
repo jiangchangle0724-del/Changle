@@ -133,7 +133,8 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   no flashes; the party's gold and orchid; the club's pink and cyan, the beams quick and bright).
   Her hair's ends and a skirt swing on springs as she moves (`dancer/springs.ts`, three-vrm's way:
   their bones from `site/scripts/dj-dancer/real/springs.py`, kept off her by round shapes on her
-  bones); the robot and the drawn one dance the routine, nine simple standing moves
+  bones); she blinks every two to six seconds (where her eyes are is in her texture's alpha,
+  `eyes.py`: a lid the colour of the skin round them comes down); the robot and the drawn one dance the routine, nine simple standing moves
   (`shared/dj/dance.ts`, `DANCE_MOVES`), which and in what order following the stretch (`ROUTINES`,
   `moodOf`; a slow song, under 90 BPM by its own tempo,
   the gentle ones), 16 beats each (`moveAt`). The phones have nothing of hers. Gone with 跟着跳
