@@ -210,7 +210,6 @@ function FreezeGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
             <p className="hint" style={{ textAlign: "center" }}>
               {zh ? "把手机放在大家都听得到的地方，裁判看着大家。" : "Put the phone where everyone can hear it. The judge watches the floor."}
             </p>
-            <SoundLine playing={false} />
           </>
         )}
 
