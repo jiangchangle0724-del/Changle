@@ -5,6 +5,8 @@ import { useBackCloses } from "../router";
 import { Button } from "./Button";
 import { labels } from "./labels";
 import { tokenMs } from "./tokenTime";
+import { useScreenAnchor } from "./screenAnchor";
+import { lockScroll } from "./scrollLock";
 import type { CSSProperties } from "react";
 import type { SheetProps } from "./types";
 import "./Sheet.css";
@@ -37,17 +39,18 @@ export function Sheet(props: SheetProps) {
     }
     if (!restore.current) {
       const opener = document.activeElement as HTMLElement | null;
-      const overflow = document.body.style.overflow;
+      const unlock = lockScroll();
       restore.current = () => {
-        document.body.style.overflow = overflow;
+        unlock();
         if (opener?.isConnected) opener.focus();
         restore.current = null;
       };
     }
     node.classList.remove("ui-sheet-leaving");
     if (!node.open) node.showModal();
-    document.body.style.overflow = "hidden";
   }, [props.open]);
+  // on an iPhone, stood on the bottom of the screen by its own numbers (ui/screenAnchor)
+  useScreenAnchor(dialog, props.open, "bottom");
   useEffect(() => {
     const node = dialog.current;
     return () => {

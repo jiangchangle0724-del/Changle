@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { EASE, play } from "../lib/motion";
 import { useBackCloses } from "../router";
 import { useStore } from "../store";
+import { useNoScrollUnder, useScreenAnchor } from "../ui/screenAnchor";
 
 /** Open sheets, bottom to top: Esc closes only the top one. */
 const stack: number[] = [];
@@ -49,6 +50,11 @@ export function Sheet({
   const closing = useRef(false);
   const kept = useRef<ReactNode>(children);
   if (open) kept.current = children;
+
+  // on an iPhone the backdrop covers the screen by its own numbers, not position: fixed, and a finger
+  // on it doesn't scroll the page away underneath (ui/screenAnchor)
+  useScreenAnchor(back, mounted, "fill");
+  useNoScrollUnder(back, mounted, ".sheet-body");
 
   const exit = useRef<(Animation | null)[]>([]);
   useEffect(() => {
