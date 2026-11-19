@@ -92,6 +92,7 @@ function fresh(set: number): RoomState {
     danmuN: 0,
     danmuOn: true,
     danmuAt: {},
+    dancer: true,
     sfxAt: {},
     sfxLast: [],
   };
@@ -123,6 +124,7 @@ function norm(s: RoomState): RoomState {
   s.danmuN ??= 0;
   s.danmuOn ??= true;
   s.danmuAt ??= {};
+  s.dancer ??= true;
   s.sfxAt ??= {};
   s.sfxLast ??= [];
   // a deck saved before a field existed gets it fresh
@@ -967,6 +969,7 @@ export const dj: GameDef<RoomState> = {
         // 弹幕's switch and its count (a screen shows each line once)
         next.danmuOn = s.danmuOn;
         next.danmuN = s.danmuN;
+        next.dancer = s.dancer;
         Object.assign(s, next);
         syncMix(s);
         api.clear("next");
@@ -1096,6 +1099,13 @@ export const dj: GameDef<RoomState> = {
         if (!host || s.danmuOn === on) return api.quiet();
         s.danmuOn = on;
         if (!on) s.danmu = [];
+        return;
+      }
+      case "dancer": {
+        // the host, from their phone: the dancer on the big screen, on or off
+        const on = g.on === true;
+        if (!host || s.dancer === on) return api.quiet();
+        s.dancer = on;
         return;
       }
       default:
@@ -1444,6 +1454,7 @@ export const dj: GameDef<RoomState> = {
       // (the lines still flying: a screen opened later doesn't get the night's old ones)
       danmu: s.danmu.filter((l) => api.now - l.at < DANMU.freshMs),
       danmuOn: s.danmuOn,
+      dancer: s.dancer,
     };
   },
 

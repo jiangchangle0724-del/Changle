@@ -808,6 +808,8 @@ export type DjView = {
   /** 弹幕: the latest lines (the big screen flies the new ones) and the host's switch (none from a rooms server before Nov 13) */
   danmu?: DanmuLine[];
   danmuOn?: boolean;
+  /** the dancer on the big screen (the host's switch; none from a rooms server before Nov 19: on) */
+  dancer?: boolean;
 };
 
 /** The beginner deck as every phone and screen sees it (CONTRACTS.md, "The beginner deck"). */

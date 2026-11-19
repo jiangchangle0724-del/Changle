@@ -582,7 +582,8 @@
 
 /* the host's switches: 报幕 (the big screen saying who a song is from) and 弹幕 (two side by side: 48 px) */
 .djp-voice,
-.djp-danmu-switch {
+.djp-danmu-switch,
+.djp-dancer-switch {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
@@ -600,7 +601,8 @@
   cursor: pointer;
 }
 .djp-voice[aria-pressed="true"],
-.djp-danmu-switch[aria-pressed="true"] {
+.djp-danmu-switch[aria-pressed="true"],
+.djp-dancer-switch[aria-pressed="true"] {
   color: var(--color-text);
   box-shadow: inset 0 0 0 1px var(--color-accent);
 }

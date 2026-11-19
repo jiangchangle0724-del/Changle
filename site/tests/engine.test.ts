@@ -5991,6 +5991,34 @@ test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕�
   ok(dv("p1").danmuOn === true && lines().at(-1)!.n === 5 + DANMU.keep + 5 + 2, `another set: the count carries on (${lines().at(-1)!.n})`);
 });
 
+test("dj: the dancer on the big screen, the host's switch (Steve on Nov 18: \"需要有个按钮可以关闭模特跳舞\"): on to start with, only the host turns her off or on, another set keeps it", () => {
+  const e = new RoomEngine(freshRoom("DJDN", clock), host);
+  e.screenHello("tv-dn", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  ok(dv("p2").dancer === true, "on from the start, every view reads it");
+  ok(nothing(g("p2", "dancer", { on: false })) && dv("p1").dancer === true, "only the host turns her off");
+  ok(!nothing(g("p1", "dancer", { on: false })) && dv("p2").dancer === false, "the host does: every view reads it");
+  ok(nothing(g("p1", "dancer", { on: false })), "off again: nothing");
+  ok(nothing(g("p2", "dancer", { on: true })) && dv("p1").dancer === false, "nor on again, but the host");
+  e.screenAct("tv-dn", { x: "live", source: "fake" });
+  e.flush();
+  g("p1", "phase", { phase: "end" });
+  g("p1", "again");
+  ok(dv("p2").dancer === false, "another set keeps it");
+  ok(!nothing(g("p1", "dancer", { on: true })) && dv("p2").dancer === true, "the host turns her on again");
+});
+
 test("dj: songs from the phones (Steve on Nov 13: \"要允许所有玩家都可以上传自己的歌上去，不仅是host\"): a song file a phone sent goes on the 歌单 as theirs the moment the big screen has it, plays whole like a YouTube one, the next after it; one the big screen had already goes on theirs too; one the big screen no longer has is skipped", () => {
   const e = new RoomEngine(freshRoom("DJPS", clock), host);
   e.screenHello("tv-ps", true, "dj");

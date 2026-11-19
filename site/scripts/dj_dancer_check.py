@@ -5,7 +5,8 @@
 What it checks: up top only the song asked for that's up next (no decks, crossfader, build-up or
 mixer round it); no night's curve at the bottom; the dancer on the left, only her, no card and no
 words, dancing on the speaker's beat; a song from YouTube in the middle, big, the floor moving to its
-right; the phones without 跟着跳; the night's recap without the dancing. The dancer in 3D where a
+right; the phones without 跟着跳; the host's switch taking her off the TV and back (Nov 18); the
+night's recap without the dancing. The dancer in 3D where a
 graphics chip draws her: this machine has none (its browsers draw WebGL in software, or too slowly),
 so the TV keeps the drawn dancer (in Chromium without even downloading three.js); a second TV, told
 to take any WebGL, shows her (since Nov 18 the design Steve chose, dancing real dancers' motion
@@ -111,6 +112,13 @@ with sync_playwright() as p:
     amy = join(chrome, code, "Amy")
     ben = join(chrome, code, "Ben")
     ok(amy.locator(".djk-dance").count() == 0 and amy.get_by_role("button", name="开始跟着跳").count() == 0, "no 跟着跳 on the phones")
+    # the host's switch (Steve on Nov 18: "需要有个按钮可以关闭模特跳舞"): she leaves the TV, and comes back
+    sw = amy.locator(".djp-dancer-switch")
+    ok(until(lambda: sw.count() == 1, 4000) and "电视上的舞者：开" in sw.inner_text() and ben.locator(".djp-dancer-switch").count() == 0, "the host's card has the dancer's switch (only the host's)")
+    sw.click()
+    ok(until(lambda: tv.locator(".dj-coach").count() == 0, 4000) and "电视上的舞者：关" in sw.inner_text(), "off: she leaves the TV")
+    sw.click()
+    ok(until(lambda: tv.locator(".dj-coach").count() == 1, 4000) and "电视上的舞者：开" in sw.inner_text(), "on again: she's back")
     fl0 = tv.locator(".dj-floor, .dj-floor3d").first.bounding_box()
     ok(fl0 and fl0["x"] < 800 < fl0["x"] + fl0["width"], f"no song from YouTube: the floor in the middle ({fl0})")
     tv.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-1-floor.png"))

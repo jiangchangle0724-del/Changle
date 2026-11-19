@@ -1,4 +1,4 @@
-import { Crown, Flame, Megaphone, MessageSquareText, MonitorSpeaker, Play, Snowflake } from "lucide-react";
+import { Crown, Flame, Megaphone, MessageSquareText, MonitorSpeaker, PersonStanding, Play, Snowflake } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
@@ -206,6 +206,11 @@ export function NetDj({ v, onLeave }: { v: DjView; onLeave: () => void }) {
             <button type="button" className="djp-danmu-switch" aria-pressed={v.danmuOn !== false} onClick={() => g("danmu", { on: v.danmuOn === false })}>
               <MessageSquareText size={16} strokeWidth={2.4} />
               {v.danmuOn !== false ? (zh ? "弹幕：开" : "Comments on the TV: on") : zh ? "弹幕：关" : "Comments on the TV: off"}
+            </button>
+            {/* the dancer on the TV (Steve on Nov 18: "需要有个按钮可以关闭模特跳舞") */}
+            <button type="button" className="djp-dancer-switch" aria-pressed={v.dancer !== false} onClick={() => g("dancer", { on: v.dancer === false })}>
+              <PersonStanding size={16} strokeWidth={2.4} />
+              {v.dancer !== false ? (zh ? "电视上的舞者：开" : "The dancer on the TV: on") : zh ? "电视上的舞者：关" : "The dancer on the TV: off"}
             </button>
             {v.phase === "end" && (
               <button type="button" className="btn btn-primary btn-block" onClick={() => g("again")}>
