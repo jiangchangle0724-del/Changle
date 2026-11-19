@@ -82,7 +82,7 @@ Resend，收下每封信），再在 `worker/.dev.vars` 里写 `DEV_MAIL_URL=htt
 打碟的 Lyria 本地不连 Google：先跑 `node scripts/fake_lyria.mjs`（一个假的 Lyria），再在 `worker/.dev.vars` 里写
 `DEV_LYRIA_URL=ws://127.0.0.1:8790` 和 `DEV_LYRIA_ANYONE=1`（任何桌子都能试），整条链路用
 `python3 scripts/dj_lyria_check.py` 检查。
-打碟手机上的播放键（上一曲、暂停、播放、切歌）和手机页面的顺序用 `python3 scripts/dj_player_check.py` 检查：
+打碟手机上的播放键（上一曲、暂停、播放、切歌、快退快进 30 秒）和手机页面的顺序用 `python3 scripts/dj_player_check.py` 检查：
 它要试音版 DJ 放两个碟，所以 `worker/.dev.vars` 里 `DEV_LYRIA_ANYONE` 要关掉（不写，或写 0）。
 点歌放 YouTube 整首用 `python3 scripts/dj_youtube_check.py` 检查，主人从手机传歌到电视用
 `python3 scripts/dj_mine_check.py` 检查，主人自己的歌放一晚用 `python3 scripts/dj_local_check.py` 检查，

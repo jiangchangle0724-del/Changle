@@ -173,11 +173,11 @@ export function PhoneSong({ v, crate, speaker, now, zh, nameOf, done }: { v: DjV
             <SkipForward size={16} aria-hidden="true" />
             {after
               ? zh
-                ? `放完马上接 ${nameOf(after.by)} 点的歌。手机上可以暂停、切歌、上一曲`
-                : `${nameOf(after.by)}'s song comes right after. Pause, skip or go back from any phone`
+                ? `放完马上接 ${nameOf(after.by)} 点的歌。手机上可以暂停、快进快退、切歌、上一曲`
+                : `${nameOf(after.by)}'s song comes right after. Pause, jump 30s, skip or go back from any phone`
               : zh
-                ? "放完 DJ 接着放。手机上可以暂停、切歌、上一曲"
-                : "The DJ comes back when it ends. Pause, skip or go back from any phone"}
+                ? "放完 DJ 接着放。手机上可以暂停、快进快退、切歌、上一曲"
+                : "The DJ comes back when it ends. Pause, jump 30s, skip or go back from any phone"}
           </>
         )}
       </span>

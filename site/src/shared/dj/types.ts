@@ -335,8 +335,8 @@ export type DeckState = {
   heard: SongReq[];
   /** 真歌时间: a song asked for from YouTube (`yt`), or a song file a phone sent the big screen
    *  (`local`, Nov 13), plays whole on the big screen (from `at`, after the DJ fades out, moved on by
-   *  the time a pause took); the deck waits until it ends, someone skips it, or 12 minutes of it have
-   *  played */
+   *  the time a pause took, and back or on by the player's 快进 and 快退); the deck waits until it
+   *  ends, someone skips it, or 12 minutes of it have played */
   song: { id: string; yt?: string; local?: string; by: string; at: number } | null;
   /** 暂停 (the phones' player, Steve on Nov 12: "一键播放，切歌，暂停，上一曲"): the room's music held
    *  since this server time, 0 while it plays. The song's video stops where it is and the DJ goes
@@ -477,6 +477,9 @@ export const DECK = {
   jukeBeats: 8,
   ctlBeats: 4,
   ctlGapMs: 1500,
+  /** the player's 快退 and 快进: a jump this many seconds (each press), and the most one message can */
+  seekS: 30,
+  seekMaxS: 300,
   /** a player whose song came on the air this recently waits behind the others' songs (alone, it
    *  still plays: nobody's turn is taken) */
   reqAgainMs: 600_000,
@@ -524,6 +527,8 @@ export type DjCommand =
   | { x: "next" }
   | { x: "prev" }
   | { x: "songskip" }
+  /** the player's 快退 and 快进 30 秒: the song playing whole jumps `by` seconds (-30 or 30; at most DECK.seekMaxS) */
+  | { x: "seek"; by: number }
   /** take back a song asked for by name, waiting or up next (the host can take back anyone's) */
   | { x: "unreq"; id: string }
   /** DROP, pressed during the countdown; `c`: when, on this phone's estimate of the server's clock */
