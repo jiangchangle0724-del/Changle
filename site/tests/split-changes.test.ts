@@ -522,6 +522,43 @@ const count = (took: Took[], what: Took) => took.filter((t) => t === what).lengt
   eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], date: "2026-11-31" }] })?.entries, [], "a ledger with a day the calendar hasn't leaves that entry out");
 }
 
+// ---------- 13. where it was bought and how it was paid ----------
+{
+  const start = startLedger("P", "地点", "CAD", [{ id: "a", name: "A" }, { id: "b", name: "B" }]);
+  const among: Split = { how: "equal", among: ["a", "b"] };
+  const lunch = { kind: "expense" as const, id: "e1", at: 1, payer: "a", amount: 2000, note: "午饭", split: among, rot: 0 };
+  const said = { payer: "a", amount: 2000, note: "午饭", split: among };
+  const read = (change: unknown) => parseSent({ id: "c", at: 1, change })?.change ?? null;
+  const lines = (l: Ledger | null) => (l ? (({ merchant, place, payment }) => ({ merchant, place, payment }))(l.entries[0] as Expense) : "not taken");
+  const shop = { merchant: "McDonald's", place: "Aldergrove, BC", payment: "Mastercard" };
+
+  // what arrives
+  eq(read({ do: "expense", expense: { ...lunch, ...shop } }), { do: "expense", expense: { ...lunch, ...shop } }, "an expense with its business, place and what paid is read with them");
+  eq(read({ do: "expense", expense: { ...lunch, merchant: "  McDonald's\n Gloucester  ", place: "", payment: "Visa" } }), { do: "expense", expense: { ...lunch, merchant: "McDonald's Gloucester", payment: "Visa" } }, "made one plain line each; one with nothing in it is none");
+  eq(read({ do: "expense", expense: { ...lunch, merchant: "x".repeat(60) } })?.do === "expense" && (read({ do: "expense", expense: { ...lunch, merchant: "x".repeat(60) } }) as { expense: Expense }).expense.merchant?.length, 40, "cut to 40 letters, as a note is");
+  for (const bad of [12, true, ["Visa"], { name: "Visa" }]) eq(read({ do: "expense", expense: { ...lunch, payment: bad } }), null, `what paid said as ${JSON.stringify(bad)}: not a change`);
+  eq(read({ do: "edit", entry: "e1", to: { ...said, place: "Langley, BC" } }), { do: "edit", entry: "e1", to: { ...said, place: "Langley, BC" } }, "an edit that says a place");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, merchant: null } }), { do: "edit", entry: "e1", to: { ...said, merchant: null } }, "an edit that says none");
+  eq(read({ do: "edit", entry: "e1", to: { ...said, merchant: 7 } }), null, "an edit with a number for a name: not a change");
+
+  // what they do
+  const kept = applyChange(start, { do: "expense", expense: { ...lunch, ...shop } });
+  eq(lines(kept), shop, "recorded with them");
+  eq(Object.keys(applyChange(start, { do: "expense", expense: lunch })!.entries[0]).filter((k) => ["merchant", "place", "payment"].includes(k)), [], "recorded without them: none of them at all");
+  eq(balances(kept!), balances(applyChange(start, { do: "expense", expense: lunch })!), "they change nobody's share");
+  eq(lines(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, amount: 2500, note: "午饭和茶" } })), shop, "an edit that doesn't mention them leaves them, whatever else it changes");
+  eq(lines(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, merchant: "Tim Hortons", payment: "" } })), { merchant: "Tim Hortons", place: "Aldergrove, BC", payment: undefined }, "one that says another name changes it; one that says nothing takes it off");
+  eq(lines(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, place: null } })), { ...shop, place: undefined }, "null takes it off too");
+  eq(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, ...shop } }), null, "one to what they already say changes nothing");
+  eq(applyChange(kept!, { do: "edit", entry: "e1", to: { ...said, merchant: " McDonald's " } }), null, "nor one that only adds spaces");
+
+  // sent and taken by the server, and read back by a phone
+  const served = serve(start, [sent({ do: "expense", expense: { ...lunch, ...shop } }), sent({ do: "edit", entry: "e1", to: { ...said, note: "午饭和茶" } })]);
+  eq([lines(served.ledger), served.took], [shop, ["new", "new"]], "the server takes them, and a later edit about the note keeps them");
+  eq(asLedger(JSON.parse(JSON.stringify(served.ledger)))?.entries[0], served.ledger.entries[0], "and a phone reads them back");
+  eq(asLedger({ ...served.ledger, entries: [{ ...served.ledger.entries[0], payment: 5 }] })?.entries, [], "a ledger with a number for what paid leaves that entry out");
+}
+
 if (failed) {
   console.log(`\n${failed} failure(s)`);
   process.exit(1);

@@ -7,7 +7,7 @@
  */
 import { parseSent, type Sent, type Took } from "./changes";
 import type { Entry, Ledger, Member, Split } from "./core";
-import { isDay } from "./ops";
+import { DETAILS, isDay } from "./ops";
 import type { Logged } from "./history";
 import type { Held, Pushed, Snapshot } from "./sync";
 
@@ -42,6 +42,8 @@ function isEntry(x: unknown): x is Entry {
   if ((x.tip !== undefined && !isCount(x.tip)) || (x.tax !== undefined && !isCount(x.tax))) return false;
   // (the day it was spent: one the calendar has, or none)
   if (x.date !== undefined && !isDay(x.date)) return false;
+  // (the business, the place, what paid: words, or none)
+  if (DETAILS.some((k) => x[k] !== undefined && !isText(x[k]))) return false;
   if (x.kind === "transfer") return isText(x.from) && isText(x.to);
   return x.kind === "expense" && isText(x.payer) && isText(x.note) && isCount(x.rot) && isSplit(x.split);
 }

@@ -12,6 +12,11 @@ import { MAX_MEMBERS, nextRot, problem, soundTransfer, type Entry, type Expense,
 export const NAME_MAX = 20;
 export const LEDGER_NAME_MAX = 30;
 export const NOTE_MAX = 40;
+/** As long as an expense's business, place or what paid it may be (the same as a note). */
+export const DETAIL_MAX = 40;
+/** An expense's lines about where it was bought and how it was paid (core/types.ts). */
+export const DETAILS = ["merchant", "place", "payment"] as const;
+export type Detail = (typeof DETAILS)[number];
 
 /**
  * A name as it is kept: no stray spaces, and no longer than `max` (counted the way a text field's
@@ -41,6 +46,11 @@ export type NewExpense = Omit<Expense, "kind" | "rot" | "gone">;
 export function addExpense(l: Ledger, e: NewExpense): Ledger {
   if (problem(e, roster(l)) || l.entries.some((x) => x.id === e.id)) return l;
   const expense: Expense = { ...e, kind: "expense", note: tidy(e.note, NOTE_MAX), rot: nextRot(l) };
+  for (const k of DETAILS) {
+    const v = tidy(e[k] ?? "", DETAIL_MAX);
+    if (v) expense[k] = v;
+    else delete expense[k];
+  }
   return { ...l, entries: [...l.entries, expense] };
 }
 
@@ -56,7 +66,17 @@ export function addExpense(l: Ledger, e: NewExpense): Ledger {
  * `tax` the same three ways: what they are now; null (or 0), for none; or not at all, and they stay
  * while what was paid, in the currency it was paid in, stays (they were read off that receipt).
  */
-export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> & { paidIn?: Expense["paidIn"] | null; files?: string[] | null; tip?: number | null; tax?: number | null; date?: string | null };
+export type ExpenseEdit = Pick<Expense, "payer" | "amount" | "note" | "split"> & {
+  paidIn?: Expense["paidIn"] | null;
+  files?: string[] | null;
+  tip?: number | null;
+  tax?: number | null;
+  date?: string | null;
+  // (the business, the place and what paid, said as `date` is: words; null or nothing for none; or not at all, and they stay)
+  merchant?: string | null;
+  place?: string | null;
+  payment?: string | null;
+};
 
 /**
  * A day as an expense keeps it: "2026-11-15", a day the calendar has (no 30 February), between the
@@ -108,6 +128,11 @@ export function afterEdit(e: Expense, to: ExpenseEdit): Expense | null {
   else delete next.tax;
   if (date) next.date = date;
   else delete next.date;
+  for (const k of DETAILS) {
+    const v = to[k] === undefined ? e[k] : tidy(to[k] ?? "", DETAIL_MAX);
+    if (v) next[k] = v;
+    else delete next[k];
+  }
   return next;
 }
 
