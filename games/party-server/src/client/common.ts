@@ -4,6 +4,10 @@ import type { ClientMsg, Lang, ServerMsg } from "../shared/protocol";
 
 export type { Lang };
 
+/** WeChat's own browser (a QR code scanned in WeChat opens there): the whole site starts in Chinese there. */
+const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
+
+/** The phone's language, as the whole site goes by (Steve, 2026-11-14); in WeChat, Chinese; once switched, that. */
 let lang: Lang = (() => {
   try {
     const saved = localStorage.getItem("party:lang");
@@ -11,7 +15,7 @@ let lang: Lang = (() => {
   } catch {
     // (no storage: the browser's language decides)
   }
-  return /^zh/i.test(navigator.language) ? "zh" : "en";
+  return inWeChat() || /^zh/i.test(navigator.language) ? "zh" : "en";
 })();
 
 export const getLang = () => lang;
