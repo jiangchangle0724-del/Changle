@@ -8,7 +8,7 @@
 import { heardBy, sfx } from '../audio/sfx';
 import { tr } from '../i18n';
 import { levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
-import { keyBanner, tierName } from '../mode-text';
+import { keyBanner, tideBanner, tierName } from '../mode-text';
 import { tiered } from '../sides';
 import type { Level } from '../physics/level';
 import type { SimEvent } from '../physics/world';
@@ -244,6 +244,10 @@ export class PhoneView {
       if (ev.type === 'key') {
         const kb = keyBanner(ev.phase);
         if (kb) this.banner(kb.text, kb.kind);
+      }
+      if (ev.type === 'tide') {
+        const tb = tideBanner(ev.phase, this.sim.level.world);
+        this.banner(tb.text, tb.kind);
       }
       if (ev.type === 'envelope') {
         const got = this.sim.envelopes.filter((e) => e.got).length;

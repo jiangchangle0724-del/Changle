@@ -54,7 +54,7 @@ export class Terrain {
   private readonly leverG = new Graphics();
   private readonly leverColors: number[] = [];
   /** 定时塌的东西（until）：快到点抖、变淡，到点不画。base 是它这一帧本来该在的位置。 */
-  private readonly timed: { c: Container; until: number; base: () => { x: number; y: number } }[] = [];
+  private readonly timed: { c: Container; until: number; base: () => { x: number; y: number }; k?: number }[] = [];
   private lampState = -2;
   private readonly tex: Textures;
   private t = 0;
@@ -69,16 +69,18 @@ export class Terrain {
     this.view.addChild(this.floatG, this.goal, this.ground, this.lamps, this.flag);
     // 坐不住的场地没有终点和旗子
     if (!level.arena) this.drawGoal();
+    let crumbleK = 0;
     for (const r of level.rects) {
-      if (r.until === undefined) {
+      if (r.until === undefined && r.crumble === undefined) {
         this.platform(this.ground, r);
         continue;
       }
-      // 会塌的平台单独一块，好抖、好藏
+      // 会塌的平台单独一块，好抖、好藏；有人碰了才塌的（A12）按 sim.crumbleState 的第几个
       const g = new Graphics();
       this.platform(g, r);
+      if (r.crumble !== undefined) this.cracks(g, r);
       this.view.addChild(g);
-      this.timed.push({ c: g, until: r.until, base: () => ({ x: 0, y: 0 }) });
+      this.timed.push({ c: g, until: r.until ?? Infinity, base: () => ({ x: 0, y: 0 }), ...(r.crumble !== undefined ? { k: crumbleK++ } : {}) });
     }
     // 会动的平台：在自己的原点上画好，每帧整块挪过去（贴图跟着走）
     for (const m of level.movers ?? []) {
@@ -256,7 +258,8 @@ export class Terrain {
     });
     // 定时塌的：最后 2 秒抖、变淡（减弱动效时只变淡），到点不画
     for (const t of this.timed) {
-      const left = t.until - sim.time;
+      const st = t.k !== undefined ? sim.crumbleState?.[t.k] : undefined;
+      const left = st ? (st.gone ? 0 : st.until - sim.time) : t.until - sim.time;
       t.c.visible = left > 0;
       if (left <= 0) continue;
       const k = left < CFG.crumbleWarn ? 1 - left / CFG.crumbleWarn : 0;
@@ -310,6 +313,23 @@ export class Terrain {
   }
 
   // ---------------------------------------------------------------- 平台
+
+  /** 会塌的台子（A12）：表面几道裂缝，一看就知道踩上去会塌（不用随机数，手机上画得一样）。 */
+  private cracks(g: Graphics, r: Rect): void {
+    const n = Math.max(1, Math.round(r.w / 70));
+    const h = Math.min(r.h, 26);
+    for (let i = 0; i < n; i++) {
+      const x = r.x + ((i + 0.5) * r.w) / n + (i % 2 ? 8 : -8);
+      g.moveTo(x - 6, r.y + 2)
+        .lineTo(x + 3, r.y + h * 0.35)
+        .lineTo(x - 4, r.y + h * 0.65)
+        .lineTo(x + 5, r.y + h)
+        .stroke({ width: 2.5, color: 0x2a1f3a, alpha: 0.55, cap: 'round', join: 'round' });
+      g.moveTo(x + 3, r.y + h * 0.35)
+        .lineTo(x + 12, r.y + h * 0.5)
+        .stroke({ width: 1.8, color: 0x2a1f3a, alpha: 0.45, cap: 'round' });
+    }
+  }
 
   private platform(g: Graphics, r: Rect): void {
     const m = materialOf(r.material ?? WORLD_MATERIAL[this.world]);

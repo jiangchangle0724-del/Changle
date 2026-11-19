@@ -256,6 +256,13 @@ export const CFG = {
   /** 力气剩多少开始手抖、圈变红；用完两只手都松开，这么多秒抓不了。 */
   staminaWarn: 0.3,
   staminaCooldown: 1,
+
+  // ---- 新机关（A12，Steve 11-18「机关太温和」）----
+  /** 会塌的台子塌了多少秒长回来（关里没写 regrow 时）。 */
+  crumbleRegrow: 6,
+  /** 涨潮：有人回检查点时，水面至少在那下面多少像素；退了以后停几秒再涨。 */
+  tideGap: 260,
+  tidePause: 2.5,
 };
 
 export type Cfg = typeof CFG;

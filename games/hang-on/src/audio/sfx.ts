@@ -383,6 +383,27 @@ class Sfx {
           // 坐不住：手滑了，吱一下
           this.tone({ freq: 1100, to: 420, wave: 'sine', dur: 0.12, vol: 0.22 });
           break;
+        case 'tide':
+          if (ev.phase === 'rise') {
+            // 涨潮（A12）开始涨：一声低沉的号，底下咕嘟咕嘟
+            this.tone({ freq: 110, to: 92, wave: 'triangle', dur: 0.7, vol: 0.28 });
+            this.noise({ dur: 0.9, vol: 0.12, filter: { type: 'lowpass', freq: 380 }, attack: 0.1 });
+          } else {
+            // 水退下去：一阵往下走的哗
+            this.noise({ dur: 0.6, vol: 0.14, filter: { type: 'bandpass', freq: 1800, to: 500, q: 0.8 }, attack: 0.04 });
+          }
+          break;
+        case 'creak': {
+          // 会塌的台子（A12）有人碰了：吱嘎一声，再两下咔
+          const pan = this.pan(ev.x + ev.w / 2, ev.y);
+          this.tone({ freq: 190, to: 120, wave: 'sawtooth', dur: 0.32, vol: 0.12, lowpass: 900, pan });
+          for (let k = 0; k < 2; k++) this.noise({ dur: 0.04, vol: 0.14, filter: { type: 'highpass', freq: 2200 }, pan, delay: 0.22 + k * 0.09 });
+          break;
+        }
+        case 'regrow':
+          // 塌了的台子长回来：轻轻一声「啵」
+          this.tone({ freq: 420, to: 720, wave: 'sine', dur: 0.14, vol: 0.14, pan: this.pan(ev.x + ev.w / 2, ev.y) });
+          break;
         case 'tired':
           // 手酸到底了（A11）：呼一大口气（气声往下走），再一声闷的「唔」
           this.noise({ dur: 0.35, vol: 0.16, filter: { type: 'lowpass', freq: 1400, to: 300 }, attack: 0.02 });

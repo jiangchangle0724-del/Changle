@@ -25,6 +25,23 @@ export interface Rect {
   until?: number;
   /** 冰溜子（雪山，A10）：一只手抓着它最多几秒就滑脱（快到时手抖、圈变红），滑了 CFG.slipCooldown 秒抓不了。不写就抓多久都行。 */
   slip?: number;
+  /**
+   * 会塌的台子（A12）：有人站上去或抓住，过这么多秒就塌（最后 CFG.crumbleWarn 秒抖），
+   * 塌了 regrow 秒（不写是 CFG.crumbleRegrow）再长回来。
+   */
+  crumble?: number;
+  regrow?: number;
+}
+
+/**
+ * 涨潮（A12）：关底下的汤 / 水从 from（不写是 deathY）开始，开局 delay 秒后每秒涨 speed 像素，涨到 top 停。
+ * 碰到就死（cause 'tide'）。有人回检查点时水面离那里不到 CFG.tideGap，水退到那下面 CFG.tideGap，停 CFG.tidePause 秒再涨。
+ */
+export interface TideDef {
+  speed: number;
+  delay?: number;
+  from?: number;
+  top?: number;
 }
 
 export interface RopeDef {
@@ -195,6 +212,8 @@ export interface LeverDef extends Pt {
 
 export interface Level {
   id: string;
+  /** 涨潮（A12）。 */
+  tide?: TideDef;
   /**
    * 手酸（A11）：这关的回放是开着手酸录的、验收开着手酸跑的，分难度的玩法里选中等、困难就开手酸。
    * 不写就不开（还没按手酸重录过的关；简单的关不写）。

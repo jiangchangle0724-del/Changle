@@ -229,7 +229,10 @@ export class Stage {
     const a = this.abyssBody.clear();
     this.abyssGrad?.destroy();
     this.abyssGrad = new FillGradient({ type: 'linear', start: { x: 0, y: 0 }, end: { x: 0, y: 1 }, colorStops: [{ offset: 0, color: this.pal.abyssTop }, { offset: 1, color: this.pal.abyssBottom }] });
-    a.rect(-3000, level.deathY - 8, level.w + 6000, 1400).fill(this.abyssGrad);
+    // 涨潮（A12）：汤跟着水面往上挪，底下要多铺一截，涨到顶也看不到汤底
+    const rise = level.tide ? Math.max(0, level.deathY - (level.tide.top ?? level.goal.y)) : 0;
+    a.rect(-3000, level.deathY - 8, level.w + 6000, 1400 + rise).fill(this.abyssGrad);
+    this.abyssBody.y = 0;
     // 场地（坐不住、抢金元宝）只有一屏：镜头一开始就看全场，抢元宝每局换场地时不从边上摇过来
     if (level.arena) {
       this.cam.x = level.w / 2;
@@ -317,7 +320,9 @@ export class Stage {
           this.slow = 0.55;
           this.flashA = this.reduced ? 0 : 0.28;
           // 碰到机关死的在出事的地方炸开；掉下去的在深渊面上溅起来
-          if (ev.cause) this.hazardBurst(ev.cause, ev.x, ev.y);
+          // 涨潮（A12）淹的在水面上溅起来
+          if (ev.cause === 'tide') this.splash(ev.x, ev.y);
+          else if (ev.cause) this.hazardBurst(ev.cause, ev.x, ev.y);
           else this.splash(ev.x, sim.level.deathY);
           sim.players.forEach((q, i) => {
             if (i !== ev.player && !q.dead) this.dumplings[i]?.onMateDied();
@@ -452,6 +457,18 @@ export class Stage {
           if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 4);
           break;
         }
+        case 'creak':
+          // 会塌的台子（A12）有人碰了：台面冒一小股灰
+          this.fx.burst({ x: ev.x + ev.w / 2, y: ev.y, n: 6, texture: 'puff', colors: [0xd8cbb4, 0xb8a78c], speed: [20, 70], life: [0.4, 0.8], size: [14, 24], gravity: -40, jitter: ev.w / 3, grow: 0.6, alpha: 0.7 });
+          break;
+        case 'regrow':
+          // 塌了的台子长回来：闪一圈小星星
+          this.fx.burst({ x: ev.x + ev.w / 2, y: ev.y + ev.h / 2, n: 8, texture: 'star', colors: STAR_COLORS, speed: [40, 140], life: [0.3, 0.6], size: [6, 10], gravity: 0, jitter: ev.w / 3, spin: 6 });
+          break;
+        case 'tide':
+          // 涨潮（A12）开始涨：镜头轻轻一抖
+          if (ev.phase === 'rise' && !this.reduced) this.cam.shake = Math.max(this.cam.shake, 5);
+          break;
         default:
           break;
       }
@@ -608,6 +625,7 @@ export class Stage {
     // 结束时只有赢的（笑着的）一起跳；坐不住时手抓久了要抖
     const slips = sim.rules?.mode === 'last';
     sim.players.forEach((p, i) => this.dumplings[i]?.update(p, dt, sim.won && p.face === 'win', this.t, slips));
+    this.abyssBody.y = (sim.tideY ?? sim.level.deathY) - sim.level.deathY;
     this.drawAbyss(sim, dt);
     this.fx.update(dt);
     this.screenFx.update(dt);
@@ -1062,7 +1080,7 @@ export class Stage {
   private drawAbyss(sim: SimView, dt: number): void {
     const level = sim.level;
     const g = this.abyssTop.clear();
-    const y = level.deathY - 8;
+    const y = (sim.tideY ?? level.deathY) - 8;
     const table = this.world_ === 'table';
     const halfW = this.W / 2 / this.cam.z;
     const x0 = Math.floor((this.cam.x - halfW - 80) / 40) * 40;
