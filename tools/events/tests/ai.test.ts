@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   AI_BATCH,
   AI_MODEL,
+  AI_VERSION,
   INSTRUCTIONS,
   about,
   answerText,
+  labelsOf,
   catchUp,
   messages,
   readAnswer,
@@ -66,22 +68,27 @@ const row = (id: string) =>
 describe("what the AI is asked", () => {
   it("the instructions, then the events numbered from 1: name, place, and what the source says, without the libraries' standing notes", () => {
     const [system, user] = messages([
-      { id: "a", title: "Family Stay and Play", venue: "Firehall Branch", description: "Drop in to explore books and toys. Accessibility Information VPL is committed to making our programs accessible." },
-      { id: "b", title: "SYML: Beard Tour", venue: null, description: null },
+      { id: "a", title: "Family Stay and Play", venue: "Firehall Branch", description: "Drop in to explore books and toys. Accessibility Information VPL is committed to making our programs accessible.", labels: '["Storytimes","Families"]' },
+      { id: "b", title: "SYML: Beard Tour", venue: null, description: null, labels: '["Music","Rock"]' },
     ]);
     expect(system).toEqual({ role: "system", content: INSTRUCTIONS });
     expect(user.content.endsWith("\n/no_think")).toBe(true);
     expect(JSON.parse(user.content.replace(/\n\/no_think$/, ""))).toEqual([
-      { n: 1, title: "Family Stay and Play", venue: "Firehall Branch", about: "Drop in to explore books and toys." },
-      { n: 2, title: "SYML: Beard Tour" },
+      { n: 1, title: "Family Stay and Play", venue: "Firehall Branch", labels: "Storytimes, Families", about: "Drop in to explore books and toys." },
+      { n: 2, title: "SYML: Beard Tour", labels: "Music, Rock" },
     ]);
     expect(about("x".repeat(900))).toHaveLength(400);
     expect(about("Meet new friends.\nVPL is committed to making our programs accessible for all.")).toBe("Meet new friends.");
+    expect(labelsOf('["a","b","c","d","e","f","g"]')).toBe("a, b, c, d, e, f");
+    expect(labelsOf("not json")).toBe("");
+    expect(labelsOf(null)).toBe("");
   });
 
-  it("the instructions keep names as they are, except the local teams Chinese readers know", () => {
+  it("the instructions keep names as they are, except the local teams Chinese readers know, and guess nothing", () => {
     expect(INSTRUCTIONS).toContain("Vancouver Canucks 温哥华加人队");
     expect(INSTRUCTIONS).toContain("保留英文原文");
+    expect(INSTRUCTIONS).toContain("乐队 Pooh 不要译成小熊维尼");
+    expect(INSTRUCTIONS).toContain("不用「知名」「著名」「世界级」");
   });
 });
 
@@ -106,14 +113,22 @@ describe("reading the answer", () => {
     ]);
   });
 
-  it("leaves out what it can't use: no Chinese, too long, an unknown category (kept without it), quotes trimmed", () => {
+  it("leaves out what it can't use: no Chinese, too long, an unknown category (kept without it), quotes around the whole name", () => {
     const answer = JSON.stringify([
       { n: 1, t: "名字", s: "Only English here, no Chinese at all.", c: "arts" },
       { n: 2, t: "很长".repeat(30), s: "一句中文介绍，说说这是什么样的活动。", c: "arts" },
       { n: 3, t: "「读书会」", s: "大家一起读一本书，聊聊各自的感受。", c: "books" },
-      { n: 4, t: "名字", s: "短", c: null },
+      { n: 4, t: "名字", s: "短短", c: null },
+      // a work's name in 《》 stays, at the start or inside; a short sentence is enough
+      { n: 5, t: "《美女与野兽》巡演", s: "音乐剧演出", c: "shows" },
     ]);
-    expect(readAnswer(answer, 4)).toEqual([null, null, { titleZh: "读书会", summaryZh: "大家一起读一本书，聊聊各自的感受。", category: null }, null]);
+    expect(readAnswer(answer, 5)).toEqual([
+      null,
+      null,
+      { titleZh: "读书会", summaryZh: "大家一起读一本书，聊聊各自的感受。", category: null },
+      null,
+      { titleZh: "《美女与野兽》巡演", summaryZh: "音乐剧演出", category: "shows" },
+    ]);
   });
 
   it("an answer cut off at its length loses only the event it was writing", () => {
@@ -135,7 +150,7 @@ describe("writing and keeping it", () => {
     // the parsers' category stays
     expect(await row("vpl:e2")).toMatchObject({ title_zh: "中文名2", category: "family", category_by: "rule" });
     const one = await row("vpl:e1");
-    expect(one?.ai_hash).toBe(one?.text_hash);
+    expect(one?.ai_hash).toBe(`${one?.text_hash}:${AI_VERSION}`);
     // nothing left to write: not asked again
     expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 0, wrote: 0, failed: 0, error: null });
     expect(asked).toHaveLength(1);
@@ -158,13 +173,22 @@ describe("writing and keeping it", () => {
     await env.DB.prepare("UPDATE events SET text_hash = NULL").run();
     const { run, asked } = model();
     expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).wrote).toBe(1);
-    expect(await row("vpl:e1")).toMatchObject({ ai_hash: null, text_hash: null });
+    expect(await row("vpl:e1")).toMatchObject({ ai_hash: `:${AI_VERSION}`, text_hash: null });
     // the next morning's run gives it a hash: the Chinese is for that text
     await storeEvents(env.DB, RUN, [event(1)]);
     const one = await row("vpl:e1");
-    expect(one?.ai_hash).toBe(one?.text_hash);
+    expect(one?.ai_hash).toBe(`${one?.text_hash}:${AI_VERSION}`);
     expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).asked).toBe(0);
     expect(asked).toHaveLength(1);
+  });
+
+  it("Chinese from older instructions is written again (a new AI_VERSION), and the source's labels go with the event", async () => {
+    await storeEvents(env.DB, RUN, [event(1, { sourceCategories: ["Music", "Rock"] })]);
+    await env.DB.prepare("UPDATE events SET title_zh = 'old', summary_zh = 'old', summary_by = 'ai', ai_hash = text_hash || ':v1'").run();
+    const { run, asked } = model();
+    expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).wrote).toBe(1);
+    expect(asked[0][0]).toMatchObject({ title: "Event 1", labels: "Music, Rock" });
+    expect(await row("vpl:e1")).toMatchObject({ title_zh: "中文名1" });
   });
 
   it("an event it couldn't use counts a try; after three it stays in English, until its text changes", async () => {
