@@ -23,7 +23,7 @@ import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
 import { Tube, tapFirst } from "./tube";
 import { tuneFor } from "./tunes";
-import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, litCount, moveHow, moveName, moveOther, routineName, songArtist, songTitle, stageHint, stageName, stepsList } from "./words";
+import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, litCount, moveHow, moveName, moveOther, remindBox, routineName, songArtist, songTitle, stageHint, stageName, stepsList } from "./words";
 
 /** Calibration: 8 clicks, 1.2 s apart (so a tap up to 400 ms late still pairs with the right click). */
 const CAL_CLICKS = 8;
@@ -756,6 +756,8 @@ function resultsCard(r: Results): HTMLElement {
   const name = (id: string | null) => (id ? (r.players.find((p) => p.id === id)?.name ?? "") : "");
   const dn = danceName(r.routineId);
   if (dn) box.append(el("p", "coach-dance", `${dn} · ${difficultyName(r.difficulty)}`));
+  // every few dances: have some water, or a rest
+  if (r.remind) box.append(remindBox(r.remind));
   if (!r.players.length) {
     box.append(el("p", "lead", tr("这一首没有人跟着动手机。下一首拿着手机跳，或者每一拍点一下，就能上榜。", "No phone moved this time. Dance with your phone in hand, or tap it on every beat, to get on the board.")));
     return box;

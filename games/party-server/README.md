@@ -38,7 +38,12 @@ instead, `site/src/party/dj/`.)
   after each bar (the streak bar; full at 32 beats: fireworks), and at the end works out the
   results: each dancer's participation (party-base's `summarize`), and 最稳 (closest to the beat),
   最嗨 (the longest run on the beat), 最努力 (moved on the most beats). Easy dances show only the
-  awards; medium and hard also the scores.
+  awards; medium and hard also the scores. The room looks after its dancers there too (the plan's
+  safety rule, docs/dance-along.md): every 3 dances it finishes, the results on the TV and the
+  phones say to have some water; half an hour after the first dance since the last such word
+  (from its start, chats between dances counted), to sit down for a few minutes and have some
+  water (`Results.remind`, `finish()` in `src/server/session.ts`). A word, not a lock: the host can
+  start the next dance at once.
 - **`/party/screen`**, the speaker (`src/client/screen.ts`): it opens its room as it loads (a
   reload goes back into its own: the code is in the address) and has nothing to press (Steve,
   12 Nov: the phones pick the songs and start them; the TV speaks the host's phone's language,
@@ -155,7 +160,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 109 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 110 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```

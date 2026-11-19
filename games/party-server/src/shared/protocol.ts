@@ -168,7 +168,18 @@ export interface Results {
   bursts: number;
   /** the share of beats moved, over everyone who danced, 0 to 100 */
   together: number;
+  /**
+   * What the TV and the phones say with these results, the room looking after its dancers: have
+   * some water (every WATER_EVERY dances it finishes), or rest a few minutes (once REST_AFTER_MS
+   * have gone by since the first dance after the last such, from its start). Absent: nothing.
+   */
+  remind?: "water" | "rest";
 }
+
+/** Every this many dances a room finishes, its results say to have some water. */
+export const WATER_EVERY = 3;
+/** This long after the first dance since the last rest (from its start), the results say to rest. */
+export const REST_AFTER_MS = 30 * 60_000;
 
 /** A song's beat moves to where the speaker measured it when it's this far off (ms). */
 export const SONG_SYNC_MS = 20;

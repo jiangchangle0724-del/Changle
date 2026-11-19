@@ -6,7 +6,7 @@
 // src/server/worker.ts is the Durable Object around it.
 import { createRoom, reduce, RoomError, type RoomEvent, type RoomState } from "../../../party-base/src/index";
 import { TEST_ROUTINE } from "../shared/catalog";
-import { MAX_BEATS_PER_MSG, SONG_SYNC_MS, type ClientMsg, type HostAction, type Lang, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
+import { MAX_BEATS_PER_MSG, REST_AFTER_MS, SONG_SYNC_MS, WATER_EVERY, type ClientMsg, type HostAction, type Lang, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
 import { buildShow, introOf, phraseStart, type Anchors, type Show } from "../shared/show";
 import { addBeats, clearFrom, emptyScores, floorOf, learnedShift, resultsOf, type Scores } from "./tally";
 
@@ -62,6 +62,14 @@ export interface SessionData {
   learned?: boolean;
   /** Each phone's language (the TV speaks its host's). */
   langs?: Record<string, Lang>;
+  /** The dances this room has finished (FINISH): every WATER_EVERY, its results say to have some water. */
+  danced?: number;
+  /**
+   * Speaker time the first dance since the room's last rest started (its START_LEARNING or
+   * START_DANCING): REST_AFTER_MS on, the results say to rest a few minutes, and the next dance
+   * starts this again. Absent: no dance since.
+   */
+  restFrom?: number | null;
 }
 
 export type Role = "speaker" | "player";
@@ -366,6 +374,7 @@ export class Session {
         if (this.apply({ type: "START_LEARNING", at, byPlayerId: by, routineId: show.id, difficulty: show.difficulty, bpm: show.bpm }, from)) {
           this.d.danceAt = leadStartAt === null ? null : leadStartAt + show.leadMs;
           this.d.finishAt = null;
+          this.d.restFrom ??= at;
           this.resetScores();
         } else {
           this.d.routine = r;
@@ -392,6 +401,7 @@ export class Session {
         if (this.apply({ type: a.type, at, byPlayerId: by, routineStartAt }, from)) {
           this.d.danceAt = null;
           this.d.finishAt = this.endOf(show);
+          this.d.restFrom ??= at;
           if (fromBeat > 0) {
             clearFrom(this.scores, fromBeat);
             this.scored = true;
@@ -560,16 +570,27 @@ export class Session {
     return start + (show.dance.length - (this.d.routine?.fromBeat ?? 0)) * show.beatMs + show.tailMs + this.d.state.audioOffsetMs + FINISH_MARGIN_MS;
   }
 
-  /** The dance is over: the results from the beats the phones sent go out with the new state. */
+  /**
+   * The dance is over: the results from the beats the phones sent go out with the new state, and
+   * with them, every few dances, a word to have some water or, after half an hour, a rest.
+   */
   private finish(): void {
     const st = this.d.state;
     const r = this.d.routine;
+    const now = this.speakerNow();
     this.d.finishAt = null;
-    this.d.results = r && st.difficulty ? resultsOf(this.scores, st.players.map((p) => p.id), r.routineId, st.difficulty, r.totalBeats) : null;
-    if (!this.apply({ type: "FINISH", at: this.speakerNow() })) {
+    const results = r && st.difficulty ? resultsOf(this.scores, st.players.map((p) => p.id), r.routineId, st.difficulty, r.totalBeats) : null;
+    // (only with results to say it with)
+    const danced = (this.d.danced ?? 0) + (results ? 1 : 0);
+    const rest = !!results && this.d.restFrom != null && now - this.d.restFrom >= REST_AFTER_MS;
+    const remind = !results ? null : rest ? "rest" : danced % WATER_EVERY === 0 ? "water" : null;
+    this.d.results = results && remind ? { ...results, remind } : results;
+    if (!this.apply({ type: "FINISH", at: now })) {
       this.d.results = null;
       return;
     }
+    this.d.danced = danced;
+    if (rest) this.d.restFrom = null;
     this.learnDelay();
   }
 

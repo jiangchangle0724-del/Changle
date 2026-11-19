@@ -80,6 +80,20 @@ export function awardWhy(k: keyof Results["awards"]): string {
   return k === "steady" ? tr("离拍子最近", "closest to the beat") : k === "hype" ? tr("连着踩准最多拍", "the longest run on the beat") : tr("动得最多", "moved on the most beats");
 }
 
+/**
+ * What the results say every few dances (Results.remind), on the TV and the phones: have some water,
+ * or rest a few minutes. A word on its own line, then what to do.
+ */
+export function remindBox(r: NonNullable<Results["remind"]>): HTMLElement {
+  const [title, text] =
+    r === "rest"
+      ? [tr("休息一下", "Time for a rest"), tr("跳了半个小时，坐下歇几分钟，喝点水再跳。", "Half an hour of dancing: sit down for a few minutes and have some water.")]
+      : [tr("喝水时间", "Water break"), tr("大家喝口水，歇口气再跳下一首。", "Everyone have a drink and catch your breath before the next one.")];
+  const box = el("p", "remind");
+  box.append(el("strong", "remind-title", title), el("span", "remind-text", text));
+  return box;
+}
+
 /** The phone's big button while nothing is scored: what to do instead. */
 export function restHint(s: Stage): string {
   switch (s) {
