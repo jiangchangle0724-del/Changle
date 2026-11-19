@@ -50,7 +50,7 @@ export function Sheet(props: SheetProps) {
     if (!node.open) node.showModal();
   }, [props.open]);
   // on an iPhone, stood on the bottom of the screen by its own numbers (ui/screenAnchor)
-  useScreenAnchor(dialog, props.open, "bottom");
+  useScreenAnchor(dialog, props.open, true);
   useEffect(() => {
     const node = dialog.current;
     return () => {
