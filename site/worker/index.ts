@@ -36,6 +36,7 @@ export interface Env extends LyriaEnv {
   DEV_LYRIA_ANYONE?: string;
   /** the DJ booth's Lyria test: hours a month, all tables together (default 20) */
   DJ_LYRIA_HOURS?: string;
+  DEV_COUNT_WRITES?: string;
 }
 
 /** `screen`: a TV or computer showing the table, with no seat at it */
@@ -44,6 +45,7 @@ type Attachment = { pid: string; screen?: boolean };
 const IDLE_FORGET = 8 * 60 * 60 * 1000; // a table nobody has touched for eight hours is cleared
 const IDLE_RECHECK = 30 * 60 * 1000; // past that, while someone is still connected, check every half hour
 const LIGHT_SAVE_MS = 10_000; // a light change (a 🔥) is stored with the next save, or after this long
+const ALARM_SLACK_MS = 60_000; // an alarm wanted this little later than the one set is left where it is
 const ORIGINS = [
   /^https:\/\/(www\.)?changle\.ca$/,
   /^https:\/\/([a-z0-9-]+\.)?changle-ets\.pages\.dev$/,
@@ -329,8 +331,8 @@ export class Room extends DurableObject<Env> {
   private lyria: LyriaRelay | null = null;
   /** when the table was last stored (light changes wait for the next save, or this long) */
   private savedAt = 0;
-  /** the game's earliest timer when the alarm was last set (a light change re-arms only if it moved) */
-  private alarmFor: number | null | undefined = undefined;
+  /** when the alarm was last set for (unknown after a cold start) */
+  private alarmAt: number | undefined = undefined;
   /** the DJ booth's song files from phones: the bytes each phone sent the big screen this minute (songPiece) */
   private songBytes = new Map<string, { at: number; bytes: number }>();
 
@@ -667,6 +669,7 @@ export class Room extends DurableObject<Env> {
     const save = out.changed || out.persist || (out.light && Date.now() - this.savedAt >= LIGHT_SAVE_MS);
     if (save) {
       await this.ctx.storage.put("room", engine.d);
+      if (this.env.DEV_COUNT_WRITES === "1") console.log("COUNT put");
       this.savedAt = Date.now();
     }
 
@@ -700,14 +703,20 @@ export class Room extends DurableObject<Env> {
       const why = this.lyriaWhyNot();
       if (why) this.lyria.end(why);
     }
-    // a light change that wasn't stored leaves the alarm as it was, unless the game's timers moved
     const next = engine.nextAlarm();
-    if (!fired && out.light && !save && next === this.alarmFor) return;
-    this.alarmFor = next;
     let forget = engine.d.touched + IDLE_FORGET;
     // someone is still here (a phone, or a TV left on overnight): look again later instead of
     // re-arming the alarm in the past, which would fire it over and over
     if (forget <= Date.now()) forget = Date.now() + IDLE_RECHECK;
-    await this.ctx.storage.setAlarm(Math.max(Date.now() + 50, Math.min(next ?? forget, forget)));
+    const at = Math.max(Date.now() + 50, Math.min(next ?? forget, forget));
+    // Setting the alarm is a storage write like any other, and a table drawing or pressing 🔥 all
+    // evening sends hundreds of messages a minute: it is set again only when it has to move. Sooner:
+    // always. Later by less than a minute (the idle clock creeping forward with every change, a
+    // countdown nudged): left alone; the alarm fires a little early, finds nothing due, and is set
+    // for the right time then (`fired`). Unknown after a cold start, or just fired: set.
+    if (!fired && this.alarmAt !== undefined && at >= this.alarmAt && at - this.alarmAt < ALARM_SLACK_MS) return;
+    this.alarmAt = at;
+    await this.ctx.storage.setAlarm(at);
+    if (this.env.DEV_COUNT_WRITES === "1") console.log("COUNT alarm");
   }
 }
