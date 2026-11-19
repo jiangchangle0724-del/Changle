@@ -95,7 +95,64 @@ export function TopBar() {
   );
 }
 
-let openSheets = 0;
+// The sheets on the page, the last on top, and their steps in the page's history. Each open sheet
+// has one step, so the phone's back button closes the top sheet only. A sheet closed any other way
+// leaves its step behind (`spare`): a sheet that opens straight after takes it over (the large
+// picture handing over to the weight picker), else it is taken out of the history a moment later.
+// The step back that causes is not a press of the back button (`stepsBack`), and a sheet that opens
+// while one is under way adds its own step only once it has happened (`owed`): a step added and one
+// taken away at the same moment can land in the wrong order (Chrome does), which would leave a sheet
+// with no step, so the back button would leave the page.
+type Open = { byBack: () => void; owed: boolean };
+const sheets: Open[] = [];
+let spare = 0;
+let stepsBack = 0;
+let listening = false;
+const step = () => history.pushState({ ...history.state, sheet: true }, "");
+function onBack() {
+  if (stepsBack > 0) {
+    stepsBack -= 1;
+    if (!stepsBack)
+      for (const open of sheets.filter((open) => open.owed)) {
+        open.owed = false;
+        step();
+      }
+    return;
+  }
+  const top = sheets[sheets.length - 1];
+  if (top) top.byBack();
+  // (no sheet open: the back button took a step a closed sheet left behind)
+  else if (spare > 0) spare -= 1;
+}
+function release() {
+  if (!spare) return;
+  if (history.state?.sheet) {
+    stepsBack += 1;
+    history.go(-spare);
+  }
+  spare = 0;
+}
+/** A sheet comes: it takes a step left behind, or adds its own (now, or once a step back has happened). */
+function opened(open: Open) {
+  sheets.push(open);
+  document.documentElement.classList.add("has-sheet");
+  if (!listening) {
+    listening = true;
+    window.addEventListener("popstate", onBack);
+  }
+  if (spare > 0) spare -= 1;
+  else if (stepsBack > 0) open.owed = true;
+  else step();
+}
+/** A sheet goes: off the stack, so the back button is for what's under it. Closed by the back button, its step has gone already; one never added is just not added. */
+function closed(open: Open, back: boolean) {
+  sheets.splice(sheets.indexOf(open), 1);
+  if (!sheets.length) document.documentElement.classList.remove("has-sheet");
+  if (back || open.owed) return;
+  spare += 1;
+  setTimeout(release);
+}
+const isTop = (open: Open) => sheets[sheets.length - 1] === open;
 
 /**
  * A panel that rises from the bottom. It closes on its own button, a tap outside, Escape, and the
@@ -106,41 +163,48 @@ let openSheets = 0;
 export function Sheet({ title, onClose, children, footer }: { title: string; onClose: () => void; children: ComponentChildren; footer?: ComponentChildren }) {
   useLang();
   const panel = useRef<HTMLDivElement>(null);
+  const scrim = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
+  const shut = useRef(() => {});
 
   useLayoutEffect(() => {
     const before = document.activeElement as HTMLElement | null;
-    openSheets += 1;
-    document.documentElement.classList.add("has-sheet");
-    history.pushState({ ...history.state, sheet: true }, "");
-    let byBack = false;
-    const back = () => {
-      byBack = true;
+    let gone = false;
+    const leave = (back: boolean) => {
+      if (gone) return;
+      gone = true;
+      closed(open, back);
+    };
+    // closed by the person (its button, a tap outside, Escape, the back button): it sinks away
+    const byPerson = (back: boolean) => {
+      if (gone) return;
+      leave(back);
+      if (scrim.current) sinkAway(scrim.current);
       close.current();
     };
-    const key = (event: KeyboardEvent) => event.key === "Escape" && close.current();
-    window.addEventListener("popstate", back);
+    const open: Open = { byBack: () => byPerson(true), owed: false };
+    opened(open);
+    shut.current = () => byPerson(false);
+    // (Escape is for the top sheet only, as the back button is)
+    const key = (event: KeyboardEvent) => event.key === "Escape" && isTop(open) && shut.current();
     document.addEventListener("keydown", key);
     const el = panel.current;
     if (el && !el.contains(document.activeElement)) (el.querySelector<HTMLElement>("[data-autofocus]") ?? el).focus();
     return () => {
-      window.removeEventListener("popstate", back);
       document.removeEventListener("keydown", key);
-      openSheets -= 1;
-      if (!openSheets) document.documentElement.classList.remove("has-sheet");
-      // closed some other way: take the step back out of the history
-      if (!byBack && history.state?.sheet) history.back();
+      // (closed by the page itself: it just goes)
+      leave(false);
       before?.focus?.();
     };
   }, []);
 
   return (
-    <div class="scrim" onClick={(event) => event.target === event.currentTarget && onClose()}>
+    <div class="scrim" ref={scrim} onClick={(event) => event.target === event.currentTarget && shut.current()}>
       <div class="sheet" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={panel}>
         <div class="sheet-head">
           <h2>{title}</h2>
-          <button type="button" class="icon-btn" aria-label={t("close")} onClick={onClose}>
+          <button type="button" class="icon-btn" aria-label={t("close")} onClick={() => shut.current()}>
             <IconClose />
           </button>
         </div>
@@ -151,10 +215,59 @@ export function Sheet({ title, onClose, children, footer }: { title: string; onC
   );
 }
 
+/**
+ * A sheet that's been closed sinks away (--dur-exit, faster than it came) while the page goes on at
+ * once: what sinks is a copy of it as it looked, out of the way of taps, screen readers and the
+ * back button, gone when it's done. The page itself never waits for it, so nothing that's opened
+ * straight after can be closed by it.
+ */
+function sinkAway(scrim: HTMLElement) {
+  const home = document.getElementById("app");
+  if (!home || typeof scrim.animate !== "function") return;
+  const ghost = scrim.cloneNode(true) as HTMLElement;
+  ghost.className = "scrim scrim-leaving";
+  ghost.setAttribute("aria-hidden", "true");
+  ghost.inert = true;
+  for (const named of ghost.querySelectorAll("[id]")) named.removeAttribute("id");
+  // what was typed and chosen, as it was (a copy has only what the page first said)
+  const fields = scrim.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select");
+  ghost.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select").forEach((field, at) => {
+    const was = fields[at];
+    if (!was) return;
+    field.value = was.value;
+    if (field instanceof HTMLInputElement && was instanceof HTMLInputElement) field.checked = was.checked;
+  });
+  home.append(ghost);
+  // …and where it was scrolled to
+  const body = scrim.querySelector(".sheet-body");
+  const copy = ghost.querySelector(".sheet-body");
+  if (body && copy) copy.scrollTop = body.scrollTop;
+  let done = false;
+  const remove = () => {
+    if (done) return;
+    done = true;
+    ghost.remove();
+  };
+  ghost.addEventListener("animationend", (event) => event.target === ghost && remove());
+  // (a page in the background runs no animations: it goes anyway)
+  setTimeout(remove, 1000);
+}
+
+/** False while a part of the page first draws, true after: what appears later may arrive with motion, what was there from the start doesn't. */
+export function useDrawn(): { readonly current: boolean } {
+  const drawn = useRef(false);
+  useEffect(() => {
+    drawn.current = true;
+  }, []);
+  return drawn;
+}
+
 /** Less, how much, more. */
-export function Stepper({ text, lessLabel, moreLabel, onLess, onMore, canMore = true, large = false }: { text: string; lessLabel: string; moreLabel: string; onLess: () => void; onMore: () => void; canMore?: boolean; large?: boolean }) {
+export function Stepper({ text, lessLabel, moreLabel, onLess, onMore, canMore = true, large = false, arrives = false }: { text: string; lessLabel: string; moreLabel: string; onLess: () => void; onMore: () => void; canMore?: boolean; large?: boolean; arrives?: boolean }) {
+  // (whether it arrived is settled when it first draws: a stepper that was there all along never pops)
+  const [arrived] = useState(arrives);
   return (
-    <div class={`stepper${large ? " stepper-lg" : ""}`}>
+    <div class={`stepper${large ? " stepper-lg" : ""}${arrived ? " stepper-new" : ""}`}>
       <button type="button" class="step" aria-label={lessLabel} onClick={onLess}>
         <IconMinus size={large ? 22 : 18} />
       </button>
