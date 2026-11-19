@@ -17,7 +17,8 @@
 // crowd throws a punch at nothing, and every eye goes there. By the seawall a cyclist now and then rings
 // their bell and rides straight through the crowd: the passers-by step out of its way, and anyone still
 // in its path goes down for all to see. In the transit hall the lights go out now and then: the
-// passers-by stop and look at their phones in the dark. First to 5 points, or the most after 3 minutes
+// passers-by stop and look at their phones in the dark; at the theatre a follow spot sweeps the
+// floor, and whoever it lands on freezes in its light. First to 5 points, or the most after 3 minutes
 // (Steve, 2026-11-13: 75 s and 3 points made each place feel too short).
 
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
@@ -112,6 +113,15 @@ export const BIKE_MS = Math.ceil(((ARENA.width + 2 * BIKE_OFF) / BIKE_SPEED) * 1
  * theirs: a player too), so whoever walks on is a dark shape among lit faces.
  */
 export const BLACKOUT_MS = 3_100;
+/**
+ * The theatre's follow spot (2026-11-19, the big upgrade's events): from the stage's rigging a spot
+ * sweeps across the floor, one side to the other on a wave (the round's dice). Whoever it lands on
+ * freezes in its light, facing the stage, until it has passed (a passer-by or a player: anyone moving
+ * in the light is easy to see); the rest of the crowd carries on.
+ */
+export const SPOT_MS = 4_400;
+/** how far round its middle the spot lights the floor */
+export const SPOT_RADIUS = 9;
 const ALL_STALLS = (1 << 4) - 1;
 
 /** The stall a spot is in front of, or -1. */
@@ -128,7 +138,7 @@ export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" |
  * performer counts three and everyone punches), the night market's firecrackers (everyone gets clear)
  * and fireworks
  */
-export type MomentKind = "horn" | "bike" | "dance" | "blackout" | "gong" | "drill" | "crackers" | "fireworks";
+export type MomentKind = "horn" | "bike" | "dance" | "blackout" | "gong" | "drill" | "spot" | "crackers" | "fireworks";
 export type ArenaId = "plaza" | "metro" | "gallery" | "market";
 export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery", "market"];
 export interface Vector { x: number; y: number }
@@ -618,13 +628,15 @@ const MOMENTS: Record<ArenaId, { first: number; every: number; beats: readonly M
       { kind: "blackout", lasts: BLACKOUT_MS, look: null }
     ]
   },
-  // the stage: the drill (everyone punches on the call), then the gong (everyone stops and looks)
+  // the stage: the drill (everyone punches on the call), the gong (everyone stops and looks), then the
+  // follow spot sweeping the floor (whoever it lands on freezes)
   gallery: {
     first: 12_000,
     every: 17_000,
     beats: [
       { kind: "drill", lasts: DRILL_MS, look: STAGE },
-      { kind: "gong", lasts: 2_600, look: STAGE }
+      { kind: "gong", lasts: 2_600, look: STAGE },
+      { kind: "spot", lasts: SPOT_MS, look: STAGE }
     ]
   },
   // firecrackers thrown into the lot (everyone gets clear of them), then fireworks going up from behind
@@ -662,6 +674,35 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
 
 /** How long a body takes to react to a moment: people don't all turn at once. */
 export const reactionDelay = (id: string) => 120 + (idHash(id) % 520);
+
+/** The theatre's follow spot of the moment that starts at `startsAt`: where its sweep comes from and goes, by the round's dice. */
+export interface SpotSweep {
+  startsAt: number;
+  /** from one side to the other (1: left to right), across the middle of the floor on a wave */
+  dir: 1 | -1;
+  y: number;
+  wave: number;
+  phase: number;
+}
+
+export function sweepSpot(seed: number, startedAt: number, startsAt: number): SpotSweep {
+  const random = seeded(Math.imul(seed, 3_266_489_917) ^ Math.round((startsAt - startedAt) / 100));
+  return { startsAt, dir: random() < 0.5 ? 1 : -1, y: 22 + random() * 14, wave: 8 + random() * 5, phase: random() * Math.PI * 2 };
+}
+
+/** Where the follow spot's middle is on the floor at `now` (it eases in from past one side and out past the other). */
+export function spotAt(sweep: SpotSweep, now: number): Vector {
+  const u = bounded((now - sweep.startsAt) / SPOT_MS, 0, 1);
+  const eased = u * u * (3 - 2 * u);
+  const along = -SPOT_RADIUS + eased * (ARENA.width + 2 * SPOT_RADIUS);
+  return { x: sweep.dir > 0 ? along : ARENA.width - along, y: sweep.y + Math.sin(u * Math.PI * 2.2 + sweep.phase) * sweep.wave };
+}
+
+/** Whether the follow spot lights a body now. */
+export function inSpot(body: Pick<Character, "x" | "y">, sweep: SpotSweep, now: number): boolean {
+  const spot = spotAt(sweep, now);
+  return Math.hypot(body.x - spot.x, body.y - spot.y) < SPOT_RADIUS;
+}
 
 /** The seawall's bike in the moment that starts at `startsAt`: the line it rides along, and which way (1: left to right). */
 export interface BikeRide {
@@ -823,6 +864,11 @@ export function crowdStep(
       .filter((cracker) => now >= cracker.landsAt + reactionDelay(body.id) && now < cracker.bangsAt && Math.hypot(cracker.x - body.x, cracker.y - body.y) < COMMOTION_RADIUS)
       .sort((a, b) => Math.hypot(a.x - body.x, a.y - body.y) - Math.hypot(b.x - body.x, b.y - body.y))[0];
     if (hissing) return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(hissing.y - body.y, hissing.x - body.x), glance: false };
+  } else if (moment?.kind === "spot") {
+    // the theatre's follow spot: caught in its light, freeze and face the stage; out of it, carry on
+    if (inSpot(body, sweepSpot(game.seed, game.startedAt, moment.startsAt), now)) {
+      return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(STAGE.y - body.y, STAGE.x - body.x), glance: false };
+    }
   } else if (moment?.kind === "bike") {
     // the seawall's bike: once you hear its bell, step off its line at a run, then stand and watch it go by
     if (now >= moment.startsAt + bikeReaction(body.id)) {

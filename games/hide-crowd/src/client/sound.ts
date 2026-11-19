@@ -1,12 +1,13 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
 // hitting the floor, the ferry horn, the seawall's bike (its bell, and its crash into someone), the
-// busker's riff, the transit hall's lights going out, the opera gong, the theatre's drill (the
+// busker's riff, the transit hall's lights going out, the opera gong, the theatre's follow spot and
+// its drill (the
 // stage's count and the crowd's punches), the night market's firecrackers and fireworks, a bite at a
 // stall and a feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
 // screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the
 // first tap unlocks it. The menu's two switches turn the sounds off (hc.sound) and the music
 // (hc.music), and the game plays the same without.
-import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, type ArenaId } from "../engine";
+import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, SPOT_MS, type ArenaId } from "../engine";
 import { FIREWORK_RISE_MS, FIREWORK_SHOTS } from "./fireworks";
 
 let ctx: AudioContext | null = null;
@@ -297,6 +298,27 @@ export const sfx = {
       voice("sawtooth", 118, 120, back + 0.41, 0.6, 0.035, master!, 0.08);
     }
     duck(t, Math.max(0.4, (BLACKOUT_MS - elapsedMs) / 1000));
+  },
+  /**
+   * The theatre's follow spot: the big lamp's shutter clacking open (a thud and a metal click), its
+   * hum while it sweeps, and the clack shut. `elapsedMs`: how far into it this screen came in.
+   */
+  spot(elapsedMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    const open = t + (0 - elapsedMs) / 1000;
+    const shut = t + (SPOT_MS - 220 - elapsedMs) / 1000;
+    if (open >= t - 0.05) {
+      voice("sine", 130, 60, open, 0.22, 0.4);
+      voice("square", 2_200, 1_600, open + 0.01, 0.03, 0.05, master!, 0.001);
+      hiss(open, 0.05, 0.16, 4_000, 2_400, 1.5);
+    }
+    const hum = Math.max(t, open + 0.05);
+    if (shut - hum > 0.1) voice("sawtooth", 98, 100, hum, shut - hum, 0.022, master!, 0.12);
+    if (shut >= t) {
+      voice("square", 1_900, 1_400, shut, 0.03, 0.045, master!, 0.001);
+      voice("sine", 110, 55, shut + 0.01, 0.16, 0.3);
+    }
   },
   /** the opera gong: a bright strike that rings and wobbles */
   gong(): void {

@@ -84,6 +84,15 @@ export interface BikeView {
   sinceMs: number;
 }
 
+/** The theatre's follow spot: its sweep (engine/spotAt), and how long ago it began. */
+export interface SpotView {
+  dir: 1 | -1;
+  y: number;
+  wave: number;
+  phase: number;
+  sinceMs: number;
+}
+
 /** A firecracker thrown into the night market's crowd: where it lands, and how long until it lands and bangs. */
 export interface CrackerView {
   x: number;
@@ -118,9 +127,10 @@ export interface GameView {
   me: MeView | null;
   /**
    * the moment the whole crowd is reacting to (the ferry horn, the gong), while it lasts; the night
-   * market's firecrackers come with where each lands and when it bangs, the seawall's bike with its line
+   * market's firecrackers come with where each lands and when it bangs, the seawall's bike with its line,
+   * the theatre's follow spot with its sweep
    */
-  moment: { kind: MomentKind; endsInMs: number; crackers?: CrackerView[]; bike?: BikeView } | null;
+  moment: { kind: MomentKind; endsInMs: number; crackers?: CrackerView[]; bike?: BikeView; spot?: SpotView } | null;
   /**
    * someone's distraction, for a moment: where its passer-by swung (every screen but the maker's
    * turns its camera there, as the Steam game pans away; nothing says whose it was)

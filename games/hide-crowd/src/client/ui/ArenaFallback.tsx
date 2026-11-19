@@ -4,8 +4,8 @@
 // then every player's name, the winner's in the gel. The night market's four stalls sit along the
 // top, and light up when someone tastes one.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { ARENA, BIKE_REACH, bikeX, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId, type MomentKind } from "../../engine";
-import type { AvatarView, BikeView, CrackerView } from "../../room/protocol";
+import { ARENA, BIKE_REACH, bikeX, PLAYER_ACCELERATION, PLAYER_BRAKING, SPOT_RADIUS, spotAt, steerVelocity, type ArenaId, type MomentKind } from "../../engine";
+import type { AvatarView, BikeView, CrackerView, SpotView } from "../../room/protocol";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 
@@ -25,7 +25,7 @@ export function ArenaFallback(props: {
   impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "bike" | "over";
   flash?: { id: number; stall: number; feast: boolean } | null;
   /** the night market's firecrackers come with their moment, the seawall's bike with its line (and the transit hall goes dark) */
-  moment?: { kind?: MomentKind; crackers?: CrackerView[]; bike?: BikeView } | null;
+  moment?: { kind?: MomentKind; crackers?: CrackerView[]; bike?: BikeView; spot?: SpotView } | null;
 }) {
   const arenaRef = useRef<HTMLDivElement>(null);
   const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
@@ -129,6 +129,12 @@ export function ArenaFallback(props: {
         <div class={`flat-belt ${props.drift.x < 0 ? "is-left" : props.drift.x > 0 ? "is-right" : ""}`} aria-hidden="true" />
       )}
       {props.arena === "gallery" && <div class="flat-spotlight" aria-hidden="true" />}
+      {/* the theatre's follow spot: its pool of light (where the room last said) */}
+      {props.moment?.spot && (() => {
+        const sweep = props.moment.spot;
+        const at = spotAt({ startsAt: 0, dir: sweep.dir, y: sweep.y, wave: sweep.wave, phase: sweep.phase }, sweep.sinceMs + Math.max(0, Date.now() - props.receivedAt));
+        return <span class="flat-spot" style={{ left: `${at.x}%`, top: `${(at.y / ARENA.height) * 100}%`, width: `${SPOT_RADIUS * 2}%`, height: `${((SPOT_RADIUS * 2) / ARENA.height) * 100}%` }} aria-hidden="true" />;
+      })()}
       {/* the seawall's bike: its line across the floor, and the bike on it (where the room last said) */}
       {props.moment?.bike && (() => {
         const bike = props.moment.bike;

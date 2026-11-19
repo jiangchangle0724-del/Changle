@@ -2038,6 +2038,15 @@ html.is-tv body::before {
 }
 /* the night market's firecrackers, flat: once one lands, the ring of how far it will knock people
    down (the blast's 6.5 across the floor's 100 x 58), beating; then its bang */
+/* the theatre's follow spot, flat: a pool of warm light */
+.flat-spot {
+  position: absolute;
+  z-index: 1;
+  border-radius: var(--r-pill);
+  background: radial-gradient(circle, color-mix(in oklab, var(--arena-bulb) 70%, transparent) 60%, transparent 72%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
 /* the transit hall's lights out, flat: the whole floor goes dark */
 .flat-arena.is-dark {
   filter: brightness(0.32) saturate(0.6);

@@ -6,9 +6,9 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, BLACKOUT_MS, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
+import { ARENA, BLACKOUT_MS, BLAST_RADIUS, CRACKER_FLIGHT_MS, SPOT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
 import type { ArenaId, MomentKind, Pose } from "../../engine";
-import type { AvatarView, BikeView, CrackerView } from "../../room/protocol";
+import type { AvatarView, BikeView, CrackerView, SpotView } from "../../room/protocol";
 import { BASE } from "../base";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
@@ -20,9 +20,13 @@ import { addCrackers } from "./crackers";
 import { addEffects } from "./effects";
 import { addExtras, type Extras } from "./extras";
 import { addPhones, blackoutDark, DARK_KEEPS } from "./lights";
+import { addSpot } from "./spot";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 import { Shake, TRAUMA } from "./shake";
 import { addFloorArt, type FloorArtPalette } from "./floorArt";
+
+/** How far the theatre's house lights go down while its follow spot sweeps (1 would be the transit hall's dark). */
+const HOUSE_DOWN = 0.62;
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
 export function preloadPeople(): void {
@@ -42,7 +46,7 @@ interface Props {
   /** the night market: the latest stall tasted (it flashes for everyone), and whether that bite was a feast */
   flash?: { id: number; stall: number; feast: boolean } | null;
   /** the crowd's moment, while it lasts (the night market's firecrackers and fireworks go off in it, the theatre's drill calls in it, the seawall's bike rides through in it) */
-  moment?: { kind: MomentKind; endsInMs?: number; crackers?: CrackerView[]; bike?: BikeView } | null;
+  moment?: { kind: MomentKind; endsInMs?: number; crackers?: CrackerView[]; bike?: BikeView; spot?: SpotView } | null;
   /** someone else's distraction, for a moment: where its passer-by swung (the camera glances there) */
   glance?: { x: number; y: number; endsInMs: number } | null;
   /** the round has just begun on this screen: open on the camera's sweep into the game's view */
@@ -1077,6 +1081,8 @@ export function Arena3D(props: Props) {
       mesh.frustumCulled = false;
       scene.add(mesh);
     }
+    // the theatre's follow spot
+    const spot = props.arena === "gallery" ? addSpot(scene, palette.bulb) : null;
     // the transit hall's phones, lit in the dark
     const phones = props.arena === "metro" ? addPhones(scene, palette.screen, MAX_CHARACTERS) : null;
     // the seawall's bike, with its line on the floor while it comes (its shadow is the people's)
@@ -1363,12 +1369,21 @@ export function Arena3D(props: Props) {
           })
         );
       }
-      // the transit hall's lights going out: they flicker off, and on again (on this page's clock)
-      if (props.arena === "metro") {
-        const out = crowd?.kind === "blackout" && crowd.endsInMs !== undefined ? blackoutDark(BLACKOUT_MS - crowd.endsInMs + Math.max(0, Date.now() - receivedAt.current), reduced) : 0;
+      // the transit hall's lights going out: they flicker off, and on again (on this page's clock); at the
+      // theatre the house lights go down while the follow spot sweeps
+      if (props.arena === "metro" || props.arena === "gallery") {
+        const age = Math.max(0, Date.now() - receivedAt.current);
+        const into = crowd?.endsInMs !== undefined ? (crowd.kind === "blackout" ? BLACKOUT_MS : SPOT_MS) - crowd.endsInMs + age : -1;
+        const out = crowd?.kind === "blackout" ? blackoutDark(into, reduced) : crowd?.kind === "spot" ? HOUSE_DOWN * Math.max(0, Math.min(1, into / 260, (SPOT_MS - into) / 260)) : 0;
         ambient.intensity = lit.ambient * (1 - (1 - DARK_KEEPS.ambient) * out);
         key.intensity = lit.key * (1 - (1 - DARK_KEEPS.key) * out);
         fill.intensity = lit.fill * (1 - (1 - DARK_KEEPS.fill) * out);
+      }
+      // the theatre's follow spot: its sweep and how far along it is (on this page's clock)
+      if (spot) {
+        const sweeping = crowd?.kind === "spot" ? crowd.spot : undefined;
+        spot.see(sweeping ? { startsAt: time - sweeping.sinceMs - Math.max(0, Date.now() - receivedAt.current), dir: sweeping.dir, y: sweeping.y, wave: sweeping.wave, phase: sweeping.phase } : null);
+        spot.update(time, reduced);
       }
       // the seawall's bike: its line and how far along it is (on this page's clock)
       if (bike) {
@@ -1642,6 +1657,7 @@ export function Arena3D(props: Props) {
       extras?.dispose();
       bike?.dispose();
       phones?.dispose();
+      spot?.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {
           object.geometry.dispose();

@@ -17,6 +17,11 @@ import {
   DRILL_WINDOW,
   BLAST_RADIUS,
   BIKE_CLEAR,
+  SPOT_MS,
+  SPOT_RADIUS,
+  inSpot,
+  spotAt,
+  sweepSpot,
   BIKE_MS,
   BIKE_OFF,
   BIKE_REACH,
@@ -561,7 +566,8 @@ test("the theatre's moments take turns: the drill, where every passer-by punches
   // 12 s in the drill, 17 s later the gong, then the drill again
   assert.equal(crowdMoment("gallery", 0, 12_100)?.kind, "drill");
   assert.equal(crowdMoment("gallery", 0, 29_100)?.kind, "gong");
-  assert.equal(crowdMoment("gallery", 0, 46_100)?.kind, "drill");
+  assert.equal(crowdMoment("gallery", 0, 46_100)?.kind, "spot", "then the follow spot");
+  assert.equal(crowdMoment("gallery", 0, 63_100)?.kind, "drill");
   assert.equal(crowdMoment("metro", 0, 26_900)?.kind, "blackout", "the transit hall's lights go out after the busker");
   assert.equal(crowdMoment("metro", 0, 44_900)?.kind, "dance", "and the busker comes back");
   let match = createMatch(players, 0, 31, "gallery");
@@ -760,4 +766,39 @@ test("now and then a passer-by hears the bell late and goes down too (so a body 
     bikes += 2;
   }
   assert.ok(npcs >= bikes / 12 && npcs <= bikes / 2, `${npcs} passers-by down in ${bikes} bikes`);
+});
+
+test("at the theatre the follow spot sweeps the floor (the round's dice); whoever it lands on freezes facing the stage, and the rest carry on", () => {
+  const start = crowdMoment("gallery", 0, 46_100)!;
+  assert.equal(start.kind, "spot");
+  assert.equal(start.endsAt - start.startsAt, SPOT_MS);
+  // (from past one side to past the other, the same every time, a different sweep another round)
+  const sweep = sweepSpot(41, 0, start.startsAt);
+  assert.deepEqual(sweepSpot(41, 0, start.startsAt), sweep);
+  assert.notDeepEqual(sweepSpot(42, 0, start.startsAt), sweep);
+  const from = spotAt(sweep, start.startsAt);
+  const to = spotAt(sweep, start.endsAt);
+  assert.ok(Math.abs(from.x - to.x) >= ARENA.width + SPOT_RADIUS, "right across the floor");
+  for (let now = start.startsAt; now <= start.endsAt; now += 200) {
+    const at = spotAt(sweep, now);
+    assert.ok(at.y > ARENA.marginY && at.y < ARENA.height - ARENA.marginY, "over the floor");
+  }
+  let match = createMatch(players, 0, 41, "gallery");
+  for (let now = 50; now <= start.startsAt; now += 50) match = advanceMatch(match, now, {});
+  const caught = new Set<string>();
+  let moving = 0;
+  for (let now = start.startsAt + 50; now <= start.endsAt; now += 50) {
+    match = advanceMatch(match, now, {});
+    for (const body of match.characters) {
+      if (body.kind !== "npc" || now < body.stunnedUntil) continue;
+      const speed = Math.hypot(body.velocity.x, body.velocity.y);
+      // (lit for a moment already: frozen, turned to the stage)
+      if (inSpot(body, sweep, now) && inSpot(body, sweep, now - 400)) {
+        caught.add(body.id);
+        assert.ok(speed < 0.6, `${body.id} freezes in the light`);
+      } else if (!inSpot(body, sweep, now) && speed > 2) moving++;
+    }
+  }
+  assert.ok(caught.size >= 3, `${caught.size} passers-by caught in its light`);
+  assert.ok(moving > 0, "out of it, the crowd carries on");
 });
