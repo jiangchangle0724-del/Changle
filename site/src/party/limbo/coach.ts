@@ -8,6 +8,8 @@ import type { LimboKind } from "../../shared/protocol";
  * everything the gauge shows is also heard, in time with the music:
  * - two notes falling: lean back more (the bar is lower than you are)
  * - two notes rising: come up a bit (a moving bar has gone back up)
+ * - the same, quiet and on the beat: you're still with a moving bar but drifting to its edge
+ *   (the warning comes before the grace clock, so there is time to move)
  * - a tick on the beat: you're there; with a moving bar, you're with it
  * - three quick clicks: tilt further to the side (tilt through)
  * - a hum that climbs while a hold counts down; a low buzz when a wobble starts it again (hold steady)
@@ -17,10 +19,16 @@ import type { LimboKind } from "../../shared/protocol";
 
 export type Say = "down" | "up" | "side" | "on" | null;
 
-/** What to say right now: which cue, how urgently (0 to 1: twice as often at 1), how far through a hold, and when the last wobble was. */
-export type Coaching = { say: Say; urgency: number; hold: number; wobbleAt: number };
+/**
+ * What to say right now: which cue, how urgently (0 to 1: twice as often at 1), how far through a
+ * hold, when the last wobble was, and `soft` for the early warning (quiet, on the beat, no dip).
+ */
+export type Coaching = { say: Say; urgency: number; hold: number; wobbleAt: number; soft?: boolean };
 
 export const QUIET: Coaching = { say: null, urgency: 0, hold: 0, wobbleAt: 0 };
+
+/** Moving bar: this far from it (still within FOLLOW_DEG) the coach starts warning, quietly. */
+export const EDGE_DEG = FOLLOW_DEG - 4;
 
 /** What the phone measures at a bar. */
 export type Measure = {
@@ -43,8 +51,10 @@ export function coaching(kind: LimboKind, m: Measure): Coaching {
   const far = (deg: number, span: number) => Math.min(1, Math.max(0, deg) / span);
   if (kind === "moving") {
     const d = m.lean - m.target;
-    if (Math.abs(d) <= FOLLOW_DEG) return { say: "on", urgency: 0, hold: 0, wobbleAt: 0 };
-    // the grace second running out is the alarm; a long way off hurries it up too
+    if (Math.abs(d) <= EDGE_DEG) return { say: "on", urgency: 0, hold: 0, wobbleAt: 0 };
+    // drifting to the edge of the band: the warning, before the grace clock starts
+    if (Math.abs(d) <= FOLLOW_DEG) return { say: d < 0 ? "down" : "up", urgency: 0, hold: 0, wobbleAt: 0, soft: true };
+    // off it: the grace clock running out is the alarm; a long way off hurries it up too
     return { say: d < 0 ? "down" : "up", urgency: Math.max(m.lost ?? 0, far(Math.abs(d) - FOLLOW_DEG, 30)), hold: 0, wobbleAt: 0 };
   }
   const wobbleAt = m.wobbleAt ?? 0;
@@ -118,9 +128,15 @@ export function startCoach(read: () => Coaching, grid?: Grid): Coach {
   let hum: Hum | null = null;
   let lastWobble = 0;
   let dipped = false;
+  let said: Say = null;
   const timer = window.setInterval(() => {
     const s = read();
     const t = b.c.currentTime;
+    // a new direction is said at once, not at the next slot of the grid (unless that is about now)
+    if (s.say !== said) {
+      said = s.say;
+      if ((s.say === "down" || s.say === "up") && origin + k * sixteenth - t > 0.12) blip(b, t, s.say === "up", s.soft ? 0.5 : 1);
+    }
     // a hold's hum: up an octave from start to finish
     if (s.hold > 0) {
       hum ??= makeHum(b);
@@ -133,8 +149,9 @@ export function startCoach(read: () => Coaching, grid?: Grid): Coach {
       lastWobble = s.wobbleAt;
       buzz(b);
     }
-    // the music dips while you're off the bar
-    const off = s.say === "down" || s.say === "up";
+    // the music dips while you're off the bar (not for the warning)
+    const away = s.say === "down" || s.say === "up";
+    const off = away && !s.soft;
     if (off !== dipped) {
       dipped = off;
       b.music.gain.setTargetAtTime(MUSIC_GAIN * (off ? DIP : 1), t, 0.1);
@@ -148,6 +165,9 @@ export function startCoach(read: () => Coaching, grid?: Grid): Coach {
         if (off) {
           // every eighth; every sixteenth when it's urgent
           if (onEighth || s.urgency > 0.5) blip(b, at, s.say === "up", 0.85 + 0.3 * s.urgency);
+        } else if (away) {
+          // the warning: quiet, on the beat
+          if (onBeat) blip(b, at, s.say === "up", 0.5);
         } else if (s.say === "on" && onBeat) tick(b, at);
         else if (s.say === "side" && onBeat) clicks(b, at);
       }

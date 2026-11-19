@@ -160,8 +160,8 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
       </p>
       <p>
         {zh
-          ? "主人开始前还可以选别的玩法。稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 1 秒就出局，每部手机上的横杆都在同一个位置。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。这几种没有动作感应也能玩，由主人判，或者自己说。"
-          : "The host can pick another way to play before the game. Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down, in the same place on every phone; follow it down and back up, and lose it for over a second and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random. All of these work without motion sensing too, judged by the host or by honesty."}
+          ? "主人开始前还可以选别的玩法。稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 2 秒就出局，每部手机上的横杆都在同一个位置。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。这几种没有动作感应也能玩，由主人判，或者自己说。"
+          : "The host can pick another way to play before the game. Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down, in the same place on every phone; follow it down and back up, and lose it for over two seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random. All of these work without motion sensing too, judged by the host or by honesty."}
       </p>
       <p>
         {zh
