@@ -79,6 +79,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-19 What's On: Ticketmaster's long names no longer turn down the sentence that goes with them
 - 2026-11-19 What's On: every date of an event gets the same Chinese, asked once; a name written two ways goes the commonest way
 - 2026-11-19 What's On: a picture cut to 3:1 keeps more of its top, where the faces are
 - 2026-11-19 What's On: each AI step gets its own events, and a new prompt tries again what the old gave up on
@@ -160,3 +161,4 @@
 - 2026-11-19 手机上看图：3:1 裁图按正中裁，演出照片常把人的头切掉。#677 改成偏上（`object-position: 50% 30%`），11:18 UTC 部署后重新截图，人脸都在。
 - 2026-11-19 12:05 UTC（#676 上线后第一轮）：一步、问了 3 个，Saliah 重写成「Saliah in Vancouver」（原名）加「电子音乐现场演出，阿拉伯DJ Saliah带来高能量表演」，「知名」没了；「阿拉伯」过了检查，说明来源的标签或说明里有 Arab。另外 2 个 Ticketmaster 的（2Dead Boyz、Natalie MacMaster 的圣诞演出）答案还是没过，13:05、14:05 再试，三次不行就只显示英文。
 - 2026-11-19 早上查 SFU 时看到：同一个每周活动每天的中文名不一样，因为每一场单独问 AI（648 个活动只有 309 种文字）。Baby Stay and Play 两周里 9 种译名，Family Stay and Play 有「家庭留宿与玩耍」，Peeling Oranges 三晚两个名字。改成：同一来源、同一文字（text_hash）只问最早那一场，答案和失败次数给所有场次；每小时先 `settle`：场次之间说法不一的取最多的那个，新进来的场次直接照抄；再把同一个英文名的不同译名统一成最常见的（翻译优先于原样保留英文，一样多按字排）。按 13:05 的清单算，第二步会改 144 个名字。Ticketmaster、Steve 写的、来源给的分类不动。
+- 2026-11-19 14:05 UTC（#679 上线后第一轮）：没问 AI 就改了 164 个（场次照抄、名字统一），清单 648 个里 647 个有中文，同一个英文名只剩一个中文名（Babytime 72 场都是「婴儿时间」）。介绍还有 122 组不一样，全是温哥华、列治文图书馆的：它们的行要等今天 GitHub 交来才有 text_hash，之后那一轮会统一。同一轮发现 2Dead Boyz 一直不过的原因：AI 照规矩把 50 多个字的英文原名整个留下，超过 40 字的名字上限，连那句介绍一起被拒；Ticketmaster 的名字反正用来源的，改成不算它的长度（#680）。这一场已经试满三次，明天就结束，不为它重写全部。

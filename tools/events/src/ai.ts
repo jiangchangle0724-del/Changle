@@ -103,13 +103,16 @@ export function answerText(out: unknown): string {
 /** A name wrapped whole in quotes, without them ("「读书会」"); 《》 around a work's name inside it stay. */
 const unwrap = (t: string) => t.replace(/^(?:「(.*)」|『(.*)』|“(.*)”|"(.*)")$/s, (_, a, b, c, d) => a ?? b ?? c ?? d).trim();
 
-/** One answer item, checked: a short name, a Chinese sentence, a known category or none. */
+/** The longest Chinese name kept (Ticketmaster's are the source's own, however long: KEEP_TITLE). */
+export const TITLE_MAX = 40;
+
+/** One answer item, checked: a name, a Chinese sentence, a known category or none. */
 function checked(item: unknown): Written | null {
   const o = item as { t?: unknown; s?: unknown; c?: unknown } | null;
   const t = typeof o?.t === "string" ? unwrap(o.t.trim()) : "";
   const s = typeof o?.s === "string" ? o.s.trim() : "";
   // (a sentence can be short: "职业冰球比赛" is all an event with only a name and labels gets)
-  if (!t || t.length > 40 || !s || !CJK.test(s) || s.length < 4 || s.length > 90) return null;
+  if (!t || !s || !CJK.test(s) || s.length < 4 || s.length > 90) return null;
   const c = typeof o?.c === "string" && (CATEGORIES as readonly string[]).includes(o.c) ? (o.c as Category) : null;
   return { titleZh: t, summaryZh: s, category: c };
 }
@@ -192,7 +195,11 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
   events.forEach((e, i) => {
     const got = written[i];
     const twins = [e.textHash ?? null, e.source ?? null] as const;
-    if (!got || !grounded(got, e)) {
+    // a long name is a bad one, unless it's the source's (the AI keeps "2Dead Boyz x The
+    // Underachievers - NO1LIVESFOREVER Tour" whole, as told, and the sentence was turned down with it)
+    const keep = KEEP_TITLE.has(e.source ?? "");
+    const w = got && keep ? { ...got, titleZh: e.title } : got;
+    if (!w || (!keep && w.titleZh.length > TITLE_MAX) || !grounded(w, e)) {
       failed++;
       // an event is asked because its Chinese is missing or out of date (older instructions, a changed
       // text): when the answer can't be used, the old Chinese goes too, and the page shows the source's
@@ -207,7 +214,6 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
           .bind(e.id, AI_VERSION, (e.tries ?? 0) + 1, ...twins),
       );
     }
-    const w = KEEP_TITLE.has(e.source ?? "") ? { ...got, titleZh: e.title } : got;
     stmts.push(
       db
         .prepare(
