@@ -114,6 +114,8 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const [reading, setReading] = useState<"busy" | "none" | null>(null);
   /** what the reading put in, as "<currency> <amount>": while the draft still says it, it says where it came from */
   const [fromReceipt, setFromReceipt] = useState<string | null>(null);
+  /** an amount the reading has just put in: it lights up once as it lands */
+  const [justRead, setJustRead] = useState(false);
   const readAsked = useRef(false);
   const draftNow = useRef(draft);
   draftNow.current = draft;
@@ -139,6 +141,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     const part = (x: string | null) => (x && toMinor(x, decimalsOf(next.currency)) !== null ? x : "");
     setDraft({ ...next, text: got.total, note: next.note || got.merchant || "", tip: part(got.tip), tax: part(got.tax), date: got.date && !dayPicked.current ? got.date : next.date });
     setFromReceipt(`${next.currency} ${got.total}`);
+    setJustRead(true);
     setReading(null);
   };
   const pick = async (chosen: File[]) => {
@@ -146,6 +149,10 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     const room = MAX_FILES - files.length - sending;
     if (chosen.length > room) tell("photoMax");
     for (const file of chosen.slice(0, Math.max(0, room))) {
+      // a photo that is going to be read: being read from the moment it goes, not once it has got
+      // there (the scan starts as the camera closes); put back if it doesn't go, or nobody waits for it
+      const toRead = !readAsked.current && !draftNow.current.text && !editing && readingOn(ledger.id);
+      if (toRead) setReading("busy");
       setSending((n) => n + 1);
       const got = await sendPhoto(ledger.id, file);
       setSending((n) => n - 1);
@@ -155,12 +162,14 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         continue;
       }
       if (!got.ok) {
+        if (toRead) setReading(null);
         tell(TROUBLE_WORD[got.trouble]);
         continue;
       }
       sentHere.current.add(got.file);
       setFiles((f) => [...f, got.file]);
       if (!readAsked.current && !draftNow.current.text && !editing) void readIt(got.file);
+      else if (toRead) setReading(null);
       // filling up: said once, until the account is under it again
       try {
         const who = account?.id ?? "";
@@ -194,6 +203,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
 
   const type = (k: Key) => {
     setReading((r) => (r === "none" ? null : r));
+    setJustRead(false);
     setDraft((d) => ({ ...d, text: press(d.text, k, decimalsOf(d.currency)) }));
   };
 
@@ -258,7 +268,10 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const fresh = fromReceipt === `${draft.currency} ${draft.text}`;
   const extras = extrasOf(draft);
   const extrasSaid = extrasText(extras.tip, extras.tax, draft.currency, lang);
-  const readLine = comes ? null : reading === "busy" ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !extrasSaid ? say(lang, "readFromReceipt") : null;
+  // (a receipt going and being read while nothing has been typed: its scan is where the amount will
+  // be. Something typed stands, and the reading's amount would not go in, so the scan stops there)
+  const scanning = reading === "busy" && !draft.text;
+  const readLine = comes ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !extrasSaid ? say(lang, "readFromReceipt") : null;
   const extrasLine = comes || reading || !extrasSaid ? null : say(lang, fresh ? "readExtras" : "withExtras", { extras: extrasSaid });
   // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
   // the ledger on the server, and nothing has said reading isn't to be had here): the line opens the
@@ -306,10 +319,15 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         }
       />
       <div className="split-add-main">
-        <div className={`split-add-amount${comes ? " is-abroad" : readLine || extrasLine || hint ? " is-read" : ""}`}>
-          <output className={`split-figure ${sizeClass(shown)}${draft.text ? "" : " is-empty"}`} aria-label={say(lang, "amount")}>
+        <div className={`split-add-amount${comes ? " is-abroad" : readLine || extrasLine || hint ? " is-read" : ""}${scanning ? " is-scanning" : ""}`}>
+          <output
+            className={`split-figure ${sizeClass(shown)}${draft.text ? "" : " is-empty"}${justRead && fresh ? " is-just-read" : ""}`}
+            aria-label={say(lang, "amount")}
+            onAnimationEnd={() => setJustRead(false)}
+          >
             {shown}
           </output>
+          {scanning && <Scanning currency={draft.currency} lang={lang} />}
           {comes && (
             // the whole block answers the tap: the line alone would be too thin a thing to press
             <button type="button" className={`split-add-comes${comes.loud ? " is-loud" : ""}`} onClick={() => setSheet("rate")}>
@@ -363,7 +381,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
               <span>{say(lang, "note")}</span>
               <input value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} onKeyDown={doneLeaves} maxLength={NOTE_MAX} placeholder={say(lang, "noteHint")} enterKeyHint="done" autoComplete="off" />
             </label>
-            <PhotoButton ledger={ledger.id} files={files} sending={sending > 0} lang={lang} onPress={pressPhoto} />
+            <PhotoButton ledger={ledger.id} files={files} sending={sending > 0} scanning={scanning} lang={lang} onPress={pressPhoto} />
             <PhotoPicker input={picker} onPick={(chosen) => void pick(chosen)} />
           </div>
         </div>
@@ -427,6 +445,36 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     </div>
   );
 }
+
+/**
+ * A receipt going and being read: where the amount will be is a scanner's window for that while.
+ * Four corners of the light frame it, a band of the light sweeps down through it, and the digits of
+ * an amount roll there until the reading comes back (Steve, 2026-11-18: 看起来有科技感). Screen
+ * readers hear the line under it instead. With reduced motion nothing sweeps or rolls: the corners
+ * stand round the amount as it is.
+ */
+function Scanning({ currency, lang }: { currency: string; lang: Lang }) {
+  // an amount's shape in this currency: its sign, and digits where the read ones will go
+  const shape = typed(decimalsOf(currency) ? "88.88" : "8888", currency, lang);
+  let n = 0;
+  return (
+    <span className={`split-figure split-scan ${sizeClass(shape)}`} aria-hidden="true">
+      {[...shape].map((c, i) =>
+        /\d/.test(c) ? (
+          // a digit's room (sized by an 8 no one sees), and the ten digits rolling through it, each
+          // starting somewhere else
+          <span key={i} className="split-scan-digit">
+            <span>8</span>
+            <span>{ROLL[n++ % ROLL.length]}</span>
+          </span>
+        ) : (
+          c
+        ),
+      )}
+    </span>
+  );
+}
+const ROLL = [0, 7, 3, 5, 1, 9].map((k) => Array.from({ length: 10 }, (_, j) => (k + j) % 10).join("\n"));
 
 /** What it was paid in: the ledger's own currency first, then the site's others. One tap picks and closes. */
 function CurrencySheet({ open, onClose, ledger, lang, value, onPick }: { open: boolean; onClose: () => void; ledger: Ledger; lang: Lang; value: string; onPick: (currency: string) => void }) {
