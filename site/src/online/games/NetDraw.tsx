@@ -41,9 +41,11 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
 
   const [guess, setGuess] = useState("");
   const feed = useRef<HTMLUListElement>(null);
+  // down to the newest guess as each comes in (by its number: past 40 the list stays 40 long)
+  const newest = v.guesses[v.guesses.length - 1]?.n ?? v.guesses.length;
   useEffect(() => {
     feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" });
-  }, [v.guesses.length]);
+  }, [newest]);
   useEffect(() => setGuess(""), [v.round]);
 
   const hint = v.hint ? (lang === "zh" ? hintZh(v.hint) : hintBlanks(v.hint.en)) : "";
@@ -158,7 +160,7 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                 {v.guesses.map((x, i) =>
                   drawer && !x.ok ? (
                     // the drawer counts a guess that's close enough (时钟 for 钟表)
-                    <li key={i} className="is-take">
+                    <li key={x.n ?? `i${i}`} className="is-take">
                       <button type="button" className="guess-take" onClick={() => g("accept", { text: x.text })}>
                         <span className="guess-who">{nameOf(x.pid)}</span>
                         <span className="guess-text">{x.text}</span>
@@ -169,7 +171,7 @@ export function NetDraw({ v, onLeave }: { v: DrawView; onLeave: () => void }) {
                       </button>
                     </li>
                   ) : (
-                    <li key={i} className={x.ok ? "is-ok" : ""}>
+                    <li key={x.n ?? `i${i}`} className={x.ok ? "is-ok" : ""}>
                       <span className="guess-who">{x.pid === me ? ui("you") : nameOf(x.pid)}</span>
                       <span>{x.ok ? (lang === "zh" ? "猜中了" : "got it") : x.text}</span>
                     </li>

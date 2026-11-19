@@ -109,7 +109,8 @@ export const DrawingPlate = forwardRef<DrawingPlateHandle, { disabled?: boolean 
           }}
         />
       </div>
-      <div className="plate-tools">
+      {/* (locked with the board: when time is up, or while the drawer picks who got it, nothing here changes the picture) */}
+      <div className={`plate-tools ${disabled ? "plate-disabled" : ""}`}>
         <div className="inks" role="radiogroup" aria-label={tr(PLATE_LABELS.inks)}>
           {INK_COLORS.map((ink, i) => (
             <button
@@ -117,6 +118,7 @@ export const DrawingPlate = forwardRef<DrawingPlateHandle, { disabled?: boolean 
               type="button"
               role="radio"
               aria-checked={color === ink}
+              disabled={disabled}
               className={`swatch ${color === ink ? "ink-on" : ""}`}
               style={{ "--swatch": ink } as React.CSSProperties}
               onClick={() => setColor(ink)}
@@ -131,6 +133,7 @@ export const DrawingPlate = forwardRef<DrawingPlateHandle, { disabled?: boolean 
               type="button"
               role="radio"
               aria-checked={width === w}
+              disabled={disabled}
               className={`brush ${width === w ? "ink-on" : ""}`}
               onClick={() => setWidth(w)}
               aria-label={tr(BRUSH_NAMES[i])}
@@ -145,6 +148,7 @@ export const DrawingPlate = forwardRef<DrawingPlateHandle, { disabled?: boolean 
           type="button"
           className="icon-btn"
           aria-label={tr(PLATE_LABELS.undo)}
+          disabled={disabled}
           onClick={() => {
             strokes.current.pop();
             redraw();
@@ -157,6 +161,7 @@ export const DrawingPlate = forwardRef<DrawingPlateHandle, { disabled?: boolean 
           type="button"
           className="icon-btn"
           aria-label={ui("reset")}
+          disabled={disabled}
           onClick={() => {
             strokes.current = [];
             redraw();

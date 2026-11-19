@@ -144,8 +144,8 @@ export type RogueView = {
   holders: RogueHolders;
   wcUsed: boolean;
   reshuffled: boolean;
-  /** the camera and the nose rest a minute after each use: when each may go again (ms) */
-  cool?: { camera?: number; nose?: number };
+  /** the camera and the nose go once per card: which ones their current holder has used */
+  used?: { camera?: boolean; nose?: boolean };
   /** `last`: who finished just before `speaker` (the word the judge may be reacting to) */
   garden: { kind: number; speaker: string; endsAt: number; said: number; last?: string } | null;
   grab: { next: number; claimed: Record<string, number>; endsAt: number } | null;
@@ -200,7 +200,8 @@ export type DrawView = {
   /** How long the word is: its Chinese characters and any letters in it (深夜emo is 2 and 3), the English as blanks. */
   hint: { zh: number; latin: number; en: string } | null;
   word: T | null;
-  guesses: { pid: string; text: string; ok: boolean }[];
+  /** `n`: each guess's own number, for the screens to tell guesses apart (none from a game begun on an older server). */
+  guesses: { pid: string; text: string; ok: boolean; n?: number }[];
   solved: string[];
   scores: Record<string, number>;
   round: number;

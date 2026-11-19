@@ -40,6 +40,11 @@ export type CuisineId =
   | "vegetarian"
   | "brunch"
   | "cafe"
+  /**
+   * All you can eat (自助, 放题): a way of eating more than a cuisine, so a place is mostly this as
+   * well as its cuisine (Steve, 2026-11-18).
+   */
+  | "ayce"
   | "other";
 
 export type AllergenId = "peanut" | "treenut" | "shellfish" | "fish" | "sesame" | "soy" | "chili" | "egg" | "dairy" | "gluten";

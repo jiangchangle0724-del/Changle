@@ -41,6 +41,7 @@ const STRINGS = {
   codeLabel: { zh: "订单号", en: "Order code" },
   open: { zh: "打开", en: "Open" },
   footMoney: { zh: "钱直接付给商家，本站不经手，也不抽成。", en: "You pay the merchant directly. This site never touches the money and takes no cut." },
+  footOpen: { zh: "想自己开团？用跟一单，不抽成", en: "Run group buys yourself? Count Me In takes no cut" },
   notFoundTitle: { zh: "没有这一页", en: "No such page" },
   notFoundBody: { zh: "链接可能不全。回到商家发的那条消息，再点一次。", en: "The link may be incomplete. Go back to the merchant's message and tap it again." },
 
@@ -194,7 +195,7 @@ const STRINGS = {
   myLink: { zh: "商家入口：我的团", en: "Merchants: my group buys" },
 } as const;
 
-type Key = keyof typeof STRINGS | keyof typeof MY_STRINGS;
+export type Key = keyof typeof STRINGS | keyof typeof MY_STRINGS;
 type Line = { readonly zh: string; readonly en: string };
 const lines: Record<string, Line> = { ...STRINGS };
 /** The merchant's pages bring their own words (src/client/i18n-my.ts). */

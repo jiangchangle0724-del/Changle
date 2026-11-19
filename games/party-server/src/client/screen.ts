@@ -23,7 +23,7 @@ import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
 import { Tube, tapFirst } from "./tube";
 import { tuneFor } from "./tunes";
-import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, litCount, moveHow, moveName, moveOther, routineName, songArtist, songTitle, stageHint, stageName, stepsList } from "./words";
+import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, litCount, moveHow, moveName, moveOther, remindBox, routineName, songArtist, songTitle, stageHint, stageName, stepsList } from "./words";
 
 /** Calibration: 8 clicks, 1.2 s apart (so a tap up to 400 ms late still pairs with the right click). */
 const CAL_CLICKS = 8;
@@ -81,6 +81,12 @@ let popAt = 0;
 let popStep = 0;
 /** The 3D coach: undefined until first needed, null when this device can't draw it (the coach in words). */
 let coach3d: CoachStage | null | undefined;
+/**
+ * The coach between dances (render's lobby-coach, frameLobby): when it was last drawn (page time),
+ * when the last dance ended (speaker time: it cheers for a few beats), and whether that cheer's
+ * fireworks are still to go off.
+ */
+const lobbyCoach = { drawnAt: 0, cheerAt: null as number | null, burst: false };
 
 function coachStage(): CoachStage | null {
   if (coach3d === undefined) {
@@ -106,6 +112,8 @@ document.body.append(tubeBox);
 tube.onChange = () => renderTube();
 /** This room has measured its TV's delay. */
 let calibrated = false;
+/** This room has learned its TV's delay from how everyone danced. */
+let learned = false;
 /** What this page has told the room about the song starting (once per start). */
 let songReadySent = "";
 let songFailedSent = "";
@@ -319,11 +327,17 @@ function onMsg(m: ServerMsg) {
       routine = m.routine;
       results = m.results;
       calibrated = m.calibrated === true;
+      learned = m.learned === true;
       rejoining = false;
       // (this page has no buttons: it speaks its host's language)
       if (m.lang && m.lang !== getLang()) setLang(m.lang, false);
       if (state.phase !== "dancing") floor = null;
-      if (state.phase === "results" && before === "dancing") synth.fanfare();
+      if (state.phase === "results" && before === "dancing") {
+        synth.fanfare();
+        // the coach between dances cheers with it (fireworks too, when anyone danced)
+        lobbyCoach.cheerAt = pageClock();
+        lobbyCoach.burst = !!results?.players.length;
+      }
       if (state.phase === "lobby") pulses.clear();
       // a song starting (again): its video from its start
       if (routine?.routineId.startsWith("song-") && ((state.phase === "learning" && before !== "learning") || (state.phase === "dancing" && before === "results"))) tube.stop();
@@ -488,6 +502,8 @@ const parts: {
   progress?: HTMLElement;
   floorBar?: HTMLElement;
   floorText?: HTMLElement;
+  /** the coach between dances, below the players (frameLobby) */
+  lobby?: HTMLElement;
 } = {};
 /** What the coach shows, so a frame only touches the page when it changes. */
 let shown = "";
@@ -554,6 +570,24 @@ function render() {
   parts.status = el("p", "status");
   stage.append(parts.status);
   if (parts.players) stage.append(parts.players);
+  // between dances: the coach standing by below the players, where there's room for it
+  const lc = !run && (state?.phase === "lobby" || state?.phase === "results") ? lobbyCoachStage() : null;
+  if (lc) {
+    const host = el("div", "coach-3d lobby-coach");
+    host.setAttribute("aria-hidden", "true");
+    host.hidden = true;
+    parts.lobby = host;
+    stage.append(host);
+    // (once it's on the page: its height is the room below the players, and it's drawn at once,
+    // the canvas being cleared as it moves into its new box)
+    requestAnimationFrame(() => {
+      if (parts.lobby !== host) return;
+      fitLobbyCoach(host);
+      lc.attach(host);
+      lobbyCoach.drawnAt = 0;
+      frameLobby(pageClock());
+    });
+  }
   main.append(stage);
   app.append(main);
   app.append(rotatePrompt());
@@ -661,6 +695,7 @@ function phaseText(): string {
     const bits = [tr("开始前，每个人身边留出一臂的空间。", "Before you start, give everyone an arm's length of space.")];
     if (setupStep() === "done") bits.push(tr("这台设备不用再碰：选歌、开始、暂停都在主人的手机上。", "Nothing more to do on this device: the host's phone picks, starts and pauses."));
     if (calibrated) bits.push(tr(`已校准：电视比这台设备晚 ${state.audioOffsetMs} 毫秒。`, `Calibrated: the TV is ${state.audioOffsetMs} ms behind this device.`));
+    else if (learned) bits.push(tr(`照大家跳的动作对准了：电视比这台设备晚 ${state.audioOffsetMs} 毫秒。`, `Set from how everyone danced: the TV is ${state.audioOffsetMs} ms behind this device.`));
     return bits.join(" ");
   }
   return "";
@@ -721,6 +756,8 @@ function resultsCard(r: Results): HTMLElement {
   const name = (id: string | null) => (id ? (r.players.find((p) => p.id === id)?.name ?? "") : "");
   const dn = danceName(r.routineId);
   if (dn) box.append(el("p", "coach-dance", `${dn} · ${difficultyName(r.difficulty)}`));
+  // every few dances: have some water, or a rest
+  if (r.remind) box.append(remindBox(r.remind));
   if (!r.players.length) {
     box.append(el("p", "lead", tr("这一首没有人跟着动手机。下一首拿着手机跳，或者每一拍点一下，就能上榜。", "No phone moved this time. Dance with your phone in hand, or tap it on every beat, to get on the board.")));
     return box;
@@ -888,6 +925,75 @@ function frameCrowd(now: number) {
   crowd.frame(doing, pos, now / 1000, local, list);
 }
 
+/** The coach between dances: drawn at most this many times a second (it stands by, slowly). */
+const LOBBY_FPS = 30;
+/** Its box's height (px): with less room than the least below the players, it isn't shown. */
+const LOBBY_MIN_H = 200;
+const LOBBY_MAX_H = 560;
+/** The room above it and below it, to the bottom of the screen (px; party.css .lobby-coach's margin). */
+const LOBBY_GAP = 16;
+/** Its cheer as a dance ends: this many beats, this long each. */
+const CHEER_BEATS = 8;
+const CHEER_BEAT_MS = 500;
+/** Its first frames, timed: a page slower than this with it (the middle gap between frames, ms) leaves it out. */
+const lobbyWatch = { gaps: [] as number[], last: 0, off: false };
+const LOBBY_WATCH_FRAMES = 60;
+const LOBBY_SLOW_MS = 40;
+
+/** The 3D coach between dances: not with reduced motion (it's there to look at), nor once it slowed the page down. */
+function lobbyCoachStage(): CoachStage | null {
+  return reducedMotion || lobbyWatch.off ? null : coachStage();
+}
+
+/** The coach between dances: as tall as the room below what's above it, down to the bottom of the screen; hidden without enough. */
+function fitLobbyCoach(host: HTMLElement) {
+  const above = host.previousElementSibling;
+  if (!above) return;
+  const top = above.getBoundingClientRect().bottom + scrollY + LOBBY_GAP;
+  const room = Math.floor(innerHeight - top - LOBBY_GAP);
+  const h = room >= LOBBY_MIN_H ? Math.min(LOBBY_MAX_H, room) : 0;
+  host.hidden = !h;
+  if (h) host.style.height = `${h}px`;
+}
+
+/**
+ * The coach between dances, at most LOBBY_FPS times a second: standing by (breathing, a wave now and
+ * then), as itself in the lobby and dressed for the song at its results; cheering for a few beats as
+ * a dance ends, with fireworks when anyone danced.
+ */
+function frameLobby(now: number) {
+  const host = parts.lobby;
+  const c = coach3d;
+  if (!host || !c || document.hidden) return;
+  const t = performance.now();
+  if (lobbyWatch.gaps.length < LOBBY_WATCH_FRAMES && !host.hidden && !anyGl()) {
+    if (lobbyWatch.last && t - lobbyWatch.last < 1000) lobbyWatch.gaps.push(t - lobbyWatch.last);
+    lobbyWatch.last = t;
+    if (lobbyWatch.gaps.length === LOBBY_WATCH_FRAMES && [...lobbyWatch.gaps].sort((a, b) => a - b)[LOBBY_WATCH_FRAMES >> 1]! > LOBBY_SLOW_MS) {
+      lobbyWatch.off = true;
+      host.remove();
+      parts.lobby = undefined;
+      return;
+    }
+  }
+  if (t - lobbyCoach.drawnAt < 1000 / LOBBY_FPS - 4) return;
+  lobbyCoach.drawnAt = t;
+  fitLobbyCoach(host);
+  if (host.hidden) return;
+  const atResults = state?.phase === "results";
+  c.dress(atResults ? (currentSong()?.song.id ?? null) : null);
+  const from = lobbyCoach.cheerAt;
+  // (one beat count for the cheer and the standing by after it: the coach blends from one to the other)
+  const beat = from === null ? 0 : (now - from) / CHEER_BEAT_MS;
+  if (atResults && from !== null && beat >= 0 && beat < CHEER_BEATS) {
+    if (lobbyCoach.burst) {
+      lobbyCoach.burst = false;
+      c.burst(now);
+    }
+    c.frame({ doing: { kind: "cheer" }, p: beat % 2, beat, now, glow: { hands: 1, feet: 0 }, hype: 1 });
+  } else c.frame({ doing: { kind: "idle" }, p: 0, beat, now, glow: { hands: 0, feet: 0 }, hype: 0 });
+}
+
 /** Every frame: the coach, the big count, the "I'm here" lights, the timing readout, the setup's next step. */
 function frame() {
   const now = pageClock();
@@ -897,10 +1003,10 @@ function frame() {
     frameCoach(now);
     frame3d(now);
     frameCrowd(now);
-  }
-  else if (parts.count) {
+  } else {
     // (the metronome before its start: nothing to count)
-    if (parts.count.textContent) parts.count.textContent = "";
+    if (parts.count?.textContent) parts.count.textContent = "";
+    frameLobby(now);
   }
   if (parts.players && state) {
     // (redrawn only when who's lit up changes; the lights are on this page's own clock)

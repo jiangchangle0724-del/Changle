@@ -1,9 +1,16 @@
 // What the phone pages and the server say to each other. Every request carries the phone's own
 // key for this gathering in the `x-when-key` header (src/room/event.ts says what a key is for).
-import type { Answers, Day, EventState, Grain, Times } from "../engine/types";
+import type { Answers, Day, EventState, Grain, Here, Times } from "../engine/types";
 import type { ErrorCode, HostAction } from "./event";
 
 export const KEY_HEADER = "x-when-key";
+
+/**
+ * The first thing a phone says over the WebSocket, once it is open: which key is its own, so the
+ * others can be told who has the page open. (A browser can't send a header with a WebSocket, and
+ * a key never goes in an address, where it would be logged.)
+ */
+export type Hello = { t: "hi"; key: string };
 
 /** POST /when/api/events */
 export type CreateBody = { title: string; days: Day[]; grain: Grain };
@@ -17,6 +24,8 @@ export type Snapshot = {
   host: boolean;
   /** this phone's own row, if it has made one */
   me: string | null;
+  /** who else has the page open right now */
+  here: Here;
 };
 
 /** POST /when/api/e/<code>/me */
@@ -35,5 +44,9 @@ export type Claimed = { host: true };
 /** An answer that isn't the thing asked for: `limit` is today's allowance used up, `notfound` no such gathering. */
 export type ApiError = { error: ErrorCode | "limit" | "notfound" | "key" };
 
-/** What the server pushes over the WebSocket at /when/api/e/<code>/ws. */
-export type Push = { t: "state"; state: EventState } | { t: "gone" };
+/**
+ * What the server pushes over the WebSocket at /when/api/e/<code>/ws: the gathering whenever it
+ * changes; who else has the page open whenever that changes (each phone is told it without
+ * itself); and that the gathering is gone.
+ */
+export type Push = { t: "state"; state: EventState } | { t: "here"; here: Here } | { t: "gone" };

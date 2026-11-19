@@ -3,14 +3,16 @@
 //   /when/<8-char code>    a gathering's page: the same file, with the gathering's name as its title
 //   /when/api/…            making a gathering, reading it, saving answers, the host's moves, the live feed
 // Each gathering is one Durable Object (EventDO) with its own small SQLite database. It keeps the
-// rows, tells every open phone when something changes, and deletes itself 60 days after it was made.
+// rows, tells every open phone when something changes and who else has the page open, and deletes
+// itself 60 days after it was made.
 import { DurableObject } from "cloudflare:workers";
 import { BASE } from "../base";
 import { toIcs } from "../engine/ics";
 import { ADMIN_RE, CODE_RE, KEY_RE, makeAdminCode, makeCode } from "../engine/ids";
 import { vancouverDay } from "../engine/time";
-import { EventRoom, type ErrorCode, type Fail, type HostAction, type Meta, type Row, type Store } from "../room/event";
-import { KEY_HEADER, type ApiError, type Claimed, type Created, type Hosted, type Push, type Saved, type Snapshot } from "../room/protocol";
+import type { Here } from "../engine/types";
+import { EventRoom, QUIET_MS, type ErrorCode, type Fail, type HostAction, type Meta, type Row, type Store } from "../room/event";
+import { KEY_HEADER, type ApiError, type Claimed, type Created, type Hello, type Hosted, type Push, type Saved, type Snapshot } from "../room/protocol";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -212,6 +214,17 @@ function sqlStore(sql: SqlStorage): Store {
 
 type WithState<T = object> = { ok: true; state: NonNullable<ReturnType<EventRoom["state"]>> } & T;
 
+/**
+ * What a socket carries once its phone has said which key is its own (Hello): the key's
+ * fingerprint, when it said so, and who it was last told has the page open (sameHere). Kept with
+ * the socket, so it lasts while the gathering sleeps, and goes with it.
+ */
+type Watcher = { k: string; at: number; told?: string };
+/** While anyone has the page open, the gathering wakes this often to drop phones that went quiet. */
+const SWEEP_MS = 60_000;
+/** Who is watching, without when it was worked out: what a phone already knows if it was told this. */
+const sameHere = (here: Here) => JSON.stringify([here.ids, here.others, here.host]);
+
 /** One gathering. */
 export class EventDO extends DurableObject<Env> {
   private room: EventRoom;
@@ -257,7 +270,75 @@ export class EventDO extends DurableObject<Env> {
   private changed(): NonNullable<ReturnType<EventRoom["state"]>> {
     const state = this.room.state()!;
     this.tell({ t: "state", state });
+    // a row made or removed changes how someone watching is shown
+    this.tellHere();
     return state;
+  }
+
+  /** The phones with the page open that have said who they are, with when each was last heard from (its last ping). */
+  private watching(leaving?: WebSocket): { ws: WebSocket; watcher: Watcher; key: string; seen: number }[] {
+    const out: { ws: WebSocket; watcher: Watcher; key: string; seen: number }[] = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      // who's watching never stands in the way of saving or reading the gathering: a socket that
+      // can't be read is left out
+      try {
+        if (ws === leaving || ws.readyState !== WebSocket.OPEN) continue;
+        const watcher = ws.deserializeAttachment() as Watcher | null;
+        if (!watcher?.k) continue;
+        out.push({ ws, watcher, key: watcher.k, seen: Math.max(watcher.at, this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0) });
+      } catch {
+        // on its way out
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Tell each phone with the page open who else has it open, where that changed since it was last
+   * told. A phone not heard from for a while is let go. Returns how many are still watching.
+   */
+  private tellHere(leaving?: WebSocket): number {
+    if (!this.room.exists) return 0;
+    const now = Date.now();
+    const all = this.watching(leaving);
+    const kept = all.map(({ key, seen }) => ({ key, seen }));
+    // what each key is told: the same for all of one phone's sockets
+    const byKey = new Map<string, { text: string; same: string }>();
+    let left = 0;
+    for (const { ws, watcher, key, seen } of all) {
+      // gone quiet: it is no longer counted by anyone (room.here), and its socket is let go
+      if (now - seen > QUIET_MS) {
+        try {
+          ws.close(1001, "quiet");
+        } catch {
+          // already closed
+        }
+        continue;
+      }
+      left += 1;
+      let told = byKey.get(key);
+      if (!told) {
+        const here = this.room.here(kept, key, now);
+        byKey.set(key, (told = { text: JSON.stringify({ t: "here", here } satisfies Push), same: sameHere(here) }));
+      }
+      if (watcher.told === told.same) continue;
+      try {
+        ws.send(told.text);
+        ws.serializeAttachment({ ...watcher, told: told.same } satisfies Watcher);
+      } catch {
+        // a phone that just left
+      }
+    }
+    return left;
+  }
+
+  /** While anyone has the page open, wake within a minute to let go of the phones that went quiet. */
+  private async sweepSoon(): Promise<void> {
+    const until = this.room.expiresAt;
+    if (until === null) return;
+    const soon = Math.min(until, Date.now() + SWEEP_MS);
+    const set = await this.ctx.storage.getAlarm();
+    if (set === null || set > soon) await this.ctx.storage.setAlarm(soon);
   }
 
   async title(): Promise<string | null> {
@@ -273,7 +354,8 @@ export class EventDO extends DurableObject<Env> {
 
   async snapshot(keyHash: string | null): Promise<Snapshot | null> {
     if (!(await this.live())) return null;
-    return { state: this.room.state()!, host: this.room.isHost(keyHash), me: this.room.rowOf(keyHash) };
+    const here = this.room.here(this.watching(), keyHash, Date.now());
+    return { state: this.room.state()!, host: this.room.isHost(keyHash), me: this.room.rowOf(keyHash), here };
   }
 
   async saveMine(keyHash: string, input: Record<string, unknown>): Promise<WithState<{ id: string }> | Fail> {
@@ -309,8 +391,25 @@ export class EventDO extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  async webSocketMessage(): Promise<void> {
-    // phones only listen; "ping" is answered before it gets here
+  /** A phone saying which key is its own (Hello); nothing else is listened to. "ping" is answered before it gets here. */
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    if (typeof message !== "string" || message.length > 200) return;
+    let said: Partial<Hello> | null;
+    try {
+      said = JSON.parse(message) as Partial<Hello> | null;
+    } catch {
+      return;
+    }
+    if (said?.t !== "hi" || typeof said.key !== "string" || !KEY_RE.test(said.key)) return;
+    if (!(await this.live())) return;
+    const k = await sha256(said.key);
+    try {
+      ws.serializeAttachment({ k, at: Date.now() } satisfies Watcher);
+    } catch {
+      return; // closed while this was on its way
+    }
+    this.tellHere();
+    await this.sweepSoon();
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
@@ -319,6 +418,7 @@ export class EventDO extends DurableObject<Env> {
     } catch {
       // already closed
     }
+    this.tellHere(ws);
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
@@ -327,13 +427,16 @@ export class EventDO extends DurableObject<Env> {
     } catch {
       // already closed
     }
+    this.tellHere(ws);
   }
 
+  /** The 60 days are up; or, while anyone has the page open, time to let go of the phones that went quiet. */
   async alarm(): Promise<void> {
     const until = this.room.expiresAt;
     if (until === null) return;
-    if (Date.now() >= until) await this.end();
-    else await this.ctx.storage.setAlarm(until);
+    if (Date.now() >= until) return this.end();
+    const left = this.tellHere();
+    await this.ctx.storage.setAlarm(left > 0 ? Math.min(until, Date.now() + SWEEP_MS) : until);
   }
 }
 

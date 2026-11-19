@@ -10,7 +10,7 @@
 
 - 手机和音箱画面：`site/src/party/dj/`（手机的在 `phone/`：播放键 `Player.tsx`，点歌和歌单 `DeckPad.tsx`，传歌 `SendSongs.tsx`，音效板 `SoundBoard.tsx`，弹幕 `DanmuPad.tsx`；音箱的声音在 `speaker/`，替身 DJ 在 `fake/`，主人的歌在 `local/`；电视上的 YouTube 播放器在 `tube.ts` 和 `TubePlayer.tsx`）
 - 公用手机当音箱：音箱页面上的点歌按钮和竖着时的提示 `SharedPhone.tsx`，点歌单 `SharedSongs.tsx`（用手机上的那几块），名字「公用手机」在 `names.ts`；首页卡片的按钮在 `site/src/home/GameSheet.tsx` 打碟那一段，点击里开声音的是 `site/src/lib/primeAudio.ts`
-- 电视左边的舞者（11-14 下午是跟着跳的教练，晚上起只是跳舞带气氛）：`Coach.tsx`（只放她，没有框和字），`Dancer3D.tsx`（电视上画她、按歌换衣服），`dancer/`（`files.ts` 文件和 11 套衣服、每首歌挑哪套；`moves.ts` 9 个站着的舞步加站着不动，用账号对话的姿势语言写；`stage.ts` 读文件、穿衣服、现解动作、眨眼、眼睛看镜头）。模型在 `site/public/models/dancer/`，做模型和衣服的脚本在 `site/scripts/dj-dancer/`（README 在那里）。
+- 电视左边的舞者（11-14 下午是跟着跳的教练，晚上起只是跳舞带气氛；11-18 起是 Steve 选的设计图做成的真人样子）：`Coach.tsx`（只放她，没有框和字），`Dancer3D.tsx`（电视上画她、按拍子跳），`dancer/`（`dances.ts` 她有哪几支舞、什么时候跳哪支；`her.ts` 读她的模型和舞的文件、按拍子摆姿势）。模型和舞在 `site/public/models/dancer/`（`her.glb.gz`、`dance/`），做它们的脚本在 `site/scripts/dj-dancer/`（`real/` 做模型，`mocap/` 做舞，README 在那里）。
 - 电视上的 3D：机器人 `Coach3D.tsx`（舞者出不来时用：身体在 `coach/robot.ts`，每个舞步怎么动在 `coach/poses.ts`），舞池的小机器人 `Floor3D.tsx`（还是原来那个 CC0 模型），两个共用的（看显卡、画多清楚、前几秒的帧率、舞池的模型只下载一次）在 `robot3d.ts`；没显卡时用画的舞者和 `Floor.tsx`。
 - 舞者的舞步（9 个站着的，中英文名）、每段晚上跳哪几个、慢歌：`site/src/shared/dj/dance.ts`（11-14 起只有电视用）。电视最上面的「下一首」是 `deck/TvDeck.tsx` 的 `UpNext`。
 - 音效板：清单（9 类、每个音效的中英文名）`site/src/shared/dj/sfx.ts`，文件 `site/public/media/sfx/`，电视上放它的 `site/src/party/dj/sfx/player.ts`；从 Steve 的音效文件夹做文件和清单的 `site/scripts/sfx_make.py`，哪个文件是哪个音效写在 `site/scripts/sfx_catalog.py`（改名、换类、加新的都在这里改，再跑一遍）
@@ -30,14 +30,14 @@
 
 ## 测试
 
-- `site/tests/dancer.test.ts`（舞者：每个舞步有片段、文件都在、每套衣服名字对得上、挂在她自己的骨头上、胸和两腿之间都盖着、每个片段解出来手和胳膊不进身体、每首歌挑的衣服）
+- `site/tests/dancer.test.ts`（舞者：模型读得出、骨架齐、权重加起来是一、穿靴子 1.74 米踩在地上、不到 8 万个三角形；每支舞的文件都在、整小节、速度对得上、脚在地上、胯不出画面；什么时候跳哪支）
 - `site/tests/dj.test.ts`（里面有电视的 YouTube 播放器，对着假的 YouTube）、`site/tests/dj-presets.test.ts`、`site/tests/dj-sound.test.ts`（效果键每次按出来不一样，#187）；`site/tests/engine.test.ts` 里名字以 `dj:` 开头的测试
 - 浏览器里的检查（要两个本地服务器，`DEV_LYRIA_ANYONE` 关着，见 `site/README.md`）：
   - `scripts/dj_check.py`（出声和一桌手机）
   - `dj_player_check.py`（手机的播放键：页面顺序、暂停时电视的视频停在原处 DJ 也不出声、播放从停的地方接着放、切歌、上一曲、电视要点一下视频时手机上提示）
   - `dj_floor_check.py`（读场、点歌公平、报幕、今晚回顾）
   - `dj_youtube_check.py`（YouTube 整首在它那一小节准时开始、放歌时的音效、歌单、没钥匙时贴链接、要先点一下的浏览器、YouTube 不让外放的视频；要等的地方先按暂停让下一首在角落里准备好）
-  - `dj_mine_check.py`（大家从手机传歌）、`dj_local_check.py`（主人的歌放一晚）、`dj_dancer_check.py`（11-14 晚上的电视：上面只剩下一首、没有曲线、左边只有舞者、视频在中间放大舞池挪到右边、手机上没有跟着跳、回顾里没有跳舞；能用 WebGL 的电视上 3D 舞者站着跳、顶点跳顶点的舞步、换歌换衣服。11-14 拿掉了 `dj_dance_check.py`）
+  - `dj_mine_check.py`（大家从手机传歌）、`dj_local_check.py`（主人的歌放一晚）、`dj_dancer_check.py`（11-14 晚上的电视：上面只剩下一首、没有曲线、左边只有舞者、视频在中间放大舞池挪到右边、手机上没有跟着跳、回顾里没有跳舞；能用 WebGL 的电视上 3D 舞者：没歌时站着轻轻晃、顶点放歌时跳顶点的舞、画起来不重。11-14 拿掉了 `dj_dance_check.py`）
   - `dj_danmu_check.py`（弹幕）、`dj_sfx_check.py`（音效板：先看到 9 类、点进去、返回键回到分类、电视上马上响、两个人同时点同一个只响一次、同时最多 4 个、文件提前下好）
   - `dj_shared_check.py`（公用手机当音箱：卡片一下点击就放歌、点歌按钮和点歌单里的播放键、竖着时提示横过来、电脑上的按钮、直接打开 /dj 还是要点开始派对）
   - `dj_floor3d_check.py`（舞池的 3D 小机器人：跟着拍子跳、🔥、离开坐下、唱歌、两排、退回画的舞池；电视被告知用软件画 3D 也行）。这几个共用 `dj_tube.py`（假的 YouTube、手机的播放键、等一首歌自己开始）。
@@ -158,6 +158,11 @@
   - 左边只留舞者本人，没有框、「跟着跳」标题、舞步名、怎么跳、下一步、全场一起跳那条；她不挡点击（全屏时下面的视频照样能点）。底下的暖场推高顶点收尾和「几分钟后到顶点」删了，🔥 留在右下。
   - 跟着跳整个拿掉：手机上没有了，房间规则不再收 `dance` 和 `songbeat`（旧页面发来的当没收到），舞池名字下面的条、全场一起跳的烟花、回顾里跳得最准都没了。舞者不坐了：坐着的舞步和凳子删了，9 个站着的舞步。
   - 逼真真人：问了 Steve，网页里实时画的 3D 到不了照片的水平，要像真人只能用 AI 生成的视频；他选了「继续改 3D 人（免费）」，又说可以用 Blender、Midjourney、Tripo、ChatGPT、Nano Banana 这些工具，ChatGPT「直接控制我的电脑去调用」。找了 skill：没有能做逼真真人 3D 的，靠谱的都是收费接口（美图、阿里万相、Move AI 的动作捕捉、inference.sh 的视频），装了也要钥匙，没装。照片里那位可能是真人，不照她的脸，新捏一张同样风格的。
+- 11-18 晚上 Steve 说「继续」，接着做逼真的舞者。定的和做的：
+  - 她的样子：Steve 电脑上 ChatGPT 画的设计图（正面背面，A 字姿势：亮片小背心、黑色比基尼和链子、黑皮短裤、过膝高跟靴，黑长直发），原创的脸。用微软 TRELLIS.2 的免费空间（在 Steve 登录 Hugging Face 的内置浏览器里调，用他的免费 GPU 额度，一次生成 16 秒、导出 38 秒）做成 3D。TRELLIS 自己画的脸是糊的，所以把设计图的正面和背面直接烤到模型的贴图上（每张图配一个相机、再按剪影扭一点对齐），脸、皮肤、衣服都是设计图的；侧面两张图都看不清的地方用模型自己的颜色调成照片的色调。
+  - 骨架和蒙皮自己做（`site/scripts/dj-dancer/real/`）：关节从模型的形状找（Mixamo 的名字，24 根），权重按穿过她身体的距离算（体素），背心只跟胸走（不然抬手时背心像翅膀一样飞起来），UV 缝两边一样（不然动起来裂缝）。模型里面那层朝里的皮去掉，减到 6.2 万个三角形，1.5 MB。
+  - 动作：Mixamo 的真人动作捕捉（Steve 的 Adobe 账号），套到她的骨架上，在动作自己的拍子上剪成整小节的循环，胯走的路去掉（她在原地跳）。下载时同名的文件互相盖了，9 个 hip hop 只剩 2 个，Samba 两个剩 1 个；Belly 3 和 Jazz 胯走得太远没用。现在 9 支舞加 2 个站着的：按当晚这一段、而且舞自己的速度和歌差不到四分之一的里面挑，8 小节换一支；没歌时站着轻轻晃。
+  - 原来 MakeHuman 捏的人、11 套衣服、9 个用姿势语言写的舞步都拿掉了（画的舞者和机器人还用那 9 个舞步）。每首歌换衣服也没了（现在只有一套）。
 ## 现在
 
 - 11 月 1 日上了首页。
@@ -193,9 +198,11 @@
 
 ## 还剩什么
 
-- 舞者要做到「跟真人看起来一样」（Steve 11-14 晚上，他选了 3D）。在做：用他电脑上的 ChatGPT 画了设计图（正面背面全身，A 字姿势，存在他电脑的 `C:\Claude Playground\OUTPUTS\音效\dj-dancer-sheet-1.png`，因为只有这个文件夹连着；想要单独的文件夹请他在桌面 App 里加），下一步用图片转 3D（微软 TRELLIS.2 的免费空间：从这台机器调用时 GPU 额度被别人用光了，要从 Steve 电脑的浏览器上调，或者用 Tripo，免费的只许非商业用途、Pro 每月 20 美元要先问他），再绑骨骼、换成真人舞者的动作捕捉（Mixamo 免费、能商用，要 Steve 的 Adobe 账号登录；AIST++ 的舞蹈数据商用要和 AIST 签授权，不能用；CMU 的能商用但没有夜店舞）。
-- 舞者在 Steve 的 iPad 和电视上看一眼：顺不顺（前几秒每秒不到 20 帧会自己换回机器人）、脸和衣服在电视上清不清楚、换衣服那一下的亮光会不会太晃。她比机器人重一倍多（3 万多个三角形），第一次打开要下 0.5 MB 左右，之后每首歌 30 到 180 KB。
-- 舞者还可以加的（等 Steve 看了再说）：更多衣服（加一套是 `site/scripts/dj-dancer/outfits.mjs` 一项再跑一遍，README 里写着）、耳环项链这些小装饰、头发跟着动（现在头发是跟着头走的，不会甩）、裙子飘起来（现在只有铅笔裙）、高跟鞋（现在都是平底）、更多舞步。运动鞋是从她的脚上做的，近看脚趾的形状还有一点。
+- 舞者（11-18 的新样子）在 Steve 的电视和 iPad 上看一眼：顺不顺（前几秒每秒不到 20 帧会自己换回机器人）、远看像不像真人、背心。她比原来的重：模型 1.5 MB，舞每支 6 到 110 KB（跳到才下）。
+- 舞者已知的毛病，看 Steve 怎么说再改：背心在模型里和身体、胳膊长在一起，胳膊动得大时背心附近会拉扯；手是连在一起的（手指不动）；耳环是画在脸旁边的（侧过来看像贴上去的）；侧面的颜色是模型自己的，比正面糊一点。能做的：ChatGPT 再画左右两个侧面一起烤；TRELLIS 用 1536 的分辨率再做一次（要 Steve 的免费额度）；背心单独做一件。
+- TRELLIS 的空间做模型前用 BRIA RMBG-2.0 抠图（非商用许可，`LICENSES.md` 写着）。changle.ca 是免费的；要彻底不沾它，下次给 TRELLIS 一张我们自己抠好的透明底图片就跳过那一步。
+- 舞可以再加：下载时被盖掉的 7 个 hip hop（Rib Pops、Shimmy、Raise The Roof、Arm Wave、Slide Step、Kick Step、Side To Side、Just Listening 里除了剩下那个）和 Samba Pagode，在 Mixamo 一个一个下（名字改成不一样的），加一支的步骤在 `site/scripts/dj-dancer/README.md`。Mixamo 的导出接口连着点会被限速，一分钟几个。
+- 更多衣服：一套 = 一张新的设计图 + TRELLIS 一次 + `real/` 的脚本（关节自动找，背心那条规则只对这件有用）。每首歌换一套的功能要的话再加回来。
 
 - 音效板里这些名字是我听出来起的，没把握，等 Steve 看要不要改（改 `site/scripts/sfx_catalog.py` 再跑 `sfx_make.py`）：DJ 音效里的往上冲、扫频、鼓点加速、卡顿、节奏连击、人声切片、激光、掉下去、过门鼓、重低音 咚（文件只写了 DJ SFX 几号）；高潮的关中王来了；神曲的抖音神曲、魔性 BGM、外语神曲、魔性小调、滴滴滴；嘲讽的一句英文梗、一句粤语梗、你有病、Bruh、Huh?；搞笑的啵、快走；震惊的大喊。
 - 音效板想加新的：Steve 把文件放进音效文件夹（或者发过来），在 `sfx_catalog.py` 最后加一行再跑 `sfx_make.py`。只能加在最后，不能从中间删（房间按位置认音效，新旧版本的页面会对不上）；不想要哪个，就在它那一行换成别的文件和名字。
@@ -221,7 +228,7 @@
 
 ## 交给别的对话
 
-- 账号（3D 小人）：打碟的舞者用了你们的姿势解算器和读骨架的几个函数（`site/src/account/figure/pose/anim.ts` 的 `baking`、`bake`、`toClip`、`over`，`rig.ts` 的类型，`body.ts` 的 `restNodes`、`rigFor`），只是 import，没改你们的文件。你们改这几个的用法时，`site/tests/dancer.test.ts` 会红，请顺手改打碟这边（`site/src/party/dj/dancer/`）或者告诉打碟对话。做模型的脚本 `site/scripts/dj-dancer/` 抄了你们 `human.mjs` 里读 MakeHuman 文件的几个函数（两边以后可以各自改）。素材和数据是同一份（`LICENSES.md` 多了一行）。
+- 账号（3D 小人）：11-18 起打碟的舞者不再用你们的姿势解算器和读骨架的函数了（换成了真人动作捕捉），`site/tests/dancer.test.ts` 也不碰你们的文件了，你们改的时候不用管打碟。机器人教练（`coach/`）也不用你们的。
 - 平台（CI）：#570 在 `site.yml` 的测试列表里加了一行 `npx tsx tests/dancer.test.ts`。
 
 - 平台（网站更新和缓存）：页面开着的时候网站更新了，旧版本的文件就没了，页面第一次要一个还没下过的文件时会自己重新载入（`lib/freshness.ts`）。打碟的音箱页面重开等于音乐停了、要有人去点一下才接着放。今天别的对话合并了好几次，Steve 试的时候就碰上了（他的公用手机重开过）。打碟这边把小文件提前下好了（#559），可是音箱上打字搜歌要的歌名表有 2.6 MB，没法提前下。想彻底不重开的话，可以让新版本上线时把上一版的 `/assets/` 也留一两天（比如部署时把上一版的文件一起放进去），或者让 service worker 在装的时候把这一版的文件都存下来。

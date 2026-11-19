@@ -21,9 +21,10 @@ export default function TvDraw({ v, sound }: TvViewProps<DrawView>) {
   useEffect(() => {
     for (const s of seats) known.current.set(s.id, s);
   }, [seats]);
-  // a pop for each wrong guess as it comes in (a right one gets the room's "correct" chime)
+  // a pop for each wrong guess as it comes in (a right one gets the room's "correct" chime); each by
+  // its own number, so one counted as right, or the list kept to its last 40, doesn't throw it off
   useArrivals(
-    v.guesses.flatMap((g, i) => (g.ok ? [] : [`${i}`])),
+    v.guesses.flatMap((g, i) => (g.ok ? [] : [g.n === undefined ? `i${i}` : `${g.n}`])),
     sound,
   );
   const tag = <RoundTag>{tx(`第 ${v.round} 轮`, `Round ${v.round}`)}</RoundTag>;
@@ -88,7 +89,7 @@ export default function TvDraw({ v, sound }: TvViewProps<DrawView>) {
         ) : (
           <ol className="tvdr-guesses">
             {v.guesses.slice(-6).map((g, i) => (
-              <li key={`${v.guesses.length - 6 + i}`} className={g.ok ? "is-ok" : ""}>
+              <li key={g.n ?? `i${v.guesses.length - 6 + i}`} className={g.ok ? "is-ok" : ""}>
                 <SeatFace seat={seat(g.pid)} size={44} />
                 {g.ok ? (
                   <span>

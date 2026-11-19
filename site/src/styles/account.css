@@ -144,6 +144,52 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* the owner's way to the 3D figure, near the top of /me */
+.me-3d {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-crowded);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  background: color-mix(in oklab, var(--gel) 13%, var(--dusk-2));
+  box-shadow: var(--shadow-flat);
+  color: var(--moon);
+  text-decoration: none;
+}
+.me-3d {
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.me-3d:active {
+  transform: scale(0.98);
+}
+.me-3d-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-small);
+  background: var(--gel);
+  color: var(--night);
+}
+.me-3d-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.me-3d-text strong {
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+.me-3d-text small {
+  color: var(--haze);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
 .stats {
   display: flex;
   gap: 8px;

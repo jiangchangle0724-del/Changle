@@ -11,7 +11,8 @@
     "test": "vitest run",
     "deploy": "wrangler deploy",
     "eval": "tsx scripts/eval.ts",
-    "libraries": "tsx scripts/libraries.ts"
+    "libraries": "tsx scripts/libraries.ts",
+    "health": "tsx scripts/health.ts"
   },
   "dependencies": {
     "ical.js": "2.2.1"

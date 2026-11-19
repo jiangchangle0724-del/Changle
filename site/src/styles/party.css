@@ -1493,6 +1493,26 @@ button.pl-answer:disabled {
   opacity: 0.3;
   filter: grayscale(1);
 }
+/* this phone's sound: 「没声音？」, or what to do about it */
+.fz-sound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.fz-sound .link-btn {
+  gap: 6px;
+}
+.fz-sound .link-btn.is-loud {
+  color: var(--gel);
+  font-weight: 700;
+  text-decoration-color: var(--gel);
+}
+.fz-sound .hint {
+  margin: 0;
+  max-width: 36ch;
+}
 
 /* ---------- limbo ---------- */
 .lb {

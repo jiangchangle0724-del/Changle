@@ -1,5 +1,6 @@
 // What goes between a phone and the server (/tuan/api/…): the shapes both sides agree on.
 // A buyer signs in to nothing. A merchant sends their changle.ca session ("Authorization: Bearer …").
+import type { ApplyError } from "./engine/apply";
 import type { OfferError } from "./engine/offer";
 import type { RefusalCode } from "./engine/order";
 import type { ShopError } from "./engine/shop";
@@ -13,6 +14,7 @@ export type ApiErrorCode =
   | RefusalCode
   | OfferError
   | ShopError
+  | ApplyError
   | "notfound"
   | "signin" // not signed in (or the sign-in has run out)
   | "forbidden" // signed in, but this isn't theirs
@@ -24,6 +26,10 @@ export type ApiErrorCode =
   | "busy" // it changed while this was on its way: read it again
   | "inuse" // a change to a group buy would drop an item or a place that an order names
   | "sold" // a change to a group buy would set an item's limit below what's already ordered
+  | "taken" // a shop's address that another shop has
+  | "applied" // this account runs a shop already, or has asked for one before
+  | "reply" // sending an application back needs a word on what to change
+  | "decided" // the application was answered already
   | "down" // the accounts can't be reached just now
   | "failed"; // something went wrong on the server
 
@@ -179,11 +185,32 @@ export interface MyShop {
   kind: ShopKind;
   status: ShopStatus;
   offers: MyOffer[];
+  /** the asking, when the shop came from an application not yet let in (or turned down) */
+  application?: Application;
+}
+
+/** Waiting for the site's owner; sent back to be changed; let in; turned down. */
+export type ApplicationState = "waiting" | "returned" | "accepted" | "declined";
+
+/** A merchant asking to open a shop, as they and the site's owner see it. */
+export interface Application {
+  /** the shop as it asks to be: everything it will say about itself */
+  shop: ShopCard;
+  /** the account that asked */
+  email: string;
+  /** for the site's owner alone */
+  note: string;
+  state: ApplicationState;
+  /** the owner's word on sending it back, or on saying no */
+  reply: string;
+  sentAt: number;
 }
 
 export interface MyHome {
   me: Me;
   shops: MyShop[];
+  /** the site's owner alone: the applications waiting for an answer, then those sent back */
+  applications?: Application[];
   now: number;
 }
 

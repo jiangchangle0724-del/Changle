@@ -19,7 +19,7 @@ tint it, a hairstyle comes from its own file, a buzz cut has none; the build's s
 taller, shorter, heavier (the camera stays, the skeleton follows, the move still plays); the
 shirt and trousers take their colours; the woman's body swaps in with the same build, random
 keeps the build and clothes, reset and a reload work. Signed in, the look goes on the account: a
-change is saved there, and another phone signed in to the same account gets it. In English too; the back button goes back; the owner's /me page has the link (needs
+change is saved there, and another phone signed in to the same account gets it. In English too; the back button goes back; the owner's /me page has the link near its top (needs
 the rooms server with MASTER_EMAIL=master@example.test in site/worker/.dev.vars, skipped when the
 server is down); no error is thrown in any page. Screenshots go to OUT.
 
@@ -381,9 +381,12 @@ def main():
                 pg.click(".profile-form button[type=submit]")
                 pg.wait_for_selector(".acct-me", timeout=10000)
             pg.goto(BASE + "me", wait_until="load")
-            pg.wait_for_selector(".me-foot", timeout=10000)
-            link = pg.locator(".me-foot a.me-figure")
+            pg.wait_for_selector(".me-head", timeout=10000)
+            link = pg.locator("a.me-3d")
             check(link.count() == 1 and link.get_attribute("href") == "/me/figure", "the owner's /me has the 3D 小人 link")
+            box = link.bounding_box()
+            check(box and box["y"] + box["height"] <= 844 and box["height"] >= 48, f"near the top, seen without scrolling ({box and round(box['y'])} px down, {box and round(box['height'])} px tall)")
+            pg.screenshot(path=f"{OUT}/me-owner.png")
             link.click()
             pg.wait_for_function("location.pathname === '/me/figure'", timeout=5000)
             pg.wait_for_function("window.__figIs === 'on'", timeout=60000)

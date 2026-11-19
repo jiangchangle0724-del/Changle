@@ -116,6 +116,9 @@ export function ShopView({ slug }: { slug: string }) {
       )}
 
       <p class="foot">{t("footMoney")}</p>
+      <a class="link-btn foot-link" href={`${BASE}/my`}>
+        {t("footOpen")}
+      </a>
     </div>
   );
 }

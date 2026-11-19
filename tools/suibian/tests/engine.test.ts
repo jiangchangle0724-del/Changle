@@ -217,7 +217,7 @@ const KNOWN: [name: string, primary: string, types: string[], text: string, cuis
   ["金拉面", "chinese_noodle_restaurant", [], "", "noodles", []],
   // Chinese barbecue skewers
   ["The Meat Up BBQ 聚点串吧", "barbecue_restaurant", ["barbecue_restaurant", "restaurant"], "", "chinese_bbq", []],
-  ["The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"], "All-you-can-eat Chinese BBQ skewers and hot pot.", "chinese_bbq", ["hotpot"]],
+  ["The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "chinese_restaurant"], "All-you-can-eat Chinese BBQ skewers and hot pot.", "chinese_bbq", ["hotpot", "ayce"]],
   ["The Meat Up BBQ", "hot_pot_restaurant", ["hot_pot_restaurant", "barbecue_restaurant", "restaurant"], "", "hotpot", ["chinese_bbq"]],
   ["Northern BBQ", "barbecue_restaurant", [], "", "chinese_bbq", []],
   ["Mr. Skewer", "restaurant", [], "", "chinese_bbq", []],
@@ -275,6 +275,14 @@ const KNOWN: [name: string, primary: string, types: string[], text: string, cuis
   ["Siegel's Bagels", "bagel_shop", [], "", "brunch", []],
   ["Saint Germain Bakery", "bakery", [], "", "cafe", []],
   ["台湾甜品屋", "dessert_shop", [], "", "cafe", []],
+  // All you can eat (Steve, 2026-11-18): as well as the cuisine, or alone for a plain buffet.
+  ["Gyubee Japanese Grill", "yakiniku_restaurant", [], "All-you-can-eat Japanese BBQ in a lively room.", "izakaya", ["ayce"]],
+  ["Sakura AYCE Sushi", "sushi_restaurant", [], "", "japanese", ["ayce"]],
+  ["牛魔王自助火锅", "hot_pot_restaurant", [], "", "hotpot", ["ayce"]],
+  ["韩烤放题", "korean_barbecue_restaurant", [], "", "kbbq", ["ayce"]],
+  ["Golden Buffet King", "chinese_restaurant", ["chinese_restaurant", "buffet_restaurant"], "", "chinese", ["ayce"]],
+  ["Grand Buffet", "buffet_restaurant", [], "", "ayce", []],
+  ["Jim's Diner", "diner", [], "Classic diner with unlimited coffee refills.", "western", []],
 ];
 
 test("cuisine guesses: names, types and Google's descriptions, for every cuisine on the menu (2026-11-13)", () => {
@@ -306,6 +314,13 @@ test("a cuisine search tells what a vague place is, whatever search found it fir
   assert.equal(foundBy(cuisineGuess("Golden Spot", "chinese_restaurant"), "sichuan").cuisine, "sichuan");
   // A noodle shop stays one.
   assert.deepEqual(foundBy(cuisineGuess("Mr. Noodle", "noodle_shop"), "northern"), { cuisine: "northern", also: ["noodles"], sure: true, zh: false });
+  // The all-you-can-eat search adds to what a place is: Korean BBQ yes, a café it lists to fill up no.
+  assert.deepEqual(foundBy(cuisineGuess("Seoul BBQ House", "korean_barbecue_restaurant"), "ayce").also, ["ayce"]);
+  assert.deepEqual(foundBy(cuisineGuess("Matchstick Coffee", "coffee_shop", ["coffee_shop", "cafe"]), "ayce").also, []);
+  assert.equal(foundBy(cuisineGuess("Feast Lounge", "restaurant"), "ayce").cuisine, "ayce");
+  // A buffet a Sichuan search finds is Sichuan, and still all you can eat.
+  assert.deepEqual(foundBy(cuisineGuess("川味自助", "buffet_restaurant"), "sichuan").cuisine, "sichuan");
+  assert.deepEqual(foundBy(cuisineGuess("美食自助", "buffet_restaurant"), "sichuan").also, ["ayce"]);
   // Known: Cantonese stays Cantonese; a Xinjiang place a skewer search finds grills skewers too.
   const kirin = cuisineGuess("Kirin Seafood Restaurant 麒麟海鮮酒家", "seafood_restaurant", ["seafood_restaurant", "chinese_restaurant"]);
   assert.deepEqual(foundBy(kirin, "sichuan"), kirin);

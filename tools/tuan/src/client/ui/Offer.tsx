@@ -370,6 +370,10 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
       )}
 
       <p class="foot">{t("footMoney")}</p>
+      {/* every group buy's page is where other merchants first see it (docs/tuan.md, 冷启动) */}
+      <a class="link-btn foot-link" href={`${BASE}/my`}>
+        {t("footOpen")}
+      </a>
 
       {lines.length > 0 && open && (
         <div class="dock">

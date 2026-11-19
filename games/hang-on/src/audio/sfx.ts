@@ -6,6 +6,7 @@
 import type { Voice } from '../look';
 import type { SimEvent } from '../physics/world';
 import type { SimView } from '../render/view';
+import { releaseWhenDone } from './release';
 
 type Wave = OscillatorType;
 
@@ -549,26 +550,31 @@ class Sfx {
     gain.gain.exponentialRampToValueAtTime(vol, t0 + attack);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + o.dur);
     let node: AudioNode = osc;
+    let lfo: OscillatorNode | null = null;
+    let depth: GainNode | null = null;
     if (o.vibrato) {
-      const lfo = ctx.createOscillator();
+      lfo = ctx.createOscillator();
       lfo.frequency.value = o.vibrato[1];
-      const depth = ctx.createGain();
+      depth = ctx.createGain();
       depth.gain.value = o.vibrato[0];
       lfo.connect(depth).connect(osc.frequency);
       lfo.start(t0);
       lfo.stop(t0 + o.dur + 0.05);
     }
+    let f: BiquadFilterNode | null = null;
     if (o.lowpass) {
-      const f = ctx.createBiquadFilter();
+      f = ctx.createBiquadFilter();
       f.type = 'lowpass';
       f.frequency.value = o.lowpass;
       node.connect(f);
       node = f;
     }
     node.connect(gain);
-    this.out(gain, o.pan).connect(master);
+    const tail = this.out(gain, o.pan);
+    tail.connect(master);
     osc.start(t0);
     osc.stop(t0 + o.dur + 0.05);
+    releaseWhenDone(osc, [osc, lfo, depth, f, gain, tail]);
   }
 
   private noise(o: NoiseOpts): void {
@@ -586,8 +592,9 @@ class Sfx {
     gain.gain.exponentialRampToValueAtTime(o.vol ?? 0.3, t0 + attack);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + o.dur);
     let node: AudioNode = src;
+    let f: BiquadFilterNode | null = null;
     if (o.filter) {
-      const f = ctx.createBiquadFilter();
+      f = ctx.createBiquadFilter();
       f.type = o.filter.type;
       f.frequency.setValueAtTime(o.filter.freq, t0);
       if (o.filter.to) f.frequency.exponentialRampToValueAtTime(o.filter.to, t0 + o.dur);
@@ -596,9 +603,11 @@ class Sfx {
       node = f;
     }
     node.connect(gain);
-    this.out(gain, o.pan).connect(master);
+    const tail = this.out(gain, o.pan);
+    tail.connect(master);
     src.start(t0);
     src.stop(t0 + o.dur + 0.05);
+    releaseWhenDone(src, [src, f, gain, tail]);
   }
 
   private out(node: AudioNode, pan: number | undefined): AudioNode {

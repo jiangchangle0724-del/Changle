@@ -1,4 +1,4 @@
-import { Check, Crown, Play, Smartphone, X } from "lucide-react";
+import { Crown, Play, Smartphone } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { GAME_BY_ID } from "../../games/registry";
 import { holdBackground } from "../../lib/music";
@@ -135,6 +135,9 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leaningBlind, timeLeft]);
   const players = v.alive.filter((id) => v.sensors.includes(id)).length;
+  // the phone is the judge: whoever hasn't turned motion sensing on when the host starts watches this game
+  const missing = v.alive.filter((id) => !v.sensors.includes(id));
+  const who = (id: string) => (id === me ? (zh ? "你" : "you") : nameOf(id));
   // share how far you're getting, now and then
   useEffect(() => {
     if (!trying) return;
@@ -150,8 +153,8 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
     <>
       <p>
         {zh
-          ? `林波舞，手机当裁判。把手机竖着贴在胸前，屏幕朝外，背面贴着胸口，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局${drink}，最后剩下的人赢。没有动作感应的手机由主人判，或者自己说过没过。`
-          : `Limbo, with the phone as judge. Hold it upright against your chest, screen facing out and its back against you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (${drink}). Last one standing wins. Phones without motion sensing are judged by the host, or by their owner's honesty.`}
+          ? `林波舞，手机当裁判。把手机竖着贴在胸前，屏幕朝外，背面贴着胸口，音乐响起后往后仰，仰到横杆的角度并坚持一秒多就算过。每一杆都更低（要仰得更多），没过的出局${drink}，最后剩下的人赢。手机就是裁判：开始前每部手机都要允许动作感应，测不了角度的手机这局当观众。`
+          : `Limbo, with the phone as judge. Hold it upright against your chest, screen facing out and its back against you. When the music plays, lean back to the bar's angle and hold it for a second or so. Every bar is lower (lean further). Miss and you're out (${drink}). Last one standing wins. The phone is the judge: every phone has to allow motion sensing before the game starts, and a phone that can't measure watches that game.`}
       </p>
       <p>
         {zh
@@ -160,8 +163,8 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
       </p>
       <p>
         {zh
-          ? "主人开始前还可以选别的玩法。稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 1 秒就出局，每部手机上的横杆都在同一个位置。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。这几种没有动作感应也能玩，由主人判，或者自己说。"
-          : "The host can pick another way to play before the game. Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down, in the same place on every phone; follow it down and back up, and lose it for over a second and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random. All of these work without motion sensing too, judged by the host or by honesty."}
+          ? "主人开始前还可以选别的玩法。稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 2 秒就出局，每部手机上的横杆都在同一个位置。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。"
+          : "The host can pick another way to play before the game. Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down, in the same place on every phone; follow it down and back up, and lose it for over two seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random."}
       </p>
       <p>
         {zh
@@ -241,24 +244,34 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
                 <li>{heardShort(zh)}</li>
               </ol>
             )}
-            {watching ? null : sensors !== "on" ? (
-              <button type="button" className="btn btn-ghost btn-block" disabled={sensors === "asking"} onClick={() => void enableSensors()}>
-                <Smartphone size={17} />
-                {sensors === "none" || sensors === "denied"
-                  ? blind
-                    ? zh ? "这部手机测不了角度，盲仰这局你当观众" : "This phone can't measure: you watch this blind game"
-                    : zh ? "这部手机测不了角度，由主人判" : "This phone can't measure. The host will judge you."
-                  : zh ? "开启动作感应" : "Turn on motion sensing"}
-              </button>
-            ) : (
+            {watching ? null : sensors === "on" ? (
               <p className="fz-sensor-on">
                 <Smartphone size={15} />
                 {zh ? "动作感应开着" : "Motion sensing on"}
               </p>
+            ) : sensors === "none" || sensors === "denied" ? (
+              <p className="hint" role="alert" style={{ textAlign: "center" }}>
+                {sensors === "denied"
+                  ? zh ? "要先允许动作感应才能玩。刷新页面再允许一次，不然这局你当观众。" : "Motion sensing has to be allowed to play. Reload and allow it, or you watch this game."
+                  : zh ? "这部手机测不了角度，这局你当观众。" : "This phone can't measure angles, so you watch this game."}
+              </p>
+            ) : (
+              <button type="button" className="btn btn-primary btn-block" disabled={sensors === "asking"} onClick={() => void enableSensors()}>
+                <Smartphone size={17} />
+                {zh ? "开启动作感应（必须）" : "Turn on motion sensing (required)"}
+              </button>
             )}
-            {isHost && blind && players < 2 && <p className="hint" style={{ textAlign: "center" }}>{zh ? "盲仰要至少两部开了动作感应的手机" : "Blind lean needs at least two phones with motion sensing on"}</p>}
+            {isHost && (missing.length > 0 || players < 2) && (
+              <p className="hint" style={{ textAlign: "center" }}>
+                {players < 2
+                  ? zh ? "手机是裁判：要至少两部开了动作感应的手机才能开始" : "The phone is the judge: it takes at least two phones with motion sensing on to start"
+                  : zh
+                    ? `${missing.map(who).join("、")}还没开动作感应，现在开始的话这局当观众`
+                    : `${missing.map(who).join(", ")} ${missing.length > 1 ? "haven't" : "hasn't"} turned on motion sensing yet: start now and they watch this game`}
+              </p>
+            )}
             {isHost ? (
-              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={blind && players < 2} onClick={() => g("go")}>
+              <button type="button" className="btn btn-primary btn-lg btn-block" disabled={players < 2} onClick={() => g("go")}>
                 <Play size={18} />
                 {zh ? "开始" : "Start"}
               </button>
@@ -295,23 +308,20 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
                 <LeanGauge lean={classic.lean} target={v.angle} hold={classic.hold} />
               )
             ) : (
+              // the phone is the judge; after a reload its sensor needs turning on again, from a tap
               <>
-                {kind !== "classic" && <p className="hint" style={{ textAlign: "center" }}>{barHow(bar, v.angle, zh, false)}</p>}
-                <div className="row" style={{ gap: 10 }}>
-                  <button type="button" className="btn btn-ghost btn-lg btn-block" onClick={() => g("fail")}>
-                    <X size={18} />
-                    {moving ? (zh ? "跟丢了" : "Lost it") : zh ? "没过" : "Missed"}
+                <p className="hint" role="alert" style={{ textAlign: "center" }}>
+                  {sensors === "none" || sensors === "denied" ? (zh ? "这部手机测不了角度，这一杆算没过。" : "This phone can't measure angles, so this bar counts as missed.") : zh ? "动作感应没开，手机测不到你仰了多少。" : "Motion sensing is off, so the phone can't see your lean."}
+                </p>
+                {sensors !== "none" && sensors !== "denied" && (
+                  <button type="button" className="btn btn-primary btn-lg btn-block" disabled={sensors === "asking"} onClick={() => void enableSensors()}>
+                    <Smartphone size={18} />
+                    {zh ? "开启动作感应" : "Turn on motion sensing"}
                   </button>
-                  <button type="button" className="btn btn-primary btn-lg btn-block" disabled={moving && !stopped} onClick={() => g("pass", { deg: v.angle })}>
-                    <Check size={18} />
-                    {moving ? (zh ? "我跟住了" : "I kept up") : zh ? "我过了" : "I made it"}
-                  </button>
-                </div>
+                )}
               </>
             )}
-            <p className="hint lb-time tabular">
-              {moving && stopped ? (zh ? `横杆停了，还有 ${timeLeft} 秒说结果` : `The bar stopped. ${timeLeft}s to say how it went`) : zh ? `还剩 ${timeLeft} 秒` : `${timeLeft}s left`}
-            </p>
+            <p className="hint lb-time tabular">{moving && stopped ? (zh ? "横杆停了" : "The bar stopped") : zh ? `还剩 ${timeLeft} 秒` : `${timeLeft}s left`}</p>
           </>
         )}
         {v.phase === "go" && open && !alive && (
@@ -322,30 +332,17 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
           <ul className="lb-people">
             {order([...v.alive, ...v.out.filter((id) => !v.alive.includes(id))]).map((id) => {
               const st = status(id);
-              const judgeable = !blind && isHost && v.phase === "go" && open && v.alive.includes(id) && !v.sensors.includes(id);
               const shown = blind && v.phase === "result" && (v.alive.includes(id) || v.locks[id] !== undefined);
               return (
                 <li key={id} className={`lb-person is-${st}`}>
                   <SeatFace seat={seat(id)} size={36} />
                   <span className="lb-person-name">{id === me ? (zh ? "你" : "You") : nameOf(id)}</span>
                   <span className="lb-person-best tabular">{blind ? (shown ? blindLine(zh, v.locks[id], v.angle) : "") : v.best[id] ? `${v.best[id]}°` : ""}</span>
-                  {judgeable ? (
-                    <span className="lb-judge">
-                      <button type="button" className="icon-btn" aria-label={failWord} onClick={() => g("judge", { pid: id, ok: false })}>
-                        <X size={18} />
-                      </button>
-                      {/* nobody has kept up with a moving bar until it stops */}
-                      <button type="button" className="icon-btn" aria-label={passWord} disabled={moving && !stopped} onClick={() => g("judge", { pid: id, ok: true })}>
-                        <Check size={18} />
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="lb-person-state">
-                      {blind
-                        ? st === "locked" ? (zh ? "锁定了" : "Locked") : st === "out" ? (zh ? "出局" : "Out") : st === "pass" ? (zh ? "留下" : "Stays") : zh ? "在仰" : "Leaning"
-                        : st === "pass" ? passWord : st === "fail" ? failWord : st === "out" ? (zh ? "出局" : "Out") : moving ? (zh ? "在跟" : "Following") : zh ? "在仰" : "Leaning"}
-                    </span>
-                  )}
+                  <span className="lb-person-state">
+                    {blind
+                      ? st === "locked" ? (zh ? "锁定了" : "Locked") : st === "out" ? (zh ? "出局" : "Out") : st === "pass" ? (zh ? "留下" : "Stays") : zh ? "在仰" : "Leaning"
+                      : st === "pass" ? passWord : st === "fail" ? failWord : st === "out" ? (zh ? "出局" : "Out") : moving ? (zh ? "在跟" : "Following") : zh ? "在仰" : "Leaning"}
+                  </span>
                 </li>
               );
             })}

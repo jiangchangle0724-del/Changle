@@ -1,5 +1,5 @@
 // Entry point, under /eat on changle.ca: /eat/ (home), /eat/r/1234 (a phone at table 1234),
-// /eat/r/1234/rate (after the meal), /eat/rate (rating a solo pick made before picking alone went).
+// /eat/r/1234/rate (after the meal).
 import { render } from "preact";
 import { BASE } from "../base";
 import { setLang, t } from "./i18n";
@@ -53,9 +53,8 @@ function route() {
   setConn(null);
   update({ view: null, fatal: null, status: "idle" });
   document.title = "随便 · Whatever's Fine";
-  const ratePick = /^\/rate\/?$/.test(path);
   const home = () => go("/");
-  render(<Shell>{rate ? <Rate code={rate[1]} home={home} /> : ratePick ? <Rate home={home} /> : <Home go={go} />}</Shell>, root);
+  render(<Shell>{rate ? <Rate code={rate[1]} home={home} /> : <Home go={go} />}</Shell>, root);
 }
 
 window.addEventListener("popstate", route);

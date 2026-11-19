@@ -3,8 +3,7 @@
 //
 //   GET  /api/me                 → { user, loginEnabled, card, last }
 //   PUT  /api/me/card            ← Limits           save my diet card (logged in)
-//   POST /api/me/last            ← { code, name } or { place, name }   remember my last table (or a solo pick made before picking alone went, 2026-11), to ask how it was
-//   POST /api/places/:id/rate    ← { overall, liked, wait }   rate my last solo pick (logged in, once; picking alone went in 2026-11, this stays a few days for picks made before)
+//   POST /api/me/last            ← { code, name }   remember my last table, to ask how it was
 //   DELETE /api/me               → 204              forget everything about me
 //   GET  /auth/google, /auth/callback, POST /auth/logout
 //   POST /api/rooms              ← { cid, center, range, at, occasion } → { code }   (logged in, 10 a day; `at`: a planned meal, or none for now)
@@ -38,8 +37,6 @@ export interface Env {
 }
 
 const ROOMS_PER_DAY = 10;
-/** A Google place id, or one of the made-up demo places. */
-const PLACE_ID = /^(demo-\d{1,3}|[A-Za-z0-9_-]{10,300})$/;
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -68,9 +65,10 @@ export default {
     const path = url.pathname.slice(BASE.length) || "/";
     // Room and rating links are app pages; serve the app for them directly (old phones don't send
     // Sec-Fetch-Mode). The page is dist/client/eat/index.html, served at /eat/.
-    // Picking alone (/solo) went in 2026-11: "一个人" is an occasion at a table now. Its old address goes home.
-    if (path === "/solo" || path === "/solo/") return Response.redirect(new URL(`${BASE}/`, url).toString(), 302);
-    if (path === "/" || path === "/rate" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
+    // Picking alone (/solo, its picks rated at /rate) went on 2026-11-11: "一个人" is an occasion at a
+    // table now. Its old addresses go home.
+    if (/^\/(solo|rate)\/?$/.test(path)) return Response.redirect(new URL(`${BASE}/`, url).toString(), 302);
+    if (path === "/" || /^\/r\/\d{4}(\/rate)?\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL(`${BASE}/`, url), req));
 
     if (path === "/auth/google") return loginEnabled(env) ? startLogin(req, env) : json({ error: "loginOff" }, 404);
     if (path === "/auth/callback") {
@@ -109,14 +107,9 @@ export default {
         return json({ ok: true });
       }
       if (parts[2] === "last" && req.method === "POST") {
-        const body = (await req.json().catch(() => ({}))) as { code?: string; place?: string; name?: string };
-        if (typeof body.name !== "string") return json({ error: "bad" }, 400);
-        const name = body.name.slice(0, 80);
-        if (/^\d{4}$/.test(body.code ?? "")) await user(env, me.sub).setLast({ code: body.code!, name, at: Date.now() });
-        else if (PLACE_ID.test(body.place ?? "")) {
-          // Only a place your last solo search showed, so the rating can't be pointed at any restaurant.
-          if (!(await user(env, me.sub).chooseSolo(body.place!, name))) return json({ error: "notYours" }, 403);
-        } else return json({ error: "bad" }, 400);
+        const body = (await req.json().catch(() => ({}))) as { code?: string; name?: string };
+        if (typeof body.name !== "string" || !/^\d{4}$/.test(body.code ?? "")) return json({ error: "bad" }, 400);
+        await user(env, me.sub).setLast({ code: body.code!, name: body.name.slice(0, 80), at: Date.now() });
         return json({ ok: true });
       }
     }
@@ -138,16 +131,6 @@ export default {
 
 
     // One person's pick, rated after the meal: only your own last pick, once.
-    if (parts[1] === "places" && parts[3] === "rate" && parts.length === 4 && req.method === "POST") {
-      const id = decodeURIComponent(parts[2]);
-      if (!me) return json({ error: "login" }, 401);
-      const r = cleanRating(await req.json().catch(() => ({})));
-      if (!r || !PLACE_ID.test(id)) return json({ error: "bad" }, 400);
-      if (!(await user(env, me.sub).rateLast(id))) return json({ error: "notYours" }, 403);
-      if (!id.startsWith("demo-")) await env.PLACES.get(env.PLACES.idFromName(id)).add(r);
-      return json({ ok: true });
-    }
-
     const code = parts[2];
     if (parts[1] === "rooms" && code && /^\d{4}$/.test(code)) {
       const stub = env.ROOMS.get(env.ROOMS.idFromName(code));
@@ -301,7 +284,7 @@ export class RoomDO extends DurableObject<Env> {
     const key = room.st.demo ? undefined : this.env.GOOGLE_PLACES_KEY;
     try {
       if (want.k === "search") {
-        const places = key ? await searchGoogle(key, want.center, want.range, want.lang, { liked: want.liked, occasion: want.occasion, at: want.at, random: randomUnit }) : demoPlaces(want.center, want.range, Date.now());
+        const places = key ? await searchGoogle(key, want.center, want.range, want.lang, { liked: want.liked, occasion: want.occasion, at: want.at, random: randomUnit }) : demoPlaces(want.center, want.range, Date.now(), want.lang);
         // Our own numbers, for real places only (demo ones are made up).
         if (key) await Promise.all(places.map(async (p: Place) => (p.ours = (await this.env.PLACES.get(this.env.PLACES.idFromName(p.id)).get()) ?? undefined)));
         if (this.room === room) room.found(places);
@@ -349,45 +332,23 @@ export class RoomDO extends DurableObject<Env> {
   }
 }
 
-/** The last table (its code) or solo pick (its place id) someone went to, to ask how it was. */
-type Last = { code?: string; place?: string; name: string; at: number; rated?: boolean };
-/**
- * The last solo search: the places it showed, and whether one of them has been rated. Replaced by
- * the next search.
- */
-type Solo = { ids: string[]; rated?: boolean; at: number };
-/** How long an old solo pick can still be rated (the home page asks for as long). */
-const SOLO_RATE_DAYS = 3;
+/** The last table someone went to, to ask how it was. */
+type Last = { code: string; name: string; at: number; rated?: boolean };
 
-/** One logged-in person: their diet card, last table or pick, and today's count. */
+/** One logged-in person: their diet card, last table and today's count. */
 export class UserDO extends DurableObject<Env> {
   async me(): Promise<{ card: Limits | null; last: Last | null }> {
-    // From 2026-11-05 to 11-11 picking alone kept the places it showed, to show others first; no longer used.
-    await this.ctx.storage.delete("seen");
-    // Picking alone went in 2026-11: its last search and pick are only kept while the pick can be
-    // rated (the home page asks for three days), as the privacy page says.
-    const old = Date.now() - SOLO_RATE_DAYS * 24 * 3600_000;
-    const solo = await this.ctx.storage.get<Solo>("solo");
-    if (solo && solo.at < old) await this.ctx.storage.delete("solo");
+    // Picking alone went on 2026-11-11 (its picks could be rated for three days after): what it left
+    // on an account goes the next time its person opens the tool, as the privacy page says (the
+    // places it showed, from 2026-11-05 to 11-11 the places it had shown lately, and a solo pick
+    // kept to ask about).
+    await this.ctx.storage.delete(["seen", "solo"]);
     let last = (await this.ctx.storage.get<Last>("last")) ?? null;
-    if (last?.place && last.at < old) {
+    if (last && !last.code) {
       await this.ctx.storage.delete("last");
       last = null;
     }
     return { card: (await this.ctx.storage.get<Limits>("card")) ?? null, last };
-  }
-
-  /**
-   * True once for the person's own last solo pick, and at most once per solo search (choosing another
-   * of its places doesn't open a second rating); false for anything else.
-   */
-  async rateLast(place: string): Promise<boolean> {
-    const last = await this.ctx.storage.get<Last>("last");
-    const solo = await this.ctx.storage.get<Solo>("solo");
-    if (!last || last.place !== place || last.rated || solo?.rated) return false;
-    await this.ctx.storage.put("last", { ...last, rated: true });
-    if (solo) await this.ctx.storage.put("solo", { ...solo, rated: true });
-    return true;
   }
 
   async setName(name: string) {
@@ -400,15 +361,6 @@ export class UserDO extends DurableObject<Env> {
 
   async setLast(last: Last) {
     await this.ctx.storage.put("last", last);
-  }
-
-  /** "就它了": becomes the pick to ask about, if the last solo search showed it. Choosing it again keeps it as it was (rated or not). */
-  async chooseSolo(place: string, name: string): Promise<boolean> {
-    const s = await this.ctx.storage.get<Solo>("solo");
-    if (!s?.ids.includes(place)) return false;
-    const last = await this.ctx.storage.get<Last>("last");
-    if (last?.place !== place) await this.ctx.storage.put("last", { place, name, at: Date.now() } satisfies Last);
-    return true;
   }
 
   /** Count a new room against today's limit. False when the limit is reached. */

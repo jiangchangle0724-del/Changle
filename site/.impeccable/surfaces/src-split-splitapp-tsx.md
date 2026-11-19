@@ -299,3 +299,18 @@ Shape: Steve asked for each expense to keep the day it was spent, read off the r
 What the look at the rendered screens changed: the date field sat at the start of its row and now sits at the end like the amounts; the gap above the first day's heading was too big; the picture's 花得最多 listed all five names and lost its sum (now 一样多).
 
 Verdict: holds to the contract. No new screen: one quiet button in the dock, one sheet, day headings in the list, and the summary on the picture the group already gets.
+
+## The scan while a receipt is read: motion four (2026-11-18)
+
+Shape: Steve asked for a scanning animation after the photo is taken, something that feels technical (看起来有科技感). The contract said three motions and no fourth; the owner's ask is the fourth, and it answers what a motion has to: you see the receipt being read, and that the number will come from it. Who and when: the person paying, phone in one hand, the camera just closed; it lasts the two to four seconds Google takes.
+
+- Where: the amount's own place on 记一笔, which is empty then and where the eye goes back to after the camera. It becomes a scanner's window for the while: four short corners of the room light, a band of the light sweeping down through it (a bright line with a glow and a wash above it where it has been, 1.6 s a pass, fading in and out at the ends so the loop isn't seen), and an amount's shape in the expense's currency with every digit rolling at its own pace. The digits are dim amber so they read as the reading going on, never as an amount. The photo's own thumbnail at the end of the note's line gets the same band, so the two are tied.
+- When: from the moment a photo that is going to be read is chosen (the upload is part of the wait) until the reading is back, and only while nothing has been typed. A key pressed stops it: what is typed stands.
+- Landing: the window goes and the read amount lights up in the light, then settles into the page's white (two emphasis lengths). That is the one bright moment; the band and the digits stay quieter than it.
+- Nothing moves on the screen for it: the window shares the amount's grid cell, at the amount's height. Screen readers skip it (aria-hidden) and hear the line under it.
+- Reduced motion: the corners only, round the amount as it is; no sweep, no roll. The landing keeps its colour fade (it neither slides nor shakes).
+- Built with CSS only (two gradients on pseudo-elements, steps() for the digits), tokens for every colour, length and timing.
+
+What the look at the rendered screens changed: the rolling digits were first a strong tan and read as a real amount ($72.40) in a still frame; dimmed to a third of the light so the read amount is the bright thing when it lands.
+
+Verdict: holds to the contract, now with four motions. The fourth is the owner's, quiet in colour, and gone the moment the amount is there.

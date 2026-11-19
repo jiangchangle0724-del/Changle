@@ -5,7 +5,8 @@
 // that it never passes `stock`: an order that would take more than is left fails as a whole.
 // Every order carries a `rev` that goes up with each change; a change made from an older reading
 // changes nothing and says so, and the caller reads again.
-import type { MyOffer, MyShop } from "../api";
+import type { Application, ApplicationState, MyOffer, MyShop } from "../api";
+import { DECLARATION, type Decision, type NewApplication } from "../engine/apply";
 import type { Edit, Used } from "../engine/edit";
 import type { NewOffer } from "../engine/offer";
 import type { Before, Taken } from "../engine/order";
@@ -69,8 +70,9 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
 }
 
 /** A group buy's name and its shop's, for its page's title; null when there's none the public may see. */
+/** A group buy's title and its shop's name, for its page's title: not a draft, and its shop let in. */
 export async function offerHead(db: D1Database, offerId: string): Promise<{ title: string; shop: string } | null> {
-  const row = await db.prepare("SELECT f.title, s.name FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ? AND f.status != 'draft'").bind(offerId).first<Row>();
+  const row = await db.prepare("SELECT f.title, s.name FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ? AND f.status != 'draft' AND s.status != 'pending'").bind(offerId).first<Row>();
   return row ? { title: text(row.title), shop: text(row.name) } : null;
 }
 
@@ -343,11 +345,25 @@ export async function isMember(db: D1Database, shopId: string, email: string): P
 }
 
 /** The shops an account runs (every shop, for the site's owner), each with its latest group buys. */
+// (a shop with the application it came from, if it did: the one query a merchant's home and the owner's list both read)
+const SHOP_APPLIED = `SELECT s.id, s.slug, s.name, s.kind, s.about, s.contact, s.pay, s.permit, s.status,
+    a.email AS a_email, a.note AS a_note, a.state AS a_state, a.reply AS a_reply, a.sent_at AS a_sent_at
+  FROM shops s LEFT JOIN applications a ON a.shop_id = s.id`;
+
+const applicationOf = (r: Row): Application => ({
+  shop: { slug: text(r.slug), name: text(r.name), kind: r.kind as Application["shop"]["kind"], about: text(r.about), contact: text(r.contact), pay: text(r.pay), permit: text(r.permit) },
+  email: text(r.a_email),
+  note: text(r.a_note),
+  state: r.a_state as ApplicationState,
+  reply: text(r.a_reply),
+  sentAt: num(r.a_sent_at),
+});
+
 export async function shopsOf(db: D1Database, email: string, all: boolean): Promise<MyShop[]> {
   const shops = (
     await (all
-      ? db.prepare("SELECT id, slug, name, kind, status FROM shops ORDER BY created_at DESC LIMIT 50")
-      : db.prepare("SELECT id, slug, name, kind, status FROM shops WHERE id IN (SELECT shop_id FROM shop_members WHERE email = ?) ORDER BY created_at DESC LIMIT 50").bind(email)
+      ? db.prepare(`${SHOP_APPLIED} ORDER BY s.created_at DESC LIMIT 50`)
+      : db.prepare(`${SHOP_APPLIED} WHERE s.id IN (SELECT shop_id FROM shop_members WHERE email = ?) ORDER BY s.created_at DESC LIMIT 50`).bind(email)
     ).all<Row>()
   ).results;
   if (!shops.length) return [];
@@ -370,7 +386,99 @@ export async function shopsOf(db: D1Database, email: string, all: boolean): Prom
     kind: shop.kind as MyShop["kind"],
     status: shop.status as MyShop["status"],
     offers: offers[at].results.map((r): MyOffer => ({ id: text(r.id), title: text(r.title), status: r.status as MyOffer["status"], closesAt: num(r.closes_at), orders: num(r.orders), fresh: num(r.fresh), total: num(r.total) })),
+    // (once let in, the asking is history: nothing more to show)
+    ...(shop.a_state && shop.a_state !== "accepted" ? { application: applicationOf(shop) } : {}),
   }));
+}
+
+// ---------- applying to open a shop ----------
+
+/** An account's application that is still open (waiting, or sent back), with its shop. */
+export async function openApplicationOf(db: D1Database, email: string): Promise<{ shopId: string; state: ApplicationState } | null> {
+  const row = await db.prepare("SELECT shop_id, state FROM applications WHERE email = ? AND state IN ('waiting', 'returned') ORDER BY sent_at DESC LIMIT 1").bind(email).first<Row>();
+  return row ? { shopId: text(row.shop_id), state: row.state as ApplicationState } : null;
+}
+
+/** Does this account run a shop, or has it ever asked for one? */
+export async function runsOrAsked(db: D1Database, email: string): Promise<boolean> {
+  return (await db.prepare("SELECT 1 AS yes FROM shop_members WHERE email = ?1 UNION ALL SELECT 1 FROM applications WHERE email = ?1 LIMIT 1").bind(email).first()) !== null;
+}
+
+/** A new application: its shop, still pending and run by the account that asked, and the asking. False when the shop's address is taken. */
+export async function insertApplication(db: D1Database, app: NewApplication, email: string, shopId: string, now: number): Promise<boolean> {
+  const { slug, words, note } = app;
+  try {
+    await db.batch([
+      db
+        .prepare("INSERT INTO shops (id, slug, name, kind, about, contact, pay, permit, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
+        .bind(shopId, slug, words.name, words.kind, words.about, words.contact, words.pay, words.permit, now),
+      db.prepare("INSERT INTO shop_members (shop_id, email, added_at) VALUES (?, ?, ?)").bind(shopId, email, now),
+      db.prepare("INSERT INTO applications (shop_id, email, note, declared, state, sent_at) VALUES (?, ?, ?, ?, 'waiting', ?)").bind(shopId, email, note, DECLARATION, now),
+    ]);
+    return true;
+  } catch (e) {
+    return refusedByTable(e);
+  }
+}
+
+/**
+ * An open application sent again, changed: its shop's address and words, the note, the declaration
+ * ticked again now. Waiting for the owner from now on. False when the new address is another shop's.
+ */
+export async function resendApplication(db: D1Database, shopId: string, app: NewApplication, now: number): Promise<boolean> {
+  const { slug, words, note } = app;
+  try {
+    await db.batch([
+      db
+        .prepare("UPDATE shops SET slug = ?2, name = ?3, kind = ?4, about = ?5, contact = ?6, pay = ?7, permit = ?8 WHERE id = ?1 AND status = 'pending'")
+        .bind(shopId, slug, words.name, words.kind, words.about, words.contact, words.pay, words.permit),
+      db.prepare("UPDATE applications SET note = ?2, declared = ?3, state = 'waiting', sent_at = ?4 WHERE shop_id = ?1 AND state IN ('waiting', 'returned')").bind(shopId, note, DECLARATION, now),
+    ]);
+    return true;
+  } catch (e) {
+    return refusedByTable(e);
+  }
+}
+
+/** The applications for the site's owner to answer: those waiting, the oldest first, then those sent back. */
+export async function openApplications(db: D1Database, limit: number): Promise<Application[]> {
+  const rows = await db.prepare(`${SHOP_APPLIED} WHERE a.state IN ('waiting', 'returned') ORDER BY a.state = 'returned', a.sent_at LIMIT ?`).bind(limit).all<Row>();
+  return rows.results.map(applicationOf);
+}
+
+/** The application a shop came from, with who asked: null when it didn't come from one. */
+export async function applicationAt(db: D1Database, slug: string): Promise<{ shopId: string; name: string; email: string; state: ApplicationState } | null> {
+  const row = await db.prepare("SELECT s.id, s.name, a.email, a.state FROM shops s JOIN applications a ON a.shop_id = s.id WHERE s.slug = ?").bind(slug).first<Row>();
+  return row ? { shopId: text(row.id), name: text(row.name), email: text(row.email), state: row.state as ApplicationState } : null;
+}
+
+/**
+ * The owner's answer to an application that is still open. Letting it in opens the shop: it gets its
+ * page, and its group buys take orders. False when it was answered already.
+ */
+export async function decideApplication(db: D1Database, shopId: string, decision: Decision, now: number): Promise<boolean> {
+  const state = decision.do === "accept" ? "accepted" : decision.do === "return" ? "returned" : "declined";
+  const reply = decision.do === "accept" ? "" : decision.reply;
+  const [answered] = await db.batch([
+    db.prepare("UPDATE applications SET state = ?2, reply = ?3, decided_at = ?4 WHERE shop_id = ?1 AND state IN ('waiting', 'returned')").bind(shopId, state, reply, now),
+    // (only when that was this answer, just now)
+    db.prepare("UPDATE shops SET status = 'live' WHERE id = ?1 AND status = 'pending' AND EXISTS (SELECT 1 FROM applications WHERE shop_id = ?1 AND state = 'accepted' AND decided_at = ?2)").bind(shopId, now),
+  ]);
+  return (answered.meta.changes ?? 0) > 0;
+}
+
+// ---------- the site's owner ----------
+
+const DAY_MS = 86_400_000;
+
+/** The owner opened their home here: keep their email for the mail about new applications (written at most once a day). */
+export async function sawOwner(db: D1Database, email: string, now: number): Promise<void> {
+  await db.prepare("INSERT INTO owners (email, seen_at) VALUES (?1, ?2) ON CONFLICT (email) DO UPDATE SET seen_at = excluded.seen_at WHERE owners.seen_at < ?3").bind(email, now, now - DAY_MS).run();
+}
+
+/** The owners seen here since `since`, the latest first. */
+export async function ownersSince(db: D1Database, since: number, limit: number): Promise<string[]> {
+  return (await db.prepare("SELECT email FROM owners WHERE seen_at >= ? ORDER BY seen_at DESC LIMIT ?").bind(since, limit).all<{ email: string }>()).results.map((r) => r.email);
 }
 
 // ---------- starting a group buy ----------

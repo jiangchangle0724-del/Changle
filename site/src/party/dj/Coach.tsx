@@ -15,11 +15,12 @@ type Clock = { beat: () => number; energy: () => number; bpm: () => number };
  * The dancer on the big screen, beside the floor all night (Steve on Nov 14: "她更像一个在酒吧跳舞的
  * 角色来烘托气氛的"; till then she was 跟着跳's coach, with the move's name and how to do it, all taken
  * out the same day: "把我打红色的x的框和文字都删了，仅保留人物"): only her, no card and no words,
- * dancing on the speaker's own beat. The dancer in 3D (Dancer3D, a new outfit each `song`); the robot
- * (coach/robot.ts) where she can't be shown; Name That Tune's performer, drawn, where no 3D can. `over`
- * the song's video when it fills the TV (Nov 14: "要一直在那里不能消失").
+ * dancing on the speaker's own beat. The dancer in 3D (Dancer3D: since Nov 18 the design Steve chose,
+ * dancing real dancers' motion capture); the robot (coach/robot.ts) where she can't be shown; Name That
+ * Tune's performer, drawn, where no 3D can. `over` the song's video when it fills the TV (Nov 14:
+ * "要一直在那里不能消失").
  */
-export function Coach({ clock, mood, over, song }: { clock: Clock; mood: Mood; over: boolean; song: string | null }) {
+export function Coach({ clock, mood, over }: { clock: Clock; mood: Mood; over: boolean }) {
   const svg = useRef<SVGSVGElement>(null);
   // the dancer in 3D once she's loaded; the robot where she can't be (her files didn't come, her
   // frames too slow); the drawn one till then, and on a screen without WebGL
@@ -69,7 +70,7 @@ export function Coach({ clock, mood, over, song }: { clock: Clock; mood: Mood; o
     <div className={`dj-coach ${over ? "is-over" : ""}`} aria-hidden="true">
       <div className="dj-coach-stage">
         <svg className={`dj-coach-svg ${three === "on" || three === "robot-on" ? "is-off" : ""}`} viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
-        {(three === "try" || three === "on") && <Dancer3D clock={clock} mood={getMood} song={song} onReady={() => setThree("on")} onFail={() => setThree("robot")} />}
+        {(three === "try" || three === "on") && <Dancer3D clock={clock} mood={getMood} onReady={() => setThree("on")} onFail={() => setThree("robot")} />}
         {(three === "robot" || three === "robot-on") && <Coach3D clock={clock} mood={getMood} onReady={() => setThree("robot-on")} onFail={() => setThree("off")} />}
       </div>
     </div>

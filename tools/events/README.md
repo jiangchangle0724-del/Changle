@@ -7,8 +7,10 @@ works is [CONTRACTS.md](CONTRACTS.md).
 
 Where it is: the foundation (gate A's tasks A1, A2, A5). Each morning's run reads Luma's
 Vancouver calendar, the Vancouver and Richmond public libraries' events (handed over by a GitHub job, see Live), Burnaby's library's own feed, UBC's calendar (only what
-anyone can walk into: open to all or the community, in person on the Vancouver campus), and
-Ticketmaster once its key is set; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
+anyone can walk into: open to all or the community, in person on the Vancouver campus), SFU's
+calendar (LiveWhale's JSON, `src/parsers/livewhale.ts`; the same rule: SFU's audience "Public", in
+person, not a defence, info session or student service, except an art student's thesis show), and
+Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
 `/go/api/events` and `/go/api/status` answer, and `/go/preview` shows what's published day by day
 (in Chinese, or English with `?lang=en`; not linked from anywhere and not indexed) to check the run by eye.
 The page itself is at `/go` (src/page.ts), on the Tools tab of changle.ca since 14 November (Steve's
@@ -68,7 +70,7 @@ for preview branches are off: `wrangler preview` (beta) would need a `previews` 
   else. At 05:50 the GitHub job `.github/workflows/events-libraries.yml` runs `npm run libraries`,
   which reads their pages exactly as the run would and posts each to `POST /go/api/handoff` on the
   Worker's own address, `changle-events.jiangchangle0724.workers.dev` (changle.ca's bot protection
-  answers GitHub's machines with a challenge page; that address serves nothing else), signed
+  answers GitHub's machines with a challenge page; that address serves only this and the status), signed
   in with GitHub's own sign-in token (OIDC, `src/oidc.ts`): the Worker checks it against GitHub's
   public keys and takes only this repository's `events-libraries` job on `main`. No secret to set on
   either side (below). The 06:00 run reads those pages, and fetches a page itself only when none came.
@@ -78,8 +80,20 @@ for preview branches are off: `wrangler preview` (beta) would need a `previews` 
   `/go/api/status` shows each step's `via` (`handoff` or `fetch`) and a `note`. To see what the job
   would send, without sending it: `npm run libraries -- --dry-run`. A key (`EVENTS_HANDOFF_KEY`, on
   the Worker and where the script runs) is only for handing pages over from outside GitHub.
+- The daily health check (`src/health.ts`): at 02:23 the GitHub job `.github/workflows/events-health.yml`
+  runs `npm run health`, which reads `/go/api/status` on the Worker's own address and judges
+  yesterday: every source in the list read to the end that day or since, the run published, and at
+  least half as many events as the median of the runs before it. If not, it opens an issue in this
+  repository that mentions Steve (so GitHub emails him); a later day with other problems adds a
+  comment, the same problems again add nothing; a good day closes the issue. The job signs in with
+  its own GitHub token (`issues: write` only): nothing to set. `npm run health -- --dry-run` judges and
+  prints without touching any issue.
 
 It runs on the free plan: nothing here costs money.
+
+### 每天的检查（什么都不用设）
+
+每天夜里两点多，GitHub 检查一次前一天那一轮：每个来源都读完了没有，清单发布了没有，活动数有没有比前几天少一半以上。有问题，就在仓库里开一个问题（issue），里面 @ 你，GitHub 会发邮件给你，写着哪个来源、上次读完是哪天、最后的错误。之后问题变了才再说一次，同样的问题不会天天发邮件；哪天检查又过了，它自己把问题关掉。收到邮件，把链接发给管玩什么的对话就行，不用回复也不用关。
 
 ### 两个图书馆的「接力」（什么都不用设）
 

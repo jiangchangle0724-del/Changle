@@ -14,11 +14,11 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`), times within a period to the minute (`minutes.ts`), who the host means to ask and who of them is still to answer (`invited.ts`), when to answer by (`deadline.ts`), the words to paste into the group chat (`copy.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`), times within a period to the minute (`minutes.ts`), who the host means to ask and who of them is still to answer (`invited.ts`), when to answer by (`deadline.ts`), the words to paste into the group chat (`copy.ts`), the line saying who else has the page open (`here.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
-| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `ui/Words.tsx` (the words for the group chat, in a tone), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
+| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `ui/Words.tsx` (the words for the group chat, in a tone), `ui/Here.tsx` and `finished.ts` (who else has the page open, and who of them has just filled in), `ui/Moving.tsx` (the best three changing places), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
 | `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`; what every browser test starts from is in `tests/e2e/helpers.ts`). |
 
 ### What is kept, and for how long
@@ -26,7 +26,8 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 Each gathering is one Durable Object with its own SQLite database: the gathering (its name, days,
 what was set, the host's list of names and deadline) and one row per person (a name and their
 answers). Nothing else: no accounts, no
-email, no phone numbers. It deletes itself 60 days after it was made (an alarm).
+email, no phone numbers. It deletes itself 60 days after it was made (an alarm). While a page is
+open, its socket carries the fingerprint of that phone's key (below); it goes with the socket.
 
 ### Who may change what
 
@@ -48,7 +49,39 @@ sends it with each request in `x-when-key`. The server keeps only the key's SHA-
 Saving goes by ordinary requests (they work everywhere, WeChat included, and nothing typed is lost
 when a connection drops). The server pushes the gathering to every open page over a WebSocket
 (`/when/api/e/<code>/ws`, hibernating, so an idle gathering costs nothing). When the socket is down
-the page asks again every ten seconds, and the moment it comes back to the front.
+the page asks again every ten seconds, and the moment it comes back to the front. The page closes
+its socket while it is out of sight (another app in front, the screen off) and opens it again when
+it is back, which is also how the others know it has gone (below).
+
+### Who's here (谁在看)
+
+The line under the gathering's name says who else has the page open right now (A3, 2026-11-18):
+"阿May、小王 也在看", "May and Wang are here too", or "现在只有你在看" with its dot unlit. It is
+always one line, so nothing below it moves when people come and go.
+
+- Once its socket is open, a page says which key is its own (`{ "t": "hi", "key": … }`): a browser
+  can't send a header with a WebSocket, and a key never goes in an address, where it would be
+  logged. The server keeps the key's fingerprint with the socket and tells every phone with the
+  page open who else is there (`{ "t": "here", … }`), each without itself, whenever that changes;
+  a page reading the gathering the ordinary way is told it too.
+- People with a row go by their name, in the order they joined; a host's phone without one is
+  "发起人" (the host); the rest are counted. Three names at most, then "等 5 个人".
+- A page counts while it can be seen: it closes its socket when it goes out of sight and when it is
+  left. A phone that goes quiet without saying goodbye (out of signal, its battery flat) is let go
+  once its pings (every 30 seconds, answered without waking the gathering) have stopped for 75
+  seconds (`QUIET_MS`): while anyone has the page open, the gathering wakes every minute to look
+  (the same alarm that deletes it after 60 days). So that one is gone from the line within about
+  two minutes.
+- A phone that can't keep a socket (some networks refuse them) still sees who's here, every ten
+  seconds, but isn't counted itself.
+- When one of the others has filled in (their answers changed, then stayed as they were for three
+  seconds), the line says so for four, with a tick that pops in: "阿May 填好了" the first time,
+  "阿May 改了时间" when they had answers before. The same person again within 90 seconds is still
+  the same filling in, said once (`src/client/finished.ts`). Never about this phone's own row, or
+  one it fills in for someone.
+- When the best three change order, they slide to their new places and one new to them rises in
+  (`src/client/ui/Moving.tsx`, the site's timings). With the phone set to reduce motion, they just
+  change places, and the tick just appears.
 
 ### Periods of the day
 
