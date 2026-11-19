@@ -63,7 +63,11 @@ Sign-in codes without email: `DEV_SHOW_CODES=1` in `site/worker/.dev.vars` (git-
 drawing without a key: `DEV_FAKE_DRAW=1` there. 到此一游 and 随便 are separate Workers; to reach
 them from the site, run `npm run build && npx wrangler dev --port 8799` in `games/been-there` and
 `npm run build && npx wrangler dev --port 8798` in `tools/suibian` (the site's `/trip` and `/eat`
-are proxied there, see `site/vite.config.ts`).
+are proxied there, see `site/vite.config.ts`). The same for 一起跳 and 抓紧了 from a table: `node
+scripts/build.mjs && npx wrangler dev --port 8793 --ip 127.0.0.1` in `games/party-server` and the
+hang-on server on 8792 (`/party` and `/hang-on` are proxied there). To count the rooms server's
+storage writes, `DEV_COUNT_WRITES=1` in `site/worker/.dev.vars` prints a `COUNT put` / `COUNT alarm`
+line per write.
 
 ## Tests
 
