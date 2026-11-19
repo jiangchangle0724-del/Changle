@@ -173,6 +173,8 @@ export interface Player {
   itemFailAt: number;
   /** 在太空站的失重区里（A10）：没有重力，没抓东西时摇杆喷气。 */
   floating: boolean;
+  /** 力气（A11 手酸）：1 是满的，挂着往下掉，站着回来，到 0 两只手都松开。没开手酸时一直是 1。 */
+  stamina: number;
 }
 
 /** 饼干平台的当前样子（画面用）。 */
@@ -259,6 +261,11 @@ export interface Rules {
   teams?: number[];
   /** 卡太久来帮手（A9c，外卖无人机）：主机开局时给闯关、大团队打开；回放、验收、测试默认没有（回放不变）。 */
   helper?: boolean;
+  /**
+   * 手酸（A11）：中等、困难的关里挂着会累（见 CFG.stamina*）。主机按选的难度给；验收按关的难度给。
+   * 不写就是抓多久都行（简单、别的玩法）。
+   */
+  stamina?: 'medium' | 'hard';
 }
 
 /** 外卖无人机（A9c）在干什么：飞来、等人抓、带人走、放人、飞走。 */
@@ -273,6 +280,8 @@ export type SimEvent =
   /** 死在哪；碰到机关死的带 cause（掉下去的不带，和以前一样）。 */
   | { type: 'death'; player: number; x: number; y: number; cause?: Exclude<DeathCause, 'fall'> }
   | { type: 'respawn'; player: number; summoned: boolean }
+  /** 手酸（A11）：力气用完了，两只手都滑脱（每只手另有一个 slip）。 */
+  | { type: 'tired'; player: number }
   /** 检查点亮了；比谁先时带是谁过的（每个人、每队各有各的检查点）。 */
   | { type: 'checkpoint'; index: number; player?: number }
   | { type: 'bounce'; player: number; spring: number }
@@ -1337,6 +1346,7 @@ export class Sim {
       pendingItem: false,
       itemFailAt: -10,
       floating: false,
+      stamina: 1,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -1556,6 +1566,8 @@ export class Sim {
     p.deadT = 0;
     p.heldBy = null;
     p.springCd = CFG.springCooldown;
+    // 回到检查点（或被摆到哪儿）力气是满的
+    p.stamina = 1;
     this.refreshPlayer(p);
   }
 
@@ -1616,6 +1628,7 @@ export class Sim {
         }
       });
     }
+    if (this.rules.stamina) this.tickStamina(dt);
     this.moveKinematics();
     this.world.step();
     for (const p of this.players) {
@@ -1876,6 +1889,45 @@ export class Sim {
     p.grabs++;
     p.heldBy = null;
     this.events.push({ type: 'grab', player: p.id, kind, x: point.x, y: point.y });
+  }
+
+  /**
+   * 手酸（A11，中等和困难）：挂着会累，一只手比两只手累得快，身上每挂一个人再累一截；
+   * 站在东西上（或在失重区里飘着）回得快，悬空又没抓东西回得慢；力气用完两只手都滑脱，一会儿抓不了。
+   * 冻住（速冻）的人手也冻住了，不算累。
+   */
+  private tickStamina(dt: number): void {
+    const hard = this.rules.stamina === 'hard';
+    const two = hard ? CFG.staminaTwoHard : CFG.staminaTwoMedium;
+    const one = hard ? CFG.staminaOneHard : CFG.staminaOneMedium;
+    const rest = 1 / (hard ? CFG.staminaRestHard : CFG.staminaRestMedium);
+    // 谁身上挂着几个人（直接抓着他的，一个人两只手都抓着也只算一个）
+    const load = new Map<number, Set<number>>();
+    for (const [, e] of this.grips) {
+      const on = e.g.player;
+      if (on === undefined || on === e.player) continue;
+      let set = load.get(on);
+      if (!set) load.set(on, (set = new Set()));
+      set.add(e.player);
+    }
+    for (const p of this.players) {
+      if (p.dead || p.done || p.itemOn === 'freeze') continue;
+      const hands = p.arms.reduce((n, a) => n + (a.grip ? 1 : 0), 0);
+      if (p.ground || p.floating || hands === 0) {
+        p.stamina = Math.min(1, p.stamina + (p.ground || p.floating ? rest : CFG.staminaAir) * dt);
+        continue;
+      }
+      const heavy = 1 + CFG.staminaLoad * (load.get(p.id)?.size ?? 0);
+      p.stamina = Math.max(0, p.stamina - (dt / (hands >= 2 ? two : one)) * heavy);
+      if (p.stamina > 0) continue;
+      p.arms.forEach((arm, k) => {
+        if (!arm.grip) return;
+        this.release(p, k);
+        arm.slipCd = CFG.staminaCooldown;
+        this.events.push({ type: 'slip', player: p.id, arm: k });
+      });
+      this.events.push({ type: 'tired', player: p.id });
+    }
   }
 
   private release(p: Player, k: number): void {

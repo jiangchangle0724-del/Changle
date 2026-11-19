@@ -1,5 +1,6 @@
 {
   "id": "house-40",
+  "stamina": true,
   "world": "house",
   "name": {
     "zh": "天井灯影",

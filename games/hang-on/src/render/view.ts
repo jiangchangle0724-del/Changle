@@ -33,6 +33,8 @@ export interface PlayerView {
   /** 正在起作用的道具（A9：速冻、荷叶）和还剩几秒。 */
   itemOn?: ItemId | null;
   itemLeft?: number;
+  /** 力气（A11 手酸）：1 是满的；没开手酸时一直是 1（或者不写）。 */
+  stamina?: number;
 }
 
 export interface RopeView {

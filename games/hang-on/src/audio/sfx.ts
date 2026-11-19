@@ -383,6 +383,11 @@ class Sfx {
           // 坐不住：手滑了，吱一下
           this.tone({ freq: 1100, to: 420, wave: 'sine', dur: 0.12, vol: 0.22 });
           break;
+        case 'tired':
+          // 手酸到底了（A11）：呼一大口气（气声往下走），再一声闷的「唔」
+          this.noise({ dur: 0.35, vol: 0.16, filter: { type: 'lowpass', freq: 1400, to: 300 }, attack: 0.02 });
+          this.tone({ freq: 260, to: 150, wave: 'triangle', dur: 0.3, vol: 0.15, delay: 0.05 });
+          break;
         case 'win':
           this.fanfare();
           break;

@@ -1,5 +1,6 @@
 {
   "id": "house-42",
+  "stamina": true,
   "world": "house",
   "name": {
     "zh": "藏书楼夜渡",

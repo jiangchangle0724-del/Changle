@@ -18,7 +18,7 @@ export const FACES: Face[] = ['idle', 'grab', 'fly', 'scream', 'win'];
 /** 外卖无人机（A9c）在干什么，快照里按下标。 */
 const DRONE_PHASES = ['arrive', 'wait', 'carry', 'drop', 'leave'];
 /** 一个人一行的长度：10 个标量 + 两条胳膊（各 8 个坐标 + 抓了几秒）+ 道具（A9：哪样、还剩几秒）。 */
-const PLAYER_LEN = 10 + 2 * 9 + 2;
+const PLAYER_LEN = 10 + 2 * 9 + 2 + 1;
 /** 快照里正在起作用的道具：0 没有，1 起是 ITEM_IDS 的下标加一。 */
 const itemCode = (id: ItemId | null | undefined): number => (id ? ITEM_IDS.indexOf(id) + 1 : 0);
 const itemOf = (code: number | undefined): ItemId | null => (code ? (ITEM_IDS[code - 1] ?? null) : null);
@@ -56,6 +56,8 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
       row.push(arm.grip ? r2(arm.grip.t) : -1);
     }
     row.push(itemCode(pl.itemOn), r2(pl.itemLeft ?? 0));
+    // 第 31 个数：力气（A11 手酸），没开是 1
+    row.push(r2(pl.stamina ?? 1));
     return row;
   });
   const snap: Snap = {
@@ -443,6 +445,8 @@ export class RemoteSim implements SimView {
       });
       p.itemOn = itemOf(row[28]);
       p.itemLeft = Math.max(0, (row[29] ?? 0) - since);
+      // 老版本的主机不发力气：当满的
+      p.stamina = row[30] ?? 1;
     });
     // 冰溜子（雪山）：抓着它的手最多抓几秒
     const ic = s.ic ?? [];

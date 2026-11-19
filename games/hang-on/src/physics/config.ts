@@ -238,6 +238,24 @@ export const CFG = {
   floatDamp: 0.35,
   /** 飘着时胳膊的线性阻尼（伸手的力反过来加在身体上，胳膊阻尼大了人就像在糖浆里，所以失重时调小）。 */
   floatArmDamp: 1.5,
+
+  // ---- 手酸（A11，只在中等和困难，Steve 11-18「抓得太稳」）----
+  /**
+   * 挂着（身体没站在东西上、至少一只手抓着）多少秒力气用完：两只手、一只手；中等、困难各一套。
+   * 身上每多挂一个人（直接抓着自己的），累得快 staminaLoad 倍。
+   */
+  staminaTwoMedium: 18,
+  staminaOneMedium: 10,
+  staminaTwoHard: 11,
+  staminaOneHard: 6,
+  staminaLoad: 0.6,
+  /** 站在东西上（或在失重区里飘着）多少秒回满；悬空又没抓东西时每秒回多少（满是 1）。 */
+  staminaRestMedium: 3,
+  staminaRestHard: 4,
+  staminaAir: 0.08,
+  /** 力气剩多少开始手抖、圈变红；用完两只手都松开，这么多秒抓不了。 */
+  staminaWarn: 0.3,
+  staminaCooldown: 1,
 };
 
 export type Cfg = typeof CFG;
