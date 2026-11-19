@@ -59,6 +59,14 @@ export const daysBetween = (a: Day, b: Day): number => dayNumber(b) - dayNumber(
 /** The day `n` days after `day`. */
 export const addDays = (day: Day, n: number): Day => fromDayNumber(dayNumber(day) + n);
 
+/** The same day of the month `n` months later (earlier when `n` is negative); the month's last day when it has no such day (January 31 plus one month is the end of February). */
+export function addMonths(day: Day, n: number): Day {
+  const months = Number(day.slice(0, 4)) * 12 + (Number(day.slice(5, 7)) - 1) + n;
+  const y = Math.floor(months / 12);
+  const m = months - y * 12 + 1;
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(Math.min(Number(day.slice(8, 10)), daysIn(y, m))).padStart(2, "0")}`;
+}
+
 /** A day's month, "YYYY-MM". */
 export const monthOf = (day: Day): string => day.slice(0, 7);
 
