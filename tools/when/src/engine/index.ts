@@ -14,3 +14,4 @@ export * from "./slots";
 export * from "./text";
 export * from "./time";
 export * from "./types";
+export * from "./weather";

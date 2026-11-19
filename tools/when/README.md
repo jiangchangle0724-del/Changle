@@ -14,11 +14,11 @@ esbuild into `dist/client/when`; the Worker serves them and answers the API.
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`), times within a period to the minute (`minutes.ts`), who the host means to ask and who of them is still to answer (`invited.ts`), when to answer by (`deadline.ts`), the words to paste into the group chat (`copy.ts`), the line saying who else has the page open (`here.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: Vancouver days (`time.ts`), days and slots (`slots.ts`), the best three (`rank.ts`), codes (`ids.ts`), what follows once a time is set (`after.ts`), the calendar file and the Google Calendar link (`ics.ts`), B.C.'s holidays, festivals and long weekends to the end of 2028 (`holidays.ts`) and what the grid says about them (`daynotes.ts`), filling in many slots at once (`quick.ts`), times within a period to the minute (`minutes.ts`), who the host means to ask and who of them is still to answer (`invited.ts`), when to answer by (`deadline.ts`), the words to paste into the group chat (`copy.ts`), the line saying who else has the page open (`here.ts`), the weather at a time (`weather.ts`). |
 | `src/room/event.ts` | One gathering: who answered what, what was set, who may change which part. Plain logic over a small store. |
 | `src/room/protocol.ts` | What the phones and the server say to each other. |
 | `src/server/worker.ts` | The Worker: routes, the Durable Object that wraps a gathering (`EventDO`, SQLite), the daily allowances (`GateDO`). |
-| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `ui/Words.tsx` (the words for the group chat, in a tone), `ui/Here.tsx` and `finished.ts` (who else has the page open, and who of them has just filled in), `ui/Moving.tsx` (the best three changing places), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
+| `src/client/` | The phone pages: `ui/Home.tsx` (make a gathering), `ui/Event.tsx` (a gathering), `ui/Calendar.tsx` (add to calendar) and `ui/After.tsx` (what's next), both for once its time is set, `ui/Picture.tsx` and `picture.ts` (the pictures to pass around), `ui/Words.tsx` (the words for the group chat, in a tone), `ui/Here.tsx` and `finished.ts` (who else has the page open, and who of them has just filled in), `ui/Moving.tsx` (the best three changing places), `ui/Weather.tsx` (the forecast and the line that says it), `i18n.ts` (every word, Chinese and English), `styles.css`. `tokens.css` is a copy of the site's. `art/` holds four pictures (its own README says what each is for; two are in use, as the backgrounds of the pictures to pass around). |
 | `tests/` | The rules and the room (`npm test`), and phones in browsers (`tests/e2e`, `npm run test:e2e`; what every browser test starts from is in `tests/e2e/helpers.ts`). |
 
 ### What is kept, and for how long
@@ -82,6 +82,31 @@ always one line, so nothing below it moves when people come and go.
 - When the best three change order, they slide to their new places and one new to them rises in
   (`src/client/ui/Moving.tsx`, the site's timings). With the phone set to reduce motion, they just
   change places, and the tick just appears.
+
+### Weather (天气)
+
+Under each of the best three, on the banner of the time that was set and in a slot's sheet, one
+line says the weather for that time where the forecast reaches (A4, 2026-11-18; Steve: the
+recommended times should say the weather): "40% 可能下雨 · 最低 3°", "晴 · 8°", and
+"有雨 · 最高 8°，适合室内" when rain or snow is likely (60% or more, or no chance given: ECCC
+gives one only from 30 to 60 percent). Under the best three: "天气数据来源：加拿大环境与气候变化部"
+with a link to the licence, as the licence asks.
+
+- The forecast is Environment and Climate Change Canada's for Vancouver (open data, free, no key):
+  MSC GeoMet's city page weather as JSON (`WEATHER_SOURCE` in `src/engine/weather.ts`). It has a
+  day (6:00 to 18:00) and a night (18:00 to 6:00) for about six days ahead, and the next 24 hours
+  hour by hour.
+- `/when/api/weather` gives it to the pages in a small shape (`readForecast`), kept half an hour in
+  each Cloudflare data centre (a few minutes when ECCC can't be reached, which shows no weather).
+  Under test it gives none; the browser tests hand the page their own.
+- A page asks only when one of the days asked about is in the coming week, and again when it comes
+  back to the front half an hour later.
+- A slot goes by the hours still to come when the next 24 cover them (the wettest hour's sky, the
+  most likely chance, the average temperature), and otherwise by its day or night: 凌晨 with the
+  night before, 晚上 with its own night, the rest of the day with the day (with its high; a night
+  with its low). A time set or found to the minute goes by those minutes.
+- The icons are Lucide's (`lucide-preact`), as on the rest of changle.ca; its licence is in the
+  built `licences.txt` with the fonts'.
 
 ### Periods of the day
 
