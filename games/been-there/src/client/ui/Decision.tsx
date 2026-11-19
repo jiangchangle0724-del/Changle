@@ -35,7 +35,40 @@ export function pendingSummary(v: RoomView): string {
   const pd = s.pending;
   if (!pd) return "";
   const name = (seat: number) => seatName(v, seat);
+  // Who is deciding, and the question they see (without the small print in brackets at its end).
+  const asks = (who: number, key: Key, vars?: Record<string, string | number>) =>
+    `${name(who)} · ${t(key, vars).replace(/\s*[（(][^（）()]*[）)]$/, "")}`;
   switch (pd.k) {
+    case "permit":
+      return asks(pd.who, "permitAsk");
+    case "card-route":
+      return asks(pd.who, "pickRoute");
+    case "card-player":
+      return asks(pd.who, "pickPlayer");
+    case "card-house":
+      return asks(pd.who, pd.card === "review" ? "pickReview" : pd.card === "typhoon" ? "pickTyphoon" : "pickCash");
+    case "koi":
+      return asks(pd.who, "koiAsk", { rent: money(pd.rent) });
+    case "tango":
+      return asks(pd.who, "tangoAsk");
+    case "ban":
+      return asks(pd.who, "banAsk");
+    case "dance":
+      return asks(pd.who, "danceAsk", { secs: TIMING.dance / 1000 });
+    case "mumbai":
+      return asks(pd.who, "mumbaiAsk");
+    case "peek":
+      return asks(pd.who, "peekAsk");
+    case "bet":
+      return asks(pd.who, "betAsk");
+    case "jump":
+      return asks(pd.who, "jumpAsk", { space: spaceName((s.ps[pd.who].pos + BOARD_SIZE / 2) % BOARD_SIZE) });
+    case "reverse":
+      return asks(pd.who, "reverseAsk");
+    case "sales":
+      return asks(pd.who, "salesAsk");
+    case "policy":
+      return asks(pd.who, "policyAsk");
     case "auction":
       return t("auction", { space: spaceName(pd.at) });
     case "water":

@@ -59,10 +59,10 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   squashed as it lands, and settles; clods fly, dust puffs out both ways and a ring of dust spreads.
   Houses one after another, a hotel floor by floor with its roof dropping on (0.8 s each, 0.16 s
   apart). On a laptop and the big screen a big one comes up first where it's going to stand, 3.2 times
-  its size, lands with a jolt that shakes it and shrinks to its place (`BuildFx`); on a phone, where
-  the 我的 sheet covers the board, the city's row in the list has its own ground with the same moment
-  at twice the size (`Lot`), and the map looks at the city for 2.6 s once the sheet is down (`look` in
-  `ui/mapView.ts`). Sold, a building sinks back into the ground in dust; with a sound for each: a
+  its size, lands with a jolt that shakes it and shrinks to its place (`BuildFx`); on a phone the city's
+  row in the 我的 sheet has its own ground with the same moment at twice the size (`Lot`), and above
+  the sheet the city lights up and the map looks at it for 2.6 s as it's tapped (`ui/spot.ts`, `look`
+  in `ui/mapView.ts`), so the building comes up in sight there too. Sold, a building sinks back into the ground in dust; with a sound for each: a
   rumble, a thunk for each part landing and a chime (a hotel's a chord and a bell), a sinking one, and
   a card turned for a mortgage. What was there when the board first drew stays still.
 * **Life between moves.** Every 2.4 s one thing on the board moves for a second: a token that isn't on
@@ -139,7 +139,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | `src/client/sound.ts`, `controls.ts`, `fullscreen.ts`, `keyboard.ts` | Sounds; vibration and shake to roll; full screen; sheets above a phone's keyboard. |
 | `src/client/music.ts`, `ui/localSong.ts`, `ui/Local.tsx`, `src/client/local.ts`, `src/client/songs.json` | Being there: the local hit a second visit plays (the player; which song, when, on which device; "Now playing"), the arrival card's local part, prices in local money, and the data (songs, hellos, exchange rates). |
 | `src/client/bgm.ts`, `ui/bgmPlan.ts`, `ui/Bgm.tsx`, `src/client/bgm.json`, `src/client/media/music/`, `scripts/music.mjs`, `scripts/music/` | The game's music: the player; what plays, how loud and on which device; the files and their loop points; the score and the script that plays and mixes it. |
-| `src/client/i18n.ts` | Every word on screen, in Chinese and English. |
+| `src/client/i18n.ts` | Every word on screen, in Chinese and English. In Chinese a name filled in (a team's, a player's, a city's: `NAMES`) sits right against the Chinese round it, 「红队到了开罗」; the strings keep their spaces for a name in letters, and next to a number, money or English the space stays: 「还有 3 轮」, 「等 Steve …」 (`t`). |
 
 ## Tokens
 
@@ -593,6 +593,22 @@ on the board skips to the stamp, a second past it. Worst case, from the press to
   spread round the board), above the play window, zooming in to the middle size at least so it can
   reach either side of the board (`aim` in `ui/mapView.ts`); on the phone asked, even after a drag.
   With reduced motion it's lit and still.
+* **What the others are asked.** While a team answers a question, the phones waiting and the big
+  screen say what it is, in the words the team reads, after its name: 「电脑 · 稳健 · 中轴线：跳到正对面
+  的开普敦？」 (`pendingSummary` in `ui/Decision.tsx`). The small print in brackets at the end of a
+  question is the asked team's alone (a tango's "if they refuse, they pay you $50") and is left off. A
+  throw or the end of a turn is still just 「等 X …」.
+* **A city tapped on a phone** (`ui/spot.ts`): one tapped in 我的 (its row, or build, sell, mortgage,
+  redeem), the cities ticked in a trade being made (the one just ticked brightest), an offer's cities
+  as it comes in for the team, as the trades are opened, and as it's tapped. The board lights them as
+  it lights a question's space, but only for 2.6 s (`flash`: two breaths, then out), and the map looks
+  at the first for as long, pushed in to the middle size at least, above the sheet. A house built from
+  我的 has been looked at as it was tapped: the map doesn't look again as it comes up. On a phone held
+  upright 我的 and the trades are half-height sheets (at most 55% of the screen, `Sheet half` in
+  `ui/common.tsx`), the board above them neither dimmed nor blurred, so the light shows; the play
+  window, under the sheet anyway, steps aside meanwhile, and the map keeps what it follows above the
+  sheet (`cover`). The menu, the log and a city's card are whole sheets as before. With reduced motion
+  the light is there for the 2.6 s, still.
 * **A token sent straight to a space** (`straight` in `art/RoundBoard.tsx`, `straightMoves` in
   `ui/Board.tsx`) flies there over the middle of the board in one long hop (1.1 s), rather than
   walking half the ring: Beijing's jump (along the path the question showed), an Air Miles card's

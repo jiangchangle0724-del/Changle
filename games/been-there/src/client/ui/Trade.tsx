@@ -1,9 +1,10 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { GROUP_SPACES, activePlayers, canGive, groupAt, priceOf, type Offer } from "../../engine";
 import type { RoomView } from "../../room/protocol";
 import { cardTitle, money, spaceName, t } from "../i18n";
 import { send } from "../store";
 import { Btn, Countdown, SeatChip, seatName } from "./common";
+import { spot } from "./spot";
 
 /** The most a trade may ask of a team whose money is hidden. */
 const HIDDEN_CAP = 99_990;
@@ -13,10 +14,21 @@ const offerText = (o: Offer) => {
   return parts.length ? parts.join(" + ") : t("nothing");
 };
 
-export function Trade({ v }: { v: RoomView }) {
+/** The cities a trade is about, the ones asked for first. */
+const citiesOf = (o: { give: Offer; get: Offer }) => [...o.get.deeds, ...o.give.deeds];
+
+/** The trades (`shown`: where the player sees them, open on a phone): the cities an offer is about light
+ * up on the board for a moment (ui/spot.ts) as one comes in for this team, when the trades are opened,
+ * and when the offer is tapped; and the ones in an offer being made, as they're picked. */
+export function Trade({ v, shown = true }: { v: RoomView; shown?: boolean }) {
   const g = v.game!;
   const mine = v.you.seats;
   const seat = mine[0];
+  const coming = g.trades.filter((o) => mine.includes(o.to) && citiesOf(o).length);
+  const newest = coming[coming.length - 1];
+  useEffect(() => {
+    if (shown && newest) spot(citiesOf(newest));
+  }, [shown, newest?.id]);
   return (
     <div class="trade">
       <h3>{t("trades")}</h3>
@@ -26,7 +38,7 @@ export function Trade({ v }: { v: RoomView }) {
           const incoming = mine.includes(o.to);
           const outgoing = mine.includes(o.from);
           return (
-            <li key={o.id} class={incoming ? "incoming" : ""}>
+            <li key={o.id} class={incoming ? "incoming" : ""} onClick={() => citiesOf(o).length && spot(citiesOf(o))}>
               <p>
                 {incoming ? t("offerFrom", { from: seatName(v, o.from) }) : outgoing ? t("offerTo", { to: seatName(v, o.to) }) : t("offerBetween", { from: seatName(v, o.from), to: seatName(v, o.to) })}{" "}
                 <Countdown until={o.expiresAt} />
@@ -75,8 +87,14 @@ function Composer({ v, seat }: { v: RoomView; seat: number }) {
         return grp === null || GROUP_SPACES[grp].every((x) => s.deeds[x]!.owner !== p || s.deeds[x]!.houses === 0);
       })
       .map((x) => x.at);
-  const toggle = (o: Offer, set: (o: Offer) => void, at: number) =>
-    set({ ...o, deeds: o.deeds.includes(at) ? o.deeds.filter((x) => x !== at) : [...o.deeds, at] });
+  const toggle = (o: Offer, set: (o: Offer) => void, at: number) => {
+    const picked = !o.deeds.includes(at);
+    const next = { ...o, deeds: picked ? [...o.deeds, at] : o.deeds.filter((x) => x !== at) };
+    set(next);
+    // (the offer's cities light up as they're picked, the one just picked first)
+    const all = o === give ? [...next.deeds, ...get.deeds] : [...give.deeds, ...next.deeds];
+    spot(picked ? [at, ...all.filter((x) => x !== at)] : all);
+  };
   const toggleCard = (o: Offer, set: (o: Offer) => void, c: string) =>
     set({ ...o, cards: o.cards.includes(c) ? o.cards.filter((x) => x !== c) : [...o.cards, c] });
   const pd = s.pending;

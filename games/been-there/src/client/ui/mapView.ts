@@ -7,9 +7,11 @@
 // The view follows the token of the team on turn, in step as it walks (so it never shows where a token
 // will land before it gets there), until the player drags the map to look round: then it stays where
 // they left it until the turn passes or the size changes. With the play window up over the bottom of
-// the board, the token stands in the middle of the part the window leaves (`cover`). While a question
+// the board, the token stands in the middle of the part the window leaves (`cover`); under a half sheet
+// (Mine, the trades) the board may go up past its bottom edge for it (`past`). While a question
 // about a space is up (where a jump would land: ui/aim.ts), the view looks at that space instead, zoomed
-// in at least to the middle size (`aim`). This phone's own move (ui/Ride.tsx) takes the
+// in at least to the middle size (`aim`); a city tapped in a sheet, for a moment (ui/spot.ts, `look`).
+// This phone's own move (ui/Ride.tsx) takes the
 // view over where the map is (release), its camera starting from there and coming back to the map's
 // size over where the token landed (adopt): one camera, no jump at either end. Every change of view
 // eases toward where it's going; with reduced motion it is simply there.
@@ -32,8 +34,8 @@ const FRICTION = 5;
  * (ridePlan.ts) and takes up to 1.8 s. */
 const WATCH_MS = 6000;
 /** How long the view stays on a city this phone builds on (it comes up out of the ground: 0.8 s, a
- * hotel 1.3 s) before it goes back to the team on turn. */
-const LOOK_MS = 2600;
+ * hotel 1.3 s), or one tapped (ui/spot.ts), before it goes back to the team on turn. */
+export const LOOK_MS = 2600;
 /** Where on a city the view looks: between its buildings and its name (board units from the middle). */
 const LOOK_R = 385;
 
@@ -72,6 +74,10 @@ export interface MapViewOptions {
   /** How much of the box (px, from its bottom) the play window covers on a phone, while it's up: what
    * the view follows stands in the middle of the part it leaves, not of the whole box. */
   cover?: number;
+  /** What `cover` covers isn't to be seen at all (a half sheet, Mine or the trades: not the play window,
+   * which a move's camera takes over from): the view may go past the board's bottom edge by as much, so
+   * a city at the bottom of the board still shows above it. */
+  past?: boolean;
 }
 
 /** How this phone's own move takes the view over, and gives it back (ui/Ride.tsx). */
@@ -112,6 +118,8 @@ interface View {
   lookFrom: number;
   lookUntil: number;
   lookPush: number;
+  /** How far the view may go past the board's bottom edge now (board units, `past`): it eases there. */
+  past: number;
   raf: number;
   last: number;
   shown: string;
@@ -120,7 +128,7 @@ interface View {
 export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLDivElement>, rig: RefObject<Rig | null>, o: MapViewOptions): MapView {
   const opts = useRef(o);
   opts.current = o;
-  const view = useRef<View>({ cx: 0, cy: 0, z: Math.max(1, o.zoom), held: false, ridden: false, w: 0, h: 0, vx: 0, vy: 0, until: 0, lookAt: null, lookFrom: 0, lookUntil: 0, lookPush: 1, raf: 0, last: 0, shown: "" });
+  const view = useRef<View>({ cx: 0, cy: 0, z: Math.max(1, o.zoom), held: false, ridden: false, w: 0, h: 0, vx: 0, vy: 0, until: 0, lookAt: null, lookFrom: 0, lookUntil: 0, lookPush: 1, past: 0, raf: 0, last: 0, shown: "" });
   const kick = useRef<(watch?: number) => void>(() => {});
   const write = useRef<() => void>(() => {});
 
@@ -135,12 +143,22 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
     const looking = (now = performance.now()) => v.lookAt !== null && now >= v.lookFrom && now < v.lookUntil;
     /** The zoom the view eases to: the size picked, or more while it pushes in on a city (or a question's). */
     const goal = () => Math.max(1, opts.current.zoom, looking() ? v.lookPush : 1, opts.current.aim?.push ?? 1);
+    /** How far past the board's bottom edge the view may go at zoom `z`: as far as a half sheet covers. */
+    const pastGoal = (z: number) => {
+      const o = opts.current;
+      return o.past && o.cover && v.h ? Math.min(o.cover, v.h * 0.8) * (1000 / (z * v.h)) : 0;
+    };
+    /** The middle of the view up and down, kept on the board (and up to `v.past` past its bottom edge). */
+    const keepY = (c: number, z: number) => {
+      const lim = Math.max(0, 500 - 500 / z);
+      return Math.max(-lim, Math.min(lim + v.past, c));
+    };
     write.current = () => {
       const { z, w, h } = v;
       let tf = "";
       if (!v.ridden && z > 1.0005 && w > 0) {
         const px = ((keepIn(v.cx, z) + 500) / 1000) * z * w - w / 2;
-        const py = ((keepIn(v.cy, z) + 500) / 1000) * z * h - h / 2;
+        const py = ((keepY(v.cy, z) + 500) / 1000) * z * h - h / 2;
         tf = `translate(${(-px).toFixed(1)}px, ${(-py).toFixed(1)}px) scale(${z.toFixed(4)})`;
       }
       if (tf !== v.shown) {
@@ -194,11 +212,18 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
         v.z += (zt - v.z) * (1 - Math.exp(-dt / EASE_ZOOM));
         if (Math.abs(zt - v.z) < 0.002) v.z = zt;
       }
-      let busy = v.z !== zt || drag.on;
+      // (a half sheet up over the bottom: the board may go up past its edge as far, easing there and back)
+      const pt = pastGoal(zt);
+      if (still) v.past = pt;
+      else {
+        v.past += (pt - v.past) * (1 - Math.exp(-dt / EASE_ZOOM));
+        if (Math.abs(pt - v.past) < 0.5) v.past = pt;
+      }
+      let busy = v.z !== zt || v.past !== pt || drag.on;
       if (!drag.on && (v.vx || v.vy)) {
         // a flick glides on
         v.cx = keepIn(v.cx + v.vx * dt, zt);
-        v.cy = keepIn(v.cy + v.vy * dt, zt);
+        v.cy = keepY(v.cy + v.vy * dt, zt);
         const f = Math.exp(-FRICTION * dt);
         v.vx *= f;
         v.vy *= f;
@@ -210,7 +235,7 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
           // (the play window up over the bottom of the box: in the middle of what it leaves)
           const lift = o.cover && v.h ? (Math.min(o.cover, v.h * 0.8) / 2) * (1000 / (zt * v.h)) : 0;
           const tx = keepIn(t[0], zt);
-          const ty = keepIn(t[1] + lift, zt);
+          const ty = keepY(t[1] + lift, zt);
           const k = still ? 1 : 1 - Math.exp(-dt / EASE_FOLLOW);
           v.cx += (tx - v.cx) * k;
           v.cy += (ty - v.cy) * k;
@@ -269,14 +294,14 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
         box.classList.add("dragging");
         // from where the map is drawn now (a follow or a glide may have been under way)
         v.cx = keepIn(v.cx, goal());
-        v.cy = keepIn(v.cy, goal());
+        v.cy = keepY(v.cy, goal());
         kick.current();
       }
       const unit = 1000 / (v.z * Math.max(1, v.w));
       const dx = (e.clientX - drag.x) * unit;
       const dy = (e.clientY - drag.y) * unit;
       v.cx = keepIn(v.cx - dx, goal());
-      v.cy = keepIn(v.cy - dy, goal());
+      v.cy = keepY(v.cy - dy, goal());
       const dt = Math.max(8, e.timeStamp - drag.t) / 1000;
       drag.vx = 0.6 * (-dx / dt) + 0.4 * drag.vx;
       drag.vy = 0.6 * (-dy / dt) + 0.4 * drag.vy;
@@ -336,7 +361,7 @@ export function useMapView(wrap: RefObject<HTMLDivElement>, pan: RefObject<HTMLD
   // The token moves on: ease along with it. (The play window comes up or goes: make room.)
   useEffect(() => {
     kick.current(WATCH_MS);
-  }, [o.moveKey, o.follow, o.reduced, o.cover]);
+  }, [o.moveKey, o.follow, o.reduced, o.cover, o.past]);
   // A city built on: look at it for a moment (even after a drag), then back to the team on turn.
   useEffect(() => {
     const v = view.current;

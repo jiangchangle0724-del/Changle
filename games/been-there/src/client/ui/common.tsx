@@ -212,8 +212,10 @@ export function GameTitle() {
   );
 }
 
-/** A sheet rising from the bottom. `hidden` keeps it built while closed (a half-made offer survives). */
-export function Sheet({ title, onClose, children, hidden }: { title: string; onClose: () => void; children: ComponentChildren; hidden?: boolean }) {
+/** A sheet rising from the bottom. `hidden` keeps it built while closed (a half-made offer survives).
+ * `half`: on a phone held upright it rises only over the bottom of the screen, the board still to be seen
+ * above it (Mine and the trades: a city tapped in them lights up there, ui/spot.ts). */
+export function Sheet({ title, onClose, children, hidden, half }: { title: string; onClose: () => void; children: ComponentChildren; hidden?: boolean; half?: boolean }) {
   useEffect(() => {
     if (hidden) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -221,8 +223,8 @@ export function Sheet({ title, onClose, children, hidden }: { title: string; onC
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose, hidden]);
   return (
-    <div class="sheet-bg" hidden={hidden} onClick={onClose}>
-      <div class="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
+    <div class={half ? "sheet-bg half" : "sheet-bg"} hidden={hidden} onClick={onClose}>
+      <div class={half ? "sheet half" : "sheet"} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <header>
           <h2>{title}</h2>
           <button type="button" class="x" aria-label={t("close")} onClick={onClose}>
