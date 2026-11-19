@@ -53,9 +53,14 @@ export const prefs = {
   set name(v: string) {
     set("sb.name", v);
   },
+  /**
+   * What this phone chose; otherwise Chinese in WeChat and the phone's language anywhere else (Steve,
+   * 2026-11-14, for the whole site).
+   */
   get lang(): Lang {
     const v = get("sb.lang");
     if (v === "zh" || v === "en") return v;
+    if (inWeChat()) return "zh";
     return typeof navigator !== "undefined" && navigator.language && !/^zh/i.test(navigator.language) ? "en" : "zh";
   },
   set lang(v: Lang) {

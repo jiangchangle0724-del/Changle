@@ -300,3 +300,25 @@ test("a place that is two cuisines counts for whoever liked either, and its card
   await expect(page.locator(".place", { hasText: "新疆烤串" }).locator(".reason", { hasText: "有人想吃这类" })).toBeVisible();
   expect(me.errors).toEqual([]);
 });
+
+/** WeChat's own browser on an iPhone set to English (WeChat says so in its user agent too). */
+const WECHAT = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.50(0x18003200) NetType/WIFI Language/en";
+
+test("the phone's language, but Chinese in WeChat; a choice made there stays (Steve, 2026-11-14)", async ({ browser }) => {
+  const use = test.info().project.use;
+  // A phone set to English: English in its own browser…
+  const own = await (await browser.newContext({ ...use, locale: "en-US" })).newPage();
+  await own.goto("/eat/");
+  await expect(own.locator("html")).toHaveAttribute("lang", "en");
+  await expect(own.locator("h1")).toHaveText("Whatever's Fine");
+  // …and Chinese in WeChat.
+  const wechat = await (await browser.newContext({ ...use, locale: "en-US", userAgent: WECHAT })).newPage();
+  await wechat.goto("/eat/");
+  await expect(wechat.locator("html")).toHaveAttribute("lang", "zh-CN");
+  await expect(wechat.locator("h1")).toHaveText("随便");
+  // The switch still works there, and what was chosen stays.
+  await wechat.getByRole("button", { name: "English" }).click();
+  await expect(wechat.locator("h1")).toHaveText("Whatever's Fine");
+  await wechat.reload();
+  await expect(wechat.locator("html")).toHaveAttribute("lang", "en");
+});

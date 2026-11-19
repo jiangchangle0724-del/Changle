@@ -189,6 +189,10 @@ street number ("150-8888 River Rd") still match.
   the rest of the site never sees it.
 * **The site's side** (the card in the site's Tools tab that opens `/eat`) is in the site's code,
   next to 到此一游's card.
+* **Language**, the same as the rest of the site (Steve, 2026-11-14): what the phone chose with the
+  中文 / English button; otherwise Chinese inside WeChat (its user agent says `MicroMessenger`) and
+  the phone's language anywhere else (`prefs.lang` in `src/client/prefs.ts`). A table searches and
+  writes its cards in the host's language.
 
 ## What's where
 
