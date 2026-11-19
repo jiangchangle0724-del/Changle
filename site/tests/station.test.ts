@@ -43,28 +43,31 @@ ok(
   "each day of the week starts at midnight and its moods follow in order",
 );
 
-// Vancouver's clock (the times sit away from the hour, so a change to its daylight time can't move them into another mood)
+// Vancouver's clock: UTC-7 all year (BC keeps daylight time from March 2026), the same on every phone
 const cases: [string, Mood, string][] = [
-  ["2026-11-21T05:30:00Z", "party", "Friday 9:30 at night"],
-  ["2026-11-21T09:30:00Z", "party", "Saturday 1:30 in the morning: Friday's party goes on"],
-  ["2026-11-21T18:00:00Z", "brunch", "Saturday 10 in the morning"],
-  ["2026-11-22T22:30:00Z", "day", "Sunday 2:30 in the afternoon"],
-  ["2026-11-23T03:30:00Z", "night", "Sunday 7:30 in the evening"],
-  ["2026-11-23T16:00:00Z", "morning", "Monday 8 in the morning"],
-  ["2026-11-24T06:30:00Z", "night", "Monday 10:30 at night"],
-  ["2026-11-24T11:00:00Z", "late", "Tuesday 3 in the morning"],
-  ["2026-11-25T02:30:00Z", "evening", "Tuesday 6:30 in the evening"],
-  ["2026-07-05T05:30:00Z", "party", "a Saturday night in July (daylight time)"],
+  ["2026-11-21T02:59:59Z", "evening", "Friday 7:59:59 in the evening"],
+  ["2026-11-21T03:00:00Z", "party", "Friday 8 in the evening: the party starts"],
+  ["2026-11-21T09:30:00Z", "party", "Saturday 2:30 in the morning: Friday's party goes on"],
+  ["2026-11-21T10:00:00Z", "late", "Saturday 3 in the morning: winding down"],
+  ["2026-11-21T17:00:00Z", "brunch", "Saturday 10 in the morning"],
+  ["2026-11-22T21:30:00Z", "day", "Sunday 2:30 in the afternoon"],
+  ["2026-11-23T02:30:00Z", "night", "Sunday 7:30 in the evening"],
+  ["2026-11-23T15:00:00Z", "morning", "Monday 8 in the morning"],
+  ["2026-11-24T05:30:00Z", "night", "Monday 10:30 at night"],
+  ["2026-11-24T10:00:00Z", "late", "Tuesday 3 in the morning"],
+  ["2026-11-25T01:30:00Z", "evening", "Tuesday 6:30 in the evening"],
+  ["2026-07-05T05:30:00Z", "party", "a Saturday night in July"],
   ["2026-07-06T19:30:00Z", "day", "a Monday afternoon in July"],
 ];
 for (const [iso, mood, what] of cases) ok(moodAt(at(iso)) === mood, `${what}: ${MOOD_NAME[mood].en}`);
 
 const fri = runAt(at("2026-11-21T05:30:00Z"));
+ok(fri.start === at("2026-11-21T03:00:00Z") && fri.end === at("2026-11-21T10:00:00Z"), "Friday's party: from 8 in the evening, Vancouver time");
 ok(fri.mood === "party" && fri.end - fri.start === 7 * HOUR, "Friday's party runs seven hours without a break, 8 at night to 3");
 ok(moodAt(fri.start - 1) !== "party" && moodAt(fri.end) !== "party", "and it starts and ends where the mood changes");
 
 // a week of songs, one after another
-const from = at("2026-11-23T08:00:00Z"); // Monday, midnight in Vancouver
+const from = at("2026-11-23T07:00:00Z"); // Monday, midnight in Vancouver
 let s: Slot = slotAt(from);
 let count = 0;
 let gaps = 0;

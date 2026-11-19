@@ -17,7 +17,12 @@ export { FORM, sectionStyle } from "./nightset";
 export type Mood = "late" | "morning" | "brunch" | "day" | "evening" | "party" | "night";
 
 const HOUR = 3_600_000;
-const ZONE = "America/Vancouver";
+/**
+ * Vancouver's time: BC keeps daylight time all year from March 2026, so UTC-7. Written down here
+ * rather than asked of the phone's time zone data: a phone that hasn't had that update would put
+ * Vancouver an hour out, and play another song than the phone beside it.
+ */
+const VANCOUVER = -7 * HOUR;
 
 /** From which hour each mood plays, Sunday first (as `Date#getDay`); a night runs on past midnight. */
 const WEEKDAY: [number, Mood][] = [
@@ -80,24 +85,9 @@ export const MOOD_NAME: Record<Mood, { zh: string; en: string }> = {
   night: { zh: "夜里慢慢来", en: "Late evening" },
 };
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-let fmt: Intl.DateTimeFormat | null = null;
-
 /** Vancouver's day of the week (0 is Sunday) and hour at a moment. */
 export function vancouver(ms: number): { day: number; hour: number } {
-  try {
-    fmt ??= new Intl.DateTimeFormat("en-US", { timeZone: ZONE, weekday: "short", hour: "numeric", hourCycle: "h23" });
-    let day = -1;
-    let hour = -1;
-    for (const p of fmt.formatToParts(ms)) {
-      if (p.type === "weekday") day = DAYS.indexOf(p.value);
-      else if (p.type === "hour") hour = Number(p.value) % 24;
-    }
-    if (day >= 0 && hour >= 0) return { day, hour };
-  } catch {
-    /* a browser without time zones: Pacific standard time below */
-  }
-  const d = new Date(ms - 8 * HOUR);
+  const d = new Date(ms + VANCOUVER);
   return { day: d.getUTCDay(), hour: d.getUTCHours() };
 }
 
