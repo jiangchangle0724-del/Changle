@@ -475,10 +475,13 @@ export function demoPlaces(center: Center, range: RangeId, now: number, lang: La
     const name = typeof names === "string" ? names : names[lang === "zh" ? 0 : 1];
     const angle = (i * 137.5 * Math.PI) / 180;
     const dist = r * (0.15 + ((i * 37) % 80) / 100);
-    // What it is comes from its own name: "示例" in front would make every place look Chinese.
+    // What it is comes from its own name and description, as Google's would: "示例" in front would
+    // make every place look Chinese.
+    const about = DEMO_ABOUT[i]?.[lang];
     const p = fromGoogle({
       id: `demo-${i}`,
       displayName: { text: name },
+      ...(about ? { editorialSummary: { text: about } } : {}),
       primaryType: type,
       location: { latitude: center.lat + (dist * Math.cos(angle)) / 111_320, longitude: center.lng + (dist * Math.sin(angle)) / (111_320 * Math.cos((center.lat * Math.PI) / 180)) },
       rating,
@@ -489,8 +492,7 @@ export function demoPlaces(center: Center, range: RangeId, now: number, lang: La
       servesVegetarianFood: type === "vegan_restaurant" || type === "indian_restaurant" || type === "italian_restaurant" ? true : undefined,
       ...DEMO_TRAITS[i],
     })!;
-    const about = DEMO_ABOUT[i]?.[lang];
-    return { ...p, name: `${lang === "zh" ? "示例" : "Demo"} · ${name}`, demo: true, phone: "604-555-0" + String(100 + i), mapsUrl: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`, ...(about ? { about } : {}), ...DEMO_EXTRA[i] };
+    return { ...p, name: `${lang === "zh" ? "示例" : "Demo"} · ${name}`, demo: true, phone: "604-555-0" + String(100 + i), mapsUrl: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`, ...DEMO_EXTRA[i] };
   });
 }
 
@@ -501,6 +503,7 @@ const DEMO_ABOUT: Record<number, Text> = {
   5: { zh: "示例：浓郁的豚骨拉面，吧台位出餐快", en: "Demo: rich tonkotsu ramen at a quick counter" },
   8: { zh: "示例：河粉和越南法包，开到很晚", en: "Demo: pho and banh mi, open late" },
   14: { zh: "示例：高档海鲜餐厅，有包间", en: "Demo: an upscale seafood room with a private dining room" },
+  23: { zh: "示例：韩国烤肉放题，两小时任点", en: "Demo: all-you-can-eat Korean BBQ, two hours to order" },
   26: { zh: "示例：浪漫的法式小酒馆，酒单很长", en: "Demo: an intimate French bistro with a long wine list" },
   28: { zh: "示例：休闲的早午餐店，班尼迪克蛋和松饼", en: "Demo: a casual spot for eggs benedict and pancakes" },
 };
