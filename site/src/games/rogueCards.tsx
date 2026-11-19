@@ -267,10 +267,17 @@ export function RogueTable({
           {Array.from({ length: n }, (_, i) => (
             <span key={i} className="rg-under" style={{ ["--i" as string]: n - i }} aria-hidden="true" />
           ))}
-          <button type="button" className="rg-back" onClick={onDraw} disabled={!canDraw} aria-label={drawLabel}>
-            <CardBack />
-            {canDraw && <span className="rg-draw">{drawLabel}</span>}
-          </button>
+          {/* a button only when it can be drawn from, named by the word on its pill; otherwise just the deck */}
+          {canDraw ? (
+            <button type="button" className="rg-back" onClick={onDraw}>
+              <CardBack />
+              <span className="rg-draw">{drawLabel}</span>
+            </button>
+          ) : (
+            <div className="rg-back" aria-hidden="true">
+              <CardBack />
+            </div>
+          )}
           {empty && <span className="rg-empty" aria-hidden="true" />}
         </div>
 
@@ -413,10 +420,16 @@ export function PlayingCard({ card, onDraw, drawLabel, canDraw = true }: { card:
         <div className="rg-deck">
           <span className="rg-under" style={{ ["--i" as string]: 2 }} aria-hidden="true" />
           <span className="rg-under" style={{ ["--i" as string]: 1 }} aria-hidden="true" />
-          <button type="button" className="rg-back" onClick={onDraw} disabled={!canDraw} aria-label={drawLabel || undefined}>
-            <CardBack />
-            {canDraw && drawLabel && <span className="rg-draw">{drawLabel}</span>}
-          </button>
+          {canDraw && drawLabel ? (
+            <button type="button" className="rg-back" onClick={onDraw}>
+              <CardBack />
+              <span className="rg-draw">{drawLabel}</span>
+            </button>
+          ) : (
+            <div className="rg-back" aria-hidden="true">
+              <CardBack />
+            </div>
+          )}
         </div>
       )}
     </div>
