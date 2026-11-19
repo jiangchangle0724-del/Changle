@@ -4,7 +4,9 @@
  * and scans while it is. Each row then says what was read (the business, the day, the place) and
  * its amount, to put right, or to type when nothing was read; one cleared is left out. One button
  * records them all: paid by you, shared by everyone, each with its photo, to change later like any
- * other. Photos not recorded go from the server again when the page closes.
+ * other. Photos not recorded go from the server again when the page closes. A receipt that looks
+ * like one already recorded, or like one before it here, is left out, its row saying so (twins.ts):
+ * typing its amount back records it after all.
  */
 import { ReceiptText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -15,14 +17,15 @@ import { useToast } from "../ui/Toast";
 import { applyChange, type Change } from "./changes";
 import { nextRot, type Ledger } from "./core";
 import { blankDraft, draftProblem, rated, readInto, saying, type Draft } from "./draft";
-import { decimalsOf, localDay, signOf } from "./format";
+import { decimalsOf, localDay, money, signOf } from "./format";
 import { asAmountText } from "./input";
-import { dayLabel } from "./lines";
+import { dayLabel, spentOn } from "./lines";
 import { Bar } from "./parts";
 import { Thumb } from "./Photos";
 import { TROUBLE_WORD } from "./photos";
 import { newId } from "./store";
 import { dropPhoto, readPhoto, record, sendPhoto } from "./syncing";
+import { saidOf, twinsOf, type Said, type Twin } from "./twins";
 import { say, type Word } from "./words";
 
 /** As many receipts as one go takes (a day's reading has room for 30), and how many go and are read together. */
@@ -37,6 +40,10 @@ type Row = {
   draft: Draft;
   read: boolean;
   trouble?: Word;
+  /** what its receipt says, to know it again; what it looks like, when it was left out for that; its amount typed since */
+  said?: Said | null;
+  twin?: Twin;
+  touched?: boolean;
 };
 
 type Props = { ledger: Ledger; me: string | undefined; files: File[]; lang: Lang; onClose: () => void; onSaved: (ids: string[]) => void };
@@ -60,18 +67,30 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
     setRows((rs) => rs.map((r) => (r.draft.asking ? { ...r, draft: rated(r.draft, ledger, rates, noRates) } : r)));
   }, [someAsking, rates, noRates, ledger]);
   const kept = useRef(new Set<string>());
-  const left = useRef(false);
+  const ledgerNow = useRef(ledger);
+  ledgerNow.current = ledger;
   const put = (n: number, to: Partial<Row>) => setRows((all) => all.map((r, i) => (i === n ? { ...r, ...to } : r)));
+  // each time one is read: any row read that looks like one recorded, or like one before it that will
+  // be, is left out (its amount emptied), unless its amount was typed; once left out, it stays so
+  const mark = (all: Row[]): Row[] => {
+    const twins = twinsOf(all.map((r) => ({ said: r.status === "done" ? r.said : null, kept: !!r.draft.text })), ledgerNow.current);
+    return all.map((r, i) => {
+      const twin = twins[i];
+      return twin && !r.twin && !r.touched ? { ...r, twin, draft: { ...r.draft, text: "" } } : r;
+    });
+  };
 
-  // each photo goes, then is read; a few at a time, in the order they were chosen
+  // each photo goes, then is read; a few at a time, in the order they were chosen. (Each time this
+  // runs it stops by itself once closed: in development it runs twice, and the first run's photos go
+  // from the server again as they get there, so each receipt goes and is read once.)
   useEffect(() => {
-    left.current = false;
+    let gone = false;
     let next = 0;
     const one = async (): Promise<void> => {
       const n = next++;
-      if (n >= files.length || left.current) return;
+      if (n >= files.length || gone) return;
       const sent = await sendPhoto(ledger.id, files[n]);
-      if (left.current) {
+      if (gone) {
         if (sent.ok) dropPhoto(ledger.id, sent.file);
         return;
       }
@@ -79,16 +98,17 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
       else {
         put(n, { status: "reading", file: sent.file });
         const got = await readPhoto(ledger.id, sent.file);
-        if (left.current) return;
+        if (gone) return;
         const filled = got && got !== "off" ? readInto(rowsNow.current[n].draft, got, ledger, ratesNow.current, Date.now()) : null;
-        put(n, filled ? { status: "done", draft: filled, read: true } : { status: "done" });
+        const to: Partial<Row> = filled ? { status: "done", draft: filled, read: true, said: saidOf(filled, localDay(Date.now())) } : { status: "done" };
+        setRows((all) => mark(all.map((r, i) => (i === n ? { ...r, ...to } : r))));
       }
       return one();
     };
     for (let k = 0; k < AT_ONCE; k++) void one();
     // (closed: the photos nothing keeps go from the server again)
     return () => {
-      left.current = true;
+      gone = true;
       for (const r of rowsNow.current) if (r.file && !kept.current.has(r.file)) dropPhoto(ledger.id, r.file);
     };
   }, []);
@@ -154,21 +174,24 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
                     : say(lang, "receiptsNone");
           // (in another currency with no rate to be had, it can't be recorded here: said, so the count adds up)
           const noRate = r.status === "done" && draftProblem(r.draft, ledger)?.what === "rate";
-          const about = noRate ? say(lang, "receiptsNoRate", { currency: r.draft.currency }) : r.read ? [dayLabel(r.draft.date || today, today, lang), r.draft.place].filter(Boolean).join(" · ") : "";
+          // (left out as one seen before: said, until its amount is typed back)
+          const twin = r.twin && !r.touched ? r.twin : null;
+          const twinSaid = !twin ? "" : "ledger" in twin ? say(lang, "receiptsTwinSeen", { what: `${dayLabel(spentOn(twin.ledger), today, lang)} ${money(r.said?.total ?? 0, r.said?.currency ?? r.draft.currency, lang)}` }) : say(lang, "receiptsTwinRow", { n: twin.row + 1 });
+          const about = twinSaid || (noRate ? say(lang, "receiptsNoRate", { currency: r.draft.currency }) : r.read ? [dayLabel(r.draft.date || today, today, lang), r.draft.place].filter(Boolean).join(" · ") : "");
           return (
             <li key={i} className={`split-batch-row${r.status === "failed" ? " is-off" : ""}`}>
               {/* the photo, with the scan's band over it while it goes and is read */}
               <span className={`split-batch-thumb${scanning ? " is-scanning" : ""}`}>{r.file ? <Thumb ledger={ledger.id} file={r.file} lang={lang} /> : <ReceiptText aria-hidden="true" />}</span>
               <span className="split-batch-what">
                 <strong className={r.read && r.draft.merchant ? undefined : "is-quiet"}>{name}</strong>
-                {about && <small>{about}</small>}
+                {about && <small className={twinSaid ? "is-twin" : undefined}>{about}</small>}
               </span>
               {r.status === "done" && (
                 <label className="split-batch-amount">
                   <span aria-hidden="true">{signOf(r.draft.currency).trim()}</span>
                   <input
                     value={r.draft.text}
-                    onChange={(e) => put(i, { draft: { ...r.draft, text: asAmountText(e.target.value, decimalsOf(r.draft.currency)) } })}
+                    onChange={(e) => put(i, { draft: { ...r.draft, text: asAmountText(e.target.value, decimalsOf(r.draft.currency)) }, touched: true })}
                     inputMode="decimal"
                     enterKeyHint="done"
                     autoComplete="off"

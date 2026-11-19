@@ -265,6 +265,26 @@ const speak = (ctx: BrowserContext, lang: Lang) =>
 const re = (s: string) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
 /** Every sheet is shut (one sheet opening another leaves two open for a moment). */
 const closed = (page: Page) => page.waitForFunction(`!document.querySelector("dialog[open]")`);
+// 记一笔's note is in the 详情 sheet, which the line under 分摊 opens (Steve, 2026-11-19)
+const detailsLine = (page: Page) => page.locator(".split-details-line");
+const noteInSheet = (page: Page) => page.locator("dialog[open] .split-details > label.split-field:first-child input");
+async function setNote(page: Page, text: string | ((was: string) => string)) {
+  await detailsLine(page).click();
+  const field = noteInSheet(page);
+  await field.waitFor();
+  await field.fill(typeof text === "string" ? text : text(await field.inputValue()));
+  await page.keyboard.press("Escape");
+  await closed(page);
+}
+async function noteOf(page: Page) {
+  await detailsLine(page).click();
+  const field = noteInSheet(page);
+  await field.waitFor();
+  const note = await field.inputValue();
+  await page.keyboard.press("Escape");
+  await closed(page);
+  return note;
+}
 /** A ledger just started comes up with its invitation open: closed, for what comes next. */
 const pastInvite = async (page: Page) => {
   await page.locator("dialog[open] .split-invite-all").waitFor();
@@ -378,7 +398,7 @@ async function walk(lang: Lang, width: number, height: number) {
       await page.getByRole("radio", { name: re(payer) }).click();
       await closed(page);
     }
-    if (note) await page.locator(".split-note-row label.split-field input").fill(note);
+    if (note) await setNote(page, note);
   };
 
   await page.goto(`${base}/split`);
@@ -645,8 +665,7 @@ async function walk(lang: Lang, width: number, height: number) {
   await shot("17b-put-back");
   // its note changed, for the record to say what changed; and, where there is a server to keep them, a receipt's photo and a PDF on it
   await page.locator(".split-row").first().click();
-  const noteField = page.locator(".split-note-row label.split-field input");
-  await noteField.fill(`${await noteField.inputValue()}和酒`);
+  await setNote(page, (was) => `${was}和酒`);
   const picker = page.locator(".split-note-row input[type=file]");
   if (local) {
     await picker.setInputFiles({ name: "IMG_2041.jpg", mimeType: "image/jpeg", buffer: await receipt(page) });
@@ -1157,7 +1176,7 @@ async function fits() {
         const box = (s) => document.querySelector(s).getBoundingClientRect();
         return {
           scrolls: document.scrollingElement.scrollHeight - window.innerHeight,
-          linesEnd: Math.round(box("label.split-field").bottom),
+          linesEnd: Math.round(box(".split-note-row").bottom),
           keysStart: Math.round(box(".split-keys").top),
           key: Math.round(box(".split-key").height),
           said: !!document.querySelector(".split-field strong svg"),
@@ -1176,7 +1195,7 @@ async function fits() {
         const title = document.querySelector(".split-bar-title");
         return {
           scrolls: document.scrollingElement.scrollHeight - window.innerHeight,
-          linesEnd: Math.round(box("label.split-field").bottom),
+          linesEnd: Math.round(box(".split-note-row").bottom),
           keysStart: Math.round(box(".split-keys").top),
           key: Math.floor(box(".split-key").height),
           line: Math.floor(box(".split-add-comes").height),
@@ -1743,11 +1762,12 @@ async function behave() {
     ok((await amountShown(page)) === "$12.34", "typing on a keyboard fills the amount, to the cent");
     await page.keyboard.press("Backspace");
     ok((await amountShown(page)) === "$12.3", "Backspace takes a digit off");
-    await page.locator(".split-note-row label.split-field input").click();
+    await detailsLine(page).click();
+    await noteInSheet(page).click();
     await page.keyboard.type("12 个饺子");
-    ok((await amountShown(page)) === "$12.3", "typing in the note leaves the amount alone");
-    await page.keyboard.press("Enter");
-    ok(await page.evaluate("document.activeElement?.tagName !== 'INPUT'"), "Enter in the note puts the keyboard away");
+    await page.keyboard.press("Escape");
+    await closed(page);
+    ok((await amountShown(page)) === "$12.3" && (await detailsLine(page).innerText()).includes("12 个饺子"), "typing the note (in 详情) leaves the amount alone, and the 详情 line says it");
     await button(page, "done").click();
     await page.locator(".split-row").first().waitFor();
     ok((await page.locator(".split-row-text strong").first().textContent()) === "12 个饺子", "the note is on the row");
@@ -2993,7 +3013,7 @@ async function reading() {
   const extras = pa.locator(".split-add-extras");
   await extras.filter({ hasText: "Tim Hortons" }).waitFor({ timeout: 15_000 });
   await pa.screenshot({ path: join(out, "read-done-zh-390x664.png") });
-  ok((await amount()) === "$42.50" && (await extras.textContent())?.startsWith("从小票读的：Tim Hortons") && (await pa.locator(".split-note-row input:not([type=file])").inputValue()) === "" && asked.length === 1, `read: the amount ($42.50), and the line says the business it read (the note stays the person's own) (${await extras.textContent()}, asked ${asked.length} time)`);
+  ok((await amount()) === "$42.50" && (await extras.textContent())?.startsWith("从小票读的：Tim Hortons") && (await noteOf(pa)) === "" && asked.length === 1, `read: the amount ($42.50), and the line says the business it read (the note stays the person's own) (${await extras.textContent()}, asked ${asked.length} time)`);
   await pa.keyboard.press("Backspace");
   ok((await line.count()) === 0 && (await amount()) !== "$42.50", `the amount changed: it is the person's now, and the line goes (${await amount()})`);
   await button(pa, "close").first().click();
@@ -3039,7 +3059,7 @@ async function reading() {
   hold = false;
   await answered;
   await pa.waitForTimeout(400);
-  const note = await pa.locator(".split-note-row input:not([type=file])").inputValue();
+  const note = await noteOf(pa);
   ok((await amount()) === "$8" && !note && (await line.count()) === 0, `typed while it was being read: what was typed stands, the note stays empty, the line goes (${await amount()} ${JSON.stringify(note)})`);
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
@@ -3076,7 +3096,7 @@ async function reading() {
   // 记好了 and on its row, put right in the sheet with the day, the tip and the tax; summed up at the foot of 结清
   const today = localDay(Date.now());
   const ago = (days: number) => localDay(Date.now() - days * 86_400_000);
-  const dayButton = pa.locator(".split-day-button");
+  const dayButton = detailsLine(pa);
   await button(pa, "addExpense").click();
   ok((await dayButton.innerText()).includes(t("dayToday")), `a new expense is spent today (${await dayButton.innerText()})`);
   await attach(`receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25 date=${ago(5)}`);
@@ -3118,7 +3138,7 @@ async function reading() {
   ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25") && !(await extras.textContent())?.includes("从小票"), "opened again, the line says the tip and tax it keeps");
   for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
   await type(pa, "10");
-  ok(!(await extras.textContent())?.includes("小费"), `the amount typed down below them: the line says them no more (they wouldn't be kept) (${await extras.textContent()})`);
+  ok((await extras.count()) === 0 && (await detailsLine(pa).innerText()).includes("Joe's Diner"), "the amount typed down below them: the line under it goes (they wouldn't be kept), the business stays on the 详情 line");
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
 
@@ -3164,11 +3184,11 @@ async function reading() {
   // where it was bought and how it was paid (Steve, 2026-11-18): the business named under the amount;
   // all three in the details sheet, where one typed before is never replaced; kept by the server; the
   // row says the business when there is no note; emptied in the sheet, taken off
-  const lines3 = pa.locator('dialog[open] .split-details > .split-field input:not([type="date"])');
+  const lines3 = pa.locator('dialog[open] .split-details > .split-field:not(:first-child) input:not([type="date"])');
   await button(pa, "addExpense").click();
   await dayButton.click();
   await lines3.first().waitFor();
-  ok((await pa.locator("dialog[open] h2").first().innerText()) === t("details") && (await lines3.count()) === 3, `the sheet beside 记好了 is the expense's details: a name, a place and what paid, with the day and the tip and tax (${await pa.locator("dialog[open] h2").first().innerText()})`);
+  ok((await pa.locator("dialog[open] h2").first().innerText()) === t("details") && (await lines3.count()) === 3 && (await noteInSheet(pa).count()) === 1, `the sheet the 详情 line opens is the expense's details: the note first, a name, a place and what paid, with the day and the tip and tax (${await pa.locator("dialog[open] h2").first().innerText()})`);
   await lines3.nth(2).fill("Visa");
   await pa.keyboard.press("Escape");
   await closed(pa);
@@ -3217,26 +3237,28 @@ async function reading() {
     { name: "c.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:10.00 USD Starbucks") },
     { name: "d.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:15.00 CAD Kiosk") },
     { name: "e.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:none") },
+    { name: "f.pdf", mimeType: "application/pdf", buffer: aPdf(`receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard date=${ago(2)}`) },
   ]);
   const batch = pa.locator(".split-batch-row");
   const record4 = pa.locator(".split-batch .split-dock button");
-  await batch.nth(4).waitFor();
+  await batch.nth(5).waitFor();
   await pa.locator(".split-batch-thumb.is-scanning").first().waitFor();
-  ok((await batch.count()) === 5 && (await record4.isDisabled()) && (await record4.innerText()) === t("receiptsReading"), "a row for each, scanning while it goes and is read; nothing to record yet, the button says so");
+  ok((await batch.count()) === 6 && (await record4.isDisabled()) && (await record4.innerText()) === t("receiptsReading"), "a row for each, scanning while it goes and is read; nothing to record yet, the button says so");
   await pa.screenshot({ path: join(out, "receipts-busy-zh-390x664.png") });
   through = 1;
-  await pa.waitForFunction(`document.querySelectorAll(".split-batch-thumb.is-scanning").length === 4`, null, { timeout: 30_000 });
+  await pa.waitForFunction(`document.querySelectorAll(".split-batch-thumb.is-scanning").length === 5`, null, { timeout: 30_000 });
   ok((await record4.isDisabled()) && (await record4.innerText()) === t("receiptsReading"), "one read, the rest still going: nothing can be recorded until all are read");
   hold = false;
   await pa.waitForFunction(`!document.querySelector(".split-batch-thumb.is-scanning")`, null, { timeout: 30_000 });
   const said4 = async (n: number) => (await batch.nth(n).locator(".split-batch-what").innerText()).replace(/\s+/g, " ");
   const amount4 = (n: number) => batch.nth(n).locator("input");
-  const rows4 = [await said4(0), await said4(1), await said4(2), await said4(3), await said4(4)];
-  const amounts4 = [await amount4(0).inputValue(), await amount4(1).inputValue(), await amount4(2).inputValue(), await amount4(3).inputValue(), await amount4(4).inputValue()];
+  const rows4 = [await said4(0), await said4(1), await said4(2), await said4(3), await said4(4), await said4(5)];
+  const amounts4 = [await amount4(0).inputValue(), await amount4(1).inputValue(), await amount4(2).inputValue(), await amount4(3).inputValue(), await amount4(4).inputValue(), await amount4(5).inputValue()];
   ok(
-    rows4[0].includes("McDonald's") && rows4[0].includes(dayLabel(ago(2), today, "zh")) && rows4[0].includes("Aldergrove, BC") && rows4[1].includes("Tim Hortons") && rows4[2].includes("Starbucks") && rows4[3].includes("Kiosk") && rows4[4] === t("receiptsNone") && JSON.stringify(amounts4) === JSON.stringify(["20.00", "8.50", "10.00", "15.00", ""]),
+    rows4[0].includes("McDonald's") && rows4[0].includes(dayLabel(ago(2), today, "zh")) && rows4[0].includes("Aldergrove, BC") && rows4[1].includes("Tim Hortons") && rows4[2].includes("Starbucks") && rows4[3].includes("Kiosk") && rows4[4] === t("receiptsNone") && JSON.stringify(amounts4) === JSON.stringify(["20.00", "8.50", "10.00", "15.00", "", ""]),
     `each row: the business, its day and place, and the amount read; the one not read asks for its amount (${rows4.join(" | ")}; ${amounts4.join(", ")})`,
   );
+  ok(rows4[5].includes("McDonald's") && rows4[5].includes("和第 1 张一样，先不记") && amounts4[5] === "", `the same receipt twice: the second left out, its row saying so (${rows4[5]}; ${JSON.stringify(amounts4[5])})`);
   await pa.screenshot({ path: join(out, "receipts-read-zh-390x664.png") });
   await amount4(4).fill("12");
   await amount4(3).fill("");
@@ -3248,7 +3270,7 @@ async function reading() {
   await record4.click();
   await pa.locator(".split-batch").waitFor({ state: "detached" });
   await pa.waitForTimeout(600);
-  ok(dropped4.length === 1, `the photo of the one left out goes from the server again, the three recorded stay (${dropped4.length} taken off)`);
+  ok(dropped4.length === 2, `the photos of the two left out go from the server again, the four recorded stay (${dropped4.length} taken off)`);
   await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
   type Kept4 = { amount: number; note: string; payer: string; merchant?: string; place?: string; payment?: string; date?: string; files?: string[]; split?: { how: string }; paidIn?: { currency: string; amount: number } };
   const all4 = (await keptBy(pa)).held[0].server.entries as Kept4[];
@@ -3266,6 +3288,52 @@ async function reading() {
   await pa.locator(".split-row", { hasText: "Tim Hortons" }).waitFor();
   ok(true, "and they are in the ledger's list");
   await pa.screenshot({ path: join(out, "receipts-done-zh-390x664.png") });
+
+  // the same receipt read in 记一笔 once it is recorded (Steve, 2026-11-19: 提示是不是有重复的 receipt):
+  // said in place of the line under the amount, the amount still filled in; typed over, it goes
+  await button(pa, "addExpense").click();
+  await pa.locator(".split-keys").waitFor();
+  await attach(`receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard date=${ago(2)}`);
+  const twinLine = pa.locator(".split-add-read.is-twin");
+  await twinLine.waitFor({ timeout: 15_000 });
+  ok((await twinLine.innerText()) === `像是记过了：${dayLabel(ago(2), today, "zh")} McDonald's $20.00` && (await amount()) === "$20.00", `a receipt read that looks like one recorded: said where the line was, the amount still filled in (${await twinLine.innerText()})`);
+  await pa.screenshot({ path: join(out, "read-twin-zh-390x664.png") });
+  await pa.keyboard.press("Backspace");
+  ok((await twinLine.count()) === 0 && (await amount()) === "$20.0", `the amount changed: it is the person's, and nothing is said (${await amount()})`);
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // several photos chosen at once in 记一笔 (Steve, 2026-11-19: 加入了三个 receipt，只显示了一个): asked
+  // first whether they are an expense each (几张小票 in its place) or all this one's
+  const two = [
+    { name: "s1.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:7.00 CAD Subway") },
+    { name: "s2.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:9.00 CAD Wendy's") },
+  ];
+  const ask = pa.getByRole("dialog");
+  await button(pa, "addExpense").click();
+  await pa.locator(".split-keys").waitFor();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles(two);
+  await ask.getByRole("button", { name: "分开记 2 笔", exact: true }).waitFor();
+  ok((await ask.locator("h2").first().innerText()) === "2 张照片" && (await pa.locator(".split-photo-button .split-thumb").count()) === 0, "two photos chosen at once for a new expense: asked first, nothing sent yet");
+  await pa.screenshot({ path: join(out, "several-ask-zh-390x664.png") });
+  await ask.getByRole("button", { name: "分开记 2 笔", exact: true }).click();
+  await batch.nth(1).waitFor();
+  await pa.waitForFunction(`!document.querySelector(".split-batch-thumb.is-scanning")`, null, { timeout: 30_000 });
+  ok((await batch.count()) === 2 && (await said4(0)).includes("Subway") && (await said4(1)).includes("Wendy's") && (await record4.innerText()) === "记上 2 笔", "分开记: 几张小票 in its place, a row each, each read");
+  await pa.goBack();
+  await pa.locator(".split-batch").waitFor({ state: "detached" });
+  await pa.waitForTimeout(300);
+  ok((await pa.locator(".split-receipts-button").count()) === 1 && (await pa.locator(".split-keys").count()) === 0, "the phone's back closes it: back on the ledger's list, not on 记一笔");
+  await button(pa, "addExpense").click();
+  await pa.locator(".split-keys").waitFor();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles(two);
+  await ask.getByRole("button", { name: t("severalOne"), exact: true }).click();
+  await closed(pa);
+  await extras.filter({ hasText: "Subway" }).waitFor({ timeout: 15_000 });
+  await pa.locator(".split-photo-button:not(.is-sending) .split-photo-count").waitFor({ timeout: 15_000 });
+  ok((await amount()) === "$7.00" && (await pa.locator(".split-photo-count").innerText()) === "2", "都放在这一笔: both photos on the one expense, the first read for its amount");
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
 
   // reading not to be had (no key, the month spent): nothing said, and not asked again on this page
   await a.unroute("**/split/api/ledgers/*/files/*/read");

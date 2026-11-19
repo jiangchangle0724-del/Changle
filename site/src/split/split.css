@@ -757,6 +757,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* a receipt read that looks like one already recorded: said in the page's own strong voice */
+.split-add-read.is-twin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  color: var(--color-text);
+  font-weight: 700;
+}
+.split-add-read.is-twin > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.split-add-read.is-twin > svg {
+  flex: none;
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
 /* Motion four: a receipt going and being read. Where the amount will be is a scanner's window: the
    amount and the window share the place, four corners of the light frame it, a band of the light
    sweeps down through it, and an amount's digits roll in the light's colour, each at its own pace,
@@ -977,8 +995,7 @@
   flex: 1;
   gap: var(--space-3);
 }
-/* 记好了, and before it the day it was spent: a quiet pill, as tall as 记好了, which opens the sheet
-   with the day, the tip and the tax */
+/* under the list, 记一笔 and before it 几张小票: a quiet pill, as tall as 记一笔 */
 .split-dock-row {
   display: flex;
   gap: var(--space-2);
@@ -1105,28 +1122,36 @@
 .split-field > input:focus-visible {
   outline: none;
 }
-/* the note is typed in place: its line takes the light while the cursor is in it */
+/* a line typed in place (in the 详情 sheet): it takes the light while the cursor is in it */
 label.split-field {
   cursor: text;
 }
 label.split-field:focus-within {
   border-bottom-color: var(--gel);
 }
-/* the note's line: the note typed in place, and its receipt photos' button at the end */
+/* the 详情 line under who shares it: the day first, then what it was for and where and how it was
+   paid, as far as the line goes (all of it in the sheet it opens); its receipt photos' button at the end */
 .split-note-row {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   border-bottom: 1px solid var(--color-line-soft);
 }
-.split-note-row > label.split-field {
+.split-note-row > .split-field {
   flex: 1;
   min-width: 0;
   border-bottom: 0;
 }
-/* (the line takes the light while the cursor is in the note, as the note's own line did) */
-.split-note-row:has(> label:focus-within) {
-  border-bottom-color: var(--gel);
+.split-details-said {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* (nothing said yet: what it asks for, quietly, as an empty line's hint does) */
+.split-details-empty {
+  color: var(--color-text-3);
+  font-weight: 400;
 }
 /* a camera; or the first photo, small, and how many there are */
 .split-photo-button {
@@ -1829,6 +1854,12 @@ button.split-person {
 .split-batch-what > strong.is-quiet {
   color: var(--color-text-2);
   font-weight: 500;
+}
+/* left out as one seen before: said in the page's own strong voice (as a sum that is off is), not in
+   the light, which is for what is chosen */
+.split-batch-what > small.is-twin {
+  color: var(--color-text);
+  font-weight: 700;
 }
 .split-batch-what > small {
   margin-top: var(--space-1);
