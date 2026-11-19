@@ -204,6 +204,18 @@ export type OTPInputProps = {
 };
 
 /** Toast 提示: a one-line message that comes and goes on its own (saved, copied, reconnected). */
+/**
+ * ScreenHints 横屏提示: on a phone in a game, two hints (Steve 2026-11-18). Held upright: turn it
+ * sideways for a bigger picture. Sideways, in a browser with a toolbar: how to hide it (Safari's
+ * menu, full screen where the browser allows it). Each has 不再提醒, kept on the phone; without it,
+ * each shows once a visit.
+ */
+export type ScreenHintsProps = {
+  lang: Lang;
+  /** false where the screen has its own way of saying turn it (a watching seat's big-screen view) */
+  rotate?: boolean;
+};
+
 export type ToastProps = {
   message: ReactNode;
   /** danger is read out at once; the rest wait their turn */

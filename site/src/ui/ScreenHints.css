@@ -1,0 +1,101 @@
+/* ScreenHints: the card that says turn the phone sideways, and the toolbar sheet's steps */
+.ui-hint {
+  position: fixed;
+  z-index: 45;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + var(--space-3));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: calc(100% - var(--gutter) * 2);
+  max-width: var(--page-max);
+  padding: var(--space-4);
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--r-panel);
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  animation: ui-hint-in var(--dur-enter) var(--ease-out);
+}
+/* the phone turning onto its side, twice, then resting */
+.ui-hint-phone {
+  flex-shrink: 0;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: var(--color-accent);
+  animation: ui-hint-turn calc(var(--dur-emphasis) * 3) var(--ease-out) var(--dur-enter) 2 both;
+}
+.ui-hint-body {
+  flex: 1;
+  min-width: 0;
+}
+.ui-hint-title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+}
+.ui-hint-text {
+  margin-top: var(--space-2);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
+}
+.ui-hint-steps {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: var(--space-6);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+}
+.ui-hint-also {
+  margin-top: var(--space-4);
+}
+.ui-hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.ui-hint-row:first-child {
+  margin-top: 0;
+}
+/* 不再提醒: the whole line is the target */
+.ui-hint-never {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.ui-hint-never input {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  accent-color: var(--color-accent);
+}
+@keyframes ui-hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--motion-shift));
+  }
+}
+@keyframes ui-hint-turn {
+  0%,
+  25% {
+    transform: rotate(0deg);
+  }
+  60%,
+  100% {
+    transform: rotate(-90deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-hint,
+  .ui-hint-phone {
+    animation: none;
+  }
+}
