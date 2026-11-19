@@ -30,6 +30,7 @@ export type ApiErrorCode =
   | "applied" // this account runs a shop already, or has asked for one before
   | "reply" // sending an application back needs a word on what to change
   | "decided" // the application was answered already
+  | "photo" // not a picture this keeps: a JPEG or WebP, its two copies no bigger than allowed (src/server/photos.ts)
   | "down" // the accounts can't be reached just now
   | "failed"; // something went wrong on the server
 
@@ -233,7 +234,7 @@ export interface MyOfferPage {
 export interface MyOfferDoc {
   shop: Pick<Shop, "slug" | "name">;
   offer: Pick<Offer, "id" | "status" | "title" | "note" | "closesAt" | "roster">;
-  items: (Omit<Item, "photo"> & { used: boolean })[];
+  items: (Item & { used: boolean })[];
   points: (PickupPoint & { used: boolean })[];
   rules: (DeliveryRule & { used: boolean })[];
   now: number;

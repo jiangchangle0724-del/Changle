@@ -17,6 +17,8 @@ export const OFFER_LENGTH = 8;
 export const OFFER_RE = /^[2-9a-hjkmnp-z]{8}$/;
 /** A shop's address /tuan/s/<slug>: lower-case letters, digits and hyphens. */
 export const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+/** A picture of the goods: the first 128 bits of its SHA-256, in hex (src/server/photos.ts). */
+export const PHOTO_RE = /^[0-9a-f]{32}$/;
 
 /** An order code as someone typed it: spaces dropped, upper case. */
 export const tidyOrderCode = (text: string): string => text.replace(/\s+/g, "").toUpperCase();

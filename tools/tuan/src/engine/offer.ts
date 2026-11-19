@@ -1,5 +1,6 @@
 // Starting a group buy: the document a merchant sends, checked and tidied. Pure rules; the server
 // gives the parts their ids and keeps them (src/server/store.ts).
+import { PHOTO_RE } from "./ids";
 import { MILLI, QTY_MAX } from "./money";
 import { cleanLine, cleanLines } from "./text";
 import { isUnit, weighed, type DeliveryRule, type Item, type PickupPoint, type Roster } from "./types";
@@ -65,11 +66,13 @@ function readItem(input: unknown): NewItem | null {
   if (!whole(least, step, QTY_MAX) || least % step !== 0) return null;
   const perBuyer = raw.perBuyer ?? null;
   if (perBuyer !== null && (!whole(perBuyer, least, QTY_MAX) || perBuyer % step !== 0)) return null;
+  if (raw.photo != null && !(typeof raw.photo === "string" && PHOTO_RE.test(raw.photo))) return null;
   return {
     section: cleanLine(raw.section, 30) ?? "",
     name,
     detail: cleanLines(raw.detail, 300),
-    photo: null, // pictures come with the merchant's own editor
+    // a picture the merchant's phone sent (POST /tuan/api/my/shops/<slug>/photos), by its name
+    photo: typeof raw.photo === "string" ? raw.photo : null,
     price: raw.price,
     unit,
     step,

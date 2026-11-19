@@ -467,6 +467,17 @@ export async function decideApplication(db: D1Database, shopId: string, decision
   return (answered.meta.changes ?? 0) > 0;
 }
 
+// ---------- pictures of the goods (src/server/photos.ts) ----------
+
+export async function hasPhoto(db: D1Database, id: string): Promise<boolean> {
+  return (await db.prepare("SELECT 1 AS yes FROM photos WHERE id = ?").bind(id).first()) !== null;
+}
+
+/** A picture now in KV: whose it is, and how big its two copies are. */
+export async function keepPhoto(db: D1Database, id: string, shopId: string, bytes: number, now: number): Promise<void> {
+  await db.prepare("INSERT OR IGNORE INTO photos (id, shop_id, bytes, created_at) VALUES (?, ?, ?, ?)").bind(id, shopId, bytes, now).run();
+}
+
 // ---------- the site's owner ----------
 
 const DAY_MS = 86_400_000;
@@ -543,11 +554,11 @@ export async function saveEdit(db: D1Database, offerId: string, edit: Edit, newI
       // (WHERE true: without it SQLite reads the ON of ON CONFLICT as the join's. A picture stays as it is: the document has none.)
       db
         .prepare(
-          `INSERT INTO items (id, offer_id, pos, section, name, detail, price, unit, step, least, stock, per_buyer, allergens)
+          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, allergens)
            SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.section'), json_extract(j.value, '$.name'), json_extract(j.value, '$.detail'),
-             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
+             json_extract(j.value, '$.photo'), json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
            FROM json_each(?2) AS j WHERE true
-           ON CONFLICT (id) DO UPDATE SET pos = excluded.pos, section = excluded.section, name = excluded.name, detail = excluded.detail, price = excluded.price, unit = excluded.unit,
+           ON CONFLICT (id) DO UPDATE SET pos = excluded.pos, section = excluded.section, name = excluded.name, detail = excluded.detail, photo = excluded.photo, price = excluded.price, unit = excluded.unit,
              step = excluded.step, least = excluded.least, stock = excluded.stock, per_buyer = excluded.per_buyer, allergens = excluded.allergens
            WHERE items.offer_id = ?1`,
         )

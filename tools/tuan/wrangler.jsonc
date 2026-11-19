@@ -16,7 +16,7 @@
     "directory": "./dist/client",
     "binding": "ASSETS",
     "not_found_handling": "none",
-    "run_worker_first": ["/tuan", "/tuan/", "/tuan/api/*"]
+    "run_worker_first": ["/tuan", "/tuan/", "/tuan/api/*", "/tuan/img/*"]
   },
   // wrangler builds the pages before it runs or publishes the Worker.
   "build": { "command": "node scripts/build.mjs" },
@@ -27,6 +27,8 @@
   ],
   // Created by the first deploy (no id here). The Worker applies migrations/ itself (src/server/schema.ts).
   "d1_databases": [{ "binding": "DB", "database_name": "changle-tuan" }],
+  // pictures of the goods (src/server/photos.ts): no id, so the first deploy makes the namespace (2026-11-12, Steve: KV, free)
+  "kv_namespaces": [{ "binding": "PHOTOS" }],
   // Merchants sign in with their changle.ca account. Accounts live in the rooms server
   // (site/worker): this Worker asks it who a sign-in belongs to, Worker to Worker, never over the
   // public address (src/server/who.ts).

@@ -21,6 +21,7 @@
 // A merchant, signed in with their changle.ca account (src/server/who.ts):
 //   GET  /tuan/api/my                         their shops and group buys (the owner: also the applications to answer)
 //   POST /tuan/api/my/apply                   ask to open a shop, or send the asking again, changed (src/engine/apply.ts)
+//   POST /tuan/api/my/shops/<slug>/photos     a picture of the goods, its two copies as a form (src/server/photos.ts)
 //   GET  /tuan/api/my/shops/<slug>            what a shop says about itself
 //   POST /tuan/api/my/shops/<slug>            change it: name, kind, about, contact, how to pay, permit (not its address, who runs it, or whether it's live)
 //   POST /tuan/api/my/shops/<slug>/offers     start a group buy
@@ -36,7 +37,7 @@ import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Moved, t
 import { BASE } from "../base";
 import { appliedNotice, decidedNotice, readApplication, readDecision, type NewApplication } from "../engine/apply";
 import { planEdit, type Used } from "../engine/edit";
-import { makeCode, OFFER_LENGTH, OFFER_RE, ORDER_LENGTH, ORDER_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
+import { makeCode, OFFER_LENGTH, OFFER_RE, ORDER_LENGTH, ORDER_RE, PHOTO_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
 import { finalGoods, MILLI } from "../engine/money";
 import { readOffer } from "../engine/offer";
 import { isOpen, KEY_RE, LINES_MAX, ORDERS_MAX, takeOrder, without, type Refused } from "../engine/order";
@@ -47,6 +48,7 @@ import { weighed, type OfferBook, type Order, type Shop } from "../engine/types"
 import { offerPage, orderPage, stateOf } from "../engine/view";
 import { bump, networkOf, used } from "./gate";
 import { doorOf } from "./mail";
+import { copiesOf, photoId, photoKey, servePhoto } from "./photos";
 import { flush, notify } from "./notify";
 import { ensureSchema } from "./schema";
 import {
@@ -54,10 +56,12 @@ import {
   before,
   cancelOrder,
   decideApplication,
+  hasPhoto,
   insertApplication,
   insertOffer,
   insertOrder,
   isMember,
+  keepPhoto,
   loadBook,
   markNoticed,
   markOrder,
@@ -103,6 +107,10 @@ const OWNERS_TOLD = 2;
 const OWNER_SEEN_MS = 183 * 86_400_000;
 /** The applications the owner's home lists. */
 const APPLICATIONS_LISTED = 30;
+/** New pictures one shop may send in a day, and the whole tool (two KV writes each: the free plan has 1,000 a day for the account). */
+const PHOTOS_PER_SHOP = 150;
+const PHOTOS_PER_DAY = 300;
+const PHOTOS_ALL = "photo:all";
 /** The most a weighed line may turn out to be: 999 lb. */
 const WEIGHT_MAX = 999 * MILLI;
 
@@ -117,7 +125,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   forbidden: 403,
   notfound: 404,
   // fine as a request, but not as things stand
-  closed: 409, soldout: 409, perbuyer: 409, many: 409, full: 409, paid: 409, cancelled: 409, busy: 409, inuse: 409, sold: 409, taken: 409, applied: 409, decided: 409,
+  closed: 409, soldout: 409, perbuyer: 409, many: 409, full: 409, paid: 409, cancelled: 409, busy: 409, inuse: 409, sold: 409, taken: 409, applied: 409, decided: 409, photo: 400,
   limit: 429, locked: 429,
   failed: 500,
   down: 503,
@@ -340,7 +348,7 @@ function docOf(book: OfferBook, used: Used, now: number): MyOfferDoc {
   return {
     shop: { slug: shop.slug, name: shop.name },
     offer: { id: offer.id, status: offer.status, title: offer.title, note: offer.note, closesAt: offer.closesAt, roster: offer.roster },
-    items: book.items.map(({ photo: _photo, ...item }) => ({ ...item, used: used.items.has(item.id) })),
+    items: book.items.map((item) => ({ ...item, used: used.items.has(item.id) })),
     points: book.points.map((point) => ({ ...point, used: used.points.has(point.id) })),
     rules: book.rules.map((rule) => ({ ...rule, used: used.rules.has(rule.id) })),
     now,
@@ -517,6 +525,28 @@ async function applyForShop(req: Request, env: Env, ctx: ExecutionContext | unde
   return json({ id: application.slug } satisfies Made, 201);
 }
 
+// ---------- pictures of the goods ----------
+
+/** A merchant sends a picture of their goods: the two copies their phone made, kept once by the large one's name. */
+async function takePhoto(req: Request, env: Env, who: Who, slug: string, now: number): Promise<Response> {
+  const db = env.DB;
+  const shop = await shopBySlug(db, slug);
+  if (!shop) return refuse("notfound");
+  if (!(await runs(db, who, shop.id))) return refuse("forbidden");
+  const copies = await copiesOf(req);
+  if (!copies) return refuse("photo");
+  const id = await photoId(copies.large);
+  if (await hasPhoto(db, id)) return json({ id } satisfies Made);
+  const gate = `photo:${shop.id}`;
+  if ((await used(db, gate, now)) >= PHOTOS_PER_SHOP || (await used(db, PHOTOS_ALL, now)) >= PHOTOS_PER_DAY) return refuse("limit");
+  await env.PHOTOS.put(photoKey(id, false), copies.large, { metadata: { type: copies.types[0] } });
+  await env.PHOTOS.put(photoKey(id, true), copies.small, { metadata: { type: copies.types[1] } });
+  await keepPhoto(db, id, shop.id, copies.large.length + copies.small.length, now);
+  await bump(db, gate, now);
+  await bump(db, PHOTOS_ALL, now);
+  return json({ id } satisfies Made, 201);
+}
+
 // ---------- the site's owner ----------
 
 async function makeShop(req: Request, db: D1Database, now: number): Promise<Response> {
@@ -670,6 +700,7 @@ async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, ur
       if (post) return saveMyShop(req, db, who, c);
     }
     if (n === 4 && b === "shops" && SLUG_RE.test(c ?? "") && d === "offers" && post) return startOffer(req, db, who, c, now);
+    if (n === 4 && b === "shops" && SLUG_RE.test(c ?? "") && d === "photos" && post) return takePhoto(req, env, who, c, now);
     if (n === 3 && b === "offers" && OFFER_RE.test(c ?? "")) {
       if (get) return myOffer(db, who, c, now);
       if (post) return moveOffer(req, db, who, c, now);
@@ -689,6 +720,12 @@ export default {
     const url = new URL(req.url);
     if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return plain("not found", 404);
     const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean).map(unescaped);
+    // a picture of the goods: /tuan/img/<id>, or /tuan/img/<id>/s for the small one
+    if (parts[0] === "img") {
+      const [, id, small] = parts;
+      if ((req.method !== "GET" && req.method !== "HEAD") || !PHOTO_RE.test(id ?? "") || parts.length > 3 || (parts.length === 3 && small !== "s")) return plain("not found", 404);
+      return servePhoto(req, env, ctx, id, small === "s");
+    }
     if (parts[0] !== "api") return page(req, env, url, parts);
     try {
       return await api(req, env, ctx, url, parts.slice(1));

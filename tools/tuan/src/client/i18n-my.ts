@@ -201,6 +201,16 @@ export const MY_STRINGS = {
   shopEditNote: { zh: "店铺地址和管店的账号要改的话，找站长。", en: "To change the shop's address or who runs it, ask the site's owner." },
   shopSaved: { zh: "存好了。", en: "Saved." },
 
+  // ---------- a picture of the goods, in the editor ----------
+  editPhoto: { zh: "照片（选填）", en: "Photo (optional)" },
+  editPhotoAdd: { zh: "添加照片", en: "Add a photo" },
+  editPhotoChange: { zh: "换一张", en: "Change it" },
+  editPhotoRemove: { zh: "不要照片", en: "Remove it" },
+  editPhotoBusy: { zh: "上传中", en: "Uploading" },
+  editPhotoErr: { zh: "这张照片没传上去，换一张试试。", en: "This photo didn't upload. Try another one." },
+  editPhotoBig: { zh: "这张照片太大了，换一张试试。", en: "This photo is too big. Try another one." },
+  editPhotoLimit: { zh: "今天传的照片太多了，明天再传。", en: "That's enough photos for today. Try again tomorrow." },
+
   // ---------- asking to open a shop ----------
   signInApply: { zh: "还没有店？登录以后就在这一页申请开店。", en: "No shop yet? Once you're signed in, you can apply for one right here." },
   applyTitle: { zh: "申请开店", en: "Apply to open a shop" },
