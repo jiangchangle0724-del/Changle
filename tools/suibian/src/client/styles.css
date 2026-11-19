@@ -1,69 +1,71 @@
-/* 随便 · Whatever's Fine — warm, paper-menu feel; big tap targets for phones at the table. */
+/* 随便 · Whatever's Fine: changle's night room, lit amber for a tool.
+ * Shared values come from tokens.css, checked by tests/design.test.ts.
+ * S1 keeps the existing screens and controls; layout and motion follow in later cards.
+ */
 :root {
-  --bg: #fbf6ef;
-  --surface: #ffffff;
-  --ink: #241c17;
-  --muted: #6e625a;
-  --line: #e6dccf;
-  --accent: #b8321f;
-  --on-accent: #ffffff;
-  --like: #2f7d4a;
-  --like-bg: #e5f3e9;
-  --ban: #b8321f;
-  --ban-bg: #fbe6e1;
-  --warn: #8a4b00;
-  --warn-bg: #fff3dc;
-  --mine: #fff0e6;
-  --font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #17120f;
-    --surface: #221b17;
-    --ink: #f3ebe4;
-    --muted: #b3a69c;
-    --line: #3a302a;
-    --accent: #ff8a70;
-    --on-accent: #2a0d06;
-    --like: #7fd29a;
-    --like-bg: #17301f;
-    --ban: #ff8a70;
-    --ban-bg: #3a1a13;
-    --warn: #ffc56b;
-    --warn-bg: #33260f;
-    --mine: #33231a;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #17120f;
-  --surface: #221b17;
-  --ink: #f3ebe4;
-  --muted: #b3a69c;
-  --line: #3a302a;
-  --accent: #ff8a70;
-  --on-accent: #2a0d06;
-  --like: #7fd29a;
-  --like-bg: #17301f;
-  --ban: #ff8a70;
-  --ban-bg: #3a1a13;
-  --warn: #ffc56b;
-  --warn-bg: #33260f;
-  --mine: #33231a;
-  color-scheme: dark;
+  --gel: var(--type-tool);
 }
 * {
   box-sizing: border-box;
+  touch-action: manipulation;
 }
 html,
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 16px/1.5 var(--font);
+  color: var(--color-text);
   -webkit-text-size-adjust: 100%;
+}
+html {
+  background: var(--color-bg);
+  color-scheme: dark;
+}
+body {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  font-family: var(--font-text);
+  font-size: var(--text-md);
+  line-height: var(--leading);
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+/* The lamp over the table: behind the content on the app and both reading pages. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: min(46vh, calc(var(--space-12) * 8));
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% -24%, color-mix(in oklab, var(--gel) 26%, transparent), transparent 72%);
+}
+input,
+textarea,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+  accent-color: var(--gel);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-3);
+}
+:focus-visible {
+  outline: 2px solid var(--gel);
+  outline-offset: 2px;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  line-height: var(--leading-tight);
+}
+small {
+  font-size: var(--text-sm);
 }
 h1,
 h2,
@@ -72,50 +74,51 @@ p {
   margin: 0;
 }
 h1 {
-  font-size: 2.4rem;
-  line-height: 1.1;
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
   letter-spacing: 0.02em;
 }
 h2 {
-  font-size: 1.2rem;
+  font-size: var(--text-xl);
 }
 h3 {
-  font-size: 1rem;
-  margin-top: 4px;
+  font-size: var(--text-lg);
+  margin-top: var(--space-1);
 }
 a {
-  color: var(--accent);
+  color: var(--gel);
 }
 .num {
+  font-family: var(--font-display);
   font-variant-numeric: tabular-nums;
 }
 .muted {
-  color: var(--muted);
+  color: var(--color-text-2);
 }
 .small {
-  font-size: 0.875rem;
+  font-size: var(--text-sm);
 }
 .center {
   text-align: center;
 }
 .big {
-  font-size: 1.25rem;
+  font-size: var(--text-xl);
 }
 
 .home,
 .page {
-  max-width: 560px;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+  padding: max(var(--space-4), var(--safe-top)) var(--gutter) max(var(--space-8), var(--safe-bottom));
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .hero {
   position: relative;
   text-align: center;
-  padding: 24px 0 8px;
+  padding: var(--space-6) 0 var(--space-2);
 }
 .hero .lang {
   position: absolute;
@@ -123,13 +126,13 @@ a {
   right: 0;
 }
 .logo {
-  font-size: 3rem;
-  line-height: 1;
-  margin-bottom: 8px;
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+  margin-bottom: var(--space-2);
 }
 .tagline {
-  color: var(--muted);
-  margin-top: 8px;
+  color: var(--color-text-2);
+  margin-top: var(--space-2);
   text-wrap: balance;
 }
 
@@ -137,48 +140,49 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 8px;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--color-line);
+  padding-bottom: var(--space-2);
 }
 .brand {
-  color: var(--ink);
+  color: var(--color-text);
   font-weight: 700;
   text-decoration: none;
 }
 
 .card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--r-panel);
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-flat);
 }
 .nudge {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
   text-decoration: none;
-  color: var(--ink);
-  background: var(--mine);
+  color: var(--color-text);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
 }
 
 .btn {
   font: inherit;
   font-weight: 600;
-  min-height: 48px;
-  padding: 10px 16px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
+  min-height: var(--tap-crowded);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--color-line);
+  background: var(--color-raised);
+  color: var(--color-text);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-2);
   text-decoration: none;
   text-align: center;
 }
@@ -186,57 +190,61 @@ a {
   width: 100%;
 }
 .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--gel);
+  border-color: var(--gel);
+  color: var(--color-on-accent);
+  box-shadow: var(--glow);
 }
 .btn.quiet {
   background: transparent;
   border-color: transparent;
-  color: var(--accent);
-  min-height: 40px;
-  padding: 6px 10px;
+  color: var(--gel);
+  min-height: var(--tap);
+  padding: var(--space-2) var(--space-3);
 }
 .btn.danger {
-  background: var(--ban);
-  border-color: var(--ban);
-  color: var(--on-accent);
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-on-danger);
 }
 .btn.danger-text {
-  color: var(--muted);
+  color: var(--color-text-2);
 }
 .btn:disabled {
-  opacity: 0.45;
+  background: var(--color-raised);
+  border-color: var(--color-line);
+  color: var(--color-text-3);
+  box-shadow: none;
   cursor: default;
 }
 .btn:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 2px solid var(--gel);
   outline-offset: 2px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
   font-weight: 600;
 }
 input,
 select {
   font: inherit;
-  min-height: 48px;
-  padding: 8px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-field);
+  border: 1px solid var(--color-line);
+  background: var(--color-sheet);
+  color: var(--color-text);
   width: 100%;
 }
 .joinrow {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .joinrow input {
   flex: 1;
@@ -249,111 +257,112 @@ select {
 .seg {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
 .seg button {
   font: inherit;
   flex: 1 1 auto;
-  min-height: 44px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-text);
   cursor: pointer;
 }
 .seg button[aria-pressed="true"] {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bg);
+  background: var(--gel);
+  border-color: var(--gel);
+  color: var(--color-on-accent);
 }
 .seg.big button {
-  font-size: 1.6rem;
+  font-size: var(--text-2xl);
 }
 
 .error {
-  color: var(--ban);
-  background: var(--ban-bg);
-  padding: 10px 12px;
-  border-radius: 12px;
+  color: var(--color-danger);
+  background: color-mix(in oklab, var(--color-danger) 14%, var(--color-surface));
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--r-panel);
 }
 .warn {
-  color: var(--warn);
-  background: var(--warn-bg);
-  padding: 8px 12px;
-  border-radius: 10px;
+  color: var(--color-warning);
+  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface));
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
 }
 .demo {
-  font-size: 0.875rem;
-  color: var(--warn);
-  background: var(--warn-bg);
-  border: 1px dashed var(--warn);
-  padding: 8px 12px;
-  border-radius: 10px;
+  font-size: var(--text-sm);
+  color: var(--color-warning);
+  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface));
+  border: 1px dashed var(--color-warning);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
 }
 .ok {
-  color: var(--like);
+  color: var(--color-success);
 }
 
 .account {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  color: var(--muted);
-  font-size: 0.9rem;
+  gap: var(--space-1) var(--space-2);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
 }
 
 /* diet card */
 .diet {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .chip {
   font: inherit;
-  min-height: 44px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
+  min-height: var(--tap-crowded);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-text);
   cursor: pointer;
+  box-shadow: var(--shadow-flat);
 }
 .chip.avoid {
-  background: var(--warn-bg);
-  border-color: var(--warn);
-  color: var(--warn);
+  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface));
+  border-color: var(--color-warning);
+  color: var(--color-warning);
 }
 .chip.severe {
-  background: var(--ban-bg);
-  border-color: var(--ban);
-  color: var(--ban);
+  background: var(--color-sheet);
+  border-color: var(--color-text-2);
+  color: var(--color-text-2);
   font-weight: 700;
 }
 .chip.suggest {
-  color: var(--muted);
+  color: var(--color-text-2);
   border-style: dashed;
 }
 .toggles {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 .check {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 44px;
+  gap: var(--space-2);
+  min-height: var(--tap);
 }
 .check input {
-  width: 22px;
-  height: 22px;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
   min-height: 0;
 }
 
@@ -361,12 +370,12 @@ select {
 .invite {
   flex-direction: row;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 .invite > div {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
   /* the address in "or enter the code at changle.ca/eat" breaks where it must */
   overflow-wrap: anywhere;
@@ -383,9 +392,9 @@ select {
 }
 .qr {
   flex: none;
-  background: #fff;
-  border-radius: 12px;
-  padding: 4px;
+  background: var(--color-paper);
+  border-radius: var(--r-panel);
+  padding: var(--space-1);
 }
 .qr svg {
   width: 100%;
@@ -393,52 +402,58 @@ select {
   display: block;
 }
 .code {
-  font-size: 2.2rem;
+  font-family: var(--font-display);
+  line-height: var(--leading-tight);
+  /* beside the QR code on a phone: four wide digits have to fit on one line */
+  font-size: var(--text-2xl);
   font-weight: 800;
   letter-spacing: 0.12em;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 .people {
   list-style: none;
   padding: 0;
-  margin: 8px 0;
+  margin: var(--space-2) 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
 }
 .people li {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--line);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--r-panel);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-flat);
 }
 .people li.mine {
-  background: var(--mine);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
 }
 .tablelimits {
-  font-size: 0.9rem;
-  color: var(--muted);
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
 }
 .tablelimits b {
-  color: var(--ink);
+  color: var(--color-text);
 }
 
 /* round 1: the whole menu, in groups */
 .menu {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .menu h3 {
-  font-size: 0.95rem;
-  color: var(--muted);
+  font-size: var(--text-md);
+  color: var(--color-text-2);
 }
 .moods {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 8px;
+  gap: var(--space-2);
 }
 .mood {
   font: inherit;
@@ -447,22 +462,23 @@ select {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: 72px;
-  padding: 10px;
-  border-radius: 14px;
-  border: 2px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
+  min-height: var(--dock-h);
+  padding: var(--space-3);
+  border-radius: var(--r-tile);
+  border: 2px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-text);
   text-align: left;
   cursor: pointer;
+  box-shadow: var(--shadow-flat);
 }
 .mood .emoji {
-  font-size: 1.3rem;
+  font-size: var(--text-2xl);
 }
 .mood .label {
   font-weight: 600;
-  font-size: 0.9rem;
-  line-height: 1.25;
+  font-size: var(--text-sm);
+  line-height: var(--leading);
   /* A long English word ("Mediterranean") breaks inside the chip instead of running past it. */
   overflow-wrap: break-word;
   -webkit-hyphens: auto;
@@ -471,17 +487,18 @@ select {
 }
 .mood .mark {
   position: absolute;
-  top: 8px;
-  right: 10px;
-  font-size: 1.3rem;
+  top: var(--space-2);
+  right: var(--space-3);
+  font-size: var(--text-xl);
 }
 .mood.like {
-  border-color: var(--like);
-  background: var(--like-bg);
+  border-color: var(--color-success);
+  background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
 }
 .mood.ban {
-  border-color: var(--ban);
-  background: var(--ban-bg);
+  border-color: var(--color-text-2);
+  background: var(--color-sheet);
+  color: var(--color-text-2);
 }
 .mood.ban .label {
   text-decoration: line-through;
@@ -491,22 +508,23 @@ select {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.9rem;
+  gap: var(--space-2);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
 }
 
 /* round 2 */
 .places {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
 }
 .place {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--r-tile);
   overflow: hidden;
+  box-shadow: var(--shadow-flat);
 }
 .place .photo {
   position: relative;
@@ -520,47 +538,47 @@ select {
 }
 .place figcaption {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
-  max-width: calc(100% - 12px);
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  font-size: 0.75rem;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  max-width: calc(100% - var(--space-3));
+  padding: 2px var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-scrim);
+  color: var(--color-text);
+  font-size: var(--text-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .place figcaption a {
-  color: #fff;
+  color: var(--color-text);
 }
 .place .body {
-  padding: 14px;
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .place h3 {
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
   margin: 0;
 }
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
-  font-size: 0.9rem;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
 }
 .wait {
-  font-size: 0.95rem;
+  font-size: var(--text-md);
 }
 .quote {
   margin: 0;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--bg);
-  font-size: 0.85rem;
-  color: var(--muted);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
+  background: var(--color-bg);
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
 }
 .quote cite {
   font-style: normal;
@@ -568,10 +586,10 @@ select {
 }
 .links {
   display: flex;
-  gap: 16px;
+  gap: var(--space-4);
 }
 .links a {
-  min-height: 44px;
+  min-height: var(--tap);
   display: inline-flex;
   align-items: center;
   font-weight: 600;
@@ -579,10 +597,10 @@ select {
 }
 /* Order delivery: a fold under call and map, the four apps wrapping on a narrow phone. */
 .delivery summary {
-  min-height: 44px;
+  min-height: var(--tap);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
   font-weight: 600;
   cursor: pointer;
   list-style: none;
@@ -598,81 +616,102 @@ select {
 }
 .delivery .links {
   flex-wrap: wrap;
-  column-gap: 16px;
+  column-gap: var(--space-4);
   row-gap: 0;
 }
 /* the ranked list: rank, short intro, notes on what someone can still order, Google's summary */
 .place .head {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .rank {
   flex: none;
   min-width: 2em;
   height: 2em;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: var(--bg);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--color-on-accent);
   font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--leading-tight);
 }
 .place .head h3 {
   align-self: center;
 }
 .intro {
-  font-size: 0.95rem;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 .note {
-  color: var(--warn);
-  background: var(--warn-bg);
-  padding: 8px 12px;
-  border-radius: 10px;
-  line-height: 1.45;
+  color: var(--color-warning);
+  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface));
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
+  line-height: var(--leading);
 }
 .note.severe {
-  color: var(--ban);
-  background: var(--ban-bg);
+  color: var(--color-text-2);
+  background: var(--color-sheet);
   font-weight: 600;
 }
 .summary {
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--bg);
-  font-size: 0.9rem;
-  line-height: 1.45;
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--r-panel);
+  background: var(--color-bg);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
 }
 .summary p + p {
   margin-top: 2px;
 }
 .summary .flag {
-  min-height: 44px;
+  min-height: var(--tap);
   display: inline-flex;
   align-items: center;
 }
 .place.compact .body {
-  padding: 12px 14px;
-  gap: 6px;
+  padding: var(--space-3) var(--space-4);
+  gap: var(--space-2);
 }
 .place.compact h3 {
-  font-size: 1.05rem;
+  font-size: var(--text-md);
 }
 .place .more {
   align-self: flex-start;
-  min-height: 44px;
+  min-height: var(--tap);
   padding-left: 0;
 }
 .vote {
   display: grid;
   grid-template-columns: 2fr 1fr;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .vote .veto {
-  border-color: var(--line);
+  border-color: var(--color-line);
+}
+/* A veto is a preference, even though the existing button has the danger class. */
+.vote .btn.veto[aria-pressed="true"] {
+  background: var(--color-sheet);
+  border-color: var(--color-text-2);
+  color: var(--color-text-2);
+  box-shadow: none;
+}
+.vote .btn {
+  min-height: var(--tap-crowded);
+}
+.bar a,
+.legal-links a,
+a.badge {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--r-pill);
 }
 .google {
   text-align: right;
@@ -680,70 +719,73 @@ select {
 
 /* spinner and result */
 .spin {
-  padding: 48px 0;
+  padding: var(--space-12) 0;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 .spinname {
-  font-size: 1.8rem;
+  font-family: var(--font-display);
+  line-height: var(--leading-tight);
+  font-size: var(--text-2xl);
   font-weight: 800;
   min-height: 2.6em;
 }
 .phase-result h2 {
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
 }
 
 .toasts {
   position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: max(16px, env(safe-area-inset-bottom));
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: max(var(--space-4), var(--safe-bottom));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   pointer-events: none;
   z-index: 20;
 }
 .toast {
-  background: var(--ink);
-  color: var(--bg);
-  padding: 10px 16px;
-  border-radius: 999px;
+  background: var(--color-raised);
+  color: var(--color-text);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-pill);
   max-width: 100%;
+  box-shadow: var(--shadow-float);
 }
 
 /* Privacy and terms pages (privacy.html, terms.html): plain reading pages, both languages. */
 .legal article {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .legal article + article {
-  border-top: 1px solid var(--line);
-  padding-top: 24px;
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-6);
 }
 .legal h1 {
-  font-size: 2rem;
-  margin-top: 8px;
+  font-size: var(--text-2xl);
+  margin-top: var(--space-2);
 }
-/* Section headings a clear step above the text (1.3x), so a long page scans by its sections. */
+/* Section headings use the shared title step so long pages scan by their sections. */
 .legal h2 {
-  font-size: 1.3rem;
-  margin-top: 16px;
+  font-size: var(--text-xl);
+  margin-top: var(--space-4);
 }
 .legal ul {
   margin: 0;
-  padding-left: 1.2em;
+  padding-left: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .legal-links {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -757,28 +799,28 @@ select {
 .range {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .range .minutes {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  gap: var(--space-2);
 }
 .range .minutes button {
   font: inherit;
-  min-height: 44px;
-  padding: 4px 2px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: 0.9rem;
+  min-height: var(--tap-crowded);
+  padding: var(--space-1) 2px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 .range .minutes button[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--gel);
+  border-color: var(--gel);
+  color: var(--color-on-accent);
   font-weight: 700;
 }
 
@@ -788,55 +830,55 @@ select {
 .rlinks {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
   margin: 0;
 }
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--warn-bg);
-  color: var(--warn);
-  font-size: 0.8rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-pill);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
+  color: var(--gel);
+  font-size: var(--text-xs);
   font-weight: 600;
   text-decoration: none;
 }
 .reason {
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--like-bg);
-  color: var(--like);
-  font-size: 0.8rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--r-small);
+  background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
+  color: var(--color-success);
+  font-size: var(--text-xs);
 }
 .about {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.4;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
 }
 .ours {
   margin: 0;
-  color: var(--like);
+  color: var(--color-success);
 }
 .recommend {
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--mine);
-  font-size: 0.9rem;
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--r-panel);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
+  font-size: var(--text-sm);
 }
 .recommend p {
   margin: 0;
 }
 .recommend .rlinks {
-  margin-top: 6px;
+  margin-top: var(--space-2);
 }
 .rlinks a {
-  min-height: 32px;
+  min-height: var(--tap);
   display: inline-flex;
   align-items: center;
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 /* one person, can't decide */
@@ -845,13 +887,13 @@ select {
   text-align: right;
 }
 .question {
-  font-size: 1.3rem;
-  margin: 4px 0 12px;
+  font-size: var(--text-xl);
+  margin: var(--space-1) 0 var(--space-3);
 }
 .choices {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
+  gap: var(--space-3);
 }
 .choice {
   font: inherit;
@@ -860,55 +902,56 @@ select {
   align-items: flex-start;
   gap: 2px;
   min-height: 104px;
-  padding: 14px;
-  border-radius: 16px;
-  border: 2px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
+  padding: var(--space-4);
+  border-radius: var(--r-pill);
+  border: 2px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-text);
   text-align: left;
   cursor: pointer;
 }
 .choice .emoji {
-  font-size: 1.7rem;
+  font-size: var(--text-2xl);
 }
 .choice .label {
   font-weight: 700;
-  line-height: 1.25;
+  line-height: var(--leading);
 }
 .choice .hint {
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.3;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading);
 }
 .choice.on {
-  border-color: var(--accent);
+  border-color: var(--gel);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
 }
 .solo .row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* when: now, the next lunch or dinner, or a day and time in the coming week */
 .when {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .whenother {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-2);
 }
 .whenrow {
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 .whenrow .btn {
-  min-height: 44px;
+  min-height: var(--tap);
   flex: none;
 }
 /* A diet card budget too low for the occasion: said to that person, with a way to change it. */
@@ -916,19 +959,19 @@ select {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--warn-bg);
-  color: var(--warn);
-  font-size: 0.9rem;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
+  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface));
+  color: var(--color-warning);
+  font-size: var(--text-sm);
 }
 .budget-low .btn {
-  min-height: 44px;
+  min-height: var(--tap);
   flex: none;
 }
 .planned {
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--mine);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--r-small);
+  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
 }
