@@ -198,7 +198,18 @@ export class PhoneView {
     }
   }
 
+  /** 一帧出了错也接着画下一帧，不然画面就停住了（看着像闪退）；错误只记前几次。 */
+  private frameErrors = 0;
   private frame(): void {
+    try {
+      this.frameBody();
+    } catch (e) {
+      if (this.frameErrors++ < 3) console.error('[hang-on] phone frame', e);
+    }
+    requestAnimationFrame(() => this.frame());
+  }
+
+  private frameBody(): void {
     // 和收快照用同一个钟（见 RemoteSim.advance）
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.last) / 1000);
@@ -218,7 +229,6 @@ export class PhoneView {
       this.stage.updateCamera(this.sim, dt);
       this.stage.draw(this.sim, dt);
     }
-    requestAnimationFrame(() => this.frame());
   }
 
   /** 和电视上一样的横幅：到顶、松手害人、召唤、检查点。 */
