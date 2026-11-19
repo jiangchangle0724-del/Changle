@@ -25,6 +25,8 @@ const ICONS = {
   // the ferry (a hull, a cabin, its funnel) and the opera gong on its stand
   ship: "M3 15h18l-2.5 4.5h-13zM6 15v-4h10v4M9 11V7.5h3V11M10.5 5.5v2",
   gong: "M12 17a5 5 0 1 0 0-10a5 5 0 0 0 0 10zM4 4v17M20 4v17M4 4h16M12 4v3M11 12h2",
+  // the transit hall's lights going out: a bulb, struck through
+  bulb: "M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5c-.6.5-1 1.2-1 2V17h-5v-.5c0-.8-.4-1.5-1-2zM3.5 3.5l17 17",
   // the seawall's bike: two wheels, the frame, the saddle and the bars
   bike: "M9 16.5a3.5 3.5 0 1 1-7 0a3.5 3.5 0 0 1 7 0zM22 16.5a3.5 3.5 0 1 1-7 0a3.5 3.5 0 0 1 7 0zM5.5 16.5L9.5 10h6.5M12 16.5l-2.5-7.5M12 16.5h-6.5M12 16.5L16 10l2.5 6.5M16 10l-1-3h2.5M8 9h3",
   // the theatre's drill: a fist, its knuckles on top and the thumb across

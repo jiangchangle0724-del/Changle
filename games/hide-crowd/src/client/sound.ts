@@ -1,12 +1,12 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
 // hitting the floor, the ferry horn, the seawall's bike (its bell, and its crash into someone), the
-// busker's riff, the opera gong, the theatre's drill (the
+// busker's riff, the transit hall's lights going out, the opera gong, the theatre's drill (the
 // stage's count and the crowd's punches), the night market's firecrackers and fireworks, a bite at a
 // stall and a feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
 // screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the
 // first tap unlocks it. The menu's two switches turn the sounds off (hc.sound) and the music
 // (hc.music), and the game plays the same without.
-import { DRILL_BEAT_MS, DRILL_GO_MS, type ArenaId } from "../engine";
+import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, type ArenaId } from "../engine";
 import { FIREWORK_RISE_MS, FIREWORK_SHOTS } from "./fireworks";
 
 let ctx: AudioContext | null = null;
@@ -269,6 +269,34 @@ export const sfx = {
     voice("sine", 2_380, 2_370, t + 0.06, 0.25, 0.05, master!, 0.002);
     voice("sine", 110 * pitch, 46 * pitch, t + 0.08, 0.3, 0.5);
     hiss(t + 0.08, 0.16, 0.18, 600 * pitch, 180 * pitch, 0.7);
+  },
+  /**
+   * The transit hall's lights going out: the power cutting out (a deep clunk, the lamps' hum dying), the
+   * crowd's murmur in the dark, and the lights flickering back on (the starters ticking, a hum). In time
+   * with the screen: `elapsedMs` is how far into it this screen came in.
+   */
+  lightsOut(elapsedMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    const at = (ms: number) => t + (ms - elapsedMs) / 1000;
+    const off = at(0);
+    if (off >= t - 0.05) {
+      voice("sine", 92, 38, off, 0.42, 0.5);
+      voice("sawtooth", 120, 60, off, 0.5, 0.05, master!, 0.003);
+      hiss(off, 0.12, 0.2, 900, 300, 0.8);
+    }
+    // (the murmur: "ooh" in the dark)
+    const murmur = at(380);
+    if (murmur >= t - 0.05) {
+      hiss(murmur, 1.1, 0.07, 380, 820, 2.4);
+      hiss(murmur + 0.15, 0.9, 0.05, 520, 360, 2.4);
+    }
+    const back = at(BLACKOUT_MS - 560);
+    if (back >= t - 0.05) {
+      for (const tick of [0, 0.08, 0.2, 0.28]) hiss(back + tick, 0.03, 0.14, 5_200, 3_800, 2);
+      voice("sawtooth", 118, 120, back + 0.41, 0.6, 0.035, master!, 0.08);
+    }
+    duck(t, Math.max(0.4, (BLACKOUT_MS - elapsedMs) / 1000));
   },
   /** the opera gong: a bright strike that rings and wobbles */
   gong(): void {

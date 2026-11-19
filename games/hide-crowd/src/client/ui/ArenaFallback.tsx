@@ -4,7 +4,7 @@
 // then every player's name, the winner's in the gel. The night market's four stalls sit along the
 // top, and light up when someone tastes one.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { ARENA, BIKE_REACH, bikeX, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
+import { ARENA, BIKE_REACH, bikeX, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId, type MomentKind } from "../../engine";
 import type { AvatarView, BikeView, CrackerView } from "../../room/protocol";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
@@ -24,8 +24,8 @@ export function ArenaFallback(props: {
   impactId: number;
   impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "bike" | "over";
   flash?: { id: number; stall: number; feast: boolean } | null;
-  /** the night market's firecrackers come with their moment, the seawall's bike with its line */
-  moment?: { crackers?: CrackerView[]; bike?: BikeView } | null;
+  /** the night market's firecrackers come with their moment, the seawall's bike with its line (and the transit hall goes dark) */
+  moment?: { kind?: MomentKind; crackers?: CrackerView[]; bike?: BikeView } | null;
 }) {
   const arenaRef = useRef<HTMLDivElement>(null);
   const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
@@ -117,7 +117,7 @@ export function ArenaFallback(props: {
   }, [props.flash?.id]);
 
   return (
-    <div ref={arenaRef} class={`flat-arena flat-arena--${props.arena}${shaking ? " is-hit" : ""}`} role="img" aria-label={t("arena")}>
+    <div ref={arenaRef} class={`flat-arena flat-arena--${props.arena}${shaking ? " is-hit" : ""}${props.moment?.kind === "blackout" ? " is-dark" : ""}`} role="img" aria-label={t("arena")}>
       {props.arena === "market" && (
         <div class="flat-stalls" aria-hidden="true">
           {[0, 1, 2, 3].map((stall) => (

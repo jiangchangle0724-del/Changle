@@ -378,3 +378,25 @@ test("standing about, a body nods or shakes its head now and then; walking, neve
   assert.ok(difference("idle", 0) > 0.05, "a gesture within 25 seconds of standing about");
   assert.ok(difference("walk", NPC_SPEED) < 0.001, "none while walking");
 });
+
+test("in the transit hall's dark, anyone standing looks at their phone (its hand comes up, its phone lit); walking, nobody does", async () => {
+  const kit = kitFrom(...(await files));
+  // (a look that stands with its hands down, and one whose own idle is the phone: both light one)
+  for (const look of [LOOKS.findIndex((item) => item.idle === "idle"), LOOKS.findIndex((item) => item.idle === "idle_phone")]) {
+    const phone = (mood: "calm" | "dark", speed: number) => {
+      const person = kit.spawn(look);
+      let highest = -Infinity;
+      for (let frame = 0; frame < 90; frame++) {
+        person.update(1 / 60, (frame * 1000) / 60, speed, speed > 0 ? "walk" : "idle", "over", mood);
+        if (frame > 60) highest = Math.max(highest, at(person, "hand_r").y);
+      }
+      const lit = person.phoneLit;
+      person.dispose();
+      return { hand: highest, lit };
+    };
+    assert.ok(phone("dark", 0).lit > 0.9, `look ${look}: standing in the dark, its phone is lit`);
+    assert.ok(phone("calm", 0).lit < 0.01, `look ${look}: in the light, no phone`);
+    assert.ok(phone("dark", NPC_SPEED).lit < 0.01, `look ${look}: walking in the dark, no phone`);
+    if (LOOKS[look].idle === "idle") assert.ok(phone("dark", 0).hand > phone("calm", 0).hand + 0.1, "the hand comes up with it");
+  }
+});
