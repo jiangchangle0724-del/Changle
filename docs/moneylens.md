@@ -62,7 +62,7 @@ Taken from the feature names in v1 sections 1, 13 and 16. If the original functi
 ### 3.3 Supported inputs in the first release
 
 - `IN-1` Formats, in this order: CSV and OFX/QFX files exported from the bank's own website, then text-based PDF e-statements. Structured exports parse more reliably than PDF text, although many CSV files carry no balances (ACC-2). Scanned or photographed statements are out of scope (no OCR).
-- `IN-2` The operator names the first institutions. Start with those whose statements he can verify in Phase 2. Each institution and format is a named parser (IMP-3).
+- `IN-2` The operator names the first institutions. Start with those whose statements he can verify in Phase 2. Each institution and format is a named parser (IMP-3). **Amended by the operator on 19 November 2026:** no institutions are named. A person uploads the statement their own bank gives them, whichever bank it is. The readers are by format (OFX/QFX; CSV, with the layout worked out from the file; then text PDF), and every import passes the preview (IMP-6) and the reconciliation (ACC-2) before anything is saved. Phase 2 still checks the readers against the operator's own statements.
 - `IN-3` Account types: chequing, savings, credit card. Loans, mortgages and investment accounts are later.
 - `IN-4` Currencies: CAD and USD accounts. Amounts in other currencies are kept as shown on the statement.
 - `IN-5` Later, not now: Alipay and WeChat Pay bill exports, which matter for this site's audience.
@@ -128,7 +128,7 @@ Option B, server-readable (alternative):
 
 - `IMP-1` Parsing MUST run in the browser. On the Free plan a Worker has 10 ms of CPU per request, so server-side parsing is not possible. It MAY be added only with D6 on Paid, disclosed in the Privacy Policy, using private temporary storage deleted within one hour, with a test that proves deletion.
 - `IMP-2` Formats follow IN-1.
-- `IMP-3` Each institution and format is a named parser with synthetic fixtures and a reconciliation test. An unsupported file fails with a clear message and saves nothing.
+- `IMP-3` Each institution and format is a named parser with synthetic fixtures and a reconciliation test. An unsupported file fails with a clear message and saves nothing. With IN-2 as amended, the named parsers are the readers for a format (`ofx`, `csv`, later `pdf`); a parser for one institution is added only where the general reader gets that institution's export wrong.
 - `IMP-4` PDF.js MUST be version 4.2.67 or later with `isEvalSupported: false` (CVE-2024-4367), running in a Web Worker. Limits: 10 MB per file, 100 pages, 30 seconds per parse. File type is checked by content, not by extension.
 - `IMP-5` Extracted text is untrusted input. It is never rendered as HTML, never executed, and never given to an AI model as instructions.
 - `IMP-6` Before saving the user sees a preview, the reconciliation result and the duplicate report, and confirms. At extraction, account and card numbers are cut to the last four digits and the holder's name and address are dropped.

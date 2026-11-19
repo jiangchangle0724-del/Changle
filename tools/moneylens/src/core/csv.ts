@@ -16,7 +16,7 @@ export class CsvError extends Error {
 
 export type CsvOptions = {
   /** What separates fields: a comma unless said otherwise. */
-  delimiter?: "," | ";" | "\t";
+  delimiter?: "," | ";" | "\t" | "|";
   /** Most rows (default 100,000), most fields in a row (default 100), most characters in a field (default 2,000). */
   maxRows?: number;
   maxFields?: number;

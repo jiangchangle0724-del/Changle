@@ -155,7 +155,7 @@ test("hostile files end in a refusal, not a crash or a long wait (T-11)", () => 
 
 test("the front door: bytes decide, and a file nobody recognizes saves nothing", () => {
   const errorFor = (bytes: Uint8Array, parsers?: CsvParser[]) => {
-    const r = readStatementFile(bytes, parsers);
+    const r = readStatementFile(bytes, parsers ? { csvParsers: parsers } : {});
     return r.ok ? "ok" : r.error;
   };
   assert.equal(errorFor(bytesOf(bankV1())), "ok");
@@ -163,8 +163,16 @@ test("the front door: bytes decide, and a file nobody recognizes saves nothing",
   assert.equal(errorFor(Uint8Array.of(0x89, 0x50, 0x4e, 0x47)), "not-a-statement");
   assert.equal(errorFor(bytesOf("<!doctype html><title>Sign in</title>")), "not-a-statement");
   assert.equal(errorFor(bytesOf("%PDF-1.7")), "pdf-not-yet");
-  assert.equal(errorFor(bytesOf("Date,Description,Amount\n2026-10-01,COFFEE,-4.50\n")), "no-parser");
-  // a bank's CSV layout, once there is a parser for it
+  // a CSV file from any bank goes to the general reader (anycsv.test.ts); text that isn't a table of dated amounts is refused
+  const any = readStatementFile(bytesOf("Date,Description,Amount\n2026-10-01,COFFEE,-4.50\n"));
+  assert.ok(any.ok);
+  assert.equal(any.statements[0]!.parser, "csv");
+  assert.deepEqual(any.statements[0]!.lines, [{ posted: "2026-10-01", amount: -450, description: "COFFEE" }]);
+  assert.equal(any.layout?.date, 0);
+  assert.equal(errorFor(bytesOf("Dear customer,\nyour statement is ready.\n")), "no-parser");
+  assert.equal(errorFor(bytesOf("Name,Email\nA. Sample,a@example.test\n")), "no-parser");
+  assert.equal(errorFor(bytesOf('Date,Description,Amount\n"never closed')), "malformed");
+  // a parser written for one bank's layout is tried first
   const toy: CsvParser = {
     id: "toybank-chequing-csv",
     matches: (rows) => rows[0]?.join("|") === "Date|Description|Amount",
@@ -173,7 +181,7 @@ test("the front door: bytes decide, and a file nobody recognizes saves nothing",
         ? null
         : { parser: "toybank-chequing-csv", account: { currency: "CAD" }, lines: rows.slice(1).map((r) => ({ posted: r[0]!, amount: Math.round(Number(r[2]) * 100), description: r[1]! })), unread: 0, warnings: [] },
   };
-  const read = readStatementFile(bytesOf("Date,Description,Amount\n\n2026-10-01,COFFEE,-4.50\n"), [toy]);
+  const read = readStatementFile(bytesOf("Date,Description,Amount\n\n2026-10-01,COFFEE,-4.50\n"), { csvParsers: [toy] });
   assert.ok(read.ok);
   assert.equal(read.statements[0]!.lines.length, 1);
   assert.equal(errorFor(bytesOf("Date,Description,Amount\n"), [toy]), "no-lines");
