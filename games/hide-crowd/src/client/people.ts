@@ -502,13 +502,17 @@ export async function loadPeople(loader = new GLTFLoader()): Promise<PeopleKit> 
   return kitFrom(man, woman, moves);
 }
 
-type Kind = "tag" | "foul" | "swing" | "hide" | "blast" | "over";
+type Kind = "tag" | "foul" | "swing" | "hide" | "blast" | "bike" | "over";
 /**
  * What's happening around a body, for its face and head (the arena works it out, the same for every
  * body): fireworks overhead (it looks up, "ooh"), a bang close by (a start), something to watch (the
  * horn, the gong: brows up a little).
  */
-export type Mood = "calm" | "sky" | "fright" | "watch";
+/**
+ * What's around a body that its face and head react to: fireworks overhead (it looks up), a bang close
+ * by (a start), a moment to watch (brows up), the transit hall's lights out (it looks at its phone)
+ */
+export type Mood = "calm" | "sky" | "fright" | "watch" | "dark";
 const RIGHT = new THREE.Vector3(1, 0, 0);
 
 /** A one-off clip over the legs: its share of the body, and until when it holds (ms; Infinity while stunned). */
@@ -536,6 +540,10 @@ export class Person {
   private readonly nod: THREE.AnimationAction | null;
   private readonly shake: THREE.AnimationAction | null;
   private readonly eat: THREE.AnimationAction | null;
+  /** looking at a phone (the transit hall's lights out): the phone idle, whatever the look's own idle */
+  private readonly onPhone: THREE.AnimationAction;
+  private phoning = 0;
+  private readonly hand: THREE.Object3D | null;
   private readonly clips: Map<string, THREE.AnimationClip>;
   /** a clip this body holds for good (someone beside the place: leaning on the railing, a lantern held out) */
   private held: THREE.AnimationAction | null = null;
@@ -610,6 +618,7 @@ export class Person {
     // (the clips only turn bones, so the head keeps this size; its hair and cap grow with it)
     this.head?.scale.setScalar(HEAD_SCALE);
     this.neck = model.getObjectByName("neck_01") ?? null;
+    this.hand = model.getObjectByName("hand_r") ?? null;
     this.mixer = new THREE.AnimationMixer(model);
     const action = (name: string) => {
       const clip = clips.get(name);
@@ -629,6 +638,7 @@ export class Person {
     this.nod = extra("nod");
     this.shake = extra("no");
     this.eat = extra("eat");
+    this.onPhone = action("idle_phone");
     // (the first gesture somewhere in the first quarter of a minute, each body on its own beat)
     this.nextGesture = 4_000 + ((index * 0.7548776662 + 0.21) % 1) * 12_000;
     // locomotion always plays: its weights follow the speed, its time follows the stride (a body that
@@ -652,6 +662,12 @@ export class Person {
       this.eat.play();
       this.eat.setEffectiveWeight(0);
       this.eat.time = this.phase * this.eat.getClip().duration;
+    }
+    // (a look whose idle is the phone already plays it)
+    if (this.onPhone !== this.idle) {
+      this.onPhone.play();
+      this.onPhone.setEffectiveWeight(0);
+      this.onPhone.time = this.phase * this.onPhone.getClip().duration;
     }
   }
 
@@ -741,13 +757,18 @@ export class Person {
     // standing at a night market stall, anyone eats (a player tasting, or a passer-by: the same)
     const eats = !!this.eat && atStall && pose === "idle" && metres < 0.2;
     this.eating = damp(this.eating, eats ? 1 : 0, eats ? 5 : 8, step);
+    // the lights out: anyone standing still looks at their phone (a player too)
+    const phones = mood === "dark" && (pose === "idle" || pose === "glance") && metres < 0.2;
+    this.phoning = damp(this.phoning, phones ? 1 : 0, phones ? 6 : 9, step);
     const holding = this.held ? 1 : 0;
-    const free = legs * (1 - this.dancing) * (1 - this.eating) * (1 - holding);
-    this.idle.setEffectiveWeight((1 - this.moving) * free);
+    const free = legs * (1 - this.dancing) * (1 - this.eating) * (1 - this.phoning) * (1 - holding);
+    const phone = this.phoning * legs * (1 - this.dancing) * (1 - this.eating) * (1 - holding);
+    this.idle.setEffectiveWeight((1 - this.moving) * free + (this.onPhone === this.idle ? phone : 0));
     this.walk.setEffectiveWeight(this.moving * (1 - this.jogging) * free);
     this.jog.setEffectiveWeight(this.moving * this.jogging * free);
     this.dance.setEffectiveWeight(this.dancing * legs * (1 - holding));
     this.eat?.setEffectiveWeight(this.eating * legs * (1 - this.dancing) * (1 - holding));
+    if (this.onPhone !== this.idle) this.onPhone.setEffectiveWeight(phone);
     this.held?.setEffectiveWeight(holding * legs);
     this.gesture(now, pose, mood, eats);
     this.mixer.update(step);
@@ -862,6 +883,16 @@ export class Person {
       const into = ((now / 1000 + this.seed * 3.1) % every) / 0.14;
       if (into < 1) influences[FACE.blink] = Math.max(influences[FACE.blink], Math.sin(into * Math.PI));
     }
+  }
+
+  /** How far into looking at its phone this body is (0 to 1: the lights out), and where the phone is (its right hand). */
+  get phoneLit(): number {
+    return this.phoning;
+  }
+
+  phonePosition(target: THREE.Vector3): THREE.Vector3 {
+    if (this.hand) return this.hand.getWorldPosition(target);
+    return target.copy(this.root.position).setY(PERSON_HEIGHT * this.size * 0.6);
   }
 
   /** Where the head is this frame, in the scene, once its clips have moved it (what floats over it: the dizzy stars). */

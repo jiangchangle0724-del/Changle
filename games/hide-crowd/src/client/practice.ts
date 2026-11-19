@@ -4,18 +4,21 @@
 // address starts there at once. They walk the way the
 // passers-by walk (the same plans, crowdStep in the rules: at the night market that takes them to the
 // stalls, where they taste like a player), stop for the ferry horn, the busker, the gong or the
-// fireworks a beat after it like everyone, get clear of the night market's firecrackers, punch on the
+// fireworks a beat after it like everyone, freeze in the theatre's follow spot, step out of the seawall's
+// bike's way and watch it go by, get
+// clear of the night market's firecrackers, punch on the
 // theatre's call with the whole crowd (at whoever they suspect, if they're in reach), and turn to look
 // at a knockdown near them. They go after
 // anyone who gives themselves away (punching, walking on through a moment, standing still while the
-// whole crowd punches on the call, being knocked down by a firecracker everyone else got clear of,
+// whole crowd punches on the call, being knocked down by a firecracker or the bike everyone else got
+// clear of,
 // running on and on: passers-by run too, but only for a moment, or standing at a stall just as it
 // lights up), and sometimes get it wrong: a passer-by throwing a punch
 // at nothing (someone's distraction) fools them as it would a person. After a punch a rival lies low
 // for a few seconds, walking like a passer-by, as a player would (without it the rivals punched each
 // other round after round in a chain, and a round was over in 45 s). Each uses both its distractions a
 // round itself. No server, no penalty.
-import { ARENAS, crowdMoment, crowdStep, DRILL_GO_MS, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
+import { ARENAS, crowdMoment, crowdStep, DRILL_GO_MS, inSpot, sweepSpot, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
 import type { ArenaId } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
 import { Room } from "../room/room";
@@ -38,6 +41,10 @@ const LIE_LOW_SPREAD_MS = 3_000;
 const DRILL_EARLY_MS = 400;
 const DRILL_LOOK_MS = 520;
 const DRILL_STOOD = 24;
+/** the theatre's follow spot: a body it has lit this long has had time to freeze */
+const SPOT_SETTLE_MS = 350;
+/** the seawall's bike: by this long into its moment every passer-by has stepped out of its way (the latest hears its bell 2.8 s in) */
+const BIKE_SETTLED_MS = 3_300;
 
 interface Brain {
   id: string;
@@ -117,9 +124,10 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
     const game = room.st.game;
     if (!game || game.phase !== "playing") return;
     // walking on while the crowd stops for the horn or the gong gives a body away: by 1.3 s in, every
-    // passer-by has stopped (the slowest turns 0.64 s in, then slows down)
+    // passer-by has stopped (the slowest turns 0.64 s in, then slows down); for the bike, once the
+    // last of them has stepped out of its way (some hear its bell late)
     const moment = crowdMoment(game.arena, game.startedAt, now);
-    const watching = !!moment && now - moment.startsAt > 1_300;
+    const watching = !!moment && now - moment.startsAt > (moment.kind === "bike" ? BIKE_SETTLED_MS : 1_300);
     // the theatre's drill: on the call everyone punches, so a punch then is no tell (one during the count is)
     const drillGo = moment?.kind === "drill" ? moment.startsAt + DRILL_GO_MS : null;
     const withTheCrowd = drillGo !== null && now >= drillGo - DRILL_EARLY_MS;
@@ -136,7 +144,9 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       runningFor.set(at, running);
       const punching = body.pose === "windup" || body.pose === "punch";
       if (punching && withTheCrowd) drillPunched.add(at);
-      const tell = punching && !withTheCrowd ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
+      // (the theatre's follow spot: everyone it lands on freezes, so moving in its light gives a body away)
+      const lit = moment?.kind === "spot" && inSpot(body, sweepSpot(game.seed, game.startedAt, moment.startsAt), now - SPOT_SETTLE_MS);
+      const tell = punching && !withTheCrowd ? 4 : lit && speed > 2 ? 3 : watching && speed > 2 && moment?.kind !== "spot" ? 2 : running > LONG_RUN_MS ? 1 : 0;
       suspicion.set(at, Math.max(0, (suspicion.get(at) ?? 0) * 0.985 + tell));
     });
     // a moment after the call, whoever stood there without punching (and could have) gives themselves away
@@ -147,11 +157,11 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       });
     }
     // a stall lit up: someone standing at it just tasted it (the fewer there, the surer); a firecracker
-    // knocked someone down (the passers-by get clear of them: whoever didn't is likely a player)
+    // or the bike knocked someone down (the passers-by get out of their way: whoever didn't is likely a player)
     for (const event of game.events) {
       if (event.id <= seenEvent) continue;
       seenEvent = event.id;
-      if (event.t === "blast") {
+      if (event.t === "blast" || event.t === "bike") {
         game.characters.forEach((body, at) => {
           if (now < body.stunnedUntil && body.pose === "stunned") suspicion.set(at, (suspicion.get(at) ?? 0) + DRILL_STOOD);
         });

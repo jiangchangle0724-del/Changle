@@ -65,13 +65,32 @@ export interface AvatarView {
 
 export interface EventView {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "bike" | "over";
   /** bite: the night market's stall that was tasted (everyone sees which; only the taster's phone sees byYou) */
   stall?: number;
   /** this phone did it (a tag, a foul, a miss) or it happened to this phone's player (slipped away) */
   byYou: boolean;
-  /** this phone's player was tagged (or, a blast: knocked down by it) */
+  /** this phone's player was tagged (or, a blast or the bike: knocked down by it) */
   onYou: boolean;
+}
+
+/**
+ * The seawall's bike: the line it rides along (y), which way (1: left to right), and how long ago it
+ * set off from out past the side of the floor (its front wheel is at engine/bikeX from then on).
+ */
+export interface BikeView {
+  y: number;
+  dir: 1 | -1;
+  sinceMs: number;
+}
+
+/** The theatre's follow spot: its sweep (engine/spotAt), and how long ago it began. */
+export interface SpotView {
+  dir: 1 | -1;
+  y: number;
+  wave: number;
+  phase: number;
+  sinceMs: number;
 }
 
 /** A firecracker thrown into the night market's crowd: where it lands, and how long until it lands and bangs. */
@@ -108,9 +127,10 @@ export interface GameView {
   me: MeView | null;
   /**
    * the moment the whole crowd is reacting to (the ferry horn, the gong), while it lasts; the night
-   * market's firecrackers come with where each lands and when it bangs
+   * market's firecrackers come with where each lands and when it bangs, the seawall's bike with its line,
+   * the theatre's follow spot with its sweep
    */
-  moment: { kind: MomentKind; endsInMs: number; crackers?: CrackerView[] } | null;
+  moment: { kind: MomentKind; endsInMs: number; crackers?: CrackerView[]; bike?: BikeView; spot?: SpotView } | null;
   /**
    * someone's distraction, for a moment: where its passer-by swung (every screen but the maker's
    * turns its camera there, as the Steam game pans away; nothing says whose it was)

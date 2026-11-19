@@ -18,12 +18,15 @@ export const AI_TRIES = 3;
 /**
  * The instructions' version, kept with what they wrote (ai_hash = "<text_hash>:<version>"): a new
  * version writes every event again. v2 (19 November): the source's labels, and nothing guessed.
+ * v3 (the same day): Ticketmaster's names kept as they are, and praise or origins nothing backs left out.
  */
-export const AI_VERSION = "v2";
+export const AI_VERSION = "v3";
 
 /** What the AI is given about an event. */
 export interface ToWrite {
   id: string;
+  /** Source.id: Ticketmaster's names stay as they are (KEEP_TITLE). */
+  source?: string;
   title: string;
   description: string | null;
   venue: string | null;
@@ -134,7 +137,7 @@ export function readAnswer(text: string, count: number): (Written | null)[] {
 export async function toWrite(db: D1Database, runId: string, fromMs: number, toMs: number, limit = AI_BATCH, offset = 0): Promise<ToWrite[]> {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.title, e.description, v.name AS venue, e.source_categories AS labels
+      `SELECT e.id, e.source, e.title, e.description, v.name AS venue, e.source_categories AS labels
          FROM events e
          LEFT JOIN venues v ON v.id = e.venue_id
          LEFT JOIN sources s ON s.id = e.source
@@ -157,8 +160,9 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
   const stmts: D1PreparedStatement[] = [];
   const failed: string[] = [];
   events.forEach((e, i) => {
-    const w = written[i];
-    if (!w) return void failed.push(e.id);
+    const got = written[i];
+    if (!got || !grounded(got, e)) return void failed.push(e.id);
+    const w = KEEP_TITLE.has(e.source ?? "") ? { ...got, titleZh: e.title } : got;
     stmts.push(
       db
         .prepare(
@@ -173,6 +177,50 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
   if (failed.length) stmts.push(db.prepare("UPDATE events SET ai_tries = ai_tries + 1 WHERE id IN (SELECT value FROM json_each(?1))").bind(JSON.stringify(failed)));
   if (stmts.length) await db.batch(stmts);
   return { wrote: events.length - failed.length, failed: failed.length };
+}
+
+/**
+ * Sources whose names are names: an artist, a tour, two teams. The AI turned "Amanda Marshall - The
+ * Dirty 30 Tour" into a transliteration and "Tucson Roadrunners" into hares; these keep the source's
+ * name, and the Chinese sentence says what the event is.
+ */
+export const KEEP_TITLE: ReadonlySet<string> = new Set(["ticketmaster"]);
+
+/** Words that praise, which nothing a source says backs (知名 and the like). */
+const PRAISE = /知名|著名|闻名|世界级|顶级|传奇|殿堂级|超人气|人气|巨星|天后|天王|当红|新生代/;
+/** A people or a country, and what in the source would back saying it. */
+const ORIGINS: [RegExp, RegExp][] = [
+  [/中国|华人|华语|华裔|国语|内地/, /chin|mandarin|cantonese|taiwan|hong kong|c-?pop|[\u3400-\u9fff]/i],
+  [/阿拉伯/, /arab/i],
+  [/韩国|韩流|韩裔/, /korea|k-?pop/i],
+  [/日本|日裔/, /japan|j-?pop|anime/i],
+  [/美国/, /americ|\busa?\b/i],
+  [/英国/, /brit|\buk\b|england|london|scot/i],
+  [/法国|法裔/, /fren|france/i],
+  [/意大利/, /ital/i],
+  [/印度|宝莱坞/, /india|bollywood|desi|hindi|punjabi|bhangra/i],
+  [/墨西哥/, /mexic/i],
+  [/拉丁/, /latin|salsa|reggaeton|bachata/i],
+  [/非洲/, /afric|afro|amapiano/i],
+  [/菲律宾/, /filipin|philippin|pinoy/i],
+  [/越南/, /vietnam/i],
+  [/伊朗|波斯/, /iran|persian/i],
+  [/德国/, /german/i],
+  [/俄罗斯/, /russia/i],
+  [/澳大利亚|澳洲/, /australia/i],
+  [/爱尔兰/, /irish|ireland/i],
+  [/牙买加/, /jamaica/i],
+];
+
+/**
+ * Whether what it wrote stays within what the source said: no praise and no people or country that
+ * nothing backs ("中国新生代歌手", "知名阿拉伯 DJ" came from a name alone).
+ */
+export function grounded(w: Written, e: ToWrite): boolean {
+  const said = [e.title, e.venue, e.description, labelsOf(e.labels)].filter(Boolean).join(" ");
+  const wrote = `${w.titleZh} ${w.summaryZh}`;
+  if (PRAISE.test(wrote) && !PRAISE.test(said)) return false;
+  return ORIGINS.every(([zh, cue]) => !zh.test(wrote) || cue.test(said));
 }
 
 /** The model, as the Worker's AI binding offers it (and tests stand in for). */

@@ -6,21 +6,27 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
+import { ARENA, BLACKOUT_MS, BLAST_RADIUS, CRACKER_FLIGHT_MS, SPOT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
 import type { ArenaId, MomentKind, Pose } from "../../engine";
-import type { AvatarView, CrackerView } from "../../room/protocol";
+import type { AvatarView, BikeView, CrackerView, SpotView } from "../../room/protocol";
 import { BASE } from "../base";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type Mood, type PeopleKit } from "../people";
 import { addEnvironmentalLandmarks } from "./landmarks";
+import { addBike } from "./bike";
 import { addCinema } from "./cinema";
 import { addCrackers } from "./crackers";
 import { addEffects } from "./effects";
 import { addExtras, type Extras } from "./extras";
+import { addPhones, blackoutDark, DARK_KEEPS } from "./lights";
+import { addSpot } from "./spot";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 import { Shake, TRAUMA } from "./shake";
 import { addFloorArt, type FloorArtPalette } from "./floorArt";
+
+/** How far the theatre's house lights go down while its follow spot sweeps (1 would be the transit hall's dark). */
+const HOUSE_DOWN = 0.62;
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
 export function preloadPeople(): void {
@@ -36,11 +42,11 @@ interface Props {
   maxSpeed: number;
   receivedAt: number;
   impactId: number;
-  impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "over";
+  impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "bike" | "over";
   /** the night market: the latest stall tasted (it flashes for everyone), and whether that bite was a feast */
   flash?: { id: number; stall: number; feast: boolean } | null;
-  /** the crowd's moment, while it lasts (the night market's firecrackers and fireworks go off in it, the theatre's drill calls in it) */
-  moment?: { kind: MomentKind; endsInMs?: number; crackers?: CrackerView[] } | null;
+  /** the crowd's moment, while it lasts (the night market's firecrackers and fireworks go off in it, the theatre's drill calls in it, the seawall's bike rides through in it) */
+  moment?: { kind: MomentKind; endsInMs?: number; crackers?: CrackerView[]; bike?: BikeView; spot?: SpotView } | null;
   /** someone else's distraction, for a moment: where its passer-by swung (the camera glances there) */
   glance?: { x: number; y: number; endsInMs: number } | null;
   /** the round has just begun on this screen: open on the camera's sweep into the game's view */
@@ -117,6 +123,11 @@ interface Palette {
   star: string;
   /** the night market's firecrackers: their paper, and the smoke of their bang */
   cracker: string;
+  screen: string;
+  bike: string;
+  tyre: string;
+  saddle: string;
+  wicker: string;
   smoke: string;
   /** the "you" marker: the game's gel, night-colored text */
   me: string;
@@ -223,6 +234,11 @@ function readPalette(): Palette {
     stall3: read("--stall-3", "#d99a2b"),
     star: read("--arena-star", "#f5df3b"),
     cracker: read("--arena-cracker", "#d4282c"),
+    screen: read("--arena-screen", "#cfe6ff"),
+    bike: read("--arena-bike", "#2f9fb0"),
+    tyre: read("--arena-tyre", "#1d1f24"),
+    saddle: read("--arena-saddle", "#6b4630"),
+    wicker: read("--arena-wicker", "#c79b5f"),
     smoke: read("--arena-smoke", "#cfc8bd"),
     me: read("--gel", "#7be55c"),
     onMe: read("--night", "#0e0c22"),
@@ -991,6 +1007,8 @@ export function Arena3D(props: Props) {
     scene.add(fill);
 
     lightPlace(props.arena, palette, ambient, key, fill);
+    // (how bright each light is, for the transit hall's lights going out)
+    const lit = { ambient: ambient.intensity, key: key.intensity, fill: fill.intensity };
     const groundTexture = addGround(scene, props.arena, palette, renderer.capabilities.getMaxAnisotropy());
     // (and what lies on it: paths, leaves, puddles, the way out)
     const floorArt = addFloorArt(scene, props.arena, floorArtPalette(palette), renderer.capabilities.getMaxAnisotropy());
@@ -1003,6 +1021,7 @@ export function Arena3D(props: Props) {
     const effects = addEffects(scene, { swoosh: palette.ink, star: palette.star, rim: palette.bg, dust: palette.muted, smoke: palette.smoke });
     // (and the night market's firecrackers)
     const crackers = market ? addCrackers(scene, { red: palette.cracker, gold: palette.bulb, fuse: palette.bg, ring: palette.warn, glow: palette.accent, flash: palette.bulb }, BLAST_RADIUS * SCENE_PER_WORLD) : null;
+    // (and the seawall's bike, with its line on the floor while it comes)
     const headAt = new THREE.Vector3();
     const environmentStart = new Set(scene.children);
     const viewEye = new THREE.Vector3();
@@ -1062,6 +1081,12 @@ export function Arena3D(props: Props) {
       mesh.frustumCulled = false;
       scene.add(mesh);
     }
+    // the theatre's follow spot
+    const spot = props.arena === "gallery" ? addSpot(scene, palette.bulb) : null;
+    // the transit hall's phones, lit in the dark
+    const phones = props.arena === "metro" ? addPhones(scene, palette.screen, MAX_CHARACTERS) : null;
+    // the seawall's bike, with its line on the floor while it comes (its shadow is the people's)
+    const bike = props.arena === "plaza" ? addBike(scene, { frame: palette.bike, tyre: palette.tyre, steel: palette.steel, saddle: palette.saddle, wicker: palette.wicker, bread: palette.stone, lane: palette.warn, laneEdge: palette.grime }, shadowMat) : null;
     // the people: until their file is in (it's fetched while the lobby is up), simple stand-ins in each look's colours
     const standInBodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.3, 1.05, 4, 10), new THREE.MeshStandardMaterial({ roughness: 0.85 }), MAX_CHARACTERS);
     const standInHeads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.21, 12, 9), new THREE.MeshStandardMaterial({ roughness: 0.85 }), MAX_CHARACTERS);
@@ -1120,6 +1145,7 @@ export function Arena3D(props: Props) {
         if (disposed) return;
         kit = loaded;
         extras = addExtras(scene, props.arena, loaded, { paper: palette.cracker, gold: palette.bulb, glow: palette.warn });
+        bike?.mount(loaded);
         standInBodies.visible = false;
         standInHeads.visible = false;
       })
@@ -1242,9 +1268,10 @@ export function Arena3D(props: Props) {
     const moodAt = (x: number, z: number, now: number): Mood => {
       const kind = moment.current?.kind;
       if (kind === "fireworks") return "sky";
+      if (kind === "blackout") return "dark";
       while (bangs.length && now - bangs[0].at > 900) bangs.shift();
       for (const bang of bangs) if (Math.hypot(bang.x - x, bang.z - z) < STARTLE) return "fright";
-      return kind === "horn" || kind === "gong" ? "watch" : "calm";
+      return kind === "horn" || kind === "gong" || kind === "bike" ? "watch" : "calm";
     };
     /** a beat of stillness when a punch lands (a hit-stop), the camera's kick toward it, the last blow in slow motion */
     let freezeUntil = 0;
@@ -1304,6 +1331,8 @@ export function Arena3D(props: Props) {
         lastImpact = impact.current;
         // (a firecracker's bang shakes the camera itself, on this screen's own clock)
         if (impactType.current !== "blast") addTrauma(TRAUMA[impactType.current]);
+        // (the bike wobbles as it knocks someone down)
+        if (impactType.current === "bike") bike?.bump(time);
         tagPop = impactType.current === "tag";
         if (impactType.current === "tag" || impactType.current === "foul") {
           freezeUntil = time + (impactType.current === "tag" ? 95 : 60);
@@ -1339,6 +1368,27 @@ export function Arena3D(props: Props) {
             return { x: sceneX(cracker.x), z: sceneZ(cracker.y), flyAt: landAt - CRACKER_FLIGHT_MS, landAt, bangAt: time + cracker.bangsInMs - age };
           })
         );
+      }
+      // the transit hall's lights going out: they flicker off, and on again (on this page's clock); at the
+      // theatre the house lights go down while the follow spot sweeps
+      if (props.arena === "metro" || props.arena === "gallery") {
+        const age = Math.max(0, Date.now() - receivedAt.current);
+        const into = crowd?.endsInMs !== undefined ? (crowd.kind === "blackout" ? BLACKOUT_MS : SPOT_MS) - crowd.endsInMs + age : -1;
+        const out = crowd?.kind === "blackout" ? blackoutDark(into, reduced) : crowd?.kind === "spot" ? HOUSE_DOWN * Math.max(0, Math.min(1, into / 260, (SPOT_MS - into) / 260)) : 0;
+        ambient.intensity = lit.ambient * (1 - (1 - DARK_KEEPS.ambient) * out);
+        key.intensity = lit.key * (1 - (1 - DARK_KEEPS.key) * out);
+        fill.intensity = lit.fill * (1 - (1 - DARK_KEEPS.fill) * out);
+      }
+      // the theatre's follow spot: its sweep and how far along it is (on this page's clock)
+      if (spot) {
+        const sweeping = crowd?.kind === "spot" ? crowd.spot : undefined;
+        spot.see(sweeping ? { startsAt: time - sweeping.sinceMs - Math.max(0, Date.now() - receivedAt.current), dir: sweeping.dir, y: sweeping.y, wave: sweeping.wave, phase: sweeping.phase } : null);
+        spot.update(time, reduced);
+      }
+      // the seawall's bike: its line and how far along it is (on this page's clock)
+      if (bike) {
+        const coming = crowd?.kind === "bike" ? crowd.bike : undefined;
+        bike.see(coming ? { y: coming.y, dir: coming.dir, startsAt: time - coming.sinceMs - Math.max(0, Date.now() - receivedAt.current) } : null);
       }
       // someone else's distraction: the camera glances at the passer-by's swing
       const looking = glance.current;
@@ -1377,6 +1427,7 @@ export function Arena3D(props: Props) {
       const clock = reduced ? 0 : time / 1000;
       let localVisual: Visual | undefined;
       let winnerVisual: Visual | undefined;
+      phones?.begin();
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
         let worldX = avatar.x;
@@ -1459,6 +1510,8 @@ export function Arena3D(props: Props) {
           // (at the night market, anyone standing at a stall eats: the same rule as the tasting, for every body)
           const atStall = props.arena === "market" && stallAt(worldX, worldY) >= 0;
           person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current, moodAt(visual.x, visual.z, time), reduced, atStall);
+          // (the lights out: whoever looks at their phone lights it)
+          if (phones && person.phoneLit > 0.02) phones.add(person.phonePosition(headAt), visual.facing, person.phoneLit, camera);
           if (person.hitFx) {
             person.hitFx = false;
             if (!reduced) burst(visual.x, visual.z, time, "spark");
@@ -1495,6 +1548,7 @@ export function Arena3D(props: Props) {
           tag.sprite.visible = true;
         }
       }
+      phones?.end();
       for (let index = tagCount; index < tags.length; index++) tags[index].sprite.visible = false;
       // names close together stack instead of covering each other (the winner's first, then front to
       // back: the others lift)
@@ -1582,6 +1636,7 @@ export function Arena3D(props: Props) {
       if (jolt.roll) camera.rotateZ(jolt.roll);
       tagZoom = Math.min(1, viewEye.distanceTo(viewLook) / Math.max(0.001, eye.distanceTo(look)));
       extras?.update((delta * pace) / 1000, time, (x, z) => moodAt(x, z, time), reduced);
+      bike?.update(time, delta / 1000, reduced);
       effects.update(time, delta * pace, camera, reduced);
       renderer.render(scene, camera);
       draws = renderer.info.render.calls;
@@ -1600,6 +1655,9 @@ export function Arena3D(props: Props) {
         person.dispose();
       }
       extras?.dispose();
+      bike?.dispose();
+      phones?.dispose();
+      spot?.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {
           object.geometry.dispose();
