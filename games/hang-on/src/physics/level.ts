@@ -25,6 +25,51 @@ export interface Rect {
   until?: number;
   /** 冰溜子（雪山，A10）：一只手抓着它最多几秒就滑脱（快到时手抖、圈变红），滑了 CFG.slipCooldown 秒抓不了。不写就抓多久都行。 */
   slip?: number;
+  /**
+   * 会塌的台子（A12）：有人站上去或抓住，过这么多秒就塌（最后 CFG.crumbleWarn 秒抖），
+   * 塌了 regrow 秒（不写是 CFG.crumbleRegrow）再长回来。
+   */
+  crumble?: number;
+  regrow?: number;
+}
+
+/**
+ * 涨潮（A12）：关底下的汤 / 水从 from（不写是 deathY）开始，开局 delay 秒后每秒涨 speed 像素，涨到 top 停。
+ * 碰到就死（cause 'tide'）。有人回检查点时水面离那里不到 CFG.tideGap，水退到那下面 CFG.tideGap，停 CFG.tidePause 秒再涨。
+ */
+/**
+ * 摆锤（A12）：吊在 pivot 下面 len 长的锤（半径 r，不写 34），摆幅 amp 弧度，来回一次 period 秒，phase 把钟往后拨几秒。
+ * 撞上被弹飞（CFG.pendulumKick）；能抓（抓着跟着荡），grab: false 不能抓；deadly 是烫的（烧红的铁锅），碰到就死。
+ */
+export interface PendulumDef {
+  pivot: Pt;
+  len: number;
+  amp: number;
+  period: number;
+  phase?: number;
+  r?: number;
+  grab?: boolean;
+  deadly?: boolean;
+  players?: [number, number];
+}
+
+/**
+ * 阵风（A12）：这块矩形里一阵一阵刮风，往 dir 吹；刮 on 秒（不写 CFG.windOn）停 off 秒（不写 CFG.windOff），phase 错开；
+ * 刮之前 CFG.windWarn 秒先起风丝（提醒）。force 是风力的倍数（不写 1）。
+ */
+export interface WindDef extends Rect {
+  dir: 'left' | 'right' | 'up' | 'down';
+  force?: number;
+  on?: number;
+  off?: number;
+  phase?: number;
+}
+
+export interface TideDef {
+  speed: number;
+  delay?: number;
+  from?: number;
+  top?: number;
 }
 
 export interface RopeDef {
@@ -195,6 +240,12 @@ export interface LeverDef extends Pt {
 
 export interface Level {
   id: string;
+  /** 涨潮（A12）。 */
+  tide?: TideDef;
+  /** 摆锤（A12）。 */
+  pendulums?: PendulumDef[];
+  /** 阵风（A12）。 */
+  winds?: WindDef[];
   /**
    * 手酸（A11）：这关的回放是开着手酸录的、验收开着手酸跑的，分难度的玩法里选中等、困难就开手酸。
    * 不写就不开（还没按手酸重录过的关；简单的关不写）。
@@ -274,7 +325,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers, level.pendulums, level.winds];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -298,6 +349,8 @@ export function forPlayers(level: Level, n: number): Level {
     dark: keep(level.dark),
     zerog: keep(level.zerog),
     levers: keep(level.levers),
+    pendulums: keep(level.pendulums),
+    winds: keep(level.winds),
   };
 }
 
@@ -638,5 +691,58 @@ export function spaceLevel(): Level {
     ],
     deathY: 1180,
     par: { seconds: 90, deathsPerPlayer: 3 },
+  };
+}
+
+/**
+ * 新机关样板关（A12，只在开发页：`play.html?level=proto-09&players=2`）：年夜饭桌上，
+ * 先过一串会塌的台阶，再躲一口来回荡的铁锅、抓着灯笼荡过一道缝，顶着一阵一阵往回刮的风抓小钉过去，
+ * 最后爬一面墙到顶，底下的汤开局 14 秒后开始涨。
+ */
+export function gadgetsLevel(): Level {
+  return {
+    id: 'proto-09',
+    world: 'table',
+    name: { zh: '新机关样板', en: 'New gadgets sampler' },
+    teaches: 'all',
+    w: 3400,
+    h: 1400,
+    spawn: { x: 100, y: 1060 },
+    goal: { x: 3150, y: 280, w: 200, h: 140 },
+    checkpoints: [
+      { x: 1300, y: 1066 },
+      { x: 2170, y: 1066 },
+      { x: 2920, y: 966 },
+    ],
+    rects: [
+      { x: 0, y: 1100, w: 500, h: 300, kind: 'ground' },
+      // 会塌的台阶：站上去 1.2 秒塌，5 秒长回来
+      { x: 560, y: 1100, w: 150, h: 30, kind: 'step', crumble: 1.2, regrow: 5 },
+      { x: 790, y: 1080, w: 150, h: 30, kind: 'step', crumble: 1.2, regrow: 5 },
+      { x: 1020, y: 1100, w: 150, h: 30, kind: 'step', crumble: 1.2, regrow: 5 },
+      // 铁锅在这块台子上来回荡
+      { x: 1240, y: 1100, w: 460, h: 300, kind: 'ground' },
+      { x: 2120, y: 1100, w: 260, h: 300, kind: 'ground' },
+      // 风里的小钉
+      { x: 2470, y: 980, w: 24, h: 16, kind: 'peg' },
+      { x: 2610, y: 950, w: 24, h: 16, kind: 'peg' },
+      { x: 2750, y: 980, w: 24, h: 16, kind: 'peg' },
+      // 爬的墙
+      { x: 2860, y: 1000, w: 140, h: 400, kind: 'ground' },
+      { x: 3000, y: 420, w: 60, h: 980, kind: 'wall' },
+      { x: 2976, y: 880, w: 24, h: 16, kind: 'peg' },
+      { x: 2976, y: 770, w: 24, h: 16, kind: 'peg' },
+      { x: 2976, y: 660, w: 24, h: 16, kind: 'peg' },
+      { x: 2976, y: 550, w: 24, h: 16, kind: 'peg' },
+      { x: 3060, y: 420, w: 340, h: 40, kind: 'ground' },
+    ],
+    pendulums: [
+      { pivot: { x: 1480, y: 640 }, len: 400, amp: 0.8, period: 2.6, r: 36 },
+      { pivot: { x: 1910, y: 640 }, len: 420, amp: 0.75, period: 3.2, r: 30 },
+    ],
+    winds: [{ x: 2380, y: 640, w: 480, h: 460, dir: 'left', on: 1.4, off: 2.2 }],
+    tide: { speed: 14, delay: 14, from: 1390, top: 560 },
+    deathY: 1400,
+    par: { seconds: 120, deathsPerPlayer: 4 },
   };
 }

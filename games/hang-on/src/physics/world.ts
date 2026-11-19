@@ -35,8 +35,8 @@ import {
   TETHER_LEN,
 } from './config';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
-import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, spinnerAngle, spinnerArm, ventColumn, ventState } from './motion';
+import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
+import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, pendulumAt, spinnerAngle, spinnerArm, ventColumn, ventState, windDir, windState } from './motion';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -244,7 +244,7 @@ export interface Prop {
 }
 
 /** 怎么死的：掉下去，或者碰到尖的、烫的、带电的。 */
-export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap';
+export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap' | 'tide';
 
 /**
  * 玩法（A7，开局前在大厅里选）：
@@ -282,6 +282,15 @@ export type SimEvent =
   | { type: 'respawn'; player: number; summoned: boolean }
   /** 手酸（A11）：力气用完了，两只手都滑脱（每只手另有一个 slip）。 */
   | { type: 'tired'; player: number }
+  /** 涨潮（A12）：开始涨（rise），有人回检查点水退下去（back）；y 是那时的水面。 */
+  | { type: 'tide'; phase: 'rise' | 'back'; y: number }
+  /** 摆锤撞飞了人（A12），x、y 是撞的地方。 */
+  | { type: 'bonk'; player: number; x: number; y: number }
+  /** 阵风（A12）：第几块，起风丝（warn）、开始刮（on），x、y 是那块的中心。 */
+  | { type: 'wind'; index: number; phase: 'warn' | 'on'; x: number; y: number }
+  /** 会塌的台子（A12）：有人碰了，开始倒数（creak）；塌了的又长回来（regrow）。 */
+  | { type: 'creak'; x: number; y: number; w: number; h: number }
+  | { type: 'regrow'; x: number; y: number; w: number; h: number }
   /** 检查点亮了；比谁先时带是谁过的（每个人、每队各有各的检查点）。 */
   | { type: 'checkpoint'; index: number; player?: number }
   | { type: 'bounce'; player: number; spring: number }
@@ -383,6 +392,10 @@ export class Sim {
   /** 本帧发生的事（抓、松、死、复活、检查点、过关……），每次 step 清空。 */
   readonly events: SimEvent[] = [];
   time = 0;
+  /** 涨潮（A12）的水面 y；这关没有涨潮是 null。 */
+  tideY: number | null = null;
+  private tideRising = false;
+  private tidePause = 0;
   won = false;
   winT = 0;
   /** 全队激活到第几个检查点（-1 = 还在起点）。 */
@@ -442,7 +455,26 @@ export class Sim {
   private readonly grips = new Map<Joint, { player: number; arm: number; g: GripInternal }>();
   private readonly fadingCols: { def: FadingDef; col: Col }[] = [];
   /** 定时塌的东西（until）：到点关掉碰撞体、松开抓着它的手。 */
-  private readonly crumbles: { until: number; gone: boolean; cols: Col[]; rect?: Rect; rb?: RB; box: () => Rect }[] = [];
+  private readonly crumbles: {
+    until: number;
+    gone: boolean;
+    cols: Col[];
+    rect?: Rect;
+    rb?: RB;
+    box: () => Rect;
+    /** 会塌的台子（A12，Rect.crumble）：有人碰了多少秒塌、塌了多少秒长回来、什么时候塌的。 */
+    touch?: number;
+    regrow?: number;
+    goneAt?: number;
+  }[] = [];
+  /** 摆锤（A12）：锤是运动学的圆；kickAt 是每个人上一次被撞是第几秒。 */
+  private readonly pendulums: { def: PendulumDef; rb: RB; kickAt: number[] }[] = [];
+  /** 阵风（A12）：这一步刮着没有、在不在起风丝（报事件用）。 */
+  private readonly winds: { def: WindDef; on: boolean; warn: boolean }[] = [];
+  /** 会塌的台子（A12）现在的样子，按关卡里写了 crumble 的台子的顺序（画面、手机局用）：until 没人碰过是 Infinity。 */
+  get crumbleState(): { until: number; gone: boolean }[] {
+    return this.crumbles.filter((c) => c.touch !== undefined).map((c) => ({ until: c.until, gone: c.gone }));
+  }
   /** 比谁先：每个人（分队时每队）自己的检查点。 */
   private readonly cpOf: number[] = [];
   /** 坐不住：出局的人已经挪到画面外面停好了。 */
@@ -456,6 +488,7 @@ export class Sim {
     this.level = forPlayers(level, nPlayers);
     this.layoutFor = nPlayers;
     this.rules = rules;
+    if (level.tide) this.tideY = level.tide.from ?? level.deathY;
     level = this.level;
     const world = new RAPIER.World({ x: 0, y: CFG.gravity });
     world.timestep = CFG.step;
@@ -473,6 +506,8 @@ export class Sim {
     for (const def of level.seesaws ?? []) this.addSeesaw(def.pivot, def.w, def.h ?? 14, frictionOf(def.material));
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
     for (const def of level.movers ?? []) this.addMover(def);
+    for (const def of level.pendulums ?? []) this.addPendulum(def);
+    for (const def of level.winds ?? []) this.winds.push({ def, on: false, warn: false });
     for (const def of level.spinners ?? []) this.addSpinner(def);
     for (const def of level.plates ?? []) this.addPlate(def);
     for (const def of level.levers ?? []) this.addLever(def);
@@ -515,6 +550,7 @@ export class Sim {
     const col = this.world.createCollider(desc, this.terrain);
     this.info.set(col.handle, { kind: 'terrain', rect: r });
     if (r.until !== undefined) this.crumbles.push({ until: r.until, gone: false, cols: [col], rect: r, box: () => r });
+    else if (r.crumble !== undefined) this.crumbles.push({ until: Infinity, gone: false, cols: [col], rect: r, box: () => r, touch: r.crumble, regrow: r.regrow ?? CFG.crumbleRegrow });
     return col;
   }
 
@@ -732,6 +768,93 @@ export class Sim {
     }
   }
 
+  /** 摆锤（A12）：锤是运动学的圆，能抓（跟着荡）；烫的是传感器，碰到就死（`hazardHit`）。 */
+  private addPendulum(def: PendulumDef): void {
+    const at = pendulumAt(def, 0);
+    const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(at.x, at.y));
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.ball(def.r ?? 34)
+        .setFriction(frictionOf('metal'))
+        .setSensor(!!def.deadly)
+        .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL)),
+      rb,
+    );
+    this.info.set(col.handle, def.grab === false ? { kind: 'moving', deadly: !!def.deadly, noGrab: true } : { kind: 'moving', deadly: !!def.deadly });
+    this.pendulums.push({ def, rb, kickAt: [] });
+  }
+
+  /**
+   * 摆锤撞人（A12）：锤边上碰到身子、这个人没抓着这个锤，就按锤这一刻的速度把人往外推（pendulumKick 倍，最多 pendulumKickMax），
+   * 同一个人 pendulumKickCd 秒内只撞一次；报 bonk。烫的锤在 hazardHit 里算死。
+   */
+  private tickPendulums(): void {
+    for (const pd of this.pendulums) {
+      if (pd.def.deadly) continue;
+      const r = pd.def.r ?? 34;
+      const now = pendulumAt(pd.def, this.time);
+      const prev = pendulumAt(pd.def, this.time - 1 / 120);
+      const vx = (now.x - prev.x) * 120;
+      const vy = (now.y - prev.y) * 120;
+      const speed = Math.hypot(vx, vy);
+      for (const p of this.players) {
+        if (p.dead || p.done) continue;
+        const dx = p.body.x - now.x;
+        const dy = p.body.y - now.y;
+        const d = Math.hypot(dx, dy);
+        if (d > r + CFG.bodyR + 3 || d < 1e-3) continue;
+        if (p.arms.some((a) => (a.grip as GripInternal | null)?.target === pd.rb)) continue;
+        if (this.time - (pd.kickAt[p.id] ?? -Infinity) < CFG.pendulumKickCd) continue;
+        // 往外推，顺着锤走的方向多推一点
+        const push = Math.min(CFG.pendulumKickMax, speed * CFG.pendulumKick);
+        if (push < 60) continue;
+        pd.kickAt[p.id] = this.time;
+        const along = speed > 1 ? { x: vx / speed, y: vy / speed } : { x: 0, y: 0 };
+        const nx = (dx / d) * 0.6 + along.x * 0.4;
+        const ny = (dy / d) * 0.6 + along.y * 0.4 - 0.25;
+        const n = Math.hypot(nx, ny) || 1;
+        const v = p.rb.linvel();
+        p.rb.setLinvel({ x: v.x + (nx / n) * push, y: v.y + (ny / n) * push }, true);
+        this.events.push({ type: 'bonk', player: p.id, x: now.x + (dx / d) * r, y: now.y + (dy / d) * r });
+      }
+    }
+  }
+
+  /**
+   * 阵风（A12）：刮着的时候，矩形里的人（身子和胳膊）和物件的速度往风那边加，最多 windMax；
+   * 起风丝、开始刮各报一次 wind。冻住（速冻）的人不动。
+   */
+  private tickWinds(dt: number): void {
+    this.winds.forEach((w, i) => {
+      const st = windState(w.def, this.time);
+      const mid = { x: w.def.x + w.def.w / 2, y: w.def.y + w.def.h / 2 };
+      if (st.warn && !w.warn) this.events.push({ type: 'wind', index: i, phase: 'warn', ...mid });
+      if (st.on && !w.on) this.events.push({ type: 'wind', index: i, phase: 'on', ...mid });
+      w.on = st.on;
+      w.warn = st.warn;
+      if (!st.on || st.k <= 0) return;
+      const dir = windDir(w.def);
+      const accel = CFG.windAccel * (w.def.force ?? 1) * st.k * dt;
+      const max = CFG.windMax * (w.def.force ?? 1);
+      const blow = (rb: RB, x: number, y: number, k: number): void => {
+        if (x < w.def.x || x > w.def.x + w.def.w || y < w.def.y || y > w.def.y + w.def.h) return;
+        const v = rb.linvel();
+        const along = v.x * dir.x + v.y * dir.y;
+        if (along >= max) return;
+        const add = Math.min(accel * k, max - along);
+        rb.setLinvel({ x: v.x + dir.x * add, y: v.y + dir.y * add }, true);
+      };
+      for (const p of this.players) {
+        if (p.dead || p.done || p.itemOn === 'freeze') continue;
+        blow(p.rb, p.body.x, p.body.y, 1);
+        for (const arm of p.arms) for (const rb of arm.segs) {
+          const at = rb.translation();
+          blow(rb, at.x, at.y, 0.6);
+        }
+      }
+      for (const prop of this.props) blow(prop.rb, prop.x, prop.y, 0.8);
+    });
+  }
+
   /** 踏板：一块实的矮台子（能站），有人压着就算按下（`tickGates` 里量）。 */
   private addPlate(def: PlateDef): void {
     this.addRect(def, frictionOf(def.material ?? 'metal'), 0);
@@ -924,7 +1047,7 @@ export class Sim {
       }
     }
     // 掉出去了：一秒后回到中间
-    const lost = prop.y > this.level.deathY || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 12, h));
+    const lost = prop.y > this.deathLine() || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 12, h));
     g.lostT = lost ? g.lostT + dt : 0;
     if (g.lostT >= CFG.ingotBack && this.level.ingot) {
       for (const [, e] of [...this.grips]) if (e.g.target === prop.rb) this.release(this.players[e.player] as Player, e.arm);
@@ -993,7 +1116,7 @@ export class Sim {
     tr.grace = Math.max(0, tr.grace - dt);
     const a = Math.atan2(Math.sin(prop.angle), Math.cos(prop.angle));
     tr.tiltT = Math.abs(a) > CFG.traySpill ? tr.tiltT + dt : 0;
-    const fell = prop.y > this.level.deathY;
+    const fell = prop.y > this.deathLine();
     if (fell || this.trayBurnt(prop) || (tr.grace <= 0 && tr.tiltT >= CFG.traySpillTime)) {
       tr.spilled = true;
       tr.spillT = 0;
@@ -1091,7 +1214,7 @@ export class Sim {
   private tickLost(c: { cp: number; lostT: number; home: Pt }, prop: Prop, dt: number): boolean {
     const cps = this.level.checkpoints ?? [];
     for (let j = c.cp + 1; j <= this.checkpoint && j < cps.length; j++) if (dist(prop, cps[j] as Pt) < CFG.keyCpR) c.cp = j;
-    const lost = prop.y > this.level.deathY || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 8, h));
+    const lost = prop.y > this.deathLine() || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 8, h));
     c.lostT = lost ? c.lostT + dt : 0;
     if (c.lostT < CFG.keyBack) return false;
     const cp = cps[c.cp];
@@ -1238,6 +1361,10 @@ export class Sim {
       rb.setNextKinematicTranslation({ x: at.x + def.w / 2, y: at.y + def.h / 2 });
     }
     for (const { def, rb } of this.spinners) rb.setNextKinematicRotation(spinnerAngle(def, this.time));
+    for (const { def, rb } of this.pendulums) {
+      const at = pendulumAt(def, this.time);
+      rb.setNextKinematicTranslation({ x: at.x, y: at.y });
+    }
     for (const g of this.gates) g.rb.setNextKinematicTranslation({ x: g.x + g.w / 2, y: g.y + g.h / 2 });
     // 雪山缆车：椅子走到头收进站里（关掉碰撞体，站着的掉下来、抓着的松开），从起点那头直接放出来（不扫过整根缆绳）
     for (const lift of this.lifts) {
@@ -1266,7 +1393,8 @@ export class Sim {
     const here = (until: number | undefined): boolean => until === undefined || this.time < until;
     const deadlyMovers = this.movers.filter((m) => m.def.deadly && here(m.def.until));
     const deadlySpinners = this.spinners.filter((s) => s.def.deadly && here(s.def.until));
-    if (!lv.hazards?.length && !deadlyMovers.length && !deadlySpinners.length) return null;
+    const deadlyPendulums = this.pendulums.filter((q) => q.def.deadly);
+    if (!lv.hazards?.length && !deadlyMovers.length && !deadlySpinners.length && !deadlyPendulums.length) return null;
     const parts: { c: Pt; r: number }[] = [{ c: p.body, r: CFG.bodyR * 0.85 }];
     for (const arm of p.arms) {
       parts.push({ c: arm.hand, r: CFG.handR });
@@ -1281,6 +1409,10 @@ export class Sim {
       for (const { def } of deadlySpinners) {
         const angle = spinnerAngle(def, this.time);
         for (let j = 0; j < Math.max(1, def.arms); j++) if (circleHitsBar(c, r, spinnerArm(def, j, angle))) return { cause: 'zap', at: { ...c } };
+      }
+      for (const { def } of deadlyPendulums) {
+        const at = pendulumAt(def, this.time);
+        if (Math.hypot(c.x - at.x, c.y - at.y) < r + (def.r ?? 34)) return { cause: 'hot', at: { ...c } };
       }
     }
     return null;
@@ -1485,7 +1617,7 @@ export class Sim {
     const r = CFG.bodyR;
     const lv = this.level;
     // 复活时会塌的（until）不算站得住；开局放人时还在就算（lasting = false）
-    const footing = lv.rects.some((b) => (!lasting || b.until === undefined) && x - r >= b.x && x + r <= b.x + b.w && b.y - y >= r && b.y - y <= 80);
+    const footing = lv.rects.some((b) => (!lasting || (b.until === undefined && b.crumble === undefined)) && x - r >= b.x && x + r <= b.x + b.w && b.y - y >= r && b.y - y <= 80);
     if (!footing) return false;
     if ((lv.hazards ?? []).some((h) => circleHitsRect({ x, y }, r + 40, h))) return false;
     const solid = [...lv.rects, ...(lv.fading ?? []), ...(lv.springs ?? [])];
@@ -1609,6 +1741,8 @@ export class Sim {
       if (p.itemOn === 'leaf') this.glide(p, dt);
     }
     this.tickVents(dt);
+    this.tickWinds(dt);
+    this.tickPendulums();
     const slips = this.rules.mode === 'last';
     for (const p of this.players) {
       // 冻住的人手也冻住了：抓着的照旧抓着，没抓的抓不了
@@ -1647,6 +1781,7 @@ export class Sim {
       prop.y = t.y;
       prop.angle = prop.rb.rotation();
     }
+    this.tickTide(dt);
     this.lifeAndDeath(dt);
     this.tickGold(dt);
     this.acts();
@@ -1659,11 +1794,31 @@ export class Sim {
     for (const p of this.players) this.updateFace(p);
   }
 
-  /** 定时塌的东西到点了：关掉碰撞体，松开抓着它的手（站在上面的自然掉下去）。 */
+  /**
+   * 定时塌的东西到点了：关掉碰撞体，松开抓着它的手（站在上面的自然掉下去）。
+   * 会塌的台子（A12）：有人站上去或抓住才开始倒数；塌了过 regrow 秒长回来（那时有人压在那里就再等等）。
+   */
   private tickCrumbles(): void {
     for (const c of this.crumbles) {
+      if (c.touch !== undefined && c.rect) {
+        const r = c.rect;
+        if (c.gone) {
+          if (this.time < (c.goneAt ?? 0) + (c.regrow ?? CFG.crumbleRegrow)) continue;
+          if (this.players.some((p) => !p.dead && circleHitsRect(p.body, CFG.bodyR + 2, r))) continue;
+          c.gone = false;
+          c.until = Infinity;
+          for (const col of c.cols) col.setEnabled(true);
+          this.events.push({ type: 'regrow', x: r.x, y: r.y, w: r.w, h: r.h });
+          continue;
+        }
+        if (c.until === Infinity && this.touching(r)) {
+          c.until = this.time + c.touch;
+          this.events.push({ type: 'creak', x: r.x, y: r.y, w: r.w, h: r.h });
+        }
+      }
       if (c.gone || this.time < c.until) continue;
       c.gone = true;
+      c.goneAt = this.time;
       for (const col of c.cols) col.setEnabled(false);
       for (const [, entry] of [...this.grips]) {
         const on = c.rb ? entry.g.target === c.rb : entry.g.kind === 'terrain' && entry.g.rect === c.rect;
@@ -1673,6 +1828,17 @@ export class Sim {
       const b = c.box();
       this.events.push({ type: 'crumble', x: b.x, y: b.y, w: b.w, h: b.h });
     }
+  }
+
+  /** 有没有人站在这块台子上，或者手抓着它（会塌的台子从这时开始倒数）。 */
+  private touching(r: Rect): boolean {
+    for (const p of this.players) {
+      if (p.dead) continue;
+      if (p.arms.some((a) => a.grip?.kind === 'terrain' && a.grip.rect === r)) return true;
+      const feet = p.body.y + CFG.bodyR;
+      if (p.ground && feet >= r.y - 10 && feet <= r.y + 12 && p.body.x >= r.x - CFG.bodyR * 0.5 && p.body.x <= r.x + r.w + CFG.bodyR * 0.5) return true;
+    }
+    return false;
   }
 
   /** 比谁先分队时这个人在哪一队（各跑各的时每人自己一队）。 */
@@ -1692,6 +1858,7 @@ export class Sim {
       for (const q of this.players) {
         if (!q.dead || q.done) continue;
         if (this.rules.mode === 'race' && this.teamOf(q.id) !== this.teamOf(p.id)) continue;
+        this.pushTide(p.body.y - CFG.bodyR * 2);
         this.teleport(q.id, p.body.x, p.body.y - CFG.bodyR * 2);
         q.face = 'idle';
         who.push(q.id);
@@ -2230,11 +2397,43 @@ export class Sim {
     this.events.push({ type: 'itemEnd', player: n.owner, item: 'noodle', x: end.x, y: end.y });
   }
 
+  /** 掉下去就死的那条线：涨潮的水面和 deathY 里高的那个。 */
+  private deathLine(): number {
+    return this.tideY === null ? this.level.deathY : Math.min(this.level.deathY, this.tideY);
+  }
+
+  /** 涨潮（A12）：开局 delay 秒后开始涨，涨到 top（不写是终点底下 40 像素）停；刚退过就先停一会儿。 */
+  private tickTide(dt: number): void {
+    const td = this.level.tide;
+    if (!td || this.tideY === null || this.time < (td.delay ?? 0)) return;
+    if (!this.tideRising) {
+      this.tideRising = true;
+      this.events.push({ type: 'tide', phase: 'rise', y: this.tideY });
+    }
+    if (this.tidePause > 0) {
+      this.tidePause = Math.max(0, this.tidePause - dt);
+      return;
+    }
+    const top = td.top ?? this.level.goal.y + this.level.goal.h + 40;
+    this.tideY = Math.max(top, this.tideY - td.speed * dt);
+  }
+
+  /** 有人回到 y 这个高度（复活、被召唤）：水面离那里不到 tideGap 就退到那下面 tideGap，停一会儿再涨，免得一回来就淹死。 */
+  private pushTide(y: number): void {
+    if (this.tideY === null) return;
+    const want = Math.min(this.level.deathY, y + CFG.tideGap);
+    if (this.tideY >= want) return;
+    this.tideY = want;
+    this.tidePause = CFG.tidePause;
+    this.events.push({ type: 'tide', phase: 'back', y: want });
+  }
+
   private lifeAndDeath(dt: number): void {
     for (const p of this.players) {
       // 到了终点的人停在那，不会再死
       if (p.done) continue;
       if (!p.dead && p.body.y > this.level.deathY) this.kill(p, 'fall', p.body);
+      else if (!p.dead && this.tideY !== null && p.body.y > this.tideY) this.kill(p, 'tide', { x: p.body.x, y: this.tideY });
       if (!p.dead) {
         const hit = this.hazardHit(p);
         if (hit) this.kill(p, hit.cause, hit.at);
@@ -2248,6 +2447,7 @@ export class Sim {
         }
         if (p.deadT >= CFG.respawnDelay) {
           const s = this.respawnPoint(p.id);
+          this.pushTide(s.y);
           this.teleport(p.id, s.x, s.y);
           p.face = 'idle';
           this.events.push({ type: 'respawn', player: p.id, summoned: false });

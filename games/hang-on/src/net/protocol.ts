@@ -106,6 +106,10 @@ export interface PadStatus {
 export interface Snap {
   /** 序号，只增不减；旧的丢掉。 */
   n: number;
+  /** 涨潮（A12）的水面 y，这关有涨潮才有。 */
+  td?: number;
+  /** 会塌的台子（A12），按写了 crumble 的台子的顺序：0 没人碰过、正数是哪一秒塌、-1 塌了还没长回来。 */
+  cb?: number[];
   /** 关卡 id。 */
   lv: string;
   /** 关卡是按几个人摆的（和现在的人数不一样时才有，比如有人半路进来）；手机照这个人数摆关卡。 */

@@ -256,6 +256,23 @@ export const CFG = {
   /** 力气剩多少开始手抖、圈变红；用完两只手都松开，这么多秒抓不了。 */
   staminaWarn: 0.3,
   staminaCooldown: 1,
+
+  // ---- 新机关（A12，Steve 11-18「机关太温和」）----
+  /** 会塌的台子塌了多少秒长回来（关里没写 regrow 时）。 */
+  crumbleRegrow: 6,
+  /** 涨潮：有人回检查点时，水面至少在那下面多少像素；退了以后停几秒再涨。 */
+  tideGap: 260,
+  tidePause: 2.5,
+  /** 摆锤撞人：按锤的速度给人一个推开的速度（倍数），最多多少 px/s；同一个人多少秒内只撞一次。 */
+  pendulumKick: 1.3,
+  pendulumKickMax: 900,
+  pendulumKickCd: 0.4,
+  /** 阵风：每秒把速度往风那边加多少（px/s²），最多吹到多快；刮多久、停多久、刮之前多久起风丝。 */
+  windAccel: 1300,
+  windMax: 520,
+  windOn: 1.5,
+  windOff: 2.5,
+  windWarn: 0.7,
 };
 
 export type Cfg = typeof CFG;

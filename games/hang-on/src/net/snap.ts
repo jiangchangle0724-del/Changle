@@ -74,6 +74,8 @@ export function encodeSnap(sim: SimView, n: number, events?: { k: number; list: 
     s: sim.springs.map((s) => (Number.isFinite(s.hit) ? r2(Math.min(s.hit, 99)) : -1)),
   };
   if (sim.envelopes?.length) snap.en = sim.envelopes.reduce((m, e, k) => (e.got ? m | (1 << k) : m), 0);
+  if (sim.tideY !== null && sim.tideY !== undefined) snap.td = r1(sim.tideY);
+  if (sim.crumbleState?.length) snap.cb = sim.crumbleState.map((c) => (c.gone ? -1 : Number.isFinite(c.until) ? r2(c.until) : 0));
   if (sim.plates?.length) snap.pl = sim.plates.reduce((m, q, k) => (q.on ? m | (1 << k) : m), 0);
   if (sim.gates?.length) snap.gt = sim.gates.map((g) => r3(g.open));
   if (sim.gold) snap.gd = [sim.gold.need, sim.gold.holder, ...sim.gold.holdT.map(r2)];
@@ -142,6 +144,10 @@ export class RemoteSim implements SimView {
   springs: SpringView[] = [];
   noodles: NoodleView[] = [];
   envelopes: { x: number; y: number; got: boolean }[] = [];
+  /** 涨潮（A12）的水面，跟着快照走。 */
+  tideY: number | null = null;
+  /** 会塌的台子（A12），跟着快照走。 */
+  crumbleState: { until: number; gone: boolean }[] = [];
   /** 踩板门（11-13）：踏板按着没有跟着快照走（不匀）；门开到几成跟着匀，位置按关卡算。 */
   plates: PlateView[] = [];
   gates: (GateView & { def: GateDef })[] = [];
@@ -417,6 +423,8 @@ export class RemoteSim implements SimView {
     this.lamps.forEach((l, k) => (l.on = (lm & (1 << k)) !== 0));
     const lr = s.lr ?? 0;
     this.levers.forEach((l, k) => (l.on = (lr & (1 << k)) !== 0));
+    this.tideY = s.td ?? null;
+    this.crumbleState = (s.cb ?? []).map((v) => ({ until: v > 0 ? v : Infinity, gone: v < 0 }));
     const pl = s.pl ?? 0;
     this.plates.forEach((q, k) => (q.on = (pl & (1 << k)) !== 0));
     // 红包：位置在关卡里，拿没拿到跟着快照走；这一局没有红包（不写 en）就不画

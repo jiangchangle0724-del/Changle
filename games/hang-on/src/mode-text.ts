@@ -53,6 +53,21 @@ export function notReadyText(n: number, side: Side, mode: GameMode): Text | null
 }
 
 /** 老宅找钥匙（A10）的横幅：找到钥匙、门开了、钥匙掉了、门锁着（电视上和每部手机上一样）。 */
+/** 涨潮（A12）的横幅：开始涨、水退下去；按世界说是汤、海水、冰水、池水还是能量潮。 */
+const TIDE_STUFF: Record<string, { zh: string; en: string; icon: string }> = {
+  table: { zh: '汤', en: 'soup', icon: '🍲' },
+  kitchen: { zh: '汤', en: 'soup', icon: '🍲' },
+  van: { zh: '海水', en: 'sea', icon: '🌊' },
+  snow: { zh: '冰水', en: 'icy water', icon: '🧊' },
+  house: { zh: '池水', en: 'pond water', icon: '🪷' },
+  space: { zh: '能量潮', en: 'energy tide', icon: '🌀' },
+};
+export function tideBanner(phase: 'rise' | 'back', world?: string): { text: string; kind: 'good' | 'bad' } {
+  const s = TIDE_STUFF[world ?? 'table'] ?? (TIDE_STUFF.table as { zh: string; en: string; icon: string });
+  if (phase === 'rise') return { text: pickLang({ zh: `${s.icon} ${s.zh}涨上来了！快往上爬`, en: `${s.icon} The ${s.en} is rising! Climb!` }), kind: 'bad' };
+  return { text: pickLang({ zh: `${s.zh}退下去一点了`, en: `The ${s.en} sank back a little` }), kind: 'good' };
+}
+
 export function keyBanner(phase: 'found' | 'unlock' | 'back' | 'locked'): { text: string; kind: 'good' | 'bad' } | null {
   switch (phase) {
     case 'found':

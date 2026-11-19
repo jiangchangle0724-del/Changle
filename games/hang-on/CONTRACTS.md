@@ -255,6 +255,16 @@ type PadInput = {
 - 多人的一起闯关这一档有多人的关（`levels/multi/*.json`，写 `"tier"`，Codex 的 C14 做）就用多人的，还没有就用和单人一样的那一串。比谁先一直用单人那一串（一个人过得去的关）。
 - 主机页 `?side=solo|multi`、`?tier=0|1|2` 直接开到那里，`?level=` 开到那关所在的难度。手柄当遥控多两条命令 `{ do: 'side' }`、`{ do: 'tier' }`；`Menu` 多 `side`、`tier`、`tiered`，倒数的关名前面写难度（「简单 · 2. 碗沿小缝」）。
 
+### 新机关（A12，11-18 Steve：「机关太温和」，四个都要）
+
+开发页 `play.html?level=proto-09&players=2` 是样板关（会塌的台阶、来回荡的铁锅、抓着荡过缝的锅、往回刮的风里抓小钉、爬墙时底下涨汤）。四样都可以用在任何世界，C16 的长关用。
+
+- **涨潮** `Level.tide { speed, delay?, from?, top? }`：底下的汤 / 水从 `from`（不写是 `deathY`）开始，开局 `delay` 秒后每秒涨 `speed` 像素，涨到 `top`（不写是终点底下 40 像素）停。身子低过水面就死（`death` 的 `cause: 'tide'`，在水面上溅起来）。有人复活或被召唤回来时，水面离那里不到 `CFG.tideGap`（260）就退到那下面 `tideGap`，停 `CFG.tidePause`（2.5 秒）再涨。事件 `tide { phase: 'rise' | 'back', y }`；横幅按世界说汤、海水、冰水、池水、能量潮（中英两套）。物件掉进水里也算丢。快照 `td`。验收：`speed` 5–45、`delay` 2–40、`top` 在终点下面；每份回放里水面离最低的活人最近不到 400 像素（真追上来了）。
+- **会塌的台子** `Rect.crumble`（秒）、`Rect.regrow`（秒，不写是 `CFG.crumbleRegrow` 6）：有人站上去或手抓着才开始倒数（报 `creak`），最后 `CFG.crumbleWarn` 秒抖，到点塌（报 `crumble`，站着的掉、抓着的松开），过 `regrow` 秒长回来（报 `regrow`；那时有人压在那儿就再等等）。台面画裂缝。复活点不选会塌的台子。快照 `cb`（0 没人碰、正数是哪一秒塌、-1 塌了）。验收：`crumble` 0.5–4、`regrow` 2–12、宽不过 400、不和 `until` 一起写；主回放里每块都有人碰塌过。
+- **摆锤** `Level.pendulums[] { pivot, len, amp, period, phase?, r?, grab?, deadly?, players? }`：锤是运动学的圆（半径 `r`，不写 34），角度 `amp · sin(2π(t + phase)/period)`，最低点在轴心正下方 `len`。撞上按锤的速度把人推开（`CFG.pendulumKick` 倍，最多 `pendulumKickMax`，同一个人 `pendulumKickCd` 秒一次，报 `bonk`）；默认能抓（抓着跟着荡），`grab: false` 不能抓；`deadly` 是烧红的铁锅，碰到就死（`hot`）。锤按世界画（铁锅、浮标、雪球、灯笼、维修舱）。按时间算，手机局不用带。验收：`len` 80–600、`amp` 0.15–1.4、`period` 1.2–6、`r` 20–60、摆到两头都在关里；每份回放都有人从锤旁边过；算会动的东西（≤ 40）。
+- **阵风** `Level.winds[] { x, y, w, h, dir, force?, on?, off?, phase? }`：矩形里一阵一阵往 `dir`（left / right / up / down）刮：先停 `off` 秒（不写 2.5，最后 `CFG.windWarn` 0.7 秒起风丝），再刮 `on` 秒（不写 1.5）。刮的时候矩形里的人（身子、胳膊）和物件的速度往风那边加（`CFG.windAccel` × `force`），最多 `windMax` × `force`。报 `wind { index, phase: 'warn' | 'on', x, y }`；画风丝，平时淡、快刮时多、刮时又密又亮。按时间算。验收：至少 160 × 160、`force` 0.5–2、`on` 0.6–4、`off` 0.8–6；每份回放都有人被刮过 0.5 秒。
+- 声音：涨潮是一声低号加咕嘟，水退是哗；台子吱嘎加咔；长回来「啵」；摆锤撞人「哐」；风是「呼」。
+
 ### 手酸（A11，11-18 Steve：「抓得太稳」，选了「只在中等和困难加」）
 
 - `Rules.stamina`：`'medium'` 或 `'hard'`，不写就没有手酸。主机在分难度的玩法里选了中等、困难，**而且这关写了 `"stamina": true`**（回放是按手酸录的、验收按手酸跑过）才给；简单、大团队、坐不住、抢金元宝都没有。

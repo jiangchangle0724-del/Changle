@@ -103,6 +103,10 @@ export interface SimView {
   readonly rules?: Rules;
   time: number;
   won: boolean;
+  /** 涨潮（A12）的水面 y；没有涨潮是 null（或者不写）。 */
+  tideY?: number | null;
+  /** 会塌的台子（A12）：按关卡里写了 crumble 的台子的顺序，until 是哪一秒塌（没人碰过是 Infinity），gone 是塌了还没长回来。 */
+  readonly crumbleState?: readonly { until: number; gone: boolean }[];
   /** 最新生效的检查点，没有是 -1。 */
   checkpoint: number;
   players: PlayerView[];
