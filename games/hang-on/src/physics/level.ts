@@ -195,6 +195,11 @@ export interface LeverDef extends Pt {
 
 export interface Level {
   id: string;
+  /**
+   * 手酸（A11）：这关的回放是开着手酸录的、验收开着手酸跑的，分难度的玩法里选中等、困难就开手酸。
+   * 不写就不开（还没按手酸重录过的关；简单的关不写）。
+   */
+  stamina?: boolean;
   world?: string;
   name?: { zh: string; en: string };
   teaches?: string;

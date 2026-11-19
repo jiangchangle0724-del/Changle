@@ -1,5 +1,6 @@
 {
   "id": "space-45",
+  "stamina": true,
   "world": "space",
   "name": {
     "zh": "太阳翼检修",

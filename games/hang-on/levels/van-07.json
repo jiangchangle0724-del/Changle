@@ -1,5 +1,6 @@
 {
   "id": "van-07",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "天车门把手",

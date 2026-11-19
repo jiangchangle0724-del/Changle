@@ -570,11 +570,19 @@ function replayShape(level, replay, id, players) {
 
 // 「碰到过」要命的东西的距离：身体中心离它这么近过，说明它在路上，不是摆着好看
 const NEAR = 240;
+/** 关的难度：写了 tier 用它，没写按编号（1–6 简单、7–12 中等、13 往后困难），和游戏里 tierOfLevel 一样。 */
+const tierOf = (level) => level.tier ?? (() => { const n = Number(/(\d+)$/.exec(level.id)?.[1] ?? 0); return n <= 6 ? 0 : n <= 12 ? 1 : 2; })();
+/**
+ * 手酸（A11）：写了 stamina: true 的中等、困难的关，和游戏里一样开着手酸跑回放（大关不分难度，没有手酸）。
+ * 简单的关不许写；还没按手酸重录的中等、困难的关先不写，最后一行报还差几关。
+ */
+const staminaOn = (level) => level.stamina === true && !level.id.startsWith('team-') && tierOf(level) >= 1;
+const staminaArgs = (level) => (staminaOn(level) ? [{ mode: 'climb', stamina: tierOf(level) === 2 ? 'hard' : 'medium' }] : []);
 // Inspect real grips and release velocity while runReplay supplies the original inputs.
 async function inspect(physics, level, replay) {
   const { createSim, runReplay, moverAt, spinnerAngle, spinnerArm, circleHitsRect, circleHitsBar, liftChairs, CFG } = physics;
   // 关卡按回放的人数摆（players 范围的东西照这个人数留或去）；下面的证据都按摆出来的这一版算
-  const sim = await createSim(level, replay.players);
+  const sim = await createSim(level, replay.players, ...staminaArgs(level));
   const laid = sim.level;
   const step = sim.step.bind(sim);
   const dangers = dangersOf(laid);
@@ -1952,6 +1960,12 @@ try {
   if (process.argv.includes('--screenshots') || process.argv.includes('--serve')) await serve(entries, process.argv.includes('--screenshots'));
   const teamEntries = await checkTeams(physics, entries);
   const multiEntries = await checkMulti(physics, [...entries, ...teamEntries]);
+  // 手酸（A11）：简单的关不许写 stamina；中等、困难的闯关和多人关里按手酸录过回放的有几关
+  const climbing = [...entries, ...multiEntries];
+  for (const e of climbing) assert(!(e.level.stamina && tierOf(e.level) < 1), `${e.level.id}: stamina is only for medium and hard levels`);
+  const hardish = new Set(climbing.filter((e) => tierOf(e.level) >= 1).map((e) => e.level.id));
+  const tired = new Set(climbing.filter((e) => staminaOn(e.level)).map((e) => e.level.id));
+  console.log(`stamina: ${tired.size}/${hardish.size} medium and hard levels replayed with tired hands`);
   console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard + ${teamEntries.length}/6 team + ${sceneCounts.join(' + ')} + ${multiEntries.length}/9 multi PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS`);
 } catch (error) {
   console.error(`levels: FAIL — ${error.message}`);

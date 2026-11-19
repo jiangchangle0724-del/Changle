@@ -15,7 +15,7 @@ import { heardBy, sfx } from '../audio/sfx';
 import { moodOf, rawIntensity, Tension } from '../audio/tension';
 import { seedOf, themeFor } from '../audio/themes';
 import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
-import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachLabel, teachText, tierOfLevel } from '../levels';
+import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
 import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
@@ -161,13 +161,21 @@ sfx.panOf = (x, y) => Math.max(-1, Math.min(1, (stage.toScreen({ x, y }).x / inn
 langButton($<HTMLButtonElement>('langBtn'));
 
 // ---------- 玩法 ----------
-const modeHint = (m: GameMode): string => pickLang(modeHintText(m, teamsOn));
 /** 比谁先分两队：按座位一个甜一个咸。 */
 const teamsFor = (n: number): number[] => Array.from({ length: n }, (_, i) => i % 2);
+/**
+ * 手酸（A11，Steve 11-18）：分难度的玩法里，中等、困难才有；而且这关得是按手酸录过回放、验收过的
+ * （`Level.stamina`），没录过的先不开，免得有的关根本过不去。
+ */
+function staminaNow(): Rules['stamina'] {
+  return tiered(mode) && tier > 0 && level.stamina === true ? (tier === 2 ? 'hard' : 'medium') : undefined;
+}
 function rules(): Rules {
-  if (mode === 'race' && teamsOn) return { mode, teams: teamsFor(playerCount()) };
+  const stamina = staminaNow();
+  const st = stamina ? { stamina } : {};
+  if (mode === 'race' && teamsOn) return { mode, teams: teamsFor(playerCount()), ...st };
   // 卡太久来帮手（A9c）：闯关、大团队里有外卖无人机
-  return mode === 'climb' || mode === 'team' ? { mode, helper: true } : { mode };
+  return mode === 'climb' || mode === 'team' ? { mode, helper: true, ...st } : { mode, ...st };
 }
 /** 比谁先分两队时这个人在哪一队（不分队是 undefined）。 */
 const teamOf = (i: number): number | undefined => sim.rules.teams?.[i] ?? (sim.rules.mode === 'race' && sim.rules.teams ? i % 2 : undefined);
@@ -655,7 +663,7 @@ function renderLevel(): void {
   et.hidden = (mode !== 'climb' && mode !== 'team') || !allEnv;
   et.textContent = tr(`🧧 攒了 ${envelopeTotal()} / ${allEnv} 个红包`, `🧧 ${envelopeTotal()} of ${allEnv} red envelopes saved up`);
   // 闯关、大团队写这关教什么；比谁先、坐不住写这个玩法怎么赢（场地自己的说明和它一样）
-  $('levelTeach').textContent = mode === 'climb' || mode === 'team' ? teachLabel(level) : modeHint(mode);
+  $('levelTeach').textContent = pickLang(withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()));
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
   $<HTMLButtonElement>('levelNext').disabled = levelIndex >= list.length - 1;
 }
@@ -1163,7 +1171,7 @@ function menuFor(): Menu {
       n: levelIndex + 1,
       of: list.length,
       name: level.name ?? { zh: level.id, en: level.id },
-      teach: mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn),
+      teach: withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()),
       // 小目标的星（A9b）：这台主机上这一关拿到过的（闯关、大团队）
       ...(mode === 'climb' || mode === 'team' ? { stars: starLine(starsOf(level.id), goalTargets(level, Math.max(1, playerCount())).map((g) => g.key)) } : {}),
     },

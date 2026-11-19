@@ -5,9 +5,10 @@
  * 带回放录制：`?record=1` 一进来就录，或者点「录制」；停止时下载 replays 用的 JSON（每物理步一帧）。
  * `?phone=1` 照手机上的画法画（镜头近一些，没有近景光斑和斜光）。
  * 道具（A9）：`?item=freeze` / `noodle` / `leaf` 给每个人带上，P1 按 F 用，P2 按 P 用。
+ * 手酸（A11）：写了 `stamina: true` 的中等、困难的关自己开着；`?stamina=1` 不管写没写都按关的难度开（按手酸重录回放用），`?stamina=0` 关掉。
  */
 import { cleanItem } from '../items';
-import { LEVELS, levelById } from '../levels';
+import { LEVELS, levelById, tierOfLevel } from '../levels';
 import { CFG } from '../physics/config';
 import type { Replay } from '../physics/replay';
 import { createSim, type GameMode, type PadInput, type Rules, type Sim } from '../physics/world';
@@ -27,13 +28,21 @@ const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (ty
 const stage = await Stage.create(canvas, { plates: PLATES, compact: query.get('phone') === '1' });
 let nPlayers = Math.max(1, Math.min(6, Number(query.get('players')) || 1));
 const mode = (['climb', 'team', 'race', 'last', 'gold'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
+// 手酸（A11）：写了 stamina: true 的中等、困难的关和游戏里一样开着；?stamina=1 不管写没写都按关的难度开
+// （按手酸重录回放用），?stamina=0 关掉
+const tierNow = tierOfLevel(level);
+const staminaQ = query.get('stamina');
+const staminaOn = staminaQ === '1' || (staminaQ !== '0' && level.stamina === true);
+const stamina: Rules['stamina'] = staminaOn && tierNow > 0 ? (tierNow === 2 ? 'hard' : 'medium') : undefined;
 // ?helper=1：卡太久来外卖无人机（A9c）；?helpAfter=5 之类改等多久（试的时候不用干等两分钟）
-const rules = (): Rules =>
-  mode === 'race' && query.get('teams') === '1'
+const rules = (): Rules => ({
+  ...(mode === 'race' && query.get('teams') === '1'
     ? { mode, teams: Array.from({ length: nPlayers }, (_, i) => i % 2) }
     : query.get('helper') === '1'
       ? { mode, helper: true }
-      : { mode };
+      : { mode }),
+  ...(stamina ? { stamina } : {}),
+});
 for (const key of ['helpAfter', 'helpLate'] as const) {
   const v = Number(query.get(key));
   if (v > 0) CFG[key] = v;

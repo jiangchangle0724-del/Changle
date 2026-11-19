@@ -125,6 +125,13 @@ export function teachLabel(l: Level): string {
   return pickLang(teachText(l));
 }
 
+/** 手酸（A11）的一句话：分难度的玩法里，中等、困难的关在「这关教」后面带上。 */
+export const TIRED_NOTE = { zh: '挂久了手会酸，站一会儿就好', en: 'Hands tire if you hang too long. Stand to rest' };
+export function withTiredNote(t: { zh: string; en: string }, on: boolean): { zh: string; en: string } {
+  if (!on) return t;
+  return { zh: t.zh ? `${t.zh} · ${TIRED_NOTE.zh}` : TIRED_NOTE.zh, en: t.en ? `${t.en} · ${TIRED_NOTE.en}` : TIRED_NOTE.en };
+}
+
 /** 关卡给人看的名字（当前语言）。 */
 export function levelTitle(l: Level, i: number): string {
   return `${i + 1}. ${pickLang(l.name, l.id)}`;

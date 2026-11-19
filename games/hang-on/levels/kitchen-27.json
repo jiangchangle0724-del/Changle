@@ -1,5 +1,6 @@
 {
   "id": "kitchen-27",
+  "stamina": true,
   "world": "kitchen",
   "tier": 1,
   "teaches": "combine",

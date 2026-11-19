@@ -1,5 +1,6 @@
 {
   "id": "space-48",
+  "stamina": true,
   "world": "space",
   "name": {
     "zh": "主控舱交接",

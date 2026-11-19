@@ -1,5 +1,6 @@
 {
   "id": "van-11",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "雨中快抓",

@@ -1,5 +1,6 @@
 {
   "id": "van-10",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "狮门抛接力",

@@ -1,5 +1,6 @@
 {
   "id": "van-09",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "摇摇浮筒",

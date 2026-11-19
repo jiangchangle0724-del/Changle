@@ -325,10 +325,15 @@ export class Dumpling {
   private drawArms(p: PlayerView, slips: boolean): void {
     const g = this.arms;
     g.clear();
+    // 手酸（A11）：力气剩不到 staminaWarn 时，抓着的手开始抖、圈变红，越少越厉害
+    const stamina = p.stamina ?? 1;
+    const tired = stamina < CFG.staminaWarn ? Math.min(1, (CFG.staminaWarn - stamina) / CFG.staminaWarn) : 0;
+    if (tired > 0 && p.arms.some((a) => a.grip)) this.sweat = Math.max(this.sweat, 0.4);
     p.arms.forEach((arm, i) => {
       // 坐不住、雪山的冰溜子：快到滑脱前 slipWarn 秒手开始抖、圈变红，到点就滑（减弱动效时只变红）
       const max = Math.min(slips ? CFG.lastGripMax : Infinity, arm.grip?.max ?? Infinity);
-      const warn = arm.grip && Number.isFinite(max) ? Math.min(1, Math.max(0, (arm.grip.t - (max - CFG.slipWarn)) / CFG.slipWarn)) : 0;
+      const slipWarn = arm.grip && Number.isFinite(max) ? Math.min(1, Math.max(0, (arm.grip.t - (max - CFG.slipWarn)) / CFG.slipWarn)) : 0;
+      const warn = arm.grip ? Math.max(slipWarn, tired) : 0;
       const jit = warn > 0 && !this.reduced ? warn * 3 : 0;
       const pts = arm.pts;
       if (pts.length >= 2) {
@@ -351,6 +356,18 @@ export class Dumpling {
         g.circle(h.x, h.y, r).stroke({ width: 2 + warn * 1.5, color: warn > 0 ? 0xff6b5a : 0xffffff, alpha: 0.9 });
       }
     });
+    // 力气圈（A11）：没满的时候在头顶右上角画一小圈（避开胳膊和名字），绿、黄、红，满了就不画
+    if (stamina < 0.995 && !p.dead) {
+      const cx = p.body.x + R + 8;
+      const cy = p.body.y - R - 8;
+      const rr = 8;
+      const color = stamina > 0.6 ? 0x8fd16a : stamina > CFG.staminaWarn ? 0xf8c56d : 0xff6b5a;
+      g.circle(cx, cy, rr).fill({ color: 0x140a1e, alpha: 0.45 });
+      if (stamina > 0.01) {
+        g.moveTo(cx, cy).arc(cx, cy, rr - 1.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * stamina).lineTo(cx, cy).fill({ color, alpha: 0.95 });
+      }
+      g.circle(cx, cy, rr).stroke({ width: 2, color: 0xffffff, alpha: 0.85 });
+    }
   }
 
   private noodle(g: Graphics, pts: Pt[], ox = 0, oy = 0): void {
