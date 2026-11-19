@@ -326,3 +326,77 @@ test("a fist going out stretches the body a little, and it springs back", async 
   assert.equal(person.root.scale.y, 1);
   person.dispose();
 });
+
+const withMoves = Promise.all([parse("crowd-people.glb"), parse("crowd-people-f.glb"), parse("crowd-moves.glb")]);
+
+test("the extra moves come with the people: a nod, a shake of the head, eating, a rail to lean on, a lantern", async () => {
+  const [man, woman, moves] = await withMoves;
+  assert.deepEqual(moves.animations.map((clip) => clip.name).sort(), ["eat", "lantern", "no", "nod", "rail"]);
+  const kit = kitFrom(man, woman, moves);
+  for (const move of ["rail", "lantern", "eat"]) assert.ok(kit.spawn(30).hold(move), move);
+  // (without the file, the crowd still plays)
+  assert.equal(kitFrom(...(await files)).spawn(30).hold("rail"), false);
+});
+
+test("standing at a night market stall, anyone eats (the hand comes up to the mouth); walking, nobody does", async () => {
+  const [man, woman, moves] = await withMoves;
+  const kit = kitFrom(man, woman, moves);
+  // (a look that stands with its hands down: not the phone, not the folded arms)
+  const plainIdle = LOOKS.findIndex((look) => look.idle === "idle");
+  const hands = (atStall: boolean, speed: number) => {
+    const person = kit.spawn(plainIdle);
+    let highest = -Infinity;
+    for (let frame = 0; frame < 120; frame++) {
+      person.update(1 / 60, (frame * 1000) / 60, speed, speed > 0 ? "walk" : "idle", "over", "calm", false, atStall);
+      if (frame > 60) highest = Math.max(highest, at(person, "hand_l").y, at(person, "hand_r").y);
+    }
+    person.dispose();
+    return highest;
+  };
+  assert.ok(hands(true, 0) > hands(false, 0) + 0.15, `a hand at the mouth (${hands(true, 0).toFixed(2)} against ${hands(false, 0).toFixed(2)})`);
+  assert.ok(Math.abs(hands(true, NPC_SPEED) - hands(false, NPC_SPEED)) < 0.01, "walking past a stall eats nothing");
+});
+
+test("standing about, a body nods or shakes its head now and then; walking, never", async () => {
+  const [man, woman, moves] = await withMoves;
+  const plain = kitFrom(...(await files));
+  const lively = kitFrom(man, woman, moves);
+  const difference = (pose: Pose, speed: number) => {
+    const a = plain.spawn(6);
+    const b = lively.spawn(6);
+    let most = 0;
+    for (let frame = 0; frame < 60 * 25; frame++) {
+      const now = (frame * 1000) / 60;
+      a.update(1 / 60, now, speed, pose, "over");
+      b.update(1 / 60, now, speed, pose, "over");
+      most = Math.max(most, at(a, "Head").distanceTo(at(b, "Head")), at(a, "hand_r").distanceTo(at(b, "hand_r")));
+    }
+    a.dispose();
+    b.dispose();
+    return most;
+  };
+  assert.ok(difference("idle", 0) > 0.05, "a gesture within 25 seconds of standing about");
+  assert.ok(difference("walk", NPC_SPEED) < 0.001, "none while walking");
+});
+
+test("in the transit hall's dark, anyone standing looks at their phone (its hand comes up, its phone lit); walking, nobody does", async () => {
+  const kit = kitFrom(...(await files));
+  // (a look that stands with its hands down, and one whose own idle is the phone: both light one)
+  for (const look of [LOOKS.findIndex((item) => item.idle === "idle"), LOOKS.findIndex((item) => item.idle === "idle_phone")]) {
+    const phone = (mood: "calm" | "dark", speed: number) => {
+      const person = kit.spawn(look);
+      let highest = -Infinity;
+      for (let frame = 0; frame < 90; frame++) {
+        person.update(1 / 60, (frame * 1000) / 60, speed, speed > 0 ? "walk" : "idle", "over", mood);
+        if (frame > 60) highest = Math.max(highest, at(person, "hand_r").y);
+      }
+      const lit = person.phoneLit;
+      person.dispose();
+      return { hand: highest, lit };
+    };
+    assert.ok(phone("dark", 0).lit > 0.9, `look ${look}: standing in the dark, its phone is lit`);
+    assert.ok(phone("calm", 0).lit < 0.01, `look ${look}: in the light, no phone`);
+    assert.ok(phone("dark", NPC_SPEED).lit < 0.01, `look ${look}: walking in the dark, no phone`);
+    if (LOOKS[look].idle === "idle") assert.ok(phone("dark", 0).hand > phone("calm", 0).hand + 0.1, "the hand comes up with it");
+  }
+});

@@ -16,6 +16,17 @@ import {
   DRILL_GO_MS,
   DRILL_WINDOW,
   BLAST_RADIUS,
+  BIKE_CLEAR,
+  SPOT_MS,
+  SPOT_RADIUS,
+  inSpot,
+  spotAt,
+  sweepSpot,
+  BIKE_MS,
+  BIKE_OFF,
+  BIKE_REACH,
+  bikeX,
+  rideBike,
   CRACKERS,
   CRACKERS_MS,
   CRACKER_FUSE_MS,
@@ -344,29 +355,38 @@ test("the ferry horn turns the passers-by to the sea, the gong to the stage, the
       first ||= now;
       // (the theatre's drill, first and every other time, stops and turns the crowd to the stage too;
       // its punch on the call has its own test, as do the night market's firecrackers, which come first
-      // and send the crowd every which way)
-      assert.equal(moment.kind, { plaza: "horn", metro: "dance", gallery: now < 29_000 ? "drill" : "gong", market: now < 26_000 ? "crackers" : "fireworks" }[arena]);
-      if (moment.kind === "crackers") continue;
+      // and send the crowd every which way, and the seawall's bike, which comes after the horn)
+      assert.equal(moment.kind, { plaza: now < 23_000 ? "horn" : "bike", metro: now < 26_800 ? "dance" : "blackout", gallery: now < 29_000 ? "drill" : "gong", market: now < 26_000 ? "crackers" : "fireworks" }[arena]);
+      if (moment.kind === "crackers" || moment.kind === "bike") continue;
       // (everyone has reacted, and turned, a second and a half in)
       if (now - moment.startsAt < 1_500) continue;
       for (const character of match.characters.filter((item) => item.kind === "npc" && now >= item.stunnedUntil)) {
-        assert.ok(Math.hypot(character.velocity.x, character.velocity.y) < 0.6, `${arena}: ${character.id} stops`);
+        // (on the floor: the transit hall's walkways may carry them on, in the dark)
+        const drift = environmentalDrift(arena, 0, now);
+        assert.ok(Math.hypot(character.velocity.x - drift.x, character.velocity.y - drift.y) < 0.6, `${arena}: ${character.id} stops`);
         if (moment.look) {
           const want = Math.atan2(moment.look.y - character.y, moment.look.x - character.x);
           assert.ok(Math.abs(Math.atan2(Math.sin(character.facing - want), Math.cos(character.facing - want))) < 0.4, `${arena}: ${character.id} looks`);
-        } else assert.equal(character.pose, "dance", `${arena}: ${character.id} dances`);
+        } else if (moment.kind === "dance") assert.equal(character.pose, "dance", `${arena}: ${character.id} dances`);
+        // (in the dark nobody dances: everyone stands, and looks at their phone)
+        else assert.ok(character.pose === "idle" || character.pose === "glance", `${arena}: ${character.id} stands in the dark`);
       }
     }
     assert.ok(first > 0 && first < 13_000, `${arena}: the first moment comes early in the round`);
   }
-  // the busker only plays while the walkway rests: nobody dances while the floor carries them
+  // the busker only plays, and the lights only go out, while the walkway rests: nobody dances or stands
+  // in the dark while the floor carries them
   let dances = 0;
+  let dark = 0;
   for (let now = 0; now < MATCH_MS; now += 50) {
-    if (crowdMoment("metro", 0, now)?.kind !== "dance") continue;
-    dances++;
+    const kind = crowdMoment("metro", 0, now)?.kind;
+    if (kind !== "dance" && kind !== "blackout") continue;
+    if (kind === "dance") dances++;
+    else dark++;
     assert.equal(environmentalDrift("metro", 0, now).x, 0, `the walkway is still at ${now} ms`);
   }
   assert.ok(dances * 50 >= 3 * 2_600, "the busker plays a few times a round");
+  assert.ok(dark * 50 >= 3 * 3_000, "the lights go out a few times a round");
 });
 
 test("while the busker plays, a player standing still dances like everyone, and one who walks on doesn't", () => {
@@ -546,8 +566,10 @@ test("the theatre's moments take turns: the drill, where every passer-by punches
   // 12 s in the drill, 17 s later the gong, then the drill again
   assert.equal(crowdMoment("gallery", 0, 12_100)?.kind, "drill");
   assert.equal(crowdMoment("gallery", 0, 29_100)?.kind, "gong");
-  assert.equal(crowdMoment("gallery", 0, 46_100)?.kind, "drill");
-  assert.equal(crowdMoment("plaza", 0, 24_100)?.kind, "horn", "a place with one moment keeps it");
+  assert.equal(crowdMoment("gallery", 0, 46_100)?.kind, "spot", "then the follow spot");
+  assert.equal(crowdMoment("gallery", 0, 63_100)?.kind, "drill");
+  assert.equal(crowdMoment("metro", 0, 26_900)?.kind, "blackout", "the transit hall's lights go out after the busker");
+  assert.equal(crowdMoment("metro", 0, 44_900)?.kind, "dance", "and the busker comes back");
   let match = createMatch(players, 0, 31, "gallery");
   const punched = new Set<string>();
   for (let now = 50; now <= 12_000 + DRILL_GO_MS + 600; now += 50) {
@@ -669,4 +691,114 @@ test("the passers-by get clear of a firecracker; a player who stands at one is k
   const down = caught.filter((id) => knockedDown.has(id));
   assert.ok(caught.length >= 3, `passers-by near the firecrackers: ${caught.length}`);
   assert.ok(down.length <= Math.floor(caught.length / 4), `${down.length} of ${caught.length} passers-by didn't get clear`);
+});
+
+test("by the seawall the horn and the bike take turns; the bike's line is the round's dice, through the crowd, with room either side", () => {
+  assert.equal(crowdMoment("plaza", 0, 9_100)?.kind, "horn", "the seawall's first moment");
+  assert.equal(crowdMoment("plaza", 0, 23_100)?.kind, "bike");
+  assert.equal(crowdMoment("plaza", 0, 37_100)?.kind, "horn");
+  const bike = crowdMoment("plaza", 0, 23_100)!;
+  assert.equal(bike.endsAt - bike.startsAt, BIKE_MS);
+  const lines = new Set<number>();
+  for (let seed = 1; seed <= 40; seed++) {
+    const ride = rideBike(seed, 0, 23_000);
+    assert.deepEqual(rideBike(seed, 0, 23_000), ride, "the same round rides the same line");
+    assert.ok(ride.y - BIKE_CLEAR >= ARENA.marginY + 2 && ride.y + BIKE_CLEAR <= ARENA.height - ARENA.marginY - 2, `room to step off line ${ride.y.toFixed(1)}`);
+    lines.add(Math.round(ride.y));
+  }
+  assert.ok(lines.size >= 12, "lines all over the floor");
+  // (out past a side of the floor as the bell rings, across in a few seconds, and gone again before it ends)
+  const ride = rideBike(7, 0, 23_000);
+  const start = bikeX(ride, 23_000);
+  assert.equal(start, ride.dir > 0 ? -BIKE_OFF : ARENA.width + BIKE_OFF);
+  const end = bikeX(ride, 23_000 + BIKE_MS);
+  assert.ok(ride.dir > 0 ? end > ARENA.width + BIKE_OFF : end < -BIKE_OFF, "it rides right across");
+  const onFloor = (now: number) => { const x = bikeX(ride, now); return x > 0 && x < ARENA.width; };
+  assert.ok(!onFloor(23_000 + 1_200), "the bell rings before it reaches the floor");
+  assert.ok(onFloor(23_000 + 2_500), "then it comes through");
+});
+
+test("the passers-by step out of the bike's way and watch it go by; a player who stands in its path is knocked down (not tagged), one who steps aside isn't", () => {
+  let match = createMatch(players, 0, 77, "plaza");
+  for (let now = 50; now <= 23_000; now += 50) match = advanceMatch(match, now, {});
+  const ride = rideBike(match.seed, 0, 23_000);
+  // One stands right on its line, in the middle of the floor; Two too, but steps off once the bell rings
+  Object.assign(characterForOwner(match, "player-one")!, { x: 50, y: ride.y, velocity: { x: 0, y: 0 } });
+  Object.assign(characterForOwner(match, "player-two")!, { x: 60, y: ride.y + 0.5, velocity: { x: 0, y: 0 } });
+  const inLane = new Set(match.characters.filter((body) => body.kind === "npc" && Math.abs(body.y - ride.y) < BIKE_REACH).map((body) => body.id));
+  const knockedDown = new Set<string>();
+  let watched = 0;
+  for (let now = 23_050; now <= 23_000 + BIKE_MS; now += 50) {
+    match = advanceMatch(match, now, { "player-two": now >= 23_400 && now < 24_200 ? { x: 0, y: 1 } : { x: 0, y: 0 } });
+    for (const body of match.characters) if (body.pose === "stunned") knockedDown.add(body.id);
+    // (two seconds in, everyone out of its way stands and looks along its line)
+    if (now === 25_500) {
+      for (const body of match.characters.filter((item) => item.kind === "npc" && now >= item.stunnedUntil && Math.abs(item.y - ride.y) >= BIKE_REACH)) {
+        if (Math.hypot(body.velocity.x, body.velocity.y) < 0.6) watched++;
+      }
+    }
+  }
+  const one = characterForOwner(match, "player-one")!;
+  const two = characterForOwner(match, "player-two")!;
+  assert.equal(one.biked, 1, "One stood in its path and went down");
+  assert.equal(one.tagged, 0, "not tagged");
+  assert.equal(one.score + two.score, 0, "and nobody scores");
+  assert.equal(two.biked ?? 0, 0, "Two stepped aside");
+  const crashes = match.events.filter((event) => event.t === "bike");
+  assert.ok(crashes.some((event) => event.targets?.includes("player-one")));
+  assert.ok(!crashes.some((event) => event.targets?.includes("player-two")));
+  assert.ok(watched >= 12, `${watched} passers-by stood and watched it go by`);
+  // most of the passers-by on its line got out of the way
+  const down = [...inLane].filter((id) => knockedDown.has(id));
+  assert.ok(down.length <= Math.ceil(inLane.size / 2), `${down.length} of ${inLane.size} passers-by on its line went down`);
+});
+
+test("now and then a passer-by hears the bell late and goes down too (so a body the bike knocks down isn't always a player)", () => {
+  let npcs = 0;
+  let bikes = 0;
+  for (let seed = 1; seed <= 24; seed++) {
+    let match = createMatch(players, 0, seed, "plaza");
+    for (let now = 50; now <= 60_000; now += 50) {
+      const before = match.events.length;
+      match = advanceMatch(match, now, { "player-one": { x: 0, y: 0 }, "player-two": { x: 0, y: 0 } });
+      for (const event of match.events.slice(before)) if (event.t === "bike") npcs += match.characters.filter((body) => body.kind === "npc" && body.stunnedUntil === now + STUN_MS).length;
+    }
+    bikes += 2;
+  }
+  assert.ok(npcs >= bikes / 12 && npcs <= bikes / 2, `${npcs} passers-by down in ${bikes} bikes`);
+});
+
+test("at the theatre the follow spot sweeps the floor (the round's dice); whoever it lands on freezes facing the stage, and the rest carry on", () => {
+  const start = crowdMoment("gallery", 0, 46_100)!;
+  assert.equal(start.kind, "spot");
+  assert.equal(start.endsAt - start.startsAt, SPOT_MS);
+  // (from past one side to past the other, the same every time, a different sweep another round)
+  const sweep = sweepSpot(41, 0, start.startsAt);
+  assert.deepEqual(sweepSpot(41, 0, start.startsAt), sweep);
+  assert.notDeepEqual(sweepSpot(42, 0, start.startsAt), sweep);
+  const from = spotAt(sweep, start.startsAt);
+  const to = spotAt(sweep, start.endsAt);
+  assert.ok(Math.abs(from.x - to.x) >= ARENA.width + SPOT_RADIUS, "right across the floor");
+  for (let now = start.startsAt; now <= start.endsAt; now += 200) {
+    const at = spotAt(sweep, now);
+    assert.ok(at.y > ARENA.marginY && at.y < ARENA.height - ARENA.marginY, "over the floor");
+  }
+  let match = createMatch(players, 0, 41, "gallery");
+  for (let now = 50; now <= start.startsAt; now += 50) match = advanceMatch(match, now, {});
+  const caught = new Set<string>();
+  let moving = 0;
+  for (let now = start.startsAt + 50; now <= start.endsAt; now += 50) {
+    match = advanceMatch(match, now, {});
+    for (const body of match.characters) {
+      if (body.kind !== "npc" || now < body.stunnedUntil) continue;
+      const speed = Math.hypot(body.velocity.x, body.velocity.y);
+      // (lit for a moment already: frozen, turned to the stage)
+      if (inSpot(body, sweep, now) && inSpot(body, sweep, now - 400)) {
+        caught.add(body.id);
+        assert.ok(speed < 0.6, `${body.id} freezes in the light`);
+      } else if (!inSpot(body, sweep, now) && speed > 2) moving++;
+    }
+  }
+  assert.ok(caught.size >= 3, `${caught.size} passers-by caught in its light`);
+  assert.ok(moving > 0, "out of it, the crowd carries on");
 });

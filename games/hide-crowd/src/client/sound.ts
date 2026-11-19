@@ -1,11 +1,13 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
-// hitting the floor, the ferry horn, the busker's riff, the opera gong, the theatre's drill (the
+// hitting the floor, the ferry horn, the seawall's bike (its bell, and its crash into someone), the
+// busker's riff, the transit hall's lights going out, the opera gong, the theatre's follow spot and
+// its drill (the
 // stage's count and the crowd's punches), the night market's firecrackers and fireworks, a bite at a
 // stall and a feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
 // screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the
 // first tap unlocks it. The menu's two switches turn the sounds off (hc.sound) and the music
 // (hc.music), and the game plays the same without.
-import { DRILL_BEAT_MS, DRILL_GO_MS, type ArenaId } from "../engine";
+import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, SPOT_MS, type ArenaId } from "../engine";
 import { FIREWORK_RISE_MS, FIREWORK_SHOTS } from "./fireworks";
 
 let ctx: AudioContext | null = null;
@@ -234,6 +236,89 @@ export const sfx = {
       osc.stop(t + 2.1);
     }
     duck(t, 2.2);
+  },
+  /**
+   * The seawall's bike: its bell, a thumb's quick trill twice (ring ring) as it sets off, and again as
+   * it comes onto the floor. `sinceMs` is how far into the moment this screen came in (a ring already
+   * gone isn't played).
+   */
+  bell(sinceMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    for (const trill of [0, 520, 1_250]) {
+      const start = t + (trill - sinceMs) / 1000;
+      if (start < t - 0.03) continue;
+      for (let strike = 0; strike < 5; strike++) {
+        const hit = start + strike * 0.052;
+        const level = 0.11 * (1 - strike * 0.12);
+        // (two tones a few hertz apart beat like a real bell's dome, over its higher partials)
+        voice("sine", 2_380, 2_370, hit, 0.42, level, master!, 0.002);
+        voice("sine", 2_396, 2_388, hit, 0.36, level * 0.6, master!, 0.002);
+        voice("sine", 3_710, 3_700, hit, 0.22, level * 0.35, master!, 0.002);
+        voice("sine", 5_160, 5_150, hit, 0.12, level * 0.18, master!, 0.002);
+      }
+    }
+  },
+  /** the bike knocks someone down: a skid, a clank of metal, the bell knocked, and the body hitting the ground */
+  crash(): void {
+    const t = now();
+    if (t === null) return;
+    const pitch = vary();
+    hiss(t, 0.22, 0.22, 3_200 * pitch, 900 * pitch, 0.9);
+    voice("triangle", 820 * pitch, 610 * pitch, t + 0.02, 0.16, 0.08, master!, 0.002);
+    voice("square", 1_240 * pitch, 980 * pitch, t + 0.05, 0.08, 0.035, master!, 0.002);
+    voice("sine", 2_380, 2_370, t + 0.06, 0.25, 0.05, master!, 0.002);
+    voice("sine", 110 * pitch, 46 * pitch, t + 0.08, 0.3, 0.5);
+    hiss(t + 0.08, 0.16, 0.18, 600 * pitch, 180 * pitch, 0.7);
+  },
+  /**
+   * The transit hall's lights going out: the power cutting out (a deep clunk, the lamps' hum dying), the
+   * crowd's murmur in the dark, and the lights flickering back on (the starters ticking, a hum). In time
+   * with the screen: `elapsedMs` is how far into it this screen came in.
+   */
+  lightsOut(elapsedMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    const at = (ms: number) => t + (ms - elapsedMs) / 1000;
+    const off = at(0);
+    if (off >= t - 0.05) {
+      voice("sine", 92, 38, off, 0.42, 0.5);
+      voice("sawtooth", 120, 60, off, 0.5, 0.05, master!, 0.003);
+      hiss(off, 0.12, 0.2, 900, 300, 0.8);
+    }
+    // (the murmur: "ooh" in the dark)
+    const murmur = at(380);
+    if (murmur >= t - 0.05) {
+      hiss(murmur, 1.1, 0.07, 380, 820, 2.4);
+      hiss(murmur + 0.15, 0.9, 0.05, 520, 360, 2.4);
+    }
+    const back = at(BLACKOUT_MS - 560);
+    if (back >= t - 0.05) {
+      for (const tick of [0, 0.08, 0.2, 0.28]) hiss(back + tick, 0.03, 0.14, 5_200, 3_800, 2);
+      voice("sawtooth", 118, 120, back + 0.41, 0.6, 0.035, master!, 0.08);
+    }
+    duck(t, Math.max(0.4, (BLACKOUT_MS - elapsedMs) / 1000));
+  },
+  /**
+   * The theatre's follow spot: the big lamp's shutter clacking open (a thud and a metal click), its
+   * hum while it sweeps, and the clack shut. `elapsedMs`: how far into it this screen came in.
+   */
+  spot(elapsedMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    const open = t + (0 - elapsedMs) / 1000;
+    const shut = t + (SPOT_MS - 220 - elapsedMs) / 1000;
+    if (open >= t - 0.05) {
+      voice("sine", 130, 60, open, 0.22, 0.4);
+      voice("square", 2_200, 1_600, open + 0.01, 0.03, 0.05, master!, 0.001);
+      hiss(open, 0.05, 0.16, 4_000, 2_400, 1.5);
+    }
+    const hum = Math.max(t, open + 0.05);
+    if (shut - hum > 0.1) voice("sawtooth", 98, 100, hum, shut - hum, 0.022, master!, 0.12);
+    if (shut >= t) {
+      voice("square", 1_900, 1_400, shut, 0.03, 0.045, master!, 0.001);
+      voice("sine", 110, 55, shut + 0.01, 0.16, 0.3);
+    }
   },
   /** the opera gong: a bright strike that rings and wobbles */
   gong(): void {

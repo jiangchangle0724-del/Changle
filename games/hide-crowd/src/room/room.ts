@@ -19,8 +19,10 @@ import {
   crowdMoment,
   environmentalDrift,
   normalizeVector,
+  rideBike,
   roundAwards,
   roundPenalty,
+  sweepSpot,
   startBlend,
   startDistract,
   startPunch,
@@ -443,6 +445,16 @@ export class Room {
         moment: (() => {
           const moment = game.phase === "playing" ? crowdMoment(game.arena, game.startedAt, now) : null;
           if (!moment) return null;
+          if (moment.kind === "spot") {
+            // (the theatre's follow spot: its sweep, by the round's dice, and how far along it is)
+            const sweep = sweepSpot(game.seed, game.startedAt, moment.startsAt);
+            return { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now), spot: { dir: sweep.dir, y: r2(sweep.y), wave: r2(sweep.wave), phase: r2(sweep.phase), sinceMs: now - sweep.startsAt } };
+          }
+          if (moment.kind === "bike") {
+            // (the seawall's bike: its line, by the round's dice, and how far along it is)
+            const ride = rideBike(game.seed, game.startedAt, moment.startsAt);
+            return { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now), bike: { y: r2(ride.y), dir: ride.dir, sinceMs: now - ride.startsAt } };
+          }
           if (moment.kind !== "crackers") return { kind: moment.kind, endsInMs: Math.max(0, moment.endsAt - now) };
           const crackers = (game.crackers ?? []).map((cracker) => ({
             x: r2(cracker.x),

@@ -27,6 +27,13 @@
   /* the night market's firecrackers: their red paper, and the smoke of a bang */
   --arena-cracker: #d4282c;
   --arena-smoke: #cfc8bd;
+  /* a phone's screen lit in the transit hall's dark (src/client/ui/lights.ts) */
+  --arena-screen: #cfe6ff;
+  /* the seawall's bike (src/client/ui/bike.ts): its frame, its tyres, its leather saddle and grips, its wicker basket */
+  --arena-bike: #2f9fb0;
+  --arena-tyre: #1d1f24;
+  --arena-saddle: #6b4630;
+  --arena-wicker: #c79b5f;
   /* the floors, in daylight like the places in the pictures (Arena3D draws them) */
   --arena-lawn: #6aaf45;
   --arena-lawn-2: #4f9135;
@@ -2031,6 +2038,44 @@ html.is-tv body::before {
 }
 /* the night market's firecrackers, flat: once one lands, the ring of how far it will knock people
    down (the blast's 6.5 across the floor's 100 x 58), beating; then its bang */
+/* the theatre's follow spot, flat: a pool of warm light */
+.flat-spot {
+  position: absolute;
+  z-index: 1;
+  border-radius: var(--r-pill);
+  background: radial-gradient(circle, color-mix(in oklab, var(--arena-bulb) 70%, transparent) 60%, transparent 72%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+/* the transit hall's lights out, flat: the whole floor goes dark */
+.flat-arena.is-dark {
+  filter: brightness(0.32) saturate(0.6);
+}
+/* the seawall's bike, flat: its line (chevrons running the way it rides) and the bike as a short bar */
+.flat-bike-lane {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(90deg, color-mix(in oklab, var(--arena-warn) 55%, transparent) 0 var(--space-2), transparent var(--space-2) var(--space-6));
+  box-shadow: inset 0 2px 0 var(--arena-warn), inset 0 -2px 0 var(--arena-warn);
+  opacity: 0.8;
+  pointer-events: none;
+}
+.flat-bike {
+  position: absolute;
+  z-index: 2;
+  width: 9%;
+  height: 4%;
+  border-radius: var(--r-pill);
+  background: var(--arena-bike);
+  box-shadow: 0 0 0 2px var(--arena-ink);
+  transform: translate(-100%, -50%);
+  pointer-events: none;
+}
+.flat-bike-lane.is-left + .flat-bike {
+  transform: translate(0, -50%);
+}
 .flat-cracker {
   position: absolute;
   z-index: 1;

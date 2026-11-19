@@ -48,11 +48,16 @@ test("the people are slim, rigged GLB 2.0 files with nothing from outside", () =
   }
   assert.equal(man.animations?.length, 11, "the man's file carries the clips");
   assert.equal(woman.animations, undefined, "the woman moves with the man's clips");
+  // the extra moves: clips only, no body (tools/moves/build_crowd_moves.py)
+  const moves = read("crowd-moves.glb");
+  assert.deepEqual(moves.animations?.map((clip) => clip.name).sort(), ["eat", "lantern", "no", "nod", "rail"]);
+  assert.equal(moves.skins, undefined, "no body: the clips play on the people's");
+  assert.equal(moves.images, undefined);
 });
 
 test("pictures are WebP and within their budgets", () => {
   // (the man's file carries the eleven clips: the dance took it past 200 KB)
-  const budget = (name: string) => (name === "crowd-people.glb" ? 210_000 : name === "crowd-people-f.glb" ? 110_000 : name.startsWith("thumb-") ? 24_000 : name.endsWith(".webp") ? 240_000 : 450_000);
+  const budget = (name: string) => (name === "crowd-people.glb" ? 210_000 : name === "crowd-people-f.glb" ? 110_000 : name === "crowd-moves.glb" ? 80_000 : name.startsWith("thumb-") ? 24_000 : name.endsWith(".webp") ? 240_000 : 450_000);
   for (const [name, size] of Object.entries(sizes)) {
     assert.ok(/\.(webp|glb)$/.test(name), `${name}: art ships as WebP or GLB`);
     assert.ok(size <= budget(name), `${name} is ${size} bytes`);
