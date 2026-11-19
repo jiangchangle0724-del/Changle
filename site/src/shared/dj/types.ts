@@ -564,6 +564,8 @@ export type DjCommand =
   /** the host (their phone, or the big screen's 我的歌): the night on their songs, or back to the stand-in */
   | { x: "mine"; on: boolean }
   | { x: "voice"; on: boolean }
+  /** the host: the dancer on the big screen, on or off */
+  | { x: "dancer"; on: boolean }
   | { x: "shuffle"; on: boolean }
   /** 点歌模式 (the host): no build-up and no DROP, the songs asked for one after another */
   | { x: "juke"; on: boolean }
@@ -657,6 +659,8 @@ export type RoomState = {
   danmuN: number;
   danmuOn: boolean;
   danmuAt: Record<string, number>;
+  /** the dancer on the big screen (the host's switch, Steve on Nov 18: "需要有个按钮可以关闭模特跳舞") */
+  dancer: boolean;
   /** the sound board (shared/dj/sfx.ts, Steve on Nov 13): when each phone last played one, and the
    *  latest sounds played (each sound once per SFX_TIMES.roomGapMs for the room) */
   sfxAt: Record<string, number>;

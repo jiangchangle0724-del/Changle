@@ -174,6 +174,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `seek` | anyone, or the speaker | 快退 and 快进 30 秒 (Steve on Nov 18), below: the song playing whole jumps `by` seconds (the phones send -30 or 30; at most `DECK.seekMaxS`), never to before its start; paused, it stays paused there. Only while a song plays whole. |
 | `tap` `{ on }` | the speaker | It wants a tap (its YouTube player's on the video before it plays with sound, an iPhone's or Safari's, the night's first song; or its own sound stopped, a phone's screen locked or a call), or doesn't any more: `deck.tap`, which the phones pass on. Gone with the song. |
 | `voice` `{ on }` | the host | 报幕 on the big screen, on (the default) or off: `voice` in the view (below). |
+| `dancer` `{ on }` | the host | The dancer on the big screen (Steve on Nov 18: "需要有个按钮可以关闭模特跳舞"), on (the default) or off: `dancer` in the view; another set keeps it. Off, the big screen lets go of her (her model and its drawing). |
 | `shuffle` `{ on }` | the host, or the speaker | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
 | `juke` `{ on }` | the speaker | 点歌模式 (the jukebox, Steve on Nov 5: "关闭 drop ... 当成一个点歌器，播放完一首歌，下一首歌就自动播放"), the booth's only way since Nov 12 ("不需要drop了": on in a new booth, and once in one saved before, `rev` 2). Off (the build-up and DROP, still in the engine) only from the speaker's word, which no page sends: the engine's tests use it, and the big screen switches a booth an older page turned off back on. Another set keeps it. |
 | `full` `{ on }` | anyone, or the speaker | The song's video over the whole TV, or back in its corner (the default): `full` in the view. Another set starts in the corner. |
@@ -398,7 +399,7 @@ deck B ┘                                                                 horn,
   a song is coming on), under them 快退 and 快进 30 秒 (Nov 18; 48 px, while a song plays whole), the
   video over the whole TV, and the TV's word when it wants a tap. Then
   the song box, 从手机传歌, the 歌单 and the sound board (音效, below; the twelve pads until Nov 13),
-  🔥 and ❄️, 弹幕, the host's card (报幕 and 弹幕 on or off; at the end, 再来一场: its stretches and
+  🔥 and ❄️, 弹幕, the host's card (报幕, 弹幕 and the TV's dancer on or off; at the end, 再来一场: its stretches and
   结束这一场 gone on Nov 13); 跟着跳 at the very bottom until Nov 14.
 - **The screens:** the TV shows the song asked for that's up next (the two decks, the fader and the
   rest of the board round it went on Nov 14), who played which sound, and a line (`jukeText`: what
