@@ -1,4 +1,4 @@
-import { Crown, Dices, Play, UserPlus } from "lucide-react";
+import { Crown, Dices, Play, Tv, UserPlus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GAME_BY_ID, isNewGame } from "../games/registry";
 import { Tile } from "../ui/Tile";
@@ -108,6 +108,8 @@ function LobbyBoard() {
   const players = room.seats.filter((s) => !s.watch).length;
   const enough = players >= need;
   const host = nameOf(room.host);
+  // this phone is the TV: its seat only watches, and in a game it shows the big screen's view
+  const casting = !!room.seats.find((s) => s.id === me)?.watch;
   // the board: every game on it, and a hidden one only while it is the game up (the DJ booth)
   const onBoard = ONLINE_GAMES.map((_, i) => i).filter((i) => !GAME_BY_ID[ONLINE_GAMES[i]].hidden || i === front);
 
@@ -150,12 +152,37 @@ function LobbyBoard() {
                   )}
                 </button>
                 <span className="face-name">{mine ? ui("you") : s.name}</span>
-                {s.watch && <span className="face-watch">{lang === "zh" ? "旁观" : "Watching"}</span>}
+                {s.watch && <span className="face-watch">{lang === "zh" ? "投屏" : "TV"}</span>}
               </li>
             );
           })}
         </ul>
       </section>
+
+      {/* Mirroring: a phone that is the TV sits out the games and shows the big screen's view (the
+          seat's `watch`). The host's own phone can't be it: the games wait on the host's buttons.
+          The host sets another phone from its face (PersonSheet). */}
+      {casting ? (
+        <div className="lobby-cast is-on" role="status">
+          <Tv size={18} aria-hidden="true" />
+          <span className="lobby-cast-text">
+            <strong>{lang === "zh" ? "这台手机正在投屏电视" : "This phone is the TV"}</strong>
+            <small>{lang === "zh" ? "游戏开始后这里是大屏画面，你不参加游戏" : "When a game starts, this shows the big screen's view; you sit the games out"}</small>
+          </span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => act({ a: "watch", on: false })}>
+            {lang === "zh" ? "回来玩" : "Play instead"}
+          </button>
+        </div>
+      ) : (
+        !isHost && (
+          <div className="lobby-cast">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => act({ a: "watch", on: true })}>
+              <Tv size={16} aria-hidden="true" />
+              {lang === "zh" ? "这台手机投屏电视" : "Mirror this phone to the TV"}
+            </button>
+          </div>
+        )
+      )}
 
       <div className="board-head">
         <h2 className="section-title">{isHost ? ui("pickGame") : ui("waitHost", { name: host })}</h2>
