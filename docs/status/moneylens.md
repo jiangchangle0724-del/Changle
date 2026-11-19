@@ -1,0 +1,9 @@
+# MoneyLens · 状态
+
+- 现状：Phase 0（决定和打地基）。线上什么都没有。要求在 docs/moneylens.md，详细的在 docs/briefs/moneylens.md。
+- 决定（2026-11-18，Steve）：D1 加密保险库；D2 应用在 money.changle.ca，工具页有卡片，介绍页 changle.ca/tools/finance；D5 外部 AI 默认关、用户自选。D4（BC、19 岁、邀请、25 人）和 D6（免费版）先按推荐记，等他点头。D3 在 Phase 3 前。
+- 铁规矩：真实财务数据不进仓库、CI、截图、日志、AI 工具；功能挡在允许名单后面，Steve 开闸；登录、会话、加密、同步、权限的改动要有非作者的审查记录才合并。
+- 已有文档：docs/moneylens/ 下的威胁模型、数据清单、给账号对话的需求。
+- 下一步：核心库（金额、CSV、OFX、对账、去重、分类）→ 保险库加密 → 夹具工具 → Worker 和每人一个 Durable Object → 页面。
+- 等 Steve：D4、D6 点头；先支持哪几家银行；把 v1 和最早的功能说明放进 Project 文档；中文名。
+- 交出去的：账号对话做交接码、删号通知、换邮箱（docs/moneylens/accounts-requests.md）；首页对话放全站 Privacy Policy 和 Terms。
