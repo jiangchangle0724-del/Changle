@@ -1,8 +1,11 @@
 // One phone: practice against the computer (it opens on the four places to pick from), the screens a
 // phone shows (sideways: an upright phone is asked to turn), and an iPhone's ways to full screen (hide
 // Safari's toolbar, or the Home Screen).
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { bigTargets, newRoom, noErrors, noSideScroll, phone, shot, test, until } from "./helpers";
+
+/** A sheet listens for Escape once it has taken the focus (it, or something in it): a key pressed before that is lost. */
+const sheetReady = (page: Page) => expect.poll(() => page.evaluate(() => !!document.activeElement?.closest(".sheet"))).toBe(true);
 
 test("practice: pick a place, then one phone against three computer rivals hidden in the crowd", async ({ browser }) => {
   const me = await phone(browser, "Steve");
@@ -79,6 +82,7 @@ test("sideways: nothing scrolls sideways, every button is big enough, a double t
   await mia.getByRole("button", { name: "More" }).first().click();
   await mia.getByRole("button", { name: "中文" }).click();
   await expect(mia.locator(".sheet-title")).toHaveText("更多");
+  await sheetReady(mia);
   await mia.keyboard.press("Escape");
   await expect(mia.locator(".sheet")).toHaveCount(0);
   noErrors(steve, mia);
@@ -137,6 +141,7 @@ test("an iPhone in Safari is shown, once by itself, how to play full screen: hid
   await expect(steve.locator(".sheet")).toHaveCount(0);
   await steve.getByRole("button", { name: "怎么做" }).click();
   await expect(steve.locator(".sheet-title")).toHaveText("iPhone 上全屏玩");
+  await sheetReady(steve);
   await steve.keyboard.press("Escape");
   await expect(steve.locator(".sheet")).toHaveCount(0);
   await steve.getByRole("button", { name: "更多" }).first().click();
@@ -162,6 +167,7 @@ test("in a round on an iPhone, while Safari's bars take part of the screen, a li
   // more ways: the whole guide
   await hint.getByRole("button", { name: "更多办法" }).click();
   await expect(steve.locator(".sheet-title")).toHaveText("iPhone 上全屏玩");
+  await sheetReady(steve);
   await steve.keyboard.press("Escape");
   await expect(steve.locator(".sheet")).toHaveCount(0);
   // closed for good: not in the next round either
