@@ -464,6 +464,24 @@ The big upgrade's fourth part, its third event (an event for each place).
   light (a strong tell, nearly a punch's).
 * With reduced motion: it doesn't flare in or out; the house lights fade.
 
+## A first practice, step by step
+
+The big upgrade's last part, the experience (Steve, 2026-11-18). A phone's first practice round shows
+three tips, one at a time, at the moments they matter (`ui/Coach.tsx`):
+
+1. after the camera's opening sweep (2.8 s): the green "You" is you; walk like a passer-by (stroll,
+   stop now and then, don't keep running);
+2. just before the first moment (8.6 s; the horn, the busker, the drill or the firecrackers): when the
+   whole crowd does something (stops, steps aside, dances, punches), do it too, and the pill says what;
+3. at 17.5 s: someone not acting like a passer-by? get close and press Punch (a ring round Punch, the
+   drill's cue); hit a passer-by and you're stunned.
+
+Each shows until it's tapped away (知道了 Got it, a 44 px target) or its moment has passed; a word
+about your own punch or fall takes its place meanwhile. Once a phone has been through them it never
+sees them again (`hc.coach`); online rounds don't have them (a table plays with friends who explain).
+The card sits under the top bar, the night on light like the words about your punches; with reduced
+motion it doesn't pop in and Punch's ring holds still.
+
 ## Longer rounds, and practice's picker
 
 Steve, 2026-11-13, from a practice round (电脑 3 won 3 to 0 before he had landed a punch): let the

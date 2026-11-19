@@ -1090,6 +1090,52 @@ button.arena-option:active {
 :lang(zh-CN) .play-notice {
   font-family: var(--font-text);
 }
+/* a first practice's tips (Coach.tsx): a card under the top bar, one at a time */
+.coach {
+  position: absolute;
+  top: calc(var(--safe-top) + 64px);
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  width: min(26rem, calc(100% - 2 * var(--space-6)));
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-radius: var(--r-panel);
+  background: var(--color-text);
+  color: var(--color-bg);
+  box-shadow: var(--shadow-float);
+  transform: translateX(-50%);
+  animation: notice-in var(--dur-emphasis) var(--ease-pop) both;
+}
+.coach p {
+  grid-column: 1;
+  margin: 0;
+  font: 700 var(--text-sm) / var(--leading) var(--font-text);
+}
+.coach-step {
+  grid-column: 1;
+  font: 700 var(--text-xs) / var(--leading-tight) var(--font-text);
+  opacity: 0.7;
+}
+.coach-ok {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  color: var(--on-gel);
+  font: 800 var(--text-sm) / 1 var(--font-text);
+}
+/* the tip about punching rings the Punch button */
+.play.is-coach-punch .move-punch {
+  box-shadow: var(--glow), 0 0 0 4px var(--color-bg), 0 0 0 7px var(--gel);
+  animation: punch-cue var(--dur-emphasis) var(--ease-out) infinite alternate;
+}
 .play-notice.is-good {
   background: var(--gel);
   color: var(--on-gel);
@@ -3130,6 +3176,8 @@ html.is-tv body::before {
   .moment-banner,
   .drill-call,
   .move-punch.is-cue,
+  .play.is-coach-punch .move-punch,
+  .coach,
   .flat-cracker {
     animation: none;
   }
@@ -3137,6 +3185,8 @@ html.is-tv body::before {
 :root[data-reduced="1"] .moment-banner,
 :root[data-reduced="1"] .drill-call,
 :root[data-reduced="1"] .move-punch.is-cue,
+:root[data-reduced="1"] .play.is-coach-punch .move-punch,
+:root[data-reduced="1"] .coach,
 :root[data-reduced="1"] .flat-cracker {
   animation: none;
 }
