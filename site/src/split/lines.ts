@@ -151,12 +151,12 @@ export function syncLine(h: Pick<Held, "made" | "waiting"> & { locked?: boolean;
  */
 export function lostLine(l: Ledger, sent: Sent, lang: Lang): string {
   const c = sent.change;
-  const expense = (note: string, amount: number) => `${tidy(note, NOTE_MAX) || say(lang, "noNote")} ${money(amount, l.currency, lang)}`;
+  const expense = (e: { note: string; amount: number; merchant?: string | null }) => `${tidy(e.note, NOTE_MAX) || e.merchant || say(lang, "noNote")} ${money(e.amount, l.currency, lang)}`;
   switch (c.do) {
     case "expense":
-      return say(lang, "lostExpense", { what: expense(c.expense.note, c.expense.amount) });
+      return say(lang, "lostExpense", { what: expense(c.expense) });
     case "edit":
-      return say(lang, "lostEdit", { what: expense(c.to.note, c.to.amount) });
+      return say(lang, "lostEdit", { what: expense(c.to) });
     case "transfer": {
       const from = nameOf(l, c.transfer.from);
       const to = nameOf(l, c.transfer.to);

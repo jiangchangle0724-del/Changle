@@ -41,6 +41,9 @@ export function csvOf(l: Ledger, lang: Lang): string {
   const abroad = live.some((e) => e.kind === "expense" && e.paidIn);
   // and for the tip and tax, only in one that has any
   const extras = live.some((e) => e.kind === "expense" && (e.tip || e.tax));
+  // and for where it was bought and how it was paid, after the note, only in one that has any
+  const shopped = live.some((e) => e.kind === "expense" && (e.merchant || e.place || e.payment));
+  const blanks = (n: number) => Array<string>(n).fill("");
   let tips = 0;
   let taxes = 0;
   const rows: string[][] = [
@@ -48,6 +51,7 @@ export function csvOf(l: Ledger, lang: Lang): string {
       say(lang, "csvWhen"),
       say(lang, "csvKind"),
       say(lang, "csvNote"),
+      ...(shopped ? [say(lang, "merchant"), say(lang, "place"), say(lang, "paidWith")] : []),
       say(lang, "csvPaidBy"),
       say(lang, "csvAmount"),
       say(lang, "csvCurrency"),
@@ -68,15 +72,15 @@ export function csvOf(l: Ledger, lang: Lang): string {
       const tax = e.tax ? inLedger(e.tax, e) : 0;
       tips += tip;
       taxes += tax;
-      row = [spentOn(e), say(lang, "csvExpense"), text(e.note), text(name(e.payer)), plain(e.amount), l.currency, ...(abroad ? other : []), ...(extras ? [tip ? plain(tip) : "", tax ? plain(tax) : ""] : [])];
+      row = [spentOn(e), say(lang, "csvExpense"), text(e.note), ...(shopped ? [text(e.merchant ?? ""), text(e.place ?? ""), text(e.payment ?? "")] : []), text(name(e.payer)), plain(e.amount), l.currency, ...(abroad ? other : []), ...(extras ? [tip ? plain(tip) : "", tax ? plain(tax) : ""] : [])];
     } else {
       add(e.from, e.amount);
       add(e.to, -e.amount);
-      row = [localDay(e.at), say(lang, "csvPayment"), text(say(lang, "pictureWho", { from: name(e.from), to: name(e.to) })), text(name(e.from)), plain(e.amount), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? ["", ""] : [])];
+      row = [localDay(e.at), say(lang, "csvPayment"), text(say(lang, "pictureWho", { from: name(e.from), to: name(e.to) })), ...(shopped ? blanks(3) : []), text(name(e.from)), plain(e.amount), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? ["", ""] : [])];
     }
     rows.push([...row, ...l.members.map((m) => plain(parts.get(m.id) ?? 0))]);
   }
   const stand = balances(l);
-  rows.push(["", say(lang, "csvTotal"), "", "", plain(spent(l)), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? [plain(tips), plain(taxes)] : []), ...l.members.map((m) => plain(stand[m.id] ?? 0))]);
+  rows.push(["", say(lang, "csvTotal"), "", ...(shopped ? blanks(3) : []), "", plain(spent(l)), l.currency, ...(abroad ? ["", "", ""] : []), ...(extras ? [plain(tips), plain(taxes)] : []), ...l.members.map((m) => plain(stand[m.id] ?? 0))]);
   return BOM + rows.map((r) => r.map(field).join(",")).join("\r\n") + "\r\n";
 }
