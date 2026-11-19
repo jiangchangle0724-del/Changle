@@ -4,6 +4,7 @@ import { Glass } from "../components/Glass";
 import { timesOf } from "../shared/protocol";
 import { Button } from "./Button";
 import { gameLabels as labels } from "./gameLabels";
+import { lockScroll } from "./scrollLock";
 import type { PenaltyCardProps } from "./types";
 import "./PenaltyCard.css";
 
@@ -36,12 +37,12 @@ export function PenaltyCard({
     const node = dialog.current;
     if (!call || presentation !== "stamp" || !node) return;
     const opener = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
     node.showModal();
-    document.body.style.overflow = "hidden";
+    // counted with the sheets' locks (ui/scrollLock), so neither leaves the page locked
+    const unlock = lockScroll();
     return () => {
       node.close();
-      document.body.style.overflow = overflow;
+      unlock();
       if (opener?.isConnected) opener.focus();
     };
   }, [call, presentation]);

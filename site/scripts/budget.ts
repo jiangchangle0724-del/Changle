@@ -29,7 +29,11 @@ import { gzipSync } from "node:zlib";
 // /tools/clock, /tools/price; Steve: cards like 随便's): their route and names add 0.2, and the game
 // header they share with the games becomes a file of its own, which every game's list of files names
 // (0.07). The tools themselves still load with their tab or page.
-const BUDGET = { js: 123, css: 22 };
+// 123 → 124 (2026-11-19): main stood at 122.6. On an iPhone, an open sheet is now placed on the screen
+// by its own numbers (ui/screenAnchor: Steve's game card opened at the top of the page after a while,
+// iPhone Safari having lost track of position: fixed). It has to be in the sheet the home page opens
+// first, and adds 0.4.
+const BUDGET = { js: 124, css: 22 };
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), "..", "dist");
 const html = readFileSync(join(dist, "index.html"), "utf8");
