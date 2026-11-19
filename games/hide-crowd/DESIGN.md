@@ -19,7 +19,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
   screen as the room light. The site's registry has the same value (`tests/design.test.ts` checks).
   On the home page its card is in the online kind (aqua), like 到此一游 and 神回复.
 * **The arenas and the crowd keep their own art** (below): three bright daytime places and a crowd
-  of real 3D people in six looks, inside the night frame. Their colours are not the site's; they are
+  of real 3D people in twelve looks, inside the night frame. Their colours are not the site's; they are
   listed as the game's own art colours (`--arena-*` and `--look-*` at the top of `styles.css`, the
   looks' full outfits in `src/client/people.ts`), as the design rules allow for a game's props.
 
@@ -85,7 +85,7 @@ Steve's report of 2026-11-04 also said the people moved crudely ("粗糙"): they
 pictures, four directions and four poses, that swapped as they walked. Since 2026-11-12 they are 3D
 bodies on a skeleton (`src/client/people.ts`), moved the way big animated games move theirs:
 
-* **Two bodies, six looks.** A man's and a woman's (Quaternius's CC0 mannequins, rebuilt for the game
+* **Two bodies, twelve looks.** A man's and a woman's (Quaternius's CC0 mannequins, rebuilt for the game
   by `tools/blender/build_crowd_people.py`: fingers merged, about 2,600 faces each, 23 bones). Each
   face knows which part of the clothes it is, and each look paints the parts from a 16-colour strip:
   skin, top, sleeves, trousers or shorts, shoes, hair, a bag. Hair (short, a bun, a ponytail, a cap),
@@ -105,6 +105,22 @@ bodies on a skeleton (`src/client/people.ts`), moved the way big animated games 
   the wind-up); a tagged body turns to the blow, is knocked off its feet and is up again by the time
   the rules let go (1.15 s, then they slip into the crowd); a puncher who hit a passer-by recoils
   without falling. Every one-off move crossfades in and out over the legs, never snaps.
+* **Faces, gear and heights** (2026-11-18, the big upgrade; made in code on top of the files, so
+  still one draw a person). A mouth and two brows join the file's eyes, laid on the face where it
+  curves; the face moves between five shapes (morph targets on the body: a blink, an open mouth, a
+  smile, brows up, brows down) by what the body is doing: a blink every three to five seconds, each
+  on its own beat; a shout with brows down as it punches; a gasp when it's knocked down, then eyes
+  shut on the floor; a wince at a foul; a grin as it dances; and by what's around it (`Mood`, worked
+  out in the arena from where the body stands): "ooh" with the head tipped back at the fireworks, a
+  start (a quick recoil, mouth open) within 2.6 units of a firecracker's bang, brows up at the horn
+  and the gong; and some faces smile a little more than others when nothing is happening. Six new
+  looks wear gear the files don't have, built from boxes, cylinders and balls on a bone: a beanie
+  with a pompom, a bucket hat, sunglasses, a scarf, a phone in the right hand, a coffee in the left,
+  a tote at the hip with its strap on the shoulder. Every body is 6 % taller or shorter than the
+  next, by its place in the crowd (the same on every screen), and strides to its own legs. The faces
+  read in the close-ups (the opening sweep, the winner's shot); from the play camera it's the hats,
+  the heights and the colours that make the crowd a crowd. The bench used to check them, a page that
+  draws the looks and the faces up close, isn't in the game.
 * **The same for everyone.** Every body is made and moved the same way whoever steers it: what gives
   a player away is what they do. With reduced motion the bodies still walk (that's how the crowd moves),
   but nobody leans, and the camera doesn't shake.
@@ -355,7 +371,7 @@ passer-by (`Room.view` in `src/room/room.ts`, tested in `tests/room.test.ts` and
   names, no "player" or "passer-by", no top speed. Only once the round is over does each player's
   body get a name (and the winner's a mark): the next round shuffles the crowd again.
 * The crowd's order is shuffled when a round starts (`createMatch`). Every screen draws by that
-  order (each place keeps one of the six looks), so players are spread among the looks and the
+  order (each place keeps one of the twelve looks and a height), so players are spread among the looks and the
   places in the list like everyone else.
 * A phone's own body is marked (`me`) on that phone only; the big screen gets no `me` at all.
 * What gives a player away is what they do: punching, being knocked down, walking on through the

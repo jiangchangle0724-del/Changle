@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 import { NPC_FOUL_STUN_MS, NPC_SPEED, PUNCH_WINDUP_MS, STUN_MS, type Pose } from "../src/engine";
-import { CELLS, kitFrom, LOOKS, PERSON_SCALE, SCENE_PER_WORLD, wornBy, type Person } from "../src/client/people";
+import { CELLS, FACE, kitFrom, LOOKS, PERSON_SCALE, SCENE_PER_WORLD, wornBy, type Person } from "../src/client/people";
 
 const parse = (name: string) => {
   const data = readFileSync(new URL(`../src/client/art/${name}`, import.meta.url));
@@ -42,8 +42,10 @@ test("both bodies load with the clips, the bones and the gear the crowd uses", a
 });
 
 test("every look colours every part, and the flat arena wears the same tops", () => {
-  assert.equal(LOOKS.length, 6);
+  assert.equal(LOOKS.length, 12);
   const css = readFileSync(new URL("../src/client/styles.css", import.meta.url), "utf8");
+  // (the flat arena counts the looks itself, to keep three.js out of its download)
+  assert.ok(readFileSync(new URL("../src/client/ui/ArenaFallback.tsx", import.meta.url), "utf8").includes(`look-\${index % ${LOOKS.length}}`));
   LOOKS.forEach((look, index) => {
     for (const cell of CELLS) assert.match(look.colors[cell], /^#[0-9a-f]{6}$/i, `${index} ${cell}`);
     assert.ok(css.includes(`--look-${index}: ${look.colors.top};`), `--look-${index} is ${look.colors.top}`);
@@ -66,7 +68,7 @@ test("a person is one draw, and every part it wears moves just as it did on its 
     const body = meshes[0] as THREE.SkinnedMesh;
     // the same pose on a copy of the file as it was: the parts still on their bones
     const copy = SkeletonUtils.clone(look.body === "m" ? man.scene : woman.scene);
-    copy.scale.setScalar(PERSON_SCALE);
+    copy.scale.setScalar(PERSON_SCALE * person.size);
     const bones = new Map<string, THREE.Object3D>();
     body.skeleton.bones.forEach((bone) => bones.set(bone.name, bone));
     copy.traverse((object) => {
@@ -102,10 +104,78 @@ test("a person is one draw, and every part it wears moves just as it did on its 
       offset += positions.count;
     });
     assert.equal(parts, worn.size, `look ${index} wears ${parts} of ${worn.size} parts`);
-    assert.equal(offset, body.geometry.getAttribute("position").count, `look ${index}: every vertex accounted for`);
+    // (after the file's parts come the ones made here: the face and the gear, tested below)
+    assert.equal(offset, body.geometry.userData.filed, `look ${index}: every vertex from the files accounted for`);
     assert.ok(furthest < 0.002, `look ${index}: a part is ${(furthest * 1000).toFixed(1)} mm from where it sat on its bone`);
     person.dispose();
   });
+});
+
+test("the parts made here (the face, the gear) each ride one bone: the face and hats the head, a phone the right hand, a coffee the left", async () => {
+  const [man, woman] = await files;
+  const kit = kitFrom(man, woman);
+  LOOKS.forEach((look, index) => {
+    const person = kit.spawn(index);
+    let body: THREE.SkinnedMesh | null = null;
+    person.root.traverse((object) => {
+      if (object instanceof THREE.SkinnedMesh) body = object;
+    });
+    const mesh = body as unknown as THREE.SkinnedMesh;
+    const bones = new Set<string>();
+    const skin = mesh.geometry.getAttribute("skinIndex");
+    const weight = mesh.geometry.getAttribute("skinWeight");
+    for (let vertex = mesh.geometry.userData.filed; vertex < skin.count; vertex++) {
+      assert.equal(weight.getX(vertex), 1, `look ${index}: a made part leans on one bone`);
+      bones.add(mesh.skeleton.bones[skin.getX(vertex)].name);
+    }
+    assert.ok(bones.has("Head"), `look ${index}: a face`);
+    if (look.gear.includes("phone")) assert.ok(bones.has("hand_r"), `look ${index}: the phone in the right hand`);
+    if (look.gear.includes("cup")) assert.ok(bones.has("hand_l"), `look ${index}: the coffee in the left`);
+    if (look.gear.includes("tote")) assert.ok(bones.has("pelvis") && bones.has("spine_03"), `look ${index}: the tote at the hip, its strap on the shoulder`);
+    assert.equal(mesh.morphTargetInfluences?.length, Object.keys(FACE).length, `look ${index}: the face's shapes`);
+    person.dispose();
+  });
+});
+
+test("a face follows the body: a blink now and then, a shout as it punches, a gasp when it's knocked down, a grin as it dances, eyes up at the fireworks", async () => {
+  const kit = kitFrom(...(await files));
+  const faceOf = (person: Person) => {
+    let body: THREE.SkinnedMesh | null = null;
+    person.root.traverse((object) => {
+      if (object instanceof THREE.SkinnedMesh) body = object;
+    });
+    return (body as unknown as THREE.SkinnedMesh).morphTargetInfluences!;
+  };
+  const run = (index: number, pose: Pose, kind: "tag" | "over", mood: "calm" | "sky", ms: number) => {
+    const person = kit.spawn(index);
+    let blinked = 0;
+    for (let frame = 0; frame * (1000 / 60) < ms; frame++) {
+      person.update(1 / 60, (frame * 1000) / 60, 0, pose, kind, mood);
+      blinked = Math.max(blinked, faceOf(person)[FACE.blink]);
+    }
+    const face = Array.from(faceOf(person));
+    person.dispose();
+    return { face, blinked };
+  };
+  const calm = run(2, "idle", "over", "calm", 6_000);
+  assert.ok(calm.blinked > 0.8, "a blink within six seconds");
+  assert.ok(calm.face[FACE.open] < 0.1 && calm.face[FACE.angry] < 0.1, "a calm face");
+  const punching = run(2, "windup", "over", "calm", 300);
+  assert.ok(punching.face[FACE.angry] > 0.8 && punching.face[FACE.open] > 0.3, "a shout");
+  const knocked = run(2, "stunned", "tag", "calm", 250);
+  assert.ok(knocked.face[FACE.open] > 0.8 && knocked.face[FACE.up] > 0.8, "a gasp");
+  const dancing = run(2, "dance", "over", "calm", 600);
+  assert.ok(dancing.face[FACE.smile] > 0.9, "a grin");
+  const fireworks = run(2, "idle", "over", "sky", 600);
+  assert.ok(fireworks.face[FACE.smile] > 0.6 && fireworks.face[FACE.up] > 0.5, "ooh");
+});
+
+test("every body has a height of its own (6 % either way), the same on every screen", async () => {
+  const kit = kitFrom(...(await files));
+  const sizes = Array.from({ length: 24 }, (_, index) => kit.spawn(index).size);
+  assert.deepEqual(sizes, Array.from({ length: 24 }, (_, index) => kit.spawn(index).size));
+  assert.ok(Math.min(...sizes) >= 0.94 && Math.max(...sizes) <= 1.06);
+  assert.ok(Math.max(...sizes) - Math.min(...sizes) > 0.08, "some taller, some shorter");
 });
 
 /** Walk a body straight ahead at a speed (the rules' units a second); how its toes move while they're down. */
