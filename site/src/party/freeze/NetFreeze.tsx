@@ -1,7 +1,8 @@
 import { Crown, Hand, Pause, Play, Smartphone } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { GAME_BY_ID } from "../../games/registry";
-import { holdBackground, startGroove, type GrooveId } from "../../lib/music";
+import { audioRunning, onAudioReset } from "../../lib/audio/engine";
+import { holdBackground, startGroove, type GrooveHandle, type GrooveId } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
 import { NetFrame } from "../../online/NetFrame";
 import { SeatFace } from "../../online/People";
@@ -13,6 +14,7 @@ import { usePenaltyText, useStore } from "../../store";
 import { useSecondsLeft } from "../common";
 import { enableSensors, perfAt, useMotionWatch, useSensorStatus, useStillness, useWakeLock } from "../sensors";
 import { DanceFloor, FreezeFlash, StillMeter } from "./parts";
+import { kickAudio, SoundLine } from "./sound";
 import "../../styles/party.css";
 import { Lineup, Moment } from "../../components/Figure";
 
@@ -42,10 +44,41 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
   }, [sensors, v.sensors, me, g]);
 
   // every phone plays the same track and cuts at the same instant
+  const restart = useRef<() => void>(() => {});
   useEffect(() => {
     if (v.phase !== "dance") return;
-    const h = startGroove(v.groove as GrooveId, { startPerf: perfAt(v.musicAt, now()) });
-    h?.stopAt(perfAt(v.stopAt, now()));
+    const startPerf = perfAt(v.musicAt, now());
+    const stopPerf = perfAt(v.stopAt, now());
+    let h: GrooveHandle | null = null;
+    let gone = false;
+    const quiet = () => {
+      try {
+        h?.stop(0.05);
+      } catch {
+        /* a context being replaced */
+      }
+      h = null;
+    };
+    // start on the shared beat, or join it on the next step. Only while the sound runs: a stopped
+    // context's clock stands still, and a groove laid on it would play late and out of step
+    const play = () => {
+      if (gone || !audioRunning() || performance.now() > stopPerf - 300) return;
+      quiet();
+      h = startGroove(v.groove as GrooveId, { startPerf });
+      h?.stopAt(stopPerf);
+    };
+    restart.current = () => void kickAudio().then(play);
+    // before the first beat (the server leaves 1.8 s): stop and start this phone's sound, so a
+    // context an iPhone left silent plays again (sound.tsx), then start
+    void kickAudio().then(play);
+    // a phone whose sound was asleep, or whose page was hidden, joins the beat once it is back
+    const again = window.setInterval(() => {
+      if (!h) play();
+    }, 250);
+    // the engine replaced a context that wouldn't play: the music goes on, on the new one
+    const offReset = onAudioReset(() => {
+      quiet();
+    });
     const cut = window.setTimeout(
       () => {
         sfx.scratch();
@@ -54,8 +87,11 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
       Math.max(0, v.stopAt - now()),
     );
     return () => {
+      gone = true;
+      window.clearInterval(again);
       window.clearTimeout(cut);
-      h?.stop(0.05);
+      offReset();
+      quiet();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v.phase, v.round, v.musicAt, v.stopAt]);
@@ -141,6 +177,7 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
                     : "Move and you drink, then keep dancing"}
             </p>
             {!justWatching && sensorButton}
+            <SoundLine playing={false} />
             <ul className="fz-roster">
               {players.map((s) => (
                 <li key={s.id}>
@@ -176,6 +213,7 @@ export function NetFreeze({ v, onLeave }: { v: FreezeView; onLeave: () => void }
             </DanceFloor>
             {!alive && !justWatching && <p className="hint" style={{ textAlign: "center" }}>{zh ? "你出局了，看大家跳" : "You're out. Enjoy the show."}</p>}
             {alive && sensors === "on" && <p className="fz-sensor-on">{zh ? "手机拿在手里跳，音乐一停就拿稳" : "Dance with the phone in hand. When it stops, hold still."}</p>}
+            <SoundLine playing onRestart={() => restart.current()} />
           </>
         )}
 

@@ -365,7 +365,7 @@ function Cards({ v }: { v: RoomView }) {
           );
         }}
       />
-      <p class="google muted small">{t("google")}</p>
+      {!v.demo && <p class="google muted small">{t("google")}</p>}
       <Btn kind="primary" wide disabled={done} onClick={() => push(approve, veto, true)}>
         {t("done")}
       </Btn>
@@ -439,7 +439,8 @@ function Result({ v }: { v: RoomView }) {
         {t("rateAfter")}
       </a>
       {v.ratings.n > 0 && <p class="center">{t("tableScore", { n: v.ratings.liked, m: v.ratings.n })}</p>}
-      <p class="google muted small">{t("google")}</p>
+      {/* The made-up restaurants aren't Google's: the banner says so instead. */}
+      {!v.demo && <p class="google muted small">{t("google")}</p>}
       {(v.you.host || !v.members.find((m) => m.host)?.online) && (
         <Btn kind="quiet" onClick={() => send({ t: "again" })}>
           {t("again")}

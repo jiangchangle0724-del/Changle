@@ -209,7 +209,6 @@ const S = {
   thanks: ["谢谢！", "Thanks!"],
   tableScore: ["本桌满意度：{n}/{m} 人吃到了喜欢的", "{n} of {m} got something they liked"],
   rateNotYet: ["这一桌还没选好餐厅", "This table hasn't picked a place yet"],
-  rateNoPick: ["最近没有要评的餐厅", "Nothing to rate right now"],
   rateClosed: ["这一桌的评分已经满了，或者已经没有可评的餐厅", "This table's ratings are full, or there's nothing left to rate"],
   dietLate: ["这一桌已经开始了，先填一下饮食卡，再一起选", "This table has started: fill in your diet card first, then join in"],
   roomFull: ["这一桌人满了（最多 20 人）", "This table is full (20 people max)"],

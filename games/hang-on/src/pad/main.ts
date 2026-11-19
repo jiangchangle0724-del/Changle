@@ -60,7 +60,36 @@ $('joinForm').addEventListener('submit', (e) => {
   join(code, name);
 });
 
+// 页面被系统重新打开（iPhone 内存紧、在微信里切出去再回来）：二十分钟内刚在这个房间里，就自己重新进，
+// 座位 id 存着，还是原来那个人（11-18 Steve 说手机局偶尔闪退）
+const REJOIN_KEY = 'hang-on:joined';
+const REJOIN_MS = 20 * 60 * 1000;
+function rememberJoin(code: string): void {
+  try {
+    sessionStorage.setItem(REJOIN_KEY, JSON.stringify({ code, at: Date.now() }));
+  } catch {
+    // 记不住就算了
+  }
+}
+function forgetJoin(): void {
+  try {
+    sessionStorage.removeItem(REJOIN_KEY);
+  } catch {
+    // 没有存储
+  }
+}
+function recentJoin(): string | null {
+  try {
+    const j = JSON.parse(sessionStorage.getItem(REJOIN_KEY) ?? 'null') as { code?: unknown; at?: unknown } | null;
+    if (j && typeof j.code === 'string' && CODE_RE.test(j.code) && typeof j.at === 'number' && Date.now() - j.at < REJOIN_MS) return j.code;
+  } catch {
+    // 坏了就当没有
+  }
+  return null;
+}
+
 function join(code: string, name: string): void {
+  rememberJoin(code);
   link?.close();
   view?.reset();
   lastCast = null;
@@ -70,6 +99,7 @@ function join(code: string, name: string): void {
     onConn: (c) => conn(c),
     onFatal: (key) => fatal(key),
     onRoom: (r) => {
+      rememberJoin(code);
       if (!!r.hostPlays !== document.body.classList.contains('viewing')) watch(!!r.hostPlays);
       view?.room(r);
     },
@@ -119,6 +149,7 @@ function renderErr(): void {
 }
 
 function fatal(key: FatalKey): void {
+  forgetJoin();
   lastFatal = key;
   lastMenu = null;
   renderMenu();
@@ -693,3 +724,12 @@ requestAnimationFrame(tick);
 };
 
 if (params.get('code') && params.get('auto') === '1') join(codeIn.value, nameIn.value || params.get('name') || '糯米团');
+else {
+  // 系统把页面重新打开了：刚在这个房间里就直接回去（见 recentJoin），不用再点「进房间」
+  const again = recentJoin();
+  const asked = codeIn.value.trim().toUpperCase();
+  if (again && (!asked || asked === again)) {
+    codeIn.value = again;
+    join(again, nameIn.value.trim() || tr('糯米团', 'Dumpling'));
+  }
+}

@@ -71,6 +71,12 @@ export type RoomEvent =
   | { type: 'RESUMED'; at: number; byPlayerId: string; routineStartAt: number }
   | { type: 'RESTART_SECTION'; at: number; byPlayerId: string; routineStartAt: number }
   | { type: 'FINISH'; at: number }
+  /**
+   * The room's own step as a dance finishes, in a room that hasn't measured its TV's delay by
+   * tapping (CALIBRATED): the delay as the dancers' moves showed it. They move to what they hear,
+   * so moves late by the same amount beat after beat mean the room hears the beat that much later.
+   */
+  | { type: 'DELAY_LEARNED'; at: number; audioOffsetMs: number }
   | { type: 'BACK_TO_LOBBY'; at: number; byPlayerId: string }
   | { type: 'END_ROOM'; at: number; byPlayerId: string };
 

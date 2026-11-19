@@ -53,6 +53,7 @@ body::before {
 h1,
 h2,
 h3,
+h4,
 p,
 ul,
 ol {
@@ -186,6 +187,12 @@ input {
   color: var(--color-text-2);
   font-size: var(--text-xs);
   text-align: center;
+}
+/* under a group buy's page and a shop's: the way in for other merchants */
+.foot-link {
+  align-self: center;
+  margin-top: calc(-1 * var(--space-3));
+  font-size: var(--text-xs);
 }
 .center {
   align-self: center;
@@ -928,7 +935,7 @@ a.shop-name {
   flex-direction: column;
   gap: var(--space-1);
 }
-.fact h3 {
+.fact :is(h3, h4) {
   color: var(--color-text-2);
   font-size: var(--text-sm);
   font-weight: 700;
@@ -1004,6 +1011,54 @@ a.shop-name {
 .choice input:checked {
   border-color: var(--gel);
   background: radial-gradient(circle, var(--gel) 0 42%, transparent 46%);
+}
+/* a box to tick (the declaration on applying for a shop): the field itself is unseen, its tick shows */
+.choice-tick {
+  position: relative;
+}
+.choice-tick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.tick {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border: 2px solid var(--color-text-3);
+  border-radius: var(--r-pill);
+}
+.tick svg {
+  visibility: hidden;
+}
+.choice-tick input:checked + .tick {
+  border-color: var(--gel);
+  background: var(--gel);
+  color: var(--color-on-accent);
+}
+.choice-tick input:checked + .tick svg {
+  visibility: visible;
+}
+.choice-tick:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* the site's owner's word, sending an application back: a quote, not a field */
+.said-back {
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+  border-left: 3px solid var(--gel);
+  overflow-wrap: anywhere;
+}
+/* one application in the owner's list (each set off from the last by .stack + .stack) */
+.review-name {
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 .choice-what {
   display: flex;

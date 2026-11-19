@@ -10,6 +10,7 @@
  */
 import { bpmFor, DRUMS, layersFor, notesAt, PARTS, type Layers, type Note, type Part } from './composer';
 import { THEMES, type Drum, type Kit, type Theme } from './themes';
+import { releaseWhenDone } from './release';
 
 export type MusicPhase = 'off' | 'lobby' | 'countdown' | 'playing' | 'won' | 'results';
 
@@ -555,6 +556,7 @@ export class Music {
     src.connect(g).connect(this.buses.get(part) as GainNode);
     src.start(at);
     src.stop(end);
+    releaseWhenDone(src, [src, g]);
   }
 
   /** 铺底：笙（锯齿过低通，轻轻颤）或者暖的合成器（两个锯齿错一点音过低通，越紧张越亮）。 */
@@ -582,6 +584,7 @@ export class Music {
       lfo.start(at);
       lfo.stop(at + dur + 1.6);
     }
+    const oscs: OscillatorNode[] = [];
     for (const m of chord) {
       for (const det of [-7, 7]) {
         const o = ctx.createOscillator();
@@ -592,8 +595,12 @@ export class Music {
         o.connect(filter);
         o.start(at);
         o.stop(at + dur + 1.6);
+        oscs.push(o);
       }
     }
+    // 这一组一起停，第一个停下就把整组（连滤波、包络、颤音）断开
+    const first = oscs[0];
+    if (first) releaseWhenDone(first, [...oscs, filter, env, lfo, depth]);
   }
 
   /** 检查点：旋律从和弦的根音往上走三个音（八分音符）。 */

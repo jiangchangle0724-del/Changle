@@ -1,8 +1,9 @@
 // The rules alone (src/engine): no database, no network.
 import { describe, expect, it } from "vitest";
+import { appliedNotice, DECLARATION, decidedNotice, NOTE_MAX, readApplication, readDecision, REPLY_MAX } from "../src/engine/apply";
 import { makeCode, OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../src/engine/ids";
 import { amountText, dollars, finalGoods, goodsOf, lineAmount, piecesOf } from "../src/engine/money";
-import { ordersNotice } from "../src/engine/notice";
+import { ordersNotice, SUBJECT_MAX } from "../src/engine/notice";
 import { readOffer } from "../src/engine/offer";
 import { buyerMayChange, deliveryFee, isOpen, leftOf, ORDERS_PER_PHONE, takeOrder, without, type Taken } from "../src/engine/order";
 import { phoneDigits, phoneKey, tailOf } from "../src/engine/phone";
@@ -353,6 +354,44 @@ describe("setting a shop up", () => {
     expect(error(shop({ members: [] }))).toBe("members");
     expect(error(shop({ members: ["not an email"] }))).toBe("members");
     expect(error(shop({ kind: "farm", status: "pending" }))).toBe("ok");
+  });
+});
+
+describe("asking to open a shop", () => {
+  const asked = (more: Record<string, unknown> = {}) => ({ slug: "xiao-chu", name: "  小厨房 ", kind: "kitchen", about: "每周三\n\n\n\n开团", note: "群里 80 人", declared: DECLARATION, ...more });
+
+  it("reads the shop's words as ever, its address, a note for the owner, and the declaration of now", () => {
+    expect(readApplication(asked())).toEqual({ ok: true, application: { slug: "xiao-chu", words: { name: "小厨房", kind: "kitchen", about: "每周三\n\n开团", contact: "", pay: "", permit: "" }, note: "群里 80 人" } });
+    expect(readApplication(null)).toEqual({ ok: false, error: "bad" });
+    expect(readApplication([asked()])).toEqual({ ok: false, error: "bad" });
+    expect(readApplication(asked({ name: "" }))).toEqual({ ok: false, error: "name" });
+    expect(readApplication(asked({ slug: "-xiao" }))).toEqual({ ok: false, error: "slug" });
+    expect(readApplication(asked({ slug: "Xiao" }))).toEqual({ ok: false, error: "slug" });
+    expect(readApplication(asked({ declared: true }))).toEqual({ ok: false, error: "declare" });
+    const long = readApplication(asked({ note: "长".repeat(NOTE_MAX + 50) }));
+    expect(long.ok && Array.from(long.application.note).length).toBe(NOTE_MAX);
+  });
+
+  it("reads the owner's answer: sending it back says what to change, saying no may say why", () => {
+    expect(readDecision({ do: "accept", reply: "ignored" })).toEqual({ ok: true, decision: { do: "accept" } });
+    expect(readDecision({ do: "return", reply: " 写上许可号 " })).toEqual({ ok: true, decision: { do: "return", reply: "写上许可号" } });
+    expect(readDecision({ do: "return" })).toEqual({ ok: false, error: "reply" });
+    expect(readDecision({ do: "decline" })).toEqual({ ok: true, decision: { do: "decline", reply: "" } });
+    expect(readDecision({ do: "pause" })).toEqual({ ok: false, error: "bad" });
+    expect(readDecision("accept")).toEqual({ ok: false, error: "bad" });
+    const long = readDecision({ do: "decline", reply: "因".repeat(REPLY_MAX + 9) });
+    expect(long.ok && long.decision.do === "decline" && Array.from(long.decision.reply).length).toBe(REPLY_MAX);
+  });
+
+  it("mails in both languages, a long name cut to fit the subject", () => {
+    const told = appliedNotice("小厨房", "farm", "a@example.com", false);
+    expect(told.subject).toBe("跟一单 开店申请 · Shop application · 小厨房");
+    expect(told.text).toBe(["新的开店申请：「小厨房」（农场），申请人 a@example.com。", "在「我的团」最上面审核：通过、退回或不通过。", "", 'A new shop application: "小厨房" (farm), from a@example.com.', "Review it at the top of My group buys: approve it, send it back or decline it."].join("\n"));
+    expect(appliedNotice("小厨房", "leader", "a@example.com", true).text).toMatch(/^改过以后又交来的开店申请：「小厨房」（团长）/);
+    expect(Array.from(appliedNotice("长".repeat(200), "leader", "a@example.com", false).subject).length).toBe(SUBJECT_MAX);
+    expect(decidedNotice({ do: "accept" }, "小厨房").subject).toBe("跟一单 「小厨房」开通了 · Your shop is open");
+    expect(decidedNotice({ do: "return", reply: "写上许可号" }, "小厨房").text).toContain("\n\n写上许可号\n\n");
+    expect(decidedNotice({ do: "decline", reply: "" }, "小厨房").text).toBe(["「小厨房」的开店申请没有通过。", "", 'The application for "小厨房" was not approved.'].join("\n"));
   });
 });
 

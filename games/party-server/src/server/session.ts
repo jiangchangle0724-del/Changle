@@ -6,9 +6,9 @@
 // src/server/worker.ts is the Durable Object around it.
 import { createRoom, reduce, RoomError, type RoomEvent, type RoomState } from "../../../party-base/src/index";
 import { TEST_ROUTINE } from "../shared/catalog";
-import { MAX_BEATS_PER_MSG, SONG_SYNC_MS, type ClientMsg, type HostAction, type Lang, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
+import { MAX_BEATS_PER_MSG, REST_AFTER_MS, SONG_SYNC_MS, WATER_EVERY, type ClientMsg, type HostAction, type Lang, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
 import { buildShow, introOf, phraseStart, type Anchors, type Show } from "../shared/show";
-import { addBeats, clearFrom, emptyScores, floorOf, resultsOf, type Scores } from "./tally";
+import { addBeats, clearFrom, emptyScores, floorOf, learnedShift, resultsOf, type Scores } from "./tally";
 
 /** A speaker page that drops gets this long to come back before the room goes back to the lobby. */
 export const SPEAKER_GRACE_MS = 8_000;
@@ -32,6 +32,10 @@ export const COUNT_LEAD_MS = 600;
 const FINISH_MARGIN_MS = 500;
 /** 看结果 waits this long after the dance's last beat is heard: the phones' last bar is on its way. */
 const LAST_BAR_MS = 1_000;
+/** The TV's delay learned from a dance moves only when the moves say it's this far off (ms). */
+export const LEARN_MIN_SHIFT_MS = 40;
+/** ...and never past this (a TV mirrored over AirPlay is a fraction of a second behind, not seconds). */
+export const LEARN_MAX_MS = 1_000;
 
 /** What the room keeps (Durable Object storage). Times are the room's clock unless they say speaker. */
 export interface SessionData {
@@ -54,8 +58,18 @@ export interface SessionData {
   lastActive: number;
   /** The TV's delay was measured in this room (CALIBRATED). */
   calibrated?: boolean;
+  /** The TV's delay was learned from how everyone danced (DELAY_LEARNED). */
+  learned?: boolean;
   /** Each phone's language (the TV speaks its host's). */
   langs?: Record<string, Lang>;
+  /** The dances this room has finished (FINISH): every WATER_EVERY, its results say to have some water. */
+  danced?: number;
+  /**
+   * Speaker time the first dance since the room's last rest started (its START_LEARNING or
+   * START_DANCING): REST_AFTER_MS on, the results say to rest a few minutes, and the next dance
+   * starts this again. Absent: no dance since.
+   */
+  restFrom?: number | null;
 }
 
 export type Role = "speaker" | "player";
@@ -360,6 +374,7 @@ export class Session {
         if (this.apply({ type: "START_LEARNING", at, byPlayerId: by, routineId: show.id, difficulty: show.difficulty, bpm: show.bpm }, from)) {
           this.d.danceAt = leadStartAt === null ? null : leadStartAt + show.leadMs;
           this.d.finishAt = null;
+          this.d.restFrom ??= at;
           this.resetScores();
         } else {
           this.d.routine = r;
@@ -386,6 +401,7 @@ export class Session {
         if (this.apply({ type: a.type, at, byPlayerId: by, routineStartAt }, from)) {
           this.d.danceAt = null;
           this.d.finishAt = this.endOf(show);
+          this.d.restFrom ??= at;
           if (fromBeat > 0) {
             clearFrom(this.scores, fromBeat);
             this.scored = true;
@@ -535,7 +551,7 @@ export class Session {
   stateMsg(): ServerMsg {
     const host = this.d.state.players.find((p) => p.isHost);
     const lang = host ? this.d.langs?.[host.id] : undefined;
-    return { t: "state", state: this.d.state, routine: this.d.routine, results: this.d.results, ...(this.d.calibrated ? { calibrated: true } : {}), ...(lang ? { lang } : {}) };
+    return { t: "state", state: this.d.state, routine: this.d.routine, results: this.d.results, ...(this.d.calibrated ? { calibrated: true } : {}), ...(this.d.learned ? { learned: true } : {}), ...(lang ? { lang } : {}) };
   }
 
   /** The routine the room is on, as a show. */
@@ -554,13 +570,46 @@ export class Session {
     return start + (show.dance.length - (this.d.routine?.fromBeat ?? 0)) * show.beatMs + show.tailMs + this.d.state.audioOffsetMs + FINISH_MARGIN_MS;
   }
 
-  /** The dance is over: the results from the beats the phones sent go out with the new state. */
+  /**
+   * The dance is over: the results from the beats the phones sent go out with the new state, and
+   * with them, every few dances, a word to have some water or, after half an hour, a rest.
+   */
   private finish(): void {
     const st = this.d.state;
     const r = this.d.routine;
+    const now = this.speakerNow();
     this.d.finishAt = null;
-    this.d.results = r && st.difficulty ? resultsOf(this.scores, st.players.map((p) => p.id), r.routineId, st.difficulty, r.totalBeats) : null;
-    if (!this.apply({ type: "FINISH", at: this.speakerNow() })) this.d.results = null;
+    const results = r && st.difficulty ? resultsOf(this.scores, st.players.map((p) => p.id), r.routineId, st.difficulty, r.totalBeats) : null;
+    // (only with results to say it with)
+    const danced = (this.d.danced ?? 0) + (results ? 1 : 0);
+    const rest = !!results && this.d.restFrom != null && now - this.d.restFrom >= REST_AFTER_MS;
+    const remind = !results ? null : rest ? "rest" : danced % WATER_EVERY === 0 ? "water" : null;
+    this.d.results = results && remind ? { ...results, remind } : results;
+    if (!this.apply({ type: "FINISH", at: now })) {
+      this.d.results = null;
+      return;
+    }
+    this.d.danced = danced;
+    if (rest) this.d.restFrom = null;
+    this.learnDelay();
+  }
+
+  /**
+   * The TV's delay from how everyone moved in the dance just over (tally.ts's learnedShift), so the
+   * phones flash and judge the next one on the beat as the room hears it, nobody tapping to measure
+   * it. A room that measured it (校准电视延迟) keeps that; a small shift is left for the next dance
+   * to look at again.
+   */
+  private learnDelay(): void {
+    if (this.d.calibrated) return;
+    const shift = learnedShift(this.scores);
+    if (shift === null || Math.abs(shift) < LEARN_MIN_SHIFT_MS) return;
+    const next = Math.min(LEARN_MAX_MS, Math.max(0, this.d.state.audioOffsetMs + shift));
+    if (next === this.d.state.audioOffsetMs) return;
+    // (set first: the state message that goes out with the change says so)
+    const was = this.d.learned;
+    this.d.learned = true;
+    if (!this.apply({ type: "DELAY_LEARNED", at: this.speakerNow(), audioOffsetMs: next })) this.d.learned = was;
   }
 
   private resetScores(): void {

@@ -1,4 +1,4 @@
-import { Copy, LogOut, Pencil, PersonStanding, ShieldCheck, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, LogOut, Pencil, PersonStanding, ShieldCheck, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { TopBar } from "../components/TopBar";
@@ -162,6 +162,19 @@ function Profile({ onBack }: { onBack: () => void }) {
         </div>
       </header>
       {me.bio && <p className="me-bio">{me.bio}</p>}
+      {/* the 3D figure, for the owner while it's a prototype: up here, where it's seen (Steve, Nov 18) */}
+      {me.master && (
+        <a className="me-3d" href="/me/figure">
+          <span className="me-3d-icon" aria-hidden="true">
+            <PersonStanding size={20} />
+          </span>
+          <span className="me-3d-text">
+            <strong>{zh ? "3D 小人" : "3D figure"}</strong>
+            <small>{zh ? "摆动作、捏脸、换衣服" : "Moves, face, build and clothes"}</small>
+          </span>
+          <ChevronRight size={18} aria-hidden="true" />
+        </a>
+      )}
 
       {!hist && historyLoading ? <Skeleton lang={lang} shape="block" height="var(--tap)" slowText={zh ? "网有点慢，马上就好" : "Slow connection, nearly there"} /> : <div className="stats">
         <div className="stat">
@@ -215,12 +228,6 @@ function Profile({ onBack }: { onBack: () => void }) {
           <a className="btn btn-moon btn-sm" href="/admin">
             <ShieldCheck size={15} />
             {zh ? "后台" : "Back office"}
-          </a>
-        )}
-        {me.master && (
-          <a className="btn btn-moon btn-sm me-figure" href="/me/figure">
-            <PersonStanding size={15} />
-            {zh ? "3D 小人" : "3D figure"}
           </a>
         )}
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>

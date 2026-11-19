@@ -42,6 +42,9 @@ const STRINGS = {
   answered: { zh: "{n} 个人填了", en: "{n} answered" },
   rangeTo: { zh: "{from} 到 {to}", en: "{from} to {to}" },
   deletedOn: { zh: "{day} 自动删除", en: "Deleted on {day}" },
+  // who else has the page open is said by hereLine (src/engine/here.ts); one of them just done:
+  hereDone: { zh: "{name} 填好了", en: "{name} has filled in" },
+  hereChanged: { zh: "{name} 改了时间", en: "{name} changed their times" },
 
   nameLabel: { zh: "你的名字", en: "Your name" },
   namePlaceholder: { zh: "大家认得出的名字", en: "A name they'll know" },

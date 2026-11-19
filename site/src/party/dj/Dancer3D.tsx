@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { moveAt, type Mood } from "../../shared/dj/dance";
-import { outfitFor } from "./dancer/files";
+import type { Mood } from "../../shared/dj/dance";
+import { danceAt, danceNext, IDLES, idleAt } from "./dancer/dances";
 import { anyGl, glOf, ratioFor, SLOW_MS, WATCH_FRAMES, WATCH_MS, watchFrames } from "./robot3d";
 
 type Clock = { beat: () => number; energy: () => number; bpm: () => number };
@@ -11,30 +11,25 @@ const tell = (is: Is) => {
   if (import.meta.env.DEV) (window as unknown as { __coach3dIs?: Is }).__coach3dIs = is;
 };
 
-/** One move flowing into the next, in seconds. */
-const BLEND_S = 0.55;
-/** The flash of an outfit changing, in seconds. */
-const CHANGE_S = 0.45;
+/** One dance flowing into the next, in seconds. */
+const BLEND_S = 0.6;
 
 /**
- * The dancer on the big screen in 3D (Steve on Nov 14: "真人亚洲美女跳舞…很多件衣服和装饰…变装…不能有ai
- * 错觉"; the same evening, a bar's dancer lifting the room, standing, no more sitting): MakeHuman's
- * realistic woman (dancer/, site/scripts/dj-dancer/) dancing the routine's move, set from the
- * speaker's beat every frame; a new outfit each song (`song`, the same one for that song everywhere),
- * changed with a flash of light. The moves are solved here for her body (the accounts' pose solver:
- * her arms never go through her). Her rim lights take the room's colour. No graphics chip, her frames
- * too slow, or her files can't load: `onFail` (the robot, then the drawn dancer).
+ * The dancer on the big screen in 3D (Steve on Nov 14: "我要跟真人看起来一样，要达到我给你照片这个水平…
+ * 包括动作这些方面都需要去深度优化"; a bar's dancer lifting the room, standing): since Nov 18 the design he
+ * chose (a TRELLIS.2 model with the design's photos on it, dancer/her.ts) dancing real dancers' motion
+ * capture (dancer/dances.ts): the dance set from the speaker's beat every frame, a beat of the song a
+ * beat of the dance; with no song, standing easy. Her rim lights take the room's colour. No graphics
+ * chip, her frames too slow, or her files can't load: `onFail` (the robot, then the drawn dancer).
  */
-export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock; mood: () => Mood; song: string | null; onReady: () => void; onFail: () => void }) {
+export function Dancer3D({ clock, mood, onReady, onFail }: { clock: Clock; mood: () => Mood; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
   const fail = useRef(onFail);
   const moodNow = useRef(mood);
-  const songNow = useRef(song);
   ready.current = onReady;
   fail.current = onFail;
   moodNow.current = mood;
-  songNow.current = song;
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -51,19 +46,14 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadDancer }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/stage")]);
+        const [T, { RoomEnvironment }, { loadHer }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her")]);
         if (gone) return;
-        const dancer = await loadDancer();
+        const her = await loadHer();
+        // standing easy before she's shown at all
+        const firstIdle = idleAt(0).id;
+        await her.learn(firstIdle);
         if (gone) {
-          dancer.dispose();
-          return;
-        }
-        // her first outfit on, and standing solved, before she's shown at all
-        let wearing = outfitFor(songNow.current, null, moodNow.current());
-        await dancer.wear(wearing);
-        while (!gone && !dancer.solved().has("stand")) dancer.bake(8);
-        if (gone) {
-          dancer.dispose();
+          her.dispose();
           return;
         }
         const w = el.clientWidth || 300;
@@ -74,7 +64,7 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
         renderer.outputColorSpace = T.SRGBColorSpace;
         // (neutral: skin keeps its warmth; the filmic curve the robot uses makes it pale)
         renderer.toneMapping = T.NeutralToneMapping;
-        renderer.toneMappingExposure = 0.9;
+        renderer.toneMappingExposure = 1.0;
         el.appendChild(renderer.domElement);
         const scene = new T.Scene();
         // soft reflections, from a room made here (nothing downloaded)
@@ -82,24 +72,26 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
         const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
         pmrem.dispose();
         scene.environment = env;
-        scene.environmentIntensity = 0.45;
-        scene.add(new T.HemisphereLight(0xfff0ff, 0x281a3a, 0.55));
-        const key = new T.DirectionalLight(0xfff4ea, 1.7);
-        key.position.set(2.2, 4, 5);
+        scene.environmentIntensity = 0.35;
+        // her colours are a photo's (its studio light in them): mostly an even light, a soft key from the
+        // front, and the room's colour from behind on her edges
+        scene.add(new T.HemisphereLight(0xfff4f8, 0x2a1d3a, 1.25));
+        const key = new T.DirectionalLight(0xfff2e8, 0.9);
+        key.position.set(1.6, 3.2, 5);
         scene.add(key);
-        const fill = new T.DirectionalLight(0xffe8f0, 0.55);
-        fill.position.set(-3, 2, 4);
+        const fill = new T.DirectionalLight(0xffeef4, 0.3);
+        fill.position.set(-3, 1.5, 4);
         scene.add(fill);
         // the room's light from behind, both sides (the stage's --gel), looked at again now and then
         const stage = el.closest(".dj-stage") ?? document.documentElement;
         const gelNow = () => getComputedStyle(stage).getPropertyValue("--gel").trim() || "#b072ff";
         let gel = gelNow();
-        const rim = new T.DirectionalLight(gel, 2.3);
+        const rim = new T.DirectionalLight(gel, 2.2);
         rim.position.set(-3, 3, -4);
         const rim2 = new T.DirectionalLight(gel, 1.4);
         rim2.position.set(3, 2, -3);
         scene.add(rim, rim2);
-        scene.add(dancer.root);
+        scene.add(her.root);
         // a soft shadow under her, so she stands on something
         const pad = document.createElement("canvas");
         pad.width = pad.height = 64;
@@ -114,7 +106,7 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
         const shadowTex = new T.CanvasTexture(pad);
         const shadow = new T.Mesh(new T.PlaneGeometry(1.1, 0.8), new T.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
         shadow.rotation.x = -Math.PI / 2;
-        shadow.position.set(0, 0.003, -0.06);
+        shadow.position.set(0, 0.003, 0);
         scene.add(shadow);
 
         const camera = new T.PerspectiveCamera(24, w / h, 0.1, 50);
@@ -126,17 +118,16 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
         const mid = (top + bottom) / 2;
         camera.position.set(0, mid + 0.1, Math.max(((top - bottom) / 2 / tan) * 1.04, 0.6 / tan / camera.aspect));
         camera.lookAt(0, mid, 0);
-        dancer.root.rotation.y = 0.05;
+        her.root.rotation.y = 0.05;
 
-        let cur: string | null = null;
-        let from: { move: string; b: number; at: number } | null = null;
-        let lastB = 0;
+        let cur = firstIdle;
+        let curT = 0;
+        let from: { dance: string; t: number; at: number; rate: number } | null = null;
         let gelAt = 0;
         let prev = performance.now();
+        const start = prev;
         let watch = watchFrames();
         let watchFrom = 0;
-        let changeAt = -1;
-        let songShown = songNow.current;
         const gaps: number[] = [];
         const frame = () => {
           const t = performance.now();
@@ -158,8 +149,6 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
             }
           }
           raf = requestAnimationFrame(frame);
-          // the rest of her moves, a few milliseconds a frame
-          dancer.bake(4);
           if (t - gelAt > 1000) {
             gelAt = t;
             const g = gelNow();
@@ -169,52 +158,44 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
               rim2.color.set(gel);
             }
           }
-          // a new song: her next outfit (never the one she has on), with a flash as it goes on
-          if (songNow.current !== songShown) {
-            songShown = songNow.current;
-            const next = outfitFor(songShown, wearing, moodNow.current());
-            dancer
-              .wear(next)
-              .then(() => {
-                if (gone || dancer.wearing() !== next) return;
-                wearing = next;
-                changeAt = performance.now();
-              })
-              // (its file didn't come: she keeps on what she has, and tries again next song)
-              .catch(() => {});
-          }
           const b = clock.beat();
           const on = Number.isFinite(b) && b >= 0;
-          const want = on ? moveAt(Math.floor(b), moodNow.current()).move.id : "stand";
-          // (a move not solved yet: standing, till it is)
-          const ready2 = dancer.solved().has(want) ? want : "stand";
-          const beatNow = on ? b : t / 600;
-          if (ready2 !== cur) {
-            // the new one flows in from wherever it is now
-            if (cur) from = { move: cur, b: lastB, at: t };
-            cur = ready2;
+          const bpm = clock.bpm() || 120;
+          const sec = (t - start) / 1000;
+          // the dance for this beat (and the next one fetched ahead); with no song, standing easy at her
+          // own tempo
+          const idle = idleAt(sec);
+          let want = on ? danceAt(Math.floor(b), moodNow.current(), bpm) : idle.id;
+          if (on) void her.learn(danceNext(Math.floor(b), moodNow.current(), bpm)).catch(() => {});
+          if (!her.knows(want)) {
+            void her.learn(want).catch(() => {});
+            // (not here yet: what she's dancing goes on)
+            want = cur;
           }
+          // a dance's time is the song's beat; an idle's, the seconds at its own tempo
+          const rateOf = (id: string) => (idleBpm(id) ?? bpm) / 60;
+          const tWant = on && idleBpm(want) === undefined ? b : sec * rateOf(want);
+          if (want !== cur) {
+            // the new one flows in from wherever the last one is
+            from = { dance: cur, t: curT, at: t, rate: rateOf(cur) };
+            cur = want;
+          }
+          curT = tWant;
           const k = from ? Math.min(1, (t - from.at) / 1000 / BLEND_S) : 1;
           const ease = k * k * (3 - 2 * k);
-          if (from) from.b += dt * (on ? clock.bpm() / 60 : 1 / 0.6);
-          dancer.pose(cur, beatNow, from && k < 1 ? from : null, ease);
-          lastB = beatNow;
+          if (from) from.t += dt * from.rate;
+          her.pose(cur, curT, from && k < 1 ? from : null, ease);
           if (k >= 1) from = null;
-          // the outfit's flash: bright, fading
-          const c = changeAt >= 0 ? (t - changeAt) / 1000 / CHANGE_S : 1;
-          renderer.toneMappingExposure = 0.9 + (c < 1 ? 1.0 * (1 - c) * (1 - c) : 0);
-          dancer.root.updateMatrixWorld(true);
-          camera.updateMatrixWorld(true);
-          dancer.live(dt, camera);
+          her.root.updateMatrixWorld(true);
           renderer.render(scene, camera);
-          // (the checks read what she dances and wears, and what drawing her costs: dj_dance_check.py)
-          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: on ? want : null, beat: b, outfit: wearing, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+          // (the checks read what she dances, and what drawing her costs: dj_dancer_check.py)
+          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, dancing: on, beat: b, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
         };
         tell(watch ? "watching" : "on");
         frame();
         stop = () => {
           cancelAnimationFrame(raf);
-          dancer.dispose();
+          her.dispose();
           shadow.geometry.dispose();
           (shadow.material as import("three").Material).dispose();
           shadowTex.dispose();
@@ -241,3 +222,6 @@ export function Dancer3D({ clock, mood, song, onReady, onFail }: { clock: Clock;
   }, [clock]);
   return <div className="dj-coach-3d" ref={box} aria-hidden="true" />;
 }
+
+/** an idle's own tempo (none: a dance, danced on the song's) */
+const idleBpm = (id: string) => IDLES.find((i) => i.id === id)?.bpm;

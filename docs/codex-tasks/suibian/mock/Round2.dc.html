@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>随便 第 2 轮</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/e9760dd0ff964132b27d97b1c69aefdb">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400..800&family=Unbounded:wght@600..800&display=swap">
+<style>
+body{margin:0;background:#0e0c22}
+a{color:#ffb82e}a:hover{color:#ffcf6b}
+.press{transition:transform var(--dur-exit) var(--ease-out),background-color var(--dur-enter) var(--ease-out),color var(--dur-enter) var(--ease-out),opacity var(--dur-enter) var(--ease-out)}
+.press:active{transform:scale(0.96)}
+@keyframes rise{from{opacity:0;transform:translateY(calc(var(--motion-shift) * 2))}to{opacity:1;transform:none}}
+.rise{animation:rise var(--dur-emphasis) var(--ease-out) both}
+@keyframes fill{from{clip-path:circle(0% at 30% 50%)}to{clip-path:circle(150% at 30% 50%)}}
+@keyframes draw{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
+@keyframes bump{0%,100%{transform:scale(1)}40%{transform:scale(1.25)}}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; position: relative; overflow: hidden; background: var(--color-bg); color: var(--color-text); font-family: var(--font-text); line-height: var(--leading)">
+<div aria-hidden="true" style="position: absolute; inset: -200px -120px auto -120px; height: 380px; background: radial-gradient(closest-side, color-mix(in oklab, var(--gel-amber) 22%, transparent), transparent); pointer-events: none"></div>
+<header style="position: relative; height: var(--bar-h); display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-2)">
+<button class="press" type="button" aria-label="返回" style="width: var(--tap); height: var(--tap); display: grid; place-items: center; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--color-text-2)">
+<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+</button>
+<div style="display: flex; flex-direction: column; align-items: center; line-height: var(--leading-tight)">
+<span style="font-weight: 800; font-size: var(--text-md)">第 2 轮 · 挑店</span>
+<span lang="en" style="font-family: var(--font-display); font-size: var(--text-xs); color: var(--color-text-2)">Round 2 · Pick places</span>
+</div>
+<span role="timer" style="min-height: var(--tap); display: grid; place-items: center; padding: 0 var(--space-3); border-radius: var(--r-pill); background: var(--color-surface); box-shadow: var(--shadow-flat); font-size: var(--text-sm); font-weight: 700; font-variant-numeric: tabular-nums">还剩 2:10</span>
+</header>
+
+<main style="position: relative; display: flex; flex-direction: column; gap: var(--space-3); padding: 0 var(--gutter)">
+<p style="margin: 0; font-size: var(--text-sm); color: var(--color-text-2)">想吃的排最前，其余按评价。勾上你愿意去的，每人一次否决，没人知道是谁。</p>
+<sc-for list="{{cards}}" as="c" hint-placeholder-count="2">
+<article class="rise" style="{{c.cardStyle}}">
+<div style="display: flex; gap: var(--space-3); align-items: flex-start">
+<span aria-label="{{c.rankLabel}}" style="flex: none; width: 32px; height: 32px; border-radius: var(--r-pill); display: grid; place-items: center; background: var(--type-tool); color: var(--color-on-accent); font-family: var(--font-display); font-weight: 800; font-size: var(--text-sm)">{{c.rank}}</span>
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<h3 style="{{c.nameStyle}}">{{c.name}}</h3>
+<span style="font-size: var(--text-sm); color: var(--color-text-2)">{{c.intro}}</span>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); font-size: var(--text-sm); font-variant-numeric: tabular-nums">
+<span style="display: inline-flex; align-items: center; gap: var(--space-1)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color: var(--type-tool)"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"></path></svg>{{c.rating}}</span>
+<span style="display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-text-2)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 12-8 12s-8-7-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{c.far}}</span>
+<span style="display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-text-2)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"></circle><path d="m9 20 3-6 3 3v5M7 12l2-5 4 2 3 3"></path></svg>{{c.walk}}</span>
+<span style="display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-text-2)"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2v-4l-2-5H5l-2 5v4h2"></path><circle cx="7" cy="17" r="2"></circle><circle cx="17" cy="17" r="2"></circle></svg>{{c.drive}}</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: var(--space-2)">
+<sc-for list="{{c.reasons}}" as="r" hint-placeholder-count="2">
+<span style="{{r.style}}">{{r.text}}</span>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm)">
+<span aria-hidden="true" style="width: 10px; height: 10px; border-radius: var(--r-pill); background: var(--color-success); box-shadow: 0 0 10px var(--color-success)"></span>
+<span>{{c.wait}}</span>
+</div>
+<div style="display: flex; gap: var(--space-2)">
+<button class="press" type="button" aria-pressed="{{c.yesPressed}}" onClick="{{c.toggle}}" style="{{c.yesStyle}}">
+<span aria-hidden="true" style="{{c.fillStyle}}"></span>
+<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="position: relative"><path d="M20 6 9 17l-5-5" style="{{c.checkStyle}}"></path></svg>
+<span style="position: relative">{{c.yesLabel}}</span>
+</button>
+<button class="press" type="button" aria-pressed="{{c.vetoPressed}}" onClick="{{c.veto}}" style="{{c.vetoStyle}}">{{c.vetoLabel}}</button>
+<button class="press" type="button" aria-label="地图" style="flex: none; width: var(--tap-crowded); min-height: var(--tap-crowded); display: grid; place-items: center; border: 0; border-radius: var(--r-pill); background: var(--color-raised); color: var(--color-text)"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.1 6.2 9.9 3.8a2 2 0 0 0-1.8 0L3.6 6A1 1 0 0 0 3 6.9V19a1 1 0 0 0 1.4.9l3.7-2a2 2 0 0 1 1.8 0l4.2 2.3a2 2 0 0 0 1.8 0l4.5-2.2a1 1 0 0 0 .6-.9V5a1 1 0 0 0-1.4-.9l-3.7 2a2 2 0 0 1-1.8 0Z"></path><path d="M15 5.8v15M9 3.2v15"></path></svg></button>
+</div>
+</article>
+</sc-for>
+</main>
+
+<footer style="position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--dock-h) + var(--space-8)); display: flex; flex-direction: column; justify-content: flex-end; gap: var(--space-2); padding: 0 var(--gutter) var(--space-4); background: linear-gradient(to top, var(--color-bg) 75%, transparent)">
+<div style="text-align: center; font-size: var(--text-xs); color: var(--color-text-2)"><span style="{{countStyle}}">{{countText}}</span></div>
+<button class="press" type="button" style="min-height: 56px; border: 0; border-radius: var(--r-pill); background: var(--type-tool); color: var(--color-on-accent); font: inherit; font-size: var(--text-lg); font-weight: 800; box-shadow: 0 10px 30px -12px color-mix(in oklab, var(--gel-amber) 75%, transparent)">投好了</button>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { yes: ['meat'], veto: null, bumps: 0 };
+  }
+  renderVals() {
+    const places = [
+      { id: 'meat', name: 'The Meat Up BBQ 聚点串吧', intro: '🍢 中式烧烤 · 串串、火锅 · 人均 $25–35', rating: '4.3 (1,240)', far: '1.1 公里', walk: '17 分', drive: '5 分', wait: '估计不用等 · 今晚开到 2 点', reasons: [['有人想吃这类', 'like'], ['适合家庭聚餐', 'fit']] },
+      { id: 'gold', name: '金满楼点心', intro: '🥟 粤菜 · 点心、海鲜 · 人均 $30–45', rating: '4.4 (1,800)', far: '600 米', walk: '9 分', drive: '3 分', wait: '要等 15 分钟左右 · 可以订位', reasons: [['适合家庭聚餐', 'fit'], ['OpenTable 加拿大 Top 100', 'list']] },
+    ];
+    const pill = {
+      like: 'padding: 2px var(--space-3); border-radius: var(--r-pill); font-size: var(--text-xs); font-weight: 700; background: color-mix(in oklab, var(--color-success) 18%, transparent); color: var(--color-success)',
+      fit: 'padding: 2px var(--space-3); border-radius: var(--r-pill); font-size: var(--text-xs); font-weight: 700; background: color-mix(in oklab, var(--type-tool) 18%, transparent); color: var(--type-tool)',
+      list: 'padding: 2px var(--space-3); border-radius: var(--r-pill); font-size: var(--text-xs); font-weight: 700; background: var(--color-raised); color: var(--color-text)',
+    };
+    const btn = 'position: relative; overflow: hidden; flex: 1; min-height: var(--tap-crowded); display: flex; align-items: center; justify-content: center; gap: var(--space-2); border: 0; border-radius: var(--r-pill); font: inherit; font-size: var(--text-md); font-weight: 800;';
+    const n = this.state.yes.length;
+    return {
+      countText: '已勾 ' + n + ' 家 · 否决' + (this.state.veto ? '用掉了' : '还剩 1 次'),
+      countStyle: 'display: inline-block; font-variant-numeric: tabular-nums; animation: bump var(--dur-enter) var(--ease-pop)',
+      cards: places.map((p, i) => {
+        const yes = this.state.yes.includes(p.id);
+        const vetoed = this.state.veto === p.id;
+        return {
+          ...p,
+          rank: String(i + 1),
+          rankLabel: '第 ' + (i + 1) + ' 名',
+          cardStyle: 'display: flex; flex-direction: column; gap: var(--space-3); padding: var(--pad-card); border-radius: var(--r-panel); background: var(--color-surface); box-shadow: '
+            + (yes ? 'inset 0 0 0 2px var(--type-tool), 0 10px 30px -14px color-mix(in oklab, var(--gel-amber) 70%, transparent)' : 'var(--shadow-flat)')
+            + (vetoed ? '; opacity: 0.45' : '') + '; animation-delay: ' + (i * 40) + 'ms',
+          nameStyle: 'margin: 0; font-size: var(--text-lg); font-weight: 800; line-height: var(--leading-tight)' + (vetoed ? '; text-decoration: line-through' : ''),
+          reasons: p.reasons.map(([text, kind]) => ({ text, style: pill[kind] })),
+          yesPressed: yes ? 'true' : 'false',
+          yesLabel: yes ? '想去' : '想去',
+          yesStyle: btn + (yes ? ' color: var(--color-on-accent); background: var(--color-raised)' : ' color: var(--color-text); background: var(--color-raised)'),
+          fillStyle: yes ? 'position: absolute; inset: 0; background: var(--type-tool); animation: fill var(--dur-emphasis) var(--ease-out) both' : 'display: none',
+          checkStyle: yes ? 'stroke-dasharray: 24; animation: draw var(--dur-emphasis) var(--ease-out) both' : 'opacity: 0.35',
+          vetoPressed: vetoed ? 'true' : 'false',
+          vetoLabel: vetoed ? '已否决' : '否决',
+          vetoStyle: 'flex: none; min-height: var(--tap-crowded); padding: 0 var(--space-4); border: 0; border-radius: var(--r-pill); font: inherit; font-size: var(--text-md); '
+            + (vetoed ? 'background: var(--color-text); color: var(--color-bg); font-weight: 800' : 'background: transparent; color: var(--color-text-2); box-shadow: inset 0 0 0 1px var(--color-line)'),
+          toggle: () => this.setState({ yes: yes ? this.state.yes.filter((x) => x !== p.id) : [...this.state.yes, p.id] }),
+          veto: () => this.setState({ veto: vetoed ? null : p.id, yes: this.state.yes.filter((x) => x !== p.id) }),
+        };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 import { parseBiblioCommons, lastStartMs, type BcPage } from "./parsers/bibliocommons";
 import { parseBpl, type BplFeed } from "./parsers/bpl";
 import { parseIcal } from "./parsers/ical";
+import { isLwPage, parseLiveWhale } from "./parsers/livewhale";
 import { parseTicketmaster, type TmPage } from "./parsers/ticketmaster";
 import { fromVan, vanIso } from "./time";
 import type { NormalizedEvent, Source } from "./types";
@@ -145,6 +146,26 @@ export const SOURCES: SourceDef[] = [
     },
   },
   {
+    // SFU's calendar (LiveWhale): its three campuses and its arts school downtown. Kept, as for UBC,
+    // only what anyone can walk into (sfuOpen). About 180 events in two weeks, 50 a page: 4 pages.
+    id: "sfu",
+    name: "SFU",
+    kind: "json",
+    tier: 1,
+    lang: "en",
+    url: "https://events.sfu.ca/live/json/v2/events",
+    maxParts: 8,
+    request(part, _env, w) {
+      return `${this.url}/start_date/${vanDay(w.fromMs)}/end_date/${vanDay(w.toMs - 1)}/paginate/50/response_fields/event_types,location,summary,group_title?page=${part + 1}`;
+    },
+    parse(raw) {
+      const page = JSON.parse(raw) as unknown;
+      // anything else that answers 200 (an error, a sign-in page) is a failed step, not an empty day
+      if (!isLwPage(page)) throw new Error("not a LiveWhale events page");
+      return { events: sfuOpen(parseLiveWhale(page, this.id)), more: page.meta.page < page.meta.total_pages };
+    },
+  },
+  {
     id: "ticketmaster",
     name: "Ticketmaster",
     kind: "ticketmaster",
@@ -208,4 +229,34 @@ export function ubcOpen(raw: string, events: NormalizedEvent[]): NormalizedEvent
       return !!e.place && !/^(online|hybrid|see description)/i.test(e.place.name ?? "") && !/kelowna|okanagan/i.test(where);
     })
     .map((e) => (e.place && !e.place.city && /\bvancouver\b/i.test(e.place.address ?? "") ? { ...e, place: { ...e.place, city: "Vancouver" } } : e));
+}
+
+const SFU_CAMPUS: Record<string, string> = { "SFU Burnaby Campus": "Burnaby", "SFU Vancouver Campus": "Vancouver", "SFU Surrey Campus": "Surrey" };
+/** Not something to walk into, whoever SFU says may come. */
+const SFU_CLOSED = /^(info sessions?|dates & deadlines|services for students)$/i;
+/** A thesis defence is closed too, unless it's an artist's: a screening, a show, an exhibition. */
+const SFU_ARTS = /^(arts & culture|visual arts?|exhibits?|film|music|dance|theatre|multimedia)$/i;
+/** Off campus, but not in Greater Vancouver ("Access MBA Calgary"). */
+const SFU_AWAY = /\b(calgary|edmonton|toronto|montr[eé]al|ottawa|victoria|kelowna|nanaimo|kamloops|seattle)\b/i;
+
+/**
+ * SFU's calendar has everything from thesis defences to student services. What's On keeps, as it
+ * does UBC's, what anyone can walk into: SFU's own audience "Public", at a real place (not online or
+ * hybrid) in Greater Vancouver, and none of its info sessions, deadlines, student services or
+ * thesis defences (but an art student's thesis show or screening is open). A place that names no
+ * city gets its campus's ("SFU Burnaby Campus": Burnaby).
+ */
+export function sfuOpen(events: NormalizedEvent[]): NormalizedEvent[] {
+  return events.flatMap((e) => {
+    const labels = e.sourceCategories ?? [];
+    if (!labels.includes("Public") || labels.some((l) => SFU_CLOSED.test(l))) return [];
+    if (labels.some((l) => /^thesis defences?$/i.test(l)) && !labels.some((l) => SFU_ARTS.test(l))) return [];
+    if (e.online || !e.place?.name) return [];
+    const where = [e.place.name, e.place.address].filter(Boolean).join(", ");
+    if (SFU_AWAY.test(where)) return [];
+    const campuses = labels.filter((l) => Object.hasOwn(SFU_CAMPUS, l));
+    const named = /\b(Burnaby|Surrey|Vancouver)\b/.exec(where)?.[1] ?? null;
+    const city = e.place.city ?? (campuses.length === 1 ? SFU_CAMPUS[campuses[0]] : named);
+    return [{ ...e, place: { ...e.place, city } }];
+  });
 }

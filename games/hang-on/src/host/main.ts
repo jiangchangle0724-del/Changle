@@ -1283,7 +1283,20 @@ function heard(events: readonly SimEvent[]): readonly SimEvent[] {
 }
 
 let soundWasReady = false;
+/**
+ * 一帧出了错也接着画下一帧：不接的话画面就停在那儿（手机局里看着像闪退）。错误只往控制台记前几次。
+ */
+let frameErrors = 0;
 function frame(now: number): void {
+  try {
+    frameBody(now);
+  } catch (e) {
+    if (frameErrors++ < 3) console.error('[hang-on] frame', e);
+  }
+  requestAnimationFrame(frame);
+}
+
+function frameBody(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   feedInputs();
@@ -1329,7 +1342,6 @@ function frame(now: number): void {
     statusAt = now;
     sendStatus();
   }
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 

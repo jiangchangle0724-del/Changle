@@ -55,8 +55,19 @@ export function savedDraft<T extends object>(slug: string): T | null {
 }
 export const saveDraft = (slug: string, draft: object): void => write(`tuan.new.${slug}`, JSON.stringify(draft));
 export function dropDraft(slug: string): void {
+  forget(`tuan.new.${slug}`);
+}
+/** An application to open a shop, as typed so far on this phone: kept until it's sent. */
+export function savedApply<T extends object>(): T | null {
+  const kept = readJson<Record<string, unknown>>("tuan.apply", {});
+  return Object.keys(kept).length ? (kept as T) : null;
+}
+export const saveApply = (typed: object): void => write("tuan.apply", JSON.stringify(typed));
+export const dropApply = (): void => forget("tuan.apply");
+function forget(name: string): void {
+  memory.delete(name);
   try {
-    localStorage.removeItem(`tuan.new.${slug}`);
+    localStorage.removeItem(name);
   } catch {
     // private mode: there was nothing kept
   }
@@ -165,8 +176,12 @@ export const getMyDoc = (offerId: string): Promise<MyOfferDoc> => ask(`/my/offer
 export const saveMyDoc = (offerId: string, doc: unknown): Promise<MyOfferDoc> => ask(`/my/offers/${offerId}/doc`, { method: "POST", body: doc, signedIn: true });
 /** Start a group buy in a shop from the document a merchant sends (src/engine/offer.ts says what's in it). */
 export const startOffer = (slug: string, offer: unknown): Promise<Made> => ask(`/my/shops/${slug}/offers`, { method: "POST", body: offer, signedIn: true });
+/** Ask to open a shop, or send the asking again, changed (src/engine/apply.ts says what's in it). */
+export const applyForShop = (application: unknown): Promise<Made> => ask("/my/apply", { method: "POST", body: application, signedIn: true });
 /** The site's owner only: set a shop up, or change one (src/engine/shop.ts). */
 export const saveShop = (shop: unknown): Promise<Made> => ask("/admin/shops", { method: "POST", body: shop, signedIn: true });
+/** The site's owner only: answer an application (let the shop in, send it back saying what to change, or say no). */
+export const answerApplication = (slug: string, decision: { do: "accept" } | { do: "return" | "decline"; reply: string }): Promise<Made> => ask(`/admin/applications/${slug}`, { method: "POST", body: decision, signedIn: true });
 
 /** Copy text; false when the phone won't (an old WeChat), so the page can show it to copy by hand. */
 export async function copyText(text: string): Promise<boolean> {

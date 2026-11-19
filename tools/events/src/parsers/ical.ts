@@ -42,7 +42,11 @@ export function placeFromText(text: string | null | undefined): Place | null {
   const postal = /\b([A-Z]\d[A-Z])\s?(\d[A-Z]\d)\b/i.exec(t);
   const parts = t.split(",").map((x) => x.trim()).filter(Boolean);
   const bcAt = parts.findIndex((p) => /^BC\b/i.test(p) || /\bBC\s+[A-Z]\d[A-Z]/i.test(p));
-  const city = bcAt > 0 ? parts[bcAt - 1] : null;
+  // the city before "BC" in the same part ("580 West Hastings Street, Vancouver BC V6B 1L6"), or the
+  // part before; never a street ("515 West Hastings St. Vancouver, BC V6B 5K3": the postal code says)
+  const inline = bcAt >= 0 ? /^(.*?\S)\s+BC\b/i.exec(parts[bcAt])?.[1] : undefined;
+  const before = inline ?? (bcAt > 0 ? parts[bcAt - 1] : null);
+  const city = before && !/\d/.test(before) ? before : null;
   // A leading part with no digits is the place's name ("Science World, 1455 Quebec St, ...").
   const named = parts.length > 1 && !/\d/.test(parts[0]);
   return {

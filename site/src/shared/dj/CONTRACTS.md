@@ -36,7 +36,7 @@ It is built inside the site, not as its own project: the rules run on the site's
 | The 12 styles' Lyria presets | `site/src/shared/dj/presets.ts` (C1) |
 | The speaker's screen | `site/src/party/dj/TvDj.tsx` (in the big screen, `site/src/tv/TvApp.tsx`) |
 | The phone | `site/src/party/dj/NetDj.tsx`, `site/src/styles/dj-phone.css` |
-| Lights and dancers | `site/src/party/dj/Floor.tsx` (the lights, the drawn floor), `Floor3D.tsx` (the robots), `robot3d.ts` (what they share with the coach); the coach: `Coach.tsx`, `Coach3D.tsx`, `coach/` (its robot and moves), `site/src/styles/dj.css` |
+| Lights and dancers | `site/src/party/dj/Floor.tsx` (the lights, the drawn floor), `Floor3D.tsx` (the robots), `robot3d.ts` (what they share with the coach); the dancer on the left: `Coach.tsx`, `Dancer3D.tsx` and `dancer/` (her and her dances, made by `site/scripts/dj-dancer/`), `Coach3D.tsx` and `coach/` (the robot where she can't be shown), `site/src/styles/dj.css` |
 | The speaker on its own (no table) | `site/src/party/dj/TestPage.tsx`, at changle.ca/dj/test |
 | Lyria: the relay on the rooms server | `site/worker/lyria.ts` (in the table's Durable Object, `index.ts`) |
 | Lyria: the speaker's side | `site/src/party/dj/lyria/` (`LyriaDj.ts`, `prompts.ts`, `beat.ts`), switched in `useBooth.ts` |
@@ -111,14 +111,19 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   lifting the room, "她更像一个在酒吧跳舞的角色来烘托气氛的", standing, "她也不需要坐着了", only her
   with no card or words, "仅保留人物"). On the left of the TV all night (`Coach.tsx`), whole songs
   too (over a song's video filling the TV: a little smaller, down in its corner, under the 弹幕,
-  letting taps through to the video): the realistic dancer in 3D (`Dancer3D.tsx`, `dancer/`, a new
-  outfit each song); a robot made in code (`coach/robot.ts`, `coach/poses.ts`) where she can't be
-  shown; Name That Tune's drawn performer while they load and on a screen with no graphics chip for
-  them (no WebGL, WebGL drawn in software, where three.js isn't even downloaded, or frames under 20
-  a second in the first seconds). She dances the routine on the speaker's own beat (a whole song's
-  own beat while one plays, found on the TV; nothing about it goes to the room now): nine simple
-  standing moves (`shared/dj/dance.ts`, `DANCE_MOVES`), which and in what order following the
-  room's stretch of the night (`ROUTINES`, `moodOf`; a slow song, under 90 BPM by its own tempo,
+  letting taps through to the video): the dancer in 3D (`Dancer3D.tsx`, `dancer/`; since Nov 18,
+  Steve on Nov 14 "我要跟真人看起来一样…包括动作这些方面都需要去深度优化": the design he chose made 3D with
+  its photos on it, dancing real dancers' motion capture from Mixamo, `site/scripts/dj-dancer/`); a
+  robot made in code (`coach/robot.ts`, `coach/poses.ts`) where she can't be shown; Name That Tune's
+  drawn performer while they load and on a screen with no graphics chip for them (no WebGL, WebGL
+  drawn in software, where three.js isn't even downloaded, or frames under 20 a second in the first
+  seconds). She dances on the speaker's own beat (a whole song's own beat while one plays, found on
+  the TV; nothing about it goes to the room now), a beat of the song a beat of the dance: in 3D one
+  of her dances (`dancer/dances.ts`: those that go with the room's stretch of the night and are
+  within a quarter of the song's tempo, eight bars each, the same on every screen; with no song,
+  standing easy); the robot and the drawn one dance the routine, nine simple standing moves
+  (`shared/dj/dance.ts`, `DANCE_MOVES`), which and in what order following the stretch (`ROUTINES`,
+  `moodOf`; a slow song, under 90 BPM by its own tempo,
   the gentle ones), 16 beats each (`moveAt`). The phones have nothing of hers. Gone with 跟着跳
   (Nov 14): the phones' dance pad and its motion sensor, the room's `dance` and `songbeat` (an older
   page's are taken as nothing), the dancers' counts, the floor's combo and its fireworks, the
@@ -902,8 +907,10 @@ and is back if they can't be. While a song's video covers the whole TV, none of 
   browsers, a TV and two phones: up top only the song up next; no night's curve; the dancer on the
   left, only her (no card, no words), drawn and dancing where there's no graphics chip; the phones
   without 跟着跳; a song from YouTube in the middle, big, the floor moving to its right and back once
-  it's skipped; the recap without dancing; then a TV told to take any WebGL: her in 3D, standing,
-  the peak's moves at the peak, a new outfit for a new song. `tests/dj.test.ts` has the routine;
+  it's skipped; the recap without dancing; then a TV told to take any WebGL: her in 3D, standing
+  easy with no song, one of the peak's dances on a song's beat at the peak, light to draw.
+  `tests/dancer.test.ts` has her file and her dances (each loads, loops whole bars, keeps her feet
+  down and her hips over her spot) and which dance when; `tests/dj.test.ts` has the routine;
   `tests/engine.test.ts` that an older phone's `dance` and an older speaker's `songbeat` change
   nothing.
 - `python3 scripts/dj_danmu_check.py`: 弹幕 in browsers, a TV and three phones: the card on every

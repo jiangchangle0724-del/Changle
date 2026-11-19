@@ -593,6 +593,7 @@ function closeEnough() {
   t.g("p2", "guess", { text: "时钟" });
   let v = t.view<V>("p1");
   ok(!v.solved.length && v.guesses.filter((x) => x.text.startsWith("时钟")).length === 3, "时钟 is not 钟表 by itself");
+  ok(v.guesses.map((x) => x.n).join() === "1,2,3,4", `each guess has its own number, for the screens to tell them apart (${v.guesses.map((x) => x.n).join()})`);
   // nobody but the drawer can count a guess: not a guesser, not the host who isn't drawing
   t.g("p1", "accept", { text: "时钟" });
   ok(!t.view<V>("p1").solved.length, "a guesser can't count their own guess");
@@ -605,6 +606,7 @@ function closeEnough() {
   ok(v.scores.p1 === 4 && v.scores.p3 === 2 && v.scores.p2 === 2 && v.scores.p0 === 4, `scored as right guesses (${JSON.stringify(v.scores)})`);
   ok(!v.guesses.some((x) => x.text.includes("时钟")), "the counted guess no longer shows to anyone");
   ok(v.guesses.filter((x) => x.ok).length === 3 && v.guesses.some((x) => x.pid === "p2" && x.text === "闹钟"), `one 'got it' each, and the other guesses stay (${JSON.stringify(v.guesses)})`);
+  ok(v.guesses.map((x) => `${x.n}${x.ok ? "ok" : ""}`).join() === "1ok,2,3ok,4ok", `a guess counted as right keeps its number (${v.guesses.map((x) => `${x.n}${x.ok ? "ok" : ""}`).join()})`);
   ok(t.events.filter((e) => e.k === "fx" && e.fx === "correct").length - before === 3, "the room hears each one");
   ok(v.phase === "result" && !t.pens().length, "all three have it: the round is over, nobody drinks");
 
@@ -625,6 +627,11 @@ function closeEnough() {
   (u.eng.d.game!.s as { word: number }).word = DRAW_WORDS.findIndex((w) => w.zh === "飞机");
   u.g("p2", "guess", { text: "plane" });
   ok(!u.view<V>("p0").solved.length, "a new round starts with nothing counted");
+  // the numbers go on from round to round, and past 40 guesses the list keeps the last 40, numbered
+  ok(u.view<V>("p0").guesses[0].n === 3, `the new round's first guess is the game's third (${u.view<V>("p0").guesses[0].n})`);
+  for (let i = 0; i < 45; i++) u.g("p2", "guess", { text: `猜${i}` });
+  const ns = u.view<V>("p0").guesses.map((x) => x.n ?? 0);
+  ok(ns.length === 40 && ns[0] === 9 && ns[39] === 48 && ns.every((n, i) => !i || n === ns[i - 1] + 1), `the last 40, each with its number (${ns[0]}..${ns[39]}, ${ns.length})`);
 }
 
 test("draw: nobody left to guess: the round ends, and the drawer doesn't drink for it", () => {
@@ -1314,6 +1321,7 @@ test("freeze: shared stop, motion reports, knockout to a winner", () => {
 test("limbo: lean to pass, miss and drink, last one wins", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "limbo" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   let v = t.view<V<"limbo">>("p0");
   ok(v.phase === "go" && v.angle === 20, "first bar at 20 degrees");
@@ -1334,9 +1342,40 @@ test("limbo: lean to pass, miss and drink, last one wins", () => {
   ok(v.phase === "end" && v.winner === "p1", "time up: p0 misses, p1 wins");
 });
 
+test("limbo: the phone is the judge: two measuring phones to start, the others watch that game", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "go");
+  ok(t.view<V<"limbo">>("p0").phase === "ready", "no phone can measure: no start");
+  t.g("p0", "sensor", { on: true });
+  t.g("p0", "go");
+  ok(t.view<V<"limbo">>("p0").phase === "ready", "one phone can measure: still no start");
+  t.g("p1", "sensor", { on: true });
+  t.g("p1", "sensor", { on: false });
+  t.g("p0", "go");
+  ok(t.view<V<"limbo">>("p0").phase === "ready", "p1 turned it off again: still no start");
+  t.g("p2", "sensor", { on: true });
+  t.g("p0", "go");
+  let v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "go" && v.alive.length === 2 && v.alive.includes("p0") && v.alive.includes("p2") && !v.alive.includes("p1"), "two can measure: the bar is up and p1 watches this game");
+  t.advance(3600);
+  t.g("p1", "pass", { deg: 40 });
+  t.g("p0", "judge", { pid: "p1", ok: true });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "go" && !v.passed.includes("p1"), "a watcher's moves don't count");
+  t.g("p0", "pass", { deg: 24 });
+  t.g("p2", "fail");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "end" && v.winner === "p0", "p2 misses: p0 wins");
+  t.g("p0", "again");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "ready" && v.alive.length === 3 && v.sensors.length === 2, "play again: everyone is back in, the sensors remembered");
+});
+
 test("limbo: nobody leans at all, nobody wins for it: everyone drinks, same bar again", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "limbo" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   t.advance(3600);
   t.advance(16_000);
@@ -1410,6 +1449,7 @@ test("limbo steady: reach the bar and hold still, a longer hold every bar", () =
   t.g("p1", "mode", { mode: "steady" });
   ok(t.view<V<"limbo">>("p0").mode === "classic", "only the host picks the mode");
   t.g("p0", "mode", { mode: "steady" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   let v = t.view<V<"limbo">>("p2");
   ok(v.phase === "go" && v.mode === "steady" && v.bar.kind === "steady", "a steady bar on every phone");
@@ -1437,6 +1477,7 @@ test("limbo moving: one path from the start time, kept up with until it stops", 
   const t = setup(3);
   t.act("p0", { a: "start", game: "limbo" });
   t.g("p0", "mode", { mode: "moving" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   let v = t.view<V<"limbo">>("p1");
   const bar = v.bar;
@@ -1475,6 +1516,7 @@ test("limbo tilt: a sideways tilt as well, to a random side each bar", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "limbo" });
   t.g("p0", "mode", { mode: "tilt" });
+  for (const p of ["p0", "p1"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   const sides: number[] = [];
   for (let i = 0; i < 12; i++) {
@@ -1494,6 +1536,7 @@ test("limbo party: a random variant each bar, never the same twice running, neve
   const t = setup(2);
   t.act("p0", { a: "start", game: "limbo" });
   t.g("p0", "mode", { mode: "party" });
+  for (const p of ["p0", "p1"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   const kinds: string[] = [];
   for (let i = 0; i < 20; i++) {
@@ -1521,7 +1564,10 @@ test("limbo coach: what the phone says to someone who can't see it", () => {
   ok(coaching("moving", { lean: 2, target: 18 }).say === "down", "short of a moving bar: lean back more");
   const up = coaching("moving", { lean: 54, target: 12, lost: 0.7 });
   ok(up.say === "up" && up.urgency >= 0.7, "past a moving bar: come up, and urgently once the second is running out");
-  ok(coaching("moving", { lean: 30, target: 18, lost: 0 }).urgency < 0.5, "just off it, with time: not urgent yet");
+  ok(coaching("moving", { lean: 32, target: 18, lost: 0 }).urgency < 0.5, "just off it, with time: not urgent yet");
+  const edge = coaching("moving", { lean: 9, target: 18 });
+  ok(edge.say === "down" && edge.soft === true && edge.urgency === 0, "still within the band but drifting to its edge: the quiet warning");
+  ok(coaching("moving", { lean: 28, target: 18 }).soft === true && !coaching("moving", { lean: 2, target: 18 }).soft, "the warning is the band's edge, not off it");
   // classic and hold steady: short, then there (the hold is heard)
   const short = coaching("classic", { lean: 5, target: 20, hold: 0 });
   ok(short.say === "down" && short.hold === 0, "short of the bar: lean back more");
@@ -5561,7 +5607,7 @@ test("rogue: the camera's judgement has a deadline, so a holder who walks away c
   // an answer in time: the deadline is forgotten
   t.g(rv().drawer ?? rv().turn, "next");
   ok(rv().phase === "draw", "on to the next draw");
-  t.advance(60000); // (the camera's minute of rest)
+  (t.eng.d.game!.s as { used: Record<string, boolean> }).used = {}; // (a fresh 5, say: the camera goes once per card)
   t.g("p2", "camera");
   t.advance(3600);
   t.g("p2", "moved", { target: "p1" });
@@ -5669,7 +5715,7 @@ test("rogue: sevens never starts on a seven; a phone that is away sits out the g
   // p3 comes back: in the next race and the next nose as usual
   u.eng.setOnline("p3", true);
   u.eng.flush();
-  u.advance(60000); // (the nose's minute of rest)
+  (u.eng.d.game!.s as { used: Record<string, boolean> }).used = {}; // (a fresh 6, say: the nose goes once per card)
   u.g(d, "nose");
   u.g(free[0], "tap");
   u.g(free[1], "tap");
@@ -5678,7 +5724,7 @@ test("rogue: sevens never starts on a seven; a phone that is away sits out the g
   ok(u.pens().slice(-1)[0].who[0] === "p3" && u.pens().slice(-1)[0].note?.zh === "摸鼻子：没摸", "and p3 pays for not touching");
 });
 
-test("rogue: the camera and the nose rest a minute after each use; a new holder starts fresh", () => {
+test("rogue: the camera and the nose go once per card; the next card of theirs is a new shot", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "rogue" });
   const s = t.eng.d.game!.s as { holders: Record<string, string>; deck: number[] };
@@ -5686,29 +5732,48 @@ test("rogue: the camera and the nose rest a minute after each use; a new holder 
   s.holders.nose = "p2";
   const rv = () => t.view<Extract<GameView, { id: "rogue" }>>("p0");
   t.g("p1", "camera");
-  ok(rv().interrupt?.kind === "camera" && (rv().cool?.camera ?? 0) > clock + 50000, "the camera goes, and rests for a minute");
+  ok(rv().interrupt?.kind === "camera" && rv().used?.camera === true, "the camera goes, and that was its one go");
   t.advance(3600);
   t.g("p1", "moved", {});
   t.g("p1", "camera");
-  ok(rv().interrupt === null, "not again straight away");
+  ok(rv().interrupt === null, "not again");
+  t.advance(120000);
+  t.g("p1", "camera");
+  ok(rv().interrupt === null, "not later either");
   t.g("p2", "nose");
-  ok(rv().interrupt?.kind === "nose", "the nose has a clock of its own");
+  ok(rv().interrupt?.kind === "nose" && rv().used?.nose === true, "the nose has its own one go");
   t.advance(6500);
   t.g("p2", "nose");
-  ok(rv().interrupt === null && (rv().cool?.nose ?? 0) > clock, "and rests too");
-  t.advance(55000);
-  t.g("p1", "camera");
-  ok(rv().interrupt?.kind === "camera", "a minute on, the camera goes again");
-  t.advance(3600);
-  t.g("p1", "moved", {});
-  // a new 5: its new holder is not held to the old one's minute
+  ok(rv().interrupt === null, "and it is spent too");
+  // a new 5: a fresh shot for whoever draws it
   s.deck.push(4); // the five of spades
   const d = rv().turn;
   t.g(d, "draw");
-  ok(rv().holders.camera === d && rv().cool?.camera === undefined, "the card changes hands: no rest to serve");
+  ok(rv().holders.camera === d && rv().used?.camera === undefined, "the card changes hands: a new shot");
   t.g(rv().drawer ?? d, "next");
   t.g(d, "camera");
-  ok(rv().interrupt?.kind === "camera", "and the new holder can use it at once");
+  ok(rv().interrupt?.kind === "camera", "and the new holder takes it when they like");
+  t.advance(3600);
+  t.g(d, "moved", {});
+  // the same player draws the 5 again: a new card, a new shot
+  s.deck.push(17); // the five of hearts
+  while (rv().turn !== d) {
+    s.deck.push(8); // nines of spades until it is d's turn again
+    t.g(rv().turn, "draw");
+    t.g(rv().drawer ?? rv().turn, "next");
+  }
+  t.g(d, "draw");
+  ok(rv().holders.camera === d && rv().used?.camera === undefined, "the same holder, a new 5: a new shot");
+  t.g(rv().drawer ?? d, "next");
+  t.g(d, "camera");
+  ok(rv().interrupt?.kind === "camera", "and it goes");
+  // the deck runs out: the powers go back in with it
+  t.advance(3600);
+  t.g(d, "moved", {});
+  ok(rv().used?.camera === true, "spent again");
+  s.deck.length = 0;
+  t.g(rv().turn, "draw");
+  ok(rv().reshuffled && rv().used?.camera === undefined, "a new deck: nothing used");
 });
 
 test("dj: 弹幕 (Steve on Nov 13: \"玩家可以发弹幕…推荐几个弹幕表情之类的，也可以自定义\"): a ready line or one's own words for every screen, the worst masked, one a second and a half a phone, fresh ones only in the view, the host's switch", () => {
