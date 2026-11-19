@@ -1,6 +1,8 @@
 /**
  * 糯米团（A3）：一个玩家的画法。身体是物理驱动的圆，脸、帽子、眼镜程序画；胳膊是两条面条，每帧重画。
  * 动效都在这里：沿速度方向拉伸、落地压扁、抓上一颤、复活从天上掉、眨眼、眼睛跟摇杆、队友摔死时冒汗。
+ * A14 的表情：被摆锤撞了晕（转圈的眼睛、头上转星星），底下的水快淹到了吓（瞪眼、小嘴），手酸了累（耷拉眼皮、
+ * 喘），在风里眯眼、身子往风那边歪，过检查点乐一下。
  */
 import { Container, FillGradient, Graphics, Text, type TextStyleOptions } from 'pixi.js';
 import { CFG } from '../physics/config';
@@ -8,6 +10,7 @@ import type { Pt } from '../physics/level';
 import type { PlayerView } from './view';
 import { ARM_COLORS, DEFAULT_LOOK, type Look } from '../look';
 import { CREAM, GLOVES, INK, OUTLINE, hex } from './art';
+import { pickExpression, type Expr, type Mood } from './mood';
 
 const R = CFG.bodyR;
 const NAME_STYLE: TextStyleOptions = {
@@ -22,6 +25,21 @@ const NAME_STYLE: TextStyleOptions = {
 const ease = {
   inQuad: (t: number): number => t * t,
 };
+
+/** 晕了多久、乐多久（秒）。 */
+const DIZZY_S = 1.3;
+const CHEER_S = 1.1;
+
+/** 五角星的点（外圈 r、内圈 r × 0.45），从正上方开始。 */
+function starPoints(cx: number, cy: number, r: number, turn = 0): number[] {
+  const pts: number[] = [];
+  for (let k = 0; k < 10; k++) {
+    const a = turn - Math.PI / 2 + (k * Math.PI) / 5;
+    const rr = k % 2 ? r * 0.45 : r;
+    pts.push(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+  }
+  return pts;
+}
 
 /**
  * 2.5D 的光影（A8）：光从左上来。身体是个球：左上一团亮、右下边上暗下去，右下沿着边一道反光。
@@ -76,6 +94,8 @@ export class Dumpling {
   /** 道具（A9）：冻住时的冰块、撑开的荷叶，压在人上面。 */
   private readonly itemG = new Graphics();
   private itemKey = '';
+  /** 晕的时候头顶转的星星（A14），每帧画。 */
+  private readonly moodG = new Graphics();
   private readonly label: Text;
 
   private color = '#ffffff';
@@ -93,6 +113,10 @@ export class Dumpling {
   private blink = 0;
   /** 过关时一起跳的相位。 */
   private hop = 0;
+  /** 被摆锤撞晕还剩几秒、过检查点乐还剩几秒、在风里歪了多少（A14）。 */
+  private dizzy = 0;
+  private cheer = 0;
+  private lean = 0;
   private reduced = false;
   private faceKey = '';
 
@@ -103,7 +127,7 @@ export class Dumpling {
     this.inner.addChild(this.body, this.face, this.extras, this.glasses, this.hat);
     this.stretchC.addChild(this.inner);
     this.bodyC.addChild(this.stretchC);
-    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.label);
+    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.moodG, this.label);
     this.setColor(color);
     this.setLook(look);
   }
@@ -146,11 +170,25 @@ export class Dumpling {
   onBounce(): void {
     this.squash = -0.8; // 负的 = 拉长
   }
+  /** 被摆锤撞了（A14）：一下压扁，晕一会儿。 */
+  onBonk(): void {
+    this.squash = 1;
+    this.dizzy = DIZZY_S;
+  }
+  /** 有人过了检查点（A14）：大家乐一下。 */
+  onCheer(): void {
+    this.cheer = CHEER_S;
+  }
 
   /** 每帧：读玩家状态，摆位置，重画胳膊和脸。 */
   /** won：这个人赢了（一起跳）；slips：坐不住，手抓久了要抖、圈变红。 */
-  update(p: PlayerView, dt: number, won: boolean, time: number, slips = false): void {
+  update(p: PlayerView, dt: number, won: boolean, time: number, slips = false, mood: Mood = {}): void {
     const b = p.body;
+    this.dizzy = Math.max(0, this.dizzy - dt);
+    this.cheer = Math.max(0, this.cheer - dt);
+    // 风里身子往风那边歪一点，风停了慢慢回正（减弱动效时不歪）
+    const leanTo = this.reduced || p.dead ? 0 : (mood.lean ?? 0) * 0.2;
+    this.lean += (leanTo - this.lean) * Math.min(1, dt * 6);
     this.squash = this.squash > 0 ? Math.max(0, this.squash - dt * 4.5) : Math.min(0, this.squash + dt * 4.5);
     this.pulse = Math.max(0, this.pulse - dt * 5);
     this.sweat = Math.max(0, this.sweat - dt);
@@ -168,7 +206,10 @@ export class Dumpling {
     // 摔死：前 0.45 秒还画（沉进汤里），之后藏起来
     const sinking = p.dead && p.deadT < 0.45;
     this.view.visible = !p.dead || sinking;
-    if (!this.view.visible) return;
+    if (!this.view.visible) {
+      this.dizzy = 0;
+      return;
+    }
 
     // 复活：从天上掉，影子先到；胳膊跟着身体一起抬
     const dropY = this.drop > 0 ? -280 * ease.inQuad(this.drop) : 0;
@@ -212,8 +253,10 @@ export class Dumpling {
       this.stretchC.position.set(0, 0);
     }
 
+    this.bodyC.rotation = this.lean;
     this.drawArms(p, slips);
-    this.drawFace(p, time);
+    this.drawFace(p, time, mood);
+    this.drawMood(p, time);
     this.drawItem(p, time);
     this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - (p.itemOn === 'leaf' && !p.dead ? 34 : 4));
     this.label.alpha = sinking ? 0 : 1;
@@ -381,7 +424,30 @@ export class Dumpling {
     g.lineTo(l.x + ox, l.y + oy);
   }
 
-  private drawFace(p: PlayerView, time: number): void {
+  /** 晕的时候头顶三颗星星转圈（减弱动效时不转），快好了变淡。 */
+  private drawMood(p: PlayerView, time: number): void {
+    const g = this.moodG;
+    if (this.dizzy <= 0 || p.dead) {
+      if (g.visible) g.clear();
+      g.visible = false;
+      return;
+    }
+    g.visible = true;
+    g.clear();
+    const cx = this.bodyC.x;
+    // 绕着头顶转一圈（名字在更上面，不挡）
+    const cy = this.bodyC.y - R + 3;
+    const a = Math.min(1, this.dizzy / 0.35);
+    const spin = this.reduced ? 0 : time * 5.5;
+    for (let k = 0; k < 3; k++) {
+      const t = spin + (k * Math.PI * 2) / 3;
+      const x = cx + Math.cos(t) * 22;
+      const y = cy + Math.sin(t) * 7;
+      g.poly(starPoints(x, y, 6, t)).fill({ color: 0xffd166, alpha: a }).stroke({ width: 1.5, color: OUTLINE, alpha: a });
+    }
+  }
+
+  private drawFace(p: PlayerView, time: number, mood: Mood = {}): void {
     // 眼睛跟摇杆；没推摇杆就看向飞的方向
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const v = Math.hypot(p.body.vx, p.body.vy);
@@ -394,12 +460,17 @@ export class Dumpling {
     this.glasses.position.set(lx * 0.9 * turn, ly * 0.6 * turn);
     this.hat.position.set(lx * 0.4 * turn, 0);
     const blink = this.blink > 0 && this.look.eyes !== 'happy';
-    const key = `${p.face}|${lx.toFixed(1)}|${ly.toFixed(1)}|${blink}|${this.sweat > 0}|${this.look.eyes}|${Math.floor(time * 6) % 2}`;
+    const expr = pickExpression(p.face, p.dead, { dizzy: this.dizzy, cheer: this.cheer, stamina: p.stamina ?? 1, mood });
+    const key = `${expr}|${lx.toFixed(1)}|${ly.toFixed(1)}|${blink}|${this.sweat > 0}|${this.look.eyes}|${Math.floor(time * 6) % 2}`;
     if (key === this.faceKey) return;
     this.faceKey = key;
     const g = this.face;
     g.clear();
     const eyeY = -4;
+    if (expr !== p.face) {
+      this.drawMoodFace(g, expr, lx, ly, time);
+      return;
+    }
     const big = this.look.eyes === 'big';
     const rx = big ? 7 : 5.5;
     const ry = p.face === 'scream' ? (big ? 8.5 : 7) : big ? 7.5 : 6;
@@ -447,6 +518,79 @@ export class Dumpling {
         g.moveTo(x, y - 6).quadraticCurveTo(x + 3.5, y, x, y + 3).quadraticCurveTo(x - 3.5, y, x, y - 6).fill(0x8ec5e8);
       }
     }
+  }
+
+  /**
+   * A14 的表情。晕：两只转圈的眼睛、波浪嘴；吓：眼白瞪大、黑眼珠缩小往下看、小圆嘴、眉毛挑起来、冒汗；
+   * 累：眼皮耷拉一半、嘴张着喘、冒汗；风里：眯成 > < 的眼、抿着嘴；乐：眯眯眼加张嘴笑。
+   */
+  private drawMoodFace(g: Graphics, expr: Expr, lx: number, ly: number, time: number): void {
+    const eyeY = -4;
+    if (expr === 'dizzy') {
+      for (const side of [-1, 1]) {
+        const ex = side * 8;
+        g.moveTo(ex, eyeY);
+        for (let k = 1; k <= 22; k++) {
+          const a = (k / 22) * Math.PI * 3.2 * side;
+          const r = (k / 22) * 5.5;
+          g.lineTo(ex + Math.cos(a) * r, eyeY + Math.sin(a) * r);
+        }
+        g.stroke({ width: 1.8, color: INK, cap: 'round', join: 'round' });
+      }
+      g.moveTo(-7, 10);
+      for (let k = 1; k <= 8; k++) g.lineTo(-7 + (k * 14) / 8, 10 + (k % 2 ? -2 : 2));
+      g.stroke({ width: 2, color: INK, cap: 'round', join: 'round' });
+      return;
+    }
+    if (expr === 'scared') {
+      for (const side of [-1, 1]) {
+        const ex = side * 8;
+        g.ellipse(ex, eyeY, 6.5, 7.8).fill(0xffffff).stroke({ width: 1.2, color: INK, alpha: 0.5 });
+        g.circle(ex + lx * 0.5, eyeY + 2.5, 1.9).fill(INK);
+        g.moveTo(ex - side * 5, eyeY - 12).quadraticCurveTo(ex, eyeY - 15, ex + side * 5, eyeY - 11).stroke({ width: 2.2, color: INK, cap: 'round' });
+      }
+      g.ellipse(0, 10, 3.2, 4).fill(INK);
+      this.sweatDrop(g, R - 5, -12, time);
+      return;
+    }
+    if (expr === 'tired') {
+      for (const side of [-1, 1]) {
+        const ex = side * 8;
+        g.ellipse(ex, eyeY, 5.5, 6).fill(0xffffff);
+        g.circle(ex + lx, eyeY + 1.5 + ly * 0.5, 3).fill(INK);
+        // 眼皮：盖住上面一半多，边上一道弯线
+        g.rect(ex - 7, eyeY - 7, 14, 7.5).fill(this.color);
+        g.moveTo(ex - 6, eyeY + 0.5).quadraticCurveTo(ex, eyeY + 2, ex + 6, eyeY + 0.5).stroke({ width: 2, color: INK, cap: 'round' });
+      }
+      // 张着嘴喘：一张一合
+      const open = this.reduced ? 3 : 2.5 + 1.5 * Math.abs(Math.sin(time * 9));
+      g.ellipse(0, 10, 4.5, open).fill(INK);
+      this.sweatDrop(g, R - 5, -12, time);
+      this.sweatDrop(g, -(R - 6), -8, time + 0.4);
+      return;
+    }
+    if (expr === 'windy') {
+      for (const side of [-1, 1]) {
+        const ex = side * 8;
+        // 尖朝鼻子：左眼 >、右眼 <
+        g.moveTo(ex + side * 5, eyeY - 4).lineTo(ex - side * 3, eyeY).lineTo(ex + side * 5, eyeY + 4).stroke({ width: 2.4, color: INK, cap: 'round', join: 'round' });
+      }
+      g.moveTo(-5, 10).lineTo(5, 10).stroke({ width: 2.4, color: INK, cap: 'round' });
+      return;
+    }
+    // 乐
+    for (const side of [-1, 1]) {
+      const ex = side * 8;
+      g.moveTo(ex - 5, eyeY + 1).quadraticCurveTo(ex, eyeY - 5, ex + 5, eyeY + 1).stroke({ width: 2.4, color: INK, cap: 'round' });
+    }
+    g.moveTo(-7, 6).quadraticCurveTo(0, 16, 7, 6).closePath().fill(INK);
+    g.moveTo(-4, 10).quadraticCurveTo(0, 14, 4, 10).closePath().fill(0xe8413c);
+  }
+
+  /** 一滴汗，一上一下地动（减弱动效时不动）。 */
+  private sweatDrop(g: Graphics, x: number, y0: number, time: number): void {
+    const y = y0 + (this.reduced ? 0 : (Math.floor(time * 6) % 2) * 2);
+    g.moveTo(x, y - 6).quadraticCurveTo(x + 3.5, y, x, y + 3).quadraticCurveTo(x - 3.5, y, x, y - 6).fill(0x8ec5e8);
   }
 
   private drawExtras(): void {

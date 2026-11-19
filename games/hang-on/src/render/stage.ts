@@ -17,6 +17,7 @@ import { Backdrop } from './backdrop';
 import { Darkness } from './dark';
 import { Depth } from './depth';
 import { Dumpling } from './dumpling';
+import { moodOf } from './mood';
 import { Foreground } from './fore';
 import { FrameWatch } from './framewatch';
 import { Particles } from './fx';
@@ -26,8 +27,19 @@ export interface Camera {
   x: number;
   y: number;
   z: number;
-  shake: number;
+  /** 镜头抖（A14）：0 到 1，出事往上加、按真实时间往下掉；抖的幅度是它的平方（轻的几乎不动，重的才一震）。 */
+  trauma: number;
 }
+
+/** 镜头抖到最大时横着、竖着各偏多少屏幕像素；trauma 每秒掉多少。 */
+const SHAKE_X = 18;
+const SHAKE_Y = 12;
+const TRAUMA_DECAY = 1.5;
+/** 镜头往前推多少（4%）、多快回来（每秒）。 */
+const PUNCH_ZOOM = 0.04;
+const PUNCH_DECAY = 4;
+/** 出事给镜头加多少抖（A14，三档：轻的落地、开门，中的被撞、台子塌、涨水，重的摔死）。 */
+const TRAUMA = { land: 0.3, key: 0.3, crumble: 0.4, tide: 0.4, bonk: 0.5, death: 0.75 } as const;
 
 export interface PlayerStyle {
   name: string;
@@ -40,9 +52,18 @@ interface Trail {
 }
 
 const STAR_COLORS = [0xfff6e9, 0xffd166, 0xffffff];
+/** 台子塌了掉下来的碎块，按世界（A14）：桌布和木头、码头的木板、后厨的瓷盘和蒸笼、雪块、老宅的朽木和瓦、太空站的面板。 */
+const CRUMBS: Record<WorldId, number[]> = {
+  table: [0xe8d5b0, 0xb08050, 0xfff6e9],
+  van: [0x9aa8c0, 0x5f6b85, 0xd8dde8],
+  kitchen: [0xf4efe6, 0xc9b48a, 0xdfe6ea],
+  snow: [0xffffff, 0xd6ecff, 0x9fc4e6],
+  house: [0x7a5134, 0x4a3326, 0x3d4652],
+  space: [0xc9d3e0, 0x8794a8, 0x6fd8ff],
+};
 
 export class Stage {
-  readonly cam: Camera = { x: 300, y: 500, z: 1, shake: 0 };
+  readonly cam: Camera = { x: 300, y: 500, z: 1, trauma: 0 };
   /** 主机按它缩放物理时间：摔死后慢 0.3 秒。 */
   timeScale = 1;
   readonly reduced: boolean;
@@ -90,6 +111,10 @@ export class Stage {
   private trails: Trail[] = [];
   private slow = 0;
   private flashA = 0;
+  /** 镜头抖的正弦走到哪了。 */
+  private shakeT = 0;
+  /** 镜头往前一推（A14，摔死、被撞）：1 → 0，推近 PUNCH_ZOOM。 */
+  private punch = 0;
   private vignetteGrad: FillGradient | null = null;
   private abyssGrad: FillGradient | null = null;
   private t = 0;
@@ -289,7 +314,15 @@ export class Stage {
     this.fx.clear();
     this.slow = 0;
     this.timeScale = 1;
-    this.cam.shake = 0;
+    this.cam.trauma = 0;
+    this.punch = 0;
+  }
+
+  /** 镜头抖一下（减弱动效时不抖）；几下叠在一起往上加，不是重新算。 */
+  private kick(amount: number, punch = 0): void {
+    if (this.reduced) return;
+    this.cam.trauma = Math.min(1, this.cam.trauma + amount);
+    this.punch = Math.max(this.punch, punch);
   }
 
   // ---------------------------------------------------------------- 事件 → 动效
@@ -314,11 +347,11 @@ export class Stage {
             const n = Math.min(10, Math.round(ev.speed / 120));
             this.fx.burst({ x: p.body.x, y: p.body.y + CFG.bodyR, n, texture: 'puff', colors: [0xffffff], speed: [40, 140], angle: -Math.PI / 2, spread: 1.3, life: [0.3, 0.5], size: [14, 26], grow: 2, alpha: 0.35, drag: 2 });
           }
-          if (ev.speed > 800 && !this.reduced) this.cam.shake = Math.max(this.cam.shake, 3);
+          if (ev.speed > 800) this.kick(TRAUMA.land);
           break;
         }
         case 'death': {
-          this.cam.shake = this.reduced ? 0 : 12;
+          this.kick(TRAUMA.death, 1);
           this.slow = 0.55;
           this.flashA = this.reduced ? 0 : 0.28;
           // 碰到机关死的在出事的地方炸开；掉下去的在深渊面上溅起来
@@ -341,6 +374,10 @@ export class Stage {
         }
         case 'checkpoint': {
           const cp = sim.level.checkpoints?.[ev.index];
+          // 过了检查点大家乐一下（A14）
+          sim.players.forEach((q, i) => {
+            if (!q.dead) this.dumplings[i]?.onCheer();
+          });
           if (cp) this.fx.burst({ x: cp.x, y: cp.y - 10, n: 14, texture: 'star', colors: [hex(this.pal.lampOn), 0xffffff], speed: [60, 200], life: [0.5, 0.9], size: [6, 12], gravity: 300, spin: 8, grow: 0.3 });
           break;
         }
@@ -370,7 +407,7 @@ export class Stage {
           } else if (ev.phase === 'unlock') {
             this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.4, 0.4], size: [30, 30], grow: 3.4, alpha: 0.9 });
             this.fx.burst({ x: ev.x, y: ev.y, n: this.reduced ? 8 : 22, texture: 'star', colors: [0xffe08a, 0xffffff, 0xd8a03c], speed: [120, 340], life: [0.5, 1], size: [7, 13], gravity: 300, spin: 9, grow: 0.3 });
-            if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 3);
+            this.kick(TRAUMA.key);
           } else if (ev.phase === 'back') {
             this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffd27a], speed: [0, 0], life: [0.35, 0.35], size: [24, 24], grow: 2.6, alpha: 0.8 });
           }
@@ -454,9 +491,9 @@ export class Stage {
         case 'crumble': {
           // 定时的东西塌了：碎块往下掉，镜头轻轻一抖
           const n = Math.min(40, Math.max(10, Math.round(ev.w / 8)));
-          const colors = this.world_ === 'table' ? [0xe8d5b0, 0xb08050, 0xfff6e9] : [0x9aa8c0, 0x5f6b85, 0xd8dde8];
+          const colors = CRUMBS[this.world_];
           this.fx.burst({ x: ev.x + ev.w / 2, y: ev.y + ev.h / 2, n, texture: 'square', colors, speed: [60, 240], life: [0.6, 1.2], size: [6, 14], gravity: 900, spin: 9, jitter: ev.w / 3, flip: this.reduced ? 0 : 8 });
-          if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 4);
+          this.kick(TRAUMA.crumble);
           break;
         }
         case 'creak':
@@ -471,13 +508,13 @@ export class Stage {
           // 摆锤撞飞人（A12）：一圈白光、几颗星、镜头一抖
           this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffffff], speed: [0, 0], life: [0.25, 0.25], size: [24, 24], grow: 3, alpha: 0.85 });
           this.fx.burst({ x: ev.x, y: ev.y, n: 7, texture: 'star', colors: STAR_COLORS, speed: [120, 300], life: [0.3, 0.55], size: [8, 13], gravity: 500, spin: 10 });
-          if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 6);
-          this.dumplings[ev.player]?.onLand(900);
+          this.kick(TRAUMA.bonk, 0.6);
+          this.dumplings[ev.player]?.onBonk();
           break;
         }
         case 'tide':
           // 涨潮（A12）开始涨：镜头轻轻一抖
-          if (ev.phase === 'rise' && !this.reduced) this.cam.shake = Math.max(this.cam.shake, 5);
+          if (ev.phase === 'rise') this.kick(TRAUMA.tide);
           break;
         default:
           break;
@@ -581,7 +618,7 @@ export class Stage {
       cam.z = z;
       cam.x = gx + (clampX(tx, z) - gx) * e;
       cam.y = gy + (clampY(ty, z) - gy) * e;
-      cam.shake = 0;
+      cam.trauma = 0;
       return;
     }
     cam.z += (zt - cam.z) * Math.min(1, dt * 2.5);
@@ -590,7 +627,7 @@ export class Stage {
     const cy = clampY(ty, cam.z);
     cam.x += (cx - cam.x) * Math.min(1, dt * 5);
     cam.y += (cy - cam.y) * Math.min(1, dt * 5);
-    cam.shake = Math.max(0, cam.shake - dt * 30);
+    cam.trauma = Math.max(0, cam.trauma - dt * TRAUMA_DECAY);
   }
 
   /** 世界坐标 → 屏幕坐标（鼠标指向用）。 */
@@ -613,10 +650,15 @@ export class Stage {
     this.flash.alpha = this.flashA;
 
     const { cam } = this;
-    const sx = (Math.random() - 0.5) * cam.shake;
-    const sy = (Math.random() - 0.5) * cam.shake;
+    // 镜头抖（A14）：几个不相关的正弦叠起来，平滑地晃，不是每帧乱跳；trauma 到 0 正好回原位
+    this.shakeT += dt * 30;
+    const k = cam.trauma * cam.trauma;
+    const sx = k * SHAKE_X * (0.7 * Math.sin(this.shakeT * 1.7) + 0.3 * Math.sin(this.shakeT * 4.1 + 0.6));
+    const sy = k * SHAKE_Y * (0.7 * Math.sin(this.shakeT * 2.3 + 1.3) + 0.3 * Math.sin(this.shakeT * 3.7 + 2.1));
     this.world.position.set(this.W / 2 + sx, this.H / 2 + sy);
-    this.world.scale.set(cam.z);
+    // 往前一推：先快后慢地推近，再回来
+    this.punch = Math.max(0, this.punch - dt * PUNCH_DECAY);
+    this.world.scale.set(cam.z * (1 + PUNCH_ZOOM * this.punch * this.punch));
     this.world.pivot.set(cam.x, cam.y);
 
     const level = sim.level;
@@ -634,7 +676,7 @@ export class Stage {
     this.syncPlayers(sim);
     // 结束时只有赢的（笑着的）一起跳；坐不住时手抓久了要抖
     const slips = sim.rules?.mode === 'last';
-    sim.players.forEach((p, i) => this.dumplings[i]?.update(p, dt, sim.won && p.face === 'win', this.t, slips));
+    sim.players.forEach((p, i) => this.dumplings[i]?.update(p, dt, sim.won && p.face === 'win', this.t, slips, moodOf(sim.level, sim.time, sim.tideY, p.body, p.dead)));
     this.abyssBody.y = (sim.tideY ?? sim.level.deathY) - sim.level.deathY;
     this.drawAbyss(sim, dt);
     this.fx.update(dt);
