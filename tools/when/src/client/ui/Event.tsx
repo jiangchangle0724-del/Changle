@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import { addDays, allFree, atTime, best, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weekday, weekdayLabel, whenLabel } from "../../engine";
-import type { Answers, Day, EventState, Lang, Person, Quick, SlotKey, Span, Times } from "../../engine";
+import type { Answers, Day, EventState, Here, Lang, Person, Quick, SlotKey, Span, Times } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
 import type { Snapshot } from "../../room/protocol";
@@ -15,6 +15,8 @@ import { watch } from "../live";
 import { After } from "./After";
 import { AddToCalendar } from "./Calendar";
 import { CopyButton, IconCheck, IconClock, IconPicture, IconQr, IconStar, IconWave, Keep, Qr, Sheet, Toast, TopBar, useLang } from "./common";
+import { HereLine, useFinished } from "./Here";
+import { MovingList } from "./Moving";
 import { PictureSheet, daysLine, inviteLine, invitePicture } from "./Picture";
 import { field, minutesOf, TimeSheet } from "./Times";
 import { Words } from "./Words";
@@ -78,6 +80,9 @@ export function EventPage({ code }: { code: string }) {
   const lang = useLang();
   const link = `${location.origin}${BASE}/${code}`;
   const [snap, setSnap] = useState<Snapshot | null>(null);
+  // who else has the page open: the newest the page was told, by the server's clock
+  const [here, setHere] = useState<Here | null>(null);
+  const takeHere = (fresh: Here) => setHere((before) => (before && before.at > fresh.at ? before : fresh));
   const [gone, setGone] = useState(false);
   /** false after a request couldn't reach the server at all, until one does */
   const [reach, setReach] = useState(true);
@@ -129,7 +134,8 @@ export function EventPage({ code }: { code: string }) {
         // An answer older than what the page has was on its way while something newer arrived
         // (this phone's name being saved, say): it takes nothing back. Not the gathering, not
         // "this row is yours", not "you manage this".
-        setSnap((before) => (before && fresh.state.v < before.state.v ? { state: before.state, host: fresh.host || before.host, me: fresh.me ?? before.me } : fresh));
+        setSnap((before) => (before && fresh.state.v < before.state.v ? { ...fresh, state: before.state, host: fresh.host || before.host, me: fresh.me ?? before.me } : fresh));
+        if (fresh.here) takeHere(fresh.here);
         remember({ code, title: fresh.state.title, mine: fresh.host, at: Date.now() });
         if (firstLook.current) {
           firstLook.current = false;
@@ -158,7 +164,7 @@ export function EventPage({ code }: { code: string }) {
     } catch {
       // private mode
     }
-    return watch(code, { state: (state) => take(state), gone: () => setGone(true), live: () => undefined, refresh: () => void refresh() });
+    return watch(code, { state: (state) => take(state), here: takeHere, gone: () => setGone(true), live: () => undefined, refresh: () => void refresh() });
   }, [code]);
 
   // the deadline passing changes the page (who's still to answer is marked): look again then
@@ -256,6 +262,8 @@ export function EventPage({ code }: { code: string }) {
     saveTimer.current = setTimeout(() => void flush(), SAVE_AFTER_MS);
   };
   useEffect(() => () => (clearTimeout(saveTimer.current), clearTimeout(undoTimer.current), clearTimeout(tappedTimer.current)), []);
+  // one of the others has just filled in: the line at the top says so for a moment
+  const done = useFinished(snap?.state.people, [snap?.me, proxy?.id]);
 
   if (gone) {
     return (
@@ -510,6 +518,7 @@ export function EventPage({ code }: { code: string }) {
             </span>
           )}
         </p>
+        <HereLine here={here} people={state.people} done={done} />
         <div class="row">
           <CopyButton text={link} label={t("copyLink")} />
           <button type="button" class="btn btn-quiet" onClick={() => setOpen({ kind: "qr" })}>
@@ -736,9 +745,9 @@ export function EventPage({ code }: { code: string }) {
         {top.length === 0 ? (
           <p class="hint">{noBest}</p>
         ) : (
-          <ol class="best">
+          <MovingList class="best">
             {top.map((x, i) => (
-              <li key={x.slot} data-set={x.slot === settledSlot ? "" : undefined}>
+              <li key={x.slot} data-key={x.slot} data-set={x.slot === settledSlot ? "" : undefined}>
                 <i class="best-rank" aria-hidden="true">
                   {i + 1}
                 </i>
@@ -755,7 +764,7 @@ export function EventPage({ code }: { code: string }) {
                 )}
               </li>
             ))}
-          </ol>
+          </MovingList>
         )}
       </section>
 
