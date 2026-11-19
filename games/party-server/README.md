@@ -121,11 +121,6 @@ instead, `site/src/party/dj/`.)
   dance is over the video fades out over 2.5 s and stops (`Tube.fadeOut`), so the song never plays
   on without the coach. YouTube refusing the video (`songFailed`): back to the lobby, and the phones
   say why. No 这一段再来 in a song.
-- **The songbook** (`src/server/songbook.ts`): until 12 Nov a song's beat was found the first time
-  a room danced it (找拍子: everyone tapping along on their phones) or on the speaker page (歌曲对拍),
-  and kept in a Durable Object for every room. Every song's beat is measured now, so nothing reads
-  or writes it; the class stays because its Durable Object (`SONGBOOK`, migration `v2`) stays
-  until a migration deletes it, which deletes what it holds too: Steve's to decide.
 - **`/party/moves`** (`src/client/moves.ts`): the 20 moves (and under them the songs' own, song by
   song), each danced by the coach at its own
   tempo (or slowed down), with a click track: to look at before a party. `?move=<id>` picks one,
@@ -198,7 +193,8 @@ in the folder given. About a minute and a half.
 Connected to Cloudflare on 1 November 2026: like 随便, merging into `main` deploys it. The Worker
 `party` (Workers Builds; the name must match `name` in `wrangler.jsonc`): root directory
 `/games/party-server`, build command `npm run build`, deploy command `npx wrangler deploy` (it
-also made the songbook's Durable Object, migration `v2`, the first time), build
+also runs the Durable Objects' migrations: `v2` made a songbook for songs' tapped beats, `v3`
+deleted it on 18 Nov, once every song's beat was measured), build
 watch paths `games/party-server/*`, `games/party-base/*` and `games/dance/*` (the pages and the room
 read the move library; `games/dance/*` added on 6 November), API token "suibian build
 token". Builds for preview branches are off (`wrangler preview` needs a `previews` block, and the
