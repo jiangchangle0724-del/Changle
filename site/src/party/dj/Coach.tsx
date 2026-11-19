@@ -5,6 +5,7 @@ import { Choreo } from "../tune/moves";
 import { Performer } from "../tune/performer";
 import { Coach3D } from "./Coach3D";
 import { Dancer3D } from "./Dancer3D";
+import type { Look } from "./dancer/dances";
 
 /** The performer's drawing box (party/tune/stage.tsx): the body fills it, arms and hair reach outside. */
 const VIEWBOX = "44 10 112 286";
@@ -18,9 +19,10 @@ type Clock = { beat: () => number; energy: () => number; bpm: () => number };
  * dancing on the speaker's own beat. The dancer in 3D (Dancer3D: since Nov 18 the design Steve chose,
  * dancing real dancers' motion capture); the robot (coach/robot.ts) where she can't be shown; Name That
  * Tune's performer, drawn, where no 3D can. `over` the song's video when it fills the TV (Nov 14:
- * "要一直在那里不能消失").
+ * "要一直在那里不能消失"). `look`: what she wears and dances to the music now (dancer/dances.ts); `light`:
+ * an iPhone or iPad as the speaker.
  */
-export function Coach({ clock, mood, over }: { clock: Clock; mood: Mood; over: boolean }) {
+export function Coach({ clock, mood, look, light = false, over }: { clock: Clock; mood: Mood; look: Look; light?: boolean; over: boolean }) {
   const svg = useRef<SVGSVGElement>(null);
   // the dancer in 3D once she's loaded; the robot where she can't be (her files didn't come, her
   // frames too slow); the drawn one till then, and on a screen without WebGL
@@ -31,6 +33,9 @@ export function Coach({ clock, mood, over }: { clock: Clock; mood: Mood; over: b
   const moodNow = useRef(mood);
   moodNow.current = mood;
   const [getMood] = useState(() => () => moodNow.current);
+  const lookNow = useRef(look);
+  lookNow.current = look;
+  const [getLook] = useState(() => () => lookNow.current);
   useEffect(() => {
     if (!svg.current) return;
     const c = new Choreo(new Performer(svg.current, "f", 1));
@@ -70,7 +75,7 @@ export function Coach({ clock, mood, over }: { clock: Clock; mood: Mood; over: b
     <div className={`dj-coach ${over ? "is-over" : ""}`} aria-hidden="true">
       <div className="dj-coach-stage">
         <svg className={`dj-coach-svg ${three === "on" || three === "robot-on" ? "is-off" : ""}`} viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
-        {(three === "try" || three === "on") && <Dancer3D clock={clock} mood={getMood} onReady={() => setThree("on")} onFail={() => setThree("robot")} />}
+        {(three === "try" || three === "on") && <Dancer3D clock={clock} mood={getMood} look={getLook} light={light} onReady={() => setThree("on")} onFail={() => setThree("robot")} />}
         {(three === "robot" || three === "robot-on") && <Coach3D clock={clock} mood={getMood} onReady={() => setThree("robot-on")} onFail={() => setThree("off")} />}
       </div>
     </div>

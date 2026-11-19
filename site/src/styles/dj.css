@@ -41,6 +41,30 @@
   --gel: #5b9bff;
   --gel-2: #22d3a6;
 }
+/* while a song plays whole, the lights take its look (Steve on Nov 18: "包括背景的灯光也要跟着不同曲风设计不同
+   的灯光效果"; dancer/dances.ts): a ballad's soft pink and gold, the beams slow and dim, no flashes; a song in
+   between's party gold and orchid; a fast one's club pink and cyan, the beams quick and bright */
+.dj-stage.look-sweet {
+  --gel: var(--gel-rose);
+  --gel-2: var(--gel-honey);
+  --sweep: 1.9;
+  --beam-k: 0.55;
+  --flash-k: 0;
+}
+.dj-stage.look-party {
+  --gel: var(--gel-amber);
+  --gel-2: var(--gel-orchid);
+  --sweep: 1;
+  --beam-k: 0.9;
+  --flash-k: 0.7;
+}
+.dj-stage.look-club {
+  --gel: var(--gel-pink);
+  --gel-2: var(--gel-cyan);
+  --sweep: 0.55;
+  --beam-k: 1.2;
+  --flash-k: 1.3;
+}
 
 .dj-sky,
 .dj-sky::after {
@@ -92,8 +116,8 @@
   /* bright at the lamp, fading out sideways and with distance: one gradient, no mask */
   background: radial-gradient(ellipse 50% 100% at 50% 0%, color-mix(in oklab, var(--beam) 80%, white) 0%, color-mix(in oklab, var(--beam) 35%, transparent) 45%, transparent 100%);
   clip-path: polygon(47% 0, 53% 0, 100% 100%, 0 100%);
-  opacity: calc(0.1 + var(--pulse) * 0.55);
-  animation: dj-sweep calc(6.5s + var(--k) * 1.7s) ease-in-out infinite alternate;
+  opacity: calc((0.1 + var(--pulse) * 0.55) * var(--beam-k, 1));
+  animation: dj-sweep calc((6.5s + var(--k) * 1.7s) * var(--sweep, 1)) ease-in-out infinite alternate;
   animation-delay: calc(var(--k) * -2.3s);
   will-change: opacity, rotate;
 }
@@ -151,7 +175,7 @@
   z-index: 15;
   pointer-events: none;
   background: radial-gradient(80% 80% at 50% 30%, #fff 0%, color-mix(in oklab, var(--gel) 60%, transparent) 60%, transparent 100%);
-  opacity: calc(var(--flash) * 0.2);
+  opacity: calc(var(--flash) * 0.2 * var(--flash-k, 1));
   will-change: opacity;
 }
 

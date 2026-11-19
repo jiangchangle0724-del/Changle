@@ -1,34 +1,59 @@
 /**
  * The big screen's dancer since Nov 18 (Steve on Nov 14: "我要跟真人看起来一样…包括动作这些方面都需要去深度优化"):
  * a real dancer's motion capture (Adobe Mixamo, free to use in a project, downloaded with Steve's
- * account) on her model (her.glb.gz: the design's photos on a TRELLIS.2 model, made by
- * site/scripts/dj-dancer/, README there). This file says which dance she dances when; no three.js
- * here (her.ts loads her and the files).
+ * account) on her model (the design's photos on a TRELLIS.2 model, made by site/scripts/dj-dancer/,
+ * README there). This file says what she wears and dances when; no three.js here (her.ts loads her
+ * and the files).
+ *
+ * Her looks (Steve on Nov 18: "要根据不同风格的歌跳不同的舞，比如快节奏就跳街舞sexy一点的，抒情的感情歌就要穿
+ * 的像初恋纯真一样的短裙，跳温柔柔和一点的。不同的曲风设计不同的衣服，不同的舞蹈，包括背景的灯光"): a song's
+ * own tempo says which: a ballad (sweet: the first-love skirt, gentle dances, soft lights), one in
+ * between (party), a fast one (club: her club outfit, street dances, hard lights). With the DJ playing,
+ * the night's stretch says.
  *
  * Each dance is a loop of whole bars cut on its own beat, played on the speaker's: a beat of the song
  * is a beat of the dance. So the dances picked are the ones whose own tempo is near the song's (within
- * a quarter), from those that go with the night's stretch, eight bars each, then the next.
+ * a quarter), from the look's, eight bars each, then the next.
  */
 import type { Mood } from "../../../shared/dj/dance";
 
 export const DANCER_DIR = "/models/dancer";
-export const herFile = () => `${DANCER_DIR}/her.glb.gz`;
+export type Look = "sweet" | "party" | "club";
+export const LOOKS: readonly Look[] = ["sweet", "party", "club"];
+/**
+ * The outfit each look wears: its model's file (`her.glb.gz` the club one she came in on Nov 18).
+ * (party: the club one until her party dress is made; ChatGPT has drawn it)
+ */
+export const OUTFIT: Record<Look, string> = { sweet: "sweet", party: "club", club: "club" };
+export const herFile = (outfit = "club") => (outfit === "club" ? `${DANCER_DIR}/her.glb.gz` : `${DANCER_DIR}/her-${outfit}.glb.gz`);
 export const danceFile = (id: string) => `${DANCER_DIR}/dance/${id}.bin.gz`;
+
+/** A whole song's look by its own tempo (as found): under 90 beats a minute a ballad, from 115 a fast one. */
+export const SWEET_BPM = 90;
+export const CLUB_BPM = 115;
+export function lookOf(songBpm: number | null | undefined, mood: Mood): Look {
+  if (typeof songBpm === "number" && Number.isFinite(songBpm) && songBpm >= 40) return songBpm < SWEET_BPM ? "sweet" : songBpm < CLUB_BPM ? "party" : "club";
+  // the DJ playing (or a song whose tempo wasn't found): the night's stretch
+  return mood === "cool" || mood === "slow" ? "sweet" : mood === "warm" ? "party" : "club";
+}
 
 /**
  * Her dances: the file's id, its own tempo (beats a minute, as the motion's own beat was found), the
- * night's stretches it goes with. Mixamo's names in site/scripts/dj-dancer/README.md.
+ * looks it goes with. Mixamo's names in site/scripts/dj-dancer/README.md.
  */
-export const DANCES: readonly { id: string; bpm: number; moods: readonly Mood[] }[] = [
-  { id: "rumba", bpm: 101.4, moods: ["warm", "cool", "slow"] },
-  { id: "belly_slow", bpm: 83.2, moods: ["slow", "cool"] },
-  { id: "bodywave", bpm: 128.6, moods: ["warm", "build"] },
-  { id: "wave", bpm: 102.9, moods: ["warm", "build"] },
-  { id: "belly", bpm: 124.1, moods: ["warm", "build", "cool"] },
-  { id: "booty", bpm: 100.2, moods: ["build", "peak"] },
-  { id: "hiphop", bpm: 117.2, moods: ["peak", "build"] },
-  { id: "house", bpm: 112.6, moods: ["peak"] },
-  { id: "samba", bpm: 87.3, moods: ["peak", "slow"] },
+export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] }[] = [
+  { id: "rumba", bpm: 101.4, looks: ["sweet", "party"] },
+  { id: "belly_slow", bpm: 83.2, looks: ["sweet"] },
+  { id: "bodywave", bpm: 128.6, looks: ["club"] },
+  { id: "wave", bpm: 102.9, looks: ["party", "club"] },
+  { id: "belly", bpm: 124.1, looks: ["party", "club"] },
+  { id: "booty", bpm: 100.2, looks: ["club"] },
+  { id: "hiphop", bpm: 117.2, looks: ["club"] },
+  { id: "house", bpm: 112.6, looks: ["party", "club"] },
+  { id: "samba", bpm: 87.3, looks: ["party"] },
+  // (standing, swaying: gentle enough for a ballad, at its tempo)
+  { id: "idle", bpm: 120.1, looks: ["sweet"] },
+  { id: "idle2", bpm: 111, looks: ["sweet"] },
 ];
 
 /** Standing, swaying a little, when no song plays: at their own tempo. */
@@ -43,21 +68,21 @@ export const DANCE_BEATS = 32;
 const NEAR = Math.log(1.25);
 
 /**
- * The dance on beat `b` of a song at `bpm`, in `mood`'s stretch: every 32 beats the next of those
- * that go with it and are near its tempo (the nearest two if none is), the same on every screen.
+ * The dance on beat `b` of a song at `bpm`, in `look`: every 32 beats the next of the look's that are
+ * near its tempo (the nearest two if fewer are: never one dance all song), the same on every screen.
  */
-export function danceAt(b: number, mood: Mood, bpm: number): string {
+export function danceAt(b: number, look: Look, bpm: number): string {
   const t = Number.isFinite(bpm) && bpm > 40 ? bpm : 120;
   const off = (d: { bpm: number }) => Math.abs(Math.log(t / d.bpm));
-  const pool = DANCES.filter((d) => d.moods.includes(mood));
+  const pool = DANCES.filter((d) => d.looks.includes(look));
   const near = pool.filter((d) => off(d) < NEAR);
-  const list = near.length ? near : [...pool].sort((x, y) => off(x) - off(y)).slice(0, 2);
+  const list = near.length >= 2 ? near : [...pool].sort((x, y) => off(x) - off(y)).slice(0, 2);
   const k = Math.floor(b / DANCE_BEATS);
   return list[((k % list.length) + list.length) % list.length].id;
 }
 
 /** The dance after the one on beat `b` (fetched before it's needed). */
-export const danceNext = (b: number, mood: Mood, bpm: number) => danceAt(b + DANCE_BEATS, mood, bpm);
+export const danceNext = (b: number, look: Look, bpm: number) => danceAt(b + DANCE_BEATS, look, bpm);
 
 /** Her idle, when nothing plays: one, then the other, a minute each. */
 export function idleAt(seconds: number): { id: string; bpm: number } {

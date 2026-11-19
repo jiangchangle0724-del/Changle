@@ -22,6 +22,7 @@ import { takePrimed } from "../../lib/primeAudio";
 import { primeVoice, useAnnounce } from "./announce";
 import { useWakeLock } from "../sensors";
 import { Coach } from "./Coach";
+import { lookOf } from "./dancer/dances";
 import { TubePlayer } from "./TubePlayer";
 import { moodOf, slowSong } from "../../shared/dj/dance";
 import { danceBpm } from "../../shared/dj/youtube";
@@ -254,6 +255,10 @@ export default function TvDj({ v }: { v: DjView }) {
   // stretch of the night on the phrase after the host's tap
   const heard = useHeardPhase(dj, booth.status === "on");
   const stage: DjPhase = v.phase === "end" || v.phase === "wait" ? v.phase : (heard ?? v.phase);
+  // her look, and the lights while a song plays whole (Steve on Nov 18: "不同的曲风设计不同的衣服，不同的舞蹈，
+  // 包括背景的灯光"): by the song's own tempo; the DJ's by the night's stretch (dancer/dances.ts)
+  const mood = moodOf(v.phase, beat?.slow);
+  const look = lookOf(song ? own : null, mood);
   useFloorLoop(root, clock, ENERGY[stage].density, fires);
   // the dancer dances on the same clock, at the speaker's tempo (a song's, while one plays)
   const bpmNow = useRef(125);
@@ -318,7 +323,7 @@ export default function TvDj({ v }: { v: DjView }) {
   }, [v.phase]);
 
   return (
-    <div className={`dj-stage is-${stage} ${live ? "is-live" : ""} ${light ? "is-light" : ""} ${tubeUp ? "has-tube" : ""}`} ref={root}>
+    <div className={`dj-stage is-${stage} ${song ? `look-${look}` : ""} ${live ? "is-live" : ""} ${light ? "is-light" : ""} ${tubeUp ? "has-tube" : ""}`} ref={root}>
       <div className="dj-sky" data-lit aria-hidden="true" />
       <div className="dj-beams" data-lit aria-hidden="true">
         {[0, 1, 2, 3, 4].map((k) => (
@@ -359,7 +364,7 @@ export default function TvDj({ v }: { v: DjView }) {
       )}
       {/* (all night, whole songs too: over the video when it's over the whole TV) */}
       {/* (the host can turn her off from their phone) */}
-      {live && v.phase !== "end" && v.dancer !== false && <Coach clock={coachClock} mood={moodOf(v.phase, beat?.slow)} over={covered} />}
+      {live && v.phase !== "end" && v.dancer !== false && <Coach clock={coachClock} mood={mood} look={look} light={light} over={covered} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
       {/* a song file a phone sent, whole, in this page's own sound */}
       {live && v.deck && <PhoneSong v={v} crate={booth.crate} speaker={speaker} now={now} zh={zh} nameOf={nameOf} done={(id) => g("songdone", { id })} />}
