@@ -37,6 +37,34 @@ export interface Rect {
  * 涨潮（A12）：关底下的汤 / 水从 from（不写是 deathY）开始，开局 delay 秒后每秒涨 speed 像素，涨到 top 停。
  * 碰到就死（cause 'tide'）。有人回检查点时水面离那里不到 CFG.tideGap，水退到那下面 CFG.tideGap，停 CFG.tidePause 秒再涨。
  */
+/**
+ * 摆锤（A12）：吊在 pivot 下面 len 长的锤（半径 r，不写 34），摆幅 amp 弧度，来回一次 period 秒，phase 把钟往后拨几秒。
+ * 撞上被弹飞（CFG.pendulumKick）；能抓（抓着跟着荡），grab: false 不能抓；deadly 是烫的（烧红的铁锅），碰到就死。
+ */
+export interface PendulumDef {
+  pivot: Pt;
+  len: number;
+  amp: number;
+  period: number;
+  phase?: number;
+  r?: number;
+  grab?: boolean;
+  deadly?: boolean;
+  players?: [number, number];
+}
+
+/**
+ * 阵风（A12）：这块矩形里一阵一阵刮风，往 dir 吹；刮 on 秒（不写 CFG.windOn）停 off 秒（不写 CFG.windOff），phase 错开；
+ * 刮之前 CFG.windWarn 秒先起风丝（提醒）。force 是风力的倍数（不写 1）。
+ */
+export interface WindDef extends Rect {
+  dir: 'left' | 'right' | 'up' | 'down';
+  force?: number;
+  on?: number;
+  off?: number;
+  phase?: number;
+}
+
 export interface TideDef {
   speed: number;
   delay?: number;
@@ -214,6 +242,10 @@ export interface Level {
   id: string;
   /** 涨潮（A12）。 */
   tide?: TideDef;
+  /** 摆锤（A12）。 */
+  pendulums?: PendulumDef[];
+  /** 阵风（A12）。 */
+  winds?: WindDef[];
   /**
    * 手酸（A11）：这关的回放是开着手酸录的、验收开着手酸跑的，分难度的玩法里选中等、困难就开手酸。
    * 不写就不开（还没按手酸重录过的关；简单的关不写）。
@@ -293,7 +325,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers, level.pendulums, level.winds];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -317,6 +349,8 @@ export function forPlayers(level: Level, n: number): Level {
     dark: keep(level.dark),
     zerog: keep(level.zerog),
     levers: keep(level.levers),
+    pendulums: keep(level.pendulums),
+    winds: keep(level.winds),
   };
 }
 

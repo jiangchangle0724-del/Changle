@@ -4,7 +4,29 @@
  * 所以快照里不用带它们，两边永远对得上。
  */
 import { CFG } from './config';
-import type { LiftDef, MoverDef, Pt, Rect, SpinnerDef, VentDef } from './level';
+import type { LiftDef, MoverDef, PendulumDef, Pt, Rect, SpinnerDef, VentDef, WindDef } from './level';
+
+/** 摆锤（A12）在第 t 秒时锤的中心和偏了多少（弧度，往右为正）。 */
+export function pendulumAt(p: PendulumDef, t: number): { x: number; y: number; angle: number } {
+  const angle = p.amp * Math.sin((2 * Math.PI * (t + (p.phase ?? 0))) / Math.max(0.2, p.period));
+  return { x: p.pivot.x + Math.sin(angle) * p.len, y: p.pivot.y + Math.cos(angle) * p.len, angle };
+}
+
+/**
+ * 阵风（A12）在第 t 秒：先停 off 秒（最后 windWarn 秒起风丝），再刮 on 秒；k 是这一下的力度（头尾 0.2 秒渐变）。
+ */
+export function windState(w: WindDef, t: number): { on: boolean; warn: boolean; k: number } {
+  const on = Math.max(0.3, w.on ?? CFG.windOn);
+  const off = Math.max(0.3, w.off ?? CFG.windOff);
+  const cycle = on + off;
+  const u = (((t + (w.phase ?? 0)) % cycle) + cycle) % cycle;
+  if (u < off) return { on: false, warn: u >= off - Math.min(CFG.windWarn, off), k: 0 };
+  const g = u - off;
+  return { on: true, warn: false, k: Math.max(0, Math.min(1, g / 0.2, (on - g) / 0.2)) };
+}
+
+/** 阵风往哪个方向吹（单位向量）。 */
+export const windDir = (w: WindDef): Pt => ({ x: w.dir === 'left' ? -1 : w.dir === 'right' ? 1 : 0, y: w.dir === 'up' ? -1 : w.dir === 'down' ? 1 : 0 });
 
 /** 会动的平台在第 t 秒时矩形左上角的位置。 */
 export function moverAt(m: MoverDef, t: number): Pt {

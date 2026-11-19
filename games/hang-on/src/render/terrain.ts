@@ -18,8 +18,8 @@
  */
 import { Container, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
-import { leverRect, opensOf, type GateDef, type HazardDef, type Level, type LiftDef, type PlateDef, type Rect, type VentDef } from '../physics/level';
-import { liftChairs, moverAt, spinnerAngle, ventColumn, ventState } from '../physics/motion';
+import { leverRect, opensOf, type GateDef, type HazardDef, type Level, type LiftDef, type PendulumDef, type PlateDef, type Rect, type VentDef, type WindDef } from '../physics/level';
+import { liftChairs, moverAt, pendulumAt, spinnerAngle, ventColumn, ventState, windDir, windState } from '../physics/motion';
 import type { SimView } from './view';
 import { glow, materialOf, OUTLINE, textures, hex, WORLD_MATERIAL, type MaterialStyle, type Palette, type Textures, type WorldId } from './art';
 
@@ -55,6 +55,10 @@ export class Terrain {
   private readonly leverColors: number[] = [];
   /** 定时塌的东西（until）：快到点抖、变淡，到点不画。base 是它这一帧本来该在的位置。 */
   private readonly timed: { c: Container; until: number; base: () => { x: number; y: number }; k?: number }[] = [];
+  /** 摆锤（A12）：每个的绳子和锤。 */
+  private readonly pendulumV: { def: PendulumDef; rope: Graphics; bob: Container }[] = [];
+  /** 阵风（A12）：每块的风丝。 */
+  private readonly windV: { def: WindDef; g: Graphics }[] = [];
   private lampState = -2;
   private readonly tex: Textures;
   private t = 0;
@@ -93,6 +97,22 @@ export class Terrain {
       this.view.addChild(c);
       this.moverC.push(c);
       if (m.until !== undefined) this.timed.push({ c, until: m.until, base: () => ({ x: c.x, y: c.y }) });
+    }
+    // 摆锤（A12）：绳子每帧重画，锤在自己的原点上画好、每帧挪过去转一下
+    for (const def of level.pendulums ?? []) {
+      const rope = new Graphics();
+      const bob = new Container();
+      const g = new Graphics();
+      this.bob(g, def);
+      bob.addChild(g);
+      this.view.addChild(rope, bob);
+      this.pendulumV.push({ def, rope, bob });
+    }
+    // 阵风（A12）：一块里画风丝，每帧重画
+    for (const def of level.winds ?? []) {
+      const g = new Graphics();
+      this.view.addChild(g);
+      this.windV.push({ def, g });
     }
     // 会转的杆子：轴心是原点，每根杆子朝自己的方向画，每帧整个转
     for (const sp of level.spinners ?? []) {
@@ -195,6 +215,44 @@ export class Terrain {
 
   update(sim: SimView, dt: number): void {
     this.t += dt;
+    // 摆锤（A12）：绳子从轴心拉到锤心，锤跟着偏
+    for (const v of this.pendulumV) {
+      const at = pendulumAt(v.def, sim.time);
+      const p = v.def.pivot;
+      v.rope.clear().moveTo(p.x, p.y).lineTo(at.x, at.y).stroke({ width: 6, color: OUTLINE, cap: 'round' });
+      v.rope.moveTo(p.x, p.y).lineTo(at.x, at.y).stroke({ width: 2.5, color: 0xbfae94, cap: 'round' });
+      v.rope.circle(p.x, p.y, 7).fill(0x8a8070).stroke({ width: 2.5, color: OUTLINE });
+      v.bob.position.set(at.x, at.y);
+      v.bob.rotation = -at.angle;
+    }
+    // 阵风（A12）：平时淡淡几道风丝，快刮之前多起来，刮的时候又密又亮、跟着风跑（减弱动效时不跑）
+    for (const v of this.windV) {
+      const st = windState(v.def, sim.time);
+      const d = windDir(v.def);
+      const a = st.on ? 0.15 + 0.55 * st.k : st.warn ? 0.22 : 0.08;
+      const r = v.def;
+      const g = v.g.clear();
+      const along = d.x !== 0 ? r.w : r.h;
+      const across = d.x !== 0 ? r.h : r.w;
+      const lanes = Math.max(3, Math.round(across / 46));
+      const run = this.reduced ? 0 : (this.t * (st.on ? 520 : 90)) % along;
+      for (let i = 0; i < lanes; i++) {
+        const c = ((i + 0.5) * across) / lanes;
+        const len = st.on ? 70 : 34;
+        for (let k = 0; k < 3; k++) {
+          const u = (run + k * (along / 3) + i * 57) % along;
+          const u1 = Math.min(along, u + len);
+          const sign = d.x + d.y < 0 ? -1 : 1;
+          const s0 = sign > 0 ? u : along - u;
+          const s1 = sign > 0 ? u1 : along - u1;
+          const x0 = d.x !== 0 ? r.x + s0 : r.x + c;
+          const y0 = d.x !== 0 ? r.y + c : r.y + s0;
+          const x1 = d.x !== 0 ? r.x + s1 : r.x + c;
+          const y1 = d.x !== 0 ? r.y + c : r.y + s1;
+          g.moveTo(x0, y0).lineTo(x1, y1).stroke({ width: 3, color: 0xffffff, alpha: a, cap: 'round' });
+        }
+      }
+    }
     // 饼干：快没了就抖、变淡；没了就不画；回来时弹一下
     sim.fadings.forEach((f, i) => {
       const g = this.fadingG[i];
@@ -313,6 +371,40 @@ export class Terrain {
   }
 
   // ---------------------------------------------------------------- 平台
+
+  /**
+   * 摆锤的锤（A12），原点是锤心：年夜饭桌、后厨是铁锅（烫的烧得通红），温哥华是红白浮标，雪山是雪球，老宅是红灯笼，太空站是维修舱。
+   */
+  private bob(g: Graphics, def: PendulumDef): void {
+    const r = def.r ?? 34;
+    const w = this.world;
+    if (def.deadly || w === 'table' || w === 'kitchen') {
+      if (def.deadly) g.circle(0, 0, r + 8).fill({ color: 0xff6a2a, alpha: 0.25 });
+      g.circle(0, 0, r).fill(def.deadly ? 0x7a2a14 : 0x2e2a2a).stroke({ width: 4, color: OUTLINE });
+      g.circle(0, 0, r * 0.72).fill(def.deadly ? 0xc8461c : 0x45403c);
+      g.circle(-r * 0.3, -r * 0.3, r * 0.22).fill({ color: 0xffffff, alpha: 0.18 });
+      g.roundRect(-r - 14, -5, 16, 10, 4).fill(0x6a4a2a).stroke({ width: 2, color: OUTLINE });
+      g.roundRect(r - 2, -5, 16, 10, 4).fill(0x6a4a2a).stroke({ width: 2, color: OUTLINE });
+    } else if (w === 'van') {
+      g.circle(0, 0, r).fill(0xf2f2ee).stroke({ width: 4, color: OUTLINE });
+      g.rect(-r * 0.92, -r * 0.3, r * 1.84, r * 0.6).fill(0xd8321f);
+      g.circle(-r * 0.32, -r * 0.42, r * 0.2).fill({ color: 0xffffff, alpha: 0.5 });
+    } else if (w === 'snow') {
+      g.circle(0, 0, r).fill(0xf4f8ff).stroke({ width: 4, color: OUTLINE });
+      g.circle(r * 0.2, r * 0.25, r * 0.7).fill({ color: 0xbcd4ee, alpha: 0.5 });
+      g.circle(-r * 0.3, -r * 0.35, r * 0.18).fill({ color: 0xffffff, alpha: 0.9 });
+    } else if (w === 'house') {
+      g.ellipse(0, 0, r * 0.95, r).fill(0xd8321f).stroke({ width: 4, color: OUTLINE });
+      for (const k of [-0.5, 0, 0.5]) g.moveTo(r * k, -r * 0.95).quadraticCurveTo(r * k * 1.5, 0, r * k, r * 0.95).stroke({ width: 2, color: 0x7a1a0f, alpha: 0.6 });
+      g.roundRect(-r * 0.45, -r - 6, r * 0.9, 10, 3).fill(0xe8b44a).stroke({ width: 2, color: OUTLINE });
+      g.roundRect(-r * 0.45, r - 4, r * 0.9, 10, 3).fill(0xe8b44a).stroke({ width: 2, color: OUTLINE });
+    } else {
+      g.circle(0, 0, r).fill(0xd8dde8).stroke({ width: 4, color: OUTLINE });
+      g.rect(-r * 1.6, -r * 0.18, r * 0.62, r * 0.36).fill(0x3a6ea8).stroke({ width: 2, color: OUTLINE });
+      g.rect(r * 0.98, -r * 0.18, r * 0.62, r * 0.36).fill(0x3a6ea8).stroke({ width: 2, color: OUTLINE });
+      g.circle(0, 0, r * 0.4).fill(0x8ec5e8).stroke({ width: 2, color: OUTLINE });
+    }
+  }
 
   /** 会塌的台子（A12）：表面几道裂缝，一看就知道踩上去会塌（不用随机数，手机上画得一样）。 */
   private cracks(g: Graphics, r: Rect): void {

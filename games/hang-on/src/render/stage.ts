@@ -465,6 +465,14 @@ export class Stage {
           // 塌了的台子长回来：闪一圈小星星
           this.fx.burst({ x: ev.x + ev.w / 2, y: ev.y + ev.h / 2, n: 8, texture: 'star', colors: STAR_COLORS, speed: [40, 140], life: [0.3, 0.6], size: [6, 10], gravity: 0, jitter: ev.w / 3, spin: 6 });
           break;
+        case 'bonk': {
+          // 摆锤撞飞人（A12）：一圈白光、几颗星、镜头一抖
+          this.fx.burst({ x: ev.x, y: ev.y, n: 1, texture: 'ring', colors: [0xffffff], speed: [0, 0], life: [0.25, 0.25], size: [24, 24], grow: 3, alpha: 0.85 });
+          this.fx.burst({ x: ev.x, y: ev.y, n: 7, texture: 'star', colors: STAR_COLORS, speed: [120, 300], life: [0.3, 0.55], size: [8, 13], gravity: 500, spin: 10 });
+          if (!this.reduced) this.cam.shake = Math.max(this.cam.shake, 6);
+          this.dumplings[ev.player]?.onLand(900);
+          break;
+        }
         case 'tide':
           // 涨潮（A12）开始涨：镜头轻轻一抖
           if (ev.phase === 'rise' && !this.reduced) this.cam.shake = Math.max(this.cam.shake, 5);

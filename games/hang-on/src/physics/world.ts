@@ -35,8 +35,8 @@ import {
   TETHER_LEN,
 } from './config';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef } from './level';
-import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, spinnerAngle, spinnerArm, ventColumn, ventState } from './motion';
+import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
+import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, pendulumAt, spinnerAngle, spinnerArm, ventColumn, ventState, windDir, windState } from './motion';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -284,6 +284,10 @@ export type SimEvent =
   | { type: 'tired'; player: number }
   /** 涨潮（A12）：开始涨（rise），有人回检查点水退下去（back）；y 是那时的水面。 */
   | { type: 'tide'; phase: 'rise' | 'back'; y: number }
+  /** 摆锤撞飞了人（A12），x、y 是撞的地方。 */
+  | { type: 'bonk'; player: number; x: number; y: number }
+  /** 阵风（A12）：第几块，起风丝（warn）、开始刮（on），x、y 是那块的中心。 */
+  | { type: 'wind'; index: number; phase: 'warn' | 'on'; x: number; y: number }
   /** 会塌的台子（A12）：有人碰了，开始倒数（creak）；塌了的又长回来（regrow）。 */
   | { type: 'creak'; x: number; y: number; w: number; h: number }
   | { type: 'regrow'; x: number; y: number; w: number; h: number }
@@ -463,6 +467,10 @@ export class Sim {
     regrow?: number;
     goneAt?: number;
   }[] = [];
+  /** 摆锤（A12）：锤是运动学的圆；kickAt 是每个人上一次被撞是第几秒。 */
+  private readonly pendulums: { def: PendulumDef; rb: RB; kickAt: number[] }[] = [];
+  /** 阵风（A12）：这一步刮着没有、在不在起风丝（报事件用）。 */
+  private readonly winds: { def: WindDef; on: boolean; warn: boolean }[] = [];
   /** 会塌的台子（A12）现在的样子，按关卡里写了 crumble 的台子的顺序（画面、手机局用）：until 没人碰过是 Infinity。 */
   get crumbleState(): { until: number; gone: boolean }[] {
     return this.crumbles.filter((c) => c.touch !== undefined).map((c) => ({ until: c.until, gone: c.gone }));
@@ -498,6 +506,8 @@ export class Sim {
     for (const def of level.seesaws ?? []) this.addSeesaw(def.pivot, def.w, def.h ?? 14, frictionOf(def.material));
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
     for (const def of level.movers ?? []) this.addMover(def);
+    for (const def of level.pendulums ?? []) this.addPendulum(def);
+    for (const def of level.winds ?? []) this.winds.push({ def, on: false, warn: false });
     for (const def of level.spinners ?? []) this.addSpinner(def);
     for (const def of level.plates ?? []) this.addPlate(def);
     for (const def of level.levers ?? []) this.addLever(def);
@@ -756,6 +766,93 @@ export class Sim {
     if (def.until !== undefined) {
       this.crumbles.push({ until: def.until, gone: false, cols: [col], rb, box: () => ({ ...moverAt(def, this.time), w: def.w, h: def.h }) });
     }
+  }
+
+  /** 摆锤（A12）：锤是运动学的圆，能抓（跟着荡）；烫的是传感器，碰到就死（`hazardHit`）。 */
+  private addPendulum(def: PendulumDef): void {
+    const at = pendulumAt(def, 0);
+    const rb = this.world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(at.x, at.y));
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.ball(def.r ?? 34)
+        .setFriction(frictionOf('metal'))
+        .setSensor(!!def.deadly)
+        .setCollisionGroups(groups(GROUP.TERRAIN, GROUP.ALL)),
+      rb,
+    );
+    this.info.set(col.handle, def.grab === false ? { kind: 'moving', deadly: !!def.deadly, noGrab: true } : { kind: 'moving', deadly: !!def.deadly });
+    this.pendulums.push({ def, rb, kickAt: [] });
+  }
+
+  /**
+   * 摆锤撞人（A12）：锤边上碰到身子、这个人没抓着这个锤，就按锤这一刻的速度把人往外推（pendulumKick 倍，最多 pendulumKickMax），
+   * 同一个人 pendulumKickCd 秒内只撞一次；报 bonk。烫的锤在 hazardHit 里算死。
+   */
+  private tickPendulums(): void {
+    for (const pd of this.pendulums) {
+      if (pd.def.deadly) continue;
+      const r = pd.def.r ?? 34;
+      const now = pendulumAt(pd.def, this.time);
+      const prev = pendulumAt(pd.def, this.time - 1 / 120);
+      const vx = (now.x - prev.x) * 120;
+      const vy = (now.y - prev.y) * 120;
+      const speed = Math.hypot(vx, vy);
+      for (const p of this.players) {
+        if (p.dead || p.done) continue;
+        const dx = p.body.x - now.x;
+        const dy = p.body.y - now.y;
+        const d = Math.hypot(dx, dy);
+        if (d > r + CFG.bodyR + 3 || d < 1e-3) continue;
+        if (p.arms.some((a) => (a.grip as GripInternal | null)?.target === pd.rb)) continue;
+        if (this.time - (pd.kickAt[p.id] ?? -Infinity) < CFG.pendulumKickCd) continue;
+        // 往外推，顺着锤走的方向多推一点
+        const push = Math.min(CFG.pendulumKickMax, speed * CFG.pendulumKick);
+        if (push < 60) continue;
+        pd.kickAt[p.id] = this.time;
+        const along = speed > 1 ? { x: vx / speed, y: vy / speed } : { x: 0, y: 0 };
+        const nx = (dx / d) * 0.6 + along.x * 0.4;
+        const ny = (dy / d) * 0.6 + along.y * 0.4 - 0.25;
+        const n = Math.hypot(nx, ny) || 1;
+        const v = p.rb.linvel();
+        p.rb.setLinvel({ x: v.x + (nx / n) * push, y: v.y + (ny / n) * push }, true);
+        this.events.push({ type: 'bonk', player: p.id, x: now.x + (dx / d) * r, y: now.y + (dy / d) * r });
+      }
+    }
+  }
+
+  /**
+   * 阵风（A12）：刮着的时候，矩形里的人（身子和胳膊）和物件的速度往风那边加，最多 windMax；
+   * 起风丝、开始刮各报一次 wind。冻住（速冻）的人不动。
+   */
+  private tickWinds(dt: number): void {
+    this.winds.forEach((w, i) => {
+      const st = windState(w.def, this.time);
+      const mid = { x: w.def.x + w.def.w / 2, y: w.def.y + w.def.h / 2 };
+      if (st.warn && !w.warn) this.events.push({ type: 'wind', index: i, phase: 'warn', ...mid });
+      if (st.on && !w.on) this.events.push({ type: 'wind', index: i, phase: 'on', ...mid });
+      w.on = st.on;
+      w.warn = st.warn;
+      if (!st.on || st.k <= 0) return;
+      const dir = windDir(w.def);
+      const accel = CFG.windAccel * (w.def.force ?? 1) * st.k * dt;
+      const max = CFG.windMax * (w.def.force ?? 1);
+      const blow = (rb: RB, x: number, y: number, k: number): void => {
+        if (x < w.def.x || x > w.def.x + w.def.w || y < w.def.y || y > w.def.y + w.def.h) return;
+        const v = rb.linvel();
+        const along = v.x * dir.x + v.y * dir.y;
+        if (along >= max) return;
+        const add = Math.min(accel * k, max - along);
+        rb.setLinvel({ x: v.x + dir.x * add, y: v.y + dir.y * add }, true);
+      };
+      for (const p of this.players) {
+        if (p.dead || p.done || p.itemOn === 'freeze') continue;
+        blow(p.rb, p.body.x, p.body.y, 1);
+        for (const arm of p.arms) for (const rb of arm.segs) {
+          const at = rb.translation();
+          blow(rb, at.x, at.y, 0.6);
+        }
+      }
+      for (const prop of this.props) blow(prop.rb, prop.x, prop.y, 0.8);
+    });
   }
 
   /** 踏板：一块实的矮台子（能站），有人压着就算按下（`tickGates` 里量）。 */
@@ -1264,6 +1361,10 @@ export class Sim {
       rb.setNextKinematicTranslation({ x: at.x + def.w / 2, y: at.y + def.h / 2 });
     }
     for (const { def, rb } of this.spinners) rb.setNextKinematicRotation(spinnerAngle(def, this.time));
+    for (const { def, rb } of this.pendulums) {
+      const at = pendulumAt(def, this.time);
+      rb.setNextKinematicTranslation({ x: at.x, y: at.y });
+    }
     for (const g of this.gates) g.rb.setNextKinematicTranslation({ x: g.x + g.w / 2, y: g.y + g.h / 2 });
     // 雪山缆车：椅子走到头收进站里（关掉碰撞体，站着的掉下来、抓着的松开），从起点那头直接放出来（不扫过整根缆绳）
     for (const lift of this.lifts) {
@@ -1292,7 +1393,8 @@ export class Sim {
     const here = (until: number | undefined): boolean => until === undefined || this.time < until;
     const deadlyMovers = this.movers.filter((m) => m.def.deadly && here(m.def.until));
     const deadlySpinners = this.spinners.filter((s) => s.def.deadly && here(s.def.until));
-    if (!lv.hazards?.length && !deadlyMovers.length && !deadlySpinners.length) return null;
+    const deadlyPendulums = this.pendulums.filter((q) => q.def.deadly);
+    if (!lv.hazards?.length && !deadlyMovers.length && !deadlySpinners.length && !deadlyPendulums.length) return null;
     const parts: { c: Pt; r: number }[] = [{ c: p.body, r: CFG.bodyR * 0.85 }];
     for (const arm of p.arms) {
       parts.push({ c: arm.hand, r: CFG.handR });
@@ -1307,6 +1409,10 @@ export class Sim {
       for (const { def } of deadlySpinners) {
         const angle = spinnerAngle(def, this.time);
         for (let j = 0; j < Math.max(1, def.arms); j++) if (circleHitsBar(c, r, spinnerArm(def, j, angle))) return { cause: 'zap', at: { ...c } };
+      }
+      for (const { def } of deadlyPendulums) {
+        const at = pendulumAt(def, this.time);
+        if (Math.hypot(c.x - at.x, c.y - at.y) < r + (def.r ?? 34)) return { cause: 'hot', at: { ...c } };
       }
     }
     return null;
@@ -1635,6 +1741,8 @@ export class Sim {
       if (p.itemOn === 'leaf') this.glide(p, dt);
     }
     this.tickVents(dt);
+    this.tickWinds(dt);
+    this.tickPendulums();
     const slips = this.rules.mode === 'last';
     for (const p of this.players) {
       // 冻住的人手也冻住了：抓着的照旧抓着，没抓的抓不了

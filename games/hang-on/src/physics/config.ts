@@ -263,6 +263,16 @@ export const CFG = {
   /** 涨潮：有人回检查点时，水面至少在那下面多少像素；退了以后停几秒再涨。 */
   tideGap: 260,
   tidePause: 2.5,
+  /** 摆锤撞人：按锤的速度给人一个推开的速度（倍数），最多多少 px/s；同一个人多少秒内只撞一次。 */
+  pendulumKick: 1.3,
+  pendulumKickMax: 900,
+  pendulumKickCd: 0.4,
+  /** 阵风：每秒把速度往风那边加多少（px/s²），最多吹到多快；刮多久、停多久、刮之前多久起风丝。 */
+  windAccel: 1300,
+  windMax: 520,
+  windOn: 1.5,
+  windOff: 2.5,
+  windWarn: 0.7,
 };
 
 export type Cfg = typeof CFG;

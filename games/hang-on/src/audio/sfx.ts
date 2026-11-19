@@ -400,6 +400,21 @@ class Sfx {
           for (let k = 0; k < 2; k++) this.noise({ dur: 0.04, vol: 0.14, filter: { type: 'highpass', freq: 2200 }, pan, delay: 0.22 + k * 0.09 });
           break;
         }
+        case 'bonk': {
+          // 摆锤撞飞人（A12）：「哐」一声，带点回响
+          const pan = this.pan(ev.x, ev.y);
+          this.tone({ freq: 520, to: 260, wave: 'square', dur: 0.18, vol: 0.16, lowpass: 2200, pan });
+          this.tone({ freq: 780, to: 700, wave: 'sine', dur: 0.5, vol: 0.08, pan, delay: 0.02 });
+          this.noise({ dur: 0.06, vol: 0.18, filter: { type: 'highpass', freq: 1800 }, pan });
+          break;
+        }
+        case 'wind': {
+          // 阵风（A12）：起风丝是轻轻一声，开始刮是一大阵「呼」
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'warn') this.noise({ dur: 0.6, vol: 0.05, filter: { type: 'bandpass', freq: 600, to: 1100, q: 1.2 }, attack: 0.3, pan });
+          else this.noise({ dur: 1.3, vol: 0.16, filter: { type: 'bandpass', freq: 500, to: 1500, q: 0.9 }, attack: 0.15, pan });
+          break;
+        }
         case 'regrow':
           // 塌了的台子长回来：轻轻一声「啵」
           this.tone({ freq: 420, to: 720, wave: 'sine', dur: 0.14, vol: 0.14, pan: this.pan(ev.x + ev.w / 2, ev.y) });
