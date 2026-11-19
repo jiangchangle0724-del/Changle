@@ -8,11 +8,12 @@
  * sharing (the parts, the typed amounts, what is left over) is in the ledger's own, on what the
  * amount comes to at the rate. That is the plan's rule: convert first, then share.
  */
-import type { Rates } from "../tools/money";
+import { CURRENCIES, type Rates } from "../tools/money";
 import { allot, convert, expensesOf, fromMinor, isAmount, problem, toMinor, type Decimals, type Expense, type Ledger, type Problem, type Split } from "./core";
 import { decimalsOf, localDay } from "./format";
 import type { ExpenseEdit } from "./ops";
 import { lastPaidIn, paidInOf, RECENT, settled, startingRate, todaysRate } from "./rates";
+import type { Reading } from "./shape";
 
 export type How = Split["how"];
 
@@ -140,6 +141,31 @@ export function amountOf(d: Draft, l: Ledger): number | null {
  * any cents the new currency doesn't write; the rate is the one such an expense starts with
  * (rates.ts, startingRate), and when there is none yet it is asked for.
  */
+/**
+ * A receipt read, put into an expense being written (记一笔, and each of 几张小票): its total in the
+ * currency it says (one the site knows: at today's rate, or the last one, when that isn't the
+ * ledger's), the tip and tax in it, its day unless one was picked, and the business, place and what
+ * paid where nothing is typed. Null when the total can't be an amount in that currency (cents in yen).
+ */
+export function readInto(d: Draft, got: Reading, l: Ledger, today: Rates | null | undefined, now: number, dayPicked = false): Draft | null {
+  const other = got.currency && got.currency !== d.currency && CURRENCIES.some((c) => c.code === got.currency) ? got.currency : null;
+  const next = other ? payIn(d, other, l, today, now) : d;
+  const decimals = decimalsOf(next.currency);
+  if (toMinor(got.total, decimals) === null) return null;
+  // (the tip and tax in it, when they are sums that currency can be)
+  const part = (x: string | null) => (x && toMinor(x, decimals) !== null ? x : "");
+  return {
+    ...next,
+    text: got.total,
+    merchant: next.merchant || got.merchant || "",
+    place: next.place || got.place || "",
+    payment: next.payment || got.payment || "",
+    tip: part(got.tip),
+    tax: part(got.tax),
+    date: got.date && !dayPicked ? got.date : next.date,
+  };
+}
+
 export function payIn(d: Draft, currency: string, l: Ledger, today: Rates | null | undefined, now: number): Draft {
   if (currency === d.currency) return d;
   const text = decimalsOf(currency) === 0 ? d.text.split(".")[0] : d.text;

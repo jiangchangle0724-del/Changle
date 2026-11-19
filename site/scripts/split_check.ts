@@ -2962,8 +2962,10 @@ async function reading() {
   const box = await hint.boundingBox();
   ok(!!box && box.height >= 44, `a new expense says a receipt fills the amount in, on a block big enough to press (${Math.round(box?.height ?? 0)}px)`);
   let hold = true;
+  let through = 0; // reads let past the hold, one each
   await a.route("**/split/api/ledgers/*/files/*/read", async (route) => {
-    while (hold) await new Promise((r) => setTimeout(r, 100));
+    while (hold && through === 0) await new Promise((r) => setTimeout(r, 100));
+    if (hold) through--;
     await route.fallback();
   });
   const [chooser] = await Promise.all([pa.waitForEvent("filechooser"), hint.click()]);
@@ -3201,6 +3203,69 @@ async function reading() {
   await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
   const after3 = ((await keptBy(pa)).held[0].server.entries as { merchant?: string; place?: string; payment?: string }[]).find((e) => e.merchant === "McDonald's");
   ok(after3 && after3.place === undefined && after3.payment === "Mastercard", `opened again and its place emptied: the place is taken off, the rest stays (${JSON.stringify(after3 && [after3.merchant, after3.place, after3.payment])})`);
+
+  // several receipts at once, an expense each (Steve, 2026-11-18): chosen together from the button
+  // beside 记一笔; each goes, is read and scans while it is; each row says what was read and its
+  // amount, to put right or type; one cleared is left out; one button records the rest, each with its photo
+  const receiptsButton = pa.locator(".split-receipts-button");
+  ok((await receiptsButton.innerText()).includes(t("receiptsButton")), "beside 记一笔, a button for several receipts");
+  hold = true;
+  const [many] = await Promise.all([pa.waitForEvent("filechooser"), receiptsButton.click()]);
+  await many.setFiles([
+    { name: "a.pdf", mimeType: "application/pdf", buffer: aPdf(`receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard date=${ago(2)}`) },
+    { name: "b.pdf", mimeType: "application/pdf", buffer: aPdf(`receipt:8.50 CAD Tim Hortons date=${ago(1)}`) },
+    { name: "c.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:10.00 USD Starbucks") },
+    { name: "d.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:15.00 CAD Kiosk") },
+    { name: "e.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:none") },
+  ]);
+  const batch = pa.locator(".split-batch-row");
+  const record4 = pa.locator(".split-batch .split-dock button");
+  await batch.nth(4).waitFor();
+  await pa.locator(".split-batch-thumb.is-scanning").first().waitFor();
+  ok((await batch.count()) === 5 && (await record4.isDisabled()) && (await record4.innerText()) === t("receiptsReading"), "a row for each, scanning while it goes and is read; nothing to record yet, the button says so");
+  await pa.screenshot({ path: join(out, "receipts-busy-zh-390x664.png") });
+  through = 1;
+  await pa.waitForFunction(`document.querySelectorAll(".split-batch-thumb.is-scanning").length === 4`, null, { timeout: 30_000 });
+  ok((await record4.isDisabled()) && (await record4.innerText()) === t("receiptsReading"), "one read, the rest still going: nothing can be recorded until all are read");
+  hold = false;
+  await pa.waitForFunction(`!document.querySelector(".split-batch-thumb.is-scanning")`, null, { timeout: 30_000 });
+  const said4 = async (n: number) => (await batch.nth(n).locator(".split-batch-what").innerText()).replace(/\s+/g, " ");
+  const amount4 = (n: number) => batch.nth(n).locator("input");
+  const rows4 = [await said4(0), await said4(1), await said4(2), await said4(3), await said4(4)];
+  const amounts4 = [await amount4(0).inputValue(), await amount4(1).inputValue(), await amount4(2).inputValue(), await amount4(3).inputValue(), await amount4(4).inputValue()];
+  ok(
+    rows4[0].includes("McDonald's") && rows4[0].includes(dayLabel(ago(2), today, "zh")) && rows4[0].includes("Aldergrove, BC") && rows4[1].includes("Tim Hortons") && rows4[2].includes("Starbucks") && rows4[3].includes("Kiosk") && rows4[4] === t("receiptsNone") && JSON.stringify(amounts4) === JSON.stringify(["20.00", "8.50", "10.00", "15.00", ""]),
+    `each row: the business, its day and place, and the amount read; the one not read asks for its amount (${rows4.join(" | ")}; ${amounts4.join(", ")})`,
+  );
+  await pa.screenshot({ path: join(out, "receipts-read-zh-390x664.png") });
+  await amount4(4).fill("12");
+  await amount4(3).fill("");
+  ok((await record4.innerText()) === "记上 4 笔" && !(await record4.isDisabled()), `one typed, one cleared: four to record (${await record4.innerText()})`);
+  const dropped4: string[] = [];
+  pa.on("request", (r) => {
+    if (r.method() === "DELETE" && /\/files\/[^/]+$/.test(new URL(r.url()).pathname)) dropped4.push(r.url());
+  });
+  await record4.click();
+  await pa.locator(".split-batch").waitFor({ state: "detached" });
+  await pa.waitForTimeout(600);
+  ok(dropped4.length === 1, `the photo of the one left out goes from the server again, the three recorded stay (${dropped4.length} taken off)`);
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  type Kept4 = { amount: number; note: string; payer: string; merchant?: string; place?: string; payment?: string; date?: string; files?: string[]; split?: { how: string }; paidIn?: { currency: string; amount: number } };
+  const all4 = (await keptBy(pa)).held[0].server.entries as Kept4[];
+  const mine4 = all4.slice(-4);
+  ok(
+    mine4.map((e) => `${e.amount} ${e.merchant ?? "-"} ${e.date ?? "-"} ${e.files?.length ?? 0}`).join(" | ") === `2000 McDonald's ${ago(2)} 1 | 850 Tim Hortons ${ago(1)} 1 | ${Math.round(1000 * RATES.CAD)} Starbucks ${today} 1 | 1200 - ${today} 1` &&
+      mine4[2].paidIn?.currency === "USD" &&
+      mine4[2].paidIn?.amount === 1000 &&
+      mine4[0].place === "Aldergrove, BC" &&
+      mine4[0].payment === "Mastercard" &&
+      mine4.every((e) => e.split?.how === "equal") &&
+      !all4.some((e) => e.merchant === "Kiosk"),
+    `recorded in the order chosen, each with its photo, what was read and the day (today, for the one typed); the one in US dollars converted at today's rate; the cleared one left out (${mine4.map((e) => `${e.amount} ${e.merchant ?? "-"} ${e.date ?? "-"} ${e.files?.length ?? 0}`).join(" | ")})`,
+  );
+  await pa.locator(".split-row", { hasText: "Tim Hortons" }).waitFor();
+  ok(true, "and they are in the ledger's list");
+  await pa.screenshot({ path: join(out, "receipts-done-zh-390x664.png") });
 
   // reading not to be had (no key, the month spent): nothing said, and not asked again on this page
   await a.unroute("**/split/api/ledgers/*/files/*/read");

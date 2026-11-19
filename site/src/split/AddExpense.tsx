@@ -17,8 +17,8 @@ import { Sheet } from "../ui/Sheet";
 import { Tabs } from "../ui/Tabs";
 import { useToast } from "../ui/Toast";
 import { MAX_FILES } from "./changes";
-import { MAX_SHARES, nextRot, portions, toMinor, type Decimals, type Expense, type Ledger } from "./core";
-import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
+import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger } from "./core";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, localDay, money, typed } from "./format";
 import { asAmountText, press, type Key } from "./input";
 import { dayLabel, extrasText, nameFor } from "./lines";
@@ -133,24 +133,11 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     if (!got) readAsked.current = false;
     if (d.text) return setReading(null);
     if (!got) return setReading("none");
-    const other = got.currency && got.currency !== d.currency && CURRENCIES.some((c) => c.code === got.currency) ? got.currency : null;
-    const next = other ? payIn(d, other, ledger, fxNow.current?.rates, Date.now()) : d;
     // (a total the currency can't be, like cents in yen: none)
-    if (toMinor(got.total, decimalsOf(next.currency)) === null) return setReading("none");
-    // (the tip and tax in it, when they are sums that currency can be; the day, unless one was picked)
-    const part = (x: string | null) => (x && toMinor(x, decimalsOf(next.currency)) !== null ? x : "");
-    // (the business, the place and what paid go in their own lines, unless something is typed there: the note is the person's own)
-    setDraft({
-      ...next,
-      text: got.total,
-      merchant: next.merchant || got.merchant || "",
-      place: next.place || got.place || "",
-      payment: next.payment || got.payment || "",
-      tip: part(got.tip),
-      tax: part(got.tax),
-      date: got.date && !dayPicked.current ? got.date : next.date,
-    });
-    setFromReceipt(`${next.currency} ${got.total}`);
+    const filled = readInto(d, got, ledger, fxNow.current?.rates, Date.now(), dayPicked.current);
+    if (!filled) return setReading("none");
+    setDraft(filled);
+    setFromReceipt(`${filled.currency} ${got.total}`);
     setJustRead(true);
     setReading(null);
   };

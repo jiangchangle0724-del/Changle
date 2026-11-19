@@ -26,7 +26,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot, portions, settlement, spent, toMinor, fromMinor, type Decimals, type Expense, type Ledger, type Split } from "../src/split/core";
-import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
+import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, dayBefore, decimalsOf, localDay, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
 import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
@@ -1245,6 +1245,25 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(applyChange({ ...start, entries: [bought] }, { do: "edit", entry: "e1", to: saying(opened, { ...start, entries: [bought] })! }), null, "opened and saved untouched: nothing changes");
   // a change that didn't get to the server, said by what it was for: the note, or else the business
   eq(lostLine(start, { id: "c", at: 1, change: { do: "expense", expense: bought } }, "zh"), "记一笔：McDonald's $20.00", "a change that didn't get there, with no note: said by the business");
+}
+
+// ---------- 19. a receipt read, put into an expense (记一笔, and each of 几张小票) ----------
+{
+  const start = startLedger("R", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]);
+  const d = blankDraft(start, "s", Date.now());
+  const read = { total: "20.00", currency: "CAD", merchant: "McDonald's", tip: null, tax: "1.38", date: "2026-11-16", place: "Aldergrove, BC", payment: "Mastercard" };
+  const got = readInto(d, read, start, null, Date.now());
+  eq(got && [got.text, got.currency, got.merchant, got.place, got.payment, got.tip, got.tax, got.date, got.note], ["20.00", "CAD", "McDonald's", "Aldergrove, BC", "Mastercard", "", "1.38", "2026-11-16", ""], "the total, the business, place and what paid, the tax, the day; the note left as it was");
+  const typed = readInto({ ...d, merchant: "麦当劳", payment: "Visa" }, read, start, null, Date.now());
+  eq([typed?.merchant, typed?.place, typed?.payment], ["麦当劳", "Aldergrove, BC", "Visa"], "what was typed before it was read stays");
+  eq(readInto(d, read, start, null, Date.now(), true)?.date, d.date, "a day picked by hand stays");
+  eq(readInto(d, { ...read, currency: "JPY", total: "12.50" }, start, null, Date.now()), null, "a total the currency can't be (cents in yen): none");
+  eq(readInto(d, { ...read, currency: "USD" }, start, null, Date.now())?.currency, "USD", "in another currency the site knows: that one");
+  const usd = readInto(d, { ...read, currency: "USD" }, start, null, Date.now())!;
+  eq([draftProblem(usd, start)?.what, saying(usd, start)], ["rate", null], "in another currency with no rate to be had: not recorded as it is (几张小票 says so on its row)");
+  const usdRated = readInto(d, { ...read, currency: "USD" }, start, { USD: 1, CAD: 1.4 } as never, Date.now())!;
+  eq(draftProblem(usdRated, start), null, "with today's rates: recorded, converted");
+  eq(readInto(d, { ...read, tip: "99.999" }, start, null, Date.now())?.tip, "", "a tip that isn't a sum in it: none");
 }
 
 if (failed) {
