@@ -13,6 +13,7 @@ import { ArenaFallback } from "./ArenaFallback";
 import { Icon, IconButton, type IconName } from "./chrome";
 import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
+import { Coach, COACH, useCoach } from "./Coach";
 import { arenaEvents, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", blast: "blasted", bike: "biked" };
@@ -129,6 +130,8 @@ export function Play(props: {
   music?: boolean;
   /** an iPhone in Safari: the full-screen guide, for the line about hiding Safari's bars */
   fullGuide?: () => void;
+  /** practice: a first round's tips, step by step (Coach.tsx) */
+  coach?: boolean;
   children?: ComponentChildren;
 }) {
   const { view, game, send } = props;
@@ -154,6 +157,8 @@ export function Play(props: {
   const notice = useNotice(game.events, me);
   const drill = useDrill(game, props.receivedAt);
   const meScore = view.players.find((player) => player.you);
+  const coach = useCoach(game, !!props.coach && !!me);
+  const pointing = coach.index >= 0 && !notice ? COACH[coach.index].point : undefined;
   const arenaProps = {
     avatars: game.avatars,
     arena: game.arena,
@@ -169,7 +174,7 @@ export function Play(props: {
     intro
   } as const;
   return (
-    <section class={`play${me ? " is-playing" : " is-watching"}`}>
+    <section class={`play${me ? " is-playing" : " is-watching"}${pointing ? ` is-coach-${pointing}` : ""}`}>
       <div class="play-arena">
         <Arena {...arenaProps} label={t(game.arena)} youLabel={t("marker")} fallback={<ArenaFallback {...arenaProps} />} />
       </div>
@@ -201,6 +206,8 @@ export function Play(props: {
       {!notice && <DrillCall drill={drill} />}
       {game.arena === "market" && me && game.phase === "playing" && <Quest me={me} />}
       {props.fullGuide && game.phase === "playing" && <BarsHint onMore={props.fullGuide} />}
+      {/* (a word about your own punch or fall comes first) */}
+      {!notice && <Coach index={coach.index} onDismiss={coach.dismiss} />}
       {notice && (
         <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" || notice.key === "blasted" || notice.key === "biked" ? " is-bad" : notice.key === "hit" || notice.key === "feast" ? " is-good" : ""}`} role="status" key={notice.id}>
           {t(notice.key, notice.vars)}

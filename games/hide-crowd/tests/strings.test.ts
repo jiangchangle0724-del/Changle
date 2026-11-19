@@ -42,3 +42,15 @@ test("nothing in the game's folder uses the commercial game's name", () => {
     assert.ok(!old.test(data.toString("latin1")), `${file} mentions it`);
   }
 });
+
+test("a first practice's tips come one at a time, at their moments, and a tapped one doesn't come back", async () => {
+  const { COACH, coachTip } = await import("../src/client/ui/Coach");
+  assert.equal(coachTip(1_000, new Set()), -1, "none during the camera's opening sweep");
+  assert.equal(coachTip(3_000, new Set()), 0);
+  assert.equal(coachTip(3_000, new Set([0])), -1, "tapped away");
+  assert.equal(coachTip(10_000, new Set()), 1, "just before the first moment");
+  assert.equal(coachTip(20_000, new Set()), 2);
+  assert.equal(COACH[2].point, "punch", "the last one points at Punch");
+  assert.equal(coachTip(40_000, new Set()), -1, "and then no more");
+  for (const tip of COACH) assert.ok(STRINGS[tip.text], `${tip.text} has its words`);
+});

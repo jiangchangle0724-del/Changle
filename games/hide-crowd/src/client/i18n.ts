@@ -122,6 +122,12 @@ const S = {
   hidden: ["换了个身体，找找你在哪", "New body. Find yourself!"],
   blasted: ["被鞭炮炸倒了，大家都看见了", "Knocked over by a firecracker. Everyone saw!"],
   biked: ["被自行车撞倒了，大家都看见了", "Knocked over by a bike. Everyone saw!"],
+  // a phone's first practice round, step by step
+  coach1: ["绿色的「你」就是你。走路要像路人：慢慢走，停一停，别一直跑。", "The green \"You\" is you. Walk like a passer-by: stroll, stop now and then, don't keep running."],
+  coach2: ["全场一起做什么（停下、让开、跳舞、出拳），你也跟着做：下面的提示会说。", "When the whole crowd does something (stops, steps aside, dances, punches), do it too: the pill below says what."],
+  coach3: ["谁不像路人？走近了按「出拳」。打到路人你会愣一下。", "Someone not acting like a passer-by? Get close and press Punch. Hit a passer-by and you're stunned."],
+  coachStep: ["第 {n} 条，共 {m} 条", "Tip {n} of {m}"],
+  coachOk: ["知道了", "Got it"],
   turn: ["横过来，画面更大", "Turn sideways for a bigger view"],
   watching: ["这一局你在看，下一局加入", "You're watching this round. You're in the next one."],
   marker: ["你", "You"],
