@@ -105,7 +105,7 @@ export function Lobby({ v, demo }: { v: RoomView; demo?: boolean }) {
               </div>
               {team.bot && host && (
                 <span class="bot-tools">
-                  <select value={team.bot} onChange={(e) => send({ t: "bot", op: "style", team: team.id, style: (e.target as HTMLSelectElement).value as StyleId })}>
+                  <select aria-label={t("botStyle")} value={team.bot} onChange={(e) => send({ t: "bot", op: "style", team: team.id, style: (e.target as HTMLSelectElement).value as StyleId })}>
                     {(["balanced", "tycoon", "saver", "jetsetter", "gambler"] as StyleId[]).map((st) => (
                       <option key={st} value={st}>
                         {styleName(st)}

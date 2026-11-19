@@ -38,6 +38,7 @@ const S = {
   noTeamYet: ["还没进队：新建一队，或加入别人的队（每队最多 3 人）", "Not on a team yet: start one, or join someone's (up to 3 per team)"],
   addBot: ["加一个电脑队", "Add a computer team"],
   removeBot: ["去掉", "Remove"],
+  botStyle: ["电脑队的打法", "How the computer team plays"],
   botTeam: ["电脑 · {style}", "Computer · {style}"],
   hostControls: ["房主设置", "Host settings"],
   length: ["时长", "Length"],

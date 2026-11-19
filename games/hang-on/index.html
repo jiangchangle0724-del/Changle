@@ -84,7 +84,7 @@
   .picks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin: 12px 0 2px; }
   .pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
   .pick[hidden] { display: none; }
-  .pick .lab { flex: none; font-size: 12px; font-weight: 700; opacity: .55; }
+  .pick .lab { flex: none; font-size: 12px; font-weight: 700; opacity: .72; }
   :is(body.phone, body.short) .picks { gap: 5px 10px; margin-top: 8px; }
   :is(body.phone, body.short) .pick .lab { display: none; }
   :is(body.phone, body.short) .pick + .pick:not([hidden]) { padding-left: 10px; border-left: 2px solid rgba(42,31,58,.12); }
@@ -101,7 +101,7 @@
   .note kbd { font-family: var(--font-display); background: rgba(255,255,255,.14); border-radius: 6px; padding: 1px 6px; }
   .level { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; }
   .level .name { font-family: var(--font-display); font-weight: 800; font-size: 18px; flex: 1; min-width: 0; text-align: center; }
-  .level.teach { display: block; font-size: 12px; opacity: .6; text-align: center; margin: 0 0 6px; }
+  .level.teach { display: block; font-size: 12px; opacity: .72; text-align: center; margin: 0 0 6px; }
   .level .btn { padding: 8px 14px; min-width: 44px; }
   .banner { position: fixed; left: 50%; top: 22%; transform: translate(-50%, -50%) scale(.6); opacity: 0; font-family: var(--font-display); font-weight: 800; font-size: 56px; line-height: 1.1;
     color: var(--ink); text-shadow: 0 4px 0 rgba(0,0,0,.35), 0 0 30px rgba(0,0,0,.4); pointer-events: none; transition: opacity .18s, transform .18s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap; text-align: center; }
@@ -224,7 +224,7 @@
 </div>
 
 <div class="hud">
-  <div class="lat" id="lat" aria-label="延迟表" data-en-label="Latency"><span class="title" hidden data-en="Latency · round trip ms">延迟 · 往返毫秒</span></div>
+  <div class="lat" id="lat" role="group" aria-label="延迟表" data-en-label="Latency"><span class="title" hidden data-en="Latency · round trip ms">延迟 · 往返毫秒</span></div>
   <div class="stats">
     <span class="chip code" id="codeChip" hidden title="房间码" data-en-title="Room code"><span data-en="Room">房间</span> <b id="code">····</b></span>
     <span class="chip" id="clockChip" hidden>⏱ <b id="clock">0.0</b></span>
@@ -241,7 +241,7 @@
 <div class="overlay" id="lobby">
   <div class="card">
     <div>
-      <div class="qr" id="qr" aria-label="加入二维码" data-en-label="Join QR code"></div>
+      <div class="qr" id="qr" role="img" aria-label="加入二维码" data-en-label="Join QR code"></div>
       <div class="codeside" id="codeSide">····</div>
       <p style="text-align:center;margin-top:8px;font-size:12px;opacity:.75" id="joinUrl"></p>
     </div>
