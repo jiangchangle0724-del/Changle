@@ -118,6 +118,11 @@
 
 ## 交给别的对话
 
+- 来自 平台 · 房间与联机（2026-11-19，#654）：抓紧了在联机桌上的那一套桌子这边做好了（`site/src/party/hangon/link.ts`、共用的 `site/src/party/stage/`），但还没上桌单（`ONLINE_GAMES` 没有 hangon），因为主机页（`src/host/main.ts` 的 `openRoom`）永远自己开新房，接不了桌子开好的房。桌子的约定：桌上有大屏（/tv 或只看的手机）→ 桌子 `POST /hang-on/api/rooms` 发 `{}`，手机都去 `/hang-on/pad/?code=CODE&auto=1&table=桌号`（名字已写进 `hang-on:name`，语言 `hang-on:lang`），大屏去 `/hang-on/?phone=0&room=CODE&table=桌号`；没有大屏 → 发 `{ hostPlays: true }`，主人的手机去 `/hang-on/?phone=1&room=CODE&table=桌号`（自己也玩），其他人去手柄页，后来才来的大屏只显示一句「这局在主人手机上开的」。请做：
+  1. 主机页认 `?room=CODE`：有它就不 `openRoom`，直接 `new HostLink(code)` 接管（`?phone=` 和桌子发的 `hostPlays` 对得上）；服务器让 `?role=host` 接一个还没有主机的房。
+  2. `?table=桌号`：主机页和手柄页返回/退出回 `/t/桌号`；这局结束时先写 `sessionStorage["hangon.over"] = 房间码`（主机页在大屏上时写 `hangon.over.tv`）再回去。
+  3. 状态接口 `GET /hang-on/api/rooms/CODE` → `{ exists, phase: "lobby" | "playing" | "over" }`；做好后把 `site/src/party/hangon/link.ts` 的 `phase: null` 接上。
+  4. 上桌：`site/src/shared/protocol.ts` 的 `ONLINE_GAMES` 末尾加 `"hangon"`，`site/scripts/net_test.py` 和 `party_test.py` 的 `ORDER` 末尾也加，`site/tests/stage.test.ts` 里「抓紧了还没上桌单」那条改成在末尾（这几行可以你改，或告诉房间对话）。本地验的时候照 `site/scripts/dance_table_check.py` 写一个（hang-on 的开发服务器要开在 8792 口，`site/vite.config.ts` 把 /hang-on 代理到那里）。
 - 平台 · 首页与上线：C10 的后厨六关合并以后，首页卡的说明（registry 里抓紧了那一条，现在写 24 关）要改关数、提一句后厨。到时候这个对话改那一行，或者请你改。
 
 - 平台 · 首页与上线：首页的卡 11-11 由这个对话加了（`site/src/games/registry.ts` 一条，带 `stage`，排在一起跳后面；`GameSheet.tsx` 加了可选的 `stage.note`，舞台按钮第二行按游戏说，一起跳不变）。11-13 Steve 在这个对话里要首页卡三个键，原来请你做的「只用手机」键这个对话自己做了：`stage.phone`（有它才显示，只在手机上，排第一个）和这条的 `mirror`、`screen: "/hang-on/?phone=0"`；一起跳的卡不变。

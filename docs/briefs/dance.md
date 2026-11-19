@@ -150,6 +150,10 @@
 
 ## 交给别的对话
 
+- 来自 平台 · 房间与联机（2026-11-19，#654）：一起跳能在联机桌上选了。桌子那边：主人的手机 `POST /party/api/rooms` 开房，房间码进桌子，主人先去 `/party/join?code=CODE&table=桌号`，其他人 1.2 秒后跟去（你这边谁先进谁是主人）；电视（/tv）或只看的手机去 `/party/screen?table=桌号#CODE`。每台手机过去之前把名字、语言、房间码写进 `party:name`、`party:lang`、`sessionStorage["party:room"]`，所以 join 页直接进去不出表单。本地验过（`site/scripts/dance_table_check.py`，要本地跑 games/party-server 在 8793 口）。请做三件（都在 games/party-server），没做之前也能玩，只是回不来要靠手机返回键：
+  1. `?table=桌号` 保留：join 页 `join()` 里 `history.replaceState(null, "", "?code=…")` 把它抹掉了；join 页和 screen 页有 `table` 时，返回/退出按钮回 `/t/桌号`（不是首页）。
+  2. 这局完了（END_ROOM、房间结束）先写 `sessionStorage["dance.over"] = 房间码`（舞台页写 `dance.over.tv`），再回 `/t/桌号`；桌子看到就自动收桌，所有人回大厅（`site/src/party/stage/link.ts` 的 `cameBackFromEnd`）。
+  3. 状态接口 `GET /party/api/rooms/CODE` → `{ exists: boolean, phase: "lobby" | "playing" | "over" }`，桌子每 8 秒问一次；做好以后把 `site/src/party/dance/link.ts` 的 `phase: null` 接上（照 `site/src/party/hide/link.ts` 的 `hidePhase`），或者告诉房间对话来接。
 - 平台 · 首页与上线：一起跳卡片（`site/src/home/GameSheet.tsx` 里 `g.stage` 那一段）的字按 Steve 11-11 说的改：第一个按钮「电视或电脑当舞台 / A TV or computer is the stage」改成「这台手机/电脑投屏电视 / Mirror this phone or computer to the TV」，小字改成「投到电视上当舞台，这台不参与游玩；大家用自己的手机跳 / It's the stage on the TV, not a player; everyone dances with their own phone」；点开以后的说明改成「把这台手机或电脑投屏到电视（iPhone、iPad、Mac 用 AirPlay），手机横过来，再点下面的按钮。电视上会出二维码，大家用自己的手机扫码加入。/ Mirror this phone or computer to the TV (AirPlay from an iPhone, iPad or Mac), turn a phone sideways, then tap the button below. A QR code comes up on the TV; everyone scans it with their own phone.」，按钮「就用这台设备当舞台」改成「开始当舞台 / Start the stage」。舞台页自己会处理横屏（这边已经做了），卡片只改字。
 - 游戏 · 打碟：知会一下，不用做什么。一起跳也用 YouTube 在电视上放歌（自己的 `games/party-server/src/client/tube.ts`，照打碟的规矩：一直露着、不下载、Safari 先点一下视频）。它跳舞要对准拍子，所以每 4 毫秒读一次视频的时钟，取最早的那个，误差几毫秒；打碟想更准可以参考。一起跳的 3D 老师是代码画的（`src/client/coach/`），打碟想换掉机器人也可以引。一起跳没有和打碟共用底座：打碟的「跟着跳」是主站里的另一套（10 个动作，每拍看手的加速度够不够 2.5 m/s²）；一起跳是 20 个动作、party-base 的打分。以后打碟想用一起跳的动作库或打分，`games/dance/` 和 `games/party-base/src/scoring.ts` 都是纯 TypeScript，可以直接引。一起跳接传感器（A2）时会参考打碟的 `site/src/party/dj/phone/DancePad.tsx`（iPhone 授权、去掉重力）。
 
