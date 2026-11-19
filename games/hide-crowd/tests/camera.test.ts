@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { frameFloor } from "../src/client/camera";
+import { FLOOR_ART_AREA } from "../src/client/ui/floorArt";
 
 // the floor a phone or a big screen frames: x across, z from the back row to the front, a person's height
 const FLOOR = { halfWidth: 8.8, near: 4.03, far: -4.03, height: 3.1 };
@@ -54,5 +55,39 @@ test("the framing stays finite for odd screens", () => {
   for (const aspect of [0, Number.NaN, 0.3, 9]) {
     const framing = frameFloor(aspect, FLOOR, MARGINS);
     assert.ok([...framing.position, ...framing.target, framing.fov].every(Number.isFinite), String(aspect));
+  }
+});
+
+/** Where the ray through a point on screen (-1..1) meets the floor, or null when it looks above it. */
+function onFloor(framing: ReturnType<typeof frameFloor>, aspect: number, sx: number, sy: number) {
+  const [px, py, pz] = framing.position;
+  const [tx, ty, tz] = framing.target;
+  const forward = [tx - px, ty - py, tz - pz];
+  const length = Math.hypot(...forward);
+  const f = forward.map((v) => v / length);
+  const right = [-f[2], 0, f[0]];
+  const rightLength = Math.hypot(...right);
+  const r = right.map((v) => v / rightLength);
+  const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const tanY = Math.tan((framing.fov * Math.PI) / 360);
+  const ray = [0, 1, 2].map((axis) => f[axis] + r[axis] * sx * tanY * aspect + u[axis] * sy * tanY);
+  if (ray[1] >= 0) return null;
+  const t = -py / ray[1];
+  return { x: px + ray[0] * t, z: pz + ray[2] * t };
+}
+
+test("what lies on the floor (its paths, leaves, puddles) reaches every edge of every screen in front of the sets", () => {
+  const TV = { top: 0.15, bottom: 0.1, side: 0.04 };
+  for (const [aspect, margins] of [[844 / 390, MARGINS], [852 / 393, MARGINS], [932 / 430, MARGINS], [4 / 3, MARGINS], [16 / 9, TV]] as const) {
+    const framing = frameFloor(aspect, FLOOR, margins);
+    for (let sx = -1; sx <= 1.0001; sx += 0.05) {
+      for (let sy = -1; sy <= 1.0001; sy += 0.05) {
+        const point = onFloor(framing, aspect, sx, sy);
+        // (behind the sets' front, z < the area's back edge, the sets stand: the train, the stage, the stalls, the sea)
+        if (!point || point.z < FLOOR_ART_AREA.z0) continue;
+        assert.ok(point.z <= FLOOR_ART_AREA.z0 + FLOOR_ART_AREA.depth, `${aspect}: (${sx.toFixed(2)}, ${sy.toFixed(2)}) sees z ${point.z.toFixed(2)}, past the art's front`);
+        assert.ok(point.x >= FLOOR_ART_AREA.x0 && point.x <= FLOOR_ART_AREA.x0 + FLOOR_ART_AREA.width, `${aspect}: (${sx.toFixed(2)}, ${sy.toFixed(2)}) sees x ${point.x.toFixed(2)}, past the art's side`);
+      }
+    }
   }
 });
