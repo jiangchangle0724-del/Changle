@@ -349,6 +349,49 @@ function house(level, id) {
  * 拉杆的把手大小和 level.ts 的 leverRect 一样（默认 44 × 14）。
  */
 const leverBox = (l) => ({ x: l.x - (l.w ?? 44) / 2, y: l.y - (l.h ?? 14) / 2, w: l.w ?? 44, h: l.h ?? 14 });
+/**
+ * 新机关（A12，Steve 11-18「机关太温和」）：涨潮、会塌的台子、摆锤、阵风的数在范围里、在关里。
+ * 回放里还要真用上（inspect 里的 tideGap、crumbled、pendulumNear、windHit）。
+ */
+function newMechanics(level, id) {
+  const range = (v, lo, hi, what) => assert(v === undefined || (finite(v) && v >= lo && v <= hi), `${id}: ${what} must be ${lo}–${hi}`);
+  if (level.tide) {
+    const t = level.tide;
+    range(t.speed, 5, 45, 'tide speed');
+    assert(finite(t.speed), `${id}: tide needs a speed`);
+    range(t.delay, 2, 40, 'tide delay');
+    range(t.from, level.goal.y, level.deathY, 'tide from');
+    range(t.top, 0, level.deathY, 'tide top');
+    assert(t.top === undefined || t.top >= level.goal.y + level.goal.h, `${id}: the tide must stop below the goal`);
+  }
+  for (const r of level.rects) {
+    if (r.crumble === undefined) continue;
+    range(r.crumble, 0.5, 4, 'crumble');
+    range(r.regrow, 2, 12, 'regrow');
+    assert(r.until === undefined, `${id}: a platform is either timed (until) or crumbles on touch, not both`);
+    assert(r.w <= 400, `${id}: a crumbling platform is at most 400 px wide`);
+  }
+  for (const [k, p] of (level.pendulums ?? []).entries()) {
+    assert(p.pivot && inside(level, p.pivot), `${id}: pendulum ${k} pivot outside the level`);
+    range(p.len, 80, 600, 'pendulum len');
+    range(p.amp, 0.15, 1.4, 'pendulum amp');
+    range(p.period, 1.2, 6, 'pendulum period');
+    range(p.r, 20, 60, 'pendulum r');
+    range(p.phase, 0, 30, 'pendulum phase');
+    for (const a of [-p.amp, p.amp]) assert(inside(level, { x: p.pivot.x + Math.sin(a) * p.len, y: p.pivot.y + Math.cos(a) * p.len }), `${id}: pendulum ${k} swings out of the level`);
+  }
+  for (const [k, w] of (level.winds ?? []).entries()) {
+    rectangle(w);
+    assert(['left', 'right', 'up', 'down'].includes(w.dir), `${id}: wind ${k} needs dir left / right / up / down`);
+    assert(w.w >= 160 && w.h >= 160, `${id}: wind ${k} is at least 160 × 160`);
+    range(w.force, 0.5, 2, 'wind force');
+    range(w.on, 0.6, 4, 'wind on');
+    range(w.off, 0.8, 6, 'wind off');
+    range(w.phase, 0, 30, 'wind phase');
+    assert(inside(level, w) && inside(level, { x: w.x + w.w, y: w.y + w.h }), `${id}: wind ${k} leaves the level`);
+  }
+}
+
 function space(level, id) {
   const zones = level.zerog ?? [];
   assert(zones.length <= 6, `${id}: at most six zero-gravity zones`);
@@ -466,7 +509,7 @@ function validate(level, replay, id) {
   assert(level.spawn.x <= 600, id + ': spawn must retain the first-screen lesson');
   const chairs = (level.lifts ?? []).reduce((sum, l) => sum + Math.floor(Math.hypot(l.to.x - l.from.x, l.to.y - l.from.y) / Math.max(40, l.gap)) + 1, 0);
   const carry = (level.keys?.length ?? 0) + (level.lanterns?.length ?? 0);
-  const moving = (level.ropes ?? []).reduce((sum, r) => sum + r.segments, 0) + (level.seesaws?.length ?? 0) + (level.crates?.length ?? 0) + (level.movers?.length ?? 0) + (level.spinners?.length ?? 0) + (level.gates?.length ?? 0) + chairs + carry;
+  const moving = (level.ropes ?? []).reduce((sum, r) => sum + r.segments, 0) + (level.seesaws?.length ?? 0) + (level.crates?.length ?? 0) + (level.movers?.length ?? 0) + (level.spinners?.length ?? 0) + (level.gates?.length ?? 0) + (level.pendulums?.length ?? 0) + chairs + carry;
   assert(moving <= 40, id + ': moving objects exceed 40 (rope links + seesaws + crates + movers + spinners + gates + lift chairs + keys and lanterns)');
   machines(level, id);
   gates(level, id);
@@ -474,6 +517,7 @@ function validate(level, replay, id) {
   snow(level, id);
   house(level, id);
   space(level, id);
+  newMechanics(level, id);
   assert(level.rects.length + (level.fading?.length ?? 0) + (level.springs?.length ?? 0) <= 60, id + ': platforms exceed 60');
   point(level.spawn);
   assert(inside(level, level.spawn), id + ': spawn outside level');
@@ -590,7 +634,9 @@ async function inspect(physics, level, replay) {
   const evidence = { chainSeconds: 0, throws: 0, chainBySeg: [], throwsBySeg: [], ropeGrabs: 0, propGrabs: 0, maxTilt: 0, checkpointTimes: [], cookieGrabs: (laid.fading ?? []).map(() => 0), springBounces: (laid.springs ?? []).map(() => 0), iceGrabs: 0,
     moverUse: (laid.movers ?? []).map(() => 0), spinnerUse: (laid.spinners ?? []).map(() => 0), near: dangers.map(() => false), gateOpen: (laid.gates ?? []).map(() => 0),
     ventRide: (laid.vents ?? []).map(() => 0), traySpills: 0, liftRide: (laid.lifts ?? []).map(() => 0), icyGrabs: laid.rects.map(() => 0),
-    floatTime: (laid.zerog ?? []).map(() => 0), leverPulled: (laid.levers ?? []).map(() => false) };
+    floatTime: (laid.zerog ?? []).map(() => 0), leverPulled: (laid.levers ?? []).map(() => false),
+    // 新机关（A12）：涨潮离最低的活人最近多少、会塌的台子哪块塌过、摆锤有没有人靠近（锤心 1.5 个锤宽内）或被撞、阵风刮的时候有没有人在里面
+    tideGap: Infinity, crumbled: laid.rects.map(() => false), pendulumNear: (laid.pendulums ?? []).map(() => false), windHit: (laid.winds ?? []).map(() => 0) };
   const bars = (s) => { const angle = spinnerAngle(s, sim.time); return Array.from({ length: s.arms }, (_, j) => spinnerArm(s, j, angle)); };
   const holding = (p, hit) => p.arms.some((a) => a.grip?.kind === 'terrain' && hit(a.hand, CFG.handR + CFG.grabPad));
   sim.step = (dt) => {
@@ -666,6 +712,14 @@ async function inspect(physics, level, replay) {
     // 太空站：每块失重区里有人飘过（身体在里面）、每根拉杆有人拉过
     (laid.zerog ?? []).forEach((z, k) => { if (live.some((p) => contains(z, p.body))) evidence.floatTime[k] += dt; });
     for (const e of sim.events) if (e.type === 'lever' && e.on) evidence.leverPulled[e.index] = true;
+    // 新机关（A12）
+    if (sim.tideY !== null && live.length) evidence.tideGap = Math.min(evidence.tideGap, sim.tideY - Math.max(...live.map((p) => p.body.y)));
+    for (const e of sim.events) if (e.type === 'creak') laid.rects.forEach((r, k) => { if (r.x === e.x && r.y === e.y && r.w === e.w) evidence.crumbled[k] = true; });
+    (laid.pendulums ?? []).forEach((pd, k) => {
+      const at = physics.pendulumAt(pd, sim.time);
+      if (live.some((p) => Math.hypot(p.body.x - at.x, p.body.y - at.y) <= (pd.r ?? 34) * 3 + CFG.bodyR)) evidence.pendulumNear[k] = true;
+    });
+    (laid.winds ?? []).forEach((w, k) => { if (physics.windState(w, sim.time).on && live.some((p) => contains(w, p.body))) evidence.windHit[k] += dt; });
     dangers.forEach((d, k) => {
       if (evidence.near[k]) return;
       let hit;
@@ -1595,7 +1649,7 @@ function multiValidate(l, id, physics) {
   for (const n of [2, 3, 4]) {
     const laid = multiUnranged(physics.forPlayers(l, n));
     machines(laid, id); gates(laid, id);
-    const moving = (laid.ropes ?? []).reduce((v, r) => v + r.segments, 0) + ['seesaws', 'crates', 'movers', 'spinners', 'gates'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0);
+    const moving = (laid.ropes ?? []).reduce((v, r) => v + r.segments, 0) + ['seesaws', 'crates', 'movers', 'spinners', 'gates', 'pendulums'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0);
     assert(moving <= 40, `${id}: moving objects exceed 40`);
     assert(dangersOf(laid).length <= 40, `${id}: deadly things exceed 40`);
     const boxes = [...laid.rects, ...(laid.fading ?? []), ...(laid.springs ?? []), ...(laid.crates ?? []), ...(laid.seesaws ?? []).map(s => ({ x: s.pivot.x - s.w / 2, y: s.pivot.y - (s.h ?? 14) / 2, w: s.w, h: s.h ?? 14, material: s.material }))];
@@ -1841,6 +1895,12 @@ try {
     // 太空站：每块失重区都有人飘过 1 秒、每根拉杆都有人拉过（每份回放）
     evidence.floatTime.forEach((t, k) => assert(t >= 1, `${id} (${replay.players} players): nobody floated through zero-gravity zone ${k}`));
     evidence.leverPulled.forEach((on, k) => assert(on, `${id} (${replay.players} players): lever ${k} is never pulled`));
+    // 新机关（A12）：涨潮要追得上人（最近离最低的活人不到 400 像素）；每块会塌的台子主回放里都有人碰塌过；
+    // 每个摆锤都有人从旁边过；每块阵风都有人被刮过 0.5 秒
+    if (laid.tide) assert(evidence.tideGap <= 400, `${id} (${replay.players} players): the tide never gets within 400 px of the lowest player (closest ${Math.round(evidence.tideGap)})`);
+    if (main) laid.rects.forEach((r, k) => assert(r.crumble === undefined || evidence.crumbled[k], `${id}: crumbling platform ${k} at (${r.x}, ${r.y}) is never touched`));
+    evidence.pendulumNear.forEach((near, k) => assert(near, `${id} (${replay.players} players): nobody passes pendulum ${k}`));
+    evidence.windHit.forEach((t, k) => assert(t >= 0.5, `${id} (${replay.players} players): nobody is caught by wind ${k}`));
     return { result, evidence };
   }
   for (const id of ids) {
