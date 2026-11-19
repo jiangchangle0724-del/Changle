@@ -1229,6 +1229,19 @@ button.banner {
   align-items: center;
   flex-wrap: wrap;
 }
+/* A tap on a city's row lights it up on the board (ui/spot.ts). */
+.assets .row[role="button"] {
+  cursor: pointer;
+  border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+.assets .row[role="button"]:active {
+  background: var(--surface-2);
+}
+.assets .row[role="button"]:focus-visible {
+  outline: 2px solid var(--moon);
+  outline-offset: 3px;
+}
 /* A city's buildings on its own patch of ground at the end of its row (art/RoundBoard.tsx Lot): the
    board's models, bigger; one built comes up out of the ground right here, under the finger. */
 .assets .lot {
@@ -2193,6 +2206,27 @@ button.trivia-opt:active {
     0 -20px 60px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   padding: 0 max(18px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+}
+/* Mine and the trades on a phone held upright (ui/common.tsx Sheet `half`): the sheet rises over the
+   bottom of the screen only, and the night over the board isn't dimmed or blurred, so a city tapped in
+   them shows lit up there (ui/spot.ts); the play window under the sheet steps aside meanwhile. A tap on
+   the board puts the sheet away, as it does any sheet. */
+@media (orientation: portrait) {
+  .sheet-bg.half {
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .sheet.half {
+    max-height: min(55vh, calc(100vh - 240px));
+    max-height: min(55dvh, calc(100dvh - 240px));
+  }
+  .kb-open .sheet.half {
+    max-height: min(55dvh, calc(var(--vvh, 100vh) - 12px));
+  }
+  .game.half-up .playwin {
+    visibility: hidden;
+  }
 }
 /* (what's in a sheet, one under the other) */
 .sheet > * + * {

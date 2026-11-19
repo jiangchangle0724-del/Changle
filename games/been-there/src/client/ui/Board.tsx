@@ -24,6 +24,7 @@ import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
 import { useWorldMoment } from "./World";
 import { aimOf, type Aim } from "./aim";
+import { SPOT_MS, justSpotted, useSpot } from "./spot";
 
 export { reducedMotion };
 
@@ -316,8 +317,9 @@ export function Board({
   v: RoomView;
   /** The big screen. */
   big?: boolean;
-  /** A phone's play window is up over the board (ui/Game.tsx): the map keeps what it follows above it. */
-  covered?: boolean;
+  /** On a phone, what's up over the bottom of the board (ui/Game.tsx): the play window, or a sheet that
+   * leaves the board to be seen above it (Mine, the trades). The map keeps what it follows above it. */
+  covered?: "play" | "sheet" | null;
   center?: ComponentChildren;
   globe?: boolean;
   over?: ComponentChildren;
@@ -399,8 +401,12 @@ export function Board({
   const lean = boardLean(!!big);
   // (a full set just made lights up its spaces: ui/Sets.tsx)
   const sets = useNewSets(v);
-  // (the spaces the question in play is about, lit: where a jump would land)
-  const aim = useAim(v);
+  // (the spaces the question in play is about, lit: where a jump would land; or, for a moment, a city
+  // this phone tapped in Mine or a trade: ui/spot.ts)
+  const spotted = useSpot();
+  const tapped = spotted && !ride && zoomable ? spotted : null;
+  const asked = useAim(v);
+  const aim = tapped ? { spaces: tapped.spaces, key: tapped.key, flash: SPOT_MS } : asked;
   // (a token sent straight to a space by a question answered flies there over the middle; this phone's
   // own lands before the table turns under it)
   const straight = straightMoves(v);
@@ -446,18 +452,20 @@ export function Board({
   // (this phone's own move: its camera has the view, ui/Ride.tsx; the map's button steps aside)
   const moving = !!ride || throwing;
   const onTurn = s.ps[s.turn] && !s.ps[s.turn].out ? s.turn : null;
-  const cover = useCover(wrap, !!covered && zoomable);
+  const cover = useCover(wrap, zoomable ? covered ?? null : null);
   const map = useMapView(wrap, pan, rig, {
     cover,
+    // (under a half sheet nothing of the board is seen: a city at its bottom can come up above the sheet)
+    past: covered === "sheet",
     zoom: ZOOM[size],
     follow: zoomable ? onTurn : null,
     turnKey: `${g.startedAt}:${s.turns}`,
     moveKey: `${s.turn}:${s.ps[s.turn]?.pos}`,
     reduced: reducedMotion(),
-    look: zoomable ? (builtHere(v) ?? bigRentHere(v)) : null,
+    look: zoomable ? (tapped ? { at: tapped.spaces[0], key: tapped.key, push: ZOOM.m } : (builtHere(v) ?? bigRentHere(v))) : null,
     // (the space a question is about, above the play window: at the middle size at least, so the map can
     // go to it whichever side of the board it's on)
-    aim: zoomable && aim?.look ? { at: aim.spaces[0], key: aim.key, push: ZOOM.m, mine: v.you.seats.includes(aim.who) } : null,
+    aim: zoomable && asked?.look ? { at: asked.spaces[0], key: asked.key, push: ZOOM.m, mine: v.you.seats.includes(asked.who) } : null,
     // (where a point of the board shows in the box, the board leaning back as it rests)
     place: (x, y, rot) => {
       const p = project(x, y, rest(rot, lean), 1000);
@@ -555,16 +563,17 @@ export function Board({
 }
 
 /**
- * How much of the board's box (px, from its bottom) a phone's play window covers while it's up (`on`):
- * none where it stands beside the board (a phone held sideways). Measured as laid out, not as it slides
- * in, and again as it grows or shrinks with what's in it.
+ * How much of the board's box (px, from its bottom) a phone's play window covers while it's up (`by`
+ * "play"), or a half sheet (Mine, the trades: "sheet"): none where it stands beside the board (a phone
+ * held sideways). Measured as laid out, not as it slides in, and again as it grows or shrinks with what's
+ * in it.
  */
-function useCover(wrap: RefObject<HTMLDivElement>, on: boolean): number {
+function useCover(wrap: RefObject<HTMLDivElement>, by: "play" | "sheet" | null): number {
   const [cover, setCover] = useState(0);
   useLayoutEffect(() => {
-    const pw = document.querySelector<HTMLElement>(".playwin");
+    const pw = by && document.querySelector<HTMLElement>(by === "play" ? ".playwin" : ".sheet-bg:not([hidden]) > .sheet.half");
     const box = wrap.current;
-    if (!on || !pw || !box) {
+    if (!pw || !box) {
       setCover(0);
       return;
     }
@@ -572,14 +581,19 @@ function useCover(wrap: RefObject<HTMLDivElement>, on: boolean): number {
       const b = box.getBoundingClientRect();
       const p = pw.getBoundingClientRect();
       if (p.left >= b.right || p.right <= b.left) return setCover(0);
-      const top = innerHeight - (parseFloat(getComputedStyle(pw).bottom) || 0) - pw.offsetHeight;
+      // (where its top is once it's up: the play window slides up into place, a sheet sits at the bottom
+      // of the screen, or over the keyboard)
+      const top =
+        by === "play"
+          ? innerHeight - (parseFloat(getComputedStyle(pw).bottom) || 0) - pw.offsetHeight
+          : (pw.parentElement?.getBoundingClientRect().bottom ?? innerHeight) - pw.offsetHeight;
       setCover(Math.max(0, Math.min(Math.round(b.height), Math.round(b.bottom - top))));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(pw);
     return () => ro.disconnect();
-  }, [on]);
+  }, [by]);
   return cover;
 }
 
@@ -600,7 +614,8 @@ function builtHere(v: RoomView): { at: number; key: string } | null {
   for (let i = v.feed.length - 1; i >= 0; i--) {
     const f = v.feed[i];
     if (serverNow() - f.at > 3000) return null;
-    if (f.t === "game" && f.e.t === "manage" && f.e.k === "build" && v.you.seats.includes(f.e.p)) return { at: f.e.at, key: String(f.id) };
+    // (one built from this phone's Mine has been looked at as it was tapped: ui/spot.ts)
+    if (f.t === "game" && f.e.t === "manage" && f.e.k === "build" && v.you.seats.includes(f.e.p)) return justSpotted(f.e.at) ? null : { at: f.e.at, key: String(f.id) };
   }
   return null;
 }

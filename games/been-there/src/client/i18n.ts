@@ -734,10 +734,39 @@ export const setLang = (l: Lang) => {
 };
 export const getLang = () => lang;
 
-/** A UI string with {placeholders} filled in. */
+/** The placeholders that hold a name: a team's, a player's, a city's (or an answer picked). */
+const NAMES = new Set(["team", "who", "from", "to", "name", "partner", "pushed", "winners", "winner", "owner", "a", "b", "space", "city", "choice"]);
+/** Chinese characters, and the punctuation that goes with them (、。「」，：？！（） and the like, and …). */
+const HAN = /[\u2026\u2E80-\u9FFF\uF900-\uFAFF\uFE30-\uFE4F\uFF01-\uFF60]/;
+const han = (ch: string | undefined) => !!ch && HAN.test(ch);
+
+/** A UI string with {placeholders} filled in. In Chinese a name sits right against the Chinese around
+ * it (「跳到正对面的开普敦？」, 「红队到了开罗」): the spaces round a name in the strings are for one in
+ * letters, or next to a number, and stay there (「等 Steve …」, 「还有 3 轮」). */
 export function t(key: Key, vars: Record<string, string | number> = {}): string {
   const s = S[key]?.[lang === "zh" ? 0 : 1] ?? key;
-  return s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
+  let out = "";
+  let from = 0;
+  // (where each name filled in starts and ends, in Chinese)
+  const names: [number, number][] = [];
+  for (const m of s.matchAll(/\{(\w+)\}/g)) {
+    out += s.slice(from, m.index);
+    const value = m[1] in vars ? String(vars[m[1]]) : m[0];
+    if (lang === "zh" && value && NAMES.has(m[1])) names.push([out.length, out.length + value.length]);
+    out += value;
+    from = m.index + m[0].length;
+  }
+  out += s.slice(from);
+  if (!names.length) return out;
+  const drop = new Set<number>();
+  for (const [a, b] of names) {
+    if (out[a - 1] === " " && han(out[a - 2]) && han(out[a])) drop.add(a - 1);
+    if (out[b] === " " && han(out[b - 1]) && han(out[b + 1])) drop.add(b);
+  }
+  if (!drop.size) return out;
+  let tight = "";
+  for (let i = 0; i < out.length; i++) if (!drop.has(i)) tight += out[i];
+  return tight;
 }
 
 /** The same string in the other language (for a bilingual title). */
