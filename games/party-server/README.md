@@ -82,7 +82,12 @@ instead, `site/src/party/dj/`.)
   the hands, footprints where the feet land, fireworks with the floor's. It draws only with a
   graphics chip (`index.ts`); in software, or when its first 90 frames run slower than 20 a second,
   the page keeps the coach in words. Reduced motion: it still dances (that's the lesson), the
-  flashes and swinging lights stop.
+  flashes and swinging lights stop. Between dances, on a TV with room for it below the players
+  (200 px at least, 560 at most, down to the bottom of the screen: not on a phone as the stage),
+  it stands by in the lobby (breathing, a wave every 8 s) and at the results, in the song's outfit
+  there; as a dance ends it cheers for 8 beats with the fanfare, with fireworks when anyone danced
+  (`frameLobby` in `screen.ts`: drawn 30 times a second at most; not with reduced motion, as it's
+  only there to look at, nor when the page with it runs slower than 25 frames a second).
 - **The practice dances' tunes** (`src/client/tunes.ts`): each of the library's six dances has a
   song of its own, written there as notes (简谱: a melody, two chords an 8-count, a bass line, how
   the chords are played, drum patterns) and played on the beat by `src/client/synth.ts`'s Web Audio
