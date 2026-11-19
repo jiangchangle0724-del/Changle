@@ -667,6 +667,41 @@ describe("the TV's delay, the TV's language, and 暂停", () => {
   });
 });
 
+describe("looking after the dancers", () => {
+  it("every 3 dances the results say to have some water; half an hour on, to rest, and the half hour starts again", () => {
+    const { s, clock } = ready();
+    const room = (t: number) => t + 995_000;
+    /** A dance from the lobby or the results (no warm-up) to its results: what they say. */
+    const dance = () => {
+      s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy", mode: "dance" } });
+      s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
+      clock.advance(room(s.d.state.routineStartAt! + 192 * BEAT + 1_000) - clock.now);
+      s.handle(ANN, { t: "act", action: { type: "FINISH_NOW" } });
+      assert.equal(s.d.state.phase, "results");
+      return s.d.results?.remind;
+    };
+    assert.equal(dance(), undefined);
+    assert.equal(dance(), undefined);
+    assert.equal(dance(), "water", "the third");
+    assert.equal(last(s.flush().out, "state")?.results?.remind, "water", "the TV and the phones get it");
+    // (a long chat between dances counts: the room has been at it half an hour)
+    clock.advance(25 * 60_000);
+    assert.equal(dance(), "rest");
+    assert.equal(dance(), undefined, "the half hour starts again with the next dance");
+    assert.equal(dance(), "water", "the sixth");
+    clock.advance(30 * 60_000);
+    assert.equal(dance(), "rest");
+    assert.equal(dance(), undefined);
+    // a rest due on a third dance: the rest (its words say to have some water too)
+    clock.advance(30 * 60_000);
+    assert.equal(dance(), "rest", "the ninth");
+    // a dance stopped before its end isn't one finished
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy", mode: "dance" } });
+    s.handle(ANN, { t: "act", action: { type: "BACK_TO_LOBBY" } });
+    assert.equal(s.d.danced, 9);
+  });
+});
+
 describe("pages that drop", () => {
   it("the speaker gets a moment to come back; after that the room goes back to the lobby", () => {
     const { s, clock } = ready();
