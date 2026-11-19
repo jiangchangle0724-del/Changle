@@ -252,6 +252,23 @@ export class Terrain {
           g.moveTo(x0, y0).lineTo(x1, y1).stroke({ width: 3, color: 0xffffff, alpha: a, cap: 'round' });
         }
       }
+      // 风往哪边刮（A14）：区域中线上几个箭头，平时也看得见（淡），快刮了一闪一闪，刮的时候亮
+      const ca = st.on ? 0.55 : st.warn ? (this.reduced ? 0.4 : 0.25 + 0.25 * Math.abs(Math.sin(this.t * 10))) : 0.16;
+      const marks = Math.max(1, Math.round(along / 260));
+      for (let m = 0; m < marks; m++) {
+        const u = ((m + 0.5) * along) / marks;
+        const cx = d.x !== 0 ? r.x + u : r.x + r.w / 2;
+        const cy = d.x !== 0 ? r.y + r.h / 2 : r.y + u;
+        const s2 = 16;
+        // 箭头尖朝风的方向
+        const tipX = cx + d.x * s2;
+        const tipY = cy + d.y * s2;
+        const bx = cx - d.x * s2;
+        const by = cy - d.y * s2;
+        const px = -d.y * s2;
+        const py = d.x * s2;
+        g.moveTo(bx + px, by + py).lineTo(tipX, tipY).lineTo(bx - px, by - py).stroke({ width: 5, color: 0xffffff, alpha: ca, cap: 'round', join: 'round' });
+      }
     }
     // 饼干：快没了就抖、变淡；没了就不画；回来时弹一下
     sim.fadings.forEach((f, i) => {
