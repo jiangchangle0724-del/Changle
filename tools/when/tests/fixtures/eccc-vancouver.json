@@ -1,0 +1,1019 @@
+{
+ "_source": "Data Source: Environment and Climate Change Canada. Vancouver (bc-74) from api.weather.gc.ca, read 2026-11-19 06:05 UTC; only what the tests use is kept.",
+ "properties": {
+  "lastUpdated": "2026-11-19T06:05:48Z",
+  "identifier": "bc-74",
+  "forecastGroup": {
+   "timestamp": {
+    "en": "2026-11-18T23:00:00Z",
+    "fr": "2026-11-18T23:00:00Z"
+   },
+   "forecasts": [
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Tonight",
+       "fr": "Ce soir et cette nuit"
+      },
+      "value": {
+       "en": "Wednesday night",
+       "fr": "ce soir et cette nuit"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 33
+      },
+      "textSummary": {
+       "en": "Mainly cloudy",
+       "fr": "Généralement nuageux"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Mainly cloudy.",
+      "fr": "Généralement nuageux."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "low",
+         "fr": "low"
+        },
+        "value": {
+         "en": 4,
+         "fr": 4
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Thursday",
+       "fr": "Jeudi"
+      },
+      "value": {
+       "en": "Thursday",
+       "fr": "jeudi"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 5
+      },
+      "textSummary": {
+       "en": "Clearing",
+       "fr": "Dégagement"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Mainly cloudy. Clearing late in the morning.",
+      "fr": "Généralement nuageux. Dégagement tard le matin."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "high",
+         "fr": "high"
+        },
+        "value": {
+         "en": 9,
+         "fr": 9
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Thursday night",
+       "fr": "Jeudi soir et nuit"
+      },
+      "value": {
+       "en": "Thursday night",
+       "fr": "jeudi soir et nuit"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 31
+      },
+      "textSummary": {
+       "en": "A few clouds",
+       "fr": "Quelques nuages"
+      }
+     },
+     "cloudPrecip": {
+      "en": "A few clouds. Increasing cloudiness overnight.",
+      "fr": "Quelques nuages. Ennuagement au cours de la nuit."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "low",
+         "fr": "low"
+        },
+        "value": {
+         "en": 0,
+         "fr": 0
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Friday",
+       "fr": "Vendredi"
+      },
+      "value": {
+       "en": "Friday",
+       "fr": "vendredi"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 10
+      },
+      "textSummary": {
+       "en": "Cloudy",
+       "fr": "Nuageux"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Cloudy.",
+      "fr": "Nuageux."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "high",
+         "fr": "high"
+        },
+        "value": {
+         "en": 7,
+         "fr": 7
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Friday night",
+       "fr": "Vendredi soir et nuit"
+      },
+      "value": {
+       "en": "Friday night",
+       "fr": "vendredi soir et nuit"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 28
+      },
+      "textSummary": {
+       "en": "Periods of drizzle",
+       "fr": "Bruine intermittente"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Cloudy with 30 percent chance of drizzle.",
+      "fr": "Nuageux avec 30 pour cent de probabilité de bruine."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "low",
+         "fr": "low"
+        },
+        "value": {
+         "en": 4,
+         "fr": 4
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Saturday",
+       "fr": "Samedi"
+      },
+      "value": {
+       "en": "Saturday",
+       "fr": "samedi"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 28
+      },
+      "textSummary": {
+       "en": "Periods of drizzle",
+       "fr": "Bruine intermittente"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Cloudy with 30 percent chance of drizzle or showers.",
+      "fr": "Nuageux avec 30 pour cent de probabilité de bruine ou averses."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "high",
+         "fr": "high"
+        },
+        "value": {
+         "en": 8,
+         "fr": 8
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Saturday night",
+       "fr": "Samedi soir et nuit"
+      },
+      "value": {
+       "en": "Saturday night",
+       "fr": "samedi soir et nuit"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 12
+      },
+      "textSummary": {
+       "en": "Showers",
+       "fr": "Averses"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Showers.",
+      "fr": "Averses."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "low",
+         "fr": "low"
+        },
+        "value": {
+         "en": 4,
+         "fr": 4
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Sunday",
+       "fr": "Dimanche"
+      },
+      "value": {
+       "en": "Sunday",
+       "fr": "dimanche"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 12
+      },
+      "textSummary": {
+       "en": "Showers",
+       "fr": "Averses"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Showers.",
+      "fr": "Averses."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "high",
+         "fr": "high"
+        },
+        "value": {
+         "en": 8,
+         "fr": 8
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Sunday night",
+       "fr": "Dimanche soir et nuit"
+      },
+      "value": {
+       "en": "Sunday night",
+       "fr": "dimanche soir et nuit"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 12
+      },
+      "textSummary": {
+       "en": "Chance of showers",
+       "fr": "Possibilité d'averses"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Cloudy with 40 percent chance of showers.",
+      "fr": "Nuageux avec 40 pour cent de probabilité d'averses."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "low",
+         "fr": "low"
+        },
+        "value": {
+         "en": 3,
+         "fr": 3
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Monday",
+       "fr": "Lundi"
+      },
+      "value": {
+       "en": "Monday",
+       "fr": "lundi"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 12
+      },
+      "textSummary": {
+       "en": "Periods of rain",
+       "fr": "Pluie intermittente"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Periods of rain.",
+      "fr": "Pluie intermittente."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "high",
+         "fr": "high"
+        },
+        "value": {
+         "en": 9,
+         "fr": 9
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Monday night",
+       "fr": "Lundi soir et nuit"
+      },
+      "value": {
+       "en": "Monday night",
+       "fr": "lundi soir et nuit"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 12
+      },
+      "textSummary": {
+       "en": "Rain",
+       "fr": "Pluie"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Rain.",
+      "fr": "Pluie."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "low",
+         "fr": "low"
+        },
+        "value": {
+         "en": 5,
+         "fr": 5
+        }
+       }
+      ]
+     }
+    },
+    {
+     "period": {
+      "textForecastName": {
+       "en": "Tuesday",
+       "fr": "Mardi"
+      },
+      "value": {
+       "en": "Tuesday",
+       "fr": "mardi"
+      }
+     },
+     "abbreviatedForecast": {
+      "icon": {
+       "value": 12
+      },
+      "textSummary": {
+       "en": "Rain",
+       "fr": "Pluie"
+      }
+     },
+     "cloudPrecip": {
+      "en": "Rain.",
+      "fr": "Pluie."
+     },
+     "temperatures": {
+      "temperature": [
+       {
+        "class": {
+         "en": "high",
+         "fr": "high"
+        },
+        "value": {
+         "en": 9,
+         "fr": 9
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "hourlyForecastGroup": {
+   "timestamp": {
+    "en": "2026-11-19T23:00:00Z",
+    "fr": "2026-11-19T23:00:00Z"
+   },
+   "hourlyForecasts": [
+    {
+     "timestamp": "2026-11-19T07:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 6,
+       "fr": 6
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T08:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 5,
+       "fr": 5
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T09:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 5,
+       "fr": 5
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T10:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 5,
+       "fr": 5
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T11:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 4,
+       "fr": 4
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T12:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 4,
+       "fr": 4
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T13:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 4,
+       "fr": 4
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T14:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 33
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 4,
+       "fr": 4
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T15:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 3
+     },
+     "lop": {
+      "value": {
+       "en": 20,
+       "fr": 20
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 4,
+       "fr": 4
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T16:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 3
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 5,
+       "fr": 5
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T17:00:00Z",
+     "condition": {
+      "en": "Mainly cloudy",
+      "fr": "Généralement nuageux"
+     },
+     "iconCode": {
+      "value": 3
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 6,
+       "fr": 6
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T18:00:00Z",
+     "condition": {
+      "en": "Mainly sunny",
+      "fr": "Généralement ensoleillé"
+     },
+     "iconCode": {
+      "value": 1
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 6,
+       "fr": 6
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T19:00:00Z",
+     "condition": {
+      "en": "Mainly sunny",
+      "fr": "Généralement ensoleillé"
+     },
+     "iconCode": {
+      "value": 1
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 7,
+       "fr": 7
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T20:00:00Z",
+     "condition": {
+      "en": "Mainly sunny",
+      "fr": "Généralement ensoleillé"
+     },
+     "iconCode": {
+      "value": 1
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 8,
+       "fr": 8
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T21:00:00Z",
+     "condition": {
+      "en": "Mainly sunny",
+      "fr": "Généralement ensoleillé"
+     },
+     "iconCode": {
+      "value": 1
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 8,
+       "fr": 8
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T22:00:00Z",
+     "condition": {
+      "en": "Mainly sunny",
+      "fr": "Généralement ensoleillé"
+     },
+     "iconCode": {
+      "value": 1
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 9,
+       "fr": 9
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-19T23:00:00Z",
+     "condition": {
+      "en": "Mainly sunny",
+      "fr": "Généralement ensoleillé"
+     },
+     "iconCode": {
+      "value": 1
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 8,
+       "fr": 8
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-20T00:00:00Z",
+     "condition": {
+      "en": "A few clouds",
+      "fr": "Quelques nuages"
+     },
+     "iconCode": {
+      "value": 31
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 8,
+       "fr": 8
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-20T01:00:00Z",
+     "condition": {
+      "en": "A few clouds",
+      "fr": "Quelques nuages"
+     },
+     "iconCode": {
+      "value": 31
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 7,
+       "fr": 7
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-20T02:00:00Z",
+     "condition": {
+      "en": "A few clouds",
+      "fr": "Quelques nuages"
+     },
+     "iconCode": {
+      "value": 31
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 6,
+       "fr": 6
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-20T03:00:00Z",
+     "condition": {
+      "en": "A few clouds",
+      "fr": "Quelques nuages"
+     },
+     "iconCode": {
+      "value": 31
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 5,
+       "fr": 5
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-20T04:00:00Z",
+     "condition": {
+      "en": "A few clouds",
+      "fr": "Quelques nuages"
+     },
+     "iconCode": {
+      "value": 31
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 5,
+       "fr": 5
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-20T05:00:00Z",
+     "condition": {
+      "en": "A few clouds",
+      "fr": "Quelques nuages"
+     },
+     "iconCode": {
+      "value": 31
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 4,
+       "fr": 4
+      }
+     }
+    },
+    {
+     "timestamp": "2026-11-20T06:00:00Z",
+     "condition": {
+      "en": "A few clouds",
+      "fr": "Quelques nuages"
+     },
+     "iconCode": {
+      "value": 31
+     },
+     "lop": {
+      "value": {
+       "en": 0,
+       "fr": 0
+      }
+     },
+     "temperature": {
+      "value": {
+       "en": 4,
+       "fr": 4
+      }
+     }
+    }
+   ]
+  }
+ }
+}

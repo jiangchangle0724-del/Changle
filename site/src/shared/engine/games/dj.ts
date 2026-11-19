@@ -558,6 +558,24 @@ function carryOn(s: RoomState, api: Api): boolean {
 }
 
 /**
+ * 快退 30 秒 and 快进 30 秒 (Steve on Nov 18: "手机控制端也要有一个快进和快退30秒的功能"): the song playing
+ * whole jumps `by` seconds on (back, less than nothing), never to before its start; paused, it stays
+ * paused there. Past its end, it ends (the big screen says so). False: no song playing whole.
+ */
+function seek(s: RoomState, by: unknown, api: Api): boolean {
+  const d = s.deck;
+  if (!playing(s.phase) || !d.song || typeof by !== "number" || !Number.isFinite(by)) return false;
+  const step = Math.round(Math.max(-DECK.seekMaxS, Math.min(DECK.seekMaxS, by))) * 1000;
+  const here = d.paused || api.now;
+  const into = here - d.song.at;
+  const to = Math.max(0, into + step);
+  if (to === into) return false;
+  d.song = { ...d.song, at: here - to };
+  if (!d.paused) api.timer("song", d.song.at + DECK.songMaxMs);
+  return true;
+}
+
+/**
  * 切歌: the song playing ends now, the next straight on (the DJ for a bar or so between); none
  * playing, the one up next now; on its way in already, that one's skipped too and the one after it
  * goes in on the same bar (none after it: the DJ plays on).
@@ -1026,6 +1044,11 @@ export const dj: GameDef<RoomState> = {
         if (!control(s, g.x === "songskip" ? "next" : g.x, api)) return api.quiet();
         return;
       }
+      case "seek": {
+        // the player's 快退 and 快进 30 秒, anyone at the table
+        if (!seek(s, g.by, api)) return api.quiet();
+        return;
+      }
       case "voice": {
         // the host, from their phone: 报幕 on the big screen, on or off
         const on = g.on === true;
@@ -1238,6 +1261,8 @@ export const dj: GameDef<RoomState> = {
       case "prev":
       case "songskip":
         return fromSpeaker(s, sid, api) && control(s, g.x === "songskip" ? "next" : g.x, api);
+      case "seek":
+        return fromSpeaker(s, sid, api) && seek(s, g.by, api);
       case "tap": {
         // its YouTube player wants a tap on the video (an iPhone's, the night's first song): the phones say so
         const on = g.on === true;

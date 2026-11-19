@@ -4,7 +4,7 @@ host) sends two song files and a broken one from his phone; they go in pieces th
 the TV, which listens to each and adds the two (his phone hears how each went: on the playlist,
 can't be played); they're his on the 歌单 at once, by name, and the first plays whole on the TV in
 its own sound (the DJ quiet under it, a card saying whose); 暂停 stops it where it is, 播放 carries it
-on from there, 切歌 brings his second; Amy sends the same file: the TV had it, it's on her 歌单 too;
+on from there, 快进 and 快退 jump it 30 seconds (Steve on Nov 18), 切歌 brings his second; Amy sends the same file: the TV had it, it's on her 歌单 too;
 someone who sits down and sends one as someone else gets it as their own; the host's phone has no
 我的歌 card; the TV opened again loses the files, and the songs from them leave the 歌单.
 
@@ -85,6 +85,7 @@ def song(tv):
 
 
 def key(ph, i):
+    """0 上一曲, 1 暂停 or 播放, 2 切歌; 3 快退 and 4 快进 30 秒 (Steve on Nov 18)."""
     return ph.locator(".djk-key").nth(i)
 
 
@@ -151,6 +152,16 @@ with sync_playwright() as p:
     played = time.time() - t0 - held
     ok(2 < song(tv).get("from", 0) < played + 0.5, f"from where it was, not its start, the pause not counted ({song(tv).get('from', 0):.1f} s in, {played:.1f} s played, {held:.1f} s held)")
     ok(tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") < 0.05, "the DJ still quiet under it")
+
+    # 快进 and 快退 30 秒: it plays on from 30 seconds further, then back
+    tv.wait_for_timeout(1000)
+    was = song(tv).get("from", 0) + 1
+    key(ben, 4).click()
+    ok(until(lambda: song(tv).get("from", 0) > 28 and song(tv).get("playing") is True, 4000), f"Ben jumps ahead 30: it plays on from further in ({song(tv).get('from', 0):.1f} s, about {was:.0f} + 30)")
+    ok(song(tv).get("from", 0) < was + 33, "30 seconds, not more")
+    key(cat, 3).click()
+    ok(until(lambda: song(tv).get("from", 99) < was + 5 and song(tv).get("playing") is True, 4000), f"Cat jumps back 30 ({song(tv).get('from', 0):.1f} s)")
+    ok(tv.evaluate("() => window.__fakeDj.speaker.talkFade.gain.value") < 0.05, "the DJ quiet under it all along")
 
     # 切歌: his second
     tv.wait_for_timeout(1600)

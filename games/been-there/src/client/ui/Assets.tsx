@@ -23,6 +23,7 @@ import { cardById, getLang, money, spaceName, t, tx } from "../i18n";
 import { reducedMotion } from "../motion";
 import { send } from "../store";
 import { Btn, GroupIcon } from "./common";
+import { spot } from "./spot";
 
 export function Assets({ v, seat, compact }: { v: RoomView; seat: number; compact?: boolean }) {
   const g = v.game!;
@@ -32,7 +33,16 @@ export function Assets({ v, seat, compact }: { v: RoomView; seat: number; compac
   const myTurn = !!pd && "who" in pd && pd.who === seat && (pd.k === "roll" || pd.k === "end" || pd.k === "debt");
   const inDebt = pd?.k === "debt";
   const mine = s.deeds.map((d, at) => ({ d, at })).filter((x) => x.d && x.d.owner === seat);
-  const manage = (k: "build" | "sell" | "mortgage" | "unmortgage", at: number) => send({ t: "manage", k, at, seat });
+  // (a city tapped, or built on, sold off or mortgaged, lights up on the board for a moment: ui/spot.ts)
+  const manage = (k: "build" | "sell" | "mortgage" | "unmortgage", at: number) => {
+    spot([at]);
+    send({ t: "manage", k, at, seat });
+  };
+  const show = (at: number) => (e: KeyboardEvent | MouseEvent) => {
+    if (e instanceof KeyboardEvent && e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    spot([at]);
+  };
   const order = (at: number) => (groupAt(at) ?? 9) * 100 + at;
   mine.sort((a, b) => order(a.at) - order(b.at));
   // What stands on each city as this list last drew it: one built since comes up out of the ground in
@@ -86,7 +96,7 @@ export function Assets({ v, seat, compact }: { v: RoomView; seat: number; compac
           if (compact && !buttons.length) return null;
           return (
             <li key={at} class={d!.mort ? "mort" : ""} style={grp !== null ? { "--g": GROUPS.find((x) => x.id === grp)!.color } : undefined}>
-              <div class="row">
+              <div class="row" {...(compact ? {} : { role: "button", tabIndex: 0, onClick: show(at), onKeyDown: show(at) })}>
                 {CITY_AT[at] && !compact && (
                   <div class="poster thumb">
                     <CityPoster id={CITY_AT[at].id} />

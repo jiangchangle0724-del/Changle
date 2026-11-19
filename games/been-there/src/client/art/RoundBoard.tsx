@@ -764,6 +764,8 @@ export interface AimMark {
   across?: boolean;
   /** One question: each new one lights up anew. */
   key: string;
+  /** Lit only for a moment (ms), as a city tapped on a phone is (ui/spot.ts): it breathes twice and goes. */
+  flash?: number;
 }
 
 /** A path's arrow: how long, and half how wide (board units). */
@@ -813,12 +815,13 @@ function aimPath(aim: AimMark): { d: string; head: string } | null {
  * spaces themselves glow gold under what's on them: RoundBoard). Round each, a bright edge with a
  * glow off it, breathing three times as the question comes and then holding lit (a light that never
  * stops keeps a phone drawing); a ring spreads from it each breath. The one asked about most comes
- * first, brightest. A dashed path runs to it from the token, its dashes marching toward it. art.css .aim.
+ * first, brightest. A dashed path runs to it from the token, its dashes marching toward it. A city
+ * tapped on a phone (`flash`) breathes twice and goes out. art.css .aim.
  */
 function AimMarks({ aim }: { aim: AimMark }) {
   const path = aimPath(aim);
   return (
-    <g class="aim" aria-hidden="true">
+    <g class={aim.flash ? "aim flash" : "aim"} style={aim.flash ? { "--flash": `${aim.flash}ms` } : undefined} aria-hidden="true">
       {path && (
         <>
           <path class="aim-shade" d={path.d} />
@@ -1385,7 +1388,15 @@ export function RoundBoard({
             <g key={at} data-at={at} class={`sp k-${sp.k}${at === active ? " active" : ""}${mark?.mortgaged ? " mort" : ""}`} onClick={onPick ? () => onPick(at) : undefined}>
               <path d={wedge(at, corner ? RO + 6 : RO)} class={corner ? "wedge corner-w" : "wedge"} style={group ? { fill: TINT[group.id] } : undefined} />
               {/* (a space a question is about glows gold under what's on it: AimMarks) */}
-              {aim?.spaces.includes(at) && <path key={aim.key} class={aim.spaces[0] === at ? "aim-glow main" : "aim-glow"} d={wedge(at, corner ? RO + 6 : RO)} aria-hidden="true" />}
+              {aim?.spaces.includes(at) && (
+                <path
+                  key={aim.key}
+                  class={`aim-glow${aim.spaces[0] === at ? " main" : ""}${aim.flash ? " flash" : ""}`}
+                  style={aim.flash ? { "--flash": `${aim.flash}ms` } : undefined}
+                  d={wedge(at, corner ? RO + 6 : RO)}
+                  aria-hidden="true"
+                />
+              )}
               {group && <path d={band(at)} fill={group.color} />}
               {group && (
                 <Up x={bx} y={by} rot={r}>

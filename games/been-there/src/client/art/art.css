@@ -289,6 +289,39 @@
   stroke-linejoin: round;
   paint-order: stroke;
 }
+/* A city tapped on a phone (ui/spot.ts): lit only for a moment (--flash, as long as the map looks at
+   it), breathing twice and going out. */
+.roundboard .aim.flash {
+  animation: aim-flash var(--flash, 2.6s) ease-in-out both;
+}
+.roundboard .aim-glow.flash {
+  animation: aim-glow-flash var(--flash, 2.6s) ease-in-out both;
+}
+@keyframes aim-flash {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes aim-glow-flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  22%,
+  66% {
+    opacity: var(--hi);
+  }
+  44% {
+    opacity: var(--o);
+  }
+}
 @keyframes aim-in {
   from {
     opacity: 0;
@@ -1466,8 +1499,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .roundboard .aim,
+  .roundboard .aim.flash,
   .roundboard .aim *,
   .roundboard .aim-glow,
+  .roundboard .aim-glow.flash,
   .roundboard .token.now > .hop,
   .roundboard .pop,
   .roundboard .stamp-in,

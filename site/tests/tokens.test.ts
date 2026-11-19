@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { durationMs } from "../src/ui/tokenTime";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -135,6 +136,12 @@ if (process.env.UPDATE_RAW) {
   console.log("wrote tests/raw-values.json");
 }
 ok(true, `${FRAME.length} frame file(s) checked, ${rawLeft} raw value(s) left (C8 takes this to 0)`);
+
+// 5. a timer that waits on a duration token reads it in milliseconds, however the build writes it
+// (it writes 150ms as .15s: read as a plain number, a sheet shut before its exit and a demo ran 1000 times too fast)
+ok(durationMs("150ms") === 150 && durationMs(".15s") === 150 && durationMs(" .4s") === 400, "durationMs reads 150ms and .15s alike");
+ok(durationMs("") === 0 && durationMs("var(--x)") === 0, "durationMs: no time is 0");
+for (const k of ["--dur-enter", "--dur-exit", "--dur-emphasis"]) ok(durationMs(tokens.get(k) ?? "") > 0, `${k} reads as ${durationMs(tokens.get(k) ?? "")} ms`);
 
 if (failed) {
   console.log(`\n${failed} failure(s)`);

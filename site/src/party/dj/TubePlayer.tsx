@@ -193,6 +193,17 @@ export function TubePlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, target?.at, held]);
 
+  // 快退 and 快进 (a phone's): the room's place in the song moved; the video here jumps as far (播放
+  // after 暂停 moves the song's start by the time it was held: no jump)
+  const place = useRef<{ id: string; at: number; paused: boolean } | null>(null);
+  useEffect(() => {
+    const was = place.current;
+    place.current = tubeSong ? { id: tubeSong.id, at: tubeSong.at, paused: held } : null;
+    if (!tubeSong || !was || was.id !== tubeSong.id || was.at === tubeSong.at || was.paused !== held) return;
+    tube.current?.jump(tubeSong.yt, (was.at - tubeSong.at) / 1000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tubeSong?.id, tubeSong?.at, held]);
+
   // 暂停 holds the DJ too (no song, or one not heard yet); 播放 brings it back, unless a song it gave
   // way to plays on
   // (a phone's song file playing: PhoneSong.tsx holds the DJ back while it plays)
@@ -314,11 +325,11 @@ function OnNote({ status, zh, after }: { status: TubeStatus; zh: boolean; after:
       <SkipForward size={16} aria-hidden="true" />
       {after
         ? zh
-          ? `放完马上接 ${after} 点的歌。手机上可以暂停、切歌、上一曲`
-          : `${after}'s song comes right after. Pause, skip or go back from any phone`
+          ? `放完马上接 ${after} 点的歌。手机上可以暂停、快进快退、切歌、上一曲`
+          : `${after}'s song comes right after. Pause, jump 30s, skip or go back from any phone`
         : zh
-          ? "放完 DJ 接着放。手机上可以暂停、切歌、上一曲"
-          : "The DJ comes back when it ends. Pause, skip or go back from any phone"}
+          ? "放完 DJ 接着放。手机上可以暂停、快进快退、切歌、上一曲"
+          : "The DJ comes back when it ends. Pause, jump 30s, skip or go back from any phone"}
     </>
   );
 }

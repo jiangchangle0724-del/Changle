@@ -217,8 +217,8 @@ test("里约桑巴：按了开始才倒数，五秒后老师才教；跳舞的�
   await expect(card.locator(".samba-cue")).toHaveText("准备跳桑巴");
   await expect(card.locator(".samba-how")).toContainText("倒数 5 秒");
   await expect(card.locator(".samba-how")).toContainText("跳 40 秒");
-  await expect(other.page.locator(".samba.samba-small.ready .samba-cue")).toHaveText(/^等 .+ 准备好$/, { timeout: 4_000 });
-  await expect(tv.page.locator(".samba.samba-tv.ready .samba-cue")).toHaveText(/^等 .+ 准备好$/, { timeout: 4_000 });
+  await expect(other.page.locator(".samba.samba-small.ready .samba-cue")).toHaveText(/^等.+准备好$/, { timeout: 4_000 });
+  await expect(tv.page.locator(".samba.samba-tv.ready .samba-cue")).toHaveText(/^等.+准备好$/, { timeout: 4_000 });
   const scores = other.page.locator('.decide[data-kind="scores"] .choices .btn');
   await expect(scores).toHaveCount(10);
   await expect(scores.first(), "the judges wait for the dance").toBeDisabled();
@@ -300,7 +300,7 @@ test("减少动态（WCAG 2.3.3）：大屏不推镜头，桑巴老师站着不�
   expect(await tv.page.evaluate(() => (window as unknown as { moved: string[] }).moved), "the big screen's camera never moved").toEqual([]);
   await yes.click();
   // The big screen waits with the dancing team: the teacher stands still (a dancing one waves).
-  await expect(tv.page.locator(".samba.samba-tv.ready .samba-cue")).toHaveText(/^等 .+ 准备好$/, { timeout: 4_000 });
+  await expect(tv.page.locator(".samba.samba-tv.ready .samba-cue")).toHaveText(/^等.+准备好$/, { timeout: 4_000 });
   // From here the teacher's drawing is looked at on every frame, with what the lesson was at then:
   // waiting, counting down, or dancing.
   await tv.page.evaluate(() => {

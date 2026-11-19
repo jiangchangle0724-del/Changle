@@ -171,6 +171,7 @@ card C4, the big screen's C5 (`docs/codex-tasks/dj/`).
 | `pause`, `play` | anyone, or the speaker | The phones' player (Steve on Nov 12: "一键播放，切歌，暂停，上一曲"), below: 暂停 holds the room's music (`deck.paused`, the server time it was held), 播放 carries it on. Only while music plays; again, nothing more. |
 | `next`, `prev` | anyone, or the speaker | 切歌: the song playing ends now and the next comes on in a bar or so (none playing, the one up next now; one coming on already, the one after it goes in on that bar instead); 上一曲: the one before plays again (on the bar of a switch already on its way), the one that was playing and the one up next back first on the 歌单. Not while a switch with a countdown is on its way, nor within `DECK.ctlGapMs` of the room's last (two phones at once skip one song). |
 | `songskip` | anyone, or the speaker | An older page's 切歌: the same as `next`. |
+| `seek` | anyone, or the speaker | 快退 and 快进 30 秒 (Steve on Nov 18), below: the song playing whole jumps `by` seconds (the phones send -30 or 30; at most `DECK.seekMaxS`), never to before its start; paused, it stays paused there. Only while a song plays whole. |
 | `tap` `{ on }` | the speaker | It wants a tap (its YouTube player's on the video before it plays with sound, an iPhone's or Safari's, the night's first song; or its own sound stopped, a phone's screen locked or a call), or doesn't any more: `deck.tap`, which the phones pass on. Gone with the song. |
 | `voice` `{ on }` | the host | 报幕 on the big screen, on (the default) or off: `voice` in the view (below). |
 | `shuffle` `{ on }` | the host, or the speaker | The 歌单 in a random order (随机) or first come, first played (按顺序, the default): `shuffle` in the view. Another set keeps it. |
@@ -394,7 +395,8 @@ deck B ┘                                                                 horn,
   stretch above them (Steve's next message: "去掉最上面的暖场部分"). At the very top the player
   (`phone/Player.tsx`): what the TV plays and whose (no song: what the DJ plays, the host's song or
   its styles and tempo), what's next, then 上一曲, 暂停 or 播放, 切歌 (keys of 72 px, never grey while
-  a song is coming on), the video over the whole TV, and the TV's word when it wants a tap. Then
+  a song is coming on), under them 快退 and 快进 30 秒 (Nov 18; 48 px, while a song plays whole), the
+  video over the whole TV, and the TV's word when it wants a tap. Then
   the song box, 从手机传歌, the 歌单 and the sound board (音效, below; the twelve pads until Nov 13),
   🔥 and ❄️, 弹幕, the host's card (报幕 and 弹幕 on or off; at the end, 再来一场: its stretches and
   结束这一场 gone on Nov 13); 跟着跳 at the very bottom until Nov 14.
@@ -612,7 +614,14 @@ quiet switch, its bar set on the speaker): 切歌 skips it too and puts the one 
 back first on the 歌单 (Steve on Nov 12, "播放下一首全程没办法使用": the keys were grey while a switch
 was on its way, and one stuck there kept them grey). A switch with a countdown is turned away, and
 any of them within `DECK.ctlGapMs` (1.5 s) of the room's last, so two phones pressing at once skip
-one song. Every one of them clears a pause. The end of the set clears it too. **A quiet switch
+one song. Every one of them clears a pause. The end of the set clears it too. **快退 and 快进 30 秒**
+(`seek`, Steve on Nov 18: "手机控制端也要有一个快进和快退30秒的功能"): the song playing whole jumps `by`
+seconds: its `at` moves so the room is that much further in (or back, never to before its start),
+its 12 minutes counted from there; paused, it stays paused there and 播放 carries it on from there.
+The big screen's video jumps as far as the room's place moved (`Tube.jump`, from where the video is:
+an ad that put it behind the room's clock doesn't add to the jump; 播放's move of `at` isn't a
+jump); a song file from a phone plays on from the room's new place (`PhoneSong`); past its end, the
+song ends as it would have. Each press is a jump (two phones at once: two). **A quiet switch
 keeps its moment:** new bars from the speaker don't put it off (the countdown's do: they start it
 over); a phone whose sound had stopped kept sending bars that drifted with the clock, so the
 switch was put off for good. The speaker doesn't send its bars while its clock stands still either.
@@ -636,7 +645,7 @@ board (`SharedSounds.tsx`; the `sfx` action, below), playing here at once: on th
 is shown there, from the phone itself when it isn't. The room takes them from the speaker only
 (another screen with the code can't) as the table's,
 `SHARED_BY` (`~shared`), named 公用手机 / Shared phone wherever the booth says who asked
-(`names.ts`): up to the table's 30, its own taken back, 暂停, 播放, 切歌 and 上一曲, 随机 switched, the
+(`names.ts`): up to the table's 30, its own taken back, 暂停, 播放, 切歌, 上一曲, 快退 and 快进, 随机 switched, the
 video over the whole TV. Everyone reads its songs' names (they were typed on the
 screen everyone watches). A phone held upright on the booth is asked to turn sideways (the TV shows
 the phone as it's held): how, for an iPhone (Portrait Orientation Lock) or not (Auto-rotate), or
@@ -897,7 +906,8 @@ and is back if they can't be. While a song's video covers the whole TV, none of 
   我的歌 card on the host's phone, 从手机传歌 on every one; two made-up songs and a broken file sent
   from Ben's (not the host's), each one's word back (on the playlist, can't be played), both his on
   the 歌单 at once, the first whole on the TV in its own sound (the DJ quiet under it, a card saying
-  whose, no video), 暂停 stopping it and 播放 carrying it on from there, 切歌 bringing his second;
+  whose, no video), 暂停 stopping it and 播放 carrying it on from there, 快进 and 快退 jumping it 30
+  seconds, 切歌 bringing his second;
   the same file from Amy's phone (the TV had it: on her 歌单 too); someone sitting down and sending
   one as someone else getting it as their own; the TV opened again losing the files, and the songs
   from them leaving the 歌单. `tests/dj.test.ts` has the pieces (read back byte for byte, every bad
@@ -958,7 +968,8 @@ and is back if they can't be. While a song's video covers the whole TV, none of 
   in English): the page in its order (the player the very first thing, the song box, the 歌单, the
   sound board; no 跟着跳 since Nov 14) with none of the deck that's gone; a song coming on by itself;
   暂停 (the TV's video held where it is, the DJ quiet, the TV and the phones saying so, a sound from the
-  board still playing) and 播放 (on from there); 切歌, its keys not grey while the next comes on; 上一曲 (the one before again, the
+  board still playing) and 播放 (on from there); 快退 and 快进 (the TV's video 30 seconds on and back, never
+  to before its start; paused, still paused there, and 播放 on from there); 切歌, its keys not grey while the next comes on; 上一曲 (the one before again, the
   skipped one after it); the DJ held and back between songs; one phone asking for six songs in a
   row; a TV that wants a tap on its video saying so on the phones, its own sheet getting out of the
   way.

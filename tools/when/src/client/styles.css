@@ -1015,6 +1015,38 @@ button.grid-date b {
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
+/* the weather at a time (ui/Weather.tsx): a line icon and a few words, under a time in the best
+   three, on the banner of the time that was set (in the banner's own color) and in a slot's sheet */
+.wx {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+}
+/* as tall as a line, so the icon sits by the first line when the words take two */
+.wx svg {
+  flex: none;
+  height: 1.35em;
+}
+.set .wx {
+  color: inherit;
+}
+/* where the weather comes from, as its licence asks */
+.wx-credit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-1);
+  margin-top: var(--space-2);
+  color: var(--color-text-2);
+  font-size: var(--text-xs);
+}
+.wx-credit .link-btn {
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs);
+}
 
 /* who's in */
 .people {

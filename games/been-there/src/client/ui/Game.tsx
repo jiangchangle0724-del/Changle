@@ -92,6 +92,8 @@ export function Game({ v }: { v: RoomView }) {
   const dance = useDanceClock(v);
   const dancingHere = !!dance && !dance.over && v.you.seats.includes(dance.seat);
   const toggle = (x: Panel) => setPanel((cur) => (cur === x ? null : x));
+  // (Mine and the trades rise over the bottom of a phone only, the board above them: ui/common.tsx Sheet)
+  const halfUp = !wide && (panel === "mine" || panel === "trade");
   // What this phone has to answer comes first in the window, above the arrival card and the turn's
   // card: on a phone the window is short, and a buy button under a poster is one nobody finds. Each
   // part is keyed, so it keeps its state (a half-made bid, a chosen option) as it moves. (The quiz here
@@ -113,7 +115,7 @@ export function Game({ v }: { v: RoomView }) {
     if (askKey && playBody.current) playBody.current.scrollTop = 0;
   }, [askKey]);
   return (
-    <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}${ride ? " riding" : ""}`}>
+    <div class={`game${myMove ? " my-move" : ""}${open ? " play-open" : ""}${ride ? " riding" : ""}${halfUp ? " half-up" : ""}`}>
       <header class="top">
         {me && myTeam ? (
           <>
@@ -145,7 +147,7 @@ export function Game({ v }: { v: RoomView }) {
           urgent={urgent}
           onRideReady={setReadyKey}
           onRideDone={rideDone}
-          covered={open && !wide}
+          covered={wide ? null : halfUp ? "sheet" : open ? "play" : null}
           over={
             <>
               <JailFx v={v} ride={ride} />
@@ -202,14 +204,14 @@ export function Game({ v }: { v: RoomView }) {
             </button>
           </nav>
           {panel === "mine" && (
-            <Sheet title={t("tab_mine")} onClose={() => setPanel(null)}>
+            <Sheet title={t("tab_mine")} onClose={() => setPanel(null)} half>
               <div class="p-mine">{mySeat !== undefined ? <Assets v={v} seat={mySeat} /> : <Bets v={v} />}</div>
             </Sheet>
           )}
           {/* (kept built while closed, like the play window: a half-made offer survives) */}
-          <Sheet title={t("tab_trade")} onClose={() => setPanel(null)} hidden={panel !== "trade"}>
+          <Sheet title={t("tab_trade")} onClose={() => setPanel(null)} hidden={panel !== "trade"} half>
             <div class="p-trade">
-              <Trade v={v} />
+              <Trade v={v} shown={panel === "trade"} />
             </div>
           </Sheet>
           {panel === "log" && (

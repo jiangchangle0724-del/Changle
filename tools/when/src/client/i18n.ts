@@ -45,6 +45,10 @@ const STRINGS = {
   // who else has the page open is said by hereLine (src/engine/here.ts); one of them just done:
   hereDone: { zh: "{name} 填好了", en: "{name} has filled in" },
   hereChanged: { zh: "{name} 改了时间", en: "{name} changed their times" },
+  // the weather (src/engine/weather.ts words the rest)
+  wxWet: { zh: "{weather}，适合室内", en: "{weather}, better indoors" },
+  wxSource: { zh: "天气数据来源：加拿大环境与气候变化部", en: "Data Source: Environment and Climate Change Canada" },
+  wxLicence: { zh: "许可", en: "Licence" },
 
   nameLabel: { zh: "你的名字", en: "Your name" },
   namePlaceholder: { zh: "大家认得出的名字", en: "A name they'll know" },
