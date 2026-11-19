@@ -61,6 +61,9 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-18 随便: demo restaurants in the host's language, and no Google line under them (#602)
+- 2026-11-18 随便: what was left of picking alone goes (its rating, its "就它了", its account data) (#599)
+- 2026-11-18 随便: Chinese in WeChat, otherwise the phone's language, as on the rest of the site (#597)
 - 2026-11-13 随便: a place can be more than one cuisine, and whoever liked either finds it first (#492)
 - 2026-11-12 随便: lists for an occasion (most romantic, private rooms, family-friendly, late night) (#368)
 - 2026-11-12 随便: what it's for weighs a lot; a place plainly not for it goes last, saying why (#366)
@@ -91,3 +94,5 @@
 - 2026-11-11 Steve 说合并。#339、#342 合并，Cloudflare 部署成功，main 上的检查（含 WebKit）全过，线上 changle.ca/eat 已是新版，/eat/solo 回首页。Project 规矩改了：CI 绿了直接合并，花钱、删数据、改 Cloudflare 或 GitHub 设置和钥匙、仓库公开私有先问。
 - 2026-11-12 Steve 截图：选了晚餐商务宴请，第一名是 Siegel's Bagels（贝果店，人均 $10–20，4.5 星）。原因：场景只加一点分（最多半颗星），也不知道它是贝果店、不做正餐；那桌还设了预算，贵的店被去掉了。做了 #366（场景规则重做，不合适的排最后写原因，每个场景自己的搜索，预算提醒）和 #368（网上的场景榜单）。两个都 CI 绿了直接合并，Cloudflare 部署成功。
 - 2026-11-13 Steve 问「为什么不在我的 tools 里面」：线上 changle.ca/tools 有随便（截图发了），两清和跟一单是故意藏着的；问他说的是哪个，他接着发了串串的截图。按他说的「按照这个逻辑再去检查别的选项」把 31 个菜系都查了一遍：同样的问题还有拉面店被 Google 叫日料时不算拉面、兰州拉面店被叫面馆时不算西北菜、中餐海鲜酒家算成西餐海鲜、上海酒家算成粤菜、日式烧烤算成中式烧烤、Kobe 铁板烧算成牛排，都改了。
+- 2026-11-13 #492 合并上线（Cloudflare 部署成功，线上页面脚本和 main 一样）。设计检查提示 privacy.html 字号层级太平，没改，先问 Steve。
+- 2026-11-18 Steve 说「继续」：做了 #597（微信里默认中文，跟一单档案转来的全站规矩）、#599（删一个人挑的旧代码，11-15 以后可删）、#602（演示模式两个老问题）。隐私页字号的提醒查过：检查工具读不到 `/eat/app.css`，以为标题和正文都是 16px；页面实际是 32、21、16px，带上真的样式表再查就没有问题。没改页面，只在本机记了这条忽略（隐私页和条款页）。三个都 CI 绿了合并，Cloudflare 部署成功；线上验过 /eat/rate 回首页、旧的单人评分接口 404、页面脚本和 main 一样。
