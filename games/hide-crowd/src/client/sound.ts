@@ -163,29 +163,34 @@ function duck(start: number, length: number): void {
 }
 
 const midi = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
+/** a little higher or lower each time (up to 6%), so the same blow never sounds twice the same */
+const vary = () => 0.94 + Math.random() * 0.12;
 
 export const sfx = {
   /** a punch thrown */
   whoosh(): void {
     const t = now();
     if (t === null) return;
-    hiss(t, 0.18, 0.32, 700, 2_600, 1.4);
+    const pitch = vary();
+    hiss(t, 0.18, 0.32, 700 * pitch, 2_600 * pitch, 1.4);
   },
   /** a punch that lands: a cartoon bonk on a thump */
   bonk(): void {
     const t = now();
     if (t === null) return;
-    voice("sine", 620, 150, t, 0.18, 0.42);
-    voice("triangle", 1_240, 300, t, 0.1, 0.12);
-    voice("sine", 120, 48, t, 0.24, 0.55);
-    hiss(t, 0.06, 0.3, 2_400, 900, 0.8);
+    const pitch = vary();
+    voice("sine", 620 * pitch, 150 * pitch, t, 0.18, 0.42);
+    voice("triangle", 1_240 * pitch, 300 * pitch, t, 0.1, 0.12);
+    voice("sine", 120 * pitch, 48 * pitch, t, 0.24, 0.55);
+    hiss(t, 0.06, 0.3, 2_400 * pitch, 900 * pitch, 0.8);
   },
   /** a body hitting the floor */
   thud(delay = 0): void {
     const t = now();
     if (t === null) return;
-    voice("sine", 95, 40, t + delay, 0.28, 0.5);
-    hiss(t + delay, 0.14, 0.18, 500, 160, 0.7);
+    const pitch = vary();
+    voice("sine", 95 * pitch, 40 * pitch, t + delay, 0.28, 0.5);
+    hiss(t + delay, 0.14, 0.18, 500 * pitch, 160 * pitch, 0.7);
   },
   /** you hit a passer-by: a sheepish two-note slide */
   oops(): void {

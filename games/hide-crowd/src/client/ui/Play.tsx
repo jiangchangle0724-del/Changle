@@ -185,7 +185,8 @@ export function Play(props: {
         {meScore && meScore.inRound && (
           <div class="hud-mine" aria-label={`${t("score")} ${meScore.score}`}>
             <span>{t("you")}</span>
-            <b class="tabular">{meScore.score}</b>
+            {/* (keyed by the score: a new point pops in) */}
+            <b key={meScore.score} class="tabular">{meScore.score}</b>
           </div>
         )}
         {props.fullscreen && (

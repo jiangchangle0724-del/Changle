@@ -189,6 +189,16 @@ them (PR #5 studied its trailer). What makes that game work, and what this one d
   punched by mistake goes down too, so everyone sees the mistake (the puncher recoils, stunned). The
   round's last blow plays in slow motion before the results cover it. With reduced motion: none of the
   stillness, kicks, sparks, dust or slow motion.
+* **And harder** (2026-11-19, the big upgrade's third part, the feel; `ui/shake.ts`, `people.ts`,
+  `ui/effects.ts`): the camera's shake is trauma: every blow adds to it (a tag 0.78, a foul 0.52, a
+  swing 0.3, a bang 0.66, the stage's call 0.42, the end 0.5), it drains away on the real clock (2.1 a
+  second, so it settles through a hit-stop) and the shake is its square, so a swing barely nudges, a
+  tag punches and two blows close together add up; it moves as a few waves at unrelated rates, with a
+  little roll, never a buzz. Anyone knocked down (a player, a passer-by, a firecracker's victim) is
+  lit white for 90 ms, squashes and springs back (and again when they hit the floor), and a comic
+  burst pops over their chest; a fist going out stretches the body a little. The same for every body.
+  A point pops into the scoreboard's pips (and into your own score), and the blows' sounds are a
+  little higher or lower each time. With reduced motion: no shake, flash, squash, stretch or burst.
 * **Sound** (`src/client/sound.ts`, all made in the page, no files): a whoosh for a punch, a cartoon
   bonk when it lands, a thud on the floor, a sheepish two notes for a foul, a slide when you're
   spotted, the ferry horn, the busker's riff, the gong, the stage's count (three drum beats rising,
@@ -435,7 +445,7 @@ Every round ends in a penalty moment, as on the rest of changle.ca:
 | `src/client/ui/Lobby.tsx`, `Play.tsx`, `Controls.tsx`, `Result.tsx`, `Penalty.tsx`, `Menu.tsx` | The phone's screens. |
 | `src/client/ui/Tv.tsx` | The big screen. |
 | `src/client/ui/Arena.tsx`, `Arena3D.tsx`, `floorArt.ts`, `landmarks.ts`, `ArenaFallback.tsx` | The arena: loaded when needed, the 3D scene (its floor and what lies on it, each place's light, the rules' marks, the Blender set), the stand-in venue drawn in code until the set arrives, and the flat arena without WebGL. |
-| `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/crackers.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); its firecrackers (the throw, the ring, the fuse, the bang, the red paper); the camera's opening sweep, the glance at a distraction, the winner's shot, the confetti for the winner and for a tag; the punches' swooshes, the dizzy stars, the dust and the bangs' smoke. |
+| `src/client/ui/market.ts`, `src/client/fireworks.ts`, `src/client/ui/crackers.ts`, `src/client/ui/cinema.ts`, `src/client/ui/effects.ts`, `src/client/ui/shake.ts` | The night market's lights, pools and fireworks (with the fireworks' timing, shared with the sound); its firecrackers (the throw, the ring, the fuse, the bang, the red paper); the camera's opening sweep, the glance at a distraction, the winner's shot, the confetti for the winner and for a tag; the punches' swooshes, the blows' bursts, the dizzy stars, the dust and the bangs' smoke; the camera's shake. |
 | `src/client/people.ts`, `camera.ts`, `renderQuality.ts` | The people (their looks, their clips and how they blend), the camera's framing (`frameFloor`), the frame-rate budget. |
 | `tools/blender/` | The scripts that build the 3D sets and the people's files. |
 | `src/client/ui/Sideways.tsx`, `ui/HomeScreen.tsx`, `device.ts` | The turn-sideways screen, the iPhone's full-screen guide and its line in a round, and what kind of phone this is. |
@@ -515,7 +525,8 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
 6. **Night colours only**, from the tokens; the gel carries night-coloured text.
 7. **Both languages**, switchable in the menu at any time; no em dashes or curly quotes.
 8. **Reduced motion**: the phone's setting or the menu's switch stops the stamp's slam and shake,
-   the camera's shake, kicks, sweeps and glances, the walk's bounce, the swooshes and the dust, the
+   the camera's shake, kicks, sweeps and glances, the blows' flash, squash, stretch and burst, the
+   walk's bounce, the swooshes and the dust, the
    firecrackers' flight, flash, smoke and jolt, and the confetti, holds the dizzy stars, the turn screen's phone and the guide's little iPhone still, and brings the
    drill's count up without a pop; the crowd still moves (that is the game).
 9. **The penalty follows the table**: the table's own penalty replaces every drink word.

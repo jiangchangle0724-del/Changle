@@ -991,7 +991,14 @@ button.arena-option:active {
   font-size: var(--text-sm);
 }
 .hud-mine b {
+  display: inline-block;
   font: 800 var(--text-lg) / 1 var(--font-display);
+  animation: point-pop var(--dur-emphasis) var(--ease-pop);
+}
+@keyframes point-pop {
+  from {
+    transform: scale(0.4);
+  }
 }
 .play-scores {
   grid-area: scores;
@@ -1042,6 +1049,18 @@ button.arena-option:active {
 }
 .score-pips i.is-on {
   background: var(--gel);
+  /* a point scored: its pip pops in with a ring of the gel */
+  animation: pip-on var(--dur-emphasis) var(--ease-pop);
+}
+@keyframes pip-on {
+  from {
+    transform: scale(0.3);
+    box-shadow: 0 0 0 0 var(--gel);
+  }
+  to {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px transparent;
+  }
 }
 .score-num {
   display: none;

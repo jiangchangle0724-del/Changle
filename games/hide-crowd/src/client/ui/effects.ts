@@ -1,7 +1,8 @@
 // The little things over the people, the way the big party games draw them: a swoosh where every
-// punch goes (a passer-by's too, so a swoosh gives nobody away), stars circling the head of anyone
-// knocked silly, dust kicked up behind a run, and the smoke of a firecracker. One draw each, however
-// many there are. With reduced motion: no swooshes, dust or smoke (they fly), and the stars hold still.
+// punch goes (a passer-by's too, so a swoosh gives nobody away), a burst where a blow lands (anyone
+// knocked down gets one), stars circling the head of anyone knocked silly, dust kicked up behind a
+// run, and the smoke of a firecracker. One draw each, however many there are. With reduced motion: no
+// swooshes, bursts, dust or smoke (they fly or flash), and the stars hold still.
 import * as THREE from "three";
 
 const SWOOSHES = 32;
@@ -10,6 +11,8 @@ const STARS = 3;
 const HEADS = 26;
 const PUFFS = 72;
 const PUFF_MS = 640;
+const BURSTS = 8;
+const BURST_MS = 230;
 /** a body this fast (the rules' units a second) is running: a passer-by's run, or a player's top speed */
 const RUN_FROM = 10.5;
 
@@ -27,6 +30,8 @@ export interface EffectColors {
 export interface Effects {
   /** a punch thrown, its fist out: from a body at (x, z) turned `facing` (its yaw: it looks along sin, cos) */
   punch(x: number, z: number, facing: number, now: number): void;
+  /** a blow landed on a body at (x, y, z) (y: its chest): a burst pops out over it and is gone */
+  impact(x: number, y: number, z: number, now: number): void;
   /** this frame, a stunned head at (x, y, z), stunned since `since` */
   dizzy(x: number, y: number, z: number, since: number): void;
   /** this frame, the body in place `slot` at (x, z), turned `facing`, moving at `speed` (the rules' units a second) */
@@ -39,6 +44,11 @@ export interface Effects {
 }
 
 export const easeOut = (value: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, value)), 3);
+/** past the end and back (about a tenth): a pop that lands */
+export const easeOutBack = (value: number) => {
+  const t = Math.min(1, Math.max(0, value)) - 1;
+  return 1 + 2.70158 * t * t * t + 1.70158 * t * t;
+};
 
 /**
  * A flat material whose every copy fades on its own: a per-copy `fade` multiplies the alpha (three.js
@@ -128,6 +138,31 @@ function star(fill: THREE.Color, rim: THREE.Color): THREE.BufferGeometry {
   return shape(positions, colors, 3, index);
 }
 
+/** A comic burst facing +z: twelve uneven spikes in the star's colour round a pale middle, over a dark rim. */
+function burst(fill: THREE.Color, core: THREE.Color, rim: THREE.Color): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const index: number[] = [];
+  const spikes = 12;
+  const fan = (outer: number, inner: number, z: number, color: THREE.Color) => {
+    const centre = positions.length / 3;
+    positions.push(0, 0, z);
+    colors.push(color.r, color.g, color.b, 1);
+    for (let point = 0; point < spikes * 2; point++) {
+      const angle = (point * Math.PI) / spikes + 0.2;
+      // (every other spike longer: drawn by hand, not by compass)
+      const radius = point % 2 === 1 ? inner : point % 4 === 0 ? outer : outer * 0.78;
+      positions.push(Math.cos(angle) * radius, Math.sin(angle) * radius, z);
+      colors.push(color.r, color.g, color.b, 1);
+    }
+    for (let point = 0; point < spikes * 2; point++) index.push(centre, centre + 1 + point, centre + 1 + ((point + 1) % (spikes * 2)));
+  };
+  fan(0.62, 0.3, 0, rim);
+  fan(0.52, 0.25, 0.01, fill);
+  fan(0.26, 0.15, 0.02, core);
+  return shape(positions, colors, 4, index);
+}
+
 /** A soft round puff facing +z: nearly solid most of the way out, then thinning to nothing at its edge. */
 export function puff(): THREE.BufferGeometry {
   const positions = [0, 0, 0];
@@ -173,6 +208,10 @@ export function addEffects(scene: THREE.Scene, colors: EffectColors): Effects {
   const smokeColor = new THREE.Color(colors.smoke);
   // (the colours' buffer from the start, so the first puff doesn't make the graphics chip build a new program mid-round)
   dust.mesh.setColorAt(0, dustColor);
+  // (a blow's burst is over in a blink too: drawn over everything)
+  const bursts = fading(burst(new THREE.Color(colors.star), new THREE.Color(colors.swoosh), new THREE.Color(colors.rim)), fadingMaterial(), BURSTS, scene);
+  bursts.mesh.material.depthTest = false;
+  bursts.mesh.renderOrder = 3;
   const starMaterial = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide });
   const stars = new THREE.InstancedMesh(star(new THREE.Color(colors.star), new THREE.Color(colors.rim)), starMaterial, HEADS * STARS);
   stars.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -181,8 +220,10 @@ export function addEffects(scene: THREE.Scene, colors: EffectColors): Effects {
   scene.add(stars);
 
   interface Swoosh { x: number; z: number; facing: number; born: number }
+  interface Burst { x: number; y: number; z: number; born: number; spin: number }
   interface Puff { x: number; y: number; z: number; vx: number; vy: number; vz: number; born: number; life: number; size: number; spin: number; color: THREE.Color; grow: number; opacity: number }
   const flying: Swoosh[] = [];
+  const popping: Burst[] = [];
   const puffs: Puff[] = [];
   const heads: { x: number; y: number; z: number; since: number }[] = [];
   const nextPuff = new Map<number, number>();
@@ -197,6 +238,11 @@ export function addEffects(scene: THREE.Scene, colors: EffectColors): Effects {
       if (reducedNow) return;
       if (flying.length >= SWOOSHES) flying.shift();
       flying.push({ x, z, facing, born: now });
+    },
+    impact(x, y, z, now) {
+      if (reducedNow) return;
+      if (popping.length >= BURSTS) popping.shift();
+      popping.push({ x, y, z, born: now, spin: Math.random() * Math.PI });
     },
     dizzy(x, y, z, since) {
       if (heads.length < HEADS) heads.push({ x, y, z, since });
@@ -256,6 +302,7 @@ export function addEffects(scene: THREE.Scene, colors: EffectColors): Effects {
       if (reduced) {
         flying.length = 0;
         puffs.length = 0;
+        popping.length = 0;
       }
       const step = delta / 1000;
       camera.getWorldQuaternion(facingCamera);
@@ -281,6 +328,27 @@ export function addEffects(scene: THREE.Scene, colors: EffectColors): Effects {
       if (live) {
         swooshes.mesh.instanceMatrix.needsUpdate = true;
         swooshes.fade.needsUpdate = true;
+      }
+
+      // the bursts: popping out past their size and back, held a moment, then gone
+      live = 0;
+      for (const pop of popping) {
+        const age = (now - pop.born) / BURST_MS;
+        if (age >= 1) continue;
+        dummy.position.set(pop.x, pop.y, pop.z);
+        dummy.quaternion.copy(facingCamera).multiply(roll.setFromAxisAngle(FORWARD, pop.spin));
+        dummy.scale.setScalar(0.35 + 0.65 * easeOutBack(age * 2.6));
+        dummy.updateMatrix();
+        bursts.mesh.setMatrixAt(live, dummy.matrix);
+        bursts.fade.setX(live, age < 0.55 ? 1 : 1 - (age - 0.55) / 0.45);
+        popping[live++] = pop;
+      }
+      popping.length = live;
+      bursts.mesh.count = live;
+      bursts.mesh.visible = live > 0;
+      if (live) {
+        bursts.mesh.instanceMatrix.needsUpdate = true;
+        bursts.fade.needsUpdate = true;
       }
 
       // the dust: a soft puff that swells, drifts back and up, and thins away
@@ -332,7 +400,7 @@ export function addEffects(scene: THREE.Scene, colors: EffectColors): Effects {
       if (count) stars.instanceMatrix.needsUpdate = true;
     },
     dispose() {
-      for (const mesh of [swooshes.mesh, dust.mesh, stars]) {
+      for (const mesh of [swooshes.mesh, bursts.mesh, dust.mesh, stars]) {
         scene.remove(mesh);
         mesh.geometry.dispose();
         (mesh.material as THREE.Material).dispose();
