@@ -11,7 +11,8 @@ BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "limbo-coach", "limbo-band", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
+# the lobby's board, in the order of ONLINE_GAMES in src/shared/protocol.ts
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 
@@ -116,7 +117,7 @@ def seat_table(browser, names, lang="zh"):
 
 def start_game(host, everyone, gid):
     if room(host)["front"] != GAME_INDEX[gid]:
-        host.locator(f'.lobby .tile[data-tile="{GAME_INDEX[gid]}"]').click()
+        host.locator(f'.lobby .board-cell[data-tile="{GAME_INDEX[gid]}"] .ui-tile').click()
         until(lambda: room(host)["front"] == GAME_INDEX[gid])
         host.wait_for_timeout(300)
     host.locator(".lobby-actions .btn-primary").click()
@@ -452,16 +453,78 @@ def t_freeze_single(browser):
     pg.context.close()
 
 
+# counts the notes and the stop-and-start cycles from now on (installed with evaluate, so after the page loaded)
+SPY_NOTES = """() => {
+  if (window.__spied) return;
+  window.__spied = true; window.__notes = 0; window.__kicks = 0;
+  for (const K of ['OscillatorNode', 'AudioBufferSourceNode']) {
+    const st = window[K].prototype.start;
+    window[K].prototype.start = function (...a) { window.__notes++; return st.apply(this, a); };
+  }
+  const su = AudioContext.prototype.suspend;
+  AudioContext.prototype.suspend = function (...a) { window.__kicks++; return su.apply(this, a); };
+}"""
+
+
+def notes_in(pg, ms):
+    a = pg.evaluate("() => window.__notes")
+    pg.wait_for_timeout(ms)
+    return pg.evaluate("() => window.__notes") - a
+
+
+def t_freeze_sound(browser):
+    pg = phone(browser, "solo-sound", players=PLAYERS[:3], sound=True)
+    pg.goto(BASE + "#/g/freeze", wait_until="networkidle")
+    pg.wait_for_selector(".setup-panel")
+    ok(pg.locator(".fz-sound").count() == 0, "sound on: nothing to say on the setup screen")
+    pg.get_by_role("button", name="放音乐").click()
+    pg.wait_for_selector(".floor")
+    pg.evaluate(SPY_NOTES)
+    ok(notes_in(pg, 800) > 10, "the music plays")
+    btn = pg.get_by_role("button", name="没声音？")
+    ok(btn.count() == 1, "没声音？ sits under the floor")
+    btn.click()
+    pg.wait_for_timeout(700)
+    ok(pg.evaluate("() => window.__kicks") == 1, "the tap stops and starts the sound")
+    ok(notes_in(pg, 700) > 10, "and the music goes on")
+    ok("静音键" in pg.locator(".fz-sound .hint").inner_text(), "with the things to check on the phone")
+    shot(pg, "fz-nosound")
+    pg.wait_for_selector(".freeze", timeout=22000)
+    pg.wait_for_timeout(400)
+    ok(notes_in(pg, 600) == 0, "the restarted music stops with the cut too")
+    ok(pg.locator(".fz-sound").count() == 0, "no sound line while frozen")
+    pg.locator(".fz-catch-btn").first.click()
+    pg.locator(".game-actions button.btn-primary").click()
+    pg.wait_for_timeout(900)
+    clear_stamps([pg])
+    ok(until(lambda: pg.locator(".floor").count() == 1, 4000), "round 2")
+    pg.wait_for_timeout(1000)
+    ok(pg.evaluate("() => window.__kicks") == 2 and notes_in(pg, 600) > 10, "every round stops and starts the sound once before the music")
+    errors([pg])
+    pg.context.close()
+
+
 def t_freeze_online(browser):
     host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay"])
     everyone = [host] + guests
     start_game(host, everyone, "freeze")
+    # these phones have their sound off in the settings (phone()): the game says so, with the switch
+    ok(all("关了" in g.locator(".fz-sound").inner_text() for g in everyone), "every phone says its sound is off")
     shot(host, "fz-net-ready")
     host.get_by_role("button", name="放音乐").click()
     ok(all(until(lambda g=g: view(g)["phase"] == "dance") for g in everyone), "every phone dancing")
     host.wait_for_timeout(2500)
     shot(guests[0], "fz-net-dance")
+    # Mia turns her sound on mid-round: the music joins on the beat, and the line turns into 没声音？
+    mia = guests[0]
+    mia.evaluate(SPY_NOTES)
+    mia.get_by_role("button", name="打开声音").click()
+    mia.wait_for_timeout(1200)
+    ok(mia.evaluate("() => window.__notes") > 10, "sound turned on mid-round: the music joins")
+    ok(mia.get_by_role("button", name="没声音？").count() == 1, "and the line is the quiet 没声音？")
     ok(until(lambda: view(host)["phase"] == "freeze", 22000), "the music cut on every phone")
+    mia.wait_for_timeout(400)
+    ok(mia.locator(".fz-sound").count() == 0, "no sound line while frozen")
     host.wait_for_timeout(300)
     # Mia owns up; the host catches Jay
     guests[0].get_by_role("button", name="我动了").click()
@@ -2144,7 +2207,7 @@ TESTS = {
     "drama": [t_drama_single, t_drama_duel, t_drama_online, t_drama_written, t_drama_cast_single, t_drama_cast_online, t_drama_classic, t_drama_groups, t_drama_read],
     "punchline": [t_punchline_single, t_punchline_online],
     "postit": [t_postit_single, t_postit_online],
-    "freeze": [t_freeze_single, t_freeze_online],
+    "freeze": [t_freeze_single, t_freeze_sound, t_freeze_online],
     "limbo": [t_limbo_single, t_limbo_online, t_limbo_blind_single, t_limbo_blind_online],
     "limbo-variants": [t_limbo_steady_single, t_limbo_moving_single, t_limbo_moving_nosensor_single, t_limbo_tilt_single, t_limbo_party_single, t_limbo_steady_online, t_limbo_moving_online, t_limbo_tilt_online, t_limbo_party_online],
     "limbo-coach": [t_limbo_coach_moving, t_limbo_coach_holds],
