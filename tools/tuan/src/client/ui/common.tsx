@@ -97,8 +97,8 @@ export function TopBar() {
 
 // The sheets on the page, the last on top, and their steps in the page's history. Each open sheet
 // has one step, so the phone's back button closes the top sheet only. A sheet closed any other way
-// leaves its step behind (`spare`): a sheet that opens straight after takes it over (the large
-// picture handing over to the weight picker), else it is taken out of the history a moment later.
+// leaves its step behind (`spare`): a sheet that opens in the same drawing of the page takes it over
+// (the large picture handing over to the weight picker), else it is taken out of the history then.
 // The step back that causes is not a press of the back button (`stepsBack`), and a sheet that opens
 // while one is under way adds its own step only once it has happened (`owed`): a step added and one
 // taken away at the same moment can land in the wrong order (Chrome does), which would leave a sheet
@@ -150,7 +150,8 @@ function closed(open: Open, back: boolean) {
   if (!sheets.length) document.documentElement.classList.remove("has-sheet");
   if (back || open.owed) return;
   spare += 1;
-  setTimeout(release);
+  // (as soon as this drawing of the page is done: a sheet drawn with it has had the chance to take the step)
+  queueMicrotask(release);
 }
 const isTop = (open: Open) => sheets[sheets.length - 1] === open;
 
