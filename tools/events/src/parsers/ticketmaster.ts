@@ -118,10 +118,10 @@ export function parseTicketmaster(page: TmPage, source: string): { events: Norma
         if (positivePrice(p.min)) priceMin = Math.min(priceMin ?? Infinity, p.min);
         if (positivePrice(p.max)) priceMax = Math.max(priceMax ?? -Infinity, p.max);
       }
-      let image: NonNullable<TmEvent["images"]>[number] | undefined;
-      for (const candidate of Array.isArray(ev.images) ? ev.images : []) {
-        if (candidate?.ratio === "16_9" && (!image || (candidate.width ?? 0) > (image.width ?? 0))) image = candidate;
-      }
+      // the smallest 16:9 picture at least 600 wide (a row on a phone, at twice its size), else the biggest
+      const wide = (Array.isArray(ev.images) ? ev.images : []).filter((c) => c?.ratio === "16_9" && typeof c.url === "string");
+      const enough = wide.filter((c) => (c.width ?? 0) >= 600).sort((a, b) => (a.width ?? 0) - (b.width ?? 0));
+      const image = enough[0] ?? wide.sort((a, b) => (b.width ?? 0) - (a.width ?? 0))[0];
       const status = (ev.dates?.status?.code ?? "onsale").toLowerCase();
       events.push({
         source,

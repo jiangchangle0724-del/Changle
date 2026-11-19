@@ -11,6 +11,7 @@ import type { PublicEvent, Published } from "../src/types";
 const base: PublicEvent = {
   id: "x",
   title: "",
+  titleZh: null,
   summaryZh: null,
   summaryEn: null,
   start: "2026-11-14T10:00:00-07:00",
@@ -116,6 +117,43 @@ describe("the page", () => {
     expect(en).toContain("<span>Free</span><span>Family &#38; Kids</span><span>Vancouver Public Library</span>");
     expect(en).toContain('<h3 class="title" lang="zh-CN">');
     expect(en).toContain("1 more running since an earlier day");
+  });
+
+  it("on the Chinese page: the name in Chinese, the source's own under it, and the sentence on what it is", () => {
+    const zhOne = ev({
+      id: "vpl:9",
+      title: "PAWS 4 Stories",
+      titleZh: "与狗狗共读故事",
+      summaryZh: "孩子们和治疗犬一对一练习朗读，培养阅读的信心。",
+      start: "2026-11-14T15:00:00-07:00",
+      venue: "West Point Grey Branch",
+      area: "vancouver",
+    });
+    const p = { ...pub, events: [...events, zhOne], count: events.length + 1 };
+    const zh = render("", "zh", p);
+    expect(zh).toContain('<h3 class="title"><a href="https://example.com/e" target="_blank" rel="noopener noreferrer">与狗狗共读故事</a></h3><p class="orig" lang="en">PAWS 4 Stories</p><p class="sum">孩子们和治疗犬一对一练习朗读，培养阅读的信心。</p>');
+    // the English page: the source's own name only, and no Chinese sentence
+    const en = render("", "en", p);
+    expect(titles(en)).toContain("PAWS 4 Stories");
+    expect(en).not.toContain("与狗狗共读故事");
+    expect(en).not.toContain("孩子们和治疗犬");
+    // no Chinese name yet: the source's, with no second line
+    expect(zh).toContain('<h3 class="title" lang="en"><a href="https://example.com/e" target="_blank" rel="noopener noreferrer">Late Show</a></h3><p class="place">');
+  });
+
+  it("shows the source's picture over https, lazily and without saying where it's shown; none when there's none", () => {
+    const withPic = [
+      ev({ ...events[0], imageUrl: "http://s1.ticketm.net/dam/a/1/x_RETINA_PORTRAIT_16_9.jpg" }),
+      ev({ ...events[1], imageUrl: "javascript:alert(1)" }),
+      ev({ ...events[2], imageUrl: 'https://img.example/a"b.png' }),
+    ];
+    const html = render("", "zh", { ...pub, events: withPic, count: 3 });
+    const pics = [...html.matchAll(/<img [^>]*>/g)].map((m) => m[0]).sort();
+    // (and none for the javascript: one)
+    expect(pics).toEqual([
+      '<img class="pic" src="https://img.example/a&#34;b.png" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">',
+      '<img class="pic" src="https://s1.ticketm.net/dam/a/1/x_RETINA_PORTRAIT_16_9.jpg" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">',
+    ]);
   });
 
   it("links only to web pages and escapes what the sources wrote", () => {

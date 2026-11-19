@@ -156,7 +156,7 @@ export const SOURCES: SourceDef[] = [
     url: "https://events.sfu.ca/live/json/v2/events",
     maxParts: 8,
     request(part, _env, w) {
-      return `${this.url}/start_date/${vanDay(w.fromMs)}/end_date/${vanDay(w.toMs - 1)}/paginate/50/response_fields/event_types,location,summary,group_title?page=${part + 1}`;
+      return `${this.url}/start_date/${vanDay(w.fromMs)}/end_date/${vanDay(w.toMs - 1)}/paginate/50/response_fields/event_types,location,summary,group_title,thumbnail?page=${part + 1}`;
     },
     parse(raw) {
       const page = JSON.parse(raw) as unknown;

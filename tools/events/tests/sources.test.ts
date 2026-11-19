@@ -42,7 +42,7 @@ describe("SFU: what anyone can walk into", () => {
   const titles = (events: NormalizedEvent[]) => [...new Set(events.map((e) => e.title))].sort();
 
   it("asks for the window's days, 50 a page", () => {
-    const base = "https://events.sfu.ca/live/json/v2/events/start_date/2026-11-19/end_date/2026-12-02/paginate/50/response_fields/event_types,location,summary,group_title";
+    const base = "https://events.sfu.ca/live/json/v2/events/start_date/2026-11-19/end_date/2026-12-02/paginate/50/response_fields/event_types,location,summary,group_title,thumbnail";
     expect(sfu.request(0, {} as Env, w)).toBe(`${base}?page=1`);
     expect(sfu.request(3, {} as Env, w)).toBe(`${base}?page=4`);
   });

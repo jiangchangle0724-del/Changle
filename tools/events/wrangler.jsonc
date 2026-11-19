@@ -26,10 +26,12 @@
   // Vancouver; 14:00 is there in case the rules ever change back. The run checks the local hour.
   // Three triggers a morning (06:00, 06:20, 06:40), one cron: each takes up to 30 steps, going on
   // where the last stopped (the free plan's limits; see CONTRACTS.md).
-  "triggers": { "crons": ["0,20,40 13,14 * * *"] },
+  "triggers": { "crons": ["0,20,40 13,14 * * *", "5 * * * *"] },
   // Created by the first deploy (no ids here). The Worker applies migrations/ itself (src/schema.ts).
   "d1_databases": [{ "binding": "DB", "database_name": "changle-events" }],
   "kv_namespaces": [{ "binding": "CACHE" }],
+  // Workers AI, for the Chinese names and sentences (src/ai.ts): the free daily allowance, no key.
+  "ai": { "binding": "AI" },
   // The schema files are part of the Worker (applied by src/schema.ts).
   "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
   "observability": { "enabled": true, "traces": { "enabled": true } }

@@ -90,11 +90,13 @@ export async function storeEvents(db: D1Database, runId: string, events: Normali
       image_url: ev.imageUrl ?? null,
       organizer: ev.organizer ?? null,
       content_hash: "",
+      // what the AI reads (src/ai.ts): a new text gets new Chinese
+      text_hash: hash(JSON.stringify([ev.title, ev.description ?? null, ev.place?.name ?? null])),
       first_seen: runId,
       last_seen: runId,
       updated_at: now,
     };
-    const { first_seen: _f, last_seen: _l, updated_at: _u, content_hash: _c, ...facts } = row;
+    const { first_seen: _f, last_seen: _l, updated_at: _u, content_hash: _c, text_hash: _t, ...facts } = row;
     row.content_hash = hash(JSON.stringify(facts));
     if (Number.isFinite(row.start_utc)) rows.set(row.id, row);
   }
@@ -130,6 +132,9 @@ export async function storeEvents(db: D1Database, runId: string, events: Normali
          ON CONFLICT(id) DO UPDATE SET ${refresh.map((c) => `${c} = excluded.${c}`).join(", ")},
            category = CASE WHEN events.category_by IN ('ai', 'steve') THEN events.category ELSE excluded.category END,
            category_by = CASE WHEN events.category_by IN ('ai', 'steve') THEN events.category_by ELSE excluded.category_by END,
+           ai_tries = CASE WHEN events.text_hash IS excluded.text_hash THEN events.ai_tries ELSE 0 END,
+           -- Chinese written before the text had a hash (rows from before migration 0004) is for this text
+           ai_hash = CASE WHEN events.text_hash IS NULL AND events.title_zh IS NOT NULL THEN excluded.text_hash ELSE events.ai_hash END,
            updated_at = CASE WHEN events.content_hash IS excluded.content_hash THEN events.updated_at ELSE excluded.updated_at END`,
       )
       .bind(JSON.stringify(list)),

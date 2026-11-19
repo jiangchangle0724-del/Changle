@@ -248,6 +248,10 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
     if (place && Array.isArray(geo) && geo.length === 2) [place.lat, place.lon] = [Number(geo[0]), Number(geo[1])];
     const status = STATUS[String(value("status") ?? "").toUpperCase()] ?? "scheduled";
     const url = String(value("url") ?? "") || (/^https?:\/\//.test(location) ? location : "");
+    // its picture: the first ATTACH that is an image (The Events Calendar's featured image, UBC's)
+    const attached = (vevent.hasProperty("attach") ? vevent : master?.component)?.getAllProperties("attach") ?? [];
+    const picture = attached.find((p) => /^image\//i.test(String(p.getParameter("fmttype") ?? "")));
+    const imageUrl = picture && /^https?:\/\//i.test(String(picture.getFirstValue())) ? String(picture.getFirstValue()) : null;
     const base = {
       source: opts.source,
       title,
@@ -256,6 +260,7 @@ export function parseIcal(text: string, opts: IcalOptions): NormalizedEvent[] {
       status,
       place,
       organizer: null,
+      imageUrl,
     };
     const s = timeOf(start);
     const timing = vevent.hasProperty("dtend") || vevent.hasProperty("duration") ? ev : master ?? ev;

@@ -16,8 +16,9 @@ Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events
 The page itself is at `/go` (src/page.ts), on the Tools tab of changle.ca since 14 November (Steve's
 call, ahead of gate A): one day at a time, by category, area and price, in Chinese or English, with
 the calendar feed (`/go/api/events.ics`) to subscribe to; search engines are asked to leave it out
-until it's promoted. Still to come: Chinese summaries (A3), duplicates across sources (A4), more
-sources.
+until it's promoted. Since 19 November the Chinese page has each event's name in Chinese and a
+sentence on what kind of event it is, written by Workers AI every hour (`src/ai.ts`; task A3), and the
+sources' pictures. Still to come: duplicates across sources (A4), more sources.
 
 The library pieces C4, C5, C9 and C12 are in (Codex, reviewed 1 November). What their reviews
 left for A4, the dedupe step:
@@ -94,6 +95,10 @@ It runs on the free plan: nothing here costs money.
 ### 每天的检查（什么都不用设）
 
 每天夜里两点多，GitHub 检查一次前一天那一轮：每个来源都读完了没有，清单发布了没有，活动数有没有比前几天少一半以上。有问题，就在仓库里开一个问题（issue），里面 @ 你，GitHub 会发邮件给你，写着哪个来源、上次读完是哪天、最后的错误。之后问题变了才再说一次，同样的问题不会天天发邮件；哪天检查又过了，它自己把问题关掉。收到邮件，把链接发给管玩什么的对话就行，不用回复也不用关。
+
+### 中文名和介绍（什么都不用设）
+
+中文页面上每个活动显示中文名（原名小字在下面），再加一句中文说明这是什么活动。这是 Cloudflare 自带的 AI（Workers AI）写的：每小时 5 分，把页面上还没有中文的活动交给它，一次 15 个；来源改了说明的，重写一次。用的是每天 1 万个 neuron 的免费额度，第一次把六百多个活动全写一遍大约用四分之一，之后每天只写新的，用得很少。额度用完它只会报错，下个小时再试，不会花钱（免费计划不能超额付费）。没分类的活动它顺便分个类；来源自己给了分类的不动。
 
 ### 两个图书馆的「接力」（什么都不用设）
 

@@ -1,6 +1,7 @@
 // 玩什么 · What's On at changle.ca/go. Every morning at 06:00 Vancouver time the scheduled run
 // gathers the next 14 days (src/run.ts) and publishes them to KV (src/publish.ts); the API reads
-// that one file, so it answers at once.
+// that one file, so it answers at once. Every hour at :05 Workers AI writes the Chinese names and
+// sentences the published page still lacks, and it's published again (src/ai.ts).
 //   GET /go              the page: one day at a time, by category, area and price (src/page.ts)
 //   GET /go/api/events   the events, filtered: from, to (YYYY-MM-DD), cat, area, tag (comma lists)
 //   GET /go/api/events.ics  the same, as a calendar to subscribe to (src/ics.ts)
@@ -10,6 +11,7 @@
 //   POST /go/api/handoff the libraries' pages, from the GitHub job (signed in by GitHub; src/handoff.ts): kept for
 //                        the run, or read at once when the run has gone past the library (src/arrival.ts)
 import { WorkerEntrypoint } from "cloudflare:workers";
+import { AI_CRON, catchUp, translateStep } from "./ai";
 import { useArrival } from "./arrival";
 import { receiveHandoff } from "./handoff";
 import { toIcs } from "./ics";
@@ -31,6 +33,9 @@ export class Steps extends WorkerEntrypoint<Env> {
   }
   publish(args: { runId: string; note?: string }) {
     return publish(this.env, args.runId, args.note ?? null);
+  }
+  translate(args: { runId: string; offset: number }) {
+    return translateStep(this.env, args);
   }
 }
 
@@ -124,7 +129,14 @@ export default {
   // At :00, :20 and :40 past 13:00 and 14:00 UTC: the ones at 06:xx in Vancouver run (13:xx while B.C.
   // keeps UTC-7). Each goes on with the morning's run where the last stopped; the 06:40 one publishes
   // whatever it has. (ALLOW_TEST: any hour, and never the last, so a local run goes on until done.)
+  // At :05 every hour: the Chinese the published page still lacks (src/ai.ts), then the page again.
   async scheduled(controller, env, ctx) {
+    if (controller.cron === AI_CRON) {
+      // (the columns it writes may be newer than the last run: a deploy at night)
+      await ensureSchema(env.DB);
+      await catchUp(ctx.exports.Steps, env.DB, (await published(env))?.runId ?? null, controller.scheduledTime);
+      return;
+    }
     const local = vanParts(controller.scheduledTime);
     const test = env.ALLOW_TEST === "1";
     if (local.hour !== 6 && !test) return;

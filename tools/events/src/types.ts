@@ -142,7 +142,11 @@ export interface FetchLog {
 /** What the page and the API get: the next 14 days, one entry per event (KV "events:live"). */
 export interface PublicEvent {
   id: string;
+  /** As the source writes it. */
   title: string;
+  /** The name in Chinese (src/ai.ts), when it has one yet. */
+  titleZh: string | null;
+  /** A sentence on what kind of event it is (src/ai.ts). */
   summaryZh: string | null;
   summaryEn: string | null;
   start: string;

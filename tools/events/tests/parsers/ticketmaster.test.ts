@@ -40,13 +40,14 @@ describe("Ticketmaster saved pages", () => {
     expect(parseTicketmaster(handmade, source).more).toBe(true);
   });
 
-  it("reads the documentation's sold-out golf event with an unknown time and the widest landscape image", () => {
+  it("reads the documentation's sold-out golf event with an unknown time and a landscape image big enough for a row", () => {
     const result = parseTicketmaster(docs, source);
     expect(result.events).toHaveLength(1);
     expect(result.events[0]).toMatchObject({
       sourceEventId: "vvG1VZKS5pr1qy", status: "soldout", category: "outdoors",
       start: "2016-03-06", allDay: true, timeTBD: true, priceMin: null, priceMax: null, isFree: null,
-      imageUrl: "http://s1.ticketm.net/dam/a/196/6095e742-64d1-4b15-aeac-c9733c52d196_66341_TABLET_LANDSCAPE_LARGE_16_9.jpg",
+      // the smallest 16:9 at least 600 wide: 640 (of 100, 205, 640, 1024, 1136 and 2048)
+      imageUrl: "http://s1.ticketm.net/dam/a/196/6095e742-64d1-4b15-aeac-c9733c52d196_66341_RETINA_PORTRAIT_16_9.jpg",
     });
     expect(result.more).toBe(true);
   });

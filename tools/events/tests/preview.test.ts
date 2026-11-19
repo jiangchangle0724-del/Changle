@@ -10,6 +10,7 @@ import type { PublicEvent, Published } from "../src/types";
 const base: PublicEvent = {
   id: "x",
   title: "",
+  titleZh: null,
   summaryZh: null,
   summaryEn: null,
   start: "2026-11-03T10:00:00-07:00",

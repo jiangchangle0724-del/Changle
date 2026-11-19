@@ -28,6 +28,13 @@ The Worker runs on Cloudflare's free plan (Steve's decision, Oct 31). Per invoca
   about 5 ms warm. Page sizes are chosen for that (the library: 25 events a page).
 - **One statement per table per step.** Rows go to D1 as one JSON parameter through `json_each`
   (`src/store.ts`), whatever the count.
+- **The Chinese is written every hour, at :05** (`src/ai.ts`, a second cron): the events the
+  published page shows, not over yet, that have no Chinese name or whose text changed since. Each
+  step is one Workers AI request for 15 events (`@cf/qwen/qwen3-30b-a3b-fp8`), three steps at a time,
+  at most 10 rounds (30 steps and the publish) or 12 minutes; then it publishes again, unless the
+  morning's run is under way. Workers AI's free allowance is 10,000 neurons a day: the first pass
+  over ~650 events takes about a quarter of it, a day's new events a few percent. When it's used up
+  the AI answers with an error and the next hour tries again; nothing breaks.
 
 ## Types (`src/types.ts`)
 
@@ -95,6 +102,11 @@ Meadows, the Fraser Valley (兰里及菲沙河谷).
 
 D1 (`migrations/`; the Worker applies new migration files itself, `src/schema.ts`): `events`,
 `venues`, `sources`, `fetch_log`, `review_queue`, and `runs` (how far each morning's run has got).
+An event's Chinese (0004): `title_zh` and `summary_zh` (`summary_by` "ai"), `text_hash` (what the AI
+reads: title, description, venue), `ai_hash` (the text it wrote from) and `ai_tries` (answers it
+couldn't use for this text; after three it stays in English). The AI's category goes in `category`
+with `category_by` "ai", only where the parsers gave none. Its steps are logged as source `ai`
+(`found` asked, `updated` written).
 Never edit a migration that has gone out; add the next number and list it in `src/schema.ts`.
 Each `fetch_log` row says how its step got its answer: `via` is `fetch` or `handoff` (below), and
 `note` why, in a few words.
@@ -158,6 +170,11 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
   filter a link; `noindex` for now. Events that started on an earlier day are folded under the day's
   own; a night that ends by 05:00 isn't on the next day's list. With a query string it must be `/go/?…`:
   the route `changle.ca/go` takes only the bare address, so `/go?lang=zh` goes to the site instead.
+  On the Chinese page an event shows its Chinese name (`titleZh`) with the source's own under it, small,
+  and the AI's sentence (`summaryZh`); the English page shows the source's name. The source's picture
+  (`imageUrl`, over https) sits on top of a row, 3:1, lazy, sent without a referrer; none when there's
+  none. Pictures: the library's banner, Ticketmaster's smallest 16:9 at least 600 wide, UBC's ATTACH
+  image, SFU's thumbnail.
 - `GET /go/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD&cat=a,b&area=x,y&tag=free,kids`
 - `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6),
   named by its filters in Chinese and English (`玩什么 · What's On · 亲子家庭 Family & Kids`).
