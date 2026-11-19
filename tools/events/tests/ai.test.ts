@@ -16,7 +16,6 @@ import {
   writeSome,
   type RunModel,
   type Translator,
-  type Wrote,
 } from "../src/ai";
 import { LIVE_KEY, publish } from "../src/publish";
 import { ensureSchema } from "../src/schema";
@@ -233,6 +232,13 @@ describe("writing and keeping it", () => {
     expect(await row("vpl:e1")).toMatchObject({ title_zh: "中文名1" });
   });
 
+  it("new instructions try again an event the old ones gave up on", async () => {
+    await storeEvents(env.DB, RUN, [event(1)]);
+    await env.DB.prepare("UPDATE events SET ai_hash = '!' || text_hash || ':v2', ai_tries = 3").run();
+    const { run } = model();
+    expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).wrote).toBe(1);
+  });
+
   it("an event it couldn't use counts a try; after three it stays in English, until its text changes", async () => {
     await ensureSchema(env.DB);
     await storeEvents(env.DB, RUN, [event(1), event(2)]);
@@ -260,16 +266,17 @@ describe("writing and keeping it", () => {
     expect(await row("vpl:e1")).toMatchObject({ ai_tries: 0, title_zh: null });
   });
 
-  it("only what the page shows, not over yet; a step takes its own share and is logged as the run's 'ai' step", async () => {
+  it("only what the page shows, not over yet; a step takes the share it's given and is logged as the run's 'ai' step", async () => {
     await ensureSchema(env.DB);
     const many = Array.from({ length: AI_BATCH + 5 }, (_, i) => event(i + 1));
     // over by now (06:00 to 08:00 this morning), and after the window: never asked
     await storeEvents(env.DB, RUN, [...many, event(90, { start: "2026-11-19T06:00:00-07:00" }), event(91, { start: "2026-12-10T10:00:00-07:00" })]);
     const { run, asked } = model();
     const ai = { ...env, AI: { run } } as unknown as Env;
-    const second = await translateStep(ai, { runId: RUN, offset: AI_BATCH }, NOW);
+    const ids = (list: NormalizedEvent[]) => list.map((e) => `vpl:${e.sourceEventId}`);
+    const second = await translateStep(ai, { runId: RUN, ids: [...ids(many.slice(AI_BATCH)), "vpl:e90", "vpl:e91"], part: 1 }, NOW);
     expect(second).toEqual({ asked: 5, wrote: 5, failed: 0, error: null });
-    const first = await translateStep(ai, { runId: RUN, offset: 0 }, NOW);
+    const first = await translateStep(ai, { runId: RUN, ids: ids(many.slice(0, AI_BATCH)), part: 0 }, NOW);
     expect(first).toEqual({ asked: AI_BATCH, wrote: AI_BATCH, failed: 0, error: null });
     expect(asked.flat().some((i) => i.title === "Event 90" || i.title === "Event 91")).toBe(false);
     const log = (await env.DB.prepare("SELECT part, found, updated, error FROM fetch_log WHERE run_id = ?1 AND source = 'ai' ORDER BY id").bind(RUN).all()).results;
@@ -290,61 +297,58 @@ describe("writing and keeping it", () => {
 });
 
 describe("the hourly catch-up", () => {
-  /**
-   * A stand-in for the steps: `left` events wait; in a round (offsets 0, 15, 30, called at once) each
-   * step takes up to a request's worth from its offset in the list as the round found it.
-   */
-  function queue(left: number, opts: { fail?: boolean } = {}) {
-    const offsets: number[] = [];
+  /** The steps as the Worker runs them, with a stand-in model; and what each step was given. */
+  function steps(answer?: (items: { n: number; title: string }[]) => unknown) {
+    const { run } = model(answer);
+    const ai = { ...env, AI: { run } } as unknown as Env;
+    const given: string[][] = [];
     const published: string[] = [];
-    let atStart = left;
     const t: Translator = {
-      async translate({ offset }) {
-        if (offset === 0) atStart = left;
-        offsets.push(offset);
-        const asked = Math.max(0, Math.min(AI_BATCH, atStart - offset));
-        const wrote = opts.fail ? 0 : asked;
-        left -= wrote;
-        return { asked, wrote, failed: 0, error: opts.fail ? "3036: Account limited" : null } satisfies Wrote;
+      async translate(a) {
+        given.push(a.ids);
+        return translateStep(ai, a, NOW);
       },
       async publish({ runId }) {
         published.push(runId);
         return {};
       },
     };
-    return { t, offsets, published };
+    return { t, given, published };
   }
 
-  it("asks three requests at a time until a round finds less than it could take, then publishes again", async () => {
-    await ensureSchema(env.DB);
-    const { t, offsets, published } = queue(100);
-    // 45, 45, then 10 (fewer than a round could take): done
-    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 100, steps: 9, published: true });
-    expect(offsets).toEqual([0, AI_BATCH, 2 * AI_BATCH, 0, AI_BATCH, 2 * AI_BATCH, 0, AI_BATCH, 2 * AI_BATCH]);
+  it("three steps at a time, each with its own events, until a round finds fewer than it could take; then publishes again", async () => {
+    await storeEvents(env.DB, RUN, Array.from({ length: 100 }, (_, i) => event(i + 1)));
+    const { t, given, published } = steps();
+    // 45, 45, then 10
+    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 100, steps: 7, published: true });
+    expect(given.map((ids) => ids.length)).toEqual([15, 15, 15, 15, 15, 15, 10]);
+    // no event given to two steps
+    expect(new Set(given.flat()).size).toBe(100);
     expect(published).toEqual([RUN]);
+    expect((await env.DB.prepare("SELECT count(*) AS n FROM events WHERE title_zh IS NOT NULL").first<{ n: number }>())?.n).toBe(100);
   });
 
-  it("stops at a round that writes nothing (the AI can't be asked), and publishes nothing", async () => {
-    await ensureSchema(env.DB);
-    const { t, offsets, published } = queue(100, { fail: true });
+  it("stops at a round that writes nothing (the AI can't be asked, or says nothing usable), and publishes nothing", async () => {
+    await storeEvents(env.DB, RUN, Array.from({ length: 100 }, (_, i) => event(i + 1)));
+    const { t, given, published } = steps(() => "I can't help with that.");
     expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, steps: 3, published: false });
-    expect(offsets).toHaveLength(3);
+    expect(given).toHaveLength(3);
     expect(published).toEqual([]);
   });
 
-  it("nothing waiting: one round, no publishing", async () => {
-    await ensureSchema(env.DB);
-    const { t, published } = queue(0);
-    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, steps: 3, published: false });
+  it("nothing waiting: no step, no publishing", async () => {
+    const { t, given, published } = steps();
+    expect(await catchUp(t, env.DB, RUN, NOW)).toEqual({ wrote: 0, steps: 0, published: false });
+    expect(given).toEqual([]);
     expect(published).toEqual([]);
   });
 
   it("leaves the publishing to this morning's run while it's under way; nothing without a published list", async () => {
-    await ensureSchema(env.DB);
+    await storeEvents(env.DB, RUN, Array.from({ length: 5 }, (_, i) => event(i + 1)));
     await env.DB.prepare("INSERT INTO runs (run_id, next_source, next_part, started_at) VALUES (?1, 'vpl', 0, ?2)").bind(RUN, new Date(NOW).toISOString()).run();
-    const { t, published } = queue(5);
-    expect(await catchUp(t, env.DB, "2026-11-18", NOW)).toMatchObject({ wrote: 5, published: false });
+    const { t, published } = steps();
+    expect(await catchUp(t, env.DB, RUN, NOW)).toMatchObject({ wrote: 5, published: false });
     expect(published).toEqual([]);
-    expect(await catchUp(queue(5).t, env.DB, null, NOW)).toEqual({ wrote: 0, steps: 0, published: false });
+    expect(await catchUp(steps().t, env.DB, null, NOW)).toEqual({ wrote: 0, steps: 0, published: false });
   });
 });
