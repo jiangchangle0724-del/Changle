@@ -230,6 +230,9 @@ npm run test:e2e     # three phones: sign in, join, diet cards, both rounds, res
                      # and the privacy and terms pages are up and linked from the home page
 ```
 
+The browser tests need Playwright's Chromium once (`npx playwright install chromium`). On a computer
+where it can't be downloaded, `PW_CHROME=1 npm run test:e2e` uses the computer's own Chrome.
+
 GitHub runs all three on every push that touches this folder, in Chromium and WebKit
 (`.github/workflows/suibian.yml`).
 
