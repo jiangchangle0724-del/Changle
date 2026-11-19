@@ -31,7 +31,9 @@ import { doneStarting, invitePicked, wasStarted } from "./invites";
 import { WhoStep } from "./Join";
 import { byDay, dayLabel, extrasText, lostLine, mine, paidBy, sharedHow, syncLine } from "./lines";
 import { Bar, Rolling } from "./parts";
+import { PhotoPicker } from "./Photos";
 import { PictureSheet } from "./PictureSheet";
+import { Receipts, RECEIPTS_MAX } from "./Receipts";
 import { paidInOf } from "./rates";
 import { SettleView } from "./SettleView";
 import { tellList } from "./Ledgers";
@@ -93,6 +95,10 @@ export function LedgerPage({ id }: { id: string }) {
   /** what you were owed (or owed) when 记一笔 opened: the figure rolls on from there when it closes */
   const [rollFrom, setRollFrom] = useState<number | null>(null);
   useBackCloses(!!entry, () => setEntry(null));
+  // 几张小票: the photos chosen, an expense each, on a page of their own (the phone's back closes it)
+  const [receipts, setReceipts] = useState<File[] | null>(null);
+  useBackCloses(!!receipts, () => setReceipts(null));
+  const receiptPicker = useRef<HTMLInputElement>(null);
   // friends picked when the ledger started are invited once the server has it (and someone is signed in to invite them)
   const made = !!held?.made;
   useEffect(() => {
@@ -138,6 +144,22 @@ export function LedgerPage({ id }: { id: string }) {
         <Bar lang={lang} onBack={toList} title={ledger.name} />
         <WhoStep ledger={ledger} lang={lang} onSkip={() => setAsking(false)} />
       </div>
+    );
+
+  if (receipts)
+    return (
+      <Receipts
+        ledger={ledger}
+        me={me}
+        files={receipts}
+        lang={lang}
+        onClose={() => setReceipts(null)}
+        onSaved={(ids) => {
+          setReceipts(null);
+          setView("list");
+          setLanded(ids.at(-1) ?? null);
+        }}
+      />
     );
 
   if (entry) {
@@ -207,9 +229,23 @@ export function LedgerPage({ id }: { id: string }) {
       {view === "list" || !hasExpenses ? (
         !locked && (
           <div className="split-dock">
-            <Button size="lg" block icon={Plus} onClick={() => openEntry(null)}>
-              {say(lang, "addExpense")}
-            </Button>
+            <div className="split-dock-row">
+              {/* several receipts at once, an expense each: the photos are chosen first (signed in: they go to the server) */}
+              <button type="button" className="split-day-button split-receipts-button" onClick={() => (status === "in" ? receiptPicker.current?.click() : openSignIn())}>
+                <ReceiptText aria-hidden="true" />
+                <span className="split-receipts-label">{say(lang, "receiptsButton")}</span>
+              </button>
+              <Button size="lg" block icon={Plus} onClick={() => openEntry(null)}>
+                {say(lang, "addExpense")}
+              </Button>
+            </div>
+            <PhotoPicker
+              input={receiptPicker}
+              onPick={(chosen) => {
+                if (chosen.length > RECEIPTS_MAX) toast(say(lang, "receiptsMax", { n: RECEIPTS_MAX }));
+                setReceipts(chosen.slice(0, RECEIPTS_MAX));
+              }}
+            />
           </div>
         )
       ) : (

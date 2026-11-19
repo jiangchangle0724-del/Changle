@@ -314,3 +314,9 @@ Shape: Steve asked for a scanning animation after the photo is taken, something 
 What the look at the rendered screens changed: the rolling digits were first a strong tan and read as a real amount ($72.40) in a still frame; dimmed to a third of the light so the read amount is the bright thing when it lands.
 
 Verdict: holds to the contract, now with four motions. The fourth is the owner's, quiet in colour, and gone the moment the amount is there.
+
+## 几张小票: several receipts at once (2026-11-19)
+
+Shape: Steve photographs receipts as he goes and throws the paper away; later he wants to pick several at once and get an expense each. One quiet pill beside 记一笔 (the same pill as the day beside 记好了) opens the photo picker; the page that follows is a plain list, one row a receipt: the photo (with the scan's band while it goes and is read), what was read (the business; the day and the place, small), and the amount in a field of its own, to put right, or to type where nothing was read. Cleared, a row is left out. The one button at the foot records them all, and says 正在读小票… until every row is done. No new colour and no new motion: the band is motion four's, on a smaller photo.
+
+Not done: asking inside 记一笔 whether several photos are one expense or several. Several photos on one expense (a receipt and its card slip) stays what 记一笔 does; several expenses have their own way in.
