@@ -17,6 +17,7 @@ import { EmptyStatePreview } from "./EmptyState";
 import { SkeletonPreview } from "./Skeleton";
 import { GameHeaderPreview } from "./GameHeader";
 import { PenaltyCardPreview } from "./PenaltyCard";
+import { ToolbarDemoPreview } from "./ToolbarDemo";
 
 const previews = {
   Button: ButtonPreview,
@@ -31,6 +32,7 @@ const previews = {
   Skeleton: SkeletonPreview,
   GameHeader: GameHeaderPreview,
   PenaltyCard: PenaltyCardPreview,
+  ToolbarDemo: ToolbarDemoPreview,
 };
 function Gallery() {
   const [lang, setLang] = useState<Lang>("zh");

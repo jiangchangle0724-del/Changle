@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import { useBackCloses } from "../router";
 import { Button } from "./Button";
 import { labels } from "./labels";
+import { tokenMs } from "./tokenTime";
 import type { CSSProperties } from "react";
 import type { SheetProps } from "./types";
 import "./Sheet.css";
@@ -30,10 +31,8 @@ export function Sheet(props: SheetProps) {
     if (!props.open) {
       if (!node.open) return;
       node.classList.add("ui-sheet-leaving");
-      const ms = parseFloat(
-        getComputedStyle(node).getPropertyValue("--dur-exit"),
-      );
-      const timer = window.setTimeout(() => node.close(), ms);
+      // (the build writes 150ms as .15s: read as a number of milliseconds, the sheet shut at once)
+      const timer = window.setTimeout(() => node.close(), tokenMs("--dur-exit", node));
       return () => window.clearTimeout(timer);
     }
     if (!restore.current) {

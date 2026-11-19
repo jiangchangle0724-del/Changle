@@ -216,6 +216,21 @@ export type ScreenHintsProps = {
   rotate?: boolean;
 };
 
+/**
+ * The browser ToolbarDemo shows: Safari up to 18 (aA), 26 (the page menu, then More), 27 and later
+ * (the page menu), Android (full screen), WeChat on an iPhone (open in Safari) or on Android.
+ */
+export type ToolbarDemoKind = "safari18" | "safari26" | "safari27" | "android" | "wechat" | "wechat-android";
+
+export type ToolbarDemoProps = {
+  lang: Lang;
+  kind: ToolbarDemoKind;
+  /** false holds it on the frame it's at */
+  play?: boolean;
+  /** the step it's showing (0, 1, …) to light up its line; -1 with reduced motion, where it holds one picture */
+  onStep?: (step: number) => void;
+};
+
 export type ToastProps = {
   message: ReactNode;
   /** danger is read out at once; the rest wait their turn */

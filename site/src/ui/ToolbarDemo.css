@@ -1,0 +1,528 @@
+/* ToolbarDemo: a phone held sideways, in 3D, a fingertip showing where to tap to hide the toolbar */
+.ui-demo {
+  position: relative;
+  padding: var(--space-2) var(--space-3) var(--space-4);
+  perspective: 900px;
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  user-select: none;
+}
+/* its shadow on the table */
+.ui-demo-shadow {
+  position: absolute;
+  inset: auto 10% 0;
+  height: 30%;
+  border-radius: var(--r-pill);
+  background: radial-gradient(closest-side, var(--color-scrim), transparent);
+}
+.ui-demo-phone {
+  position: relative;
+  aspect-ratio: 2.16;
+  border-radius: var(--r-tile);
+  background: var(--color-raised);
+  box-shadow: var(--shadow-flat);
+  transform-style: preserve-3d;
+  transform: rotateX(18deg) rotateY(-18deg);
+  /* it turns a little in the hand, slowly */
+  animation: ui-demo-sway calc(var(--dur-emphasis) * 15) var(--ease-out) infinite alternate;
+}
+/* its edge: a rim and a back behind the face */
+.ui-demo-phone::before,
+.ui-demo-phone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.ui-demo-phone::before {
+  background: var(--color-line);
+  transform: translateZ(-4px);
+}
+.ui-demo-phone::after {
+  background: var(--color-bg);
+  transform: translateZ(-10px);
+}
+.ui-demo-screen {
+  --fx: 0px;
+  --fy: 0px;
+  --fz: 4px;
+  --tz: 1px;
+  position: absolute;
+  inset: 4% 2%;
+  border-radius: var(--r-panel);
+  background: var(--color-sheet);
+  color: var(--color-text-2);
+  transform-style: preserve-3d;
+  transform: translateZ(1px);
+}
+.ui-demo-island,
+.ui-demo-camera {
+  position: absolute;
+  left: 2%;
+  top: 50%;
+  border-radius: var(--r-pill);
+  background: var(--color-bg);
+  transform: translateY(-50%) translateZ(1px);
+}
+/* sideways, the island is on the left */
+.ui-demo-island {
+  width: 3.4%;
+  height: 28%;
+}
+.ui-demo-camera {
+  width: 2.6%;
+  aspect-ratio: 1;
+}
+
+/* the game */
+.ui-demo-page {
+  position: absolute;
+  inset: 27% 3% 5% 9%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  transition: inset calc(var(--dur-emphasis) * 1.5) var(--ease-out);
+}
+.ui-demo[data-kind="safari18"] .ui-demo-page {
+  top: 37%;
+}
+/* the game takes the screen; what's left of the bar floats over it */
+.ui-demo:is([data-kind^="safari"]) [data-done] .ui-demo-page {
+  top: 6%;
+}
+.ui-demo[data-kind="android"] [data-done] .ui-demo-page {
+  inset: 5% 3% 5% 7%;
+}
+.ui-demo-card {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-1);
+  border-radius: var(--r-small);
+  background: var(--gel);
+}
+.ui-demo-card i {
+  width: 7em;
+  height: var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--on-gel);
+  opacity: 0.5;
+}
+.ui-demo-card i + i {
+  width: 4em;
+  opacity: 0.3;
+}
+.ui-demo-seats {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.ui-demo-seats i {
+  width: 1.3em;
+  aspect-ratio: 1;
+  border-radius: var(--r-pill);
+  background: var(--gel-pink);
+}
+.ui-demo-seats i:nth-child(2) {
+  background: var(--gel-cyan);
+}
+.ui-demo-seats i:nth-child(3) {
+  background: var(--gel-lime);
+}
+.ui-demo-seats i:nth-child(4) {
+  background: var(--gel-amber);
+}
+
+/* the browser's bar, along the top when the phone is sideways */
+.ui-demo-bar {
+  position: absolute;
+  top: 5%;
+  left: 9%;
+  right: 3%;
+  height: 18%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+  transform: translateZ(2px);
+  transition:
+    opacity var(--dur-emphasis) var(--ease-out),
+    transform var(--dur-emphasis) var(--ease-out);
+}
+.ui-demo-screen[data-done] .ui-demo-bar:not([data-then]) {
+  opacity: 0;
+  transform: translateZ(2px) translateY(-40%) scaleY(0.5);
+}
+/* WeChat's bar gives way to the browser's */
+.ui-demo-bar[data-then] {
+  opacity: 0;
+}
+.ui-demo-screen[data-done] .ui-demo-bar[data-then] {
+  opacity: 1;
+}
+.ui-demo-icon,
+.ui-demo-glyph svg,
+.ui-demo-dot svg {
+  flex-shrink: 0;
+  width: 1.3em;
+  height: 1.3em;
+}
+.ui-demo-field {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+}
+.ui-demo-url,
+.ui-demo-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+.ui-demo-title {
+  color: var(--color-text);
+  font-weight: 700;
+}
+.ui-demo-tabs {
+  position: absolute;
+  top: 25%;
+  left: 9%;
+  right: 3%;
+  height: 8%;
+  display: flex;
+  gap: var(--space-1);
+  transform: translateZ(2px);
+  transition: opacity var(--dur-emphasis) var(--ease-out);
+}
+.ui-demo-tabs i {
+  flex: 1;
+  border-radius: var(--r-small);
+  background: var(--color-surface);
+}
+.ui-demo-tabs i:first-child {
+  background: var(--color-raised);
+}
+.ui-demo-screen[data-done] .ui-demo-tabs {
+  opacity: 0;
+}
+
+/* what can be tapped: ringed while the finger is over it, lit while it's pressed */
+.ui-demo-glyph,
+.ui-demo-row,
+.ui-demo-mini,
+.ui-demo-pill,
+.ui-demo-dot {
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+  transition:
+    outline-color var(--dur-enter) var(--ease-out),
+    background-color var(--dur-enter) var(--ease-out);
+}
+.ui-demo [data-near] {
+  outline-color: var(--color-accent);
+}
+.ui-demo [data-hit] {
+  outline-color: var(--color-accent);
+  background-color: color-mix(in oklab, var(--color-accent) 45%, transparent);
+}
+.ui-demo-glyph {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 1.8em;
+  height: 1.6em;
+  border-radius: var(--r-small);
+  color: var(--color-text);
+  font-weight: 800;
+}
+/* Safari 18's aA: a small A and a big one */
+.ui-demo-aa {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  font-size: var(--text-sm);
+}
+.ui-demo-aa small,
+.ui-demo-size small {
+  font-size: var(--text-xs);
+}
+
+/* Safari's menus: they pop up off the screen, towards you */
+.ui-demo-menu {
+  position: absolute;
+  top: 25%;
+  left: 12%;
+  width: 44%;
+  display: grid;
+  padding: var(--space-1);
+  border: 1px solid var(--color-line-soft);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  opacity: 0;
+  transform-origin: 10% 0;
+  transform: translateZ(2px) scale(0.85);
+  transition:
+    opacity var(--dur-enter) var(--ease-out),
+    transform var(--dur-emphasis) var(--ease-pop);
+}
+.ui-demo[data-kind="safari18"] .ui-demo-menu {
+  top: 26%;
+}
+.ui-demo-screen[data-menu] .ui-demo-menu[data-level="1"] {
+  opacity: 1;
+  transform: translateZ(12px);
+}
+/* More opens over the page menu, which steps back */
+.ui-demo-menu[data-level="2"] {
+  top: 38%;
+  left: 27%;
+}
+.ui-demo-screen[data-menu="2"] .ui-demo-menu[data-level="1"] {
+  opacity: 0.5;
+  transform: translateZ(6px) scale(0.96);
+}
+.ui-demo-screen[data-menu="2"] .ui-demo-menu[data-level="2"] {
+  opacity: 1;
+  transform: translateZ(18px);
+}
+.ui-demo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 1.6em;
+  padding: 0 var(--space-2);
+  border-radius: var(--r-small);
+}
+.ui-demo-row b,
+.ui-demo-tile b {
+  color: var(--color-text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ui-demo-size {
+  justify-content: space-between;
+  color: var(--color-text);
+}
+/* the menu items it isn't about */
+.ui-demo-row i,
+.ui-demo-tile i:not(.ui-demo-dot),
+.ui-demo-ask i {
+  width: 70%;
+  height: var(--space-1);
+  border-radius: var(--r-pill);
+  background: var(--color-line);
+}
+
+/* what's left of the toolbar once it's hidden */
+.ui-demo-mini {
+  /* centred by its margins, not a transform: the finger finds it by where it's laid out */
+  position: absolute;
+  top: 5%;
+  left: 0;
+  right: 0;
+  width: max-content;
+  margin: 0 auto;
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  line-height: var(--leading-en);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateZ(2px) scale(0.8);
+  /* gone quickly as the bar comes back, so the two addresses don't cross */
+  transition:
+    opacity var(--dur-exit) var(--ease-out),
+    transform var(--dur-exit) var(--ease-out),
+    outline-color var(--dur-enter) var(--ease-out),
+    background-color var(--dur-enter) var(--ease-out);
+}
+.ui-demo-screen[data-done] .ui-demo-mini {
+  opacity: 1;
+  transform: translateZ(2px);
+  /* and in once the bar has folded away */
+  transition:
+    opacity var(--dur-emphasis) var(--ease-out) var(--dur-enter),
+    transform var(--dur-emphasis) var(--ease-out) var(--dur-enter),
+    outline-color var(--dur-enter) var(--ease-out),
+    background-color var(--dur-enter) var(--ease-out);
+}
+
+/* Android: this card, with its 全屏 */
+.ui-demo-ask {
+  position: absolute;
+  left: 32%;
+  right: 20%;
+  bottom: 9%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  transform: translateZ(6px);
+  transition:
+    opacity var(--dur-emphasis) var(--ease-out),
+    transform var(--dur-emphasis) var(--ease-out);
+}
+.ui-demo-screen[data-done] .ui-demo-ask {
+  opacity: 0;
+  transform: translateZ(6px) translateY(var(--motion-shift));
+}
+.ui-demo-pill {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--r-pill);
+  color: var(--on-gel);
+  background-color: var(--gel);
+  font-weight: 800;
+}
+
+/* WeChat: the panel from ··· */
+.ui-demo-panel {
+  position: absolute;
+  left: 9%;
+  right: 3%;
+  bottom: 0;
+  height: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  border-radius: var(--r-field);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-float);
+  opacity: 0;
+  transform: translateZ(2px) translateY(var(--motion-shift));
+  transition:
+    opacity var(--dur-enter) var(--ease-out),
+    transform var(--dur-emphasis) var(--ease-out);
+}
+.ui-demo-screen[data-menu] .ui-demo-panel {
+  opacity: 1;
+  transform: translateZ(10px);
+}
+.ui-demo-tile {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-width: 3em;
+}
+.ui-demo-dot {
+  display: grid;
+  place-items: center;
+  width: 2.6em;
+  aspect-ratio: 1;
+  border-radius: var(--r-pill);
+  color: var(--color-text);
+  background-color: var(--color-raised);
+}
+
+/* places the finger rests or swipes, with nothing drawn */
+.ui-demo-mark {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+}
+.ui-demo-rest {
+  right: 8%;
+  bottom: 14%;
+}
+.ui-demo-edge {
+  left: 1%;
+  top: 60%;
+}
+.ui-demo-swipe {
+  left: 22%;
+  top: 60%;
+}
+
+/* the fingertip, above the glass, and where it touches */
+.ui-demo-finger,
+.ui-demo-touch {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--space-6);
+  height: var(--space-6);
+  margin: calc(var(--space-6) / -2) 0 0 calc(var(--space-6) / -2);
+  border-radius: var(--r-pill);
+  transition:
+    transform calc(var(--dur-emphasis) * 1.5) var(--ease-out),
+    opacity var(--dur-emphasis) var(--ease-out);
+}
+.ui-demo-finger {
+  border: 2px solid color-mix(in oklab, var(--color-text) 85%, transparent);
+  background: color-mix(in oklab, var(--color-text) 30%, transparent);
+  transform: translate3d(var(--fx), var(--fy), 32px);
+}
+/* its shadow: off to the side while it hovers, under it when it presses */
+.ui-demo-touch {
+  background: radial-gradient(closest-side, var(--color-scrim), transparent);
+  transform: translate3d(calc(var(--fx) + var(--space-2)), calc(var(--fy) + var(--space-3)), var(--tz)) scale(1.4);
+}
+.ui-demo-screen[data-down] .ui-demo-finger {
+  transform: translate3d(var(--fx), var(--fy), var(--fz)) scale(0.8);
+  transition-duration: var(--dur-enter);
+}
+.ui-demo-screen[data-down] .ui-demo-touch {
+  transform: translate3d(var(--fx), var(--fy), var(--tz)) scale(0.8);
+  transition-duration: var(--dur-enter);
+}
+/* the ring a tap leaves */
+.ui-demo-touch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--color-accent);
+  border-radius: inherit;
+  opacity: 0;
+}
+.ui-demo-screen[data-down] .ui-demo-touch::after {
+  animation: ui-demo-ring var(--dur-emphasis) var(--ease-out);
+}
+.ui-demo-screen[data-at="rest"] .ui-demo-finger,
+.ui-demo-screen[data-at="rest"] .ui-demo-touch {
+  opacity: 0;
+}
+.ui-demo-screen[data-jump] .ui-demo-finger,
+.ui-demo-screen[data-jump] .ui-demo-touch {
+  transition: none;
+}
+
+@keyframes ui-demo-sway {
+  from {
+    transform: rotateX(22deg) rotateY(-24deg);
+  }
+  to {
+    transform: rotateX(14deg) rotateY(-10deg);
+  }
+}
+@keyframes ui-demo-ring {
+  from {
+    opacity: 1;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+/* reduced motion: one still picture, the phone held steady */
+@media (prefers-reduced-motion: reduce) {
+  .ui-demo-phone,
+  .ui-demo-touch::after {
+    animation: none;
+  }
+  .ui-demo * {
+    transition: none;
+  }
+}
