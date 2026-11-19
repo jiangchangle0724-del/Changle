@@ -1,13 +1,14 @@
 // One table on a phone: lobby → round 1 (mood) → round 2 (cards) → spinner → result.
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { CUISINES, CUISINE_GROUPS, OCCASIONS, TOP_COUNT, type CuisineGroup, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
+import { CUISINES, OCCASIONS, TOP_COUNT, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
+import { PATHS, groupState, leafText, setAll, type Group, type Leaf, type PathId, type Picks } from "../paths";
 import type { RoomView } from "../../room/protocol";
 import { t, tx, type Key } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
 import { send, toast, useApp } from "../store";
-import { Btn, Countdown, DemoBanner, LangToggle, Qr, TableLimits, memberName } from "./common";
+import { Btn, Countdown, DemoBanner, LangToggle, Qr, TableLimits, memberName, useBackCloses } from "./common";
 import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
 import { RangePicker } from "./RangePicker";
@@ -254,59 +255,121 @@ function Progress({ v }: { v: RoomView }) {
 
 const cycleMood = { none: "like", like: "ban", ban: "none" } as const;
 
+/**
+ * Round 1. First the way in: by cuisine or by what you feel like eating (Steve, 2026-11-19). Then a
+ * row of big groups: a tap likes or refuses a whole group, 细分 opens it to pick inside. A group
+ * picked partly opens on a tap instead, so one tap never wipes out a careful choice. The server
+ * still only gets which menu items each person likes or refuses.
+ */
 function Mood({ v }: { v: RoomView }) {
-  const [picks, setPicks] = useState(v.you.mood);
+  const [picks, setPicks] = useState<Picks>(v.you.mood);
+  const [path, setPath] = useState<PathId | null>(Object.keys(v.you.mood).length ? "cuisine" : null);
+  const [open, setOpen] = useState<string | null>(null);
+  useBackCloses(open !== null, () => setOpen(null));
   const done = v.members.find((m) => m.id === v.you.id)?.done ?? false;
-  const push = (p: typeof picks, finished: boolean) => send({ t: "mood", picks: p, done: finished });
-  const groups = Object.keys(CUISINE_GROUPS) as CuisineGroup[];
+  const push = (p: Picks, finished: boolean) => send({ t: "mood", picks: p, done: finished });
+  const change = (p: Picks) => {
+    setPicks(p);
+    push(p, false);
+  };
+  const groups = path ? PATHS[path] : [];
+  const opened = groups.find((g) => g.id === open);
   return (
     <>
       <h2>{t("round1")}</h2>
       <p class="muted small">{t("round1Hint")}</p>
-      {groups.map((g) => (
-        <section key={g} class="menu">
-          <h3>{tx(CUISINE_GROUPS[g])}</h3>
+      {!path ? (
+        <section class="menu paths">
+          <h3>{t("pathAsk")}</h3>
+          {(["cuisine", "dish"] as const).map((p) => (
+            <button key={p} type="button" class="choice" data-path={p} onClick={() => setPath(p)}>
+              <span class="label">{t(p === "cuisine" ? "byCuisine" : "byDish")}</span>
+              <span class="hint">{t(p === "cuisine" ? "byCuisineEg" : "byDishEg")}</span>
+            </button>
+          ))}
+        </section>
+      ) : opened ? (
+        <section class="menu inside-group">
+          <button type="button" class="back-all" onClick={() => setOpen(null)}>
+            ‹ {tx(opened.text)}
+          </button>
           <div class="moods">
-            {v.chips
-              .filter((c) => CUISINES[c.cuisine].group === g)
-              .map((c) => {
-                const now: MoodPick | "none" = picks[c.cuisine] ?? "none";
-                const cu = CUISINES[c.cuisine];
-                return (
-                  <button
-                    key={c.cuisine}
-                    type="button"
-                    class={`mood ${now}`}
-                    data-cuisine={c.cuisine}
-                    aria-pressed={now !== "none"}
-                    disabled={done}
-                    onClick={() => {
-                      const to = cycleMood[now];
-                      const p = { ...picks };
-                      if (to === "none") delete p[c.cuisine];
-                      else p[c.cuisine] = to;
-                      setPicks(p);
-                      push(p, false);
-                    }}
-                  >
-                    <span class="emoji" aria-hidden="true">
-                      {cu.emoji}
-                    </span>
-                    <span class="label">{tx(cu)}</span>
-                    <span class="mark" aria-hidden="true">
-                      {now === "like" ? "👍" : now === "ban" ? "🚫" : ""}
-                    </span>
-                  </button>
-                );
-              })}
+            {opened.leaves.map((l) => (
+              <LeafChip key={l.id} l={l} picks={picks} done={done} change={change} />
+            ))}
           </div>
         </section>
-      ))}
+      ) : (
+        <section class="menu">
+          <div class="seg path-switch">
+            {(["cuisine", "dish"] as const).map((p) => (
+              <button key={p} type="button" data-path={p} aria-pressed={path === p} onClick={() => setPath(p)}>
+                {t(p === "cuisine" ? "byCuisine" : "byDish")}
+              </button>
+            ))}
+          </div>
+          <div class="moods">
+            {groups.map((g) =>
+              g.leaves.length === 1 ? (
+                <LeafChip key={g.id} l={g.leaves[0]} picks={picks} done={done} change={change} />
+              ) : (
+                <GroupTile key={g.id} g={g} picks={picks} done={done} change={change} openIt={() => setOpen(g.id)} />
+              ),
+            )}
+          </div>
+        </section>
+      )}
       <Btn kind="primary" wide disabled={done} onClick={() => push(picks, true)}>
         {t("done")}
       </Btn>
       <Progress v={v} />
     </>
+  );
+}
+
+function LeafChip({ l, picks, done, change }: { l: Leaf; picks: Picks; done: boolean; change: (p: Picks) => void }) {
+  const now: MoodPick | "none" = picks[l.id] ?? "none";
+  return (
+    <button type="button" class={`mood ${now}`} data-cuisine={l.id} aria-pressed={now !== "none"} disabled={done} onClick={() => change(setAll(picks, [l.id], cycleMood[now]))}>
+      <span class="emoji" aria-hidden="true">
+        {CUISINES[l.id].emoji}
+      </span>
+      <span class="label">{tx(leafText(l))}</span>
+      <span class="mark" aria-hidden="true">
+        {now === "like" ? "👍" : now === "ban" ? "🚫" : ""}
+      </span>
+    </button>
+  );
+}
+
+function GroupTile({ g, picks, done, change, openIt }: { g: Group; picks: Picks; done: boolean; change: (p: Picks) => void; openIt: () => void }) {
+  const { state, likes, bans } = groupState(g, picks);
+  const name = tx(g.text);
+  const status = state === "like" ? t("allYes") : state === "ban" ? t("allNo") : state === "some" ? t("someYes", { likes, bans }) : "";
+  const next = state === "none" ? "like" : state === "like" ? "ban" : "none";
+  return (
+    <div class="group">
+      <button
+        type="button"
+        class={`mood ${state}`}
+        data-group={g.id}
+        aria-pressed={state !== "none"}
+        aria-label={status ? t("groupStatus", { name, status }) : name}
+        disabled={done}
+        onClick={() => (state === "some" ? openIt() : change(setAll(picks, g.leaves.map((l) => l.id), next)))}
+      >
+        <span class="emoji" aria-hidden="true">
+          {g.emoji}
+        </span>
+        <span class="label">{name}</span>
+        <span class={`mark${state === "some" ? " some" : ""}`} aria-hidden="true">
+          {state === "like" ? "👍" : state === "ban" ? "🚫" : state === "some" ? [likes && `👍${likes}`, bans && `🚫${bans}`].filter(Boolean).join(" ") : ""}
+        </span>
+      </button>
+      <button type="button" class="inside" aria-label={t("insideOf", { name })} onClick={openIt}>
+        {t("inside")} ›
+      </button>
+    </div>
   );
 }
 

@@ -347,11 +347,21 @@ export class Room {
     return { k: "search", center: this.st.center, range: this.st.range, lang: this.st.lang ?? "zh", liked: this.liked(), occasion: this.st.occasion ?? "casual", at: this.when() };
   }
 
-  /** Cuisines more people liked than refused, most liked first (the menu's order between equals). */
+  /**
+   * Cuisines more people liked than refused, most liked first. Between equals, what people picked on
+   * its own goes first: round 1 lets a whole group be liked at once (all of 中餐), and each person's
+   * likes share one vote between them, so one person's 韩国烤肉 still gets a search of its own next
+   * to someone else's whole 中餐. Then the menu's order.
+   */
   private liked(): E.CuisineId[] {
     const { likes, bans } = this.moodCounts();
     const net = (c: E.CuisineId) => (likes[c] ?? 0) - (bans[c] ?? 0);
-    return E.MENU.filter((c) => net(c) > 0).sort((a, b) => net(b) - net(a));
+    const weight: Partial<Record<E.CuisineId, number>> = {};
+    for (const m of Object.values(this.st.members)) {
+      const mine = (Object.entries(m.mood) as [E.CuisineId, E.MoodPick][]).filter(([, v]) => v === "like").map(([c]) => c);
+      for (const c of mine) weight[c] = (weight[c] ?? 0) + 1 / mine.length;
+    }
+    return E.MENU.filter((c) => net(c) > 0).sort((a, b) => net(b) - net(a) || (weight[b] ?? 0) - (weight[a] ?? 0));
   }
 
   private toLobby(o: { keepMoods?: boolean } = {}) {

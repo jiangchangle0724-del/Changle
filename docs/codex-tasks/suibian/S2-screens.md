@@ -99,18 +99,31 @@ attribute with the person's id, for S3. Dock: 改饮食卡 quiet and 开始！ l
 the allergy and "don't eat" lists as removable pills, the field with 加上, and its save button as the
 lit button at the bottom of the card (it stays `.diet .btn.primary`).
 
-**Round 1** (`Mood` in `ui/Table.tsx`, drawn in `Round1.dc.html`). TopBar: back to home, the title
-`round1`, and the countdown on the right as a pill (`Countdown`, moved up from the progress line):
-`--color-surface` with `--shadow-flat`, and from 10 seconds left `--color-danger` with
-`--color-on-danger`, with the class `urgent` for S3. The hint (`round1Hint`) under the bar. Each
-group's heading (`.menu h3`) small, `--color-text-2`, a little letter spacing. The chips in a grid of
-three columns (two below 360px), each a tile at least `calc(var(--tap) * 2)` high: the emoji large
-at the top left, the 👍 or 🚫 mark at the top right, the name at the bottom (`--text-sm`, weight 700,
-`--leading-tight`). 👍: an inset 2px `--color-success` ring on the success tint. 🚫: `--color-sheet`,
-the name struck through in `--color-text-2`, the tile at 60% opacity. Keep `button.mood` with its
-`like` / `ban` / `none` class, `data-cuisine` and `aria-pressed`. Dock: the progress (a dot per
-person at the table, lit `--color-success` when they're done, and `waitingOthers` beside them), 不等了，
-下一步 quiet for the host, and 好了 lit.
+**Round 1** (`Mood` in `ui/Table.tsx`; the tiles are drawn in `Round1.dc.html`, the screen's order
+is newer than the drawing). TopBar: back to home, the title `round1`, and the countdown on the right
+as a pill (`Countdown`, moved up from the progress line): `--color-surface` with `--shadow-flat`, and
+from 10 seconds left `--color-danger` with `--color-on-danger`, with the class `urgent` for S3. The
+hint (`round1Hint`) under the bar. Since 2026-11-19 the round has three views, all kept as they work
+today (Steve: the menu starts with big groups):
+- *The way in*: `pathAsk` and two large buttons (`.choice[data-path=cuisine]`, `[data-path=dish]`),
+  each its name and its examples, at least `--dock-h` high, like the drawing's tiles but wide.
+- *The groups*: the switch between the two ways (`.seg.path-switch`, two pills with `data-path` and
+  `aria-pressed`), then a grid of three columns (two below 360px). A group of one is a plain tile
+  (`button.mood[data-cuisine]`); a bigger group is a `div.group` holding its tile
+  (`button.mood[data-group]`, its `aria-label` saying how it stands) and, along the tile's foot, the
+  `.inside` pill (细分 ›) that opens it. A tile is at least `calc(var(--tap) * 2)` high: the emoji
+  large at the top left, the mark at the top right, the name at the bottom (`--text-sm`, weight 700,
+  `--leading-tight`). 👍 (`like`): an inset 2px `--color-success` ring on the success tint. 🚫 (`ban`):
+  `--color-sheet`, the name struck through in `--color-text-2`, the tile at 60% opacity. Partly picked
+  (`some`, a group only): the mark is the counts (👍2 🚫1) at `--text-sm`, and the ring is a dashed
+  2px `--color-success` line, so it doesn't read as all yes.
+- *Inside a group*: the `.back-all` pill (‹ and the group's name) at the top, then that group's items
+  as tiles in the same grid. The phone's back button closes it (`useBackCloses`, already there).
+
+Keep `button.mood` with its `like` / `ban` / `none` / `some` class, `data-cuisine`, `data-group`,
+`data-path`, `.group`, `.inside`, `.back-all`, `.path-switch`, `aria-pressed` and the labels. Dock:
+the progress (a dot per person at the table, lit `--color-success` when they're done, and
+`waitingOthers` beside them), 不等了，下一步 quiet for the host, and 好了 lit.
 
 **Round 2** (`Cards` in `ui/Table.tsx`, `ui/RankedList.tsx` and `ui/PlaceCard.tsx`, drawn in
 `Round2.dc.html`). TopBar: back to home, the title `round2`, the countdown pill. The hint, the

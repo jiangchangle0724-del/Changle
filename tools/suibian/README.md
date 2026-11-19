@@ -34,6 +34,14 @@ How a table goes:
    (all you can eat, Steve 2026-11-18: a way of eating rather than a cuisine, so a place counts for it
    as well as for its cuisine). The search then spends its searches on the cuisines more people
    liked than refused (see "Where the places come from"). A 🚫 moves that cuisine down.
+   Since 2026-11-19 (Steve) the menu starts big: each person first picks a way in, **by cuisine**
+   (中餐, 日料, 韩餐, 东南亚, 意大利菜…) or **by what they feel like** (烧烤, 火锅, 面, 海鲜, 牛排, 炒菜,
+   咖喱…), and gets a row of big groups (`PATHS` in `src/client/paths.ts`). A tap likes or refuses a
+   whole group; 细分 opens it to pick inside (by dish, inside is where it's from: 面 → 日式拉面, 越南
+   河粉…). A group picked partly opens on a tap instead of being wiped. Both ways lead to the same 32
+   menu items, so the server still hears only which items each person likes or refuses. Between
+   cuisines liked by as many people, what someone picked on its own is searched before a group
+   someone liked whole, so one person's 韩国烤肉 isn't crowded out by another's whole 中餐.
 4. **Round 2, the list**: every place open in range and within everyone's budget, ranked
    (`rank()` in `src/engine/pick.ts`). Every place of a cuisine round 1 liked comes first (the most
    liked cuisine's best first), however well rated the rest (the owner's call, 2026-11-11: a 4.7★

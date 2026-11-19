@@ -460,3 +460,15 @@ test("a business dinner: the search says so, places plainly not for it go last s
   assert.equal(room.view(ids[0]).overBudget, s.places().filter((p) => (p.price ?? 0) > 35).length);
   assert.ok(room.view(ids[0]).overBudget > 0);
 });
+
+test("a whole group liked at once doesn't crowd out one person's own pick in the searches (Steve, 2026-11-19)", () => {
+  const { room, ids } = setup();
+  room.handle(ids[0], { t: "start" });
+  const chinese: CuisineId[] = ["cantonese", "hk_cafe", "sichuan", "hotpot", "taiwanese", "shanghai", "northern", "noodles", "chinese_bbq", "chinese"];
+  room.handle(ids[0], { t: "mood", picks: Object.fromEntries(chinese.map((c) => [c, "like" as MoodPick])), done: true });
+  room.handle(ids[1], { t: "mood", picks: { kbbq: "like" }, done: true });
+  room.handle(ids[2], { t: "mood", picks: {}, done: true });
+  const { liked } = room.flush().want as { liked: CuisineId[] };
+  assert.equal(liked[0], "kbbq", "liked by one, on its own: first");
+  assert.deepEqual(liked.slice(1), chinese, "then the whole group, in the menu's order");
+});

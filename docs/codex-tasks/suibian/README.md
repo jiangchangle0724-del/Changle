@@ -30,8 +30,8 @@ Always:
   which later cards may only tighten) or anything outside `tools/suibian/` (read `site/`, `docs/` and
   `tools/when/`, never change them). If a card seems to need one of them, stop and say so in the PR.
 - **The browser tests in `tests/e2e/` describe what a person can do; they must keep passing.** They
-  find things by visible text, roles and `data-*` attributes (`data-cuisine`, `data-occasion`,
-  `data-allergen`) and a few class names (`.place`, `.place h3`, `.intro`, `.about`, `.reason`,
+  find things by visible text, roles and `data-*` attributes (`data-cuisine`, `data-group`,
+  `data-path`, `data-occasion`, `data-allergen`) and a few class names (`.place`, `.place h3`, `.intro`, `.about`, `.reason`,
   `.mood`, `.menu`, `.menu h3`, `.diet`, `.diet .btn.primary`, `.demo`, `.google`). Keep those
   names, texts and attributes. If a test has to change because the screen changed on purpose
   (say a heading moved), change only that line and say why in the PR.

@@ -68,14 +68,30 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await expect(a.page.locator(".change-occasion")).toHaveCount(0);
   await expect(host.page.locator(".change-occasion")).toBeVisible();
 
-  // Round 1 comes before any search: the whole menu, in three groups, all of them on screen.
+  // Round 1 comes before any search. First the way in: by cuisine or by what you feel like eating
+  // (Steve, 2026-11-19); then big groups, each opened to pick inside.
   await host.page.getByRole("button", { name: "开始！" }).click();
-  for (const p of [host, a, b]) await expect(p.page.locator(".menu").first()).toBeVisible();
-  await expect(host.page.locator(".menu h3")).toHaveText(["中餐", "亚洲菜", "西餐和其他"]);
-  await expect(host.page.locator(".mood")).toHaveCount(32);
-  for (const c of ["sichuan", "cantonese", "hotpot", "thai", "vietnamese", "filipino", "mexican"]) await expect(host.page.locator(`[data-cuisine=${c}]`)).toBeVisible();
+  for (const p of [host, a, b]) await expect(p.page.getByText("先从哪儿挑？")).toBeVisible();
+  await host.page.locator("[data-path=cuisine]").click();
+  await expect(host.page.locator(".path-switch [data-path=cuisine]")).toHaveAttribute("aria-pressed", "true");
+  await expect(host.page.locator(".moods > *")).toHaveCount(11);
+  for (const g of ["chinese", "japanese", "korean", "southeast", "any"]) await expect(host.page.locator(`[data-group=${g}]`)).toBeVisible();
+  for (const c of ["indian", "italian", "french", "mexican"]) await expect(host.page.locator(`[data-cuisine=${c}]`)).toBeVisible();
+  await host.page.getByRole("button", { name: "日料：细分" }).click();
   await host.page.locator("[data-cuisine=ramen]").click(); // 👍
+  await expect(host.page.locator("[data-cuisine=ramen]")).toHaveClass(/like/);
+  // The phone's back button closes the group and stays at the table; 日料 is partly picked now.
+  await host.page.goBack();
+  await expect(host.page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await expect(host.page.locator("[data-group=japanese]")).toHaveClass(/some/);
+  // By dish: noodles, and Japanese ramen inside, with its name for there.
+  await a.page.locator("[data-path=dish]").click();
+  await a.page.getByRole("button", { name: "面：细分" }).click();
+  await expect(a.page.locator("[data-cuisine=ramen]")).toContainText("日式拉面");
   await a.page.locator("[data-cuisine=ramen]").click();
+  await a.page.locator(".back-all").click();
+  // Italian is a group of one: tapped twice, 🚫.
+  await b.page.locator("[data-path=cuisine]").click();
   await b.page.locator("[data-cuisine=italian]").click();
   await b.page.locator("[data-cuisine=italian]").click(); // 🚫
   for (const p of [host, a, b]) await p.page.getByRole("button", { name: "好了" }).click();
@@ -290,6 +306,8 @@ test("a place that is two cuisines counts for whoever liked either, and its card
   await page.locator(".diet .btn.primary").click();
   await page.getByRole("button", { name: "开始！" }).click();
   // Northern Chinese only: 新疆烤串 grills skewers and is from Xinjiang, so it counts, saying so first.
+  await page.locator("[data-path=cuisine]").click();
+  await page.getByRole("button", { name: "中餐：细分" }).click();
   await page.locator("[data-cuisine=northern]").click();
   await page.getByRole("button", { name: "好了" }).click();
   await expect(page.locator(".place").first()).toBeVisible();
@@ -332,6 +350,7 @@ test("all you can eat on round 1's menu: its places come first, the card says so
   await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
   await page.locator(".diet .btn.primary").click();
   await page.getByRole("button", { name: "开始！" }).click();
+  await page.locator("[data-path=dish]").click();
   await expect(page.locator("[data-cuisine=ayce]")).toContainText("自助 · 放题");
   await page.locator("[data-cuisine=ayce]").click();
   await page.getByRole("button", { name: "好了" }).click();
@@ -349,10 +368,47 @@ test("demo restaurants come in the host's language, and the made-up list doesn't
   await expect(host).toHaveURL(/\/eat\/r\/\d{4}$/);
   await host.locator(".diet .btn.primary").click();
   await host.getByRole("button", { name: "Let's go!" }).click();
+  await host.locator("[data-path=cuisine]").click();
+  await host.getByRole("button", { name: "Chinese: more" }).click();
   await host.locator("[data-cuisine=cantonese]").click();
   await host.getByRole("button", { name: "Done", exact: true }).click();
   await expect(host.locator(".place h3").first()).toHaveText("Demo · Golden Bowl Dim Sum");
   await expect(host.locator(".place", { hasText: "Golden Bowl Dim Sum" }).locator(".about")).toHaveText("Demo: dim sum from carts, full early at weekends");
   await expect(host.locator(".demo")).toBeVisible();
   await expect(host.locator(".google")).toHaveCount(0);
+});
+
+test("round 1: a whole group with one tap; a group picked partly opens instead of being wiped; both ways show the same picks (Steve, 2026-11-19)", async ({ browser }) => {
+  const me = await phone(browser, "groups");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `groups-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  await page.getByRole("button", { name: "开始！" }).click();
+  await page.locator("[data-path=cuisine]").click();
+  const chinese = page.locator("[data-group=chinese]");
+  await chinese.click();
+  await expect(chinese).toHaveClass(/like/);
+  await expect(chinese).toHaveAttribute("aria-label", "中餐，都想吃");
+  await page.getByRole("button", { name: "中餐：细分" }).click();
+  for (const c of ["cantonese", "sichuan", "hotpot", "northern", "chinese"]) await expect(page.locator(`[data-cuisine=${c}]`)).toHaveClass(/like/);
+  await page.locator("[data-cuisine=hotpot]").click(); // 👍 → 🚫
+  await page.locator(".back-all").click();
+  await expect(chinese).toHaveClass(/some/);
+  await expect(chinese).toHaveAttribute("aria-label", "中餐，想吃 9 个，不想 1 个");
+  await chinese.click(); // partly picked: it opens, and the choice inside stays
+  await expect(page.locator("[data-cuisine=hotpot]")).toHaveClass(/ban/);
+  await page.locator(".back-all").click();
+  // By dish, the same picks: hot pot is a group of one there.
+  await page.locator(".path-switch [data-path=dish]").click();
+  await expect(page.locator("[data-cuisine=hotpot]")).toHaveClass(/ban/);
+  await expect(page.locator("[data-group=dimsum]")).toHaveClass(/like/); // all Chinese inside
+  await expect(page.locator("[data-group=stirfry]")).toHaveClass(/some/); // Thai and Korean aren't
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  await expect(page.locator(".place").first().locator(".reason", { hasText: "有人想吃这类" })).toBeVisible();
+  expect(me.errors).toEqual([]);
 });
