@@ -43,10 +43,9 @@ export function Home({ go }: { go: (path: string) => void }) {
 
   const mustLogin = !!me?.loginEnabled && !me.user;
   const loginHref = `${BASE}/auth/google?back=${encodeURIComponent(location.pathname)}`;
-  // The last table (rated on its own page) or solo pick (rated at /eat/rate), within three days.
-  const last = me?.last && Date.now() - me.last.at < 3 * 24 * 3600_000 ? me.last : null;
-  const askRating = last && !last.rated && !prefs.rated(last.code ?? `p:${last.place}`) ? last : null;
-  const rateHref = askRating?.code ? `${BASE}/r/${askRating.code}/rate` : `${BASE}/rate`;
+  // The last table, within three days: rated on its own page.
+  const last = me?.last?.code && Date.now() - me.last.at < 3 * 24 * 3600_000 ? me.last : null;
+  const askRating = last && !last.rated && !prefs.rated(last.code) ? last : null;
 
   return (
     <main class="home">
@@ -61,7 +60,7 @@ export function Home({ go }: { go: (path: string) => void }) {
       {me && <DemoBanner demo={me.demo} />}
 
       {askRating && (
-        <a class="card nudge" href={rateHref}>
+        <a class="card nudge" href={`${BASE}/r/${askRating.code}/rate`}>
           <span>{t("lastMeal", { name: askRating.name })}</span>
           <b>{t("rateIt")} →</b>
         </a>
