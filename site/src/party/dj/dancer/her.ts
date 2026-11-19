@@ -1,12 +1,14 @@
 /**
- * The big screen's dancer in three.js (dances.ts says what she dances when): her model, skinned to a
- * Mixamo-named skeleton, and her dances, each fetched when it's first wanted and kept, played as
- * three.js clips whose time is in beats (a loop `beats` long), set from the speaker's beat every frame.
+ * The big screen's dancer in three.js (dances.ts says what she wears and dances when): one of her
+ * outfits' models, skinned to a Mixamo-named skeleton, her hair and skirt on springs of their own
+ * (springs.ts), and her dances, each fetched when it's first wanted and kept, played as three.js clips
+ * whose time is in beats (a loop `beats` long), set from the speaker's beat every frame.
  */
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { danceFile, herFile, readDance, type DanceHead } from "./dances";
+import { makeSprings, type SpringData } from "./springs";
 
 /** The files come gzipped (Cloudflare doesn't compress .glb or .bin): unzipped by the browser's own stream (or fflate). */
 async function fetchZipped(url: string): Promise<ArrayBuffer> {
@@ -56,6 +58,8 @@ export function danceClip(d: { head: DanceHead; q: Int16Array; hips: Int16Array 
 
 export type Her = {
   root: THREE.Group;
+  /** which outfit this is (dances.ts OUTFIT) */
+  outfit: string;
   /** her eyes' height, for framing */
   eyes: number;
   /** fetches a dance (once); resolves when it can be danced */
@@ -63,19 +67,25 @@ export type Her = {
   knows(id: string): boolean;
   /** her pose: `dance` at `t` beats into it, eased in from `from` (k of the way) */
   pose(dance: string, t: number, from?: { dance: string; t: number } | null, k?: number): void;
+  /** after `pose`: her hair and skirt swing on `dt` seconds */
+  swing(dt: number): void;
+  /** her hair and skirt back at rest (she was away a while) */
+  still(): void;
   dispose(): void;
 };
 
-export async function loadHer(): Promise<Her> {
+export async function loadHer(outfit = "club"): Promise<Her> {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  const url = herFile();
+  const url = herFile(outfit);
   const gltf = await loader.parseAsync(await fetchZipped(url), url.slice(0, url.lastIndexOf("/") + 1));
   const root = new THREE.Group();
   root.add(gltf.scene);
   let hipsBone: THREE.Object3D | null = null;
+  const bones = new Map<string, THREE.Object3D>();
   gltf.scene.traverse((x) => {
     if (x.name === "Hips") hipsBone = x;
+    if ((x as THREE.Bone).isBone) bones.set(x.name, x);
     const m = x as THREE.SkinnedMesh;
     if (!m.isSkinnedMesh) return;
     m.frustumCulled = false;
@@ -86,7 +96,8 @@ export async function loadHer(): Promise<Her> {
   });
   if (!hipsBone) throw new Error("no hips");
   const hipsRest = (hipsBone as THREE.Object3D).position.clone();
-  const extras = (gltf.scene.userData as { dancer?: { eyes?: number } }).dancer;
+  const extras = (gltf.scene.userData as { dancer?: { eyes?: number; springs?: SpringData } }).dancer;
+  const springs = makeSprings(extras?.springs, bones);
   const mixer = new THREE.AnimationMixer(gltf.scene);
   const actions = new Map<string, THREE.AnimationAction>();
   const learning = new Map<string, Promise<void>>();
@@ -150,5 +161,15 @@ export async function loadHer(): Promise<Her> {
     });
   };
 
-  return { root, eyes: extras?.eyes ?? 1.6, learn, knows: (id) => actions.has(id), pose, dispose };
+  return {
+    root,
+    outfit,
+    eyes: extras?.eyes ?? 1.6,
+    learn,
+    knows: (id) => actions.has(id),
+    pose,
+    swing: (dt) => springs?.update(root, dt),
+    still: () => springs?.reset(),
+    dispose,
+  };
 }

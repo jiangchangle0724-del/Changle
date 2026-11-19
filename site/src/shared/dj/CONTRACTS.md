@@ -119,9 +119,21 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   drawn in software, where three.js isn't even downloaded, or frames under 20 a second in the first
   seconds). She dances on the speaker's own beat (a whole song's own beat while one plays, found on
   the TV; nothing about it goes to the room now), a beat of the song a beat of the dance: in 3D one
-  of her dances (`dancer/dances.ts`: those that go with the room's stretch of the night and are
-  within a quarter of the song's tempo, eight bars each, the same on every screen; with no song,
-  standing easy); the robot and the drawn one dance the routine, nine simple standing moves
+  of her dances (`dancer/dances.ts`: those of her look within a quarter of the song's tempo, at
+  least two, eight bars each, the same on every screen; with no song, standing easy). **Her looks**
+  (Steve on Nov 18: "要根据不同风格的歌跳不同的舞，比如快节奏就跳街舞sexy一点的，抒情的感情歌就要穿的像初恋纯真一
+  样的短裙，跳温柔柔和一点的。不同的曲风设计不同的衣服，不同的舞蹈，包括背景的灯光"): a whole song's own tempo
+  says which (`lookOf`: under 90 BPM `sweet`, from 115 `club`, between `party`); with the DJ, or a
+  song whose tempo wasn't found, the stretch (the cool-down `sweet`, the warm-up `party`, the build
+  and the peak `club`). Each look its outfit (`OUTFIT`: `sweet` her first-love blouse and pleated
+  skirt, `her-sweet.glb.gz`; `club` her club outfit, `her.glb.gz`; `party` the club one until her
+  party dress is made), fetched the first time it's wanted and changed into in a flash of light (an
+  iPhone or iPad as the speaker keeps one at a time), its dances, and while a song plays whole the
+  stage's lights (`look-*` on `.dj-stage`: the ballad's soft pink and gold, the beams slow and dim,
+  no flashes; the party's gold and orchid; the club's pink and cyan, the beams quick and bright).
+  Her hair's ends and a skirt swing on springs as she moves (`dancer/springs.ts`, three-vrm's way:
+  their bones from `site/scripts/dj-dancer/real/springs.py`, kept off her by round shapes on her
+  bones); the robot and the drawn one dance the routine, nine simple standing moves
   (`shared/dj/dance.ts`, `DANCE_MOVES`), which and in what order following the stretch (`ROUTINES`,
   `moodOf`; a slow song, under 90 BPM by its own tempo,
   the gentle ones), 16 beats each (`moveAt`). The phones have nothing of hers. Gone with 跟着跳

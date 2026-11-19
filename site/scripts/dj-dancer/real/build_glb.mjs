@@ -1,12 +1,14 @@
 // The real dancer's file: the simplified model, skinned to her Mixamo-named skeleton (rest turns none,
-// like MPFB2's), the baked texture as WebP, compressed with meshopt and gzipped.
+// like MPFB2's), the baked texture as WebP, compressed with meshopt and gzipped. With springs.json
+// (springs.py) next to the mesh: her hair's and skirt's bones too, and in the scene's extras what the
+// page swings and keeps off her (dancer/springs.ts).
 // usage: node build_glb.mjs <mesh dir> <joints.json> <texture.png> <out .glb.gz> [--plain out.glb]
 import { Document, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
 import { meshopt, prune } from '@gltf-transform/functions';
 import { MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer';
 import sharp from 'sharp';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { join } from 'node:path';
 const [dir, jfile, texfile, out, ...rest] = process.argv.slice(2);
@@ -18,6 +20,10 @@ const skel = JSON.parse(readFileSync(join(dir, 'skeleton.json'), 'utf8'));
 const J = JSON.parse(readFileSync(jfile, 'utf8')).joints;
 const PAR = { Spine: 'Hips', Spine1: 'Spine', Spine2: 'Spine1', Neck: 'Spine2', Head: 'Neck' };
 for (const s of ['Left', 'Right']) Object.assign(PAR, { [s + 'Shoulder']: 'Spine2', [s + 'Arm']: s + 'Shoulder', [s + 'ForeArm']: s + 'Arm', [s + 'Hand']: s + 'ForeArm', [s + 'HandMiddle1']: s + 'Hand', [s + 'UpLeg']: 'Hips', [s + 'Leg']: s + 'UpLeg', [s + 'Foot']: s + 'Leg', [s + 'ToeBase']: s + 'Foot' });
+// the hair's and skirt's bones (springs.py): where each starts, its parent, and where its tip is
+const SP = existsSync(join(dir, 'springs.json')) ? JSON.parse(readFileSync(join(dir, 'springs.json'), 'utf8')) : null;
+const TAIL = {};
+for (const b of SP?.bones ?? []) { PAR[b.name] = b.parent; J[b.name] = b.head; TAIL[b.name] = b.tail; }
 // her hips over the origin (x and z), feet on the floor
 const shift = [-J.Hips[0], 0, -J.Hips[2]];
 for (let i = 0; i < P.length; i += 3) { P[i] += shift[0]; P[i + 2] += shift[2]; }
@@ -52,7 +58,15 @@ const body = doc.createNode('Body').setMesh(mesh).setSkin(skin);
 const root = doc.createNode('Dancer').addChild(nodes.Hips).addChild(body);
 const scene = doc.createScene('Dancer').addChild(root);
 doc.getRoot().setDefaultScene(scene);
-scene.setExtras({ dancer: { height: 1.74, eyes: at('Head')[1] + 0.07, made: 'TRELLIS.2 model of the design, photos baked on, skinned by distance through her (site/scripts/dj-dancer/real)' } });
+// for the page's springs: each swinging bone's tip from where it starts, and the round shapes on her
+// bones it's kept off (from the bone's own place; every bone's rest turn is none)
+const off = (bone, p) => [p[0] - J[bone][0], p[1] - J[bone][1], p[2] - J[bone][2]].map((v) => Math.round(v * 1e4) / 1e4);
+const springs = SP && {
+  groups: SP.groups.map((g) => ({ ...g, bones: g.bones.map((n) => ({ name: n, tail: off(n, TAIL[n]), k: SP.bones.find((b) => b.name === n)?.k ?? 1 })) })),
+  colliders: Object.fromEntries(Object.entries(SP.colliders).map(([k, c]) => [k, { bone: c.bone, a: off(c.bone, c.a), ...(c.b ? { b: off(c.bone, c.b) } : {}), r: Math.round(c.r * 1e4) / 1e4 }])),
+};
+const height = Math.round(Math.max(...Array.from({ length: P.length / 3 }, (_, i) => P[i * 3 + 1])) * 100) / 100;
+scene.setExtras({ dancer: { height, eyes: at('Head')[1] + 0.07, ...(springs ? { springs } : {}), made: 'TRELLIS.2 model of the design, photos baked on, skinned by distance through her (site/scripts/dj-dancer/real)' } });
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
 const plainIdx = rest.indexOf('--plain');
 if (plainIdx >= 0) writeFileSync(rest[plainIdx + 1], await io.writeBinary(doc));
