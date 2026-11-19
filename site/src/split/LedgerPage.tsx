@@ -392,7 +392,8 @@ function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: L
   const row = (e: Expense, paid = paidInOf(e, ledger), extras = extrasText(e.tip, e.tax, e.paidIn?.currency ?? ledger.currency, lang)) => (
     <>
       <span className="split-row-text">
-        <strong className={e.note ? undefined : "is-quiet"}>{e.note || say(lang, "noNote")}</strong>
+        {/* (what it was for; with no note, where: the business its receipt named) */}
+        <strong className={e.note || e.merchant ? undefined : "is-quiet"}>{e.note || e.merchant || say(lang, "noNote")}</strong>
         <span>
           {paidBy(e, ledger, me, lang)} · {sharedHow(e, ledger, me, lang)}
           {/* with receipt photos: a clip, which opening the expense shows */}

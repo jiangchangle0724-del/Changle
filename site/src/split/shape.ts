@@ -152,7 +152,7 @@ export function asInvitations(x: unknown): Invitation[] | null {
 }
 
 /** What was read off a receipt (tools/split/src/server/read.ts, Read): the total as digits with a dot, its currency when it could be told, the shop, the tip and tax in the total, and the day it was spent. */
-export type Reading = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null };
+export type Reading = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null; place: string | null; payment: string | null };
 /** The server's answer to reading a receipt: what was read, or nothing (`read` null); null when the answer isn't that. */
 /** A sum as a reading writes one: digits, and a dot before at most two more. */
 const SUM = /^\d{1,10}(\.\d{1,2})?$/;
@@ -162,10 +162,11 @@ export function asReadReply(x: unknown): { read: Reading | null } | null {
   const r = x.read;
   if (!isRecord(r) || !isText(r.total) || !SUM.test(r.total)) return null;
   const currency = isText(r.currency) && /^[A-Z]{3}$/.test(r.currency) ? r.currency : null;
-  const merchant = isText(r.merchant) && r.merchant.trim() ? r.merchant.trim().slice(0, 40) : null;
+  // (the business, the place, what paid: a line of words each, or none, as a server from before them says)
+  const line = (x: unknown) => (isText(x) && x.trim() ? x.replace(/\s+/g, " ").trim().slice(0, 40) : null);
   // (written as the total is, or none: a server from before them says neither)
   const part = (x: unknown) => (isText(x) && SUM.test(x) ? x : null);
-  return { read: { total: r.total, currency, merchant, tip: part(r.tip), tax: part(r.tax), date: isDay(r.date) ? r.date : null } };
+  return { read: { total: r.total, currency, merchant: line(r.merchant), tip: part(r.tip), tax: part(r.tax), date: isDay(r.date) ? r.date : null, place: line(r.place), payment: line(r.payment) } };
 }
 
 /** What came of inviting a friend: an invitation now waits for them, the same one already did, or the ledger is theirs already. */

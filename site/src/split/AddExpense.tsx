@@ -22,7 +22,7 @@ import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOv
 import { currencyName, decimalsOf, localDay, money, typed } from "./format";
 import { asAmountText, press, type Key } from "./input";
 import { dayLabel, extrasText, nameFor } from "./lines";
-import { isDay, NOTE_MAX } from "./ops";
+import { DETAIL_MAX, DETAILS, isDay, NOTE_MAX, type Detail } from "./ops";
 import { Bar, Keypad } from "./parts";
 import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
 import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
@@ -139,7 +139,17 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     if (toMinor(got.total, decimalsOf(next.currency)) === null) return setReading("none");
     // (the tip and tax in it, when they are sums that currency can be; the day, unless one was picked)
     const part = (x: string | null) => (x && toMinor(x, decimalsOf(next.currency)) !== null ? x : "");
-    setDraft({ ...next, text: got.total, note: next.note || got.merchant || "", tip: part(got.tip), tax: part(got.tax), date: got.date && !dayPicked.current ? got.date : next.date });
+    // (the business, the place and what paid go in their own lines, unless something is typed there: the note is the person's own)
+    setDraft({
+      ...next,
+      text: got.total,
+      merchant: next.merchant || got.merchant || "",
+      place: next.place || got.place || "",
+      payment: next.payment || got.payment || "",
+      tip: part(got.tip),
+      tax: part(got.tax),
+      date: got.date && !dayPicked.current ? got.date : next.date,
+    });
     setFromReceipt(`${next.currency} ${got.total}`);
     setJustRead(true);
     setReading(null);
@@ -274,8 +284,11 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   // (a receipt going and being read while nothing has been typed: its scan is where the amount will
   // be. Something typed stands, and the reading's amount would not go in, so the scan stops there)
   const scanning = reading === "busy" && !draft.text;
-  const readLine = comes ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !extrasSaid ? say(lang, "readFromReceipt") : null;
-  const extrasLine = comes || reading || !extrasSaid ? null : say(lang, fresh ? "readExtras" : "withExtras", { extras: extrasSaid });
+  // (and the business it was bought from, before them: what was read is seen at a glance, and the
+  // rest of it, the place and what paid, is in the sheet the line opens)
+  const aboutSaid = [draft.merchant.trim(), extrasSaid ? say(lang, "withExtras", { extras: extrasSaid }) : ""].filter(Boolean).join(" · ");
+  const readLine = comes ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !aboutSaid ? say(lang, "readFromReceipt") : null;
+  const extrasLine = comes || reading || !aboutSaid ? null : fresh ? say(lang, "readExtras", { what: aboutSaid }) : aboutSaid.charAt(0).toUpperCase() + aboutSaid.slice(1);
   // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
   // the ledger on the server, and nothing has said reading isn't to be had here): the line opens the
   // camera, as the button at the end of the note's line does. A key pressed, and it gives way.
@@ -349,7 +362,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
             <button type="button" className="split-add-extras" onClick={() => setSheet("details")}>
               <span>
                 <span>{extrasLine}</span>
-                <span className="ui-visually-hidden"> {say(lang, "changeExtras")}</span>
+                <span className="ui-visually-hidden"> {say(lang, "changeDetails")}</span>
                 <ChevronRight aria-hidden="true" />
               </span>
             </button>
@@ -422,6 +435,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
           setDraft((d) => ({ ...d, date }));
         }}
         onExtras={(to) => setDraft((d) => ({ ...d, ...to }))}
+        onLines={(to) => setDraft((d) => ({ ...d, ...to }))}
       />
       {wantsRates && <TodaysRates onChange={setFx} />}
       <PhotosSheet
@@ -596,11 +610,32 @@ export function Face({ name }: { name: string }) {
 }
 
 /**
- * 日期、小费和税: the day it was spent (the phone's own date picker; no day after today), and the
- * tip and tax in what was paid, in the currency it was paid in, to type or put right. Says when
- * together they come to more than the expense, so they won't be kept.
+ * 详情: where it was bought and how it was paid (the business, the place, what paid: read off its
+ * receipt, or typed, each may stay empty), the day it was spent (the phone's own date picker; no day
+ * after today), and the tip and tax in what was paid, in the currency it was paid in, to type or put
+ * right. Says when together they come to more than the expense, so they won't be kept.
  */
-function DetailsSheet({ open, onClose, lang, draft, day, today, onDay, onExtras }: { open: boolean; onClose: () => void; lang: Lang; draft: Draft; day: string; today: string; onDay: (day: string) => void; onExtras: (to: { tip?: string; tax?: string }) => void }) {
+function DetailsSheet({
+  open,
+  onClose,
+  lang,
+  draft,
+  day,
+  today,
+  onDay,
+  onExtras,
+  onLines,
+}: {
+  open: boolean;
+  onClose: () => void;
+  lang: Lang;
+  draft: Draft;
+  day: string;
+  today: string;
+  onDay: (day: string) => void;
+  onExtras: (to: { tip?: string; tax?: string }) => void;
+  onLines: (to: Partial<Pick<Draft, Detail>>) => void;
+}) {
   const over = extrasOver(draft);
   return (
     <Sheet
@@ -616,6 +651,13 @@ function DetailsSheet({ open, onClose, lang, draft, day, today, onDay, onExtras 
       }
     >
       <div className="split-details">
+        {/* where it was bought and how it was paid: read off its receipt, or typed; each may stay empty */}
+        {DETAILS.map((k) => (
+          <label key={k} className="split-field">
+            <span>{say(lang, LINE_WORDS[k][0])}</span>
+            <input value={draft[k]} onChange={(e) => onLines({ [k]: e.target.value })} maxLength={DETAIL_MAX} placeholder={say(lang, LINE_WORDS[k][1])} enterKeyHint="next" autoComplete="off" />
+          </label>
+        ))}
         <label className="split-field">
           <span>{say(lang, "spentDay")}</span>
           <input type="date" value={day} min="2000-01-01" max={today} onChange={(e) => isDay(e.target.value) && e.target.value <= today && onDay(e.target.value)} />
@@ -646,6 +688,9 @@ function DetailsSheet({ open, onClose, lang, draft, day, today, onDay, onExtras 
     </Sheet>
   );
 }
+
+/** The names of the business, place and what-paid lines in the sheet, and what each says while empty. */
+const LINE_WORDS: Record<Detail, [Word, Word]> = { merchant: ["merchant", "merchantHint"], place: ["place", "placeHint"], payment: ["paidWith", "paidWithHint"] };
 
 /** Who paid: one tap picks and closes. */
 function PayerSheet({ open, onClose, ledger, me, lang, value, onPick }: { open: boolean; onClose: () => void; ledger: Ledger; me: string | undefined; lang: Lang; value: string; onPick: (id: string) => void }) {

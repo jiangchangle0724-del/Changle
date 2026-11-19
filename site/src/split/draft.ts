@@ -52,6 +52,10 @@ export type Draft = {
    * Read off a receipt, or picked.
    */
   date: string;
+  /** the business, the place and what paid, as read off its receipt or typed; empty for none */
+  merchant: string;
+  place: string;
+  payment: string;
 };
 
 /**
@@ -79,6 +83,9 @@ export function blankDraft(l: Ledger, me: string | undefined, now: number): Draf
     tip: "",
     tax: "",
     date: localDay(now),
+    merchant: "",
+    place: "",
+    payment: "",
   };
 }
 
@@ -105,6 +112,9 @@ export function draftOf(e: Expense, l: Ledger): Draft {
     tip: inPaid(e.tip),
     tax: inPaid(e.tax),
     date: e.date ?? "",
+    merchant: e.merchant ?? "",
+    place: e.place ?? "",
+    payment: e.payment ?? "",
   };
 }
 
@@ -232,7 +242,17 @@ export function draftProblem(d: Draft, l: Ledger): Problem | null {
  */
 export function saying(d: Draft, l: Ledger): ExpenseEdit | null {
   if (draftProblem(d, l)) return null;
-  const said = { payer: d.payer, amount: amountOf(d, l) ?? 0, note: d.note, split: splitOf(d, decimalsOf(l.currency)), ...(d.date ? { date: d.date } : {}) };
+  const said = {
+    payer: d.payer,
+    amount: amountOf(d, l) ?? 0,
+    note: d.note,
+    split: splitOf(d, decimalsOf(l.currency)),
+    ...(d.date ? { date: d.date } : {}),
+    // (the business, the place and what paid are always said: one emptied here is taken off)
+    merchant: d.merchant.trim() || null,
+    place: d.place.trim() || null,
+    payment: d.payment.trim() || null,
+  };
   if (abroad(d, l)) return { ...said, paidIn: { currency: d.currency, amount: paidOf(d) ?? 0, rate: settled(d.rate) }, ...extrasOf(d) };
   // (paid in a currency these screens can't show: that, and its tip and tax, unsaid)
   return d.untouched ? said : { ...said, paidIn: null, ...extrasOf(d) };

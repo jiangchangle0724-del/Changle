@@ -100,6 +100,11 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
   // 太空站（A10，C13 做关）
   float: { zh: '失重舱里抓着扶手飘过去，摇杆能轻轻喷气', en: 'Float through zero gravity. Push off the handrails, and the stick gives a little thrust' },
   lever: { zh: '几个人一起拉住拉杆，舱门才开', en: 'Hold the levers together to open the hatch' },
+  // 新机关（A12），长关（A13）用
+  tide: { zh: '底下在涨水，别停下', en: 'The water is rising. Keep climbing' },
+  crumble: { zh: '台子一踩就塌，踩一下赶紧走', en: 'Platforms crumble under you. Step and go' },
+  pendulum: { zh: '躲开荡过来的锤，或者抓着它荡过去', en: 'Dodge the swinging weights, or ride one across' },
+  wind: { zh: '起风了先抓紧，风停了再走', en: 'Hold tight when the wind blows, move when it stops' },
 };
 
 /** 难关（13 号往后）难在哪：大厅里显示「难关：…」。 */
@@ -116,10 +121,12 @@ const HARD: Record<string, { zh: string; en: string }> = {
 export function teachText(l: Level): { zh: string; en: string } {
   if (l.arena) return { zh: '平台一块块塌，一个地方抓久了手会滑', en: 'Platforms crumble one by one, and hands slip if you hang on too long' };
   if (!l.teaches) return { zh: '', en: '' };
+  // 长关（A13）前面带一句
+  const pre = l.long ? { zh: '长关 · ', en: 'Long level · ' } : { zh: '', en: '' };
   const h = HARD[l.teaches];
-  if (h) return { zh: `难关：${h.zh}`, en: `Hard level: ${h.en}` };
+  if (h) return { zh: `${pre.zh}难关：${h.zh}`, en: `${pre.en}Hard level: ${h.en}` };
   const t = TEACHES[l.teaches];
-  return { zh: `这关教：${t?.zh ?? l.teaches}`, en: `This level teaches: ${t?.en ?? l.teaches}` };
+  return { zh: `${pre.zh}这关教：${t?.zh ?? l.teaches}`, en: `${pre.en}This level teaches: ${t?.en ?? l.teaches}` };
 }
 
 export function teachLabel(l: Level): string {
