@@ -6,7 +6,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, steerVelocity } from "../../engine";
+import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
 import type { ArenaId, MomentKind, Pose } from "../../engine";
 import type { AvatarView, CrackerView } from "../../room/protocol";
 import { BASE } from "../base";
@@ -17,6 +17,7 @@ import { addEnvironmentalLandmarks } from "./landmarks";
 import { addCinema } from "./cinema";
 import { addCrackers } from "./crackers";
 import { addEffects } from "./effects";
+import { addExtras, type Extras } from "./extras";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 import { Shake, TRAUMA } from "./shake";
 import { addFloorArt, type FloorArtPalette } from "./floorArt";
@@ -1112,10 +1113,13 @@ export function Arena3D(props: Props) {
     };
     let kit: PeopleKit | null = null;
     const people: Person[] = [];
+    // (and the people beside the place, out of the crowd's reach: extras.ts)
+    let extras: Extras | null = null;
     peopleKit()
       .then((loaded) => {
         if (disposed) return;
         kit = loaded;
+        extras = addExtras(scene, props.arena, loaded, { paper: palette.cracker, gold: palette.bulb, glow: palette.warn });
         standInBodies.visible = false;
         standInHeads.visible = false;
       })
@@ -1452,7 +1456,9 @@ export function Arena3D(props: Props) {
           person.root.visible = true;
           person.root.position.set(visual.x, 0, visual.z);
           person.root.rotation.set(visual.lean, visual.facing, visual.roll, "YXZ");
-          person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current, moodAt(visual.x, visual.z, time), reduced);
+          // (at the night market, anyone standing at a stall eats: the same rule as the tasting, for every body)
+          const atStall = props.arena === "market" && stallAt(worldX, worldY) >= 0;
+          person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current, moodAt(visual.x, visual.z, time), reduced, atStall);
           if (person.hitFx) {
             person.hitFx = false;
             if (!reduced) burst(visual.x, visual.z, time, "spark");
@@ -1575,6 +1581,7 @@ export function Arena3D(props: Props) {
       camera.lookAt(viewLook.x + jolt.x, viewLook.y + jolt.y, viewLook.z);
       if (jolt.roll) camera.rotateZ(jolt.roll);
       tagZoom = Math.min(1, viewEye.distanceTo(viewLook) / Math.max(0.001, eye.distanceTo(look)));
+      extras?.update((delta * pace) / 1000, time, (x, z) => moodAt(x, z, time), reduced);
       effects.update(time, delta * pace, camera, reduced);
       renderer.render(scene, camera);
       draws = renderer.info.render.calls;
@@ -1592,6 +1599,7 @@ export function Arena3D(props: Props) {
         scene.remove(person.root);
         person.dispose();
       }
+      extras?.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {
           object.geometry.dispose();
