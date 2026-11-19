@@ -64,7 +64,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-19 随便: round 1 starts big, by cuisine or by dish, groups opened to pick inside (#PR)
+- 2026-11-19 随便: round 1 starts big, by cuisine or by dish, groups opened to pick inside (#684)
 - 2026-11-19 随便 S1: the night skin, from the site's tokens (#647)
 - 2026-11-18 随便: task cards for the night redesign (S1 skin, S2 screens, S3 motion) (#624)
 - 2026-11-18 随便: 自助 · 放题 (all you can eat) on round 1's menu (#606)
