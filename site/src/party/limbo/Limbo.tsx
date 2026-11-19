@@ -1,4 +1,4 @@
-import { Check, Crown, Play, X } from "lucide-react";
+import { Check, Crown, Play, Smartphone, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
@@ -313,14 +313,16 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   const start = async () => {
     setNote("");
-    if (blind) {
-      // nobody can judge degrees by eye: blind lean needs this phone's motion sensor
-      if (sensorStatus() !== "on" && !(await enableSensors())) {
-        setNote(zh ? "这部手机测不了角度，玩不了盲仰。可以玩别的玩法，或者用真杆子。" : "This phone can't measure angles, so blind lean won't work. Try another way, or a real bar.");
-        return;
-      }
-      newTarget();
+    // the phone is the judge: motion sensing has to be on before a game starts (asked here, from the tap); a real bar needs none
+    if (!realBar && sensorStatus() !== "on" && !(await enableSensors())) {
+      setNote(
+        sensorStatus() === "denied"
+          ? zh ? "要先允许动作感应才能玩：手机问的时候选允许，拒绝了的话刷新页面再点开始。有杆子或绳子，就选「真杆子」。" : "Motion sensing has to be allowed first: choose Allow when the phone asks, or reload and tap start again if you said no. With a stick or a rope, pick Real bar."
+          : zh ? "这部手机测不了角度，玩不了这些玩法。有根杆子或绳子的话，选「真杆子」。" : "This phone can't measure angles, so it can't judge these. With a stick or a rope, pick Real bar.",
+      );
+      return;
     }
+    if (blind) newTarget();
     setBar(makeBar(0, null));
     setAlive(people.map((p) => p.id));
     setPassed([]);
@@ -328,10 +330,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setBest({});
     setLevel(0);
     playMusic();
-    if (!realBar) {
-      if (sensors === "off") await enableSensors();
-      setPhase({ k: "ready", i: 0 });
-    } else setPhase({ k: "bar" });
+    setPhase(realBar ? { k: "bar" } : { k: "ready", i: 0 });
   };
 
   // A stamp already counted its penalty. Finish only its pending transition on return.
@@ -359,8 +358,8 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     <>
       <p>
         {zh
-          ? `经典：手机竖着贴在胸前，屏幕朝外，背面贴着胸口，往后仰到横杆的角度并坚持一秒多就算过，手机传给下一个人。每一杆要仰得更多，没过的出局${drink}，最后剩下的人赢。测不了角度的手机，大家看着判。`
-          : `Classic: hold the phone upright against your chest, screen facing out and its back against you, lean back to the bar's angle and hold it for a second, then pass the phone on. Every bar needs a deeper lean. Miss and you're out (${drink}). Last one standing wins. If the phone can't measure, the table judges.`}
+          ? `经典：手机竖着贴在胸前，屏幕朝外，背面贴着胸口，往后仰到横杆的角度并坚持一秒多就算过，手机传给下一个人。每一杆要仰得更多，没过的出局${drink}，最后剩下的人赢。手机就是裁判：开始前要允许动作感应，测不了角度的手机玩不了（可以选真杆子）。`
+          : `Classic: hold the phone upright against your chest, screen facing out and its back against you, lean back to the bar's angle and hold it for a second, then pass the phone on. Every bar needs a deeper lean. Miss and you're out (${drink}). Last one standing wins. The phone is the judge: motion sensing has to be allowed before a game starts, and a phone that can't measure can't play (pick Real bar instead).`}
       </p>
       <p>
         {zh
@@ -369,8 +368,8 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       </p>
       <p>
         {zh
-          ? "稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 2 秒就出局。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。测不了角度的手机，这几种也是大家看着判。"
-          : "Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down; follow it down and back up, and lose it for over two seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random. If the phone can't measure, the table judges these too."}
+          ? "稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 2 秒就出局。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。"
+          : "Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down; follow it down and back up, and lose it for over two seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random."}
       </p>
       <p>
         {zh
@@ -400,20 +399,17 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         {zh ? "放音乐，开始" : "Music on, let's go"}
       </button>
     ) : phase.k === "ready" && cur ? (
-      <button type="button" className="btn btn-primary btn-lg" onClick={() => { playMusic(); setPhase({ k: "count", i: phase.i, n: 3 }); }}>
-        {zh ? "准备好了" : "Ready"}
-      </button>
-    ) : phase.k === "try" && !blind && sensors !== "on" ? (
-      <>
-        <button type="button" className="btn btn-ghost btn-lg" onClick={() => verdict(phase.i, false)}>
-          <X size={18} />
-          {moving ? (zh ? "跟丢了" : "Lost it") : zh ? "没过" : "Missed"}
+      !realBar && sensors !== "on" ? (
+        // the phone is the judge: after a reload its sensor needs turning on again, from a tap
+        <button type="button" className="btn btn-primary btn-lg" disabled={sensors === "asking"} onClick={() => void enableSensors()}>
+          <Smartphone size={18} />
+          {zh ? "开启动作感应" : "Turn on motion sensing"}
         </button>
-        <button type="button" className="btn btn-primary btn-lg" disabled={moving && left > 0} onClick={() => verdict(phase.i, true)}>
-          <Check size={18} />
-          {moving ? (zh ? "跟住了" : "Kept up") : zh ? "过了" : "Made it"}
+      ) : (
+        <button type="button" className="btn btn-primary btn-lg" onClick={() => { playMusic(); setPhase({ k: "count", i: phase.i, n: 3 }); }}>
+          {zh ? "准备好了" : "Ready"}
         </button>
-      </>
+      )
     ) : phase.k === "verdict" ? (
       <button type="button" className="btn btn-primary btn-lg" onClick={nextTurn}>
         {phase.i + 1 < alive.length ? (zh ? `下一个：${name[alive[phase.i + 1]]}` : `Next: ${name[alive[phase.i + 1]]}`) : blind ? (zh ? "看看谁差得最远" : "Who was furthest off?") : zh ? "这一杆结束" : "End of this bar"}
@@ -455,6 +451,12 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               {hint}
             </p>
             {people.length < 2 && <p className="hint" style={{ textAlign: "center" }}>{zh ? "盲仰要两个人以上" : "Blind lean needs two or more players"}</p>}
+            {!realBar && sensors === "on" && (
+              <p className="fz-sensor-on">
+                <Smartphone size={15} />
+                {zh ? "动作感应开着" : "Motion sensing on"}
+              </p>
+            )}
             {note && <p className="hint" role="alert" style={{ textAlign: "center" }}>{note}</p>}
           </>
         )}
@@ -467,8 +469,11 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
             <p className="hint">
               {blind
                 ? holdLine(zh) + (zh ? `凭感觉仰到 ${angle}°，停住不动就锁定。看不到自己的角度，也没有提示音。` : `Lean to what feels like ${angle}° and hold still to lock it. You won't see your angle, and the phone says nothing.`)
-                : barHow(bar, angle, zh, sensors === "on")}
+                : barHow(bar, angle, zh)}
             </p>
+            {!realBar && (sensors === "none" || sensors === "denied") && (
+              <p className="hint" role="alert">{zh ? "这部手机测不了角度，玩不了这局。刷新页面再允许一次动作感应，或者退出换真杆子。" : "This phone can't measure angles, so it can't judge this game. Reload and allow motion sensing again, or leave and pick Real bar."}</p>
+            )}
           </div>
         )}
 
@@ -478,18 +483,16 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           <>
             {blind ? (
               <BlindMeter target={angle} steady={blindLock.steady} locked={false} />
-            ) : sensors === "on" ? (
-              kind === "steady" ? (
-                <SteadyMeter target={angle} holdMs={bar.hold} pose={pose} />
-              ) : kind === "tilt" ? (
-                <TiltMeter target={angle} side={bar.side} pose={pose} />
-              ) : moving ? (
-                <FollowMeter follow={follow} />
-              ) : (
-                <LeanGauge lean={lean.lean} target={angle} hold={lean.hold} />
-              )
-            ) : null}
-            <p className="hint lb-time tabular">{moving && left <= 0 ? (zh ? "横杆停了，跟住了吗？" : "The bar stopped. Did they keep up?") : zh ? `还剩 ${left} 秒` : `${left}s left`}</p>
+            ) : kind === "steady" ? (
+              <SteadyMeter target={angle} holdMs={bar.hold} pose={pose} />
+            ) : kind === "tilt" ? (
+              <TiltMeter target={angle} side={bar.side} pose={pose} />
+            ) : moving ? (
+              <FollowMeter follow={follow} />
+            ) : (
+              <LeanGauge lean={lean.lean} target={angle} hold={lean.hold} />
+            )}
+            <p className="hint lb-time tabular">{moving && left <= 0 ? (zh ? "横杆停了" : "The bar stopped") : zh ? `还剩 ${left} 秒` : `${left}s left`}</p>
           </>
         )}
 

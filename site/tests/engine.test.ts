@@ -1321,6 +1321,7 @@ test("freeze: shared stop, motion reports, knockout to a winner", () => {
 test("limbo: lean to pass, miss and drink, last one wins", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "limbo" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   let v = t.view<V<"limbo">>("p0");
   ok(v.phase === "go" && v.angle === 20, "first bar at 20 degrees");
@@ -1341,9 +1342,40 @@ test("limbo: lean to pass, miss and drink, last one wins", () => {
   ok(v.phase === "end" && v.winner === "p1", "time up: p0 misses, p1 wins");
 });
 
+test("limbo: the phone is the judge: two measuring phones to start, the others watch that game", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  t.g("p0", "go");
+  ok(t.view<V<"limbo">>("p0").phase === "ready", "no phone can measure: no start");
+  t.g("p0", "sensor", { on: true });
+  t.g("p0", "go");
+  ok(t.view<V<"limbo">>("p0").phase === "ready", "one phone can measure: still no start");
+  t.g("p1", "sensor", { on: true });
+  t.g("p1", "sensor", { on: false });
+  t.g("p0", "go");
+  ok(t.view<V<"limbo">>("p0").phase === "ready", "p1 turned it off again: still no start");
+  t.g("p2", "sensor", { on: true });
+  t.g("p0", "go");
+  let v = t.view<V<"limbo">>("p1");
+  ok(v.phase === "go" && v.alive.length === 2 && v.alive.includes("p0") && v.alive.includes("p2") && !v.alive.includes("p1"), "two can measure: the bar is up and p1 watches this game");
+  t.advance(3600);
+  t.g("p1", "pass", { deg: 40 });
+  t.g("p0", "judge", { pid: "p1", ok: true });
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "go" && !v.passed.includes("p1"), "a watcher's moves don't count");
+  t.g("p0", "pass", { deg: 24 });
+  t.g("p2", "fail");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "end" && v.winner === "p0", "p2 misses: p0 wins");
+  t.g("p0", "again");
+  v = t.view<V<"limbo">>("p0");
+  ok(v.phase === "ready" && v.alive.length === 3 && v.sensors.length === 2, "play again: everyone is back in, the sensors remembered");
+});
+
 test("limbo: nobody leans at all, nobody wins for it: everyone drinks, same bar again", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "limbo" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   t.advance(3600);
   t.advance(16_000);
@@ -1417,6 +1449,7 @@ test("limbo steady: reach the bar and hold still, a longer hold every bar", () =
   t.g("p1", "mode", { mode: "steady" });
   ok(t.view<V<"limbo">>("p0").mode === "classic", "only the host picks the mode");
   t.g("p0", "mode", { mode: "steady" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   let v = t.view<V<"limbo">>("p2");
   ok(v.phase === "go" && v.mode === "steady" && v.bar.kind === "steady", "a steady bar on every phone");
@@ -1444,6 +1477,7 @@ test("limbo moving: one path from the start time, kept up with until it stops", 
   const t = setup(3);
   t.act("p0", { a: "start", game: "limbo" });
   t.g("p0", "mode", { mode: "moving" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   let v = t.view<V<"limbo">>("p1");
   const bar = v.bar;
@@ -1482,6 +1516,7 @@ test("limbo tilt: a sideways tilt as well, to a random side each bar", () => {
   const t = setup(2);
   t.act("p0", { a: "start", game: "limbo" });
   t.g("p0", "mode", { mode: "tilt" });
+  for (const p of ["p0", "p1"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   const sides: number[] = [];
   for (let i = 0; i < 12; i++) {
@@ -1501,6 +1536,7 @@ test("limbo party: a random variant each bar, never the same twice running, neve
   const t = setup(2);
   t.act("p0", { a: "start", game: "limbo" });
   t.g("p0", "mode", { mode: "party" });
+  for (const p of ["p0", "p1"]) t.g(p, "sensor", { on: true });
   t.g("p0", "go");
   const kinds: string[] = [];
   for (let i = 0; i < 20; i++) {
