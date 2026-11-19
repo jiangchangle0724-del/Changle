@@ -336,6 +336,30 @@ export class Tube {
     this.to("paused", "paused");
   }
 
+  /**
+   * 快退 or 快进 (the room's, from a phone): the song going jumps `by` seconds from where it is here
+   * (an ad before it put it behind the room's clock: the jump is the same), never to before its start;
+   * paused, it stays paused there. Past its end, it ends.
+   */
+  jump(video: string, by: number) {
+    const p = this.p;
+    if (this.gone || !p || !this.live || !this.going || this.video !== video || !by) return;
+    if (this.quiet) {
+      // (from cold, muted till its own picture moves: it picks up that much further on)
+      this.from = Math.max(0, this.from + by);
+      return;
+    }
+    let t: number;
+    try {
+      t = p.getCurrentTime() || 0;
+    } catch {
+      return;
+    }
+    const to = Math.max(0, t + by);
+    p.seekTo(to, true);
+    this.note(`jumped ${by} s, to ${Math.round(to)} s`);
+  }
+
   /** The song is over, skipped, or isn't coming after all: quiet, ready for the next. */
   stop() {
     window.clearTimeout(this.timer);

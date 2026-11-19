@@ -2,12 +2,13 @@
 along 放到最下面，手机上点完歌后可以直接在玩家手机上一键播放，切歌，暂停，上一曲"), in browsers: a TV
 and two phones.
 
-What it checks: a phone has the player at the very top (上一曲, 暂停 or 播放, 切歌; the card with the
-night's stretch gone, Steve's second message that night), then the song box, the 歌单 and the sound
+What it checks: a phone has the player at the very top (上一曲, 暂停 or 播放, 切歌; under them 快退 and
+快进 30 秒, Steve on Nov 18; the card with the night's stretch gone, Steve's second message that night), then the song box, the 歌单 and the sound
 pads (跟着跳 at the very bottom gone on Nov 14); no turntables, mixer, crossfader, build-up, DROP,
 picks or switch to them. A song asked for plays by itself; anyone pauses it (the TV's video stops where it is, the
 DJ stays quiet) and carries it on (from there, not from its start); 切歌 brings the next on in a few
-seconds, its keys not grey while it comes on; 上一曲 the one before, the one that was playing first
+seconds, its keys not grey while it comes on; 快退 and 快进 jump the TV's video 30 seconds, paused too
+(it stays paused there, 播放 carries it on from there), never to before its start; 上一曲 the one before, the one that was playing first
 on the 歌单 again; paused between songs, the DJ goes quiet too and comes back on 播放. One phone asks
 for many songs in a row (Steve: at least 24 each). A TV that wants a tap on its video says so on
 the phones, and its own 点歌 sheet gets out of the video's way. Picking a song from the suggestions
@@ -54,6 +55,11 @@ def ask(ph, vid):
 
 def yt(tv):
     return tv.evaluate("() => window.__yt && { video: window.__yt.video, state: window.__yt.state, t: window.__yt.t }") or {}
+
+
+def jump(ph, n):
+    """A phone's 快退 (0) or 快进 (1) 30 秒, under the player's three keys (Steve on Nov 18)."""
+    return ph.locator(".djk-player-seek .djk-key").nth(n)
 
 
 def heard(tv, vid):
@@ -105,6 +111,7 @@ with sync_playwright() as p:
     ok(not gone, f"no turntables, mixer, crossfader, build-up, DROP, picks, nor a switch to them ({gone})")
     ok(ben.locator(".djk-cat").count() == 9 and ben.locator(".djk-pad").count() == 0, "the sound board's nine kinds are there (the twelve pads gone)")
     ok(key(ben, 0).is_disabled() and key(ben, 2).is_disabled() and not key(ben, 1).is_disabled(), "nothing played yet, nothing up: 上一曲 and 切歌 wait, 暂停 is there")
+    ok(jump(ben, 0).is_disabled() and jump(ben, 1).is_disabled(), "no song playing whole: 快退 and 快进 wait")
     ok("暂停" in key(ben, 1).inner_text() and "上一曲" in key(ben, 0).inner_text() and "切歌" in key(ben, 2).inner_text(), "the keys say what they do")
     sizes = ben.evaluate("() => [...document.querySelectorAll('.djk-key')].map((b) => Math.round(b.getBoundingClientRect().height))")
     ok(all(h >= 48 for h in sizes), f"each key big enough to hit together ({sizes} px)")
@@ -165,6 +172,36 @@ with sync_playwright() as p:
     ok(dj_level(tv) < 0.05, "the DJ stays out of the song's way")
     ok("暂停" in key(ben, 1).inner_text(), "the key is 暂停 again")
 
+    # 快退 and 快进 30 秒 (Steve on Nov 18: "手机控制端也要有一个快进和快退30秒的功能"): the TV's video jumps
+    ok(until(lambda: not jump(ben, 0).is_disabled() and not jump(ben, 1).is_disabled(), 2000), "a song playing whole: 快退 and 快进 are there")
+    ok("快退 30 秒" in jump(ben, 0).inner_text() and "快进 30 秒" in jump(ben, 1).inner_text() and "Back 30s" in jump(cat, 0).inner_text() and "Ahead 30s" in jump(cat, 1).inner_text(), "they say what they do, in English too")
+    at0 = (deck(tv).get("song") or {}).get("at", 0)
+    t0 = yt(tv).get("t", 0)
+    jump(ben, 1).click()
+    ok(until(lambda: (deck(tv).get("song") or {}).get("at", 0) == at0 - 30000, 3000), "Ben jumps ahead: the room's place in the song 30 seconds on")
+    ok(until(lambda: yt(tv).get("t", 0) >= t0 + 29.5, 3000) and yt(tv).get("t", 0) < t0 + 33, f"the TV's video jumps 30 seconds ({t0:.1f} → {yt(tv).get('t', 0):.1f} s)")
+    tv.wait_for_timeout(600)
+    ok(yt(tv).get("state") == 1 and dj_level(tv) < 0.05, "and plays on, the DJ still out of its way")
+    t1 = yt(tv).get("t", 0)
+    jump(amy, 0).click()
+    ok(until(lambda: yt(tv).get("t", 0) < t1 - 25, 3000), f"Amy jumps back 30: the video too ({t1:.1f} → {yt(tv).get('t', 0):.1f} s)")
+    amy.wait_for_timeout(300)
+    jump(amy, 0).click()
+    ok(until(lambda: yt(tv).get("t", 0) < 1.5 and (deck(tv).get("song") or {}).get("at", 0) > 0, 3000), f"back again, a few seconds in: to its start, not before ({yt(tv).get('t', 0):.1f} s)")
+    tv.wait_for_timeout(2000)
+    key(ben, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 0) > 0 and yt(tv).get("state") == 2, 3000), "Ben pauses it")
+    tp = yt(tv).get("t", 0)
+    jump(cat, 1).click()
+    ok(until(lambda: yt(tv).get("t", 0) >= tp + 29.5, 3000), f"Cat jumps ahead while it's paused: the video 30 seconds on ({tp:.1f} → {yt(tv).get('t', 0):.1f} s)")
+    tv.wait_for_timeout(600)
+    ok(yt(tv).get("state") == 2 and deck(tv).get("paused", 0) > 0 and dj_level(tv) < 0.05, "still paused there, the DJ quiet")
+    key(cat, 1).click()
+    ok(until(lambda: deck(tv).get("paused", 1) == 0 and yt(tv).get("state") == 1, 4000), "Cat carries it on")
+    tv.wait_for_timeout(500)
+    ok(tp + 29.5 <= yt(tv).get("t", 0) < tp + 33, f"from there ({yt(tv).get('t', 0):.1f} s)")
+    ben.screenshot(path=os.path.join(OUT, "player-ben-1-jumped.png"))
+
     # 切歌: the next one in a few seconds
     key(ben, 2).click()
     ok(until(lambda: bool(deck(tv).get("drop")), 3000) and not key(amy, 2).is_disabled() and not key(amy, 0).is_disabled(), "while Ben's is coming on, 切歌 and 上一曲 aren't grey")
@@ -196,6 +233,7 @@ with sync_playwright() as p:
         print("   tube:", tv.evaluate("() => window.__tube && window.__tube.log.slice(-10)"))
         print("   yt:", tv.evaluate("() => window.__yt && window.__yt.log.slice(-10)"))
     ok(until(lambda: "DJ 在放" in text(amy, ".djk-player-kicker"), 3000) and key(amy, 2).is_disabled(), "the phones say the DJ plays, nothing to skip to")
+    ok(jump(amy, 0).is_disabled() and jump(amy, 1).is_disabled(), "nor to jump in")
     key(amy, 1).click()
     ok(until(lambda: dj_level(tv) < 0.05, 3000), f"Amy pauses the DJ: quiet ({dj_level(tv):.2f})")
     ok(until(lambda: "暂停了" in text(tv, ".dk-hint") or "Paused" in text(tv, ".dk-hint"), 3000), f"the TV's line says so ({text(tv, '.dk-hint')!r})")

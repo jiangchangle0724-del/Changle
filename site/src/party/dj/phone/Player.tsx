@@ -1,6 +1,7 @@
-import { Hand, Maximize2, Minimize2, Pause, Play, SkipBack, SkipForward } from "lucide-react";
+import { FastForward, Hand, Maximize2, Minimize2, Pause, Play, Rewind, SkipBack, SkipForward } from "lucide-react";
 import { useRoom } from "../../../online/RoomContext";
 import { onAir, reqOrder } from "../../../shared/dj/deck";
+import { DECK } from "../../../shared/dj/types";
 import type { DjView, ReqView } from "../../../shared/protocol";
 import { haptic } from "../../../lib/sfx";
 import { songName } from "../deck/words";
@@ -15,7 +16,8 @@ export type G = (x: string, data?: Record<string, unknown>) => void;
  * the table; the video over the whole TV; and a word when the TV wants a tap (its video: an iPhone's
  * YouTube player, the night's first song; or its sound, stopped). The shared phone has it too
  * (SharedSongs.tsx, `me` its SHARED_BY): the room takes those from the speaker only. 切歌 and 上一曲
- * work while a song is coming on too (another goes in on its bar).
+ * work while a song is coming on too (another goes in on its bar). Under them, 快退 and 快进 30 秒 (Steve
+ * on Nov 18) for a song playing whole.
  */
 export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; zh: boolean; nameOf: (pid: string) => string }) {
   const { now } = useRoom();
@@ -46,6 +48,10 @@ export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; 
     haptic(12);
     g(x);
   };
+  const jump = (by: number) => {
+    haptic(12);
+    g("seek", { by });
+  };
   return (
     <section className={`djk-player${paused ? " is-paused" : ""}`} aria-label={zh ? "播放" : "Player"}>
       <div className="djk-player-now" aria-live="polite">
@@ -65,6 +71,17 @@ export function Player({ v, me, g, zh, nameOf }: { v: DjView; me: string; g: G; 
         <button type="button" className="djk-key" disabled={!live || moving || (!song && !d.up)} onClick={() => press("next")}>
           <SkipForward size={24} aria-hidden="true" />
           <span>{zh ? "切歌" : "Next"}</span>
+        </button>
+      </div>
+      {/* (a song playing whole: the DJ's own music has no place in it to jump to) */}
+      <div className="djk-player-seek" role="group" aria-label={zh ? "快退快进" : "Jump back or ahead"}>
+        <button type="button" className="djk-key is-seek" disabled={!live || !song} onClick={() => jump(-DECK.seekS)}>
+          <Rewind size={20} aria-hidden="true" />
+          <span>{zh ? `快退 ${DECK.seekS} 秒` : `Back ${DECK.seekS}s`}</span>
+        </button>
+        <button type="button" className="djk-key is-seek" disabled={!live || !song} onClick={() => jump(DECK.seekS)}>
+          <FastForward size={20} aria-hidden="true" />
+          <span>{zh ? `快进 ${DECK.seekS} 秒` : `Ahead ${DECK.seekS}s`}</span>
         </button>
       </div>
       {live && d.tap && (

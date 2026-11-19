@@ -96,7 +96,7 @@ export const CLIP_CREDIT = t("原曲片段来自 Apple Music，之后接 DJ 的 
  */
 export function jukeText(song: boolean, up: boolean, zh: boolean, paused = false): string {
   if (paused) return zh ? "暂停了：手机上点「播放」接着放" : "Paused. Press Play on a phone to carry on";
-  if (song) return zh ? "放完马上接下一首。手机上可以暂停、切歌、上一曲" : "The next song follows right after. Pause, skip or go back from any phone";
+  if (song) return zh ? "放完马上接下一首。手机上可以暂停、快进快退、切歌、上一曲" : "The next song follows right after. Pause, jump 30s, skip or go back from any phone";
   if (up) return zh ? "下一首几秒后开始" : "The next song starts in a moment";
   return zh ? "在手机上点歌，一首接一首放" : "Ask for songs on your phone: they play one after another";
 }

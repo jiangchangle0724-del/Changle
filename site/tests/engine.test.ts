@@ -4008,6 +4008,93 @@ test("dj: the player on every phone (Steve on Nov 12: \"一键播放，切歌，
   ok(nothing(g("p3", "play")), "and nothing to carry on");
 });
 
+test("dj: the player's 快退 and 快进 30 秒 (Steve on Nov 18: \"手机控制端也要有一个快进和快退30秒的功能\"): the song playing whole jumps, anyone at the table's or the shared phone's, paused too, never to before its start", () => {
+  const e = new RoomEngine(freshRoom("DJSK", clock), host);
+  e.screenHello("tv-sk", true, "dj");
+  e.screenHello("tv-sk2", true, "dj");
+  for (const [p, n] of [
+    ["p1", "Amy"],
+    ["p2", "Ben"],
+  ])
+    e.hello(p, n, false);
+  e.flush();
+  const dv = (pid: string) => e.view(pid).game as V<"dj">;
+  const g = (pid: string, x: string, rest: Record<string, unknown> = {}) => {
+    e.act(pid, { a: "g", g: { x, ...rest } });
+    return e.flush();
+  };
+  const sc = (x: string, rest: Record<string, unknown> = {}, sid = "tv-sk") => {
+    const took = e.screenAct(sid, { x, ...rest });
+    e.flush();
+    return took;
+  };
+  const advance = (ms: number) => {
+    clock += ms;
+    e.due();
+    e.flush();
+  };
+  const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
+  /** how far into the song playing the room is, in seconds */
+  const into = () => {
+    const d = dv("p2").deck;
+    return d.song ? ((d.paused || clock) - d.song.at) / 1000 : null;
+  };
+  ok(nothing(g("p2", "seek", { by: 30 })), "before the music starts: nothing to jump in");
+  sc("live", { source: "fake" });
+  sc("grid", { at: clock, bar: 0, bpm: 125 });
+  advance(5000);
+  ok(nothing(g("p2", "seek", { by: 30 })), "the DJ playing, no song: nothing to jump in");
+  g("p1", "req", { yt: ["aaaaaaaaaa1", "Song A", "Chan"] });
+  advance(DECK.jukeWaitMs + 10);
+  const sw = dv("p1").deck.drop;
+  if (sw) advance(sw.at - clock + 5);
+  ok(!!dv("p1").deck.song?.yt, "Amy's song plays whole");
+  advance(20_000);
+  ok(into() === 20, "20 seconds in");
+
+  // anyone at the table (Ben: not the host, not his song)
+  ok(!nothing(g("p2", "seek", { by: DECK.seekS })) && into() === 50, "Ben jumps ahead 30 seconds: 50 in, every phone reads it");
+  ok(!nothing(g("p1", "seek", { by: -DECK.seekS })) && into() === 20, "Amy back 30: 20 in");
+  ok(!nothing(g("p2", "seek", { by: -DECK.seekS })) && into() === 0, "back 30 from 20 seconds in: its start, not before");
+  ok(nothing(g("p2", "seek", { by: -DECK.seekS })), "at its start: back does nothing");
+  ok(nothing(g("p2", "seek", { by: "30" })) && nothing(g("p2", "seek", { by: Number.NaN })) && nothing(g("p2", "seek", {})), "a jump that isn't a number of seconds: nothing");
+  ok(!nothing(g("p2", "seek", { by: 10_000 })) && into() === DECK.seekMaxS, `a jump of hours: ${DECK.seekMaxS / 60} minutes at most`);
+  g("p2", "seek", { by: -DECK.seekMaxS });
+  g("p2", "seek", { by: 50 });
+  ok(into() === 50, "50 in");
+
+  // its 12 minutes count from where it is now
+  advance(12 * 60_000 - 51_000);
+  ok(!!dv("p1").deck.song, "12 minutes of it less a second: still playing");
+  g("p2", "seek", { by: -DECK.seekS });
+  advance(29_000);
+  ok(!!dv("p1").deck.song, "back 30: half a minute more of it");
+  advance(2000);
+  ok(dv("p1").deck.song === null, "then the 12-minute limit");
+
+  // paused: it jumps and stays paused there; 播放 carries it on from the new place
+  g("p1", "req", { yt: ["bbbbbbbbbb2", "Song B", "Chan"] });
+  advance(DECK.jukeGapMs + DECK.jukeWaitMs + 10);
+  const sw2 = dv("p1").deck.drop;
+  if (sw2) advance(sw2.at - clock + 5);
+  ok(dv("p1").deck.song?.yt === "bbbbbbbbbb2", "Amy's next song plays");
+  advance(40_000);
+  g("p2", "pause");
+  advance(60_000);
+  ok(into() === 40 && dv("p1").deck.paused > 0, "paused 40 seconds in, a minute ago");
+  ok(!nothing(g("p1", "seek", { by: DECK.seekS })) && into() === 70 && dv("p1").deck.paused > 0, "ahead 30 while paused: 70 in, still paused");
+  g("p2", "play");
+  advance(5000);
+  ok(into() === 75, "播放: on from 70");
+
+  // the shared phone (the speaker) has it too; another screen with the code doesn't
+  // (the speaker says the bars every 10 s while it plays: still there, still the one speaking)
+  sc("tap", { on: false });
+  ok(!sc("seek", { by: DECK.seekS }, "tv-sk2") && into() === 75, "another screen with the code can't jump it");
+  ok(sc("seek", { by: DECK.seekS }) && into() === 105, "the shared phone can");
+  ok(!sc("seek", { by: "x" }), "not with a jump that isn't a number");
+});
+
 test("dj: a song coming on (点歌模式's quiet switch): a speaker whose bars keep moving doesn't put it off, 切歌 skips it too, 上一曲 puts the last one in on its bar (Steve on Nov 12: \"播放下一首全程没办法使用\")", () => {
   const e = new RoomEngine(freshRoom("DJQS", clock), host);
   e.screenHello("tv-qs", true, "dj");

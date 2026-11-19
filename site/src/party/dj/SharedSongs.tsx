@@ -8,7 +8,7 @@ import { Player } from "./phone/Player";
 
 /**
  * What the shared phone's 点歌 sheet holds (SharedPhone.tsx): the phones' own player, song box and
- * playlist, as the big screen's (SHARED_BY): 暂停, 播放, 切歌 and 上一曲, its songs the table's (up to
+ * playlist, as the big screen's (SHARED_BY): 暂停, 播放, 切歌, 上一曲, 快退 and 快进, its songs the table's (up to
  * the table's thirty, not three), its own taken back, 随机 switched.
  */
 export default function SharedSongs({ v }: { v: DjView }) {
