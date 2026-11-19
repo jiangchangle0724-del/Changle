@@ -51,7 +51,7 @@ export const UI = {
   soundOn: { zh: "开", en: "On" },
   soundOff: { zh: "关", en: "Off" },
   music: { zh: "背景音乐", en: "Background music" },
-  musicHint: { zh: "一段很轻的律动，不抢话。", en: "A soft groove underneath, never in the way." },
+  musicHint: { zh: "跟着时间换风格，早上轻松、晚上热闹；同一时刻每台手机和电视放的都一样。", en: "It follows the time of day, easy in the morning and livelier at night, and every phone and TV plays the same song at once." },
   soundPreview: { zh: "音效试听", en: "Hear the sounds" },
   silentHint: { zh: "听不到的话，把手机音量调大。在微信里打开也可以。", en: "Nothing? Turn the volume up. Works inside WeChat too." },
   settings: { zh: "设置", en: "Settings" },

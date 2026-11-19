@@ -1,19 +1,21 @@
 /**
- * The night's set: the background music around the site, eight original songs in different styles,
- * all livelier than the lofi loop it replaced (Steve 2026-11-05: more of them, and more of a party).
- * Every song is made here on the step sequencer in lib/music.ts, so there is nothing to license and
- * nothing to download but this file.
+ * The night's set: the songs of the background music around the site, all original and all made
+ * here on the step sequencer in lib/music.ts, so there is nothing to license and nothing to
+ * download but this file. Which song plays when is lib/station.ts: by the time of day and the day
+ * of the week, the same on every phone (Steve 2026-11-19). The party songs came first (Steve
+ * 2026-11-05: more of them, and more of a party); the easy ones are for mornings and the small hours.
  *
  * A song is one 4-bar loop of each part, played as a short arrangement (FORM): an intro on the hats
  * and chords, the groove, a break that rolls into the drop, the drop with the hook, and an outro that
- * rolls into the next song. Each visit plays the songs in its own shuffled order (lib/music.ts).
+ * rolls into the next song. A `calm` song leaves out the snare rolls and the cymbals.
  */
 import { chord, line, v, type Style } from "./music";
 
-export type Part = "kick" | "snare" | "clap" | "hat" | "ohat" | "shaker" | "tom" | "bass" | "chords" | "lead";
+export type Part = "kick" | "snare" | "clap" | "rim" | "hat" | "ohat" | "shaker" | "tom" | "bass" | "chords" | "lead";
 /** `loops` of the song's 4 bars; `fill` ends it on a snare roll; `crash` opens it on a cymbal */
 export type Section = { loops: number; mute?: Part[]; fill?: boolean; crash?: boolean };
-export type Song = { name: { zh: string; en: string }; style: Style };
+/** `id`: how lib/station.ts names it; `calm`: no snare rolls or cymbals between the parts */
+export type Song = { id: string; name: { zh: string; en: string }; style: Style; calm?: boolean };
 
 export const FORM: Section[] = [
   { loops: 1, mute: ["kick", "snare", "clap", "bass", "lead"] },
@@ -34,6 +36,7 @@ export function sectionStyle(s: Style, sec: Section): Style {
 export const SONGS: Song[] = [
   {
     // piano house on the 王道 progression (IV V iii vi), bells on top
+    id: "rooftop",
     name: { zh: "天台", en: "Rooftop" },
     style: {
       bpm: 124,
@@ -67,6 +70,7 @@ export const SONGS: Song[] = [
   },
   {
     // nu-disco: octave bass, a guitar on the offbeats, horn hits at the end of each bar
+    id: "mirror-ball",
     name: { zh: "镜面球", en: "Mirror Ball" },
     style: {
       bpm: 118,
@@ -98,6 +102,7 @@ export const SONGS: Song[] = [
   },
   {
     // afrobeats: a swung shaker, rim clicks on 3-3-2, congas, a highlife guitar line, marimba chords
+    id: "lagos-nights",
     name: { zh: "拉各斯之夜", en: "Lagos Nights" },
     style: {
       bpm: 106,
@@ -137,6 +142,7 @@ export const SONGS: Song[] = [
   },
   {
     // reggaeton: the dembow on the snare, a sub that follows it, a plucky synth hook
+    id: "fiesta",
     name: { zh: "狂欢", en: "Fiesta" },
     style: {
       bpm: 95,
@@ -158,6 +164,7 @@ export const SONGS: Song[] = [
   },
   {
     // UK garage: a swung 2-step, Rhodes stabs in F minor, a chopped pluck
+    id: "night-bus",
     name: { zh: "末班车", en: "Night Bus" },
     style: {
       bpm: 132,
@@ -189,6 +196,7 @@ export const SONGS: Song[] = [
   },
   {
     // synth-pop: four on the floor, a pumping bass, a bright arpeggio hook in C# minor
+    id: "neon",
     name: { zh: "霓虹", en: "Neon" },
     style: {
       bpm: 126,
@@ -215,6 +223,7 @@ export const SONGS: Song[] = [
   },
   {
     // 国风 dance: four on the floor under a guzheng-like pluck on the D major pentatonic
+    id: "east-wind",
     name: { zh: "东风", en: "East Wind" },
     style: {
       bpm: 120,
@@ -242,6 +251,7 @@ export const SONGS: Song[] = [
   },
   {
     // funk: a busy kick, ghost notes, a slap-like bass, clav chords and a horn section
+    id: "groove-machine",
     name: { zh: "放克机器", en: "Groove Machine" },
     style: {
       bpm: 112,
@@ -269,6 +279,190 @@ export const SONGS: Song[] = [
         bars: [line(". . . . . . . . . . . . A4 . C5 ."), line(". . . . . . . . . . . . D5 . C5 ."), line(". . . . . . . . . . E5 . D5 . C5 ."), line(". . . . . . . . G#4 . . B4 . D5 . E5")],
         len: 1,
         peak: 0.08,
+      },
+      gain: 0.85,
+    },
+  },
+
+  /* ---- the easy ones: mornings, brunch, the small hours ---- */
+  {
+    // lofi hip-hop: a lazy swung beat, vinyl crackle, Rhodes on a ii-V-I-vi in D, a bell answering
+    id: "morning-light",
+    name: { zh: "晨光", en: "Morning Light" },
+    calm: true,
+    style: {
+      bpm: 82,
+      swing: 0.18,
+      kick: v("x.....o...x....."),
+      snare: v("....o.......o..-"),
+      hat: v("-.-.-.-.-.-.-.-."),
+      bass: [line("E2 . . . . . . . . . E2 . . . . ."), line("A1 . . . . . . . . . A1 . . . . ."), line("D2 . . . . . . . . . D2 . . . . ."), line("B1 . . . . . . . . . B1 . . . . .")],
+      bassLen: 6,
+      chords: {
+        inst: "ep",
+        prog: [chord("G3", "B3", "D4", "F#4"), chord("G3", "B3", "C#4", "F#4"), chord("F#3", "A3", "C#4", "E4"), chord("A3", "C#4", "D4", "F#4")],
+        hits: [
+          [0, 8],
+          [10, 5],
+        ],
+        peak: 0.05,
+      },
+      lead: {
+        inst: "bell",
+        bars: [line(". . . . . . B4 . . . A4 . . . . ."), line(". . . . . . C#5 . . . B4 . A4 . . ."), line(". . . . . . E5 . . . F#5 . E5 . . ."), line(". . . . . . D5 . . . C#5 . . . . .")],
+        len: 3,
+        peak: 0.05,
+      },
+      crackle: true,
+      gain: 0.48,
+    },
+  },
+  {
+    // bossa nova: rim clicks on the clave, a nylon-like guitar comping the same rhythm, Rhodes singing
+    id: "cafe",
+    name: { zh: "咖啡馆", en: "Café" },
+    calm: true,
+    style: {
+      bpm: 124,
+      kick: v("o..-o..-o..-o..-"),
+      rim: v("x..x..x...x..x.."),
+      hat: v("-.-.-.-.-.-.-.-."),
+      shaker: v(".-.-.-.-.-.-.-.-"),
+      bass: [line("F2 . . . . . C2 . F2 . . . . . C2 ."), line("G1 . . . . . D2 . G1 . . . . . D2 ."), line("G1 . . . . . D2 . G1 . . . . . D2 ."), line("C2 . . . . . G1 . C2 . . . . . G1 .")],
+      bassLen: 1.8,
+      chords: {
+        inst: "pluck",
+        prog: [chord("F3", "A3", "C4", "E4"), chord("F3", "A3", "B3", "D4"), chord("F3", "A3", "Bb3", "D4"), chord("E3", "A3", "Bb3", "D4")],
+        hits: [
+          [0, 2],
+          [3, 2],
+          [6, 2],
+          [10, 2],
+          [13, 2],
+        ],
+        peak: 0.06,
+      },
+      lead: {
+        inst: "ep",
+        bars: [line("A4 . . . G4 . A4 . . . C5 . . . A4 ."), line("B4 . . . A4 . B4 . . . D5 . . . B4 ."), line("Bb4 . . . A4 . Bb4 . . . D5 . . . C5 ."), line("A4 . . . G4 . E4 . . . . . . . . .")],
+        len: 2,
+        peak: 0.07,
+      },
+      gain: 0.75,
+    },
+  },
+  {
+    // city pop: a slap-like octave bass, Rhodes on a ii-V-I-vi in B flat, a bell hook
+    id: "city-pop",
+    name: { zh: "城市流行", en: "City Pop" },
+    style: {
+      bpm: 104,
+      swing: 0.05,
+      kick: v("x...x...x...x..."),
+      snare: v("....x.......x..."),
+      hat: v("o-o-o-o-o-o-o-o-"),
+      bass: [line("C2 . C3 . . C2 . Bb2 . C2 . . G2 . Bb2 ."), line("F1 . F2 . . F1 . Eb2 . F1 . . C2 . Eb2 ."), line("Bb1 . Bb2 . . Bb1 . A2 . Bb1 . . F2 . A2 ."), line("G1 . G2 . . G1 . F2 . G1 . . D2 . F2 .")],
+      bassLen: 0.8,
+      chords: {
+        inst: "ep",
+        prog: [chord("Eb3", "G3", "Bb3", "D4"), chord("Eb3", "A3", "D4", "G4"), chord("F3", "A3", "C4", "D4"), chord("F3", "A3", "Bb3", "D4")],
+        hits: [
+          [0, 3],
+          [6, 2],
+          [10, 4],
+        ],
+        peak: 0.055,
+      },
+      lead: {
+        inst: "bell",
+        bars: [line(". . G5 . Bb5 . C6 . . . Bb5 . G5 . . ."), line(". . A5 . C6 . D6 . . . C6 . A5 . . ."), line(". . F5 . A5 . C6 . . . A5 . F5 . D5 ."), line("F5 . . . D5 . . . Bb4 . . . D5 . . .")],
+        len: 1.5,
+        peak: 0.06,
+      },
+      gain: 0.85,
+    },
+  },
+  {
+    // tropical house: a soft four on the floor, a shaker, a pad, and a steel-drum hook in D minor
+    id: "island",
+    name: { zh: "海岛", en: "Island" },
+    style: {
+      bpm: 110,
+      kick: v("x...x...x...x..."),
+      clap: v("....o.......o..."),
+      ohat: v("..o...o...o...o."),
+      shaker: v("-o-o-o-o-o-o-o-o"),
+      bass: [line(". . D2 . . . D2 . . . D2 . . . A1 ."), line(". . Bb1 . . . Bb1 . . . Bb1 . . . F1 ."), line(". . F2 . . . F2 . . . F2 . . . C2 ."), line(". . C2 . . . C2 . . . C2 . . . G1 .")],
+      bassLen: 1.2,
+      chords: { inst: "pad", prog: [chord("F3", "A3", "C4", "D4"), chord("F3", "A3", "Bb3", "D4"), chord("F3", "A3", "C4", "F4"), chord("E3", "G3", "C4", "E4")], hits: [[0, 16]], peak: 0.028 },
+      lead: {
+        inst: "steel",
+        bars: [line("A5 . . F5 . . D5 . . . F5 . A5 . . ."), line("D6 . . Bb5 . . F5 . . . Bb5 . D6 . . ."), line("C6 . . A5 . . F5 . . . A5 . C6 . . ."), line("E5 . . G5 . . C6 . . . G5 . E5 . . .")],
+        len: 1.4,
+        peak: 0.12,
+      },
+      gain: 0.85,
+    },
+  },
+  {
+    // neo-soul: a swung, laid-back beat, Rhodes ninths on IV-iii-ii-V in E flat, a bell high above
+    id: "moonlight",
+    name: { zh: "月光", en: "Moonlight" },
+    calm: true,
+    style: {
+      bpm: 86,
+      swing: 0.18,
+      kick: v("x......x.x......"),
+      snare: v("....o..-....o..."),
+      hat: v("o.-.o.-.o.-.o.--"),
+      bass: [line("Ab1 . . . . . . Eb2 . . Ab1 . . . . ."), line("G1 . . . . . . D2 . . G1 . . . . ."), line("F1 . . . . . . C2 . . F1 . . . . ."), line("Bb1 . . . . . . F2 . . Bb1 . . . Ab1 .")],
+      bassLen: 3,
+      chords: {
+        inst: "ep",
+        prog: [chord("G3", "C4", "Eb4", "Bb4"), chord("F3", "Bb3", "D4", "G4"), chord("Eb3", "Ab3", "C4", "G4"), chord("Ab3", "D4", "G4", "C5")],
+        hits: [
+          [0, 6],
+          [7, 2],
+          [10, 6],
+        ],
+        peak: 0.05,
+      },
+      lead: {
+        inst: "bell",
+        bars: [line(". . . . . . . . Eb5 . . G5 . . Bb5 ."), line("Bb5 . . . . . . . G5 . . F5 . . D5 ."), line("Eb5 . . . . . . . C5 . . Eb5 . . G5 ."), line("F5 . . . . . . . D5 . . C5 . . . .")],
+        len: 3,
+        peak: 0.05,
+      },
+      gain: 0.6,
+    },
+  },
+  {
+    // deep house: a round four on the floor, offbeat hats, Rhodes stabs in A minor, a bell far off
+    id: "deep-end",
+    name: { zh: "深水", en: "Deep End" },
+    style: {
+      bpm: 120,
+      kick: v("x...x...x...x..."),
+      clap: v("....o.......o..."),
+      hat: v("..x...x...x...x."),
+      shaker: v("-.-.-.-.-.-.-.-."),
+      bass: [line(". . A1 . . . . A1 . . A1 . . . . ."), line(". . F1 . . . . F1 . . F1 . . . . ."), line(". . D2 . . . . D2 . . D2 . . . . ."), line(". . E2 . . . . E2 . . E2 . . . G1 .")],
+      bassLen: 1.5,
+      chords: {
+        inst: "ep",
+        prog: [chord("G3", "B3", "C4", "E4"), chord("F3", "A3", "C4", "E4"), chord("F3", "C4", "E4", "A4"), chord("G3", "B3", "D4", "E4")],
+        hits: [
+          [2, 1],
+          [7, 2],
+          [12, 1],
+        ],
+        peak: 0.06,
+      },
+      lead: {
+        inst: "bell",
+        bars: [line(". . . . . . . . E5 . . . G5 . . ."), line(". . . . . . . . E5 . . . C5 . . ."), line(". . . . . . . . F5 . . . E5 . . ."), line(". . . . . . . . D5 . . . B4 . . .")],
+        len: 4,
+        peak: 0.045,
       },
       gain: 0.85,
     },
