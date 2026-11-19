@@ -409,7 +409,8 @@ const LEGACY_CODEPOINTS: Record<number, number> = {
   156: 0x0153, 158: 0x017e, 159: 0x0178,
 };
 
-function decodeEntities(text: string): string {
+/** HTML character references in text (named, decimal and hex), as a browser reads them. */
+export function decodeEntities(text: string): string {
   return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z][a-z0-9]*);/gi, (entity, name: string) => {
     if (name[0] !== "#") return Object.hasOwn(NAMED_ENTITIES, name) ? NAMED_ENTITIES[name] : entity;
     const cp = name[1].toLowerCase() === "x" ? parseInt(name.slice(2), 16) : Number(name.slice(1));

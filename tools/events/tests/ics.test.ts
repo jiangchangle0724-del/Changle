@@ -291,6 +291,7 @@ describe("the calendar subscription through the Worker", () => {
       const url = new URL(input instanceof Request ? input.url : String(input));
       if (url.hostname === "events.ubc.ca") return new Response(url.searchParams.get("tribe-bar-date") === "2026-10-31" ? ubc : "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n");
       if (url.hostname === "bpl.bc.ca") return new Response(bpl);
+      if (url.hostname === "events.sfu.ca") return new Response(JSON.stringify({ meta: { page: 1, total_pages: 0, total_results: 0 }, data: [] }));
       if (url.hostname === "api.lu.ma") return new Response(luma);
       if (url.hostname === "gateway.bibliocommons.com") {
         const lib = /\/libraries\/(\w+)\/events/.exec(url.pathname)?.[1];
@@ -327,6 +328,6 @@ describe("the calendar subscription through the Worker", () => {
       expect(calendar(value).getFirstPropertyValue("x-wr-calname")).toBe(names[query]);
     }
     // A subscription is served from the published cache, without any more fetches.
-    expect(fetched.mock.calls.length).toBe(8);
+    expect(fetched.mock.calls.length).toBe(9);
   });
 });
