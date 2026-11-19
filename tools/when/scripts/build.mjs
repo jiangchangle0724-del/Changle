@@ -3,7 +3,7 @@
 //   assets/app-<hash>.js|css    the script and the styles (fonts, changle.ca's tokens, this tool's own)
 //   assets/fonts/               the site's two fonts
 //   assets/art/<name>-<hash>    the pictures a page imports (src/client/art), and only those
-//   licences.txt                the fonts' licences
+//   licences.txt                the licences of the fonts and of Lucide (the weather icons)
 // File names carry a hash of their contents, so phones keep them for a year and still get a new
 // version the moment there is one (the page itself is never kept: src/server/worker.ts).
 //   node scripts/build.mjs           build once
@@ -20,7 +20,8 @@ await mkdir(`${out}/assets/fonts`, { recursive: true });
 for (const font of ["unbounded.woff2", "figtree.woff2"]) await copyFile(`src/client/fonts/${font}`, `${out}/assets/fonts/${font}`);
 
 const licences = ["Unbounded", "Figtree"].map(async (name) => `${name} (font), SIL Open Font License 1.1\n\n${await readFile(`src/client/fonts/licences/${name}-OFL.txt`, "utf8")}`);
-await writeFile(`${out}/licences.txt`, `约时间 · When Works: third-party fonts and their licences.\n\n${(await Promise.all(licences)).join("\n\n")}`);
+licences.push(readFile("node_modules/lucide-preact/LICENSE", "utf8").then((text) => `Lucide (icons, lucide-preact), ISC License\n\n${text}`));
+await writeFile(`${out}/licences.txt`, `约时间 · When Works: third-party fonts, icons and their licences.\n\n${(await Promise.all(licences)).join("\n\n")}`);
 
 // Scripts, styles, fonts and pictures never change under one name: a year, no questions asked.
 await writeFile("dist/client/_headers", "/when/assets/*\n  Cache-Control: public, max-age=31536000, immutable\n  X-Content-Type-Options: nosniff\n");

@@ -1,7 +1,8 @@
 // 约时间 · When Works: the server. One Worker at changle.ca/when.
 //   /when/                 the home page (a file)
 //   /when/<8-char code>    a gathering's page: the same file, with the gathering's name as its title
-//   /when/api/…            making a gathering, reading it, saving answers, the host's moves, the live feed
+//   /when/api/…            making a gathering, reading it, saving answers, the host's moves, the live feed,
+//                          Vancouver's weather
 // Each gathering is one Durable Object (EventDO) with its own small SQLite database. It keeps the
 // rows, tells every open phone when something changes and who else has the page open, and deletes
 // itself 60 days after it was made.
@@ -11,6 +12,7 @@ import { toIcs } from "../engine/ics";
 import { ADMIN_RE, CODE_RE, KEY_RE, makeAdminCode, makeCode } from "../engine/ids";
 import { vancouverDay } from "../engine/time";
 import type { Here } from "../engine/types";
+import { NO_FORECAST, readForecast, WEATHER_SOURCE, type Forecast } from "../engine/weather";
 import { EventRoom, QUIET_MS, type ErrorCode, type Fail, type HostAction, type Meta, type Row, type Store } from "../room/event";
 import { KEY_HEADER, type ApiError, type Claimed, type Created, type Hello, type Hosted, type Push, type Saved, type Snapshot } from "../room/protocol";
 
@@ -93,8 +95,35 @@ async function page(req: Request, env: Env, url: URL, title: string | null, stat
     .transform(res);
 }
 
+/** How long Vancouver's forecast is kept here: it is issued a few times a day, and its hours move on every hour. */
+const WEATHER_KEEP_S = 1800;
+
+/**
+ * Vancouver's forecast, in the pages' shape (src/engine/weather.ts): from Environment and Climate
+ * Change Canada at most every half hour in each Cloudflare data centre, and none for a few minutes
+ * when ECCC can't be reached. Under test the pages are given their own.
+ */
+async function weather(env: Env, ctx: ExecutionContext): Promise<Response> {
+  if (env.ALLOW_TEST_SETTINGS === "1") return json(NO_FORECAST);
+  // the Worker's own cache (the pages' DOM types, also in this project, don't know it)
+  const cache = (caches as unknown as { default: Cache }).default;
+  const key = new Request("https://changle.ca/when/api/weather");
+  const kept = await cache.match(key);
+  if (kept) return kept;
+  let forecast: Forecast = NO_FORECAST;
+  try {
+    const res = await fetch(WEATHER_SOURCE, { headers: { accept: "application/json", "user-agent": "changle.ca/when" } });
+    if (res.ok) forecast = readForecast(await res.json());
+  } catch {
+    // out of reach for now
+  }
+  const out = new Response(JSON.stringify(forecast), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${forecast.at ? WEATHER_KEEP_S : 300}` } });
+  ctx.waitUntil(cache.put(key, out.clone()));
+  return out;
+}
+
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     if (url.pathname !== BASE && !url.pathname.startsWith(`${BASE}/`)) return new Response("not found", { status: 404 });
     const parts = url.pathname.slice(BASE.length).split("/").filter(Boolean);
@@ -126,6 +155,8 @@ export default {
       }
       return refuse("bad", 500);
     }
+
+    if (parts.length === 2 && parts[1] === "weather" && req.method === "GET") return weather(env, ctx);
 
     if (parts[1] !== "e" || !CODE_RE.test(parts[2] ?? "")) return refuse("notfound", 404);
     const stub = env.EVENTS.get(env.EVENTS.idFromName(parts[2]));

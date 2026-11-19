@@ -4,8 +4,8 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { addDays, allFree, atTime, best, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weekday, weekdayLabel, whenLabel } from "../../engine";
-import type { Answers, Day, EventState, Here, Lang, Person, Quick, SlotKey, Span, Times } from "../../engine";
+import { addDays, allFree, atTime, best, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel } from "../../engine";
+import type { Answers, Day, EventState, Here, Lang, Part, Person, Quick, SlotKey, Span, Times, Weather } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
 import type { Snapshot } from "../../room/protocol";
@@ -19,6 +19,7 @@ import { HereLine, useFinished } from "./Here";
 import { MovingList } from "./Moving";
 import { PictureSheet, daysLine, inviteLine, invitePicture } from "./Picture";
 import { field, minutesOf, TimeSheet } from "./Times";
+import { useForecast, WeatherCredit, WeatherLine } from "./Weather";
 import { Words } from "./Words";
 
 type Open =
@@ -264,6 +265,8 @@ export function EventPage({ code }: { code: string }) {
   useEffect(() => () => (clearTimeout(saveTimer.current), clearTimeout(undoTimer.current), clearTimeout(tappedTimer.current)), []);
   // one of the others has just filled in: the line at the top says so for a moment
   const done = useFinished(snap?.state.people, [snap?.me, proxy?.id]);
+  // Vancouver's forecast, when any of the days asked about is in the coming week
+  const forecast = useForecast(snap?.state.days);
 
   if (gone) {
     return (
@@ -311,6 +314,10 @@ export function EventPage({ code }: { code: string }) {
   const setOne = settledSlot ? tallies.find((x) => x.slot === settledSlot) : undefined;
   // the time that was set, counting who is free for all of it (by the period, to the minute)
   const settledTally = setOne && atTime(setOne, people, state.grain, state.settled?.from, state.settled?.to);
+  /** The weather at a time, where the forecast reaches it. */
+  const weatherOf = (day: Day, part: Part, from?: number, to?: number): Weather | null => weatherAt(forecast, { day, grain: state.grain, part, from, to }, Date.now());
+  const settledWeather = state.settled ? weatherOf(state.settled.day, state.settled.part, state.settled.from, state.settled.to) : null;
+  const topWeather = top.map((x) => weatherOf(x.day, x.part, x.meet?.from, x.meet?.to));
   /** The minutes a slot stands for, by the period; null otherwise. */
   const rangeOf = (slot: SlotKey): Span | null => {
     const at = parseSlot(slot);
@@ -539,6 +546,7 @@ export function EventPage({ code }: { code: string }) {
             <Keep text={whenLabel(state.settled.day, state.settled.part, lang, state.settled.from, state.settled.to)} />
           </strong>
           <p>{reason(settledTally, people, lang)}</p>
+          <WeatherLine as="p" weather={settledWeather} />
           <AddToCalendar state={state} />
           {host && (
             <div class="row set-host">
@@ -756,6 +764,7 @@ export function EventPage({ code }: { code: string }) {
                     <Keep text={whenLabel(x.day, x.part, lang, x.meet?.from, x.meet?.to)} />
                   </b>
                   <span>{reason(x, people, lang)}</span>
+                  <WeatherLine weather={topWeather[i]} />
                 </button>
                 {host && x.slot !== settledSlot && (
                   <button type="button" class="btn btn-primary btn-sm" onClick={() => settle(x)}>
@@ -766,6 +775,7 @@ export function EventPage({ code }: { code: string }) {
             ))}
           </MovingList>
         )}
+        {(settledWeather || topWeather.some(Boolean)) && <WeatherCredit />}
       </section>
 
       {(people.length > 0 || !state.settled) && (
@@ -879,7 +889,18 @@ export function EventPage({ code }: { code: string }) {
 
       <p class="foot">{t("deletedOn", { day: dayLabel(vancouverDay(state.expiresAt), lang) })}</p>
 
-      {open?.kind === "slot" && <SlotSheet tl={tallies.find((x) => x.slot === open.slot)!} state={state} people={people} host={host} settled={open.slot === settledSlot} onPick={() => (setOpen(null), void settle(tallies.find((x) => x.slot === open.slot)!))} onClose={() => setOpen(null)} />}
+      {open?.kind === "slot" && (
+        <SlotSheet
+          tl={tallies.find((x) => x.slot === open.slot)!}
+          state={state}
+          people={people}
+          host={host}
+          settled={open.slot === settledSlot}
+          weather={weatherOf(parseSlot(open.slot)!.day, parseSlot(open.slot)!.part)}
+          onPick={() => (setOpen(null), void settle(tallies.find((x) => x.slot === open.slot)!))}
+          onClose={() => setOpen(null)}
+        />
+      )}
       {open?.kind === "time" && rangeOf(open.slot) && (
         <TimeSheet
           title={slotLabel(parseSlot(open.slot)!.day, parseSlot(open.slot)!.part, lang)}
@@ -1043,7 +1064,25 @@ function SetTimeSheet({ tl, state, people, range, onSet, onClose }: { tl: Tally;
   );
 }
 
-function SlotSheet({ tl, state, people, host, settled, onPick, onClose }: { tl: Tally; state: EventState; people: Person[]; host: boolean; settled: boolean; onPick: () => void; onClose: () => void }) {
+function SlotSheet({
+  tl,
+  state,
+  people,
+  host,
+  settled,
+  weather,
+  onPick,
+  onClose,
+}: {
+  tl: Tally;
+  state: EventState;
+  people: Person[];
+  host: boolean;
+  settled: boolean;
+  weather: Weather | null;
+  onPick: () => void;
+  onClose: () => void;
+}) {
   const lang = useLang();
   return (
     <Sheet
@@ -1057,6 +1096,7 @@ function SlotSheet({ tl, state, people, host, settled, onPick, onClose }: { tl: 
         ) : undefined
       }
     >
+      <WeatherLine as="p" weather={weather} />
       {tl.out && <p class="note">{tl.out === "must" ? t("outMust") : t("outFew", { n: state.minPeople })}</p>}
       {tl.meet && (
         <p class="slot-meet">
