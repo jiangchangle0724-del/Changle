@@ -316,7 +316,7 @@ export function createWorld(canvas: HTMLCanvasElement, opts: { gel: string; pale
         f.rig.root.add(s);
         f.tag = s;
       }
-      if (f.tag) f.tag.scale.set(0.44, 0.124, 1);
+      if (f.tag) f.tag.scale.set(0.44 * tagScale, 0.124 * tagScale, 1);
       if (!want && f.tag) {
         f.rig.root.remove(f.tag);
         (f.tag.material as THREE.SpriteMaterial).map?.dispose();
@@ -325,6 +325,8 @@ export function createWorld(canvas: HTMLCanvasElement, opts: { gel: string; pale
       }
     }
   };
+  // names read bigger on a big screen (the TV) than on a phone
+  let tagScale = 1;
   const reslot = () => {
     const live = figures.filter((f) => !f.leaving);
     const n = live.length;
@@ -404,6 +406,11 @@ export function createWorld(canvas: HTMLCanvasElement, opts: { gel: string; pale
   const resize = (w: number, h: number, dpr: number) => {
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h, false);
+    const ts = w > 600 ? 1.5 : 1;
+    if (ts !== tagScale) {
+      tagScale = ts;
+      placeTags();
+    }
     camera.aspect = w / h;
     const tanV = Math.tan((camera.fov * RAD) / 2);
     const tanH = tanV * camera.aspect;

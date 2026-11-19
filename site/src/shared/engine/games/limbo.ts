@@ -76,6 +76,8 @@ type S = {
   failed: string[];
   out: string[];
   best: Record<string, number>;
+  /** everyone's lean right now, this bar (a few times a second from each phone; the TV and the others' stages lean with it) */
+  leans: Record<string, number>;
   sensors: string[];
   winner: string | null;
 };
@@ -157,6 +159,7 @@ function startLevel(s: S, api: Api) {
   s.passed = [];
   s.failed = [];
   s.best = {};
+  s.leans = {};
   api.clear("next");
   api.timer("end", s.endsAt);
 }
@@ -240,7 +243,7 @@ export const limbo: GameDef<S> = {
   id: "limbo",
   min: 2,
   init(api) {
-    return { phase: "ready", mode: "classic", bar: classicBar(), target: 0, locks: {}, level: 0, musicAt: 0, startAt: 0, endsAt: 0, alive: api.ids(), passed: [], failed: [], out: [], best: {}, sensors: [], winner: null };
+    return { phase: "ready", mode: "classic", bar: classicBar(), target: 0, locks: {}, level: 0, musicAt: 0, startAt: 0, endsAt: 0, alive: api.ids(), passed: [], failed: [], out: [], best: {}, leans: {}, sensors: [], winner: null };
   },
 
   act(s, pid, g, api) {
@@ -272,6 +275,17 @@ export const limbo: GameDef<S> = {
       case "best": {
         if (s.phase !== "go" || !s.alive.includes(pid)) return;
         s.best[pid] = Math.max(s.best[pid] ?? 0, deg);
+        return;
+      }
+      case "lean": {
+        // where they are right now, for the other stages: sent now, saved with the next change
+        // (blind lean keeps everyone's angle to themselves)
+        if (s.mode === "blind" || s.phase !== "go" || !s.alive.includes(pid)) return api.quiet();
+        const d = Math.max(0, Math.min(90, Math.round(deg)));
+        s.leans ??= {}; // (a table saved before leans existed)
+        if (s.leans[pid] === d) return api.quiet();
+        s.leans[pid] = d;
+        api.light();
         return;
       }
       case "pass": {
@@ -310,7 +324,7 @@ export const limbo: GameDef<S> = {
       }
       case "again": {
         if (!host || s.phase !== "end") return;
-        Object.assign(s, { phase: "ready", bar: classicBar(), level: 0, musicAt: 0, target: 0, locks: {}, alive: api.ids(), passed: [], failed: [], out: [], best: {}, winner: null });
+        Object.assign(s, { phase: "ready", bar: classicBar(), level: 0, musicAt: 0, target: 0, locks: {}, alive: api.ids(), passed: [], failed: [], out: [], best: {}, leans: {}, winner: null });
         return;
       }
     }
@@ -360,6 +374,7 @@ export const limbo: GameDef<S> = {
       failed: s.failed,
       out: s.out,
       best: s.best,
+      leans: s.leans ?? {},
       sensors: s.sensors,
       winner: s.winner,
     };

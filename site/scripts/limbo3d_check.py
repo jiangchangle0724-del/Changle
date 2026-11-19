@@ -167,6 +167,49 @@ def t_variants(browser):
     pg.context.close()
 
 
+def t_tv(browser):
+    # the TV draws the same stage, and everyone on it leans as their phone last said
+    host, guests, _ = P.seat_table(browser, ["Steve", "Mia"])
+    everyone = [host] + guests
+    code = re.search(r"/t/([A-Z0-9]{4})", host.url).group(1)
+    # (the phones opened before __limboGl could be set: from now on every load has it)
+    for g in everyone:
+        g.context.add_init_script(FORCE)
+        g.reload(wait_until="networkidle")
+        until(lambda: P.room(g))
+    tv = browser.new_page(viewport={"width": 960, "height": 540})
+    tv._errs = []
+    tv._name = "tv"
+    tv.on("pageerror", lambda e: tv._errs.append(str(e)))
+    tv.add_init_script(FORCE)
+    tv.goto(BASE.rstrip("/") + f"/tv/{code}", wait_until="networkidle")
+    tv.mouse.click(480, 270)
+    P.start_game(host, everyone, "limbo")
+    for g in everyone:
+        P.fake_sensor(g)
+        g.get_by_role("button", name="开启动作感应").click()
+    ok(until(lambda: len(P.view(host)["sensors"]) == 2), "two phones can measure")
+    host.get_by_role("button", name="开始", exact=True).click()
+    ok(until(lambda: P.view(host)["phase"] == "go"), "the bar is up")
+    ok(until(lambda: tv.locator(".tvlb-scene .limbo-3d canvas").count() == 1, 8000) and until(lambda: (stats(tv) or {}).get("figures", 0) == 2, 8000), "the TV draws the 3D stage with both players")
+    host.wait_for_selector(".lb .gauge", timeout=8000)
+    mia = guests[0]
+    # (the round is 15 s and the TV page is slow to answer while it draws in software: both lean at once, the TV is asked after)
+    P.lean_to(host, 24)
+    P.lean_to(mia, 14)
+    ok(until(lambda: P.view(host).get("leans", {}).get(P.me(mia)) == 14, 4000), "Mia's phone tells the table she's at 14°")
+    ok(until(lambda: P.me(host) in P.view(host)["passed"], 6000), "Steve through")
+    ok(until(lambda: any(p["id"] == P.me(mia) and p.get("lean") == 14 for p in stats(host)["poses"]), 4000), "her figure on Steve's phone leans 14° with her")
+    ok(until(lambda: any(p["id"] == P.me(mia) and p.get("lean") == 14 for p in stats(tv)["poses"]), 8000), "and so does the TV's")
+    ok(until(lambda: any(p["id"] == P.me(host) and p["pose"] == "pass" for p in stats(tv)["poses"]), 8000), "the TV shows Steve through")
+    tv.wait_for_timeout(900)
+    shot(tv, "40-tv-one-through-one-leaning")
+    P.errors(everyone + [tv])
+    tv.close()
+    for g in everyone:
+        g.context.close()
+
+
 def t_short_screen(browser):
     pg = P.phone(browser, "3d-se", players=P.PLAYERS[:2], w=375, h=667)
     pg.add_init_script(FORCE)
@@ -183,7 +226,7 @@ if __name__ == "__main__":
     t0 = time.time()
     with sync_playwright() as p:
         browser = p.chromium.launch(args=["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"])
-        for name, fn in (("single", t_single), ("online", t_online), ("variants", t_variants), ("short", t_short_screen)):
+        for name, fn in (("single", t_single), ("online", t_online), ("variants", t_variants), ("tv", t_tv), ("short", t_short_screen)):
             if only and name not in only:
                 continue
             print(f"--- {name}", flush=True)
