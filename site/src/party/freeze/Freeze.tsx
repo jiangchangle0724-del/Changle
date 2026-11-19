@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GameShell, usePenalty } from "../../games/GameShell";
 import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
+import { audioRunning } from "../../lib/audio/engine";
 import { pick, randInt } from "../../lib/random";
 import { holdBackground, startGroove, type GrooveHandle, type GrooveId } from "../../lib/music";
 import { haptic, sfx } from "../../lib/sfx";
@@ -10,6 +11,7 @@ import { usePenaltyText, useStore } from "../../store";
 import { NameFace } from "../common";
 import { useWakeLock } from "../sensors";
 import { DanceFloor, FreezeFlash, TRACKS } from "./parts";
+import { kickAudio, SoundLine } from "./sound";
 import "../../styles/party.css";
 
 type Phase = "setup" | "ready" | "dance" | "freeze" | "judge" | "end";
@@ -38,6 +40,8 @@ function FreezeGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   const [moved, setMoved] = useState<string[]>(saved?.moved ?? []);
   const repeat = saved?.repeat ?? false;
   const handle = useRef<GrooveHandle | null>(null);
+  /** the round whose music should be playing (null between rounds) */
+  const playing = useRef<{ g: GrooveId } | null>(null);
   const timer = useRef(0);
   const penalty = usePenalty();
   // the "drink" mode is the one where you take the penalty and keep dancing: named for the penalty in settings
@@ -52,10 +56,22 @@ function FreezeGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   useEffect(
     () => () => {
       window.clearTimeout(timer.current);
+      playing.current = null;
       handle.current?.stop(0.05);
     },
     [],
   );
+
+  /** Start this round's music (again): the one 「没声音？」 brings back after stopping and starting the sound. */
+  const play = (round: { g: GrooveId }) => {
+    if (playing.current !== round) return;
+    handle.current?.stop(0.05);
+    handle.current = startGroove(round.g);
+  };
+  const restart = () => {
+    const round = playing.current;
+    if (round) void kickAudio().then(() => play(round));
+  };
 
   const dance = (r: number, same = false) => {
     const g = same ? groove : track === "mix" ? (r % 3 === 1 || r === 1 ? pick(TRACKS).id : groove) : track;
@@ -64,10 +80,16 @@ function FreezeGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
     setMoved([]);
     setPhase("dance");
     handle.current?.stop(0.05);
-    handle.current = startGroove(g);
+    const round = { g };
+    playing.current = round;
+    // stop and start the sound first, so a context an iPhone left silent plays again (sound.tsx);
+    // one not running yet is woken by starting the music inside this tap
+    if (audioRunning()) void kickAudio().then(() => play(round));
+    else play(round);
     const ms = r <= 2 ? randInt(9000, 18000) : randInt(6000, 15000);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
+      playing.current = null;
       handle.current?.stop(0.02);
       sfx.scratch();
       haptic([60, 40, 60]);
@@ -207,6 +229,7 @@ function FreezeGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
                 ),
               )}
             </div>
+            <SoundLine playing={phase === "dance"} onRestart={restart} />
           </>
         )}
 
