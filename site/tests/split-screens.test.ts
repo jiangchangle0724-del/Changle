@@ -46,6 +46,7 @@ import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shap
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
 import { listed } from "../src/split/syncing";
+import { sameSaid, saidOf, twinIn, twinsOf, type Said } from "../src/split/twins";
 import { say, W, type Word } from "../src/split/words";
 import { CURRENCIES } from "../src/tools/money";
 import { randomLedger, rng } from "./split/ledgers";
@@ -1264,6 +1265,39 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const usdRated = readInto(d, { ...read, currency: "USD" }, start, { USD: 1, CAD: 1.4 } as never, Date.now())!;
   eq(draftProblem(usdRated, start), null, "with today's rates: recorded, converted");
   eq(readInto(d, { ...read, tip: "99.999" }, start, null, Date.now())?.tip, "", "a tip that isn't a sum in it: none");
+}
+
+// ---------- 20. a receipt seen before (几张小票 leaves it out, 记一笔 says so) ----------
+{
+  const both: Split = { how: "equal", among: ["s", "w"] };
+  const mc: Expense = { kind: "expense", id: "e1", at: Date.parse("2026-11-16T20:00:00"), payer: "s", amount: 2000, note: "", split: both, rot: 0, merchant: "McDonald's", date: "2026-11-16" };
+  const typedOnly: Expense = { kind: "expense", id: "e2", at: Date.parse("2026-11-17T20:00:00"), payer: "s", amount: 850, note: "咖啡", split: both, rot: 1, date: "2026-11-17" };
+  const abroadOne: Expense = { kind: "expense", id: "e3", at: Date.parse("2026-11-17T21:00:00"), payer: "s", amount: 1401, note: "", split: both, rot: 0, merchant: "Starbucks", date: "2026-11-17", paidIn: { currency: "USD", amount: 1000, rate: "1.4012" } };
+  const gone: Expense = { kind: "expense", id: "e4", at: Date.parse("2026-11-15T20:00:00"), payer: "s", amount: 1500, note: "", split: both, rot: 1, merchant: "Kiosk", date: "2026-11-15", gone: 5 };
+  const l = { ...startLedger("T", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]), entries: [mc, typedOnly, abroadOne, gone] };
+  const said = (total: number, merchant: string, date = "2026-11-16", currency = "CAD"): Said => ({ total, currency, date, merchant });
+  eq(twinIn(l, said(2000, "McDonald's"))?.id, "e1", "the same total, day and business: the one recorded");
+  eq(twinIn(l, said(2000, "MCDONALDS"))?.id, "e1", "the business told apart only by its letters and digits");
+  eq([twinIn(l, said(2001, "McDonald's")), twinIn(l, said(2000, "McDonald's", "2026-11-17")), twinIn(l, said(2000, "Wendy's"))], [null, null, null], "another total, day or business: not the same");
+  eq(twinIn(l, said(2000, "")), null, "a business read on one side only: not the same");
+  eq(twinIn(l, said(850, "", "2026-11-17"))?.id, "e2", "a business read on neither: the total and the day say it");
+  eq(twinIn(l, said(1000, "Starbucks", "2026-11-17", "USD"))?.id, "e3", "paid in another currency: what was paid in it");
+  eq(twinIn(l, said(1401, "Starbucks", "2026-11-17")), null, "and not what it came to");
+  eq(twinIn(l, said(1500, "Kiosk", "2026-11-15")), null, "one taken out of the ledger doesn't count");
+  eq(twinIn(l, said(2000, "McDonald's"), "e1"), null, "the one being changed doesn't count");
+  const noDay: Expense = { ...mc, id: "e5", date: undefined, at: Date.parse("2026-11-18T12:00:00") };
+  eq(twinIn({ ...l, entries: [noDay] }, said(2000, "McDonald's", localDay(noDay.at)))?.id, "e5", "one with no day: the day it was recorded");
+  const draft = { ...blankDraft(l, "s", Date.now()), currency: "CAD", text: "20.00", merchant: " McDonald's ", date: "" };
+  eq(saidOf(draft, "2026-11-16"), said(2000, "McDonald's"), "what an expense being typed says (no day picked: today's)");
+  eq(saidOf({ ...draft, text: "" }, "2026-11-16"), null, "nothing without an amount");
+  ok(sameSaid(said(2000, "McDonald's"), said(2000, "mcdonalds")), "two receipts the same");
+  // a batch, read in any order: of two the first stays; one recorded already comes first
+  const a = said(500, "Tim Hortons", "2026-11-18");
+  eq(twinsOf([{ said: a, kept: true }, { said: a, kept: true }, { said: null, kept: false }], l), [null, { row: 0 }, null], "the second of two: like the first; one not read: nothing yet");
+  eq(twinsOf([{ said: null, kept: false }, { said: a, kept: true }], l), [null, null], "the first not read yet: the second stands for now");
+  eq(twinsOf([{ said: a, kept: true }, { said: a, kept: true }], l)[1], { row: 0 }, "once the first is read, the second is like it (read in the other order)");
+  eq(twinsOf([{ said: a, kept: false }, { said: a, kept: true }], l), [null, null], "the first left out by hand: the second is the one recorded");
+  eq(twinsOf([{ said: said(2000, "McDonald's"), kept: true }, { said: said(2000, "McDonald's"), kept: true }], l), [{ ledger: mc }, { ledger: mc }], "both like one recorded: both say so");
 }
 
 if (failed) {

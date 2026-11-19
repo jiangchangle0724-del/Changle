@@ -2,10 +2,14 @@
  * 记一笔: the whole screen while an expense is typed in. Two taps record one: the amount on the
  * keypad, then 记好了. Who paid starts as you and it starts shared equally by everyone; either opens
  * only when it needs changing. So does the currency: it is the one the last expense was paid in,
- * and the button in the corner changes it. Receipt photos have a button at the end of the note's
- * line (Photos.tsx): each goes to the server as it is chosen, and the expense keeps their ids.
+ * and the button in the corner changes it. Under who paid and who shares it, 详情: the day, what it was
+ * for, where and how it was paid, the tip and tax, said on the line and changed in its sheet. Receipt
+ * photos have a button at the end of that line (Photos.tsx): each goes to the server as it is chosen,
+ * and the expense keeps their ids. Several chosen at once for a new expense: asked whether they are an
+ * expense each (几张小票, Receipts.tsx) or this one's photos. A receipt read that looks like one
+ * already recorded says so in place of the line under the amount (twins.ts).
  */
-import { CalendarDays, Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
+import { Camera, Check, ChevronDown, ChevronRight, CircleAlert, Minus, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -21,7 +25,7 @@ import { MAX_SHARES, nextRot, portions, type Decimals, type Expense, type Ledger
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft, type How } from "./draft";
 import { currencyName, decimalsOf, localDay, money, typed } from "./format";
 import { asAmountText, press, type Key } from "./input";
-import { dayLabel, extrasText, nameFor } from "./lines";
+import { dayLabel, extrasText, nameFor, spentOn } from "./lines";
 import { DETAIL_MAX, DETAILS, isDay, NOTE_MAX, type Detail } from "./ops";
 import { Bar, Keypad } from "./parts";
 import { megabytes, TROUBLE_WORD, WARN_AT } from "./photos";
@@ -29,6 +33,7 @@ import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
 import { asRateText, lastPaidIn, settled, todaysRate } from "./rates";
 import { newId } from "./store";
 import { dropPhoto, readingOn, readPhoto, record, sendPhoto } from "./syncing";
+import { saidOf, twinIn } from "./twins";
 import { say, type Word } from "./words";
 
 type Props = {
@@ -41,6 +46,8 @@ type Props = {
   onClose: () => void;
   onSaved: (id: string) => void;
   onDeleted: (id: string) => void;
+  /** several photos chosen at once for a new expense, to be an expense each: 几张小票 takes them from here */
+  onSeveral?: (files: File[]) => void;
 };
 
 /** A currency as these screens name it in a tight place: its name in Chinese (两 to 四 characters), its code in English. */
@@ -56,15 +63,15 @@ function TodaysRates({ onChange }: { onChange: (fx: FxState) => void }) {
   return null;
 }
 
-export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDeleted }: Props) {
+export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDeleted, onSeveral }: Props) {
   const toast = useToast();
   // (the ledger's own currency: what everything about sharing is in)
   const decimals = decimalsOf(ledger.currency);
   const [draft, setDraft] = useState<Draft>(() => (editing ? draftOf(editing, ledger) : blankDraft(ledger, me, Date.now())));
   const [sheet, setSheet] = useState<"payer" | "share" | "currency" | "rate" | "details" | null>(null);
   // The day it was spent: today for a new one, or what it says; one that says none was spent the day
-  // it was recorded. Said on the button beside 记好了, which opens the sheet where it is picked (with
-  // the tip and tax). A day picked here is never replaced by one read off a receipt.
+  // it was recorded. Said first on the 详情 line, which opens the sheet where it is picked (with the
+  // rest of the details). A day picked here is never replaced by one read off a receipt.
   const today = localDay(Date.now());
   const day = draft.date || localDay(editing?.at ?? Date.now());
   const dayPicked = useRef(false);
@@ -86,6 +93,8 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   const [files, setFiles] = useState<string[]>(() => editing?.files ?? []);
   const [sending, setSending] = useState(0);
   const [photos, setPhotos] = useState(false);
+  // several chosen at once, waiting to be told whether they are an expense each or this one's photos
+  const [several, setSeveral] = useState<File[] | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const sentHere = useRef(new Set<string>());
   const saved = useRef(false);
@@ -141,8 +150,13 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     setJustRead(true);
     setReading(null);
   };
-  const pick = async (chosen: File[]) => {
+  const pick = async (chosen: File[], oneExpense = false) => {
     setPhotoNote(null);
+    // several at once for a new expense with nothing typed or sent yet: an expense each, or all this one's?
+    if (chosen.length > 1 && onSeveral && !oneExpense && !editing && !files.length && !sending && !draftNow.current.text) {
+      setSeveral(chosen);
+      return;
+    }
     const room = MAX_FILES - files.length - sending;
     if (chosen.length > room) tell("photoMax");
     for (const file of chosen.slice(0, Math.max(0, room))) {
@@ -274,8 +288,18 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
   // (and the business it was bought from, before them: what was read is seen at a glance, and the
   // rest of it, the place and what paid, is in the sheet the line opens)
   const aboutSaid = [draft.merchant.trim(), extrasSaid ? say(lang, "withExtras", { extras: extrasSaid }) : ""].filter(Boolean).join(" · ");
-  const readLine = comes ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !aboutSaid ? say(lang, "readFromReceipt") : null;
-  const extrasLine = comes || reading || !aboutSaid ? null : fresh ? say(lang, "readExtras", { what: aboutSaid }) : aboutSaid.charAt(0).toUpperCase() + aboutSaid.slice(1);
+  // (once it isn't just read, the business is on the 详情 line: under the amount, only what is in the amount)
+  const amountSaid = extrasSaid ? say(lang, "withExtras", { extras: extrasSaid }) : "";
+  // just read off a receipt that looks like one already recorded: said in the line's place
+  const said = fresh && !comes && !reading ? saidOf(draft, day) : null;
+  const twin = said ? twinIn(ledger, said, editing?.id) : null;
+  const twinLine = twin
+    ? say(lang, "twinSeen", { what: [dayLabel(spentOn(twin), today, lang), twin.merchant, money(twin.paidIn?.amount ?? twin.amount, twin.paidIn?.currency ?? ledger.currency, lang)].filter(Boolean).join(" ") })
+    : null;
+  const readLine = comes || twinLine ? null : scanning ? say(lang, "readingReceipt") : reading === "none" ? say(lang, "readNothing") : fresh && !aboutSaid ? say(lang, "readFromReceipt") : null;
+  const extrasLine = comes || reading || twinLine ? null : fresh && aboutSaid ? say(lang, "readExtras", { what: aboutSaid }) : amountSaid ? amountSaid.charAt(0).toUpperCase() + amountSaid.slice(1) : null;
+  // the 详情 line: the day, then what it was for and where and how it was paid, as far as they go
+  const detailsSaid = [draft.note, draft.merchant, draft.place, draft.payment].map((x) => x.trim()).filter(Boolean).join(" · ");
   // A new expense with nothing typed yet says a receipt can fill it in, where it can be (signed in,
   // the ledger on the server, and nothing has said reading isn't to be had here): the line opens the
   // camera, as the button at the end of the note's line does. A key pressed, and it gives way.
@@ -322,7 +346,7 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         }
       />
       <div className="split-add-main">
-        <div className={`split-add-amount${comes ? " is-abroad" : readLine || extrasLine || hint ? " is-read" : ""}${scanning ? " is-scanning" : ""}`}>
+        <div className={`split-add-amount${comes ? " is-abroad" : readLine || twinLine || extrasLine || hint ? " is-read" : ""}${scanning ? " is-scanning" : ""}`}>
           <output
             className={`split-figure ${sizeClass(shown)}${draft.text ? "" : " is-empty"}${justRead && fresh ? " is-just-read" : ""}`}
             aria-label={say(lang, "amount")}
@@ -344,6 +368,12 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
             </button>
           )}
           {readLine && <p className="split-add-read">{readLine}</p>}
+          {twinLine && (
+            <p className="split-add-read is-twin">
+              <CircleAlert aria-hidden="true" />
+              <span>{twinLine}</span>
+            </p>
+          )}
           {extrasLine && (
             // (like the rate's line: the whole block answers the tap, the line at its foot)
             <button type="button" className="split-add-extras" onClick={() => setSheet("details")}>
@@ -378,33 +408,31 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
             </strong>
             <ChevronRight aria-hidden="true" />
           </button>
-          {/* the note, typed in place, and its receipt photos at the end of the line */}
+          {/* 详情: the day, what it was for, where and how it was paid (all in its sheet); its receipt photos at the end of the line */}
           <div className="split-note-row">
-            <label className="split-field">
-              <span>{say(lang, "note")}</span>
-              <input value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} onKeyDown={doneLeaves} maxLength={NOTE_MAX} placeholder={say(lang, "noteHint")} enterKeyHint="done" autoComplete="off" />
-            </label>
+            <button type="button" className="split-field split-details-line" onClick={() => setSheet("details")}>
+              <span>{say(lang, "details")}</span>
+              <strong>
+                <span className="split-details-said">
+                  {dayLabel(day, today, lang)}
+                  {detailsSaid ? ` · ${detailsSaid}` : <span className="split-details-empty"> · {say(lang, "noteHint")}</span>}
+                </span>
+              </strong>
+              <ChevronRight aria-hidden="true" />
+            </button>
             <PhotoButton ledger={ledger.id} files={files} sending={sending > 0} scanning={scanning} lang={lang} onPress={pressPhoto} />
             <PhotoPicker input={picker} onPick={(chosen) => void pick(chosen)} />
           </div>
         </div>
         <span className="ui-visually-hidden" role="status">
-          {off || (comes?.loud ? comes.text : sending ? say(lang, "photoSending") : (readLine ?? (fresh && extrasLine ? extrasLine : "")))}
+          {off || (comes?.loud ? comes.text : sending ? say(lang, "photoSending") : (readLine ?? twinLine ?? (fresh && extrasLine ? extrasLine : "")))}
         </span>
       </div>
       <div className="split-dock">
         <Keypad onKey={type} decimals={decimalsOf(draft.currency)} lang={lang} />
-        <div className="split-dock-row">
-          {/* the day it was spent: opens the sheet where it, and the tip and tax, can be changed */}
-          <button type="button" className="split-day-button" onClick={() => setSheet("details")}>
-            <CalendarDays aria-hidden="true" />
-            <span className="ui-visually-hidden">{say(lang, "spentDay")} </span>
-            {dayLabel(day, today, lang)}
-          </button>
-          <Button size="lg" block disabled={!!wrong || sending > 0} onClick={save}>
-            {say(lang, editing ? "saveChanges" : "done")}
-          </Button>
-        </div>
+        <Button size="lg" block disabled={!!wrong || sending > 0} onClick={save}>
+          {say(lang, editing ? "saveChanges" : "done")}
+        </Button>
       </div>
       <PayerSheet open={sheet === "payer"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} value={draft.payer} onPick={(payer) => setDraft({ ...draft, payer })} />
       <ShareSheet open={sheet === "share"} onClose={() => setSheet(null)} ledger={ledger} me={me} lang={lang} decimals={decimals} rot={rot} draft={draft} onChange={setDraft} />
@@ -423,7 +451,35 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         }}
         onExtras={(to) => setDraft((d) => ({ ...d, ...to }))}
         onLines={(to) => setDraft((d) => ({ ...d, ...to }))}
+        onNote={(note) => setDraft((d) => ({ ...d, note }))}
       />
+      {/* several photos chosen at once: an expense each (几张小票), or all of them this one's */}
+      <Sheet open={!!several} onClose={() => setSeveral(null)} lang={lang} category="tool" title={say(lang, "severalTitle", { n: several?.length ?? 0 })}>
+        <div className="split-form">
+          <p className="split-note">{say(lang, "severalLead")}</p>
+          <Button
+            block
+            onClick={() => {
+              const chosen = several ?? [];
+              setSeveral(null);
+              onSeveral?.(chosen);
+            }}
+          >
+            {say(lang, "severalApart", { n: several?.length ?? 0 })}
+          </Button>
+          <Button
+            tone="quiet"
+            block
+            onClick={() => {
+              const chosen = several ?? [];
+              setSeveral(null);
+              void pick(chosen, true);
+            }}
+          >
+            {say(lang, "severalOne")}
+          </Button>
+        </div>
+      </Sheet>
       {wantsRates && <TodaysRates onChange={setFx} />}
       <PhotosSheet
         open={photos}
@@ -597,10 +653,11 @@ export function Face({ name }: { name: string }) {
 }
 
 /**
- * 详情: where it was bought and how it was paid (the business, the place, what paid: read off its
- * receipt, or typed, each may stay empty), the day it was spent (the phone's own date picker; no day
- * after today), and the tip and tax in what was paid, in the currency it was paid in, to type or put
- * right. Says when together they come to more than the expense, so they won't be kept.
+ * 详情: what it was for (the note), the day it was spent (the phone's own date picker; no day after
+ * today), where it was bought and how it was paid (the business, the place, what paid: read off its
+ * receipt, or typed, each may stay empty), and the tip and tax in what was paid, in the currency it
+ * was paid in, to type or put right. Says when together they come to more than the expense, so they
+ * won't be kept.
  */
 function DetailsSheet({
   open,
@@ -612,6 +669,7 @@ function DetailsSheet({
   onDay,
   onExtras,
   onLines,
+  onNote,
 }: {
   open: boolean;
   onClose: () => void;
@@ -622,6 +680,7 @@ function DetailsSheet({
   onDay: (day: string) => void;
   onExtras: (to: { tip?: string; tax?: string }) => void;
   onLines: (to: Partial<Pick<Draft, Detail>>) => void;
+  onNote: (note: string) => void;
 }) {
   const over = extrasOver(draft);
   return (
@@ -638,6 +697,14 @@ function DetailsSheet({
       }
     >
       <div className="split-details">
+        <label className="split-field">
+          <span>{say(lang, "note")}</span>
+          <input value={draft.note} onChange={(e) => onNote(e.target.value)} maxLength={NOTE_MAX} placeholder={say(lang, "noteHint")} enterKeyHint="next" autoComplete="off" />
+        </label>
+        <label className="split-field">
+          <span>{say(lang, "spentDay")}</span>
+          <input type="date" value={day} min="2000-01-01" max={today} onChange={(e) => isDay(e.target.value) && e.target.value <= today && onDay(e.target.value)} />
+        </label>
         {/* where it was bought and how it was paid: read off its receipt, or typed; each may stay empty */}
         {DETAILS.map((k) => (
           <label key={k} className="split-field">
@@ -645,10 +712,6 @@ function DetailsSheet({
             <input value={draft[k]} onChange={(e) => onLines({ [k]: e.target.value })} maxLength={DETAIL_MAX} placeholder={say(lang, LINE_WORDS[k][1])} enterKeyHint="next" autoComplete="off" />
           </label>
         ))}
-        <label className="split-field">
-          <span>{say(lang, "spentDay")}</span>
-          <input type="date" value={day} min="2000-01-01" max={today} onChange={(e) => isDay(e.target.value) && e.target.value <= today && onDay(e.target.value)} />
-        </label>
         <div className="split-extras">
           <h3 className="split-subhead">{say(lang, "extrasHead", { currency: lang === "zh" ? currencyName(draft.currency, lang) : draft.currency })}</h3>
           {(["tip", "tax"] as const).map((k) => (

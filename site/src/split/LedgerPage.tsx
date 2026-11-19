@@ -183,6 +183,13 @@ export function LedgerPage({ id }: { id: string }) {
           setEntry(null);
           toast(say(lang, "expenseDeleted"), { action: { label: say(lang, "undo"), onClick: () => record(id, { do: "back", entry: goneId }) } });
         }}
+        onSeveral={(chosen) => {
+          // (several photos chosen in 记一笔, to be an expense each: 几张小票 in its place, as from the button below the list)
+          setRollFrom(null);
+          setEntry(null);
+          if (chosen.length > RECEIPTS_MAX) toast(say(lang, "receiptsMax", { n: RECEIPTS_MAX }));
+          setReceipts(chosen.slice(0, RECEIPTS_MAX));
+        }}
       />
     );
   }
