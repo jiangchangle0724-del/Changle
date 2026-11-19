@@ -36,7 +36,7 @@ export type Rule = {
 };
 
 /** The powers' clocks, in ms: the camera's freeze, then how long its holder has to say who moved (after that nobody did), and the nose's window. */
-export const ROGUE_MS = { freeze: 3500, judge: 20000, nose: 6000, cool: 60000 };
+export const ROGUE_MS = { freeze: 3500, judge: 20000, nose: 6000 };
 
 /** The line under a penalty a power or a round handed out (the same words on one phone and online). */
 export const ROGUE_NOTES = {
@@ -125,13 +125,13 @@ export const RULES: Rule[] = [
     title: { zh: "照相机", en: "Camera" },
     badge: { zh: "照相机", en: "Camera" },
     rule: {
-      zh: "在这副牌发完之前，你随时可以喊“照相机”。所有人立刻定格不动，动了的喝。",
-      en: "Until this deck runs out, you may shout “camera!” at any moment. Everyone freezes. Whoever moves drinks.",
+      zh: "在这副牌发完之前，你有一次机会喊“照相机”，什么时候喊你挑。所有人立刻定格不动，动了的喝。",
+      en: "Until this deck runs out you have one “camera!” to call, whenever you like. Everyone freezes. Whoever moves drinks.",
     },
     custom: {
       rule: {
-        zh: "在这副牌发完之前，你随时可以喊“照相机”。所有人立刻定格不动，动了的受罚。",
-        en: "Until this deck runs out, you may shout “camera!” at any moment. Everyone freezes. Whoever moves takes the penalty.",
+        zh: "在这副牌发完之前，你有一次机会喊“照相机”，什么时候喊你挑。所有人立刻定格不动，动了的受罚。",
+        en: "Until this deck runs out you have one “camera!” to call, whenever you like. Everyone freezes. Whoever moves takes the penalty.",
       },
     },
   },
@@ -142,13 +142,13 @@ export const RULES: Rule[] = [
     title: { zh: "摸鼻子", en: "Nose" },
     badge: { zh: "摸鼻子", en: "Nose" },
     rule: {
-      zh: "在这副牌发完之前，你随时可以喊“摸鼻子”。所有人都得摸鼻子，最后一个摸到的喝。",
-      en: "Until this deck runs out, you may shout “nose!” at any moment. Everyone touches their nose. The last one drinks.",
+      zh: "在这副牌发完之前，你有一次机会喊“摸鼻子”，什么时候喊你挑。所有人都得摸鼻子，最后一个摸到的喝。",
+      en: "Until this deck runs out you have one “nose!” to call, whenever you like. Everyone touches their nose. The last one drinks.",
     },
     custom: {
       rule: {
-        zh: "在这副牌发完之前，你随时可以喊“摸鼻子”。所有人都得摸鼻子，最后一个摸到的受罚。",
-        en: "Until this deck runs out, you may shout “nose!” at any moment. Everyone touches their nose. The last one takes the penalty.",
+        zh: "在这副牌发完之前，你有一次机会喊“摸鼻子”，什么时候喊你挑。所有人都得摸鼻子，最后一个摸到的受罚。",
+        en: "Until this deck runs out you have one “nose!” to call, whenever you like. Everyone touches their nose. The last one takes the penalty.",
       },
     },
   },
