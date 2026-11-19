@@ -145,13 +145,15 @@ describe("POST /go/api/handoff", () => {
     expect((await call(new Request("https://changle.ca/go/api/handoff/vpl"))).status).toBe(404);
   });
 
-  it("on the Worker's own workers.dev address, serves the hand-over and nothing else", async () => {
+  it("on the Worker's own workers.dev address, serves the hand-over and the status, nothing else", async () => {
     const own = "https://changle-events.jiangchangle0724.workers.dev";
     // The hand-over is reached there (here refused for sending no credential, as on changle.ca).
     const handoff = await call(new Request(`${own}/go/api/handoff?source=vpl&date=2026-11-05&part=0`, { method: "POST", body: vpl }));
     expect(handoff.status).toBe(401);
+    // The daily health check reads the status there (GitHub's machines get a challenge on changle.ca).
+    expect((await call(new Request(`${own}/go/api/status`))).status).toBe(200);
     // Everything people use stays on changle.ca/go.
-    for (const path of ["/go", "/go/api/events", "/go/api/events.ics", "/go/api/status", "/go/preview", "/"]) {
+    for (const path of ["/go", "/go/api/events", "/go/api/events.ics", "/go/preview", "/"]) {
       const res = await call(new Request(`${own}${path}`));
       expect(res.status, path).toBe(404);
     }

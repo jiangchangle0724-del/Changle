@@ -1,6 +1,6 @@
 # 工具 · 玩什么（events）
 
-对话名「工具 · 玩什么」。网址 changle.ca/go（正式页还没开），预览 changle.ca/go/preview。档案建于 2026-11-02，从仓库里的文档和提交记录整理；以后由这个对话维护。
+对话名「工具 · 玩什么」。网址 changle.ca/go（11 月 14 日上线，入口在工具页），预览 changle.ca/go/preview。档案建于 2026-11-02，从仓库里的文档和提交记录整理；以后由这个对话维护。
 
 ## 它是什么
 
@@ -9,6 +9,7 @@
 ## 文件
 
 - 全部代码（自己的服务器，Worker `changle-events`，D1、KV、每天的定时任务）：`tools/events/`
+- 每天的检查：GitHub 每天 02:23 的任务 `.github/workflows/events-health.yml`，脚本 `tools/events/scripts/health.ts`，判断和开关 issue 的代码 `tools/events/src/health.ts`
 - 两个图书馆的接力：GitHub 每天 5:50 的任务 `.github/workflows/events-libraries.yml`，脚本 `tools/events/scripts/libraries.ts`，两头的代码 `tools/events/src/handoff.ts`，核对 GitHub 登录凭证的代码 `tools/events/src/oidc.ts`，晚到的页来了就读 `tools/events/src/arrival.ts`
 - Codex 的任务卡：`docs/codex-tasks/C*.md`（目录在 `docs/codex-tasks/README.md`）
 - 钥匙（只写名字）：Cloudflare 里 `TICKETMASTER_KEY`（11 月 5 日 Steve 自己加的）。图书馆接力不用钥匙：GitHub 用自己的登录凭证（OIDC），GitHub 和 Cloudflare 都不用加 secret；`EVENTS_HANDOFF_KEY` 只在 GitHub 以外跑脚本时可选
@@ -23,6 +24,7 @@
 
 - 在 `tools/events` 里：`npm run typecheck`、`npm test`、`npm run eval`；CI `.github/workflows/events.yml`
 - 看 GitHub 那一步会交什么（不发送）：`npm run libraries -- --dry-run`
+- 看每天的检查会说什么（不开 issue）：`npm run health -- --dry-run`
 
 ## 定过的事
 
@@ -37,6 +39,7 @@
 - 接力不用钥匙，用 GitHub 自己的登录凭证（OIDC）证明是我们的任务，谁都不用设（11 月 5 日；#211）。原因：钥匙要 Steve 自己做、自己粘贴到两边，助手不能替他处理钥匙，一直没加上。钥匙那条路留着，只给 GitHub 以外跑脚本用。
 - 接力交到 Worker 自己的地址 `changle-events.jiangchangle0724.workers.dev`，不走 changle.ca（11 月 5 日 Steve 同意合并 #246）。
 - 交来晚的页来了就读，一个图书馆最后一页到了就重新发布清单；一个来源抓到一半失败，保留它之前列着的活动（11 月 11 日 Steve 说开工；#299、#300）。
+- 来源出错时的通知：GitHub 每天检查一次前一天那一轮，有问题就在仓库里开一个 issue 并 @ Steve，GitHub 发邮件给他；同样的问题不再说，问题变了才评论，好了自己关。不用钥匙，用任务自己的 GitHub 凭证（只能写 issue）。仓库是公开的，issue 也公开，所以错误里的 key、token 一律抹掉（11 月 18 日 Steve 说「继续」，按这个方案做）。
 
 ## 现在
 
@@ -47,6 +50,7 @@
 - 11 月 12 日 05:25 合并上线 #305（C1 iCal：重复活动、改期、时区）和 #303（C2 JSON-LD 解析器，还没有来源用它），都审了四轮，部署成功。发给 Codex 的四张卡 C1、C2、C3、C6 全部上线；06:00 那一轮起 UBC、Luma 用新的 iCal 读法，图书馆的描述也走新的 `plainText`。
 - 11 月 12 日 06:01 那一轮，新解析器第一次一起跑，没有出错：发布 628 个（前一天 618）。Ticketmaster 一页 84 个，两周内全收（新加 5、更新 66，价格和分类按新规矩重写了）；UBC 7 页 37 个，本拿比图书馆 37，Luma 17。温哥华、列治文图书馆照例 403，等 GitHub 交来再读，这期间保留前一天的。Ticketmaster 的活动里没有「From $0」，1 个标了售罄。日历订阅 628 个，ical.js 读回全对。
 - 11 月 14 日：玩什么上线，工具页有它的卡片，changle.ca/go 是正式页面（之前只是「正在准备中」）。当天早上那一轮发布 638 个，图书馆中午交来后重新发布 664 个。
+- 11 月 18 日：早上那一轮正常，图书馆 13:56 交来后发布 644 个。
 
 ## 还剩什么
 
@@ -59,7 +63,8 @@
 - 页面以后可以加：活动图片（581 个有图，现在不放，为了快）、「这个周末」一键、搜索；先看大家怎么用。
 - 页面的耗时会跟着活动数涨：现在 664 个，读 JSON 0.8 毫秒、出页面约 1 毫秒；活动多到四倍约 6 毫秒，八倍光读 JSON 就超过一次请求的 10 毫秒。来源再多之前，改成每个 Worker 把读好的清单留在内存里，或者每天单独发布一份。
 - 页面上的日历订阅（苹果、Google）还没人真订过：Google 和 iCloud 从它们自己的服务器来取，可能被机器人防护挡。上线后请 Steve 用手机点一次 Google 日历的链接，日历里有活动就是通了；空的就先把那个链接拿掉，要放行得改 Cloudflare 的设置，先问 Steve。
-- A3 中文简介（页面上有位置，现在全是空的）；A4 去重（README 里有 C4、C5 审查留下的注意事项）；来源出错时通知；验收门 A。
+- A3 中文简介（页面上有位置，现在全是空的）；A4 去重（README 里有 C4、C5 审查留下的注意事项）；验收门 A。
+- 加新来源（11 月 18 日查过）：SUCCESS 中侨（successbc.ca）有 The Events Calendar 的 iCal（`/events/?ical=1`）和 JSON（`/wp-json/tribe/events/v1/events`），但两周只有 7 个、4 个是线上的；中华文化中心（cccvan.com）是 Wix，没有 feed；华裔博物馆 `/events/` 是 404；陈氏演艺中心、市立剧院、科学馆、温哥华美术馆没找到 feed；vancouver.ca 挡（403）。和 Ticketmaster 重的场馆（比如 Commodore）等 A4 去重做了再接。
 
 ## 交给别的对话
 
@@ -69,6 +74,10 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-18 What's On: a daily health check opens an issue when a source wasn't read
+- 2026-11-14 What's On: link to /go/ with the slash, so the page opens from the Tools tab and its filters
+- 2026-11-14 What's On page: the fixes from its review
+- 2026-11-14 What's On goes live: the page at changle.ca/go and its card on the Tools tab
 - 2026-11-12 feat(events): C2 JSON-LD 活动解析器
 - 2026-11-12 fix(events): C1 iCal recurrences, overrides and time zones
 - 2026-11-12 What's On: filtered calendars named in Chinese and English; an all-day start or end given as a time counts by its date
@@ -125,3 +134,4 @@
   - 05:25 合并 #305、#303，Cloudflare 部署成功。
 - 2026-11-14 Steve 问进展、说「可以上线 tools 里面」。这两天的早上那一轮都正常（14 日早上 638 个，图书馆中午交来后 664 个）。做了正式页面 `/go`（`src/page.ts`，测试 12 个）和工具页的卡片（`site/src/tools/WhatsOn.tsx`）；标签和日期的写法从预览页挪到 `src/labels.ts`，两页共用。
 - 2026-11-14 合并 #547 后在线上点了一遍：`changle.ca/go` 是新页面，但 `changle.ca/go?lang=zh` 打开的是网站首页。Cloudflare 的路由 `changle.ca/go` 只认不带查询串的地址，带 `?` 的落到网站上；`changle.ca/go/?lang=zh`（带斜杠）对上 `changle.ca/go/*`。工具页的卡片和页面里的每个筛选链接都带了 `?lang=`，所以全都打不开页面。改成所有链接都用 `/go/?…`（卡片、筛选、语言切换，脚本跳转时也改到 `/go/`），测试检查每个链接都带斜杠。没改 Cloudflare 的路由设置。
+- 2026-11-18 每天的检查（来源出错时通知）：GitHub 每天 02:23（温哥华）跑 `events-health`，到 Worker 自己的地址读 `/go/api/status`（那个地址现在也答这个，别的照样 404），判断前一天：清单里的每个来源那天或之后读完了没有、那一轮发布了没有、发布数有没有不到之前几轮中位数的一半；状态页三次都打不开也算问题。有问题就开 issue（标题「玩什么：11月18日的检查没过」），正文 @ Steve、一条一条写哪个来源、上次读完是哪天、最后的错误，末尾一行隐藏标记记着是哪几样问题；第二天还是这几样就不说话，变了才评论，好了评论一句并关掉。`/go/api/status` 多了 `sources`（只列代码里还有的来源）和 `history`（最近 8 轮各发布多少）。新测试 16 个；全部 629 个都过。
