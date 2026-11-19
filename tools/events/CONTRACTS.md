@@ -31,6 +31,7 @@ The Worker runs on Cloudflare's free plan (Steve's decision, Oct 31). Per invoca
 - **The Chinese is written every hour, at :05** (`src/ai.ts`, a second cron): the events the
   published page shows, not over yet, that have no Chinese name or whose text changed since. Each
   step is one Workers AI request for 15 events (`@cf/qwen/qwen3-30b-a3b-fp8`), three steps at a time,
+  each handed its own 15 by id (with offsets they took the same ones, one step's writes shifting the next's),
   at most 10 rounds (30 steps and the publish) or 12 minutes; then it publishes again, unless the
   morning's run is under way. Workers AI's free allowance is 10,000 neurons a day: the first pass
   over ~650 events takes about a quarter of it, a day's new events a few percent. When it's used up
@@ -104,8 +105,9 @@ D1 (`migrations/`; the Worker applies new migration files itself, `src/schema.ts
 `venues`, `sources`, `fetch_log`, `review_queue`, and `runs` (how far each morning's run has got).
 An event's Chinese (0004): `title_zh` and `summary_zh` (`summary_by` "ai"), `text_hash` (what the AI
 reads: title, description, venue), `ai_hash` (the text it wrote from and the instructions' version,
-`<text_hash>:<AI_VERSION>`: a new version in `src/ai.ts` writes every event again) and `ai_tries`
-(answers it couldn't use for this text; after three it stays in English). The AI also gets the
+`<text_hash>:<AI_VERSION>`: a new version in `src/ai.ts` writes every event again; `!` before it when
+the answer for that couldn't be used, and the old Chinese is cleared) and `ai_tries` (answers it
+couldn't use for that text and version; after three it stays in English, until either changes). The AI also gets the
 source's labels (`source_categories`: Ticketmaster's "Music, Rock", a library's "Storytimes").
 Ticketmaster's names (artists, tours, teams) keep the source's own (`KEEP_TITLE`): only the sentence
 is the AI's. An answer that praises ("知名") or names a people or country nothing in the source backs

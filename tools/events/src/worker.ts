@@ -34,7 +34,7 @@ export class Steps extends WorkerEntrypoint<Env> {
   publish(args: { runId: string; note?: string }) {
     return publish(this.env, args.runId, args.note ?? null);
   }
-  translate(args: { runId: string; offset: number }) {
+  translate(args: { runId: string; ids: string[]; part?: number }) {
     return translateStep(this.env, args);
   }
 }

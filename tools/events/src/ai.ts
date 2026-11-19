@@ -13,7 +13,7 @@ export const AI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 export const AI_BATCH = 15;
 /** The hourly schedule that catches up (wrangler.jsonc), told apart from the morning run's. */
 export const AI_CRON = "5 * * * *";
-/** After three answers it couldn't use, an event stays in English (until its text changes). */
+/** After three answers it couldn't use, an event stays in English (until its text or the instructions change). */
 export const AI_TRIES = 3;
 /**
  * The instructions' version, kept with what they wrote (ai_hash = "<text_hash>:<version>"): a new
@@ -134,7 +134,14 @@ export function readAnswer(text: string, count: number): (Written | null)[] {
 }
 
 /** The events the page shows (the published run's window, not over yet) that still need their Chinese. */
-export async function toWrite(db: D1Database, runId: string, fromMs: number, toMs: number, limit = AI_BATCH, offset = 0): Promise<ToWrite[]> {
+/**
+ * What the Chinese is for: the text as it is now, and these instructions ("<text_hash>:v3"). Kept in
+ * ai_hash when written; "!" before it when the answer for it couldn't be used (ai_tries counts those).
+ */
+const TARGET = "coalesce(e.text_hash, '') || ':' || ?7";
+
+/** Only these events (ids), when given: the catch-up hands each step its own. */
+export async function toWrite(db: D1Database, runId: string, fromMs: number, toMs: number, limit = AI_BATCH, ids: string[] | null = null): Promise<ToWrite[]> {
   const { results } = await db
     .prepare(
       `SELECT e.id, e.source, e.title, e.description, v.name AS venue, e.source_categories AS labels
@@ -145,12 +152,13 @@ export async function toWrite(db: D1Database, runId: string, fromMs: number, toM
           AND e.status != 'cancelled' AND e.visibility = 'live' AND e.duplicate_of IS NULL
           AND (e.last_seen = ?3 OR s.last_ok_run IS NOT ?3)
           AND (e.summary_by IS NULL OR e.summary_by = 'ai')
-          AND (e.title_zh IS NULL OR e.ai_hash IS NOT coalesce(e.text_hash, '') || ':' || ?7)
-          AND e.ai_tries < ?5
+          AND (e.title_zh IS NULL OR e.ai_hash IS NOT ${TARGET})
+          AND NOT (e.ai_hash IS '!' || ${TARGET} AND e.ai_tries >= ?5)
+          AND (?6 IS NULL OR e.id IN (SELECT value FROM json_each(?6)))
         ORDER BY e.start_utc, e.id
-        LIMIT ?4 OFFSET ?6`,
+        LIMIT ?4`,
     )
-    .bind(fromMs, toMs, runId, limit, AI_TRIES, offset, AI_VERSION)
+    .bind(fromMs, toMs, runId, limit, AI_TRIES, ids ? JSON.stringify(ids) : null, AI_VERSION)
     .all<ToWrite>();
   return results;
 }
@@ -180,8 +188,13 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
   if (failed.length)
     stmts.push(
       db
-        .prepare("UPDATE events SET ai_tries = ai_tries + 1, title_zh = NULL, summary_zh = NULL, summary_by = NULL WHERE id IN (SELECT value FROM json_each(?1))")
-        .bind(JSON.stringify(failed)),
+        .prepare(
+          `UPDATE events SET title_zh = NULL, summary_zh = NULL, summary_by = NULL,
+             ai_tries = CASE WHEN ai_hash IS '!' || coalesce(text_hash, '') || ':' || ?2 THEN ai_tries + 1 ELSE 1 END,
+             ai_hash = '!' || coalesce(text_hash, '') || ':' || ?2
+           WHERE id IN (SELECT value FROM json_each(?1))`,
+        )
+        .bind(JSON.stringify(failed), AI_VERSION),
     );
   if (stmts.length) await db.batch(stmts);
   return { wrote: events.length - failed.length, failed: failed.length };
@@ -243,11 +256,11 @@ export interface Wrote {
 }
 
 /**
- * One request's worth: the next events that need their Chinese (from `offset`, so that a few
- * requests at a time take different ones), written and kept.
+ * One request's worth: the next events that need their Chinese (of `ids`, when given: a step's own
+ * share, so that steps side by side never take the same ones), written and kept.
  */
-export async function writeSome(db: D1Database, run: RunModel, runId: string, fromMs: number, toMs: number, offset = 0): Promise<Wrote> {
-  const events = await toWrite(db, runId, fromMs, toMs, AI_BATCH, offset);
+export async function writeSome(db: D1Database, run: RunModel, runId: string, fromMs: number, toMs: number, ids: string[] | null = null): Promise<Wrote> {
+  const events = await toWrite(db, runId, fromMs, toMs, AI_BATCH, ids);
   if (!events.length) return { asked: 0, wrote: 0, failed: 0, error: null };
   let text: string;
   try {
@@ -261,21 +274,21 @@ export async function writeSome(db: D1Database, run: RunModel, runId: string, fr
 }
 
 /** One step of the catch-up, a request of its own (src/worker.ts), logged with the run's steps as "ai". */
-export async function translateStep(env: Env, args: { runId: string; offset: number }, now = Date.now()): Promise<Wrote> {
+export async function translateStep(env: Env, args: { runId: string; ids: string[]; part?: number }, now = Date.now()): Promise<Wrote> {
   const started = Date.now();
   const w = windowOf(args.runId);
-  const r = await writeSome(env.DB, (model, input) => env.AI.run(model as never, input as never), args.runId, Math.max(now, w.fromMs), w.toMs, args.offset);
+  const r = await writeSome(env.DB, (model, input) => env.AI.run(model as never, input as never), args.runId, Math.max(now, w.fromMs), w.toMs, args.ids);
   if (r.asked)
     await env.DB.prepare(
       `INSERT INTO fetch_log (run_id, source, part, started_at, ms, found, updated, error, note) VALUES (?1, 'ai', ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
     )
-      .bind(args.runId, Math.floor(args.offset / AI_BATCH), new Date(started).toISOString(), Date.now() - started, r.asked, r.wrote, r.error, r.failed ? `${r.failed} not usable` : null)
+      .bind(args.runId, args.part ?? 0, new Date(started).toISOString(), Date.now() - started, r.asked, r.wrote, r.error, r.failed ? `${r.failed} not usable` : null)
       .run();
   return r;
 }
 
 export interface Translator {
-  translate(args: { runId: string; offset: number }): Promise<Wrote>;
+  translate(args: { runId: string; ids: string[]; part?: number }): Promise<Wrote>;
   publish(args: { runId: string; note?: string }): Promise<unknown>;
 }
 
@@ -294,16 +307,22 @@ export async function catchUp(
   // at most 30 steps and the publish: Cloudflare allows 32 calls a request (CONTRACTS.md)
   const { rounds = 10, parallel = 3, maxMs = 12 * 60_000 } = opts;
   if (!runId) return { wrote: 0, steps: 0, published: false };
+  const w = windowOf(runId);
   const started = Date.now();
   let wrote = 0;
   let steps = 0;
   for (let round = 0; round < rounds && Date.now() - started < maxMs; round++) {
-    const done = await Promise.all(Array.from({ length: parallel }, (_, k) => t.translate({ runId, offset: k * AI_BATCH })));
-    steps += parallel;
+    // the round's events, then each step its own share of them (side by side, they'd take the same
+    // ones otherwise: one step's writes shift what the next one's "next 15" are)
+    const ids = (await toWrite(db, runId, Math.max(now, w.fromMs), w.toMs, AI_BATCH * parallel)).map((e) => e.id);
+    if (!ids.length) break;
+    const shares = Array.from({ length: Math.ceil(ids.length / AI_BATCH) }, (_, k) => ids.slice(k * AI_BATCH, (k + 1) * AI_BATCH));
+    const done = await Promise.all(shares.map((share, k) => t.translate({ runId, ids: share, part: round * parallel + k })));
+    steps += shares.length;
     const wroteNow = done.reduce((n, r) => n + r.wrote, 0);
     wrote += wroteNow;
-    // nothing more to ask for, or nothing usable came back (the allowance, the model: next hour)
-    if (done.every((r) => r.asked < AI_BATCH) || wroteNow === 0) break;
+    // that was the last of them, or nothing usable came back (the allowance, the model: next hour)
+    if (ids.length < AI_BATCH * parallel || wroteNow === 0) break;
   }
   const today = await db.prepare("SELECT published_at FROM runs WHERE run_id = ?1").bind(vanParts(now).date).first<{ published_at: string | null }>();
   if (!wrote || (today && !today.published_at)) return { wrote, steps, published: false };
