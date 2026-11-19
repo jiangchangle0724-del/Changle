@@ -1,12 +1,14 @@
 // 抓紧了 · Hang On 的房间服务（changle.ca/hang-on）。Cloudflare 只做三件事：发房间码、交换 WebRTC
 // 信令、直连失败时中转输入。一个 Durable Object 一个房间，逻辑在 src/server/room.ts（纯，有测试）。
 //   POST /hang-on/api/rooms                 开房：{} 或 { hostPlays: true }（手机局）-> { code }
-//   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host | ?role=pad&id=…&name=… | ?role=watch
+//   GET  /hang-on/api/rooms/CODE            联机桌问这局怎么样了 -> { exists, phase: lobby | playing | over }
+//   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host&key=… | ?role=pad&id=…&name=… | ?role=watch
+//                                           （联机桌开的房先没有主机，主机页带 ?room=CODE 进来就是 role=host）
 //   GET  /hang-on/r/CODE                    二维码的链接：手柄页，房间码填好
 //   /hang-on/、/hang-on/pad/                页面（dist/hang-on，vite build）
 import { DurableObject } from 'cloudflare:workers';
-import { CODE_ALPHABET, CODE_RE, SEAT_ID_RE, type ClientMsg, type FatalKey, type ServerMsg } from '../net/protocol';
-import { makeCode, Room, type From, type Out, type RoomData } from './room';
+import { CODE_ALPHABET, CODE_RE, HOST_KEY_RE, SEAT_ID_RE, type ClientMsg, type FatalKey, type ServerMsg } from '../net/protocol';
+import { makeCode, NO_ROOM, Room, type From, type Out, type RoomData, type TableStatus } from './room';
 
 /** 一条消息的上限：SDP offer 两三千字节，再大就不对了。 */
 const MAX_MSG = 16_384;
@@ -34,6 +36,11 @@ export class HangOnRoom extends DurableObject<Env> {
     return true;
   }
 
+  /** 联机桌问这局怎么样了。 */
+  async status(): Promise<TableStatus> {
+    return this.room ? this.room.status() : NO_ROOM;
+  }
+
   async fetch(req: Request): Promise<Response> {
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected a WebSocket', { status: 426 });
     const q = new URL(req.url).searchParams;
@@ -52,7 +59,8 @@ export class HangOnRoom extends DurableObject<Env> {
     const seat = role === 'pad' ? (q.get('id') ?? '') : null;
     if (role === 'pad' && !SEAT_ID_RE.test(seat ?? '')) return refuse('badRequest');
     const from: From = { role, seat };
-    const why = room.connect(from, q.get('name') ?? undefined);
+    const key = role === 'host' ? (q.get('key') ?? '') : '';
+    const why = room.connect(from, q.get('name') ?? undefined, HOST_KEY_RE.test(key) ? key : undefined);
     if (why) {
       room.flush();
       return refuse(why);
@@ -199,6 +207,13 @@ export default {
         if (await env.ROOMS.get(env.ROOMS.idFromName(code)).open(code, hostPlays)) return json({ code });
       }
       return json({ error: 'busy' }, 503);
+    }
+    const st = /^\/hang-on\/api\/rooms\/([A-Za-z0-9]{4})\/?$/.exec(path);
+    if (st) {
+      if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+      const code = st[1]!.toUpperCase();
+      if (!CODE_RE.test(code)) return json(NO_ROOM);
+      return json(await env.ROOMS.get(env.ROOMS.idFromName(code)).status());
     }
     const ws = /^\/hang-on\/api\/rooms\/([A-Za-z0-9]{4})\/ws$/.exec(path);
     if (ws) {

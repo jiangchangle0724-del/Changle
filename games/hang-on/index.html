@@ -48,6 +48,8 @@
   .btn { background: var(--ink); color: var(--card-ink); border: 0; border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 15px; cursor: pointer; min-height: 44px; }
   .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
   .btn.quiet { background: var(--panel); color: var(--ink); }
+  /* 联机桌的「回到桌上」按第一下变红：再按一下才结束这局 */
+  #tableBtn.armed { background: var(--bad); color: #fff; }
   .btn:disabled { opacity: .45; cursor: default; }
   .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 12, 30, .55); backdrop-filter: blur(4px); padding: 24px; }
   /* 大厅底下留出键盘说明那一条的地方；放不下就能滚（11-13 大厅多了单人多人和难度） */
@@ -235,6 +237,7 @@
     <button class="btn quiet" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
     <button class="btn quiet" id="langBtn" type="button">EN</button>
     <button class="btn quiet" id="lobbyBtn" type="button" hidden data-en="Lobby">回大厅</button>
+    <button class="btn quiet" id="tableBtn" type="button" hidden data-en="Back to the table">回到桌上</button>
   </div>
 </div>
 
@@ -301,7 +304,7 @@
     <div>
       <h2 id="fatalTitle" data-en="Room closed">房间关了</h2>
       <p id="fatalLine"></p>
-      <div class="row"><button class="btn" id="reopenBtn" type="button" data-en="Open a new room">再开一个房间</button></div>
+      <div class="row"><button class="btn" id="reopenBtn" type="button" data-en="Open a new room">再开一个房间</button><button class="btn" id="fatalTableBtn" type="button" hidden data-en="Back to the table">回到桌上</button></div>
     </div>
   </div>
 </div>

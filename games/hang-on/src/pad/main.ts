@@ -34,6 +34,22 @@ langButton($<HTMLButtonElement>('langBtn'));
 const codeIn = $<HTMLInputElement>('code');
 const nameIn = $<HTMLInputElement>('name');
 const params = new URLSearchParams(location.search);
+/**
+ * 联机桌（A15，CONTRACTS「联机桌」）：`?table=桌号` 时可以回桌子（这局照玩，桌上能「回到这局」）；
+ * 这局结束了（主机按了结束、房间没了）先在 sessionStorage 留 `hangon.over` = 房间码，再自己回桌子，桌子看到就收桌。
+ */
+const tableNo = ((t: string) => (/^[A-Za-z0-9]{1,8}$/.test(t) ? t.toUpperCase() : null))(params.get('table') ?? '');
+function backToTable(over?: string): void {
+  if (!tableNo) return;
+  if (over) {
+    try {
+      sessionStorage.setItem('hangon.over', over);
+    } catch {
+      // 没有 sessionStorage：桌子那边主人自己收桌
+    }
+  }
+  location.assign(`/t/${tableNo}`);
+}
 codeIn.value = (params.get('code') ?? '').toUpperCase().slice(0, 4);
 try {
   nameIn.value = localStorage.getItem('hang-on:name') ?? '';
@@ -132,7 +148,7 @@ function fatalLine(key: FatalKey): string {
     case 'full':
       return tr('房间满了（最多 4 个人）。', 'The room is full (4 players max).');
     case 'ended':
-      return tr('这局结束了。', 'This game has ended.');
+      return tableNo ? tr('这局结束了，回到桌上…', 'This game has ended. Back to the table…') : tr('这局结束了。', 'This game has ended.');
     case 'kicked':
       return tr('主机把你请出去了。', 'The host removed you.');
     default:
@@ -149,6 +165,8 @@ function renderErr(): void {
 }
 
 function fatal(key: FatalKey): void {
+  const code = link?.code ?? codeIn.value;
+  if (tableNo && (key === 'ended' || key === 'noRoom')) setTimeout(() => backToTable(code), 2500);
   forgetJoin();
   lastFatal = key;
   lastMenu = null;
@@ -475,6 +493,21 @@ for (const pre of ['m', 'v']) {
   $(`${pre}Again`).addEventListener('click', () => send({ do: 'again' }));
   $(`${pre}ToLobby`).addEventListener('click', () => send({ do: 'lobby' }));
 }
+// 联机桌（A15）：回桌子。加入那页按一下就走；玩的时候顶栏那个按两下（第一下变红，3 秒内再按一下），这局照玩
+$('tableBtn').hidden = $('tableBtn2').hidden = !tableNo;
+$('tableBtn').addEventListener('click', () => backToTable());
+const tableBtn2 = $<HTMLButtonElement>('tableBtn2');
+let tableArmed: ReturnType<typeof setTimeout> | null = null;
+tableBtn2.addEventListener('click', () => {
+  if (tableArmed) return backToTable();
+  tableBtn2.classList.add('armed');
+  tableBtn2.textContent = tr('再按一下回桌上', 'Tap again for the table');
+  tableArmed = setTimeout(() => {
+    tableArmed = null;
+    tableBtn2.classList.remove('armed');
+    tableBtn2.textContent = tr('回桌上', 'Table');
+  }, 3000);
+});
 // 玩的时候回大厅：按两下才算（第一下变红，3 秒内再按一下）
 const backBtn = $<HTMLButtonElement>('backBtn');
 let backArmedUntil = 0;

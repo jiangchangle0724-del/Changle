@@ -45,7 +45,7 @@ export type GameId =
  * the list yet: its own page can't yet take over a room the table opened (`?room=CODE`, asked of the
  * hang-on chat in docs/briefs/hang-on.md). Once it can, it goes on the end here.
  */
-export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface", "dance"];
+export const ONLINE_GAMES: GameId[] = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface", "dance", "hangon"];
 export const ONLINE_MIN: Record<GameId, number> = {
   truth: 2,
   drama: 1,

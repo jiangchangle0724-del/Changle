@@ -12,7 +12,7 @@ ONLY = [a for a in sys.argv[1:] if not a.startswith("http")]
 OUT = os.environ.get("SHOTS", "/tmp/claude-0/-home-claude/9e141460-a70a-5df4-ae5a-70d27259d966/scratchpad/party")
 os.makedirs(OUT, exist_ok=True)
 # the lobby's games in order (ONLINE_GAMES in shared/protocol.ts): a game's index is its tile
-ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface", "dance"]
+ORDER = ["truth", "rogue", "trip", "superlatives", "king", "drama", "postit", "limbo", "prompts", "euchre", "dice", "freeze", "wheel", "undercover", "tune", "punchline", "draw", "dj", "hide", "lastcard", "straightface", "dance", "hangon"]
 GAME_INDEX = {g: i for i, g in enumerate(ORDER)}
 PLAYERS = [{"id": f"p{i}", "name": n} for i, n in enumerate(["Steve", "Mia", "Jay", "Kev"])]
 

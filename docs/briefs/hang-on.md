@@ -113,22 +113,20 @@
 - 长关的规矩（A13，#632，11-19 合并上线）：写 `"long": true` 的关路要绕（检查点不用一直往右）、至少 5 个检查点、路长至少 6000 像素、两样以上新机关，中等、困难按手酸录、会动的东西更多（困难至少 6 个、2 个快的），回放至少 150 秒；简单的长关不涨潮、摆锤不烫。大厅的「这关教」前面写「长关」。多人关的检查也认新机关和新场景的机关了。
 - C15（重录 17 关、困难关机关调快 1.5 倍并多加一样）、C16（新场景最短的 8 关换成长关：kitchen-26、28，snow-32、35，house-40、41，space-45、46）、C17（多人每一档最短的 multi-01、06、07 换成长关）：11-19 Steve 把电脑上的应用限制都取消了，Claude 控制电脑在 Codex 开了三个新对话同时做（「Implement C15 stamina replays」「完成 C16 长关卡任务」「按 HO-C17 任务卡实现长多层关」）。发卡的话照别的对话的写法：本机仓库里别的对话在干活，只 `git fetch origin`，用 `git worktree add` 从 origin/main 开新文件夹和新分支，只在新文件夹里做；不合并、不推 main。PR 来了审：`npm run levels`（`long:` 那行、`stamina:` 那行）、C17 跑完整的 `npm run probe`、看截图。三张都合了以后，这个对话把验收器那行 `stamina: N/M` 改成规矩（中等、困难都要 `stamina: true`）。
 - 画面（A14，#636，11-19 合并上线，线上查过）：表情（被摆锤撞晕：转圈的眼睛、头上转星星；底下的水快淹到：瞪眼、小圆嘴；手酸：耷拉眼皮、喘；在刮着的风里：眯成 >_<、身子往风那边歪；过检查点：大家乐一下），谁先在 `src/render/mood.ts`（有测试）；镜头抖改成 trauma（平滑地晃，幅度按平方，摔死、被撞时往前推一下）；阵风平时也画淡淡的箭头；塌的碎块按世界上色。A14b（#645，11-19 合并上线）：手套张开有三根手指、抓着握成拳，一只手吊着身子往下坠一点，站着喘气、站久了左右看，帽子晚半拍。减弱动效时都不动。还能做的等 Steve 玩过说：哪里还不像、哪里太吵。
+- 联机桌（A15，`claude/ho-a15-table`）：抓紧了能在 changle.ca 的联机桌上选了（最后一个），桌子开房、主机页接管、回桌子、状态接口、一局一个大屏，见 CONTRACTS「联机桌契约」。都没在真手机上试过。
 - A2 的已知简化：玩的中途有座位被踢，玩家下标会整体前移（大厅里会重排）；观众（role=watch）只计数，没有页面。
 - 温哥华世界的音效和年夜饭桌一套，只换了掉水的声音；以后可以分。
 
 ## 交给别的对话
 
-- 来自 平台 · 房间与联机（2026-11-19，#654）：抓紧了在联机桌上的那一套桌子这边做好了（`site/src/party/hangon/link.ts`、共用的 `site/src/party/stage/`），但还没上桌单（`ONLINE_GAMES` 没有 hangon），因为主机页（`src/host/main.ts` 的 `openRoom`）永远自己开新房，接不了桌子开好的房。桌子的约定：桌上有大屏（/tv 或只看的手机）→ 桌子 `POST /hang-on/api/rooms` 发 `{}`，手机都去 `/hang-on/pad/?code=CODE&auto=1&table=桌号`（名字已写进 `hang-on:name`，语言 `hang-on:lang`），大屏去 `/hang-on/?phone=0&room=CODE&table=桌号`；没有大屏 → 发 `{ hostPlays: true }`，主人的手机去 `/hang-on/?phone=1&room=CODE&table=桌号`（自己也玩），其他人去手柄页，后来才来的大屏只显示一句「这局在主人手机上开的」。请做：
-  1. 主机页认 `?room=CODE`：有它就不 `openRoom`，直接 `new HostLink(code)` 接管（`?phone=` 和桌子发的 `hostPlays` 对得上）；服务器让 `?role=host` 接一个还没有主机的房。
-  2. `?table=桌号`：主机页和手柄页返回/退出回 `/t/桌号`；这局结束时先写 `sessionStorage["hangon.over"] = 房间码`（主机页在大屏上时写 `hangon.over.tv`）再回去。
-  3. 状态接口 `GET /hang-on/api/rooms/CODE` → `{ exists, phase: "lobby" | "playing" | "over" }`；做好后把 `site/src/party/hangon/link.ts` 的 `phase: null` 接上。
-  4. 上桌：`site/src/shared/protocol.ts` 的 `ONLINE_GAMES` 末尾加 `"hangon"`，`site/scripts/net_test.py` 和 `party_test.py` 的 `ORDER` 末尾也加，`site/tests/stage.test.ts` 里「抓紧了还没上桌单」那条改成在末尾（这几行可以你改，或告诉房间对话）。本地验的时候照 `site/scripts/dance_table_check.py` 写一个（hang-on 的开发服务器要开在 8792 口，`site/vite.config.ts` 把 /hang-on 代理到那里）。
+- 平台 · 房间与联机：你 11-19 要的四件做好了（A15，`claude/ho-a15-table`）：主机页认 `?room=CODE`（接管桌子开的房，手机局还是电视局听房间的）；`?table=桌号` 回桌子（主机页「回到桌上」按两下结束这局，手机局回 `/t/桌号`、大屏回 `/tv/桌号`，照藏在人群里；结束时先写 `hangon.over` / `hangon.over.tv`；手柄页这局结束了自己回 `/t/桌号`）；`GET /hang-on/api/rooms/CODE` 状态接口，`site/src/party/hangon/link.ts` 的 `phase` 接上了；`ONLINE_GAMES`、`net_test.py`、`party_test.py` 末尾加了 hangon，`tests/stage.test.ts` 那条改成在末尾。多做了一样：一局只有一个大屏（主机带钥匙，只看的手机再点「打开大屏」会被挡回桌子），因为抓紧了的大屏就是主机、在跑物理，开两个会乱。本地验过 `site/scripts/hangon_table_check.py`（有电视、只有手机两种都走完）。你档案里「抓紧了还没上桌单、等 hang-on 对话」那几行可以删了。一个小事：电视去大屏前没写 `hang-on:lang`，大屏跟着电视那台设备主站的语言走（`lazysusan.settings.v1`），一般对得上，不用改。
 - 平台 · 首页与上线：C10 的后厨六关合并以后，首页卡的说明（registry 里抓紧了那一条，现在写 24 关）要改关数、提一句后厨。到时候这个对话改那一行，或者请你改。
 
 - 平台 · 首页与上线：首页的卡 11-11 由这个对话加了（`site/src/games/registry.ts` 一条，带 `stage`，排在一起跳后面；`GameSheet.tsx` 加了可选的 `stage.note`，舞台按钮第二行按游戏说，一起跳不变）。11-13 Steve 在这个对话里要首页卡三个键，原来请你做的「只用手机」键这个对话自己做了：`stage.phone`（有它才显示，只在手机上，排第一个）和这条的 `mirror`、`screen: "/hang-on/?phone=0"`；一起跳的卡不变。
 
 ## 最近的改动
 
+- 2026-11-19 A15 联机桌：主机页接管桌子开的房、回桌子、状态接口、一局一个大屏，抓紧了上桌单
 - 2026-11-19 #645 A14b：张开的手和拳头、喘气、帽子晚半拍
 - 2026-11-19 #636 A14：表情（晕、吓、累、风里、乐）、镜头抖、风的箭头
 - 2026-11-19 C15、C16、C17 发给 Codex（三个新对话同时做）
@@ -215,3 +213,4 @@
 - 2026-11-14 C14（#575）审过合并上线，多人有了自己的九关；第三轮 Codex 的卡（C9 到 C14）全部合完。
 - 2026-11-18 Steve 说太简单、多人偶尔闪退。闪退修了一版（#615）；定了先难度再画面：手酸（#627）、新机关（#629）上线，长关的规矩写好，C15、C16、C17 三张卡发给 Codex。下一步：审三张卡的 PR；同时做 A14 画面升级。
 - 2026-11-19 Steve 取消了电脑上的应用限制，三张卡发给了 Codex。画面做了两步（A14 表情和镜头、A14b 手和动作），都上线了。下一步：审 C15、C16、C17 的 PR，三张都合了以后把 stamina 那行改成规矩。
+- 2026-11-19 下午 C15、C16、C17 还没交 PR（发出去 7 个多小时），Steve 的电脑连不上，看不到 Codex 那边。做了 A15 联机桌（房间与联机对话要的）。

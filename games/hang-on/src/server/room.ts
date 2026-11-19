@@ -37,12 +37,23 @@ export interface RoomData {
   lastActive: number;
   /** 手机局：房主自己也玩，占 0 号颜色，手柄最多 MAX_SEATS - 1 个。 */
   hostPlays?: boolean;
+  /** 最后连上来的主机的钥匙（A15，见 protocol 的 HOST_KEY_RE）。 */
+  hostKey?: string;
 }
 
 export interface From {
   role: Role;
   seat: string | null;
 }
+
+/** 联机桌看的样子：房间在不在，还在大厅、在玩，还是结束了。 */
+export interface TableStatus {
+  exists: boolean;
+  phase: 'lobby' | 'playing' | 'over';
+}
+
+/** 没有这个房间（从没开过，或者结束以后收掉了）。 */
+export const NO_ROOM: TableStatus = { exists: false, phase: 'over' };
 
 /** 发给谁：所有人、主机、某个座位；或者把谁踢下线。 */
 export type Out = { to: 'all' | 'host' | { seat: string }; msg: ServerMsg } | { close: 'host' | { seat: string }; key: FatalKey };
@@ -77,6 +88,16 @@ export class Room {
     return this.d.phase === 'ended' || this.now() - this.d.lastActive >= IDLE_MS;
   }
 
+  /**
+   * 联机桌问「这局怎么样了」（`GET /hang-on/api/rooms/CODE`，A15）：还在大厅、在玩（倒数、玩、结算都算），
+   * 还是结束了（主机按了结束、主机 30 秒没回来、闲太久）。
+   */
+  status(): TableStatus {
+    if (this.d.phase === 'ended') return { exists: true, phase: 'over' };
+    if (this.expired()) return { exists: false, phase: 'over' };
+    return { exists: true, phase: this.d.phase === 'lobby' ? 'lobby' : 'playing' };
+  }
+
   view(): RoomView {
     return {
       code: this.d.code,
@@ -93,15 +114,19 @@ export class Room {
    * 有人连上来。手柄带座位 id：老座位就是回来了，新的分一个（满了拒绝）。
    * 返回 null 表示进来了，否则是拒绝的理由。
    */
-  connect(from: From, name?: string): FatalKey | null {
+  connect(from: From, name?: string, key?: string): FatalKey | null {
     if (this.d.phase === 'ended') return 'ended';
-    this.d.lastActive = this.now();
     if (from.role === 'host') {
+      // 主机在线时，换一把钥匙的另一台设备进不来；没带钥匙的老页面照旧放行
+      if (this.d.hostConnected && key && this.d.hostKey && key !== this.d.hostKey) return 'hostTaken';
+      this.d.lastActive = this.now();
+      if (key) this.d.hostKey = key;
       this.d.hostConnected = true;
       this.d.hostGoneAt = null;
       this.touch();
       return null;
     }
+    this.d.lastActive = this.now();
     if (from.role === 'watch') {
       this.d.watchers++;
       this.touch();

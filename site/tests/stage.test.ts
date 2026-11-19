@@ -75,9 +75,9 @@ test("抓紧了: the same way in, and the table remembers a phones-only room", (
   ok((game(e2, "p1") as HangOnView).phone === false, "anything but true is not a phones-only room");
 });
 
-test("their places: 一起跳 on the end of the table's list; 抓紧了 ready but not listed until its page can take over a room", () => {
+test("their places: 一起跳, then 抓紧了 on the end of the table's list", () => {
   ok(ONLINE_GAMES.indexOf("dance") === 21 && ONLINE_MIN.dance === 1, "一起跳 went in after every game before it (old tables keep their index), one dancer is enough");
-  ok(!ONLINE_GAMES.includes("hangon") && ONLINE_MIN.hangon === 1 && !!GAMES.hangon, "抓紧了 has its engine game and minimum, and no place on the list yet");
+  ok(ONLINE_GAMES.indexOf("hangon") === 22 && ONLINE_MIN.hangon === 1 && !!GAMES.hangon, "抓紧了 went in after 一起跳 once its page could take over the table's room; one player is enough");
   ok(new Set(ONLINE_GAMES).size === ONLINE_GAMES.length, "no game twice");
   for (const id of ["dance", "hangon"] as const) {
     const g = GAME_BY_ID[id];
