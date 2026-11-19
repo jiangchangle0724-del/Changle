@@ -91,8 +91,12 @@ export async function loadHer(): Promise<Her> {
   const actions = new Map<string, THREE.AnimationAction>();
   const learning = new Map<string, Promise<void>>();
 
+  // a file that didn't come is tried again, but not every frame: after half a minute
+  const failed = new Map<string, number>();
   const learn = (id: string) => {
     let p = learning.get(id);
+    const at = failed.get(id);
+    if (!p && at !== undefined && performance.now() - at < 30_000) return Promise.reject(new Error(`${id} not here`));
     if (!p) {
       p = (async () => {
         const clip = danceClip(readDance(await fetchZipped(danceFile(id))), hipsRest);
@@ -102,8 +106,10 @@ export async function loadHer(): Promise<Her> {
         actions.set(id, a);
       })();
       learning.set(id, p);
-      // a file that failed may be tried again later
-      p.catch(() => learning.delete(id));
+      p.catch(() => {
+        learning.delete(id);
+        failed.set(id, performance.now());
+      });
     }
     return p;
   };
