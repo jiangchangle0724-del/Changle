@@ -128,11 +128,14 @@ export class Stage {
    * compact：画在手机上（手机局），镜头近一些。
    */
   static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>>; compact?: boolean } = {}): Promise<Stage> {
+    const smallTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
     const init = {
       canvas,
       width: innerWidth,
       height: innerHeight,
-      antialias: true,
+      // 手机上不开多重采样抗锯齿：iPhone 上整屏 2 倍大小要多占四十多 MB 显存，手机局玩久了容易被系统关掉（11-18）；
+      // 2 倍分辨率下边缘看不太出来
+      antialias: !smallTouch,
       resolution: Math.min(2, devicePixelRatio || 1),
       autoDensity: true,
       backgroundAlpha: 1,
@@ -150,7 +153,6 @@ export class Stage {
     }
     app.ticker.stop();
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const smallTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
     const stage = new Stage(app, reduced, opts.plates ?? {}, !!opts.compact, smallTouch);
     stage.resize();
     return stage;
