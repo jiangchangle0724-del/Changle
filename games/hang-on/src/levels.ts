@@ -6,7 +6,7 @@
  */
 import { pickLang } from './i18n';
 import { arenaLevels, goldArenas } from './physics/arenas';
-import { gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, snowLevel, spaceLevel, type Level } from './physics/level';
+import { gadgetsLevel, gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, snowLevel, spaceLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
 import type { Side, Tier } from './sides';
 
@@ -63,6 +63,7 @@ export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-06') return snowLevel();
   if (id === 'proto-07') return houseLevel();
   if (id === 'proto-08') return spaceLevel();
+  if (id === 'proto-09') return gadgetsLevel();
   return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id);
 }
 

@@ -18,6 +18,8 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/physics/gold.test.ts` | 抢金元宝（A9d）：两块场地站得住、一个人抓着攒够 5 秒赢、两个人一起抓谁都不算、元宝掉出去回中间、摔了回自己那边 |
 | `src/physics/kitchen.test.ts` | 后厨（A10）：蒸笼喷汽（喷的时候托人托东西、停的时候不托、先报快喷了），端托盘（放着不翻、歪久了翻、掉下去和碰热锅也翻、翻了回存档的地方、过了检查点存档、抓中间端得平抓一头就翻、端着托盘在空中推不上天、托盘不到终点不算过关、手机局快照） |
 | `src/physics/snow.test.ts` | 雪山（A10）：缆车（椅子从起点站走到终点站再从起点出来、站在座板上跟着走、抓着横杆跟着走到站松手、缆车厢能站），冰溜子（抓着几秒就滑、别的台子不滑、手机局快照） |
+| `src/physics/tide.test.ts` | 新机关（A12）：涨潮（没写不涨；delay 秒后按 speed 涨、报 rise；站着不动被淹算 tide 死、回来时水退到下面 tideGap 再停一会儿；快照带水面），会塌的台子（站上去报 creak、到点塌、人掉下去、过 regrow 秒长回来；没人碰不塌；快照带台子） |
+| `src/physics/swing.test.ts` | 新机关（A12）：摆锤（pendulumAt 最低点和摆幅；站在路上被撞飞报 bonk；抓着跟着荡到另一边；烫的碰到就死 hot），阵风（windState 先停后刮、起风丝；刮的时候矩形里悬空的人被推、外面的不推、报 warn 和 on） |
 | `src/physics/stamina.test.ts` | 手酸（A11）：没开手酸一只手挂 30 秒也不松；中等一只手挂 staminaOneMedium 秒左右两只手都滑脱、报 tired 和 slip、一会儿抓不了；两只手挂得久、困难累得快；身上挂着人累得快；松手站在地上回满；手机局快照带力气 |
 | `src/physics/space.test.ts` | 太空站（A10）：失重区（飘着不往下掉、摇杆喷气快不过 floatMax、飘出去重力回来掉下去、物件也飘、没有失重区的关重力照旧），拉杆（一根拉着门（all）不开、两个人一起拉门开、松手过 hold 秒关上），手机局快照带拉杆 |
 | `src/physics/house.test.ts` | 老宅（A10）：钥匙（是物件、碰到它的门门就一直开着、钥匙用掉；头一回抓住报找到了；掉下去、碰到炭盆回开局或存档的检查点；门锁着隔几秒提醒一次），墙上的灯（人、灯笼碰一下就点着），手机局快照带钥匙和灯、没有的关不带 |
@@ -57,7 +59,7 @@ npm run link-check  # 先 npm run dev，再开一个终端跑它（需要 playwr
 npm run lobby-check # 同上：大厅、结算、下一关
 npm run phone-check # 同上：手机局（RENDER=1 房主也画画面，看截图用）
                     # 背景音乐试听：npm run dev 以后开 http://localhost:8787/hang-on/music.html
-npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，proto-04 是踩板门样板关，proto-05 是后厨样板关（蒸笼喷汽、端托盘），proto-06 是雪山样板关（缆车、冰溜子），proto-07 是老宅样板关（钥匙开门、黑屋子、灯笼、点灯），proto-08 是太空站样板关（失重区、拉杆，`&players=2` 两个人一起拉），?helper=1&helpLate=5 打开外卖无人机、卡 5 秒就来，
+npm run play        # 只跑物理：http://localhost:5173/play.html（?level=table-03 选关，?players=6 放 6 个人量帧时间，?level=proto-02 / proto-03 是机关样板关，proto-04 是踩板门样板关，proto-05 是后厨样板关（蒸笼喷汽、端托盘），proto-06 是雪山样板关（缆车、冰溜子），proto-07 是老宅样板关（钥匙开门、黑屋子、灯笼、点灯），proto-08 是太空站样板关（失重区、拉杆，`&players=2` 两个人一起拉），proto-09 是新机关样板关（会塌的台阶、摆锤、阵风、涨潮），?stamina=1 不管关写没写都开手酸，?helper=1&helpLate=5 打开外卖无人机、卡 5 秒就来，
                     #   ?mode=race（&teams=1 分两队）/ ?mode=last&level=arena-01 / ?mode=gold&level=gold-01 试玩法，?phone=1 照手机的画法画，
                     #   ?item=freeze / noodle / leaf 每人带一样道具，P1 按 F、P2 按 P 用）
 npm run levels      # 关卡验收：每关的规则加回放（-- --screenshots 重拍 docs/levels/ 的截图）

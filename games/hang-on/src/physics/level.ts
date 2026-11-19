@@ -693,3 +693,56 @@ export function spaceLevel(): Level {
     par: { seconds: 90, deathsPerPlayer: 3 },
   };
 }
+
+/**
+ * 新机关样板关（A12，只在开发页：`play.html?level=proto-09&players=2`）：年夜饭桌上，
+ * 先过一串会塌的台阶，再躲一口来回荡的铁锅、抓着灯笼荡过一道缝，顶着一阵一阵往回刮的风抓小钉过去，
+ * 最后爬一面墙到顶，底下的汤开局 14 秒后开始涨。
+ */
+export function gadgetsLevel(): Level {
+  return {
+    id: 'proto-09',
+    world: 'table',
+    name: { zh: '新机关样板', en: 'New gadgets sampler' },
+    teaches: 'all',
+    w: 3400,
+    h: 1400,
+    spawn: { x: 100, y: 1060 },
+    goal: { x: 3150, y: 280, w: 200, h: 140 },
+    checkpoints: [
+      { x: 1300, y: 1066 },
+      { x: 2170, y: 1066 },
+      { x: 2920, y: 966 },
+    ],
+    rects: [
+      { x: 0, y: 1100, w: 500, h: 300, kind: 'ground' },
+      // 会塌的台阶：站上去 1.2 秒塌，5 秒长回来
+      { x: 560, y: 1100, w: 150, h: 30, kind: 'step', crumble: 1.2, regrow: 5 },
+      { x: 790, y: 1080, w: 150, h: 30, kind: 'step', crumble: 1.2, regrow: 5 },
+      { x: 1020, y: 1100, w: 150, h: 30, kind: 'step', crumble: 1.2, regrow: 5 },
+      // 铁锅在这块台子上来回荡
+      { x: 1240, y: 1100, w: 460, h: 300, kind: 'ground' },
+      { x: 2120, y: 1100, w: 260, h: 300, kind: 'ground' },
+      // 风里的小钉
+      { x: 2470, y: 980, w: 24, h: 16, kind: 'peg' },
+      { x: 2610, y: 950, w: 24, h: 16, kind: 'peg' },
+      { x: 2750, y: 980, w: 24, h: 16, kind: 'peg' },
+      // 爬的墙
+      { x: 2860, y: 1000, w: 140, h: 400, kind: 'ground' },
+      { x: 3000, y: 420, w: 60, h: 980, kind: 'wall' },
+      { x: 2976, y: 880, w: 24, h: 16, kind: 'peg' },
+      { x: 2976, y: 770, w: 24, h: 16, kind: 'peg' },
+      { x: 2976, y: 660, w: 24, h: 16, kind: 'peg' },
+      { x: 2976, y: 550, w: 24, h: 16, kind: 'peg' },
+      { x: 3060, y: 420, w: 340, h: 40, kind: 'ground' },
+    ],
+    pendulums: [
+      { pivot: { x: 1480, y: 640 }, len: 400, amp: 0.8, period: 2.6, r: 36 },
+      { pivot: { x: 1910, y: 640 }, len: 420, amp: 0.75, period: 3.2, r: 30 },
+    ],
+    winds: [{ x: 2380, y: 640, w: 480, h: 460, dir: 'left', on: 1.4, off: 2.2 }],
+    tide: { speed: 14, delay: 14, from: 1390, top: 560 },
+    deathY: 1400,
+    par: { seconds: 120, deathsPerPlayer: 4 },
+  };
+}
