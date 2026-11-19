@@ -283,7 +283,7 @@ a:focus-visible{outline:2px solid var(--gel);outline-offset:2px;border-radius:va
 .bar .lang{border:1px solid var(--line);color:var(--moon)}
 h1{font-size:var(--text-2xl);line-height:var(--leading-tight);margin:var(--space-3) 0 0;color:var(--gel)}
 .lead{color:var(--haze);margin:var(--space-2) 0 0}
-.days,.row{margin:var(--space-4) calc(-1 * var(--space-4)) 0;overflow-x:auto;scrollbar-width:none}
+.days,.row{position:relative;margin:var(--space-4) calc(-1 * var(--space-4)) 0;overflow-x:auto;scrollbar-width:none}
 .days::-webkit-scrollbar,.row::-webkit-scrollbar{display:none}
 .days ul,.chips{display:flex;gap:var(--space-2);margin:0;padding:0 var(--space-4);list-style:none;width:max-content}
 .dayc{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:3.75rem;min-height:4.5rem;padding:var(--space-1) var(--space-2);border-radius:var(--r-field);background:var(--dusk);border:1px solid var(--line);text-decoration:none;font-size:var(--text-sm);line-height:var(--leading-tight);gap:var(--space-1)}
