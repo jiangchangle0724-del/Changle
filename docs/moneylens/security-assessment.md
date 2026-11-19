@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.5, 19 November 2026. It records the choices the requirements leave to this document
+Version 0.6, 19 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -17,7 +17,10 @@ no longer turns away what password generators make (measured in 1.4). After the 
 normalization also folds the quotation marks of other languages, the wave dash, and any run of
 hyphens and dashes; and keyboard runs typed three keys at a time are patterns. The fourth round
 approved the code, and recommended dropping more of the characters nobody sees while the format
-could still change, which was done.
+could still change, which was done. The fifth approved that last change, and the code was merged
+as it then stood (commit `0b03c720`). Version 0.6 changes no code: it writes the format down byte
+for byte (1.1) and lists exactly what the normalization changes (1.4), so that both can be checked
+against this document by someone who has not read the code.
 
 ## 1. The vault
 
@@ -39,6 +42,29 @@ cryptographic library and no home-made algorithm. The content security policy th
 A sealed chunk is one blob: a version byte (`1`), the 12-byte nonce, then the ciphertext with its
 16-byte tag. A wrapper is a small JSON record: version, its own id, the vault's id, the kind, the
 derivation and its parameters, the salt, and the 40-byte wrapped key.
+
+**The format, byte for byte**, so that a vault can be read without this code. Strings are UTF-8;
+`<vault>` is the vault's id as it is stored.
+
+- Wrapping key from the passphrase: PBKDF2-HMAC-SHA-256, 256 bits out. The password is the
+  normalized passphrase (1.4). The salt is `moneylens/v1/passphrase/<vault>`, one line feed
+  (0x0A), then the wrapper's 32 salt bytes. The iterations are the wrapper's `iterations`.
+- Wrapping key from the recovery code: HKDF-SHA-256, 256 bits out. The input is the code's 20
+  bytes, the salt is the wrapper's 32 salt bytes, and `info` is `moneylens/v1/recovery/<vault>`.
+- Wrapping key from a passkey: the same, with the 32 bytes the passkey's PRF extension returns as
+  the input and `moneylens/v1/passkey/<vault>` as `info`.
+- The vault key: the wrapper's 40 `wrapped` bytes, unwrapped under the wrapping key with AES key
+  wrap as RFC 3394 gives it, default initial value.
+- A sealed chunk: byte 0 is 0x01; bytes 1 to 12 are the nonce; the rest is the AES-256-GCM
+  ciphertext followed by its 16-byte tag. The additional authenticated data is `moneylens/v1`, a
+  line feed, the vault's id, a line feed, the chunk's id, a line feed, the chunk's type. A type is
+  1 to 32 lowercase letters, digits and hyphens, starting with a letter.
+- A recovery code's 20 bytes: its first 32 symbols, in the alphabet
+  `0123456789ABCDEFGHJKMNPQRSTVWXYZ`, are five bits each, the most significant first. The last
+  two symbols are the check: that 160-bit number modulo 1021, written as two symbols (the
+  remainder divided by 32, then the remainder modulo 32).
+- In a wrapper record, `salt` and `wrapped` are URL-safe base64 without padding, and `kdf` is
+  `pbkdf2-sha256` or `hkdf-sha256`.
 
 What a wrapper's fields are worth: the vault's id, the kind, the iteration count and the salt all
 go into making the wrapping key, so a wrapper in which any of them was changed does not open, and
@@ -112,15 +138,17 @@ give the same bytes. In this order:
 
 1. compatibility forms such as full-width and half-width letters and marks (NFKC);
 2. characters nobody sees dropped: emoji and ideographic variation selectors, the zero-width
-   space, the soft hyphen, the byte-order mark, the word joiner, the Mongolian vowel separator,
-   and the marks that say which way text runs, which come along when a passphrase is copied out
-   of a chat or a document. The zero-width joiner and non-joiner stay, because they hold emoji
-   together and spell words in Persian and the Indic scripts. Then NFKC once more, because
-   dropping a character can bring a letter and its accent together;
+   space, the soft hyphen, the byte-order mark, the word joiner and the invisible mathematical
+   operators beside it, the Mongolian vowel separator, and the marks that say which way text
+   runs, with the deprecated format controls that follow them. These come along when a
+   passphrase is copied out of a chat or a document. The zero-width joiner and non-joiner stay,
+   because they hold emoji together and spell words in Persian and the Indic scripts. Then NFKC
+   once more, because dropping a character can bring a letter and its accent together;
 3. every kind of quotation mark and apostrophe to a straight one: curly and low ones, the prime,
-   guillemets, corner brackets, and the letters a Ukrainian or a Hawaiian keyboard types for an
-   apostrophe. A phone puts the marks of its keyboard's language where a straight one was typed,
-   and a Simplified and a Traditional Chinese keyboard quote differently;
+   guillemets, corner brackets, the letter a Ukrainian keyboard types as its apostrophe, and the
+   Hawaiian ʻokina, a letter in its own right that a keyboard without it types as an apostrophe.
+   A phone puts the marks of its keyboard's language where a straight one was typed, and a
+   Simplified and a Traditional Chinese keyboard quote differently;
 4. the wave dash to a tilde: a Japanese keyboard types the one on a Mac and a full-width tilde,
    which step 1 has already made a tilde, on Windows;
 5. any hyphen, dash of any length or minus sign, and any run of them, to one hyphen. Apps
@@ -133,7 +161,27 @@ give the same bytes. In this order:
 
 Two of these were folded without a device to confirm that keyboards really differ in them: the
 apostrophe letters in step 3 and the middle dots in step 6. Folding costs nothing if they turn
-out not to occur, and could not be added later without a new wrapper version.
+out not to occur, and could not be added later without a new wrapper version. One fold merges
+spellings that are not quite the same to the eye: without the Mongolian vowel separator a word
+in Mongolian script is drawn differently. That cannot lock anyone out, since both spellings give
+the same key.
+
+Exactly, over the whole of Unicode. Steps 2 to 7 change these characters and no others (found by
+running every character through the code, by the author and again by the reviewer in the fifth
+review); NFKC in steps 1 and 2 does the rest, and brings a few more characters into these rows,
+such as the non-breaking hyphen, the presentation forms of the dashes and the half-width corner
+brackets.
+
+| Becomes | Characters |
+| --- | --- |
+| nothing | U+00AD, U+061C, U+180E, U+200B, U+200E to U+200F, U+202A to U+202E, U+2060 to U+2064, U+2066 to U+206F, U+FE00 to U+FE0F, U+FEFF, U+E0100 to U+E01EF |
+| `'` | U+02BB, U+02BC, U+2018 to U+201B, U+2032, U+2039, U+203A, U+300E, U+300F |
+| `"` | U+00AB, U+00BB, U+201C to U+201F, U+300C, U+300D, U+301D to U+301F |
+| `~` | U+301C, U+3030 |
+| `-`, and a run of these and of `-` becomes one | U+2010 to U+2015, U+2212, U+2E3A, U+2E3B |
+| `.` | U+3002 |
+| `·` (U+00B7) | U+2027, U+30FB |
+| one space, a run of these and of spaces becoming one, and none at either end | U+0009 to U+000D, U+1680, U+2028, U+2029 |
 
 Compatibility forms go first so that what they turn into is folded too: a half-width ideographic
 full stop becomes the same period as a full-width one. Applying it twice gives what applying it
@@ -346,7 +394,9 @@ Phase 1 exit.
   device should also keep a fingerprint of the wrappers it has seen, so that it can say "this
   record changed since this device last saw it" instead of "wrong passphrase".
 - An estimator of guesses on the passphrase screens, on top of the floor (1.4).
-- Reviews under SEC-9 are recorded in the pull request. All the rounds for the vault code were
-  done by another Claude model, which had not seen the code being written, because the other
-  vendors' tools were not reachable that night; a review by a model from another vendor is still
-  wanted for this code.
+- Reviews under SEC-9 are recorded in the pull request (#653: five rounds, the last approving the
+  commit that was merged). All of them were done by another Claude model, which had not seen the
+  code being written, because the other vendors' tools were not reachable that night. A second
+  opinion from a model of another vendor is still wanted for this code; the task is written up
+  in `docs/codex-tasks/moneylens/C1-vault-second-opinion.md`, and starts with a reader for this
+  format written from this document alone.
