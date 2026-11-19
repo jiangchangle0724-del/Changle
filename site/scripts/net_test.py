@@ -117,7 +117,7 @@ def seat_table(browser, names):
 def start_game(host, everyone, gid):
     # tap the game's tile (the host's pick shows on every phone), then start it
     if room(host)["front"] != GAME_INDEX[gid]:
-        host.locator(f'.lobby .tile[data-tile="{GAME_INDEX[gid]}"]').click()
+        host.locator(f'.lobby [data-tile="{GAME_INDEX[gid]}"]').click()
         until(lambda: room(host)["front"] == GAME_INDEX[gid])
         host.wait_for_timeout(300)
     host.locator(".lobby-actions .btn-primary").click()
@@ -386,6 +386,8 @@ def t_prompts(host, everyone):
     time.sleep(0.4)
     shot(everyone[0], "prompts-likely-reveal")
     ok(view(host)["result"]["top"] == [me(target)], "[prompts] most votes drinks")
+    # (the stamp lands a moment after the reveal: wait for it, or it stays up into the next game)
+    ok(until(lambda: stamps_up([target]), 5000), "[prompts] the one voted for gets the stamp")
     clear_stamps(everyone)
     end_game(host, everyone)
 
