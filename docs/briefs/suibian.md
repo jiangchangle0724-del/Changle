@@ -62,6 +62,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-18 随便: 自助 · 放题 (all you can eat) on round 1's menu (#606)
 - 2026-11-18 随便: demo restaurants in the host's language, and no Google line under them (#602)
 - 2026-11-18 随便: what was left of picking alone goes (its rating, its "就它了", its account data) (#599)
 - 2026-11-18 随便: Chinese in WeChat, otherwise the phone's language, as on the rest of the site (#597)
@@ -97,3 +98,4 @@
 - 2026-11-13 Steve 问「为什么不在我的 tools 里面」：线上 changle.ca/tools 有随便（截图发了），两清和跟一单是故意藏着的；问他说的是哪个，他接着发了串串的截图。按他说的「按照这个逻辑再去检查别的选项」把 31 个菜系都查了一遍：同样的问题还有拉面店被 Google 叫日料时不算拉面、兰州拉面店被叫面馆时不算西北菜、中餐海鲜酒家算成西餐海鲜、上海酒家算成粤菜、日式烧烤算成中式烧烤、Kobe 铁板烧算成牛排，都改了。
 - 2026-11-13 #492 合并上线（Cloudflare 部署成功，线上页面脚本和 main 一样）。设计检查提示 privacy.html 字号层级太平，没改，先问 Steve。
 - 2026-11-18 Steve 说「继续」：做了 #597（微信里默认中文，跟一单档案转来的全站规矩）、#599（删一个人挑的旧代码，11-15 以后可删）、#602（演示模式两个老问题）。隐私页字号的提醒查过：检查工具读不到 `/eat/app.css`，以为标题和正文都是 16px；页面实际是 32、21、16px，带上真的样式表再查就没有问题。没改页面，只在本机记了这条忽略（隐私页和条款页）。三个都 CI 绿了合并，Cloudflare 部署成功；线上验过 /eat/rate 回首页、旧的单人评分接口 404、页面脚本和 main 一样。
+- 2026-11-18 晚上 Steve：第 1 轮的选项里要有 all you can eat。做了 #606（见「定过的事」），CI 绿了合并，Cloudflare 部署成功，线上页面脚本和 main 一样。
