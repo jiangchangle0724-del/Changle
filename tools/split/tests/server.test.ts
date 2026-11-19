@@ -590,10 +590,10 @@ test("reading a receipt: signed in, with the key, a file of the ledger's; so man
   const [amy, ben, cal] = circle("Amy", "Ben", "Cal");
   const lunch = newId();
   assert.equal((await putFile(id, lunch, saying("receipt:42.50 CAD Tim Hortons"), key, amy.headers)).status, 201);
-  assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons", tip: null, tax: null, date: null } } }, "read: the total, its currency, the shop (no tip, tax or day on it)");
+  assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 200, data: { read: { total: "42.50", currency: "CAD", merchant: "Tim Hortons", tip: null, tax: null, date: null, place: null, payment: null } } }, "read: the total, its currency, the shop (no tip, tax or day on it)");
   const dinner = newId();
   assert.equal((await putFile(id, dinner, saying("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25 date=2026-11-12"), key, amy.headers)).status, 201);
-  assert.deepEqual(await reading(id, dinner, key, amy.headers), { status: 200, data: { read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25", date: "2026-11-12" } } }, "and the tip and tax in the total, and the day, when it has them");
+  assert.deepEqual(await reading(id, dinner, key, amy.headers), { status: 200, data: { read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25", date: "2026-11-12", place: null, payment: null } } }, "and the tip and tax in the total, and the day, when it has them");
   const blank = newId();
   assert.equal((await putFile(id, blank, saying("receipt:none"), key, amy.headers)).status, 201);
   assert.deepEqual(await reading(id, blank, key, ben.headers), { status: 200, data: { read: null } }, "nothing to read on it: said as nothing (and anyone in the ledger may ask, not only who sent it)");
@@ -638,6 +638,16 @@ test("an expense's tip and tax: kept, and what an edit does with them", async ()
   assert.equal((await third()).date, "2026-11-12", "an edit that doesn't mention it leaves it");
   assert.deepEqual((await push({ do: "edit", entry: "e3", to: { ...said, date: "2026-11-13" } })).data.took, ["new"]);
   assert.equal((await third()).date, "2026-11-13", "one that says another day changes it");
+  // and where it was bought and how it was paid
+  const shop = { merchant: "McDonald's", place: "Aldergrove, BC", payment: "Mastercard" };
+  assert.deepEqual((await push({ do: "expense", expense: { ...dinner, id: "e4", ...shop } })).data.took, ["new"]);
+  const fourth = async () => (({ merchant, place, payment }) => ({ merchant, place, payment }))((await call<Snapshot>("GET", `/ledgers/${id}`, key)).data.ledger.entries.find((e) => e.id === "e4") as Record<string, unknown>);
+  assert.deepEqual(await fourth(), shop, "recorded with its business, place and what paid, and served with them");
+  assert.deepEqual((await push({ do: "edit", entry: "e4", to: { ...said, note: "晚饭和茶" } })).data.took, ["new"]);
+  assert.deepEqual(await fourth(), shop, "an edit that doesn't mention them leaves them");
+  assert.deepEqual((await push({ do: "edit", entry: "e4", to: { ...said, place: "Langley, BC", payment: null } })).data.took, ["new"]);
+  assert.deepEqual(await fourth(), { ...shop, place: "Langley, BC", payment: undefined }, "one that says another place changes it, and null takes what paid off");
+  assert.equal((await push({ do: "edit", entry: "e4", to: { ...said, merchant: 5 } })).status, 400, "a number for a name: not even read as a change");
 });
 
 test("the owner deletes a ledger: gone for everyone, and off the owner's list", async () => {

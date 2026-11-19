@@ -11,7 +11,7 @@ import type { AvatarView, CrackerView } from "../../room/protocol";
 import { BASE } from "../base";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
-import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type PeopleKit } from "../people";
+import { lookOf, peopleKit, Person, PERSON_SCALE, SCENE_PER_WORLD, type Mood, type PeopleKit } from "../people";
 import { addEnvironmentalLandmarks } from "./landmarks";
 import { addCinema } from "./cinema";
 import { addCrackers } from "./crackers";
@@ -1058,6 +1058,17 @@ export function Arena3D(props: Props) {
     let drillCalled = false;
     /** a tag has just come in: the body it knocks down bursts into confetti */
     let tagPop = false;
+    // what each body's face and head react to (people.ts): the bangs of the last moment or so, the
+    // fireworks overhead, the horn or the gong to watch. Worked out from where a body is, the same for all.
+    const bangs: Array<{ x: number; z: number; at: number }> = [];
+    const STARTLE = 2.6;
+    const moodAt = (x: number, z: number, now: number): Mood => {
+      const kind = moment.current?.kind;
+      if (kind === "fireworks") return "sky";
+      while (bangs.length && now - bangs[0].at > 900) bangs.shift();
+      for (const bang of bangs) if (Math.hypot(bang.x - x, bang.z - z) < STARTLE) return "fright";
+      return kind === "horn" || kind === "gong" ? "watch" : "calm";
+    };
     /** a beat of stillness when a punch lands (a hit-stop), the camera's kick toward it, the last blow in slow motion */
     let freezeUntil = 0;
     let kickAt = 0;
@@ -1272,7 +1283,7 @@ export function Arena3D(props: Props) {
           person.root.visible = true;
           person.root.position.set(visual.x, 0, visual.z);
           person.root.rotation.set(visual.lean, visual.facing, visual.roll, "YXZ");
-          person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current);
+          person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current, moodAt(visual.x, visual.z, time));
           if (person.hitFx) {
             person.hitFx = false;
             if (!reduced) burst(visual.x, visual.z, time, "spark");
@@ -1370,6 +1381,7 @@ export function Arena3D(props: Props) {
       // the firecrackers fly, hiss and bang: each bang throws sparks and smoke, and jolts the camera
       if (crackers) {
         for (const bang of crackers.update(time, delta * pace, camera, reduced)) {
+          bangs.push({ x: bang.x, z: bang.z, at: time });
           if (reduced) continue;
           burst(bang.x, bang.z, time, "bang");
           effects.smoke(bang.x, bang.z, time);

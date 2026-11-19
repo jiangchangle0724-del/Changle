@@ -57,6 +57,12 @@
   --look-3: #c8402f;
   --look-4: #44599a;
   --look-5: #f0c419;
+  --look-6: #2c4a7c;
+  --look-7: #e07a5f;
+  --look-8: #81b29a;
+  --look-9: #8c5cc7;
+  --look-10: #e2536a;
+  --look-11: #f4a261;
   --look-skin: #e8b48c;
   --look-ink: #1b1d2e;
   /* the penalty glass */
@@ -2075,6 +2081,24 @@ html.is-tv body::before {
 }
 .flat-avatar.look-5 {
   --look: var(--look-5);
+}
+.flat-avatar.look-6 {
+  --look: var(--look-6);
+}
+.flat-avatar.look-7 {
+  --look: var(--look-7);
+}
+.flat-avatar.look-8 {
+  --look: var(--look-8);
+}
+.flat-avatar.look-9 {
+  --look: var(--look-9);
+}
+.flat-avatar.look-10 {
+  --look: var(--look-10);
+}
+.flat-avatar.look-11 {
+  --look: var(--look-11);
 }
 .flat-avatar__shadow {
   position: absolute;

@@ -26,9 +26,12 @@
  *    paid stays the same (ops.ts, ExpenseEdit).
  *  - An expense's date is the day it was spent ("2026-11-15"), read off its receipt or picked; one
  *    without it was spent the day it was recorded. A change that doesn't mention it leaves it.
+ *  - Where it was bought and how it was paid are lines of words (the business, the place, what
+ *    paid: "McDonald's", "Aldergrove, BC", "Mastercard"), read off its receipt or typed. A change
+ *    that doesn't mention one leaves it; one that says none (null or nothing) takes it off.
  */
 import { MAX_MEMBERS, problem, type Expense, type Ledger, type Member, type Split, type Transfer } from "./core";
-import { addMember, addTransfer, editExpense, isDay, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
+import { addMember, addTransfer, DETAIL_MAX, DETAILS, editExpense, isDay, LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, putBack, removeMember, renameLedger, renameMember, soundExtras, takeOut, tidy, type ExpenseEdit } from "./ops";
 
 /** The most entries (expenses and transfers, taken out or not) one ledger holds. */
 export const MAX_ENTRIES = 2000;
@@ -88,6 +91,10 @@ export function applyChange(l: Ledger, c: Change): Ledger | null {
       if (e.tip) kept.tip = e.tip;
       if (e.tax) kept.tax = e.tax;
       if (e.date) kept.date = e.date;
+      for (const k of DETAILS) {
+        const v = tidy(e[k] ?? "", DETAIL_MAX);
+        if (v) kept[k] = v;
+      }
       return { ...l, entries: [...l.entries, kept] };
     }
     case "edit": {
@@ -238,6 +245,14 @@ function asEdit(x: unknown): Edit | null {
     if (!isDay(x.date)) return null;
     edit = { ...edit, date: x.date };
   }
+  // (the business, the place, what paid: words, or null for none)
+  for (const k of DETAILS) {
+    if (x[k] === null) edit = { ...edit, [k]: null };
+    else if (x[k] !== undefined) {
+      if (!isText(x[k])) return null;
+      edit = { ...edit, [k]: x[k] };
+    }
+  }
   return edit;
 }
 
@@ -263,6 +278,12 @@ function asExpense(x: unknown): Omit<Expense, "gone"> | null {
   if (x.date !== undefined) {
     if (!isDay(x.date)) return null;
     expense = { ...expense, date: x.date };
+  }
+  for (const k of DETAILS) {
+    if (x[k] === undefined) continue;
+    if (!isText(x[k])) return null;
+    const v = tidy(x[k], DETAIL_MAX);
+    if (v) expense = { ...expense, [k]: v };
   }
   return expense;
 }

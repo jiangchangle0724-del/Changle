@@ -432,7 +432,7 @@ def t_rogue(host, everyone):
         if v["phase"] != "draw":
             break
         turn = by_pid(everyone, v["turn"])
-        turn.locator(".pcard-back").click()
+        turn.locator(".rg-back").click()
         until(lambda: view(host)["card"] is not None)
         time.sleep(1.0)
         v = view(host)
