@@ -1,0 +1,40 @@
+# Runs every time MoneyLens changes (tools/moneylens): types, the unit tests of its rules (amounts,
+# statement parsers, reconciliation, duplicates, pairing, classification, totals), and an audit of
+# the packages it ships. Its samples are synthetic: no real statement ever enters this repository
+# (docs/moneylens.md, SEC-12). The actions are pinned by commit (SEC-7).
+name: moneylens
+
+on:
+  push:
+    branches: [main]
+    paths: ["tools/moneylens/**", ".github/workflows/moneylens.yml"]
+  pull_request:
+    paths: ["tools/moneylens/**", ".github/workflows/moneylens.yml"]
+
+# One run per change: a branch's pushes are checked through its pull request, and main after each
+# merge. A newer push to the same pull request stops the older run (HANDOFF.md, CI).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/moneylens
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/moneylens/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run typecheck
+      - run: npm test

@@ -1,0 +1,16 @@
+{
+  "name": "moneylens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MoneyLens: a personal finance organizer for changle.ca (money.changle.ca). Statements are read in the browser; the server keeps ciphertext only.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "6.0.2"
+  }
+}
