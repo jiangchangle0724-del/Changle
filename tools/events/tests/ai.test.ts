@@ -5,6 +5,7 @@ import {
   AI_MODEL,
   AI_VERSION,
   INSTRUCTIONS,
+  TITLE_MAX,
   about,
   answerText,
   labelsOf,
@@ -114,7 +115,7 @@ describe("reading the answer", () => {
     ]);
   });
 
-  it("leaves out what it can't use: no Chinese, too long, an unknown category (kept without it), quotes around the whole name", () => {
+  it("leaves out what it can't use: no Chinese, too short, an unknown category (kept without it), quotes around the whole name", () => {
     const answer = JSON.stringify([
       { n: 1, t: "名字", s: "Only English here, no Chinese at all.", c: "arts" },
       { n: 2, t: "很长".repeat(30), s: "一句中文介绍，说说这是什么样的活动。", c: "arts" },
@@ -125,7 +126,8 @@ describe("reading the answer", () => {
     ]);
     expect(readAnswer(answer, 5)).toEqual([
       null,
-      null,
+      // a long name is turned down when it's kept, where the source is known (keepWritten)
+      { titleZh: "很长".repeat(30), summaryZh: "一句中文介绍，说说这是什么样的活动。", category: "arts" },
       { titleZh: "读书会", summaryZh: "大家一起读一本书，聊聊各自的感受。", category: null },
       null,
       { titleZh: "《美女与野兽》巡演", summaryZh: "音乐剧演出", category: "shows" },
@@ -214,6 +216,15 @@ describe("writing and keeping it", () => {
     expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null });
     expect(await row("ticketmaster:e1")).toMatchObject({ title_zh: "Amanda Marshall - The Dirty 30 Tour", summary_zh: "摇滚音乐现场演出" });
     expect(await row("ticketmaster:e2")).toMatchObject({ title_zh: null, ai_tries: 1 });
+  });
+
+  it("a name over TITLE_MAX isn't kept, unless it's Ticketmaster's own: there the sentence is kept with the source's name", async () => {
+    const long = "2Dead Boyz x The Underachievers - NO1LIVESFOREVER Tour, Dizzy Wright";
+    await storeEvents(env.DB, RUN, [event(1, { title: "Long Library Name" }), event(2, { source: "ticketmaster", title: long, sourceCategories: ["Music", "Hip-Hop/Rap"] })]);
+    const { run } = model((items) => items.map((i) => ({ n: i.n, t: `${i.title} 巡演`.padEnd(TITLE_MAX + 1, "长"), s: "说唱音乐现场演出，包含多位艺人表演", c: "shows" })));
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toMatchObject({ asked: 2, wrote: 1, failed: 1 });
+    expect(await row("vpl:e1")).toMatchObject({ title_zh: null, ai_tries: 1 });
+    expect(await row("ticketmaster:e2")).toMatchObject({ title_zh: long, summary_zh: "说唱音乐现场演出，包含多位艺人表演" });
   });
 
   it("when the new answer can't be used, Chinese from older instructions goes too: the source's words show until a good one comes", async () => {

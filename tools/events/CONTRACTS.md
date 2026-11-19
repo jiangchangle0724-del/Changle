@@ -110,7 +110,7 @@ the answer for that couldn't be used, and the old Chinese is cleared) and `ai_tr
 couldn't use for that text and version; after three it stays in English, until either changes). The AI also gets the
 source's labels (`source_categories`: Ticketmaster's "Music, Rock", a library's "Storytimes").
 Ticketmaster's names (artists, tours, teams) keep the source's own (`KEEP_TITLE`): only the sentence
-is the AI's. An answer that praises ("知名") or names a people or country nothing in the source backs
+is the AI's, and the AI's copy of a long name doesn't count against it (`TITLE_MAX`, 40, is for the others). An answer that praises ("知名") or names a people or country nothing in the source backs
 ("中国新生代歌手" from "Ele Yan") isn't kept (`grounded`). The AI's category goes in `category`
 with `category_by` "ai", only where the parsers gave none. Its steps are logged as source `ai`
 (`found` asked, `updated` written).
