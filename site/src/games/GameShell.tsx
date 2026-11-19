@@ -8,6 +8,7 @@ import { PenaltyStamp, type PenaltyCall } from "../components/PenaltyStamp";
 import { useBackCloses, useBackGuard } from "../router";
 import { GameHeader } from "../ui/GameHeader";
 import { RosterChip } from "../ui/RosterChip";
+import { ScreenHints } from "../ui/ScreenHints";
 import type { GameHeaderProps } from "../ui/types";
 import { useGameRun } from "./GameRun";
 import { GameTally } from "./GameTally";
@@ -166,6 +167,7 @@ export function GameShell({
       </Sheet>
       <GameTally open={tallyOpen} dots={dots} gel={run?.gel} onKeep={() => setTallyOpen(false)} onAgain={again} onLeave={leave} />
       <PenaltyStamp call={penalty} onDone={onPenaltyDone} />
+      <ScreenHints lang={lang} />
     </div>
     </MotionConfig>
   );

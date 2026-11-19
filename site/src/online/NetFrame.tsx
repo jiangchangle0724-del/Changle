@@ -9,6 +9,7 @@ import { useStore } from "../store";
 import { watchable } from "../tv/views";
 import { InviteSheet } from "./Invite";
 import { ConnectionBanner, ReactionDock } from "./Overlays";
+import { ScreenHints } from "../ui/ScreenHints";
 import { useRoom } from "./RoomContext";
 import { GameExitSheet, LeaveSheet, TableSheet } from "./TableSheet";
 import { useActionsInView, useMoreBelow } from "./useActionsInView";
@@ -119,6 +120,8 @@ export function NetFrame({
           {children}
         </div>
         {dock && <ReactionDock more={more} />}
+        {/* in a game, on a phone: turn it sideways, hide the toolbar (a watching seat's big-screen view says turn it itself) */}
+        {gid && !bigScreen && <ScreenHints lang={lang} rotate={!watching} />}
       </div>
 
       {rules && (

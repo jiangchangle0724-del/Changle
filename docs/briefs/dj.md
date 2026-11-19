@@ -195,6 +195,7 @@
 
 - 11 月 14 日下午：跟着跳的教练换成真人舞者（#570，上面「定过的事」11-14 下午那条），11 套衣服每首歌换一套。
 - 11 月 14 日晚上：#585 电视页删改、视频和舞池对换、跟着跳拿掉（上面「定过的事」11-14 晚上那条）。网站和房间服务器都要重新部署（房间规则少了 `dance` 和 `songbeat`）。
+- 11 月 18 日晚上上线：#619 电视左边的舞者换成 Steve 选的设计图做成的真人样子，跳 Mixamo 的真人动作捕捉（上面「定过的事」11-18 那条）。只改了网站，房间规则和房间服务器没动。
 
 ## 还剩什么
 
@@ -247,6 +248,9 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-18 DJ: a dance file that didn't come is tried again after half a minute, not every frame
+- 2026-11-18 DJ: the TV's dancer made real, the design Steve chose dancing real dancers' motion capture
+- 2026-11-14 DJ: the TV trimmed, the video in the middle and the floor beside it, 跟着跳 out
 - 2026-11-14 DJ: an iPhone or iPad speaker draws lighter, and has its own sheets in hand before the site updates
 - 2026-11-14 DJ: the phone page stays where it is when a song is picked from the suggestions
 - 2026-11-14 DJ: a humanlike coach that's always there, fifteen moves standing and sitting, each saying how
@@ -314,3 +318,4 @@
 - 2026-11-14 下午：#543 合并，网站和房间服务器部署好了。Steve 发了截图说点前几首歌时页面自己往下滑。在浏览器里照着他的步骤做出来了（页面从 231 滚到 523），原因是平台那个「把下一个要按的滚进来」的功能，打碟改成不用它（#550）。`dj_player_check.py` 加了一步（从提示里点一首，页面不动，点这首的按钮还在屏幕上；拿掉也不动），全过；`dj_sfx_check.py`、`dj_danmu_check.py`、`dj_dance_check.py`、`dj_mine_check.py`、`dj_youtube_check.py` 也跑了。
 - 2026-11-14 下午：#550 合并，网站部署好了。Steve 说投屏那台在切歌、全屏时会重开。在本机用正式版的文件做了实验（放着歌的时候把旧版本的文件拿走，再切歌、全屏、打开音箱自己的点歌），切歌和全屏都没要新文件，打开点歌要了、页面重开了；提前下好以后不重开了。苹果设备内存的事这台机器上试不了，按最可能的原因减了（#559）。`dj_shared_check.py` 加了：苹果设备的音箱上 YouTube 播放器里面一直是 640×360，角落里、全屏都画满，回到角落也对；全过。
 - 2026-11-14 晚上：#570 上线后 Steve 发了五张截图（见「定过的事」11-14 晚上）。做了电视页删改和拿掉跟着跳（#585）。检查：单元测试全过（打碟的舞步改成都站着、房间不再收 `dance` 和 `songbeat`、舞者的片段 10 个都不进身体）；新的 `dj_dancer_check.py` 38 条全过；`dj_youtube_check.py`（视频在中间放大、舞池在右边、全屏时舞者在视频上不挡点击）、`dj_player_check.py`（手机上没有跟着跳了）、`dj_shared_check.py` 都过了；`dj_floor3d_check.py` 🔥 跳那一下取样差一点（这台机器两个核，同时在跑别的），单独重跑。逼真真人在做（见「还剩什么」第一条）。
+- 2026-11-18 晚上：Steve 说「继续」。11-14 他已经把 Mixamo 的舞从下载文件夹搬进了音效文件夹（同名的互相盖了，剩 12 个，加上从 Mixamo 接口重新导出的 1 个）；TRELLIS.2 的模型 11-14 在他登录的浏览器里做好了（这台机器的匿名额度用完了，没有绕）。做了 #619（见「定过的事」11-18 那条）。抠图本来想用 BRIA，这台机器的免费额度也用完了，改用本机跑的 rembg；BiRefNet 太大（这台机器 8 GB 内存会被杀），用 isnet。检查：`tests/dancer.test.ts` 重写（她的文件、每支舞、脚在地上、胯不出画面、什么时候跳哪支），和 dj、engine、dj-presets、dj-sound、figure、performer 都过；`npm run build` 和首页预算（122.6 KB，预算 123）过；`dj_dancer_check.py`（改成新的舞者）、`dj_youtube_check.py`、`dj_floor3d_check.py` 全过。做模型的脚本从头跑了一遍，做出来的文件一个字节都不差。TRELLIS 的原始模型存在 Steve 电脑的 `C:\Claude Playground\OUTPUTS\音效\dj-dancer-trellis.glb`。#619 合并，网站部署好了。
