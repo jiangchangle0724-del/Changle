@@ -10,7 +10,8 @@ night's recap without the dancing. The dancer in 3D where a
 graphics chip draws her: this machine has none (its browsers draw WebGL in software, or too slowly),
 so the TV keeps the drawn dancer (in Chromium without even downloading three.js); a second TV, told
 to take any WebGL, shows her (since Nov 18 the design Steve chose, dancing real dancers' motion
-capture: src/party/dj/dancer/): standing easy with no song, the stretch's dances when one plays.
+capture: src/party/dj/dancer/): standing easy with no song, the look's dances when one plays, in its
+outfit, under its lights (Nov 18: the cool-down's first-love skirt, changed into in a flash).
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
 usage: python3 scripts/dj_dancer_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
@@ -29,7 +30,7 @@ os.makedirs(OUT, exist_ok=True)
 HERE = os.path.dirname(__file__)
 # her dances and idles (src/party/dj/dancer/dances.ts): each id with the stretches it goes with
 _DANCES_TS = open(os.path.join(HERE, "../src/party/dj/dancer/dances.ts"), encoding="utf-8").read()
-DANCES = {i: re.findall(r'"(\w+)"', m) for i, m in re.findall(r'\{ id: "(\w+)", bpm: [\d.]+, moods: \[([^\]]*)\]', _DANCES_TS)}
+DANCES = {i: re.findall(r'"(\w+)"', m) for i, m in re.findall(r'\{ id: "(\w+)", bpm: [\d.]+, looks: \[([^\]]*)\]', _DANCES_TS)}
 IDLES = re.findall(r'\{ id: "(\w+)", bpm: [\d.]+ \}', _DANCES_TS)
 ONE, TWO = "dancerone01", "dancertwo02"
 
@@ -162,9 +163,19 @@ with sync_playwright() as p:
     # a song in the peak: one of the peak's dances, on its beat
     ask(dee, TWO)
     ok(until(lambda: tv2.locator(".dj-tube.is-on").count() == 1, 60000, 100), "a song plays")
-    c3 = until(lambda: (lambda c: c if c and c.get("dancing") and "peak" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
-    ok(c3, f"she dances one of the peak's dances to it ({c3 or tv2.evaluate('() => window.__coach3d')})")
+    # (a song whose tempo isn't known here: the stretch's look, the peak's club)
+    c3 = until(lambda: (lambda c: c if c and c.get("dancing") and c.get("look") == "club" and "club" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
+    ok(c3 and c3.get("outfit") == "club", f"she dances one of the club look's dances to it, in her club outfit ({c3 or tv2.evaluate('() => window.__coach3d')})")
+    ok(until(lambda: tv2.locator(".dj-stage.look-club").count() == 1, 8000), f"the lights the club look's ({tv2.evaluate('() => document.querySelector(`.dj-stage`).className')})")
     tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-5-song.png"))
+    # the night winding down: the sweet look, its outfit changed into in a flash, its dances, its lights
+    dee.evaluate("() => window.__djHost.phase('cool')")
+    c4 = until(lambda: (lambda c: c if c and c.get("look") == "sweet" and c.get("outfit") == "sweet" else None)(tv2.evaluate("() => window.__coach3d")), 40000, 300)
+    ok(c4, f"the cool-down: she changes into her first-love skirt ({c4 or tv2.evaluate('() => window.__coach3d')})")
+    c5 = until(lambda: (lambda c: c if c and c.get("dancing") and "sweet" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
+    ok(c5, f"and dances the sweet look's dances ({c5 or tv2.evaluate('() => window.__coach3d')})")
+    ok(until(lambda: tv2.locator(".dj-stage.look-sweet").count() == 1, 8000), "the lights soft and pink")
+    tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-6-sweet.png"))
     tv2.context.close()
 
     bad = [e for e in errs + [x for ph in (amy, ben, dee) for x in getattr(ph, "_errs", [])] if "WebSocket" not in e and "favicon" not in e]

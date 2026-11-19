@@ -8,8 +8,10 @@
 
 ## 里面是什么
 
-- `her.glb.gz`：她，一个蒙皮网格（约 6.2 万个三角形），挂在 Mixamo 命名的骨架上（24 根，静止时每根都不转，和 MPFB2 的一样），
-  一张 2048 的 WebP 贴图，meshopt 压缩再 gzip，约 1.5 MB
+- `her.glb.gz`：她（夜店那套），一个蒙皮网格（约 6.2 万个三角形），挂在 Mixamo 命名的骨架上（24 根，静止时每根都不转，和 MPFB2 的一样），
+  外加头发发梢的几根骨头（页面上用弹簧甩，`springs.ts`），一张 2048 的 WebP 贴图，meshopt 压缩再 gzip，约 1.6 MB
+- `her-sweet.glb.gz`：初恋那套（白衬衫、粉色百褶短裙，11 月 19 日），同一个骨架，加头发和裙子的骨头，约 1.8 MB。
+  哪首歌穿哪套、跳哪些舞：`dances.ts` 的 `lookOf`、`OUTFIT`
 - `dance/<id>.bin.gz`：一支舞一个文件，是她骨架上的循环（整小节，在动作自己的拍子上剪），页面按音箱的拍子放：歌的一拍就是舞的一拍。
   文件里：头（JSON：id、每秒帧数、帧数、拍数、一拍几秒、bpm、能量、骨头的顺序）、每帧每根骨头的转动（4 个 16 位数）、胯的位置（毫米）
 - 哪支舞什么时候跳：`site/src/party/dj/dancer/dances.ts`（按当晚这一段和歌的速度挑，8 小节换一支；没歌的时候站着轻轻晃）
@@ -49,9 +51,16 @@ python3 metres.py work                              # 换成米：穿靴子 1.74
 python3 joints.py work/m                            # 从形状找关节：腿和胳膊看正面剪影，深度看前后的表面，脊柱按 MakeHuman 的比例；画一张 joints.png 来看
 python3 cull.py work/m work/mc                      # 去掉模型里面那层朝里的皮（TRELLIS 的模型是一层 3.5 毫米厚的壳），藏着的外表面留着
 node simplify.mjs work/mc work/ms 62000             # 减到 6.2 万个三角形（meshoptimizer，UV 的缝保住）
+python3 fill.py work                                # 头发上两张照片都没看清的地方（发丝之间的缝），TRELLIS 涂成了浅色的，用最近的照片里的头发颜色补（不然她一转身头发里有白条）
+python3 eyes.py work photos 560,87 600,87           # 眼睛在贴图里的哪里（写进贴图的透明通道），和眼皮的颜色（lid.json）：页面上让她眨眼
 python3 weights.py work/mc work/ms work/m/joints.json work/baked.png   # 蒙皮权重：按穿过她身体的距离（体素），不会跨到手或者另一条腿上；背心只跟胸走
+python3 springs.py work/ms work/m/joints.json work/baked.png outfit.json  # 头发发梢（和裙子）自己的骨头，页面上用弹簧甩；outfit.json 写头发和裙子在多高
 node build_glb.mjs work/ms work/m/joints.json work/baked.png ../../../public/models/dancer/her.glb.gz
 ```
+
+`fill.py` 在 `bake.py` 后面跑（`bake.py` 的那张存成 `baked_photo.png`），然后 `eyes.py`（眼睛的位置是设计图正面照里的像素，三张设计图都在 (560,87) 和 (600,87) 附近）；`outfit.json` 例子：
+`{"hair": {"top": 1.36, "bottom": 1.17, "chains": 3, "bones": 2}, "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}`
+（头发只让发梢甩：模型里头发上半截和后背长在一起，整片甩会把后背的颜色拉出来；裙子从腰到裙摆，腿在裙子里面动）
 
 4. 舞（`mocap/`，在 `site` 里跑）：Mixamo 的 X Bot，FBX、不带皮、每秒 30 帧。
 
@@ -73,5 +82,13 @@ npx tsx scripts/dj-dancer/mocap/pack.ts /tmp/loops public/models/dancer/dance a=
 
 ## 换她的样子或者加一套衣服
 
-同一套：新的设计图（正面背面，A 字姿势，和这张一样的构图）→ TRELLIS.2 → `real/` 的脚本。关节是自动找的，换了样子先看一眼
-`joints.png`；背心的那条规则（`weights.py` 里按银色亮片认出来的）只对这一件有用，别的衣服要看着改。
+同一套：新的设计图（正面背面，A 字姿势，和这张一样的构图）→ TRELLIS.2 → `real/` 的脚本。
+
+- 设计图：把 `sheet1.png`（夜店那套的正背面）给 ChatGPT，说「同一个人、同样的脸和身材、同样的 A 字姿势和构图，只换衣服」。
+  初恋那套就是这样画的（11 月 19 日）；派对小礼服那套也画好了，等 Hugging Face 的免费额度做 3D
+- 给 TRELLIS 之前自己抠好图（`cutout.py`），按 TRELLIS 自己的处理裁成正方形、背景涂黑（`trellis_in.png`），直接调 `image_to_3d`，
+  这样它不跑 BRIA 的抠图
+- 关节：穿裙子、连衣裙的，`joints.py` 从外形找不到胯和大腿根（被裙子挡住了），跑完再跑
+  `python3 joints_from.py work/m <夜店那套的 joints.json>`：上半身、胳膊、胯用夜店那套的（设计图里同一个人站在同一个地方），膝盖和脚用自己的
+- `weights.py` 不加最后那个贴图参数（背心那条规则只对夜店那套有用）
+- 然后 `fill.py`、`springs.py`（裙子写进 `outfit.json`）、`build_glb.mjs` 输出 `her-<名字>.glb.gz`，在 `dances.ts` 的 `OUTFIT` 里换上

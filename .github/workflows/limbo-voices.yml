@@ -1,0 +1,48 @@
+name: limbo voices
+
+# 林波舞's spoken cues, recorded with MiniMax voices by site/scripts/limbo_voices.py. Run by hand
+# (Actions → limbo voices → Run workflow); it needs the repository secrets MINIMAX_API_KEY and
+# MINIMAX_GROUP_ID. The files land on a branch of their own with a pull request to merge.
+
+on:
+  workflow_dispatch:
+    inputs:
+      zh_voice:
+        description: the Mandarin voice id
+        default: female-tianmei
+      en_voice:
+        description: the English voice id
+        default: English_Graceful_Lady
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: python3 scripts/limbo_voices.py --zh-voice "${{ inputs.zh_voice }}" --en-voice "${{ inputs.en_voice }}"
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          MINIMAX_GROUP_ID: ${{ secrets.MINIMAX_GROUP_ID }}
+      - name: Open a pull request with the recordings
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          branch="claude/limbo-voices-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add site/public/sounds/limbo
+          git commit -m "林波舞：教练的语音提示（MiniMax ${{ inputs.zh_voice }} / ${{ inputs.en_voice }}）"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "林波舞：教练的语音提示（MiniMax 人声）" --body "由 limbo voices workflow 录的：\`site/scripts/limbo_voices.py\`，中文 \`${{ inputs.zh_voice }}\`，英文 \`${{ inputs.en_voice }}\`。台词在 \`site/src/party/limbo/voice.ts\` 的 LINES 表里。"

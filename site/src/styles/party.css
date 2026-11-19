@@ -1602,6 +1602,10 @@ button.pl-answer:disabled {
   font-weight: 800;
 }
 .lb-count {
+  /* only as wide as the number: its pop scales it 1.6x, and a full-width box scaled like that reached
+     past the viewport, which made iOS zoom the whole page out to fit (Steve, 2026-11-19) */
+  width: max-content;
+  margin-inline: auto;
   font-family: var(--font-display);
   font-size: 110px;
   font-weight: 800;

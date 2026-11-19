@@ -133,8 +133,8 @@ export async function storeEvents(db: D1Database, runId: string, events: Normali
            category = CASE WHEN events.category_by IN ('ai', 'steve') THEN events.category ELSE excluded.category END,
            category_by = CASE WHEN events.category_by IN ('ai', 'steve') THEN events.category_by ELSE excluded.category_by END,
            ai_tries = CASE WHEN events.text_hash IS excluded.text_hash THEN events.ai_tries ELSE 0 END,
-           -- Chinese written before the text had a hash (rows from before migration 0004) is for this text
-           ai_hash = CASE WHEN events.text_hash IS NULL AND events.title_zh IS NOT NULL THEN excluded.text_hash ELSE events.ai_hash END,
+           -- Chinese written before the text had a hash (ai_hash ":v2", rows from before migration 0004) is for this text
+           ai_hash = CASE WHEN events.text_hash IS NULL AND events.ai_hash LIKE ':%' THEN excluded.text_hash || events.ai_hash ELSE events.ai_hash END,
            updated_at = CASE WHEN events.content_hash IS excluded.content_hash THEN events.updated_at ELSE excluded.updated_at END`,
       )
       .bind(JSON.stringify(list)),

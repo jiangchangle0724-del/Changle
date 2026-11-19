@@ -15,6 +15,11 @@ export const AI_BATCH = 15;
 export const AI_CRON = "5 * * * *";
 /** After three answers it couldn't use, an event stays in English (until its text changes). */
 export const AI_TRIES = 3;
+/**
+ * The instructions' version, kept with what they wrote (ai_hash = "<text_hash>:<version>"): a new
+ * version writes every event again. v2 (19 November): the source's labels, and nothing guessed.
+ */
+export const AI_VERSION = "v2";
 
 /** What the AI is given about an event. */
 export interface ToWrite {
@@ -22,6 +27,8 @@ export interface ToWrite {
   title: string;
   description: string | null;
   venue: string | null;
+  /** The source's own labels, as stored (a JSON array): "Music", "Rock"; "Storytimes", "Babies". */
+  labels?: string | null;
 }
 
 /** What it wrote: the name and the sentence, and a category or none. */
@@ -31,10 +38,10 @@ export interface Written {
   category: Category | null;
 }
 
-export const INSTRUCTIONS = `你是温哥华中文活动网站「玩什么」的编辑。输入是一组本地活动，信息多是英文。为每个活动写：
-1. "t"：活动名的简体中文译名，简短自然，像中文海报上的活动名，最多 20 个字。艺人、乐队、球队、巡演、剧名、书名、品牌、场馆等名字保留英文原文，不要音译或意译，只翻译其余部分；下面这些本地球队例外，用通行的中文名：Vancouver Canucks 温哥华加人队，Abbotsford Canucks 阿伯茨福德加人队，Vancouver Whitecaps 温哥华白帽队，BC Lions 卑诗雄狮队，Vancouver Giants 温哥华巨人队，Vancouver Warriors 温哥华勇士队。不要加书名号或引号。
-2. "s"：一句简体中文介绍，20 到 45 个字，说清楚这是什么样的活动、去了做什么、适合谁。只用给出的信息，不确定的不写（不知道是歌手还是乐队，就只说音乐会）；不写日期、时间、地点和价格，页面上另有。
-3. "c"：从这些分类代码里选一个：social（社交聚会：语言交换、聊天角、桌游、行业和技术聚会）、shows（演出音乐：音乐会、戏剧、音乐剧、喜剧、舞蹈、歌剧）、food（吃喝市集：夜市、美食节、农夫市集、品鉴）、outdoors（户外运动：徒步、滑雪、跑步、看球赛、运动）、arts（文化展览：博物馆、展览、讲座、作者活动、读书会、电影）、festivals（节日庆典：烟花、灯会、农历新年、圣诞市集）、family（亲子家庭：专为儿童、婴幼儿或家庭办的，比如故事时间、婴儿活动、儿童手工、儿童演出）、nightlife（夜生活派对：酒吧活动、夜店、派对）。专为儿童或婴幼儿的选 family；都不合适（比如报税、求职、专业培训）填 null。
+export const INSTRUCTIONS = `你是温哥华中文活动网站「玩什么」的编辑。输入是一组本地活动，信息多是英文：名字（title）、场地（venue）、来源给的分类标签（labels）和说明（about），有的没有说明。为每个活动写：
+1. "t"：活动名的简体中文译名，简短自然，像中文海报上的活动名，最多 20 个字。艺人、乐队、DJ、球队、巡演、剧名、书名、品牌、场馆、俱乐部等名字保留英文原文，不要音译或意译，只翻译其余部分；名字看起来像普通词也一样，比如乐队 Pooh 不要译成小熊维尼。作品名有通行中文名的可以用中文加书名号，比如《美女与野兽》。下面这些本地球队例外，用通行的中文名：Vancouver Canucks 温哥华加人队，Abbotsford Canucks 阿伯茨福德加人队，Vancouver Whitecaps 温哥华白帽队，BC Lions 卑诗雄狮队，Vancouver Giants 温哥华巨人队，Vancouver Warriors 温哥华勇士队。
+2. "s"：一句简体中文介绍，15 到 45 个字，说清楚这是什么样的活动、去了做什么、适合谁。只用给出的信息：没有说明的，只按名字和标签说是什么类型的活动（比如「电子音乐现场演出」「职业冰球比赛」），不介绍艺人的国籍、风格和来历，不用「知名」「著名」「世界级」这类词，拿不准适合谁就不写；不写日期、时间、地点和价格，页面上另有。
+3. "c"：从这些分类代码里选一个：social（社交聚会：语言交换、聊天角、桌游、行业和技术聚会）、shows（演出音乐：音乐会、戏剧、音乐剧、喜剧、舞蹈、歌剧）、food（吃喝市集：夜市、美食节、农夫市集、品鉴）、outdoors（户外运动：徒步、滑雪、跑步、看球赛、运动）、arts（文化展览：博物馆、展览、讲座、作者活动、读书会、电影）、festivals（节日庆典：烟花、灯会、农历新年、圣诞市集）、family（亲子家庭：专为儿童、婴幼儿或家庭办的，比如故事时间、婴儿活动、儿童手工、儿童演出）、nightlife（夜生活派对：酒吧活动、夜店、DJ 之夜、派对）。专为儿童或婴幼儿的选 family；都不合适（比如报税、求职、电脑辅导、专业培训）填 null。
 只输出一个 JSON 数组，每个活动一个对象 {"n": 序号, "t": "...", "s": "...", "c": "..."}，顺序和输入相同，不要输出任何别的文字。`;
 
 const CJK = /[㐀-鿿]/;
@@ -49,12 +56,23 @@ export function about(description: string | null): string {
     .slice(0, 400);
 }
 
+/** The source's labels, as the AI reads them: the first six, in a line ("Music, Rock"). */
+export function labelsOf(stored: string | null | undefined): string {
+  try {
+    const list: unknown = JSON.parse(stored ?? "[]");
+    return Array.isArray(list) ? list.filter((l): l is string => typeof l === "string" && !!l.trim()).slice(0, 6).join(", ") : "";
+  } catch {
+    return "";
+  }
+}
+
 /** The request's messages: the instructions, then the events, numbered from 1. */
 export function messages(events: ToWrite[]): { role: "system" | "user"; content: string }[] {
   const items = events.map((e, i) => ({
     n: i + 1,
     title: e.title,
     ...(e.venue ? { venue: e.venue } : {}),
+    ...(labelsOf(e.labels) ? { labels: labelsOf(e.labels) } : {}),
     ...(about(e.description) ? { about: about(e.description) } : {}),
   }));
   // (/no_think: Qwen 3 answers at once, without writing out its reasoning first)
@@ -73,12 +91,16 @@ export function answerText(out: unknown): string {
   return typeof content === "string" ? content : "";
 }
 
+/** A name wrapped whole in quotes, without them ("「读书会」"); 《》 around a work's name inside it stay. */
+const unwrap = (t: string) => t.replace(/^(?:「(.*)」|『(.*)』|“(.*)”|"(.*)")$/s, (_, a, b, c, d) => a ?? b ?? c ?? d).trim();
+
 /** One answer item, checked: a short name, a Chinese sentence, a known category or none. */
 function checked(item: unknown): Written | null {
   const o = item as { t?: unknown; s?: unknown; c?: unknown } | null;
-  const t = typeof o?.t === "string" ? o.t.replace(/^[「『《“"']+|[」』》”"']+$/g, "").trim() : "";
+  const t = typeof o?.t === "string" ? unwrap(o.t.trim()) : "";
   const s = typeof o?.s === "string" ? o.s.trim() : "";
-  if (!t || t.length > 40 || !s || !CJK.test(s) || s.length < 8 || s.length > 90) return null;
+  // (a sentence can be short: "职业冰球比赛" is all an event with only a name and labels gets)
+  if (!t || t.length > 40 || !s || !CJK.test(s) || s.length < 4 || s.length > 90) return null;
   const c = typeof o?.c === "string" && (CATEGORIES as readonly string[]).includes(o.c) ? (o.c as Category) : null;
   return { titleZh: t, summaryZh: s, category: c };
 }
@@ -112,7 +134,7 @@ export function readAnswer(text: string, count: number): (Written | null)[] {
 export async function toWrite(db: D1Database, runId: string, fromMs: number, toMs: number, limit = AI_BATCH, offset = 0): Promise<ToWrite[]> {
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.title, e.description, v.name AS venue
+      `SELECT e.id, e.title, e.description, v.name AS venue, e.source_categories AS labels
          FROM events e
          LEFT JOIN venues v ON v.id = e.venue_id
          LEFT JOIN sources s ON s.id = e.source
@@ -120,12 +142,12 @@ export async function toWrite(db: D1Database, runId: string, fromMs: number, toM
           AND e.status != 'cancelled' AND e.visibility = 'live' AND e.duplicate_of IS NULL
           AND (e.last_seen = ?3 OR s.last_ok_run IS NOT ?3)
           AND (e.summary_by IS NULL OR e.summary_by = 'ai')
-          AND (e.title_zh IS NULL OR e.ai_hash IS NOT e.text_hash)
+          AND (e.title_zh IS NULL OR e.ai_hash IS NOT coalesce(e.text_hash, '') || ':' || ?7)
           AND e.ai_tries < ?5
         ORDER BY e.start_utc, e.id
         LIMIT ?4 OFFSET ?6`,
     )
-    .bind(fromMs, toMs, runId, limit, AI_TRIES, offset)
+    .bind(fromMs, toMs, runId, limit, AI_TRIES, offset, AI_VERSION)
     .all<ToWrite>();
   return results;
 }
@@ -140,12 +162,12 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
     stmts.push(
       db
         .prepare(
-          `UPDATE events SET title_zh = ?2, summary_zh = ?3, summary_by = 'ai', ai_hash = text_hash, ai_tries = 0,
+          `UPDATE events SET title_zh = ?2, summary_zh = ?3, summary_by = 'ai', ai_hash = coalesce(text_hash, '') || ':' || ?5, ai_tries = 0,
              category = CASE WHEN ?4 IS NOT NULL AND (category IS NULL OR category_by = 'ai') THEN ?4 ELSE category END,
              category_by = CASE WHEN ?4 IS NOT NULL AND (category IS NULL OR category_by = 'ai') THEN 'ai' ELSE category_by END
            WHERE id = ?1`,
         )
-        .bind(e.id, w.titleZh, w.summaryZh, w.category),
+        .bind(e.id, w.titleZh, w.summaryZh, w.category, AI_VERSION),
     );
   });
   if (failed.length) stmts.push(db.prepare("UPDATE events SET ai_tries = ai_tries + 1 WHERE id IN (SELECT value FROM json_each(?1))").bind(JSON.stringify(failed)));

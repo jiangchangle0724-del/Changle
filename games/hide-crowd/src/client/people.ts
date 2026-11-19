@@ -121,6 +121,22 @@ const PUNCH_REACH = 0.26;
 const PUNCH_RATE = PUNCH_REACH / (PUNCH_WINDUP_MS / 1000);
 /** a knocked-down body's back hits the floor this far into the fall (s) */
 const FALL_LANDS = 0.27;
+/** a blow's flash (ms) */
+const FLASH_MS = 90;
+/**
+ * Squash and stretch, by what happened: how much wider and shorter the body goes (a fist going out
+ * stretches it: shorter is negative), and how long it takes to spring back (ms).
+ */
+const SQUASH = {
+  hit: { wide: 0.09, tall: 0.16, ms: 260 },
+  land: { wide: 0.07, tall: 0.12, ms: 220 },
+  snap: { wide: -0.03, tall: -0.06, ms: 170 }
+} as const;
+/** out past the end and back: 1 at the end, about 1.1 on the way */
+const backOut = (value: number) => {
+  const t = Math.min(1, Math.max(0, value)) - 1;
+  return 1 + 2.70158 * t * t * t + 1.70158 * t * t;
+};
 
 const smoothstep = (edge0: number, edge1: number, value: number) => {
   const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
@@ -466,9 +482,16 @@ export function kitFrom(man: GLTF, woman: GLTF): PeopleKit {
   const clips = clipsOf(man);
   // (one material per look, for the body, the hair and the bag alike: the UVs pick the cell)
   const materials = LOOKS.map((look) => new THREE.MeshStandardMaterial({ map: palette(look), roughness: 0.82, metalness: 0 }));
+  // (each look's flash when a blow lands: the same material lit white, so it needs no program of its own)
+  const flashes = materials.map((material) => {
+    const flash = material.clone();
+    flash.emissive.setRGB(1, 1, 1);
+    flash.emissiveIntensity = 0.9;
+    return flash;
+  });
   const sources = { m: man.scene, f: woman.scene };
   const shapes = LOOKS.map((look) => oneShape(sources[look.body], look));
-  return { spawn: (index) => new Person(sources, clips, materials, shapes, index) };
+  return { spawn: (index) => new Person(sources, clips, materials, shapes, index, flashes) };
 }
 
 export async function loadPeople(loader = new GLTFLoader()): Promise<PeopleKit> {
@@ -532,8 +555,16 @@ export class Person {
   hitFx = false;
   landAt: number | null = null;
   private yawKick = new THREE.Quaternion();
+  /** a blow's flash: this body's look lit white for a moment */
+  private readonly material: THREE.Material | null = null;
+  private readonly flash: THREE.Material | null = null;
+  private flashUntil = 0;
+  /** squash and stretch: since when, and what (a blow landing, the floor coming up, a fist going out) */
+  private squashAt = -Infinity;
+  private squashKind: keyof typeof SQUASH = "hit";
+  private fallLandsAt = Infinity;
 
-  constructor(sources: { m: THREE.Object3D; f: THREE.Object3D }, clips: Map<string, THREE.AnimationClip>, materials: THREE.Material[], shapes: THREE.BufferGeometry[], index: number) {
+  constructor(sources: { m: THREE.Object3D; f: THREE.Object3D }, clips: Map<string, THREE.AnimationClip>, materials: THREE.Material[], shapes: THREE.BufferGeometry[], index: number, flashes?: THREE.Material[]) {
     const lookIndex = ((index % LOOKS.length) + LOOKS.length) % LOOKS.length;
     this.look = LOOKS[lookIndex];
     this.seed = (index * 2.39996) % (Math.PI * 2);
@@ -555,6 +586,8 @@ export class Person {
       } else if (object instanceof THREE.Mesh) loose.push(object);
     });
     this.body = body;
+    this.material = materials[lookIndex];
+    this.flash = flashes?.[lookIndex] ?? null;
     for (const part of loose) part.removeFromParent();
     model.scale.setScalar(PERSON_SCALE * this.size);
     this.root = new THREE.Group();
@@ -613,7 +646,7 @@ export class Person {
    * One frame: `speed` is the body's speed on the floor (the rules' units a second), `pose` what the
    * rules say it's doing, `kind` the latest thing that happened in the round (a foul or a tag).
    */
-  update(dt: number, now: number, speed: number, pose: Pose, kind: Kind, mood: Mood = "calm"): void {
+  update(dt: number, now: number, speed: number, pose: Pose, kind: Kind, mood: Mood = "calm", reduced = false): void {
     const step = Math.min(0.05, Math.max(0, dt));
     if (pose === "stunned" && this.pose !== "stunned") this.stunnedAt = now;
     if (pose !== this.pose) {
@@ -625,6 +658,8 @@ export class Person {
       if (pose === "windup" || (pose === "punch" && this.pose !== "windup")) {
         this.play(this.punch, PUNCH_RATE, now, now + (this.punch.getClip().duration / PUNCH_RATE) * 1000 - 120);
       }
+      // the fist going out: the body snaps up a little
+      if (pose === "punch") this.squash("snap", now);
       // a foul (the puncher, stopped mid-punch): the punch bounces back, then the body stands its ground
       // until the rules let it go; anyone else stunned was tagged
       const fouled = kind === "foul" && (this.pose === "windup" || this.pose === "punch");
@@ -635,6 +670,9 @@ export class Person {
         this.play(this.hit, 1, now, Infinity);
         this.hitFx = true;
         this.landAt = now + FALL_LANDS * 1000;
+        this.fallLandsAt = this.landAt;
+        this.flashUntil = now + FLASH_MS;
+        this.squash("hit", now);
         this.next = { action: this.getup, rate: this.getup.getClip().duration / Math.max(0.3, STUN_MS / 1000 - fall), at: now + fall * 1000 };
       }
       this.pose = pose;
@@ -694,6 +732,27 @@ export class Person {
       this.head.quaternion.multiply(this.yawKick.setFromAxisAngle(RIGHT, -0.42 * this.sky));
     }
     this.express(now, step, pose, kind, mood);
+    // the floor coming up to meet a fallen body
+    if (now >= this.fallLandsAt) {
+      this.fallLandsAt = Infinity;
+      this.squash("land", now);
+    }
+    this.feel(now, reduced);
+  }
+
+  private squash(kind: keyof typeof SQUASH, now: number): void {
+    this.squashAt = now;
+    this.squashKind = kind;
+  }
+
+  /** The blow's flash and the squash and stretch (none with reduced motion), the same for every body. */
+  private feel(now: number, reduced: boolean): void {
+    if (this.body && this.flash && this.material) this.body.material = !reduced && now < this.flashUntil ? this.flash : this.material;
+    const shape = SQUASH[this.squashKind];
+    const age = (now - this.squashAt) / shape.ms;
+    // (from the squash past rest and back: the body springs)
+    const amount = reduced || age >= 1 || age < 0 ? 0 : 1 - backOut(age);
+    this.root.scale.set(1 + shape.wide * amount, 1 - shape.tall * amount, 1 + shape.wide * amount);
   }
 
   /** The face: where its five shapes are headed by what the body is doing and what's around it, and a blink now and then. */
