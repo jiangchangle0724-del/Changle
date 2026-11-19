@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARENA, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, characterForOwner } from "../src/engine";
+import { ARENA, BIKE_MS, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, characterForOwner, rideBike } from "../src/engine";
 import { HOST_GRACE, HOST_HOLD, Room } from "../src/room/room";
 
 const first = "player-one";
@@ -337,5 +337,34 @@ test("the night market's firecrackers go out to every screen, and a blast tells 
   assert.equal(blast(first, "player")?.onYou, true, "One's phone is told it was them");
   assert.equal(blast(second, "player")?.onYou, false, "Two's isn't");
   assert.equal(blast(screen, "screen")?.onYou, false);
+  assert.equal(JSON.stringify(room.view(screen, "screen", at)).includes(first), false, "still no ids");
+});
+
+test("the seawall's bike goes out to every screen with its line, and a crash tells only the phone whose player it knocked down", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "vote", arena: "plaza" }, 4);
+  room.handle(second, { t: "vote", arena: "plaza" }, 4);
+  room.handle(first, { t: "start" }, 5);
+  // (the horn first, then the bike, 14 s later)
+  let at = 5;
+  for (; at <= 5 + 23_000 + SIMULATION_STEP_MS; at += SIMULATION_STEP_MS) room.advance(at);
+  const moments = [room.view(first, "player", at), room.view(second, "player", at), room.view(screen, "screen", at)].map((view) => view.game!.moment!);
+  for (const moment of moments) assert.equal(moment.kind, "bike");
+  const ride = rideBike(room.st.game!.seed, room.st.game!.startedAt, room.st.game!.startedAt + 23_000);
+  assert.deepEqual(moments[0].bike, moments[2].bike, "the same on every screen");
+  assert.equal(moments[0].bike!.dir, ride.dir);
+  assert.ok(Math.abs(moments[0].bike!.y - ride.y) < 0.01, "its line");
+  assert.equal(moments[0].bike!.sinceMs, at - ride.startsAt, "and how far along it is");
+  // One stands on its line in the middle of the floor; Two well off it
+  const game = room.st.game!;
+  Object.assign(characterForOwner(game, first)!, { x: 50, y: ride.y, velocity: { x: 0, y: 0 } });
+  Object.assign(characterForOwner(game, second)!, { x: 50, y: ride.y > 29 ? ARENA.marginY : ARENA.height - ARENA.marginY, velocity: { x: 0, y: 0 } });
+  for (; at <= ride.startsAt + BIKE_MS; at += SIMULATION_STEP_MS) room.advance(at);
+  const crashes = (id: string, role: "player" | "screen") => room.view(id, role, at).game!.events.filter((event) => event.t === "bike");
+  assert.ok(crashes(screen, "screen").length >= 1, "every screen hears of it");
+  assert.ok(crashes(first, "player").some((event) => event.onYou), "One's phone is told it was them");
+  assert.ok(!crashes(second, "player").some((event) => event.onYou), "Two's isn't");
+  assert.ok(!crashes(screen, "screen").some((event) => event.onYou));
   assert.equal(JSON.stringify(room.view(screen, "screen", at)).includes(first), false, "still no ids");
 });

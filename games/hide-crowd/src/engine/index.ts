@@ -14,8 +14,10 @@
 // collecting things scores): taste the four snack stalls along the back, lingering a moment at each,
 // for 2 points. Passers-by browse the stalls too, but only a player's bite makes a stall light up for
 // everyone. Twice a round a player can distract everyone (as in the Steam game): a passer-by across the
-// crowd throws a punch at nothing, and every eye goes there. First to 5 points, or the most after 3
-// minutes (Steve, 2026-11-13: 75 s and 3 points made each place feel too short).
+// crowd throws a punch at nothing, and every eye goes there. By the seawall a cyclist now and then rings
+// their bell and rides straight through the crowd: the passers-by step out of its way, and anyone still
+// in its path goes down for all to see. First to 5 points, or the most after 3 minutes (Steve,
+// 2026-11-13: 75 s and 3 points made each place feel too short).
 
 export const ARENA = { width: 100, height: 58, marginX: 5, marginY: 6 } as const;
 export const MATCH_MS = 180_000;
@@ -86,6 +88,22 @@ export const CRACKER_FUSE_MS = 1_500;
 /** how far a bang knocks people down (a person is 2.4 across; a punch reaches 8.5) */
 export const BLAST_RADIUS = 6.5;
 export const CRACKERS_MS = CRACKER_FIRST_MS + (CRACKERS - 1) * CRACKER_EVERY_MS + CRACKER_FUSE_MS + 900;
+/**
+ * The seawall's bike (2026-11-19, the big upgrade's events): a cyclist rings their bell and rides
+ * straight across the crowd along one line, picked by the round's dice (the same on every screen).
+ * The bell rings as the moment begins, with the bike still out past the side of the floor; the
+ * passers-by step off its line once they hear it (most at once, now and then someone a beat late), and
+ * anyone still in its path when its front wheel comes through is knocked down, a player too.
+ */
+/** how fast it rides (a player's top speed is 13): about 18 km/h on the crowd's scale */
+export const BIKE_SPEED = 34;
+/** where it starts and ends, this far out past each side of the floor (it reaches the floor about 1.4 s in) */
+export const BIKE_OFF = 48;
+/** how far either side of its line it knocks people down (a person is 2.4 across; its handlebars are wide) */
+export const BIKE_REACH = 3;
+/** how far either side of its line the passers-by step to */
+export const BIKE_CLEAR = 6.5;
+export const BIKE_MS = Math.ceil(((ARENA.width + 2 * BIKE_OFF) / BIKE_SPEED) * 1_000) + 300;
 const ALL_STALLS = (1 << 4) - 1;
 
 /** The stall a spot is in front of, or -1. */
@@ -96,11 +114,12 @@ export function stallAt(x: number, y: number): number {
 
 export type Pose = "idle" | "walk" | "glance" | "windup" | "punch" | "stunned" | "dance";
 /**
- * the moments the whole crowd reacts to: the ferry horn by the seawall, the busker in the transit hall,
- * the gong and the drill at the theatre (the performer counts three and everyone punches), the night
- * market's firecrackers (everyone gets clear) and fireworks
+ * the moments the whole crowd reacts to: the ferry horn and the bike by the seawall (everyone steps
+ * out of its way and watches it go by), the busker in the transit hall, the gong and the drill at the
+ * theatre (the performer counts three and everyone punches), the night market's firecrackers (everyone
+ * gets clear) and fireworks
  */
-export type MomentKind = "horn" | "dance" | "gong" | "drill" | "crackers" | "fireworks";
+export type MomentKind = "horn" | "bike" | "dance" | "gong" | "drill" | "crackers" | "fireworks";
 export type ArenaId = "plaza" | "metro" | "gallery" | "market";
 export const ARENAS: readonly ArenaId[] = ["plaza", "metro", "gallery", "market"];
 export interface Vector { x: number; y: number }
@@ -129,6 +148,8 @@ export interface Character {
   swings: number;
   /** how many times a firecracker knocked this player down this round */
   blasted?: number;
+  /** how many times the seawall's bike knocked this player down this round */
+  biked?: number;
   /** the night market: the stalls tasted since the last feast (one bit each), how many bites and feasts this round */
   bites: number;
   snacks: number;
@@ -184,16 +205,16 @@ export interface Plan {
  * tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away;
  * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points;
  * decoy: a player's distraction (only they hear of it); blast: a firecracker knocked people down;
- * over: the round ended
+ * bike: the seawall's bike knocked people down; over: the round ended
  */
 export interface MatchEvent {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "bike" | "over";
   actor: string | null;
   target: string | null;
   /** bite: the stall */
   stall?: number;
-  /** blast: the players it knocked down (each phone is told only whether it was them) */
+  /** blast, bike: the players it knocked down (each phone is told only whether it was them) */
   targets?: string[];
 }
 
@@ -235,6 +256,7 @@ const IDENTITY = [
   "fouls",
   "swings",
   "blasted",
+  "biked",
   "bites",
   "snacks",
   "feasts",
@@ -566,8 +588,16 @@ interface MomentBeat {
 const STAGE: Vector = { x: 50, y: -6 };
 /** each place's moments: the first, then one every so often (where a place has two, they take turns) */
 const MOMENTS: Record<ArenaId, { first: number; every: number; beats: readonly MomentBeat[] }> = {
-  // the sea beyond the seawall's railing (far behind the crowd: everyone looks the same way)
-  plaza: { first: 9_000, every: 15_000, beats: [{ kind: "horn", lasts: 2_600, look: { x: 50, y: -400 } }] },
+  // the ferry horn on the sea beyond the seawall's railing (far behind the crowd: everyone looks the
+  // same way), then a bike through the crowd (everyone steps out of its way and watches it go by)
+  plaza: {
+    first: 9_000,
+    every: 14_000,
+    beats: [
+      { kind: "horn", lasts: 2_600, look: { x: 50, y: -400 } },
+      { kind: "bike", lasts: BIKE_MS, look: null }
+    ]
+  },
   // a busker strikes up and the whole hall dances on the spot (always in one of the walkway's quiet
   // spells, which come every 6 s: nobody dances while the floor carries them)
   metro: { first: 8_800, every: 18_000, beats: [{ kind: "dance", lasts: 2_700, look: null }] },
@@ -615,6 +645,48 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
 
 /** How long a body takes to react to a moment: people don't all turn at once. */
 export const reactionDelay = (id: string) => 120 + (idHash(id) % 520);
+
+/** The seawall's bike in the moment that starts at `startsAt`: the line it rides along, and which way (1: left to right). */
+export interface BikeRide {
+  y: number;
+  dir: 1 | -1;
+  startsAt: number;
+}
+
+/** The bike of the moment that starts at `startsAt`, by the round's dice: a line through the crowd, with room to step off it either side. */
+export function rideBike(seed: number, startedAt: number, startsAt: number): BikeRide {
+  const random = seeded(Math.imul(seed, 2_246_822_519) ^ Math.round((startsAt - startedAt) / 100));
+  const low = ARENA.marginY + BIKE_CLEAR + 3;
+  const high = ARENA.height - ARENA.marginY - BIKE_CLEAR - 3;
+  return { y: low + random() * (high - low), dir: random() < 0.5 ? 1 : -1, startsAt };
+}
+
+/** Where the bike's front wheel is along its line at `now` (out past a side of the floor before and after). */
+export function bikeX(ride: BikeRide, now: number): number {
+  const from = ride.dir > 0 ? -BIKE_OFF : ARENA.width + BIKE_OFF;
+  return from + (ride.dir * BIKE_SPEED * Math.max(0, now - ride.startsAt)) / 1_000;
+}
+
+/**
+ * How long a body takes to step out of the bike's way once its bell rings: most at once, but now and
+ * then someone is a second late (so a body knocked down isn't always a player).
+ */
+export const bikeReaction = (id: string) => (idHash(id) % 4 === 2 ? 1_400 + (idHash(id) % 1_400) : reactionDelay(id));
+
+/** Which way a body steps to get out of the bike's way (straight off its line), or null: clear of its line, or it has gone by. */
+export function bikeDodge(body: Pick<Character, "id" | "x" | "y">, ride: BikeRide, now: number): Vector | null {
+  const side = body.y - ride.y;
+  if (Math.abs(side) >= BIKE_CLEAR) return null;
+  // (once its front wheel is past, there's nothing to get out of the way of)
+  if ((body.x - bikeX(ride, now)) * ride.dir < -CHARACTER_COLLISION_DIAMETER) return null;
+  return { x: 0, y: sideOf(body.id, side) };
+}
+
+/** Which side of a line a body is on (one standing right on it: its own dice). */
+function sideOf(id: string, side: number): 1 | -1 {
+  if (Math.abs(side) < 0.05) return idHash(id) % 2 === 0 ? 1 : -1;
+  return side > 0 ? 1 : -1;
+}
 
 /** A firecracker: where it lands, when, and when it bangs. */
 export interface Cracker {
@@ -734,6 +806,15 @@ export function crowdStep(
       .filter((cracker) => now >= cracker.landsAt + reactionDelay(body.id) && now < cracker.bangsAt && Math.hypot(cracker.x - body.x, cracker.y - body.y) < COMMOTION_RADIUS)
       .sort((a, b) => Math.hypot(a.x - body.x, a.y - body.y) - Math.hypot(b.x - body.x, b.y - body.y))[0];
     if (hissing) return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(hissing.y - body.y, hissing.x - body.x), glance: false };
+  } else if (moment?.kind === "bike") {
+    // the seawall's bike: once you hear its bell, step off its line at a run, then stand and watch it go by
+    if (now >= moment.startsAt + bikeReaction(body.id)) {
+      const ride = rideBike(game.seed, game.startedAt, moment.startsAt);
+      const away = bikeDodge(body, ride, now);
+      if (away) return { plan, heading: away, pace: RUN_PACE, face: null, glance: false };
+      const x = bounded(bikeX(ride, now), ARENA.marginX, ARENA.width - ARENA.marginX);
+      return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(ride.y - body.y, x - body.x), glance: false };
+    }
   } else if (moment && now >= moment.startsAt + reactionDelay(body.id)) {
     // everyone stops and looks, or dances where they stand (and picks up where they were once it's over)
     const face = moment.look ? Math.atan2(moment.look.y - body.y, moment.look.x - body.x) : null;
@@ -918,6 +999,39 @@ function blast(state: MatchState, cracker: Cracker, now: number): void {
   if (anyone) addEvent(state, "blast", null, null, undefined, victims);
 }
 
+/**
+ * The seawall's bike comes through: everyone on their feet in its path, between where its front wheel
+ * was and where it is now, is knocked down, thrown off its line the way it was going.
+ */
+function runOver(state: MatchState, ride: BikeRide, from: number, to: number, now: number): void {
+  const reach = CHARACTER_COLLISION_DIAMETER / 2;
+  const low = Math.min(from, to) - reach;
+  const high = Math.max(from, to) + reach;
+  const victims: string[] = [];
+  let anyone = false;
+  for (const body of state.characters) {
+    const side = body.y - ride.y;
+    if (Math.abs(side) >= BIKE_REACH || body.x < low || body.x > high || now < body.stunnedUntil || body.hideAt !== null) continue;
+    anyone = true;
+    body.stunnedUntil = now + STUN_MS;
+    body.velocity = { x: 0, y: 0 };
+    body.recoil = { x: ride.dir * 10, y: sideOf(body.id, side) * 12 };
+    body.pose = "stunned";
+    body.attackResolveAt = null;
+    body.attackResolved = false;
+    body.biteStall = -1;
+    if (body.kind === "npc") body.plan = restingPlan(body.x, body.y);
+    else {
+      body.blendUntil = 0;
+      body.biked = (body.biked ?? 0) + 1;
+      if (body.ownerId) victims.push(body.ownerId);
+    }
+    // (everyone around looks)
+    state.commotions = [...(state.commotions ?? []), { x: body.x, y: body.y, at: now, who: body.id }];
+  }
+  if (anyone) addEvent(state, "bike", null, null, undefined, victims);
+}
+
 function resolveCrowdCollisions(characters: Character[]): void {
   const diameter = CHARACTER_COLLISION_DIAMETER;
   for (let pass = 0; pass < 2; pass++) {
@@ -1003,6 +1117,11 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
       if (cracker.bangsAt > state.lastTickAt && cracker.bangsAt <= now) blast(next, cracker, now);
     }
   } else if (next.crackers?.length) next.crackers = [];
+  // the seawall's bike: anyone still in its path as its front wheel comes through goes down
+  if (moment?.kind === "bike") {
+    const ride = rideBike(next.seed, next.startedAt, moment.startsAt);
+    runOver(next, ride, bikeX(ride, Math.max(state.lastTickAt, moment.startsAt)), bikeX(ride, now), now);
+  }
   // tagged players who are back on their feet slip into the crowd first
   next.characters.forEach((character, index) => {
     if (character.kind === "player" && character.hideAt !== null && now >= character.hideAt) hideAway(next, index, now);
