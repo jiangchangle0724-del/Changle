@@ -200,7 +200,8 @@ export type DrawView = {
   /** How long the word is: its Chinese characters and any letters in it (深夜emo is 2 and 3), the English as blanks. */
   hint: { zh: number; latin: number; en: string } | null;
   word: T | null;
-  guesses: { pid: string; text: string; ok: boolean }[];
+  /** `n`: each guess's own number, for the screens to tell guesses apart (none from a game begun on an older server). */
+  guesses: { pid: string; text: string; ok: boolean; n?: number }[];
   solved: string[];
   scores: Record<string, number>;
   round: number;
