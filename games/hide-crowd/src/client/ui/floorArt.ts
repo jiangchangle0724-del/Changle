@@ -14,6 +14,7 @@
 // Every mark comes from fixed dice, so every screen has the same floor.
 import * as THREE from "three";
 import type { ArenaId } from "../../engine";
+import { EXTRAS } from "./extras";
 
 export interface FloorArtPalette {
   lawn: string;
@@ -698,6 +699,8 @@ export function addFloorArt(scene: THREE.Scene, arena: ArenaId, palette: FloorAr
     else if (arena === "metro") transit(context, palette, random);
     else if (arena === "gallery") courtyard(context, palette, random);
     else nightMarket(context, palette, random);
+    // the shadows of the people beside the place (they never move)
+    for (const extra of EXTRAS[arena]) patch(context, extra.x + 0.12, extra.z - 0.06, 0.5, 0.34, palette.dark, 0.38);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;

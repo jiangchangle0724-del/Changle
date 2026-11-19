@@ -103,8 +103,10 @@ Meadows, the Fraser Valley (兰里及菲沙河谷).
 D1 (`migrations/`; the Worker applies new migration files itself, `src/schema.ts`): `events`,
 `venues`, `sources`, `fetch_log`, `review_queue`, and `runs` (how far each morning's run has got).
 An event's Chinese (0004): `title_zh` and `summary_zh` (`summary_by` "ai"), `text_hash` (what the AI
-reads: title, description, venue), `ai_hash` (the text it wrote from) and `ai_tries` (answers it
-couldn't use for this text; after three it stays in English). The AI's category goes in `category`
+reads: title, description, venue), `ai_hash` (the text it wrote from and the instructions' version,
+`<text_hash>:<AI_VERSION>`: a new version in `src/ai.ts` writes every event again) and `ai_tries`
+(answers it couldn't use for this text; after three it stays in English). The AI also gets the
+source's labels (`source_categories`: Ticketmaster's "Music, Rock", a library's "Storytimes"). The AI's category goes in `category`
 with `category_by` "ai", only where the parsers gave none. Its steps are logged as source `ai`
 (`found` asked, `updated` written).
 Never edit a migration that has gone out; add the next number and list it in `src/schema.ts`.

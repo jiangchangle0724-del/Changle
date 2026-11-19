@@ -6,7 +6,7 @@ import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { frameFloor, type FloorBox, type ScreenMargins } from "../camera";
 import { pixelRatioForQuality, INITIAL_RENDER_QUALITY, observeRenderQuality, percentile95, type RenderQuality } from "../renderQuality";
-import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, steerVelocity } from "../../engine";
+import { ARENA, BLAST_RADIUS, CRACKER_FLIGHT_MS, DRILL_GO_MS, DRILL_MS, PLAYER_ACCELERATION, PLAYER_BRAKING, PUNCH_WINDUP_MS, STALLS, stallAt, steerVelocity } from "../../engine";
 import type { ArenaId, MomentKind, Pose } from "../../engine";
 import type { AvatarView, CrackerView } from "../../room/protocol";
 import { BASE } from "../base";
@@ -17,7 +17,9 @@ import { addEnvironmentalLandmarks } from "./landmarks";
 import { addCinema } from "./cinema";
 import { addCrackers } from "./crackers";
 import { addEffects } from "./effects";
+import { addExtras, type Extras } from "./extras";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
+import { Shake, TRAUMA } from "./shake";
 import { addFloorArt, type FloorArtPalette } from "./floorArt";
 
 /** Start fetching the people's files (with the arena's own code, while the lobby is up). */
@@ -1111,10 +1113,13 @@ export function Arena3D(props: Props) {
     };
     let kit: PeopleKit | null = null;
     const people: Person[] = [];
+    // (and the people beside the place, out of the crowd's reach: extras.ts)
+    let extras: Extras | null = null;
     peopleKit()
       .then((loaded) => {
         if (disposed) return;
         kit = loaded;
+        extras = addExtras(scene, props.arena, loaded, { paper: palette.cracker, gold: palette.bulb, glow: palette.warn });
         standInBodies.visible = false;
         standInHeads.visible = false;
       })
@@ -1219,8 +1224,9 @@ export function Arena3D(props: Props) {
     /** the page's own work a frame (moving everyone and handing the picture to the graphics chip), and its draws */
     let fpsWorkMs = 0;
     let draws = 0;
-    let shakeAt = 0;
-    let shakeStrength = 0;
+    /** the camera's shake: every blow adds to it, and it drains away on its own (shake.ts) */
+    const shaking = new Shake();
+    const addTrauma = (amount: number) => shaking.add(amount);
     let lastImpact = props.impactId;
     let lastFlash = props.flash?.id ?? 0;
     let fireworksSeen = props.moment?.kind === "fireworks";
@@ -1297,10 +1303,7 @@ export function Arena3D(props: Props) {
       if (impact.current !== lastImpact) {
         lastImpact = impact.current;
         // (a firecracker's bang shakes the camera itself, on this screen's own clock)
-        if (impactType.current !== "blast") {
-          shakeAt = time;
-          shakeStrength = impactType.current === "tag" ? 0.28 : impactType.current === "foul" ? 0.16 : impactType.current === "swing" ? 0.08 : impactType.current === "hide" ? 0 : 0.12;
-        }
+        if (impactType.current !== "blast") addTrauma(TRAUMA[impactType.current]);
         tagPop = impactType.current === "tag";
         if (impactType.current === "tag" || impactType.current === "foul") {
           freezeUntil = time + (impactType.current === "tag" ? 95 : 60);
@@ -1323,8 +1326,7 @@ export function Arena3D(props: Props) {
           drillCalled = true;
           if (since < 300) {
             kickAt = time;
-            shakeAt = time;
-            shakeStrength = 0.1;
+            addTrauma(TRAUMA.drill);
           }
         }
       } else drillCalled = false;
@@ -1454,10 +1456,14 @@ export function Arena3D(props: Props) {
           person.root.visible = true;
           person.root.position.set(visual.x, 0, visual.z);
           person.root.rotation.set(visual.lean, visual.facing, visual.roll, "YXZ");
-          person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current, moodAt(visual.x, visual.z, time));
+          // (at the night market, anyone standing at a stall eats: the same rule as the tasting, for every body)
+          const atStall = props.arena === "market" && stallAt(worldX, worldY) >= 0;
+          person.update((delta * pace) / 1000, time, visual.speed, avatar.p, impactType.current, moodAt(visual.x, visual.z, time), reduced, atStall);
           if (person.hitFx) {
             person.hitFx = false;
             if (!reduced) burst(visual.x, visual.z, time, "spark");
+            // the blow's burst, over the chest (anyone knocked down gets one: a passer-by too)
+            effects.impact(visual.x, 1.15 * person.size, visual.z, time);
           }
           if (person.landAt !== null && time >= person.landAt) {
             person.landAt = null;
@@ -1556,13 +1562,12 @@ export function Arena3D(props: Props) {
           if (reduced) continue;
           burst(bang.x, bang.z, time, "bang");
           effects.smoke(bang.x, bang.z, time);
-          shakeAt = time;
-          shakeStrength = 0.24;
+          addTrauma(TRAUMA.bang);
           kickAt = time;
         }
       }
-      const impactAge = time - shakeAt;
-      const shake = shakeAt && impactAge < 280 && !reduced ? Math.sin(impactAge * 0.095) * (1 - impactAge / 280) * shakeStrength : 0;
+      // the shake, on the real clock: across, up and a little roll
+      const jolt = shaking.step(delta, reduced);
       // the kick: in toward the floor and back, in a third of a second
       const kickAge = time - kickAt;
       const kick = kickAt && kickAge < 340 && !reduced ? Math.sin(Math.min(1, kickAge / 70) * (Math.PI / 2)) * (1 - kickAge / 340) * 0.045 : 0;
@@ -1572,9 +1577,11 @@ export function Arena3D(props: Props) {
       if (over) cinema.ending(time, winnerVisual ? { x: winnerVisual.x, z: winnerVisual.z } : null, reduced);
       cinema.update(time, delta);
       cinema.shot(time, eye, look, reduced, viewEye, viewLook);
-      camera.position.set(viewEye.x + shake + (viewLook.x - viewEye.x) * kick, viewEye.y + Math.abs(shake) * 0.34 + (viewLook.y - viewEye.y) * kick, viewEye.z + (viewLook.z - viewEye.z) * kick);
-      camera.lookAt(viewLook.x + shake, viewLook.y - shake * 0.22, viewLook.z);
+      camera.position.set(viewEye.x + jolt.x + (viewLook.x - viewEye.x) * kick, viewEye.y + jolt.y * 0.5 + (viewLook.y - viewEye.y) * kick, viewEye.z + (viewLook.z - viewEye.z) * kick);
+      camera.lookAt(viewLook.x + jolt.x, viewLook.y + jolt.y, viewLook.z);
+      if (jolt.roll) camera.rotateZ(jolt.roll);
       tagZoom = Math.min(1, viewEye.distanceTo(viewLook) / Math.max(0.001, eye.distanceTo(look)));
+      extras?.update((delta * pace) / 1000, time, (x, z) => moodAt(x, z, time), reduced);
       effects.update(time, delta * pace, camera, reduced);
       renderer.render(scene, camera);
       draws = renderer.info.render.calls;
@@ -1592,6 +1599,7 @@ export function Arena3D(props: Props) {
         scene.remove(person.root);
         person.dispose();
       }
+      extras?.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {
           object.geometry.dispose();

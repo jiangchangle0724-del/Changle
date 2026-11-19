@@ -279,3 +279,102 @@ test("the twelve looks are built in a blink (the lobby builds them while it's up
   // (it took about 500 ms here before 2026-11-19, about 25 ms after; a slow machine has room to spare)
   assert.ok(took < 250, `${took.toFixed(0)} ms`);
 });
+
+test("a blow lands: the body flashes white for a moment and squashes, then springs back; with reduced motion, neither", async () => {
+  const kit = kitFrom(...(await files));
+  const bodyOf = (person: Person) => {
+    let body: THREE.SkinnedMesh | null = null;
+    person.root.traverse((object) => {
+      if (object instanceof THREE.SkinnedMesh) body = object;
+    });
+    return body as unknown as THREE.SkinnedMesh;
+  };
+  for (const reduced of [false, true]) {
+    const person = kit.spawn(3);
+    const normal = bodyOf(person).material as THREE.MeshStandardMaterial;
+    person.update(1 / 60, 0, 0, "idle", "tag", "calm", reduced);
+    // knocked down at 1000 ms
+    person.update(1 / 60, 1_000, 0, "stunned", "tag", "calm", reduced);
+    const lit = bodyOf(person).material as THREE.MeshStandardMaterial;
+    const squashed = person.root.scale.y;
+    if (reduced) {
+      assert.equal(lit, normal, "reduced motion: no flash");
+      assert.equal(squashed, 1, "reduced motion: no squash");
+    } else {
+      assert.notEqual(lit, normal, "a flash");
+      assert.ok(lit.emissive.r > 0.9 && lit.emissiveIntensity > 0.5, "lit white");
+      assert.equal(lit.map, normal.map, "the same look under the light (no program of its own)");
+      assert.ok(squashed < 0.9 && person.root.scale.x > 1.05, `squashed (${squashed.toFixed(2)})`);
+    }
+    // a moment later: its own material again; once the landing's squash is over too, its own size
+    person.update(1 / 60, 1_120, 0, "stunned", "tag", "calm", reduced);
+    assert.equal(bodyOf(person).material, normal, "the flash is over in a tenth of a second");
+    for (let ms = 1_120; ms <= 1_800; ms += 1000 / 60) person.update(1 / 60, ms, 0, "stunned", "tag", "calm", reduced);
+    assert.equal(person.root.scale.y, 1);
+    assert.equal(person.root.scale.x, 1);
+    person.dispose();
+  }
+});
+
+test("a fist going out stretches the body a little, and it springs back", async () => {
+  const kit = kitFrom(...(await files));
+  const person = kit.spawn(5);
+  person.update(1 / 60, 0, 0, "windup", "over");
+  person.update(1 / 60, PUNCH_WINDUP_MS, 0, "punch", "over");
+  assert.ok(person.root.scale.y > 1.03 && person.root.scale.x < 1, `stretched (${person.root.scale.y.toFixed(3)})`);
+  for (let ms = PUNCH_WINDUP_MS; ms <= PUNCH_WINDUP_MS + 400; ms += 1000 / 60) person.update(1 / 60, ms, 0, "punch", "over");
+  assert.equal(person.root.scale.y, 1);
+  person.dispose();
+});
+
+const withMoves = Promise.all([parse("crowd-people.glb"), parse("crowd-people-f.glb"), parse("crowd-moves.glb")]);
+
+test("the extra moves come with the people: a nod, a shake of the head, eating, a rail to lean on, a lantern", async () => {
+  const [man, woman, moves] = await withMoves;
+  assert.deepEqual(moves.animations.map((clip) => clip.name).sort(), ["eat", "lantern", "no", "nod", "rail"]);
+  const kit = kitFrom(man, woman, moves);
+  for (const move of ["rail", "lantern", "eat"]) assert.ok(kit.spawn(30).hold(move), move);
+  // (without the file, the crowd still plays)
+  assert.equal(kitFrom(...(await files)).spawn(30).hold("rail"), false);
+});
+
+test("standing at a night market stall, anyone eats (the hand comes up to the mouth); walking, nobody does", async () => {
+  const [man, woman, moves] = await withMoves;
+  const kit = kitFrom(man, woman, moves);
+  // (a look that stands with its hands down: not the phone, not the folded arms)
+  const plainIdle = LOOKS.findIndex((look) => look.idle === "idle");
+  const hands = (atStall: boolean, speed: number) => {
+    const person = kit.spawn(plainIdle);
+    let highest = -Infinity;
+    for (let frame = 0; frame < 120; frame++) {
+      person.update(1 / 60, (frame * 1000) / 60, speed, speed > 0 ? "walk" : "idle", "over", "calm", false, atStall);
+      if (frame > 60) highest = Math.max(highest, at(person, "hand_l").y, at(person, "hand_r").y);
+    }
+    person.dispose();
+    return highest;
+  };
+  assert.ok(hands(true, 0) > hands(false, 0) + 0.15, `a hand at the mouth (${hands(true, 0).toFixed(2)} against ${hands(false, 0).toFixed(2)})`);
+  assert.ok(Math.abs(hands(true, NPC_SPEED) - hands(false, NPC_SPEED)) < 0.01, "walking past a stall eats nothing");
+});
+
+test("standing about, a body nods or shakes its head now and then; walking, never", async () => {
+  const [man, woman, moves] = await withMoves;
+  const plain = kitFrom(...(await files));
+  const lively = kitFrom(man, woman, moves);
+  const difference = (pose: Pose, speed: number) => {
+    const a = plain.spawn(6);
+    const b = lively.spawn(6);
+    let most = 0;
+    for (let frame = 0; frame < 60 * 25; frame++) {
+      const now = (frame * 1000) / 60;
+      a.update(1 / 60, now, speed, pose, "over");
+      b.update(1 / 60, now, speed, pose, "over");
+      most = Math.max(most, at(a, "Head").distanceTo(at(b, "Head")), at(a, "hand_r").distanceTo(at(b, "hand_r")));
+    }
+    a.dispose();
+    b.dispose();
+    return most;
+  };
+  assert.ok(difference("idle", 0) > 0.05, "a gesture within 25 seconds of standing about");
+  assert.ok(difference("walk", NPC_SPEED) < 0.001, "none while walking");
+});
