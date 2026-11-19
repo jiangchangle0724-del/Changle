@@ -49,7 +49,12 @@ instead, `site/src/party/dj/`.)
   room code and QR code, the players (a phone's 我在 lights its name), and the TV's delay when the
   host measures it from their phone (校准电视延迟, in the lobby: 8 clicks 1.2 s apart, the host's
   taps in speaker time, `calibrateFromTaps()`; three tries; the host can skip). Nothing waits for
-  it: a dance starts as soon as it's picked. `?timing` shows the clock readout for the field test.
+  it: a dance starts as soon as it's picked. A room that hasn't measured it learns it as each dance
+  finishes instead: people move to what they hear, so when the moves sat late by the same amount
+  beat after beat (at least 32 of them, half within 80 ms of their middle, 40 ms or more off), the
+  room hears that much later (`learnedShift` in `src/server/tally.ts`, party-base's
+  `DELAY_LEARNED`), and the next dance is flashed and judged by it. `?timing` shows the clock
+  readout for the field test.
   暂停 / 继续 (the host, while the lead or the dance plays): `RoutineInfo.pausedAt`; nothing plays
   on the pages while it's set (`anchorsOf` gives none), the song's video holds where it is, and
   nothing ends; 继续 moves everything later by the pause plus 1.5 s (`RESUME_LEAD_MS`), so the
@@ -145,7 +150,7 @@ Node 22, in this folder:
 
 ```
 npm ci
-npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 105 tests
+npm run typecheck && npm test          # the session, the shows, songs, tunes, the tally, the judge: 109 tests
 npm run dev                            # http://127.0.0.1:8787/party/screen and /party/join
 BASE=http://127.0.0.1:8787 node scripts/timing-check.cjs
 ```

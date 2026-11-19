@@ -165,6 +165,14 @@ export function reduce(state: RoomState, ev: RoomEvent): RoomState {
       requirePhase(state, ['dancing'], ev.type);
       return touch({ ...state, phase: 'results', routineStartAt: null }, ev.at);
 
+    case 'DELAY_LEARNED':
+      // The room's own step, as a dance finishes: the TV's delay as the dancers' moves showed it.
+      requirePhase(state, ['results'], ev.type);
+      if (!Number.isFinite(ev.audioOffsetMs) || Math.abs(ev.audioOffsetMs) > 2000) {
+        throw new RoomError('bad_offset', `implausible audio offset ${ev.audioOffsetMs}`);
+      }
+      return touch({ ...state, audioOffsetMs: ev.audioOffsetMs }, ev.at);
+
     case 'BACK_TO_LOBBY':
       // (from dancing too: the host can stop a song at any moment)
       requireHost(state, ev.byPlayerId);
