@@ -9,6 +9,7 @@ import {
   answerText,
   labelsOf,
   catchUp,
+  grounded,
   messages,
   readAnswer,
   translateStep,
@@ -138,6 +139,25 @@ describe("reading the answer", () => {
   });
 });
 
+describe("what it may say", () => {
+  const e = { id: "x", title: "Saliah in Vancouver", venue: "Celebrities Nightclub", description: null, labels: '["Music","Dance/Electronic"]' };
+  const w = (summaryZh: string, titleZh = "Saliah 温哥华演出") => ({ titleZh, summaryZh, category: null });
+
+  it("no praise the source doesn't give, and no people or country it doesn't name", () => {
+    expect(grounded(w("电子舞曲现场演出"), e)).toBe(true);
+    expect(grounded(w("知名阿拉伯DJ Saliah带来电子音乐演出"), e)).toBe(false);
+    expect(grounded(w("阿拉伯DJ的电子音乐演出"), e)).toBe(false);
+    expect(grounded(w("流行音乐演出", "叶耳 - 2026世界巡演"), { ...e, title: "Ele Yan - MOMENT 2026 World Tour" })).toBe(true);
+    expect(grounded(w("中国新生代歌手的流行音乐演出"), { ...e, title: "Ele Yan - MOMENT 2026 World Tour" })).toBe(false);
+  });
+
+  it("but what the source says, it may say", () => {
+    expect(grounded(w("用普通话和粤语进行的亲子活动"), { ...e, title: "Family Fun in Mandarin and Cantonese" })).toBe(true);
+    expect(grounded(w("中国传统书法课"), { ...e, title: "春节书法课" })).toBe(true);
+    expect(grounded(w("韩国流行音乐与电子舞曲派对"), { ...e, title: "SOJU RAVE", labels: '["Music","K-Pop"]' })).toBe(true);
+  });
+});
+
 describe("writing and keeping it", () => {
   it("writes the soonest events first, keeps the name, the sentence and a category where the parsers gave none", async () => {
     await ensureSchema(env.DB);
@@ -182,9 +202,23 @@ describe("writing and keeping it", () => {
     expect(asked).toHaveLength(1);
   });
 
+  it("Ticketmaster's names stay as the source wrote them; an answer with what the source doesn't say isn't kept", async () => {
+    await storeEvents(env.DB, RUN, [
+      event(1, { source: "ticketmaster", title: "Amanda Marshall - The Dirty 30 Tour" }),
+      event(2, { source: "ticketmaster", title: "Saliah in Vancouver", sourceCategories: ["Music", "Dance/Electronic"] }),
+    ]);
+    const { run } = model((items) => [
+      { n: items[0].n, t: "阿曼达·马歇尔：肮脏三十巡演", s: "摇滚音乐现场演出", c: "shows" },
+      { n: items[1].n, t: "Saliah 温哥华演出", s: "知名阿拉伯DJ带来电子音乐演出", c: "nightlife" },
+    ]);
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null });
+    expect(await row("ticketmaster:e1")).toMatchObject({ title_zh: "Amanda Marshall - The Dirty 30 Tour", summary_zh: "摇滚音乐现场演出" });
+    expect(await row("ticketmaster:e2")).toMatchObject({ title_zh: null, ai_tries: 1 });
+  });
+
   it("Chinese from older instructions is written again (a new AI_VERSION), and the source's labels go with the event", async () => {
     await storeEvents(env.DB, RUN, [event(1, { sourceCategories: ["Music", "Rock"] })]);
-    await env.DB.prepare("UPDATE events SET title_zh = 'old', summary_zh = 'old', summary_by = 'ai', ai_hash = text_hash || ':v1'").run();
+    await env.DB.prepare("UPDATE events SET title_zh = 'old', summary_zh = 'old', summary_by = 'ai', ai_hash = text_hash || ':v2'").run();
     const { run, asked } = model();
     expect((await writeSome(env.DB, run, RUN, NOW, W.toMs)).wrote).toBe(1);
     expect(asked[0][0]).toMatchObject({ title: "Event 1", labels: "Music, Rock" });
