@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { frameFloor } from "../src/client/camera";
 import { FLOOR_ART_AREA } from "../src/client/ui/floorArt";
+import { EXTRAS } from "../src/client/ui/extras";
 
 // the floor a phone or a big screen frames: x across, z from the back row to the front, a person's height
 const FLOOR = { halfWidth: 8.8, near: 4.03, far: -4.03, height: 3.1 };
@@ -88,6 +89,16 @@ test("what lies on the floor (its paths, leaves, puddles) reaches every edge of 
         assert.ok(point.z <= FLOOR_ART_AREA.z0 + FLOOR_ART_AREA.depth, `${aspect}: (${sx.toFixed(2)}, ${sy.toFixed(2)}) sees z ${point.z.toFixed(2)}, past the art's front`);
         assert.ok(point.x >= FLOOR_ART_AREA.x0 && point.x <= FLOOR_ART_AREA.x0 + FLOOR_ART_AREA.width, `${aspect}: (${sx.toFixed(2)}, ${sy.toFixed(2)}) sees x ${point.x.toFixed(2)}, past the art's side`);
       }
+    }
+  }
+});
+
+test("the people beside the place stand off the crowd's floor, out of everyone's reach, on the floor's art (their shadows are drawn there)", () => {
+  for (const [arena, extras] of Object.entries(EXTRAS)) {
+    for (const extra of extras) {
+      const off = Math.abs(extra.x) > FLOOR.halfWidth + 0.3 || extra.z < FLOOR.far - 0.5 || extra.z > FLOOR.near + 0.5;
+      assert.ok(off, `${arena}: (${extra.x}, ${extra.z}) is off the crowd's floor`);
+      assert.ok(extra.x > FLOOR_ART_AREA.x0 && extra.x < FLOOR_ART_AREA.x0 + FLOOR_ART_AREA.width && extra.z > FLOOR_ART_AREA.z0 && extra.z < FLOOR_ART_AREA.z0 + FLOOR_ART_AREA.depth, `${arena}: on the floor's art`);
     }
   }
 });

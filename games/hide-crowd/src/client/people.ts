@@ -22,7 +22,7 @@ import { BASE } from "./base";
 export const SCENE_PER_WORLD = 17.5 / ARENA.width;
 const UP = new THREE.Vector3(0, 1, 0);
 
-export const PEOPLE_FILES = { m: `${BASE}/art/crowd-people.glb`, f: `${BASE}/art/crowd-people-f.glb` } as const;
+export const PEOPLE_FILES = { m: `${BASE}/art/crowd-people.glb`, f: `${BASE}/art/crowd-people-f.glb`, moves: `${BASE}/art/crowd-moves.glb` } as const;
 
 /** the palette's cells, left to right, as the build script lays out the bodies' UVs */
 export const CELLS = ["head", "neck", "top", "forearm", "hand", "pants", "shin", "shoes", "hair", "bag", "accent", "strap", "eyes", "mouth", "brows", "gear"] as const;
@@ -478,8 +478,10 @@ function clipsOf(gltf: GLTF): Map<string, THREE.AnimationClip> {
 }
 
 /** The people from the two loaded files (the man's carries the clips; the woman moves with them too). */
-export function kitFrom(man: GLTF, woman: GLTF): PeopleKit {
+export function kitFrom(man: GLTF, woman: GLTF, moves?: GLTF): PeopleKit {
   const clips = clipsOf(man);
+  // (the extra moves: a nod, a shake of the head, eating, leaning on a rail, a lantern held out)
+  if (moves) for (const [name, clip] of clipsOf(moves)) clips.set(name, clip);
   // (one material per look, for the body, the hair and the bag alike: the UVs pick the cell)
   const materials = LOOKS.map((look) => new THREE.MeshStandardMaterial({ map: palette(look), roughness: 0.82, metalness: 0 }));
   // (each look's flash when a blow lands: the same material lit white, so it needs no program of its own)
@@ -495,8 +497,9 @@ export function kitFrom(man: GLTF, woman: GLTF): PeopleKit {
 }
 
 export async function loadPeople(loader = new GLTFLoader()): Promise<PeopleKit> {
-  const [man, woman] = await Promise.all([loader.loadAsync(PEOPLE_FILES.m), loader.loadAsync(PEOPLE_FILES.f)]);
-  return kitFrom(man, woman);
+  // (without the extra moves the crowd still plays: they're the little things)
+  const [man, woman, moves] = await Promise.all([loader.loadAsync(PEOPLE_FILES.m), loader.loadAsync(PEOPLE_FILES.f), loader.loadAsync(PEOPLE_FILES.moves).catch(() => undefined)]);
+  return kitFrom(man, woman, moves);
 }
 
 type Kind = "tag" | "foul" | "swing" | "hide" | "blast" | "over";
@@ -529,6 +532,17 @@ export class Person {
   private readonly getup: THREE.AnimationAction;
   private readonly flinch: THREE.AnimationAction;
   private readonly dance: THREE.AnimationAction;
+  /** the extra moves, when their file is in: a nod and a shake of the head now and then, eating at a stall */
+  private readonly nod: THREE.AnimationAction | null;
+  private readonly shake: THREE.AnimationAction | null;
+  private readonly eat: THREE.AnimationAction | null;
+  private readonly clips: Map<string, THREE.AnimationClip>;
+  /** a clip this body holds for good (someone beside the place: leaning on the railing, a lantern held out) */
+  private held: THREE.AnimationAction | null = null;
+  private eating = 0;
+  private stillSince = 0;
+  private nextGesture: number;
+  private gestures = 0;
   private readonly head: THREE.Object3D | null;
   private readonly neck: THREE.Object3D | null;
   private readonly body: THREE.SkinnedMesh | null = null;
@@ -610,6 +624,13 @@ export class Person {
     this.getup = action("getup");
     this.flinch = action("flinch");
     this.dance = action("dance");
+    this.clips = clips;
+    const extra = (name: string) => (clips.has(name) ? action(name) : null);
+    this.nod = extra("nod");
+    this.shake = extra("no");
+    this.eat = extra("eat");
+    // (the first gesture somewhere in the first quarter of a minute, each body on its own beat)
+    this.nextGesture = 4_000 + ((index * 0.7548776662 + 0.21) % 1) * 12_000;
     // locomotion always plays: its weights follow the speed, its time follows the stride (a body that
     // isn't dancing has its dance at no weight, which costs nothing)
     for (const loop of [this.idle, this.walk, this.jog, this.dance]) {
@@ -622,9 +643,15 @@ export class Person {
     this.dance.timeScale = 0.9 + ((index * 0.37) % 1) * 0.2;
     this.walk.timeScale = 0;
     this.jog.timeScale = 0;
-    for (const once of [this.punch, this.hit, this.getup, this.flinch]) {
+    for (const once of [this.punch, this.hit, this.getup, this.flinch, this.nod, this.shake]) {
+      if (!once) continue;
       once.setLoop(THREE.LoopOnce, 1);
       once.clampWhenFinished = true;
+    }
+    if (this.eat) {
+      this.eat.play();
+      this.eat.setEffectiveWeight(0);
+      this.eat.time = this.phase * this.eat.getClip().duration;
     }
   }
 
@@ -646,7 +673,7 @@ export class Person {
    * One frame: `speed` is the body's speed on the floor (the rules' units a second), `pose` what the
    * rules say it's doing, `kind` the latest thing that happened in the round (a foul or a tag).
    */
-  update(dt: number, now: number, speed: number, pose: Pose, kind: Kind, mood: Mood = "calm", reduced = false): void {
+  update(dt: number, now: number, speed: number, pose: Pose, kind: Kind, mood: Mood = "calm", reduced = false, atStall = false): void {
     const step = Math.min(0.05, Math.max(0, dt));
     if (pose === "stunned" && this.pose !== "stunned") this.stunnedAt = now;
     if (pose !== this.pose) {
@@ -711,11 +738,18 @@ export class Person {
     const legs = 1 - Math.min(1, overlay);
     // dancing takes the whole body (in over a third of a second, out a little slower)
     this.dancing = damp(this.dancing, pose === "dance" ? 1 : 0, pose === "dance" ? 9 : 6, step);
-    const free = legs * (1 - this.dancing);
+    // standing at a night market stall, anyone eats (a player tasting, or a passer-by: the same)
+    const eats = !!this.eat && atStall && pose === "idle" && metres < 0.2;
+    this.eating = damp(this.eating, eats ? 1 : 0, eats ? 5 : 8, step);
+    const holding = this.held ? 1 : 0;
+    const free = legs * (1 - this.dancing) * (1 - this.eating) * (1 - holding);
     this.idle.setEffectiveWeight((1 - this.moving) * free);
     this.walk.setEffectiveWeight(this.moving * (1 - this.jogging) * free);
     this.jog.setEffectiveWeight(this.moving * this.jogging * free);
-    this.dance.setEffectiveWeight(this.dancing * legs);
+    this.dance.setEffectiveWeight(this.dancing * legs * (1 - holding));
+    this.eat?.setEffectiveWeight(this.eating * legs * (1 - this.dancing) * (1 - holding));
+    this.held?.setEffectiveWeight(holding * legs);
+    this.gesture(now, pose, mood, eats);
     this.mixer.update(step);
     // a glance: the head looks one way, then the other (by hand, after the clips have had their say)
     this.glance = damp(this.glance, pose === "glance" ? 1 : 0, 5, step);
@@ -738,6 +772,36 @@ export class Person {
       this.squash("land", now);
     }
     this.feel(now, reduced);
+  }
+
+  /**
+   * Now and then someone standing about nods or shakes their head: after a second and a half standing
+   * still, on its own beat (nine to eighteen seconds apart), never while busy, watching or eating. The
+   * same for every body (a player standing still nods like anyone).
+   */
+  private gesture(now: number, pose: Pose, mood: Mood, eats: boolean): void {
+    if (!this.nod || !this.shake) return;
+    const standing = pose === "idle" && this.moving < 0.05 && mood === "calm" && !eats && !this.held && this.shots.length === 0;
+    if (!standing) {
+      this.stillSince = now;
+      return;
+    }
+    if (now - this.stillSince < 1_500 || now < this.nextGesture) return;
+    this.gestures++;
+    const action = (this.gestures + Math.floor(this.seed * 3)) % 3 === 0 ? this.shake : this.nod;
+    this.play(action, 1.1, now, now + (action.getClip().duration / 1.1) * 1000 - 200);
+    this.nextGesture = now + 9_000 + ((this.seed * 1.31 + this.gestures * 0.618) % 1) * 9_000;
+  }
+
+  /** Hold a clip for good: someone beside the place, not in the crowd (ui/extras.ts). */
+  hold(name: string): boolean {
+    const clip = this.clips.get(name);
+    if (!clip) return false;
+    this.held = this.mixer.clipAction(clip);
+    this.held.play();
+    this.held.time = this.phase * clip.duration;
+    this.held.setEffectiveWeight(1);
+    return true;
   }
 
   private squash(kind: keyof typeof SQUASH, now: number): void {
