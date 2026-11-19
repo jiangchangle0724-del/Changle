@@ -1,19 +1,32 @@
 /**
  * The recovery code (VAULT-2, VAULT-7): 160 random bits, shown once when the vault is made, that
  * can open the vault when the passphrase and every passkey are lost. It is written in Crockford's
- * base32, in eight groups of four, because that alphabet survives being copied by hand: no I, L, O
- * or U, and when read back O counts as 0, I and L as 1, and capitals don't matter.
+ * base32 because that alphabet survives being copied by hand: no I, L, O or U, and when read back
+ * O counts as 0, I and L as 1, and capitals don't matter.
+ *
+ * Thirty-two symbols carry the bits. Two more are a check on them, so that a slip of the pen is
+ * told apart from a code that simply isn't this vault's: the check catches any one wrong symbol
+ * and any two neighbours swapped. It is there for people, not for secrecy.
  */
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /** How many random bytes a recovery code holds: 20, which is 160 bits (the floor in VAULT-7 is 128). */
 export const RECOVERY_BYTES = 20;
+const DATA_SYMBOLS = (RECOVERY_BYTES * 8) / 5;
+/** The check is the 32 symbols, read as one base-32 number, modulo this prime: any single wrong symbol or swap of neighbours changes it. */
+const CHECK_PRIME = 1021;
 
-/** The code for these bytes: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX". */
+function checkOf(values: readonly number[]): string {
+  let rest = 0;
+  for (const v of values) rest = (rest * 32 + v) % CHECK_PRIME;
+  return ALPHABET[rest >> 5]! + ALPHABET[rest & 31]!;
+}
+
+/** The code for these bytes: eight groups of four and the two check symbols, "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX". */
 export function formatRecovery(bytes: Uint8Array): string {
   if (bytes.length !== RECOVERY_BYTES) throw new RangeError("recovery: wrong length");
-  let symbols = "";
+  const values: number[] = [];
   let bits = 0;
   let have = 0;
   for (const b of bytes) {
@@ -21,34 +34,57 @@ export function formatRecovery(bytes: Uint8Array): string {
     have += 8;
     while (have >= 5) {
       have -= 5;
-      symbols += ALPHABET[(bits >> have) & 31]!;
+      values.push((bits >> have) & 31);
     }
     bits &= (1 << have) - 1;
   }
-  return symbols.match(/.{4}/g)!.join("-");
+  const symbols = values.map((v) => ALPHABET[v]!).join("");
+  return `${symbols.match(/.{4}/g)!.join("-")}-${checkOf(values)}`;
 }
 
-/** The bytes of a code as someone typed it: spaces and dashes anywhere, any capitals, O for 0, I or L for 1. Null when it isn't a whole code. */
-export function parseRecovery(text: string): Uint8Array | null {
-  if (typeof text !== "string" || text.length > 200) return null;
-  const symbols = text.toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
-  if (symbols.length !== (RECOVERY_BYTES * 8) / 5) return null;
-  const out = new Uint8Array(RECOVERY_BYTES);
+export type RecoveryRead = { ok: true; bytes: Uint8Array } | { ok: false; why: "malformed" | "typo" };
+
+/**
+ * Reads a code as someone typed it: spaces and dashes anywhere, any capitals, full-width
+ * characters from a Chinese keyboard, O for 0, I or L for 1. "malformed": not a whole code (too
+ * short or long, or a character no code has). "typo": the right shape, but the check doesn't
+ * agree, so something was miscopied.
+ */
+export function readRecovery(text: string): RecoveryRead {
+  if (typeof text !== "string" || text.length > 200) return { ok: false, why: "malformed" };
+  const typed = text.normalize("NFKC").replace(/[\s-]/g, "");
+  // (only plain letters and digits from here on: capitals of other alphabets can turn into ours)
+  if (!/^[0-9A-Za-z]+$/.test(typed)) return { ok: false, why: "malformed" };
+  const symbols = typed.toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1");
+  if (symbols.length !== DATA_SYMBOLS + 2) return { ok: false, why: "malformed" };
+  const values: number[] = [];
+  for (const s of symbols) {
+    const value = ALPHABET.indexOf(s);
+    if (value < 0) return { ok: false, why: "malformed" };
+    values.push(value);
+  }
+  const data = values.slice(0, DATA_SYMBOLS);
+  if (checkOf(data) !== symbols.slice(DATA_SYMBOLS)) return { ok: false, why: "typo" };
+  const bytes = new Uint8Array(RECOVERY_BYTES);
   let bits = 0;
   let have = 0;
   let at = 0;
-  for (const s of symbols) {
-    const value = ALPHABET.indexOf(s);
-    if (value < 0) return null;
+  for (const value of data) {
     bits = (bits << 5) | value;
     have += 5;
     if (have >= 8) {
       have -= 8;
-      out[at++] = (bits >> have) & 255;
+      bytes[at++] = (bits >> have) & 255;
       bits &= (1 << have) - 1;
     }
   }
-  return out;
+  return { ok: true, bytes };
+}
+
+/** The bytes of a typed code, or null when it isn't one (malformed or miscopied). */
+export function parseRecovery(text: string): Uint8Array | null {
+  const read = readRecovery(text);
+  return read.ok ? read.bytes : null;
 }
 
 /** A new recovery code, from the platform's random generator. */
