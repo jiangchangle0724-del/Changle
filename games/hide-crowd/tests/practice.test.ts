@@ -9,7 +9,8 @@ import test from "node:test";
 import { DRILL_GO_MS, DRILL_MS, MATCH_MS, SIMULATION_STEP_MS } from "../src/engine";
 import type { ClientMsg, RoomView, ServerMsg } from "../src/room/protocol";
 
-let now = 1_700_000_000_000;
+const START = 1_700_000_000_000;
+let now = START;
 let tick: (() => void) | null = null;
 (globalThis as { window?: unknown }).window = {
   setInterval: (fn: () => void) => {
@@ -38,7 +39,8 @@ function rounds(count: number, play: Player) {
   const out: { seconds: number; spotted: number }[] = [];
   for (let round = 0; round < count; round++) {
     Math.random = dice(round * 7_919 + 13);
-    now += 600_000;
+    // (each round at its own fixed hour, whatever ran before: the numbers are the same every run)
+    now = START + (round + 1) * 600_000;
     let view: RoomView | null = null;
     const connection = openPractice("en", "Me", (message: ServerMsg) => {
       if (message.t === "view") view = message.view;
@@ -69,6 +71,9 @@ const wander = (step: number): ClientMsg => {
 };
 
 test("practice waits on the picker until a place is picked, plays there, and goes back to the picker after", () => {
+  // (fixed dice here too: how long this round runs moves the clock the tests after it start from, and
+  // with the machine's own dice their numbers changed from one run to the next)
+  Math.random = dice(1);
   let view: RoomView | null = null;
   const connection = openPractice("en", "Me", (message: ServerMsg) => {
     if (message.t === "view") view = message.view;
