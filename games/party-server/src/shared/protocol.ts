@@ -79,10 +79,11 @@ export type Lang = "zh" | "en";
 export type ServerMsg =
   | { t: "welcome"; role: "speaker" | "player"; you: string | null }
   /**
-   * calibrated: this room has measured its TV's delay. lang: the host's phone's language, which the
-   * TV speaks (it has no buttons of its own); absent until the host's phone has said.
+   * calibrated: this room has measured its TV's delay (校准). learned: it has learned it from how
+   * everyone danced instead. lang: the host's phone's language, which the TV speaks (it has no
+   * buttons of its own); absent until the host's phone has said.
    */
-  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null; calibrated?: boolean; lang?: Lang }
+  | { t: "state"; state: RoomState; routine: RoutineInfo | null; results: Results | null; calibrated?: boolean; learned?: boolean; lang?: Lang }
   /** serverAt: the room's clock when the ping came in; speakerAt: the speaker's then (null: no speaker yet). */
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }

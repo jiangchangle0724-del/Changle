@@ -172,8 +172,19 @@ const rooms = async (ctx: BrowserContext) => {
     (ws) => ws.onMessage((m) => m === "ping" && ws.send("pong")),
   );
 };
-const phone = async (width: number, height: number, lang: Lang, motion: "reduce" | "no-preference" = "reduce") => {
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: lang === "zh" ? "zh-CN" : "en-CA", reducedMotion: motion, serviceWorkers: "block" });
+const phone = async (width: number, height: number, lang: Lang, motion: "reduce" | "no-preference" = "reduce", video?: string) => {
+  // (`video`: a folder the phone's screen is recorded into, as a film, until it is closed)
+  const ctx = await browser.newContext({
+    viewport: { width, height },
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+    locale: lang === "zh" ? "zh-CN" : "en-CA",
+    reducedMotion: motion,
+    serviceWorkers: "block",
+    // (filmed at the screen's own size: a film is made of the page as CSS draws it, not of the phone's pixels)
+    ...(video ? { recordVideo: { dir: video, size: { width, height } } } : {}),
+  });
   await rooms(ctx);
   if (!local) {
     await ctx.route(API, (route) => route.abort("internetdisconnected"));
@@ -2959,8 +2970,23 @@ async function reading() {
   await chooser.setFiles({ name: "receipt.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:42.50 CAD Tim Hortons") });
   ok(true, "and pressing it opens the photo picker, as the camera button does");
   await line.filter({ hasText: t("readingReceipt") }).waitFor({ timeout: 15_000 });
+  await pa.locator(".split-photo-button.is-scanning .split-thumb").waitFor({ timeout: 15_000 });
   await pa.screenshot({ path: join(out, "read-busy-zh-390x664.png") });
   ok(true, "while it is read, the line under the amount says Google is reading it");
+  // (this phone asks for less motion: the scan's corners only, round the amount as it is)
+  const quiet = await pa.evaluate(() => {
+    const scan = document.querySelector(".split-add-amount.is-scanning > .split-scan");
+    const roll = document.querySelector(".split-scan-digit > :last-child");
+    if (!scan || !roll) return null;
+    return {
+      corners: getComputedStyle(scan, "::before").backgroundImage.split("linear-gradient").length - 1,
+      sweep: getComputedStyle(scan, "::after").display,
+      thumb: getComputedStyle(document.querySelector(".split-photo-button")!, "::after").display,
+      roll: getComputedStyle(roll).animationName,
+      shown: getComputedStyle(document.querySelector(".split-add-amount > output")!).opacity,
+    };
+  });
+  ok(!!quiet && quiet.corners === 8 && quiet.sweep === "none" && quiet.thumb === "none" && quiet.roll === "none" && quiet.shown === "1", `with less motion asked for, the scan is its corners round the amount as it is: nothing sweeps or rolls (${JSON.stringify(quiet)})`);
   hold = false;
   await line.filter({ hasText: t("readFromReceipt") }).waitFor({ timeout: 15_000 });
   await pa.screenshot({ path: join(out, "read-done-zh-390x664.png") });
@@ -3151,6 +3177,124 @@ async function reading() {
   ok(asked.length === before + 1, `and asked once on this page, not again (${asked.length - before})`);
   ok(hinted[0] && !hinted[1], "and once it isn't to be had, a new expense no longer says a receipt fills it in");
   await a.close();
+
+  // The scan, on a phone with its motion (Steve, 2026-11-18: 看起来有科技感). From the moment a photo
+  // that is going to be read goes, until the reading is back, the amount's place is a scanner's
+  // window: four corners of the light, a band of it sweeping down, an amount's digits rolling; the
+  // photo has the band too. The read amount lands lit and settles. (`--video <folder>` films it.)
+  const b = await phone(390, 664, "zh", "no-preference", flag("--video"));
+  const pb = await open(b, true);
+  await start(pb, "扫描", ["阿乙"]);
+  await pb.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].made`);
+  let held = true;
+  // (held until let go, then answered as Google would for this photo: TOTAL 78.60, Tax 9.10)
+  await b.route("**/split/api/ledgers/*/files/*/read", async (route) => {
+    while (held) await new Promise((r) => setTimeout(r, 100));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ read: { total: "78.60", currency: "CAD", merchant: "Cafe Miku", tip: null, tax: "9.10", date: null } }) });
+  });
+  // (and the photo itself: going as it would, held on its way, or not getting there)
+  let going: "go" | "hold" | "fail" = "go";
+  await b.route("**/split/api/ledgers/*/files/*", async (route) => {
+    if (route.request().method() !== "PUT") return route.fallback();
+    while (going === "hold") await new Promise((r) => setTimeout(r, 100));
+    if (going === "fail") return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "trouble" }) });
+    await route.fallback();
+  });
+  const scan = pb.locator(".split-add-amount.is-scanning > .split-scan");
+  const shot = pb.locator(".split-add-amount > output");
+  const receiptLine = pb.locator(".split-add-read");
+  await button(pb, "addExpense").click();
+  await pb.locator(".split-keys").waitFor();
+  const resting = (await pb.locator(".split-add-amount").boundingBox())?.height ?? 0;
+  if (flag("--video")) await pb.waitForTimeout(1200);
+  going = "hold";
+  await pb.locator(".split-note-row input[type=file]").setInputFiles({ name: "IMG_3107.jpg", mimeType: "image/jpeg", buffer: await receipt(pb, "MIKU", 900, 1200) });
+  await pb.locator(".split-photo-button.is-sending").waitFor({ timeout: 15_000 });
+  ok((await scan.isVisible()) && (await receiptLine.textContent()) === t("readingReceipt"), "the scan starts as the photo goes, before it has got there");
+  if (flag("--video")) await pb.waitForTimeout(900);
+  going = "go";
+  await pb.locator(".split-photo-button.is-scanning:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
+  await pb.waitForTimeout(700);
+  await pb.screenshot({ path: join(out, "read-scan-zh-390x664.png") });
+  const look = await pb.evaluate(() => {
+    const s = document.querySelector(".split-scan")!;
+    const rolls = [...document.querySelectorAll(".split-scan-digit > :last-child")].map((d) => getComputedStyle(d));
+    return {
+      corners: getComputedStyle(s, "::before").backgroundImage.split("linear-gradient").length - 1,
+      sweep: getComputedStyle(s, "::after").animationName,
+      thumb: getComputedStyle(document.querySelector(".split-photo-button")!, "::after").animationName,
+      rolls: rolls.map((r) => r.animationName),
+      paces: new Set(rolls.map((r) => `${r.animationDuration} ${r.animationDirection}`)).size,
+      shown: getComputedStyle(document.querySelector(".split-add-amount > output")!).opacity,
+      unheard: s.getAttribute("aria-hidden"),
+    };
+  });
+  ok(look.corners === 8 && look.sweep === "split-scan-sweep", `while it goes and is read, four corners of the light frame where the amount will be, and a band of it sweeps down (${JSON.stringify(look)})`);
+  ok(look.rolls.length === 4 && look.rolls.every((r) => r === "split-scan-roll") && look.paces >= 3, `an amount's digits roll there, no two side by side at one pace (${look.rolls.length} digits, ${look.paces} paces)`);
+  ok(look.thumb === "split-scan-sweep", "and the band sweeps over the photo being read");
+  ok(look.shown === "0" && look.unheard === "true" && (await pb.locator(".split-add-read").textContent()) === t("readingReceipt"), "the window takes the amount's place, unheard by a screen reader, which is told by the line under it");
+  const scanBox = await scan.boundingBox();
+  const shotBox = await shot.boundingBox();
+  const scanning = (await pb.locator(".split-add-amount").boundingBox())?.height ?? 0;
+  ok(!!scanBox && !!shotBox && Math.abs(scanBox.height - shotBox.height) < 1 && Math.abs(scanning - resting) < 1, `the window is the amount's height, and nothing on the screen moves for it (${Math.round(scanBox?.height ?? 0)} / ${Math.round(shotBox?.height ?? 0)}px, ${Math.round(resting)} → ${Math.round(scanning)}px)`);
+  if (flag("--video")) await pb.waitForTimeout(2600);
+  held = false;
+  const lit = pb.locator(".split-add-amount > output.is-just-read");
+  await lit.waitFor({ timeout: 15_000 });
+  await pb.waitForTimeout(120);
+  await pb.screenshot({ path: join(out, "read-lit-zh-390x664.png") });
+  // (its tax said under it, where 正在读小票… was)
+  ok((await scan.count()) === 0 && (await shot.textContent()) === "$78.60" && (await pb.locator(".split-add-read").count()) === 0 && (await pb.locator(".split-add-extras").count()) === 1, `read: the window goes, and the amount lands lit (${await shot.textContent()})`);
+  await lit.waitFor({ state: "detached", timeout: 5_000 });
+  ok(true, "and settles into the page's own white");
+  if (flag("--video")) await pb.waitForTimeout(1500);
+  await button(pb, "close").first().click();
+  await pb.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // a key pressed while it is read: the scan stops there (what is typed stands); taken back to
+  // nothing while it is still being read, the scan is there again, and the reading goes in
+  held = true;
+  await button(pb, "addExpense").click();
+  await pb.locator(".split-keys").waitFor();
+  await pb.locator(".split-note-row input[type=file]").setInputFiles({ name: "IMG_3108.jpg", mimeType: "image/jpeg", buffer: await receipt(pb, "MIKU", 900, 1200) });
+  // (there, and being read: a key pressed while it is still going means the amount is typed, and it isn't read at all)
+  await pb.locator(".split-photo-button.is-scanning:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
+  await type(pb, "5");
+  ok((await scan.count()) === 0 && (await pb.locator(".split-add-read").count()) === 0 && (await shot.textContent()) === "$5", "a key pressed while it is read: the scan stops there, and what is typed stands");
+  await pb.locator(".split-key").last().click();
+  await scan.waitFor({ timeout: 5_000 });
+  ok(true, "taken back to nothing while it is still being read: the scan is there again");
+  held = false;
+  await lit.waitFor({ timeout: 15_000 });
+  ok((await shot.textContent()) === "$78.60", "and what was read goes in");
+  await button(pb, "close").first().click();
+  await pb.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // a key pressed while the photo is still going: the amount is typed, so the photo isn't read, and
+  // taking the amount back to nothing later doesn't bring a scan back that nothing will end
+  going = "hold";
+  await button(pb, "addExpense").click();
+  await pb.locator(".split-keys").waitFor();
+  await pb.locator(".split-note-row input[type=file]").setInputFiles({ name: "IMG_3110.jpg", mimeType: "image/jpeg", buffer: await receipt(pb, "MIKU", 900, 1200) });
+  await pb.locator(".split-photo-button.is-sending").waitFor({ timeout: 15_000 });
+  await type(pb, "4");
+  going = "go";
+  await pb.locator(".split-photo-button:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
+  await pb.locator(".split-key").last().click();
+  await pb.waitForTimeout(400);
+  ok((await scan.count()) === 0 && (await receiptLine.count()) === 0 && (await shot.textContent()) === "$0", "a key pressed while the photo was still going: it isn't read, and no scan is left waiting once the amount is taken back");
+  await button(pb, "close").first().click();
+  await pb.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // a photo that doesn't get there: the scan stops, and nothing goes on saying it is being read
+  going = "fail";
+  await button(pb, "addExpense").click();
+  await pb.locator(".split-keys").waitFor();
+  await pb.locator(".split-note-row input[type=file]").setInputFiles({ name: "IMG_3109.jpg", mimeType: "image/jpeg", buffer: await receipt(pb, "MIKU", 900, 1200) });
+  await pb.locator(".split-photo-button.is-sending").waitFor({ state: "detached", timeout: 15_000 });
+  await pb.waitForTimeout(300);
+  ok((await scan.count()) === 0 && (await receiptLine.count()) === 0 && (await shot.textContent()) === "$0", "a photo that doesn't get there: the scan stops, and nothing says it is being read");
+  await b.close();
 }
 
 // (ONLY=zh-320x568,en-390x664 walks just those two: quicker when one screen is being worked on)

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { COMBO_FULL } from "../src/shared/protocol";
-import { UNSEEN, addBeats, clearFrom, emptyScores, floorOf, resultsOf } from "../src/server/tally";
+import { LEARN_MOVES, UNSEEN, addBeats, clearFrom, emptyScores, floorOf, learnedShift, resultsOf } from "../src/server/tally";
 
 describe("the beats the phones send", () => {
   it("kept by beat; a move too far from its beat counts as no move; nothing outside the dance", () => {
@@ -129,5 +129,33 @@ describe("the results", () => {
     const r = resultsOf(s, ["ann", "bob", "cat"], "pop-easy", "easy", 8);
     // 4 beats needed (a quarter of 8, at least 4): Cat's single beat doesn't make her the steadiest
     assert.equal(r.awards.steady, "ann");
+  });
+});
+
+describe("the TV's delay, from how everyone danced", () => {
+  /** n moves sitting `late` ms after the beat, give or take `jitter` */
+  const moves = (n: number, late: number, jitter: number) => Array.from({ length: n }, (_, i) => late + ((i * 37) % (2 * jitter + 1)) - jitter);
+
+  it("moves late by the same amount beat after beat: the room hears the beat that much later", () => {
+    const s = emptyScores();
+    addBeats(s, "ann", "Ann", 0, moves(24, 180, 30), 192, "easy");
+    addBeats(s, "bob", "Bob", 40, [...moves(20, 190, 40), null, null], 192, "easy");
+    const shift = learnedShift(s)!;
+    assert.ok(Math.abs(shift - 184) <= 8, `${shift}`);
+  });
+
+  it("too few moves, or too scattered to say: nothing", () => {
+    const few = emptyScores();
+    addBeats(few, "ann", "Ann", 0, moves(LEARN_MOVES - 1, 180, 10), 192, "easy");
+    assert.equal(learnedShift(few), null);
+    const shaking = emptyScores();
+    // (moves all over the beat: as many early as late, far apart)
+    addBeats(shaking, "ann", "Ann", 0, moves(64, 0, 280), 192, "easy");
+    assert.equal(learnedShift(shaking), null);
+    // (beats not sent and beats with no move near them don't count)
+    const idle = emptyScores();
+    addBeats(idle, "ann", "Ann", 0, [...moves(20, 150, 10), ...new Array<null>(40).fill(null)], 192, "easy");
+    assert.equal(learnedShift(idle), null);
+    assert.equal(idle.offs.ann!.filter((o) => o === UNSEEN).length, 132);
   });
 });

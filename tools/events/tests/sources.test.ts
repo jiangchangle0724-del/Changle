@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import ubcFeed from "./fixtures/ical/ubc-2026-10-31.ics?raw";
-import { SOURCE_BY_ID } from "../src/sources";
+import sfuFirst from "./fixtures/livewhale/sfu-2026-11-19-p1.json?raw";
+import sfuLast from "./fixtures/livewhale/sfu-2026-11-19-p4.json?raw";
+import { sfuOpen, SOURCE_BY_ID } from "../src/sources";
+import type { NormalizedEvent } from "../src/types";
 import { fromVan } from "../src/time";
 
 describe("UBC: what anyone can walk into", () => {
@@ -30,5 +33,73 @@ describe("UBC: what anyone can walk into", () => {
     const late = { ...w, toMs: fromVan("2026-11-03") };
     expect((await ubc.parse(ubcFeed, 0, late)).more).toBe(false);
     expect((await ubc.parse("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n", 1, w)).more).toBe(false);
+  });
+});
+
+describe("SFU: what anyone can walk into", () => {
+  const sfu = SOURCE_BY_ID.sfu;
+  const w = { runId: "2026-11-19", fromMs: fromVan("2026-11-19"), toMs: fromVan("2026-12-03") };
+  const titles = (events: NormalizedEvent[]) => [...new Set(events.map((e) => e.title))].sort();
+
+  it("asks for the window's days, 50 a page", () => {
+    const base = "https://events.sfu.ca/live/json/v2/events/start_date/2026-11-19/end_date/2026-12-02/paginate/50/response_fields/event_types,location,summary,group_title";
+    expect(sfu.request(0, {} as Env, w)).toBe(`${base}?page=1`);
+    expect(sfu.request(3, {} as Env, w)).toBe(`${base}?page=4`);
+  });
+
+  it("keeps SFU's public events at a real place, and none of its defences, info sessions or student services", async () => {
+    const first = await sfu.parse(sfuFirst, 0, w);
+    expect(first.more).toBe(true);
+    // of the page's 50: a food drive, two exhibitions, talks, a film and an art student's thesis show
+    expect(titles(first.events)).toEqual([
+      "611 Talk: Evan Lee",
+      "AI: Energy, Environment & Community",
+      "Caminando con Pehuén (Walking with Pehuén)",
+      "DEFRAG: Archive of Synthetic Dreams",
+      "Holiday Food Drive",
+      "Six Turntables",
+      "The sun melts turns of phrases",
+      "Wetin You Dey Do For Here",
+    ]);
+    expect(first.events).toHaveLength(8);
+    const last = await sfu.parse(sfuLast, 3, w);
+    expect(last.more).toBe(false);
+    expect(titles(last.events)).toEqual([
+      "2026 Jack P. Blaney Award with Dr. Amal Elsana Alh’jooj",
+      "GSWS Feminist Book Club - Kindred by Octavia Butler",
+      "Holiday Food Drive",
+      "Portuguese Diplomacy: Global Commitments, Local Partnerships",
+      "Surrey Campus Dog Therapy",
+      "Wetin You Dey Do For Here",
+    ]);
+    // left out: World AIDS Day (no place), the defences, the Zoom info sessions, staff-only workshops
+    expect(last.events.some((e) => /thesis|info session|world aids/i.test(e.title))).toBe(false);
+  });
+
+  it("a place that names no city gets its campus's", async () => {
+    const { events } = await sfu.parse(sfuFirst, 0, w);
+    const at = (title: string) => events.find((e) => e.title === title)!.place!;
+    expect(at("Holiday Food Drive")).toMatchObject({ name: "SFU Burnaby Campus", city: "Burnaby" });
+    expect(at("611 Talk: Evan Lee").city).toBe("Vancouver");
+    // off campus and at the Vancouver campus: Western Front, on East 8th
+    expect(at("Six Turntables").city).toBe("Vancouver");
+    const { events: later } = await sfu.parse(sfuLast, 3, w);
+    expect(later.find((e) => e.title === "Surrey Campus Dog Therapy")!.place).toMatchObject({ city: "Surrey" });
+  });
+
+  it("leaves out what's away from Greater Vancouver, online or nowhere", () => {
+    const one = (place: NormalizedEvent["place"], labels: string[], online = false): NormalizedEvent => ({
+      source: "sfu", sourceEventId: "1@2026-11-19", url: "https://events.sfu.ca/event/1", title: "x", start: "2026-11-19", status: "scheduled", place, online, sourceCategories: labels,
+    });
+    const hotel = { name: "Delta Hotels Calgary Downtown 209 4 Ave SE", address: null, city: null };
+    expect(sfuOpen([one(hotel, ["Conferences", "Public", "Off Campus"])])).toEqual([]);
+    expect(sfuOpen([one({ name: "Room 1700", city: null }, ["Lectures", "Public", "SFU Vancouver Campus"], true)])).toEqual([]);
+    expect(sfuOpen([one(null, ["Arts & Culture", "Public", "SFU Burnaby Campus"])])).toEqual([]);
+    expect(sfuOpen([one({ name: "Room 1700", city: null }, ["Lectures", "All Students", "SFU Vancouver Campus"])])).toEqual([]);
+    expect(sfuOpen([one({ name: "Room 1700", city: null }, ["Lectures", "Public", "SFU Vancouver Campus"])])[0].place?.city).toBe("Vancouver");
+  });
+
+  it("a page that isn't one is a failed step, not an empty day", () => {
+    expect(() => sfu.parse('{"error":"Too many requests"}', 0, w)).toThrow("not a LiveWhale events page");
   });
 });

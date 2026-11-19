@@ -21,8 +21,8 @@ type S = {
   grab: { next: number; claimed: Record<string, number>; endsAt: number; last: { n: number; pid: string; at: number } | null } | null;
   sevens: { n: number; speaker: string; endsAt: number; streak: number; log: { pid: string; n: number; pass: boolean }[] } | null;
   interrupt: Interrupt | null;
-  /** when the camera and the nose may go again (a minute after each use; tables from before this field have none) */
-  cool?: { camera?: number; nose?: number };
+  /** the camera and the nose go once per card: which ones their current holder has used (tables from before this field have none) */
+  used?: { camera?: boolean; nose?: boolean };
 };
 
 const HOLD_KEY: Partial<Record<Rank, keyof RogueHolders>> = { "2": "buddy", "5": "camera", "6": "nose", "8": "wc", "10": "trouble" };
@@ -108,7 +108,7 @@ export const rogue: GameDef<S> = {
       grab: null,
       sevens: null,
       interrupt: null,
-      cool: {},
+      used: {},
     };
   },
 
@@ -124,7 +124,7 @@ export const rogue: GameDef<S> = {
           s.deck = api.shuffle(range(DECK.length));
           s.holders = {};
           s.wcUsed = false;
-          s.cool = {};
+          s.used = {};
           s.reshuffled = true;
           api.fx("shuffle");
         }
@@ -158,8 +158,8 @@ export const rogue: GameDef<S> = {
             const key = HOLD_KEY[rank];
             if (key) s.holders[key] = drawer;
             if (rank === "8") s.wcUsed = false;
-            // a new holder starts fresh
-            if (key === "camera" || key === "nose") delete (s.cool ??= {})[key];
+            // a new card is a new shot, whoever holds it
+            if (key === "camera" || key === "nose") delete (s.used ??= {})[key];
             s.phase = "done";
             return;
           }
@@ -293,8 +293,8 @@ export const rogue: GameDef<S> = {
 
       /* standing powers */
       case "camera": {
-        if (pid !== s.holders.camera || s.interrupt || inRound(s) || (s.cool?.camera ?? 0) > api.now) return;
-        (s.cool ??= {}).camera = api.now + ROGUE_MS.cool;
+        if (pid !== s.holders.camera || s.interrupt || inRound(s) || s.used?.camera) return;
+        (s.used ??= {}).camera = true;
         s.interrupt = { kind: "camera", by: pid, phase: "freeze", endsAt: api.now + ROGUE_MS.freeze };
         api.fx("camera", pid);
         api.timer("camera", s.interrupt.endsAt);
@@ -310,8 +310,8 @@ export const rogue: GameDef<S> = {
         return;
       }
       case "nose": {
-        if (pid !== s.holders.nose || s.interrupt || inRound(s) || (s.cool?.nose ?? 0) > api.now) return;
-        (s.cool ??= {}).nose = api.now + ROGUE_MS.cool;
+        if (pid !== s.holders.nose || s.interrupt || inRound(s) || s.used?.nose) return;
+        (s.used ??= {}).nose = true;
         s.interrupt = { kind: "nose", by: pid, endsAt: api.now + ROGUE_MS.nose, taps: {} };
         api.fx("nose", pid);
         api.timer("nose", s.interrupt.endsAt);
@@ -398,7 +398,7 @@ export const rogue: GameDef<S> = {
       phase: s.phase,
       holders: s.holders,
       wcUsed: s.wcUsed,
-      cool: s.cool ?? {},
+      used: s.used ?? {},
       reshuffled: s.reshuffled,
       garden: s.garden,
       grab: s.grab ? { next: s.grab.next, claimed: s.grab.claimed, endsAt: s.grab.endsAt } : null,

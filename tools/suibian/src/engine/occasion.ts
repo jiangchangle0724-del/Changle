@@ -91,12 +91,12 @@ const GROUP_FOOD: CuisineId[] = ["hotpot", "kbbq", "chinese_bbq"];
 /** Words in Google's descriptions of a place (its editorial and AI summaries), English and Chinese. */
 const WORDS = {
   upscale: /\b(upscale|elegant|refined|fine[- ]dining|sophisticated|luxur\w*|chic|stylish|tasting menus?|omakase|white[- ]tablecloth|high[- ]end|polished|swanky|posh|plush|dressy|swank)\b|高档|精致|奢华|高级/i,
-  casual: /\b(casual|no[- ]frills|unfussy|down[- ]to[- ]earth|counter[- ]serve|counter[- ]service|quick|fast[- ]food|grab[- ]and[- ]go|food court|hole[- ]in[- ]the[- ]wall|cafeteria|kiosk|stall|walk[- ]up|simple|basic|no[- ]nonsense|bare[- ]bones)\b|快餐|小吃|档口|简餐/i,
+  casual: /\b(casual|no[- ]frills|unfussy|down[- ]to[- ]earth|counter[- ]serve|counter[- ]service|quick|fast[- ]food|grab[- ]and[- ]go|food court|hole[- ]in[- ]the[- ]wall|cafeteria|kiosk|stall|walk[- ]up|simple|basic|no[- ]nonsense|bare[- ]bones)\b|快餐|小吃|档口|简餐|休闲/i,
   romantic: /\b(romantic|intimate|candle\w*|date[- ]night|moody|dim(ly)?[- ]lit|cozy|cosy|views?|waterfront|sunset)\b|浪漫|约会/i,
   private: /\b(private (dining )?rooms?|banquets?|banquet halls?|event space)\b|包间|包厢|宴会/i,
   family: /\b(famil(y|ies)|kids?|children|child[- ]friendly|kid[- ]friendly)\b|亲子|小孩|儿童/i,
   groups: /\b(groups?|large parties|share plates|sharing plates|family[- ]style|lively|communal|parties|round tables?)\b|聚会|聚餐/i,
-  late: /\b(late[- ]night|open late|24[- /]?7|24 hours|after[- ]hours|night owls?)\b|宵夜|通宵/i,
+  late: /\b(late[- ]night|open late|24[- /]?7|24 hours|after[- ]hours|night owls?)\b|宵夜|通宵|深夜|开到很晚/i,
 };
 
 const says = (p: Place, re: RegExp) => re.test(`${p.about ?? ""} ${p.summary?.text ?? ""}`);

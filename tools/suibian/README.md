@@ -23,9 +23,10 @@ How a table goes:
    joins after the start fills in their card first.
 3. **Round 1, what do you feel like**, before anything is searched: 👍 or 🚫 on the whole menu,
    31 cuisines in three groups (`MENU` in `src/engine/cuisines.ts`: 中餐 from 粤菜 and 川菜 to 东北菜
-   and 中式烧烤, 亚洲菜 from 拉面 to 菲律宾菜, 西餐和其他 from 墨西哥菜 to 早午餐). The search then
-   spends its searches on the cuisines more people liked than refused (see "Where the places come
-   from"). A 🚫 moves that cuisine down.
+   and 中式烧烤, 亚洲菜 from 拉面 to 菲律宾菜, 西餐和其他 from 墨西哥菜 to 早午餐), and last 自助 · 放题
+   (all you can eat, Steve 2026-11-18: a way of eating rather than a cuisine, so a place counts for it
+   as well as for its cuisine). The search then spends its searches on the cuisines more people
+   liked than refused (see "Where the places come from"). A 🚫 moves that cuisine down.
 4. **Round 2, the list**: every place open in range and within everyone's budget, ranked
    (`rank()` in `src/engine/pick.ts`). Every place of a cuisine round 1 liked comes first (the most
    liked cuisine's best first), however well rated the rest (the owner's call, 2026-11-11: a 4.7★
@@ -48,9 +49,10 @@ How a table goes:
 
 **On your own?** Start a table and choose "一个人" (just me): round 1 and the list work the same
 for one phone, with cheap quick places and noodles a little higher and hot pot and Korean BBQ a
-little lower. Picking alone used to be a page of its own (`/eat/solo`); since 2026-11 that
-address goes to the home page. Picks made there can still be rated for a few days
-(`changle.ca/eat/rate`, `POST /api/places/:id/rate`); those can go once nobody has one left.
+little lower. Picking alone used to be a page of its own (`/eat/solo`, its picks rated at
+`/eat/rate`); it went on 2026-11-11, and both addresses go to the home page. What it left on an
+account (its last search, a pick to ask about) goes the next time its person opens the tool
+(`UserDO.me()` in `src/server/worker.ts`).
 
 **When** is asked with what it's for, on the home page (the host can change both in the lobby):
 now, today's or tomorrow's lunch (12:00) or dinner (18:30) while they're still
@@ -72,8 +74,8 @@ search, so asking one circle for its most popular and its nearest gave the same 
 time, and in a big area like Burnaby most restaurants never came up. Round 1 now comes before the
 search, so a table's (at most) four searches go where people want to eat: the whole circle's most
 popular; then each cuisine more people liked than refused, most liked first, over the whole circle
-(by Google's place types, a Nearby Search; for the five Google has no type for, Sichuan,
-Shanghainese, Northern Chinese, Chinese BBQ skewers and HK cafés, a Text Search by words, at most
+(by Google's place types, a Nearby Search; for the six Google has no type for, Sichuan,
+Shanghainese, Northern Chinese, Chinese BBQ skewers, HK cafés and all you can eat, a Text Search by words, at most
 two a table; liked cuisines past the fourth search are added to the last search by type); and with
 what's left: walking, the nearest; inside a drive, smaller circles turned a different way each
 time; for any distance, other neighbourhoods picked at random. A search that fails doesn't lose the
@@ -93,7 +95,10 @@ for each of them. Google's main type decides unless the name says something more
 is Cantonese though Google calls it a seafood restaurant; JOEY, Cactus Club and Earls are American;
 兰州拉面 is Northern Chinese, not ramen). Types that mean different food in different kitchens are read
 with the name, the other types and the description: "barbecue" is Korean, Japanese yakiniku, Chinese
-skewers or Cantonese roast meats (烧腊), or American; "seafood" at a Chinese place is Cantonese. When
+skewers or Cantonese roast meats (烧腊), or American; "seafood" at a Chinese place is Cantonese. All
+you can eat comes from Google's buffet type, or the name or a description (AYCE, all-you-can-eat, 自助,
+放题, 任食, 吃到饱), or the search for it (the Korean BBQ, hot pot, sushi, skewers and the like it
+finds; a café it lists to fill up doesn't count). When
 nothing says what it is (a "Chinese restaurant" called Golden Spot, a barbecue place with an English
 name), a Text Search for a cuisine that finds it decides, whichever search found it first.
 `KNOWN` in `tests/engine.test.ts` has real Greater Vancouver names for every cuisine on the menu.
@@ -181,14 +186,17 @@ street number ("150-8888 River Rd") still match.
 * **Addresses.** The Worker answers `changle.ca/eat` and `changle.ca/eat/*` (the routes in
   `wrangler.jsonc`); the rest of changle.ca is the site. Everything is under `/eat`: the home page
   (`/eat/`), a phone at a table (`/eat/r/1234`, which is also what the QR code and the invite link
-  say), rating the meal afterwards (`/eat/r/1234/rate`, or `/eat/rate` for a solo pick made
-  before picking alone went), the API (`/eat/api/…`), sign-in (`/eat/auth/…`) and the
+  say), rating the meal afterwards (`/eat/r/1234/rate`), the API (`/eat/api/…`), sign-in (`/eat/auth/…`) and the
   files (`/eat/app.js`, `/eat/app.css`, built into `dist/client/eat`).
   `BASE` in `src/base.ts` is the one place that says `/eat`; the server strips it off incoming
   paths and the pages put it in front of theirs. The session cookie's `Path` is `/eat` too, so
   the rest of the site never sees it.
 * **The site's side** (the card in the site's Tools tab that opens `/eat`) is in the site's code,
   next to 到此一游's card.
+* **Language**, the same as the rest of the site (Steve, 2026-11-14): what the phone chose with the
+  中文 / English button; otherwise Chinese inside WeChat (its user agent says `MicroMessenger`) and
+  the phone's language anywhere else (`prefs.lang` in `src/client/prefs.ts`). A table searches and
+  writes its cards in the host's language.
 
 ## What's where
 

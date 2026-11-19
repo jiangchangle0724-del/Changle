@@ -82,10 +82,11 @@ export function PhotoPicker({ input, onPick }: { input: RefObject<HTMLInputEleme
 }
 
 /** The note line's button: a camera, or the first photo and how many; busy while one is sending. */
-export function PhotoButton({ ledger, files, sending, lang, onPress }: { ledger: string; files: string[]; sending: boolean; lang: Lang; onPress: () => void }) {
+export function PhotoButton({ ledger, files, sending, scanning = false, lang, onPress }: { ledger: string; files: string[]; sending: boolean; scanning?: boolean; lang: Lang; onPress: () => void }) {
   const label = sending ? say(lang, "photoSending") : files.length ? say(lang, "photosCount", { n: files.length }) : say(lang, "addPhoto");
   return (
-    <button type="button" className={`split-photo-button${sending ? " is-sending" : ""}`} onClick={onPress} aria-busy={sending || undefined}>
+    // (being read: the light sweeps over the photo too, as it does where the amount will be)
+    <button type="button" className={`split-photo-button${sending ? " is-sending" : ""}${scanning ? " is-scanning" : ""}`} onClick={onPress} aria-busy={sending || undefined}>
       {/* (named by words a screen reader reads, and by what shows: a PDF's mark is in its name too) */}
       <span className="ui-visually-hidden">{label} </span>
       {files.length ? <Thumb ledger={ledger} file={files[0]} lang={lang} /> : <Camera aria-hidden="true" />}

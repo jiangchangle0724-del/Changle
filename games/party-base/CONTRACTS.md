@@ -37,7 +37,8 @@ learning / dancing / calibrating ──BACK_TO_LOBBY──▶ lobby（主人随�
 
 规则：
 - 第一个进房的人是主人；主人走了，最早进来的人接任。
-- 只有主人能推进状态、踢人（`LEARNING_DONE`、`BEAT_MOVED`、`FINISH`、`CALIBRATED` 由房间和音箱端发）。主人不能踢自己。
+- 只有主人能推进状态、踢人（`LEARNING_DONE`、`BEAT_MOVED`、`FINISH`、`CALIBRATED`、`DELAY_LEARNED` 由房间和音箱端发）。主人不能踢自己。
+- 没用点按校准过的房间，每跳完一支舞（`results`），房间看大家的动作比拍子晚多少：人是跟着听到的声音动的，每一拍都晚同样多，就是电视比音箱端晚了这么多。动作够多、又够齐（一半以上离中间不到 80 ms），而且差了 40 ms 以上，房间就发 `DELAY_LEARNED` 改 `audioOffsetMs`，下一支舞按新的算。点按校准过（`CALIBRATED`）的房间不再自己改。
 - 暂停以后主人点继续：`RESUMED` 把 `routineStartAt` 往后挪暂停的那么久（多久都行，只能往后，只在 `dancing`）。已经跳过的拍子编号不变。暂停本身记在房间服务器那一层（`games/party-server` 的 `RoutineInfo.pausedAt`），状态机不管。
 - 没有音箱端不能开始任何东西。
 - `START_DANCING.routineStartAt` 必须在未来（给倒数留时间）。
@@ -53,7 +54,7 @@ learning / dancing / calibrating ──BACK_TO_LOBBY──▶ lobby（主人随�
 
 ## 测试 / Tests
 
-`npm test`。43 个用例覆盖：对时抗抖动、拍子网格、乐句边界、校准成功 / 太少 / 太散 / 零延迟、完美舞者、晚 120 ms 的舞者、沙发土豆、半拍舞者、校准前后打分差异、团体连击、状态机全流程和全部守卫（包括教学放完自己接着跳、跳到一半停下、歌的拍子挪位置）。
+`npm test`。45 个用例覆盖：对时抗抖动、拍子网格、乐句边界、校准成功 / 太少 / 太散 / 零延迟、完美舞者、晚 120 ms 的舞者、沙发土豆、半拍舞者、校准前后打分差异、团体连击、状态机全流程和全部守卫（包括教学放完自己接着跳、跳到一半停下、歌的拍子挪位置、跳完从动作学到的电视延迟）。
 
 ## 接线 / Wiring
 

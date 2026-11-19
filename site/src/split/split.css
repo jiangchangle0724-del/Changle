@@ -3,8 +3,9 @@
  * text, and one light, the tool's amber, on the one button each screen has, on what is chosen and
  * on the seal at the end. Rows are hairlines, not cards; the amount is the largest thing on a page.
  *
- * Motion is three things and no more: an expense landing in the list, the figure rolling to its new
- * value (parts.tsx), and the 两清 stamp when the last transfer is paid.
+ * Motion is four things and no more: an expense landing in the list, the figure rolling to its new
+ * value (parts.tsx), the 两清 stamp when the last transfer is paid, and (Steve's ask, 2026-11-18) a
+ * receipt's scan while it is read, ending in the amount it read lighting up as it lands.
  */
 
 .split,
@@ -756,6 +757,149 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Motion four: a receipt going and being read. Where the amount will be is a scanner's window: the
+   amount and the window share the place, four corners of the light frame it, a band of the light
+   sweeps down through it, and an amount's digits roll in the light's colour, each at its own pace,
+   until the reading comes back. Then the read amount lights up once, and settles. */
+.split-add-amount > .split-figure {
+  grid-area: 1 / 1;
+}
+.split-add-amount.is-scanning > output {
+  opacity: 0;
+}
+/* (the rolling digits dim, so they read as the reading going on and never as an amount; the one
+   read is the bright thing when it lands) */
+.split-scan {
+  position: relative;
+  justify-self: center;
+  color: color-mix(in oklab, var(--gel) 34%, transparent);
+  pointer-events: none;
+}
+.split-scan::before,
+.split-scan::after {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--space-1)) calc(-1 * var(--space-4));
+}
+/* the corners: two short strokes of the light each */
+.split-scan::before {
+  background:
+    linear-gradient(var(--gel) 0 0) left top / var(--space-4) 2px,
+    linear-gradient(var(--gel) 0 0) left top / 2px var(--space-4),
+    linear-gradient(var(--gel) 0 0) right top / var(--space-4) 2px,
+    linear-gradient(var(--gel) 0 0) right top / 2px var(--space-4),
+    linear-gradient(var(--gel) 0 0) left bottom / var(--space-4) 2px,
+    linear-gradient(var(--gel) 0 0) left bottom / 2px var(--space-4),
+    linear-gradient(var(--gel) 0 0) right bottom / var(--space-4) 2px,
+    linear-gradient(var(--gel) 0 0) right bottom / 2px var(--space-4);
+  background-repeat: no-repeat;
+  animation: split-scan-in var(--dur-enter) var(--ease-out) both;
+}
+/* the band: a line of the light with its glow, and a wash of it above, where it has just been. Its
+   picture is twice the window's height, so moving it from one end to the other carries the line
+   from the top edge to the bottom; it fades in and out at the ends, so starting again is not seen */
+.split-scan::after,
+.split-photo-button.is-scanning:not(.is-sending)::after {
+  background: linear-gradient(
+      to bottom,
+      transparent 28%,
+      color-mix(in oklab, var(--gel) 16%, transparent) 46%,
+      color-mix(in oklab, var(--gel) 45%, transparent) 49.2%,
+      var(--gel) 49.6% 50.4%,
+      color-mix(in oklab, var(--gel) 35%, transparent) 50.8%,
+      transparent 53%
+    )
+    0 100% / 100% 200% no-repeat;
+  animation: split-scan-sweep calc(var(--dur-emphasis) * 4) linear infinite;
+}
+@keyframes split-scan-sweep {
+  from {
+    background-position: 0 100%;
+    opacity: 0;
+  }
+  12%,
+  80% {
+    opacity: 1;
+  }
+  to {
+    background-position: 0 0;
+    opacity: 0;
+  }
+}
+@keyframes split-scan-in {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+/* a digit's room, the height and width of an 8 (which isn't seen), and the ten digits rolling up
+   through it a step at a time; no two rooms keep the same pace */
+.split-scan-digit {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+}
+.split-scan-digit > :first-child {
+  visibility: hidden;
+}
+.split-scan-digit > :last-child {
+  position: absolute;
+  inset: 0 0 auto;
+  white-space: pre-line;
+  animation: split-scan-roll calc(var(--dur-emphasis) * 3) steps(10) infinite;
+}
+.split-scan-digit:nth-child(2n) > :last-child {
+  animation-duration: calc(var(--dur-emphasis) * 4);
+}
+.split-scan-digit:nth-child(3n) > :last-child {
+  animation-duration: calc(var(--dur-emphasis) * 2.5);
+  animation-direction: reverse;
+}
+@keyframes split-scan-roll {
+  to {
+    transform: translateY(-100%);
+  }
+}
+/* the photo being read: the same band sweeps over it, inside its rounded corners */
+.split-photo-button.is-scanning:not(.is-sending)::after {
+  content: "";
+  position: absolute;
+  inset: var(--space-1);
+  border-radius: var(--r-small);
+  pointer-events: none;
+}
+/* the read amount lands: lit, then settling into the page's own white */
+.split-figure.is-just-read {
+  animation: split-read-in calc(var(--dur-emphasis) * 2) var(--ease-out) both;
+}
+@keyframes split-read-in {
+  from {
+    color: var(--gel);
+    text-shadow: 0 0 var(--space-4) color-mix(in oklab, var(--gel) 60%, transparent);
+  }
+}
+/* with less motion asked for, nothing sweeps or rolls: the corners come in and stand round the
+   amount as it is (the line under it says it is being read), and the read amount still lights up */
+@media (prefers-reduced-motion: reduce) {
+  .split-add-amount.is-scanning > output {
+    opacity: 1;
+  }
+  .split-scan {
+    color: transparent;
+  }
+  .split-scan::before {
+    animation-name: split-appear;
+  }
+  .split-scan::after,
+  .split-photo-button.is-scanning:not(.is-sending)::after {
+    display: none;
+  }
+  .split-scan-digit > :last-child {
+    animation: none;
+  }
+}
+
 /* (and a new expense's line saying a receipt can fill it in, which opens the camera; and the tip
    and tax its receipt said, which open the receipt's sheet to put them right) */
 .split-add-comes,

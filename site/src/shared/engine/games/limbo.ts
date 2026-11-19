@@ -45,9 +45,15 @@ export const TILT_SIDES = [15, 18, 20, 22, 25];
 /** Moving bar: it waits at its top this long, then sways down to the bar's angle and back up, twice. */
 export const MOVE_LEAD_MS = 1500;
 const MOVE_SWING = 20;
-/** Moving bar: within this many degrees of it you're with it; away from it for longer than LOST_MS, you're out. */
-export const FOLLOW_DEG = 10;
-export const LOST_MS = 1000;
+/**
+ * Moving bar: within this many degrees of it you're with it; away from it for longer than LOST_MS,
+ * you're out. Two seconds, because the player hears the bar rather than seeing it (the phone is on
+ * their chest) and needs time to move after the cue; one second lost people before they could react.
+ */
+export const FOLLOW_DEG = 12;
+export const LOST_MS = 2000;
+/** Moving bar: the grace clock only runs once you've caught the bar (been with it once), or from this long in if you never do. */
+export const CATCH_MS = 4500;
 /** Moving bar: once it stops, this long for the phones to say how it went and for the host to judge. */
 const MOVE_TAIL_MS = 5000;
 

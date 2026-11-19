@@ -1,12 +1,11 @@
-// After the meal: three taps, under ten seconds. For a table (/eat/r/1234/rate) or for one person's
-// last solo pick (/eat/rate, signed in).
+// After the meal: three taps, under ten seconds (/eat/r/1234/rate).
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import type { Rating } from "../../engine";
 import { t } from "../i18n";
 import { api } from "../net";
 import { identity, prefs } from "../prefs";
-import { toast, update, useApp } from "../store";
+import { toast } from "../store";
 import { Btn, LangToggle } from "./common";
 
 interface Info {
@@ -15,36 +14,26 @@ interface Info {
   ratings?: { n: number; liked: number };
 }
 
-export function Rate({ code, home }: { code?: string; home: () => void }) {
-  const { me } = useApp();
-  // Without a table code this is the solo pick kept on the account.
-  const pick = !code && me?.last?.place ? me.last : null;
-  const key = code ?? (pick ? `p:${pick.place}` : "");
-  const [roomInfo, setInfo] = useState<Info | null>(null);
+export function Rate({ code, home }: { code: string; home: () => void }) {
+  const [info, setInfo] = useState<Info | null>(null);
   const [overall, setOverall] = useState<Rating["overall"] | null>(null);
   const [liked, setLiked] = useState<boolean | null>(null);
   const [wait, setWait] = useState<Rating["wait"] | null>(null);
   const [sentNow, setSent] = useState(false);
-  // The account loads after the page, so whether it was rated is worked out on every render.
-  const sent = sentNow || (!!key && prefs.rated(key)) || !!pick?.rated;
-  const load = () => code && api<Info>(`/api/rooms/${code}`).then((r) => setInfo(r.data));
+  const sent = sentNow || prefs.rated(code);
+  const load = () => api<Info>(`/api/rooms/${code}`).then((r) => setInfo(r.data));
   useEffect(() => void load(), [code]);
-  const info: Info | null = code ? roomInfo : !me ? null : pick ? { exists: true, winner: pick.name } : { exists: true };
 
   const submit = async () => {
     const rating = JSON.stringify({ cid: identity().cid, overall, liked, wait });
-    const res = code
-      ? await api<{ ok?: boolean }>(`/api/rooms/${code}/rate`, { method: "POST", body: rating })
-      : await api<{ ok?: boolean }>(`/api/places/${encodeURIComponent(pick!.place!)}/rate`, { method: "POST", body: rating });
-    // Already rated counts as done: a table answers 409 for this phone's second rating; a solo pick
-    // answers 403 when it was rated already (maybe on another phone) or is no longer the last pick.
-    // A table that answers 410 has nothing left to rate, or as many ratings as people.
-    const done = res.ok || res.status === (code ? 409 : 403);
+    const res = await api<{ ok?: boolean }>(`/api/rooms/${code}/rate`, { method: "POST", body: rating });
+    // Already rated counts as done: the table answers 409 for this phone's second rating. A table
+    // that answers 410 has nothing left to rate, or as many ratings as people.
+    const done = res.ok || res.status === 409;
     if (!done) return toast(t(res.status === 410 ? "rateClosed" : "offline"));
-    prefs.markRated(key);
+    prefs.markRated(code);
     setSent(true);
-    if (code) void load();
-    else if (me?.last) update({ me: { ...me, last: { ...me.last, rated: true } } });
+    void load();
   };
 
   return (
@@ -67,7 +56,7 @@ export function Rate({ code, home }: { code?: string; home: () => void }) {
       ) : !info.exists ? (
         <p class="error">{t("noRoom")}</p>
       ) : !info.winner ? (
-        <p class="muted">{t(code ? "rateNotYet" : "rateNoPick")}</p>
+        <p class="muted">{t("rateNotYet")}</p>
       ) : (
         <>
           <h2>{t("rateTitle", { name: info.winner })}</h2>

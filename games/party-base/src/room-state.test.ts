@@ -169,6 +169,19 @@ describe('guards', () => {
     expect(() => reduce(s, { type: 'START_CALIBRATION', at: 5, byPlayerId: 'jackie' })).toThrow('not the host');
   });
 
+  it('the TV delay learned from the dance: only as the dance finishes (in results), a plausible one', () => {
+    let s = lobbyWithHost();
+    expect(() => reduce(s, { type: 'DELAY_LEARNED', at: 5, audioOffsetMs: 150 })).toThrow('not allowed');
+    s = reduce(s, { type: 'START_LEARNING', at: 30, byPlayerId: 'steve', routineId: 'r', difficulty: 'easy', bpm: 100 });
+    s = reduce(s, { type: 'START_DANCING', at: 40, byPlayerId: 'steve', routineStartAt: 4_000 });
+    expect(() => reduce(s, { type: 'DELAY_LEARNED', at: 50, audioOffsetMs: 150 })).toThrow('not allowed');
+    s = reduce(s, { type: 'FINISH', at: 60_000 });
+    expect(() => reduce(s, { type: 'DELAY_LEARNED', at: 60_001, audioOffsetMs: 3000 })).toThrow('implausible');
+    s = reduce(s, { type: 'DELAY_LEARNED', at: 60_001, audioOffsetMs: 150 });
+    expect(s.phase).toBe('results');
+    expect(s.audioOffsetMs).toBe(150);
+  });
+
   it('session limit', () => {
     const s = createRoom('ABCD', 0);
     expect(overSessionLimit(29, s)).toBe(false);

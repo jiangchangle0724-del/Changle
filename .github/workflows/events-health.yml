@@ -1,0 +1,44 @@
+# 玩什么 · What's On: the daily health check (tools/events/scripts/health.ts). Did yesterday's run
+# read every source to the end and publish about as many events as usual? If not, it opens an issue
+# here that mentions Steve, so GitHub emails him; it comments only when the problems change, and
+# closes the issue once a day goes well again. It reads the status at the Worker's own address
+# (changle.ca's bot protection answers GitHub's machines with a challenge page). It signs in with
+# the job's own GitHub token, which may only write issues here: no secret anywhere, nothing to set.
+# It judges yesterday, so GitHub starting it late (it often does, by hours) changes nothing.
+# Only on its schedule or by hand (Actions > events-health > Run workflow), never on pull requests.
+name: events-health
+
+on:
+  schedule:
+    # GitHub's cron is UTC. B.C. keeps UTC-7 all year since March 2026, so 09:23 UTC is 02:23 in
+    # Vancouver: yesterday's run and the libraries' afternoon pages are over, today's run not begun.
+    - cron: "23 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: events-health
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tools/events
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/events/package-lock.json
+      - run: npm ci
+      - name: Check yesterday's run, and open, update or close the issue
+        run: npm run health
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

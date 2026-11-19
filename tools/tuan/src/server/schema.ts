@@ -3,12 +3,14 @@
 import m0001 from "../../migrations/0001_init.sql";
 import m0002 from "../../migrations/0002_notices.sql";
 import m0003 from "../../migrations/0003_test_shop_address.sql";
+import m0004 from "../../migrations/0004_applications.sql";
 
 // (a file that has been applied on the live database is never edited again: a change is a new file, added here)
 const MIGRATIONS: [name: string, sql: string][] = [
   ["0001_init", m0001],
   ["0002_notices", m0002],
   ["0003_test_shop_address", m0003],
+  ["0004_applications", m0004],
 ];
 
 /** A migration file as statements: comments dropped, split at each ";". (No ";" inside a string or a comment in these files.) */

@@ -4,7 +4,8 @@
 //   GET /go              the page: one day at a time, by category, area and price (src/page.ts)
 //   GET /go/api/events   the events, filtered: from, to (YYYY-MM-DD), cat, area, tag (comma lists)
 //   GET /go/api/events.ics  the same, as a calendar to subscribe to (src/ics.ts)
-//   GET /go/api/status   the last run, step by step (the fetch log), and what's published
+//   GET /go/api/status   the last run, step by step (the fetch log), what's published, how each source
+//                        last went and what the last runs published (also on workers.dev, for GitHub)
 //   GET /go/preview      what's published, day by day: unlisted and not indexed, to check the run
 //   POST /go/api/handoff the libraries' pages, from the GitHub job (signed in by GitHub; src/handoff.ts): kept for
 //                        the run, or read at once when the run has gone past the library (src/arrival.ts)
@@ -19,6 +20,7 @@ import { LIVE_KEY, publish } from "./publish";
 import { filterEvents, readQuery } from "./query";
 import { fetchStep, runDay, type StepArgs, type StepRunner } from "./run";
 import { ensureSchema } from "./schema";
+import { SOURCE_BY_ID } from "./sources";
 import { vanParts } from "./time";
 import type { Published } from "./types";
 
@@ -74,7 +76,22 @@ async function status(env: Env): Promise<Response> {
       ).results
     : [];
   const pub = await env.CACHE.get<Published>(LIVE_KEY, "json");
-  return json({ run: last?.run ?? null, progress, steps, published: pub ? { runId: pub.runId, generatedAt: pub.generatedAt, from: pub.from, to: pub.to, count: pub.count } : null });
+  // for the daily health check (src/health.ts): how each source in the code's list last went (one
+  // taken off the list keeps its row), and what the last runs published
+  const sources = (await env.DB.prepare("SELECT id, name, enabled, last_ok_run AS lastOkRun, last_error AS lastError FROM sources ORDER BY id").all<{ id: string }>()).results.filter(
+    (s) => SOURCE_BY_ID[s.id],
+  );
+  const history = (
+    await env.DB.prepare("SELECT run_id AS run, max(found) AS count FROM fetch_log WHERE source = 'publish' GROUP BY run_id ORDER BY run_id DESC LIMIT 8").all()
+  ).results;
+  return json({
+    run: last?.run ?? null,
+    progress,
+    steps,
+    published: pub ? { runId: pub.runId, generatedAt: pub.generatedAt, from: pub.from, to: pub.to, count: pub.count } : null,
+    sources,
+    history,
+  });
 }
 
 export default {
@@ -83,10 +100,11 @@ export default {
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (path === "/go/api/handoff") return receiveHandoff(req, env, Date.now(), (page) => useArrival(stepsOf(env, ctx), env.DB, page));
-    // The Worker's own address (changle-events.<account>.workers.dev) is only the GitHub job's way in:
+    // The Worker's own address (changle-events.<account>.workers.dev) is only the GitHub jobs' way in:
     // changle.ca's bot protection answers GitHub's machines with a challenge page (5 November 2026), so
-    // the job hands its pages over here (wrangler.jsonc: workers_dev). Nothing else is served on it.
-    if (url.hostname.endsWith(".workers.dev")) return json({ error: "not found" }, 404);
+    // the libraries' job hands its pages over here (wrangler.jsonc: workers_dev), and the daily health
+    // check reads the status here (scripts/health.ts). Nothing else is served on it.
+    if (url.hostname.endsWith(".workers.dev") && path !== "/go/api/status") return json({ error: "not found" }, 404);
     if (req.method !== "GET" && req.method !== "HEAD") return json({ error: "method not allowed" }, 405);
     if (path === "/go/api/events") return listEvents(url, env);
     if (path === "/go/api/events.ics") return listEvents(url, env, true);

@@ -161,14 +161,18 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
 - `GET /go/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD&cat=a,b&area=x,y&tag=free,kids`
 - `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6),
   named by its filters in Chinese and English (`玩什么 · What's On · 亲子家庭 Family & Kids`).
-- `GET /go/api/status`: the last run step by step (the fetch log) and what's published.
+- `GET /go/api/status`: the last run step by step (the fetch log) and what's published; also
+  `sources` (each source in the code's list: `id`, `name`, `enabled`, `lastOkRun`, the last run it was
+  read to the end, and `lastError`) and `history` (the last 8 runs, newest first: `run`, `count`
+  published) for the daily health check (`src/health.ts`), which reads it on the Worker's own address.
 - `GET /go/preview`: what's published, day by day, with the same filters as links (`?lang=en` for
   English). Not linked from anywhere, `noindex`: for checking the run, with what the page leaves out
   (areas to check, uncategorised events, every source's count).
 - `POST /go/api/handoff?source=vpl&date=YYYY-MM-DD&part=N`, `Authorization: Bearer <GitHub's OIDC token>`
   (or `<EVENTS_HANDOFF_KEY>`, when the Worker has one), the page as the body: the GitHub job only.
   The job uses the Worker's own address (`https://changle-events.jiangchangle0724.workers.dev`):
-  changle.ca's bot protection challenges GitHub's machines. On that address every other path is 404.
+  changle.ca's bot protection challenges GitHub's machines. On that address every other path but
+  `GET /go/api/status` is 404.
   401 without a token that passes every check above, or the key, saying which check failed
   (`GitHub token: wrong ref`, `wrong key`, ...; never anything of the credential); 503 while GitHub's
   keys can't be fetched; 400 for another source, a date that isn't today in Vancouver, a part out of
