@@ -1425,6 +1425,37 @@ test("limbo: the phone is the judge: two measuring phones to start, the others w
   ok(v.phase === "ready" && v.alive.length === 3 && v.sensors.length === 2, "play again: everyone is back in, the sensors remembered");
 });
 
+test("limbo: where everyone is right now goes out light, the same angle again goes nowhere, blind lean keeps it in", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "limbo" });
+  for (const p of ["p0", "p1", "p2"]) t.g(p, "sensor", { on: true });
+  t.g("p1", "lean", { deg: 30 });
+  ok(Object.keys(t.view<V<"limbo">>("p0").leans).length === 0, "before the bar is up: no leans");
+  t.g("p0", "go");
+  t.advance(3600);
+  let o = t.g("p1", "lean", { deg: 33.4 });
+  ok(o.light && !o.changed && t.view<V<"limbo">>("p2").leans.p1 === 33, "p1 leaning 33: everyone's view says so now, saved with the next change");
+  o = t.g("p1", "lean", { deg: 33 });
+  ok(!o.light && !o.changed, "the same angle again: nothing goes out");
+  o = t.g("p1", "lean", { deg: 140 });
+  ok(o.light && t.view<V<"limbo">>("p0").leans.p1 === 90, "clamped to 90");
+  t.g("p0", "pass", { deg: 24 });
+  t.g("p1", "pass", { deg: 36 });
+  t.g("p2", "fail");
+  t.advance(100);
+  t.g("p0", "go");
+  ok(Object.keys(t.view<V<"limbo">>("p0").leans).length === 0, "a new bar: the leans start over");
+  // blind lean: nobody's angle is anyone else's business
+  const b = setup(2);
+  b.act("p0", { a: "start", game: "limbo" });
+  for (const p of ["p0", "p1"]) b.g(p, "sensor", { on: true });
+  b.g("p0", "mode", { mode: "blind" });
+  b.g("p0", "go");
+  b.advance(3600);
+  o = b.g("p1", "lean", { deg: 40 });
+  ok(!o.light && !o.changed && Object.keys(b.view<V<"limbo">>("p0").leans).length === 0, "blind lean: the angle stays on the phone");
+});
+
 test("limbo: nobody leans at all, nobody wins for it: everyone drinks, same bar again", () => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "limbo" });

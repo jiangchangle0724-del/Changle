@@ -148,6 +148,19 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
       g("best", { deg: Math.round(best) });
     }
   }, [best, trying, v.best, me, g]);
+  // and where you are right now, for the TV and the others' stages (blind lean keeps it to itself)
+  const liveLean = kind === "classic" ? classic.lean : moving ? follow.lean : pose.lean;
+  const leanSent = useRef({ at: 0, deg: -1 });
+  useEffect(() => {
+    if (!trying || blind) return;
+    const t = performance.now();
+    const deg = Math.round(liveLean);
+    const l = leanSent.current;
+    if (Math.abs(deg - l.deg) >= 2 && t - l.at > 350) {
+      leanSent.current = { at: t, deg };
+      g("lean", { deg });
+    }
+  }, [liveLean, trying, blind, g]);
 
   const drink = custom ? (zh ? "受罚" : "penalty") : zh ? "喝一口" : "drink";
   const rules = (
@@ -190,9 +203,8 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   // between bars the scene already shows the next bar's angle, and its variant isn't drawn yet:
   // the slant, the sway and the variant's name are for the bar being played
   const live = v.phase === "go";
-  // the players on the stage: everyone still in, this phone's own player leaning as it reads them
-  // (the others at the bar's angle; blind lean shows the target, never anyone's own angle)
-  const liveLean = kind === "classic" ? classic.lean : moving ? follow.lean : pose.lean;
+  // the players on the stage: everyone still in, this phone's own player leaning as it reads them,
+  // the others as their phones last said (blind lean shows the target, never anyone's own angle)
   const figures: StageFigure[] = v.alive
     .filter((id) => seat(id))
     .map((id) => {
@@ -203,7 +215,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
         color: seatColor(seat(id)!),
         name: id === me ? (zh ? "你" : "You") : nameOf(id),
         pose: st === "pass" ? "pass" : st === "fail" || st === "out" ? "fail" : v.phase === "go" && open ? "lean" : "idle",
-        lean: mine ? liveLean : undefined,
+        lean: mine ? liveLean : !blind && v.phase === "go" && open ? v.leans?.[id] : undefined,
         side: mine && kind === "tilt" ? pose.side : undefined,
       };
     });
