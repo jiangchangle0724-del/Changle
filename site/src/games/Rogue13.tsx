@@ -1,12 +1,13 @@
 import { Camera, DoorOpen, Hand, MessageCircle } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePenaltyText, useStore, type Player } from "../store";
 import { Deck } from "../lib/random";
 import { haptic, sfx } from "../lib/sfx";
-import { fullDeck, ROGUE_MS, ROGUE_NOTES, RULES, RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Power, type Rank } from "../data/rogue13";
+import { fullDeck, ROGUE_MS, ROGUE_NOTES, RULES, RULE_BY_RANK, ruleWords, type Card, type Power, type Rank } from "../data/rogue13";
 import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { Resume, useKeepProgress } from "./Resume";
+import { HeldCard, RogueTable, type LeaveTo } from "./rogueCards";
 import { playPower } from "./rogueSounds";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { TimerArc } from "../components/TimerArc";
@@ -14,10 +15,16 @@ import type { PenaltyCall } from "../components/PenaltyStamp";
 import { UI } from "../i18n";
 import { useBackCloses } from "../router";
 
+export { PlayingCard } from "./rogueCards";
+
 type Phase = "idle" | "revealed" | "pick" | "group-loser";
 
 /** How long the bottom button ignores taps after it changed what it does (a quick double tap is ~120–250ms apart). */
 const SETTLE_MS = 450;
+
+/** The deck has run out: the pile comes back onto the deck, then the deck riffles, then the next card comes. */
+const GATHER_MS = 380;
+const RIFFLE_MS = 820;
 
 /**
  * A power being used on the one phone: the camera's freeze and then its judgement, the nose's
@@ -98,12 +105,20 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   };
   const tooSoon = () => performance.now() - changedAt.current < SETTLE_MS;
 
-  const draw = () => {
-    // one card at a time: a double tap on the deck lands on the card still turning over
-    if (card || tooSoon()) return;
-    moveOn();
-    setPlayed(true);
-    const { card: c, reshuffled: r } = deck.current.draw();
+  // the table: the deck runs out → the pile gathers back onto it → it riffles → the next card comes
+  const [gathering, setGathering] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
+  // where the card up on the table goes when it leaves: the pile, or (a power) down to the tray
+  const [leaveTo, setLeaveTo] = useState<LeaveTo>("pile");
+  const timers = useRef<number[]>([]);
+  useEffect(() => () => timers.current.forEach((id) => window.clearTimeout(id)), []);
+  const later = (ms: number, fn: () => void) => {
+    timers.current.push(window.setTimeout(fn, ms));
+  };
+
+  /** The next card: off the deck, turned over. `r`: it came from a fresh shuffle. */
+  const turnOver = (r: boolean) => {
+    const { card: c } = deck.current.draw();
     setReshuffled(r);
     if (r) {
       setHolders({});
@@ -114,14 +129,35 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setCard(c);
     setPhase("revealed");
     if (sound) {
-      if (r) sfx.shuffle();
-      window.setTimeout(() => sfx.cardSlide(), r ? 520 : 0);
-      window.setTimeout(() => sfx.flip(), r ? 700 : 180);
+      sfx.cardSlide();
+      window.setTimeout(() => sfx.flip(), 180);
       // a power's card: its own sound once the card has turned over
       const power = RULE_BY_RANK[c.rank].power;
-      if (power) window.setTimeout(() => playPower(power), r ? 1050 : 520);
+      if (power) window.setTimeout(() => playPower(power), 520);
     }
     haptic(10);
+  };
+
+  const draw = () => {
+    // one card at a time: a double tap on the deck lands on the card still turning over
+    if (card || gathering || shuffling || tooSoon()) return;
+    moveOn();
+    setPlayed(true);
+    if (deck.current.remaining > 0) {
+      turnOver(false);
+      return;
+    }
+    // the deck has run out: gather the pile, riffle, then deal
+    setGathering(true);
+    later(GATHER_MS, () => {
+      setShuffling(true);
+      if (sound) sfx.shuffle();
+    });
+    later(GATHER_MS + RIFFLE_MS, () => {
+      setShuffling(false);
+      setGathering(false);
+      turnOver(true);
+    });
   };
 
   const endTurn = () => {
@@ -160,6 +196,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           ? `喊一声“陪酒”，${buddy.name} 陪着喝`
           : `Shout “buddy!” and ${buddy.name} drinks too`;
     setTurnStamp(endsTurn);
+    if (endsTurn) setLeaveTo("pile");
     penalty.show(line ? { ...call, note: call.note ? `${call.note} · ${line}` : line } : call, endsTurn ? endTurn : undefined);
     // the buddy's toast, once the stamp has landed
     if (line && sound) window.setTimeout(() => playPower("buddy", 0.9), 1400);
@@ -193,9 +230,16 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         // a new pass is good for one more visit; a new camera or nose for one more call
         if (rule.power === "wc") setWcUsed(false);
         if (rule.power === "camera" || rule.power === "nose") setUsed((u) => ({ ...u, [rule.power!]: undefined }));
+        // the card goes down to the tray, into the holder's keeping
+        setLeaveTo("tray");
         endTurn();
         return;
     }
+  };
+  /** The card leaves without a stamp (nobody lost the round): onto the pile. */
+  const passOn = () => {
+    setLeaveTo("pile");
+    endTurn();
   };
 
   /* ---------------- the powers, used from the one phone ---------------- */
@@ -211,10 +255,6 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const trouble = holderOf("trouble");
   // the power on screen, by its card (none if its card has gone back into the deck)
   const usingCard = using ? held.find(([, , p]) => p === using.power) : undefined;
-
-  // the pass is good for one visit, the camera and the nose for one call each, until the next card of theirs
-  const spent = (p: Power) => (p === "wc" ? wcUsed : p === "camera" || p === "nose" ? !!used[p] : false);
-  const usedWord = zh ? "已用" : "used";
 
   const useCamera = () => {
     if (!camera || using || used.camera) return;
@@ -254,10 +294,26 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     powerPenalty(p, custom ? ROGUE_NOTES.wcCustom : ROGUE_NOTES.wc);
   };
 
+  /** What a tap on a held card does, for whoever holds the phone. */
+  const trayAction = (power: Power): { words: string; onTap: () => void; used?: boolean; quiet?: boolean } | null => {
+    switch (power) {
+      case "camera":
+        return { words: zh ? "拍照" : "Shoot", onTap: useCamera, used: !!used.camera };
+      case "nose":
+        return { words: zh ? "喊摸鼻子" : "Call it", onTap: useNose, used: !!used.nose };
+      case "trouble":
+        return { words: zh ? "谁接话了" : "Who answered?", onTap: askTrouble };
+      case "wc":
+        return { words: zh ? "上厕所" : "Bathroom", onTap: askWc, used: wcUsed, quiet: true };
+      default:
+        return null;
+    }
+  };
+
   const actions =
     phase === "idle" ? (
-      <button type="button" className="btn btn-primary btn-lg" onClick={draw}>
-        {zh ? "抽牌" : "Draw"}
+      <button type="button" className="btn btn-primary btn-lg" onClick={draw} disabled={gathering || shuffling}>
+        {gathering || shuffling ? (zh ? "洗牌中" : "Shuffling") : zh ? "抽牌" : "Draw"}
       </button>
     ) : phase === "revealed" && card && rule && words ? (
       <button type="button" className={`btn btn-lg ${rule.kind === "hold" ? "btn-primary" : "btn-penalty"}`} onClick={resolve}>
@@ -286,7 +342,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
                     : ui("whoDrinks")}
       </button>
     ) : phase === "group-loser" ? (
-      <button type="button" className="btn btn-lg btn-ghost" style={{ color: "var(--haze)" }} onClick={endTurn}>
+      <button type="button" className="btn btn-lg btn-ghost" style={{ color: "var(--haze)" }} onClick={passOn}>
         {zh ? "没人输，下一位" : "No one lost. Next."}
       </button>
     ) : undefined;
@@ -312,6 +368,9 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     </ul>
   );
 
+  // the pile: every card dealt from this deck but the one up on the table (none while it gathers back)
+  const drawn = gathering ? 0 : Math.max(0, deck.current.total - remaining - (card ? 1 : 0));
+
   return (
     <GameShell title={UI.gameRogue} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: turn.current?.id }} actions={actions}>
       <div className="turn-line">
@@ -321,7 +380,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       </div>
 
       <div className="card-stage">
-        <PlayingCard card={card} onDraw={draw} canDraw={!card} drawLabel={zh ? "抽牌" : "Draw"} />
+        <RogueTable card={card} remaining={remaining} drawn={drawn} canDraw={!card && !gathering && !shuffling} onDraw={draw} drawLabel={zh ? "抽牌" : "Draw"} shuffling={shuffling} leaveTo={leaveTo} />
       </div>
 
       <AnimatePresence mode="wait">
@@ -332,7 +391,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ delay: 0.35, duration: 0.3 }}
+            transition={{ delay: 0.45, duration: 0.3 }}
           >
             <h2 className={`rule-title ${zh ? "zh-display" : "en-display"}`}>{tr(words.title)}</h2>
             <p className="rule-body">{tr(words.rule)}</p>
@@ -351,48 +410,17 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         )}
       </AnimatePresence>
 
+      {/* the powers out on the table: the holder calls it out loud, whoever holds the phone taps the card */}
       {held.length > 0 && (
-        <div className="stack" style={{ gap: 10 }}>
-          <div className="held">
-            {held.map(([rank, p, power]) => (
-              <span key={rank} className="chip">
-                <span className="en-display held-rank">{rank}</span>
-                {tr(ruleWords(RULE_BY_RANK[rank], custom).badge!)} · {p.name}
-                {spent(power) && <span className="hint" style={{ fontSize: 12 }}>{usedWord}</span>}
-              </span>
-            ))}
-          </div>
-          {/* the powers in play, for whoever holds the phone: the holder calls it, the table taps it */}
-          {(camera || nose || wcHolder || trouble) && (
-            <div className="power-dock">
-              {camera && (
-                <button type="button" className="power-btn" disabled={!!used.camera} onClick={useCamera}>
-                  <Camera size={18} />
-                  {zh ? "照相机" : "Camera"}
-                  {used.camera && <span className="power-used">{usedWord}</span>}
-                </button>
-              )}
-              {nose && (
-                <button type="button" className="power-btn" disabled={!!used.nose} onClick={useNose}>
-                  <Hand size={18} />
-                  {zh ? "摸鼻子" : "Nose"}
-                  {used.nose && <span className="power-used">{usedWord}</span>}
-                </button>
-              )}
-              {trouble && (
-                <button type="button" className="power-btn" onClick={askTrouble}>
-                  <MessageCircle size={18} />
-                  {zh ? "谁接话了" : "Who answered?"}
-                </button>
-              )}
-              {wcHolder && (
-                <button type="button" className="power-btn power-quiet" onClick={askWc}>
-                  <DoorOpen size={18} />
-                  {zh ? "上厕所" : "Bathroom"}
-                </button>
-              )}
-            </div>
-          )}
+        <div className="rg-tray">
+          {held.map(([rank, p, power]) => {
+            const act = trayAction(power);
+            return act ? (
+              <HeldCard key={rank} rank={rank} who={p.name} action={act.words} quiet={act.quiet} used={act.used} disabled={act.used && power !== "wc"} onTap={act.onTap} />
+            ) : (
+              <HeldCard key={rank} rank={rank} who={p.name} />
+            );
+          })}
         </div>
       )}
 
@@ -416,15 +444,24 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
             {using.power === "camera" && camera ? (
               using.step === "freeze" ? (
                 <div className="interrupt-stage">
-                  <Camera size={44} />
-                  <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "定格" : "Freeze"}</p>
-                  <p className="interrupt-sub">{zh ? `${camera.name} 拍照了，别动` : `${camera.name} took a photo. Don't move.`}</p>
-                  <TimerArc seconds={ROGUE_MS.freeze / 1000} running size={72} ticking={false} onEnd={() => setUsing((u) => (u?.power === "camera" ? { power: "camera", step: "judge" } : u))} />
+                  {/* the photo, developing: the table holds still until it is done */}
+                  <div className="rg-photo">
+                    <div className="rg-photo-pic">
+                      <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "定格" : "Freeze"}</p>
+                      <TimerArc seconds={ROGUE_MS.freeze / 1000} running size={64} ticking={false} onEnd={() => setUsing((u) => (u?.power === "camera" ? { power: "camera", step: "judge" } : u))} />
+                    </div>
+                    <p className="rg-photo-line">{zh ? `${camera.name} 拍照了，别动` : `${camera.name} took a photo. Don't move.`}</p>
+                  </div>
                 </div>
               ) : (
                 <div className="interrupt-stage">
-                  <Camera size={36} />
-                  <p className="interrupt-sub">{zh ? `${camera.name} 看照片：谁动了？` : `${camera.name} checks the photo: who moved?`}</p>
+                  <div className="rg-photo">
+                    <div className="rg-photo-pic">
+                      <Camera size={44} />
+                      <p className="interrupt-sub">{zh ? "谁动了？" : "Who moved?"}</p>
+                    </div>
+                    <p className="rg-photo-line">{zh ? `${camera.name} 看照片` : `${camera.name} checks the photo`}</p>
+                  </div>
                   <PlayerPicker players={players} exclude={[camera.id]} onPick={(p) => powerPenalty(p, ROGUE_NOTES.camera)} />
                   <button type="button" className="btn btn-ghost" onClick={() => setUsing(null)}>
                     {zh ? "没人动" : "Nobody moved"}
@@ -433,7 +470,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               )
             ) : using.power === "nose" && nose ? (
               <div className="interrupt-stage">
-                <Hand size={44} />
+                <Hand size={52} className="rg-wiggle" />
                 <p className={`interrupt-big ${zh ? "zh-display" : "en-display"}`}>{zh ? "摸鼻子" : "Nose"}</p>
                 <p className="interrupt-sub">{zh ? `${nose.name} 喊摸鼻子。最后一个摸到的是谁？` : `${nose.name} says: nose! Who was last?`}</p>
                 <PlayerPicker players={players} exclude={[nose.id]} onPick={(p) => powerPenalty(p, ROGUE_NOTES.noseSlow)} />
@@ -444,7 +481,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
             ) : using.power === "wc" && wcHolder ? (
               using.went ? (
                 <div className="interrupt-stage">
-                  <DoorOpen size={44} />
+                  <DoorOpen size={52} className="rg-swing" />
                   <p className="interrupt-sub">{zh ? `${using.went.name} 用掉了 WC 票，去吧` : `${using.went.name} used the pass. Go ahead.`}</p>
                   <p className="hint">{zh ? "票用过一次就作废，下一张 8 再发一张。" : "The pass is good once. The next 8 deals a new one."}</p>
                   <button type="button" className="btn btn-primary btn-lg" onClick={() => setUsing(null)}>
@@ -472,7 +509,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
               )
             ) : using.power === "trouble" && trouble ? (
               <div className="interrupt-stage">
-                <MessageCircle size={44} />
+                <MessageCircle size={52} className="rg-bob" />
                 <p className="interrupt-sub">{zh ? `谁接了 ${trouble.name} 的话？` : `Who answered ${trouble.name}?`}</p>
                 <PlayerPicker
                   players={players}
@@ -499,67 +536,8 @@ const howOnOnePhone = (r: { power?: Power }) => (r.power ? ONE_PHONE_HOW[r.power
 /** How each power is used when the table shares one phone (under the card, and in the rules). */
 const ONE_PHONE_HOW: Partial<Record<Power, { zh: string; en: string }>> = {
   buddy: { zh: "以后谁被罚，罚单上会提醒喊陪酒。", en: "From now on every penalty reminds the table to call the buddy." },
-  camera: { zh: "下面多了一个照相机按钮，只能按一次。你喊照相机，谁拿着手机谁按，定格几秒后点出动了的人。", en: "A camera button sits below, good for one press. Shout it, whoever holds the phone taps it, and after the freeze tap whoever moved." },
-  nose: { zh: "下面多了一个摸鼻子按钮，只能按一次。你喊摸鼻子，按一下，点出最后一个摸到的。", en: "A nose button sits below, good for one press. Shout it, tap it, then tap whoever touched theirs last." },
-  wc: { zh: "下面多了一个上厕所按钮。谁要去，按一下点自己。", en: "A bathroom button sits below. Whoever needs to go taps it and picks their name." },
-  trouble: { zh: "下面多了一个谁接话了按钮。谁接了你的话，按一下点他。", en: "A “who answered?” button sits below. Tap it and pick whoever answered you." },
+  camera: { zh: "照相机牌摆在下面，只能用一次。你喊照相机，谁拿着手机谁点那张牌，定格几秒后点出动了的人。", en: "The camera card sits below, good for one shot. Shout it, whoever holds the phone taps the card, and after the freeze tap whoever moved." },
+  nose: { zh: "摸鼻子牌摆在下面，只能用一次。你喊摸鼻子，点那张牌，点出最后一个摸到的。", en: "The nose card sits below, good for one call. Shout it, tap the card, then tap whoever touched theirs last." },
+  wc: { zh: "WC 票摆在下面。谁要去厕所，点那张牌，点自己。", en: "The pass sits below. Whoever needs to go taps it and picks their name." },
+  trouble: { zh: "神经病牌摆在下面。谁接了你的话，点那张牌，点他。", en: "The troublemaker card sits below. Tap it and pick whoever answered you." },
 };
-
-/** A playing card: face down shows a lattice in the game color, tap to flip. */
-export function PlayingCard({ card, onDraw, drawLabel, canDraw = true }: { card: Card | null; onDraw: () => void; drawLabel: string; canDraw?: boolean }) {
-  const flipped = !!card;
-  return (
-    <div className="pcard-scene">
-      <motion.div
-        className="pcard"
-        animate={{ rotateY: flipped ? 180 : 0 }}
-        transition={{ type: "spring", stiffness: 260, damping: 24 }}
-        style={{ transformStyle: "preserve-3d" }}
-      >
-        <button type="button" className="pcard-face pcard-back" onClick={onDraw} aria-label={canDraw ? undefined : drawLabel} disabled={!canDraw} style={canDraw ? undefined : { cursor: "default" }}>
-          <svg viewBox="0 0 200 280" aria-hidden="true">
-            <defs>
-              <pattern id="lattice" width="20" height="20" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                <rect width="20" height="20" fill="var(--gel)" />
-                <rect x="2" y="2" width="16" height="16" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2" />
-              </pattern>
-            </defs>
-            <rect x="4" y="4" width="192" height="272" rx="14" fill="#ffffff" />
-            <rect x="14" y="14" width="172" height="252" rx="8" fill="url(#lattice)" />
-            <rect x="20" y="20" width="160" height="240" rx="6" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.5" />
-            <circle cx="100" cy="140" r="36" fill="#ffffff" />
-            <text x="100" y="141" textAnchor="middle" dominantBaseline="central" fontSize="30" fontWeight="800" fill="#0e0c22" style={{ fontFamily: "var(--font-display)" }}>
-              13
-            </text>
-          </svg>
-          {canDraw && <span className="pcard-draw">{drawLabel}</span>}
-        </button>
-        <div className="pcard-face pcard-front" aria-hidden={!flipped}>
-          {card && (
-            <svg viewBox="0 0 200 280" aria-hidden="true">
-              <rect x="4" y="4" width="192" height="272" rx="14" fill="#ffffff" />
-              <rect x="12" y="12" width="176" height="256" rx="9" fill="none" stroke="rgba(14,12,34,0.1)" strokeWidth="1.2" />
-              <text x="26" y="44" fontSize="30" fontWeight="800" fill={SUIT_RED[card.suit] ? "#e8364f" : "#0e0c22"} style={{ fontFamily: "var(--font-display)" }}>
-                {card.rank}
-              </text>
-              <text x="26" y="72" fontSize="26" fill={SUIT_RED[card.suit] ? "#e8364f" : "#0e0c22"}>
-                {SUIT_GLYPH[card.suit]}
-              </text>
-              <text x="100" y="148" textAnchor="middle" dominantBaseline="central" fontSize="92" fill={SUIT_RED[card.suit] ? "#e8364f" : "#0e0c22"}>
-                {SUIT_GLYPH[card.suit]}
-              </text>
-              <g transform="rotate(180 100 140)">
-                <text x="26" y="44" fontSize="30" fontWeight="800" fill={SUIT_RED[card.suit] ? "#e8364f" : "#0e0c22"} style={{ fontFamily: "var(--font-display)" }}>
-                  {card.rank}
-                </text>
-                <text x="26" y="72" fontSize="26" fill={SUIT_RED[card.suit] ? "#e8364f" : "#0e0c22"}>
-                  {SUIT_GLYPH[card.suit]}
-                </text>
-              </g>
-            </svg>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-}

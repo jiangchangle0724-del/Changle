@@ -950,13 +950,13 @@ def t_rogue(t):
         v = view(t.host)
         if v["phase"] != "draw" or v["interrupt"]:
             break
-        by_pid(t, v["turn"]).locator(".pcard-back").click()
+        by_pid(t, v["turn"]).locator(".rg-back").click()
         ok(until(lambda: view(t.tv)["phase"] != "draw", 4000), f"rogue: draw {r}")
         t.tv.wait_for_timeout(1000)
         v = view(t.tv)
         rank, phase = v["card"]["rank"], v["phase"]
         seen.add(rank)
-        ok(t.tv.locator(".tvr-title").count() == 1 and t.tv.locator(".pcard-front").count() == 1, f"rogue: {rank} and its rule on the screens ({phase})")
+        ok(t.tv.locator(".tvr-title").count() == 1 and t.tv.locator(".rg-face").count() == 1, f"rogue: {rank} and its rule on the screens ({phase})")
         if "card" not in seen:
             seen.add("card")
             shot(t.screens, "rg-02-card")

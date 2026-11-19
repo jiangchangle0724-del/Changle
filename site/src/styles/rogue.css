@@ -1,0 +1,453 @@
+/*
+ * 流氓十三张's table (games/rogueCards.tsx): the game's own deck, its stack, the card turning
+ * over onto it, the pile of cards already played, and the powers held as small cards. The one
+ * phone, every phone online and the big screen draw the same cards.
+ */
+
+/* the props on this table (docs/DESIGN.md: a game's prop colors live at the top of its own file) */
+.rg-stage,
+.rg-mini,
+.pcard-scene {
+  --rg-paper: var(--color-paper);
+  --rg-ink: #0e0c22;
+  --rg-red: #e8364f;
+  --rg-edge: rgba(14, 12, 34, 0.1);
+}
+
+/* ---------- the stage: a pool of light on the table, the deck in it, the pile beside ---------- */
+.rg-stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 10px 0 18px;
+}
+.rg-stage::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 300px;
+  height: 110px;
+  translate: -50% 0;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--gel) 22%, transparent), transparent);
+  pointer-events: none;
+}
+.pcard-scene {
+  position: relative;
+  width: 170px;
+  height: 238px;
+  perspective: 1200px;
+}
+
+/* the deck: a few cards' worth of edge under the top card, thinner as the deck runs down */
+.rg-deck {
+  position: absolute;
+  inset: 0;
+}
+.rg-under {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-field);
+  background: var(--gel);
+  box-shadow:
+    inset 0 0 0 3px var(--rg-paper),
+    0 2px 0 rgba(0, 0, 0, 0.35);
+  translate: calc(var(--i) * 2.5px) calc(var(--i) * 2.5px);
+  transition: opacity var(--dur-exit);
+}
+.rg-back {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-field);
+  background: transparent;
+  box-shadow: var(--shadow-float);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform var(--dur-exit) var(--ease-out);
+}
+.rg-back:disabled {
+  cursor: default;
+}
+.rg-back:active:not(:disabled) {
+  transform: translateY(2px) scale(0.99);
+}
+.rg-back svg,
+.rg-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-field);
+}
+.rg-draw {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  translate: -50% 0;
+  padding: 6px 16px;
+  border-radius: var(--r-pill);
+  background: var(--night);
+  color: var(--moon);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* the big screen's one card, face up */
+.rg-face {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-field);
+  box-shadow: var(--shadow-float);
+}
+/* the deck has run out: a dashed outline where it was, and the word to bring the pile back */
+.rg-deck.is-empty .rg-back {
+  box-shadow: none;
+}
+.rg-deck.is-empty .rg-back svg {
+  opacity: 0;
+}
+.rg-empty {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-field);
+  border: 2px dashed color-mix(in oklab, var(--gel) 55%, transparent);
+  pointer-events: none;
+}
+
+/* the card in the air: both sides, the front rotated behind the back until it turns */
+.rg-flyer {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+.rg-flyer .rg-side {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-field);
+  box-shadow: var(--shadow-float);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.rg-flyer .rg-side svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-field);
+}
+.rg-flyer .rg-side-front {
+  transform: rotateY(180deg);
+}
+
+/* the pile: what has been played, a few backs askew at the side of the table */
+.rg-pile {
+  position: absolute;
+  right: 4px;
+  bottom: 16px;
+  width: 56px;
+  height: 78px;
+  pointer-events: none;
+}
+.rg-pile-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  background: var(--gel);
+  box-shadow:
+    inset 0 0 0 2px var(--rg-paper),
+    0 6px 14px -6px rgba(0, 0, 0, 0.7);
+}
+.rg-pile-card svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+}
+.rg-pile-count {
+  position: absolute;
+  right: -6px;
+  top: -8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--night);
+  color: var(--haze);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow-flat);
+}
+
+/* the deck runs out: the pile comes back and the deck riffles (游戏编排, longer than a token) */
+@media (prefers-reduced-motion: no-preference) {
+  .rg-deck.is-shuffling .rg-under:nth-child(odd),
+  .rg-deck.is-shuffling .rg-back {
+    animation: rg-riffle-a 0.8s var(--ease-out) both;
+  }
+  .rg-deck.is-shuffling .rg-under:nth-child(even) {
+    animation: rg-riffle-b 0.8s var(--ease-out) both;
+  }
+}
+@keyframes rg-riffle-a {
+  0% {
+    transform: translate(0, 0) rotate(0);
+  }
+  22% {
+    transform: translate(26px, -6px) rotate(7deg);
+  }
+  48% {
+    transform: translate(-22px, 2px) rotate(-5deg);
+  }
+  72% {
+    transform: translate(12px, -2px) rotate(3deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+}
+@keyframes rg-riffle-b {
+  0% {
+    transform: translate(0, 0) rotate(0);
+  }
+  22% {
+    transform: translate(-26px, 6px) rotate(-7deg);
+  }
+  48% {
+    transform: translate(22px, -2px) rotate(5deg);
+  }
+  72% {
+    transform: translate(-12px, 2px) rotate(-3deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0);
+  }
+}
+
+/* ---------- the powers out on the table: small cards, who holds each, what a tap does ---------- */
+.rg-tray {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 8px;
+}
+.rg-held {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 92px;
+  max-width: 128px;
+  padding: 8px 8px;
+  border: 0;
+  border-radius: var(--r-field);
+  background: transparent;
+  color: var(--moon);
+  font: inherit;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    transform var(--dur-exit) var(--ease-out),
+    background var(--dur-enter);
+}
+button.rg-held {
+  cursor: pointer;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+}
+button.rg-held:active:not(:disabled) {
+  transform: scale(0.95);
+}
+button.rg-held:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.rg-mini {
+  position: relative;
+  width: 54px;
+  height: 76px;
+  border-radius: 7px;
+  box-shadow:
+    inset 0 0 0 1px var(--rg-edge),
+    0 8px 16px -8px rgba(0, 0, 0, 0.8);
+}
+.rg-mini svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+}
+.rg-mini.is-used {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+.rg-used {
+  position: absolute;
+  left: -6px;
+  right: -6px;
+  top: 50%;
+  translate: 0 -50%;
+  rotate: -14deg;
+  padding: 2px 0;
+  background: var(--night);
+  color: var(--moon);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  box-shadow: 0 0 0 1.5px var(--moon);
+}
+.rg-held-who {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+.rg-held-do {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--gel);
+  line-height: var(--leading-tight);
+}
+.rg-held-do svg {
+  width: 14px;
+  height: 14px;
+}
+.rg-held.is-mine .rg-held-who {
+  color: var(--gel);
+}
+.rg-held.is-quiet .rg-held-do {
+  color: var(--haze);
+}
+
+/* ---------- the powers' moments: a photo being taken, a hand, a door, a word ---------- */
+.rg-photo {
+  position: relative;
+  width: min(72vw, 280px);
+  padding: 12px 12px 44px;
+  border-radius: 6px;
+  background: var(--rg-paper);
+  box-shadow: var(--shadow-sheet);
+  rotate: -2.5deg;
+}
+.rg-photo-pic {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background:
+    radial-gradient(70% 60% at 50% 40%, color-mix(in oklab, var(--gel) 32%, transparent) 0%, transparent 70%),
+    var(--night);
+  color: var(--moon);
+  overflow: hidden;
+}
+.rg-photo-pic .interrupt-big {
+  font-size: clamp(44px, 16vw, 72px);
+}
+.rg-photo-line {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
+  color: var(--rg-ink);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+  text-wrap: balance;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rg-photo {
+    animation: rg-develop 0.5s var(--ease-out) both;
+  }
+  .rg-photo-pic > * {
+    animation: rg-appear 1.4s var(--ease-out) both;
+  }
+  .rg-wiggle {
+    animation: rg-wiggle 0.7s var(--ease-out) 2;
+  }
+  .rg-swing {
+    transform-origin: left center;
+    animation: rg-swing 0.9s var(--ease-out) both;
+  }
+  .rg-bob {
+    animation: rg-bob 0.8s var(--ease-pop) both;
+  }
+}
+@keyframes rg-develop {
+  from {
+    opacity: 0;
+    scale: 0.8;
+    rotate: 4deg;
+  }
+}
+@keyframes rg-appear {
+  0% {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    filter: blur(0);
+  }
+}
+@keyframes rg-wiggle {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  25% {
+    rotate: -16deg;
+  }
+  75% {
+    rotate: 16deg;
+  }
+}
+@keyframes rg-swing {
+  0% {
+    transform: perspective(300px) rotateY(0);
+  }
+  45% {
+    transform: perspective(300px) rotateY(-55deg);
+  }
+  100% {
+    transform: perspective(300px) rotateY(-30deg);
+  }
+}
+@keyframes rg-bob {
+  0% {
+    scale: 0.5;
+    translate: 0 8px;
+  }
+  100% {
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+/* sideways phones: the stage already sits on the left (landscape.css); the pile hugs its corner */
+@media (orientation: landscape) and (max-height: 500px) {
+  .rg-stage {
+    padding-bottom: 8px;
+  }
+}
