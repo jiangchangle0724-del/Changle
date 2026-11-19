@@ -34,14 +34,14 @@ test("written and read back, for any bytes", () => {
   assert.throws(() => formatRecovery(new Uint8Array(19)), RangeError);
 });
 
-test("read the way people copy: any capitals, spaces or dashes, O for 0, I and L for 1, a Chinese keyboard's full-width characters", () => {
+test("read the way people copy: any capitals, spaces, dashes, dots or underscores, O for 0, I and L for 1, a Chinese keyboard's full-width characters", () => {
   const bare = CODE.replace(/-/g, "");
-  for (const typed of [CODE, bare, CODE.toLowerCase(), CODE.replace(/-/g, " "), `  ${CODE.slice(0, 20)}\n${CODE.slice(20)}  `, `o${CODE.slice(1)}`, `OI${CODE.slice(2)}`, `0l${CODE.slice(2)}`, fullWidth(CODE), fullWidth(bare), CODE.replace(/-/g, String.fromCodePoint(0x3000))]) {
+  for (const typed of [CODE, bare, CODE.toLowerCase(), CODE.replace(/-/g, " "), CODE.replace(/-/g, String.fromCodePoint(0x2013)), CODE.replace(/-/g, String.fromCodePoint(0x2014)), CODE.replace(/-/g, "_"), CODE.replace(/-/g, "."), CODE.replace(/-/g, " - "), `  ${CODE.slice(0, 20)}\n${CODE.slice(20)}  `, `o${CODE.slice(1)}`, `OI${CODE.slice(2)}`, `0l${CODE.slice(2)}`, fullWidth(CODE), fullWidth(bare), CODE.replace(/-/g, String.fromCodePoint(0x3000))]) {
     assert.deepEqual(parseRecovery(typed), BYTES, typed);
   }
 });
 
-test("a slip of the pen is told apart from something that isn't a code", () => {
+test("a slip of the pen, a symbol missing, and something that isn't a code are told apart", () => {
   // any one symbol wrong, anywhere
   const bare = CODE.replace(/-/g, "");
   for (let at = 0; at < bare.length; at++) {
@@ -60,8 +60,13 @@ test("a slip of the pen is told apart from something that isn't a code", () => {
       assert.deepEqual(readRecovery(swapped), { ok: false, why: "typo" }, swapped);
     }
   }
-  // not a code at all
-  for (const typed of ["", "0123", CODE.slice(0, -1), `${CODE}0`, `U${CODE.slice(1)}`, `${CODE.slice(0, -1)}!`, "x".repeat(201), "not a recovery code at all, just a sentence"]) {
+  // a symbol left out or typed twice, or something much shorter: the reader says how many symbols it saw, so the person can be told
+  for (const [typed, symbols] of [[CODE.slice(0, -1), 33], [`${CODE}0`, 35], [CODE.slice(5), 30], ["0123", 4], ["not a recovery code", 16]] as const) {
+    assert.deepEqual(readRecovery(typed), { ok: false, why: "wrong-length", symbols }, typed);
+    assert.equal(parseRecovery(typed), null);
+  }
+  // not a code at all: a character no code has (U is the one letter left out), or far too much text
+  for (const typed of ["", `U${CODE.slice(1)}`, `${CODE.slice(0, -1)}!`, `${CODE.slice(0, -1)}U`, "x".repeat(201), "not a recovery code at all, just a sentence"]) {
     assert.deepEqual(readRecovery(typed), { ok: false, why: "malformed" }, typed);
     assert.equal(parseRecovery(typed), null);
   }

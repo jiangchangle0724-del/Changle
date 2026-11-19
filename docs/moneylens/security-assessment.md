@@ -1,16 +1,19 @@
 # MoneyLens security assessment
 
-Version 0.2, 19 November 2026. It records the choices the requirements leave to this document
+Version 0.3, 19 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
 policy are added here as they are built. The threats are in [`threat-model.md`](threat-model.md).
 
 This describes a design and its limits. It is not a statement that the product is secure, and it
-has not yet had the independent review SEC-15 requires before Phase 3. Version 0.2 follows the
-first SEC-9 review of the vault code (pull request #653), which changed the format before any
-vault existed: wrappers are now tied to their vault, the passphrase normalization folds what phone
-keyboards rewrite, and the recovery code carries a check.
+has not yet had the independent review SEC-15 requires before Phase 3. Versions 0.2 and 0.3 follow
+the two rounds of SEC-9 review of the vault code (pull request #653), which changed the format
+before any vault existed. After the first: wrappers are tied to their vault, the passphrase
+normalization folds what phone keyboards rewrite, and the recovery code carries a check. After the
+second: the normalization folds compatibility forms first and gives the same result when applied
+twice, unlocking can tell a record for another vault from a wrong secret, and the passphrase floor
+no longer turns away what password generators make (measured in 1.4).
 
 ## 1. The vault
 
@@ -78,9 +81,22 @@ whenever the cheat sheet changes it and at each phase gate.
 - Losing a device or a passkey: its wrapper is removed on the server, by id. The other ways in are
   untouched.
 - Losing the passphrase, every passkey and the recovery code: nobody can open the vault (VAULT-5).
-- Unlocking says why it failed: "wrong secret", or "unsupported" for a wrapper this version of the
-  app cannot use (a newer format, a count outside the accepted range, a damaged record). An
-  out-of-date app is then not mistaken for a wrong passphrase.
+- Unlocking says why it failed, as far as it can know:
+  - "unsupported": the stored record is not one this version of the app can use (a newer format,
+    a field of the wrong shape, a count outside the accepted range). An out-of-date app is then
+    not mistaken for a wrong passphrase.
+  - "wrong vault": the caller said which vault it expects, and the record names another. The
+    record was changed or mixed up in storage; the secret is not even tried.
+  - "wrong secret": the record did not open. Usually the passphrase or the code is wrong. But the
+    vault's id, the salt and the count all go into making the wrapping key, so a record in which
+    any of them, or the wrapped key itself, was altered fails in exactly the same way. From the
+    record alone the two cannot be told apart.
+- So "wrong secret" is never proof that a vault is lost, however often it comes back and from
+  however many ways in. Two requirements on the screens and on sync when they are built. A device
+  keeps the id of the vault it made or first opened and passes it to every unlock. And a failed
+  unlock never tells the user the vault is lost or steers them to "reset and import again": the
+  unlock screen says only that this secret did not open the vault. Resetting stays where VAULT-5
+  puts it, a choice for a user who knows the secrets are gone, behind the 7-day delay of VAULT-7.
 
 ### 1.4 The passphrase: normalization and the floor (VAULT-7)
 
@@ -88,30 +104,97 @@ whenever the cheat sheet changes it and at each phase gate.
 screens cannot skip them.
 
 **Normalization** is part of how the key is made, so the same keys pressed on any device have to
-give the same bytes. Folded: curly quotes to straight ones, dashes to hyphens (an em dash to two),
-the ideographic full stop to a period, emoji variation selectors and zero-width characters
-dropped, compatibility forms such as full-width letters (NFKC), runs of spaces to one, no space at
-either end. Not folded: capitals. They are the user's own, so the passphrase fields must set
-`autocapitalize="off"`, `autocorrect="off"` and `spellcheck="false"`, which is a requirement on the
-screens when they are built. Because existing vaults depend on it, the normalization may only
-change together with a new wrapper version that still reads the old one; a stored vault in
-`tests/golden.ts` fails the build otherwise.
+give the same bytes. In this order:
+
+1. compatibility forms such as full-width and half-width letters and marks (NFKC);
+2. curly quotes to straight ones, dashes to hyphens (an em dash to two), the ideographic full
+   stop to a period;
+3. emoji and ideographic variation selectors and zero-width characters dropped;
+4. NFKC once more, because dropping a character can bring a letter and its accent together;
+5. runs of spaces to one, and no space at either end.
+
+Compatibility forms go first so that what they turn into is folded too: a half-width ideographic
+full stop becomes the same period as a full-width one. Applying it twice gives what applying it
+once gives, which a test checks on random text. Not folded: capitals. They are the user's own, so
+the passphrase fields must set `autocapitalize="off"`, `autocorrect="off"` and
+`spellcheck="false"`, which is a requirement on the screens when they are built. Because existing
+vaults depend on it, the normalization may only change together with a new wrapper version that
+still reads the old one; a stored vault in `tests/golden.ts` fails the build otherwise.
 
 **The floor.** Refused:
 
 - fewer than 12 characters, or fewer than 8 when at least four of them are Chinese, Japanese or
   Korean (other non-ASCII text gets no allowance);
-- patterns: fewer than five different characters, one piece repeated, a slide along a keyboard
-  row, the alphabet or the Chinese numerals, nothing but digits and marks;
+- patterns: fewer than five different characters; one piece repeated; a slide along a keyboard
+  row, the alphabet or the Chinese numerals, also with Shift held or as two slides typed turn
+  about ("1qaz@WSX3edc", "a1b2c3d4e5f6"); digits and marks with no letter and fewer than 20
+  digits; one run of digits that is two thirds of the passphrase or more, which is a date or a
+  phone number with initials around it ("wxm198812120");
 - well-known passwords and phrases, in English, pinyin and Chinese: alone, with digits and marks
   around or between them, with look-alikes for letters ("p@ssw0rd"), with accents, written
-  backwards, or several together making up three quarters of it;
-- under 20 characters, fewer than three runs of letters: one or two words with digits and marks
-  ("Summer2026!!"), the shape cracking rules are built for.
+  backwards, or several together making up two thirds of it;
+- under 20 characters, one or two words with digits and marks ("Maplewood2026!!"), the shape
+  cracking rules are built for. Look-alikes inside the word do not hide it ("M4plew00d2026!!").
+  Three words pass, and so does anything of 20 characters or more that clears the other rules.
+
+How the last rule knows a word: there is no dictionary in the code. A run of letters is a word
+when it can be read as pinyin syllables from end to end, or when it is built like an English word
+and each of its letters is followed by one that commonly follows it. The table of common letter
+pairs (305 of the 676) was worked out from the SCOWL word lists: the pairs that make up 97% of
+all pairs in 40,000 common English words, and any pair found in five or more of the 4,000
+commonest. Any other run of three letters or more is a "maybe": it may be a word the check does
+not know, or a random part. A maybe never makes a passphrase weak, but it counts when the words
+are counted, so that three words are not taken for two.
+
+This is rough, and it errs both ways. Both were measured on 19 November 2026.
+
+A password from a generator is let through because its letters do not read as words. Now and then
+one does by chance, and the person makes another. Of 20,000 random strings of each kind:
+
+| What the generator made | Refused | Before this change |
+| --- | --- | --- |
+| 12 letters and digits, capitals and small | 0.4% | 60% |
+| 16 letters and digits, capitals and small | 0.05% | 38% |
+| 12 letters, digits and marks | 0.4% | 19% |
+| 15 small letters | 0.4% | 100% |
+| 14 small letters and digits | 2.6% | 21% |
+| 12 capitals and digits | 4.0% | not measured |
+| 16 hexadecimal digits | 5.8% | not measured |
+| 20 digits | 0.01% | 100% |
+
+The rows with one case of letters are the hard ones: with no capitals to break them up, the runs
+of letters are long enough to read as a word now and then. Hexadecimal is harder still, because
+"bad", "fed" and "cafe" are words and more than half of it is digits. The tests hold each of
+these kinds under a fixed limit, from 0.5% for the rarest to twice the figure shown for the three
+hard ones. ("Before" is the reviewer's measurement of the rule this replaces: fewer than three
+runs of letters under 20 characters.)
+
+In the other direction, passphrases were built from real words of three to nine letters, 4,000 of
+each shape, all of 12 to 19 characters. The first three columns draw on the word lists the table
+of letter pairs was made from, by how common the words are; the last draws on rarer words that
+had no part in it ("minx", "gusset", "township"):
+
+| Shape | Commonest 4,000 words | Next 7,000 | Next 29,000 | Rarer, not used for the table |
+| --- | --- | --- | --- | --- |
+| One word, a year, two marks | 99.3% refused | 98.4% | 98.0% | 95.9% |
+| Two words and a year | 97.6% refused | 94.1% | 91.7% | 83.0% |
+| Two words run together with capitals, two digits, a mark | 97.5% refused | 95.4% | 93.0% | 88.0% |
+| Three words | all accepted | all accepted | all accepted | all accepted |
+
+What gets through, then: a two-word passphrase in which one word has letter pairs that are rare
+in English ("blue sky 2026": "ky" is one), more often the rarer the words; a date written with
+separators after initials ("wxm-1988-12-12"); and words of languages other than English and
+Mandarin, which nothing here recognizes as words, so that a passphrase in another language is
+checked for length, patterns and the well-known passwords only.
 
 It is a floor and not a strength meter. The list of well-known passwords is short and
 hand-written. A sentence that passes can still be guessable by someone who knows the user, and
-three common words in a row pass.
+three common words in a row pass. The second review pointed to an established estimator of
+guesses (zxcvbn-ts) as the better tool. It is to be tried when the passphrase screens are built,
+loaded only on those screens, with this floor kept underneath it as the check the screens cannot
+skip. It is not in this module because it would bring a dependency and large word lists into
+code that so far uses nothing but the browser's own WebCrypto, and whether its lists cover pinyin
+has to be checked first.
 
 ### 1.5 What was tested (T-9, part of T-25)
 
@@ -128,15 +211,23 @@ change:
   keyboard and as a phone would type it, by its recovery code and by its passkey secret. This is
   the test that pins the normalization and the stored format against later changes, and it pins
   the iteration floor at or below the stored count.
+- The normalization gives the same result when applied twice, on 5,000 random strings drawn from
+  the characters it folds.
 - A wrong passphrase fails; the recovery code unlocks; each secret fits only its own wrapper; a
-  wrapper relabelled as another vault's, or with another salt or count, does not open.
+  wrapper relabelled as another vault's, or with another salt or count, does not open. A device
+  that says which vault it expects is told "wrong vault" for any other, before a key is derived.
 - One flipped bit in any byte of a blob, a cut, an added byte, or a blob presented as another
   chunk, type or vault: it does not open, and there is never a partial result.
 - The key in use cannot be exported, and an exportable one is refused. A wrapper from storage is
   validated before any key is derived (checked by counting derivations, not by timing).
 - A weak passphrase makes no vault, including the look-alike, accented, backwards, Chinese and
   one-word forms. A passphrase change keeps earlier data readable.
-- The recovery code's check catches any single wrong symbol and any swap of neighbours.
+- The floor, both ways: 2,000 random strings of each of eight kinds a generator makes stay under
+  a limit of refusals; one word with a year is refused for each of 50 everyday words, and two of
+  them with a year; three of them are let through. One test lists what is known to get through.
+- The recovery code's check catches any single wrong symbol and any swap of neighbours. A code
+  with a symbol missing or typed twice is reported as the wrong length, with the count, and not
+  as "not a code". Groups may be separated by any dash, a dot, an underscore or a space.
 
 These tests run on Node. The same known answers and the stored vault have to pass in the browsers
 the app supports (Chrome, Safari, Firefox) before real data is admitted; that is part of the
@@ -176,6 +267,11 @@ Phase 1 exit.
   wrappers, per session and per account (threat 1). Not built.
 - Sessions, the handoff, the allowlist, the origin check, sync and quotas: sections to add with
   the server.
-- Reviews under SEC-9 are recorded in the pull request. The first one was done by another Claude
-  model because the other vendors' tools were not reachable that night; a review by a model from
-  another vendor is still wanted for this code.
+- A record altered in storage and a wrong secret look the same (1.3). When sync is built, the
+  device should also keep a fingerprint of the wrappers it has seen, so that it can say "this
+  record changed since this device last saw it" instead of "wrong passphrase".
+- An estimator of guesses on the passphrase screens, on top of the floor (1.4).
+- Reviews under SEC-9 are recorded in the pull request. Both rounds for the vault code were done
+  by another Claude model, which had not seen the code being written, because the other vendors'
+  tools were not reachable that night; a review by a model from another vendor is still wanted
+  for this code.

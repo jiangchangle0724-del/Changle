@@ -5,10 +5,16 @@
  *
  * It is a floor, not a meter. It refuses what is short; what is a pattern (one character, a short
  * piece repeated, a run along the keyboard, the alphabet or the Chinese numerals, nothing but
- * digits); what is mostly well-known passwords, whatever digits and marks are stuck on, whether
- * letters were swapped for look-alikes ("p@ssw0rd") or written backwards; and what is only a word
- * or two with digits and marks ("Summer2026!!"). Anything else is accepted without a score: a
- * score would suggest more than a rule like this can know.
+ * digits, one long number with a little around it); what is mostly well-known passwords, whatever
+ * digits and marks are stuck on, whether letters were swapped for look-alikes ("p@ssw0rd") or
+ * written backwards; and what is only a word or two with digits and marks ("Maplewood2026!!").
+ * Anything else is accepted without a score: a score would suggest more than a rule like this
+ * can know.
+ *
+ * It errs both ways, and is meant to. A password from a generator is let through, because its
+ * letters don't read as words; now and then one does by chance and is refused, and the person
+ * makes another. A word the check doesn't know for a word ("sky") is not counted as one, so some
+ * two-word passphrases get through.
  *
  * `normalizePassphrase` is part of how the key is made (crypto.ts). Changing what it folds would
  * lock out everyone whose passphrase the change touches, so it is pinned by a test with a stored
@@ -20,8 +26,10 @@ export const MIN_LENGTH = 12;
 export const MIN_LENGTH_WIDE = 8;
 /** The longest taken, so that a pasted file can't be made into a passphrase by accident. */
 export const MAX_LENGTH = 256;
-/** Under this length a passphrase needs at least three runs of letters (three words, or letters broken up by digits and marks). */
+/** Under this length, a passphrase that is only one or two words with digits and marks is refused. */
 const FEW_WORDS_BELOW = 20;
+/** From this many digits, a number is long enough to be a passphrase by itself: picked at random, it takes more guesses than five words from a list of 7,776. */
+const MANY_DIGITS = 20;
 
 export type Weak = "too-short" | "too-long" | "pattern" | "common" | "few-words";
 
@@ -31,19 +39,24 @@ export type Weak = "too-short" | "too-long" | "pattern" | "common" | "few-words"
  * become a dash, a full stop becomes an ideographic one, letters come out full-width, an emoji
  * gains or loses its variation selector. All of those are folded back; then compatibility forms
  * (NFKC), runs of spaces to one space, and no space at either end. Capitals are kept: they are
- * the user's own.
+ * the user's own. Doing it twice changes nothing more.
  */
 export function normalizePassphrase(text: string): string {
-  return text
-    .replace(/[\u2018\u2019\u201a\u201b\u2032]/g, "'")
-    .replace(/[\u201c\u201d\u201e\u201f\u2033]/g, '"')
-    .replace(/[\u2014\u2015]/g, "--")
-    .replace(/[\u2010\u2011\u2012\u2013\u2212]/g, "-")
-    .replace(/\u3002/g, ".")
-    .replace(/[\ufe00-\ufe0f\u200b\u00ad\ufeff]/g, "")
-    .normalize("NFKC")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    text
+      // compatibility forms first, so that what they turn into is folded too (a half-width ideographic full stop, a small em dash)
+      .normalize("NFKC")
+      .replace(/[\u2018\u2019\u201a\u201b\u2032]/g, "'")
+      .replace(/[\u201c\u201d\u201e\u201f\u2033]/g, '"')
+      .replace(/[\u2014\u2015]/g, "--")
+      .replace(/[\u2010\u2011\u2012\u2013\u2212]/g, "-")
+      .replace(/\u3002/g, ".")
+      .replace(/[\ufe00-\ufe0f\u200b\u00ad\ufeff\u{e0100}-\u{e01ef}]/gu, "")
+      // again, because taking a character out can bring a letter and its accent together
+      .normalize("NFKC")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 // Passwords and pieces of them that attackers try first. All lowercase, letters and digits only.
@@ -60,7 +73,9 @@ const COMMON = new Set([
   "march", "april", "june", "july", "august", "september", "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
   "woaini", "woaini1314", "5201314", "1314520", "aini1314", "aini", "woshishui", "nihao", "nihaoma", "mima", "wodemima", "baobei", "laopo", "laogong", "zhongguo", "beijing",
   "shanghai", "zhang", "wang", "aaa", "test", "testing", "temp", "correcthorsebatterystaple", "thequickbrownfox", "letmeinplease", "opensesame", "passphrase", "mypassphrase",
-  "newpassword", "oldpassword", "password123",
+  "newpassword", "oldpassword", "password123", "troubador", "troubadour", "forever", "always", "ever", "never", "morethan", "somuch", "verymuch", "mylove", "jesus", "christ", "godisgood",
+  "blessed", "manchester", "united",
+  "manchesterunited", "liverpool", "arsenal", "chelsea", "barcelona", "realmadrid", "juventus", "lakers", "yankees", "cowboys", "raptors", "bluejays", "mapleleafs",
   "我爱你", "爱你", "我想你", "永远爱你", "爱你一万年", "老婆我爱你", "老公我爱你", "一生一世", "一路平安", "一帆风顺", "万事如意", "恭喜发财", "大吉大利", "财源广进", "新年快乐", "生日快乐",
   "天天开心", "身体健康", "心想事成", "平安喜乐", "岁月静好", "密码", "我的密码", "没有密码", "你好", "你好吗", "你是谁", "我是谁", "不知道", "加油", "芝麻开门", "阿弥陀佛", "上帝保佑", "宝贝",
   "亲爱的", "哈哈哈", "呵呵呵", "中国", "北京", "上海", "温哥华", "加拿大", "常乐",
@@ -83,6 +98,10 @@ const RUNS = [
 ];
 
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+
+// The marks on the digit keys of a US keyboard, so that a slide typed with Shift held ("!QAZ@WSX") is still seen as one.
+const SHIFTED = "!@#$%^&*()";
+const unshift = (chars: readonly string[]): string[] => chars.map((c) => (SHIFTED.includes(c) ? "1234567890"[SHIFTED.indexOf(c)]! : c));
 
 /** Is `s` (lowercase) one piece of at most half its length, repeated? "abcabcabcabc", "passwordpassword". */
 function repeats(s: string): boolean {
@@ -118,19 +137,34 @@ function runShare(chars: readonly string[]): number {
   return covered / chars.length;
 }
 
-/** How much of `s` (lowercase letters and digits) is well-known passwords, with the digits between them counted in. "iloveyou2monkey" is all of it. */
+/** Is it a slide along the keys or the alphabet: as typed, with Shift held on the digit keys, or as two slides typed turn about ("a1b2c3d4")? */
+function slides(chars: readonly string[]): boolean {
+  const plain = unshift(chars);
+  if (runShare(chars) >= 0.75 || runShare(plain) >= 0.75) return true;
+  const [even, odd] = [plain.filter((_, i) => i % 2 === 0), plain.filter((_, i) => i % 2 === 1)];
+  return even.length >= 4 && odd.length >= 4 && runShare(even) >= 0.75 && runShare(odd) >= 0.75;
+}
+
+/**
+ * How much of `s` (lowercase letters and digits) is well-known passwords, with the digits around
+ * and between them counted in: "iloveyou2monkey" is all of it. Nothing when no well-known
+ * password is in it at all, however many digits there are.
+ */
 function commonShare(s: string): number {
   const chars = [...s];
-  if (chars.length === 0) return 0;
-  // best[i]: the most characters from i to the end that well-known passwords and digits can cover. Filled from the end.
-  const best: number[] = new Array<number>(chars.length + 1).fill(0);
+  // From i to the end, the most characters that can be covered: `digits[i]` by digits alone,
+  // `best[i]` by digits and at least one well-known password (-1 when none fits). Filled from the end.
+  const digits: number[] = new Array<number>(chars.length + 1).fill(0);
+  const best: number[] = new Array<number>(chars.length + 1).fill(-1);
   for (let i = chars.length - 1; i >= 0; i--) {
-    best[i] = best[i + 1]! + (/\d/.test(chars[i]!) ? 1 : 0);
+    const digit = /\d/.test(chars[i]!) ? 1 : 0;
+    digits[i] = digits[i + 1]! + digit;
+    if (best[i + 1]! >= 0) best[i] = best[i + 1]! + digit;
     for (let length = 2; length <= 25 && i + length <= chars.length; length++) {
-      if (COMMON.has(chars.slice(i, i + length).join(""))) best[i] = Math.max(best[i]!, length + best[i + length]!);
+      if (COMMON.has(chars.slice(i, i + length).join(""))) best[i] = Math.max(best[i]!, length + Math.max(best[i + length]!, digits[i + length]!));
     }
   }
-  return best[0]! / chars.length;
+  return chars.length === 0 || best[0]! < 0 ? 0 : best[0]! / chars.length;
 }
 
 const LOOKALIKES: Readonly<Record<string, string>> = { "@": "a", "4": "a", "3": "e", "!": "i", "0": "o", $: "s", "5": "s", "7": "t", "+": "t" };
@@ -138,14 +172,134 @@ const LOOKALIKES: Readonly<Record<string, string>> = { "@": "a", "4": "a", "3": 
 /** `s` with look-alike digits and marks turned back into the letters they stand for; "1" as "i" or as "l". */
 const unleet = (s: string, one: "i" | "l"): string => s.replace(/[@43!0$57+1]/g, (c) => (c === "1" ? one : LOOKALIKES[c]!));
 
-/** Is this text (lowercase, accents off) mostly well-known passwords? Or nothing but digits and marks ("pattern")? */
+/** Is this text (lowercase, accents off) mostly well-known passwords? Or digits and marks with no letter, and not many digits: a phone number, a date, a card number ("pattern")? */
 function knownAs(form: string): Weak | null {
   const letters = form.replace(/[^\p{L}\p{N}]/gu, "");
-  if (!/\p{L}/u.test(letters)) return "pattern";
+  if (!/\p{L}/u.test(letters)) return letters.length < MANY_DIGITS ? "pattern" : null;
   const core = letters.replace(/^\d+|\d+$/g, "");
   const backwards = [...core].reverse().join("");
-  if (COMMON.has(letters) || COMMON.has(core) || COMMON.has(backwards) || commonShare(core) >= 0.75 || commonShare(backwards) >= 0.75) return "common";
+  // (two thirds of it well-known is enough: "troubador" with a few letters after it)
+  if (COMMON.has(letters) || COMMON.has(core) || COMMON.has(backwards) || commonShare(core) * 3 >= 2 || commonShare(backwards) * 3 >= 2) return "common";
   return null;
+}
+
+// Which letters commonly follow each letter in English words: the pairs that make up 97% of all
+// the letter pairs in 40,000 common English words, and any pair found in five or more of the
+// 4,000 commonest. Worked out from the SCOWL word lists (Kevin Atkinson), sizes 10 to 35.
+const FOLLOWS: Readonly<Record<string, string>> = {
+  a: "bcdfgiklmnprstuvwy", b: "abeijlorstuy", c: "acehiklorstuy", d: "adegilmorsuvy", e: "abcdefghiklmnopqrstvwxy", f: "aefilortuy",
+  g: "aeghilnorsuy", h: "aeiortuy", i: "abcdefgklmnoprstvxz", j: "eou", k: "eilns", l: "acdefiklopstuvy", m: "abeimopsuy", n: "acdefgiklnopstuvy",
+  o: "abcdefgiklmnoprstuvwy", p: "aehiloprstuy", q: "u", r: "abcdefgiklmnoprstuvwy", s: "acefhiklmnopstuwy", t: "acehilmorstuwy",
+  u: "abcdefgilmnoprst", v: "aeio", w: "aehinors", x: "aceipt", y: "eiops", z: "ei",
+};
+
+// The syllables of Mandarin as pinyin spells them, by how they begin: a name or a phrase typed
+// without tones ("zhangxiaojun") is made of words too. A little generous (it lets "bou" through).
+const SYLLABLES = new Set(
+  (
+    [
+      ["", "a o e ai ei ao ou an en ang eng er"],
+      ["b p m", "a o e ai ei ao ou an en ang eng i ie iao iu ian in ing u"],
+      ["f w", "a o ai ei ou an en ang eng u"],
+      ["d t n l", "a e ai ei ao ou an en ang eng ong i ia ie iao iu ian in iang ing u uo ui uan un v ve ue"],
+      ["g k h", "a e ai ei ao ou an en ang eng ong u ua uo uai ui uan un uang"],
+      ["j q x", "i ia ie iao iu ian in iang ing iong u ue uan un"],
+      ["zh ch sh r z c s", "a e i ai ei ao ou an en ang eng ong u ua uo uai ui uan un uang"],
+      ["y", "a o e ao ou an in ang ing ong i u ue uan un"],
+    ] as const
+  ).flatMap(([starts, ends]) => starts.split(" ").flatMap((start) => ends.split(" ").map((end) => start + end))),
+);
+
+/** Can `word` (lowercase) be read as pinyin syllables from end to end? */
+function pinyin(word: string): boolean {
+  // reach[i]: the first i letters are whole syllables
+  const reach: boolean[] = new Array<boolean>(word.length + 1).fill(false);
+  reach[0] = true;
+  for (let i = 0; i < word.length; i++) {
+    if (!reach[i]) continue;
+    for (let length = 1; length <= 6 && i + length <= word.length; length++) {
+      if (SYLLABLES.has(word.slice(i, i + length))) reach[i + length] = true;
+    }
+  }
+  return reach[word.length]!;
+}
+
+/**
+ * Does a run of letters (lowercase) read as a word or a name? Three or more letters of the plain
+ * alphabet that are pinyin from end to end, or that are built like an English word: a vowel among
+ * them (y counts) but not nearly all vowels, never four consonants in a row, and each letter
+ * followed by one that commonly follows it (one exception from six letters, two from thirteen).
+ * Rough on purpose. It has to tell "maplewood" from "xkqzvw", not to know every word: a real
+ * word that fails it ("sky", "rhythm") is a "maybe" (fewWords).
+ */
+function wordlike(word: string): boolean {
+  if (!/^[a-z]{3,}$/.test(word)) return false;
+  if (pinyin(word)) return true;
+  const vowels = word.replace(/[^aeiouy]/g, "").length;
+  if (vowels === 0 || vowels * 4 > word.length * 3 || /[^aeiouy]{4}/.test(word)) return false;
+  let odd = 0;
+  for (let i = 1; i < word.length; i++) if (!FOLLOWS[word[i - 1]!]!.includes(word[i]!)) odd++;
+  return odd <= (word.length < 6 ? 0 : word.length < 13 ? 1 : 2);
+}
+
+/**
+ * `s` with look-alikes turned into the letters they stand for, where a letter follows them
+ * (straight away, or after more look-alikes): "M4plew00d2026!!" becomes "Maplewood2026!!", the
+ * year and the marks after the word staying as they are. A look-alike takes that letter's case,
+ * and every character keeps its place.
+ */
+function respell(s: string, one: "i" | "l"): string {
+  const out = s.split("");
+  let ahead = "";
+  for (let i = out.length - 1; i >= 0; i--) {
+    const c = out[i]!;
+    const letter = c === "1" ? one : LOOKALIKES[c];
+    if (letter === undefined) ahead = /\p{L}/u.test(c) ? c : "";
+    else if (ahead !== "") out[i] = ahead === ahead.toLowerCase() ? letter : letter.toUpperCase();
+  }
+  return out.join("");
+}
+
+/**
+ * Is it only a word or two, with digits and marks? The shape attackers' rules are built for: a
+ * word from a list, a capital, a year, an exclamation mark.
+ *
+ * Takes the passphrase as typed (accents off), and again with look-alikes respelled. In each it
+ * goes through the runs of letters, a capital inside a run starting a new one ("TidalMarmot" is
+ * two). A run that reads as a word is a word; any other run of three letters or more is a maybe,
+ * since it may be a word this check doesn't know, or a random part. It is "few" when there are
+ * one or two words, no more than two runs counting the maybes, and the words hold at least three
+ * quarters of the letters that were typed as letters: what is left is then too little to be a
+ * third word or a random part.
+ *
+ * A respelled run is a word only when it is five letters or more and at least two thirds of it
+ * was typed as letters: digits respelled are mostly vowels, and would make words out of anything.
+ * Three runs as typed, words or maybes, settle it as not "few" whatever the respelling makes of
+ * them ("maple+ravine+frost").
+ */
+function fewWords(cased: string): boolean {
+  const letters = (cased.match(/\p{L}/gu) ?? []).length;
+  for (const form of new Set([cased, respell(cased, "i"), respell(cased, "l")])) {
+    let words = 0;
+    let maybes = 0;
+    let held = 0;
+    for (const run of form.matchAll(/\p{L}+/gu)) {
+      let at = run.index ?? 0;
+      // (a line break after a small letter that a capital follows, and after a capital that a capital and then a small letter follow)
+      for (const piece of run[0].replace(/\p{Ll}(?=\p{Lu})|\p{Lu}(?=\p{Lu}\p{Ll})/gu, "$&\n").split("\n")) {
+        const word = piece.toLowerCase();
+        const typed = [...piece].filter((c, k) => cased[at + k] === c).length;
+        if (wordlike(word) && (typed === piece.length || (piece.length >= 5 && typed * 3 >= piece.length * 2))) {
+          words++;
+          held += typed;
+        } else if ([...piece].length >= 3) maybes++;
+        at += piece.length;
+      }
+    }
+    if (form === cased && words + maybes >= 3) return false;
+    if (words >= 1 && words + maybes <= 2 && held * 4 >= letters * 3) return true;
+  }
+  return false;
 }
 
 /** What is wrong with a passphrase, or null when it will do. */
@@ -158,7 +312,10 @@ export function weakness(text: string): Weak | null {
   if (chars.length < (wide ? MIN_LENGTH_WIDE : MIN_LENGTH)) return "too-short";
   const lower = p.toLowerCase();
   const lowerChars = [...lower];
-  if (new Set(lowerChars).size < 5 || repeats(lower) || runShare(lowerChars) >= 0.75) return "pattern";
+  if (new Set(lowerChars).size < 5 || repeats(lower) || slides(lowerChars)) return "pattern";
+  // mostly one number with a little around it: a date, a phone number, an account number
+  const longest = Math.max(0, ...(p.match(/\d+/g) ?? []).map((run) => run.length));
+  if (longest < MANY_DIGITS && longest * 3 >= chars.length * 2) return "pattern";
   // accents off, so that "pàssword" is looked up as "password"
   const plain = lower.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC");
   // nothing but digits and marks is a pattern; then well-known passwords, as typed and with look-alikes turned back
@@ -166,7 +323,6 @@ export function weakness(text: string): Weak | null {
     const known = knownAs(form);
     if (known === "common" || (known === "pattern" && form === plain)) return known;
   }
-  // one or two words with digits and marks: the shape attackers' rules are built for
-  if (!wide && chars.length < FEW_WORDS_BELOW && (plain.match(/\p{L}+/gu) ?? []).length < 3) return "few-words";
+  if (!wide && chars.length < FEW_WORDS_BELOW && fewWords(p.normalize("NFD").replace(/\p{M}/gu, ""))) return "few-words";
   return null;
 }

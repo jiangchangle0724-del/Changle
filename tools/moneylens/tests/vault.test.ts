@@ -27,8 +27,8 @@ const made = (): Promise<Made> =>
   }));
 const chunk = () => ({ id: newId(), type: "txns" });
 /** The vault a secret opens, or why it didn't. */
-const opened = async (wrapper: Wrapper, secret: Secret): Promise<OpenVault | "unsupported" | "wrong-secret"> => {
-  const result = await unlock(wrapper, secret);
+const opened = async (wrapper: Wrapper, secret: Secret, expected?: string): Promise<OpenVault | "unsupported" | "wrong-vault" | "wrong-secret"> => {
+  const result = await unlock(wrapper, secret, expected);
   return result.ok ? result.vault : result.why;
 };
 const vaultOf = async (wrapper: Wrapper, secret: Secret): Promise<OpenVault> => {
@@ -223,6 +223,11 @@ test("a wrapper relabelled as another vault's does not open, so the vault's id c
   // and the fields that make the key are bound too: another salt, another iteration count
   assert.equal(await opened({ ...wrappers[0], salt: wrappers[1].salt }, { kind: "passphrase", passphrase: PASSPHRASE }), "wrong-secret");
   assert.equal(await opened({ ...wrappers[0], iterations: PBKDF2_ITERATIONS + 1 }, { kind: "passphrase", passphrase: PASSPHRASE }), "wrong-secret");
+  // a device that has opened this vault before knows its id, and is told the record is another vault's before any secret is tried
+  const { vault } = await made();
+  assert.equal(await opened({ ...wrappers[0], vault: elsewhere }, { kind: "passphrase", passphrase: PASSPHRASE }, vault.id), "wrong-vault");
+  assert.equal(await opened(wrappers[1], { kind: "recovery", code: recoveryCode }, elsewhere), "wrong-vault");
+  assert.ok(typeof (await opened(wrappers[1], { kind: "recovery", code: recoveryCode }, vault.id)) === "object");
   // a recovery wrapper passed off as a passkey's, with the code's own bytes offered as the passkey's secret
   const asPasskey = { ...wrappers[1], kind: "passkey" as const, credential: "abcd" };
   const padded = new Uint8Array(32);

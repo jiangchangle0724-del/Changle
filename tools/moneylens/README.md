@@ -46,7 +46,7 @@ review by someone who did not write them before merging** (SEC-9).
 | --- | --- |
 | `crypto.ts` | The vault key, its wrappers (passphrase, recovery code, passkey), sealing and opening chunks (VAULT-1 to VAULT-3, VAULT-7) |
 | `recovery.ts` | The recovery code: 160 random bits a person can copy by hand, with a check for slips |
-| `passphrase.ts` | How a passphrase is normalized before it makes a key, and the floor it has to clear (VAULT-7) |
+| `passphrase.ts` | How a passphrase is normalized before it makes a key, and the floor it has to clear (VAULT-7). The floor errs both ways on purpose; how often, measured, is in the assessment (1.4) |
 
 `tests/golden.ts` is a vault made once and stored. **Never regenerate it.** If it stops opening,
 the change that broke it would lock real users out of their vaults: the stored format and the

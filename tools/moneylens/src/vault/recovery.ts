@@ -42,27 +42,31 @@ export function formatRecovery(bytes: Uint8Array): string {
   return `${symbols.match(/.{4}/g)!.join("-")}-${checkOf(values)}`;
 }
 
-export type RecoveryRead = { ok: true; bytes: Uint8Array } | { ok: false; why: "malformed" | "typo" };
+export type RecoveryRead = { ok: true; bytes: Uint8Array } | { ok: false; why: "malformed" | "typo" } | { ok: false; why: "wrong-length"; symbols: number };
 
 /**
- * Reads a code as someone typed it: spaces and dashes anywhere, any capitals, full-width
- * characters from a Chinese keyboard, O for 0, I or L for 1. "malformed": not a whole code (too
- * short or long, or a character no code has). "typo": the right shape, but the check doesn't
- * agree, so something was miscopied.
+ * Reads a code as someone typed it: spaces, dashes, dots or underscores anywhere, any capitals,
+ * full-width characters from a Chinese keyboard, O for 0, I or L for 1.
+ *
+ * - "malformed": a character no code has, or far too much text. Not a recovery code.
+ * - "wrong-length": only symbols a code has, but `symbols` of them where a code has 34. One was
+ *   left out or typed twice, or this is something else.
+ * - "typo": the right shape, but the check doesn't agree, so something was miscopied.
  */
 export function readRecovery(text: string): RecoveryRead {
   if (typeof text !== "string" || text.length > 200) return { ok: false, why: "malformed" };
-  const typed = text.normalize("NFKC").replace(/[\s-]/g, "");
+  // (whatever a word processor or a form put between the groups: any dash, a dot, an underscore)
+  const typed = text.normalize("NFKC").replace(/[\s\p{Pd}_.]/gu, "");
   // (only plain letters and digits from here on: capitals of other alphabets can turn into ours)
   if (!/^[0-9A-Za-z]+$/.test(typed)) return { ok: false, why: "malformed" };
   const symbols = typed.toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1");
-  if (symbols.length !== DATA_SYMBOLS + 2) return { ok: false, why: "malformed" };
   const values: number[] = [];
   for (const s of symbols) {
     const value = ALPHABET.indexOf(s);
     if (value < 0) return { ok: false, why: "malformed" };
     values.push(value);
   }
+  if (symbols.length !== DATA_SYMBOLS + 2) return { ok: false, why: "wrong-length", symbols: symbols.length };
   const data = values.slice(0, DATA_SYMBOLS);
   if (checkOf(data) !== symbols.slice(DATA_SYMBOLS)) return { ok: false, why: "typo" };
   const bytes = new Uint8Array(RECOVERY_BYTES);
@@ -81,7 +85,7 @@ export function readRecovery(text: string): RecoveryRead {
   return { ok: true, bytes };
 }
 
-/** The bytes of a typed code, or null when it isn't one (malformed or miscopied). */
+/** The bytes of a typed code, or null when it isn't one (malformed, the wrong length or miscopied). */
 export function parseRecovery(text: string): Uint8Array | null {
   const read = readRecovery(text);
   return read.ok ? read.bytes : null;

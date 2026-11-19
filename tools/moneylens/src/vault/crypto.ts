@@ -223,16 +223,30 @@ export async function createVault(passphrase: string, now = new Date()): Promise
 }
 
 /**
- * "unsupported": the wrapper is not one this version can use (a newer format, or parameters
- * outside what is accepted): the app is out of date or the stored record is damaged, and the
- * user's secret may well be right. "wrong-secret": the wrapper is fine and the secret didn't open
- * it.
+ * Why an unlock failed.
+ *
+ * - "unsupported": the wrapper is not one this version can use (a newer format, or parameters
+ *   outside what is accepted). The app is out of date or the record is malformed; the user's
+ *   secret may well be right.
+ * - "wrong-vault": the wrapper says it belongs to another vault than the one the caller expected
+ *   (the one this device opened before). The stored record was changed or mixed up; the secret
+ *   may well be right.
+ * - "wrong-secret": the wrapper did not open. Usually the secret is wrong. But a wrapper whose
+ *   vault id, salt, count or wrapped key was altered in storage fails the same way, and when no
+ *   expected vault was given there is no telling the two apart. So a screen must never conclude
+ *   from "wrong-secret" alone, however many times, that the vault is lost, or steer the user to
+ *   resetting it.
  */
-export type Unlocked = { ok: true; vault: OpenVault } | { ok: false; why: "unsupported" | "wrong-secret" };
+export type Unlocked = { ok: true; vault: OpenVault } | { ok: false; why: "unsupported" | "wrong-vault" | "wrong-secret" };
 
-/** Opens a vault with one of its wrappers and that wrapper's secret. */
-export async function unlock(wrapper: Wrapper, secret: Secret): Promise<Unlocked> {
+/**
+ * Opens a vault with one of its wrappers and that wrapper's secret. `expected` is the vault's id
+ * when the caller already knows it (kept on the device since the vault was made or first opened
+ * there): a wrapper for any other vault is refused before the secret is tried.
+ */
+export async function unlock(wrapper: Wrapper, secret: Secret, expected?: string): Promise<Unlocked> {
   if (!isWrapper(wrapper)) return { ok: false, why: "unsupported" };
+  if (expected !== undefined && wrapper.vault !== expected) return { ok: false, why: "wrong-vault" };
   const key = await unwrap(wrapper, secret, false);
   return key ? { ok: true, vault: { id: wrapper.vault, key } } : { ok: false, why: "wrong-secret" };
 }
