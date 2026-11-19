@@ -1,5 +1,6 @@
 // Sounds, made in the page (no sound files): a punch's whoosh, a cartoon bonk when it lands, a body
-// hitting the floor, the ferry horn, the busker's riff, the opera gong, the theatre's drill (the
+// hitting the floor, the ferry horn, the seawall's bike (its bell, and its crash into someone), the
+// busker's riff, the opera gong, the theatre's drill (the
 // stage's count and the crowd's punches), the night market's firecrackers and fireworks, a bite at a
 // stall and a feast, the last seconds' ticks, a whistle to start and a little fanfare at the end; on the big
 // screen (and in practice) a light loop for the place. Phones only allow sound after a tap, so the
@@ -234,6 +235,40 @@ export const sfx = {
       osc.stop(t + 2.1);
     }
     duck(t, 2.2);
+  },
+  /**
+   * The seawall's bike: its bell, a thumb's quick trill twice (ring ring) as it sets off, and again as
+   * it comes onto the floor. `sinceMs` is how far into the moment this screen came in (a ring already
+   * gone isn't played).
+   */
+  bell(sinceMs = 0): void {
+    const t = now();
+    if (t === null) return;
+    for (const trill of [0, 520, 1_250]) {
+      const start = t + (trill - sinceMs) / 1000;
+      if (start < t - 0.03) continue;
+      for (let strike = 0; strike < 5; strike++) {
+        const hit = start + strike * 0.052;
+        const level = 0.11 * (1 - strike * 0.12);
+        // (two tones a few hertz apart beat like a real bell's dome, over its higher partials)
+        voice("sine", 2_380, 2_370, hit, 0.42, level, master!, 0.002);
+        voice("sine", 2_396, 2_388, hit, 0.36, level * 0.6, master!, 0.002);
+        voice("sine", 3_710, 3_700, hit, 0.22, level * 0.35, master!, 0.002);
+        voice("sine", 5_160, 5_150, hit, 0.12, level * 0.18, master!, 0.002);
+      }
+    }
+  },
+  /** the bike knocks someone down: a skid, a clank of metal, the bell knocked, and the body hitting the ground */
+  crash(): void {
+    const t = now();
+    if (t === null) return;
+    const pitch = vary();
+    hiss(t, 0.22, 0.22, 3_200 * pitch, 900 * pitch, 0.9);
+    voice("triangle", 820 * pitch, 610 * pitch, t + 0.02, 0.16, 0.08, master!, 0.002);
+    voice("square", 1_240 * pitch, 980 * pitch, t + 0.05, 0.08, 0.035, master!, 0.002);
+    voice("sine", 2_380, 2_370, t + 0.06, 0.25, 0.05, master!, 0.002);
+    voice("sine", 110 * pitch, 46 * pitch, t + 0.08, 0.3, 0.5);
+    hiss(t + 0.08, 0.16, 0.18, 600 * pitch, 180 * pitch, 0.7);
   },
   /** the opera gong: a bright strike that rings and wobbles */
   gong(): void {

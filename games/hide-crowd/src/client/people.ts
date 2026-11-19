@@ -502,7 +502,7 @@ export async function loadPeople(loader = new GLTFLoader()): Promise<PeopleKit> 
   return kitFrom(man, woman, moves);
 }
 
-type Kind = "tag" | "foul" | "swing" | "hide" | "blast" | "over";
+type Kind = "tag" | "foul" | "swing" | "hide" | "blast" | "bike" | "over";
 /**
  * What's happening around a body, for its face and head (the arena works it out, the same for every
  * body): fireworks overhead (it looks up, "ooh"), a bang close by (a start), something to watch (the

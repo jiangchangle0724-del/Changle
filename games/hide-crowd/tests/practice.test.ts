@@ -6,7 +6,7 @@
 // the whole crowd.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DRILL_GO_MS, DRILL_MS, MATCH_MS, SIMULATION_STEP_MS } from "../src/engine";
+import { BIKE_CLEAR, DRILL_GO_MS, DRILL_MS, MATCH_MS, SIMULATION_STEP_MS } from "../src/engine";
 import type { ClientMsg, RoomView, ServerMsg } from "../src/room/protocol";
 
 const START = 1_700_000_000_000;
@@ -149,4 +149,31 @@ test("at the theatre, standing through the call gives a player away; punching wi
   } finally {
     delete place.location;
   }
+});
+
+test("by the seawall, standing in the bike's way gives a player away; stepping aside with the crowd doesn't", () => {
+  // stand on the bike's line every time it comes (the worst place to stand) ...
+  const onItsLine = rounds(10, (_step, view) => {
+    const bike = view?.game?.moment?.bike;
+    const me = view?.game?.avatars.find((avatar) => avatar.me);
+    if (!bike || !me || bike.sinceMs > 600) return null;
+    // (walk onto it in the bell's first moments, then stand)
+    const off = bike.y - me.y;
+    return Math.abs(off) > 0.8 ? { t: "move", x: 0, y: Math.sign(off) * 0.6 } : { t: "move", x: 0, y: 0 };
+  });
+  // ... or the same, but step off it once the bell rings, as the passers-by do
+  const stepAside = rounds(10, (_step, view) => {
+    const bike = view?.game?.moment?.bike;
+    const me = view?.game?.avatars.find((avatar) => avatar.me);
+    if (!bike || !me) return null;
+    if (bike.sinceMs <= 600) {
+      const off = bike.y - me.y;
+      return Math.abs(off) > 0.8 ? { t: "move", x: 0, y: Math.sign(off) * 0.6 } : { t: "move", x: 0, y: 0 };
+    }
+    const away = me.y - bike.y;
+    return Math.abs(away) < BIKE_CLEAR ? { t: "move", x: 0, y: away >= 0 ? 1 : -1 } : { t: "move", x: 0, y: 0 };
+  });
+  const spotted = (played: { spotted: number }[]) => played.reduce((sum, round) => sum + round.spotted, 0);
+  assert.ok(spotted(onItsLine) >= 3, `standing in its way: spotted ${spotted(onItsLine)} times in 10 rounds`);
+  assert.ok(spotted(onItsLine) >= 2 * spotted(stepAside), `in its way ${spotted(onItsLine)} times, stepping aside ${spotted(stepAside)}`);
 });

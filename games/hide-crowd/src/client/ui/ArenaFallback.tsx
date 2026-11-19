@@ -4,8 +4,8 @@
 // then every player's name, the winner's in the gel. The night market's four stalls sit along the
 // top, and light up when someone tastes one.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
-import type { AvatarView, CrackerView } from "../../room/protocol";
+import { ARENA, BIKE_REACH, bikeX, PLAYER_ACCELERATION, PLAYER_BRAKING, steerVelocity, type ArenaId } from "../../engine";
+import type { AvatarView, BikeView, CrackerView } from "../../room/protocol";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
 
@@ -22,10 +22,10 @@ export function ArenaFallback(props: {
   maxSpeed: number;
   receivedAt: number;
   impactId: number;
-  impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "over";
+  impactType: "tag" | "foul" | "swing" | "hide" | "blast" | "bike" | "over";
   flash?: { id: number; stall: number; feast: boolean } | null;
-  /** the night market's firecrackers come with their moment */
-  moment?: { crackers?: CrackerView[] } | null;
+  /** the night market's firecrackers come with their moment, the seawall's bike with its line */
+  moment?: { crackers?: CrackerView[]; bike?: BikeView } | null;
 }) {
   const arenaRef = useRef<HTMLDivElement>(null);
   const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
@@ -129,6 +129,18 @@ export function ArenaFallback(props: {
         <div class={`flat-belt ${props.drift.x < 0 ? "is-left" : props.drift.x > 0 ? "is-right" : ""}`} aria-hidden="true" />
       )}
       {props.arena === "gallery" && <div class="flat-spotlight" aria-hidden="true" />}
+      {/* the seawall's bike: its line across the floor, and the bike on it (where the room last said) */}
+      {props.moment?.bike && (() => {
+        const bike = props.moment.bike;
+        const front = bikeX({ y: bike.y, dir: bike.dir, startsAt: 0 }, bike.sinceMs + Math.max(0, Date.now() - props.receivedAt));
+        const top = ((bike.y - BIKE_REACH) / ARENA.height) * 100;
+        return (
+          <>
+            <span class={`flat-bike-lane${bike.dir < 0 ? " is-left" : ""}`} style={{ top: `${top}%`, height: `${((BIKE_REACH * 2) / ARENA.height) * 100}%` }} aria-hidden="true" />
+            {front > -4 && front < ARENA.width + 4 && <span class="flat-bike" style={{ left: `${front}%`, top: `${(bike.y / ARENA.height) * 100}%` }} aria-hidden="true" />}
+          </>
+        );
+      })()}
       {/* the firecrackers: once landed, a ring of how far each will knock people down, then its bang */}
       {(props.moment?.crackers ?? [])
         .filter((cracker) => cracker.landsInMs <= 0 && cracker.bangsInMs > -500)

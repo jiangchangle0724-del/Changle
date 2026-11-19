@@ -5,7 +5,7 @@
 // buzz. With reduced motion there is none.
 
 /** how much each thing that happens shakes the camera (0 to 1; the shake is its square) */
-export const TRAUMA = { tag: 0.78, foul: 0.52, swing: 0.3, hide: 0, blast: 0, over: 0.5, drill: 0.42, bang: 0.66 } as const;
+export const TRAUMA = { tag: 0.78, foul: 0.52, swing: 0.3, hide: 0, blast: 0, bike: 0.58, over: 0.5, drill: 0.42, bang: 0.66 } as const;
 /** how fast the shake drains (a second), how far it reaches (scene units) and how far it rolls (radians) */
 export const TRAUMA_DRAIN = 2.1;
 export const SHAKE_REACH = 0.42;
