@@ -17,7 +17,6 @@ import {
   FollowMeter,
   HOLD_MS,
   LeanGauge,
-  LimboScene,
   ModePicker,
   SteadyMeter,
   TiltMeter,
@@ -33,6 +32,7 @@ import {
   variantLine,
   type LimboPick,
 } from "./parts";
+import { LimboStage, nameColor, type StageFigure } from "./Stage";
 import "../../styles/party.css";
 
 type Mode = LimboPick;
@@ -391,6 +391,18 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const tag = blind || realBar ? "" : barTag(bar, zh, mode === "party");
   // a moving bar sways while someone follows it, and waits at its top otherwise
   const sway = moving ? { bar, startAt: phase.k === "try" ? phase.t0 : Number.MAX_SAFE_INTEGER, clock: phoneClock } : undefined;
+  // who stands on the stage: everyone before the game and at a real bar, otherwise whoever's turn it is,
+  // leaning as the phone reads them (blind lean shows the target, never their own angle)
+  const liveLean = kind === "classic" ? lean.lean : moving ? follow.lean : pose.lean;
+  const fig = (id: string, pose: StageFigure["pose"], extra?: Partial<StageFigure>): StageFigure => ({ id, color: nameColor(name[id] ?? id), name: name[id] ?? "", pose, ...extra });
+  const figures: StageFigure[] =
+    phase.k === "setup"
+      ? people.map((p) => fig(p.id, "idle"))
+      : phase.k === "bar"
+        ? alive.map((id) => fig(id, passed.includes(id) ? "pass" : failed.includes(id) ? "fail" : "idle"))
+        : cur
+          ? [fig(cur.id, phase.k === "try" ? "lean" : phase.k === "verdict" ? (phase.ok ? "pass" : "fail") : "idle", { lean: trying ? liveLean : undefined, side: trying && kind === "tilt" ? pose.side : undefined, full: true })]
+          : [];
 
   const actions =
     phase.k === "setup" ? (
@@ -435,7 +447,7 @@ function LimboGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   return (
     <GameShell title={GAME_BY_ID.limbo.name} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: cur?.id, out: phase.k === "setup" ? [] : phase.k === "end" && phase.winner ? people.filter((p) => p.id !== phase.winner).map((p) => p.id) : people.filter((p) => !alive.includes(p.id) || (!blind && failed.includes(p.id))).map((p) => p.id) }} status={phase.k !== "setup" ? { kind: "round", current: level + 1 } : undefined} actions={actions}>
       <div className="lb">
-        {phase.k !== "end" && <LimboScene angle={angle} level={level} side={kind === "tilt" ? bar.side : 0} sway={sway} />}
+        {phase.k !== "end" && <LimboStage angle={angle} level={level} side={kind === "tilt" ? bar.side : 0} sway={sway} figures={figures} />}
         {phase.k !== "setup" && phase.k !== "end" && (
           <p className="lb-level">
             {!blind && !realBar && <strong className="tabular">{angle}°</strong>}

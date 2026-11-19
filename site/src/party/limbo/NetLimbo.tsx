@@ -20,7 +20,6 @@ import {
   FollowMeter,
   HOLD_MS,
   LeanGauge,
-  LimboScene,
   ModePicker,
   SteadyMeter,
   TiltMeter,
@@ -35,6 +34,7 @@ import {
   usePose,
   variantSteps,
 } from "./parts";
+import { LimboStage, seatColor, type StageFigure } from "./Stage";
 import "../../styles/party.css";
 import { Lineup } from "../../components/Figure";
 
@@ -189,22 +189,46 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
   // between bars the scene already shows the next bar's angle, and its variant isn't drawn yet:
   // the slant, the sway and the variant's name are for the bar being played
   const live = v.phase === "go";
+  // the players on the stage: everyone still in, this phone's own player leaning as it reads them
+  // (the others at the bar's angle; blind lean shows the target, never anyone's own angle)
+  const liveLean = kind === "classic" ? classic.lean : moving ? follow.lean : pose.lean;
+  const figures: StageFigure[] = v.alive
+    .filter((id) => seat(id))
+    .map((id) => {
+      const st = status(id);
+      const mine = id === me && trying;
+      return {
+        id,
+        color: seatColor(seat(id)!),
+        name: id === me ? (zh ? "你" : "You") : nameOf(id),
+        pose: st === "pass" ? "pass" : st === "fail" || st === "out" ? "fail" : v.phase === "go" && open ? "lean" : "idle",
+        lean: mine ? liveLean : undefined,
+        side: mine && kind === "tilt" ? pose.side : undefined,
+      };
+    });
 
   return (
     <NetFrame title={GAME_BY_ID.limbo.name} rules={rules} onLeave={onLeave}>
       <div className="lb">
         {v.phase !== "end" && (
-          <LimboScene angle={v.angle} level={v.level} side={live && kind === "tilt" ? bar.side : 0} sway={live && moving ? { bar, startAt: v.startAt, clock: now } : undefined}>
-            {showBar && (
-              <Lineup
-                lean={v.angle}
-                items={v.alive.filter((id) => seat(id)).map((id) => {
-                  const st = status(id);
-                  return { seat: seat(id)!, pose: st === "pass" ? "pass" : st === "fail" || st === "out" ? "fail" : v.phase === "go" && open ? "lean" : "idle" };
-                })}
-              />
-            )}
-          </LimboScene>
+          <LimboStage
+            angle={v.angle}
+            level={v.level}
+            side={live && kind === "tilt" ? bar.side : 0}
+            sway={live && moving ? { bar, startAt: v.startAt, clock: now } : undefined}
+            figures={figures}
+            drawn={
+              showBar && (
+                <Lineup
+                  lean={v.angle}
+                  items={v.alive.filter((id) => seat(id)).map((id) => {
+                    const st = status(id);
+                    return { seat: seat(id)!, pose: st === "pass" ? "pass" : st === "fail" || st === "out" ? "fail" : v.phase === "go" && open ? "lean" : "idle" };
+                  })}
+                />
+              )
+            }
+          />
         )}
         {v.phase !== "end" && (v.phase !== "ready" || !blind) && (
           <p className="lb-level">
