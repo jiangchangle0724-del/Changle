@@ -170,21 +170,20 @@ test("someone who joins after the start fills in a diet card first, then joins t
   for (const p of [host, late]) expect(p.errors).toEqual([]);
 });
 
-test("guests can't start a table when login is on; picking alone is gone, its address goes home", async ({ request }) => {
+test("guests can't start a table when login is on; picking alone is gone, its addresses go home", async ({ request }) => {
   const res = await request.post("/eat/api/rooms", { data: { cid: "abcdef0123456789", center: { lat: 49.28, lng: -123.12 }, range: "walk10" } });
   expect(res.status()).toBe(401);
-  const solo = await request.get("/eat/solo", { maxRedirects: 0 });
-  expect(solo.status()).toBe(302);
-  expect(solo.headers().location).toMatch(/\/eat\/$/);
-});
-
-test("rating with nothing picked says so", async ({ browser }) => {
-  const me = await phone(browser, "nopick");
-  expect((await me.page.request.post("/eat/api/test/login", { data: { sub: `nopick-${Date.now()}`, name: "阿杰" } })).ok()).toBeTruthy();
-  await me.page.goto("/eat/rate");
-  await expect(me.page.getByText("最近没有要评的餐厅")).toBeVisible();
-  await expect(me.page.getByRole("button", { name: "提交" })).toHaveCount(0);
-  expect(me.errors).toEqual([]);
+  for (const path of ["/eat/solo", "/eat/rate"]) {
+    const old = await request.get(path, { maxRedirects: 0 });
+    expect(old.status()).toBe(302);
+    expect(old.headers().location).toMatch(/\/eat\/$/);
+  }
+  // Its rating and its "就它了" are gone too (2026-11-18): only a table can be rated or remembered.
+  const login = await request.post("/eat/api/test/login", { data: { sub: `solo-gone-${Date.now()}`, name: "阿杰" } });
+  expect(login.ok()).toBeTruthy();
+  expect((await request.post("/eat/api/places/demo-1/rate", { data: { overall: "up", liked: true, wait: 0 } })).ok()).toBeFalsy();
+  expect((await request.post("/eat/api/me/last", { data: { place: "demo-1", name: "示例 · 金满楼点心" } })).status()).toBe(400);
+  expect((await request.post("/eat/api/me/last", { data: { code: "1234", name: "示例 · 金满楼点心" } })).ok()).toBeTruthy();
 });
 
 test("the privacy and terms pages are public and linked from the home page", async ({ page, request }) => {

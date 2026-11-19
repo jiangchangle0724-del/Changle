@@ -48,9 +48,10 @@ How a table goes:
 
 **On your own?** Start a table and choose "一个人" (just me): round 1 and the list work the same
 for one phone, with cheap quick places and noodles a little higher and hot pot and Korean BBQ a
-little lower. Picking alone used to be a page of its own (`/eat/solo`); since 2026-11 that
-address goes to the home page. Picks made there can still be rated for a few days
-(`changle.ca/eat/rate`, `POST /api/places/:id/rate`); those can go once nobody has one left.
+little lower. Picking alone used to be a page of its own (`/eat/solo`, its picks rated at
+`/eat/rate`); it went on 2026-11-11, and both addresses go to the home page. What it left on an
+account (its last search, a pick to ask about) goes the next time its person opens the tool
+(`UserDO.me()` in `src/server/worker.ts`).
 
 **When** is asked with what it's for, on the home page (the host can change both in the lobby):
 now, today's or tomorrow's lunch (12:00) or dinner (18:30) while they're still
@@ -181,8 +182,7 @@ street number ("150-8888 River Rd") still match.
 * **Addresses.** The Worker answers `changle.ca/eat` and `changle.ca/eat/*` (the routes in
   `wrangler.jsonc`); the rest of changle.ca is the site. Everything is under `/eat`: the home page
   (`/eat/`), a phone at a table (`/eat/r/1234`, which is also what the QR code and the invite link
-  say), rating the meal afterwards (`/eat/r/1234/rate`, or `/eat/rate` for a solo pick made
-  before picking alone went), the API (`/eat/api/…`), sign-in (`/eat/auth/…`) and the
+  say), rating the meal afterwards (`/eat/r/1234/rate`), the API (`/eat/api/…`), sign-in (`/eat/auth/…`) and the
   files (`/eat/app.js`, `/eat/app.css`, built into `dist/client/eat`).
   `BASE` in `src/base.ts` is the one place that says `/eat`; the server strips it off incoming
   paths and the pages put it in front of theirs. The session cookie's `Path` is `/eat` too, so
