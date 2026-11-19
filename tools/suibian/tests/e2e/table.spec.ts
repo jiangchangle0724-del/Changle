@@ -72,7 +72,7 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await host.page.getByRole("button", { name: "开始！" }).click();
   for (const p of [host, a, b]) await expect(p.page.locator(".menu").first()).toBeVisible();
   await expect(host.page.locator(".menu h3")).toHaveText(["中餐", "亚洲菜", "西餐和其他"]);
-  await expect(host.page.locator(".mood")).toHaveCount(31);
+  await expect(host.page.locator(".mood")).toHaveCount(32);
   for (const c of ["sichuan", "cantonese", "hotpot", "thai", "vietnamese", "filipino", "mexican"]) await expect(host.page.locator(`[data-cuisine=${c}]`)).toBeVisible();
   await host.page.locator("[data-cuisine=ramen]").click(); // 👍
   await a.page.locator("[data-cuisine=ramen]").click();
@@ -320,6 +320,24 @@ test("the phone's language, but Chinese in WeChat; a choice made there stays (St
   await expect(wechat.locator("h1")).toHaveText("Whatever's Fine");
   await wechat.reload();
   await expect(wechat.locator("html")).toHaveAttribute("lang", "en");
+});
+
+test("all you can eat on round 1's menu: its places come first, the card says so (Steve, 2026-11-18)", async ({ browser }) => {
+  const me = await phone(browser, "ayce");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `ayce-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  await page.getByRole("button", { name: "开始！" }).click();
+  await expect(page.locator("[data-cuisine=ayce]")).toContainText("自助 · 放题");
+  await page.locator("[data-cuisine=ayce]").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place h3").first()).toHaveText("示例 · Gogi House Korean BBQ");
+  await expect(page.locator(".place").first().locator(".intro")).toContainText("🍽️ 自助 · 放题、韩国烤肉");
+  expect(me.errors).toEqual([]);
 });
 
 test("demo restaurants come in the host's language, and the made-up list doesn't say it's from Google", async ({ browser }) => {
