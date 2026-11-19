@@ -75,7 +75,7 @@ export function historyOf(now: Ledger, log: Logged[], waiting: Sent[], me: strin
   const nameOf = (id: string) => now.members.find((m) => m.id === id)?.name ?? names.get(id) ?? "";
   const who = (by: string | undefined) => (by === undefined ? say(lang, "someone") : by === me ? say(lang, "you") : nameOf(by) || say(lang, "someone"));
   const amount = (n: number) => money(n, now.currency, lang);
-  const expense = (e: { note: string; amount: number }) => `${tidy(e.note, NOTE_MAX) || say(lang, "noNote")} ${amount(e.amount)}`;
+  const expense = (e: { note: string; amount: number; merchant?: string | null }) => `${tidy(e.note, NOTE_MAX) || e.merchant || say(lang, "noNote")} ${amount(e.amount)}`;
   const paid = (t: { from: string; to: string; amount: number }) => say(lang, "planLine", { from: nameOf(t.from) || say(lang, "someone"), to: nameOf(t.to) || say(lang, "someone"), amount: amount(t.amount) });
   const what = (e: Entry | undefined) => (!e ? say(lang, "noNote") : e.kind === "expense" ? expense(e) : paid(e));
 

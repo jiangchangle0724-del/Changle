@@ -305,12 +305,12 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   eq([byAmounts.amounts, draftProblem(byAmounts, five), draftProblem({ ...byAmounts, amounts: { s: "15", w: "15" } }, five)], [{ s: "21.00", w: "21.00" }, null, { what: "sum", off: 1200 }], "shared by amounts, the amounts are in the ledger's currency and add up to what it comes to: 15 and 15 leaves 12.00 of the 42.00");
 
   // what is said to the ledger
-  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, date: "2026-11-13", paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
+  eq(saying(thirty, five), { payer: "s", amount: 4200, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, paidIn: { currency: "USD", amount: 3000, rate: "1.40" }, tip: null, tax: null }, "paid in another currency, an expense says both amounts and the rate as it was typed (and no tip or tax, and the day: today, for a new one)");
   eq(saying({ ...thirty, rate: "1." }, five)?.paidIn, { currency: "USD", amount: 3000, rate: "1" }, "(a rate left at 1. is kept as 1)");
-  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, date: "2026-11-13", paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
+  eq([saying(home, five), saying(waiting, five), saying({ ...thirty, text: "" }, five)], [{ payer: "s", amount: 8640, note: "", split: even, date: "2026-11-13", merchant: null, place: null, payment: null, paidIn: null, tip: null, tax: null }, null, null], "in the ledger's own, it says there is no other currency (and no tip or tax); while something is wrong with it, it says nothing at all");
 
   // opened again
-  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, tip, tax, date, ...said }) => ({ ...said, ...(date ? { date } : {}) }))(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
+  const recorded = applyChange(five, { do: "expense", expense: { kind: "expense", id: "e", at: NOW - HOUR, ...(({ paidIn, files, tip, tax, date, merchant, place, payment, ...said }) => ({ ...said, ...(date ? { date } : {}), ...(merchant ? { merchant } : {}), ...(place ? { place } : {}), ...(payment ? { payment } : {}) }))(saying(thirty, five)!), rot: 0, paidIn: saying(thirty, five)!.paidIn! } })!;
   const again = draftOf(recorded.entries[0] as Expense, recorded);
   eq([again.text, again.currency, again.rate, again.asking, again.untouched], ["30.00", "USD", "1.40", false, false], "an expense paid in dollars opens in dollars, at the rate it was recorded at");
   eq([saying(again, recorded), applyChange(recorded, { do: "edit", entry: "e", to: saying(again, recorded)! })], [saying(thirty, five), null], "saved untouched, it says what it said, and nothing changes");
@@ -340,7 +340,7 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
         if (draftProblem(d, l)?.what !== "amount") bad = `${text} ${other} in a ${settle} ledger: ${JSON.stringify(draftProblem(d, l))}`;
         continue;
       }
-      const { paidIn, files: _files, tip: _tip, tax: _tax, date, ...said } = to;
+      const { paidIn, files: _files, tip: _tip, tax: _tax, date, merchant: _m, place: _p, payment: _w, ...said } = to;
       const made = applyChange(l, { do: "expense", expense: { kind: "expense", id: "e", at: NOW, ...said, ...(date ? { date } : {}), rot: 0, ...(paidIn ? { paidIn } : {}) } });
       const e = made?.entries[0] as Expense | undefined;
       if (!made || !e || JSON.stringify(paidInOf(e, made)) !== JSON.stringify(paidIn) || e.amount !== convert(paidIn?.amount ?? 0, decimalsOf(other), paidIn?.rate ?? "", decimalsOf(settle))) bad = `${text} ${other} in a ${settle} ledger isn't kept as it was said`;
@@ -1076,6 +1076,13 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
     "2026-11-15,花销,Lunch,小王,40.00,CAD,USD,30.00,1.3333,6.00,,-8.00,32.00,-8.00,-8.00,-8.00",
     ",合计,,,550.50,CAD,,,,24.00,5.25,132.90,115.90,-28.60,-110.10,-110.10",
   ], "the day an expense says it was spent; tips and tax, the other currency's at its own rate, and their totals");
+  const shopped = rows(csvOf(spend(spend(l, "e9", at(15, 9, 0), "s", 2000, "", { merchant: "McDonald's", place: "Aldergrove, BC", payment: "Mastercard" }), "e10", at(15, 10, 0), "w", 1000, "茶", { payment: "现金" }), "en"));
+  eq([shopped[0], shopped[4], shopped[5], shopped.at(-1)], [
+    "Date,Type,Note,Name,Place,Paid with,Paid by,Amount,Currency,Steve,小王,阿美,Jason,小李",
+    "2026-11-15,Expense,,McDonald's,\"Aldergrove, BC\",Mastercard,Steve,20.00,CAD,16.00,-4.00,-4.00,-4.00,-4.00",
+    "2026-11-15,Expense,茶,,,现金,小王,10.00,CAD,-2.00,8.00,-2.00,-2.00,-2.00",
+    ",Total,,,,,,417.50,CAD,56.50,112.50,-2.00,-83.50,-83.50",
+  ], "where it was bought and how it was paid: three columns after the note, in a ledger that has any, blank where an expense says none");
 
   // what someone typed: quoted where CSV needs it, and never taken for a formula
   const odd = addExpense(startLedger("o", "o", "JPY", [{ id: "a", name: "=A" }, { id: "b", name: "B,C" }]), { id: "x", at: at(14, 8, 0), payer: "b", amount: 3001, note: '晚饭, "大"餐', split: { how: "equal", among: ["a", "b"] } });
@@ -1219,6 +1226,25 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(summaryLines(evenly, "s", "zh").slice(3), [{ term: "付得最多", value: "一样多", more: "每人 $20.00" }, { term: "花得最多", value: "一样多", more: "每人 $20.00" }], "everyone in the ledger came to the most: 一样多, and what each came to");
   eq(summaryLines(evenly, undefined, "en").slice(3).map((x) => `${x.term}: ${x.value} (${x.more})`), ["Paid the most: All the same ($20.00 each)", "Spent the most: All the same ($20.00 each)"], "in English");
   eq(summaryLines(start, "s", "zh"), [], "nothing spent: no summary at all");
+}
+
+// ---------- 18. where it was bought and how it was paid, on the screen ----------
+{
+  const people = [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }];
+  const start = startLedger("Z", "周末", "CAD", people);
+  const both: Split = { how: "equal", among: ["s", "w"] };
+  const fresh = blankDraft(start, "s", Date.now());
+  eq([fresh.merchant, fresh.place, fresh.payment], ["", "", ""], "a new expense: no business, place or what paid");
+  const bought: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 2000, note: "", split: both, rot: 0, merchant: "McDonald's", place: "Aldergrove, BC", payment: "Mastercard" };
+  const opened = draftOf(bought, { ...start, entries: [bought] });
+  eq([opened.merchant, opened.place, opened.payment], ["McDonald's", "Aldergrove, BC", "Mastercard"], "one opened: what it says");
+  const typed = saying({ ...fresh, text: "20", merchant: "  Tim Hortons ", place: "", payment: "Visa" }, start);
+  eq([typed?.merchant, typed?.place, typed?.payment], ["Tim Hortons", null, "Visa"], "saved: each as typed, and one left empty said as none, so one emptied here is taken off");
+  const emptied = applyChange({ ...start, entries: [bought] }, { do: "edit", entry: "e1", to: saying({ ...opened, place: "" }, { ...start, entries: [bought] })! });
+  eq([(emptied?.entries[0] as Expense).merchant, (emptied?.entries[0] as Expense).place], ["McDonald's", undefined], "an expense opened and its place emptied: the place goes, the rest stays");
+  eq(applyChange({ ...start, entries: [bought] }, { do: "edit", entry: "e1", to: saying(opened, { ...start, entries: [bought] })! }), null, "opened and saved untouched: nothing changes");
+  // a change that didn't get to the server, said by what it was for: the note, or else the business
+  eq(lostLine(start, { id: "c", at: 1, change: { do: "expense", expense: bought } }, "zh"), "记一笔：McDonald's $20.00", "a change that didn't get there, with no note: said by the business");
 }
 
 if (failed) {

@@ -698,7 +698,7 @@ async function walk(lang: Lang, width: number, height: number) {
     await page.locator(".split-add-read", { hasText: t("readingReceipt") }).waitFor({ timeout: 15_000 });
     await shot("16m-read-busy");
     hold = false;
-    await page.locator(".split-add-read", { hasText: t("readFromReceipt") }).waitFor({ timeout: 15_000 });
+    await page.locator(".split-add-extras", { hasText: "Tim Hortons" }).waitFor({ timeout: 15_000 });
     await shot("16n-read-done");
     ok((await page.locator(".split-add-amount output").textContent()) === "$42.50", `${lang} ${width}x${height}: the receipt read fills in the amount`);
     await ctx.unroute(at);
@@ -2988,9 +2988,10 @@ async function reading() {
   });
   ok(!!quiet && quiet.corners === 8 && quiet.sweep === "none" && quiet.thumb === "none" && quiet.roll === "none" && quiet.shown === "1", `with less motion asked for, the scan is its corners round the amount as it is: nothing sweeps or rolls (${JSON.stringify(quiet)})`);
   hold = false;
-  await line.filter({ hasText: t("readFromReceipt") }).waitFor({ timeout: 15_000 });
+  const extras = pa.locator(".split-add-extras");
+  await extras.filter({ hasText: "Tim Hortons" }).waitFor({ timeout: 15_000 });
   await pa.screenshot({ path: join(out, "read-done-zh-390x664.png") });
-  ok((await amount()) === "$42.50" && (await pa.locator(".split-note-row input:not([type=file])").inputValue()) === "Tim Hortons" && asked.length === 1, `read: the amount ($42.50) and the note (the shop) filled in, and said to be off the receipt (asked ${asked.length} time)`);
+  ok((await amount()) === "$42.50" && (await extras.textContent())?.startsWith("从小票读的：Tim Hortons") && (await pa.locator(".split-note-row input:not([type=file])").inputValue()) === "" && asked.length === 1, `read: the amount ($42.50), and the line says the business it read (the note stays the person's own) (${await extras.textContent()}, asked ${asked.length} time)`);
   await pa.keyboard.press("Backspace");
   ok((await line.count()) === 0 && (await amount()) !== "$42.50", `the amount changed: it is the person's now, and the line goes (${await amount()})`);
   await button(pa, "close").first().click();
@@ -3029,6 +3030,8 @@ async function reading() {
   hold = true;
   await attach("receipt:42.50 CAD Tim Hortons");
   await line.filter({ hasText: t("readingReceipt") }).waitFor({ timeout: 15_000 });
+  // (there, and being read: typed while it is still going, it wouldn't be read at all)
+  await pa.locator(".split-photo-button:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
   await type(pa, "8");
   const answered = pa.waitForResponse((r) => /\/files\/[^/]+\/read$/.test(new URL(r.url()).pathname));
   hold = false;
@@ -3054,7 +3057,7 @@ async function reading() {
   await attach("receipt:none");
   await line.filter({ hasText: t("readNothing") }).waitFor({ timeout: 15_000 });
   await attach("receipt:7.25 CAD Second Cup");
-  await line.filter({ hasText: t("readFromReceipt") }).waitFor({ timeout: 15_000 });
+  await extras.filter({ hasText: "Second Cup" }).waitFor({ timeout: 15_000 });
   ok((await amount()) === "$7.25", `nothing read off the first: the next photo is read (${await amount()})`);
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
@@ -3075,9 +3078,8 @@ async function reading() {
   await button(pa, "addExpense").click();
   ok((await dayButton.innerText()).includes(t("dayToday")), `a new expense is spent today (${await dayButton.innerText()})`);
   await attach(`receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25 date=${ago(5)}`);
-  const extras = pa.locator(".split-add-extras");
-  await extras.waitFor({ timeout: 15_000 });
-  ok((await amount()) === "$123.00" && (await extras.textContent())?.includes("从小票读的，含小费 $18.00 · 税 $5.25"), `a receipt with a tip and tax: the amount, and the line says what of it was tip and tax (${await extras.textContent()})`);
+  await extras.filter({ hasText: "Joe's Diner" }).waitFor({ timeout: 15_000 });
+  ok((await amount()) === "$123.00" && (await extras.textContent())?.includes("从小票读的：Joe's Diner · 含小费 $18.00 · 税 $5.25"), `a receipt with a tip and tax: the amount, and the line says what of it was tip and tax (${await extras.textContent()})`);
   ok((await dayButton.innerText()).includes(dayLabel(ago(5), today, "zh")), `and beside 记好了, the day on the receipt (${await dayButton.innerText()})`);
   await pa.screenshot({ path: join(out, "read-extras-zh-390x664.png") });
   await extras.click();
@@ -3107,14 +3109,14 @@ async function reading() {
   await pa.screenshot({ path: join(out, "read-extras-row-zh-390x664.png") });
   await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
   const onServer = (await keptBy(pa)).held[0].server.entries as { note?: string; tip?: number; tax?: number; date?: string }[];
-  const joes = onServer.find((e) => e.note === "Joe's Diner");
+  const joes = onServer.find((e) => (e as { merchant?: string }).merchant === "Joe's Diner");
   ok(joes?.tip === 2050 && joes?.tax === 525 && joes?.date === ago(6), `the server keeps them, and the day (${joes?.tip}, ${joes?.tax}, ${joes?.date})`);
   await pa.locator(".split-row", { hasText: "Joe's Diner" }).click();
   await pa.locator(".split-keys").waitFor();
   ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25") && !(await extras.textContent())?.includes("从小票"), "opened again, the line says the tip and tax it keeps");
   for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
   await type(pa, "10");
-  ok((await extras.count()) === 0, "the amount typed down below them: the line goes (they wouldn't be kept)");
+  ok(!(await extras.textContent())?.includes("小费"), `the amount typed down below them: the line says them no more (they wouldn't be kept) (${await extras.textContent()})`);
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
 
@@ -3156,6 +3158,49 @@ async function reading() {
   await summary.scrollIntoViewIfNeeded();
   await pa.screenshot({ path: join(out, "read-summary-zh-390x664.png") });
   await pa.getByRole("tab", { name: t("expenses") }).click();
+
+  // where it was bought and how it was paid (Steve, 2026-11-18): the business named under the amount;
+  // all three in the details sheet, where one typed before is never replaced; kept by the server; the
+  // row says the business when there is no note; emptied in the sheet, taken off
+  const lines3 = pa.locator('dialog[open] .split-details > .split-field input:not([type="date"])');
+  await button(pa, "addExpense").click();
+  await dayButton.click();
+  await lines3.first().waitFor();
+  ok((await pa.locator("dialog[open] h2").first().innerText()) === t("details") && (await lines3.count()) === 3, `the sheet beside 记好了 is the expense's details: a name, a place and what paid, with the day and the tip and tax (${await pa.locator("dialog[open] h2").first().innerText()})`);
+  await lines3.nth(2).fill("Visa");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await attach("receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard tax=1.38");
+  await extras.filter({ hasText: "McDonald's" }).waitFor({ timeout: 15_000 });
+  ok((await extras.textContent())?.startsWith("从小票读的：McDonald's · 含税 $1.38"), `read: the line names the business before the tax (${await extras.textContent()})`);
+  await extras.click();
+  await lines3.first().waitFor();
+  const shown3 = [await lines3.nth(0).inputValue(), await lines3.nth(1).inputValue(), await lines3.nth(2).inputValue()];
+  ok(JSON.stringify(shown3) === JSON.stringify(["McDonald's", "Aldergrove, BC", "Visa"]), `the sheet has the business and the place read off it, and what paid as typed before it was read (${shown3.join(" / ")})`);
+  await pa.screenshot({ path: join(out, "read-details-zh-390x664.png") });
+  await lines3.nth(2).fill("Mastercard");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await button(pa, "done").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  const mcd = pa.locator(".split-row", { hasText: "McDonald's" });
+  await mcd.waitFor();
+  ok(!(await mcd.locator("strong").first().getAttribute("class"))?.includes("is-quiet"), "its row says the business, there being no note");
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  const kept3 = ((await keptBy(pa)).held[0].server.entries as { merchant?: string; place?: string; payment?: string }[]).find((e) => e.merchant === "McDonald's");
+  ok(kept3?.place === "Aldergrove, BC" && kept3?.payment === "Mastercard", `the server keeps all three (${JSON.stringify(kept3 && [kept3.merchant, kept3.place, kept3.payment])})`);
+  await mcd.click();
+  await pa.locator(".split-keys").waitFor();
+  await dayButton.click();
+  await lines3.first().waitFor();
+  await lines3.nth(1).fill("");
+  await pa.keyboard.press("Escape");
+  await closed(pa);
+  await button(pa, "saveChanges").click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  const after3 = ((await keptBy(pa)).held[0].server.entries as { merchant?: string; place?: string; payment?: string }[]).find((e) => e.merchant === "McDonald's");
+  ok(after3 && after3.place === undefined && after3.payment === "Mastercard", `opened again and its place emptied: the place is taken off, the rest stays (${JSON.stringify(after3 && [after3.merchant, after3.place, after3.payment])})`);
 
   // reading not to be had (no key, the month spent): nothing said, and not asked again on this page
   await a.unroute("**/split/api/ledgers/*/files/*/read");
