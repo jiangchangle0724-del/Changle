@@ -48,6 +48,33 @@ export function addBeats(s: Scores, playerId: string, name: string, from: number
   return true;
 }
 
+/** At least this many moves in a dance before the room goes by them for the TV's delay. */
+export const LEARN_MOVES = 32;
+/** ...and they agree: half of them within this of their middle (ms). */
+export const LEARN_SPREAD_MS = 80;
+
+/**
+ * The TV's delay as a dance's moves show it: how far (ms) the dancers' moves sat from the beat as
+ * the room thought it heard it, the middle of them all. People move to what they hear, so moves
+ * late by the same amount beat after beat mean the room hears the beat that much later than it
+ * thought. null: too few moves to say, or too scattered (shaking on every half beat, or a delay
+ * longer than a move can be from its beat).
+ */
+export function learnedShift(s: Scores): number | null {
+  const offs: number[] = [];
+  for (const row of Object.values(s.offs)) for (const o of row) if (typeof o === "number" && o !== UNSEEN) offs.push(o);
+  if (offs.length < LEARN_MOVES) return null;
+  const mid = median(offs);
+  if (median(offs.map((o) => Math.abs(o - mid))) > LEARN_SPREAD_MS) return null;
+  return Math.round(mid);
+}
+
+function median(xs: readonly number[]): number {
+  const v = [...xs].sort((a, b) => a - b);
+  const m = v.length >> 1;
+  return v.length % 2 ? v[m]! : (v[m - 1]! + v[m]!) / 2;
+}
+
 /** 这一段再来: the beats from `fromBeat` on are danced again. */
 export function clearFrom(s: Scores, fromBeat: number): void {
   for (const row of Object.values(s.offs)) for (let b = Math.max(0, fromBeat); b < row.length; b++) row[b] = UNSEEN;

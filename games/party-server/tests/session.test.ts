@@ -550,6 +550,47 @@ describe("the TV's delay, the TV's language, and 暂停", () => {
     assert.equal(s.d.langs?.["ann-000001"], undefined, "a phone gone for good is forgotten");
   });
 
+  it("a room that hasn't measured its TV learns the delay from the dance: the next one is judged on the beat as heard", () => {
+    const { s, clock } = fresh();
+    s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });
+    s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
+    s.flush();
+    const room = (t: number) => t + 995_000;
+    const start = s.d.state.routineStartAt!;
+    clock.advance(room(start + 48 * BEAT) - clock.now);
+    // (Ann and Bob move to what they hear: 180 ms after the beat, give or take)
+    const late = (n: number, ms: number) => Array.from({ length: n }, (_, i) => ms + [-15, -10, -5, 0, 0, 5, 10, 15][i % 8]!);
+    for (let b = 0; b < 48; b += 8) s.handle(ANN, { t: "beats", from: b, offs: late(8, 180) });
+    for (let b = 16; b < 48; b += 8) s.handle(BOB, { t: "beats", from: b, offs: late(8, 175) });
+    clock.advance(room(start + 192 * BEAT + 1_000) - clock.now);
+    s.flush();
+    s.handle(ANN, { t: "act", action: { type: "FINISH_NOW" } });
+    assert.equal(s.d.state.phase, "results");
+    assert.ok(Math.abs(s.d.state.audioOffsetMs - 178) <= 5, `${s.d.state.audioOffsetMs}`);
+    assert.equal(last(s.flush().out, "state")?.learned, true, "the TV can say so");
+    // the next dance: the moves now sit on the beat as heard, so it stays
+    const learnt = s.d.state.audioOffsetMs;
+    s.handle(ANN, { t: "act", action: { type: "START_DANCING" } });
+    const again = s.d.state.routineStartAt!;
+    clock.advance(room(again + 48 * BEAT + learnt) - clock.now);
+    for (let b = 0; b < 48; b += 8) s.handle(ANN, { t: "beats", from: b, offs: late(8, 10) });
+    clock.advance(room(again + 192 * BEAT + learnt + 1_000) - clock.now);
+    s.handle(ANN, { t: "act", action: { type: "FINISH_NOW" } });
+    assert.equal(s.d.state.phase, "results");
+    assert.equal(s.d.state.audioOffsetMs, learnt, "off by less than 40 ms: left as it is");
+  });
+
+  it("a room that measured its TV keeps what it measured, whatever the moves say", () => {
+    const { s, clock, room, start } = dancing();
+    clock.advance(room(start + 48 * BEAT) - clock.now);
+    for (let b = 0; b < 48; b += 8) s.handle(ANN, { t: "beats", from: b, offs: new Array(8).fill(200) });
+    clock.advance(room(start + 192 * BEAT + 1_000) - clock.now);
+    s.handle(ANN, { t: "act", action: { type: "FINISH_NOW" } });
+    assert.equal(s.d.state.phase, "results");
+    assert.equal(s.d.state.audioOffsetMs, 0);
+    assert.equal(last(s.flush().out, "state")?.learned, undefined);
+  });
+
   it("暂停 in the dance: nothing ends while paused; 继续 moves beat 0 and the end later, the moments before the pause again first", () => {
     const { s, clock } = ready();
     s.handle(ANN, { t: "act", action: { type: "START_LEARNING", routineId: "square-easy" } });

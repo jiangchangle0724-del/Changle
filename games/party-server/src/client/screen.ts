@@ -106,6 +106,8 @@ document.body.append(tubeBox);
 tube.onChange = () => renderTube();
 /** This room has measured its TV's delay. */
 let calibrated = false;
+/** This room has learned its TV's delay from how everyone danced. */
+let learned = false;
 /** What this page has told the room about the song starting (once per start). */
 let songReadySent = "";
 let songFailedSent = "";
@@ -319,6 +321,7 @@ function onMsg(m: ServerMsg) {
       routine = m.routine;
       results = m.results;
       calibrated = m.calibrated === true;
+      learned = m.learned === true;
       rejoining = false;
       // (this page has no buttons: it speaks its host's language)
       if (m.lang && m.lang !== getLang()) setLang(m.lang, false);
@@ -661,6 +664,7 @@ function phaseText(): string {
     const bits = [tr("开始前，每个人身边留出一臂的空间。", "Before you start, give everyone an arm's length of space.")];
     if (setupStep() === "done") bits.push(tr("这台设备不用再碰：选歌、开始、暂停都在主人的手机上。", "Nothing more to do on this device: the host's phone picks, starts and pauses."));
     if (calibrated) bits.push(tr(`已校准：电视比这台设备晚 ${state.audioOffsetMs} 毫秒。`, `Calibrated: the TV is ${state.audioOffsetMs} ms behind this device.`));
+    else if (learned) bits.push(tr(`照大家跳的动作对准了：电视比这台设备晚 ${state.audioOffsetMs} 毫秒。`, `Set from how everyone danced: the TV is ${state.audioOffsetMs} ms behind this device.`));
     return bits.join(" ");
   }
   return "";
