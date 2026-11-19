@@ -1,7 +1,6 @@
 /* The site's addresses (src/router.ts). Run with `npx tsx tests/routes.test.ts` */
 import { GAMES } from "../src/games/registry";
 import { fromLegacyHash, gameFrom, parse, pathOf, stageOf, titleOf, type Route } from "../src/router";
-import { ONLINE_GAMES } from "../src/shared/protocol";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -41,7 +40,7 @@ for (const g of GAMES) {
     ok(same(play, { kind: "home", tab: "party", game: g.id }), `/g/${g.slug}/play shows its card while it leaves`);
     ok(stageOf(`/g/${g.slug}/play`) === g.stage.screen && stageOf(`/g/${g.slug}/play/`) === g.stage.screen, `/g/${g.slug}/play goes to ${g.stage.screen}`);
     ok(stageOf(`/g/${g.slug}`) === null, `/g/${g.slug} stays on its card`);
-    ok(!ONLINE_GAMES.includes(g.id as never), `${g.id} has no table game`);
+    // (at a table it's the way in, party/stage: ONLINE_GAMES lists it once its own page can take over a room the table opened; tests/stage.test.ts)
     continue;
   }
   ok(g.ready ? same(play, { kind: "game", id: g.id }) : play.kind === "home", `/g/${g.slug}/play ${g.ready ? "is the game" : "is its card (not playable yet)"}`);

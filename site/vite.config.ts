@@ -24,6 +24,8 @@ export default defineConfig({
       "/tuan": { target: "http://127.0.0.1:8795", changeOrigin: false },
       "/split/api": { target: "http://127.0.0.1:8794", ws: true, changeOrigin: false },
       "/hide": { target: `http://127.0.0.1:${process.env.HIDE_DEV_PORT ?? 8797}`, ws: true, changeOrigin: false },
+      "/party": { target: "http://127.0.0.1:8793", ws: true, changeOrigin: false },
+      "/hang-on": { target: "http://127.0.0.1:8792", ws: true, changeOrigin: false },
     },
   },
 });
