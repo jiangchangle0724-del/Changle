@@ -8,7 +8,8 @@ words, dancing on the speaker's beat; a song from YouTube in the middle, big, th
 right; the phones without 跟着跳; the night's recap without the dancing. The dancer in 3D where a
 graphics chip draws her: this machine has none (its browsers draw WebGL in software, or too slowly),
 so the TV keeps the drawn dancer (in Chromium without even downloading three.js); a second TV, told
-to take any WebGL, shows her: standing whatever the stretch, a new outfit for a new song.
+to take any WebGL, shows her (since Nov 18 the design Steve chose, dancing real dancers' motion
+capture: src/party/dj/dancer/): standing easy with no song, the stretch's dances when one plays.
 
 Needs the two local servers (site/README.md), with DEV_LYRIA_ANYONE off.
 usage: python3 scripts/dj_dancer_check.py [chromium|webkit]   (the TV's browser; the phones are Chromium)
@@ -25,9 +26,10 @@ WHICH = next((a for a in sys.argv[1:] if a in ("chromium", "webkit")), "chromium
 OUT = os.environ.get("SHOTS", os.path.join(tempfile.gettempdir(), "dj-dancer"))
 os.makedirs(OUT, exist_ok=True)
 HERE = os.path.dirname(__file__)
-# her moves (shared/dj/dance.ts) and her outfits (src/party/dj/dancer/files.ts)
-MOVES = re.findall(r'^\s+(\w+): \{ zh: "[^"]+", en: "[^"]+", drawn:', open(os.path.join(HERE, "..", "src", "shared", "dj", "dance.ts"), encoding="utf-8").read(), re.M)
-OUTFITS = re.findall(r'\{ id: "(\w+)", style:', open(os.path.join(HERE, "../src/party/dj/dancer/files.ts"), encoding="utf-8").read())
+# her dances and idles (src/party/dj/dancer/dances.ts): each id with the stretches it goes with
+_DANCES_TS = open(os.path.join(HERE, "../src/party/dj/dancer/dances.ts"), encoding="utf-8").read()
+DANCES = {i: re.findall(r'"(\w+)"', m) for i, m in re.findall(r'\{ id: "(\w+)", bpm: [\d.]+, moods: \[([^\]]*)\]', _DANCES_TS)}
+IDLES = re.findall(r'\{ id: "(\w+)", bpm: [\d.]+ \}', _DANCES_TS)
 ONE, TWO = "dancerone01", "dancertwo02"
 
 
@@ -142,19 +144,18 @@ with sync_playwright() as p:
     # her in 3D: a second TV that takes any WebGL
     tv2, code2 = tv_page(br, any_gl=True)
     ok(until(lambda: tv2.locator(".dj-coach-3d canvas").count() == 1 and tv2.locator(".dj-coach-svg.is-off").count() == 1, 40000), "a TV that takes any WebGL: the 3D dancer loads and takes over from the drawn one")
-    c1 = until(lambda: (lambda c: c if c and c.get("move") in MOVES else None)(tv2.evaluate("() => window.__coach3d")), 15000, 200) or {}
-    ok(c1 and "sit" not in c1 and c1.get("outfit") in OUTFITS, f"she dances the routine, standing, in one of her outfits ({c1})")
+    ok(len(DANCES) >= 6 and len(IDLES) >= 1, f"her dances read ({len(DANCES)} and {len(IDLES)} idles)")
+    c1 = until(lambda: (lambda c: c if c and (c.get("move") in DANCES or c.get("move") in IDLES) else None)(tv2.evaluate("() => window.__coach3d")), 20000, 200) or {}
+    ok(c1 and (c1.get("move") in IDLES or c1.get("dancing")), f"she stands easy, or dances on the speaker's beat ({c1})")
+    ok(c1.get("tris", 0) < 90000 and c1.get("calls", 99) <= 6, f"light to draw ({c1.get('tris')} triangles, {c1.get('calls')} draws)")
     tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-4-dancer.png"))
     dee = join(chrome, code2, "Dee", "en")
     dee.evaluate("() => window.__djHost.phase('peak')")
-    c2 = until(lambda: (lambda c: c if c and c.get("move") in ("bounce", "fistPump", "raiseRoof", "shimmy", "waveBoth", "point") else None)(tv2.evaluate("() => window.__coach3d")), 12000, 200)
-    ok(c2, f"the peak: the peak's moves, still standing ({c2})")
-    # a song: a new outfit (never the one she has on)
-    worn = (tv2.evaluate("() => window.__coach3d") or {}).get("outfit")
+    # a song in the peak: one of the peak's dances, on its beat
     ask(dee, TWO)
     ok(until(lambda: tv2.locator(".dj-tube.is-on").count() == 1, 60000, 100), "a song plays")
-    c3 = until(lambda: (lambda c: c if c and c.get("outfit") in OUTFITS and c.get("outfit") != worn else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
-    ok(c3, f"a new outfit for it ({worn} to {(c3 or {}).get('outfit')})")
+    c3 = until(lambda: (lambda c: c if c and c.get("dancing") and "peak" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
+    ok(c3, f"she dances one of the peak's dances to it ({c3 or tv2.evaluate('() => window.__coach3d')})")
     tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-5-song.png"))
     tv2.context.close()
 
