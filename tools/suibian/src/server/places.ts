@@ -3,7 +3,7 @@
 // Google's terms: everything except the place id is fetched fresh for each room and dropped when
 // the room ends; we only keep place ids next to our own numbers. Field masks keep each request to
 // the fields we use (Google bills by the fields asked for).
-import { RANGES, cuisineGuess, distanceMeters, dishesFor, foundBy, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type CuisineGuess, type CuisineId, type Lang, type OccasionId, type Place, type PlaceKind, type RangeId, type SearchCall, type Traits } from "../engine";
+import { RANGES, cuisineGuess, distanceMeters, dishesFor, foundBy, mentionsQueue, searchPlan, vancouverDay, vancouverMs, type Center, type CuisineGuess, type CuisineId, type Lang, type OccasionId, type Place, type PlaceKind, type RangeId, type SearchCall, type Text, type Traits } from "../engine";
 import { curatedFor } from "./curated";
 
 const SEARCH_FIELDS = [
@@ -394,37 +394,41 @@ function excerpt(text: string): string {
 
 // ---- demo data: clearly made up, for local development, tests, and before the key is set ----
 
-const DEMO: [string, string, number, number, string, boolean?][] = [
-  ["示例 · 金满楼点心", "chinese_restaurant", 4.3, 1800, "PRICE_LEVEL_MODERATE", true],
-  ["示例 · 港记茶餐厅", "chinese_restaurant", 4.1, 650, "PRICE_LEVEL_INEXPENSIVE"],
-  ["示例 · 蜀香川菜", "chinese_restaurant", 4.4, 900, "PRICE_LEVEL_MODERATE"],
-  ["示例 · 小肥羊火锅", "hot_pot_restaurant", 4.2, 1200, "PRICE_LEVEL_MODERATE", true],
-  ["示例 · 台北牛肉面", "taiwanese_restaurant", 4.5, 420, "PRICE_LEVEL_INEXPENSIVE"],
-  ["Demo · Ramen Hinoki", "ramen_restaurant", 4.6, 2100, "PRICE_LEVEL_INEXPENSIVE"],
-  ["Demo · Sushi Kaze", "sushi_restaurant", 4.4, 760, "PRICE_LEVEL_EXPENSIVE", true],
-  ["Demo · Seoul Table BBQ", "korean_restaurant", 4.3, 980, "PRICE_LEVEL_MODERATE", true],
-  ["Demo · Pho Lotus", "vietnamese_restaurant", 4.2, 540, "PRICE_LEVEL_INEXPENSIVE"],
-  ["Demo · Bangkok Basil", "thai_restaurant", 4.3, 610, "PRICE_LEVEL_MODERATE"],
-  ["Demo · Spice Route Halal Grill", "middle_eastern_restaurant", 4.5, 330, "PRICE_LEVEL_INEXPENSIVE"],
-  ["Demo · Tandoor House", "indian_restaurant", 4.4, 700, "PRICE_LEVEL_MODERATE", true],
-  ["Demo · Nonna's Pasta", "italian_restaurant", 4.2, 880, "PRICE_LEVEL_MODERATE", true],
-  ["Demo · Taco Loco", "mexican_restaurant", 4.1, 450, "PRICE_LEVEL_INEXPENSIVE"],
-  ["Demo · Harbour Oyster Bar", "seafood_restaurant", 4.6, 1300, "PRICE_LEVEL_EXPENSIVE", true],
-  ["Demo · Green Leaf Kitchen", "vegan_restaurant", 4.5, 390, "PRICE_LEVEL_MODERATE"],
-  ["Demo · Laksa King", "malaysian_restaurant", 4.3, 520, "PRICE_LEVEL_INEXPENSIVE"],
-  ["Demo · Burger Lab", "hamburger_restaurant", 4.0, 1100, "PRICE_LEVEL_INEXPENSIVE"],
-  ["示例 · 老上海小笼馆", "chinese_restaurant", 4.4, 860, "PRICE_LEVEL_MODERATE"],
-  ["示例 · 兰州牛肉面", "chinese_restaurant", 4.3, 1500, "PRICE_LEVEL_INEXPENSIVE"],
-  ["示例 · 老王面馆", "chinese_restaurant", 4.2, 380, "PRICE_LEVEL_INEXPENSIVE"],
-  ["示例 · 新疆烤串", "chinese_restaurant", 4.1, 520, "PRICE_LEVEL_MODERATE"],
-  ["Demo · Izakaya Tora", "japanese_izakaya_restaurant", 4.5, 940, "PRICE_LEVEL_MODERATE", true],
-  ["Demo · Gogi House Korean BBQ", "korean_barbecue_restaurant", 4.4, 1300, "PRICE_LEVEL_MODERATE", true],
-  ["Demo · Manila Lechon House", "filipino_restaurant", 4.3, 410, "PRICE_LEVEL_INEXPENSIVE"],
-  ["Demo · Prime Cut Steakhouse", "steak_house", 4.6, 2200, "PRICE_LEVEL_EXPENSIVE", true],
-  ["Demo · Petit Bistro", "french_restaurant", 4.5, 620, "PRICE_LEVEL_EXPENSIVE", true],
-  ["Demo · Santorini Taverna", "greek_restaurant", 4.4, 790, "PRICE_LEVEL_MODERATE", true],
-  ["Demo · Sunrise Brunch Co.", "brunch_restaurant", 4.5, 1700, "PRICE_LEVEL_MODERATE"],
-  ["Demo · Moonlight Dessert Café", "dessert_restaurant", 4.3, 560, "PRICE_LEVEL_INEXPENSIVE"],
+/**
+ * Names in the table's language, as Google gives them: a Chinese place has its Chinese name for a
+ * Chinese-speaking host and its English one otherwise, the rest the same in both.
+ */
+const DEMO: [string | [zh: string, en: string], string, number, number, string, boolean?][] = [
+  [["金满楼点心", "Golden Bowl Dim Sum"], "chinese_restaurant", 4.3, 1800, "PRICE_LEVEL_MODERATE", true],
+  [["港记茶餐厅", "Kong Kee HK Café"], "chinese_restaurant", 4.1, 650, "PRICE_LEVEL_INEXPENSIVE"],
+  [["蜀香川菜", "Shu Xiang Sichuan"], "chinese_restaurant", 4.4, 900, "PRICE_LEVEL_MODERATE"],
+  [["小肥羊火锅", "Little Lamb Hot Pot"], "hot_pot_restaurant", 4.2, 1200, "PRICE_LEVEL_MODERATE", true],
+  [["台北牛肉面", "Taipei Beef Noodle"], "taiwanese_restaurant", 4.5, 420, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Ramen Hinoki", "ramen_restaurant", 4.6, 2100, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Sushi Kaze", "sushi_restaurant", 4.4, 760, "PRICE_LEVEL_EXPENSIVE", true],
+  ["Seoul Table BBQ", "korean_restaurant", 4.3, 980, "PRICE_LEVEL_MODERATE", true],
+  ["Pho Lotus", "vietnamese_restaurant", 4.2, 540, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Bangkok Basil", "thai_restaurant", 4.3, 610, "PRICE_LEVEL_MODERATE"],
+  ["Spice Route Halal Grill", "middle_eastern_restaurant", 4.5, 330, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Tandoor House", "indian_restaurant", 4.4, 700, "PRICE_LEVEL_MODERATE", true],
+  ["Nonna's Pasta", "italian_restaurant", 4.2, 880, "PRICE_LEVEL_MODERATE", true],
+  ["Taco Loco", "mexican_restaurant", 4.1, 450, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Harbour Oyster Bar", "seafood_restaurant", 4.6, 1300, "PRICE_LEVEL_EXPENSIVE", true],
+  ["Green Leaf Kitchen", "vegan_restaurant", 4.5, 390, "PRICE_LEVEL_MODERATE"],
+  ["Laksa King", "malaysian_restaurant", 4.3, 520, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Burger Lab", "hamburger_restaurant", 4.0, 1100, "PRICE_LEVEL_INEXPENSIVE"],
+  [["老上海小笼馆", "Old Shanghai Xiaolongbao"], "chinese_restaurant", 4.4, 860, "PRICE_LEVEL_MODERATE"],
+  [["兰州牛肉面", "Lanzhou Beef Noodles"], "chinese_restaurant", 4.3, 1500, "PRICE_LEVEL_INEXPENSIVE"],
+  [["老王面馆", "Lao Wang Noodle House"], "chinese_restaurant", 4.2, 380, "PRICE_LEVEL_INEXPENSIVE"],
+  [["新疆烤串", "Xinjiang Skewers"], "chinese_restaurant", 4.1, 520, "PRICE_LEVEL_MODERATE"],
+  ["Izakaya Tora", "japanese_izakaya_restaurant", 4.5, 940, "PRICE_LEVEL_MODERATE", true],
+  ["Gogi House Korean BBQ", "korean_barbecue_restaurant", 4.4, 1300, "PRICE_LEVEL_MODERATE", true],
+  ["Manila Lechon House", "filipino_restaurant", 4.3, 410, "PRICE_LEVEL_INEXPENSIVE"],
+  ["Prime Cut Steakhouse", "steak_house", 4.6, 2200, "PRICE_LEVEL_EXPENSIVE", true],
+  ["Petit Bistro", "french_restaurant", 4.5, 620, "PRICE_LEVEL_EXPENSIVE", true],
+  ["Santorini Taverna", "greek_restaurant", 4.4, 790, "PRICE_LEVEL_MODERATE", true],
+  ["Sunrise Brunch Co.", "brunch_restaurant", 4.5, 1700, "PRICE_LEVEL_MODERATE"],
+  ["Moonlight Dessert Café", "dessert_restaurant", 4.3, 560, "PRICE_LEVEL_INEXPENSIVE"],
 ];
 
 /** Made-up "atmosphere" for a few demo places, so the occasion shows in demo mode too. */
@@ -460,12 +464,18 @@ function demoHours(i: number, now: number): GPeriod[] {
   return out;
 }
 
-/** Made-up restaurants scattered around the starting point, always open for the next few hours. */
-export function demoPlaces(center: Center, range: RangeId, now: number): Place[] {
+/**
+ * Made-up restaurants scattered around the starting point, always open for the next few hours, in
+ * the table's language like Google's: "示例 · 金满楼点心" for a Chinese-speaking host, "Demo · Golden
+ * Bowl Dim Sum" otherwise.
+ */
+export function demoPlaces(center: Center, range: RangeId, now: number, lang: Lang = "zh"): Place[] {
   const r = RANGES[range].meters;
-  return DEMO.map(([name, type, rating, count, level, reservable], i) => {
+  return DEMO.map(([names, type, rating, count, level, reservable], i) => {
+    const name = typeof names === "string" ? names : names[lang === "zh" ? 0 : 1];
     const angle = (i * 137.5 * Math.PI) / 180;
     const dist = r * (0.15 + ((i * 37) % 80) / 100);
+    // What it is comes from its own name: "示例" in front would make every place look Chinese.
     const p = fromGoogle({
       id: `demo-${i}`,
       displayName: { text: name },
@@ -479,31 +489,36 @@ export function demoPlaces(center: Center, range: RangeId, now: number): Place[]
       servesVegetarianFood: type === "vegan_restaurant" || type === "indian_restaurant" || type === "italian_restaurant" ? true : undefined,
       ...DEMO_TRAITS[i],
     })!;
-    return { ...p, demo: true, phone: "604-555-0" + String(100 + i), mapsUrl: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`, ...DEMO_EXTRA[i] };
+    const about = DEMO_ABOUT[i]?.[lang];
+    return { ...p, name: `${lang === "zh" ? "示例" : "Demo"} · ${name}`, demo: true, phone: "604-555-0" + String(100 + i), mapsUrl: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`, ...(about ? { about } : {}), ...DEMO_EXTRA[i] };
   });
 }
 
-/** Made-up descriptions, a list badge and a pick, so the cards show every part in demo mode too. */
+/** Made-up descriptions in both languages: a search gives them in the table's language. */
+const DEMO_ABOUT: Record<number, Text> = {
+  0: { zh: "示例：推车点心，周末一早就满座", en: "Demo: dim sum from carts, full early at weekends" },
+  2: { zh: "示例：水煮鱼和口水鸡，辣度可以选", en: "Demo: boiled fish and mouth-watering chicken, as spicy as you like" },
+  5: { zh: "示例：浓郁的豚骨拉面，吧台位出餐快", en: "Demo: rich tonkotsu ramen at a quick counter" },
+  8: { zh: "示例：河粉和越南法包，开到很晚", en: "Demo: pho and banh mi, open late" },
+  14: { zh: "示例：高档海鲜餐厅，有包间", en: "Demo: an upscale seafood room with a private dining room" },
+  26: { zh: "示例：浪漫的法式小酒馆，酒单很长", en: "Demo: an intimate French bistro with a long wine list" },
+  28: { zh: "示例：休闲的早午餐店，班尼迪克蛋和松饼", en: "Demo: a casual spot for eggs benedict and pancakes" },
+};
+
+/** A made-up list badge, pick and AI summary, so the cards show every part in demo mode too. */
 const DEMO_EXTRA: Record<number, Partial<Place>> = {
   0: {
-    about: "示例：推车点心，周末一早就满座",
     recommend: {
       note: { zh: "示例推荐：虾饺皮薄，周末早点去", en: "Demo pick: thin-skinned har gow; go early at weekends" },
       by: "Steve",
       links: [{ platform: "小红书", url: "https://www.xiaohongshu.com/", title: "示例探店" }],
     },
   },
-  2: { about: "示例：水煮鱼和口水鸡，辣度可以选" },
   5: {
-    about: "Demo: rich tonkotsu ramen at a quick counter",
     badges: [{ source: "demo", label: { zh: "示例榜单 · 必吃拉面", en: "Demo list · must-try ramen" }, year: 2026 }],
   },
-  14: { about: "Demo: an upscale seafood room with a private dining room" },
-  26: { about: "Demo: an intimate French bistro with a long wine list" },
-  28: { about: "Demo: a casual spot for eggs benedict and pancakes" },
   8: {
-    about: "Demo: pho and banh mi, open late",
-    // Where Google's AI summary would be; made up like everything here, and labelled so.
+    // Where Google's AI summary would be (English only, as Google's is); made up, and labelled so.
     summary: { text: "Demo: a made-up summary in the place of Google's AI one, which comes in English.", disclosure: "Demo, not from Google" },
   },
 };

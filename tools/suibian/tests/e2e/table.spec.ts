@@ -86,7 +86,7 @@ test("three phones pick a restaurant", async ({ browser }) => {
   await expect(host.page.locator(".place .rank").first()).toHaveText("1");
   await expect(host.page.locator(".place .facts").first()).toContainText("🚗 约");
   // What two people liked comes first, however well rated the rest.
-  await expect(host.page.locator(".place h3").first()).toHaveText("Demo · Ramen Hinoki");
+  await expect(host.page.locator(".place h3").first()).toHaveText("示例 · Ramen Hinoki");
   const total = Number((await host.page.getByText(/^共 \d+ 家，都在范围和预算以内$/).textContent())!.match(/\d+/)![0]);
   const more = host.page.getByRole("button", { name: /^再看 \d+ 家$/ });
   for (let i = 0; i < 5 && (await more.count()); i++) await more.click();
@@ -124,14 +124,14 @@ test("three phones pick a restaurant", async ({ browser }) => {
   // Result.
   for (const p of [host, a, b]) {
     await expect(p.page.getByText("今天就吃这家！")).toBeVisible();
-    await expect(p.page.locator(".place h3")).toHaveText("Demo · Ramen Hinoki");
+    await expect(p.page.locator(".place h3")).toHaveText("示例 · Ramen Hinoki");
   }
   await expect(a.page.getByText("点菜时记得把过敏和忌口告诉店员。")).toBeVisible();
   await expect(host.page.locator(".tablelimits")).toHaveText("本桌 有人对花生严重过敏 · 有人不吃香菜 · 有人不吃蘑菇");
 
   // a rates it; the table score shows up for the host.
   await a.page.getByRole("link", { name: "吃完回来评分 ⭐" }).click();
-  await expect(a.page.getByText("「Demo · Ramen Hinoki」怎么样？")).toBeVisible();
+  await expect(a.page.getByText("「示例 · Ramen Hinoki」怎么样？")).toBeVisible();
   await a.page.getByRole("button", { name: "👍" }).click();
   await a.page.getByRole("button", { name: "是" }).click();
   await a.page.getByRole("button", { name: "15 分钟" }).click();
@@ -141,7 +141,7 @@ test("three phones pick a restaurant", async ({ browser }) => {
 
   // Next visit, the host is asked how it was, and the diet card was remembered.
   await host.page.goto("/eat/");
-  await expect(host.page.getByText("上次的「Demo · Ramen Hinoki」好吃吗？")).toBeVisible();
+  await expect(host.page.getByText("上次的「示例 · Ramen Hinoki」好吃吗？")).toBeVisible();
   // Read through the page, as the phone would.
   const me = (await host.page.evaluate(() => fetch("/eat/api/me").then((r) => r.json()))) as { card: unknown };
   expect(me.card).toEqual({ allergies: {}, custom: [], halal: false, vegetarian: false, budget: 0 });
@@ -273,7 +273,7 @@ test("a business dinner: a budget too low for it is pointed out; places plainly 
   const more = page.getByRole("button", { name: /^再看 \d+ 家$/ });
   for (let i = 0; i < 5 && (await more.count()); i++) await more.click();
   const last3 = await page.locator(".place h3").evaluateAll((hs) => hs.slice(-3).map((h) => h.textContent));
-  expect(last3.sort()).toEqual(["Demo · Burger Lab", "Demo · Moonlight Dessert Café", "Demo · Sunrise Brunch Co."]);
+  expect(last3.sort()).toEqual(["示例 · Burger Lab", "示例 · Moonlight Dessert Café", "示例 · Sunrise Brunch Co."]);
   await expect(page.locator(".place", { hasText: "Moonlight Dessert Café" }).locator(".note")).toHaveText("不太适合商务宴请：这是甜品面包店，排在后面。");
   expect(me.errors).toEqual([]);
 });
@@ -320,4 +320,21 @@ test("the phone's language, but Chinese in WeChat; a choice made there stays (St
   await expect(wechat.locator("h1")).toHaveText("Whatever's Fine");
   await wechat.reload();
   await expect(wechat.locator("html")).toHaveAttribute("lang", "en");
+});
+
+test("demo restaurants come in the host's language, and the made-up list doesn't say it's from Google", async ({ browser }) => {
+  const host = await (await browser.newContext({ ...test.info().project.use, locale: "en-US" })).newPage();
+  expect((await host.request.post("/eat/api/test/login", { data: { sub: `demo-en-${Date.now()}`, name: "Sam" } })).ok()).toBeTruthy();
+  await host.goto("/eat/");
+  await host.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await host.getByRole("button", { name: "Start a table" }).click();
+  await expect(host).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await host.locator(".diet .btn.primary").click();
+  await host.getByRole("button", { name: "Let's go!" }).click();
+  await host.locator("[data-cuisine=cantonese]").click();
+  await host.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(host.locator(".place h3").first()).toHaveText("Demo · Golden Bowl Dim Sum");
+  await expect(host.locator(".place", { hasText: "Golden Bowl Dim Sum" }).locator(".about")).toHaveText("Demo: dim sum from carts, full early at weekends");
+  await expect(host.locator(".demo")).toBeVisible();
+  await expect(host.locator(".google")).toHaveCount(0);
 });
