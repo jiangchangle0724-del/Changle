@@ -117,6 +117,11 @@ export class Dumpling {
   private dizzy = 0;
   private cheer = 0;
   private lean = 0;
+  /** 帽子跟着身子晚半拍（A14b）：偏了多少、晃得多快（弹簧）。 */
+  private hatO = { x: 0, y: 0 };
+  private hatV = { x: 0, y: 0 };
+  /** 站着不动多久了（A14b：站久了喘气、眼睛四处看）。 */
+  private still = 0;
   private reduced = false;
   private faceKey = '';
 
@@ -232,9 +237,31 @@ export class Dumpling {
 
     // 挤压拉伸：沿速度方向拉长，落地压扁，弹簧拉长
     const v = Math.hypot(b.vx, b.vy);
-    const stretch = this.reduced ? 0 : Math.min(0.22, (v / 120) * 0.03);
+    this.still = v < 20 && !p.dead ? this.still + dt : 0;
+    let stretch = this.reduced ? 0 : Math.min(0.22, (v / 120) * 0.03);
     const sq = this.reduced ? 0 : this.squash;
-    const ang = Math.atan2(b.vy, b.vx);
+    let ang = Math.atan2(b.vy, b.vx);
+    // 一只手吊着、没怎么动：身子往那只手那边坠长一点（A14b）
+    const held = p.arms.filter((a) => a.grip);
+    if (!this.reduced && held.length === 1 && v < 160) {
+      const h = (held[0] as (typeof p.arms)[number]).hand;
+      if (h.y < b.y - 8) {
+        ang = Math.atan2(h.y - b.y, h.x - b.x);
+        stretch = Math.max(stretch, 0.07);
+      }
+    }
+    // 站着不动：一呼一吸（A14b）
+    const breath = !this.reduced && this.still > 0.4 && held.length === 0 ? Math.sin(time * 2.6 + p.id * 1.3) * 0.022 : 0;
+    if (breath !== 0) ang = 0;
+    // 帽子晚半拍：往速度反方向偏一点，弹回来（减弱动效时不晃）
+    if (!this.reduced) {
+      const tx = Math.max(-5, Math.min(5, -b.vx * 0.006));
+      const ty = Math.max(-5, Math.min(5, -b.vy * 0.006));
+      for (const k of ['x', 'y'] as const) {
+        this.hatV[k] += ((k === 'x' ? tx : ty) - this.hatO[k]) * 140 * dt - this.hatV[k] * 12 * dt;
+        this.hatO[k] += this.hatV[k] * dt;
+      }
+    }
     if (sq > 0.02) {
       this.stretchC.rotation = 0;
       this.inner.rotation = 0;
@@ -249,8 +276,8 @@ export class Dumpling {
     } else {
       this.stretchC.rotation = ang;
       this.inner.rotation = -ang;
-      this.stretchC.scale.set(1 + stretch + 0.08 * this.pulse, 1 - stretch + 0.08 * this.pulse);
-      this.stretchC.position.set(0, 0);
+      this.stretchC.scale.set(1 + stretch + 0.08 * this.pulse - breath * 0.6, 1 - stretch + 0.08 * this.pulse + breath);
+      this.stretchC.position.set(0, -breath * R * 0.5);
     }
 
     this.bodyC.rotation = this.lean;
@@ -389,11 +416,33 @@ export class Dumpling {
         g.stroke({ width: 3.2, color: 0xffffff, alpha: 0.32, cap: 'round', join: 'round' });
       }
       const h = jit ? { x: arm.hand.x + (Math.random() - 0.5) * jit, y: arm.hand.y + (Math.random() - 0.5) * jit } : arm.hand;
+      const glove = GLOVES[i] as string;
+      // 手（A14b）：没抓东西时张开，三根手指朝着胳膊伸的方向露出来；抓着时是拳头，指节一道线
+      const prev = pts.length >= 2 ? (pts[pts.length - 2] as Pt) : p.body;
+      const dl = Math.hypot(h.x - prev.x, h.y - prev.y) || 1;
+      const ux = (h.x - prev.x) / dl;
+      const uy = (h.y - prev.y) / dl;
+      const fingers = arm.grip
+        ? []
+        : [-0.62, 0, 0.62].map((a) => ({
+            x: h.x + (ux * Math.cos(a) - uy * Math.sin(a)) * (CFG.handR + 1.5),
+            y: h.y + (ux * Math.sin(a) + uy * Math.cos(a)) * (CFG.handR + 1.5),
+          }));
+      for (const f of fingers) g.circle(f.x, f.y, 3.6 + 2.5).fill(OUTLINE);
       g.circle(h.x, h.y, CFG.handR + 2.5).fill(OUTLINE);
-      g.circle(h.x, h.y, CFG.handR).fill(GLOVES[i] as string);
+      for (const f of fingers) g.circle(f.x, f.y, 3.6).fill(glove);
+      g.circle(h.x, h.y, CFG.handR).fill(glove);
       // 手套也是个球：右下压暗一圈，左上留一道亮边，再点一个高光
       g.circle(h.x + 1.6, h.y + 1.8, CFG.handR - 0.8).fill({ color: 0x140a1e, alpha: 0.2 });
       g.circle(h.x - 3, h.y - 3, 3).fill({ color: 0xffffff, alpha: 0.5 });
+      if (arm.grip) {
+        // 拳头的指节：朝抓的那边一道弧
+        const a0 = Math.atan2(uy, ux);
+        const kr = CFG.handR - 3.2;
+        g.moveTo(h.x + Math.cos(a0 - 0.9) * kr, h.y + Math.sin(a0 - 0.9) * kr)
+          .arc(h.x, h.y, kr, a0 - 0.9, a0 + 0.9)
+          .stroke({ width: 1.6, color: OUTLINE, alpha: 0.55, cap: 'round' });
+      }
       if (arm.grip) {
         const r = CFG.handR + 5 + Math.sin(arm.grip.t * (12 + warn * 18)) * 1.5;
         g.circle(h.x, h.y, r).stroke({ width: 2 + warn * 1.5, color: warn > 0 ? 0xff6b5a : 0xffffff, alpha: 0.9 });
@@ -451,14 +500,17 @@ export class Dumpling {
     // 眼睛跟摇杆；没推摇杆就看向飞的方向
     const aimed = p.aim.x !== 0 || p.aim.y !== 0;
     const v = Math.hypot(p.body.vx, p.body.vy);
-    const lx = aimed ? p.aim.x * 4 : v > 200 ? (p.body.vx / v) * 3 : 0;
+    // 站久了眼睛左右看看（A14b）
+    const idleLook = !this.reduced && this.still > 2.5 ? Math.sin(time * 0.9 + p.id) * 2.5 : 0;
+    const lx = aimed ? p.aim.x * 4 : v > 200 ? (p.body.vx / v) * 3 : idleLook;
     const ly = aimed ? p.aim.y * 3 : v > 200 ? (p.body.vy / v) * 2 : 0;
     // 2.5D（A8）：脸长在球面上，往哪看整张脸就往那边转一点（帽子转得少），看着是个圆的
     const turn = this.reduced ? 0 : 1;
     this.face.position.set(lx * 0.9 * turn, ly * 0.6 * turn);
     this.extras.position.set(lx * 0.9 * turn, ly * 0.6 * turn);
     this.glasses.position.set(lx * 0.9 * turn, ly * 0.6 * turn);
-    this.hat.position.set(lx * 0.4 * turn, 0);
+    this.hat.position.set(lx * 0.4 * turn + this.hatO.x, this.hatO.y);
+    this.hat.rotation = this.hatO.x * 0.05;
     const blink = this.blink > 0 && this.look.eyes !== 'happy';
     const expr = pickExpression(p.face, p.dead, { dizzy: this.dizzy, cheer: this.cheer, stamina: p.stamina ?? 1, mood });
     const key = `${expr}|${lx.toFixed(1)}|${ly.toFixed(1)}|${blink}|${this.sweat > 0}|${this.look.eyes}|${Math.floor(time * 6) % 2}`;
