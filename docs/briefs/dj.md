@@ -199,6 +199,7 @@
 - 11 月 14 日下午：跟着跳的教练换成真人舞者（#570，上面「定过的事」11-14 下午那条），11 套衣服每首歌换一套。
 - 11 月 14 日晚上：#585 电视页删改、视频和舞池对换、跟着跳拿掉（上面「定过的事」11-14 晚上那条）。网站和房间服务器都要重新部署（房间规则少了 `dance` 和 `songbeat`）。
 - 11 月 18 日晚上上线：#619 电视左边的舞者换成 Steve 选的设计图做成的真人样子，跳 Mixamo 的真人动作捕捉（上面「定过的事」11-18 那条）。只改了网站，房间规则和房间服务器没动。
+- 11 月 19 日上线：#639 手机播放键下面的快退、快进 30 秒（上面「定过的事」11-18 深夜那条）。网站和房间服务器都重新部署（房间规则多了 `seek`）。
 
 ## 还剩什么
 
@@ -251,6 +252,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-19 DJ: 快退 and 快进 30 秒 on every phone's player
 - 2026-11-18 DJ: a dance file that didn't come is tried again after half a minute, not every frame
 - 2026-11-18 DJ: the TV's dancer made real, the design Steve chose dancing real dancers' motion capture
 - 2026-11-14 DJ: the TV trimmed, the video in the middle and the floor beside it, 跟着跳 out
