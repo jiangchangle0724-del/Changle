@@ -278,8 +278,6 @@ export default function TvDj({ v }: { v: DjView }) {
     .filter((f) => f.seat && f.n > 0)
     .slice(0, 3);
   const live = booth.status === "on";
-  // what's on the air, for the dancer's outfit (a new one each): a whole song, a song asked for, or the DJ's own set
-  const onAir = v.deck ? (v.deck.song?.id ?? v.deck.now?.id ?? `set:${v.deck.aired[v.deck.aired.length - 1]?.at ?? 0}`) : null;
   const silent = live && (v.phase === "wait" || state !== "playing") && v.phase !== "end";
   const tonight = Object.values(v.total).reduce((a, b) => a + b, 0);
   // ❄️ this minute, and the DJ reading the floor (读场: Lyria leans its energy with it)
@@ -360,7 +358,7 @@ export default function TvDj({ v }: { v: DjView }) {
         />
       )}
       {/* (all night, whole songs too: over the video when it's over the whole TV) */}
-      {live && v.phase !== "end" && <Coach clock={coachClock} mood={moodOf(v.phase, beat?.slow)} over={covered} song={onAir} />}
+      {live && v.phase !== "end" && <Coach clock={coachClock} mood={moodOf(v.phase, beat?.slow)} over={covered} />}
       {live && v.deck && <TubePlayer v={v} zh={zh} nameOf={nameOf} now={now} speaker={speaker} barTime={barTime} done={(id) => g("songdone", { id })} nosong={(id) => g("nosong", { id })} tap={(on) => g("tap", { on })} stopped={booth.stopped} />}
       {/* a song file a phone sent, whole, in this page's own sound */}
       {live && v.deck && <PhoneSong v={v} crate={booth.crate} speaker={speaker} now={now} zh={zh} nameOf={nameOf} done={(id) => g("songdone", { id })} />}
