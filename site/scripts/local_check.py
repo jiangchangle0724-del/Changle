@@ -84,7 +84,7 @@ with sync_playwright() as p:
     pg = page(ctx)
     pg.goto(BASE + "#/g/rogue", wait_until="networkidle"); pg.wait_for_timeout(500)
     for i in range(3):
-        pg.locator(".pcard-back").click(); pg.wait_for_timeout(1200)
+        pg.locator(".rg-back").click(); pg.wait_for_timeout(1200)
         if i == 0:
             snap(pg, "rogue-card.png")
         pg.locator(".game-actions .btn").first.click(); pg.wait_for_timeout(700)

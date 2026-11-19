@@ -52,7 +52,7 @@ with sync_playwright() as p:
     go(ctx, "", "home", wait=1500)
     go(ctx, "#/g/dice", "dice", lambda pg: (pg.get_by_role("button", name="掷骰子").click(), pg.wait_for_timeout(1400)))
     go(ctx, "#/g/draw", "draw", lambda pg: (pg.locator(".setup-card .btn").first.click(), pg.wait_for_timeout(500), pg.locator(".cloche-dome").click(), pg.wait_for_timeout(1100), pg.get_by_role("button", name="开始画").click(), pg.wait_for_timeout(700)))
-    go(ctx, "#/g/rogue", "rogue", lambda pg: (pg.locator(".pcard-back").click(), pg.wait_for_timeout(1300)))
+    go(ctx, "#/g/rogue", "rogue", lambda pg: (pg.locator(".rg-back").click(), pg.wait_for_timeout(1300)))
     go(ctx, "#/g/truth", "truth", lambda pg: (pg.get_by_role("button", name="转瓶子").click(), pg.wait_for_timeout(5200), pg.get_by_role("button", name="真心话").click(), pg.wait_for_timeout(500), pg.locator(".cloche-dome").click(), pg.wait_for_timeout(1000)))
     go(ctx, "#/g/undercover", "undercover")
     go(ctx, "#/g/king", "king")
