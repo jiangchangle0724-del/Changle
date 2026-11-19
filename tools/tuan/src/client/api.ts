@@ -153,6 +153,9 @@ async function ask<T>(path: string, init: { method?: "GET" | "POST"; body?: unkn
   return data as T;
 }
 
+/** Where a picture of the goods is: the one to look at, or the small square one for the list. */
+export const photoUrl = (id: string, small: boolean): string => `${BASE}/img/${id}${small ? "/s" : ""}`;
+
 export const getOffer = (offerId: string): Promise<OfferPage> => ask(`/offers/${offerId}`);
 /** A shop's own page. */
 export const getShop = (slug: string): Promise<ShopPage> => ask(`/shops/${slug}`);
@@ -176,6 +179,21 @@ export const getMyDoc = (offerId: string): Promise<MyOfferDoc> => ask(`/my/offer
 export const saveMyDoc = (offerId: string, doc: unknown): Promise<MyOfferDoc> => ask(`/my/offers/${offerId}/doc`, { method: "POST", body: doc, signedIn: true });
 /** Start a group buy in a shop from the document a merchant sends (src/engine/offer.ts says what's in it). */
 export const startOffer = (slug: string, offer: unknown): Promise<Made> => ask(`/my/shops/${slug}/offers`, { method: "POST", body: offer, signedIn: true });
+/** Send a picture of the goods: its two copies, as src/client/ui/photos.ts made them. */
+export async function uploadPhoto(slug: string, large: Blob, small: Blob): Promise<Made> {
+  const form = new FormData();
+  form.append("large", large, "large");
+  form.append("small", small, "small");
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api/my/shops/${slug}/photos`, { method: "POST", headers: { authorization: `Bearer ${session()}` }, body: form });
+  } catch {
+    throw new ApiFail("network");
+  }
+  const data = (await res.json().catch(() => ({ error: res.status === 429 ? "limit" : "failed" }))) as Made | ApiError;
+  if (!res.ok) throw new ApiFail(("error" in data && data.error) || "failed");
+  return data as Made;
+}
 /** Ask to open a shop, or send the asking again, changed (src/engine/apply.ts says what's in it). */
 export const applyForShop = (application: unknown): Promise<Made> => ask("/my/apply", { method: "POST", body: application, signedIn: true });
 /** The site's owner only: set a shop up, or change one (src/engine/shop.ts). */

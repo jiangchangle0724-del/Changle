@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { TAIL_HEADER, type ApiError, type Application, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
 import testShopAddress from "../migrations/0003_test_shop_address.sql";
 import { DECLARATION } from "../src/engine/apply";
+import { JPEG_BASE64 } from "./photo";
 import { makeCode, SLUG_RE } from "../src/engine/ids";
 import { ORDERS_PER_PHONE } from "../src/engine/order";
 import { vancouverDay } from "../src/engine/time";
@@ -511,7 +512,8 @@ describe("changing a group buy", () => {
     expect(doc.offer).toMatchObject({ id: at.id, status: "open", title: "本周大米团 · 周五到货", roster: "names" });
     expect(doc.items.map((i) => [i.name, i.used, i.sold])).toEqual([["五常大米 10kg", true, 2000], ["东北珍珠米 15lb", false, 0], ["黄小米 2lb", false, 0], ["土鸡蛋 30 枚", true, 1000], ["手切羊肉片", false, 0]]);
     expect(doc.items[0]).toMatchObject({ id: at.item("五常大米"), section: "米面", detail: "当季新米", price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null });
-    expect(doc.items[0]).not.toHaveProperty("photo");
+    // (no photo was given: its place is kept empty, so a change can add one)
+    expect(doc.items[0].photo).toBeNull();
     expect(doc.points.map((p) => [p.name, p.used])).toEqual([["温哥华西区", true], ["大学区", false], ["本拿比", false]]);
     expect(doc.rules.map((r) => [r.label, r.used])).toEqual([["温哥华（Downtown 除外）", false], ["本拿比", false], ["列治文", true]]);
     // reading it tells the merchant nothing about orders, so the mail still goes
@@ -1318,6 +1320,99 @@ describe("asking to open a shop", () => {
     const slug = newSlug();
     expect(said(await apply(SESSION.asker6, slug))).toBe("ok");
     expect((await home(SESSION.asker6)).shops.map((shop) => shop.slug)).toEqual([slug]);
+  });
+});
+
+describe("pictures of the goods", () => {
+  const jpeg = Uint8Array.from(atob(JPEG_BASE64), (char) => char.charCodeAt(0));
+  /** A form the way a phone sends one: the large copy and the small one. */
+  const copies = (large: Uint8Array, small: Uint8Array = jpeg) => {
+    const form = new FormData();
+    form.append("large", new File([large], "large", { type: "image/jpeg" }));
+    form.append("small", new File([small], "small", { type: "image/jpeg" }));
+    return form;
+  };
+  const send = async (slug: string, body: FormData | string, session: string | null = SESSION.leader) => {
+    const res = await worker.fetch(
+      new Request(`https://changle.ca/tuan/api/my/shops/${slug}/photos`, { method: "POST", headers: { origin: "https://changle.ca", "cf-connecting-ip": network, ...(session ? { authorization: `Bearer ${session}` } : {}) }, body }),
+      env,
+    );
+    return { status: res.status, data: (await res.json()) as Made & ApiError };
+  };
+  const img = async (path: string, method = "GET") => worker.fetch(new Request(`https://changle.ca/tuan/img/${path}`, { method }), env);
+
+  it("are taken from the shop's own people, two copies of a JPEG or WebP no bigger than allowed, and kept once", async () => {
+    const at = await start();
+    expect((await send(at.slug, copies(jpeg), null)).status).toBe(401);
+    expect((await send(at.slug, copies(jpeg), SESSION.visitor)).status).toBe(403);
+    expect((await send("no-such-shop", copies(jpeg))).status).toBe(404);
+    // not a form; one copy; not a picture; too big
+    expect((await send(at.slug, "{}")).data.error).toBe("photo");
+    const one = new FormData();
+    one.append("large", new File([jpeg], "large"));
+    expect((await send(at.slug, one)).data.error).toBe("photo");
+    expect((await send(at.slug, copies(new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'/>")))).data.error).toBe("photo");
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...jpeg]);
+    expect((await send(at.slug, copies(png))).data.error).toBe("photo");
+    const huge = new Uint8Array(460_000);
+    huge.set(jpeg);
+    expect((await send(at.slug, copies(huge))).data.error).toBe("photo");
+    expect((await send(at.slug, copies(jpeg, huge.subarray(0, 61_000)))).data.error).toBe("photo");
+
+    const sent = await send(at.slug, copies(jpeg));
+    expect(sent.status).toBe(201);
+    expect(sent.data.id).toMatch(/^[0-9a-f]{32}$/);
+    // the same picture again: the same name, nothing new kept
+    const again = await send(at.slug, copies(jpeg));
+    expect([again.status, again.data.id]).toEqual([200, sent.data.id]);
+    expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM photos WHERE id = ?").bind(sent.data.id).first<{ n: number }>())?.n).toBe(1);
+
+    // served as it was sent, for good: the large one and the small one
+    for (const path of [sent.data.id, `${sent.data.id}/s`]) {
+      const res = await img(path);
+      expect([path, res.status, res.headers.get("content-type"), res.headers.get("cache-control"), res.headers.get("x-content-type-options")]).toEqual([path, 200, "image/jpeg", "public, max-age=31536000, immutable", "nosniff"]);
+      expect(new Uint8Array(await res.arrayBuffer())).toEqual(jpeg);
+    }
+    for (const path of ["0123456789abcdef0123456789abcdef", "not-a-name", `${sent.data.id}/m`, `${sent.data.id}/s/x`]) expect([path, (await img(path)).status]).toEqual([path, 404]);
+    expect((await img(sent.data.id, "POST")).status).toBe(404);
+  });
+
+  it("go with an item by name: buyers get it, the merchant's page keeps it, and a change can take it off", async () => {
+    const at = await start();
+    // (another picture: the same with a few bytes after its end, which no reader looks at)
+    const { id: photo } = (await send(at.slug, copies(Uint8Array.from([...jpeg, 1, 2, 3])))).data;
+    expect(photo).toMatch(/^[0-9a-f]{32}$/);
+    const plain = offerDoc(Date.now() + DAY);
+    const doc = { ...plain, items: plain.items.map((item, at) => (at === 0 ? { ...item, photo } : item)) };
+    const made = await post<Made>(`/my/shops/${at.slug}/offers`, doc, { session: SESSION.leader });
+    expect(made.status).toBe(201);
+    const items = (await get<OfferPage>(`/offers/${made.data.id}`)).data.items;
+    expect(items.map((item) => item.photo)).toEqual([photo, null, null, null, null]);
+    const mine = (await get<MyOfferDoc>(`/my/offers/${made.data.id}/doc`, { session: SESSION.leader })).data;
+    expect(mine.items[0].photo).toBe(photo);
+    // a name that isn't one
+    const wrong = await post<ApiError>(`/my/shops/${at.slug}/offers`, { ...doc, items: [{ ...doc.items[0], photo: "/etc/passwd" }] }, { session: SESSION.leader });
+    expect([wrong.status, wrong.data.error, wrong.data.at]).toEqual([400, "item", 0]);
+    // changed: off again
+    const { items: sent, offer, points, rules } = mine;
+    const changed = await post<Made>(`/my/offers/${made.data.id}/doc`, { title: offer.title, note: offer.note, closesAt: offer.closesAt, roster: offer.roster, items: sent.map(({ used: _used, sold: _sold, ...item }) => ({ ...item, photo: null })), points: points.map(({ used: _used, ...point }) => point), rules: rules.map(({ used: _used, ...rule }) => rule) }, { session: SESSION.leader });
+    expect(changed.status).toBe(200);
+    expect((await get<OfferPage>(`/offers/${made.data.id}`)).data.items[0].photo).toBeNull();
+  });
+
+  it("are counted: so many new ones a day for a shop, so many for the whole tool", async () => {
+    const at = await start();
+    const day = vancouverDay(Date.now());
+    const shop = await env.DB.prepare("SELECT id FROM shops WHERE slug = ?").bind(at.slug).first<{ id: string }>();
+    await env.DB.prepare("INSERT INTO gates (key, day, used) VALUES (?, ?, 150)").bind(`photo:${shop?.id}`, day).run();
+    expect((await send(at.slug, copies(jpeg.slice(0, -3)))).data.error).toBe("limit");
+    const other = await start();
+    const all = await env.DB.prepare("SELECT used FROM gates WHERE key = 'photo:all' AND day = ?").bind(day).first<{ used: number }>();
+    await env.DB.prepare("INSERT INTO gates (key, day, used) VALUES ('photo:all', ?, 300) ON CONFLICT (key, day) DO UPDATE SET used = 300").bind(day).run();
+    expect((await send(other.slug, copies(jpeg.slice(0, -4)))).data.error).toBe("limit");
+    await env.DB.prepare("UPDATE gates SET used = ? WHERE key = 'photo:all' AND day = ?").bind(all?.used ?? 0, day).run();
+    // one already kept costs nothing
+    expect((await send(other.slug, copies(jpeg))).status).toBe(200);
   });
 });
 

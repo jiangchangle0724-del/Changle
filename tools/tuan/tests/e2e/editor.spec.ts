@@ -5,6 +5,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { toField, vancouverClock } from "../../src/engine/time.ts";
 import { SESSION } from "../accounts.ts";
+import { JPEG_BASE64 } from "../photo.ts";
 import { DAY, fits, offerOf, order, phone, putAway, sheets, shopOnly, start } from "./help.ts";
 
 const field = (page: Page, name: string) => page.locator(`[name="${name}"]`);
@@ -282,6 +283,53 @@ test("changing one that has orders: what an order names can change but not go, a
   const out = await phone(browser);
   await out.goto(`/tuan/my/t/${id}/edit`);
   await expect(out.locator(".panel-title")).toHaveText("商家请先登录");
+});
+
+test("an item's photo: picked on the phone, made small there, sent, and buyers see it, large when tapped", async ({ browser, request }) => {
+  const { id } = await start(request);
+  const page = await phone(browser, { session: SESSION.leader });
+  await page.goto(`/tuan/my/t/${id}/edit`);
+  await row(page, "五常大米 10kg").click();
+  await expect(page.locator(".sheet .photo-empty")).toBeVisible();
+  await field(page, "item-photo").setInputFiles({ name: "rice.jpg", mimeType: "image/jpeg", buffer: Buffer.from(JPEG_BASE64, "base64") });
+  const preview = page.locator(".sheet img.photo-preview");
+  await expect(preview).toHaveAttribute("src", /^\/tuan\/img\/[0-9a-f]{32}\/s$/);
+  const photo = /([0-9a-f]{32})/.exec((await preview.getAttribute("src")) ?? "")?.[1] ?? "";
+  await expect(page.locator(".sheet").getByRole("button", { name: "不要照片" })).toBeVisible();
+  await done(page).click();
+  await expect(row(page, "五常大米 10kg").locator("img.row-photo")).toHaveAttribute("src", `/tuan/img/${photo}/s`);
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page).toHaveURL(ID);
+  expect((await offerOf(request, id)).items.map((item) => item.photo)).toEqual([photo, null, null, null, null]);
+
+  // a buyer: the small one in the list, the large one when tapped, and the way into the cart from there
+  const buyer = await phone(browser);
+  await buyer.goto(`/tuan/t/${id}`);
+  const thumb = buyer.locator(".item", { hasText: "五常大米 10kg" }).locator("img.item-photo");
+  await expect(thumb).toHaveAttribute("src", `/tuan/img/${photo}/s`);
+  await expect.poll(() => thumb.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  // the others have none: their first character stands in
+  await expect(buyer.locator(".item", { hasText: "东北珍珠米" }).locator(".item-nophoto")).toHaveText("东");
+  await buyer.getByRole("button", { name: "看大图：五常大米 10kg" }).click();
+  const look = buyer.getByRole("dialog", { name: "五常大米 10kg" });
+  await expect(look.locator("img.look-photo")).toHaveAttribute("src", `/tuan/img/${photo}`);
+  await expect.poll(() => look.locator("img.look-photo").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await look.getByRole("button", { name: "加入 · $38.00" }).click();
+  await expect(look.locator(".step-n")).toHaveText("1");
+  await look.getByRole("button", { name: "增加 五常大米 10kg" }).click();
+  await expect(buyer.locator(".dock .dock-count")).toHaveText("2 件");
+  await buyer.keyboard.press("Escape");
+  await expect(buyer.locator(".sheet")).toHaveCount(0);
+
+  // taken off again
+  await page.goto(`/tuan/my/t/${id}/edit`);
+  await row(page, "五常大米 10kg").click();
+  await page.locator(".sheet").getByRole("button", { name: "不要照片" }).click();
+  await expect(page.locator(".sheet .photo-empty")).toBeVisible();
+  await done(page).click();
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page).toHaveURL(ID);
+  expect((await offerOf(request, id)).items[0].photo).toBeNull();
 });
 
 test("on a small phone, and in English: the editor fits, and everything to tap is big enough", async ({ browser, request }) => {

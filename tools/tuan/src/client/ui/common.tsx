@@ -60,6 +60,16 @@ export const IconPin = ({ size = 16 }: IconProps) =>
     </>,
     2,
   );
+export const IconPhoto = ({ size = 22 }: IconProps) =>
+  svg(
+    size,
+    <>
+      <rect x="3.5" y="5" width="17" height="14" rx="3" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="M4.5 17l4.5-4.5 3.5 3.5 2.5-2.5 4.5 4.5" />
+    </>,
+    2,
+  );
 export const IconCopy = ({ size = 18 }: IconProps) =>
   svg(
     size,

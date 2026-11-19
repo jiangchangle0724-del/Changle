@@ -15,10 +15,11 @@ import { amountText, MILLI, QTY_MAX } from "../../engine/money";
 import { ITEMS_MAX, MONEY_MAX, OFFER_NOTE_MAX, OPEN_FOR_MAX_MS, PLACES_MAX, STOCK_MAX, TITLE_MAX, WEIGHED_STEPS } from "../../engine/offer";
 import { fromField, toField } from "../../engine/time";
 import { UNITS, weighed, type OfferStatus, type Roster, type Unit } from "../../engine/types";
-import { ApiFail, dropDraft, getMy, getMyDoc, saveDraft, savedDraft, saveMyDoc, session, startOffer } from "../api";
+import { ApiFail, dropDraft, getMy, getMyDoc, photoUrl, saveDraft, savedDraft, saveMyDoc, session, startOffer } from "../api";
 import { t, unitName } from "../i18n";
 import { soldBy } from "../i18n-my";
-import { IconBack, IconNext, IconPlus, money, priceText, Sheet, useLang, useTitle } from "./common";
+import { IconBack, IconNext, IconPhoto, IconPlus, money, priceText, Sheet, useLang, useTitle } from "./common";
+import { sendPhoto } from "./photos";
 import { onReturn, shutOut, troubleOf, TroublePanel, type Trouble } from "./My";
 
 interface ItemDraft {
@@ -29,6 +30,8 @@ interface ItemDraft {
   section: string;
   name: string;
   detail: string;
+  /** a picture sent from this phone (src/client/ui/photos.ts), by its name */
+  photo?: string | null;
   price: number;
   unit: Unit;
   step: number;
@@ -130,7 +133,67 @@ function SheetFoot({ canRemove, onRemove, onDone }: { canRemove: boolean; onRemo
   );
 }
 
-function ItemSheet({ item, sections, canUp, canDown, onSave, onRemove, onMove, onClose }: { item: ItemDraft | null; sections: string[]; canUp: boolean; canDown: boolean; onSave: (item: ItemDraft) => void; onRemove: () => void; onMove: (by: -1 | 1) => void; onClose: () => void }) {
+/** An item's picture: what it is now, and choosing another from the phone, sent at once (the item keeps its name). */
+function PhotoField({ slug, photo, onChange }: { slug: string; photo: string | null; onChange: (photo: string | null) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      onChange(await sendPhoto(slug, file));
+    } catch (e) {
+      const code = e instanceof ApiFail ? e.code : e instanceof Error && e.message === "big" ? "big" : "failed";
+      setProblem(t(code === "limit" ? "editPhotoLimit" : code === "network" ? "netDown" : code === "big" ? "editPhotoBig" : code === "signin" || code === "down" ? "signInStale" : "editPhotoErr"));
+    }
+    setBusy(false);
+  }
+  return (
+    <div class="field">
+      <span class="field-label">{t("editPhoto")}</span>
+      <div class="photo-field">
+        {photo ? (
+          <img class="photo-preview" src={photoUrl(photo, true)} alt="" width={72} height={72} />
+        ) : (
+          <span class="photo-preview photo-empty" aria-hidden="true">
+            <IconPhoto />
+          </span>
+        )}
+        <div class="row">
+          <label class="btn btn-quiet btn-sm photo-pick" aria-busy={busy ? "true" : undefined}>
+            <input
+              type="file"
+              accept="image/*"
+              name="item-photo"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                void pick(file);
+              }}
+            />
+            {t(busy ? "editPhotoBusy" : photo ? "editPhotoChange" : "editPhotoAdd")}
+          </label>
+          {photo && !busy && (
+            <button type="button" class="btn btn-quiet btn-sm" onClick={() => onChange(null)}>
+              {t("editPhotoRemove")}
+            </button>
+          )}
+        </div>
+      </div>
+      {problem && (
+        <p class="problem" role="alert">
+          {problem}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ItemSheet({ slug, item, sections, canUp, canDown, onSave, onRemove, onMove, onClose }: { slug: string; item: ItemDraft | null; sections: string[]; canUp: boolean; canDown: boolean; onSave: (item: ItemDraft) => void; onRemove: () => void; onMove: (by: -1 | 1) => void; onClose: () => void }) {
+  // (the picture comes back after the typing may have moved on: kept apart, so neither undoes the other)
+  const [photo, setPhoto] = useState<string | null>(item?.photo ?? null);
   const [typed, setTyped] = useState(() => ({
     name: item?.name ?? "",
     section: item?.section ?? sections[sections.length - 1] ?? "",
@@ -166,12 +229,13 @@ function ItemSheet({ item, sections, canUp, canDown, onSave, onRemove, onMove, o
 
   function done() {
     if (!good || price === null || least === null) return setTried(true);
-    onSave({ ...(item?.id ? { id: item.id, used: item.used, sold: item.sold } : {}), section: typed.section.trim(), name: typed.name.trim(), detail: typed.detail.trim(), price, unit: typed.unit, step, least, stock, perBuyer, allergens: typed.allergens.trim() });
+    onSave({ ...(item?.id ? { id: item.id, used: item.used, sold: item.sold } : {}), section: typed.section.trim(), name: typed.name.trim(), detail: typed.detail.trim(), photo, price, unit: typed.unit, step, least, stock, perBuyer, allergens: typed.allergens.trim() });
   }
 
   return (
     <Sheet title={t(item ? "editItem" : "editAddItem")} onClose={onClose} footer={<SheetFoot canRemove={item !== null && !item.used} onRemove={onRemove} onDone={done} />}>
       {item?.used && <p class="hint">{t("editUsedItem", { sold: amountText(sold) })}</p>}
+      <PhotoField slug={slug} photo={photo} onChange={setPhoto} />
       <Field label={t("editName")} problem={wrong.name}>
         <input type="text" name="item-name" maxLength={60} autocomplete="off" data-autofocus={item ? undefined : ""} value={typed.name} aria-invalid={wrong.name ? "true" : undefined} onInput={(event) => set({ name: event.currentTarget.value })} />
       </Field>
@@ -297,7 +361,7 @@ function RuleSheet({ rule, onSave, onRemove, onClose }: { rule: RuleDraft | null
 }
 
 /** A list of parts, one a row, each opening its sheet; and the button that adds one. */
-function Rows<T>({ list, what, more, empty, add, full, onOpen }: { list: T[]; what: (one: T) => string; more: (one: T) => string; empty: string; add: string; full: boolean; onOpen: (at: number | null) => void }) {
+function Rows<T>({ list, what, more, photo, empty, add, full, onOpen }: { list: T[]; what: (one: T) => string; more: (one: T) => string; photo?: (one: T) => string | null | undefined; empty: string; add: string; full: boolean; onOpen: (at: number | null) => void }) {
   return (
     <>
       {list.length === 0 ? (
@@ -307,6 +371,7 @@ function Rows<T>({ list, what, more, empty, add, full, onOpen }: { list: T[]; wh
           {list.map((one, at) => (
             <li key={at}>
               <button type="button" class="row-btn" onClick={() => onOpen(at)}>
+                {photo?.(one) && <img class="row-photo" src={photoUrl(photo(one) ?? "", true)} alt="" width={44} height={44} loading="lazy" decoding="async" />}
                 <span class="mine-what">
                   <strong>{what(one)}</strong>
                   <span class="hint">{more(one)}</span>
@@ -544,6 +609,7 @@ export function Editor({ slug, from, offerId }: { slug: string | null; from: str
                 list={draft.items}
                 what={(item) => item.name}
                 more={(item) => [priceText(item.price, item.unit), item.section, item.stock === null ? "" : t("editRowStock", { n: amountText(item.stock) })].filter(Boolean).join(" · ")}
+                photo={(item) => item.photo}
                 empty={t("editNoItems")}
                 add={t("editAddItem")}
                 full={draft.items.length >= ITEMS_MAX}
@@ -613,8 +679,9 @@ export function Editor({ slug, from, offerId }: { slug: string | null; from: str
             </div>
           </section>
 
-          {sheet?.kind === "item" && (
+          {sheet?.kind === "item" && shop && (
             <ItemSheet
+              slug={shop.slug}
               item={sheet.at === null ? null : draft.items[sheet.at]}
               sections={sections}
               canUp={sheet.at !== null && sheet.at > 0}

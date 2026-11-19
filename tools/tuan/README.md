@@ -40,7 +40,7 @@ wrote shows as they wrote it.
 ## How it is made
 
 Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), like 玩什么
-(`tools/events`).
+(`tools/events`), and a KV namespace (`PHOTOS`) for the pictures of the goods.
 
 | Folder | What |
 | --- | --- |
@@ -50,9 +50,10 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 | `src/server/store.ts` | Everything kept in D1, read and written here and nowhere else. |
 | `src/server/who.ts` | Who is signed in: asks the rooms server (below). |
 | `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`; the mails about asking for a shop are in `src/engine/apply.ts`. |
+| `src/server/photos.ts` | Pictures of the goods: reading the two copies a phone sends, and handing them out (below). |
 | `src/server/gate.ts` | The daily allowances. |
 | `src/server/schema.ts` | Applies `migrations/` (numbered files, each once, in order) when the Worker starts. Nothing to run by hand. |
-| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is; a buyer's pages), `my.tsx` (the merchant's pages, a script of their own), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/Shop.tsx` (a shop's own page), `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/ShopEdit.tsx` (what a shop says, for its merchant), `ui/Apply.tsx` (asking for a shop, and where the asking stands), `ui/Review.tsx` (the owner answering), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` and `i18n-my.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
+| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is; a buyer's pages), `my.tsx` (the merchant's pages, a script of their own), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/Shop.tsx` (a shop's own page), `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/photos.ts` (a picture made ready on the phone), `ui/ShopEdit.tsx` (what a shop says, for its merchant), `ui/Apply.tsx` (asking for a shop, and where the asking stands), `ui/Review.tsx` (the owner answering), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` and `i18n-my.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
 | `scripts/build.mjs` | Builds the pages into `dist/client/tuan` (esbuild). wrangler runs it before `wrangler dev` and `wrangler deploy`. |
 | `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/editor.spec.ts` for starting and changing a group buy, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
 
@@ -149,7 +150,18 @@ they agree after a crowd of orders, changes and cancellations at once.
   accounts (by email) run which shop. Only they see buyers' phone numbers and addresses. They
   also change what the shop says about itself (`/tuan/api/my/shops/<slug>`, the same rules as
   setting it up: a name is needed, the rest may be empty); its address, whether it's open and who
-  runs it are the owner's.
+  runs it are the owner's. They send pictures of the goods (`POST /tuan/api/my/shops/<slug>/photos`,
+  below).
+- **A picture of the goods** is made ready on the merchant's phone (`src/client/ui/photos.ts`): drawn
+  on a canvas twice, once at most 1200 px across (440 KB at most) and once as a 240 px square for
+  the list (58 KB), as WebP where the phone can write it and JPEG where it can't. The canvas keeps
+  only the picture, so what the camera wrote about where it was taken stays on the phone. Both go
+  in one form (`large`, `small`). The Worker takes JPEG and WebP only, by their first bytes, and
+  nothing bigger than 450 KB and 60 KB; it names the picture by its content (the first 128 bits of
+  the large copy's SHA-256, in hex), so the same picture sent twice is kept once. It keeps both in
+  KV (`p/<name>`, `p/<name>/s`) and which shop sent it in D1 (`photos`). An item names its picture
+  (`photo`); anyone may fetch `/tuan/img/<name>` and `/tuan/img/<name>/s`, which never change, so
+  they are cached for a year. A picture no item names any more stays where it is.
 - **Asking for a shop** (`src/engine/apply.ts`, `POST /tuan/api/my/apply`): an account that runs
   no shop and has never asked sends what the shop will say about itself, the address it wants
   (`/tuan/s/<slug>`), a note for the owner alone, and the declaration ticked (that they hold the
@@ -215,6 +227,7 @@ carefully (`src/server/notify.ts`):
 | Orders in a group buy, cancelled ones included | 500 |
 | Different things in an order, and the most of one thing | 60, 99 |
 | Goods in a group buy; pickup points; delivery areas | 200; 12; 12 |
+| New pictures a day for one shop; for the whole tool (KV's free plan writes 1,000 a day, two a picture) | 150; 300 |
 
 A network is told apart by its address, kept only as a fingerprint, in the `gates` table (one row
 a key a day, dropped two days later).
@@ -272,6 +285,8 @@ Connected to Cloudflare on 13 November 2026: merging into `main` deploys it. The
   first request. No secrets.
 - Since the same day it also binds the rooms server's mail door (`MAIL` → `changle-rooms`, entrypoint
   `Mail`) and has one timer (every ten minutes).
+- Since 2026-11-19 it keeps pictures of the goods in a KV namespace (`PHOTOS`), which the first
+  deploy with it made by itself, as it made the database (no id in `wrangler.jsonc`).
 - A table changes only through a new numbered file in `migrations/`, added to the list in
   `src/server/schema.ts`: a file that has been applied on the live database is never edited again.
 - The pages need no setting on Cloudflare: `wrangler deploy` builds them first (`build.command` in

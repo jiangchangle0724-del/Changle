@@ -8,7 +8,7 @@ import { lineAmount, MILLI, QTY_MAX } from "../../engine/money";
 import { deliveryFee } from "../../engine/order";
 import { phoneDigits } from "../../engine/phone";
 import { weighed, type DeliveryRule, type How } from "../../engine/types";
-import { ApiFail, changeOrder, getOffer, getOrder, newKey, placeOrder, rememberOrder, saveCart, savedCart, savedMe, saveMe, tailOf, type Cart } from "../api";
+import { ApiFail, changeOrder, getOffer, getOrder, newKey, photoUrl, placeOrder, rememberOrder, saveCart, savedCart, savedMe, saveMe, tailOf, type Cart } from "../api";
 import { leftText, t, unitName, whenText } from "../i18n";
 import { Copyable, emailIn, IconBack, IconClock, IconNext, IconPin, IconPlus, Lines, money, priceText, qtyText, Sheet, Stepper, Toast, TopBar, useLang, useTitle } from "./common";
 
@@ -44,6 +44,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
   /** the order being changed, when this page was opened to change one */
   const [changing, setChanging] = useState<OrderPage | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
+  const [looking, setLooking] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [howOpen, setHowOpen] = useState(false);
   const [checkout, setCheckout] = useState(false);
@@ -230,6 +231,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
   const more = (item: PublicItem) => setQty(item, Math.max(item.least, (cart[item.id] ?? 0) + item.step));
   const canMore = (item: PublicItem) => Math.max(item.least, (cart[item.id] ?? 0) + item.step) <= most(item, heldOf(item));
   const pickingItem = page.items.find((item) => item.id === picking) ?? null;
+  const lookingItem = page.items.find((item) => item.id === looking) ?? null;
 
   /** The server said some things can't be had in these amounts: take what's left, and show the goods again. */
   const adjust = async (items: { id: string; left: number }[], text: string) => {
@@ -324,7 +326,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
             {page.items
               .filter((item) => item.section === name)
               .map((item) => (
-                <ItemRow key={item.id} item={item} qty={cart[item.id] ?? 0} room={most(item, heldOf(item))} open={open} canMore={canMore(item)} onLess={() => less(item)} onMore={() => more(item)} onPick={() => setPicking(item.id)} />
+                <ItemRow key={item.id} item={item} qty={cart[item.id] ?? 0} room={most(item, heldOf(item))} open={open} canMore={canMore(item)} onLess={() => less(item)} onMore={() => more(item)} onPick={() => setPicking(item.id)} onLook={() => setLooking(item.id)} />
               ))}
           </ul>
         </section>
@@ -390,6 +392,22 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
         </div>
       )}
 
+      {lookingItem?.photo && (
+        <Look
+          item={{ ...lookingItem, photo: lookingItem.photo }}
+          qty={cart[lookingItem.id] ?? 0}
+          open={open}
+          gone={most(lookingItem, heldOf(lookingItem)) < lookingItem.least}
+          canMore={canMore(lookingItem)}
+          onLess={() => less(lookingItem)}
+          onMore={() => more(lookingItem)}
+          onPick={() => {
+            setLooking(null);
+            setPicking(lookingItem.id);
+          }}
+          onClose={() => setLooking(null)}
+        />
+      )}
       {pickingItem && <Picker item={pickingItem} qty={cart[pickingItem.id] ?? 0} max={most(pickingItem, heldOf(pickingItem))} onSet={(qty) => setQty(pickingItem, qty)} onClose={() => setPicking(null)} />}
 
       {cartOpen && (
@@ -491,12 +509,29 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
   );
 }
 
-function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick }: { item: PublicItem; qty: number; room: number; open: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void }) {
+/** An item's picture in the list: tapped, the large one; one that doesn't come gives way to the item's first character. */
+function Thumb({ item, onLook }: { item: PublicItem; onLook: () => void }) {
+  const [broken, setBroken] = useState(false);
+  if (!item.photo || broken) {
+    return (
+      <span class="item-photo item-nophoto" aria-hidden="true">
+        {Array.from(item.name)[0]}
+      </span>
+    );
+  }
+  return (
+    <button type="button" class="item-photo-btn" aria-label={t("look", { name: item.name })} onClick={onLook}>
+      <img class="item-photo" src={photoUrl(item.photo, true)} alt="" width={72} height={72} loading="lazy" decoding="async" onError={() => setBroken(true)} />
+    </button>
+  );
+}
+
+function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLook }: { item: PublicItem; qty: number; room: number; open: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onLook: () => void }) {
   const byWeight = weighed(item.unit);
   const gone = room < item.least;
   return (
     <li class={`item${gone ? " item-gone" : ""}`}>
-      {item.photo ? <img class="item-photo" src={item.photo} alt="" loading="lazy" decoding="async" /> : <span class="item-photo item-nophoto" aria-hidden="true">{Array.from(item.name)[0]}</span>}
+      <Thumb item={item} onLook={onLook} />
       <div class="item-what">
         <h3 class="item-name">{item.name}</h3>
         {item.detail && <p class="item-detail">{item.detail}</p>}
@@ -523,6 +558,43 @@ function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick }: { i
           </button>
         ))}
     </li>
+  );
+}
+
+/** An item's picture, large, with what it is and the same way into the cart as its row. */
+function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose }: { item: PublicItem & { photo: string }; qty: number; open: boolean; gone: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onClose: () => void }) {
+  const byWeight = weighed(item.unit);
+  return (
+    <Sheet
+      title={item.name}
+      onClose={onClose}
+      footer={
+        open && !gone ? (
+          byWeight ? (
+            <button type="button" class="btn btn-primary btn-block" onClick={onPick}>
+              {qty ? qtyText(item.unit, qty) : t("pickWeight")}
+            </button>
+          ) : qty ? (
+            <div class="look-step">
+              <Stepper large text={qtyText(item.unit, qty)} lessLabel={t("less", { name: item.name })} moreLabel={t("more", { name: item.name })} onLess={onLess} onMore={onMore} canMore={canMore} />
+            </div>
+          ) : (
+            <button type="button" class="btn btn-primary btn-block" onClick={onMore}>
+              {t("addToCart", { m: money(lineAmount(item.price, item.least)) })}
+            </button>
+          )
+        ) : undefined
+      }
+    >
+      <img class="look-photo" src={photoUrl(item.photo, false)} alt={item.name} decoding="async" />
+      {item.detail && <Lines class="look-detail" text={item.detail} />}
+      {item.allergens && <p class="item-note">{t("allergens", { a: item.allergens })}</p>}
+      <p class="item-price">
+        <strong>{money(item.price)}</strong>
+        <span> / {unitName(item.unit)}</span>
+        {gone && <span class="item-tag item-tag-warn">{t("soldOut")}</span>}
+      </p>
+    </Sheet>
   );
 }
 
@@ -562,6 +634,7 @@ function Picker({ item, qty, max, onSet, onClose }: { item: PublicItem; qty: num
         </div>
       }
     >
+      {item.photo && <img class="look-photo look-photo-low" src={photoUrl(item.photo, false)} alt={item.name} decoding="async" />}
       <p class="hint">
         {priceText(item.price, item.unit)} · {t("byWeight")}
       </p>
