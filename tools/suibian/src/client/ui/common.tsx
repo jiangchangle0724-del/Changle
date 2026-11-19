@@ -1,6 +1,6 @@
 import qrcode from "qrcode-generator";
 import type { ComponentChildren } from "preact";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { AllergenId, Limits } from "../../engine";
 import { ALLERGENS } from "../../engine";
 import type { MemberView, RoomView } from "../../room/protocol";
@@ -132,4 +132,27 @@ export function TableLimits({ l }: { l: Limits }) {
 
 export function DemoBanner({ demo }: { demo: boolean }) {
   return demo ? <p class="demo">{t("demo")}</p> : null;
+}
+
+/**
+ * While `open`, the phone's back button (or a swipe back) closes it instead of leaving the table:
+ * opening adds a history entry with the same address, closing another way takes it off again.
+ */
+export function useBackCloses(open: boolean, close: () => void) {
+  const latest = useRef(close);
+  latest.current = close;
+  useEffect(() => {
+    if (!open) return;
+    history.pushState({ suibianSheet: true }, "");
+    let popped = false;
+    const onPop = () => {
+      popped = true;
+      latest.current();
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      if (!popped && history.state?.suibianSheet) history.back();
+    };
+  }, [open]);
 }

@@ -59,7 +59,9 @@ finger's position or a sequence. No GSAP.
    `--dur-emphasis` with `--ease-pop`), the mark stamps in, the mint ring and tint fade in over
    `--dur-enter`; `buzz(8)`. Tap to 🚫: the chip shakes sideways once (by a third of
    `--motion-shift`, over `--dur-enter`) while it dims; `buzz([6, 30, 6])`. Tap back to nothing: the
-   mark and the dim fade out over `--dur-exit`. Only the chip you tapped moves.
+   mark and the dim fade out over `--dur-exit`. Only the chip you tapped moves. A group's tile
+   does the same when a tap likes or refuses all of it. Opening a group and going back are a screen
+   change (move 2) within the round.
 5. **Countdown.** From 10 seconds left the pill (`.urgent`) is red and the number ticks every second
    (scale 1.18 and back over `--dur-emphasis`, restarted each second, for example with a `key` on the
    number); `buzz(15)` once at 10 seconds and at 3, 2 and 1. Under reduced motion it turns red but

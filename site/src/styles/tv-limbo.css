@@ -84,7 +84,8 @@
   bottom: 40px;
   translate: -50% 0;
 }
-.tvlb-scene .limbo-stage {
+.tvlb-scene .limbo-stage,
+.tvlb-scene .limbo-3d {
   width: 800px;
 }
 

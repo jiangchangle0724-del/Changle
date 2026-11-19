@@ -46,6 +46,9 @@ app wins, except where a card says otherwise:
   从哪里出发, 多远以内, 抢卡, 好了, 吃完回来评分 ⭐. The only new words are the ones a card lists.
 - **Choices.** The options for when, how far and the occasion are the app's own (`WhenPicker`,
   `RangePicker`, `OccasionPicker`), not the sample ones drawn.
+- **Round 1's order.** The drawing shows the whole menu at once. Since 2026-11-19 the round starts
+  with a choice (by cuisine, or by what you feel like eating), then big groups that can be liked
+  whole or opened (细分) to pick inside. The tiles still look as drawn; S2 says where each goes.
 - **Marks on the menu.** The drawing tags a chip 想吃 / 不想; the app keeps 👍 / 🚫, because the hint
   above the menu explains them by those two signs.
 - **Result buttons.** 导航 and 订位 in the drawing are the app's existing 🗺️ 地图 and 📞 打电话 links

@@ -442,6 +442,8 @@ export type LimboView = {
   failed: string[];
   out: string[];
   best: Record<string, number>;
+  /** everyone's lean right now, this bar (degrees; a phone sends it a few times a second; none in blind lean) */
+  leans: Record<string, number>;
   sensors: string[];
   winner: string | null;
 };

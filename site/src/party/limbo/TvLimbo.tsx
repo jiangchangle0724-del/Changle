@@ -11,7 +11,8 @@ import { Bi, joinNames, RoundTag, TvClock, TvLineup, TvShow, useArrivals, useLan
 import type { TvViewProps } from "../../tv/views";
 import { useSecondsLeft } from "../common";
 import { perfAt } from "../sensors";
-import { blindLine, LimboScene } from "./parts";
+import { blindLine } from "./parts";
+import { LimboStage, seatColor, type StageFigure } from "./Stage";
 import "../../styles/party.css";
 import "../../styles/tv-limbo.css";
 
@@ -88,6 +89,8 @@ export default function TvLimbo({ v, sound }: TvViewProps<LimboView>) {
   const lost = v.phase !== "result" ? [] : blind ? (inRound.current.length ? inRound.current.filter((id) => !v.alive.includes(id)) : v.out.filter((id) => v.locks[id] !== undefined)) : v.failed;
   const shown = v.phase === "result" ? [...v.alive, ...lost.filter((id) => !v.alive.includes(id))] : v.alive;
   const items = shown.map((id) => seat(id)).filter((s): s is NonNullable<typeof s> => !!s).map((s) => ({ seat: s, pose: blind && v.phase === "result" ? (lost.includes(s.id) ? ("fail" as const) : ("pass" as const)) : status(s.id) }));
+  // the same stage as the phones: everyone leaning as their phone last said (blind lean: at the target)
+  const figures: StageFigure[] = items.map(({ seat: s, pose }) => ({ id: s.id, color: seatColor(s), name: name(s.id), pose: pose === "pass" || pose === "fail" || pose === "lean" ? pose : "idle", lean: !blind && v.phase === "go" && open ? v.leans?.[s.id] : undefined }));
 
   // what the phones say once the round is settled (#141: nobody made it and nobody leaned, same bar)
   const again = !blind && v.alive.length > 0 && v.alive.every((id) => v.failed.includes(id));
@@ -145,9 +148,7 @@ export default function TvLimbo({ v, sound }: TvViewProps<LimboView>) {
         )}
       </div>
       <div className="tvlb-scene">
-        <LimboScene angle={v.angle} level={v.level}>
-          <Lineup lean={v.angle} items={items} />
-        </LimboScene>
+        <LimboStage angle={v.angle} level={v.level} figures={figures} drawn={<Lineup lean={v.angle} items={items} />} />
       </div>
     </TvShow>
   );

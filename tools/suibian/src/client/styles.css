@@ -503,6 +503,58 @@ select {
 .mood.ban .label {
   text-decoration: line-through;
 }
+/* a group picked partly: how many of each, smaller than a single 👍 */
+.mood .mark.some {
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+.mood.some {
+  border-color: var(--color-success);
+}
+/* round 1's two ways in, before the groups */
+.paths .choice {
+  min-height: var(--dock-h);
+}
+.path-switch {
+  flex-wrap: nowrap;
+}
+/* a group: the tile likes or refuses all of it; 细分 at its foot opens it */
+.group {
+  position: relative;
+  display: flex;
+}
+.group > .mood {
+  flex: 1;
+  padding-bottom: calc(var(--tap) + var(--space-2));
+}
+.group .inside {
+  font: inherit;
+  position: absolute;
+  left: var(--space-2);
+  right: var(--space-2);
+  bottom: var(--space-2);
+  min-height: var(--tap);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.back-all {
+  font: inherit;
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 700;
+  cursor: pointer;
+}
 .progress {
   display: flex;
   align-items: center;
