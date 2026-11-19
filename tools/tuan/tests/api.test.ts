@@ -3,8 +3,9 @@
 // Every test starts its own shop and group buy, and comes from a network of its own.
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { TAIL_HEADER, type ApiError, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
+import { TAIL_HEADER, type ApiError, type Application, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopPage } from "../src/api";
 import testShopAddress from "../migrations/0003_test_shop_address.sql";
+import { DECLARATION } from "../src/engine/apply";
 import { makeCode, SLUG_RE } from "../src/engine/ids";
 import { ORDERS_PER_PHONE } from "../src/engine/order";
 import { vancouverDay } from "../src/engine/time";
@@ -1137,6 +1138,186 @@ describe("telling the merchant by mail", () => {
     expect(await mails()).toEqual([]);
     const waiting = await env.DB.prepare("SELECT COUNT(*) AS n FROM orders WHERE offer_id = ? AND noticed = 0").bind(at.id).first<{ n: number }>();
     expect(waiting?.n).toBe(0);
+  });
+});
+
+describe("asking to open a shop", () => {
+  const rooms = async <T>(path: string): Promise<T> => (await env.ROOMS.fetch(`https://rooms.test${path}`)).json();
+  /** What the mail door sent since last asked. */
+  const mails = () => rooms<Notice[]>("/test/mails");
+  const asking = (slug: string, more: Record<string, unknown> = {}) => ({
+    slug,
+    name: "小厨房",
+    kind: "kitchen",
+    about: "每周三开团，周五取。",
+    contact: "微信 kitchen-1",
+    pay: "e-Transfer: kitchen@example.com",
+    permit: "VCH FP-1234",
+    note: "在三个群里接龙，大概 80 人",
+    declared: DECLARATION,
+    ...more,
+  });
+  const newSlug = () => `ask-${makeCode(rand, 8, true)}`;
+  const apply = (session: string, slug: string, more: Record<string, unknown> = {}) => post<Made>("/my/apply", asking(slug, more), { session });
+  const home = async (session: string) => (await get<MyHome>("/my", { session })).data;
+  const answer = (slug: string, decision: Record<string, unknown>, session: string = SESSION.owner) => post<Made>(`/admin/applications/${slug}`, decision, { session });
+  const listed = async (slug: string): Promise<Application | undefined> => (await home(SESSION.owner)).applications?.find((one) => one.shop.slug === slug);
+  /** The page itself, as a phone asks for it. */
+  const pageOf = async (path: string) => (await worker.fetch(new Request(`https://changle.ca${path}`, { headers: { "cf-connecting-ip": network } }), env)).status;
+
+  it("takes what a shop says about itself, an address of its own, and the declaration ticked", async () => {
+    const slug = newSlug();
+    expect(said(await post("/my/apply", asking(slug)))).toBe("401 signin");
+    expect(said(await apply(SESSION.asker1, slug, { name: " " }))).toBe("400 name");
+    expect(said(await apply(SESSION.asker1, slug, { kind: "bakery" }))).toBe("400 bad");
+    expect(said(await apply(SESSION.asker1, "Not Like This"))).toBe("400 slug");
+    expect(said(await apply(SESSION.asker1, slug, { declared: false }))).toBe("400 declare");
+    // a wording of the declaration that isn't the one there is now
+    expect(said(await apply(SESSION.asker1, slug, { declared: "2020-01-01" }))).toBe("400 declare");
+    // an address another shop has
+    const at = await start();
+    expect(said(await apply(SESSION.asker1, at.slug))).toBe("409 taken");
+    // none of it was kept
+    expect((await home(SESSION.asker1)).shops).toEqual([]);
+    // a page on another site doesn't get to ask
+    expect(said(await post("/my/apply", asking(slug), { session: SESSION.asker1, origin: "https://elsewhere.example" }))).toBe("403 forbidden");
+  });
+
+  it("makes the shop at once, waiting for the owner: no page, no group buy a buyer can open, and the owner hears of it", async () => {
+    await home(SESSION.owner); // the owner was here: where the mail goes
+    await mails();
+    const slug = newSlug();
+    const sent = await apply(SESSION.asker2, slug);
+    expect([sent.status, sent.data.id]).toEqual([201, slug]);
+
+    const mine = await home(SESSION.asker2);
+    expect(mine.applications).toBeUndefined();
+    expect(mine.shops.map((shop) => [shop.slug, shop.name, shop.status])).toEqual([[slug, "小厨房", "pending"]]);
+    expect(mine.shops[0].application).toMatchObject({
+      shop: { slug, name: "小厨房", kind: "kitchen", about: "每周三开团，周五取。", contact: "微信 kitchen-1", pay: "e-Transfer: kitchen@example.com", permit: "VCH FP-1234" },
+      email: "asker2@example.com",
+      note: "在三个群里接龙，大概 80 人",
+      state: "waiting",
+      reply: "",
+    });
+    // no page; a group buy got ready meanwhile, even one set to take orders, is there for nobody
+    expect(said(await get(`/shops/${slug}`))).toBe("404 notfound");
+    expect(await pageOf(`/tuan/s/${slug}`)).toBe(404);
+    const made = await post<Made>(`/my/shops/${slug}/offers`, offerDoc(Date.now() + DAY), { session: SESSION.asker2 });
+    expect(made.status).toBe(201);
+    expect(said(await get(`/offers/${made.data.id}`))).toBe("404 notfound");
+    expect(await pageOf(`/tuan/t/${made.data.id}`)).toBe(404);
+    // the merchant sees it as their own
+    expect(said(await get(`/my/offers/${made.data.id}`, { session: SESSION.asker2 }))).toBe("ok");
+
+    // the owner: a mail with the shop's name and who asked (what it says stays behind the sign-in), and the asking at the top of their home
+    const told = await mails();
+    expect(told.map((mail) => [mail.to, mail.subject, mail.link])).toEqual([["owner@example.com", "跟一单 开店申请 · Shop application · 小厨房", "https://changle.ca/tuan/my"]]);
+    expect(told[0].text).toContain("新的开店申请：「小厨房」（私厨），申请人 asker2@example.com。");
+    expect(told[0].text).toContain('A new shop application: "小厨房" (home kitchen), from asker2@example.com.');
+    expect(told[0].text).not.toContain("VCH FP-1234");
+    expect(told[0].text).not.toContain("80 人");
+    expect(await listed(slug)).toMatchObject({ email: "asker2@example.com", state: "waiting", note: "在三个群里接龙，大概 80 人" });
+    // nobody but the owner sees the list
+    expect((await home(SESSION.leader)).applications).toBeUndefined();
+  });
+
+  it("changes while it waits: its address too, if no other shop has it; the owner isn't told twice", async () => {
+    const slug = newSlug();
+    const later = newSlug();
+    await apply(SESSION.asker3, slug);
+    await mails();
+    const changed = await apply(SESSION.asker3, later, { name: "小厨房 · 周三团", note: "又多了一个群" });
+    expect([changed.status, changed.data.id]).toEqual([200, later]);
+    expect((await home(SESSION.asker3)).shops.map((shop) => [shop.slug, shop.name, shop.application?.note])).toEqual([[later, "小厨房 · 周三团", "又多了一个群"]]);
+    expect(said(await get(`/my/shops/${slug}`, { session: SESSION.asker3 }))).toBe("404 notfound");
+    expect(await mails()).toEqual([]);
+    // an address another shop has
+    const at = await start();
+    expect(said(await apply(SESSION.asker3, at.slug))).toBe("409 taken");
+    expect((await home(SESSION.asker3)).shops.map((shop) => shop.slug)).toEqual([later]);
+    // and it's still the one shop
+    expect(said(await apply(SESSION.asker3, later, { declared: false }))).toBe("400 declare");
+  });
+
+  it("is the owner's to answer: sent back with a word on what to change, sent again, let in", async () => {
+    await home(SESSION.owner);
+    const slug = newSlug();
+    await apply(SESSION.asker4, slug);
+    const made = await post<Made>(`/my/shops/${slug}/offers`, offerDoc(Date.now() + DAY), { session: SESSION.asker4 });
+    await mails();
+
+    // nobody else answers it; sending it back says what to change
+    expect(said(await answer(slug, { do: "accept" }, SESSION.asker4))).toBe("403 forbidden");
+    expect(said(await answer(slug, { do: "accept" }, SESSION.leader))).toBe("403 forbidden");
+    expect(said(await answer(slug, { do: "return", reply: "  " }))).toBe("400 reply");
+    expect(said(await answer(slug, { do: "maybe" }))).toBe("400 bad");
+    expect(said(await answer("no-such-shop", { do: "accept" }))).toBe("404 notfound");
+    // a shop the owner set up by hand didn't ask
+    expect(said(await answer((await start()).slug, { do: "accept" }))).toBe("404 notfound");
+
+    expect(said(await answer(slug, { do: "return", reply: "请写上许可号和发证的卫生局。" }))).toBe("ok");
+    let told = await mails();
+    expect(told.map((mail) => [mail.to, mail.subject])).toEqual([["asker4@example.com", "跟一单 开店申请请改一下 · Please update your application"]]);
+    expect(told[0].text).toContain("请写上许可号和发证的卫生局。");
+    let asked = (await home(SESSION.asker4)).shops[0].application;
+    expect([asked?.state, asked?.reply]).toEqual(["returned", "请写上许可号和发证的卫生局。"]);
+    expect((await listed(slug))?.state).toBe("returned");
+
+    // sent again, changed: waiting once more, and the owner hears of it
+    expect(said(await apply(SESSION.asker4, slug, { permit: "Vancouver Coastal Health FP-1234" }))).toBe("ok");
+    told = await mails();
+    expect(told.map((mail) => mail.to)).toEqual(["owner@example.com"]);
+    expect(told[0].text).toContain("改过以后又交来的开店申请");
+    asked = (await home(SESSION.asker4)).shops[0].application;
+    expect([asked?.state, asked?.shop.permit]).toEqual(["waiting", "Vancouver Coastal Health FP-1234"]);
+
+    // let in: the shop opens, with its page, and the group buy it got ready takes orders
+    expect(said(await answer(slug, { do: "accept" }))).toBe("ok");
+    told = await mails();
+    expect(told.map((mail) => [mail.to, mail.subject])).toEqual([["asker4@example.com", "跟一单 「小厨房」开通了 · Your shop is open"]]);
+    const mine = (await home(SESSION.asker4)).shops[0];
+    expect([mine.status, mine.application]).toEqual(["live", undefined]);
+    expect(await listed(slug)).toBeUndefined();
+    expect((await get<ShopPage>(`/shops/${slug}`)).data.shop.permit).toBe("Vancouver Coastal Health FP-1234");
+    expect(await pageOf(`/tuan/s/${slug}`)).toBe(200);
+    expect((await get<OfferPage>(`/offers/${made.data.id}`)).data.offer.state).toBe("open");
+    // answered: once
+    expect(said(await answer(slug, { do: "decline" }))).toBe("409 decided");
+    // and the account runs its shop: a second one goes through the owner
+    expect(said(await apply(SESSION.asker4, newSlug()))).toBe("409 applied");
+    expect(said(await apply(SESSION.leader, newSlug()))).toBe("409 applied");
+  });
+
+  it("may be turned down, with or without a word why: the shop stays shut, and that account doesn't ask again", async () => {
+    const slug = newSlug();
+    await apply(SESSION.asker5, slug);
+    await mails();
+    expect(said(await answer(slug, { do: "decline", reply: "家里厨房做的熟食，暂时不收。" }))).toBe("ok");
+    const told = await mails();
+    expect(told.map((mail) => [mail.to, mail.subject])).toEqual([["asker5@example.com", "跟一单 开店申请没有通过 · Application not approved"]]);
+    expect(told[0].text).toContain("家里厨房做的熟食，暂时不收。");
+    const asked = (await home(SESSION.asker5)).shops[0];
+    expect([asked.status, asked.application?.state, asked.application?.reply]).toEqual(["pending", "declined", "家里厨房做的熟食，暂时不收。"]);
+    expect(said(await get(`/shops/${slug}`))).toBe("404 notfound");
+    expect(said(await apply(SESSION.asker5, newSlug()))).toBe("409 applied");
+    expect(said(await answer(slug, { do: "accept" }))).toBe("409 decided");
+  });
+
+  it("is counted: so many sends from one network a day, so many new shops in all", async () => {
+    const day = vancouverDay(Date.now());
+    const crowd = "198.51.100.21";
+    const from = `apply:${await networkOf(new Request("https://changle.ca/", { headers: { "cf-connecting-ip": crowd } }))}`;
+    await env.DB.prepare("INSERT INTO gates (key, day, used) VALUES (?, ?, 10) ON CONFLICT (key, day) DO UPDATE SET used = 10").bind(from, day).run();
+    expect(said(await post("/my/apply", asking(newSlug()), { session: SESSION.asker6, from: crowd }))).toBe("429 limit");
+    // the whole tool's new shops for the day
+    const all = await env.DB.prepare("SELECT used FROM gates WHERE key = 'apply:all' AND day = ?").bind(day).first<{ used: number }>();
+    await env.DB.prepare("INSERT INTO gates (key, day, used) VALUES ('apply:all', ?, 30) ON CONFLICT (key, day) DO UPDATE SET used = 30").bind(day).run();
+    expect(said(await apply(SESSION.asker6, newSlug()))).toBe("429 limit");
+    await env.DB.prepare("UPDATE gates SET used = ? WHERE key = 'apply:all' AND day = ?").bind(all?.used ?? 0, day).run();
+    const slug = newSlug();
+    expect(said(await apply(SESSION.asker6, slug))).toBe("ok");
+    expect((await home(SESSION.asker6)).shops.map((shop) => shop.slug)).toEqual([slug]);
   });
 });
 

@@ -162,9 +162,11 @@ export function MyOfferView({ offerId }: { offerId: string }) {
           <IconClock />
           {stateWord(state)} · {t("closesAt", { when: whenText(offer.closesAt) })}
         </p>
+        {/* a shop still waiting for the owner: its group buys aren't there for buyers yet, so there's no link to give */}
+        {page.shop.status === "pending" && <p class="hint">{t("applyPendingOffer")}</p>}
         <div class="row">
-          {state !== "draft" && <CopyButton text={link} label={t("copyLink")} />}
-          {state !== "draft" && (
+          {state !== "draft" && page.shop.status !== "pending" && <CopyButton text={link} label={t("copyLink")} />}
+          {state !== "draft" && page.shop.status !== "pending" && (
             <a class="btn btn-quiet btn-sm" href={`${BASE}/t/${offer.id}`}>
               {t("viewPublic")}
             </a>

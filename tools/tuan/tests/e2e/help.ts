@@ -72,7 +72,7 @@ export const copied = (page: Page) => page.evaluate(() => (window as unknown as 
 
 /**
  * Every button, link and field in sight is at least 44 by 44 (a choice's whole row counts for its
- * radio), and nothing reaches past the screen's edges (but the section chips, which scroll
+ * radio or its tick box), and nothing reaches past the screen's edges (but the section chips, which scroll
  * sideways inside their own strip).
  */
 export async function fits(page: Page, where: string): Promise<void> {
@@ -80,7 +80,7 @@ export async function fits(page: Page, where: string): Promise<void> {
     const name = (el: Element) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]} "${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 20)}"`;
     const small: string[] = [];
     for (const el of document.querySelectorAll<HTMLElement>("a, button, input, textarea, select")) {
-      const target = el.matches('input[type="radio"]') ? (el.closest("label") ?? el) : el;
+      const target = el.matches('input[type="radio"], input[type="checkbox"]') ? (el.closest("label") ?? el) : el;
       const box = target.getBoundingClientRect();
       if (box.width === 0 && box.height === 0) continue;
       if (box.width < 43.5 || box.height < 43.5) small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
