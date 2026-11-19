@@ -1,5 +1,6 @@
 // The merchant's pages on a phone, against the real Worker with a stand-in for the rooms server
-// (tests/rooms): who gets in, a merchant's home, a group buy's orders with the merchant's marks
+// (tests/rooms): who gets in, asking to open a shop and the owner's answer, a merchant's home, a
+// group buy's orders with the merchant's marks
 // (confirmed, paid, handed over, weighed, cancelled), the two sheets adding up to a hand count,
 // closing and opening a group buy, and the owner's panel that sets a shop up and starts a group
 // buy by hand or from a file. A phone that is signed in has the session the site would have left
@@ -34,6 +35,7 @@ test("who gets in: signed out, a sign-in that's no good, an account with no shop
   await expect(page).toHaveTitle("我的团 · 跟一单");
   await expect(page.locator(".panel-title")).toHaveText("商家请先登录");
   await expect(page.getByRole("link", { name: "去 changle.ca 登录" })).toHaveAttribute("href", "/login");
+  await expect(page.getByText("还没有店？登录以后就在这一页申请开店。")).toBeVisible();
   await expect(page.locator(".mine")).toHaveCount(0);
   // the group buy's own orders page says the same, and nothing of the group buy
   await page.goto(`/tuan/my/t/${id}`);
@@ -62,10 +64,10 @@ test("who gets in: signed out, a sign-in that's no good, an account with no shop
   await expect(stale.locator(".problem")).toHaveText("登录过期了，请重新登录。");
   await expect(stale.getByRole("link", { name: "去 changle.ca 登录" })).toBeVisible();
 
-  // an account that runs nothing
+  // an account that runs nothing: it may ask for a shop
   const visitor = await phone(browser, { session: SESSION.visitor });
   await visitor.goto("/tuan/my");
-  await expect(visitor.getByText("这个账号（visitor@example.com）还没有店铺。想开团请联系站长。")).toBeVisible();
+  await expect(visitor.getByRole("heading", { name: "申请开店" })).toBeVisible();
   await visitor.goto(`/tuan/my/t/${id}`);
   await expect(visitor.getByText("这个账号不管这个团。")).toBeVisible();
   await expect(visitor.locator(".order")).toHaveCount(0);
@@ -434,6 +436,85 @@ test("a shop's own page: the merchant says who they are, and buyers see it, with
   await other.goto(`/tuan/my/s/${slug}`);
   await expect(other.locator(".empty p")).toHaveText("这个账号没有这家店。");
   await expect(other.locator('[name="shopname"]')).toHaveCount(0);
+});
+
+test("an account without a shop asks for one; the owner sends it back with a word, then lets it in", async ({ browser, browserName }) => {
+  // (both browsers share a database, and an account asks for one shop: each has an account of its own)
+  const session = browserName === "webkit" ? SESSION.askerWebkit : SESSION.askerChromium;
+  const email = browserName === "webkit" ? "askerwebkit@example.com" : "askerchromium@example.com";
+  const slug = `ask-${word()}`;
+  const name = `周三小厨房 ${slug.slice(4)}`;
+
+  const asker = await phone(browser, { session });
+  await asker.goto("/tuan/my");
+  await expect(asker.getByRole("heading", { name: "申请开店" })).toBeVisible();
+  await expect(asker.getByText("跟一单不抽成：买家下单以后，钱直接付给你。", { exact: false })).toBeVisible();
+  const form = asker.locator("form.stack");
+  await form.locator('[name="shopname"]').fill(name);
+  await form.locator('[name="kind"]').selectOption("kitchen");
+  // typed in capitals: the address is lower case
+  await form.locator('[name="slug"]').fill(slug.toUpperCase());
+  await expect(form.getByText(`买家打开的是 changle.ca/tuan/s/${slug}`)).toBeVisible();
+  await form.locator('[name="about"]').fill("每周三开团，周五取。");
+  await form.locator('[name="contact"]').fill("微信 kitchen-1");
+  await form.locator('[name="pay"]').fill("e-Transfer: kitchen@example.com");
+  await form.locator('[name="note"]').fill("在三个群里接龙");
+  await fits(asker, "asking for a shop");
+  await form.getByRole("button", { name: "提交申请" }).click();
+  await expect(form.getByRole("alert")).toHaveText("请先勾选上面的确认。");
+  // the whole row ticks the box
+  await form.getByText("我确认：我有所卖食品需要的许可", { exact: false }).click();
+  await expect(form.locator('[name="declared"]')).toBeChecked();
+  await form.getByRole("button", { name: "提交申请" }).click();
+
+  // waiting for the owner: no page yet
+  const panel = asker.locator("section.panel", { has: asker.getByRole("heading", { name }) });
+  await expect(panel.locator(".chip")).toHaveText("待审核");
+  await expect(panel.getByText(`申请交上去了，等站长审核。结果会发邮件到 ${email}。`)).toBeVisible();
+  await expect(panel.getByRole("link", { name: "看店铺主页" })).toHaveCount(0);
+  await expect(panel.getByRole("link", { name: "开一个团" })).toBeVisible();
+  expect((await asker.goto(`/tuan/s/${slug}`))?.status()).toBe(404);
+  await expect(asker.getByText("没有这家店")).toBeVisible();
+
+  // the owner: the asking at the top of their home, and sent back with a word on what to change
+  const owner = await phone(browser, { session: SESSION.owner });
+  await owner.goto("/tuan/my");
+  const asking = owner.locator("article", { has: owner.getByRole("heading", { name }) });
+  await expect(asking).toContainText(email);
+  await expect(asking).toContainText("在三个群里接龙");
+  await fits(owner, "the owner's list of applications");
+  await asking.getByRole("button", { name: "退回", exact: true }).click();
+  await asking.getByRole("button", { name: "退回", exact: true }).click();
+  await expect(asking.getByRole("alert")).toHaveText("退回要写一句要改什么。");
+  await asking.locator('[name="reply"]').fill("请写上许可号和发证的卫生局。");
+  await asking.getByRole("button", { name: "退回", exact: true }).click();
+  await expect(asking.getByText("已退回，等对方修改")).toBeVisible();
+
+  // the merchant: told what to change, in the form as it was sent, and sends it again
+  await asker.goto("/tuan/my");
+  await expect(panel.locator(".chip")).toHaveText("退回修改");
+  await expect(panel.getByText("请写上许可号和发证的卫生局。")).toBeVisible();
+  await expect(panel.locator('[name="shopname"]')).toHaveValue(name);
+  await expect(panel.locator('[name="slug"]')).toHaveValue(slug);
+  await panel.locator('[name="permit"]').fill("Vancouver Coastal Health FP-1234");
+  await panel.getByText("我确认：我有所卖食品需要的许可", { exact: false }).click();
+  await panel.getByRole("button", { name: "改好了，重新提交" }).click();
+  await expect(panel.locator(".chip")).toHaveText("待审核");
+
+  // let in
+  await owner.reload();
+  await asking.getByRole("button", { name: "通过", exact: true }).click();
+  await expect(asking.getByText("通过以后这家店马上开通，会发邮件告诉申请人。")).toBeVisible();
+  await asking.getByRole("button", { name: "开通这家店" }).click();
+  await expect(asking).toHaveCount(0);
+
+  // open: its page is there, and under it the way in for the next merchant
+  await asker.reload();
+  await expect(panel.locator(".chip")).toHaveCount(0);
+  await panel.getByRole("link", { name: "看店铺主页" }).click();
+  await expect(asker.locator(".hero h1")).toHaveText(name);
+  await expect(asker.getByText("Vancouver Coastal Health FP-1234")).toBeVisible();
+  await expect(asker.getByRole("link", { name: "想自己开团？用跟一单，不抽成" })).toHaveAttribute("href", "/tuan/my");
 });
 
 test("the orders download as a spreadsheet; in WeChat, which can't save files, the page says where to do it", async ({ browser, request }) => {

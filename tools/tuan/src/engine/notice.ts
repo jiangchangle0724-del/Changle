@@ -12,7 +12,8 @@ export const NOTICE_ORDERS_MAX = 8;
 export const SUBJECT_MAX = 120;
 export const TEXT_MAX = 2000;
 
-const clip = (text: string, max: number): string => (Array.from(text).length <= max ? text : `${Array.from(text).slice(0, max - 1).join("")}…`);
+/** At most `max` characters, with "…" where it was cut. */
+export const clip = (text: string, max: number): string => (Array.from(text).length <= max ? text : `${Array.from(text).slice(0, max - 1).join("")}…`);
 
 /** "五常大米 10kg ×2", "手切羊肉片 1.5 lb" (a long name is cut short) */
 const lineText = (line: Order["lines"][number]): string => (weighed(line.unit) ? `${clip(line.name, 20)} ${amountText(line.qty)} lb` : `${clip(line.name, 20)} ×${line.qty / MILLI}`);

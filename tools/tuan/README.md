@@ -12,8 +12,9 @@ The plan is `docs/tuan.md`; where it stands and what's next is in `docs/briefs/t
 pages a buyer sees (a group buy, the cart, checkout, the order); and the pages a merchant sees
 (their group buys, a group buy's orders with their marks, the two sheets). **The second stage (A2)
 has begun**: a merchant starts a group buy and changes one on their phone, from nothing or from
-their last one, and says who the shop is (its own page, with its group buys). A shop is still set
-up by the site's owner, by hand, from a panel on the merchant's home. Since 2026-11-14 the tool has
+their last one, and says who the shop is (its own page, with its group buys). Since 2026-11-18 a
+merchant asks for a shop themselves, on their home, and the site's owner answers there (the owner
+can still set one up by hand, from a panel on the same page). Since 2026-11-14 the tool has
 a card on the site's Tools tab (`site/src/tools/Tuan.tsx`), which opens home, `/tuan/`: the one page
 search engines may list (it's in the site's sitemap). Every other page stays out of them: a group
 buy is for the people its link was sent to.
@@ -24,7 +25,7 @@ buy is for the people its link was sent to.
 | `/tuan/t/<group buy>` | A group buy: the goods by section, a sheet to choose a weight, the cart, who's in, and checkout on one screen. With `?change=<order code>` it changes that order. |
 | `/tuan/s/<shop>` | A shop's own page: what it is, what it says about itself, its permit, how to reach it and pay it, the group buys taking orders (the one that closes soonest first) and the earlier ones. A group buy's page links here from the shop's name. A shop not yet opened isn't there. |
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
-| `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. The site's owner also gets the panel that sets a shop up and starts a group buy from a document, typed in or filled in from a file. |
+| `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. An account that runs no shop asks for one here; a shop it asked for says where the asking stands (waiting, sent back with a word on what to change, turned down). The site's owner gets the applications to answer at the top, and the panel that sets a shop up and starts a group buy from a document, typed in or filled in from a file. |
 | `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each, and every order as a spreadsheet to download (CSV: one row a line, `src/engine/csv.ts`; WeChat can't save files, so there the page says to open it in a browser). The new-order mail's button leads here. |
 | `/tuan/my/new/<shop>` | Starting a group buy in a shop: its name, the goods, when it closes, where the goods go. With `?from=<group buy>` it starts from that one. What's typed is kept on the phone until it's sent. |
 | `/tuan/my/t/<group buy>/edit` | Changing a group buy: the same page, filled in. What an order names (an item, a pickup point, a delivery area) can change but not go. |
@@ -43,15 +44,15 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: what a group buy is made of (`types.ts`), money and amounts (`money.ts`), taking and changing an order (`order.ts`), starting a group buy (`offer.ts`) and changing one (`edit.ts`), a shop (`shop.ts`), the merchant's sheets (`summary.ts`) and the orders as a spreadsheet (`csv.ts`), who is shown what (`view.ts`), codes (`ids.ts`), phone numbers (`phone.ts`), Vancouver days (`time.ts`), tidying what people type (`text.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: what a group buy is made of (`types.ts`), money and amounts (`money.ts`), taking and changing an order (`order.ts`), starting a group buy (`offer.ts`) and changing one (`edit.ts`), a shop (`shop.ts`), asking for a shop and the owner's answer (`apply.ts`), the merchant's sheets (`summary.ts`) and the orders as a spreadsheet (`csv.ts`), who is shown what (`view.ts`), codes (`ids.ts`), phone numbers (`phone.ts`), Vancouver days (`time.ts`), tidying what people type (`text.ts`). |
 | `src/api.ts` | What a phone and the server say to each other: every shape, every error code. |
 | `src/server/worker.ts` | The Worker: the routes (listed at the top of the file) and what each does. It serves the pages too: one file for all of them, with a group buy's name put in its page's title. |
 | `src/server/store.ts` | Everything kept in D1, read and written here and nowhere else. |
 | `src/server/who.ts` | Who is signed in: asks the rooms server (below). |
-| `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`. |
+| `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`; the mails about asking for a shop are in `src/engine/apply.ts`. |
 | `src/server/gate.ts` | The daily allowances. |
 | `src/server/schema.ts` | Applies `migrations/` (numbered files, each once, in order) when the Worker starts. Nothing to run by hand. |
-| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is; a buyer's pages), `my.tsx` (the merchant's pages, a script of their own), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/Shop.tsx` (a shop's own page), `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/ShopEdit.tsx` (what a shop says, for its merchant), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` and `i18n-my.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
+| `src/client/` | The pages, in Preact: `main.tsx` (which page an address is; a buyer's pages), `my.tsx` (the merchant's pages, a script of their own), `ui/Offer.tsx` (a group buy and checkout), `ui/Order.tsx`, `ui/Home.tsx`, `ui/Shop.tsx` (a shop's own page), `ui/My.tsx` (a merchant's home, and what a merchant's page says when it can't show its content), `ui/MyOffer.tsx` (a group buy's orders and sheets), `ui/sheets.ts` (the sheets as text to copy), `ui/Editor.tsx` (starting a group buy and changing one), `ui/ShopEdit.tsx` (what a shop says, for its merchant), `ui/Apply.tsx` (asking for a shop, and where the asking stands), `ui/Review.tsx` (the owner answering), `ui/Owner.tsx` (the owner's panel), `ui/common.tsx` (the bar, sheets, the stepper, the copy button), `api.ts` (talking to the server, and what this phone remembers), `i18n.ts` and `i18n-my.ts` (every line, in Chinese and English), `styles.css`, and the site's `tokens.css` and fonts. |
 | `scripts/build.mjs` | Builds the pages into `dist/client/tuan` (esbuild). wrangler runs it before `wrangler dev` and `wrangler deploy`. |
 | `tests/` | The rules (`engine.test.ts`), the Worker with a local database, pages included (`api.test.ts`), the design rules (`design.test.mjs`), and phones in browsers (`e2e/flow.spec.ts` for a buyer, `e2e/merchant.spec.ts` for a merchant and the owner, `e2e/editor.spec.ts` for starting and changing a group buy, `e2e/help.ts` for what they share). `rooms/` is a stand-in for the rooms server, with the made-up accounts in `accounts.ts`. |
 
@@ -149,6 +150,18 @@ they agree after a crowd of orders, changes and cancellations at once.
   also change what the shop says about itself (`/tuan/api/my/shops/<slug>`, the same rules as
   setting it up: a name is needed, the rest may be empty); its address, whether it's open and who
   runs it are the owner's.
+- **Asking for a shop** (`src/engine/apply.ts`, `POST /tuan/api/my/apply`): an account that runs
+  no shop and has never asked sends what the shop will say about itself, the address it wants
+  (`/tuan/s/<slug>`), a note for the owner alone, and the declaration ticked (that they hold the
+  permits the food they sell needs and answer for it; changle.ca only shows and passes orders on).
+  Which wording they ticked and when is kept (`applications`; the wording's name is `DECLARATION`).
+  The shop is made at once, `pending`: no page, its group buys hidden from buyers (404), no
+  orders; its merchant can get a first group buy ready. While the asking is open it can be sent
+  again, changed, address too. The owner answers (`POST /tuan/api/admin/applications/<slug>`): let
+  it in (the shop goes `live`), send it back with a word on what to change, or say no (it stays
+  shut, and that account doesn't ask again). Each side hears by mail: the owner of an asking (only
+  the shop's name, its kind and who asked: the rest stays behind the sign-in), the merchant of the
+  answer. The owner's address is kept when the owner opens their home here (`owners`).
 - **Changing a group buy** (`src/engine/edit.ts`): the merchant's page sends the whole document
   again, each item, pickup point and delivery area that stays under its id. A part with an id is
   changed where it is, so the orders that name it still do, and keep the name and price they were
@@ -157,8 +170,8 @@ they agree after a crowd of orders, changes and cancellations at once.
   unit it was sold in, and its limit can't be set below what's ordered. A document that names a
   part that has gone since it was read is behind, and is refused whole. A draft opens with the
   change that says so; open and closed are changed only by the buttons for that.
-- **The site's owner** (the rooms server's `MASTER_EMAIL`) sets shops up by hand for now
-  (`POST /tuan/api/admin/shops`), and may look after any shop. The panel's forms can be filled in
+- **The site's owner** (the rooms server's `MASTER_EMAIL`) answers the applications, can still set
+  a shop up by hand (`POST /tuan/api/admin/shops`), and may look after any shop. The panel's forms can be filled in
   from a file (`src/client/ui/Owner.tsx`): a group buy's document as
   `POST /tuan/api/my/shops/<slug>/offers` takes it, or `{ "shop": {…}, "offer": {…} }` for a shop
   and a group buy in it, which adds one button that does both. The file only fills the forms in;
@@ -182,6 +195,11 @@ carefully (`src/server/notify.ts`):
 - It goes to the first two accounts that run the shop, in the order the owner listed them.
 - A mail that fails never fails the order. If it may work later, the half hour isn't spent; if the
   door says the day's allowance is used up, it isn't asked again until its day turns.
+- Asking for a shop (`src/engine/apply.ts`): one mail to the owner for each asking, and for each
+  one sent again after it was sent back (to the owner's accounts seen here in the last half year,
+  the two latest); one mail to the merchant for each answer. Both languages, the button opens
+  `/tuan/my`, and they come out of the same 60. One that doesn't go out is passed by: the pages say
+  the same.
 
 ### Limits
 
@@ -192,6 +210,7 @@ carefully (`src/server/notify.ts`):
 | Wrong tries at one order in a day, from anywhere (then it's locked until tomorrow) | 30 |
 | Sessions that turn out to be nobody's, from one network in a day | 60 |
 | Mails a day for the whole tool (the rooms server's allowance); for one group buy | 60; one every half hour |
+| Applications sent from one network in a day (sending one again counts); new shops asked for in a day, in all | 10; 30 |
 | Standing orders one phone number may have in a group buy | 5 |
 | Orders in a group buy, cancelled ones included | 500 |
 | Different things in an order, and the most of one thing | 60, 99 |

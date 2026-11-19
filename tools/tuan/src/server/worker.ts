@@ -6,7 +6,8 @@
 //   /tuan/t/<id>                              a group buy, with its name in the page's title
 //   /tuan/s/<shop>                            a shop: who they are, and their group buys
 //   /tuan/o/<code>                            an order
-//   /tuan/my, /tuan/my/t/<id>                 a merchant's home, and one group buy's orders and sheets
+//   /tuan/my, /tuan/my/t/<id>                 a merchant's home (where an account without a shop asks for one, and the
+//                                             site's owner answers), and one group buy's orders and sheets
 //   /tuan/my/new/<shop>, /tuan/my/t/<id>/edit starting a group buy in a shop, and changing one
 //   /tuan/my/s/<shop>                         what a shop says about itself, for its own people to change
 //   /tuan/assets/…                            the script, the styles and the fonts: plain files
@@ -18,7 +19,8 @@
 //   POST /tuan/api/orders/<code>              the buyer changes it (x-tail), while the group buy is open
 //   POST /tuan/api/orders/<code>/cancel       the buyer cancels it (x-tail), while the group buy is open
 // A merchant, signed in with their changle.ca account (src/server/who.ts):
-//   GET  /tuan/api/my                         their shops and group buys
+//   GET  /tuan/api/my                         their shops and group buys (the owner: also the applications to answer)
+//   POST /tuan/api/my/apply                   ask to open a shop, or send the asking again, changed (src/engine/apply.ts)
 //   GET  /tuan/api/my/shops/<slug>            what a shop says about itself
 //   POST /tuan/api/my/shops/<slug>            change it: name, kind, about, contact, how to pay, permit (not its address, who runs it, or whether it's live)
 //   POST /tuan/api/my/shops/<slug>/offers     start a group buy
@@ -29,8 +31,10 @@
 //   POST /tuan/api/my/orders/<code>           confirm, mark paid or handed over, cancel, weigh
 // The site's owner:
 //   POST /tuan/api/admin/shops                set a shop up, or change one
-import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Me, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopCard, type ShopPage } from "../api";
+//   POST /tuan/api/admin/applications/<shop>  answer an application: let the shop in, send it back, or say no
+import { TAIL_HEADER, type ApiError, type ApiErrorCode, type Made, type Moved, type MyHome, type MyOfferDoc, type MyOfferPage, type MyShopPage, type OfferPage, type OrderPage, type ShopCard, type ShopPage } from "../api";
 import { BASE } from "../base";
+import { appliedNotice, decidedNotice, readApplication, readDecision, type NewApplication } from "../engine/apply";
 import { planEdit, type Used } from "../engine/edit";
 import { makeCode, OFFER_LENGTH, OFFER_RE, ORDER_LENGTH, ORDER_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
 import { finalGoods, MILLI } from "../engine/money";
@@ -42,9 +46,43 @@ import { summarize } from "../engine/summary";
 import { weighed, type OfferBook, type Order, type Shop } from "../engine/types";
 import { offerPage, orderPage, stateOf } from "../engine/view";
 import { bump, networkOf, used } from "./gate";
+import { doorOf } from "./mail";
 import { flush, notify } from "./notify";
 import { ensureSchema } from "./schema";
-import { before, cancelOrder, insertOffer, insertOrder, isMember, loadBook, markNoticed, markOrder, offerHead, orderByCode, orderByKey, ordersOf, replaceOrder, rosterOf, saveEdit, saveShop, saveShopWords, setOfferStatus, shopBySlug, shopOffers, shopsOf, usedOf, weighOrder } from "./store";
+import {
+  applicationAt,
+  before,
+  cancelOrder,
+  decideApplication,
+  insertApplication,
+  insertOffer,
+  insertOrder,
+  isMember,
+  loadBook,
+  markNoticed,
+  markOrder,
+  offerHead,
+  openApplicationOf,
+  openApplications,
+  orderByCode,
+  orderByKey,
+  ordersOf,
+  ownersSince,
+  replaceOrder,
+  resendApplication,
+  rosterOf,
+  runsOrAsked,
+  saveEdit,
+  saveShop,
+  saveShopWords,
+  sawOwner,
+  setOfferStatus,
+  shopBySlug,
+  shopOffers,
+  shopsOf,
+  usedOf,
+  weighOrder,
+} from "./store";
 import { tokenOf, whoIs, type Who } from "./who";
 
 /** The most an order's body may be, and a whole group buy's. */
@@ -56,6 +94,15 @@ const WRONG_PER_NETWORK = 30;
 const SIGNINS_PER_NETWORK = 60;
 /** Wrong tries at one order in a day, from anywhere, before it stops answering until tomorrow. */
 const WRONG_PER_ORDER = 30;
+/** Sends of an application one network may make in a day (sending one again counts), and the new applications the whole tool takes in a day. */
+const APPLY_PER_NETWORK = 10;
+const APPLY_PER_DAY = 30;
+const APPLY_ALL = "apply:all";
+/** A new application is mailed to the owners seen here in the last half year, two at most. */
+const OWNERS_TOLD = 2;
+const OWNER_SEEN_MS = 183 * 86_400_000;
+/** The applications the owner's home lists. */
+const APPLICATIONS_LISTED = 30;
 /** The most a weighed line may turn out to be: 999 lb. */
 const WEIGHT_MAX = 999 * MILLI;
 
@@ -65,12 +112,12 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 const STATUS: Record<ApiErrorCode, number> = {
   // not something this API takes
   bad: 400, name: 400, phone: 400, empty: 400, item: 400, qty: 400, how: 400, address: 400, min: 400,
-  title: 400, closes: 400, items: 400, places: 400, place: 400, slug: 400, members: 400,
+  title: 400, closes: 400, items: 400, places: 400, place: 400, slug: 400, members: 400, declare: 400, reply: 400,
   signin: 401,
   forbidden: 403,
   notfound: 404,
   // fine as a request, but not as things stand
-  closed: 409, soldout: 409, perbuyer: 409, many: 409, full: 409, paid: 409, cancelled: 409, busy: 409, inuse: 409, sold: 409,
+  closed: 409, soldout: 409, perbuyer: 409, many: 409, full: 409, paid: 409, cancelled: 409, busy: 409, inuse: 409, sold: 409, taken: 409, applied: 409, decided: 409,
   limit: 429, locked: 429,
   failed: 500,
   down: 503,
@@ -115,9 +162,10 @@ function sameSite(req: Request, url: URL): boolean {
 }
 
 /** A group buy the public may see: drafts are their merchant's alone. */
+/** A group buy as anyone may see it: not a draft, and its shop let in (one still waiting for the owner shows nothing). */
 async function publicBook(db: D1Database, offerId: string): Promise<OfferBook | null> {
   const book = await loadBook(db, offerId);
-  return book && book.offer.status !== "draft" ? book : null;
+  return book && book.offer.status !== "draft" && book.shop.status !== "pending" ? book : null;
 }
 
 // ---------- buyers ----------
@@ -409,6 +457,66 @@ async function moveOrder(req: Request, db: D1Database, who: Who, codeText: strin
   return refuse("busy");
 }
 
+// ---------- asking to open a shop ----------
+
+/** Mail through the rooms server's door, best effort: one that doesn't go out is noted and passed by (the pages show the same). */
+async function mailEach(env: Env, to: readonly string[], mail: { subject: string; text: string }): Promise<void> {
+  for (const email of to) {
+    try {
+      const sent = await doorOf(env).send({ app: "tuan", to: email, ...mail, link: `https://changle.ca${BASE}/my`, lang: "zh" });
+      if (sent.status === "sent") continue;
+      console.error("tuan mail", sent);
+      if (sent.status === "full") return;
+    } catch (e) {
+      console.error("tuan mail", e);
+    }
+  }
+}
+
+/** Work after the answer, which never fails it: the request doesn't wait for it, unless there's nothing to keep it going (the tests). */
+async function afterwards(ctx: ExecutionContext | undefined, work: Promise<void>): Promise<void> {
+  const done = work.catch((e) => console.error("tuan afterwards", e));
+  if (ctx) ctx.waitUntil(done);
+  else await done;
+}
+
+/** The site's owner hears of an application (`again`: sent again after being sent back). */
+async function tellOwners(env: Env, application: NewApplication, email: string, again: boolean, now: number): Promise<void> {
+  const owners = await ownersSince(env.DB, now - OWNER_SEEN_MS, OWNERS_TOLD);
+  await mailEach(env, owners, appliedNotice(application.words.name, application.words.kind, email, again));
+}
+
+/**
+ * An account asks to open a shop: the shop is made at once, still pending (no page of its own, its
+ * group buys hidden, no orders), run by this account, and the owner hears of it. While the asking
+ * is open (waiting, or sent back), sending it again changes it: its address, its words, the note.
+ * An account runs one shop it asked for; any more go through the owner.
+ */
+async function applyForShop(req: Request, env: Env, ctx: ExecutionContext | undefined, who: Who, now: number): Promise<Response> {
+  const db = env.DB;
+  const read = readApplication(await body(req, ORDER_BODY_MAX));
+  if (!read.ok) return refuse(read.error);
+  const network = `apply:${await networkOf(req)}`;
+  if ((await used(db, network, now)) >= APPLY_PER_NETWORK) return refuse("limit");
+  const { application } = read;
+
+  const open = await openApplicationOf(db, who.email);
+  if (open) {
+    if (!(await resendApplication(db, open.shopId, application, now))) return refuse("taken");
+    await bump(db, network, now);
+    // sent back and changed: the owner looks again (changed while waiting: they haven't looked yet)
+    if (open.state === "returned") await afterwards(ctx, tellOwners(env, application, who.email, true, now));
+    return json({ id: application.slug } satisfies Made);
+  }
+  if (await runsOrAsked(db, who.email)) return refuse("applied");
+  if ((await used(db, APPLY_ALL, now)) >= APPLY_PER_DAY) return refuse("limit");
+  if (!(await insertApplication(db, application, who.email, `s${makeCode(rand, 10, true)}`, now))) return refuse("taken");
+  await bump(db, network, now);
+  await bump(db, APPLY_ALL, now);
+  await afterwards(ctx, tellOwners(env, application, who.email, false, now));
+  return json({ id: application.slug } satisfies Made, 201);
+}
+
 // ---------- the site's owner ----------
 
 async function makeShop(req: Request, db: D1Database, now: number): Promise<Response> {
@@ -416,6 +524,17 @@ async function makeShop(req: Request, db: D1Database, now: number): Promise<Resp
   if (!read.ok) return refuse(read.error);
   await saveShop(db, read.shop, `s${makeCode(rand, 10, true)}`, now);
   return json({ id: read.shop.slug } satisfies Made);
+}
+
+/** The owner answers an application still open; the merchant who asked hears of it by mail. */
+async function answerApplication(req: Request, env: Env, ctx: ExecutionContext | undefined, slug: string, now: number): Promise<Response> {
+  const read = readDecision(await body(req, ORDER_BODY_MAX));
+  if (!read.ok) return refuse(read.error);
+  const asked = await applicationAt(env.DB, slug);
+  if (!asked) return refuse("notfound");
+  if (!(await decideApplication(env.DB, asked.shopId, read.decision, now))) return refuse("decided");
+  await afterwards(ctx, mailEach(env, [asked.email], decidedNotice(read.decision, asked.name)));
+  return json({ id: slug } satisfies Made);
 }
 
 // ---------- the pages ----------
@@ -533,9 +652,19 @@ async function api(req: Request, env: Env, ctx: ExecutionContext | undefined, ur
     if (a === "admin") {
       if (!who.owner) return refuse("forbidden");
       if (n === 2 && b === "shops" && post) return makeShop(req, db, now);
+      if (n === 3 && b === "applications" && SLUG_RE.test(c ?? "") && post) return answerApplication(req, env, ctx, c, now);
       return refuse("notfound");
     }
-    if (n === 1 && get) return json({ me: { name: who.name, email: who.email, owner: who.owner } satisfies Me, shops: await shopsOf(db, who.email, who.owner), now } satisfies MyHome);
+    if (n === 1 && get) {
+      const home: MyHome = { me: { name: who.name, email: who.email, owner: who.owner }, shops: await shopsOf(db, who.email, who.owner), now };
+      if (who.owner) {
+        // (where the mail about a new application goes)
+        await sawOwner(db, who.email, now);
+        home.applications = await openApplications(db, APPLICATIONS_LISTED);
+      }
+      return json(home);
+    }
+    if (n === 2 && b === "apply" && post) return applyForShop(req, env, ctx, who, now);
     if (n === 3 && b === "shops" && SLUG_RE.test(c ?? "")) {
       if (get) return myShop(db, who, c);
       if (post) return saveMyShop(req, db, who, c);
