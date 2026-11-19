@@ -1565,9 +1565,11 @@ test("limbo coach: what the phone says to someone who can't see it", () => {
   const up = coaching("moving", { lean: 54, target: 12, lost: 0.7 });
   ok(up.say === "up" && up.urgency >= 0.7, "past a moving bar: come up, and urgently once the second is running out");
   ok(coaching("moving", { lean: 32, target: 18, lost: 0 }).urgency < 0.5, "just off it, with time: not urgent yet");
+  // (the band is FOLLOW_DEG wide, 12; the warning starts 4 short of its edge)
   const edge = coaching("moving", { lean: 9, target: 18 });
   ok(edge.say === "down" && edge.soft === true && edge.urgency === 0, "still within the band but drifting to its edge: the quiet warning");
   ok(coaching("moving", { lean: 28, target: 18 }).soft === true && !coaching("moving", { lean: 2, target: 18 }).soft, "the warning is the band's edge, not off it");
+  ok(coaching("moving", { lean: 11, target: 18 }).say === "on" && coaching("moving", { lean: 33, target: 18 }).say === "up" && !coaching("moving", { lean: 33, target: 18 }).soft, "within 8: with it; past 12: off it");
   // classic and hold steady: short, then there (the hold is heard)
   const short = coaching("classic", { lean: 5, target: 20, hold: 0 });
   ok(short.say === "down" && short.hold === 0, "short of the bar: lean back more");

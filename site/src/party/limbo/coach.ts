@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { bus, clave, ctxTimeAt, tone, voice, type Bus } from "../../lib/audio/engine";
 import { FOLLOW_DEG } from "../../shared/engine/games/limbo";
 import type { LimboKind } from "../../shared/protocol";
+import { speaker, type Lang, type Line } from "./voice";
 
 /**
  * The coach: what the phone says to someone who can't see it. It's on their chest, screen out, so
@@ -14,7 +15,10 @@ import type { LimboKind } from "../../shared/protocol";
  * - three quick clicks: tilt further to the side (tilt through)
  * - a hum that climbs while a hold counts down; a low buzz when a wobble starts it again (hold steady)
  * The music also dips while you're off the bar and comes back when you're on it.
- * Blind lean says nothing: not seeing is the game.
+ * And in words (voice.ts, recorded lines in the phone's language): the moment a cue changes it says
+ * it (「再往后仰」「回来一点」「往左歪」), again every few seconds while you stay off the bar, and 「到位了」
+ * (「跟住了」 at a moving bar) when you get back on after being off. Blind lean says nothing: not
+ * seeing is the game.
  */
 
 export type Say = "down" | "up" | "side" | "on" | null;
@@ -23,7 +27,7 @@ export type Say = "down" | "up" | "side" | "on" | null;
  * What to say right now: which cue, how urgently (0 to 1: twice as often at 1), how far through a
  * hold, when the last wobble was, and `soft` for the early warning (quiet, on the beat, no dip).
  */
-export type Coaching = { say: Say; urgency: number; hold: number; wobbleAt: number; soft?: boolean };
+export type Coaching = { say: Say; urgency: number; hold: number; wobbleAt: number; soft?: boolean; kind?: LimboKind; want?: number };
 
 export const QUIET: Coaching = { say: null, urgency: 0, hold: 0, wobbleAt: 0 };
 
@@ -48,6 +52,13 @@ export type Measure = {
 
 /** What to say to someone at this kind of bar, from what the phone measures. */
 export function coaching(kind: LimboKind, m: Measure): Coaching {
+  const c = coachingOf(kind, m);
+  c.kind = kind;
+  c.want = m.want;
+  return c;
+}
+
+function coachingOf(kind: LimboKind, m: Measure): Coaching {
   const far = (deg: number, span: number) => Math.min(1, Math.max(0, deg) / span);
   if (kind === "moving") {
     const d = m.lean - m.target;
@@ -117,7 +128,7 @@ export type Coach = { stop: () => void };
  * Start coaching: every 30 ms it reads `read()` and says what that asks for, on the music's
  * sixteenth grid. Returns the way to stop it (the hum fades, the music comes back up).
  */
-export function startCoach(read: () => Coaching, grid?: Grid): Coach {
+export function startCoach(read: () => Coaching, grid?: Grid, lang: Lang = "zh"): Coach {
   const b = bus();
   if (!b) return { stop() {} };
   const beat = (grid?.beatMs ?? DEFAULT_BEAT_MS) / 1000;
@@ -129,14 +140,36 @@ export function startCoach(read: () => Coaching, grid?: Grid): Coach {
   let lastWobble = 0;
   let dipped = false;
   let said: Say = null;
+  // the words: when the last line was said, and when the player last left the bar
+  const words = speaker(b, lang);
+  let spokeAt = -10;
+  let spokenUntil = 0;
+  let awayFrom = 0;
+  const speak = (line: Line, t: number) => {
+    const dur = words.say(line);
+    if (!dur) return;
+    spokeAt = t;
+    spokenUntil = t + dur;
+    // the music under the words, then back to where the coach has it
+    const g = b.music.gain;
+    g.cancelScheduledValues(t);
+    g.setTargetAtTime(MUSIC_GAIN * 0.3, t, 0.03);
+    g.setTargetAtTime(MUSIC_GAIN * (dipped ? DIP : 1), t + dur + 0.1, 0.2);
+  };
   const timer = window.setInterval(() => {
     const s = read();
     const t = b.c.currentTime;
     // a new direction is said at once, not at the next slot of the grid (unless that is about now)
     if (s.say !== said) {
+      const was = said;
       said = s.say;
       if ((s.say === "down" || s.say === "up") && origin + k * sixteenth - t > 0.12) blip(b, t, s.say === "up", s.soft ? 0.5 : 1);
-    }
+      if (s.say === "down" || s.say === "up") {
+        if (!(was === "down" || was === "up")) awayFrom = t;
+        speak(s.say, t);
+      } else if (s.say === "side") speak((s.want ?? 0) < 0 ? "left" : "right", t);
+      else if (s.say === "on" && (was === "down" || was === "up" || was === "side") && t - awayFrom > 1.2) speak(s.kind === "moving" ? "kept" : "on", t);
+    } else if ((s.say === "down" || s.say === "up") && !s.soft && t - spokeAt > 2.8) speak(s.say, t);
     // a hold's hum: up an octave from start to finish
     if (s.hold > 0) {
       hum ??= makeHum(b);
@@ -154,7 +187,7 @@ export function startCoach(read: () => Coaching, grid?: Grid): Coach {
     const off = away && !s.soft;
     if (off !== dipped) {
       dipped = off;
-      b.music.gain.setTargetAtTime(MUSIC_GAIN * (off ? DIP : 1), t, 0.1);
+      if (t > spokenUntil) b.music.gain.setTargetAtTime(MUSIC_GAIN * (off ? DIP : 1), t, 0.1);
     }
     const horizon = t + 0.1;
     let at = origin + k * sixteenth;
@@ -178,8 +211,10 @@ export function startCoach(read: () => Coaching, grid?: Grid): Coach {
   return {
     stop() {
       window.clearInterval(timer);
+      words.stop();
       const t = b.c.currentTime;
-      if (dipped) b.music.gain.setTargetAtTime(MUSIC_GAIN, t, 0.1);
+      b.music.gain.cancelScheduledValues(t);
+      if (dipped || t < spokenUntil) b.music.gain.setTargetAtTime(MUSIC_GAIN, t, 0.1);
       if (hum) {
         const h = hum;
         hum = null;
@@ -193,12 +228,12 @@ export function startCoach(read: () => Coaching, grid?: Grid): Coach {
 }
 
 /** Coach while `on`, saying whatever `now` asks for; `grid` (read when it starts) puts the cues on the music. */
-export function useCoach(on: boolean, now: Coaching, grid?: RefObject<Grid | null>) {
+export function useCoach(on: boolean, now: Coaching, grid?: RefObject<Grid | null>, lang: Lang = "zh") {
   const latest = useRef(now);
   latest.current = now;
   useEffect(() => {
     if (!on) return;
-    const c = startCoach(() => latest.current, grid?.current ?? undefined);
+    const c = startCoach(() => latest.current, grid?.current ?? undefined, lang);
     return () => c.stop();
-  }, [on, grid]);
+  }, [on, grid, lang]);
 }
