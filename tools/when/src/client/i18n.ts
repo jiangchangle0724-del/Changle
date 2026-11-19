@@ -202,6 +202,11 @@ const STRINGS = {
   invitedCountOne: { zh: "1 个名字", en: "1 name" },
   invitedTooMany: { zh: "最多 {n} 个名字", en: "{n} names at most" },
   invitedSave: { zh: "存好", en: "Save" },
+  // the same people as before (同一帮人再约): a list remembered from a gathering this phone hosted
+  crewNone: { zh: "先不写", en: "Not now" },
+  crewChip: { zh: "{title}（{n} 人）", en: "{title} ({n})" },
+  crewHint: { zh: "跟以前哪次是同一帮人？点那一次，名单就带过来，到了聚会页上还能改。", en: "The same people as before? Tap that gathering and its list comes along; you can change it later." },
+  crewFrom: { zh: "跟以前哪次一样", en: "The same people as" },
   invitedPlaceholder: { zh: "阿May、小王、老李", en: "May, Sam, Lee" },
   deadlineTitle: { zh: "截止时间", en: "Answer by" },
   deadlineSet: { zh: "设一个", en: "Set one" },
