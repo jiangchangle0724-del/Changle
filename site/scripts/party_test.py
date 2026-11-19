@@ -551,19 +551,29 @@ def t_limbo_single(browser):
     pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
     pg.wait_for_selector(".limbo-scene")
     shot(pg, "lb-setup")
+    # the phone is the judge: with nothing to measure with (headless Chromium hears no sensor) it won't start
+    pg.get_by_role("button", name="放音乐，开始").click()
+    ok(until(lambda: pg.locator(".lb [role=alert]").count() == 1, 5000), "no sensor: the phone says so")
+    pg.wait_for_timeout(300)
+    ok(pg.locator(".pass-curtain").count() == 0 and "真杆子" in pg.locator(".lb [role=alert]").inner_text(), "and doesn't start; it points at the real bar")
+    shot(pg, "lb-nosensor")
+    fake_sensor(pg)
     pg.get_by_role("button", name="放音乐，开始").click()
     pg.wait_for_selector(".pass-curtain", timeout=6000)
+    ok(pg.locator(".lb [role=alert]").count() == 0, "with a sensor it starts, the note gone")
     pg.get_by_role("button", name="准备好了").click()
     pg.wait_for_selector(".lb-count")
     shot(pg, "lb-count")
-    pg.wait_for_selector(".game-actions .btn-primary", timeout=6000)
+    pg.wait_for_selector(".lb .gauge", timeout=6000)
     shot(pg, "lb-try")
-    pg.locator(".game-actions .btn-primary").click()
-    pg.wait_for_selector(".lb-verdict.is-pass")
+    ok(pg.locator(".game-actions button").count() == 0, "nothing to tap: the phone decides")
+    lean_to(pg, gauge_target(pg) + 4)
+    ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 6000), "Steve leans past the bar and holds it: through")
+    lean_to(pg, 0)
     pg.get_by_role("button", name=re.compile("下一个")).click()
     pg.get_by_role("button", name="准备好了").click()
-    pg.wait_for_selector(".game-actions .btn-ghost", timeout=6000)
-    pg.locator(".game-actions .btn-ghost").click()
+    pg.wait_for_selector(".lb .gauge", timeout=6000)
+    ok(until(lambda: pg.locator(".lb-verdict.is-fail").count() == 1, 20000), "Mia stays upright: time's up, she didn't make it")
     pg.get_by_role("button", name="这一杆结束").click()
     pg.wait_for_timeout(600)
     clear_stamps([pg])
@@ -635,23 +645,38 @@ def t_limbo_blind_online(browser):
 
 
 def t_limbo_online(browser):
-    host, guests, _ = seat_table(browser, ["Steve", "Mia"])
+    host, guests, _ = seat_table(browser, ["Steve", "Mia", "Jay"])
     everyone = [host] + guests
+    mia, jay = guests
     start_game(host, everyone, "limbo")
+    start = host.get_by_role("button", name="开始", exact=True)
+    ok(start.is_disabled() and "至少两部" in host.locator(".lb").inner_text(), "the phone is the judge: no start before two phones can measure")
+    ok(all(g.get_by_role("button", name="开启动作感应（必须）").count() == 1 for g in everyone), "every phone is told to turn it on")
+    for g in (host, mia):
+        fake_sensor(g)
+        g.get_by_role("button", name="开启动作感应").click()
+    ok(until(lambda: len(view(host)["sensors"]) == 2), "two phones can measure")
+    ok(until(lambda: start.is_enabled()) and "Jay" in host.locator(".lb .hint").last.inner_text() and "观众" in host.locator(".lb .hint").last.inner_text(), "the host can start, and is told Jay would only watch")
     shot(host, "lb-net-ready")
-    host.get_by_role("button", name="开始", exact=True).click()
-    ok(until(lambda: view(guests[0])["phase"] == "go"), "the bar is up on both phones")
+    start.click()
+    ok(until(lambda: view(mia)["phase"] == "go"), "the bar is up")
+    v = view(host)
+    ok(sorted(v["alive"]) == sorted([me(host), me(mia)]) and me(jay) not in v["out"], "Jay isn't in this game, and isn't out either")
     host.wait_for_timeout(1000)
-    shot(guests[0], "lb-net-count")
-    host.wait_for_timeout(3000)
+    shot(mia, "lb-net-count")
+    host.wait_for_selector(".lb .gauge", timeout=8000)
     shot(host, "lb-net-go")
-    host.get_by_role("button", name="我过了").click()
-    guests[0].get_by_role("button", name="没过").click()
-    ok(until(lambda: view(host)["phase"] == "end"), "one under, one out: game over")
+    ok(until(lambda: "观众" in jay.locator(".lb").inner_text(), 4000), "Jay watches")
+    ok(host.get_by_role("button", name="我过了").count() == 0 and mia.get_by_role("button", name="没过").count() == 0 and host.locator(".lb-judge").count() == 0, "nothing to tap: the phones decide")
+    lean_to(host, gauge_target(host) + 4)
+    ok(until(lambda: me(host) in view(host)["passed"], 6000), "Steve leans past the bar and holds it: through")
+    ok(until(lambda: view(host)["phase"] == "end", 20000), "Mia stays upright: time's up, one under, one out, game over")
     host.wait_for_timeout(700)
     clear_stamps(everyone)
     shot(host, "lb-net-end")
     ok(view(host)["winner"] == me(host), "Steve wins the limbo")
+    host.get_by_role("button", name="再来一局").click()
+    ok(until(lambda: view(jay)["phase"] == "ready" and me(jay) in view(jay)["alive"]), "play again: Jay is back in, and can still turn motion sensing on")
     errors(everyone)
     for g in everyone:
         g.context.close()
@@ -757,29 +782,28 @@ def t_limbo_moving_single(browser):
     pg.context.close()
 
 
-def t_limbo_moving_nosensor_single(browser):
-    # no stand-in sensor: the phone can't measure, so the table watches the bar and taps
-    pg = phone(browser, "moving-nosensor", players=PLAYERS[:2])
+def t_limbo_nosensor_single(browser):
+    # no stand-in sensor: the phone can't measure, so it won't judge any of the leaning ways; a real bar needs no sensor
+    pg = phone(browser, "nosensor", players=PLAYERS[:2])
     pg.goto(BASE + "#/g/limbo", wait_until="networkidle")
     pg.wait_for_selector(".limbo-scene")
     pg.get_by_role("button", name="跟着动的杆", exact=True).click()
     pg.get_by_role("button", name="放音乐，开始").click()
-    pg.wait_for_selector(".pass-curtain", timeout=8000)
-    pg.get_by_role("button", name="准备好了").click()
-    pg.wait_for_selector(".game-actions .btn-primary", timeout=6000)
-    ok(pg.locator(".game-actions .btn-primary").is_disabled(), "nobody has kept up while the bar still moves")
-    pg.get_by_role("button", name="跟丢了").click()
-    ok("跟丢了" in pg.locator(".lb-verdict").inner_text(), "Steve lost it")
-    pg.get_by_role("button", name=re.compile("下一个")).click()
-    pg.get_by_role("button", name="准备好了").click()
-    pg.wait_for_selector(".game-actions .btn-primary", timeout=6000)
-    ok(until(lambda: pg.locator(".game-actions .btn-primary").is_enabled(), 17000), "the bar stops: now the table can say she kept up")
-    ok("横杆停了" in pg.locator(".lb-time").inner_text(), "and the phone asks")
-    pg.locator(".game-actions .btn-primary").click()
-    pg.get_by_role("button", name="这一杆结束").click()
+    ok(until(lambda: pg.locator(".lb [role=alert]").count() == 1, 5000), "no sensor: the phone says so")
+    pg.wait_for_timeout(300)
+    ok(pg.locator(".pass-curtain").count() == 0 and "真杆子" in pg.locator(".lb [role=alert]").inner_text(), "the moving bar doesn't start; it points at the real bar")
+    pg.get_by_role("button", name="真杆子", exact=True).click()
+    pg.get_by_role("button", name="放音乐，开始").click()
+    pg.wait_for_selector(".lb-people", timeout=6000)
+    ok("谁过了" in pg.locator(".lb").inner_text() and pg.locator(".lb-judge").count() == 2, "a real bar: the table judges, no sensor needed")
+    shot(pg, "lb-realbar")
+    ok(pg.get_by_role("button", name="放低横杆").is_disabled(), "nothing lowers until everyone is judged")
+    pg.locator(".lb-person").nth(0).get_by_role("button", name="过了").click()
+    pg.locator(".lb-person").nth(1).get_by_role("button", name="没过").click()
+    pg.get_by_role("button", name="放低横杆").click()
     pg.wait_for_timeout(600)
     clear_stamps([pg])
-    ok(until(lambda: pg.locator(".fz-face.is-winner").count() == 1, 4000), "Mia kept up, Steve didn't: Mia wins")
+    ok(until(lambda: pg.locator(".fz-face.is-winner").count() == 1, 4000), "Steve made it, Mia didn't: Steve wins")
     errors([pg])
     pg.context.close()
 
@@ -867,10 +891,23 @@ def heard(pg):
     return c
 
 
-def listen(pg, ms):
+def listen(pg, ms, lean=None, ready=None):
+    """What the coach says over the next `ms`. With `lean` (the gauge shows it) or `ready` (true once the
+    phone has taken the move in), from that moment: a reading comes from the stand-in sensor every 50 ms,
+    and until then the coach still speaks to the old pose. A hold's hum starts once and is only turned
+    up and down after that, so one that began while the phone caught up counts."""
+    if lean is not None:
+        ready = lambda: pg.locator(".gauge-read").inner_text().strip() == f"{lean}°"
+    early = {"hum": 0}
+    if ready is not None:
+        heard(pg)
+        ok(until(ready, 3000), f"the phone takes the move in ({lean}°)" if lean is not None else "the phone takes the move in")
+        early = heard(pg)
     heard(pg)
     pg.wait_for_timeout(ms)
-    return heard(pg)
+    c = heard(pg)
+    c["hum"] += early["hum"]
+    return c
 
 
 def solo_limbo_heard(browser, tag, mode):
@@ -892,23 +929,24 @@ def solo_limbo_heard(browser, tag, mode):
 def t_limbo_coach_moving(browser):
     pg = solo_limbo_heard(browser, "coach-moving", "跟着动的杆")
     lean_to(pg, 4)
-    c = listen(pg, 1200)
+    c = listen(pg, 1200, lean=4)
     ok(c["tick"] >= 2 and c["down"] == 0 and c["up"] == 0, f"the bar waits at 8°, 4° is in the middle of the band: ticks on the beat {c}")
     auto(pg)
     until(lambda: gauge_target(pg) > 15, 6000)
     tilt_to(pg, 0, 0)
-    c = listen(pg, 800)
+    c = listen(pg, 800, lean=0)
     ok(c["down"] >= 2 and c["up"] == 0 and c["tick"] == 0, f"upright with the bar near 20°: falling blips, lean back more {c}")
     auto(pg)
     pg.wait_for_timeout(700)
     until(lambda: gauge_target(pg) > 18, 6000)
     tilt_to(pg, 9, 0)
-    c = listen(pg, 900)
-    ok(1 <= c["down"] <= 2 and c["up"] == 0 and c["tick"] == 0, f"at 9° with the bar near 20°, still in the band but drifting: the quiet warning, on the beat {c}")
+    c = listen(pg, 900, lean=9)
+    # (the bar keeps moving: a tick can come as it swings back within 8° of her)
+    ok(1 <= c["down"] <= 2 and c["up"] == 0, f"at 9° with the bar near 20°, still in the band but drifting: the quiet warning, on the beat {c}")
     auto(pg)
     pg.wait_for_timeout(700)
     tilt_to(pg, 54, 0)
-    c = listen(pg, 800)
+    c = listen(pg, 800, lean=54)
     ok(c["up"] >= 2 and c["down"] == 0, f"at 54°: rising blips, come up {c}")
     auto(pg)
     ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 16000) and "跟住了" in pg.locator(".lb-verdict").inner_text(), "back with it to the end: kept up")
@@ -921,10 +959,10 @@ def t_limbo_coach_moving(browser):
 def t_limbo_coach_holds(browser):
     pg = solo_limbo_heard(browser, "coach-classic", "经典")
     lean_to(pg, 5)
-    c = listen(pg, 1100)
+    c = listen(pg, 1100, lean=5)
     ok(c["down"] >= 3 and c["tick"] == 0, f"short of a classic bar: falling blips every eighth {c}")
     lean_to(pg, 24)
-    c = listen(pg, 1000)
+    c = listen(pg, 1000, lean=24)
     ok(c["tick"] >= 1 and c["hum"] == 1 and c["down"] == 0, f"past it: ticks and the hold's hum {c}")
     ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 3000), "and through")
     errors([pg])
@@ -947,10 +985,10 @@ def t_limbo_coach_holds(browser):
     pg = solo_limbo_heard(browser, "coach-tilt", "歪着过")
     want = int(pg.locator(".lb-side").get_attribute("data-want"))
     tilt_to(pg, 25, 0)
-    c = listen(pg, 1300)
+    c = listen(pg, 1300, lean=25)
     ok(c["click"] >= 3 and c["click"] % 3 == 0 and c["down"] == 0, f"back enough, not tilted: three quick clicks on the beat {c}")
     tilt_to(pg, 25, want + 4 * (1 if want > 0 else -1))
-    c = listen(pg, 900)
+    c = listen(pg, 900, ready=lambda: pg.locator(".lb-side.is-over").count() == 1)
     ok(c["tick"] >= 1 and c["hum"] == 1 and c["click"] == 0, f"tilted too: ticks and the hum {c}")
     ok(until(lambda: pg.locator(".lb-verdict.is-pass").count() == 1, 3000), "and through")
     errors([pg])
@@ -1051,19 +1089,25 @@ def t_limbo_moving_online(browser):
 
 
 def t_limbo_steady_online(browser):
-    host, guests, everyone = online_limbo(browser, "稳住", "steady", sensors=(True, False))
+    host, guests, everyone = online_limbo(browser, "稳住", "steady")
     auto(host)
     host.get_by_role("button", name="开始", exact=True).click()
     ok(until(lambda: host.locator(".lb .gauge").count() == 1, 7000), "the count-in, then the gauge")
     t0 = time.time()
     g = guests[0]
-    ok(until(lambda: g.get_by_role("button", name="我过了").count() == 1) and "一动不动" in g.locator(".lb").inner_text(), "a phone that can't measure: what to do, and honesty buttons")
-    shot(g, "lb-steady-net-nosensor")
-    host.get_by_role("button", name="没过").click()
-    ok(until(lambda: me(g) in view(host)["failed"]), "the host judges Mia: missed")
-    ok(until(lambda: view(host)["phase"] == "end", 6000), "Steve holds still: through")
+    ok(until(lambda: g.locator(".lb .gauge").count() == 1, 2000) and g.get_by_role("button", name="我过了").count() == 0, "Mia's phone measures her too: no honesty buttons")
+    ok(until(lambda: me(host) in view(host)["passed"], 6000), "Steve holds still: through")
     took = time.time() - t0
     ok(took > 1.8, f"after the 2 second hold ({took:.1f}s)")
+    target = view(host)["angle"]
+    lean_to(g, target + 4)
+    g.wait_for_timeout(1200)
+    lean_to(g, target + 12)
+    g.wait_for_timeout(200)
+    ok("晃了" in g.locator(".gauge-note").inner_text(), "Mia wobbles: her hold starts again")
+    shot(g, "lb-steady-net-wobble")
+    lean_to(g, 0)
+    ok(until(lambda: view(host)["phase"] == "end", 20000), "she gives up: time's up, out")
     ok(view(host)["winner"] == me(host), "Steve wins")
     host.wait_for_timeout(700)
     clear_stamps(everyone)
@@ -2168,7 +2212,7 @@ TESTS = {
     "postit": [t_postit_single, t_postit_online],
     "freeze": [t_freeze_single, t_freeze_online],
     "limbo": [t_limbo_single, t_limbo_online, t_limbo_blind_single, t_limbo_blind_online],
-    "limbo-variants": [t_limbo_steady_single, t_limbo_moving_single, t_limbo_moving_nosensor_single, t_limbo_tilt_single, t_limbo_party_single, t_limbo_steady_online, t_limbo_moving_online, t_limbo_tilt_online, t_limbo_party_online],
+    "limbo-variants": [t_limbo_steady_single, t_limbo_moving_single, t_limbo_nosensor_single, t_limbo_tilt_single, t_limbo_party_single, t_limbo_steady_online, t_limbo_moving_online, t_limbo_tilt_online, t_limbo_party_online],
     "limbo-coach": [t_limbo_coach_moving, t_limbo_coach_holds],
     "limbo-band": [t_limbo_band],
     "tune": [t_tune_single, t_tune_songs_online, t_tune_online],

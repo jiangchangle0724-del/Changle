@@ -4,8 +4,9 @@ import { t, type Api, type GameDef } from "../api";
 /**
  * Limbo, with the phone as the judge. Hold the phone upright against your chest and lean
  * back until you reach the bar's angle, then hold it there. Each level the bar drops (the
- * angle grows). Miss it in time and you're out. Phones without a motion sensor are judged
- * by the host, or by their owner's honesty.
+ * angle grows). Miss it in time and you're out. The phone is the judge: a game starts only once
+ * every player's phone has its motion sensor on, and a phone without one watches that game
+ * (`judge` stays as the host's safety net; the app no longer shows it).
  *
  * Blind lean (盲仰): each round shows a target angle but not your own lean. Lean back to what
  * feels like it and hold still; the phone locks your angle. Whoever ends up furthest from the
@@ -13,8 +14,7 @@ import { t, type Api, type GameDef } from "../api";
  * eye), so phones without one watch that game; and since targets stay moderate, a few drinks in
  * it stays safe.
  *
- * Three variants of a bar, each picked before the game like blind lean, and each judged by the
- * host or by honesty on a phone without a motion sensor, as in classic:
+ * Three variants of a bar, each picked before the game like blind lean:
  * - Hold steady (稳住): reach the bar's angle, then hold perfectly still. Any wobble starts the
  *   hold again, and every bar needs a longer hold.
  * - Moving bar (跟着动的杆): the bar floats up and down and you follow it, leaning further and
@@ -252,8 +252,8 @@ export const limbo: GameDef<S> = {
       }
       case "go": {
         if (!host || (s.phase !== "ready" && s.phase !== "result")) return;
-        if (s.mode === "blind" && s.phase === "ready") {
-          // only phones that can measure play; the others watch this game
+        if (s.phase === "ready") {
+          // only phones with motion sensing on play (the phone is the judge); the others watch this game
           const players = s.alive.filter((pid) => s.sensors.includes(pid));
           if (players.length < 2) return;
           s.alive = players;
