@@ -312,7 +312,7 @@ h1{font-size:var(--text-2xl);line-height:var(--leading-tight);margin:var(--space
 .title a{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
 .title a:hover{text-decoration-color:var(--gel)}
 .title a::after{content:"";position:absolute;inset:0}
-.pic{display:block;width:100%;max-width:22rem;aspect-ratio:3/1;object-fit:cover;border-radius:var(--r-small);background:var(--dusk);margin:0 0 var(--space-2)}
+.pic{display:block;width:100%;max-width:22rem;aspect-ratio:3/1;object-fit:cover;object-position:50% 30%;border-radius:var(--r-small);background:var(--dusk);margin:0 0 var(--space-2)}
 .orig{color:var(--haze);font-size:var(--text-xs);overflow-wrap:anywhere}
 .sum{font-size:var(--text-sm)}
 .place{color:var(--haze);font-size:var(--text-sm);overflow-wrap:anywhere}
