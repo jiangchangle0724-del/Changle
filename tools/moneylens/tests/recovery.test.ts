@@ -34,9 +34,9 @@ test("written and read back, for any bytes", () => {
   assert.throws(() => formatRecovery(new Uint8Array(19)), RangeError);
 });
 
-test("read the way people copy: any capitals, spaces, dashes, dots or underscores, O for 0, I and L for 1, a Chinese keyboard's full-width characters", () => {
+test("read the way people copy: any capitals, spaces, dashes, minus signs, dots or underscores, O for 0, I and L for 1, a Chinese keyboard's full-width characters", () => {
   const bare = CODE.replace(/-/g, "");
-  for (const typed of [CODE, bare, CODE.toLowerCase(), CODE.replace(/-/g, " "), CODE.replace(/-/g, String.fromCodePoint(0x2013)), CODE.replace(/-/g, String.fromCodePoint(0x2014)), CODE.replace(/-/g, "_"), CODE.replace(/-/g, "."), CODE.replace(/-/g, " - "), `  ${CODE.slice(0, 20)}\n${CODE.slice(20)}  `, `o${CODE.slice(1)}`, `OI${CODE.slice(2)}`, `0l${CODE.slice(2)}`, fullWidth(CODE), fullWidth(bare), CODE.replace(/-/g, String.fromCodePoint(0x3000))]) {
+  for (const typed of [CODE, bare, CODE.toLowerCase(), CODE.replace(/-/g, " "), CODE.replace(/-/g, String.fromCodePoint(0x2013)), CODE.replace(/-/g, String.fromCodePoint(0x2014)), CODE.replace(/-/g, String.fromCodePoint(0x2212)), CODE.replace(/-/g, "_"), CODE.replace(/-/g, "."), CODE.replace(/-/g, " - "), `  ${CODE.slice(0, 20)}\n${CODE.slice(20)}  `, `o${CODE.slice(1)}`, `OI${CODE.slice(2)}`, `0l${CODE.slice(2)}`, fullWidth(CODE), fullWidth(bare), CODE.replace(/-/g, String.fromCodePoint(0x3000))]) {
     assert.deepEqual(parseRecovery(typed), BYTES, typed);
   }
 });

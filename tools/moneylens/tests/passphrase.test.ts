@@ -30,6 +30,9 @@ test("passphrases that will do", () => {
     "Unfasten-Drab-Jawless7",
     // pinyin, a word at a time
     "wo de mao hen pang",
+    // ordinary words with three letters in a row of the alphabet or the keyboard in them ("rst", "stu", "pon", "tre")
+    "first student pond",
+    "upon the first street",
     "我家楼下的面馆叫老王",
     "温哥华的雨下了一整个十一月",
     "老王面馆在楼下呀",
@@ -81,6 +84,14 @@ test("patterns: one character, a piece repeated, a slide along the keys or the n
     "!QAZ@WSX#EDC$RFV",
     "a1b2c3d4e5f6g7h8",
     "z9y8x7w6v5u4",
+    // three keys at a time, down the keyboard
+    "123qweasdzxc",
+    "qweasdzxc123",
+    "qweasdzxc!@#",
+    "zxcasdqwe123",
+    "asdasdasd123",
+    "qwe123asd456",
+    "abc123xyz789",
     "哈哈哈哈哈哈哈哈",
     "一二三四五六七八",
     "12345678一二三四",
@@ -130,6 +141,8 @@ test("well-known passwords: with digits and marks stuck on, with look-alike lett
     "Manchester United 1999",
     "Jesus loves me 777",
     "spring summer autumn winter",
+    "dragonballz2026!",
+    "Starwars Darthvader",
   ]) {
     assert.equal(weakness(p), "common", p);
   }
@@ -149,6 +162,10 @@ test("a word or two with digits and marks is not a passphrase", () => {
     "Tom19900615!!",
     "tidalmarmot2026",
     "congratulations1!",
+    // four consonants in a row when "th" and "ght" are counted letter by letter
+    "Birthday2026!!",
+    "Happy Birthday!",
+    "Midnights#2026",
     // look-alikes inside the word
     "M4plew00d2026!!",
     "M4PLEW00D2026!!",
@@ -168,9 +185,15 @@ test("a word or two with digits and marks is not a passphrase", () => {
   for (const p of ["window garden sky", "nth marble anchors", "psst marble anchors"]) assert.equal(weakness(p), null, p);
 });
 
-test("what the floor misses: a word it doesn't know for a word", () => {
+test("what the floor misses", () => {
   // "sky" and "fox" end in letter pairs that are rare in English, and a short word gets no allowance: each of these counts as one word and some other letters
   for (const p of ["blue sky 2026", "red fox 2026!!", "happy sky 2026"]) assert.equal(weakness(p), null, p);
+  // names, and words built unlike most English ones: nothing here knows them for words
+  for (const p of ["Chloe2026!!!", "Rhythm2026!!!", "Johnsmith1990!", "JohnSmith2026!"]) assert.equal(weakness(p), null, p);
+  // look-alikes for most of the letters, or a digit that stands for a sound
+  for (const p of ["N1c0l3tt3!!!", "Sk8erboi2026!"]) assert.equal(weakness(p), null, p);
+  // a date with separators after initials
+  assert.equal(weakness("wxm-1988-12-12"), null);
 });
 
 // A small generator of its own, so that the same strings are tried on every run.
@@ -250,6 +273,23 @@ test("the same passphrase from every keyboard", () => {
   same("wait...what", `wait${cp(0x2026)}what`);
   same("a-b", `a${cp(0x2013)}b`);
   same("a-b", `a${cp(0x2212)}b`);
+  // which dash two or three hyphens become depends on the app: an em dash on a phone, an en dash in Google Docs, where three are an em dash
+  same("wait--what", `wait${cp(0x2013)}what`);
+  same("wait---what", `wait${cp(0x2014)}what`);
+  same("wait -- what", `wait ${cp(0x2013)} what`);
+  // so a run of hyphens and dashes is one hyphen, which makes these two the same passphrase as well
+  same("wait--what", "wait-what");
+  assert.equal(normalizePassphrase(`wait-${cp(0x2014, 0x2013)}--what`), "wait-what");
+  // the quotation marks other languages' keyboards put for the straight ones: guillemets, low quotes, corner brackets
+  same('say "hi" twice', `say ${cp(0xab)}hi${cp(0xbb)} twice`);
+  same('say "hi" twice', `say ${cp(0x201e)}hi${cp(0x201c)} twice`);
+  same('say "hi" twice', `say ${cp(0x300c)}hi${cp(0x300d)} twice`);
+  same('say "hi" twice', `say ${cp(0xff62)}hi${cp(0xff63)} twice`);
+  same("say 'hi' twice", `say ${cp(0x2039)}hi${cp(0x203a)} twice`);
+  same("say 'hi' twice", `say ${cp(0x300e)}hi${cp(0x300f)} twice`);
+  // the tilde of a Japanese keyboard: full-width on Windows, a wave dash on a Mac
+  same("a~b", `a${cp(0xff5e)}b`);
+  same("a~b", `a${cp(0x301c)}b`);
   // an emoji with and without its variation selector
   same(cp(0x2764), cp(0x2764, 0xfe0f));
   // a Chinese keyboard: full-width letters and marks, the ideographic full stop and space
@@ -265,9 +305,10 @@ test("the same passphrase from every keyboard", () => {
   same("wait--what", `wait${cp(0xfe58)}what`);
   same("wait--what", `wait${cp(0xfe31)}what`);
   same("a-b", `a${cp(0xff0d)}b`);
-  // an ideograph with and without a variation selector, and a zero-width space left in by a copy
+  // an ideograph with and without a variation selector, and a zero-width space left in by a copy, also between two hyphens
   same(cp(0x845b), cp(0x845b, 0xe0100));
   same("tidal marmot", `ti${cp(0x200b)}dal marmot`);
+  same("a--b", `a-${cp(0x200b)}-b`);
   // and what stays different: capitals, and which words
   assert.notEqual(normalizePassphrase("Tidal marmot"), normalizePassphrase("tidal marmot"));
   assert.notEqual(normalizePassphrase("tidalmarmot"), normalizePassphrase("tidal marmot"));
@@ -275,7 +316,8 @@ test("the same passphrase from every keyboard", () => {
 });
 
 test("normalizing twice changes nothing more", () => {
-  const pool = [0x20, 0x27, 0x22, 0x2d, 0x2e, 0x61, 0x41, 0x31, 0xa0, 0xad, 0xe9, 0x301, 0x2010, 0x2013, 0x2014, 0x2015, 0x2018, 0x2019, 0x201c, 0x201d, 0x2026, 0x2032, 0x2033, 0x200b, 0x2212, 0x3000, 0x3002, 0x4e00, 0x845b, 0xfe0f, 0xfe31, 0xfe58, 0xfeff, 0xff0d, 0xff21, 0xff41, 0xff61, 0x1f600, 0x2764, 0xe0100, 0xfdfa, 0x212a, 0x17f];
+  const pool = [0x20, 0x27, 0x22, 0x2d, 0x2e, 0x61, 0x41, 0x31, 0xa0, 0xad, 0xe9, 0x301, 0x2010, 0x2013, 0x2014, 0x2015, 0x2018, 0x2019, 0x201c, 0x201d, 0x2026, 0x2032, 0x2033, 0x200b, 0x2212, 0x3000, 0x3002, 0x4e00, 0x845b, 0xfe0f, 0xfe31, 0xfe58, 0xfeff, 0xff0d, 0xff21, 0xff41, 0xff61, 0x1f600, 0x2764, 0xe0100, 0xfdfa, 0x212a, 0x17f,
+    0x7e, 0xab, 0xbb, 0x2039, 0x203a, 0x300c, 0x300d, 0x300e, 0x300f, 0x301c, 0x301d, 0x3030, 0xfe63, 0xff5e, 0xff62, 0xff63, 0x2d, 0x2d, 0x2014];
   const next = dice(7);
   for (let i = 0; i < 5000; i++) {
     const text = String.fromCodePoint(...Array.from({ length: 1 + next(12) }, () => pool[next(pool.length)]!));

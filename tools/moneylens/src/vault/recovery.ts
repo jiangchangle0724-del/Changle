@@ -45,7 +45,7 @@ export function formatRecovery(bytes: Uint8Array): string {
 export type RecoveryRead = { ok: true; bytes: Uint8Array } | { ok: false; why: "malformed" | "typo" } | { ok: false; why: "wrong-length"; symbols: number };
 
 /**
- * Reads a code as someone typed it: spaces, dashes, dots or underscores anywhere, any capitals,
+ * Reads a code as someone typed it: spaces, dashes, minus signs, dots or underscores anywhere, any capitals,
  * full-width characters from a Chinese keyboard, O for 0, I or L for 1.
  *
  * - "malformed": a character no code has, or far too much text. Not a recovery code.
@@ -55,8 +55,8 @@ export type RecoveryRead = { ok: true; bytes: Uint8Array } | { ok: false; why: "
  */
 export function readRecovery(text: string): RecoveryRead {
   if (typeof text !== "string" || text.length > 200) return { ok: false, why: "malformed" };
-  // (whatever a word processor or a form put between the groups: any dash, a dot, an underscore)
-  const typed = text.normalize("NFKC").replace(/[\s\p{Pd}_.]/gu, "");
+  // (whatever a word processor or a form put between the groups: any dash or a minus sign, a dot, an underscore)
+  const typed = text.normalize("NFKC").replace(/[\s\p{Pd}\u2212_.]/gu, "");
   // (only plain letters and digits from here on: capitals of other alphabets can turn into ours)
   if (!/^[0-9A-Za-z]+$/.test(typed)) return { ok: false, why: "malformed" };
   const symbols = typed.toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1");

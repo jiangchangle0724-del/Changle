@@ -35,25 +35,36 @@ export type Weak = "too-short" | "too-long" | "pattern" | "common" | "few-words"
 
 /**
  * A passphrase as it is used, so that the same keys pressed on any device give the same bytes.
- * Phones and Chinese keyboards rewrite what is typed: straight quotes become curly, two hyphens
- * become a dash, a full stop becomes an ideographic one, letters come out full-width, an emoji
- * gains or loses its variation selector. All of those are folded back; then compatibility forms
- * (NFKC), runs of spaces to one space, and no space at either end. Capitals are kept: they are
- * the user's own. Doing it twice changes nothing more.
+ * Phones, word processors and Chinese keyboards rewrite what is typed: straight quotes become the
+ * quotation marks of the keyboard's language, two or three hyphens become a dash (which dash
+ * depends on the app), a full stop becomes an ideographic one, letters come out full-width, an
+ * emoji gains or loses its variation selector. All of those are folded back, in this order:
+ *
+ * 1. compatibility forms (NFKC), so that what they turn into is folded too;
+ * 2. characters nobody sees are dropped, and NFKC again, because taking one out can bring a
+ *    letter and its accent together;
+ * 3. every kind of quotation mark becomes a straight one, a wave dash becomes a tilde, any dash
+ *    and any run of dashes or hyphens becomes one hyphen, an ideographic full stop a period;
+ * 4. runs of spaces become one space, and there is none at either end.
+ *
+ * Capitals are kept: they are the user's own. Doing it twice changes nothing more.
  */
 export function normalizePassphrase(text: string): string {
   return (
     text
-      // compatibility forms first, so that what they turn into is folded too (a half-width ideographic full stop, a small em dash)
       .normalize("NFKC")
-      .replace(/[\u2018\u2019\u201a\u201b\u2032]/g, "'")
-      .replace(/[\u201c\u201d\u201e\u201f\u2033]/g, '"')
-      .replace(/[\u2014\u2015]/g, "--")
-      .replace(/[\u2010\u2011\u2012\u2013\u2212]/g, "-")
-      .replace(/\u3002/g, ".")
+      // variation selectors, the zero-width space, the soft hyphen, the byte-order mark: before the folds, so that two hyphens with one of these between them are a run
       .replace(/[\ufe00-\ufe0f\u200b\u00ad\ufeff\u{e0100}-\u{e01ef}]/gu, "")
-      // again, because taking a character out can bring a letter and its accent together
       .normalize("NFKC")
+      // single: curly, low, the prime, single guillemets, white corner brackets
+      .replace(/[\u2018\u2019\u201a\u201b\u2032\u2039\u203a\u300e\u300f]/g, "'")
+      // double: curly, low, guillemets, corner brackets, the double-prime marks of vertical Chinese (NFKC has made a double prime two single ones)
+      .replace(/[\u201c\u201d\u201e\u201f\u00ab\u00bb\u300c\u300d\u301d\u301e\u301f]/g, '"')
+      // the wave dash a Mac types where Windows types a full-width tilde (which NFKC has made "~")
+      .replace(/[\u301c\u3030]/g, "~")
+      // hyphens, dashes and the minus sign. A run is one: two hyphens are an em dash on a phone and an en dash in Google Docs, three are an em dash in both
+      .replace(/[-\u2010-\u2015\u2212]+/g, "-")
+      .replace(/\u3002/g, ".")
       .replace(/\s+/g, " ")
       .trim()
   );
@@ -67,7 +78,7 @@ const COMMON = new Set([
   "login", "master", "root", "user", "guest", "default", "changeme", "hello", "hellothere", "qwerty", "qwertyuiop", "qwertz", "azerty", "asdf", "asdfgh", "asdfghjkl", "zxcvbn",
   "zxcvbnm", "qazwsx", "qazwsxedc", "1qaz2wsx", "1q2w3e", "1q2w3e4r", "1q2w3e4r5t", "q1w2e3r4", "q1w2e3r4t5", "abc", "abcd", "abcdef", "abcdefg", "abcdefgh", "abc123", "a1b2c3",
   "a1b2c3d4", "iloveyou", "iloveu", "loveyou", "loveme", "love", "lovely", "sunshine", "princess", "monkey", "dragon", "football", "baseball", "basketball", "hockey", "soccer",
-  "superman", "batman", "starwars", "pokemon", "whatever", "trustno1", "freedom", "shadow", "michael", "jennifer", "jordan", "hunter", "ranger", "buster", "thomas", "robert",
+  "superman", "batman", "spiderman", "ironman", "starwars", "darthvader", "skywalker", "pokemon", "pikachu", "dragonball", "dragonballz", "naruto", "minecraft", "harrypotter", "hellokitty", "whatever", "trustno1", "freedom", "shadow", "michael", "jennifer", "jordan", "hunter", "ranger", "buster", "thomas", "robert",
   "daniel", "ashley", "charlie", "killer", "hacker", "ninja", "mustang", "access", "flower", "angel", "baby", "computer", "internet", "google", "samsung", "iphone", "android",
   "money", "moneylens", "changle", "changleca", "vancouver", "canada", "canucks", "banking", "finance", "spring", "summer", "autumn", "fall", "winter", "january", "february",
   "march", "april", "june", "july", "august", "september", "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
@@ -111,7 +122,12 @@ function repeats(s: string): boolean {
   return false;
 }
 
-/** How much of `chars` (lowercase) is covered by runs of four or more along a keyboard row, the alphabet or the numerals, forwards or backwards. */
+/**
+ * How much of `chars` (lowercase) is covered by runs of three or more along a keyboard row, the
+ * alphabet or the numerals, forwards or backwards. Three, because the commonest of these are
+ * typed three keys at a time ("123qweasdzxc"); ordinary words have such a piece now and then
+ * ("first", "student"), which is why it takes three quarters of a passphrase to make a pattern.
+ */
 function runShare(chars: readonly string[]): number {
   let covered = 0;
   let i = 0;
@@ -129,7 +145,7 @@ function runShare(chars: readonly string[]): number {
         }
       }
     }
-    if (best >= 4) {
+    if (best >= 3) {
       covered += best;
       i += best;
     } else i++;
@@ -227,8 +243,9 @@ function pinyin(word: string): boolean {
 /**
  * Does a run of letters (lowercase) read as a word or a name? Three or more letters of the plain
  * alphabet that are pinyin from end to end, or that are built like an English word: a vowel among
- * them (y counts) but not nearly all vowels, never four consonants in a row, and each letter
- * followed by one that commonly follows it (one exception from six letters, two from thirteen).
+ * them (y counts) but not nearly all vowels, never four consonants in a row (th, ch, sh, ck, ph,
+ * gh and ng counting as one, as in "birthday"), and each letter followed by one that commonly
+ * follows it (one exception from six letters, two from thirteen).
  * Rough on purpose. It has to tell "maplewood" from "xkqzvw", not to know every word: a real
  * word that fails it ("sky", "rhythm") is a "maybe" (fewWords).
  */
@@ -236,7 +253,7 @@ function wordlike(word: string): boolean {
   if (!/^[a-z]{3,}$/.test(word)) return false;
   if (pinyin(word)) return true;
   const vowels = word.replace(/[^aeiouy]/g, "").length;
-  if (vowels === 0 || vowels * 4 > word.length * 3 || /[^aeiouy]{4}/.test(word)) return false;
+  if (vowels === 0 || vowels * 4 > word.length * 3 || /[^aeiouy]{4}/.test(word.replace(/th|ch|sh|ck|ph|gh|ng/g, "c"))) return false;
   let odd = 0;
   for (let i = 1; i < word.length; i++) if (!FOLLOWS[word[i - 1]!]!.includes(word[i]!)) odd++;
   return odd <= (word.length < 6 ? 0 : word.length < 13 ? 1 : 2);
@@ -288,11 +305,13 @@ function fewWords(cased: string): boolean {
       // (a line break after a small letter that a capital follows, and after a capital that a capital and then a small letter follow)
       for (const piece of run[0].replace(/\p{Ll}(?=\p{Lu})|\p{Lu}(?=\p{Lu}\p{Ll})/gu, "$&\n").split("\n")) {
         const word = piece.toLowerCase();
-        const typed = [...piece].filter((c, k) => cased[at + k] === c).length;
+        // how many of its characters were typed as they are (the rest were look-alikes); places are UTF-16 units, as `at` is
+        let typed = 0;
+        for (let k = 0; k < piece.length; k++) if (cased[at + k] === piece[k]) typed++;
         if (wordlike(word) && (typed === piece.length || (piece.length >= 5 && typed * 3 >= piece.length * 2))) {
           words++;
           held += typed;
-        } else if ([...piece].length >= 3) maybes++;
+        } else if (piece.length >= 3) maybes++;
         at += piece.length;
       }
     }

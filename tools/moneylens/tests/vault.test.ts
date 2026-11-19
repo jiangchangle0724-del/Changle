@@ -37,13 +37,15 @@ const vaultOf = async (wrapper: Wrapper, secret: Secret): Promise<OpenVault> => 
   return result;
 };
 
-// The golden vault's passphrase, as a desktop keyboard types it and as a phone does: a curly
-// apostrophe, a dash for two hyphens, full-width letters, the heart with its variation selector,
-// an ideographic full stop.
+// The golden vault's passphrase, as a desktop keyboard types it; as a phone does (a curly
+// apostrophe, an em dash for the two hyphens, full-width letters, the heart with its variation
+// selector, an ideographic full stop); and as it comes out of a document in Google Docs, which
+// makes the two hyphens an en dash.
 const HEART = String.fromCodePoint(0x2764);
 const fullWidth = (text: string): string => [...text].map((c) => String.fromCodePoint(c.codePointAt(0)! + 0xfee0)).join("");
 const GOLDEN_AT_A_DESK = `老王面馆 don't stop--tidal ${HEART} 42.`;
 const GOLDEN_ON_A_PHONE = `老王面馆 don${String.fromCodePoint(0x2019)}t stop${String.fromCodePoint(0x2014)}${fullWidth("tidal")} ${HEART}${String.fromCodePoint(0xfe0f)} 42${String.fromCodePoint(0x3002)}`;
+const GOLDEN_FROM_A_DOCUMENT = `老王面馆 don${String.fromCodePoint(0x2019)}t stop${String.fromCodePoint(0x2013)}tidal ${HEART} 42.`;
 
 test("known answers: PBKDF2-HMAC-SHA-256 (RFC 7914, section 11)", async () => {
   const derive = async (password: string, salt: string, iterations: number) => {
@@ -134,13 +136,14 @@ test("the iteration counts: what is written, the floor and the ceiling", () => {
   assert.ok(!isWrapper({ ...stored, iterations: PBKDF2_CEILING + 1 }));
 });
 
-test("a vault stored on 2026-11-19 still opens: by passphrase from either keyboard, by recovery code, by passkey", async () => {
+test("a vault stored on 2026-11-19 still opens: by passphrase however a keyboard or an app spells it, by recovery code, by passkey", async () => {
   const [byPassphrase, byRecovery, byPasskey] = GOLDEN.wrappers;
   const blob = fromBase64url(GOLDEN.blob)!;
   for (const w of GOLDEN.wrappers) assert.ok(isWrapper(w), w.kind);
   const ways: [Wrapper, Secret][] = [
     [byPassphrase, { kind: "passphrase", passphrase: GOLDEN_AT_A_DESK }],
     [byPassphrase, { kind: "passphrase", passphrase: GOLDEN_ON_A_PHONE }],
+    [byPassphrase, { kind: "passphrase", passphrase: GOLDEN_FROM_A_DOCUMENT }],
     [byPassphrase, { kind: "passphrase", passphrase: `  ${GOLDEN_AT_A_DESK.replace(/ /g, `${String.fromCodePoint(0xa0)} `)}\n` }],
     [byRecovery, { kind: "recovery", code: GOLDEN.recoveryCode }],
     [byPasskey, { kind: "passkey", prf: fromBase64url(GOLDEN.prf)! }],
@@ -150,7 +153,7 @@ test("a vault stored on 2026-11-19 still opens: by passphrase from either keyboa
     assert.equal(vault.id, GOLDEN.vault);
     assert.deepEqual(await openJson(vault, GOLDEN.chunk, blob), { value: GOLDEN.value }, secret.kind);
   }
-  assert.notEqual(GOLDEN_AT_A_DESK, GOLDEN_ON_A_PHONE);
+  assert.equal(new Set([GOLDEN_AT_A_DESK, GOLDEN_ON_A_PHONE, GOLDEN_FROM_A_DOCUMENT]).size, 3);
   // capitals are the user's own: a phone that capitalizes for them is the input field's to prevent
   assert.equal(await opened(byPassphrase, { kind: "passphrase", passphrase: GOLDEN_AT_A_DESK.replace("don", "Don") }), "wrong-secret");
 });

@@ -5,21 +5,28 @@
 // never be "fixed" by regenerating it. A format change needs a new version number and code that
 // still reads version 1.
 //
+// One thing in it was made a second time, the same day and before this code was first merged: the
+// passphrase wrapper. After the third review of the code, the normalization was changed to fold a
+// run of hyphens and dashes into one hyphen, and this vault's passphrase has two hyphens in it.
+// The new wrapper was made from the vault's own recovery code, so the vault, its key, the recovery
+// and passkey wrappers and the blob are byte for byte as first made. Since the merge, nothing here
+// has been made again, and nothing may be.
+//
 // The vault key here was made for this file and never guarded anything. The passphrase is in
-// vault.test.ts, typed the way two different keyboards would type it.
+// vault.test.ts, typed the way different keyboards and apps would type it.
 export const GOLDEN = {
   "vault": "7n5P3ttw8TpCciViT9ddfQ",
   "wrappers": [
     {
       "v": 1,
-      "id": "prJ9hMK3lXbG_FerGOy15g",
+      "id": "c0Ve8uOePh0c6k376I-utg",
       "vault": "7n5P3ttw8TpCciViT9ddfQ",
       "kind": "passphrase",
       "kdf": "pbkdf2-sha256",
       "iterations": 600000,
-      "salt": "JYE_mi4K5829DfUFN-oa55_o4tikj23BAmtqyXNuRpE",
-      "wrapped": "ZgpOQKHiSVnCSJoqnDM-WXGiX4VoPvSStPBW-TPO5u0HX57STHDKyg",
-      "created": "2026-11-19T09:00:00.000Z"
+      "salt": "9p0v_tE52PNdhoZRJiOTSpYPWrumUvbf_vTX3YhJ_YA",
+      "wrapped": "U_Mn4F7dq80XcJ_uZruYiREfZgcRQc66e8_dH3RSEd-Kr8LgQ1C4mw",
+      "created": "2026-11-19T09:36:00.000Z"
     },
     {
       "v": 1,

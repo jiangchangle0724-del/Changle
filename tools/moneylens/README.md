@@ -50,7 +50,9 @@ review by someone who did not write them before merging** (SEC-9).
 
 `tests/golden.ts` is a vault made once and stored. **Never regenerate it.** If it stops opening,
 the change that broke it would lock real users out of their vaults: the stored format and the
-passphrase normalization can only change with a new version that still reads the old one.
+passphrase normalization can only change with a new version that still reads the old one. (Its
+passphrase wrapper was made a second time before this code was first merged; the file's header
+says why. That was the last time.)
 
 There is no CSV parser for any bank yet. Each one is written from a synthetic sample of that
 bank's export (IMP-9) and added to `CSV_PARSERS` in `read.ts` with its fixtures and a
