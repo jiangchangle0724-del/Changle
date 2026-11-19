@@ -41,6 +41,14 @@ export type Person = {
 /** The time that was set. Set to part of a period (a gathering asked by the period), also its minutes: from, up to (not including) to. */
 export type Settled = { day: Day; part: Part; at: number; from?: number; to?: number };
 
+/**
+ * Who has a gathering's page open right now, as one phone is told it (that phone itself left out):
+ * the rows of the phones that have one, in the order people joined; how many have none; and
+ * whether a host's phone is among those. `at`: when the server worked it out, so a phone keeps the
+ * newest it was told.
+ */
+export type Here = { at: number; ids: string[]; others: number; host: boolean };
+
 /** Everything a phone is shown. Nothing here is secret: everyone sees everyone's answers. */
 export type EventState = {
   code: string;

@@ -10,9 +10,14 @@ import { cleanInvited, INVITED_MAX } from "../engine/invited";
 import { cleanTimes, isWhole, MIN_SPAN } from "../engine/minutes";
 import { cleanAnswers, cleanDays, parseSlot, partRange, slotsOf } from "../engine/slots";
 import { cleanText } from "../engine/text";
-import type { Day, EventState, Grain, Person, SlotKey } from "../engine/types";
+import type { Day, EventState, Grain, Here, Person, SlotKey } from "../engine/types";
 
 export const MAX_PEOPLE = 40;
+/**
+ * A phone with the page open pings every 30 seconds. One not heard from for this long has gone
+ * (out of signal, its battery flat) without saying goodbye, and isn't counted as watching.
+ */
+export const QUIET_MS = 75_000;
 export const NAME_MAX = 16;
 export const TITLE_MAX = 40;
 /** A gathering and everything in it is deleted this long after it was made. */
@@ -117,6 +122,26 @@ export class EventRoom {
     if (!keyHash) return null;
     for (const row of this.rows.values()) if (row.keyHash === keyHash) return row.id;
     return null;
+  }
+
+  /**
+   * Who has the page open, as the phone with key `you` is told it: everyone else whose phone was
+   * heard from in the last QUIET_MS. A phone with the page open twice counts once. A phone with a
+   * row is shown by that row; one without is counted, and said to be a host's when it is one.
+   */
+  here(watching: readonly { key: string; seen: number }[], you: string | null, now: number): Here {
+    const keys = new Set(watching.filter((w) => w.key !== you && now - w.seen <= QUIET_MS).map((w) => w.key));
+    const rows = new Set<string>();
+    let others = 0;
+    let host = false;
+    for (const key of keys) {
+      const id = this.rowOf(key);
+      if (id) rows.add(id);
+      else if (!host && this.isHost(key)) host = true;
+      else others += 1;
+    }
+    // in the order people joined, as everywhere on the page
+    return { at: now, ids: [...this.rows.keys()].filter((id) => rows.has(id)), others, host };
   }
 
   /**

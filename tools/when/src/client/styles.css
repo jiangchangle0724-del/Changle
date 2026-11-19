@@ -518,6 +518,55 @@ textarea {
 .meta-deadline[data-late] {
   color: var(--color-warning);
 }
+/* 谁在看: who else has the page open. Always one line, so nothing below it moves when people come
+   and go; the dot is lit while anyone else is here. For a few seconds after one of them fills in,
+   it says that instead, with a tick that pops in. */
+.here {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: calc(var(--text-sm) * var(--leading));
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.here::before {
+  content: "";
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-text-3);
+  transition: background-color var(--dur-enter) var(--ease-out);
+}
+.here[data-on]::before {
+  background: var(--color-success);
+}
+.here-who,
+.here-done span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.here-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-success);
+  font-weight: 700;
+  animation: rise var(--dur-enter) var(--ease-out);
+}
+.here-done svg {
+  flex: none;
+  animation: pop var(--dur-emphasis) var(--ease-pop);
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
 /* the time that was set: the one lit thing on the page */
 .set {
   display: flex;
@@ -911,7 +960,9 @@ button.grid-date b {
 }
 
 /* the best three */
+/* positioned, so its items measure where they stand within it when they change places (ui/Moving.tsx) */
 .best {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -1264,6 +1315,10 @@ html.has-sheet body {
   .btn:active:not(:disabled),
   .cell:active {
     transform: none;
+  }
+  /* the tick of 填好了 just appears */
+  .here-done svg {
+    animation: none;
   }
 }
 
