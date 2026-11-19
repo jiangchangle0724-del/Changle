@@ -4,7 +4,8 @@
 // address starts there at once. They walk the way the
 // passers-by walk (the same plans, crowdStep in the rules: at the night market that takes them to the
 // stalls, where they taste like a player), stop for the ferry horn, the busker, the gong or the
-// fireworks a beat after it like everyone, step out of the seawall's bike's way and watch it go by, get
+// fireworks a beat after it like everyone, freeze in the theatre's follow spot, step out of the seawall's
+// bike's way and watch it go by, get
 // clear of the night market's firecrackers, punch on the
 // theatre's call with the whole crowd (at whoever they suspect, if they're in reach), and turn to look
 // at a knockdown near them. They go after
@@ -17,7 +18,7 @@
 // for a few seconds, walking like a passer-by, as a player would (without it the rivals punched each
 // other round after round in a chain, and a round was over in 45 s). Each uses both its distractions a
 // round itself. No server, no penalty.
-import { ARENAS, crowdMoment, crowdStep, DRILL_GO_MS, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
+import { ARENAS, crowdMoment, crowdStep, DRILL_GO_MS, inSpot, sweepSpot, environmentalDrift, NPC_SPEED, PLAYER_SPEED, PUNCH_ARC, PUNCH_RANGE, SIMULATION_STEP_MS, stallAt, type Character, type MatchState, type Plan, type Vector } from "../engine";
 import type { ArenaId } from "../engine";
 import type { ClientMsg, Lang, ServerMsg } from "../room/protocol";
 import { Room } from "../room/room";
@@ -40,6 +41,8 @@ const LIE_LOW_SPREAD_MS = 3_000;
 const DRILL_EARLY_MS = 400;
 const DRILL_LOOK_MS = 520;
 const DRILL_STOOD = 24;
+/** the theatre's follow spot: a body it has lit this long has had time to freeze */
+const SPOT_SETTLE_MS = 350;
 /** the seawall's bike: by this long into its moment every passer-by has stepped out of its way (the latest hears its bell 2.8 s in) */
 const BIKE_SETTLED_MS = 3_300;
 
@@ -141,7 +144,9 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
       runningFor.set(at, running);
       const punching = body.pose === "windup" || body.pose === "punch";
       if (punching && withTheCrowd) drillPunched.add(at);
-      const tell = punching && !withTheCrowd ? 4 : watching && speed > 2 ? 2 : running > LONG_RUN_MS ? 1 : 0;
+      // (the theatre's follow spot: everyone it lands on freezes, so moving in its light gives a body away)
+      const lit = moment?.kind === "spot" && inSpot(body, sweepSpot(game.seed, game.startedAt, moment.startsAt), now - SPOT_SETTLE_MS);
+      const tell = punching && !withTheCrowd ? 4 : lit && speed > 2 ? 3 : watching && speed > 2 && moment?.kind !== "spot" ? 2 : running > LONG_RUN_MS ? 1 : 0;
       suspicion.set(at, Math.max(0, (suspicion.get(at) ?? 0) * 0.985 + tell));
     });
     // a moment after the call, whoever stood there without punching (and could have) gives themselves away
