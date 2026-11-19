@@ -834,9 +834,9 @@ def t_limbo_moving_single(browser):
     pg.get_by_role("button", name="准备好了").click()
     pg.wait_for_selector(".lb .gauge[data-band]", timeout=6000)
     t0 = time.time()
-    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 9000), "Mia stands still: she loses it")
+    ok(until(lambda: pg.locator(".lb-verdict").count() == 1, 12000), "Mia stands still: she loses it")
     took = time.time() - t0
-    ok("跟丢了" in pg.locator(".lb-verdict").inner_text() and 3.5 < took < 6.5, f"caught it at its top, then two seconds after it left her, out ({took:.1f}s in)")
+    ok("跟丢了" in pg.locator(".lb-verdict").inner_text() and 4.5 < took < 8.0, f"caught it at its top, then three seconds after it left her, out ({took:.1f}s in)")
     pg.get_by_role("button", name="这一杆结束").click()
     pg.wait_for_timeout(600)
     clear_stamps([pg])
@@ -1127,7 +1127,7 @@ def t_limbo_moving_online(browser):
     ok(until(lambda: all(g.locator(".gauge[data-band]").count() for g in everyone), 6000), "both phones follow it")
     mia = me(guests[0])
     guests[0].evaluate("() => { window.__auto = false; }")
-    ok(until(lambda: mia in view(host)["failed"], 9000), "Mia stops following: two seconds after the bar leaves her, she lost it")
+    ok(until(lambda: mia in view(host)["failed"], 12000), "Mia stops following: three seconds after the bar leaves her, she lost it")
     ok(view(host)["best"].get(mia, 0) >= 8, f"how deep she followed it counts ({view(host)['best'].get(mia)})")
     still_moving = time.time() * 1000 < v["startAt"] + v["bar"]["moveMs"] - 1000
     ok(not still_moving or me(host) not in view(host)["passed"], "nobody has kept up while it still moves")

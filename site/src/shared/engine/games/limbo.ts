@@ -47,13 +47,15 @@ export const MOVE_LEAD_MS = 1500;
 const MOVE_SWING = 20;
 /**
  * Moving bar: within this many degrees of it you're with it; away from it for longer than LOST_MS,
- * you're out. Two seconds, because the player hears the bar rather than seeing it (the phone is on
- * their chest) and needs time to move after the cue; one second lost people before they could react.
+ * you're out. Three seconds, because the player hears the bar rather than seeing it (the phone is
+ * on their chest) and needs time to move after the cue: one second lost people before they could
+ * react, and two was still too tight (Steve, 2026-11-12 and 11-19). The band stays 12 degrees: any
+ * wider and the first bar's small sway never leaves it, so standing still would do.
  */
 export const FOLLOW_DEG = 12;
-export const LOST_MS = 2000;
+export const LOST_MS = 3000;
 /** Moving bar: the grace clock only runs once you've caught the bar (been with it once), or from this long in if you never do. */
-export const CATCH_MS = 4500;
+export const CATCH_MS = 6000;
 /** Moving bar: once it stops, this long for the phones to say how it went and for the host to judge. */
 const MOVE_TAIL_MS = 5000;
 

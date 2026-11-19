@@ -119,6 +119,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
           ? coaching("moving", { lean: follow.lean, target: follow.at, lost: follow.lost })
           : coaching(kind, { lean: pose.lean, target: v.angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt }),
     grid,
+    zh ? "zh" : "en",
   );
   const lastSent = useRef(0);
 
@@ -163,8 +164,8 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
       </p>
       <p>
         {zh
-          ? "主人开始前还可以选别的玩法。稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 2 秒就出局，每部手机上的横杆都在同一个位置。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。"
-          : "The host can pick another way to play before the game. Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down, in the same place on every phone; follow it down and back up, and lose it for over two seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random."}
+          ? "主人开始前还可以选别的玩法。稳住：仰到位以后要一动不动撑住，一晃就重来，每杆要撑的时间更长。跟着动的杆：横杆上下浮动，要跟着它仰下去又回来，跟丢超过 3 秒就出局，每部手机上的横杆都在同一个位置。歪着过：除了往后仰，还要往左或往右歪到指定角度，每杆方向随机。派对：每杆随机一种。"
+          : "The host can pick another way to play before the game. Hold steady: reach the bar, then hold dead still. Any wobble starts the hold again, and each bar is a longer hold. Moving bar: the bar floats up and down, in the same place on every phone; follow it down and back up, and lose it for over three seconds and you're out. Tilt through: lean back and also tilt left or right to the angle shown; the side is random each bar. Party: each bar is one of these or classic, at random."}
       </p>
       <p>
         {zh

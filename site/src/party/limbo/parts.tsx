@@ -420,7 +420,7 @@ export function variantLine(m: LimboKind | "party", zh: boolean) {
     case "steady":
       return zh ? "仰到横杆的角度以后一动不动撑住，一晃就重来。每杆要撑得更久。" : "Reach the bar's angle, then hold dead still. Any wobble starts the hold again, and each bar is longer.";
     case "moving":
-      return zh ? "横杆上下浮动，跟着它仰下去又回来。跟丢超过 2 秒就出局。" : "The bar floats up and down: follow it down and back up. Lose it for over two seconds and you're out.";
+      return zh ? "横杆上下浮动，跟着它仰下去又回来。跟丢超过 3 秒就出局。" : "The bar floats up and down: follow it down and back up. Lose it for over three seconds and you're out.";
     case "tilt":
       return zh ? "往后仰的同时往左或往右歪到指定角度，每杆方向随机。" : "Lean back and tilt left or right to the angle shown. The side is random each bar.";
     case "party":
@@ -436,7 +436,7 @@ export function variantSteps(m: Exclude<LimboKind, "classic"> | "party", zh: boo
     case "steady":
       return zh ? ["仰到横杆的角度，然后一动不动", "一晃就重来，每杆要撑得更久"] : ["Lean back to the bar's angle, then keep dead still", "Any wobble starts the hold again. Each bar is longer."];
     case "moving":
-      return zh ? ["横杆上下浮动，跟着它仰下去又回来", "跟丢超过 2 秒就出局"] : ["The bar floats up and down: follow it down and back up", "Lose it for over two seconds and you're out"];
+      return zh ? ["横杆上下浮动，跟着它仰下去又回来", "跟丢超过 3 秒就出局"] : ["The bar floats up and down: follow it down and back up", "Lose it for over three seconds and you're out"];
     case "tilt":
       return zh ? ["往后仰到横杆的角度，同时往左或往右歪", "每杆方向随机，看清箭头"] : ["Lean back to the bar's angle and tilt left or right too", "The side is random each bar: watch the arrow"];
     case "party":
@@ -487,7 +487,7 @@ export function barHow(bar: LimboBar, angle: number, zh: boolean, heard = true) 
     case "steady":
       return phone + (zh ? `仰到 ${angle}° 以后一动不动撑住 ${secs(bar.hold)} 秒，一晃就重来。` : `Lean back to ${angle}°, then hold dead still for ${secs(bar.hold)} seconds. Any wobble starts it again.`) + ear;
     case "moving":
-      return phone + (zh ? `横杆在 ${angle - bar.swing}° 到 ${angle}° 之间上下浮动，跟着它。跟丢超过 2 秒就出局。` : `The bar floats between ${angle - bar.swing}° and ${angle}°: follow it. Lose it for over two seconds and you're out.`) + ear;
+      return phone + (zh ? `横杆在 ${angle - bar.swing}° 到 ${angle}° 之间上下浮动，跟着它。跟丢超过 3 秒就出局。` : `The bar floats between ${angle - bar.swing}° and ${angle}°: follow it. Lose it for over three seconds and you're out.`) + ear;
     case "tilt":
       return phone + (zh ? `往后仰到 ${angle}°，同时往${dir}歪 ${Math.abs(bar.side)}°。` : `Lean back to ${angle}° and tilt ${dir} ${Math.abs(bar.side)}° at the same time.`) + ear;
     default:
