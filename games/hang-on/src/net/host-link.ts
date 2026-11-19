@@ -84,9 +84,11 @@ export class HostLink {
     readonly code: string,
     private readonly ev: HostLinkEvents = {},
     base = location.origin,
+    /** 主机的钥匙（A15）：同一台设备刷新还是它，别的设备在主机在线时进不来。 */
+    key?: string,
   ) {
     this.sock = new RoomSocket(
-      () => wsUrl(code, { role: 'host' }, base),
+      () => wsUrl(code, key ? { role: 'host', key } : { role: 'host' }, base),
       (m) => this.onMsg(m),
       (open) => this.ev.onSocket?.(open),
     );

@@ -26,7 +26,7 @@ import type { Level } from '../physics/level';
 import { createSim, type GameMode, type PadInput, type Rules, type Sim, type SimEvent } from '../physics/world';
 import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
-import { CAST_MS, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Menu, type PadCmd, type Phase, type RoomView } from '../net/protocol';
+import { CAST_MS, CODE_RE, HOST_KEY_RE, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Menu, type PadCmd, type Phase, type RoomView } from '../net/protocol';
 import { encodeSnap, EventWindow } from '../net/snap';
 import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
@@ -50,6 +50,32 @@ const params = new URLSearchParams(location.search);
 const phoneMode =
   params.get('phone') === '1' || (params.get('phone') !== '0' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600);
 document.body.classList.toggle('phone', phoneMode);
+/**
+ * 联机桌（A15，CONTRACTS「联机桌」）：桌子已经开好房、把码带来（`?room=CODE`），这页接管它，不自己开；
+ * `?table=桌号` 时顶栏多一个「回到桌上」：按两下结束这局（所有手机跟着回去）、回桌子（手机局回 `/t/桌号`，
+ * 大屏回 `/tv/桌号`），走之前在 sessionStorage 留 `hangon.over`（大屏是 `hangon.over.tv`）= 房间码，桌子看到就收桌。
+ */
+const tableRoom = ((c: string) => (CODE_RE.test(c) ? c : null))((params.get('room') ?? '').toUpperCase());
+const tableNo = ((t: string) => (/^[A-Za-z0-9]{1,8}$/.test(t) ? t.toUpperCase() : null))(params.get('table') ?? '');
+document.body.classList.toggle('table', !!tableNo);
+/** 这台设备当这个房间主机的钥匙：按房间码存在 sessionStorage，刷新还是同一把；别的设备在主机在线时进不来。 */
+function hostKey(code: string): string {
+  const k = `hang-on:host:${code}`;
+  try {
+    const old = sessionStorage.getItem(k);
+    if (old && HOST_KEY_RE.test(old)) return old;
+  } catch {
+    // 没有 sessionStorage：每次一把新的
+  }
+  const abc = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const key = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => abc[b % abc.length]).join('');
+  try {
+    sessionStorage.setItem(k, key);
+  } catch {
+    // 同上
+  }
+  return key;
+}
 /**
  * 触屏开的电视局：手机或平板接电视（投屏）当大屏，大家的手机当手柄。没有键盘，底下那条键盘说明、
  * 「键盘加入」「绕路模式」都不出；开局时和手机局一样全屏、横过来、不让屏幕睡着（睡了电视上就没了）。
@@ -290,11 +316,16 @@ function renderModes(): void {
 }
 
 // ---------- 房间 ----------
+/** 桌子带来的房只接管一次；结束以后「再开一个房间」开新的。 */
+let tableTaken = false;
 async function start(): Promise<void> {
   $('fatal').hidden = true;
+  lastFatal = null;
   document.body.dataset.phase = phase;
   link?.close();
-  const code = await openRoom(location.origin, { hostPlays: phoneMode });
+  const fromTable = !!tableRoom && !tableTaken;
+  tableTaken = true;
+  const code = fromTable && tableRoom ? tableRoom : await openRoom(location.origin, { hostPlays: phoneMode });
   $('code').textContent = code;
   $('codeBig').textContent = code;
   $('codeSide').textContent = code;
@@ -305,37 +336,49 @@ async function start(): Promise<void> {
   qr.addData(joinUrl);
   qr.make();
   $('qr').innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
-  link = new HostLink(code, {
-    onRoom: (r) => {
-      room = r;
-      if (r.phase !== phase) onPhase(r.phase);
-      syncPlayers();
-      renderLobby();
-      renderLatency();
+  link = new HostLink(
+    code,
+    {
+      onRoom: (r) => {
+        // 桌子开的房：手机局还是电视局听房间的（桌上没大屏时开的是手机局），对不上就换过来重开这页
+        if (fromTable && !!r.hostPlays !== phoneMode) {
+          const q = new URLSearchParams(location.search);
+          q.set('phone', r.hostPlays ? '1' : '0');
+          location.replace(`${location.pathname}?${q.toString()}`);
+          return;
+        }
+        room = r;
+        if (r.phase !== phase) onPhase(r.phase);
+        syncPlayers();
+        renderLobby();
+        renderLatency();
+      },
+      onPeers: () => {
+        // 手机局：有人（重新）连上或换了路，马上补一份样子名单，别等下一个 2 秒；菜单也是
+        castDirty = true;
+        menuDirty = true;
+        renderLobby();
+        renderLatency();
+      },
+      onLook: () => {
+        syncPlayers();
+        renderLobby();
+      },
+      onItem: () => {
+        syncPlayers();
+        renderLobby();
+      },
+      onCmd: (_peer, c) => runCmd(c),
+      onFatal: (key) => fatal(key),
+      onSocket: (open) => {
+        socketDown = !open;
+        renderNote();
+        renderLobby();
+      },
     },
-    onPeers: () => {
-      // 手机局：有人（重新）连上或换了路，马上补一份样子名单，别等下一个 2 秒；菜单也是
-      castDirty = true;
-      menuDirty = true;
-      renderLobby();
-      renderLatency();
-    },
-    onLook: () => {
-      syncPlayers();
-      renderLobby();
-    },
-    onItem: () => {
-      syncPlayers();
-      renderLobby();
-    },
-    onCmd: (_peer, c) => runCmd(c),
-    onFatal: (key) => fatal(key),
-    onSocket: (open) => {
-      socketDown = !open;
-      renderNote();
-      renderLobby();
-    },
-  });
+    location.origin,
+    hostKey(code),
+  );
   link.forceRelay = forceRelay;
   $('lobby').hidden = false;
   renderLobby();
@@ -344,8 +387,10 @@ async function start(): Promise<void> {
 let socketDown = false;
 function renderNote(): void {
   // 手机局屏幕小、触屏开的电视局没有键盘：底下那条只在断线时出来
-  $('note').classList.toggle('quiet', (phoneMode || touchHost) && !socketDown);
-  $('note').innerHTML = socketDown
+  // 房间已经关了（fatal 那张卡在说为什么）就不再说「正在重连」
+  const down = socketDown && !lastFatal;
+  $('note').classList.toggle('quiet', (phoneMode || touchHost) && !down);
+  $('note').innerHTML = down
     ? tr('和房间的连接断了，正在重连……', 'Lost the room connection. Reconnecting…')
     : phoneMode || touchHost
       ? ''
@@ -366,7 +411,7 @@ function fatalLine(key: FatalKey): string {
     case 'kicked':
       return tr('被请出去了。', 'Removed from the room.');
     case 'hostTaken':
-      return tr('已经有一台主机在这个房间里。', 'Another computer is already hosting this room.');
+      return tr('这局已经在另一台设备上开着了（一局只能有一个大屏）。', 'This game is already running on another device (one big screen per game).');
     default:
       return tr('请求不对。', 'Bad request.');
   }
@@ -374,8 +419,17 @@ function fatalLine(key: FatalKey): string {
 
 function fatal(key: FatalKey): void {
   lastFatal = key;
+  renderNote();
   $('fatalLine').textContent = fatalLine(key);
   $('fatal').hidden = false;
+  // 联机桌上：不再开新房，回桌子；这局没了（结束、房间不在）就留个记号，过一会儿自己回去
+  $('reopenBtn').hidden = !!tableNo;
+  $('fatalTableBtn').hidden = !tableNo;
+  if (tableNo && (key === 'ended' || key === 'noRoom')) {
+    const code = link?.code ?? tableRoom;
+    if (code) markOver(code);
+    setTimeout(() => location.assign(tableHome()), 2500);
+  }
   $('lobby').hidden = true;
   $('countdown').hidden = true;
   $('results').hidden = true;
@@ -384,6 +438,44 @@ function fatal(key: FatalKey): void {
   music.setPhase('off');
 }
 $('reopenBtn').addEventListener('click', () => void start());
+
+// ---------- 联机桌（A15） ----------
+/** 回桌子的地方：手机局是这部手机在桌上的那一页，电视局是桌子的大屏页。另一台设备占着（hostTaken）的回 `/t/`。 */
+const tableHome = (): string => `/${phoneMode || lastFatal === 'hostTaken' ? 't' : 'tv'}/${tableNo ?? ''}`;
+function markOver(code: string): void {
+  try {
+    sessionStorage.setItem(phoneMode ? 'hangon.over' : 'hangon.over.tv', code);
+  } catch {
+    // 没有 sessionStorage：桌子那边主人自己收桌
+  }
+}
+/** 结束这局（END：所有手机都收到「这局结束了」、各自回桌子），留下记号，回桌子。 */
+function backToTable(end: boolean): void {
+  if (!tableNo) return;
+  const code = link?.code ?? tableRoom;
+  if (end) link?.act({ type: 'END' });
+  if (code && lastFatal !== 'hostTaken') markOver(code);
+  setTimeout(() => location.assign(tableHome()), end ? 400 : 0);
+}
+const tableBtn = $<HTMLButtonElement>('tableBtn');
+tableBtn.hidden = !tableNo;
+let tableArmed: ReturnType<typeof setTimeout> | null = null;
+function renderTableBtn(): void {
+  tableBtn.textContent = tableArmed ? tr('再按一下：结束这局，回到桌上', 'Tap again: end the game, back to the table') : tr('回到桌上', 'Back to the table');
+  tableBtn.classList.toggle('armed', !!tableArmed);
+}
+tableBtn.addEventListener('click', () => {
+  if (!tableArmed) {
+    tableArmed = setTimeout(() => {
+      tableArmed = null;
+      renderTableBtn();
+    }, 3000);
+    renderTableBtn();
+    return;
+  }
+  backToTable(true);
+});
+$('fatalTableBtn').addEventListener('click', () => backToTable(false));
 
 // ---------- 阶段 ----------
 function onPhase(next: Phase): void {
@@ -613,7 +705,8 @@ $('muteBtn').addEventListener('click', () => {
 });
 // 触屏设备上可以在两种局之间换（猜错了的时候，比如平板）：换了就重新开房
 const modeBtn = $<HTMLButtonElement>('modeBtn');
-modeBtn.hidden = !matchMedia('(pointer: coarse)').matches;
+// 联机桌上手机局还是电视局是桌子定的（桌上有没有大屏），不在这里换
+modeBtn.hidden = !matchMedia('(pointer: coarse)').matches || !!tableNo;
 // 触屏开的电视局没有键盘：键盘加入、绕路模式（测试用）都不出
 $('kbBtn').hidden = $('relayBtn').hidden = touchHost;
 modeBtn.addEventListener('click', () => {
@@ -622,6 +715,7 @@ modeBtn.addEventListener('click', () => {
   location.search = q.toString();
 });
 function renderButtons(): void {
+  if (tableNo) renderTableBtn();
   modeBtn.textContent = phoneMode ? tr('改成电视局', 'Use a TV instead') : tr('改成手机局', 'Phones only');
   modeBtn.title = phoneMode
     ? tr('这台设备接电视当大屏，大家的手机当手柄', 'This device goes on the TV as the big screen; phones are controllers')

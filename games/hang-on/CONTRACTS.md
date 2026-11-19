@@ -65,6 +65,17 @@ type PadInput = {
 
 手机局的房间：开房时 `POST /hang-on/api/rooms` 带 `{"hostPlays":true}`。房主自己占一个人和 0 号颜色，手柄最多 5 个、颜色从 1 号起；`RoomView.hostPlays` 让每部手机知道这是手机局。
 
+## 联机桌契约（A15，11-19，房间与联机对话 #654 的约定）
+
+抓紧了在 changle.ca 的联机桌（`/t/桌号`）上能选（`site/src/shared/protocol.ts` 的 `ONLINE_GAMES` 最后一个，桌子那边在 `site/src/party/hangon/link.ts`、`site/src/party/stage/`）。
+
+- 开房的是桌子：桌上有大屏（电视的 `/tv/桌号` 或只看的手机）时主人的手机 `POST /hang-on/api/rooms` 发 `{}`，所有手机去手柄页 `/hang-on/pad/?code=CODE&auto=1&table=桌号`（名字在 `hang-on:name`、语言在 `hang-on:lang`，不出表单），大屏去主机页 `/hang-on/?phone=0&room=CODE&table=桌号`；没有大屏时发 `{ hostPlays: true }`，主人的手机去 `/hang-on/?phone=1&room=CODE&table=桌号`（手机局，自己也玩），别人去手柄页。
+- 主机页带 `?room=CODE` 就接管这个房，不自己开（只接管一次，结束以后「再开一个房间」才开新的）；手机局还是电视局听房间的 `hostPlays`，和 `?phone=` 对不上就换过来重开这页。桌上的主机页不出「改成手机局 / 电视局」那个键。
+- 一局只有一个大屏：主机页连房间时带一把钥匙（`?role=host&key=…`，按房间码存在 sessionStorage，刷新还是同一把）。主机在线时另一台设备再开主机页（比如只看的手机也点了「打开大屏」）是 `hostTaken`，那页说「这局已经在另一台设备上开着了」，给「回到桌上」；主机掉线了谁都能接。没带钥匙的老页面照旧放行。
+- 回桌子（`?table=桌号`）：主机页顶栏「回到桌上」按两下（第一下变红，3 秒内再按）结束这局：发 `END`（所有手柄都收到「这局结束了」），留下 `sessionStorage["hangon.over"]`（大屏上是 `hangon.over.tv`）= 房间码，再回去：手机局回 `/t/桌号`，大屏回 `/tv/桌号`（照藏在人群里）。手柄页加入那页有「回到桌上」，玩的时候顶栏「回桌上」按两下：只是自己走，这局照玩，桌上能「回到这局」。这局结束了（`ended`、房间没了 `noRoom`），手柄页留 `hangon.over` 再过 2.5 秒自己回桌子；主机页同样（被别的设备占着的那页不留记号，回 `/t/桌号`）。
+- 状态接口 `GET /hang-on/api/rooms/CODE` → `{ exists, phase: "lobby" | "playing" | "over" }`：倒数、玩、结算都算 playing；主机按了结束、主机 30 秒没回来是 over；没开过、收掉了、闲太久是 `{ exists: false, phase: "over" }`。桌上回来的手机每 8 秒问一次，over 了桌子就收桌。
+- 本地验：`site/scripts/hangon_table_check.py`（要本地跑房间服务器、主站和 8792 口的抓紧了，见 HANDOFF.md「Run the site locally」）。
+
 ## 手机局契约（11-11 Steve 定的「不要电脑，每人手机上都有画面」）
 
 - 在手机上打开主机页（触屏、屏幕短边不到 600）就是手机局；`?phone=1` 强开、`?phone=0` 强关，大厅里触屏设备有一个键在两种局之间换。

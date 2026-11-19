@@ -8,9 +8,10 @@ import { openRoom, write, type StageLink } from "../stage/link";
  * `/hang-on/pad/?code=CODE&auto=1`, with its name in `hang-on:name`; the stage is the host page,
  * `/hang-on/` on a big screen or `/hang-on/?phone=1` on the host's own phone when it plays too.
  *
- * Not on the table's list of games yet (ONLINE_GAMES): the host page always opens a room of its own
- * and can't take over the one the table opened. docs/briefs/hang-on.md asks the hang-on chat for
- * `?room=CODE` (and `?table=` for the way back); the addresses below already carry both.
+ * The host page takes over the room the table opened (`?room=CODE`; only one device at a time can be its
+ * host, so a phone that only watches can't start a second one), and `?table=` is its way back: the big
+ * screen to `/tv/<table>`, the phones to `/t/<table>`, with `sessionStorage["hangon.over"]` (`.tv` on the
+ * big screen) set first when the game is over. `GET /hang-on/api/rooms/CODE` says how the game is going.
  */
 const HANG_ON = "/hang-on";
 const CODE = /^[A-HJ-NP-Z2-9]{4}$/;
@@ -45,6 +46,19 @@ export const HANGON: StageLink = {
     if (clean) write("hang-on:name", clean);
     write("hang-on:lang", lang);
   },
-  phase: null,
+  phase: hangOnPhase,
   hostFirst: false,
 };
+
+/** How a game is going, from its server: `{ exists, phase: lobby | playing | over }`. */
+export async function hangOnPhase(code: string): Promise<"lobby" | "playing" | "over" | "gone" | null> {
+  try {
+    const response = await fetch(`${HANG_ON}/api/rooms/${code}`);
+    if (!response.ok) return null;
+    const data = (await response.json()) as { exists?: boolean; phase?: string };
+    if (!data.exists) return "gone";
+    return data.phase === "lobby" || data.phase === "playing" || data.phase === "over" ? data.phase : null;
+  } catch {
+    return null;
+  }
+}

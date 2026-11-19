@@ -63,6 +63,12 @@ export type ClientMsg =
   | { t: 'relay'; to: RelayTo; data: LinkMsg };
 
 export type FatalKey = 'noRoom' | 'full' | 'ended' | 'badRequest' | 'kicked' | 'hostTaken';
+/**
+ * 主机的钥匙（A15）：主机页随手生成、按房间码存在 sessionStorage 里（刷新还是同一把），连房间时带上。
+ * 主机在线时只有同一把钥匙能再连上来（刷新），别的设备再开主机页是 hostTaken；主机掉线了谁都能接。
+ * 联机桌上大屏和只看的手机都可能打开主机页，这样不会有两台同时跑物理。
+ */
+export const HOST_KEY_RE = /^[A-Za-z0-9]{8,32}$/;
 
 export type ServerMsg =
   | { t: 'welcome'; role: Role; seat: string | null; code: string }

@@ -2,8 +2,8 @@
  * 房间逻辑，用手拨的时钟直接驱动：进出房、座位、阶段、转发、主机 30 秒不回来房间作废、座位宽限。
  */
 import { describe, expect, test } from 'vitest';
-import { HOST_GRACE_MS, PAD_GRACE_MS, type ServerMsg } from '../net/protocol';
-import { cleanName, makeCode, Room, type From, type Out } from './room';
+import { HOST_GRACE_MS, IDLE_MS, PAD_GRACE_MS, type ServerMsg } from '../net/protocol';
+import { cleanName, makeCode, NO_ROOM, Room, type From, type Out } from './room';
 
 const HOST: From = { role: 'host', seat: null };
 const WATCH: From = { role: 'watch', seat: null };
@@ -207,5 +207,52 @@ describe('手机局', () => {
     const view = r.view();
     expect(view.hostPlays).toBeUndefined();
     expect(view.seats.map((s) => s.color)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+});
+
+describe('联机桌问这局怎么样了（A15）', () => {
+  test('桌子开的房先没有主机，主机后来带房间码进来就接上', () => {
+    const { r } = room();
+    expect(r.status()).toEqual({ exists: true, phase: 'lobby' });
+    r.flush();
+    expect(r.connect(HOST)).toBeNull();
+    expect(lastRoom(r.flush().out)?.hostConnected).toBe(true);
+  });
+  test('只有一台主机：主机在线时换一把钥匙进不来（hostTaken），同一把能再连（刷新）；主机掉线了谁都能接', () => {
+    const { r } = room();
+    expect(r.connect(HOST, undefined, 'tvkey0001')).toBeNull();
+    expect(r.connect(HOST, undefined, 'phonekey01')).toBe('hostTaken');
+    expect(r.connect(HOST, undefined, 'tvkey0001')).toBeNull();
+    // 没带钥匙的老页面照旧放行
+    expect(r.connect(HOST)).toBeNull();
+    r.disconnect(HOST);
+    expect(r.connect(HOST, undefined, 'phonekey01')).toBeNull();
+    expect(r.d.hostKey).toBe('phonekey01');
+    expect(r.connect(HOST, undefined, 'tvkey0001')).toBe('hostTaken');
+  });
+  test('大厅 → 在玩（倒数、玩、结算都算）→ 结束', () => {
+    const { r } = room();
+    r.connect(HOST);
+    const go = (type: 'START' | 'PLAY' | 'FINISH' | 'END') => r.handle(HOST, { t: 'act', action: { type } });
+    go('START');
+    expect(r.status().phase).toBe('playing');
+    go('PLAY');
+    expect(r.status().phase).toBe('playing');
+    go('FINISH');
+    expect(r.status()).toEqual({ exists: true, phase: 'playing' });
+    go('END');
+    expect(r.status()).toEqual({ exists: true, phase: 'over' });
+  });
+  test('主机 30 秒不回来、闲太久都算结束；没开过的房是 NO_ROOM', () => {
+    const a = room();
+    a.r.connect(HOST);
+    a.r.disconnect(HOST);
+    a.clock.advance(HOST_GRACE_MS);
+    a.r.tick();
+    expect(a.r.status().phase).toBe('over');
+    const b = room();
+    b.clock.advance(IDLE_MS);
+    expect(b.r.status()).toEqual({ exists: false, phase: 'over' });
+    expect(NO_ROOM).toEqual({ exists: false, phase: 'over' });
   });
 });
