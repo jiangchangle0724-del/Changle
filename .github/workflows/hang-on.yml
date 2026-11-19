@@ -17,7 +17,8 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 关多了（大关、多人关的乱按探路），验收加探路要十五分钟出头；公开仓库跑 CI 不花钱
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: games/hang-on
