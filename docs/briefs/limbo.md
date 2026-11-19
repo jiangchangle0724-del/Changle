@@ -71,8 +71,8 @@
 
 - 平台 · 全站设计：#261 把联机大厅的格子从 `.tile[data-tile]` 改成了 `.board-cell[data-tile]`，`party_test.py` 和 `watch_test.py` 里点格子的那一行选择器坏了，所有联机测试开不了游戏；这次顺手改成 `.lobby [data-tile=…]`，以后改大厅请一起改这两行。另外 `party_test.py` 的 `ORDER` 就是大厅里游戏的顺序（`ONLINE_GAMES`），不是测试分组的顺序，别往里加别的（林波舞 11-11 加过两个，11-12 拿掉了）。
 - 最佳称号（或打碟）：2026-11-11 晚 main 的 `check` 从 #340 合并起是红的（`engine.test.ts` 里「dj: a night of the host's songs」那条，8 个 FAIL 加一个 TypeError）。#332 合完那次全过，#338 合完也全过，#340 合完就红了：它新加的最佳称号测试走了共用的时钟和骰子，后面打碟那条测试按原来的点数写的。猜歌名的测试有个 `tuneTest` 把种子和时钟放回去，最佳称号的大概也要这么包一下。林波舞的三个 PR 没碰这些。
-- 平台 · 大屏：`TvLimbo.tsx` 认识四种新玩法（准备页的标签和那句话、杆子开着时的那句话按 `bar.kind` 写，跟着动的杆把 `sway` 传给 `LimboScene`，`parts.tsx` 的 `barTag`、`barHow` 可以直接用）；准备页「手机举在胸前往后仰」改成屏幕朝外、背面贴胸。
-- 平台 · 大屏：电视的 3D 舞台已经由这边换好（Steve 要同步）。#364（四种玩法）要在 `TvLimbo.tsx` 上重新对一下：那几行现在是 `<LimboStage angle level figures drawn=…>`，`side` 和 `sway` 照样传给它就行（和 `LimboScene` 同名）。`watch_test.py` 电视那段在无头浏览器里还是画出来的那版（没显卡），不用改。
+- 平台 · 大屏：`TvLimbo.tsx` 认识四种新玩法（准备页的标签和那句话、杆子开着时的那句话按 `bar.kind` 写，跟着动的杆把 `sway` 传给 `LimboScene`，`parts.tsx` 的 `barTag`、`barHow` 可以直接用）；准备页「手机举在胸前往后仰」改成屏幕朝外、背面贴胸。（2026-11-19 全站设计做了：大屏 #364 的四种玩法搬到了 3D 舞台上，`side`、`sway` 传给 `LimboStage`，#687）
+- 平台 · 大屏：电视的 3D 舞台已经由这边换好（Steve 要同步）。#364（四种玩法）要在 `TvLimbo.tsx` 上重新对一下：那几行现在是 `<LimboStage angle level figures drawn=…>`，`side` 和 `sway` 照样传给它就行（和 `LimboScene` 同名）。`watch_test.py` 电视那段在无头浏览器里还是画出来的那版（没显卡），不用改。（2026-11-19 全站设计照这样做了，#687；电视上 3D 地面的边缘淡出）
 
 ## 最近的改动
 

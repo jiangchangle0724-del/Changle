@@ -108,6 +108,76 @@
   filter: saturate(0.4) brightness(0.8);
 }
 
+/* the music cuts: a white flash that settles into ice, and snowflakes spinning in (as on the phones) */
+.tvfz-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--gel) 12%, transparent);
+  animation: tvfz-flash 0.7s ease-out both;
+}
+@keyframes tvfz-flash {
+  from {
+    background: color-mix(in oklab, var(--moon) 90%, transparent);
+  }
+}
+.tvfz-flakes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.tvfz-flake {
+  position: absolute;
+  color: color-mix(in oklab, var(--gel) 70%, var(--moon));
+  opacity: 0.55;
+  animation: tvfz-flake 0.8s var(--ease-pop) both;
+}
+.tvfz-flake:nth-child(1) {
+  top: 14%;
+  left: 7%;
+}
+.tvfz-flake:nth-child(2) {
+  top: 18%;
+  right: 9%;
+  animation-delay: 0.05s;
+}
+.tvfz-flake:nth-child(3) {
+  top: 44%;
+  left: 3%;
+  animation-delay: 0.1s;
+}
+.tvfz-flake:nth-child(4) {
+  top: 40%;
+  right: 4%;
+  animation-delay: 0.15s;
+}
+.tvfz-flake:nth-child(5) {
+  top: 9%;
+  left: 30%;
+  animation-delay: 0.2s;
+}
+.tvfz-flake:nth-child(6) {
+  top: 11%;
+  right: 30%;
+  animation-delay: 0.25s;
+}
+.tvfz-flake:nth-child(7) {
+  top: 60%;
+  left: 12%;
+  animation-delay: 0.3s;
+}
+.tvfz-flake:nth-child(8) {
+  top: 58%;
+  right: 13%;
+  animation-delay: 0.35s;
+}
+@keyframes tvfz-flake {
+  from {
+    rotate: -90deg;
+    scale: 0;
+  }
+}
+
 /* everyone on the floor, large */
 .tvfz-dancers {
   position: absolute;
@@ -129,7 +199,9 @@
   .tvfz-dance,
   .tvfz-crown,
   .tvfz-big,
-  .tvfz-stop {
+  .tvfz-stop,
+  .tvfz-flash,
+  .tvfz-flake {
     animation: none;
   }
 }

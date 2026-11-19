@@ -1,4 +1,4 @@
-import { Flame } from "lucide-react";
+import { Eye, Flame } from "lucide-react";
 import { useEffect, useMemo, useRef, type CSSProperties } from "react";
 import { PorcelainDefs } from "../../components/Dish";
 import { polar } from "../../lib/geom";
@@ -135,17 +135,16 @@ export default function TvTruth({ v, sound }: TvViewProps<TruthView>) {
   );
 }
 
-/** The card under its silver cover: nothing of it shows until it's read out at the table. */
+/**
+ * The card under its cover, the phones' own (components/Cloche: the gel in stripes, an eye on it):
+ * nothing of the card shows here until it's read out at the table.
+ */
 function Cover({ kind }: { kind: "truth" | "dare" }) {
   return (
     <div className={`tvtd-cover is-${kind}`} aria-hidden="true">
-      <svg viewBox="0 0 300 170">
-        <ellipse cx={150} cy={150} rx={140} ry={16} fill="var(--dusk-3)" />
-        <path d="M 30 146 C 30 70 84 30 150 30 C 216 30 270 70 270 146 Z" fill="var(--haze)" />
-        <path d="M 52 140 C 56 86 96 52 150 50" fill="none" stroke="var(--moon)" strokeWidth={8} strokeLinecap="round" opacity={0.75} />
-        <rect x={136} y={16} width={28} height={16} rx={8} fill="var(--moon)" />
-        <rect x={24} y={142} width={252} height={8} rx={4} fill="var(--fog)" />
-      </svg>
+      <span className="tvtd-cover-mark">
+        <Eye size={56} strokeWidth={1.8} />
+      </span>
     </div>
   );
 }

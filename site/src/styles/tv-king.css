@@ -7,12 +7,20 @@
   --gold: var(--gel-honey);
 }
 
-/* ---------- drawing the sticks ---------- */
+/* ---------- drawing the sticks: the phones' cup on the left, who has looked on the right ---------- */
+.tvk-cup {
+  position: absolute;
+  left: 90px;
+  top: 190px;
+  width: 700px;
+  height: auto;
+  filter: drop-shadow(0 30px 40px color-mix(in oklab, var(--tvx-ink) 60%, transparent));
+}
 .tvk-top {
   position: absolute;
-  left: 120px;
-  right: 120px;
-  top: 150px;
+  left: 860px;
+  right: 80px;
+  top: 170px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -42,8 +50,8 @@
 }
 .tvk-line-up {
   position: absolute;
-  left: 80px;
-  right: 80px;
+  left: 860px;
+  right: 60px;
   bottom: 120px;
 }
 
@@ -77,7 +85,11 @@
   animation: tvx-pop 0.6s var(--ease-pop) 0.15s both;
 }
 .tvk-king {
-  margin-top: 40px;
+  width: 600px;
+  margin-top: 10px;
+}
+.tvk-king .moment {
+  --fig-h: 330px;
 }
 
 /* ---------- the order ---------- */

@@ -956,7 +956,7 @@ def t_rogue(t):
         v = view(t.tv)
         rank, phase = v["card"]["rank"], v["phase"]
         seen.add(rank)
-        ok(t.tv.locator(".tvr-title").count() == 1 and t.tv.locator(".rg-face").count() == 1, f"rogue: {rank} and its rule on the screens ({phase})")
+        ok(t.tv.locator(".tvr-title").count() == 1 and t.tv.locator(".tvr-card .rg-flyer").count() == 1, f"rogue: {rank} and its rule on the screens ({phase})")
         if "card" not in seen:
             seen.add("card")
             shot(t.screens, "rg-02-card")
@@ -1024,13 +1024,13 @@ def t_rogue(t):
             ok(until(lambda: view(t.tv)["phase"] == "done", 4000), f"rogue: {rank} done")
         clear_stamps(t.players)
         holders = view(t.host)["holders"]
-        if holders and "powers" not in seen and t.tv.locator(".tvr-powers li").count():
+        if holders and "powers" not in seen and t.tv.locator(".tvr-powers .rg-held").count():
             seen.add("powers")
             shot([t.tv], "rg-06-powers")
         if holders.get("camera") and "camera" not in seen:
             seen.add("camera")
             cam = by_pid(t, holders["camera"])
-            cam.get_by_role("button", name=L("照相机", "Camera")).click()
+            cam.locator("button.rg-held", has_text=L("拍照", "Shoot")).click()
             ok(until(lambda: t.tv.locator(".tvr-stop.is-camera").count() == 1, 3000), "rogue: the camera stops the whole screen")
             t.tv.wait_for_timeout(500)
             shot(t.screens, "rg-07-camera")
@@ -1041,7 +1041,7 @@ def t_rogue(t):
         if holders.get("nose") and "nose" not in seen:
             seen.add("nose")
             nose = by_pid(t, holders["nose"])
-            nose.get_by_role("button", name=L("摸鼻子", "Nose")).click()
+            nose.locator("button.rg-held", has_text=L("喊摸鼻子", "Call it")).click()
             ok(until(lambda: t.tv.locator(".tvr-stop.is-nose").count() == 1, 3000), "rogue: the nose stops the whole screen")
             others = [g for g in t.players if g is not nose]
 

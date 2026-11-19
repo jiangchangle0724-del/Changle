@@ -1,12 +1,14 @@
-import { Camera, Layers } from "lucide-react";
+import { Camera, Hand, Layers } from "lucide-react";
+import { useRef } from "react";
 import { RULE_BY_RANK, ruleWords, type Rank } from "../../data/rogue13";
-import { PlayingCard } from "../../games/Rogue13";
+import { HeldCard, RogueTable } from "../../games/rogueCards";
 import type { T } from "../../i18n";
 import type { RogueHolders, RogueView } from "../../shared/protocol";
 import { usePenaltyText } from "../../store";
 import { Bi, FacesIn, TvClock, TvShow, useLang, useSeats } from "../../tv/show";
 import type { TvViewProps } from "../../tv/views";
 import { SeatFace } from "../People";
+import { useTable } from "./NetRogue";
 import "../../styles/tv-rogue.css";
 
 const t = (zh: string, en: string): T => ({ zh, en });
@@ -22,10 +24,12 @@ const POWERS: [keyof RogueHolders, Rank][] = [
 const noop = () => {};
 
 /**
- * 流氓十三张 on the big screen: the card just drawn, large, with what it means; the deck and
- * whose turn; whatever the card starts (a garden of words, the race for numbers, counting
- * sevens) played out where the room can follow it; who holds which standing power; and the
- * camera and the nose, which stop the whole table, across the whole screen.
+ * 流氓十三张 on the big screen: the phones' own table, large (games/rogueCards.tsx): the deck
+ * with its stack, the card lifted off it and turned over, the pile beside, the riffle when the
+ * deck runs out, all at the moments the phones show them; what the card means; whose turn;
+ * whatever the card starts (a garden of words, the race for numbers, counting sevens) played out
+ * where the room can follow it; the standing powers as the phones' small cards; and the camera
+ * (its photo developing) and the nose, which stop the whole table, across the whole screen.
  */
 export default function TvRogue({ v, sound }: TvViewProps<RogueView>) {
   const { tx, tr } = useLang();
@@ -35,11 +39,19 @@ export default function TvRogue({ v, sound }: TvViewProps<RogueView>) {
   const words = rule ? ruleWords(rule, custom) : null;
   const drawing = v.phase === "draw";
   const who = drawing ? v.turn : v.drawer;
+  // the table as every phone deals it: a fresh deck's first card waits for the pile to gather and
+  // the deck to riffle (NetRogue.tsx)
+  const cardKey = v.card ? `${v.card.rank}${v.card.suit}-${v.left}` : "";
+  const openedOn = useRef(cardKey);
+  const table = useTable(v, cardKey, openedOn.current);
+  const up = !!v.card && !table.holding;
+  // while the table plays a round of the card, the rule steps back so the round fits (as on the phones)
+  const live = v.phase === "garden" || v.phase === "grab" || v.phase === "sevens";
 
   return (
     <TvShow game="rogue" className={`tvr is-${v.phase}`} phase={v.phase} round={<span className="tvr-left tabular"><Layers size={28} strokeWidth={2.4} aria-hidden="true" />{tx(`还剩 ${v.left} 张`, `${v.left} left`)}</span>}>
-      <div className="tvr-card" key={v.card ? `${v.card.rank}${v.card.suit}-${v.left}` : "back"}>
-        <PlayingCard card={drawing ? null : v.card} onDraw={noop} drawLabel="" canDraw={false} />
+      <div className="tvr-card">
+        <RogueTable card={up && v.card ? { rank: v.card.rank, suit: v.card.suit } : null} remaining={v.left} drawn={table.drawn} canDraw={false} onDraw={noop} drawLabel="" shuffling={table.shuffling} leaveTo={table.leaveTo} />
       </div>
 
       <div className="tvr-main">
@@ -47,12 +59,19 @@ export default function TvRogue({ v, sound }: TvViewProps<RogueView>) {
           {who && <SeatFace seat={seat(who)} size={64} />}
           <span>{drawing ? tx(`轮到 ${name(who)} 抽牌`, `${name(who)} draws next`) : tx(`${name(who)} 抽到`, `${name(who)} drew`)}</span>
         </p>
-        {!drawing && words ? (
+        {table.holding ? (
+          <div className="tvr-rule">
+            <h1 className="tvr-title">
+              <Bi t={t("新的一副牌", "A fresh deck")} />
+            </h1>
+            <p className="tvr-text">{tx("洗牌中……手上的权力都清空了", "Shuffling… every power is cleared")}</p>
+          </div>
+        ) : !drawing && words ? (
           <div className="tvr-rule" key={`${v.card?.rank}-${v.left}`}>
             <h1 className="tvr-title">
               <Bi t={words.title} />
             </h1>
-            <p className="tvr-text">{tr(words.rule)}</p>
+            {!live && <p className="tvr-text">{tr(words.rule)}</p>}
             {v.reshuffled && <p className="tvr-note">{tx("新的一副牌：手上的权力都清空了", "A fresh deck: every power is cleared")}</p>}
           </div>
         ) : (
@@ -66,7 +85,7 @@ export default function TvRogue({ v, sound }: TvViewProps<RogueView>) {
         <Panel v={v} sound={sound} />
       </div>
 
-      <Powers v={v} custom={custom} />
+      <Powers v={v} />
       <Interrupt v={v} sound={sound} />
     </TvShow>
   );
@@ -167,24 +186,29 @@ function Grab({ v, sound }: { v: RogueView; sound: boolean }) {
   );
 }
 
-/** Who holds which standing power, along the bottom. */
-function Powers({ v, custom }: { v: RogueView; custom: boolean }) {
-  const { tx, tr } = useLang();
+/** Who holds which standing power, along the bottom: the phones' small cards. */
+function Powers({ v }: { v: RogueView }) {
+  const { tx } = useLang();
   const { seat, name } = useSeats();
   const held = POWERS.filter(([k]) => v.holders[k]);
   if (!held.length) return null;
   return (
-    <ul className="tvr-powers" aria-label={tx("手上的权力", "Powers held")}>
+    <div className="tvr-powers rg-tray" role="list" aria-label={tx("手上的权力", "Powers held")}>
       {held.map(([k, rank]) => (
-        <li key={k} className={k === "wc" && v.wcUsed ? "is-used" : ""}>
-          <span className="tvr-power-rank">{rank}</span>
-          <span className="tvr-power-name">{tr(ruleWords(RULE_BY_RANK[rank], custom).badge ?? RULE_BY_RANK[rank].title)}</span>
-          <SeatFace seat={seat(v.holders[k])} size={40} />
-          <span className="tvr-power-who">{name(v.holders[k])}</span>
-          {k === "wc" && v.wcUsed && <span className="tvr-power-used">{tx("已用", "used")}</span>}
-        </li>
+        <div role="listitem" key={k}>
+          <HeldCard
+            rank={rank}
+            used={k === "wc" && v.wcUsed}
+            who={
+              <>
+                <SeatFace seat={seat(v.holders[k])} size={28} />
+                {name(v.holders[k])}
+              </>
+            }
+          />
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -196,22 +220,38 @@ function Interrupt({ v, sound }: { v: RogueView; sound: boolean }) {
   if (!it) return null;
   if (it.kind === "camera")
     return (
-      <div className={`tvr-stop is-camera is-${it.phase}`} key={`cam-${it.by}-${it.phase}`}>
+      <div className={`tvr-stop is-camera is-${it.phase}`} key={`cam-${it.by}`}>
         <i className="tvr-flash" aria-hidden="true" />
-        <div className="tvr-stop-card">
-          <Camera size={86} strokeWidth={2} aria-hidden="true" />
-          <Bi t={it.phase === "freeze" ? t("不许动！", "Freeze!") : t("谁动了？", "Who moved?")} />
-          <p className="tvr-stop-line">
-            <SeatFace seat={seat(it.by)} size={52} />
-            {it.phase === "freeze" ? tx(`${name(it.by)} 拍照`, `${name(it.by)} takes a picture`) : tx(`${name(it.by)} 来判`, `${name(it.by)} decides`)}
+        {/* the photo, developing, as on the phones: the table holds still until it's done */}
+        <div className="rg-photo tvr-photo" key={it.phase}>
+          <div className="rg-photo-pic">
+            {it.phase === "freeze" ? (
+              <>
+                <p className="tvr-photo-big">
+                  <Bi t={t("不许动！", "Freeze!")} />
+                </p>
+                <TvClock endsAt={it.endsAt} total={3500} sound={sound} size={96} />
+              </>
+            ) : (
+              <>
+                <Camera size={86} strokeWidth={2} aria-hidden="true" />
+                <p className="tvr-photo-big">
+                  <Bi t={t("谁动了？", "Who moved?")} />
+                </p>
+              </>
+            )}
+          </div>
+          <p className="rg-photo-line tvr-photo-line">
+            <SeatFace seat={seat(it.by)} size={44} />
+            {it.phase === "freeze" ? tx(`${name(it.by)} 拍照了，别动`, `${name(it.by)} took a photo. Don't move.`) : tx(`${name(it.by)} 在看照片，看谁动了`, `${name(it.by)} is checking who moved`)}
           </p>
-          {it.phase === "freeze" && <TvClock endsAt={it.endsAt} total={3500} sound={sound} size={96} />}
         </div>
       </div>
     );
   return (
     <div className="tvr-stop is-nose" key={`nose-${it.by}`}>
       <div className="tvr-stop-card">
+        <Hand size={96} strokeWidth={2} className="rg-wiggle" aria-hidden="true" />
         <Bi t={t("摸鼻子！", "Touch your nose!")} />
         <p className="tvr-stop-line">
           <SeatFace seat={seat(it.by)} size={52} />
