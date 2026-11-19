@@ -41,5 +41,5 @@ export function newId(): string {
   return base64url(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-/** Is this an identifier as `newId` makes them? */
-export const isId = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_-]{22}$/.test(s);
+/** Is this an identifier as `newId` makes them? (The last character carries two bits, so only four spellings of it are canonical.) */
+export const isId = (s: unknown): s is string => typeof s === "string" && /^[A-Za-z0-9_-]{21}[AQgw]$/.test(s);

@@ -38,6 +38,22 @@ and tests). The decisions taken, where it stands and what is next: `docs/briefs/
 | `recurring.ts` | Subscriptions and regular bills found in past transactions |
 | `model.ts`, `ids.ts` | The shapes kept in the vault; random 128-bit identifiers (ISO-3) |
 
+`src/vault/`: the vault's cryptography, the browser's own WebCrypto and nothing else. What it does
+and what it does not is in `docs/moneylens/security-assessment.md`. **Changes here need a recorded
+review by someone who did not write them before merging** (SEC-9).
+
+| File | What it does |
+| --- | --- |
+| `crypto.ts` | The vault key, its wrappers (passphrase, recovery code, passkey), sealing and opening chunks (VAULT-1 to VAULT-3, VAULT-7) |
+| `recovery.ts` | The recovery code: 160 random bits a person can copy by hand, with a check for slips |
+| `passphrase.ts` | How a passphrase is normalized before it makes a key, and the floor it has to clear (VAULT-7). The floor errs both ways on purpose; how often, measured, is in the assessment (1.4) |
+
+`tests/golden.ts` is a vault made once and stored. **Never regenerate it.** If it stops opening,
+the change that broke it would lock real users out of their vaults: the stored format and the
+passphrase normalization can only change with a new version that still reads the old one. (Its
+passphrase wrapper was made a second time before this code was first merged; the file's header
+says why. That was the last time.)
+
 There is no CSV parser for any bank yet. Each one is written from a synthetic sample of that
 bank's export (IMP-9) and added to `CSV_PARSERS` in `read.ts` with its fixtures and a
 reconciliation test. A file no parser recognizes is refused and nothing is saved.

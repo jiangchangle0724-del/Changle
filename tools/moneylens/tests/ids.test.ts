@@ -33,5 +33,8 @@ test("a new identifier: 22 characters, 128 bits, never the same twice", () => {
     seen.add(id);
   }
   assert.equal(seen.size, 5000);
+  // one value, one spelling: the last character carries two bits, so twelve of its sixteen spellings are not identifiers
+  assert.ok(isId("AAAAAAAAAAAAAAAAAAAAAA") && isId("AAAAAAAAAAAAAAAAAAAAAQ") && isId("AAAAAAAAAAAAAAAAAAAAAg") && isId("AAAAAAAAAAAAAAAAAAAAAw"));
+  assert.ok(!isId("AAAAAAAAAAAAAAAAAAAAAB") && !isId("AAAAAAAAAAAAAAAAAAAAA_"));
   for (const bad of ["", "short", "x".repeat(23), "x".repeat(21) + "!", 22, null]) assert.ok(!isId(bad), String(bad));
 });
