@@ -126,8 +126,8 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   says which (`lookOf`: under 90 BPM `sweet`, from 115 `club`, between `party`); with the DJ, or a
   song whose tempo wasn't found, the stretch (the cool-down `sweet`, the warm-up `party`, the build
   and the peak `club`). Each look its outfit (`OUTFIT`: `sweet` her first-love blouse and pleated
-  skirt, `her-sweet.glb.gz`; `club` her club outfit, `her.glb.gz`; `party` the club one until her
-  party dress is made), fetched the first time it's wanted and changed into in a flash of light (an
+  skirt, `her-sweet.glb.gz`; `club` her club outfit, `her.glb.gz`; `party` her rose-gold sequin
+  party dress, `her-party.glb.gz`), fetched the first time it's wanted and changed into in a flash of light (an
   iPhone or iPad as the speaker keeps one at a time), its dances, and while a song plays whole the
   stage's lights (`look-*` on `.dj-stage`: the ballad's soft pink and gold, the beams slow and dim,
   no flashes; the party's gold and orchid; the club's pink and cyan, the beams quick and bright).

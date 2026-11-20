@@ -122,7 +122,7 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   const sp = (gltf.scene.userData as { dancer?: { springs?: SpringData } }).dancer?.springs;
   const groups = sp?.groups.map((g) => g.name) ?? [];
   ok(groups.includes("hair"), `${at} her hair swings (${groups.join(", ") || "nothing swings"})`);
-  if (outfit === "sweet") ok(groups.includes("skirt"), `${at} and her skirt`);
+  if (outfit !== "club") ok(groups.includes("skirt"), `${at} and her skirt`);
   const springBones = sp?.groups.flatMap((g) => g.bones.map((b) => b.name)) ?? [];
   ok(springBones.every((b) => bones.has(b)) && m.skeleton.bones.filter((b) => springBones.includes(b.name)).length === springBones.length, `${at} the ${springBones.length} swinging bones are hers, in the skin`);
   ok(Object.values(sp?.colliders ?? {}).every((c) => bones.has(c.bone) && c.r > 0.02 && c.r < 0.2), `${at} the shapes they're kept off sit on her bones`);
@@ -223,7 +223,7 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
 async function main() {
   await MeshoptDecoder.ready;
   const outfits = [...new Set(Object.values(OUTFIT))];
-  ok(outfits.includes("club") && outfits.includes("sweet"), `her outfits: ${outfits.join(", ")}`);
+  ok(outfits.includes("club") && outfits.includes("sweet") && outfits.includes("party"), `her outfits: ${outfits.join(", ")}`);
   const checkedDances = new Set<string>();
   for (const outfit of outfits) await oneOutfit(outfit, checkedDances);
 

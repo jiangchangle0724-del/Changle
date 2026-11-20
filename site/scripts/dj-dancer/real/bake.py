@@ -84,5 +84,6 @@ def to_img(vals):
         out[grow] = dil[grow]; m = mm
     return out
 Image.fromarray(to_img(C)).save(f'{work}/baked.png')
+Image.fromarray(to_img(C)).save(f'{work}/baked_photo.png')  # (fill.py starts from this one)
 Image.fromarray(to_img(np.stack([wsum.clip(0, 1)] * 3, 1))).save(f'{work}/baked_w.png')
 print('saved')
