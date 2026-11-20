@@ -21,10 +21,11 @@ export const DANCER_DIR = "/models/dancer";
 export type Look = "sweet" | "party" | "club";
 export const LOOKS: readonly Look[] = ["sweet", "party", "club"];
 /**
- * The outfit each look wears: its model's file (`her.glb.gz` the club one she came in on Nov 18).
- * (party: the club one until her party dress is made; ChatGPT has drawn it)
+ * The outfit each look wears: its model's file (`her.glb.gz` the club one she came in on Nov 18;
+ * `her-sweet.glb.gz` the first-love blouse and pleated skirt, `her-party.glb.gz` the rose-gold
+ * sequin party dress, Nov 19 and 20).
  */
-export const OUTFIT: Record<Look, string> = { sweet: "sweet", party: "club", club: "club" };
+export const OUTFIT: Record<Look, string> = { sweet: "sweet", party: "party", club: "club" };
 export const herFile = (outfit = "club") => (outfit === "club" ? `${DANCER_DIR}/her.glb.gz` : `${DANCER_DIR}/her-${outfit}.glb.gz`);
 export const danceFile = (id: string) => `${DANCER_DIR}/dance/${id}.bin.gz`;
 

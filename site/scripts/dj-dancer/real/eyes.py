@@ -4,8 +4,8 @@ warp as bake.py), marked in the texture's alpha: 1 elsewhere, under 0.8 in an ey
 top edge to 0.8 at its bottom, so a lid can come down it. The lid's colour (the skin just above the
 eyes) goes in lid.json, for build_glb.mjs. The texture stays opaque on the page (alpha is only read
 by the blink).
-usage: python3 eyes.py <work dir> <photos dir> <eyes: x,y x,y in the front photo's pixels> [half width,half height] [S]
-       (the designs so far: 560,87 600,87 with 9.5,4.2)"""
+usage: python3 eyes.py <work dir> <photos dir> [<eyes: x,y x,y in the front photo's pixels> [half width,half height]] [S]
+       (without eyes: the ones facewarp.py found, in face.json; the club design's by hand: 560,87 600,87 with 9.5,4.2)"""
 import json, sys
 import numpy as np
 from PIL import Image
@@ -14,9 +14,14 @@ from rast import load, raster, interp, sample
 from cams import project
 
 work, photos = sys.argv[1], sys.argv[2]
-centres = [tuple(float(v) for v in a.split(',')) for a in sys.argv[3:5]]
-rx, ry = (float(v) for v in (sys.argv[5] if len(sys.argv) > 5 else '9.5,4.2').split(','))
-S = int(sys.argv[6]) if len(sys.argv) > 6 else 2048
+args = sys.argv[3:]
+if args and ',' in args[0]:
+    rx, ry = (float(v) for v in (args[2] if len(args) > 2 and ',' in args[2] else '9.5,4.2').split(','))
+    eyes = [tuple(float(v) for v in a.split(',')) + (rx, ry) for a in args[:2]]
+    args = args[3:] if len(args) > 2 and ',' in args[2] else args[2:]
+else:
+    eyes = [tuple(e) for e in json.load(open(work + '/face.json'))['eyes']]
+S = int(args[0]) if args else 2048
 P, N, UV, T = load(work + '/trellis')
 cams = json.load(open(work + '/cams.json'))
 _, tid, b1, b2 = raster(UV[:, 0] * S, UV[:, 1] * S, np.zeros(len(UV)), T, S, S)
@@ -36,7 +41,7 @@ f = sample(flow, (xi + 0.5) / W, (yi + 0.5) / H)
 qx = tx + f[:, 0]; qy = ty + f[:, 1]
 alpha = np.ones(len(X))
 above = np.zeros(len(X), bool)
-for cx, cy in centres:
+for cx, cy, rx, ry in eyes:
     e = ((qx - cx) / rx) ** 2 + ((qy - cy) / ry) ** 2
     m = vis & (cos > 0.3) & (e < 1)
     alpha[m] = np.minimum(alpha[m], 0.8 * np.clip((qy[m] - (cy - ry)) / (2 * ry), 0, 1))
