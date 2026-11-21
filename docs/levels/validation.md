@@ -139,3 +139,61 @@ van-23: solo projections 0/4 cleared; chain=7.07s, throws=4
 van-24: solo projections 0/4 cleared; chain=13.90s, throws=6
 levels: 12/12 base + 12/12 hard PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, object budgets and solo controls PASS
 ```
+
+
+## 按手酸重录（C15，2026-11-21）
+
+本节为这17关的当前结果，早先C8/C10/C11表保留为历史记录。17关全部写入stamina，23份回放全部按对应难度重录；每帧只有ax/ay/gl/gr/seq/t，60Hz，没有注入位置、速度或动作。困难关的既有mover至少1.5倍速、wait不高于原值0.6倍，转杆绝对spin至少1.5倍；15关各加1个路线摆锤。具体布局见README的C15逐关记录。
+
+### 最长连续悬挂与tired
+
+每列按P1、P2……排列。连续悬挂定义为活着且未完成、至少一只手抓着、脚不着地且不在失重区；两手都松开或落脚即结束这一段。每物理步读取状态并累计，边界约有1/60秒采样误差。tired只计物理引擎实际发出的事件，滑脱后继续换手、落脚和接应都保留在回放里。
+
+| 回放 | 各人最长连续悬挂（秒） | 各人tired次数 |
+| --- | --- | --- |
+| table-13.json | 5.82 / 6.27 / 3.35 / 0.55 | 0 / 0 / 0 / 0 |
+| table-14.json | 1.77 / 6.17 / 1.57 / 3.62 | 0 / 0 / 0 / 0 |
+| table-14.p2.json | 8.10 / 3.42 | 0 / 0 |
+| table-15.json | 6.25 / 3.80 / 5.75 / 4.93 | 0 / 0 / 1 / 0 |
+| table-16.json | 3.05 / 5.93 / 6.08 / 5.05 | 0 / 1 / 2 / 1 |
+| table-16.p2.json | 3.27 / 5.98 | 0 / 1 |
+| table-17.json | 4.03 / 5.85 / 5.18 / 5.13 | 0 / 0 / 0 / 0 |
+| table-18.json | 7.60 / 7.47 / 7.35 / 9.12 | 0 / 0 / 1 / 0 |
+| van-19.json | 3.60 / 3.82 / 4.13 / 7.70 | 0 / 0 / 0 / 1 |
+| van-20.json | 5.52 / 7.08 / 6.87 / 4.33 | 0 / 3 / 2 / 1 |
+| van-20.p2.json | 9.60 / 10.42 | 0 / 1 |
+| van-21.json | 7.40 / 1.35 / 5.55 / 4.08 | 0 / 0 / 0 / 0 |
+| van-22.json | 2.70 / 6.02 / 6.90 / 6.83 | 0 / 5 / 3 / 1 |
+| van-22.p2.json | 4.75 / 3.52 | 0 / 0 |
+| van-23.json | 1.55 / 2.08 / 6.03 / 5.42 | 0 / 0 / 0 / 0 |
+| van-24.json | 3.95 / 7.65 / 6.87 / 5.75 | 2 / 1 / 3 / 1 |
+| kitchen-29.json | 1.08 / 0.92 / 2.55 / 2.55 | 0 / 0 / 0 / 0 |
+| kitchen-30.json | 1.20 / 6.00 / 2.55 / 0.65 | 0 / 2 / 1 / 0 |
+| snow-33.json | 12.63 / 12.22 / 18.00 / 14.65 | 1 / 1 / 1 / 0 |
+| snow-33.p1.json | 14.85 | 1 |
+| snow-34.json | 14.73 / 12.77 / 18.00 / 12.70 | 0 / 1 / 1 / 0 |
+| snow-34.p1.json | 18.00 | 5 |
+| snow-36.json | 11.00 / 5.07 / 9.43 / 10.90 | 2 / 0 / 4 / 10 |
+
+### 验收与反例
+
+Node 22.23.4：npm test为234/234，29/29测试文件；npm run typecheck通过；npm run ip-check为0处；npm run levels完整通过，末三行为：
+
+```text
+stamina: 39/40 medium and hard levels replayed with tired hands
+long: 0 long levels
+levels: 12/12 base + 12/12 hard + 6/6 team + 6/6 kitchen + 6/6 snow + 6/6 house + 6/6 space + 9/9 multi PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS
+```
+
+两项反例逐个运行原node scripts/run-levels.mjs（npm run levels的入口），均退出1；每次finally用保存的原字节恢复，SHA-256逐字节校验一致。
+
+- 删除table-16的stamina:true：`levels: FAIL — table-16: replay missed checkpoint`。
+- 把table-13的重录回放换回基线原回放：`levels: FAIL — table-13: replay missed checkpoint`。
+
+删除flag的反例由轨迹检查拒绝；stamina覆盖率目前仍是原验收器的汇总行，按任务卡第5条留给C16/C17合并后的收口，不改验收器。
+
+已运行只含本卡17关的npm run envelopes命令；原挑选脚本使用默认物理，最终红包按手酸模拟的实际手部轨迹重选，保留160px旗/出生/终点避让、360px红包间距及危险物/台面避让；分时段不足时从全程安全轨迹补选。最终三枚可达仍由原npm run levels检查。
+
+仓库Playwright无头Chromium检查了table-13四人stamina=1&record=1及proto-09双人开发页，规则、摆锤和录制按钮正常，页面错误0；17张前后截图均用原Pixi Stage、1280×720全关视图。后厨/雪山仅在临时截图服务器中兼容JSON路由，源码未改。
+
+本轮kitchen-29/30平台上沿重合56.52%，首屏83.93%，低于60%/85%上限。困难关的两段合作、各手柄单人投影、全部机关使用、危险物贴近路线、缆车座椅净空、永久落脚与人数摆法均由原验收器通过。

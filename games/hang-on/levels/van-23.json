@@ -1,5 +1,6 @@
 {
   "id": "van-23",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "炙桥转轮",
@@ -30,16 +31,16 @@
   ],
   "envelopes": [
     {
-      "x": 1257,
-      "y": 353
+      "x": 1884,
+      "y": 338
     },
     {
-      "x": 1896,
-      "y": 328
+      "x": 1140,
+      "y": 392
     },
     {
-      "x": 2356,
-      "y": 199
+      "x": 2262,
+      "y": 410
     }
   ],
   "rects": [
@@ -175,8 +176,8 @@
           "y": 260
         }
       ],
-      "speed": 45,
-      "wait": 2,
+      "speed": 140,
+      "wait": 1.2,
       "material": "metal"
     },
     {
@@ -190,8 +191,8 @@
           "y": 0
         }
       ],
-      "speed": 20,
-      "wait": 4,
+      "speed": 30,
+      "wait": 2.4,
       "material": "wood",
       "deadly": true,
       "hazard": "hot"
@@ -206,7 +207,7 @@
       "arms": 2,
       "len": 140,
       "h": 16,
-      "spin": 0.5,
+      "spin": 0.75,
       "material": "metal"
     },
     {
@@ -217,15 +218,28 @@
       "arms": 2,
       "len": 40,
       "h": 16,
-      "spin": -1.2,
+      "spin": -1.7999999999999998,
       "material": "wood",
       "deadly": true
     }
   ],
   "deathY": 790,
   "par": {
-    "seconds": 150,
-    "deathsPerPlayer": 3
+    "seconds": 130,
+    "deathsPerPlayer": 6
   },
-  "replay": "replays/van-23.json"
+  "replay": "replays/van-23.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 2080,
+        "y": 284
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

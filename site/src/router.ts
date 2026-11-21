@@ -6,7 +6,8 @@
  *   /tools/<tool>     a tool on its page                         of the game's own, 猜歌名's challenges)
  *                     (currency, clock, price)
  *   /t/<CODE>         an online table       /tv, /tv/<CODE>    the big screen (?g=<slug>)
- *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts (/me/figure: the 3D figure's prototype)
+ *   /me, /me/friends, /admin, /u/<id>, /chat/<id>             accounts (/me/figure: the 3D figure's prototype;
+ *                                                             /me/email-cancel#<link>: cancels a waiting 换邮箱)
  *   /dj               the DJ booth's speaker (a big screen)    /dj/test           its sound check
  *   /split, /split/<id>   两清: the ledgers on this phone, and one of them (its card is on the Tools tab)
  *   /settings, /login open that sheet over home (the address then goes back to /)
@@ -31,6 +32,7 @@ export type Route =
   | { kind: "room"; code: string }
   | { kind: "me"; tab?: "friends" }
   | { kind: "figure" }
+  | { kind: "emailCancel" }
   | { kind: "admin" }
   | { kind: "user"; id: string }
   | { kind: "chat"; id: string }
@@ -88,6 +90,7 @@ export function parse(pathname: string, search = ""): Route {
   if (p === "/me") return { kind: "me" };
   if (p === "/me/friends") return { kind: "me", tab: "friends" };
   if (p === "/me/figure") return { kind: "figure" };
+  if (p === "/me/email-cancel") return { kind: "emailCancel" };
   if (p === "/admin") return { kind: "admin" };
   if ((m = new RegExp(`^/u/${USER}$`).exec(p))) return { kind: "user", id: m[1] };
   if ((m = new RegExp(`^/chat/${USER}$`).exec(p))) return { kind: "chat", id: m[1] };
@@ -119,6 +122,8 @@ export function pathOf(r: Route): string {
       return r.tab === "friends" ? "/me/friends" : "/me";
     case "figure":
       return "/me/figure";
+    case "emailCancel":
+      return "/me/email-cancel";
     case "admin":
       return "/admin";
     case "user":
@@ -192,6 +197,8 @@ export function titleOf(r: Route, lang: Lang): string {
       return named("我的", "Me");
     case "figure":
       return named("3D 小人", "3D figure");
+    case "emailCancel":
+      return named("取消换邮箱", "Cancel email change");
     case "user":
       return named("主页", "Profile");
     case "chat":
