@@ -22,12 +22,15 @@ Always:
 
 | Card | What | Files | When |
 | --- | --- | --- | --- |
-| [C1](C1-vault-second-opinion.md) | A second opinion on the vault's cryptography, from another vendor's model: a reader for the stored format written from the assessment alone, a test that runs it against the code, then a review | `tests/second/vault.ts` (new), `tests/second.test.ts` (new), `docs/moneylens/reviews/vault-second-opinion.md` (new) | not sent yet |
+| [C1](C1-vault-second-opinion.md) | A second opinion on the vault's cryptography, from another vendor's model: a reader for the stored format written from the assessment alone, a test that runs it against the code, then a review | `tests/second/vault.ts` (new), `tests/second.test.ts` (new), `docs/moneylens/reviews/vault-second-opinion.md` (new) | sent 2026-11-20, branch `codex/moneylens-c1-vault-second-opinion` |
 
 What to send Codex, one card at a time:
 
 ```
+本机的 Changle 仓库里别的对话正在干活，所以不要在原来的文件夹里切分支或改文件：只运行 git fetch origin，
+然后用 git worktree add 从 origin/main 开一个新文件夹和新分支 codex/moneylens-c1-vault-second-opinion，只在新文件夹里做。
 按 docs/codex-tasks/moneylens/C1-vault-second-opinion.md 做。先读 docs/codex-tasks/moneylens/README.md。
 卡上「先后顺序」那一节是重点：自己的读取器写完并单独提交之前，不要打开 tools/moneylens/src/vault/ 里的任何文件。
-只加卡上写的三个文件，跑卡上的命令，PR 描述里贴测试输出。
+只加卡上写的三个文件，跑卡上的命令都通过后再开 PR，PR 描述里用文字贴测试输出。不要自己开浏览器。
+不要合并，不要推 main，不要部署；代码和提交里都不能出现任何密钥，也不能出现任何真实的财务数据。
 ```
