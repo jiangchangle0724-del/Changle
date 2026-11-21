@@ -58,7 +58,7 @@ export function danceClip(d: { head: DanceHead; q: Int16Array; hips: Int16Array 
 
 export type Her = {
   root: THREE.Group;
-  /** which outfit this is (dances.ts OUTFIT) */
+  /** which outfit this is (dances.ts OUTFITS) */
   outfit: string;
   /** her eyes' height, for framing */
   eyes: number;

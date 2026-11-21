@@ -125,9 +125,11 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   样的短裙，跳温柔柔和一点的。不同的曲风设计不同的衣服，不同的舞蹈，包括背景的灯光"): a whole song's own tempo
   says which (`lookOf`: under 90 BPM `sweet`, from 115 `club`, between `party`); with the DJ, or a
   song whose tempo wasn't found, the stretch (the cool-down `sweet`, the warm-up `party`, the build
-  and the peak `club`). Each look its outfit (`OUTFIT`: `sweet` her first-love blouse and pleated
-  skirt, `her-sweet.glb.gz`; `club` her club outfit, `her.glb.gz`; `party` her rose-gold sequin
-  party dress, `her-party.glb.gz`), fetched the first time it's wanted and changed into in a flash of light (an
+  and the peak `club`). Each look its outfits (`OUTFITS`, since Nov 21 all on the first
+  dancer: `sweet` the eyelet dress, the cardigan and midi skirt, the qipao set; `party` the lace
+  dress, the qipao set, the leather jacket; `club` her own club outfit `her.glb.gz`, the leather
+  jacket, the lace dress; `her-<id>.glb.gz`), a song wearing one of them (`outfitFor`: its id, the
+  same song the same outfit; no song, the first), fetched the first time it's wanted and changed into in a flash of light (an
   iPhone or iPad as the speaker keeps one at a time), its dances, and while a song plays whole the
   stage's lights (`look-*` on `.dj-stage`: the ballad's soft pink and gold, the beams slow and dim,
   no flashes; the party's gold and orchid; the club's pink and cyan, the beams quick and bright).

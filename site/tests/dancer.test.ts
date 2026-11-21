@@ -24,7 +24,7 @@ import { gunzipSync } from "node:zlib";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFIT, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
+import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
 import { CAPTURED_SKATE } from "./support/captured";
@@ -268,7 +268,7 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
 
 async function main() {
   await MeshoptDecoder.ready;
-  const outfits = [...new Set(Object.values(OUTFIT))];
+  const outfits = [...new Set(Object.values(OUTFITS).flat())];
   // (Nov 21, Steve: "直接用第一个人物的模型脸，只给她换几套衣服": the first one, Nov 14's, in every look)
   ok(outfits.includes("club"), `her outfits: ${outfits.join(", ")}`);
   const checkedDances = new Set<string>();
@@ -277,7 +277,11 @@ async function main() {
   // 4. what she wears and dances when
   ok(lookOf(75, "peak") === "sweet" && lookOf(100, "warm") === "party" && lookOf(128, "warm") === "club", "a song's look by its own tempo: a ballad sweet, one in between party, a fast one club");
   ok(lookOf(null, "cool") === "sweet" && lookOf(null, "slow") === "sweet" && lookOf(null, "warm") === "party" && lookOf(null, "build") === "club" && lookOf(null, "peak") === "club", "no song's tempo: the night's stretch's look");
-  ok(LOOKS.every((l) => outfits.includes(OUTFIT[l])), "every look has an outfit to wear");
+  ok(LOOKS.every((l) => OUTFITS[l].length > 0), "every look has an outfit to wear");
+  // (a song wears the same outfit every time; songs spread over the look's outfits)
+  ok(outfitFor("party", "abc") === outfitFor("party", "abc") && outfitFor("sweet", null) === OUTFITS.sweet[0], "a song's outfit is its own");
+  const worn = new Set(Array.from({ length: 40 }, (_, i) => outfitFor("club", `song${i}`)));
+  ok(worn.size === OUTFITS.club.length, `songs wear all of a look's outfits (${[...worn].join(", ")})`);
   ok(LOOKS.every((l) => WALKS[l].stride > 0.4 && WALKS[l].stride < 0.9), "every look has a walk, a step of half a metre or so");
   ok(stepsPerBeat(87.8, 90) === 1 && stepsPerBeat(124.1, 72) === 1 && stepsPerBeat(87.8, 128) === 0.5, "a step on each beat, on every other when the song is much faster than her walk");
   ok(danceAt(40, "club", 125) === danceAt(40, "club", 125), "the same beat, the same dance (on every screen)");

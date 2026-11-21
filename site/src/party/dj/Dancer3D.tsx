@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Mood } from "../../shared/dj/dance";
-import { DANCE_BEATS, danceAt, danceNext, IDLES, idleAt, OUTFIT, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
+import { DANCE_BEATS, danceAt, danceNext, IDLES, idleAt, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
 import type { Her } from "./dancer/her";
 import { anyGl, glOf, ratioFor, SLOW_MS, WATCH_FRAMES, WATCH_MS, watchFrames } from "./robot3d";
 
@@ -48,16 +48,18 @@ const BODY_PX = 70;
  * slides along, she walks in place in it, behind the floor's dancers); back to her place on the left
  * when she may not. With reduced motion, or over a video in the corner, she stays in her place.
  */
-export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFail }: { clock: Clock; mood: () => Mood; look: () => Look; roam: () => boolean; light?: boolean; onReady: () => void; onFail: () => void }) {
+export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onReady, onFail }: { clock: Clock; mood: () => Mood; look: () => Look; outfit: () => string; roam: () => boolean; light?: boolean; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
   const fail = useRef(onFail);
   const moodNow = useRef(mood);
   const lookNow = useRef(look);
+  const outfitNow = useRef(outfit);
   ready.current = onReady;
   fail.current = onFail;
   moodNow.current = mood;
   lookNow.current = look;
+  outfitNow.current = outfit;
   const roamNow = useRef(roam);
   roamNow.current = roam;
   useEffect(() => {
@@ -100,9 +102,9 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
           return p;
         };
         // standing easy before she's shown at all, in the look the music has now
-        let her = await fetchOutfit(OUTFIT[lookNow.current()], [firstIdle]);
+        let her = await fetchOutfit(outfitNow.current(), [firstIdle]);
         // (that outfit's file didn't come: her first one)
-        if (!her && OUTFIT[lookNow.current()] !== "club") {
+        if (!her && outfitNow.current() !== "club") {
           loading.delete("club");
           her = await fetchOutfit("club", [firstIdle]);
         }
@@ -322,8 +324,8 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
             // (not here yet: what she's dancing goes on)
             want = cur;
           }
-          // her look's outfit: fetched the first time, then changed into in a flash
-          const outfit = OUTFIT[lk];
+          // the song's outfit: fetched the first time, then changed into in a flash
+          const outfit = outfitNow.current();
           if (!change && outfit !== her!.outfit) {
             const next = outfits.get(outfit);
             // (in it once it has the dance she's on: the change mid-step, not back to standing)
