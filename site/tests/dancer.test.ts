@@ -27,6 +27,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
+import { feetOf, plantFeet } from "../src/party/dj/dancer/plant";
 import { CAPTURED_SKATE } from "./support/captured";
 import { LIMITS, motionFacts } from "./support/motion";
 
@@ -142,6 +143,7 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   m.updateMatrixWorld(true);
   const springs = makeSprings(sp, bones);
   const walks: readonly { id: string; bpm: number; stride?: number }[] = Object.values(WALKS);
+  let lastClip: THREE.AnimationClip | null = null;
   for (const d of [...DANCES, ...IDLES, ...walks]) {
     const f = join(dir, "dance", `${d.id}.bin.gz`);
     if (!existsSync(f)) {
@@ -215,6 +217,53 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       const bad = (Object.keys(limit) as (keyof typeof limit)[]).filter((k) => f[k] > limit[k]);
       ok(!bad.length, `${d.id}: moves like a person (${bad.length ? bad.map((k) => `${k} ${f[k].toFixed(2)} over ${limit[k].toFixed(2)}`).join(", ") : "no skating, sinking, floating, knees bending back, hands in her, falling off a foot, jerks or seam"})`);
     }
+    // 7. the hand-over into it from the dance before (Nov 21; Steve: 换舞时脚滑), blended as the page
+    // blends them, her feet planted (dancer/plant.ts): the foot waiting stays where it stood, the one
+    // stepping comes off the floor on the way, and at the end she stands as the new dance has her
+    if (lastClip && !checkedDances.has(`${d.id} handover`)) {
+      checkedDances.add(`${d.id} handover`);
+      const mx = new THREE.AnimationMixer(gltf.scene);
+      const a1 = mx.clipAction(lastClip), a2 = mx.clipAction(clip);
+      a1.play();
+      a2.play();
+      const feet = feetOf(gltf.scene)!;
+      const token = {};
+      const N = 20;
+      let wait = 0;
+      let lifted = true;
+      let end = 0;
+      const anim = [new THREE.Vector3(), new THREE.Vector3()];
+      for (let s = -1; s <= N; s++) {
+        const k = Math.max(0, s / N);
+        const e = k * k * (3 - 2 * k);
+        a1.time = (lastClip.duration / 2 + (s + 1) * 0.06) % lastClip.duration;
+        a2.time = ((s + 1) * 0.06) % clip.duration;
+        a1.setEffectiveWeight(s < 0 ? 1 : 1 - e);
+        a2.setEffectiveWeight(s < 0 ? 0 : e);
+        mx.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        feet.legs.forEach((l, i) => l.foot.getWorldPosition(anim[i]));
+        plantFeet(feet, s < 0 ? null : token, k);
+        if (s < 0 || !feet.plant) continue;
+        // (a foot waiting for its step, along the floor: its heel may rise, when the new dance stands her
+        // taller than her leg reaches)
+        for (let j = 0; j < 2; j++) {
+          const w = feet.legs[j].foot.getWorldPosition(new THREE.Vector3()).sub(feet.plant[j]);
+          if (k < feet.start[j]) wait = Math.max(wait, Math.hypot(w.x, w.z));
+        }
+        const i = feet.first;
+        const p = (k - feet.start[i]) / 0.45;
+        if (p > 0.3 && p < 0.7 && anim[i].distanceTo(feet.plant[i]) > 0.04) {
+          const y = feet.legs[i].foot.getWorldPosition(new THREE.Vector3()).y;
+          lifted &&= y > Math.min(feet.plant[i].y, anim[i].y) + 0.005;
+        }
+      }
+      feet.legs.forEach((l, i) => (end = Math.max(end, l.foot.getWorldPosition(new THREE.Vector3()).distanceTo(anim[i]))));
+      ok(wait < 0.005 && lifted && end < 0.001, `${at} ${lastClip.name || "before"} into ${d.id}: her feet stay where they stand, then step (waiting foot off ${(wait * 1000).toFixed(1)} mm, at the end ${(end * 1000).toFixed(1)} mm off)`);
+      mx.stopAllAction();
+      mx.uncacheRoot(gltf.scene);
+    }
+    lastClip = clip;
     // her hair and skirt swinging through it, as the page swings them: never nowhere, never inside her
     if (springs && sp) {
       springs.reset();

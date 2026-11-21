@@ -78,7 +78,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadHer }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her")]);
+        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant")]);
         if (gone) return;
         // her outfits, each loaded the first time it's wanted (with the dances she's on at the time)
         const outfits = new Map<string, Her>();
@@ -197,6 +197,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
         let farAt = 0;
         let slid = "";
         const hipsOf = new WeakMap<Her, InstanceType<typeof T.Object3D>>();
+        const feetOfHer = new WeakMap<Her, ReturnType<typeof feetOf>>();
         const headOf = new WeakMap<Her, { head?: InstanceType<typeof T.Object3D>; neck?: InstanceType<typeof T.Object3D>; yaw: number; pitch: number }>();
         const at = new T.Vector3();
         // her middle at her own place on the stage; how far right she may go (her middle clear of the
@@ -374,6 +375,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           const ease = k * k * (3 - 2 * k);
           if (from) from.t += dt * from.rate;
           her!.pose(cur, curT, from && k < 1 ? from : null, ease);
+          const handing = from && k < 1 ? from : null;
           if (k >= 1) from = null;
           // where the dance takes her (Nov 21: her feet stay where they stand, so she moves about as
           // she dances): her canvas goes with her across the stage and she stays in its middle (her
@@ -382,6 +384,11 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           if (!hips) hipsOf.set(her!, (hips = her!.root.getObjectByName("Hips") ?? her!.root));
           her!.root.position.x = 0;
           her!.root.updateMatrixWorld(true);
+          // (Nov 21; Steve: 换舞时脚滑) through a hand-over her feet stay where they stand, then step to
+          // where the new dance has them, one and then the other (dancer/plant.ts)
+          let feet = feetOfHer.get(her!);
+          if (feet === undefined) feetOfHer.set(her!, (feet = feetOf(her!.root)));
+          if (feet) plantFeet(feet, handing, k);
           const travel = stay ? 0 : hips.getWorldPosition(at).x;
           her!.root.position.x = -travel;
           const slide = x || travel ? `translate3d(${(x + travel * pxPerM()).toFixed(1)}px, 0, 0)` : "";
