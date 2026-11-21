@@ -485,6 +485,10 @@ export type TuneView = {
   startAt: number;
   /** one second: ms into the preview where every snippet starts */
   hook: number;
+  /** the game's seed for the four titles (a challenge link carries it) */
+  seed: number;
+  /** at the end of a game of real songs: each song, who scored how much on it, and whether every phone has it (b) */
+  log: { id: number; pts: Record<string, number>; b: boolean }[] | null;
   /** ms into the preview where the reveal picks up */
   revealPos: number;
   /** the next preview, so phones can load it while this one plays */

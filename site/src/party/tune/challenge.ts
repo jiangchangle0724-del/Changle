@@ -1,5 +1,7 @@
 import { samePool, type SongPool } from "../../shared/songs";
 
+export { seeded } from "../../shared/songs";
+
 /**
  * Challenge links (挑战链接, like Soundle's): a game of real songs on one phone, sent on so friends
  * play the same songs, with the same four titles, and try to beat the score. All of it is in the
@@ -82,21 +84,6 @@ export function readChallenge(code: unknown): Challenge | null {
 /** Where a challenge is played. */
 export const challengeUrl = (c: Challenge, origin = typeof location === "undefined" ? "https://changle.ca" : location.origin) =>
   `${origin}/g/name-that-tune/play?c=${challengeCode(c)}`;
-
-/**
- * The dice for one song's four titles: the same game seed and song give the same shuffle on every
- * phone (mulberry32).
- */
-export function seeded(seed: number, round: number): () => number {
-  let a = (seed ^ Math.imul(round + 1, 0x9e3779b9)) >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /** A new game's seed. */
 export const newSeed = () => (Math.random() * 0x100000000) >>> 0;

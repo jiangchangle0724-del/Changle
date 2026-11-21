@@ -34,7 +34,7 @@ import { DARES, promptText } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
-import { CAT_BIT, decoysFor, DEFAULT_POOL, fromRow, inPool, moodOf, pickSong, poolSize, samePool, singersOf } from "../src/shared/songs";
+import { CAT_BIT, decoysFor, DEFAULT_POOL, fourTitles, fromRow, inPool, moodOf, pickSong, poolSize, samePool, singersOf } from "../src/shared/songs";
 import { SPECIALS } from "../src/data/songPools";
 import { challengeCode, challengeScore, challengeUrl, readChallenge, seeded } from "../src/party/tune/challenge";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
@@ -2086,6 +2086,38 @@ tuneTest("tune: a challenge link carries the songs, the way they play and the sc
   const two = decoysFor(song, all, seeded(42, song.id), false, "zh:any");
   const other = decoysFor(song, all, seeded(43, song.id), false, "zh:any");
   ok(one.map((x) => x.id).join() === two.map((x) => x.id).join() && one.map((x) => x.id).join() !== other.map((x) => x.id).join(), "the same seed: the same wrong titles; another seed: others");
+});
+
+tuneTest("tune: an online game sent on as a challenge: its songs, who scored on each, and the same four titles from its seed", () => {
+  const all = SONG_ROWS.map(fromRow);
+  type S = { song: { id: number }; choices: { id: number }[]; stageAt: number[]; seed: number };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p0", "quiz", { on: true });
+  t.g("p0", "hard", { on: true });
+  t.g("p0", "total", { n: 5 });
+  t.g("p0", "go");
+  const seen: { id: number; four: string; p1: number }[] = [];
+  for (let n = 1; n <= 5; n++) {
+    t.advance(2600);
+    const s = t.eng.d.game!.s as S;
+    const wrong = s.choices.find((c) => c.id !== s.song.id)!.id;
+    // p1 gets the first three right at once, the last two nobody does; p2 always picks a wrong one
+    t.g("p1", "answer", { choice: n <= 3 ? s.song.id : wrong });
+    t.g("p2", "answer", { choice: wrong });
+    t.g("p0", "answer", { choice: wrong });
+    seen.push({ id: s.song.id, four: s.choices.map((c) => c.id).join(), p1: n <= 3 ? 3 : 0 });
+    t.advance(10_000);
+  }
+  const v = t.view<V<"tune">>("p1");
+  ok(v.phase === "end" && v.log?.length === 5 && v.log.every((r, i) => r.id === seen[i].id && r.b), "at the end every phone gets the five songs, in order, all built-in");
+  ok(v.log!.every((r, i) => (r.pts.p1 ?? 0) === seen[i].p1 && !r.pts.p2 && !r.pts.p0), `who scored how much on each (p1: ${v.log!.map((r) => r.pts.p1 ?? 0).join(" ")})`);
+  const seed = v.seed;
+  const four = (id: number) => fourTitles(all.find((x) => x.id === id)!, all, seed, true, v.pool).map((x) => x.id).join();
+  ok(seen.every((x) => four(x.id) === x.four), "a phone with the game's seed draws each song's same four titles, in the same order");
+  t.g("p0", "again");
+  t.g("p0", "go");
+  ok((t.eng.d.game!.s as S).seed !== seed && t.view<V<"tune">>("p1").log === null, "the next game: a new seed, and the log only at its end");
 });
 
 test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a penalty", () => {
