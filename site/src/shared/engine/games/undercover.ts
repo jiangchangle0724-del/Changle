@@ -1,14 +1,18 @@
 import { WORD_PAIRS } from "../../../data/undercover";
 import type { UcRole, UndercoverView } from "../../protocol";
-import { clean, intIn, t, type Api, type GameDef } from "../api";
+import { clean, intIn, range, t, type Api, type GameDef } from "../api";
 
 type Phase = UndercoverView["phase"];
 type S = {
   phase: Phase;
   uc: number;
+  /** the host set the number of undercovers by hand; until then it follows the table's size */
+  touched?: boolean;
   blank: boolean;
   round: number;
   pair: number | null;
+  /** the pairs this table has had since the game was opened, so a night deals each once before any comes round again */
+  used?: number[];
   flip: boolean;
   roles: Record<string, UcRole>;
   alive: string[];
@@ -27,15 +31,41 @@ type S = {
 const TALK_MS = 40_000;
 const VOTE_MS = 60_000;
 
-/** How many players may sit on the undercover side for a table of n. */
-function maxSide(n: number) {
+/** How many players may sit on the undercover side (undercovers and the blank) at a table of n. */
+export function maxSide(n: number) {
   return Math.max(1, Math.floor((n - 1) / 3));
+}
+
+/** The most undercovers a table of n takes: the top of the + button, one phone or online. */
+export function maxUc(n: number) {
+  return Math.min(3, maxSide(n));
+}
+
+/** Undercovers dealt unless the host says otherwise: one up to six at the table, two up to nine, three from ten. */
+export function defaultUc(n: number) {
+  return Math.min(n >= 10 ? 3 : n >= 7 ? 2 : 1, maxUc(n));
 }
 
 function fit(s: S, n: number) {
   const side = maxSide(n);
   s.uc = Math.max(1, Math.min(3, s.uc, side));
   if (s.blank && s.uc + 1 > side) s.blank = false;
+}
+
+/** The table changed size before the deal: the count follows it until the host has set one. */
+function fitTable(s: S, n: number) {
+  if (!s.touched) s.uc = defaultUc(n);
+  fit(s, n);
+}
+
+/** A pair the table hasn't had tonight; once every pair has been dealt, the bank starts over. */
+function dealPair(s: S, api: Api) {
+  const used = (s.used ?? []).filter((i) => i >= 0 && i < WORD_PAIRS.length);
+  const fresh = range(WORD_PAIRS.length).filter((i) => !used.includes(i));
+  const pool = fresh.length ? fresh : range(WORD_PAIRS.length);
+  const pair = pool[api.int(pool.length)];
+  s.used = [...(fresh.length ? used : []), pair];
+  return pair;
 }
 
 function startTalk(s: S, api: Api) {
@@ -102,6 +132,14 @@ function words(s: S) {
 const WIN_CIV = t("谁是卧底：卧底被揪出来了", "Undercover: the undercover was caught");
 const WIN_UC = t("谁是卧底：卧底赢了", "Undercover: the undercover side wins");
 
+/** The game is decided: the end screen, and the losing side's penalty (whoever of them is still at the table). */
+function finish(s: S, api: Api) {
+  s.phase = "end";
+  const losers = Object.keys(s.roles).filter((id) => (s.winner === "civ" ? s.roles[id] !== "civ" : s.roles[id] === "civ"));
+  api.penalty(losers, "sip", s.winner === "civ" ? WIN_CIV : WIN_UC);
+  api.fx("win");
+}
+
 export const undercover: GameDef<S> = {
   id: "undercover",
   min: 4,
@@ -109,7 +147,7 @@ export const undercover: GameDef<S> = {
     const n = api.ids().length;
     const s: S = {
       phase: "setup",
-      uc: n >= 10 ? 3 : n >= 7 ? 2 : 1,
+      uc: defaultUc(n),
       blank: false,
       round: 0,
       pair: null,
@@ -138,20 +176,23 @@ export const undercover: GameDef<S> = {
       case "config": {
         if (!host || s.phase !== "setup") return;
         const uc = intIn(g.uc, 1, 3);
-        if (uc !== null) s.uc = uc;
+        if (uc !== null) {
+          s.uc = uc;
+          s.touched = true;
+        }
         if (typeof g.blank === "boolean") s.blank = g.blank;
         fit(s, n);
         return;
       }
       case "deal": {
         if (!host || (s.phase !== "setup" && s.phase !== "end") || n < 4) return;
-        fit(s, n);
+        fitTable(s, n);
         const ids = api.shuffle(api.ids());
         s.roles = {};
         ids.forEach((id, i) => {
           s.roles[id] = i < s.uc ? "uc" : i < s.uc + (s.blank ? 1 : 0) ? "blank" : "civ";
         });
-        s.pair = api.int(WORD_PAIRS.length);
+        s.pair = dealPair(s, api);
         s.flip = api.rand() < 0.5;
         s.alive = api.ids();
         s.ready = [];
@@ -174,6 +215,9 @@ export const undercover: GameDef<S> = {
       }
       case "force": {
         if (!host) return;
+        // the tap says which screen it was made on: the same tap arriving twice (a double tap, or
+        // taps queued while the host's line was down) moves the table on once, not three times
+        if (typeof g.phase === "string" && g.phase !== s.phase) return;
         if (s.phase === "word") startTalk(s, api);
         else if (s.phase === "talk") startVote(s, api);
         else if (s.phase === "vote") tally(s, api);
@@ -187,6 +231,9 @@ export const undercover: GameDef<S> = {
       }
       case "done": {
         if (s.phase !== "talk" || (s.order[s.speaker] !== pid && !host)) return;
+        // the tap names the speaker it was for: a second one for the same speaker skips nobody
+        if (typeof g.speaker === "number" && g.speaker !== s.speaker) return;
+        if (typeof g.round === "number" && g.round !== s.round) return;
         advanceSpeaker(s, api);
         return;
       }
@@ -200,10 +247,7 @@ export const undercover: GameDef<S> = {
       case "next": {
         if (!host || s.phase !== "reveal") return;
         if (s.winner) {
-          s.phase = "end";
-          const losers = Object.keys(s.roles).filter((id) => (s.winner === "civ" ? s.roles[id] !== "civ" : s.roles[id] === "civ"));
-          api.penalty(losers, "sip", s.winner === "civ" ? WIN_CIV : WIN_UC);
-          api.fx("win");
+          finish(s, api);
           return;
         }
         s.round += 1;
@@ -213,7 +257,7 @@ export const undercover: GameDef<S> = {
       case "again": {
         if (!host || s.phase !== "end") return;
         s.phase = "setup";
-        fit(s, n);
+        fitTable(s, n);
         return;
       }
     }
@@ -224,7 +268,16 @@ export const undercover: GameDef<S> = {
     if (key === "vote" && s.phase === "vote") tally(s, api);
   },
 
+  join(s, _pid, api) {
+    // before the deal, the number of undercovers follows the table's size
+    if (s.phase === "setup" || s.phase === "end") fitTable(s, api.ids().length);
+  },
+
   leave(s, pid, api) {
+    if (s.phase === "setup" || s.phase === "end") {
+      fitTable(s, api.ids().length);
+      return;
+    }
     s.alive = s.alive.filter((id) => id !== pid);
     s.ready = s.ready.filter((id) => id !== pid);
     delete s.votes[pid];
@@ -232,7 +285,20 @@ export const undercover: GameDef<S> = {
     if (s.phase === "talk" && s.order[s.speaker] === pid) advanceSpeaker(s, api);
     if (s.phase === "word" && s.alive.length && s.alive.every((id) => s.ready.includes(id))) startTalk(s, api);
     if (s.phase === "vote" && s.alive.length && s.alive.every((id) => s.votes[id])) tally(s, api);
-    if (s.phase !== "setup" && s.phase !== "end" && !s.winner) checkWinner(s);
+    if (s.winner) return;
+    checkWinner(s);
+    // the leaving decided it (the only undercover walked off, or the civilians are down to as many
+    // as the other side): nothing left to describe or vote on, so the end screen comes now, with
+    // nobody voted out this time; a leave during a reveal waits for the host's tap as usual
+    if (s.winner && s.phase !== "reveal") {
+      api.clear("talk");
+      api.clear("vote");
+      s.votes = {};
+      s.lastVotes = null;
+      s.out = null;
+      s.tie = false;
+      finish(s, api);
+    }
   },
 
   view(s, pid, api): UndercoverView {
