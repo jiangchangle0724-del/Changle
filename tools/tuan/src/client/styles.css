@@ -780,6 +780,15 @@ a.shop-name {
   background: var(--color-surface);
   transition: opacity var(--dur-enter) var(--ease-out);
 }
+/* the poster to send on (MyOffer.tsx): the one picture a long press may save or send, as WeChat does */
+.poster-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-flat);
+  -webkit-touch-callout: default;
+}
 /* (until it has come: then it fades in, src/client/ui/Offer.tsx) */
 .photo-waiting {
   opacity: 0;

@@ -895,6 +895,33 @@ describe("the pages", () => {
     expect(cardOf(page.html)).toBe("&lt;script&gt;alert(1)&lt;/script&gt; &quot;米&quot; &amp; 面 · 大米团（测试） · 跟一单 Count Me In");
   });
 
+  it("gives a group buy's card its first goods, and its first picture where it has one", async () => {
+    const said = (html: string) => /<meta property="og:description" content="([^"]*)"/.exec(html)?.[1];
+    const pictureOf = (html: string) => /<meta property="og:image" content="([^"]*)"/.exec(html)?.[1];
+    const at = await start();
+    const plain = await open(`/tuan/t/${at.id}`);
+    expect(said(plain.html)).toBe("五常大米 10kg、东北珍珠米 15lb、黄小米 2lb、土鸡蛋 30 枚、手切羊肉片");
+    expect(pictureOf(plain.html)).toBeUndefined();
+    // home keeps its own words
+    expect(said((await open("/tuan/")).html)).toMatch(/^团长开团，你跟一单/);
+
+    // more than six goods: six and "…"; the first picture, wherever it is; a name as text
+    const form = new FormData();
+    // (a picture of its own: the same bytes as the photo tests' would be kept once, and they count on sending it first)
+    const jpeg = Uint8Array.from([...Uint8Array.from(atob(JPEG_BASE64), (char) => char.charCodeAt(0)), 7, 7]);
+    form.append("large", new File([jpeg], "large", { type: "image/jpeg" }));
+    form.append("small", new File([jpeg], "small", { type: "image/jpeg" }));
+    const shop = await start();
+    const sent = await worker.fetch(new Request(`https://changle.ca/tuan/api/my/shops/${shop.slug}/photos`, { method: "POST", headers: { origin: "https://changle.ca", "cf-connecting-ip": network, authorization: `Bearer ${SESSION.leader}` }, body: form }), env);
+    const { id: photo } = (await sent.json()) as Made;
+    const plainDoc = offerDoc(Date.now() + DAY);
+    const items = [...plainDoc.items, ...plainDoc.items.map((item) => ({ ...item, name: `${item.name} <b>&</b>` }))].map((item, at) => (at === 3 ? { ...item, photo } : item));
+    const made = await post<Made>(`/my/shops/${shop.slug}/offers`, { ...plainDoc, items }, { session: SESSION.leader });
+    const full = await open(`/tuan/t/${made.data.id}`);
+    expect(said(full.html)).toBe("五常大米 10kg、东北珍珠米 15lb、黄小米 2lb、土鸡蛋 30 枚、手切羊肉片、五常大米 10kg &lt;b&gt;&amp;&lt;/b&gt;…");
+    expect(pictureOf(full.html)).toBe(`https://changle.ca/tuan/img/${photo}`);
+  });
+
   it("says 404, with the page that says so, for a group buy that isn't there or isn't public yet", async () => {
     const draft = await start({ open: false });
     for (const path of ["/tuan/t/zzzz9999", `/tuan/t/${draft.id}`, "/tuan/t/short", "/tuan/nothing", "/tuan/o/bad", "/tuan/t", "/tuan/my/t", "/tuan/my/t/short", "/tuan/my/shops", `/tuan/my/t/${draft.id}/more`]) {

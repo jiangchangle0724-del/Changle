@@ -245,6 +245,39 @@ test("the link to share, closing a group buy and opening it again, and a draft",
   expect((await offerOf(request, draft.id)).offer.state).toBe("open");
 });
 
+test("sending a group buy on: the 接龙 text for a group chat, and a poster with a code to scan", async ({ browser, request, baseURL }) => {
+  const { id } = await start(request);
+  await order(request, id, { name: "王小美", phone: "604 555 0101" }, [["五常大米 10kg", 2000], ["手切羊肉片", 1500]]);
+  const page = await phone(browser, { session: SESSION.leader });
+  await catchCopies(page);
+  await page.goto(`/tuan/my/t/${id}`);
+  await page.getByRole("button", { name: "复制接龙文案" }).click();
+  const text = (await copied(page)) ?? "";
+  expect(text.split("\n").slice(0, 3)).toEqual(["【大米团（测试）】本周大米团 · 周五到货", expect.stringMatching(/^截单：\d+月\d+日 周. \d\d:\d\d$/), `下单：${baseURL}/tuan/t/${id}`]);
+  expect(text).toContain("· 手切羊肉片 $16.99/磅（1 磅起）");
+  expect(text).toContain("接龙（1 单）\n1. 王小美 五常大米 10kg×2、手切羊肉片 1.5 磅");
+  expect(text).not.toMatch(/604/);
+
+  // the poster: drawn on the phone, as large as a phone screen's picture, and saved from a button outside WeChat
+  await page.getByRole("button", { name: "生成海报" }).click();
+  const sheet = page.getByRole("dialog", { name: "分享海报" });
+  const poster = sheet.locator("img.poster-img");
+  await expect(poster).toBeVisible({ timeout: 15_000 });
+  expect(await poster.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([1080, 1440]);
+  await expect(sheet.getByRole("link", { name: "保存图片" })).toHaveAttribute("download", "本周大米团 · 周五到货 海报.png");
+  await expect(sheet.getByText("在手机上长按图片")).toBeVisible();
+  await fits(page, "the poster");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sheet")).toHaveCount(0);
+
+  // in WeChat: no button that can't work there, only the long press
+  const wechat = await phone(browser, { session: SESSION.leader, userAgent: WECHAT });
+  await wechat.goto(`/tuan/my/t/${id}`);
+  await wechat.getByRole("button", { name: "生成海报" }).click();
+  await expect(wechat.locator("img.poster-img")).toBeVisible({ timeout: 15_000 });
+  await expect(wechat.getByRole("link", { name: "保存图片" })).toHaveCount(0);
+});
+
 test("the owner sets a shop up and starts a group buy by hand", async ({ browser }) => {
   const page = await phone(browser, { session: SESSION.owner });
   await page.goto("/tuan/my");

@@ -590,7 +590,7 @@ const plain = (text: string, status: number) => new Response(text, { status, hea
  * The one file every page is, under `status`; with `title`, named for what it shows (the tab, and
  * the card a shared link becomes). `listed`: search engines may list it (home only).
  */
-async function shell(env: Env, url: URL, title: string | null, status: number, listed = false): Promise<Response> {
+async function shell(env: Env, url: URL, title: string | null, status: number, listed = false, card?: { goods: string[]; photo: string | null }): Promise<Response> {
   const file = await env.ASSETS.fetch(new URL(`${BASE}/`, url));
   if (!file.ok) return plain("not found", 404);
   const headers = new Headers(file.headers);
@@ -601,10 +601,16 @@ async function shell(env: Env, url: URL, title: string | null, status: number, l
   const named = `${title} · 跟一单 Count Me In`;
   // A merchant wrote it: it goes in as text, never as markup. (Inside an attribute the rewriter
   // sees to the quotes; the rest is done here, so the card says exactly what was typed.)
-  const inAttribute = named.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const attribute = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const inAttribute = attribute(named);
+  // a group buy's card also says what's in it, and shows its first picture (where the app shows a card's picture)
+  const goods = card?.goods.length ? attribute(card.goods.slice(0, 6).join("、") + (card.goods.length > 6 ? "…" : "")) : null;
+  const picture = card?.photo ? `${url.origin}${BASE}/img/${card.photo}` : null;
   return new HTMLRewriter()
     .on("title", { element: (el) => void el.setInnerContent(named) })
     .on('meta[property="og:title"]', { element: (el) => void el.setAttribute("content", inAttribute) })
+    .on('meta[property="og:description"]', { element: (el) => void (goods && el.setAttribute("content", goods)) })
+    .on("head", { element: (el) => void (picture && el.append(`<meta property="og:image" content="${picture}" />`, { html: true })) })
     .transform(res);
 }
 
@@ -637,7 +643,7 @@ async function page(req: Request, env: Env, url: URL, parts: string[]): Promise<
     return shop && shop.status !== "pending" ? shell(env, url, shop.name, 200) : shell(env, url, null, 404);
   }
   if (n === 2 && a === "t" && OFFER_RE.test(b)) {
-    let head: { title: string; shop: string } | null;
+    let head: Awaited<ReturnType<typeof offerHead>>;
     try {
       await ensureSchema(env.DB);
       head = await offerHead(env.DB, b);
@@ -646,7 +652,7 @@ async function page(req: Request, env: Env, url: URL, parts: string[]): Promise<
       console.error("tuan page", url.pathname, e);
       return shell(env, url, null, 200);
     }
-    return head ? shell(env, url, `${head.title} · ${head.shop}`, 200) : shell(env, url, null, 404);
+    return head ? shell(env, url, `${head.title} · ${head.shop}`, 200, false, head) : shell(env, url, null, 404);
   }
   return shell(env, url, null, 404);
 }

@@ -5,8 +5,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { MyOfferPage, OrderMove } from "../../api";
 import { BASE } from "../../base";
+import { chainText, type ChainWords } from "../../engine/chain";
 import { ordersCsv, type CsvWords } from "../../engine/csv";
 import { lineAmount, MILLI } from "../../engine/money";
+import { leftOf } from "../../engine/order";
 import { dueOf, summarize } from "../../engine/summary";
 import { vancouverClock } from "../../engine/time";
 import { UNITS, weighed, type Order, type Unit } from "../../engine/types";
@@ -36,6 +38,7 @@ export function MyOfferView({ offerId }: { offerId: string }) {
   const [closing, setClosing] = useState(false);
   /** in WeChat, which can't save a file: where to export it instead */
   const [elsewhere, setElsewhere] = useState(false);
+  const [poster, setPoster] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const skew = useRef(0);
   const shown = useRef(false);
@@ -166,6 +169,13 @@ export function MyOfferView({ offerId }: { offerId: string }) {
         {page.shop.status === "pending" && <p class="hint">{t("applyPendingOffer")}</p>}
         <div class="row">
           {state !== "draft" && page.shop.status !== "pending" && <CopyButton text={link} label={t("copyLink")} />}
+          {/* sending it on: the text for a group chat, and a picture with a code to scan */}
+          {state !== "draft" && page.shop.status !== "pending" && <CopyButton text={chainOf(page, link)} label={t("chainButton")} />}
+          {state !== "draft" && page.shop.status !== "pending" && (
+            <button type="button" class="btn btn-quiet btn-sm" onClick={() => setPoster(true)}>
+              {t("posterButton")}
+            </button>
+          )}
           {state !== "draft" && page.shop.status !== "pending" && (
             <a class="btn btn-quiet btn-sm" href={`${BASE}/t/${offer.id}`}>
               {t("viewPublic")}
@@ -426,6 +436,7 @@ export function MyOfferView({ offerId }: { offerId: string }) {
           <p>{t("closeBody")}</p>
         </Sheet>
       )}
+      {poster && <PosterSheet page={page} link={link} onClose={() => setPoster(false)} />}
       {elsewhere && (
         <Sheet title={t("csvWeChatTitle")} onClose={() => setElsewhere(false)}>
           <p>{t("csvWeChat")}</p>
@@ -437,6 +448,90 @@ export function MyOfferView({ offerId }: { offerId: string }) {
 }
 
 /** The words of the spreadsheet, in the reader's language. */
+const chainWords = (page: MyOfferPage): ChainWords => ({
+  closes: t("chainCloses", { when: whenText(page.offer.closesAt) }),
+  link: (link) => t("chainLink", { link }),
+  joined: (n) => t("chainJoined", { n }),
+  none: t("chainNone"),
+  least: (n) => t("chainLeast", { n }),
+  perBuyer: (n) => t("chainPerBuyer", { n }),
+  and: t("chainAnd"),
+  unit: Object.fromEntries(UNITS.map((unit) => [unit, unitName(unit)])) as Record<Unit, string>,
+});
+/** The text for a group chat (src/engine/chain.ts), in the merchant's language. */
+const chainOf = (page: MyOfferPage, link: string): string => chainText(page, page.shop.name, page.orders, link, chainWords(page));
+
+/**
+ * A picture of the group buy to send on (src/client/ui/poster.ts, fetched when first asked for):
+ * the first four goods that can still be had, and a code that opens the link. In WeChat it's saved
+ * or sent by pressing and holding it; elsewhere also by a button.
+ */
+function PosterSheet({ page, link, onClose }: { page: MyOfferPage; link: string; onClose: () => void }) {
+  useLang();
+  const [made, setMade] = useState<{ url: string; file: File } | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let gone = false;
+    void (async () => {
+      try {
+        const { drawPoster } = await import("./poster");
+        const open = page.items.filter((item) => (leftOf(item) ?? Infinity) >= item.least);
+        const blob = await drawPoster({
+          shop: page.shop.name,
+          title: page.offer.title,
+          closes: t("posterCloses", { when: whenText(page.offer.closesAt) }),
+          items: open.map((item) => ({ name: item.name, price: `${money(item.price)} / ${unitName(item.unit)}`, photo: item.photo })),
+          more: (n) => t("posterMore", { n }),
+          link,
+          scan: t("posterScan"),
+          brand: t("posterBrand"),
+        });
+        // (a data: address, which the page's rules let a picture come from, and which WeChat saves on a long press)
+        const url = await new Promise<string>((done, fail) => {
+          const reader = new FileReader();
+          reader.onload = () => done(String(reader.result));
+          reader.onerror = () => fail(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        if (!gone) setMade({ url, file: new File([blob], `${page.offer.title} ${t("posterFile")}.png`, { type: "image/png" }) });
+      } catch (e) {
+        console.error("tuan poster", e);
+        if (!gone) setFailed(true);
+      }
+    })();
+    return () => {
+      gone = true;
+    };
+  }, []);
+  const sendable = made !== null && typeof navigator.canShare === "function" && navigator.canShare({ files: [made.file] });
+  return (
+    <Sheet title={t("posterTitle")} onClose={onClose}>
+      {failed ? (
+        <p class="problem">{t("posterFailed")}</p>
+      ) : !made ? (
+        <p class="loading">{t("posterBusy")}</p>
+      ) : (
+        <>
+          <img class="poster-img" src={made.url} alt={page.offer.title} width={1080} height={1440} />
+          <p class="hint">{t("posterHold")}</p>
+          {!inWeChat() && (
+            <div class="row">
+              <a class="btn btn-primary btn-sm" href={made.url} download={made.file.name}>
+                {t("posterSave")}
+              </a>
+              {sendable && (
+                <button type="button" class="btn btn-quiet btn-sm" onClick={() => void navigator.share({ files: [made.file], title: page.offer.title }).catch(() => undefined)}>
+                  {t("posterShare")}
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </Sheet>
+  );
+}
+
 const csvWords = (): CsvWords => ({
   headers: t("csvHeaders").split(","),
   status: { new: t("statFresh"), confirmed: t("doneConfirm"), cancelled: t("statusCancelled") },
