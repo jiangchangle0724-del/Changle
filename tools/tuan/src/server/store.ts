@@ -8,6 +8,7 @@
 import type { Application, ApplicationState, MyOffer, MyShop } from "../api";
 import { DECLARATION, type Decision, type NewApplication } from "../engine/apply";
 import type { Edit, Used } from "../engine/edit";
+import { PHOTO_RE } from "../engine/ids";
 import type { NewOffer } from "../engine/offer";
 import type { Before, Taken } from "../engine/order";
 import type { NewShop, ShopWords } from "../engine/shop";
@@ -71,9 +72,12 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
 
 /** A group buy's name and its shop's, for its page's title; null when there's none the public may see. */
 /** A group buy's title and its shop's name, for its page's title: not a draft, and its shop let in. */
-export async function offerHead(db: D1Database, offerId: string): Promise<{ title: string; shop: string } | null> {
+export async function offerHead(db: D1Database, offerId: string): Promise<{ title: string; shop: string; goods: string[]; photo: string | null } | null> {
   const row = await db.prepare("SELECT f.title, s.name FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ? AND f.status != 'draft' AND s.status != 'pending'").bind(offerId).first<Row>();
-  return row ? { title: text(row.title), shop: text(row.name) } : null;
+  if (!row) return null;
+  // (for the card a shared link becomes: the first few goods, and the first picture)
+  const { results } = await db.prepare("SELECT name, photo FROM items WHERE offer_id = ? ORDER BY pos LIMIT 7").bind(offerId).all<Row>();
+  return { title: text(row.title), shop: text(row.name), goods: results.map((item) => text(item.name)), photo: results.map((item) => item.photo).find((photo): photo is string => typeof photo === "string" && PHOTO_RE.test(photo)) ?? null };
 }
 
 // ---------- orders ----------

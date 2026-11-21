@@ -259,6 +259,28 @@ export const MY_STRINGS = {
   csvFile: { zh: "订单", en: "orders" },
   csvWeChatTitle: { zh: "到浏览器里导出", en: "Export it in a browser" },
   csvWeChat: { zh: "微信里存不了文件。点右上角的「…」，选「在浏览器打开」，再点一次「导出表格」。", en: "WeChat can't save files. Tap ··· at the top right, choose Open in Browser, then tap Export again." },
+
+  // ---------- sending it on: the 接龙 text and the poster ----------
+  chainButton: { zh: "复制接龙文案", en: "Copy the group-chat text" },
+  chainCloses: { zh: "截单：{when}", en: "Closes: {when}" },
+  chainLink: { zh: "下单：{link}", en: "Order here: {link}" },
+  chainJoined: { zh: "接龙（{n} 单）", en: "Orders so far ({n})" },
+  chainNone: { zh: "还没有人下单，点上面的链接就能跟团。", en: "No orders yet: the link above is the way in." },
+  chainLeast: { zh: "{n}起", en: "from {n}" },
+  chainPerBuyer: { zh: "每人限 {n}", en: "{n} each at most" },
+  chainAnd: { zh: "、", en: ", " },
+  posterButton: { zh: "生成海报", en: "Make a poster" },
+  posterTitle: { zh: "分享海报", en: "A poster to send" },
+  posterBusy: { zh: "正在画海报…", en: "Drawing the poster…" },
+  posterHold: { zh: "在手机上长按图片，可以保存，也可以直接发给朋友、发到群里。", en: "On a phone, press and hold the picture to save it or send it on." },
+  posterSave: { zh: "保存图片", en: "Save the picture" },
+  posterShare: { zh: "发给…", en: "Send…" },
+  posterFailed: { zh: "海报没画出来，关掉再试一次。", en: "The poster didn't come out. Close this and try again." },
+  posterScan: { zh: "长按识别二维码，进去下单", en: "Scan the code to order" },
+  posterMore: { zh: "还有 {n} 样，扫码看全部", en: "{n} more inside" },
+  posterBrand: { zh: "跟一单", en: "Count Me In" },
+  posterCloses: { zh: "截单 {when}", en: "Closes {when}" },
+  posterFile: { zh: "海报", en: "poster" },
 } as const;
 
 addStrings(MY_STRINGS);
