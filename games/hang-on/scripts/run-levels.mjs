@@ -2097,6 +2097,9 @@ try {
   const hardish = new Set(climbing.filter((e) => tierOf(e.level) >= 1).map((e) => e.level.id));
   const tired = new Set(climbing.filter((e) => staminaOn(e.level)).map((e) => e.level.id));
   console.log(`stamina: ${tired.size}/${hardish.size} medium and hard levels replayed with tired hands`);
+  // C15、C16、C17 以后中等、困难的关全都按手酸录过（11-21）：以后新做的中等、困难关也要写 stamina: true、按手酸录
+  const untired = [...hardish].filter((id) => !tired.has(id));
+  assert.deepEqual(untired, [], `medium and hard levels are recorded with tired hands (stamina: true): ${untired.join(', ')}`);
   // 长关（A13）：有几关、各多长
   const longs = climbing.filter((e) => e.level.long);
   console.log(`long: ${longs.length} long levels${longs.length ? ` (${longs.map((e) => `${e.level.id} ${Math.round(routeLength(e.level))} px`).join(', ')})` : ''}`);
