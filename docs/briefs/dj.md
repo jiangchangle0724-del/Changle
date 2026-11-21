@@ -219,6 +219,7 @@
 - 11-21 Steve 拍了电视：脸扭曲、跳得不自然、手机当音箱放完一首就停。他选了一张参考图的脸（他发的第三张，粉色盘扣那位，他说是 AI 生成的人），三套衣服都换成这张脸（`facekit.py`），脸按照片原来的光画（`_FACE`），不再被舞台灯照出凹凸。接下来：照他的参考图设计更多衣服（白色蕾丝、皮衣蕾丝、新中式、白色连衣裙、黑白开衫长裙），摩登舞配大摆裙、古典舞配水袖，不同的歌配不同的衣服和舞；动作要过一组查 AI 动作毛病的检查（打滑、穿地、浮空、反关节、穿模、重心、抖动）。
 - 11-21 手机当音箱放完一首就回到「这台设备当音箱」：页面重新加载了（和 11-2 的「经常闪退」一样，最可能是屏幕自动锁了）。iPhone、iPad 现在两种办法一起保持亮屏（系统的亮屏请求，加一个看不见的小视频一直放），系统收回亮屏请求时再要一次；开始卡片上告诉 iPhone 先把自动锁定设成「永不」。
 - 11-21 Steve 又说投屏的手机「偶尔还是会突然刷新」：网站一更新（任何一个聊天合并到 main 都会），页面再要一个还没下载的文件就拿不到（文件名每次构建都变），`lib/freshness.ts` 就重新加载页面，歌就断了。现在当音箱放着歌的时候不重新加载（`holdNewVersion`），缺文件的那部分自己退回去（舞者退回画的那个），离开页面时再换新版。
+- 11-21 下午 光腿配高跟鞋（Steve「一个接一个继续做」）：`legs.py`，九套裙装（除了夜店和皮夹克）的靴筒收细成小腿、涂成皮肤，靴子的脚留下当鞋。看过正面腿部对比，膝盖处没有台阶。
 - 11-21 傍晚 三套新衣服上线（Steve「做你能做到」）：ChatGPT 照「1-她的设计图.png」画了酒红晚礼服、香槟摩登舞裙、青绿古典舞服（`舞者衣服/8-、9-、10-…设计图.png`，裙子都到小腿中间），`build_outfit.sh` 画到第一个人物身上（脸不动），`shell_all.sh` 加头发那层。香槟和青绿的裙边自动找不到/找成膝盖，手动 `SKIRT_ARGS='--hem 0.32'`。晚礼服、摩登舞裙放派对（party），古典舞服放抒情（sweet）。之前说电脑锁屏是看错了：打的字其实进了 ChatGPT，只是界面慢。还没做：表情（脸不能动）、光腿高跟鞋和背心前襟、Kick Step、芭蕾。
 - 11-21 下午 古典舞上了两支：YouTube 找的古典舞身韵「摇臂组合」正面教学示范（N2yDRrqMOmM，练功服、正对镜头），切 8 段过检查 2 段（shenyun4、shenyun5，107.7 bpm），放在抒情（sweet）造型里，慢歌按速度轮到。看过截图：甩臂、转身、下腰，像跳舞。其余 6 段膝盖往后或脚滑，没要。
 - 11-21 下午 换舞时脚不滑（Steve 12:38「4. 改进修复」）：两支舞交接的 0.6 秒里，她的脚钉在原地，然后一只一只抬起来（离地最多 5 厘米）走到新舞的位置，离新舞位置远的那只先走；胯走得比腿够得着还远时那只脚提前迈（`dancer/plant.ts`，两节骨头的腿 IK，膝盖照原来的方向弯，脚的朝向照舞）。`tests/dancer.test.ts` 第 7 项：每两支相邻的舞交接一次，等着的脚沿地面不动（< 5 毫米），迈的脚离地，最后和新舞一模一样。Kick Step 还是不上：它是舞里面自己脚滑（比原舞者还滑），不是交接的问题。
@@ -292,6 +293,7 @@
 - 2026-11-21 DJ: her feet stay, then step, when one dance hands over to the next
 - 2026-11-21 DJ: two Chinese classical dances (身韵摇臂组合) learnt from a YouTube demonstration
 - 2026-11-21 DJ: an evening gown, a ballroom dress and a classical dance costume
+- 2026-11-21 DJ: bare legs and heels with her dresses
 - 2026-11-20 DJ: the dancer walks the stage
 - 2026-11-20 DJ: six more dances for the dancer, and her outfit changes sooner
 - 2026-11-20 DJ: the dancer's party dress, and the new outfits' faces put right
