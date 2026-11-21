@@ -5,6 +5,8 @@
  * and keys, when the account has used it, bound yet or not). The hub tells each at once, and a row
  * that fails waits and tries again (a minute, then longer, a day at most) on the hub's alarm, until
  * the app answers. The apps' own `accountGone` is safe to call twice, and throws when it fails.
+ * An email changed (换邮箱, emailChange.ts) rides the same rows as app "money-changed": MoneyLens's
+ * `accountChanged`, for an account that has used it.
  *
  * Plain functions on the hub's SQL (tests/handoff.test.ts runs them on Node's SQLite).
  */
@@ -91,7 +93,7 @@ export function nextDue(sql: Sql): number | null {
 }
 
 /** the promise, or a failure once `ms` have passed */
-function within<T>(ms: number, p: Promise<T>): Promise<T> {
+export function within<T>(ms: number, p: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<T>((_, fail) => {
     timer = setTimeout(() => fail(new Error(`no answer in ${ms / 1000} s`)), ms);
