@@ -33,7 +33,11 @@ function Shell({ children }: { children: preact.ComponentChildren }) {
   );
 }
 
+/** The address the page was last drawn for. */
+let routed = "";
+
 function route() {
+  routed = location.pathname;
   const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) || "/" : location.pathname;
   const table = path.match(/^\/r\/(\d{4})\/?$/);
   const rate = path.match(/^\/r\/(\d{4})\/rate\/?$/);
@@ -57,5 +61,10 @@ function route() {
   render(<Shell>{rate ? <Rate code={rate[1]} home={home} /> : <Home go={go} />}</Shell>, root);
 }
 
-window.addEventListener("popstate", route);
+// The back button only redraws the page when it changes the address. A sheet or an open group on
+// round 1 adds a history entry at the same address (useBackCloses), and stepping back over it must
+// not reconnect the table or reset the screen.
+window.addEventListener("popstate", () => {
+  if (location.pathname !== routed) route();
+});
 route();

@@ -8,7 +8,7 @@ import { lineAmount, MILLI, QTY_MAX } from "../../engine/money";
 import { deliveryFee } from "../../engine/order";
 import { phoneDigits } from "../../engine/phone";
 import { weighed, type DeliveryRule, type How } from "../../engine/types";
-import { ApiFail, changeOrder, getOffer, getOrder, newKey, photoUrl, placeOrder, rememberOrder, saveCart, savedCart, savedMe, saveMe, tailOf, type Cart } from "../api";
+import { ApiFail, changeOrder, getOffer, getOrder, handOver, newKey, photoUrl, placeOrder, rememberOrder, saveCart, savedCart, savedMe, saveMe, tailOf, type Cart } from "../api";
 import { leftText, t, unitName, whenText } from "../i18n";
 import { Copyable, emailIn, IconBack, IconClock, IconNext, IconPin, IconPlus, Lines, money, priceText, qtyText, Sheet, Stepper, Toast, TopBar, useDrawn, useLang, useTitle } from "./common";
 
@@ -268,6 +268,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
         onDone={(order) => {
           rememberOrder({ code: order.order.code, tail: order.order.tail, offerId, title: order.offer.title, shop: order.shop.name, at: order.order.createdAt });
           if (!changeCode) saveCart(offerId, {});
+          handOver(order);
           location.assign(`${BASE}/o/${order.order.code}${changeCode ? "" : "?new=1"}`);
         }}
       />
@@ -295,7 +296,12 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
           {page.offer.state === "paused" ? t("paused") : open ? `${t("closesAt", { when: whenText(page.offer.closesAt) })} · ${t("closesIn", { left: leftText(page.offer.closesAt - now) })}` : t("closed")}
         </p>
         {!open && <p class="hint">{page.offer.state === "paused" ? t("pausedLine") : t("closedLine")}</p>}
-        {page.offer.note && !changing && <Lines text={page.offer.note} class="offer-note" />}
+        {page.offer.roster !== "off" && page.orders > 0 && !changing && (
+          <button type="button" class="link-btn joined" onClick={() => document.getElementById("roster")?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" })}>
+            {t("joined", { n: page.orders })}
+          </button>
+        )}
+        {page.offer.note && !changing && <Note text={page.offer.note} />}
         <button type="button" class="how-chip" onClick={() => setHowOpen(true)}>
           <IconPin />
           <span>{[page.points.length ? t("pickupCount", { n: page.points.length }) : "", page.rules.length ? t("deliveryCount", { n: page.rules.length }) : ""].filter(Boolean).join(" · ")}</span>
@@ -333,7 +339,7 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
       ))}
 
       {page.offer.roster !== "off" && !changing && (
-        <section class="panel">
+        <section class="panel" id="roster">
           <div class="row-between">
             <h2 class="panel-title">{t("roster")}</h2>
             {page.orders > 0 && <span class="hint">{t("rosterCount", { n: page.orders })}</span>}
@@ -395,9 +401,9 @@ export function OfferView({ offerId, changeCode }: { offerId: string; changeCode
         </div>
       )}
 
-      {lookingItem?.photo && (
+      {lookingItem && (
         <Look
-          item={{ ...lookingItem, photo: lookingItem.photo }}
+          item={lookingItem}
           qty={cart[lookingItem.id] ?? 0}
           open={open}
           gone={most(lookingItem, heldOf(lookingItem)) < lookingItem.least}
@@ -523,6 +529,29 @@ function useComing() {
   return { img, waiting, came: () => setWaiting(false) };
 }
 
+/** What the group buy says: a long one shows its first lines and a way to the rest. */
+function Note({ text }: { text: string }) {
+  const box = useRef<HTMLParagraphElement>(null);
+  const [all, setAll] = useState(false);
+  const [long, setLong] = useState(false);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (el && !all) setLong(el.scrollHeight > el.clientHeight + 1);
+  }, [text, all]);
+  return (
+    <>
+      <p ref={box} class={all ? "lines offer-note" : "lines offer-note offer-note-short"}>
+        {text}
+      </p>
+      {long && (
+        <button type="button" class="link-btn" aria-expanded={all} onClick={() => setAll(!all)}>
+          {all ? t("noteLess") : t("noteMore")}
+        </button>
+      )}
+    </>
+  );
+}
+
 /** The small picture for the list (it says nothing a screen reader needs: the row says it) or the large one. */
 function Photo({ id, small, name, low = false, onError }: { id: string; small: boolean; name: string; low?: boolean; onError?: () => void }) {
   const { img, waiting, came } = useComing();
@@ -554,6 +583,8 @@ function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLoo
       <Thumb item={item} onLook={onLook} />
       <div class="item-what">
         <h3 class="item-name">{item.name}</h3>
+        {/* (the whole of the words is the way to the item's details: the full text, the large picture) */}
+        <button type="button" class="item-open" aria-label={t("details", { name: item.name })} onClick={onLook} />
         {item.detail && <p class="item-detail">{item.detail}</p>}
         {item.allergens && <p class="item-note">{t("allergens", { a: item.allergens })}</p>}
         <p class="item-price">
@@ -582,7 +613,7 @@ function ItemRow({ item, qty, room, open, canMore, onLess, onMore, onPick, onLoo
 }
 
 /** An item's picture, large, with what it is and the same way into the cart as its row. */
-function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose }: { item: PublicItem & { photo: string }; qty: number; open: boolean; gone: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onClose: () => void }) {
+function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose }: { item: PublicItem; qty: number; open: boolean; gone: boolean; canMore: boolean; onLess: () => void; onMore: () => void; onPick: () => void; onClose: () => void }) {
   const drawn = useDrawn();
   const byWeight = weighed(item.unit);
   return (
@@ -593,7 +624,7 @@ function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose 
         open && !gone ? (
           byWeight ? (
             <button type="button" class="btn btn-primary btn-block" onClick={onPick}>
-              {qty ? qtyText(item.unit, qty) : t("pickWeight")}
+              {qty ? t("changeWeight", { qty: qtyText(item.unit, qty) }) : t("pickWeight")}
             </button>
           ) : qty ? (
             <div class="look-step">
@@ -607,7 +638,7 @@ function Look({ item, qty, open, gone, canMore, onLess, onMore, onPick, onClose 
         ) : undefined
       }
     >
-      <Photo id={item.photo} small={false} name={item.name} />
+      {item.photo && <Photo id={item.photo} small={false} name={item.name} />}
       {item.detail && <Lines class="look-detail" text={item.detail} />}
       {item.allergens && <p class="item-note">{t("allergens", { a: item.allergens })}</p>}
       <p class="item-price">

@@ -1,12 +1,11 @@
 // After the meal: three taps, under ten seconds (/eat/r/1234/rate).
 import { useEffect, useState } from "preact/hooks";
-import { BASE } from "../../base";
 import type { Rating } from "../../engine";
 import { t } from "../i18n";
 import { api } from "../net";
 import { identity, prefs } from "../prefs";
 import { toast } from "../store";
-import { Btn, LangToggle } from "./common";
+import { Btn, Dock, Message, TopBar } from "./common";
 
 interface Info {
   exists: boolean;
@@ -38,23 +37,11 @@ export function Rate({ code, home }: { code: string; home: () => void }) {
 
   return (
     <main class="page rate">
-      <header class="bar">
-        <a
-          href={`${BASE}/`}
-          class="brand"
-          onClick={(e) => {
-            e.preventDefault();
-            home();
-          }}
-        >
-          🥢 {t("title")}
-        </a>
-        <LangToggle />
-      </header>
+      <TopBar title="title" home={home} />
       {!info ? (
         <p class="muted center">{t("connecting")}</p>
       ) : !info.exists ? (
-        <p class="error">{t("noRoom")}</p>
+        <Message error>{t("noRoom")}</Message>
       ) : !info.winner ? (
         <p class="muted">{t("rateNotYet")}</p>
       ) : (
@@ -69,34 +56,42 @@ export function Rate({ code, home }: { code: string; home: () => void }) {
             </>
           ) : (
             <>
-              <h3>{t("overall")}</h3>
-              <div class="seg big">
-                {(["up", "mid", "down"] as const).map((o) => (
-                  <button key={o} type="button" aria-pressed={overall === o} onClick={() => setOverall(o)}>
-                    {o === "up" ? "👍" : o === "mid" ? "😐" : "👎"}
+              <section class="card">
+                <h3>{t("overall")}</h3>
+                <div class="seg big">
+                  {(["up", "mid", "down"] as const).map((o) => (
+                    <button class="press" key={o} type="button" aria-pressed={overall === o} onClick={() => setOverall(o)}>
+                      {o === "up" ? "👍" : o === "mid" ? "😐" : "👎"}
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <section class="card">
+                <h3>{t("likedQ")}</h3>
+                <div class="seg">
+                  <button class="press" type="button" aria-pressed={liked === true} onClick={() => setLiked(true)}>
+                    {t("yes")}
                   </button>
-                ))}
-              </div>
-              <h3>{t("likedQ")}</h3>
-              <div class="seg">
-                <button type="button" aria-pressed={liked === true} onClick={() => setLiked(true)}>
-                  {t("yes")}
-                </button>
-                <button type="button" aria-pressed={liked === false} onClick={() => setLiked(false)}>
-                  {t("no")}
-                </button>
-              </div>
-              <h3>{t("waitedQ")}</h3>
-              <div class="seg">
-                {([0, 15, 30, 45] as const).map((w) => (
-                  <button key={w} type="button" aria-pressed={wait === w} onClick={() => setWait(w)}>
-                    {w === 45 ? t("waited45") : t("min", { n: w })}
+                  <button class="press" type="button" aria-pressed={liked === false} onClick={() => setLiked(false)}>
+                    {t("no")}
                   </button>
-                ))}
-              </div>
-              <Btn kind="primary" wide disabled={overall === null || liked === null || wait === null} onClick={() => void submit()}>
-                {t("submit")}
-              </Btn>
+                </div>
+              </section>
+              <section class="card">
+                <h3>{t("waitedQ")}</h3>
+                <div class="seg">
+                  {([0, 15, 30, 45] as const).map((w) => (
+                    <button class="press" key={w} type="button" aria-pressed={wait === w} onClick={() => setWait(w)}>
+                      {w === 45 ? t("waited45") : t("min", { n: w })}
+                    </button>
+                  ))}
+                </div>
+              </section>
+              <Dock>
+                <Btn kind="primary" wide disabled={overall === null || liked === null || wait === null} onClick={() => void submit()}>
+                  {t("submit")}
+                </Btn>
+              </Dock>
             </>
           )}
           {info.ratings && info.ratings.n > 0 && <p class="center">{t("tableScore", { n: info.ratings.liked, m: info.ratings.n })}</p>}

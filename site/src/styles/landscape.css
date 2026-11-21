@@ -182,6 +182,14 @@
   .game-body .pl > .sh-stage.is-phone .sh-place[data-rank="3"] .sh-step {
     height: 40px;
   }
+  /* passing the phone beside the club: the card's button is in the bar below, so the name gets its
+     column, a size smaller, and a name like Alexandra stays on one line */
+  .game-body .pl > .pass-curtain {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .game-body .pl > .pass-curtain .pass-name {
+    font-size: var(--text-xl);
+  }
   /* one phone, Euchre: the card table is the big picture on the left, the score, your hand and
      the buttons on the right; it keeps its own grid of four seats */
   .game-body .eu-table {

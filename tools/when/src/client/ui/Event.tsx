@@ -4,7 +4,7 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { addDays, allFree, atTime, best, crewOf, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel, withNames } from "../../engine";
+import { addDays, allFree, atTime, best, crewOf, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, startWindow, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel, withNames } from "../../engine";
 import type { Answers, Day, EventState, Here, Lang, Part, Person, Quick, SlotKey, Span, Times, Weather } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
@@ -19,6 +19,7 @@ import { HereLine, useFinished } from "./Here";
 import { MovingList } from "./Moving";
 import { PictureSheet, daysLine, inviteLine, invitePicture } from "./Picture";
 import { field, minutesOf, TimeSheet } from "./Times";
+import { StartPoll, StartSheet } from "./Start";
 import { useForecast, WeatherCredit, WeatherLine } from "./Weather";
 import { Words } from "./Words";
 
@@ -35,6 +36,7 @@ type Open =
   | { kind: "invited" }
   | { kind: "deadline" }
   | { kind: "proxy" }
+  | { kind: "starts" }
   | null;
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
@@ -355,6 +357,15 @@ export function EventPage({ code }: { code: string }) {
       () => say("failed"),
     );
 
+  /** The start times asked about that suit me (几点开始). */
+  const vote = (starts: number[]) =>
+    api.vote(code, starts).then(
+      (done) => take(done.state),
+      () => say("failed"),
+    );
+  // when it can start, once the time is set (null where there are no minutes)
+  const startsWindow = startWindow(state.grain, state.settled);
+
   /** Nothing is filled in before there's a name: ask for it. True when it had to. */
   function nameless(): boolean {
     if (proxy || name.trim()) return false;
@@ -553,9 +564,25 @@ export function EventPage({ code }: { code: string }) {
           </strong>
           <p>{reason(settledTally, people, lang)}</p>
           <WeatherLine as="p" weather={settledWeather} />
+          {state.starts.length > 0 && (
+            <StartPoll
+              times={state.starts}
+              people={people}
+              me={me}
+              host={host}
+              onVote={(starts) => void vote(starts)}
+              onSet={(at) => void act({ do: "start", at })}
+              onChange={() => setOpen({ kind: "starts" })}
+            />
+          )}
           <AddToCalendar state={state} />
           {host && (
             <div class="row set-host">
+              {startsWindow && state.starts.length === 0 && (
+                <button type="button" class="link-btn on-gel" onClick={() => setOpen({ kind: "starts" })}>
+                  {t("startOpen")}
+                </button>
+              )}
               {settledSlot && rangeOf(settledSlot) && (
                 <button type="button" class="link-btn on-gel" onClick={() => setOpen({ kind: "setTime" })}>
                   {t("setTime")}
@@ -966,6 +993,15 @@ export function EventPage({ code }: { code: string }) {
             }
           />
         </Sheet>
+      )}
+      {open?.kind === "starts" && startsWindow && (
+        <StartSheet
+          window={startsWindow}
+          asked={state.starts}
+          onSend={(times) => (setOpen(null), void act({ do: "starts", times }))}
+          onStop={() => (setOpen(null), void act({ do: "starts", times: [] }))}
+          onClose={() => setOpen(null)}
+        />
       )}
       {open?.kind === "invited" && (
         <InvitedSheet

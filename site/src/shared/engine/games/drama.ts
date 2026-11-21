@@ -3,7 +3,7 @@ import { CLASSICS, type ClassicScene, type ClassicSet } from "../../../data/dram
 import { READ_KINDS, READ_PASS, READINGS, readKind, type ReadKind, type ReadPiece, type ReadSet } from "../../../data/dramaReadings";
 import type { T } from "../../../i18n";
 import { cleanScene, hasText } from "../../dramaScene";
-import type { DramaCard, DramaView } from "../../protocol";
+import type { DramaCard, DramaView, PenaltyKind } from "../../protocol";
 import { clean, intIn, t, type Api, type GameDef } from "../api";
 
 /**
@@ -96,6 +96,12 @@ type S = {
   tasks: Record<string, number>;
   pk: { line: number; styles: Record<string, number> } | null;
   pkUsed: number[];
+  /**
+   * The act's penalty stamp, landing once the reveal has played: the game's own timer, so the host
+   * can't move on under it (a delayed penalty the game couldn't see used to land on the next act's
+   * cards when 下一幕 came quickly).
+   */
+  stamp: { ids: string[]; kind: PenaltyKind; note: T; say: T | null; at: number } | null;
   ready: string[];
   endsAt: number;
   actMs: number;
@@ -592,7 +598,7 @@ function reveal(s: S, api: Api) {
     const note =
       s.mode === "show" && sc ? sc.title : s.mode === "classic" && s.classic !== null ? CLASSICS[s.classic].title : reading && s.read !== null ? READINGS[s.read].title : PK_LINES[s.pk?.line ?? 0];
     // after the reveal has played (drum roll, mask, cards, trophy) and been read
-    api.penalty([...losers], "sip", note, { delay: s.mode === "show" ? 8000 : 5500, ...(say ? { say } : {}) });
+    stampLater(s, api, [...losers], "sip", note, say, s.mode === "show" ? 8000 : 5500);
   }
 }
 
@@ -600,16 +606,40 @@ function reveal(s: S, api: Api) {
  * The truth without a count: nobody voted, or nobody at the table could (one person, on stage).
  * The answer and every card come out; no points, no best actor, no penalty.
  */
-function quietReveal(s: S, api: Api) {
-  api.clear("vote");
+function quietReveal(s: S, api: Api, left = false) {
+  for (const k of ["brief", "act", "twist", "vote"]) api.clear(k);
   const cards: Record<string, DramaCard> = {};
   for (const pid of s.cast) {
     const c = card(s, pid);
     if (c) cards[pid] = c;
   }
-  s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards, best: [], losers: [], right: [], penalty: null, gained: {}, answer: answerOf(s), quiet: true };
+  s.result = { culprit: s.culprit, caught: false, counts: {}, stars: {}, cards, best: [], losers: [], right: [], penalty: null, gained: {}, answer: answerOf(s), quiet: true, ...(left ? { left: true } : {}) };
   s.phase = "reveal";
   api.fx("reveal");
+}
+
+function stampLater(s: S, api: Api, ids: string[], kind: PenaltyKind, note: T, say: T | null, ms: number) {
+  s.stamp = { ids, kind, note, say, at: api.now + ms };
+  api.timer("stamp", s.stamp.at);
+}
+
+function stampNow(s: S, api: Api) {
+  api.clear("stamp");
+  const st = s.stamp;
+  if (!st) return;
+  s.stamp = null;
+  api.penalty(st.ids, st.kind, st.note, st.say ? { say: st.say } : undefined);
+}
+
+/**
+ * Moving on from a reveal or the curtain call: not while the stamp is still on its way (the host's
+ * button waits for it too); one that's due but not yet landed lands first.
+ */
+function stampSettled(s: S, api: Api): boolean {
+  if (!s.stamp) return true;
+  if (api.now < s.stamp.at) return false;
+  stampNow(s, api);
+  return true;
 }
 
 function finish(s: S, api: Api) {
@@ -620,7 +650,7 @@ function finish(s: S, api: Api) {
   const last = ids.filter((pid) => (s.scores[pid] ?? 0) === lo);
   if (last.length && last.length < ids.length) {
     const say = penaltyText(s, api);
-    api.penalty(last, "two", t("戏精大赏：最后一名", "Drama Queens: last place"), { delay: 3000, ...(say ? { say } : {}) });
+    stampLater(s, api, last, "two", t("戏精大赏：最后一名", "Drama Queens: last place"), say, 3000);
   }
 }
 
@@ -666,6 +696,7 @@ export const drama: GameDef<S> = {
       twisted: false,
       votes: {},
       result: null,
+      stamp: null,
       scores: {},
       acted: {},
       awards: {},
@@ -684,6 +715,7 @@ export const drama: GameDef<S> = {
     s.rkinds ??= [];
     s.read ??= null;
     s.plan ??= s.total;
+    s.stamp ??= null;
     switch (g.x) {
       case "config": {
         if (!host || s.phase !== "setup") return;
@@ -733,7 +765,8 @@ export const drama: GameDef<S> = {
       case "vote": {
         // the audience votes; with nobody watching, the actors do, on everyone but themselves
         if (s.phase !== "vote" || !api.has(pid) || s.cast.includes(pid) !== peerVote(s, api)) return;
-        const others = s.cast.filter((c) => c !== pid);
+        // (an actor who has left the table gets no stars and can't be picked)
+        const others = s.cast.filter((c) => c !== pid && api.has(c));
         const raw = (g.stars ?? {}) as Record<string, unknown>;
         const stars: Record<string, number> = {};
         for (const c of others) {
@@ -769,7 +802,7 @@ export const drama: GameDef<S> = {
         return;
       }
       case "next": {
-        if (!host || s.phase !== "reveal") return;
+        if (!host || s.phase !== "reveal" || !stampSettled(s, api)) return;
         if (s.round >= s.total) {
           finish(s, api);
           return;
@@ -780,7 +813,7 @@ export const drama: GameDef<S> = {
         return;
       }
       case "more": {
-        if (!host || s.phase !== "end" || !upNext(s, api).ok) return;
+        if (!host || s.phase !== "end" || !upNext(s, api).ok || !stampSettled(s, api)) return;
         s.total += 3;
         s.round += 1;
         newRound(s, api);
@@ -790,7 +823,7 @@ export const drama: GameDef<S> = {
         // between acts or at the curtain call, back to the setup to play it another way: the
         // night's scores, the scenes written here and the ones already played all stay, and the
         // acts count again from the number the host picks
-        if (!host || (s.phase !== "reveal" && s.phase !== "end")) return;
+        if (!host || (s.phase !== "reveal" && s.phase !== "end") || !stampSettled(s, api)) return;
         for (const k of ["brief", "act", "twist", "vote"]) api.clear(k);
         Object.assign(s, { phase: "setup", round: 0, total: s.plan, scene: null, cur: null, cast: [], roles: [], order: [], classic: null, read: null, culprit: null, tasks: {}, pk: null, ready: [], endsAt: 0, actMs: 0, twistAt: 0, twisted: false, votes: {}, result: null } satisfies Partial<S>);
         return;
@@ -836,7 +869,8 @@ export const drama: GameDef<S> = {
   },
 
   timer(s, key, _data, api) {
-    if (key === "brief" && s.phase === "brief") startAct(s, api);
+    if (key === "stamp") stampNow(s, api);
+    else if (key === "brief" && s.phase === "brief") startAct(s, api);
     else if (key === "twist" && s.phase === "act") {
       s.twisted = true;
       api.fx("reveal");
@@ -850,6 +884,16 @@ export const drama: GameDef<S> = {
 
   leave(s, pid, api) {
     delete s.votes[pid];
+    // an actor walked out mid-act: with the culprit, a duelist or the whole cast gone the act can't
+    // be judged, so the cards turn over and nothing counts; otherwise the rest play on, and nobody
+    // has to star the one who left
+    if ((s.phase === "brief" || s.phase === "act" || s.phase === "vote") && s.cast.includes(pid)) {
+      const here = s.cast.filter((c) => c !== pid && api.has(c));
+      if (!here.length || pid === s.culprit || s.mode === "pk") {
+        quietReveal(s, api, true);
+        return;
+      }
+    }
     if (s.phase === "vote" && Object.keys(s.votes).length && everyoneVoted(s, api)) reveal(s, api);
     if (s.phase === "brief" && s.cast.length && s.cast.every((c) => s.ready.includes(c) || !api.has(c) || c === pid)) startAct(s, api);
   },
@@ -898,6 +942,7 @@ export const drama: GameDef<S> = {
       voted: Object.keys(s.votes),
       myVote: s.votes[pid] ?? null,
       result: s.phase === "reveal" ? s.result : null,
+      stampAt: s.stamp ? s.stamp.at : 0,
       scores: s.scores,
       awards: s.awards,
       credit: live && s.cur ? { pid: s.cur.by, name: s.cur.credit } : null,

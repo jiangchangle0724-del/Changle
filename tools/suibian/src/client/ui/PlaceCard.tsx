@@ -2,6 +2,7 @@
 // (cuisine, what it mainly serves, price), how far on foot and by car, what speaks for it and why it
 // may be further down (with what can still be ordered), Google's descriptions, wait, call and map,
 // and ordering it in. Further down the list a card starts short (`compact`) and opens with "More".
+import { Camera, ChevronDown, ChevronUp, MapPin, Star, TriangleAlert } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { CUISINES, DISHES, avoidTip, badgesFor, cuisinesOf, type OccasionId, type Off, type Place, type Reason } from "../../engine";
@@ -9,7 +10,7 @@ import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
 import { serverNow } from "../store";
 import { timeLabel } from "../when";
-import { allergenWord } from "./common";
+import { Message, allergenWord } from "./common";
 import { Delivery } from "./Delivery";
 
 export function waitKey(level: number): Key {
@@ -87,7 +88,7 @@ function reasonText(r: Reason, c: CardView, occasion?: OccasionId): string {
   return t(`why_${r}` as Key);
 }
 
-export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren }) {
+export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren; vetoed?: boolean; win?: boolean }) {
   const [open, setOpen] = useState(!compact);
   const p = c.place;
   const o = p.ours;
@@ -99,13 +100,13 @@ export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardV
   const until = c.at !== undefined ? c.closesAt : undefined;
   const lines = notes(c, occasion);
   return (
-    <article class={`place${compact ? " compact" : ""}`} data-id={p.id} data-rank={c.rank}>
+    <article class={`place${compact ? " compact" : ""}${vetoed ? " vetoed" : ""}${win ? " win" : ""}`} data-id={p.id} data-rank={c.rank}>
       {open && p.photo && (
         <figure class="photo">
           <img src={p.photo} alt="" loading="lazy" referrerpolicy="no-referrer" />
           {p.photoBy && (
             <figcaption>
-              📷{" "}
+              <Camera aria-hidden="true" />{" "}
               {p.photoBy.uri ? (
                 <a href={p.photoBy.uri} target="_blank" rel="noopener">
                   {p.photoBy.name}
@@ -146,17 +147,17 @@ export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardV
         <p class="meta facts">
           {p.rating !== undefined && (
             <span>
-              ★ {p.rating.toFixed(1)} <small class="muted">({t("ratings", { n: p.ratings ?? 0 })})</small>
+              <Star aria-hidden="true" /> {p.rating.toFixed(1)} <small class="muted">({t("ratings", { n: p.ratings ?? 0 })})</small>
             </span>
           )}
-          <span>📍 {distance(c.meters)}</span>
+          <span><MapPin aria-hidden="true" /> {distance(c.meters)}</span>
           <span>{c.drive ? drive : walk}</span>
           <span>{c.drive ? walk : drive}</span>
         </p>
         {!!c.reasons.length && (
           <p class="reasons">
             {c.reasons.map((r) => (
-              <span key={r} class="reason">
+              <span key={r} class={`reason ${r}`}>
                 {reasonText(r, c, occasion)}
               </span>
             ))}
@@ -164,7 +165,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardV
         )}
         {lines.map((l, i) => (
           <p key={i} class={`note small${l.severe ? " severe" : ""}`}>
-            {l.text}
+            {!l.severe && <TriangleAlert aria-hidden="true" />}{l.text}
           </p>
         ))}
         {open && (
@@ -221,28 +222,26 @@ export function PlaceCard({ c, ranked, compact, occasion, children }: { c: CardV
                 {p.reservable && <span>{t("reservable")}</span>}
               </p>
             )}
-            {c.open === undefined && <p class="warn small">{t(c.at !== undefined ? "hoursUnknownThen" : "hoursUnknown")}</p>}
+            {c.open === undefined && <Message class="small">{t(c.at !== undefined ? "hoursUnknownThen" : "hoursUnknown")}</Message>}
             {c.warnings
               .filter((w) => w.k !== "allergy" && w.k !== "custom")
               .map((w, i) => (
-                <p key={i} class="warn small">
-                  {t(`warn_${w.k}` as Key)}
-                </p>
+                <Message key={i} class="small">{t(`warn_${w.k}` as Key)}</Message>
               ))}
-            <p class="links">
+            {!win && <p class="links">
               {p.phone && <a href={`tel:${p.phone.replace(/[^\d+]/g, "")}`}>{t("call")}</a>}
               {p.mapsUrl && (
                 <a href={p.mapsUrl} target="_blank" rel="noopener">
                   {t("map")}
                 </a>
               )}
-            </p>
+            </p>}
             <Delivery name={p.name} />
           </>
         )}
         {compact && (
-          <button type="button" class="btn quiet more" aria-expanded={open} onClick={() => setOpen(!open)}>
-            {open ? `${t("lessInfo")} ▴` : `${t("moreInfo")} ▾`}
+          <button type="button" class="btn quiet press more" aria-expanded={open} onClick={() => setOpen(!open)}>
+            {t(open ? "lessInfo" : "moreInfo")}{open ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
           </button>
         )}
         {children}
