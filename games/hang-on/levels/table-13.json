@@ -1,5 +1,6 @@
 {
   "id": "table-13",
+  "stamina": true,
   "world": "table",
   "name": {
     "zh": "竹签窄渡",
@@ -34,16 +35,16 @@
   ],
   "envelopes": [
     {
-      "x": 533,
-      "y": 413
+      "x": 469,
+      "y": 318
     },
     {
-      "x": 1730,
-      "y": 241
+      "x": 1579,
+      "y": 289
     },
     {
-      "x": 2354,
-      "y": 104
+      "x": 2361,
+      "y": 95
     }
   ],
   "rects": [
@@ -185,8 +186,8 @@
           "y": 80
         }
       ],
-      "speed": 45,
-      "wait": 1,
+      "speed": 67.5,
+      "wait": 0.6,
       "material": "wood"
     },
     {
@@ -200,8 +201,8 @@
           "y": 0
         }
       ],
-      "speed": 20,
-      "wait": 4,
+      "speed": 30,
+      "wait": 2.4,
       "deadly": true,
       "hazard": "spike"
     }
@@ -212,5 +213,18 @@
     "seconds": 150,
     "deathsPerPlayer": 4
   },
-  "replay": "replays/table-13.json"
+  "replay": "replays/table-13.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 480,
+        "y": 296
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

@@ -1,5 +1,6 @@
 {
   "id": "kitchen-29",
+  "stamina": true,
   "world": "kitchen",
   "tier": 2,
   "name": {
@@ -25,26 +26,26 @@
       "y": 536
     },
     {
-      "x": 2320,
+      "x": 2100,
       "y": 496
     },
     {
-      "x": 2850,
+      "x": 2900,
       "y": 596
     }
   ],
   "envelopes": [
     {
-      "x": 791,
-      "y": 270
+      "x": 1577,
+      "y": 230
     },
     {
-      "x": 1511,
-      "y": 330
+      "x": 769,
+      "y": 267
     },
     {
-      "x": 3102,
-      "y": 148
+      "x": 3145,
+      "y": 261
     }
   ],
   "rects": [
@@ -55,7 +56,7 @@
       "w": 520,
       "h": 160,
       "material": "metal",
-      "grab": false
+      "grab": true
     },
     {
       "kind": "ground",
@@ -92,9 +93,9 @@
     },
     {
       "kind": "ground",
-      "x": 520,
-      "y": 700,
-      "w": 280,
+      "x": 600,
+      "y": 660,
+      "w": 200,
       "h": 20,
       "material": "metal"
     },
@@ -155,6 +156,34 @@
       "w": 120,
       "h": 76,
       "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "material": "metal",
+      "x": 600,
+      "y": 450,
+      "w": 130,
+      "h": 130
+    },
+    {
+      "kind": "ground",
+      "material": "metal",
+      "x": 520,
+      "y": 510,
+      "w": 80,
+      "h": 90
+    },
+    {
+      "kind": "ground",
+      "material": "metal",
+      "x": 1560,
+      "y": 600,
+      "w": 80,
+      "h": 20,
+      "players": [
+        1,
+        4
+      ]
     }
   ],
   "vents": [
@@ -220,12 +249,12 @@
     {
       "pivot": {
         "x": 580,
-        "y": 610
+        "y": 664
       },
       "arms": 1,
       "len": 50,
       "h": 12,
-      "spin": 1.1,
+      "spin": 1.6500000000000001,
       "deadly": true,
       "players": [
         1,
@@ -238,5 +267,18 @@
     "deathsPerPlayer": 8
   },
   "deathY": 810,
-  "replay": "replays/kitchen-29.json"
+  "replay": "replays/kitchen-29.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1000,
+        "y": 166
+      },
+      "len": 100,
+      "amp": 0.4,
+      "period": 1.8,
+      "r": 34,
+      "grab": false
+    }
+  ]
 }
