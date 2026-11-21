@@ -1,7 +1,7 @@
 import qrcode from "qrcode-generator";
 import { Check, ChevronLeft, CircleAlert, TriangleAlert } from "lucide-preact";
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import type { AllergenId, Limits } from "../../engine";
 import { ALLERGENS } from "../../engine";
@@ -204,7 +204,9 @@ export function DemoBanner({ demo }: { demo: boolean }) {
 export function useBackCloses(open: boolean, close: () => void) {
   const latest = useRef(close);
   latest.current = close;
-  useEffect(() => {
+  // A layout effect, so the history entry is there as soon as the sheet is: a quick back press
+  // right after opening closes the sheet instead of leaving the table.
+  useLayoutEffect(() => {
     if (!open) return;
     history.pushState({ suibianSheet: true }, "");
     let popped = false;

@@ -227,6 +227,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
   min-height: var(--tap);
   padding: 0 var(--space-2);
   border-radius: var(--r-pill);
@@ -1284,9 +1285,10 @@ a.badge {
   pointer-events: none;
 }
 .stamp {
+  /* at the card's foot, right: the name and the photo at the top stay readable */
   position: absolute;
-  right: var(--space-4);
-  top: calc(-1 * var(--space-3));
+  right: var(--space-3);
+  bottom: var(--space-3);
   max-width: calc(100% - var(--space-8));
   padding: var(--space-2) var(--space-3);
   border: 3px solid var(--gel);
