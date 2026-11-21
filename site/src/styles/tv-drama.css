@@ -282,6 +282,22 @@
   font-size: 22px;
   font-weight: 700;
 }
+/* a duel's row: how the style is played, under the style and the name */
+.tvd-roster li.has-how {
+  align-items: start;
+  border-radius: var(--r-panel);
+}
+.tvd-roster li.has-how .tvd-roster-main {
+  flex-wrap: wrap;
+  row-gap: var(--space-1);
+}
+.tvd-roster-how {
+  flex-basis: 100%;
+  color: var(--fog);
+  font-size: var(--text-lg);
+  font-style: normal;
+  line-height: var(--leading);
+}
 .tvd-roster-state {
   color: var(--haze);
   font-size: 22px;
