@@ -13,7 +13,8 @@ Run after weights.py (it rewrites what that wrote: the four bones a vertex, the 
 before build_glb.mjs, which reads springs.json for the new bones and what the page needs.
 usage: python3 springs.py <mesh dir (simplified)> <joints.json> <baked texture> <outfit config .json>
 config: {"hair": {"top": 1.52, "bottom": 1.18, "chains": 3, "bones": 3},
-         "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}   (heights in metres; skirt optional)
+         "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}   (heights in metres; skirt optional;
+         "only": a .npy in the mesh dir marking the skirt's vertices, for a skirt made by skirt.py)
 """
 import json, sys
 import numpy as np
@@ -142,13 +143,20 @@ if s:
     legs = {}
     for side in ('Left', 'Right'):
         a, b = J[side + 'UpLeg'], J[side + 'Leg']
-        band = (P[:, 1] > hem - 0.07) & (P[:, 1] < hem - 0.03) & (np.sign(P[:, 0]) == np.sign(a[0]))
+        # (at the hem, or high on her thighs for a long skirt: the thickness of her thighs)
+        at = max(hem, crotch - 0.05)
+        band = (P[:, 1] > at - 0.07) & (P[:, 1] < at - 0.03) & (np.sign(P[:, 0]) == np.sign(a[0]))
+        # (her legs only: her hands hang at her thighs' height)
+        band &= np.isin(main, [side + 'UpLeg', side + 'Leg'])
         legs[side] = (a, b, float(np.percentile(seg_dist(P[band], a, b), 80)) if band.any() else 0.07)
     in_leg = np.zeros(nv, bool)
     for side, (a, b, r) in legs.items():
         in_leg |= seg_dist(P, a, b) < r + 0.012
     pelvis = np.isin(main, ['Hips', 'LeftUpLeg', 'RightUpLeg', 'Spine'])
     skirt = pelvis & (P[:, 1] > hem - 0.03) & (P[:, 1] < waist + 0.01) & (np.abs(P[:, 0]) < 0.32) & ((P[:, 1] >= crotch) | ~in_leg)
+    # (a skirt made of its own, skirt.py: only its vertices, her body under it as it was)
+    if s.get('only'):
+        skirt = np.load(lo + '/' + s['only'])
     ang = np.arctan2(P[:, 0] - c0[0], P[:, 2] - c0[1])  # 0: straight ahead
     rad = np.hypot(P[:, 0] - c0[0], P[:, 2] - c0[1])
     skirt_bones = []

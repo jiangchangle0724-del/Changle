@@ -25,9 +25,25 @@ export const LOOKS: readonly Look[] = ["sweet", "party", "club"];
  * `her-sweet.glb.gz` the first-love blouse and pleated skirt, `her-party.glb.gz` the rose-gold
  * sequin party dress, Nov 19 and 20).
  */
-// (Nov 21, Steve: "直接用第一个人物的模型脸，只给她换几套衣服": the first one in every look till her
-// new clothes are made on her: site/scripts/dj-dancer/README.md)
-export const OUTFIT: Record<Look, string> = { sweet: "club", party: "club", club: "club" };
+// Her outfits, all on the first dancer (Nov 21, Steve: "直接用第一个人物的模型脸，只给她换几套衣服",
+// "不同的歌曲搭配不同的衣服和舞蹈"): each look's, a song wearing one of them (outfitFor); the first one
+// with no song. "club" is her own (her.glb.gz), the rest drawn on her (site/scripts/dj-dancer/README.md).
+// (her-qipao: the pink brocade qipao set; her-lace: the white off-shoulder lace dress; her-leather: the
+// lace cami, black leather jacket and skirt; her-eyelet: the white eyelet dress; her-cardigan: the black
+// cardigan and white midi skirt: from the photos Steve sent on Nov 21)
+export const OUTFITS: Record<Look, readonly string[]> = {
+  sweet: ["eyelet", "cardigan", "qipao"],
+  party: ["lace", "qipao", "leather"],
+  club: ["club", "leather", "lace"],
+};
+/** The outfit she wears for a song (its id: the same song, the same outfit), in its look. */
+export function outfitFor(look: Look, song: string | null): string {
+  const list = OUTFITS[look];
+  if (!song) return list[0];
+  let h = 2166136261;
+  for (let i = 0; i < song.length; i++) h = Math.imul(h ^ song.charCodeAt(i), 16777619);
+  return list[(h >>> 0) % list.length];
+}
 export const herFile = (outfit = "club") => (outfit === "club" ? `${DANCER_DIR}/her.glb.gz` : `${DANCER_DIR}/her-${outfit}.glb.gz`);
 export const danceFile = (id: string) => `${DANCER_DIR}/dance/${id}.bin.gz`;
 
