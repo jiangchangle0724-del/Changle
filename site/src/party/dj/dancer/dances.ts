@@ -94,6 +94,11 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[];
   { id: "gnarly4", bpm: 136, looks: ["club"] },
   { id: "gnarly5", bpm: 136, looks: ["club"] },
   { id: "gnarly7", bpm: 136, looks: ["club"] },
+  // Chinese classical dance (古典舞身韵, the arm-swing set 摇臂组合), learnt from a front-on demonstration
+  // in practice clothes found on YouTube (Nov 21; Steve: "你自己去youtube 找视频学习"): the two phrases of
+  // eight that passed the motion checks
+  { id: "shenyun4", bpm: 107.7, looks: ["sweet"] },
+  { id: "shenyun5", bpm: 107.7, looks: ["sweet"] },
   // (Nov 21: "kickstep" left out. Her feet slid more in it than the dancer's did: tests/dancer.test.ts)
 ];
 
