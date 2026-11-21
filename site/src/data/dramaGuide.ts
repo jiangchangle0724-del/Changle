@@ -1266,14 +1266,14 @@ export const GUIDES: Record<string, SceneGuide> = {
     ],
     roles: [r(t("站得笔直，说话又响又肯定，手电筒一直攥在手里。", "Stand to attention, speak loud and sure, and never let go of your torch."), t("「报告经理！昨晚我一共巡逻了……很多次！」", "“Reporting, sir! Last night I did my rounds... lots of times!”"))],
   },
-  "solo-livestream-sale": {
+  "solo-livestream-shampoo": {
     beats: [
-      t("跟直播间的家人们打招呼，举起今晚的锅。", "Say hi to “the family” in the chat and hold up tonight's pan."),
-      t("把这口锅夸上天，中间做牌上的小动作。", "Rave about the pan, slipping in the moves on your card."),
-      t("回答弹幕里的问题，反转以后现场演示。", "Answer questions from the chat, and do the live demo after the twist."),
+      t("跟直播间的家人们打招呼，甩一甩自己的头发。", "Say hi to “the family” in the chat and toss your hair."),
+      t("把洗发水夸上天，中间做牌上的小动作。", "Rave about the shampoo, slipping in the moves on your card."),
+      t("回答弹幕里的问题，反转以后也要接住。", "Answer the chat's questions, and handle the twist."),
       t("最后倒数「三、二、一，上链接！」", "Finish with the countdown: “Three, two, one, link's live!”"),
     ],
-    roles: [r(t("语速飞快，声音亢奋，每句话结尾都喊「家人们」。", "Talk fast and hyped, and end every sentence with “family!”."), t("「家人们！今晚这口锅，全网最低价！」", "“Family! This pan, tonight, lowest price on the whole internet!”"))],
+    roles: [r(t("语速飞快，声音亢奋，每句话结尾都喊「家人们」。", "Talk fast and hyped, and end every sentence with “family!”."), t("「家人们！看看我这头发，全靠这一瓶！」", "“Family! Look at this hair. All thanks to this one bottle!”"))],
   },
   "solo-restaurant-proposal": {
     beats: [
