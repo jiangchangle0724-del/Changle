@@ -1,121 +1,133 @@
 {
   "id": "space-46",
-  "stamina": true,
   "world": "space",
   "name": {
-    "zh": "观景环折返",
-    "en": "Observatory Dogleg"
+    "zh": "泄压回廊",
+    "en": "Pressure Relief Galleries"
   },
   "tier": 1,
-  "teaches": "float",
-  "w": 2560,
-  "h": 720,
+  "long": true,
+  "teaches": "wind",
+  "w": 3200,
+  "h": 2000,
   "spawn": {
-    "x": 100,
-    "y": 436
+    "x": 160,
+    "y": 1856
   },
   "goal": {
-    "x": 2300,
-    "y": 360,
+    "x": 2940,
+    "y": 350,
     "w": 240,
-    "h": 180
+    "h": 200
   },
   "checkpoints": [
     {
-      "x": 1120,
-      "y": 436
+      "x": 1400,
+      "y": 1856
     },
     {
-      "x": 2030,
-      "y": 516
+      "x": 2700,
+      "y": 1206
+    },
+    {
+      "x": 1500,
+      "y": 1206
+    },
+    {
+      "x": 450,
+      "y": 506
+    },
+    {
+      "x": 1700,
+      "y": 506
     }
   ],
   "envelopes": [
     {
-      "x": 954,
-      "y": 397
+      "x": 1100,
+      "y": 1771
     },
     {
-      "x": 1613,
-      "y": 420
+      "x": 268,
+      "y": 1195
     },
     {
-      "x": 2190,
-      "y": 504
+      "x": 2007,
+      "y": 441
     }
   ],
   "rects": [
     {
       "x": 0,
-      "y": 480,
-      "w": 420,
-      "h": 240,
+      "y": 1900,
+      "w": 680,
+      "h": 100,
       "kind": "ground",
       "material": "hull"
     },
     {
-      "x": 960,
-      "y": 480,
+      "x": 1300,
+      "y": 1900,
       "w": 400,
-      "h": 240,
+      "h": 40,
       "kind": "ground",
       "material": "hull"
     },
     {
-      "x": 1900,
-      "y": 560,
-      "w": 660,
-      "h": 160,
+      "x": 2500,
+      "y": 1250,
+      "w": 400,
+      "h": 40,
       "kind": "ground",
       "material": "hull"
     },
     {
-      "x": 480,
-      "y": 340,
-      "w": 70,
-      "h": 14,
-      "kind": "peg",
-      "material": "metal"
+      "x": 1400,
+      "y": 1250,
+      "w": 400,
+      "h": 40,
+      "kind": "ground",
+      "material": "hull"
     },
     {
-      "x": 690,
-      "y": 260,
-      "w": 70,
-      "h": 14,
-      "kind": "peg",
-      "material": "metal"
+      "x": 400,
+      "y": 550,
+      "w": 400,
+      "h": 40,
+      "kind": "ground",
+      "material": "hull"
     },
     {
-      "x": 840,
-      "y": 350,
-      "w": 70,
-      "h": 14,
-      "kind": "peg",
-      "material": "metal"
+      "x": 1600,
+      "y": 550,
+      "w": 400,
+      "h": 40,
+      "kind": "ground",
+      "material": "hull"
     },
     {
-      "x": 1430,
-      "y": 380,
-      "w": 70,
-      "h": 14,
-      "kind": "peg",
-      "material": "metal"
+      "x": 2840,
+      "y": 550,
+      "w": 360,
+      "h": 40,
+      "kind": "ground",
+      "material": "hull"
     },
     {
-      "x": 1660,
-      "y": 450,
-      "w": 70,
-      "h": 14,
-      "kind": "peg",
-      "material": "metal"
+      "x": 2850,
+      "y": 1450,
+      "w": 24,
+      "h": 150,
+      "kind": "ground",
+      "material": "hull"
     },
     {
-      "x": 1820,
-      "y": 350,
-      "w": 70,
-      "h": 14,
-      "kind": "peg",
-      "material": "metal"
+      "x": 2200,
+      "y": 650,
+      "w": 24,
+      "h": 300,
+      "kind": "ground",
+      "material": "hull"
     }
   ],
   "ropes": [],
@@ -125,49 +137,103 @@
   "springs": [],
   "hazards": [
     {
-      "x": 600,
-      "y": 440,
+      "x": 1800,
+      "y": 1590,
+      "w": 20,
+      "h": 60,
+      "kind": "zap"
+    },
+    {
+      "x": 2220,
+      "y": 1350,
+      "w": 80,
+      "h": 20,
+      "kind": "hot"
+    },
+    {
+      "x": 760,
+      "y": 580,
       "w": 90,
       "h": 18,
       "kind": "spike"
     },
     {
-      "x": 1510,
-      "y": 180,
+      "x": 2380,
+      "y": 1380,
       "w": 12,
-      "h": 150,
+      "h": 220,
       "kind": "zap"
-    },
-    {
-      "x": 1730,
-      "y": 550,
-      "w": 60,
-      "h": 20,
-      "kind": "hot"
     }
   ],
   "movers": [],
   "spinners": [],
+  "deathY": 2180,
+  "par": {
+    "seconds": 220,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/space-46.json",
+  "stamina": true,
   "zerog": [
     {
-      "x": 370,
-      "y": 120,
-      "w": 640,
-      "h": 460
-    },
-    {
-      "x": 1320,
-      "y": 180,
-      "w": 640,
-      "h": 460
+      "x": 0,
+      "y": 0,
+      "w": 3200,
+      "h": 2000
     }
   ],
-  "levers": [],
-  "gates": [],
-  "deathY": 900,
-  "par": {
-    "seconds": 100,
-    "deathsPerPlayer": 3
-  },
-  "replay": "replays/space-46.json"
+  "winds": [
+    {
+      "x": 700,
+      "y": 1680,
+      "w": 360,
+      "h": 220,
+      "dir": "right",
+      "force": 0.55,
+      "on": 1.2,
+      "off": 3.4
+    },
+    {
+      "x": 2320,
+      "y": 300,
+      "w": 360,
+      "h": 220,
+      "dir": "right",
+      "force": 0.55,
+      "on": 1.2,
+      "off": 3.4
+    }
+  ],
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1150,
+        "y": 1700
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 4,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 2060,
+        "y": 1050
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 3.3,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 1110,
+        "y": 350
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 2.8,
+      "r": 24
+    }
+  ]
 }
