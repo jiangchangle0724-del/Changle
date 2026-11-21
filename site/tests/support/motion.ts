@@ -171,7 +171,8 @@ export function motionFacts(n: number, fps: number, pose: (k: number) => Pose, r
 
 /**
  * The limits: real dancers' motion stays inside them. Skating is each dance's own: as much as the real
- * dancer's capture over that stretch (tests/support/captured.ts), 0.08 more (where her toe counts as on
- * the floor isn't quite where the dancer's did: her feet aren't the dancer's), and never under 0.15.
+ * dancer's capture over that stretch (tests/support/captured.ts), 0.1 more (where her toe counts as on
+ * the floor isn't quite where the dancer's did: her feet aren't the dancer's, in boots or in heels), and
+ * never under 0.15.
  */
 export const LIMITS: MotionFacts = { skate: 0.15, sink: 0.04, air: 0.35, knee: 12, hand: 0.03, tilt: 0.6, jerk: 900, seam: 8 };

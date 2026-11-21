@@ -72,6 +72,8 @@ node build_glb.mjs work/ms work/m/joints.json work/swap/baked.png ../../../publi
 
 `facewarp.py`（11 月 20 日）：TRELLIS 做出来的脸比设计图的低一点（眼睛低 8 像素，下巴低 6 像素，照片是 1024 的），照片的眼睛就烤到了眉骨上，模型自己的眼睛在下面露出来：两双眼睛。它用 MediaPipe 的人脸关键点（478 个点，Apache 2.0，只在本机跑，不进网站）在照片上和模型自己的颜色上各找一遍，把正面的扭曲在脸上挪一下，让照片的每个点落到模型的点上。要 `pip install mediapipe`，模型下载：`storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`。它把 `fit.py` 的扭曲存成 `warp_front_body.npy`，每次从这个开始；跑完看 `work/face_warp.png`。
 
+11 月 21 日深夜起（Steve 看了电视：「脸很明显是贴图上去的很不自然」「第二个这个人物头部和身体非常的不协调」「直接用第一个人物的模型脸，只给她换几套衣服」）：每个造型都穿回第一个人物（11 月 14 日夜店那套，`her.glb.gz`，她自己的脸），`her-party`、`her-sweet` 两个文件不用了（还在）。新衣服的做法：设计图照下面的办法画（同一个人只换衣服，Steve 说这样画的很好），然后衣服画到她身上、裙子单独加一层，不再用 TRELLIS 重做一个人。下面 `facekit.py` 的换脸也不用了。
+
 `facekit.py`（11 月 21 日；Steve：「面部跟之前那个模特保持一致就好，只需要换不同的衣服」「面部看起来有点扭曲」）：每套衣服的脸都换成同一张：Steve 选的参考图（他 11 月 21 日发的第三张，粉色盘扣那位，他说是 AI 生成的人；图不在仓库里，问 Steve 要）。从正面看她，MediaPipe 找出照片和她的脸上各 478 个点，照片的脸只转、缩放、平移（五官比例照原样），贴到她脸的轮廓里面，OpenCV 的 seamless clone 让四周的皮肤接上，写回贴图；眨眼的眼睛位置和眼皮颜色（lid.json）一起重做。最后写 `face_w.f32`（每个顶点有多少是脸，在她身上平滑过），`build_glb.mjs` 放进模型的 `_FACE`，页面上脸照照片原来的光来画（`her.ts`：脸的影子是照片的，不是模型的凹凸在舞台灯下照出来的，之前就是这样把脸照歪的）。只要重新算 `_FACE`：`python3 facekit.py mask work/ms work/swap/baked.png face_landmarker.task`。看结果：`work/swap/face_swap.png`（原来的、照片的、换好的）。
 
 `outfit.json` 例子：
@@ -91,7 +93,7 @@ npx tsx scripts/dj-dancer/mocap/pack.ts /tmp/loops public/models/dancer/dance a=
 
 * `retarget.ts`：她的腿和舞者的腿长短不一样，同样的转法脚会落在别处，站着的脚就在地上滑。现在每一帧她的脚踝放到舞者脚踝的位置（按身高缩放），膝盖朝舞者膝盖的方向弯，脚的朝向照舞者。输出里的 feet off by 是够不着的最大距离
 * `loop.ts --travel`：她跳到哪儿就在哪儿（以前每小节把胯走的路去掉，脚就跟着滑）。页面让她的画布跟着她在舞台上走，人留在画布中间（`Dancer3D.tsx`），胳膊不会被画布边切掉。选循环：首尾的姿势最接近、走出去的路最少、整段在画面里的那一段，接缝那半拍一直过渡到开头前一帧。`@bpm` 是 `dances.ts` 里定好的拍子，重剪不会变
-* `srcfacts.ts`：真人自己的动捕在每段循环里脚滑多少，写进 `tests/support/captured.ts`。跳 house、桑巴的人脚本来就擦着地走，这个数就是她的上限（多 0.08，最少 0.15）
+* `srcfacts.ts`：真人自己的动捕在每段循环里脚滑多少，写进 `tests/support/captured.ts`。跳 house、桑巴的人脚本来就擦着地走，这个数就是她的上限（多 0.1，最少 0.15）
 
 然后在 `site` 里跑 `npx tsx tests/dancer.test.ts`：除了文件、拍子和画面，每支舞还量一遍常见的毛病（`tests/support/motion.ts`）：站着的脚在地上滑、脚陷进地里、两只脚都离地太久、膝盖往后折、手插进身体或头里、单脚站着重心离脚太远、关节抖、循环接缝跳一下。`MOTION_TABLE=1` 打出每支舞的数。看效果：`real/preview.py`（转一圈的图）、`real/posetest.py`（摆几个姿势）、
 `real/dancesheet.py`（一支舞的几个瞬间）都是在本机画图，不用浏览器。

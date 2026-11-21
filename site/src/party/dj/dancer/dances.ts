@@ -25,7 +25,9 @@ export const LOOKS: readonly Look[] = ["sweet", "party", "club"];
  * `her-sweet.glb.gz` the first-love blouse and pleated skirt, `her-party.glb.gz` the rose-gold
  * sequin party dress, Nov 19 and 20).
  */
-export const OUTFIT: Record<Look, string> = { sweet: "sweet", party: "party", club: "club" };
+// (Nov 21, Steve: "直接用第一个人物的模型脸，只给她换几套衣服": the first one in every look till her
+// new clothes are made on her: site/scripts/dj-dancer/README.md)
+export const OUTFIT: Record<Look, string> = { sweet: "club", party: "club", club: "club" };
 export const herFile = (outfit = "club") => (outfit === "club" ? `${DANCER_DIR}/her.glb.gz` : `${DANCER_DIR}/her-${outfit}.glb.gz`);
 export const danceFile = (id: string) => `${DANCER_DIR}/dance/${id}.bin.gz`;
 
@@ -42,11 +44,12 @@ export function lookOf(songBpm: number | null | undefined, mood: Mood): Look {
  * Her dances: the file's id, its own tempo (beats a minute, as the motion's own beat was found), the
  * looks it goes with. Mixamo's names in site/scripts/dj-dancer/README.md.
  */
-export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] }[] = [
+export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[]; rare?: boolean }[] = [
   { id: "rumba", bpm: 101.4, looks: ["sweet", "party"] },
   { id: "belly_slow", bpm: 83.2, looks: ["sweet"] },
   { id: "bodywave", bpm: 128.6, looks: ["club"] },
-  { id: "wave", bpm: 102.9, looks: ["party", "club"] },
+  // (Nov 21, Steve: "这个舞蹈动作我不喜欢少出现一点": half as often as the others)
+  { id: "wave", bpm: 102.9, looks: ["party", "club"], rare: true },
   { id: "belly", bpm: 124.1, looks: ["party", "club"] },
   { id: "booty", bpm: 100.2, looks: ["club"] },
   { id: "hiphop", bpm: 117.2, looks: ["club"] },
@@ -103,7 +106,9 @@ export function danceAt(b: number, look: Look, bpm: number): string {
   const off = (d: { bpm: number }) => Math.abs(Math.log(t / d.bpm));
   const pool = DANCES.filter((d) => d.looks.includes(look));
   const near = pool.filter((d) => off(d) < NEAR);
-  const list = near.length >= 2 ? near : [...pool].sort((x, y) => off(x) - off(y)).slice(0, 2);
+  const some = near.length >= 2 ? near : [...pool].sort((x, y) => off(x) - off(y)).slice(0, 2);
+  // (round them twice, a rare one only the second time)
+  const list = [...some.filter((d) => !d.rare), ...some];
   const k = Math.floor(b / DANCE_BEATS);
   return list[((k % list.length) + list.length) % list.length].id;
 }
