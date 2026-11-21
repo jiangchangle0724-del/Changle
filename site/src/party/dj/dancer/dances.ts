@@ -65,6 +65,24 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] 
   { id: "shimmy", bpm: 145.6, looks: ["club"] },
 ];
 
+/**
+ * Her walk across the stage, one a look (Steve on Nov 18: "她是可以在整个舞台从左到右走动的"): Mixamo's
+ * walks done in place (Feminine Walk Forward, Catwalk Walk Forward, Female Sexy Walk), cut and packed
+ * like her dances. Their own steps a minute, and how far a step takes her (`stride`, metres: how far
+ * her planted foot slides back in one, so the stage going by under her keeps her feet still on it).
+ */
+export const WALKS: Record<Look, { id: string; bpm: number; stride: number }> = {
+  sweet: { id: "walk_soft", bpm: 124.1, stride: 0.73 },
+  party: { id: "walk_cat", bpm: 100, stride: 0.57 },
+  club: { id: "walk_sexy", bpm: 87.8, stride: 0.68 },
+};
+
+/**
+ * Steps a beat when she walks to a song at `bpm`: one, or one every other beat when the song is much
+ * faster than the walk's own pace (a strut on a fast song, not a hurry). A slow song: slow steps.
+ */
+export const stepsPerBeat = (walkBpm: number, bpm: number) => (bpm / walkBpm > Math.SQRT2 ? 0.5 : 1);
+
 /** Standing, swaying a little, when no song plays: at their own tempo. */
 export const IDLES: readonly { id: string; bpm: number }[] = [
   { id: "idle", bpm: 120.1 },

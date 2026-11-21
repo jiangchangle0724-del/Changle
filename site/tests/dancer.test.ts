@@ -13,6 +13,9 @@
  *  4. What she wears and dances when (Nov 18): a song's look by its tempo, the night's stretch's with
  *     the DJ; the same dance on every screen, from the look's, near the song's tempo when one is, eight
  *     bars each, the next one different.
+ *  5. Her walks across the stage (Nov 20), one a look: checked like her dances (2 and 3), and a step
+ *     takes her as far as her planted foot slides back in it (her `stride`), so her feet keep still on
+ *     the stage going by; a step on each beat, or on every other on a much faster song.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,7 +24,7 @@ import { gunzipSync } from "node:zlib";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFIT, readDance, type Look } from "../src/party/dj/dancer/dances";
+import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFIT, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
 
@@ -135,7 +138,8 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   // 2 and 3. her dances
   m.updateMatrixWorld(true);
   const springs = makeSprings(sp, bones);
-  for (const d of [...DANCES, ...IDLES]) {
+  const walks: readonly { id: string; bpm: number; stride?: number }[] = Object.values(WALKS);
+  for (const d of [...DANCES, ...IDLES, ...walks]) {
     const f = join(dir, "dance", `${d.id}.bin.gz`);
     if (!existsSync(f)) {
       ok(false, `${d.id}: its file is there`);
@@ -168,6 +172,28 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       far = Math.max(far, Math.hypot(hp.x, hp.z));
     }
     ok(lowFoot < 0.3, `${at} ${d.id}: a foot near the floor all through (ankle off its rest height by ${lowFoot.toFixed(2)} m at most)`);
+    // 5. a walk: how far a step takes her, from how fast her planted foot (the lower one) slides back
+    if (d.stride && !checkedDances.has(`${d.id} stride`)) {
+      checkedDances.add(`${d.id} stride`);
+      const n = h.frames;
+      const at2 = (k: number) => {
+        a.time = (k / n) * h.beats;
+        mixer.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        return [lf.getWorldPosition(new THREE.Vector3()), rf.getWorldPosition(new THREE.Vector3())];
+      };
+      const speeds: number[] = [];
+      for (let k = 0; k < n; k++) {
+        const [l0, r0] = at2(k);
+        const [l1, r1] = at2(k + 1);
+        if (Math.abs(l0.y - r0.y) < 0.01) continue;
+        const [p0, p1] = l0.y < r0.y ? [l0, l1] : [r0, r1];
+        speeds.push(((p0.z - p1.z) / (h.beats / n)) * (1 / h.beat));
+      }
+      speeds.sort((x, y) => x - y);
+      const step = speeds[speeds.length >> 1] * h.beat;
+      ok(Math.abs(step - d.stride) < 0.06, `${d.id}: a step takes her ${d.stride} m (her planted foot slides back ${step.toFixed(2)} m in one)`);
+    }
     ok(far < 0.45, `${at} ${d.id}: her hips stay over her spot (${far.toFixed(2)} m out at most)`);
     // her hair and skirt swinging through it, as the page swings them: never nowhere, never inside her
     if (springs && sp) {
@@ -231,6 +257,8 @@ async function main() {
   ok(lookOf(75, "peak") === "sweet" && lookOf(100, "warm") === "party" && lookOf(128, "warm") === "club", "a song's look by its own tempo: a ballad sweet, one in between party, a fast one club");
   ok(lookOf(null, "cool") === "sweet" && lookOf(null, "slow") === "sweet" && lookOf(null, "warm") === "party" && lookOf(null, "build") === "club" && lookOf(null, "peak") === "club", "no song's tempo: the night's stretch's look");
   ok(LOOKS.every((l) => outfits.includes(OUTFIT[l])), "every look has an outfit to wear");
+  ok(LOOKS.every((l) => WALKS[l].stride > 0.4 && WALKS[l].stride < 0.9), "every look has a walk, a step of half a metre or so");
+  ok(stepsPerBeat(87.8, 90) === 1 && stepsPerBeat(124.1, 72) === 1 && stepsPerBeat(87.8, 128) === 0.5, "a step on each beat, on every other when the song is much faster than her walk");
   ok(danceAt(40, "club", 125) === danceAt(40, "club", 125), "the same beat, the same dance (on every screen)");
   ok(danceAt(0, "club", 125) === danceAt(DANCE_BEATS - 1, "club", 125), `one dance for ${DANCE_BEATS} beats`);
   for (const look of LOOKS as readonly Look[])
