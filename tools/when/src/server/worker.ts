@@ -14,7 +14,7 @@ import { vancouverDay } from "../engine/time";
 import type { Here } from "../engine/types";
 import { NO_FORECAST, readForecast, WEATHER_SOURCE, type Forecast } from "../engine/weather";
 import { EventRoom, QUIET_MS, type ErrorCode, type Fail, type HostAction, type Meta, type Row, type Store } from "../room/event";
-import { KEY_HEADER, type ApiError, type Claimed, type Created, type Hello, type Hosted, type Push, type Saved, type Snapshot } from "../room/protocol";
+import { KEY_HEADER, type ApiError, type Claimed, type Created, type Hello, type Hosted, type Push, type Saved, type Snapshot, type Voted } from "../room/protocol";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -195,6 +195,10 @@ export default {
     if (what === "me") {
       const saved = await stub.saveMine(keyHash, input);
       return saved.ok ? json({ id: saved.id, state: saved.state } satisfies Saved) : failed(saved);
+    }
+    if (what === "start") {
+      const voted = await stub.vote(keyHash, input.starts);
+      return voted.ok ? json({ state: voted.state } satisfies Voted) : failed(voted);
     }
     if (what === "host") {
       const done = await stub.hostAct(keyHash, input as unknown as HostAction);
@@ -393,6 +397,12 @@ export class EventDO extends DurableObject<Env> {
     if (!(await this.live())) return { ok: false, error: "gone" };
     const saved = this.room.saveMine({ id: input.id, keyHash, newId: () => makeCode(rand, 10), name: input.name, answers: input.answers, times: input.times, now: Date.now() });
     return saved.ok ? { ok: true, id: saved.id, state: this.changed() } : saved;
+  }
+
+  async vote(keyHash: string, starts: unknown): Promise<WithState | Fail> {
+    if (!(await this.live())) return { ok: false, error: "gone" };
+    const voted = this.room.vote(keyHash, starts);
+    return voted.ok ? { ok: true, state: this.changed() } : voted;
   }
 
   async hostAct(keyHash: string, action: HostAction): Promise<WithState<{ id?: string }> | Fail> {

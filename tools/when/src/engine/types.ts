@@ -34,11 +34,17 @@ export type Person = {
   answers: Answers;
   /** the slots they're free for only part of, and which part (see Times) */
   times?: Times;
+  /** of the start times the host is asking about (几点开始), the ones that suit them; minutes from midnight */
+  starts?: number[];
   /** when they last saved, in milliseconds */
   at: number;
 };
 
-/** The time that was set. Set to part of a period (a gathering asked by the period), also its minutes: from, up to (not including) to. */
+/**
+ * The time that was set. Set to part of a period (a gathering asked by the period), also its
+ * minutes: from, up to (not including) to. `from` without `to`: the whole period, starting then
+ * (几点开始, set after asking everyone).
+ */
 export type Settled = { day: Day; part: Part; at: number; from?: number; to?: number };
 
 /**
@@ -65,6 +71,8 @@ export type EventState = {
   /** fewer than this many able to come, and a slot isn't offered */
   minPeople: number;
   settled: Settled | null;
+  /** the start times the host is asking about (几点开始), in order; empty when not asking */
+  starts: number[];
   people: Person[];
   /** goes up by one with every change */
   v: number;
