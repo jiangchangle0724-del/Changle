@@ -6,7 +6,7 @@ export function OccasionPicker({ value, onChange }: { value: OccasionId; onChang
   return (
     <div class="seg occasions">
       {OCCASION_IDS.map((o) => (
-        <button key={o} type="button" data-occasion={o} aria-pressed={value === o} onClick={() => onChange(o)}>
+        <button class="press" key={o} type="button" data-occasion={o} aria-pressed={value === o} onClick={() => onChange(o)}>
           <span aria-hidden="true">{OCCASIONS[o].emoji}</span> {tx(OCCASIONS[o])}
         </button>
       ))}
