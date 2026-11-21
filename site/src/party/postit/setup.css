@@ -1,6 +1,6 @@
 /*
- * 额头便利贴 on one phone, before the first turn: the deck picker's shelves (DeckPicker.tsx).
- * The deck cards themselves are .deck-pick in styles/party.css.
+ * 额头便利贴, the deck picker's shelves (DeckPicker.tsx): before the first turn on one phone, and
+ * in the online host's sheet. The deck notes themselves are .deck-pick in postit.css.
  */
 .deck-picker {
   display: flex;

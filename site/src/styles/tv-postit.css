@@ -1,11 +1,18 @@
 /*
  * 额头便利贴 on the big screen (party/postit/TvPostit.tsx): everyone standing with a note on their
- * forehead, blank until they've guessed it; the question, the replies and the guesses above.
+ * forehead, blank until they've guessed it; the question, the replies and the guesses above. The
+ * notes are paper, as on the phones (party/postit/postit.css): the glue strip, the grain, light
+ * from the top left, the bottom edge lifting. A note guessed turns over; at the end they all do,
+ * one after another.
  */
 
 .tvp {
   --note: var(--gel-lemon);
   --note-ink: var(--night);
+  --note-glue: color-mix(in oklab, var(--note) 86%, var(--night));
+  --note-light: color-mix(in oklab, var(--moon) 30%, transparent);
+  --note-lift: color-mix(in oklab, var(--night) 14%, transparent);
+  --note-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .42 0 0 0 -.19'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23g)'/%3E%3C/svg%3E");
 }
 
 .tvp-top,
@@ -61,21 +68,58 @@
   place-items: center;
   min-width: 110px;
   max-width: 230px;
-  min-height: 74px;
-  padding: 10px 16px 12px;
-  background: var(--note);
+  min-height: 78px;
+  padding: 20px 16px 12px;
+  border-radius: 3px 3px 6px 3px;
+  background:
+    linear-gradient(var(--note-glue), var(--note-glue)) top / 100% 12px no-repeat,
+    linear-gradient(155deg, var(--note-light), transparent 46%),
+    linear-gradient(to top left, var(--note-lift), transparent 32%),
+    var(--note-grain),
+    var(--note);
   color: var(--note-ink);
-  box-shadow: 0 10px 18px -8px var(--tvx-ink);
+  box-shadow:
+    0 2px 2px color-mix(in oklab, var(--night) 45%, transparent),
+    0 22px 26px -16px var(--tvx-ink);
   font-family: var(--font-display);
   font-size: 40px;
   font-weight: 900;
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
+/* still on its owner's forehead: the "?" in a softer ink */
+.tvp-note:not(.is-open) {
+  color: color-mix(in oklab, var(--note-ink) 55%, var(--note));
+}
+/* guessed (or the end): it turns over to show the word; at the end, one after another */
 .tvp-note.is-open {
   font-family: inherit;
   font-size: 30px;
-  animation: tvx-pop 0.5s var(--ease-pop) both;
+  animation: tvp-turn 0.7s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 160ms);
+}
+@keyframes tvp-turn {
+  from {
+    transform: perspective(700px) rotateY(180deg);
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* the end: the notes bursting from the cup, beside the heading */
+.tvp-end {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+.tvp-cheer {
+  width: 230px;
+  height: 230px;
+  margin: -30px 0 -40px;
+  object-fit: contain;
+  animation: tvx-pop 0.6s var(--ease-pop) both;
 }
 
 /* the turn: the question, the replies, the guess */
@@ -156,7 +200,8 @@
 @media (prefers-reduced-motion: reduce) {
   .tvp-note.is-open,
   .tvp-question,
-  .tvp-guess {
+  .tvp-guess,
+  .tvp-cheer {
     animation: none;
   }
 }

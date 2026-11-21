@@ -7,11 +7,14 @@ import { Resume, useKeepProgress } from "../../games/Resume";
 import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { shuffle } from "../../lib/random";
-import { haptic, sfx } from "../../lib/sfx";
+import { sfx } from "../../lib/sfx";
 import { usePenaltyText, useStore } from "../../store";
 import { Leaderboard, NameFace } from "../common";
 import { enableSensors, upOf, useSensorStatus, useTilt, useWakeLock } from "../sensors";
-import { HeadsStage } from "./HeadsStage";
+import { ART } from "./art";
+import { BUZZ, buzz, paper } from "./feel";
+import { HeadsStage, type Flash } from "./HeadsStage";
+import "./postit.css";
 import "../../styles/party.css";
 
 type Turn = { word: T; ok: boolean }[];
@@ -50,26 +53,37 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   const [turns, setTurns] = useState<Record<string, Turn>>(saved?.turns ?? {});
   const [word, setWord] = useState<T | null>(null);
   const [left, setLeft] = useState(seconds);
-  const [flash, setFlash] = useState<"ok" | "pass" | null>(null);
+  const [flash, setFlash] = useState<Flash | null>(null);
   const pile = useRef<T[]>(saved?.run?.pile ?? []);
   const resume = useRef<Run | null>(saved?.run ?? null);
   const armed = useRef(false);
   /** a word is being scored: ignore taps and nods until the next one is up */
   const busy = useRef(false);
+  /** the next word, due once the scored one has left the pad (cancelled when time runs out first) */
+  const next = useRef(0);
   const ends = useRef(0);
   const sensors = useSensorStatus();
   const penalty = usePenalty();
   const custom = usePenaltyText().isCustom;
   const playing = phase.k === "play";
   // The forehead and countdown return behind the curtain, with answered words and time kept.
-  // During the feedback flash the word was already scored: draw the next one on return.
-  const run: Run | null = playing || phase.k === "count"
-    ? { i: phase.i, pile: pile.current, word: playing && !flash ? word : null, left: playing ? left : resume.current?.left ?? seconds }
-    : phase.k === "ready" ? resume.current : null;
-  useKeepProgress<Kept>({ deck: deck.id, seconds, phase: playing || phase.k === "count" ? { k: "ready", i: phase.i } : phase, turns, run }, phase.k !== "setup" && phase.k !== "final");
+  // During the feedback flash the word was already scored: draw the next one on return. Once
+  // time's up is stamped on, the turn is over: it returns at the wall of its notes.
+  const over = playing && flash === "time";
+  const run: Run | null = over
+    ? null
+    : playing || phase.k === "count"
+      ? { i: phase.i, pile: pile.current, word: playing && !flash ? word : null, left: playing ? left : resume.current?.left ?? seconds }
+      : phase.k === "ready" ? resume.current : null;
+  const keptPhase: Phase = over ? { k: "done", i: phase.i } : playing || phase.k === "count" ? { k: "ready", i: phase.i } : phase;
+  useKeepProgress<Kept>({ deck: deck.id, seconds, phase: keptPhase, turns, run }, phase.k !== "setup" && phase.k !== "final");
   // (from the countdown on: the stage turns with the phone while it is being raised)
   const tilt = useTilt((phase.k === "count" || playing) && sensors === "on");
   useWakeLock(phase.k === "count" || playing);
+  // the pictures of the next screens, fetched ahead so they're there when the screen is
+  useEffect(() => {
+    for (const src of phase.k === "setup" ? [ART.curtain] : playing ? [ART.cheer] : []) new Image().src = src;
+  }, [phase.k, playing]);
 
   const draw = () => {
     if (!pile.current.length) pile.current = shuffle(deck.words);
@@ -89,6 +103,7 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   useEffect(() => {
     if (phase.k !== "count") return;
     sfx.countdown(phase.n);
+    buzz(BUZZ.count);
     const id = window.setTimeout(() => {
       if (phase.n > 1) setPhase({ ...phase, n: phase.n - 1 });
       else {
@@ -104,6 +119,7 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
         resume.current = null;
         setPhase({ k: "play", i: phase.i });
         sfx.gong("small", 0.8);
+        buzz(BUZZ.go);
       }
     }, 900);
     return () => window.clearTimeout(id);
@@ -114,18 +130,42 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   useEffect(() => {
     if (!playing) return;
     let last = -1;
+    let after = 0;
     const id = window.setInterval(() => {
       const s = Math.max(0, Math.ceil((ends.current - performance.now()) / 1000));
       setLeft(s);
-      if (s !== last && s <= 5 && s > 0) sfx.countdown(s);
+      // the last ten seconds tick; the last five louder, and in the hand
+      if (s !== last && s <= 10 && s > 0) {
+        if (s <= 5) {
+          sfx.countdown(s);
+          buzz(BUZZ.last);
+        } else sfx.clock(s % 2 === 1);
+      }
       last = s;
       if (s <= 0) {
         window.clearInterval(id);
         sfx.timeUp();
-        setPhase({ k: "done", i: phase.i });
+        buzz(BUZZ.timeUp);
+        // time's up is stamped on the note, then the turn's notes go up on the wall. A word scored
+        // a moment before has gone from the pad already: no next one, the sheet under it stays blank
+        if (busy.current) {
+          window.clearTimeout(next.current);
+          setWord(null);
+        }
+        busy.current = true;
+        setFlash("time");
+        after = window.setTimeout(() => {
+          setFlash(null);
+          busy.current = false;
+          setPhase({ k: "done", i: phase.i });
+        }, 900);
       }
     }, 200);
-    return () => window.clearInterval(id);
+    return () => {
+      window.clearInterval(id);
+      window.clearTimeout(after);
+      window.clearTimeout(next.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
@@ -136,13 +176,14 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
     setTurns((t) => ({ ...t, [id]: [...(t[id] ?? []), { word, ok }] }));
     setFlash(ok ? "ok" : "pass");
     if (ok) {
+      paper.peel();
       sfx.correct();
-      haptic([12, 30, 12]);
+      buzz(BUZZ.ok);
     } else {
-      sfx.whoosh(0.3, false);
-      haptic(20);
+      paper.flick();
+      buzz(BUZZ.pass);
     }
-    window.setTimeout(() => {
+    next.current = window.setTimeout(() => {
       busy.current = false;
       setFlash(null);
       draw();
@@ -167,6 +208,7 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
   const finish = () => {
     setPhase({ k: "final" });
     sfx.win();
+    buzz(BUZZ.ok);
     const scores = people.map((p) => (turns[p.id] ?? []).filter((x) => x.ok).length);
     const lo = Math.min(...scores);
     if (people.length > 1 && lo < Math.max(...scores)) {
@@ -185,6 +227,16 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
 
   const cur = phase.k !== "setup" && phase.k !== "final" ? people[phase.i] : null;
   const myTurn = cur ? turns[cur.id] ?? [] : [];
+
+  // the turn's notes landing on the wall: a step up the scale for each one got, a soft one for a pass
+  const doneOf = phase.k === "done" ? phase.i : -1;
+  useEffect(() => {
+    if (doneOf < 0) return;
+    let got = 0;
+    const ids = myTurn.slice(0, 16).map((x, i) => window.setTimeout(() => (x.ok ? paper.land(got++) : paper.land(0, true)), 120 + i * 90));
+    return () => ids.forEach((t) => window.clearTimeout(t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doneOf]);
 
   const actions =
     phase.k === "setup" ? (
@@ -237,10 +289,10 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
         )}
 
         {phase.k === "ready" && cur && (
-          <div className="pass-curtain">
-            <NameFace name={cur.name} size={84} />
-            <p className="pass-lead">{zh ? "轮到" : "Up next"}</p>
-            <p className="pass-name">{cur.name}</p>
+          <div className="pi-curtain">
+            <img className="pi-curtain-art" src={ART.curtain} alt="" width={960} height={640} decoding="async" />
+            <p className="pi-curtain-lead">{zh ? "轮到" : "Up next"}</p>
+            <p className="pi-curtain-name">{cur.name}</p>
             <div className="heads-how">
               <span className="is-ok">
                 <ArrowDown size={16} strokeWidth={2.6} />
@@ -262,21 +314,39 @@ function PostitGame({ onBack, saved }: { onBack: () => void; saved: Kept | null 
 
         {phase.k === "done" && cur && (
           <>
-            <h2 className="pl-board-title">{zh ? `${cur.name} 猜对 ${myTurn.filter((x) => x.ok).length} 个` : `${cur.name}: ${myTurn.filter((x) => x.ok).length} right`}</h2>
-            <ul className="heads-list">
-              {myTurn.map((x, i) => (
-                <li key={i} className={x.ok ? "is-ok" : ""}>
-                  {x.ok ? <Check size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />}
-                  {zh ? x.word.zh : x.word.en}
-                  <small>{zh ? x.word.en : x.word.zh}</small>
-                </li>
-              ))}
-            </ul>
+            <h2 className="pi-wall-title">
+              {zh ? (
+                <>
+                  {cur.name} 猜对 <b className="tabular">{myTurn.filter((x) => x.ok).length}</b> 个
+                </>
+              ) : (
+                <>
+                  {cur.name}: <b className="tabular">{myTurn.filter((x) => x.ok).length}</b> right
+                </>
+              )}
+            </h2>
+            {myTurn.length ? (
+              <ul className="pi-wall">
+                {myTurn.map((x, i) => (
+                  <li key={i} className={`pi-wall-note note ${x.ok ? "is-ok" : "is-pass"}`} style={{ "--i": i } as React.CSSProperties}>
+                    <span>{zh ? x.word.zh : x.word.en}</span>
+                    {x.word.zh !== x.word.en && <small>{zh ? x.word.en : x.word.zh}</small>}
+                    <span className="pi-wall-mark" aria-hidden="true">
+                      {x.ok ? <Check size={15} strokeWidth={3.2} /> : <X size={15} strokeWidth={3.2} />}
+                    </span>
+                    <span className="heads-said">{x.ok ? (zh ? "猜对" : "got it") : zh ? "跳过" : "passed"}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="pi-wall-empty">{zh ? "这一轮一个都没猜到" : "None this time"}</p>
+            )}
           </>
         )}
 
         {phase.k === "final" && (
           <>
+            <img className="pi-cheer" src={ART.cheer} alt="" width={640} height={640} decoding="async" />
             <h2 className="pl-board-title">{zh ? "结果" : "Results"}</h2>
             <Leaderboard rows={people.map((p) => ({ id: p.id, name: p.name, score: (turns[p.id] ?? []).filter((x) => x.ok).length, face: <NameFace name={p.name} size={40} /> }))} unit={zh ? "个" : ""} />
           </>

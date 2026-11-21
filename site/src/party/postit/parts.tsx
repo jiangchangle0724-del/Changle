@@ -2,14 +2,19 @@ import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 import type { T } from "../../i18n";
 import { useStore } from "../../store";
+import "./postit.css";
 
-/** A yellow sticky note. `null` is your own forehead: a question mark. `chip`: one line of it, in a sentence. */
-export function Sticky({ note, size = "md", tilt = 0 }: { note: T | null; size?: "sm" | "md" | "lg" | "chip"; tilt?: number }) {
+/**
+ * A yellow sticky note. `null` is your own forehead: a question mark, the note's back to you.
+ * `chip`: one line of it, in a sentence. `turned`: it has just turned over to be read (a guess, or
+ * the end); `stuck`: it has just been stuck on.
+ */
+export function Sticky({ note, size = "md", tilt = 0, turned = false, stuck = false }: { note: T | null; size?: "sm" | "md" | "lg" | "chip"; tilt?: number; turned?: boolean; stuck?: boolean }) {
   const { lang } = useStore();
   const main = note ? (lang === "zh" ? note.zh : note.en) : "?";
   const other = note && note.zh !== note.en ? (lang === "zh" ? note.en : note.zh) : null;
   return (
-    <span className={`sticky sticky-${size} ${note ? "" : "is-mine"}`} style={{ rotate: `${tilt}deg` }}>
+    <span className={`sticky sticky-${size} ${note ? "note" : "is-mine"} ${turned ? "is-turned" : ""} ${stuck ? "is-stuck" : ""}`} style={{ rotate: `${tilt}deg` }}>
       <span className="sticky-main">{main}</span>
       {other && <span className="sticky-other">{other}</span>}
     </span>
@@ -21,6 +26,7 @@ export function Forehead({
   face,
   name,
   note,
+  turned,
   tilt,
   turn,
   solved,
@@ -30,6 +36,8 @@ export function Forehead({
   face: ReactNode;
   name: string;
   note: T | null;
+  /** the note has just become readable: it turns over */
+  turned?: boolean;
   tilt: number;
   turn?: boolean;
   solved?: boolean;
@@ -39,7 +47,7 @@ export function Forehead({
 }) {
   return (
     <div className={`forehead ${turn ? "is-turn" : ""} ${solved ? "is-solved" : ""} ${figure ? "has-figure" : ""}`}>
-      <Sticky note={note} size="sm" tilt={tilt} />
+      <Sticky note={note} size="sm" tilt={tilt} turned={turned} />
       <span className="forehead-face">
         {face}
         {solved && (

@@ -24,7 +24,7 @@ SCREENS = {
     "signin-code": ("/login", ".signin-lead"),
     "truth": ("/g/truth-or-dare/play", ".bottle-actions .hint"),
     "undercover": ("/g/undercover/play", ".hint-ink"),
-    "postit": ("/g/post-it/play", ".pass-curtain .hint"),
+    "postit": ("/g/post-it/play", ".pi-curtain .hint"),
     "profile": ("/me", ".me-bio"),
     "profile-edit": ("/me", ".sheet .hint"),
 }
@@ -165,7 +165,7 @@ def screens(browser, args, out):
                     pg.locator('.otp-input').blur()
                 elif name == "postit":
                     pg.locator('.game-body .btn-primary').tap()
-                    pg.locator('.pass-curtain').wait_for()
+                    pg.locator('.pi-curtain').wait_for()
                 elif name == "profile-edit":
                     pg.locator('.topbar-right .icon-btn').tap()
                 audit(pg, name, lang, paragraph, out)
