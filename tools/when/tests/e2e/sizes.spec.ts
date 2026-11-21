@@ -84,3 +84,61 @@ for (const manual of [false, true]) {
     }
   });
 }
+
+/** The names over the columns stay inside their columns, and no time in the best three runs under its button. */
+async function uncrowded(page: Page) {
+  const crowded = await page.evaluate(() => {
+    const out: string[] = [];
+    const box = (el: Element) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect();
+    };
+    for (const head of document.querySelectorAll(".grid-heads > span")) {
+      const column = head.getBoundingClientRect();
+      for (const words of head.children) {
+        if (getComputedStyle(words).display === "none") continue;
+        const width = box(words).width;
+        if (width > column.width + 1) out.push(`${words.textContent}: ${Math.round(width)} > ${Math.round(column.width)}`);
+      }
+    }
+    for (const li of document.querySelectorAll(".best li")) {
+      const button = li.querySelector(".btn")?.getBoundingClientRect();
+      const words = box(li.querySelector(".best-what")!);
+      if (button && words.right > button.left && words.left < button.right && words.bottom > button.top && words.top < button.bottom) out.push(`${li.textContent} runs under its button`);
+    }
+    return out;
+  });
+  expect(crowded).toEqual([]);
+}
+
+// Larger text on a phone (2026-11-20): over five narrow columns the English names give way to short
+// ones (AM, Noon, PM), and in the best three the button goes under the time.
+for (const width of [320, 390]) {
+  test(`${width} wide, the host's page: the column names and the best three aren't crowded, with normal and 150% text`, async ({ browser }) => {
+    const host = await phone(browser, { viewport: { width, height: 700 } });
+    const { url } = await make(host, "周末火锅和桌游 Hot pot and board games");
+    await join(host, url, "Steve Long Name");
+    for (const n of [3, 8, 12]) await cell(host, n).click();
+    await saved(host);
+    for (const large of [false, true]) {
+      await host.evaluate(
+        (size) => {
+          document.documentElement.style.fontSize = size;
+        },
+        large ? "150%" : "100%",
+      );
+      for (const lang of ["zh", "en"]) {
+        if (lang === "en") await host.click(".bar-lang");
+        await expect(host.locator(".grid-heads > span").nth(2)).toContainText(lang === "zh" ? "早上" : large ? "AM" : "Morning");
+        await uncrowded(host);
+        await host.click(".seg button:nth-child(2)");
+        await expect(host.locator(".best li .btn")).toHaveCount(3);
+        await uncrowded(host);
+        await buttonsFit(host);
+        await host.click(".seg button:nth-child(1)");
+        if (lang === "en") await host.click(".bar-lang");
+      }
+    }
+  });
+}

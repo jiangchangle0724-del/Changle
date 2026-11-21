@@ -210,6 +210,9 @@ export function Qr({ text, label }: { text: string; label: string }) {
 }
 
 /** A short line that comes and goes at the bottom of the screen; with `action`, it carries one thing to press. */
+/** "3 个人里 2 个有空": a number stays on the line of what it counts (with the Chinese lines' keep-all, the lines end at "人里" and not at "有" or before "个"). */
+export const glued = (text: string): string => text.replace(/(\d) (?=个)/g, "$1\u00a0");
+
 /** Text whose times stay on one line: a line never ends at "19:30–". */
 export function Keep({ text }: { text: string }) {
   const parts = text.split(/(\d{1,2}:\d{2}–\d{1,2}:\d{2})/);
