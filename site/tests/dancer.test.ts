@@ -27,6 +27,8 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFIT, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
+import { CAPTURED_SKATE } from "./support/captured";
+import { LIMITS, motionFacts } from "./support/motion";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -152,6 +154,7 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   const lf = bones.get("LeftFoot") as THREE.Object3D;
   const rf = bones.get("RightFoot") as THREE.Object3D;
   const ankle = lf.getWorldPosition(new THREE.Vector3()).y;
+  const toe = (bones.get("LeftToeBase") as THREE.Object3D).getWorldPosition(new THREE.Vector3()).y;
 
   // 2 and 3. her dances
   m.updateMatrixWorld(true);
@@ -213,6 +216,23 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       ok(Math.abs(step - d.stride) < 0.06, `${d.id}: a step takes her ${d.stride} m (her planted foot slides back ${step.toFixed(2)} m in one)`);
     }
     ok(far < 0.45, `${at} ${d.id}: her hips stay over her spot (${far.toFixed(2)} m out at most)`);
+    // 6. the common mistakes in motion (Nov 21), on her first outfit: every frame as the page plays it
+    if (!checkedDances.has(`${d.id} motion`)) {
+      checkedDances.add(`${d.id} motion`);
+      const n = h.frames;
+      const pose = (k: number) => {
+        a.time = (k / n) * h.beats;
+        mixer.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        return { at: (b: string) => (bones.get(b) as THREE.Object3D).getWorldPosition(new THREE.Vector3()), turn: (b: string) => (bones.get(b) as THREE.Object3D).quaternion };
+      };
+      const f = motionFacts(n, n / (h.beats * h.beat), pose, { ankle, toe }, !!d.stride);
+      if (process.env.MOTION_TABLE) console.log("MOTION", d.id, JSON.stringify(Object.fromEntries(Object.entries(f).map(([k, v]) => [k, Math.round(v * 1000) / 1000]))));
+      // (her feet may slide as much as the real dancer's did there: support/motion.ts, LIMITS)
+      const limit = { ...LIMITS, skate: Math.max(LIMITS.skate, (CAPTURED_SKATE[d.id] ?? 0) + 0.08) };
+      const bad = (Object.keys(limit) as (keyof typeof limit)[]).filter((k) => f[k] > limit[k]);
+      ok(!bad.length, `${d.id}: moves like a person (${bad.length ? bad.map((k) => `${k} ${f[k].toFixed(2)} over ${limit[k].toFixed(2)}`).join(", ") : "no skating, sinking, floating, knees bending back, hands in her, falling off a foot, jerks or seam"})`);
+    }
     // her hair and skirt swinging through it, as the page swings them: never nowhere, never inside her
     if (springs && sp) {
       springs.reset();

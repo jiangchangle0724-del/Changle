@@ -61,8 +61,8 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] 
   { id: "salsa_side", bpm: 105.9, looks: ["sweet", "party"] },
   { id: "salsa", bpm: 111.2, looks: ["party"] },
   { id: "ribpops", bpm: 93.1, looks: ["party", "club"] },
-  { id: "kickstep", bpm: 113.6, looks: ["party", "club"] },
   { id: "shimmy", bpm: 145.6, looks: ["club"] },
+  // (Nov 21: "kickstep" left out. Her feet slid more in it than the dancer's did: tests/dancer.test.ts)
 ];
 
 /**
