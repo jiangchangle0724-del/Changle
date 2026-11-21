@@ -122,7 +122,7 @@ export const W = {
   receiptsNoName: { zh: "没认出店名", en: "No name on it" },
   receiptsNoRate: { zh: "查不到 {currency} 的汇率，这张单独记一笔", en: "No {currency} rate to hand. Add this one on its own" },
   receiptsTwinSeen: { zh: "像是记过了（{what}），先不记", en: "Looks already recorded ({what}), left out" },
-  receiptsTwinRow: { zh: "和第 {n} 张一样，先不记", en: "Same as receipt {n}, left out" },
+  receiptsSameBill: { zh: "和第 {n} 张合成一笔", en: "One bill with receipt {n}" },
   twinSeen: { zh: "像是记过了：{what}", en: "Looks already recorded: {what}" },
   severalTitle: { zh: "{n} 张照片", en: "{n} photos" },
   severalLead: { zh: "每张小票记一笔，还是都是这一笔的？", en: "An expense for each receipt, or are they all this one?" },
