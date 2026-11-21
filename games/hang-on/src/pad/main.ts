@@ -656,7 +656,7 @@ function renderConn(): void {
     return;
   }
   el.textContent = c.socket ? tr('已连接', 'Connected') : tr('重连中…', 'Reconnecting…');
-  el.className = c.socket ? 'conn' : 'conn bad';
+  el.className = c.socket ? 'conn ok' : 'conn bad';
   if (c.socket) $('path').textContent = c.direct ? tr('直连', 'Direct') : tr('绕路中', 'Relayed');
 }
 renderConn();

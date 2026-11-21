@@ -390,6 +390,8 @@ function renderNote(): void {
   // 房间已经关了（fatal 那张卡在说为什么）就不再说「正在重连」
   const down = socketDown && !lastFatal;
   $('note').classList.toggle('quiet', (phoneMode || touchHost) && !down);
+  // 底下那条不出来时大厅也不用给它留地方（开始那一排贴在底下时贴到屏幕底，不是悬在半中间）
+  document.body.classList.toggle('quiet-note', (phoneMode || touchHost) && !down);
   $('note').innerHTML = down
     ? tr('和房间的连接断了，正在重连……', 'Lost the room connection. Reconnecting…')
     : phoneMode || touchHost
@@ -485,6 +487,7 @@ function onPhase(next: Phase): void {
   $('countdown').hidden = next !== 'countdown';
   $('results').hidden = next !== 'results';
   $('lobbyBtn').hidden = next === 'lobby';
+  if (next !== prev) disarmLobby();
   // 顶栏压在遮罩上面；大厅卡片里已经有大房间码，用时和摔死只在玩的时候有意思
   $('codeChip').hidden = next === 'lobby';
   const playing = next === 'countdown' || next === 'playing';
@@ -687,7 +690,26 @@ $('nextBtn').addEventListener('click', () => {
   goNext();
   link?.act({ type: 'START' });
 });
-$('lobbyBtn').addEventListener('click', () => link?.act({ type: 'LOBBY' }));
+// 回大厅：手机局倒数和玩的时候按两下才算（第一下变红，3 秒内再按一下），跟手柄上一样。
+// 房主手机上它挨着 EN，手一滑大家这一局就没了；电视那边（鼠标、键盘）和结算的时候按一下就回。
+const lobbyBtn = $<HTMLButtonElement>('lobbyBtn');
+let lobbyArmed: ReturnType<typeof setTimeout> | null = null;
+function disarmLobby(): void {
+  if (lobbyArmed) clearTimeout(lobbyArmed);
+  lobbyArmed = null;
+  lobbyBtn.classList.remove('armed');
+  lobbyBtn.textContent = tr('回大厅', 'Lobby');
+}
+lobbyBtn.addEventListener('click', () => {
+  if (phoneMode && (phase === 'countdown' || phase === 'playing') && !lobbyArmed) {
+    lobbyArmed = setTimeout(disarmLobby, 3000);
+    lobbyBtn.classList.add('armed');
+    lobbyBtn.textContent = tr('再按一下回大厅', 'Tap again for lobby');
+    return;
+  }
+  disarmLobby();
+  link?.act({ type: 'LOBBY' });
+});
 $('kbBtn').addEventListener('click', () => {
   keyboard = !keyboard;
   renderButtons();
