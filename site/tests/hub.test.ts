@@ -416,7 +416,7 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   await tick();
   const fresh = await signIn("fay@example.test", "fay-phone-0001");
   const r2 = await req(hub, "POST", "/me/sessions/others", {}, fresh, "fay-phone-0001");
-  assert.deepEqual([r2.json.out, r2.json.left], [1, 0], "signed in afresh, the owner signs the thief out");
+  assert.deepEqual([r2.json.out, r2.json.left, r2.json.cancelled], [1, 0, true], "signed in afresh, the owner signs the thief out, and is told its change is cancelled");
   assert.equal((r2.json.user as Row).emailPending, null, "and the thief's waiting change goes with its session");
   assert.equal((await me(thief, "thief-phone-0001")).status, 401);
   ok("退出其他手机: a waiting change asked from a phone now signed out is cancelled with it");

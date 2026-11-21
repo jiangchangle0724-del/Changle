@@ -950,7 +950,7 @@ export class Hub extends DurableObject<HubEnv> {
    * the mailbox, so the owner signing in again always wins over an older session someone else
    * holds; a stolen session can't sign out the newer ones. A waiting 换邮箱 whose phone is now
    * signed out (or already was) is cancelled with it; one asked from a phone still signed in stays.
-   * Gives how many went, and how many newer ones are left.
+   * Gives how many went, how many newer ones are left, and whether a waiting change was cancelled.
    */
   private signOutOlder(id: string, keep: string) {
     const mine = Number(this.one(`SELECT created_at FROM sessions WHERE hash = ?`, keep)?.created_at ?? 0);
@@ -958,9 +958,10 @@ export class Hub extends DurableObject<HubEnv> {
     this.endSessions(id, gone);
     const had = !!this.one(`SELECT 1 AS x FROM email_pending WHERE user_id = ?`, id);
     this.sql.exec(`DELETE FROM email_pending WHERE user_id = ? AND session NOT IN (SELECT hash FROM sessions WHERE user_id = ?)`, id, id);
-    if (had && !this.one(`SELECT 1 AS x FROM email_pending WHERE user_id = ?`, id)) this.push(id, { t: "me" });
+    const cancelled = had && !this.one(`SELECT 1 AS x FROM email_pending WHERE user_id = ?`, id);
+    if (cancelled) this.push(id, { t: "me" });
     const left = Number(this.one(`SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND hash != ?`, id, keep)?.n ?? 0);
-    return { out: gone.length, left };
+    return { out: gone.length, left, cancelled };
   }
 
   /** these sessions of the account gone: their live sockets closed (4006: the app signs out), handoff codes dropped */

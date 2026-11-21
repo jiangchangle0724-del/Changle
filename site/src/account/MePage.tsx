@@ -41,17 +41,24 @@ function Profile({ onBack }: { onBack: () => void }) {
   const [editing, setEditing] = useState(false);
   const signOutOthers = async () => {
     try {
-      const r = await api<{ out: number; left: number; user: SelfUser }>("/me/sessions/others", { method: "POST", body: {} });
+      const waiting = !!me?.emailPending;
+      const r = await api<{ out: number; left: number; cancelled: boolean; user: SelfUser }>("/me/sessions/others", { method: "POST", body: {} });
       setMe(r.user);
-      // (only phones signed in before this one go: one signed in later stays, so a stolen session can't sign out the owner's new one)
-      if (r.left)
-        toast(
-          zh
-            ? `退出了 ${r.out} 部。还有 ${r.left} 部是在这部之后登录的，退不掉：先在这部手机上退出，重新登录，再点一次。`
-            : `Signed out ${r.out}. ${r.left} signed in after this phone and stay: sign out here, sign in again, then tap this once more.`,
-          { duration: 9000 },
-        );
-      else toast(r.out ? (zh ? `别的 ${r.out} 部手机已经退出登录` : `Signed out on ${r.out} other phone${r.out === 1 ? "" : "s"}`) : zh ? "没有别的手机登录着" : "No other phone is signed in", { tone: "success" });
+      const said = r.out ? (zh ? `别的 ${r.out} 部手机已经退出登录。` : `Signed out on ${r.out} other phone${r.out === 1 ? "" : "s"}.`) : zh ? "没有更早登录的手机。" : "No phone signed in before this one.";
+      // (only phones signed in before this one go: one signed in later stays, so a stolen session can't
+      // sign out the owner's new one. Signing in again gets the rest, but only with mail at the address:
+      // not said while a change waits, when it may be lost)
+      const newer = !r.left
+        ? ""
+        : waiting
+          ? zh
+            ? ` 还有 ${r.left} 部是在这部之后登录的，退不掉。`
+            : ` ${r.left} signed in after this phone and stay.`
+          : zh
+            ? ` 还有 ${r.left} 部是在这部之后登录的，退不掉。能收到 ${me?.email} 的信的话：在这部手机上退出，重新登录，再点一次。`
+            : ` ${r.left} signed in after this phone and stay. If you still get mail at ${me?.email}: sign out here, sign in again, then tap this once more.`;
+      const gone = r.cancelled ? (zh ? " 等着的换邮箱是从退出的手机上发起的，也取消了。" : " The waiting email change was asked from a phone that's now signed out, so it's cancelled too.") : "";
+      toast(said + newer + gone, r.left || r.cancelled ? { duration: 10000 } : { tone: "success" });
     } catch {
       toast(zh ? "没退出成，再试一次" : "That didn't go through. Try again", { tone: "danger" });
     }
