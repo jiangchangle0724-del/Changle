@@ -566,6 +566,9 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   for (const total of ["0", "0.00", "-5", "12.345", "abc", "123456789.00", ""]) assert.equal(read({ receipt: true, total }), null, `no total: ${JSON.stringify(total)}`);
   assert.equal(read("not json"), null, "an answer that isn't JSON");
   const shop = (x: Record<string, unknown>) => read({ receipt: true, total: "20.00", currency: "CAD", ...x });
+  // the time printed, to tell an itemized receipt and its card slip apart (Steve, 2026-11-21): only when read
+  assert.deepEqual(["21:01:11", "9:05", " 21:04 ", "24:00", "21:61", "9pm", "", null].map((time) => shop({ time })?.time), ["21:01", "09:05", "21:04", undefined, undefined, undefined, undefined, undefined], "a time of day the clock has, seconds dropped; none otherwise");
+  assert.ok(!("time" in (shop({}) ?? {})), "none read: the reading says nothing of it (as one from before it)");
   assert.deepEqual(shop({ merchant: "McDonald's", place: " Aldergrove,\n BC ", payment: "Mastercard" }), { total: "20.00", currency: "CAD", merchant: "McDonald's", tip: null, tax: null, date: null, place: "Aldergrove, BC", payment: "Mastercard" }, "the business, the place and what paid, each made one plain line");
   for (const [said, kept] of [
     ["Mastercard ****1234", "Mastercard"],
@@ -601,7 +604,7 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.deepEqual(extras("10.50", "80", "3200", "JPY"), [null, "80"], "a tip in yen with cents: none");
   assert.equal(read({ receipt: true, total: "9.99" })?.tip, null, "an answer that doesn't mention them: none");
   assert.ok(String(asked.contents[0].parts[0].text).includes("suggested tip"), "and the words say a suggested tip is no tip");
-  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment"], "they are asked for in the shape given");
+  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment", "time"], "they are asked for in the shape given");
 
   // the day it was spent: one the calendar has, from 2000, no later than tomorrow
   const noon = Date.UTC(2026, 10, 15, 12);
@@ -624,6 +627,8 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.deepEqual(fake("receipt:none"), { ok: true, read: null, cost: 400 }, "and a file that says it is no receipt is none");
   const dated = fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25 date=2026-11-12");
   assert.deepEqual([dated.ok && dated.read?.date, dated.ok && dated.read?.merchant], ["2026-11-12", "Joe's Diner"], "and a day, out of the shop's name");
+  const timed = fake("receipt:45.30 CAD DEER GARDEN SIGNATURE tip=4.85 time=21:04 date=2026-10-15");
+  assert.deepEqual(timed.ok && [timed.read?.merchant, timed.read?.time, timed.read?.tip], ["DEER GARDEN SIGNATURE", "21:04", "4.85"], "and a time, out of the shop's name");
   const placed = fake("receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard tax=1.38");
   assert.deepEqual(placed.ok && [placed.read?.merchant, placed.read?.place, placed.read?.payment, placed.read?.tax], ["McDonald's", "Aldergrove, BC", "Mastercard", "1.38"], "and a place and what paid (a _ for a space), out of the shop's name");
   assert.deepEqual(fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25"), { ok: true, read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25", date: null, place: null, payment: null }, cost: 400 }, "the stand-in reads a tip and tax the file says, after the shop");

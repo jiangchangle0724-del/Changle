@@ -1119,6 +1119,12 @@ const { net } = await import("../src/split/net");
     reply = { status: 200, json: { read: { total: "9.99", currency: "CAD", merchant: null, tip: null, tax: null, date } } };
     eq((await readNet("read-ledger-1", KEY, "file-1")).data?.read?.date, null, `a day said as ${JSON.stringify(date)}: none (the total still stands)`);
   }
+  // the time printed, to tell a receipt and its card slip apart: only when it is one
+  for (const [time, kept] of [["21:04", "21:04"], ["09:05", "09:05"], ["9:05", undefined], ["24:00", undefined], [2104, undefined]] as const) {
+    reply = { status: 200, json: { read: { total: "9.99", currency: "CAD", merchant: null, tip: null, tax: null, time } } };
+    const r = (await readNet("read-ledger-1", KEY, "file-1")).data?.read;
+    eq([r?.total, r?.time, r && "time" in r], [ "9.99", kept, kept !== undefined], `a time said as ${JSON.stringify(time)}: ${kept ?? "none"} (the total still stands)`);
+  }
   reply = { status: 200, json: { read: { total: "20.00", currency: "CAD", merchant: " McDonald's ", place: "Aldergrove,\n BC", payment: "Mastercard" } } };
   const shop = (await readNet("read-ledger-1", KEY, "file-1")).data?.read;
   eq([shop?.merchant, shop?.place, shop?.payment], ["McDonald's", "Aldergrove, BC", "Mastercard"], "the business, the place and what paid, each one plain line");

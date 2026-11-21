@@ -33,7 +33,7 @@ import { PhotoButton, PhotoPicker, PhotosSheet } from "./Photos";
 import { asRateText, lastPaidIn, settled, todaysRate } from "./rates";
 import { newId } from "./store";
 import { dropPhoto, readingOn, readPhoto, record, sendPhoto } from "./syncing";
-import { saidOf, twinIn } from "./twins";
+import { joinBill, sameBill, saidOf, twinIn } from "./twins";
 import { say, type Word } from "./words";
 
 type Props = {
@@ -150,6 +150,32 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     setJustRead(true);
     setReading(null);
   };
+  // the photos of one bill (都放在这一笔): each read, then put together when they are one bill (an
+  // itemized receipt and the card slip that adds the tip: twins.ts); otherwise the first one read
+  const readBill = async (sent: string[]) => {
+    readAsked.current = true;
+    setReading("busy");
+    const got = await Promise.all(sent.map((file) => readPhoto(ledger.id, file)));
+    if (left.current) return;
+    if (got.includes("off")) return setReading(null);
+    const d = draftNow.current;
+    if (d.text) return setReading(null);
+    const today = localDay(Date.now());
+    const read = got.flatMap((g) => {
+      const filled = g && g !== "off" ? readInto(d, g, ledger, fxNow.current?.rates, Date.now(), dayPicked.current) : null;
+      const said = filled && g && g !== "off" ? saidOf(filled, today, g.time) : null;
+      return filled && said ? [{ filled, said }] : [];
+    });
+    if (!read.length) {
+      readAsked.current = false;
+      return setReading("none");
+    }
+    const filled = read.every((r) => sameBill(r.said, read[0].said)) ? read.map((r) => r.filled).reduce(joinBill) : read[0].filled;
+    setDraft(filled);
+    setFromReceipt(`${filled.currency} ${filled.text}`);
+    setJustRead(true);
+    setReading(null);
+  };
   const pick = async (chosen: File[], oneExpense = false) => {
     setPhotoNote(null);
     // several at once for a new expense with nothing typed or sent yet: an expense each, or all this one's?
@@ -159,6 +185,9 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
     }
     const room = MAX_FILES - files.length - sending;
     if (chosen.length > room) tell("photoMax");
+    // (said to be one bill's photos: read together once they have all gone)
+    const together = oneExpense && chosen.length > 1;
+    const sent: string[] = [];
     for (const file of chosen.slice(0, Math.max(0, room))) {
       // a photo that is going to be read: being read from the moment it goes, not once it has got
       // there (the scan starts as the camera closes); put back if it doesn't go, or nobody waits for it
@@ -173,13 +202,14 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
         continue;
       }
       if (!got.ok) {
-        if (toRead) setReading(null);
+        if (toRead && !together) setReading(null);
         tell(TROUBLE_WORD[got.trouble]);
         continue;
       }
       sentHere.current.add(got.file);
       setFiles((f) => [...f, got.file]);
-      if (!readAsked.current && !draftNow.current.text && !editing) void readIt(got.file);
+      if (together) sent.push(got.file);
+      else if (!readAsked.current && !draftNow.current.text && !editing) void readIt(got.file);
       else if (toRead) setReading(null);
       // filling up: said once, until the account is under it again
       try {
@@ -192,6 +222,10 @@ export function AddExpense({ ledger, me, editing, lang, onClose, onSaved, onDele
       } catch {
         // a phone that keeps nothing says it each time it is over
       }
+    }
+    if (together) {
+      if (sent.length && !left.current && !readAsked.current && !draftNow.current.text && !editing && readingOn(ledger.id)) void readBill(sent);
+      else setReading((r) => (r === "busy" ? null : r));
     }
   };
   // the camera straight away when there is nothing to look at first; otherwise the photos
