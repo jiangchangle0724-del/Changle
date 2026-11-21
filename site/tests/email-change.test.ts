@@ -1,17 +1,37 @@
 /**
  * 换邮箱 (worker/emailChange.ts) and the mail kept until it's out (worker/mailOut.ts), on Node's own
  * SQLite in place of the hub's: what MoneyLens asked for (docs/moneylens/accounts-requests.md,
- * request 3), and what the reviews of #704 asked for. A code goes to whatever new address is typed
- * (nothing said about it until it's typed back); it works once, for 10 minutes, for five tries
- * counted before the hash; only its hash is kept; codes to one address are spaced, whoever asks; an
- * address taken, banned or an admin's is turned away at the end; every change is kept in history.
+ * request 3), what the reviews of #704 asked for, and Steve's 更稳 (2026-11-21). Codes go to the new
+ * address and to the one the account has now (nothing said about the new one until they're typed
+ * back); both typed back, the email changes at once; only the new one, the change waits three days
+ * and can be cancelled, by link or from the account; codes work once, for 10 minutes, for five
+ * tries counted before the hashes; only hashes are kept; codes to one address are spaced, whoever
+ * asks; an address taken, banned or an admin's isn't used; every change is kept in history.
  *
  *   npx tsx tests/email-change.test.ts
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { confirmEmail, dropEmail, EMAIL_CODE_TTL, EMAIL_TRIES, EMAIL_WAIT, emailTables, forgetEmail, PER_ACCOUNT, PER_ADDRESS, startEmail } from "../worker/emailChange";
+import {
+  cancelByLink,
+  cancelPending,
+  confirmEmail,
+  dropEmail,
+  EMAIL_CODE_TTL,
+  EMAIL_TRIES,
+  EMAIL_WAIT,
+  emailTables,
+  forgetEmail,
+  makeEmail,
+  nextPending,
+  PENDING_WAIT,
+  PER_ACCOUNT,
+  PER_ADDRESS,
+  pendingOf,
+  startEmail,
+  takeDue,
+} from "../worker/emailChange";
 import { waitAfter } from "../worker/goneNotices";
 import type { Sql } from "../worker/handoffCodes";
 import { GIVE_UP, mailTables, nextMail, queueMail, sendMail, type Mail } from "../worker/mailOut";
@@ -53,18 +73,21 @@ type More = Partial<{ recent(e: string): boolean; allow(e: string): boolean }>;
 const start = (sql: Sql, me: typeof ANN, email: string, now = T0, more: More = {}) =>
   startEmail(sql, me, email, { recent: () => false, allow: () => true, hash: hashFor(me.id), now, ...more });
 const BAD = new Set(["banned@example.com", "boss2@example.com"]);
-const confirm = (sql: Sql, me: typeof ANN, code: string, now = T0 + 1000) =>
-  confirmEmail(sql, me, code, { hash: hashFor(me.id), unusable: (e) => BAD.has(e), ip: "203.0.113.9", device: "phone-1", now });
+type Typed = { code: string; oldCode?: string; lost?: boolean };
+const confirm = (sql: Sql, me: typeof ANN, typed: Typed, now = T0 + 1000) =>
+  confirmEmail(sql, me, typed, { hash: hashFor(me.id), unusable: (e) => BAD.has(e), ip: "203.0.113.9", device: "phone-1", session: "session-of-ann", lang: "zh", now });
 const emailOf = (sql: Sql, id: string) => String(sql.exec(`SELECT email FROM users WHERE id = ?`, id).toArray()[0]?.email);
 const waiting = (sql: Sql, id: string) => sql.exec(`SELECT * FROM email_changes WHERE user_id = ?`, id).toArray()[0];
 const error = (r: unknown) => (r as { json?: { error?: string } }).json?.error;
-const codeOf = (r: unknown) => {
-  assert.ok(r && typeof r === "object" && "code" in r, `a code was made (${JSON.stringify(r)})`);
-  return (r as { code: string }).code;
+type Got = { email: string; code: string; oldCode: string; hash: string };
+const codesOf = (r: unknown) => {
+  assert.ok(r && typeof r === "object" && "code" in r, `codes were made (${JSON.stringify(r)})`);
+  return r as Got;
 };
 const wrongFor = (code: string) => (code === "111111" ? "222222" : "111111");
+const both = (g: Got): Typed => ({ code: g.code, oldCode: g.oldCode });
 
-// ---- asking for a code ----
+// ---- asking for the codes ----
 {
   const sql = fresh();
   assert.equal(error(await start(sql, BOSS, "new@example.com")), "admin", "an admin's email stays put");
@@ -72,28 +95,29 @@ const wrongFor = (code: string) => (code === "111111" ? "222222" : "111111");
   assert.equal(error(await start(sql, ANN, "  ANN@Example.com ")), "same", "the address it already has, whatever the case");
   assert.equal(error(await start(sql, ANN, "new@example.com", T0, { allow: () => false })), "slow-down", "past the hourly limits");
   assert.equal(waiting(sql, ANN.id), undefined, "none of that left a code waiting");
-  ok("asking: an admin, a bad address, the same one, or past the limits: no code");
+  ok("asking: an admin, a bad address, the same one, or past the limits: no codes");
 
-  const r = await start(sql, ANN, "  New@Example.com ");
-  const code = codeOf(r);
-  assert.match(code, /^\d{6}$/, "six digits");
-  assert.equal((r as { email: string }).email, "new@example.com", "the address tidied, lower case");
+  const g = codesOf(await start(sql, ANN, "  New@Example.com "));
+  assert.match(g.code, /^\d{6}$/, "six digits for the new address");
+  assert.match(g.oldCode, /^\d{6}$/, "and six for the one it has now");
+  assert.equal(g.email, "new@example.com", "the address tidied, lower case");
   const row = waiting(sql, ANN.id)!;
   assert.equal(row.email, "new@example.com");
-  assert.equal(row.hash, (r as { hash: string }).hash);
-  assert.ok(!JSON.stringify(row).includes(code), "only the code's hash is kept");
+  assert.equal(row.hash, g.hash);
+  assert.ok(row.old_hash && row.old_hash !== row.hash);
+  assert.ok(!JSON.stringify(row).includes(g.code) && !JSON.stringify(row).includes(g.oldCode), "only the codes' hashes are kept");
   assert.equal(Number(row.expires), T0 + EMAIL_CODE_TTL, "ten minutes");
-  assert.equal(emailOf(sql, ANN.id), "ann@example.com", "nothing changes until the code comes back");
-  ok("a code for the new address: six digits, ten minutes, only its hash kept");
+  assert.equal(emailOf(sql, ANN.id), "ann@example.com", "nothing changes until the codes come back");
+  ok("codes for the new address and the one it has now: six digits each, ten minutes, only hashes kept");
 
   assert.equal(error(await start(sql, ANN, "other@example.com", T0 + EMAIL_WAIT - 1)), "wait", "not again within 45 seconds");
   let asked = 0;
   await start(sql, ANN, "other@example.com", T0 + 1, { allow: () => (asked++, true) });
   assert.equal(asked, 0, "a request turned away for waiting doesn't use up the hourly limits");
-  const again = codeOf(await start(sql, ANN, "other@example.com", T0 + EMAIL_WAIT));
-  assert.equal(waiting(sql, ANN.id)!.email, "other@example.com", "a new code replaces the old one, address and all");
-  if (again !== code) assert.equal(error(await confirm(sql, ANN, code, T0 + EMAIL_WAIT + 1)), "code", "the old code no longer works");
-  ok("45 seconds between codes; a new one replaces the old");
+  const again = codesOf(await start(sql, ANN, "other@example.com", T0 + EMAIL_WAIT));
+  assert.equal(waiting(sql, ANN.id)!.email, "other@example.com", "new codes replace the old ones, address and all");
+  if (again.code !== g.code) assert.equal(error(await confirm(sql, ANN, both(g), T0 + EMAIL_WAIT + 1)), "code", "the old codes no longer work");
+  ok("45 seconds between codes; new ones replace the old");
 }
 {
   // nothing said about the address: taken, banned or an admin's, a code goes to it like any other
@@ -102,17 +126,17 @@ const wrongFor = (code: string) => (code === "111111" ? "222222" : "111111");
     const me = { ...ANN, id: `u${String(i).padStart(12, "d")}`, email: `d${i}@example.com` };
     sql.exec(`INSERT INTO users (id, email) VALUES (?, ?)`, me.id, me.email);
     const r = await start(sql, me, to, T0 + i * EMAIL_WAIT);
-    assert.ok("code" in r, `${to}: a code, as for any address`);
+    assert.ok("code" in r, `${to}: codes, as for any address`);
   }
   ok("asking says nothing about the address (taken, banned, an admin's): no looking up who has an account");
 }
 {
   // codes to one address are spaced, whoever asks (no mail-bombing a stranger from many accounts)
   const sql = fresh();
-  codeOf(await start(sql, ANN, "target@example.com"));
+  codesOf(await start(sql, ANN, "target@example.com"));
   assert.equal(error(await start(sql, BEN, "target@example.com", T0 + 1000)), "wait", "another account, the same address, 1 s on");
   assert.equal(error(await start(sql, BEN, "elsewhere@example.com", T0 + 1000, { recent: (e) => e === "elsewhere@example.com" })), "wait", "a sign-in code to it moments ago");
-  codeOf(await start(sql, BEN, "target@example.com", T0 + EMAIL_WAIT));
+  codesOf(await start(sql, BEN, "target@example.com", T0 + EMAIL_WAIT));
   let address = "";
   await start(sql, { ...ANN, id: "ueeeeeeeeeeee" }, " X2@Example.com ", T0, { allow: (e) => ((address = e), true) });
   assert.equal(address, "x2@example.com", "the limits are asked about the tidied address");
@@ -121,115 +145,116 @@ const wrongFor = (code: string) => (code === "111111" ? "222222" : "111111");
 {
   // the spacing and the hourly limits hold whatever became of the codes (typed back, given up on, expired)
   const sql = fresh();
-  const code = codeOf(await start(sql, ANN, "target@example.com"));
-  for (let i = 0; i <= EMAIL_TRIES; i++) await confirm(sql, ANN, wrongFor(code), T0 + 100 + i);
-  assert.equal(waiting(sql, ANN.id), undefined, "the code given up on");
+  const g = codesOf(await start(sql, ANN, "target@example.com"));
+  for (let i = 0; i <= EMAIL_TRIES; i++) await confirm(sql, ANN, { code: wrongFor(g.code), oldCode: g.oldCode }, T0 + 100 + i);
+  assert.equal(waiting(sql, ANN.id), undefined, "the codes given up on");
   assert.equal(error(await start(sql, ANN, "target@example.com", T0 + 1000)), "wait", "the account still waits");
   assert.equal(error(await start(sql, BEN, "target@example.com", T0 + 1000)), "wait", "the address still waits");
   const t = (i: number) => T0 + i * EMAIL_WAIT;
-  for (let i = 1; i < PER_ACCOUNT; i++) codeOf(await start(sql, ANN, `a${i}@example.com`, t(i)));
+  for (let i = 1; i < PER_ACCOUNT; i++) codesOf(await start(sql, ANN, `a${i}@example.com`, t(i)));
   assert.equal(error(await start(sql, ANN, "a9@example.com", t(PER_ACCOUNT))), "slow-down", `${PER_ACCOUNT} an hour per account`);
   const others = Array.from({ length: PER_ADDRESS }, (_, i) => ({ ...ANN, id: `u${String(i).padStart(12, "f")}`, email: `f${i}@example.com` }));
-  for (let i = 1; i < PER_ADDRESS; i++) codeOf(await start(sql, others[i], "target@example.com", t(i)));
+  for (let i = 1; i < PER_ADDRESS; i++) codesOf(await start(sql, others[i], "target@example.com", t(i)));
   assert.equal(error(await start(sql, others[0], "target@example.com", t(PER_ADDRESS))), "slow-down", `${PER_ADDRESS} an hour to one address, whoever asks`);
   assert.ok("code" in (await start(sql, others[0], "target@example.com", T0 + 3600_000 + 1)), "an hour on, again");
-  forgetEmail(sql, ANN.id);
-  for (const tb of ["email_changes", "email_history", "email_sent"]) assert.equal(sql.exec(`SELECT COUNT(*) AS n FROM ${tb} WHERE user_id = ?`, ANN.id).toArray()[0].n, 0, tb);
-  ok("spacing and hourly limits (per account, per address) hold after a code is given up on; a deleted account leaves nothing of its own");
+  ok("spacing and hourly limits (per account, per address) hold after codes are given up on");
 }
 {
   // a throwaway account, deleted, doesn't clear the address's spacing or limit
   const sql = fresh();
-  codeOf(await start(sql, ANN, "victim@example.com"));
+  codesOf(await start(sql, ANN, "victim@example.com"));
   forgetEmail(sql, ANN.id);
+  for (const tb of ["email_changes", "email_history", "email_sent", "email_pending"]) assert.equal(sql.exec(`SELECT COUNT(*) AS n FROM ${tb} WHERE user_id = ?`, ANN.id).toArray()[0].n, 0, tb);
   assert.equal(error(await start(sql, BEN, "victim@example.com", T0 + 1000)), "wait", "the address still waits");
   const t = (i: number) => T0 + i * EMAIL_WAIT;
   for (let i = 1; i < PER_ADDRESS; i++) {
     const me = { ...ANN, id: `u${String(i).padStart(12, "g")}`, email: `g${i}@example.com` };
-    codeOf(await start(sql, me, "victim@example.com", t(i)));
+    codesOf(await start(sql, me, "victim@example.com", t(i)));
     forgetEmail(sql, me.id);
   }
   assert.equal(error(await start(sql, BEN, "victim@example.com", t(PER_ADDRESS))), "slow-down", "and its hourly limit holds");
-  ok("deleting the account that asked doesn't reset the new address's spacing or limit");
+  ok("a deleted account leaves nothing of its own, and doesn't reset the new address's spacing or limit");
 }
 {
-  // two requests at once for one account: one gets the code, the other waits
+  // two requests at once for one account: one gets the codes, the other waits
   const sql = fresh();
   const [a, b] = await Promise.all([start(sql, ANN, "one@example.com"), start(sql, ANN, "two@example.com")]);
   const got = [a, b].filter((r) => "code" in r);
-  assert.equal(got.length, 1, "exactly one code");
+  assert.equal(got.length, 1, "exactly one pair");
   assert.equal(error("code" in a ? b : a), "wait");
-  const r = got[0] as { email: string; hash: string };
-  assert.equal(waiting(sql, ANN.id)!.email, r.email);
-  assert.equal(waiting(sql, ANN.id)!.hash, r.hash, "the row holds the code that was given");
-  ok("two requests at once: one code, the slot taken before the hash");
+  const g = got[0] as Got;
+  assert.equal(waiting(sql, ANN.id)!.email, g.email);
+  assert.equal(waiting(sql, ANN.id)!.hash, g.hash, "the row holds the codes that were given");
+  ok("two requests at once: one pair of codes, the slot taken before the hashes");
 
-  // the mail with an older code didn't go out: dropping it leaves a newer code alone
   dropEmail(sql, ANN.id, "an older code's hash");
-  assert.ok(waiting(sql, ANN.id), "a newer code stays");
-  dropEmail(sql, ANN.id, r.hash);
+  assert.ok(waiting(sql, ANN.id), "a newer pair stays");
+  dropEmail(sql, ANN.id, g.hash);
   assert.equal(waiting(sql, ANN.id), undefined, "its own goes");
-  ok("a mail that didn't go out drops only its own code");
+  ok("a mail that didn't go out drops only its own codes");
 }
 
-// ---- typing it back ----
+// ---- both codes typed back: changed at once ----
 {
   const sql = fresh();
-  assert.equal(error(await confirm(sql, ANN, "123456")), "none", "no code asked for");
-  const code = codeOf(await start(sql, ANN, "new@example.com"));
-  assert.equal(error(await confirm(sql, ANN, wrongFor(code))), "code", "a wrong code");
-  assert.equal(error(await confirm(sql, ANN, "12a456")), "code", "not six digits");
-  assert.equal(Number(waiting(sql, ANN.id)!.attempts), 2, "each try counted");
-  assert.equal(error(await confirm(sql, BEN, code)), "none", "another account can't use it");
+  assert.equal(error(await confirm(sql, ANN, { code: "123456", oldCode: "123456" })), "none", "no codes asked for");
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  assert.equal(error(await confirm(sql, ANN, { code: wrongFor(g.code), oldCode: g.oldCode })), "code", "the new address's code wrong");
+  assert.equal(error(await confirm(sql, ANN, { code: g.code, oldCode: wrongFor(g.oldCode) })), "old-code", "the current address's code wrong");
+  assert.equal(error(await confirm(sql, ANN, { code: g.code })), "old-code", "the current address's code missing");
+  assert.equal(error(await confirm(sql, ANN, { code: g.oldCode, oldCode: g.code })), g.code === g.oldCode ? undefined : "code", "the two swapped");
+  assert.equal(Number(waiting(sql, ANN.id)!.attempts), 4, "each try counted");
+  assert.equal(error(await confirm(sql, BEN, both(g))), "none", "another account can't use them");
 
-  const r = await confirm(sql, ANN, code);
-  assert.deepEqual(r, { old: "ann@example.com", email: "new@example.com" }, "the right code: old and new address back");
+  const r = await confirm(sql, ANN, both(g));
+  assert.deepEqual(r, { made: { old: "ann@example.com", email: "new@example.com" } }, "both right: made now, old and new address back");
   assert.equal(emailOf(sql, ANN.id), "new@example.com", "the account's email changed");
-  assert.equal(waiting(sql, ANN.id), undefined, "the code is spent");
-  assert.equal(error(await confirm(sql, ANN, code)), "none", "and works once");
+  assert.equal(waiting(sql, ANN.id), undefined, "the codes are spent");
+  assert.equal(error(await confirm(sql, ANN, both(g))), "none", "and work once");
   const h = sql.exec(`SELECT * FROM email_history WHERE user_id = ?`, ANN.id).toArray().map((x) => ({ ...x }));
   assert.deepEqual(h, [{ user_id: ANN.id, old: "ann@example.com", new: "new@example.com", at: T0 + 1000, ip: "203.0.113.9", device: "phone-1" }]);
-  ok("the right code: the email changes, once, and the change is kept (old, new, when, IP, phone)");
+  assert.equal(pendingOf(sql, ANN.id), null, "nothing waiting");
+  ok("both codes right: the email changes at once, once, and the change is kept (old, new, when, IP, phone)");
 }
 {
   const sql = fresh();
-  const code = codeOf(await start(sql, ANN, "new@example.com"));
-  assert.equal(error(await confirm(sql, ANN, code, T0 + EMAIL_CODE_TTL + 1)), "expired", "ten minutes on, no good");
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  assert.equal(error(await confirm(sql, ANN, both(g), T0 + EMAIL_CODE_TTL + 1)), "expired", "ten minutes on, no good");
   assert.equal(waiting(sql, ANN.id), undefined, "and forgotten");
   assert.equal(emailOf(sql, ANN.id), "ann@example.com");
   ok("expired after ten minutes");
 }
 {
   const sql = fresh();
-  const code = codeOf(await start(sql, ANN, "new@example.com"));
-  for (let i = 0; i < EMAIL_TRIES; i++) assert.equal(error(await confirm(sql, ANN, wrongFor(code))), "code");
-  assert.equal(error(await confirm(sql, ANN, code)), "tries", "after five wrong tries even the right code is turned away");
-  assert.equal(waiting(sql, ANN.id), undefined, "and the code forgotten");
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  for (let i = 0; i < EMAIL_TRIES; i++) assert.ok(["code", "old-code"].includes(String(error(await confirm(sql, ANN, { code: g.code, oldCode: wrongFor(g.oldCode) })))));
+  assert.equal(error(await confirm(sql, ANN, both(g))), "tries", "after five wrong tries even the right codes are turned away");
+  assert.equal(waiting(sql, ANN.id), undefined, "and the codes forgotten");
   assert.equal(emailOf(sql, ANN.id), "ann@example.com");
-  ok("five wrong tries and the code is gone");
+  ok("five wrong tries and the codes are gone");
 }
 {
-  // tries sent all at once: each counts before the hash, so no more than five are weighed
+  // tries sent all at once: each counts before the hashes, so no more than five are weighed
   const sql = fresh();
-  const code = codeOf(await start(sql, ANN, "new@example.com"));
-  const guesses = Array.from({ length: 40 }, (_, i) => String(100000 + i)).filter((g) => g !== code);
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  const guesses = Array.from({ length: 40 }, (_, i) => String(100000 + i)).filter((x) => x !== g.code);
   let weighed = 0;
-  const counting = { hash: async (e: string, c: string) => (weighed++, hashFor(ANN.id)(e, c)), unusable: () => false, ip: "", device: "", now: T0 + 1000 };
-  const answers = await Promise.all(guesses.map((g) => confirmEmail(sql, ANN, g, counting)));
+  const counting = { hash: async (e: string, c: string) => (weighed++, hashFor(ANN.id)(e, c)), unusable: () => false, ip: "", device: "", session: "", lang: "zh" as const, now: T0 + 1000 };
+  const answers = await Promise.all(guesses.map((x) => confirmEmail(sql, ANN, { code: x, oldCode: g.oldCode }, counting)));
   assert.equal(weighed, EMAIL_TRIES, `five weighed, not ${guesses.length}`);
   assert.ok(answers.every((a) => ["code", "tries", "none"].includes(String(error(a)))), "the rest turned away");
   assert.equal(emailOf(sql, ANN.id), "ann@example.com");
   ok("forty guesses at once: five weighed");
 }
 {
-  // the right code twice at once: one changes the email, the other finds the code spent
+  // the right codes twice at once: one changes the email, the other finds them spent
   const sql = fresh();
-  const code = codeOf(await start(sql, ANN, "new@example.com"));
-  const [a, b] = await Promise.all([confirm(sql, ANN, code), confirm(sql, ANN, code)]);
-  assert.equal([a, b].filter((r) => "old" in r).length, 1, "exactly one goes through");
-  assert.equal(error("old" in a ? b : a), "none");
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  const [a, b] = await Promise.all([confirm(sql, ANN, both(g)), confirm(sql, ANN, both(g))]);
+  assert.equal([a, b].filter((r) => "made" in r).length, 1, "exactly one goes through");
+  assert.equal(error("made" in a ? b : a), "none");
   assert.equal(emailOf(sql, ANN.id), "new@example.com");
-  ok("the right code twice at once: one change");
+  ok("the right codes twice at once: one change");
 }
 {
   // the address taken (someone signed up meanwhile), banned, or one the settings make an admin's
@@ -238,25 +263,87 @@ const wrongFor = (code: string) => (code === "111111" ? "222222" : "111111");
     ["banned@example.com", "unusable"],
     ["boss2@example.com", "unusable"],
   ] as const) {
-    const sql = fresh();
-    const code = codeOf(await start(sql, ANN, to));
-    assert.equal(error(await confirm(sql, ANN, code)), why, to);
-    assert.equal(emailOf(sql, ANN.id), "ann@example.com", "the email stays");
-    assert.equal(waiting(sql, ANN.id), undefined, "and the code is spent");
+    for (const lost of [false, true]) {
+      const sql = fresh();
+      const g = codesOf(await start(sql, ANN, to));
+      assert.equal(error(await confirm(sql, ANN, lost ? { code: g.code, lost } : both(g))), why, `${to}${lost ? " (waiting)" : ""}`);
+      assert.equal(emailOf(sql, ANN.id), "ann@example.com", "the email stays");
+      assert.equal(pendingOf(sql, ANN.id), null, "nothing waits");
+      assert.equal(waiting(sql, ANN.id), undefined, "and the codes are spent");
+    }
   }
   const sql = fresh();
-  const code = codeOf(await start(sql, ANN, "late@example.com"));
+  const g = codesOf(await start(sql, ANN, "late@example.com"));
   sql.exec(`INSERT INTO users (id, email) VALUES (?, ?)`, "udddddddddddd", "late@example.com");
-  assert.equal(error(await confirm(sql, ANN, code)), "taken", "someone signed up with it while the code was on its way");
-  ok("at the end: an address taken, banned or an admin's isn't used (and only its owner hears why)");
+  assert.equal(error(await confirm(sql, ANN, both(g))), "taken", "someone signed up with it while the codes were on their way");
+  ok("at the end: an address taken, banned or an admin's isn't used, now or to wait (and only its owner hears why)");
 }
 {
-  // made an admin while the code was on its way
+  // made an admin while the codes were on their way
   const sql = fresh();
-  const code = codeOf(await start(sql, ANN, "new@example.com"));
-  assert.equal(error(await confirm(sql, { ...ANN, admin: true }, code)), "admin", "an admin's email stays put at the end too");
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  assert.equal(error(await confirm(sql, { ...ANN, admin: true }, both(g))), "admin", "an admin's email stays put at the end too");
   assert.equal(emailOf(sql, ANN.id), "ann@example.com");
   ok("made an admin meanwhile: the email stays");
+}
+
+// ---- only the new code (the current address lost): the change waits three days ----
+{
+  const sql = fresh();
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  assert.equal(error(await confirm(sql, ANN, { code: wrongFor(g.code), lost: true })), "code", "the new code still has to be right");
+  const r = (await confirm(sql, ANN, { code: g.code, lost: true })) as { waiting: { email: string; due: number; token: string } };
+  assert.ok("waiting" in r, JSON.stringify(r));
+  assert.equal(r.waiting.email, "new@example.com");
+  assert.equal(r.waiting.due, T0 + 1000 + PENDING_WAIT, "three days on");
+  assert.match(r.waiting.token, /^[A-Za-z0-9_-]{43}$/, "a link's key: 256 random bits");
+  assert.equal(emailOf(sql, ANN.id), "ann@example.com", "nothing changes yet");
+  assert.deepEqual(pendingOf(sql, ANN.id), { email: "new@example.com", at: T0 + 1000 + PENDING_WAIT }, "the account sees what waits");
+  const row = sql.exec(`SELECT * FROM email_pending WHERE user_id = ?`, ANN.id).toArray()[0];
+  assert.ok(!JSON.stringify(row).includes(r.waiting.token), "only the link's hash is kept");
+  assert.equal(row.session, "session-of-ann", "and the phone that asked");
+  assert.equal(nextPending(sql), T0 + 1000 + PENDING_WAIT);
+  assert.equal(error(await start(sql, ANN, "other@example.com", T0 + 3600_000)), "pending", "no new change while one waits");
+  ok("only the new code: the change waits three days, the account sees it, the link's key comes back (only its hash kept)");
+
+  assert.deepEqual(takeDue(sql, T0 + PENDING_WAIT), [], "not before its day");
+  assert.deepEqual(takeDue(sql, T0 + 1000 + PENDING_WAIT), [{ id: ANN.id, email: "new@example.com", session: "session-of-ann", lang: "zh", ip: "203.0.113.9", device: "phone-1" }]);
+  assert.equal(pendingOf(sql, ANN.id), null, "taken off the list on its day");
+  const made = makeEmail(sql, ANN.id, "new@example.com", { unusable: () => false, ip: "203.0.113.9", device: "phone-1", now: T0 + PENDING_WAIT + 1000 });
+  assert.deepEqual(made, { old: "ann@example.com", email: "new@example.com" });
+  assert.equal(emailOf(sql, ANN.id), "new@example.com");
+  ok("on its day: taken off the list and made (the hub signs the other phones out and tells the old address)");
+}
+{
+  const sql = fresh();
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  const r = (await confirm(sql, ANN, { code: g.code, lost: true })) as { waiting: { token: string } };
+  assert.equal(cancelPending(sql, BEN.id), false, "another account has nothing to cancel");
+  assert.equal(await cancelByLink(sql, "x".repeat(43)), null, "a made-up link");
+  assert.equal(await cancelByLink(sql, r.waiting.token.slice(1)), null, "a link cut short");
+  assert.equal(await cancelByLink(sql, r.waiting.token), ANN.id, "the link cancels it");
+  assert.equal(pendingOf(sql, ANN.id), null);
+  assert.equal(await cancelByLink(sql, r.waiting.token), null, "and works once");
+  assert.equal(nextPending(sql), null);
+  assert.deepEqual(takeDue(sql, T0 + 10 * PENDING_WAIT), [], "nothing made on the day");
+  const g2 = codesOf(await start(sql, ANN, "new2@example.com", T0 + 3600_000 * 2));
+  await confirm(sql, ANN, { code: g2.code, lost: true }, T0 + 3600_000 * 2 + 1);
+  assert.equal(cancelPending(sql, ANN.id), true, "one of the account's phones cancels it too");
+  assert.equal(pendingOf(sql, ANN.id), null);
+  assert.equal(emailOf(sql, ANN.id), "ann@example.com", "the email never changed");
+  ok("a waiting change is cancelled by its link (once) or from the account");
+}
+{
+  // on its day the address is checked again: someone signed up with it meanwhile
+  const sql = fresh();
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  await confirm(sql, ANN, { code: g.code, lost: true });
+  sql.exec(`INSERT INTO users (id, email) VALUES (?, ?)`, "udddddddddddd", "new@example.com");
+  const [due] = takeDue(sql, T0 + 1000 + PENDING_WAIT);
+  assert.equal(error(makeEmail(sql, ANN.id, due.email, { unusable: () => false, ip: "", device: "", now: T0 + PENDING_WAIT })), "taken");
+  assert.equal(emailOf(sql, ANN.id), "ann@example.com");
+  assert.equal(error(makeEmail(sql, ANN.id, "x@example.com", { unusable: () => true, ip: "", device: "", now: T0 })), "unusable", "or banned meanwhile");
+  ok("on its day the address is checked again (taken or banned meanwhile: not made)");
 }
 
 // ---- the mail kept until it's out ----

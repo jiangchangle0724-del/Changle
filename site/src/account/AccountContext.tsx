@@ -8,7 +8,7 @@ export type Gender = "female" | "male" | "nonbinary" | "private";
 /** `frame`: a reward frame round their face ("gold": a game they wished for went live). */
 export type PublicUser = { id: string; name: string; city: string; gender: Gender; bio: string; av: number; ac: number; handle: string; since: number; figure?: boolean; frame?: string };
 /** `hasFigure`: you have a drawn figure (kept while a photo shows); `choices`: what you picked for it. `master`: the site's owner. */
-export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null; cut?: boolean; perks?: string[] };
+export type SelfUser = PublicUser & { email: string; phone: string; admin: boolean; master?: boolean; hasFigure?: boolean; choices?: Choices | null; cut?: boolean; perks?: string[]; /** a 换邮箱 waiting its three days: the new address and when */ emailPending?: { email: string; at: number } | null };
 export type ChatMsg = { id: number; from: string; body: string; at: number; read: boolean };
 
 export type LiveEvent =
