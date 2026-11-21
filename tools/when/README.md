@@ -128,6 +128,16 @@ The grid's side shows each day short ("周一 11/16") so the five keep a crowded
 from a 375px phone up; on a narrower phone the day's name goes on a line of its own above its
 five.
 
+With larger text on the phone (2026-11-20; `sizes.spec.ts` looks at 150%):
+
+- A column narrower than its longest English name ("Morning") is headed short: Night, AM, Noon,
+  PM, Eve (`partHeadingShort`), at the size asked for. Each name over a column is a CSS container
+  that asks this in its own text size; the Chinese names fit as they are.
+- In the best three, when the list is narrower than 16 of its text size, the host's button goes
+  under the time instead of beside it.
+- Chinese times and counts end a line between words ("11月21日 周六" / "下午"), and a number stays
+  with what it counts ("1 个有空", a no-break space put in on the page only).
+
 ### Times to the minute
 
 Someone free for only part of a period says which part, to the minute (Steve, 2026-11-14). The

@@ -775,7 +775,8 @@ textarea {
     padding-bottom: 2px;
   }
 }
-.grid-heads span {
+.grid-heads > span {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -784,6 +785,22 @@ textarea {
   font-weight: 700;
   line-height: 1.2;
   text-align: center;
+}
+.grid-heads b {
+  font-weight: inherit;
+}
+/* a column narrower than its longest English name ("Morning", some 3.8 times the size of its
+   letters): larger text on a phone. The short names (AM, Noon, PM) then, at the size asked for */
+.grid-heads .head-short {
+  display: none;
+}
+@container (max-width: 3.9em) {
+  .grid-heads .head-long {
+    display: none;
+  }
+  .grid-heads .head-short {
+    display: block;
+  }
 }
 /* the period's hours under its name */
 .grid-heads small {
@@ -1007,10 +1024,29 @@ button.grid-date b {
 /* the best three */
 /* positioned, so its items measure where they stand within it when they change places (ui/Moving.tsx) */
 .best {
+  container-type: inline-size;
   position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+/* words large for the phone (larger text, or a narrow phone): the button goes under the time,
+   so the time isn't squeezed into a sliver beside it */
+@container (max-width: 16em) {
+  .best li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .best li > .btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+/* Chinese lines end between words, not inside one ("下午", "11月21日"): where a time and the count
+   for it are said, which always have spaces to end a line at */
+:lang(zh) .best-what,
+:lang(zh) .set > strong,
+:lang(zh) .set > p {
+  word-break: keep-all;
 }
 .best li {
   display: grid;

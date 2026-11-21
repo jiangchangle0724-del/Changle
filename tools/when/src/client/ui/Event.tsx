@@ -4,7 +4,7 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { addDays, allFree, atTime, best, crewOf, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, startWindow, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel, withNames } from "../../engine";
+import { addDays, allFree, atTime, best, crewOf, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partHeadingShort, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, startWindow, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel, withNames } from "../../engine";
 import type { Answers, Day, EventState, Here, Lang, Part, Person, Quick, SlotKey, Span, Times, Weather } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
@@ -14,7 +14,7 @@ import { t, type Key } from "../i18n";
 import { watch } from "../live";
 import { After } from "./After";
 import { AddToCalendar } from "./Calendar";
-import { CopyButton, IconCheck, IconClock, IconPicture, IconQr, IconStar, IconWave, Keep, Qr, Sheet, Toast, TopBar, useLang } from "./common";
+import { CopyButton, glued, IconCheck, IconClock, IconPicture, IconQr, IconStar, IconWave, Keep, Qr, Sheet, Toast, TopBar, useLang } from "./common";
 import { HereLine, useFinished } from "./Here";
 import { MovingList } from "./Moving";
 import { PictureSheet, daysLine, inviteLine, invitePicture } from "./Picture";
@@ -562,7 +562,7 @@ export function EventPage({ code }: { code: string }) {
           <strong>
             <Keep text={whenLabel(state.settled.day, state.settled.part, lang, state.settled.from, state.settled.to)} />
           </strong>
-          <p>{reason(settledTally, people, lang)}</p>
+          <p>{glued(reason(settledTally, people, lang))}</p>
           <WeatherLine as="p" weather={settledWeather} />
           {state.starts.length > 0 && (
             <StartPoll
@@ -678,7 +678,14 @@ export function EventPage({ code }: { code: string }) {
                 const range = partRange(state.grain, part);
                 return (
                   <span key={part}>
-                    {partHeading(part, lang)}
+                    {lang === "zh" ? (
+                      <b>{partHeading(part, lang)}</b>
+                    ) : (
+                      <>
+                        <b class="head-long">{partHeading(part, lang)}</b>
+                        <b class="head-short">{partHeadingShort(part, lang)}</b>
+                      </>
+                    )}
                     {range && <small>{hoursLabel(range)}</small>}
                   </span>
                 );
@@ -796,7 +803,7 @@ export function EventPage({ code }: { code: string }) {
                   <b>
                     <Keep text={whenLabel(x.day, x.part, lang, x.meet?.from, x.meet?.to)} />
                   </b>
-                  <span>{reason(x, people, lang)}</span>
+                  <span>{glued(reason(x, people, lang))}</span>
                   <WeatherLine weather={topWeather[i]} />
                 </button>
                 {host && x.slot !== settledSlot && (
