@@ -40,8 +40,9 @@ and tests). The decisions taken, where it stands and what is next: `docs/briefs/
 | `pdftext.ts` | The text of a PDF as runs with where they sit on the page, and those runs gathered into lines: what a PDF statement reader will read (IMP-4) |
 | `model.ts`, `ids.ts` | The shapes kept in the vault; random 128-bit identifiers (ISO-3) |
 
-`src/vault/`: the vault's cryptography, the browser's own WebCrypto and nothing else. What it does
-and what it does not is in `docs/moneylens/security-assessment.md`. **Changes here need a recorded
+`src/vault/`: the vault's cryptography (the browser's own WebCrypto and nothing else), and keeping
+its records on a device and on the server. What it does and what it does not is in
+`docs/moneylens/security-assessment.md`. **Changes here need a recorded
 review by someone who did not write them before merging** (SEC-9).
 
 | File | What it does |
@@ -49,12 +50,65 @@ review by someone who did not write them before merging** (SEC-9).
 | `crypto.ts` | The vault key, its wrappers (passphrase, recovery code, passkey), sealing and opening chunks (VAULT-1 to VAULT-3, VAULT-7) |
 | `recovery.ts` | The recovery code: 160 random bits a person can copy by hand, with a check for slips |
 | `passphrase.ts` | How a passphrase is normalized before it makes a key, and the floor it has to clear (VAULT-7). The floor errs both ways on purpose; how often, measured, is in the assessment (1.4) |
+| `records.ts` | What is inside a chunk of records, and how two copies of one chunk are merged, record by record and field by field (VAULT-4) |
+| `sync.ts` | `Store`: every record in memory while the vault is open, packed into sealed chunks; the cache on the device and the server as the store sees them; receiving, merging and sending (VAULT-4) |
+| `memory.ts` | A server and a cache in memory. The server is the rule book for the real one, which is not written yet, and what the demo will run on |
 
 `tests/golden.ts` is a vault made once and stored. **Never regenerate it.** If it stops opening,
 the change that broke it would lock real users out of their vaults: the stored format and the
 passphrase normalization can only change with a new version that still reads the old one. (Its
 passphrase wrapper was made a second time before this code was first merged; the file's header
 says why. That was the last time.)
+
+## The store: where records are kept
+
+Everything the app keeps (accounts, transactions, imports, rules, budgets) is a record: an id, a
+kind, and fields. `Store` (`src/vault/sync.ts`) holds them all in memory while the vault is open.
+How it packs, merges and sends them, and what the server can and cannot do to them, is in the
+assessment (1.6). What a screen needs to know:
+
+```ts
+const store = await Store.open(vault, cache);          // from this device's cache; then:
+const result = await store.sync(remote);               // receive, merge, send
+store.add("txn", `t/${account.id}`, txn);              // kind, group, the record (with its id)
+store.change(txn.id, { category: "groceries" });       // only the fields named; `undefined` takes one out
+store.remove(txn.id);
+store.get(id); store.list("txn");                      // what comes back is frozen: change it through the store
+await store.flush();                                   // seal what changed and write it to the cache
+```
+
+- **Groups.** `"book"` for accounts, imports, categories, rules, aliases, budgets and settings;
+  `"t/<account id>"` for an account's transactions. A group only decides which records share a
+  chunk. One import is then one request that is saved whole or not at all.
+- **Flush often, send seldom.** A change is in memory only until `flush`. Flush within about a
+  second of a change, and when the page is hidden. Send (`sync`) when the page opens, after an
+  import, and otherwise no more than about once a minute while the person is working: every send
+  that changes a chunk counts against the 300 writes a day (LIM-2).
+- **Show what is not on the server yet.** `store.status().pending` is how many chunks have
+  changes that only this device holds. Safari empties a site's storage after seven days without
+  a visit, so "saved on this device, not yet on the server" has to be visible.
+- **`sync` says what happened.** `ok`, with `clashes`: changes the merge could not keep (a field
+  both devices changed: the later change won; a record changed here and removed there). Worth a
+  line to the person, not a dialog. Or not `ok`, with why:
+
+  | `why` | What to do |
+  | --- | --- |
+  | `offline` | Nothing. Try again later; whatever was sent is sorted out then |
+  | `quota-bytes`, `quota-writes` | Say the vault is full, or that today's saves are used up. Changes stay on the device |
+  | `newer` | Another device runs a later version of the app: ask to reload the page |
+  | `wrong-vault` | The vault was reset on another device: lock, empty the cache, start again |
+  | `server-older` | The server's copy is behind what this device saw (a restore). Offer an export, then "use the server's copy": empty the cache and open again |
+  | `unreadable`, `malformed`, `too-big`, `bad-reply`, `bad-request` | Something is wrong that the person cannot fix: say so, keep working on the device, report it (no contents in the report, OBS-1) |
+  | `busy` | Other devices kept writing: try again shortly |
+
+- **After a merge, two records can disagree** (a transfer paired with different transactions on
+  two devices; a transaction whose account was removed elsewhere). Treat a pair as a pair only
+  when both sides name each other, and a missing account or category as none.
+- **Limits a screen can hit:** a record is at most 4,096 bytes as JSON (`too-big`), so notes and
+  splits need their own limits in the form; `full` means the chunk a record lives in cannot grow
+  (it takes hundreds of records at their largest).
+- `store.changes` goes up whenever anything in the store changes, from here or from the server:
+  a view that remembers what it showed compares it.
 
 ## Any bank's file
 
@@ -146,6 +200,10 @@ npm run test:page
 `npm run test:page` builds the statement check and opens it in the Chrome already on the machine.
 
 CI is `.github/workflows/moneylens.yml`: the same four, plus an audit of what ships.
+
+The random run of the store's tests (three devices on a bad network) runs eight times in CI.
+More: `MONEYLENS_SEEDS=500 npx tsx --test tests/sync.test.ts`. One of them again:
+`MONEYLENS_SEED=37 npx tsx --test tests/sync.test.ts`.
 
 What ships is small on purpose: PDF.js (`pdfjs-dist`, Apache 2.0) is the only package in the page.
 The others (`esbuild`, `playwright-core`, `tsx`, `typescript`) build and test.

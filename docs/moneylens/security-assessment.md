@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.7, 20 November 2026. It records the choices the requirements leave to this document
+Version 0.8, 21 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -24,7 +24,11 @@ against this document by someone who has not read the code. Version 0.7 records 
 vendor's model wrote a reader from this document alone, opened the stored vault with it three ways
 and then reviewed the code ([`reviews/vault-second-opinion.md`](reviews/vault-second-opinion.md),
 pull request #692). It approved the format and the code, and found one thing to fix in the code
-(section 2, "Memory") and one number this document named without stating (1.2, now stated).
+(a new recovery code's bytes were not cleared when wrapping failed part-way; fixed in #727, written
+by that model and reviewed here) and one number this document named without stating (1.2, now
+stated).
+Version 0.8 adds how records are packed, kept on a device and brought into line with the server
+(1.6), and what a device can and cannot notice when the server's copy goes back (section 2).
 
 ## 1. The vault
 
@@ -352,6 +356,159 @@ These tests run on Node. The same known answers and the stored vault have to pas
 the app supports (Chrome, Safari, Firefox) before real data is admitted; that is part of the
 Phase 1 exit.
 
+### 1.6 Records, chunks and sync (VAULT-4)
+
+The code is `tools/moneylens/src/vault/records.ts` (what is in a chunk, and merging),
+`sync.ts` (the store on a device, the cache and the server as it sees them) and `memory.ts` (a
+server and a cache in memory: the rule book the real server will be held to, and what the demo
+runs on). The real server and the cache in the browser's storage are not written yet.
+
+**What is in a chunk.** JSON in UTF-8, sealed as in 1.1 under the chunk's own random id and the
+type `records`:
+
+```
+{"v":1,"group":"…","n":3,"rev":"<id>","history":["<id>",…],
+ "records":{"<record id>":{"k":"<kind>","t":<milliseconds>,"d":{…the record's fields…}}}}
+```
+
+- `group` says what the chunk is for: one account's transactions, or the book of accounts, rules
+  and settings. A device puts a new record into a chunk of its group that has room, so an import
+  of two years of statements for three accounts writes about twenty chunks, and a month of new
+  transactions touches two. Nothing else depends on it. A record is found by its id, and once the
+  server has it, it stays in its chunk.
+- `n` counts this chunk's versions: 1 when it is made, and one more each time it is sealed from
+  the copy before it. `rev` is a random name for this version. `history` is `rev` followed by
+  the versions it was made from, newest first: as many as `n`, sixteen at most. All three are
+  inside the sealed part, so the server cannot change them, and what they say about which copy
+  came from which does not depend on anything the server says.
+- `t` is when the record was last changed, by the clock of the device that changed it.
+- A record takes at most 4,096 bytes as JSON with its id. A chunk with 240 records takes no new
+  one, and a device does not grow its copy of a chunk past 512 KiB. 240 times 4,096 is under the
+  one mebibyte a chunk may hold (1.1), so a single device cannot build a chunk too large to seal.
+  A merge of several devices' copies can; see "too large" below.
+- A reader refuses contents it does not know: a larger `v` is reported as "written by a later
+  version of the app", anything else malformed is reported as such, and in both cases the chunk
+  is neither used nor written over. Fields of a record that this version does not know are kept
+  when the record is changed.
+
+**What the server holds.** For each chunk: its id, its sealed blob, and a version number. For the
+vault: the last version number given out, and the day's count of writes. It can see how many
+chunks there are, how large each is, when each changes and which change together. It cannot see
+which account a chunk belongs to, how many records it holds or of what kind: the group, the
+kinds and the record ids are all inside the sealed part. That is VAULT-1's list.
+
+**The two calls.** Both name the vault, and the server refuses a vault it does not hold (after a
+reset it holds another one).
+
+- *Pull*: "what changed since version N". The answer is the chunks with a larger version number,
+  in order, in pages, with how far it reaches and a *digest* (below).
+- *Push*: a batch of writes. Each names its chunk, the version number of the copy it was made
+  from and that copy's *mark*, and carries the new blob. The server checks, in this order: the
+  vault; that the request is well formed; sizes; that every write was made from the copy the
+  server holds (number and mark both); quotas (LIM-2: bytes held, and chunk writes a day). Then
+  it writes all of them, giving each the next version number. If any check fails nothing is
+  written. A write made from another copy is "stale", and the answer carries the copies the
+  server holds for the stale chunks.
+
+**Mark and digest.** A blob's mark is its nonce, twelve bytes, random and new every time a chunk
+is sealed. It is in the blob in the clear already, so it tells the server nothing, and it names
+one sealed copy. A write names the mark of the copy it was made from because the version number
+alone is not enough: after a restore from the platform's recovery history (BAK-1) the server
+counts up from an older number and gives the same numbers to other copies. The digest is the
+marks of every blob the server holds, combined with exclusive-or. A device combines the marks of
+what it believes the server holds and compares.
+
+**Merging.** When a write is stale, or when a pull brings a newer copy of a chunk this device has
+changed, the three copies are merged: the one both started from, this device's, the server's.
+Record by record, then field by field:
+
+- "The same" means the same kind and the same fields with the same values. `t` is not compared:
+  a record touched and left as it was has not changed.
+- A record that is the same on this device as in the starting copy takes the server's state
+  (changed, removed, or as it was). One that is the same on the server as in the starting copy
+  takes this device's. One that is the same on both sides is that.
+- Otherwise both changed it. If one side removed it, it is removed, whatever the other side did,
+  and the app is told that a change was dropped with it.
+- Otherwise both sides have it, changed differently: field by field, by the same three rules (a
+  field absent on a side counts as a value of its own). A field both changed to different values
+  goes to the side whose record has the later `t`, and the app is told. On the same millisecond
+  the two versions are compared as text (the kind, a space, then the record as JSON with the
+  keys of every object in order) and the greater wins, so that both devices pick the same one.
+  The kind is treated as one more field. The merged record's `t` is the later of the two.
+- If the merged record would be larger than a record may be (each side filled a different
+  field), the side that would win a clash is kept whole, and the app is told.
+- With no starting copy (a cache that was lost), nothing counts as removed: a record on either
+  side is kept, and one on both is merged field by field as if it had been empty before.
+
+The result is the same whichever device does the merging, and it is then sent as a write made
+from the server's copy. So no device writes over what another wrote without having read it.
+`t` is used only to settle a field both sides changed. A device that changes a record gives it a
+`t` later than the one it had, so a device whose clock is behind does not lose every such tie.
+
+**Sending twice.** A write replaces a whole chunk, so the same write arriving twice is the same
+chunk once. What needs care is a write whose answer never came, because a request that timed out
+on the device can still arrive at the server, even after the device has looked and seen nothing.
+The device keeps the copy it sent, in the cache, as "sent", and the next thing it sends for that
+chunk is that same copy, until an answer settles it: the same bytes come back (it was taken), a
+newer copy comes back whose `history` names it (it was taken, and another device built on it:
+then it, not the older base, is what both started from), or the chunk has moved on without it
+(it was never taken, and never can be, since it names a copy the server no longer holds). A
+refusal settles only the request it answers. Without this, a record added in the lost write and
+removed again on the device would come back.
+
+**The cache.** For each chunk: its id, a version number, and up to three sealed blobs (the
+server's copy as last seen, this device's copy with unsent changes, and a sent copy of unknown
+fate). For the vault: its id and how far the last pull reached. No key, no record, no field, no
+group (T-24, VAULT-3). A cache that belongs to another vault is emptied. A cached blob that does
+not open is left out and the server is asked for everything again. Changes exist in memory until
+they are flushed (sealed and written to the cache); the app flushes within about a second of a
+change and sends less often, because every send that changes a chunk counts against LIM-2.
+
+**A server whose copy went back** (a restore, a fault, or a server that means harm). A device
+that has synced before notices at its next sync, in one of these ways, and then stops, says so,
+and changes nothing on either side:
+
+- the digest does not match what the device believes the server holds; it then asks for
+  everything and finds a chunk it had that is gone, or a chunk whose version number is not
+  higher than the one it has while the bytes differ;
+- a copy the server calls newer does not name the device's copy in its `history`, and by its own
+  `n` it is fewer than sixteen versions on, so the name cannot have dropped off the end. That is
+  an older copy handed back under a higher number, however far back, or a copy that was never
+  built on this device's. Merging it as if it were newer would remove records;
+- a write made from the device's copy is refused although the number matches, because the mark
+  does not.
+
+The way out that exists today is to take the server's copy: empty this device's cache and start
+again from the server, after offering an export of what the device holds. Putting the device's
+copy back on the server is not built (section 3).
+
+**Too large.** A merged chunk can exceed what one chunk may hold. The records this device added
+and has not sent then go to another chunk. If that is not enough (it takes several devices each
+growing existing records of one chunk, far beyond what the app's fields allow), the sync stops
+with "too large" before writing anything, and this device keeps its changes.
+
+**What a merge leaves to the app.** A merge is per record and per field, and knows nothing of
+what the records mean. Two things that refer to each other can therefore disagree afterwards: a
+transfer paired with one transaction on one device and with another on the other, a transaction
+whose account or category was removed elsewhere. The app treats a pair as a pair only when both
+sides name each other, and a missing account or category as none. Not a security matter; written
+here so that it is written somewhere.
+
+**What was tested** (`tests/records.test.ts`, `tests/sync.test.ts`, in CI): the format round trip
+and every way it can be malformed; merging, by case and on two thousand random pairs (the same
+result whoever merges; nothing that one side did alone is lost); that neither the server nor the
+cache holds a readable byte of the records, their ids or their groups (T-6, T-24); the size of a
+full import (LIM-1); stale writes refused whole; answers that never came, requests that arrive
+late in every order, and the page closed in the middle; quotas (T-14); a server that went back,
+in each of the ways above; chunks that do not open; a damaged cache. One test runs three devices
+with clocks hours apart through a few hundred random steps on a network that loses answers,
+delivers requests late and lets another device write between a device's look and its write, with
+pages closed at random saves, and then checks that all devices and the server hold the same
+records, that every record added and not removed is there, that every removed record is gone,
+and that a field only one device changed has that device's last value. It runs eight times in CI
+and was run several thousand times before the code was merged. Each check in the code was also
+taken out in turn to see that a test fails without it.
+
 ## 2. Limits (the reason for VAULT-6's wording)
 
 - **The code the site serves.** The browser runs what `money.changle.ca` sends. Whoever can change
@@ -364,19 +521,27 @@ Phase 1 exit.
   floor.
 - **Nonces.** One key seals every chunk with a random 96-bit nonce. That is safe for about 2^32
   seals under one key (NIST SP 800-38D, section 8.3). A vault makes a few thousand a year.
-- **Rollback, deletion, reordering.** The server can hand back an older version of a chunk, or
-  none. Versions are not authenticated end to end.
+- **Rollback, deletion, withholding.** The server can hand back an older copy of a chunk, or
+  none. A device that has synced before notices and stops (1.6). A device that has never synced
+  cannot notice: it has nothing to compare with. And a server that simply does not pass on newer
+  copies is noticed by nobody. The digest is not a defence against a server that lies, which can
+  compute any digest it likes; it is there for restores and faults. What a lying server cannot do
+  is make a device that holds a copy of a chunk accept an older copy of it as newer, since the
+  copy's own count and history are sealed with it. (It could hand over a copy from another
+  branch that is sixteen or more versions on, if two devices had ever been allowed to write from
+  the same copy; an honest server never allows that, and a dishonest one would need the devices'
+  help to have such a branch.)
+- **Clocks.** When two devices change the same field of the same record without having seen each
+  other's change, the later clock wins. A device with a wrong clock can win or lose such a tie
+  wrongly. Nothing else depends on clocks.
 - **The version byte.** A blob's first byte is checked but not protected on its own. Changing it
   makes the blob fail to open; the app may then say it looks newer than the app, which is a wrong
   message, not an exposure.
 - **Metadata.** The number of chunks, their sizes and the times they change are visible to the
   server. Chunk sizes are not padded.
 - **Memory.** JavaScript cannot wipe memory reliably. Secrets the code holds as bytes are zeroed
-  after use; a passphrase held as a string by the page cannot be. One place does not do it yet,
-  found by the second opinion: when a new recovery code is being wrapped and the platform refuses
-  part-way, the code's 20 bytes are left as they were. No wrapper comes out of such a failure and
-  reading the bytes needs access to the page's memory, so nothing stored is weaker for it; the
-  fix is task card C2, with its own review, and this sentence goes when it is merged.
+  after use, on the paths that fail as well (the one place that did not, found by the second
+  opinion, was fixed in #727); a passphrase held as a string by the page cannot be.
 - **The device.** Malware, an extension with access to the page, or someone at the unlocked screen
   is outside what the vault defends.
 
@@ -399,15 +564,25 @@ Phase 1 exit.
   and what each input method then does to the punctuation keys, is for the screens.
 - Limiting unlock attempts: the check happens in the browser, so the limit has to be on fetching
   wrappers, per session and per account (threat 1). Not built.
-- Sessions, the handoff, the allowlist, the origin check, sync and quotas: sections to add with
-  the server.
+- Sessions, the handoff, the allowlist, the origin check and the server's side of sync and
+  quotas: sections to add with the server. The server has to pass the tests the one in memory
+  passes (1.6).
+- After "the server's copy went back", putting this device's copy back on the server (for the
+  case where the platform lost data and a device still has it). Decided so far: it would keep
+  everything either side has, at the price that a record removed on one side only can come back.
+  Not built; today's way out is to take the server's copy.
+- Two tabs of one browser share one cache. The cache in the browser's storage has to let only
+  one of them write (a lock, or a message between tabs). Not built.
+- Splitting a chunk that a merge made too large for records this device did not add (1.6).
+- Chunk sizes are not padded (section 2, "Metadata"). Whether to pad to a few fixed sizes is
+  open; it costs storage against the 10 MB a user has.
 - A record altered in storage and a wrong secret look the same (1.3). When sync is built, the
   device should also keep a fingerprint of the wrappers it has seen, so that it can say "this
   record changed since this device last saw it" instead of "wrong passphrase".
 - An estimator of guesses on the passphrase screens, on top of the floor (1.4).
 - Reviews under SEC-9 are recorded in the pull request (#653: five rounds, the last approving the
   commit that was merged). All of them were done by another Claude model, which had not seen the
-  code being written, because the other vendors' tools were not reachable that night. A second
-  opinion from a model of another vendor is still wanted for this code; the task is written up
-  in `docs/codex-tasks/moneylens/C1-vault-second-opinion.md`, and starts with a reader for this
-  format written from this document alone.
+  code being written, because the other vendors' tools were not reachable that night. The second
+  opinion from another vendor's model followed (#692, `reviews/vault-second-opinion.md`). The
+  storage layer of 1.6 was reviewed by that other vendor's model before it was merged; the
+  review is recorded in its pull request and in `reviews/`.
