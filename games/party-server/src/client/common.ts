@@ -4,6 +4,10 @@ import type { ClientMsg, Lang, ServerMsg } from "../shared/protocol";
 
 export type { Lang };
 
+// A double tap never zooms. iPhone Safari honours touch-action (party.css gives it to every
+// element) only on a tap near something that listens for clicks, so the page itself listens.
+document.documentElement.addEventListener("click", () => {});
+
 /** WeChat's own browser (a QR code scanned in WeChat opens there): the whole site starts in Chinese there. */
 const inWeChat = () => /MicroMessenger/i.test(navigator.userAgent);
 

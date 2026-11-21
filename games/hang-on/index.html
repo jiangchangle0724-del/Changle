@@ -16,6 +16,8 @@
     --font-body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
     color-scheme: dark;
   }
+  /* 在哪儿连按两下都不放大（两根手指照样能放大）：每个元素自己说，iPhone 进了能滚的框会重新算；main.ts 让 Safari 每一下都看这个。 */
+  *, *::before, *::after { touch-action: manipulation; }
   html, body { height: 100%; }
   [hidden] { display: none !important; }
   body { margin: 0; background: var(--sky-top); color: var(--ink); font-family: var(--font-body); overflow: hidden; -webkit-user-select: none; user-select: none; }

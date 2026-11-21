@@ -341,7 +341,9 @@ footer a{color:var(--gel)}
  * (site/src/store.tsx, "lazysusan.settings.v1"): with no ?lang in the address, open in that language
  * (at /go/, with the slash: see `href`); tapping 中文 / English here saves the choice for the site too.
  */
-const SCRIPT = `(function(){var K="lazysusan.settings.v1";try{var u=new URL(location.href),s=JSON.parse(localStorage.getItem(K)||"{}"),l=document.documentElement.getAttribute("data-lang");if(!u.searchParams.has("lang")&&(s.lang==="zh"||s.lang==="en")&&s.lang!==l){u.searchParams.set("lang",s.lang);u.pathname="/go/";location.replace(u.href);return}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[data-lang]");if(!a)return;try{var t=JSON.parse(localStorage.getItem(K)||"{}");t.lang=a.getAttribute("data-lang");localStorage.setItem(K,JSON.stringify(t))}catch(_){}})}catch(_){}})();`;
+// (the first line: a double tap never zooms. iPhone Safari honours the touch-action in CSS only on a tap
+// near something that listens for clicks, so the page itself listens)
+const SCRIPT = `document.documentElement.addEventListener("click",function(){});(function(){var K="lazysusan.settings.v1";try{var u=new URL(location.href),s=JSON.parse(localStorage.getItem(K)||"{}"),l=document.documentElement.getAttribute("data-lang");if(!u.searchParams.has("lang")&&(s.lang==="zh"||s.lang==="en")&&s.lang!==l){u.searchParams.set("lang",s.lang);u.pathname="/go/";location.replace(u.href);return}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[data-lang]");if(!a)return;try{var t=JSON.parse(localStorage.getItem(K)||"{}");t.lang=a.getAttribute("data-lang");localStorage.setItem(K,JSON.stringify(t))}catch(_){}})}catch(_){}})();`;
 
 function shell(lang: Lang, langLink: string, body: string): string {
   const zh = lang === "zh";
