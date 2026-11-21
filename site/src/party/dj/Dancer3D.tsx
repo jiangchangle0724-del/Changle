@@ -197,6 +197,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
         let farAt = 0;
         let slid = "";
         const hipsOf = new WeakMap<Her, InstanceType<typeof T.Object3D>>();
+        const headOf = new WeakMap<Her, { head?: InstanceType<typeof T.Object3D>; neck?: InstanceType<typeof T.Object3D>; yaw: number; pitch: number }>();
         const at = new T.Vector3();
         // her middle at her own place on the stage; how far right she may go (her middle clear of the
         // stage's edge, and of a song file's card); the floor's dancers' middles and half widths (none
@@ -385,6 +386,34 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           her!.root.position.x = -travel;
           const slide = x || travel ? `translate3d(${(x + travel * pxPerM()).toFixed(1)}px, 0, 0)` : "";
           if (slide !== slid) el.style.transform = slid = slide;
+          // her head to the room (Nov 21; Steve: "人物面部和头部表情僵硬"): turned a good way toward
+          // the camera when the dance turns it away (not all the way: the dance's own turns stay),
+          // settling there smoothly, and a small nod on each beat while she dances
+          let head = headOf.get(her!);
+          if (!head) headOf.set(her!, (head = { head: her!.root.getObjectByName("Head"), neck: her!.root.getObjectByName("Neck"), yaw: 0, pitch: 0 }));
+          if (head.head && head.neck) {
+            her!.root.updateMatrixWorld(true);
+            const hq = head.head.getWorldQuaternion(new T.Quaternion());
+            const fwd = new T.Vector3(0, 0, 1).applyQuaternion(hq);
+            const to = camera.position.clone().sub(head.head.getWorldPosition(new T.Vector3())).normalize();
+            const yawTo = Math.atan2(to.x, to.z) - Math.atan2(fwd.x, fwd.z);
+            const wrap = Math.atan2(Math.sin(yawTo), Math.cos(yawTo));
+            const yawWant = still.matches || walking ? 0 : Math.max(-0.7, Math.min(0.7, wrap * 0.65));
+            const pitchWant = still.matches || walking ? 0 : Math.max(-0.2, Math.min(0.2, (Math.asin(to.y) - Math.asin(fwd.y)) * 0.5));
+            const ease = 1 - Math.exp(-dt * 4);
+            head.yaw += (yawWant - head.yaw) * ease;
+            head.pitch += (pitchWant - head.pitch) * ease;
+            const nod = on && !walking && !still.matches ? 0.05 * Math.pow(Math.max(0, Math.cos(2 * Math.PI * (b - Math.floor(b)))), 4) : 0;
+            const turn = (bone: InstanceType<typeof T.Object3D>, part: number, extra: number) => {
+              const parent = bone.parent!.getWorldQuaternion(new T.Quaternion());
+              const world = bone.getWorldQuaternion(new T.Quaternion());
+              const d = new T.Quaternion().setFromEuler(new T.Euler(-(head!.pitch * part) + extra, head!.yaw * part, 0, "YXZ"));
+              bone.quaternion.copy(parent.invert().multiply(d.multiply(world)));
+              bone.updateMatrixWorld(true);
+            };
+            turn(head.neck, 0.4, nod * 0.4);
+            turn(head.head, 0.6, nod * 0.6);
+          }
           // her hair and skirt follow
           her!.swing(dt);
           // (a blink: shutting in 70 ms, shut 40, opening in 120)

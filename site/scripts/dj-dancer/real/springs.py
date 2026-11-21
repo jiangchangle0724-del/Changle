@@ -14,7 +14,8 @@ before build_glb.mjs, which reads springs.json for the new bones and what the pa
 usage: python3 springs.py <mesh dir (simplified)> <joints.json> <baked texture> <outfit config .json>
 config: {"hair": {"top": 1.52, "bottom": 1.18, "chains": 3, "bones": 3},
          "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}   (heights in metres; skirt optional;
-         "only": a .npy in the mesh dir marking the skirt's vertices, for a skirt made by skirt.py)
+         "only": a .npy in the mesh dir marking the skirt's vertices, for a skirt made by skirt.py; the hair's
+         "only" likewise, for a sheet of hair made by hairsheet.py)
 """
 import json, sys
 import numpy as np
@@ -58,22 +59,26 @@ main = np.array([skel[j] for j in j4[:, 0]])  # each vertex's strongest bone bef
 h = cfg['hair']
 top, bottom, nc, nb = h['top'], h['bottom'], h.get('chains', 3), h.get('bones', 3)
 behind = P[:, 2] < J['Neck'][2] - 0.01
-hair = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.04) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.17)
-hair &= np.isin(main, ['Head', 'Neck', 'Spine2', 'Spine1', 'Spine', 'LeftShoulder', 'RightShoulder'])
-# the hair goes with her back under it (the model's hair lies a few millimetres off her back: weighted
-# apart, a bend of her back or a shoulder pushes the back through it), its weights the nearest back's
-hair_all = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.12) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.19)
-back = (~hair_all) & behind & (P[:, 1] < top + 0.16) & (P[:, 1] > bottom - 0.08) & (np.abs(P[:, 0]) < 0.24)
-if back.sum() > 50 and hair_all.any():
-    tree = cKDTree(P[back])
-    _, near_i = tree.query(P[hair_all])
-    src = np.nonzero(back)[0][near_i]
-    j4[hair_all] = j4[src]
-    w4[hair_all] = w4[src]
-    # and sits a little further off it
-    P[hair_all] += Ns[hair_all] * 0.002
-    P.astype(np.float32).tofile(lo + '/pos.f32')
-print('hair on her back', int(hair_all.sum()))
+if h.get('only'):
+    # (a sheet of hair made of its own, hairsheet.py: only its vertices; her back under it stays her back)
+    hair = np.load(lo + '/' + h['only'])
+else:
+    hair = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.04) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.17)
+    hair &= np.isin(main, ['Head', 'Neck', 'Spine2', 'Spine1', 'Spine', 'LeftShoulder', 'RightShoulder'])
+    # the hair goes with her back under it (the model's hair lies a few millimetres off her back: weighted
+    # apart, a bend of her back or a shoulder pushes the back through it), its weights the nearest back's
+    hair_all = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.12) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.19)
+    back = (~hair_all) & behind & (P[:, 1] < top + 0.16) & (P[:, 1] > bottom - 0.08) & (np.abs(P[:, 0]) < 0.24)
+    if back.sum() > 50 and hair_all.any():
+        tree = cKDTree(P[back])
+        _, near_i = tree.query(P[hair_all])
+        src = np.nonzero(back)[0][near_i]
+        j4[hair_all] = j4[src]
+        w4[hair_all] = w4[src]
+        # and sits a little further off it
+        P[hair_all] += Ns[hair_all] * 0.002
+        P.astype(np.float32).tofile(lo + '/pos.f32')
+    print('hair on her back', int(hair_all.sum()))
 xs = P[hair, 0]
 span = np.percentile(np.abs(xs), 90) if len(xs) else 0.08
 cx = np.linspace(-span * 0.6, span * 0.6, nc) if nc > 1 else np.array([0.0])
