@@ -1,6 +1,6 @@
 import { WORD_PAIRS } from "../../../data/undercover";
 import type { UcRole, UndercoverView } from "../../protocol";
-import { clean, intIn, t, type Api, type GameDef } from "../api";
+import { clean, intIn, range, t, type Api, type GameDef } from "../api";
 
 type Phase = UndercoverView["phase"];
 type S = {
@@ -11,6 +11,8 @@ type S = {
   blank: boolean;
   round: number;
   pair: number | null;
+  /** the pairs this table has had since the game was opened, so a night deals each once before any comes round again */
+  used?: number[];
   flip: boolean;
   roles: Record<string, UcRole>;
   alive: string[];
@@ -54,6 +56,16 @@ function fit(s: S, n: number) {
 function fitTable(s: S, n: number) {
   if (!s.touched) s.uc = defaultUc(n);
   fit(s, n);
+}
+
+/** A pair the table hasn't had tonight; once every pair has been dealt, the bank starts over. */
+function dealPair(s: S, api: Api) {
+  const used = (s.used ?? []).filter((i) => i >= 0 && i < WORD_PAIRS.length);
+  const fresh = range(WORD_PAIRS.length).filter((i) => !used.includes(i));
+  const pool = fresh.length ? fresh : range(WORD_PAIRS.length);
+  const pair = pool[api.int(pool.length)];
+  s.used = [...(fresh.length ? used : []), pair];
+  return pair;
 }
 
 function startTalk(s: S, api: Api) {
@@ -180,7 +192,7 @@ export const undercover: GameDef<S> = {
         ids.forEach((id, i) => {
           s.roles[id] = i < s.uc ? "uc" : i < s.uc + (s.blank ? 1 : 0) ? "blank" : "civ";
         });
-        s.pair = api.int(WORD_PAIRS.length);
+        s.pair = dealPair(s, api);
         s.flip = api.rand() < 0.5;
         s.alive = api.ids();
         s.ready = [];

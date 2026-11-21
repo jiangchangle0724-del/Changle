@@ -17,6 +17,40 @@ type Role = "civilian" | "undercover" | "blank";
 type Seat = { player: Player; role: Role; alive: boolean };
 type Phase = "setup" | "deal" | "talk" | "vote" | "reveal" | "end";
 
+/**
+ * The pairs this phone has dealt tonight (a night ends after 12 hours without a deal), kept on the
+ * phone so that 重开一局, or coming back to the game later in the evening, doesn't repeat one.
+ */
+const NIGHT_KEY = "changle.undercover.night";
+const NIGHT_MS = 12 * 3600_000;
+function dealtTonight(): string[] {
+  try {
+    const raw = localStorage.getItem(NIGHT_KEY);
+    const night = raw ? (JSON.parse(raw) as { at?: unknown; used?: unknown }) : null;
+    if (!night || typeof night.at !== "number" || !(Date.now() - night.at < NIGHT_MS) || !Array.isArray(night.used)) return [];
+    return night.used.filter((k): k is string => typeof k === "string");
+  } catch {
+    return [];
+  }
+}
+function keepTonight(used: string[]) {
+  try {
+    localStorage.setItem(NIGHT_KEY, JSON.stringify({ at: Date.now(), used }));
+  } catch {
+    // private browsing, or full: the words still deal, they just may come round sooner
+  }
+}
+
+/** A pair this phone hasn't dealt tonight; once every pair has been, the bank starts over. */
+function dealPair(): WordPair {
+  const keyOf = (p: WordPair) => `${p.a.zh}|${p.b.zh}`;
+  const used = dealtTonight();
+  const fresh = WORD_PAIRS.filter((p) => !used.includes(keyOf(p)));
+  const pair = pick(fresh.length ? fresh : WORD_PAIRS);
+  keepTonight([...(fresh.length ? used : []), keyOf(pair)]);
+  return pair;
+}
+
 /** What a game under way keeps on the phone, to pick up after a reload: the words and who has which. */
 type Kept = {
   /** the number of undercovers the host set by hand; null follows the table's size */
@@ -72,7 +106,7 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
   const revealed = useRef(-1);
 
   const start = () => {
-    const p = pick(WORD_PAIRS);
+    const p = dealPair();
     const order = shuffle(players);
     const uc = undercovers;
     const roles: Role[] = [];

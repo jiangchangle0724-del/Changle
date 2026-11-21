@@ -40,6 +40,7 @@ import { challengeCode, challengeScore, challengeUrl, readChallenge, seeded } fr
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
+import { WORD_PAIRS } from "../src/data/undercover";
 import { drawMatches } from "../src/shared/engine/games/draw";
 import { DRAW_GUESS_MAX, DRAW_ROUND_MS } from "../src/shared/protocol";
 import { hintBlanks, hintSay, hintZh } from "../src/online/games/drawHint";
@@ -480,6 +481,49 @@ test("undercover: a tap that arrives twice moves the table on once (the host's d
     t2.g("p0", "done", { speaker: now - 1, round: 1 });
     ok(t2.view<V>("p0").speaker === now, "a stale 'next speaker' tap changes nothing");
   }
+});
+
+test("undercover: the word bank, and a table that deals every pair once before any comes round again", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  ok(WORD_PAIRS.length >= 150, `at least 150 pairs (${WORD_PAIRS.length})`);
+  const seenZh = new Map<string, number>();
+  const seenEn = new Map<string, number>();
+  const bad: string[] = [];
+  for (const { a, b } of WORD_PAIRS) {
+    for (const w of [a, b]) {
+      if (!w.zh.trim() || !w.en.trim()) bad.push(`empty: ${w.zh}/${w.en}`);
+      if (w.en.length > 20) bad.push(`too long for the card: ${w.en}`);
+      seenZh.set(w.zh, (seenZh.get(w.zh) ?? 0) + 1);
+      seenEn.set(w.en.toLowerCase(), (seenEn.get(w.en.toLowerCase()) ?? 0) + 1);
+    }
+    if (a.zh === b.zh || a.en.toLowerCase() === b.en.toLowerCase()) bad.push(`the same word twice: ${a.zh}/${b.zh}`);
+  }
+  const twice = [...seenZh].filter(([, n]) => n > 1).map(([w]) => w).concat([...seenEn].filter(([, n]) => n > 1).map(([w]) => w));
+  ok(!bad.length, `every pair is two different, short words (${bad.slice(0, 5).join("; ") || "all are"})`);
+  ok(!twice.length, `no word sits in two pairs (${twice.slice(0, 8).join(", ") || "none does"})`);
+
+  // one table, 再开一局 after 再开一局: no pair twice until the whole bank has been dealt
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "undercover" });
+  const dealt: number[] = [];
+  const game = () => {
+    t.g("p0", "deal");
+    const s = t.eng.d.game!.s as { pair: number; roles: Record<string, string> };
+    dealt.push(s.pair);
+    const uc = Object.keys(s.roles).find((id) => s.roles[id] === "uc")!;
+    t.g("p0", "force", { phase: "word" });
+    t.g("p0", "force", { phase: "talk" });
+    for (const id of t.ids) if (id !== uc) t.g(id, "vote", { target: uc });
+    t.g(uc, "vote", { target: t.ids.find((id) => id !== uc)! });
+    ok(t.view<V>("p0").winner === "civ", "the undercover is voted out");
+    t.g("p0", "next");
+    t.g("p0", "again");
+  };
+  for (let i = 0; i < WORD_PAIRS.length; i++) game();
+  ok(new Set(dealt).size === WORD_PAIRS.length, `${WORD_PAIRS.length} games, ${new Set(dealt).size} different pairs`);
+  game();
+  game();
+  ok(dealt.length === WORD_PAIRS.length + 2 && dealt.slice(-2).every((i) => i >= 0 && i < WORD_PAIRS.length) && dealt.at(-1) !== dealt.at(-2), "after the whole bank, the deals go on from a fresh bank");
 });
 
 test("undercover: the number of undercovers follows the table until the host sets it; a leave that decides the game ends it", () => {
