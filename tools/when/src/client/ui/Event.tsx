@@ -10,6 +10,7 @@ import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
 import type { Snapshot } from "../../room/protocol";
 import { api, ApiFail, crews, forget, remember, rememberCrew, savedName, saveName, type Crew } from "../api";
+import emptyArt from "../art/empty.webp";
 import { t, type Key } from "../i18n";
 import { watch } from "../live";
 import { After } from "./After";
@@ -791,7 +792,13 @@ export function EventPage({ code }: { code: string }) {
       <section class="panel">
         <h2 class="panel-title">{t("bestTitle")}</h2>
         {top.length === 0 ? (
-          <p class="hint">{noBest}</p>
+          <>
+            {/* nobody has answered yet: the table waits for them (art/empty.webp), coming in once it has loaded */}
+            {!anyone && (
+              <img class="best-empty" onLoad={(e) => e.currentTarget.setAttribute("data-shown", "")} src={emptyArt} alt="" width={800} height={600} loading="lazy" decoding="async" draggable={false} />
+            )}
+            <p class="hint">{noBest}</p>
+          </>
         ) : (
           <MovingList class="best">
             {top.map((x, i) => (
