@@ -11,11 +11,11 @@ import { holdBackground, type TuneHandle } from "../../lib/music";
 import { forgetPreviews, heardSongs, loadPreview, rememberSong, type PreviewHandle } from "../../lib/preview";
 import { shuffle } from "../../lib/random";
 import { haptic, sfx } from "../../lib/sfx";
-import { cardOf, decoysFor, DEFAULT_POOL, moodOf, pickSong, poolSize, previewUrl, shownChoices, SNAP_SECONDS, specialOf, type Song, type SongPool } from "../../shared/songs";
+import { cardOf, DEFAULT_POOL, fourTitles, moodOf, pickSong, poolSize, previewUrl, shownChoices, SNAP_SECONDS, type Song, type SongPool, specialOf } from "../../shared/songs";
 import { usePenaltyText, useStore } from "../../store";
 import { go } from "../../router";
 import { ToastProvider } from "../../ui/Toast";
-import { CHALLENGE_MAX, newSeed, readChallenge, seeded, type Challenge } from "./challenge";
+import { CHALLENGE_MAX, newSeed, readChallenge, type Challenge } from "./challenge";
 import { ChallengeIntro, ChallengeLink, ChallengeResult, ShareChallenge } from "./ChallengeParts";
 import { Leaderboard, NameFace } from "../common";
 import { AnswerPicker, clipSeconds, CoverLabel, hookOf, LevelPicker, playClip, PoolPicker, QuizChoices, SnapPicker, SongReveal, SongStatus, StageDots, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
@@ -395,13 +395,7 @@ function SongRounds({
     if (!song || !catalog || choicesFor.current === song.id) return;
     choicesFor.current = song.id;
     // (from this game's seed: a challenge sent on shows the same four, in the same order)
-    const dice = seeded(seed, song.id);
-    const four = [song, ...decoysFor(song, catalog, dice, hard, pool)];
-    for (let i = four.length - 1; i > 0; i--) {
-      const j = Math.floor(dice() * (i + 1));
-      [four[i], four[j]] = [four[j], four[i]];
-    }
-    setChoices(four);
+    setChoices(fourTitles(song, catalog, seed, hard, pool));
     setTried([]);
   }, [song, catalog]);
 

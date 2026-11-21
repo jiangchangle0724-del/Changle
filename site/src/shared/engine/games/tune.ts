@@ -1,7 +1,7 @@
 import { LISTEN_MS, STAGE_GAPS, TUNES } from "../../../data/tunes";
 import { SONG_ROWS } from "../../../data/songs";
 import type { TuneView } from "../../protocol";
-import { cardOf, checkRow, decoysFor, DEFAULT_HOOK_MS, DEFAULT_POOL, fromRow, HOOK_MAX_MS, moodOf, pickSong, poolSize, previewUrl, samePool, shownChoices, SNAP_GAPS, SNAP_MS, SNAP_QUIZ_MS, specialOf, type Song, type SongPool } from "../../songs";
+import { cardOf, checkRow, DEFAULT_HOOK_MS, DEFAULT_POOL, fourTitles, fromRow, HOOK_MAX_MS, moodOf, pickSong, poolSize, previewUrl, samePool, shownChoices, SNAP_GAPS, SNAP_MS, SNAP_QUIZ_MS, specialOf, type Song, type SongPool } from "../../songs";
 import { range, t, type Api, type GameDef } from "../api";
 
 /**
@@ -67,6 +67,12 @@ type S = {
   played: number[];
   /** this game's songs: a game never plays one twice (missing in rooms from before) */
   game?: number[];
+  /** this game's seed: the four titles come from it, the same as on a phone that takes the game on as a challenge */
+  seed?: number;
+  /** this game's real songs so far: who scored how much on each (a challenge link sends it on) */
+  log?: { id: number; pts: Record<string, number>; b: boolean }[];
+  /** the scores as the song started, to see what it was worth */
+  before?: Record<string, number>;
   heard: number[];
   /** today's chart songs, handed in by the host's phone with the first song */
   extra: Song[];
@@ -129,7 +135,11 @@ function go(s: S, api: Api) {
   s.right = [];
   s.phase = "listen";
   if (s.mode === "songs") {
-    if (s.round === 1) s.game = [];
+    if (s.round === 1) {
+      s.game = [];
+      s.log = [];
+      s.seed = Math.floor(api.rand() * 4294967296) >>> 0;
+    }
     const song = s.next && !s.played.includes(s.next.id) && !(s.game ?? []).includes(s.next.id) ? s.next : pick(s, api);
     // a pool with no song left for this game: that's the game
     if (!song && s.round > 1) {
@@ -149,7 +159,9 @@ function go(s: S, api: Api) {
     if (s.played.length > PLAYED_MAX) s.played = s.played.slice(-PLAYED_MAX);
     s.game = [...(s.game ?? []), song.id];
     s.next = pick(s, api);
-    s.choices = api.shuffle([song, ...decoysFor(song, songsOf(s), () => api.rand(), !!s.hard, s.pool)]);
+    // (from the built-in list and the game's seed: a challenge link brings a friend's phone the same four)
+    s.choices = fourTitles(song, CATALOG, s.seed ?? 0, !!s.hard, s.pool);
+    s.before = { ...s.scores };
     s.options = null;
     s.tune = -1;
     const t0 = api.now + SONG_LEAD_MS;
@@ -183,6 +195,11 @@ function reveal(s: S, api: Api) {
   // (one second: the reveal plays from the hook, the part everyone has heard bits of)
   if (s.mode === "songs") s.revealPos = s.snap ? (s.hook ?? 0) : Math.max(0, Math.min(22_000, (s.pausedAt ?? api.now) - s.startAt));
   if (s.quiz && s.mode !== "dj") settleQuiz(s, api);
+  if (s.mode === "songs" && s.song && s.log?.at(-1)?.id !== s.song.id) {
+    const won: Record<string, number> = {};
+    for (const [pid, n] of Object.entries(s.scores)) if (n > (s.before?.[pid] ?? 0)) won[pid] = n - (s.before?.[pid] ?? 0);
+    s.log = [...(s.log ?? []), { id: s.song.id, pts: won, b: CATALOG_IDS.has(s.song.id) }];
+  }
   if (s.mode !== "dj") api.timer("next", api.now + (s.mode === "songs" ? SONG_NEXT_MS : NEXT_MS));
 }
 
@@ -474,6 +491,9 @@ export const tune: GameDef<S> = {
       quiz,
       hard: !!s.hard,
       snap: !!s.snap,
+      seed: s.seed ?? 0,
+      // (at the end, for a challenge link: the songs, and who scored on each)
+      log: s.phase === "end" && s.mode === "songs" ? (s.log ?? []) : null,
       phase: s.phase,
       round: s.round,
       // (the setup shows the host's pick; a game of one singer's songs says how many it really is)
