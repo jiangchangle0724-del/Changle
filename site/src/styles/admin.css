@@ -261,3 +261,27 @@
     width: 100%;
   }
 }
+
+/* 改字: long-press editing on or off, and the edits (account/AdminCopy.tsx) */
+.adm-copy-switch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: var(--space-3);
+  padding: 16px;
+  border-radius: var(--r-panel);
+  background: var(--dusk-2);
+  box-shadow: var(--shadow-flat);
+}
+.adm-copy-lang {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--dusk-2);
+  color: var(--haze);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}

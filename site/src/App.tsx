@@ -303,6 +303,7 @@ function Shell() {
     >
       <div className="room-light" aria-hidden="true" />
       <PerkNews />
+      <CopyEditing />
       <main className="app" style={route.kind === "game" ? ({ ["--gel" as string]: GAME_BY_ID[route.id].gel } as React.CSSProperties) : undefined}>
         <Scene sceneKey={key}>
           <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>
@@ -319,6 +320,17 @@ function Shell() {
       </main>
     </SiteGate>
   );
+}
+
+const CopyEditor = lazy(() => import("./account/CopyEditor").then((m) => ({ default: m.CopyEditor })));
+/** The master account's long-press editing of the site's words (account/CopyEditor.tsx). */
+function CopyEditing() {
+  const { me } = useAccount();
+  return me?.master ? (
+    <Suspense fallback={null}>
+      <CopyEditor />
+    </Suspense>
+  ) : null;
 }
 
 /** Each screen arrives with a short rise; the previous one is simply replaced. */

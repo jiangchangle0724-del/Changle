@@ -7,6 +7,7 @@ import { api, ApiError, siteNotice } from "../lib/api";
 import { setLight } from "../lib/motion";
 import { useStore } from "../store";
 import { useAccount, type PublicUser } from "./AccountContext";
+import { AdminCopy } from "./AdminCopy";
 import { AdminScenes } from "./AdminScenes";
 import { AdminCards } from "../party/straightface/AdminCards";
 import { Avatar, colorFor } from "./Avatar";
@@ -213,6 +214,7 @@ function BackOffice({ onBack }: { onBack: () => void }) {
 
       <AdminScenes />
       <AdminCards />
+      <AdminCopy />
 
       <h2 className="adm-h">{zh ? "在线的人" : "Online now"}</h2>
       {o && !o.online.length ? <p className="hint adm-empty">{zh ? "现在没有登录的人在线。" : "Nobody signed in is online."}</p> : <ul className="adm-list">{o?.online.map((p) => personRow(p))}</ul>}

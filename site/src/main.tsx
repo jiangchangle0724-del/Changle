@@ -33,6 +33,9 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   else window.addEventListener("load", register, { once: true });
 }
 
+// the owner's edits to the site's words (lib/copy.ts), in a file of their own beside the first download
+void import("./lib/copy").then((m) => m.startCopy());
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />

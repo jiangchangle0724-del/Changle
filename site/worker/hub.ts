@@ -8,6 +8,7 @@ import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
+import { COPY_LIMIT, COPY_MAX, emptyCopy, type CopyEdit, type CopyMap } from "../src/shared/copy";
 import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
 import { accountsThere, appsUsed, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
 import { afterPause, cancelByLink, cancelPending, confirmEmail, dropEmail, EMAIL_RE, emailTables, forgetEmail, makeEmail, nextPending, pendingOf, postponeDue, startEmail, takeDue } from "./emailChange";
@@ -209,6 +210,8 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE INDEX IF NOT EXISTS scenes_user ON scenes (user_id, id)`);
     // 一本正经: how each card plays, and the cards players flag (worker/straightface.ts)
     sfSchema(q);
+    // the owner's edits to the site's words: by language and the exact text they replace (src/shared/copy.ts)
+    q(`CREATE TABLE IF NOT EXISTS copy (lang TEXT NOT NULL, orig TEXT NOT NULL, text TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (lang, orig))`);
     // the figure lifted off its backdrop, for the games' stages, and a version that changes with it
     const fcols = this.sql.exec(`PRAGMA table_info(figures)`).toArray().map((c) => String(c.name));
     if (!fcols.includes("cut")) q(`ALTER TABLE figures ADD COLUMN cut BLOB`);
@@ -764,6 +767,18 @@ export class Hub extends DurableObject<HubEnv> {
   /** Is the site open? (Read by every phone now and then.) */
   async status(): Promise<{ paused: boolean }> {
     return { paused: this.paused };
+  }
+
+  /** The owner's edits to the site's words, for every page (lib/copy.ts). */
+  async copy(): Promise<CopyMap> {
+    return this.copyMap();
+  }
+  private copyMap(): CopyMap {
+    const out = emptyCopy();
+    for (const r of this.sql.exec(`SELECT lang, orig, text FROM copy`).toArray()) {
+      if (r.lang === "zh" || r.lang === "en") out[r.lang][String(r.orig)] = String(r.text);
+    }
+    return out;
   }
 
   /** A phone sitting down at a table: who it is, and whether it may (paused site, banned phone). */
@@ -1517,6 +1532,36 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
   private async admin(me: U, c: Call, path: string, b: Record<string, unknown>): Promise<Reply> {
     const m = c.method;
     const now = Date.now();
+
+    // ---- the site's words, as the owner changed them by long-pressing (src/shared/copy.ts) ----
+    if (path === "/admin/copy" && m === "GET") {
+      const edits: CopyEdit[] = this.sql
+        .exec(`SELECT lang, orig, text, at FROM copy ORDER BY at DESC`)
+        .toArray()
+        .map((r) => ({ lang: r.lang === "en" ? "en" : "zh", orig: String(r.orig), text: String(r.text), at: Number(r.at) }));
+      return ok({ edits });
+    }
+    if (path === "/admin/copy" && m === "POST") {
+      const lang = b.lang === "zh" || b.lang === "en" ? b.lang : null;
+      const orig = typeof b.orig === "string" ? b.orig.trim() : "";
+      const text = typeof b.text === "string" ? b.text.trim() : "";
+      if (!lang || !orig || orig.length > COPY_MAX || text.length > COPY_MAX) return err(400, "bad");
+      // nothing, or the words as they were: back to the original
+      if (!text || text === orig) this.sql.exec(`DELETE FROM copy WHERE lang = ? AND orig = ?`, lang, orig);
+      else {
+        const known = this.sql.exec(`SELECT 1 FROM copy WHERE lang = ? AND orig = ?`, lang, orig).toArray().length > 0;
+        const count = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM copy`).one().n);
+        if (!known && count >= COPY_LIMIT) return err(400, "full");
+        this.sql.exec(
+          `INSERT INTO copy (lang, orig, text, at) VALUES (?, ?, ?, ?) ON CONFLICT (lang, orig) DO UPDATE SET text = excluded.text, at = excluded.at`,
+          lang,
+          orig,
+          text,
+          now,
+        );
+      }
+      return ok({ copy: this.copyMap() });
+    }
 
     if (path === "/admin/overview" && m === "GET") {
       const rooms = this.liveRooms();
