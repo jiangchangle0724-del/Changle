@@ -6,7 +6,8 @@
  *
  * - one code at a time per account: 10 minutes, five tries, each try counted before the wait for
  *   the hash, so tries sent all at once can't slip in under the five
- * - 45 s between codes, and the hub's limits on top (5 an hour per account, 20 per IP)
+ * - 45 s between codes, and the hub's limits on top (5 an hour per account, 20 per IP), asked
+ *   before saying an address is taken, so it can't be used to find out who has an account
  * - the code is kept only as a hash, tied to the account and the new address
  * - an admin's email stays put: their rights (the owner's too) go by the email in the settings
  * - the new address is checked again at the end: someone may have signed up with it meanwhile
@@ -38,8 +39,9 @@ export function dropEmail(sql: Sql, id: string) {
 
 /**
  * Step one: the new address checked, a code made and its hash kept. Gives back the code for the
- * mail to the new address, or why not. `allow` is the hub's hourly limits, asked last so a turned
- * away request doesn't use them up; `hash` is the hub's peppered hash of the address and the code.
+ * mail to the new address, or why not. `allow` is the hub's hourly limits, asked once the request
+ * is well-formed and not too soon, before anything is said about the address; `hash` is the hub's
+ * peppered hash of the address and the code.
  */
 export async function startEmail(
   sql: Sql,
@@ -51,12 +53,13 @@ export async function startEmail(
   if (me.admin) return no(403, "admin");
   if (!EMAIL_RE.test(email)) return no(400, "email");
   if (email === me.email.toLowerCase()) return no(400, "same");
-  if (x.banned(email)) return no(403, "banned");
-  if (one(sql, `SELECT id FROM users WHERE email = ?`, email)) return no(409, "taken");
   const now = x.now ?? Date.now();
   const prev = one(sql, `SELECT sent_at FROM email_changes WHERE user_id = ?`, me.id);
   if (prev && now - Number(prev.sent_at) < EMAIL_WAIT) return no(429, "wait");
+  // (the limits come before "taken" and "banned", so nobody can ask about address after address)
   if (!x.allow()) return no(429, "slow-down");
+  if (x.banned(email)) return no(403, "banned");
+  if (one(sql, `SELECT id FROM users WHERE email = ?`, email)) return no(409, "taken");
   const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
   const hash = await x.hash(email, code);
   sql.exec(

@@ -64,6 +64,10 @@ const codeOf = (r: unknown) => {
   assert.equal(error(await start(sql, ANN, "BEN@example.com")), "taken", "another account's address, in capitals");
   assert.equal(error(await start(sql, ANN, "bad@example.com", T0, { banned: (e) => e === "bad@example.com" })), "banned", "a banned address");
   assert.equal(error(await start(sql, ANN, "new@example.com", T0, { allow: () => false })), "slow-down", "past the hourly limits");
+  assert.equal(error(await start(sql, ANN, "ben@example.com", T0, { allow: () => false })), "slow-down", "past the limits, nothing said about the address");
+  let counted = 0;
+  await start(sql, ANN, "ben@example.com", T0, { allow: () => (counted++, true) });
+  assert.equal(counted, 1, "asking about a taken address counts against the limits (no looking up who has an account)");
   assert.equal(waiting(sql, ANN.id), undefined, "none of that left a code waiting");
 
   const r = await start(sql, ANN, "  New@Example.com ");
