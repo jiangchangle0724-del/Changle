@@ -274,6 +274,22 @@ const ok = (msg: string) => console.log(`ok   ${++n}. ${msg}`);
   ok("a pass alongside another doesn't send the same row twice");
 }
 {
+  // noted again while a send is on its way (a second email change, say): the newer one goes out too
+  const sql = fresh();
+  noteGone(sql, "uaaaaaaaaaaaa", ["money"], T0);
+  let sends = 0;
+  let answer!: () => void;
+  const first = sendGone(sql, { money: () => (sends++, new Promise<void>((r) => (answer = r))) }, () => {}, () => T0);
+  await new Promise((r) => setTimeout(r, 5));
+  noteGone(sql, "uaaaaaaaaaaaa", ["money"], T0 + 10);
+  answer();
+  assert.equal(await first, T0 + 10, "the row stays, due");
+  await sendGone(sql, { money: async () => void sends++ }, () => {}, () => T0 + 20);
+  assert.equal(sends, 2);
+  assert.equal(sql.exec(`SELECT COUNT(*) AS n FROM gone_notices`).toArray()[0].n, 0);
+  ok("noted again while one was on its way: the newer one is sent too");
+}
+{
   // many due at once: one pass takes some, all at once, and asks to be woken for the rest
   const sql = fresh();
   for (let i = 0; i < 30; i++) noteGone(sql, `u${String(i).padStart(12, "a")}`, ["money"], T0);

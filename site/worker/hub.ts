@@ -8,7 +8,7 @@ import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
-import { noteGone, goneTables, sendGone } from "./goneNotices";
+import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
 import { accountsThere, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
 import { cleanNotice, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
@@ -125,8 +125,13 @@ export class Hub extends DurableObject<HubEnv> {
     this.sql = ctx.storage.sql;
     ctx.blockConcurrencyWhile(async () => {
       this.migrate();
-      // (notices left waiting with no alarm, say the hub stopped in the middle of a try: wake for them)
-      if (this.sql.exec(`SELECT 1 AS x FROM gone_notices LIMIT 1`).toArray().length && (await ctx.storage.getAlarm()) == null) await ctx.storage.setAlarm(Date.now() + 60_000);
+      // (notices waiting with no alarm, or a later one, say the hub stopped before setting it: wake in time for them)
+      const due = nextDue(this.sql);
+      if (due != null) {
+        const at = Math.max(due, Date.now() + 1000);
+        const set = await ctx.storage.getAlarm();
+        if (set == null || set > at) await ctx.storage.setAlarm(at);
+      }
     });
   }
 

@@ -16,8 +16,7 @@ const ok = (what: string) => console.log(`ok   ${++n}. ${what}`);
 
 type Row = Record<string, unknown>;
 /** a Durable Object's state, as much of it as the hub uses, over one SQLite database */
-function state(db = new DatabaseSync(":memory:")) {
-  let alarm: number | null = null;
+function state(db = new DatabaseSync(":memory:"), alarm: number | null = null) {
   const later: Promise<unknown>[] = [];
   let ready: Promise<unknown> = Promise.resolve();
   const bind = (a: unknown) => (a === undefined ? null : typeof a === "boolean" ? Number(a) : a instanceof ArrayBuffer ? new Uint8Array(a) : a);
@@ -168,14 +167,32 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   const ann = await join(first.hub, "ann@example.test");
   await first.hub.redeemHandoff(String((await codeFor(first.hub, ann.token)).json.code), "moneylens");
   await req(first.hub, "DELETE", "/me", {}, ann.token);
+  await new Promise((r) => setTimeout(r, 20)); // (the try is on its way, and hangs)
   s.clearAlarm(); // (as if lost with the hub)
   const heard: string[] = [];
   const again = await hubOn({ MONEY: { accountGone: async (id: string) => void heard.push(id) } }, state(s.db));
   assert.equal(goneRows(s).length, 1);
-  assert.ok((await (again.s.ctx.storage.getAlarm())) != null, "a hub starting with notices waiting and no alarm sets one");
+  const at = await again.s.ctx.storage.getAlarm();
+  const due = Number((s.db.prepare("SELECT next_at FROM gone_notices").get() as Row).next_at);
+  assert.equal(at, Math.max(due, at!), "a hub starting with notices waiting and no alarm sets one, for when they're due");
   await again.hub.alarm();
   assert.equal(heard.length, 0, "not before it's due");
-  ok("a hub that stopped mid-try: the next start sets the alarm again");
+  s.db.prepare("UPDATE gone_notices SET next_at = ?").run(Date.now() - 1); // (time passes)
+  await again.hub.alarm();
+  assert.deepEqual(heard, [ann.id]);
+  assert.deepEqual(goneRows(s), []);
+  ok("a hub that stopped mid-try: the next start sets the alarm again, and the notice goes out on it");
+}
+{
+  // the only alarm a day away (a notice for an app not bound yet), and a new notice whose alarm was never set
+  const s = state();
+  await hubOn({}, s);
+  const now = Date.now();
+  s.db.prepare("INSERT INTO gone_notices (user_id, app, tries, next_at, ver) VALUES (?, ?, ?, ?, 0)").run("uaaaaaaaaaaaa", "money", 3, now + 86_400_000);
+  s.db.prepare("INSERT INTO gone_notices (user_id, app, tries, next_at, ver) VALUES (?, ?, ?, ?, 0)").run("ubbbbbbbbbbbb", "split", 0, now);
+  const again = await hubOn({}, state(s.db, now + 86_400_000));
+  assert.ok(again.s.alarm()! <= Date.now() + 1000, `woken in a second, not in a day (${again.s.alarm()! - now} ms)`);
+  ok("a later alarm is brought forward on start when a notice is due sooner");
 }
 
 // ---- the Handoff door ----
