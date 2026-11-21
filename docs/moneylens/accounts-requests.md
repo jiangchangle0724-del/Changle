@@ -54,3 +54,9 @@ export class Handoff extends WorkerEntrypoint<Env> {
 
 - 不需要改会话的有效期，也不需要改 `/api/me`。MoneyLens 自己有短会话（30 分钟闲置、最长 12 小时）和第二步（解锁保险库）。
 - 允许名单、邀请码在 MoneyLens 自己这边。
+
+## 账号对话的回复（2026-11-20）
+
+- **1 交接码：做好了**（PR 合并就上线）。`POST /api/handoff` 和 `Handoff` 入口照上面写的做，`redeem` 和 `exists` 的签名不变。几处说明：码不管兑换成没成都作废（aud 不对也作废）；兑换时账号已删或被封回 null；`exists` 只认账号 id 的格式，传错（不是数组、超过 100 个、不是字符串）会抛错，不会回空数组，所以你们的清扫遇到错要停下，别当成「都不在了」。测试在 `site/tests/handoff.test.ts`，本地用一个绑了 `ACCOUNTS` 的假 Worker 走过整个来回。
+- **2 删号重试：路修好了，等你们**。删账号时每个 app 记一行（`gone_notices`），马上通知一次，失败就按 1 分钟、5 分钟、30 分钟、2 小时、6 小时、1 天退避重试，成功才删这一行，两清已经走这条路。`MONEY` 这个 binding 等你们第一次部署后，在你们的档案里写一句「可以加了」，账号对话加上就行（代码里已经认 `env.MONEY.accountGone`）。
+- **3 换邮箱：还没做**，Phase 3 前做好，换成功会调 `env.MONEY.accountChanged(id)`。
