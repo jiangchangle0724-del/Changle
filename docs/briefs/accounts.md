@@ -86,6 +86,11 @@
 - 3D 小人的小样：男女两个写实人模、21 个自己编的动作（页面现解，手和胳膊不穿身体；带道具、特效、表情，会眨眼）、左右拖动转圈，「捏脸」一页 33 根滑杆（脸 30 根、身材 3 根）、9 种肤色、7 种眼睛颜色、11 款发型、11 种发色、上衣 12 种和裤子 6 种颜色、随机和还原；存在手机上，登录了也存进账号，换手机登录还在。页面底下一行数字（模型 KB、面数、帧率、引擎 KB）。主文件男 686 KB、女 639 KB（gzip，动作不在里面了，身材的 target 加了 150 KB 上下），别的发型点了才下，three.js 那块 131 KB gzip（和打碟共用一份缓存），这一页自己的代码 FigureStage 和 FigurePage 合起来约 22 KB gzip；首页的首次下载 JS 122.3 KB（多了 0.1 KB，是懒加载那一页的依赖名单），CSS 21.1 KB（多了捏脸那页的样式 0.2 KB），都在预算里。本地 figure_check 66 条全过。
 
 - 登录、个人页、照片或 AI 头像、好友、聊天、战绩、后台，都有。11 月 13 日本地四个检查脚本全过（admin 40 条、account 24 条、perk 10 条、stage 10 条）。
+- 2026-11-20，MoneyLens 要的三件（`docs/moneylens/accounts-requests.md`）：
+  - 交接码：`POST /api/handoff` 发码，`Handoff` 入口（`worker/handoff.ts`）给 MoneyLens 兑换、问账号还在不在。码 256 位、60 秒、用一次，库里只存 SHA-256。退出、被踢、被封、删号时没兑换的码作废。兑换成功记进 `handoff_apps`（这个账号用过哪个 app）。
+  - 删号通知重试到成功：`gone_notices` 表加 Durable Object 的 alarm。发之前先定闹钟、先把这一行往后挪，几行一起发，每行最多等 30 秒。Worker 重启时，有没发完的又没闹钟，就补一个。用过 MoneyLens 的账号删号时一定记下 MoneyLens 那一行，`MONEY` 没绑也记。
+  - 换邮箱：/me 的编辑主页最上面，「登录邮箱 … 换邮箱」。新邮箱收 6 位码，填回来就换。旧邮箱收到一封通知，新邮箱打码显示，回信到站长（`CONTACT_EMAIL`，没设就是 `ADMIN_EMAILS` 第一个）。用过 MoneyLens 的账号会通知它（`accountChanged`，走同一条重试路）。管理员没有这个按钮，服务器也拒绝，因为后台权限跟着设置里的邮箱走。
+  - 写在 `worker/handoffCodes.ts`、`goneNotices.ts`、`emailChange.ts`，页面在 `src/account/EmailChange.tsx`。
 - 代发信：本地从替身 Worker 经 Service Binding 调过，61 封里 60 封到了假 Resend，第 61 封回 full；拒绝的、被拉黑的、Resend 报错的都对；验证码邮件改走 `deliver()` 以后也发了一遍。线上还没有谁调过它。
 
 ## 还剩什么
@@ -111,6 +116,7 @@
 
 ## 交给别的对话
 
+- 「工具 · MoneyLens」：三件都做了，回复写在 `docs/moneylens/accounts-requests.md` 最后。要你们知道的有三条。一，`accountGone` 和 `accountChanged` 失败时要抛错，回了值（哪怕 `{ ok: false }`）这边就当送到了。二，`exists` 有一个 id 样子不对就整个报错。三，你们第一次部署后在档案里写「可以加了」，这边在 `site/worker/wrangler.jsonc` 加 `MONEY`，之前删号或换邮箱的通知会在绑上后的一天内送到。
 - 「工具 · 跟一单」：代发信的入口有了（`site/worker/mail.ts`，合并上线即生效）。接法：`tools/tuan/wrangler.jsonc` 的 `services` 里加 `{ "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }`，调 `await env.MAIL.send({ app: "tuan", to: 商家登录邮箱, subject, text, link: "https://changle.ca/tuan/…", lang })`，回话和限制见上面「定过的事」。测试里的替身照 `site/scripts/mail_door/index.ts` 反过来写一个 `export class Mail extends WorkerEntrypoint { send() {} }` 就行。合并通知（每家店第一单马上发，之后最多半小时一封）在跟一单那边做。
 - 「平台 · 首页与上线」知道一下：11 月 13 日这个对话在 `site/src/App.tsx` 的 `useSoloHistory` 里加了一个 `keepalive: true`，`site/src/lib/api.ts` 的 `api()` 多了 `keepalive` 这个选项（透传给 fetch），别的没动。
 - 打碟那个对话，供参考（不急）：Cloudflare 不压 .glb，`site/public/models/robot.glb` 线上是 453 KB，gzip 以后 130 KB。想省的话可以照 3D 小人的做法：放 `robot.glb.gz`，用 `site/src/account/figure/FigureStage.ts` 里 `fetchModel()` 那样解压（DecompressionStream，旧 Safari 用 three.js 自带的 fflate）。
@@ -119,6 +125,8 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-20 账号：换邮箱（新邮箱收码，旧邮箱收通知，MoneyLens 收 accountChanged），MoneyLens 的第三件 (#704)
+- 2026-11-20 账号：交接码给自己域名上的 app（MoneyLens），删号通知重试到成功；按非作者审查改了闹钟、`exists`、没绑也记、退出时作废码，加 hub 的测试台 (#690)
 - 2026-11-18 账号：站长 /me 上 3D 小人的入口从最底下挪到名字下面（一整行，写着摆动作、捏脸、换衣服）
 - 2026-11-14 账号：3D 小人存进账号（登录了就存，换手机登录拿得到） (#554)
 - 2026-11-14 账号：3D 小人的身材（身高、胖瘦、肌肉，骨架跟着动，动作重解）、上衣和裤子的颜色、眼睛颜色；各种身材上都不穿身体（CI 查 10 种） (#551)
@@ -160,3 +168,10 @@
 - 2026-11-14 身材和颜色合并上线（#551）。做存进账号：hub 加 `looks` 表和两条路由，`Look` 的表和检查搬到 `src/shared/figureLook.ts` 给服务器用（`look.ts` 只剩手机上存取），页面加 `useLookSync`。本地两部「手机」（两个浏览器）登录同一个账号走了一遍：一部改身高和上衣，一秒多后账号里有了，另一部打开就是那个样子。figure_check 83 条全过，房间服务器的 tsc 也过。
 - 2026-11-14 存进账号合并上线（#554）。Steve 那条要的五样（动作更真实、补常用动作、存进账号、衣服或眼睛颜色、身材高矮胖瘦）都在线上了。
 - 2026-11-18 Steve 说「入口放到上面一点，下面根本看不到」：/me 上 3D 小人的入口从最底下（退出登录旁边）挪到名字和简介下面，做成一整行（图标、3D 小人、摆动作捏脸换衣服、箭头），和「最常玩」那行一个样子。原来那个按钮还撞了头像全身像的样式名（`.me-figure`），改叫 `.me-3d`。figure_check 加一条：这一行在手机一屏之内。
+- 2026-11-20 Steve 转来 MoneyLens 对话的话，要读 `docs/moneylens/accounts-requests.md`。三件都做了。
+  - 交接码和删号重试（#690）：本地用一个绑了 `ACCOUNTS` 的替身 Worker 走过整个来回。另起一个对话做了非作者审查，查出两个中等、两个小的、两个细节，都改了。
+  - 改的地方：闹钟在发之前就定，挪行防止重发，每行 30 秒超时；`exists` 遇到样子不对的 id 报错；用过 MoneyLens 就记，不看绑没绑；退出、被踢、被封时作废没兑换的码。
+  - 为了测 hub 本身，加了 `tests/support/`：`cloudflare:workers` 的替身，加一个 Node 的模块钩子。`tests/hub.test.ts` 用 Node 的 SQLite 跑真的 `Hub` 类。
+  - 换邮箱（#704）：逻辑拆到 `emailChange.ts` 好测。每次试先记一次再算哈希，四十个同时猜也只算五个。问「这个邮箱有没有人用」先算进每小时的限额，防止一个个查谁有账号。
+  - 通知旧邮箱时，本来想写站长的邮箱，被这台机器的隐私插件挡了（不让把账号邮箱写进代码）。改成回信地址（reply_to）读设置：`CONTACT_EMAIL`，没设就用 `ADMIN_EMAILS` 第一个。
+  - 本地验证：`wrangler dev` 加假 Resend 走了 20 条；手机大小的浏览器中英文各走了一遍。
