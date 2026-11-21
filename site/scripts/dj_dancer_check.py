@@ -186,10 +186,10 @@ with sync_playwright() as p:
     ok(c3, f"she dances one of the club look's dances to it, in her club outfit ({c3 or tv2.evaluate('() => window.__coach3d')})")
     ok(until(lambda: tv2.locator(".dj-stage.look-club").count() == 1, 8000), f"the lights the club look's ({tv2.evaluate('() => document.querySelector(`.dj-stage`).className')})")
     tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-5-song.png"))
-    # the night winding down: the sweet look, its outfit changed into in a flash, its dances, its lights
+    # the night winding down: the sweet look (Nov 21: in the first dancer's own outfit, as in every look), its dances, its lights
     dee.evaluate("() => window.__djHost.phase('cool')")
-    c4 = until(lambda: (lambda c: c if c and c.get("look") == "sweet" and c.get("outfit") == "sweet" else None)(tv2.evaluate("() => window.__coach3d")), 40000, 300)
-    ok(c4, f"the cool-down: she changes into her first-love skirt ({c4 or tv2.evaluate('() => window.__coach3d')})")
+    c4 = until(lambda: (lambda c: c if c and c.get("look") == "sweet" and c.get("outfit") == "club" else None)(tv2.evaluate("() => window.__coach3d")), 40000, 300)
+    ok(c4, f"the cool-down: the sweet look, in her own outfit ({c4 or tv2.evaluate('() => window.__coach3d')})")
     c5 = until(lambda: (lambda c: c if c and c.get("dancing") and "sweet" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
     ok(c5, f"and dances the sweet look's dances ({c5 or tv2.evaluate('() => window.__coach3d')})")
     ok(until(lambda: tv2.locator(".dj-stage.look-sweet").count() == 1, 8000), "the lights soft and pink")
