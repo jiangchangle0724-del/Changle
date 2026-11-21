@@ -64,12 +64,15 @@ python3 fill.py work                                # 头发上两张照片都�
 python3 eyes.py work photos                          # 眼睛在贴图里的哪里（写进贴图的透明通道），和眼皮的颜色（lid.json）：页面上让她眨眼
 python3 weights.py work/mc work/ms work/m/joints.json work/baked.png   # 蒙皮权重：按穿过她身体的距离（体素），不会跨到手或者另一条腿上；背心只跟胸走
 python3 springs.py work/ms work/m/joints.json work/baked.png outfit.json  # 头发发梢（和裙子）自己的骨头，页面上用弹簧甩；outfit.json 写头发和裙子在多高
-node build_glb.mjs work/ms work/m/joints.json work/baked.png ../../../public/models/dancer/her.glb.gz
+python3 facekit.py swap work/ms work/baked.png face.png face_landmarker.task work/swap/baked.png  # 她的脸（11 月 21 日起每套都一样），见下面
+node build_glb.mjs work/ms work/m/joints.json work/swap/baked.png ../../../public/models/dancer/her.glb.gz
 ```
 
 `fill.py` 在 `bake.py` 后面跑（`bake.py` 的那张也存成 `baked_photo.png`），然后 `eyes.py`（眼睛的位置：`facewarp.py` 在照片上找到的，存在 `face.json`；夜店那套是手量的，`eyes.py work photos 560,87 600,87`）。
 
 `facewarp.py`（11 月 20 日）：TRELLIS 做出来的脸比设计图的低一点（眼睛低 8 像素，下巴低 6 像素，照片是 1024 的），照片的眼睛就烤到了眉骨上，模型自己的眼睛在下面露出来：两双眼睛。它用 MediaPipe 的人脸关键点（478 个点，Apache 2.0，只在本机跑，不进网站）在照片上和模型自己的颜色上各找一遍，把正面的扭曲在脸上挪一下，让照片的每个点落到模型的点上。要 `pip install mediapipe`，模型下载：`storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`。它把 `fit.py` 的扭曲存成 `warp_front_body.npy`，每次从这个开始；跑完看 `work/face_warp.png`。
+
+`facekit.py`（11 月 21 日；Steve：「面部跟之前那个模特保持一致就好，只需要换不同的衣服」「面部看起来有点扭曲」）：每套衣服的脸都换成同一张：Steve 选的参考图（他 11 月 21 日发的第三张，粉色盘扣那位，他说是 AI 生成的人；图不在仓库里，问 Steve 要）。从正面看她，MediaPipe 找出照片和她的脸上各 478 个点，照片的脸只转、缩放、平移（五官比例照原样），贴到她脸的轮廓里面，OpenCV 的 seamless clone 让四周的皮肤接上，写回贴图；眨眼的眼睛位置和眼皮颜色（lid.json）一起重做。最后写 `face_w.f32`（每个顶点有多少是脸，在她身上平滑过），`build_glb.mjs` 放进模型的 `_FACE`，页面上脸照照片原来的光来画（`her.ts`：脸的影子是照片的，不是模型的凹凸在舞台灯下照出来的，之前就是这样把脸照歪的）。只要重新算 `_FACE`：`python3 facekit.py mask work/ms work/swap/baked.png face_landmarker.task`。看结果：`work/swap/face_swap.png`（原来的、照片的、换好的）。
 
 `outfit.json` 例子：
 `{"hair": {"top": 1.36, "bottom": 1.17, "chains": 3, "bones": 2}, "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}`
