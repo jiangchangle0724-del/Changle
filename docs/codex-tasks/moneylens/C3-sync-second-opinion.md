@@ -1,6 +1,6 @@
 # C3: a second opinion on the storage layer
 
-**When:** now. Pull request #PRNUM (`claude/moneylens-vault-records`) is not merged until this is
+**When:** now. Pull request #734 (`claude/moneylens-vault-records`) is not merged until this is
 in: it is sync code, and SEC-9 asks for a recorded review by someone who did not write it.
 Nothing is live.
 **Files:** `tools/moneylens/tests/second/merge.ts` (new), `tools/moneylens/tests/second-sync.test.ts`
