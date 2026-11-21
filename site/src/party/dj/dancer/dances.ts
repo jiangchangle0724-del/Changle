@@ -33,9 +33,11 @@ export const LOOKS: readonly Look[] = ["sweet", "party", "club"];
 // cardigan and white midi skirt: from the photos Steve sent on Nov 21)
 // (her-sweet: the first-love blouse and pleated skirt; her-party: the rose-gold sequin dress: the first
 // outfits' designs, on her since Nov 21 too, Steve: "旧衣服也可以加进去套在现有的模特身上")
+// (her-gown, her-ballroom, her-classical: a wine-red evening gown, a champagne ballroom dress and a jade
+// Chinese classical dance costume, since Nov 21 too; Steve: "晚礼服、摩登舞裙、古典舞服")
 export const OUTFITS: Record<Look, readonly string[]> = {
-  sweet: ["eyelet", "sweet", "cardigan", "qipao"],
-  party: ["lace", "party", "qipao", "leather"],
+  sweet: ["eyelet", "sweet", "cardigan", "qipao", "classical"],
+  party: ["lace", "party", "qipao", "leather", "gown", "ballroom"],
   club: ["club", "leather", "party", "lace"],
 };
 /** The outfit she wears for a song (its id: the same song, the same outfit), in its look. */
