@@ -133,6 +133,7 @@ interface Palette {
   me: string;
   onMe: string;
   font: string;
+  textFont: string;
 }
 
 const MAX_CHARACTERS = 26;
@@ -242,7 +243,8 @@ function readPalette(): Palette {
     smoke: read("--arena-smoke", "#cfc8bd"),
     me: read("--gel", "#7be55c"),
     onMe: read("--night", "#0e0c22"),
-    font: read("--font-display", "sans-serif")
+    font: read("--font-display", "sans-serif"),
+    textFont: read("--font-text", "sans-serif")
   };
 }
 
@@ -287,7 +289,8 @@ function floorArtPalette(palette: Palette): FloorArtPalette {
     stalls: [palette.stall0, palette.stall1, palette.stall2, palette.stall3],
     white: palette.marking,
     dark: palette.grime,
-    font: palette.font
+    font: palette.font,
+    textFont: palette.textFont
   };
 }
 
@@ -1112,6 +1115,8 @@ export function Arena3D(props: Props) {
     const bits: Bit[] = [];
     const sparkColors = [new THREE.Color(palette.warn), new THREE.Color(palette.me), new THREE.Color(palette.ink)];
     const dustColors = [new THREE.Color(palette.stone), new THREE.Color(palette.tile), new THREE.Color(palette.stone2)];
+    // (their colours are there from the start: a colour added at the first punch would mean a new shader, built just then)
+    bitMesh.setColorAt(0, sparkColors[0]);
     // (a bang: a firecracker's sparks, from the ground, wider and higher than a punch's)
     const burst = (x: number, z: number, now: number, kind: "spark" | "dust" | "bang") => {
       const sparky = kind !== "dust";
@@ -1148,6 +1153,8 @@ export function Arena3D(props: Props) {
         bike?.mount(loaded);
         standInBodies.visible = false;
         standInHeads.visible = false;
+        // (and their shaders before they show: the people, the people beside the place, the rider)
+        warmUp();
       })
       .catch(() => {
         // (offline or broken: the stand-ins stay)
@@ -1642,6 +1649,28 @@ export function Arena3D(props: Props) {
       draws = renderer.info.render.calls;
       fpsWorkMs += performance.now() - workStartedAt;
     };
+    // Every shader the round will use is built while it opens. The bike, the follow spot, the phones
+    // and the firecrackers stay hidden until their moment, and three.js builds a material's shader the
+    // first time it draws it: on Windows (and phones) that froze the picture for half a second just as
+    // the moment began (2026-11-20, Steve's computer: 663 ms as the follow spot came on). compileAsync
+    // builds the hidden ones too, off the page's thread where the browser can. Their pictures go up too.
+    function warmUp() {
+      if (disposed) return;
+      try {
+        // (without the extension the browser compiles in its own time anyway; compileAsync would only warn)
+        if (renderer.extensions.has("KHR_parallel_shader_compile")) renderer.compileAsync(scene, camera).catch(() => undefined);
+        else renderer.compile(scene, camera);
+        scene.traverse((object) => {
+          const material = (object as THREE.Mesh).material;
+          for (const one of Array.isArray(material) ? material : material ? [material] : []) {
+            for (const value of Object.values(one)) if (value instanceof THREE.Texture) renderer.initTexture(value);
+          }
+        });
+      } catch {
+        // (then each one is built the first time it draws, as before)
+      }
+    }
+    warmUp();
     frame = requestAnimationFrame(animate);
 
     return () => {
