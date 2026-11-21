@@ -1,9 +1,10 @@
 # 工具 · 随便 · 状态
 
-- 现状：changle.ca/eat 正在大改版，规则不变，换样子、动画和手感，分三张 Codex 卡（docs/codex-tasks/suibian/）。S1 夜场皮肤 #647 已合并：主站的 tokens 和两种字体、琥珀色的灯，样式表里不写死任何值（tests/design.test.ts 管着）。
+- 现状：changle.ca/eat 的夜场改版做完了（规则不变，换了样子、动画和手感，三张 Codex 卡在 docs/codex-tasks/suibian/）。S1 夜场皮肤 #647 已合并：主站的 tokens 和两种字体、琥珀色的灯，样式表里不写死任何值（tests/design.test.ts 管着）。
 - 决定：样稿是设计画布「随便 · 夜场改版样稿」，字和选项用现在的；一张合并了再发下一张；Codex 在 Steve 电脑的 ChatGPT 程序里（切到 Codex，This computer），由这个对话控制电脑去发、审 PR、合并。
 - 2026-11-19 第 1 轮改成先问从哪儿挑（按菜系 / 按想吃的），再是大类，大类可整类选，细分打开挑细的（#684）。
 - 2026-11-20 S2 每一屏按样稿重画（顶栏、底部主按钮、大厅头像、菜单格子、餐厅卡、结果盖章）#696 合并。
-- 待办：S3 动画和手感（发给 Codex）。之后接约时间带来的参数（/eat/?from=when&date=…&time=…&occasion=…），开桌页预先填好，见 briefs/when.md「交给别的对话」。
+- 2026-11-21 S3 动画和手感 #731 合并：按下回弹、菜单弹一下摇一下、最后 10 秒变红跳动、想去从手指处铺满、转盘、盖章和光点、手机震动；减弱动态效果时只淡入。夜场改版三张卡全部完成。
+- 待办：接约时间带来的参数（/eat/?from=when&date=…&time=…&occasion=…），开桌页预先填好，见 briefs/when.md「交给别的对话」。之后接约时间带来的参数（/eat/?from=when&date=…&time=…&occasion=…），开桌页预先填好，见 briefs/when.md「交给别的对话」。
 - 待办（要 Steve 定）：登录换邮箱验证码、和主站共用账号；Google Text Search 每天的上限；过敏表的几个问题。
 - 详细历史在 docs/briefs/suibian.md。

@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import { CUISINES, OCCASIONS, TOP_COUNT, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
 import { PATHS, groupState, leafText, setAll, type Group, type Leaf, type PathId, type Picks } from "../paths";
-import type { RoomView } from "../../room/protocol";
+import { TIMING, type RoomView } from "../../room/protocol";
 import { t, tx, type Key } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
@@ -472,7 +472,8 @@ function Spinner({ v }: { v: RoomView }) {
   const [frame, setFrame] = useState({ step: -1, previous: -1, quiet: reduced(), landed: false, travel: duration("enter") });
   useEffect(() => {
     // The wheel's schedule is anchored to server time, including a phone joining mid-spin.
-    const start = ends - 4500;
+    const spin = TIMING.spin; // the server's own length of the spin phase
+    const start = ends - spin;
     const steps = 18;
     let timer: ReturnType<typeof setTimeout>;
     let previous = -1;
@@ -482,7 +483,7 @@ function Spinner({ v }: { v: RoomView }) {
       const now = serverNow();
       const quiet = reduced();
       const travel = duration("enter");
-      const at = (step: number) => start + (4500 - travel) * (step / steps) ** 1.8;
+      const at = (step: number) => start + (spin - travel) * (step / steps) ** 1.8;
       let step = 0;
       while (step < steps && at(step + 1) <= now) step++;
       const landed = now >= ends;
