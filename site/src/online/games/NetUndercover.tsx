@@ -74,7 +74,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                 <span>{lang === "zh" ? "卧底人数" : "Undercovers"}</span>
                 <div className="row" style={{ gap: 10 }}>
                   {isHost && (
-                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc - 1 })} disabled={v.uc <= 1} aria-label="-">
+                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc - 1 })} disabled={v.uc <= 1} aria-label={lang === "zh" ? "少一个卧底" : "One undercover fewer"}>
                       <Minus size={18} />
                     </button>
                   )}
@@ -82,7 +82,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                     {v.uc}
                   </span>
                   {isHost && (
-                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc + 1 })} disabled={v.uc >= Math.min(3, v.maxSide)} aria-label="+">
+                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc + 1 })} disabled={v.uc >= Math.min(3, v.maxSide)} aria-label={lang === "zh" ? "多一个卧底" : "One undercover more"}>
                       <Plus size={18} />
                     </button>
                   )}
@@ -173,7 +173,8 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (desc.trim()) g("desc", { text: desc.trim() });
-                  g("done");
+                  // the tap names its speaker and round, so a double tap moves the table on once
+                  g("done", { speaker: v.speaker, round: v.round });
                 }}
               >
                 <label className="field">
@@ -259,6 +260,8 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
               <p className={`turn-name ink ${lang === "zh" ? "zh-display" : "en-display"}`} style={{ fontSize: 26 }}>
                 {v.winner === "civ" ? (lang === "zh" ? "平民赢了" : "Civilians win") : lang === "zh" ? "卧底赢了" : "Undercovers win"}
               </p>
+              {/* nobody was voted out this time: someone leaving the table decided it */}
+              {!v.out && <p className="hint-ink">{lang === "zh" ? "有人离开了桌子，这局提前结束" : "Someone left the table, so this game ended early"}</p>}
               {v.pair && (
                 <p className="hint-ink" style={{ marginTop: 8 }}>
                   {lang === "zh" ? "平民" : "Civilians"}: <strong>{tr(v.pair.civ)}</strong> · {lang === "zh" ? "卧底" : "Undercover"}: <strong>{tr(v.pair.uc)}</strong>
@@ -266,15 +269,18 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
               )}
               {v.roles && (
                 <ul className="role-list">
-                  {Object.entries(v.roles).map(([pid, r]) => (
-                    <li key={pid}>
-                      <span>
-                        {nameOf(pid)}
-                        {pid === me ? ` · ${ui("you")}` : ""}
-                      </span>
-                      <span className={`reveal-role small ${roleClass(r)}`}>{roleName(r)}</span>
-                    </li>
-                  ))}
+                  {/* in seat order; a player who left the table mid-game has no name here any more */}
+                  {seats
+                    .filter((s) => v.roles![s.id])
+                    .map((s) => (
+                      <li key={s.id}>
+                        <span>
+                          {s.name}
+                          {s.id === me ? ` · ${ui("you")}` : ""}
+                        </span>
+                        <span className={`reveal-role small ${roleClass(v.roles![s.id])}`}>{roleName(v.roles![s.id])}</span>
+                      </li>
+                    ))}
                 </ul>
               )}
             </div>
@@ -290,10 +296,11 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
       </AnimatePresence>
 
       <HostRow>
+        {/* each tap says which screen it was made on, so one arriving twice moves the table on once */}
         {(v.phase === "word" || v.phase === "talk" || v.phase === "vote") && (
-          <HostButton onClick={() => g("force")}>{v.phase === "talk" ? (lang === "zh" ? "直接投票" : "Go to the vote") : v.phase === "vote" ? (lang === "zh" ? "现在开票" : "Count now") : ui("goNow")}</HostButton>
+          <HostButton onClick={() => g("force", { phase: v.phase })}>{v.phase === "talk" ? (lang === "zh" ? "直接投票" : "Go to the vote") : v.phase === "vote" ? (lang === "zh" ? "现在开票" : "Count now") : ui("goNow")}</HostButton>
         )}
-        {v.phase === "talk" && !speaking && <HostButton onClick={() => g("done")}>{lang === "zh" ? "下一个说" : "Next speaker"}</HostButton>}
+        {v.phase === "talk" && !speaking && <HostButton onClick={() => g("done", { speaker: v.speaker, round: v.round })}>{lang === "zh" ? "下一个说" : "Next speaker"}</HostButton>}
       </HostRow>
       {inGame && v.phase === "vote" && v.myVote && (
         <p className="hint" style={{ textAlign: "center" }}>
