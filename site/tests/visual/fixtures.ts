@@ -12,6 +12,8 @@ export const test = base.extend<{ isolatedNetwork: void }>({
       '/wishes': { wishes: [] },
       '/scenes': { scenes: [] },
       '/fx': { rates: { USD: 1, CAD: 1.4, CNY: 7.2, HKD: 7.8 }, at: 1793491200000, source: 'Visual fixture' },
+      // the owner's edits to the site's words (lib/copy.ts): none, so every screen shows the code's own
+      '/copy': { zh: {}, en: {} },
     };
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());

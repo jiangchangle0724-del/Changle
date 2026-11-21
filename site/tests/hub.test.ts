@@ -440,6 +440,41 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   globalThis.fetch = realFetch;
 }
 
+// ---- the site's words: the owner long-presses one and changes it (src/shared/copy.ts) ----
+{
+  const { hub } = await hubOn();
+  const boss = await join(hub, "boss@example.test", "boss-phone-0001");
+  const ben = await join(hub, "ben@example.test", "ben-phone-0001");
+  const save = (body: unknown, token = boss.token) => req(hub, "POST", "/admin/copy", body, token, token === boss.token ? "boss-phone-0001" : "ben-phone-0001");
+  assert.deepEqual(await hub.copy(), { zh: {}, en: {} });
+  assert.equal((await save({ lang: "zh", orig: "玩这个", text: "就玩它" }, ben.token)).status, 403);
+  assert.equal((await save({ lang: "zh", orig: "玩这个", text: "就玩它" }, "")).status, 401);
+  assert.deepEqual(await hub.copy(), { zh: {}, en: {} });
+  ok("改字: only the master account saves, and nothing changes for anyone else's try");
+
+  const r = await save({ lang: "zh", orig: " 玩这个 ", text: " 就玩它 " });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json.copy, { zh: { 玩这个: "就玩它" }, en: {} });
+  await save({ lang: "en", orig: "Play this", text: "Play it" });
+  assert.deepEqual(await hub.copy(), { zh: { 玩这个: "就玩它" }, en: { "Play this": "Play it" } });
+  await save({ lang: "zh", orig: "玩这个", text: "玩这一个" });
+  assert.deepEqual((await hub.copy()).zh, { 玩这个: "玩这一个" });
+  const list = (await req(hub, "GET", "/admin/copy", {}, boss.token, "boss-phone-0001")).json.edits as Row[];
+  assert.deepEqual(list.map((e) => [e.lang, e.orig, e.text]).sort(), [["en", "Play this", "Play it"], ["zh", "玩这个", "玩这一个"]]);
+  assert.equal((await req(hub, "GET", "/admin/copy", {}, ben.token, "ben-phone-0001")).status, 403);
+  ok("改字: saved by language and the exact words (spaces trimmed), changed again in place, listed for the owner alone");
+
+  await save({ lang: "zh", orig: "玩这个", text: "玩这个" });
+  await save({ lang: "en", orig: "Play this", text: "  " });
+  assert.deepEqual(await hub.copy(), { zh: {}, en: {} });
+  ok("改字: the words as they were, or nothing, put the original back");
+
+  for (const bad of [{ lang: "fr", orig: "a", text: "b" }, { lang: "zh", orig: "", text: "b" }, { lang: "zh", orig: "a".repeat(2001), text: "b" }, { lang: "zh", orig: "a", text: "b".repeat(2001) }, { lang: "zh", orig: 5, text: "b" }])
+    assert.equal((await save(bad)).status, 400, JSON.stringify(bad).slice(0, 60));
+  assert.deepEqual(await hub.copy(), { zh: {}, en: {} });
+  ok("改字: another language, no words, or more than 2000 characters: turned away");
+}
+
 console.log(`\nall ${n} passed`);
 // (the first hub in "stopped mid-try" still has its never-answered send on a 30-second timer)
 process.exit(0);

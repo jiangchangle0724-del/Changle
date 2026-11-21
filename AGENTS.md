@@ -34,6 +34,9 @@ the commands and the settings.
   `@layer page-defaults`). Something people need to copy gets a copy button. Every page and app
   (the Workers too) gives every element `touch-action: manipulation` and listens for clicks on
   `<html>`, as `site/src/main.tsx` does: iPhone Safari checks touch-action only near a listener.
+* The master account can long-press any words on changle.ca and change them for everyone
+  (`src/shared/copy.ts`; the back office's 改字 lists them). The code keeps the original words, so
+  live text can differ from it: never read text back from the page to decide anything.
 * A sheet closes on the phone's back button (`useBackCloses`); a page keeps its address.
 * Motion uses token durations and easings; with reduced motion, nothing slides or shakes.
 * The home page's first download has a CI budget (`site/scripts/budget.ts`); load new parts later.
