@@ -100,6 +100,23 @@ npx tsx scripts/dj-dancer/mocap/pack.ts /tmp/loops public/models/dancer/dance a=
 
 走路（`dances.ts` 的 `WALKS`，一种风格一个）：`stride` 是她走一步移动多远，量的是着地那只脚一拍往后滑多远（原地走，所以这就是一步），`tests/dancer.test.ts` 会再量一遍对不对。量法也可以自己跑：`loop.ts` 之后看 `stride` 那条测试的输出。
 
+## 从视频学一支舞（11 月 21 日起）
+
+Steve：「我给你youtube舞蹈你可以照着学吗」。视频要一个人跳、全身在画面里、镜头不动（翻跳视频最好）。
+
+```sh
+# 1. 在 Steve 电脑上下载（云端连不上 YouTube）：yt-dlp，H.264 的 mp4（AV1 的先用 ffmpeg 转成 H.264）
+# 2. 每一帧她的身体（MediaPipe 人体关键点，heavy 模型，Apache 2.0，本机跑）和歌的拍子
+python3 scripts/dj-dancer/mocap/pose.py video.mp4 marks.json pose_landmarker_heavy.task
+python3 scripts/dj-dancer/mocap/tempo.py video.mp4                       # 例：143.6
+# 3. 套到她身上，一段一段切（每段 16 秒左右），剪循环，打包
+npx tsx scripts/dj-dancer/mocap/fromvideo.ts public/models/dancer/her.glb.gz marks.json /tmp/rt name1 8 24
+npx tsx scripts/dj-dancer/mocap/loop.ts --travel /tmp/rt /tmp/loops name1@143.6 …
+npx tsx scripts/dj-dancer/mocap/pack.ts /tmp/loops public/models/dancer/dance name1=name1 …
+```
+
+`fromvideo.ts`：胯、胸、头按视频里的转，胳膊腿按视频里的方向、她自己的长度，肘和膝盖往视频里的那边弯，手脚的朝向照视频。站在哪：画面里不动的那只脚（比另一只低）在地上钉住，胯跟着它走；最后站着的脚用腿的 IK 钉在原地，脚不进地板。然后每段都过 `tests/dancer.test.ts` 的动作检查（视频里学的没有真人动捕可比，脚滑上限 0.15），过不了的那段不要。11 月 21 日：ILLIT「It's Me」切 8 段过了 4 段（itsme1、3、4、5），KATSEYE「Gnarly」切 10 段留了 4 段（gnarly1、4、5、7；3 和 8 只有一小节，9、10 是片尾不动）。
+
 ## 加一支舞
 
 1. 在 Mixamo（Steve 的 Adobe 账号）挑一支，FBX、Without Skin、30 fps 下载

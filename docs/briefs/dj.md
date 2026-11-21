@@ -219,6 +219,7 @@
 - 11-21 Steve 拍了电视：脸扭曲、跳得不自然、手机当音箱放完一首就停。他选了一张参考图的脸（他发的第三张，粉色盘扣那位，他说是 AI 生成的人），三套衣服都换成这张脸（`facekit.py`），脸按照片原来的光画（`_FACE`），不再被舞台灯照出凹凸。接下来：照他的参考图设计更多衣服（白色蕾丝、皮衣蕾丝、新中式、白色连衣裙、黑白开衫长裙），摩登舞配大摆裙、古典舞配水袖，不同的歌配不同的衣服和舞；动作要过一组查 AI 动作毛病的检查（打滑、穿地、浮空、反关节、穿模、重心、抖动）。
 - 11-21 手机当音箱放完一首就回到「这台设备当音箱」：页面重新加载了（和 11-2 的「经常闪退」一样，最可能是屏幕自动锁了）。iPhone、iPad 现在两种办法一起保持亮屏（系统的亮屏请求，加一个看不见的小视频一直放），系统收回亮屏请求时再要一次；开始卡片上告诉 iPhone 先把自动锁定设成「永不」。
 - 11-21 Steve 又说投屏的手机「偶尔还是会突然刷新」：网站一更新（任何一个聊天合并到 main 都会），页面再要一个还没下载的文件就拿不到（文件名每次构建都变），`lib/freshness.ts` 就重新加载页面，歌就断了。现在当音箱放着歌的时候不重新加载（`holdNewVersion`），缺文件的那部分自己退回去（舞者退回画的那个），离开页面时再换新版。
+- 11-21 深夜 Steve 发了两个 YouTube 翻跳视频「学习这两个视频的舞蹈动作」（ILLIT「It's Me」、KATSEYE「Gnarly」）：在他电脑上 yt-dlp 下载（`C:\Claude Playground\OUTPUTS\音效\舞者衣服\舞蹈视频`），MediaPipe 读每帧身体，`mocap/fromvideo.ts` 套到她身上，切段、剪循环、过动作检查，8 支进了快歌（itsme1/3/4/5、gnarly1/4/5/7）。他还会发视频，照 `site/scripts/dj-dancer/README.md`「从视频学一支舞」做。五套衣服的设计图都画好了（ChatGPT，同一个人只换衣服，他说「这些就很好」）：在他电脑 `舞者衣服` 文件夹，本机 `/home/claude/her-work/outfits/`；3D 还没做（衣服画到第一个人物身上、裙子单独一层，要写）。
 - 11-21 深夜 Steve 看了电视（5 张照片）：换上去的脸「很明显是贴图上去的」，背面头发乱，「第二个这个人物头部和身体非常的不协调」；「最早用 chatgpt 生成的那个人物……就很不错」「直接用第一个人物的模型脸，只给她换几套衣服再多一些舞蹈动作」。三个造型都换回第一个人物（`her.glb.gz` 回到换脸前的那版，页面上照脸的光去掉了），`her-party`、`her-sweet` 文件留着不用。「图二这个舞蹈动作我不喜欢少出现一点」是 wave：`rare`，一半的次数。他看了粉色盘扣的设计图说「这些就很好，帮我按这个逻辑再多几套我之前给你的照片上的衣服」：照他 11-21 发的参考图一套一套画（本机 `/mnt/user-data/uploads`：白色蕾丝一字肩短裙 ce19a3c6、白蕾丝吊带加黑皮夹克 c3b1c3a6、白色镂空无袖连衣裙 c0820621、黑开衫白长裙 14249705），衣服画到第一个人物身上、裙子单独加一层（还没写）。他还会发 YouTube 舞蹈让照着学（下载、AI 从视频取动作、过检查）。
 - 11-21 舞的物理检查（Steve：「舞蹈动作…一定要…检查没有常见的的AI生成错误，要符合现实物理逻辑」「跳舞看起来很不自然」）：`tests/support/motion.ts` 每支舞量站着的脚在地上滑、脚陷进地、两脚离地太久、膝盖往后折、手插进身体、单脚站着重心太偏、关节抖、接缝跳一下（`MOTION_TABLE=1 npx tsx tests/dancer.test.ts` 出表）。不自然主要是脚滑：她的腿和舞者的不一样长，加上每小节把她走的路去掉了。现在她的脚踝每帧放到舞者脚踝的位置（`retarget.ts`），跳到哪儿就在哪儿，画布跟着她在舞台上走、人在画布中间（`loop.ts --travel`、`Dancer3D.tsx`），循环选首尾最像、走得最少的那段。脚擦地多少以真人动捕自己为准（house、桑巴本来就擦地走）：`srcfacts.ts` 写 `tests/support/captured.ts`，她最多多 0.1。kickstep 先不跳（她的脚比真人滑得多，文件还在）。没做的：两支舞之间半拍的过渡脚可能滑一下，要根治就在页面里把站着的脚钉住（跑的时候做 IK）；芭蕾、爵士、查尔斯顿、蛇舞的文件在本机 `/home/claude/dj-moves/unused`，过检查再加；摩登舞、古典舞还要找动捕：11-21 在 Mixamo 搜过，没有华尔兹、探戈、摩登舞、中国舞；它的两段芭蕾都没法循环（Variation Two 2.6 秒就往前跑出 4 米，Variation One 哪一段的结尾都回不到开头的姿势），文件在本机 `/home/claude/dj-moves/fbx_ballet`。要的话等 Steve 选来源：买现成的动捕（花钱，先问他），或者有人对着手机跳一段、用 AI 从视频里取动作（要注册网站），都要过 `tests/support/motion.ts`。
 - 11-20 加了 6 支舞（害羞的小动作、两种萨尔萨、Rib Pops、Kick Step、Shimmy），抒情的、派对的、快歌的都多了；芭蕾、爵士、查尔斯顿、蛇舞也下了，测试不让过（走出原地或者裙子扎进腿里），没用。换风格时新衣服先学好她马上要跳的舞，换得快一点。
@@ -275,6 +276,7 @@
 - 2026-11-21 DJ: the speaker keeps playing: an iPhone stays awake, a site update doesn't reload it
 - 2026-11-21 DJ: her dancing checked for the usual motion mistakes, her feet where the dancer's were
 - 2026-11-21 DJ: the first dancer back in every look, her own face; the arm-wave dance half as often
+- 2026-11-21 DJ: eight dances learnt from Steve's two YouTube dance covers
 - 2026-11-20 DJ: the dancer walks the stage
 - 2026-11-20 DJ: six more dances for the dancer, and her outfit changes sooner
 - 2026-11-20 DJ: the dancer's party dress, and the new outfits' faces put right
