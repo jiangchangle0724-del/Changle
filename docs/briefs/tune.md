@@ -52,6 +52,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-20 tune: an online game can be sent on as a challenge; the check runs in WebKit too (#714)
 - 2026-11-06 Name That Tune: challenges count the songs this phone has, and never break on a repeat (#314)
 - 2026-11-06 Name That Tune: challenge links (挑战链接) (#314)
 - 2026-11-06 Name That Tune: a game never plays a title twice, and a small pool's game is as long as its songs (#312)
