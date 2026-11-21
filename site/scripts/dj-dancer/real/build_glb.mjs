@@ -54,6 +54,18 @@ const tex = doc.createTexture('her').setImage(webp).setMimeType('image/webp');
 const mat = doc.createMaterial('Her').setBaseColorTexture(tex).setRoughnessFactor(0.62).setMetallicFactor(0);
 prim.setMaterial(mat);
 const mesh = doc.createMesh('Body').addPrimitive(prim);
+// her expressions (expressions.py; Nov 21, Steve: "表情可以做但要很细致"): a few millimetres' change of her
+// face each, as morph targets the page weighs (morphs.json next to the mesh: their names and files)
+const morphFile = join(dir, 'morphs.json');
+if (existsSync(morphFile)) {
+  const M = JSON.parse(readFileSync(morphFile, 'utf8'));
+  for (const [k, name] of M.names.entries()) {
+    const D = raw(M.files[k], Float32Array);
+    if (D.length !== P.length) throw new Error(`${M.files[k]} has ${D.length / 3} vertices, the mesh ${P.length / 3}`);
+    prim.addTarget(doc.createPrimitiveTarget(name).setAttribute('POSITION', acc('VEC3', D)));
+  }
+  mesh.setWeights(M.names.map(() => 0)).setExtras({ targetNames: M.names });
+}
 const nodes = {};
 for (const b of skel) nodes[b] = doc.createNode(b);
 for (const b of skel) {
