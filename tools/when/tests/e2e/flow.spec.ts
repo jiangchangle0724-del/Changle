@@ -13,6 +13,9 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   await expect(host).toHaveTitle(/周末火锅/);
   expect((await host.request.get(calendarFile(code))).status(), "no calendar file before a time is set").toBe(404);
   await expect(host.locator(".event-head h1")).toHaveText("周末火锅");
+  // nobody has answered: the best three is the empty table, waiting (a picture that says nothing)
+  await expect(host.locator(".best-empty")).toHaveAttribute("alt", "");
+  await expect(host.locator(".best-empty + .hint")).toHaveText("有人填了就排得出来。");
 
   // the grid asks by the period, each with its hours
   await expect(host.locator(".grid-heads span")).toHaveText(["", "凌晨0–6", "早上6–11", "中午11–14", "下午14–18", "晚上18–24"]);
@@ -34,6 +37,7 @@ test("make, fill in on two phones, set the time", async ({ browser }) => {
   await cell(host, at(2, "eve")).click();
   await expect(cell(host, at(2, "eve"))).toHaveAttribute("data-mine", "no");
   await saved(host);
+  await expect(host.locator(".best-empty")).toHaveCount(0);
 
   // a guest opens the link on another phone: sees the host's answers, adds their own
   const guest = await phone(browser);

@@ -1061,6 +1061,21 @@ button.grid-date b {
 .best li[data-set] {
   box-shadow: inset 0 0 0 2px var(--gel);
 }
+/* nobody has answered yet: the empty table under its lamp, its edges fading into the panel; it
+   comes in when it has loaded (Event.tsx), a fade only */
+.best-empty {
+  align-self: center;
+  width: min(100%, 280px);
+  height: auto;
+  opacity: 0;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(closest-side, var(--night) 70%, transparent);
+  mask-image: radial-gradient(closest-side, var(--night) 70%, transparent);
+  transition: opacity var(--dur-emphasis) var(--ease-out);
+}
+.best-empty[data-shown] {
+  opacity: 1;
+}
 .best-rank {
   display: grid;
   place-items: center;
