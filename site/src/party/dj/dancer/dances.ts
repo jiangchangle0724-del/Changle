@@ -65,6 +65,17 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[];
   { id: "salsa", bpm: 111.2, looks: ["party"] },
   { id: "ribpops", bpm: 93.1, looks: ["party", "club"] },
   { id: "shimmy", bpm: 145.6, looks: ["club"] },
+  // Nov 21 (Steve: "学习这两个视频的舞蹈动作", two YouTube dance covers): phrases of ILLIT "It's Me"
+  // and KATSEYE "Gnarly", learnt from the videos (site/scripts/dj-dancer/mocap/fromvideo.ts); the
+  // phrases that didn't pass the motion checks left out
+  { id: "itsme1", bpm: 143.6, looks: ["club"] },
+  { id: "itsme3", bpm: 143.6, looks: ["club"] },
+  { id: "itsme4", bpm: 143.6, looks: ["club"] },
+  { id: "itsme5", bpm: 143.6, looks: ["club"] },
+  { id: "gnarly1", bpm: 136, looks: ["club"] },
+  { id: "gnarly4", bpm: 136, looks: ["club"] },
+  { id: "gnarly5", bpm: 136, looks: ["club"] },
+  { id: "gnarly7", bpm: 136, looks: ["club"] },
   // (Nov 21: "kickstep" left out. Her feet slid more in it than the dancer's did: tests/dancer.test.ts)
 ];
 
