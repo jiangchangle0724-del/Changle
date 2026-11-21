@@ -729,8 +729,10 @@ $('muteBtn').addEventListener('click', () => {
 const modeBtn = $<HTMLButtonElement>('modeBtn');
 // 联机桌上手机局还是电视局是桌子定的（桌上有没有大屏），不在这里换
 modeBtn.hidden = !matchMedia('(pointer: coarse)').matches || !!tableNo;
-// 触屏开的电视局没有键盘：键盘加入、绕路模式（测试用）都不出
-$('kbBtn').hidden = $('relayBtn').hidden = touchHost;
+// 触屏开的电视局没有键盘：键盘加入、绕路模式（测试用）都不出。
+// 绕路模式是测试用的开关，客人看不懂「绕路模式：关」：只在地址里带 `?relay=1`（开）/ `?relay=0`（关）或 `?debug=1` 时出来
+$('kbBtn').hidden = touchHost;
+$('relayBtn').hidden = touchHost || !(params.has('relay') || params.get('debug') === '1');
 modeBtn.addEventListener('click', () => {
   const q = new URLSearchParams(location.search);
   q.set('phone', phoneMode ? '0' : '1');

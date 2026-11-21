@@ -71,7 +71,8 @@ npm run ip-check    # 法律线，CI 里为零才合并
 ```
 
 主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓、R 召唤、F 用道具，自己一个人也能试。
-「绕路模式」是测试用的开关：不直连，全部经 Cloudflare 中转，看看备用路好不好用。`?render=0` 只跑物理不画画面（联机检查用）。
+「绕路模式」是测试用的开关：不直连，全部经 Cloudflare 中转，看看备用路好不好用。客人看不懂它，大厅里平时不出，
+地址带 `?relay=1`（一开始就绕路）、`?relay=0` 或 `?debug=1` 时才有这个键。`?render=0` 只跑物理不画画面（联机检查用）。
 控制台里 `hangOn.sim`、`hangOn.peers()`、`hangOn.pickLevel(i)` 看状态和换关；手柄页 `hangOnPad.link.simulateDrop()` 模拟关 Wi-Fi。
 
 ## 玩法（A7）
