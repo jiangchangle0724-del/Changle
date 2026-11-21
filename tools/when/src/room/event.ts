@@ -10,6 +10,7 @@ import { cleanInvited, INVITED_MAX } from "../engine/invited";
 import { cleanTimes, isWhole, MIN_SPAN } from "../engine/minutes";
 import { cleanAnswers, cleanDays, parseSlot, partRange, slotsOf } from "../engine/slots";
 import { cleanText } from "../engine/text";
+import { cleanStarts, startFits, startWindow } from "../engine/start";
 import type { Day, EventState, Grain, Here, Person, SlotKey } from "../engine/types";
 
 export const MAX_PEOPLE = 40;
@@ -28,7 +29,9 @@ export const ADMIN_LOCK_MS = 3_600_000;
 /** Phones that can manage one gathering. */
 export const MAX_HOSTS = 8;
 
-export type Meta = Omit<EventState, "people"> & {
+export type Meta = Omit<EventState, "people" | "starts"> & {
+  /** the start times asked about (几点开始); a gathering that never asked has none */
+  starts?: number[];
   /** fingerprints of the keys of the phones that manage this gathering */
   hosts: string[];
   admin: { hash: string; salt: string; fails: number; lockedUntil: number };
@@ -52,6 +55,10 @@ export type HostAction =
   /** `from` and `to`: part of it to the minute, in a gathering asked by the period (left out, or all of it: the slot itself) */
   | { do: "settle"; slot: SlotKey; from?: unknown; to?: unknown }
   | { do: "reopen" }
+  /** ask everyone what time to start (几点开始): 2 to 5 times within the set time; [] stops asking */
+  | { do: "starts"; times: unknown }
+  /** set the start: one of those, or any time the set time allows */
+  | { do: "start"; at: unknown }
   | { do: "edit"; title?: unknown; minPeople?: unknown; deadline?: unknown; invited?: unknown }
   | { do: "must"; id: string; must: boolean }
   /** fill in for someone (代填): a new row of that name without `id`; with it, one made this way before */
@@ -110,7 +117,7 @@ export class EventRoom {
     if (!this.meta) return null;
     const { hosts: _hosts, admin: _admin, ...shown } = this.meta;
     // a gathering made before the list came in (2026-11-14) has none
-    return { ...shown, invited: shown.invited ?? [], people: [...this.rows.values()].map(({ keyHash: _key, joinedAt: _joined, ...person }) => person) };
+    return { ...shown, invited: shown.invited ?? [], starts: shown.starts ?? [], people: [...this.rows.values()].map(({ keyHash: _key, joinedAt: _joined, ...person }) => person) };
   }
 
   isHost(keyHash: string | null): boolean {
@@ -192,6 +199,7 @@ export class EventRoom {
         const range = partRange(meta.grain, part);
         if (!range || (action.from === undefined && action.to === undefined)) {
           meta.settled = { day, part, at: now };
+          this.stopAsking();
           break;
         }
         const { from, to } = action;
@@ -200,11 +208,28 @@ export class EventRoom {
         if (f < range[0] || t > range[1] || t - f < MIN_SPAN) return fail("bad");
         // the whole period is the slot itself: no minutes, as with an answer
         meta.settled = isWhole([f, t], range) ? { day, part, at: now } : { day, part, at: now, from: f, to: t };
+        this.stopAsking();
         break;
       }
       case "reopen":
         meta.settled = null;
+        this.stopAsking();
         break;
+      case "starts": {
+        const times = cleanStarts(action.times, startWindow(meta.grain, meta.settled));
+        if (!times) return fail("bad");
+        meta.starts = times;
+        // a vote for a time still asked about stands
+        this.keepVotes(times);
+        break;
+      }
+      case "start": {
+        if (!meta.settled || !startFits(action.at, startWindow(meta.grain, meta.settled))) return fail("bad");
+        // within a time set to the minute it moves the start; on a whole period it says when it starts
+        meta.settled = { ...meta.settled, from: action.at };
+        this.stopAsking();
+        break;
+      }
       case "edit": {
         if (action.title !== undefined) {
           const title = cleanText(action.title, TITLE_MAX);
@@ -273,6 +298,44 @@ export class EventRoom {
     }
     this.bump();
     return made ? { ok: true, id: made } : { ok: true };
+  }
+
+  /**
+   * Of the start times the host is asking about (几点开始), the ones that suit this phone's person.
+   * Times not asked about are left out; it takes a row (a name) to say.
+   */
+  vote(keyHash: string, starts: unknown): Ok | Fail {
+    const meta = this.meta;
+    if (!meta) return fail("gone");
+    const asked = meta.starts ?? [];
+    if (!meta.settled || asked.length === 0 || !Array.isArray(starts)) return fail("bad");
+    const id = this.rowOf(keyHash);
+    if (!id) return fail("name");
+    const row = this.rows.get(id)!;
+    const chosen = asked.filter((at) => starts.includes(at));
+    if (chosen.length) row.starts = chosen;
+    else delete row.starts;
+    this.store.saveRow(row);
+    this.bump();
+    return { ok: true };
+  }
+
+  /** Each vote keeps only the times still asked about. */
+  private keepVotes(asked: readonly number[]): void {
+    for (const row of this.rows.values()) {
+      if (!row.starts) continue;
+      const kept = row.starts.filter((at) => asked.includes(at));
+      if (kept.length === row.starts.length) continue;
+      if (kept.length) row.starts = kept;
+      else delete row.starts;
+      this.store.saveRow(row);
+    }
+  }
+
+  /** The time set again, or not set: what time to start is asked afresh, if at all. */
+  private stopAsking(): void {
+    if (this.meta) this.meta.starts = [];
+    this.keepVotes([]);
   }
 
   /** The salt to fingerprint a typed admin code with, or why no code is being taken right now. */

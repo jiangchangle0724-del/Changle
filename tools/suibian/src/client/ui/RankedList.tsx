@@ -13,6 +13,8 @@ const STEP = 10;
 
 export function RankedList(p: {
   cards: CardView[];
+  /** This phone's veto dims only the card it was used on. */
+  veto?: string | null;
   /** How many full cards at the top. */
   top: number;
   /** What the meal is for (a card says when a place suits it). */
@@ -28,17 +30,17 @@ export function RankedList(p: {
   const more = Math.min(STEP, p.cards.length - shown);
   return (
     <>
-      <p class="muted small">
-        {t("listCount", { n: p.cards.length })}
-        {p.overBudget ? t("listOver", { n: p.overBudget }) : ""}
-      </p>
       <div class="places">
         {p.cards.slice(0, shown).map((c, i) => (
-          <PlaceCard key={c.place.id} c={c} ranked compact={i >= p.top} occasion={p.occasion}>
+          <PlaceCard key={c.place.id} c={c} ranked compact={i >= p.top} occasion={p.occasion} vetoed={p.veto === c.place.id}>
             {p.action(c, i < p.top)}
           </PlaceCard>
         ))}
       </div>
+      <p class="muted small">
+        {t("listCount", { n: p.cards.length })}
+        {p.overBudget ? t("listOver", { n: p.overBudget }) : ""}
+      </p>
       {more > 0 ? (
         <Btn wide onClick={() => setShown(shown + STEP)}>
           {t("showMore", { n: more })}

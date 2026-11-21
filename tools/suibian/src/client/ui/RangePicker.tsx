@@ -17,7 +17,7 @@ export function RangePicker({ value, onChange }: { value: RangeId; onChange: (r:
     <div class="range">
       <div class="seg tabs" role="group" aria-label={t("range")}>
         {MODES.map(([m, label]) => (
-          <button key={m} type="button" aria-pressed={mode === m} onClick={() => m !== mode && onChange(DEFAULT[m])}>
+          <button class="press" key={m} type="button" aria-pressed={mode === m} onClick={() => m !== mode && onChange(DEFAULT[m])}>
             {t(label)}
           </button>
         ))}
@@ -27,7 +27,7 @@ export function RangePicker({ value, onChange }: { value: RangeId; onChange: (r:
       ) : (
         <div class="minutes" role="group" aria-label={t(mode === "walk" ? "rangeWalk" : "rangeDrive")}>
           {RANGE_MODES[mode].map((r) => (
-            <button key={r} type="button" aria-pressed={value === r} aria-label={tx(RANGES[r])} onClick={() => onChange(r)}>
+            <button class="press" key={r} type="button" aria-pressed={value === r} aria-label={tx(RANGES[r])} onClick={() => onChange(r)}>
               {t("minutesN", { n: RANGES[r].minutes ?? 0 })}
             </button>
           ))}

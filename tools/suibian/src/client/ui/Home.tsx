@@ -1,11 +1,11 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import { t } from "../i18n";
 import { api } from "../net";
 import { identity, inWeChat, prefs } from "../prefs";
 import { update, useApp } from "../store";
 import type { OccasionId } from "../../engine";
-import { Btn, DemoBanner, LangToggle } from "./common";
+import { Btn, DemoBanner, Dock, Message, TopBar } from "./common";
 import { OccasionPicker } from "./OccasionPicker";
 import { WhenPicker } from "./WhenPicker";
 import { WhereFields, useWhere } from "./Where";
@@ -13,6 +13,9 @@ import { WhereFields, useWhere } from "./Where";
 export function Home({ go }: { go: (path: string) => void }) {
   const { me } = useApp();
   const [code, setCode] = useState("");
+  const [joining, setJoining] = useState(false);
+  const codeInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (joining) codeInput.current?.focus(); }, [joining]);
   const [err, setErr] = useState(new URLSearchParams(location.search).get("login") === "failed" ? t("loginFailed") : "");
   const where = useWhere(setErr);
   const [busy, setBusy] = useState(false);
@@ -49,14 +52,8 @@ export function Home({ go }: { go: (path: string) => void }) {
 
   return (
     <main class="home">
-      <header class="hero">
-        <LangToggle />
-        <p class="logo" aria-hidden="true">
-          🥢
-        </p>
-        <h1>{t("title")}</h1>
-        <p class="tagline">{t("tagline")}</p>
-      </header>
+      <TopBar title="title" tools />
+      <p class="tagline">{t("tagline")}</p>
       {me && <DemoBanner demo={me.demo} />}
 
       {askRating && (
@@ -67,11 +64,10 @@ export function Home({ go }: { go: (path: string) => void }) {
       )}
 
       <section class="card">
-        <h2>{t("startTable")}</h2>
         {mustLogin ? (
           <>
             <p class="muted small">{t("loginWhy")}</p>
-            {inWeChat() ? <p class="warn">{t("wechatLogin")}</p> : <a class="btn primary wide" href={loginHref}>{t("login")}</a>}
+            {inWeChat() ? <Message>{t("wechatLogin")}</Message> : <a class="btn quiet press wide" href={loginHref}>{t("login")}</a>}
           </>
         ) : (
           <>
@@ -84,15 +80,14 @@ export function Home({ go }: { go: (path: string) => void }) {
               <WhenPicker value={at} onChange={setAt} />
             </div>
             <WhereFields w={where} />
-            <Btn kind="primary" wide disabled={busy || where.waiting} onClick={() => void create()}>
-              {t("startTable")}
-            </Btn>
           </>
         )}
       </section>
 
-      <section class="card">
-        <h2>{t("join")}</h2>
+      {!mustLogin && <Dock>
+        <Btn kind="primary" wide disabled={busy || where.waiting} onClick={() => void create()}>{t("startTable")}</Btn>
+      </Dock>}
+      {!joining ? <Btn kind="quiet" wide onClick={() => setJoining(true)}>{t("join")}</Btn> : (
         <form
           class="joinrow"
           onSubmit={(e) => {
@@ -101,6 +96,7 @@ export function Home({ go }: { go: (path: string) => void }) {
           }}
         >
           <input
+            ref={codeInput}
             inputMode="numeric"
             pattern="[0-9]*"
             maxLength={4}
@@ -113,12 +109,10 @@ export function Home({ go }: { go: (path: string) => void }) {
             {t("go")}
           </Btn>
         </form>
-      </section>
+      )}
 
       {err && (
-        <p class="error" role="alert">
-          {err}
-        </p>
+        <Message error>{err}</Message>
       )}
 
       {me?.user && (

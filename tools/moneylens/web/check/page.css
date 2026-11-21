@@ -1,0 +1,39 @@
+:root {
+  /* the site's night palette (site/src/styles/tokens.css); tools are amber */
+  --night: #0e0c22; --dusk: #181633; --dusk-2: #221f44; --dusk-3: #2c2955; --line: #35325a;
+  --moon: #f5f4fd; --haze: #b6b4d0; --amber: #ffb82e; --mint: #4be38f; --stop: #ff4d6d;
+  --space: 16px; --radius: 14px;
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body { margin: 0; background: var(--night); color: var(--moon); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px var(--space) 64px; }
+h1 { font-size: 26px; line-height: 1.25; margin: 0 0 8px; }
+h2 { font-size: 18px; margin: 0 0 8px; color: var(--amber); }
+p { margin: 0 0 12px; }
+.quiet { color: var(--haze); }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space); }
+.top button { flex: none; white-space: nowrap; }
+.panel { background: var(--dusk); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--space); margin: var(--space) 0; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+button, select, .pick { min-height: 48px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--dusk-3); color: var(--moon); font: inherit; cursor: pointer; }
+button.main, .pick { background: var(--amber); color: var(--night); border-color: var(--amber); font-weight: 600; }
+.pick { display: inline-flex; align-items: center; }
+.pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+button:focus-visible, select:focus-visible, .pick:focus-within, textarea:focus-visible { outline: 3px solid var(--moon); outline-offset: 2px; }
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 28px var(--space); text-align: center; }
+.drop.over { border-color: var(--amber); background: var(--dusk-2); }
+.good { color: var(--mint); } .bad { color: var(--stop); } .ask { color: var(--amber); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.words { white-space: normal; min-width: 130px; }
+td.money, th.money { text-align: right; font-variant-numeric: tabular-nums; }
+textarea { width: 100%; min-height: 160px; background: var(--night); color: var(--moon); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: 13px/1.5 ui-monospace, Consolas, monospace; }
+ul { margin: 0 0 12px; padding-left: 22px; }
+@media (max-width: 520px) {
+  h1 { font-size: 22px; }
+  table { font-size: 13px; }
+  th, td { padding: 6px; }
+}
+code { font: 13px/1.5 ui-monospace, Consolas, monospace; word-break: break-all; }

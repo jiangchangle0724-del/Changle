@@ -6,11 +6,18 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "build": "node scripts/build-check.mjs",
+    "test:page": "npm run build && tsx scripts/check-page.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
+    "playwright-core": "1.65.1",
     "tsx": "4.23.15",
     "typescript": "6.0.2"
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.5.438"
   }
 }

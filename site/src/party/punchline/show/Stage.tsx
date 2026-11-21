@@ -51,6 +51,7 @@ export function Stage(p: StageProps) {
   const { v, mode, lang } = p;
   const tx: Tx = (zh, en) => (lang === "zh" ? zh : en);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const scrolls = useScrolls();
   useShowMusic(v, p.sound, p.now);
   // the show brings its own soundtrack: the lounge music waits outside
   useEffect(() => (p.sound ? holdBackground() : undefined), [p.sound]);
@@ -71,10 +72,39 @@ export function Stage(p: StageProps) {
         <NeonSign lang={lang} />
         <RoundTag v={v} tx={tx} now={p.now} />
       </header>
-      <div className="sh-scene">{scene}</div>
+      <div className="sh-scene" ref={scrolls.ref} tabIndex={scrolls.on ? 0 : undefined}>
+        {scene}
+      </div>
       <canvas className="sh-confetti" ref={canvas} aria-hidden="true" />
     </div>
   );
+}
+
+/**
+ * A phone on its side keeps the club to the screen's height, and the answers scroll inside it:
+ * then the scene takes the keyboard's focus too, so it can be scrolled without touch.
+ */
+function useScrolls() {
+  const [el, ref] = useState<HTMLDivElement | null>(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const check = () => setOn(el.scrollHeight > el.clientHeight + 1);
+    const seen = new ResizeObserver(check);
+    seen.observe(el);
+    const kids = new MutationObserver(() => {
+      for (const kid of el.children) seen.observe(kid);
+      check();
+    });
+    kids.observe(el, { childList: true });
+    for (const kid of el.children) seen.observe(kid);
+    check();
+    return () => {
+      seen.disconnect();
+      kids.disconnect();
+    };
+  }, [el]);
+  return { ref, on };
 }
 
 /* ------------------------------------------------------------------ the room */

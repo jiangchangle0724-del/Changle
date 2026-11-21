@@ -13,6 +13,7 @@
     "deploy": "node scripts/build.mjs && wrangler deploy"
   },
   "dependencies": {
+    "lucide-preact": "0.546.0",
     "preact": "10.29.8",
     "qrcode-generator": "2.0.4"
   },

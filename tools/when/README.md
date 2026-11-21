@@ -214,6 +214,27 @@ group chat instead (A3, 2026-11-14).
   (`when.tone`) for every gathering; plain until then.
 - Once the time is set, "tell the group" uses the same words and tones for the result.
 
+### What time to start (几点开始)
+
+The second of two steps (A4, 2026-11-20): once the day and the period are set, the host taps
+"问大家几点开始" on the banner and picks 2 to 5 times from the half hours the set time allows
+(at least 30 minutes before it ends; the first three are picked to start with). Everyone sees them
+on the banner and taps the ones that suit them (it takes a name), with how many each suits. The
+host taps "定在 18:30 开始" (the time most people tapped, the earliest of equals), or changes the
+times, or stops asking.
+
+- The start becomes the set time's `from`. Set to the minute (19:00–22:00), the start moves and the
+  end stays; set to the whole period, there is no `to`, which reads "11月21日 周六 晚上 18:30 开始" /
+  "Sat, Nov 21, from 18:30" (`whenLabel`), and the calendar file runs from then to the period's
+  usual end, two hours at least. The words for the group chat, the result picture and 随便 all go
+  by it.
+- Kept as `starts` on the gathering (the times asked) and on each row (the times that suit them):
+  `POST /when/api/e/<code>/start` with `{ "starts": [...] }`; the host's actions `starts` (the times;
+  `[]` stops asking) and `start` (sets one). Asking again keeps the votes for times still asked;
+  setting a start, setting the time again or reopening stops the asking.
+- Only a gathering asked by the period has minutes, so only it asks (the rules are in
+  `src/engine/start.ts`).
+
 ### The same people again (同一帮人再约)
 
 A host's phone remembers who each gathering it hosts is for (A4, 2026-11-19): the host's list, then

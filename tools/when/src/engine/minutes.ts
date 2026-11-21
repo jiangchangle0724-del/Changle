@@ -116,6 +116,8 @@ export const isWhole = (span: Span, range: Span): boolean => span[0] === range[0
  * "Sat, Nov 21, 19:30–22:00". Without minutes, the slot as always.
  */
 export function whenLabel(day: Day, part: Part, lang: Lang, from?: number, to?: number): string {
+  // the whole period, starting then (几点开始)
+  if (from !== undefined && to === undefined) return lang === "zh" ? `${slotLabel(day, part, lang)} ${clock(from)} 开始` : `${dayLabel(day, lang)}, from ${clock(from)}`;
   if (from === undefined || to === undefined) return slotLabel(day, part, lang);
   return lang === "zh" ? `${slotLabel(day, part, lang)} ${spanLabel([from, to])}` : `${dayLabel(day, lang)}, ${spanLabel([from, to])}`;
 }

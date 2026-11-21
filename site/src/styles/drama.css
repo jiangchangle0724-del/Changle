@@ -658,6 +658,14 @@ li.is-ready .dm-roster-state {
   white-space: nowrap;
   animation: dm-breathe 1.8s ease-in-out infinite;
 }
+/* a short phone held upright: a long secret makes the card taller than the screen (both faces share
+   its height), so the line goes to the top, where it's never under the bottom buttons */
+@media (orientation: portrait) and (max-height: 700px) {
+  .dm-card-tap {
+    top: 18px;
+    bottom: auto;
+  }
+}
 @keyframes dm-breathe {
   50% {
     opacity: 0.6;
@@ -1007,6 +1015,12 @@ li.is-ready .dm-roster-state {
     margin-left: 46px;
   }
 }
+/* a small phone: five full-size stars only fit from the row's edge */
+@container (max-width: 330px) {
+  .dm-stars {
+    margin-left: 0;
+  }
+}
 .dm-rate-who small {
   color: var(--haze);
   font-size: 12.5px;
@@ -1018,8 +1032,9 @@ li.is-ready .dm-roster-state {
 .dm-star {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 44px;
+  /* five side by side: the crowded tap size */
+  width: var(--tap-crowded);
+  height: var(--tap-crowded);
   padding: 0;
   border: 0;
   background: none;
@@ -1482,8 +1497,9 @@ li.is-ready .dm-roster-state {
   .dm-card {
     width: min(100%, 300px);
     aspect-ratio: auto;
-    height: calc(100dvh - 160px);
-    min-height: 220px;
+    /* the top bar, the players and the bottom buttons (with a gap): 196px */
+    height: calc(100dvh - 196px);
+    min-height: 150px;
   }
   .dm-card-role {
     font-size: 22px;

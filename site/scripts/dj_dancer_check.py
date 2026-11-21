@@ -164,8 +164,9 @@ with sync_playwright() as p:
     ask(dee, TWO)
     ok(until(lambda: tv2.locator(".dj-tube.is-on").count() == 1, 60000, 100), "a song plays")
     # (a song whose tempo isn't known here: the stretch's look, the peak's club)
-    c3 = until(lambda: (lambda c: c if c and c.get("dancing") and c.get("look") == "club" and "club" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
-    ok(c3 and c3.get("outfit") == "club", f"she dances one of the club look's dances to it, in her club outfit ({c3 or tv2.evaluate('() => window.__coach3d')})")
+    # (her club outfit comes a moment after the look: fetched, taught the dance she's on, then a flash)
+    c3 = until(lambda: (lambda c: c if c and c.get("dancing") and c.get("look") == "club" and c.get("outfit") == "club" and "club" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
+    ok(c3, f"she dances one of the club look's dances to it, in her club outfit ({c3 or tv2.evaluate('() => window.__coach3d')})")
     ok(until(lambda: tv2.locator(".dj-stage.look-club").count() == 1, 8000), f"the lights the club look's ({tv2.evaluate('() => document.querySelector(`.dj-stage`).className')})")
     tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-5-song.png"))
     # the night winding down: the sweet look, its outfit changed into in a flash, its dances, its lights

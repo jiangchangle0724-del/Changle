@@ -160,6 +160,27 @@ export const getOffer = (offerId: string): Promise<OfferPage> => ask(`/offers/${
 /** A shop's own page. */
 export const getShop = (slug: string): Promise<ShopPage> => ask(`/shops/${slug}`);
 export const placeOrder = (offerId: string, order: OrderInput): Promise<OrderPage> => ask(`/offers/${offerId}/orders`, { method: "POST", body: order });
+
+// The order just placed or changed comes back with the answer, so the order's page, opened next,
+// shows it at once instead of asking for it again. Kept only for that next page, in this tab.
+const HANDED = "tuan.handed";
+export function handOver(page: OrderPage): void {
+  try {
+    sessionStorage.setItem(HANDED, JSON.stringify(page));
+  } catch {
+    // (no room, or not allowed: the order's page asks for it, as before)
+  }
+}
+export function takeHanded(code: string): OrderPage | null {
+  try {
+    const raw = sessionStorage.getItem(HANDED);
+    sessionStorage.removeItem(HANDED);
+    const page = raw ? (JSON.parse(raw) as OrderPage) : null;
+    return page?.order.code === code ? page : null;
+  } catch {
+    return null;
+  }
+}
 export const getOrder = (code: string, tail: string): Promise<OrderPage> => ask(`/orders/${code}`, { tail });
 export const changeOrder = (code: string, tail: string, order: OrderInput): Promise<OrderPage> => ask(`/orders/${code}`, { method: "POST", body: order, tail });
 export const cancelOrder = (code: string, tail: string): Promise<OrderPage> => ask(`/orders/${code}/cancel`, { method: "POST", body: {}, tail });

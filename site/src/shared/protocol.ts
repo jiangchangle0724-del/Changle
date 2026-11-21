@@ -715,6 +715,8 @@ export type DramaView = {
     answer?: number | null;
     /** no votes to count (nobody voted, or nobody at the table could): the truth only, no points */
     quiet?: boolean;
+    /** quiet because an actor left the table mid-act */
+    left?: boolean;
   } | null;
   scores: Record<string, number>;
   /** best-actor awards so far */
@@ -736,6 +738,8 @@ export type DramaView = {
    * reveals the answer; no points.
    */
   crowd?: boolean;
+  /** when this act's penalty stamp lands (0: none on its way): the host's next button waits for it */
+  stampAt?: number;
   /** a monologue: three secrets, one of them the actor's, for the audience to choose from */
   options?: T[] | null;
   /** 名场面: the set the host picked (Chinese film and TV, or English) */

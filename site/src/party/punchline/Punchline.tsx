@@ -9,6 +9,7 @@ import { GAME_BY_ID } from "../../games/registry";
 import type { T } from "../../i18n";
 import { Deck, shuffle } from "../../lib/random";
 import { holdBackground } from "../../lib/music";
+import { reduced } from "../../lib/motion";
 import { haptic, sfx } from "../../lib/sfx";
 import type { PunchMatch, PunchView } from "../../shared/protocol";
 import { countWriters, finalPoints, headToHeadPoints, MAX_WRITERS, nextWriters, presentMs, ROUNDS } from "../../shared/punchline";
@@ -507,14 +508,22 @@ function SoloWrite({ items, who, draft, onDraft, quip, onDone }: { items: { m: L
   const zh = lang === "zh";
   const { texts, safe } = draft;
   const formId = useId();
-  const ready = items.every(({ k }) => (texts[k] ?? "").trim());
+  const left = items.filter(({ k }) => !(texts[k] ?? "").trim()).length;
+  const ready = left === 0;
   return (
     <form
       id={formId}
       className="pl-solo-write"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!ready) return;
+        if (!ready) {
+          // the button says what's missing; a tap opens the first empty box, which on a small
+          // phone can sit under the button
+          const box = [...e.currentTarget.querySelectorAll("textarea")].find((t) => !t.value.trim());
+          box?.focus({ preventScroll: true });
+          box?.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
+          return;
+        }
         onDone(Object.fromEntries(items.map(({ k }) => [k, { text: texts[k].trim(), safety: !!safe[k] }])));
         haptic(10);
       }}
@@ -551,8 +560,18 @@ function SoloWrite({ items, who, draft, onDraft, quip, onDone }: { items: { m: L
         </div>
       ))}
       <PunchAction>
-        <button type="submit" form={formId} className="btn btn-primary btn-lg" disabled={!ready}>
-          {zh ? "写好了，藏起来交给下一个" : "Done. Hide it and pass it on"}
+        <button type="submit" form={formId} className={`btn btn-lg btn-block ${ready ? "btn-primary" : "btn-ghost"}`}>
+          {ready
+            ? zh
+              ? "写好了，藏起来交给下一个"
+              : "Done. Hide it and pass it on"
+            : items.length > 1
+              ? zh
+                ? `还有 ${left} 题没写`
+                : `${left} more to write`
+              : zh
+                ? "先写一个答案"
+                : "Write your answer first"}
         </button>
       </PunchAction>
     </form>

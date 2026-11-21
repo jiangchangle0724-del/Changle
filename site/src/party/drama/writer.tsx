@@ -52,7 +52,20 @@ type SceneWriterProps = {
   onAdd: (scene: Draft, by?: string) => void;
   level: DramaLevel;
   writers?: { id: string; name: string }[];
+  /** why the table can't take another scene from this writer (`writeFull`), or null */
+  full?: (by?: string) => string | null;
 };
+
+/**
+ * Why the table can't take another scene from `by`: eight are waiting, or four of theirs (the game
+ * turns it away), or null. Said before anyone writes, and again if they try.
+ */
+export function writeFull(v: DramaView, by: string | null, zh: boolean): string | null {
+  const waiting = v.mine.filter((w) => !w.played);
+  if (waiting.length >= 8) return zh ? "桌上已经排了 8 个剧本，先演完几个再写。" : "Eight scenes are waiting. Play a few, then write another.";
+  if (by !== null && waiting.filter((w) => w.by === by).length >= 4) return zh ? "你已经排了 4 个剧本，先演完再写。" : "You have four scenes waiting. Play them first.";
+  return null;
+}
 
 export function SceneWriter(props: SceneWriterProps) {
   return <ToastProvider><Writer {...props} /></ToastProvider>;
@@ -64,6 +77,7 @@ function Writer({
   onAdd,
   level,
   writers,
+  full,
 }: SceneWriterProps) {
   const toast = useToast();
   const { lang } = useStore();
@@ -120,6 +134,12 @@ function Writer({
     const r = cleanScene(d);
     if ("error" in r) {
       setError(tx(ERRORS[r.error] ?? ERRORS.bad));
+      return;
+    }
+    // the table is full: say so, and keep what they wrote
+    const why = full?.(writers ? by : undefined);
+    if (why) {
+      setError(why);
       return;
     }
     setBusy(true);
@@ -308,7 +328,7 @@ function Writer({
  * one, and how many from the public library are mixed in. `few`: under three at the table, where
  * every act is a monologue and a written scene waits for a third.
  */
-export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove, library, few }: { v: DramaView; me: string; isHost: boolean; nameOf: (pid: string) => string; onWrite: () => void; onRemove: (id: string) => void; library?: { loading: boolean; failed: boolean; retry: () => void }; few?: boolean }) {
+export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove, library, few, full }: { v: DramaView; me: string; isHost: boolean; nameOf: (pid: string) => string; onWrite: () => void; onRemove: (id: string) => void; library?: { loading: boolean; failed: boolean; retry: () => void }; few?: boolean; full?: string | null }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const waiting = v.mine.filter((w) => !w.played);
@@ -316,10 +336,11 @@ export function TableScenes({ v, me, isHost, nameOf, onWrite, onRemove, library,
     <section className="dm-written">
       <div className="dm-written-head">
         <strong>{zh ? "自己写的剧本" : "Your own scenes"}</strong>
-        <button type="button" className="btn btn-moon btn-sm" onClick={onWrite}>
+        <button type="button" className="btn btn-moon btn-sm" disabled={!!full} onClick={onWrite}>
           <Feather size={15} /> {zh ? "写一个" : "Write one"}
         </button>
       </div>
+      {full && <p className="hint">{full}</p>}
       {waiting.length ? (
         <ul>
           {waiting.map((w) => (

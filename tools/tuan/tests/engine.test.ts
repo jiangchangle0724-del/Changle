@@ -89,6 +89,7 @@ describe("money and amounts", () => {
   it("writes money and amounts out", () => {
     expect(dollars(8950)).toBe("$89.50");
     expect(dollars(5)).toBe("$0.05");
+    expect([dollars(99_999), dollars(100_000), dollars(4_999_995), dollars(123_456_789), dollars(-150_000)]).toEqual(["$999.99", "$1,000.00", "$49,999.95", "$1,234,567.89", "-$1,500.00"]);
     expect(amountText(1500)).toBe("1.5");
     expect(amountText(2000)).toBe("2");
   });

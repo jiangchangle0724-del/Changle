@@ -55,6 +55,14 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] 
   // (standing, swaying: gentle enough for a ballad, at its tempo)
   { id: "idle", bpm: 120.1, looks: ["sweet"] },
   { id: "idle2", bpm: 111, looks: ["sweet"] },
+  // Nov 20 (Steve: "要根据不同风格的歌跳不同的舞"): a shy one and a salsa step for a ballad, salsa for the
+  // party, sexier street ones for the club
+  { id: "timid", bpm: 98.1, looks: ["sweet"] },
+  { id: "salsa_side", bpm: 105.9, looks: ["sweet", "party"] },
+  { id: "salsa", bpm: 111.2, looks: ["party"] },
+  { id: "ribpops", bpm: 93.1, looks: ["party", "club"] },
+  { id: "kickstep", bpm: 113.6, looks: ["party", "club"] },
+  { id: "shimmy", bpm: 145.6, looks: ["club"] },
 ];
 
 /** Standing, swaying a little, when no song plays: at their own tempo. */

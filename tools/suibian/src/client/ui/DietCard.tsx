@@ -34,82 +34,88 @@ export function DietCard({ initial, onDone, saved }: { initial: Limits | null; o
     <section class="diet">
       <h2>{t("dietCard")}</h2>
       <p class="muted small">{t("dietPrivate")}</p>
-      <h3>{t("allergies")}</h3>
-      <p class="muted small">{t("levelHint")}</p>
-      <div class="chips">
-        {(Object.keys(ALLERGENS) as AllergenId[]).map((a) => {
-          const level = l.allergies[a] ?? "none";
-          return (
-            <button key={a} type="button" class={`chip ${level}`} data-allergen={a} aria-pressed={level !== "none"} onClick={() => cycle(a)}>
-              {tx(ALLERGENS[a])}
-              {level !== "none" && <small> · {levelText(level)}</small>}
-            </button>
-          );
-        })}
-      </div>
-
-      <h3>{t("custom")}</h3>
-      <p class="muted small">{t("customHint")}</p>
-      {l.custom.length > 0 && (
+      <section class="card">
+        <h3>{t("allergies")}</h3>
+        <p class="muted small">{t("levelHint")}</p>
         <div class="chips">
-          {l.custom.map((c) => (
-            <button key={c.name} type="button" class={`chip ${c.level}`} data-custom={c.name} aria-pressed="true" onClick={() => cycleCustom(c.name)}>
-              {c.name}
-              <small> · {levelText(c.level)}</small>
+          {(Object.keys(ALLERGENS) as AllergenId[]).map((a) => {
+            const level = l.allergies[a] ?? "none";
+            return (
+              <button key={a} type="button" class={`chip press ${level}`} data-allergen={a} aria-pressed={level !== "none"} onClick={() => cycle(a)}>
+                {tx(ALLERGENS[a])}
+                {level !== "none" && <small> · {levelText(level)}</small>}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+      <section class="card">
+        <h3>{t("custom")}</h3>
+        <p class="muted small">{t("customHint")}</p>
+        {l.custom.length > 0 && (
+          <div class="chips">
+            {l.custom.map((c) => (
+              <button key={c.name} type="button" class={`chip press ${c.level}`} data-custom={c.name} aria-pressed="true" onClick={() => cycleCustom(c.name)}>
+                {c.name}
+                <small> · {levelText(c.level)}</small>
+              </button>
+            ))}
+          </div>
+        )}
+        {l.custom.length < MAX_CUSTOM && (
+          <>
+            <form
+              class="joinrow"
+              onSubmit={(e) => {
+                e.preventDefault();
+                add(typed);
+              }}
+            >
+              <input
+                value={typed}
+                maxLength={MAX_CUSTOM_LENGTH}
+                placeholder={t("customPlaceholder")}
+                aria-label={t("custom")}
+                onInput={(e) => setTyped((e.target as HTMLInputElement).value)}
+              />
+              <Btn disabled={!typed.trim()} onClick={() => add(typed)}>
+                {t("customAdd")}
+              </Btn>
+            </form>
+            <div class="chips">
+              {CUSTOM_SUGGESTIONS[getLang()]
+                .filter((s) => !has(s))
+                .map((s) => (
+                  <button key={s} type="button" class="chip press suggest" onClick={() => add(s)}>
+                    + {s}
+                  </button>
+                ))}
+            </div>
+          </>
+        )}
+      </section>
+      <section class="card">
+        <div class="toggles">
+          <label class={`check press${l.halal ? " selected" : ""}`}>
+            <input type="checkbox" checked={l.halal} onChange={(e) => setL({ ...l, halal: (e.target as HTMLInputElement).checked })} />
+            {t("halal")}
+          </label>
+          <label class={`check press${l.vegetarian ? " selected" : ""}`}>
+            <input type="checkbox" checked={l.vegetarian} onChange={(e) => setL({ ...l, vegetarian: (e.target as HTMLInputElement).checked })} />
+            {t("vegetarian")}
+          </label>
+        </div>
+      </section>
+      <section class="card">
+        <h3>{t("budget")}</h3>
+        <div class="seg">
+          {BUDGETS.map((b) => (
+            <button class="press" key={b} type="button" aria-pressed={l.budget === b} onClick={() => setL({ ...l, budget: b })}>
+              {b ? `$${b}` : t("budgetAny")}
             </button>
           ))}
         </div>
-      )}
-      {l.custom.length < MAX_CUSTOM && (
-        <>
-          <form
-            class="joinrow"
-            onSubmit={(e) => {
-              e.preventDefault();
-              add(typed);
-            }}
-          >
-            <input
-              value={typed}
-              maxLength={MAX_CUSTOM_LENGTH}
-              placeholder={t("customPlaceholder")}
-              aria-label={t("custom")}
-              onInput={(e) => setTyped((e.target as HTMLInputElement).value)}
-            />
-            <Btn disabled={!typed.trim()} onClick={() => add(typed)}>
-              {t("customAdd")}
-            </Btn>
-          </form>
-          <div class="chips">
-            {CUSTOM_SUGGESTIONS[getLang()]
-              .filter((s) => !has(s))
-              .map((s) => (
-                <button key={s} type="button" class="chip suggest" onClick={() => add(s)}>
-                  + {s}
-                </button>
-              ))}
-          </div>
-        </>
-      )}
-
-      <div class="toggles">
-        <label class="check">
-          <input type="checkbox" checked={l.halal} onChange={(e) => setL({ ...l, halal: (e.target as HTMLInputElement).checked })} />
-          {t("halal")}
-        </label>
-        <label class="check">
-          <input type="checkbox" checked={l.vegetarian} onChange={(e) => setL({ ...l, vegetarian: (e.target as HTMLInputElement).checked })} />
-          {t("vegetarian")}
-        </label>
-      </div>
-      <h3>{t("budget")}</h3>
-      <div class="seg">
-        {BUDGETS.map((b) => (
-          <button key={b} type="button" aria-pressed={l.budget === b} onClick={() => setL({ ...l, budget: b })}>
-            {b ? `$${b}` : t("budgetAny")}
-          </button>
-        ))}
-      </div>
+      </section>
       <Btn kind="primary" wide onClick={() => onDone(l)}>
         {empty ? t("nothingToAvoid") : t("saveCard")}
       </Btn>
