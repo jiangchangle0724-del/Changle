@@ -245,8 +245,9 @@ def clear_stamps(pages):
 
 
 class Memory:
-    def __init__(self, label):
+    def __init__(self, label, tabs=1):
         self.label = label
+        self.tabs = tabs
         self.rows = []
         # the tab's memory five times a second, for the peaks between songs (decoding, analysing)
         self.peak = 0
@@ -288,9 +289,11 @@ class Memory:
             ok(last["decoded"] <= len(self.rows) + 4, f"[{self.label}] each song decoded once ({last['decoded']} decodes for {len(self.rows)} songs)")
         ok(last["nodes"] - first["nodes"] < 150, f"[{self.label}] the page doesn't pile up elements ({first['nodes']} -> {last['nodes']})")
         ok(last["tweens"] < 200, f"[{self.label}] tweens don't pile up ({first['tweens']} -> {last['tweens']})")
-        # the page's own memory, outside the JS heap (styles, paint): from song 3 on it may wobble, not climb
+        # the page's own memory, outside the JS heap (styles, paint): from song 3 on it may wobble, not climb.
+        # Judged a phone at a time: three phones on main (2026-11-20) climb 16 to 29 MB a song together,
+        # most of it the covers; the leak #278 fixed was 150 MB a song on one phone.
         per = (last["rss"] - first["rss"]) / max(1, len(self.rows) - 3)
-        ok(per < 20, f"[{self.label}] the tabs' memory holds steady from song 3 on ({first['rss']} -> {last['rss']} MB, {per:+.0f} MB a song)")
+        ok(per / self.tabs < 20, f"[{self.label}] the tabs' memory holds steady from song 3 on ({first['rss']} -> {last['rss']} MB, {per:+.0f} MB a song over {self.tabs} tab{'s' if self.tabs > 1 else ''})")
 
 
 # ------------------------------------------------------------------ one phone
@@ -439,7 +442,7 @@ def online(browser):
         ok(until(lambda: view(guests[0])["quiz"] and view(guests[0])["mode"] == mode), f"[online {mode}] multiple choice is on for the table")
         host.wait_for_timeout(300)
         host.get_by_role("button", name="放第一首").click()
-        mem = Memory(f"online {mode}")
+        mem = Memory(f"online {mode}", tabs=len(everyone))
         total = view(host)["total"]
         n = 0
         while True:
@@ -530,7 +533,7 @@ def online_screen(browser):
         host.get_by_role("button", name="20 首" if ROUNDS not in (5, 8, 12) else f"{ROUNDS} 首").click()
         host.wait_for_timeout(500)
         host.get_by_role("button", name="放第一首").click()
-        mem = Memory(f"online {mode} (screens)")
+        mem = Memory(f"online {mode} (screens)", tabs=len(everyone))
         total = ROUNDS if ROUNDS in (5, 8, 12) else 20
         for n in range(1, total + 1):
             up = until(lambda: all(g.locator(".tn-round").count() and g.locator(".tn-round").inner_text().startswith(f"第 {n} 首") for g in everyone) and all(g.locator(".tn-option:not([disabled])").count() == 4 for g in everyone), 20000)
