@@ -27,15 +27,15 @@ export function WhenPicker({ value, onChange }: { value: number | null; onChange
   return (
     <div class="when">
       <div class="seg">
-        <button type="button" aria-pressed={value === null && !other} onClick={() => (setOther(false), onChange(null))}>
+        <button class="press" type="button" aria-pressed={value === null && !other} onClick={() => (setOther(false), onChange(null))}>
           {t("whenNow")}
         </button>
         {slots.map((s) => (
-          <button key={s.id} type="button" aria-pressed={!other && value === s.at} onClick={() => (setOther(false), onChange(s.at))}>
+          <button class="press" key={s.id} type="button" aria-pressed={!other && value === s.at} onClick={() => (setOther(false), onChange(s.at))}>
             {t(`when_${s.id}` as Key)}
           </button>
         ))}
-        <button type="button" aria-pressed={other} onClick={() => (setOther(true), pickDay(day))}>
+        <button class="press" type="button" aria-pressed={other} onClick={() => (setOther(true), pickDay(day))}>
           {t("whenOther")}
         </button>
       </div>

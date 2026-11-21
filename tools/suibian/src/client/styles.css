@@ -1,6 +1,6 @@
 /* 随便 · Whatever's Fine: changle's night room, lit amber for a tool.
  * Shared values come from tokens.css, checked by tests/design.test.ts.
- * S1 keeps the existing screens and controls; layout and motion follow in later cards.
+ * S2 shares the header, thumb dock, panels and choices; motion follows in S3.
  */
 :root {
   --gel: var(--type-tool);
@@ -109,31 +109,151 @@ a {
 .page {
   max-width: var(--page-max);
   margin: 0 auto;
-  padding: max(var(--space-4), var(--safe-top)) var(--gutter) max(var(--space-8), var(--safe-bottom));
+  padding: 0 var(--gutter) calc(var(--dock-space, var(--safe-bottom)) + var(--gap-section));
+  min-height: 100dvh;
+  scroll-padding-block: calc(var(--bar-h) + var(--safe-top) + var(--space-4)) calc(var(--dock-space, var(--dock-h)) + var(--space-4));
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--gap-section);
 }
 
-.hero {
-  position: relative;
-  text-align: center;
-  padding: var(--space-6) 0 var(--space-2);
-}
-.hero .lang {
-  position: absolute;
-  top: 0;
-  right: 0;
-}
-.logo {
-  font-size: var(--text-3xl);
-  line-height: var(--leading-tight);
-  margin-bottom: var(--space-2);
-}
 .tagline {
-  color: var(--color-text-2);
-  margin-top: var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: var(--leading-tight);
   text-wrap: balance;
+}
+
+/* Shared game-like top bar. The companion language is outside h1 so its accessible name
+ * and the current-language title remain one sentence. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-1);
+  min-height: calc(var(--bar-h) + var(--safe-top));
+  margin-inline: calc(-1 * var(--gutter));
+  padding: var(--safe-top) var(--space-2) 0;
+  background: color-mix(in oklab, var(--color-bg) 80%, transparent);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+}
+.topbar-title {
+  min-width: 0;
+  text-align: center;
+  line-height: var(--leading-tight);
+}
+.topbar-title h1 {
+  font-size: var(--text-md);
+  font-weight: 800;
+  letter-spacing: normal;
+}
+.topbar-title h1, .topbar-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar-title small {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+}
+.topbar-action {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.topbar .back {
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  background: transparent;
+}
+.topbar .lang {
+  font-size: var(--text-xs);
+  min-width: var(--tap);
+}
+.dock {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 11;
+  min-height: calc(var(--dock-h) + var(--safe-bottom));
+  padding: var(--space-4) var(--gutter) calc(var(--space-2) + var(--safe-bottom));
+  background: linear-gradient(to top, var(--color-bg) 72%, transparent);
+  pointer-events: none;
+}
+.dock-content {
+  max-width: calc(var(--page-max) - var(--gutter) * 2);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-2);
+}
+.dock-status {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-2);
+}
+.dock-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.dock-actions > * {
+  pointer-events: auto;
+  min-width: 0;
+}
+.dock-actions > .primary {
+  flex: 1;
+  min-height: calc(var(--tap) + var(--space-3));
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+.dock-actions > .quiet {
+  flex: 0 1 auto;
+}
+.dock-actions > p {
+  flex: 1;
+}
+.dock .progress {
+  justify-content: center;
+}
+.picked {
+  font-size: var(--text-sm);
+}
+.countdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  min-height: var(--tap);
+  padding: 0 var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-flat);
+  font-family: var(--font-text);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-align: center;
+}
+.countdown.urgent {
+  background: var(--color-danger);
+  color: var(--color-on-danger);
+}
+svg.lucide {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  flex: none;
+}
+.btn svg.lucide {
+  width: calc(var(--space-6) - var(--space-1));
+  height: calc(var(--space-6) - var(--space-1));
+}
+.topbar .back svg.lucide {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .bar {
@@ -157,7 +277,7 @@ a {
   padding: var(--pad-card);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   box-shadow: var(--shadow-flat);
 }
 .nudge {
@@ -196,9 +316,9 @@ a {
   box-shadow: var(--glow);
 }
 .btn.quiet {
-  background: transparent;
+  background: var(--color-raised);
   border-color: transparent;
-  color: var(--gel);
+  color: var(--color-text);
   min-height: var(--tap);
   padding: var(--space-2) var(--space-3);
 }
@@ -229,7 +349,11 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  font-weight: 600;
+  font-weight: 700;
+}
+.field > span:first-child {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
 }
 input,
 select {
@@ -248,6 +372,7 @@ select {
 }
 .joinrow input {
   flex: 1;
+  min-width: 0;
 }
 .joinrow input[inputmode="numeric"] {
   letter-spacing: 0.2em;
@@ -269,16 +394,26 @@ select {
   background: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
+  box-shadow: var(--shadow-flat);
 }
 .seg button[aria-pressed="true"] {
-  background: var(--gel);
-  border-color: var(--gel);
-  color: var(--color-on-accent);
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-surface));
+  border-color: transparent;
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 2px var(--gel);
 }
 .seg.big button {
   font-size: var(--text-2xl);
 }
 
+.error, .warn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.error > span, .warn > span {
+  min-width: 0;
+}
 .error {
   color: var(--color-danger);
   background: color-mix(in oklab, var(--color-danger) 14%, var(--color-surface));
@@ -292,12 +427,12 @@ select {
   border-radius: var(--r-small);
 }
 .demo {
-  font-size: var(--text-sm);
-  color: var(--color-warning);
-  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface));
-  border: 1px dashed var(--color-warning);
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+  background: var(--color-sheet);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--r-small);
+  margin-top: calc(-1 * var(--space-4));
 }
 .ok {
   color: var(--color-success);
@@ -335,15 +470,21 @@ select {
   box-shadow: var(--shadow-flat);
 }
 .chip.avoid {
-  background: color-mix(in oklab, var(--color-warning) 14%, var(--color-surface));
-  border-color: var(--color-warning);
-  color: var(--color-warning);
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-surface));
+  border-color: transparent;
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 2px var(--gel);
 }
 .chip.severe {
-  background: var(--color-sheet);
-  border-color: var(--color-text-2);
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-surface));
+  border-color: transparent;
   color: var(--color-text-2);
   font-weight: 700;
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.check.selected {
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-surface));
+  box-shadow: inset 0 0 0 2px var(--gel);
 }
 .chip.suggest {
   color: var(--color-text-2);
@@ -355,10 +496,13 @@ select {
   flex-wrap: wrap;
 }
 .check {
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  padding: var(--space-2) var(--space-3);
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: var(--tap);
+  min-height: var(--tap-crowded);
 }
 .check input {
   width: var(--icon-sm);
@@ -368,33 +512,25 @@ select {
 
 /* lobby */
 .invite {
-  flex-direction: row;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--space-4);
+  text-align: center;
 }
 .invite > div {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-2);
   min-width: 0;
-  /* the address in "or enter the code at changle.ca/eat" breaks where it must */
   overflow-wrap: anywhere;
-}
-/* a narrow phone: the code and its line under the QR, not squeezed beside it */
-@media (max-width: 359px) {
-  .invite {
-    flex-direction: column;
-    text-align: center;
-  }
-  .invite > div {
-    align-items: center;
-  }
 }
 .qr {
   flex: none;
   background: var(--color-paper);
-  border-radius: var(--r-panel);
-  padding: var(--space-1);
+  border-radius: var(--r-tile);
+  padding: var(--space-3);
 }
 .qr svg {
   width: 100%;
@@ -404,8 +540,7 @@ select {
 .code {
   font-family: var(--font-display);
   line-height: var(--leading-tight);
-  /* beside the QR code on a phone: four wide digits have to fit on one line */
-  font-size: var(--text-2xl);
+  font-size: var(--text-3xl);
   font-weight: 800;
   letter-spacing: 0.12em;
   white-space: nowrap;
@@ -413,24 +548,66 @@ select {
 }
 .people {
   list-style: none;
+  margin: 0;
   padding: 0;
-  margin: var(--space-2) 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-2);
+}
+.member {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  text-align: center;
 }
-.people li {
+.member-name {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.member-tags {
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-3);
-  border-radius: var(--r-panel);
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  box-shadow: var(--shadow-flat);
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1);
 }
-.people li.mine {
-  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
+.member small {
+  font-size: var(--text-xs);
+  color: var(--color-text-2);
+}
+.avatar {
+  position: relative;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  font-size: var(--text-lg);
+  font-weight: 800;
+  color: var(--color-on-accent);
+}
+.avatar.host {
+  outline: 2px solid var(--gel);
+  outline-offset: 2px;
+}
+.ready-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border: 2px solid var(--color-surface);
+  border-radius: var(--r-pill);
+  background: var(--color-success);
+  color: var(--color-on-accent);
+}
+.ready-badge svg.lucide {
+  width: calc(var(--space-6) - var(--space-1));
+  height: calc(var(--space-6) - var(--space-1));
 }
 .tablelimits {
   font-size: var(--text-sm);
@@ -452,7 +629,7 @@ select {
 }
 .moods {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
 }
 .mood {
@@ -462,7 +639,7 @@ select {
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: var(--dock-h);
+  min-height: calc(var(--tap) * 2);
   padding: var(--space-3);
   border-radius: var(--r-tile);
   border: 2px solid var(--color-line);
@@ -474,11 +651,14 @@ select {
 }
 .mood .emoji {
   font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  margin-bottom: var(--space-2);
 }
 .mood .label {
-  font-weight: 600;
+  font-weight: 700;
   font-size: var(--text-sm);
-  line-height: var(--leading);
+  line-height: var(--leading-tight);
+  margin-top: auto;
   /* A long English word ("Mediterranean") breaks inside the chip instead of running past it. */
   overflow-wrap: break-word;
   -webkit-hyphens: auto;
@@ -492,13 +672,15 @@ select {
   font-size: var(--text-xl);
 }
 .mood.like {
-  border-color: var(--color-success);
+  border-color: transparent;
+  box-shadow: inset 0 0 0 2px var(--color-success);
   background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
 }
 .mood.ban {
   border-color: var(--color-text-2);
   background: var(--color-sheet);
   color: var(--color-text-2);
+  opacity: 0.6;
 }
 .mood.ban .label {
   text-decoration: line-through;
@@ -509,7 +691,7 @@ select {
   font-weight: 700;
 }
 .mood.some {
-  border-color: var(--color-success);
+  border: 2px dashed var(--color-success);
 }
 /* round 1's two ways in, before the groups */
 .paths .choice {
@@ -525,7 +707,9 @@ select {
 }
 .group > .mood {
   flex: 1;
-  padding-bottom: calc(var(--tap) + var(--space-2));
+  min-width: 0;
+  min-height: calc(var(--tap) * 2 + var(--tap-crowded) + var(--space-2));
+  padding-bottom: calc(var(--tap-crowded) + var(--space-3));
 }
 .group .inside {
   font: inherit;
@@ -533,7 +717,7 @@ select {
   left: var(--space-2);
   right: var(--space-2);
   bottom: var(--space-2);
-  min-height: var(--tap);
+  min-height: var(--tap-crowded);
   border: 0;
   border-radius: var(--r-pill);
   background: var(--color-raised);
@@ -584,7 +768,7 @@ select {
 }
 .place img {
   width: 100%;
-  height: 150px;
+  height: calc(var(--space-12) * 3);
   object-fit: cover;
   display: block;
 }
@@ -613,6 +797,8 @@ select {
 }
 .place h3 {
   font-size: var(--text-lg);
+  font-weight: 800;
+  overflow-wrap: anywhere;
   margin: 0;
 }
 .meta {
@@ -679,8 +865,9 @@ select {
 }
 .rank {
   flex: none;
-  min-width: 2em;
-  height: 2em;
+  width: var(--space-8);
+  height: var(--space-8);
+  font-size: var(--text-sm);
   padding: 0 var(--space-2);
   border-radius: var(--r-pill);
   background: var(--gel);
@@ -697,8 +884,13 @@ select {
   align-self: center;
 }
 .intro {
-  font-size: var(--text-md);
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
   font-weight: 600;
+}
+.note svg.lucide {
+  vertical-align: middle;
+  margin-right: var(--space-1);
 }
 .note {
   color: var(--color-warning);
@@ -731,23 +923,21 @@ select {
   padding: var(--space-3) var(--space-4);
   gap: var(--space-2);
 }
-.place.compact h3 {
-  font-size: var(--text-md);
-}
+
 .place .more {
   align-self: flex-start;
   min-height: var(--tap);
-  padding-left: 0;
+  padding-inline: var(--space-3);
 }
 .vote {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
 }
 .vote .veto {
   border-color: var(--color-line);
 }
-/* A veto is a preference, even though the existing button has the danger class. */
+/* A veto is a preference: dim the card and keep the action quiet. */
 .vote .btn.veto[aria-pressed="true"] {
   background: var(--color-sheet);
   border-color: var(--color-text-2);
@@ -791,7 +981,7 @@ a.badge {
   position: fixed;
   left: var(--gutter);
   right: var(--gutter);
-  bottom: max(var(--space-4), var(--safe-bottom));
+  bottom: calc(var(--dock-h) + var(--safe-bottom) + var(--space-12) * 2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -855,7 +1045,7 @@ a.badge {
 }
 .range .minutes {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--tap-crowded), 1fr));
   gap: var(--space-2);
 }
 .range .minutes button {
@@ -868,11 +1058,13 @@ a.badge {
   color: var(--color-text);
   font-size: var(--text-sm);
   cursor: pointer;
+  box-shadow: var(--shadow-flat);
 }
 .range .minutes button[aria-pressed="true"] {
-  background: var(--gel);
-  border-color: var(--gel);
-  color: var(--color-on-accent);
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-surface));
+  border-color: transparent;
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 2px var(--gel);
   font-weight: 700;
 }
 
@@ -898,10 +1090,18 @@ a.badge {
 }
 .reason {
   padding: var(--space-1) var(--space-3);
-  border-radius: var(--r-small);
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+}
+.reason.liked {
   background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
   color: var(--color-success);
-  font-size: var(--text-xs);
+}
+.reason.fits {
+  background: color-mix(in oklab, var(--gel) 16%, var(--color-surface));
+  color: var(--gel);
 }
 .about {
   margin: 0;
@@ -933,27 +1133,13 @@ a.badge {
   font-size: var(--text-sm);
 }
 
-/* one person, can't decide */
-.solo .steps {
-  margin: 0;
-  text-align: right;
-}
-.question {
-  font-size: var(--text-xl);
-  margin: var(--space-1) 0 var(--space-3);
-}
-.choices {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--space-3);
-}
 .choice {
   font: inherit;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  min-height: 104px;
+  min-height: var(--dock-h);
   padding: var(--space-4);
   border-radius: var(--r-pill);
   border: 2px solid var(--color-line);
@@ -974,16 +1160,6 @@ a.badge {
   font-size: var(--text-sm);
   line-height: var(--leading);
 }
-.choice.on {
-  border-color: var(--gel);
-  background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
-}
-.solo .row {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
 /* when: now, the next lunch or dinner, or a day and time in the coming week */
 .when {
   display: flex;
@@ -1026,4 +1202,126 @@ a.badge {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--r-small);
   background: color-mix(in oklab, var(--gel) 14%, var(--color-surface));
+}
+
+/* Screen details shared by both languages. */
+.home > .card, .diet > .card, .rate > .card {
+  flex-shrink: 0;
+}
+.select-field {
+  position: relative;
+  display: block;
+}
+.select-field select {
+  appearance: none;
+  padding-right: calc(var(--icon-sm) + var(--space-4));
+}
+.select-field > svg {
+  position: absolute;
+  right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--color-text-2);
+}
+.progress-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.progress-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-raised);
+}
+.progress-dot.done {
+  background: var(--color-success);
+}
+.place.vetoed {
+  opacity: 0.55;
+}
+.place.vetoed h3 {
+  text-decoration: line-through;
+}
+.vote .approve[aria-pressed="true"] {
+  background: var(--gel);
+  border-color: var(--gel);
+  color: var(--color-on-accent);
+}
+.vote .approve[aria-pressed="false"] svg {
+  opacity: 0.35;
+}
+.facts {
+  align-items: center;
+  color: var(--color-text-2);
+  font-variant-numeric: tabular-nums;
+}
+.facts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.facts svg {
+  width: calc(var(--space-6) - var(--space-1));
+  height: calc(var(--space-6) - var(--space-1));
+}
+.winner-card {
+  position: relative;
+  margin-top: var(--space-4);
+  border-radius: var(--r-tile);
+  box-shadow: var(--glow);
+}
+.place.win {
+  position: relative;
+  border-color: transparent;
+}
+.place.win::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-tile);
+  box-shadow: inset 0 0 0 2px var(--gel);
+  pointer-events: none;
+}
+.stamp {
+  /* at the card's foot, right: the name and the photo at the top stay readable */
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  max-width: calc(100% - var(--space-8));
+  padding: var(--space-2) var(--space-3);
+  border: 3px solid var(--gel);
+  border-radius: var(--r-small);
+  background: color-mix(in oklab, var(--color-bg) 80%, transparent);
+  color: var(--gel);
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: var(--leading-tight);
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+.winner-links {
+  gap: var(--space-2);
+}
+.winner-links a {
+  flex: 1;
+}
+.budget-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.settings .whenrow {
+  flex-wrap: wrap;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.settings .whenrow span {
+  flex: 1;
+}
+@media (max-width: 359px) {
+  .moods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .people { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

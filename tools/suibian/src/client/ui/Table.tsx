@@ -1,4 +1,5 @@
 // One table on a phone: lobby → round 1 (mood) → round 2 (cards) → spinner → result.
+import { Check, Copy, Share2, TriangleAlert } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import { CUISINES, OCCASIONS, TOP_COUNT, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
@@ -8,7 +9,7 @@ import { t, tx, type Key } from "../i18n";
 import { api } from "../net";
 import { prefs } from "../prefs";
 import { send, toast, useApp } from "../store";
-import { Btn, Countdown, DemoBanner, LangToggle, Qr, TableLimits, memberName, useBackCloses } from "./common";
+import { Avatar, Btn, Countdown, DemoBanner, Dock, Message, Qr, TableLimits, TopBar, memberName, useBackCloses } from "./common";
 import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
 import { RangePicker } from "./RangePicker";
@@ -34,35 +35,27 @@ export function Table({ home }: { home: () => void }) {
   if (fatal) {
     return (
       <main class="page">
-        <p class="error">{t(fatal === "identity" ? "identity" : fatal === "full" ? "roomFull" : "noRoom")}</p>
+        <TopBar title="title" home={home} />
+        <Message error>{t(fatal === "identity" ? "identity" : fatal === "full" ? "roomFull" : "noRoom")}</Message>
         <Btn onClick={home}>{t("home")}</Btn>
       </main>
     );
   }
-  if (!v) return <main class="page center muted">{t("connecting")}</main>;
+  if (!v) return <main class="page center muted"><TopBar title="title" home={home} /><p>{t("connecting")}</p></main>;
   // Without a diet card, that comes first, in any round before the result: someone who joins late
   // (or was still filling it in when the host started) still gets notes on the cards for what they
   // can't eat, and their budget. The card stays on screen across phase changes, so nothing typed is lost.
   const showDiet = !v.you.limits && v.phase !== "spin" && v.phase !== "result";
   return (
     <main class={`page phase-${v.phase}`}>
-      <header class="bar">
-        <a
-          href={`${BASE}/`}
-          class="brand"
-          onClick={(e) => {
-            e.preventDefault();
-            home();
-          }}
-        >
-          🥢 {t("title")}
-        </a>
-        <span class="num">{t("table", { code: v.code })}</span>
-        <LangToggle />
-      </header>
-      {status === "reconnecting" && <p class="warn">{t("reconnecting")}</p>}
+      <TopBar
+        title={showDiet ? "table" : v.phase === "mood" ? "round1" : v.phase === "cards" ? "round2" : v.phase === "result" || v.phase === "spin" ? "pickTitle" : "table"}
+        vars={{ code: v.code }} home={home} noBack={v.phase === "result" || v.phase === "spin"}
+        right={!showDiet && (v.phase === "mood" || v.phase === "cards") ? <Countdown ends={v.phaseEnds} /> : undefined}
+      />
+      {status === "reconnecting" && <Message>{t("reconnecting")}</Message>}
       <DemoBanner demo={v.demo} />
-      {showDiet && v.phase !== "lobby" && <p class="warn">{t("dietLate")}</p>}
+      {showDiet && v.phase !== "lobby" && <Message>{t("dietLate")}</Message>}
       {showDiet ? (
         <DietCard
           initial={me?.card ?? null}
@@ -115,7 +108,7 @@ function Lobby({ v }: { v: RoomView }) {
   if (v.phase === "finding") return <p class="big center">{t("finding")}</p>;
   return (
     <>
-      <section class="card invite">
+      <section class="invite">
         <Qr text={joinUrl(v.code)} />
         <div>
           <p class="code num">{v.code}</p>
@@ -126,7 +119,7 @@ function Lobby({ v }: { v: RoomView }) {
               void navigator.clipboard?.writeText(joinUrl(v.code)).then(() => setCopied(true));
             }}
           >
-            {copied ? t("copied") : t("copyLink")}
+            <Copy aria-hidden="true" />{copied ? t("copied") : t("copyLink")}
           </Btn>
         </div>
       </section>
@@ -145,7 +138,7 @@ function Lobby({ v }: { v: RoomView }) {
         {changing === "occasion" && (
           <>
             <OccasionPicker value={occasion} onChange={setOccasion} />
-            <Btn kind="primary" wide onClick={() => (send({ t: "occasion", occasion }), setChanging(null))}>
+            <Btn kind="quiet" wide onClick={() => (send({ t: "occasion", occasion }), setChanging(null))}>
               {t("done")}
             </Btn>
           </>
@@ -161,14 +154,14 @@ function Lobby({ v }: { v: RoomView }) {
         {changing === "when" && (
           <>
             <WhenPicker value={when} onChange={setWhen} />
-            <Btn kind="primary" wide onClick={() => (send({ t: "when", at: when }), setChanging(null))}>
+            <Btn kind="quiet" wide onClick={() => (send({ t: "when", at: when }), setChanging(null))}>
               {t("done")}
             </Btn>
           </>
         )}
         {lowBudget(v) && (
           <p class="budget-low">
-            <span>{t("budgetLow", { n: v.you.limits!.budget, occasion: t(`occFor_${v.occasion}` as Key) })}</span>
+            <span class="budget-warning"><TriangleAlert aria-hidden="true" />{t("budgetLow", { n: v.you.limits!.budget, occasion: t(`occFor_${v.occasion}` as Key) })}</span>
             <Btn kind="quiet" class="change-budget" onClick={() => setEditing(true)}>
               {t("budgetChange")}
             </Btn>
@@ -189,28 +182,26 @@ function Lobby({ v }: { v: RoomView }) {
         />
       </label>
 
-      <section>
+      <section class="card">
         <h2>{t("people")}</h2>
         <ul class="people">
           {v.members.map((m) => (
-            <li key={m.id} class={m.id === v.you.id ? "mine" : ""}>
-              <span>
-                {memberName(v, m)}
-                {m.id === v.you.id && <small> ({t("you")})</small>}
-                {m.host && <small> · {t("host")}</small>}
+            <li key={m.id} class={`member${m.id === v.you.id ? " mine" : ""}`} data-member={m.id}>
+              <Avatar v={v} m={m} />
+              <span class="member-name">{memberName(v, m)}</span>
+              <span class="member-tags">
+                {m.id === v.you.id && <small>({t("you")})</small>}
+                {m.host && <small>{t("host")}</small>}
               </span>
-              <small class={m.ready ? "ok" : "muted"}>{!m.online ? t("away") : m.ready ? t("ready") : t("notReady")}</small>
+              {(!m.online || !m.ready) && <small class="muted">{t(!m.online ? "away" : "notReady")}</small>}
             </li>
           ))}
         </ul>
-        <Btn kind="quiet" onClick={() => setEditing(true)}>
-          {t("editCard")}
-        </Btn>
       </section>
 
       {v.error && (
         <section class="card">
-          <p class="error">{t(v.error)}</p>
+          <Message error>{t(v.error)}</Message>
           {host && v.error !== "searchLimit" && (
             <>
               <RangePicker value={range} onChange={setRange} />
@@ -222,33 +213,26 @@ function Lobby({ v }: { v: RoomView }) {
         </section>
       )}
 
-      {!v.error &&
-        (host ? (
-          <>
-            <p class="muted small center">{t("readyCount", { n: ready, m: v.members.length })}</p>
-            <Btn kind="primary" wide onClick={() => send({ t: "start" })}>
-              {t("start")}
-            </Btn>
-          </>
-        ) : (
-          <p class="muted center">{t("waitHost")}</p>
-        ))}
+      {!v.error && <Dock status={host ? t("readyCount", { n: ready, m: v.members.length }) : undefined}>
+        <Btn kind="quiet" onClick={() => setEditing(true)}>{t("editCard")}</Btn>
+        {host ? <Btn kind="primary" wide onClick={() => send({ t: "start" })}>{t("start")}</Btn> : <p class="muted center">{t("waitHost")}</p>}
+      </Dock>}
     </>
   );
 }
 
+/** The host can advance either round, as before the screen redesign. */
+function NextRound({ v }: { v: RoomView }) {
+  const host = v.you.host || !v.members.find((m) => m.host)?.online;
+  return host ? <Btn kind="quiet" onClick={() => send({ t: "next", phase: v.phase })}>{t("skipAhead")}</Btn> : null;
+}
+
 function Progress({ v }: { v: RoomView }) {
   const here = v.members.filter((m) => m.online);
-  const host = v.you.host || !v.members.find((m) => m.host)?.online;
   return (
     <div class="progress">
+      <span class="progress-dots" aria-hidden="true">{v.members.map((m) => <span key={m.id} class={`progress-dot${m.done ? " done" : ""}`} />)}</span>
       <span>{t("waitingOthers", { n: here.filter((m) => m.done).length, m: here.length })}</span>
-      <Countdown ends={v.phaseEnds} />
-      {host && (
-        <Btn kind="quiet" onClick={() => send({ t: "next", phase: v.phase })}>
-          {t("skipAhead")}
-        </Btn>
-      )}
     </div>
   );
 }
@@ -276,13 +260,12 @@ function Mood({ v }: { v: RoomView }) {
   const opened = groups.find((g) => g.id === open);
   return (
     <>
-      <h2>{t("round1")}</h2>
       <p class="muted small">{t("round1Hint")}</p>
       {!path ? (
         <section class="menu paths">
           <h3>{t("pathAsk")}</h3>
           {(["cuisine", "dish"] as const).map((p) => (
-            <button key={p} type="button" class="choice" data-path={p} onClick={() => setPath(p)}>
+            <button key={p} type="button" class="choice press" data-path={p} onClick={() => setPath(p)}>
               <span class="label">{t(p === "cuisine" ? "byCuisine" : "byDish")}</span>
               <span class="hint">{t(p === "cuisine" ? "byCuisineEg" : "byDishEg")}</span>
             </button>
@@ -290,7 +273,7 @@ function Mood({ v }: { v: RoomView }) {
         </section>
       ) : opened ? (
         <section class="menu inside-group">
-          <button type="button" class="back-all" onClick={() => setOpen(null)}>
+          <button type="button" class="back-all press" onClick={() => setOpen(null)}>
             ‹ {tx(opened.text)}
           </button>
           <div class="moods">
@@ -303,7 +286,7 @@ function Mood({ v }: { v: RoomView }) {
         <section class="menu">
           <div class="seg path-switch">
             {(["cuisine", "dish"] as const).map((p) => (
-              <button key={p} type="button" data-path={p} aria-pressed={path === p} onClick={() => setPath(p)}>
+              <button key={p} type="button" class="press" data-path={p} aria-pressed={path === p} onClick={() => setPath(p)}>
                 {t(p === "cuisine" ? "byCuisine" : "byDish")}
               </button>
             ))}
@@ -319,10 +302,10 @@ function Mood({ v }: { v: RoomView }) {
           </div>
         </section>
       )}
-      <Btn kind="primary" wide disabled={done} onClick={() => push(picks, true)}>
-        {t("done")}
-      </Btn>
-      <Progress v={v} />
+      <Dock status={<Progress v={v} />}>
+        <NextRound v={v} />
+        <Btn kind="primary" wide disabled={done} onClick={() => push(picks, true)}>{t("done")}</Btn>
+      </Dock>
     </>
   );
 }
@@ -330,7 +313,7 @@ function Mood({ v }: { v: RoomView }) {
 function LeafChip({ l, picks, done, change }: { l: Leaf; picks: Picks; done: boolean; change: (p: Picks) => void }) {
   const now: MoodPick | "none" = picks[l.id] ?? "none";
   return (
-    <button type="button" class={`mood ${now}`} data-cuisine={l.id} aria-pressed={now !== "none"} disabled={done} onClick={() => change(setAll(picks, [l.id], cycleMood[now]))}>
+    <button type="button" class={`mood press ${now}`} data-cuisine={l.id} aria-pressed={now !== "none"} disabled={done} onClick={() => change(setAll(picks, [l.id], cycleMood[now]))}>
       <span class="emoji" aria-hidden="true">
         {CUISINES[l.id].emoji}
       </span>
@@ -351,7 +334,7 @@ function GroupTile({ g, picks, done, change, openIt }: { g: Group; picks: Picks;
     <div class="group">
       <button
         type="button"
-        class={`mood ${state}`}
+        class={`mood press ${state}`}
         data-group={g.id}
         aria-pressed={state !== "none"}
         aria-label={status ? t("groupStatus", { name, status }) : name}
@@ -366,7 +349,7 @@ function GroupTile({ g, picks, done, change, openIt }: { g: Group; picks: Picks;
           {state === "like" ? "👍" : state === "ban" ? "🚫" : state === "some" ? [likes && `👍${likes}`, bans && `🚫${bans}`].filter(Boolean).join(" ") : ""}
         </span>
       </button>
-      <button type="button" class="inside" aria-label={t("insideOf", { name })} onClick={openIt}>
+      <button type="button" class="inside press" aria-label={t("insideOf", { name })} onClick={openIt}>
         {t("inside")} ›
       </button>
     </div>
@@ -380,14 +363,15 @@ function Cards({ v }: { v: RoomView }) {
   const push = (a: string[], x: string | null, finished: boolean) => send({ t: "ballot", approve: a, veto: x, done: finished });
   return (
     <>
-      <h2>{t("round2")}</h2>
       <p class="muted small">{t("round2Hint")}</p>
       {v.at && <p class="planned small">{t("plannedFor", { when: whenLabel(v.at) })}</p>}
+      <TableLimits l={v.table} />
       <RankedList
         cards={v.cards}
         top={TOP_COUNT}
         occasion={v.occasion}
         overBudget={v.overBudget}
+        veto={veto}
         action={(c) => {
           const id = c.place.id;
           const yes = approve.includes(id);
@@ -395,7 +379,7 @@ function Cards({ v }: { v: RoomView }) {
           return (
             <div class="vote">
               <Btn
-                kind={yes ? "primary" : undefined}
+                kind="quiet"
                 pressed={yes}
                 disabled={done}
                 class="approve"
@@ -407,10 +391,10 @@ function Cards({ v }: { v: RoomView }) {
                   push(a, x, false);
                 }}
               >
-                ✓ {t("approve")}
+                <Check aria-hidden="true" />{t("approve")}
               </Btn>
               <Btn
-                kind={no ? "danger" : "quiet"}
+                kind="quiet"
                 pressed={no}
                 disabled={done || (veto !== null && !no)}
                 class="veto"
@@ -422,17 +406,17 @@ function Cards({ v }: { v: RoomView }) {
                   push(a, x, false);
                 }}
               >
-                🚫 {veto !== null && !no ? t("vetoUsed") : t("veto")}
+                {no ? t("vetoed") : <>🚫 {veto !== null ? t("vetoUsed") : t("veto")}</>}
               </Btn>
             </div>
           );
         }}
       />
       {!v.demo && <p class="google muted small">{t("google")}</p>}
-      <Btn kind="primary" wide disabled={done} onClick={() => push(approve, veto, true)}>
-        {t("done")}
-      </Btn>
-      <Progress v={v} />
+      <Dock status={<><p class="picked num">{t("picked", { n: approve.length })} · {t(veto ? "vetoUsed" : "vetoLeft")}</p><Progress v={v} /></>}>
+        <NextRound v={v} />
+        <Btn kind="primary" wide disabled={done} onClick={() => push(approve, veto, true)}>{t("done")}</Btn>
+      </Dock>
     </>
   );
 }
@@ -447,7 +431,7 @@ function Spinner({ v }: { v: RoomView }) {
   const id = tied[i % tied.length];
   const name = (v.cards.find((c) => c.place.id === id) ?? (v.winner?.place.id === id ? v.winner : undefined))?.place.name ?? "";
   return (
-    <section class="spin center">
+    <section class="card spin center">
       <p>{t("spinning")}</p>
       <p class="spinname" aria-live="off">
         {name}
@@ -485,20 +469,24 @@ function Result({ v }: { v: RoomView }) {
   return (
     <>
       <h2 class="center">{v.at ? t("winnerAt", { when: whenLabel(v.at) }) : t("winner")}</h2>
-      <PlaceCard c={win} occasion={v.occasion}>
-        <p class="muted small">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
-      </PlaceCard>
-      {v.winner?.unsafe && <p class="error">{t(v.winner.unsafe === "budget" ? "winnerOverBudget" : "winnerUnsafe")}</p>}
+      <div class="winner-card">
+        <PlaceCard c={win} occasion={v.occasion} win />
+        <span class="stamp" aria-hidden="true">{t("stamp")}</span>
+      </div>
+      <p class="muted small center">{t("votes", { yes: s.yes, veto: s.vetoes })}</p>
+      <p class="links winner-links">
+        {win.place.mapsUrl && <a class="btn quiet press" href={win.place.mapsUrl} target="_blank" rel="noopener">{t("map")}</a>}
+        {win.place.phone && <a class="btn quiet press" href={`tel:${win.place.phone.replace(/[^\d+]/g, "")}`}>{t("call")}</a>}
+      </p>
+      {v.winner?.unsafe && <Message>{t(v.winner.unsafe === "budget" ? "winnerOverBudget" : "winnerUnsafe")}</Message>}
       {needsServer(v) && (
         <>
           <TableLimits l={v.table} />
-          <p class="warn">{t("tellServer")}</p>
+          <Message>{t("tellServer")}</Message>
         </>
       )}
-      <Btn kind="primary" wide onClick={() => void share()}>
-        {t("share")}
-      </Btn>
-      <a class="btn wide" href={`${BASE}/r/${v.code}/rate`}>
+      <Dock><Btn kind="primary" wide onClick={() => void share()}><Share2 aria-hidden="true" />{t("share")}</Btn></Dock>
+      <a class="btn quiet press wide" href={`${BASE}/r/${v.code}/rate`}>
         {t("rateAfter")}
       </a>
       {v.ratings.n > 0 && <p class="center">{t("tableScore", { n: v.ratings.liked, m: v.ratings.n })}</p>}
