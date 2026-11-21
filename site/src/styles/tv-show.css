@@ -743,7 +743,6 @@ html.watch-mode body {
   overflow: hidden;
   background: color-mix(in oklab, var(--color-bg) 45%, var(--tvx-ink));
   color: var(--color-text);
-  touch-action: manipulation;
 }
 .watch-turn {
   position: absolute;

@@ -15,6 +15,7 @@ import { useWakeLock } from "../party/sensors";
 import { markWent, tripUrl } from "../party/trip/link";
 import type { DanceView, GameView, HangOnView, HideView, TripView } from "../shared/protocol";
 import { useStore } from "../store";
+import { useNoPinch } from "./Frame";
 import { TvCorner, TvPenalties, TvReactions } from "./moments";
 import { siteHost } from "./parts";
 import { TvView } from "./views";
@@ -35,6 +36,7 @@ export default function Watch({ v }: { v: GameView }) {
   const { lang, setLang, sound, setSound } = useStore();
   const zh = lang === "zh";
   useWakeLock(true);
+  useNoPinch();
   useEffect(() => {
     document.documentElement.classList.add("watch-mode");
     return () => document.documentElement.classList.remove("watch-mode");
