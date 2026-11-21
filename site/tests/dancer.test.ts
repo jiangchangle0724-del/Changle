@@ -121,6 +121,24 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   // her blink: the colour of her lids (where her eyes are is in her picture's alpha, eyes.py)
   const lid = (gltf.scene.userData as { dancer?: { lid?: number[] } }).dancer?.lid;
   ok(Array.isArray(lid) && lid.length === 3 && lid.every((v) => v > 0.3 && v < 1), `${at} her lids' colour, for her blink (${lid?.join(", ")})`);
+  // her face (Nov 21): which of her is face, for the page to light it as its photo was (facekit.py):
+  // a few hundred vertices or more, all at her head's height, in front of it
+  const face = m.geometry.getAttribute("_face");
+  if (!face) ok(false, `${at} her face marked (_FACE)`);
+  else {
+    const p = new THREE.Vector3();
+    let n = 0;
+    let low = 1;
+    let back = 0;
+    for (let i = 0; i < face.count; i++) {
+      if (face.getX(i) < 0.5) continue;
+      n++;
+      p.fromBufferAttribute(pos, i).applyMatrix4(toMetres);
+      low = Math.min(low, p.y / tall);
+      if (p.z < 0) back++;
+    }
+    ok(n > 300 && low > 0.84 && back === 0, `${at} her face marked (${n} vertices, the lowest at ${(low * 100).toFixed(0)}% of her height, ${back} behind her middle)`);
+  }
   // her springs: the hair's bones (and a skirt's), each in her skeleton, the shapes they're kept off on her bones
   const sp = (gltf.scene.userData as { dancer?: { springs?: SpringData } }).dancer?.springs;
   const groups = sp?.groups.map((g) => g.name) ?? [];
