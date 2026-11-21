@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { noteGone, goneTables, sendGone, waitAfter } from "../worker/goneNotices";
-import { accountsThere, CODE_TTL, giveHandoff, handoffTables, PER_DAY, PER_MINUTE, redeemHandoff, type Sql } from "../worker/handoffCodes";
+import { accountsThere, appsUsed, CODE_TTL, forgetHandoffs, giveHandoff, handoffTables, PER_DAY, PER_MINUTE, redeemHandoff, type Sql } from "../worker/handoffCodes";
 
 /** Node's SQLite, shaped like a Durable Object's `ctx.storage.sql` */
 function sqlite(): Sql & { db: DatabaseSync } {
@@ -154,21 +154,58 @@ const ok = (msg: string) => console.log(`ok   ${++n}. ${msg}`);
   ok("the same code traded twice at once: only one gets the account");
 }
 
+// ---- which apps an account has used; signing out, kicked or deleted ----
+{
+  const sql = fresh();
+  assert.deepEqual(appsUsed(sql, "uaaaaaaaaaaaa"), []);
+  const unused = await codeFor(sql, "uaaaaaaaaaaaa");
+  assert.deepEqual(appsUsed(sql, "uaaaaaaaaaaaa"), [], "a code given isn't a use");
+  await redeemHandoff(sql, unused, "elsewhere", account, T0 + 1);
+  assert.deepEqual(appsUsed(sql, "uaaaaaaaaaaaa"), [], "nor one traded for the wrong app");
+  await redeemHandoff(sql, await codeFor(sql, "uaaaaaaaaaaaa", T0 + 2), "moneylens", account, T0 + 3);
+  await redeemHandoff(sql, await codeFor(sql, "uaaaaaaaaaaaa", T0 + 4), "moneylens", account, T0 + 5);
+  assert.deepEqual(appsUsed(sql, "uaaaaaaaaaaaa"), ["money"], "a code traded: MoneyLens noted, once");
+  ok("the apps an account has used are noted when it trades a code");
+
+  const waiting = await codeFor(sql, "uaaaaaaaaaaaa", T0 + 10);
+  assert.deepEqual(forgetHandoffs(sql, "uaaaaaaaaaaaa", false), []);
+  assert.equal(await redeemHandoff(sql, waiting, "moneylens", account, T0 + 11), null);
+  assert.deepEqual(appsUsed(sql, "uaaaaaaaaaaaa"), ["money"], "signing out leaves what it has used");
+  ok("signed out or kicked: a code from the last minute can't be traded");
+
+  assert.deepEqual(forgetHandoffs(sql, "uaaaaaaaaaaaa", true), ["money"]);
+  const left = (t: string) => sql.exec(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id = ?`, "uaaaaaaaaaaaa").toArray()[0].n;
+  assert.deepEqual([left("handoffs"), left("handoffs_given"), left("handoff_apps")], [0, 0, 0]);
+  assert.deepEqual(forgetHandoffs(sql, "ubbbbbbbbbbbb", true), [], "one that never used an app: none to tell");
+  ok("deleted: the apps it used, to be told (bound yet or not), and nothing of it left here");
+}
+
 // ---- which accounts are still here ----
 {
   const sql = fresh();
   assert.deepEqual(accountsThere(sql, ["uaaaaaaaaaaaa", "uzzzzzzzzzzzz", "ubbbbbbbbbbbb", "uaaaaaaaaaaaa"]).sort(), ["uaaaaaaaaaaaa", "ubbbbbbbbbbbb"]);
   assert.deepEqual(accountsThere(sql, []), []);
-  assert.deepEqual(accountsThere(sql, ["not an id", "'; DROP TABLE users; --"]), []);
   ok("exists: the ones still here, nothing for the rest");
-  for (const bad of [undefined, "uaaaaaaaaaaaa", [1, 2], Array.from({ length: 101 }, (_, i) => `u${String(i).padStart(12, "a")}`)]) assert.throws(() => accountsThere(sql, bad));
-  ok("a wrong question throws (never a quiet \"none\", which would delete everyone)");
+  const wrong = [
+    undefined,
+    "uaaaaaaaaaaaa",
+    [1, 2],
+    Array.from({ length: 101 }, (_, i) => `u${String(i).padStart(12, "a")}`),
+    ["not an id", "'; DROP TABLE users; --"],
+    ["uaaaaaaaaaaaa", " ubbbbbbbbbbbb"],
+    ["uaaaaaaaaaaaa", "user:ubbbbbbbbbbbb"],
+    ["UAAAAAAAAAAAA"],
+  ];
+  for (const bad of wrong) assert.throws(() => accountsThere(sql, bad), undefined, JSON.stringify(bad)?.slice(0, 60));
+  ok("a wrong question throws, one id not shaped like an account's included (never a quiet \"none\", which would delete everyone)");
 }
 
 // ---- "this account is gone", until each app has heard ----
 {
   const sql = fresh();
   const heard: string[] = [];
+  const woken: number[] = [];
+  const wake = (at: number) => void woken.push(at);
   let moneyFails = 2;
   const tell = {
     split: async (id: string) => void heard.push(`split:${id}`),
@@ -178,28 +215,81 @@ const ok = (msg: string) => console.log(`ok   ${++n}. ${msg}`);
     },
   };
   noteGone(sql, "uaaaaaaaaaaaa", ["split", "money"], T0);
-  let next = await sendGone(sql, tell, T0);
+  let next = await sendGone(sql, tell, wake, () => T0);
   assert.deepEqual(heard, ["split:uaaaaaaaaaaaa"]);
   assert.equal(next, T0 + waitAfter(1));
-  ok("deleted: each app told at once; one that fails waits a minute");
-  next = await sendGone(sql, tell, T0 + 30_000);
+  assert.deepEqual(woken, [T0 + waitAfter(1)], "the alarm asked for before the first send");
+  ok("deleted: each app told at once; one that fails waits a minute; the alarm set before the sends");
+  next = await sendGone(sql, tell, wake, () => T0 + 30_000);
   assert.deepEqual(heard, ["split:uaaaaaaaaaaaa"], "not before it's due");
-  next = await sendGone(sql, tell, next!);
+  next = await sendGone(sql, tell, wake, () => next!);
   assert.equal(next, T0 + waitAfter(1) + waitAfter(2));
   ok("failing again, it waits longer (5 minutes)");
-  next = await sendGone(sql, tell, next!);
+  next = await sendGone(sql, tell, wake, () => next!);
   assert.deepEqual(heard, ["split:uaaaaaaaaaaaa", "money:uaaaaaaaaaaaa"]);
   assert.equal(next, null);
   assert.equal(sql.exec(`SELECT COUNT(*) AS n FROM gone_notices`).toArray()[0].n, 0);
   ok("told in the end, and nothing left to do");
 
   noteGone(sql, "ubbbbbbbbbbbb", ["money"], T0);
-  const later = await sendGone(sql, { split: tell.split }, T0);
+  const later = await sendGone(sql, { split: tell.split }, wake, () => T0);
   assert.equal(later, T0 + 24 * 3600_000);
   ok("an app with no way to reach it yet: tried again in a day, not dropped");
   assert.equal(waitAfter(1), 60_000);
   assert.equal(waitAfter(99), 24 * 3600_000);
   ok("the waits grow to a day and stay there");
+}
+{
+  // a slow failure waits from when it failed, not from when the pass began
+  const sql = fresh();
+  let t = T0;
+  noteGone(sql, "uaaaaaaaaaaaa", ["money"], T0);
+  const next = await sendGone(sql, { money: async () => ((t += 20_000), Promise.reject(new Error("slow, then down"))) }, () => {}, () => t);
+  assert.equal(next, T0 + 20_000 + waitAfter(1));
+  ok("a slow failure: the wait runs from when it failed");
+}
+{
+  // an app that never answers: given up on after the time limit, and tried again later
+  const sql = fresh();
+  noteGone(sql, "uaaaaaaaaaaaa", ["money"], T0);
+  const next = await sendGone(sql, { money: () => new Promise(() => {}) }, () => {}, () => T0, 50);
+  assert.equal(next, T0 + waitAfter(1));
+  assert.equal(Number(sql.exec(`SELECT tries FROM gone_notices`).toArray()[0].tries), 1);
+  ok("no answer within the time limit: a failed try, the row kept");
+}
+{
+  // two passes at once (the try right after a delete, and the alarm): a row goes out once
+  const sql = fresh();
+  noteGone(sql, "uaaaaaaaaaaaa", ["money"], T0);
+  let sends = 0;
+  let answer!: () => void;
+  const money = () => (sends++, new Promise<void>((r) => (answer = r)));
+  const first = sendGone(sql, { money }, () => {}, () => T0);
+  const second = sendGone(sql, { money }, () => {}, () => T0 + 1);
+  await new Promise((r) => setTimeout(r, 5));
+  answer();
+  await Promise.all([first, second]);
+  assert.equal(sends, 1);
+  assert.equal(sql.exec(`SELECT COUNT(*) AS n FROM gone_notices`).toArray()[0].n, 0);
+  ok("a pass alongside another doesn't send the same row twice");
+}
+{
+  // many due at once: one pass takes some, all at once, and asks to be woken for the rest
+  const sql = fresh();
+  for (let i = 0; i < 30; i++) noteGone(sql, `u${String(i).padStart(12, "a")}`, ["money"], T0);
+  let busy = 0;
+  let most = 0;
+  const money = async () => {
+    busy++;
+    most = Math.max(most, busy);
+    await new Promise((r) => setTimeout(r, 2));
+    busy--;
+  };
+  const next = await sendGone(sql, { money }, () => {}, () => T0);
+  assert.equal(most, 25, "the pass's sends go out together");
+  assert.equal(next, T0, "the rest are due now: woken again at once");
+  assert.equal(sql.exec(`SELECT COUNT(*) AS n FROM gone_notices`).toArray()[0].n, 5);
+  ok("a long list goes out 25 at a time, the rest on the next wake");
 }
 
 console.log(`\nall ${n} passed`);

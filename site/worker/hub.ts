@@ -9,7 +9,7 @@ import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
 import { noteGone, goneTables, sendGone } from "./goneNotices";
-import { accountsThere, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
+import { accountsThere, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
 import { cleanNotice, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
@@ -123,7 +123,11 @@ export class Hub extends DurableObject<HubEnv> {
   constructor(ctx: DurableObjectState, env: HubEnv) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
-    ctx.blockConcurrencyWhile(async () => this.migrate());
+    ctx.blockConcurrencyWhile(async () => {
+      this.migrate();
+      // (notices left waiting with no alarm, say the hub stopped in the middle of a try: wake for them)
+      if (this.sql.exec(`SELECT 1 AS x FROM gone_notices LIMIT 1`).toArray().length && (await ctx.storage.getAlarm()) == null) await ctx.storage.setAlarm(Date.now() + 60_000);
+    });
   }
 
   private migrate() {
@@ -293,7 +297,13 @@ export class Hub extends DurableObject<HubEnv> {
     if (path === "/auth/verify" && m === "POST") return this.verify(String(b.email ?? ""), String(b.code ?? ""), c.ip);
     if (path === "/auth/signup" && m === "POST") return this.signup(String(b.ticket ?? ""), b);
     if (path === "/auth/logout" && m === "POST") {
-      if (c.token) this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, await sha(c.token));
+      if (c.token) {
+        const h = await sha(c.token);
+        const s = this.one(`SELECT user_id FROM sessions WHERE hash = ?`, h);
+        this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, h);
+        // (and a handoff code from the last minute, not yet traded)
+        if (s) forgetHandoffs(this.sql, String(s.user_id), false);
+      }
       return ok({ ok: true });
     }
 
@@ -956,19 +966,32 @@ export class Hub extends DurableObject<HubEnv> {
         /* gone */
       }
     }
-    // the apps that keep their own for an account (两清's receipt photos and ledgers, MoneyLens's
-    // records and keys): told now, and again on the alarm until each has heard (goneNotices.ts)
-    const apps = [this.env.SPLIT ? "split" : "", this.env.MONEY ? "money" : ""].filter(Boolean);
+    // the apps that keep their own for an account (两清's receipt photos and ledgers; MoneyLens's
+    // records and keys, for an account that has used it, its binding in place yet or not): told
+    // now, and again on the alarm until each has heard (goneNotices.ts)
+    const apps = [this.env.SPLIT ? "split" : "", ...forgetHandoffs(this.sql, id, true)].filter(Boolean);
     if (apps.length) {
       noteGone(this.sql, id, apps);
-      this.ctx.waitUntil(this.tellGone());
+      this.ctx.waitUntil(
+        this.armGone()
+          .then(() => this.tellGone())
+          .catch((e) => console.error("hub: gone notices", e)),
+      );
     }
   }
 
-  /** the apps still to be told an account is gone; the alarm set for the next try */
+  /** the alarm in a minute, unless one is set sooner: the next try, should this one not finish */
+  private async armGone() {
+    const at = Date.now() + 60_000;
+    const set = await this.ctx.storage.getAlarm();
+    if (set == null || set > at) await this.ctx.storage.setAlarm(at);
+  }
+
+  /** the apps still to be told an account is gone; the alarm set for the next try (before the sends too) */
   private async tellGone() {
-    const next = await sendGone(this.sql, { split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)), money: this.env.MONEY && ((id) => this.env.MONEY!.accountGone(id)) });
-    if (next != null) await this.ctx.storage.setAlarm(Math.max(next, Date.now() + 1000));
+    const wake = (at: number) => this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
+    const next = await sendGone(this.sql, { split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)), money: this.env.MONEY && ((id) => this.env.MONEY!.accountGone(id)) }, wake);
+    if (next != null) await wake(next);
   }
 
   async alarm() {
@@ -1181,6 +1204,7 @@ export class Hub extends DurableObject<HubEnv> {
   /** Sign someone out everywhere and take them off any table they're at. */
   private async dropUser(u: U, ban: boolean) {
     this.sql.exec(`DELETE FROM sessions WHERE user_id = ?`, u.id);
+    forgetHandoffs(this.sql, u.id, false);
     const msg = JSON.stringify({ t: ban ? "banned" : "kicked" });
     for (const ws of this.ctx.getWebSockets(u.id)) {
       try {

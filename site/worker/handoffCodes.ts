@@ -9,13 +9,17 @@
  * kept, with the account, the audience and the app's nonce (the app's own cookie, checked when it
  * trades the code, so nobody can slip their own code into someone else's browser). Five codes a
  * minute and 100 a day per account. A banned account has no session, so it gets none; one banned
- * while its code waits can't trade it.
+ * while its code waits can't trade it, and signing out, being kicked or deleted drops any waiting.
+ * Which apps an account has used (a code traded) is noted, so a deleted account's are told even
+ * before their binding is in place (goneNotices.ts).
  *
  * Plain functions on the hub's SQL, so tests/handoff.test.ts can run them on Node's SQLite.
  */
 
 /** the apps a code can be for */
 export const AUDIENCES = ["moneylens"] as const;
+/** each app's name in the "account gone" notices (goneNotices.ts, hub.ts tellGone) */
+export const NOTICE_APP: Record<(typeof AUDIENCES)[number], string> = { moneylens: "money" };
 export const CODE_TTL = 60_000;
 export const PER_MINUTE = 5;
 export const PER_DAY = 100;
@@ -35,6 +39,27 @@ export function handoffTables(sql: Sql) {
   // when each code was given, for the limits (kept a day; a code traded is gone from handoffs, not from here)
   sql.exec(`CREATE TABLE IF NOT EXISTS handoffs_given (user_id TEXT NOT NULL, at INTEGER NOT NULL)`);
   sql.exec(`CREATE INDEX IF NOT EXISTS handoffs_given_by ON handoffs_given (user_id, at)`);
+  // the apps an account has used (a code traded), so they hear when it's deleted
+  sql.exec(`CREATE TABLE IF NOT EXISTS handoff_apps (user_id TEXT NOT NULL, aud TEXT NOT NULL, PRIMARY KEY (user_id, aud))`);
+}
+
+/**
+ * An account signed out, kicked or deleted: its waiting codes go (and, deleted, the rest it left
+ * here). Gives the apps it had used, by their notice names, for the "gone" notices.
+ */
+export function forgetHandoffs(sql: Sql, id: string, deleted: boolean): string[] {
+  sql.exec(`DELETE FROM handoffs WHERE user_id = ?`, id);
+  if (!deleted) return [];
+  const used = appsUsed(sql, id);
+  sql.exec(`DELETE FROM handoff_apps WHERE user_id = ?`, id);
+  sql.exec(`DELETE FROM handoffs_given WHERE user_id = ?`, id);
+  return used;
+}
+
+/** the apps this account has used (a code traded), by their notice names */
+export function appsUsed(sql: Sql, id: string): string[] {
+  const rows = sql.exec(`SELECT aud FROM handoff_apps WHERE user_id = ?`, id).toArray();
+  return rows.map((r) => NOTICE_APP[String(r.aud) as keyof typeof NOTICE_APP]).filter(Boolean);
 }
 
 function b64url(b: Uint8Array) {
@@ -89,16 +114,18 @@ export async function redeemHandoff(
   const id = String(row.user_id);
   const u = account(id);
   if (!u || u.banned) return null;
+  sql.exec(`INSERT OR IGNORE INTO handoff_apps (user_id, aud) VALUES (?, ?)`, id, aud);
   return { id, master: u.master, nonce: String(row.nonce) };
 }
 
 /**
  * Which of these accounts are still here (the app's weekly sweep). Anything wrong with the
- * question throws: an answer of "none" would have the app delete everyone's data.
+ * question throws, an id that isn't one included: an answer of "none" would have the app delete
+ * everyone's data.
  */
 export function accountsThere(sql: Sql, ids: unknown): string[] {
-  if (!Array.isArray(ids) || ids.length > 100 || ids.some((x) => typeof x !== "string")) throw new Error("exists: up to 100 account ids");
-  const asked = [...new Set(ids as string[])].filter((x) => ACCOUNT.test(x));
+  if (!Array.isArray(ids) || ids.length > 100 || ids.some((x) => typeof x !== "string" || !ACCOUNT.test(x))) throw new Error("exists: up to 100 account ids (u and 6 to 24 lower-case letters or digits)");
+  const asked = [...new Set(ids as string[])];
   if (!asked.length) return [];
   const rows = sql.exec(`SELECT id FROM users WHERE id IN (${asked.map(() => "?").join(", ")})`, ...asked).toArray();
   return rows.map((r) => String(r.id));
