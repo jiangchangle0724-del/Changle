@@ -210,11 +210,38 @@ try {
   check('结算上有房主和两个人的名字', ['房主', '阿一', '阿二'].every((n) => rows.includes(n)), rows.join(', '));
   await screenshot(host, 'host-results');
   await screenshot(pads[0].page, 'pad1-results');
+  // iPhone 的 Safari 横着只有 750×342：结算分左右两列，「下一关」「再来一次」不用往下滚就看得见、点得到
+  const reach = (page, ids) =>
+    page.evaluate((ids) => ids.map((id) => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return `${id}:${Math.round(r.top)}-${Math.round(r.bottom)}/${innerHeight}:${r.top >= 0 && r.bottom <= innerHeight && hit?.closest('button')?.id === id ? 'ok' : 'no'}`;
+    }), ids);
+  // （开局时手机局进了全屏，先退出来才能改窗口大小）
+  const resize = async (page, viewport) => {
+    await page.evaluate(() => (document.fullscreenElement ? document.exitFullscreen().catch(() => {}) : null));
+    await sleep(200);
+    await page.setViewportSize(viewport);
+  };
+  for (const page of [host, pads[0].page]) await resize(page, { width: 750, height: 342 });
+  await sleep(300);
+  const hostReach = await reach(host, ['nextBtn', 'againBtn']);
+  check('房主手机（Safari 横着 750×342）：结算的「下一关」「再来一次」看得见、点得到', hostReach.every((s) => s.endsWith(':ok')), hostReach.join(' '));
+  const padReach = await reach(pads[0].page, ['vNextLevel', 'vAgain', 'vToLobby']);
+  check('手机 1（Safari 横着 750×342）：结算的三个键看得见、点得到', padReach.every((s) => s.endsWith(':ok')), padReach.join(' '));
+  await screenshot(host, 'host-results-safari');
+  await screenshot(pads[0].page, 'pad1-results-safari');
+  for (const page of [host, pads[0].page]) await resize(page, PHONE.viewport);
+  await sleep(300);
   await host.locator('#againBtn').tap();
   assert(check('再来一次：直接倒数', (await phase('countdown')) >= 0));
   for (const [i, pad] of pads.entries()) check(`手机 ${i + 1} 结算收起、跟着倒数`, (await until(() => pad.page.evaluate(() => document.getElementById('vResults').hidden && !document.getElementById('vCount').hidden), 3000)) >= 0);
+  // 房主手机上倒数、玩的时候「回大厅」按两下才算（挨着 EN，手一滑大家这局就没了），跟手柄上一样
   await host.locator('#lobbyBtn').tap();
-  assert(check('回大厅', (await phase('lobby')) >= 0));
+  await sleep(300);
+  check('房主手机：倒数时「回大厅」按一下不算，键变成「再按一下回大厅」', (await host.evaluate(() => hangOn.phase !== 'lobby')) && /再按一下/.test(await host.locator('#lobbyBtn').textContent()));
+  await host.locator('#lobbyBtn').tap();
+  assert(check('再按一下回大厅', (await phase('lobby')) >= 0));
   for (const [i, pad] of pads.entries()) check(`手机 ${i + 1} 回到「等房主开始」`, (await until(() => shown(pad.page, '#vWait'), 3000)) >= 0);
 
   // ---------- 电视局的手柄不下载画面 ----------
