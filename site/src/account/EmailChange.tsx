@@ -1,5 +1,5 @@
 import { ArrowLeft, Mail } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, ApiError } from "../lib/api";
 import { useStore } from "../store";
 import type { SelfUser } from "./AccountContext";
@@ -23,6 +23,9 @@ const ERRORS: Record<string, [string, string]> = {
   tries: ["试错太多次了，重新发一个", "Too many wrong tries. Send a new one"],
   none: ["先发验证码", "Send a code first"],
   admin: ["管理员的邮箱连着后台权限，不能在这里换", "An admin's email carries the admin rights, so it can't be changed here"],
+  unusable: ["这个邮箱不能用，换一个", "That email can't be used. Try another"],
+  signin: ["登录过期了，重新登录一下", "You've been signed out. Sign in again"],
+  server: ["服务器出了点问题，过一会儿再试", "Something went wrong on our side. Try again soon"],
 };
 
 export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: SelfUser): void }) {
@@ -33,6 +36,8 @@ export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: Self
   const [code, setCode] = useState("");
   const [dev, setDev] = useState("");
   const [busy, setBusy] = useState(false);
+  // (one request at a time: the sixth digit sends the code by itself, so Enter right after mustn't send it again)
+  const going = useRef(false);
   const [error, setError] = useState("");
   const say = (e: unknown) => {
     const k = e instanceof ApiError ? e.code : "";
@@ -41,6 +46,8 @@ export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: Self
   };
 
   const send = async () => {
+    if (going.current) return;
+    going.current = true;
     setBusy(true);
     setError("");
     try {
@@ -51,11 +58,14 @@ export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: Self
     } catch (e) {
       say(e);
     } finally {
+      going.current = false;
       setBusy(false);
     }
   };
 
   const confirm = async (c: string) => {
+    if (going.current) return;
+    going.current = true;
     setBusy(true);
     setError("");
     try {
@@ -64,8 +74,9 @@ export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: Self
       setStep("done");
     } catch (e) {
       say(e);
-      if (e instanceof ApiError && (e.code === "expired" || e.code === "tries" || e.code === "none" || e.code === "taken")) setStep("email");
+      if (e instanceof ApiError && ["expired", "tries", "none", "taken", "unusable"].includes(e.code)) setStep("email");
     } finally {
+      going.current = false;
       setBusy(false);
     }
   };

@@ -10,7 +10,8 @@ import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
 import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
 import { accountsThere, appsUsed, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
-import { confirmEmail, dropEmail, EMAIL_RE, emailTables, startEmail } from "./emailChange";
+import { confirmEmail, dropEmail, EMAIL_RE, emailTables, forgetEmail, startEmail } from "./emailChange";
+import { mailTables, nextMail, queueMail, sendMail, type Mail } from "./mailOut";
 import { cleanNotice, esc, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
@@ -128,7 +129,7 @@ export class Hub extends DurableObject<HubEnv> {
     ctx.blockConcurrencyWhile(async () => {
       this.migrate();
       // (notices waiting with no alarm, or a later one, say the hub stopped before setting it: wake in time for them)
-      const due = nextDue(this.sql);
+      const due = this.dueAt();
       if (due != null) {
         const at = Math.max(due, Date.now() + 1000);
         const set = await ctx.storage.getAlarm();
@@ -164,6 +165,7 @@ export class Hub extends DurableObject<HubEnv> {
     handoffTables(this.sql);
     goneTables(this.sql);
     emailTables(this.sql);
+    mailTables(this.sql);
     // AI drawings counted per day (k: e:<email>, ip:<address>, all)
     q(`CREATE TABLE IF NOT EXISTS draws (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
     // notices sent for other Workers, counted per day (k: the app; worker/notice.ts)
@@ -367,7 +369,7 @@ export class Hub extends DurableObject<HubEnv> {
     }
     // 换邮箱: a code to the new address; typed back, the account's email changes and the old address is told
     if (path === "/me/email" && m === "POST") return this.emailStart(me, String(b.email ?? ""), c.ip, b.lang === "en" ? "en" : "zh");
-    if (path === "/me/email/confirm" && m === "POST") return this.emailConfirm(me, String(b.code ?? ""), b.lang === "en" ? "en" : "zh");
+    if (path === "/me/email/confirm" && m === "POST") return this.emailConfirm(me, String(b.code ?? ""), b.lang === "en" ? "en" : "zh", c);
     if (path === "/me" && m === "DELETE") {
       this.deleteUser(me.id);
       return ok({ ok: true });
@@ -841,8 +843,10 @@ export class Hub extends DurableObject<HubEnv> {
 
   private async emailStart(me: U, raw: string, ip: string, lang: "zh" | "en"): Promise<Reply> {
     const r = await startEmail(this.sql, { id: me.id, email: me.email, admin: this.isAdmin(me) }, raw, {
-      banned: (email) => this.isBanned(`e:${email}`),
-      allow: () => this.allow(`email:${me.id}`, 5, 3600_000) && this.allow(`codeip:${ip}`, 20, 3600_000),
+      // (a sign-in code to the address moments ago counts as one of these)
+      recent: (email) => !!this.one(`SELECT 1 AS x FROM codes WHERE email = ? AND sent_at > ?`, email, Date.now() - 45_000),
+      // the address's hourly limit shared with its sign-in codes, and 20 an hour per IP (with sign-in's)
+      allow: (email) => this.allow(`code:${email}`, 6, 3600_000) && this.allow(`codeip:${ip}`, 20, 3600_000),
       hash: (email, code) => sha(`${this.pepper}|email|${me.id}|${email}|${code}`),
     });
     if ("status" in r) return r;
@@ -851,32 +855,36 @@ export class Hub extends DurableObject<HubEnv> {
       await this.mail(r.email, r.code, lang, "email");
     } catch (e) {
       console.error("mail", e);
-      dropEmail(this.sql, me.id);
+      dropEmail(this.sql, me.id, r.hash);
       return err(503, String((e as Error).message) === "no-mail" ? "no-mail" : "mail-failed");
     }
     return ok({ sent: true });
   }
 
-  private async emailConfirm(me: U, code: string, lang: "zh" | "en"): Promise<Reply> {
+  private async emailConfirm(me: U, code: string, lang: "zh" | "en", c: Call): Promise<Reply> {
     const r = await confirmEmail(this.sql, { id: me.id, email: me.email, admin: this.isAdmin(me) }, code, {
-      hash: (email, c) => sha(`${this.pepper}|email|${me.id}|${email}|${c}`),
+      hash: (email, x) => sha(`${this.pepper}|email|${me.id}|${email}|${x}`),
+      // banned, or an address the settings give an admin's rights to
+      unusable: (email) => this.isBanned(`e:${email}`) || this.isAdmin({ ...me, email }),
+      ip: c.ip,
+      device: c.device,
     });
     if ("status" in r) return r;
-    // the old address hears about it (a reply goes to the owner); MoneyLens, for an account that has
-    // used it (bound yet or not), ends its sessions there, told until it hears like the "gone" notices
-    this.ctx.waitUntil(this.emailChanged(r.old, r.email, lang).catch((e) => console.error("hub: the old address wasn't told", e)));
-    if (appsUsed(this.sql, me.id).includes("money")) {
-      noteGone(this.sql, me.id, ["money-changed"]);
-      this.ctx.waitUntil(
-        this.armGone()
-          .then(() => this.tellGone())
-          .catch((e) => console.error("hub: change notices", e)),
-      );
-    }
+    // the old address hears about it, kept and tried until it's sent (a reply goes to the owner);
+    // MoneyLens, for an account that has used it (bound yet or not), ends its sessions there, told
+    // until it hears like the "gone" notices
+    queueMail(this.sql, this.changedNote(r.old, r.email, lang));
+    if (appsUsed(this.sql, me.id).includes("money")) noteGone(this.sql, me.id, ["money-changed"]);
+    this.ctx.waitUntil(
+      this.armGone()
+        .then(() => this.tellGone())
+        .catch((e) => console.error("hub: change notices", e)),
+    );
     return ok({ user: this.selfView(this.userById(me.id)!) });
   }
 
-  private async emailChanged(old: string, now: string, lang: "zh" | "en") {
+  /** the note to the old address: the new one masked, and what to do if it wasn't them */
+  private changedNote(old: string, now: string, lang: "zh" | "en"): Mail {
     const [name, domain] = now.split("@");
     const shown = `${name.slice(0, 1)}***@${domain}`;
     const subject = lang === "zh" ? "你的 changle 账号换了邮箱" : "Your changle account has a new email";
@@ -886,9 +894,9 @@ export class Hub extends DurableObject<HubEnv> {
 <p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
 <p style="margin:0 0 12px">${esc(lead)}</p>
 <p style="margin:0;color:#b6b4d0;font-size:14px">${note}</p></div>`;
-    // (a reply goes to the owner, not to the site's own address)
-    const owner = (this.env.CONTACT_EMAIL || (this.env.ADMIN_EMAILS ?? "").split(",")[0] || "").trim();
-    await this.deliver({ to: old, subject, html, text: `${lead}\n\n${note}`, replyTo: owner || undefined });
+    // (a reply goes to the site's contact, CONTACT_EMAIL, or else the first of ADMIN_EMAILS; not to the sending address)
+    const contact = (this.env.CONTACT_EMAIL || (this.env.ADMIN_EMAILS ?? "").split(",")[0] || "").trim();
+    return { to: old, subject, html, text: `${lead}\n\n${note}`, ...(contact ? { replyTo: contact } : {}) };
   }
 
   private async mail(to: string, code: string, lang: "zh" | "en", what: "signin" | "email" = "signin") {
@@ -904,7 +912,7 @@ export class Hub extends DurableObject<HubEnv> {
   }
 
   /** One mail out through Resend (or, locally, DEV_MAIL_URL). Throws "no-mail" without a key, "resend …" when Resend says no. */
-  private async deliver(m: { to: string; subject: string; html: string; text: string; replyTo?: string }) {
+  private async deliver(m: Mail) {
     const key = this.env.RESEND_API_KEY;
     const url = this.env.DEV_MAIL_URL || "https://api.resend.com/emails";
     if (!key && !this.env.DEV_MAIL_URL) throw new Error("no-mail");
@@ -1034,6 +1042,10 @@ export class Hub extends DurableObject<HubEnv> {
     // the apps that keep their own for an account (两清's receipt photos and ledgers; MoneyLens's
     // records and keys, for an account that has used it, its binding in place yet or not): told
     // now, and again on the alarm until each has heard (goneNotices.ts)
+    // (a waiting 换邮箱 code and the account's email history go; MoneyLens's "email changed" notice
+    // gives way to "gone")
+    forgetEmail(this.sql, id);
+    this.sql.exec(`DELETE FROM gone_notices WHERE user_id = ? AND app = 'money-changed'`, id);
     const apps = [this.env.SPLIT ? "split" : "", ...forgetHandoffs(this.sql, id, true)].filter(Boolean);
     if (apps.length) {
       noteGone(this.sql, id, apps);
@@ -1052,21 +1064,36 @@ export class Hub extends DurableObject<HubEnv> {
     if (set == null || set > at) await this.ctx.storage.setAlarm(at);
   }
 
-  /** the apps still to be told an account is gone; the alarm set for the next try (before the sends too) */
+  /** when the alarm should go off next: the earliest notice or mail waiting (null: nothing waits) */
+  private dueAt() {
+    const at = [nextDue(this.sql), nextMail(this.sql)].filter((x): x is number => x != null);
+    return at.length ? Math.min(...at) : null;
+  }
+
+  /**
+   * The apps still to be told an account is gone (or its email changed), and the mail still to go
+   * out (mailOut.ts); the alarm set for whichever is next, before the sends and after.
+   */
   private async tellGone() {
-    const wake = (at: number) => this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
+    const wake = async () => {
+      const at = this.dueAt();
+      if (at != null) await this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
+    };
     const money = this.env.MONEY;
-    const next = await sendGone(
-      this.sql,
-      {
-        split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)),
-        money: money && ((id) => money.accountGone(id)),
-        // (not gone: its email changed, so MoneyLens ends its sessions there)
-        "money-changed": money && ((id) => money.accountChanged(id)),
-      },
-      wake,
-    );
-    if (next != null) await wake(next);
+    await Promise.all([
+      sendGone(
+        this.sql,
+        {
+          split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)),
+          money: money && ((id) => money.accountGone(id)),
+          // (not gone: its email changed, so MoneyLens ends its sessions there)
+          "money-changed": money && ((id) => money.accountChanged(id)),
+        },
+        wake,
+      ),
+      sendMail(this.sql, (m) => this.deliver(m), wake),
+    ]);
+    await wake();
   }
 
   async alarm() {
@@ -1280,6 +1307,7 @@ export class Hub extends DurableObject<HubEnv> {
   private async dropUser(u: U, ban: boolean) {
     this.sql.exec(`DELETE FROM sessions WHERE user_id = ?`, u.id);
     forgetHandoffs(this.sql, u.id, false);
+    dropEmail(this.sql, u.id);
     const msg = JSON.stringify({ t: ban ? "banned" : "kicked" });
     for (const ws of this.ctx.getWebSockets(u.id)) {
       try {

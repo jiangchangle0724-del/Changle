@@ -93,7 +93,7 @@ export function nextDue(sql: Sql): number | null {
 }
 
 /** the promise, or a failure once `ms` have passed */
-function within<T>(ms: number, p: Promise<T>): Promise<T> {
+export function within<T>(ms: number, p: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<T>((_, fail) => {
     timer = setTimeout(() => fail(new Error(`no answer in ${ms / 1000} s`)), ms);

@@ -174,7 +174,7 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   assert.equal(goneRows(s).length, 1);
   const at = await again.s.ctx.storage.getAlarm();
   const due = Number((s.db.prepare("SELECT next_at FROM gone_notices").get() as Row).next_at);
-  assert.equal(at, Math.max(due, at!), "a hub starting with notices waiting and no alarm sets one, for when they're due");
+  assert.ok(at! >= due && at! <= Math.max(due, Date.now() + 1000), "a hub starting with notices waiting and no alarm sets one, for when they're due");
   await again.hub.alarm();
   assert.equal(heard.length, 0, "not before it's due");
   s.db.prepare("UPDATE gone_notices SET next_at = ?").run(Date.now() - 1); // (time passes)
@@ -215,39 +215,68 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
 
 // ---- 换邮箱 through the hub ----
 {
-  // the mail out goes to a stand-in for Resend (DEV_MAIL_URL), kept here
+  // the mail out goes to a stand-in for Resend (DEV_MAIL_URL), kept here; `down` turns the next ones away
   const mails: Row[] = [];
+  let down = 0;
   const realFetch = globalThis.fetch;
   globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
+    if (down > 0) return down--, new Response("busy", { status: 503 });
     mails.push(JSON.parse(String(init?.body ?? "{}")));
     return new Response(JSON.stringify({ id: "fake" }), { status: 200 });
   }) as typeof fetch;
+  const quiet = console.error;
+  console.error = () => {};
   const changed: string[] = [];
-  const { hub, s } = await hubOn({ DEV_MAIL_URL: "http://mail.test/emails", MONEY: { accountGone: async () => {}, accountChanged: async (id: string) => void changed.push(id) } });
+  const { hub, s } = await hubOn({
+    DEV_MAIL_URL: "http://mail.test/emails",
+    ADMIN_EMAILS: "boss@example.test,chief@example.test",
+    MONEY: { accountGone: async () => {}, accountChanged: async (id: string) => void changed.push(id) },
+  });
   const ann = await join(hub, "ann@example.test");
   const ben = await join(hub, "ben@example.test", "ben-phone-0001");
   const boss = await join(hub, "boss@example.test", "boss-phone-0001");
+  const cat = await join(hub, "cat@example.test", "cat-phone-0001");
   await hub.redeemHandoff(String((await codeFor(hub, ann.token)).json.code), "moneylens");
   assert.equal((await req(hub, "POST", "/me/email", { email: "new@example.test" })).status, 401);
   assert.deepEqual((await req(hub, "POST", "/me/email", { email: "new@example.test" }, boss.token, "boss-phone-0001")).json, { error: "admin" });
-  assert.deepEqual((await req(hub, "POST", "/me/email", { email: "ben@example.test" }, ann.token)).json, { error: "taken" });
-  ok("换邮箱: none without a session, none for an admin, none to an address that's taken");
+  ok("换邮箱: none without a session, none for an admin");
 
+  const toBen = await req(hub, "POST", "/me/email", { email: "ben@example.test" }, ann.token);
+  assert.equal(toBen.status, 200, "an address that's taken: a code like any other (nothing said yet)");
+  assert.deepEqual((await req(hub, "POST", "/me/email/confirm", { code: toBen.json.dev }, ann.token)).json, { error: "taken" });
+  const toChief = await req(hub, "POST", "/me/email", { email: "chief@example.test" }, cat.token, "cat-phone-0001");
+  assert.deepEqual((await req(hub, "POST", "/me/email/confirm", { code: toChief.json.dev }, cat.token, "cat-phone-0001")).json, { error: "unusable" });
+  assert.equal((await req(hub, "GET", "/me", undefined, cat.token, "cat-phone-0001")).json.user && ((await req(hub, "GET", "/me", undefined, cat.token, "cat-phone-0001")).json.user as Row).admin, false);
+  ok("换邮箱: taken or an admin's address is said only once the code comes back, and isn't used");
+  assert.deepEqual((await req(hub, "POST", "/me/email", { email: "chief@example.test" }, ben.token, "ben-phone-0001")).json, { error: "wait" });
+  ok("换邮箱: codes to one address are spaced, whoever asks");
+
+  const later = () => s.db.prepare("UPDATE email_sent SET at = at - 60000").run(); // (a minute passes, for the spacing)
+  later();
   mails.length = 0;
+  down = 1; // (the first try of the note to the old address fails)
   const sent = await req(hub, "POST", "/me/email", { email: "New@Example.test", lang: "zh" }, ann.token);
   assert.equal(sent.status, 200);
-  const done = await req(hub, "POST", "/me/email/confirm", { code: sent.json.dev, lang: "zh" }, ann.token);
+  const done = await req(hub, "POST", "/me/email/confirm", { code: sent.json.dev, lang: "zh" }, ann.token, "test-phone-0001");
   assert.equal(done.status, 200, JSON.stringify(done.json));
   assert.equal((done.json.user as Row).email, "new@example.test");
   await s.settled();
-  const note = mails.find((m) => JSON.stringify(m.to) === JSON.stringify(["ann@example.test"]));
-  assert.ok(note, "the old address is told");
+  const toOld = () => mails.find((m) => JSON.stringify(m.to) === JSON.stringify(["ann@example.test"]));
+  assert.equal(toOld(), undefined, "Resend said no");
+  assert.equal((s.db.prepare("SELECT COUNT(*) AS n FROM mail_out").get() as Row).n, 1, "the note is kept");
+  assert.ok(s.alarm() != null, "with the alarm set to try again");
+  s.db.prepare("UPDATE mail_out SET next_at = ?").run(Date.now() - 1); // (time passes)
+  await hub.alarm();
+  const note = toOld();
+  assert.ok(note, "the old address is told on the next try");
   assert.match(String(note.text), /n\*\*\*@example\.test/, "the new address shown masked");
   assert.ok(!String(note.text).includes("new@example.test"), "and only masked");
-  assert.equal(note.reply_to, "boss@example.test", "a reply goes to the owner (CONTACT_EMAIL, or the first admin)");
+  assert.equal(note.reply_to, "boss@example.test", "a reply goes to the site's contact (CONTACT_EMAIL, or the first admin)");
   assert.deepEqual(changed, [ann.id], "MoneyLens told, for an account that used it");
   assert.deepEqual(goneRows(s), []);
-  ok("换邮箱: the email changes, the old address is told, MoneyLens hears");
+  const h = (s.db.prepare("SELECT old, new, device FROM email_history WHERE user_id = ?").all(ann.id) as Row[]).map((r) => ({ ...r }));
+  assert.deepEqual(h, [{ old: "ann@example.test", new: "new@example.test", device: "test-phone-0001" }]);
+  ok("换邮箱: the email changes, the change is kept, the old address is told (tried until it's sent), MoneyLens hears");
 
   const v = await req(hub, "POST", "/auth/verify", { email: "new@example.test", code: (await req(hub, "POST", "/auth/code", { email: "new@example.test", lang: "zh" })).json.dev });
   assert.equal((v.json.user as Row | undefined)?.id, ann.id, "the new address signs in to the same account");
@@ -256,10 +285,18 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   ok("换邮箱: the new address opens the account, the old one doesn't");
 
   const sentBen = await req(hub, "POST", "/me/email", { email: "ben2@example.test" }, ben.token, "ben-phone-0001");
+  assert.equal(sentBen.status, 200, JSON.stringify(sentBen.json));
   await req(hub, "POST", "/me/email/confirm", { code: sentBen.json.dev }, ben.token, "ben-phone-0001");
   await s.settled();
   assert.deepEqual(changed, [ann.id], "an account that never used MoneyLens: nothing for it");
   ok("换邮箱: MoneyLens isn't told about accounts it doesn't know");
+
+  later();
+  assert.equal((await req(hub, "POST", "/me/email", { email: "later@example.test" }, ann.token)).status, 200);
+  await req(hub, "DELETE", "/me", {}, ann.token);
+  for (const t of ["email_changes", "email_history"]) assert.equal((s.db.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id = ?`).get(ann.id) as Row).n, 0, t);
+  ok("换邮箱: a deleted account's waiting code and email history go with it");
+  console.error = quiet;
   globalThis.fetch = realFetch;
 }
 
