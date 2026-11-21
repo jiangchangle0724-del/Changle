@@ -38,6 +38,10 @@ import { goalText } from '../goal-text';
 import { envelopeTotal, record, starsOf } from './progress';
 import type { Results } from '../net/protocol';
 
+// 在哪儿连按两下都不放大（两根手指照样能放大）。iPhone 的 Safari 只在点到"有人听点击"的东西附近时
+// 才看 touch-action（页面样式给每个元素都设了），所以让整页自己听着。
+document.documentElement.addEventListener('click', () => {});
+
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
   if (!e) throw new Error(`#${id} missing`);

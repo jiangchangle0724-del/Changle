@@ -24,6 +24,8 @@
   }
   /* 手机上连按两下不能放大：manipulation 关掉双击缩放（Safari 只认这个），手柄区再用 none 连拖动一起关。 */
   html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+  /* 每个元素自己再说一遍：iPhone 进了能滚的框（说明、面板）会重新算；main.ts 让 Safari 每一下都看这个。 */
+  *, *::before, *::after { touch-action: manipulation; }
   html, body { height: 100%; }
   [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; overscroll-behavior: none;

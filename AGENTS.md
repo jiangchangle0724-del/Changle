@@ -30,7 +30,9 @@ the commands and the settings.
 * Tap targets are at least 44px, 48 where several sit close together.
 * Running text uses `--leading` (Chinese 1.65, English 1.5); pages can be zoomed with two fingers.
 * Nothing but a text field can be selected or copied, and a double tap never zooms (`global.css`,
-  `@layer page-defaults`). Something people need to copy gets a copy button.
+  `@layer page-defaults`). Something people need to copy gets a copy button. Every page and app
+  (the Workers too) gives every element `touch-action: manipulation` and listens for clicks on
+  `<html>`, as `site/src/main.tsx` does: iPhone Safari checks touch-action only near a listener.
 * A sheet closes on the phone's back button (`useBackCloses`); a page keeps its address.
 * Motion uses token durations and easings; with reduced motion, nothing slides or shakes.
 * The home page's first download has a CI budget (`site/scripts/budget.ts`); load new parts later.

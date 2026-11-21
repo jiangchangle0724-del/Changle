@@ -11,6 +11,9 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  /* a double tap never zooms, two fingers still do (and main.tsx makes Safari look at it everywhere);
+     every element says it itself, since an iPhone starts afresh inside each scrolling box */
+  touch-action: manipulation;
 }
 html {
   background: var(--color-bg);

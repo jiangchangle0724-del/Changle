@@ -88,7 +88,7 @@ async function boot(search: string): Promise<void> {
     },
     createElement: () => new harness.Element(),
     addEventListener: () => {},
-    documentElement: {},
+    documentElement: { addEventListener: () => {} },
     body: {
       dataset: {},
       classList: { toggle: (c: string, on: boolean) => (on ? harness.bodyClasses.add(c) : harness.bodyClasses.delete(c)), contains: (c: string) => harness.bodyClasses.has(c) },
