@@ -37,6 +37,10 @@ export type HostBody = HostAction;
 /** `id`: the row just filled in for someone (代填) */
 export type Hosted = { state: EventState; id?: string };
 
+/** POST /when/api/e/<code>/start: the start times asked about that suit this phone's person (几点开始) */
+export type VoteBody = { starts: number[] };
+export type Voted = { state: EventState };
+
 /** POST /when/api/e/<code>/claim */
 export type ClaimBody = { adminCode: string };
 export type Claimed = { host: true };

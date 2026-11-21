@@ -11,6 +11,7 @@ export * from "./quick";
 export * from "./minutes";
 export * from "./rank";
 export * from "./slots";
+export * from "./start";
 export * from "./text";
 export * from "./time";
 export * from "./types";
