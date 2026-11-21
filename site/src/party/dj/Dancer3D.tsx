@@ -194,6 +194,8 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
         let far = 0;
         let farAt = 0;
         let slid = "";
+        const hipsOf = new WeakMap<Her, InstanceType<typeof T.Object3D>>();
+        const at = new T.Vector3();
         // her middle at her own place on the stage; how far right she may go (her middle clear of the
         // stage's edge, and of a song file's card); the floor's dancers' middles and half widths (none
         // on a 3D floor), all in the stage's pixels
@@ -311,8 +313,6 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
             rot += Math.max(-TURN_RAD_S * wdt, Math.min(TURN_RAD_S * wdt, FACE - rot));
             walking = Math.abs(FACE - rot) > 0.3 && her!.knows(walk.id);
           }
-          const slide = x ? `translate3d(${x.toFixed(1)}px, 0, 0)` : "";
-          if (slide !== slid) el.style.transform = slid = slide;
           her!.root.rotation.y = rot;
           const aim = walking ? walk.id : on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
           let want = aim;
@@ -372,6 +372,17 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
           if (from) from.t += dt * from.rate;
           her!.pose(cur, curT, from && k < 1 ? from : null, ease);
           if (k >= 1) from = null;
+          // where the dance takes her (Nov 21: her feet stay where they stand, so she moves about as
+          // she dances): her canvas goes with her across the stage and she stays in its middle (her
+          // canvas is about her arms' width: moving in it, an arm out would be cut off at its edge)
+          let hips = hipsOf.get(her!);
+          if (!hips) hipsOf.set(her!, (hips = her!.root.getObjectByName("Hips") ?? her!.root));
+          her!.root.position.x = 0;
+          her!.root.updateMatrixWorld(true);
+          const travel = stay ? 0 : hips.getWorldPosition(at).x;
+          her!.root.position.x = -travel;
+          const slide = x || travel ? `translate3d(${(x + travel * pxPerM()).toFixed(1)}px, 0, 0)` : "";
+          if (slide !== slid) el.style.transform = slid = slide;
           // her hair and skirt follow
           her!.swing(dt);
           // (a blink: shutting in 70 ms, shut 40, opening in 120)

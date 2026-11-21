@@ -33,7 +33,7 @@
 | salsa_side | Salsa Dancing（Salsa Dancing Side To Side） |
 | salsa | Salsa Dancing（Female Salsa Dancing） |
 | ribpops | Hip Hop Dancing（Female Hip Hop 'Rib Pops' Dancing） |
-| kickstep | Hip Hop Dancing（Female Hip Hop 'Kick Step' Dancing） |
+| kickstep | Hip Hop Dancing（Female Hip Hop 'Kick Step' Dancing），11 月 21 日起不跳：她的脚比舞者自己滑得多 |
 | shimmy | Hip Hop Dancing（Hip Hop Dancing Shimmy） |
 | walk_soft, walk_cat, walk_sexy | 走路，11 月 20 日，In Place 下载：Walking（Feminine Walk Forward）、Catwalk Walk Forward（Female Walk Forward）、Walking（Female Sexy Walk） |
 
@@ -81,12 +81,19 @@ node build_glb.mjs work/ms work/m/joints.json work/swap/baked.png ../../../publi
 4. 舞（`mocap/`，在 `site` 里跑）：Mixamo 的 X Bot，FBX、不带皮、每秒 30 帧。
 
 ```sh
-npx tsx scripts/dj-dancer/mocap/retarget.ts public/models/dancer/her.glb.gz /tmp/rt a.fbx b.fbx …   # 套到她的骨架上
-npx tsx scripts/dj-dancer/mocap/loop.ts /tmp/rt /tmp/loops a b …                                     # 找动作自己的拍子，剪成整小节的循环，胯走的路去掉
+npx tsx scripts/dj-dancer/mocap/retarget.ts public/models/dancer/her.glb.gz /tmp/rt a.fbx b.fbx …   # 套到她的骨架上，脚踩在舞者踩的地方
+npx tsx scripts/dj-dancer/mocap/loop.ts --travel /tmp/rt /tmp/loops a@<bpm> b …                     # 剪成整小节的循环，首尾接得上
+npx tsx scripts/dj-dancer/mocap/srcfacts.ts /tmp/rt /tmp/loops a.fbx b.fbx …                        # 真人动捕自己在这段里脚滑多少
 npx tsx scripts/dj-dancer/mocap/pack.ts /tmp/loops public/models/dancer/dance a=<id> …              # 打包成页面读的文件
 ```
 
-然后在 `site` 里跑 `npx tsx tests/dancer.test.ts`。看效果：`real/preview.py`（转一圈的图）、`real/posetest.py`（摆几个姿势）、
+11 月 21 日起（Steve：「舞蹈动作…一定要…检查没有常见的的AI生成错误，要符合现实物理逻辑」）：
+
+* `retarget.ts`：她的腿和舞者的腿长短不一样，同样的转法脚会落在别处，站着的脚就在地上滑。现在每一帧她的脚踝放到舞者脚踝的位置（按身高缩放），膝盖朝舞者膝盖的方向弯，脚的朝向照舞者。输出里的 feet off by 是够不着的最大距离
+* `loop.ts --travel`：她跳到哪儿就在哪儿（以前每小节把胯走的路去掉，脚就跟着滑）。页面让她的画布跟着她在舞台上走，人留在画布中间（`Dancer3D.tsx`），胳膊不会被画布边切掉。选循环：首尾的姿势最接近、走出去的路最少、整段在画面里的那一段，接缝那半拍一直过渡到开头前一帧。`@bpm` 是 `dances.ts` 里定好的拍子，重剪不会变
+* `srcfacts.ts`：真人自己的动捕在每段循环里脚滑多少，写进 `tests/support/captured.ts`。跳 house、桑巴的人脚本来就擦着地走，这个数就是她的上限（多 0.08，最少 0.15）
+
+然后在 `site` 里跑 `npx tsx tests/dancer.test.ts`：除了文件、拍子和画面，每支舞还量一遍常见的毛病（`tests/support/motion.ts`）：站着的脚在地上滑、脚陷进地里、两只脚都离地太久、膝盖往后折、手插进身体或头里、单脚站着重心离脚太远、关节抖、循环接缝跳一下。`MOTION_TABLE=1` 打出每支舞的数。看效果：`real/preview.py`（转一圈的图）、`real/posetest.py`（摆几个姿势）、
 `real/dancesheet.py`（一支舞的几个瞬间）都是在本机画图，不用浏览器。
 
 走路（`dances.ts` 的 `WALKS`，一种风格一个）：`stride` 是她走一步移动多远，量的是着地那只脚一拍往后滑多远（原地走，所以这就是一步），`tests/dancer.test.ts` 会再量一遍对不对。量法也可以自己跑：`loop.ts` 之后看 `stride` 那条测试的输出。
@@ -96,7 +103,7 @@ npx tsx scripts/dj-dancer/mocap/pack.ts /tmp/loops public/models/dancer/dance a=
 1. 在 Mixamo（Steve 的 Adobe 账号）挑一支，FBX、Without Skin、30 fps 下载
 2. 跑 `retarget.ts`、`loop.ts`、`pack.ts`（上面）
 3. 在 `site/src/party/dj/dancer/dances.ts` 的 `DANCES` 加一项：id、`loop.ts` 打出来的 bpm、配哪几段（暖场、推高、顶点、收尾、慢歌）
-4. 跑测试：文件在、速度对得上、胯不走出画面
+4. 跑 `srcfacts.ts` 更新 `tests/support/captured.ts`，再跑测试：文件在、速度对得上、胯不走出画面、动作像真人
 
 ## 换她的样子或者加一套衣服
 
