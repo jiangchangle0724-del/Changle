@@ -10,7 +10,7 @@ import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
 import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
 import { accountsThere, appsUsed, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
-import { cancelByLink, cancelPending, confirmEmail, dropEmail, EMAIL_RE, emailTables, forgetEmail, makeEmail, nextPending, pendingOf, postponeDue, startEmail, takeDue } from "./emailChange";
+import { afterPause, cancelByLink, cancelPending, confirmEmail, dropEmail, EMAIL_RE, emailTables, forgetEmail, makeEmail, nextPending, pendingOf, postponeDue, startEmail, takeDue } from "./emailChange";
 import { mailTables, nextMail, queueMail, sendMail, type Mail } from "./mailOut";
 import { cleanNotice, esc, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
@@ -392,8 +392,11 @@ export class Hub extends DurableObject<HubEnv> {
       if (cancelPending(this.sql, me.id)) this.push(me.id, { t: "me" });
       return ok({ user: this.selfView(me) });
     }
-    // every other phone signed in to this account, signed out (this one stays)
-    if (path === "/me/sessions/others" && m === "POST") return ok({ out: this.signOutOthers(me.id, await sha(c.token)) });
+    // the account's phones signed in before this one, signed out (this one stays; see signOutOlder)
+    if (path === "/me/sessions/others" && m === "POST") {
+      const r = this.signOutOlder(me.id, await sha(c.token));
+      return ok({ ...r, user: this.selfView(me) });
+    }
     if (path === "/me" && m === "DELETE") {
       this.deleteUser(me.id);
       return ok({ ok: true });
@@ -937,19 +940,45 @@ export class Hub extends DurableObject<HubEnv> {
    * Gives how many sessions went.
    */
   private signOutOthers(id: string, keep: string) {
-    const n = Number(this.one(`SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND hash != ?`, id, keep)?.n ?? 0);
-    this.sql.exec(`DELETE FROM sessions WHERE user_id = ? AND hash != ?`, id, keep);
+    const gone = this.sql.exec(`SELECT hash FROM sessions WHERE user_id = ? AND hash != ?`, id, keep).toArray().map((r) => String(r.hash));
+    this.endSessions(id, gone);
+    return gone.length;
+  }
+
+  /**
+   * 退出其他手机: the account's phones signed in BEFORE this one, signed out. A fresh sign-in needs
+   * the mailbox, so the owner signing in again always wins over an older session someone else
+   * holds; a stolen session can't sign out the newer ones. A waiting 换邮箱 whose phone is now
+   * signed out (or already was) is cancelled with it; one asked from a phone still signed in stays.
+   * Gives how many went, and how many newer ones are left.
+   */
+  private signOutOlder(id: string, keep: string) {
+    const mine = Number(this.one(`SELECT created_at FROM sessions WHERE hash = ?`, keep)?.created_at ?? 0);
+    const gone = this.sql.exec(`SELECT hash FROM sessions WHERE user_id = ? AND hash != ? AND created_at <= ?`, id, keep, mine).toArray().map((r) => String(r.hash));
+    this.endSessions(id, gone);
+    const had = !!this.one(`SELECT 1 AS x FROM email_pending WHERE user_id = ?`, id);
+    this.sql.exec(`DELETE FROM email_pending WHERE user_id = ? AND session NOT IN (SELECT hash FROM sessions WHERE user_id = ?)`, id, id);
+    if (had && !this.one(`SELECT 1 AS x FROM email_pending WHERE user_id = ?`, id)) this.push(id, { t: "me" });
+    const left = Number(this.one(`SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND hash != ?`, id, keep)?.n ?? 0);
+    return { out: gone.length, left };
+  }
+
+  /** these sessions of the account gone: their live sockets closed (4006: the app signs out), handoff codes dropped */
+  private endSessions(id: string, hashes: string[]) {
+    if (!hashes.length) return;
+    const gone = new Set(hashes);
+    for (const h of hashes) this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, h);
     forgetHandoffs(this.sql, id, false);
     for (const ws of this.ctx.getWebSockets(id)) {
       const a = ws.deserializeAttachment() as { s?: string } | null;
-      if (a?.s !== keep)
+      // (a socket from before sockets carried their session: closed too, and back at once if its session lives)
+      if (!a?.s || gone.has(a.s))
         try {
           ws.close(4006, "signed out");
         } catch {
           /* gone */
         }
     }
-    return n;
   }
 
   /** the notices and mail just queued: sent now, the alarm set in case they don't go */
@@ -1608,6 +1637,8 @@ ${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${e
 
     if (path === "/admin/pause" && m === "POST") {
       const on = b.on === true;
+      // (open again: a 换邮箱 waiting through the pause gets at least a day more, for cancelling it)
+      if (this.paused && !on) afterPause(this.sql, Date.now());
       this.paused = on;
       this.sql.exec(`INSERT INTO meta (k, v) VALUES ('paused', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`, on ? "1" : "0");
       const msg = JSON.stringify({ t: "paused", on });

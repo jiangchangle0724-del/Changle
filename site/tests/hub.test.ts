@@ -387,14 +387,49 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   assert.ok(mails.some((m) => JSON.stringify(m.to) === JSON.stringify(["eve-new@example.test"]) && /didn't move/.test(String(m.subject))), "the new address hears why");
   ok("换邮箱: on its day the address is checked again, and if it's taken by then, the new address hears why");
 
-  // every other phone signed out, from /me
+  // 退出其他手机, from /me: the phones signed in before this one
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  await tick();
   const eve2 = await signIn("eve@example.test", "eve-tablet-0002");
+  await tick();
   const eve3 = await signIn("eve@example.test", "eve-laptop-0003");
-  assert.deepEqual((await req(hub, "POST", "/me/sessions/others", {}, eve.token, "eve-phone-0001")).json, { out: 2 });
-  assert.equal((await me(eve.token, "eve-phone-0001")).status, 200, "this phone stays");
+  const fromOldest = await req(hub, "POST", "/me/sessions/others", {}, eve.token, "eve-phone-0001");
+  assert.deepEqual([fromOldest.json.out, fromOldest.json.left], [0, 2], "the oldest phone can't sign out newer ones");
+  const fromNewest = await req(hub, "POST", "/me/sessions/others", {}, eve3, "eve-laptop-0003");
+  assert.deepEqual([fromNewest.json.out, fromNewest.json.left], [2, 0], "the newest signs out all the older ones");
+  assert.equal((await me(eve3, "eve-laptop-0003")).status, 200, "this phone stays");
+  assert.equal((await me(eve.token, "eve-phone-0001")).status, 401);
   assert.equal((await me(eve2, "eve-tablet-0002")).status, 401);
-  assert.equal((await me(eve3, "eve-laptop-0003")).status, 401);
-  ok("退出其他手机: every other phone signed out, this one stays");
+  ok("退出其他手机: the phones signed in before this one are signed out, newer ones can't be (a fresh sign-in always wins)");
+
+  // someone else's session asked for a 3-day change; the owner signs in afresh and signs it out: the change goes with it
+  const fay = await join(hub, "fay@example.test", "fay-phone-0001");
+  await tick();
+  const thief = await signIn("fay@example.test", "thief-phone-0001");
+  const tq = await req(hub, "POST", "/me/email", { email: "thief@example.test", lang: "en" }, thief, "thief-phone-0001");
+  await req(hub, "POST", "/me/email/confirm", { code: tq.json.dev, lost: true }, thief, "thief-phone-0001");
+  assert.ok(((await me(fay.token, "fay-phone-0001")).json.user as Row).emailPending, "a change waits");
+  const older = await req(hub, "POST", "/me/sessions/others", {}, fay.token, "fay-phone-0001");
+  assert.deepEqual([older.json.out, older.json.left], [0, 1], "from the owner's older phone the thief's newer session stays");
+  assert.ok((older.json.user as Row).emailPending, "and so does its change");
+  await req(hub, "POST", "/auth/logout", {}, fay.token, "fay-phone-0001");
+  await tick();
+  const fresh = await signIn("fay@example.test", "fay-phone-0001");
+  const r2 = await req(hub, "POST", "/me/sessions/others", {}, fresh, "fay-phone-0001");
+  assert.deepEqual([r2.json.out, r2.json.left], [1, 0], "signed in afresh, the owner signs the thief out");
+  assert.equal((r2.json.user as Row).emailPending, null, "and the thief's waiting change goes with its session");
+  assert.equal((await me(thief, "thief-phone-0001")).status, 401);
+  ok("退出其他手机: a waiting change asked from a phone now signed out is cancelled with it");
+
+  // the site open again after a pause: a waiting change gets at least a day more
+  later();
+  const gq = await req(hub, "POST", "/me/email", { email: "fay-new@example.test", lang: "zh" }, fresh, "fay-phone-0001");
+  await req(hub, "POST", "/me/email/confirm", { code: gq.json.dev, lost: true }, fresh, "fay-phone-0001");
+  await pause(true);
+  s.db.prepare("UPDATE email_pending SET due_at = ? WHERE user_id = ?").run(Date.now() - 1, fay.id);
+  await pause(false);
+  assert.ok(Number((s.db.prepare("SELECT due_at FROM email_pending WHERE user_id = ?").get(fay.id) as Row).due_at) > Date.now() + 23 * 3600_000, "a day more after reopening");
+  ok("换邮箱: the site open again after a pause, a waiting change gets at least a day more for cancelling");
 
   later();
   assert.equal((await req(hub, "POST", "/me/email", { email: "later@example.test" }, ann.token)).status, 200);

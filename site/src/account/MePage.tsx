@@ -41,8 +41,17 @@ function Profile({ onBack }: { onBack: () => void }) {
   const [editing, setEditing] = useState(false);
   const signOutOthers = async () => {
     try {
-      const r = await api<{ out: number }>("/me/sessions/others", { method: "POST", body: {} });
-      toast(r.out ? (zh ? `别的 ${r.out} 部手机已经退出登录` : `Signed out on ${r.out} other phone${r.out === 1 ? "" : "s"}`) : zh ? "没有别的手机登录着" : "No other phone is signed in", { tone: "success" });
+      const r = await api<{ out: number; left: number; user: SelfUser }>("/me/sessions/others", { method: "POST", body: {} });
+      setMe(r.user);
+      // (only phones signed in before this one go: one signed in later stays, so a stolen session can't sign out the owner's new one)
+      if (r.left)
+        toast(
+          zh
+            ? `退出了 ${r.out} 部。还有 ${r.left} 部是在这部之后登录的，退不掉：先在这部手机上退出，重新登录，再点一次。`
+            : `Signed out ${r.out}. ${r.left} signed in after this phone and stay: sign out here, sign in again, then tap this once more.`,
+          { duration: 9000 },
+        );
+      else toast(r.out ? (zh ? `别的 ${r.out} 部手机已经退出登录` : `Signed out on ${r.out} other phone${r.out === 1 ? "" : "s"}`) : zh ? "没有别的手机登录着" : "No other phone is signed in", { tone: "success" });
     } catch {
       toast(zh ? "没退出成，再试一次" : "That didn't go through. Try again", { tone: "danger" });
     }

@@ -253,6 +253,11 @@ export function postponeDue(sql: Sql, now: number) {
   sql.exec(`UPDATE email_pending SET due_at = ? WHERE due_at <= ?`, now + HOUR, now);
 }
 
+/** the site open again after a pause: a waiting change gets at least a day more, for cancelling it */
+export function afterPause(sql: Sql, now: number) {
+  sql.exec(`UPDATE email_pending SET due_at = MAX(due_at, ?)`, now + 24 * HOUR);
+}
+
 /** when the next waiting change is due (null: none) */
 export function nextPending(sql: Sql): number | null {
   const at = one(sql, `SELECT MIN(due_at) AS at FROM email_pending`)?.at;

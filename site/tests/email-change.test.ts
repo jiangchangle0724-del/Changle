@@ -28,6 +28,7 @@ import {
   PENDING_WAIT,
   PER_ACCOUNT,
   PER_ADDRESS,
+  afterPause,
   pendingOf,
   postponeDue,
   startEmail,
@@ -349,8 +350,12 @@ const both = (g: Got): Typed => ({ code: g.code, oldCode: g.oldCode });
   postponeDue(sql, day + 5);
   assert.deepEqual(takeDue(sql, day + 5), [], "not made while paused");
   assert.equal(pendingOf(sql, ANN.id)?.at, day + 5 + 3600_000, "an hour later");
-  assert.equal(takeDue(sql, day + 5 + 3600_000).length, 1, "and then, if the site is open");
-  ok("paused on its day: the change waits another hour, and is made once the site is open");
+  afterPause(sql, day + 10);
+  assert.equal(pendingOf(sql, ANN.id)?.at, day + 10 + 24 * 3600_000, "open again: at least a day more");
+  afterPause(sql, T0);
+  assert.equal(pendingOf(sql, ANN.id)?.at, day + 10 + 24 * 3600_000, "(never sooner than it was)");
+  assert.equal(takeDue(sql, day + 10 + 24 * 3600_000).length, 1, "and then it's made");
+  ok("paused on its day: the change waits another hour at a time, and once open again at least a day more");
 }
 {
   // on its day the address is checked again: someone signed up with it meanwhile

@@ -273,6 +273,17 @@ function Shell() {
         </Suspense>
       </SiteGate>
     );
+  // cancelling a waiting 换邮箱 from the mailed link works whatever the site's state: a pause or a
+  // banned phone mustn't keep an owner from it (the hub keeps its route open too)
+  if (route.kind === "emailCancel")
+    return (
+      <>
+        <div className="room-light" aria-hidden="true" />
+        <main className="app">
+          <Suspense fallback={Loading && <Loading.PageLoading lang={lang} />}>{screen}</Suspense>
+        </main>
+      </>
+    );
   // development only: the Punchline show with made-up data
   if (ShowPreview && route.kind === "dev")
     return (
