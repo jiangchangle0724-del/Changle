@@ -1,5 +1,6 @@
 {
   "id": "table-16",
+  "stamina": true,
   "world": "table",
   "name": {
     "zh": "筷影回环",
@@ -30,16 +31,16 @@
   ],
   "envelopes": [
     {
-      "x": 523,
-      "y": 461
+      "x": 686,
+      "y": 153
     },
     {
-      "x": 717,
-      "y": 156
+      "x": 1520,
+      "y": 378
     },
     {
-      "x": 2442,
-      "y": 98
+      "x": 2207,
+      "y": 179
     }
   ],
   "rects": [
@@ -189,7 +190,7 @@
       "arms": 3,
       "len": 190,
       "h": 16,
-      "spin": 0.28,
+      "spin": 0.42000000000000004,
       "material": "wood"
     },
     {
@@ -200,7 +201,7 @@
       "arms": 2,
       "len": 180,
       "h": 16,
-      "spin": 0.55,
+      "spin": 0.8250000000000001,
       "material": "wood"
     },
     {
@@ -211,7 +212,7 @@
       "arms": 2,
       "len": 60,
       "h": 16,
-      "spin": -1.2,
+      "spin": -1.7999999999999998,
       "material": "wood",
       "deadly": true
     }
@@ -219,7 +220,20 @@
   "deathY": 790,
   "par": {
     "seconds": 120,
-    "deathsPerPlayer": 2
+    "deathsPerPlayer": 6
   },
-  "replay": "replays/table-16.json"
+  "replay": "replays/table-16.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 600,
+        "y": 276
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

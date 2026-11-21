@@ -1,5 +1,6 @@
 {
   "id": "table-17",
+  "stamina": true,
   "world": "table",
   "name": {
     "zh": "热丝蒸笼塔",
@@ -30,16 +31,16 @@
   ],
   "envelopes": [
     {
-      "x": 580,
-      "y": 1036
+      "x": 487,
+      "y": 1080
     },
     {
-      "x": 1399,
-      "y": 910
+      "x": 2150,
+      "y": 220
     },
     {
-      "x": 2142,
-      "y": 174
+      "x": 1494,
+      "y": 728
     }
   ],
   "rects": [
@@ -179,16 +180,12 @@
       "h": 22,
       "path": [
         {
-          "x": 1320,
-          "y": 300
-        },
-        {
           "x": 1940,
           "y": 260
         }
       ],
-      "speed": 110,
-      "wait": 2,
+      "speed": 220,
+      "wait": 1.2,
       "material": "wood"
     },
     {
@@ -202,8 +199,8 @@
           "y": 640
         }
       ],
-      "speed": 18,
-      "wait": 4,
+      "speed": 27,
+      "wait": 2.4,
       "material": "wood",
       "deadly": true,
       "hazard": "zap"
@@ -218,14 +215,27 @@
       "arms": 2,
       "len": 160,
       "h": 16,
-      "spin": 0.5,
+      "spin": 0.75,
       "material": "wood"
     }
   ],
   "deathY": 1510,
   "par": {
-    "seconds": 180,
+    "seconds": 170,
     "deathsPerPlayer": 5
   },
-  "replay": "replays/table-17.json"
+  "replay": "replays/table-17.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 480,
+        "y": 956
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }
