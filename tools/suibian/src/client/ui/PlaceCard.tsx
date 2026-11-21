@@ -4,7 +4,7 @@
 // and ordering it in. Further down the list a card starts short (`compact`) and opens with "More".
 import { Camera, ChevronDown, ChevronUp, MapPin, Star, TriangleAlert } from "lucide-preact";
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { CUISINES, DISHES, avoidTip, badgesFor, cuisinesOf, type OccasionId, type Off, type Place, type Reason } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { getLang, t, tx, type Key } from "../i18n";
@@ -12,6 +12,7 @@ import { serverNow } from "../store";
 import { timeLabel } from "../when";
 import { Message, allergenWord } from "./common";
 import { Delivery } from "./Delivery";
+import { enter } from "../motion";
 
 export function waitKey(level: number): Key {
   return level === 2 ? "wait2" : level === 1 ? "wait1" : "wait0";
@@ -88,8 +89,12 @@ function reasonText(r: Reason, c: CardView, occasion?: OccasionId): string {
   return t(`why_${r}` as Key);
 }
 
-export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren; vetoed?: boolean; win?: boolean }) {
+export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win, arrival }: { c: CardView; ranked?: boolean; compact?: boolean; occasion?: OccasionId; children?: ComponentChildren; vetoed?: boolean; win?: boolean; arrival?: number }) {
   const [open, setOpen] = useState(!compact);
+  const article = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (article.current && arrival !== undefined) return enter(article.current, arrival, arrival >= 0);
+  }, []);
   const p = c.place;
   const o = p.ours;
   const total = o ? o.up + o.mid + o.down : 0;
@@ -100,7 +105,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win 
   const until = c.at !== undefined ? c.closesAt : undefined;
   const lines = notes(c, occasion);
   return (
-    <article class={`place${compact ? " compact" : ""}${vetoed ? " vetoed" : ""}${win ? " win" : ""}`} data-id={p.id} data-rank={c.rank}>
+    <article ref={article} class={`place${compact ? " compact" : ""}${vetoed ? " vetoed" : ""}${win ? " win" : ""}`} data-id={p.id} data-rank={c.rank}>
       {open && p.photo && (
         <figure class="photo">
           <img src={p.photo} alt="" loading="lazy" referrerpolicy="no-referrer" />

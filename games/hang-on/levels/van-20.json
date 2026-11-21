@@ -1,5 +1,6 @@
 {
   "id": "van-20",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "海湾摆渡",
@@ -30,16 +31,16 @@
   ],
   "envelopes": [
     {
-      "x": 704,
-      "y": 392
+      "x": 1048,
+      "y": 230
     },
     {
-      "x": 371,
-      "y": 530
+      "x": 1791,
+      "y": 108
     },
     {
-      "x": 2268,
-      "y": 321
+      "x": 1412,
+      "y": 443
     }
   ],
   "rects": [
@@ -183,8 +184,8 @@
           "y": 360
         }
       ],
-      "speed": 70,
-      "wait": 3,
+      "speed": 105,
+      "wait": 1.7999999999999998,
       "material": "metal"
     },
     {
@@ -198,8 +199,8 @@
           "y": 660
         }
       ],
-      "speed": 80,
-      "wait": 2,
+      "speed": 120,
+      "wait": 1.2,
       "material": "wood",
       "deadly": true,
       "hazard": "spike"
@@ -214,7 +215,7 @@
       "arms": 2,
       "len": 200,
       "h": 16,
-      "spin": -0.5,
+      "spin": -0.75,
       "material": "metal"
     }
   ],
@@ -223,5 +224,18 @@
     "seconds": 180,
     "deathsPerPlayer": 8
   },
-  "replay": "replays/van-20.json"
+  "replay": "replays/van-20.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1210,
+        "y": 364
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

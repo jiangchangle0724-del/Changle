@@ -1,6 +1,6 @@
 /* 随便 · Whatever's Fine: changle's night room, lit amber for a tool.
  * Shared values come from tokens.css, checked by tests/design.test.ts.
- * S2 shares the header, thumb dock, panels and choices; motion follows in S3.
+ * One-shot motion answers events, with fades when the phone requests less movement.
  */
 :root {
   --gel: var(--type-tool);
@@ -673,8 +673,7 @@ select {
 }
 .mood.like {
   border-color: transparent;
-  box-shadow: inset 0 0 0 2px var(--color-success);
-  background: color-mix(in oklab, var(--color-success) 16%, var(--color-surface));
+  box-shadow: none;
 }
 .mood.ban {
   border-color: var(--color-text-2);
@@ -1030,13 +1029,6 @@ a.badge {
   gap: var(--space-4);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
 /* how far: walk / drive / any, then the minutes */
 .range {
   display: flex;
@@ -1241,11 +1233,7 @@ a.badge {
 .place.vetoed {
   opacity: 0.55;
 }
-.place.vetoed h3 {
-  text-decoration: line-through;
-}
 .vote .approve[aria-pressed="true"] {
-  background: var(--gel);
   border-color: var(--gel);
   color: var(--color-on-accent);
 }
@@ -1268,6 +1256,7 @@ a.badge {
 }
 .winner-card {
   position: relative;
+  isolation: isolate;
   margin-top: var(--space-4);
   border-radius: var(--r-tile);
   box-shadow: var(--glow);
@@ -1287,6 +1276,7 @@ a.badge {
 .stamp {
   /* at the card's foot, right: the name and the photo at the top stay readable */
   position: absolute;
+  z-index: 2;
   right: var(--space-3);
   bottom: var(--space-3);
   max-width: calc(100% - var(--space-8));
@@ -1324,4 +1314,194 @@ a.badge {
 @media (max-width: 359px) {
   .moods { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .people { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Motion triggers are removed at animationend; state classes only describe the resting UI. */
+.motion-screen, .result-reveal { display: contents; }
+.press {
+  transition: transform var(--dur-enter) var(--ease-pop), opacity var(--dur-enter) var(--ease-out);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.96);
+  transition-duration: var(--dur-exit);
+  transition-timing-function: var(--ease-out);
+}
+.press:disabled { transform: none; }
+[data-anim="rise"] {
+  animation: rise var(--dur-enter) var(--ease-out) calc(var(--enter-order, 0) * var(--dur-exit) / 4) backwards;
+}
+[data-anim="fade"] { animation: fade var(--dur-enter) var(--ease-out) backwards; }
+@keyframes fade { from { opacity: 0; } to { opacity: var(--fade-opacity, 1); } }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(var(--motion-shift)); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hold { from, to { opacity: 1; } }
+@keyframes join {
+  from { opacity: 0; transform: translateY(var(--motion-shift)) scale(0.8); }
+  to { opacity: 1; transform: none; }
+}
+.member[data-anim="join"] { animation: join var(--dur-emphasis) var(--ease-pop); }
+.avatar::after {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--space-1));
+  border: 2px solid var(--gel);
+  border-radius: var(--r-pill);
+  opacity: 0;
+  pointer-events: none;
+}
+.member[data-anim="join"] .avatar::after { animation: ring var(--dur-emphasis) var(--ease-out); }
+@keyframes ring { 0%, 100% { opacity: 0; } 35% { opacity: 1; } }
+.ready-badge[data-anim="ready"] { animation: ready var(--dur-emphasis) var(--ease-pop); }
+@keyframes ready { from { opacity: 0; transform: scale(1.8); } to { opacity: 1; transform: none; } }
+
+.mood::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--r-tile);
+  background: color-mix(in oklab, var(--color-success) 16%, transparent);
+  box-shadow: inset 0 0 0 2px var(--color-success);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-enter) var(--ease-out);
+}
+.mood.like::before { opacity: 1; }
+.mood .emoji, .mood .label { position: relative; }
+.mood .mark { display: grid; }
+.mark-like, .mark-ban {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transition: opacity var(--dur-exit) var(--ease-out);
+}
+.mood.like .mark-like, .mood.ban .mark-ban { opacity: 1; }
+.mood.some .mark-like, .mood.some .mark-ban { display: none; }
+.mood[data-anim="mood-like"] { animation: hold var(--dur-emphasis); }
+.mood[data-anim="mood-like"] .emoji { animation: like var(--dur-emphasis) var(--ease-pop); }
+.mood[data-anim="mood-like"] .mark-like { animation: ready var(--dur-emphasis) var(--ease-pop); }
+.mood[data-anim="mood-ban"] { animation: nope var(--dur-enter) var(--ease-out); }
+.mood[data-anim="mood-none"] { animation: hold var(--dur-exit); }
+@keyframes like { 0%, 100% { transform: none; } 40% { transform: scale(1.35) rotate(-8deg); } }
+@keyframes nope {
+  0%, 100% { transform: none; }
+  25% { transform: translateX(calc(var(--motion-shift) / -3)); }
+  75% { transform: translateX(calc(var(--motion-shift) / 3)); }
+}
+.countdown-tick { animation: tick var(--dur-emphasis) var(--ease-out); }
+@keyframes tick { 0%, 100% { transform: none; } 30% { transform: scale(1.18); } }
+.progress-dot[data-anim="dot"] { animation: dot var(--dur-emphasis) var(--ease-pop); }
+@keyframes dot { 0%, 100% { transform: none; } 40% { transform: scale(1.4); } }
+.place { transition: opacity var(--dur-enter) var(--ease-out); }
+.place.vetoed { --fade-opacity: 0.55; }
+.mood.ban { --fade-opacity: 0.6; }
+.place .head h3 { position: relative; }
+.place .head h3::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--dur-enter) var(--ease-out);
+}
+.place.vetoed .head h3::after { transform: scaleX(1); }
+.vote .approve { position: relative; isolation: isolate; overflow: hidden; }
+.approve-fill {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: var(--r-pill);
+  background: var(--gel);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-exit) var(--ease-out);
+}
+.approve[aria-pressed="true"] .approve-fill { opacity: 1; }
+.approve[aria-pressed="true"] svg { opacity: 1; }
+.approve[data-anim="approve"] { animation: hold calc(var(--dur-enter) + var(--dur-exit)); }
+/* A clipped path reveal draws the check without animating its geometry or stroke. */
+.approve[data-anim="approve"] svg { animation: check-draw var(--dur-enter) var(--ease-out) var(--dur-exit) backwards; }
+@keyframes check-draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+.picked[data-anim="picked"] { animation: picked var(--dur-emphasis) var(--ease-pop); }
+@keyframes picked { 0%, 100% { transform: none; } 40% { transform: scale(1.15); } }
+
+.spin-window { position: relative; height: 3.2em; overflow: hidden; font-size: var(--text-2xl); }
+.spinname { min-height: 0; overflow-wrap: anywhere; }
+.wheel-step, .wheel-step .spinname { position: absolute; inset: 0; display: grid; place-items: center; }
+.wheel-in { animation: wheel-in var(--wheel-step) var(--ease-out) backwards; }
+.wheel-out { animation: wheel-out var(--wheel-step) var(--ease-out) forwards; }
+@keyframes wheel-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes wheel-out { from { transform: none; } to { transform: translateY(-100%); } }
+.wheel-fade { animation: fade var(--dur-enter) var(--ease-out); }
+
+.reveal-scrim {
+  --fade-opacity: 0.22;
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-scrim);
+  opacity: 0.22;
+  pointer-events: none;
+}
+.reveal-scrim[data-anim="dim"] { animation: room-dim calc(var(--dur-emphasis) * 2) var(--ease-out); }
+@keyframes room-dim { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0.22; } }
+.winner-card[data-anim="winner"] { animation: winner var(--dur-emphasis) var(--ease-pop) var(--dur-exit) backwards; }
+@keyframes winner {
+  from { opacity: 0; transform: scale(0.86) translateY(calc(var(--motion-shift) * 2)); }
+  to { opacity: 1; transform: none; }
+}
+.stamp[data-anim="stamp"] {
+  animation: stamp-hit var(--dur-enter) var(--ease-out) calc(var(--dur-emphasis) + var(--dur-exit)) backwards,
+    stamp-settle var(--dur-enter) var(--ease-pop) calc(var(--dur-emphasis) + var(--dur-exit) + var(--dur-enter)) forwards;
+}
+@keyframes stamp-hit {
+  from { opacity: 0; transform: rotate(-8deg) scale(2.2); }
+  to { opacity: 1; transform: rotate(-8deg) scale(0.94); }
+}
+@keyframes stamp-settle {
+  from { transform: rotate(-8deg) scale(0.94); }
+  to { transform: rotate(-8deg) scale(1); }
+}
+.spark-burst {
+  position: absolute;
+  z-index: 1;
+  inset: calc(-1 * var(--gutter));
+  overflow: hidden;
+  pointer-events: none;
+}
+.spark {
+  position: absolute;
+  right: calc(var(--space-12) + var(--gutter));
+  bottom: calc(var(--space-6) + var(--gutter));
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--spark-color);
+  opacity: 0;
+}
+.spark[data-anim="spark"] { animation: spark calc(var(--dur-emphasis) * 2) var(--ease-out) calc(var(--dur-emphasis) + var(--dur-exit) + var(--dur-enter)) backwards; }
+@keyframes spark {
+  0% { opacity: 0; transform: rotate(var(--a)) translateY(0) scale(0.6); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(var(--space-12) * -2.5)) scale(1); }
+}
+.reveal-tail { display: flex; flex-direction: column; gap: var(--gap-section); }
+[data-anim="tail"] { animation: rise var(--dur-enter) var(--ease-out) calc(var(--dur-emphasis) * 3) backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-anim], .member[data-anim="join"] .avatar::after,
+  .mood[data-anim] .emoji, .mood[data-anim="mood-like"] .mark-like,
+  .approve[data-anim] svg, .wheel-fade {
+    animation: fade var(--dur-enter) var(--ease-out) backwards !important;
+  }
+  .press { transition: opacity var(--dur-enter) var(--ease-out); }
+  .press:active:not(:disabled) { transform: none; }
+  .countdown-tick, .wheel-in, .wheel-out { animation: none; }
+  .wheel-out, .spark-burst { display: none; }
+  .place .head h3::after { transform: none; opacity: 0; transition: opacity var(--dur-enter) var(--ease-out); }
+  .place.vetoed .head h3::after { opacity: 1; }
 }

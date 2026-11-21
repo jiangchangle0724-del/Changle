@@ -144,6 +144,35 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* 换邮箱, at the top of the edit-profile sheet */
+.email-change {
+  margin-bottom: var(--space-4);
+}
+.email-change .hint {
+  margin: 0;
+}
+form.email-change .hint {
+  margin-bottom: var(--space-3);
+}
+form.email-change > .link-btn {
+  align-self: flex-start;
+}
+.email-change .form-error {
+  margin-top: var(--space-2);
+}
+.email-change-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+form.email-change > .ui-button-block {
+  margin-top: var(--space-3);
+}
+/* (the second code's label, under the first code's boxes) */
+form.email-change .ui-otp + .field-label {
+  margin-top: var(--space-4);
+}
 /* the owner's way to the 3D figure, near the top of /me */
 .me-3d {
   display: flex;

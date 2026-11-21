@@ -16,6 +16,15 @@ Unbounded the display face; Chinese falls back to the device's system fonts. Bot
 their SIL Open Font License 1.1 texts live in `src/client/fonts/` (licences in `licences/`), copied
 from 约时间; the build serves the fonts under `/eat/fonts/` and both licences at `/eat/licences.txt`.
 
+**Motion and feel.** Presses spring back, new people and ready marks arrive once, menu taps answer
+with a jump or a shake, and the last ten countdown seconds tick with brief haptics where supported.
+Cards enter in a short stagger; ticks fill from the touch point and vetoes dim and strike the name.
+A tie wheel slows to the server's winner on time, even after joining mid-spin, then the result dims
+the room, pops the card and lands its stamp with twelve sparks. CSS and the Web Animations API use
+the shared duration/easing tokens, and completed triggers are removed so state updates cannot replay
+them. With reduced motion, movement becomes a short fade: no press scaling, sliding, shaking, wheel,
+sparks or countdown ticking. Nothing continues animating while the table is idle.
+
 How a table goes:
 
 1. The host signs in with Google, says what the meal is for (随便吃吃, friends, a date, colleagues,

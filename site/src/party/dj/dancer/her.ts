@@ -10,6 +10,10 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { danceFile, herFile, readDance, type DanceHead } from "./dances";
 import { makeSprings, type SpringData } from "./springs";
 
+/** Her face: how bright its photo's colours show (to sit with her lit skin round it), and how much of the stage's light on it is let go. */
+const FACE_LIGHT = 0.9;
+const FACE_MIX = 0.8;
+
 /** The files come gzipped (Cloudflare doesn't compress .glb or .bin): unzipped by the browser's own stream (or fflate). */
 async function fetchZipped(url: string): Promise<ArrayBuffer> {
   const res = await fetch(url);
@@ -103,6 +107,9 @@ export async function loadHer(outfit = "club"): Promise<Her> {
   // her blink (Steve on Nov 18: her face looked stiff): her texture's alpha says where her eyes are and
   // how far down each texel is (scripts/dj-dancer/real/eyes.py); a lid the colour of the skin above
   // them comes down that far, a darker line at its edge (her lashes). The texture stays opaque
+  // her face (Nov 21; Steve: "面部看起来有点扭曲"): lit as its photo was (the photo's own shadows on it,
+  // not the model's bumps under the stage's lights), a little of the room's light kept; how much of her
+  // each vertex is face is in `_FACE` (scripts/dj-dancer/real/facekit.py)
   const blinkU = { value: 0 };
   const lidU = { value: new THREE.Color().setRGB(...(extras?.lid ?? [0.64, 0.5, 0.47]), THREE.SRGBColorSpace) };
   gltf.scene.traverse((x) => {
@@ -112,8 +119,11 @@ export async function loadHer(outfit = "club"): Promise<Her> {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uBlink = blinkU;
       sh.uniforms.uLid = lidU;
+      sh.vertexShader = sh.vertexShader
+        .replace("void main() {", "attribute float _face;\nvarying float vFace;\nvoid main() {\n  vFace = _face;")
       sh.fragmentShader = sh.fragmentShader
-        .replace("void main() {", "uniform float uBlink;\nuniform vec3 uLid;\nvoid main() {")
+        .replace("void main() {", "uniform float uBlink;\nuniform vec3 uLid;\nvarying float vFace;\nvoid main() {")
+        .replace("#include <opaque_fragment>", `outgoingLight = mix( outgoingLight, diffuseColor.rgb * ${FACE_LIGHT.toFixed(2)}, vFace * ${FACE_MIX.toFixed(2)} );\n#include <opaque_fragment>`)
         .replace(
           "#include <map_fragment>",
           `#include <map_fragment>
@@ -127,7 +137,7 @@ export async function loadHer(outfit = "club"): Promise<Her> {
 #endif`,
         );
     };
-    mat.customProgramCacheKey = () => "dancer-blink";
+    mat.customProgramCacheKey = () => "dancer-blink-face";
   });
   const mixer = new THREE.AnimationMixer(gltf.scene);
   const actions = new Map<string, THREE.AnimationAction>();

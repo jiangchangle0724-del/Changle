@@ -87,7 +87,7 @@ function linkOk(s: string, dev: boolean) {
   return dev && /^https?:$/.test(u.protocol) && /^(localhost|127\.0\.0\.1)$/.test(u.hostname);
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** The mail, in the same frame as the sign-in code's: the text, the button, and a line saying who sent it for whom. */
 export function renderNotice(n: Notice): { subject: string; html: string; text: string } {

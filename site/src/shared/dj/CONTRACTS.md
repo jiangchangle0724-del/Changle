@@ -133,7 +133,8 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   no flashes; the party's gold and orchid; the club's pink and cyan, the beams quick and bright).
   Her hair's ends and a skirt swing on springs as she moves (`dancer/springs.ts`, three-vrm's way:
   their bones from `site/scripts/dj-dancer/real/springs.py`, kept off her by round shapes on her
-  bones); she blinks every two to six seconds (where her eyes are is in her texture's alpha,
+  bones); her face is the same in every outfit (Nov 21: `facekit.py`) and lit as its photo was
+  (`_FACE` on her vertices: the stage's light kept off it, mostly); she blinks every two to six seconds (where her eyes are is in her texture's alpha,
   `eyes.py`: a lid the colour of the skin round them comes down); she walks the stage (Nov 20)
   while someone is on the floor and no song's video is in the middle (`roam`): now and then, at a
   new dance, to a spot a few steps away not behind a floor dancer, in her look's walk (`WALKS`, a

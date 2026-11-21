@@ -1,5 +1,6 @@
 {
   "id": "snow-33",
+  "stamina": true,
   "world": "snow",
   "tier": 1,
   "name": {
@@ -31,16 +32,16 @@
   ],
   "envelopes": [
     {
-      "x": 746,
-      "y": 504
+      "x": 937,
+      "y": 539
     },
     {
-      "x": 1677,
-      "y": 496
+      "x": 1370,
+      "y": 510
     },
     {
-      "x": 2040,
-      "y": 224
+      "x": 2067,
+      "y": 166
     }
   ],
   "rects": [
@@ -93,6 +94,14 @@
       "y": 74,
       "w": 40,
       "h": 16
+    },
+    {
+      "kind": "ground",
+      "material": "wood",
+      "x": 2010,
+      "y": 325,
+      "w": 60,
+      "h": 75
     }
   ],
   "lifts": [
@@ -105,7 +114,7 @@
         "x": 1240,
         "y": 480
       },
-      "speed": 30,
+      "speed": 55,
       "gap": 320,
       "kind": "cabin"
     },
@@ -118,7 +127,7 @@
         "x": 2000,
         "y": 240
       },
-      "speed": 26,
+      "speed": 45,
       "gap": 280
     }
   ],
@@ -147,7 +156,7 @@
   ],
   "deathY": 880,
   "par": {
-    "seconds": 110,
+    "seconds": 100,
     "deathsPerPlayer": 6
   },
   "replay": "replays/snow-33.json"

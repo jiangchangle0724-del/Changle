@@ -57,6 +57,7 @@ const pages: Route[] = [
   { kind: "me" },
   { kind: "me", tab: "friends" },
   { kind: "figure" },
+  { kind: "emailCancel" },
   { kind: "admin" },
   { kind: "user", id: "uabc12345" },
   { kind: "chat", id: "uabc12345" },

@@ -1,5 +1,6 @@
 {
   "id": "table-15",
+  "stamina": true,
   "world": "table",
   "name": {
     "zh": "红油吊廊",
@@ -30,16 +31,16 @@
   ],
   "envelopes": [
     {
-      "x": 663,
-      "y": 454
+      "x": 1282,
+      "y": 246
     },
     {
-      "x": 1649,
-      "y": 156
+      "x": 1604,
+      "y": 85
     },
     {
-      "x": 2300,
-      "y": 410
+      "x": 2299,
+      "y": 416
     }
   ],
   "rects": [
@@ -140,7 +141,7 @@
     },
     {
       "x": 900,
-      "y": 160,
+      "y": 220,
       "w": 60,
       "h": 20,
       "kind": "hot",
@@ -183,8 +184,8 @@
           "y": 360
         }
       ],
-      "speed": 40,
-      "wait": 2,
+      "speed": 60,
+      "wait": 1.2,
       "material": "wood"
     },
     {
@@ -198,8 +199,8 @@
           "y": 0
         }
       ],
-      "speed": 24,
-      "wait": 4,
+      "speed": 36,
+      "wait": 2.4,
       "material": "wood",
       "deadly": true,
       "hazard": "hot"
@@ -214,14 +215,27 @@
       "arms": 2,
       "len": 180,
       "h": 16,
-      "spin": 0.45,
+      "spin": 0.675,
       "material": "wood"
     }
   ],
   "deathY": 790,
   "par": {
-    "seconds": 150,
+    "seconds": 140,
     "deathsPerPlayer": 6
   },
-  "replay": "replays/table-15.json"
+  "replay": "replays/table-15.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 636,
+        "y": 356
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }
