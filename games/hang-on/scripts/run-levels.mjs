@@ -852,7 +852,8 @@ async function serve(entries, screenshot) {
       readFile(resolve(root, path.slice(1))).then((data) => { res.setHeader('Content-Type', 'image/webp'); res.end(data); }, () => { res.writeHead(404); res.end(); });
     }
     else {
-      const match = /^\/(levels|replays)\/((?:table|van)-\d{2})$/.exec(path);
+      // 后厨、雪山、老宅、太空站的关也认（原来只认 table / van，`--screenshots` 截新场景时 404）；远景画只有 table、van 两张，别的世界程序画
+      const match = /^\/(levels|replays)\/([a-z]+-\d{2})$/.exec(path);
       const entry = match && entries.find((e) => e.level.id === match[2]);
       if (!entry) { res.writeHead(404); res.end(); return; }
       res.setHeader('Content-Type', 'application/json');
