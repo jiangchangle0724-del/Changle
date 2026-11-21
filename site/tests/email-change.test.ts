@@ -135,7 +135,22 @@ const wrongFor = (code: string) => (code === "111111" ? "222222" : "111111");
   assert.ok("code" in (await start(sql, others[0], "target@example.com", T0 + 3600_000 + 1)), "an hour on, again");
   forgetEmail(sql, ANN.id);
   for (const tb of ["email_changes", "email_history", "email_sent"]) assert.equal(sql.exec(`SELECT COUNT(*) AS n FROM ${tb} WHERE user_id = ?`, ANN.id).toArray()[0].n, 0, tb);
-  ok("spacing and hourly limits (per account, per address) hold after a code is given up on; a deleted account leaves nothing");
+  ok("spacing and hourly limits (per account, per address) hold after a code is given up on; a deleted account leaves nothing of its own");
+}
+{
+  // a throwaway account, deleted, doesn't clear the address's spacing or limit
+  const sql = fresh();
+  codeOf(await start(sql, ANN, "victim@example.com"));
+  forgetEmail(sql, ANN.id);
+  assert.equal(error(await start(sql, BEN, "victim@example.com", T0 + 1000)), "wait", "the address still waits");
+  const t = (i: number) => T0 + i * EMAIL_WAIT;
+  for (let i = 1; i < PER_ADDRESS; i++) {
+    const me = { ...ANN, id: `u${String(i).padStart(12, "g")}`, email: `g${i}@example.com` };
+    codeOf(await start(sql, me, "victim@example.com", t(i)));
+    forgetEmail(sql, me.id);
+  }
+  assert.equal(error(await start(sql, BEN, "victim@example.com", t(PER_ADDRESS))), "slow-down", "and its hourly limit holds");
+  ok("deleting the account that asked doesn't reset the new address's spacing or limit");
 }
 {
   // two requests at once for one account: one gets the code, the other waits

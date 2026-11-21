@@ -55,11 +55,15 @@ export function dropEmail(sql: Sql, id: string, hash?: string) {
   else sql.exec(`DELETE FROM email_changes WHERE user_id = ?`, id);
 }
 
-/** A deleted account: its waiting code, its history and its count of codes go. */
+/**
+ * A deleted account: its waiting code and its history go. Its codes given stay counted for their
+ * addresses until the hour is up, no longer tied to it (or a throwaway account, deleted, would
+ * clear an address's spacing and limit).
+ */
 export function forgetEmail(sql: Sql, id: string) {
   dropEmail(sql, id);
   sql.exec(`DELETE FROM email_history WHERE user_id = ?`, id);
-  sql.exec(`DELETE FROM email_sent WHERE user_id = ?`, id);
+  sql.exec(`UPDATE email_sent SET user_id = '' WHERE user_id = ?`, id);
 }
 
 /**
