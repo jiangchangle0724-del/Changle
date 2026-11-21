@@ -198,6 +198,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
         let slid = "";
         const hipsOf = new WeakMap<Her, InstanceType<typeof T.Object3D>>();
         const feetOfHer = new WeakMap<Her, ReturnType<typeof feetOf>>();
+        const mood = { smile: 0, brows: 0 };
         const headOf = new WeakMap<Her, { head?: InstanceType<typeof T.Object3D>; neck?: InstanceType<typeof T.Object3D>; yaw: number; pitch: number }>();
         const at = new T.Vector3();
         // her middle at her own place on the stage; how far right she may go (her middle clear of the
@@ -424,6 +425,18 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           }
           // her hair and skirt follow
           her!.swing(dt);
+          // her face (Nov 21; Steve: "表情可以做但要很细致"): a soft smile while she dances, a little more
+          // and less over a phrase, fainter standing easy; her brows lift a moment as each new dance
+          // starts; every change eased over a good part of a second (dancer/her.ts face, expressions.py)
+          {
+            const phrase = on ? b / 32 : sec / 20;
+            const smileWant = walking ? 0.3 : on ? 0.55 + 0.25 * Math.sin(phrase * Math.PI * 2) : 0.3;
+            const browsWant = handing ? Math.sin(Math.min(1, k * 1.6) * Math.PI) * 0.7 : 0;
+            const ease = 1 - Math.exp(-dt * 3);
+            mood.smile += (smileWant - mood.smile) * ease;
+            mood.brows += (browsWant - mood.brows) * Math.min(1, ease * 2);
+            her!.face(mood.smile, mood.brows);
+          }
           // (a blink: shutting in 70 ms, shut 40, opening in 120)
           const bt = (t - blinkAt) / 1000;
           her!.blink(bt < 0 ? 0 : bt < 0.07 ? bt / 0.07 : bt < 0.11 ? 1 : bt < 0.23 ? 1 - (bt - 0.11) / 0.12 : 0);

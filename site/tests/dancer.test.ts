@@ -124,6 +124,30 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   // her blink: the colour of her lids (where her eyes are is in her picture's alpha, eyes.py)
   const lid = (gltf.scene.userData as { dancer?: { lid?: number[] } }).dancer?.lid;
   ok(Array.isArray(lid) && lid.length === 3 && lid.every((v) => v > 0.3 && v < 1), `${at} her lids' colour, for her blink (${lid?.join(", ")})`);
+  // her expressions (Nov 21; Steve: "表情可以做但要很细致"): a smile and her brows up, as morph targets, each
+  // moving only her face (her head's front, above her chin) and by under 4 mm (3 as made, the file's
+  // compression rounding it a little)
+  {
+    const m = meshes[0];
+    const d = m.morphTargetDictionary ?? {};
+    const tg = m.geometry.morphAttributes.position ?? [];
+    const top = m.geometry.boundingBox ? m.geometry.boundingBox.max.y : (m.geometry.computeBoundingBox(), m.geometry.boundingBox!.max.y);
+    const pos = m.geometry.attributes.position;
+    for (const name of ["smile", "brows"]) {
+      const a = tg[d[name]];
+      let most = 0;
+      let off = 0;
+      let moved = 0;
+      for (let i = 0; a && i < a.count; i++) {
+        const v = Math.hypot(a.getX(i), a.getY(i), a.getZ(i));
+        if (v < 1e-5) continue;
+        moved++;
+        most = Math.max(most, v);
+        if (pos.getY(i) < top - 0.32 || pos.getZ(i) < 0) off++;
+      }
+      ok(!!a && moved > 20 && most < 0.004 && off === 0, `${at} her ${name}: ${moved} points of her face, ${(most * 1000).toFixed(1)} mm at most, none elsewhere`);
+    }
+  }
   // her springs: the hair's bones (and a skirt's), each in her skeleton, the shapes they're kept off on her bones
   const sp = (gltf.scene.userData as { dancer?: { springs?: SpringData } }).dancer?.springs;
   const groups = sp?.groups.map((g) => g.name) ?? [];

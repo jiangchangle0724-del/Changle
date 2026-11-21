@@ -71,6 +71,8 @@ export type Her = {
   swing(dt: number): void;
   /** her eyes closed this much (0 open, 1 shut): her lids come down them (a blink) */
   blink(k: number): void;
+  /** her face (0 to 1 each): a smile, her brows up; a few millimetres at most (expressions.py) */
+  face(smile: number, brows: number): void;
   /** her hair and skirt back at rest (she was away a while) */
   still(): void;
   dispose(): void;
@@ -85,12 +87,14 @@ export async function loadHer(outfit = "club"): Promise<Her> {
   root.add(gltf.scene);
   let hipsBone: THREE.Object3D | null = null;
   const bones = new Map<string, THREE.Object3D>();
+  const faces: THREE.SkinnedMesh[] = [];
   gltf.scene.traverse((x) => {
     if (x.name === "Hips") hipsBone = x;
     if ((x as THREE.Bone).isBone) bones.set(x.name, x);
     const m = x as THREE.SkinnedMesh;
     if (!m.isSkinnedMesh) return;
     m.frustumCulled = false;
+    if (m.morphTargetDictionary && m.morphTargetInfluences) faces.push(m);
     const mat = m.material as THREE.MeshStandardMaterial;
     // her colours are a photo's, its light in them already: the room's light on top, kept soft
     mat.roughness = 0.6;
@@ -200,6 +204,13 @@ export async function loadHer(outfit = "club"): Promise<Her> {
     knows: (id) => actions.has(id),
     pose,
     swing: (dt) => springs?.update(root, dt),
+    face: (smile, brows) => {
+      for (const m of faces) {
+        const d = m.morphTargetDictionary!, w = m.morphTargetInfluences!;
+        if (d.smile !== undefined) w[d.smile] = smile;
+        if (d.brows !== undefined) w[d.brows] = brows;
+      }
+    },
     blink: (k) => {
       blinkU.value = k;
     },
