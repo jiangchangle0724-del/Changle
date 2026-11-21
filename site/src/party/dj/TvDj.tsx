@@ -33,6 +33,7 @@ import { SfxPlayer } from "./sfx/player";
 import "../../styles/dj.css";
 import { useDjNames } from "./names";
 import { appleTouch } from "./device";
+import { holdNewVersion } from "../../lib/freshness";
 
 /**
  * 打碟 · DJ Booth on the big screen, which is also the speaker: the one device the music comes
@@ -283,6 +284,11 @@ export default function TvDj({ v }: { v: DjView }) {
     .filter((f) => f.seat && f.n > 0)
     .slice(0, 3);
   const live = booth.status === "on";
+  // (while it's the speaker, playing: no reloading for a new version of the site; lib/freshness.ts)
+  useEffect(() => {
+    holdNewVersion(live);
+    return () => holdNewVersion(false);
+  }, [live]);
   const silent = live && (v.phase === "wait" || state !== "playing") && v.phase !== "end";
   const tonight = Object.values(v.total).reduce((a, b) => a + b, 0);
   // ❄️ this minute, and the DJ reading the floor (读场: Lyria leans its energy with it)
