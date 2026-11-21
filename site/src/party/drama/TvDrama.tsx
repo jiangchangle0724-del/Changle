@@ -1,7 +1,7 @@
 import { Clapperboard, Eye, Feather, Film, Mic, Sparkles, Star } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Figure } from "../../components/Figure";
-import { GROUPS, KINDS } from "../../data/drama";
+import { GROUPS, KINDS, pkStyle } from "../../data/drama";
 import { CSET_NAME } from "../../data/dramaClassics";
 import { READ_PASS, readKind, RSET_NAME } from "../../data/dramaReadings";
 import { GENERIC_BEATS, sceneGuide } from "../../data/dramaGuide";
@@ -288,12 +288,15 @@ function Brief({ v, sound }: { v: DramaView; sound: boolean }) {
       <ul className="tvd-roster">
         {v.cast.map((c) => {
           const ready = v.ready.includes(c.pid);
+          // a duel: how each style is played, for the room to watch for (and the duelists to check)
+          const how = v.mode === "pk" ? pkStyle(c.role)?.how : undefined;
           return (
-            <li key={c.pid} className={ready ? "is-ready" : ""}>
+            <li key={c.pid} className={`${ready ? "is-ready" : ""} ${how ? "has-how" : ""}`}>
               <SeatFace seat={seat(c.pid)} size={46} />
               <span className="tvd-roster-main">
                 <strong>{tr(c.role)}</strong>
                 <small>{seat(c.pid)?.name ?? "?"}</small>
+                {how && <em className="tvd-roster-how">{tr(how)}</em>}
               </span>
               <span className="tvd-roster-state">
                 {ready ? (zh ? (v.mode === "read" ? "准备好了" : "看好了") : "Ready") : v.mode === "read" ? (zh ? "在默读" : "Reading it over") : zh ? "在看牌" : "Reading"}
