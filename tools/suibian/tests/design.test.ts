@@ -44,3 +44,24 @@ test("padding, margins and gaps come from the spacing tokens", () => {
 test("this is a tool: its light is the tools' amber", () => {
   assert.match(styles, /--gel:\s*var\(--type-tool\)/);
 });
+
+test("motion only changes transform, opacity or clip-path, and never loops at rest", () => {
+  const frames = [...styles.matchAll(/@keyframes\s+[\w-]+\s*\{((?:[^{}]*\{[^{}]*\})+)\s*\}/g)];
+  assert.ok(frames.length > 0, "keep the motion checks active");
+  for (const frame of frames) {
+    const properties = [...frame[1].matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
+    assert.deepEqual(properties.filter((p) => !["transform", "opacity", "clip-path"].includes(p)), [], frame[0]);
+  }
+  const transitions = values("transition").flatMap((v) => v.split(",").map((part) => part.trim().split(/\s/)[0]));
+  assert.deepEqual(transitions.filter((p) => !["transform", "opacity", "clip-path"].includes(p)), []);
+  assert.doesNotMatch(styles, /\binfinite\b|animation-iteration-count\s*:/i);
+});
+
+test("one reduced-motion block replaces moves with token fades and stops ticks and sparks", () => {
+  assert.equal([...styles.matchAll(/@media\s*\(prefers-reduced-motion:\s*reduce\)/g)].length, 1);
+  const fallback = styles.slice(styles.indexOf("@media (prefers-reduced-motion: reduce)"));
+  assert.match(fallback, /\[data-anim\][\s\S]*animation:\s*fade var\(--dur-enter\)/);
+  assert.match(fallback, /\.countdown-tick[^{}]*\{\s*animation:\s*none/);
+  assert.match(fallback, /\.spark-burst[^{}]*\{\s*display:\s*none/);
+  assert.match(fallback, /\.press:active:not\(:disabled\)\s*\{\s*transform:\s*none/);
+});
