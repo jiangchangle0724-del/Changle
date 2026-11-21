@@ -101,6 +101,10 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[];
   // eight that passed the motion checks
   { id: "shenyun4", bpm: 107.7, looks: ["sweet"] },
   { id: "shenyun5", bpm: 107.7, looks: ["sweet"] },
+  // ballet (a centre adagio and port de bras), learnt from a teacher's class demonstration found on YouTube
+  // (Nov 21; Steve: "一个接一个继续做"): the two phrases of seven that passed every check, turned to face the room
+  { id: "ballet2", bpm: 92.3, looks: ["sweet"] },
+  { id: "ballet3", bpm: 92.3, looks: ["sweet"] },
   // (Nov 21: "kickstep" left out. Her feet slid more in it than the dancer's did: tests/dancer.test.ts)
 ];
 
