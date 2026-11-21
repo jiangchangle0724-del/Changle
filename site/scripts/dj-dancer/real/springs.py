@@ -60,7 +60,7 @@ h = cfg['hair']
 top, bottom, nc, nb = h['top'], h['bottom'], h.get('chains', 3), h.get('bones', 3)
 behind = P[:, 2] < J['Neck'][2] - 0.01
 if h.get('only'):
-    # (a sheet of hair made of its own, hairsheet.py: only its vertices; her back under it stays her back)
+    # (her hair's own shell, hairshell.py: only its vertices; her back under it stays her back)
     hair = np.load(lo + '/' + h['only'])
 else:
     hair = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.04) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.17)
@@ -119,7 +119,9 @@ r_head = 0.095
 groups.append({
     # (the model's hair is grown into her back here and there: it sways a little, never flies out
     # like a cape, or it would pull her back's colours over it)
-    'name': 'hair', 'bones': hair_bones, 'stiffness': 2.4, 'gravity': 0.25, 'drag': 0.6, 'hit': 0.006, 'max': 0.42,
+    # (a shell of her hair off her back, hairshell.py: no colours of her back to pull, so it swings freer)
+    'name': 'hair', 'bones': hair_bones, 'hit': 0.006,
+    **({'stiffness': 1.8, 'gravity': 0.3, 'drag': 0.5, 'max': 0.55} if h.get('only') else {'stiffness': 2.4, 'gravity': 0.25, 'drag': 0.6, 'max': 0.42}),
     'colliders': ['head', 'neck', 'back', 'lshoulder', 'rshoulder'],
 })
 print('hair vertices', int(hair.sum()), 'chains', nc, 'x', np.round(cx, 3))
