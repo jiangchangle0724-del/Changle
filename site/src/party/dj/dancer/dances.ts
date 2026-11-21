@@ -31,10 +31,12 @@ export const LOOKS: readonly Look[] = ["sweet", "party", "club"];
 // (her-qipao: the pink brocade qipao set; her-lace: the white off-shoulder lace dress; her-leather: the
 // lace cami, black leather jacket and skirt; her-eyelet: the white eyelet dress; her-cardigan: the black
 // cardigan and white midi skirt: from the photos Steve sent on Nov 21)
+// (her-sweet: the first-love blouse and pleated skirt; her-party: the rose-gold sequin dress: the first
+// outfits' designs, on her since Nov 21 too, Steve: "旧衣服也可以加进去套在现有的模特身上")
 export const OUTFITS: Record<Look, readonly string[]> = {
-  sweet: ["eyelet", "cardigan", "qipao"],
-  party: ["lace", "qipao", "leather"],
-  club: ["club", "leather", "lace"],
+  sweet: ["eyelet", "sweet", "cardigan", "qipao"],
+  party: ["lace", "party", "qipao", "leather"],
+  club: ["club", "leather", "party", "lace"],
 };
 /** The outfit she wears for a song (its id: the same song, the same outfit), in its look. */
 export function outfitFor(look: Look, song: string | null): string {

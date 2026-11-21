@@ -219,6 +219,7 @@
 - 11-21 Steve 拍了电视：脸扭曲、跳得不自然、手机当音箱放完一首就停。他选了一张参考图的脸（他发的第三张，粉色盘扣那位，他说是 AI 生成的人），三套衣服都换成这张脸（`facekit.py`），脸按照片原来的光画（`_FACE`），不再被舞台灯照出凹凸。接下来：照他的参考图设计更多衣服（白色蕾丝、皮衣蕾丝、新中式、白色连衣裙、黑白开衫长裙），摩登舞配大摆裙、古典舞配水袖，不同的歌配不同的衣服和舞；动作要过一组查 AI 动作毛病的检查（打滑、穿地、浮空、反关节、穿模、重心、抖动）。
 - 11-21 手机当音箱放完一首就回到「这台设备当音箱」：页面重新加载了（和 11-2 的「经常闪退」一样，最可能是屏幕自动锁了）。iPhone、iPad 现在两种办法一起保持亮屏（系统的亮屏请求，加一个看不见的小视频一直放），系统收回亮屏请求时再要一次；开始卡片上告诉 iPhone 先把自动锁定设成「永不」。
 - 11-21 Steve 又说投屏的手机「偶尔还是会突然刷新」：网站一更新（任何一个聊天合并到 main 都会），页面再要一个还没下载的文件就拿不到（文件名每次构建都变），`lib/freshness.ts` 就重新加载页面，歌就断了。现在当音箱放着歌的时候不重新加载（`holdNewVersion`），缺文件的那部分自己退回去（舞者退回画的那个），离开页面时再换新版。
+- 11-21 12:38 Steve：「1.继续优化 2.继续 3.你自己去youtube找视频学习 4.改进修复 5.改进 6.继续 旧衣服也可以加进去套在现有的模特身上，不要对模特面部进行任何的改动。继续干把所有的都干完不要停」。旧的派对裙、初恋裙也穿到第一个人物身上了（`her-party`、`her-sweet` 重做，脸不动）。还要做：自己找 YouTube 的芭蕾、摩登舞、古典舞视频来学；晚礼服、摩登舞裙、古典舞服；表情；光腿和高跟鞋、背心前襟；换舞时脚钉住；Kick Step。
 - 11-21 下午 头发单独一层（`hairsheet.py`，六套衣服都重做了，`her.glb.gz` 也是）；她的头在跳舞时往镜头这边转（最多约 40 度，舞自己的转头留着）、每拍轻轻点一下头（`Dancer3D.tsx`）。还没做：脸上的表情（笑、张嘴）要给脸做 morph，下一步。
 - 11-21 中午 五套衣服做好了，都在第一个人物身上（她的脸、头发、身材不变）：衣服画在她的贴图上（`reskin.py`），裙子单独一层会摆（`skirt.py`），靴子留着换成鞋子的颜色。`OUTFITS`：sweet 镂空裙、开衫长裙、旗袍；party 蕾丝裙、旗袍、皮夹克；club 她自己那套、皮夹克、蕾丝裙；每首歌固定一套。Steve 同时说「人物面部和头部表情僵硬和背部头发粘在一起的的问题一直没改，继续深度优化人物动作」：下一步做头发单独一层（像裙子）、头看镜头和跟拍子点头、表情。
 - 11-21 深夜 Steve 发了两个 YouTube 翻跳视频「学习这两个视频的舞蹈动作」（ILLIT「It's Me」、KATSEYE「Gnarly」）：在他电脑上 yt-dlp 下载（`C:\Claude Playground\OUTPUTS\音效\舞者衣服\舞蹈视频`），MediaPipe 读每帧身体，`mocap/fromvideo.ts` 套到她身上，切段、剪循环、过动作检查，8 支进了快歌（itsme1/3/4/5、gnarly1/4/5/7）。他还会发视频，照 `site/scripts/dj-dancer/README.md`「从视频学一支舞」做。五套衣服的设计图都画好了（ChatGPT，同一个人只换衣服，他说「这些就很好」）：在他电脑 `舞者衣服` 文件夹，本机 `/home/claude/her-work/outfits/`；3D 还没做（衣服画到第一个人物身上、裙子单独一层，要写）。
@@ -281,6 +282,7 @@
 - 2026-11-21 DJ: eight dances learnt from Steve's two YouTube dance covers
 - 2026-11-21 DJ: five new outfits on the first dancer, one a song
 - 2026-11-21 DJ: her hair a layer of its own; her head turns to the room and nods on the beat
+- 2026-11-21 DJ: the old party dress and first-love skirt on the first dancer too
 - 2026-11-20 DJ: the dancer walks the stage
 - 2026-11-20 DJ: six more dances for the dancer, and her outfit changes sooner
 - 2026-11-20 DJ: the dancer's party dress, and the new outfits' faces put right
