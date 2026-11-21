@@ -773,7 +773,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   ok(/^\/split\/\*\n {2}X-Robots-Tag: noindex$/m.test(read("public/_headers")), "a ledger's own address still isn't indexed");
   // a ledger's own address (an invite link) is the 两清 page, so a chat app's preview says 两清; to
   // /split, not /split.html: Pages sends /split.html on to /split, and the ledger's id would be lost
-  ok(/^\/split\/\* \/split 200$/m.test(read("public/_redirects")) && !read("public/_redirects").includes("split.html"), "a ledger's own address is the 两清 page, the address kept");
+  ok(/^\/split\/\* \/split 200$/m.test(read("public/_redirects")) && !read("public/_redirects").split("\n").some((l) => !l.startsWith("#") && l.includes("split.html")), "a ledger's own address is the 两清 page, the address kept");
   const sample = Object.entries(W).filter(([, w]) => /小样|first look|preview/i.test(`${w.zh} ${w.en}`)).map(([k]) => k);
   ok(!sample.length, `nothing a player reads calls it a first look any more${sample.length ? `: ${sample.join(", ")}` : ""}`);
 }
