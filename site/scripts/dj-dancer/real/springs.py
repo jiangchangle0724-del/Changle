@@ -192,9 +192,17 @@ if s:
     for side, (a, b, r) in legs.items():
         colliders[side[0].lower() + 'thigh'] = {'bone': side + 'UpLeg', 'a': list(a), 'b': list(b), 'r': r + 0.01}
     colliders['hips'] = {'bone': 'Hips', 'a': list(J['Hips'] + [0, -0.02, 0]), 'r': 0.11}
+    # (a skirt past her knees: her shins too, from the knee half way down, so a kick lifts it
+    # rather than going through it; Nov 21)
+    shins = []
+    if hem < J['LeftLeg'][1] - 0.05:
+        for side in ('Left', 'Right'):
+            knee, ankle = np.array(J[side + 'Leg']), np.array(J[side + 'Foot'])
+            colliders[side[0].lower() + 'shin'] = {'bone': side + 'Leg', 'a': list(knee), 'b': list(knee * 0.45 + ankle * 0.55), 'r': 0.045}
+            shins.append(side[0].lower() + 'shin')
     groups.append({
         'name': 'skirt', 'bones': skirt_bones, 'stiffness': 1.6, 'gravity': 0.35, 'drag': 0.4, 'hit': 0.015, 'max': 0.75,
-        'colliders': ['lthigh', 'rthigh', 'hips'],
+        'colliders': ['lthigh', 'rthigh', 'hips'] + shins,
     })
     print('skirt vertices', int(skirt.sum()), 'legs r', {k: round(v[2], 3) for k, v in legs.items()})
 
