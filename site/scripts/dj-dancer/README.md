@@ -29,8 +29,14 @@
 | house | House Dancing（House Dance Variation Two） |
 | samba | Samba Dancing（Female Fast Samba Enredo Variation Two） |
 | idle, idle2 | Catwalk Idle, Catwalk Idle Twist L（Female Standing Idle, Female Twist Left Idle） |
+| timid | Hip Hop Dancing（Timid Dancing），11 月 20 日起，下同 |
+| salsa_side | Salsa Dancing（Salsa Dancing Side To Side） |
+| salsa | Salsa Dancing（Female Salsa Dancing） |
+| ribpops | Hip Hop Dancing（Female Hip Hop 'Rib Pops' Dancing） |
+| kickstep | Hip Hop Dancing（Female Hip Hop 'Kick Step' Dancing） |
+| shimmy | Hip Hop Dancing（Hip Hop Dancing Shimmy） |
 
-Belly Dancing Variation Three 和 Jazz 'Around The World' 也下了，但胯走得太远（出画面），没用。
+Belly Dancing Variation Three 和 Jazz 'Around The World' 也下了，但胯走得太远（出画面），没用。11 月 20 日的 Ballet Dance Variation One（跳起来、走 1 米）、Jazz 'Around The World' - Loop 和 Dance Swing Charleston（胯走出半米多）、Snake Hip Hop Dance（蹲得太低，裙子的骨头扎进腿里）也没用，测试不让过。
 
 ## 怎么做的
 

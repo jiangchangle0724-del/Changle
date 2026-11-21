@@ -213,7 +213,8 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
           // the dance for this beat (and the next one fetched ahead); with no song, standing easy at her
           // own tempo
           const idle = idleAt(sec);
-          let want = on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
+          const aim = on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
+          let want = aim;
           if (on) void her!.learn(danceNext(Math.floor(b), lk, bpm)).catch(() => {});
           if (!her!.knows(want)) {
             void her!.learn(want).catch(() => {});
@@ -229,7 +230,8 @@ export function Dancer3D({ clock, mood, look, light = false, onReady, onFail }: 
               change = { to: next, at: t, swapped: false };
               next.still();
             } else if (next) void next.learn(cur).catch(() => {});
-            else if (!loading.has(outfit)) void fetchOutfit(outfit, [cur, want]);
+            // (taught the dance she's about to be on too, so the change needn't wait to learn it)
+            else if (!loading.has(outfit)) void fetchOutfit(outfit, [cur, aim]);
           }
           if (change) {
             const k = (t - change.at) / 1000 / CHANGE_S;

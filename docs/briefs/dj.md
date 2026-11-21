@@ -215,7 +215,8 @@
 
 ## 还剩什么
 
-- 舞者接着做（11-18 深夜 Steve 要的）：在整个舞台上左右走（分支 `claude/dj-dancer-walk` 上做了一半，缺 Mixamo 的走路动作）；更多的舞（抒情的温柔的、派对的、街舞），Mixamo 在 Claude 桌面版的浏览器里登录过期了，要 Steve 登一下。
+- 舞者接着做（11-18 深夜 Steve 要的）：在整个舞台上左右走（分支 `claude/dj-dancer-walk` 上做了一半）。11-20 Mixamo 用 Steve 的 Google 账号登上了（Claude 桌面版的浏览器，没输密码），走路动作已经下好（性感走、温柔走、猫步，原地走），还没接上。
+- 11-20 加了 6 支舞（害羞的小动作、两种萨尔萨、Rib Pops、Kick Step、Shimmy），抒情的、派对的、快歌的都多了；芭蕾、爵士、查尔斯顿、蛇舞也下了，测试不让过（走出原地或者裙子扎进腿里），没用。换风格时新衣服先学好她马上要跳的舞，换得快一点。
 - 舞者（11-18 的新样子）在 Steve 的电视和 iPad 上看一眼：顺不顺（前几秒每秒不到 20 帧会自己换回机器人）、远看像不像真人、背心。她比原来的重：模型 1.5 MB，舞每支 6 到 110 KB（跳到才下）。
 - 舞者已知的毛病，看 Steve 怎么说再改：背心在模型里和身体、胳膊长在一起，胳膊动得大时背心附近会拉扯；手是连在一起的（手指不动）；耳环是画在脸旁边的（侧过来看像贴上去的）；侧面的颜色是模型自己的，比正面糊一点。能做的：ChatGPT 再画左右两个侧面一起烤；TRELLIS 用 1536 的分辨率再做一次（要 Steve 的免费额度）；背心单独做一件。
 - TRELLIS 的空间做模型前用 BRIA RMBG-2.0 抠图（非商用许可，`LICENSES.md` 写着）。changle.ca 是免费的；要彻底不沾它，下次给 TRELLIS 一张我们自己抠好的透明底图片就跳过那一步。
@@ -265,6 +266,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-20 DJ: six more dances for the dancer, and her outfit changes sooner
 - 2026-11-20 DJ: the dancer's party dress, and the new outfits' faces put right
 - 2026-11-19 DJ: the dancer dresses and dances for the song, her hair and skirt swinging
 - 2026-11-19 DJ: the host can turn the TV's dancer off and on
