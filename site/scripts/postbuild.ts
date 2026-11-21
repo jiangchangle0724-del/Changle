@@ -87,7 +87,8 @@ const toolIds = Object.keys(TOOLS) as ToolId[];
 for (const id of toolIds) {
   write(`tools/${id}.html`, page({ title: `${TOOLS[id].zh} ${TOOLS[id].en} · ${NAME}`, description: TOOL_WORDS[id], path: `/tools/${id}`, image: picture("default") }));
 }
-// 两清 · All Square at /split (a ledger's own address, /split/<id>, is the plain app and isn't indexed: public/_headers)
+// 两清 · All Square at /split (a ledger's own address, /split/<id>, is this page too, so an invite link's
+// preview in a chat says 两清: public/_redirects; it isn't indexed: public/_headers)
 write("split.html", page({ title: `两清 All Square · ${NAME}`, description: "一起出去玩，谁付的都记一笔，拍小票自动填金额，最后用最少几笔转账两清。Log who paid what on a trip, snap receipts to fill in amounts, then settle up in the fewest transfers.", path: "/split", image: picture("default") }));
 console.log(`postbuild: ${n} game pages, the tools page, ${toolIds.length} tool pages and 两清 in dist/`);
 

@@ -1,0 +1,5 @@
+# 两清 · All Square: a ledger's own address (/split/<id>, as invite links are) gets the 两清 page, so a
+# chat app's link preview says 两清 and not the home page; the address stays as it is. To /split, not
+# /split.html: Pages sends /split.html on to /split, and the ledger's id would be lost. (/split/api/*
+# is the 两清 Worker's own route and never reaches these files.)
+/split/* /split 200
