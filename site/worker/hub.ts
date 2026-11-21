@@ -10,7 +10,7 @@ import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
 import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
 import { accountsThere, appsUsed, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
-import { cancelByLink, cancelPending, confirmEmail, dropEmail, EMAIL_RE, emailTables, forgetEmail, makeEmail, nextPending, pendingOf, startEmail, takeDue } from "./emailChange";
+import { cancelByLink, cancelPending, confirmEmail, dropEmail, EMAIL_RE, emailTables, forgetEmail, makeEmail, nextPending, pendingOf, postponeDue, startEmail, takeDue } from "./emailChange";
 import { mailTables, nextMail, queueMail, sendMail, type Mail } from "./mailOut";
 import { cleanNotice, esc, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
@@ -272,9 +272,10 @@ export class Hub extends DurableObject<HubEnv> {
     const b = (c.body ?? {}) as Record<string, unknown>;
     const me = c.token ? await this.session(c.token) : null;
     const master = !!me && this.isMaster(me);
-    // signing in, and the pictures of people's faces, stay open; the rest is shut to a banned
-    // phone, and to everyone but the owner while the site is paused
-    const open = path.startsWith("/auth/") || /^\/(avatar|figure)\/u[a-z0-9]{6,20}(\/cut)?$/.test(path);
+    // signing in, the pictures of people's faces, and cancelling a waiting email change (so a pause
+    // or a banned phone can't keep an owner from it) stay open; the rest is shut to a banned phone,
+    // and to everyone but the owner while the site is paused
+    const open = path.startsWith("/auth/") || path === "/email/cancel" || path === "/me/email/cancel" || /^\/(avatar|figure)\/u[a-z0-9]{6,20}(\/cut)?$/.test(path);
     if (!master && !open) {
       if (c.device && this.isBanned(`d:${c.device}`)) return err(403, "banned");
       if (this.paused) return err(503, "paused");
@@ -317,7 +318,10 @@ export class Hub extends DurableObject<HubEnv> {
     // a change waiting its three days, cancelled by the link mailed to the address the account has now
     if (path === "/email/cancel" && m === "POST") {
       if (!this.allow(`cancel:${c.ip}`, 20, 3600_000)) return err(429, "slow-down");
-      return (await cancelByLink(this.sql, b.token)) ? ok({ cancelled: true }) : err(400, "link");
+      const who = await cancelByLink(this.sql, b.token);
+      if (!who) return err(400, "link");
+      this.push(who, { t: "me" });
+      return ok({ cancelled: true });
     }
     if (path === "/auth/logout" && m === "POST") {
       if (c.token) {
@@ -385,9 +389,11 @@ export class Hub extends DurableObject<HubEnv> {
     if (path === "/me/email/confirm" && m === "POST") return this.emailConfirm(me, b, b.lang === "en" ? "en" : "zh", c);
     // a change waiting its three days, cancelled from one of the account's phones
     if (path === "/me/email/cancel" && m === "POST") {
-      cancelPending(this.sql, me.id);
+      if (cancelPending(this.sql, me.id)) this.push(me.id, { t: "me" });
       return ok({ user: this.selfView(me) });
     }
+    // every other phone signed in to this account, signed out (this one stays)
+    if (path === "/me/sessions/others" && m === "POST") return ok({ out: this.signOutOthers(me.id, await sha(c.token)) });
     if (path === "/me" && m === "DELETE") {
       this.deleteUser(me.id);
       return ok({ ok: true });
@@ -903,8 +909,10 @@ export class Hub extends DurableObject<HubEnv> {
     });
     if ("status" in r) return r;
     if ("waiting" in r) {
-      // the address the account has now hears at once, with the link that cancels it
-      queueMail(this.sql, this.waitingNote(me.email, r.waiting.email, r.waiting.due, r.waiting.token, lang));
+      // the address the account has now hears at once, with the link that cancels it; the account's
+      // other phones show it too
+      queueMail(this.sql, this.waitingNote(me.email, r.waiting.email, r.waiting.due, r.waiting.token));
+      this.push(me.id, { t: "me" });
       this.kickNotices();
     } else this.emailMade(me.id, r.made, lang, session, true);
     return ok({ user: this.selfView(this.userById(me.id)!) });
@@ -916,6 +924,20 @@ export class Hub extends DurableObject<HubEnv> {
    * has used it, bound yet or not) told to end its sessions there, both tried until they're heard.
    */
   private emailMade(id: string, made: { old: string; email: string }, lang: "zh" | "en", keep: string, kick: boolean) {
+    this.signOutOthers(id, keep);
+    this.push(id, { t: "me" });
+    queueMail(this.sql, this.changedNote(made.old, made.email));
+    if (appsUsed(this.sql, id).includes("money")) noteGone(this.sql, id, ["money-changed"]);
+    if (kick) this.kickNotices();
+  }
+
+  /**
+   * Every phone signed in to the account signed out but one (`keep`: its session's hash): their
+   * sessions gone, their live sockets closed (4006: the app signs out), handoff codes dropped.
+   * Gives how many sessions went.
+   */
+  private signOutOthers(id: string, keep: string) {
+    const n = Number(this.one(`SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND hash != ?`, id, keep)?.n ?? 0);
     this.sql.exec(`DELETE FROM sessions WHERE user_id = ? AND hash != ?`, id, keep);
     forgetHandoffs(this.sql, id, false);
     for (const ws of this.ctx.getWebSockets(id)) {
@@ -927,9 +949,7 @@ export class Hub extends DurableObject<HubEnv> {
           /* gone */
         }
     }
-    queueMail(this.sql, this.changedNote(made.old, made.email, lang));
-    if (appsUsed(this.sql, id).includes("money")) noteGone(this.sql, id, ["money-changed"]);
-    if (kick) this.kickNotices();
+    return n;
   }
 
   /** the notices and mail just queued: sent now, the alarm set in case they don't go */
@@ -943,12 +963,17 @@ export class Hub extends DurableObject<HubEnv> {
 
   /** the waiting changes whose three days are up: checked again and made (on the alarm) */
   private makeDueEmails() {
+    // (paused, nobody can cancel: nothing is made, and what's due waits another hour)
+    if (this.paused) return postponeDue(this.sql, Date.now());
     for (const p of takeDue(this.sql, Date.now())) {
       const u = this.userById(p.id);
       if (!u || u.banned || this.isAdmin(u)) continue;
       const made = makeEmail(this.sql, p.id, p.email, { unusable: (e) => this.emailUnusable(u, e), ip: p.ip, device: p.device, now: Date.now() });
       if ("status" in made) {
         console.error(`hub: a waiting email change wasn't made (${made.json.error})`);
+        // the new address hears why, and the account's phones stop showing it
+        queueMail(this.sql, this.notMadeNote(p.email, made.json.error, p.lang));
+        this.push(p.id, { t: "me" });
         continue;
       }
       this.emailMade(p.id, made, p.lang, p.session, false);
@@ -970,29 +995,41 @@ export class Hub extends DurableObject<HubEnv> {
       : "";
     return `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
 <p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
-${body}${button}
-<p style="margin:0;color:#b6b4d0;font-size:14px">${esc(note)}</p></div>`;
+${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${esc(note)}</p>` : ""}</div>`;
   }
 
-  /** the note to the old address once the change is made: the new one masked, and what to do if it wasn't them */
-  private changedNote(old: string, now: string, lang: "zh" | "en"): Mail {
-    const zh = lang === "zh";
-    const subject = zh ? "你的 changle 账号换了邮箱" : "Your changle account has a new email";
-    const lead = zh ? `你的 changle 账号的登录邮箱换成了 ${masked(now)}，以后用它登录。` : `Your changle account now signs in with ${masked(now)}.`;
-    const note = zh ? "不是你本人换的话，请马上回复这封邮件告诉我们。" : "If you didn't change it, reply to this email right away.";
-    return { to: old, subject, html: this.frame([lead], note), text: `${lead}\n\n${note}`, ...this.replyTo() };
+  /**
+   * The note to the old address once the change is made: the new one masked, and what to do if it
+   * wasn't them. In both languages: whoever asked chose the language, and it might not be the
+   * owner's.
+   */
+  private changedNote(old: string, now: string): Mail {
+    const subject = `你的 changle 账号换了邮箱 · Your changle account has a new email`;
+    const zh = [`你的 changle 账号的登录邮箱换成了 ${masked(now)}，以后用它登录。不是你本人换的话，请马上回复这封邮件告诉我们。`];
+    const en = [`Your changle account now signs in with ${masked(now)}. If you didn't change it, reply to this email right away.`];
+    return { to: old, subject, html: this.frame([...zh, ...en], ""), text: [...zh, ...en].join("\n\n"), ...this.replyTo() };
   }
 
-  /** to the address the account has now, when the change waits its three days: when, and the link that cancels it */
-  private waitingNote(old: string, now: string, due: number, token: string, lang: "zh" | "en"): Mail {
-    const zh = lang === "zh";
+  /**
+   * To the address the account has now, when the change waits its three days: when, and the link
+   * that cancels it. In both languages, as above.
+   */
+  private waitingNote(old: string, now: string, due: number, token: string): Mail {
     const href = `https://changle.ca/me/email-cancel#${token}`;
-    const subject = zh ? "你的 changle 账号 3 天后换邮箱" : "Your changle account's email changes in 3 days";
-    const lead = zh ? `有人要把你的 changle 账号的登录邮箱换成 ${masked(now)}，${when(due, lang)}生效。` : `Someone asked to move your changle account to ${masked(now)}. It happens ${when(due, lang)}.`;
-    const why = zh ? "对方说这个邮箱收不到信了，所以要等 3 天。" : "They said this address no longer gets mail, so it waits 3 days.";
-    const note = zh ? "是你本人的话，不用做什么。不是你的话，马上点上面的按钮取消。" : "If it was you, there's nothing to do. If not, cancel it now with the button above.";
-    const label = zh ? "取消这次换邮箱" : "Cancel this change";
-    return { to: old, subject, html: this.frame([lead, why], note, { href, label }), text: `${lead}\n${why}\n\n${label}: ${href}\n\n${note}`, ...this.replyTo() };
+    const subject = `你的 changle 账号 3 天后换邮箱 · Your changle account's email changes in 3 days`;
+    const zh = `有人要把你的 changle 账号的登录邮箱换成 ${masked(now)}，${when(due, "zh")}生效。对方说这个邮箱收不到信了，所以要等 3 天。是你本人的话，不用做什么；不是你的话，马上点下面的按钮取消。`;
+    const en = `Someone asked to move your changle account to ${masked(now)}. It happens ${when(due, "en")}. They said this address no longer gets mail, so it waits 3 days. If it was you, there's nothing to do. If not, cancel it now with the button below.`;
+    const label = "取消这次换邮箱 · Cancel this change";
+    return { to: old, subject, html: this.frame([zh, en], "", { href, label }), text: `${zh}\n\n${en}\n\n${label}: ${href}`, ...this.replyTo() };
+  }
+
+  /** to the new address when a waiting change couldn't be made on its day: why */
+  private notMadeNote(now: string, why: string, lang: "zh" | "en"): Mail {
+    const zh = lang === "zh";
+    const subject = zh ? "你的 changle 账号没换成这个邮箱" : "Your changle account didn't move to this email";
+    const lead = why === "taken" ? (zh ? "这个邮箱这几天里有了一个 changle 账号，所以没换成。" : "This address got a changle account of its own in the meantime, so the change wasn't made.") : zh ? "这个邮箱不能用，所以没换成。" : "This address can't be used, so the change wasn't made.";
+    const note = zh ? "账号还用原来的邮箱登录。" : "The account still signs in with its old email.";
+    return { to: now, subject, html: this.frame([lead], note), text: `${lead}\n\n${note}`, ...this.replyTo() };
   }
 
   /** to the new address once a waiting change is made */
@@ -1005,35 +1042,32 @@ ${body}${button}
   }
 
   private async mail(to: string, code: string, lang: "zh" | "en", what: "signin" | "email" | "email-now" = "signin", newAddress = "") {
+    if (what === "email-now") return this.nowCodeMail(to, code, newAddress);
     const zh = lang === "zh";
-    const subject =
-      what === "signin" ? (zh ? `changle 验证码 ${code}` : `Your changle code: ${code}`) : zh ? `changle 换邮箱验证码 ${code}` : what === "email" ? `Your changle code for the new email: ${code}` : `Your changle code to confirm the email change: ${code}`;
-    const lead =
-      what === "email"
-        ? zh
-          ? "确认这是你的新邮箱，验证码："
-          : "To make this your changle email, the code is:"
-        : what === "email-now"
-          ? zh
-            ? `有人要把你的 changle 账号的登录邮箱换成 ${masked(newAddress)}。是你本人的话，把这个验证码也填进去：`
-            : `Someone asked to move your changle account to ${masked(newAddress)}. If it was you, type this code in too:`
-          : zh
-            ? "你的登录验证码："
-            : "Your sign-in code:";
-    const note =
-      what === "email-now"
-        ? zh
-          ? "10 分钟内有效。不是你本人的话，别把验证码告诉任何人。"
-          : "It works for 10 minutes. If it wasn't you, don't give this code to anyone."
-        : zh
-          ? "10 分钟内有效。不是你本人操作的话，忽略这封邮件就好。"
-          : "It works for 10 minutes. If you didn't ask for it, ignore this email.";
+    const subject = what === "signin" ? (zh ? `changle 验证码 ${code}` : `Your changle code: ${code}`) : zh ? `changle 换邮箱验证码 ${code}` : `Your changle code for the new email: ${code}`;
+    const lead = what === "email" ? (zh ? "确认这是你的新邮箱，验证码：" : "To make this your changle email, the code is:") : zh ? "你的登录验证码：" : "Your sign-in code:";
+    const note = zh ? "10 分钟内有效。不是你本人操作的话，忽略这封邮件就好。" : "It works for 10 minutes. If you didn't ask for it, ignore this email.";
     const html = `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
 <p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
 <p style="margin:0 0 8px;color:#b6b4d0">${esc(lead)}</p>
 <p style="font-size:40px;font-weight:800;letter-spacing:8px;margin:0 0 18px">${code}</p>
 <p style="margin:0;color:#7f7c9d;font-size:13px">${note}</p></div>`;
     await this.deliver({ to, subject, html, text: `${lead} ${code}\n\n${note}` });
+  }
+
+  /** the code for the address the account has now: what's asked, in both languages (whoever asked chose the language) */
+  private async nowCodeMail(to: string, code: string, newAddress: string) {
+    const subject = `changle 换邮箱验证码 ${code} · Your changle code to confirm the email change`;
+    const zh = `有人要把你的 changle 账号的登录邮箱换成 ${masked(newAddress)}。是你本人的话，把这个验证码也填进去。不是你的话，别把它告诉任何人。`;
+    const en = `Someone asked to move your changle account to ${masked(newAddress)}. If it was you, type this code in too. If not, don't give it to anyone.`;
+    const note = "10 分钟内有效 · It works for 10 minutes.";
+    const html = `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
+<p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
+<p style="margin:0 0 8px;color:#b6b4d0">${esc(zh)}</p>
+<p style="margin:0 0 8px;color:#b6b4d0">${esc(en)}</p>
+<p style="font-size:40px;font-weight:800;letter-spacing:8px;margin:0 0 18px">${code}</p>
+<p style="margin:0;color:#7f7c9d;font-size:13px">${esc(note)}</p></div>`;
+    await this.deliver({ to, subject, html, text: `${zh}\n${en}\n\n${code}\n\n${note}` });
   }
 
   /** One mail out through Resend (or, locally, DEV_MAIL_URL). Throws "no-mail" without a key, "resend …" when Resend says no. */
@@ -1615,11 +1649,13 @@ ${body}${button}
     const token = new URL(req.url).searchParams.get("token") ?? "";
     const me = await this.session(token);
     if (!me) return new Response("signin", { status: 401 });
+    // (`s`: the session's hash, so the account's other phones can be signed out and this one kept;
+    // worked out before the socket is taken on, so nothing can happen between the two)
+    const s = await sha(token);
     const pairSock = new WebSocketPair();
     const [client, server] = Object.values(pairSock) as [WebSocket, WebSocket];
     this.ctx.acceptWebSocket(server, [me.id]);
-    // (`s`: the session's hash, so an email change can sign out the account's other phones and keep this one)
-    server.serializeAttachment({ uid: me.id, s: await sha(token) });
+    server.serializeAttachment({ uid: me.id, s });
     server.send(JSON.stringify({ t: "hello", unread: this.unread(me.id), requests: this.requests(me.id), paused: this.paused && !this.isMaster(me) }));
     return new Response(null, { status: 101, webSocket: client });
   }

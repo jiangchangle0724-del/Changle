@@ -87,6 +87,8 @@ async function join(hub: Hub, email: string, device = "test-phone-0001") {
 }
 const NONCE = "hub-test_nonce-0123456789";
 const codeFor = async (hub: Hub, token: string, device?: string) => req(hub, "POST", "/handoff", { aud: "moneylens", nonce: NONCE }, token, device);
+/** how many 换邮箱 changes wait */
+const pendingOf = (s: { db: DatabaseSync }) => Number((s.db.prepare("SELECT COUNT(*) AS n FROM email_pending").get() as Row).n);
 const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app, tries FROM gone_notices ORDER BY app").all() as Row[]).map((r) => ({ ...r }));
 
 // ---- who gets a code ----
@@ -267,9 +269,12 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   later();
   mails.length = 0;
   down = 1; // (the first try of the note to the old address fails)
+  const guess = await req(hub, "POST", "/me/email", { email: "New@Example.test", lang: "zh" }, ann.token);
+  assert.deepEqual((await req(hub, "POST", "/me/email/confirm", { code: guess.json.dev, oldCode: "000000" === guess.json.devNow ? "111111" : "000000" }, ann.token)).json, { error: "old-code" });
+  assert.deepEqual((await req(hub, "POST", "/me/email/confirm", { code: guess.json.dev, oldCode: guess.json.devNow }, ann.token)).json, { error: "none" }, "a wrong guess at the current address's code ends the pair");
+  later();
   const sent = await req(hub, "POST", "/me/email", { email: "New@Example.test", lang: "zh" }, ann.token);
   assert.equal(sent.status, 200);
-  assert.deepEqual((await req(hub, "POST", "/me/email/confirm", { code: sent.json.dev, oldCode: "000000" === sent.json.devNow ? "111111" : "000000" }, ann.token)).json, { error: "old-code" });
   const done = await req(hub, "POST", "/me/email/confirm", { code: sent.json.dev, oldCode: sent.json.devNow, lang: "zh" }, ann.token, "test-phone-0001");
   assert.equal(done.status, 200, JSON.stringify(done.json));
   assert.equal((done.json.user as Row).email, "new@example.test");
@@ -328,6 +333,7 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   const warn = mails.find((m) => JSON.stringify(m.to) === JSON.stringify(["dan@example.test"]));
   assert.ok(warn, "the address it has now is told at once");
   assert.match(String(warn.text), /d\*\*\*@example\.test/, "the new address masked");
+  assert.ok(/有人要把/.test(String(warn.text)) && /Someone asked/.test(String(warn.text)), "in both languages (whoever asked chose theirs)");
   const link = /https:\/\/changle\.ca\/me\/email-cancel#([A-Za-z0-9_-]{43})/.exec(String(warn.text));
   assert.ok(link && String(warn.html).includes(link[0]), "with the link that cancels it");
   ok("换邮箱, the current address lost: the change waits three days, every phone sees it, the current address gets a cancel link at once");
@@ -342,16 +348,53 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   assert.equal(((await me(dan.token, "dan-phone-0001")).json.user as Row).emailPending, null);
   ok("换邮箱: any of the account's phones can cancel it too");
 
-  mails.length = 0;
+  // paused: cancelling stays open; on the day nothing is made, it waits another hour
+  const pause = (on: boolean) => req(hub, "POST", "/admin/pause", { on }, boss.token, "boss-phone-0001");
   await wait3("dan-new@example.test");
-  await s.settled();
-  s.db.prepare("UPDATE email_pending SET due_at = ?").run(Date.now() - 1); // (three days pass)
+  await pause(true);
+  assert.equal((await me(dan.token, "dan-phone-0001")).status, 503, "the site is paused");
+  assert.equal((await req(hub, "POST", "/me/email/cancel", {}, dan2, "dan-tablet-0002")).status, 200, "cancelling from a phone works while paused");
+  assert.equal(pendingOf(s), 0);
+  await pause(false);
+  await wait3("dan-new@example.test");
+  await pause(true);
+  s.db.prepare("UPDATE email_pending SET due_at = ?").run(Date.now() - 1); // (three days pass, paused)
+  await hub.alarm();
+  assert.equal((s.db.prepare("SELECT email FROM users WHERE id = ?").get(dan.id) as Row).email, "dan@example.test", "not made while paused");
+  assert.ok(Number((s.db.prepare("SELECT due_at FROM email_pending WHERE user_id = ?").get(dan.id) as Row).due_at) > Date.now() + 3500_000, "it waits another hour");
+  await pause(false);
+  ok("换邮箱: paused, cancelling still works, and nothing is made on the day (it waits another hour)");
+
+  mails.length = 0;
+  s.db.prepare("UPDATE email_pending SET due_at = ?").run(Date.now() - 1); // (the site open again, the day come)
   await hub.alarm();
   assert.equal(((await me(dan.token, "dan-phone-0001")).json.user as Row).email, "dan-new@example.test", "made on its day");
   assert.equal((await me(dan2, "dan-tablet-0002")).status, 401, "the other phone is signed out");
   assert.ok(mails.some((m) => JSON.stringify(m.to) === JSON.stringify(["dan-new@example.test"])), "the new address is told it's done");
   assert.ok(mails.some((m) => JSON.stringify(m.to) === JSON.stringify(["dan@example.test"]) && /换了邮箱/.test(String(m.subject))), "and the old one");
   ok("换邮箱: on its day the change is made on the alarm, the asking phone stays signed in, the others are signed out");
+
+  // on its day the new address turned out taken: not made, and the new address hears why
+  const eve = await join(hub, "eve@example.test", "eve-phone-0001");
+  later();
+  const e1 = await req(hub, "POST", "/me/email", { email: "eve-new@example.test", lang: "en" }, eve.token, "eve-phone-0001");
+  await req(hub, "POST", "/me/email/confirm", { code: e1.json.dev, lost: true, lang: "en" }, eve.token, "eve-phone-0001");
+  await join(hub, "eve-new@example.test", "squatter-0001");
+  mails.length = 0;
+  s.db.prepare("UPDATE email_pending SET due_at = ? WHERE user_id = ?").run(Date.now() - 1, eve.id);
+  await hub.alarm();
+  assert.equal(((await me(eve.token, "eve-phone-0001")).json.user as Row).email, "eve@example.test", "not made");
+  assert.ok(mails.some((m) => JSON.stringify(m.to) === JSON.stringify(["eve-new@example.test"]) && /didn't move/.test(String(m.subject))), "the new address hears why");
+  ok("换邮箱: on its day the address is checked again, and if it's taken by then, the new address hears why");
+
+  // every other phone signed out, from /me
+  const eve2 = await signIn("eve@example.test", "eve-tablet-0002");
+  const eve3 = await signIn("eve@example.test", "eve-laptop-0003");
+  assert.deepEqual((await req(hub, "POST", "/me/sessions/others", {}, eve.token, "eve-phone-0001")).json, { out: 2 });
+  assert.equal((await me(eve.token, "eve-phone-0001")).status, 200, "this phone stays");
+  assert.equal((await me(eve2, "eve-tablet-0002")).status, 401);
+  assert.equal((await me(eve3, "eve-laptop-0003")).status, 401);
+  ok("退出其他手机: every other phone signed out, this one stays");
 
   later();
   assert.equal((await req(hub, "POST", "/me/email", { email: "later@example.test" }, ann.token)).status, 200);

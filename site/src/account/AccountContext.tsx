@@ -21,7 +21,9 @@ export type LiveEvent =
   | { t: "kicked" }
   | { t: "banned" }
   /** a reward came: "wish" (a game they wished for went live) */
-  | { t: "perk"; perk: string; about: string };
+  | { t: "perk"; perk: string; about: string }
+  /** the account changed on another phone or by a link (a 换邮箱 waiting, cancelled or made): fetch it again */
+  | { t: "me" };
 
 type Account = {
   me: SelfUser | null;
@@ -217,7 +219,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           );
         if (e.t === "unread") setUnread(e.n);
         // a reward: fetch the profile again (the frame, the outfits)
-        if (e.t === "perk") void refresh();
+        if (e.t === "perk" || e.t === "me") void refresh();
         if (e.t === "msg" && e.msg.from !== me?.id) setUnread((n) => n + 1);
         for (const fn of fns.current) fn(e);
       };

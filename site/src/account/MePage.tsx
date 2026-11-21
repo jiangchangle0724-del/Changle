@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, LogOut, Pencil, PersonStanding, ShieldCheck, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, LogOut, Pencil, PersonStanding, ShieldCheck, Smartphone, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { TopBar } from "../components/TopBar";
@@ -13,7 +13,7 @@ import { figureBody } from "./avatar/pics";
 import { Face } from "./avatar/Face";
 import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
-import { EmailChange } from "./EmailChange";
+import { EmailChange, EmailPending } from "./EmailChange";
 import { ProfileForm } from "./ProfileForm";
 import { PageLoading } from "../games/GameLoading";
 import { EmptyState } from "../ui/EmptyState";
@@ -39,6 +39,14 @@ function Profile({ onBack }: { onBack: () => void }) {
   const [historyFailed, setHistoryFailed] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const signOutOthers = async () => {
+    try {
+      const r = await api<{ out: number }>("/me/sessions/others", { method: "POST", body: {} });
+      toast(r.out ? (zh ? `别的 ${r.out} 部手机已经退出登录` : `Signed out on ${r.out} other phone${r.out === 1 ? "" : "s"}`) : zh ? "没有别的手机登录着" : "No other phone is signed in", { tone: "success" });
+    } catch {
+      toast(zh ? "没退出成，再试一次" : "That didn't go through. Try again", { tone: "danger" });
+    }
+  };
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -163,6 +171,8 @@ function Profile({ onBack }: { onBack: () => void }) {
         </div>
       </header>
       {me.bio && <p className="me-bio">{me.bio}</p>}
+      {/* a 换邮箱 waiting its three days, where whoever has this phone sees it (a change they didn't ask for, too) */}
+      <EmailPending me={me} onChanged={setMe} />
       {/* the 3D figure, for the owner while it's a prototype: up here, where it's seen (Steve, Nov 18) */}
       {me.master && (
         <a className="me-3d" href="/me/figure">
@@ -234,6 +244,11 @@ function Profile({ onBack }: { onBack: () => void }) {
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOut()}>
           <LogOut size={15} />
           {zh ? "退出登录" : "Sign out"}
+        </button>
+        {/* (a phone left signed in somewhere, or someone else's: this one stays, the rest sign out) */}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOutOthers()}>
+          <Smartphone size={15} />
+          {zh ? "退出其他手机" : "Sign out other phones"}
         </button>
         <button type="button" className="link-btn danger" onClick={() => setDeleting(true)}>
           <Trash2 size={14} /> {zh ? "删除账号" : "Delete account"}

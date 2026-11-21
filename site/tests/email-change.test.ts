@@ -29,6 +29,7 @@ import {
   PER_ACCOUNT,
   PER_ADDRESS,
   pendingOf,
+  postponeDue,
   startEmail,
   takeDue,
 } from "../worker/emailChange";
@@ -198,23 +199,29 @@ const both = (g: Got): Typed => ({ code: g.code, oldCode: g.oldCode });
 {
   const sql = fresh();
   assert.equal(error(await confirm(sql, ANN, { code: "123456", oldCode: "123456" })), "none", "no codes asked for");
-  const g = codesOf(await start(sql, ANN, "new@example.com"));
-  assert.equal(error(await confirm(sql, ANN, { code: wrongFor(g.code), oldCode: g.oldCode })), "code", "the new address's code wrong");
-  assert.equal(error(await confirm(sql, ANN, { code: g.code, oldCode: wrongFor(g.oldCode) })), "old-code", "the current address's code wrong");
-  assert.equal(error(await confirm(sql, ANN, { code: g.code })), "old-code", "the current address's code missing");
-  assert.equal(error(await confirm(sql, ANN, { code: g.oldCode, oldCode: g.code })), g.code === g.oldCode ? undefined : "code", "the two swapped");
-  assert.equal(Number(waiting(sql, ANN.id)!.attempts), 4, "each try counted");
-  assert.equal(error(await confirm(sql, BEN, both(g))), "none", "another account can't use them");
+  const w = codesOf(await start(sql, ANN, "new@example.com"));
+  assert.notEqual(w.code, w.oldCode, "the two codes are never the same");
+  assert.equal(error(await confirm(sql, ANN, { code: wrongFor(w.code), oldCode: w.oldCode })), "code", "the new address's code wrong");
+  assert.equal(error(await confirm(sql, ANN, { code: w.oldCode, oldCode: w.code })), "code", "the two swapped");
+  assert.equal(error(await confirm(sql, ANN, { code: "12a456", oldCode: w.oldCode })), "code", "not six digits");
+  assert.equal(Number(waiting(sql, ANN.id)!.attempts), 3, "each try counted");
+  assert.equal(error(await confirm(sql, BEN, both(w))), "none", "another account can't use them");
+  assert.equal(error(await confirm(sql, ANN, { code: w.code, oldCode: wrongFor(w.oldCode) })), "old-code", "the current address's code wrong");
+  assert.equal(waiting(sql, ANN.id), undefined, "and with that, the pair is gone (each guess at it costs a new pair)");
+  assert.equal(error(await confirm(sql, ANN, both(w))), "none", "even the right codes, after");
+  const g = codesOf(await start(sql, ANN, "new@example.com", T0 + EMAIL_WAIT));
+  assert.equal(error(await confirm(sql, ANN, { code: g.code }, T0 + EMAIL_WAIT + 1)), "old-code", "the current address's code missing");
+  const g2 = codesOf(await start(sql, ANN, "new@example.com", T0 + 2 * EMAIL_WAIT));
 
-  const r = await confirm(sql, ANN, both(g));
+  const r = await confirm(sql, ANN, both(g2), T0 + 1000 + 2 * EMAIL_WAIT);
   assert.deepEqual(r, { made: { old: "ann@example.com", email: "new@example.com" } }, "both right: made now, old and new address back");
   assert.equal(emailOf(sql, ANN.id), "new@example.com", "the account's email changed");
   assert.equal(waiting(sql, ANN.id), undefined, "the codes are spent");
-  assert.equal(error(await confirm(sql, ANN, both(g))), "none", "and work once");
+  assert.equal(error(await confirm(sql, ANN, both(g2))), "none", "and work once");
   const h = sql.exec(`SELECT * FROM email_history WHERE user_id = ?`, ANN.id).toArray().map((x) => ({ ...x }));
-  assert.deepEqual(h, [{ user_id: ANN.id, old: "ann@example.com", new: "new@example.com", at: T0 + 1000, ip: "203.0.113.9", device: "phone-1" }]);
+  assert.deepEqual(h, [{ user_id: ANN.id, old: "ann@example.com", new: "new@example.com", at: T0 + 1000 + 2 * EMAIL_WAIT, ip: "203.0.113.9", device: "phone-1" }]);
   assert.equal(pendingOf(sql, ANN.id), null, "nothing waiting");
-  ok("both codes right: the email changes at once, once, and the change is kept (old, new, when, IP, phone)");
+  ok("both codes right: the email changes at once, once, and the change is kept; a wrong guess at the current address's code ends the pair");
 }
 {
   const sql = fresh();
@@ -227,7 +234,7 @@ const both = (g: Got): Typed => ({ code: g.code, oldCode: g.oldCode });
 {
   const sql = fresh();
   const g = codesOf(await start(sql, ANN, "new@example.com"));
-  for (let i = 0; i < EMAIL_TRIES; i++) assert.ok(["code", "old-code"].includes(String(error(await confirm(sql, ANN, { code: g.code, oldCode: wrongFor(g.oldCode) })))));
+  for (let i = 0; i < EMAIL_TRIES; i++) assert.equal(error(await confirm(sql, ANN, { code: wrongFor(g.code), oldCode: g.oldCode })), "code");
   assert.equal(error(await confirm(sql, ANN, both(g))), "tries", "after five wrong tries even the right codes are turned away");
   assert.equal(waiting(sql, ANN.id), undefined, "and the codes forgotten");
   assert.equal(emailOf(sql, ANN.id), "ann@example.com");
@@ -332,6 +339,18 @@ const both = (g: Got): Typed => ({ code: g.code, oldCode: g.oldCode });
   assert.equal(pendingOf(sql, ANN.id), null);
   assert.equal(emailOf(sql, ANN.id), "ann@example.com", "the email never changed");
   ok("a waiting change is cancelled by its link (once) or from the account");
+}
+{
+  // the site paused on the day: nothing is made (nobody can cancel then), it waits another hour
+  const sql = fresh();
+  const g = codesOf(await start(sql, ANN, "new@example.com"));
+  await confirm(sql, ANN, { code: g.code, lost: true });
+  const day = T0 + 1000 + PENDING_WAIT;
+  postponeDue(sql, day + 5);
+  assert.deepEqual(takeDue(sql, day + 5), [], "not made while paused");
+  assert.equal(pendingOf(sql, ANN.id)?.at, day + 5 + 3600_000, "an hour later");
+  assert.equal(takeDue(sql, day + 5 + 3600_000).length, 1, "and then, if the site is open");
+  ok("paused on its day: the change waits another hour, and is made once the site is open");
 }
 {
   // on its day the address is checked again: someone signed up with it meanwhile

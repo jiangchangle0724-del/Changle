@@ -25,7 +25,7 @@ const ERRORS: Record<string, [string, string]> = {
   "no-mail": ["邮件没发出去，过一会儿再试", "The email didn't go out. Try again soon"],
   "mail-failed": ["邮件没发出去，过一会儿再试", "The email didn't go out. Try again soon"],
   code: ["新邮箱的验证码不对", "The new email's code isn't right"],
-  "old-code": ["现在邮箱的验证码不对", "The code sent to your current email isn't right"],
+  "old-code": ["现在邮箱的验证码不对，重新发一次", "The code for your current email isn't right. Send new codes"],
   expired: ["验证码过期了，重新发一个", "Those codes expired. Send new ones"],
   tries: ["试错太多次了，重新发一个", "Too many wrong tries. Send new codes"],
   none: ["先发验证码", "Send the codes first"],
@@ -38,6 +38,40 @@ const ERRORS: Record<string, [string, string]> = {
 /** a waiting change's day, as the page says it */
 function day(at: number, zh: boolean) {
   return new Intl.DateTimeFormat(zh ? "zh-CN" : "en-CA", { month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+}
+
+/**
+ * A 换邮箱 waiting its three days: when, to what, and a button that cancels it. In the edit sheet
+ * and on /me, so whoever has the account's phones sees it (a change they didn't ask for, too).
+ */
+export function EmailPending({ me, onChanged }: { me: SelfUser; onChanged(u: SelfUser): void }) {
+  const { lang } = useStore();
+  const zh = lang === "zh";
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const pending = me.emailPending;
+  if (!pending) return null;
+  const cancel = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await api<{ user: SelfUser }>("/me/email/cancel", { method: "POST", body: {} });
+      onChanged(r.user);
+      toast(zh ? "取消了，邮箱不换了" : "Cancelled. Your email stays as it is", { tone: "success" });
+    } catch {
+      toast(zh ? "没取消成，再试一次" : "That didn't cancel. Try again", { tone: "danger" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <p className="hint email-pending">
+      {zh ? `登录邮箱 ${me.email}，${day(pending.at, zh)}起换成 ${pending.email}` : `Signed in as ${me.email}. Moves to ${pending.email} on ${day(pending.at, zh)}`}{" "}
+      <button type="button" className="link-btn danger" disabled={busy} onClick={() => void cancel()}>
+        {zh ? "取消" : "Cancel"}
+      </button>
+    </p>
+  );
 }
 
 export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: SelfUser): void }) {
@@ -69,7 +103,7 @@ export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: Self
       await f();
     } catch (e) {
       say(e);
-      if (e instanceof ApiError && ["expired", "tries", "none", "taken", "unusable", "pending"].includes(e.code)) setStep("email");
+      if (e instanceof ApiError && ["expired", "tries", "none", "taken", "unusable", "pending", "old-code"].includes(e.code)) setStep("email");
     } finally {
       going.current = false;
       setBusy(false);
@@ -97,24 +131,10 @@ export function EmailChange({ me, onChanged }: { me: SelfUser; onChanged(u: Self
       }
     });
 
-  const cancel = () =>
-    once(async () => {
-      const r = await api<{ user: SelfUser }>("/me/email/cancel", { method: "POST", body: {} });
-      onChanged(r.user);
-      toast(zh ? "取消了，邮箱不换了" : "Cancelled. Your email stays as it is", { tone: "success" });
-    });
-
-  const pending = me.emailPending;
-  if ((step === "show" || step === "done") && pending)
+  if ((step === "show" || step === "done") && me.emailPending)
     return (
       <div className="email-change">
-        <p className="hint">
-          {zh ? `登录邮箱 ${me.email}，${day(pending.at, zh)}起换成 ${pending.email}` : `Signed in as ${me.email}. Moves to ${pending.email} on ${day(pending.at, zh)}`}{" "}
-          <button type="button" className="link-btn danger" disabled={busy} onClick={() => void cancel()}>
-            {zh ? "取消" : "Cancel"}
-          </button>
-        </p>
-        {error && <p className="form-error">{error}</p>}
+        <EmailPending me={me} onChanged={onChanged} />
       </div>
     );
 

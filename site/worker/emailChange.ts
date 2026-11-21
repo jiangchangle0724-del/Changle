@@ -18,7 +18,8 @@
  * - 45 s between codes per account and per address (a sign-in code to the address counts too), and
  *   5 an hour per account, 6 per address: counted in `email_sent`, which a code typed back, given
  *   up on or expired, or its account deleted, doesn't clear; the hub's per-IP limit on top
- * - the codes are kept only as hashes, tied to the account and the address
+ * - the codes are kept only as hashes, tied to the account and the address, and never the same; a
+ *   wrong code for the address the account has now ends the pair (each guess costs a new pair)
  * - an admin's email stays put, and no account moves onto an address that would make it one: the
  *   rights (the owner's too) go by the emails in the settings
  * - one change waiting at a time; a new one can't start until it's made or cancelled
@@ -112,7 +113,9 @@ export async function startEmail(
   if (given("user_id", me.id, now - EMAIL_WAIT) || given("email", email, now - EMAIL_WAIT) || x.recent(email)) return no(429, "wait");
   if (given("user_id", me.id, now - HOUR) >= PER_ACCOUNT || given("email", email, now - HOUR) >= PER_ADDRESS || !x.allow(email)) return no(429, "slow-down");
   const code = sixDigits();
-  const oldCode = sixDigits();
+  let oldCode = sixDigits();
+  // (never the same: whoever reads the new address mustn't hold the other code too)
+  while (oldCode === code) oldCode = sixDigits();
   // the slot is taken before the wait for the hashes, so two requests at once can't both get codes
   sql.exec(`INSERT INTO email_sent (user_id, email, at) VALUES (?, ?, ?)`, me.id, email, now);
   const held = `held:${crypto.randomUUID()}`;
@@ -166,8 +169,13 @@ export async function confirmEmail(
   const lost = typed.lost === true;
   if (!/^\d{6}$/.test(typed.code) || (await x.hash(email, typed.code)) !== String(p.hash)) return no(400, "code");
   if (!lost) {
+    // (the new code was right, so whoever this is reads the new address: a wrong guess at the other
+    // code ends the pair, each guess costing a new pair, and a new mail to the current address)
     const old = String(typed.oldCode ?? "");
-    if (!/^\d{6}$/.test(old) || !p.old_hash || (await x.hash(oldKey(me.email.toLowerCase()), old)) !== String(p.old_hash)) return no(400, "old-code");
+    if (!/^\d{6}$/.test(old) || !p.old_hash || (await x.hash(oldKey(me.email.toLowerCase()), old)) !== String(p.old_hash)) {
+      dropEmail(sql, me.id, String(p.hash));
+      return no(400, "old-code");
+    }
   }
   // (for the wait: the cancel link, made before the last check so nothing waits after it)
   const token = lost ? b64url(crypto.getRandomValues(new Uint8Array(32))) : "";
@@ -238,6 +246,11 @@ export function takeDue(sql: Sql, now: number) {
   const rows = sql.exec(`SELECT user_id, email, session, lang, ip, device FROM email_pending WHERE due_at <= ? ORDER BY due_at LIMIT 25`, now).toArray();
   for (const r of rows) sql.exec(`DELETE FROM email_pending WHERE user_id = ?`, String(r.user_id));
   return rows.map((r) => ({ id: String(r.user_id), email: String(r.email), session: String(r.session), lang: (r.lang === "en" ? "en" : "zh") as "zh" | "en", ip: String(r.ip), device: String(r.device) }));
+}
+
+/** the site paused: nothing is made while it is (nobody can cancel then), so what's due waits another hour */
+export function postponeDue(sql: Sql, now: number) {
+  sql.exec(`UPDATE email_pending SET due_at = ? WHERE due_at <= ?`, now + HOUR, now);
 }
 
 /** when the next waiting change is due (null: none) */
