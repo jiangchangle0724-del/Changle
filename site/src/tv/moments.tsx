@@ -1,4 +1,6 @@
+import { Check } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
+import { Glass } from "../components/Glass";
 import { playPower } from "../games/rogueSounds";
 import { t } from "../i18n";
 import { gsap, reduced } from "../lib/anim";
@@ -12,7 +14,7 @@ import { joinLink, useQr } from "./parts";
 
 /**
  * The room's moments on a big screen, over any game: reactions floating up, the penalty stamped
- * along the bottom, the table code in a corner. The TV shows them, and so does a phone that only
+ * across the screen as on the phones, the table code in a corner. The TV shows them, and so does a phone that only
  * watches (the one that may be mirrored to a TV).
  */
 
@@ -43,54 +45,113 @@ export function TvReactions() {
   );
 }
 
-/** `sound`: this screen stamps it out loud (a watching phone already does, with every phone at the table). */
+/**
+ * The penalty as every phone at the table shows it (components/PenaltyStamp): the room flashes,
+ * the names, one huge word slammed down, and the glass sliding in beside it with its level dropping;
+ * the table's own penalty (or a game's forfeit) in words instead of the glass, 免罪 in green. Here
+ * it goes by itself after a few seconds, and a tick comes up by each name as that one taps "I
+ * drank" on their phone.
+ * `sound`: this screen sounds it too (a watching phone already does, with every phone at the table).
+ */
 export function TvPenalties({ room, sound }: { room: RoomView; sound: boolean }) {
   const { ui, lang } = useStore();
+  const { drank } = useRoom();
   const [queue, setQueue] = useState<PenaltyEvent[]>([]);
   useRoomEvent((e) => {
     if (e.k === "penalty") setQueue((q) => [...q, e].slice(-4));
   });
   const cur = queue[0] ?? null;
   const ref = useRef<HTMLDivElement>(null);
+  const [level, setLevel] = useState(1);
+  // a game's own forfeit (Drama's) comes first, as on the phones; then the host's own penalty
+  const custom = cur ? (cur.say ? t(lang, cur.say) : room.penalty.trim()) : "";
+  const safe = cur?.kind === "safe";
+  const glass = !!cur && !safe && !custom;
   useLayoutEffect(() => {
     if (!cur) return;
-    if (sound && cur.kind !== "safe") sfx.stamp(0.7);
+    setLevel(1);
+    const kind = cur.kind;
+    const timers: number[] = [];
+    if (sound) {
+      if (kind === "safe") timers.push(window.setTimeout(() => sfx.safe(), 120));
+      else {
+        timers.push(window.setTimeout(() => sfx.stamp(0.7), 90));
+        if (kind === "everyone") timers.push(window.setTimeout(() => sfx.clink(0.6), 560));
+        if (!custom) timers.push(window.setTimeout(() => sfx.pour(kind === "full" ? 1.2 : kind === "two" ? 0.8 : 0.55, 0.6), 760));
+      }
+    }
+    timers.push(window.setTimeout(() => setLevel(kind === "safe" ? 1 : kind === "full" ? 0.02 : kind === "two" ? 0.5 : 0.72), 700));
     const el = ref.current;
-    if (el && !reduced()) gsap.fromTo(el, { scale: 2.2, rotate: -10, opacity: 0 }, { scale: 1, rotate: -3, opacity: 1, duration: 0.45, ease: "back.out(2.2)" });
-    const id = window.setTimeout(() => setQueue((q) => q.slice(1)), cur.kind === "safe" ? 2600 : 4600);
-    return () => window.clearTimeout(id);
+    const still = reduced();
+    const tl = gsap.timeline();
+    if (el && !still) {
+      const q = gsap.utils.selector(el);
+      tl.fromTo(el, { opacity: 0 }, { opacity: 1, duration: 0.18 })
+        .fromTo(q(".tv-stamp-flash"), { opacity: safe ? 0.55 : 0.9 }, { opacity: 0, duration: 0.7, ease: "power2.out" }, 0.06)
+        .fromTo(q(".tv-stamp-names"), { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35 }, 0.05)
+        .fromTo(q(".tv-stamp-seal"), { scale: 2.6, rotate: -16, opacity: 0 }, { scale: 1, rotate: -5, opacity: 1, duration: 0.42, ease: "back.out(2.2)" }, 0.08)
+        .to(q(".tv-stamp-seal"), { rotate: -3, duration: 0.6, ease: "elastic.out(1.2, 0.35)" }, ">")
+        .fromTo(q(".tv-stamp-second"), { y: 18, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35 }, 0.36)
+        .fromTo(q(".tv-stamp-glass"), { x: 260, rotate: 10, opacity: 0 }, { x: 0, rotate: 0, opacity: 1, duration: 0.7, ease: "back.out(1.3)" }, 0.32)
+        .fromTo(q(".tv-stamp-note"), { opacity: 0 }, { opacity: 1, duration: 0.4 }, 0.5);
+      if (!safe) tl.fromTo(q(".tv-stamp-row"), { x: -16 }, { x: 0, duration: 0.55, ease: "elastic.out(1.6, 0.18)" }, 0.14);
+    }
+    // it goes by itself, fading out, a little after the phones' own stamp of a watcher does
+    const life = safe ? 2600 : 4600;
+    const next = () => setQueue((q) => q.slice(1));
+    timers.push(
+      window.setTimeout(() => {
+        if (el && !still) gsap.to(el, { opacity: 0, duration: 0.3, onComplete: next });
+        else next();
+      }, life - (still ? 0 : 300)),
+    );
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id));
+      tl.kill();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cur?.id]);
   if (!cur) return null;
-  // a game's own forfeit (Drama's) comes first, as on the phones; then the host's own penalty
-  const custom = cur.say ? t(lang, cur.say) : room.penalty;
+  const everyone = cur.kind === "everyone";
   // done once, twice for two sips, or as many times as the game says (7-8-9's pot); a named forfeit once
   const n = timesOf(cur);
-  const own = custom ? (n > 1 ? `${custom} ×${n}` : custom) : "";
-  const what =
-    cur.kind === "safe"
-      ? ui("safe")
-      : cur.kind === "full"
-        ? own || ui("finish")
-        : cur.kind === "everyone"
-          ? own || ui("everyoneDrinks")
-          : cur.kind === "two"
-            ? own || ui("twoSips")
-            : own || ui("sip");
-  const seats = cur.kind === "everyone" ? [] : (cur.who.map((pid) => room.seats.find((s) => s.id === pid)).filter(Boolean) as SeatView[]);
-  // the whole table: with drinking the line says so ("everyone drinks"); with the host's own penalty, name the table
-  const who = cur.kind === "everyone" && custom ? ui("everyone") : seats.map((s) => s.name).join(lang === "zh" ? "、" : ", ");
+  const big = safe ? ui("safe") : custom || (lang === "zh" ? "喝" : "Drink");
+  const second = safe ? (lang === "zh" ? "Safe" : "免罪") : custom ? (n > 1 ? `×${n}` : "") : cur.kind === "full" ? ui("finish") : everyone ? ui("everyoneDrinks") : cur.kind === "two" ? ui("twoSips") : ui("sip");
+  const seats = cur.who.map((pid) => room.seats.find((s) => s.id === pid)).filter(Boolean) as SeatView[];
+  const done = drank[cur.id] ?? [];
+  const mark = custom ? ui("doneMark") : ui("drankMark");
   return (
-    <div className={`tv-pen ${cur.kind === "safe" ? "is-safe" : ""}`} ref={ref} role="status">
-      <span className="tv-pen-faces">
-        {seats.map((s) => (
-          <SeatFace key={s.id} seat={s} size={58} />
-        ))}
-      </span>
-      <span className="tv-pen-text">
-        <span className="tv-pen-who">{who}</span>
-        <span className={`tv-pen-what ${lang === "zh" ? "zh-display" : "en-display"}`}>{what}</span>
-      </span>
+    <div className={`tv-stamp ${safe ? "is-safe" : ""} ${custom && !safe ? "is-custom" : ""}`} ref={ref} role="status">
+      <i className="tv-stamp-flash" aria-hidden="true" />
+      <div className="tv-stamp-names">
+        {everyone ? (
+          <span className="tv-stamp-name">
+            {custom ? ui("everyone") : ui("everyoneDrinks")}
+            {done.length > 0 && <span className="tv-stamp-count tabular">{`${done.length}/${cur.who.length} ${mark}`}</span>}
+          </span>
+        ) : (
+          seats.map((s) => (
+            <span key={s.id} className={`tv-stamp-name ${done.includes(s.id) ? "is-done" : ""}`}>
+              <SeatFace seat={s} size={72} />
+              {s.name}
+              {done.includes(s.id) && <Check size={44} strokeWidth={3} aria-label={mark} />}
+            </span>
+          ))
+        )}
+      </div>
+      <div className="tv-stamp-row">
+        <div className="tv-stamp-seal">
+          <span className={`tv-stamp-big ${lang === "zh" && !custom ? "zh-display" : "en-display"}`}>{big}</span>
+          {second && <span className="tv-stamp-second">{second}</span>}
+        </div>
+        {glass && (
+          <div className="tv-stamp-glass">
+            <Glass level={level} size={180} />
+          </div>
+        )}
+      </div>
+      {/* what brought it on (the award, the slice of the wheel), as under the phones' stamp */}
+      {cur.note && <p className="tv-stamp-note">{t(lang, cur.note)}</p>}
     </div>
   );
 }
