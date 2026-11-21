@@ -1063,10 +1063,32 @@ export function Arena3D(props: Props) {
         }
       });
       loadedVenue.position.z += SET_OFFSET_Z[props.arena];
-      scene.remove(fallbackVenue);
-      disposeTree(fallbackVenue);
-      scene.add(loadedVenue);
-      market?.showGlow();
+      // The set swaps in once its shaders are built, on the side where the browser can (the stand-in
+      // set stays up meanwhile): built at its first draw instead, they froze a frame as the round
+      // opened (2026-11-20, Steve's computer: the one shader still built mid-round after the warm-up).
+      const venue = loadedVenue;
+      let shown = false;
+      const show = () => {
+        if (shown) return;
+        shown = true;
+        if (disposed) {
+          disposeTree(venue);
+          return;
+        }
+        scene.remove(fallbackVenue);
+        disposeTree(fallbackVenue);
+        scene.add(venue);
+        market?.showGlow();
+      };
+      try {
+        if (renderer.extensions.has("KHR_parallel_shader_compile")) {
+          renderer.compileAsync(venue, camera, scene).then(show, show);
+          // (never longer than this, whatever the graphics chip says)
+          window.setTimeout(show, 3_000);
+        } else show();
+      } catch {
+        show();
+      }
     }, undefined, () => {
       // Keep the procedural venue visible if an asset fails to load.
     });
