@@ -184,15 +184,20 @@ export function perfAt(serverAt: number, serverNow: number) {
 export function useWakeLock(on: boolean) {
   useEffect(() => {
     if (!on) return;
-    let lock: { release: () => Promise<void> } | null = null;
+    type Lock = { release: () => Promise<void>; addEventListener?: (t: "release", fn: () => void) => void };
+    let lock: Lock | null = null;
     let gone = false;
-    const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } };
-    const take = () =>
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<Lock> } };
+    const take = (): Promise<void> | undefined =>
       nav.wakeLock
         ?.request("screen")
         .then((l) => {
-          if (gone) void l.release();
-          else lock = l;
+          if (gone) return void l.release();
+          lock = l;
+          // (let go by the browser while the page is still up, a battery saver say: asked for again)
+          l.addEventListener?.("release", () => {
+            if (!gone && document.visibilityState === "visible") window.setTimeout(() => !gone && void take(), 1000);
+          });
         })
         .catch(() => {});
     void take();

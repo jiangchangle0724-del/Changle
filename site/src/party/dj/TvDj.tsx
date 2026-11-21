@@ -33,6 +33,7 @@ import { SfxPlayer } from "./sfx/player";
 import "../../styles/dj.css";
 import { useDjNames } from "./names";
 import { appleTouch } from "./device";
+import { holdNewVersion } from "../../lib/freshness";
 
 /**
  * 打碟 · DJ Booth on the big screen, which is also the speaker: the one device the music comes
@@ -283,6 +284,11 @@ export default function TvDj({ v }: { v: DjView }) {
     .filter((f) => f.seat && f.n > 0)
     .slice(0, 3);
   const live = booth.status === "on";
+  // (while it's the speaker, playing: no reloading for a new version of the site; lib/freshness.ts)
+  useEffect(() => {
+    holdNewVersion(live);
+    return () => holdNewVersion(false);
+  }, [live]);
   const silent = live && (v.phase === "wait" || state !== "playing") && v.phase !== "end";
   const tonight = Object.values(v.total).reduce((a, b) => a + b, 0);
   // ❄️ this minute, and the DJ reading the floor (读场: Lyria leans its energy with it)
@@ -487,11 +493,12 @@ function JoinCard({ code, big }: { code: string; big: boolean }) {
  * The screen stays on while it's the speaker: a tablet or a TV that dims and goes to sleep stops the
  * music, and often reloads the page when it wakes (Steve on Nov 2: "Dj这个我经常闪退", on a TV or
  * tablet's own browser). Where the browser can't be asked to (an older tablet or TV), a tiny silent
- * video playing keeps it awake instead.
+ * video playing keeps it awake instead. An iPhone or iPad does both (Steve on Nov 21, an iPhone as the
+ * speaker: "放了一首歌后自动退出了": its Safari can say yes to the ask and lock the screen anyway).
  */
 function KeepAwake({ on }: { on: boolean }) {
   useWakeLock(on);
-  const asks = typeof navigator !== "undefined" && "wakeLock" in navigator;
+  const asks = typeof navigator !== "undefined" && "wakeLock" in navigator && !appleTouch();
   const vid = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = vid.current;
@@ -516,6 +523,13 @@ function StartCard({ status, midSet, onStart }: { status: string; midSet: boolea
             ? "接上电视或音响，点下面的按钮开始放歌。手机都不出声，声音只从这里出来。放歌的时候别锁屏，也别关这个页面。"
             : "Hook it up to the TV or a sound system and press the button. The phones stay quiet: the music only comes out of here. Keep the screen on and this page open while it plays."}
         </p>
+        {appleTouch() && (
+          <p className="dj-start-text">
+            {zh
+              ? "iPhone、iPad：先到「设置 › 显示与亮度 › 自动锁定」选「永不」，不然屏幕一锁歌就停了。"
+              : "On an iPhone or iPad, first set Settings › Display & Brightness › Auto-Lock to Never, or the music stops when the screen locks."}
+          </p>
+        )}
         <button type="button" className="tv-btn tv-btn-main dj-start-btn" onClick={onStart} disabled={status === "starting"}>
           {status === "starting" ? <Loader2 size={30} className="dj-spin" /> : <Play size={30} strokeWidth={2.6} />}
           {midSet ? (zh ? "接着放" : "Keep the music going") : zh ? "开始派对" : "Start the party"}
