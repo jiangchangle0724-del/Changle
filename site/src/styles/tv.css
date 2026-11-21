@@ -21,6 +21,22 @@ html.tv-mode .room-light {
   overflow: hidden;
   background: #07040a;
 }
+/* Two fingers don't zoom the big screen's picture, here or on a phone that watches (.watch,
+   tv-show.css). Steve, 2026-11-21: zooming it on his iPhone made Safari crash again and again.
+   Safari draws each moving part of the 1600x900 stage at its full size times the zoom, while the
+   stage shows at a quarter of that on a phone, so a little zoom costs gigabytes. The picture
+   already fills the screen. A page that is zoomed in already (Safari can bring one back zoomed)
+   can still be pinched back out: `is-zoomed`, from useNoPinch in Frame.tsx. */
+.tv-fit,
+.tv-fit *,
+.watch,
+.watch * {
+  touch-action: none;
+}
+:root.is-zoomed :is(.tv-fit, .watch),
+:root.is-zoomed :is(.tv-fit, .watch) * {
+  touch-action: manipulation;
+}
 .tv-canvas {
   position: absolute;
   left: 50%;

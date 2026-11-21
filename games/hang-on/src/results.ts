@@ -92,7 +92,10 @@ export function resultsTitle(r: Results, name: (i: number) => string): string {
   return tr('到顶了！', 'Made it!');
 }
 
-/** 画结算页。name、color 按玩家下标给；par 是这一关的标准用时（秒）。 */
+/**
+ * 画结算页。name、color 按玩家下标给；par 是这一关的标准用时（秒）。
+ * 小目标里的「几分几秒内到顶」是标准的 1.5 倍（goals.ts），两个数都叫「标准」会看糊涂：标准用时写成「高手」的用时。
+ */
 export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => string, color: (i: number) => string, par?: number): void {
   const mode: GameMode = r.mode ?? 'climb';
   dom.title.textContent = resultsTitle(r, name);
@@ -101,8 +104,8 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
     mode === 'climb' || mode === 'team'
       ? par
         ? r.time <= par
-          ? tr(`比标准的 ${par} 秒快`, `Faster than par (${par} s)`)
-          : tr(`标准 ${par} 秒`, `Par ${par} s`)
+          ? tr(`比高手的 ${par} 秒还快！`, `Faster than the pros (${par} s)!`)
+          : tr(`高手 ${par} 秒`, `Pros: ${par} s`)
         : ''
       : mode === 'race'
         ? tr('这一场用了多久', 'How long the race took')

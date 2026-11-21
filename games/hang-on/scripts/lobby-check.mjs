@@ -187,10 +187,32 @@ try {
   const startSpot = await tvPhone.page.evaluate(() => {
     const r = document.getElementById('startBtn').getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return { short: document.body.classList.contains('short'), bottom: Math.round(r.bottom), height: innerHeight, hit: hit?.id ?? '', note: getComputedStyle(document.getElementById('note')).display };
+    // 开始那一排放得下时就在原来的地方（贴底只在放不下时），不盖住上面「等人进来」那一行
+    const line = document.getElementById('lobbyLine').getBoundingClientRect();
+    const row = document.getElementById('startBtn').parentElement.getBoundingClientRect();
+    return { short: document.body.classList.contains('short'), bottom: Math.round(r.bottom), height: innerHeight, hit: hit?.id ?? '', note: getComputedStyle(document.getElementById('note')).display, line: Math.round(line.bottom), row: Math.round(row.top) };
   });
-  check('手机当电视（电视局）：开始键在屏幕里、没被挡住，键盘说明不出', startSpot.short && startSpot.bottom <= startSpot.height && startSpot.hit === 'startBtn' && startSpot.note === 'none', JSON.stringify(startSpot));
+  check('手机当电视（电视局）：开始键在屏幕里、没被挡住，键盘说明不出，开始那一排不压着上面', startSpot.short && startSpot.bottom <= startSpot.height && startSpot.hit === 'startBtn' && startSpot.note === 'none' && startSpot.line <= startSpot.row + 1, JSON.stringify(startSpot));
   await screenshot(tvPhone.page, 'phone-as-tv-lobby');
+  // iPhone 的 Safari 横着只有 750×342（上下的栏占掉一截）：手机局房主的开始键、手柄的加入键不用往下滚就看得见、点得到
+  const spot = (page, id) =>
+    page.evaluate((id) => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return { top: Math.round(r.top), bottom: Math.round(r.bottom), height: innerHeight, hit: hit?.closest('button')?.id ?? hit?.id ?? '' };
+    }, id);
+  const safari = { viewport: { width: 750, height: 342 }, isMobile: true, hasTouch: true };
+  const hostPhone = await context(safari);
+  await hostPhone.page.goto(`${BASE}/hang-on/?render=0&lang=zh&phone=1`);
+  await hostPhone.page.waitForFunction(() => /^[A-Z2-9]{4}$/.test(document.getElementById('code')?.textContent ?? ''));
+  const phoneStart = await spot(hostPhone.page, 'startBtn');
+  check('手机局房主（Safari 横着 750×342）：开始键贴在底下，看得见、点得到', phoneStart.top >= 0 && phoneStart.bottom <= phoneStart.height && phoneStart.hit === 'startBtn', JSON.stringify(phoneStart));
+  await screenshot(hostPhone.page, 'phone-host-lobby-safari');
+  const joinPhone = await context(safari);
+  await joinPhone.page.goto(`${BASE}/hang-on/pad/?lang=zh&code=${code}`);
+  const joinSpot = await spot(joinPhone.page, 'joinBtn');
+  check('手柄加入页（Safari 横着 750×342）：加入键不用滚就看得见、点得到', joinSpot.top >= 0 && joinSpot.bottom <= joinSpot.height && joinSpot.hit === 'joinBtn', JSON.stringify(joinSpot));
+  await screenshot(joinPhone.page, 'join-form-safari');
   check('页面无脚本错误', errors.length === 0, errors.join(' | '));
 } catch (error) {
   check('大厅流程完成', false, error.stack ?? String(error));

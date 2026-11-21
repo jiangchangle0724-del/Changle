@@ -28,7 +28,8 @@ the commands and the settings.
 * Game cards use their kind's color: `category` in `site/src/games/registry.ts` (drink, brain, body,
   online); tools are amber. Inside a game, the room light is that game's own gel.
 * Tap targets are at least 44px, 48 where several sit close together.
-* Running text uses `--leading` (Chinese 1.65, English 1.5); pages can be zoomed with two fingers.
+* Running text uses `--leading` (Chinese 1.65, English 1.5); pages can be zoomed with two fingers,
+  except the big screen's picture (`.tv-fit`, `.watch`): zooming it crashes iPhone Safari (`tv.css`).
 * Nothing but a text field can be selected or copied, and a double tap never zooms (`global.css`,
   `@layer page-defaults`). Something people need to copy gets a copy button. Every page and app
   (the Workers too) gives every element `touch-action: manipulation` and listens for clicks on

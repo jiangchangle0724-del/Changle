@@ -1,8 +1,27 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import "../styles/tv.css";
 
 /** How much the 1600x900 canvas is scaled to fit a box this size. */
 const fitOf = (w: number, h: number) => Math.min(w / 1600, h / 900);
+
+/**
+ * While the big screen's picture is up, two fingers don't zoom it (tv.css). A page that is zoomed
+ * in already says so (`is-zoomed` on the page), so it can still be pinched back out.
+ */
+export function useNoPinch() {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const check = () => root.classList.toggle("is-zoomed", vv.scale > 1.01);
+    check();
+    vv.addEventListener("resize", check);
+    return () => {
+      vv.removeEventListener("resize", check);
+      root.classList.remove("is-zoomed");
+    };
+  }, []);
+}
 
 /**
  * The TV's canvas, also used while the rest of its files download. `outside` goes on the screen
@@ -16,6 +35,7 @@ const fitOf = (w: number, h: number) => Math.min(w / 1600, h / 900);
 export function Fit({ children, outside }: { children: ReactNode; outside?: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
   const [k, setK] = useState(() => fitOf(window.innerWidth, window.innerHeight));
+  useNoPinch();
   useLayoutEffect(() => {
     const el = box.current;
     const fit = () => {
