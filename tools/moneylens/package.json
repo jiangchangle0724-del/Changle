@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "build": "node scripts/build-check.mjs",
-    "test:page": "npm run build && tsx scripts/check-page.ts"
+    "test:page": "npm run build && tsx scripts/check-page.ts && tsx scripts/check-cache.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
