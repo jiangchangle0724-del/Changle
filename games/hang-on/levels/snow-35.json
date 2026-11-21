@@ -1,159 +1,104 @@
 {
   "id": "snow-35",
   "world": "snow",
-  "tier": 2,
   "name": {
-    "zh": "雪檐抛接",
-    "en": "Snow Cornice Relay"
+    "zh": "风口冰环",
+    "en": "Ice Ring in the Gale"
   },
-  "teaches": "slip",
-  "w": 2400,
-  "h": 1400,
+  "tier": 2,
+  "long": true,
+  "teaches": "wind",
+  "w": 3500,
+  "h": 2100,
   "spawn": {
-    "x": 100,
-    "y": 1262
+    "x": 150,
+    "y": 1936
   },
   "goal": {
-    "x": 2300,
-    "y": 135,
-    "w": 100,
-    "h": 105
+    "x": 3240,
+    "y": 380,
+    "w": 240,
+    "h": 200
   },
   "checkpoints": [
     {
-      "x": 960,
-      "y": 724
+      "x": 1500,
+      "y": 1936
     },
     {
-      "x": 1900,
-      "y": 218
+      "x": 2820,
+      "y": 1266
+    },
+    {
+      "x": 1550,
+      "y": 1266
+    },
+    {
+      "x": 650,
+      "y": 536
+    },
+    {
+      "x": 1920,
+      "y": 536
     }
   ],
   "envelopes": [
     {
-      "x": 476,
-      "y": 957
+      "x": 3133,
+      "y": 1177
     },
     {
-      "x": 1579,
-      "y": 321
+      "x": 420,
+      "y": 404
     },
     {
-      "x": 2066,
-      "y": 219
+      "x": 2631,
+      "y": 466
     }
   ],
   "rects": [
     {
-      "kind": "ground",
       "x": 0,
-      "y": 1287,
-      "w": 300,
-      "h": 113,
+      "y": 1980,
+      "w": 3500,
+      "h": 120,
+      "kind": "ground",
       "material": "snow"
     },
     {
+      "x": 0,
+      "y": 1310,
+      "w": 1700,
+      "h": 30,
       "kind": "ground",
-      "x": 300,
-      "y": 1157,
+      "material": "snow"
+    },
+    {
+      "x": 1700,
+      "y": 1310,
       "w": 180,
-      "h": 243,
+      "h": 30,
+      "kind": "ground",
       "material": "ice",
-      "slip": 1
+      "slip": 1.4
     },
     {
+      "x": 1880,
+      "y": 1310,
+      "w": 1220,
+      "h": 30,
       "kind": "ground",
-      "x": 480,
-      "y": 1028,
-      "w": 180,
-      "h": 372,
       "material": "snow"
     },
     {
+      "x": 420,
+      "y": 580,
+      "w": 3080,
+      "h": 30,
       "kind": "ground",
-      "x": 660,
-      "y": 898,
-      "w": 180,
-      "h": 502,
-      "material": "ice",
-      "slip": 0.9
-    },
-    {
-      "kind": "ground",
-      "x": 840,
-      "y": 768,
-      "w": 400,
-      "h": 632,
       "material": "snow"
-    },
-    {
-      "kind": "ground",
-      "x": 1240,
-      "y": 639,
-      "w": 180,
-      "h": 761,
-      "material": "ice",
-      "slip": 0.8
-    },
-    {
-      "kind": "ground",
-      "x": 1420,
-      "y": 509,
-      "w": 180,
-      "h": 891,
-      "material": "snow"
-    },
-    {
-      "kind": "ground",
-      "x": 1600,
-      "y": 380,
-      "w": 180,
-      "h": 1020,
-      "material": "ice",
-      "slip": 0.7
-    },
-    {
-      "kind": "ground",
-      "x": 1780,
-      "y": 250,
-      "w": 620,
-      "h": 1150,
-      "material": "snow"
-    },
-    {
-      "kind": "peg",
-      "material": "wood",
-      "x": 360,
-      "y": 981,
-      "w": 40,
-      "h": 16
-    },
-    {
-      "kind": "peg",
-      "material": "wood",
-      "x": 900,
-      "y": 592,
-      "w": 40,
-      "h": 16
-    },
-    {
-      "kind": "peg",
-      "material": "wood",
-      "x": 1480,
-      "y": 333,
-      "w": 40,
-      "h": 16
-    },
-    {
-      "kind": "peg",
-      "material": "wood",
-      "x": 1840,
-      "y": 74,
-      "w": 40,
-      "h": 16
     }
   ],
-  "lifts": [],
   "ropes": [],
   "seesaws": [],
   "crates": [],
@@ -161,59 +106,136 @@
   "springs": [],
   "hazards": [
     {
-      "x": 360,
-      "y": 997,
-      "w": 40,
-      "h": 16,
-      "kind": "spike",
-      "dir": "down"
+      "x": 850,
+      "y": 1755,
+      "w": 50,
+      "h": 18,
+      "kind": "spike"
     },
     {
-      "x": 900,
-      "y": 608,
-      "w": 40,
-      "h": 16,
-      "kind": "hot",
-      "dir": "down"
+      "x": 2050,
+      "y": 1085,
+      "w": 50,
+      "h": 18,
+      "kind": "hot"
     },
     {
-      "x": 1480,
-      "y": 349,
-      "w": 40,
-      "h": 16,
-      "kind": "zap",
-      "dir": "down"
+      "x": 1150,
+      "y": 355,
+      "w": 50,
+      "h": 18,
+      "kind": "zap"
     },
     {
-      "x": 1840,
-      "y": 90,
-      "w": 40,
-      "h": 16,
-      "kind": "spike",
-      "dir": "down"
+      "x": 2650,
+      "y": 355,
+      "w": 50,
+      "h": 18,
+      "kind": "hot"
     }
   ],
-  "deathY": 1560,
-  "par": {
-    "seconds": 90,
-    "deathsPerPlayer": 8
-  },
-  "replay": "replays/snow-35.json",
   "movers": [
     {
-      "x": 680,
-      "y": 718,
-      "w": 30,
+      "x": 3100,
+      "y": 1920,
+      "w": 300,
       "h": 24,
       "path": [
         {
-          "x": 760,
-          "y": 718
+          "x": 3100,
+          "y": 1110
         }
       ],
-      "speed": 35,
-      "deadly": true,
-      "hazard": "zap"
+      "speed": 220,
+      "wait": 2,
+      "material": "metal"
+    },
+    {
+      "x": 120,
+      "y": 1250,
+      "w": 300,
+      "h": 24,
+      "path": [
+        {
+          "x": 120,
+          "y": 380
+        }
+      ],
+      "speed": 220,
+      "wait": 2,
+      "material": "metal"
+    }
+  ],
+  "spinners": [],
+  "deathY": 2280,
+  "par": {
+    "seconds": 290,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/snow-35.json",
+  "stamina": true,
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1050,
+        "y": 1800
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 2.2,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 2350,
+        "y": 1130
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 2,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 1000,
+        "y": 400
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 3,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 2650,
+        "y": 400
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 2.8,
+      "r": 24
+    }
+  ],
+  "winds": [
+    {
+      "x": 650,
+      "y": 1760,
+      "w": 360,
+      "h": 220,
+      "dir": "right",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
+    },
+    {
+      "x": 2580,
+      "y": 330,
+      "w": 320,
+      "h": 250,
+      "dir": "right",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
     }
   ]
 }
