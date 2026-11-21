@@ -596,7 +596,7 @@ export function EventPage({ code }: { code: string }) {
         </section>
       )}
 
-      {state.settled && settledTally && <After state={state} tally={settledTally} people={people} host={host} link={link} />}
+      {state.settled && settledTally && <After state={state} tally={settledTally} people={people} host={host} link={link} weather={settledWeather} />}
 
       <section class="panel" ref={fillPanel} data-proxy={proxyRow ? "" : undefined}>
         {proxyRow ? (

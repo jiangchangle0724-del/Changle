@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { inviteText, nudgeText, resultText, type InviteWords, type NudgeWords, type ResultWords, type Tone } from "../src/engine/copy";
 import { reason, type Tally } from "../src/engine/rank";
+import type { Weather } from "../src/engine/weather";
 import { dateLabel, slotLabel } from "../src/engine/slots";
 import type { Lang, Part, Person } from "../src/engine/types";
 
@@ -178,5 +179,28 @@ test("variant selection is deterministic for negative, fractional, and non-finit
     assert.equal(render(kind, tone, lang, -1), render(kind, tone, lang, 2));
     assert.equal(render(kind, tone, lang, 4.9), render(kind, tone, lang, 1));
     for (const pick of [NaN, Infinity, -Infinity]) assert.equal(render(kind, tone, lang, pick), render(kind, tone, lang, 0));
+  }
+});
+
+test("result: the forecast for the time that was set is a line of its own, over the link", () => {
+  const rain: Weather = { sky: "rain", night: true, chance: null, temp: 4, of: "low", wet: true };
+  const showers: Weather = { sky: "rain", night: false, chance: 40, temp: 9, of: "high", wet: false };
+  const said: Record<Lang, [string, string]> = {
+    zh: ["天气预报：有雨 · 最低 4°，适合室内", "天气预报：40% 可能下雨 · 最高 9°"],
+    en: ["Forecast: Rain · low 4°, better indoors", "Forecast: 40% chance of rain · high 9°"],
+  };
+  for (const tone of tones) {
+    for (const lang of languages) {
+      for (const pick of picks) {
+        const without = resultText(result, tone, lang, pick);
+        assert.equal(resultText({ ...result, weather: null }, tone, lang, pick), without, "no forecast, no line");
+        [rain, showers].forEach((weather, i) => {
+          const lines = resultText({ ...result, weather }, tone, lang, pick).split("\n");
+          assert.equal(lines.at(-1), url, "the link is still last, on its own");
+          assert.equal(lines.at(-2), said[lang][i]);
+          assert.equal([...lines.slice(0, -2), url].join("\n"), without, "the rest is the message as it was");
+        });
+      }
+    }
   }
 });

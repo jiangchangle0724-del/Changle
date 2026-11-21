@@ -4,14 +4,15 @@
 // so one gathering doesn't end up with several; everyone else waits for the table's link.
 // 随便 doesn't read what the link carries yet, so the page says what to pick there.
 import { useState } from "preact/hooks";
-import { addDays, counted, dayLabel, EAT_DAYS_AHEAD, eatLink, eatWhen, mealLabel, reason, resultText, resultWords, vancouverDay, whenLabel } from "../../engine";
-import type { EventState, Person, Tally } from "../../engine";
+import { addDays, counted, dayLabel, EAT_DAYS_AHEAD, eatLink, eatWhen, mealLabel, reason, resultText, resultWords, vancouverDay, weatherSaid, whenLabel } from "../../engine";
+import type { EventState, Person, Tally, Weather } from "../../engine";
 import { t } from "../i18n";
 import { CopyButton, IconPicture, inWeChat, useLang } from "./common";
 import { PictureSheet, resultPicture } from "./Picture";
 import { Words } from "./Words";
 
-export function After({ state, tally, people, host, link }: { state: EventState; tally: Tally; people: Person[]; host: boolean; link: string }) {
+/** `weather`: the forecast for the time that was set, where it reaches; the words and the picture say it too. */
+export function After({ state, tally, people, host, link, weather }: { state: EventState; tally: Tally; people: Person[]; host: boolean; link: string; weather: Weather | null }) {
   const lang = useLang();
   const [picture, setPicture] = useState(false);
   if (!state.settled) return null;
@@ -22,7 +23,7 @@ export function After({ state, tally, people, host, link }: { state: EventState;
   const coming = yes.length + maybe.length;
   // a time set to the minute: the meal starts when it does
   const eat = eatLink({ code: state.code, day, part, from, coming });
-  const words = resultWords({ title: state.title, day, part, from, to, tally, people, url: link });
+  const words = resultWords({ title: state.title, day, part, from, to, tally, people, url: link, weather });
 
   return (
     <section class="panel after">
@@ -76,9 +77,13 @@ export function After({ state, tally, people, host, link }: { state: EventState;
 
       {picture && (
         <PictureSheet
-          picture={resultPicture(state, tally, people, link, lang)}
+          picture={resultPicture(state, tally, people, link, lang, weather)}
           title={t("picResult")}
-          alt={t("picAltResult", { title: state.title, when: whenLabel(day, part, lang, from, to), who: reason(tally, people, lang) })}
+          alt={
+            weather
+              ? t("picAltResultWx", { title: state.title, when: whenLabel(day, part, lang, from, to), who: reason(tally, people, lang), weather: weatherSaid(weather, lang) })
+              : t("picAltResult", { title: state.title, when: whenLabel(day, part, lang, from, to), who: reason(tally, people, lang) })
+          }
           file={`when-${state.code}-result.jpg`}
           onClose={() => setPicture(false)}
         />

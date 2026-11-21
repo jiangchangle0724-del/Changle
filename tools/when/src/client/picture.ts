@@ -18,6 +18,8 @@ export type Picture = {
   headline: string;
   /** which days (the invitation); who can make it (the result) */
   detail: string;
+  /** the result only, where the forecast reaches its time: "天气预报：有雨 · 最低 4°，适合室内" */
+  weather?: string;
   /** under the code: what scanning it does */
   scan: string;
   /** where the code leads, and the address printed under it */
@@ -161,7 +163,8 @@ function blocks(p: Picture, C: Colors): Block[] {
     { text: p.title, display: true, weight: 700, size: 56, min: 40, lines: 2, color: C.text, gap: 30 },
     { text: p.label ?? "", display: false, weight: 600, size: 34, min: 28, lines: 1, color: C.text2, gap: 12 },
     { text: p.headline, display: true, weight: 800, size: 92, min: 52, lines: 2, color: C.gel, gap: 26 },
-    { text: p.detail, display: false, weight: 500, size: 38, min: 30, lines: 3, color: C.text, gap: 0 },
+    { text: p.detail, display: false, weight: 500, size: 38, min: 30, lines: 3, color: C.text, gap: 18 },
+    { text: p.weather ?? "", display: false, weight: 500, size: 34, min: 26, lines: 2, color: C.text2, gap: 0 },
   ].filter((block) => block.text);
 }
 
@@ -181,7 +184,11 @@ export async function drawPicture(p: Picture): Promise<HTMLCanvasElement> {
 
   // the fonts first, or the first picture comes out in the fallback
   try {
-    await Promise.all([document.fonts.load(`800 80px ${display}`, p.brand + p.title + p.headline), document.fonts.load(`500 40px ${body}`, p.headline + p.detail + p.scan + p.site), document.fonts.load(`700 40px ${body}`, p.headline)]);
+    await Promise.all([
+      document.fonts.load(`800 80px ${display}`, p.brand + p.title + p.headline),
+      document.fonts.load(`500 40px ${body}`, p.headline + p.detail + (p.weather ?? "") + p.scan + p.site),
+      document.fonts.load(`700 40px ${body}`, p.headline),
+    ]);
   } catch {
     /* the fallback fonts draw too */
   }

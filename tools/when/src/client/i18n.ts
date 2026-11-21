@@ -46,7 +46,6 @@ const STRINGS = {
   hereDone: { zh: "{name} 填好了", en: "{name} has filled in" },
   hereChanged: { zh: "{name} 改了时间", en: "{name} changed their times" },
   // the weather (src/engine/weather.ts words the rest)
-  wxWet: { zh: "{weather}，适合室内", en: "{weather}, better indoors" },
   wxSource: { zh: "天气数据来源：加拿大环境与气候变化部", en: "Data Source: Environment and Climate Change Canada" },
   wxLicence: { zh: "许可", en: "Licence" },
 
@@ -124,6 +123,7 @@ const STRINGS = {
   picRetry: { zh: "再画一次", en: "Try again" },
   picAltInvite: { zh: "邀请图：{title}，{days}，带二维码", en: "Invitation: {title}, {days}, with a QR code" },
   picAltResult: { zh: "结果图：{title}，{when}，{who}，带二维码", en: "Result: {title}, {when}, {who}, with a QR code" },
+  picAltResultWx: { zh: "结果图：{title}，{when}，{who}，{weather}，带二维码", en: "Result: {title}, {when}, {who}, {weather}, with a QR code" },
 
   // ---------- once the time is set ----------
   calAdd: { zh: "加到日历", en: "Add to calendar" },
