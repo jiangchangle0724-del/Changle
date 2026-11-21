@@ -13,6 +13,7 @@ import { ApplyPanel, Asked } from "./Apply";
 import { IconNext, IconPlus, money, TopBar, useLang, useTitle } from "./common";
 import { OwnerPanel } from "./Owner";
 import { Review } from "./Review";
+import { SignInForm } from "./SignIn";
 
 /** Why a merchant's page can't show what it's for. `signin`: nobody is signed in on this phone; `stale`: the sign-in it has is no longer good. */
 export type Trouble = "signin" | "stale" | "forbidden" | "notfound" | "down" | "limit" | "network" | "failed";
@@ -46,10 +47,11 @@ export function TroublePanel({ trouble, onRetry, home = false }: { trouble: Trou
             {t("signInStale")}
           </p>
         )}
-        <p>{t("signInBody")}</p>
+        <p>{t("signInHere")}</p>
         {home && <p class="hint">{t("signInApply")}</p>}
-        <a class="btn btn-primary" href="/login">
-          {t("signInGo")}
+        <SignInForm onIn={onRetry} />
+        <a class="link-btn" href="/login">
+          {t("signInElsewhere")}
         </a>
       </section>
     );
