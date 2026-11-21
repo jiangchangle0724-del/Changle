@@ -12,10 +12,10 @@ import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { DramaView } from "../../shared/protocol";
 import { useWakeLock } from "../sensors";
 import { useDramaMusic, useHeld } from "./score";
-import { loadLibrary, SceneWriter, TableScenes } from "./writer";
+import { loadLibrary, SceneWriter, TableScenes, writeFull } from "./writer";
 import { useStore } from "../../store";
 import { readKind } from "../../data/dramaReadings";
-import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, useStampDue, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
 import { useSettle } from "./ShellActions";
 import { StageCall } from "./StageCall";
 import { dramaSfx } from "./sound";
@@ -69,9 +69,10 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   // who's on stage next: each player says for themselves
   const stageCall = player && <StageCall v={v} ids={players.map((s) => s.id)} nameOf={nameOf} face={face} me={me} onWant={(want) => g("want", { want })} />;
   const blocked = v.next ? !v.next.ok : false;
+  const stampDue = useStampDue(v.stampAt, now);
   // one person at the table: monologues and readings, the room guessing out loud
   const alone = players.length === 1;
-  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = false; setLibraryAttempt((n) => n + 1); } }} few={players.length < 3} />;
+  const tableScenes = player && <TableScenes v={v} me={me} isHost={isHost} nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => g("unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = false; setLibraryAttempt((n) => n + 1); } }} few={players.length < 3} full={writeFull(v, me, zh)} />;
 
   // the scene has its own sound: the lounge music waits
   useEffect(() => holdBackground(), []);
@@ -98,7 +99,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
   // the lobby for another game (mid-show it asks first, as the back arrow does)
   const elsewhere = (
     <HostRow>
-      <HostButton onClick={settle(() => g("setup"))}>
+      <HostButton disabled={stampDue} onClick={settle(() => g("setup"))}>
         <SlidersHorizontal size={14} />
         {zh ? "换个玩法" : "Change the setup"}
       </HostButton>
@@ -343,7 +344,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
           <>
             {stage(false, false)}
             {voter ? (
-              <BallotForm key={`${v.round}`} v={v} actors={actors} submitted={v.myVote} onSubmit={(b) => g("vote", b)} me={v.peer ? me : undefined} />
+              <BallotForm key={`${v.round}`} v={v} actors={actors.filter((a) => !!seat(a.pid))} submitted={v.myVote} onSubmit={(b) => g("vote", b)} me={v.peer ? me : undefined} />
             ) : v.peer ? (
               <Waiting>{zh ? `演员在互相打分（${v.voted.length}/${voters}）` : `The actors are rating each other (${v.voted.length}/${voters})`}</Waiting>
             ) : (
@@ -361,7 +362,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             <Reveal v={v} actors={actors} me={me} face={face} />
             {isHost ? (
               <>
-                <button type="button" className="btn btn-primary btn-lg btn-block" disabled={v.round < v.total && blocked} onClick={settle(() => g("next"))}>
+                <button type="button" className="btn btn-primary btn-lg btn-block" disabled={(v.round < v.total && blocked) || stampDue} onClick={settle(() => g("next"))}>
                   {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "下一幕" : "Next act"}
                 </button>
                 {elsewhere}
@@ -380,7 +381,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
             {stageCall}
             {isHost ? (
               <>
-                <button type="button" className="btn btn-primary btn-lg btn-block" disabled={blocked} onClick={settle(() => g("more"))}>
+                <button type="button" className="btn btn-primary btn-lg btn-block" disabled={blocked || stampDue} onClick={settle(() => g("more"))}>
                   {blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "再演三幕" : "Three more acts"}
                 </button>
                 {elsewhere}
@@ -391,7 +392,7 @@ export function NetDrama({ v, onLeave }: { v: DramaView; onLeave: () => void }) 
           </>
         )}
       </div>
-      <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} onAdd={(scene) => g("write", { scene })} />
+      <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} onAdd={(scene) => g("write", { scene })} full={() => writeFull(v, me, zh)} />
       <GameExitSheet open={exiting} onClose={() => setExiting(false)} onLeave={onLeave} />
     </NetFrame>
   );

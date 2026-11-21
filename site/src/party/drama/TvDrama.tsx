@@ -586,7 +586,11 @@ function Verdict({ v, actors, step }: { v: DramaView; actors: Actor[]; step: num
         : "Who sold it?"
       : v.mode === "read"
         ? r.quiet
-          ? quietRead(zh)
+          ? r.left
+            ? zh
+              ? "读到一半，人走了"
+              : "The reader left mid-piece"
+            : quietRead(zh)
           : readHeadline(readStars, zh)
       : v.mode === "classic"
         ? zh
@@ -700,7 +704,7 @@ function Outcome({ v, actors }: { v: DramaView; actors: Actor[] }) {
   if (r.quiet)
     lines.push(
       <p key="quiet" className="tvd-note">
-        {quietNote(v.mode, !!v.crowd, zh)}
+        {quietNote(v.mode, !!v.crowd, zh, r.left)}
       </p>,
     );
   else if (v.mode === "show")
