@@ -28,8 +28,11 @@ export function finalGoods(lines: readonly OrderLine[]): number | null {
 /** How many things an order holds, for the public list: whole things as counted, anything weighed as one. */
 export const piecesOf = (lines: readonly Pick<OrderLine, "unit" | "qty">[]): number => lines.reduce((sum, line) => sum + (weighed(line.unit) ? 1 : Math.ceil(line.qty / MILLI)), 0);
 
-/** "$12.50" */
-export const dollars = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+/** "$12.50", "$1,234.50": thousands set apart, as both languages write money. */
+export const dollars = (cents: number): string => {
+  const [whole, part] = (Math.abs(cents) / 100).toFixed(2).split(".");
+  return `${cents < 0 ? "-" : ""}$${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${part}`;
+};
 
 /** "1.5", "2", "0.25": an amount without its unit. */
 export const amountText = (qty: number): string => String(qty / MILLI);
