@@ -8,6 +8,8 @@ import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
+import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
+import { accountsThere, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
 import { cleanNotice, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
@@ -28,6 +30,8 @@ export type HubEnv = {
   DJ_LYRIA_HOURS?: string;
   /** 两清 (tools/split), its Internal entrypoint: told when an account is deleted, it lets go of that account's receipt photos and ledgers */
   SPLIT?: { accountGone(account: string): Promise<unknown> };
+  /** MoneyLens (tools/moneylens), its Internal entrypoint, once it's bound (after its first deploy): told the same, it deletes that account's records and keys */
+  MONEY?: { accountGone(account: string): Promise<unknown> };
 };
 
 export type Call = { method: string; path: string; token: string; device: string; ip: string; body?: unknown; bytes?: ArrayBuffer; type?: string };
@@ -119,7 +123,16 @@ export class Hub extends DurableObject<HubEnv> {
   constructor(ctx: DurableObjectState, env: HubEnv) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
-    ctx.blockConcurrencyWhile(async () => this.migrate());
+    ctx.blockConcurrencyWhile(async () => {
+      this.migrate();
+      // (notices waiting with no alarm, or a later one, say the hub stopped before setting it: wake in time for them)
+      const due = nextDue(this.sql);
+      if (due != null) {
+        const at = Math.max(due, Date.now() + 1000);
+        const set = await ctx.storage.getAlarm();
+        if (set == null || set > at) await ctx.storage.setAlarm(at);
+      }
+    });
   }
 
   private migrate() {
@@ -144,6 +157,10 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE TABLE IF NOT EXISTS figures (user_id TEXT PRIMARY KEY, mime TEXT NOT NULL, full BLOB NOT NULL, round BLOB NOT NULL, choices TEXT NOT NULL, shown INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)`);
     // the 3D figure's look (/me/figure): a few dozen numbers, as src/shared/figureLook.ts checks them
     q(`CREATE TABLE IF NOT EXISTS looks (user_id TEXT PRIMARY KEY, look TEXT NOT NULL, updated_at INTEGER NOT NULL)`);
+    // codes that take a signed-in account to an app on its own domain (handoffCodes.ts), and the
+    // apps still to be told an account is gone (goneNotices.ts)
+    handoffTables(this.sql);
+    goneTables(this.sql);
     // AI drawings counted per day (k: e:<email>, ip:<address>, all)
     q(`CREATE TABLE IF NOT EXISTS draws (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
     // notices sent for other Workers, counted per day (k: the app; worker/notice.ts)
@@ -285,7 +302,13 @@ export class Hub extends DurableObject<HubEnv> {
     if (path === "/auth/verify" && m === "POST") return this.verify(String(b.email ?? ""), String(b.code ?? ""), c.ip);
     if (path === "/auth/signup" && m === "POST") return this.signup(String(b.ticket ?? ""), b);
     if (path === "/auth/logout" && m === "POST") {
-      if (c.token) this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, await sha(c.token));
+      if (c.token) {
+        const h = await sha(c.token);
+        const s = this.one(`SELECT user_id FROM sessions WHERE hash = ?`, h);
+        this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, h);
+        // (and a handoff code from the last minute, not yet traded)
+        if (s) forgetHandoffs(this.sql, String(s.user_id), false);
+      }
       return ok({ ok: true });
     }
 
@@ -318,6 +341,12 @@ export class Hub extends DurableObject<HubEnv> {
     // ---- 一本正经: a round played, the cards' numbers, a card flagged (worker/straightface.ts) ----
     const sf = sfPublic(path, m, b, { sql: this.sql, allow: (k, n, w) => this.allow(k, n, w), device: c.device, ip: c.ip, uid: me?.id ?? null });
     if (sf) return sf;
+
+    // ---- a code that takes this account to an app on its own domain (MoneyLens) ----
+    if (path === "/handoff" && m === "POST") {
+      const r = await giveHandoff(this.sql, me, b);
+      return { status: r.status, json: r.json };
+    }
 
     if (!me) return err(401, "signin");
     this.sql.exec(`UPDATE users SET last_seen = ? WHERE id = ?`, Date.now(), me.id);
@@ -942,8 +971,51 @@ export class Hub extends DurableObject<HubEnv> {
         /* gone */
       }
     }
-    // 两清 keeps its own for an account (receipt photos, ledgers with their keys): told, it lets them go
-    if (this.env.SPLIT) this.ctx.waitUntil(this.env.SPLIT.accountGone(id).catch((e) => console.error("hub: 两清 wasn't told an account is gone", e)));
+    // the apps that keep their own for an account (两清's receipt photos and ledgers; MoneyLens's
+    // records and keys, for an account that has used it, its binding in place yet or not): told
+    // now, and again on the alarm until each has heard (goneNotices.ts)
+    const apps = [this.env.SPLIT ? "split" : "", ...forgetHandoffs(this.sql, id, true)].filter(Boolean);
+    if (apps.length) {
+      noteGone(this.sql, id, apps);
+      this.ctx.waitUntil(
+        this.armGone()
+          .then(() => this.tellGone())
+          .catch((e) => console.error("hub: gone notices", e)),
+      );
+    }
+  }
+
+  /** the alarm in a minute, unless one is set sooner: the next try, should this one not finish */
+  private async armGone() {
+    const at = Date.now() + 60_000;
+    const set = await this.ctx.storage.getAlarm();
+    if (set == null || set > at) await this.ctx.storage.setAlarm(at);
+  }
+
+  /** the apps still to be told an account is gone; the alarm set for the next try (before the sends too) */
+  private async tellGone() {
+    const wake = (at: number) => this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
+    const next = await sendGone(this.sql, { split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)), money: this.env.MONEY && ((id) => this.env.MONEY!.accountGone(id)) }, wake);
+    if (next != null) await wake(next);
+  }
+
+  async alarm() {
+    await this.tellGone();
+  }
+
+  /* ================= the Handoff door (handoff.ts): apps on their own domain ================= */
+
+  /** a handoff code traded by its app: the account, or null (handoffCodes.ts) */
+  async redeemHandoff(code: string, aud: string) {
+    return redeemHandoff(this.sql, code, aud, (id) => {
+      const u = this.userById(id);
+      return u ? { banned: u.banned, master: this.isMaster(u) } : null;
+    });
+  }
+
+  /** which of these accounts are still here (throws on a wrong question) */
+  async accountsThere(ids: string[]) {
+    return accountsThere(this.sql, ids);
   }
 
   /* ================= 戏精大赏's public library ================= */
@@ -1137,6 +1209,7 @@ export class Hub extends DurableObject<HubEnv> {
   /** Sign someone out everywhere and take them off any table they're at. */
   private async dropUser(u: U, ban: boolean) {
     this.sql.exec(`DELETE FROM sessions WHERE user_id = ?`, u.id);
+    forgetHandoffs(this.sql, u.id, false);
     const msg = JSON.stringify({ t: ban ? "banned" : "kicked" });
     for (const ws of this.ctx.getWebSockets(u.id)) {
       try {
