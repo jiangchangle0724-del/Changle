@@ -35,6 +35,7 @@
 | ribpops | Hip Hop Dancing（Female Hip Hop 'Rib Pops' Dancing） |
 | kickstep | Hip Hop Dancing（Female Hip Hop 'Kick Step' Dancing） |
 | shimmy | Hip Hop Dancing（Hip Hop Dancing Shimmy） |
+| walk_soft, walk_cat, walk_sexy | 走路，11 月 20 日，In Place 下载：Walking（Feminine Walk Forward）、Catwalk Walk Forward（Female Walk Forward）、Walking（Female Sexy Walk） |
 
 Belly Dancing Variation Three 和 Jazz 'Around The World' 也下了，但胯走得太远（出画面），没用。11 月 20 日的 Ballet Dance Variation One（跳起来、走 1 米）、Jazz 'Around The World' - Loop 和 Dance Swing Charleston（胯走出半米多）、Snake Hip Hop Dance（蹲得太低，裙子的骨头扎进腿里）也没用，测试不让过。
 
@@ -84,6 +85,8 @@ npx tsx scripts/dj-dancer/mocap/pack.ts /tmp/loops public/models/dancer/dance a=
 
 然后在 `site` 里跑 `npx tsx tests/dancer.test.ts`。看效果：`real/preview.py`（转一圈的图）、`real/posetest.py`（摆几个姿势）、
 `real/dancesheet.py`（一支舞的几个瞬间）都是在本机画图，不用浏览器。
+
+走路（`dances.ts` 的 `WALKS`，一种风格一个）：`stride` 是她走一步移动多远，量的是着地那只脚一拍往后滑多远（原地走，所以这就是一步），`tests/dancer.test.ts` 会再量一遍对不对。量法也可以自己跑：`loop.ts` 之后看 `stride` 那条测试的输出。
 
 ## 加一支舞
 

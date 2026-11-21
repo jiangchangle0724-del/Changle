@@ -134,7 +134,11 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   Her hair's ends and a skirt swing on springs as she moves (`dancer/springs.ts`, three-vrm's way:
   their bones from `site/scripts/dj-dancer/real/springs.py`, kept off her by round shapes on her
   bones); she blinks every two to six seconds (where her eyes are is in her texture's alpha,
-  `eyes.py`: a lid the colour of the skin round them comes down); the robot and the drawn one dance the routine, nine simple standing moves
+  `eyes.py`: a lid the colour of the skin round them comes down); she walks the stage (Nov 20)
+  while someone is on the floor and no song's video is in the middle (`roam`): now and then, at a
+  new dance, to a spot a few steps away not behind a floor dancer, in her look's walk (`WALKS`, a
+  step on each beat or on every other), her canvas sliding along behind the floor's dancers; back to
+  her place when a video comes, in her place over one in the corner and with reduced motion; the robot and the drawn one dance the routine, nine simple standing moves
   (`shared/dj/dance.ts`, `DANCE_MOVES`), which and in what order following the stretch (`ROUTINES`,
   `moodOf`; a slow song, under 90 BPM by its own tempo,
   the gentle ones), 16 beats each (`moveAt`). The phones have nothing of hers. Gone with 跟着跳
