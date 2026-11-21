@@ -1,6 +1,7 @@
 // 天气 (A4, 2026-11-18): the best three, the time that was set and a slot's sheet say the weather
-// where the forecast reaches, with where it comes from under the best three. Each page here is
-// given its own forecast (under test the server gives none).
+// where the forecast reaches, with where it comes from under the best three; the words for the
+// group and the result picture say it too (2026-11-20). Each page here is given its own forecast
+// (under test the server gives none).
 import { expect, test, type Page } from "@playwright/test";
 import { vancouverDay, type Forecast } from "../../src/engine";
 import { at, cell, closePhones, join, make, phone, saved } from "./helpers";
@@ -51,8 +52,15 @@ test("the best three, the time that was set and a slot's sheet say the weather, 
   // set tomorrow evening: the banner says it too, in either language
   await best.nth(0).locator(".btn").click();
   await expect(host.locator(".set .wx")).toHaveText("有雨 · 最低 4°，适合室内");
+  // and the words for the group, on a line of their own over the link, and the result picture
+  const words = host.locator(".after .words-text");
+  await expect(words).toContainText("详情见链接。\n天气预报：有雨 · 最低 4°，适合室内\nhttp");
+  await host.locator(".after button", { hasText: "结果图" }).click();
+  await expect(host.locator("img.share-img")).toHaveAttribute("alt", /1 个有空，有雨 · 最低 4°，适合室内，带二维码$/);
+  await host.click(".sheet .icon-btn");
   await host.click(".bar-lang");
   await expect(host.locator(".set .wx")).toHaveText("Rain · low 4°, better indoors");
+  await expect(words).toContainText("\nForecast: Rain · low 4°, better indoors\nhttp");
   await expect(host.locator(".best li").first().locator(".wx")).toHaveText("Rain · low 4°, better indoors");
   await expect(host.locator(".wx-credit")).toContainText("Data Source: Environment and Climate Change Canada");
   await expect(host.locator(".wx-credit a")).toHaveText("Licence");
@@ -72,5 +80,7 @@ test("nothing about the weather where the forecast doesn't reach, and no asking 
   await expect(host.locator(".best li")).toHaveCount(1);
   await expect(host.locator(".wx")).toHaveCount(0);
   await expect(host.locator(".wx-credit")).toHaveCount(0);
+  await host.locator(".best li").first().locator(".btn").click();
+  await expect(host.locator(".after .words-text")).not.toContainText("天气");
   expect(asked).toBe(0);
 });

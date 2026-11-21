@@ -3,8 +3,8 @@
 // nor download, so pressing and holding the picture is how it's saved or sent on: the page allows
 // that on the picture and nowhere else. Other browsers get buttons for both as well.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { dateLabel, dayLabel, deadlineLabel, reason, whenLabel } from "../../engine";
-import type { EventState, Lang, Person, Tally } from "../../engine";
+import { dateLabel, dayLabel, deadlineLabel, forecastLine, reason, whenLabel } from "../../engine";
+import type { EventState, Lang, Person, Tally, Weather } from "../../engine";
 import inviteBg from "../art/invite-bg.webp";
 import resultBg from "../art/result-bg.webp";
 import { t } from "../i18n";
@@ -34,10 +34,22 @@ export function invitePicture(state: EventState, link: string, lang: Lang): Pict
   return { kind: "invite", brand: BRAND, title: state.title, headline: t("picAsk"), detail: inviteLine(state, lang), scan: t("picScanInvite"), url: link, site: bare(link), backdrop: inviteBg };
 }
 
-/** The result: when it is and who can make it, in the words the page uses. */
-export function resultPicture(state: EventState, tally: Tally, people: readonly Person[], link: string, lang: Lang): Picture {
+/** The result: when it is and who can make it, in the words the page uses, and its forecast where there is one. */
+export function resultPicture(state: EventState, tally: Tally, people: readonly Person[], link: string, lang: Lang, weather: Weather | null = null): Picture {
   const headline = whenLabel(tally.day, tally.part, lang, state.settled?.from, state.settled?.to);
-  return { kind: "result", brand: BRAND, title: state.title, label: t("picSet"), headline, detail: reason(tally, people, lang), scan: t("picScanResult"), url: link, site: bare(link), backdrop: resultBg };
+  return {
+    kind: "result",
+    brand: BRAND,
+    title: state.title,
+    label: t("picSet"),
+    headline,
+    detail: reason(tally, people, lang),
+    weather: weather ? forecastLine(weather, lang) : undefined,
+    scan: t("picScanResult"),
+    url: link,
+    site: bare(link),
+    backdrop: resultBg,
+  };
 }
 
 type Made = "drawing" | "failed" | { src: string; file: File | null };

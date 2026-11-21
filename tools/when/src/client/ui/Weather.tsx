@@ -3,7 +3,7 @@
 import { Cloud, CloudDrizzle, CloudFog, CloudHail, CloudLightning, CloudMoon, CloudRain, CloudSnow, CloudSun, Haze, Moon, Sun, Wind } from "lucide-preact";
 import { useEffect, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { daysBetween, NO_FORECAST, vancouverDay, WEATHER_LICENCE, weatherText } from "../../engine";
+import { daysBetween, NO_FORECAST, vancouverDay, WEATHER_LICENCE, weatherSaid } from "../../engine";
 import type { Day, Forecast, Sky, Weather } from "../../engine";
 import { t } from "../i18n";
 import { useLang } from "./common";
@@ -61,7 +61,7 @@ export function WeatherLine({ weather, as: Tag = "small" }: { weather: Weather |
   return (
     <Tag class="wx" data-wet={weather.wet ? "" : undefined}>
       <SkyIcon sky={weather.sky} night={weather.night} />
-      <span>{weather.wet ? t("wxWet", { weather: weatherText(weather, lang) }) : weatherText(weather, lang)}</span>
+      <span>{weatherSaid(weather, lang)}</span>
     </Tag>
   );
 }

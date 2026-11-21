@@ -200,3 +200,13 @@ export function weatherText(w: Weather, lang: Lang): string {
   const temp = w.of === "hours" ? `${w.temp}°` : lang === "zh" ? `${w.of === "high" ? "最高" : "最低"} ${w.temp}°` : `${w.of} ${w.temp}°`;
   return `${sky} · ${temp}`;
 }
+
+/** weatherText, and ", better indoors" when rain or snow is likely: "有雨 · 最低 4°，适合室内". */
+export function weatherSaid(w: Weather, lang: Lang): string {
+  const text = weatherText(w, lang);
+  if (!w.wet) return text;
+  return lang === "zh" ? `${text}，适合室内` : `${text}, better indoors`;
+}
+
+/** The forecast as a line of its own, in the words and the picture passed around: "天气预报：有雨 · 最低 4°，适合室内". */
+export const forecastLine = (w: Weather, lang: Lang): string => `${lang === "zh" ? "天气预报：" : "Forecast: "}${weatherSaid(w, lang)}`;
