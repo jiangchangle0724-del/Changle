@@ -22,7 +22,7 @@ import { sfx } from "../sound";
 import { serverNow } from "../store";
 import { reducedMotion } from "../motion";
 import { keepIn, mapCam, type MapHand } from "./mapView";
-import { BEAT, type RidePlan } from "./ridePlan";
+import { BEAT, noteStamp, type RidePlan } from "./ridePlan";
 import { DoublesCall, doublesKind } from "./Doubles";
 
 const N = BOARD.length;
@@ -410,8 +410,11 @@ export function Ride({
     const lean = rig.current?.lean ?? 0;
     const T = plan.t;
     const startPerf = performance.now() + (plan.start - serverNow());
-    // (when this screen will stamp the landing, on its own clock: every screen's should agree)
-    el.dataset.land = String(Math.round(Date.now() + (plan.start + T.land - serverNow())));
+    // (when this screen will stamp the landing, on its own clock: every screen's should agree; the
+    // flight to the city takes off from it, ridePlan.ts noteStamp)
+    const landsAt = Date.now() + (plan.start + T.land - serverNow());
+    noteStamp(plan.seat, plan.start + T.land, landsAt);
+    el.dataset.land = String(Math.round(landsAt));
     const reduced = reducedMotion();
     // Sizes are read once (and again if the screen turns), never inside a frame: a read after the
     // frame's writes would make the browser lay the page out again on the spot.
