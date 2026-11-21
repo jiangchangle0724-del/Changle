@@ -155,13 +155,36 @@ def t_superlatives_single(browser):
         if i == 0:
             pg.wait_for_timeout(500)
             shot(pg, "sup-pass")
+            # until the first vote is in, the table can swap the title or write its own (as the host can online)
+            before = pg.locator(".award-title").inner_text()
+            pg.get_by_role("button", name="换一个").click()
+            ok(until(lambda: pg.locator(".award-title").inner_text() != before, 1500), "one phone: another title")
+            pg.get_by_role("button", name="自己出").click()
+            pg.locator(".sup-custom input").fill("今晚最会点歌")
+            pg.get_by_role("button", name="用这个").click()
+            ok(until(lambda: pg.locator(".award-title").inner_text().strip() == "今晚最会点歌", 1500), "one phone: a title of the table's own, in one language")
+            pg.wait_for_timeout(300)
+            shot(pg, "sup-written")
+        else:
+            ok(pg.locator(".sup-tools").count() == 0, "one phone: the title is set once the first vote is in")
         pg.get_by_role("button", name=f"我是 {p['name']}").click()
         pg.wait_for_selector(".ballot .nominee")
         if i == 0:
             pg.wait_for_timeout(300)
             shot(pg, "sup-ballot")
         target = "Mia" if p["name"] != "Mia" else "Jay"
-        pg.locator(".ballot .nominee", has_text=target).click()
+        if i == 0:
+            # a slip of the thumb: Jay first, then Mia; "done" is what casts the vote
+            pg.locator(".ballot .nominee", has_text="Jay").click()
+            ok(pg.locator(".ballot .nominee.is-on", has_text="Jay").count() == 1 and pg.locator(".pass-curtain").count() == 0, "one phone: a tap picks, it doesn't cast yet")
+            pg.locator(".ballot .nominee", has_text="Mia").click()
+            ok(pg.locator(".ballot .nominee.is-on").count() == 1 and pg.locator(".ballot .nominee.is-on", has_text="Mia").count() == 1, "one phone: a second tap moves the pick")
+            pg.wait_for_timeout(300)
+            shot(pg, "sup-picked")
+        else:
+            pg.locator(".ballot .nominee", has_text=target).click()
+        done = pg.get_by_role("button", name="投好了，揭晓" if i == 3 else "投好了，交给下一位")
+        done.click()
     pg.wait_for_selector(".award-reveal")
     pg.wait_for_timeout(2600)
     shot(pg, "sup-reveal")
@@ -176,6 +199,7 @@ def t_superlatives_single(browser):
             pg.get_by_role("button", name=f"我是 {p['name']}").click()
             pg.wait_for_selector(".ballot .nominee")
             pg.locator(".ballot .nominee", has_text="Kev" if p["name"] != "Kev" else "Jay").click()
+            pg.get_by_role("button", name=re.compile("^投好了")).click()
         pg.wait_for_selector(".award-reveal")
         pg.wait_for_timeout(3300)
         clear_stamps([pg])
@@ -209,6 +233,7 @@ def t_superlatives_scroll(browser):
             pg.wait_for_timeout(150)
             scrolled = pg.evaluate("() => scrollY")
         pg.locator(".ballot .nominee", has_text="Bo" if p["name"] != "Bo" else "Ann").click()
+        pg.get_by_role("button", name=re.compile("^投好了")).click()
     pg.wait_for_selector(".award-reveal")
     top = pg.evaluate("() => scrollY")
     pg.wait_for_timeout(2600)

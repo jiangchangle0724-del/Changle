@@ -1,4 +1,4 @@
-import { Check, Shuffle } from "lucide-react";
+import { Check, PenLine, Shuffle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TITLES } from "../../data/superlatives";
 import { GameShell, usePenalty } from "../../games/GameShell";
@@ -20,7 +20,7 @@ const TOAST_MS = 3200;
 
 type Mode = "secret" | "point";
 type Phase = { k: "setup" } | { k: "pass"; i: number } | { k: "ballot"; i: number } | { k: "point" } | { k: "reveal"; winners: string[]; counts: Record<string, number> } | { k: "ceremony" };
-type Kept = { mode: Mode; total: number; round: number; title: T; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
+type Kept = { mode: Mode; total: number; round: number; title: T; written?: boolean; phase: Phase; votes: Record<string, string>; picked: string[]; awards: Record<string, T[]>; cards: number[]; paid: boolean; advance: boolean };
 
 /** One phone: pass it round for a secret ballot, or count fingers and tap the winner. */
 export function Superlatives({ onBack }: { onBack: () => void }) {
@@ -44,20 +44,26 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const [total, setTotal] = useState(saved?.total ?? 8);
   const [round, setRound] = useState(saved?.round ?? 1);
   const [title, setTitle] = useState<T>(() => saved?.title ?? deck.current.draw().card);
+  // (a title the table wrote itself, as the host can at an online table: shown in one language, not two)
+  const [written, setWritten] = useState(saved?.written ?? false);
+  const [writing, setWriting] = useState(false);
+  const [text, setText] = useState("");
   const [phase, setPhase] = useState<Phase>(saved?.phase ?? { k: "setup" });
   const [votes, setVotes] = useState<Record<string, string>>(saved?.votes ?? {});
+  // the voter's pick on the ballot, until "done": a slip of the thumb can still be moved
+  const [pick, setPick] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>(saved?.picked ?? []);
   const [awards, setAwards] = useState<Record<string, T[]>>(saved?.awards ?? {});
   const [paid, setPaid] = useState(saved?.paid ?? false);
   const [advance, setAdvance] = useState(saved?.advance ?? false);
   const penalty = usePenalty();
   const pen = usePenaltyText();
-  const custom = pen.isCustom;
+  const ownPenalty = pen.isCustom;
   const name = useMemo(() => Object.fromEntries(players.map((p) => [p.id, p.name])), [players]);
   const face = (id: string) => (size: number) => <NameFace name={name[id] ?? "?"} size={size} />;
-  // Hide private ballots again; a vote in the 220 ms hand-off already belongs to the next voter.
-  const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i + (votes[players[phase.i].id] ? 1 : 0) } : phase;
-  useKeepProgress<Kept>({ mode, total, round, title, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
+  // Hide private ballots again: a game picked up later starts that voter at the hand-over.
+  const keptPhase: Phase = phase.k === "ballot" ? { k: "pass", i: phase.i } : phase;
+  useKeepProgress<Kept>({ mode, total, round, title, written, phase: keptPhase, votes, picked, awards, cards: deck.current.keep(), paid, advance }, phase.k !== "setup" && phase.k !== "ceremony");
 
   // each moment of the game starts at the top of the screen, and its first 350 ms belong to the moment before
   const moment = phase.k === "pass" || phase.k === "ballot" ? `${phase.k}:${phase.i}` : phase.k;
@@ -69,8 +75,26 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setPaid(false);
     setAdvance(false);
     setVotes({});
+    setPick(null);
     setPicked([]);
     setPhase(mode === "secret" ? { k: "pass", i: 0 } : { k: "point" });
+  };
+
+  /** The next title from the deck (fingers already counted for the old one don't carry over). */
+  const draw = () => {
+    setTitle(deck.current.draw().card);
+    setWritten(false);
+    setWriting(false);
+    setPicked([]);
+  };
+
+  /** A title of the table's own, in place of the one drawn. */
+  const write = (t: string) => {
+    setTitle({ zh: t, en: t });
+    setWritten(true);
+    setWriting(false);
+    setText("");
+    setPicked([]);
   };
 
   /** The moment's stamp, waiting for it to play out: the winner's sip after the reveal, the table's toast at the ceremony. */
@@ -112,14 +136,14 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   /** The ceremony's toast for the whole table, as at an online table. */
   const toast = (): PenaltyCall => ({ who: [], kind: "everyone", note: pen.line({ zh: "颁奖典礼，全场干杯", en: "Awards night: everyone drinks" }, { zh: "颁奖典礼，全场一起来", en: "Awards night: everyone joins in" }) });
 
+  /** The voter's pick is in: the phone goes to the next voter, or the last vote opens the envelope. */
   const castVote = (voter: string, target: string) => {
     const next = { ...votes, [voter]: target };
     setVotes(next);
-    sfx.tap();
-    haptic(8);
+    setPick(null);
     const i = players.findIndex((p) => p.id === voter);
     if (i + 1 < players.length) {
-      window.setTimeout(() => setPhase({ k: "pass", i: i + 1 }), 220);
+      setPhase({ k: "pass", i: i + 1 });
       return;
     }
     const counts: Record<string, number> = {};
@@ -138,7 +162,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       return;
     }
     setRound((r) => r + 1);
-    setTitle(deck.current.draw().card);
+    draw();
     startRound();
   };
 
@@ -147,7 +171,7 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     setAdvance(false);
     setTotal((n) => n + 5);
     setRound((r) => r + 1);
-    setTitle(deck.current.draw().card);
+    draw();
     startRound();
   };
 
@@ -167,17 +191,20 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
   const rules = (
     <p>
-      {custom
+      {ownPenalty
         ? zh
-          ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人受罚，平票一起受罚。最后开颁奖典礼。"
-          : "One award a round. Secret ballot: pass the phone round and everyone votes in private (not for themselves); the reveal comes when the last vote is in. Point together: count to three, everyone points, then tap whoever got the most fingers. The winner takes the penalty; ties all take it. An awards ceremony at the end."
+          ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人受罚，平票一起受罚。最后开颁奖典礼。称号不合适可以换一个，也可以自己出。"
+          : "One award a round. Secret ballot: pass the phone round and everyone votes in private (not for themselves); the reveal comes when the last vote is in. Point together: count to three, everyone points, then tap whoever got the most fingers. The winner takes the penalty; ties all take it. An awards ceremony at the end. Swap a title that doesn't fit, or write your own."
         : zh
-          ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人喝一口，平票一起喝。最后开颁奖典礼。"
-          : "One award a round. Secret ballot: pass the phone round and everyone votes in private (not for themselves); the reveal comes when the last vote is in. Point together: count to three, everyone points, then tap whoever got the most fingers. The winner drinks; ties all drink. An awards ceremony at the end."}
+          ? "每轮一个称号。传手机投票：手机依次传给每个人，偷偷投给最配这个称号的人（不能投自己），全部投完揭晓。一起指：数到三大家同时指人，点一下被指最多的人。拿奖的人喝一口，平票一起喝。最后开颁奖典礼。称号不合适可以换一个，也可以自己出。"
+          : "One award a round. Secret ballot: pass the phone round and everyone votes in private (not for themselves); the reveal comes when the last vote is in. Point together: count to three, everyone points, then tap whoever got the most fingers. The winner drinks; ties all drink. An awards ceremony at the end. Swap a title that doesn't fit, or write your own."}
     </p>
   );
 
   const voter = phase.k === "pass" || phase.k === "ballot" ? players[phase.i] : null;
+  const lastVoter = phase.k === "ballot" && phase.i + 1 >= players.length;
+  // the title can still change until the first vote is in (or, pointing together, until the award)
+  const titleOpen = (phase.k === "pass" && Object.keys(votes).length === 0) || phase.k === "point";
 
   // (every button here is guarded: the slot keeps its place from one moment to the next, and a
   // quick second tap meant for the button before must not press the one that took its place)
@@ -187,27 +214,17 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         {zh ? "开始颁奖" : "Start the awards"}
       </button>
     ) : phase.k === "pass" && voter ? (
-      <>
-        {Object.keys(votes).length === 0 && (
-          <button type="button" className="btn btn-ghost btn-lg" aria-disabled={fresh} onClick={guard(() => setTitle(deck.current.draw().card))}>
-            <Shuffle size={14} /> {zh ? "换一个称号" : "A different title"}
-          </button>
-        )}
-        <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(() => setPhase({ k: "ballot", i: phase.i }))}>
-          {zh ? `我是 ${voter.name}` : `I'm ${voter.name}`}
-        </button>
-      </>
+      <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(() => setPhase({ k: "ballot", i: phase.i }))}>
+        {zh ? `我是 ${voter.name}` : `I'm ${voter.name}`}
+      </button>
+    ) : phase.k === "ballot" && voter ? (
+      <button type="button" className="btn btn-primary btn-lg" disabled={!pick} aria-disabled={fresh} onClick={guard(() => pick && castVote(voter.id, pick))}>
+        {lastVoter ? (zh ? "投好了，揭晓" : "Done. Reveal") : zh ? "投好了，交给下一位" : "Done. Pass it on"}
+      </button>
     ) : phase.k === "point" ? (
-      <>
-        {Object.keys(votes).length === 0 && (
-          <button type="button" className="btn btn-ghost btn-lg" aria-disabled={fresh} onClick={guard(() => setTitle(deck.current.draw().card))}>
-            <Shuffle size={14} /> {zh ? "换一个称号" : "A different title"}
-          </button>
-        )}
-        <button type="button" className="btn btn-primary btn-lg" disabled={!picked.length} aria-disabled={fresh} onClick={guard(() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1]))))}>
-          {zh ? "颁奖" : "Give the award"}
-        </button>
-      </>
+      <button type="button" className="btn btn-primary btn-lg" disabled={!picked.length} aria-disabled={fresh} onClick={guard(() => reveal(picked, Object.fromEntries(picked.map((id) => [id, 1]))))}>
+        {zh ? "颁奖" : "Give the award"}
+      </button>
     ) : phase.k === "reveal" ? (
       <button type="button" className="btn btn-primary btn-lg" aria-disabled={fresh} onClick={guard(next)}>
         {round >= total ? (zh ? "开颁奖典礼" : "On to the awards") : zh ? "下一个奖" : "Next award"}
@@ -246,7 +263,35 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
           </div>
         )}
 
-        {(phase.k === "pass" || phase.k === "ballot" || phase.k === "point") && <AwardCard title={title} round={round} total={total} />}
+        {(phase.k === "pass" || phase.k === "ballot" || phase.k === "point") && <AwardCard title={title} round={round} total={total} custom={written} />}
+
+        {/* swap the title or write one, as the host can online: under the card, until the first vote */}
+        {titleOpen && (
+          <div className="sup-tools">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={draw}>
+              <Shuffle size={14} />
+              {zh ? "换一个" : "Another one"}
+            </button>
+            <button type="button" className="btn btn-ghost btn-sm" aria-expanded={writing} onClick={() => setWriting((w) => !w)}>
+              <PenLine size={14} />
+              {zh ? "自己出" : "Write one"}
+            </button>
+          </div>
+        )}
+        {titleOpen && writing && (
+          <form
+            className="field sup-custom"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (text.trim()) write(text.trim());
+            }}
+          >
+            <input value={text} onChange={(e) => setText(e.target.value)} maxLength={30} aria-label={zh ? "自己出一个称号" : "Your own title"} placeholder={zh ? "比如：今晚最会点歌" : "e.g. Best playlist tonight"} autoFocus />
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!text.trim()}>
+              {zh ? "用这个" : "Use it"}
+            </button>
+          </form>
+        )}
 
         {phase.k === "pass" && voter && (
           <PassCurtain name={voter.name} note={zh ? `第 ${phase.i + 1} 票，共 ${players.length} 票` : `Vote ${phase.i + 1} of ${players.length}`} />
@@ -254,18 +299,36 @@ function SuperGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
 
         {phase.k === "ballot" && voter && (
           <>
-            <p className="sup-ask">{zh ? `${voter.name}，这个奖给谁？` : `${voter.name}, who gets it?`}</p>
+            <p className="sup-ask">{pick ? (zh ? `投给 ${name[pick]}，点别人还能改` : `${name[pick]} it is. Tap someone else to change it.`) : zh ? `${voter.name}，这个奖给谁？` : `${voter.name}, who gets it?`}</p>
             <div className="ballot">
               {players
                 .filter((p) => p.id !== voter.id)
-                .map((p) => (
-                  <button key={p.id} type="button" className="nominee" onClick={() => castVote(voter.id, p.id)}>
-                    <span className="nominee-face">
-                      <NameFace name={p.name} size={58} />
-                    </span>
-                    <span className="nominee-name">{p.name}</span>
-                  </button>
-                ))}
+                .map((p) => {
+                  const on = pick === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`nominee ${on ? "is-on" : ""}`}
+                      aria-pressed={on}
+                      onClick={() => {
+                        setPick(p.id);
+                        sfx.tap();
+                        haptic(8);
+                      }}
+                    >
+                      <span className="nominee-face">
+                        <NameFace name={p.name} size={58} />
+                        {on && (
+                          <span className="nominee-check" aria-hidden="true">
+                            <Check size={14} strokeWidth={3} />
+                          </span>
+                        )}
+                      </span>
+                      <span className="nominee-name">{p.name}</span>
+                    </button>
+                  );
+                })}
             </div>
           </>
         )}
