@@ -74,7 +74,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                 <span>{lang === "zh" ? "卧底人数" : "Undercovers"}</span>
                 <div className="row" style={{ gap: 10 }}>
                   {isHost && (
-                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc - 1 })} disabled={v.uc <= 1} aria-label="-">
+                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc - 1 })} disabled={v.uc <= 1} aria-label={lang === "zh" ? "少一个卧底" : "One undercover fewer"}>
                       <Minus size={18} />
                     </button>
                   )}
@@ -82,7 +82,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                     {v.uc}
                   </span>
                   {isHost && (
-                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc + 1 })} disabled={v.uc >= Math.min(3, v.maxSide)} aria-label="+">
+                    <button type="button" className="icon-btn ink" onClick={() => g("config", { uc: v.uc + 1 })} disabled={v.uc >= Math.min(3, v.maxSide)} aria-label={lang === "zh" ? "多一个卧底" : "One undercover more"}>
                       <Plus size={18} />
                     </button>
                   )}

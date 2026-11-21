@@ -152,6 +152,12 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
     sfx.reveal();
   };
 
+  // a tie, as at an online table: nobody is out, and the next round starts with a new first speaker
+  const tie = () => {
+    setRound((r) => r + 1);
+    startTalk();
+  };
+
   const afterReveal = () => {
     // once per reveal: a double tap must not skip a round
     if (revealed.current === round) return;
@@ -209,9 +215,15 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
         {lang === "zh" ? "投票" : "Vote"}
       </button>
     ) : phase === "vote" ? (
-      <button type="button" className="btn btn-ghost btn-lg" onClick={() => setPhase("talk")}>
-        {lang === "zh" ? "再聊一会儿" : "Talk a bit more"}
-      </button>
+      // the main move is a tap on a player above; these two are for a table that can't agree
+      <>
+        <button type="button" className="btn btn-ghost btn-lg" onClick={() => setPhase("talk")}>
+          {lang === "zh" ? "再聊一会儿" : "Talk more"}
+        </button>
+        <button type="button" className="btn btn-ghost btn-lg" onClick={tie}>
+          {lang === "zh" ? "平票，下一轮" : "Tie, next round"}
+        </button>
+      </>
     ) : phase === "reveal" && eliminated ? (
       <button type="button" className="btn btn-primary btn-lg" onClick={afterReveal}>
         {winner ? (lang === "zh" ? "看结果" : "See the result") : lang === "zh" ? "下一轮" : "Next round"}
@@ -250,13 +262,13 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
               <div className="settings-row ink">
                 <span>{lang === "zh" ? "卧底人数" : "Undercovers"}</span>
                 <div className="row" style={{ gap: 10 }}>
-                  <button type="button" className="icon-btn ink" onClick={() => setChosen(Math.max(1, undercovers - 1))} disabled={undercovers <= 1} aria-label="-">
+                  <button type="button" className="icon-btn ink" onClick={() => setChosen(Math.max(1, undercovers - 1))} disabled={undercovers <= 1} aria-label={lang === "zh" ? "少一个卧底" : "One undercover fewer"}>
                     <Minus size={18} />
                   </button>
                   <span className="tabular" style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 20 }}>
                     {undercovers}
                   </span>
-                  <button type="button" className="icon-btn ink" onClick={() => setChosen(Math.min(maxUndercovers, undercovers + 1))} disabled={undercovers >= maxUndercovers} aria-label="+">
+                  <button type="button" className="icon-btn ink" onClick={() => setChosen(Math.min(maxUndercovers, undercovers + 1))} disabled={undercovers >= maxUndercovers} aria-label={lang === "zh" ? "多一个卧底" : "One undercover more"}>
                     <Plus size={18} />
                   </button>
                 </div>
