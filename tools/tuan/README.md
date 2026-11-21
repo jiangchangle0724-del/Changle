@@ -143,7 +143,11 @@ they agree after a crowd of orders, changes and cancellations at once.
   digits of the phone number it was placed with (sent in the `x-tail` header). A wrong code and a
   wrong number get the same answer. While the group buy is open, and until the order is marked
   paid or handed over, the buyer can change or cancel it.
-- **A merchant** signs in with their changle.ca account (email code). The page sends the session
+- **A merchant** signs in with their changle.ca account (email code), right on the merchant's
+  page (`src/client/ui/SignIn.tsx`): it asks the site's own sign-in (`POST /api/auth/code`, then
+  `/api/auth/verify`, the rooms server's, as the site's sign-in does) and keeps the session where
+  the site keeps it (`changle.session`), so the site is signed in too. An email with no account
+  yet is sent to the site to make one (signing up asks for a profile). The page sends the session
   the site keeps on the phone (`Authorization: Bearer …`); this Worker asks the rooms server
   (`site/worker`) whose it is, Worker to Worker through the `ROOMS` binding (`GET /api/me`), and
   keeps the answer for five minutes under the session's fingerprint. `shop_members` says which

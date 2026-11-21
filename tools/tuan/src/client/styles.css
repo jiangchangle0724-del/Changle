@@ -780,6 +780,12 @@ a.shop-name {
   background: var(--color-surface);
   transition: opacity var(--dur-enter) var(--ease-out);
 }
+/* signing in on a merchant's page (SignIn.tsx) */
+.signin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 /* the poster to send on (MyOffer.tsx): the one picture a long press may save or send, as WeChat does */
 .poster-img {
   display: block;
