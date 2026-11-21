@@ -630,7 +630,8 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
   chip's).
 * **Every shader is built while the round opens** (`warmUp` in `Arena3D.tsx`): the whole scene,
   hidden things included (the bike, the follow spot, the phones, the firecrackers, the confetti), and
-  again when the people arrive; their textures go up too. three.js otherwise builds a material's
+  again when the people arrive; their textures go up too. The 3D set, which comes over the network
+  later, swaps in for the stand-in set once its own shaders are ready (`compileAsync`, at most 3 s). three.js otherwise builds a material's
   shader the first time it draws it, and on Windows and phones that froze the picture for up to half a
   second just as a moment began. Anything made at first use that changes a shader (an instanced
   mesh's colours) is made at the start for the same reason.
