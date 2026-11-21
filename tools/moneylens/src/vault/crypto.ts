@@ -180,28 +180,31 @@ export type NewWrapper = { kind: "passphrase"; passphrase: string } | { kind: "r
 async function wrapUnder(master: CryptoKey, vault: string, to: NewWrapper, now: Date): Promise<{ wrapper: Wrapper; key: CryptoKey; recoveryCode?: string }> {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
   const recovery = to.kind === "recovery" ? newRecovery() : undefined;
-  const secret: Secret = to.kind === "passphrase" ? { kind: "passphrase", passphrase: to.passphrase } : to.kind === "passkey" ? { kind: "passkey", prf: to.prf } : { kind: "recovery", code: recovery!.code };
-  const iterations = to.kind === "passphrase" ? PBKDF2_ITERATIONS : undefined;
-  const kek = await wrappingKey(to.kind, vault, salt, iterations, secret);
-  if (!kek) throw new RangeError("vault: that secret can't make a key");
-  const wrapped = new Uint8Array(await crypto.subtle.wrapKey("raw", master, kek, "AES-KW"));
-  const label = to.kind === "passkey" && to.label ? [...to.label].slice(0, LABEL_MOST).join("") : "";
-  const wrapper: Wrapper = {
-    v: VERSION,
-    id: newId(),
-    vault,
-    kind: to.kind,
-    kdf: to.kind === "passphrase" ? "pbkdf2-sha256" : "hkdf-sha256",
-    ...(iterations === undefined ? {} : { iterations }),
-    salt: base64url(salt),
-    wrapped: base64url(wrapped),
-    created: now.toISOString(),
-    ...(to.kind === "passkey" ? { credential: to.credential, ...(label ? { label } : {}) } : {}),
-  };
-  recovery?.bytes.fill(0);
-  if (!isWrapper(wrapper)) throw new Error("vault: a new wrapper isn't one this version can use");
-  const key = await crypto.subtle.unwrapKey("raw", wrapped as BufferSource, kek, "AES-KW", GCM, false, ["encrypt", "decrypt"]);
-  return { wrapper, key, ...(recovery ? { recoveryCode: recovery.code } : {}) };
+  try {
+    const secret: Secret = to.kind === "passphrase" ? { kind: "passphrase", passphrase: to.passphrase } : to.kind === "passkey" ? { kind: "passkey", prf: to.prf } : { kind: "recovery", code: recovery!.code };
+    const iterations = to.kind === "passphrase" ? PBKDF2_ITERATIONS : undefined;
+    const kek = await wrappingKey(to.kind, vault, salt, iterations, secret);
+    if (!kek) throw new RangeError("vault: that secret can't make a key");
+    const wrapped = new Uint8Array(await crypto.subtle.wrapKey("raw", master, kek, "AES-KW"));
+    const label = to.kind === "passkey" && to.label ? [...to.label].slice(0, LABEL_MOST).join("") : "";
+    const wrapper: Wrapper = {
+      v: VERSION,
+      id: newId(),
+      vault,
+      kind: to.kind,
+      kdf: to.kind === "passphrase" ? "pbkdf2-sha256" : "hkdf-sha256",
+      ...(iterations === undefined ? {} : { iterations }),
+      salt: base64url(salt),
+      wrapped: base64url(wrapped),
+      created: now.toISOString(),
+      ...(to.kind === "passkey" ? { credential: to.credential, ...(label ? { label } : {}) } : {}),
+    };
+    if (!isWrapper(wrapper)) throw new Error("vault: a new wrapper isn't one this version can use");
+    const key = await crypto.subtle.unwrapKey("raw", wrapped as BufferSource, kek, "AES-KW", GCM, false, ["encrypt", "decrypt"]);
+    return { wrapper, key, ...(recovery ? { recoveryCode: recovery.code } : {}) };
+  } finally {
+    recovery?.bytes.fill(0);
+  }
 }
 
 export type Created = { ok: true; vault: OpenVault; wrappers: [Wrapper, Wrapper]; recoveryCode: string } | { ok: false; why: Weak };
