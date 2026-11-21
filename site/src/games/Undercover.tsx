@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { usePenaltyText, useStore, type Player } from "../store";
 import { pick, shuffle } from "../lib/random";
 import { WORD_PAIRS, type WordPair } from "../data/undercover";
+import { defaultUc, maxSide, maxUc } from "../shared/engine/games/undercover";
 import { sfx } from "../lib/sfx";
 import { GameShell, usePenalty } from "./GameShell";
 import { Resume, useKeepProgress } from "./Resume";
@@ -16,16 +17,15 @@ type Role = "civilian" | "undercover" | "blank";
 type Seat = { player: Player; role: Role; alive: boolean };
 type Phase = "setup" | "deal" | "talk" | "vote" | "reveal" | "end";
 
-function defaultUndercovers(n: number) {
-  return n <= 5 ? 1 : n <= 8 ? 2 : 3;
-}
-
 /** What a game under way keeps on the phone, to pick up after a reload: the words and who has which. */
 type Kept = {
-  undercovers: number;
+  /** the number of undercovers the host set by hand; null follows the table's size */
+  undercovers: number | null;
   withBlank: boolean;
   phase: Phase;
   pair: WordPair | null;
+  /** which of the pair's two words the undercover holds, decided at each deal, so the word itself gives nothing away */
+  flip: boolean;
   seats: Seat[];
   dealIndex: number;
   round: number;
@@ -36,7 +36,7 @@ type Kept = {
 
 export function Undercover({ onBack }: { onBack: () => void }) {
   return (
-    <Resume<Kept> game="undercover" version={1}>
+    <Resume<Kept> game="undercover" version={2}>
       {(saved) => <UndercoverGame onBack={onBack} saved={saved} />}
     </Resume>
   );
@@ -44,10 +44,11 @@ export function Undercover({ onBack }: { onBack: () => void }) {
 
 function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }) {
   const { players, ui, tr, lang } = useStore();
-  const [undercovers, setUndercovers] = useState(saved?.undercovers ?? defaultUndercovers(players.length));
+  const [chosen, setChosen] = useState<number | null>(saved?.undercovers ?? null);
   const [withBlank, setWithBlank] = useState(saved?.withBlank ?? false);
   const [phase, setPhase] = useState<Phase>(saved?.phase ?? "setup");
   const [pair, setPair] = useState<WordPair | null>(saved?.pair ?? null);
+  const [flip, setFlip] = useState(saved?.flip ?? false);
   const [seats, setSeats] = useState<Seat[]>(saved?.seats ?? []);
   const [dealIndex, setDealIndex] = useState(saved?.dealIndex ?? 0);
   const [lidOpen, setLidOpen] = useState(false);
@@ -59,23 +60,28 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
   const [firstSpeaker, setFirstSpeaker] = useState<Player | null>(saved?.firstSpeaker ?? null);
   const penalty = usePenalty();
   // kept from the deal to the end (a word half-read comes back with its lid closed again)
-  useKeepProgress<Kept>({ undercovers, withBlank, phase, pair, seats, dealIndex, round, eliminated, winner, firstSpeaker }, phase !== "setup" && phase !== "end");
+  useKeepProgress<Kept>({ undercovers: chosen, withBlank, phase, pair, flip, seats, dealIndex, round, eliminated, winner, firstSpeaker }, phase !== "setup" && phase !== "end");
 
-  const maxUndercovers = Math.max(1, Math.min(3, players.length - 3));
+  // the same table math as online: how many undercovers a table this size takes, and how many unless set by hand
+  const maxUndercovers = maxUc(players.length);
+  const undercovers = Math.min(chosen ?? defaultUc(players.length), maxUndercovers);
   // the blank sits on the undercover's side, so it needs the room a side that size has online
-  const blankFits = Math.min(undercovers, maxUndercovers) + 1 <= Math.max(1, Math.floor((players.length - 1) / 3));
-  const blankNeeds = 3 * (Math.min(undercovers, maxUndercovers) + 1) + 1;
+  const blankFits = undercovers + 1 <= maxSide(players.length);
+  const blankNeeds = 3 * (undercovers + 1) + 1;
   const dealt = useRef(-1);
   const revealed = useRef(-1);
 
   const start = () => {
     const p = pick(WORD_PAIRS);
     const order = shuffle(players);
-    const uc = Math.min(undercovers, maxUndercovers);
+    const uc = undercovers;
     const roles: Role[] = [];
     for (let i = 0; i < players.length; i++) roles.push(i < uc ? "undercover" : i === uc && withBlank && blankFits ? "blank" : "civilian");
     const byId = new Map(order.map((pl, i) => [pl.id, roles[i]]));
     setPair(p);
+    // heads or tails for which word is the undercover's: with it always the pair's second word, a
+    // regular would know their side from the word alone
+    setFlip(Math.random() < 0.5);
     setSeats(players.map((pl) => ({ player: pl, role: byId.get(pl.id)!, alive: true })));
     dealt.current = -1;
     revealed.current = -1;
@@ -127,7 +133,11 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
     }
   };
 
-  const word = (s: Seat) => (s.role === "blank" ? (lang === "zh" ? "白板：你没有词，靠听" : "Blank: no word. Listen and bluff.") : s.role === "undercover" ? tr(pair!.b) : tr(pair!.a));
+  // the pair's two words, as dealt this game
+  const civWord = pair ? (flip ? pair.b : pair.a) : null;
+  const ucWord = pair ? (flip ? pair.a : pair.b) : null;
+  const wordOf = (s: Seat) => (s.role === "undercover" ? ucWord! : civWord!);
+  const word = (s: Seat) => (s.role === "blank" ? (lang === "zh" ? "白板：你没有词，靠听" : "Blank: no word. Listen and bluff.") : tr(wordOf(s)));
 
   const roleName = (r: Role) => (r === "civilian" ? (lang === "zh" ? "平民" : "Civilian") : r === "undercover" ? (lang === "zh" ? "卧底" : "Undercover") : lang === "zh" ? "白板" : "Blank");
   const custom = usePenaltyText().isCustom;
@@ -206,13 +216,13 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
               <div className="settings-row ink">
                 <span>{lang === "zh" ? "卧底人数" : "Undercovers"}</span>
                 <div className="row" style={{ gap: 10 }}>
-                  <button type="button" className="icon-btn ink" onClick={() => setUndercovers((n) => Math.max(1, n - 1))} aria-label="-">
+                  <button type="button" className="icon-btn ink" onClick={() => setChosen(Math.max(1, undercovers - 1))} disabled={undercovers <= 1} aria-label="-">
                     <Minus size={18} />
                   </button>
                   <span className="tabular" style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 20 }}>
-                    {Math.min(undercovers, maxUndercovers)}
+                    {undercovers}
                   </span>
-                  <button type="button" className="icon-btn ink" onClick={() => setUndercovers((n) => Math.min(maxUndercovers, n + 1))} aria-label="+">
+                  <button type="button" className="icon-btn ink" onClick={() => setChosen(Math.min(maxUndercovers, undercovers + 1))} disabled={undercovers >= maxUndercovers} aria-label="+">
                     <Plus size={18} />
                   </button>
                 </div>
@@ -225,7 +235,7 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
               </div>
               <p className="hint-ink">
                 {lang === "zh" ? `${players.length} 人在座。白板没有词，跟卧底一伙：白板也出局，平民才赢。` : `${players.length} at the table. A blank gets no word and plays on the undercover's side: civilians win only when the blank is out too.`}
-                {!blankFits && (lang === "zh" ? `${Math.min(undercovers, maxUndercovers)} 个卧底时，${blankNeeds} 人以上才能加白板。` : ` With ${Math.min(undercovers, maxUndercovers)} undercover${Math.min(undercovers, maxUndercovers) > 1 ? "s" : ""}, a blank needs ${blankNeeds} or more players.`)}
+                {!blankFits && (lang === "zh" ? `${undercovers} 个卧底时，${blankNeeds} 人以上才能加白板。` : ` With ${undercovers} undercover${undercovers > 1 ? "s" : ""}, a blank needs ${blankNeeds} or more players.`)}
               </p>
             </div>
           </motion.div>
@@ -243,7 +253,7 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
             <Cloche open={lidOpen} onOpen={() => setLidOpen(true)} label={lidOpen ? undefined : `${seats[dealIndex].player.name} · ${ui("liftLid")}`}>
               <div className="prompt-card">
                 <p className={`word-big ${lang === "zh" ? "zh-display" : "en-display"}`}>{word(seats[dealIndex])}</p>
-                {seats[dealIndex].role !== "blank" && <p className="hint-ink">{lang === "zh" ? (seats[dealIndex].role === "undercover" ? pair!.b.en : pair!.a.en) : seats[dealIndex].role === "undercover" ? pair!.b.zh : pair!.a.zh}</p>}
+                {seats[dealIndex].role !== "blank" && <p className="hint-ink">{lang === "zh" ? wordOf(seats[dealIndex]).en : wordOf(seats[dealIndex]).zh}</p>}
               </div>
             </Cloche>
           </motion.div>
@@ -294,14 +304,14 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
           </motion.div>
         )}
 
-        {phase === "end" && pair && (
+        {phase === "end" && civWord && ucWord && (
           <motion.div key="end" className="stack" style={{ gap: 14 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <div className="porcelain reveal-card">
               <p className={`turn-name ink ${lang === "zh" ? "zh-display" : "en-display"}`} style={{ fontSize: 26 }}>
                 {winner === "civilians" ? (lang === "zh" ? "平民赢了" : "Civilians win") : lang === "zh" ? "卧底赢了" : "Undercovers win"}
               </p>
               <p className="hint-ink" style={{ marginTop: 8 }}>
-                {lang === "zh" ? "平民" : "Civilians"}: <strong>{tr(pair.a)}</strong> · {lang === "zh" ? "卧底" : "Undercover"}: <strong>{tr(pair.b)}</strong>
+                {lang === "zh" ? "平民" : "Civilians"}: <strong>{tr(civWord)}</strong> · {lang === "zh" ? "卧底" : "Undercover"}: <strong>{tr(ucWord)}</strong>
               </p>
               <ul className="role-list">
                 {seats.map((s) => (
