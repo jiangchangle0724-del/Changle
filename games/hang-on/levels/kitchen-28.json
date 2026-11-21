@@ -1,119 +1,203 @@
 {
   "id": "kitchen-28",
-  "stamina": true,
   "world": "kitchen",
-  "tier": 1,
-  "teaches": "combine",
-  "ropes": [],
-  "seesaws": [],
-  "crates": [],
-  "hazards": [],
-  "par": {
-    "seconds": 100,
-    "deathsPerPlayer": 5
-  },
-  "replay": "replays/kitchen-28.json",
   "name": {
-    "zh": "蒸汽出菜线",
-    "en": "Steam to the Serving Hatch"
+    "zh": "蒸汽盘山线",
+    "en": "Steam Switchback Service"
   },
-  "w": 2400,
-  "h": 720,
+  "tier": 1,
+  "long": true,
+  "teaches": "wind",
+  "w": 3200,
+  "h": 2000,
   "spawn": {
-    "x": 100,
-    "y": 596
+    "x": 150,
+    "y": 1786
   },
   "goal": {
-    "x": 2040,
-    "y": 160,
-    "w": 320,
-    "h": 170
+    "x": 2940,
+    "y": 290,
+    "w": 240,
+    "h": 200
   },
   "checkpoints": [
     {
-      "x": 1120,
-      "y": 276
+      "x": 1400,
+      "y": 1786
     },
     {
-      "x": 2070,
-      "y": 276
+      "x": 2580,
+      "y": 1146
+    },
+    {
+      "x": 1400,
+      "y": 1146
+    },
+    {
+      "x": 650,
+      "y": 446
+    },
+    {
+      "x": 1800,
+      "y": 446
     }
   ],
   "envelopes": [
     {
-      "x": 597,
-      "y": 223
+      "x": 2847,
+      "y": 946
     },
     {
-      "x": 1057,
-      "y": 45
+      "x": 338,
+      "y": 269
     },
     {
-      "x": 1409,
-      "y": 211
+      "x": 313,
+      "y": 666
     }
   ],
   "rects": [
     {
-      "kind": "ground",
       "x": 0,
-      "y": 620,
-      "w": 620,
-      "h": 100,
+      "y": 1830,
+      "w": 3200,
+      "h": 170,
+      "kind": "ground",
       "material": "metal"
     },
     {
+      "x": 0,
+      "y": 1190,
+      "w": 2840,
+      "h": 30,
       "kind": "ground",
-      "x": 620,
-      "y": 326,
-      "w": 60,
-      "h": 294,
-      "material": "ceramic",
-      "grab": false
-    },
-    {
-      "kind": "ground",
-      "x": 620,
-      "y": 300,
-      "w": 1740,
-      "h": 26,
       "material": "metal"
     },
     {
+      "x": 360,
+      "y": 490,
+      "w": 2840,
+      "h": 30,
       "kind": "ground",
-      "x": 2360,
-      "y": 0,
-      "w": 40,
-      "h": 720,
-      "material": "metal",
-      "grab": false
+      "material": "metal"
     }
   ],
-  "vents": [
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
+  "hazards": [],
+  "movers": [
     {
-      "x": 420,
-      "y": 596,
-      "w": 180,
+      "x": 2840,
+      "y": 1770,
+      "w": 300,
       "h": 24,
-      "reach": 360,
-      "phase": 1.5,
-      "on": 2,
-      "off": 3
+      "path": [
+        {
+          "x": 2840,
+          "y": 990
+        }
+      ],
+      "speed": 180,
+      "wait": 2,
+      "material": "metal"
+    },
+    {
+      "x": 60,
+      "y": 1130,
+      "w": 300,
+      "h": 24,
+      "path": [
+        {
+          "x": 60,
+          "y": 290
+        }
+      ],
+      "speed": 180,
+      "wait": 2,
+      "material": "metal"
+    }
+  ],
+  "spinners": [],
+  "deathY": 2180,
+  "par": {
+    "seconds": 280,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/kitchen-28.json",
+  "stamina": true,
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1150,
+        "y": 1650
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 4.5,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 1900,
+        "y": 1010
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 3.5,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 2500,
+        "y": 310
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 3,
+      "r": 24
+    }
+  ],
+  "winds": [
+    {
+      "x": 650,
+      "y": 1610,
+      "w": 360,
+      "h": 220,
+      "dir": "right",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
+    },
+    {
+      "x": 2280,
+      "y": 240,
+      "w": 320,
+      "h": 250,
+      "dir": "right",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
     }
   ],
   "tray": [
     {
-      "x": 740,
-      "y": 295
-    },
-    {
-      "x": 1000,
-      "y": 295
-    },
-    {
-      "x": 1950,
-      "y": 295
+      "x": 2540,
+      "y": 485
     }
   ],
-  "deathY": 810
+  "vents": [
+    {
+      "x": 2160,
+      "y": 466,
+      "w": 180,
+      "h": 24,
+      "reach": 180,
+      "on": 2,
+      "off": 2,
+      "phase": 1
+    }
+  ]
 }

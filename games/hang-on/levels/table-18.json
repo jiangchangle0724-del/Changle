@@ -1,5 +1,6 @@
 {
   "id": "table-18",
+  "stamina": true,
   "world": "table",
   "name": {
     "zh": "年夜忙不停",
@@ -34,16 +35,16 @@
   ],
   "envelopes": [
     {
-      "x": 715,
-      "y": 372
+      "x": 602,
+      "y": 362
     },
     {
-      "x": 1325,
-      "y": 254
+      "x": 1321,
+      "y": 299
     },
     {
-      "x": 2634,
-      "y": 361
+      "x": 2631,
+      "y": 356
     }
   ],
   "rects": [
@@ -167,8 +168,8 @@
           "y": 420
         }
       ],
-      "speed": 36,
-      "wait": 2,
+      "speed": 108,
+      "wait": 1.2,
       "material": "wood"
     },
     {
@@ -186,8 +187,8 @@
           "y": 280
         }
       ],
-      "speed": 70,
-      "wait": 2,
+      "speed": 105,
+      "wait": 1.2,
       "material": "wood"
     },
     {
@@ -201,8 +202,8 @@
           "y": 500
         }
       ],
-      "speed": 90,
-      "wait": 2,
+      "speed": 135,
+      "wait": 1.2,
       "material": "wood",
       "deadly": true,
       "hazard": "hot"
@@ -217,7 +218,7 @@
       "arms": 2,
       "len": 200,
       "h": 16,
-      "spin": 0.5,
+      "spin": 0.75,
       "material": "wood"
     },
     {
@@ -228,7 +229,7 @@
       "arms": 2,
       "len": 40,
       "h": 16,
-      "spin": 1.2,
+      "spin": 1.7999999999999998,
       "material": "wood",
       "deadly": true
     }
@@ -238,5 +239,18 @@
     "seconds": 180,
     "deathsPerPlayer": 8
   },
-  "replay": "replays/table-18.json"
+  "replay": "replays/table-18.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 480,
+        "y": 236
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

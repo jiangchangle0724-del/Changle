@@ -1,5 +1,6 @@
 {
   "id": "van-24",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "海港夜班",
@@ -34,16 +35,16 @@
   ],
   "envelopes": [
     {
-      "x": 664,
-      "y": 165
+      "x": 376,
+      "y": 340
     },
     {
-      "x": 283,
-      "y": 305
+      "x": 718,
+      "y": 213
     },
     {
-      "x": 2285,
-      "y": 162
+      "x": 2282,
+      "y": 146
     }
   ],
   "rects": [
@@ -203,8 +204,8 @@
           "y": 140
         }
       ],
-      "speed": 40,
-      "wait": 2,
+      "speed": 60,
+      "wait": 1.2,
       "material": "metal"
     },
     {
@@ -218,8 +219,8 @@
           "y": 420
         }
       ],
-      "speed": 90,
-      "wait": 2,
+      "speed": 135,
+      "wait": 1.2,
       "material": "wood",
       "deadly": true,
       "hazard": "zap"
@@ -234,7 +235,7 @@
       "arms": 3,
       "len": 200,
       "h": 16,
-      "spin": 0.24,
+      "spin": 0.36,
       "material": "metal"
     },
     {
@@ -245,7 +246,7 @@
       "arms": 2,
       "len": 80,
       "h": 16,
-      "spin": 1.4,
+      "spin": 2.0999999999999996,
       "material": "wood",
       "deadly": true
     }
@@ -255,5 +256,18 @@
     "seconds": 180,
     "deathsPerPlayer": 5
   },
-  "replay": "replays/van-24.json"
+  "replay": "replays/van-24.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 360,
+        "y": 196
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

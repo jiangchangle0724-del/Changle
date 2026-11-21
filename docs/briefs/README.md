@@ -11,7 +11,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 30 个对话，每个�
 | 平台 · 全站设计 | [design.md](design.md) | 颜色、字体、间距、共用组件、UI 计划 |
 | 平台 · 首页与上线 | [home.md](home.md) | 首页、网址、设置、共用部件、CI 和上线、回归测试 |
 | 平台 · 房间与联机 | [rooms.md](rooms.md) | 房间服务器、规则引擎、协议、桌子和入座 |
-| 平台 · 账号与头像 | [accounts.md](accounts.md) | 登录、个人页、AI 头像、好友、聊天、后台 |
+| 平台 · 账号与头像 | [accounts.md](accounts.md) | 登录、换邮箱、个人页、AI 头像、3D 小人、好友、聊天、后台、给 MoneyLens 的交接码 |
 | 平台 · 大屏 | [tv.md](tv.md) | changle.ca/tv |
 
 ## 小游戏（18 个）

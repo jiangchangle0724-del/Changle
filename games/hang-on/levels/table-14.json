@@ -1,5 +1,6 @@
 {
   "id": "table-14",
+  "stamina": true,
   "world": "table",
   "name": {
     "zh": "转盘送席",
@@ -30,16 +31,16 @@
   ],
   "envelopes": [
     {
-      "x": 593,
-      "y": 380
+      "x": 502,
+      "y": 384
     },
     {
-      "x": 947,
-      "y": 464
+      "x": 1528,
+      "y": 468
     },
     {
-      "x": 2200,
-      "y": 217
+      "x": 2314,
+      "y": 141
     }
   ],
   "rects": [
@@ -120,8 +121,20 @@
       "x": 1420,
       "y": 600,
       "w": 100,
-      "h": 20,
+      "h": 100,
       "material": "wood",
+      "players": [
+        1,
+        2
+      ]
+    },
+    {
+      "kind": "ground",
+      "material": "wood",
+      "x": 840,
+      "y": 660,
+      "w": 160,
+      "h": 20,
       "players": [
         1,
         2
@@ -179,9 +192,10 @@
           "y": 480
         }
       ],
-      "speed": 40,
-      "wait": 3,
-      "material": "wood"
+      "speed": 120,
+      "wait": 1.7999999999999998,
+      "material": "wood",
+      "phase": 0
     },
     {
       "x": 1350,
@@ -194,8 +208,8 @@
           "y": 500
         }
       ],
-      "speed": 90,
-      "wait": 2,
+      "speed": 135,
+      "wait": 1.2,
       "material": "wood",
       "deadly": true,
       "hazard": "hot"
@@ -210,14 +224,27 @@
       "arms": 2,
       "len": 160,
       "h": 16,
-      "spin": 0.5,
+      "spin": 0.75,
       "material": "wood"
     }
   ],
   "deathY": 790,
   "par": {
     "seconds": 180,
-    "deathsPerPlayer": 2
+    "deathsPerPlayer": 3
   },
-  "replay": "replays/table-14.json"
+  "replay": "replays/table-14.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1980,
+        "y": 284
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

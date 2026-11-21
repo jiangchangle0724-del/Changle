@@ -1,6 +1,6 @@
 import qrcode from "qrcode-generator";
 import { Check, ChevronLeft, CircleAlert, TriangleAlert } from "lucide-preact";
-import type { ComponentChildren } from "preact";
+import type { ComponentChildren, JSX } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
 import type { AllergenId, Limits } from "../../engine";
@@ -10,8 +10,9 @@ import { CUSTOM_SUGGESTIONS, getLang, setLang, t, tx, type Key } from "../i18n";
 import { prefs } from "../prefs";
 import { getState, send, serverNow, update, useApp } from "../store";
 import { AVATAR_GELS } from "./colors";
+import { buzz, enter } from "../motion";
 
-export function Btn(p: { kind?: "primary" | "quiet" | "danger"; wide?: boolean; disabled?: boolean; onClick?: () => void; children: ComponentChildren; label?: string; pressed?: boolean; class?: string }) {
+export function Btn(p: { kind?: "primary" | "quiet" | "danger"; wide?: boolean; disabled?: boolean; onClick?: JSX.MouseEventHandler<HTMLButtonElement>; children: ComponentChildren; label?: string; pressed?: boolean; class?: string; reveal?: boolean }) {
   return (
     <button
       type="button"
@@ -19,11 +20,28 @@ export function Btn(p: { kind?: "primary" | "quiet" | "danger"; wide?: boolean; 
       disabled={p.disabled}
       aria-label={p.label}
       aria-pressed={p.pressed}
+      data-reveal-move={p.reveal ? "tail" : undefined}
       onClick={p.onClick}
     >
       {p.children}
     </button>
   );
+}
+
+/** A phase (or a menu path) enters once. Fixed chrome is never part of the stagger. */
+export function MotionScreen({ scene, children }: { scene: string; children: ComponentChildren }) {
+  const content = useRef<HTMLDivElement>(null);
+  const previous = useRef<string>();
+  useLayoutEffect(() => {
+    if (!content.current || previous.current === scene) return;
+    previous.current = scene;
+    if (scene === "result") return; // The reveal has its own, single sequence.
+    const clean = Array.from(content.current.children)
+      .filter((el): el is HTMLElement => el instanceof HTMLElement && !el.matches(".dock, .motion-screen, .places, .result-reveal"))
+      .map((el, i) => enter(el, i));
+    return () => clean.forEach((stop) => stop());
+  }, [scene]);
+  return <div class="motion-screen" ref={content}>{children}</div>;
 }
 
 /** The page title stays the reader's language; its companion line has its own language. */
@@ -96,13 +114,21 @@ export function Qr({ text, size = 168 }: { text: string; size?: number }) {
 /** Seconds left until the server time `ends`. */
 export function Countdown({ ends }: { ends: number | null }) {
   const [, tick] = useState(0);
+  const alerted = useRef({ ends, seconds: new Set<number>() });
   useEffect(() => {
     const i = setInterval(() => tick((n) => n + 1), 500);
     return () => clearInterval(i);
   }, []);
+  const s = ends === null ? 0 : Math.max(0, Math.ceil((ends - serverNow()) / 1000));
+  useEffect(() => {
+    if (alerted.current.ends !== ends) alerted.current = { ends, seconds: new Set() };
+    if (ends !== null && [10, 3, 2, 1].includes(s) && !alerted.current.seconds.has(s)) {
+      alerted.current.seconds.add(s);
+      buzz(15);
+    }
+  }, [ends, s]);
   if (ends === null) return null;
-  const s = Math.max(0, Math.ceil((ends - serverNow()) / 1000));
-  return <span class={`countdown num${s <= 10 ? " urgent" : ""}`} role="timer" aria-live="off">{t("secondsLeft", { s })}</span>;
+  return <span class={`countdown num${s <= 10 ? " urgent" : ""}`} role="timer" aria-live="off"><span key={`${ends}:${s}`} class={s > 0 && s <= 10 ? "countdown-tick" : ""}>{t("secondsLeft", { s })}</span></span>;
 }
 
 export function Toasts() {
