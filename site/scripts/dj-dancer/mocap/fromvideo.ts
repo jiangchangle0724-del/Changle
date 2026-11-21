@@ -221,7 +221,16 @@ async function main() {
     // arms and legs: pointing the dancer's way, bending the dancer's way, at her lengths
     const limb = (top: string, midB: string, end: string, a: number, b: number, c: number, fallback: THREE.Vector3) => {
       const d1 = at(b, k).clone().sub(at(a, k)).normalize();
-      const d2 = at(c, k).clone().sub(at(b, k)).normalize();
+      let d2 = at(c, k).clone().sub(at(b, k)).normalize();
+      // (a knee bends forward only: where the video has it bent back, nearly always a straight leg read
+      // a little wrong (from behind, in a long skirt), it bends forward as much, at most 20 degrees)
+      if (top.endsWith("UpLeg")) {
+        const side = fallback.clone().sub(d1.clone().multiplyScalar(fallback.dot(d1))).normalize();
+        if (new THREE.Vector3().crossVectors(d1, d2).dot(side) < 0) {
+          const ang = Math.min(Math.acos(Math.max(-1, Math.min(1, d1.dot(d2)))), 0.35);
+          d2 = d1.clone().applyAxisAngle(side, ang);
+        }
+      }
       let bend = new THREE.Vector3().crossVectors(d1, d2);
       const was = bendWas[top] ?? fallback.clone();
       if (bend.length() < 0.15) bend = was.clone();
