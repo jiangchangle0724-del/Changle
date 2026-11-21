@@ -232,15 +232,16 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   // the game sent on as a challenge (挑战链接): its built-in songs, each once, with the table's best
   // score; on a friend's phone the same songs and, from the game's seed, the same four titles
   const [link, setLink] = useState("");
-  const sendOn = useMemo<Challenge | null>(() => {
+  const sendOn = useMemo<{ c: Challenge; mine: boolean } | null>(() => {
     if (v.phase !== "end" || !v.log) return null;
     const ranked = scoreRows.slice().sort((a, b) => b.score - a.score);
     const top = ranked[0];
     const mine = v.log.filter((r, i, all) => r.b && all.findIndex((x) => x.id === r.id) === i).slice(0, CHALLENGE_MAX);
     if (!top || !mine.length) return null;
-    return { pool: v.pool, quiz: v.quiz, hard: v.hard, snap: v.snap, seed: v.seed, name: nameOf(top.id), pts: mine.map((r) => r.pts[top.id] ?? 0), ids: mine.map((r) => r.id) };
+    const c = { pool: v.pool, quiz: v.quiz, hard: v.hard, snap: v.snap, seed: v.seed, name: nameOf(top.id), pts: mine.map((r) => r.pts[top.id] ?? 0), ids: mine.map((r) => r.id) };
+    return { c, mine: top.id === me };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [v.phase, v.log, JSON.stringify(v.scores), v.pool, v.quiz, v.hard, v.snap, v.seed]);
+  }, [v.phase, v.log, JSON.stringify(v.scores), v.pool, v.quiz, v.hard, v.snap, v.seed, me]);
 
   const recordLabel = songs ? "?" : melody ? "?" : "DJ";
   const roundLine = <p className="tn-round tabular">{zh ? `第 ${v.round} 首，共 ${v.total} 首` : `Song ${v.round} of ${v.total}`}</p>;
@@ -519,7 +520,7 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             </TuneStage>
             <h2 className="pl-board-title">{zh ? "最终得分" : "Final scores"}</h2>
             <Leaderboard rows={scoreRows} />
-            {sendOn && <ShareChallenge c={sendOn} onLink={setLink} />}
+            {sendOn && <ShareChallenge c={sendOn.c} by={sendOn.mine ? undefined : sendOn.c.name} onLink={setLink} />}
             {link && <ChallengeLink url={link} />}
             {isHost && (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("again")}>

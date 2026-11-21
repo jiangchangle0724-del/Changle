@@ -978,8 +978,12 @@ def challenge_online(browser):
     mia.get_by_role("button", name="发起挑战").click()
     url = until(lambda: mia.evaluate("() => window.__shared[0] && window.__shared[0].url"), 3000)
     text = mia.evaluate("() => window.__shared[0] && window.__shared[0].text") or ""
-    ok(bool(url) and "9 分" in text, f"[challenge online] a guest sends it on, with Mia's 9 points ({text})")
+    ok(bool(url) and "我拿了 9 分" in text, f"[challenge online] a guest sends it on, with Mia's 9 points ({text})")
     shot(mia, "challenge-online-end")
+    # the host scored nothing: sent from there, the text names Mia
+    host.get_by_role("button", name="发起挑战").click()
+    said = until(lambda: host.evaluate("() => window.__shared[0] && window.__shared[0].text"), 3000) or ""
+    ok("Mia 拿了 9 分" in said, f"[challenge online] sent from the host's phone, the points are Mia's ({said})")
     errs = errors_of(everyone)
     ok(not errs, f"[challenge online] no console or page errors {errs[:4]}")
     for g in everyone:
