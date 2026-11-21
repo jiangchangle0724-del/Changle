@@ -774,6 +774,8 @@ p {
  * Two fingers still zoom the page (docs/DESIGN.md), and what someone types in a field can still be
  * selected, copied and pasted. Every element says it itself: iPhone's Safari starts afresh inside
  * each scrolling box, so the body's touch-action alone lets a double tap zoom in a sheet or a list.
+ * And Safari looks at it only for a tap near something that listens for clicks, so main.tsx has
+ * the page itself listen (Steve 2026-11-20: never a zoom on a double tap, anywhere).
  * A layer of its own, so any rule elsewhere that says otherwise (a drawing board's touch-action:
  * none, a list that only scrolls up and down) still wins.
  */

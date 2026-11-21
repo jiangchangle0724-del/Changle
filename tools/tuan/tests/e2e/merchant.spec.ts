@@ -28,13 +28,14 @@ test("who gets in: signed out, a sign-in that's no good, an account with no shop
   await order(request, id, { name: "王阿姨", phone: "604-555-0134" }, [["五常大米", 1000]]);
   await order(request, id, { name: "Leo", phone: "778 555 0199" }, [["土鸡蛋", 2000]]);
 
-  // nobody signed in on this phone: sent to the site to sign in
+  // nobody signed in on this phone: signing in is right here (or at the site)
   const page = await phone(browser);
   const first = await page.goto("/tuan/my");
   expect(first?.status()).toBe(200);
   await expect(page).toHaveTitle("我的团 · 跟一单");
   await expect(page.locator(".panel-title")).toHaveText("商家请先登录");
-  await expect(page.getByRole("link", { name: "去 changle.ca 登录" })).toHaveAttribute("href", "/login");
+  await expect(page.getByRole("link", { name: "也可以去 changle.ca 登录" })).toHaveAttribute("href", "/login");
+  await expect(page.getByRole("textbox", { name: "邮箱" })).toBeVisible();
   await expect(page.getByText("还没有店？登录以后就在这一页申请开店。")).toBeVisible();
   await expect(page.locator(".mine")).toHaveCount(0);
   // the group buy's own orders page says the same, and nothing of the group buy
@@ -62,7 +63,8 @@ test("who gets in: signed out, a sign-in that's no good, an account with no shop
   const stale = await phone(browser, { session: SESSION.nobody });
   await stale.goto("/tuan/my");
   await expect(stale.locator(".problem")).toHaveText("登录过期了，请重新登录。");
-  await expect(stale.getByRole("link", { name: "去 changle.ca 登录" })).toBeVisible();
+  await expect(stale.getByRole("link", { name: "也可以去 changle.ca 登录" })).toBeVisible();
+  await expect(stale.getByRole("button", { name: "发验证码" })).toBeVisible();
 
   // an account that runs nothing: it may ask for a shop
   const visitor = await phone(browser, { session: SESSION.visitor });
@@ -243,6 +245,84 @@ test("the link to share, closing a group buy and opening it again, and a draft",
   await page.getByRole("button", { name: "开始接单" }).click();
   await expect(page.locator(".state")).toContainText("接单中");
   expect((await offerOf(request, draft.id)).offer.state).toBe("open");
+});
+
+test("signing in right on the merchant's page: a code by email, a wrong one, then in; an email with no account yet goes to the site", async ({ browser, request }) => {
+  const { id } = await start(request);
+  const page = await phone(browser);
+  // the site's own sign-in (site/worker/hub.ts), as it answers: the code is said, as a test server does
+  const asked: { path: string; body: Record<string, string> }[] = [];
+  await page.route("**/api/auth/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const body = route.request().postDataJSON() as Record<string, string>;
+    asked.push({ path, body });
+    if (path === "/api/auth/code") return body.email.includes("@") ? route.fulfill({ json: { sent: true, dev: "" } }) : route.fulfill({ status: 400, json: { error: "email" } });
+    if (body.code !== "424242") return route.fulfill({ status: 400, json: { error: "wrong" } });
+    return body.email === "leader@example.com" ? route.fulfill({ json: { token: SESSION.leader, user: { id: "uleader1" } } }) : route.fulfill({ json: { ticket: "t".repeat(32), email: body.email } });
+  });
+  await page.goto(`/tuan/my/t/${id}`);
+  await page.getByRole("textbox", { name: "邮箱" }).fill("leader@example.com");
+  await page.getByRole("button", { name: "发验证码" }).click();
+  await expect(page.getByText("验证码发到 leader@example.com 了")).toBeVisible();
+  expect(asked[0]).toEqual({ path: "/api/auth/code", body: { email: "leader@example.com", lang: "zh" } });
+  await expect(page.getByRole("button", { name: /秒后可以再发/ })).toBeDisabled();
+  await page.getByRole("textbox", { name: "验证码" }).fill("111111");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("验证码不对。");
+  await page.getByRole("textbox", { name: "验证码" }).fill("424242");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  // in: the page it was on, and the session kept where the site keeps it
+  await expect(page.locator(".hero h1")).toHaveText("本周大米团 · 周五到货");
+  expect(await page.evaluate(() => localStorage.getItem("changle.session"))).toBe(SESSION.leader);
+
+  // an email that has no account yet: made at the site
+  const other = await phone(browser);
+  await other.route("**/api/auth/**", (route) => {
+    const body = route.request().postDataJSON() as Record<string, string>;
+    return route.request().url().endsWith("/code") ? route.fulfill({ json: { sent: true } }) : route.fulfill({ json: { ticket: "t".repeat(32), email: body.email } });
+  });
+  await other.goto("/tuan/my");
+  await other.getByRole("textbox", { name: "邮箱" }).fill("new@example.com");
+  await other.getByRole("button", { name: "发验证码" }).click();
+  await other.getByRole("textbox", { name: "验证码" }).fill("123456");
+  await other.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(other.getByText("new@example.com 还没有 changle.ca 账号")).toBeVisible();
+  await expect(other.getByRole("link", { name: "去 changle.ca 登录", exact: true })).toHaveAttribute("href", "/login");
+  expect(await other.evaluate(() => localStorage.getItem("changle.session"))).toBeNull();
+  await fits(other, "signing in, no account yet");
+});
+
+test("sending a group buy on: the 接龙 text for a group chat, and a poster with a code to scan", async ({ browser, request, baseURL }) => {
+  const { id } = await start(request);
+  await order(request, id, { name: "王小美", phone: "604 555 0101" }, [["五常大米 10kg", 2000], ["手切羊肉片", 1500]]);
+  const page = await phone(browser, { session: SESSION.leader });
+  await catchCopies(page);
+  await page.goto(`/tuan/my/t/${id}`);
+  await page.getByRole("button", { name: "复制接龙文案" }).click();
+  const text = (await copied(page)) ?? "";
+  expect(text.split("\n").slice(0, 3)).toEqual(["【大米团（测试）】本周大米团 · 周五到货", expect.stringMatching(/^截单：\d+月\d+日 周. \d\d:\d\d$/), `下单：${baseURL}/tuan/t/${id}`]);
+  expect(text).toContain("· 手切羊肉片 $16.99/磅（1 磅起）");
+  expect(text).toContain("接龙（1 单）\n1. 王小美 五常大米 10kg×2、手切羊肉片 1.5 磅");
+  expect(text).not.toMatch(/604/);
+
+  // the poster: drawn on the phone, as large as a phone screen's picture, and saved from a button outside WeChat
+  await page.getByRole("button", { name: "生成海报" }).click();
+  const sheet = page.getByRole("dialog", { name: "分享海报" });
+  const poster = sheet.locator("img.poster-img");
+  await expect(poster).toBeVisible({ timeout: 15_000 });
+  expect(await poster.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([1080, 1440]);
+  await expect(sheet.getByRole("link", { name: "保存图片" })).toHaveAttribute("download", "本周大米团 · 周五到货 海报.png");
+  await expect(sheet.getByText("在手机上长按图片")).toBeVisible();
+  await fits(page, "the poster");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sheet")).toHaveCount(0);
+
+  // in WeChat: no button that can't work there, only the long press
+  const wechat = await phone(browser, { session: SESSION.leader, userAgent: WECHAT });
+  await wechat.goto(`/tuan/my/t/${id}`);
+  await wechat.getByRole("button", { name: "生成海报" }).click();
+  await expect(wechat.locator("img.poster-img")).toBeVisible({ timeout: 15_000 });
+  await expect(wechat.getByRole("link", { name: "保存图片" })).toHaveCount(0);
 });
 
 test("the owner sets a shop up and starts a group buy by hand", async ({ browser }) => {

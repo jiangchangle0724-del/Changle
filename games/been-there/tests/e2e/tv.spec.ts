@@ -11,7 +11,7 @@ test.afterEach(closeAll);
 const RAIN = { at: Date.now(), cities: Object.fromEntries(Object.keys(COORDS).map((id) => [id, { t: 12, code: 63, day: true }])) };
 
 test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区时飞机沿航线飞", async ({ browser, request, contextOptions }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(270_000);
   const code = await createRoom(request, {});
   const ctx = await browser.newContext({ ...contextOptions, viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
   track(ctx);
@@ -82,9 +82,10 @@ test("大屏：3D 地球加载，骰子落在桌上，棋子飞去别的地区�
     await playUntil([p], async () => (await wx()).touchdown.length > 0, 90_000);
     expect((await wx()).touchdown[0]).toContain("雨 12°C");
   }
-  // Travel news: with three teams, the first piece comes after three rounds (turn 9).
+  // Travel news: with three teams, the first piece comes after three rounds (turn 9). (90 s for it
+  // ran out once on GitHub's WebKit, 11-14: a slow machine plays slow rounds.)
   const news = () => tv.page.evaluate(() => (window as unknown as { news: string[] }).news);
-  await playUntil([p], async () => (await news()).length > 0, 90_000);
+  await playUntil([p], async () => (await news()).length > 0, 150_000);
   expect((await news())[0]).toMatch(/×2|½|×1\.5|\+\$20|−25%/);
   expect([...tv.errors, ...p.errors]).toEqual([]);
 });

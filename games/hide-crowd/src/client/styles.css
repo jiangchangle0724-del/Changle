@@ -97,6 +97,14 @@
 * {
   box-sizing: border-box;
 }
+/* A double tap never zooms, two fingers still do. Every element says it itself, since an iPhone
+   starts afresh inside each scrolling box (a sheet, a list); the script makes Safari look at it
+   wherever the tap lands. */
+*,
+*::before,
+*::after {
+  touch-action: manipulation;
+}
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;

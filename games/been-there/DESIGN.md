@@ -424,8 +424,10 @@ Issue #44's part 1: the world inside the printed ring is real.
   the great circle in 2.6 s, its shadow keeping to the ground, the trail drawn behind it, then steps off
   the map, leaving the route. On the flat map a route that would dip off its southern edge (Sydney to
   Buenos Aires passes Antarctica) goes the other way round the same circle. Every phone takes off at the
-  same moment, a quarter of a second after the stamp (the thrower's as its camera pulls back out); with
-  reduced motion the route is simply drawn. On the big screen the globe flies the same token, a picture
+  same moment, a quarter of a second after the stamp (the thrower's as its camera pulls back out),
+  timed from the stamp as that phone itself plans it (`noteStamp` in `ui/ridePlan.ts`): worked out
+  afresh from the server's clock, a better reading of it arriving mid-move once had the plane leave
+  half a second before the token was down. With reduced motion the route is simply drawn. On the big screen the globe flies the same token, a picture
   of it facing the room, along the arc while the camera leans in, once the move has played.
 * **The big screen's globe** wears the same pictures in a shader (day, night, dusk, a little light for
   roundness, the air at its rim): the 4096 ones, or the 2048 ones where a graphics card can't take them,

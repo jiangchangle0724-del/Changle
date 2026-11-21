@@ -241,7 +241,7 @@ def t_superlatives(t):
     ok(t.wait_phase("reveal"), "superlatives: all in, the reveal")
     t.tv.wait_for_timeout(300)
     shot([t.tv], "sup-03-drumroll")
-    ok(until(lambda: all(s.locator(".tv-pen").count() == 1 for s in t.screens), 6000), "superlatives: the winner's penalty on the screens")
+    ok(until(lambda: all(s.locator(".tv-stamp").count() == 1 for s in t.screens), 6000), "superlatives: the winner's penalty on the screens")
     shot(t.screens, "sup-04-winner")
     ok(NAMES[2] in t.tv.locator(".tvs-winner").inner_text(), "superlatives: 小林 takes it in the spotlight")
     ok(t.tv.locator(".tvs-vote-row").count() == 2, "superlatives: the votes, as bars, once it's out")
@@ -346,7 +346,7 @@ def t_undercover(t):
     clear_stamps(players)
     t.host.get_by_role("button", name=L("看结果", "See the result")).click()
     ok(t.wait_phase("end"), "undercover: game over")
-    ok(until(lambda: all(s.locator(".tv-pen").count() == 1 for s in t.screens), 5000), "undercover: the losing side's penalty on the screens")
+    ok(until(lambda: all(s.locator(".tv-stamp").count() == 1 for s in t.screens), 5000), "undercover: the losing side's penalty on the screens")
     t.tv.wait_for_timeout(600)
     shot(t.screens, "uc-06-end")
     ok(uc_word in t.tv.locator(".tvu-pair").inner_text(), "undercover: both words, at the end")
@@ -796,7 +796,7 @@ def by_pid(t, pid):
 
 def pen_on(t, timeout=5000):
     """The penalty on the screens: the strip along the bottom of the TV."""
-    return until(lambda: t.tv.locator(".tv-pen").count() > 0, timeout)
+    return until(lambda: t.tv.locator(".tv-stamp").count() > 0, timeout)
 
 
 def spin_bottle(t):

@@ -412,3 +412,30 @@ test("round 1: a whole group with one tap; a group picked partly opens instead o
   await expect(page.locator(".place").first().locator(".reason", { hasText: "有人想吃这类" })).toBeVisible();
   expect(me.errors).toEqual([]);
 });
+
+test("round 1: closing a group, by its button or the phone's back button, keeps the way chosen and the table's connection", async ({ browser }) => {
+  const me = await phone(browser, "back");
+  const page = me.page;
+  let sockets = 0;
+  page.on("websocket", () => sockets++);
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `back-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  await page.getByRole("button", { name: "开始！" }).click();
+  await page.locator("[data-path=dish]").first().click();
+  await page.getByRole("button", { name: "面：细分" }).click();
+  await page.locator("[data-cuisine=ramen]").click();
+  await page.locator(".back-all").click();
+  await expect(page.locator(".path-switch [data-path=dish]")).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "面：细分" }).click();
+  await expect.poll(() => page.evaluate(() => history.state?.suibianSheet)).toBe(true);
+  await page.goBack();
+  await expect(page.locator(".path-switch [data-path=dish]")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-group=noodles]")).toHaveClass(/some/);
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  expect(sockets).toBe(1);
+  expect(me.errors).toEqual([]);
+});

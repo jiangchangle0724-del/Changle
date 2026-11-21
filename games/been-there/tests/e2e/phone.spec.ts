@@ -50,6 +50,22 @@ async function board(page: Page) {
   });
 }
 
+/** The board as it is once it holds still: on a slow machine something can still be moving when the
+ * map has eased out (the table turning to face the team on turn, art/RoundBoard.tsx turnFrom). Once
+ * (WebKit on GitHub, 11-13) the small board's edge was measured 2.5 px past its box: it stands 8 px
+ * inside it at every angle of the table. */
+async function steady(page: Page) {
+  let last = await board(page);
+  for (const end = Date.now() + 8_000; Date.now() < end; ) {
+    await page.waitForTimeout(300);
+    const now = await board(page);
+    const moved = Math.max(...(["left", "top", "right", "bottom"] as const).map((k) => Math.abs(now.board[k] - last.board[k])));
+    if (moved < 0.5) return now;
+    last = now;
+  }
+  return last;
+}
+
 /** Pick a size in the menu. */
 async function pickSize(p: Phone, label: string) {
   await p.page.locator(".menu-btn").click();
@@ -103,7 +119,7 @@ test("地图大小：小、中、大，记在这台手机上；大地图用手�
   await expect(p.page.locator(".stage .boardwrap")).toHaveAttribute("data-map", "s");
   // (once it has eased all the way out, the map has no transform at all)
   await expect.poll(() => p.page.locator(".stage .board-pan").evaluate((el: HTMLElement) => el.style.transform), { timeout: 5_000 }).toBe("");
-  const small = await board(p.page);
+  const small = await steady(p.page);
   expect(small.board.left).toBeGreaterThanOrEqual(small.win.left - 1);
   expect(small.board.right).toBeLessThanOrEqual(small.win.right + 1);
   expect(small.board.top).toBeGreaterThanOrEqual(small.win.top - 1);
@@ -362,7 +378,10 @@ test("手机逐屏：大厅、自己的回合、别人的回合、抢答、拍�
         await expect(open).toHaveCount(0);
         done.add("trade");
       }
-      await tap(p, { bid: 0.3, skip: phones.some((o) => o !== p && quietLeft(o)) ? ["roll"] : [] });
+      // (nor does a phone throw before its own turn's screen is checked: the throw can come up a moment
+      // before it settles, and a two-round game has only two of them)
+      const hold = !done.has("turn") || phones.some((o) => o !== p && quietLeft(o));
+      await tap(p, { bid: 0.3, skip: hold ? ["roll"] : [] });
     }
     await a.page.waitForTimeout(100);
   }

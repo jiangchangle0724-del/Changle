@@ -66,8 +66,9 @@ screen empty and out of reach, a blurry background, a double tap that zoomed) wa
   rules' marks and the people's shadows. The seawall: its paved path along the railing with a cycling
   side and a walking side, a gravel footpath across the lawn, the lawn lusher and thinner in patches,
   the cedars' dappled shade, the benches' and planters' shadows, November's leaves. The transit hall:
-  the yellow guide strip along the front, the way out painted at both sides (出口, EXIT), steel drain
-  covers and scuffs. The courtyard: a path of big slabs from the gate to the stage, a carved lotus in
+  the yellow guide strip along the front, the way out at both sides on dark arrow-shaped plates
+  (出口, EXIT, a yellow arrowhead pointing out; in front of the hall's columns and above the stick, so a
+  phone 2:1 or wider shows all of it), steel drain covers and scuffs. The courtyard: a path of big slabs from the gate to the stage, a carved lotus in
   the middle (under the spotlight), the stage's shadow, drain grates and moss by the side galleries,
   ginkgo leaves. The night market: puddles from the rain holding the stalls' colours and their bulbs,
   the lot's repairs, its worn arrows and 慢 SLOW, oil stains, tyre marks, cracks, a manhole, the
@@ -627,6 +628,13 @@ trademark, and keep it within the budgets. Look at it in the real crowd on a pho
   the meter on a real phone: frames a second, frame times, the quality, the draws, and how long the
   page itself takes a frame (moving everyone and handing the picture over; the rest is the graphics
   chip's).
+* **Every shader is built while the round opens** (`warmUp` in `Arena3D.tsx`): the whole scene,
+  hidden things included (the bike, the follow spot, the phones, the firecrackers, the confetti), and
+  again when the people arrive; their textures go up too. The 3D set, which comes over the network
+  later, swaps in for the stand-in set once its own shaders are ready (`compileAsync`, at most 3 s). three.js otherwise builds a material's
+  shader the first time it draws it, and on Windows and phones that froze the picture for up to half a
+  second just as a moment began. Anything made at first use that changes a shader (an instanced
+  mesh's colours) is made at the start for the same reason.
 * **Without WebGL** (an old phone, a lost GPU context) the flat arena draws the same crowd from
   above with plain elements. `?flat=1` asks for it on purpose (the browser tests use it).
 * **The server sends each phone a small frame 20 times a second** (positions rounded to

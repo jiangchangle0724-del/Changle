@@ -381,6 +381,23 @@ export const rideEnd = (plan: RidePlan | null) => (plan ? plan.start + plan.t.en
 /** Server time the token lands and the stamp comes down, or 0. */
 export const rideLand = (plan: RidePlan | null) => (plan ? plan.start + plan.t.land : 0);
 
+/**
+ * When this page stamps a team's landing, on its own clock (Date.now() ms): the thrower's ride
+ * (ui/Ride.tsx) and another team's stamp on a phone (ui/Board.tsx OtherStamp) note it as they plan
+ * it, and the flight to that city takes off a moment after (ui/Board.tsx flightToFly). One reading of
+ * the clock for both: a quicker view coming in between them sets the server's clock against ours
+ * afresh (store.ts clockOffset), and the flight, worked out from it, would leave before the token is
+ * down (on a busy page, by half a second).
+ */
+const stamps = new Map<string, number>();
+export function noteStamp(seat: number, land: number, local: number) {
+  stamps.set(`${seat}:${land}`, local);
+  if (stamps.size > 24) stamps.delete(stamps.keys().next().value!);
+}
+/** When this page stamps the landing of `seat`'s move that lands at `land` (server time), on its own
+ * clock, if it has planned it. */
+export const stampOf = (seat: number, land: number): number | undefined => stamps.get(`${seat}:${land}`);
+
 /** Server time the decision window is back and money changes hands on screen, or 0. */
 export const rideReady = (plan: RidePlan | null) => (plan ? plan.start + plan.t.ready : 0);
 

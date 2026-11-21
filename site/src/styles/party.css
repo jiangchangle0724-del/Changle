@@ -304,6 +304,17 @@
 .sup-custom {
   padding-right: 6px;
 }
+/* one phone: swap the title or write one, under the card (the online host's row sits there too) */
+.sup-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+}
+.sup-tools .btn {
+  min-height: var(--tap-crowded);
+}
 .sup-skip {
   align-self: center;
   display: inline-flex;

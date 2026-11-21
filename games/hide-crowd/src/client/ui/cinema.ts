@@ -62,6 +62,8 @@ export function addCinema(scene: THREE.Scene, colors: readonly string[], intro: 
   pieces.frustumCulled = false;
   scene.add(pieces);
   const palette = colors.map((value) => new THREE.Color(value));
+  // (the colours are there from the start, so the confetti's shader is built while the round opens, not as it ends)
+  pieces.setColorAt(0, palette[0] ?? new THREE.Color());
   interface Piece { x: number; y: number; z: number; vx: number; vy: number; vz: number; spin: THREE.Vector3; turn: number; rate: number; born: number; life: number; color: THREE.Color }
   const flying: Piece[] = [];
   const dummy = new THREE.Object3D();

@@ -26,7 +26,7 @@ buy is for the people its link was sent to.
 | `/tuan/s/<shop>` | A shop's own page: what it is, what it says about itself, its permit, how to reach it and pay it, the group buys taking orders (the one that closes soonest first) and the earlier ones. A group buy's page links here from the shop's name. A shop not yet opened isn't there. |
 | `/tuan/o/<order code>` | An order: what it comes to, how to pay (with the code to put in the payment note), where it goes, and changing or cancelling it while the group buy is open. |
 | `/tuan/my` | A merchant's home, signed in with their changle.ca account: their shops and the group buys in each, with what's waiting. An account that runs no shop asks for one here; a shop it asked for says where the asking stands (waiting, sent back with a word on what to change, turned down). The site's owner gets the applications to answer at the top, and the panel that sets a shop up and starts a group buy from a document, typed in or filled in from a file. |
-| `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each, and every order as a spreadsheet to download (CSV: one row a line, `src/engine/csv.ts`; WeChat can't save files, so there the page says to open it in a browser). The new-order mail's button leads here. |
+| `/tuan/my/t/<group buy>` | A group buy for its merchant: every order (who, how to reach them, what, where it goes), marking it confirmed, paid, handed over or cancelled, writing down what the scale said, and the two sheets (what to get ready, what goes where) with a button that copies each, and every order as a spreadsheet to download (CSV: one row a line, `src/engine/csv.ts`; WeChat can't save files, so there the page says to open it in a browser). Two ways to send it on: the 接龙 text for a group chat to copy (what it is, when it closes, the link, what can still be had, and the orders so far, with names only when the group buy's page shows them: `src/engine/chain.ts`), and a poster (`src/client/ui/poster.ts`: drawn on the phone, 1080 by 1440, the first goods that fit and a QR code of the link, made with `uqr`; fetched only when asked for; in WeChat it's saved or sent by a long press, elsewhere also by a button). The new-order mail's button leads here. |
 | `/tuan/my/new/<shop>` | Starting a group buy in a shop: its name, the goods, when it closes, where the goods go. With `?from=<group buy>` it starts from that one. What's typed is kept on the phone until it's sent. |
 | `/tuan/my/t/<group buy>/edit` | Changing a group buy: the same page, filled in. What an order names (an item, a pickup point, a delivery area) can change but not go. |
 | `/tuan/my/s/<shop>` | What a shop says about itself, for its merchant to change: its name, what kind it is, the introduction, how to reach it, how to pay, the permit. Its address and who runs it stay with the site's owner. |
@@ -44,9 +44,9 @@ Its own Cloudflare Worker (`tuan`) with its own D1 database (`changle-tuan`), li
 
 | Folder | What |
 | --- | --- |
-| `src/engine/` | The rules, with no browser and no Cloudflare in them: what a group buy is made of (`types.ts`), money and amounts (`money.ts`), taking and changing an order (`order.ts`), starting a group buy (`offer.ts`) and changing one (`edit.ts`), a shop (`shop.ts`), asking for a shop and the owner's answer (`apply.ts`), the merchant's sheets (`summary.ts`) and the orders as a spreadsheet (`csv.ts`), who is shown what (`view.ts`), codes (`ids.ts`), phone numbers (`phone.ts`), Vancouver days (`time.ts`), tidying what people type (`text.ts`). |
+| `src/engine/` | The rules, with no browser and no Cloudflare in them: what a group buy is made of (`types.ts`), money and amounts (`money.ts`), taking and changing an order (`order.ts`), starting a group buy (`offer.ts`) and changing one (`edit.ts`), a shop (`shop.ts`), asking for a shop and the owner's answer (`apply.ts`), the merchant's sheets (`summary.ts`), the orders as a spreadsheet (`csv.ts`) and the 接龙 text (`chain.ts`), who is shown what (`view.ts`), codes (`ids.ts`), phone numbers (`phone.ts`), Vancouver days (`time.ts`), tidying what people type (`text.ts`). |
 | `src/api.ts` | What a phone and the server say to each other: every shape, every error code. |
-| `src/server/worker.ts` | The Worker: the routes (listed at the top of the file) and what each does. It serves the pages too: one file for all of them, with a group buy's name put in its page's title. |
+| `src/server/worker.ts` | The Worker: the routes (listed at the top of the file) and what each does. It serves the pages too: one file for all of them, with a group buy's name put in its page's title, and in the card its shared link becomes, with its first goods and its first picture (`og:description`, `og:image`; apps that show such cards use them, WeChat itself doesn't). |
 | `src/server/store.ts` | Everything kept in D1, read and written here and nowhere else. |
 | `src/server/who.ts` | Who is signed in: asks the rooms server (below). |
 | `src/server/notify.ts`, `src/server/mail.ts` | Telling a merchant of new orders by mail, through the rooms server's mail door (below). What the mail says is `src/engine/notice.ts`; the mails about asking for a shop are in `src/engine/apply.ts`. |
@@ -143,7 +143,11 @@ they agree after a crowd of orders, changes and cancellations at once.
   digits of the phone number it was placed with (sent in the `x-tail` header). A wrong code and a
   wrong number get the same answer. While the group buy is open, and until the order is marked
   paid or handed over, the buyer can change or cancel it.
-- **A merchant** signs in with their changle.ca account (email code). The page sends the session
+- **A merchant** signs in with their changle.ca account (email code), right on the merchant's
+  page (`src/client/ui/SignIn.tsx`): it asks the site's own sign-in (`POST /api/auth/code`, then
+  `/api/auth/verify`, the rooms server's, as the site's sign-in does) and keeps the session where
+  the site keeps it (`changle.session`), so the site is signed in too. An email with no account
+  yet is sent to the site to make one (signing up asks for a profile). The page sends the session
   the site keeps on the phone (`Authorization: Bearer …`); this Worker asks the rooms server
   (`site/worker`) whose it is, Worker to Worker through the `ROOMS` binding (`GET /api/me`), and
   keeps the answer for five minutes under the session's fingerprint. `shop_members` says which

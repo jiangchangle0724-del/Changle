@@ -338,3 +338,5 @@ be sure.
 * Tables per account per day: `ROOMS_PER_DAY` in `src/server/worker.ts`.
 * How far each range reaches: `RANGES` and the tabs' `RANGE_MODES` in `src/engine/clock.ts`.
 * Areas offered when GPS is off: `NEIGHBOURHOODS` in `src/engine/clock.ts`.
+
+Icons use `lucide-preact` 0.546.0; avatars use `AVATAR_GELS` in `src/client/ui/colors.ts`, in table member order.

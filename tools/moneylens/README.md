@@ -37,6 +37,7 @@ and tests). The decisions taken, where it stands and what is next: `docs/briefs/
 | `classify.ts` | Categories, rules, merchant aliases, the dictionary, and their order (CLS-1 to CLS-3) |
 | `analytics.ts` | Income, spending and totals by category, per currency |
 | `recurring.ts` | Subscriptions and regular bills found in past transactions |
+| `pdftext.ts` | The text of a PDF as runs with where they sit on the page, and those runs gathered into lines: what a PDF statement reader will read (IMP-4) |
 | `model.ts`, `ids.ts` | The shapes kept in the vault; random 128-bit identifiers (ISO-3) |
 
 `src/vault/`: the vault's cryptography, the browser's own WebCrypto and nothing else. What it does
@@ -97,6 +98,40 @@ A parser for one bank can still be registered in `CSV_PARSERS` (`read.ts`), and 
 for a bank whose export the general reader gets wrong. It is written from a synthetic sample
 (IMP-9), with its fixtures and a reconciliation test.
 
+## The statement check, and fixtures from real statements
+
+`npm run build` writes `dist/moneylens-check.html`: one page, with everything inside it, that the
+operator opens from his own disk. He picks a statement file (CSV, OFX, QFX or PDF) and sees what
+the readers made of it: the transactions, whether the sums agree, and what the reader had to
+assume. The file is handled in that browser only. The page's policy forbids the network: nothing
+can be loaded and nothing can be sent (`web/check/page.html`; `scripts/check-page.ts` tries).
+
+It is also the fixture tool of IMP-9. From a real statement it offers two things to share, and the
+statement itself stays where it is (SEC-12):
+
+- **The invented copy** (`src/fixture/`). A CSV file comes back with the same lines, fields,
+  delimiter, quotes and line endings, the row of column names as it was, and every word and number
+  under it invented (`invent.ts`): letters become other letters and digits other digits, a month
+  stays a month and a day a day, moved, so the lines keep their order. A PDF comes back as its
+  layout (`pdftext.ts`): every run of text where it sat on the page, with invented contents. The
+  words statements are built from ("Balance", "Withdrawals", "Solde", "余额") are kept, because a
+  reader looks for them.
+- **The summary** (`summary.ts`): which reader took the file, the layout it worked out, how many
+  lines it read, whether the sums agreed, and the shape of the first rows (9 for a digit, A for a
+  letter). Nothing that was in the file.
+
+The operator looks both over before sharing (IMP-9); the page shows the one line it kept as it was,
+the row of column names, by itself.
+
+Not yet: the numbers in an invented copy are invented one by one, so its balances no longer follow
+from its amounts (the reader leaves such a balance out). A copy whose sums still add up needs the
+reader's understanding of the layout and is the tool's next step. PDF statements are not read into
+transactions yet: the layouts collected this way are what the PDF reader will be built from.
+
+`src/web/pdf.ts` is PDF.js used for one thing, text and where it sits (IMP-4): version 6.5.438
+(4.2.67 or later is required), `isEvalSupported: false`, no fonts loaded into the page, nothing
+drawn, nothing fetched, in a Web Worker in the browser, within 10 MB, 100 pages and 30 seconds.
+
 ## Run it
 
 Node 22, in this folder:
@@ -105,6 +140,12 @@ Node 22, in this folder:
 npm ci
 npm run typecheck
 npm test
+npm run test:page
 ```
 
-CI is `.github/workflows/moneylens.yml`: the same three, plus an audit of what ships.
+`npm run test:page` builds the statement check and opens it in the Chrome already on the machine.
+
+CI is `.github/workflows/moneylens.yml`: the same four, plus an audit of what ships.
+
+What ships is small on purpose: PDF.js (`pdfjs-dist`, Apache 2.0) is the only package in the page.
+The others (`esbuild`, `playwright-core`, `tsx`, `typescript`) build and test.

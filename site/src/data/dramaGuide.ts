@@ -1230,6 +1230,78 @@ export const GUIDES: Record<string, SceneGuide> = {
     ],
     roles: [r(t("表情很沉重，说话很官方，被问急了就擦汗。", "Grave face, corporate voice; when the questions get tough, mop your brow."), t("「首先，我代表公司向大家郑重道歉。」", "“First of all, on behalf of the company, I want to sincerely apologize.”"))],
   },
+  "solo-royal-decree": {
+    beats: [
+      t("清清嗓子，展开圣旨，让百官跪下听旨。", "Clear your throat, unroll the decree, and order the court to kneel."),
+      t("一条一条念旨意，中间做牌上的小动作。", "Read it out line by line, slipping in the moves on your card."),
+      t("回答大臣的问题，反转以后也要圆过去。", "Answer the ministers' questions, and talk your way through the twist."),
+      t("最后高喊「钦此」，收起圣旨。", "Finish with a grand “So it is decreed!” and roll it up."),
+    ],
+    roles: [r(t("腰微微弯着，声音又尖又拖，每念完一句都停一下，等大家磕头。", "Stoop a little, use a high, drawn-out voice, and pause after every line for the bows."), t("「奉天承运，皇帝诏曰——」", "“By order of His Majesty, hear ye, hear ye!”"))],
+  },
+  "solo-palace-audition": {
+    beats: [
+      t("行礼请安，报上自己的名字和家世。", "Curtsy, then give your name and your family."),
+      t("表演一样才艺（唱一句、比划着画两笔、背一首诗都行），中间做牌上的小动作。", "Show a talent (a line of song, a painting in the air, a short poem), slipping in the moves on your card."),
+      t("回答太后和嬷嬷的问题，反转来了也要接住。", "Answer the Dowager's and the matrons' questions, and handle the twist when it comes."),
+      t("最后说一句为什么一定要选你（或者千万别选你）。", "Close with why they must choose you (or must not)."),
+    ],
+    roles: [r(t("小碎步，低着头，说话细声细气，被问急了就扯袖子。", "Tiny steps, head bowed, a soft little voice; tug at your sleeve when the questions get hard."), t("「民女叩见太后、皇上，愿太后万福金安。」", "“Your humble servant greets Your Majesties. Long life to the Empress Dowager.”"))],
+  },
+  "solo-parents-evening": {
+    beats: [
+      t("跟老师和家长们打招呼，说说孩子这次的好成绩。", "Greet the teacher and the parents, and mention the great results."),
+      t("分享三条「教育心得」，中间做牌上的小动作。", "Share three parenting secrets, slipping in the moves on your card."),
+      t("回答其他家长的问题，反转以后也要接住。", "Take questions from the other parents, and handle the twist."),
+      t("最后感谢老师，带头鼓掌。", "Thank the teacher and lead the applause."),
+    ],
+    roles: [r(t("一脸自豪，说话带着笑，手里攥着一张成绩单。", "Beaming with pride, smiling as you talk, clutching a report card."), t("「各位家长好，其实教孩子没什么秘诀……」", "“Hello, everyone. Honestly, there's no big secret to raising a kid...”"))],
+  },
+  "solo-night-guard": {
+    beats: [
+      t("敬个礼，报上名字和值班时间。", "Salute, then give your name and your shift hours."),
+      t("按时间讲一遍昨晚是怎么巡逻的，中间做牌上的小动作。", "Walk through last night's patrol hour by hour, slipping in the moves on your card."),
+      t("回答经理和警察的追问，反转以后也要撑住。", "Answer the manager's and the police's questions, and hold it together after the twist."),
+      t("最后保证「以后一定加强巡逻」。", "Finish by promising to step up the patrols."),
+    ],
+    roles: [r(t("站得笔直，说话又响又肯定，手电筒一直攥在手里。", "Stand to attention, speak loud and sure, and never let go of your torch."), t("「报告经理！昨晚我一共巡逻了……很多次！」", "“Reporting, sir! Last night I did my rounds... lots of times!”"))],
+  },
+  "solo-livestream-shampoo": {
+    beats: [
+      t("跟直播间的家人们打招呼，甩一甩自己的头发。", "Say hi to “the family” in the chat and toss your hair."),
+      t("把洗发水夸上天，中间做牌上的小动作。", "Rave about the shampoo, slipping in the moves on your card."),
+      t("回答弹幕里的问题，反转以后也要接住。", "Answer the chat's questions, and handle the twist."),
+      t("最后倒数「三、二、一，上链接！」", "Finish with the countdown: “Three, two, one, link's live!”"),
+    ],
+    roles: [r(t("语速飞快，声音亢奋，每句话结尾都喊「家人们」。", "Talk fast and hyped, and end every sentence with “family!”."), t("「家人们！看看我这头发，全靠这一瓶！」", "“Family! Look at this hair. All thanks to this one bottle!”"))],
+  },
+  "solo-restaurant-proposal": {
+    beats: [
+      t("敲敲杯子，请大家安静一下。", "Tap your glass and ask the room for quiet."),
+      t("讲你们是怎么认识的，中间做牌上的小动作。", "Tell the story of how you met, slipping in the moves on your card."),
+      t("单膝跪下，拿出戒指，反转来了也要接住。", "Drop to one knee and bring out the ring, and handle the twist."),
+      t("最后问出那句「你愿意吗？」", "Finish with the big question."),
+    ],
+    roles: [r(t("紧张得发抖，说话有点结巴，一直擦手心的汗。", "Shaking with nerves, tripping over your words, wiping your sweaty palms."), t("「不好意思，打扰大家一分钟……我有件很重要的事要说。」", "“Sorry to interrupt, everyone, just for a minute... I have something really important to say.”"))],
+  },
+  "solo-dating-show": {
+    beats: [
+      t("走上台，摆个造型，跟大家打招呼。", "Strut out, strike a pose, and say hello."),
+      t("说说自己的工作、爱好和理想型，中间做牌上的小动作。", "Talk about your job, your hobbies and your type, slipping in the moves on your card."),
+      t("回答单身嘉宾的问题，反转以后也要接住。", "Take questions from the singles, and handle the twist."),
+      t("最后挑一位心动嘉宾，说一句表白的话。", "Finish by picking your favourite and saying one line to win them over."),
+    ],
+    roles: [r(t("自信满满，笑得很灿烂，说话时喜欢撩头发。", "Supremely confident, a dazzling smile, always flicking your hair."), t("「大家好，我今年……永远十八岁！」", "“Hi, everyone! I'm... forever eighteen!”"))],
+  },
+  "solo-eulogy": {
+    beats: [
+      t("走到台前，深深鞠一躬，说一句「舅舅走得太突然了」。", "Step up, bow deeply, and say “Uncle left us far too soon.”"),
+      t("讲几件和舅舅的往事，中间做牌上的小动作。", "Share a few memories of your uncle, slipping in the moves on your card."),
+      t("应付亲戚们的插话，反转以后也要接住。", "Handle the relatives' interruptions, and the twist."),
+      t("最后请大家为舅舅默哀，再「顺便」问一句遗嘱什么时候念。", "Ask for a moment of silence, then “just wonder” when the will gets read."),
+    ],
+    roles: [r(t("一脸悲伤，说两句就擦眼泪，眼睛却一直往律师那边瞟。", "A mask of grief, dabbing your eyes every other line, while your eyes keep drifting to the lawyer."), t("「舅舅啊……您怎么就这么走了呢！」", "“Oh, Uncle... how could you leave us like this!”"))],
+  },
 
   /* ---------------------------------------------------------------- four to six */
   "love-wedding-rings": {

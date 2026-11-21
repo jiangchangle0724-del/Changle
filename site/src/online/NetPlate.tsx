@@ -92,7 +92,7 @@ export function NetPlate({ canDraw }: { canDraw: boolean }) {
         <canvas
           ref={canvasRef}
           className="plate-canvas"
-          style={{ touchAction: canDraw ? "none" : "auto", cursor: canDraw ? "crosshair" : "default" }}
+          style={{ touchAction: canDraw ? "none" : undefined, cursor: canDraw ? "crosshair" : "default" }}
           onPointerDown={(e) => {
             if (!canDraw) return;
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);

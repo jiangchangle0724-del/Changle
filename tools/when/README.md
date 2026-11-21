@@ -90,7 +90,10 @@ line says the weather for that time where the forecast reaches (A4, 2026-11-18; 
 recommended times should say the weather): "40% 可能下雨 · 最低 3°", "晴 · 8°", and
 "有雨 · 最高 8°，适合室内" when rain or snow is likely (60% or more, or no chance given: ECCC
 gives one only from 30 to 60 percent). Under the best three: "天气数据来源：加拿大环境与气候变化部"
-with a link to the licence, as the licence asks.
+with a link to the licence, as the licence asks. Once the time is set, the words for the group
+chat say it on a line of their own over the link ("天气预报：有雨 · 最低 4°，适合室内" /
+"Forecast: Rain · low 4°, better indoors"), and the result picture under who can make it
+(2026-11-20; `forecastLine`). Where the forecast doesn't reach, neither says anything.
 
 - The forecast is Environment and Climate Change Canada's for Vancouver (open data, free, no key):
   MSC GeoMet's city page weather as JSON (`WEATHER_SOURCE` in `src/engine/weather.ts`). It has a

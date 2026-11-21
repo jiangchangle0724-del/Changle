@@ -18,7 +18,7 @@ import { serverNow, update } from "../store";
 import { LocalMoney } from "./Local";
 import { SheetFrame } from "./Photo";
 import { LandStamp, Ride, placeCamLayers, project, rest, viewBoard } from "./Ride";
-import { moveInPlay, planMove, ridesOn, walkOf, withTimes, type RidePlan } from "./ridePlan";
+import { moveInPlay, noteStamp, planMove, ridesOn, stampOf, walkOf, withTimes, type RidePlan } from "./ridePlan";
 import { sfx } from "../sound";
 import { globeWanted } from "./GlobeLayer";
 import { useThrowing } from "./throwing";
@@ -267,7 +267,9 @@ export function flightToFly(v: RoomView): Flight | null {
   const f = latestFlight(v);
   if (!f) return null;
   const m = moveInPlay(v);
-  const at = m && m.seat === f.seat ? performance.now() + (m.land + TAKE_OFF - serverNow()) : undefined;
+  // (after the stamp as this page plans it, by the same reading of the clock: ridePlan.ts noteStamp)
+  const stamp = m && m.seat === f.seat ? (stampOf(m.seat, m.land) ?? Date.now() + (m.land - serverNow())) : undefined;
+  const at = stamp !== undefined ? performance.now() + (stamp + TAKE_OFF - Date.now()) : undefined;
   return { from: f.from, to: f.to, key: f.key, kind: teamOf(v, f.seat)?.color ?? f.seat, at };
 }
 
@@ -519,7 +521,7 @@ export function Board({
         <div class={`board-view${lean ? " leaning" : ""}`} ref={view}>
           {table}
           {landings.map((l) => (
-            <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} at={l.at} land={l.land} />
+            <OtherStamp key={`${l.seat}-${l.land}`} rig={rig} seat={l.seat} at={l.at} land={l.land} />
           ))}
         </div>
       </div>
@@ -664,7 +666,7 @@ function useMapHint(zoomed: boolean) {
  * Another team's token lands (on a phone): a small stamp comes down beside it, at the moment the
  * thrower's own stamp does, and fades.
  */
-function OtherStamp({ rig, at, land }: { rig: { current: Rig | null }; at: number; land: number }) {
+function OtherStamp({ rig, seat, at, land }: { rig: { current: Rig | null }; seat: number; at: number; land: number }) {
   const el = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const r = rig.current;
@@ -677,6 +679,7 @@ function OtherStamp({ rig, at, land }: { rig: { current: Rig | null }; at: numbe
     box.style.left = `${(50 + rx / 10).toFixed(2)}%`;
     box.style.top = `${(50 + ry / 10).toFixed(2)}%`;
     const wait = land - serverNow();
+    noteStamp(seat, land, Date.now() + wait);
     box.dataset.land = String(Math.round(Date.now() + wait));
     const on = window.setTimeout(() => box.classList.add("on"), Math.max(0, wait));
     return () => clearTimeout(on);

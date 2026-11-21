@@ -12,7 +12,8 @@ at a table (multiple choice, and the four a buzzer picks from), and the reveal s
 `snap` checks one-second rounds: what each phone plays (from where, for how long) on one phone (tap
 for more) and at a table (every phone the same spot, the one the host's phone found).
 `specials` checks the decades and the singer specials (the sheet, a game of one singer's titles, a table).
-`challenge` sends a game on as a link and plays it on a friend's phone: the same songs and four titles.
+`challenge` sends a game on as a link and plays it on a friend's phone: the same songs and four titles;
+then the same from an online table.
 
 Apple's previews are AAC, which the open-source Chromium can't decode, so each one is fetched
 and turned into MP3 on the fly (ffmpeg): the phone loads, decodes, analyses and plays it like a
@@ -35,6 +36,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BASE = next((a for a in sys.argv[1:] if a.startswith("http")), "http://127.0.0.1:5183/").rstrip("/") + "/"
 ONLY = [a for a in sys.argv[1:] if not a.startswith("http")] or ["solo", "online"]
 ROUNDS = int(os.environ.get("ROUNDS", "20"))
+# ENGINE=webkit runs the phones in WebKit, the engine of every browser on an iPhone (Playwright's own
+# build: `npx playwright install webkit` once). No JS heap figure and no forced collection there.
+ENGINE = os.environ.get("ENGINE", "chromium")
 OUT = os.environ.get("SHOTS", os.path.join(os.environ.get("TMPDIR", "/tmp"), "tune-quiz"))
 CACHE = os.path.join(OUT, "audio")
 os.makedirs(CACHE, exist_ok=True)
@@ -155,6 +159,9 @@ SAMPLE = """async () => {
 
 
 def browser_of(p):
+    if ENGINE == "webkit":
+        proxy = os.environ.get("HTTPS_PROXY")
+        return p.webkit.launch(proxy={"server": proxy, "bypass": "127.0.0.1,localhost"} if proxy else None)
     b = p.chromium.launch(args=[
         MARK,
         "--autoplay-policy=no-user-gesture-required",
@@ -168,6 +175,15 @@ def browser_of(p):
 def renderers_mb():
     """Memory (USS) of this run's page processes, in MB."""
     total = 0
+    if ENGINE == "webkit":
+        # (WebKit takes no marker: every WebKit page process on this machine counts)
+        for pr in psutil.process_iter(["cmdline"]):
+            try:
+                if any(a.endswith(("WPEWebProcess", "WebKitWebProcess")) for a in (pr.info["cmdline"] or [])[:1]):
+                    total += pr.memory_full_info().uss
+            except psutil.Error:
+                pass
+        return round(total / 2**20)
     for pr in psutil.process_iter(["cmdline"]):
         cmd = pr.info["cmdline"] or []
         if MARK not in cmd:
@@ -229,8 +245,9 @@ def clear_stamps(pages):
 
 
 class Memory:
-    def __init__(self, label):
+    def __init__(self, label, tabs=1):
         self.label = label
+        self.tabs = tabs
         self.rows = []
         # the tab's memory five times a second, for the peaks between songs (decoding, analysing)
         self.peak = 0
@@ -263,16 +280,20 @@ class Memory:
         first, last = self.rows[2], self.rows[-1]  # from song 3 on: everything is warm by then
         grow = (last["heap"] - first["heap"]) / 2**20
         ok(grow < 8, f"[{self.label}] the JS heap holds steady over {len(self.rows)} songs ({first['heap'] / 2**20:.1f} -> {last['heap'] / 2**20:.1f} MB)")
-        ok(max(r["alive"] for r in self.rows[2:]) <= 3, f"[{self.label}] at most three decoded previews alive at once ({[r['alive'] for r in self.rows]})")
+        # (WebKit can't be told to collect now, so buffers no longer used may still be counted there)
+        if ENGINE != "webkit":
+            ok(max(r["alive"] for r in self.rows[2:]) <= 3, f"[{self.label}] at most three decoded previews alive at once ({[r['alive'] for r in self.rows]})")
         if last["decoded"] > 0:
             # each song fetched and decoded once (the next one is loaded early; a dev server's
             # StrictMode starts the first song's loading twice)
             ok(last["decoded"] <= len(self.rows) + 4, f"[{self.label}] each song decoded once ({last['decoded']} decodes for {len(self.rows)} songs)")
         ok(last["nodes"] - first["nodes"] < 150, f"[{self.label}] the page doesn't pile up elements ({first['nodes']} -> {last['nodes']})")
         ok(last["tweens"] < 200, f"[{self.label}] tweens don't pile up ({first['tweens']} -> {last['tweens']})")
-        # the page's own memory, outside the JS heap (styles, paint): from song 3 on it may wobble, not climb
+        # the page's own memory, outside the JS heap (styles, paint): from song 3 on it may wobble, not climb.
+        # Judged a phone at a time: three phones on main (2026-11-20) climb 16 to 29 MB a song together,
+        # most of it the covers; the leak #278 fixed was 150 MB a song on one phone.
         per = (last["rss"] - first["rss"]) / max(1, len(self.rows) - 3)
-        ok(per < 20, f"[{self.label}] the tabs' memory holds steady from song 3 on ({first['rss']} -> {last['rss']} MB, {per:+.0f} MB a song)")
+        ok(per / self.tabs < 20, f"[{self.label}] the tabs' memory holds steady from song 3 on ({first['rss']} -> {last['rss']} MB, {per:+.0f} MB a song over {self.tabs} tab{'s' if self.tabs > 1 else ''})")
 
 
 # ------------------------------------------------------------------ one phone
@@ -406,7 +427,7 @@ def right_choice(v):
 def online(browser):
     host, guests = seat_table(browser, ["Steve", "Mia", "Jay"])
     everyone = [host] + guests
-    tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']")
+    tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .ui-tile", has_text=re.compile("猜歌名|Name That Tune"))
     if tiles.count():
         tiles.first.click()
     host.wait_for_timeout(500)
@@ -421,7 +442,7 @@ def online(browser):
         ok(until(lambda: view(guests[0])["quiz"] and view(guests[0])["mode"] == mode), f"[online {mode}] multiple choice is on for the table")
         host.wait_for_timeout(300)
         host.get_by_role("button", name="放第一首").click()
-        mem = Memory(f"online {mode}")
+        mem = Memory(f"online {mode}", tabs=len(everyone))
         total = view(host)["total"]
         n = 0
         while True:
@@ -501,7 +522,7 @@ def online_screen(browser):
         guests.append(g)
     everyone = [host] + guests
     ok(until(lambda: host.locator(".lobby .face:not(.face-add)").count() >= 3, 10000) is not None, f"[online] 3 seated at {code}")
-    host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']").first.click()
+    host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .ui-tile", has_text=re.compile("猜歌名|Name That Tune")).first.click()
     host.wait_for_timeout(500)
     host.locator(".lobby-actions .btn-primary").click()
     ok(all(until(lambda g=g: g.locator(".tn").count() > 0, 10000) for g in everyone), "[online] every phone is in Name That Tune")
@@ -512,7 +533,7 @@ def online_screen(browser):
         host.get_by_role("button", name="20 首" if ROUNDS not in (5, 8, 12) else f"{ROUNDS} 首").click()
         host.wait_for_timeout(500)
         host.get_by_role("button", name="放第一首").click()
-        mem = Memory(f"online {mode} (screens)")
+        mem = Memory(f"online {mode} (screens)", tabs=len(everyone))
         total = ROUNDS if ROUNDS in (5, 8, 12) else 20
         for n in range(1, total + 1):
             up = until(lambda: all(g.locator(".tn-round").count() and g.locator(".tn-round").inner_text().startswith(f"第 {n} 首") for g in everyone) and all(g.locator(".tn-option:not([disabled])").count() == 4 for g in everyone), 20000)
@@ -557,7 +578,7 @@ def stress(browser):
     """What real phones do mid-quiz: lock and come back, leave, a new one sits down, double taps."""
     host, guests = seat_table(browser, ["Steve", "Mia", "Jay"])
     everyone = [host] + guests
-    host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']").first.click()
+    host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .ui-tile", has_text=re.compile("猜歌名|Name That Tune")).first.click()
     host.wait_for_timeout(500)
     host.locator(".lobby-actions .btn-primary").click()
     ok(all(until(lambda g=g: (view(g) or {}).get("id") == "tune") for g in everyone), "[stress] every phone is in Name That Tune")
@@ -909,8 +930,84 @@ def challenge(browser):
     friend.context.close()
 
 
+def challenge_online(browser):
+    """An online game of real songs sent on as a challenge: a guest shares it at the end; a friend's phone
+    gets the same songs in the same order, each with the four titles the table saw, in the same order."""
+    host, guests = seat_table(browser, ["Steve", "Mia"])
+    mia = guests[0]
+    everyone = [host, mia]
+    for g in everyone:
+        g.add_init_script(SHARE_STUB)
+        g.reload(wait_until="networkidle")
+    until(lambda: all(room(g) for g in everyone), 10000)
+    start_tune(host, everyone)
+    host.get_by_role("button", name="选择题", exact=True).click()
+    host.get_by_role("button", name="5 首", exact=True).click()
+    until(lambda: view(mia)["quiz"] and view(mia)["total"] == 5, 5000)
+    host.get_by_role("button", name="放第一首").click()
+    seen = []
+    n = 0
+    while n < 5:
+        ok(until(lambda: view(host)["phase"] == "listen" and view(host)["round"] > n, 20000) is not None, f"[challenge online] song {n + 1} starts")
+        n = view(host)["round"]
+        until(lambda: all(g.locator(".tn-option:not([disabled])").count() == 4 for g in everyone), 15000)
+        v = view(mia)
+        right = right_choice(v)
+        four = [c["t"] for c in v["choices"]]
+        seen.append((path_of(v["audio"] or ""), four))
+        # Mia gets the first three, then nobody does
+        ids = [c["id"] for c in v["choices"]]
+        wrong = next(i for i in ids if i != right)
+        for g, pick in ((mia, right if n <= 3 else wrong), (host, wrong)):
+            clear_stamps(everyone)
+            until(lambda g=g: g.locator(".tn-option:not([disabled])").count() == 4, 8000)
+            try:
+                g.locator(".tn-option").nth(ids.index(pick)).click(timeout=8000)
+            except Exception as e:  # noqa: BLE001
+                print("  (pick)", g._name, str(e)[:100], flush=True)
+        ok(until(lambda: view(host)["phase"] == "reveal", 30000) is not None, f"[challenge online] song {n}: the reveal")
+        clear_stamps(everyone)
+        try:
+            host.locator(".tn button", has_text=re.compile("^(下一首|看结果)$")).first.click(timeout=4000)
+        except Exception:
+            pass
+    ok(until(lambda: view(mia)["phase"] == "end", 15000) is not None, "[challenge online] the final scores")
+    clear_stamps(everyone)
+    mia.wait_for_timeout(1200)
+    clear_stamps(everyone)
+    mia.get_by_role("button", name="发起挑战").click()
+    url = until(lambda: mia.evaluate("() => window.__shared[0] && window.__shared[0].url"), 3000)
+    text = mia.evaluate("() => window.__shared[0] && window.__shared[0].text") or ""
+    ok(bool(url) and "9 分" in text, f"[challenge online] a guest sends it on, with Mia's 9 points ({text})")
+    shot(mia, "challenge-online-end")
+    errs = errors_of(everyone)
+    ok(not errs, f"[challenge online] no console or page errors {errs[:4]}")
+    for g in everyone:
+        g.context.close()
+    if not url:
+        return
+    friend = phone(browser, "Lin")
+    friend.goto(url, wait_until="networkidle")
+    ok(until(lambda: "Mia向你发起挑战" in friend.locator(".tn-challenge").inner_text(), 8000) is not None, "[challenge online] the friend's phone: Mia's challenge, 5 songs")
+    before = len(requested)
+    friend.get_by_role("button", name="接受挑战").click()
+    for k in range(5):
+        up = until(lambda: friend.locator(".tn-option:not([disabled])").count() == 4, 20000)
+        ok(up is not None, f"[challenge online] the friend: song {k + 1}, four titles")
+        four = [t.strip() for t in friend.locator(".tn-option strong").all_inner_texts()]
+        ok(four == seen[k][1], f"[challenge online] the friend: song {k + 1}, the four titles the table saw, in the same order ({four})")
+        ok(seen[k][0] in requested[before:], f"[challenge online] the friend: song {k + 1} is the table's song {k + 1}")
+        friend.get_by_role("button", name="揭晓歌名").click()
+        until(lambda: friend.locator(".picker .chip").count() > 0, 6000)
+        friend.get_by_role("button", name="没人猜到").click()
+    ok(until(lambda: friend.locator(".tn-challenge-result").count() > 0, 8000) is not None, "[challenge online] the friend: how it went against Mia")
+    errs = errors_of([friend])
+    ok(not errs, f"[challenge online] the friend: no console or page errors {errs[:4]}")
+    friend.context.close()
+
+
 def start_tune(host, everyone):
-    tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .tile[aria-label^='Name That Tune']")
+    tiles = host.locator(".lobby .tile[aria-label^='猜歌名'], .lobby .ui-tile", has_text=re.compile("猜歌名|Name That Tune"))
     if tiles.count():
         tiles.first.click()
     host.wait_for_timeout(500)
@@ -1049,6 +1146,7 @@ def main():
         if "challenge" in ONLY:
             b = browser_of(p)
             challenge(b)
+            challenge_online(b)
             b.close()
     print(f"\n{len(fails)} failure(s)" if fails else "\nall passed", flush=True)
     sys.exit(1 if fails else 0)

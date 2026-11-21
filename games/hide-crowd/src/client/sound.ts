@@ -494,7 +494,8 @@ export const sfx = {
 /** A buzz in the hand (Android; iPhones don't let a page do it). */
 export function buzz(pattern: number | number[]): void {
   try {
-    if (on && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
+    // (only once the player has tapped the page: before that the browser refuses, with a warning)
+    if (on && typeof navigator !== "undefined" && "vibrate" in navigator && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate(pattern);
   } catch {
     // not allowed here
   }

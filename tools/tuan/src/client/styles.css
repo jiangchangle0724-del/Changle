@@ -11,6 +11,9 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  /* a double tap never zooms, two fingers still do (and main.tsx makes Safari look at it everywhere);
+     every element says it itself, since an iPhone starts afresh inside each scrolling box */
+  touch-action: manipulation;
 }
 html {
   background: var(--color-bg);
@@ -779,6 +782,21 @@ a.shop-name {
   border-radius: var(--r-panel);
   background: var(--color-surface);
   transition: opacity var(--dur-enter) var(--ease-out);
+}
+/* signing in on a merchant's page (SignIn.tsx) */
+.signin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* the poster to send on (MyOffer.tsx): the one picture a long press may save or send, as WeChat does */
+.poster-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-flat);
+  -webkit-touch-callout: default;
 }
 /* (until it has come: then it fades in, src/client/ui/Offer.tsx) */
 .photo-waiting {

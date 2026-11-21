@@ -430,6 +430,36 @@ export const SNAP_QUIZ_MS = 20_000;
 export const DEFAULT_HOOK_MS = 1000;
 export const HOOK_MAX_MS = 20_000;
 
+/**
+ * The dice for one song's four titles in a game: the same game seed and song give the same shuffle on
+ * every phone and on the rooms server (mulberry32).
+ */
+export function seeded(seed: number, salt: number): () => number {
+  let a = (seed ^ Math.imul(salt + 1, 0x9e3779b9)) >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A song's four titles in a game with this seed: the song and three wrong ones from the built-in list
+ * (`builtIn`: src/data/songs.ts in its order, never today's charts), shuffled. The same on one phone
+ * and at an online table, so a challenge link shows a friend the same four.
+ */
+export function fourTitles(song: Song, builtIn: Song[], seed: number, hard: boolean, pool: SongPool): Song[] {
+  const dice = seeded(seed, song.id);
+  const four = [song, ...decoysFor(song, builtIn, dice, hard, pool)];
+  for (let i = four.length - 1; i > 0; i--) {
+    const j = Math.floor(dice() * (i + 1));
+    [four[i], four[j]] = [four[j], four[i]];
+  }
+  return four;
+}
+
 /** The four titles as a phone shows them: on the hard level, without who sings them. */
 export function shownChoices(choices: Song[], hard: boolean): { id: number; t: string; a: string; ae: string }[] {
   return choices.map((c) => (hard ? { id: c.id, t: c.t, a: "", ae: "" } : { id: c.id, t: c.t, a: c.a, ae: c.ae }));
