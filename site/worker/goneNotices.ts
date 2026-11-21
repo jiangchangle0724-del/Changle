@@ -5,6 +5,8 @@
  * and keys, when the account has used it, bound yet or not). The hub tells each at once, and a row
  * that fails waits and tries again (a minute, then longer, a day at most) on the hub's alarm, until
  * the app answers. The apps' own `accountGone` is safe to call twice, and throws when it fails.
+ * An email changed (换邮箱, emailChange.ts) rides the same rows as app "money-changed": MoneyLens's
+ * `accountChanged`, for an account that has used it.
  *
  * Plain functions on the hub's SQL (tests/handoff.test.ts runs them on Node's SQLite).
  */

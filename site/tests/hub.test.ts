@@ -213,6 +213,56 @@ const goneRows = (s: { db: DatabaseSync }) => (s.db.prepare("SELECT user_id, app
   ok("exists: an error goes back to the app as an error, never as \"none\"");
 }
 
+// ---- 换邮箱 through the hub ----
+{
+  // the mail out goes to a stand-in for Resend (DEV_MAIL_URL), kept here
+  const mails: Row[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
+    mails.push(JSON.parse(String(init?.body ?? "{}")));
+    return new Response(JSON.stringify({ id: "fake" }), { status: 200 });
+  }) as typeof fetch;
+  const changed: string[] = [];
+  const { hub, s } = await hubOn({ DEV_MAIL_URL: "http://mail.test/emails", MONEY: { accountGone: async () => {}, accountChanged: async (id: string) => void changed.push(id) } });
+  const ann = await join(hub, "ann@example.test");
+  const ben = await join(hub, "ben@example.test", "ben-phone-0001");
+  const boss = await join(hub, "boss@example.test", "boss-phone-0001");
+  await hub.redeemHandoff(String((await codeFor(hub, ann.token)).json.code), "moneylens");
+  assert.equal((await req(hub, "POST", "/me/email", { email: "new@example.test" })).status, 401);
+  assert.deepEqual((await req(hub, "POST", "/me/email", { email: "new@example.test" }, boss.token, "boss-phone-0001")).json, { error: "admin" });
+  assert.deepEqual((await req(hub, "POST", "/me/email", { email: "ben@example.test" }, ann.token)).json, { error: "taken" });
+  ok("换邮箱: none without a session, none for an admin, none to an address that's taken");
+
+  mails.length = 0;
+  const sent = await req(hub, "POST", "/me/email", { email: "New@Example.test", lang: "zh" }, ann.token);
+  assert.equal(sent.status, 200);
+  const done = await req(hub, "POST", "/me/email/confirm", { code: sent.json.dev, lang: "zh" }, ann.token);
+  assert.equal(done.status, 200, JSON.stringify(done.json));
+  assert.equal((done.json.user as Row).email, "new@example.test");
+  await s.settled();
+  const note = mails.find((m) => JSON.stringify(m.to) === JSON.stringify(["ann@example.test"]));
+  assert.ok(note, "the old address is told");
+  assert.match(String(note.text), /n\*\*\*@example\.test/, "the new address shown masked");
+  assert.ok(!String(note.text).includes("new@example.test"), "and only masked");
+  assert.equal(note.reply_to, "boss@example.test", "a reply goes to the owner (CONTACT_EMAIL, or the first admin)");
+  assert.deepEqual(changed, [ann.id], "MoneyLens told, for an account that used it");
+  assert.deepEqual(goneRows(s), []);
+  ok("换邮箱: the email changes, the old address is told, MoneyLens hears");
+
+  const v = await req(hub, "POST", "/auth/verify", { email: "new@example.test", code: (await req(hub, "POST", "/auth/code", { email: "new@example.test", lang: "zh" })).json.dev });
+  assert.equal((v.json.user as Row | undefined)?.id, ann.id, "the new address signs in to the same account");
+  const old = await req(hub, "POST", "/auth/verify", { email: "ann@example.test", code: (await req(hub, "POST", "/auth/code", { email: "ann@example.test", lang: "zh" })).json.dev });
+  assert.ok(old.json.ticket && !old.json.token, "the old one would make a new account");
+  ok("换邮箱: the new address opens the account, the old one doesn't");
+
+  const sentBen = await req(hub, "POST", "/me/email", { email: "ben2@example.test" }, ben.token, "ben-phone-0001");
+  await req(hub, "POST", "/me/email/confirm", { code: sentBen.json.dev }, ben.token, "ben-phone-0001");
+  await s.settled();
+  assert.deepEqual(changed, [ann.id], "an account that never used MoneyLens: nothing for it");
+  ok("换邮箱: MoneyLens isn't told about accounts it doesn't know");
+  globalThis.fetch = realFetch;
+}
+
 console.log(`\nall ${n} passed`);
 // (the first hub in "stopped mid-try" still has its never-answered send on a 30-second timer)
 process.exit(0);

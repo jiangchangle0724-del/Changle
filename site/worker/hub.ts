@@ -9,8 +9,9 @@ import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
 import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
-import { accountsThere, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
-import { cleanNotice, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
+import { accountsThere, appsUsed, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
+import { confirmEmail, dropEmail, EMAIL_RE, emailTables, startEmail } from "./emailChange";
+import { cleanNotice, esc, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
 /** The tables (Room objects), reached by code: the hub asks one to let someone go, or to close. */
@@ -20,6 +21,8 @@ export type HubEnv = {
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
   ADMIN_EMAILS?: string;
+  /** where a reply to the "your email changed" mail goes; without it, the first of ADMIN_EMAILS */
+  CONTACT_EMAIL?: string;
   /** the owner: the back office, and the only one let in while the site is paused */
   MASTER_EMAIL?: string;
   DEV_SHOW_CODES?: string;
@@ -31,7 +34,7 @@ export type HubEnv = {
   /** 两清 (tools/split), its Internal entrypoint: told when an account is deleted, it lets go of that account's receipt photos and ledgers */
   SPLIT?: { accountGone(account: string): Promise<unknown> };
   /** MoneyLens (tools/moneylens), its Internal entrypoint, once it's bound (after its first deploy): told the same, it deletes that account's records and keys */
-  MONEY?: { accountGone(account: string): Promise<unknown> };
+  MONEY?: { accountGone(account: string): Promise<unknown>; accountChanged(account: string): Promise<unknown> };
 };
 
 export type Call = { method: string; path: string; token: string; device: string; ip: string; body?: unknown; bytes?: ArrayBuffer; type?: string };
@@ -76,7 +79,6 @@ const DRAWS_PER_DAY = 400;
 const SESSION_TTL = 5 * 365 * 86400_000;
 const GENDERS = ["female", "male", "nonbinary", "private"];
 const HANDLE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 /** 戏精大赏 scenes players send in: a few a day each, and not too many waiting at once. */
 const SCENES_PER_DAY = 5;
 const SCENES_WAITING = 10;
@@ -161,6 +163,7 @@ export class Hub extends DurableObject<HubEnv> {
     // apps still to be told an account is gone (goneNotices.ts)
     handoffTables(this.sql);
     goneTables(this.sql);
+    emailTables(this.sql);
     // AI drawings counted per day (k: e:<email>, ip:<address>, all)
     q(`CREATE TABLE IF NOT EXISTS draws (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
     // notices sent for other Workers, counted per day (k: the app; worker/notice.ts)
@@ -362,6 +365,9 @@ export class Hub extends DurableObject<HubEnv> {
       this.sql.exec(`UPDATE users SET name = ?, phone = ?, city = ?, gender = ?, bio = ?, ac = ? WHERE id = ?`, p.name, p.phone, p.city, p.gender, p.bio, p.ac, me.id);
       return ok({ user: this.selfView(this.userById(me.id)!) });
     }
+    // 换邮箱: a code to the new address; typed back, the account's email changes and the old address is told
+    if (path === "/me/email" && m === "POST") return this.emailStart(me, String(b.email ?? ""), c.ip, b.lang === "en" ? "en" : "zh");
+    if (path === "/me/email/confirm" && m === "POST") return this.emailConfirm(me, String(b.code ?? ""), b.lang === "en" ? "en" : "zh");
     if (path === "/me" && m === "DELETE") {
       this.deleteUser(me.id);
       return ok({ ok: true });
@@ -831,9 +837,63 @@ export class Hub extends DurableObject<HubEnv> {
     return ok({ sent: true });
   }
 
-  private async mail(to: string, code: string, lang: "zh" | "en") {
-    const subject = lang === "zh" ? `changle 验证码 ${code}` : `Your changle code: ${code}`;
-    const lead = lang === "zh" ? "你的登录验证码：" : "Your sign-in code:";
+  /* ================= 换邮箱 ================= */
+
+  private async emailStart(me: U, raw: string, ip: string, lang: "zh" | "en"): Promise<Reply> {
+    const r = await startEmail(this.sql, { id: me.id, email: me.email, admin: this.isAdmin(me) }, raw, {
+      banned: (email) => this.isBanned(`e:${email}`),
+      allow: () => this.allow(`email:${me.id}`, 5, 3600_000) && this.allow(`codeip:${ip}`, 20, 3600_000),
+      hash: (email, code) => sha(`${this.pepper}|email|${me.id}|${email}|${code}`),
+    });
+    if ("status" in r) return r;
+    if (this.env.DEV_SHOW_CODES === "1") return ok({ sent: true, dev: r.code });
+    try {
+      await this.mail(r.email, r.code, lang, "email");
+    } catch (e) {
+      console.error("mail", e);
+      dropEmail(this.sql, me.id);
+      return err(503, String((e as Error).message) === "no-mail" ? "no-mail" : "mail-failed");
+    }
+    return ok({ sent: true });
+  }
+
+  private async emailConfirm(me: U, code: string, lang: "zh" | "en"): Promise<Reply> {
+    const r = await confirmEmail(this.sql, { id: me.id, email: me.email, admin: this.isAdmin(me) }, code, {
+      hash: (email, c) => sha(`${this.pepper}|email|${me.id}|${email}|${c}`),
+    });
+    if ("status" in r) return r;
+    // the old address hears about it (a reply goes to the owner); MoneyLens, for an account that has
+    // used it (bound yet or not), ends its sessions there, told until it hears like the "gone" notices
+    this.ctx.waitUntil(this.emailChanged(r.old, r.email, lang).catch((e) => console.error("hub: the old address wasn't told", e)));
+    if (appsUsed(this.sql, me.id).includes("money")) {
+      noteGone(this.sql, me.id, ["money-changed"]);
+      this.ctx.waitUntil(
+        this.armGone()
+          .then(() => this.tellGone())
+          .catch((e) => console.error("hub: change notices", e)),
+      );
+    }
+    return ok({ user: this.selfView(this.userById(me.id)!) });
+  }
+
+  private async emailChanged(old: string, now: string, lang: "zh" | "en") {
+    const [name, domain] = now.split("@");
+    const shown = `${name.slice(0, 1)}***@${domain}`;
+    const subject = lang === "zh" ? "你的 changle 账号换了邮箱" : "Your changle account has a new email";
+    const lead = lang === "zh" ? `你的 changle 账号的登录邮箱刚换成了 ${shown}，以后用它登录。` : `Your changle account now signs in with ${shown}.`;
+    const note = lang === "zh" ? "不是你本人换的话，请马上回复这封邮件告诉我们。" : "If you didn't change it, reply to this email right away.";
+    const html = `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
+<p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
+<p style="margin:0 0 12px">${esc(lead)}</p>
+<p style="margin:0;color:#b6b4d0;font-size:14px">${note}</p></div>`;
+    // (a reply goes to the owner, not to the site's own address)
+    const owner = (this.env.CONTACT_EMAIL || (this.env.ADMIN_EMAILS ?? "").split(",")[0] || "").trim();
+    await this.deliver({ to: old, subject, html, text: `${lead}\n\n${note}`, replyTo: owner || undefined });
+  }
+
+  private async mail(to: string, code: string, lang: "zh" | "en", what: "signin" | "email" = "signin") {
+    const subject = what === "email" ? (lang === "zh" ? `changle 换邮箱验证码 ${code}` : `Your changle code for the new email: ${code}`) : lang === "zh" ? `changle 验证码 ${code}` : `Your changle code: ${code}`;
+    const lead = what === "email" ? (lang === "zh" ? "确认这是你的新邮箱，验证码：" : "To make this your changle email, the code is:") : lang === "zh" ? "你的登录验证码：" : "Your sign-in code:";
     const note = lang === "zh" ? "10 分钟内有效。不是你本人操作的话，忽略这封邮件就好。" : "It works for 10 minutes. If you didn't ask for it, ignore this email.";
     const html = `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
 <p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
@@ -844,7 +904,7 @@ export class Hub extends DurableObject<HubEnv> {
   }
 
   /** One mail out through Resend (or, locally, DEV_MAIL_URL). Throws "no-mail" without a key, "resend …" when Resend says no. */
-  private async deliver(m: { to: string; subject: string; html: string; text: string }) {
+  private async deliver(m: { to: string; subject: string; html: string; text: string; replyTo?: string }) {
     const key = this.env.RESEND_API_KEY;
     const url = this.env.DEV_MAIL_URL || "https://api.resend.com/emails";
     if (!key && !this.env.DEV_MAIL_URL) throw new Error("no-mail");
@@ -852,7 +912,7 @@ export class Hub extends DurableObject<HubEnv> {
     const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key ?? ""}`, "Content-Type": "application/json", "User-Agent": "changle/1.0 (+https://changle.ca)" },
-      body: JSON.stringify({ from: this.env.MAIL_FROM || "changle <hello@changle.ca>", to: [m.to], subject: m.subject, html: m.html, text: m.text }),
+      body: JSON.stringify({ from: this.env.MAIL_FROM || "changle <hello@changle.ca>", to: [m.to], subject: m.subject, html: m.html, text: m.text, ...(m.replyTo ? { reply_to: m.replyTo } : {}) }),
     });
     if (!res.ok) throw new Error(`resend ${res.status} ${(await res.text()).slice(0, 200)}`);
   }
@@ -995,7 +1055,17 @@ export class Hub extends DurableObject<HubEnv> {
   /** the apps still to be told an account is gone; the alarm set for the next try (before the sends too) */
   private async tellGone() {
     const wake = (at: number) => this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
-    const next = await sendGone(this.sql, { split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)), money: this.env.MONEY && ((id) => this.env.MONEY!.accountGone(id)) }, wake);
+    const money = this.env.MONEY;
+    const next = await sendGone(
+      this.sql,
+      {
+        split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)),
+        money: money && ((id) => money.accountGone(id)),
+        // (not gone: its email changed, so MoneyLens ends its sessions there)
+        "money-changed": money && ((id) => money.accountChanged(id)),
+      },
+      wake,
+    );
     if (next != null) await wake(next);
   }
 

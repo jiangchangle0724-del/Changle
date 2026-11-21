@@ -13,6 +13,7 @@ import { figureBody } from "./avatar/pics";
 import { Face } from "./avatar/Face";
 import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
+import { EmailChange } from "./EmailChange";
 import { ProfileForm } from "./ProfileForm";
 import { PageLoading } from "../games/GameLoading";
 import { EmptyState } from "../ui/EmptyState";
@@ -240,9 +241,7 @@ function Profile({ onBack }: { onBack: () => void }) {
       </div>
 
       <Sheet open={editing} onClose={() => setEditing(false)} title={zh ? "编辑主页" : "Edit profile"} gel="#ff9cc5">
-        <p className="hint" style={{ marginBottom: 12 }}>
-          {zh ? `登录邮箱 ${me.email}` : `Signed in as ${me.email}`}
-        </p>
+        <EmailChange me={me} onChanged={setMe} />
         <ProfileForm
           mode="edit"
           uid={me.id}

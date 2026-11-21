@@ -66,6 +66,7 @@ jobs:
       - run: npx tsx tests/figure.test.ts
       - run: npx tsx tests/handoff.test.ts
       - run: npx tsx --import ./tests/support/cloudflare.mjs tests/hub.test.ts
+      - run: npx tsx tests/email-change.test.ts
       - run: npx tsx tests/dancer.test.ts
       - run: npm run build
       - run: npx tsx scripts/budget.ts
