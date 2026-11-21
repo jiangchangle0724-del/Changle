@@ -151,4 +151,12 @@ export const DRAWN_ART: ReadonlySet<string> = new Set<string>([
   "scene-sa-sangeet-song",
   "scene-kr-drama-finale-spoiler",
   "scene-eu-eurovision-scores",
+  "scene-solo-royal-decree",
+  "scene-solo-palace-audition",
+  "scene-solo-parents-evening",
+  "scene-solo-night-guard",
+  "scene-solo-livestream-shampoo",
+  "scene-solo-restaurant-proposal",
+  "scene-solo-dating-show",
+  "scene-solo-eulogy",
 ]);
