@@ -398,7 +398,8 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
             const to = camera.position.clone().sub(head.head.getWorldPosition(new T.Vector3())).normalize();
             const yawTo = Math.atan2(to.x, to.z) - Math.atan2(fwd.x, fwd.z);
             const wrap = Math.atan2(Math.sin(yawTo), Math.cos(yawTo));
-            const yawWant = still.matches || walking ? 0 : Math.max(-0.7, Math.min(0.7, wrap * 0.65));
+            // (Nov 21, Steve: "侧面人脸看起来还是很怪异": her face kept to the room as much as her neck lets it)
+            const yawWant = still.matches || walking ? 0 : Math.max(-1.0, Math.min(1.0, wrap * 0.85));
             const pitchWant = still.matches || walking ? 0 : Math.max(-0.2, Math.min(0.2, (Math.asin(to.y) - Math.asin(fwd.y)) * 0.5));
             const ease = 1 - Math.exp(-dt * 4);
             head.yaw += (yawWant - head.yaw) * ease;
