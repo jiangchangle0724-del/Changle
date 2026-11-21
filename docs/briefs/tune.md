@@ -52,6 +52,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-20 tune: a challenge sent from a phone that didn't win names the winner (#719)
 - 2026-11-20 tune: an online game can be sent on as a challenge; the check runs in WebKit too (#714)
 - 2026-11-06 Name That Tune: challenges count the songs this phone has, and never break on a repeat (#314)
 - 2026-11-06 Name That Tune: challenge links (挑战链接) (#314)
@@ -78,4 +79,4 @@
 - 2026-11-05 仓库改名 Changle。Steve 定了 Apple 试听照用，参考 Soundle 的四条都做。修了单机选择题猜错一次就全锁。
 - 2026-11-11 Steve 同意，#273、#278 合并上线；同意歌手专场这个 PR 换设置页的参考截图（`update-screenshots`）。另一个对话复查了歌手专场和挑战链接，找出的问题都修了。
 - 2026-11-11 Steve 同意，#281、#286、#312、#314 按顺序合并上线，参考 Soundle 的四条都上线了。
-- 2026-11-20 Steve 说没做完的接着做（他不在家）。用 WebKit 查了 iPhone 闪退，联机也能发起挑战了；按新的项目规则，CI 过了自己合并（#714）。建了 `docs/status/tune.md`。在 changle.ca 上两部手机实玩了一局联机再发出挑战，发现没赢的人发出时话里写成「我拿了 3 分」，改成写赢的人的名字。
+- 2026-11-20 Steve 说没做完的接着做（他不在家）。用 WebKit 查了 iPhone 闪退，联机也能发起挑战了；按新的项目规则，CI 过了自己合并（#714）。建了 `docs/status/tune.md`。在 changle.ca 上两部手机实玩了一局联机再发出挑战，发现没赢的人发出时话里写成「我拿了 3 分」，改成写赢的人的名字（#719）。
