@@ -247,6 +247,9 @@
 .dm-actor-figure {
   position: relative;
   display: grid;
+  /* one row exactly the figure's height: an auto row grew to a drawn figure's own size (1216px
+     tall on the big screen) and the picture spilled over the plaque */
+  grid-template-rows: minmax(0, 1fr);
   place-items: end center;
   height: var(--fig-h);
 }
