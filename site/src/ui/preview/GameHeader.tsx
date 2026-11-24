@@ -18,6 +18,7 @@ export function GameHeaderPreview({ lang }: { lang: Lang }) {
         sound={{ on: sound, onToggle: () => setSound(!sound) }}
         onTv={action}
         onHelp={action}
+        onLang={action}
         extra={{
           icon: Pencil,
           label: lang === "zh" ? "改转盘" : "Edit the wheel",
@@ -35,6 +36,7 @@ export function GameHeaderPreview({ lang }: { lang: Lang }) {
         sound={{ on: false, onToggle: action }}
         onTv={action}
         onHelp={action}
+        onLang={action}
       />
       <GameHeader
         title={title}

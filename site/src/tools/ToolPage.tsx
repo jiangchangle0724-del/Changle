@@ -20,14 +20,14 @@ const leave = () => (mark()?.inSite ? back() : go({ kind: "home", tab: "tools" }
  * /tools/price): the header names it, ‹ goes back, and the room takes a tool's amber light.
  */
 export function ToolPage({ id }: { id: ToolId }) {
-  const { lang } = useStore();
+  const { lang, setLang } = useStore();
   useEffect(() => {
     const amber = getComputedStyle(document.documentElement).getPropertyValue("--type-tool").trim();
     if (amber) setLight(amber);
   }, []);
   return (
     <div className="screen tool-page ui-category-tool">
-      <GameHeader title={TOOLS[id]} lang={lang} onBack={leave} />
+      <GameHeader title={TOOLS[id]} lang={lang} onBack={leave} onLang={() => setLang(lang === "zh" ? "en" : "zh")} />
       {id === "currency" ? <CurrencyTool /> : id === "clock" ? <WorldClock /> : <PriceTool />}
     </div>
   );

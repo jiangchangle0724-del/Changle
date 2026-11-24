@@ -1,0 +1,48 @@
+/* The language on a game's bar (LangSwitch.tsx): the home page's 中 | EN, small enough to sit beside the bar's buttons. */
+.ui-lang {
+  appearance: none;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  /* a fixed width, so a bar can keep room for it (GameHeader.css) */
+  width: calc(var(--tap) + var(--space-3));
+  height: var(--tap);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--color-text-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.ui-lang-pill {
+  display: flex;
+  padding: calc(var(--space-1) / 2);
+  border-radius: var(--r-pill);
+  background: var(--dusk);
+  box-shadow: var(--shadow-flat);
+}
+.ui-lang-pill > span {
+  display: grid;
+  place-items: center;
+  min-width: var(--space-6);
+  height: var(--space-6);
+  padding: 0 var(--space-1);
+  border-radius: var(--r-pill);
+  transition:
+    background-color var(--dur-enter),
+    color var(--dur-enter);
+}
+.ui-lang .is-on {
+  background: var(--color-text);
+  color: var(--night);
+}
+@media (hover: hover) {
+  .ui-lang:hover .ui-lang-pill > span:not(.is-on) {
+    color: var(--color-text);
+  }
+}

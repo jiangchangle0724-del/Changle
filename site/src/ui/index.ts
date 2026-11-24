@@ -13,5 +13,6 @@ export { Toast, ToastProvider, useToast } from "./Toast";
 export { EmptyState } from "./EmptyState";
 export { Skeleton } from "./Skeleton";
 export { GameHeader } from "./GameHeader";
+export { LangSwitch } from "./LangSwitch";
 export { PenaltyCard } from "./PenaltyCard";
 export type * from "./types";

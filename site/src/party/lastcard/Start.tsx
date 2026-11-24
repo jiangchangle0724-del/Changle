@@ -6,6 +6,7 @@ import { GAME_BY_ID } from "../../games/registry";
 import { OnlineSheet } from "../../online/OnlineSheet";
 import { usePenaltyText, useStore } from "../../store";
 import { Button } from "../../ui/Button";
+import { LangSwitch } from "../../ui/LangSwitch";
 import { Fan, LcRules } from "./Rules";
 import "../../ui/base.css";
 import "./lastcard.css";
@@ -16,7 +17,7 @@ import "./lastcard.css";
  * lobby has 最后一张 up, ready to start. Have a code? Sit down at that table instead.
  */
 export function LastCardStart({ onBack }: { onBack: () => void }) {
-  const { ui, lang, tr } = useStore();
+  const { ui, lang, setLang, tr } = useStore();
   const custom = usePenaltyText().isCustom;
   const zh = lang === "zh";
   const g = GAME_BY_ID.lastcard;
@@ -25,7 +26,12 @@ export function LastCardStart({ onBack }: { onBack: () => void }) {
   const [rules, setRules] = useState(false);
   return (
     <div className="screen lcs">
-      <TopBar title={g.name} onBack={onBack} onHelp={() => setRules(true)} />
+      <TopBar
+        title={g.name}
+        onBack={onBack}
+        onHelp={() => setRules(true)}
+        left={<LangSwitch lang={lang} onSwitch={() => setLang(zh ? "en" : "zh")} />}
+      />
       <div className="lcs-body">
         <Fan />
         <h1 className="lcs-title">
