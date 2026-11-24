@@ -52,6 +52,8 @@ const groups = (member: number, filter: number): number => ((member << 16) | fil
  */
 const BODY_GROUPS = groups(GROUP.PLAYER, GROUP.TERRAIN | GROUP.PROP | GROUP.FROZEN);
 const FROZEN_BODY_GROUPS = groups(GROUP.PLAYER | GROUP.FROZEN, GROUP.TERRAIN | GROUP.PROP | GROUP.FROZEN | GROUP.PLAYER);
+/** 胳膊（三节和手）：碰地形和物件。 */
+const ARM_GROUPS = groups(GROUP.PLAYER, GROUP.TERRAIN | GROUP.PROP);
 
 /** 手柄 → 主机的每帧输入（契约「输入契约」）。 */
 export interface PadInput {
@@ -123,6 +125,8 @@ export interface Arm {
   pts: Pt[];
   /** 坐不住：刚滑脱，还有几秒抓不了。 */
   slipCd: number;
+  /** 没抓东西的手，手心嵌在台子、动台这些硬东西里头多少秒了（unstickHands）。 */
+  stuckT: number;
 }
 
 export type Face = 'idle' | 'grab' | 'fly' | 'scream' | 'win';
@@ -452,6 +456,9 @@ export class Sim {
   private readonly spinners: { def: SpinnerDef; rb: RB }[] = [];
   private readonly terrain: RB;
   private readonly grabShape: RAPIER.Ball;
+  /** 查胳膊摆的地方空不空用的：比手和每节小 2 px，贴着表面不算碰着。 */
+  private readonly handTest: RAPIER.Ball;
+  private readonly segTest: RAPIER.Capsule;
   private readonly grips = new Map<Joint, { player: number; arm: number; g: GripInternal }>();
   private readonly fadingCols: { def: FadingDef; col: Col }[] = [];
   /** 定时塌的东西（until）：到点关掉碰撞体、松开抓着它的手。 */
@@ -496,6 +503,8 @@ export class Sim {
     world.numSolverIterations = CFG.solverIterations;
     this.world = world;
     this.grabShape = new RAPIER.Ball(GRAB_R);
+    this.handTest = new RAPIER.Ball(CFG.handR - 2);
+    this.segTest = new RAPIER.Capsule(Math.max(1, CFG.segLen / 2 - CFG.segR), Math.max(1, CFG.segR - 2));
 
     // 地形：一个固定刚体，每块矩形一个碰撞体
     this.terrain = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
@@ -1508,7 +1517,7 @@ export class Sim {
           .setRotation(Math.PI / 2)
           .setMass(CFG.segMass)
           .setFriction(CFG.armFriction)
-          .setCollisionGroups(groups(GROUP.PLAYER, GROUP.TERRAIN | GROUP.PROP)),
+          .setCollisionGroups(ARM_GROUPS),
         rb,
       );
       this.info.set(cap.handle, { kind: 'player', player: playerId, part: 'arm', arm: armIndex });
@@ -1521,7 +1530,7 @@ export class Sim {
         .setTranslation(CFG.segLen / 2, 0)
         .setMass(CFG.handMass)
         .setFriction(CFG.armFriction)
-        .setCollisionGroups(groups(GROUP.PLAYER, GROUP.TERRAIN | GROUP.PROP)),
+        .setCollisionGroups(ARM_GROUPS),
       last,
     );
     this.info.set(hand.handle, { kind: 'player', player: playerId, part: 'hand', arm: armIndex });
@@ -1545,7 +1554,7 @@ export class Sim {
         ),
       );
     }
-    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [], slipCd: 0 };
+    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [], slipCd: 0, stuckT: 0 };
   }
 
   private removePlayer(): void {
@@ -1773,6 +1782,7 @@ export class Sim {
       if (p.ground) p.heldBy = null;
       p.springCd = Math.max(0, p.springCd - dt);
     }
+    this.unstickHands(dt);
     for (const rope of this.ropes) this.refreshRope(rope);
     for (const n of this.noodles) this.refreshRope(n);
     for (const prop of this.props) {
@@ -1792,6 +1802,100 @@ export class Sim {
     this.tickLamps();
     this.checkEnd();
     for (const p of this.players) this.updateFace(p);
+  }
+
+  /**
+   * 手卡住（11-23，Steve 在大屏上看到手嵌在台子里出不来）：动台、转杆、门、摆锤这些会动的硬东西能把手压进去，
+   * 抓着会动的东西的手也会被拖着穿过墙；手心进到硬东西里头，胳膊被里外的碰撞夹着，可能出不来。
+   * 没抓东西的手，手心嵌进硬东西 handStuckDepth px 以上、连着 handStuckT 秒：这条胳膊直接摆回肩膀旁边一个空地方
+   * （和瞬移时摆胳膊一样）。手贴着表面时手心在外面，被动台挤一下手心进去几 px 也常有、一会儿就出来，这些都不算
+   * （录好的回放里嵌进 5 px 以上最长 0.73 秒，所以门槛是 1 秒，回放不受影响）。几个方向都摆不下（身子挤在墙角）就过一会儿再试。
+   */
+  private unstickHands(dt: number): void {
+    for (const p of this.players) {
+      if (p.dead) continue;
+      p.arms.forEach((arm, k) => {
+        if (!arm.grip && this.embedDepth(arm.hand) >= CFG.handStuckDepth) arm.stuckT += dt;
+        else arm.stuckT = 0;
+        if (arm.stuckT < CFG.handStuckT) return;
+        arm.stuckT = 0;
+        this.freeArm(p, k);
+      });
+    }
+  }
+
+  /** 卡住的胳膊摆回肩膀旁边：平时的样子、朝上、朝外、朝里、朝下，挑第一个整条胳膊碰不着硬东西的。 */
+  private freeArm(p: Player, k: number): void {
+    const arm = p.arms[k] as Arm;
+    const shoulder = { x: p.body.x + arm.side * CFG.shoulderDX, y: p.body.y + CFG.shoulderDY };
+    const tries: Pt[] = [
+      { x: arm.side * 55, y: -20 },
+      { x: arm.side * 15, y: -60 },
+      { x: arm.side * 60, y: 10 },
+      { x: -arm.side * 35, y: -50 },
+      { x: arm.side * 25, y: 55 },
+    ];
+    for (const d of tries) {
+      const pose = chainPose(shoulder, { x: shoulder.x + d.x, y: shoulder.y + d.y });
+      if (!this.poseClear(pose)) continue;
+      arm.segs.forEach((rb, s) => {
+        const c = pose.centers[s] as Pt;
+        rb.setTranslation({ x: c.x, y: c.y }, true);
+        rb.setRotation(pose.angles[s] as number, true);
+        rb.setLinvel({ x: 0, y: 0 }, true);
+        rb.setAngvel(0, true);
+      });
+      this.world.propagateModifiedBodyPositionsToColliders();
+      arm.hand = { ...pose.end };
+      return;
+    }
+  }
+
+  /** 胳膊碰的那些硬东西（地形、会动的东西、物件；关掉的、别人的身体胳膊、绳子不算）。 */
+  private solid(col: Col): boolean {
+    if (!col.isEnabled() || col.isSensor()) return false;
+    const info = this.info.get(col.handle);
+    return !!info && info.kind !== 'player' && info.kind !== 'rope' && info.kind !== 'noodle';
+  }
+
+  /** 这一点在硬东西里头多深（离最近的表面几 px）；不在里头是 0。 */
+  private embedDepth(pt: Pt): number {
+    let depth = 0;
+    this.world.intersectionsWithPoint(
+      pt,
+      (col) => {
+        if (!this.solid(col)) return true;
+        const proj = col.projectPoint(pt, false);
+        if (proj) depth = Math.max(depth, dist(proj.point, pt));
+        return true;
+      },
+      undefined,
+      ARM_GROUPS,
+    );
+    return depth;
+  }
+
+  /** 照这个样子摆胳膊，三节和手（各缩小 2 px）都碰不着硬东西。 */
+  private poseClear(pose: { centers: Pt[]; angles: number[]; end: Pt }): boolean {
+    const hits = (at: Pt, rot: number, shape: RAPIER.Shape): boolean => {
+      let hit = false;
+      this.world.intersectionsWithShape(
+        at,
+        rot,
+        shape,
+        (o) => {
+          if (!this.solid(o)) return true;
+          hit = true;
+          return false;
+        },
+        undefined,
+        ARM_GROUPS,
+      );
+      return hit;
+    };
+    // 每节的胶囊在节的刚体上转了 90°（沿着节的方向）
+    if (pose.centers.some((c, s) => hits(c, (pose.angles[s] as number) + Math.PI / 2, this.segTest))) return false;
+    return !hits(pose.end, 0, this.handTest);
   }
 
   /**
