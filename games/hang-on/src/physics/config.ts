@@ -257,6 +257,13 @@ export const CFG = {
   staminaWarn: 0.3,
   staminaCooldown: 1,
 
+  /**
+   * 手卡住（11-23）：没抓东西的手，手心嵌进硬东西这么多 px 以上、连着这么多秒，就把胳膊摆回肩膀旁边（world.ts unstickHands）。
+   * 录好的回放里手心嵌进 5 px 以上最长 0.73 秒（被动台挤一下，自己会出来），门槛比它长，回放不变。
+   */
+  handStuckDepth: 5,
+  handStuckT: 1,
+
   // ---- 新机关（A12，Steve 11-18「机关太温和」）----
   /** 会塌的台子塌了多少秒长回来（关里没写 regrow 时）。 */
   crumbleRegrow: 6,
