@@ -40,7 +40,7 @@ import { challengeCode, challengeScore, challengeUrl, readChallenge, seeded } fr
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
 import { LC_AWAY_MS } from "../src/shared/engine/games/lastcard";
 import { DRAW_WORDS } from "../src/data/drawGuess";
-import { WORD_PAIRS } from "../src/data/undercover";
+import { ADULT_PAIRS, WORD_PAIRS } from "../src/data/undercover";
 import { drawMatches } from "../src/shared/engine/games/draw";
 import { DRAW_GUESS_MAX, DRAW_ROUND_MS } from "../src/shared/protocol";
 import { hintBlanks, hintSay, hintZh } from "../src/online/games/drawHint";
@@ -440,7 +440,23 @@ test("undercover: words private, vote, win", () => {
   ok(t.view<Extract<GameView, { id: "undercover" }>>(civId).roles !== null, "roles revealed at end");
 });
 
-test("undercover: a tap that arrives twice moves the table on once (the host's double tap, or taps queued while the line was down)", () => {
+/**
+ * The undercover tests added from 11-20 on hand the shared dice (seed) back as they found them, so
+ * the tests further down (戏精大赏's casting) deal what they always dealt, however many pairs the
+ * word banks grow to.
+ */
+function ucTest(name: string, fn: () => void) {
+  test(name, () => {
+    const keep = seed;
+    try {
+      fn();
+    } finally {
+      seed = keep;
+    }
+  });
+}
+
+ucTest("undercover: a tap that arrives twice moves the table on once (the host's double tap, or taps queued while the line was down)", () => {
   type V = Extract<GameView, { id: "undercover" }>;
   const t = setup(5);
   t.act("p0", { a: "start", game: "undercover" });
@@ -483,13 +499,15 @@ test("undercover: a tap that arrives twice moves the table on once (the host's d
   }
 });
 
-test("undercover: the word bank, and a table that deals every pair once before any comes round again", () => {
+ucTest("undercover: the word bank, and a table that deals every pair once before any comes round again", () => {
   type V = Extract<GameView, { id: "undercover" }>;
-  ok(WORD_PAIRS.length >= 150, `at least 150 pairs (${WORD_PAIRS.length})`);
+  ok(WORD_PAIRS.length >= 400, `at least 400 everyday pairs (${WORD_PAIRS.length})`);
+  ok(ADULT_PAIRS.length >= 100, `at least 100 adults-only pairs (${ADULT_PAIRS.length})`);
+  // both banks together: a word in the adults-only bank is never also an everyday word
   const seenZh = new Map<string, number>();
   const seenEn = new Map<string, number>();
   const bad: string[] = [];
-  for (const { a, b } of WORD_PAIRS) {
+  for (const { a, b } of [...WORD_PAIRS, ...ADULT_PAIRS]) {
     for (const w of [a, b]) {
       if (!w.zh.trim() || !w.en.trim()) bad.push(`empty: ${w.zh}/${w.en}`);
       if (w.en.length > 20) bad.push(`too long for the card: ${w.en}`);
@@ -526,7 +544,62 @@ test("undercover: the word bank, and a table that deals every pair once before a
   ok(dealt.length === WORD_PAIRS.length + 2 && dealt.slice(-2).every((i) => i >= 0 && i < WORD_PAIRS.length) && dealt.at(-1) !== dealt.at(-2), "after the whole bank, the deals go on from a fresh bank");
 });
 
-test("undercover: the number of undercovers follows the table until the host sets it; a leave that decides the game ends it", () => {
+ucTest("undercover: 成人档 deals from the adults-only bank, only when the host turns it on before the deal", () => {
+  type V = Extract<GameView, { id: "undercover" }>;
+  const zhOf = (bank: { a: { zh: string }; b: { zh: string } }[]) => new Set(bank.flatMap((p) => [p.a.zh, p.b.zh]));
+  const adultZh = zhOf(ADULT_PAIRS);
+  const dayZh = zhOf(WORD_PAIRS);
+  type Table = ReturnType<typeof setup>;
+  // play a game through (the civilians catch the undercover) and read the words off the end screen
+  const playOut = (t: Table) => {
+    t.g("p0", "deal");
+    const s = t.eng.d.game!.s as { roles: Record<string, string> };
+    const uc = Object.keys(s.roles).find((id) => s.roles[id] === "uc")!;
+    const mine = t.view<V>(uc).myWord!;
+    t.g("p0", "force", { phase: "word" });
+    t.g("p0", "force", { phase: "talk" });
+    for (const id of t.ids) t.g(id, "vote", { target: id === uc ? t.ids.find((x) => x !== uc)! : uc });
+    t.g("p0", "next");
+    const end = t.view<V>("p0");
+    ok(end.phase === "end" && !!end.pair, "the game ends with the words shown");
+    ok(mine.zh === end.pair!.uc.zh, "the undercover's word is the one shown at the end");
+    return end.pair!;
+  };
+
+  const t = setup(5);
+  t.act("p0", { a: "start", game: "undercover" });
+  ok(t.view<V>("p0").adult === false, "off when the game opens");
+  t.g("p1", "config", { adult: true });
+  ok(t.view<V>("p0").adult === false, "only the host can turn it on");
+  t.g("p0", "config", { adult: true });
+  ok(t.view<V>("p1").adult === true, "the host turns it on, and every phone sees it");
+  for (let i = 0; i < 6; i++) {
+    const pair = playOut(t);
+    ok(adultZh.has(pair.civ.zh) && adultZh.has(pair.uc.zh), `adults-only words dealt (${pair.civ.zh}/${pair.uc.zh})`);
+    t.g("p0", "again");
+  }
+  t.g("p0", "deal");
+  t.g("p0", "config", { adult: false });
+  ok(t.view<V>("p0").adult === true, "it can't be switched once the words are out");
+  const st = t.eng.d.game!.s as { usedAdult?: number[]; used?: number[] };
+  ok(new Set(st.usedAdult ?? []).size === 7 && (st.used ?? []).length === 0, `seven different adult pairs remembered, no everyday ones (${st.usedAdult?.length}, ${st.used?.length ?? 0})`);
+
+  // the next game back to everyday: everyday words, and each bank remembers its own pairs
+  const t2 = setup(4);
+  t2.act("p0", { a: "start", game: "undercover" });
+  t2.g("p0", "config", { adult: true });
+  const first = playOut(t2);
+  ok(adultZh.has(first.civ.zh), `an adults-only game first (${first.civ.zh})`);
+  t2.g("p0", "again");
+  t2.g("p0", "config", { adult: false });
+  ok(t2.view<V>("p1").adult === false, "turned off for the next game");
+  const second = playOut(t2);
+  ok(dayZh.has(second.civ.zh) && dayZh.has(second.uc.zh), `then everyday words (${second.civ.zh}/${second.uc.zh})`);
+  const s2 = t2.eng.d.game!.s as { used?: number[]; usedAdult?: number[]; bank?: string };
+  ok(s2.bank === undefined && (s2.used ?? []).length === 1 && (s2.usedAdult ?? []).length === 1, "each bank remembers its own");
+});
+
+ucTest("undercover: the number of undercovers follows the table until the host sets it; a leave that decides the game ends it", () => {
   type V = Extract<GameView, { id: "undercover" }>;
   const def = (n: number) => {
     const t = setup(n);

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { usePenaltyText, useStore, type Player } from "../store";
 import { pick, shuffle } from "../lib/random";
-import { WORD_PAIRS, type WordPair } from "../data/undercover";
+import { ADULT_PAIRS, WORD_PAIRS, type WordPair } from "../data/undercover";
 import { defaultUc, maxSide, maxUc } from "../shared/engine/games/undercover";
 import { sfx } from "../lib/sfx";
 import { GameShell, usePenalty } from "./GameShell";
@@ -42,12 +42,15 @@ function keepTonight(used: string[]) {
 }
 
 /** A pair this phone hasn't dealt tonight; once every pair has been, the bank starts over. */
-function dealPair(): WordPair {
+function dealPair(adult: boolean): WordPair {
+  const bank = adult ? ADULT_PAIRS : WORD_PAIRS;
   const keyOf = (p: WordPair) => `${p.a.zh}|${p.b.zh}`;
   const used = dealtTonight();
-  const fresh = WORD_PAIRS.filter((p) => !used.includes(keyOf(p)));
-  const pair = pick(fresh.length ? fresh : WORD_PAIRS);
-  keepTonight([...(fresh.length ? used : []), keyOf(pair)]);
+  const fresh = bank.filter((p) => !used.includes(keyOf(p)));
+  const pair = pick(fresh.length ? fresh : bank);
+  // a bank dealt all the way through starts over; the other bank's memory stays
+  const mine = new Set(bank.map(keyOf));
+  keepTonight([...(fresh.length ? used : used.filter((k) => !mine.has(k))), keyOf(pair)]);
   return pair;
 }
 
@@ -56,6 +59,8 @@ type Kept = {
   /** the number of undercovers the host set by hand; null follows the table's size */
   undercovers: number | null;
   withBlank: boolean;
+  /** 成人档: the grown-ups' words (off whenever the game is opened fresh) */
+  adult?: boolean;
   phase: Phase;
   pair: WordPair | null;
   /** which of the pair's two words the undercover holds, decided at each deal, so the word itself gives nothing away */
@@ -80,6 +85,7 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
   const { players, ui, tr, lang } = useStore();
   const [chosen, setChosen] = useState<number | null>(saved?.undercovers ?? null);
   const [withBlank, setWithBlank] = useState(saved?.withBlank ?? false);
+  const [adult, setAdult] = useState(saved?.adult ?? false);
   const [phase, setPhase] = useState<Phase>(saved?.phase ?? "setup");
   const [pair, setPair] = useState<WordPair | null>(saved?.pair ?? null);
   const [flip, setFlip] = useState(saved?.flip ?? false);
@@ -94,7 +100,7 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
   const [firstSpeaker, setFirstSpeaker] = useState<Player | null>(saved?.firstSpeaker ?? null);
   const penalty = usePenalty();
   // kept from the deal to the end (a word half-read comes back with its lid closed again)
-  useKeepProgress<Kept>({ undercovers: chosen, withBlank, phase, pair, flip, seats, dealIndex, round, eliminated, winner, firstSpeaker }, phase !== "setup" && phase !== "end");
+  useKeepProgress<Kept>({ undercovers: chosen, withBlank, adult, phase, pair, flip, seats, dealIndex, round, eliminated, winner, firstSpeaker }, phase !== "setup" && phase !== "end");
 
   // the same table math as online: how many undercovers a table this size takes, and how many unless set by hand
   const maxUndercovers = maxUc(players.length);
@@ -106,7 +112,7 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
   const revealed = useRef(-1);
 
   const start = () => {
-    const p = dealPair();
+    const p = dealPair(adult);
     const order = shuffle(players);
     const uc = undercovers;
     const roles: Role[] = [];
@@ -279,6 +285,13 @@ function UndercoverGame({ onBack, saved }: { onBack: () => void; saved: Kept | n
                   {withBlank && blankFits ? (lang === "zh" ? "有" : "Yes") : lang === "zh" ? "无" : "No"}
                 </button>
               </div>
+              <div className="settings-row ink">
+                <span>{lang === "zh" ? "成人档" : "Adults-only words"}</span>
+                <button type="button" className={`btn btn-sm ${adult ? "btn-jade" : "btn-ghost ink"}`} aria-pressed={adult} onClick={() => setAdult((v) => !v)}>
+                  {adult ? (lang === "zh" ? "开" : "On") : lang === "zh" ? "关" : "Off"}
+                </button>
+              </div>
+              {adult && <p className="hint-ink" style={{ marginTop: "var(--space-3)" }}>{lang === "zh" ? "成人档：恋爱、夜生活、喝酒和一点擦边的词，只给成年人玩。" : "Adults-only words: dating, nights out, drinking and a little naughty. Grown-ups only."}</p>}
               <p className="hint-ink">
                 {lang === "zh" ? `${players.length} 人在座。白板没有词，跟卧底一伙：白板也出局，平民才赢。` : `${players.length} at the table. A blank gets no word and plays on the undercover's side: civilians win only when the blank is out too.`}
                 {!blankFits && (lang === "zh" ? `${undercovers} 个卧底时，${blankNeeds} 人以上才能加白板。` : ` With ${undercovers} undercover${undercovers > 1 ? "s" : ""}, a blank needs ${blankNeeds} or more players.`)}

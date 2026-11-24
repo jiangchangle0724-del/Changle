@@ -1,4 +1,4 @@
-import { WORD_PAIRS } from "../../../data/undercover";
+import { ADULT_PAIRS, WORD_PAIRS, type WordPair } from "../../../data/undercover";
 import type { UcRole, UndercoverView } from "../../protocol";
 import { clean, intIn, range, t, type Api, type GameDef } from "../api";
 
@@ -13,6 +13,12 @@ type S = {
   pair: number | null;
   /** the pairs this table has had since the game was opened, so a night deals each once before any comes round again */
   used?: number[];
+  /** 成人档: the host chose the grown-ups' words for the next deal */
+  adult?: boolean;
+  /** which bank `pair` points into: "adult" for ADULT_PAIRS, anything else WORD_PAIRS */
+  bank?: "adult";
+  /** the adult pairs this table has had tonight, kept apart from the everyday ones */
+  usedAdult?: number[];
   flip: boolean;
   roles: Record<string, UcRole>;
   alive: string[];
@@ -60,12 +66,23 @@ function fitTable(s: S, n: number) {
 
 /** A pair the table hasn't had tonight; once every pair has been dealt, the bank starts over. */
 function dealPair(s: S, api: Api) {
-  const used = (s.used ?? []).filter((i) => i >= 0 && i < WORD_PAIRS.length);
-  const fresh = range(WORD_PAIRS.length).filter((i) => !used.includes(i));
-  const pool = fresh.length ? fresh : range(WORD_PAIRS.length);
+  const adult = !!s.adult;
+  const bank = adult ? ADULT_PAIRS : WORD_PAIRS;
+  const used = ((adult ? s.usedAdult : s.used) ?? []).filter((i) => i >= 0 && i < bank.length);
+  const fresh = range(bank.length).filter((i) => !used.includes(i));
+  const pool = fresh.length ? fresh : range(bank.length);
   const pair = pool[api.int(pool.length)];
-  s.used = [...(fresh.length ? used : []), pair];
+  const next = [...(fresh.length ? used : []), pair];
+  if (adult) s.usedAdult = next;
+  else s.used = next;
+  s.bank = adult ? "adult" : undefined;
   return pair;
+}
+
+/** The pair dealt this game, from whichever bank it came from. */
+function dealtPair(s: S): WordPair | null {
+  if (s.pair === null) return null;
+  return (s.bank === "adult" ? ADULT_PAIRS : WORD_PAIRS)[s.pair] ?? null;
 }
 
 function startTalk(s: S, api: Api) {
@@ -124,8 +141,8 @@ function tally(s: S, api: Api) {
 }
 
 function words(s: S) {
-  if (s.pair === null) return null;
-  const p = WORD_PAIRS[s.pair];
+  const p = dealtPair(s);
+  if (!p) return null;
   return s.flip ? { civ: p.b, uc: p.a } : { civ: p.a, uc: p.b };
 }
 
@@ -181,6 +198,7 @@ export const undercover: GameDef<S> = {
           s.touched = true;
         }
         if (typeof g.blank === "boolean") s.blank = g.blank;
+        if (typeof g.adult === "boolean") s.adult = g.adult;
         fit(s, n);
         return;
       }
@@ -312,6 +330,7 @@ export const undercover: GameDef<S> = {
       phase: s.phase,
       uc: s.uc,
       blank: s.blank,
+      adult: !!s.adult,
       maxSide: maxSide(api.ids().length),
       round: s.round,
       inGame: Object.keys(s.roles),

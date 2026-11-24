@@ -67,6 +67,10 @@ function Setup({ v }: { v: UndercoverView }) {
             <b>{v.blank ? (zh ? "有一个" : "One") : zh ? "没有" : "None"}</b>
           </li>
           <li>
+            <span>{zh ? "词库" : "Words"}</span>
+            <b>{v.adult ? (zh ? "成人档" : "Adults only") : zh ? "日常" : "Everyday"}</b>
+          </li>
+          <li>
             <span>{zh ? "在座" : "Seated"}</span>
             <b className="tabular">{players.length}</b>
           </li>

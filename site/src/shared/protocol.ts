@@ -178,6 +178,8 @@ export type UndercoverView = {
   phase: "setup" | "word" | "talk" | "vote" | "reveal" | "end";
   uc: number;
   blank: boolean;
+  /** 成人档: the host chose the grown-ups' words */
+  adult: boolean;
   maxSide: number;
   round: number;
   inGame: string[];
