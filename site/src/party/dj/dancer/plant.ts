@@ -8,8 +8,13 @@
 import * as THREE from "three";
 
 type Leg = { up: THREE.Object3D; knee: THREE.Object3D; foot: THREE.Object3D; len: number };
-/** `start`: when through the hand-over each foot steps (sooner when her hips go further than her leg reaches) */
-export type Feet = { legs: Leg[]; was: THREE.Vector3[] | null; plant: THREE.Vector3[] | null; first: number; start: number[]; blend: object | null };
+/** `start`: when through the hand-over each foot steps (sooner when her hips go further than her leg reaches);
+ * `lock`: where each foot stands while the dance has it on the floor (stand()), `low` its height standing,
+ * `free`: how far each has eased from where it stood back to the dance, after it lifts (0 to 1) */
+export type Feet = {
+  legs: Leg[]; was: THREE.Vector3[] | null; plant: THREE.Vector3[] | null; first: number; start: number[]; blend: object | null;
+  lock: (THREE.Vector3 | null)[]; low: number[]; free: number[]; from: (THREE.Vector3 | null)[];
+};
 
 /** Her legs' bones (null when her skeleton hasn't them). */
 export function feetOf(root: THREE.Object3D): Feet | null {
@@ -19,7 +24,7 @@ export function feetOf(root: THREE.Object3D): Feet | null {
     if (!up || !knee || !foot) return null;
     legs.push({ up, knee, foot, len: pos(up).distanceTo(pos(knee)) + pos(knee).distanceTo(pos(foot)) });
   }
-  return { legs, was: null, plant: null, first: 0, start: [0.05, 0.5], blend: null };
+  return { legs, was: null, plant: null, first: 0, start: [0.05, 0.5], blend: null, lock: [null, null], low: [Infinity, Infinity], free: [1, 1], from: [null, null] };
 }
 
 const pos = (o: THREE.Object3D) => o.getWorldPosition(new THREE.Vector3());
@@ -78,5 +83,37 @@ export function plantFeet(f: Feet, blend: object | null, k: number) {
       reach(f.legs[i], to);
     }
   } else f.plant = null;
+  f.was = f.legs.map((l) => pos(l.foot));
+}
+
+/**
+ * Her feet while she dances (Nov 23; Steve: "跳舞的动作太多问题了，仔细核查": some dances slid her standing foot
+ * along the floor, 0.2 to 0.4 m a second, house and samba most). A foot the dance has on the floor (within
+ * 2 cm of how low it stands) stays where it came down, its leg reaching it, until the dance lifts it (3.5 cm),
+ * or carries it further than a step (12 cm); then it eases back to the dance in a tenth of a second. Not
+ * through a hand-over (plantFeet has her feet then) nor while she walks. `dt` seconds since the last frame.
+ */
+export function standFeet(f: Feet, dt: number, on: boolean) {
+  for (let i = 0; i < 2; i++) {
+    const leg = f.legs[i];
+    const now = pos(leg.foot);
+    f.low[i] = Math.min(f.low[i] + dt * 0.02, now.y);
+    if (!on) { f.lock[i] = null; f.free[i] = 1; continue; }
+    const down = now.y < f.low[i] + 0.02, up = now.y > f.low[i] + 0.035;
+    const lock = f.lock[i];
+    if (lock && (up || Math.hypot(now.x - lock.x, now.z - lock.z) > 0.12)) {
+      f.from[i] = lock; f.lock[i] = null; f.free[i] = 0;
+    } else if (!lock && down && f.free[i] >= 1) f.lock[i] = now.clone();
+    if (f.lock[i]) {
+      reach(leg, new THREE.Vector3(f.lock[i]!.x, now.y, f.lock[i]!.z));
+    } else if (f.free[i] < 1 && f.from[i]) {
+      f.free[i] = Math.min(1, f.free[i] + dt / 0.1);
+      const e = f.free[i] * f.free[i] * (3 - 2 * f.free[i]);
+      const to = f.from[i]!.clone().lerp(now, e);
+      to.y = now.y;
+      reach(leg, to);
+    }
+  }
+  // (where they stand now: where the next hand-over plants them)
   f.was = f.legs.map((l) => pos(l.foot));
 }

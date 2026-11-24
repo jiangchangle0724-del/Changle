@@ -78,7 +78,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant")]);
+        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet, standFeet }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant")]);
         if (gone) return;
         // her outfits, each loaded the first time it's wanted (with the dances she's on at the time)
         const outfits = new Map<string, Her>();
@@ -389,7 +389,11 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           // where the new dance has them, one and then the other (dancer/plant.ts)
           let feet = feetOfHer.get(her!);
           if (feet === undefined) feetOfHer.set(her!, (feet = feetOf(her!.root)));
-          if (feet) plantFeet(feet, handing, k);
+          if (feet) {
+            plantFeet(feet, handing, k);
+            // (and between hand-overs, a foot on the floor stays where it came down: plant.ts standFeet)
+            standFeet(feet, dt, !handing && !walking && !still.matches);
+          }
           const travel = stay ? 0 : hips.getWorldPosition(at).x;
           her!.root.position.x = -travel;
           const slide = x || travel ? `translate3d(${(x + travel * pxPerM()).toFixed(1)}px, 0, 0)` : "";

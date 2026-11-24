@@ -27,7 +27,7 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
-import { feetOf, plantFeet } from "../src/party/dj/dancer/plant";
+import { feetOf, plantFeet, standFeet } from "../src/party/dj/dancer/plant";
 import { CAPTURED_SKATE } from "./support/captured";
 import { LIMITS, motionFacts } from "./support/motion";
 
@@ -284,6 +284,40 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       }
       feet.legs.forEach((l, i) => (end = Math.max(end, l.foot.getWorldPosition(new THREE.Vector3()).distanceTo(anim[i]))));
       ok(wait < 0.005 && lifted && end < 0.001, `${at} ${lastClip.name || "before"} into ${d.id}: her feet stay where they stand, then step (waiting foot off ${(wait * 1000).toFixed(1)} mm, at the end ${(end * 1000).toFixed(1)} mm off)`);
+      mx.stopAllAction();
+      mx.uncacheRoot(gltf.scene);
+    }
+    // 8. her standing feet as the page keeps them (Nov 23; Steve: "跳舞的动作太多问题了，仔细核查"; plant.ts
+    // standFeet; not her walks, which the page doesn't hold): seven seconds of the dance, and a foot on the floor doesn't slide (nine in ten of its
+    // moments under 0.15 m a second, as the motion checks ask of a dance), and no foot ever jumps
+    if (!checkedDances.has(`${d.id} stand`) && !walks.some((w) => w.id === d.id)) {
+      checkedDances.add(`${d.id} stand`);
+      const mx = new THREE.AnimationMixer(gltf.scene);
+      const act = mx.clipAction(clip);
+      act.play();
+      const feet = feetOf(gltf.scene)!;
+      const fps = 60;
+      const slides: number[] = [];
+      let fastest = 0;
+      const last: (THREE.Vector3 | null)[] = [null, null];
+      for (let s = 0; s < fps * 7; s++) {
+        act.time = (s / fps) % clip.duration;
+        mx.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        standFeet(feet, 1 / fps, true);
+        feet.legs.forEach((l, i) => {
+          const p = l.foot.getWorldPosition(new THREE.Vector3());
+          const was = last[i];
+          if (was && s > fps) {
+            if (p.y < feet.low[i] + 0.02 && was.y < feet.low[i] + 0.02) slides.push(Math.hypot(p.x - was.x, p.z - was.z) * fps);
+            fastest = Math.max(fastest, p.distanceTo(was) * fps);
+          }
+          last[i] = p;
+        });
+      }
+      slides.sort((a, b) => a - b);
+      const slide = slides.length ? slides[Math.floor(slides.length * 0.9)] : 0;
+      ok(slide < 0.15 && fastest < 7, `${at} ${d.id}: her standing feet stay put (${slide.toFixed(2)} m/s, fastest ${fastest.toFixed(1)} m/s)`);
       mx.stopAllAction();
       mx.uncacheRoot(gltf.scene);
     }
