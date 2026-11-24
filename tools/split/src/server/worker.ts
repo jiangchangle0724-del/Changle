@@ -34,6 +34,7 @@ import {
   MEMBER_RE,
   NEXT_HEADER,
   OWNER_HEADER,
+  VIEW_HEADER,
   QUOTA,
   type ApiError,
   type Files,
@@ -514,7 +515,8 @@ export default {
     if (parts.length === 2 && req.method === "GET") {
       const since = url.searchParams.get("since");
       if (since === null) {
-        const got = await stub.read(keyHash);
+        // (the one thing a 查看链接's key does)
+        const got = await stub.look(keyHash);
         return got.ok ? json({ seq: got.seq, ledger: got.ledger } satisfies Snapshot) : failed(got);
       }
       const got = await stub.since(keyHash, /^\d{1,15}$/.test(since) ? Number(since) : -1);
@@ -533,6 +535,12 @@ export default {
       return got.ok ? json({ seq: got.seq, ledger: got.ledger } satisfies Snapshot) : failed(got);
     }
     if (parts.length === 3 && parts[2] === "invites" && req.method === "POST") return invite(req, env, ctx, stub, parts[1], key, keyHash);
+    if (parts.length === 3 && parts[2] === "view" && req.method === "PUT") {
+      const view = req.headers.get(VIEW_HEADER) ?? "";
+      if (!KEY_RE.test(view)) return refuse("bad", 400);
+      const got = await stub.view(keyHash, await sha256(view));
+      return got.ok ? json({ ok: true }) : failed(got);
+    }
     if (parts.length === 3 && parts[2] === "lock" && req.method === "POST") {
       const input = await body(req);
       if (!input) return refuse("bad", 400);
@@ -677,6 +685,15 @@ export class LedgerDO extends DurableObject<Env> {
 
   async read(keyHash: string | null): Promise<ReturnType<LedgerRoom["read"]>> {
     return this.room.read(keyHash);
+  }
+
+  async look(keyHash: string | null): Promise<ReturnType<LedgerRoom["look"]>> {
+    return this.room.look(keyHash);
+  }
+
+  /** Its 查看链接 is made (or made again: the same one). */
+  async view(keyHash: string | null, viewHash: string): Promise<ReturnType<LedgerRoom["view"]>> {
+    return this.room.view(keyHash, viewHash);
   }
 
   async push(keyHash: string | null, changes: unknown): Promise<ReturnType<LedgerRoom["push"]>> {

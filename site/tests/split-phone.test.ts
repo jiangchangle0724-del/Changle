@@ -85,7 +85,7 @@ const page = { visibilityState: "visible", addEventListener: listenTo, removeEve
 const storage = new Storage();
 
 /** One request the page made, and how the test answers it. */
-type Asked = { method: string; path: string; key: string | null; body: unknown; owner?: string; next?: string; auth?: string; type?: string; blob?: Blob };
+type Asked = { method: string; path: string; key: string | null; body: unknown; owner?: string; next?: string; view?: string; auth?: string; type?: string; blob?: Blob };
 type Answer = { status: number; json?: unknown; text?: string; bytes?: Uint8Array; type?: string } | "nothing" | "hangs";
 const asked: Asked[] = [];
 let answer: (a: Asked) => Answer = () => "nothing";
@@ -136,7 +136,7 @@ Object.assign(globalThis, {
   fetch: async (url: string, init: { method?: string; headers?: Record<string, string>; body?: string | Blob; signal?: AbortSignal } = {}) => {
     // (a change goes as words; a photo as itself)
     const words = typeof init.body === "string" ? init.body : undefined;
-    const a: Asked = { method: init.method ?? "GET", path: url, key: init.headers?.["x-split-key"] ?? null, body: words ? JSON.parse(words) : undefined, owner: init.headers?.["x-split-owner"], next: init.headers?.["x-split-next"], auth: init.headers?.authorization, ...(init.body instanceof Blob ? { type: init.headers?.["content-type"], blob: init.body } : {}) };
+    const a: Asked = { method: init.method ?? "GET", path: url, key: init.headers?.["x-split-key"] ?? null, body: words ? JSON.parse(words) : undefined, owner: init.headers?.["x-split-owner"], next: init.headers?.["x-split-next"], view: init.headers?.["x-split-view"], auth: init.headers?.authorization, ...(init.body instanceof Blob ? { type: init.headers?.["content-type"], blob: init.body } : {}) };
     asked.push(a);
     const how = answer(a);
     if (how === "nothing") throw new TypeError("Failed to fetch");
@@ -282,6 +282,26 @@ const { net } = await import("../src/split/net");
   eq([await net.rekey("ledger-9", KEY, NEXT), await net.lock("ledger-9", KEY, true)], [{ status: 403 }, { status: 403 }], "a key that isn't the owner's is refused by the server, in its own word");
   answer = () => ({ status: 403, text: "<html>Blocked</html>" });
   eq(await net.lock("ledger-9", OWNER, true), none, "and something in between saying no is no answer here either");
+
+  // a 查看链接: made with the ledger's key, its own in a header of its own; then read with its own key
+  const { viewNet } = await import("../src/split/net");
+  const VIEW = "v".repeat(43);
+  asked.length = 0;
+  answer = () => ({ status: 200, json: { ok: true } });
+  eq(await viewNet.make("ledger-9", KEY, VIEW), { status: 200, data: true }, "a 查看链接 made");
+  eq(asked, [{ method: "PUT", path: "/split/api/ledgers/ledger-9/view", key: KEY, body: undefined, view: VIEW }], "at the ledger's own address, the ledger's key and the link's each in a header, nothing in the body");
+  answer = () => ({ status: 403, json: { error: "key" } });
+  eq(await viewNet.make("ledger-9", KEY, VIEW), { status: 403 }, "with a key that doesn't open the ledger: the server says so");
+  answer = () => ({ status: 200, json: { seq: 1 } });
+  eq(await viewNet.make("ledger-9", KEY, VIEW), none, "an answer that isn't the server's yes is no answer");
+  asked.length = 0;
+  answer = () => ({ status: 200, json: snapshot });
+  eq(await viewNet.look("ledger-9", VIEW), { status: 200, data: snapshot }, "the ledger looked at with the link's key");
+  eq(asked, [{ method: "GET", path: "/split/api/ledgers/ledger-9", key: VIEW, body: undefined }], "read as the ledger is: the link's key where a key goes, and nothing of the ledger's own");
+  answer = () => ({ status: 404, json: { error: "gone" } });
+  eq(await viewNet.look("ledger-9", VIEW), { status: 404 }, "a ledger deleted: the server says so");
+  answer = () => ({ status: 200, text: "<!doctype html><title>开席</title>" });
+  eq(await viewNet.look("ledger-9", VIEW), none, "and the site's own page in the server's place is no answer");
 }
 
 // ---------- 3. the live connection ----------

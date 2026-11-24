@@ -116,6 +116,21 @@ A ledger made with no owner's key (every one made before owners came, with step 
 2026-11-13) has no owner: nobody can lock it, change its key or delete it. Anything but the
 owner's key gets 403 `owner`.
 
+### 查看链接: a key that only looks
+
+A ledger's 查看链接 (2026-11-23) lets whoever opens it look at the ledger and do nothing else. Its
+key is made on the phones from the ledger's own (`site/src/split/invite.ts`, `viewKeyOf`), so every
+phone in the ledger makes the same one; the server keeps its fingerprint beside the others.
+
+- `PUT …/ledgers/<id>/view`, with the ledger's key in `x-split-key` and the link's in
+  `x-split-view`: the link's key is kept (the same again changes nothing; another takes its place).
+  A locked ledger can have one. It can't be the ledger's key or its owner's (400 `bad`).
+- `GET …/ledgers/<id>` with the link's key where the ledger's key goes: the ledger, as with its own
+  key. That is the only thing it opens: its record, changes, the live connection, photos,
+  invitations, another 查看链接 and keeping it in an account's list all answer 403 `key`.
+- Changing the ledger's key lets the link's go too: the link stops working (403 `key`), and the
+  next one made from the new key is another link.
+
 ### My ledgers: a changle.ca account's
 
 The pages sign in with changle.ca's own accounts. A request that is signed in carries the site's

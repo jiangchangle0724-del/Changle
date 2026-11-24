@@ -436,6 +436,10 @@
   font-size: var(--text-sm);
   cursor: pointer;
 }
+/* (a 查看链接's faces open nothing) */
+.split-crew-faces.is-still {
+  cursor: default;
+}
 .split-crew-pile {
   display: flex;
   flex: none;
@@ -1032,9 +1036,10 @@
   transform: scale(0.965);
 }
 /* on the narrowest phones, in English, 几张小票 is its receipt alone (the word still read out), so
-   记一笔 keeps to one line beside it */
+   记一笔 keeps to one line beside it; and so is 查看链接 its link alone, beside 发结清图 */
 @media (max-width: 359px) {
-  :lang(en) .split-receipts-label {
+  :lang(en) .split-receipts-label,
+  :lang(en) .split-view-label {
     position: absolute;
     width: 1px;
     height: 1px;

@@ -267,6 +267,37 @@ test("the owner locks the ledger, and opens it again", () => {
   assert.deepEqual(new LedgerRoom(memoryStore()).lock("owner", true, NOW), { ok: false, error: "gone" });
 });
 
+test("a 查看链接: its key lets people look, and does nothing else", () => {
+  const { room, store } = make({ ownerHash: "owner" });
+  room.push("key", [expense("e1")], NOW + 1);
+  room.stored({ id: "f1", size: 300_000, type: "image/jpeg", by: "u1", at: NOW + 1 });
+  assert.deepEqual(room.look("view"), { ok: false, error: "key" }, "before it is made, nothing");
+  for (const who of ["view", "wrong", null, "owner"]) assert.deepEqual(room.view(who, "view"), { ok: false, error: "key" }, `not made by ${who ?? "nobody"}: only the key makes it`);
+  for (const same of ["key", "owner"]) assert.deepEqual(room.view("key", same), { ok: false, error: "bad" }, `never the ledger's own key or its owner's (${same})`);
+  assert.deepEqual(room.view("key", "view"), { ok: true, changed: true }, "the key makes it");
+  assert.deepEqual(room.view("key", "view"), { ok: true, changed: false }, "made again, the same: nothing changes");
+  const seen = room.look("view");
+  assert.ok(seen.ok && seen.ledger.entries.length === 1 && seen.seq === 1, "its key looks at the ledger as it stands");
+  assert.deepEqual(room.look("key"), seen, "and so does the ledger's own");
+  assert.deepEqual(
+    [room.read("view"), room.push("view", [expense("e2")], NOW + 2), room.since("view", 0), room.mayStore("view", "f2"), room.file("view", "f1"), room.listFiles("view"), room.unstore("view", "f1"), room.view("view", "view2")],
+    Array(8).fill({ ok: false, error: "key" }),
+    "and nothing else: no changes, no record, no files, no making another",
+  );
+  assert.ok(room.snapshot()!.seq === 1 && !("view" in room.snapshot()!.ledger), "nothing in the ledger, or its record, says it was made");
+  const woken = new LedgerRoom(store);
+  assert.ok(woken.look("view").ok, "it survives a restart");
+  // a locked ledger can have one: it isn't a change to the ledger
+  room.lock("owner", true, NOW + 3);
+  assert.deepEqual(room.view("key", "view3"), { ok: true, changed: true }, "a locked ledger can have one");
+  assert.ok(room.look("view3").ok && !room.look("view").ok, "the one made last is the one that works");
+  // the owner changes the key: the 查看链接 goes with the old one
+  room.rekey("owner", "key2");
+  assert.deepEqual(room.look("view3"), { ok: false, error: "key" }, "the key changed: the old 查看链接 is turned away");
+  assert.deepEqual(room.view("key", "view4"), { ok: false, error: "key" }, "and the old key makes no new one");
+  assert.ok(room.view("key2", "view4").ok && room.look("view4").ok, "the new key makes the next");
+});
+
 test("a locked ledger with its key changed: both hold", () => {
   const { room } = make({ ownerHash: "owner" });
   room.lock("owner", true, NOW + 1);

@@ -16,6 +16,7 @@ import type { Net, Reply } from "./syncer";
 
 const API = "/split/api";
 const KEY_HEADER = "x-split-key";
+const VIEW_HEADER = "x-split-view";
 /** the owner's key: sent when the ledger is made, and on the owner's two requests (which carry it instead of the key) */
 const OWNER_HEADER = "x-split-owner";
 /** the key the owner is changing to */
@@ -171,6 +172,15 @@ export const net: Net = {
   rekey: (id, owner, next) => ask(`/ledgers/${id}/key`, { [OWNER_HEADER]: owner, [NEXT_HEADER]: next }, asSnapshot, undefined, "POST"),
   lock: (id, owner, locked) => ask(`/ledgers/${id}/lock`, { [OWNER_HEADER]: owner }, asSnapshot, { locked }),
   listen,
+};
+
+/**
+ * A ledger's 查看链接: made (or made again, the same) with the ledger's key, its own key in a header
+ * of its own; and the ledger read with that key, which is all it does (tools/split/src/room/protocol.ts).
+ */
+export const viewNet = {
+  make: (id: string, key: string, view: string): Promise<Reply<true>> => ask(`/ledgers/${id}/view`, { [KEY_HEADER]: key, [VIEW_HEADER]: view }, asDone, undefined, "PUT"),
+  look: (id: string, view: string) => ask(`/ledgers/${id}`, { [KEY_HEADER]: view }, asSnapshot),
 };
 
 /** The ledger's record after change `seq` (0: from the start), at most a batch of it (the server's MAX_BATCH, 500). */

@@ -29,7 +29,7 @@ import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, dayBefore, decimalsOf, localDay, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
-import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
+import { inviteLink, inviteText, keyFrom, qrPath, viewKeyFrom, viewKeyOf, viewLink, viewText } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
 import { byDay, dayLabel, extrasText, lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, spentOn, standing, summaryLines, syncLine } from "../src/split/lines";
@@ -677,6 +677,30 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   ok(whole && qr?.size === want.size && want.size >= 21 && (qr?.d ?? "").replace(/M\d+ \d+h\d+v1h-\d+z/g, "") === "", `the code is drawn on a grid ${want.size} squares wide, in rectangles one square tall and nothing else`);
   ok(drawn.every((n, i) => n === (want.data[i] ? 1 : 0)), "every dark square is drawn once, and no light one");
   ok(qrPath("x".repeat(5000)) === null, "a text too long for a code draws nothing, and doesn't throw");
+}
+
+// ---------- 8b. a 查看链接 ----------
+{
+  const id = "Ab3-_xyzAb3-_xyzAb3-_x";
+  const key = newKey();
+  const view = await viewKeyOf(key);
+  // (ok, not eq: no key goes into the log)
+  ok(/^[A-Za-z0-9_-]{43}$/.test(view) && view !== key, "its key: 32 bytes written as a ledger's key is, and not the ledger's key");
+  ok((await viewKeyOf(key)) === view, "the same ledger key always makes the same one, so every phone in the ledger sends the same link");
+  const others = await Promise.all(Array.from({ length: 50 }, () => viewKeyOf(newKey())));
+  ok(new Set([view, ...others]).size === 51, "and another key makes another one (50 of them, none the same)");
+  ok(!view.includes(key.slice(0, 8)) && !key.includes(view.slice(0, 8)), "nothing of the ledger's key shows in it");
+  const link = viewLink("https://changle.ca", id, view);
+  ok(link === `https://changle.ca/split/${id}#v=${view}`, "the link: the ledger's address, and its own key after the # as v=");
+  const url = new URL(link);
+  eq(parse(url.pathname, url.search), { kind: "split", id }, "it opens the ledger's address");
+  ok(viewKeyFrom(url.hash) === view && keyFrom(url.hash) === null, "its key is read back from it, and it is no invitation");
+  ok(viewKeyFrom(`#k=${key}`) === null, "nor is an invitation a 查看链接");
+  ok([`#v=${view}&from=singlemessage`, `#from=timeline&v=${view}`].every((hash) => viewKeyFrom(hash) === view) && viewKeyFrom(`#v=${view}。`) === view, "whatever an app adds around it, or a full stop stuck to it, the key is still found");
+  for (const [what, hash] of [["no # part", ""], ["no key", "#v="], ["a key too short", "#v=abc"], ["another name", `#view=${view}`], ["a name that only ends in v", `#dev=${view}`]] as [string, string][])
+    ok(viewKeyFrom(hash) === null, `${what} is no 查看链接`);
+  ok(viewText("惠斯勒周末", link, "zh") === `「惠斯勒周末」的账目和结清，点开就能看：\n${link}`, "what is pasted into the group: what it is, then the link on a line of its own");
+  ok(viewText("Whistler", link, "en") === `See the expenses and who pays whom in "Whistler" on All Square:\n${link}`, "and in English");
 }
 
 // ---------- 9. words ----------
