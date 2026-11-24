@@ -1,4 +1,4 @@
-import { useId, useSyncExternalStore, type CSSProperties } from "react";
+import { useId, useSyncExternalStore } from "react";
 import {
   ArrowLeft,
   CircleHelp,
@@ -8,6 +8,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { Button } from "./Button";
+import { LangSwitch } from "./LangSwitch";
 import { gameLabels as labels } from "./gameLabels";
 import type { GameHeaderProps } from "./types";
 import "./GameHeader.css";
@@ -28,6 +29,7 @@ export function GameHeader({
   onTv,
   onHelp,
   extra,
+  onLang,
 }: GameHeaderProps) {
   const other = lang === "zh" ? "en" : "zh";
   const menuId = useId();
@@ -91,10 +93,8 @@ export function GameHeader({
   // couldn't open.
   const count = [sound, onTv, onHelp, extra].filter(Boolean).length;
   const many = !desktop && canPopover && count > 1;
-  // both sides as wide as the buttons in the bar, so the title stays centred and clear of them
-  const side = many ? 1 : Math.max(1, count);
   return (
-    <header className="ui-game-header" style={{ "--ui-game-side": side } as CSSProperties}>
+    <header className="ui-game-header">
       <Button
         tone="icon"
         icon={ArrowLeft}
@@ -118,6 +118,7 @@ export function GameHeader({
         )}
       </div>
       <div className="ui-game-header-actions">
+        {onLang && <LangSwitch lang={lang} onSwitch={onLang} />}
         {many ? (
           <>
             <button

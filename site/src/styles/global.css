@@ -573,6 +573,11 @@ p {
   align-items: center;
   gap: 2px;
 }
+/* sides wider than 96px (back and the language on the left, the table and the rules on the right):
+   both share what the title leaves, so the title stays in the middle however wide they are */
+.topbar-fit {
+  grid-template-columns: 1fr auto 1fr;
+}
 .topbar-right {
   justify-content: flex-end;
 }
