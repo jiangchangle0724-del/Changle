@@ -86,6 +86,16 @@ function startKeepAlive() {
 const GESTURES = ["touchend", "pointerup", "click", "keydown"] as const;
 let armed = false;
 
+/** Who wants to know when sound can or can't play (the "tap for sound" line, the TV's gate). */
+const watchers = new Set<() => void>();
+const tell = () => watchers.forEach((f) => f());
+export function onAudioState(f: () => void) {
+  watchers.add(f);
+  return () => {
+    watchers.delete(f);
+  };
+}
+
 function onGesture() {
   if (!enabled) return;
   askForPlaybackSession();
@@ -111,6 +121,7 @@ function onGesture() {
         stale = false;
         disarm();
       } else stale = true; // still armed: the next tap replaces it
+      tell();
     }),
   );
 }
@@ -162,6 +173,7 @@ function rebuild() {
     void settle(old.c.close());
   }
   resets.forEach((f) => f());
+  tell();
 }
 
 /** The page went away: stop the sound ourselves, so it can come back (see the top of this file). */
@@ -198,6 +210,7 @@ function wake() {
         stale = false;
         disarm();
       }
+      tell();
     }),
   );
 }
@@ -227,8 +240,34 @@ export function audioRunning() {
   return !!A && A.c.state === "running";
 }
 
+/**
+ * Sound is on and something wanted to play, but the browser won't let it until someone taps: a
+ * page that just opened, a phone back from its lock screen or another app (Steve 2026-11-23: a
+ * game started silent until a tap). Any tap brings it back (the gestures armed above).
+ */
+export function soundBlocked() {
+  return enabled && !!A && (A.c.state !== "running" || stale);
+}
+
+/**
+ * Start the sound without a tap, where the browser allows it: Safari with auto-play allowed for
+ * the site, Chrome once the site is a regular. Elsewhere it waits for a tap as before.
+ */
+export function tryAudio() {
+  const b = bus();
+  if (!b) return;
+  ticking(b.c, (ok) => {
+    if (ok && A === b) {
+      stale = false;
+      disarm();
+    }
+    tell();
+  });
+}
+
 export function setEnabled(on: boolean) {
   enabled = on;
+  tell();
   if (!A) return;
   if (!on) {
     if (A.c.state === "running") void settle(A.c.suspend());
@@ -302,11 +341,15 @@ export function bus(): Bus | null {
       music.connect(out);
       c.onstatechange = () => {
         if (c.state !== "running") arm();
+        tell();
       };
       A = { c, out, verb, music, dry };
     }
     // (a sound asked for while the page is hidden waits: the context stays stopped until it's back)
-    if (A.c.state !== "running" && A.c.state !== "closed" && document.visibilityState !== "hidden") void settle(A.c.resume());
+    if (A.c.state !== "running" && A.c.state !== "closed" && document.visibilityState !== "hidden") {
+      void settle(A.c.resume());
+      tell();
+    }
     return A;
   } catch {
     return null;

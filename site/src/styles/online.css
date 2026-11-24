@@ -451,6 +451,11 @@
   letter-spacing: 0.3em;
   text-transform: uppercase;
 }
+/* a Chinese keyboard turns the code's letters into characters (codeField.ts) */
+.code-ime {
+  margin: var(--space-2) 0 0;
+  color: var(--warn);
+}
 .code-input::placeholder {
   font-family: var(--font-text);
   font-weight: 400;

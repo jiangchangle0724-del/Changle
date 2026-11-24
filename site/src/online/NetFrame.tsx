@@ -12,6 +12,7 @@ import { ConnectionBanner, ReactionDock } from "./Overlays";
 import { ScreenHints } from "../ui/ScreenHints";
 import { useRoom } from "./RoomContext";
 import { GameExitSheet, LeaveSheet, TableSheet } from "./TableSheet";
+import { SoundNudge } from "../components/SoundNudge";
 import { useActionsInView, useMoreBelow } from "./useActionsInView";
 
 type Frame = { openInvite: () => void; openTable: () => void };
@@ -99,6 +100,7 @@ export function NetFrame({
           </div>
         </header>
         <ConnectionBanner />
+        {gid && !bigScreen && <SoundNudge lang={lang} />}
         {watching && (
           <div className="watch-strip" role="status">
             <Eye size={15} aria-hidden="true" />

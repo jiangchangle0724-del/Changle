@@ -1,18 +1,19 @@
 import { Dices, KeyRound, RadioTower, UserPlus, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { PlayersSheet } from "../components/PlayersSheet";
 import { GAME_BY_ID, GAMES, isNewGame, SOON, type GameId, type GameMeta, type SoonMeta } from "../games/registry";
 import { Sheet } from "../components/Sheet";
 import type { T } from "../i18n";
 import { LIGHTS, reduced, setLight } from "../lib/motion";
 import { haptic, sfx } from "../lib/sfx";
-import { OnlineSheet } from "../online/OnlineSheet";
 import { usePenaltyText, useStore } from "../store";
 import { Pill } from "../ui/Pill";
 import { Tile } from "../ui/Tile";
 import "../ui/base.css";
 import { GameSheet } from "./GameSheet";
 import { runSweep } from "../lib/sweep";
+
+const OnlineSheet = lazy(() => import("../online/OnlineSheet").then((m) => ({ default: m.OnlineSheet })));
 
 const ENTERED = "changle.entered";
 /** the last few games played on this phone, newest first: 现在玩这个 suggests something else */
@@ -83,6 +84,16 @@ export function PartyTab({
   const [playersOpen, setPlayersOpen] = useState(false);
   const [soonCard, setSoonCard] = useState<SoonMeta | null>(null);
   const [online, setOnline] = useState<{ open: boolean; game?: GameId; join?: boolean }>({ open: false });
+  // (the online sheet downloads the first time it opens, and stays for its closing slide)
+  const [onlineUsed, setOnlineUsed] = useState(false);
+  useEffect(() => {
+    if (online.open) setOnlineUsed(true);
+  }, [online.open]);
+  // (fetched while the page is idle, so the first tap opens it at once)
+  useEffect(() => {
+    const id = setTimeout(() => void import("../online/OnlineSheet"), 2500);
+    return () => clearTimeout(id);
+  }, []);
   const sheet: GameMeta | null = card ? GAME_BY_ID[card] : null;
   const [spinning, setSpinning] = useState(false);
   const [lit, setLit] = useState<number | null>(null);
@@ -389,7 +400,11 @@ export function PartyTab({
         onWishlist={onWishlist}
       />
       <PlayersSheet open={playersOpen} onClose={() => setPlayersOpen(false)} />
-      <OnlineSheet open={online.open} game={online.game} focusCode={online.join} onClose={() => setOnline({ open: false })} />
+      {onlineUsed && (
+        <Suspense fallback={null}>
+          <OnlineSheet open={online.open} game={online.game} focusCode={online.join} onClose={() => setOnline({ open: false })} />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { useKeeping } from "./Resume";
 import { clearSaved, writeSavedDots } from "./saved";
 import "../ui/base.css";
 import "./GameShell.css";
+import { SoundNudge } from "../components/SoundNudge";
 
 export function usePenalty() {
   const [call, setCall] = useState<PenaltyCall | null>(null);
@@ -155,6 +156,7 @@ export function GameShell({
           })}
         </div>
       )}
+      <SoundNudge lang={lang} />
       <div className="game-body">{children}</div>
       {actions && <div className="game-actions">{actions}</div>}
       <Sheet open={rulesOpen} onClose={() => setRulesOpen(false)} title={ui("rules")}>
