@@ -44,6 +44,8 @@ export type Meta = {
   keyHash: string;
   /** the fingerprint of its owner's key; a ledger made before there were owners has none, and no owner */
   ownerHash?: string;
+  /** the fingerprint of its 查看链接's key, which lets people look and do nothing else; none until one is made */
+  viewHash?: string;
   madeAt: number;
   /** how many changes have counted: the last one's number */
   seq: number;
@@ -163,6 +165,11 @@ export class LedgerRoom {
     return this.meta !== null && keyHash !== null && keyHash === this.meta.keyHash;
   }
 
+  /** Does this key let someone look at the ledger? Its own key does, and its 查看链接's, which does nothing else. */
+  shows(keyHash: string | null): boolean {
+    return this.opens(keyHash) || (this.meta?.viewHash !== undefined && keyHash !== null && keyHash === this.meta.viewHash);
+  }
+
   /** Is this the owner's key? (No key is, for a ledger with no owner.) */
   owns(ownerHash: string | null): boolean {
     return this.meta?.ownerHash !== undefined && ownerHash !== null && ownerHash === this.meta.ownerHash;
@@ -193,6 +200,30 @@ export class LedgerRoom {
   read(keyHash: string | null): Ok<Snapshot> | Fail {
     if (!this.meta) return fail("gone");
     return this.opens(keyHash) ? { ok: true, ...this.snapshot()! } : fail("key");
+  }
+
+  /** The ledger as it stands, to look at: with its key, or only its 查看链接's (`read` is for the key alone). */
+  look(keyHash: string | null): Ok<Snapshot> | Fail {
+    if (!this.meta) return fail("gone");
+    return this.shows(keyHash) ? { ok: true, ...this.snapshot()! } : fail("key");
+  }
+
+  /**
+   * Whoever holds the key makes the ledger's 查看链接: from now on this other key lets people look,
+   * and does nothing else. The phones make it from the ledger's key, so it is the same from every
+   * one of them and making it again changes nothing. A locked ledger can have one: it isn't a change
+   * to the ledger, and nothing is put in its record. It is never the ledger's own key, or its owner's.
+   */
+  view(keyHash: string | null, viewHash: string): Ok<{ changed: boolean }> | Fail {
+    if (!this.meta || !this.ledger) return fail("gone");
+    if (!this.opens(keyHash)) return fail("key");
+    if (viewHash === this.meta.keyHash || viewHash === this.meta.ownerHash) return fail("bad");
+    const changed = viewHash !== this.meta.viewHash;
+    if (changed) {
+      this.meta = { ...this.meta, viewHash };
+      this.store.save(this.meta, this.ledger);
+    }
+    return { ok: true, changed };
   }
 
   /**
@@ -241,8 +272,9 @@ export class LedgerRoom {
 
   /**
    * The owner changes the key: from now on only the new one opens the ledger, and the old
-   * invitation is turned away. Nothing in the ledger changes. Asked again with the same new key
-   * (the answer was lost), it is already so.
+   * invitation is turned away, and so is its 查看链接 (the phones make the next one from the new key).
+   * Nothing in the ledger changes. Asked again with the same new key (the answer was lost), it is
+   * already so.
    */
   rekey(ownerHash: string | null, nextHash: string): Ok<Snapshot & { changed: boolean }> | Fail {
     if (!this.meta || !this.ledger) return fail("gone");
@@ -250,7 +282,8 @@ export class LedgerRoom {
     if (nextHash === this.meta.ownerHash) return fail("bad");
     const changed = nextHash !== this.meta.keyHash;
     if (changed) {
-      this.meta = { ...this.meta, keyHash: nextHash };
+      const { viewHash: _let, ...meta } = this.meta;
+      this.meta = { ...meta, keyHash: nextHash };
       this.store.save(this.meta, this.ledger);
     }
     return { ok: true, ...this.snapshot()!, changed };
