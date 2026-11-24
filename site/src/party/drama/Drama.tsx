@@ -15,9 +15,9 @@ import { DramaActionHost, useSettle } from "./ShellActions";
 import { StageCall } from "./StageCall";
 import { useLocalGame, type LocalEvent, type LocalKept } from "./local";
 import { useDramaMusic } from "./score";
-import { loadLibrary, SceneWriter, TableScenes, type Draft } from "./writer";
+import { loadLibrary, SceneWriter, TableScenes, writeFull, type Draft } from "./writer";
 import { readKind } from "../../data/dramaReadings";
-import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
+import { Backdrop, BallotForm, Cast, Curtain, Finale, FirstTimeTips, Marquee, Playbill, ReadingCard, ReadingHead, ReadingText, Reveal, RoleCard, Roster, Rules, SceneClock, useStampDue, SetupPanel, Slate, stageOf, TwistBanner, type Actor, type Face } from "./parts";
 import { dramaSfx } from "./sound";
 
 /** Scenes written on this phone and not played yet: kept, so leaving the game doesn't lose them. */
@@ -175,7 +175,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
     return () => { ctl.abort(); if (!settled) libAsked.current = -1; setLibraryLoading(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v.phase, v.lib, v.round, libraryAttempt]);
-  const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = -1; setLibraryAttempt((n) => n + 1); } }} />;
+  const tableScenes = <TableScenes v={v} me={host} isHost nameOf={nameOf} onWrite={() => setWriting(true)} onRemove={(id) => act(host, "unwrite", { id })} library={{ loading: libraryLoading, failed: libraryFailed, retry: () => { libAsked.current = -1; setLibraryAttempt((n) => n + 1); } }}  full={writeFull(v, null, zh)} />;
   const round = `${v.round}-${v.phase}`;
   const last = useRef(saved ? round : "");
   useEffect(() => {
@@ -207,6 +207,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const voters = v.peer ? v.cast.map((c) => c.pid) : audience;
   // who acts next: the phone taps their names (nobody tapped: picked at random)
   const blocked = v.next ? !v.next.ok : false;
+  const stampDue = useStampDue(v.stampAt, Date.now);
   const stageCall = <StageCall v={v} ids={ids} nameOf={nameOf} face={face} onWant={(want, who) => act(host, "want", { who, want })} />;
 
   const stage = (open: boolean, live: boolean, extra?: ReactNode) => (
@@ -444,10 +445,10 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   } else if (v.phase === "reveal" && v.result) {
     actions = (
       <>
-        <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => act(host, "setup"))}>
+        <button type="button" className="btn btn-lg btn-ghost" disabled={stampDue} onClick={settle(() => act(host, "setup"))}>
           {zh ? "换个玩法" : "Change the setup"}
         </button>
-        <button type="button" className="btn btn-primary btn-lg" disabled={v.round < v.total && blocked} onClick={settle(() => act(host, "next"))}>
+        <button type="button" className="btn btn-primary btn-lg" disabled={(v.round < v.total && blocked) || stampDue} onClick={settle(() => act(host, "next"))}>
           {v.round >= v.total ? (zh ? "颁奖" : "On to the awards") : blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "下一幕" : "Next act"}
         </button>
       </>
@@ -462,10 +463,10 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   } else if (v.phase === "end") {
     actions = (
       <>
-        <button type="button" className="btn btn-lg btn-ghost" onClick={settle(() => act(host, "setup"))}>
+        <button type="button" className="btn btn-lg btn-ghost" disabled={stampDue} onClick={settle(() => act(host, "setup"))}>
           {zh ? "换个玩法" : "Change the setup"}
         </button>
-        <button type="button" className="btn btn-primary btn-lg" disabled={blocked} onClick={settle(() => act(host, "more"))}>
+        <button type="button" className="btn btn-primary btn-lg" disabled={blocked || stampDue} onClick={settle(() => act(host, "more"))}>
           {blocked ? (zh ? "还没人上台" : "Nobody's on stage yet") : zh ? "再演三幕" : "Three more acts"}
         </button>
       </>
@@ -492,7 +493,7 @@ function DramaGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
         actions={actions}
       >
         <div className="dm">{body}</div>
-        <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} writers={players.map((p) => ({ id: p.id, name: p.name }))} onAdd={write} />
+        <SceneWriter open={writing} onClose={() => setWriting(false)} level={v.level} writers={players.map((p) => ({ id: p.id, name: p.name }))} onAdd={write} full={(by) => writeFull(v, by && ids.includes(by) ? by : host, zh)} />
       </GameShell>
     </DramaActionHost.Provider>
   );

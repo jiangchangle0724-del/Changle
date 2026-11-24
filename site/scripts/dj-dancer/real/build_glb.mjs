@@ -1,7 +1,9 @@
 // The real dancer's file: the simplified model, skinned to her Mixamo-named skeleton (rest turns none,
 // like MPFB2's), the baked texture as WebP, compressed with meshopt and gzipped. With springs.json
 // (springs.py) next to the mesh: her hair's and skirt's bones too, and in the scene's extras what the
-// page swings and keeps off her (dancer/springs.ts).
+// page swings and keeps off her (dancer/springs.ts). With face_w.f32 next to the texture
+// (facekit.py): how much each of her vertices is her face (`_FACE`, 0 to 1: the page lights it as its
+// photo was lit).
 // usage: node build_glb.mjs <mesh dir> <joints.json> <texture.png> <out .glb.gz> [--plain out.glb]
 import { Document, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
@@ -37,6 +39,13 @@ const prim = doc.createPrimitive()
   .setAttribute('POSITION', acc('VEC3', P)).setAttribute('NORMAL', acc('VEC3', N)).setAttribute('TEXCOORD_0', acc('VEC2', UV))
   .setAttribute('JOINTS_0', acc('VEC4', J4)).setAttribute('WEIGHTS_0', acc('VEC4', W4))
   .setIndices(acc('SCALAR', I));
+const faceFile = join(dirname(texfile), 'face_w.f32');
+if (existsSync(faceFile)) {
+  const b = readFileSync(faceFile);
+  const F = new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+  if (F.length !== P.length / 3) throw new Error(`face_w.f32 has ${F.length} vertices, the mesh ${P.length / 3}`);
+  prim.setAttribute('_FACE', acc('SCALAR', F.map((v) => Math.round(Math.min(1, Math.max(0, v)) * 100) / 100)));
+}
 // (its alpha, from eyes.py: where her eyes are, for the page's blink; lossless, so the marks stay)
 const webp = await sharp(texfile).webp({ quality: 86, alphaQuality: 100, effort: 6 }).toBuffer();
 const lidFile = join(dirname(texfile), 'lid.json');
@@ -45,6 +54,18 @@ const tex = doc.createTexture('her').setImage(webp).setMimeType('image/webp');
 const mat = doc.createMaterial('Her').setBaseColorTexture(tex).setRoughnessFactor(0.62).setMetallicFactor(0);
 prim.setMaterial(mat);
 const mesh = doc.createMesh('Body').addPrimitive(prim);
+// her expressions (expressions.py; Nov 21, Steve: "表情可以做但要很细致"): a few millimetres' change of her
+// face each, as morph targets the page weighs (morphs.json next to the mesh: their names and files)
+const morphFile = join(dir, 'morphs.json');
+if (existsSync(morphFile)) {
+  const M = JSON.parse(readFileSync(morphFile, 'utf8'));
+  for (const [k, name] of M.names.entries()) {
+    const D = raw(M.files[k], Float32Array);
+    if (D.length !== P.length) throw new Error(`${M.files[k]} has ${D.length / 3} vertices, the mesh ${P.length / 3}`);
+    prim.addTarget(doc.createPrimitiveTarget(name).setAttribute('POSITION', acc('VEC3', D)));
+  }
+  mesh.setWeights(M.names.map(() => 0)).setExtras({ targetNames: M.names });
+}
 const nodes = {};
 for (const b of skel) nodes[b] = doc.createNode(b);
 for (const b of skel) {

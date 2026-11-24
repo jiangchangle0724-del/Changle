@@ -7,7 +7,7 @@ import type { OrderPage } from "../../api";
 import { BASE } from "../../base";
 import { TAIL_RE } from "../../engine/phone";
 import { weighed } from "../../engine/types";
-import { ApiFail, cancelOrder, getOrder, rememberOrder, tailOf } from "../api";
+import { ApiFail, cancelOrder, getOrder, rememberOrder, tailOf, takeHanded } from "../api";
 import { t, unitName, whenText } from "../i18n";
 import { Copyable, CopyButton, emailIn, IconCheck, Lines, money, qtyText, Sheet, Toast, TopBar, useLang, useTitle } from "./common";
 
@@ -15,7 +15,8 @@ export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
   useLang();
   const [tail, setTail] = useState(tailOf(code) ?? "");
   const [typed, setTyped] = useState("");
-  const [page, setPage] = useState<OrderPage | null>(null);
+  // (just placed or changed: the group buy's page handed it over, so it shows at once)
+  const [page, setPage] = useState<OrderPage | null>(() => takeHanded(code));
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -41,7 +42,7 @@ export function OrderView({ code, fresh }: { code: string; fresh: boolean }) {
   useEffect(() => {
     // ("just placed" is said once: the address loses its ?new=1, so a reload or a shared link doesn't say it again)
     if (fresh) history.replaceState(history.state, "", location.pathname);
-    if (tail) void open(tail);
+    if (tail && !page) void open(tail);
   }, []);
   useEffect(() => {
     if (!toast) return;

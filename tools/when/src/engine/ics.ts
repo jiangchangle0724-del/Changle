@@ -13,7 +13,7 @@ export type CalendarEntry = {
   part: Part;
   /** When it was set, in milliseconds. */
   setAt: number;
-  /** The minutes of the day it runs, when the time was set to the minute (a gathering asked by the period). */
+  /** The minutes of the day it runs, when the time was set to the minute (a gathering asked by the period); `from` alone: it starts then. */
   from?: number;
   to?: number;
 };
@@ -31,6 +31,11 @@ function range(entry: CalendarEntry): { start: string; end: string; allDay: bool
     return { start: utc(instant(entry.day, 0, entry.from)), end: utc(instant(entry.day, 0, entry.to)), allDay: false };
   }
   const hours = PART_HOURS[entry.part];
+  // starting at a set time (几点开始): until the period's usual end, and two hours at least
+  if (entry.from !== undefined) {
+    const end = Math.max(hours.end[0] * 60 + hours.end[1], entry.from + 120);
+    return { start: utc(instant(entry.day, 0, entry.from)), end: utc(instant(entry.day, 0, end)), allDay: false };
+  }
   return {
     start: utc(instant(entry.day, ...hours.start)),
     end: utc(instant(entry.day, ...hours.end)),

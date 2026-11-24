@@ -4,12 +4,15 @@ AI-made with OpenAI's built-in image generation by Codex on 2026-11-13, then res
 compressed to WebP. Prompts describe only what to draw; no other product's name or picture was
 used as a reference. The site's own `site/src/party/straightface/art/backdrop.webp` was inspected
 for the shared night palette before drawing. `invite-bg.webp` and `result-bg.webp` are the
-backgrounds of the pictures the pages draw (`../picture.ts`); the other two aren't on a page yet.
+backgrounds of the pictures the pages draw (`../picture.ts`); `empty.webp` is the best three while
+nobody has answered (`../ui/Event.tsx`, 2026-11-20); `home.webp` is for 约时间's card on
+changle.ca's tools page, which is still hidden.
 
 由 Codex 于 2026-11-13 使用 OpenAI 内置图片生成工具绘制，再缩放、压缩为 WebP。提示词只描述
 要画的东西，不使用其他产品的名称或图片作参考。绘制前查看了本站自己的
 `site/src/party/straightface/art/backdrop.webp`，沿用夜色色调。`invite-bg.webp` 和 `result-bg.webp`
-是页面画的邀请图、结果图的背景（`../picture.ts`）；另外两张页面还没用上。
+是页面画的邀请图、结果图的背景（`../picture.ts`）；`empty.webp` 在还没有人填时的「最佳前三」里
+（`../ui/Event.tsx`，2026-11-20）；`home.webp` 留给主站工具页上约时间的卡片，那张卡片还藏着。
 
 All four: flat illustration, soft gradients, no outlines; calm, low contrast deep indigo and
 purple night (around `#0e0c22`) with warm amber lamp light. No text, letters, numbers, logos,

@@ -1,7 +1,8 @@
 # Runs every time MoneyLens changes (tools/moneylens): types, the unit tests of its rules (amounts,
-# statement parsers, reconciliation, duplicates, pairing, classification, totals), and an audit of
-# the packages it ships. Its samples are synthetic: no real statement ever enters this repository
-# (docs/moneylens.md, SEC-12). The actions are pinned by commit (SEC-7).
+# statement parsers, reconciliation, duplicates, pairing, classification, totals), an audit of the
+# packages it ships, and the statement check page, built and opened in the runner's own Chrome. Its
+# samples are synthetic: no real statement ever enters this repository (docs/moneylens.md, SEC-12).
+# The actions are pinned by commit (SEC-7).
 name: moneylens
 
 on:
@@ -38,3 +39,5 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm test
+      # the page as one file, then a made-up statement and a made-up PDF through it in a real browser
+      - run: npm run test:page

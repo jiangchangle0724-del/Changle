@@ -21,6 +21,22 @@ html.tv-mode .room-light {
   overflow: hidden;
   background: #07040a;
 }
+/* Two fingers don't zoom the big screen's picture, here or on a phone that watches (.watch,
+   tv-show.css). Steve, 2026-11-21: zooming it on his iPhone made Safari crash again and again.
+   Safari draws each moving part of the 1600x900 stage at its full size times the zoom, while the
+   stage shows at a quarter of that on a phone, so a little zoom costs gigabytes. The picture
+   already fills the screen. A page that is zoomed in already (Safari can bring one back zoomed)
+   can still be pinched back out: `is-zoomed`, from useNoPinch in Frame.tsx. */
+.tv-fit,
+.tv-fit *,
+.watch,
+.watch * {
+  touch-action: none;
+}
+:root.is-zoomed :is(.tv-fit, .watch),
+:root.is-zoomed :is(.tv-fit, .watch) * {
+  touch-action: manipulation;
+}
 .tv-canvas {
   position: absolute;
   left: 50%;
@@ -726,57 +742,124 @@ html.tv-mode .room-light {
   }
 }
 
-/* ---------- a penalty, stamped across the bottom ---------- */
-.tv-pen {
+/* ---------- a penalty, stamped across the screen as on the phones (components.css .stamp-*) ---------- */
+.tv-stamp {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 40px;
+  inset: 0;
   z-index: 28;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 20px;
-  width: fit-content;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 14px 34px 14px 16px;
-  border-radius: 999px;
+  justify-content: center;
+  gap: 36px;
+  padding: 80px 120px;
+  background:
+    radial-gradient(70% 60% at 50% 46%, color-mix(in oklab, var(--stop) 30%, transparent) 0%, transparent 70%),
+    var(--night);
+  color: var(--moon);
+  pointer-events: none;
+}
+.tv-stamp.is-safe {
+  background:
+    radial-gradient(70% 60% at 50% 46%, color-mix(in oklab, var(--go) 26%, transparent) 0%, transparent 70%),
+    var(--night);
+}
+.tv-stamp-flash {
+  position: absolute;
+  inset: 0;
   background: var(--stop);
-  color: #fff;
-  box-shadow:
-    0 0 0 6px rgba(255, 77, 109, 0.28),
-    0 24px 60px rgba(0, 0, 0, 0.5);
+  opacity: 0;
 }
-.tv-pen.is-safe {
+.tv-stamp.is-safe .tv-stamp-flash {
   background: var(--go);
-  color: var(--night);
-  box-shadow:
-    0 0 0 6px color-mix(in oklab, var(--go) 30%, transparent),
-    0 24px 60px rgba(0, 0, 0, 0.5);
 }
-.tv-pen-faces {
+.tv-stamp-names {
+  position: relative;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 18px 44px;
+  max-width: 1500px;
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
-.tv-pen-faces > * + * {
-  margin-left: -14px;
-}
-.tv-pen-text {
-  display: flex;
-  align-items: baseline;
+.tv-stamp-name {
+  display: inline-flex;
+  align-items: center;
   gap: 18px;
-  min-width: 0;
 }
-.tv-pen-who {
-  overflow: hidden;
-  font-size: 30px;
+.tv-stamp-name.is-done {
+  color: var(--go);
+}
+.tv-stamp-count {
+  margin-left: 24px;
+  font-size: 40px;
+  color: var(--haze);
+}
+.tv-stamp-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 70px;
+}
+.tv-stamp-seal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--stop);
+  text-align: center;
+  transform: rotate(-3deg);
+}
+.tv-stamp.is-safe .tv-stamp-seal {
+  color: var(--go);
+}
+.tv-stamp-big {
+  font-family: var(--font-display);
+  font-size: 320px;
   font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  text-shadow:
+    0 0 50px color-mix(in oklab, currentColor 55%, transparent),
+    0 0 130px color-mix(in oklab, currentColor 35%, transparent);
 }
-.tv-pen-what {
-  font-size: 44px;
-  font-weight: 900;
-  white-space: nowrap;
+.tv-stamp-big.en-display {
+  font-size: 230px;
+}
+.tv-stamp.is-custom .tv-stamp-big {
+  max-width: 1400px;
+  font-family: var(--font-text);
+  font-size: 110px;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+.tv-stamp-second {
+  font-size: 84px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--moon);
+}
+.tv-stamp.is-custom .tv-stamp-second {
+  font-size: 64px;
+}
+.tv-stamp-glass {
+  transform-origin: 50% 100%;
+}
+.tv-stamp-note {
+  position: relative;
+  max-width: 1200px;
+  margin: 0;
+  font-size: 40px;
+  color: var(--haze);
+  text-align: center;
+  text-wrap: balance;
+}
+.tv-stamp-glass .glass-wrap {
+  filter: drop-shadow(0 30px 40px color-mix(in oklab, var(--night) 70%, transparent));
 }
 
 @media (prefers-reduced-motion: reduce) {

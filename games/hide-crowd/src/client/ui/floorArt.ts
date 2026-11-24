@@ -48,6 +48,8 @@ export interface FloorArtPalette {
   white: string;
   dark: string;
   font: string;
+  /** the narrower running-text face, for signs that have to fit (the transit hall's EXIT) */
+  textFont: string;
 }
 
 /** the part of the floor the art covers, in scene units: what any screen sees in front of the sets */
@@ -158,17 +160,6 @@ function leaf(context: Draw, x: number, z: number, size: number, turn: number, c
     context.stroke();
   }
   context.restore();
-}
-
-/** a rounded rectangle's path (by hand: older Safari has no roundRect) */
-function rounded(context: Draw, x: number, y: number, width: number, height: number, radius: number) {
-  context.beginPath();
-  context.moveTo(x + radius, y);
-  context.arcTo(x + width, y, x + width, y + height, radius);
-  context.arcTo(x + width, y + height, x, y + height, radius);
-  context.arcTo(x, y + height, x, y, radius);
-  context.arcTo(x, y, x + width, y, radius);
-  context.closePath();
 }
 
 /** a painted pictogram on a path: someone walking, or a bicycle */
@@ -324,35 +315,34 @@ function transit(context: Draw, palette: FloorArtPalette, random: () => number) 
   context.textBaseline = "middle";
   context.textAlign = "center";
   for (const side of [-1, 1]) {
-    // (between the walkways' ends and the screen's edge, on a dark decal so it reads on the pale tiles)
-    const x = side * 10.85;
-    context.fillStyle = mix(palette.steel, palette.dark, 0.72);
-    rounded(context, cx(x - 0.8), cz(-1.55), 1.6 * PX, 3.1 * PX, 0.18 * PX);
-    context.fill();
-    for (const [z, words, size] of [
-      [-1.0, "出口", 0.62],
-      [-0.2, "EXIT", 0.5]
-    ] as const) {
-      context.font = `800 ${Math.round(PX * size)}px ${palette.font}`;
-      context.fillStyle = palette.white;
-      context.fillText(words, cx(x), cz(z));
-    }
-    // an arrow pointing out of the hall
-    context.save();
-    context.translate(cx(x), cz(0.85));
-    context.scale(side * 0.8, 0.8);
-    context.fillStyle = palette.tactile;
-    context.beginPath();
-    context.moveTo(PX * 0.85, 0);
-    context.lineTo(PX * 0.2, -PX * 0.5);
-    context.lineTo(PX * 0.2, -PX * 0.2);
-    context.lineTo(-PX * 0.8, -PX * 0.2);
-    context.lineTo(-PX * 0.8, PX * 0.2);
-    context.lineTo(PX * 0.2, PX * 0.2);
-    context.lineTo(PX * 0.2, PX * 0.5);
-    context.closePath();
-    context.fill();
-    context.restore();
+    // A dark plate shaped like an arrow, pointing out of the hall, with its head in the guide strip's
+    // yellow. It sits between the walkways' end and the screen's edge, in front of the hall's column
+    // and above the stick (2026-11-20: further forward, the screen's edge cut it; further back, the
+    // column and the route totem stood in front of it). Every phone 2:1 or wider shows all of it.
+    const inner = 9.95;
+    const body = 10.98;
+    const tip = 11.36;
+    const back = -0.76;
+    const front = 0.26;
+    const middle = (back + front) / 2;
+    const plate = (points: readonly (readonly [number, number])[], color: string) => {
+      context.fillStyle = color;
+      context.beginPath();
+      points.forEach(([x, z], index) => {
+        if (index) context.lineTo(cx(side * x), cz(z));
+        else context.moveTo(cx(side * x), cz(z));
+      });
+      context.closePath();
+      context.fill();
+    };
+    plate([[inner, back], [body, back], [tip, middle], [body, front], [inner, front]], mix(palette.steel, palette.dark, 0.72));
+    plate([[body - 0.03, middle - 0.27], [tip - 0.1, middle], [body - 0.03, middle + 0.27]], palette.tactile);
+    const center = side * ((inner + body) / 2 - 0.02);
+    context.fillStyle = palette.white;
+    context.font = `800 ${Math.round(PX * 0.42)}px ${palette.font}`;
+    context.fillText("出口", cx(center), cz(back + 0.29));
+    context.font = `800 ${Math.round(PX * 0.36)}px ${palette.textFont}`;
+    context.fillText("EXIT", cx(center), cz(front - 0.26));
   }
   // steel drain covers, and scuffs where people stand waiting
   for (const [x, z] of [

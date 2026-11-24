@@ -14,6 +14,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { loadNewVersion } from "./lib/freshness";
 
+// A double tap never zooms. iPhone Safari honours touch-action (global.css gives it to every element)
+// only on a tap near something that listens for clicks, so the page itself listens.
+document.documentElement.addEventListener("click", () => {});
+
 // A game's file failed to load: the site has been updated since this page opened. Open the new
 // version. (Vite says so for every screen loaded on demand; ScreenGuard catches the rest.)
 window.addEventListener("vite:preloadError", () => {
@@ -28,6 +32,9 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   if (document.readyState === "complete") register();
   else window.addEventListener("load", register, { once: true });
 }
+
+// the owner's edits to the site's words (lib/copy.ts), in a file of their own beside the first download
+void import("./lib/copy").then((m) => m.startCopy());
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

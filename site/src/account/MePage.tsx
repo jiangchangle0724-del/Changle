@@ -1,4 +1,4 @@
-import { ChevronRight, Copy, LogOut, Pencil, PersonStanding, ShieldCheck, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, LogOut, Pencil, PersonStanding, ShieldCheck, Smartphone, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Sheet } from "../components/Sheet";
 import { TopBar } from "../components/TopBar";
@@ -13,6 +13,7 @@ import { figureBody } from "./avatar/pics";
 import { Face } from "./avatar/Face";
 import { FriendsPanel, useFriends } from "./Friends";
 import { FavoriteGame, HistoryList, type HistoryRow } from "./History";
+import { EmailChange, EmailPending } from "./EmailChange";
 import { ProfileForm } from "./ProfileForm";
 import { PageLoading } from "../games/GameLoading";
 import { EmptyState } from "../ui/EmptyState";
@@ -38,6 +39,30 @@ function Profile({ onBack }: { onBack: () => void }) {
   const [historyFailed, setHistoryFailed] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const signOutOthers = async () => {
+    try {
+      const waiting = !!me?.emailPending;
+      const r = await api<{ out: number; left: number; cancelled: boolean; user: SelfUser }>("/me/sessions/others", { method: "POST", body: {} });
+      setMe(r.user);
+      const said = r.out ? (zh ? `别的 ${r.out} 部手机已经退出登录。` : `Signed out on ${r.out} other phone${r.out === 1 ? "" : "s"}.`) : zh ? "没有更早登录的手机。" : "No phone signed in before this one.";
+      // (only phones signed in before this one go: one signed in later stays, so a stolen session can't
+      // sign out the owner's new one. Signing in again gets the rest, but only with mail at the address:
+      // not said while a change waits, when it may be lost)
+      const newer = !r.left
+        ? ""
+        : waiting
+          ? zh
+            ? ` 还有 ${r.left} 部是在这部之后登录的，退不掉。`
+            : ` ${r.left} signed in after this phone and stay.`
+          : zh
+            ? ` 还有 ${r.left} 部是在这部之后登录的，退不掉。能收到 ${me?.email} 的信的话：在这部手机上退出，重新登录，再点一次。`
+            : ` ${r.left} signed in after this phone and stay. If you still get mail at ${me?.email}: sign out here, sign in again, then tap this once more.`;
+      const gone = r.cancelled ? (zh ? " 等着的换邮箱是从退出的手机上发起的，也取消了。" : " The waiting email change was asked from a phone that's now signed out, so it's cancelled too.") : "";
+      toast(said + newer + gone, r.left || r.cancelled ? { duration: 10000 } : { tone: "success" });
+    } catch {
+      toast(zh ? "没退出成，再试一次" : "That didn't go through. Try again", { tone: "danger" });
+    }
+  };
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -162,6 +187,8 @@ function Profile({ onBack }: { onBack: () => void }) {
         </div>
       </header>
       {me.bio && <p className="me-bio">{me.bio}</p>}
+      {/* a 换邮箱 waiting its three days, where whoever has this phone sees it (a change they didn't ask for, too) */}
+      <EmailPending me={me} onChanged={setMe} />
       {/* the 3D figure, for the owner while it's a prototype: up here, where it's seen (Steve, Nov 18) */}
       {me.master && (
         <a className="me-3d" href="/me/figure">
@@ -234,15 +261,18 @@ function Profile({ onBack }: { onBack: () => void }) {
           <LogOut size={15} />
           {zh ? "退出登录" : "Sign out"}
         </button>
+        {/* (a phone left signed in somewhere, or someone else's: this one stays, the rest sign out) */}
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void signOutOthers()}>
+          <Smartphone size={15} />
+          {zh ? "退出其他手机" : "Sign out other phones"}
+        </button>
         <button type="button" className="link-btn danger" onClick={() => setDeleting(true)}>
           <Trash2 size={14} /> {zh ? "删除账号" : "Delete account"}
         </button>
       </div>
 
       <Sheet open={editing} onClose={() => setEditing(false)} title={zh ? "编辑主页" : "Edit profile"} gel="#ff9cc5">
-        <p className="hint" style={{ marginBottom: 12 }}>
-          {zh ? `登录邮箱 ${me.email}` : `Signed in as ${me.email}`}
-        </p>
+        <EmailChange me={me} onChanged={setMe} />
         <ProfileForm
           mode="edit"
           uid={me.id}

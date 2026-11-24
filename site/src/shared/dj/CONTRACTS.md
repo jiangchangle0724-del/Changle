@@ -125,16 +125,24 @@ wait ──speaker: live──▶ warm ──15 min──▶ build ──15 min�
   样的短裙，跳温柔柔和一点的。不同的曲风设计不同的衣服，不同的舞蹈，包括背景的灯光"): a whole song's own tempo
   says which (`lookOf`: under 90 BPM `sweet`, from 115 `club`, between `party`); with the DJ, or a
   song whose tempo wasn't found, the stretch (the cool-down `sweet`, the warm-up `party`, the build
-  and the peak `club`). Each look its outfit (`OUTFIT`: `sweet` her first-love blouse and pleated
-  skirt, `her-sweet.glb.gz`; `club` her club outfit, `her.glb.gz`; `party` her rose-gold sequin
-  party dress, `her-party.glb.gz`), fetched the first time it's wanted and changed into in a flash of light (an
+  and the peak `club`). Each look its outfits (`OUTFITS`, since Nov 21 all on the first
+  dancer: `sweet` the eyelet dress, the first-love blouse and pleated skirt, the cardigan and midi
+  skirt, the qipao set, the jade classical dance costume; `party` the lace dress, the rose-gold sequin
+  dress, the qipao set, the leather jacket, the wine-red evening gown, the champagne ballroom dress; `club` her own club outfit `her.glb.gz`, the leather jacket, the sequin dress, the lace
+  dress; `her-<id>.glb.gz`), a song wearing one of them (`outfitFor`: its id, the
+  same song the same outfit; no song, the first), fetched the first time it's wanted and changed into in a flash of light (an
   iPhone or iPad as the speaker keeps one at a time), its dances, and while a song plays whole the
   stage's lights (`look-*` on `.dj-stage`: the ballad's soft pink and gold, the beams slow and dim,
   no flashes; the party's gold and orchid; the club's pink and cyan, the beams quick and bright).
   Her hair's ends and a skirt swing on springs as she moves (`dancer/springs.ts`, three-vrm's way:
   their bones from `site/scripts/dj-dancer/real/springs.py`, kept off her by round shapes on her
-  bones); she blinks every two to six seconds (where her eyes are is in her texture's alpha,
-  `eyes.py`: a lid the colour of the skin round them comes down); the robot and the drawn one dance the routine, nine simple standing moves
+  bones); her face is the same in every outfit (Nov 21: `facekit.py`) and lit as its photo was
+  (`_FACE` on her vertices: the stage's light kept off it, mostly); she blinks every two to six seconds (where her eyes are is in her texture's alpha,
+  `eyes.py`: a lid the colour of the skin round them comes down); she walks the stage (Nov 20)
+  while someone is on the floor and no song's video is in the middle (`roam`): now and then, at a
+  new dance, to a spot a few steps away not behind a floor dancer, in her look's walk (`WALKS`, a
+  step on each beat or on every other), her canvas sliding along behind the floor's dancers; back to
+  her place when a video comes, in her place over one in the corner and with reduced motion; the robot and the drawn one dance the routine, nine simple standing moves
   (`shared/dj/dance.ts`, `DANCE_MOVES`), which and in what order following the stretch (`ROUTINES`,
   `moodOf`; a slow song, under 90 BPM by its own tempo,
   the gentle ones), 16 beats each (`moveAt`). The phones have nothing of hers. Gone with 跟着跳

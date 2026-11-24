@@ -215,7 +215,27 @@
 
 ## 还剩什么
 
-- 舞者接着做（11-18 深夜 Steve 要的）：在整个舞台上左右走（分支 `claude/dj-dancer-walk` 上做了一半，缺 Mixamo 的走路动作）；更多的舞（抒情的温柔的、派对的、街舞），Mixamo 在 Claude 桌面版的浏览器里登录过期了，要 Steve 登一下。
+- 舞者在整个舞台上走（11-18 深夜 Steve 要的，11-20 做完）：舞池上有人、中间没有视频的时候，每换一支舞有一半机会走到别处（离得够远，不站在玩家后面），抒情的温柔走、派对的猫步、快歌的性感走，踩着拍子（歌比她的步子快很多就两拍一步）；她的画布在舞台上滑，人在里面原地走，在玩家后面；来了视频就走回左边，视频铺满时在角落不动，手机或电视设了减少动画就不走。旧分支 `claude/dj-dancer-walk`（用整个舞台宽的画布）没用，新的是 `claude/dj-dancer-roam`。Mixamo 11-20 用 Steve 的 Google 账号登上了（Claude 桌面版的浏览器，没输密码）。
+- 11-21 Steve 拍了电视：脸扭曲、跳得不自然、手机当音箱放完一首就停。他选了一张参考图的脸（他发的第三张，粉色盘扣那位，他说是 AI 生成的人），三套衣服都换成这张脸（`facekit.py`），脸按照片原来的光画（`_FACE`），不再被舞台灯照出凹凸。接下来：照他的参考图设计更多衣服（白色蕾丝、皮衣蕾丝、新中式、白色连衣裙、黑白开衫长裙），摩登舞配大摆裙、古典舞配水袖，不同的歌配不同的衣服和舞；动作要过一组查 AI 动作毛病的检查（打滑、穿地、浮空、反关节、穿模、重心、抖动）。
+- 11-21 手机当音箱放完一首就回到「这台设备当音箱」：页面重新加载了（和 11-2 的「经常闪退」一样，最可能是屏幕自动锁了）。iPhone、iPad 现在两种办法一起保持亮屏（系统的亮屏请求，加一个看不见的小视频一直放），系统收回亮屏请求时再要一次；开始卡片上告诉 iPhone 先把自动锁定设成「永不」。
+- 11-21 Steve 又说投屏的手机「偶尔还是会突然刷新」：网站一更新（任何一个聊天合并到 main 都会），页面再要一个还没下载的文件就拿不到（文件名每次构建都变），`lib/freshness.ts` 就重新加载页面，歌就断了。现在当音箱放着歌的时候不重新加载（`holdNewVersion`），缺文件的那部分自己退回去（舞者退回画的那个），离开页面时再换新版。
+- 11-21 傍晚 Steve「点头了」（侧脸、脸上的明暗块）：`facenormals.py` 让脸上的光变平滑，近景对比三角形明暗块没了，上线。耳环没做成：模型把耳环画在头发和下巴交界的缝里，擦掉后留下污迹，没上；两边头发往后收也做不了，模型里头发底下没有脸颊（头发就是她头的侧面）。立体耳环要等擦干净以后再加。
+- 11-21 傍晚 Steve「你看看人物还有什么需要改进的地方」：近看和全身各查了一遍，列了 6 条（侧脸被一整片头发挡住、耳环是画的；脸上三角形明暗块；裙边白圈；背心前片；长裙踢腿穿裙子；脸贴图糊），1、2 动到脸附近，等他点头。先做了 3 和 5：`hemfix.py` 补裙边（晚礼服、皮夹克、派对、旗袍等深色裙边的白圈没了），长裙（开衫、晚礼服、摩登舞裙、古典舞服）加小腿碰撞，踢腿时裙子被顶起来。
+- 11-21 傍晚 表情（Steve「表情可以做但要很细致」）：`expressions.py` 做了两个很小的脸部变形，微笑（嘴角最多抬 3 毫米，脸颊和下眼睑跟着动）和抬眉（约 1.5 毫米），脸的样子和贴图都没换。页面上：跳舞时微笑 0.3 到 0.8 之间随乐句慢慢变，站着时 0.3，换舞时眉毛抬一下再落回去。测试：每个模型都有这两个变形，只动脸，不超过 4 毫米。看过近景：嘴角微微上扬，还是她。
+- 11-21 傍晚 芭蕾两支（ballet2、ballet3，92.3 bpm，抒情）：YouTube 一个老师的 centre adagio 课堂示范（kluF9swNZsk），切 7 段过检查 2 段，转 180 度面向观众；一支抬手加前踢腿，一支 port de bras 手臂。背心前片试了两种办法（剪掉离身体远的三角形、压平到身体上），看不出改善，压平还在腋下露白，都没上。
+- 11-21 下午 光腿配高跟鞋（Steve「一个接一个继续做」）：`legs.py`，九套裙装（除了夜店和皮夹克）的靴筒收细成小腿、涂成皮肤，靴子的脚留下当鞋。看过正面腿部对比，膝盖处没有台阶。
+- 11-21 傍晚 三套新衣服上线（Steve「做你能做到」）：ChatGPT 照「1-她的设计图.png」画了酒红晚礼服、香槟摩登舞裙、青绿古典舞服（`舞者衣服/8-、9-、10-…设计图.png`，裙子都到小腿中间），`build_outfit.sh` 画到第一个人物身上（脸不动），`shell_all.sh` 加头发那层。香槟和青绿的裙边自动找不到/找成膝盖，手动 `SKIRT_ARGS='--hem 0.32'`。晚礼服、摩登舞裙放派对（party），古典舞服放抒情（sweet）。之前说电脑锁屏是看错了：打的字其实进了 ChatGPT，只是界面慢。还没做：表情（脸不能动）、光腿高跟鞋和背心前襟、Kick Step、芭蕾。
+- 11-21 下午 古典舞上了两支：YouTube 找的古典舞身韵「摇臂组合」正面教学示范（N2yDRrqMOmM，练功服、正对镜头），切 8 段过检查 2 段（shenyun4、shenyun5，107.7 bpm），放在抒情（sweet）造型里，慢歌按速度轮到。看过截图：甩臂、转身、下腰，像跳舞。其余 6 段膝盖往后或脚滑，没要。
+- 11-21 下午 换舞时脚不滑（Steve 12:38「4. 改进修复」）：两支舞交接的 0.6 秒里，她的脚钉在原地，然后一只一只抬起来（离地最多 5 厘米）走到新舞的位置，离新舞位置远的那只先走；胯走得比腿够得着还远时那只脚提前迈（`dancer/plant.ts`，两节骨头的腿 IK，膝盖照原来的方向弯，脚的朝向照舞）。`tests/dancer.test.ts` 第 7 项：每两支相邻的舞交接一次，等着的脚沿地面不动（< 5 毫米），迈的脚离地，最后和新舞一模一样。Kick Step 还是不上：它是舞里面自己脚滑（比原舞者还滑），不是交接的问题。
+- 11-21 下午 自己找 YouTube 学舞：华尔兹、探戈（Ballroom with Anna 教学视频）、古典舞（练习室长裙独舞）各下一个，切 24 段，过动作检查的只有华尔兹 1 段、探戈 2 段，看着都像站着走步，没上线。古典舞长裙挡脚，脚滑过不了。`fromvideo.ts` 改了膝盖只往前弯。芭蕾没找到镜头不动的独舞。下一步：找穿练功服、正对镜头的古典舞视频。
+- 11-21 下午 头发离开后背，还是她自己的头发（`hairshell.py`）：原来背上那片头发的三角形原样复制出来、往外 3 毫米成单独一层，贴图从原贴图照搬，挂在脊柱和脖子上（肩膀胳膊不带它），弹簧比原来松一点（stiffness 1.8、max 0.55）；原来那片涂成后背。静止时和原来一样（对比图看过正、侧、背），跳起来头发成一束垂着，不再跟着肩胛骨拉成 V 字。她自己那套和七套衣服都换了。
+- 11-21 12:42 Steve（照片）：「侧面人脸看起来还是很怪异，背面头发你做成双层的的了和原始的头发看起来不匹配，完全错误」。头发那层撤了，所有衣服回到她原来的头发；她的头更多转向镜头（最多约 57 度，舞的转向 85% 转回来），侧脸少露。旧的派对裙、初恋裙也穿到第一个人物身上（Steve：「旧衣服也可以加进去套在现有的模特身上，不要对模特面部进行任何的改动」），脸不动。还要做（Steve 12:38「继续干把所有的都干完不要停」）：自己找 YouTube 的芭蕾、摩登舞、古典舞视频学（已下了 5 个：古典舞 14SkwYL8ZSc、ykeXn721eEE，华尔兹 KAEFOWT5MF8、7dSv3bQ71Rg，探戈 xq418tlO1JE，在他电脑 `舞者衣服/舞蹈视频`）；晚礼服、摩登舞裙、古典舞服；表情；光腿和高跟鞋、背心前襟；换舞时脚钉住；Kick Step。
+- 11-21 下午 头发单独一层（`hairsheet.py`，六套衣服都重做了，`her.glb.gz` 也是）；她的头在跳舞时往镜头这边转（最多约 40 度，舞自己的转头留着）、每拍轻轻点一下头（`Dancer3D.tsx`）。还没做：脸上的表情（笑、张嘴）要给脸做 morph，下一步。
+- 11-21 中午 五套衣服做好了，都在第一个人物身上（她的脸、头发、身材不变）：衣服画在她的贴图上（`reskin.py`），裙子单独一层会摆（`skirt.py`），靴子留着换成鞋子的颜色。`OUTFITS`：sweet 镂空裙、开衫长裙、旗袍；party 蕾丝裙、旗袍、皮夹克；club 她自己那套、皮夹克、蕾丝裙；每首歌固定一套。Steve 同时说「人物面部和头部表情僵硬和背部头发粘在一起的的问题一直没改，继续深度优化人物动作」：下一步做头发单独一层（像裙子）、头看镜头和跟拍子点头、表情。
+- 11-21 深夜 Steve 发了两个 YouTube 翻跳视频「学习这两个视频的舞蹈动作」（ILLIT「It's Me」、KATSEYE「Gnarly」）：在他电脑上 yt-dlp 下载（`C:\Claude Playground\OUTPUTS\音效\舞者衣服\舞蹈视频`），MediaPipe 读每帧身体，`mocap/fromvideo.ts` 套到她身上，切段、剪循环、过动作检查，8 支进了快歌（itsme1/3/4/5、gnarly1/4/5/7）。他还会发视频，照 `site/scripts/dj-dancer/README.md`「从视频学一支舞」做。五套衣服的设计图都画好了（ChatGPT，同一个人只换衣服，他说「这些就很好」）：在他电脑 `舞者衣服` 文件夹，本机 `/home/claude/her-work/outfits/`；3D 还没做（衣服画到第一个人物身上、裙子单独一层，要写）。
+- 11-21 深夜 Steve 看了电视（5 张照片）：换上去的脸「很明显是贴图上去的」，背面头发乱，「第二个这个人物头部和身体非常的不协调」；「最早用 chatgpt 生成的那个人物……就很不错」「直接用第一个人物的模型脸，只给她换几套衣服再多一些舞蹈动作」。三个造型都换回第一个人物（`her.glb.gz` 回到换脸前的那版，页面上照脸的光去掉了），`her-party`、`her-sweet` 文件留着不用。「图二这个舞蹈动作我不喜欢少出现一点」是 wave：`rare`，一半的次数。他看了粉色盘扣的设计图说「这些就很好，帮我按这个逻辑再多几套我之前给你的照片上的衣服」：照他 11-21 发的参考图一套一套画（本机 `/mnt/user-data/uploads`：白色蕾丝一字肩短裙 ce19a3c6、白蕾丝吊带加黑皮夹克 c3b1c3a6、白色镂空无袖连衣裙 c0820621、黑开衫白长裙 14249705），衣服画到第一个人物身上、裙子单独加一层（还没写）。他还会发 YouTube 舞蹈让照着学（下载、AI 从视频取动作、过检查）。
+- 11-21 舞的物理检查（Steve：「舞蹈动作…一定要…检查没有常见的的AI生成错误，要符合现实物理逻辑」「跳舞看起来很不自然」）：`tests/support/motion.ts` 每支舞量站着的脚在地上滑、脚陷进地、两脚离地太久、膝盖往后折、手插进身体、单脚站着重心太偏、关节抖、接缝跳一下（`MOTION_TABLE=1 npx tsx tests/dancer.test.ts` 出表）。不自然主要是脚滑：她的腿和舞者的不一样长，加上每小节把她走的路去掉了。现在她的脚踝每帧放到舞者脚踝的位置（`retarget.ts`），跳到哪儿就在哪儿，画布跟着她在舞台上走、人在画布中间（`loop.ts --travel`、`Dancer3D.tsx`），循环选首尾最像、走得最少的那段。脚擦地多少以真人动捕自己为准（house、桑巴本来就擦地走）：`srcfacts.ts` 写 `tests/support/captured.ts`，她最多多 0.1。kickstep 先不跳（她的脚比真人滑得多，文件还在）。没做的：两支舞之间半拍的过渡脚可能滑一下，要根治就在页面里把站着的脚钉住（跑的时候做 IK）；芭蕾、爵士、查尔斯顿、蛇舞的文件在本机 `/home/claude/dj-moves/unused`，过检查再加；摩登舞、古典舞还要找动捕：11-21 在 Mixamo 搜过，没有华尔兹、探戈、摩登舞、中国舞；它的两段芭蕾都没法循环（Variation Two 2.6 秒就往前跑出 4 米，Variation One 哪一段的结尾都回不到开头的姿势），文件在本机 `/home/claude/dj-moves/fbx_ballet`。要的话等 Steve 选来源：买现成的动捕（花钱，先问他），或者有人对着手机跳一段、用 AI 从视频里取动作（要注册网站），都要过 `tests/support/motion.ts`。
+- 11-20 加了 6 支舞（害羞的小动作、两种萨尔萨、Rib Pops、Kick Step、Shimmy），抒情的、派对的、快歌的都多了；芭蕾、爵士、查尔斯顿、蛇舞也下了，测试不让过（走出原地或者裙子扎进腿里），没用。换风格时新衣服先学好她马上要跳的舞，换得快一点。
 - 舞者（11-18 的新样子）在 Steve 的电视和 iPad 上看一眼：顺不顺（前几秒每秒不到 20 帧会自己换回机器人）、远看像不像真人、背心。她比原来的重：模型 1.5 MB，舞每支 6 到 110 KB（跳到才下）。
 - 舞者已知的毛病，看 Steve 怎么说再改：背心在模型里和身体、胳膊长在一起，胳膊动得大时背心附近会拉扯；手是连在一起的（手指不动）；耳环是画在脸旁边的（侧过来看像贴上去的）；侧面的颜色是模型自己的，比正面糊一点。能做的：ChatGPT 再画左右两个侧面一起烤；TRELLIS 用 1536 的分辨率再做一次（要 Steve 的免费额度）；背心单独做一件。
 - TRELLIS 的空间做模型前用 BRIA RMBG-2.0 抠图（非商用许可，`LICENSES.md` 写着）。changle.ca 是免费的；要彻底不沾它，下次给 TRELLIS 一张我们自己抠好的透明底图片就跳过那一步。
@@ -265,6 +285,25 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-21 DJ: one face for the dancer in every outfit, lit as its photo
+- 2026-11-21 DJ: the speaker keeps playing: an iPhone stays awake, a site update doesn't reload it
+- 2026-11-21 DJ: her dancing checked for the usual motion mistakes, her feet where the dancer's were
+- 2026-11-21 DJ: the first dancer back in every look, her own face; the arm-wave dance half as often
+- 2026-11-21 DJ: eight dances learnt from Steve's two YouTube dance covers
+- 2026-11-21 DJ: five new outfits on the first dancer, one a song
+- 2026-11-21 DJ: her hair a layer of its own; her head turns to the room and nods on the beat
+- 2026-11-21 DJ: her own hair back; her face kept to the room; the old party dress and first-love skirt on her too
+- 2026-11-21 DJ: her own hair, lifted off her back (hairshell.py)
+- 2026-11-21 DJ: her feet stay, then step, when one dance hands over to the next
+- 2026-11-21 DJ: two Chinese classical dances (身韵摇臂组合) learnt from a YouTube demonstration
+- 2026-11-21 DJ: an evening gown, a ballroom dress and a classical dance costume
+- 2026-11-21 DJ: bare legs and heels with her dresses
+- 2026-11-21 DJ: two ballet phrases
+- 2026-11-21 DJ: her face smiles a little, her brows lift
+- 2026-11-21 DJ: no pale rim round her skirts' hems; long skirts kept off her shins
+- 2026-11-21 DJ: the light smooth over her face
+- 2026-11-20 DJ: the dancer walks the stage
+- 2026-11-20 DJ: six more dances for the dancer, and her outfit changes sooner
 - 2026-11-20 DJ: the dancer's party dress, and the new outfits' faces put right
 - 2026-11-19 DJ: the dancer dresses and dances for the song, her hair and skirt swinging
 - 2026-11-19 DJ: the host can turn the TV's dancer off and on

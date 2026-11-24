@@ -11,6 +11,7 @@ import {
   mealTime,
   parseSlot,
   partHeading,
+  partHeadingShort,
   partLabel,
   partRange,
   partsOf,
@@ -74,6 +75,19 @@ test("what each period is called, and its hours", () => {
   assert.deepEqual(
     partsOf("periods").map((part) => partHeading(part, "en").replace("­", "")),
     ["Night", "Morning", "Midday", "Afternoon", "Evening"],
+  );
+  // and short, for a column too narrow for those (larger text on a phone); Chinese is short already
+  assert.deepEqual(
+    partsOf("periods").map((part) => partHeadingShort(part, "en")),
+    ["Night", "AM", "Noon", "PM", "Eve"],
+  );
+  assert.deepEqual(
+    partsOf("half").map((part) => [partHeading(part, "en").replace("­", ""), partHeadingShort(part, "en"), partHeadingShort(part, "zh")]),
+    [
+      ["Morning", "AM", "上午"],
+      ["Afternoon", "PM", "下午"],
+      ["Evening", "Eve", "晚上"],
+    ],
   );
   assert.deepEqual(
     partsOf("periods").map((part) => hoursLabel(partRange("periods", part)!)),

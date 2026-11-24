@@ -132,7 +132,7 @@ export function NetSuper({ v, onLeave }: { v: SuperView; onLeave: () => void }) 
                   setWriting(false);
                 }}
               >
-                <input value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={30} placeholder={zh ? "比如：今晚最会点歌" : "e.g. Best playlist tonight"} autoFocus />
+                <input value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={30} aria-label={zh ? "自己出一个称号" : "Your own title"} placeholder={zh ? "比如：今晚最会点歌" : "e.g. Best playlist tonight"} autoFocus />
                 <button type="submit" className="btn btn-primary btn-sm" disabled={!custom.trim()}>
                   {zh ? "用这个" : "Use it"}
                 </button>

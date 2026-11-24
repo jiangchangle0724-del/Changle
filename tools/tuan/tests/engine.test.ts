@@ -1,6 +1,7 @@
 // The rules alone (src/engine): no database, no network.
 import { describe, expect, it } from "vitest";
 import { appliedNotice, DECLARATION, decidedNotice, NOTE_MAX, readApplication, readDecision, REPLY_MAX } from "../src/engine/apply";
+import { chainText, type ChainWords } from "../src/engine/chain";
 import { makeCode, OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../src/engine/ids";
 import { amountText, dollars, finalGoods, goodsOf, lineAmount, piecesOf } from "../src/engine/money";
 import { ordersNotice, SUBJECT_MAX } from "../src/engine/notice";
@@ -89,6 +90,7 @@ describe("money and amounts", () => {
   it("writes money and amounts out", () => {
     expect(dollars(8950)).toBe("$89.50");
     expect(dollars(5)).toBe("$0.05");
+    expect([dollars(99_999), dollars(100_000), dollars(4_999_995), dollars(123_456_789), dollars(-150_000)]).toEqual(["$999.99", "$1,000.00", "$49,999.95", "$1,234,567.89", "-$1,500.00"]);
     expect(amountText(1500)).toBe("1.5");
     expect(amountText(2000)).toBe("2");
   });
@@ -449,6 +451,57 @@ describe("the merchant's sheets", () => {
     const more = kept(taken(sent({ name: "小林", phone: "604-555-0177", lines: [{ itemId: "lamb", qty: 1000 }] })), 4);
     const one = { ...chen, lines: chen.lines.map((line) => (line.itemId === "lamb" ? { ...line, actual: 1620 } : line)) };
     expect(summarize(book(), [wang, one, more]).items.find((i) => i.itemId === "lamb")).toMatchObject({ qty: 2500, actual: null, orders: 2 });
+  });
+});
+
+describe("the 接龙 text a merchant pastes into a group", () => {
+  const words: ChainWords = { closes: "截单：11月21日 周五 20:00", link: (to) => `下单：${to}`, joined: (n) => `接龙（${n} 单）`, none: "还没有人下单，点上面的链接就能跟团。", least: (n) => `${n}起`, perBuyer: (n) => `每人限 ${n}`, and: "、", unit: { bag: "袋", pack: "包", box: "盒", each: "个", portion: "份", lb: "磅" } };
+  const link = "https://changle.ca/tuan/t/aaaa2222";
+  const write = (b: OfferBook, orders: Order[]) => chainText(b, b.shop.name, orders, link, words);
+
+  it("says what it is, when it closes, the link, and what can be had, by section", () => {
+    const text = write(book(), []);
+    expect(text.split("\n")).toEqual([
+      "【大米团（测试）】本周大米团 · 周五到货",
+      "截单：11月21日 周五 20:00",
+      "下单：https://changle.ca/tuan/t/aaaa2222",
+      "",
+      "米面",
+      "· 五常大米 10kg $38.00/袋",
+      "· 东北珍珠米 15lb $22.50/袋",
+      "· 黄小米 2lb $8.80/包（每人限 2）",
+      "蛋肉",
+      "· 土鸡蛋 30 枚 $13.50/盒",
+      "· 手切羊肉片 $16.99/磅（1 磅起）",
+      "",
+      "接龙（0 单）",
+      "还没有人下单，点上面的链接就能跟团。",
+    ]);
+  });
+
+  it("lists the orders that stand, in order, with names only when the page shows them, and nothing when the list is off", () => {
+    const wang = kept(taken(sent({ lines: [{ itemId: "rice", qty: 2000 }, { itemId: "lamb", qty: 1500 }] })), 1);
+    const gone = kept(taken(sent({ name: "小林" })), 2, { status: "cancelled" });
+    const chen = kept(taken(sent({ name: "陈\n先生 ", lines: [{ itemId: "eggs", qty: 1000 }] })), 3);
+    const named = write(book(), [chen, gone, wang]);
+    expect(named).toContain("接龙（2 单）\n1. 王阿姨 五常大米 10kg×2、手切羊肉片 1.5 磅\n3. 陈 先生 土鸡蛋 30 枚×1");
+    expect(named).not.toContain("小林");
+    expect(named).not.toMatch(/604/);
+    const b = book();
+    const anon = write({ ...b, offer: { ...b.offer, roster: "anon" } }, [wang, chen]);
+    expect(anon).toContain("1. 五常大米 10kg×2、手切羊肉片 1.5 磅\n3. 土鸡蛋 30 枚×1");
+    expect(anon).not.toContain("王阿姨");
+    const off = write({ ...b, offer: { ...b.offer, roster: "off" } }, [wang, chen]);
+    expect(off).not.toContain("接龙");
+    expect(off).not.toContain("王阿姨");
+  });
+
+  it("leaves out what's sold out, and a title or a name typed over several lines stays on one", () => {
+    const b = book();
+    const text = write({ ...b, offer: { ...b.offer, title: "本周\n大米团" }, items: b.items.map((item) => (item.id === "eggs" ? { ...item, sold: 10_000 } : item)) }, []);
+    expect(text.split("\n")[0]).toBe("【大米团（测试）】本周 大米团");
+    expect(text).not.toContain("土鸡蛋");
+    expect(text).toContain("蛋肉\n· 手切羊肉片");
   });
 });
 

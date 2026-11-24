@@ -3258,7 +3258,7 @@ async function reading() {
     rows4[0].includes("McDonald's") && rows4[0].includes(dayLabel(ago(2), today, "zh")) && rows4[0].includes("Aldergrove, BC") && rows4[1].includes("Tim Hortons") && rows4[2].includes("Starbucks") && rows4[3].includes("Kiosk") && rows4[4] === t("receiptsNone") && JSON.stringify(amounts4) === JSON.stringify(["20.00", "8.50", "10.00", "15.00", "", ""]),
     `each row: the business, its day and place, and the amount read; the one not read asks for its amount (${rows4.join(" | ")}; ${amounts4.join(", ")})`,
   );
-  ok(rows4[5].includes("McDonald's") && rows4[5].includes("和第 1 张一样，先不记") && amounts4[5] === "", `the same receipt twice: the second left out, its row saying so (${rows4[5]}; ${JSON.stringify(amounts4[5])})`);
+  ok(rows4[5].includes("McDonald's") && rows4[5].includes("和第 1 张合成一笔") && amounts4[5] === "", `the same receipt twice: one bill, the second taken into the first, its row saying so (${rows4[5]}; ${JSON.stringify(amounts4[5])})`);
   await pa.screenshot({ path: join(out, "receipts-read-zh-390x664.png") });
   await amount4(4).fill("12");
   await amount4(3).fill("");
@@ -3270,13 +3270,13 @@ async function reading() {
   await record4.click();
   await pa.locator(".split-batch").waitFor({ state: "detached" });
   await pa.waitForTimeout(600);
-  ok(dropped4.length === 2, `the photos of the two left out go from the server again, the four recorded stay (${dropped4.length} taken off)`);
+  ok(dropped4.length === 1, `the photo of the one cleared goes from the server again; the four recorded stay, the McDonald's twice on its one expense (${dropped4.length} taken off)`);
   await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
   type Kept4 = { amount: number; note: string; payer: string; merchant?: string; place?: string; payment?: string; date?: string; files?: string[]; split?: { how: string }; paidIn?: { currency: string; amount: number } };
   const all4 = (await keptBy(pa)).held[0].server.entries as Kept4[];
   const mine4 = all4.slice(-4);
   ok(
-    mine4.map((e) => `${e.amount} ${e.merchant ?? "-"} ${e.date ?? "-"} ${e.files?.length ?? 0}`).join(" | ") === `2000 McDonald's ${ago(2)} 1 | 850 Tim Hortons ${ago(1)} 1 | ${Math.round(1000 * RATES.CAD)} Starbucks ${today} 1 | 1200 - ${today} 1` &&
+    mine4.map((e) => `${e.amount} ${e.merchant ?? "-"} ${e.date ?? "-"} ${e.files?.length ?? 0}`).join(" | ") === `2000 McDonald's ${ago(2)} 2 | 850 Tim Hortons ${ago(1)} 1 | ${Math.round(1000 * RATES.CAD)} Starbucks ${today} 1 | 1200 - ${today} 1` &&
       mine4[2].paidIn?.currency === "USD" &&
       mine4[2].paidIn?.amount === 1000 &&
       mine4[0].place === "Aldergrove, BC" &&
@@ -3331,9 +3331,50 @@ async function reading() {
   await closed(pa);
   await extras.filter({ hasText: "Subway" }).waitFor({ timeout: 15_000 });
   await pa.locator(".split-photo-button:not(.is-sending) .split-photo-count").waitFor({ timeout: 15_000 });
-  ok((await amount()) === "$7.00" && (await pa.locator(".split-photo-count").innerText()) === "2", "都放在这一笔: both photos on the one expense, the first read for its amount");
+  ok((await amount()) === "$7.00" && (await pa.locator(".split-photo-count").innerText()) === "2", "都放在这一笔: both photos on the one expense; two bills, so the first read for its amount");
   await button(pa, "close").first().click();
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
+
+  // an itemized receipt and the card slip that adds the tip are one bill (Steve, 2026-11-21: Deer Garden,
+  // "supposed to be 1 bill based on the time, amount, name of the place"): in 记一笔 as this one's photos,
+  // both read and put together; in 几张小票, the first row takes the second in
+  const bill = [
+    { name: "r.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:40.45 CAD Deer Garden tax=1.93 date=2026-10-15 time=21:01 place=Vancouver,_BC") },
+    { name: "t.pdf", mimeType: "application/pdf", buffer: aPdf("receipt:45.30 CAD DEER GARDEN SIGNATURE tip=4.85 date=2026-10-15 time=21:04 paid=Debit") },
+  ];
+  await button(pa, "addExpense").click();
+  await pa.locator(".split-keys").waitFor();
+  await pa.locator(".split-note-row input[type=file]").setInputFiles(bill);
+  await ask.getByRole("button", { name: t("severalOne"), exact: true }).click();
+  await closed(pa);
+  await extras.filter({ hasText: "Deer Garden" }).waitFor({ timeout: 15_000 });
+  const billLine = await extras.innerText();
+  const billDetails = await detailsLine(pa).innerText();
+  ok(
+    (await amount()) === "$45.30" && billLine.includes("小费 $4.85") && billLine.includes("税 $1.93") && billDetails.includes("Deer Garden") && billDetails.includes("Debit") && !billDetails.includes("Signature"),
+    `都放在这一笔, a receipt and its card slip: both read and put together, the total with the tip, the tax, the shorter name, how it was paid (${await amount()}; ${billLine}; ${billDetails})`,
+  );
+  await pa.screenshot({ path: join(out, "bill-one-zh-390x664.png") });
+  await button(pa, "close").first().click();
+  await pa.locator(".split-keys").waitFor({ state: "hidden" });
+  const [chooser5] = await Promise.all([pa.waitForEvent("filechooser"), pa.locator(".split-receipts-button").click()]);
+  await chooser5.setFiles(bill);
+  await batch.nth(1).waitFor();
+  await pa.waitForFunction(`!document.querySelector(".split-batch-thumb.is-scanning")`, null, { timeout: 30_000 });
+  const billRows = [await said4(0), await said4(1)];
+  ok(
+    billRows[0].includes("Deer Garden") && billRows[0].includes("小费 $4.85") && (await amount4(0).inputValue()) === "45.30" && billRows[1].includes("和第 1 张合成一笔") && (await amount4(1).inputValue()) === "" && (await record4.innerText()) === t("receiptsSaveOne"),
+    `几张小票: the slip taken into its receipt's row, the total with the tip; its own row says so (${billRows.join(" / ")})`,
+  );
+  await pa.screenshot({ path: join(out, "bill-rows-zh-390x664.png") });
+  await record4.click();
+  await pa.locator(".split-batch").waitFor({ state: "detached" });
+  await pa.waitForFunction(`JSON.parse(localStorage.getItem(${JSON.stringify(KEPT)})).held[0].waiting.length === 0`);
+  const deer = ((await keptBy(pa)).held[0].server.entries as (Kept4 & { tip?: number; tax?: number })[]).at(-1);
+  ok(
+    deer?.amount === 4530 && deer.tip === 485 && deer.tax === 193 && deer.merchant === "Deer Garden" && deer.payment === "Debit" && deer.place === "Vancouver, BC" && deer.date === "2026-10-15" && deer.files?.length === 2,
+    `recorded as one bill: $45.30 with its tip and tax, the name, how and where it was paid, both photos (${JSON.stringify(deer && { ...deer, files: deer.files?.length })})`,
+  );
 
   // reading not to be had (no key, the month spent): nothing said, and not asked again on this page
   await a.unroute("**/split/api/ledgers/*/files/*/read");

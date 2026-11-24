@@ -99,8 +99,11 @@ const PART_ZH: Record<Part, string> = { dawn: "凌晨", morning: "早上", noon:
 const PART_EN: Record<Part, string> = { dawn: "early hours", morning: "morning", noon: "midday", afternoon: "afternoon", am: "morning", pm: "afternoon", eve: "evening", day: "all day" };
 export const partLabel = (part: Part, lang: Lang): string => (lang === "zh" ? PART_ZH : PART_EN)[part];
 /** A part's name at the top of its column. The hours go under it, so 凌晨 can be "Night" there; "After­noon" may break at its soft hyphen. */
-const HEAD_EN: Record<Part, string> = { dawn: "Night", morning: "Morning", noon: "Midday", afternoon: "After\u00adnoon", am: "Morning", pm: "Afternoon", eve: "Evening", day: "All day" };
+const HEAD_EN: Record<Part, string> = { dawn: "Night", morning: "Morning", noon: "Midday", afternoon: "After\u00adnoon", am: "Morning", pm: "After\u00adnoon", eve: "Evening", day: "All day" };
 export const partHeading = (part: Part, lang: Lang): string => (lang === "zh" ? PART_ZH[part] : HEAD_EN[part]);
+/** The same, short, for a column too narrow for it (larger text on a phone): "AM", "Noon", "PM". Chinese is short already. */
+const HEAD_EN_SHORT: Record<Part, string> = { dawn: "Night", morning: "AM", noon: "Noon", afternoon: "PM", am: "AM", pm: "PM", eve: "Eve", day: "All day" };
+export const partHeadingShort = (part: Part, lang: Lang): string => (lang === "zh" ? PART_ZH[part] : HEAD_EN_SHORT[part]);
 /** "11/21" / "Nov 21": a date as short as it goes, for the side of a crowded grid. */
 export const shortDate = (day: Day, lang: Lang): string => (lang === "zh" ? `${Number(day.slice(5, 7))}/${Number(day.slice(8, 10))}` : dateLabel(day, lang));
 

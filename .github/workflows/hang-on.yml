@@ -17,7 +17,7 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-latest
-    # 关多了（大关、多人关的乱按探路），验收加探路要十五分钟出头；公开仓库跑 CI 不花钱
+    # 关多了（11 关长关、40 关按手酸录），验收要十几分钟；乱按探路在下面的 probe 里同时跑；公开仓库跑 CI 不花钱
     timeout-minutes: 30
     defaults:
       run:
@@ -38,6 +38,22 @@ jobs:
       - run: npm run ip-check
       # 12 关的回放：全员到终点、用时在 par 的 0.5 到 2 倍、第 6 关真成链、第 10 关真丢人（scripts/run-levels.mjs）
       - run: npm run levels
+
+  # 乱按探路单独一个任务，和上面的验收同时跑（11-21 长关进来以后两样排在一起要二十三分钟，离三十分钟的上限太近）
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: games/hang-on
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: games/hang-on/package-lock.json
+      - run: npm ci
       # 大关每关至少两段 1 个人、2 个人乱按都过不去（scripts/probe.mjs；CI 少按几次）
       - run: npm run probe -- --quick
 

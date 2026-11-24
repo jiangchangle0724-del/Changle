@@ -99,14 +99,17 @@ export function ChallengeResult({ c, ids, best }: { c: Challenge; ids: number[];
  * Send a game on as a challenge: the phone's share sheet, or the link copied; when neither works,
  * `onLink` gets it to show (press and hold to copy).
  */
-export function ShareChallenge({ c, primary, onLink }: { c: Challenge; primary?: boolean; onLink: (url: string) => void }) {
+export function ShareChallenge({ c, primary, onLink, by }: { c: Challenge; primary?: boolean; onLink: (url: string) => void; by?: string }) {
   const { lang } = useStore();
   const zh = lang === "zh";
   const toast = useToast();
   const send = async () => {
     const url = challengeUrl(c);
     const score = challengeScore(c);
-    const text = zh ? `猜歌名：${c.ids.length} 首歌我拿了 ${score} 分，来挑战！` : `Name That Tune: ${score} points on ${c.ids.length} songs. Beat that!`;
+    // `by`: the score is someone else's at the table (online, sent from a phone that didn't win)
+    const text = zh
+      ? by ? `猜歌名：${c.ids.length} 首歌，${by} 拿了 ${score} 分，来挑战！` : `猜歌名：${c.ids.length} 首歌我拿了 ${score} 分，来挑战！`
+      : by ? `Name That Tune: ${by} got ${score} points on ${c.ids.length} songs. Beat that!` : `Name That Tune: ${score} points on ${c.ids.length} songs. Beat that!`;
     if (navigator.share) {
       try {
         await navigator.share({ title: zh ? "猜歌名挑战" : "Name That Tune challenge", text, url });

@@ -1,7 +1,7 @@
 // Every place in range and budget, best first: the top as full cards with photos, then shorter
 // cards that open with "More", ten more at a time, so a long list stays quick to scroll.
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import type { OccasionId } from "../../engine";
 import type { CardView } from "../../room/protocol";
 import { t } from "../i18n";
@@ -13,6 +13,8 @@ const STEP = 10;
 
 export function RankedList(p: {
   cards: CardView[];
+  /** This phone's veto dims only the card it was used on. */
+  veto?: string | null;
   /** How many full cards at the top. */
   top: number;
   /** What the meal is for (a card says when a place suits it). */
@@ -25,20 +27,21 @@ export function RankedList(p: {
   end?: ComponentChildren;
 }) {
   const [shown, setShown] = useState(p.top + STEP);
+  const initial = useRef(new Map(p.cards.slice(0, shown).map((c, i) => [c.place.id, i])));
   const more = Math.min(STEP, p.cards.length - shown);
   return (
     <>
-      <p class="muted small">
-        {t("listCount", { n: p.cards.length })}
-        {p.overBudget ? t("listOver", { n: p.overBudget }) : ""}
-      </p>
       <div class="places">
         {p.cards.slice(0, shown).map((c, i) => (
-          <PlaceCard key={c.place.id} c={c} ranked compact={i >= p.top} occasion={p.occasion}>
+          <PlaceCard key={c.place.id} c={c} ranked compact={i >= p.top} occasion={p.occasion} vetoed={p.veto === c.place.id} arrival={initial.current.get(c.place.id) ?? -1}>
             {p.action(c, i < p.top)}
           </PlaceCard>
         ))}
       </div>
+      <p class="muted small">
+        {t("listCount", { n: p.cards.length })}
+        {p.overBudget ? t("listOver", { n: p.overBudget }) : ""}
+      </p>
       {more > 0 ? (
         <Btn wide onClick={() => setShown(shown + STEP)}>
           {t("showMore", { n: more })}

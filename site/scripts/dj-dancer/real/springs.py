@@ -13,7 +13,9 @@ Run after weights.py (it rewrites what that wrote: the four bones a vertex, the 
 before build_glb.mjs, which reads springs.json for the new bones and what the page needs.
 usage: python3 springs.py <mesh dir (simplified)> <joints.json> <baked texture> <outfit config .json>
 config: {"hair": {"top": 1.52, "bottom": 1.18, "chains": 3, "bones": 3},
-         "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}   (heights in metres; skirt optional)
+         "skirt": {"waist": 1.0, "hem": 0.79, "crotch": 0.87, "chains": 8}}   (heights in metres; skirt optional;
+         "only": a .npy in the mesh dir marking the skirt's vertices, for a skirt made by skirt.py; the hair's
+         "only" likewise, for a sheet of hair made by hairsheet.py)
 """
 import json, sys
 import numpy as np
@@ -57,22 +59,26 @@ main = np.array([skel[j] for j in j4[:, 0]])  # each vertex's strongest bone bef
 h = cfg['hair']
 top, bottom, nc, nb = h['top'], h['bottom'], h.get('chains', 3), h.get('bones', 3)
 behind = P[:, 2] < J['Neck'][2] - 0.01
-hair = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.04) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.17)
-hair &= np.isin(main, ['Head', 'Neck', 'Spine2', 'Spine1', 'Spine', 'LeftShoulder', 'RightShoulder'])
-# the hair goes with her back under it (the model's hair lies a few millimetres off her back: weighted
-# apart, a bend of her back or a shoulder pushes the back through it), its weights the nearest back's
-hair_all = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.12) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.19)
-back = (~hair_all) & behind & (P[:, 1] < top + 0.16) & (P[:, 1] > bottom - 0.08) & (np.abs(P[:, 0]) < 0.24)
-if back.sum() > 50 and hair_all.any():
-    tree = cKDTree(P[back])
-    _, near_i = tree.query(P[hair_all])
-    src = np.nonzero(back)[0][near_i]
-    j4[hair_all] = j4[src]
-    w4[hair_all] = w4[src]
-    # and sits a little further off it
-    P[hair_all] += Ns[hair_all] * 0.002
-    P.astype(np.float32).tofile(lo + '/pos.f32')
-print('hair on her back', int(hair_all.sum()))
+if h.get('only'):
+    # (her hair's own shell, hairshell.py: only its vertices; her back under it stays her back)
+    hair = np.load(lo + '/' + h['only'])
+else:
+    hair = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.04) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.17)
+    hair &= np.isin(main, ['Head', 'Neck', 'Spine2', 'Spine1', 'Spine', 'LeftShoulder', 'RightShoulder'])
+    # the hair goes with her back under it (the model's hair lies a few millimetres off her back: weighted
+    # apart, a bend of her back or a shoulder pushes the back through it), its weights the nearest back's
+    hair_all = behind & (mx < 0.30) & (sat < 0.45) & (P[:, 1] < top + 0.12) & (P[:, 1] > bottom - 0.04) & (np.abs(P[:, 0]) < 0.19)
+    back = (~hair_all) & behind & (P[:, 1] < top + 0.16) & (P[:, 1] > bottom - 0.08) & (np.abs(P[:, 0]) < 0.24)
+    if back.sum() > 50 and hair_all.any():
+        tree = cKDTree(P[back])
+        _, near_i = tree.query(P[hair_all])
+        src = np.nonzero(back)[0][near_i]
+        j4[hair_all] = j4[src]
+        w4[hair_all] = w4[src]
+        # and sits a little further off it
+        P[hair_all] += Ns[hair_all] * 0.002
+        P.astype(np.float32).tofile(lo + '/pos.f32')
+    print('hair on her back', int(hair_all.sum()))
 xs = P[hair, 0]
 span = np.percentile(np.abs(xs), 90) if len(xs) else 0.08
 cx = np.linspace(-span * 0.6, span * 0.6, nc) if nc > 1 else np.array([0.0])
@@ -113,7 +119,9 @@ r_head = 0.095
 groups.append({
     # (the model's hair is grown into her back here and there: it sways a little, never flies out
     # like a cape, or it would pull her back's colours over it)
-    'name': 'hair', 'bones': hair_bones, 'stiffness': 2.4, 'gravity': 0.25, 'drag': 0.6, 'hit': 0.006, 'max': 0.42,
+    # (a shell of her hair off her back, hairshell.py: no colours of her back to pull, so it swings freer)
+    'name': 'hair', 'bones': hair_bones, 'hit': 0.006,
+    **({'stiffness': 1.8, 'gravity': 0.3, 'drag': 0.5, 'max': 0.55} if h.get('only') else {'stiffness': 2.4, 'gravity': 0.25, 'drag': 0.6, 'max': 0.42}),
     'colliders': ['head', 'neck', 'back', 'lshoulder', 'rshoulder'],
 })
 print('hair vertices', int(hair.sum()), 'chains', nc, 'x', np.round(cx, 3))
@@ -142,13 +150,20 @@ if s:
     legs = {}
     for side in ('Left', 'Right'):
         a, b = J[side + 'UpLeg'], J[side + 'Leg']
-        band = (P[:, 1] > hem - 0.07) & (P[:, 1] < hem - 0.03) & (np.sign(P[:, 0]) == np.sign(a[0]))
+        # (at the hem, or high on her thighs for a long skirt: the thickness of her thighs)
+        at = max(hem, crotch - 0.05)
+        band = (P[:, 1] > at - 0.07) & (P[:, 1] < at - 0.03) & (np.sign(P[:, 0]) == np.sign(a[0]))
+        # (her legs only: her hands hang at her thighs' height)
+        band &= np.isin(main, [side + 'UpLeg', side + 'Leg'])
         legs[side] = (a, b, float(np.percentile(seg_dist(P[band], a, b), 80)) if band.any() else 0.07)
     in_leg = np.zeros(nv, bool)
     for side, (a, b, r) in legs.items():
         in_leg |= seg_dist(P, a, b) < r + 0.012
     pelvis = np.isin(main, ['Hips', 'LeftUpLeg', 'RightUpLeg', 'Spine'])
     skirt = pelvis & (P[:, 1] > hem - 0.03) & (P[:, 1] < waist + 0.01) & (np.abs(P[:, 0]) < 0.32) & ((P[:, 1] >= crotch) | ~in_leg)
+    # (a skirt made of its own, skirt.py: only its vertices, her body under it as it was)
+    if s.get('only'):
+        skirt = np.load(lo + '/' + s['only'])
     ang = np.arctan2(P[:, 0] - c0[0], P[:, 2] - c0[1])  # 0: straight ahead
     rad = np.hypot(P[:, 0] - c0[0], P[:, 2] - c0[1])
     skirt_bones = []
@@ -177,9 +192,17 @@ if s:
     for side, (a, b, r) in legs.items():
         colliders[side[0].lower() + 'thigh'] = {'bone': side + 'UpLeg', 'a': list(a), 'b': list(b), 'r': r + 0.01}
     colliders['hips'] = {'bone': 'Hips', 'a': list(J['Hips'] + [0, -0.02, 0]), 'r': 0.11}
+    # (a skirt past her knees: her shins too, from the knee half way down, so a kick lifts it
+    # rather than going through it; Nov 21)
+    shins = []
+    if hem < J['LeftLeg'][1] - 0.05:
+        for side in ('Left', 'Right'):
+            knee, ankle = np.array(J[side + 'Leg']), np.array(J[side + 'Foot'])
+            colliders[side[0].lower() + 'shin'] = {'bone': side + 'Leg', 'a': list(knee), 'b': list(knee * 0.45 + ankle * 0.55), 'r': 0.045}
+            shins.append(side[0].lower() + 'shin')
     groups.append({
         'name': 'skirt', 'bones': skirt_bones, 'stiffness': 1.6, 'gravity': 0.35, 'drag': 0.4, 'hit': 0.015, 'max': 0.75,
-        'colliders': ['lthigh', 'rthigh', 'hips'],
+        'colliders': ['lthigh', 'rthigh', 'hips'] + shins,
     })
     print('skirt vertices', int(skirt.sum()), 'legs r', {k: round(v[2], 3) for k, v in legs.items()})
 

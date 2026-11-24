@@ -106,6 +106,26 @@ jobs:
           cache: npm
           cache-dependency-path: games/been-there/package-lock.json
       - run: npm ci
+      # The system libraries and fonts the browser needs come from Ubuntu's mirror (WebKit's: 140 MB),
+      # which sometimes gives 300 kB/s: 8 minutes instead of 30 s, in about half the runs 11-13 to
+      # 11-19. apt keeps what it downloads in a folder kept between runs, so a runner image's packages
+      # come down once (a new image every week or so), and from then on the step only installs them.
+      - id: image
+        run: echo "name=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/apt-archives/*.deb
+          key: apt-${{ matrix.browser }}-${{ steps.image.outputs.name }}
+          # (a new image: the last one's packages, and only the ones it changed come down)
+          restore-keys: apt-${{ matrix.browser }}-
+      - run: |
+          mkdir -p ~/apt-archives/partial
+          {
+            echo "Dir::Cache::Archives \"$HOME/apt-archives\";"
+            echo 'APT::Keep-Downloaded-Packages "true";'
+            echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";'
+          } | sudo tee /etc/apt/apt.conf.d/90-keep-packages
+          ls ~/apt-archives/*.deb 2>/dev/null | wc -l | xargs echo "packages kept from an earlier run:"
       - run: npx playwright install --with-deps ${{ matrix.browser }}
       - run: npm run build
       - run: npx playwright test --project=${{ matrix.browser }} --shard=${{ matrix.part }}/2

@@ -3,7 +3,7 @@
 import { BASE } from "../base";
 import { sameName } from "../engine/invited";
 import type { HostAction } from "../room/event";
-import { KEY_HEADER, type ApiError, type Claimed, type CreateBody, type Created, type Hosted, type SaveBody, type Saved, type Snapshot } from "../room/protocol";
+import { KEY_HEADER, type ApiError, type Claimed, type CreateBody, type Created, type Hosted, type SaveBody, type Saved, type Snapshot, type Voted } from "../room/protocol";
 
 const memory = new Map<string, string>();
 const read = (name: string): string | null => {
@@ -107,6 +107,8 @@ export const api = {
   get: (code: string) => call<Snapshot>(`/e/${code}`, keyFor(code)),
   save: (code: string, body: SaveBody) => call<Saved>(`/e/${code}/me`, keyFor(code), body),
   host: (code: string, action: HostAction) => call<Hosted>(`/e/${code}/host`, keyFor(code), action),
+  /** the start times asked about that suit this phone's person (几点开始) */
+  vote: (code: string, starts: number[]) => call<Voted>(`/e/${code}/start`, keyFor(code), { starts }),
   claim: (code: string, adminCode: string) => call<Claimed>(`/e/${code}/claim`, keyFor(code), { adminCode }),
 };
 

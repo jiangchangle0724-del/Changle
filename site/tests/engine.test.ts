@@ -34,7 +34,7 @@ import { DARES, promptText } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
-import { CAT_BIT, decoysFor, DEFAULT_POOL, fromRow, inPool, moodOf, pickSong, poolSize, samePool, singersOf } from "../src/shared/songs";
+import { CAT_BIT, decoysFor, DEFAULT_POOL, fourTitles, fromRow, inPool, moodOf, pickSong, poolSize, samePool, singersOf } from "../src/shared/songs";
 import { SPECIALS } from "../src/data/songPools";
 import { challengeCode, challengeScore, challengeUrl, readChallenge, seeded } from "../src/party/tune/challenge";
 import { canPlay, DECK_SIZE, FACES, faceOf, type LcColor, type LcKind } from "../src/shared/lastcard/cards";
@@ -2251,6 +2251,38 @@ tuneTest("tune: a challenge link carries the songs, the way they play and the sc
   ok(one.map((x) => x.id).join() === two.map((x) => x.id).join() && one.map((x) => x.id).join() !== other.map((x) => x.id).join(), "the same seed: the same wrong titles; another seed: others");
 });
 
+tuneTest("tune: an online game sent on as a challenge: its songs, who scored on each, and the same four titles from its seed", () => {
+  const all = SONG_ROWS.map(fromRow);
+  type S = { song: { id: number }; choices: { id: number }[]; stageAt: number[]; seed: number };
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "tune" });
+  t.g("p0", "quiz", { on: true });
+  t.g("p0", "hard", { on: true });
+  t.g("p0", "total", { n: 5 });
+  t.g("p0", "go");
+  const seen: { id: number; four: string; p1: number }[] = [];
+  for (let n = 1; n <= 5; n++) {
+    t.advance(2600);
+    const s = t.eng.d.game!.s as S;
+    const wrong = s.choices.find((c) => c.id !== s.song.id)!.id;
+    // p1 gets the first three right at once, the last two nobody does; p2 always picks a wrong one
+    t.g("p1", "answer", { choice: n <= 3 ? s.song.id : wrong });
+    t.g("p2", "answer", { choice: wrong });
+    t.g("p0", "answer", { choice: wrong });
+    seen.push({ id: s.song.id, four: s.choices.map((c) => c.id).join(), p1: n <= 3 ? 3 : 0 });
+    t.advance(10_000);
+  }
+  const v = t.view<V<"tune">>("p1");
+  ok(v.phase === "end" && v.log?.length === 5 && v.log.every((r, i) => r.id === seen[i].id && r.b), "at the end every phone gets the five songs, in order, all built-in");
+  ok(v.log!.every((r, i) => (r.pts.p1 ?? 0) === seen[i].p1 && !r.pts.p2 && !r.pts.p0), `who scored how much on each (p1: ${v.log!.map((r) => r.pts.p1 ?? 0).join(" ")})`);
+  const seed = v.seed;
+  const four = (id: number) => fourTitles(all.find((x) => x.id === id)!, all, seed, true, v.pool).map((x) => x.id).join();
+  ok(seen.every((x) => four(x.id) === x.four), "a phone with the game's seed draws each song's same four titles, in the same order");
+  t.g("p0", "again");
+  t.g("p0", "go");
+  ok((t.eng.d.game!.s as S).seed !== seed && t.view<V<"tune">>("p1").log === null, "the next game: a new seed, and the log only at its end");
+});
+
 test("drama: a scene with a hidden culprit, secret cards, guesses, stars and a penalty", () => {
   type V = V<"drama">;
   const t = setup(6);
@@ -2329,6 +2361,7 @@ test("drama: an acting duel, and a culprit who fools everyone", () => {
   for (const a of aud) t.g(a, "vote", { stars: { [s.cast[0]]: 4, [s.cast[1]]: 2 } });
   v = t.view<V>("p0");
   ok(v.phase === "reveal" && v.result!.best[0] === s.cast[0] && v.result!.losers.join() === s.cast[1], "more stars wins, fewer drinks");
+  t.advance(5_600); // the stamp lands first
   t.g("p0", "next");
   ok(t.view<V>("p0").phase === "end", "after the last round: the end");
 
@@ -2517,6 +2550,7 @@ test("drama: who acts: each player says on stage or watching, and the scene fits
   t.g("p1", "want", { want: "watch" });
   for (const id of ["p2", "p4", "p5", "p6", "p7", "p8", "p9", "p0"]) t.g(id, "want", { want: "act" });
   ok(t.view<V>("p4").next?.lo === 8, "eight volunteers: eight go up");
+  t.advance(8_100); // the stamp lands first
   t.g("p0", "next");
   v = t.view<V>("p4");
   const big = DRAMA_SCENES[st().scene!];
@@ -2530,6 +2564,7 @@ test("drama: who acts: each player says on stage or watching, and the scene fits
   t.g("p3", "want", { want: "act" });
   t.g("p0", "reveal");
   for (const id of ["p1", "p3"]) t.g(id, "vote", { guess: st().cast[0], stars: Object.fromEntries(st().cast.map((c) => [c, 3])) });
+  t.advance(8_100);
   t.g("p0", "next");
   ok(st().cast.length === 8 && st().cast.includes("p3"), "nine want to act: eight go up, and the one who hasn't yet is among them");
   // everyone would rather watch: nobody can go on
@@ -2677,6 +2712,7 @@ test("drama: between acts or at the curtain call, the host goes back to the setu
   ok(v.phase === "reveal" && Object.keys(v.scores).length > 0, "the first act played, points on the board");
   const scores = JSON.stringify(v.scores);
   const played = s.used.length;
+  t.advance(8_100); // the act's stamp lands first
   t.g("p1", "setup");
   ok(t.view<V>("p0").phase === "reveal", "only the host goes back to the setup");
   t.g("p0", "setup");
@@ -2692,20 +2728,113 @@ test("drama: between acts or at the curtain call, the host goes back to the setu
   play();
   ok(t.view<V>("p0").phase === "reveal", "read, and starred");
   s.round = s.total;
+  t.advance(8_100);
   t.g("p0", "next");
   ok(t.view<V>("p0").phase === "end", "the curtain call");
+  t.advance(3_100);
   t.g("p0", "more");
   ok(t.view<V>("p0").phase === "brief" && t.view<V>("p0").total === 6, "three more acts");
   play();
+  t.advance(8_100);
   t.g("p0", "setup");
   v = t.view<V>("p0");
   ok(v.phase === "setup" && v.total === 3, "back to the setup: the acts count from the three picked, not the three more");
   t.g("p0", "start");
   play();
   s.round = s.total;
+  t.advance(8_100);
   t.g("p0", "next");
+  t.advance(3_100);
   t.g("p0", "setup");
   ok(t.view<V>("p0").phase === "setup", "and straight from the curtain call");
+});
+
+test("drama: the act's stamp is the game's own: the host waits for it, and it never lands on the next act", () => {
+  type V = V<"drama">;
+  const t = setup(5);
+  t.act("p0", { a: "start", game: "drama" });
+  t.g("p0", "want", { want: "watch" });
+  t.g("p0", "config", { mode: "show", total: 2 });
+  t.g("p0", "start");
+  const s = t.eng.d.game!.s as { cast: string[]; culprit: string | null; order: number[]; round: number; total: number };
+  // everyone watching picks wrong, so they pay
+  const play = () => {
+    const actors = [...s.cast];
+    for (const a of actors) t.g(a, "ready");
+    t.g("p0", "cut");
+    const wrong = s.order.length ? String((s.order.indexOf(0) + 1) % s.order.length) : actors.find((a) => a !== s.culprit)!;
+    for (const w of t.ids.filter((id) => !actors.includes(id))) t.g(w, "vote", { guess: wrong, stars: Object.fromEntries(actors.map((a) => [a, 3])) });
+  };
+  play();
+  let v = t.view<V>("p0");
+  ok(v.phase === "reveal" && v.result!.losers.length > 0 && v.stampAt! > 0, "the reveal: someone pays, and the stamp is on its way");
+  const before = t.pens().length;
+  t.g("p0", "next");
+  t.g("p0", "setup");
+  ok(t.view<V>("p0").phase === "reveal" && t.pens().length === before, "too soon: the host's next and 换个玩法 wait for the stamp");
+  t.advance(8_100);
+  ok(t.pens().length === before + 1 && !t.view<V>("p0").stampAt, "the stamp lands on the reveal it belongs to");
+  t.g("p0", "next");
+  ok(t.view<V>("p0").phase === "brief" && t.pens().length === before + 1, "then the next act, with nothing left to land on it");
+  play();
+  t.advance(8_100);
+  t.g("p0", "next");
+  v = t.view<V>("p0");
+  ok(v.phase === "end" && v.stampAt! > 0, "the curtain call: last place's stamp is on its way");
+  const atEnd = t.pens().length;
+  t.g("p0", "more");
+  ok(t.view<V>("p0").phase === "end", "three more acts wait for it too");
+  t.advance(3_100);
+  ok(t.pens().length === atEnd + 1 && t.pens()[atEnd].kind === "two", "last place pays at the curtain call");
+  t.g("p0", "more");
+  ok(t.view<V>("p0").phase === "brief" && t.pens().length === atEnd + 1, "then three more, clean");
+});
+
+test("drama: an actor walking out mid-act: without the culprit, a duelist or anyone on stage nothing counts; otherwise the rest play on", () => {
+  type V = V<"drama">;
+  const open = (n: number, mode: string) => {
+    const t = setup(n);
+    t.act("p0", { a: "start", game: "drama" });
+    t.g("p0", "want", { want: "watch" });
+    t.g("p0", "config", { mode });
+    t.g("p0", "start");
+    return { t, s: t.eng.d.game!.s as { cast: string[]; culprit: string | null; order: number[] } };
+  };
+  // the culprit leaves while the cards are read
+  let { t, s } = open(5, "show");
+  t.act(s.culprit!, { a: "leave" });
+  let v = t.view<V>("p0");
+  ok(v.phase === "reveal" && !!v.result?.quiet && !!v.result.left && !v.result.losers.length && !t.pens().length, "the culprit walked out: the cards turn over, nothing counts");
+  t.g("p0", "next");
+  ok(t.view<V>("p0").phase === "brief", "and the night goes on");
+
+  // someone else on stage leaves during the vote: nobody has to star them
+  ({ t, s } = open(7, "show"));
+  ok(s.cast.length >= 2 && !s.order.length, "a scene with a cast");
+  const actors = [...s.cast];
+  for (const a of actors) t.g(a, "ready");
+  t.g("p0", "cut");
+  const gone = actors.find((a) => a !== s.culprit)!;
+  t.act(gone, { a: "leave" });
+  ok(t.view<V>("p0").phase === "vote", "someone else left: the vote goes on");
+  const here = actors.filter((a) => a !== gone);
+  const watchers = t.ids.filter((id) => !actors.includes(id) && id !== gone);
+  t.g(watchers[0], "vote", { guess: gone, stars: Object.fromEntries(here.map((a) => [a, 4])) });
+  ok(!t.view<V>("p0").voted.includes(watchers[0]), "the one who left can't be picked");
+  for (const w of watchers) t.g(w, "vote", { guess: s.culprit, stars: Object.fromEntries(here.map((a) => [a, 4])) });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && !v.result!.quiet && v.result!.caught && !v.result!.losers.includes(watchers[0]), "stars for the ones still here, and the guess counts");
+
+  // a duelist leaves
+  ({ t, s } = open(4, "pk"));
+  t.act(s.cast[1], { a: "leave" });
+  v = t.view<V>("p0");
+  ok(v.phase === "reveal" && !!v.result?.left && !t.pens().length, "a duel needs two: it stops, nothing counts");
+
+  // the only reader leaves
+  ({ t, s } = open(3, "read"));
+  t.act(s.cast[0], { a: "leave" });
+  ok(!!t.view<V>("p0").result?.left, "nobody left to read: it stops");
 });
 
 test("drama: a scene written for every number of actors, at every table", () => {

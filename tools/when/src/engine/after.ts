@@ -5,16 +5,28 @@ import { counted, type Tally } from "./rank";
 import { clock } from "./slots";
 import { daysBetween } from "./time";
 import type { Day, Lang, Part, Person } from "./types";
+import type { Weather } from "./weather";
 
 /**
  * What the words for the group say about the time that was set (copy.ts writes them): who is free
  * for it, and who could move things, as the page counts them. `from` and `to`: the minutes, when
- * the time was set to them.
+ * the time was set to them. `weather`: its forecast, where the forecast reaches it.
  */
-export function resultWords(input: { title: string; day: Day; part: Part; from?: number; to?: number; tally: Tally; people: readonly Person[]; url: string }): ResultWords {
+export function resultWords(input: { title: string; day: Day; part: Part; from?: number; to?: number; tally: Tally; people: readonly Person[]; url: string; weather?: Weather | null }): ResultWords {
   const { yes, maybe } = counted(input.tally);
   const names = maybe.map((id) => input.people.find((p) => p.id === id)?.name ?? "").filter(Boolean);
-  return { title: input.title, url: input.url, day: input.day, part: input.part, from: input.from, to: input.to, coming: yes.length, asked: input.people.length, maybe: names };
+  return {
+    title: input.title,
+    url: input.url,
+    day: input.day,
+    part: input.part,
+    from: input.from,
+    to: input.to,
+    coming: yes.length,
+    asked: input.people.length,
+    maybe: names,
+    weather: input.weather ?? null,
+  };
 }
 
 /**

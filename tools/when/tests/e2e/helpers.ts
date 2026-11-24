@@ -83,6 +83,7 @@ export const everyone = (page: Page) => page.evaluate(() => ({
   })),
   best: [...document.querySelectorAll(".best-what")].map((el) => ({
     slot: el.querySelector("b")?.textContent ?? "",
-    reason: el.querySelector("span")?.textContent ?? "",
+    // the page keeps a number with what it counts ("2 个有空") with a no-break space
+    reason: (el.querySelector("span")?.textContent ?? "").replace(/\u00a0/g, " "),
   })),
 }));

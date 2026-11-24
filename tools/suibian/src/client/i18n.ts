@@ -3,6 +3,12 @@ import type { Lang, Text } from "../engine";
 
 const S = {
   title: ["随便", "Whatever's Fine"],
+  toTools: ["工具", "Tools"],
+  pickTitle: ["定了", "The pick"],
+  stamp: ["就它了！", "This one!"],
+  vetoed: ["已否决", "Vetoed"],
+  picked: ["已勾 {n} 家", "{n} ticked"],
+  vetoLeft: ["否决还剩 1 次", "1 veto left"],
   tagline: ["「吃什么？」「随便。」——那就让大家的手机来定。", "“Where should we eat?” “Whatever's fine.” Let everyone's phones decide."],
   login: ["用 Google 登录", "Sign in with Google"],
   loginWhy: ["登录后才能开一桌，饮食卡也会记住。加入别人的桌不用登录。", "Sign in to start a table and keep your diet card. Joining someone's table needs no sign-in."],
@@ -306,8 +312,8 @@ export const setLang = (l: Lang) => {
 export const getLang = () => lang;
 
 /** A UI string with {placeholders} filled in. */
-export function t(key: Key, vars: Record<string, string | number> = {}): string {
-  const s = S[key]?.[lang === "zh" ? 0 : 1] ?? key;
+export function t(key: Key, vars: Record<string, string | number> = {}, language: Lang = lang): string {
+  const s = S[key]?.[language === "zh" ? 0 : 1] ?? key;
   return s.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
 }
 

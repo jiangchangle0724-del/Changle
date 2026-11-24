@@ -24,6 +24,8 @@
   }
   /* 手机上连按两下不能放大：manipulation 关掉双击缩放（Safari 只认这个），手柄区再用 none 连拖动一起关。 */
   html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+  /* 每个元素自己再说一遍：iPhone 进了能滚的框（说明、面板）会重新算；main.ts 让 Safari 每一下都看这个。 */
+  *, *::before, *::after { touch-action: manipulation; }
   html, body { height: 100%; }
   [hidden] { display: none !important; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; overscroll-behavior: none;
@@ -47,6 +49,23 @@
   .card .btn { background: var(--card-ink); color: var(--ink); width: 100%; }
   .card .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
   .err { color: var(--bad); font-weight: 700; min-height: 1.4em; }
+  /*
+   * 横着拿的手机（三百多高）：一列放不下，加入键在屏幕外面。分左右两列：左边房间码和名字，右边样子、道具、加入，
+   * 加入键挨着名字；出错的话在最底下一行。
+   */
+  @media (orientation: landscape) and (max-height: 520px) {
+    #joinForm { max-width: 700px; padding: 16px 22px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-items: start;
+      grid-template-areas: "top top" "intro intro" "code look" "code item" "name join" "err err" "table table"; }
+    #joinForm > .top { grid-area: top; }
+    #joinForm > .intro { grid-area: intro; margin-bottom: 8px; }
+    #joinForm > .fcode { grid-area: code; }
+    #joinForm > .fname { grid-area: name; margin-bottom: 0; }
+    #joinForm > #lookBtn { grid-area: look; }
+    #joinForm > #itemBtn { grid-area: item; }
+    #joinForm > #joinBtn { grid-area: join; align-self: end; }
+    #joinForm > .err { grid-area: err; margin: 6px 0 0; min-height: 0; }
+    #joinForm > #tableBtn { grid-area: table; margin-top: 8px; }
+  }
 
   /* 换装：竖着一列；横着（够宽）左边预览、右边两列选项 */
   dialog { border: 0; border-radius: 22px; padding: 0; background: var(--card); color: var(--card-ink); max-width: min(760px, calc(100vw - 24px)); width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.45);
@@ -163,6 +182,8 @@
   .bar .ms.good { color: var(--good); } .bar .ms.warn { color: var(--warn); } .bar .ms.bad { color: var(--bad); }
   .bar .conn { margin-left: auto; opacity: .85; }
   .bar .conn.bad { color: var(--bad); opacity: 1; font-weight: 700; }
+  /* 窄的手机（iPhone SE 横着 667 宽）：连上了就不写「已连接」（「直连」「绕路中」那个小牌子已经说了），顶栏排得下一行，手柄大一点 */
+  @media (max-width: 720px) { .bar .conn.ok { display: none; } }
   .zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); min-height: 0; }
   .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,.06); border: 2px dashed rgba(255,255,255,.22); overflow: hidden; }
   .stickzone .hint { position: absolute; inset: 0; padding: 16px; box-sizing: border-box; display: grid; place-items: center; font-size: 14px; color: var(--ink-soft); text-align: center; line-height: 1.5; pointer-events: none; }
@@ -220,6 +241,21 @@
   :is(.vres, .mcard) ul.goals .tag { background: var(--p2); color: var(--card-ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
   :is(.vres, .mcard) ul.goals li.env { font-size: 13px; opacity: .8; }
   .vres .next { font-size: 13px; opacity: .7; margin: 10px 0 0; }
+  /*
+   * 结算：上面用时和小目标（res-a），下面每个人和按钮（res-b）。横着的手机只有三百多高，一列的话下一关在屏幕外面：
+   * 分左右两列；人多、背叛榜长还是放不下时，按钮那一排贴在底下（上沿一道渐变），不用往下滚找。大厅菜单的开始键也一样。
+   */
+  #mResults > div { display: grid; gap: 10px; align-content: start; min-width: 0; }
+  :is(#mLobby, #mResults, .vres) .row { position: sticky; bottom: 0; z-index: 1; padding: 10px 0 max(6px, env(safe-area-inset-bottom, 0px)); background: linear-gradient(to bottom, transparent, var(--card) 10px); }
+  :is(#mLobby, #mResults) .row { margin: -10px 0 -6px; }
+  .vres .row { margin: 0 0 -6px; }
+  @media (orientation: landscape) and (max-height: 520px) {
+    #mResults, .vres .card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); column-gap: 22px; align-items: start; }
+    .vres .card { max-width: 780px; }
+    .vres .res-b > ol:first-child { margin-top: 2px; }
+    /* 右边那列窄：三个键排一行（排成两行的话贴底的那一排太高，把背叛榜整个盖住） */
+    :is(#mResults, .vres) .row .btn { flex-basis: 84px; padding-inline: 12px; white-space: nowrap; }
+  }
   .banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(.6); opacity: 0; font-family: var(--font-display); font-weight: 800; font-size: 32px; line-height: 1.1;
     color: var(--ink); text-shadow: 0 3px 0 rgba(0,0,0,.35), 0 0 24px rgba(0,0,0,.4); pointer-events: none; transition: opacity .18s, transform .18s cubic-bezier(.2, 1.6, .4, 1); white-space: nowrap; text-align: center; }
   .banner.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -231,9 +267,9 @@
 <div id="join">
   <form class="card" id="joinForm">
     <div class="top"><h1>抓紧了 · Hang On</h1><button class="lang" id="langBtn" type="button">EN</button></div>
-    <p data-en="The room code on the TV or the host's phone, and your name.">电视或房主手机上的房间码，和你的名字。</p>
-    <div class="field"><label for="code" data-en="Room code">房间码</label><input id="code" class="code" inputmode="latin" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="ABCD" required></div>
-    <div class="field"><label for="name" data-en="Name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="糯米团" data-en-ph="Dumpling"></div>
+    <p class="intro" data-en="The room code on the TV or the host's phone, and your name.">电视或房主手机上的房间码，和你的名字。</p>
+    <div class="field fcode"><label for="code" data-en="Room code">房间码</label><input id="code" class="code" inputmode="latin" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="ABCD" required></div>
+    <div class="field fname"><label for="name" data-en="Name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="糯米团" data-en-ph="Dumpling"></div>
     <button class="btn quiet" id="lookBtn" type="button"><canvas id="lookMini" width="44" height="44" style="width:22px;height:22px" aria-hidden="true"></canvas><span id="lookSummary">换个样子</span></button>
     <button class="btn quiet" id="itemBtn" type="button"><span id="itemIcon" aria-hidden="true">🧊</span><span id="itemSummary">道具：速冻</span></button>
     <p class="err" id="err" role="alert"></p>
@@ -289,11 +325,14 @@
       <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button></div>
     </div>
     <div class="mcard" id="mResults" hidden>
+      <div class="res-a">
       <h2 id="mTitle">到顶了！</h2>
       <div class="big" id="mTime">0.0 s</div>
       <p class="par" id="mPar"></p>
       <h3 id="mGoalTitle" hidden data-en="Goals">小目标</h3>
       <ul class="goals" id="mGoalList" hidden></ul>
+      </div>
+      <div class="res-b">
       <ol id="mDeaths"></ol>
       <h3 id="mBetrayTitle" data-en="Betrayals">背叛榜</h3>
       <ul id="mBetrayList"></ul>
@@ -302,6 +341,7 @@
         <button class="btn" id="mNextLevel" type="button" data-en="Next level">下一关</button>
         <button class="btn quiet" id="mAgain" type="button" data-en="Play again">再来一次</button>
         <button class="btn quiet" id="mToLobby" type="button" data-en="Lobby">回大厅</button>
+      </div>
       </div>
     </div>
   </div>
@@ -352,11 +392,14 @@
 <div class="vcount" id="vCount" hidden><div class="count"><span id="vCountNum">3</span><small id="vCountLevel"></small></div></div>
 <div class="vres" id="vResults" hidden>
   <div class="card">
+    <div class="res-a">
     <h2 id="vWinTitle">到顶了！</h2>
     <div class="big" id="vWinTime">0.0 s</div>
     <p class="par" id="vWinPar"></p>
     <h3 id="vGoalTitle" hidden data-en="Goals">小目标</h3>
     <ul class="goals" id="vGoalList" hidden></ul>
+    </div>
+    <div class="res-b">
     <ol id="vDeathList"></ol>
     <h3 id="vBetrayTitle" data-en="Betrayals">背叛榜</h3>
     <ul id="vBetrayList"></ul>
@@ -365,6 +408,7 @@
       <button class="btn" id="vNextLevel" type="button" data-en="Next level">下一关</button>
       <button class="btn quiet" id="vAgain" type="button" data-en="Play again">再来一次</button>
       <button class="btn quiet" id="vToLobby" type="button" data-en="Lobby">回大厅</button>
+    </div>
     </div>
   </div>
 </div>

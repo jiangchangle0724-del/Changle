@@ -11,6 +11,9 @@
 *::before,
 *::after {
   box-sizing: border-box;
+  /* a double tap never zooms, two fingers still do (and main.tsx makes Safari look at it everywhere);
+     every element says it itself, since an iPhone starts afresh inside each scrolling box */
+  touch-action: manipulation;
 }
 html {
   background: var(--color-bg);
@@ -639,6 +642,17 @@ a.shop-name {
   color: var(--color-text);
   font-size: var(--text-md);
 }
+/* a long note: its first lines, and a way to the rest (Offer.tsx) */
+.offer-note-short {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+/* how many have joined, the way down to the list (the words line up with the rest) */
+.joined {
+  margin-left: calc(var(--space-2) * -1);
+}
 .how-chip {
   display: flex;
   align-items: center;
@@ -769,6 +783,21 @@ a.shop-name {
   background: var(--color-surface);
   transition: opacity var(--dur-enter) var(--ease-out);
 }
+/* signing in on a merchant's page (SignIn.tsx) */
+.signin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* the poster to send on (MyOffer.tsx): the one picture a long press may save or send, as WeChat does */
+.poster-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-flat);
+  -webkit-touch-callout: default;
+}
 /* (until it has come: then it fades in, src/client/ui/Offer.tsx) */
 .photo-waiting {
   opacity: 0;
@@ -793,10 +822,35 @@ a.shop-name {
   font-weight: 700;
 }
 .item-what {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+}
+/* the words of an item are one button to its details, laid over them (and up to the row's edges) */
+.item-open {
+  position: absolute;
+  inset: calc(var(--space-3) * -1) 0;
+  border-radius: var(--r-field);
+  cursor: pointer;
+  transition: background-color var(--dur-exit) var(--ease-out);
+}
+.item-open:active {
+  background: color-mix(in oklab, var(--color-text) 6%, transparent);
+}
+/* in the list, a long detail shows its start and the allergens one line: all of both are in the details */
+.item-what .item-detail {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.item-what .item-note {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
 }
 .item-name {
   font-size: var(--text-md);

@@ -1,5 +1,6 @@
 {
   "id": "van-21",
+  "stamina": true,
   "world": "van",
   "name": {
     "zh": "电轨折返",
@@ -20,8 +21,8 @@
   },
   "checkpoints": [
     {
-      "x": 1210,
-      "y": 416
+      "x": 1070,
+      "y": 276
     },
     {
       "x": 2020,
@@ -30,16 +31,16 @@
   ],
   "envelopes": [
     {
-      "x": 624,
-      "y": 252
+      "x": 905,
+      "y": 322
     },
     {
-      "x": 994,
-      "y": 252
+      "x": 1443,
+      "y": 319
     },
     {
-      "x": 2257,
-      "y": 273
+      "x": 2292,
+      "y": 109
     }
   ],
   "rects": [
@@ -114,6 +115,14 @@
       "w": 200,
       "h": 20,
       "material": "wood"
+    },
+    {
+      "kind": "ground",
+      "material": "metal",
+      "x": 1000,
+      "y": 300,
+      "w": 240,
+      "h": 20
     }
   ],
   "ropes": [],
@@ -132,7 +141,7 @@
     },
     {
       "x": 700,
-      "y": 80,
+      "y": 200,
       "w": 80,
       "h": 20,
       "kind": "zap",
@@ -158,36 +167,32 @@
   "movers": [
     {
       "x": 440,
-      "y": 500,
+      "y": 540,
       "w": 160,
       "h": 22,
       "path": [
-        {
-          "x": 500,
-          "y": 220
-        },
         {
           "x": 1040,
           "y": 220
         }
       ],
-      "speed": 65,
-      "wait": 2,
+      "speed": 150,
+      "wait": 1.2,
       "material": "metal"
     },
     {
       "x": 780,
-      "y": 500,
+      "y": 560,
       "w": 24,
       "h": 24,
       "path": [
         {
           "x": 780,
-          "y": 620
+          "y": 660
         }
       ],
-      "speed": 100,
-      "wait": 2,
+      "speed": 150,
+      "wait": 1.2,
       "material": "wood",
       "deadly": true,
       "hazard": "zap"
@@ -202,18 +207,18 @@
       "arms": 2,
       "len": 140,
       "h": 16,
-      "spin": 0.55,
+      "spin": 0.8250000000000001,
       "material": "metal"
     },
     {
       "pivot": {
         "x": 800,
-        "y": 500
+        "y": 560
       },
       "arms": 2,
       "len": 80,
       "h": 16,
-      "spin": 1.1,
+      "spin": 1.6500000000000001,
       "material": "wood",
       "deadly": true
     }
@@ -223,5 +228,18 @@
     "seconds": 150,
     "deathsPerPlayer": 6
   },
-  "replay": "replays/van-21.json"
+  "replay": "replays/van-21.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 516,
+        "y": 356
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 1.8,
+      "r": 24,
+      "grab": false
+    }
+  ]
 }

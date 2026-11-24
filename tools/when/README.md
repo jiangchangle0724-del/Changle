@@ -90,7 +90,10 @@ line says the weather for that time where the forecast reaches (A4, 2026-11-18; 
 recommended times should say the weather): "40% 可能下雨 · 最低 3°", "晴 · 8°", and
 "有雨 · 最高 8°，适合室内" when rain or snow is likely (60% or more, or no chance given: ECCC
 gives one only from 30 to 60 percent). Under the best three: "天气数据来源：加拿大环境与气候变化部"
-with a link to the licence, as the licence asks.
+with a link to the licence, as the licence asks. Once the time is set, the words for the group
+chat say it on a line of their own over the link ("天气预报：有雨 · 最低 4°，适合室内" /
+"Forecast: Rain · low 4°, better indoors"), and the result picture under who can make it
+(2026-11-20; `forecastLine`). Where the forecast doesn't reach, neither says anything.
 
 - The forecast is Environment and Climate Change Canada's for Vancouver (open data, free, no key):
   MSC GeoMet's city page weather as JSON (`WEATHER_SOURCE` in `src/engine/weather.ts`). It has a
@@ -124,6 +127,16 @@ calls Friday night. Gatherings made before 2026-11-14 were asked by the half day
 The grid's side shows each day short ("周一 11/16") so the five keep a crowded tap target's width
 from a 375px phone up; on a narrower phone the day's name goes on a line of its own above its
 five.
+
+With larger text on the phone (2026-11-20; `sizes.spec.ts` looks at 150%):
+
+- A column narrower than its longest English name ("Morning") is headed short: Night, AM, Noon,
+  PM, Eve (`partHeadingShort`), at the size asked for. Each name over a column is a CSS container
+  that asks this in its own text size; the Chinese names fit as they are.
+- In the best three, when the list is narrower than 16 of its text size, the host's button goes
+  under the time instead of beside it.
+- Chinese times and counts end a line between words ("11月21日 周六" / "下午"), and a number stays
+  with what it counts ("1 个有空", a no-break space put in on the page only).
 
 ### Times to the minute
 
@@ -213,6 +226,27 @@ group chat instead (A3, 2026-11-14).
   with a button for each language. The tone a phone last picked is kept on that phone
   (`when.tone`) for every gathering; plain until then.
 - Once the time is set, "tell the group" uses the same words and tones for the result.
+
+### What time to start (几点开始)
+
+The second of two steps (A4, 2026-11-20): once the day and the period are set, the host taps
+"问大家几点开始" on the banner and picks 2 to 5 times from the half hours the set time allows
+(at least 30 minutes before it ends; the first three are picked to start with). Everyone sees them
+on the banner and taps the ones that suit them (it takes a name), with how many each suits. The
+host taps "定在 18:30 开始" (the time most people tapped, the earliest of equals), or changes the
+times, or stops asking.
+
+- The start becomes the set time's `from`. Set to the minute (19:00–22:00), the start moves and the
+  end stays; set to the whole period, there is no `to`, which reads "11月21日 周六 晚上 18:30 开始" /
+  "Sat, Nov 21, from 18:30" (`whenLabel`), and the calendar file runs from then to the period's
+  usual end, two hours at least. The words for the group chat, the result picture and 随便 all go
+  by it.
+- Kept as `starts` on the gathering (the times asked) and on each row (the times that suit them):
+  `POST /when/api/e/<code>/start` with `{ "starts": [...] }`; the host's actions `starts` (the times;
+  `[]` stops asking) and `start` (sets one). Asking again keeps the votes for times still asked;
+  setting a start, setting the time again or reopening stops the asking.
+- Only a gathering asked by the period has minutes, so only it asks (the rules are in
+  `src/engine/start.ts`).
 
 ### The same people again (同一帮人再约)
 

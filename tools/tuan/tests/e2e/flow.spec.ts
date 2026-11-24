@@ -318,7 +318,7 @@ test("something sells out while it's in the cart", async ({ browser, request }) 
   await expect(page.locator(".toast")).toHaveText("有东西不够了，已经按剩下的改好，请再看一眼。");
   await expect(page.locator("form.page")).toHaveCount(0);
   await expect(row(page, "土鸡蛋 30 枚").locator(".item-tag-warn")).toHaveText("卖完了");
-  await expect(row(page, "土鸡蛋 30 枚").getByRole("button")).toHaveCount(0);
+  await expect(row(page, "土鸡蛋 30 枚").locator(".add, .stepper")).toHaveCount(0);
   await expect(dock(page).locator(".dock-count")).toHaveText("1 件");
   await expect(dock(page).locator(".dock-total")).toHaveText("$38.00");
 
@@ -400,7 +400,7 @@ test("a group buy that has closed, one that isn't public yet, and addresses that
   await expect(page.locator(".state")).toHaveText("已截单");
   await expect(page.getByText("这个团已经截单，不再接新订单。")).toBeVisible();
   await expect(page.locator(".item")).toHaveCount(5);
-  await expect(page.locator(".item button")).toHaveCount(0);
+  await expect(page.locator(".item .add, .item .stepper")).toHaveCount(0);
   await expect(dock(page)).toHaveCount(0);
   // the order can still be read, not changed
   await page.goto(`/tuan/o/${code}`);
@@ -431,6 +431,64 @@ test("a group buy that has closed, one that isn't public yet, and addresses that
   await expect(page.getByRole("link", { name: "商家入口：我的团" })).toHaveAttribute("href", "/tuan/my");
   // every other page stays out of search engines
   expect((await page.goto(url))?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
+});
+
+test("a long note folds, every item opens its details, the top says how many have joined, and a new order's page shows at once", async ({ browser, request }) => {
+  const note = Array.from({ length: 12 }, (_, at) => `第 ${at + 1} 条：周三晚上截单，周五送货或自提。`).join("\n");
+  const { url } = await start(request, { note });
+  const page = await phone(browser);
+  await page.goto(url);
+  // the note: its first lines, then all of it, then back
+  const words = page.locator(".offer-note");
+  await expect(words).toHaveClass(/offer-note-short/);
+  const short = await words.evaluate((el) => el.clientHeight);
+  await page.getByRole("button", { name: "展开全部" }).click();
+  await expect(words).not.toHaveClass(/offer-note-short/);
+  expect(await words.evaluate((el) => el.clientHeight)).toBeGreaterThan(short * 1.5);
+  await expect(page.getByRole("button", { name: "收起" })).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: "收起" }).click();
+  await expect(words).toHaveClass(/offer-note-short/);
+  // no one yet: nothing said at the top
+  await expect(page.locator(".joined")).toHaveCount(0);
+
+  // an item without a picture: its words open its details, and it can go in the cart from there
+  await page.getByRole("button", { name: "详情：东北珍珠米 15lb" }).click();
+  const details = page.getByRole("dialog", { name: "东北珍珠米 15lb" });
+  await expect(details.locator("img")).toHaveCount(0);
+  await details.getByRole("button", { name: /^加入/ }).click();
+  await expect(details.locator(".step-n")).toHaveText("1");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sheet")).toHaveCount(0);
+  // by weight: the details say what's chosen, and lead to the picker
+  await page.getByRole("button", { name: "选重量：手切羊肉片" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /^加入/ }).click();
+  await page.getByRole("button", { name: "详情：手切羊肉片" }).click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "已选 1 lb · 改重量" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sheet")).toHaveCount(0);
+
+  // the order's page: what came back with the order is shown at once, without asking for it again
+  const asked: string[] = [];
+  page.on("request", (sent) => sent.method() === "GET" && sent.url().includes("/tuan/api/orders/") && asked.push(sent.url()));
+  await toCheckout(page);
+  await choose(page, "温哥华西区");
+  await page.fill('input[name="name"]', "小林");
+  await page.fill('input[name="phone"]', "604 555 0188");
+  await send(page);
+  await expect(page).toHaveURL(ORDER_URL);
+  await expect(page.locator(".hero .placed")).toBeVisible();
+  await expect(page.locator(".loading")).toHaveCount(0);
+  const code = await codeOf(page);
+  expect(asked).toEqual([]);
+  // opened again later, it asks
+  await page.reload();
+  await expect(page.locator(".hero h1")).toHaveText(code);
+  expect(asked.length).toBe(1);
+
+  // the group buy now says how many have joined, and leads down to the list
+  await page.goto(url);
+  await page.getByRole("button", { name: "已有 1 单跟团 · 看名单" }).click();
+  await expect(page.locator("#roster")).toBeInViewport();
 });
 
 test("sheets: from the large picture to the weight picker one at a time, each closed by the back button, and one going never closes the next", async ({ browser, request }) => {

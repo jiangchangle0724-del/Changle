@@ -2,12 +2,14 @@
 import { whenLabel } from "./minutes";
 import { dateLabel } from "./slots";
 import type { Day, Lang, Part } from "./types";
+import { forecastLine, type Weather } from "./weather";
 
 export type Tone = "plain" | "easy" | "funny";
 export type InviteWords = { title: string; url: string; days: Day[]; deadline?: string };
 export type NudgeWords = { title: string; url: string; missing: string[]; deadline?: string };
 /** `from` and `to`: the minutes, when the time was set to part of its period. */
-export type ResultWords = { title: string; url: string; day: Day; part: Part; from?: number; to?: number; coming: number; asked: number; maybe: string[] };
+/** `weather`: the forecast for the time that was set, where it reaches; said on a line of its own, over the link. */
+export type ResultWords = { title: string; url: string; day: Day; part: Part; from?: number; to?: number; coming: number; asked: number; maybe: string[]; weather?: Weather | null };
 
 type Variants<Words> = Record<Lang, Record<Tone, readonly ((words: Words) => string)[]>>;
 
@@ -173,5 +175,5 @@ const RESULTS: Variants<{ when: string; who: string }> = {
 /** Maybes are separate from the free count, just as on the gathering's page. */
 export function resultText(words: ResultWords, tone: Tone, lang: Lang, pick = 0): string {
   const body = choose(RESULTS, { when: whenLabel(words.day, words.part, lang, words.from, words.to), who: attendance(words, lang) }, tone, lang, pick);
-  return message(words.title, body, words.url, lang);
+  return message(words.title, words.weather ? `${body}\n${forecastLine(words.weather, lang)}` : body, words.url, lang);
 }

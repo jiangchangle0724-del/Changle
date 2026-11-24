@@ -173,7 +173,7 @@ test("the words to paste back into the group chat", async () => {
   const url = "https://changle.ca/when/abcdefgh";
   // who the words count: as the page does, the free and, by name, who could move things
   const words = resultWords({ title: "周末火锅", day: SAT, part: "eve", tally: t, people, url });
-  assert.deepEqual(words, { title: "周末火锅", url, day: SAT, part: "eve", from: undefined, to: undefined, coming: 2, asked: 3, maybe: ["阿May"] });
+  assert.deepEqual(words, { title: "周末火锅", url, day: SAT, part: "eve", from: undefined, to: undefined, coming: 2, asked: 3, maybe: ["阿May"], weather: null });
   assert.equal(resultText(words, "plain", "zh"), `「周末火锅」\n定了：11月21日 周六 晚上。3 个人里 2 个有空，阿May 可以调。详情见链接。\n${url}`);
   assert.equal(resultText({ ...words, title: "Hot pot" }, "plain", "en"), `"Hot pot"\nThe time is set: Sat, Nov 21, evening. 2 of 3 free, 阿May could move things. See the link for details.\n${url}`);
 

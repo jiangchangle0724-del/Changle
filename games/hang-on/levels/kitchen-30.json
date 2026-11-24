@@ -1,5 +1,6 @@
 {
   "id": "kitchen-30",
+  "stamina": true,
   "world": "kitchen",
   "tier": 2,
   "name": {
@@ -21,30 +22,30 @@
   },
   "checkpoints": [
     {
-      "x": 1270,
+      "x": 1275,
       "y": 536
     },
     {
-      "x": 2320,
+      "x": 2100,
       "y": 496
     },
     {
-      "x": 2700,
+      "x": 2800,
       "y": 556
     }
   ],
   "envelopes": [
     {
-      "x": 791,
-      "y": 270
+      "x": 780,
+      "y": 236
     },
     {
-      "x": 1524,
-      "y": 234
+      "x": 1228,
+      "y": 362
     },
     {
-      "x": 3019,
-      "y": 141
+      "x": 3024,
+      "y": 241
     }
   ],
   "rects": [
@@ -55,13 +56,13 @@
       "w": 520,
       "h": 160,
       "material": "metal",
-      "grab": false
+      "grab": true
     },
     {
       "kind": "ground",
       "x": 260,
       "y": 340,
-      "w": 470,
+      "w": 110,
       "h": 20,
       "material": "wood"
     },
@@ -155,6 +156,22 @@
       "w": 120,
       "h": 116,
       "material": "metal"
+    },
+    {
+      "kind": "ground",
+      "material": "metal",
+      "x": 600,
+      "y": 450,
+      "w": 130,
+      "h": 130
+    },
+    {
+      "kind": "ground",
+      "material": "metal",
+      "x": 520,
+      "y": 510,
+      "w": 80,
+      "h": 90
     }
   ],
   "vents": [
@@ -225,7 +242,7 @@
       "arms": 1,
       "len": 50,
       "h": 12,
-      "spin": -0.9,
+      "spin": -1.35,
       "deadly": true,
       "players": [
         1,
@@ -238,5 +255,18 @@
     "deathsPerPlayer": 8
   },
   "deathY": 810,
-  "replay": "replays/kitchen-30.json"
+  "replay": "replays/kitchen-30.json",
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1000,
+        "y": 166
+      },
+      "len": 100,
+      "amp": 0.4,
+      "period": 1.8,
+      "r": 34,
+      "grab": false
+    }
+  ]
 }

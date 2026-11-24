@@ -8,7 +8,12 @@ import { DurableObject } from "cloudflare:workers";
 import { cleanChoices, type Choices } from "../src/shared/draw";
 import { cleanScene } from "../src/shared/dramaScene";
 import { checkLook } from "../src/shared/figureLook";
-import { cleanNotice, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
+import { COPY_LIMIT, COPY_MAX, emptyCopy, type CopyEdit, type CopyMap } from "../src/shared/copy";
+import { goneTables, nextDue, noteGone, sendGone } from "./goneNotices";
+import { accountsThere, appsUsed, forgetHandoffs, giveHandoff, handoffTables, redeemHandoff } from "./handoffCodes";
+import { afterPause, cancelByLink, cancelPending, confirmEmail, dropEmail, EMAIL_RE, emailTables, forgetEmail, makeEmail, nextPending, pendingOf, postponeDue, startEmail, takeDue } from "./emailChange";
+import { mailTables, nextMail, queueMail, sendMail, type Mail } from "./mailOut";
+import { cleanNotice, esc, NOTICES_A_DAY, renderNotice, type Sent } from "./notice";
 import { sfAdmin, sfPublic, sfSchema } from "./straightface";
 
 /** The tables (Room objects), reached by code: the hub asks one to let someone go, or to close. */
@@ -18,6 +23,8 @@ export type HubEnv = {
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
   ADMIN_EMAILS?: string;
+  /** where a reply to the "your email changed" mail goes; without it, the first of ADMIN_EMAILS */
+  CONTACT_EMAIL?: string;
   /** the owner: the back office, and the only one let in while the site is paused */
   MASTER_EMAIL?: string;
   DEV_SHOW_CODES?: string;
@@ -28,6 +35,8 @@ export type HubEnv = {
   DJ_LYRIA_HOURS?: string;
   /** 两清 (tools/split), its Internal entrypoint: told when an account is deleted, it lets go of that account's receipt photos and ledgers */
   SPLIT?: { accountGone(account: string): Promise<unknown> };
+  /** MoneyLens (tools/moneylens), its Internal entrypoint, once it's bound (after its first deploy): told the same, it deletes that account's records and keys */
+  MONEY?: { accountGone(account: string): Promise<unknown>; accountChanged(account: string): Promise<unknown> };
 };
 
 export type Call = { method: string; path: string; token: string; device: string; ip: string; body?: unknown; bytes?: ArrayBuffer; type?: string };
@@ -72,7 +81,6 @@ const DRAWS_PER_DAY = 400;
 const SESSION_TTL = 5 * 365 * 86400_000;
 const GENDERS = ["female", "male", "nonbinary", "private"];
 const HANDLE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 /** 戏精大赏 scenes players send in: a few a day each, and not too many waiting at once. */
 const SCENES_PER_DAY = 5;
 const SCENES_WAITING = 10;
@@ -105,6 +113,14 @@ function asUser(r: Row): U {
 }
 
 const ok = (json: unknown): Reply => ({ status: 200, json });
+/** an address in a mail to someone else's mailbox: the first letter, then the domain */
+const masked = (email: string) => {
+  const [name, domain] = email.split("@");
+  return `${name.slice(0, 1)}***@${domain}`;
+};
+/** a day and time, Vancouver time, as a mail says it */
+const when = (at: number, lang: "zh" | "en") =>
+  new Intl.DateTimeFormat(lang === "zh" ? "zh-CN" : "en-CA", { timeZone: "America/Vancouver", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
 const err = (status: number, error: string): Reply => ({ status, json: { error } });
 
 export class Hub extends DurableObject<HubEnv> {
@@ -119,7 +135,16 @@ export class Hub extends DurableObject<HubEnv> {
   constructor(ctx: DurableObjectState, env: HubEnv) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
-    ctx.blockConcurrencyWhile(async () => this.migrate());
+    ctx.blockConcurrencyWhile(async () => {
+      this.migrate();
+      // (notices waiting with no alarm, or a later one, say the hub stopped before setting it: wake in time for them)
+      const due = this.dueAt();
+      if (due != null) {
+        const at = Math.max(due, Date.now() + 1000);
+        const set = await ctx.storage.getAlarm();
+        if (set == null || set > at) await ctx.storage.setAlarm(at);
+      }
+    });
   }
 
   private migrate() {
@@ -144,6 +169,12 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE TABLE IF NOT EXISTS figures (user_id TEXT PRIMARY KEY, mime TEXT NOT NULL, full BLOB NOT NULL, round BLOB NOT NULL, choices TEXT NOT NULL, shown INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)`);
     // the 3D figure's look (/me/figure): a few dozen numbers, as src/shared/figureLook.ts checks them
     q(`CREATE TABLE IF NOT EXISTS looks (user_id TEXT PRIMARY KEY, look TEXT NOT NULL, updated_at INTEGER NOT NULL)`);
+    // codes that take a signed-in account to an app on its own domain (handoffCodes.ts), and the
+    // apps still to be told an account is gone (goneNotices.ts)
+    handoffTables(this.sql);
+    goneTables(this.sql);
+    emailTables(this.sql);
+    mailTables(this.sql);
     // AI drawings counted per day (k: e:<email>, ip:<address>, all)
     q(`CREATE TABLE IF NOT EXISTS draws (k TEXT PRIMARY KEY, day TEXT NOT NULL, n INTEGER NOT NULL)`);
     // notices sent for other Workers, counted per day (k: the app; worker/notice.ts)
@@ -179,6 +210,8 @@ export class Hub extends DurableObject<HubEnv> {
     q(`CREATE INDEX IF NOT EXISTS scenes_user ON scenes (user_id, id)`);
     // 一本正经: how each card plays, and the cards players flag (worker/straightface.ts)
     sfSchema(q);
+    // the owner's edits to the site's words: by language and the exact text they replace (src/shared/copy.ts)
+    q(`CREATE TABLE IF NOT EXISTS copy (lang TEXT NOT NULL, orig TEXT NOT NULL, text TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (lang, orig))`);
     // the figure lifted off its backdrop, for the games' stages, and a version that changes with it
     const fcols = this.sql.exec(`PRAGMA table_info(figures)`).toArray().map((c) => String(c.name));
     if (!fcols.includes("cut")) q(`ALTER TABLE figures ADD COLUMN cut BLOB`);
@@ -242,9 +275,10 @@ export class Hub extends DurableObject<HubEnv> {
     const b = (c.body ?? {}) as Record<string, unknown>;
     const me = c.token ? await this.session(c.token) : null;
     const master = !!me && this.isMaster(me);
-    // signing in, and the pictures of people's faces, stay open; the rest is shut to a banned
-    // phone, and to everyone but the owner while the site is paused
-    const open = path.startsWith("/auth/") || /^\/(avatar|figure)\/u[a-z0-9]{6,20}(\/cut)?$/.test(path);
+    // signing in, the pictures of people's faces, and cancelling a waiting email change (so a pause
+    // or a banned phone can't keep an owner from it) stay open; the rest is shut to a banned phone,
+    // and to everyone but the owner while the site is paused
+    const open = path.startsWith("/auth/") || path === "/email/cancel" || path === "/me/email/cancel" || /^\/(avatar|figure)\/u[a-z0-9]{6,20}(\/cut)?$/.test(path);
     if (!master && !open) {
       if (c.device && this.isBanned(`d:${c.device}`)) return err(403, "banned");
       if (this.paused) return err(503, "paused");
@@ -284,8 +318,22 @@ export class Hub extends DurableObject<HubEnv> {
     if (path === "/auth/code" && m === "POST") return this.sendCode(String(b.email ?? ""), c.ip, b.lang === "en" ? "en" : "zh");
     if (path === "/auth/verify" && m === "POST") return this.verify(String(b.email ?? ""), String(b.code ?? ""), c.ip);
     if (path === "/auth/signup" && m === "POST") return this.signup(String(b.ticket ?? ""), b);
+    // a change waiting its three days, cancelled by the link mailed to the address the account has now
+    if (path === "/email/cancel" && m === "POST") {
+      if (!this.allow(`cancel:${c.ip}`, 20, 3600_000)) return err(429, "slow-down");
+      const who = await cancelByLink(this.sql, b.token);
+      if (!who) return err(400, "link");
+      this.push(who, { t: "me" });
+      return ok({ cancelled: true });
+    }
     if (path === "/auth/logout" && m === "POST") {
-      if (c.token) this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, await sha(c.token));
+      if (c.token) {
+        const h = await sha(c.token);
+        const s = this.one(`SELECT user_id FROM sessions WHERE hash = ?`, h);
+        this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, h);
+        // (and a handoff code from the last minute, not yet traded)
+        if (s) forgetHandoffs(this.sql, String(s.user_id), false);
+      }
       return ok({ ok: true });
     }
 
@@ -319,6 +367,12 @@ export class Hub extends DurableObject<HubEnv> {
     const sf = sfPublic(path, m, b, { sql: this.sql, allow: (k, n, w) => this.allow(k, n, w), device: c.device, ip: c.ip, uid: me?.id ?? null });
     if (sf) return sf;
 
+    // ---- a code that takes this account to an app on its own domain (MoneyLens) ----
+    if (path === "/handoff" && m === "POST") {
+      const r = await giveHandoff(this.sql, me, b);
+      return { status: r.status, json: r.json };
+    }
+
     if (!me) return err(401, "signin");
     this.sql.exec(`UPDATE users SET last_seen = ? WHERE id = ?`, Date.now(), me.id);
 
@@ -332,6 +386,19 @@ export class Hub extends DurableObject<HubEnv> {
       if ("error" in p) return err(400, p.error);
       this.sql.exec(`UPDATE users SET name = ?, phone = ?, city = ?, gender = ?, bio = ?, ac = ? WHERE id = ?`, p.name, p.phone, p.city, p.gender, p.bio, p.ac, me.id);
       return ok({ user: this.selfView(this.userById(me.id)!) });
+    }
+    // 换邮箱: a code to the new address; typed back, the account's email changes and the old address is told
+    if (path === "/me/email" && m === "POST") return this.emailStart(me, String(b.email ?? ""), c.ip, b.lang === "en" ? "en" : "zh");
+    if (path === "/me/email/confirm" && m === "POST") return this.emailConfirm(me, b, b.lang === "en" ? "en" : "zh", c);
+    // a change waiting its three days, cancelled from one of the account's phones
+    if (path === "/me/email/cancel" && m === "POST") {
+      if (cancelPending(this.sql, me.id)) this.push(me.id, { t: "me" });
+      return ok({ user: this.selfView(me) });
+    }
+    // the account's phones signed in before this one, signed out (this one stays; see signOutOlder)
+    if (path === "/me/sessions/others" && m === "POST") {
+      const r = this.signOutOlder(me.id, await sha(c.token));
+      return ok({ ...r, user: this.selfView(me) });
     }
     if (path === "/me" && m === "DELETE") {
       this.deleteUser(me.id);
@@ -567,7 +634,7 @@ export class Hub extends DurableObject<HubEnv> {
 
   private selfView(u: U) {
     const f = this.figure(u.id);
-    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices, cut: f.cut, perks: u.perks };
+    return { ...this.publicView(u), email: u.email, phone: u.phone, admin: this.isAdmin(u), master: this.isMaster(u), figure: f.shown, hasFigure: f.has, choices: f.choices, cut: f.cut, perks: u.perks, emailPending: pendingOf(this.sql, u.id) };
   }
 
   /**
@@ -702,6 +769,18 @@ export class Hub extends DurableObject<HubEnv> {
     return { paused: this.paused };
   }
 
+  /** The owner's edits to the site's words, for every page (lib/copy.ts). */
+  async copy(): Promise<CopyMap> {
+    return this.copyMap();
+  }
+  private copyMap(): CopyMap {
+    const out = emptyCopy();
+    for (const r of this.sql.exec(`SELECT lang, orig, text FROM copy`).toArray()) {
+      if (r.lang === "zh" || r.lang === "en") out[r.lang][String(r.orig)] = String(r.text);
+    }
+    return out;
+  }
+
   /** A phone sitting down at a table: who it is, and whether it may (paused site, banned phone). */
   async admit(a: { auth: string; pid: string }): Promise<Admit> {
     const u = a.auth ? await this.session(a.auth) : null;
@@ -802,20 +881,242 @@ export class Hub extends DurableObject<HubEnv> {
     return ok({ sent: true });
   }
 
-  private async mail(to: string, code: string, lang: "zh" | "en") {
-    const subject = lang === "zh" ? `changle 验证码 ${code}` : `Your changle code: ${code}`;
-    const lead = lang === "zh" ? "你的登录验证码：" : "Your sign-in code:";
-    const note = lang === "zh" ? "10 分钟内有效。不是你本人操作的话，忽略这封邮件就好。" : "It works for 10 minutes. If you didn't ask for it, ignore this email.";
+  /* ================= 换邮箱 (emailChange.ts) ================= */
+
+  /** the peppered hash of an address and a code, for this account's 换邮箱 codes */
+  private emailHash(id: string) {
+    return (email: string, code: string) => sha(`${this.pepper}|email|${id}|${email}|${code}`);
+  }
+
+  /** banned, or an address the settings give an admin's rights to */
+  private emailUnusable(u: U, email: string) {
+    return this.isBanned(`e:${email}`) || this.isAdmin({ ...u, email });
+  }
+
+  private async emailStart(me: U, raw: string, ip: string, lang: "zh" | "en"): Promise<Reply> {
+    const r = await startEmail(this.sql, { id: me.id, email: me.email, admin: this.isAdmin(me) }, raw, {
+      // (a sign-in code to the address moments ago counts as one of these)
+      recent: (email) => !!this.one(`SELECT 1 AS x FROM codes WHERE email = ? AND sent_at > ?`, email, Date.now() - 45_000),
+      // the address's hourly limit shared with its sign-in codes, and 20 an hour per IP (with sign-in's)
+      allow: (email) => this.allow(`code:${email}`, 6, 3600_000) && this.allow(`codeip:${ip}`, 20, 3600_000),
+      hash: this.emailHash(me.id),
+    });
+    if ("status" in r) return r;
+    if (this.env.DEV_SHOW_CODES === "1") return ok({ sent: true, dev: r.code, devNow: r.oldCode });
+    try {
+      await this.mail(r.email, r.code, lang, "email");
+      await this.mail(me.email, r.oldCode, lang, "email-now", r.email);
+    } catch (e) {
+      console.error("mail", e);
+      dropEmail(this.sql, me.id, r.hash);
+      return err(503, String((e as Error).message) === "no-mail" ? "no-mail" : "mail-failed");
+    }
+    return ok({ sent: true });
+  }
+
+  private async emailConfirm(me: U, b: Record<string, unknown>, lang: "zh" | "en", c: Call): Promise<Reply> {
+    const session = await sha(c.token);
+    const typed = { code: String(b.code ?? ""), oldCode: typeof b.oldCode === "string" ? b.oldCode : undefined, lost: b.lost === true };
+    const r = await confirmEmail(this.sql, { id: me.id, email: me.email, admin: this.isAdmin(me) }, typed, {
+      hash: this.emailHash(me.id),
+      unusable: (email) => this.emailUnusable(me, email),
+      ip: c.ip,
+      device: c.device,
+      session,
+      lang,
+    });
+    if ("status" in r) return r;
+    if ("waiting" in r) {
+      // the address the account has now hears at once, with the link that cancels it; the account's
+      // other phones show it too
+      queueMail(this.sql, this.waitingNote(me.email, r.waiting.email, r.waiting.due, r.waiting.token));
+      this.push(me.id, { t: "me" });
+      this.kickNotices();
+    } else this.emailMade(me.id, r.made, lang, session, true);
+    return ok({ user: this.selfView(this.userById(me.id)!) });
+  }
+
+  /**
+   * A change made (now, or on its day): the account's other phones signed out (`keep`: the one
+   * that asked), its handoff codes dropped; the old address told, and MoneyLens (an account that
+   * has used it, bound yet or not) told to end its sessions there, both tried until they're heard.
+   */
+  private emailMade(id: string, made: { old: string; email: string }, lang: "zh" | "en", keep: string, kick: boolean) {
+    this.signOutOthers(id, keep);
+    this.push(id, { t: "me" });
+    queueMail(this.sql, this.changedNote(made.old, made.email));
+    if (appsUsed(this.sql, id).includes("money")) noteGone(this.sql, id, ["money-changed"]);
+    if (kick) this.kickNotices();
+  }
+
+  /**
+   * Every phone signed in to the account signed out but one (`keep`: its session's hash): their
+   * sessions gone, their live sockets closed (4006: the app signs out), handoff codes dropped.
+   * Gives how many sessions went.
+   */
+  private signOutOthers(id: string, keep: string) {
+    const gone = this.sql.exec(`SELECT hash FROM sessions WHERE user_id = ? AND hash != ?`, id, keep).toArray().map((r) => String(r.hash));
+    this.endSessions(id, gone);
+    return gone.length;
+  }
+
+  /**
+   * 退出其他手机: the account's phones signed in BEFORE this one, signed out. A fresh sign-in needs
+   * the mailbox, so the owner signing in again always wins over an older session someone else
+   * holds; a stolen session can't sign out the newer ones. A waiting 换邮箱 whose phone is now
+   * signed out (or already was) is cancelled with it; one asked from a phone still signed in stays.
+   * Gives how many went, how many newer ones are left, and whether a waiting change was cancelled.
+   */
+  private signOutOlder(id: string, keep: string) {
+    const mine = Number(this.one(`SELECT created_at FROM sessions WHERE hash = ?`, keep)?.created_at ?? 0);
+    const gone = this.sql.exec(`SELECT hash FROM sessions WHERE user_id = ? AND hash != ? AND created_at <= ?`, id, keep, mine).toArray().map((r) => String(r.hash));
+    this.endSessions(id, gone);
+    const had = !!this.one(`SELECT 1 AS x FROM email_pending WHERE user_id = ?`, id);
+    this.sql.exec(`DELETE FROM email_pending WHERE user_id = ? AND session NOT IN (SELECT hash FROM sessions WHERE user_id = ?)`, id, id);
+    const cancelled = had && !this.one(`SELECT 1 AS x FROM email_pending WHERE user_id = ?`, id);
+    if (cancelled) this.push(id, { t: "me" });
+    const left = Number(this.one(`SELECT COUNT(*) AS n FROM sessions WHERE user_id = ? AND hash != ?`, id, keep)?.n ?? 0);
+    return { out: gone.length, left, cancelled };
+  }
+
+  /** these sessions of the account gone: their live sockets closed (4006: the app signs out), handoff codes dropped */
+  private endSessions(id: string, hashes: string[]) {
+    if (!hashes.length) return;
+    const gone = new Set(hashes);
+    for (const h of hashes) this.sql.exec(`DELETE FROM sessions WHERE hash = ?`, h);
+    forgetHandoffs(this.sql, id, false);
+    for (const ws of this.ctx.getWebSockets(id)) {
+      const a = ws.deserializeAttachment() as { s?: string } | null;
+      // (a socket from before sockets carried their session: closed too, and back at once if its session lives)
+      if (!a?.s || gone.has(a.s))
+        try {
+          ws.close(4006, "signed out");
+        } catch {
+          /* gone */
+        }
+    }
+  }
+
+  /** the notices and mail just queued: sent now, the alarm set in case they don't go */
+  private kickNotices() {
+    this.ctx.waitUntil(
+      this.armGone()
+        .then(() => this.tellGone())
+        .catch((e) => console.error("hub: notices", e)),
+    );
+  }
+
+  /** the waiting changes whose three days are up: checked again and made (on the alarm) */
+  private makeDueEmails() {
+    // (paused, nobody can cancel: nothing is made, and what's due waits another hour)
+    if (this.paused) return postponeDue(this.sql, Date.now());
+    for (const p of takeDue(this.sql, Date.now())) {
+      const u = this.userById(p.id);
+      if (!u || u.banned || this.isAdmin(u)) continue;
+      const made = makeEmail(this.sql, p.id, p.email, { unusable: (e) => this.emailUnusable(u, e), ip: p.ip, device: p.device, now: Date.now() });
+      if ("status" in made) {
+        console.error(`hub: a waiting email change wasn't made (${made.json.error})`);
+        // the new address hears why, and the account's phones stop showing it
+        queueMail(this.sql, this.notMadeNote(p.email, made.json.error, p.lang));
+        this.push(p.id, { t: "me" });
+        continue;
+      }
+      this.emailMade(p.id, made, p.lang, p.session, false);
+      queueMail(this.sql, this.newAddressNote(made.email, p.lang));
+    }
+  }
+
+  /** the site's contact for replies to these mails: CONTACT_EMAIL, or else the first of ADMIN_EMAILS (not the sending address) */
+  private replyTo() {
+    const contact = (this.env.CONTACT_EMAIL || (this.env.ADMIN_EMAILS ?? "").split(",")[0] || "").trim();
+    return contact ? { replyTo: contact } : {};
+  }
+
+  /** a mail in the sign-in code's frame: lines of text, and a button if there's a link */
+  private frame(lines: string[], note: string, link?: { href: string; label: string }) {
+    const body = lines.map((l) => `<p style="margin:0 0 12px">${esc(l)}</p>`).join("\n");
+    const button = link
+      ? `<p style="margin:8px 0 18px"><a href="${esc(link.href)}" style="display:inline-block;background:#b072ff;color:#0e0c22;font-weight:800;text-decoration:none;padding:12px 20px;border-radius:999px">${esc(link.label)}</a></p>`
+      : "";
+    return `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
+<p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
+${body}${button}${note ? `\n<p style="margin:0;color:#b6b4d0;font-size:14px">${esc(note)}</p>` : ""}</div>`;
+  }
+
+  /**
+   * The note to the old address once the change is made: the new one masked, and what to do if it
+   * wasn't them. In both languages: whoever asked chose the language, and it might not be the
+   * owner's.
+   */
+  private changedNote(old: string, now: string): Mail {
+    const subject = `你的 changle 账号换了邮箱 · Your changle account has a new email`;
+    const zh = [`你的 changle 账号的登录邮箱换成了 ${masked(now)}，以后用它登录。不是你本人换的话，请马上回复这封邮件告诉我们。`];
+    const en = [`Your changle account now signs in with ${masked(now)}. If you didn't change it, reply to this email right away.`];
+    return { to: old, subject, html: this.frame([...zh, ...en], ""), text: [...zh, ...en].join("\n\n"), ...this.replyTo() };
+  }
+
+  /**
+   * To the address the account has now, when the change waits its three days: when, and the link
+   * that cancels it. In both languages, as above.
+   */
+  private waitingNote(old: string, now: string, due: number, token: string): Mail {
+    const href = `https://changle.ca/me/email-cancel#${token}`;
+    const subject = `你的 changle 账号 3 天后换邮箱 · Your changle account's email changes in 3 days`;
+    const zh = `有人要把你的 changle 账号的登录邮箱换成 ${masked(now)}，${when(due, "zh")}生效。对方说这个邮箱收不到信了，所以要等 3 天。是你本人的话，不用做什么；不是你的话，马上点下面的按钮取消。`;
+    const en = `Someone asked to move your changle account to ${masked(now)}. It happens ${when(due, "en")}. They said this address no longer gets mail, so it waits 3 days. If it was you, there's nothing to do. If not, cancel it now with the button below.`;
+    const label = "取消这次换邮箱 · Cancel this change";
+    return { to: old, subject, html: this.frame([zh, en], "", { href, label }), text: `${zh}\n\n${en}\n\n${label}: ${href}`, ...this.replyTo() };
+  }
+
+  /** to the new address when a waiting change couldn't be made on its day: why */
+  private notMadeNote(now: string, why: string, lang: "zh" | "en"): Mail {
+    const zh = lang === "zh";
+    const subject = zh ? "你的 changle 账号没换成这个邮箱" : "Your changle account didn't move to this email";
+    const lead = why === "taken" ? (zh ? "这个邮箱这几天里有了一个 changle 账号，所以没换成。" : "This address got a changle account of its own in the meantime, so the change wasn't made.") : zh ? "这个邮箱不能用，所以没换成。" : "This address can't be used, so the change wasn't made.";
+    const note = zh ? "账号还用原来的邮箱登录。" : "The account still signs in with its old email.";
+    return { to: now, subject, html: this.frame([lead], note), text: `${lead}\n\n${note}`, ...this.replyTo() };
+  }
+
+  /** to the new address once a waiting change is made */
+  private newAddressNote(now: string, lang: "zh" | "en"): Mail {
+    const zh = lang === "zh";
+    const subject = zh ? "你的 changle 账号换好邮箱了" : "Your changle account's email has changed";
+    const lead = zh ? "以后用这个邮箱登录 changle。" : "From now on, sign in to changle with this address.";
+    const note = zh ? "不是你本人操作的话，请马上回复这封邮件告诉我们。" : "If this wasn't you, reply to this email right away.";
+    return { to: now, subject, html: this.frame([lead], note), text: `${lead}\n\n${note}`, ...this.replyTo() };
+  }
+
+  private async mail(to: string, code: string, lang: "zh" | "en", what: "signin" | "email" | "email-now" = "signin", newAddress = "") {
+    if (what === "email-now") return this.nowCodeMail(to, code, newAddress);
+    const zh = lang === "zh";
+    const subject = what === "signin" ? (zh ? `changle 验证码 ${code}` : `Your changle code: ${code}`) : zh ? `changle 换邮箱验证码 ${code}` : `Your changle code for the new email: ${code}`;
+    const lead = what === "email" ? (zh ? "确认这是你的新邮箱，验证码：" : "To make this your changle email, the code is:") : zh ? "你的登录验证码：" : "Your sign-in code:";
+    const note = zh ? "10 分钟内有效。不是你本人操作的话，忽略这封邮件就好。" : "It works for 10 minutes. If you didn't ask for it, ignore this email.";
     const html = `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
 <p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
-<p style="margin:0 0 8px;color:#b6b4d0">${lead}</p>
+<p style="margin:0 0 8px;color:#b6b4d0">${esc(lead)}</p>
 <p style="font-size:40px;font-weight:800;letter-spacing:8px;margin:0 0 18px">${code}</p>
 <p style="margin:0;color:#7f7c9d;font-size:13px">${note}</p></div>`;
     await this.deliver({ to, subject, html, text: `${lead} ${code}\n\n${note}` });
   }
 
+  /** the code for the address the account has now: what's asked, in both languages (whoever asked chose the language) */
+  private async nowCodeMail(to: string, code: string, newAddress: string) {
+    const subject = `changle 换邮箱验证码 ${code} · Your changle code to confirm the email change`;
+    const zh = `有人要把你的 changle 账号的登录邮箱换成 ${masked(newAddress)}。是你本人的话，把这个验证码也填进去。不是你的话，别把它告诉任何人。`;
+    const en = `Someone asked to move your changle account to ${masked(newAddress)}. If it was you, type this code in too. If not, don't give it to anyone.`;
+    const note = "10 分钟内有效 · It works for 10 minutes.";
+    const html = `<div style="font-family:-apple-system,Segoe UI,sans-serif;background:#0e0c22;color:#f5f4fd;padding:32px;border-radius:20px;max-width:440px">
+<p style="font-size:22px;font-weight:800;margin:0 0 18px">changle<span style="color:#b072ff">.</span></p>
+<p style="margin:0 0 8px;color:#b6b4d0">${esc(zh)}</p>
+<p style="margin:0 0 8px;color:#b6b4d0">${esc(en)}</p>
+<p style="font-size:40px;font-weight:800;letter-spacing:8px;margin:0 0 18px">${code}</p>
+<p style="margin:0;color:#7f7c9d;font-size:13px">${esc(note)}</p></div>`;
+    await this.deliver({ to, subject, html, text: `${zh}\n${en}\n\n${code}\n\n${note}` });
+  }
+
   /** One mail out through Resend (or, locally, DEV_MAIL_URL). Throws "no-mail" without a key, "resend …" when Resend says no. */
-  private async deliver(m: { to: string; subject: string; html: string; text: string }) {
+  private async deliver(m: Mail) {
     const key = this.env.RESEND_API_KEY;
     const url = this.env.DEV_MAIL_URL || "https://api.resend.com/emails";
     if (!key && !this.env.DEV_MAIL_URL) throw new Error("no-mail");
@@ -823,7 +1124,7 @@ export class Hub extends DurableObject<HubEnv> {
     const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key ?? ""}`, "Content-Type": "application/json", "User-Agent": "changle/1.0 (+https://changle.ca)" },
-      body: JSON.stringify({ from: this.env.MAIL_FROM || "changle <hello@changle.ca>", to: [m.to], subject: m.subject, html: m.html, text: m.text }),
+      body: JSON.stringify({ from: this.env.MAIL_FROM || "changle <hello@changle.ca>", to: [m.to], subject: m.subject, html: m.html, text: m.text, ...(m.replyTo ? { reply_to: m.replyTo } : {}) }),
     });
     if (!res.ok) throw new Error(`resend ${res.status} ${(await res.text()).slice(0, 200)}`);
   }
@@ -942,8 +1243,82 @@ export class Hub extends DurableObject<HubEnv> {
         /* gone */
       }
     }
-    // 两清 keeps its own for an account (receipt photos, ledgers with their keys): told, it lets them go
-    if (this.env.SPLIT) this.ctx.waitUntil(this.env.SPLIT.accountGone(id).catch((e) => console.error("hub: 两清 wasn't told an account is gone", e)));
+    // the apps that keep their own for an account (两清's receipt photos and ledgers; MoneyLens's
+    // records and keys, for an account that has used it, its binding in place yet or not): told
+    // now, and again on the alarm until each has heard (goneNotices.ts)
+    // (a waiting 换邮箱 code and the account's email history go; MoneyLens's "email changed" notice
+    // gives way to "gone")
+    forgetEmail(this.sql, id);
+    this.sql.exec(`DELETE FROM gone_notices WHERE user_id = ? AND app = 'money-changed'`, id);
+    const apps = [this.env.SPLIT ? "split" : "", ...forgetHandoffs(this.sql, id, true)].filter(Boolean);
+    if (apps.length) {
+      noteGone(this.sql, id, apps);
+      this.ctx.waitUntil(
+        this.armGone()
+          .then(() => this.tellGone())
+          .catch((e) => console.error("hub: gone notices", e)),
+      );
+    }
+  }
+
+  /** the alarm in a minute, unless one is set sooner: the next try, should this one not finish */
+  private async armGone() {
+    const at = Date.now() + 60_000;
+    const set = await this.ctx.storage.getAlarm();
+    if (set == null || set > at) await this.ctx.storage.setAlarm(at);
+  }
+
+  /** when the alarm should go off next: the earliest notice, mail or waiting email change (null: nothing waits) */
+  private dueAt() {
+    const at = [nextDue(this.sql), nextMail(this.sql), nextPending(this.sql)].filter((x): x is number => x != null);
+    return at.length ? Math.min(...at) : null;
+  }
+
+  /**
+   * The apps still to be told an account is gone (or its email changed), and the mail still to go
+   * out (mailOut.ts); the alarm set for whichever is next, before the sends and after.
+   */
+  private async tellGone() {
+    // (an email change whose three days are up is made first: what it says to send goes out in this pass)
+    this.makeDueEmails();
+    const wake = async () => {
+      const at = this.dueAt();
+      if (at != null) await this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
+    };
+    const money = this.env.MONEY;
+    await Promise.all([
+      sendGone(
+        this.sql,
+        {
+          split: this.env.SPLIT && ((id) => this.env.SPLIT!.accountGone(id)),
+          money: money && ((id) => money.accountGone(id)),
+          // (not gone: its email changed, so MoneyLens ends its sessions there)
+          "money-changed": money && ((id) => money.accountChanged(id)),
+        },
+        wake,
+      ),
+      sendMail(this.sql, (m) => this.deliver(m), wake),
+    ]);
+    await wake();
+  }
+
+  async alarm() {
+    await this.tellGone();
+  }
+
+  /* ================= the Handoff door (handoff.ts): apps on their own domain ================= */
+
+  /** a handoff code traded by its app: the account, or null (handoffCodes.ts) */
+  async redeemHandoff(code: string, aud: string) {
+    return redeemHandoff(this.sql, code, aud, (id) => {
+      const u = this.userById(id);
+      return u ? { banned: u.banned, master: this.isMaster(u) } : null;
+    });
+  }
+
+  /** which of these accounts are still here (throws on a wrong question) */
+  async accountsThere(ids: string[]) {
+    return accountsThere(this.sql, ids);
   }
 
   /* ================= 戏精大赏's public library ================= */
@@ -1137,6 +1512,9 @@ export class Hub extends DurableObject<HubEnv> {
   /** Sign someone out everywhere and take them off any table they're at. */
   private async dropUser(u: U, ban: boolean) {
     this.sql.exec(`DELETE FROM sessions WHERE user_id = ?`, u.id);
+    forgetHandoffs(this.sql, u.id, false);
+    dropEmail(this.sql, u.id);
+    cancelPending(this.sql, u.id);
     const msg = JSON.stringify({ t: ban ? "banned" : "kicked" });
     for (const ws of this.ctx.getWebSockets(u.id)) {
       try {
@@ -1154,6 +1532,36 @@ export class Hub extends DurableObject<HubEnv> {
   private async admin(me: U, c: Call, path: string, b: Record<string, unknown>): Promise<Reply> {
     const m = c.method;
     const now = Date.now();
+
+    // ---- the site's words, as the owner changed them by long-pressing (src/shared/copy.ts) ----
+    if (path === "/admin/copy" && m === "GET") {
+      const edits: CopyEdit[] = this.sql
+        .exec(`SELECT lang, orig, text, at FROM copy ORDER BY at DESC`)
+        .toArray()
+        .map((r) => ({ lang: r.lang === "en" ? "en" : "zh", orig: String(r.orig), text: String(r.text), at: Number(r.at) }));
+      return ok({ edits });
+    }
+    if (path === "/admin/copy" && m === "POST") {
+      const lang = b.lang === "zh" || b.lang === "en" ? b.lang : null;
+      const orig = typeof b.orig === "string" ? b.orig.trim() : "";
+      const text = typeof b.text === "string" ? b.text.trim() : "";
+      if (!lang || !orig || orig.length > COPY_MAX || text.length > COPY_MAX) return err(400, "bad");
+      // nothing, or the words as they were: back to the original
+      if (!text || text === orig) this.sql.exec(`DELETE FROM copy WHERE lang = ? AND orig = ?`, lang, orig);
+      else {
+        const known = this.sql.exec(`SELECT 1 FROM copy WHERE lang = ? AND orig = ?`, lang, orig).toArray().length > 0;
+        const count = Number(this.sql.exec(`SELECT COUNT(*) AS n FROM copy`).one().n);
+        if (!known && count >= COPY_LIMIT) return err(400, "full");
+        this.sql.exec(
+          `INSERT INTO copy (lang, orig, text, at) VALUES (?, ?, ?, ?) ON CONFLICT (lang, orig) DO UPDATE SET text = excluded.text, at = excluded.at`,
+          lang,
+          orig,
+          text,
+          now,
+        );
+      }
+      return ok({ copy: this.copyMap() });
+    }
 
     if (path === "/admin/overview" && m === "GET") {
       const rooms = this.liveRooms();
@@ -1275,6 +1683,8 @@ export class Hub extends DurableObject<HubEnv> {
 
     if (path === "/admin/pause" && m === "POST") {
       const on = b.on === true;
+      // (open again: a 换邮箱 waiting through the pause gets at least a day more, for cancelling it)
+      if (this.paused && !on) afterPause(this.sql, Date.now());
       this.paused = on;
       this.sql.exec(`INSERT INTO meta (k, v) VALUES ('paused', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`, on ? "1" : "0");
       const msg = JSON.stringify({ t: "paused", on });
@@ -1316,10 +1726,13 @@ export class Hub extends DurableObject<HubEnv> {
     const token = new URL(req.url).searchParams.get("token") ?? "";
     const me = await this.session(token);
     if (!me) return new Response("signin", { status: 401 });
+    // (`s`: the session's hash, so the account's other phones can be signed out and this one kept;
+    // worked out before the socket is taken on, so nothing can happen between the two)
+    const s = await sha(token);
     const pairSock = new WebSocketPair();
     const [client, server] = Object.values(pairSock) as [WebSocket, WebSocket];
     this.ctx.acceptWebSocket(server, [me.id]);
-    server.serializeAttachment({ uid: me.id });
+    server.serializeAttachment({ uid: me.id, s });
     server.send(JSON.stringify({ t: "hello", unread: this.unread(me.id), requests: this.requests(me.id), paused: this.paused && !this.isMaster(me) }));
     return new Response(null, { status: 101, webSocket: client });
   }

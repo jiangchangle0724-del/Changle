@@ -14,6 +14,10 @@ import { App } from "./ui/App";
 import { Home } from "./ui/Home";
 import { setReduced, toggleMute } from "./ui/Settings";
 
+// A double tap never zooms. iPhone Safari honours touch-action (the stylesheet gives it to every
+// element) only on a tap near something that listens for clicks, so the page itself listens.
+document.documentElement.addEventListener("click", () => {});
+
 setLang(prefs.lang);
 setMuted(prefs.muted);
 setReduced(prefs.reduced);

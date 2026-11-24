@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.6, 19 November 2026. It records the choices the requirements leave to this document
+Version 0.7, 20 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -20,7 +20,11 @@ approved the code, and recommended dropping more of the characters nobody sees w
 could still change, which was done. The fifth approved that last change, and the code was merged
 as it then stood (commit `0b03c720`). Version 0.6 changes no code: it writes the format down byte
 for byte (1.1) and lists exactly what the normalization changes (1.4), so that both can be checked
-against this document by someone who has not read the code.
+against this document by someone who has not read the code. Version 0.7 records that check: another
+vendor's model wrote a reader from this document alone, opened the stored vault with it three ways
+and then reviewed the code ([`reviews/vault-second-opinion.md`](reviews/vault-second-opinion.md),
+pull request #692). It approved the format and the code, and found one thing to fix in the code
+(section 2, "Memory") and one number this document named without stating (1.2, now stated).
 
 ## 1. The vault
 
@@ -89,7 +93,10 @@ made the next time the user types the passphrase. Three numbers govern the count
 written at `PBKDF2_ITERATIONS`; that is the one to raise when guidance rises. `PBKDF2_FLOOR` is the
 least a stored wrapper may claim, and it must never be raised above the lowest count ever written
 to a real vault, or those vaults stop opening. `PBKDF2_CEILING` (2,000,000) is the most, because
-the count comes from storage and should not be able to stall a phone. The count is reviewed
+the count comes from storage and should not be able to stall a phone. In numbers: a version 1
+wrapper is accepted when its count is a whole number from 600,000 to 2,000,000, both included
+(`PBKDF2_FLOOR` is 600,000 today, the only count ever written). Raising what new wrappers are
+written at does not raise the floor. The count is reviewed
 whenever the cheat sheet changes it and at each phase gate.
 
 ### 1.3 The key's life (VAULT-3, VAULT-7)
@@ -365,7 +372,11 @@ Phase 1 exit.
 - **Metadata.** The number of chunks, their sizes and the times they change are visible to the
   server. Chunk sizes are not padded.
 - **Memory.** JavaScript cannot wipe memory reliably. Secrets the code holds as bytes are zeroed
-  after use; a passphrase held as a string by the page cannot be.
+  after use; a passphrase held as a string by the page cannot be. One place does not do it yet,
+  found by the second opinion: when a new recovery code is being wrapped and the platform refuses
+  part-way, the code's 20 bytes are left as they were. No wrapper comes out of such a failure and
+  reading the bytes needs access to the page's memory, so nothing stored is weaker for it; the
+  fix is task card C2, with its own review, and this sentence goes when it is merged.
 - **The device.** Malware, an extension with access to the page, or someone at the unlocked screen
   is outside what the vault defends.
 

@@ -25,7 +25,29 @@ export const LOOKS: readonly Look[] = ["sweet", "party", "club"];
  * `her-sweet.glb.gz` the first-love blouse and pleated skirt, `her-party.glb.gz` the rose-gold
  * sequin party dress, Nov 19 and 20).
  */
-export const OUTFIT: Record<Look, string> = { sweet: "sweet", party: "party", club: "club" };
+// Her outfits, all on the first dancer (Nov 21, Steve: "直接用第一个人物的模型脸，只给她换几套衣服",
+// "不同的歌曲搭配不同的衣服和舞蹈"): each look's, a song wearing one of them (outfitFor); the first one
+// with no song. "club" is her own (her.glb.gz), the rest drawn on her (site/scripts/dj-dancer/README.md).
+// (her-qipao: the pink brocade qipao set; her-lace: the white off-shoulder lace dress; her-leather: the
+// lace cami, black leather jacket and skirt; her-eyelet: the white eyelet dress; her-cardigan: the black
+// cardigan and white midi skirt: from the photos Steve sent on Nov 21)
+// (her-sweet: the first-love blouse and pleated skirt; her-party: the rose-gold sequin dress: the first
+// outfits' designs, on her since Nov 21 too, Steve: "旧衣服也可以加进去套在现有的模特身上")
+// (her-gown, her-ballroom, her-classical: a wine-red evening gown, a champagne ballroom dress and a jade
+// Chinese classical dance costume, since Nov 21 too; Steve: "晚礼服、摩登舞裙、古典舞服")
+export const OUTFITS: Record<Look, readonly string[]> = {
+  sweet: ["eyelet", "sweet", "cardigan", "qipao", "classical"],
+  party: ["lace", "party", "qipao", "leather", "gown", "ballroom"],
+  club: ["club", "leather", "party", "lace"],
+};
+/** The outfit she wears for a song (its id: the same song, the same outfit), in its look. */
+export function outfitFor(look: Look, song: string | null): string {
+  const list = OUTFITS[look];
+  if (!song) return list[0];
+  let h = 2166136261;
+  for (let i = 0; i < song.length; i++) h = Math.imul(h ^ song.charCodeAt(i), 16777619);
+  return list[(h >>> 0) % list.length];
+}
 export const herFile = (outfit = "club") => (outfit === "club" ? `${DANCER_DIR}/her.glb.gz` : `${DANCER_DIR}/her-${outfit}.glb.gz`);
 export const danceFile = (id: string) => `${DANCER_DIR}/dance/${id}.bin.gz`;
 
@@ -42,11 +64,12 @@ export function lookOf(songBpm: number | null | undefined, mood: Mood): Look {
  * Her dances: the file's id, its own tempo (beats a minute, as the motion's own beat was found), the
  * looks it goes with. Mixamo's names in site/scripts/dj-dancer/README.md.
  */
-export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] }[] = [
+export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[]; rare?: boolean }[] = [
   { id: "rumba", bpm: 101.4, looks: ["sweet", "party"] },
   { id: "belly_slow", bpm: 83.2, looks: ["sweet"] },
   { id: "bodywave", bpm: 128.6, looks: ["club"] },
-  { id: "wave", bpm: 102.9, looks: ["party", "club"] },
+  // (Nov 21, Steve: "这个舞蹈动作我不喜欢少出现一点": half as often as the others)
+  { id: "wave", bpm: 102.9, looks: ["party", "club"], rare: true },
   { id: "belly", bpm: 124.1, looks: ["party", "club"] },
   { id: "booty", bpm: 100.2, looks: ["club"] },
   { id: "hiphop", bpm: 117.2, looks: ["club"] },
@@ -55,7 +78,53 @@ export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[] 
   // (standing, swaying: gentle enough for a ballad, at its tempo)
   { id: "idle", bpm: 120.1, looks: ["sweet"] },
   { id: "idle2", bpm: 111, looks: ["sweet"] },
+  // Nov 20 (Steve: "要根据不同风格的歌跳不同的舞"): a shy one and a salsa step for a ballad, salsa for the
+  // party, sexier street ones for the club
+  { id: "timid", bpm: 98.1, looks: ["sweet"] },
+  { id: "salsa_side", bpm: 105.9, looks: ["sweet", "party"] },
+  { id: "salsa", bpm: 111.2, looks: ["party"] },
+  { id: "ribpops", bpm: 93.1, looks: ["party", "club"] },
+  { id: "shimmy", bpm: 145.6, looks: ["club"] },
+  // Nov 21 (Steve: "学习这两个视频的舞蹈动作", two YouTube dance covers): phrases of ILLIT "It's Me"
+  // and KATSEYE "Gnarly", learnt from the videos (site/scripts/dj-dancer/mocap/fromvideo.ts); the
+  // phrases that didn't pass the motion checks left out
+  { id: "itsme1", bpm: 143.6, looks: ["club"] },
+  { id: "itsme3", bpm: 143.6, looks: ["club"] },
+  { id: "itsme4", bpm: 143.6, looks: ["club"] },
+  { id: "itsme5", bpm: 143.6, looks: ["club"] },
+  { id: "gnarly1", bpm: 136, looks: ["club"] },
+  { id: "gnarly4", bpm: 136, looks: ["club"] },
+  { id: "gnarly5", bpm: 136, looks: ["club"] },
+  { id: "gnarly7", bpm: 136, looks: ["club"] },
+  // Chinese classical dance (古典舞身韵, the arm-swing set 摇臂组合), learnt from a front-on demonstration
+  // in practice clothes found on YouTube (Nov 21; Steve: "你自己去youtube 找视频学习"): the two phrases of
+  // eight that passed the motion checks
+  { id: "shenyun4", bpm: 107.7, looks: ["sweet"] },
+  { id: "shenyun5", bpm: 107.7, looks: ["sweet"] },
+  // ballet (a centre adagio and port de bras), learnt from a teacher's class demonstration found on YouTube
+  // (Nov 21; Steve: "一个接一个继续做"): the two phrases of seven that passed every check, turned to face the room
+  { id: "ballet2", bpm: 92.3, looks: ["sweet"] },
+  { id: "ballet3", bpm: 92.3, looks: ["sweet"] },
+  // (Nov 21: "kickstep" left out. Her feet slid more in it than the dancer's did: tests/dancer.test.ts)
 ];
+
+/**
+ * Her walk across the stage, one a look (Steve on Nov 18: "她是可以在整个舞台从左到右走动的"): Mixamo's
+ * walks done in place (Feminine Walk Forward, Catwalk Walk Forward, Female Sexy Walk), cut and packed
+ * like her dances. Their own steps a minute, and how far a step takes her (`stride`, metres: how far
+ * her planted foot slides back in one, so the stage going by under her keeps her feet still on it).
+ */
+export const WALKS: Record<Look, { id: string; bpm: number; stride: number }> = {
+  sweet: { id: "walk_soft", bpm: 124.1, stride: 0.73 },
+  party: { id: "walk_cat", bpm: 100, stride: 0.57 },
+  club: { id: "walk_sexy", bpm: 87.8, stride: 0.68 },
+};
+
+/**
+ * Steps a beat when she walks to a song at `bpm`: one, or one every other beat when the song is much
+ * faster than the walk's own pace (a strut on a fast song, not a hurry). A slow song: slow steps.
+ */
+export const stepsPerBeat = (walkBpm: number, bpm: number) => (bpm / walkBpm > Math.SQRT2 ? 0.5 : 1);
 
 /** Standing, swaying a little, when no song plays: at their own tempo. */
 export const IDLES: readonly { id: string; bpm: number }[] = [
@@ -77,7 +146,9 @@ export function danceAt(b: number, look: Look, bpm: number): string {
   const off = (d: { bpm: number }) => Math.abs(Math.log(t / d.bpm));
   const pool = DANCES.filter((d) => d.looks.includes(look));
   const near = pool.filter((d) => off(d) < NEAR);
-  const list = near.length >= 2 ? near : [...pool].sort((x, y) => off(x) - off(y)).slice(0, 2);
+  const some = near.length >= 2 ? near : [...pool].sort((x, y) => off(x) - off(y)).slice(0, 2);
+  // (round them twice, a rare one only the second time)
+  const list = [...some.filter((d) => !d.rare), ...some];
   const k = Math.floor(b / DANCE_BEATS);
   return list[((k % list.length) + list.length) % list.length].id;
 }

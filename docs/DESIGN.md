@@ -235,8 +235,9 @@
 
 - 首页游戏卡已按类型上色；共用 Tile 支持工具的 amber 类型色。游戏房间仍用自己的 gel。
 - 工具页每个工具一张 amber 的 Tile（Steve 2026-11-13：都像随便那样）。有自己 Worker 的（约时间、随便）点了去它的网址；汇率、世界时间、单价换算点了进站内自己的页 /tools/<id>，顶上是和游戏一样的 GameHeader（‹ 回工具页，中英文名），房间灯是工具的 amber（`site/src/tools/ToolPage.tsx`）。
-- 中文正文行高 1.65、英文 1.5，正文跟着 `--leading`；页面允许双指缩放。
-- 网页上的字不能选、不能复制，双击不放大（Steve 2026-11-05）；输入框里的字照常能选、能粘贴，双指照常能放大。写在 `global.css` 最后的 `@layer page-defaults`：每个元素都带 `touch-action: manipulation`（iPhone 的 Safari 进了能滚动的框就不认外面的设置），别处写了 `touch-action` 或 `user-select` 的照样算数。要复制的东西（邀请链接、打赏邮箱、个人页的 ID）给一个复制按钮。
+- 中文正文行高 1.65、英文 1.5，正文跟着 `--leading`；页面允许双指缩放。只有大屏的画面不行（电视页 `.tv-fit`、只看的手机 `.watch`）：1600x900 的舞台缩小了放，iPhone 的 Safari 放大它时按原尺寸乘倍数去画，内存不够就崩（Steve 2026-11-21）。已经放大了的页面还能两指缩回来（`tv.css`、`Frame.tsx` 的 `useNoPinch`）。
+- 网页上的字不能选、不能复制，双击不放大（Steve 2026-11-05）；输入框里的字照常能选、能粘贴，双指照常能放大。写在 `global.css` 最后的 `@layer page-defaults`：每个元素都带 `touch-action: manipulation`（iPhone 的 Safari 进了能滚动的框就不认外面的设置），别处写了 `touch-action` 或 `user-select` 的照样算数。iPhone 的 Safari 只在点到「有人听点击」的东西附近时才看 touch-action，所以 `main.tsx` 让整页（`<html>`）听着点击（Steve 2026-11-20：哪儿都不许双击放大）。独立应用（/trip /hide /eat /when /tuan /go /party /hang-on）也是这两样：每个元素 `touch-action: manipulation`，再加这一行监听；新应用照做。要复制的东西（邀请链接、打赏邮箱、个人页的 ID）给一个复制按钮。
+- 站长账号（MASTER_EMAIL）可以长按网站上的任何字直接改，所有人一分钟内看到（Steve 2026-11-21，`src/shared/copy.ts`、`account/CopyEditor.tsx`，后台「改字」能逐条恢复）。按原文一模一样地替换，中英文页面都算；代码里的字是原文，线上可能不一样，所以别靠读页面上的字做判断。站长自己的说明和后台的改字列表不跟着换（`data-copy-off`）。
 - 共用的小按钮、芯片和语言开关至少 44，挨得近的分段按钮用 48。
 - 危险按钮已用夜色字，对比度从 3.2:1 到 6.0:1。
 - 面板、弹层和静按钮里的 `.muted` 已从 fog 换成 haze。

@@ -4,21 +4,23 @@
 // time, marks who must be there, and removes a duplicate row.
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { addDays, allFree, atTime, best, crewOf, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel, withNames } from "../../engine";
+import { addDays, allFree, atTime, best, crewOf, dateLabel, dayLabel, dayNotes, deadlineAt, deadlineDays, deadlineLabel, hoursLabel, INVITED_MAX, inviteText, missing, nextAnswer, nudgeText, parseSlot, partHeading, partHeadingShort, partLabel, partRange, partsOf, quickFill, quickSlots, reason, sameName, shortDate, slotKey, slotLabel, spanLabel, splitNames, startWindow, tally, vancouverDay, vancouverMinutes, weatherAt, weekday, weekdayLabel, whenLabel, withNames } from "../../engine";
 import type { Answers, Day, EventState, Here, Lang, Part, Person, Quick, SlotKey, Span, Times, Weather } from "../../engine";
 import type { Tally } from "../../engine";
 import type { HostAction } from "../../room/event";
 import type { Snapshot } from "../../room/protocol";
 import { api, ApiFail, crews, forget, remember, rememberCrew, savedName, saveName, type Crew } from "../api";
+import emptyArt from "../art/empty.webp";
 import { t, type Key } from "../i18n";
 import { watch } from "../live";
 import { After } from "./After";
 import { AddToCalendar } from "./Calendar";
-import { CopyButton, IconCheck, IconClock, IconPicture, IconQr, IconStar, IconWave, Keep, Qr, Sheet, Toast, TopBar, useLang } from "./common";
+import { CopyButton, glued, IconCheck, IconClock, IconPicture, IconQr, IconStar, IconWave, Keep, Qr, Sheet, Toast, TopBar, useLang } from "./common";
 import { HereLine, useFinished } from "./Here";
 import { MovingList } from "./Moving";
 import { PictureSheet, daysLine, inviteLine, invitePicture } from "./Picture";
 import { field, minutesOf, TimeSheet } from "./Times";
+import { StartPoll, StartSheet } from "./Start";
 import { useForecast, WeatherCredit, WeatherLine } from "./Weather";
 import { Words } from "./Words";
 
@@ -35,6 +37,7 @@ type Open =
   | { kind: "invited" }
   | { kind: "deadline" }
   | { kind: "proxy" }
+  | { kind: "starts" }
   | null;
 type SaveState = "idle" | "saving" | "saved" | "failed";
 
@@ -355,6 +358,15 @@ export function EventPage({ code }: { code: string }) {
       () => say("failed"),
     );
 
+  /** The start times asked about that suit me (几点开始). */
+  const vote = (starts: number[]) =>
+    api.vote(code, starts).then(
+      (done) => take(done.state),
+      () => say("failed"),
+    );
+  // when it can start, once the time is set (null where there are no minutes)
+  const startsWindow = startWindow(state.grain, state.settled);
+
   /** Nothing is filled in before there's a name: ask for it. True when it had to. */
   function nameless(): boolean {
     if (proxy || name.trim()) return false;
@@ -551,11 +563,27 @@ export function EventPage({ code }: { code: string }) {
           <strong>
             <Keep text={whenLabel(state.settled.day, state.settled.part, lang, state.settled.from, state.settled.to)} />
           </strong>
-          <p>{reason(settledTally, people, lang)}</p>
+          <p>{glued(reason(settledTally, people, lang))}</p>
           <WeatherLine as="p" weather={settledWeather} />
+          {state.starts.length > 0 && (
+            <StartPoll
+              times={state.starts}
+              people={people}
+              me={me}
+              host={host}
+              onVote={(starts) => void vote(starts)}
+              onSet={(at) => void act({ do: "start", at })}
+              onChange={() => setOpen({ kind: "starts" })}
+            />
+          )}
           <AddToCalendar state={state} />
           {host && (
             <div class="row set-host">
+              {startsWindow && state.starts.length === 0 && (
+                <button type="button" class="link-btn on-gel" onClick={() => setOpen({ kind: "starts" })}>
+                  {t("startOpen")}
+                </button>
+              )}
               {settledSlot && rangeOf(settledSlot) && (
                 <button type="button" class="link-btn on-gel" onClick={() => setOpen({ kind: "setTime" })}>
                   {t("setTime")}
@@ -569,7 +597,7 @@ export function EventPage({ code }: { code: string }) {
         </section>
       )}
 
-      {state.settled && settledTally && <After state={state} tally={settledTally} people={people} host={host} link={link} />}
+      {state.settled && settledTally && <After state={state} tally={settledTally} people={people} host={host} link={link} weather={settledWeather} />}
 
       <section class="panel" ref={fillPanel} data-proxy={proxyRow ? "" : undefined}>
         {proxyRow ? (
@@ -651,7 +679,14 @@ export function EventPage({ code }: { code: string }) {
                 const range = partRange(state.grain, part);
                 return (
                   <span key={part}>
-                    {partHeading(part, lang)}
+                    {lang === "zh" ? (
+                      <b>{partHeading(part, lang)}</b>
+                    ) : (
+                      <>
+                        <b class="head-long">{partHeading(part, lang)}</b>
+                        <b class="head-short">{partHeadingShort(part, lang)}</b>
+                      </>
+                    )}
                     {range && <small>{hoursLabel(range)}</small>}
                   </span>
                 );
@@ -757,7 +792,13 @@ export function EventPage({ code }: { code: string }) {
       <section class="panel">
         <h2 class="panel-title">{t("bestTitle")}</h2>
         {top.length === 0 ? (
-          <p class="hint">{noBest}</p>
+          <>
+            {/* nobody has answered yet: the table waits for them (art/empty.webp), coming in once it has loaded */}
+            {!anyone && (
+              <img class="best-empty" onLoad={(e) => e.currentTarget.setAttribute("data-shown", "")} src={emptyArt} alt="" width={800} height={600} loading="lazy" decoding="async" draggable={false} />
+            )}
+            <p class="hint">{noBest}</p>
+          </>
         ) : (
           <MovingList class="best">
             {top.map((x, i) => (
@@ -769,7 +810,7 @@ export function EventPage({ code }: { code: string }) {
                   <b>
                     <Keep text={whenLabel(x.day, x.part, lang, x.meet?.from, x.meet?.to)} />
                   </b>
-                  <span>{reason(x, people, lang)}</span>
+                  <span>{glued(reason(x, people, lang))}</span>
                   <WeatherLine weather={topWeather[i]} />
                 </button>
                 {host && x.slot !== settledSlot && (
@@ -966,6 +1007,15 @@ export function EventPage({ code }: { code: string }) {
             }
           />
         </Sheet>
+      )}
+      {open?.kind === "starts" && startsWindow && (
+        <StartSheet
+          window={startsWindow}
+          asked={state.starts}
+          onSend={(times) => (setOpen(null), void act({ do: "starts", times }))}
+          onStop={() => (setOpen(null), void act({ do: "starts", times: [] }))}
+          onClose={() => setOpen(null)}
+        />
       )}
       {open?.kind === "invited" && (
         <InvitedSheet

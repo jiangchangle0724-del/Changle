@@ -19,7 +19,7 @@
  * told, the shop, the tip and tax in the total, written like it (none when the receipt shows none),
  * and the day it was spent ("2026-11-15", none when it shows none).
  */
-export type Read = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null; place: string | null; payment: string | null };
+export type Read = { total: string; currency: string | null; merchant: string | null; tip: string | null; tax: string | null; date: string | null; place: string | null; payment: string | null; time?: string };
 export type ReadReply = { read: Read | null };
 /** A reading's cost, and what came of it. `cost`: millionths of a dollar. */
 export type Reading = { ok: true; read: Read | null; cost: number } | { ok: false; why: "key" | "busy" | "failed"; detail?: string; cost: number };
@@ -60,6 +60,7 @@ export function readRequest(b64: string, type: string, currency: string, thinkin
     "Read the tip in that total, written the same way: a tip or gratuity that was added, or a service charge. Not the suggested tip amounts some receipts print. Null when there is none.",
     "Read the tax in that total, written the same way: all the taxes together (GST, PST, HST, sales tax, VAT, consumption tax), added or included. Null when it isn't shown.",
     "Read the day of the purchase printed on the receipt, as YYYY-MM-DD. Null when there is none.",
+    "Read the time of day printed with it, as HH:MM in 24 hours (9:05 PM is 21:05). Null when there is none.",
     "If it isn't a receipt or a bill, or the total can't be read, say receipt false, and nothing else.",
   ].join(" ");
   return {
@@ -78,6 +79,7 @@ export function readRequest(b64: string, type: string, currency: string, thinkin
           date: { type: "STRING", nullable: true },
           place: { type: "STRING", nullable: true },
           payment: { type: "STRING", nullable: true },
+          time: { type: "STRING", nullable: true },
         },
         required: ["receipt"],
       },
@@ -130,7 +132,17 @@ export function readAnswer(answer: unknown, currency: string, now = Date.now()):
   let tip = part(said.tip);
   let tax = part(said.tax);
   if (tip && tax && Number(tip) + Number(tax) > Number(total)) tip = tax = null;
-  return { total, currency: known, merchant: shop || null, tip, tax, date: dayOf(said.date, now), place: lineOf(said.place) || null, payment: paymentOf(said.payment) };
+  const time = timeOf(said.time);
+  // (the time only when read: a phone tells an itemized receipt and its card slip apart by it, and
+  // a reading said before there was one has none)
+  return { total, currency: known, merchant: shop || null, tip, tax, date: dayOf(said.date, now), place: lineOf(said.place) || null, payment: paymentOf(said.payment), ...(time ? { time } : {}) };
+}
+
+/** A time of day as "21:05": hours and minutes the clock has (seconds, when printed, dropped); none otherwise. */
+function timeOf(x: unknown): string | null {
+  const t = typeof x === "string" ? /^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*$/.exec(x) : null;
+  if (!t || Number(t[1]) > 23 || Number(t[2]) > 59) return null;
+  return `${t[1].padStart(2, "0")}:${t[2]}`;
 }
 
 /** Words read off a receipt, as an expense keeps them: one plain line, short. */
@@ -213,7 +225,7 @@ export async function readReceipt(key: string, bytes: Uint8Array, type: string, 
 /**
  * The stand-in for Google, locally and in the tests (no key there, and no way out to Google): it
  * "reads" what the file's own bytes say after "receipt:" (`total currency merchant`, the shop's
- * name maybe followed by `tip=…`, `tax=…`, `date=…`, `place=…` and `paid=…`, with _ for a space in
+ * name maybe followed by `tip=…`, `tax=…`, `date=…`, `time=…`, `place=…` and `paid=…`, with _ for a space in
  * them), and a file saying "receipt:none" is no receipt.
  * Each reading costs 400 millionths, as if Google had said so.
  */
@@ -223,7 +235,7 @@ export function fakeRead(bytes: Uint8Array, currency: string): Reading {
   if (!said || said[1] === "none") return { ok: true, read: null, cost: 400 };
   const rest = said[3] ?? "";
   const part = (k: string) => new RegExp(`(?:^| )${k}=(\\S+)`).exec(rest)?.[1]?.replace(/_/g, " ") ?? null;
-  const merchant = rest.replace(/(?:^| )(?:tip|tax|date|place|paid)=\S+/g, "").trim() || null;
-  const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], currency: said[2] ?? null, merchant, tip: part("tip"), tax: part("tax"), date: part("date"), place: part("place"), payment: part("paid") }) }] } }] };
+  const merchant = rest.replace(/(?:^| )(?:tip|tax|date|time|place|paid)=\S+/g, "").trim() || null;
+  const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], currency: said[2] ?? null, merchant, tip: part("tip"), tax: part("tax"), date: part("date"), place: part("place"), payment: part("paid"), time: part("time") }) }] } }] };
   return { ok: true, read: readAnswer(answer, currency), cost: 400 };
 }

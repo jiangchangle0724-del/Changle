@@ -1,4 +1,5 @@
 // Where to start from (my location or an area) and how far, on the home page.
+import { ChevronDown } from "lucide-preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { NEIGHBOURHOODS, type Center, type RangeId } from "../../engine";
 import { t, tx } from "../i18n";
@@ -82,6 +83,7 @@ export function WhereFields({ w }: { w: Where }) {
     <>
       <label class="field">
         <span>{t("where")}</span>
+        <span class="select-field">
         <select value={w.hood} onChange={(e) => w.pick((e.target as HTMLSelectElement).value)}>
           <option value="gps">{t("myLocation")}</option>
           {NEIGHBOURHOODS.map((n) => (
@@ -90,6 +92,8 @@ export function WhereFields({ w }: { w: Where }) {
             </option>
           ))}
         </select>
+        <ChevronDown aria-hidden="true" />
+        </span>
       </label>
       <div class="field">
         <span>{t("range")}</span>

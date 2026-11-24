@@ -159,19 +159,37 @@ with sync_playwright() as p:
     ok(c1.get("tris", 0) < 90000 and c1.get("calls", 99) <= 6, f"light to draw ({c1.get('tris')} triangles, {c1.get('calls')} draws)")
     tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-4-dancer.png"))
     dee = join(chrome, code2, "Dee", "en")
+    # walking the stage (Nov 20): with someone on the floor and no song's video in the middle she may;
+    # told where (the page's hook for checks, in place of the chance at a new dance), she turns, walks
+    # there in her look's walk, and turns back to the room
+    ok(until(lambda: (tv2.evaluate("() => window.__coach3d") or {}).get("roam") is True, 15000, 200), "someone on the floor, no video in the middle: she may walk the stage")
+    walks = set(re.findall(r'id: "(walk_\w+)"', _DANCES_TS))
+    tv2.evaluate("() => { window.__djWalkTo = 700 }")
+    w1 = until(lambda: (lambda c: c if c and c.get("walking") and c.get("move") in walks and 0 < c.get("x", 0) < 700 else None)(tv2.evaluate("() => window.__coach3d")), 20000, 100)
+    ok(w1, f"she walks across, in her look's walk ({w1 or tv2.evaluate('() => window.__coach3d')})")
+    if w1:
+        tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-4b-walking.png"))
+    w2 = until(lambda: (lambda c: c if c and c.get("x") == 700 and not c.get("walking") else None)(tv2.evaluate("() => window.__coach3d")), 20000, 200)
+    ok(w2, f"and stops there, facing the room ({w2 or tv2.evaluate('() => window.__coach3d')})")
+    box = tv2.locator(".dj-coach-3d").bounding_box()
+    ok(box and box["x"] > 600, f"her canvas there on the stage ({box})")
+    tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-4c-there.png"))
+    tv2.evaluate("() => { delete window.__djWalkTo }")
     dee.evaluate("() => window.__djHost.phase('peak')")
     # a song in the peak: one of the peak's dances, on its beat
     ask(dee, TWO)
     ok(until(lambda: tv2.locator(".dj-tube.is-on").count() == 1, 60000, 100), "a song plays")
+    ok(until(lambda: (lambda c: c and c.get("roam") is False and c.get("x") == 0)(tv2.evaluate("() => window.__coach3d")), 30000, 200), f"its video in the middle: she walks back to her place ({tv2.evaluate('() => window.__coach3d')})")
     # (a song whose tempo isn't known here: the stretch's look, the peak's club)
-    c3 = until(lambda: (lambda c: c if c and c.get("dancing") and c.get("look") == "club" and "club" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
-    ok(c3 and c3.get("outfit") == "club", f"she dances one of the club look's dances to it, in her club outfit ({c3 or tv2.evaluate('() => window.__coach3d')})")
+    # (her club outfit comes a moment after the look: fetched, taught the dance she's on, then a flash)
+    c3 = until(lambda: (lambda c: c if c and c.get("dancing") and c.get("look") == "club" and c.get("outfit") in ("club", "leather", "lace") and "club" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
+    ok(c3, f"she dances one of the club look's dances to it, in one of the club look's outfits (dances.ts OUTFITS) ({c3 or tv2.evaluate('() => window.__coach3d')})")
     ok(until(lambda: tv2.locator(".dj-stage.look-club").count() == 1, 8000), f"the lights the club look's ({tv2.evaluate('() => document.querySelector(`.dj-stage`).className')})")
     tv2.screenshot(path=os.path.join(OUT, f"dancer-{WHICH}-tv-5-song.png"))
-    # the night winding down: the sweet look, its outfit changed into in a flash, its dances, its lights
+    # the night winding down: the sweet look (Nov 21: in the first dancer's own outfit, as in every look), its dances, its lights
     dee.evaluate("() => window.__djHost.phase('cool')")
-    c4 = until(lambda: (lambda c: c if c and c.get("look") == "sweet" and c.get("outfit") == "sweet" else None)(tv2.evaluate("() => window.__coach3d")), 40000, 300)
-    ok(c4, f"the cool-down: she changes into her first-love skirt ({c4 or tv2.evaluate('() => window.__coach3d')})")
+    c4 = until(lambda: (lambda c: c if c and c.get("look") == "sweet" and c.get("outfit") in ("eyelet", "cardigan", "qipao") else None)(tv2.evaluate("() => window.__coach3d")), 40000, 300)
+    ok(c4, f"the cool-down: the sweet look, in one of its outfits ({c4 or tv2.evaluate('() => window.__coach3d')})")
     c5 = until(lambda: (lambda c: c if c and c.get("dancing") and "sweet" in DANCES.get(c.get("move"), []) else None)(tv2.evaluate("() => window.__coach3d")), 30000, 300)
     ok(c5, f"and dances the sweet look's dances ({c5 or tv2.evaluate('() => window.__coach3d')})")
     ok(until(lambda: tv2.locator(".dj-stage.look-sweet").count() == 1, 8000), "the lights soft and pink")

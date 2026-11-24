@@ -326,3 +326,7 @@ Not done: asking inside 记一笔 whether several photos are one expense or seve
 Steve tried 几张小票 on his phone and asked for three things on 记一笔. The day pill beside 记好了 opened a sheet he called "details"; he wanted it out under 分摊. A fourth line doesn't fit the smallest phones (375x553 in Safari has no pixel left once paid abroad), so the note's line became the 详情 line: the label, then the day and, as far as the line goes, the note, the business, the place and what paid; the sheet it opens starts with the note. 记好了 has the dock to itself. The line under the amount keeps to what is in the amount (tip, tax), except just after a reading.
 
 Several photos chosen at once for a new expense ask first, in a sheet: 分开记 N 笔 (primary, opens 几张小票 with them) or 都放在这一笔 (quiet). A receipt read that looks like one already recorded says so in place of the line under the amount, in the page's strong voice with the alert icon, not in the light; in 几张小票 its row says so the same way and its amount starts empty.
+
+## One bill, two pieces of paper (2026-11-21)
+
+An itemized receipt and the card slip that adds the tip are one bill. In 几张小票 the earlier row takes the later in: its amount becomes the total with the tip, and its small line puts the tip before the place ("10月15日 · 小费 $4.85 · Vancouver, BC") so the bigger number explains itself; the later row keeps its photo and name, says 和第 1 张合成一笔 in the strong voice, and its amount stays empty. The line had to be short: the first wording ran past the amount field at 390 wide.

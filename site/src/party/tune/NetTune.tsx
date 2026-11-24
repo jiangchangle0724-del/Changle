@@ -14,9 +14,12 @@ import { HostButton, HostRow, Waiting } from "../../online/games/common";
 import type { TuneView } from "../../shared/protocol";
 import { specialOf, type SongRow } from "../../shared/songs";
 import { usePenaltyText, useStore } from "../../store";
+import { ToastProvider } from "../../ui/Toast";
 import { Leaderboard } from "../common";
 import { perfAt } from "../sensors";
 import { chartsForRoom, loadCharts } from "./charts";
+import { CHALLENGE_MAX, type Challenge } from "./challenge";
+import { ChallengeLink, ShareChallenge } from "./ChallengeParts";
 import { AnswerPicker, BuzzButton, clipSeconds, CoverLabel, hookOf, LevelPicker, playClip, playSnippets, PoolPicker, QuizChoices, SnapPicker, useSnippetOn, SongReveal, SongStatus, StageDots, stageNow, startSong, tuneChoice, TuneTitle, useSongAudio, Vinyl } from "./parts";
 import { tuneCrew } from "./crew";
 import { TuneStage, type StageCue, type StageTiming } from "./stage";
@@ -197,8 +200,8 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
   const rules = (
     <p>
       {zh
-        ? `真歌模式：所有手机同时放同一首歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）、类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲）和年代（80 年代以前到 20 年代），也可以选歌手专场，整局只放一位歌手的歌，四个选项也全是这位歌手的。越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。抢答：知道就抢，从四个歌名里选，答错${custom ? "受罚" : "喝一口"}，这首就不能再抢。选择题：四个歌名从一开始就在每个人手机上，各选各的，越早选对分越高，没选对的${custom ? "受罚" : "喝一口"}。选项可以选难：只写歌名，错的尽量是同一个歌手的歌。一秒猜歌：所有手机先一起放一秒，6 秒后放三秒，13 秒后一直放，都从同一处放，猜到的时候放到第几段就是几分（3、2、1 分）。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓时可以去 Apple Music 听完整版。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的${custom ? "受罚" : "喝两口"}。`
-        : `Real songs: every phone plays the same 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV) and a decade (before 1980 to the 2020s), or one singer for a whole game of their songs, the four titles all theirs too. The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Buzz in: know it? Buzz and pick the title from four; a wrong answer ${custom ? "takes the penalty" : "is a sip"} and locks you out of that song. Multiple choice: the four titles are on every phone from the start, everyone picks their own, the sooner the right one the more points, and whoever misses ${custom ? "takes the penalty" : "drinks"}. The titles can be hard: no singers, and the wrong ones by the same singer where possible. One second: every phone plays one second of the song, three seconds at 6 s, the rest from 13 s, always from the same spot; 3, 2 or 1 points by how much had played. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. The reveal links to the full song on Apple Music. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score ${custom ? "takes the penalty" : "drinks two"}.`}
+        ? `真歌模式：所有手机同时放同一首歌的 30 秒试听，可以选语言（华语、粤语、英文、韩语、日语、越南语、世界名曲、全球热曲）、类别（老歌、流行、摇滚、民谣、说唱、电子舞曲、R&B、影视金曲）和年代（80 年代以前到 20 年代），也可以选歌手专场，整局只放一位歌手的歌，四个选项也全是这位歌手的。越早听出来分越高：前 8 秒答对 3 分，18 秒前 2 分，之后 1 分。抢答：知道就抢，从四个歌名里选，答错${custom ? "受罚" : "喝一口"}，这首就不能再抢。选择题：四个歌名从一开始就在每个人手机上，各选各的，越早选对分越高，没选对的${custom ? "受罚" : "喝一口"}。选项可以选难：只写歌名，错的尽量是同一个歌手的歌。一秒猜歌：所有手机先一起放一秒，6 秒后放三秒，13 秒后一直放，都从同一处放，猜到的时候放到第几段就是几分（3、2、1 分）。台上两个小人：男歌手的歌他唱她跳，女歌手的歌她唱他跳。揭晓时可以去 Apple Music 听完整版。真歌玩完可以发起挑战：把这局的歌发给朋友，同样的歌、同样的四个选项，在一部手机上玩，看谁分高。旋律模式：手机一起放经典旋律，不用联网也能玩。DJ 模式：主人用自己的音乐 App 放歌，其他人抢答，主人判对错，答对 1 分。最后得分最低的${custom ? "受罚" : "喝两口"}。`
+        : `Real songs: every phone plays the same 30-second preview of a real song. Pick a language (Chinese, Cantonese, English, Korean, Japanese, Vietnamese, world classics, global hits) a category (oldies, pop, rock, folk, hip-hop, dance, R&B, film & TV) and a decade (before 1980 to the 2020s), or one singer for a whole game of their songs, the four titles all theirs too. The sooner you name it, the more it's worth: 3 points in the first 8 seconds, 2 before 18, then 1. Buzz in: know it? Buzz and pick the title from four; a wrong answer ${custom ? "takes the penalty" : "is a sip"} and locks you out of that song. Multiple choice: the four titles are on every phone from the start, everyone picks their own, the sooner the right one the more points, and whoever misses ${custom ? "takes the penalty" : "drinks"}. The titles can be hard: no singers, and the wrong ones by the same singer where possible. One second: every phone plays one second of the song, three seconds at 6 s, the rest from 13 s, always from the same spot; 3, 2 or 1 points by how much had played. The two performers on stage: a man's song, he sings and she dances; a woman's song, the other way round. The reveal links to the full song on Apple Music. After a game of real songs, challenge a friend: they play the same songs with the same four titles on one phone and try to beat your best. Melody mode: every phone plays a classic tune on the synth, no internet needed. DJ mode: the host plays songs from their own music app, everyone else buzzes, the host says right or wrong (1 point). Lowest score ${custom ? "takes the penalty" : "drinks two"}.`}
     </p>
   );
 
@@ -226,10 +229,25 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
         ? "主人用自己的音乐 App 放歌，这里只管抢答和计分"
         : "The host plays songs from their own app; this is the buzzer and the scoreboard";
 
+  // the game sent on as a challenge (挑战链接): its built-in songs, each once, with the table's best
+  // score; on a friend's phone the same songs and, from the game's seed, the same four titles
+  const [link, setLink] = useState("");
+  const sendOn = useMemo<{ c: Challenge; mine: boolean } | null>(() => {
+    if (v.phase !== "end" || !v.log) return null;
+    const ranked = scoreRows.slice().sort((a, b) => b.score - a.score);
+    const top = ranked[0];
+    const mine = v.log.filter((r, i, all) => r.b && all.findIndex((x) => x.id === r.id) === i).slice(0, CHALLENGE_MAX);
+    if (!top || !mine.length) return null;
+    const c = { pool: v.pool, quiz: v.quiz, hard: v.hard, snap: v.snap, seed: v.seed, name: nameOf(top.id), pts: mine.map((r) => r.pts[top.id] ?? 0), ids: mine.map((r) => r.id) };
+    return { c, mine: top.id === me };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v.phase, v.log, JSON.stringify(v.scores), v.pool, v.quiz, v.hard, v.snap, v.seed, me]);
+
   const recordLabel = songs ? "?" : melody ? "?" : "DJ";
   const roundLine = <p className="tn-round tabular">{zh ? `第 ${v.round} 首，共 ${v.total} 首` : `Song ${v.round} of ${v.total}`}</p>;
 
   return (
+    <ToastProvider>
     <NetFrame title={GAME_BY_ID.tune.name} rules={rules} onLeave={onLeave}>
       <div className="tn">
         {v.phase === "ready" && (
@@ -502,6 +520,8 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
             </TuneStage>
             <h2 className="pl-board-title">{zh ? "最终得分" : "Final scores"}</h2>
             <Leaderboard rows={scoreRows} />
+            {sendOn && <ShareChallenge c={sendOn.c} by={sendOn.mine ? undefined : sendOn.c.name} onLink={setLink} />}
+            {link && <ChallengeLink url={link} />}
             {isHost && (
               <button type="button" className="btn btn-primary btn-lg btn-block" onClick={() => g("again")}>
                 {zh ? "再来一局" : "Play again"}
@@ -511,5 +531,6 @@ export function NetTune({ v, onLeave }: { v: TuneView; onLeave: () => void }) {
         )}
       </div>
     </NetFrame>
+    </ToastProvider>
   );
 }

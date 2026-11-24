@@ -581,7 +581,7 @@ export function RoleCard({ role, brief, card, culprit, pk, onDone, doneLabel, in
     <div className="dm-cardwrap">
       <div className={`dm-card ${flipped ? "is-flipped" : ""}`}>
         <div className="dm-card-inner" ref={inner} style={reduced() && flipped ? { transform: "rotateY(180deg)" } : undefined}>
-          <button type="button" className="dm-card-back" onClick={flip} aria-label={zh ? "翻开身份牌" : "Turn your card over"}>
+          <button type="button" className="dm-card-back" onClick={flip} aria-label={zh ? "点一下，偷偷看身份牌" : "Tap to peek at your card"}>
             {backOk ? <img src={art("card-back")} alt="" onError={() => setBackOk(false)} /> : <DramaIcon size={64} strokeWidth={1.6} />}
             <span className="dm-card-tap">{zh ? "点一下，偷偷看" : "Tap to peek"}</span>
           </button>
@@ -678,6 +678,25 @@ export function TwistBanner({ twist, sound = true }: { twist: T | null; sound?: 
 }
 
 /** Seconds left, as a big ring; the last ten tick (and the heart beats). */
+/**
+ * The act's penalty stamp is still on its way (it lands once the reveal has played): the host's
+ * buttons wait for it, as the game turns an earlier tap away, so it never lands on the next act.
+ */
+export function useStampDue(stampAt: number | undefined, now: () => number): boolean {
+  const [due, setDue] = useState(false);
+  useEffect(() => {
+    const left = stampAt ? stampAt - now() : 0;
+    if (left <= 0) {
+      setDue(false);
+      return;
+    }
+    setDue(true);
+    const timer = window.setTimeout(() => setDue(false), left + 150);
+    return () => window.clearTimeout(timer);
+  }, [stampAt, now]);
+  return due;
+}
+
 /** A clock's time left: minutes and seconds (5:00) while there's a minute or more, then seconds. */
 export function clockText(secs: number): string {
   return secs >= 60 ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}` : String(secs);
@@ -900,10 +919,12 @@ export function quietRead(zh: boolean): string {
 }
 
 /**
- * Why a reveal counts nothing. `crowd`: one person at the table, so nobody could vote (a monologue
- * the room guessed out loud, or a reading); otherwise nobody voted or gave stars in time.
+ * Why a reveal counts nothing. `left`: an actor left the table mid-act. `crowd`: one person at the
+ * table, so nobody could vote (a monologue the room guessed out loud, or a reading); otherwise
+ * nobody voted or gave stars in time.
  */
-export function quietNote(mode: DramaView["mode"], crowd: boolean, zh: boolean): string {
+export function quietNote(mode: DramaView["mode"], crowd: boolean, zh: boolean, left = false): string {
+  if (left) return zh ? "有演员离开了，这一幕不计分" : "An actor left the table: no points this act";
   if (mode === "read") return crowd ? (zh ? "一个人读，不打星也不计分" : "Reading on your own: no stars, no points") : zh ? "没人打星，这一幕不计分" : "Nobody gave stars: no points this act";
   if (crowd) return zh ? "大家是喊着猜的，这一幕不计分" : "The room guessed out loud: no points this act";
   return zh ? "没人投票，这一幕不计分" : "Nobody voted: no points this act";
@@ -969,7 +990,11 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
         : "Who sold it?"
       : v.mode === "read"
         ? r.quiet
-          ? quietRead(zh)
+          ? r.left
+            ? zh
+              ? "读到一半，人走了"
+              : "The reader left mid-piece"
+            : quietRead(zh)
           : readHeadline(readStars, zh)
       : v.mode === "classic"
         ? zh
@@ -1076,7 +1101,7 @@ export function Reveal({ v, actors, me, face }: { v: DramaView; actors: Actor[];
               <strong>{actors.filter((a) => r.best.includes(a.pid)).map((a) => a.name).join(zh ? "、" : ", ")}</strong>
             </p>
           )}
-          {r.quiet && <p className="hint">{quietNote(v.mode, !!v.crowd, zh)}</p>}
+          {r.quiet && <p className="hint">{quietNote(v.mode, !!v.crowd, zh, r.left)}</p>}
           {v.mode === "show" && !r.quiet && (
             <p className="hint">
               {r.right.length

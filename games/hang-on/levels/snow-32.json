@@ -1,171 +1,191 @@
 {
   "id": "snow-32",
   "world": "snow",
-  "tier": 0,
   "name": {
-    "zh": "冰瀑换手",
-    "en": "Frozen Falls"
+    "zh": "雪谷回环",
+    "en": "Snow Valley Switchbacks"
   },
-  "teaches": "slip",
-  "w": 2400,
-  "h": 1400,
+  "tier": 0,
+  "long": true,
+  "teaches": "pendulum",
+  "w": 3300,
+  "h": 2000,
   "spawn": {
-    "x": 100,
-    "y": 1237
+    "x": 150,
+    "y": 1856
   },
   "goal": {
-    "x": 2320,
-    "y": 30,
-    "w": 80,
-    "h": 120
+    "x": 3040,
+    "y": 350,
+    "w": 240,
+    "h": 200
   },
   "checkpoints": [
     {
-      "x": 850,
-      "y": 787
+      "x": 1400,
+      "y": 1856
     },
     {
-      "x": 1880,
-      "y": 198
+      "x": 2640,
+      "y": 1206
+    },
+    {
+      "x": 1280,
+      "y": 1206
+    },
+    {
+      "x": 1000,
+      "y": 506
+    },
+    {
+      "x": 2100,
+      "y": 506
     }
   ],
   "envelopes": [
     {
-      "x": 634,
-      "y": 907
+      "x": 2878,
+      "y": 1088
     },
     {
-      "x": 1280,
-      "y": 535
+      "x": 444,
+      "y": 440
     },
     {
-      "x": 2190,
-      "y": 160
+      "x": 1335,
+      "y": 439
     }
   ],
   "rects": [
     {
-      "kind": "ground",
       "x": 0,
-      "y": 1268,
-      "w": 280,
-      "h": 132,
+      "y": 1900,
+      "w": 3300,
+      "h": 100,
+      "kind": "ground",
       "material": "snow"
     },
     {
+      "x": 0,
+      "y": 1250,
+      "w": 1770,
+      "h": 30,
       "kind": "ground",
-      "x": 280,
-      "y": 1151,
-      "w": 180,
-      "h": 249,
-      "material": "ice",
-      "slip": 2.4
-    },
-    {
-      "kind": "ground",
-      "x": 460,
-      "y": 1052,
-      "w": 180,
-      "h": 348,
       "material": "snow"
     },
     {
-      "kind": "ground",
-      "x": 640,
-      "y": 926,
-      "w": 180,
-      "h": 474,
-      "material": "ice",
-      "slip": 2
-    },
-    {
-      "kind": "ground",
-      "x": 820,
-      "y": 827,
-      "w": 180,
-      "h": 573,
-      "material": "snow"
-    },
-    {
-      "kind": "ground",
-      "x": 1000,
-      "y": 710,
-      "w": 280,
-      "h": 690,
-      "material": "ice",
-      "slip": 1.8
-    },
-    {
-      "kind": "ground",
-      "x": 1280,
-      "y": 611,
-      "w": 180,
-      "h": 789,
-      "material": "snow"
-    },
-    {
-      "kind": "ground",
-      "x": 1460,
-      "y": 503,
-      "w": 180,
-      "h": 897,
-      "material": "ice",
-      "slip": 1.6
-    },
-    {
-      "kind": "ground",
-      "x": 1640,
-      "y": 395,
-      "w": 180,
-      "h": 1005,
-      "material": "snow"
-    },
-    {
-      "kind": "ground",
-      "x": 1820,
-      "y": 278,
-      "w": 180,
-      "h": 1122,
-      "material": "ice",
-      "slip": 1.5
-    },
-    {
-      "kind": "ground",
-      "x": 2000,
-      "y": 179,
-      "w": 180,
-      "h": 1221,
-      "material": "snow"
-    },
-    {
+      "x": 1770,
+      "y": 1250,
+      "w": 100,
+      "h": 30,
       "kind": "ground",
       "material": "snow",
-      "x": 2180,
-      "y": 500,
-      "w": 140,
-      "h": 900
+      "slip": 3
     },
     {
-      "kind": "wall",
-      "material": "ice",
-      "slip": 2,
-      "x": 2320,
-      "y": 160,
-      "w": 80,
-      "h": 1240
+      "x": 1870,
+      "y": 1250,
+      "w": 980,
+      "h": 30,
+      "kind": "ground",
+      "material": "snow"
+    },
+    {
+      "x": 450,
+      "y": 550,
+      "w": 2850,
+      "h": 30,
+      "kind": "ground",
+      "material": "snow"
     }
   ],
-  "lifts": [],
   "ropes": [],
   "seesaws": [],
   "crates": [],
   "fading": [],
   "springs": [],
   "hazards": [],
-  "deathY": 1560,
+  "movers": [
+    {
+      "x": 2850,
+      "y": 1840,
+      "w": 300,
+      "h": 24,
+      "path": [
+        {
+          "x": 2850,
+          "y": 1050
+        }
+      ],
+      "speed": 100,
+      "wait": 2,
+      "material": "wood"
+    },
+    {
+      "x": 150,
+      "y": 1190,
+      "w": 300,
+      "h": 24,
+      "path": [
+        {
+          "x": 150,
+          "y": 350
+        }
+      ],
+      "speed": 100,
+      "wait": 2,
+      "material": "wood"
+    }
+  ],
+  "spinners": [],
+  "deathY": 2180,
   "par": {
-    "seconds": 90,
+    "seconds": 250,
     "deathsPerPlayer": 6
   },
-  "replay": "replays/snow-32.json"
+  "replay": "replays/snow-32.json",
+  "winds": [
+    {
+      "x": 650,
+      "y": 1680,
+      "w": 360,
+      "h": 220,
+      "dir": "right",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
+    },
+    {
+      "x": 2450,
+      "y": 300,
+      "w": 320,
+      "h": 250,
+      "dir": "left",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
+    }
+  ],
+  "pendulums": [
+    {
+      "pivot": {
+        "x": 1150,
+        "y": 1720
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 5,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 1750,
+        "y": 1070
+      },
+      "len": 100,
+      "amp": 0.3,
+      "period": 4.5,
+      "r": 24
+    }
+  ]
 }
