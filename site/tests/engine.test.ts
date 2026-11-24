@@ -501,8 +501,8 @@ ucTest("undercover: a tap that arrives twice moves the table on once (the host's
 
 ucTest("undercover: the word bank, and a table that deals every pair once before any comes round again", () => {
   type V = Extract<GameView, { id: "undercover" }>;
-  ok(WORD_PAIRS.length >= 400, `at least 400 everyday pairs (${WORD_PAIRS.length})`);
-  ok(ADULT_PAIRS.length >= 100, `at least 100 adults-only pairs (${ADULT_PAIRS.length})`);
+  ok(WORD_PAIRS.length >= 480, `at least 480 everyday pairs (${WORD_PAIRS.length})`);
+  ok(ADULT_PAIRS.length >= 140, `at least 140 adults-only pairs (${ADULT_PAIRS.length})`);
   // both banks together: a word in the adults-only bank is never also an everyday word
   const seenZh = new Map<string, number>();
   const seenEn = new Map<string, number>();

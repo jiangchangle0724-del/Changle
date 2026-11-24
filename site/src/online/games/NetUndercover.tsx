@@ -106,7 +106,7 @@ export function NetUndercover({ v, onLeave }: { v: UndercoverView; onLeave: () =
                   {v.adult ? (lang === "zh" ? "开" : "On") : lang === "zh" ? "关" : "Off"}
                 </button>
               </div>
-              {v.adult && <p className="hint-ink" style={{ marginTop: "var(--space-3)" }}>{lang === "zh" ? "成人档：恋爱、夜生活、喝酒和一点擦边的词，只给成年人玩。" : "Adults-only words: dating, nights out, drinking and a little naughty. Grown-ups only."}</p>}
+              {v.adult && <p className="hint-ink" style={{ marginTop: "var(--space-3)" }}>{lang === "zh" ? "成人档：性、约会、夜生活和喝酒，尺度大，只给成年人玩。" : "Adults-only words: sex, dating, nights out and drinking. Strictly for grown-ups."}</p>}
               <p className="hint-ink" style={{ marginTop: 10 }}>
                 {lang === "zh" ? `${players.length} 人在玩，至少 4 人。白板没有词，跟卧底一伙：白板也出局，平民才赢。` : `${players.length} playing, 4 needed. A blank gets no word and plays on the undercover's side: civilians win only when the blank is out too.`}
                 {!v.blank && v.uc + 1 > v.maxSide && (lang === "zh" ? `${v.uc} 个卧底时，${3 * (v.uc + 1) + 1} 人以上才能加白板。` : ` With ${v.uc} undercover${v.uc > 1 ? "s" : ""}, a blank needs ${3 * (v.uc + 1) + 1} or more players.`)}
