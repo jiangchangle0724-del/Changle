@@ -924,6 +924,8 @@ export type ServerMsg =
   | { t: "stroke"; op: StrokeOp }
   | { t: "strokes"; list: Stroke[] }
   | { t: "pong"; c: number; s: number }
-  | { t: "error"; code: ErrorCode };
+  | { t: "error"; code: ErrorCode }
+  /** this phone is a seat that dropped (its name or account): say hello again as that seat (RoomEngine.claim) */
+  | { t: "adopt"; pid: string };
 
 export const INK_COLORS = ["#f5f4fd", "#ff5fa2", "#31b9ff", "#f5df3b", "#4be38f"];

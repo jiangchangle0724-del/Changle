@@ -734,6 +734,18 @@ form.email-change .ui-otp + .field-label {
   gap: 8px;
   justify-items: center;
 }
+/* the host's say over a seat: make host, take off the table (online/People.tsx, HostActions) */
+.person-card-host {
+  width: 100%;
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+.person-card-sure {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
 .person-card .hint {
   max-width: 36ch;
 }

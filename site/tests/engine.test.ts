@@ -102,7 +102,51 @@ test("room basics: join, errors, host transfer, kick", () => {
   ok(t.eng.d.host === "p1", "host moves to next online player after grace");
   t.act("p1", { a: "kick", pid: "p2" });
   ok(!t.eng.d.seats.some((s) => s.id === "p2"), "kicked removed");
-  ok(t.eng.hello("p2", "back", false) === "kicked", "kicked cannot return");
+  // (Steve 2026-11-23: the host's kick isn't a ban; the code lets them back in)
+  ok(t.eng.hello("p2", "back", false) === null && t.eng.d.seats.some((s) => s.id === "p2" && s.name === "back"), "kicked can sit down again with the code");
+  t.eng.adminKick("p2", true);
+  ok(t.eng.hello("p2", "back", false) === "kicked", "the site owner's ban keeps them out");
+});
+
+test("a player back on a phone the table doesn't know gets their own seat, not a second one", () => {
+  const t = setup(3);
+  t.eng.hello("ash", "Ashley", false);
+  t.eng.flush();
+  const away = () => t.eng.setOnline("ash", false);
+  ok(t.eng.claim("new1", "Ashley", false) === null, "Ashley is here: another Ashley is a new person");
+  ok(t.eng.hello("new1", "Ashley", false) === null && t.eng.d.seats.find((s) => s.id === "new1")?.name === "Ashley 2", "and sits down as Ashley 2");
+  t.act("new1", { a: "leave" });
+  away();
+  t.eng.flush();
+  ok(t.eng.claim("new2", "ashley", false) === "ash", "Ashley's phone dropped: the same name (any case) gets her seat");
+  ok(t.eng.claim("new2", "Ａｓｈｌｅｙ", false) === "ash", "full-width letters too");
+  ok(t.eng.claim("new2", "Ash", false) === null, "another name: a new seat");
+  ok(t.eng.claim("new2", "Ashley", true) === null, "opening a table isn't coming back to one");
+  ok(t.eng.claim("p1", "Ashley", false) === null, "a phone with a seat here keeps its own");
+  ok(t.eng.hello("ash", "Ashley", false) === null && t.eng.d.seats.find((s) => s.id === "ash")?.on === true, "saying hello as that seat: back, name and all");
+  ok(t.eng.d.seats.filter((s) => s.name.startsWith("Ashley")).length === 1, "and no second Ashley");
+});
+
+test("a seat with an account goes back only to that account", () => {
+  const t = setup(2);
+  const me = { uid: "u-ash", name: "Ashley", av: 1, ac: 2 };
+  t.eng.hello("ash", "Ashley", false, me);
+  t.eng.setOnline("ash", false);
+  t.eng.flush();
+  ok(t.eng.claim("n1", "Ashley", false) === null, "the same name without the account: not hers to take");
+  ok(t.eng.claim("n1", "Ashley", false, { uid: "u-other", name: "Ashley", av: 0, ac: 0 }) === null, "nor with another account");
+  ok(t.eng.claim("n1", "Ash on WeChat", false, me) === "ash", "her account, whatever name she types: her seat");
+});
+
+test("in a game, the seat that comes back is still in it", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  t.eng.setOnline("p2", false);
+  t.eng.flush();
+  const pid = t.eng.claim("fresh-phone", "P2", false);
+  ok(pid === "p2", "P2's seat is claimed by name");
+  ok(t.eng.hello(pid!, "P2", false) === null && t.eng.d.game?.id === "truth", "back at the table, the game goes on");
+  ok(t.eng.d.seats.length === 3, "three seats, as before");
 });
 
 test("names: two people at one table never share a name", () => {
@@ -3149,7 +3193,8 @@ test("big screen: sees every game, but nobody's secrets; a kicked id stays out",
   ok(e.view("tv-scr1").game?.id === "punchline", "Punchline goes to the screen in full");
   e.act("p1", { a: "kick", pid: "p3" });
   e.flush();
-  ok(e.screenHello("p3", false) === "kicked", "a kicked id can't come back as a screen");
+  e.adminKick("p3", true);
+  ok(e.screenHello("p3", false) === "kicked", "a banned id can't come back as a screen");
 });
 
 test("到此一游: only the host opens the room, the table and the big screen learn its number", () => {

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Action, PenaltyEvent, RoomEvent, RoomView, ServerMsg, Stroke, StrokeOp } from "../shared/protocol";
-import { clearIntent, phoneId, saveLastRoom, saveName, screenId } from "./config";
+import { clearIntent, keepTablePid, saveLastRoom, saveName, screenId, tablePid } from "./config";
 import { useAccount } from "../account/AccountContext";
 import { RoomSocket, type Status, type Stop } from "./socket";
 
@@ -90,7 +90,8 @@ const HOLD_MS = 6000;
 const inGame = (a: Action) => a.a === "g" || (a.a === "spin" && a.scope !== "lobby");
 
 export function RoomProvider({ code, name, create, children, screen = false, game }: { code: string; name: string; create: boolean; children: ReactNode; screen?: boolean; game?: string }) {
-  const me = useMemo(() => (screen ? screenId() : phoneId()), [screen]);
+  // (a phone the table recognised as a seat that dropped takes that seat's id: onMessage, adopt)
+  const [me, setMe] = useState(() => (screen ? screenId() : tablePid(code)));
   const [status, setStatus] = useState<Status>("connecting");
   const [room, setRoom] = useState<RoomView | null>(null);
   const [stopped, setStopped] = useState<Stop | null>(null);
@@ -102,6 +103,8 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
   const byteListeners = useRef(new Set<(data: ArrayBuffer) => void>());
   const strokes = useMemo(() => new StrokeStore(), []);
   const sock = useRef<RoomSocket | null>(null);
+  /** this phone took a dropped seat's id: say hello to the table as it, not as a new table */
+  const adopted = useRef(false);
   const nameRef = useRef(name);
   // events can arrive before React has rendered the room message just before them
   const roomRef = useRef<RoomView | null>(null);
@@ -136,9 +139,17 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
         case "strokes":
           strokes.reset(m.list);
           return;
+        case "adopt":
+          // the table knows this person: their old seat, game and all (RoomEngine.claim)
+          if (screen) return;
+          sock.current?.stop();
+          keepTablePid(code, m.pid);
+          adopted.current = true;
+          setMe(m.pid);
+          return;
       }
     },
-    [strokes],
+    [strokes, screen, code],
   );
 
   const startSocket = useCallback(
@@ -181,15 +192,16 @@ export function RoomProvider({ code, name, create, children, screen = false, gam
     [code, me, onMessage, screen, game],
   );
 
+  // one socket for the provider's lifetime (it's keyed by table code), and a new one when the table
+  // hands this phone a dropped seat's id
   useEffect(() => {
-    startSocket(create);
+    startSocket(create && !adopted.current);
     return () => {
       sock.current?.stop();
       sock.current = null;
     };
-    // the provider is keyed by table code: one socket for its lifetime
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [me]);
 
   // signing in or out (or a new photo) while seated: the table hears hello again and updates your face
   const { me: account } = useAccount();
