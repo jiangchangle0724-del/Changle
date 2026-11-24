@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
-import { DARES, promptText } from "../src/data/truthDare";
+import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
@@ -455,6 +455,23 @@ test("truth: spin, choose, pass", () => {
   t.g("p2", "pass");
   ok(t.pens().some((p) => p.who.includes("p2")), "pass drinks");
   ok(t.view<Extract<GameView, { id: "truth" }>>("p1").spinner === "p2", "chosen spins next");
+});
+
+test("truth: each heat deals only its own cards", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  const decks = () => t.eng.d.game!.s as { tDeck: number[]; dDeck: number[] };
+  const heats = (deck: number[], list: { heat: number }[]) => [...new Set(deck.map((i) => list[i].heat))].join();
+  const count = (list: { heat: number }[], heat: number) => list.filter((p) => p.heat === heat).length;
+  ok(heats(decks().tDeck, TRUTHS) === "1" && heats(decks().dDeck, DARES) === "1", "mild: only mild cards");
+  ok(decks().tDeck.length === count(TRUTHS, 1) && decks().dDeck.length === count(DARES, 1), "mild: every mild card");
+  t.g("p0", "heat", { heat: 2 });
+  ok(heats(decks().tDeck, TRUTHS) === "2" && heats(decks().dDeck, DARES) === "2", "spicy: only spicy cards");
+  ok(decks().tDeck.length === count(TRUTHS, 2) && decks().dDeck.length === count(DARES, 2), "spicy: every spicy card");
+  for (const [name, list] of [["truths", TRUTHS], ["dares", DARES]] as const) {
+    ok(new Set(list.map((p) => p.zh)).size === list.length && new Set(list.map((p) => p.en)).size === list.length, `no two ${name} alike`);
+    ok(count(list, 1) >= 45 && count(list, 2) >= 45, `${name}: ${count(list, 1)} mild, ${count(list, 2)} spicy`);
+  }
 });
 
 test("undercover: words private, vote, win", () => {
@@ -5082,6 +5099,11 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   for (const c of KING_COMMANDS) ok(!drinks(commandText(c, true)), `king command without drinking (${commandText(c, true).zh})`);
   for (const sl of DEFAULT_SLICES) ok(!drinks(sliceLabel(sl, true)), `wheel slice ${sl.id} without drinking (${sliceLabel(sl, true).zh})`);
   for (const d of DARES) if (d.custom) ok(!drinks(promptText(d, true)), `dare without drinking (${promptText(d, true).zh})`);
+  // the wheel of fate deals the mild cards as they are, so a drinking card is spicy and has a dry version
+  // (told by its Chinese: "turned down" or "get down on one knee" isn't a drink)
+  for (const p of [...TRUTHS, ...DARES]) {
+    if (/喝(?!醉)|酒|干杯/.test(p.zh)) ok(p.heat === 2 && !!p.custom && !drinks(promptText(p, true)), `a drinking card is spicy and has a dry version (${p.zh})`);
+  }
 
   const PEN = "做十个深蹲";
   const notes = (t: ReturnType<typeof setup>, from = 0) => t.pens().slice(from).map((p) => p.note);
