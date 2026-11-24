@@ -90,6 +90,34 @@ export function phoneId(): string {
   return memoryPid;
 }
 
+/**
+ * The id this phone sits at one table with: its own, unless the table recognised it as a seat that
+ * had dropped (the same name, or account, on a phone that had forgotten the table) and handed it
+ * that seat's id (RoomEngine.claim, the server's `adopt`). Kept per table, for the last few.
+ */
+const SEATS = "changle.seats";
+export function tablePid(code: string): string {
+  try {
+    const m = JSON.parse(read(globalThis.localStorage, SEATS) ?? "{}") as Record<string, string>;
+    if (typeof m[code] === "string" && /^[A-Za-z0-9_-]{1,48}$/.test(m[code])) return m[code];
+  } catch {
+    /* fine */
+  }
+  return phoneId();
+}
+export function keepTablePid(code: string, pid: string) {
+  let m: Record<string, string> = {};
+  try {
+    m = JSON.parse(read(globalThis.localStorage, SEATS) ?? "{}") as Record<string, string>;
+  } catch {
+    /* fine */
+  }
+  delete m[code];
+  m[code] = pid;
+  const keep = Object.entries(m).slice(-8);
+  write(globalThis.localStorage, SEATS, JSON.stringify(Object.fromEntries(keep)));
+}
+
 /** A big screen's own id, separate from the phone id on the same browser. */
 export function screenId(): string {
   const key = "changle.screen";

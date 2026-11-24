@@ -110,6 +110,12 @@ function Stage({ create, name, onExit, onRejoin, onForget }: { create: boolean; 
             {ui("tryAgain")}
           </button>
         )}
+        {/* the host's kick isn't a ban: the code still lets them back in (Steve 2026-11-23) */}
+        {stopped.code === "kicked" && (
+          <button type="button" className="btn btn-primary btn-lg btn-block" onClick={onRejoin}>
+            {ui("sitAgain")}
+          </button>
+        )}
         <button type="button" className="btn btn-ghost btn-block" onClick={onExit}>
           {ui("back")}
         </button>

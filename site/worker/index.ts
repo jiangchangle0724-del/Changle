@@ -436,6 +436,12 @@ export class Room extends DurableObject<Env> {
         who = null;
       }
       const screen = msg.screen === true;
+      // someone back on a phone the table doesn't know, as the seat that dropped: that seat is theirs
+      const mine = !block && !screen ? engine.claim(pid, String(msg.name ?? ""), !!msg.create, who) : null;
+      if (mine) {
+        this.send(ws, { t: "adopt", pid: mine });
+        return;
+      }
       const err = block ?? (screen ? engine.screenHello(pid, !!msg.create, typeof msg.game === "string" ? msg.game : undefined) : engine.hello(pid, String(msg.name ?? ""), !!msg.create, who));
       if (err) {
         this.send(ws, { t: "error", code: err });
