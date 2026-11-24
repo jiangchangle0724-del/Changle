@@ -1,9 +1,9 @@
 import { Crown, Smartphone, Volume2, VolumeX } from "lucide-react";
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { GAME_BY_ID, type GameId } from "../games/registry";
 import { gsap, reduced } from "../lib/anim";
 import { holdBackground, startBackground, stopBackground } from "../lib/music";
-import { sfx, unlockAudio } from "../lib/sfx";
+import { audioRunning, onAudioState, sfx, soundBlocked, tryAudio, unlockAudio } from "../lib/sfx";
 import { isCode, newCode } from "../online/config";
 import { SeatFace } from "../online/People";
 import { NetGame } from "../online/games/NetGame";
@@ -168,8 +168,19 @@ function TvTurn() {
 type Gate = { armed: boolean; sound: boolean; setSound: (on: boolean) => void };
 
 function useSoundGate(): Gate {
-  const [armed, setArmed] = useState(false);
+  // sound already playing on this page (the table before this one) needs no click
+  const [armed, setArmed] = useState(() => audioRunning());
+  const blocked = useSyncExternalStore(onAudioState, soundBlocked, () => false);
   const { sound, setSound } = useStore();
+  // nor does a browser that lets the site play by itself (Safari with auto-play allowed for it,
+  // Chrome once the site is a regular): try, and hear whether it plays (Steve 2026-11-23)
+  useEffect(() => onAudioState(() => audioRunning() && setArmed(true)), []);
+  useEffect(() => {
+    if (!sound) return;
+    // (after the store has turned the sound on: its effect runs after this one)
+    const id = window.setTimeout(tryAudio, 50);
+    return () => window.clearTimeout(id);
+  }, [sound]);
   useEffect(() => {
     const arm = () => {
       unlockAudio();
@@ -192,8 +203,12 @@ function useSoundGate(): Gate {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sound, setSound]);
-  return { armed, sound, setSound };
+  // (sound that stopped since, a tab hidden and back, asks for the click again)
+  return { armed: armed && !blocked, sound, setSound };
 }
+
+/** Safari on a Mac, which can be told to let a site play sound by itself (its per-site auto-play setting). */
+const macSafari = () => /Macintosh/.test(navigator.userAgent) && /Safari\//.test(navigator.userAgent) && !/Chrome|Chromium|Edg|Firefox|OPR/.test(navigator.userAgent) && navigator.maxTouchPoints < 2;
 
 function TvControls({ gate, game, noGate }: { gate: Gate; game: boolean; noGate?: boolean }) {
   const { lang, setLang } = useStore();
@@ -232,6 +247,11 @@ function TvControls({ gate, game, noGate }: { gate: Gate; game: boolean; noGate?
           <Volume2 size={22} />
           {zh ? "点一下屏幕，打开声音" : "Click anywhere to turn the sound on"}
           <span className="tv-gate-key">{zh ? "按 M 静音" : "M mutes"}</span>
+          {macSafari() && (
+            <span className="tv-gate-tip">
+              {zh ? "想以后一打开就有声音：Safari 设置 > 网站 > 自动播放，changle.ca 选「允许全部自动播放」" : "For sound without the click next time: Safari Settings > Websites > Auto-Play, set changle.ca to Allow All Auto-Play"}
+            </span>
+          )}
         </div>
       )}
     </>
@@ -289,7 +309,7 @@ function TvNotice({ title, spinning, children }: { title: string; spinning?: boo
 function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
   const { lang } = useStore();
   const zh = lang === "zh";
-  const { code: v, field } = useCodeField();
+  const { code: v, ime, field } = useCodeField();
   return (
     <form
       className="tv-join"
@@ -305,6 +325,11 @@ function JoinForm({ onJoin }: { onJoin: (code: string) => void }) {
           {zh ? "显示这桌" : "Show it"}
         </button>
       </div>
+      {ime && !isCode(v) && (
+        <p className="tv-join-ime" role="status">
+          {zh ? "中文输入法会把字母拼成汉字：切到英文（Mac 按 Shift）再输桌号" : "A Chinese keyboard turns letters into characters: switch to English (Shift on a Mac), then type the code"}
+        </p>
+      )}
     </form>
   );
 }

@@ -10,8 +10,12 @@ import {
   clave,
   crash,
   duck,
+  audioRunning,
   initAudio,
   isEnabled,
+  onAudioState,
+  soundBlocked,
+  tryAudio,
   kick,
   midiHz,
   note,
@@ -25,7 +29,7 @@ import {
   type Bus,
 } from "./audio/engine";
 
-export { initAudio };
+export { audioRunning, initAudio, onAudioState, soundBlocked, tryAudio };
 let lastTick = 0;
 
 export function unlockAudio() {

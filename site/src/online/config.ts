@@ -31,9 +31,10 @@ export function newCode(): string {
   return out.join("");
 }
 
-/** What a person types: lower case, spaces, the letter O for zero. Keep only what codes are made of. */
+/** What a person types: lower case, spaces, full-width letters (a Chinese keyboard's). Keep only what codes are made of. */
 export function cleanCode(raw: string): string {
   return raw
+    .normalize("NFKC")
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
     .split("")
