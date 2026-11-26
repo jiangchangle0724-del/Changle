@@ -361,7 +361,8 @@ Phase 1 exit.
 The code is `tools/moneylens/src/vault/records.ts` (what is in a chunk, and merging),
 `sync.ts` (the store on a device, the cache and the server as it sees them) and `memory.ts` (a
 server and a cache in memory: the rule book the real server will be held to, and what the demo
-runs on). The real server and the cache in the browser's storage are not written yet.
+runs on), with the cache in the browser's storage in `src/web/idbcache.ts`. The real server is
+not written yet.
 
 **What is in a chunk.** JSON in UTF-8, sealed as in 1.1 under the chunk's own random id and the
 type `records`:
@@ -460,7 +461,13 @@ removed again on the device would come back.
 server's copy as last seen, this device's copy with unsent changes, and a sent copy of unknown
 fate). For the vault: its id and how far the last pull reached. No key, no record, no field, no
 group (T-24, VAULT-3). A cache that belongs to another vault is emptied. A cached blob that does
-not open is left out and the server is asked for everything again. Changes exist in memory until
+not open is left out and the server is asked for everything again. In the browser the cache is
+IndexedDB: one transaction a save, written to disk before the save returns. Two tabs of one
+browser share that storage, and each would write over the other's picture of it, so a page has
+to hold the cache to use it (a Web Lock, which the browser drops when the page goes, however it
+goes) and a second tab is told that it is taken. A browser that gives a page no storage it can
+hold alone (a private window, say) is told apart from that, so the app can run without a cache
+and say so. Changes exist in memory until
 they are flushed (sealed and written to the cache); the app flushes within about a second of a
 change and sends less often, because every send that changes a chunk counts against LIM-2.
 
@@ -507,7 +514,11 @@ pages closed at random saves, and then checks that all devices and the server ho
 records, that every record added and not removed is there, that every removed record is gone,
 and that a field only one device changed has that device's last value. It runs eight times in CI
 and was run several thousand times before the code was merged. Each check in the code was also
-taken out in turn to see that a test fails without it.
+taken out in turn to see that a test fails without it. The cache in the browser's storage is
+tried in a real browser (`scripts/check-cache.ts`, part of `npm run test:page`): what IndexedDB
+holds after use is ids, version numbers and sealed bytes in which none of the records' words can
+be read, local and session storage and cookies are empty, a second tab is refused the cache, and
+a page opened again finds every record (T-24).
 
 ## 2. Limits (the reason for VAULT-6's wording)
 
@@ -571,8 +582,6 @@ taken out in turn to see that a test fails without it.
   case where the platform lost data and a device still has it). Decided so far: it would keep
   everything either side has, at the price that a record removed on one side only can come back.
   Not built; today's way out is to take the server's copy.
-- Two tabs of one browser share one cache. The cache in the browser's storage has to let only
-  one of them write (a lock, or a message between tabs). Not built.
 - Splitting a chunk that a merge made too large for records this device did not add (1.6).
 - Chunk sizes are not padded (section 2, "Metadata"). Whether to pad to a few fixed sizes is
   open; it costs storage against the 10 MB a user has.

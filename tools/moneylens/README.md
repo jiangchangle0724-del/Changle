@@ -77,6 +77,10 @@ store.get(id); store.list("txn");                      // what comes back is fro
 await store.flush();                                   // seal what changed and write it to the cache
 ```
 
+- **The cache.** In a page: `holdCache()` from `src/web/idbcache.ts`. It answers with the cache,
+  or `"taken"` (MoneyLens is open in another tab of this browser: say so, and do nothing else),
+  or `"unavailable"` (a private window, storage switched off: run on `new MemoryCache()` and say
+  that nothing is kept on this device). Let go of it (`release()`) when the vault locks.
 - **Groups.** `"book"` for accounts, imports, categories, rules, aliases, budgets and settings;
   `"t/<account id>"` for an account's transactions. A group only decides which records share a
   chunk. One import is then one request that is saved whole or not at all.
@@ -197,7 +201,8 @@ npm test
 npm run test:page
 ```
 
-`npm run test:page` builds the statement check and opens it in the Chrome already on the machine.
+`npm run test:page` builds the statement check and opens it in the Chrome already on the machine,
+then tries the store's cache in that browser's own storage (`scripts/check-cache.ts`).
 
 CI is `.github/workflows/moneylens.yml`: the same four, plus an audit of what ships.
 
