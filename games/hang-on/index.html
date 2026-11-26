@@ -292,8 +292,9 @@
    * 不用往下滚找；上沿一道渐变，下面滚过去的字不挡键。放得下时它就在原来的地方，看不出来。
    */
   body.quiet-note #lobby { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
-  .row2 { display: flex; justify-content: flex-start; margin-top: 8px; }
-  .row2:has(> [hidden]:only-child) { display: none; }
+  .row2 { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin-top: 8px; }
+  #escortBtn[aria-pressed="true"] { background: #f6c453; color: var(--card-ink); }
+  .row2:not(:has(> :not([hidden]))) { display: none; }
   :is(body.phone, body.short) :is(#lobby, #results) .card .row { position: sticky; bottom: 0; z-index: 1; margin: 0 0 -6px; padding: 10px 0 max(6px, env(safe-area-inset-bottom, 0px));
     background: linear-gradient(to bottom, transparent, var(--card) 10px); }
   @media (orientation: landscape) {
@@ -388,8 +389,8 @@
         <button class="btn quiet" id="gachaBtn" type="button">🎰 扭蛋机</button>
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
       </div>
-      <!-- 电视局和手机局之间换（11-25 挪到下面一行：上面那一排加了 🏆、🎰，横着的手机上放不下） -->
-      <div class="row2"><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
+      <!-- 护送大元宝（11-26）的开关；电视局和手机局之间换（11-25 挪到下面一行：上面那一排加了 🏆、🎰，横着的手机上放不下） -->
+      <div class="row2"><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
     </div>
   </div>
 </div>

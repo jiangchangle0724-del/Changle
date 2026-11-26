@@ -476,6 +476,8 @@ $('achvBtn').addEventListener('click', openAchvs);
 $('achvBtn2').addEventListener('click', openAchvs);
 // 红包扭蛋机（11-25）：在电视上扭给大家看
 $('gachaBtn2').addEventListener('click', () => send({ do: 'gacha' }));
+// 护送大元宝（11-26）：开 / 关
+$('escortBtn2').addEventListener('click', () => send({ do: 'escort', on: !lastMenu?.escort }));
 $('achvDone').addEventListener('click', () => achvDlg.close());
 renderAchvBtns();
 renderItem();
@@ -532,6 +534,12 @@ function renderMenu(): void {
   $('mResults').hidden = !results;
   $('backBtn').hidden = !m || (m.phase !== 'countdown' && m.phase !== 'playing');
   if (!m) return;
+  // 护送大元宝（11-26）：闯关、大团队才有这个开关，按下去是开着
+  const eb = $<HTMLButtonElement>('escortBtn2');
+  eb.hidden = m.escort === undefined;
+  eb.textContent = m.escort ? tr('🪙 护送 ✓', '🪙 Escort ✓') : tr('🪙 护送', '🪙 Escort');
+  eb.setAttribute('aria-pressed', String(!!m.escort));
+  eb.title = tr('护送大元宝：起点放一个大元宝，扛到终点算数', 'Gold escort: carry the big ingot from the start to the top');
   // 红包扭蛋机（11-25）：「🎰 🧧 12」，红包不够就灰着，扭完了就不出
   const g = m.gacha;
   const gb = $<HTMLButtonElement>('gachaBtn2');

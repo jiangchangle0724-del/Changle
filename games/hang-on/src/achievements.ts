@@ -27,6 +27,7 @@ export const ACHIEVEMENTS = [
   { id: 'hard', icon: '🔥', zh: '困难到顶', en: 'Hard summit', howZh: '困难的关到顶', howEn: 'Reach the top of a hard level' },
   { id: 'long', icon: '🧗', zh: '长关到顶', en: 'Long haul', howZh: '长关到顶', howEn: 'Reach the top of a long level' },
   { id: 'bigteam', icon: '👥', zh: '大团队', en: 'Big team', howZh: '大团队的关到顶', howEn: 'Reach the top of a Big team level' },
+  { id: 'escort', icon: '🪙', zh: '护送大元宝', en: 'Gold escort', howZh: '大厅里打开「护送大元宝」，把它扛到顶', howEn: 'Turn on Gold escort in the lobby and carry the ingot to the top' },
   { id: 'race', icon: '🏁', zh: '第一个到', en: 'First up', howZh: '比谁先赢一次', howEn: 'Win a Race' },
   { id: 'last', icon: '🪑', zh: '坐到最后', en: 'Last one hanging', howZh: '坐不住赢一次', howEn: 'Win Last one hanging' },
   { id: 'gold', icon: '🪙', zh: '元宝到手', en: 'Gold rush', howZh: '抢元宝赢一局', howEn: 'Win a round of Grab the gold' },
@@ -71,12 +72,13 @@ export interface RoundInfo {
   long: boolean;
 }
 
-/** 到顶那一下的账：几个人（半路进来的也算）、全队摔了几次、红包拿了几个（一共几个）、小目标（闯关、大团队才有）。 */
+/** 到顶那一下的账：几个人（半路进来的也算）、全队摔了几次、红包拿了几个（一共几个）、小目标（闯关、大团队才有）、大元宝送到没有。 */
 export interface RoundEnd {
   players: number;
   deaths: number;
   envelopes: { got: number; of: number };
   goals: readonly { ok: boolean }[] | null;
+  escort?: boolean;
 }
 
 /**
@@ -152,6 +154,7 @@ export class AchvRound {
       if (mode === 'climb' && tier === 2) each('hard');
       if (long) each('long');
       if (mode === 'team') each('bigteam');
+      if (end.escort) each('escort');
     } else {
       const id: AchvId = mode === 'race' ? 'race' : mode === 'last' ? 'last' : 'gold';
       for (const player of who ?? []) if (player >= 0 && player < players) out.push({ player, id });

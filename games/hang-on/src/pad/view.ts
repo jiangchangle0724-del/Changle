@@ -264,6 +264,8 @@ export class PhoneView {
       if (ev.type === 'drone' && ev.phase === 'arrive') this.banner(tr('🛸 外卖到了！抓住袋子底下的横杆', '🛸 Delivery! Grab the bar under the bag'));
       if (ev.type === 'tray' && ev.phase === 'spill') this.banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
       if (ev.type === 'tray' && ev.phase === 'home') this.banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
+      // 护送大元宝（11-26）
+      if (ev.type === 'escort') this.banner(ev.phase === 'home' ? tr('🪙 大元宝送到顶了！', '🪙 The big gold ingot made it!') : tr('大元宝掉了，回到检查点', 'The ingot fell. It is back at the checkpoint'), ev.phase === 'home' ? 'good' : 'bad');
       if (ev.type === 'key') {
         const kb = keyBanner(ev.phase);
         if (kb) this.banner(kb.text, kb.kind);

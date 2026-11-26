@@ -229,8 +229,8 @@ function rules(): Rules {
   const stamina = staminaNow();
   const st = stamina ? { stamina } : {};
   if (mode === 'race' && teamsOn) return { mode, teams: teamsFor(playerCount()), ...st };
-  // 卡太久来帮手（A9c）：闯关、大团队里有外卖无人机
-  return mode === 'climb' || mode === 'team' ? { mode, helper: true, ...st } : { mode, ...st };
+  // 卡太久来帮手（A9c）：闯关、大团队里有外卖无人机；护送大元宝（11-26）大厅里打开了才有
+  return mode === 'climb' || mode === 'team' ? { mode, helper: true, ...(escortOn ? { escort: true } : {}), ...st } : { mode, ...st };
 }
 /** 比谁先分两队时这个人在哪一队（不分队是 undefined）。 */
 const teamOf = (i: number): number | undefined => sim.rules.teams?.[i] ?? (sim.rules.mode === 'race' && sim.rules.teams ? i % 2 : undefined);
@@ -296,6 +296,23 @@ function goNext(): void {
   levelIndexOf.set(slot(), 0);
   relist(true);
 }
+/** 护送大元宝（11-26）：大厅里开关，开了重摆这一关（起点放一个大元宝）。 */
+let escortOn = false;
+function setEscort(on: boolean): void {
+  if (on === escortOn) return;
+  escortOn = on;
+  renderEscortBtn();
+  menuDirty = true;
+  if (phase === 'lobby') void resetSim();
+}
+/** 大厅里「🪙 护送大元宝」：闯关、大团队才有。 */
+function renderEscortBtn(): void {
+  const b = $<HTMLButtonElement>('escortBtn');
+  b.hidden = mode !== 'climb' && mode !== 'team';
+  b.textContent = escortOn ? tr('🪙 护送大元宝：开', '🪙 Gold escort: on') : tr('🪙 护送大元宝：关', '🪙 Gold escort: off');
+  b.setAttribute('aria-pressed', String(escortOn));
+  b.title = tr('起点放一个大元宝，扛到终点算数（不送也能过关）', 'A big gold ingot waits at the start. Carry it to the top for a bonus (you can finish without it)');
+}
 function setTeams(on: boolean): void {
   if (on === teamsOn) return;
   teamsOn = on;
@@ -323,6 +340,7 @@ function radioBtn(box: HTMLElement, label: string, on: boolean, click: () => voi
  * 闯关、比谁先最后选难度。
  */
 function renderModes(): void {
+  renderEscortBtn();
   const sides = $('sides');
   sides.innerHTML = '';
   for (const s of SIDES) radioBtn(sides, sideName(s), s === side, () => setSide(s));
@@ -608,6 +626,7 @@ function fullResults(): Results {
     ...resultsOf(sim),
     ...(lastGoals ? { goals: lastGoals.goals, envelopes: lastGoals.envelopes } : {}),
     ...(sim.rules.mode === 'gold' ? goldTotals() : {}),
+    ...(sim.escort ? { escort: sim.escort.done } : {}),
   };
 }
 
@@ -1057,6 +1076,7 @@ function roundEnd(): Parameters<AchvRound['onWin']>[1] {
     deaths: sim.players.reduce((n, p) => n + p.deaths, 0),
     envelopes: { got: sim.envelopes.filter((e) => e.got).length, of: sim.envelopes.length },
     goals: lastGoals?.goals ?? null,
+    escort: !!sim.escort?.done,
   };
 }
 
@@ -1227,6 +1247,10 @@ function gachaPull(): void {
 }
 
 $('gachaBtn').addEventListener('click', openGacha);
+$('escortBtn').addEventListener('click', () => {
+  sfx.tick();
+  setEscort(!escortOn);
+});
 $('gachaPull').addEventListener('click', gachaPull);
 $('gachaDone').addEventListener('click', () => gachaDlg.close());
 renderGachaBtn();
@@ -1551,6 +1575,12 @@ function onEvents(): void {
     // 端托盘（后厨，A10）
     if (ev.type === 'tray' && ev.phase === 'spill') banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
     if (ev.type === 'tray' && ev.phase === 'home') banner(tr('🥟 点心端到了', '🥟 The dim sum made it'));
+    // 护送大元宝（11-26）
+    if (ev.type === 'escort' && ev.phase === 'home') {
+      banner(tr('🪙 大元宝送到顶了！', '🪙 The big gold ingot made it!'));
+      music.flourish();
+    }
+    if (ev.type === 'escort' && ev.phase === 'back') banner(tr('大元宝掉了，回到检查点', 'The ingot fell. It is back at the checkpoint'), 'bad');
     // 涨潮（A12）
     if (ev.type === 'tide') {
       const tb = tideBanner(ev.phase, sim.level.world);
@@ -1639,6 +1669,7 @@ function menuFor(): Menu {
       ? { results: fullResults(), names: sim.players.map((p, i) => ({ name: name(i), color: p.color })), ...(level.par ? { par: level.par.seconds } : {}) }
       : {}),
     gacha: { coins: coins(gacha, envelopeTotal()), price: GACHA_PRICE, got: gacha.got, left: leftToWin(gacha) },
+    ...(mode === 'climb' || mode === 'team' ? { escort: escortOn } : {}),
   };
 }
 
@@ -1699,6 +1730,11 @@ function runCmd(c: PadCmd): void {
       if (phase !== 'lobby') return;
       sfx.tick();
       setTeams(!!c.on);
+      break;
+    case 'escort':
+      if (phase !== 'lobby') return;
+      sfx.tick();
+      setEscort(!!c.on);
       break;
     default:
       return;
