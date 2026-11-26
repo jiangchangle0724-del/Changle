@@ -346,6 +346,38 @@ class Sfx {
           this.tone({ freq: f * 1.5, wave: 'triangle', dur: 0.1, vol: 0.1, pan, delay: 0.07 });
           break;
         }
+        case 'cheer': {
+          // 观众起哄（11-26）：轻轻啵一声，起得密了就省掉几声
+          if (!this.throttle('cheer', 0.12)) break;
+          const f = 760 + Math.random() * 260;
+          this.tone({ freq: f, to: f * 1.25, wave: 'sine', dur: 0.06, vol: 0.06 });
+          break;
+        }
+        case 'crowdvote': {
+          // 观众投票开了：叮咚
+          this.tone({ freq: 660, wave: 'triangle', dur: 0.16, vol: 0.12 });
+          this.tone({ freq: 880, wave: 'triangle', dur: 0.24, vol: 0.12, delay: 0.14 });
+          break;
+        }
+        case 'crowdbet': {
+          // 这一局第一个掉的：押中了三个音往上，没押中两个音往下
+          if (ev.hits.length) [660, 830, 990].forEach((f, k) => this.tone({ freq: f, wave: 'sine', dur: 0.12, vol: 0.1, delay: k * 0.08 }));
+          else [520, 390].forEach((f, k) => this.tone({ freq: f, wave: 'triangle', dur: 0.18, vol: 0.08, delay: k * 0.12 }));
+          break;
+        }
+        case 'crowdfx': {
+          // 观众投出来的那一样开始：刮风呼的一声，变轻往上飘，变重往下沉，慢动作像磁带慢下来，力气满往上走四个音
+          if (!ev.on) break;
+          const side = ev.dir < 0 ? -0.6 : 0.6;
+          if (ev.fx === 'wind') this.noise({ dur: 1.4, vol: 0.22, attack: 0.25, filter: { type: 'bandpass', freq: 400, to: 1400, q: 0.8 }, pan: side });
+          else if (ev.fx === 'float') this.tone({ freq: 300, to: 900, wave: 'sine', dur: 0.9, vol: 0.12, vibrato: [12, 6] });
+          else if (ev.fx === 'heavy') {
+            this.tone({ freq: 160, to: 55, wave: 'sawtooth', dur: 0.6, vol: 0.14, lowpass: 500 });
+            this.noise({ dur: 0.3, vol: 0.1, filter: { type: 'lowpass', freq: 300 }, delay: 0.45 });
+          } else if (ev.fx === 'slow') this.tone({ freq: 520, to: 130, wave: 'triangle', dur: 1.0, vol: 0.12 });
+          else [392, 523, 659, 784].forEach((f, k) => this.tone({ freq: f, wave: k === 3 ? 'triangle' : 'sine', dur: k === 3 ? 0.3 : 0.1, vol: 0.12, delay: k * 0.07 }));
+          break;
+        }
         case 'achv': {
           // 成就（11-25）：叮叮叮往上走三个音，最后一个亮一点
           const pan = this.pan(ev.x, ev.y);
@@ -712,10 +744,14 @@ export function heardBy(ev: SimEvent, me: number): boolean {
       return ev.ok || ev.player === me;
     case 'itemEnd':
       return true;
-    // 表情、放屁、成就（11-25）是给大家听的
+    // 表情、放屁、成就（11-25）是给大家听的；观众的（11-26）也是
     case 'emote':
     case 'fart':
     case 'achv':
+    case 'cheer':
+    case 'crowdvote':
+    case 'crowdbet':
+    case 'crowdfx':
       return true;
     // 红包是大家的（红包雨也是）
     case 'envelope':

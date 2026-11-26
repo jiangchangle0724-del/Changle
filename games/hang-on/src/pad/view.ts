@@ -19,6 +19,8 @@ import { Stage } from '../render/stage';
 import { renderGoldScore, renderResults, resultsTitle, type ResultsDom } from '../results';
 import { reportError } from '../report';
 import { trophyToast, unlockLines } from '../achv-ui';
+import { FX, fxBanner, type FxId } from '../crowd';
+import { betText, floatCheer, floatLine, fxName, setFxLayer } from '../crowd-ui';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -129,6 +131,11 @@ export class PhoneView {
     if (r.phase === this.phase) return;
     const prev = this.phase;
     this.phase = r.phase;
+    // 观众投出来的那一样（11-26）只在玩的时候有
+    if (r.phase !== 'playing') {
+      this.fx = null;
+      setFxLayer(null);
+    }
     if (r.phase === 'countdown') this.countdown();
     else this.stopCount();
     if (r.phase === 'lobby' || (r.phase === 'countdown' && prev === 'results')) this.stage?.reset();
@@ -285,9 +292,24 @@ export class PhoneView {
         const got = this.sim.envelopes.filter((e) => e.got).length;
         this.banner(tr(`🧧 ${name(ev.player)} 拿到红包 ${got}/${this.sim.envelopes.length}`, `🧧 ${name(ev.player)} got an envelope ${got}/${this.sim.envelopes.length}`));
       }
+      // 观众（11-26）：起哄、押中没有从右下角飘上来；投票开了、投出来的那一样起作用走横幅，画面盖一层
+      if (ev.type === 'cheer') floatCheer(ev.who, ev.cheer);
+      if (ev.type === 'crowdbet') floatLine('👀', betText(name(ev.fell), ev.hits), true);
+      if (ev.type === 'crowdvote') this.banner(tr(`👀 观众在投票：${fxName(ev.a)} 还是 ${fxName(ev.b)}`, `👀 The crowd is voting: ${fxName(ev.a)} or ${fxName(ev.b)}`));
+      if (ev.type === 'crowdfx') {
+        if (ev.on) {
+          const b = fxBanner(ev.fx, ev.dir);
+          this.banner(tr(b.zh, b.en), FX[ev.fx].help ? 'good' : 'bad');
+        }
+        if (ev.on) setFxLayer(ev.fx, ev.dir);
+        else if (this.fx === ev.fx) setFxLayer(null);
+        this.fx = ev.on ? ev.fx : this.fx === ev.fx ? null : this.fx;
+      }
     }
   }
 
+  /** 观众投出来的、正在起作用的那一样（11-26）。 */
+  private fx: FxId | null = null;
   private bannerTimer: ReturnType<typeof setTimeout> | null = null;
   private banner(text: string, kind: 'good' | 'bad' = 'good'): void {
     const el = $('vBanner');

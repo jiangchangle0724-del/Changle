@@ -2,12 +2,12 @@
 // 信令、直连失败时中转输入。一个 Durable Object 一个房间，逻辑在 src/server/room.ts（纯，有测试）。
 //   POST /hang-on/api/rooms                 开房：{} 或 { hostPlays: true }（手机局）-> { code }
 //   GET  /hang-on/api/rooms/CODE            联机桌问这局怎么样了 -> { exists, phase: lobby | playing | over }
-//   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host&key=… | ?role=pad&id=…&name=… | ?role=watch
+//   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host&key=… | ?role=pad&id=…&name=… | ?role=watch&id=…&name=…（观众，11-26）
 //                                           （联机桌开的房先没有主机，主机页带 ?room=CODE 进来就是 role=host）
 //   POST /hang-on/api/report                页面出了事自己报（闪退自动记录，src/report.ts）-> 204
 //   GET  /hang-on/api/reports               报过的毛病汇总（src/server/reports.ts，`npm run reports` 打出来）
 //   GET  /hang-on/r/CODE                    二维码的链接：手柄页，房间码填好
-//   /hang-on/、/hang-on/pad/                页面（dist/hang-on，vite build）
+//   /hang-on/、/hang-on/pad/、/hang-on/watch/ 页面（dist/hang-on，vite build；watch 是观众页，11-26）
 import { DurableObject } from 'cloudflare:workers';
 import { CODE_ALPHABET, CODE_RE, HOST_KEY_RE, SEAT_ID_RE, type ClientMsg, type FatalKey, type ServerMsg } from '../net/protocol';
 import { browserOf, keepReport, makeLimiter, readReport, reportSummary, topFrame, type ReportIn, type ReportStore } from './reports';
@@ -59,8 +59,9 @@ export class HangOnRoom extends DurableObject<Env> {
     if (!room || room.expired()) return refuse(room?.d.phase === 'ended' ? 'ended' : 'noRoom');
     const roleParam = q.get('role');
     const role = roleParam === 'host' ? 'host' : roleParam === 'watch' ? 'watch' : 'pad';
-    const seat = role === 'pad' ? (q.get('id') ?? '') : null;
-    if (role === 'pad' && !SEAT_ID_RE.test(seat ?? '')) return refuse('badRequest');
+    // 手柄带座位 id；观众（11-26）也带一个 id（同一个人刷新了还是他）
+    const seat = role === 'host' ? null : (q.get('id') ?? '');
+    if (role !== 'host' && !SEAT_ID_RE.test(seat ?? '')) return refuse('badRequest');
     const from: From = { role, seat };
     const key = role === 'host' ? (q.get('key') ?? '') : '';
     const why = room.connect(from, q.get('name') ?? undefined, HOST_KEY_RE.test(key) ? key : undefined);
@@ -155,7 +156,7 @@ function deliver(sockets: WebSocket[], o: Out) {
     for (const ws of sockets) {
       const f = of(ws);
       if (!f) continue;
-      const hit = o.close === 'host' ? f.role === 'host' : f.role === 'pad' && f.seat === o.close.seat;
+      const hit = o.close === 'host' ? f.role === 'host' : o.close === 'audience' ? f.role === 'watch' : f.role === 'pad' && f.seat === o.close.seat;
       if (!hit) continue;
       ws.serializeAttachment(null);
       try {
@@ -172,7 +173,11 @@ function deliver(sockets: WebSocket[], o: Out) {
     const f = of(ws);
     if (!f) continue;
     const to = o.to;
-    const hit = to === 'all' || (to === 'host' && f.role === 'host') || (typeof to === 'object' && f.role === 'pad' && f.seat === to.seat);
+    const hit =
+      to === 'all' ||
+      (to === 'host' && f.role === 'host') ||
+      (to === 'audience' && f.role === 'watch') ||
+      (typeof to === 'object' && ('watch' in to ? f.role === 'watch' && f.seat === to.watch : f.role === 'pad' && f.seat === to.seat));
     if (!hit) continue;
     try {
       ws.send(text);

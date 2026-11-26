@@ -295,6 +295,32 @@
   .row2 { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin-top: 8px; }
   /* 红包雨（11-26）的彩蛋键：金色，一眼看得到 */
   #rainBtn { background: #f6c453; color: var(--card-ink); }
+  /* 观众（11-26）：右下角的观众条、玩的时候顶上正中的投票、大厅里那一行、结算页那一行（起哄和盖的那一层的样子在 src/crowd-ui.ts） */
+  .crowd-box { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 25; max-width: 300px;
+    background: var(--panel); backdrop-filter: blur(6px); border-radius: 16px; padding: 10px 14px; font-size: 15px; pointer-events: none; display: grid; gap: 3px; }
+  .crowd-box .t { font-weight: 800; font-size: 13px; opacity: .85; margin-bottom: 2px; }
+  .crowd-box .r { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+  .crowd-box .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.25); }
+  .crowd-box .nm { font-weight: 700; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crowd-box .hit { margin-top: 4px; font-weight: 800; color: var(--warn); }
+  .crowd-vote { position: fixed; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top, 0px)); z-index: 25; width: min(460px, calc(100vw - 32px)); box-sizing: border-box;
+    background: var(--panel); backdrop-filter: blur(6px); border-radius: 18px; padding: 10px 16px 12px; pointer-events: none; text-align: center; }
+  .crowd-vote .vtitle { font-weight: 800; font-size: 15px; margin-bottom: 6px; }
+  .crowd-vote .vrow { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; white-space: nowrap; }
+  .crowd-vote .va { color: var(--good); }
+  .crowd-vote .vb { color: var(--bad); }
+  .crowd-vote .vbar { flex: 1; min-width: 60px; height: 10px; border-radius: 5px; overflow: hidden; display: flex; background: rgba(255,255,255,.15); }
+  .crowd-vote .vbar i { display: block; height: 100%; width: 50%; transition: width .3s; }
+  #voteBarA { background: var(--good); }
+  #voteBarB { background: var(--bad); }
+  .crowd-lobby { font-size: 13px; opacity: .8; margin: 2px 0 0; line-height: 1.5; }
+  .crowd-res { font-size: 14px; font-weight: 700; margin: 8px 0 0; line-height: 1.5; }
+  /* 手机局的房主手机：没地方放观众条；投票小一点，放在右上角那排键底下 */
+  body.phone .crowd-box { display: none; }
+  body.phone .crowd-vote { top: calc(58px + env(safe-area-inset-top, 0px)); width: min(380px, calc(100vw - 24px)); padding: 6px 12px 8px; }
+  body.phone .crowd-vote .vtitle { font-size: 13px; margin-bottom: 4px; }
+  body.phone .crowd-vote .vrow { font-size: 15px; }
+  @media (prefers-reduced-motion: reduce) { .crowd-vote .vbar i { transition: none; } }
   /* 精彩回放（11-26）：慢放的时候画面四周压暗一圈（像录像），左上角一块牌子，底下一个跳过 */
   .replay-badge { position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 27; background: var(--bad); color: var(--card-ink); font-weight: 800; font-size: 22px;
     padding: 8px 18px; border-radius: 999px; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
@@ -358,6 +384,7 @@
     <span class="chip" id="envChip" hidden title="红包" data-en-title="Red envelopes">🧧 <b id="envs">0</b></span>
     <span class="chip" id="aliveChip" hidden title="还挂着的" data-en-title="Still hanging">🙋 <b id="alive">0</b></span>
     <span class="chip" id="goldChip" hidden title="抢元宝的比分" data-en-title="Gold score"><span id="goldIcon" aria-hidden="true">🪙 </span><span id="goldScore"></span></span>
+    <span class="chip" id="crowdChip" hidden title="观众" data-en-title="Audience">👀 <b id="crowdN">0</b></span>
     <button class="btn quiet emo" id="emoteBtn" type="button" hidden aria-label="表情" data-en-label="Emotes">😀</button>
     <button class="btn quiet emo" id="fartBtn" type="button" hidden aria-label="放屁" data-en-label="Toot">💨</button>
     <button class="btn quiet" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
@@ -392,6 +419,7 @@
       <p class="level teach"><span id="levelTeach"></span><span class="envtotal" id="envTotal" hidden></span></p>
       <div class="seats" id="seats"></div>
       <p id="lobbyLine" style="opacity:.75"></p>
+      <p class="crowd-lobby" id="crowdLobby"></p>
       <div class="row">
         <button class="btn" id="startBtn" type="button" disabled data-en="Start">开始</button>
         <button class="btn quiet" id="kbBtn" type="button">+ 键盘加入</button>
@@ -422,6 +450,7 @@
       <h3 id="betrayTitle" data-en="Betrayals">背叛榜</h3>
       <ul id="betrayList"></ul>
       <p id="betrayNone" style="opacity:.6;font-size:13px;margin:6px 0 0" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
+      <p class="crowd-res" id="crowdLine" hidden></p>
       <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button>
         <button class="btn" id="rainBtn" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button><button class="btn quiet" id="replayBtn" type="button" hidden>▶ 精彩回放</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
       <p class="padhint" id="padHint" hidden></p>
@@ -430,6 +459,14 @@
 </div>
 
 <div class="banner" id="banner" aria-live="polite"></div>
+<!-- 观众（11-26）：盖在画面上的那一层（投出来的那一样起作用时）、右下角往上飘的起哄、观众条（押谁先掉）、玩的时候顶上正中的投票 -->
+<div class="crowd-fx" id="crowdFx" aria-hidden="true"></div>
+<div class="cheers" id="cheers" aria-hidden="true"></div>
+<div class="crowd-box" id="crowdBox" hidden></div>
+<div class="crowd-vote" id="crowdVote" hidden>
+  <div class="vtitle" id="voteLeft"></div>
+  <div class="vrow"><span class="va" id="voteA"></span><span class="vbar" aria-hidden="true"><i id="voteBarA"></i><i id="voteBarB"></i></span><span class="vb" id="voteB"></span></div>
+</div>
 <!-- 精彩回放（11-26）：慢放的时候左上角写是什么事，底下一个「跳过」 -->
 <div class="replay-badge" id="replayBadge" hidden></div>
 <button class="btn replay-skip" id="replaySkip" type="button" hidden data-en="Skip">跳过</button>
