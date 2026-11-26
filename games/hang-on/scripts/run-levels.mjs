@@ -633,8 +633,8 @@ function validate(level, replay, id) {
   assert(level.spawn.x <= 600, id + ': spawn must retain the first-screen lesson');
   const chairs = (level.lifts ?? []).reduce((sum, l) => sum + Math.floor(Math.hypot(l.to.x - l.from.x, l.to.y - l.from.y) / Math.max(40, l.gap)) + 1, 0);
   const carry = (level.keys?.length ?? 0) + (level.lanterns?.length ?? 0);
-  const moving = (level.ropes ?? []).reduce((sum, r) => sum + r.segments, 0) + (level.seesaws?.length ?? 0) + (level.crates?.length ?? 0) + (level.movers?.length ?? 0) + (level.spinners?.length ?? 0) + (level.gates?.length ?? 0) + (level.pendulums?.length ?? 0) + chairs + carry;
-  assert(moving <= 40, id + ': moving objects exceed 40 (rope links + seesaws + crates + movers + spinners + gates + lift chairs + keys and lanterns)');
+  const moving = (level.ropes ?? []).reduce((sum, r) => sum + r.segments, 0) + (level.seesaws?.length ?? 0) + (level.crates?.length ?? 0) + (level.boulders?.length ?? 0) + (level.movers?.length ?? 0) + (level.spinners?.length ?? 0) + (level.gates?.length ?? 0) + (level.pendulums?.length ?? 0) + chairs + carry;
+  assert(moving <= 40, id + ': moving objects exceed 40 (rope links + seesaws + crates + boulders + movers + spinners + gates + lift chairs + keys and lanterns)');
   machines(level, id);
   gates(level, id);
   kitchen(level, id);
@@ -1106,7 +1106,7 @@ function teamValidate(level, id, physics) {
     assert(Array.isArray(laid.rects) && laid.rects.length, `${id}: missing platforms`);
     const moving =
       (laid.ropes ?? []).reduce((v, r) => v + r.segments, 0) +
-      ['seesaws', 'crates', 'movers', 'spinners'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0);
+      ['seesaws', 'crates', 'boulders', 'movers', 'spinners'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0);
     assert(moving <= 40, `${id}: moving objects exceed 40`);
     assert(dangersOf(laid).length <= 40, `${id}: deadly things exceed 40`);
     const boxes = [
@@ -1793,7 +1793,7 @@ function multiValidate(l, id, physics) {
     // 长关可以用新场景的世界和它们的机关（A13）：照单人关的规矩查
     kitchen(laid, id); snow(laid, id); house(laid, id); space(laid, id);
     const chairs = (laid.lifts ?? []).reduce((sum, lf) => sum + Math.floor(Math.hypot(lf.to.x - lf.from.x, lf.to.y - lf.from.y) / Math.max(40, lf.gap)) + 1, 0);
-    const moving = (laid.ropes ?? []).reduce((v, r) => v + r.segments, 0) + ['seesaws', 'crates', 'movers', 'spinners', 'gates', 'pendulums', 'keys', 'lanterns'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0) + chairs;
+    const moving = (laid.ropes ?? []).reduce((v, r) => v + r.segments, 0) + ['seesaws', 'crates', 'boulders', 'movers', 'spinners', 'gates', 'pendulums', 'keys', 'lanterns'].reduce((v, k) => v + (laid[k]?.length ?? 0), 0) + chairs;
     assert(moving <= 40, `${id}: moving objects exceed 40`);
     assert(dangersOf(laid).length <= 40, `${id}: deadly things exceed 40`);
     const boxes = [...laid.rects, ...(laid.fading ?? []), ...(laid.springs ?? []), ...(laid.crates ?? []), ...(laid.seesaws ?? []).map(s => ({ x: s.pivot.x - s.w / 2, y: s.pivot.y - (s.h ?? 14) / 2, w: s.w, h: s.h ?? 14, material: s.material }))];
