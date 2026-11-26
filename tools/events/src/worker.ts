@@ -24,7 +24,7 @@ import { LIVE_KEY, publish } from "./publish";
 import { filterEvents, readQuery } from "./query";
 import { fetchStep, runDay, type StepArgs, type StepRunner } from "./run";
 import { ensureSchema } from "./schema";
-import { SOURCE_BY_ID } from "./sources";
+import { SOURCE_BY_ID, SOURCES } from "./sources";
 import { decide, listSubmissions, posterOf, receive } from "./submit";
 import { vanParts } from "./time";
 import type { Published } from "./types";
@@ -147,6 +147,8 @@ async function status(env: Env): Promise<Response> {
     published: pub ? { runId: pub.runId, generatedAt: pub.generatedAt, from: pub.from, to: pub.to, count: pub.count } : null,
     sources,
     history,
+    // whether each key a source needs is set in Cloudflare (yes or no, never the key itself)
+    keys: Object.fromEntries([...new Set(SOURCES.flatMap((s) => (s.needs ? [s.needs] : [])))].map((k) => [k, !!env[k]])),
   });
 }
 

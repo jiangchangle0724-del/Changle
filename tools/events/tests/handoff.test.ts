@@ -157,7 +157,10 @@ describe("POST /go/api/handoff", () => {
       const res = await call(new Request(`${own}${path}`));
       expect(res.status, path).toBe(404);
     }
-    expect((await call(new Request("https://changle.ca/go/api/status"))).status).toBe(200);
+    const res = await call(new Request("https://changle.ca/go/api/status"));
+    expect(res.status).toBe(200);
+    // whether each key is set, never the key (the tests set neither)
+    expect(((await res.json()) as { keys: unknown }).keys).toEqual({ EVENTBRITE_TOKEN: false, TICKETMASTER_KEY: false });
   });
 });
 
