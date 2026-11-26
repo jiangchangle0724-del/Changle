@@ -169,6 +169,7 @@ function join(code: string, name: string): void {
   link.setAchvs([...myAchvs]);
   link.setLook(look);
   link.setItem(item);
+  link.setAssist(assist);
   $('meName').textContent = name;
   $('join').hidden = true;
   $('pad').hidden = false;
@@ -440,6 +441,39 @@ itemDlg.addEventListener('close', () => {
 });
 $('itemBtn').addEventListener('click', openItems);
 $('itemBtn2').addEventListener('click', openItems);
+
+// ---------- 长辈小孩模式（11-26）：自己这个人开 / 关，记在这部手机上，告诉主机 ----------
+let assist = ((): boolean => {
+  try {
+    return localStorage.getItem('hang-on:assist') === '1';
+  } catch {
+    return false;
+  }
+})();
+function renderAssist(): void {
+  for (const id of ['assistBtn', 'assistBtn2']) {
+    const b = $<HTMLButtonElement>(id);
+    b.setAttribute('aria-pressed', String(assist));
+    (b.querySelector('.st') as HTMLElement).textContent = assist ? tr('长辈小孩模式：开', 'Easy hands: on') : tr('长辈小孩模式：关', 'Easy hands: off');
+  }
+}
+function toggleAssist(): void {
+  assist = !assist;
+  try {
+    localStorage.setItem('hang-on:assist', assist ? '1' : '0');
+  } catch {
+    // 记不住就记不住
+  }
+  sfx.tick();
+  renderAssist();
+  link?.setAssist(assist);
+}
+$('assistBtn').addEventListener('click', toggleAssist);
+$('assistBtn2').addEventListener('click', toggleAssist);
+renderAssist();
+onLang(renderAssist);
+// 慢一点（11-26）：全场慢到 0.8 倍，大厅里谁按都行
+$('slowBtn2').addEventListener('click', () => send({ do: 'slow', on: !lastMenu?.slow }));
 // 表情（11-25）：顶栏的 😀 打开一排，点一句发给主机，大屏上自己头顶冒出来
 emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => link?.emote(e));
 // 放屁键（11-25）：两下至少隔 1.5 秒，太快那一下键抖一抖不发
@@ -548,6 +582,12 @@ function renderMenu(): void {
   eb.textContent = m.escort ? tr('🪙 护送 ✓', '🪙 Escort ✓') : tr('🪙 护送', '🪙 Escort');
   eb.setAttribute('aria-pressed', String(!!m.escort));
   eb.title = tr('护送大元宝：起点放一个大元宝，扛到终点算数', 'Gold escort: carry the big ingot from the start to the top');
+  // 慢一点（11-26）：全场慢到 0.8 倍，按下去是开着
+  const sb = $<HTMLButtonElement>('slowBtn2');
+  sb.hidden = m.slow === undefined;
+  sb.textContent = m.slow ? '🐢 ✓' : '🐢';
+  sb.setAttribute('aria-pressed', String(!!m.slow));
+  sb.setAttribute('aria-label', m.slow ? tr('慢一点：开（全场 0.8 倍）', 'Slower: on (0.8× speed)') : tr('慢一点：关（全场慢到 0.8 倍）', 'Slower: off (0.8× speed when on)'));
   // 红包扭蛋机（11-25）：「🎰 🧧 12」，红包不够就灰着，扭完了就不出
   const g = m.gacha;
   const gb = $<HTMLButtonElement>('gachaBtn2');

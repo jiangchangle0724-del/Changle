@@ -330,7 +330,7 @@
   /* 手机局：右上角一排键，牌子放在它们底下 */
   body.phone .replay-badge { top: calc(62px + env(safe-area-inset-top, 0px)); font-size: 15px; padding: 6px 14px; }
   @media (prefers-reduced-motion: reduce) { .replay-badge::before { animation: none; } }
-  #escortBtn[aria-pressed="true"] { background: #f6c453; color: var(--card-ink); }
+  #escortBtn[aria-pressed="true"], #slowBtn[aria-pressed="true"], #assistBtn[aria-pressed="true"] { background: #f6c453; color: var(--card-ink); }
   .row2:not(:has(> :not([hidden]))) { display: none; }
   :is(body.phone, body.short) :is(#lobby, #results) .card .row { position: sticky; bottom: 0; z-index: 1; margin: 0 0 -6px; padding: 10px 0 max(6px, env(safe-area-inset-bottom, 0px));
     background: linear-gradient(to bottom, transparent, var(--card) 10px); }
@@ -429,7 +429,7 @@
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
       </div>
       <!-- 护送大元宝（11-26）的开关；电视局和手机局之间换（11-25 挪到下面一行：上面那一排加了 🏆、🎰，横着的手机上放不下） -->
-      <div class="row2"><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
+      <div class="row2"><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="slowBtn" type="button" aria-pressed="false">🐢 慢一点：关</button><button class="btn quiet" id="assistBtn" type="button" hidden aria-pressed="false">🌱 长辈小孩模式：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
     </div>
   </div>
 </div>
