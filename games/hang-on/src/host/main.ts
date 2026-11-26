@@ -35,6 +35,8 @@ import { HostLink, openRoom, type PadPeer } from '../net/host-link';
 import { CAST_MS, CODE_RE, HOST_KEY_RE, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Menu, type PadCmd, type Phase, type RoomView } from '../net/protocol';
 import { encodeSnap, EventWindow, RemoteSim } from '../net/snap';
 import { Highlights, momentOf, SNAP_EVERY, type Clip } from './highlights';
+import { CrowdBook, FX, fxBanner, SLOW_SCALE, type CheerId, type CrowdIn, type FxId } from '../crowd';
+import { betText, cheersAbove, floatCheer, floatLine, fxName, setFxLayer } from '../crowd-ui';
 import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
 import { PLATES } from '../render/plates';
@@ -297,6 +299,246 @@ function goNext(): void {
   levelIndexOf.set(slot(), 0);
   relist(true);
 }
+// ---------------------------------------------------------------- 观众（11-26，14 样的第 9 样）
+
+/** 观众的账：押谁先掉、押中几次、投票（src/crowd.ts）。 */
+const crowd = new CrowdBook();
+/** 观众的名字（走了的也记着，结算页「最准的观众」要用）。 */
+const watcherNames = new Map<string, string>();
+/** 正在起作用的那一样（力气满是一下子的事，不算）；观众投的慢动作放到什么时候（performance.now），没有是 0。 */
+let crowdFx: FxId | null = null;
+let slowUntil = 0;
+/** 账变了要发给观众；上次发的时候。 */
+let crowdDirty = true;
+let crowdSentAt = 0;
+/** 这一局第一个掉的那一句（大屏右下角的观众条和结算页上写）。 */
+let crowdBetLine = '';
+/** 顶上正中的投票上次画的样子（一样就不重画）。 */
+let voteShown = '';
+
+const audienceNow = (): { id: string; name: string }[] => room?.audience ?? [];
+const watcherName = (id: string): string => watcherNames.get(id) ?? tr('观众', 'A fan');
+/** 第 i 个人押的时候用的 key：座位 id，主机自己（手机局的房主、键盘加入的）是 'local'。 */
+function playerKey(i: number): string {
+  return seatOrder[i] ?? 'local';
+}
+function playerKeys(): string[] {
+  return Array.from({ length: playerCount() }, (_, i) => playerKey(i));
+}
+
+/** 房间的观众名单变了：记名字、发一份账，大屏上的观众条、大厅那一行跟着变。 */
+function noteAudience(r: RoomView): void {
+  for (const w of r.audience ?? []) watcherNames.set(w.id, w.name);
+  crowdDirty = true;
+  renderCrowd();
+}
+
+/** 观众说的话：押谁、起哄、投票；连上来打个招呼就回一份账。 */
+function onCrowd(id: string, c: CrowdIn): void {
+  const now = performance.now();
+  if (c.do === 'hello') crowdDirty = true;
+  else if (c.do === 'bet') {
+    if (crowd.bet(id, c.on, playerKeys())) {
+      crowdDirty = true;
+      renderCrowd();
+    }
+  } else if (c.do === 'cheer') {
+    if (crowd.cheer(id, now)) cheerFrom(id, c.e);
+  } else if (crowd.castVote(id, c.v, now)) {
+    crowdDirty = true;
+    renderVote(now);
+  }
+}
+
+/** 观众起了个哄：大屏右下角往上飘一句、啵一声，手机局跟着快照发到每部手机上。 */
+function cheerFrom(id: string, e: CheerId): void {
+  const who = watcherName(id);
+  showNow({ type: 'cheer', who, cheer: e });
+  floatCheer(who, e);
+}
+
+/** 换阶段：开玩锁上押的（过一会儿开始投票）；不玩了又能押，投出来的那一样不算了。 */
+function crowdPhase(next: Phase): void {
+  if (next === 'playing') {
+    crowd.start(performance.now(), playerKeys());
+    crowdBetLine = '';
+  } else {
+    crowd.stop();
+    crowdFx = null;
+    slowUntil = 0;
+    setFxLayer(null);
+  }
+  // 新的一局（倒数、回大厅）：上一局谁先掉的不说了
+  if (next === 'countdown' || next === 'lobby') {
+    crowdBetLine = '';
+    crowd.first = null;
+  }
+  crowdDirty = true;
+  renderCrowd();
+  renderVote(performance.now());
+}
+
+/** 有人掉了：是这一局第一个掉的，算押中没有；有人押了就飘一句、响一声，手机局也看得到。 */
+function crowdFell(i: number): void {
+  const bets = crowd.betCount;
+  const hits = crowd.fell(playerKey(i));
+  if (!hits) return;
+  crowdDirty = true;
+  if (!bets) return;
+  const names = hits.map(watcherName);
+  crowdBetLine = betText(name(i), names);
+  showNow({ type: 'crowdbet', fell: i, bets, hits: names });
+  floatLine('👀', crowdBetLine, true);
+  renderCrowd();
+}
+
+/** 玩的时候每帧：慢动作到点了停；到点了开一轮投票，投完了让赢的那一样起作用。 */
+function crowdTick(now: number): void {
+  if (phase !== 'playing') return;
+  if (slowUntil && now >= slowUntil) {
+    slowUntil = 0;
+    showNow({ type: 'crowdfx', fx: 'slow', on: false, dir: 1 });
+    crowdFxOff('slow');
+  }
+  const r = crowd.tick(now, audienceNow().length, (fx) => fx !== 'strong' || !!sim.rules.stamina);
+  if (r.open) {
+    showNow({ type: 'crowdvote', a: r.open[0], b: r.open[1] });
+    crowdDirty = true;
+  }
+  if (r.done) {
+    crowdDirty = true;
+    if (r.done.fx) startCrowdFx(r.done.fx, now);
+    else floatLine('👀', tr('观众这轮没投票', 'The crowd sat this one out'));
+  }
+  renderVote(now);
+}
+
+/** 投出来的那一样起作用：物理的交给模拟，慢动作大屏自己放慢；横幅、盖一层、响一声。 */
+function startCrowdFx(fx: FxId, now: number): void {
+  const dir = fx === 'wind' && Math.random() < 0.5 ? -1 : 1;
+  if (fx === 'slow') slowUntil = now + FX.slow.secs * 1000;
+  else sim.startCrowd(fx, dir);
+  crowdFx = fx === 'strong' ? null : fx;
+  showNow({ type: 'crowdfx', fx, on: true, dir });
+  const b = fxBanner(fx, dir);
+  banner(tr(b.zh, b.en), FX[fx].help ? 'good' : 'bad');
+  setFxLayer(crowdFx, dir);
+  crowdDirty = true;
+}
+
+/** 那一样过去了（是正在起作用的那一样才收：前一样晚到的「过了」不碰后一样）。 */
+function crowdFxOff(fx: FxId): void {
+  if (crowdFx !== fx) return;
+  crowdFx = null;
+  setFxLayer(null);
+  crowdDirty = true;
+}
+
+/** 给观众发一份账：变了才发，最密一秒五次；没有观众不发。 */
+function crowdSend(now: number): void {
+  if (!crowdDirty || now - crowdSentAt < 200 || !link || !audienceNow().length) return;
+  crowdDirty = false;
+  crowdSentAt = now;
+  link.crowd(
+    crowd.state(
+      now,
+      {
+        phase,
+        mode,
+        level: level.name ?? { zh: level.id, en: level.id },
+        players: playerKeys().map((key, i) => ({ key, name: name(i), color: sim.players[i]?.color ?? PLAYER_COLORS[i] ?? '#fff' })),
+      },
+      crowdFx,
+    ),
+  );
+}
+
+/** 大屏：顶栏的「👀 3」、右下角的观众条（押谁先掉每个人几票、这一局谁先掉）、大厅里那一行。 */
+function renderCrowd(): void {
+  const list = audienceNow();
+  const n = list.length;
+  $('crowdChip').hidden = !n;
+  $('crowdN').textContent = String(n);
+  $('crowdLobby').textContent = n
+    ? tr(`👀 观众 ${n} 个：${list.map((w) => w.name).join('、')}`, `👀 ${n} watching: ${list.map((w) => w.name).join(', ')}`)
+    : tr('👀 不玩的也能扫码，点「只看，当观众」：押谁先掉、起哄、投票帮一把或捣个乱', '👀 Not playing? Scan and tap "Just watch": bet on who falls first, cheer, vote to help or mess with them');
+  const box = $('crowdBox');
+  box.hidden = !n;
+  if (!n) {
+    cheersAbove(16);
+    return;
+  }
+  const keys = playerKeys();
+  const counts = new Map<string, number>();
+  for (const k of crowd.bets.values()) if (keys.includes(k)) counts.set(k, (counts.get(k) ?? 0) + 1);
+  const t = document.createElement('div');
+  t.className = 't';
+  t.textContent = tr(`👀 观众 ${n} · 押谁先掉`, `👀 ${n} watching · who falls first?`);
+  const rows = keys.flatMap((k, i) => {
+    const c = counts.get(k);
+    if (!c) return [];
+    const r = document.createElement('div');
+    r.className = 'r';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = sim.players[i]?.color ?? '#fff';
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = name(i);
+    const x = document.createElement('b');
+    x.textContent = `×${c}`;
+    r.append(dot, nm, x);
+    return [r];
+  });
+  if (!rows.length) {
+    const r = document.createElement('div');
+    r.className = 'r';
+    r.style.opacity = '.75';
+    r.textContent = crowd.open ? tr('还没人押', 'No bets yet') : tr('这局没人押', 'No bets this round');
+    rows.push(r);
+  }
+  box.replaceChildren(t, ...rows);
+  if (crowdBetLine) {
+    const h = document.createElement('div');
+    h.className = 'hit';
+    h.textContent = crowdBetLine;
+    box.append(h);
+  }
+  cheersAbove(box.offsetHeight + 28);
+}
+
+/** 顶上正中的投票：两样、各几票、还剩几秒。秒数变了、票变了才重画。 */
+function renderVote(now: number): void {
+  const v = crowd.vote;
+  const el = $('crowdVote');
+  if (!v || phase !== 'playing') {
+    el.hidden = true;
+    voteShown = '';
+    return;
+  }
+  const n = crowd.count();
+  const left = Math.max(0, Math.ceil((v.endsAt - now) / 1000));
+  const key = `${v.a}${v.b}${n.join()}${left}`;
+  if (key === voteShown) return;
+  voteShown = key;
+  el.hidden = false;
+  $('voteLeft').textContent = tr(`👀 观众投票 · 还剩 ${left} 秒`, `👀 Crowd vote · ${left}s left`);
+  $('voteA').textContent = `${fxName(v.a)} ${n[0]}`;
+  $('voteB').textContent = `${n[1]} ${fxName(v.b)}`;
+  const all = n[0] + n[1];
+  $('voteBarA').style.width = `${all ? (n[0] / all) * 100 : 50}%`;
+  $('voteBarB').style.width = `${all ? (n[1] / all) * 100 : 50}%`;
+}
+
+/** 结算页：这一局谁先掉、押中没有；最准的观众（这个房间里一共押中最多的）。 */
+function renderCrowdLine(): void {
+  const best = crowd.best();
+  const lines = [crowdBetLine ? `👀 ${crowdBetLine}` : '', best ? tr(`🎯 最准的观众：${watcherName(best.id)}（押中 ${best.hits} 次）`, `🎯 Best guesser: ${watcherName(best.id)} (${best.hits} right)`) : ''].filter(Boolean);
+  const el = $('crowdLine');
+  el.hidden = !lines.length;
+  el.textContent = lines.join('　');
+}
+
 // ---------------------------------------------------------------- 精彩回放（11-26）
 
 const highlights = new Highlights();
@@ -524,6 +766,7 @@ async function start(): Promise<void> {
         syncPlayers();
         renderLobby();
         renderLatency();
+        noteAudience(r);
       },
       onPeers: () => {
         // 手机局：有人（重新）连上或换了路，马上补一份样子名单，别等下一个 2 秒；菜单也是
@@ -554,6 +797,7 @@ async function start(): Promise<void> {
         for (const id of ids) have.add(id);
       },
       onCmd: (_peer, c) => runCmd(c),
+      onCrowd: (id, c) => onCrowd(id, c),
       onFatal: (key) => fatal(key),
       onSocket: (open) => {
         socketDown = !open;
@@ -670,6 +914,8 @@ function onPhase(next: Phase): void {
   phase = next;
   // 精彩回放（11-26）：换阶段就不放了；新的一局重新录，一局完了收下还在录的
   endReplay();
+  // 观众（11-26）：开玩就锁上押的、过一会儿开始投票；不玩了又能押，投出来的那一样不算了
+  crowdPhase(next);
   if (next === 'countdown') resetHighlights();
   if (next === 'results') highlights.close();
   $('lobby').hidden = next !== 'lobby';
@@ -872,6 +1118,8 @@ function showResults(): void {
   // 红包雨（11-26）：彩蛋只下一次，不能再来；这一关红包全拿到了才出「彩蛋：红包雨」
   $('againBtn').hidden = mode === 'rain';
   $('rainBtn').hidden = !rainReady();
+  // 观众（11-26）：这一局谁先掉、押中没有；最准的观众
+  renderCrowdLine();
   // 精彩回放（11-26）：这一局录下了一段才有
   const hl = highlights.best;
   $('replayBtn').hidden = !hl;
@@ -1532,6 +1780,8 @@ function renderAll(): void {
   if (phase === 'results') showResults();
   if (phase === 'countdown') $('countLevel').textContent = countLabel();
   if (replay) $('replayBadge').textContent = replayLabel(replay.clip);
+  renderCrowd();
+  voteShown = '';
   syncPlayers();
 }
 onLang(renderAll);
@@ -1726,6 +1976,9 @@ function onEvents(): void {
       }, 2600);
     }
     if (ev.type === 'death' || ev.type === 'out') music.duck();
+    // 观众（11-26）：这一局第一个掉的，押中没有；投出来的那一样过去了
+    if (ev.type === 'death' || ev.type === 'out') crowdFell(ev.player);
+    if (ev.type === 'crowdfx' && !ev.on) crowdFxOff(ev.fx);
     if (ev.type === 'drone' && ev.phase === 'arrive') banner(tr('🛸 外卖到了！抓住袋子底下的横杆，带你去下一个检查点', '🛸 Delivery! Grab the bar under the bag for a lift to the next checkpoint'));
     // 端托盘（后厨，A10）
     if (ev.type === 'tray' && ev.phase === 'spill') banner(tr('点心翻了！托盘回去重端', 'The dim sum spilled! The tray goes back'), 'bad');
@@ -1967,7 +2220,8 @@ function frameBody(now: number): void {
   last = now;
   feedInputs();
   if (phase === 'playing') {
-    acc += dt * stage.timeScale;
+    // 观众投的慢动作（11-26）：大屏自己放慢
+    acc += dt * stage.timeScale * (now < slowUntil ? SLOW_SCALE : 1);
     while (acc >= DT) {
       sim.step(DT);
       stage.handleEvents(sim, sim.events);
@@ -1989,6 +2243,8 @@ function frameBody(now: number): void {
     renderButtons();
   }
   broadcast(now);
+  crowdTick(now);
+  crowdSend(now);
   if (renderOn && replay) drawReplay(now, dt);
   else if (renderOn) {
     stage.updateCamera(sim, dt);
@@ -2031,6 +2287,15 @@ requestAnimationFrame(frame);
   get seatOrder() {
     return seatOrder;
   },
+  /** 观众（11-26）：账、正在起作用的那一样；马上开一轮投票。 */
+  get crowd() {
+    return crowd;
+  },
+  get crowdFx() {
+    return crowdFx;
+  },
+  crowdVoteNow: () => crowd.voteNow(performance.now()),
+  crowdFxNow: (fx: FxId) => phase === 'playing' && startCrowdFx(fx, performance.now()),
   get level() {
     return level;
   },

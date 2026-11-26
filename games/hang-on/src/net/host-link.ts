@@ -26,6 +26,7 @@ import {
 import { ICE_SERVERS } from './ice';
 import { RoomSocket, wsUrl } from './socket';
 import { cleanAchvList, type AchvId } from '../achievements';
+import { cleanCrowdIn, type CrowdIn, type CrowdState } from '../crowd';
 
 export interface PadPeer {
   seat: string;
@@ -64,6 +65,8 @@ export interface HostLinkEvents {
   onAchvHave?(peer: PadPeer, ids: AchvId[]): void;
   /** 手柄当遥控：按了开始、下一关……。 */
   onCmd?(peer: PadPeer, cmd: PadCmd): void;
+  /** 观众（11-26）说的话：押谁、起哄、投票（已经收拾过）；id 是观众的 id，名字在房间的 audience 里。 */
+  onCrowd?(id: string, c: CrowdIn): void;
   onFatal?(key: FatalKey): void;
   onSocket?(open: boolean): void;
 }
@@ -109,6 +112,12 @@ export class HostLink {
 
   act(action: HostAction): void {
     this.sock.send({ t: 'act', action });
+  }
+
+  /** 观众（11-26）：一份账发给所有观众（经房间；没有观众就不发）。 */
+  crowd(s: CrowdState): void {
+    if (!this.room?.audience?.length) return;
+    this.sock.send({ t: 'relay', to: 'audience', data: { k: 'crowdState', s } });
   }
 
   /** 给一个手柄发小包：直连走通道，不然绕房间。 */
@@ -161,7 +170,13 @@ export class HostLink {
         this.ev.onRoom?.(m.room);
         return;
       case 'relay': {
-        if (m.from === 'host') return;
+        if (m.from === 'host' || m.from === 'audience') return;
+        if ('watch' in m.from) {
+          // 观众（11-26）只说 crowd
+          const c = m.data.k === 'crowd' ? cleanCrowdIn(m.data.c) : null;
+          if (c) this.ev.onCrowd?.(m.from.watch, c);
+          return;
+        }
         const p = this.peers.get(m.from.seat);
         if (p) this.onLink(p, m.data, false);
         return;

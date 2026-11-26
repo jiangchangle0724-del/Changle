@@ -35,6 +35,7 @@ import {
   TETHER_LEN,
 } from './config';
 import type { AchvId } from '../achievements';
+import { FX, type CheerId, type FxId, type SimFx } from '../crowd';
 import type { EmoteId } from '../emotes';
 import type { ItemId } from '../items';
 import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
@@ -358,7 +359,16 @@ export type SimEvent =
   /** 放屁键（11-25）：也不是物理的事，和表情一样由主机直接交出去；kind 是哪种声音（主机挑，大家听到同一种），x、y 是人在哪。 */
   | { type: 'fart'; player: number; kind: number; x: number; y: number }
   /** 成就（11-25）：也不是物理的事，主机算出谁新拿到了哪个，交给画面、声音和手机局的快照。 */
-  | { type: 'achv'; player: number; id: AchvId; x: number; y: number };
+  | { type: 'achv'; player: number; id: AchvId; x: number; y: number }
+  /**
+   * 观众（11-26）：也不是物理的事，主机直接交给画面、声音和手机局的快照：谁（观众的名字）起了什么哄；
+   * 开了一轮投票（左边帮一把、右边捣个乱）；这一局第一个掉的是谁、几个观众押了、押中的观众叫什么。
+   */
+  | { type: 'cheer'; who: string; cheer: CheerId }
+  | { type: 'crowdvote'; a: FxId; b: FxId }
+  | { type: 'crowdbet'; fell: number; bets: number; hits: string[] }
+  /** 观众投出来的那一样开始（主机报）、过了（物理报，慢动作是主机报）；刮风往哪边（1 右、-1 左）。 */
+  | { type: 'crowdfx'; fx: FxId; on: boolean; dir: number };
 
 export interface TeleportOpts {
   /** 每只手摆到哪（世界坐标）；null 用默认收拢姿势。 */
@@ -469,6 +479,8 @@ export class Sim {
   rain: { drops: { id: number; x: number; y: number; vy: number; ph: number }[]; caught: number[]; left: number; nextT: number; seq: number; seed: number } | null = null;
   /** 护送大元宝（11-26）：哪个物件、到过哪个检查点、掉了多久、起点、有人碰过没有、送到了没有。 */
   escort: { prop: number; cp: number; lostT: number; home: Pt; touched: boolean; done: boolean } | null = null;
+  /** 观众投票（11-26）：正在起作用的那一样（变轻、变重、刮风）、还剩几秒、风往哪边（1 右、-1 左）。 */
+  crowd: { fx: Exclude<SimFx, 'strong'>; t: number; dir: number } | null = null;
   /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
   readonly lamps: { x: number; y: number; r: number; on: boolean }[] = [];
   /** 太空站的拉杆（A10）：把手在哪（抓的是这块地形）、有没有人抓着。 */
@@ -1150,6 +1162,54 @@ export class Sim {
     this.winners = winners;
     for (const id of winners) (this.players[id] as Player).face = 'win';
     this.events.push({ type: 'win', who: winners });
+  }
+
+  /**
+   * 观众投票（11-26）：主机让投出来的那一样起作用。力气满是一下子的事（每个人的手酸加满）；
+   * 变轻、变重改重力，刮风全场往一边吹，几秒以后自己过去（报 crowdfx off）。新的一样顶掉还在起作用的。
+   * 只有主机在有观众时调，回放（录像）里没有观众，所以回放不变。
+   */
+  startCrowd(fx: SimFx, dir = 1): void {
+    if (fx === 'strong') {
+      for (const p of this.players) p.stamina = 1;
+      return;
+    }
+    this.crowd = { fx, t: FX[fx].secs, dir: dir < 0 ? -1 : 1 };
+    this.crowdGravity();
+  }
+
+  private crowdGravity(): void {
+    const fx = this.crowd?.fx;
+    const k = fx === 'float' ? CFG.crowdFloatG : fx === 'heavy' ? CFG.crowdHeavyG : 1;
+    this.world.gravity = { x: 0, y: CFG.gravity * k };
+    // 睡着的（停着不动的）也要醒过来照新的重力走
+    if (k !== 1) for (const p of this.players) if (!p.dead) p.rb.wakeUp();
+  }
+
+  /** 观众投票每一步：刮风就全场吹（和阵风一个推法，站在东西上的算站稳了不吹），时间到了这一样过去。 */
+  private tickCrowd(dt: number): void {
+    const c = this.crowd;
+    if (!c) return;
+    if (c.fx === 'wind') {
+      const accel = CFG.crowdWindAccel * dt;
+      const blow = (rb: RB, k: number): void => {
+        const v = rb.linvel();
+        const along = v.x * c.dir;
+        if (along >= CFG.crowdWindMax) return;
+        rb.setLinvel({ x: v.x + c.dir * Math.min(accel * k, CFG.crowdWindMax - along), y: v.y }, true);
+      };
+      for (const p of this.players) {
+        if (p.dead || p.done || p.ground || p.itemOn === 'freeze') continue;
+        blow(p.rb, 1);
+        for (const arm of p.arms) for (const rb of arm.segs) blow(rb, 0.6);
+      }
+      for (const prop of this.props) if (prop.rb.isDynamic()) blow(prop.rb, 0.8);
+    }
+    c.t -= dt;
+    if (c.t > 0) return;
+    this.crowd = null;
+    this.crowdGravity();
+    this.events.push({ type: 'crowdfx', fx: c.fx, on: false, dir: c.dir });
   }
 
   /**
@@ -1897,6 +1957,7 @@ export class Sim {
     this.lifeAndDeath(dt);
     this.tickGold(dt);
     this.tickRain(dt);
+    this.tickCrowd(dt);
     this.acts();
     this.pickEnvelopes();
     this.checkpoints();

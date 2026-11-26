@@ -9,6 +9,7 @@
  *
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
+import type { CrowdIn, CrowdState } from '../crowd';
 import type { EmoteId } from '../emotes';
 import type { AchvId } from '../achievements';
 import type { Goal } from '../goals';
@@ -38,6 +39,8 @@ export interface RoomView {
   hostConnected: boolean;
   seats: Seat[];
   watchers: number;
+  /** 观众（11-26，`/hang-on/watch/`）：在线的观众的 id 和名字（没有就不写）。 */
+  audience?: { id: string; name: string }[];
   /** 房间开了多久（毫秒，房间时钟）。 */
   age: number;
   /**
@@ -55,13 +58,13 @@ export type HostAction =
   | { type: 'END' } // → ended
   | { type: 'KICK'; seat: string };
 
-/** 转发的目标：某个座位，或者主机。 */
-export type RelayTo = { seat: string } | 'host';
+/** 转发的目标：某个座位、主机；观众（11-26）：某个观众、所有观众（只有主机能发给观众）。 */
+export type RelayTo = { seat: string } | 'host' | { watch: string } | 'audience';
 
 export type ClientMsg =
   | { t: 'ping'; id: number }
   | { t: 'act'; action: HostAction }
-  /** 主机 → 某座位，或手柄 → 主机。内容是 LinkMsg，房间不看。 */
+  /** 主机 → 某座位 / 某个观众 / 所有观众，或手柄、观众 → 主机。内容是 LinkMsg，房间不看（观众只能说 crowd）。 */
   | { t: 'relay'; to: RelayTo; data: LinkMsg };
 
 export type FatalKey = 'noRoom' | 'full' | 'ended' | 'badRequest' | 'kicked' | 'hostTaken';
@@ -309,6 +312,10 @@ export type LinkMsg =
   | { k: 'cmd'; c: PadCmd }
   /** 主机给手柄的菜单（走房间）。 */
   | { k: 'menu'; m: Menu }
+  /** 观众（11-26）→ 主机：押谁先掉、起哄、投票（走房间，房间只让观众说这个、还限速）。 */
+  | { k: 'crowd'; c: CrowdIn }
+  /** 主机 → 所有观众（11-26）：一份账（见 src/crowd.ts 的 CrowdState），变了就发。 */
+  | { k: 'crowdState'; s: CrowdState }
   | { k: 'sdp'; sdp: { type: 'offer' | 'answer'; sdp: string } }
   | { k: 'ice'; ice: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null } | null }
   | { k: 'ping'; id: number; at: number }
@@ -321,6 +328,10 @@ export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const CODE_RE = /^[A-HJ-NP-Z2-9]{4}$/;
 export const SEAT_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 export const MAX_SEATS = 6;
+/** 观众（11-26）最多几个；一个观众每秒最多跟主机说几句（攒着能一下说 CROWD_BURST 句）。 */
+export const MAX_AUDIENCE = 30;
+export const CROWD_RATE = 4;
+export const CROWD_BURST = 8;
 /** 主机断开多久房间作废（契约：30 秒）。 */
 export const HOST_GRACE_MS = 30_000;
 /** 手柄断开多久座位让出来（锁屏、换 Wi-Fi 都要能回来）。 */

@@ -78,6 +78,13 @@ function backToTable(over?: string): void {
   location.assign(`/t/${tableNo}`);
 }
 codeIn.value = (params.get('code') ?? '').toUpperCase().slice(0, 4);
+// 观众（11-26）：「只看，当观众」带上打好的房间码
+const watchLink = (): void => {
+  const c = codeIn.value.trim().toUpperCase();
+  $<HTMLAnchorElement>('watchLink').href = CODE_RE.test(c) ? `../watch/?code=${c}` : '../watch/';
+};
+codeIn.addEventListener('input', watchLink);
+watchLink();
 try {
   nameIn.value = localStorage.getItem('hang-on:name') ?? '';
 } catch {
@@ -177,7 +184,7 @@ function fatalLine(key: FatalKey): string {
     case 'noRoom':
       return tr('没有这个房间，再看看房间码。', 'No such room. Check the code again.');
     case 'full':
-      return tr('房间满了（最多 4 个人）。', 'The room is full (4 players max).');
+      return tr('房间满了（最多 6 个人）。可以点下面「只看，当观众」。', 'The room is full (6 players max). Tap "Just watch" below.');
     case 'ended':
       return tableNo ? tr('这局结束了，回到桌上…', 'This game has ended. Back to the table…') : tr('这局结束了。', 'This game has ended.');
     case 'kicked':
@@ -197,6 +204,7 @@ function renderErr(): void {
 
 function fatal(key: FatalKey): void {
   const code = link?.code ?? codeIn.value;
+  if (CODE_RE.test(code)) $<HTMLAnchorElement>('watchLink').href = `../watch/?code=${code}`;
   if (tableNo && (key === 'ended' || key === 'noRoom')) setTimeout(() => backToTable(code), 2500);
   forgetJoin();
   lastFatal = key;

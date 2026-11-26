@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>抓紧了 · Hang On · 观众</title>
+<meta name="robots" content="noindex">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="抓紧了">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<meta name="theme-color" content="#1d2a4a">
+<style>
+  /* 观众页（11-26）：没在玩的人拿手机押谁先掉、投票、起哄。竖着拿横着拿都行，眼睛还是在电视上。 */
+  :root {
+    --bg: #1d2a4a; --ink: #fff6e9; --ink-soft: #d9d2e8; --panel: rgba(16, 20, 40, .62); --card: #f8efe2; --card-ink: #2a1f3a;
+    --p3: #8EC5E8; --good: #9BCF83; --warn: #F8C56D; --bad: #ef5a5a;
+    --font-display: "Baloo 2", "Noto Sans SC", system-ui, sans-serif;
+    --font-body: "Noto Sans SC", system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+  /* 连按两下不放大（两根手指照样能放大）；每个元素再说一遍，iPhone 进了能滚的框会重新算 */
+  html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+  *, *::before, *::after { touch-action: manipulation; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.5;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input { -webkit-user-select: text; user-select: text; }
+  button { font: inherit; }
+  .wrap { max-width: 560px; margin: 0 auto; box-sizing: border-box;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px)); }
+  .btn { border: 0; border-radius: 999px; padding: 12px 20px; font-weight: 700; font-size: 16px; cursor: pointer; min-height: 48px; }
+  .btn:focus-visible, .lang:focus-visible, .pl:focus-visible, .ch:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
+  .lang { min-height: 44px; min-width: 56px; border-radius: 999px; border: 2px solid currentColor; background: transparent; color: inherit; font-weight: 700; font-size: 14px; cursor: pointer; opacity: .85; }
+
+  /* 加入 */
+  #join { min-height: 100dvh; display: flex; }
+  .card { background: var(--card); color: var(--card-ink); border-radius: 22px; padding: 22px; width: 100%; box-sizing: border-box; margin: auto; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  .card .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .card h1 { font-family: var(--font-display); font-weight: 800; font-size: 26px; margin: 0 0 6px; }
+  .card p { margin: 0 0 12px; font-size: 14px; line-height: 1.65; }
+  .field { display: grid; gap: 6px; margin-bottom: 12px; }
+  .field label { font-size: 12px; letter-spacing: .08em; opacity: .7; }
+  .field input { font: inherit; font-size: 20px; padding: 10px 12px; border-radius: 12px; border: 2px solid rgba(42,31,58,.2); background: #fff; color: var(--card-ink); min-height: 48px; box-sizing: border-box; width: 100%; }
+  .field input.code { font-family: var(--font-display); font-weight: 800; letter-spacing: .3em; text-transform: uppercase; font-size: 28px; }
+  .card .btn { width: 100%; background: var(--card-ink); color: var(--ink); }
+  .err { color: #c0392b; font-weight: 700; min-height: 1.4em; margin: 8px 0 0 !important; }
+  .card .other { display: flex; align-items: center; justify-content: center; min-height: 48px; color: var(--card-ink); font-weight: 700; text-decoration: none; opacity: .8; }
+
+  /* 看的时候 */
+  .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .bar .me { font-family: var(--font-display); font-weight: 800; font-size: 20px; }
+  .bar .room { font-size: 13px; opacity: .8; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .conn { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; background: var(--bad); color: var(--card-ink); }
+  .status { margin: 0 0 12px; font-size: 15px; color: var(--ink-soft); line-height: 1.6; }
+  .status b { color: var(--ink); }
+  section { background: var(--panel); border-radius: 20px; padding: 14px 14px 16px; margin-bottom: 12px; }
+  section h2 { font-family: var(--font-display); font-weight: 800; font-size: 19px; margin: 0 0 2px; }
+  .hint { margin: 0 0 10px; font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+
+  /* 押谁先掉：一个人一个键，押了的那个亮着 */
+  .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .pl { display: flex; align-items: center; gap: 10px; min-height: 52px; border-radius: 16px; border: 2px solid rgba(255,246,233,.2); background: rgba(255,246,233,.06);
+    color: var(--ink); padding: 6px 12px; font-weight: 700; font-size: 16px; cursor: pointer; text-align: left; }
+  .pl .dot { width: 18px; height: 18px; border-radius: 50%; flex: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.25); }
+  .pl .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl .n { font-size: 13px; opacity: .8; font-variant-numeric: tabular-nums; }
+  .pl[aria-pressed="true"] { background: var(--ink); color: var(--card-ink); border-color: var(--ink); }
+  .pl.first { border-color: var(--warn); box-shadow: 0 0 0 3px rgba(248,197,109,.35); }
+  .pl:disabled { cursor: default; }
+  .pl:disabled:not([aria-pressed="true"]) { opacity: .55; }
+  .result { margin: 10px 0 0; font-weight: 800; font-size: 16px; min-height: 0; }
+  .result.win { color: var(--warn); }
+  .empty { font-size: 14px; color: var(--ink-soft); margin: 4px 0 0; }
+
+  /* 投票：左边帮一把（绿），右边捣个乱（红），各几票；底下一条比一比 */
+  #voteCard { border: 2px solid var(--warn); }
+  .vote { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vote .btn { min-height: 84px; border-radius: 18px; display: grid; place-items: center; gap: 2px; padding: 10px 8px; color: var(--card-ink); font-size: 18px; line-height: 1.25; }
+  .vote .btn small { font-size: 13px; font-weight: 700; opacity: .85; }
+  .vote .help { background: var(--good); }
+  .vote .mess { background: var(--bad); }
+  .vote .btn[aria-pressed="true"] { box-shadow: 0 0 0 4px var(--ink); }
+  .vote .btn[aria-pressed="false"].picked-other { opacity: .6; }
+  .vbar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 10px; background: rgba(255,255,255,.15); }
+  .vbar i { display: block; height: 100%; width: 50%; transition: width .3s; }
+  #vbarA { background: var(--good); }
+  #vbarB { background: var(--bad); }
+
+  /* 起哄：三个一排的大键，按得太快的晃一下 */
+  .cheer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .ch { min-height: 64px; border-radius: 16px; border: 0; background: rgba(255,246,233,.1); color: var(--ink); display: grid; place-items: center; gap: 0; padding: 6px 4px; cursor: pointer; font-weight: 700; font-size: 13px; }
+  .ch .em { font-size: 26px; line-height: 1.1; }
+  .ch:active { background: rgba(255,246,233,.22); transform: scale(.96); }
+  .ch.sent { background: rgba(155,207,131,.3); }
+  .ch.nope { animation: ch-nope .25s; }
+  @keyframes ch-nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  .foot { text-align: center; margin: 8px 0 0; }
+  .foot a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-weight: 700; text-decoration: none; }
+
+  .fatal { position: fixed; inset: 0; display: flex; padding: 20px; box-sizing: border-box; background: var(--bg); }
+  @media (prefers-reduced-motion: reduce) { .ch:active { transform: none; } .ch.nope { animation: none; } .vbar i { transition: none; } }
+</style>
+</head>
+<body>
+<main class="wrap" id="join">
+  <form class="card" id="joinForm">
+    <div class="top"><h1 data-en="👀 Just watch">👀 只看，当观众</h1><button class="lang" id="langBtn" type="button">EN</button></div>
+    <p data-en="Not playing? Your phone can still join in: bet on who falls first, vote to help them or mess with them, and cheer. Everything shows up on the TV.">不玩也有事做：押谁先掉、投票给玩的人帮一把或捣个乱、起哄，电视上都看得到。</p>
+    <div class="field"><label for="code" data-en="Room code">房间码</label><input id="code" class="code" inputmode="latin" autocomplete="off" autocapitalize="characters" maxlength="4" placeholder="ABCD" required></div>
+    <div class="field"><label for="name" data-en="Name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="观众" data-en-ph="Fan"></div>
+    <button class="btn" id="joinBtn" type="submit" data-en="Watch">进去看</button>
+    <p class="err" id="err" role="alert"></p>
+    <a class="other" id="padLink" href="../pad/" data-en="I want to play →">我要玩 →</a>
+  </form>
+</main>
+
+<main class="wrap" id="app" hidden>
+  <div class="bar"><span class="me" data-en="👀 Watching">👀 观众</span><span class="room" id="roomLine"></span><span class="conn" id="conn" hidden data-en="Reconnecting…">重连中…</span><button class="lang" id="langBtn2" type="button">EN</button></div>
+  <p class="status" id="status" aria-live="polite"></p>
+
+  <section id="voteCard" hidden aria-live="polite">
+    <h2 id="voteTitle"></h2>
+    <p class="hint" data-en="Most votes wins, and it happens to everyone right away.">票多的那样马上起作用，对所有玩的人。</p>
+    <div class="vote"><button class="btn help" id="voteA" type="button" aria-pressed="false"></button><button class="btn mess" id="voteB" type="button" aria-pressed="false"></button></div>
+    <div class="vbar" aria-hidden="true"><i id="vbarA"></i><i id="vbarB"></i></div>
+  </section>
+
+  <section id="betCard">
+    <h2 data-en="Who falls first?">押谁先掉</h2>
+    <p class="hint" id="betHint"></p>
+    <div class="players" id="players" role="group" aria-label="押谁先掉" data-en-label="Who falls first?"></div>
+    <p class="result" id="betResult" aria-live="polite"></p>
+  </section>
+
+  <section>
+    <h2 data-en="Cheer">起哄</h2>
+    <p class="hint" data-en="It floats up on the TV with your name.">带着你的名字飘到电视上。</p>
+    <div class="cheer-grid" id="cheerGrid"></div>
+  </section>
+
+  <p class="foot"><a href="../pad/" id="playLink" data-en="Want to play? Join as a controller →">想玩？去当手柄 →</a></p>
+</main>
+
+<div class="fatal" id="fatal" hidden>
+  <div class="card">
+    <h1 id="fatalTitle"></h1>
+    <p id="fatalText"></p>
+    <button class="btn" id="fatalBtn" type="button" data-en="Try another room">换个房间</button>
+  </div>
+</div>
+
+<script type="module" src="/src/watch/main.ts"></script>
+</body>
+</html>

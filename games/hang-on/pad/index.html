@@ -48,6 +48,7 @@
   .field input.code { font-family: var(--font-display); font-weight: 800; letter-spacing: .3em; text-transform: uppercase; font-size: 28px; }
   .card .btn { background: var(--card-ink); color: var(--ink); width: 100%; }
   .card .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; }
+  #watchLink { box-sizing: border-box; text-decoration: none; margin: 12px 0 0; }
   .err { color: var(--bad); font-weight: 700; min-height: 1.4em; }
   /*
    * 横着拿的手机（三百多高）：一列放不下，加入键在屏幕外面。分左右两列：左边房间码和名字，右边样子、道具、加入，
@@ -65,6 +66,7 @@
     #joinForm > #joinBtn { grid-area: join; align-self: end; }
     #joinForm > .err { grid-area: err; margin: 6px 0 0; min-height: 0; }
     #joinForm > #tableBtn { grid-area: table; margin-top: 8px; }
+    #joinForm > #watchLink { margin-top: 8px; }
   }
 
   /* 换装：竖着一列；横着（够宽）左边预览、右边两列选项 */
@@ -325,10 +327,14 @@
     <p class="err" id="err" role="alert"></p>
     <button class="btn" id="joinBtn" type="submit" data-en="Join">加入</button>
     <button class="btn quiet" id="tableBtn" type="button" hidden data-en="Back to the table">回到桌上</button>
+    <!-- 观众（11-26）：不玩的、人满了的去观众页 -->
+    <a class="btn quiet" id="watchLink" href="../watch/" data-en="👀 Just watch">👀 只看，当观众</a>
   </form>
 </div>
 
 <canvas id="view" hidden aria-label="游戏画面" data-en-label="Game screen"></canvas>
+<!-- 观众（11-26，手机局）：起哄、押中没有从右边往上飘（放高一点，别压着右下角的抓键）；投出来的那一样盖一层 -->
+<div class="cheers" id="cheers" aria-hidden="true" style="bottom: 42vh"></div>
 <div id="pad" hidden>
   <div class="bar">
     <span class="me"><span class="dot"></span><span id="meName">糯米团</span></span>
