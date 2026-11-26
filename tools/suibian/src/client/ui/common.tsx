@@ -45,8 +45,10 @@ export function MotionScreen({ scene, children }: { scene: string; children: Com
 }
 
 /** The page title stays the reader's language; its companion line has its own language. */
-export function TopBar({ title, vars = {}, home, tools, noBack, right }: {
+export function TopBar({ title, vars = {}, home, back, tools, noBack, right }: {
   title: Key; vars?: Record<string, string | number>; home?: () => void;
+  /** One step back inside the page (a table's rounds), instead of leaving it. */
+  back?: () => void;
   tools?: boolean; noBack?: boolean; right?: ComponentChildren;
 }) {
   const lang = getLang();
@@ -56,7 +58,10 @@ export function TopBar({ title, vars = {}, home, tools, noBack, right }: {
   return (
     <header class="topbar">
       <div class="topbar-back">
-        {!noBack && <a class="btn quiet press back" href={tools ? "/tools" : `${BASE}/`} aria-label={t(tools ? "toTools" : "home")} onClick={home ? (e) => { e.preventDefault(); home(); } : undefined}>
+        {!noBack && back && <button type="button" class="btn quiet press back" aria-label={t("stepBack")} onClick={back}>
+          <ChevronLeft aria-hidden="true" />
+        </button>}
+        {!noBack && !back && <a class="btn quiet press back" href={tools ? "/tools" : `${BASE}/`} aria-label={t(tools ? "toTools" : "home")} onClick={home ? (e) => { e.preventDefault(); home(); } : undefined}>
           <ChevronLeft aria-hidden="true" />
         </a>}
       </div>

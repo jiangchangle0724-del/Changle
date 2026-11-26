@@ -68,6 +68,8 @@ export interface RoomState {
   raters?: string[];
   /** Google searches run so far (capped: see MAX_SEARCHES). */
   searches?: number;
+  /** What the last search was for (searchKey): back in round 1 with nothing changed, no new search. */
+  searchedFor?: string;
   error: RoomView["error"];
 }
 
@@ -248,10 +250,15 @@ export class Room {
         this.search();
         break;
       case "back":
+        // One step back (Steve, 2026-11-26). A tap meant for another screen (two quick taps on the
+        // same corner) must not go back twice.
+        if (!this.isHost(id) || (msg.phase !== undefined && msg.phase !== ph)) return;
+        if (ph === "mood") this.toLobby({ keepMoods: true });
+        else if (ph === "cards") this.backToMood();
         // The result, back to round 2's cards: the same places, everyone votes again. Not once
         // someone has rated the meal (the ratings belong to this winner).
-        if (ph !== "result" || !this.isHost(id) || Object.keys(this.st.ratings).length) return;
-        this.backToCards();
+        else if (ph === "result" && !Object.keys(this.st.ratings).length) this.backToCards();
+        else return;
         break;
       case "mood": {
         if (ph !== "mood") return;
@@ -350,6 +357,12 @@ export class Room {
 
   /** Round 1 is over: search, spending the searches on what people liked. */
   private search() {
+    // Back in round 1 and nothing the search depends on changed (or the table is out of searches):
+    // the last search's places again, ranked for the picks as they are now. Google isn't asked.
+    const key = this.searchKey();
+    const out = (this.st.searches ?? 0) >= MAX_SEARCHES;
+    if (this.st.places.length && (key === this.st.searchedFor || out)) return this.toCards();
+    this.st.searchedFor = key;
     this.st.searches = (this.st.searches ?? 0) + 1;
     this.st.phase = "finding";
     this.st.phaseEnds = null;
@@ -357,6 +370,11 @@ export class Room {
     for (const m of Object.values(this.st.members)) m.moodDone = true;
     this.want = this.searchWant();
     this.changed = true;
+  }
+
+  /** What decides the search, the planned time instead of the clock ("now" moves on its own). */
+  private searchKey(): string {
+    return JSON.stringify({ ...this.searchWant(), at: this.st.at ?? null });
   }
 
   /** The search to run now: also what a restarted server runs again. */
@@ -379,6 +397,13 @@ export class Room {
       for (const c of mine) weight[c] = (weight[c] ?? 0) + 1 / mine.length;
     }
     return E.MENU.filter((c) => net(c) > 0).sort((a, b) => net(b) - net(a) || (weight[b] ?? 0) - (weight[a] ?? 0));
+  }
+
+  /** From round 2 back to round 1: everyone's picks stay to change, the votes go. */
+  private backToMood() {
+    Object.assign(this.st, { phase: "mood", phaseEnds: null, cards: [], error: null });
+    for (const m of Object.values(this.st.members)) Object.assign(m, { moodDone: false, ballot: { approve: [], veto: null }, ballotDone: false });
+    this.bump();
   }
 
   /** From the result back to round 2: the same cards, no votes yet. */

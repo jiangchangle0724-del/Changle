@@ -45,8 +45,12 @@ export type ClientMsg =
   | { t: "next"; phase?: Phase }
   /** Host: back to the lobby for a new search (wider range, someone new). */
   | { t: "again"; range?: RangeId }
-  /** Host, on the result: back to round 2's cards to pick again, everyone's votes cleared. */
-  | { t: "back" }
+  /**
+   * Host: one step back for the whole table (Steve, 2026-11-26: the top bar's back is the step
+   * before, not the home page). Round 1 → the lobby, round 2 → round 1 (everyone's picks stay, the
+   * votes go), the result → round 2. `phase` is the screen the tap was on: a second tap is ignored.
+   */
+  | { t: "back"; phase?: Phase }
   /**
    * Host, in round 2: search Google again with another range (Steve, 2026-11-25). Round 1's picks
    * stay, everyone's votes are cleared. It counts toward the table's searches (MAX_SEARCHES).

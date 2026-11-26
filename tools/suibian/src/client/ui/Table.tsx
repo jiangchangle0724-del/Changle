@@ -48,11 +48,17 @@ export function Table({ home }: { home: () => void }) {
   // (or was still filling it in when the host started) still gets notes on the cards for what they
   // can't eat, and their budget. The card stays on screen across phase changes, so nothing typed is lost.
   const showDiet = !v.you.limits && v.phase !== "spin" && v.phase !== "result";
+  // In the rounds, the top bar's back is the step before, for the whole table (Steve, 2026-11-26);
+  // only the host (or anyone once the host's phone is gone) moves the table.
+  const lead = v.you.host || !v.members.find((m) => m.host)?.online;
+  const step = !showDiet && (v.phase === "mood" || v.phase === "cards");
+  const back = () => (lead ? send({ t: "back", phase: v.phase }) : toast(t("backHostOnly")));
   return (
     <main class={`page phase-${v.phase}`}>
       <TopBar
         title={showDiet ? "table" : v.phase === "mood" ? "round1" : v.phase === "cards" ? "round2" : v.phase === "result" || v.phase === "spin" ? "pickTitle" : "table"}
-        vars={{ code: v.code }} home={home} noBack={v.phase === "result" || v.phase === "spin"}
+        vars={{ code: v.code }} home={home} back={step ? back : undefined}
+        noBack={v.phase === "result" || v.phase === "spin" || v.phase === "finding"}
       />
       {status === "reconnecting" && <Message>{t("reconnecting")}</Message>}
       <DemoBanner demo={v.demo} />
@@ -629,7 +635,7 @@ function Result({ v }: { v: RoomView }) {
           <>
             {/* Steve, 2026-11-25: a way back to round 2's cards from here, to pick again. */}
             {v.ratings.n === 0 && (
-              <Btn kind="quiet" wide onClick={() => send({ t: "back" })}>
+              <Btn kind="quiet" wide onClick={() => send({ t: "back", phase: "result" })}>
                 ‹ {t("backToCards")}
               </Btn>
             )}

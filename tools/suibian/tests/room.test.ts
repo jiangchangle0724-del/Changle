@@ -528,3 +528,59 @@ test("in round 2 the host searches again with another range: round 1's picks sta
   assert.equal(room.st.phase, "cards");
   assert.equal(room.st.range, "drive25");
 });
+
+test("the top bar's back in round 2 takes the whole table to round 1: the picks stay, the votes go; nothing changed, no new search (Steve, 2026-11-26)", () => {
+  const { room, ids, places } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: { ramen: "like" }, done: true });
+  for (const id of ids.slice(1)) room.handle(id, { t: "mood", picks: {}, done: true });
+  room.flush();
+  room.found(places());
+  const cards = [...room.st.cards];
+  room.handle(ids[1], { t: "ballot", approve: [cards[0]], veto: null, done: true });
+  room.handle(ids[1], { t: "back", phase: "cards" });
+  assert.equal(room.st.phase, "cards", "only the host");
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  assert.equal(room.st.phase, "mood");
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  assert.equal(room.st.phase, "mood", "a second tap on the same corner doesn't go back twice");
+  assert.deepEqual(room.st.members[ids[0]].mood, { ramen: "like" }, "round 1's picks stay");
+  assert.equal(room.st.members[ids[0]].moodDone, false);
+  assert.deepEqual(room.st.members[ids[1]].ballot, { approve: [], veto: null });
+  room.flush();
+  const done = (id: string) => room.handle(id, { t: "mood", picks: room.st.members[id].mood, done: true });
+  // Everyone done again, nothing changed: the same places, Google isn't asked, nothing counted.
+  for (const id of ids) done(id);
+  assert.equal(room.st.phase, "cards");
+  assert.deepEqual([...room.st.cards].sort(), [...cards].sort());
+  assert.equal((room.flush().want as { k: string }).k, "details");
+  assert.equal(room.st.searches, 1);
+  // Someone changes their picks: a new search.
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  room.handle(ids[1], { t: "mood", picks: { hotpot: "like" }, done: true });
+  for (const id of [ids[0], ids[2]]) done(id);
+  assert.equal(room.st.phase, "finding");
+  assert.equal(room.st.searches, 2);
+  // Out of searches: the last search's places, ranked for the new picks.
+  room.found(places());
+  room.handle(ids[0], { t: "back", phase: "cards" });
+  room.st.searches = MAX_SEARCHES;
+  room.handle(ids[2], { t: "mood", picks: { ramen: "ban" }, done: true });
+  for (const id of [ids[0], ids[1]]) done(id);
+  assert.equal(room.st.phase, "cards");
+  assert.equal(room.st.searches, MAX_SEARCHES);
+});
+
+test("the top bar's back in round 1 takes the table to the lobby, the picks kept (Steve, 2026-11-26)", () => {
+  const { room, ids } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: { ramen: "like" }, done: false });
+  room.handle(ids[1], { t: "back", phase: "mood" });
+  assert.equal(room.st.phase, "mood", "only the host");
+  room.handle(ids[0], { t: "back", phase: "mood" });
+  assert.equal(room.st.phase, "lobby");
+  assert.deepEqual(room.st.members[ids[0]].mood, { ramen: "like" });
+  room.handle(ids[0], { t: "back", phase: "mood" });
+  room.handle(ids[0], { t: "back" });
+  assert.equal(room.st.phase, "lobby", "the lobby has no step before it");
+});

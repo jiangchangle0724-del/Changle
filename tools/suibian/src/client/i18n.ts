@@ -248,6 +248,8 @@ const S = {
   winnerOverBudget: ["这家超出了后来有人填的预算，可以重新来一轮。", "This place is over a budget someone added later: you could start over."],
   hoursUnknown: ["Google 上没有营业时间，去之前先打个电话", "Google has no opening hours for it: call before you go"],
   home: ["回首页", "Home"],
+  stepBack: ["上一步", "Back"],
+  backHostOnly: ["要房主点上一步，大家一起回去", "Only the host can take the table back a step"],
   lang: ["English", "中文"],
   // how far
   rangeWalk: ["🚶 走路", "🚶 Walk"],
