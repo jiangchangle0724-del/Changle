@@ -57,6 +57,7 @@ const S = {
   feast: ["尝遍四样！+2", "Tasted all four! +2"],
   feastTv: ["有人尝遍了四样：+2", "Someone tasted all four: +2"],
   awards: ["这局的称号", "This round's titles"],
+  thinning: ["最后 {n} 秒：路人开始散场", "Last {n} seconds: the crowd is leaving"],
   callFirst: ["第一滴血", "First Blood"],
   callDouble: ["双杀", "Double Kill"],
   callTriple: ["三杀", "Triple Kill"],

@@ -45,6 +45,11 @@ import {
   normalizeVector,
   roundAwards,
   tagCall,
+  leavesAt,
+  SIMULATION_STEP_MS,
+  THIN_MS,
+  LEAVE_SHARE,
+  EXIT_PAST,
   roundPenalty,
   startBlend,
   startDistract,
@@ -487,6 +492,41 @@ test("a double kill or better is a round's title of its own, ahead of the sharpe
   const titles = roundAwards(match);
   assert.deepEqual(titles[0], { owner: "player-one", award: "triple" });
   assert.equal(titles.some((item) => item.award === "eagleEye"), false, "the sharpest eye was the one with the triple");
+});
+
+test("the crowd thins in a round's last half minute: about half the passers-by walk off past the sides; players stay", () => {
+  let match: MatchState = createMatch(players, 0, 31);
+  const npcs = match.characters.filter((character) => character.kind === "npc");
+  const leaving = npcs.map((npc) => leavesAt(match, npc.id)).filter((at): at is number => at !== null);
+  assert.ok(Math.abs(leaving.length / npcs.length - LEAVE_SHARE) < 0.25, `${leaving.length} of ${npcs.length} leave`);
+  for (const at of leaving) assert.ok(at >= match.endsAt - THIN_MS && at < match.endsAt - 10_000);
+  // a short round (a test's) never thins
+  assert.equal(leavesAt({ seed: 31, startedAt: 0, endsAt: THIN_MS + 5_000 }, npcs[0].id), null);
+  // nothing until the last half minute, then they go, past the sides; by the end most have
+  const quietUntil = match.endsAt - THIN_MS;
+  for (let now = SIMULATION_STEP_MS; now < quietUntil; now += SIMULATION_STEP_MS * 4) match = advanceMatch(match, now, {});
+  assert.equal(match.characters.filter((character) => character.gone).length, 0);
+  for (let now = quietUntil; now < match.endsAt - 50; now += SIMULATION_STEP_MS) match = advanceMatch(match, now, {});
+  const gone = match.characters.filter((character) => character.gone);
+  assert.ok(gone.length >= leaving.length * 0.6, `${gone.length} of ${leaving.length} gone by the end`);
+  for (const body of gone) {
+    assert.equal(body.kind, "npc");
+    assert.ok(body.x <= -EXIT_PAST || body.x >= ARENA.width + EXIT_PAST, "out past a side");
+  }
+  assert.equal(match.characters.filter((character) => character.kind === "player" && character.gone).length, 0);
+});
+
+test("nobody punches a passer-by that has walked off, and a tagged player never slips into one", () => {
+  let match: MatchState = createMatch(players, 0, 31);
+  const attacker = match.characters.find((character) => character.ownerId === "player-one")!;
+  const gone = match.characters.find((character) => character.kind === "npc")!;
+  for (const other of match.characters) if (other !== attacker) Object.assign(other, { x: 90, y: 50 });
+  Object.assign(attacker, { x: 40, y: 28, facing: 0 });
+  Object.assign(gone, { x: 44, y: 28, gone: true });
+  match = startPunch(match, "player-one", 10);
+  for (let now = 10 + SIMULATION_STEP_MS; now <= 400; now += SIMULATION_STEP_MS) match = advanceMatch(match, now, {});
+  assert.equal(match.events.some((event) => event.t === "foul"), false, "the punch found nobody");
+  assert.deepEqual([gone.x, gone.y], [44, 28], "and it stayed where it left");
 });
 
 test("the round's penalty lands on whoever was spotted most, or on everyone when nobody was", () => {

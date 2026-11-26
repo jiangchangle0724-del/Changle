@@ -8,6 +8,7 @@ import {
   BITE_MS,
   GLANCE_MS,
   MATCH_PLACES,
+  THIN_MS,
   MAX_PLAYERS,
   MIN_PLAYERS,
   SCORE_TO_WIN,
@@ -562,6 +563,7 @@ export class Room {
         endsAt: game.endsAt,
         remainingMs: game.phase === "playing" ? Math.max(0, game.endsAt - now) : 0,
         scoreToWin: SCORE_TO_WIN,
+        thinning: game.phase === "playing" && game.endsAt - game.startedAt >= THIN_MS * 2 && now >= game.endsAt - THIN_MS,
         avatars: game.characters.map((character, index) => {
           const avatar: AvatarView = {
             x: r2(character.x),
@@ -573,6 +575,7 @@ export class Room {
           };
           if (mine && character === mine) avatar.me = 1;
           if (index === taggerBody && taggerName) avatar.by = taggerName;
+          if (character.gone) avatar.o = 1;
           // the round is over: every screen finds out who was who (the next round shuffles the crowd
           // again), and the winner dances
           if (game.phase === "over" && character.kind === "player") {

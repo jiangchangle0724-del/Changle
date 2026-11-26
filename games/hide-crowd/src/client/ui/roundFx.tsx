@@ -4,8 +4,9 @@
 // firecrackers or the fireworks, the last five seconds, the whistle and the fanfare. On the big screen (and
 // in practice): every punch, hit and bite in the room, and a light loop for the place. And the
 // theatre's drill, counted big in the middle of the screen.
+import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS, type TagCall } from "../../engine";
+import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS, THIN_MS, type TagCall } from "../../engine";
 import type { AwardView, EventView, GameView } from "../../room/protocol";
 import { other, t, type Key } from "../i18n";
 import { buzz, installAudioUnlock, sfx, startMusic, stopMusic } from "../sound";
@@ -21,6 +22,11 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
     if (music) startMusic(game.arena);
     return () => stopMusic();
   }, [game.phase, game.arena, music]);
+
+  // the round's last half minute: a chime as the crowd starts to leave
+  useEffect(() => {
+    if (game.thinning) sfx.thinning();
+  }, [game.thinning]);
 
   // what just happened
   const seen = useRef(game.events.length ? game.events[game.events.length - 1].id : 0);
@@ -132,10 +138,36 @@ const MOMENT: Record<NonNullable<GameView["moment"]>["kind"], { text: Key; icon:
   fireworks: { text: "momentFireworks", icon: "firework" }
 };
 
-/** The whole crowd stops: say why, while it lasts. */
-export function MomentBanner(props: { game: GameView; tv?: boolean }) {
+/** How long the "the crowd is leaving" pill shows. */
+const THINNING_SHOWN_MS = 5_000;
+
+/**
+ * The round's last half minute has started, the crowd is leaving (engine THIN_MS): said for a few
+ * seconds, as soon as no moment's banner is up (a ferry's horn can sound just then, and goes first).
+ */
+function useThinningNews(game: GameView): boolean {
+  const since = useRef<number | null>(null);
+  const ready = game.phase === "playing" && game.thinning && !game.moment;
+  if (!game.thinning) since.current = null;
+  else if (ready && since.current === null) since.current = Date.now();
+  // (the room's frames come many times a second while a round is on, so this is looked at often enough)
+  return ready && since.current !== null && Date.now() - since.current < THINNING_SHOWN_MS;
+}
+
+/** The whole crowd stops, or starts to leave: say why, while it lasts (or `idle` when there's nothing to say). */
+export function MomentBanner(props: { game: GameView; tv?: boolean; idle?: ComponentChildren }) {
   const moment = props.game.moment;
-  if (!moment || props.game.phase !== "playing") return null;
+  const thinning = useThinningNews(props.game);
+  if (props.game.phase !== "playing") return null;
+  if (thinning) {
+    return (
+      <p class={`moment-banner${props.tv ? " is-tv" : ""}`} role="status" key="thinning">
+        <Icon name="leave" size={props.tv ? 34 : 20} />
+        <span>{t("thinning", { n: THIN_MS / 1_000 })}</span>
+      </p>
+    );
+  }
+  if (!moment) return <>{props.idle ?? null}</>;
   return (
     <p class={`moment-banner${props.tv ? " is-tv" : ""}`} role="status" key={moment.kind}>
       <Icon name={MOMENT[moment.kind].icon} size={props.tv ? 34 : 20} />

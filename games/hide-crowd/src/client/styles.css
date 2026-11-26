@@ -2475,6 +2475,10 @@ html.is-tv body::before {
   background: var(--color-surface);
   color: var(--color-text);
 }
+/* a passer-by that walked off at the end of the round */
+.flat-avatar.is-gone {
+  display: none;
+}
 /* whoever just tagged you, for a moment (room.ts): their name over them */
 .flat-avatar__you.is-tagger {
   background: var(--color-danger);
