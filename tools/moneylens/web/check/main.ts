@@ -11,6 +11,7 @@
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { Day } from "../../src/core/dates";
 import type { AccountKind, ImportError, ParsedStatement, ReadResult, Warning } from "../../src/core/model";
+import { readPdfStatement } from "../../src/core/pdfstatement";
 import { readStatementFile } from "../../src/core/read";
 import { reconcile } from "../../src/core/reconcile";
 import { sniff } from "../../src/core/sniff";
@@ -24,7 +25,7 @@ import { pdfPages, type PdfError, type PdfLib } from "../../src/web/pdf";
 declare const PDF_WORKER: string;
 
 /** Which copy of this page a summary came from. It goes up by one each time the page changes what it does. */
-const PAGE = 2;
+const PAGE = 3;
 
 /** A step of handling a file, for saying where it stopped. */
 type Stage = "open" | "sort" | "reader" | "pdf" | "read" | "summary" | "copy";
@@ -160,8 +161,11 @@ async function check(bytes: Uint8Array, at: (stage: Stage) => void): Promise<Res
     at("summary");
     if (!read.ok) return { pdf: { error: read.error, ...(read.cause ? { cause: read.cause } : {}) }, summary: pretty({ ...summaryOf(file, null), read: `pdf-${read.error}`, ...(read.cause ? { error: read.cause } : {}) }), copy: null };
     const runs = read.pages.reduce((n, page) => n + page.runs.length, 0);
-    const summary = pretty(summaryOf(file, null, undefined, read.pages));
-    return { pdf: { pages: read.pages.length, runs }, summary, ...copied(() => ({ name: "statement-layout.json", type: "application/json", text: JSON.stringify(inventPdf(read.pages, random)) })) };
+    at("read");
+    const statements = readPdfStatement(read.pages, { ...(state.kind ? { kind: state.kind } : {}), currency: state.currency });
+    at("summary");
+    const summary = pretty(summaryOf(file, statements, undefined, read.pages));
+    return { pdf: { pages: read.pages.length, runs }, read: statements, summary, ...copied(() => ({ name: "statement-layout.json", type: "application/json", text: JSON.stringify(inventPdf(read.pages, random)) })) };
   }
   if (what.kind === "unsupported") return { refused: what.why, summary: pretty(summaryOf(file, null)), copy: null };
   at("read");
@@ -382,13 +386,44 @@ function render(): void {
     const read = result.read;
     if (result.refused) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, refusal(result.refused))));
     if (result.trouble && !result.read && !result.pdf) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, troubled(result.trouble, true))));
-    if (read && !read.ok) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, refusal(read.error))));
+    const pdf = result.pdf && !("error" in result.pdf) ? result.pdf : null;
+    // (a PDF whose table is not known yet has its own words for that, below)
+    if (read && !read.ok && !(pdf && read.error === "layout-unclear")) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, refusal(read.error))));
+    if (pdf && read && !read.ok)
+      parts.push(
+        el(
+          "div",
+          { class: "panel" },
+          el(
+            "p",
+            { class: read.error === "layout-unclear" ? "bad" : "" },
+            t(
+              `这份 PDF 有 ${pdf.pages} 页，读出了 ${pdf.runs} 段文字，但这个版本还认不出它的交易表。把下面「编出来的版本」和「摘要」发给 Claude，就能照它的版式补上：编出来的版本里每段文字的位置和原件一样，字和数字全是编的。`,
+              `This PDF has ${pdf.pages} page(s) and ${pdf.runs} runs of text, but this version does not recognise its table of transactions yet. Pass on the invented copy and the summary below, and it can be taught this layout: in the invented copy every run of text sits where it does in the original, and every word and number is invented.`,
+            ),
+          ),
+        ),
+      );
+    if (pdf && read?.ok)
+      parts.push(
+        el(
+          "div",
+          { class: "panel" },
+          el(
+            "p",
+            { class: "ask" },
+            t(
+              `这份 PDF 有 ${pdf.pages} 页，读出了 ${pdf.runs} 段文字。PDF 账单是照版式读的，这个功能刚做好：请对着原件核对每一笔，尤其是金额的正负，还有下面写的对没对上。读得不对的话，把「编出来的版本」和「摘要」发给 Claude。`,
+              `This PDF has ${pdf.pages} page(s) and ${pdf.runs} runs of text. PDF statements are read by their layout, and this is new: check every line against the original, above all which way each amount goes, and whether the sums below agree. If something is wrong, pass on the invented copy and the summary.`,
+            ),
+          ),
+        ),
+      );
     if (read?.ok) {
       parts.push(el("p", { class: "quiet" }, t("下面是读出来的结果，只显示在你这里。请对着银行的账单看一眼：日期、金额、进出方向对不对。", "Below is what was read, shown here only. Compare it with your bank's statement: are the dates, the amounts and the directions right?")));
       for (const statement of read.statements) parts.push(statementView(statement, read));
     }
     if (result.pdf && "error" in result.pdf) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, pdfRefusal(result.pdf.error, result.pdf.cause))));
-    if (result.pdf && !("error" in result.pdf)) parts.push(el("div", { class: "panel" }, el("p", {}, t(`这份 PDF 有 ${result.pdf.pages} 页，读出了 ${result.pdf.runs} 段文字。PDF 账单现在还不能读成交易，先把它的版式记下来：下面「编出来的版本」里，每段文字的位置和原件一样，字和数字全是编的。`, `This PDF has ${result.pdf.pages} page(s) and ${result.pdf.runs} runs of text. PDF statements are not read into transactions yet; for now its layout is recorded: in the invented copy below every run of text sits where it does in the original, and every word and number is invented.`))));
     if (result.trouble && (result.read || result.pdf)) parts.push(el("div", { class: "panel" }, el("p", { class: "bad" }, troubled(result.trouble, false))));
     if (result.copy) parts.push(copyBox(t("编出来的版本", "The invented copy"), t("版式和你的文件一样，字和数字全是编的，所以里面的金额加起来对不上。发给别人之前请自己看一眼，确认没有真的名字、账号和金额。", "The same layout as your file, with every word and number invented, so its amounts no longer add up. Look it over before you share it: no real name, account number or amount should be in it."), result.copy.text, result.copy, result.copy.kept));
     parts.push(copyBox(t("给 Claude 的摘要", "The summary to pass on"), t("只有版式：哪一列是什么（列名原样）、读了多少行、账对没对上。没有任何金额、日期、说明文字。", "Layout only: which column is which (the column names as they are), how many lines were read, whether the sums agreed. No amount, date or description."), result.summary, null, result.copy?.kept));
