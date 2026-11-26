@@ -111,9 +111,27 @@ describe("what the AI is asked", () => {
     expect(calls).toHaveLength(1);
     // none: the last one's error
     await expect(ask(async (model) => Promise.reject(gone(model)), input)).rejects.toThrow("5028: @cf/qwen/qwen3.8-27b was deprecated");
+    // each is told not to think first; an answer with no text is no answer: on to the next, and when
+    // none has any, the error shows what the last one sent
+    const sent: Record<string, unknown>[] = [];
+    const empty: RunModel = async (model, i) => (sent.push(i), model === AI_MODELS[0] ? { choices: [{ message: { content: null, reasoning_content: "Let me think…" }, finish_reason: "length" }] } : { response: "[]" });
+    expect(await ask(empty, input)).toEqual({ text: "[]", model: AI_MODELS[1] });
+    expect(sent.map((i) => i.chat_template_kwargs)).toEqual([{ enable_thinking: false }, { enable_thinking: false }]);
+    expect(sent[0]).toMatchObject({ max_tokens: 10, temperature: 0 });
+    await expect(ask(async () => ({ choices: [{ message: { content: "" } }] }), input)).rejects.toThrow('@cf/qwen/qwen3.8-27b answered no text: {"choices":[{"message":{"content":""}}]}');
     expect(aiNote({ asked: 15, wrote: 14, failed: 1, error: null, model: AI_MODELS[0] })).toBe("1 not usable");
     expect(aiNote({ asked: 15, wrote: 15, failed: 0, error: null, model: AI_MODELS[1] })).toBe("by @cf/qwen/qwen3.8-27b");
     expect(aiNote({ asked: 15, wrote: 0, failed: 0, error: "5028" })).toBeNull();
+  });
+
+  it("reads the answer's text whichever shape it comes in", () => {
+    expect(answerText({ response: "[1]" })).toBe("[1]");
+    expect(answerText({ response: [{ n: 1 }] })).toBe('[{"n":1}]');
+    expect(answerText({ response: "", choices: [{ message: { content: "[2]" } }] })).toBe("[2]");
+    expect(answerText({ choices: [{ message: { content: [{ type: "text", text: "[3" }, { type: "text", text: "]" }] } }] })).toBe("[3]");
+    expect(answerText({ choices: [{ text: "[4]" }] })).toBe("[4]");
+    expect(answerText({ choices: [{ message: { content: null, reasoning_content: "…" } }] })).toBe("");
+    expect(answerText(null)).toBe("");
   });
 
   it("the instructions keep names as they are, except the local teams Chinese readers know, and guess nothing", () => {

@@ -84,6 +84,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-26 What's On: an empty answer from the AI is no answer, and the models are told not to think first
 - 2026-11-26 What's On: Chinese again: Gemma 4 for the retired Qwen 3, and the daily check watches the AI
 - 2026-11-26 What's On: the colleges' public events, and UBC's and SFU's games
 - 2026-11-25 What's On: the status says whether each key is set; deploys keep dashboard keys
@@ -179,3 +180,4 @@
 - 2026-11-25 晚：投稿上线（#788），changle.ca/go/submit、/go/admin 都是 200，空投稿答 `empty`，没登录的后台接口答 `signin`。用一个 Eventbrite 链接（Rickshaw 的起点活动）试投了一条（联系方式写着「Claude 测试」），草稿没读出来；Eventbrite 的钥匙那时是不是在 Worker 里看不出来，所以 #790 让 `/go/api/status` 说每把钥匙有没有设（只说有没有），并加了 `keep_vars`：钥匙要是在后台按「文本」加的，下次合并部署会把它冲掉。
 - 2026-11-25 学校（Steve 22:24 要的）：查了 UBC Thunderbirds（gothunderbirds.ca，SIDEARM）和 SFU Red Leafs（athletics.sfu.ca），iCal 一份是整个赛季 218、298 场，ical.js 读完要 16 到 18 毫秒，超过一步的 10 毫秒，所以先只留窗口里的场次再读（约 2.5 毫秒）。两周里 UBC 16 场在大温哥华（War Memorial、Thunderbird 体育中心、Langley Events Centre），SFU 3 场（West Gym）。Capilano 表演中心是 TERMINALFOUR 的日历，列表从今天起一页 10 个，没有年份，按列表起点推。Langara（Drupal）的 Studio 58 一出戏一张卡（首演到末场）；讲座一张卡三个日期，算三场，但卡上没地点（在温哥华图书馆），不收。Douglas（Drupal）一页 8 个，两周里只有画廊的展（到 1 月 6 日）。VCC（WordPress）的 Community Event 列表 8 个，近两周 3 个（首饰快闪店 12 月 8 到 10 日、圣诞集市 12 月 10 日），还有一页是去年的（结束日比开始日早），不收。BCIT 的 The Events Calendar 接口能用，但 266 个说明会，Special Event、Open BCIT 这些往后四个月只有 3 个；KPU 的列表几乎全是学生服务。
 - 2026-11-26 早上那一轮（#795 后第一次）：63 步、3 次触发，13:41 UTC 发布 796 个（25 日 639）。Showpass 32 页 142 个、季节 6 页 19 个，都是 200、没有 403；学校：UBC 雷鸟队 16、SFU 3、Capilano 4、Langara 1、Douglas 1、VCC 1（3 页），都没出错。温哥华、列治文图书馆照例 403，等 GitHub 交来。Eventbrite 跳过：钥匙不在（`keys.EVENTBRITE_TOKEN` 是 false，Steve 25 日晚上加的多半是「文本」类型，被 #788 的部署冲掉了；#790 之后不会了），已请他按 Secret 再加。**发现 AI 从 11 月 20 日起一个中文也没写**：Cloudflare 那天下架了 `qwen3-30b-a3b-fp8`（410，错误 5028），每小时的补写全失败，没人知道；清单 796 个里 308 个没有中文（Showpass 的 161 个全没有）。换成 Gemma 4 26B A4B（Cloudflare 推荐的小模型之一，每百万 token 输入 0.10、输出 0.30 美元，和原来差不多；另一个 Qwen 3.8 27B 输入 0.45、输出 3.20，免费额度只够几百个活动），问不到才问 Qwen 3.8。每天的检查加了一条：AI 一整天试了却一个也没写成，就开 issue。
+- 2026-11-26 15:05 UTC（#823 后第一次补写）：Gemma 4 答了，但三次都是空的（`no usable answer: `），45 个活动各记了一次失败。多半是它先「想」、把 3000 个 token 用完了还没开始答。#824：每个模型都传 `chat_template_kwargs: { enable_thinking: false }`（Qwen 再加 /no_think）；空答案当作没答到，换下一个模型，不记在活动头上；都空的话，错误里带上最后一个答了什么（前 400 字），好查原因；`answerText` 也认 OpenAI 的分段内容和 `choices[0].text`。
