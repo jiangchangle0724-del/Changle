@@ -236,6 +236,17 @@ export class Room {
         this.toLobby({ keepMoods: ph === "lobby" });
         break;
       }
+      case "research":
+        // Round 2, searched again with another range: round 1's picks stay, the votes go.
+        if (ph !== "cards" || !this.isHost(id) || !E.isRange(msg.range)) return;
+        if ((this.st.searches ?? 0) >= MAX_SEARCHES) {
+          this.direct.push([id, { t: "toast", key: "searchLimit" }]);
+          return;
+        }
+        this.st.range = msg.range;
+        for (const x of Object.values(this.st.members)) Object.assign(x, { ballot: { approve: [], veto: null }, ballotDone: false });
+        this.search();
+        break;
       case "back":
         // The result, back to round 2's cards: the same places, everyone votes again. Not once
         // someone has rated the meal (the ratings belong to this winner).
@@ -588,6 +599,7 @@ export class Room {
         .sort((a, b) => a.joinedAt - b.joinedAt)
         .map((m) => ({ id: m.id, name: m.name, online: this.present(m), host: m.id === st.hostId, ready: m.limits !== null, done: phaseDone(m) })),
       range: st.range,
+      searchesLeft: Math.max(0, MAX_SEARCHES - (st.searches ?? 0)),
       // Planned and still ahead; a time that has come (or passed) is "now".
       at: this.when(now) === now ? null : this.when(now),
       occasion: st.occasion ?? "casual",

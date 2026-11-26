@@ -3,7 +3,7 @@ import { Check, Copy, Share2, TriangleAlert } from "lucide-preact";
 import type { ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { BASE } from "../../base";
-import { CUISINES, OCCASIONS, TOP_COUNT, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
+import { CUISINES, OCCASIONS, RANGES, TOP_COUNT, type Limits, type MoodPick, type OccasionId, type RangeId } from "../../engine";
 import { PATHS, groupState, leafText, setAll, type Group, type Leaf, type PathId, type Picks } from "../paths";
 import { TIMING, type RoomView } from "../../room/protocol";
 import { t, tx, type Key } from "../i18n";
@@ -391,6 +391,40 @@ function GroupTile({ g, picks, done, change, openIt }: { g: Group; picks: Picks;
   );
 }
 
+/**
+ * Round 2: how far the table looks, and for the host a way to search Google again with another
+ * range (Steve, 2026-11-25). Round 1's picks stay; everyone's ticks and vetoes start over.
+ */
+function RangeRow({ v }: { v: RoomView }) {
+  const host = v.you.host || !v.members.find((m) => m.host)?.online;
+  const [open, setOpen] = useState(false);
+  const [range, setRange] = useState<RangeId>(v.range);
+  return (
+    <section class="range-row">
+      <div class="range-now">
+        <span class="small">{t("rangeNow", { range: tx(RANGES[v.range]) })}</span>
+        {host && v.searchesLeft > 0 && !open && (
+          <Btn kind="quiet" class="small-btn" onClick={() => { setRange(v.range); setOpen(true); }}>
+            {t("changeRange")}
+          </Btn>
+        )}
+      </div>
+      {open && (
+        <div class="card research">
+          <RangePicker value={range} onChange={setRange} />
+          <p class="muted small">{t("researchNote", { n: v.searchesLeft })}</p>
+          <div class="research-actions">
+            <Btn kind="quiet" onClick={() => setOpen(false)}>{t("researchCancel")}</Btn>
+            <Btn wide disabled={range === v.range} onClick={() => send({ t: "research", range })}>
+              {t("researchGo")}
+            </Btn>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Cards({ v }: { v: RoomView }) {
   const [approve, setApprove] = useState<string[]>(v.you.ballot.approve);
   const [veto, setVeto] = useState<string | null>(v.you.ballot.veto);
@@ -407,6 +441,7 @@ function Cards({ v }: { v: RoomView }) {
       <p class="muted small">{t("round2Hint")}</p>
       {v.at && <p class="planned small">{t("plannedFor", { when: whenLabel(v.at) })}</p>}
       <TableLimits l={v.table} />
+      <RangeRow v={v} />
       <RankedList
         sortable
         cards={v.cards}

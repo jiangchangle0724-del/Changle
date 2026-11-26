@@ -499,3 +499,32 @@ test("a whole group liked at once doesn't crowd out one person's own pick in the
   assert.equal(liked[0], "kbbq", "liked by one, on its own: first");
   assert.deepEqual(liked.slice(1), chinese, "then the whole group, in the menu's order");
 });
+
+test("in round 2 the host searches again with another range: round 1's picks stay, the votes go, it counts (Steve, 2026-11-25)", () => {
+  const { room, ids, places } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: { ramen: "like" }, done: true });
+  for (const id of ids.slice(1)) room.handle(id, { t: "mood", picks: {}, done: true });
+  room.flush();
+  room.found(places());
+  const cards = [...room.st.cards];
+  room.handle(ids[1], { t: "ballot", approve: [cards[0]], veto: null, done: true });
+  room.handle(ids[1], { t: "research", range: "drive25" });
+  assert.equal(room.st.phase, "cards", "only the host");
+  room.handle(ids[0], { t: "research", range: "drive25" });
+  assert.equal(room.st.phase, "finding");
+  assert.equal(room.st.range, "drive25");
+  const want = room.flush().want as { k: string; range: string; liked: CuisineId[] };
+  assert.deepEqual([want.k, want.range, want.liked], ["search", "drive25", ["ramen"]]);
+  assert.deepEqual(room.st.members[ids[1]].ballot, { approve: [], veto: null });
+  assert.equal(room.st.members[ids[1]].ballotDone, false);
+  assert.deepEqual(room.st.members[ids[0]].mood, { ramen: "like" }, "round 1's picks stay");
+  room.found(places());
+  assert.equal(room.st.phase, "cards");
+  assert.equal(room.view(ids[0]).searchesLeft, MAX_SEARCHES - 2);
+  // No searches left: nothing happens but a toast for the host.
+  room.st.searches = MAX_SEARCHES;
+  room.handle(ids[0], { t: "research", range: "any" });
+  assert.equal(room.st.phase, "cards");
+  assert.equal(room.st.range, "drive25");
+});

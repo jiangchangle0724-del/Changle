@@ -464,6 +464,16 @@ test("no countdown in either round; round 2 sorts nearest first on this phone; t
   await expect(page.locator(".place .rank")).toHaveCount(0);
   await page.getByRole("button", { name: "最相关" }).click();
   expect(await page.locator(".place").evaluateAll((els) => els.map((e) => e.getAttribute("data-id")))).toEqual(best);
+  // The host searches again with another range: the list comes back, the range line says so.
+  const was = await page.locator(".range-now").innerText();
+  await page.getByRole("button", { name: "换范围重新搜" }).click();
+  await expect(page.getByText("这一桌还能搜 3 次")).toBeVisible();
+  await expect(page.getByRole("button", { name: "按这个范围重新搜" })).toBeDisabled();
+  await page.getByRole("button", { name: /开车/ }).click();
+  await page.getByRole("button", { name: "按这个范围重新搜" }).click();
+  await expect(page.locator(".range-now")).toContainText("开车");
+  expect(await page.locator(".range-now").innerText()).not.toEqual(was);
+  await expect(page.locator(".place").first()).toBeVisible();
   // Pick one, then go back from the result and pick again.
   const first = await page.locator(".place").first().getAttribute("data-id");
   await page.locator(".place").first().locator(".approve").click();

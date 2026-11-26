@@ -69,6 +69,9 @@ How a table goes:
    and Google's AI summary when it has one. Tick every place you'd go; one secret veto each.
    Each phone can show the list **nearest first** instead (最相关 / 距离最近, Steve 2026-11-25): only
    its own order, without the rank numbers; the ranking and the votes stay the table's.
+   The range shows above the list, and the host can **search again with another range** (换范围
+   重新搜, Steve 2026-11-25): one more Google search, counting toward the table's `MAX_SEARCHES`;
+   round 1's picks stay, everyone's ticks and vetoes start over.
 5. Most ticks wins; a tie spins (with no ticks at all, between the top six). The result card goes
    to the group chat with a link to rate the meal afterwards (three taps). Those ratings feed back
    into scores and wait estimates. Until someone has rated, the host can go **back to the cards**
