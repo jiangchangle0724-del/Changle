@@ -1,9 +1,11 @@
-import { Camera, Crown, DoorOpen, Feather, Gem, Hand, MessageCircle, Wine, type LucideIcon } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
-import type { ReactNode } from "react";
+import { Camera, ChevronDown, Crown, DoorOpen, Feather, Gem, Hand, MessageCircle, Wine, type LucideIcon } from "lucide-react";
+import { animate, AnimatePresence, motion, useMotionValue, useReducedMotion, useTransform, type PanInfo, type Variants } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { haptic } from "../lib/sfx";
 import { RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Card, type Power, type Rank, type Suit } from "../data/rogue13";
 import type { Lang } from "../i18n";
 import { usePenaltyText, useStore } from "../store";
+import { warmHi } from "./rogueSounds";
 import "../styles/rogue.css";
 
 /**
@@ -206,19 +208,22 @@ export type LeaveTo = "pile" | "tray";
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
-/** The card's flight: lifted off the deck and turned over, then off to the pile or down to the tray. */
+/** What the card's flight needs to know: where it goes when it leaves, and where the pull let go of it. */
+type Flight = { to: LeaveTo; fromY: number };
+
+/** The card's flight: from where it was pulled to, up and turned over onto the deck, then off to the pile or down to the tray. */
 const FLYER: Variants = {
-  down: { rotateY: 0, y: 0, scale: 1, x: 0, rotate: 0, opacity: 1 },
+  down: ({ fromY }: Flight) => ({ rotateY: 0, y: fromY, scale: 1, x: 0, rotate: 0, opacity: 1 }),
   up: {
     rotateY: 180,
-    y: [0, -38, 0],
+    y: [null, -38, 0],
     scale: [1, 1.08, 1],
     x: 0,
     rotate: 0,
     opacity: 1,
     transition: { duration: 0.62, times: [0, 0.45, 1], ease: EASE_OUT, rotateY: { duration: 0.5, ease: "easeInOut" } },
   },
-  gone: (to: LeaveTo) =>
+  gone: ({ to }: Flight) =>
     to === "tray"
       ? { y: 320, scale: 0.3, opacity: 0, transition: { duration: 0.42, ease: "easeIn" } }
       : { x: 146, y: 80, rotate: 16, scale: 0.33, opacity: 0, transition: { duration: 0.4, ease: "easeIn", opacity: { delay: 0.3, duration: 0.1 } } },
@@ -260,6 +265,11 @@ export function RogueTable({
   // a whole deck's worth of edge while it riffles, however few are left
   const n = shuffling ? 3 : thickness(remaining);
   const empty = remaining === 0 && !card && !shuffling;
+  // the table is set: her voice fetched now, so the first 2 is not a built voice
+  useEffect(() => warmHi(), []);
+  // where the pull let go of the top card: the card up starts its turn from there
+  const pull = useRef(0);
+  const flight: Flight = { to: leaveTo, fromY: pull.current };
   return (
     <div className="rg-stage">
       <div className="pcard-scene">
@@ -267,12 +277,23 @@ export function RogueTable({
           {Array.from({ length: n }, (_, i) => (
             <span key={i} className="rg-under" style={{ ["--i" as string]: n - i }} aria-hidden="true" />
           ))}
-          {/* a button only when it can be drawn from, named by the word on its pill; otherwise just the deck */}
-          {canDraw ? (
-            <button type="button" className="rg-back" onClick={onDraw}>
+          {/* the top card is pulled down to draw it, off the next card's back; otherwise it is just the deck */}
+          {canDraw && remaining > 1 && (
+            <div className="rg-back" aria-hidden="true">
               <CardBack />
-              <span className="rg-draw">{drawLabel}</span>
-            </button>
+            </div>
+          )}
+          {canDraw ? (
+            <DeckTop
+              label={empty ? (lang === "zh" ? "洗牌" : "Shuffle") : drawLabel}
+              lang={lang}
+              tapDraws={empty}
+              drawn={!!card}
+              onPull={(fromY) => {
+                pull.current = fromY;
+                onDraw();
+              }}
+            />
           ) : (
             <div className="rg-back" aria-hidden="true">
               <CardBack />
@@ -281,12 +302,12 @@ export function RogueTable({
           {empty && <span className="rg-empty" aria-hidden="true" />}
         </div>
 
-        <AnimatePresence custom={leaveTo}>
+        <AnimatePresence custom={flight}>
           {card && (
             <motion.div
               key={`${card.rank}${card.suit}-${drawn}`}
               className="rg-flyer"
-              custom={leaveTo}
+              custom={flight}
               variants={still ? FLYER_STILL : FLYER}
               initial="down"
               animate="up"
@@ -305,6 +326,96 @@ export function RogueTable({
 
       <Pile drawn={drawn} />
     </div>
+  );
+}
+
+/** How far the top card is pulled down before it is drawn (px), and the flick that counts as the same. */
+const PULL_PX = 72;
+const FLICK = 650;
+
+/**
+ * The top of the deck while a draw is on: pull it down and let go, and it is drawn (Steve, 11-21:
+ * 「往下滑抽牌松手后才能看到牌」). While the finger is on it the page stays put (`touch-action:
+ * none`); past the mark the pill says to let go. A tap only nudges it to show the way, except on
+ * an empty deck (`tapDraws`), where a tap brings the pile back. Enter or space draws for a keyboard.
+ */
+function DeckTop({ label, lang, tapDraws, drawn, onPull }: { label: string; lang: Lang; tapDraws: boolean; drawn: boolean; onPull: (fromY: number) => void }) {
+  const still = useReducedMotion();
+  const y = useMotionValue(0);
+  const rotate = useTransform(y, [0, 200], [0, 5]);
+  const scale = useTransform(y, [0, PULL_PX], [1, 1.04]);
+  const [armed, setArmed] = useState(false);
+  const pulling = useRef(false);
+  const letGo = useRef<number | null>(null);
+  // the card came (one phone at once, online a moment later): the pulled top is that card now, so the deck's top goes back under it
+  useEffect(() => {
+    if (!drawn) return;
+    letGo.current = null;
+    y.jump(0);
+  }, [drawn, y]);
+  const back = () => animate(y, 0, { type: "spring", stiffness: 520, damping: 34 });
+  const draw = (fromY: number) => {
+    letGo.current = fromY;
+    onPull(fromY);
+    // nothing came of it (not this phone's turn after all): the top goes back
+    window.setTimeout(() => {
+      if (letGo.current === fromY) {
+        letGo.current = null;
+        back();
+      }
+    }, 700);
+  };
+  const onDragEnd = (_: unknown, info: PanInfo) => {
+    pulling.current = false;
+    setArmed(false);
+    const far = info.offset.y > PULL_PX || (info.offset.y > 28 && info.velocity.y > FLICK);
+    if (far) draw(info.offset.y);
+    else back();
+  };
+  const nudge = () => {
+    haptic(8);
+    if (!still) animate(y, [0, 18, 0], { duration: 0.4, ease: EASE_OUT });
+  };
+  return (
+    <motion.div
+      className={`rg-back rg-top ${armed ? "is-armed" : ""}`}
+      role="button"
+      tabIndex={0}
+      drag="y"
+      dragDirectionLock
+      dragConstraints={{ top: 0, bottom: 260 }}
+      dragElastic={{ top: 0, bottom: 0.4 }}
+      dragMomentum={false}
+      style={{ y, rotate, scale, touchAction: "none" }}
+      onDragStart={() => {
+        pulling.current = true;
+      }}
+      onDrag={(_, info) => {
+        const now = info.offset.y > PULL_PX;
+        if (now !== armed) {
+          setArmed(now);
+          if (now) haptic(12);
+        }
+      }}
+      onDragEnd={onDragEnd}
+      onTap={() => {
+        if (pulling.current) return;
+        if (tapDraws) draw(0);
+        else nudge();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          draw(0);
+        }
+      }}
+    >
+      <CardBack />
+      <span className="rg-draw">
+        {armed ? (lang === "zh" ? "松手" : "Let go") : label}
+        {!armed && !tapDraws && <ChevronDown className="rg-draw-arrow" size={16} aria-hidden="true" />}
+      </span>
+    </motion.div>
   );
 }
 
