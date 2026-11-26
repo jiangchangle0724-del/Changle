@@ -564,6 +564,112 @@ async function handMade(vault: OpenVault, records: Entry[], group = "t/x"): Prom
   return { id, blob };
 }
 
+/** The time each copy of a record carries on the server, chunk by chunk, smallest chunk id first. */
+async function timesOn(vault: OpenVault, remote: MemoryRemote, record: string): Promise<number[]> {
+  const out: [string, number][] = [];
+  for (let since = 0; ; ) {
+    const page = (await remote.pull(vault.id, since)) as Extract<Pulled, { ok: true }>;
+    for (const chunk of page.chunks) {
+      const opened = await openContent(vault, chunk.id, chunk.blob);
+      assert.ok(opened.ok);
+      const copy = opened.content.records.get(record);
+      if (copy) out.push([chunk.id, copy.at]);
+      since = chunk.version;
+    }
+    if (!page.more) return out.sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, at]) => at);
+  }
+}
+
+test("a doubled record whose copies say the same at different times: a change is stamped after the latest of them, whichever chunk that one is in", async () => {
+  // The older copy in the chunk with the smaller id, then in the one with the greater: which chunk is listed first must not matter.
+  for (const olderFirst of [true, false]) {
+    // The copies say the same from the start; or only once a sync has made them alike, which leaves the copy that
+    // already said it where it was, with its older time.
+    for (const alikeAtFirst of [true, false]) {
+      const vault = await testVault();
+      const remote = new MemoryRemote(vault.id);
+      const said: { [name: string]: Json } = alikeAtFirst ? { note: "same" } : { note: "same", only: 1 };
+      const older = entryOf("txn", 100, txn(1, said))!;
+      const newer = entryOf("txn", 300, txn(1, { note: "same" }))!;
+      const ids = [newId(), newId()].sort();
+      for (const [id, copy] of [
+        [ids[0]!, olderFirst ? older : newer],
+        [ids[1]!, olderFirst ? newer : older],
+      ] as const) {
+        const rev = newId();
+        const blob = await sealContent(vault, id, { group: "t/x", n: 1, rev, history: [rev], records: new Map([[copy.value.id, copy]]) });
+        assert.ok(blob);
+        assert.ok((await remote.push(vault.id, [{ id, base: 0, blob }])).ok);
+      }
+      const what = `older first: ${olderFirst}, alike at first: ${alikeAtFirst}`;
+      // this device's clock is far behind both copies
+      const a = await device(vault, remote, () => 5);
+      const first = ok(await a.store.sync(a.net));
+      // copies that say the same are not a clash and are not written; the ones that differ are made alike, and only the
+      // copy that did not say it yet is written
+      assert.deepEqual([first.sent, first.clashes.length], alikeAtFirst ? [0, 0] : [1, 1], what);
+      assert.deepEqual(await timesOn(vault, remote, idOf(1)), olderFirst ? [100, 300] : [300, 100], what);
+      assert.equal(a.store.status().doubled, 0, what);
+      // a change that changes nothing writes nothing
+      assert.deepEqual(a.store.change(idOf(1), { note: "same" }), { ok: true });
+      assert.equal(ok(await a.store.sync(a.net)).sent, 0, what);
+      // a real change is later than every copy, and goes into both
+      assert.deepEqual(a.store.change(idOf(1), { note: "changed" }), { ok: true });
+      assert.equal(ok(await a.store.sync(a.net)).sent, 2, what);
+      assert.deepEqual(await timesOn(vault, remote, idOf(1)), [301, 301], what);
+      // the same after the page was closed with the change only in the cache
+      const b = await device(vault, remote, () => 7);
+      ok(await b.store.sync(b.net));
+      assert.deepEqual(b.store.change(idOf(1), { note: "again" }), { ok: true });
+      await b.store.flush();
+      await b.reopen();
+      ok(await b.store.sync(b.net));
+      assert.deepEqual(await timesOn(vault, remote, idOf(1)), [302, 302], what);
+    }
+  }
+});
+
+test("a doubled record: a field taken out can come back when another device was making the copies alike at that moment (the stated price), and taking it out again holds", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id);
+  // one copy has a field that the other does not
+  for (const copy of [entryOf("txn", 100, txn(1, { note: "n", extra: 1 }))!, entryOf("txn", 200, txn(1, { note: "n" }))!]) {
+    const made = await handMade(vault, [copy]);
+    assert.ok((await remote.push(vault.id, [{ id: made.id, base: 0, blob: made.blob }])).ok);
+  }
+  const bare = txn(1, { note: "n" });
+  const full = txn(1, { note: "n", extra: 1 });
+  const a = await device(vault, remote);
+  const b = await device(vault, remote);
+  // a has looked, and is about to send the write that puts the field into the copy without it. Before that write arrives,
+  // b makes the copies alike itself, and then takes the field out of both.
+  a.net.between = async () => {
+    ok(await b.store.sync(b.net));
+    assert.deepEqual(await copiesOn(vault, remote, idOf(1)), [canonical(full), canonical(full)]);
+    assert.deepEqual(b.store.change(idOf(1), { extra: undefined }), { ok: true });
+    ok(await b.store.sync(b.net));
+    assert.deepEqual(await copiesOn(vault, remote, idOf(1)), [canonical(bare), canonical(bare)]);
+  };
+  ok(await a.store.sync(a.net));
+  // a's write is merged chunk by chunk. In the chunk that never had the field, a's is the only change to it since the
+  // copy a started from, so it stands: the field is back, although b knew both copies when it took it out.
+  assert.deepEqual(a.store.get(idOf(1)), full);
+  ok(await b.store.sync(b.net));
+  ok(await a.store.sync(a.net));
+  assert.deepEqual(b.store.get(idOf(1)), full);
+  assert.deepEqual(await copiesOn(vault, remote, idOf(1)), [canonical(full), canonical(full)]);
+  // Taken out again, with nobody making anything alike, it stays out: on both devices, on the server, and on a new device.
+  assert.deepEqual(b.store.change(idOf(1), { extra: undefined }), { ok: true });
+  ok(await b.store.sync(b.net));
+  ok(await a.store.sync(a.net));
+  const c = await device(vault, remote);
+  const fresh = ok(await c.store.sync(c.net));
+  assert.deepEqual([fresh.sent, fresh.clashes], [0, []]);
+  for (const d of [a, b, c]) assert.deepEqual(d.store.get(idOf(1)), bare);
+  assert.deepEqual(await copiesOn(vault, remote, idOf(1)), [canonical(bare), canonical(bare)]);
+  for (const d of [a, b]) assert.equal(ok(await d.store.sync(d.net)).sent, 0);
+});
+
 test("the same record in more than one chunk, which should never be: read as one, made alike by a sync, and no copy is taken out", async () => {
   const vault = await testVault();
   const remote = new MemoryRemote(vault.id);

@@ -745,7 +745,7 @@ test('C5: a real edit or whole-record removal wins against an already prepared a
   }
 });
 
-test('finding 12: a clock-behind edit of identical duplicate copies must be later than every copy', { skip: 'finding 12: identical-content duplicates discard the maximum timestamp when choosing their read holder' }, async () => {
+test('finding 12: a clock-behind edit of identical duplicate copies must be later than every copy (fixed after the third round)', async () => {
   const v = await vault(), cache = new MemoryCache();
   const chunks = [9001, 9002].sort((a, b) => id(a) < id(b) ? -1 : 1);
   const writes = [await duplicateWrite(v, chunks[0]!, 9010, 100, { text: 'invented-same' }),

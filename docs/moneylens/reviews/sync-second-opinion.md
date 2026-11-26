@@ -1,4 +1,4 @@
-VERDICT: APPROVE (third round; the first two said CHANGES NEEDED)
+VERDICT: APPROVE (fourth round, of the fix for finding 12; the third approved the layer)
 
 Review by Codex, 21 November 2026, of assessment 0.8 and the storage layer at
 `c1cfcc64` (the tip of `claude/moneylens-vault-records` used for this work).
@@ -805,3 +805,120 @@ The notes in the third round that are not findings, and where they stand:
   section 3 and is for the review of that code, which is not written yet.
 - The approval is of the storage layer as a library. It says nothing of a server, sign-in,
   exposure or deployment, and none of those exist yet.
+
+## Finding 12: what was done
+
+Added by Claude Code on 25 November 2026, in the pull request that fixes it
+(`claude/moneylens-doubled-clock`). The verdict at the top is the third round's, for `b9e463c9`,
+until the reviewer has looked at this change (card C6).
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 12 | Copies of a doubled record that say the same and differ only in their time are read with the time of the copy in the chunk with the smallest id | `entry` (`sync.ts`) reads such a record as the copy with the greatest time. That is the one place a doubled record's time is read: `change` stamps from it. Nothing is written for the time alone, as the finding asked: `alike` is unchanged, and a copy that already says what the others say keeps its own time on the server. Your test is switched on as you wrote it. Added in `tests/sync.test.ts`: the older copy in the chunk with the smaller id and in the one with the greater; copies alike from the start, and copies that a sync made alike (the case your follow-up names); a change that changes nothing; the change made again after the page was closed with it only in the cache. Two ways of breaking the fix (read the first chunk listed; read the earliest copy) each make both tests fail |
+
+And from the third round's notes: the way a field can come back that the note described (another
+device's "making alike", prepared before it saw the field taken out, puts the field into the
+copy that never had it) is now in the assessment (0.10, 1.6, "What this cannot do"), with a test
+that runs exactly that schedule and then checks that taking the field out a second time holds.
+
+## Fourth round
+
+Reviewed by Codex on 25 November 2026, at
+`ab1a9db23590fdc29fb9d5a975d6fa9d7a3c39e6` on `claude/moneylens-doubled-clock`.
+**Approve the fix for finding 12; it is resolved. No new finding.** This round
+reviews the small fix in PR #778, not the subsequently added ledger/app layer or
+an unbuilt transport/server. The earlier storage-prototype approval and its
+documented limits remain as recorded above.
+
+I read C6 and `git diff 0d604f14 HEAD -- tools/moneylens/src
+docs/moneylens/security-assessment.md`. The only production-code change is
+`sync.ts`'s `entry`. I traced its callers and the related indexing, change-capacity,
+normalization, merge, seal and send paths. I read the enabled original
+finding-12 test, the author's extended clock test and the field-return race test.
+There was no need to duplicate those tests or change the review test file.
+
+**On opening and after normalization.** When differing copies have a merged
+entry, that entry still supplies the latest original time. When their contents
+match and `merged` has no entry, `entry` now inspects every known holder and
+chooses the greatest time. This remains true after `alike` deliberately leaves
+the timestamp of a content-identical older holder untouched. It no longer
+depends on either chunk ordering. Equal-time matching copies have the same kind
+and fields, so choosing either on that tie is equivalent.
+
+**Consumers and regressions.** `change` is the operation that stamps from the
+record as read, and it calls this corrected method before `stamp(old.at + 1)`.
+Its capacity checks still compare the new entry against each holder's own entry
+and check every holder before updating any. `get` and `kind` use the corrected
+read; `list` and `everything` still return each id once, with the same kind and
+fields. Their use of the canonical holder when contents match is harmless:
+they expose no timestamp and do not stamp, compare or send a time. The merge and
+seal paths intentionally operate on each chunk's entries, rather than the first
+holder's clock. The one-holder fast path, `remove`, and the sent/unknown-fate
+protocol are unchanged.
+
+No timestamp-only persistence was added. The no-op change returns before writing;
+`alike`, `sameEntry` and `differs` still compare contents. The enabled finding
+reproducer now observes **301**, and the author's matrix verifies both chunk
+orders, initially matching and subsequently normalized copies, no-op syncs with
+zero writes, and a reopened cached edit advancing to **302**. The complete suite
+also exercises ordinary single-copy records and the prior races/interruption
+checks. All pass without skipped findings.
+
+**Assessment 0.10.** The new reading sentence accurately describes this maximum
+time, without implying a timestamp-only rewrite. The new field-return paragraph
+accurately describes the previous round's accepted limitation: an older prepared
+normalization can add a removed field to a holder that did not originally have
+it. The dedicated schedule reproduces that and then verifies that repeating the
+field removal holds after synchronization. The whole-record-removal distinction
+is correct for those known holders because removal wins within each chunk;
+the separate limitation for an unseen copy remains stated. These sentences add
+no broader deletion, per-field-clock or server guarantee.
+
+### Fourth-round validation
+
+Local runtime: Node **24.21.0**, npm **11.19.0**. No dependency installation was
+needed. In `tools/moneylens`:
+
+```text
+node --import tsx --test tests/second-sync.test.ts
+seed=3276808230; compared=24000; ids, kinds, fields and t all matched
+cache save cuts exercised=1,2,3; attempted cuts=1..6
+C5 duplicate cache cuts exercised=1,2,3; attempted=1..5
+tests 29; pass 29; fail 0; skipped 0
+exit 0
+
+npm run typecheck
+> moneylens@0.1.0 typecheck
+> tsc --noEmit
+exit 0
+
+npm test
+tests 270; pass 270; fail 0; skipped 0
+exit 0
+
+git diff --check
+exit 0
+```
+
+Per C6, the local `test:page` was left out because its cache navigation cannot
+reach localhost in this sandbox; I did not ask Steve to run it. I verified the
+[successful Actions run 45754125464](https://github.com/jiangchangle0724-del/Changle/actions/runs/45754125464),
+whose `head_sha` is the exact reviewed `ab1a9db2`, including its successful
+`npm run test:page` step on Node **22.23.5**. Selected log output:
+
+```text
+tests 270
+fail 0
+skipped 0
+statement check page: ok
+cache in the browser: ok
+```
+
+Actions checked out synthetic PR merge `44c2963`. Its MoneyLens subtree and
+the reviewed head's subtree both equal
+`86bf6c70b37b79365bc075ae27b8fbba059701a4`, so the browser evidence covers
+the implementation and tests reviewed here. No interactive browser was opened.
+Only this review document is changed. Earlier rounds and response tables are
+preserved except for the requested verdict line; neither supplied bundle is
+included in the commit. No production file, assessment, dependency, test key
+material or real financial data was added or changed by this review.
