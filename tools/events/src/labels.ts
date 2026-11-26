@@ -46,6 +46,12 @@ export const SOURCE_ZH: Record<string, string> = {
   "Vancouver Public Library": "温哥华公共图书馆",
   "Richmond Public Library": "列治文公共图书馆",
   "Burnaby Public Library": "本拿比公共图书馆",
+  "UBC Thunderbirds": "UBC 雷鸟队",
+  "SFU Red Leafs": "SFU 红叶队",
+  "Capilano University": "卡普兰诺大学",
+  "Langara College": "兰加拉学院",
+  "Douglas College": "道格拉斯学院",
+  "Vancouver Community College": "温哥华社区学院",
 };
 
 export const STATUS_LABEL: Record<Exclude<EventStatus, "scheduled">, Pair> = {

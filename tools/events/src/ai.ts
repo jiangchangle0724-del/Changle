@@ -9,8 +9,34 @@
 import { vanParts, windowOf } from "./time";
 import { CATEGORIES, type Category } from "./types";
 
-/** Qwen 3: good Chinese, and among the cheapest models on Workers AI. */
-export const AI_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
+/**
+ * The models asked, in order; the next only when one can't be asked at all (retired, not on the
+ * plan, down), never because of what it answered. Gemma 4 26B A4B (Google; a mixture of experts,
+ * 4B of its 26B at work a token): good Chinese at about the price of Qwen 3 30B A3B, which this used
+ * until Cloudflare retired it on 20 November 2026 (410, error 5028). Qwen 3.8 27B: Cloudflare's
+ * other small model, at about ten times the price, so the day's free allowance (10,000 neurons)
+ * would run out after a few hundred events.
+ */
+export const AI_MODELS = ["@cf/google/gemma-4-26b-a4b-it", "@cf/qwen/qwen3.8-27b"] as const;
+/** The model asked first. */
+export const AI_MODEL = AI_MODELS[0];
+
+/**
+ * Asks the models in turn (AI_MODELS) until one answers: its text, and which it was. Qwen's are told
+ * /no_think (answer at once, no reasoning written out first); Gemma 4 only thinks when asked to.
+ */
+export async function ask(run: RunModel, input: { messages: { role: string; content: string }[]; max_tokens: number; temperature: number }): Promise<{ text: string; model: string }> {
+  let failed: unknown = new Error("no model to ask");
+  for (const model of AI_MODELS) {
+    const messages = /\/qwen\//.test(model) ? input.messages.map((m, i, all) => (i === all.length - 1 && m.role === "user" ? { ...m, content: `${m.content}\n/no_think` } : m)) : input.messages;
+    try {
+      return { text: answerText(await run(model, { ...input, messages })), model };
+    } catch (e) {
+      failed = e;
+    }
+  }
+  throw failed;
+}
 /** Events a request: small enough that one bad answer costs little, big enough to share the instructions. */
 export const AI_BATCH = 15;
 /** The hourly schedule that catches up (wrangler.jsonc), told apart from the morning run's. */
@@ -84,10 +110,9 @@ export function messages(events: ToWrite[]): { role: "system" | "user"; content:
     ...(labelsOf(e.labels) ? { labels: labelsOf(e.labels) } : {}),
     ...(about(e.description) ? { about: about(e.description) } : {}),
   }));
-  // (/no_think: Qwen 3 answers at once, without writing out its reasoning first)
   return [
     { role: "system", content: INSTRUCTIONS },
-    { role: "user", content: `${JSON.stringify(items)}\n/no_think` },
+    { role: "user", content: JSON.stringify(items) },
   ];
 }
 
@@ -341,6 +366,8 @@ export interface Wrote {
   failed: number;
   /** The AI couldn't be asked, or nothing it said could be used. */
   error: string | null;
+  /** Which model answered (AI_MODELS), when one did. */
+  model?: string;
 }
 
 /**
@@ -350,15 +377,15 @@ export interface Wrote {
 export async function writeSome(db: D1Database, run: RunModel, runId: string, fromMs: number, toMs: number, ids: string[] | null = null): Promise<Wrote> {
   const events = await toWrite(db, runId, fromMs, toMs, AI_BATCH, ids);
   if (!events.length) return { asked: 0, wrote: 0, failed: 0, error: null };
-  let text: string;
+  let answer: { text: string; model: string };
   try {
-    text = answerText(await run(AI_MODEL, { messages: messages(events), max_tokens: 3000, temperature: 0.3 }));
+    answer = await ask(run, { messages: messages(events), max_tokens: 3000, temperature: 0.3 });
   } catch (e) {
-    // the allowance used up, the model away: nothing is counted against the events
+    // the allowance used up, every model away: nothing is counted against the events
     return { asked: events.length, wrote: 0, failed: 0, error: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
   }
-  const { wrote, failed } = await keepWritten(db, events, readAnswer(text, events.length));
-  return { asked: events.length, wrote, failed, error: wrote ? null : `no usable answer: ${text.slice(0, 200)}` };
+  const { wrote, failed } = await keepWritten(db, events, readAnswer(answer.text, events.length));
+  return { asked: events.length, wrote, failed, error: wrote ? null : `no usable answer: ${answer.text.slice(0, 200)}`, model: answer.model };
 }
 
 /** One step of the catch-up, a request of its own (src/worker.ts), logged with the run's steps as "ai". */
@@ -370,9 +397,15 @@ export async function translateStep(env: Env, args: { runId: string; ids: string
     await env.DB.prepare(
       `INSERT INTO fetch_log (run_id, source, part, started_at, ms, found, updated, error, note) VALUES (?1, 'ai', ?2, ?3, ?4, ?5, ?6, ?7, ?8)`,
     )
-      .bind(args.runId, args.part ?? 0, new Date(started).toISOString(), Date.now() - started, r.asked, r.wrote, r.error, r.failed ? `${r.failed} not usable` : null)
+      .bind(args.runId, args.part ?? 0, new Date(started).toISOString(), Date.now() - started, r.asked, r.wrote, r.error, aiNote(r))
       .run();
   return r;
+}
+
+/** The log's note on an AI step: what wasn't usable, and the model when it wasn't the first. */
+export function aiNote(r: Wrote): string | null {
+  const notes = [r.failed ? `${r.failed} not usable` : "", r.model && r.model !== AI_MODEL ? `by ${r.model}` : ""].filter(Boolean);
+  return notes.length ? notes.join("; ") : null;
 }
 
 export interface Translator {

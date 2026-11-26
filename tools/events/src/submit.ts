@@ -4,7 +4,7 @@
 // AI. Nothing is published until the site's owner lets it in at /go/admin, signed in with changle.ca
 // (the rooms server says who a session is, as for 跟一单); then it's an event of the source
 // "submitted", the poster its picture, and an Eventbrite event's organization is followed from then on.
-import { AI_MODEL } from "./ai";
+import { ask } from "./ai";
 import { readCapped } from "./body";
 import { followEvent } from "./follows";
 import { parseEventbrite, type EbEvent } from "./parsers/eventbrite";
@@ -175,15 +175,14 @@ const PROMPT = (today: string) =>
 
 /** Asks the AI for a draft from words. Null when it can't tell (no title or no date). */
 export async function draftFromWords(ai: { run: (model: never, input: never) => Promise<unknown> }, words: string, now: number): Promise<Draft | null> {
-  const out = (await ai.run(AI_MODEL as never, {
+  const { text } = await ask((model, input) => ai.run(model as never, input as never), {
     messages: [
       { role: "system", content: PROMPT(vanParts(now).date) },
-      { role: "user", content: `${words.slice(0, 5000)}\n/no_think` },
+      { role: "user", content: words.slice(0, 5000) },
     ],
     max_tokens: 800,
     temperature: 0.1,
-  } as never)) as { response?: unknown; choices?: { message?: { content?: unknown } }[] } | null;
-  const text = typeof out?.response === "string" ? out.response : typeof out?.choices?.[0]?.message?.content === "string" ? (out.choices[0].message!.content as string) : JSON.stringify(out?.response ?? "");
+  });
   const found = /\{[\s\S]*\}/.exec(text.replace(/<think>[\s\S]*?(<\/think>|$)/g, ""));
   if (!found) return null;
   let r: Record<string, unknown>;
