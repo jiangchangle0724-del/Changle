@@ -13,13 +13,16 @@ export interface GachaSave {
   /** 一共花了几个红包。 */
   spent: number;
   got: GachaId[];
+  /** 红包雨（11-26，彩蛋小游戏）接到的，也能花。 */
+  bonus?: number;
 }
 
 export function loadGacha(): GachaSave {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { spent?: unknown; got?: unknown } | null;
-    const spent = typeof raw?.spent === 'number' && Number.isFinite(raw.spent) && raw.spent > 0 ? Math.floor(raw.spent) : 0;
-    return { spent, got: cleanGacha(raw?.got) };
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+    const raw2 = raw as { bonus?: unknown } | null;
+    return { spent: num(raw?.spent), got: cleanGacha(raw?.got), bonus: num(raw2?.bonus) };
   } catch {
     return { spent: 0, got: [] };
   }
@@ -33,9 +36,9 @@ export function saveGacha(s: GachaSave): void {
   }
 }
 
-/** 手上还有几个红包能扭（攒的减花的）。 */
+/** 手上还有几个红包能扭（攒的加红包雨接到的，减花的）。 */
 export function coins(s: GachaSave, total: number): number {
-  return Math.max(0, total - s.spent);
+  return Math.max(0, total + (s.bonus ?? 0) - s.spent);
 }
 
 /** 还剩几样没扭到。 */
@@ -52,5 +55,5 @@ export function pull(s: GachaSave, total: number, random: () => number = Math.ra
   const have = coins(s, total);
   if (have < GACHA_PRICE) return { ok: false, why: 'poor', need: GACHA_PRICE - have };
   const id = left[Math.min(left.length - 1, Math.floor(random() * left.length))] as GachaId;
-  return { ok: true, id, save: { spent: s.spent + GACHA_PRICE, got: cleanGacha([...s.got, id]) } };
+  return { ok: true, id, save: { ...s, spent: s.spent + GACHA_PRICE, got: cleanGacha([...s.got, id]) } };
 }

@@ -25,7 +25,7 @@ export const sideFor = (players: number): Side => (players >= 2 ? 'multi' : 'sol
 
 /** 这一边、这个玩法最少几个人（单人就一个人，多人一起闯关至少两个）。 */
 export function minPlayers(side: Side, mode: GameMode): number {
-  if (side === 'solo') return 1;
+  if (side === 'solo' || mode === 'rain') return 1;
   return mode === 'team' ? 4 : 2;
 }
 

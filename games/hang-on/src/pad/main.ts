@@ -580,13 +580,19 @@ function renderMenu(): void {
   const names = m.names ?? [];
   if (results && m.results) renderResults(menuDom, m.results, (i) => names[i]?.name || `P${i + 1}`, (i) => names[i]?.color ?? '#fff', m.par);
   // 下一关（坐不住是换个场地）、再来一次（比谁先、坐不住是再来一局）、回大厅：电视局的菜单和手机局的结算页都有
-  const nextText = m.mode === 'last' || m.mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  const nextText = m.mode === 'rain' ? tr('接着闯关', 'Back to climbing') : m.mode === 'last' || m.mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   const againText = m.mode === 'climb' || m.mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
   for (const id of ['mNextLevel', 'vNextLevel']) {
     $(id).hidden = !m.hasNext;
     $(id).textContent = nextText;
   }
-  for (const id of ['mAgain', 'vAgain']) $(id).textContent = againText;
+  for (const id of ['mAgain', 'vAgain']) {
+    $(id).textContent = againText;
+    // 红包雨（11-26）只下一次
+    $(id).hidden = m.mode === 'rain';
+  }
+  // 红包雨（11-26）：这一关红包全拿到了，结算页多一个「彩蛋：红包雨」
+  for (const id of ['mRain', 'vRain']) $(id).hidden = !m.rain;
 }
 $('mPrev').addEventListener('click', () => send({ do: 'level', d: -1 }));
 $('mNext').addEventListener('click', () => send({ do: 'level', d: 1 }));
@@ -595,6 +601,7 @@ for (const pre of ['m', 'v']) {
   $(`${pre}NextLevel`).addEventListener('click', () => send({ do: 'next' }));
   $(`${pre}Again`).addEventListener('click', () => send({ do: 'again' }));
   $(`${pre}ToLobby`).addEventListener('click', () => send({ do: 'lobby' }));
+  $(`${pre}Rain`).addEventListener('click', () => send({ do: 'rain' }));
 }
 // 联机桌（A15）：回桌子。加入那页按一下就走；玩的时候顶栏那个按两下（第一下变红，3 秒内再按一下），这局照玩
 $('tableBtn').hidden = $('tableBtn2').hidden = !tableNo;

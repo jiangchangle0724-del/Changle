@@ -151,6 +151,9 @@ export interface Snap {
   gt?: number[];
   /** 抢金元宝（A9d）：[要攒几秒, 现在谁一个人抓着, 每个人攒了几秒…]。 */
   gd?: number[];
+  /** 红包雨（11-26）：[还剩几秒, 每个人接到几个…]；天上正在掉的红包 [x, y, x, y…]。 */
+  rn?: number[];
+  rd?: number[];
   /** 端托盘（后厨，A10）：[托盘是第几个物件, 点心翻了没有（1 翻了）]。 */
   ty?: [number, number];
   /** 抓着冰溜子的手（雪山，A10）：每三个数一组 [第几个人, 哪只手, 最多抓几秒]，手机上手要抖。 */
@@ -199,6 +202,8 @@ export interface Results {
   envelopes?: { got: number; of: number; fresh: number; total: number };
   /** 护送大元宝（11-26，大厅里打开了才有）：送到终点没有。 */
   escort?: boolean;
+  /** 红包雨（11-26）：每个人接到几个（下标和玩家一样）；接到的一共放进扭蛋机几个。 */
+  caught?: number[];
 }
 
 /**
@@ -218,7 +223,9 @@ export type PadCmd =
   /** 红包扭蛋机（11-25）：扭一个（大厅里，谁按都行，电视上扭）。 */
   | { do: 'gacha' }
   /** 护送大元宝（11-26）：大厅里打开 / 关上。 */
-  | { do: 'escort'; on: boolean };
+  | { do: 'escort'; on: boolean }
+  /** 红包雨（11-26，彩蛋小游戏）：结算页上「彩蛋：红包雨」。 */
+  | { do: 'rain' };
 
 /** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
 export interface Menu {
@@ -248,6 +255,8 @@ export interface Menu {
   gacha?: { coins: number; price: number; got: GachaId[]; left: number };
   /** 护送大元宝（11-26）：开着没有（闯关、大团队才有这一项）。 */
   escort?: boolean;
+  /** 红包雨（11-26）：这一关的红包全拿到了，结算页能进彩蛋。 */
+  rain?: boolean;
 }
 
 /** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */

@@ -27,6 +27,7 @@ export const ACHIEVEMENTS = [
   { id: 'hard', icon: '🔥', zh: '困难到顶', en: 'Hard summit', howZh: '困难的关到顶', howEn: 'Reach the top of a hard level' },
   { id: 'long', icon: '🧗', zh: '长关到顶', en: 'Long haul', howZh: '长关到顶', howEn: 'Reach the top of a long level' },
   { id: 'bigteam', icon: '👥', zh: '大团队', en: 'Big team', howZh: '大团队的关到顶', howEn: 'Reach the top of a Big team level' },
+  { id: 'rainking', icon: '🌧️', zh: '红包王', en: 'Top catcher', howZh: '找到彩蛋红包雨，接得最多', howEn: 'Find the secret envelope rain and catch the most' },
   { id: 'escort', icon: '🪙', zh: '护送大元宝', en: 'Gold escort', howZh: '大厅里打开「护送大元宝」，把它扛到顶', howEn: 'Turn on Gold escort in the lobby and carry the ingot to the top' },
   { id: 'race', icon: '🏁', zh: '第一个到', en: 'First up', howZh: '比谁先赢一次', howEn: 'Win a Race' },
   { id: 'last', icon: '🪑', zh: '坐到最后', en: 'Last one hanging', howZh: '坐不住赢一次', howEn: 'Win Last one hanging' },
@@ -156,7 +157,7 @@ export class AchvRound {
       if (mode === 'team') each('bigteam');
       if (end.escort) each('escort');
     } else {
-      const id: AchvId = mode === 'race' ? 'race' : mode === 'last' ? 'last' : 'gold';
+      const id: AchvId = mode === 'race' ? 'race' : mode === 'last' ? 'last' : mode === 'rain' ? 'rainking' : 'gold';
       for (const player of who ?? []) if (player >= 0 && player < players) out.push({ player, id });
     }
     return this.give(out);
