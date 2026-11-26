@@ -55,6 +55,8 @@ export const TAGGER_SHOWN_MS = 2_600;
  * a double, then a triple, a quadra, a penta. Getting tagged ends your run.
  */
 export const MULTI_TAG_MS = 10_000;
+/** How many places a whole match visits (the room's settings.match): the lobby's pick, then others. */
+export const MATCH_PLACES = 3;
 
 /**
  * What the announcer calls out on a tag, the biggest one only: the round's first tag (first blood),

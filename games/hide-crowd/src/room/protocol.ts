@@ -19,6 +19,8 @@ export type ClientMsg =
   | { t: "lobby" }
   /** the host: turn the round's penalty on or off */
   | { t: "penalties"; on: boolean }
+  /** the host: play a whole match (several places in a row, points add up) or one place at a time */
+  | { t: "match"; on: boolean }
   /** the host: everyone goes back to the changle.ca table */
   | { t: "end" }
   | { t: "leave" }
@@ -41,6 +43,8 @@ export interface PlayerView {
   score: number;
   /** times spotted (tagged) this round */
   tagged: number;
+  /** in a match: points so far (once a round is over, with that round's) */
+  total?: number;
 }
 
 /**
@@ -179,6 +183,8 @@ export interface ResultView {
   awards: AwardView[];
   /** a player's own round: who spotted them and whom they spotted, most first (a big screen: null) */
   mine?: { by: TallyView[]; got: TallyView[] } | null;
+  /** in a match: the place this was, the next one (null after the last), and, after the last, who won it and its titles */
+  match?: { index: number; of: number; next: ArenaId | null; done: boolean; winner: string | null; youWon: boolean; awards: AwardView[] } | null;
 }
 
 export interface RoomView {
@@ -197,7 +203,11 @@ export interface RoomView {
     penalties: boolean;
     /** the table's own penalty, set by the host on changle.ca ("" means drinking) */
     custom: string;
+    /** a whole match: several places in a row, the points add up */
+    match: boolean;
   };
+  /** a match under way: which place this round is (1 the first) of how many */
+  match: { index: number; of: number } | null;
   game: GameView | null;
   result: ResultView | null;
   /** the host took everyone back to the table: every page goes there */

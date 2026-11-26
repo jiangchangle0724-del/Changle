@@ -23,18 +23,36 @@ const ROWS_FROM_MS = 200;
 export function resultTitle(view: RoomView): string {
   const result = view.result;
   if (!result) return "";
+  // the last place of a match: the match's winner
+  const match = result.match;
+  if (match?.done) {
+    if (match.youWon) return t("matchYouWin");
+    if (match.winner) return t("matchWins", { name: match.winner });
+    return view.players.some((player) => (player.total ?? 0) > 0) ? t("matchDraw") : t("noScore");
+  }
   if (result.youWon) return t("youWin");
   if (result.winner) return t("wins", { name: result.winner });
   return view.players.some((player) => player.inRound && player.score > 0) ? t("draw") : t("noScore");
 }
 
-/** The round's players, best first: most tags, then least spotted, then the order they joined in. */
-export function ranked(players: readonly PlayerView[]): PlayerView[] {
+/**
+ * The round's players, best first: most tags, then least spotted, then the order they joined in. In
+ * a match, the most points so far first, and everyone who has played in it (they may have left).
+ */
+export function ranked(players: readonly PlayerView[], match = false): PlayerView[] {
   return players
     .map((player, order) => ({ player, order }))
-    .filter(({ player }) => player.inRound)
-    .sort((a, b) => b.player.score - a.player.score || a.player.tagged - b.player.tagged || a.order - b.order)
+    .filter(({ player }) => player.inRound || (match && (player.total ?? 0) > 0))
+    .sort((a, b) => (match ? (b.player.total ?? 0) - (a.player.total ?? 0) : 0) || b.player.score - a.player.score || a.player.tagged - b.player.tagged || a.order - b.order)
     .map(({ player }) => player);
+}
+
+/** Above the result: which round this was (in a match, which of its places), or practice's. */
+export function resultLabel(view: RoomView, practice = false): string {
+  const result = view.result;
+  if (!result) return "";
+  if (result.match) return t("matchPlaceOver", { i: result.match.index, n: result.match.of });
+  return t(practice ? "practiceOver" : "roundOver", { n: result.round });
 }
 
 /** A number that counts up from nothing, a point at a time, once its row is in (at once when `now`). */
@@ -70,10 +88,11 @@ function Count(props: { to: number; delay: number; now: boolean; target: number 
 }
 
 export function ResultTable(props: { view: RoomView; now?: boolean }) {
-  const players = ranked(props.view.players);
+  const match = props.view.result?.match ?? null;
+  const players = ranked(props.view.players, !!match);
   const target = props.view.game?.scoreToWin ?? SCORE_TO_WIN;
-  // (a crown for the winner; a draw has none)
-  const winner = !!props.view.result?.winner;
+  // (a crown for the round's winner, or once a match is over, the match's; none in a draw)
+  const crowned = match?.done ? match.winner : props.view.result?.winner ?? null;
   return (
     <table class="result-table">
       <thead>
@@ -83,13 +102,14 @@ export function ResultTable(props: { view: RoomView; now?: boolean }) {
           </th>
           <th scope="col">{t("tags")}</th>
           <th scope="col">{t("spottedCol")}</th>
+          {match && <th scope="col">{t("matchTotal")}</th>}
         </tr>
       </thead>
       <tbody>
         {players.map((player, index) => {
-          const first = winner && index === 0;
+          const first = !!crowned && player.name === crowned;
           // (equal scores share a place)
-          const place = players.findIndex((other) => other.score === player.score) + 1;
+          const place = players.findIndex((other) => (match ? other.total === player.total : other.score === player.score)) + 1;
           return (
             <tr key={index} class={`${player.you ? "is-you" : ""}${first ? " is-winner" : ""}`} style={`--i: ${index}`}>
               <th scope="row">
@@ -102,6 +122,7 @@ export function ResultTable(props: { view: RoomView; now?: boolean }) {
                 <Count to={player.score} delay={ROWS_FROM_MS + index * ROW_STEP_MS + COUNT_AFTER_MS} now={!!props.now} target={target} />
               </td>
               <td class="tabular">{player.tagged}</td>
+              {match && <td class="tabular result-total">{player.total ?? 0}</td>}
             </tr>
           );
         })}
@@ -145,7 +166,10 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
   if (!result) return null;
   const online = view.players.filter((player) => player.online).length;
   const mine = result.mine;
-  const side = (result.awards ?? []).length > 0 || !!(mine && (mine.by.length || mine.got.length));
+  const match = result.match ?? null;
+  // (the last place of a match: the match's titles instead of the round's)
+  const awards = match?.done ? match.awards : result.awards ?? [];
+  const side = awards.length > 0 || !!(mine && (mine.by.length || mine.got.length));
   return (
     <div class="result-layer">
       <section
@@ -156,7 +180,7 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
         }}
       >
         <div class="result-main">
-          <p class="result-round">{t(props.practice ? "practiceOver" : "roundOver", { n: result.round })}</p>
+          <p class="result-round">{resultLabel(view, props.practice)}</p>
           <h2 id="result-title" class="result-title">
             {resultTitle(view)}
           </h2>
@@ -164,12 +188,13 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
         </div>
         <div class="result-side">
           {mine && <Mine mine={mine} />}
-          <Awards awards={result.awards ?? []} />
+          <Awards awards={awards} label={match?.done ? "matchTitles" : "awards"} />
+          {match?.next && <p class="result-next">{t("matchNext", { place: t(match.next) })}</p>}
           <div class="result-actions">
             {view.you.host ? (
               <>
                 <button type="button" class="btn btn-primary btn-lg btn-block" disabled={online < 2} onClick={() => send({ t: "start" })}>
-                  {t("again")}
+                  {t(match ? (match.done ? "matchAgain" : "matchNextGo") : "again")}
                 </button>
                 <button type="button" class="btn btn-quiet btn-block" onClick={() => send({ t: "lobby" })}>
                   {t("otherArena")}

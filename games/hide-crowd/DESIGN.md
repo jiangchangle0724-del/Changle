@@ -27,7 +27,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 
 | Screen | What it shows |
 | --- | --- |
-| Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); the penalty switch (the host's; a line for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
+| Phone, lobby | The table's code; on an iPhone in Safari, a line about playing full screen (hide Safari's toolbar, or the Home Screen); the arena vote (four rows with a picture of each place); who's here (your chip lit, the host marked); one panel with the whole-match switch and the penalty switch (the host's; lines for everyone else); the big screen (how many watch, or how to open one); Start under the thumb (the host) or "waiting for the host". |
 | Phone, a round | Sideways, the only way it's played: the arena fills the screen; a thin bar on top (menu, arena, the clock in minutes and seconds, your score, full screen), the scores down the right, the stick under the left thumb, Punch (big, the gel), Blend in (quiet) and over it Distract (small, its count in a gel dot) under the right. A new round opens on the camera's sweep into the game's view (2.4 s). When the ferry horn, the seawall's bike, the busker, the transit hall's lights going out, the gong, the theatre's drill, its follow spot, the night market's firecrackers or its fireworks go, a pill low in the middle says so while the crowd stands still, steps aside, dances, looks at its phones, punches, freezes in the light or scatters. In the drill the stage's count comes up big over the back of the crowd (三, 二, 一 in a disc, then 出拳！ in the gel), with a ring round Punch while it counts and a pulse on the call; a word about your own punch takes the count's place. Someone else's distraction turns the camera towards the swing for a moment (1.5 s). Every punch leaves a swoosh, stars circle a stunned head, a tagged player bursts into confetti as they go down, and a run kicks up dust. When the firecrackers land, a ring glows on the floor round each one while its fuse burns (how far its bang knocks people down), and a word says so if one knocks you down. At the night market, a strip low in the middle shows the four snacks: each lights up in its stall's colour once you've tasted it, and a ring fills round the one you're standing at. When you're tagged, the word names who did it (被 Mia 认出来了！ / Mia spotted you!) and their name comes up in red over the body they punched from, for 2.6 s; once you're up in another body, "new body, find yourself" carries "it was Mia" under it. When you tag someone, the word names them (打中 Mia！+1). |
 | Phone, held upright | One screen over everything (`ui/Sideways.tsx`): a phone outline turning sideways, "turn your phone sideways", and how to turn off the iPhone's Portrait Orientation Lock (elsewhere: auto-rotate). The room stays connected underneath; turning the phone picks up where it was. A computer's narrow window is left alone (it only applies to touch screens). |
 | Phone, the full-screen guide (an iPhone in Safari) | Safari on an iPhone can't make a page full screen (an iPad's can: there the full-screen button does it), so the game shows the two ways round it (`ui/HomeScreen.tsx`): quickest, Safari's page menu (the three lines at the left of the address bar, aA or ··· on older iOS) and Hide Toolbar, which leaves a sliver of address and gives the game the rest; all of the screen, changle.ca on the Home Screen. A little iPhone acts out the four taps to the Home Screen (Share, Add to Home Screen, Open as Web App and Add, the Home Screen with the new icon), two and a half seconds each, and the step it's on lights up beside it; with reduced motion it holds the first scene. It opens by itself once in the first lobby, then from the lobby's line, the menu and the full-screen button. Inside WeChat or another app's browser, a first step says to open the page in Safari. Added from the game, the Home Screen gets changle.ca itself (the site's manifest, icon and name 开席), never the room. |
@@ -544,6 +544,22 @@ they are with a passer-by at least 24 units from whoever tagged them; every body
 is, so no screen sees anyone jump, and the passer-by gets up where the player fell. Without this a
 player could keep hitting the same rival as soon as they stood up. Their own phone says "new body,
 find yourself" and moves its marker.
+
+## A whole match
+
+The Steam original plays several places in a row to a points total; so does this, unless the host
+turns it off in the lobby (`settings.match`, on by default; practice is always one place at a time).
+A match is three places (`MATCH_PLACES`): the lobby's pick first, then two it hasn't been to, in an
+order from the room's seed. Each round is a round as ever (first to five, three minutes, its
+penalty); the points add up (`RoomState.match.totals`, `PlayerView.total`).
+
+* During a round, the title's second line says which place it is (先到 5 分 · 第 2/3 场).
+* After one: "第 2/3 场结束", the table ranked by the points so far with a 总分 column (the crown on
+  the round's winner), "下一场：温哥华交通站厅", and the host's Next place (or Pick another arena,
+  which ends the match).
+* After the last: the match's winner as the title (你赢了整场！), the crown on them, the match's
+  titles instead of the round's (the round's titles worked out over everything done in the match,
+  `matchAwards`), and New match.
 
 ## The announcer
 

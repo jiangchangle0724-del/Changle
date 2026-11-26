@@ -7,6 +7,7 @@ import {
   ARENAS,
   BITE_MS,
   GLANCE_MS,
+  MATCH_PLACES,
   MAX_PLAYERS,
   MIN_PLAYERS,
   SCORE_TO_WIN,
@@ -28,6 +29,7 @@ import {
   startPunch,
   type ArenaId,
   type AwardKey,
+  type Character,
   type MatchState,
   type RoundPenalty,
   type Vector
@@ -87,6 +89,33 @@ export interface RoundResult {
   spottedBy?: Record<string, Record<string, number>>;
 }
 
+/** A player's match so far, added up over its rounds, for the match's titles. */
+export interface MatchStats {
+  score: number;
+  feasts: number;
+  tagged: number;
+  fouls: number;
+  swings: number;
+  snacks: number;
+  /** the best row of tags in any of its rounds */
+  best: number;
+}
+
+/** A match under way: its places in order, how many have been played, everyone's points and stats so far. */
+export interface MatchProgress {
+  places: ArenaId[];
+  played: number;
+  totals: Record<string, number>;
+  stats: Record<string, MatchStats>;
+}
+
+/** The match's titles: the round's titles, worked out over everything its players did in it. */
+export function matchAwards(stats: Record<string, MatchStats>): { owner: string; award: AwardKey }[] {
+  const characters = Object.entries(stats).map(([owner, item]) => ({ kind: "player", ownerId: owner, score: item.score, feasts: item.feasts, tagged: item.tagged, fouls: item.fouls, swings: item.swings, snacks: item.snacks }) as unknown as Character);
+  const runs = Object.fromEntries(Object.entries(stats).map(([owner, item]) => [owner, { streak: 0, chain: 0, until: 0, best: item.best }]));
+  return roundAwards({ characters, runs });
+}
+
 export interface RoomState {
   code: string;
   createdAt: number;
@@ -101,7 +130,9 @@ export interface RoomState {
   inputUpdatedAt: Record<string, number>;
   arenaVotes: Record<string, ArenaId>;
   seed: number;
-  settings: { penalties: boolean; custom: string };
+  settings: { penalties: boolean; custom: string; match?: boolean };
+  /** the match under way (settings.match), or null */
+  match?: MatchProgress | null;
   round: number;
   result: RoundResult | null;
   ended: boolean;
@@ -123,6 +154,9 @@ export class Room {
     this.st.arenaVotes ??= {};
     this.st.inputUpdatedAt ??= {};
     this.st.settings ??= { penalties: true, custom: "" };
+    // (a whole match unless the host turns it off; a room saved before matches existed gets one too)
+    this.st.settings.match ??= true;
+    this.st.match ??= null;
     this.st.round ??= 0;
     this.st.result ??= null;
     this.st.ended ??= false;
@@ -146,7 +180,8 @@ export class Room {
       inputUpdatedAt: {},
       arenaVotes: {},
       seed,
-      settings: { penalties: true, custom },
+      settings: { penalties: true, custom, match: true },
+      match: null,
       round: 0,
       result: null,
       ended: false,
@@ -319,6 +354,14 @@ export class Room {
         this.dirty = true;
         return;
       }
+      case "match": {
+        if (!host || this.playing) return;
+        this.st.settings.match = message.on === true;
+        // (turning it off, or on again, starts over: the next round is a fresh start)
+        this.st.match = null;
+        this.dirty = true;
+        return;
+      }
       case "start": {
         if (!host || this.playing || this.st.ended) return;
         this.startRound(now);
@@ -328,6 +371,8 @@ export class Room {
         if (!host || this.playing) return;
         this.st.game = null;
         this.st.result = null;
+        // (back to the lobby: a match under way is over)
+        this.st.match = null;
         this.st.inputs = {};
         this.st.inputUpdatedAt = {};
         this.dirty = true;
@@ -360,7 +405,22 @@ export class Room {
     const highest = Math.max(...Object.values(totals));
     const leaders = ARENAS.filter((arena) => totals[arena] === highest);
     // nobody voted: each round goes to the next arena, so a table sees all four
-    const arena = highest === 0 ? ARENAS[this.st.round % ARENAS.length] : leaders[this.st.seed % leaders.length];
+    const voted = highest === 0 ? ARENAS[this.st.round % ARENAS.length] : leaders[this.st.seed % leaders.length];
+    // a match: its next place; a new one starts where the lobby picked, then goes where it hasn't been
+    const going = this.st.match && this.st.match.played < this.st.match.places.length ? this.st.match : null;
+    let arena = voted;
+    if (!this.st.settings.match) this.st.match = null;
+    else if (going) arena = going.places[going.played];
+    else {
+      const rest = ARENAS.filter((place) => place !== voted);
+      let pick = this.st.seed;
+      for (let index = rest.length - 1; index > 0; index--) {
+        pick = (pick * 48271) % 0x7fffffff;
+        const other = pick % (index + 1);
+        [rest[index], rest[other]] = [rest[other], rest[index]];
+      }
+      this.st.match = { places: [voted, ...rest].slice(0, MATCH_PLACES), played: 0, totals: {}, stats: {} };
+    }
     this.st.game = createMatch(players.map((player) => ({ id: player.id, name: player.name })), now, this.st.seed, arena);
     const test = this.st.test;
     if (test?.roundMs) this.st.game.endsAt = now + test.roundMs;
@@ -409,6 +469,26 @@ export class Room {
         awards: roundAwards(next),
         spottedBy: next.spottedBy ?? {}
       };
+      // a match: the round's points and doings add up
+      const match = this.st.match;
+      if (match) {
+        for (const player of next.characters) {
+          if (player.kind !== "player" || !player.ownerId) continue;
+          const id = player.ownerId;
+          const so = match.stats[id] ?? { score: 0, feasts: 0, tagged: 0, fouls: 0, swings: 0, snacks: 0, best: 0 };
+          match.totals[id] = (match.totals[id] ?? 0) + player.score;
+          match.stats[id] = {
+            score: so.score + player.score,
+            feasts: so.feasts + (player.feasts ?? 0),
+            tagged: so.tagged + player.tagged,
+            fouls: so.fouls + player.fouls,
+            swings: so.swings + (player.swings ?? 0),
+            snacks: so.snacks + (player.snacks ?? 0),
+            best: Math.max(so.best, next.runs?.[id]?.best ?? 0)
+          };
+        }
+        match.played++;
+      }
       this.dirty = true;
     }
   }
@@ -418,6 +498,7 @@ export class Room {
     const game = this.st.game;
     const asPlayer = role === "player" && me?.role === "player";
     const nameOf = (owner: string | null) => (owner ? this.member(owner)?.name ?? null : null);
+    const match = this.st.match ?? null;
     const players = this.st.members
       .filter((member) => member.role === "player")
       .sort((a, b) => a.joinedAt - b.joinedAt)
@@ -430,7 +511,8 @@ export class Room {
           inRound: !!body,
           you: asPlayer && member.id === id,
           score: body?.score ?? 0,
-          tagged: body?.tagged ?? 0
+          tagged: body?.tagged ?? 0,
+          ...(match ? { total: match.totals[member.id] ?? 0 } : {})
         };
       });
     const arenaVotes: Record<ArenaId, number> = { plaza: 0, metro: 0, gallery: 0, market: 0 };
@@ -536,6 +618,12 @@ export class Room {
       };
     }
     const result = this.st.result;
+    // (a match's place: once its round is over, the one just played)
+    const matchView = match ? { index: Math.min(match.played + (game?.phase === "playing" ? 1 : 0), match.places.length) || 1, of: match.places.length } : null;
+    const done = !!match && match.played >= match.places.length;
+    const top = match ? Math.max(0, ...Object.values(match.totals)) : 0;
+    const leaders = match ? Object.keys(match.totals).filter((owner) => match.totals[owner] === top) : [];
+    const matchWinner = done && top > 0 && leaders.length === 1 ? leaders[0] : null;
     return {
       code: this.st.code,
       table: this.st.table,
@@ -545,7 +633,8 @@ export class Room {
       arenaVotes,
       players,
       screens: this.st.members.filter((member) => member.role === "screen" && member.online).length,
-      settings: { penalties: this.st.settings.penalties, custom: this.st.settings.custom },
+      settings: { penalties: this.st.settings.penalties, custom: this.st.settings.custom, match: this.st.settings.match !== false },
+      match: matchView,
       game: gameView,
       result: result
         ? {
@@ -556,7 +645,18 @@ export class Room {
               ? { kind: result.penalty.kind, who: result.penalty.who.map((owner) => nameOf(owner) ?? "?"), times: result.penalty.times }
               : null,
             awards: (result.awards ?? []).map((item) => ({ name: nameOf(item.owner) ?? "?", award: item.award, you: asPlayer && item.owner === id })),
-            mine: asPlayer ? tallies(result.spottedBy ?? {}, id, nameOf) : null
+            mine: asPlayer ? tallies(result.spottedBy ?? {}, id, nameOf) : null,
+            match: match
+              ? {
+                  index: matchView!.index,
+                  of: matchView!.of,
+                  next: done ? null : match.places[match.played],
+                  done,
+                  winner: nameOf(matchWinner),
+                  youWon: asPlayer && matchWinner === id,
+                  awards: done ? matchAwards(match.stats).map((item) => ({ name: nameOf(item.owner) ?? "?", award: item.award, you: asPlayer && item.owner === id })) : []
+                }
+              : null
           }
         : null,
       ended: this.st.ended,
