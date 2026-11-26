@@ -273,7 +273,7 @@ export async function receive(env: SubmitEnv, body: unknown, network: string, no
 
   const id = [...crypto.getRandomValues(new Uint8Array(8))].map((x) => x.toString(36).padStart(2, "0")).join("").slice(0, 12);
   if (image) {
-    const bytes = Uint8Array.from(atob(image[2]), (c) => c.charCodeAt(0));
+    const bytes = fromBase64(image[2]);
     await env.CACHE.put(imageKey(id), bytes, { expirationTtl: IMAGE_DAYS * 86_400, metadata: { type: `image/${image[1]}` } });
   }
   const read = await readSubmission(env, { link, text }, now);
@@ -284,6 +284,20 @@ export async function receive(env: SubmitEnv, body: unknown, network: string, no
     .bind(id, new Date(now).toISOString(), lang, link, text, image ? 1 : 0, contact, net, read.from, read.draft ? JSON.stringify(read.draft) : null, read.error)
     .run();
   return { ok: true, id, draft: read.draft, link, text, hasImage: !!image };
+}
+
+/**
+ * Base64 to bytes with the runtime's own decoder: a poster of a few hundred KB takes well under a
+ * millisecond, where decoding it character by character in JavaScript takes most of the free
+ * plan's 10 ms (and `Uint8Array.from` with a callback several times that).
+ */
+function fromBase64(b64: string): Uint8Array {
+  const native = (Uint8Array as unknown as { fromBase64?: (s: string) => Uint8Array }).fromBase64;
+  if (native) return native(b64);
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
 }
 
 /** The poster of a submission: for the owner always, for everyone once it's let in. */
