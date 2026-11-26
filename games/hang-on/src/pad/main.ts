@@ -6,6 +6,7 @@
  * 画面那部分（src/pad/view.ts，带 Pixi）到了手机局才下载。
  */
 import { PadLink, seatId } from '../net/pad-link';
+import { emotePicker } from '../emote-picker';
 import { rttLevel } from '../net/latency';
 import { CODE_RE, type Cast, type FatalKey, type Menu, type PadCmd, type PadStatus, type RoomView } from '../net/protocol';
 import { modeLabel, notReadyText, sideName, tierName } from '../mode-text';
@@ -394,6 +395,8 @@ itemDlg.addEventListener('close', () => {
 });
 $('itemBtn').addEventListener('click', openItems);
 $('itemBtn2').addEventListener('click', openItems);
+// 表情（11-25）：顶栏的 😀 打开一排，点一句发给主机，大屏上自己头顶冒出来
+emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => link?.emote(e));
 $('itemDone').addEventListener('click', () => itemDlg.close());
 renderItem();
 /** 道具键也连发几帧（和召唤一样）；冷却里主机不算。 */

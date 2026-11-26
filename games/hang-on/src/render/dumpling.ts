@@ -13,6 +13,17 @@ import { CREAM, GLOVES, INK, OUTLINE, hex } from './art';
 import { pickExpression, type Expr, type Mood } from './mood';
 
 const R = CFG.bodyR;
+/** 表情气泡里的字（11-25）。 */
+const BUBBLE_STYLE: TextStyleOptions = {
+  fontFamily: '"Noto Sans SC", system-ui, sans-serif',
+  fontSize: 15,
+  fontWeight: '800',
+  fill: INK,
+  align: 'center',
+};
+/** 气泡挂到最后这么多秒开始淡。 */
+const BUBBLE_FADE = 0.4;
+
 const NAME_STYLE: TextStyleOptions = {
   fontFamily: '"Noto Sans SC", system-ui, sans-serif',
   fontSize: 12,
@@ -97,6 +108,12 @@ export class Dumpling {
   /** 晕的时候头顶转的星星（A14），每帧画。 */
   private readonly moodG = new Graphics();
   private readonly label: Text;
+  /** 表情（11-25）：头顶的气泡，挂 EMOTE_SHOW_S 秒，最后 0.4 秒淡掉；刚冒出来弹一下。 */
+  private readonly bubble = new Container();
+  private readonly bubbleBg = new Graphics();
+  private readonly bubbleText: Text;
+  private bubbleT = 0;
+  private bubbleAge = 0;
 
   private color = '#ffffff';
   private look: Look = DEFAULT_LOOK;
@@ -129,12 +146,31 @@ export class Dumpling {
     this.reduced = reducedMotion;
     this.label = new Text({ text: name, style: NAME_STYLE, resolution: 2 });
     this.label.anchor.set(0.5, 1);
+    this.bubbleText = new Text({ text: '', style: BUBBLE_STYLE, resolution: 2 });
+    this.bubbleText.anchor.set(0.5, 0.5);
+    this.bubble.addChild(this.bubbleBg, this.bubbleText);
+    this.bubble.visible = false;
     this.inner.addChild(this.body, this.face, this.extras, this.glasses, this.hat);
     this.stretchC.addChild(this.inner);
     this.bodyC.addChild(this.stretchC);
-    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.moodG, this.label);
+    this.view.addChild(this.shadow, this.arms, this.bodyC, this.itemG, this.moodG, this.label, this.bubble);
     this.setColor(color);
     this.setLook(look);
+  }
+
+  /** 表情（11-25）：头顶冒一句，挂 seconds 秒；再来一句就换掉。 */
+  emote(text: string, seconds: number): void {
+    this.bubbleText.text = text;
+    const w = Math.max(48, Math.ceil(this.bubbleText.width) + 22);
+    const h = 30;
+    this.bubbleText.position.set(0, -h / 2 - 1);
+    const g = this.bubbleBg.clear();
+    // 尾巴朝下指着人，先画尾巴再画圆角框盖住接缝
+    g.poly([-7, -3, 0, 9, 7, -3]).fill(hex(CREAM)).stroke({ color: hex(INK), width: 2.5, join: 'round' });
+    g.roundRect(-w / 2, -h, w, h, 13).fill(hex(CREAM)).stroke({ color: hex(INK), width: 2.5 });
+    g.rect(-5.5, -3.5, 11, 4).fill(hex(CREAM));
+    this.bubbleT = seconds;
+    this.bubbleAge = 0;
   }
 
   setName(name: string): void {
@@ -287,6 +323,17 @@ export class Dumpling {
     this.drawItem(p, time);
     this.label.position.set(b.x, this.bodyC.y - R - this.hatHeight() - (p.itemOn === 'leaf' && !p.dead ? 34 : 4));
     this.label.alpha = sinking ? 0 : 1;
+    // 表情气泡在名字上面；刚冒出来从小弹到大（减弱动效时直接出来），最后 0.4 秒淡掉
+    if (this.bubbleT > 0) {
+      this.bubbleT = Math.max(0, this.bubbleT - dt);
+      this.bubbleAge += dt;
+      const k = Math.min(1, this.bubbleAge / 0.18);
+      const pop = this.reduced ? 1 : 0.6 + 0.4 * k + Math.sin(k * Math.PI) * 0.12;
+      this.bubble.scale.set(pop);
+      this.bubble.position.set(b.x, this.label.y - this.label.height - 3);
+      this.bubble.alpha = sinking ? 0 : Math.min(1, this.bubbleT / BUBBLE_FADE);
+    }
+    this.bubble.visible = this.bubbleT > 0;
   }
 
   /**

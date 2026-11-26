@@ -34,6 +34,7 @@ import {
   PLAYER_COLORS,
   TETHER_LEN,
 } from './config';
+import type { EmoteId } from '../emotes';
 import type { ItemId } from '../items';
 import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
 import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, pendulumAt, spinnerAngle, spinnerArm, ventColumn, ventState, windDir, windState } from './motion';
@@ -339,7 +340,9 @@ export type SimEvent =
   /** 用道具（A9）：ok 是用成了没有（拉面要先抓着墙或台子）；x、y 是在哪用的。 */
   | { type: 'item'; player: number; item: ItemId; ok: boolean; x: number; y: number }
   /** 道具的劲过了：速冻化开、荷叶收起、拉面断了（x、y 是在哪）。 */
-  | { type: 'itemEnd'; player: number; item: ItemId; x: number; y: number };
+  | { type: 'itemEnd'; player: number; item: ItemId; x: number; y: number }
+  /** 表情（11-25）：不是物理的事，主机收到手柄的表情直接交给画面、声音和手机局的快照；x、y 是说话时人在哪（声音左右用）。 */
+  | { type: 'emote'; player: number; emote: EmoteId; x: number; y: number };
 
 export interface TeleportOpts {
   /** 每只手摆到哪（世界坐标）；null 用默认收拢姿势。 */

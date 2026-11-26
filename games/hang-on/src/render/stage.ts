@@ -12,6 +12,8 @@ import type { SimEvent } from '../physics/world';
 import { moverAt } from '../physics/motion';
 import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
+import { EMOTE_SHOW_S, emoteWords } from '../emotes';
+import { tr } from '../i18n';
 import { CONFETTI, glow, hex, OUTLINE, PALETTES, textures, worldOf, type Palette, type Textures, type WorldId } from './art';
 import { Backdrop } from './backdrop';
 import { Darkness } from './dark';
@@ -444,6 +446,12 @@ export class Stage {
             // 拉面：锚点冒一团热气
             this.fx.burst({ x: at.x, y: at.y, n: 6, texture: 'puff', colors: [0xffffff], speed: [30, 90], angle: -Math.PI / 2, spread: 0.8, life: [0.5, 0.9], size: [12, 20], grow: 2, alpha: 0.45, drag: 2 });
           }
+          break;
+        }
+        case 'emote': {
+          // 表情（11-25）：那个人头顶冒一句（各自的手机用各自的语言）
+          const w = emoteWords(ev.emote);
+          this.dumplings[ev.player]?.emote(tr(w.zh, w.en), EMOTE_SHOW_S);
           break;
         }
         case 'itemEnd': {

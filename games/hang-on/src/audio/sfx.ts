@@ -317,6 +317,14 @@ class Sfx {
           this.tone({ freq: ev.open ? 70 : 90, to: ev.open ? 95 : 60, wave: 'sawtooth', dur: 0.6, vol: 0.08, pan, lowpass: 400 });
           break;
         }
+        case 'emote': {
+          // 表情（11-25）：啵的一声往上挑，每个座位音高不一样
+          const pan = this.pan(ev.x, ev.y);
+          const f = 520 + (ev.player % 6) * 70;
+          this.tone({ freq: f, to: f * 1.5, wave: 'sine', dur: 0.08, vol: 0.16, pan });
+          this.tone({ freq: f * 1.5, wave: 'triangle', dur: 0.1, vol: 0.1, pan, delay: 0.07 });
+          break;
+        }
         case 'item': {
           // 道具（A9）：速冻叮一声加冰碴，荷叶呼的一下，拉面吸溜一声；没用成闷闷一声
           const pan = this.pan(ev.x, ev.y);
@@ -652,6 +660,9 @@ export function heardBy(ev: SimEvent, me: number): boolean {
     case 'item':
       return ev.ok || ev.player === me;
     case 'itemEnd':
+      return true;
+    // 表情（11-25）是说给大家听的
+    case 'emote':
       return true;
     // 红包是大家的
     case 'envelope':

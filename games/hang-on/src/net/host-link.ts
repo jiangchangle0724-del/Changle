@@ -3,6 +3,7 @@
  * 每 250 ms 量一次往返，直连 3 秒没通就标成「绕路」（输入照样经房间转过来）。
  * 手柄每次（重新）连上房间会说 hello，主机就重新发 offer，所以关 Wi-Fi 再开也能回来。
  */
+import { cleanEmote, type EmoteId } from '../emotes';
 import { cleanItem, DEFAULT_ITEM, type ItemId } from '../items';
 import { cleanLook, DEFAULT_LOOK, type Look } from '../look';
 import { RttMeter } from './latency';
@@ -54,6 +55,8 @@ export interface HostLinkEvents {
   onInput?(peer: PadPeer, input: PadInput): void;
   onLook?(peer: PadPeer, look: Look): void;
   onItem?(peer: PadPeer, item: ItemId): void;
+  /** 表情（11-25）：已经收拾过（不认识的不报）。 */
+  onEmote?(peer: PadPeer, e: EmoteId): void;
   /** 手柄当遥控：按了开始、下一关……。 */
   onCmd?(peer: PadPeer, cmd: PadCmd): void;
   onFatal?(key: FatalKey): void;
@@ -196,6 +199,11 @@ export class HostLink {
         p.item = cleanItem(data.item);
         this.ev.onItem?.(p, p.item);
         return;
+      case 'emote': {
+        const e = cleanEmote(data.e);
+        if (e) this.ev.onEmote?.(p, e);
+        return;
+      }
       case 'cmd':
         if (data.c && typeof data.c === 'object') this.ev.onCmd?.(p, data.c);
         return;
