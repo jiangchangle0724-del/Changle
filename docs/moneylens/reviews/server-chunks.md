@@ -1,4 +1,4 @@
-VERDICT: APPROVE
+VERDICT: APPROVE (second look; the first approved 727f2989)
 
 C7 review by Codex, 25 November 2026, of
 `727f2989986a9485c2a6b535b8848cba03e16017` on
@@ -261,3 +261,89 @@ The notes that are not findings, and where they stand:
   tests, and is in the brief.
 - `transactionSync` is what goes behind `atomically`, and no `BEGIN` in the Durable Object: noted
   for the same piece.
+
+## Second look
+
+Reviewed by Codex on 25 November 2026, at
+`7301f65f4fc60f2cd828036cde07bc5d3940044f`, on a new
+`codex/moneylens-c7-second-look` branch imported from `moneylens-c7b.bundle`.
+**Approve both small changes. Finding 1 is resolved, and the shared-buffer
+binding issue exposed by the first review's Node 22 CI is resolved. No new
+finding.** This remains an approval of the synchronous chunk library, not a
+Worker, a Durable Object class, identity routing, reset or exposure.
+
+I read `git diff 727f2989 HEAD -- tools/moneylens/src
+docs/moneylens/security-assessment.md`: the quota bookkeeping change in
+`MemoryRemote.push`, ordinary-buffer allocation in `toSql`, and the matching
+assessment sentences. The existing independent test bodies remain intact and
+the finding-1 test is enabled. I added one boundary regression in the allowed
+independent test file; no source or other file is changed by this review.
+
+**Quota day/count.** `MemoryRemote` now calculates a prospective count in a local
+variable. Both quota refusals return before changing the stored day/count; a
+successful batch sets them after its chunk writes. This matches SQL's existing
+transactional metadata policy. Check order, stale handling, version allocation
+and the rule allowing an over-full vault to shrink are unchanged. With a
+nondecreasing server day, no honest caller receives a different success/refusal:
+after a refused new-day request the next new-day request still starts from zero,
+whether that zero was stored earlier or computed then. The deliberate backward-day
+counterexample now agrees too, retaining the last successful day's allowance
+until a new day's batch is actually accepted. Assessment 1.6 correctly describes
+that refused calls change nothing. This repairs the model; it does not change
+the SQL server's quota decisions or the Store's sync protocol.
+
+**Byte normalization.** `toSql` allocates a fresh Uint8Array of the source view's
+byte length, copies the view, then returns that new ordinary ArrayBuffer. Thus
+neither offset bytes outside the view nor the original SharedArrayBuffer is
+passed to SQL. It does not reinterpret or decrypt the payload. Stored mark/size
+calculation, SQL statement order and transaction boundaries are unchanged.
+Allocation/copying still happens inside the existing atomic batch, so failure
+does not acknowledge a partial write. Ordinary ArrayBuffer views retain the same
+wire bytes; shared-backed views no longer depend on a Node version accepting a
+broader binding type than the declared `Db` contract.
+
+The added independent test observes the actual SQL arguments for an ordinary
+offset view and a shared offset view. It requires ordinary ArrayBuffers of exactly
+40 bytes, distinct from both source backings, and verifies the stored bytes and
+marks after both source views are overwritten. This check would fail on the old
+normalizer even on permissive Node 24; it does not rely on Node 22's binder to
+detect the mismatch. The original shared-view test also passes unchanged.
+The assessment's own-buffer sentence now matches the implementation. This is
+not a new guarantee of a coherent snapshot while another thread concurrently
+mutates a shared input, nor proof of untested platform storage behavior; caller
+inputs must remain stable during the synchronous call.
+
+### Second-look validation
+
+Local runtime: Node **24.21.0**, npm **11.19.0**. Dependencies were unchanged;
+no installation was needed. In `tools/moneylens`:
+
+```text
+node --import tsx --test tests/second-chunks.test.ts
+C7 compared=6000; result counts={"bad-request":2048,"taken":249,"too-big":1090,"wrong-vault":417,"stale":409,"quota-bytes":595,"quota-writes":5}
+tests 8; pass 8; fail 0; skipped 0
+exit 0
+
+npm run typecheck
+> moneylens@0.1.0 typecheck
+> tsc --noEmit
+exit 0
+
+npm test
+tests 331; pass 331; fail 0; skipped 0
+exit 0
+```
+
+Per C7, local `test:page` was left out because the cache browser cannot navigate
+to its localhost page in this sandbox; Steve was not asked to run it. I verified
+[successful Actions run 45759642368](https://github.com/jiangchangle0724-del/Changle/actions/runs/45759642368),
+whose `head_sha` is the exact reviewed `7301f65f`. Its Node **22.23.5** run has
+330 passing tests, no failures/skips, and successful `statement check page: ok`
+and `cache in the browser: ok` output. The synthetic checkout `d86a803` and the
+reviewed head have the same MoneyLens subtree,
+`a9ff117bc19521834a407c6790e5dcfc1c7b8d8a`. That result covers the reviewed code
+and the original enabled tests; the one additional boundary test ran locally as
+recorded above. No interactive browser was opened. The first review and the
+author's response are preserved apart from the requested verdict line. All
+transfer bundles are excluded. No source, assessment, dependency, key material
+or real financial data was added or changed.

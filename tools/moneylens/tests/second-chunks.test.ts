@@ -229,3 +229,30 @@ test('finding 1: a refused next-day write followed by a date rewind must have th
     assert.deepEqual(pushChunks(sql.db, v, next, limits, today), await memory.push(v, next));
   } finally { sql.raw.close(); }
 });
+
+test('C7 second look: offset and shared byte views reach SQL as independent ordinary ArrayBuffers', () => {
+  const sql = database(), v = id(900);
+  const shared = new Uint8Array(new SharedArrayBuffer(91), 17, 40); shared.set(blob(9));
+  const views = [blob(8), shared];
+  let buffers = 0;
+  try {
+    startVault(sql.db, v);
+    const exec = sql.db.sql.exec;
+    sql.db.sql.exec = (query, ...args) => {
+      for (const arg of args) if (arg !== null && typeof arg === 'object') {
+        assert.ok(arg instanceof ArrayBuffer, 'the declared SQL binding requires an ordinary ArrayBuffer');
+        assert.equal(arg.byteLength, 40, 'no bytes outside the source view are bound');
+        assert.ok(views.every(view => view.buffer !== arg), 'the source backing store is never bound directly');
+        buffers++;
+      }
+      return exec(query, ...args);
+    };
+    const expected = views.map(view => Uint8Array.from(view));
+    taken(pushChunks(sql.db, v, views.map((view, i) => ({ id: id(901 + i), base: 0, blob: view })), LIMITS, '2026-11-25'));
+    for (const view of views) view.fill(0);
+    const page = pullChunks(sql.db, v, 0, LIMITS); assert.ok(page.ok);
+    assert.deepEqual(page.chunks.map(chunk => chunk.blob), expected);
+    assert.deepEqual(page.chunks.map(chunk => markOf(chunk.blob)), expected.map(markOf));
+    assert.equal(buffers, 2);
+  } finally { sql.raw.close(); }
+});
