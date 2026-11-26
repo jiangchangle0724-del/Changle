@@ -18,8 +18,17 @@
     { "pattern": "changle.ca/hang-on/*", "zone_name": "changle.ca" }
   ],
   // 一个房间一个 Durable Object。SQLite 的 Durable Object 免费计划也能用。
-  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "HangOnRoom" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["HangOnRoom"] }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "HangOnRoom" },
+      // 闪退自动记录（11-25）：所有页面的报放在一个盒子里（src/server/reports.ts）
+      { "name": "REPORTS", "class_name": "HangOnReports" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["HangOnRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["HangOnReports"] }
+  ],
   "build": { "command": "npm run build" },
   "observability": { "enabled": true, "traces": { "enabled": true } }
 }

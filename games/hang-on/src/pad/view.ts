@@ -17,6 +17,7 @@ import { RemoteSim } from '../net/snap';
 import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 import { renderGoldScore, renderResults, resultsTitle, type ResultsDom } from '../results';
+import { reportError } from '../report';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -25,6 +26,10 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 export class PhoneView {
+  /** 现在画的是哪一关（闪退记录用）。 */
+  get levelId(): string {
+    return this.sim.level.id;
+  }
   sim: RemoteSim;
   /** 这部手机是第几个人（样子名单来了才知道）。 */
   me = -1;
@@ -205,6 +210,8 @@ export class PhoneView {
       this.frameBody();
     } catch (e) {
       if (this.frameErrors++ < 3) console.error('[hang-on] phone frame', e);
+      // 闪退自动记录（11-25）：一种错报一次
+      reportError(e);
     }
     requestAnimationFrame(() => this.frame());
   }

@@ -14,9 +14,10 @@ import { music } from '../audio/music';
 import { heardBy, sfx } from '../audio/sfx';
 import { moodOf, rawIntensity, Tension } from '../audio/tension';
 import { seedOf, themeFor } from '../audio/themes';
-import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
+import { applyStatic, getLang, langButton, onLang, pickLang, tr } from '../i18n';
 import { EMOTE_GAP_MS, EMOTE_SHOW_S, EMOTES, emoteWords, FART_GAP_MS, FART_WORDS, fartKind, type EmoteId } from '../emotes';
 import { emotePicker } from '../emote-picker';
+import { installReports, reportError, watchCanvas, type ReportContext } from '../report';
 import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
@@ -94,7 +95,23 @@ const fitShort = (): void => {
 fitShort();
 addEventListener('resize', fitShort);
 document.body.dataset.phase = 'lobby';
+// 闪退自动记录（11-25）：画面做出来之前就开始听（WebGL 起不来也报得上来）；下面的变量还没有的时候只报哪种屏幕
+installReports(() => {
+  const c: ReportContext = { screen: phoneMode ? 'phone' : 'tv', lang: getLang(), online: false };
+  try {
+    c.phase = phase === 'ended' ? undefined : phase;
+    c.online = !!link?.socketOpen;
+    c.level = level.id;
+    c.players = sim.players.length;
+    c.mode = mode;
+    c.names = [...(room?.seats.map((s) => s.name) ?? []), localName()];
+  } catch {
+    // 还没走到那儿
+  }
+  return c;
+});
 const canvas = $<HTMLCanvasElement>('stage');
+watchCanvas(canvas);
 const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
 /** 玩法（A7）：开局前在大厅里选；`?mode=race` 之类直接开到那个玩法（检查脚本用），`?teams=1` 比谁先分两队。 */
 const MODES: GameMode[] = ['climb', 'team', 'race', 'last', 'gold'];
@@ -1509,6 +1526,8 @@ function frame(now: number): void {
     frameBody(now);
   } catch (e) {
     if (frameErrors++ < 3) console.error('[hang-on] frame', e);
+    // 闪退自动记录（11-25）：一种错报一次
+    reportError(e);
   }
   requestAnimationFrame(frame);
 }
