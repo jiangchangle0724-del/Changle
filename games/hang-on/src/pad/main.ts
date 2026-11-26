@@ -14,7 +14,7 @@ import { modeLabel, notReadyText, sideName, tierName } from '../mode-text';
 import { SIDES, TIERS } from '../sides';
 import { renderResults, type ResultsDom } from '../results';
 import type { PhoneView } from './view';
-import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
+import { cleanLook, DEFAULT_LOOK, isLocked, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
 import { cleanItem, ITEM_ICON, ITEM_IDS, type ItemId } from '../items';
 import { itemHint, itemName } from '../item-text';
 import { applyStatic, getLang, langButton, onLang, pickLang, tr } from '../i18n';
@@ -155,6 +155,7 @@ function join(code: string, name: string): void {
     onMenu: (m) => {
       lastMenu = m;
       renderMenu();
+      if (dlg.open) renderLook();
     },
   });
   // 成就（11-25）：告诉主机这部手机上有哪些，主机只报新的
@@ -277,6 +278,8 @@ async function keepAwake(): Promise<void> {
 }
 
 // ---------- 换装 ----------
+/** 主机发来的菜单（手柄当遥控；红包扭蛋机扭到了哪些也在里面，换装要用，所以放在前面）。 */
+let lastMenu: Menu | null = null;
 let look: Look = DEFAULT_LOOK;
 try {
   look = cleanLook(JSON.parse(localStorage.getItem('hang-on:look') ?? 'null'));
@@ -312,18 +315,26 @@ for (const k of LOOK_KEYS) {
   picks.append(row);
   for (const b of [prev, next]) {
     b.addEventListener('click', () => {
-      look = stepLook(look, k, Number(b.dataset.d));
+      look = stepLook(look, k, Number(b.dataset.d), unlocked());
       renderLook();
       if (k === 'voice') void sfx.previewVoice(look.voice);
     });
   }
 }
 
+/** 红包扭蛋机（11-25）里，这台主机上扭到了哪些（菜单带来的；还没连上就是一样都没有）。 */
+function unlocked(): ReadonlySet<string> {
+  return new Set(lastMenu?.gacha?.got ?? []);
+}
+
 function renderLook(): void {
+  const open = unlocked();
   for (const k of LOOK_KEYS) {
     const names = LOOK_NAMES[k] as Record<string, { zh: string; en: string }>;
     $(`lbl-${k}`).textContent = pickLang(LOOK_NAMES.label[k]);
-    $(`val-${k}`).textContent = pickLang(names[look[k]]);
+    // 戴着别处扭到的：这台主机上还没扭到，电视上画默认的
+    const locked = !!lastMenu && isLocked(k, look[k], open);
+    $(`val-${k}`).textContent = pickLang(names[look[k]]) + (locked ? tr('（这台还没扭到）', ' (not won here)') : '');
   }
   for (const b of picks.querySelectorAll<HTMLButtonElement>('button')) {
     const k = b.dataset.k as LookKey;
@@ -355,7 +366,7 @@ $('lookBtn2').addEventListener('click', openLook);
 $('lookDone').addEventListener('click', () => dlg.close());
 dlg.addEventListener('close', closeLook);
 $('lookRandom').addEventListener('click', () => {
-  look = randomLook();
+  look = randomLook(Math.random, unlocked());
   renderLook();
 });
 $('lookReset').addEventListener('click', () => {
@@ -463,6 +474,8 @@ function gotAchv(id: AchvId): void {
 }
 $('achvBtn').addEventListener('click', openAchvs);
 $('achvBtn2').addEventListener('click', openAchvs);
+// 红包扭蛋机（11-25）：在电视上扭给大家看
+$('gachaBtn2').addEventListener('click', () => send({ do: 'gacha' }));
 $('achvDone').addEventListener('click', () => achvDlg.close());
 renderAchvBtns();
 renderItem();
@@ -482,7 +495,6 @@ addEventListener('keydown', (e) => {
 });
 
 // ---------- 手柄当遥控（电视局里电视那边不用碰）----------
-let lastMenu: Menu | null = null;
 function send(c: PadCmd): void {
   link?.command(c);
   buzz(15);
@@ -520,6 +532,15 @@ function renderMenu(): void {
   $('mResults').hidden = !results;
   $('backBtn').hidden = !m || (m.phase !== 'countdown' && m.phase !== 'playing');
   if (!m) return;
+  // 红包扭蛋机（11-25）：「🎰 🧧 12」，红包不够就灰着，扭完了就不出
+  const g = m.gacha;
+  const gb = $<HTMLButtonElement>('gachaBtn2');
+  gb.hidden = !g || g.left === 0;
+  if (g) {
+    gb.textContent = `🎰 🧧 ${g.coins}`;
+    gb.disabled = g.coins < g.price;
+    gb.setAttribute('aria-label', tr(`红包扭蛋机：攒了 ${g.coins} 个红包，扭一个要 ${g.price} 个`, `Prize machine: ${g.coins} red envelopes, one spin costs ${g.price}`));
+  }
   if (lobby) {
     // 先选单人还是多人（11-13），多人再选玩法，闯关、比谁先最后选难度
     const sides = $('mSides');

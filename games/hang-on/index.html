@@ -98,6 +98,59 @@
   .achv-dlg::backdrop { background: rgba(10, 12, 30, .6); }
   .achv-dlg h2 { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0 0 10px; }
   .achv-dlg h2:focus { outline: none; }
+  /* 红包扭蛋机（11-25）：左边扭蛋机（扭的时候把手转两圈、球晃、掉一个蛋），扭出来的在它下面；右边 12 样的格子 */
+  .gacha-dlg .gline { margin: 0 0 10px; font-size: 14px; opacity: .8; }
+  .gmain { display: grid; gap: 14px; }
+  @media (min-width: 640px) { .gmain { grid-template-columns: 200px 1fr; align-items: start; } }
+  .gleft { display: grid; justify-items: center; gap: 8px; }
+  .machine { position: relative; width: 150px; height: 172px; }
+  .machine .dome { position: absolute; left: 15px; top: 0; width: 120px; height: 120px; border-radius: 50%; overflow: hidden; border: 3px solid var(--card-ink);
+    background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.9), rgba(191,232,255,.45) 38%, rgba(120,170,220,.35)); box-sizing: border-box; }
+  .machine .cap { position: absolute; left: var(--x); top: var(--y); width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--card-ink); box-sizing: border-box;
+    background: linear-gradient(180deg, var(--c) 50%, #fff6e9 50%); }
+  .machine .base { position: absolute; left: 20px; top: 106px; width: 110px; height: 62px; border-radius: 12px 12px 18px 18px; background: #d8262f; border: 3px solid var(--card-ink); box-sizing: border-box; }
+  .machine .knob { position: absolute; left: 36px; top: 10px; width: 32px; height: 32px; border-radius: 50%; background: #f6c453; border: 3px solid var(--card-ink); box-sizing: border-box; }
+  .machine .knob::after { content: ''; position: absolute; left: 10px; top: -3px; width: 6px; height: 32px; border-radius: 3px; background: var(--card-ink); }
+  .machine .slot { position: absolute; right: 8px; bottom: 8px; width: 26px; height: 18px; border-radius: 6px; background: var(--card-ink); }
+  .machine .ball { position: absolute; right: 30px; bottom: 6px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--card-ink); box-sizing: border-box; opacity: 0;
+    background: linear-gradient(180deg, #e8413c 50%, #fff6e9 50%); }
+  .machine.spin .knob { animation: knob-spin .9s ease-in-out; }
+  .machine.spin .cap { animation: cap-jiggle .3s ease-in-out 3; }
+  .machine.drop .ball { animation: ball-drop .6s ease-out forwards; }
+  @keyframes knob-spin { to { transform: rotate(720deg); } }
+  @keyframes cap-jiggle { 50% { transform: translate(3px, -6px) rotate(20deg); } }
+  @keyframes ball-drop { 0% { opacity: 1; transform: translate(0, -30px); } 60% { opacity: 1; transform: translate(-6px, 6px); } 80% { transform: translate(-8px, 0); } 100% { opacity: 1; transform: translate(-10px, 4px); } }
+  .prize { display: grid; justify-items: center; gap: 2px; text-align: center; animation: prize-in .35s ease-out; }
+  .prize canvas { width: 120px; height: 120px; }
+  .prize b { font-size: 20px; font-family: var(--font-display); }
+  .prize small { font-size: 12.5px; opacity: .75; line-height: 1.45; max-width: 220px; }
+  @keyframes prize-in { from { opacity: 0; transform: scale(.6); } }
+  .gprizes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+  .gp { display: grid; justify-items: center; align-content: center; gap: 0; min-height: 86px; border-radius: 12px; background: rgba(42,31,58,.07); text-align: center; padding: 4px 2px; }
+  .gp.got { background: #fff; }
+  .gp canvas { width: 60px; height: 60px; }
+  .gp small { font-size: 11.5px; line-height: 1.25; }
+  .gp .q { font-size: 26px; font-weight: 800; opacity: .35; }
+  .gacha-dlg .row { gap: 8px; }
+  .gacha-dlg .row .btn.quiet { flex: 0 0 auto; background: rgba(42,31,58,.1); color: var(--card-ink); }
+  .gacha-dlg .row .btn:disabled { opacity: .45; }
+  @media (prefers-reduced-motion: reduce) { .machine.spin .knob, .machine.spin .cap, .prize { animation: none; } .machine.drop .ball { animation: none; opacity: 1; } }
+  /* 横着的手机（矮）：扭蛋机缩小，扭出来以后先不画扭蛋机，格子小一点，下面两个键一直看得到 */
+  @media (max-height: 500px) {
+    .gacha-dlg { padding: 10px 14px 0; }
+    .gacha-dlg h2 { font-size: 17px; margin: 0 0 2px; }
+    .gacha-dlg .gline { font-size: 12.5px; margin: 0 0 6px; }
+    .gmain { grid-template-columns: 150px 1fr; gap: 10px; }
+    .gleft .machine { zoom: .7; }
+    .gleft:has(.prize:not([hidden])) .machine { display: none; }
+    .prize canvas { width: 84px; height: 84px; }
+    .prize b { font-size: 17px; }
+    .gprizes { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); }
+    .gp { min-height: 62px; }
+    .gp canvas { width: 40px; height: 40px; }
+    .gp small { font-size: 10.5px; }
+    .gacha-dlg .row { position: sticky; bottom: 0; background: var(--card); margin: 8px 0 0; padding: 6px 0 10px; }
+  }
   .achv-dlg .row { display: flex; margin-top: 12px; }
   .achv-dlg .row .btn { flex: 1; background: var(--card-ink); color: var(--ink); }
   /* 表情（11-25）：大厅里谁说了一句，挂在他的座位卡上面 */
@@ -239,6 +292,8 @@
    * 不用往下滚找；上沿一道渐变，下面滚过去的字不挡键。放得下时它就在原来的地方，看不出来。
    */
   body.quiet-note #lobby { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
+  .row2 { display: flex; justify-content: flex-start; margin-top: 8px; }
+  .row2:has(> [hidden]:only-child) { display: none; }
   :is(body.phone, body.short) :is(#lobby, #results) .card .row { position: sticky; bottom: 0; z-index: 1; margin: 0 0 -6px; padding: 10px 0 max(6px, env(safe-area-inset-bottom, 0px));
     background: linear-gradient(to bottom, transparent, var(--card) 10px); }
   @media (orientation: landscape) {
@@ -330,9 +385,11 @@
         <button class="btn quiet" id="kbBtn" type="button">+ 键盘加入</button>
         <button class="btn quiet" id="itemBtn" type="button" hidden></button>
         <button class="btn quiet" id="achvBtn" type="button" hidden aria-label="成就" data-en-label="Achievements">🏆</button>
+        <button class="btn quiet" id="gachaBtn" type="button">🎰 扭蛋机</button>
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
-        <button class="btn quiet" id="modeBtn" type="button" hidden></button>
       </div>
+      <!-- 电视局和手机局之间换（11-25 挪到下面一行：上面那一排加了 🏆、🎰，横着的手机上放不下） -->
+      <div class="row2"><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
     </div>
   </div>
 </div>
@@ -362,6 +419,30 @@
 <div class="banner" id="banner" aria-live="polite"></div>
 <!-- 成就（11-25）：谁解锁了什么，冒在底下 -->
 <div class="trophies" id="trophies" aria-live="polite"></div>
+<!-- 红包扭蛋机（11-25）：攒的红包扭新的帽子、眼镜、脸、袖子、嗓子 -->
+<dialog class="achv-dlg gacha-dlg" id="gachaDlg" aria-label="红包扭蛋机" data-en-label="Red envelope prize machine">
+  <h2 data-en="Red envelope prize machine" tabindex="-1" autofocus>红包扭蛋机</h2>
+  <p class="gline" id="gachaLine"></p>
+  <div class="gmain">
+    <div class="gleft">
+      <div class="machine" id="machine" aria-hidden="true">
+        <div class="dome"><span class="cap" style="--x:14px;--y:52px;--c:#e8413c"></span><span class="cap" style="--x:44px;--y:62px;--c:#f6c453"></span><span class="cap" style="--x:74px;--y:54px;--c:#8ec5e8"></span><span class="cap" style="--x:28px;--y:26px;--c:#9bcf83"></span><span class="cap" style="--x:58px;--y:30px;--c:#b9a2e8"></span><span class="cap" style="--x:84px;--y:24px;--c:#f28ca6"></span><span class="cap" style="--x:48px;--y:6px;--c:#f6c453"></span></div>
+        <div class="base"><span class="knob"></span><span class="slot"></span></div>
+        <span class="ball"></span>
+      </div>
+      <div class="prize" id="gachaPrize" role="status" hidden>
+        <canvas id="prizeLook" width="240" height="240" aria-hidden="true"></canvas>
+        <b id="prizeName"></b>
+        <small data-en="Everyone playing on this screen can pick it under Customize now.">这台设备上玩的人，换装时都能选了。</small>
+      </div>
+    </div>
+    <ul class="gprizes" id="gachaPrizes"></ul>
+  </div>
+  <div class="row">
+    <button class="btn" id="gachaPull" type="button">扭一个</button>
+    <button class="btn quiet" id="gachaDone" type="button" data-en="Done">好了</button>
+  </div>
+</dialog>
 <dialog class="achv-dlg" id="achvDlg" aria-label="成就" data-en-label="Achievements">
   <h2 data-en="Achievements" tabindex="-1" autofocus>成就</h2>
   <ul class="achv-list" id="achvList"></ul>

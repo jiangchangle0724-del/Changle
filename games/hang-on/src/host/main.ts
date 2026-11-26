@@ -23,7 +23,8 @@ import { installReports, reportError, watchCanvas, type ReportContext } from '..
 import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
-import { cleanLook, DEFAULT_LOOK, randomLook, type Look } from '../look';
+import { cleanLook, DEFAULT_LOOK, GACHA, LOOK_NAMES, lockLook, randomLook, type GachaId, type Look } from '../look';
+import { coins, GACHA_PRICE, leftToWin, loadGacha, pull, saveGacha } from './gacha';
 import { cleanItem, ITEM_ICON, ITEM_IDS, itemsIn, type ItemId } from '../items';
 import { itemName } from '../item-text';
 import { CFG, PLAYER_COLORS } from '../physics/config';
@@ -150,7 +151,10 @@ const renderOn = params.get('render') !== '0';
 const kbLook: Look = randomLook();
 /** 手机局的房主：0 号颜色；名字和样子用这部手机当手柄时记下的（没有就叫「房主」、随机一个样子）。 */
 const HOST_COLOR = 0;
-let hostLook: Look = stored('hang-on:look', (v) => cleanLook(JSON.parse(v))) ?? randomLook();
+/** 红包扭蛋机（11-25）：花了几个红包、扭到了哪些（记在这台设备上）；扭到的（锁样子用）。放在前面，画大厅的时候就要用。 */
+let gacha = loadGacha();
+let gachaSet: ReadonlySet<string> = new Set(gacha.got);
+let hostLook: Look = stored('hang-on:look', (v) => lockLook(cleanLook(JSON.parse(v)), gachaSet)) ?? randomLook(Math.random, gachaSet);
 const hostName = (): string => stored('hang-on:name', (v) => v.trim().slice(0, 12)) || tr('房主', 'Host');
 /** 道具（A9）：手机局的房主记在这部手机上（和它当手柄时同一个），键盘玩家只记这一回。 */
 let hostItem: ItemId = stored('hang-on:item', cleanItem) ?? 'freeze';
@@ -794,6 +798,7 @@ function renderButtons(): void {
   $('emoteBtn').hidden = !localOn();
   $('fartBtn').hidden = !localOn();
   renderAchvBtn();
+  renderGachaBtn();
   modeBtn.textContent = phoneMode ? tr('改成电视局', 'Use a TV instead') : tr('改成手机局', 'Phones only');
   modeBtn.title = phoneMode
     ? tr('这台设备接电视当大屏，大家的手机当手柄', 'This device goes on the TV as the big screen; phones are controllers')
@@ -834,6 +839,8 @@ function renderLevel(): void {
   const et = $('envTotal');
   et.hidden = (mode !== 'climb' && mode !== 'team') || !allEnv;
   et.textContent = tr(`🧧 攒了 ${envelopeTotal()} / ${allEnv} 个红包`, `🧧 ${envelopeTotal()} of ${allEnv} red envelopes saved up`);
+  // 红包扭蛋机的键跟着攒的红包变（11-25）
+  renderGachaBtn();
   // 闯关、大团队写这关教什么；比谁先、坐不住写这个玩法怎么赢（场地自己的说明和它一样）
   $('levelTeach').textContent = pickLang(withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()));
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
@@ -866,7 +873,7 @@ function playerNames(): string[] {
 function playerLook(i: number): Look {
   if (i === localIndex()) return localLook();
   const id = seatOrder[i];
-  return (id && link?.peers.get(id)?.look) || DEFAULT_LOOK;
+  return lockLook((id && link?.peers.get(id)?.look) || DEFAULT_LOOK, gachaSet);
 }
 /** 大厅里座位变了就重排玩家；玩的时候只跟着座位的来去增减，颜色跟座位走。 */
 function syncPlayers(): void {
@@ -887,7 +894,8 @@ function syncPlayers(): void {
     if (!p || !peer) return;
     p.color = PLAYER_COLORS[peer.color] ?? p.color;
     sim.setItem(i, peer.item);
-    const look = peer.look ?? DEFAULT_LOOK;
+    // 扭蛋机里的没在这台设备上扭到的，画默认的（11-25）
+    const look = lockLook(peer.look ?? DEFAULT_LOOK, gachaSet);
     stage.setPlayerStyle(i, { name: tagName(i, peer.name), color: p.color, look });
     sfx.setVoice(i, look.voice);
   });
@@ -1103,6 +1111,126 @@ $('achvBtn').addEventListener('click', () => {
 });
 $('achvDone').addEventListener('click', () => $<HTMLDialogElement>('achvDlg').close());
 
+// ---------------------------------------------------------------- 红包扭蛋机（11-25）
+
+let gachaBusy = false;
+const gachaDlg = $<HTMLDialogElement>('gachaDlg');
+const reduceMotion = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** 这一样叫什么（那一项的名字）。 */
+function gachaName(id: GachaId): string {
+  const g = GACHA.find((x) => x.id === id);
+  if (!g) return id;
+  const names = LOOK_NAMES[g.key] as Record<string, { zh: string; en: string }>;
+  const n = names[id];
+  return n ? tr(n.zh, n.en) : id;
+}
+
+/** 预览一样：默认的糯米团戴上它（嗓子画不出来，写个「喵」）。 */
+function gachaPreview(c: HTMLCanvasElement, id: GachaId): void {
+  const g = GACHA.find((x) => x.id === id);
+  drawLook(c, g ? ({ ...DEFAULT_LOOK, [g.key]: id } as Look) : DEFAULT_LOOK, PLAYER_COLORS[localColor()] ?? '#F28CA6');
+}
+
+/** 大厅里的「🎰 扭蛋机 · 🧧 12」。 */
+function renderGachaBtn(): void {
+  const have = coins(gacha, envelopeTotal());
+  const b = $('gachaBtn');
+  // 手机局的大厅挤：只写 🎰 和红包数，名字放在读屏的标签里
+  b.textContent = phoneMode ? `🎰 🧧 ${have}` : tr(`🎰 扭蛋机 · 🧧 ${have}`, `🎰 Prize machine · 🧧 ${have}`);
+  b.setAttribute('aria-label', tr(`红包扭蛋机：能扭的红包 ${have} 个`, `Prize machine: ${have} red envelopes to spend`));
+}
+
+/** 对话框里的那一行、扭的键、12 样的格子（打开的时候、扭完的时候画）；扭的时候照扭之前的画（不先露出来）。 */
+function renderGacha(save = gacha): void {
+  const have = coins(save, envelopeTotal());
+  const left = leftToWin(save);
+  renderGachaBtn();
+  $('gachaLine').textContent = left
+    ? tr(`攒的红包能扭：🧧 ${have}　扭一个要 🧧 ${GACHA_PRICE}　还有 ${left} 样没扭到`, `Red envelopes to spend: 🧧 ${have}   One spin: 🧧 ${GACHA_PRICE}   ${left} prizes left`)
+    : tr('12 样都扭到了！换装的时候都能选。', 'All 12 prizes won! Pick them under Customize.');
+  const go = $<HTMLButtonElement>('gachaPull');
+  go.textContent = left ? tr(`扭一个（🧧 ${GACHA_PRICE}）`, `Spin (🧧 ${GACHA_PRICE})`) : tr('扭完了', 'All won');
+  go.disabled = gachaBusy || !left || have < GACHA_PRICE;
+  const list = $('gachaPrizes');
+  list.replaceChildren(
+    ...GACHA.map((g) => {
+      const li = document.createElement('li');
+      const got = save.got.includes(g.id);
+      li.className = `gp${got ? ' got' : ''}`;
+      if (got) {
+        const c = document.createElement('canvas');
+        c.width = 120;
+        c.height = 120;
+        c.setAttribute('aria-hidden', 'true');
+        gachaPreview(c, g.id);
+        const nm = document.createElement('small');
+        nm.textContent = g.key === 'voice' ? `🐱 ${gachaName(g.id)}` : gachaName(g.id);
+        li.append(c, nm);
+      } else {
+        const q = document.createElement('span');
+        q.className = 'q';
+        q.textContent = '？';
+        q.setAttribute('aria-label', tr('还没扭到', 'Not won yet'));
+        li.append(q);
+      }
+      return li;
+    }),
+  );
+}
+
+function openGacha(): void {
+  renderGacha();
+  $('gachaPrize').hidden = true;
+  if (!gachaDlg.open) gachaDlg.showModal();
+}
+
+/**
+ * 扭一个：红包不够、扭完了就说一声；不然扭把手转两圈、球晃一晃、掉出一个蛋、蛋打开是新东西
+ * （减少动效时直接打开）。扭到的记下来，菜单发给手柄（换装时就能选了），大家的样子重新锁一遍。
+ */
+function gachaPull(): void {
+  if (gachaBusy) return;
+  const r = pull(gacha, envelopeTotal());
+  if (!r.ok) {
+    banner(r.why === 'done' ? tr('12 样都扭到了', 'All 12 prizes already won') : tr(`红包不够：还差 🧧 ${r.need} 个，去闯关拿`, `Not enough red envelopes: ${r.need} more. Go climb for them`), 'bad');
+    return;
+  }
+  const before = gacha;
+  gacha = r.save;
+  gachaSet = new Set(gacha.got);
+  saveGacha(gacha);
+  gachaBusy = true;
+  renderGacha(before);
+  $('gachaPrize').hidden = true;
+  const m = $('machine');
+  const reveal = (): void => {
+    m.classList.remove('spin', 'drop');
+    gachaPreview($<HTMLCanvasElement>('prizeLook'), r.id);
+    $('prizeName').textContent = tr(`${gachaName(r.id)}！`, `${gachaName(r.id)}!`);
+    $('gachaPrize').hidden = false;
+    music.flourish();
+    gachaBusy = false;
+    renderGacha();
+    syncPlayers();
+    renderLobby();
+    menuDirty = true;
+  };
+  if (reduceMotion()) {
+    reveal();
+    return;
+  }
+  m.classList.add('spin');
+  for (let k = 0; k < 6; k++) setTimeout(() => sfx.tick(), k * 150);
+  setTimeout(() => m.classList.add('drop'), 900);
+  setTimeout(reveal, 1500);
+}
+
+$('gachaBtn').addEventListener('click', openGacha);
+$('gachaPull').addEventListener('click', gachaPull);
+$('gachaDone').addEventListener('click', () => gachaDlg.close());
+renderGachaBtn();
+
 /** 座位卡头上挂那个人刚说的一句（还没到点的话）。 */
 function withSay<T extends HTMLElement>(card: T, i: number): T {
   const say = lobbySays.get(i);
@@ -1124,7 +1252,7 @@ function renderLobby(): void {
   seats.forEach((s, i) => {
     const peer = link?.peers.get(s.id);
     const sub = !s.connected ? tr('掉线', 'Offline') : peer?.direct ? tr('直连', 'Direct') : peer?.relayed ? tr('绕路', 'Relayed') : tr('连接中', 'Connecting');
-    box.append(withSay(seatCard(s.name, PLAYER_COLORS[s.color] ?? '#fff', peer?.look ?? DEFAULT_LOOK, sub, !s.connected, team(i), items ? (peer?.item ?? 'freeze') : undefined), i));
+    box.append(withSay(seatCard(s.name, PLAYER_COLORS[s.color] ?? '#fff', lockLook(peer?.look ?? DEFAULT_LOOK, gachaSet), sub, !s.connected, team(i), items ? (peer?.item ?? 'freeze') : undefined), i));
   });
   if (localOn()) {
     const card = withSay(seatCard(localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false, team(seats.length), items ? localItem() : undefined), seats.length);
@@ -1136,7 +1264,7 @@ function renderLobby(): void {
       b.setAttribute('aria-label', tr('换个样子', 'New look'));
       b.append(...card.childNodes);
       b.addEventListener('click', () => {
-        hostLook = randomLook();
+        hostLook = randomLook(Math.random, gachaSet);
         try {
           localStorage.setItem('hang-on:look', JSON.stringify(hostLook));
         } catch {
@@ -1510,6 +1638,7 @@ function menuFor(): Menu {
     ...(phase === 'results'
       ? { results: fullResults(), names: sim.players.map((p, i) => ({ name: name(i), color: p.color })), ...(level.par ? { par: level.par.seconds } : {}) }
       : {}),
+    gacha: { coins: coins(gacha, envelopeTotal()), price: GACHA_PRICE, got: gacha.got, left: leftToWin(gacha) },
   };
 }
 
@@ -1560,6 +1689,12 @@ function runCmd(c: PadCmd): void {
       setTier(t);
       break;
     }
+    case 'gacha':
+      // 红包扭蛋机（11-25）：手柄上按了扭一个，在电视上扭给大家看
+      if (phase !== 'lobby') return;
+      openGacha();
+      gachaPull();
+      break;
     case 'teams':
       if (phase !== 'lobby') return;
       sfx.tick();

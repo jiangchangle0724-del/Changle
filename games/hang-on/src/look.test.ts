@@ -2,7 +2,7 @@
  * 换装：网上来的样子要收拾干净，每个选项中英都有名字，袖子不能和手套撞色。
  */
 import { describe, expect, test } from 'vitest';
-import { ARM_COLORS, ARMS, cleanLook, DEFAULT_LOOK, GLOVES, LOOK_KEYS, LOOK_LISTS, LOOK_NAMES, randomLook, stepLook } from './look';
+import { ARM_COLORS, ARMS, choices, cleanLook, DEFAULT_LOOK, GLOVES, LOOK_KEYS, LOOK_LISTS, LOOK_NAMES, randomLook, stepLook } from './look';
 
 describe('换装', () => {
   test('不认识的值回默认，缺的项补默认', () => {
@@ -11,11 +11,15 @@ describe('换装', () => {
     expect(cleanLook({ hat: 'crown', glasses: '<script>', eyes: 7, voice: 'duck' })).toEqual({ ...DEFAULT_LOOK, hat: 'crown', voice: 'duck' });
   });
 
-  test('上一个 / 下一个会绕回来', () => {
+  test('上一个 / 下一个会绕回来（扭蛋机里没扭到的不在圈里）', () => {
+    const none = new Set<string>();
     let look = DEFAULT_LOOK;
-    for (let i = 0; i < LOOK_LISTS.hat.length; i++) look = stepLook(look, 'hat', 1);
+    for (let i = 0; i < choices('hat', none).length; i++) look = stepLook(look, 'hat', 1);
     expect(look.hat).toBe(DEFAULT_LOOK.hat);
-    expect(stepLook(DEFAULT_LOOK, 'voice', -1).voice).toBe(LOOK_LISTS.voice[LOOK_LISTS.voice.length - 1]);
+    const voices = choices('voice', none);
+    expect(stepLook(DEFAULT_LOOK, 'voice', -1).voice).toBe(voices[voices.length - 1]);
+    const all = new Set<string>(LOOK_LISTS.voice);
+    expect(stepLook(DEFAULT_LOOK, 'voice', -1, all).voice, '扭到了就在圈里').toBe(LOOK_LISTS.voice[LOOK_LISTS.voice.length - 1]);
   });
 
   test('随机出来的都合法', () => {

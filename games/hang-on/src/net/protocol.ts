@@ -13,7 +13,7 @@ import type { EmoteId } from '../emotes';
 import type { AchvId } from '../achievements';
 import type { Goal } from '../goals';
 import type { ItemId } from '../items';
-import type { Look } from '../look';
+import type { GachaId, Look } from '../look';
 import type { GameMode, PadInput, SimEvent } from '../physics/world';
 import type { Side, Tier } from '../sides';
 
@@ -212,7 +212,9 @@ export type PadCmd =
   | { do: 'mode'; mode: GameMode }
   | { do: 'teams'; on: boolean }
   | { do: 'side'; side: Side }
-  | { do: 'tier'; tier: Tier };
+  | { do: 'tier'; tier: Tier }
+  /** 红包扭蛋机（11-25）：扭一个（大厅里，谁按都行，电视上扭）。 */
+  | { do: 'gacha' };
 
 /** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
 export interface Menu {
@@ -238,6 +240,8 @@ export interface Menu {
   results?: Results;
   names?: { name: string; color: string }[];
   par?: number;
+  /** 红包扭蛋机（11-25）：能花的红包、扭一次几个、扭到了哪些（换装时能选）、还剩几样。 */
+  gacha?: { coins: number; price: number; got: GachaId[]; left: number };
 }
 
 /** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */
