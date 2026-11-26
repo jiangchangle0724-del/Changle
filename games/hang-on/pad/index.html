@@ -194,6 +194,33 @@
     .bar .me #meName { display: inline-block; max-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   /* 表情（11-25）：顶栏的 😀 打开一排，两行四个，挂在顶栏下面；点一句就收起来 */
+  /* 成就（11-25）：谁解锁了什么，一条一条冒出来，3.6 秒没了 */
+  .trophies { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); z-index: 26; display: grid; justify-items: start; gap: 8px; pointer-events: none; max-width: min(560px, calc(100vw - 32px)); }
+  .trophy { background: var(--card); color: var(--card-ink); border-radius: 999px; font-weight: 800; box-shadow: 0 6px 18px rgba(0,0,0,.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+    animation: trophy-in .35s ease-out, trophy-out .4s ease-in 3.2s forwards; }
+  @keyframes trophy-in { from { opacity: 0; transform: translateY(12px) scale(.9); } }
+  @keyframes trophy-out { to { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .trophy { animation: trophy-out .4s ease-in 3.2s forwards; } }
+  /* 成就单子：拿到的亮着带 ✓，没拿到的暗一点；每个都写怎么拿 */
+  .achv-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .achv { display: grid; grid-template-columns: 34px 1fr 22px; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 14px; background: rgba(42,31,58,.07); }
+  .achv.got { background: #fff; }
+  .achv .ic { font-size: 24px; text-align: center; filter: grayscale(1); opacity: .6; }
+  .achv.got .ic { filter: none; opacity: 1; }
+  .achv .tx { display: grid; gap: 1px; min-width: 0; }
+  .achv .tx b { font-size: 15px; }
+  .achv .tx small { font-size: 12.5px; opacity: .75; line-height: 1.45; }
+  .achv .ok { font-weight: 900; font-size: 18px; text-align: center; }
+  @media (min-width: 640px) { .achv-list { grid-template-columns: 1fr 1fr; } }
+  /* 手机局：画面上冒在顶栏下面；电视局：拿到的人自己手机上的提示 */
+  .trophies { top: calc(60px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); }
+  .trophy { padding: 6px 14px; font-size: 14px; }
+  .achv-dlg .achv-wrap { padding: 16px 18px 18px; display: grid; gap: 10px; }
+  .achv-dlg h2 { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0; }
+  .achv-dlg h2:focus { outline: none; }
+  .achv-dlg .row { display: flex; margin-top: 4px; }
+  .achv-dlg .row .btn { flex: 1; background: var(--card-ink); color: var(--ink); }
+  .mcard .row .btn.mach { flex: 0 0 auto; min-width: 72px; }
   .bar .chip.btn.emo { font-size: 18px; min-width: 44px; padding-inline: 0; justify-content: center; }
   .emotes { position: fixed; left: 50%; transform: translateX(-50%); z-index: 30; display: grid; grid-template-columns: repeat(4, minmax(84px, 1fr)); gap: 8px;
     padding: 10px; background: var(--card); color: var(--card-ink); border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.35); width: max-content; max-width: calc(100vw - 24px); }
@@ -290,6 +317,7 @@
     <div class="field fname"><label for="name" data-en="Name">名字</label><input id="name" autocomplete="nickname" maxlength="12" placeholder="糯米团" data-en-ph="Dumpling"></div>
     <button class="btn quiet" id="lookBtn" type="button"><canvas id="lookMini" width="44" height="44" style="width:22px;height:22px" aria-hidden="true"></canvas><span id="lookSummary">换个样子</span></button>
     <button class="btn quiet" id="itemBtn" type="button"><span id="itemIcon" aria-hidden="true">🧊</span><span id="itemSummary">道具：速冻</span></button>
+    <button class="btn quiet" id="achvBtn" type="button"><span aria-hidden="true">🏆</span><span id="achvSummary">成就</span></button>
     <p class="err" id="err" role="alert"></p>
     <button class="btn" id="joinBtn" type="submit" data-en="Join">加入</button>
     <button class="btn quiet" id="tableBtn" type="button" hidden data-en="Back to the table">回到桌上</button>
@@ -342,7 +370,7 @@
         <button id="mNext" type="button" aria-label="下一关" data-en-label="Next level">›</button>
       </div>
       <p class="mline" id="mLine"></p>
-      <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button></div>
+      <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button><button class="btn quiet mach" id="achvBtn2" type="button" aria-label="成就" data-en-label="Achievements">🏆</button></div>
     </div>
     <div class="mcard" id="mResults" hidden>
       <div class="res-a">
@@ -392,6 +420,15 @@
   </div>
 </dialog>
 <div class="itemtip" id="itemTip" role="status" aria-live="polite"></div>
+<!-- 成就（11-25）：电视局里自己新拿到的；手机局里谁解锁了什么（src/pad/view.ts） -->
+<div class="trophies" id="trophies" aria-live="polite"></div>
+<dialog class="achv-dlg" id="achvDlg" aria-label="成就" data-en-label="Achievements">
+  <div class="achv-wrap">
+    <h2 data-en="Achievements" tabindex="-1" autofocus>成就</h2>
+    <ul class="achv-list" id="achvList"></ul>
+    <div class="row"><button class="btn" id="achvDone" type="button" data-en="Done">好了</button></div>
+  </div>
+</dialog>
 <dialog id="fsDlg" aria-label="全屏" data-en-label="Full screen">
   <div class="fs">
     <h2 data-en="Full screen on iPhone">iPhone 上怎么全屏</h2>

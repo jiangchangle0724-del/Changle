@@ -15,8 +15,10 @@ import { heardBy, sfx } from '../audio/sfx';
 import { moodOf, rawIntensity, Tension } from '../audio/tension';
 import { seedOf, themeFor } from '../audio/themes';
 import { applyStatic, getLang, langButton, onLang, pickLang, tr } from '../i18n';
-import { EMOTE_GAP_MS, EMOTE_SHOW_S, EMOTES, emoteWords, FART_GAP_MS, FART_WORDS, fartKind, type EmoteId } from '../emotes';
+import { EMOTE_GAP_MS, EMOTE_SHOW_S, EMOTES, emoteWords, FART_GAP_MS, FART_REACH, FART_WORDS, fartKind, type EmoteId } from '../emotes';
 import { emotePicker } from '../emote-picker';
+import { AchvRound, type AchvId, type Award } from '../achievements';
+import { achvCount, loadAchvs, renderAchvList, saveAchvs, trophyToast, unlockLines } from '../achv-ui';
 import { installReports, reportError, watchCanvas, type ReportContext } from '../report';
 import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
@@ -399,6 +401,11 @@ async function start(): Promise<void> {
         const i = seatOrder.indexOf(peer.seat);
         if (i >= 0) fartFrom(i);
       },
+      onAchvHave: (peer, ids) => {
+        // 手机上记着的加进来（这一场拿到、还没传到的也留着）
+        const have = haveOf(peer.seat);
+        for (const id of ids) have.add(id);
+      },
       onCmd: (_peer, c) => runCmd(c),
       onFatal: (key) => fatal(key),
       onSocket: (open) => {
@@ -639,6 +646,7 @@ function goldScore(): string {
  */
 function goldWin(w: number | undefined): void {
   if (w === undefined) return;
+  award(roundNow().onWin([w], roundEnd()));
   roundWins[w] = (roundWins[w] ?? 0) + 1;
   castDirty = true;
   const done = (roundWins[w] ?? 0) >= CFG.goldRounds;
@@ -785,6 +793,7 @@ function renderButtons(): void {
   // 表情、放屁键（11-25）：这台设备上有人在玩（手机局的房主、电视局里键盘加入的）才有 😀 和 💨
   $('emoteBtn').hidden = !localOn();
   $('fartBtn').hidden = !localOn();
+  renderAchvBtn();
   modeBtn.textContent = phoneMode ? tr('改成电视局', 'Use a TV instead') : tr('改成手机局', 'Phones only');
   modeBtn.title = phoneMode
     ? tr('这台设备接电视当大屏，大家的手机当手柄', 'This device goes on the TV as the big screen; phones are controllers')
@@ -998,6 +1007,7 @@ function emoteFrom(i: number, e: EmoteId): void {
   const p = sim.players[i];
   showNow({ type: 'emote', player: i, emote: e, x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
   if (phase === 'lobby') sayInLobby(i, emoteWords(e), EMOTE_SHOW_S);
+  award(roundNow().onEmote(i));
 }
 
 /**
@@ -1011,7 +1021,87 @@ function fartFrom(i: number): void {
   const p = sim.players[i];
   showNow({ type: 'fart', player: i, kind: fartKind(), x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
   if (phase === 'lobby') sayInLobby(i, FART_WORDS, 1.4);
+  // 成就「熏到人了」：旁边（FART_REACH 以内）有活着的别人
+  const stank = !!p && sim.players.some((q, j) => j !== i && !q.dead && Math.hypot(q.body.x - p.body.x, q.body.y - p.body.y) <= FART_REACH);
+  award(roundNow().onFart(i, stank));
 }
+
+// ---------------------------------------------------------------- 成就（11-25）
+
+/** 各人有哪些：手柄按座位（连上时自己说、这一场拿到的加进去），这台设备上玩的人是 local（记在这台设备上）。 */
+const achvHave = new Map<string, Set<AchvId>>();
+let achvSim: Sim | null = null;
+let achvRound: AchvRound | null = null;
+
+/** 这一局的成就账（换了局面就重新记）。 */
+function roundNow(): AchvRound {
+  if (!achvRound || achvSim !== sim) {
+    achvSim = sim;
+    achvRound = new AchvRound({ mode: sim.rules.mode, tier: tierOfLevel(sim.level), long: !!sim.level.long });
+  }
+  return achvRound;
+}
+
+/** 到顶、赢了那一下的账。 */
+function roundEnd(): Parameters<AchvRound['onWin']>[1] {
+  return {
+    players: sim.players.length,
+    deaths: sim.players.reduce((n, p) => n + p.deaths, 0),
+    envelopes: { got: sim.envelopes.filter((e) => e.got).length, of: sim.envelopes.length },
+    goals: lastGoals?.goals ?? null,
+  };
+}
+
+/** 第 i 个人是谁：手柄的座位，或者这台设备上玩的人（local）。 */
+function achvKey(i: number): string | null {
+  if (i === localIndex()) return 'local';
+  return seatOrder[i] ?? null;
+}
+
+function haveOf(key: string): Set<AchvId> {
+  let have = achvHave.get(key);
+  if (!have) {
+    have = new Set(key === 'local' ? loadAchvs() : []);
+    achvHave.set(key, have);
+  }
+  return have;
+}
+
+/**
+ * 发成就：以前拿过的不报。新的：记下（手柄的告诉那部手机记，这台设备上的记在这台设备上），
+ * 大屏上冒一条、响一声，手机局跟着快照发到每部手机。
+ */
+function award(list: readonly Award[]): void {
+  const fresh: { name: string; id: AchvId }[] = [];
+  for (const a of list) {
+    const key = achvKey(a.player);
+    if (!key) continue;
+    const have = haveOf(key);
+    if (have.has(a.id)) continue;
+    have.add(a.id);
+    if (key === 'local') {
+      saveAchvs(have);
+      renderAchvBtn();
+    } else link?.achv(key, a.id);
+    const p = sim.players[a.player];
+    showNow({ type: 'achv', player: a.player, id: a.id, x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
+    fresh.push({ name: name(a.player), id: a.id });
+  }
+  // 几个人一起拿到的写在一条里
+  for (const line of unlockLines(fresh)) trophyToast($('trophies'), line);
+}
+
+/** 大厅里这台设备上玩的人的「🏆 3/19」。 */
+function renderAchvBtn(): void {
+  const b = $<HTMLButtonElement>('achvBtn');
+  b.hidden = !localOn();
+  b.textContent = `🏆 ${achvCount(haveOf('local'))}`;
+}
+$('achvBtn').addEventListener('click', () => {
+  renderAchvList($('achvList'), haveOf('local'));
+  $<HTMLDialogElement>('achvDlg').showModal();
+});
+$('achvDone').addEventListener('click', () => $<HTMLDialogElement>('achvDlg').close());
 
 /** 座位卡头上挂那个人刚说的一句（还没到点的话）。 */
 function withSay<T extends HTMLElement>(card: T, i: number): T {
@@ -1310,6 +1400,8 @@ function sendStatus(): void {
 
 function onEvents(): void {
   for (const ev of sim.events) {
+    // 成就（11-25）：松手、召唤、接住、红包、道具、被撞晕、掉进汤里
+    award(roundNow().onEvent(ev));
     if (ev.type === 'win' && sim.rules.mode === 'gold') {
       goldWin(ev.who?.[0]);
       continue;
@@ -1317,6 +1409,8 @@ function onEvents(): void {
     if (ev.type === 'win') {
       music.win();
       scoreGoals();
+      // 成就：到顶（大家）、比谁先和坐不住赢的人
+      award(roundNow().onWin(ev.who, roundEnd()));
       // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页；比谁先、坐不住的横幅写谁赢了
       banner(resultsTitle(resultsOf(sim), name));
       const won = sim;

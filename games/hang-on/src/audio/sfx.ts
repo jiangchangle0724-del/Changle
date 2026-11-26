@@ -325,6 +325,13 @@ class Sfx {
           this.tone({ freq: f * 1.5, wave: 'triangle', dur: 0.1, vol: 0.1, pan, delay: 0.07 });
           break;
         }
+        case 'achv': {
+          // 成就（11-25）：叮叮叮往上走三个音，最后一个亮一点
+          const pan = this.pan(ev.x, ev.y);
+          const notes = [784, 988, 1319];
+          notes.forEach((f, k) => this.tone({ freq: f, wave: k === 2 ? 'triangle' : 'sine', dur: k === 2 ? 0.35 : 0.12, vol: 0.14, pan, delay: k * 0.09 }));
+          break;
+        }
         case 'fart': {
           // 放屁键（11-25）：低的锯齿波加大颤音，滤掉尖的；三种：短的「噗」、长的「噗噜噜」、尖的「噗～」，每个座位音高差一点
           const pan = this.pan(ev.x, ev.y);
@@ -678,9 +685,10 @@ export function heardBy(ev: SimEvent, me: number): boolean {
       return ev.ok || ev.player === me;
     case 'itemEnd':
       return true;
-    // 表情、放屁（11-25）是给大家听的
+    // 表情、放屁、成就（11-25）是给大家听的
     case 'emote':
     case 'fart':
+    case 'achv':
       return true;
     // 红包是大家的
     case 'envelope':

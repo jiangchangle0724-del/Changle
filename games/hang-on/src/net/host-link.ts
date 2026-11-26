@@ -25,6 +25,7 @@ import {
 } from './protocol';
 import { ICE_SERVERS } from './ice';
 import { RoomSocket, wsUrl } from './socket';
+import { cleanAchvList, type AchvId } from '../achievements';
 
 export interface PadPeer {
   seat: string;
@@ -59,6 +60,8 @@ export interface HostLinkEvents {
   onEmote?(peer: PadPeer, e: EmoteId): void;
   /** 放屁键（11-25）。 */
   onFart?(peer: PadPeer): void;
+  /** 成就（11-25）：手柄说自己有哪些（已经收拾过）。 */
+  onAchvHave?(peer: PadPeer, ids: AchvId[]): void;
   /** 手柄当遥控：按了开始、下一关……。 */
   onCmd?(peer: PadPeer, cmd: PadCmd): void;
   onFatal?(key: FatalKey): void;
@@ -136,6 +139,13 @@ export class HostLink {
     this.relay(seat, { k: 'menu', m });
   }
 
+  /** 成就（11-25）：告诉这个手柄新拿到一个（走房间，要可靠）。 */
+  achv(seat: string, id: AchvId): void {
+    const p = this.peers.get(seat);
+    if (!p || !p.connected) return;
+    this.relay(seat, { k: 'achv', id });
+  }
+
   /** 关掉一切（离开页面）。 */
   close(): void {
     clearInterval(this.pingTimer);
@@ -208,6 +218,9 @@ export class HostLink {
       }
       case 'fart':
         this.ev.onFart?.(p);
+        return;
+      case 'achvHave':
+        this.ev.onAchvHave?.(p, cleanAchvList(data.ids));
         return;
       case 'cmd':
         if (data.c && typeof data.c === 'object') this.ev.onCmd?.(p, data.c);

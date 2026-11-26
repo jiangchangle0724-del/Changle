@@ -18,6 +18,7 @@ import { PLATES } from '../render/plates';
 import { Stage } from '../render/stage';
 import { renderGoldScore, renderResults, resultsTitle, type ResultsDom } from '../results';
 import { reportError } from '../report';
+import { trophyToast, unlockLines } from '../achv-ui';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -242,12 +243,17 @@ export class PhoneView {
   private banners(evs: readonly SimEvent[]): void {
     const name = (i: number): string => this.cast_?.players[i]?.name || `P${i + 1}`;
     const mode = this.cast_?.mode ?? 'climb';
+    // 成就（11-25）：谁解锁了什么，冒在左上角（不占横幅）；同一下几个人一起拿到的并成一条
+    const box = document.getElementById('trophies');
+    const got = evs.flatMap((ev) => (ev.type === 'achv' ? [{ name: name(ev.player), id: ev.id }] : []));
+    if (box) for (const line of unlockLines(got)) trophyToast(box, line);
     for (const ev of evs) {
       if (ev.type === 'win') {
         const teams = this.cast_?.teams;
         this.banner(resultsTitle({ time: 0, deaths: [], grabs: [], betrayals: [], mode, winners: ev.who ?? [], ...(teams ? { teams } : {}) }, name));
       }
       if (ev.type === 'finish') this.banner(tr(`${name(ev.player)} 到了！第 ${ev.place} 个`, `${name(ev.player)} made it! #${ev.place}`));
+
       if (ev.type === 'out') this.banner(tr(`${name(ev.player)} 出局`, `${name(ev.player)} is out`), 'bad');
       if (ev.type === 'betrayal') this.banner(tr(`${name(ev.by)} 松手了`, `${name(ev.by)} let go!`), 'bad');
       if (ev.type === 'summon') {
