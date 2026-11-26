@@ -1,6 +1,6 @@
 # The server's shell: design notes for the next slice
 
-Status: **built, not merged, not published** (#PRNUM, 2026-11-26; it waits for its SEC-9
+Status: **built, not merged, not published** (#814, 2026-11-26; it waits for its SEC-9
 review). What it does is now written in the security assessment, section 1.8, which is the
 authority; this file stays as the plan it was built from, with one correction below.
 
