@@ -59,7 +59,6 @@ test('independent assessment merge versus merge3: 24,000 seeded hard triples', (
     }
     return { kind: ['invented-a', 'invented-b'][rand(2)]!, t: rand(3), fields };
   }
-  let timeOnly = 0;
   for (let round = 0; round < 24_000; round++) {
     const base: Recs | undefined = round % 5 === 0 ? undefined : {};
     const here: Recs = {}, there: Recs = {};
@@ -85,29 +84,15 @@ test('independent assessment merge versus merge3: 24,000 seeded hard triples', (
     const message = `seed=${seed} triple=${round}`;
     const want = ordinary(merge(base, here, there));
     const got = plain(merge3(base && entries(base), entries(here), entries(there)).records);
-    // Compare every id, kind, field AND t. Preserve/count the documented t
-    // ambiguity explicitly rather than silently normalizing it away.
-    try { assert.deepEqual(got, want); }
-    catch {
-      const noTime = (x: Recs) => Object.fromEntries(Object.entries(x).map(([k, r]) => [k, { kind: r.kind, fields: r.fields }]));
-      assert.deepEqual(noTime(got), noTime(want), message);
-      // A t disagreement is explained only by two equal changed branches;
-      // never exempt timestamps from a genuine field merge or one-sided change.
-      for (const key of Object.keys(want)) if (got[key]!.t !== want[key]!.t) {
-        assert.ok(here[key] && there[key], message);
-        assert.deepEqual(here[key]!.fields, there[key]!.fields, message);
-        assert.equal(here[key]!.kind, there[key]!.kind, message);
-        assert.equal(got[key]!.t, there[key]!.t, message);
-        assert.equal(want[key]!.t, Math.max(here[key]!.t, there[key]!.t), message);
-      }
-      timeOnly++;
-    }
+    // Compare every id, kind, field AND t. (Before the fix for finding 1 this tolerated, and counted, one
+    // disagreement: two equal changed branches, where the code kept the server's t and this oracle the later
+    // one. The code now keeps the later one, so nothing is tolerated. Changed by Claude Code after the review.)
+    assert.deepEqual(got, want, message);
   }
-  assert.ok(timeOnly > 0, 'the t ambiguity must remain exercised (finding 1)');
-  console.log(`seed=${seed}; compared=24000; fields/kinds/ids matched; t-only disagreements=${timeOnly} (finding 1)`);
+  console.log(`seed=${seed}; compared=24000; ids, kinds, fields and t all matched`);
 });
 
-test('finding 1: equal changed records should choose a symmetric t', { skip: 'finding 1: section 1.6 leaves t ambiguous; merge3 selects the server t' }, () => {
+test('finding 1: equal changed records should choose a symmetric t (fixed after the review)', () => {
   const key = id(1);
   const b: Recs = { [key]: { kind: 'invented', t: 0, fields: { text: 'invented-before' } } };
   const h: Recs = { [key]: { kind: 'invented', t: 2, fields: { text: 'invented-after' } } };
@@ -251,7 +236,7 @@ test('snapshot rollback: server-older preserves records, sealed copies and the s
   assert.deepEqual(after.disk?.chunks, before.disk?.chunks);
 });
 
-test('finding 2: rollback leaves cache cursor unchanged', { skip: 'finding 2: rollback detection persists cursor=0 before reporting server-older' }, async () => {
+test('finding 2: rollback leaves cache cursor unchanged (fixed after the review)', async () => {
   const { before, after } = await rollback();
   assert.equal(after.disk?.cursor, before.disk?.cursor);
 });
@@ -284,7 +269,7 @@ test('server rule order and refused-batch atomicity (including marks and quotas)
   await refused([{ id: b, base: 0, blob: blob() }], 'quota-writes');
 });
 
-test('finding 3: incompatible kind changes report a clash', { skip: 'finding 3: kind is resolved as a field but omitted from clashes' }, () => {
+test('finding 3: incompatible kind changes report a clash (fixed after the review)', () => {
   const key = id(40), fields = { text: 'invented-unchanged' };
   const b: Recs = { [key]: { kind: 'invented-base', t: 0, fields } };
   const h: Recs = { [key]: { kind: 'invented-here', t: 2, fields } };
@@ -294,14 +279,14 @@ test('finding 3: incompatible kind changes report a clash', { skip: 'finding 3: 
   assert.ok(result.clashes.length > 0, 'discarding a different kind must tell the caller');
 });
 
-test('finding 4: a null successful-transport pull reply reports bad-reply', { skip: 'finding 4: null and undefined reply envelopes throw before validation' }, async () => {
+test('finding 4: a null successful-transport pull reply reports bad-reply (fixed after the review)', async () => {
   const v = await vault(), store = await Store.open(v, new MemoryCache());
   const remote: Remote = { pull: async () => null as unknown as Pulled, push: async () => { throw new Error('must not push'); } };
   const answer = await store.sync(remote);
   assert.equal(answer.ok, false); if (!answer.ok) assert.equal(answer.why, 'bad-reply');
 });
 
-test('finding 4: null push reply preserves pending changes and reports bad-reply', { skip: 'finding 4: push envelope is dereferenced without a runtime shape check' }, async () => {
+test('finding 4: null push reply preserves pending changes and reports bad-reply (fixed after the review)', async () => {
   const v = await vault(), server = new MemoryRemote(v.id), store = await Store.open(v, new MemoryCache());
   ok(store.add('invented', 'invented-group', { id: id(45), text: 'invented-pending' }));
   const remote: Remote = { pull: (v, n) => server.pull(v, n), push: async () => null as unknown as Pushed };
@@ -311,7 +296,7 @@ test('finding 4: null push reply preserves pending changes and reports bad-reply
   ok(await store.sync(server));
 });
 
-test('finding 5: repeated chunk ids on forever-advancing pages are bounded', { skip: 'finding 5: pull pagination has no overall bound or cross-page duplicate check' }, async () => {
+test('finding 5: repeated chunk ids on forever-advancing pages are bounded (fixed after the review)', async () => {
   const v = await vault(), server = new MemoryRemote(v.id), writer = await Store.open(v, new MemoryCache());
   ok(writer.add('invented', 'invented-group', { id: id(50), text: 'invented-page' }));
   ok(await writer.sync(server));
@@ -344,20 +329,27 @@ test('record size fallback: independent disjoint large fields and UTF-8 accounti
   assert.ok([...result.records.values()].every(e => e.size <= MAX_ENTRY_BYTES));
 });
 
-test('finding 6: exact record-size representation is unspecified by the assessment', { skip: 'finding 6: independent JSON entry assumption differs from entryOf by one byte at the limit' }, () => {
+test('finding 6 (settled in the document after the review): a record is measured as it is written in the chunk, and the limit is inclusive', () => {
   const key = id(61);
-  // The committed oracle includes both braces. The implementation instead
-  // budgets one separator byte. Build the exact boundary without changing the oracle.
-  const overhead = Buffer.byteLength(JSON.stringify({ [key]: { k: 'invented', t: 2, d: { a: '', b: 'y' } } }));
+  // Assessment 1.6 now gives the measure: the UTF-8 bytes of "<id>":{"k":…,"t":…,"d":{…}} as written in the chunk,
+  // plus one for the comma after it. (The oracle in tests/second/merge.ts was written before the document said so
+  // and counts one byte more; it is left as it was, so this test compares with the document, not with the oracle.)
+  const written = (fields: { [name: string]: string }) => Buffer.byteLength(`${JSON.stringify(key)}:${JSON.stringify({ k: 'invented', t: 2, d: fields })}`) + 1;
+  const room = MAX_ENTRY_BYTES - written({ b: 'y', a: '' });
   const b: Recs = { [key]: { kind: 'invented', t: 0, fields: {} } };
-  const h: Recs = { [key]: { kind: 'invented', t: 2, fields: { a: 'x'.repeat(MAX_ENTRY_BYTES + 1 - overhead) } } };
   const r: Recs = { [key]: { kind: 'invented', t: 1, fields: { b: 'y' } } };
-  const result = merge3(entries(b), entries(h), entries(r));
-  assert.equal(result.records.get(key)!.size, MAX_ENTRY_BYTES);
-  assert.deepEqual(plain(result.records), ordinary(merge(b, h, r)));
+  // exactly at the limit: both sides' fields are kept, and nothing is reported
+  const fits = merge3(entries(b), entries({ [key]: { kind: 'invented', t: 2, fields: { a: 'x'.repeat(room) } } }), entries(r));
+  assert.equal(fits.records.get(key)!.size, MAX_ENTRY_BYTES);
+  assert.deepEqual(Object.keys(fits.records.get(key)!.value).sort(), ['a', 'b', 'id']);
+  assert.deepEqual(fits.clashes, []);
+  // one byte more: the later version is kept whole, and the caller is told
+  const over = merge3(entries(b), entries({ [key]: { kind: 'invented', t: 2, fields: { a: 'x'.repeat(room + 1) } } }), entries(r));
+  assert.deepEqual(Object.keys(over.records.get(key)!.value).sort(), ['a', 'id']);
+  assert.equal(over.clashes.length, 1);
 });
 
-test('finding 7: same id independently added to different chunks reports a conflict', { skip: 'finding 7: duplicate ids are selected by whole-record t without a sync clash' }, async () => {
+test('finding 7 (changed after the review): the same id added to different chunks becomes one record with both sides\' fields, and is reported', async () => {
   const v = await vault(), server = new MemoryRemote(v.id);
   const a = await Store.open(v, new MemoryCache(), { now: () => 100 });
   const b = await Store.open(v, new MemoryCache(), { now: () => 200 });
@@ -366,9 +358,12 @@ test('finding 7: same id independently added to different chunks reports a confl
   ok(b.add('invented', 'invented-group', { id: key, onlyB: 'invented-right' }));
   ok(await a.sync(server));
   const answer = await b.sync(server); ok(answer);
-  assert.equal(b.status().doubled, 1);
-  assert.equal(b.get(key)?.onlyA, undefined, 'the other exclusive field is hidden');
-  assert.ok(answer.clashes.length > 0, 'a whole-record selection by t must be reported');
+  assert.ok(answer.clashes.some(clash => clash.what === 'doubled'), 'finding the same record twice must be reported');
+  assert.equal(b.status().doubled, 0);
+  assert.deepEqual(b.get(key), { id: key, onlyA: 'invented-left', onlyB: 'invented-right' });
+  ok(await a.sync(server));
+  assert.deepEqual(a.get(key), b.get(key));
+  assert.equal(a.status().doubled, 0);
 });
 
 test('server malformed pull and ordinary malformed reply fields do not change records', async () => {

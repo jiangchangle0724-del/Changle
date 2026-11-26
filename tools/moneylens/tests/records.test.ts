@@ -224,6 +224,25 @@ test("merging: without a common start, everything on either side is kept", () =>
   assert.deepEqual(merged.records.get(a)!.value, { id: a, n: 2, y: 1, x: 1 });
 });
 
+test("merging: the same change on both sides keeps the later time, whoever merges; and a kind both changed is a clash", () => {
+  const a = idOf(1);
+  const base = records(entry("txn", 10, { id: a, n: 1 }));
+  const here = records(entry("txn", 50, { id: a, n: 2 }));
+  const there = records(entry("txn", 40, { id: a, n: 2 }));
+  assert.deepEqual(plain(merge3(base, here, there).records), plain(here));
+  assert.deepEqual(plain(merge3(base, there, here).records), plain(here));
+  assert.equal(merge3(base, here, there).ahead, false, "a time alone is nothing to send");
+  // the kind is one more field: one side changing it is kept, both changing it differently is settled by the later and reported
+  const renamed = records(entry("rule", 60, { id: a, n: 1 }));
+  assert.deepEqual(merge3(base, renamed, there).clashes, []);
+  assert.equal(merge3(base, renamed, there).records.get(a)!.kind, "rule");
+  const other = records(entry("alias", 70, { id: a, n: 1 }));
+  const fought = merge3(base, renamed, other);
+  assert.equal(fought.records.get(a)!.kind, "alias");
+  assert.deepEqual(fought.clashes, [{ id: a, what: "kind", winner: "there" }]);
+  assert.deepEqual(merge3(base, other, renamed).clashes, [{ id: a, what: "kind", winner: "here" }]);
+});
+
 test("merging: inherited names are not fields", () => {
   const a = idOf(1);
   const base = records(entry("txn", 10, { id: a, n: 1 }));

@@ -39,7 +39,7 @@
  */
 import { base64url, fromBase64url, isId, newId } from "../core/ids";
 import { MAX_CHUNK_BYTES, type OpenVault } from "./crypto";
-import { HISTORY, MAX_ENTRIES, SOFT_CHUNK_BYTES, differs, entryOf, isGroup, isJson, isKind, merge3, openContent, sameEntry, sealContent, type Clash, type Content, type Entry, type Json, type Records, type Value } from "./records";
+import { HISTORY, MAX_ENTRIES, SOFT_CHUNK_BYTES, differs, entryOf, isGroup, isJson, isKind, merge3, mergeTwo, openContent, sameEntry, sealContent, type Clash, type Content, type Entry, type Json, type Records, type Value } from "./records";
 
 /** A chunk as the server holds it. */
 export type RemoteChunk = { id: string; version: number; blob: Uint8Array };
@@ -113,6 +113,18 @@ const PUSH_WRITES = 50;
 const PUSH_BYTES = 4 * 1024 * 1024;
 /** How many times one `sync` goes round (pull, merge, push) before it gives up for now. */
 const ROUNDS = 6;
+/**
+ * An answer in pages has an end. These are far past what any vault can hold (LIMITS), so an
+ * answer that goes beyond one of them is not an answer, and the sync stops instead of following
+ * it for ever: pages, chunks and bytes in one pull, and how often one chunk may come round again
+ * (it can, when it is written between two pages).
+ */
+const PULL_PAGES = 1000;
+const PULL_CHUNKS = 20_000;
+const PULL_BYTES = 64 * 1024 * 1024;
+const PULL_REPEATS = 8;
+/** The reasons a server may give for refusing a push without having written anything. */
+const REFUSALS: ReadonlySet<unknown> = new Set(["wrong-vault", "bad-request", "too-big", "quota-bytes", "quota-writes"]);
 
 /**
  * One chunk in the cache: sealed blobs and a version number. `base` is the server's copy as last
@@ -162,6 +174,7 @@ type Slot = {
 };
 
 const isVersion = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+const isAnswer = (x: unknown): x is { ok: boolean } => typeof x === "object" && x !== null && typeof (x as { ok?: unknown }).ok === "boolean";
 
 function equal(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
@@ -184,6 +197,8 @@ export class Store {
   private readonly unanswered = new Set<string>();
   private queue: Promise<unknown> = Promise.resolve();
   private spoiled = 0;
+  /** Clashes found outside a sync (a doubled record settled by a change): told at the next one. */
+  private owed: Clash[] = [];
   /** Goes up with every change to what the store holds, from here or from the server. */
   changes = 0;
 
@@ -296,6 +311,7 @@ export class Store {
 
   /** Changes fields of a record. A field given as `undefined` is taken out. The others stay, including ones this version of the app does not know. */
   change(id: string, fields: { readonly [name: string]: Json | undefined }): Outcome {
+    if (this.doubled.has(id)) this.settle(this.owed);
     const slot = this.slots.get(this.where.get(id) ?? "");
     const old = slot?.work.get(id);
     if (!slot || !old) return { ok: false, why: "unknown" };
@@ -311,14 +327,13 @@ export class Store {
 
   /** Removes a record. */
   remove(id: string): Outcome {
-    if (!this.where.has(id)) return { ok: false, why: "unknown" };
-    for (const slot of this.holders(id)) {
-      const next = new Map(slot.work);
-      next.delete(id);
-      slot.work = next;
-    }
+    if (this.doubled.has(id)) this.settle(this.owed);
+    const slot = this.slots.get(this.where.get(id) ?? "");
+    if (!slot?.work.has(id)) return { ok: false, why: "unknown" };
+    const next = new Map(slot.work);
+    next.delete(id);
+    slot.work = next;
     this.where.delete(id);
-    this.doubled.delete(id);
     this.changes += 1;
     return { ok: true };
   }
@@ -332,32 +347,37 @@ export class Store {
     return isKind(kind) && typeof value === "object" && value !== null && isId(value.id) && isJson(value) ? "too-big" : "invalid";
   }
 
-  /** The chunks that hold a record: one, unless something went wrong elsewhere. */
-  private holders(id: string): Slot[] {
-    if (!this.doubled.has(id)) {
-      const slot = this.slots.get(this.where.get(id) ?? "");
-      return slot ? [slot] : [];
-    }
-    return [...this.slots.values()].filter((slot) => slot.work.has(id));
+  private put(slot: Slot, entry: Entry): void {
+    const next = new Map(slot.work);
+    next.set(entry.value.id, entry);
+    slot.work = next;
+    this.where.set(entry.value.id, slot.id);
+    this.changes += 1;
   }
 
-  private put(slot: Slot, entry: Entry): void {
-    const id = entry.value.id;
-    // a record that was in more than one chunk is in one from now on
-    if (this.doubled.has(id)) {
-      for (const other of this.holders(id)) {
-        if (other === slot) continue;
-        const next = new Map(other.work);
-        next.delete(id);
-        other.work = next;
-      }
+  /**
+   * A record found in more than one chunk (it should never be: ids are random, and a record does
+   * not move) becomes one record again: the copies are merged, every field any of them has, the
+   * later copy's value where they differ. It stays in the chunk with the smallest id and is taken
+   * out of the others, and the caller is told.
+   */
+  private settle(clashes: Clash[]): void {
+    for (const id of [...this.doubled]) {
+      const holders = [...this.slots.values()].filter((slot) => slot.work.has(id)).sort((a, b) => (a.id < b.id ? -1 : 1));
       this.doubled.delete(id);
+      if (holders.length < 2) continue;
+      let merged = holders[0]!.work.get(id)!;
+      for (const other of holders.slice(1)) merged = mergeTwo(id, merged, other.work.get(id)!, clashes);
+      clashes.push({ id, what: "doubled" });
+      holders.forEach((slot, i) => {
+        const next = new Map(slot.work);
+        if (i === 0) next.set(id, merged);
+        else next.delete(id);
+        slot.work = next;
+      });
+      this.where.set(id, holders[0]!.id);
+      this.changes += 1;
     }
-    const next = new Map(slot.work);
-    next.set(id, entry);
-    slot.work = next;
-    this.where.set(id, slot.id);
-    this.changes += 1;
   }
 
   private bytes(records: Records): number {
@@ -393,7 +413,7 @@ export class Store {
           where.set(id, slot.id);
           continue;
         }
-        // The same record in two chunks. The one changed last is the one that is read; a change to it clears the other.
+        // The same record in two chunks. Until it is settled (`settle`), the one changed last is the one that is read.
         doubled.add(id);
         const rival = this.slots.get(other)!.work.get(id)!;
         if (entry.at > rival.at || (entry.at === rival.at && slot.id < other)) where.set(id, slot.id);
@@ -503,24 +523,39 @@ export class Store {
     let sent = 0;
     const fail = (why: Trouble, chunks?: string[]): Synced => ({ ok: false, why, received, sent, clashes, ...(chunks?.length ? { chunks } : {}) });
     let recounted = false;
+    /** Ask for everything in the next round: the digest did not add up. (Kept apart from the cursor, which only moves on success.) */
+    let recount = false;
     for (let round = 0; round < ROUNDS; round++) {
+      const everything = recount || this.cursor === 0;
+      clashes.push(...this.owed.splice(0));
+      this.settle(clashes);
       await this.seal();
 
       // What changed on the server since this device last looked.
-      const got: RemoteChunk[] = [];
-      let cursor = this.cursor;
+      const got = new Map<string, RemoteChunk>();
+      const seen = new Map<string, number>();
+      const from = everything ? 0 : this.cursor;
+      let cursor = from;
       let digest = "";
-      const everything = this.cursor === 0;
-      for (let since = this.cursor; ; ) {
+      for (let since = from, pages = 0, bytes = 0, count = 0; ; ) {
         let page: Pulled;
         try {
           page = await remote.pull(this.vault.id, since);
         } catch {
           return fail("offline");
         }
-        if (!page.ok) return fail(page.why === "wrong-vault" ? "wrong-vault" : "bad-request");
+        if (!isAnswer(page)) return fail("bad-reply");
+        if (!page.ok) return fail(page.why === "wrong-vault" || page.why === "bad-request" ? page.why : "bad-reply");
         if (!isPage(page, since)) return fail("bad-reply");
-        got.push(...page.chunks);
+        for (const chunk of page.chunks) {
+          const times = (seen.get(chunk.id) ?? 0) + 1;
+          seen.set(chunk.id, times);
+          bytes += chunk.blob.length;
+          count += 1;
+          if (times > PULL_REPEATS) return fail("bad-reply");
+          got.set(chunk.id, chunk);
+        }
+        if (++pages > PULL_PAGES || count > PULL_CHUNKS || bytes > PULL_BYTES) return fail("bad-reply");
         cursor = page.cursor;
         digest = page.digest;
         if (!page.more) break;
@@ -532,22 +567,22 @@ export class Store {
       for (const slot of this.slots.values()) if (slot.base) marks.set(slot.id, markOf(slot.base.blob));
       if (everything) {
         // The server has just listed all it holds. A chunk this device had from it and that is not in the list is gone.
-        const listed = new Set(got.map((chunk) => chunk.id));
-        const gone = [...marks.keys()].filter((id) => !listed.has(id));
+        const gone = [...marks.keys()].filter((id) => !got.has(id));
         if (gone.length) return fail("server-older", gone);
       }
-      for (const chunk of got) marks.set(chunk.id, markOf(chunk.blob));
+      for (const chunk of got.values()) marks.set(chunk.id, markOf(chunk.blob));
       if (digestOf(marks.values()) !== digest) {
         // It is not. Ask for everything, once, and compare chunk by chunk.
         if (everything || recounted) return fail("bad-reply");
         recounted = true;
-        this.cursor = 0;
+        recount = true;
         continue;
       }
-      const taken = await this.take(got, clashes);
+      const taken = await this.take([...got.values()], clashes);
       if (!taken.ok) return fail(taken.why, taken.chunks);
       received += taken.count;
       this.cursor = cursor;
+      recount = false;
       const stuck = await this.seal();
 
       // What changed here. A chunk with a copy of unknown fate sends that same copy again.
@@ -577,6 +612,7 @@ export class Store {
         } catch {
           return unknown("offline");
         }
+        if (!isAnswer(reply) || (!reply.ok && reply.why !== "stale" && !REFUSALS.has(reply.why))) return unknown("bad-reply");
         if (reply.ok) {
           const versions = new Map<string, number>();
           if (Array.isArray(reply.versions)) for (const v of reply.versions) if (v && typeof v.id === "string") versions.set(v.id, v.version);
@@ -696,6 +732,7 @@ export class Store {
     }
     if (opened.length) {
       this.reindex();
+      this.settle(clashes);
       this.changes += 1;
     }
     return { ok: true, count: opened.length };

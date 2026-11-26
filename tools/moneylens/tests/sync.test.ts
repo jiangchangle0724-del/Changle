@@ -540,7 +540,7 @@ test("a merged chunk too large to seal: the sync says so, nothing is written, an
   assert.equal(a.store.list("txn").length, filled.size);
 });
 
-test("the same record in two chunks, which should never be: the one changed last is read, and a change or a removal settles it", async () => {
+test("the same record in two chunks, which should never be: it is merged into one, and the app is told", async () => {
   const vault = await testVault();
   const remote = new MemoryRemote(vault.id);
   // made by hand: no device does this
@@ -549,22 +549,46 @@ test("the same record in two chunks, which should never be: the one changed last
     const blob = await sealContent(vault, id, { group: "t/x", n: 1, rev, history: [rev], records: new Map(records.map((e) => [e.value.id, e])) });
     assert.ok((await remote.push(vault.id, [{ id, base: 0, blob: blob! }])).ok);
   };
-  await chunk([entryOf("txn", 10, txn(1, { note: "older" }))!, entryOf("txn", 10, txn(2, { note: "older" }))!]);
-  await chunk([entryOf("txn", 20, txn(1, { note: "newer" }))!, entryOf("txn", 20, txn(2, { note: "newer" }))!, entryOf("txn", 20, txn(3))!]);
+  await chunk([entryOf("txn", 10, txn(1, { note: "older", onlyOlder: 1 }))!, entryOf("txn", 10, txn(2, { note: "older" }))!]);
+  await chunk([entryOf("txn", 20, txn(1, { note: "newer", onlyNewer: 2 }))!, entryOf("txn", 20, txn(2, { note: "newer" }))!, entryOf("txn", 20, txn(3))!]);
   const a = await device(vault, remote);
-  ok(await a.store.sync(a.net));
-  assert.deepEqual(a.store.status(), { records: 3, chunks: 2, pending: 0, damaged: 0, doubled: 2 });
-  assert.equal(a.store.list("txn").length, 3);
-  assert.equal(a.store.get(idOf(1))!.note, "newer");
-  a.store.change(idOf(1), { category: "x" });
-  a.store.remove(idOf(2));
-  assert.equal(a.store.status().doubled, 0);
-  assert.equal(ok(await a.store.sync(a.net)).sent, 2);
+  const first = ok(await a.store.sync(a.net));
+  // every field either copy had, the later copy's value where they differ; and each of the two is in one chunk again
+  assert.deepEqual(a.store.get(idOf(1)), { ...txn(1), note: "newer", onlyOlder: 1, onlyNewer: 2 });
+  assert.deepEqual(a.store.status(), { records: 3, chunks: 2, pending: 0, damaged: 0, doubled: 0 });
+  assert.equal(first.sent, 2);
+  assert.deepEqual(first.clashes.map((clash) => clash.what).sort(), ["doubled", "doubled", "fields", "fields"]);
   const b = await device(vault, remote);
-  ok(await b.store.sync(b.net));
-  assert.deepEqual(b.store.status(), { records: 2, chunks: 2, pending: 0, damaged: 0, doubled: 0 });
-  assert.deepEqual(b.store.get(idOf(1)), { ...txn(1), note: "newer", category: "x" });
-  assert.equal(b.store.get(idOf(2)), undefined);
+  const second = ok(await b.store.sync(b.net));
+  assert.deepEqual(second.clashes, []);
+  assert.deepEqual(holds(b.store), holds(a.store));
+  const held = ((await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>).chunks;
+  let copies = 0;
+  for (const c of held) {
+    const opened = await openContent(vault, c.id, c.blob);
+    assert.ok(opened.ok);
+    if (opened.content.records.has(idOf(1))) copies += 1;
+  }
+  assert.equal(copies, 1);
+
+  // found in the cache at opening, before any sync: a change settles it first, loses nothing, and the next sync says so
+  const remote2 = new MemoryRemote(vault.id);
+  const hand = new MemoryCache();
+  const seal = async (records: Entry[]) => {
+    const [id, rev] = [newId(), newId()];
+    const local = await sealContent(vault, id, { group: "t/x", n: 1, rev, history: [rev], records: new Map(records.map((e) => [e.value.id, e])) });
+    await hand.save(vault.id, { cursor: 0, put: [{ id, version: 0, local: local! }], drop: [] });
+  };
+  await seal([entryOf("txn", 10, txn(7, { left: 1 }))!]);
+  await seal([entryOf("txn", 20, txn(7, { right: 2 }))!]);
+  const c = await Store.open(vault, hand);
+  assert.equal(c.status().doubled, 1);
+  assert.deepEqual(c.change(idOf(7), { category: "x" }), { ok: true });
+  assert.deepEqual(c.get(idOf(7)), { ...txn(7), left: 1, right: 2, category: "x" });
+  assert.equal(c.status().doubled, 0);
+  const told = ok(await c.sync(remote2));
+  assert.deepEqual(told.clashes, [{ id: idOf(7), what: "doubled" }]);
+  assert.equal(remote2.size, 1, "the chunk that was left empty and had never been sent is not sent at all");
 });
 
 test("a device whose clock is behind still dates its change after the version it changed", async () => {
@@ -974,6 +998,49 @@ test("the digest: what a device believes the server holds, against what it holds
   const wrong: Remote = { pull: async (v, since) => ({ ...((await remote.pull(v, since)) as Extract<Pulled, { ok: true }>), digest: "AAAAAAAAAAAAAAAB" }), push: (v, writes) => remote.push(v, writes) };
   const refused = await b.store.sync(wrong);
   assert.deepEqual([refused.ok, refused.ok ? "" : refused.why], [false, "bad-reply"]);
+});
+
+test("answers that are not answers: the sync says so, ends, and keeps what it was sending", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id);
+  const writer = await device(vault, remote);
+  for (let i = 0; i < 3; i++) writer.store.add("txn", `t/${i}`, txn(i));
+  ok(await writer.store.sync(writer.net));
+  const honest = (await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>;
+  const why = async (store: Store, bad: Partial<Remote>) => {
+    const result = await store.sync({ pull: (v, n) => remote.pull(v, n), push: (v, w) => remote.push(v, w), ...bad });
+    return result.ok ? "ok" : result.why;
+  };
+  const reader = (await device(vault, remote)).store;
+  // not an answer at all
+  for (const reply of [null, undefined, 7, "ok", [], {}, { ok: "yes" }, { ok: false, why: "because" }, { ok: true }, { ...honest, more: "no" }, { ...honest, digest: 5 }, { ...honest, chunks: [{ id: "nope", version: 1, blob: new Uint8Array(40) }] }]) {
+    assert.equal(await why(reader, { pull: async () => reply as unknown as Pulled }), "bad-reply", JSON.stringify(reply)?.slice(0, 60));
+  }
+  // pages that never end: the same chunk again and again, and new chunks for ever
+  let pulls = 0;
+  assert.equal(await why(reader, { pull: async (_v, since) => (pulls++, { ...honest, cursor: since + 1, more: true, chunks: [{ ...honest.chunks[0]!, version: since + 1 }] }) }), "bad-reply");
+  assert.ok(pulls <= 9, `${pulls} pages of the same chunk`);
+  pulls = 0;
+  const endless = await why(reader, { pull: async (_v, since) => (pulls++, { ...honest, cursor: since + 1, more: true, chunks: [{ id: idOf(100_000 + since), version: since + 1, blob: new Uint8Array(40) }] }) });
+  assert.equal(endless, "bad-reply");
+  assert.ok(pulls <= 1001, `${pulls} pages`);
+  assert.equal(reader.status().records, 0, "none of it was taken");
+  // the store is still usable afterwards, and nothing waits behind the sync that was cut short
+  assert.equal(await why(reader, {}), "ok");
+  assert.equal(reader.list("txn").length, 3);
+
+  // a push answered with nonsense: what was sent is treated as of unknown fate, and settled by the next honest answer
+  reader.add("txn", "t/0", txn(50));
+  for (const reply of [null, undefined, "taken", { ok: false, why: "because" }, { ok: true, versions: "all" }, { ok: true, versions: [] }, { ok: false, why: "stale", chunks: [] }, { ok: false, why: "stale", chunks: [{ id: idOf(999), version: 3, blob: new Uint8Array(40) }] }]) {
+    assert.equal(await why(reader, { push: async () => reply as unknown as Pushed }), "bad-reply", JSON.stringify(reply)?.slice(0, 60));
+    assert.equal(reader.status().pending, 1);
+  }
+  // one of those "answers" may have come after the server took the write: here it did
+  assert.equal(await why(reader, { push: async (v, w) => (await remote.push(v, w), null as unknown as Pushed) }), "bad-reply");
+  assert.equal(await why(reader, {}), "ok");
+  assert.equal(reader.status().pending, 0);
+  ok(await writer.store.sync(writer.net));
+  assert.equal(writer.store.list("txn").length, 4);
 });
 
 test("a chunk that cannot be read stops the sync before anything changes", async () => {

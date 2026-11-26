@@ -189,11 +189,18 @@ export function differs(a: Records, b: Records | undefined): boolean {
 }
 
 /**
- * Something a merge could not keep. `removed-there`: this device changed a record that had been
- * removed elsewhere; the record stays removed. `removed-here`: the reverse. `fields`: both sides
- * changed the same fields; `winner` is whose values were kept, the later change.
+ * Something a merge could not keep, or had to settle. `removed-there`: this device changed a
+ * record that had been removed elsewhere; the record stays removed. `removed-here`: the reverse.
+ * `fields`: both sides changed the same fields; `winner` is whose values were kept, the later
+ * change. `kind`: both sides changed what kind of record it is, differently. `doubled`: the same
+ * record was found in more than one chunk, and was merged into one (sync.ts).
  */
-export type Clash = { id: string; what: "removed-there" } | { id: string; what: "removed-here" } | { id: string; what: "fields"; fields: string[]; winner: "here" | "there" };
+export type Clash =
+  | { id: string; what: "removed-there" }
+  | { id: string; what: "removed-here" }
+  | { id: string; what: "fields"; fields: string[]; winner: "here" | "there" }
+  | { id: string; what: "kind"; winner: "here" | "there" }
+  | { id: string; what: "doubled" };
 
 export type Merged = {
   records: Map<string, Entry>;
@@ -218,7 +225,8 @@ export function merge3(base: Records | undefined, here: Records, there: Records)
     let kept: Entry | undefined;
     if (sameEntry(mine, from)) kept = theirs;
     else if (sameEntry(theirs, from)) kept = mine;
-    else if (sameEntry(mine, theirs)) kept = theirs;
+    // both changed it, to the same thing: that, with the later of the two times
+    else if (sameEntry(mine, theirs)) kept = mine && theirs && mine.at > theirs.at ? mine : theirs;
     else if (!mine || !theirs) clashes.push({ id, what: mine ? "removed-there" : "removed-here" });
     else kept = mergeFields(id, from, mine, theirs, clashes);
     if (kept) records.set(id, kept);
@@ -248,10 +256,14 @@ function mergeFields(id: string, from: Entry | undefined, mine: Entry, theirs: E
     }
     if (value !== undefined) fields.push([name, value]);
   }
+  const winner = hereWins ? "here" : "there";
+  // the kind, by the same rules as a field
   let kind = theirs.kind;
   if (mine.kind !== theirs.kind && theirs.kind === from?.kind) kind = mine.kind;
-  else if (mine.kind !== theirs.kind && mine.kind !== from?.kind && hereWins) kind = mine.kind;
-  const winner = hereWins ? "here" : "there";
+  else if (mine.kind !== theirs.kind && mine.kind !== from?.kind) {
+    if (hereWins) kind = mine.kind;
+    clashes.push({ id, what: "kind", winner });
+  }
   const merged = entryOf(kind, Math.max(mine.at, theirs.at), Object.fromEntries(fields) as Value, true);
   if (merged) {
     if (fought.length) clashes.push({ id, what: "fields", fields: fought.sort(), winner });
@@ -262,3 +274,6 @@ function mergeFields(id: string, from: Entry | undefined, mine: Entry, theirs: E
   clashes.push({ id, what: "fields", fields: differing.sort(), winner });
   return hereWins ? mine : theirs;
 }
+
+/** Two copies of one record with no copy they both started from (the same record found in two chunks): every field either has, and the later copy's value where they differ. */
+export const mergeTwo = (id: string, one: Entry, other: Entry, clashes: Clash[]): Entry => mergeFields(id, undefined, one, other, clashes);
