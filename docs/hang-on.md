@@ -292,7 +292,7 @@
 | C16 | 新场景最短的 8 关换成长关 | Codex | `npm run levels` 全过，`long:` 有这 8 关；#723 11-21 合并上线 |
 | C17 | 多人每一档最短的那关换成长关 | Codex | `npm run levels` 全过，`npm run probe` 全过；#722 11-21 合并上线 |
 | A14 | 画面升级：表情、累了的样子、被撞、风吹、塌的碎屑、冲击感 | Claude Code | 截图；手机局帧时间不变差；减弱动效照旧 |
-| A16 | 表情：手柄顶栏 😀 八句，说的人头顶冒气泡、响一声 | Claude Code | `emotes.test.ts`；回放不变；截图（手柄、大厅、玩的时候、iPhone SE 宽）；#PR 11-25 合并上线 |
+| A16 | 表情：手柄顶栏 😀 八句，说的人头顶冒气泡、响一声 | Claude Code | `emotes.test.ts`；回放不变；截图（手柄、大厅、玩的时候、iPhone SE 宽）；#794 11-25 合并上线 |
 | A17 | 放屁键 | Claude Code | |
 | A18 | 闪退自动记录（用现有的房间服务器，不记名字） | Claude Code | |
 | A19 | 成就 | Claude Code | |
