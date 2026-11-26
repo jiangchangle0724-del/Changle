@@ -31,7 +31,8 @@ const r1 = (v: number): number => Math.round(v * 10) / 10;
 const r2 = (v: number): number => Math.round(v * 100) / 100;
 const r3 = (v: number): number => Math.round(v * 1000) / 1000;
 /** 物件的种类在快照里的号（按位置）：0 跷跷板、1 箱子、2 金元宝、3 托盘、4 钥匙、5 灯笼。 */
-const PROP_KINDS: PropView['kind'][] = ['seesaw', 'crate', 'ingot', 'tray', 'key', 'lantern'];
+// 推大石头（11-26）的 boulder 加在最后（已经在用的号不动）
+const PROP_KINDS: PropView['kind'][] = ['seesaw', 'crate', 'ingot', 'tray', 'key', 'lantern', 'boulder'];
 
 /** 事件里的坐标、速度也只要一位小数。 */
 function slim(ev: SimEvent): SimEvent {

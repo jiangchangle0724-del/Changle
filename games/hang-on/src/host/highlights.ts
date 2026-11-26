@@ -92,6 +92,8 @@ export function momentOf(ev: SimEvent, at: number, name: (i: number) => string):
     case 'tray':
       return ev.phase === 'spill' ? { priority: 3, at, zh: '点心翻了', en: 'The dim sum spills' } : null;
     case 'death':
+      // 卷屏（11-26）：落在后面被屏幕甩掉
+      if (ev.cause === 'scroll') return { priority: 3, at, zh: `${name(ev.player)} 被甩掉了`, en: `${name(ev.player)} gets left behind` };
       return { priority: ev.cause ? 3 : 2, at, zh: `${name(ev.player)} 掉下去了`, en: `${name(ev.player)} falls` };
     case 'finish':
       return ev.place === 1 ? { priority: 2, at, zh: `${name(ev.player)} 第一个到`, en: `${name(ev.player)} finishes first` } : null;

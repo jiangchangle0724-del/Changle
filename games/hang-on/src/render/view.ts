@@ -51,7 +51,7 @@ export interface NoodleView {
 }
 
 export interface PropView {
-  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern' | 'boulder';
   w: number;
   h: number;
   x: number;
