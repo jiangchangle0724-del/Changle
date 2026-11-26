@@ -4,10 +4,13 @@
 //   GET  /hang-on/api/rooms/CODE            联机桌问这局怎么样了 -> { exists, phase: lobby | playing | over }
 //   GET  /hang-on/api/rooms/CODE/ws         房间的 WebSocket：?role=host&key=… | ?role=pad&id=…&name=… | ?role=watch
 //                                           （联机桌开的房先没有主机，主机页带 ?room=CODE 进来就是 role=host）
+//   POST /hang-on/api/report                页面出了事自己报（闪退自动记录，src/report.ts）-> 204
+//   GET  /hang-on/api/reports               报过的毛病汇总（src/server/reports.ts，`npm run reports` 打出来）
 //   GET  /hang-on/r/CODE                    二维码的链接：手柄页，房间码填好
 //   /hang-on/、/hang-on/pad/                页面（dist/hang-on，vite build）
 import { DurableObject } from 'cloudflare:workers';
 import { CODE_ALPHABET, CODE_RE, HOST_KEY_RE, SEAT_ID_RE, type ClientMsg, type FatalKey, type ServerMsg } from '../net/protocol';
+import { browserOf, keepReport, makeLimiter, readReport, reportSummary, topFrame, type ReportIn, type ReportStore } from './reports';
 import { makeCode, NO_ROOM, Room, type From, type Out, type RoomData, type TableStatus } from './room';
 
 /** 一条消息的上限：SDP offer 两三千字节，再大就不对了。 */
@@ -182,6 +185,56 @@ function deliver(sockets: WebSocket[], o: Out) {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
 
+/** 闪退记录（11-25）：所有页面的报放在一个盒子里（名字 all）。 */
+export class HangOnReports extends DurableObject<Env> {
+  private store(): ReportStore {
+    const s = this.ctx.storage;
+    return {
+      get: (key) => s.get(key),
+      put: (key, value) => s.put(key, value),
+      delete: (key) => s.delete(key),
+      list: (opts) => s.list(opts),
+    };
+  }
+
+  async keep(r: ReportIn, browser: string): Promise<void> {
+    await keepReport(this.store(), r, browser, Date.now());
+  }
+
+  async summary() {
+    return reportSummary(this.store(), Date.now());
+  }
+}
+
+const reportsFrom = makeLimiter();
+const reportBox = (env: Env) => env.REPORTS.get(env.REPORTS.idFromName('all'));
+
+/** 不收的报：为什么、多大，记进日志（不记说了什么）。 */
+function refused(why: string, req: Request, bytes: number): Response {
+  console.warn(JSON.stringify({ refused: why, bytes, type: req.headers.get('content-type') ?? '' }));
+  return new Response(null, { status: 400 });
+}
+
+/** 页面的一份报：收拾、截短，写进日志，放进盒子。 */
+async function report(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const text = await req.text().catch(() => '');
+  if (text.length > 8192) return new Response(null, { status: 413 });
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return refused('not JSON', req, text.length);
+  }
+  const r = readReport(body);
+  if (!r) return refused('not a report', req, text.length);
+  if (!reportsFrom(req.headers.get('cf-connecting-ip') ?? '?', Date.now())) return new Response(null, { status: 429 });
+  const browser = browserOf(req.headers.get('user-agent') ?? '');
+  // （Cloudflare 的 Workers Logs 里也留着这一行）
+  console.error(JSON.stringify({ report: r.kind, msg: r.msg, where: topFrame(r.stack), ms: r.ms, screen: r.screen, phase: r.phase, level: r.level, players: r.players, build: r.build, browser }));
+  ctx.waitUntil(reportBox(env).keep(r, browser).catch(() => {}));
+  return new Response(null, { status: 204 });
+}
+
 function randomInt(n: number): number {
   const a = new Uint32Array(1);
   crypto.getRandomValues(a);
@@ -189,9 +242,17 @@ function randomInt(n: number): number {
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     const path = url.pathname;
+    if (path === '/hang-on/api/report') {
+      if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+      return report(req, env, ctx);
+    }
+    if (path === '/hang-on/api/reports') {
+      if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+      return json(await reportBox(env).summary());
+    }
     if (path === '/hang-on/api/rooms') {
       if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
       // 手机局：{ "hostPlays": true }（房主自己也玩）；读不出来就当电视局

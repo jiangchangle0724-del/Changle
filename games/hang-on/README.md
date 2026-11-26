@@ -35,7 +35,7 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/look.ts` | 换装的选项（帽子、眼镜、眼睛、脸、袖子、嗓子）和中英名字，手柄页和主机共用 |
 | `src/i18n.ts` | 中文 / English：`tr()`、`data-en`、语言键 |
 | `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」；`levelsFor(玩法)` 给每种玩法自己的一串（大团队是 `levels/team/`，坐不住是场地） |
-| `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入。联机桌（A15）：`GET /hang-on/api/rooms/CODE` 回这局在大厅、在玩还是结束了；主机连房间带钥匙，一局只有一个主机（另一台是 `hostTaken`） |
+| `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入。联机桌（A15）：`GET /hang-on/api/rooms/CODE` 回这局在大厅、在玩还是结束了；主机连房间带钥匙，一局只有一个主机（另一台是 `hostTaken`）。闪退自动记录（11-25）：`reports.ts` 和 Durable Object `HangOnReports`（一个盒子），页面那头是 `src/report.ts`，见 CONTRACTS「闪退记录契约」 |
 | `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计，`snap.ts` 手机局的画面快照（主机压、手机拼成 `RemoteSim`） |
 | `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜，画法在 `src/results.ts`）、声音开关，键盘也能加入。在手机上打开就是手机局（见下） |
 | `pad/index.html` + `src/pad/` | 手柄页（手机横着拿）：左半边按住拖动是浮动摇杆，右半边两个大键按住就是抓（`controls.ts`，手机局的房主也用）；「样子」换装，「道具」选开局带哪样（A9：速冻、拉面、荷叶，抓键上面的道具键用）；队友摔死时亮「召唤队友」；顶栏的 😀 是八句表情（「救命！」「等等我」……），点一句，那个人头顶冒气泡（见 CONTRACTS「表情契约」）；旁边的 💨 是放屁键，噗一声冒一团烟，旁边的人皱眉（「放屁键契约」）。电视局里手柄也是遥控：大厅里选玩法、选关、开始，结算时下一关、再来一次、回大厅，玩的时候顶上「回大厅」按两下，谁按都行，电视那边不用碰。「全屏」键：安卓、平板点了就全屏，iPhone 点了说怎么「添加到主屏幕」（`public/pad.webmanifest` 和图标，从主屏幕打开没有地址栏）。手机局里 `view.ts` 在手柄后面画画面 |
@@ -68,6 +68,7 @@ npm run envelopes   # 红包：从四人回放里给每关挑 3 个藏红包的�
 npm run probe       # 乱按探路：大关每关至少两段一两个人过不去（-- table-06 只报告一关，--quick 少按几次）
 npm run record      # 同上，一进来就录输入，停止时下载回放 JSON
 npm run ip-check    # 法律线，CI 里为零才合并
+npm run reports     # 闪退自动记录：线上的页面报过哪些毛病（node scripts/reports.mjs http://127.0.0.1:8787 看本机的）
 ```
 
 主机页：只在接电视的那台电脑上开。「键盘加入」后 WASD 指方向、Q E 抓、R 召唤、F 用道具、1 到 8 说一句表情、P 放屁，自己一个人也能试。
@@ -147,6 +148,6 @@ sim.events;              // 本帧的 grab / release / death / respawn / checkpo
 和一起跳（`games/party-server`）一个模式：自己的 Worker，合并 `main` 就部署。2026-11-04 连上 Cloudflare：
 Workers Builds 名字 `hang-on`（和 `wrangler.jsonc` 的 `name` 一样），根目录 `/games/hang-on`，构建命令 `npm run build`，
 部署命令 `npx wrangler deploy`，监视路径 `games/hang-on/*`，预览分支的构建关着（Durable Object 不在预览里），
-API token「suibian build token」。没有密钥，没有数据库。
+API token「suibian build token」。没有密钥。两个 Durable Object：房间（一房一个）、闪退记录的盒子（一个，`wrangler.jsonc` 的 migrations v2）。
 `changle.ca/hang-on/`（主机）和 `changle.ca/hang-on/pad/`（手柄）答话；网址以后要改只改 `wrangler.jsonc` 的 `routes` 和 `vite.config.ts` 的 `base`。
 `BASE=https://changle.ca npm run link-check` 对着线上跑一遍联机检查（11-04 全过：直连往返约 20 ms，绕 Cloudflare 约 120 ms）。

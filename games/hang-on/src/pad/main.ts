@@ -17,7 +17,8 @@ import type { PhoneView } from './view';
 import { cleanLook, DEFAULT_LOOK, LOOK_KEYS, LOOK_NAMES, randomLook, stepLook, type Look, type LookKey } from '../look';
 import { cleanItem, ITEM_ICON, ITEM_IDS, type ItemId } from '../items';
 import { itemHint, itemName } from '../item-text';
-import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
+import { applyStatic, getLang, langButton, onLang, pickLang, tr } from '../i18n';
+import { installReports, watchCanvas, type ReportContext } from '../report';
 import { sfx } from '../audio/sfx';
 import { drawLook } from './look-preview';
 import { bindControls } from './controls';
@@ -25,6 +26,24 @@ import { bindControls } from './controls';
 // 在哪儿连按两下都不放大（两根手指照样能放大）。iPhone 的 Safari 只在点到"有人听点击"的东西附近时
 // 才看 touch-action（页面样式给每个元素都设了），所以让整页自己听着。
 document.documentElement.addEventListener('click', () => {});
+
+// 闪退自动记录（11-25）：一打开就开始听；下面的变量还没有的时候只报哪种屏幕
+installReports(() => {
+  const c: ReportContext = { screen: document.body.classList.contains('viewing') ? 'padview' : 'pad', lang: getLang(), online: false };
+  try {
+    c.online = lastConn.socket;
+    if (lastMenu) {
+      c.phase = lastMenu.phase === 'ended' ? undefined : lastMenu.phase;
+      c.mode = lastMenu.mode;
+      c.players = lastMenu.players;
+    }
+    if (view) c.level = view.levelId;
+    c.names = [(document.getElementById('name') as HTMLInputElement | null)?.value ?? '', ...(lastCast?.players.map((p) => p.name) ?? [])];
+  } catch {
+    // 还没走到那儿
+  }
+  return c;
+});
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const e = document.getElementById(id);
@@ -203,6 +222,7 @@ function watch(on: boolean): void {
   viewLoad = import('./view')
     .then(async ({ PhoneView }) => {
       view = await PhoneView.create($<HTMLCanvasElement>('view'), { render: renderView });
+      if (renderView) watchCanvas($<HTMLCanvasElement>('view'));
       const room: RoomView | null = link?.room ?? null;
       if (room) view.room(room);
       if (lastCast) view.cast(lastCast);
