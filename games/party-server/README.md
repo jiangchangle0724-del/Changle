@@ -28,7 +28,10 @@ instead, `site/src/party/dj/`.)
   room moves into the dance by itself (`LEARNING_DONE`, a Durable Object alarm), putting the dance's
   beat 0 (`RoomState.routineStartAt`) exactly where the lead already had it. The host can skip
   ahead to the dance, go back to the start of the 8-count being heard (这一段再来), see the results
-  once the dance has been heard (看结果, skipping the cool-down), or stop.
+  once the dance has been heard (看结果, skipping the cool-down), or stop. While the warm-up or the
+  dance plays, each of those buttons acts only once held for 0.7 s (it fills in as it's held), and
+  the end of the room isn't there: the host dances with the phone in hand, and a palm brushing the
+  screen mustn't pause or stop the song for everyone (`holdButton` in `join.ts`). Paused, plain taps.
 - **The beats**: each phone judges its player's moves against the beat as the room hears it (the
   speaker's grid plus the TV's delay; `src/shared/taps.ts`, party-base's scoring windows) and sends
   the dance's beats a bar at a time (`beats`); after a dropped connection it sends them all again
