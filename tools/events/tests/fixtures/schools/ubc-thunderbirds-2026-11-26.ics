@@ -1,0 +1,2404 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//SIDEARM Sports//NONSGML SIDEARM//EN
+X-WR-CALNAME:UBC Athletics
+X-PUBLISHED-TTL:PT120M
+BEGIN:VEVENT
+UID:vcal_11015-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261025T170000Z
+DTEND:20261025T200000Z
+LOCATION:Vancouver\, B.C., Wright Field
+SUMMARY:[T] UBC Women's Field Hockey vs University of Victoria
+DESCRIPTION:[T] UBC Women's Field Hockey vs University of Victoria\nT 2-2 (3-0 SO)\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11015&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11292-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261025T193000Z
+DTEND:20261025T223000Z
+LOCATION:Victoria\, B.C.
+SUMMARY:[L] UBC Women's Rugby vs University of Victoria
+DESCRIPTION:[L] UBC Women's Rugby vs University of Victoria\nL 12-67\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11292&amp;sport_id=20
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11241-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261026
+DTEND;VALUE=DATE:20261027
+LOCATION:Bremerton\, WA, Gold Mountain Golf Club
+SUMMARY:[N] UBC Men's Golf vs OUAZ Fall Invite at Gold Mountain - NAIA
+DESCRIPTION:[N] UBC Men's Golf vs OUAZ Fall Invite at Gold Mountain - NAIA\n T-2nd\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11241&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11243-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261026
+DTEND;VALUE=DATE:20261027
+LOCATION:Bremerton\, WA, Gold Mountain Golf Club
+SUMMARY:[N] UBC Women's Golf vs OUAZ Fall Invite at Gold Mountain - NAIA
+DESCRIPTION:[N] UBC Women's Golf vs OUAZ Fall Invite at Gold Mountain - NAIA\n 2nd\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11243&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11155-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261029T233000Z
+DTEND:20261030T013000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[L] UBC Women's Basketball vs Trinity Western University
+DESCRIPTION:[L] UBC Women's Basketball vs Trinity Western University\nL 67-76\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-twu-spartans-home-opener-tickets-MNFKL0\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11155&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11131-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261030T013000Z
+DTEND:20261030T033000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Men's Basketball vs Trinity Western University
+DESCRIPTION:[W] UBC Men's Basketball vs Trinity Western University\nW 79-76\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-twu-spartans-home-opener-tickets-MNFKL0\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11131&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11103-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261030T230000Z
+DTEND:20261031T020000Z
+LOCATION:Saskatoon\, Sask., Merlis Belsher Place
+SUMMARY:[W] UBC Women's Hockey at University of Saskatchewan
+DESCRIPTION:[W] UBC Women's Hockey at University of Saskatchewan\nW 5-1\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11103&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11019-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261030T230000Z
+DTEND:20261031T010000Z
+LOCATION:Saskatoon\, Sask.
+SUMMARY:[W] UBC Women's Volleyball at University of Saskatchewan
+DESCRIPTION:[W] UBC Women's Volleyball at University of Saskatchewan\nW 3-1\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11019&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10950-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T000000Z
+DTEND:20261031T030000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Football vs University of Saskatchewan
+DESCRIPTION:[W] UBC Football vs University of Saskatchewan\nW 59-24\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-football-vs-ssk-huskies-tickets-5TF274\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10950&amp;sport_id=3
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11045-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T003000Z
+DTEND:20261031T023000Z
+LOCATION:Saskatoon\, Sask.
+SUMMARY:[W] UBC Men's Volleyball at University of Saskatchewan
+DESCRIPTION:[W] UBC Men's Volleyball at University of Saskatchewan\nW 3-0\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11045&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11071-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T010000Z
+DTEND:20261031T040000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:[L] UBC Men's Hockey vs University of Saskatchewan
+DESCRIPTION:[L] UBC Men's Hockey vs University of Saskatchewan\nL 3-6\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-mens-hockey-vs-ssk-huskies-tickets-2JXGPF\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11071&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10980-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T013000Z
+DTEND:20261031T033000Z
+LOCATION:Vancouver\, B.C., South Turf
+SUMMARY:[W] UBC Men's Soccer vs University of Lethbridge
+DESCRIPTION:[W] UBC Men's Soccer vs University of Lethbridge\nW 6-0\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10980&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11183-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261031
+DTEND;VALUE=DATE:20261101
+LOCATION:Calgary\, Alta.
+SUMMARY:[N] UBC Cross Country vs Canada West
+DESCRIPTION:[N] UBC Cross Country vs Canada West\n W - 2nd, M - 3rd\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11183&amp;sport_id=23
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10998-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T180000Z
+DTEND:20261031T200000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Women's Soccer vs MacEwan University
+DESCRIPTION:[W] UBC Women's Soccer vs MacEwan University\nW 1-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/cw-playoffs-womens-soccer-quarterfinal-ubc-vs-tbd-tickets-9QDLHM\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10998&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11020-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T190000Z
+DTEND:20261031T210000Z
+LOCATION:Saskatoon\, Sask.
+SUMMARY:[W] UBC Women's Volleyball at University of Saskatchewan
+DESCRIPTION:[W] UBC Women's Volleyball at University of Saskatchewan\nW 3-0\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11020&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11293-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T193000Z
+DTEND:20261031T223000Z
+LOCATION:Surrey\, B.C.
+SUMMARY:[L] UBC Men's Field Hockey at United Brothers FHC
+DESCRIPTION:[L] UBC Men's Field Hockey at United Brothers FHC\nL 2-3\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11293&amp;sport_id=2
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11221-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T203000Z
+DTEND:20261031T233000Z
+LOCATION:Burnaby\, B.C.
+SUMMARY:[W] UBC Men's Rugby at Burnaby Lake Rugby Club
+DESCRIPTION:[W] UBC Men's Rugby at Burnaby Lake Rugby Club\nW 42-20\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11221&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11046-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T203000Z
+DTEND:20261031T223000Z
+LOCATION:Saskatoon\, Sask.
+SUMMARY:[W] UBC Men's Volleyball at University of Saskatchewan
+DESCRIPTION:[W] UBC Men's Volleyball at University of Saskatchewan\nW 3-0\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11046&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11072-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T210000Z
+DTEND:20261101T000000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:[L] UBC Men's Hockey vs University of Saskatchewan
+DESCRIPTION:[L] UBC Men's Hockey vs University of Saskatchewan\nL 2-3 (OT)\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-mens-hockey-vs-ssk-huskies-tickets-J71TW9\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11072&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11156-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T220000Z
+DTEND:20261101T000000Z
+LOCATION:Abbotsford\, B.C.
+SUMMARY:[W] UBC Women's Basketball at University of the Fraser Valley
+DESCRIPTION:[W] UBC Women's Basketball at University of the Fraser Valley\nW 77-48\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11156&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11104-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261031T220000Z
+DTEND:20261101T010000Z
+LOCATION:Saskatoon\, Sask., Merlis Belsher Place
+SUMMARY:[W] UBC Women's Hockey at University of Saskatchewan
+DESCRIPTION:[W] UBC Women's Hockey at University of Saskatchewan\nW 3-2\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11104&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11132-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261101T000000Z
+DTEND:20261101T020000Z
+LOCATION:Abbotsford\, B.C.
+SUMMARY:[W] UBC Men's Basketball at University of the Fraser Valley
+DESCRIPTION:[W] UBC Men's Basketball at University of the Fraser Valley\nW 95-85\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11132&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11291-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261101
+DTEND;VALUE=DATE:20261102
+LOCATION:Seattle\, Wash.
+SUMMARY:UBC Rowing  Head of the Lake Regatta
+DESCRIPTION:UBC Rowing  Head of the Lake Regatta\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11291&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10981-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261101T220000Z
+DTEND:20261102T000000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Men's Soccer vs University of Victoria
+DESCRIPTION:[W] UBC Men's Soccer vs University of Victoria\nW 2-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/cw-playoffs-mens-soccer-semifinal-ubc-vs-vic-tickets-CQP5B9\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10981&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11007-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261104T210000Z
+DTEND:20261105T000000Z
+LOCATION:Guelph\, Ont.
+SUMMARY:[W] UBC Women's Rugby vs Queen's University
+DESCRIPTION:[W] UBC Women's Rugby vs Queen's University\nW 15-10\nStreaming Video: https://www.youtube.com/watch?v=FFSJJQ-RgIE\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11007&amp;sport_id=20
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11294-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261105T210000Z
+DTEND:20261106T000000Z
+LOCATION:Waterloo\, Ont., Warrior Field
+SUMMARY:[T] UBC Women's Field Hockey vs University of Toronto
+DESCRIPTION:[T] UBC Women's Field Hockey vs University of Toronto\nT 1-1\nStreaming Video: https://www.youtube.com/live/E1ca2mx-EiU?si=TtbP3dbmXo4tBuai\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11294&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10999-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261105T230000Z
+DTEND:20261106T010000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Women's Soccer vs Trinity Western University
+DESCRIPTION:[W] UBC Women's Soccer vs Trinity Western University\nW 3-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/cw-playoffs-womens-soccer-final-4-semifinals-tickets-QHY5TR\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10999&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11300-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261106T230000Z
+DTEND:20261107T010000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Women's Soccer vs Thompson Rivers University
+DESCRIPTION:[W] UBC Women's Soccer vs Thompson Rivers University\nW 3-1\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/cw-playoffs-womens-soccer-final-4-bronze-gold-and-mens-soccer-final-tickets-9WCGNF\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11300&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11299-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261106T233000Z
+DTEND:20261107T023000Z
+LOCATION:Guelph\, Ontario
+SUMMARY:[W] UBC Women's Rugby at University of Guelph
+DESCRIPTION:[W] UBC Women's Rugby at University of Guelph\nW 22-10\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11299&amp;sport_id=20
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11295-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261106T233000Z
+DTEND:20261107T023000Z
+LOCATION:Waterloo\, Ont., Warrior Field
+SUMMARY:[W] UBC Women's Field Hockey at University of Waterloo
+DESCRIPTION:[W] UBC Women's Field Hockey at University of Waterloo\nW 2-1\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11295&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11157-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T000000Z
+DTEND:20261107T020000Z
+LOCATION:Kelowna\, B.C.
+SUMMARY:[W] UBC Women's Basketball at UBC-Okanagan
+DESCRIPTION:[W] UBC Women's Basketball at UBC-Okanagan\nW 76-55\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11157&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11047-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T003000Z
+DTEND:20261107T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Men's Volleyball vs Thompson Rivers University
+DESCRIPTION:[W] UBC Men's Volleyball vs Thompson Rivers University\nW 3-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-volleyball-vs-tru-wolfpack-tickets-5MVJ4K\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11047&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11073-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T010000Z
+DTEND:20261107T040000Z
+LOCATION:Calgary\, Alta., Flames Community Arenas
+SUMMARY:[L] UBC Men's Hockey at Mount Royal University
+DESCRIPTION:[L] UBC Men's Hockey at Mount Royal University\nL 3-4\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11073&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11133-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T020000Z
+DTEND:20261107T040000Z
+LOCATION:Kelowna\, B.C.
+SUMMARY:[W] UBC Men's Basketball at UBC-Okanagan
+DESCRIPTION:[W] UBC Men's Basketball at UBC-Okanagan\nW 98-62\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11133&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11105-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T020000Z
+DTEND:20261107T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:[W] UBC Women's Hockey vs Mount Royal University
+DESCRIPTION:[W] UBC Women's Hockey vs Mount Royal University\nW 4-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-womens-hockey-vs-mru-cougars-tickets-M9PRWZ\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11105&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10982-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T020000Z
+DTEND:20261107T040000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Men's Soccer vs University of Alberta
+DESCRIPTION:[W] UBC Men's Soccer vs University of Alberta\nW 3-2\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/cw-playoffs-womens-soccer-final-4-bronze-gold-and-mens-soccer-final-tickets-9WCGNF\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10982&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11021-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T021500Z
+DTEND:20261107T041500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[L] UBC Women's Volleyball vs Thompson Rivers University
+DESCRIPTION:[L] UBC Women's Volleyball vs Thompson Rivers University\nL 0-3\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-volleyball-vs-tru-wolfpack-tickets-5MVJ4K\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11021&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11276-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261107
+DTEND;VALUE=DATE:20261108
+LOCATION:London\, Ont.
+SUMMARY:[N] UBC Rowing  Canadian University Rowing Championships
+DESCRIPTION:[N] UBC Rowing  Canadian University Rowing Championships\n M - 1st, W - 2nd\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11276&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11269-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261107
+DTEND;VALUE=DATE:20261108
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre
+SUMMARY:[N] UBC Swimming vs National Bank University Cup Pacific
+DESCRIPTION:[N] UBC Swimming vs National Bank University Cup Pacific\n M - 1st, W - 1st\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11269&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10951-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T200000Z
+DTEND:20261107T230000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Football vs University of Manitoba
+DESCRIPTION:[W] UBC Football vs University of Manitoba\nW 30-23\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/cw-playoffs-football-hardy-cup-semifinal-ubc-vs-tbd-tickets-QFLV59\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10951&amp;sport_id=3
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11106-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T210000Z
+DTEND:20261108T000000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:[L] UBC Women's Hockey vs Mount Royal University
+DESCRIPTION:[L] UBC Women's Hockey vs Mount Royal University\nL 1-2\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-womens-hockey-vs-mru-cougars-tickets-HK0R96\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11106&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11296-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T213000Z
+DTEND:20261108T003000Z
+LOCATION:Waterloo\, Ont., Warrior Field
+SUMMARY:[W] UBC Women's Field Hockey vs University of Prince Edward Island
+DESCRIPTION:[W] UBC Women's Field Hockey vs University of Prince Edward Island\nW 4-0\nStreaming Video: https://www.youtube.com/watch?v=AyP56sTStLM\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11296&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11222-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T213000Z
+DTEND:20261108T003000Z
+LOCATION:Vancouver\, B.C., Gerald McGavin UBC Rugby Centre
+SUMMARY:[W] UBC Men's Rugby vs Castaway Wanderers RFC
+DESCRIPTION:[W] UBC Men's Rugby vs Castaway Wanderers RFC\nW 47-7\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11222&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11074-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T230000Z
+DTEND:20261108T020000Z
+LOCATION:Calgary\, Alta., Flames Community Arenas
+SUMMARY:[L] UBC Men's Hockey at Mount Royal University
+DESCRIPTION:[L] UBC Men's Hockey at Mount Royal University\nL 1-3\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11074&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11048-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261107T230000Z
+DTEND:20261108T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[L] UBC Men's Volleyball vs Thompson Rivers University
+DESCRIPTION:[L] UBC Men's Volleyball vs Thompson Rivers University\nL 2-3\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-volleyball-vs-tru-wolfpack-tickets-5H6C3Z\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11048&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11022-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261108T004500Z
+DTEND:20261108T024500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[L] UBC Women's Volleyball vs Thompson Rivers University
+DESCRIPTION:[L] UBC Women's Volleyball vs Thompson Rivers University\nL 1-3\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-volleyball-vs-tru-wolfpack-tickets-5H6C3Z\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11022&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11016-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261108T193000Z
+DTEND:20261108T223000Z
+LOCATION:Waterloo\, Ont., Warrior Field
+SUMMARY:[W] UBC Women's Field Hockey vs University of Toronto
+DESCRIPTION:[W] UBC Women's Field Hockey vs University of Toronto\nW 2-1\nStreaming Video: https://gem.cbc.ca/u-sportsfhc-field-hockey-championship-gold-ubc-vs-toronto-40049\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11016&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11301-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261108T210000Z
+DTEND:20261109T000000Z
+LOCATION:Guelph\, Ont.
+SUMMARY:[L] UBC Women's Rugby vs University of Victoria
+DESCRIPTION:[L] UBC Women's Rugby vs University of Victoria\nL 0-17\nStreaming Video: https://www.cbc.ca/player/play/video/9.7405141\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11301&amp;sport_id=20
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10983-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261112T233000Z
+DTEND:20261113T013000Z
+LOCATION:Victoria\, B.C., Centennial Stadium
+SUMMARY:[W] UBC Men's Soccer vs University of Guelph
+DESCRIPTION:[W] UBC Men's Soccer vs University of Guelph\nW 3-0\nStreaming Video: https://www.youtube.com/watch?v=dgXG1_CX0H4\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10983&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11000-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261113T013000Z
+DTEND:20261113T033000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[L] UBC Women's Soccer vs Université Laval
+DESCRIPTION:[L] UBC Women's Soccer vs Université Laval\nL 1-2\nStreaming Video: https://www.youtube.com/live/u-4COJXAGcM?si=fOu0FLXwvGRYHWOo\nTickets: https://www.universe.com/events/2026-u-sports-womens-soccer-championship-day-pass-nov-12th-qfs-tickets-L7K9GX\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11000&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11303-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261113T203000Z
+DTEND:20261113T223000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Women's Soccer vs Dalhousie University
+DESCRIPTION:[W] UBC Women's Soccer vs Dalhousie University\nW 4-0\nStreaming Video: https://www.youtube.com/live/hO_pglBKTII?si=UaFGtt4MwtA1LBbj\nTickets: https://www.universe.com/events/2026-u-sports-womens-soccer-championship-day-pass-nov-13th-sfs-tickets-HQBX0F\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11303&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11023-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261113T230000Z
+DTEND:20261114T010000Z
+LOCATION:Brandon\, Man.
+SUMMARY:[W] UBC Women's Volleyball at Brandon University
+DESCRIPTION:[W] UBC Women's Volleyball at Brandon University\nW 3-0\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11023&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11158-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T003000Z
+DTEND:20261114T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Women's Basketball vs University of Northern British Columbia
+DESCRIPTION:[W] UBC Women's Basketball vs University of Northern British Columbia\nW 77-59\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-unbc-timberwolves-tickets-Z215P0\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11158&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11049-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T004500Z
+DTEND:20261114T024500Z
+LOCATION:Brandon\, Man.
+SUMMARY:[W] UBC Men's Volleyball at Brandon University
+DESCRIPTION:[W] UBC Men's Volleyball at Brandon University\nW 3-2\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11049&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11107-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T010000Z
+DTEND:20261114T040000Z
+LOCATION:Edmonton\, Alberta
+SUMMARY:[W] UBC Women's Hockey at University of Alberta Pandas
+DESCRIPTION:[W] UBC Women's Hockey at University of Alberta Pandas\nW 6-0\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11107&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11075-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T020000Z
+DTEND:20261114T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:[W] UBC Men's Hockey vs University of Alberta
+DESCRIPTION:[W] UBC Men's Hockey vs University of Alberta\nW 5-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-mens-hockey-vs-alb-golden-bears-tickets-Z8DPXT\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11075&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11302-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T021500Z
+DTEND:20261114T041500Z
+LOCATION:Victoria\, B.C., Centennial Stadium
+SUMMARY:[L] UBC Men's Soccer vs University of Victoria
+DESCRIPTION:[L] UBC Men's Soccer vs University of Victoria\nL 0-1 (ET)\nStreaming Video: https://www.youtube.com/watch?v=nIiT6Si5lpM\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11302&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11134-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T023000Z
+DTEND:20261114T043000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Men's Basketball vs University of Northern British Columbia
+DESCRIPTION:[W] UBC Men's Basketball vs University of Northern British Columbia\nW 81-78\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-unbc-timberwolves-tickets-Z215P0\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11134&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11185-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261114
+DTEND;VALUE=DATE:20261115
+LOCATION:Hamilton\, Ont.
+SUMMARY:[N] UBC Cross Country vs U Sports 
+DESCRIPTION:[N] UBC Cross Country vs U Sports \n W - 3rd, M - 11th\nStreaming Video: https://gem.cbc.ca/u-sports-mens-cross-country-championship-40230\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11185&amp;sport_id=23
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11297-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T190000Z
+DTEND:20261114T220000Z
+LOCATION:Vancouver\, B.C., Wright Field
+SUMMARY:[W] UBC Men's Field Hockey vs West Coast Kings FHC
+DESCRIPTION:[W] UBC Men's Field Hockey vs West Coast Kings FHC\nW 3-1\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11297&amp;sport_id=2
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10952-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T200000Z
+DTEND:20261114T230000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Football vs University of Regina Rams
+DESCRIPTION:[W] UBC Football vs University of Regina Rams\nW 41-39 (2 OT)\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/cw-playoffs-football-hardy-cup-final-ubc-vs-tbd-tickets-SX67Q0\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10952&amp;sport_id=3
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11024-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T220000Z
+DTEND:20261115T000000Z
+LOCATION:Brandon\, Man.
+SUMMARY:[W] UBC Women's Volleyball at Brandon University
+DESCRIPTION:[W] UBC Women's Volleyball at Brandon University\nW 3-0\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11024&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11076-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T220000Z
+DTEND:20261115T010000Z
+LOCATION:Vancouver\, B.C., Father David Bauer Arena
+SUMMARY:[W] UBC Men's Hockey vs University of Alberta
+DESCRIPTION:[W] UBC Men's Hockey vs University of Alberta\nW 3-2\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-mens-hockey-vs-alb-golden-bears-tickets-TRGSM5\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11076&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11159-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T230000Z
+DTEND:20261115T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Women's Basketball vs Thompson Rivers University
+DESCRIPTION:[W] UBC Women's Basketball vs Thompson Rivers University\nW 68-44\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-tru-wolfpack-tickets-YNCB43\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11159&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11050-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261114T234500Z
+DTEND:20261115T014500Z
+LOCATION:Brandon\, Man.
+SUMMARY:[W] UBC Men's Volleyball at Brandon University
+DESCRIPTION:[W] UBC Men's Volleyball at Brandon University\nW 3-1\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11050&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11135-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261115T010000Z
+DTEND:20261115T030000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Men's Basketball vs Thompson Rivers University
+DESCRIPTION:[W] UBC Men's Basketball vs Thompson Rivers University\nW 88-86\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-tru-wolfpack-tickets-YNCB43\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11135&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11108-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261115T010000Z
+DTEND:20261115T040000Z
+LOCATION:Edmonton\, Alberta
+SUMMARY:[L] UBC Women's Hockey at University of Alberta Pandas
+DESCRIPTION:[L] UBC Women's Hockey at University of Alberta Pandas\nL 2-5\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11108&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11256-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261115
+DTEND;VALUE=DATE:20261116
+LOCATION:Tsawwassen\, B.C., Tsawwassen Springs
+SUMMARY:UBC Women's Golf vs BC Golf - University Matchplay vs SFU
+DESCRIPTION:UBC Women's Golf vs BC Golf - University Matchplay vs SFU\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11256&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11257-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261115
+DTEND;VALUE=DATE:20261116
+LOCATION:Tsawwassen\, B.C., Tsawwassen Springs
+SUMMARY:UBC Men's Golf vs BC Golf - University Matchplay vs SFU
+DESCRIPTION:UBC Men's Golf vs BC Golf - University Matchplay vs SFU\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11257&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11305-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261115T170000Z
+DTEND:20261115T190000Z
+LOCATION:Vancouver\, B.C., Thunderbird Stadium
+SUMMARY:[W] UBC Women's Soccer vs University of Ottawa
+DESCRIPTION:[W] UBC Women's Soccer vs University of Ottawa\nW 2-1\nStreaming Video: https://www.youtube.com/watch?v=lQVzi_TqJsw\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11305&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11306-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261115T180000Z
+DTEND:20261115T200000Z
+LOCATION:Victoria\, B.C., Centennial Stadium
+SUMMARY:[L] UBC Men's Soccer vs University of Alberta
+DESCRIPTION:[L] UBC Men's Soccer vs University of Alberta\nL 1-2\nStreaming Video: https://www.cbc.ca/player/play/video/9.7406766\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11306&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11304-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261117T180000Z
+DTEND:20261117T210000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:[W] UBC Men's Rugby vs Western University
+DESCRIPTION:[W] UBC Men's Rugby vs Western University\nW 42-7\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11304&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11308-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261120T000000Z
+DTEND:20261120T030000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:[L] UBC Men's Rugby vs École de technologie supérieure
+DESCRIPTION:[L] UBC Men's Rugby vs École de technologie supérieure\nL 6-13\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11308&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11051-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261120T230000Z
+DTEND:20261121T010000Z
+LOCATION:Winnipeg\, Manitoba
+SUMMARY:[W] UBC Men's Volleyball at University of Winnipeg
+DESCRIPTION:[W] UBC Men's Volleyball at University of Winnipeg\nW 3-1\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11051&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11160-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T003000Z
+DTEND:20261121T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Women's Basketball vs MacEwan University
+DESCRIPTION:[W] UBC Women's Basketball vs MacEwan University\nW 71-40\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-macewan-griffins-tickets-5TBVYX\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11160&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11077-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T010000Z
+DTEND:20261121T040000Z
+LOCATION:Regina\, Sask., Co-Operators Centre
+SUMMARY:[W] UBC Men's Hockey at University of Regina
+DESCRIPTION:[W] UBC Men's Hockey at University of Regina\nW 5-4 (SO)\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11077&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11109-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T020000Z
+DTEND:20261121T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:[W] UBC Women's Hockey vs University of Regina
+DESCRIPTION:[W] UBC Women's Hockey vs University of Regina\nW 4-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-womens-hockey-vs-reg-cougars-tickets-CDBR68\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11109&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11136-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T023000Z
+DTEND:20261121T043000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Men's Basketball vs MacEwan University
+DESCRIPTION:[W] UBC Men's Basketball vs MacEwan University\nW 78-67\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-macewan-griffins-tickets-5TBVYX\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11136&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11298-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T190000Z
+DTEND:20261121T220000Z
+LOCATION:Vancouver\, B.C., Wright Field
+SUMMARY:UBC Men's Field Hockey vs West Vancouver FHC
+DESCRIPTION:UBC Men's Field Hockey vs West Vancouver FHC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11298&amp;sport_id=2
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_10953-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T201500Z
+DTEND:20261121T231500Z
+LOCATION:Montréal\, Quebec
+SUMMARY:[L] UBC Football at Université de Montréal
+DESCRIPTION:[L] UBC Football at Université de Montréal\nL 13-30\nStreaming Video: https://www.cbc.ca/player/play/video/9.7423941\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=10953&amp;sport_id=3
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11309-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T210000Z
+DTEND:20261122T000000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:[W] UBC Men's Rugby vs Université de Montréal
+DESCRIPTION:[W] UBC Men's Rugby vs Université de Montréal\nW 57-0\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11309&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11110-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T220000Z
+DTEND:20261122T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:[W] UBC Women's Hockey vs University of Regina
+DESCRIPTION:[W] UBC Women's Hockey vs University of Regina\nW 6-0\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-womens-hockey-vs-reg-cougars-tickets-NTM3RD\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11110&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11052-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T220000Z
+DTEND:20261122T000000Z
+LOCATION:Winnipeg\, Manitoba
+SUMMARY:[W] UBC Men's Volleyball at University of Winnipeg
+DESCRIPTION:[W] UBC Men's Volleyball at University of Winnipeg\nW 3-1\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11052&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11078-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T230000Z
+DTEND:20261122T020000Z
+LOCATION:Regina\, Sask., Co-Operators Centre
+SUMMARY:[W] UBC Men's Hockey at University of Regina
+DESCRIPTION:[W] UBC Men's Hockey at University of Regina\nW 3-2 (SO)\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11078&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11161-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261121T230000Z
+DTEND:20261122T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Women's Basketball vs MacEwan University
+DESCRIPTION:[W] UBC Women's Basketball vs MacEwan University\nW 80-45\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-macewan-griffins-tickets-1NQXP6\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11161&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11137-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261122T010000Z
+DTEND:20261122T030000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:[W] UBC Men's Basketball vs MacEwan University
+DESCRIPTION:[W] UBC Men's Basketball vs MacEwan University\nW 88-77\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-basketball-vs-macewan-griffins-tickets-1NQXP6\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11137&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11184-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261127
+DTEND;VALUE=DATE:20261129
+LOCATION:Victoria\, B.C.
+SUMMARY:UBC Swimming vs Canada West Championship
+DESCRIPTION:UBC Swimming vs Canada West Championship\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11184&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11053-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T003000Z
+DTEND:20261128T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Volleyball vs University of Alberta
+DESCRIPTION:UBC Men's Volleyball vs University of Alberta\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/pride-night-ubc-thunderbirds-volleyball-vs-alberta-pandas-golden-bears-tickets-WS74G6\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11053&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11162-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T010000Z
+DTEND:20261128T030000Z
+LOCATION:Victoria\, B.C.
+SUMMARY:UBC Women's Basketball at University of Victoria
+DESCRIPTION:UBC Women's Basketball at University of Victoria\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11162&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11111-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T020000Z
+DTEND:20261128T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Women's Hockey vs Trinity Western University
+DESCRIPTION:UBC Women's Hockey vs Trinity Western University\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-womens-hockey-vs-twu-spartans-tickets-G5JLMS\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11111&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11079-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T020000Z
+DTEND:20261128T050000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Men's Hockey at Trinity Western University
+DESCRIPTION:UBC Men's Hockey at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11079&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11027-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T021500Z
+DTEND:20261128T041500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Volleyball vs University of Alberta Pandas
+DESCRIPTION:UBC Women's Volleyball vs University of Alberta Pandas\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/pride-night-ubc-thunderbirds-volleyball-vs-alberta-pandas-golden-bears-tickets-WS74G6\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11027&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11138-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T030000Z
+DTEND:20261128T050000Z
+LOCATION:Victoria\, B.C.
+SUMMARY:UBC Men's Basketball at University of Victoria
+DESCRIPTION:UBC Men's Basketball at University of Victoria\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11138&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11307-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T190000Z
+DTEND:20261128T220000Z
+LOCATION:Vancouver\, B.C., Wright Field
+SUMMARY:UBC Men's Field Hockey vs India FHC
+DESCRIPTION:UBC Men's Field Hockey vs India FHC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11307&amp;sport_id=2
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11112-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T220000Z
+DTEND:20261129T010000Z
+LOCATION:Langley\, B.C., The Arenas at LEC
+SUMMARY:UBC Women's Hockey at Trinity Western University
+DESCRIPTION:UBC Women's Hockey at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11112&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11080-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T220000Z
+DTEND:20261129T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs Trinity Western University
+DESCRIPTION:UBC Men's Hockey vs Trinity Western University\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-mens-hockey-vs-twu-spartans-tickets-J71KTY\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11080&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11054-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261128T230000Z
+DTEND:20261129T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Volleyball vs University of Alberta
+DESCRIPTION:UBC Men's Volleyball vs University of Alberta\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-volleyball-vs-alb-pandas-golden-bears-tickets-8JTS6B\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11054&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11028-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261129T004500Z
+DTEND:20261129T024500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Volleyball vs University of Alberta Pandas
+DESCRIPTION:UBC Women's Volleyball vs University of Alberta Pandas\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-volleyball-vs-alb-pandas-golden-bears-tickets-8JTS6B\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11028&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11274-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20261204
+DTEND;VALUE=DATE:20261206
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre
+SUMMARY:UBC Swimming vs VPSC Winter Invite
+DESCRIPTION:UBC Swimming vs VPSC Winter Invite\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11274&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11081-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261205T000000Z
+DTEND:20261205T030000Z
+LOCATION:Winnipeg\, Manitoba, Wayne Fleming Arena
+SUMMARY:UBC Men's Hockey at University of Manitoba
+DESCRIPTION:UBC Men's Hockey at University of Manitoba\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11081&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11163-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261205T010000Z
+DTEND:20261205T030000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Women's Basketball at Trinity Western University
+DESCRIPTION:UBC Women's Basketball at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11163&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11113-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261205T020000Z
+DTEND:20261205T050000Z
+LOCATION:Vancouver\, B.C., Father David Bauer Arena
+SUMMARY:UBC Women's Hockey vs University of Manitoba
+DESCRIPTION:UBC Women's Hockey vs University of Manitoba\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-womens-hockey-vs-man-bisons-tickets-0R8C1S\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11113&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11139-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261205T030000Z
+DTEND:20261205T050000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Men's Basketball at Trinity Western University
+DESCRIPTION:UBC Men's Basketball at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11139&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11082-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261205T190000Z
+DTEND:20261205T220000Z
+LOCATION:Winnipeg\, Manitoba, Wayne Fleming Arena
+SUMMARY:UBC Men's Hockey at University of Manitoba
+DESCRIPTION:UBC Men's Hockey at University of Manitoba\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11082&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11114-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261205T220000Z
+DTEND:20261206T010000Z
+LOCATION:Vancouver\, B.C., Father David Bauer Arena
+SUMMARY:UBC Women's Hockey vs University of Manitoba
+DESCRIPTION:UBC Women's Hockey vs University of Manitoba\nStreaming Video: https://canadawest.tv/\nTickets: https://www.universe.com/events/ubc-thunderbirds-womens-hockey-vs-man-bisons-tickets-71QX83\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11114&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11164-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261205T230000Z
+DTEND:20261206T010000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Women's Basketball at Trinity Western University
+DESCRIPTION:UBC Women's Basketball at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11164&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11140-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20261206T010000Z
+DTEND:20261206T030000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Men's Basketball at Trinity Western University
+DESCRIPTION:UBC Men's Basketball at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11140&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11165-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270109T003000Z
+DTEND:20270109T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Basketball vs University of Victoria
+DESCRIPTION:UBC Women's Basketball vs University of Victoria\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11165&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11141-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270109T023000Z
+DTEND:20270109T043000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Basketball vs University of Victoria
+DESCRIPTION:UBC Men's Basketball vs University of Victoria\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11141&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11166-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270109T230000Z
+DTEND:20270110T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Basketball vs University of Victoria
+DESCRIPTION:UBC Women's Basketball vs University of Victoria\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11166&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11142-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270110T010000Z
+DTEND:20270110T030000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Basketball vs University of Victoria
+DESCRIPTION:UBC Men's Basketball vs University of Victoria\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11142&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11029-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270115T183000Z
+DTEND:20270115T203000Z
+LOCATION:Regina\, Sask.
+SUMMARY:UBC Women's Volleyball at University of Regina
+DESCRIPTION:UBC Women's Volleyball at University of Regina\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11029&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11115-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270115T190000Z
+DTEND:20270115T220000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Women's Hockey vs University of Saskatchewan
+DESCRIPTION:UBC Women's Hockey vs University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11115&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11167-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T003000Z
+DTEND:20270116T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Basketball vs University of the Fraser Valley
+DESCRIPTION:UBC Women's Basketball vs University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11167&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11083-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T010000Z
+DTEND:20270116T040000Z
+LOCATION:Saskatoon\, Sask., Merlis Belsher Place
+SUMMARY:UBC Men's Hockey at University of Saskatchewan
+DESCRIPTION:UBC Men's Hockey at University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11083&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11143-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T023000Z
+DTEND:20270116T043000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Basketball vs University of the Fraser Valley
+DESCRIPTION:UBC Men's Basketball vs University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11143&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11271-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270116
+DTEND;VALUE=DATE:20270117
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre
+SUMMARY:UBC Swimming vs Winter Warm-up
+DESCRIPTION:UBC Swimming vs Winter Warm-up\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11271&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11030-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T193000Z
+DTEND:20270116T213000Z
+LOCATION:Regina\, Sask.
+SUMMARY:UBC Women's Volleyball at University of Regina
+DESCRIPTION:UBC Women's Volleyball at University of Regina\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11030&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11225-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T213000Z
+DTEND:20270117T003000Z
+LOCATION:Vancouver\, B.C., Gerald McGavin UBC Rugby Centre
+SUMMARY:UBC Men's Rugby vs Bayside RFC
+DESCRIPTION:UBC Men's Rugby vs Bayside RFC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11225&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11116-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T220000Z
+DTEND:20270117T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Women's Hockey vs University of Saskatchewan
+DESCRIPTION:UBC Women's Hockey vs University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11116&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11168-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T230000Z
+DTEND:20270117T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Basketball vs University of the Fraser Valley
+DESCRIPTION:UBC Women's Basketball vs University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11168&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11084-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270116T230000Z
+DTEND:20270117T020000Z
+LOCATION:Saskatoon\, Sask., Merlis Belsher Place
+SUMMARY:UBC Men's Hockey at University of Saskatchewan
+DESCRIPTION:UBC Men's Hockey at University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11084&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11144-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270117T010000Z
+DTEND:20270117T030000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Basketball vs University of the Fraser Valley
+DESCRIPTION:UBC Men's Basketball vs University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11144&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11031-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270122T003000Z
+DTEND:20270122T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Volleyball vs Trinity Western University
+DESCRIPTION:UBC Women's Volleyball vs Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11031&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11055-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270122T021500Z
+DTEND:20270122T041500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Volleyball vs Trinity Western University
+DESCRIPTION:UBC Men's Volleyball vs Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11055&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11117-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270123T010000Z
+DTEND:20270123T040000Z
+LOCATION:Calgary\, Alta.
+SUMMARY:UBC Women's Hockey at University of Calgary
+DESCRIPTION:UBC Women's Hockey at University of Calgary\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11117&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11085-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270123T020000Z
+DTEND:20270123T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs University of Calgary
+DESCRIPTION:UBC Men's Hockey vs University of Calgary\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11085&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11118-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270123T210000Z
+DTEND:20270124T000000Z
+LOCATION:Calgary\, Alta.
+SUMMARY:UBC Women's Hockey at University of Calgary
+DESCRIPTION:UBC Women's Hockey at University of Calgary\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11118&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11226-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270123T213000Z
+DTEND:20270124T003000Z
+LOCATION:Victoria\, B.C.
+SUMMARY:UBC Men's Rugby at Westshore RFC
+DESCRIPTION:UBC Men's Rugby at Westshore RFC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11226&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11032-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270123T220000Z
+DTEND:20270124T000000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Women's Volleyball at Trinity Western University
+DESCRIPTION:UBC Women's Volleyball at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11032&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11086-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270123T220000Z
+DTEND:20270124T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs University of Calgary
+DESCRIPTION:UBC Men's Hockey vs University of Calgary\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11086&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11056-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270124T000000Z
+DTEND:20270124T020000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Men's Volleyball at Trinity Western University
+DESCRIPTION:UBC Men's Volleyball at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11056&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11057-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270129T010000Z
+DTEND:20270129T030000Z
+LOCATION:Abbotsford\, B.C.
+SUMMARY:UBC Men's Volleyball at University of the Fraser Valley
+DESCRIPTION:UBC Men's Volleyball at University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11057&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11033-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270129T024500Z
+DTEND:20270129T044500Z
+LOCATION:Abbotsford\, B.C.
+SUMMARY:UBC Women's Volleyball at University of the Fraser Valley
+DESCRIPTION:UBC Women's Volleyball at University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11033&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11169-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T003000Z
+DTEND:20270130T023000Z
+LOCATION:Kamloops\, B.C.
+SUMMARY:UBC Women's Basketball at Thompson Rivers University
+DESCRIPTION:UBC Women's Basketball at Thompson Rivers University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11169&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11119-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T020000Z
+DTEND:20270130T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Women's Hockey vs Trinity Western University
+DESCRIPTION:UBC Women's Hockey vs Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11119&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11087-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T020000Z
+DTEND:20270130T050000Z
+LOCATION:Langley\, B.C., Langley Events Centre
+SUMMARY:UBC Men's Hockey at Trinity Western University
+DESCRIPTION:UBC Men's Hockey at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11087&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11145-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T023000Z
+DTEND:20270130T043000Z
+LOCATION:Kamloops\, B.C.
+SUMMARY:UBC Men's Basketball at Thompson Rivers University
+DESCRIPTION:UBC Men's Basketball at Thompson Rivers University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11145&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11272-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270130
+DTEND;VALUE=DATE:20270131
+LOCATION:Calgary\, Alta.
+SUMMARY:UBC Swimming at University Cup Mountain
+DESCRIPTION:UBC Swimming at University Cup Mountain\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11272&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11227-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T213000Z
+DTEND:20270131T003000Z
+LOCATION:Vancouver\, B.C., Gerald McGavin UBC Rugby Centre
+SUMMARY:UBC Men's Rugby vs Capilano RFC
+DESCRIPTION:UBC Men's Rugby vs Capilano RFC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11227&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11120-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T220000Z
+DTEND:20270131T010000Z
+LOCATION:Langley\, B.C., The Arenas at LEC
+SUMMARY:UBC Women's Hockey at Trinity Western University
+DESCRIPTION:UBC Women's Hockey at Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11120&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11088-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T220000Z
+DTEND:20270131T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs Trinity Western University
+DESCRIPTION:UBC Men's Hockey vs Trinity Western University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11088&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11170-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T230000Z
+DTEND:20270131T010000Z
+LOCATION:Kamloops\, B.C.
+SUMMARY:UBC Women's Basketball at Thompson Rivers University
+DESCRIPTION:UBC Women's Basketball at Thompson Rivers University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11170&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11034-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270130T230000Z
+DTEND:20270131T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Volleyball vs University of the Fraser Valley
+DESCRIPTION:UBC Women's Volleyball vs University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11034&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11058-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270131T004500Z
+DTEND:20270131T024500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Volleyball vs University of the Fraser Valley
+DESCRIPTION:UBC Men's Volleyball vs University of the Fraser Valley\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11058&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11146-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270131T010000Z
+DTEND:20270131T030000Z
+LOCATION:Kamloops\, B.C.
+SUMMARY:UBC Men's Basketball at Thompson Rivers University
+DESCRIPTION:UBC Men's Basketball at Thompson Rivers University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11146&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11035-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T003000Z
+DTEND:20270206T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Volleyball vs Mount Royal University
+DESCRIPTION:UBC Women's Volleyball vs Mount Royal University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11035&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11171-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T010000Z
+DTEND:20270206T030000Z
+LOCATION:Prince George\, B.C.
+SUMMARY:UBC Women's Basketball at University of Northern British Columbia
+DESCRIPTION:UBC Women's Basketball at University of Northern British Columbia\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11171&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11121-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T010000Z
+DTEND:20270206T040000Z
+LOCATION:Regina\, Sask., Co-Operators Centre
+SUMMARY:UBC Women's Hockey at University of Regina
+DESCRIPTION:UBC Women's Hockey at University of Regina\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11121&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11089-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T020000Z
+DTEND:20270206T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs University of Regina
+DESCRIPTION:UBC Men's Hockey vs University of Regina\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11089&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11059-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T021500Z
+DTEND:20270206T041500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Volleyball vs Mount Royal University
+DESCRIPTION:UBC Men's Volleyball vs Mount Royal University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11059&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11147-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T030000Z
+DTEND:20270206T050000Z
+LOCATION:Prince George\, B.C.
+SUMMARY:UBC Men's Basketball at University of Northern British Columbia
+DESCRIPTION:UBC Men's Basketball at University of Northern British Columbia\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11147&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11228-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T213000Z
+DTEND:20270207T003000Z
+LOCATION:Vancouver\, B.C.
+SUMMARY:UBC Men's Rugby at Vancouver Rowing Club
+DESCRIPTION:UBC Men's Rugby at Vancouver Rowing Club\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11228&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11090-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T220000Z
+DTEND:20270207T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs University of Regina
+DESCRIPTION:UBC Men's Hockey vs University of Regina\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11090&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11036-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T230000Z
+DTEND:20270207T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Volleyball vs Mount Royal University
+DESCRIPTION:UBC Women's Volleyball vs Mount Royal University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11036&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11122-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270206T230000Z
+DTEND:20270207T020000Z
+LOCATION:Regina\, Sask., Co-Operators Centre
+SUMMARY:UBC Women's Hockey at University of Regina
+DESCRIPTION:UBC Women's Hockey at University of Regina\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11122&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11172-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270207T000000Z
+DTEND:20270207T020000Z
+LOCATION:Prince George\, B.C.
+SUMMARY:UBC Women's Basketball at University of Northern British Columbia
+DESCRIPTION:UBC Women's Basketball at University of Northern British Columbia\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11172&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11060-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270207T004500Z
+DTEND:20270207T024500Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Volleyball vs Mount Royal University
+DESCRIPTION:UBC Men's Volleyball vs Mount Royal University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11060&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11148-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270207T030000Z
+DTEND:20270207T050000Z
+LOCATION:Prince George\, B.C.
+SUMMARY:UBC Men's Basketball at University of Northern British Columbia
+DESCRIPTION:UBC Men's Basketball at University of Northern British Columbia\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11148&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11173-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270213T003000Z
+DTEND:20270213T023000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Basketball vs UBC-Okanagan
+DESCRIPTION:UBC Women's Basketball vs UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11173&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11091-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270213T010000Z
+DTEND:20270213T040000Z
+LOCATION:Edmonton\, Alta.
+SUMMARY:UBC Men's Hockey at MacEwan University
+DESCRIPTION:UBC Men's Hockey at MacEwan University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11091&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11123-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270213T020000Z
+DTEND:20270213T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Women's Hockey vs MacEwan University
+DESCRIPTION:UBC Women's Hockey vs MacEwan University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11123&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11149-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270213T023000Z
+DTEND:20270213T043000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Basketball vs UBC-Okanagan
+DESCRIPTION:UBC Men's Basketball vs UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11149&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11229-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270213
+DTEND;VALUE=DATE:20270214
+LOCATION:Berkeley\, Calif.
+SUMMARY:UBC Men's Rugby at University of California
+DESCRIPTION:UBC Men's Rugby at University of California\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11229&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11273-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270213
+DTEND;VALUE=DATE:20270214
+LOCATION:Victoria\, B.C.
+SUMMARY:UBC Swimming at University Cup Victoria
+DESCRIPTION:UBC Swimming at University Cup Victoria\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11273&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11092-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270213T210000Z
+DTEND:20270214T000000Z
+LOCATION:Edmonton\, Alta.
+SUMMARY:UBC Men's Hockey at MacEwan University
+DESCRIPTION:UBC Men's Hockey at MacEwan University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11092&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11124-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270213T220000Z
+DTEND:20270214T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Women's Hockey vs MacEwan University
+DESCRIPTION:UBC Women's Hockey vs MacEwan University\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11124&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11174-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270213T230000Z
+DTEND:20270214T010000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Women's Basketball vs UBC-Okanagan
+DESCRIPTION:UBC Women's Basketball vs UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11174&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11150-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270214T010000Z
+DTEND:20270214T030000Z
+LOCATION:Vancouver\, B.C., War Memorial Gymnasium
+SUMMARY:UBC Men's Basketball vs UBC-Okanagan
+DESCRIPTION:UBC Men's Basketball vs UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11150&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11151-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270219
+DTEND;VALUE=DATE:20270220
+LOCATION:
+SUMMARY:UBC Men's Basketball vs Canada West
+DESCRIPTION:UBC Men's Basketball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11151&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11175-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270219
+DTEND;VALUE=DATE:20270220
+LOCATION:
+SUMMARY:UBC Women's Basketball vs Canada West
+DESCRIPTION:UBC Women's Basketball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11175&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11061-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T000000Z
+DTEND:20270220T020000Z
+LOCATION:Kelowna\, B.C.
+SUMMARY:UBC Men's Volleyball at UBC-Okanagan
+DESCRIPTION:UBC Men's Volleyball at UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11061&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11125-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T010000Z
+DTEND:20270220T040000Z
+LOCATION:Saskatoon\, Sask., Merlis Belsher Place
+SUMMARY:UBC Women's Hockey at University of Saskatchewan
+DESCRIPTION:UBC Women's Hockey at University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11125&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11037-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T020000Z
+DTEND:20270220T040000Z
+LOCATION:Kelowna\, B.C.
+SUMMARY:UBC Women's Volleyball at UBC-Okanagan
+DESCRIPTION:UBC Women's Volleyball at UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11037&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11093-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T020000Z
+DTEND:20270220T050000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs University of Saskatchewan
+DESCRIPTION:UBC Men's Hockey vs University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11093&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11176-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270220
+DTEND;VALUE=DATE:20270221
+LOCATION:
+SUMMARY:UBC Women's Basketball vs Canada West
+DESCRIPTION:UBC Women's Basketball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11176&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11152-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270220
+DTEND;VALUE=DATE:20270221
+LOCATION:
+SUMMARY:UBC Men's Basketball vs Canada West
+DESCRIPTION:UBC Men's Basketball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11152&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11230-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T213000Z
+DTEND:20270221T003000Z
+LOCATION:Vancouver\, B.C.
+SUMMARY:UBC Men's Rugby at Meraloma RC
+DESCRIPTION:UBC Men's Rugby at Meraloma RC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11230&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11094-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T220000Z
+DTEND:20270221T010000Z
+LOCATION:Vancouver\, B.C., Doug Mitchell Thunderbird Sports Centre
+SUMMARY:UBC Men's Hockey vs University of Saskatchewan
+DESCRIPTION:UBC Men's Hockey vs University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11094&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11062-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T230000Z
+DTEND:20270221T010000Z
+LOCATION:Kelowna\, B.C.
+SUMMARY:UBC Men's Volleyball at UBC-Okanagan
+DESCRIPTION:UBC Men's Volleyball at UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11062&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11126-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270220T230000Z
+DTEND:20270221T020000Z
+LOCATION:Saskatoon\, Sask., Merlis Belsher Place
+SUMMARY:UBC Women's Hockey at University of Saskatchewan
+DESCRIPTION:UBC Women's Hockey at University of Saskatchewan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11126&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11038-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270221T010000Z
+DTEND:20270221T030000Z
+LOCATION:Kelowna\, B.C.
+SUMMARY:UBC Women's Volleyball at UBC-Okanagan
+DESCRIPTION:UBC Women's Volleyball at UBC-Okanagan\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11038&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11039-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270226
+DTEND;VALUE=DATE:20270228
+LOCATION:TBD
+SUMMARY:UBC Women's Volleyball vs Canada West
+DESCRIPTION:UBC Women's Volleyball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11039&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11063-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270226
+DTEND;VALUE=DATE:20270228
+LOCATION:TBD
+SUMMARY:UBC Men's Volleyball vs Canada West
+DESCRIPTION:UBC Men's Volleyball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11063&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11177-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270226
+DTEND;VALUE=DATE:20270228
+LOCATION:
+SUMMARY:UBC Women's Basketball vs Canada West
+DESCRIPTION:UBC Women's Basketball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11177&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11127-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270226
+DTEND;VALUE=DATE:20270228
+LOCATION:
+SUMMARY:UBC Women's Hockey vs Canada West
+DESCRIPTION:UBC Women's Hockey vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11127&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11153-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270226
+DTEND;VALUE=DATE:20270228
+LOCATION:
+SUMMARY:UBC Men's Basketball vs Canada West
+DESCRIPTION:UBC Men's Basketball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11153&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11095-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270226
+DTEND;VALUE=DATE:20270228
+LOCATION:
+SUMMARY:UBC Men's Hockey vs Canada West
+DESCRIPTION:UBC Men's Hockey vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11095&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11231-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270227T213000Z
+DTEND:20270228T003000Z
+LOCATION:West Vancouver\, B.C.
+SUMMARY:UBC Men's Rugby at Capilano RFC
+DESCRIPTION:UBC Men's Rugby at Capilano RFC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11231&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11186-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270304
+DTEND;VALUE=DATE:20270306
+LOCATION:Calgary\, Alta.
+SUMMARY:UBC Swimming vs U Sports
+DESCRIPTION:UBC Swimming vs U Sports\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11186&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11128-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270305
+DTEND;VALUE=DATE:20270307
+LOCATION:
+SUMMARY:UBC Women's Hockey vs Canada West
+DESCRIPTION:UBC Women's Hockey vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11128&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11064-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270305
+DTEND;VALUE=DATE:20270307
+LOCATION:TBD
+SUMMARY:UBC Men's Volleyball vs Canada West
+DESCRIPTION:UBC Men's Volleyball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11064&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11040-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270305
+DTEND;VALUE=DATE:20270307
+LOCATION:TBD
+SUMMARY:UBC Women's Volleyball vs Canada West
+DESCRIPTION:UBC Women's Volleyball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11040&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11096-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270305
+DTEND;VALUE=DATE:20270307
+LOCATION:
+SUMMARY:UBC Men's Hockey vs Canada West
+DESCRIPTION:UBC Men's Hockey vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11096&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11178-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270311
+DTEND;VALUE=DATE:20270314
+LOCATION:Halifax\, N.S.
+SUMMARY:UBC Women's Basketball vs U Sports
+DESCRIPTION:UBC Women's Basketball vs U Sports\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11178&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11154-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270311
+DTEND;VALUE=DATE:20270314
+LOCATION:Halifax\, N.S.
+SUMMARY:UBC Men's Basketball vs U Sports
+DESCRIPTION:UBC Men's Basketball vs U Sports\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11154&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11129-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270314
+LOCATION:
+SUMMARY:UBC Women's Hockey vs Canada West
+DESCRIPTION:UBC Women's Hockey vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11129&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11041-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:TBD
+SUMMARY:UBC Women's Volleyball vs Canada West
+DESCRIPTION:UBC Women's Volleyball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11041&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11065-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:TBD
+SUMMARY:UBC Men's Volleyball vs Canada West
+DESCRIPTION:UBC Men's Volleyball vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11065&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11097-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270314
+LOCATION:
+SUMMARY:UBC Men's Hockey vs Canada West
+DESCRIPTION:UBC Men's Hockey vs Canada West\nStreaming Video: https://canadawest.tv/\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11097&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11232-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270313T213000Z
+DTEND:20270314T003000Z
+LOCATION:Victoria\, B.C.
+SUMMARY:UBC Men's Rugby at James Bay AA
+DESCRIPTION:UBC Men's Rugby at James Bay AA\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11232&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11066-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270318
+DTEND;VALUE=DATE:20270321
+LOCATION:Calgary\, Alta.
+SUMMARY:UBC Men's Volleyball vs U Sports
+DESCRIPTION:UBC Men's Volleyball vs U Sports\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11066&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11042-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270318
+DTEND;VALUE=DATE:20270321
+LOCATION:Toronto\, Ont.
+SUMMARY:UBC Women's Volleyball vs U Sports
+DESCRIPTION:UBC Women's Volleyball vs U Sports\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11042&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11233-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270320T203000Z
+DTEND:20270320T233000Z
+LOCATION:Vancouver\, B.C.
+SUMMARY:UBC Men's Rugby at UBCOB Ravens RFC
+DESCRIPTION:UBC Men's Rugby at UBCOB Ravens RFC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11233&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11130-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270325
+DTEND;VALUE=DATE:20270328
+LOCATION:Fredericton\, N.B.
+SUMMARY:UBC Women's Hockey vs U Sports
+DESCRIPTION:UBC Women's Hockey vs U Sports\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11130&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11098-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270325
+DTEND;VALUE=DATE:20270328
+LOCATION:Trois-Rivieres\, Que.
+SUMMARY:UBC Men's Hockey vs U Sports
+DESCRIPTION:UBC Men's Hockey vs U Sports\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11098&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11234-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270403T203000Z
+DTEND:20270403T233000Z
+LOCATION:Vancouver\, B.C., Gerald McGavin UBC Rugby Centre
+SUMMARY:UBC Men's Rugby vs Westshore RFC
+DESCRIPTION:UBC Men's Rugby vs Westshore RFC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11234&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11194-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270405
+DTEND;VALUE=DATE:20270406
+LOCATION:Salem\, Ore., Creekside Golf Club
+SUMMARY:UBC Men's Golf vs Corban Spring Invitational - NAIA
+DESCRIPTION:UBC Men's Golf vs Corban Spring Invitational - NAIA\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11194&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11189-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270405
+DTEND;VALUE=DATE:20270406
+LOCATION:Salem\, Ore., Creekside Golf Club
+SUMMARY:UBC Women's Golf vs Corban Spring Invitational - NAIA
+DESCRIPTION:UBC Women's Golf vs Corban Spring Invitational - NAIA\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11189&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11235-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270410T203000Z
+DTEND:20270410T233000Z
+LOCATION:Vancouver\, B.C., Gerald McGavin UBC Rugby Centre
+SUMMARY:UBC Men's Rugby vs Meraloma RC
+DESCRIPTION:UBC Men's Rugby vs Meraloma RC\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11235&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11224-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART:20270417T203000Z
+DTEND:20270417T233000Z
+LOCATION:Vancouver\, B.C., Gerald McGavin UBC Rugby Centre
+SUMMARY:UBC Men's Rugby vs James Bay AA
+DESCRIPTION:UBC Men's Rugby vs James Bay AA\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11224&amp;sport_id=21
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11180-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270419
+DTEND;VALUE=DATE:20270421
+LOCATION:Walla Walla\, Wash., Wine Valley Golf Club
+SUMMARY:UBC Men's Golf vs Cascade Collegiate Conference Championship - NAIA
+DESCRIPTION:UBC Men's Golf vs Cascade Collegiate Conference Championship - NAIA\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11180&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11182-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270419
+DTEND;VALUE=DATE:20270421
+LOCATION:Walla Walla\, Wash., Wine Valley Golf Club
+SUMMARY:UBC Women's Golf vs Cascade Collegiate Conference Championship - NAIA
+DESCRIPTION:UBC Women's Golf vs Cascade Collegiate Conference Championship - NAIA\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11182&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11197-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270514
+DTEND;VALUE=DATE:20270516
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre
+SUMMARY:UBC Swimming vs Mel Zajac Jr International Swim Meet
+DESCRIPTION:UBC Swimming vs Mel Zajac Jr International Swim Meet\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11197&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11196-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270518
+DTEND;VALUE=DATE:20270521
+LOCATION:Fayetteville\, N.C., Gates Four Golf & Country Club
+SUMMARY:UBC Men's Golf vs NAIA Men's Golf National Championship
+DESCRIPTION:UBC Men's Golf vs NAIA Men's Golf National Championship\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11196&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11190-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270525
+DTEND;VALUE=DATE:20270528
+LOCATION:Dalton\, Ga., Dalton Golf & Country Club
+SUMMARY:UBC Women's Golf vs NAIA Women's Golf National Championship
+DESCRIPTION:UBC Women's Golf vs NAIA Women's Golf National Championship\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11190&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11191-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270601
+DTEND;VALUE=DATE:20270604
+LOCATION:TBD
+SUMMARY:UBC Women's Golf vs Golf Canada Canadian University/College Championship
+DESCRIPTION:UBC Women's Golf vs Golf Canada Canadian University/College Championship\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11191&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_11195-gothunderbirds.ca
+DTSTAMP:20261126T054006Z
+DTSTART;VALUE=DATE:20270601
+DTEND;VALUE=DATE:20270604
+LOCATION:TBD
+SUMMARY:UBC Men's Golf vs Golf Canada Canadian University/College Championship
+DESCRIPTION:UBC Men's Golf vs Golf Canada Canadian University/College Championship\n
+URL:https://gothunderbirds.ca/calendar.aspx?game_id=11195&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+END:VCALENDAR

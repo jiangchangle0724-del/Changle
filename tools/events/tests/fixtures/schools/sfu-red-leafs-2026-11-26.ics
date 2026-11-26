@@ -1,0 +1,3284 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//SIDEARM Sports//NONSGML SIDEARM//EN
+X-WR-CALNAME:Simon Fraser University Athletics
+X-PUBLISHED-TTL:PT120M
+BEGIN:VEVENT
+UID:vcal_5605-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261026T173000Z
+DTEND:20261026T203000Z
+LOCATION:Waikoloa Village\, Hawaii, Waikoloa Beach GC
+SUMMARY:[N] Simon Fraser University Golf - W at Hawaii Hilo Punahele Jerky Company Inc. Invitational - First Round
+DESCRIPTION:[N] Simon Fraser University Golf - W at Hawaii Hilo Punahele Jerky Company Inc. Invitational - First Round\n T - 5th of 10 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=5605&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8848-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261026T173000Z
+DTEND:20261026T203000Z
+LOCATION:Kohala Coast\, Hawaii, Mauna Lani North
+SUMMARY:[N] Simon Fraser University Golf - M at Hawaii Hilo Punahele Jerky Company Inc. Invitational - First and Second Rounds
+DESCRIPTION:[N] Simon Fraser University Golf - M at Hawaii Hilo Punahele Jerky Company Inc. Invitational - First and Second Rounds\n 4th of 13 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8848&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8837-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261027T173000Z
+DTEND:20261027T203000Z
+LOCATION:Waikoloa Village\, Hawaii, Waikoloa Beach GC
+SUMMARY:[N] Simon Fraser University Golf - W at Hawaii Hilo Punahele Jerky Company Inc. Invitational - Final Round
+DESCRIPTION:[N] Simon Fraser University Golf - W at Hawaii Hilo Punahele Jerky Company Inc. Invitational - Final Round\n T - 4th of 10 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8837&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8850-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261027T173000Z
+DTEND:20261027T203000Z
+LOCATION:Kohala Coast\, Hawaii, Mauna Lani North
+SUMMARY:[N] Simon Fraser University Golf - M at Hawaii Hilo Punahele Jerky Company Inc. Invitational - Final Round
+DESCRIPTION:[N] Simon Fraser University Golf - M at Hawaii Hilo Punahele Jerky Company Inc. Invitational - Final Round\n 4th of 13 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8850&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7044-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261029T230000Z
+DTEND:20261030T010000Z
+LOCATION:Burnaby\, B.C., SFU Stadium at Terry Fox Field
+SUMMARY:[L] Simon Fraser University Soccer - M vs Western Oregon
+DESCRIPTION:[L] Simon Fraser University Soccer - M vs Western Oregon\nL 0-3\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4066632\nTickets: https://www.eventbrite.com/cc/sfu-mens-soccer-4846017\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7044&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7035-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261030T020000Z
+DTEND:20261030T040000Z
+LOCATION:Monmouth\, Ore., New PE Building
+SUMMARY:[W] Simon Fraser University Volleyball - W at Western Oregon
+DESCRIPTION:[W] Simon Fraser University Volleyball - W at Western Oregon\nW 3-0\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4335365\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7035&amp;sport_id=17
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7152-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261030T020000Z
+DTEND:20261030T040000Z
+LOCATION:Burnaby\, B.C., SFU Stadium at Terry Fox Field
+SUMMARY:[W] Simon Fraser University Soccer - W vs Western Washington - Senior Night
+DESCRIPTION:[W] Simon Fraser University Soccer - W vs Western Washington - Senior Night\nW 2-0\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4062437\nTickets: https://www.eventbrite.com/cc/sfu-womens-soccer-4846026?utm-campaign=social&utm-content=attendeeshare&utm-medium=discovery&utm-term=odclsxcollection&utm-source=cp&aff=odclsxcollection\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7152&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8839-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261030T173000Z
+DTEND:20261030T203000Z
+LOCATION:Waikoloa Village\, Hawaii, Waikoloa Beach GC
+SUMMARY:[N] Simon Fraser University Golf - M at Hawaii Pacific Sharks Shootout - First and Second Rounds
+DESCRIPTION:[N] Simon Fraser University Golf - M at Hawaii Pacific Sharks Shootout - First and Second Rounds\n 9th of 13 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8839&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8845-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261030T173000Z
+DTEND:20261030T203000Z
+LOCATION:Waimea\, Hawaii, Mauna Lani North
+SUMMARY:[N] Simon Fraser University Golf - W at Hawaii Pacific Sharks Shootout - First Round
+DESCRIPTION:[N] Simon Fraser University Golf - W at Hawaii Pacific Sharks Shootout - First Round\n T - 3rd of 10 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8845&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7985-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261031T170000Z
+DTEND:20261031T190000Z
+LOCATION:Nampa\, Idaho, NNU Soccer & LAX Field
+SUMMARY:[W] Simon Fraser University Soccer - W at Northwest Nazarene (Idaho)
+DESCRIPTION:[W] Simon Fraser University Soccer - W at Northwest Nazarene (Idaho)\nW 1-0\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4300959\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7985&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8841-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261031T173000Z
+DTEND:20261031T203000Z
+LOCATION:Waimea\, Hawaii, Mauna Lani North
+SUMMARY:[N] Simon Fraser University Golf - W at Hawaii Pacific Sharks Shootout - Final Round
+DESCRIPTION:[N] Simon Fraser University Golf - W at Hawaii Pacific Sharks Shootout - Final Round\n 5th of 10 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8841&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8843-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261031T173000Z
+DTEND:20261031T203000Z
+LOCATION:Waikoloa Village\, Hawaii, Waikoloa Beach GC
+SUMMARY:[N] Simon Fraser University Golf - M at Hawaii Pacific Sharks Shootout - Final Round
+DESCRIPTION:[N] Simon Fraser University Golf - M at Hawaii Pacific Sharks Shootout - Final Round\n 8th of 13 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8843&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6587-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261031T200000Z
+DTEND:20261031T220000Z
+LOCATION:Lacey\, Wash., Marcus Pavilion
+SUMMARY:[W] Simon Fraser University Volleyball - W at Saint Martin's (Wash.)
+DESCRIPTION:[W] Simon Fraser University Volleyball - W at Saint Martin's (Wash.)\nW 3-1\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4103348\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6587&amp;sport_id=17
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_4645-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261031T210000Z
+DTEND:20261031T230000Z
+LOCATION:Burnaby\, B.C., SFU Stadium at Terry Fox Field
+SUMMARY:[W] Simon Fraser University Soccer - M vs Saint Martin's (Wash.) - Senior Day
+DESCRIPTION:[W] Simon Fraser University Soccer - M vs Saint Martin's (Wash.) - Senior Day\nW 4-0\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4066633\nTickets: https://www.eventbrite.com/cc/sfu-mens-soccer-4846017\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=4645&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8635-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261101T210000Z
+DTEND:20261102T000000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:[W] Simon Fraser University Wrestling - W vs Evergreen State (Wash.)
+DESCRIPTION:[W] Simon Fraser University Wrestling - W vs Evergreen State (Wash.)\nW 38-6\nStreaming Video: https://www.rmacnetwork.com/?B=4166431\nTickets: https://www.eventbrite.ca/e/sfu-womens-wrestling-dual-tickets-1997063401393?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8635&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8136-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261104T030000Z
+DTEND:20261104T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:[N] Simon Fraser University Basketball - M vs Seattle Mountaineers - Exhibition
+DESCRIPTION:[N] Simon Fraser University Basketball - M vs Seattle Mountaineers - Exhibition\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8136&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8152-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261106T000000Z
+DTEND:20261106T020000Z
+LOCATION:Seattle\, Wash., Interbay Stadium
+SUMMARY:[T] Simon Fraser University Soccer - W at Seattle Pacific - Semifinal
+DESCRIPTION:[T] Simon Fraser University Soccer - W at Seattle Pacific - Semifinal\nT 0-0 (L, 3-4 in PKs)\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4749361\nTickets: https://gnacsports.com/sports/2024/6/30/tickets.aspx\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8152&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7191-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261106T030000Z
+DTEND:20261106T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:[W] Simon Fraser University Volleyball - W vs Montana State Billings
+DESCRIPTION:[W] Simon Fraser University Volleyball - W vs Montana State Billings\nW 3-0\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4062366\nTickets: https://www.eventbrite.ca/e/sfu-volleyball-vs-montana-state-university-billings-tickets-1991007519086\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7191&amp;sport_id=17
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7443-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261106T040000Z
+DTEND:20261106T060000Z
+LOCATION:Seattle\, Wash., Interbay Stadium
+SUMMARY:[L] Simon Fraser University Soccer - M at Seattle Pacific - Semifinal
+DESCRIPTION:[L] Simon Fraser University Soccer - M at Seattle Pacific - Semifinal\nL 0-2\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4749353\nTickets: https://gnacsports.com/sports/2024/6/30/tickets.aspx\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7443&amp;sport_id=7
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9114-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261107T173000Z
+DTEND:20261107T203000Z
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre (new)
+SUMMARY:[N] Simon Fraser University Swimming - M at British Columbia University Cup - Day 1
+DESCRIPTION:[N] Simon Fraser University Swimming - M at British Columbia University Cup - Day 1\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9114&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8291-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261107T173000Z
+DTEND:20261107T203000Z
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre (new)
+SUMMARY:[N] Simon Fraser University Swimming - W at British Columbia University Cup - Day 1
+DESCRIPTION:[N] Simon Fraser University Swimming - W at British Columbia University Cup - Day 1\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8291&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9100-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261107T190000Z
+DTEND:20261107T220000Z
+LOCATION:Monmouth\, Ore., Ash Creek Preserve
+SUMMARY:[N] Simon Fraser University Cross Country - M at GNAC Cross Country Championships
+DESCRIPTION:[N] Simon Fraser University Cross Country - M at GNAC Cross Country Championships\n 5th of 10 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9100&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8153-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261107T194500Z
+DTEND:20261107T224500Z
+LOCATION:Monmouth\, Ore., Ash Creek Preserve
+SUMMARY:[N] Simon Fraser University Cross Country - W at GNAC Cross Country Championships
+DESCRIPTION:[N] Simon Fraser University Cross Country - W at GNAC Cross Country Championships\n 8th of 10 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8153&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8264-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261107T210000Z
+DTEND:20261108T000000Z
+LOCATION:La Grande\, Ore., Quinn Coliseum
+SUMMARY:[W] Simon Fraser University Wrestling - M vs Montana State-Northern
+DESCRIPTION:[W] Simon Fraser University Wrestling - M vs Montana State-Northern\nW 30-28\nStreaming Video: https://www.flowrestling.org/live/282856\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8264&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7879-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261107T230000Z
+DTEND:20261108T020000Z
+LOCATION:La Grande\, Ore., Quinn Coliseum
+SUMMARY:[L] Simon Fraser University Wrestling - M vs Providence (Mont.)
+DESCRIPTION:[L] Simon Fraser University Wrestling - M vs Providence (Mont.)\nL 6-45\nStreaming Video: https://www.flowrestling.org/live/282856\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7879&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7188-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261108T010000Z
+DTEND:20261108T030000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:[W] Simon Fraser University Volleyball - W vs Seattle Pacific - Senior Night | VB Alumni Appreciation Night
+DESCRIPTION:[W] Simon Fraser University Volleyball - W vs Seattle Pacific - Senior Night | VB Alumni Appreciation Night\nW 3-0\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4062370\nTickets: https://www.eventbrite.ca/e/sfu-volleyball-vs-seattle-pacific-university-tickets-1991007614371\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7188&amp;sport_id=17
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9113-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261108T170000Z
+DTEND:20261108T200000Z
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre (new)
+SUMMARY:[N] Simon Fraser University Swimming - M at British Columbia University Cup - Day 2
+DESCRIPTION:[N] Simon Fraser University Swimming - M at British Columbia University Cup - Day 2\n 3rd of 9 teams (568 pts.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9113&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8289-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261108T170000Z
+DTEND:20261108T200000Z
+LOCATION:Vancouver\, B.C., UBC Aquatic Centre (new)
+SUMMARY:[N] Simon Fraser University Swimming - W at British Columbia University Cup - Day 2
+DESCRIPTION:[N] Simon Fraser University Swimming - W at British Columbia University Cup - Day 2\n 5th of 11 teams (597.5 pts.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8289&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7920-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261108T180000Z
+DTEND:20261108T210000Z
+LOCATION:Atherton\, Calif., Haynes-Prim Pavilion
+SUMMARY:[N] Simon Fraser University Wrestling - W at Menlo (Calif.) Open
+DESCRIPTION:[N] Simon Fraser University Wrestling - W at Menlo (Calif.) Open\n\nStreaming Video: https://www.flowrestling.org/nextgen/events/16231268/information\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7920&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8761-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261108T180000Z
+DTEND:20261108T210000Z
+LOCATION:La Grande\, Ore., Quinn Coliseum
+SUMMARY:[N] Simon Fraser University Wrestling - M at Eastern Oregon Mountaineer Open
+DESCRIPTION:[N] Simon Fraser University Wrestling - M at Eastern Oregon Mountaineer Open\n\nStreaming Video: https://www.flowrestling.org/live/282856\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8761&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7937-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261110T030000Z
+DTEND:20261110T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:[W] Simon Fraser University Basketball - M vs Langara (B.C.)
+DESCRIPTION:[W] Simon Fraser University Basketball - M vs Langara (B.C.)\nW 109-66\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4070107\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-langara-college-tickets-1991731431327?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7937&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7749-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261113T030000Z
+DTEND:20261113T050000Z
+LOCATION:Nampa\, Idaho, Johnson Sports Center
+SUMMARY:[L] Simon Fraser University Volleyball - W at Northwest Nazarene (Idaho)
+DESCRIPTION:[L] Simon Fraser University Volleyball - W at Northwest Nazarene (Idaho)\nL 0-3\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4300991\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7749&amp;sport_id=17
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8621-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261113T190000Z
+DTEND:20261113T220000Z
+LOCATION:Marshall\, Mo., Burns Arena
+SUMMARY:[N] Simon Fraser University Wrestling - W at Missouri Valley Open
+DESCRIPTION:[N] Simon Fraser University Wrestling - W at Missouri Valley Open\n\nStreaming Video: https://www.flowrestling.org/events/2oypI9wUMTQm09a9/live/393187\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8621&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6206-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T000000Z
+DTEND:20261114T020000Z
+LOCATION:Bellingham\, Wash., Harrington Field
+SUMMARY:[L] Simon Fraser University Soccer - W vs Cal Poly Pomona - First Round
+DESCRIPTION:[L] Simon Fraser University Soccer - W vs Cal Poly Pomona - First Round\nL 1-2\nStreaming Video: https://www.ncaa.com/champs-pass/?C=../NCAAChampionshipsPassD2&B=4779480\nTickets: https://mpv.tickets.com/?agency=WWUV_SNG_MPV&orgid=53533&pid=9827668#/event/9827668/seatmap/?seatmapId=6651&minPrice=17.5&maxPrice=17.5&quantity=2&sort=price_desc&ada=false&seatSelection=true&onlyCoupon=true&onlyVoucher=false\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6206&amp;sport_id=14
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7955-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T010000Z
+DTEND:20261114T030000Z
+LOCATION:Billings\, Mont., Alterowitz Gymnasium
+SUMMARY:[L] Simon Fraser University Basketball - W vs Westmont (Calif.)
+DESCRIPTION:[L] Simon Fraser University Basketball - W vs Westmont (Calif.)\nL 50-71\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4789372\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7955&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8719-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T021500Z
+DTEND:20261114T041500Z
+LOCATION:San Francisco\, Calif., Don Nasser Family Plaza
+SUMMARY:[W] Simon Fraser University Basketball - M at San Francisco State
+DESCRIPTION:[W] Simon Fraser University Basketball - M at San Francisco State\nW 71-66\nStreaming Video: https://flosports.link/461VdXw\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8719&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9056-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T160000Z
+DTEND:20261114T190000Z
+LOCATION:Marshall\, Mo., Burns Arena
+SUMMARY:[N] Simon Fraser University Wrestling - W at Missouri Valley Open
+DESCRIPTION:[N] Simon Fraser University Wrestling - W at Missouri Valley Open\n\nStreaming Video: https://www.flowrestling.org/events/2oypI9wUMTQm09a9/live\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9056&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9008-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T180000Z
+DTEND:20261114T210000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Wrestling - W vs SFU Red Leafs Open - Exhibition
+DESCRIPTION:Simon Fraser University Wrestling - W vs SFU Red Leafs Open - Exhibition\nTickets: https://www.eventbrite.ca/e/red-leafs-open-tickets-1994911901198?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9008&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8537-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T180000Z
+DTEND:20261114T210000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Wrestling - M vs SFU Red Leafs Open - Exhibition
+DESCRIPTION:Simon Fraser University Wrestling - M vs SFU Red Leafs Open - Exhibition\nStreaming Video: https://www.rmacnetwork.com/?S=sfurmac\nTickets: https://www.eventbrite.ca/e/red-leafs-open-tickets-1994911901198?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8537&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7183-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T220000Z
+DTEND:20261115T000000Z
+LOCATION:Ellensburg\, Wash., Nicholson Arena
+SUMMARY:[W] Simon Fraser University Volleyball - W at Central Washington
+DESCRIPTION:[W] Simon Fraser University Volleyball - W at Central Washington\nW 3-2\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=3877100\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7183&amp;sport_id=17
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8044-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261114T230000Z
+DTEND:20261115T010000Z
+LOCATION:San Francisco\, Calif., Don Nasser Family Plaza
+SUMMARY:[L] Simon Fraser University Basketball - M vs Fresno Pacific (Calif.)
+DESCRIPTION:[L] Simon Fraser University Basketball - M vs Fresno Pacific (Calif.)\nL 73-80\nStreaming Video: https://flosports.link/461VdXw\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8044&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7899-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261115T010000Z
+DTEND:20261115T030000Z
+LOCATION:Billings\, Mont., Alterowitz Gymnasium
+SUMMARY:[L] Simon Fraser University Basketball - W vs Vanguard (Calif.)
+DESCRIPTION:[L] Simon Fraser University Basketball - W vs Vanguard (Calif.)\nL 35-79\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4789378\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7899&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8358-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261118T040000Z
+DTEND:20261118T060000Z
+LOCATION:Seattle\, Wash., Alaska Airlines Arena
+SUMMARY:[L] Simon Fraser University Basketball - M at Washington
+DESCRIPTION:[L] Simon Fraser University Basketball - M at Washington\nL 59-96\nStreaming Video: https://www.bigtenplus.com/en-int/page/home\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8358&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8165-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261119T223000Z
+DTEND:20261120T003000Z
+LOCATION:Fresno\, Calif., Special Events Center (FPU)
+SUMMARY:[L] Simon Fraser University Volleyball - W vs California State, San Bernardino - West Region - First Round
+DESCRIPTION:[L] Simon Fraser University Volleyball - W vs California State, San Bernardino - West Region - First Round\nL 0-3\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4781021\nTickets: https://events.hometownticketing.com/boxoffice/fpusunbirds/entity/schools/1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8165&amp;sport_id=17
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7897-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261120T030000Z
+DTEND:20261120T050000Z
+LOCATION:San Francisco\, Calif., Don Nasser Family Plaza
+SUMMARY:[L] Simon Fraser University Basketball - W at San Francisco State
+DESCRIPTION:[L] Simon Fraser University Basketball - W at San Francisco State\nL 56-63 (OT)\nStreaming Video: https://www.flocollege.com/create-account?redirect=/events/16348318-2026-simon-fraser-vs-san-francisco-state-womens&utm_medium=partner&utm_source=multiple&utm_content=school-landing-page&utm_term=san-francisco-state&sp=conf-partner-k7p2&node_type=team&org_type=institution&node_id=6469471\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7897&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9139-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261120T163000Z
+DTEND:20261120T193000Z
+LOCATION:San Antonio\, Texas, Ann Barshop Natatorium
+SUMMARY:[N] Simon Fraser University Swimming - M at Incarnate Word (Texas) Mid-Season Championships - Day 1
+DESCRIPTION:[N] Simon Fraser University Swimming - M at Incarnate Word (Texas) Mid-Season Championships - Day 1\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9139&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9092-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261120T163000Z
+DTEND:20261120T193000Z
+LOCATION:San Antonio\, Texas, Ann Barshop Natatorium
+SUMMARY:[N] Simon Fraser University Swimming - W at Incarnate Word (Texas) Mid-Season Championships - Day 1
+DESCRIPTION:[N] Simon Fraser University Swimming - W at Incarnate Word (Texas) Mid-Season Championships - Day 1\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9092&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8175-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261120T200000Z
+DTEND:20261120T230000Z
+LOCATION:Minot\, N.D., Minot State Dome
+SUMMARY:[W] Simon Fraser University Wrestling - W vs Chadron State (Neb.)
+DESCRIPTION:[W] Simon Fraser University Wrestling - W vs Chadron State (Neb.)\nW 31-12\nStreaming Video: https://www.midcosportsplus.com/select-package/3384\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8175&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8256-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261120T220000Z
+DTEND:20261121T010000Z
+LOCATION:Minot\, N.D., Minot State Dome
+SUMMARY:[W] Simon Fraser University Wrestling - W at Minot State (N.D.)
+DESCRIPTION:[W] Simon Fraser University Wrestling - W at Minot State (N.D.)\nW 28-14\nStreaming Video: https://www.midcosportsplus.com/select-package/3384\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8256&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6590-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261121T023000Z
+DTEND:20261121T043000Z
+LOCATION:Atherton\, Calif., Haynes-Prim Pavilion
+SUMMARY:[W] Simon Fraser University Basketball - W at Menlo (Calif.)
+DESCRIPTION:[W] Simon Fraser University Basketball - W at Menlo (Calif.)\nW 56-46\nStreaming Video: https://flosports.link/3UELuTL\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6590&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8369-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261121T043000Z
+DTEND:20261121T063000Z
+LOCATION:Montecito\, Calif., Murchison Gymnasium
+SUMMARY:[L] Simon Fraser University Basketball - M at Westmont (Calif.)
+DESCRIPTION:[L] Simon Fraser University Basketball - M at Westmont (Calif.)\nL 77-88\nStreaming Video: https://pacwestnetwork.tv/westmont/?B=4544804\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8369&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9093-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261121T163000Z
+DTEND:20261121T193000Z
+LOCATION:San Antonio\, Texas, Ann Barshop Natatorium
+SUMMARY:[N] Simon Fraser University Swimming - W at Incarnate Word (Texas) Mid-Season Championships - Day 2
+DESCRIPTION:[N] Simon Fraser University Swimming - W at Incarnate Word (Texas) Mid-Season Championships - Day 2\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9093&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9140-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261121T163000Z
+DTEND:20261121T193000Z
+LOCATION:San Antonio\, Texas, Ann Barshop Natatorium
+SUMMARY:[N] Simon Fraser University Swimming - M at Incarnate Word (Texas) Mid-Season Championships - Day 2
+DESCRIPTION:[N] Simon Fraser University Swimming - M at Incarnate Word (Texas) Mid-Season Championships - Day 2\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9140&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7846-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261121T170000Z
+DTEND:20261121T200000Z
+LOCATION:Minot\, N.D., Minot State Dome
+SUMMARY:Simon Fraser University Wrestling - W at Minot State (N.D.) Beaver Bash Open
+DESCRIPTION:Simon Fraser University Wrestling - W at Minot State (N.D.) Beaver Bash Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7846&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9105-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261121T180000Z
+DTEND:20261121T210000Z
+LOCATION:Sacramento\, Calif., Arcade Creek Course
+SUMMARY:[N] Simon Fraser University Cross Country - M at NCAA Div. II Cross Country West Region Championships
+DESCRIPTION:[N] Simon Fraser University Cross Country - M at NCAA Div. II Cross Country West Region Championships\n 18th of 23 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9105&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9097-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261121T191500Z
+DTEND:20261121T221500Z
+LOCATION:Sacramento\, Calif., Arcade Creek Course
+SUMMARY:[N] Simon Fraser University Cross Country - W at NCAA Div. II Cross Country West Region Championships
+DESCRIPTION:[N] Simon Fraser University Cross Country - W at NCAA Div. II Cross Country West Region Championships\n 19th of 26 teams\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9097&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8722-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261122T020000Z
+DTEND:20261122T040000Z
+LOCATION:Santa Barbara\, Calif., Murchison Gymnasium
+SUMMARY:[W] Simon Fraser University Basketball - M vs Azusa Pacific (Calif.)
+DESCRIPTION:[W] Simon Fraser University Basketball - M vs Azusa Pacific (Calif.)\nW 74-66\nStreaming Video: https://pacwestnetwork.tv/westmont/?B=4544809\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8722&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9020-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261122T030000Z
+DTEND:20261122T060000Z
+LOCATION:Coeur d'Alene\, Idaho, Christianson Gymnasium
+SUMMARY:[L] Simon Fraser University Wrestling - M at North Idaho
+DESCRIPTION:[L] Simon Fraser University Wrestling - M at North Idaho\nL 0-50\nStreaming Video: https://www.flowrestling.org/events/2tWzffYW2gOqOPLp/live/396754\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9020&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9141-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261122T163000Z
+DTEND:20261122T193000Z
+LOCATION:San Antonio\, Texas, Ann Barshop Natatorium
+SUMMARY:[N] Simon Fraser University Swimming - M at Incarnate Word (Texas) Mid-Season Championships - Day 3
+DESCRIPTION:[N] Simon Fraser University Swimming - M at Incarnate Word (Texas) Mid-Season Championships - Day 3\n 3rd of 3 teams (1,250.5 pts.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9141&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9094-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261122T163000Z
+DTEND:20261122T193000Z
+LOCATION:San Antonio\, Texas, Ann Barshop Natatorium
+SUMMARY:[N] Simon Fraser University Swimming - W at Incarnate Word (Texas) Mid-Season Championships - Day 3
+DESCRIPTION:[N] Simon Fraser University Swimming - W at Incarnate Word (Texas) Mid-Season Championships - Day 3\n 3rd of 4 teams (1,390 pts.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9094&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9066-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261122T180000Z
+DTEND:20261122T210000Z
+LOCATION:Spokane\, Wash., Spokane Convention Center
+SUMMARY:[N] Simon Fraser University Wrestling - W vs Spokane Open
+DESCRIPTION:[N] Simon Fraser University Wrestling - W vs Spokane Open\n\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9066&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9067-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261122T180000Z
+DTEND:20261122T210000Z
+LOCATION:Spokane\, Wash., The Podium
+SUMMARY:Simon Fraser University Wrestling - M vs Spokane Open
+DESCRIPTION:Simon Fraser University Wrestling - M vs Spokane Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9067&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8875-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261122T201500Z
+DTEND:20261122T221500Z
+LOCATION:Seaside\, Calif., The Kelp Bed
+SUMMARY:[W] Simon Fraser University Basketball - W at California State Monterey Bay
+DESCRIPTION:[W] Simon Fraser University Basketball - W at California State Monterey Bay\nW 64-52\nStreaming Video: https://www.flocollege.com/create-account?redirect=/events/16281395-2026-simon-fraser-vs-cal-state-monterey-bay-womens\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8875&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_4735-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261127T030000Z
+DTEND:20261127T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Black Hills State (S.D.)
+DESCRIPTION:Simon Fraser University Basketball - M vs Black Hills State (S.D.)\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4070110\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-black-hills-state-university-tickets-1991736196580?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=4735&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8201-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261127T220000Z
+DTEND:20261128T000000Z
+LOCATION:Billings\, Mont., Alterowitz Gymnasium
+SUMMARY:Simon Fraser University Basketball - W vs Tampa (Fla.)
+DESCRIPTION:Simon Fraser University Basketball - W vs Tampa (Fla.)\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4885960\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8201&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9106-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261128
+DTEND;VALUE=DATE:20261129
+LOCATION:Quebec City\, Que.
+SUMMARY:Simon Fraser University Cross Country - M at Canadian Cross Country Championships
+DESCRIPTION:Simon Fraser University Cross Country - M at Canadian Cross Country Championships\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9106&amp;sport_id=12
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9098-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261128
+DTEND;VALUE=DATE:20261129
+LOCATION:Quebec City\, Que.
+SUMMARY:Simon Fraser University Cross Country - W at Canadian Cross Country Championships
+DESCRIPTION:Simon Fraser University Cross Country - W at Canadian Cross Country Championships\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9098&amp;sport_id=5
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7806-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261128T160000Z
+DTEND:20261128T190000Z
+LOCATION:Saskatoon\, Sask., Physical Activity Complex
+SUMMARY:Simon Fraser University Wrestling - W at Saskatchewan Huskie Open
+DESCRIPTION:Simon Fraser University Wrestling - W at Saskatchewan Huskie Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7806&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8834-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261128T160000Z
+DTEND:20261128T190000Z
+LOCATION:Saskatoon\, Sask., Physical Activity Complex
+SUMMARY:Simon Fraser University Wrestling - M at Saskatchewan Huskie Open
+DESCRIPTION:Simon Fraser University Wrestling - M at Saskatchewan Huskie Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8834&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7952-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261128T200000Z
+DTEND:20261128T220000Z
+LOCATION:Billings\, Mont., Alterowitz Gymnasium
+SUMMARY:Simon Fraser University Basketball - W vs Black Hills State (S.D.)
+DESCRIPTION:Simon Fraser University Basketball - W vs Black Hills State (S.D.)\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4886012\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7952&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9121-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261202
+DTEND;VALUE=DATE:20261203
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 1
+DESCRIPTION:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9121&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8804-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261202
+DTEND;VALUE=DATE:20261203
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 1
+DESCRIPTION:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8804&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9089-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261203
+DTEND;VALUE=DATE:20261204
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 2
+DESCRIPTION:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9089&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9136-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261203
+DTEND;VALUE=DATE:20261204
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 2
+DESCRIPTION:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9136&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6979-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261204T030000Z
+DTEND:20261204T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Alaska
+DESCRIPTION:Simon Fraser University Basketball - W vs Alaska\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069105\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-university-of-alaska-tickets-1997092138346?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6979&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7752-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261204T040000Z
+DTEND:20261204T060000Z
+LOCATION:Lacey\, Wash., Marcus Pavilion
+SUMMARY:Simon Fraser University Basketball - M at Saint Martin's (Wash.)
+DESCRIPTION:Simon Fraser University Basketball - M at Saint Martin's (Wash.)\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4598000\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7752&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9137-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261204
+DTEND;VALUE=DATE:20261205
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 3
+DESCRIPTION:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 3\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9137&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9090-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261204
+DTEND;VALUE=DATE:20261205
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 3
+DESCRIPTION:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 3\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9090&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9091-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261205
+DTEND;VALUE=DATE:20261206
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 4
+DESCRIPTION:Simon Fraser University Swimming - W at Toyota US Open Swimming Championships - Day 4\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9091&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9138-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261205
+DTEND;VALUE=DATE:20261206
+LOCATION:Austin\, Texas, Lee and Joe Jamail Texas Swimming Center
+SUMMARY:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 4
+DESCRIPTION:Simon Fraser University Swimming - M at Toyota US Open Swimming Championships - Day 4\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9138&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_5753-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261205T230000Z
+DTEND:20261206T010000Z
+LOCATION:Monmouth\, Ore., Wolves Athletic Center
+SUMMARY:Simon Fraser University Basketball - M at Western Oregon
+DESCRIPTION:Simon Fraser University Basketball - M at Western Oregon\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4661112\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=5753&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7734-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261206T011500Z
+DTEND:20261206T031500Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Alaska Anchorage
+DESCRIPTION:Simon Fraser University Basketball - W vs Alaska Anchorage\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069106\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-university-of-alaska-anchorage-tickets-1997092105247?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7734&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8247-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261206
+DTEND;VALUE=DATE:20261207
+LOCATION:Greenwood\, S.C., Finis Horne Arena
+SUMMARY:Simon Fraser University Wrestling - M vs Mount Olive (N.C.)
+DESCRIPTION:Simon Fraser University Wrestling - M vs Mount Olive (N.C.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8247&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8260-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261206
+DTEND;VALUE=DATE:20261207
+LOCATION:Greenwood\, S.C., Finis Horne Arena
+SUMMARY:Simon Fraser University Wrestling - M vs Emmanuel (Ga.)
+DESCRIPTION:Simon Fraser University Wrestling - M vs Emmanuel (Ga.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8260&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9069-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261206
+DTEND;VALUE=DATE:20261207
+LOCATION:Greenwood\, S.C., Finis Horne Arena
+SUMMARY:Simon Fraser University Wrestling - M at Lander (S.C.)
+DESCRIPTION:Simon Fraser University Wrestling - M at Lander (S.C.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9069&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9012-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261218T030000Z
+DTEND:20261218T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Simon Fraser Alumni
+DESCRIPTION:Simon Fraser University Basketball - W vs Simon Fraser Alumni\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9012&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8244-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261218T180000Z
+DTEND:20261218T200000Z
+LOCATION:Las Vegas\, Nev., South Point Arena
+SUMMARY:Simon Fraser University Basketball - M vs Rollins (Fla.)
+DESCRIPTION:Simon Fraser University Basketball - M vs Rollins (Fla.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8244&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9068-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261219
+DTEND;VALUE=DATE:20261220
+LOCATION:Indianapolis\, Ind.
+SUMMARY:Simon Fraser University Wrestling - M at Indianapolis Midwest Classic
+DESCRIPTION:Simon Fraser University Wrestling - M at Indianapolis Midwest Classic\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9068&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7051-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20261219T223000Z
+DTEND:20261220T003000Z
+LOCATION:Las Vegas\, Nev., South Point Arena
+SUMMARY:Simon Fraser University Basketball - M vs Colorado Mines
+DESCRIPTION:Simon Fraser University Basketball - M vs Colorado Mines\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7051&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7036-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261220
+DTEND;VALUE=DATE:20261221
+LOCATION:Las Vegas\, Nev., Flamingo Hotel and Casino
+SUMMARY:Simon Fraser University Wrestling - W vs Colorado Mesa
+DESCRIPTION:Simon Fraser University Wrestling - W vs Colorado Mesa\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7036&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8666-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261220
+DTEND;VALUE=DATE:20261221
+LOCATION:Las Vegas\, Nev., Flamingo Hotel and Casino
+SUMMARY:Simon Fraser University Wrestling - W vs Wartburg (Iowa)
+DESCRIPTION:Simon Fraser University Wrestling - W vs Wartburg (Iowa)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8666&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8886-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20261220
+DTEND;VALUE=DATE:20261221
+LOCATION:Las Vegas\, Nev., Flamingo Hotel and Casino
+SUMMARY:Simon Fraser University Wrestling - W vs Grand Valley State (Mich.)
+DESCRIPTION:Simon Fraser University Wrestling - W vs Grand Valley State (Mich.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8886&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7175-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270101T011500Z
+DTEND:20270101T031500Z
+LOCATION:Nampa\, Idaho, Johnson Sports Center
+SUMMARY:Simon Fraser University Basketball - W at Northwest Nazarene (Idaho)
+DESCRIPTION:Simon Fraser University Basketball - W at Northwest Nazarene (Idaho)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7175&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7033-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270101T030000Z
+DTEND:20270101T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Montana State Billings
+DESCRIPTION:Simon Fraser University Basketball - M vs Montana State Billings\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069090\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-montana-state-university-billings-tickets-1991736692062?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7033&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8541-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270102
+DTEND;VALUE=DATE:20270103
+LOCATION:Phoenix\, Ariz., Fr Edward A. Reese Aquatic Center
+SUMMARY:Simon Fraser University Swimming - M at Grand Canyon (Ariz.)
+DESCRIPTION:Simon Fraser University Swimming - M at Grand Canyon (Ariz.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8541&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7976-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270102
+DTEND;VALUE=DATE:20270103
+LOCATION:Phoenix\, Ariz., Fr Edward A. Reese Aquatic Center
+SUMMARY:Simon Fraser University Swimming - W at Grand Canyon (Ariz.)
+DESCRIPTION:Simon Fraser University Swimming - W at Grand Canyon (Ariz.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7976&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7944-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270103T020000Z
+DTEND:20270103T040000Z
+LOCATION:Ellensburg\, Wash., Nicholson Arena
+SUMMARY:Simon Fraser University Basketball - W at Central Washington
+DESCRIPTION:Simon Fraser University Basketball - W at Central Washington\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4094043\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7944&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7174-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270103T030000Z
+DTEND:20270103T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Seattle Pacific
+DESCRIPTION:Simon Fraser University Basketball - M vs Seattle Pacific\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069093\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-seattle-pacific-university-tickets-1991736951839?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7174&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6573-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270108T030000Z
+DTEND:20270108T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Saint Martin’s (Wash.)
+DESCRIPTION:Simon Fraser University Basketball - W vs Saint Martin’s (Wash.)\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069108\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-saint-martins-university-tickets-1997091601741?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6573&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7747-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270108T053000Z
+DTEND:20270108T073000Z
+LOCATION:Anchorage\, Alaska, Alaska Airlines Center
+SUMMARY:Simon Fraser University Basketball - M at Alaska Anchorage
+DESCRIPTION:Simon Fraser University Basketball - M at Alaska Anchorage\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7747&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9070-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270108T200000Z
+DTEND:20270108T230000Z
+LOCATION:Gunnison\, Colo., Mountaineer Field House
+SUMMARY:Simon Fraser University Wrestling - W at Western Colorado
+DESCRIPTION:Simon Fraser University Wrestling - W at Western Colorado\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9070&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8261-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270108T210000Z
+DTEND:20270109T000000Z
+LOCATION:Gunnison\, Colo., Mountaineer Field House
+SUMMARY:Simon Fraser University Wrestling - W vs Adams State (Colo.)
+DESCRIPTION:Simon Fraser University Wrestling - W vs Adams State (Colo.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8261&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8203-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270108T220000Z
+DTEND:20270109T010000Z
+LOCATION:Gunnison\, Colo., Mountaineer Field House
+SUMMARY:Simon Fraser University Wrestling - W vs Texas Woman's
+DESCRIPTION:Simon Fraser University Wrestling - W vs Texas Woman's\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8203&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8590-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270109
+DTEND;VALUE=DATE:20270110
+LOCATION:Gunnison\, Colo., Mountaineer Field House
+SUMMARY:Simon Fraser University Wrestling - M vs Colorado Mesa
+DESCRIPTION:Simon Fraser University Wrestling - M vs Colorado Mesa\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8590&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7061-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270109
+DTEND;VALUE=DATE:20270110
+LOCATION:Gunnison\, Colo., Mountaineer Field House
+SUMMARY:Simon Fraser University Wrestling - M at Western Colorado
+DESCRIPTION:Simon Fraser University Wrestling - M at Western Colorado\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7061&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7109-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270109
+DTEND;VALUE=DATE:20270110
+LOCATION:Gunnison\, Colo., Mountaineer Field House
+SUMMARY:Simon Fraser University Wrestling - M vs Colorado State Pueblo
+DESCRIPTION:Simon Fraser University Wrestling - M vs Colorado State Pueblo\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7109&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8012-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270110T011500Z
+DTEND:20270110T031500Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Western Oregon
+DESCRIPTION:Simon Fraser University Basketball - W vs Western Oregon\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069110\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-western-oregon-university-tickets-1997091324913?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8012&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7029-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270110T011500Z
+DTEND:20270110T031500Z
+LOCATION:Fairbanks\, Alaska, Alaska Airlines Gymnasium
+SUMMARY:Simon Fraser University Basketball - M at Alaska
+DESCRIPTION:Simon Fraser University Basketball - M at Alaska\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7029&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8384-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270110
+DTEND;VALUE=DATE:20270111
+LOCATION:McMinnville\, Ore., Ted Wilson Gym
+SUMMARY:Simon Fraser University Wrestling - M at Linfield (Ore.) Mat 'Cat Open
+DESCRIPTION:Simon Fraser University Wrestling - M at Linfield (Ore.) Mat 'Cat Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8384&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_4626-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270110
+DTEND;VALUE=DATE:20270111
+LOCATION:McMinnville\, Ore., Ted Wilson Gym
+SUMMARY:Simon Fraser University Wrestling - W at Linfield (Ore.) Mat 'Cat Open
+DESCRIPTION:Simon Fraser University Wrestling - W at Linfield (Ore.) Mat 'Cat Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=4626&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6694-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270115T030000Z
+DTEND:20270115T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Central Washington
+DESCRIPTION:Simon Fraser University Basketball - M vs Central Washington\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069095\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-central-washington-university-tickets-1991737236691?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6694&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7042-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270115T030000Z
+DTEND:20270115T050000Z
+LOCATION:Billings\, Mont., Alterowitz Gymnasium
+SUMMARY:Simon Fraser University Basketball - W at Montana State Billings
+DESCRIPTION:Simon Fraser University Basketball - W at Montana State Billings\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4122290\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7042&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9155-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270115
+DTEND;VALUE=DATE:20270116
+LOCATION:Seattle\, Wash., Dempsey Indoor
+SUMMARY:Simon Fraser University Track and Field - W at Univ. of Washington Indoor Preview
+DESCRIPTION:Simon Fraser University Track and Field - W at Univ. of Washington Indoor Preview\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9155&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9166-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270115
+DTEND;VALUE=DATE:20270116
+LOCATION:Seattle\, Wash., Dempsey Indoor
+SUMMARY:Simon Fraser University Track and Field - M at Univ. of Washington Indoor Preview
+DESCRIPTION:Simon Fraser University Track and Field - M at Univ. of Washington Indoor Preview\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9166&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9028-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270116
+DTEND;VALUE=DATE:20270117
+LOCATION:Guelph\, Ont., Guelph Gryphons Athletics Centre
+SUMMARY:Simon Fraser University Wrestling - W at Guelph Open
+DESCRIPTION:Simon Fraser University Wrestling - W at Guelph Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9028&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9030-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270116
+DTEND;VALUE=DATE:20270117
+LOCATION:Guelph\, Ont., Guelph Gryphons Athletics Centre
+SUMMARY:Simon Fraser University Wrestling - M at Guelph Open
+DESCRIPTION:Simon Fraser University Wrestling - M at Guelph Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9030&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6709-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270116
+DTEND;VALUE=DATE:20270117
+LOCATION:Costa Mesa\, Calif., Freed Center for Leadership
+SUMMARY:Simon Fraser University Wrestling - M at Vanguard (Calif.) West Coast Open
+DESCRIPTION:Simon Fraser University Wrestling - M at Vanguard (Calif.) West Coast Open\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6709&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7721-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270116T230000Z
+DTEND:20270117T010000Z
+LOCATION:Seattle\, Wash., Royal Brougham Pavilion
+SUMMARY:Simon Fraser University Basketball - W at Seattle Pacific
+DESCRIPTION:Simon Fraser University Basketball - W at Seattle Pacific\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4166655\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7721&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6600-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270117T030000Z
+DTEND:20270117T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Northwest Nazarene (Idaho)
+DESCRIPTION:Simon Fraser University Basketball - M vs Northwest Nazarene (Idaho)\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069096\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-northwest-nazarene-university-tickets-1991737458354?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6600&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9024-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270122
+DTEND;VALUE=DATE:20270123
+LOCATION:Stockton\, Calif., Chris Kjeldsen Pool at the Douglass M. Eberhardt Aquatics Center
+SUMMARY:Simon Fraser University Swimming - W at Pacific (Calif.)
+DESCRIPTION:Simon Fraser University Swimming - W at Pacific (Calif.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9024&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9159-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270122
+DTEND;VALUE=DATE:20270123
+LOCATION:Reno\, Nev.
+SUMMARY:Simon Fraser University Track and Field - W at Nevada Dr. Martin Luther King Jr. Invitational
+DESCRIPTION:Simon Fraser University Track and Field - W at Nevada Dr. Martin Luther King Jr. Invitational\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9159&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9170-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270122
+DTEND;VALUE=DATE:20270123
+LOCATION:Reno\, Nev.
+SUMMARY:Simon Fraser University Track and Field - M at Nevada Dr. Martin Luther King Jr. Invitational
+DESCRIPTION:Simon Fraser University Track and Field - M at Nevada Dr. Martin Luther King Jr. Invitational\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9170&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9123-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270122
+DTEND;VALUE=DATE:20270123
+LOCATION:Stockton\, Calif., Chris Kjeldsen Pool at the Douglass M. Eberhardt Aquatics Center
+SUMMARY:Simon Fraser University Swimming - M at Pacific (Calif.)
+DESCRIPTION:Simon Fraser University Swimming - M at Pacific (Calif.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9123&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8838-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270123T020000Z
+DTEND:20270123T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Wrestling - W vs McMaster (Ont.)
+DESCRIPTION:Simon Fraser University Wrestling - W vs McMaster (Ont.)\nStreaming Video: https://www.rmacnetwork.com/?S=sfurmac&B=4888237\nTickets: https://www.eventbrite.ca/e/sfu-womens-wrestling-vs-mcmaster-university-tickets-2005108238718\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8838&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9133-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270123
+DTEND;VALUE=DATE:20270124
+LOCATION:Stockton\, Calif., Chris Kjeldsen Pool at the Douglass M. Eberhardt Aquatics Center
+SUMMARY:Simon Fraser University Swimming - M at Pacific (Calif.)
+DESCRIPTION:Simon Fraser University Swimming - M at Pacific (Calif.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9133&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9060-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270123
+DTEND;VALUE=DATE:20270124
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Wrestling - M vs Evergreen State (Wash.)
+DESCRIPTION:Simon Fraser University Wrestling - M vs Evergreen State (Wash.)\nStreaming Video: https://www.rmacnetwork.com/?S=sfurmac&B=4138630\nTickets: https://www.eventbrite.ca/e/sfu-mens-wrestling-duals-tickets-1995038790728?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9060&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9086-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270123
+DTEND;VALUE=DATE:20270124
+LOCATION:Stockton\, Calif., Chris Kjeldsen Pool at the Douglass M. Eberhardt Aquatics Center
+SUMMARY:Simon Fraser University Swimming - W at Pacific (Calif.)
+DESCRIPTION:Simon Fraser University Swimming - W at Pacific (Calif.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9086&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6202-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270123T183000Z
+DTEND:20270123T213000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Wrestling - M vs San Francisco State
+DESCRIPTION:Simon Fraser University Wrestling - M vs San Francisco State\nStreaming Video: https://www.rmacnetwork.com/?S=sfurmac&B=4138630\nTickets: https://www.eventbrite.ca/e/sfu-mens-wrestling-duals-tickets-1995038790728?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6202&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7163-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270124T011500Z
+DTEND:20270124T031500Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Western Washington
+DESCRIPTION:Simon Fraser University Basketball - M vs Western Washington\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069097\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-western-washington-university-tickets-1991737887638?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7163&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6672-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270124T033000Z
+DTEND:20270124T053000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Western Washington
+DESCRIPTION:Simon Fraser University Basketball - W vs Western Washington\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069113\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-western-washington-university-tickets-1997090683996?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6672&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6563-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270129T021500Z
+DTEND:20270129T041500Z
+LOCATION:Seattle\, Wash., Royal Brougham Pavilion
+SUMMARY:Simon Fraser University Basketball - M at Seattle Pacific
+DESCRIPTION:Simon Fraser University Basketball - M at Seattle Pacific\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6563&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6671-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270129T030000Z
+DTEND:20270129T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Central Washington
+DESCRIPTION:Simon Fraser University Basketball - W vs Central Washington\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069114\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-central-washington-university-tickets-1997090478381?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6671&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9151-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270129
+DTEND;VALUE=DATE:20270130
+LOCATION:Seattle\, Wash., Dempsey Indoor
+SUMMARY:Simon Fraser University Track and Field - W at Univ. of Washington Invitational
+DESCRIPTION:Simon Fraser University Track and Field - W at Univ. of Washington Invitational\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9151&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9156-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270129
+DTEND;VALUE=DATE:20270130
+LOCATION:Boston\, Mass., Boston University Track and Tennis Center 
+SUMMARY:Simon Fraser University Track and Field - W at Boston Univ. John Thomas Terrier Classic 
+DESCRIPTION:Simon Fraser University Track and Field - W at Boston Univ. John Thomas Terrier Classic \n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9156&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9167-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270129
+DTEND;VALUE=DATE:20270130
+LOCATION:Boston\, Mass., Boston University Track and Tennis Center 
+SUMMARY:Simon Fraser University Track and Field - M at Boston Univ. John Thomas Terrier Classic 
+DESCRIPTION:Simon Fraser University Track and Field - M at Boston Univ. John Thomas Terrier Classic \n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9167&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9162-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270129
+DTEND;VALUE=DATE:20270130
+LOCATION:Seattle\, Wash., Dempsey Indoor
+SUMMARY:Simon Fraser University Track and Field - M at Univ. of Washington Invitational
+DESCRIPTION:Simon Fraser University Track and Field - M at Univ. of Washington Invitational\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9162&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9165-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270130
+DTEND;VALUE=DATE:20270131
+LOCATION:Cambridge\, Mass., Gordon Track
+SUMMARY:Simon Fraser University Track and Field - M at Harvard (Mass.) Invitational
+DESCRIPTION:Simon Fraser University Track and Field - M at Harvard (Mass.) Invitational\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9165&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9154-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270130
+DTEND;VALUE=DATE:20270131
+LOCATION:Cambridge\, Mass., Gordon Track
+SUMMARY:Simon Fraser University Track and Field - W at Harvard (Mass.) Invitational
+DESCRIPTION:Simon Fraser University Track and Field - W at Harvard (Mass.) Invitational\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9154&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9062-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270130
+DTEND;VALUE=DATE:20270131
+LOCATION:TBD
+SUMMARY:Simon Fraser University Wrestling - W vs Rocky Mountain Athletic Conference Women's Wrestling Championships
+DESCRIPTION:Simon Fraser University Wrestling - W vs Rocky Mountain Athletic Conference Women's Wrestling Championships\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9062&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9071-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270130
+DTEND;VALUE=DATE:20270131
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Wrestling - M vs Pacific (Ore.)
+DESCRIPTION:Simon Fraser University Wrestling - M vs Pacific (Ore.)\nTickets: https://www.eventbrite.ca/e/sfu-mens-wrestling-dual-match-tickets-1995045077532?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9071&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9115-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270130
+DTEND;VALUE=DATE:20270131
+LOCATION:Victoria\, B.C., Saanich Commonwealth Place
+SUMMARY:Simon Fraser University Swimming - M at Victoria
+DESCRIPTION:Simon Fraser University Swimming - M at Victoria\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9115&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8310-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270130
+DTEND;VALUE=DATE:20270131
+LOCATION:Victoria\, B.C., Saanich Commonwealth Place
+SUMMARY:Simon Fraser University Swimming - W at Victoria
+DESCRIPTION:Simon Fraser University Swimming - W at Victoria\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8310&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7049-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270130T220000Z
+DTEND:20270131T000000Z
+LOCATION:Billings\, Mont., Alterowitz Gymnasium
+SUMMARY:Simon Fraser University Basketball - M at Montana State Billings
+DESCRIPTION:Simon Fraser University Basketball - M at Montana State Billings\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7049&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6704-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270131T011500Z
+DTEND:20270131T031500Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Northwest Nazarene (Idaho)
+DESCRIPTION:Simon Fraser University Basketball - W vs Northwest Nazarene (Idaho)\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069115\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-northwest-nazarene-university-tickets-1997090269757?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6704&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6935-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270205T021500Z
+DTEND:20270205T041500Z
+LOCATION:Monmouth\, Ore., New PE Building
+SUMMARY:Simon Fraser University Basketball - W at Western Oregon
+DESCRIPTION:Simon Fraser University Basketball - W at Western Oregon\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4785735\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6935&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7753-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270205T030000Z
+DTEND:20270205T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Alaska
+DESCRIPTION:Simon Fraser University Basketball - M vs Alaska\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069099\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-university-of-alaska-tickets-1991738499468?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7753&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7149-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270207T021500Z
+DTEND:20270207T041500Z
+LOCATION:Lacey\, Wash., Marcus Pavilion
+SUMMARY:Simon Fraser University Basketball - W at Saint Martin's (Wash.)
+DESCRIPTION:Simon Fraser University Basketball - W at Saint Martin's (Wash.)\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4597854\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7149&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6700-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270207T030000Z
+DTEND:20270207T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Alaska Anchorage - Nestor Elementary School Choir Performance
+DESCRIPTION:Simon Fraser University Basketball - M vs Alaska Anchorage - Nestor Elementary School Choir Performance\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069100\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-university-of-alaska-anchorage-tickets-1991738790338?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6700&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8865-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270208
+DTEND;VALUE=DATE:20270209
+LOCATION:Vista\, Calif., Shadowridge Golf Club
+SUMMARY:Simon Fraser University Golf - M at Calif. St. San Marcos Fujikura Inivtational - First and Second Rounds
+DESCRIPTION:Simon Fraser University Golf - M at Calif. St. San Marcos Fujikura Inivtational - First and Second Rounds\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8865&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6620-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270209T000000Z
+DTEND:20270209T020000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball at Hawaii Pacific
+DESCRIPTION:Simon Fraser University Softball at Hawaii Pacific\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6620&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8842-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270209T023000Z
+DTEND:20270209T043000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball at Hawaii Pacific
+DESCRIPTION:Simon Fraser University Softball at Hawaii Pacific\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8842&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8870-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270209
+DTEND;VALUE=DATE:20270210
+LOCATION:Vista\, Calif., Shadowridge Golf Club
+SUMMARY:Simon Fraser University Golf - M at Calif. St. San Marcos Fujikura Inivtational - Final Round
+DESCRIPTION:Simon Fraser University Golf - M at Calif. St. San Marcos Fujikura Inivtational - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8870&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8337-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270209
+DTEND;VALUE=DATE:20270210
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 1
+DESCRIPTION:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8337&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9116-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270209
+DTEND;VALUE=DATE:20270210
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 1
+DESCRIPTION:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9116&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8375-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270210T000000Z
+DTEND:20270210T020000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball at Chaminade (Hawaii)
+DESCRIPTION:Simon Fraser University Softball at Chaminade (Hawaii)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8375&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8376-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270210T023000Z
+DTEND:20270210T043000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball at Chaminade (Hawaii)
+DESCRIPTION:Simon Fraser University Softball at Chaminade (Hawaii)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8376&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9129-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270210
+DTEND;VALUE=DATE:20270211
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 2
+DESCRIPTION:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9129&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9082-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270210
+DTEND;VALUE=DATE:20270211
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 2
+DESCRIPTION:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9082&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9083-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270211
+DTEND;VALUE=DATE:20270212
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 3
+DESCRIPTION:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 3\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9083&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9130-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270211
+DTEND;VALUE=DATE:20270212
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 3
+DESCRIPTION:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 3\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9130&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9049-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270211T213000Z
+DTEND:20270211T233000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball vs Eastern New Mexico
+DESCRIPTION:Simon Fraser University Softball vs Eastern New Mexico\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9049&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8377-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270212T000000Z
+DTEND:20270212T020000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball at Hawaii Pacific
+DESCRIPTION:Simon Fraser University Softball at Hawaii Pacific\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8377&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6714-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270212T030000Z
+DTEND:20270212T050000Z
+LOCATION:Nampa\, Idaho, Johnson Sports Center
+SUMMARY:Simon Fraser University Basketball - M at Northwest Nazarene (Idaho)
+DESCRIPTION:Simon Fraser University Basketball - M at Northwest Nazarene (Idaho)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6714&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6677-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270212T030000Z
+DTEND:20270212T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Seattle Pacific
+DESCRIPTION:Simon Fraser University Basketball - W vs Seattle Pacific\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069116\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-seattle-pacific-university-tickets-1997089997944?aff=oddtdtcreator\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6677&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9084-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270212
+DTEND;VALUE=DATE:20270213
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 4
+DESCRIPTION:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 4\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9084&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9152-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270212
+DTEND;VALUE=DATE:20270213
+LOCATION:Seattle\, Wash., Dempsey Indoor
+SUMMARY:Simon Fraser University Track and Field - W at Univ. of Washington Husky Classic
+DESCRIPTION:Simon Fraser University Track and Field - W at Univ. of Washington Husky Classic\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9152&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9163-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270212
+DTEND;VALUE=DATE:20270213
+LOCATION:Seattle\, Wash., Dempsey Indoor
+SUMMARY:Simon Fraser University Track and Field - M at Univ. of Washington Husky Classic
+DESCRIPTION:Simon Fraser University Track and Field - M at Univ. of Washington Husky Classic\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9163&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9131-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270212
+DTEND;VALUE=DATE:20270213
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 4
+DESCRIPTION:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 4\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9131&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8769-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270212T210000Z
+DTEND:20270212T230000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball vs Eastern New Mexico
+DESCRIPTION:Simon Fraser University Softball vs Eastern New Mexico\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8769&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8595-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270213T020000Z
+DTEND:20270213T040000Z
+LOCATION:Honolulu\, Hawaii, Mauliola Sports Complex
+SUMMARY:Simon Fraser University Softball at Hawaii Pacific
+DESCRIPTION:Simon Fraser University Softball at Hawaii Pacific\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8595&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6658-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270213
+DTEND;VALUE=DATE:20270214
+LOCATION:Arcata\, Calif., Lumberjack Arena
+SUMMARY:Simon Fraser University Wrestling - M at Cal Poly Humboldt
+DESCRIPTION:Simon Fraser University Wrestling - M at Cal Poly Humboldt\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6658&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9132-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270213
+DTEND;VALUE=DATE:20270214
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 5
+DESCRIPTION:Simon Fraser University Swimming - M at RMAC Swimming and Diving Championships - Day 5\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9132&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9085-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270213
+DTEND;VALUE=DATE:20270214
+LOCATION:TBD
+SUMMARY:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 5
+DESCRIPTION:Simon Fraser University Swimming - W at RMAC Swimming and Diving Championships - Day 5\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9085&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7755-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270213T210000Z
+DTEND:20270213T230000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - W vs Montana State Billings
+DESCRIPTION:Simon Fraser University Basketball - W vs Montana State Billings\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069117\nTickets: https://www.eventbrite.ca/e/sfu-womens-basketball-vs-montana-state-university-billings-tickets-1997089881596?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7755&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6570-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270214T003000Z
+DTEND:20270214T023000Z
+LOCATION:Ellensburg\, Wash., Nicholson Arena
+SUMMARY:Simon Fraser University Basketball - M at Central Washington
+DESCRIPTION:Simon Fraser University Basketball - M at Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6570&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9161-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270215
+DTEND;VALUE=DATE:20270216
+LOCATION:Spokane\, Wash., The Podium
+SUMMARY:Simon Fraser University Track and Field - M vs GNAC Indoor Track & Field Championships - Day 1
+DESCRIPTION:Simon Fraser University Track and Field - M vs GNAC Indoor Track & Field Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9161&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9150-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270215
+DTEND;VALUE=DATE:20270216
+LOCATION:Spokane\, Wash., The Podium
+SUMMARY:Simon Fraser University Track and Field - W vs GNAC Indoor Track & Field Championships - Day 1
+DESCRIPTION:Simon Fraser University Track and Field - W vs GNAC Indoor Track & Field Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9150&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9185-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270216
+DTEND;VALUE=DATE:20270218
+LOCATION:TBD
+SUMMARY:Simon Fraser University Softball at Australia Tour
+DESCRIPTION:Simon Fraser University Softball at Australia Tour\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9185&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9158-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270216
+DTEND;VALUE=DATE:20270217
+LOCATION:Spokane\, Wash., The Podium
+SUMMARY:Simon Fraser University Track and Field - W vs GNAC Indoor Track & Field Championships - Day 2
+DESCRIPTION:Simon Fraser University Track and Field - W vs GNAC Indoor Track & Field Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9158&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9169-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270216
+DTEND;VALUE=DATE:20270217
+LOCATION:Spokane\, Wash., The Podium
+SUMMARY:Simon Fraser University Track and Field - M vs GNAC Indoor Track & Field Championships - Day 2
+DESCRIPTION:Simon Fraser University Track and Field - M vs GNAC Indoor Track & Field Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9169&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9063-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270219
+DTEND;VALUE=DATE:20270220
+LOCATION:TBD
+SUMMARY:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Region VI Championships - Day 1
+DESCRIPTION:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Region VI Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9063&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9009-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270220
+DTEND;VALUE=DATE:20270221
+LOCATION:Burnaby\, B.C., Margaret & Paul Savage Pool
+SUMMARY:Simon Fraser University Swimming - W vs Simon Fraser Last Chance Meet
+DESCRIPTION:Simon Fraser University Swimming - W vs Simon Fraser Last Chance Meet\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9009&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9065-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270220
+DTEND;VALUE=DATE:20270221
+LOCATION:TBD
+SUMMARY:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Region VI Championships - Day 2
+DESCRIPTION:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Region VI Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9065&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9122-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270220
+DTEND;VALUE=DATE:20270221
+LOCATION:Burnaby\, B.C., Margaret & Paul Savage Pool
+SUMMARY:Simon Fraser University Swimming - M vs Simon Fraser Last Chance Meet
+DESCRIPTION:Simon Fraser University Swimming - M vs Simon Fraser Last Chance Meet\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9122&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7754-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270221T000000Z
+DTEND:20270221T020000Z
+LOCATION:Bellingham\, Wash., Carver Gym
+SUMMARY:Simon Fraser University Basketball - M at Western Washington
+DESCRIPTION:Simon Fraser University Basketball - M at Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7754&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7915-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270221T023000Z
+DTEND:20270221T043000Z
+LOCATION:Bellingham\, Wash., Carver Gym
+SUMMARY:Simon Fraser University Basketball - W at Western Washington
+DESCRIPTION:Simon Fraser University Basketball - W at Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7915&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9057-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270221
+DTEND;VALUE=DATE:20270222
+LOCATION:TBD
+SUMMARY:Simon Fraser University Wrestling - W vs  NCAA Women's Wrestling Region VI Championships - Day 3
+DESCRIPTION:Simon Fraser University Wrestling - W vs  NCAA Women's Wrestling Region VI Championships - Day 3\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9057&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8878-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270222
+DTEND;VALUE=DATE:20270223
+LOCATION:Sonoma\, Calif., Sonoma Golf Club
+SUMMARY:Simon Fraser University Golf - M at Dominican’s West Coast Showdown - First and Second Rounds
+DESCRIPTION:Simon Fraser University Golf - M at Dominican’s West Coast Showdown - First and Second Rounds\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8878&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8881-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270223
+DTEND;VALUE=DATE:20270224
+LOCATION:Sonoma\, Calif., Sonoma Golf Club
+SUMMARY:Simon Fraser University Golf - M at Dominican’s West Coast Showdown - Final Round
+DESCRIPTION:Simon Fraser University Golf - M at Dominican’s West Coast Showdown - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8881&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6707-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270226T030000Z
+DTEND:20270226T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Western Oregon - Roy Stibb Elementary School Choir Performance
+DESCRIPTION:Simon Fraser University Basketball - M vs Western Oregon - Roy Stibb Elementary School Choir Performance\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069101\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-western-oregon-university-tickets-1991738843497?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6707&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6679-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270226T050000Z
+DTEND:20270226T070000Z
+LOCATION:Anchorage\, Alaska, Alaska Airlines Center
+SUMMARY:Simon Fraser University Basketball - W at Alaska Anchorage
+DESCRIPTION:Simon Fraser University Basketball - W at Alaska Anchorage\nStreaming Video: https://www.gnacnetwork.com/sfuredleafs/?B=4549284\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6679&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9059-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270227
+DTEND;VALUE=DATE:20270228
+LOCATION:Kearney\, Neb.
+SUMMARY:Simon Fraser University Wrestling - M vs NCAA Div. II Men's Wrestling Super Region VI Championships
+DESCRIPTION:Simon Fraser University Wrestling - M vs NCAA Div. II Men's Wrestling Super Region VI Championships\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9059&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_5358-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270228T010000Z
+DTEND:20270228T030000Z
+LOCATION:Fairbanks\, Alaska, Alaska Airlines Gymnasium
+SUMMARY:Simon Fraser University Basketball - W at Alaska
+DESCRIPTION:Simon Fraser University Basketball - W at Alaska\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=5358&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7132-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270228T030000Z
+DTEND:20270228T050000Z
+LOCATION:Burnaby\, B.C., West Gym
+SUMMARY:Simon Fraser University Basketball - M vs Saint Martin's (Wash.)
+DESCRIPTION:Simon Fraser University Basketball - M vs Saint Martin's (Wash.)\nStreaming Video: https://gnacnetwork.com/sfuredleafs/?B=4069103\nTickets: https://www.eventbrite.ca/e/sfu-mens-basketball-vs-saint-martins-university-tickets-1991738886626?aff=oddtdtcreator&keep_tld=true\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7132&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9171-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270228
+DTEND;VALUE=DATE:20270301
+LOCATION:Boston\, Mass., Boston University Track and Tennis Center 
+SUMMARY:Simon Fraser University Track and Field - M at Last Chance at BU
+DESCRIPTION:Simon Fraser University Track and Field - M at Last Chance at BU\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9171&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9160-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270228
+DTEND;VALUE=DATE:20270301
+LOCATION:Boston\, Mass., Boston University Track and Tennis Center 
+SUMMARY:Simon Fraser University Track and Field - W at Last Chance at BU
+DESCRIPTION:Simon Fraser University Track and Field - W at Last Chance at BU\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9160&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8150-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270304
+DTEND;VALUE=DATE:20270305
+LOCATION:Nampa\, Idaho, Johnson Sports Center
+SUMMARY:Simon Fraser University Basketball - M vs GNAC Men's Basketball Championships - Quarter-final
+DESCRIPTION:Simon Fraser University Basketball - M vs GNAC Men's Basketball Championships - Quarter-final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8150&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7858-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270304
+DTEND;VALUE=DATE:20270306
+LOCATION:Nampa\, Idaho, Johnson Sports Center
+SUMMARY:Simon Fraser University Basketball - W vs GNAC Women's Basketball Championships
+DESCRIPTION:Simon Fraser University Basketball - W vs GNAC Women's Basketball Championships\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7858&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8157-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270305
+DTEND;VALUE=DATE:20270306
+LOCATION:Nampa\, Idaho, Johnson Sports Center
+SUMMARY:Simon Fraser University Basketball - M vs GNAC Men's Basketball Championships - Semifinal
+DESCRIPTION:Simon Fraser University Basketball - M vs GNAC Men's Basketball Championships - Semifinal\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8157&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8555-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270305
+DTEND;VALUE=DATE:20270306
+LOCATION:Cedar Rapids\, Iowa
+SUMMARY:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Championships - Day 1
+DESCRIPTION:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8555&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8151-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270306
+DTEND;VALUE=DATE:20270307
+LOCATION:Nampa\, Idaho, Johnson Sports Center
+SUMMARY:Simon Fraser University Basketball - M vs GNAC Men's Basketball Championships - Championship Final
+DESCRIPTION:Simon Fraser University Basketball - M vs GNAC Men's Basketball Championships - Championship Final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8151&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9064-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270306
+DTEND;VALUE=DATE:20270307
+LOCATION:Cedar Rapids\, Iowa
+SUMMARY:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Championships - Day 2
+DESCRIPTION:Simon Fraser University Wrestling - W vs NCAA Women's Wrestling Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9064&amp;sport_id=18
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8859-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270308
+DTEND;VALUE=DATE:20270309
+LOCATION:Alameda\, Calif., Corica Park Golf Course
+SUMMARY:Simon Fraser University Golf - M at Calif. St. East Bay Tim Tierney Pioneer Shootout - First and Second Rounds
+DESCRIPTION:Simon Fraser University Golf - M at Calif. St. East Bay Tim Tierney Pioneer Shootout - First and Second Rounds\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8859&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8860-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270309
+DTEND;VALUE=DATE:20270310
+LOCATION:Alameda\, Calif., Corica Park Golf Course
+SUMMARY:Simon Fraser University Golf - M at Calif. St. East Bay Tim Tierney Pioneer Shootout - Final Round
+DESCRIPTION:Simon Fraser University Golf - M at Calif. St. East Bay Tim Tierney Pioneer Shootout - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8860&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8866-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270309
+DTEND;VALUE=DATE:20270310
+LOCATION:Vista\, Calif., Shadowridge Golf Club
+SUMMARY:Simon Fraser University Golf - W at CSU San Marcos Fujikura Invitational - First Round
+DESCRIPTION:Simon Fraser University Golf - W at CSU San Marcos Fujikura Invitational - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8866&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9124-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270309
+DTEND;VALUE=DATE:20270310
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 1
+DESCRIPTION:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9124&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9077-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270309
+DTEND;VALUE=DATE:20270310
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 1
+DESCRIPTION:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9077&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9078-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270310
+DTEND;VALUE=DATE:20270311
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 2
+DESCRIPTION:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9078&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9125-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270310
+DTEND;VALUE=DATE:20270311
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 2
+DESCRIPTION:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9125&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8869-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270310
+DTEND;VALUE=DATE:20270311
+LOCATION:Vista\, Calif., Shadowridge Golf Club
+SUMMARY:Simon Fraser University Golf - W at CSU San Marcos Fujikura Invitational - Final Round
+DESCRIPTION:Simon Fraser University Golf - W at CSU San Marcos Fujikura Invitational - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8869&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9126-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270311
+DTEND;VALUE=DATE:20270312
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 3
+DESCRIPTION:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 3\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9126&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9079-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270311
+DTEND;VALUE=DATE:20270312
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 3
+DESCRIPTION:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 3\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9079&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9080-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 4
+DESCRIPTION:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 4\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9080&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_5986-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:TBA
+SUMMARY:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - West Region - Round 1
+DESCRIPTION:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - West Region - Round 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=5986&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_5997-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:Sioux Falls\, S.D., Denny Sanford PREMIER Center
+SUMMARY:Simon Fraser University Wrestling - M vs NCAA Div. II Men's Wrestling Championships - Day 1
+DESCRIPTION:Simon Fraser University Wrestling - M vs NCAA Div. II Men's Wrestling Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=5997&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9153-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:Birmingham\, Ala., Birmingham CrossPlex
+SUMMARY:Simon Fraser University Track and Field - W vs NCAA Div. II Indoor Track & Field Championships - Day 1
+DESCRIPTION:Simon Fraser University Track and Field - W vs NCAA Div. II Indoor Track & Field Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9153&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9164-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:Birmingham\, Ala., Birmingham CrossPlex
+SUMMARY:Simon Fraser University Track and Field - M vs NCAA Div. II Indoor Track & Field Championships - Day 1
+DESCRIPTION:Simon Fraser University Track and Field - M vs NCAA Div. II Indoor Track & Field Championships - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9164&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9127-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270312
+DTEND;VALUE=DATE:20270313
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 4
+DESCRIPTION:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 4\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9127&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8603-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270312T210000Z
+DTEND:20270312T230000Z
+LOCATION:Ellensburg\, Wash., Gary & Bobbi Frederick Field
+SUMMARY:Simon Fraser University Softball at Central Washington
+DESCRIPTION:Simon Fraser University Softball at Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8603&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7945-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270312T230000Z
+DTEND:20270313T010000Z
+LOCATION:Ellensburg\, Wash., Gary & Bobbi Frederick Field
+SUMMARY:Simon Fraser University Softball at Central Washington
+DESCRIPTION:Simon Fraser University Softball at Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7945&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8177-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270313
+DTEND;VALUE=DATE:20270314
+LOCATION:TBA
+SUMMARY:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - West Region - Round 1
+DESCRIPTION:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - West Region - Round 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8177&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9128-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270313
+DTEND;VALUE=DATE:20270314
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 5
+DESCRIPTION:Simon Fraser University Swimming - M at NCAA Div. II Swimming and Diving Championships - Day 5\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9128&amp;sport_id=15
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9168-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270313
+DTEND;VALUE=DATE:20270314
+LOCATION:Birmingham\, Ala., Birmingham CrossPlex
+SUMMARY:Simon Fraser University Track and Field - M vs NCAA Div. II Indoor Track & Field Championships - Day 2
+DESCRIPTION:Simon Fraser University Track and Field - M vs NCAA Div. II Indoor Track & Field Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9168&amp;sport_id=16
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9157-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270313
+DTEND;VALUE=DATE:20270314
+LOCATION:Birmingham\, Ala., Birmingham CrossPlex
+SUMMARY:Simon Fraser University Track and Field - W vs NCAA Div. II Indoor Track & Field Championships - Day 2
+DESCRIPTION:Simon Fraser University Track and Field - W vs NCAA Div. II Indoor Track & Field Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9157&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9146-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270313
+DTEND;VALUE=DATE:20270314
+LOCATION:TBA
+SUMMARY:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - West Region - Semifinal
+DESCRIPTION:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - West Region - Semifinal\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9146&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9081-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270313
+DTEND;VALUE=DATE:20270314
+LOCATION:Indianapolis\, Ind., Indiana University Natatorium
+SUMMARY:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 5
+DESCRIPTION:Simon Fraser University Swimming - W at NCAA Div. II Swimming and Diving Championships - Day 5\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9081&amp;sport_id=8
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9058-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270313
+DTEND;VALUE=DATE:20270314
+LOCATION:Sioux Falls\, S.D., Denny Sanford PREMIER Center
+SUMMARY:Simon Fraser University Wrestling - M vs NCAA Div. II Men's Wrestling Championships - Day 2
+DESCRIPTION:Simon Fraser University Wrestling - M vs NCAA Div. II Men's Wrestling Championships - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9058&amp;sport_id=19
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8597-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270313T210000Z
+DTEND:20270313T230000Z
+LOCATION:Ellensburg\, Wash., Gary & Bobbi Frederick Field
+SUMMARY:Simon Fraser University Softball at Central Washington
+DESCRIPTION:Simon Fraser University Softball at Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8597&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7760-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270313T230000Z
+DTEND:20270314T010000Z
+LOCATION:Ellensburg\, Wash., Gary & Bobbi Frederick Field
+SUMMARY:Simon Fraser University Softball at Central Washington
+DESCRIPTION:Simon Fraser University Softball at Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7760&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8723-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270314
+DTEND;VALUE=DATE:20270315
+LOCATION:TBA
+SUMMARY:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - West Region Semifinal
+DESCRIPTION:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - West Region Semifinal\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8723&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9147-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270315
+DTEND;VALUE=DATE:20270316
+LOCATION:TBA
+SUMMARY:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - West Region - Championship Final
+DESCRIPTION:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - West Region - Championship Final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9147&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8724-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270316
+DTEND;VALUE=DATE:20270317
+LOCATION:TBA
+SUMMARY:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - West Region Championship Final
+DESCRIPTION:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - West Region Championship Final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8724&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9173-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270319T210000Z
+DTEND:20270319T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Western Washington
+DESCRIPTION:Simon Fraser University Softball vs Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9173&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8234-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270319T230000Z
+DTEND:20270320T010000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Western Washington
+DESCRIPTION:Simon Fraser University Softball vs Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8234&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9174-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270320T190000Z
+DTEND:20270320T210000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Western Washington
+DESCRIPTION:Simon Fraser University Softball vs Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9174&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8573-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270320T210000Z
+DTEND:20270320T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Western Washington
+DESCRIPTION:Simon Fraser University Softball vs Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8573&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_4682-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270322
+DTEND;VALUE=DATE:20270323
+LOCATION:Fort Wayne\, Ind., Allen County War Memorial Coliseum
+SUMMARY:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - Elite Eight - Quarter-final
+DESCRIPTION:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - Elite Eight - Quarter-final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=4682&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8721-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270323
+DTEND;VALUE=DATE:20270324
+LOCATION:Fort Wayne\, Ind., Allen County War Memorial Coliseum
+SUMMARY:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - Elite Eight - Quarter-final
+DESCRIPTION:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - Elite Eight - Quarter-final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8721&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9145-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270324
+DTEND;VALUE=DATE:20270325
+LOCATION:Fort Wayne\, Ind., Allen County War Memorial Coliseum
+SUMMARY:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - Final Four - Semifinal
+DESCRIPTION:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - Final Four - Semifinal\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9145&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8720-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270325
+DTEND;VALUE=DATE:20270326
+LOCATION:Fort Wayne\, Ind., Allen County War Memorial Coliseum
+SUMMARY:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - Final Four - Semifinal
+DESCRIPTION:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - Final Four - Semifinal\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8720&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8207-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270326
+DTEND;VALUE=DATE:20270327
+LOCATION:Fort Wayne\, Ind., Allen County War Memorial Coliseum
+SUMMARY:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - Final Four - Championship Final
+DESCRIPTION:Simon Fraser University Basketball - W vs NCAA Div. II Women's Basketball Championship - Final Four - Championship Final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8207&amp;sport_id=11
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9178-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270326T210000Z
+DTEND:20270326T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Central Washington
+DESCRIPTION:Simon Fraser University Softball vs Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9178&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9175-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270326T230000Z
+DTEND:20270327T010000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Central Washington
+DESCRIPTION:Simon Fraser University Softball vs Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9175&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_6006-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270327
+DTEND;VALUE=DATE:20270328
+LOCATION:Fort Wayne\, Ind., Allen County War Memorial Coliseum
+SUMMARY:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - Final Four - Championship Final
+DESCRIPTION:Simon Fraser University Basketball - M vs NCAA Div. II Men's Basketball Championships - Final Four - Championship Final\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=6006&amp;sport_id=4
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9177-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270327T190000Z
+DTEND:20270327T210000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Central Washington
+DESCRIPTION:Simon Fraser University Softball vs Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9177&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9176-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270327T210000Z
+DTEND:20270327T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Central Washington
+DESCRIPTION:Simon Fraser University Softball vs Central Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9176&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8888-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270402
+DTEND;VALUE=DATE:20270403
+LOCATION:Goodyear\, Ariz., Palm Valley Golf Club
+SUMMARY:Simon Fraser University Golf - W at Ruidoso Junior Golf Association Women's Palm Valley Classic - First Round
+DESCRIPTION:Simon Fraser University Golf - W at Ruidoso Junior Golf Association Women's Palm Valley Classic - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8888&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7767-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270402T200000Z
+DTEND:20270402T220000Z
+LOCATION:Billings\, Mont., Avitus Group Stadium
+SUMMARY:Simon Fraser University Softball at Montana State Billings
+DESCRIPTION:Simon Fraser University Softball at Montana State Billings\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7767&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8726-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270402T220000Z
+DTEND:20270403T000000Z
+LOCATION:Billings\, Mont., Avitus Group Stadium
+SUMMARY:Simon Fraser University Softball at Montana State Billings
+DESCRIPTION:Simon Fraser University Softball at Montana State Billings\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8726&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8890-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270403
+DTEND;VALUE=DATE:20270404
+LOCATION:Goodyear\, Ariz., Palm Valley Golf Club
+SUMMARY:Simon Fraser University Golf - W at Ruidoso Junior Golf Association Women's Palm Valley Classic - Final Round
+DESCRIPTION:Simon Fraser University Golf - W at Ruidoso Junior Golf Association Women's Palm Valley Classic - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8890&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8725-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270403T190000Z
+DTEND:20270403T210000Z
+LOCATION:Billings\, Mont., Avitus Group Stadium
+SUMMARY:Simon Fraser University Softball at Montana State Billings
+DESCRIPTION:Simon Fraser University Softball at Montana State Billings\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8725&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8063-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270403T210000Z
+DTEND:20270403T230000Z
+LOCATION:Billings\, Mont., Avitus Group Stadium
+SUMMARY:Simon Fraser University Softball at Montana State Billings
+DESCRIPTION:Simon Fraser University Softball at Montana State Billings\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8063&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9189-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270405
+DTEND;VALUE=DATE:20270406
+LOCATION:Goodyear\, Ariz., Palm Valley Golf Club
+SUMMARY:Simon Fraser University Golf - M at Ruidoso Junior Golf Association Palm Valley Classic - First and Second Rounds
+DESCRIPTION:Simon Fraser University Golf - M at Ruidoso Junior Golf Association Palm Valley Classic - First and Second Rounds\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9189&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9190-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270406
+DTEND;VALUE=DATE:20270407
+LOCATION:Goodyear\, Ariz., Palm Valley Golf Club
+SUMMARY:Simon Fraser University Golf - M at Ruidoso Junior Golf Association Palm Valley Classic - Final Round
+DESCRIPTION:Simon Fraser University Golf - M at Ruidoso Junior Golf Association Palm Valley Classic - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9190&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7131-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270410T210000Z
+DTEND:20270410T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Saint Martin's (Wash.)
+DESCRIPTION:Simon Fraser University Softball vs Saint Martin's (Wash.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7131&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9148-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270410T230000Z
+DTEND:20270411T010000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Saint Martin's (Wash.)
+DESCRIPTION:Simon Fraser University Softball vs Saint Martin's (Wash.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9148&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8563-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270411T190000Z
+DTEND:20270411T210000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Saint Martin's (Wash.)
+DESCRIPTION:Simon Fraser University Softball vs Saint Martin's (Wash.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8563&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8727-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270411T210000Z
+DTEND:20270411T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Saint Martin's (Wash.)
+DESCRIPTION:Simon Fraser University Softball vs Saint Martin's (Wash.)\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8727&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8202-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270419
+DTEND;VALUE=DATE:20270420
+LOCATION:Coeur d'Alene\, Idaho, Coeur d'Alene Golf Resort
+SUMMARY:Simon Fraser University Golf - W at Great Northwest Athletic Conference Women's Golf Championships - First Round
+DESCRIPTION:Simon Fraser University Golf - W at Great Northwest Athletic Conference Women's Golf Championships - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8202&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8962-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270419
+DTEND;VALUE=DATE:20270420
+LOCATION:Coeur d'Alene\, Idaho, Coeur d'Alene Golf Resort
+SUMMARY:Simon Fraser University Golf - M at Great Northwest Athletic Conference Men's Golf Championships - First Round
+DESCRIPTION:Simon Fraser University Golf - M at Great Northwest Athletic Conference Men's Golf Championships - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8962&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8992-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270420
+DTEND;VALUE=DATE:20270421
+LOCATION:Coeur d'Alene\, Idaho, Coeur d'Alene Golf Resort
+SUMMARY:Simon Fraser University Golf - M at Great Northwest Athletic Conference Men's Golf Championships - Second Round
+DESCRIPTION:Simon Fraser University Golf - M at Great Northwest Athletic Conference Men's Golf Championships - Second Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8992&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8156-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270420
+DTEND;VALUE=DATE:20270421
+LOCATION:Coeur d'Alene\, Idaho, Coeur d'Alene Golf Resort
+SUMMARY:Simon Fraser University Golf - W at Great Northwest Athletic Conference Women's Golf Championships - Second Round
+DESCRIPTION:Simon Fraser University Golf - W at Great Northwest Athletic Conference Women's Golf Championships - Second Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8156&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8993-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270421
+DTEND;VALUE=DATE:20270422
+LOCATION:Coeur d'Alene\, Idaho, Coeur d'Alene Golf Resort
+SUMMARY:Simon Fraser University Golf - M at Great Northwest Athletic Conference Men's Golf Championships - Final Round
+DESCRIPTION:Simon Fraser University Golf - M at Great Northwest Athletic Conference Men's Golf Championships - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8993&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8894-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270421
+DTEND;VALUE=DATE:20270422
+LOCATION:Coeur d'Alene\, Idaho, Coeur d'Alene Golf Resort
+SUMMARY:Simon Fraser University Golf - W at Great Northwest Athletic Conference Women's Golf Championships - Final Round
+DESCRIPTION:Simon Fraser University Golf - W at Great Northwest Athletic Conference Women's Golf Championships - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8894&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9179-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270423T210000Z
+DTEND:20270423T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Northwest Nazarene
+DESCRIPTION:Simon Fraser University Softball vs Northwest Nazarene\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9179&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9181-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270423T230000Z
+DTEND:20270424T010000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Northwest Nazarene
+DESCRIPTION:Simon Fraser University Softball vs Northwest Nazarene\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9181&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9180-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270424T190000Z
+DTEND:20270424T210000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Northwest Nazarene
+DESCRIPTION:Simon Fraser University Softball vs Northwest Nazarene\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9180&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9182-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270424T210000Z
+DTEND:20270424T230000Z
+LOCATION:Burnaby\, B.C., Beedie Field
+SUMMARY:Simon Fraser University Softball vs Northwest Nazarene
+DESCRIPTION:Simon Fraser University Softball vs Northwest Nazarene\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9182&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8582-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270430T210000Z
+DTEND:20270430T230000Z
+LOCATION:Monmouth\, Ore., WOU Softball Field
+SUMMARY:Simon Fraser University Softball at Western Oregon
+DESCRIPTION:Simon Fraser University Softball at Western Oregon\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8582&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8593-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270430T230000Z
+DTEND:20270501T010000Z
+LOCATION:Monmouth\, Ore., WOU Softball Field
+SUMMARY:Simon Fraser University Softball at Western Oregon
+DESCRIPTION:Simon Fraser University Softball at Western Oregon\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8593&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8583-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270501T200000Z
+DTEND:20270501T220000Z
+LOCATION:Monmouth\, Ore., WOU Softball Field
+SUMMARY:Simon Fraser University Softball at Western Oregon
+DESCRIPTION:Simon Fraser University Softball at Western Oregon\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8583&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7764-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270501T220000Z
+DTEND:20270502T000000Z
+LOCATION:Monmouth\, Ore., WOU Softball Field
+SUMMARY:Simon Fraser University Softball at Western Oregon
+DESCRIPTION:Simon Fraser University Softball at Western Oregon\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7764&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7979-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270504
+DTEND;VALUE=DATE:20270505
+LOCATION:Pueblo\, Colo., Pueblo Country Club
+SUMMARY:Simon Fraser University Golf - W at NCAA West Region Championships - First Round
+DESCRIPTION:Simon Fraser University Golf - W at NCAA West Region Championships - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7979&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8892-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270505
+DTEND;VALUE=DATE:20270506
+LOCATION:Pueblo\, Colo., Pueblo Country Club
+SUMMARY:Simon Fraser University Golf - W at NCAA West Region Championships - Second Round
+DESCRIPTION:Simon Fraser University Golf - W at NCAA West Region Championships - Second Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8892&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8893-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270506
+DTEND;VALUE=DATE:20270507
+LOCATION:Pueblo\, Colo., Pueblo Country Club
+SUMMARY:Simon Fraser University Golf - W at NCAA West Region Championships - Final Round
+DESCRIPTION:Simon Fraser University Golf - W at NCAA West Region Championships - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8893&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9001-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270506
+DTEND;VALUE=DATE:20270507
+LOCATION:San Antonio\, Texas, Dominion Country Club
+SUMMARY:Simon Fraser University Golf - M at NCAA West/South Central Regional - First Round
+DESCRIPTION:Simon Fraser University Golf - M at NCAA West/South Central Regional - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9001&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9000-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270507
+DTEND;VALUE=DATE:20270508
+LOCATION:San Antonio\, Texas, Dominion Country Club
+SUMMARY:Simon Fraser University Golf - M at NCAA West/South Central Regional - Second Round
+DESCRIPTION:Simon Fraser University Golf - M at NCAA West/South Central Regional - Second Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9000&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8613-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270507T200000Z
+DTEND:20270507T220000Z
+LOCATION:Bellingham\, Wash., Viking Field
+SUMMARY:Simon Fraser University Softball at Western Washington
+DESCRIPTION:Simon Fraser University Softball at Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8613&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_7914-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270507T220000Z
+DTEND:20270508T000000Z
+LOCATION:Bellingham\, Wash., Viking Field
+SUMMARY:Simon Fraser University Softball at Western Washington
+DESCRIPTION:Simon Fraser University Softball at Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=7914&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8999-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270508
+DTEND;VALUE=DATE:20270509
+LOCATION:San Antonio\, Texas, Dominion Country Club
+SUMMARY:Simon Fraser University Golf - M at NCAA West/South Central Regional - Final Round
+DESCRIPTION:Simon Fraser University Golf - M at NCAA West/South Central Regional - Final Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8999&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9149-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270508T200000Z
+DTEND:20270508T220000Z
+LOCATION:Bellingham\, Wash., Viking Field
+SUMMARY:Simon Fraser University Softball at Western Washington
+DESCRIPTION:Simon Fraser University Softball at Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9149&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9172-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART:20270508T220000Z
+DTEND:20270509T000000Z
+LOCATION:Bellingham\, Wash., Viking Field
+SUMMARY:Simon Fraser University Softball at Western Washington
+DESCRIPTION:Simon Fraser University Softball at Western Washington\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9172&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8847-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270511
+DTEND;VALUE=DATE:20270512
+LOCATION:Orlando\, Fla., Mission Resort + Club
+SUMMARY:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - First Round
+DESCRIPTION:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8847&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8895-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270512
+DTEND;VALUE=DATE:20270513
+LOCATION:Orlando\, Fla., Mission Resort + Club
+SUMMARY:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Second Round
+DESCRIPTION:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Second Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8895&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8896-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270513
+DTEND;VALUE=DATE:20270514
+LOCATION:Orlando\, Fla., Mission Resort + Club
+SUMMARY:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Third Round
+DESCRIPTION:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Third Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8896&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8158-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270513
+DTEND;VALUE=DATE:20270515
+LOCATION:Billings\, Mont., Avitus Group Stadium
+SUMMARY:Simon Fraser University Softball at Great Northwest Athletic Conference Softball Championships
+DESCRIPTION:Simon Fraser University Softball at Great Northwest Athletic Conference Softball Championships\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8158&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8897-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270514
+DTEND;VALUE=DATE:20270515
+LOCATION:Orlando\, Fla., Mission Resort + Club
+SUMMARY:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Match Play - Day 1
+DESCRIPTION:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Match Play - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8897&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8898-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270515
+DTEND;VALUE=DATE:20270516
+LOCATION:Orlando\, Fla., Mission Resort + Club
+SUMMARY:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Match Play - Day 2
+DESCRIPTION:Simon Fraser University Golf - W at NCAA Div. II Women's Golf Championship - Match Play - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8898&amp;sport_id=13
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8994-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270517
+DTEND;VALUE=DATE:20270518
+LOCATION:Palm Beach Gardens\, Fla., PGA National Resort - The Champion Course
+SUMMARY:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - First Round
+DESCRIPTION:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - First Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8994&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8995-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270518
+DTEND;VALUE=DATE:20270519
+LOCATION:Palm Beach Gardens\, Fla., PGA National Resort - The Champion Course
+SUMMARY:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Second Round
+DESCRIPTION:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Second Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8995&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8996-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270519
+DTEND;VALUE=DATE:20270520
+LOCATION:Palm Beach Gardens\, Fla., PGA National Resort - The Champion Course
+SUMMARY:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Third Round
+DESCRIPTION:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Third Round\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8996&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8997-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270520
+DTEND;VALUE=DATE:20270521
+LOCATION:Palm Beach Gardens\, Fla., PGA National Resort - The Champion Course
+SUMMARY:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Match Play - Day 1
+DESCRIPTION:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Match Play - Day 1\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8997&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9184-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270520
+DTEND;VALUE=DATE:20270522
+LOCATION:TBD
+SUMMARY:Simon Fraser University Softball vs NCAA Div. II Softball Championship - West Regional
+DESCRIPTION:Simon Fraser University Softball vs NCAA Div. II Softball Championship - West Regional\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9184&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8998-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270521
+DTEND;VALUE=DATE:20270522
+LOCATION:Palm Beach Gardens\, Fla., PGA National Resort - The Champion Course
+SUMMARY:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Match Play - Day 2
+DESCRIPTION:Simon Fraser University Golf - M at NCAA Div. II Men's Golf Championship - Match Play - Day 2\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8998&amp;sport_id=6
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_9183-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270528
+DTEND;VALUE=DATE:20270529
+LOCATION:TBD
+SUMMARY:Simon Fraser University Softball vs NCAA Div. II Softball Championship - Super Regional
+DESCRIPTION:Simon Fraser University Softball vs NCAA Div. II Softball Championship - Super Regional\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=9183&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8143-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20270603
+DTEND;VALUE=DATE:20270609
+LOCATION:Chattanooga\, Tenn., Frost Stadium at Warner Park
+SUMMARY:Simon Fraser University Softball vs NCAA Div. II Softball Championship
+DESCRIPTION:Simon Fraser University Softball vs NCAA Div. II Softball Championship\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8143&amp;sport_id=10
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_5987-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20271203
+DTEND;VALUE=DATE:20271204
+LOCATION:Kansas City\, Mo., Municipal Auditorium, Kansas City
+SUMMARY:Simon Fraser University Track and Field - W vs NCAA
+DESCRIPTION:Simon Fraser University Track and Field - W vs NCAA\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=5987&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+BEGIN:VEVENT
+UID:vcal_8161-athletics.sfu.ca
+DTSTAMP:20261126T054205Z
+DTSTART;VALUE=DATE:20271204
+DTEND;VALUE=DATE:20271205
+LOCATION:Kansas City\, Mo.
+SUMMARY:Simon Fraser University Track and Field - W vs NCAA
+DESCRIPTION:Simon Fraser University Track and Field - W vs NCAA\n
+URL:https://athletics.sfu.ca/calendar.aspx?game_id=8161&amp;sport_id=9
+PRIORITY:3
+END:VEVENT
+END:VCALENDAR

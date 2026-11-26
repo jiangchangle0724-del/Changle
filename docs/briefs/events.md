@@ -44,6 +44,8 @@
 - 来源出错时的通知：GitHub 每天检查一次前一天那一轮，有问题就在仓库里开一个 issue 并 @ Steve，GitHub 发邮件给他；同样的问题不再说，问题变了才评论，好了自己关。不用钥匙，用任务自己的 GitHub 凭证（只能写 issue）。仓库是公开的，issue 也公开，所以错误里的 key、token 一律抹掉（11 月 18 日 Steve 说「继续」，按这个方案做）。
 - 加来源（11 月 25 日 Steve 要，他用 Google 一搜就有一堆清单上没有的）：只接有公开接口或日历订阅的。Showpass 先接（公开 API，robots 允许 /api/，内容标记 search=yes）。Eventbrite 2019 年底关了公开搜索：Steve 选了 A（11 月 25 日 21:52）：用他自己的免费钥匙（`EVENTBRITE_TOKEN`，他自己加到 Cloudflare），只读「关注」的主办方（organization），不读它的网页（条款不允许程序读；自动抓它的列表页也被权限挡了）。关注谁：`src/follows.ts` 的几场起点活动，以后加上投稿里 Steve 同意的 Eventbrite 活动的主办方。同时 Steve 要「投稿」。不接：小红书、人在温哥华（VanPeople，挡程序）、Vansky（都是帖子和分类广告，不是日历；替代办法是以后做「投稿」）；Daily Hive、Do604、Georgia Straight、Kids Out and About（它们自己编的清单，不整份搬）；Destination Vancouver（robots 禁 /api/ 和 /plugins/）。
 
+- 学校的活动（11 月 25 日 22:24 Steve：「SFU, UBC, KPU, BCIT, VCC, Douglas 等等这些温哥华的学校如果有适合大众参加的活动也可以加进去」）：只收大众能去的，以学校自己的标签为准，学生社团、说明会、典礼、学生服务不收（Showpass 上的学生社团照旧不收）。接了：UBC Thunderbirds、SFU Red Leafs 的比赛（SIDEARM 的 iCal，在大温哥华打的都收，主客场都算）；Capilano 表演中心（北温，它的活动列表页）；Langara 的 Studio 58 和给社区的讲座（没写地点的不收）；Douglas College 的剧场、画廊和标了 Community 的（它的戏有时标 Current Students）；VCC 的 Community Event（列表有日期，每个活动页有时间地点）。没接：BCIT（266 个说明会，往后四个月别的只有 3 个，也是校友和学生的）、KPU（学生服务为主，没标给谁看）、Emily Carr（403 挡程序）、TWU（连不上）。Capilano 的 robots.txt 不让机器人带 `search=`，请求里不带。
+
 ## 现在
 
 - 11 月 11 日：早上 06:01 那一轮发布 142 个活动（这一轮各来源读到的，两周内：Ticketmaster 82、本拿比图书馆 33、UBC 26（几页之间有重复）、Luma 14）。晚上 #299、#300 合并上线后手动跑了一次接力：温哥华 13 页、两周内 322 个，列治文 7 页、160 个，都是来了就读，清单重新发布两次，到 **618** 个。两个图书馆第一次上了清单。
@@ -76,12 +78,14 @@
 
 ## 交给别的对话
 
-- （暂无）
+- 网站（site）那边：`site/worker/notice.ts` 的 `NOTICES_A_DAY` 和 `APP_NAMES` 加上 `events`（一天 10 封够用），玩什么的新投稿才会发邮件给站长。玩什么这边已经写好（`tools/events/src/owner.ts` 的 `noticeOwner`，走房间服务器的 `Mail` 入口）；在那之前邮件被拒，别的不受影响。
 
 ## 最近的改动
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-26 What's On: the colleges' public events, and UBC's and SFU's games
+- 2026-11-25 What's On: the status says whether each key is set; deploys keep dashboard keys
 - 2026-11-25 What's On: 投稿, people send events in and the owner lets them in
 - 2026-11-25 What's On: Eventbrite, the organizations followed, with Steve's own token
 - 2026-11-25 What's On: Showpass, every date and every season (the Christmas Market, VanDusen's lights)
@@ -171,3 +175,5 @@
 - 2026-11-25 Steve 发来 Google「what to do this weekend vancouver」的截图：VanDusen 灯节、圣诞市集、Hycroft、原住民手工市集都不在清单上，要多接来源（Eventbrite、Daily Hive、人在温哥华、Vansky、小红书等）。查的结果见「定过的事」。Showpass 公开 API：`/api/public/events/`（每一场一条，带票价、说明；圣诞市集和灯节是每半小时一个时段，两周 613 条里 330 多条是时段）和 `/api/public/discovery/`（在卖的产品一条，市集是整季一条，系列是第一场到最后一场一条）。所以分两个来源：`showpass` 读前者、只要一天以内的、不要时段和溜冰场的场次；`showpass-season` 读后者、只要一天以上的、不要系列。UBC 的学生社团大量用 Showpass（会员卡、瑜伽课），按主办方名字和 UBC、SFU 校园的邮编去掉；VanDusen 和 Bloedel 的「某月门票」按名字去掉。Ticketmaster 的圈子（素里和兰里之间 60 公里）。两周大约多 250 个活动。`show_on_calendar` 不能当「不公开」用：Sockeyes 的球赛和舞会也是关的。
 - 2026-11-25 Eventbrite（A）：现在的接口是 `GET /v3/organizations/{id}/events/`（旧的 organizers 那条已经不在文档里了），活动对象里有 `organization_id`。所以按「关注的主办方」读：一场活动问一次它属于谁（`/v3/events/{id}/`），记在 D1 的 `eventbrite_follows`；早上那一轮第 0 步先学最多 10 个新的，然后一步读一个主办方。没钥匙时跳过；每天的检查不把「等钥匙」算成问题。起点活动只有两场 Rickshaw 的（从搜索结果里找到的活动编号），等投稿做好了再加。Eventbrite 的回答是照文档手写的测试数据，钥匙加上后的第一个早上要看状态页核对。
 - 2026-11-25 投稿第一版：`/go/submit`（表单，中英文，图在手机上先缩到 1600 像素以内）、`POST /go/api/submit`（存进 D1 的 `submissions`，海报放 KV 60 天，读草稿：Eventbrite 走 API、网页读 JSON-LD、再不行让 AI 读文字；小红书、抖音、Instagram、Facebook、Eventbrite 的网页不去读）、`/go/admin`（站长页：页面带上手机里 changle.ca 的登录 `changle.session`，Worker 经 `ROOMS` 问房间服务器，`master` 才放行；第一次来时记下站长邮箱，给邮件提醒用）。同意的进 events（来源 submitted，海报 `/go/poster/{id}` 当图），关注 Eventbrite 主办方，马上重新发布（早上那一轮进行中就不发，它自己会发）。`/go` 页底加了「知道一个活动清单上没有？投稿给我们」。测试里的房间服务器是替身（`tests/rooms/worker.ts`，照跟一单的做法）。邮件提醒的额度是网站那边的事，先没改。
+- 2026-11-25 晚：投稿上线（#788），changle.ca/go/submit、/go/admin 都是 200，空投稿答 `empty`，没登录的后台接口答 `signin`。用一个 Eventbrite 链接（Rickshaw 的起点活动）试投了一条（联系方式写着「Claude 测试」），草稿没读出来；Eventbrite 的钥匙那时是不是在 Worker 里看不出来，所以 #790 让 `/go/api/status` 说每把钥匙有没有设（只说有没有），并加了 `keep_vars`：钥匙要是在后台按「文本」加的，下次合并部署会把它冲掉。
+- 2026-11-25 学校（Steve 22:24 要的）：查了 UBC Thunderbirds（gothunderbirds.ca，SIDEARM）和 SFU Red Leafs（athletics.sfu.ca），iCal 一份是整个赛季 218、298 场，ical.js 读完要 16 到 18 毫秒，超过一步的 10 毫秒，所以先只留窗口里的场次再读（约 2.5 毫秒）。两周里 UBC 16 场在大温哥华（War Memorial、Thunderbird 体育中心、Langley Events Centre），SFU 3 场（West Gym）。Capilano 表演中心是 TERMINALFOUR 的日历，列表从今天起一页 10 个，没有年份，按列表起点推。Langara（Drupal）的 Studio 58 一出戏一张卡（首演到末场）；讲座一张卡三个日期，算三场，但卡上没地点（在温哥华图书馆），不收。Douglas（Drupal）一页 8 个，两周里只有画廊的展（到 1 月 6 日）。VCC（WordPress）的 Community Event 列表 8 个，近两周 3 个（首饰快闪店 12 月 8 到 10 日、圣诞集市 12 月 10 日），还有一页是去年的（结束日比开始日早），不收。BCIT 的 The Events Calendar 接口能用，但 266 个说明会，Special Event、Open BCIT 这些往后四个月只有 3 个；KPU 的列表几乎全是学生服务。

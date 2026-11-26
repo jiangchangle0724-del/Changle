@@ -12,7 +12,11 @@ calendar (LiveWhale's JSON, `src/parsers/livewhale.ts`; the same rule: SFU's aud
 person, not a defence, info session or student service, except an art student's thesis show),
 Showpass (its public API, `src/parsers/showpass.ts`: every date as "showpass", what runs longer than
 a day, like the Christmas Market's season, as "showpass-season"; no student club's, nothing on a
-campus, no membership or pass), and Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
+campus, no membership or pass), Eventbrite (the organizations followed, with Steve's token), five
+colleges' and their teams' public events (since 26 November, `src/parsers/schools.ts` and
+`src/parsers/sidearm.ts`: UBC's and SFU's games played in Greater Vancouver; Capilano's Centre for
+Performing Arts; Langara's Studio 58 plays and community talks; Douglas College's stages, gallery
+and community events; VCC's community events), and Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
 `/go/api/events` and `/go/api/status` answer, and `/go/preview` shows what's published day by day
 (in Chinese, or English with `?lang=en`; not linked from anywhere and not indexed) to check the run by eye.
 The page itself is at `/go` (src/page.ts), on the Tools tab of changle.ca since 14 November (Steve's
@@ -103,6 +107,19 @@ It runs on the free plan: nothing here costs money.
 ### 每天的检查（什么都不用设）
 
 每天夜里两点多，GitHub 检查一次前一天那一轮：每个来源都读完了没有，清单发布了没有，活动数有没有比前几天少一半以上。有问题，就在仓库里开一个问题（issue），里面 @ 你，GitHub 会发邮件给你，写着哪个来源、上次读完是哪天、最后的错误。之后问题变了才再说一次，同样的问题不会天天发邮件；哪天检查又过了，它自己把问题关掉。收到邮件，把链接发给管玩什么的对话就行，不用回复也不用关。
+
+### 学校的活动（什么都不用设）
+
+Steve 11 月 25 日说学校里大众能去的活动也收。每天早上读这些，只收大温哥华、在现场、谁都能去的：
+
+- UBC、SFU 的日历（以前就有）：UBC 标了 All 或 Community 的，SFU 标了 Public 的。
+- UBC Thunderbirds、SFU Red Leafs 的比赛：在大温哥华打的都收（UBC 去 Trinity Western 打也在 Langley），外地的不收。
+- Capilano University 表演中心（北温）：音乐会、戏、讲座。
+- Langara：Studio 58 的戏，和给社区办的讲座（没写地点的不收）。
+- Douglas College：剧场的戏、画廊的展、标了 Community 的；毕业典礼、说明会、学生活动不收。
+- VCC：它的 Community Event（圣诞集市、学生作品义卖、晚宴）。
+
+没收的：BCIT（它的日历几乎都是招生说明会，往后四个月只有 3 个别的活动，也是校友和学生的）；KPU（学生服务为主，公开活动很少，也没有标给谁看）；Emily Carr（网站不让程序读）。这些学校有公开活动的话，可以投稿。
 
 ### 投稿（什么都不用设）
 
