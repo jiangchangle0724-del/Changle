@@ -151,4 +151,9 @@ describe("Showpass: what anyone can go to", () => {
     expect(showpassOpen([one({ name: "The Roxy", city: "Vancouver", lat: 49.2786, lon: -123.1236 }, true)])).toEqual([]);
     expect(showpassOpen([one({ name: "The Roxy", city: "Vancouver", lat: 49.2786, lon: -123.1236 })])).toHaveLength(1);
   });
+
+  it("a team's season package or flex pack is sold there, but isn't an event", () => {
+    const sold = (title: string): NormalizedEvent => ({ source: "showpass", sourceEventId: title, url: "https://www.showpass.com/x/", title, start: "2026-11-26", status: "scheduled", place: { name: "Minoru Arenas", city: "Richmond", lat: 49.166, lon: -123.143 } });
+    expect(showpassOpen(["Richmond Sockeyes Season Packages", "Flex Pack - 5 Games", "Richmond Sockeyes v. Delta Ice Hawks"].map(sold)).map((e) => e.title)).toEqual(["Richmond Sockeyes v. Delta Ice Hawks"]);
+  });
 });
