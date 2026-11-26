@@ -7,6 +7,7 @@ import m0004 from "../migrations/0004_zh.sql";
 import m0005 from "../migrations/0005_twins.sql";
 import m0006 from "../migrations/0006_eventbrite.sql";
 import m0007 from "../migrations/0007_submissions.sql";
+import m0008 from "../migrations/0008_ai_retry.sql";
 
 const MIGRATIONS: [name: string, sql: string][] = [
   ["0001_init", m0001],
@@ -16,6 +17,7 @@ const MIGRATIONS: [name: string, sql: string][] = [
   ["0005_twins", m0005],
   ["0006_eventbrite", m0006],
   ["0007_submissions", m0007],
+  ["0008_ai_retry", m0008],
 ];
 
 /** The statements in a migration file (comments dropped, split at the semicolons). */

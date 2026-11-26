@@ -214,6 +214,11 @@ describe("what it may say", () => {
     expect(corrected(lacrosse, game("Vancouver Warriors vs. Saskatchewan Rush"))).toBe(lacrosse);
   });
 
+  it("migration 0008 gives the answers turned down their tries again, and nothing else", async () => {
+    const run = (await import("../migrations/0008_ai_retry.sql")).default as string;
+    expect(run.replace(/^--.*\n/gm, "").trim()).toBe("UPDATE events SET ai_tries = 0 WHERE ai_hash LIKE '!%';");
+  });
+
   it("simplified characters only: the traditional ones a model slips in are simplified", () => {
     expect(simplified("UBC 女子冰球對陣 Trinity Western University")).toBe("UBC 女子冰球对阵 Trinity Western University");
     expect(simplified("與家人一起欣賞節日音樂會")).toBe("与家人一起欣赏节日音乐会");
