@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import ubcFeed from "./fixtures/ical/ubc-2026-10-31.ics?raw";
 import sfuFirst from "./fixtures/livewhale/sfu-2026-11-19-p1.json?raw";
 import sfuLast from "./fixtures/livewhale/sfu-2026-11-19-p4.json?raw";
-import { sfuOpen, SOURCE_BY_ID } from "../src/sources";
+import showpassDiscovery from "./fixtures/showpass/discovery-2026-11-26.json?raw";
+import showpassEvents from "./fixtures/showpass/events-2026-11-26.json?raw";
+import { sfuOpen, showpassOpen, SOURCE_BY_ID } from "../src/sources";
 import type { NormalizedEvent } from "../src/types";
 import { fromVan } from "../src/time";
 
@@ -101,5 +103,52 @@ describe("SFU: what anyone can walk into", () => {
 
   it("a page that isn't one is a failed step, not an empty day", () => {
     expect(() => sfu.parse('{"error":"Too many requests"}', 0, w)).toThrow("not a LiveWhale events page");
+  });
+});
+
+describe("Showpass: what anyone can go to", () => {
+  const dates = SOURCE_BY_ID.showpass;
+  const seasons = SOURCE_BY_ID["showpass-season"];
+  // (fromVan: 07:00 UTC, British Columbia's midnight all year since 2026)
+  const w = { runId: "2026-11-26", fromMs: fromVan("2026-11-26"), toMs: fromVan("2026-12-10") };
+  const titles = (events: NormalizedEvent[]) => events.map((e) => e.title).sort();
+
+  it("asks for the window's dates 20 a page, and for what's on sale in it 100 a page, round Ticketmaster's circle", () => {
+    const circle = "location__point_location=49.15,-122.75,60";
+    expect(dates.request(0, {} as Env, w)).toBe(
+      `https://www.showpass.com/api/public/events/?${circle}&starts_on__gte=2026-11-26T07:00:00Z&starts_on__lt=2026-12-10T07:00:00Z&ordering=starts_on,id&page_size=20&page=1`,
+    );
+    expect(dates.request(4, {} as Env, w)).toMatch(/&page=5$/);
+    expect(seasons.request(1, {} as Env, w)).toBe(
+      `https://www.showpass.com/api/public/discovery/?${circle}&ends_on__gte=2026-11-26T07:00:00Z&starts_on__lt=2026-12-10T07:00:00Z&ordering=starts_on&page_size=100&page=2`,
+    );
+  });
+
+  it("keeps shows, games and parties in Greater Vancouver; no student club's, nothing on a campus or the Sunshine Coast, no month's admission", async () => {
+    const { events, more } = await dates.parse(showpassEvents, 0, w);
+    expect(more).toBe(true);
+    expect(titles(events)).toEqual([
+      "(Hot) Characters In Your Area",
+      "Free Cover at Mansion Nightclub! CityVibez Friday Party!",
+      "Richmond Sockeyes v. Delta Ice Hawks",
+      "Seymour Dance: The Nutcracker",
+      "Vancouver Giants vs. Regina Pats",
+    ]);
+  });
+
+  it("keeps the seasons: the Christmas Market, VanDusen's lights; not a season pass or a club's membership", async () => {
+    const { events, more } = await seasons.parse(showpassDiscovery, 0, w);
+    expect(more).toBe(true);
+    expect(titles(events)).toEqual(["Dinner with Santa – Christmas Dinner Cruise", "VANDUSEN FESTIVAL OF LIGHTS", "Vancouver Christmas Market 2026"]);
+    expect((await seasons.parse('{"count":0,"next":null,"previous":null,"results":[]}', 0, w)).more).toBe(false);
+    expect(() => seasons.parse('{"detail":"Invalid page."}', 9, w)).toThrow("not a Showpass page");
+  });
+
+  it("online, nowhere, or past Greater Vancouver: left out", () => {
+    const one = (place: NormalizedEvent["place"], online = false): NormalizedEvent => ({ source: "showpass", sourceEventId: "1", url: "https://www.showpass.com/x/", title: "x", start: "2026-11-26", status: "scheduled", place, online });
+    expect(showpassOpen([one({ name: "Squamish Legion", city: "Squamish", lat: 49.7, lon: -123.15 })])).toEqual([]);
+    expect(showpassOpen([one(null)])).toEqual([]);
+    expect(showpassOpen([one({ name: "The Roxy", city: "Vancouver", lat: 49.2786, lon: -123.1236 }, true)])).toEqual([]);
+    expect(showpassOpen([one({ name: "The Roxy", city: "Vancouver", lat: 49.2786, lon: -123.1236 })])).toHaveLength(1);
   });
 });

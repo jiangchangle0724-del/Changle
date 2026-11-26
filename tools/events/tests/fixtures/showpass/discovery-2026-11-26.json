@@ -1,0 +1,1509 @@
+{
+ "count": 357,
+ "next": "https://www.showpass.com/api/public/discovery/?ends_on__gte=2026-11-26T08%3A00%3A00Z&location__point_location=49.15%2C-122.75%2C60&ordering=starts_on&page=2&page_size=100&starts_on__lt=2026-12-10T08%3A00%3A00Z",
+ "previous": null,
+ "results": [
+  {
+   "uuid": "6acbdc7b-fe40-4096-8528-770698a071c5",
+   "item_id": 1513143,
+   "type": "event",
+   "venue": {
+    "id": 10944,
+    "name": "Vancouver Christmas Market",
+    "slug": "vancouver-christmas-market",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.75",
+    "low_inventory_threshold_high": "0.90",
+    "low_inventory_warning_enabled": true,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 10944,
+   "name": "Vancouver Christmas Market 2026",
+   "description_without_html": "Please arrive on your chosen time within your 30-minute timeslot and stay as long as you like!   * Please note doors close 30 minutes prior to event end time Ticket Policy All purchases are final sale. For Carousel rides, children must meet the following criteria:Children must be at least two years old, taller than 36 inches, and accompanied by an adultIf riding alone, they must be 42 inches or taller.Outside food or beverages are not permitted into the Market.Service animals are welcome within the premises. However, in compliance with food and service licensing regulations, dogs of any size and other pets are not permitted in the Market area.",
+   "starts_on": "2026-11-25T23:00:00Z",
+   "ends_on": "2026-12-25T03:00:00Z",
+   "date_time_to_be_determined": false,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "Canada/Pacific",
+   "is_recurring": false,
+   "is_recurring_parent": false,
+   "child_count": 0,
+   "external_link": "https://tickets.vancouverchristmasmarket.com/",
+   "frontend_details_url": "https://tickets.vancouverchristmasmarket.com/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/images/433fd1cc-9b2.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/img-banner/28753897-19f.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/images/433fd1cc-9b2.png",
+   "inventory": 400,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "vancouver-christmas-market-2026",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "fairs_and_festivals",
+    "food_and_beverage",
+    "seasonal_and_holiday"
+   ],
+   "tags": [
+    "christmas",
+    "seasonal",
+    "timeslot"
+   ],
+   "sub_items": [
+    {
+     "id": 4312836,
+     "name": "High Price",
+     "price": "22.99",
+     "inventory_left": 400,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "1.15",
+        "total_price": "25.77",
+        "service_charges": "1.63",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "1.15"
+         }
+        ],
+        "sum_internal_fees": "1.63",
+        "total_price_no_tax": "24.62"
+       }
+      }
+     }
+    },
+    {
+     "id": 4312835,
+     "name": "Low Price",
+     "price": "0.00",
+     "inventory_left": 400,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "0.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "0.00"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Vancouver",
+    "name": "Vancouver Christmas Market",
+    "country": "Canada",
+    "position": "49.2883921,-123.115542",
+    "province": "British Columbia",
+    "postal_code": "V6C 3L5",
+    "street_name": "1055 Canada Pl"
+   },
+   "point_location": "SRID=4326;POINT (-123.115542 49.2883921)",
+   "is_sponsored": false,
+   "ranking_factor": "51.7945",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "dc679cdf-6b9a-42a2-8002-d1431aa08c1f",
+   "item_id": 1566273,
+   "type": "event",
+   "venue": {
+    "id": 11281,
+    "name": "VanDusen Festival of Lights",
+    "slug": "festival-of-lights",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.70",
+    "low_inventory_threshold_high": "0.90",
+    "low_inventory_warning_enabled": true,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 11281,
+   "name": "VANDUSEN FESTIVAL OF LIGHTS",
+   "description_without_html": "See vandusenfestivaloflights.ca for more details on the event. We welcome neurodiverse individuals, their families, and caretakers to join us for a sensory-friendly evening on December 1!\n📅 November 27 to January 3🕙 4 PM TO 10 PM (half hour entry times - Last entry at 9pm)*Closed December 25\n \nParking & Transportation\n\nParking is FREE in our lot off West 37th avenue but spaces are limited. Free street parking is also available in the surrounding area (where street signs permit). Please respect our neighbourhood and driveways of our neighbours. \nParking can get quite busy, so we recommend taking public transit, walking, or biking. We’re located on the #17 Oak bus route and a 15-minute walk from the Oakridge Canada Line station.\n",
+   "starts_on": "2026-11-27T23:00:00Z",
+   "ends_on": "2027-01-04T04:00:00Z",
+   "date_time_to_be_determined": null,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "America/Vancouver",
+   "is_recurring": false,
+   "is_recurring_parent": false,
+   "child_count": 0,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/vandusen-festival-of-lights-126/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/festival-of-lights/images/04cb53c4-978.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/festival-of-lights/img-banner/3e41ddc4-07b.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/events/festival-of-lights/images/04cb53c4-978.png",
+   "inventory": null,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": null,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "vandusen-festival-of-lights-126",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "fairs_and_festivals",
+    "family_friendly",
+    "seasonal_and_holiday"
+   ],
+   "tags": [
+    "vancouver",
+    "vandusen",
+    "festival of light"
+   ],
+   "sub_items": [
+    {
+     "id": null,
+     "name": null,
+     "price": null,
+     "inventory_left": null,
+     "low_ticket_inventory": null,
+     "fees_pricing_info": {}
+    }
+   ],
+   "location": {
+    "city": "Vancouver",
+    "name": "VanDusen Botanical Garden",
+    "country": "Canada",
+    "position": "49.2385564,-123.1287215",
+    "province": "British Columbia",
+    "postal_code": "V6M 4H1",
+    "street_name": "5251 Oak St"
+   },
+   "point_location": "SRID=4326;POINT (-123.1287215 49.2385564)",
+   "is_sponsored": false,
+   "ranking_factor": "67.6219",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "392b8a0e-8778-4627-8f8f-8b7b08b301a2",
+   "item_id": 1560013,
+   "type": "event",
+   "venue": {
+    "id": 10944,
+    "name": "Vancouver Christmas Market",
+    "slug": "vancouver-christmas-market",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.75",
+    "low_inventory_threshold_high": "0.90",
+    "low_inventory_warning_enabled": true,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 10944,
+   "name": "Season Pass - Vancouver Christmas Market",
+   "description_without_html": "Season and Family Passes are non-transferable and allow unlimited visits during their valid period throughout the 2026 season. Pass holders can skip booking a time slot—simply head to the Season Pass priority entrance upon arrival!\n\n\nSeason Pass: Unlimited visits from November 16–December 24, 2026\n\n\nFamily Pass: Unlimited visits from November 16–December 24, 2026 for 2 Adult + 2 Youth (ages 7–14) Season Passes \n\n\nPlease note: Guest names are required during checkout, and they must match the government-issued ID presented at the gate. If purchasing multiple passes in a single transaction, you must provide the name of each pass holder at the time of purchase.\nFor full Terms & Conditions, visit: vancouverchristmasmarket.com/terms",
+   "starts_on": "2026-11-16T23:00:00Z",
+   "ends_on": "2026-12-25T01:00:00Z",
+   "date_time_to_be_determined": null,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "Canada/Pacific",
+   "is_recurring": null,
+   "is_recurring_parent": false,
+   "child_count": 0,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/season-pass-vancouver-christmas-market-3/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/images/328f452f-fdf.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/img-banner/6fca63be-3e2.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/events/vancouver-christmas-market/images/328f452f-fdf.png",
+   "inventory": 22000,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "season-pass-vancouver-christmas-market-3",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "fairs_and_festivals",
+    "food_and_beverage",
+    "seasonal_and_holiday"
+   ],
+   "tags": [
+    "festival",
+    "christmas",
+    "seasonal",
+    "fair",
+    "vanholiday",
+    "famholiday"
+   ],
+   "sub_items": [
+    {
+     "id": 4551908,
+     "name": "Individual Season Pass",
+     "price": "35.99",
+     "inventory_left": 2345,
+     "low_ticket_inventory": 1,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "1.80",
+        "total_price": "39.76",
+        "service_charges": "1.97",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "1.80"
+         }
+        ],
+        "sum_internal_fees": "1.97",
+        "total_price_no_tax": "37.96"
+       }
+      }
+     }
+    },
+    {
+     "id": 4551923,
+     "name": "Family Season Pass",
+     "price": "84.99",
+     "inventory_left": 1235,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "4.25",
+        "total_price": "95.57",
+        "service_charges": "6.33",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "4.25"
+         }
+        ],
+        "package_quantity": 4,
+        "sum_internal_fees": "6.33",
+        "total_price_no_tax": "91.32"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Vancouver",
+    "name": "Jack Poole Plaza",
+    "country": "Canada",
+    "position": "49.28839259999999,-123.1155421",
+    "province": "British Columbia",
+    "postal_code": "V6C 3L5",
+    "street_name": "1055 Canada Pl"
+   },
+   "point_location": "SRID=4326;POINT (-123.1155421 49.28839259999999)",
+   "is_sponsored": false,
+   "ranking_factor": "7.9970",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "efa6d07b-b7e1-46b7-922c-f1516dd0bcbd",
+   "item_id": 2128,
+   "type": "membership",
+   "venue": {
+    "id": 3885,
+    "name": "Vancouver Giants",
+    "slug": "vancouver-giants",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.60",
+    "low_inventory_threshold_high": "0.75",
+    "low_inventory_warning_enabled": false,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 3885,
+   "name": "Giants Season Ticket Holders",
+   "description_without_html": "For the first time ever, fans can purchase season tickets online and choose their own seats using our interactive seating chart — making it easier than ever to lock in your spot at the Langley Events Centre.Payment plans are available by contacting the Giants office at 604-444-2687 or sales@vancouvergiants.com.Physical season tickets and additional perks will be distributed closer to the start of the season.Looking for something specific? Reach out to explore additional seating options.Join the Giants family today — we can't wait to see you at the rink!",
+   "starts_on": "2026-08-01T06:00:00Z",
+   "ends_on": "2027-06-30T06:00:00Z",
+   "date_time_to_be_determined": null,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "America/Vancouver",
+   "is_recurring": null,
+   "is_recurring_parent": null,
+   "child_count": null,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/m/giants-season-ticket-holders/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/membership-groups/vancouver-giants/images/b42fb40a-8be.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/membership-groups/vancouver-giants/images/b42fb40a-8be.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/membership-groups/vancouver-giants/images/b42fb40a-8be.png",
+   "inventory": null,
+   "inventory_sold_out": null,
+   "public_inventory_sold_out": null,
+   "low_ticket_inventory": null,
+   "no_sub_items": null,
+   "opens_at": null,
+   "slug": "giants-season-ticket-holders",
+   "sold_out": null,
+   "status": "sp_membership_group_published",
+   "virtual_type": null,
+   "categories": [],
+   "tags": [],
+   "sub_items": [
+    {
+     "id": 2534,
+     "name": "Centre Ice Front",
+     "price": "795.00",
+     "inventory_left": null,
+     "low_ticket_inventory": null,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "795.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "795.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 2533,
+     "name": "Goal Line",
+     "price": "640.00",
+     "inventory_left": null,
+     "low_ticket_inventory": null,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "640.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "640.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 2536,
+     "name": "Club",
+     "price": "930.00",
+     "inventory_left": null,
+     "low_ticket_inventory": null,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "930.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "930.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 2532,
+     "name": "End Zone",
+     "price": "630.00",
+     "inventory_left": null,
+     "low_ticket_inventory": null,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "630.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "630.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 2537,
+     "name": "Platinum",
+     "price": "1206.00",
+     "inventory_left": null,
+     "low_ticket_inventory": null,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "1206.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "1206.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 2535,
+     "name": "Centre Ice Back",
+     "price": "875.00",
+     "inventory_left": null,
+     "low_ticket_inventory": null,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "875.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "875.00"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Langley",
+    "name": "Vancouver Giants",
+    "country": "CA",
+    "position": "49.1460046,-122.6662583",
+    "province": "British Columbia",
+    "postal_code": "V2Y 3J4",
+    "street_name": "7888 200 Street"
+   },
+   "point_location": "SRID=4326;POINT (-122.6662583 49.1460046)",
+   "is_sponsored": false,
+   "ranking_factor": "0.0000",
+   "artists": null,
+   "renewal_frequency": "seasonal",
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "d6715953-e47f-4946-87e3-f375b16972b4",
+   "item_id": 1530323,
+   "type": "event",
+   "venue": {
+    "id": 3885,
+    "name": "Vancouver Giants",
+    "slug": "vancouver-giants",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.60",
+    "low_inventory_threshold_high": "0.75",
+    "low_inventory_warning_enabled": false,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 3885,
+   "name": "Vancouver Giants 2026-27 Single Game Tickets",
+   "description_without_html": "",
+   "starts_on": "2026-11-28T02:00:00Z",
+   "ends_on": "2027-04-05T05:00:00Z",
+   "date_time_to_be_determined": false,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "America/Vancouver",
+   "is_recurring": true,
+   "is_recurring_parent": true,
+   "child_count": 36,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/vancouver-giants-2026-27-single-game-tickets/",
+   "image": null,
+   "image_banner": null,
+   "thumbnail": null,
+   "inventory": 5500,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "vancouver-giants-2026-27-single-game-tickets",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "sports",
+    "family_friendly"
+   ],
+   "tags": [
+    "lec-game"
+   ],
+   "sub_items": [
+    {
+     "id": 4464827,
+     "name": "Goal Line - White Spot",
+     "price": "26.50",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "26.50",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "26.50"
+       }
+      }
+     }
+    },
+    {
+     "id": 4464828,
+     "name": "Centre Ice Front - White Spot",
+     "price": "33.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "33.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "33.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 4464831,
+     "name": "Platinum - White Spot",
+     "price": "43.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "43.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "43.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 4410035,
+     "name": "Goal Line",
+     "price": "28.95",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "28.95",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "28.95"
+       }
+      }
+     }
+    },
+    {
+     "id": 4464830,
+     "name": "Club - White Spot",
+     "price": "40.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "40.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "40.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 4410039,
+     "name": "Platinum",
+     "price": "45.45",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "45.45",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "45.45"
+       }
+      }
+     }
+    },
+    {
+     "id": 4410036,
+     "name": "Centre Ice Front",
+     "price": "35.45",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "35.45",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "35.45"
+       }
+      }
+     }
+    },
+    {
+     "id": 4464826,
+     "name": "End Zone - White Spot",
+     "price": "23.50",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "23.50",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "23.50"
+       }
+      }
+     }
+    },
+    {
+     "id": 4410034,
+     "name": "End Zone",
+     "price": "25.95",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "25.95",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "25.95"
+       }
+      }
+     }
+    },
+    {
+     "id": 4410037,
+     "name": "Centre Ice Back",
+     "price": "41.45",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "41.45",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "41.45"
+       }
+      }
+     }
+    },
+    {
+     "id": 4464829,
+     "name": "Centre Ice Back - White Spot",
+     "price": "39.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "39.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "39.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 4410038,
+     "name": "Club",
+     "price": "42.45",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "42.45",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "42.45"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Langley",
+    "name": "Langley Events Centre",
+    "country": "Canada",
+    "position": "49.1460099,-122.66614730000003",
+    "province": "British Columbia",
+    "postal_code": "V2Y 3J4",
+    "street_name": "7888 200 Street"
+   },
+   "point_location": "SRID=4326;POINT (-122.66614730000003 49.1460099)",
+   "is_sponsored": false,
+   "ranking_factor": "10.7703",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "39350609-3db2-45fa-a72b-4730999afdba",
+   "item_id": 1575639,
+   "type": "event",
+   "venue": {
+    "id": 16469,
+    "name": "Centennial Theatre",
+    "slug": "centennial-theatre",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.75",
+    "low_inventory_threshold_high": "0.90",
+    "low_inventory_warning_enabled": true,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 16469,
+   "name": "Seymour Dance: The Nutcracker",
+   "description_without_html": "Seymour Dance Presents: The Nutcracker\nCelebrate the magic of the holiday season with Seymour Dance’s beloved annual production of The Nutcracker!\nA cherished North Shore holiday tradition, this enchanting ballet brings together over 200 dancers of all ages, alongside professional guest artists, to tell the timeless story of Clara’s magical Christmas Eve adventure.\nFrom the excitement of the Christmas party to the dazzling Land of Sweets, audiences will be transported into a world of beautiful dancing, festive costumes, and Tchaikovsky’s unforgettable music.\nProudly serving the North Shore community since 1965, Seymour Dance is delighted to bring generations of dancers together on stage and share the joy and wonder of this holiday classic with families year after year.\nJoin us for a magical performance that is sure to delight audiences of all ages and create lasting holiday memories!\nThis event is RESERVED SEATING.If you would like to book accessible seating, please contact the box office at 604-984-4484.",
+   "starts_on": "2026-12-06T01:30:00Z",
+   "ends_on": "2026-12-07T03:15:00Z",
+   "date_time_to_be_determined": null,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "Canada/Pacific",
+   "is_recurring": true,
+   "is_recurring_parent": true,
+   "child_count": 4,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/seymour-dance-the-nutcracker/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/centennial-theatre/images/56797278-7d8.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/centennial-theatre/img-banner/428411b2-5d3.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/events/centennial-theatre/images/56797278-7d8.png",
+   "inventory": 706,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 1,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "seymour-dance-the-nutcracker",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "arts_and_theatres",
+    "community_and_culture"
+   ],
+   "tags": null,
+   "sub_items": [
+    {
+     "id": 4644835,
+     "name": "Senior 65+",
+     "price": "43.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 1,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "43.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "43.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 4644836,
+     "name": "Student with ID",
+     "price": "43.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 1,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "43.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "43.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 4644834,
+     "name": "Adult",
+     "price": "45.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 1,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "45.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "45.00"
+       }
+      }
+     }
+    },
+    {
+     "id": 4644837,
+     "name": "Child 12 & Under",
+     "price": "37.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 1,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "37.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "37.00"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "North Vancouver",
+    "name": "Centennial Theatre",
+    "country": "CA",
+    "position": "49.33063139999999,-123.0716548",
+    "province": "British Columbia",
+    "postal_code": "V7M 3L1",
+    "street_name": "2300 Lonsdale Ave"
+   },
+   "point_location": "SRID=4326;POINT (-123.0716548 49.33063139999999)",
+   "is_sponsored": false,
+   "ranking_factor": "2.5272",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "94b27dba-28b9-4972-a738-62d40c9038ae",
+   "item_id": 1483686,
+   "type": "event",
+   "venue": {
+    "id": 7805,
+    "name": "VanDusen Botanical Garden",
+    "slug": "vandusen-botanical-garden",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.60",
+    "low_inventory_threshold_high": "0.75",
+    "low_inventory_warning_enabled": false,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 7805,
+   "name": "VanDusen Botanical Garden - December 2026",
+   "description_without_html": "VanDusen Botanical Garden is a 55-acre oasis in the heart of Vancouver with over 7,500 plant species and varieties from around the world! Spot and photograph local wildlife, find your way through an Elizabethan hedge maze, unwind in a serene setting, dine on the patios of Truffles Cafe or Shaughnessy Restaurant, or browse the garden-themed gift shop. VanDusen has something for everyone to enjoy!\nThese tickets are for general admission only, and cannot be used for special events including, but not limited to Sakura Days Japan Fair and VanDusen Festival of Lights.",
+   "starts_on": "2026-12-01T17:00:00Z",
+   "ends_on": "2026-12-31T21:00:00Z",
+   "date_time_to_be_determined": null,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "Canada/Pacific",
+   "is_recurring": true,
+   "is_recurring_parent": true,
+   "child_count": 30,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/vandusen-botanical-garden-december-2026/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vandusen-botanical-garden/images/44246d31-2fe.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/vandusen-botanical-garden/img-banner/1e797ad7-f4f.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/events/vandusen-botanical-garden/images/44246d31-2fe.png",
+   "inventory": null,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "vandusen-botanical-garden-december-2026",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "community_and_culture",
+    "family_friendly",
+    "travel_and_outdoor"
+   ],
+   "tags": [
+    "vancouver",
+    "garden",
+    "botanical",
+    "vandusen"
+   ],
+   "sub_items": [
+    {
+     "id": 4124372,
+     "name": "Senior (65+ years)",
+     "price": "7.31",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.41",
+        "total_price": "8.60",
+        "service_charges": "0.88",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "0.37"
+         },
+         {
+          "name": "Ticket Fee",
+          "fee_total": "0.88"
+         }
+        ],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "8.19"
+       }
+      }
+     }
+    },
+    {
+     "id": 4124371,
+     "name": "Adult (19-64 years)",
+     "price": "9.13",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.52",
+        "total_price": "10.75",
+        "service_charges": "1.10",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "0.46"
+         },
+         {
+          "name": "Ticket Fee",
+          "fee_total": "1.10"
+         }
+        ],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "10.23"
+       }
+      }
+     }
+    },
+    {
+     "id": 4124374,
+     "name": "Child (5-12 years)",
+     "price": "4.57",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.26",
+        "total_price": "5.38",
+        "service_charges": "0.55",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "0.23"
+         },
+         {
+          "name": "Ticket Fee",
+          "fee_total": "0.55"
+         }
+        ],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "5.12"
+       }
+      }
+     }
+    },
+    {
+     "id": 4124373,
+     "name": "Youth (13-18 years)",
+     "price": "6.39",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.36",
+        "total_price": "7.52",
+        "service_charges": "0.77",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "0.32"
+         },
+         {
+          "name": "Ticket Fee",
+          "fee_total": "0.77"
+         }
+        ],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "7.16"
+       }
+      }
+     }
+    },
+    {
+     "id": 4124375,
+     "name": "Preschooler (4 and under)",
+     "price": "0.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "0.00",
+        "service_charges": "0.00",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "0.00",
+        "total_price_no_tax": "0.00"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Vancouver",
+    "name": "VanDusen Botanical Garden",
+    "country": "Canada",
+    "position": "49.2385564,-123.1287215",
+    "province": "British Columbia",
+    "postal_code": "V6M 4H1",
+    "street_name": "5251 Oak St"
+   },
+   "point_location": "SRID=4326;POINT (-123.1287215 49.2385564)",
+   "is_sponsored": false,
+   "ranking_factor": "0.3775",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "80143b8c-f983-4436-8dc8-78881c74c9d7",
+   "item_id": 1578137,
+   "type": "event",
+   "venue": {
+    "id": 21070,
+    "name": "Burrard Queen",
+    "slug": "burrard-queen",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.60",
+    "low_inventory_threshold_high": "0.75",
+    "low_inventory_warning_enabled": false,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 21070,
+   "name": "Dinner with Santa – Christmas Dinner Cruise",
+   "description_without_html": "🎅 Dinner with Santa – Christmas Dinner Cruise 🎄\nA Magical Christmas Celebration on Vancouver's Waterfront!\nJoin us on Friday, December 4, 2026, aboard the beautiful Burrard Queen for a festive evening filled with delicious food, Santa Claus, holiday music, dancing, and Christmas cheer!\nBring your family and friends together for an unforgettable Christmas celebration while enjoying Vancouver's spectacular waterfront views.\n🎄 Your Christmas Experience Includes\n\n\n🎅 Special appearance by Santa Claus with Christmas photo opportunities\n\n\n🍽️ Delicious 11-item Christmas dinner buffet\n\n\n🎶 Festive music, DJ entertainment, and dancing\n\n\n🎄 Beautiful Christmas decorations\n\n\n📸 Family and friends' holiday photo opportunities\n\n\n🚢 Scenic Vancouver waterfront cruise\n\n\n🍽️ Our Special 11-Item Christmas Buffet\nSoup\n\n\nCreamy Broccoli & Cheddar Soup\n\n\nSalads\n\n\nFestive Winter Greens Salad\n\n\nCreamy Herb Potato Salad\n\n\nHot Sides\n\n\nMaple-Glazed Roasted Vegetables\n\n\nGarlic & Herb Mashed Potatoes\n\n\nBaked Three-Cheese Mac & Cheese\n\n\nOven-Baked Garlic Bread\n\n\nMain Courses\n\n\nCreamy Garlic & Herb Baked Salmon\n\n\nHerb-Roasted Chicken\n\n\nDesserts\n\n\nDecadent Chocolate Cake\n\n\nClassic New York Cheesecake with Berry Compote\n\n\n🎟️ Ticket Prices\nAdults (15–65): $125.00\nSeniors (66+): $99.99\nChildren (under 15): $99.99\nAll tickets include the Christmas buffet, Santa experience, entertainment, and cruise.\nBeverages are available for purchase separately.\n📅 Event Information\nDate: Friday, December 4, 2026\nTime: 6:00 PM – 11:00 PM\nVenue: Burrard Queen, False Creek, Vancouver\nChildren and other guests under 19 must disembark by 10:00 PM in accordance with venue restrictions.\nImportant Ticket Policies\nAll tickets are non-refundable. No refunds for personal cancellations, missed departures, or no-shows.\nIf the organizer cancels the event, ticket holders will be offered a refund or an alternative date, in accordance with applicable requirements.\nChildren must be accompanied by a responsible adult.\n🎁 Make This Christmas Extra Special!\nCelebrate with Santa, enjoy a delicious Christmas dinner, and create magical memories with family and friends aboard the Burrard Queen.\nLimited tickets available – reserve your Christmas experience today!",
+   "starts_on": "2026-12-05T01:00:00Z",
+   "ends_on": "2027-02-03T01:00:00Z",
+   "date_time_to_be_determined": true,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "America/Vancouver",
+   "is_recurring": false,
+   "is_recurring_parent": false,
+   "child_count": 0,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/dinner-with-santa-christmas-dinner-cruise/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/burrard-queen/images/7e163703-af6.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/burrard-queen/img-banner/0bf5b0b4-a67.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/events/burrard-queen/images/7e163703-af6.png",
+   "inventory": null,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "dinner-with-santa-christmas-dinner-cruise",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "food_and_beverage",
+    "family_friendly",
+    "film_media_and_entertainment"
+   ],
+   "tags": null,
+   "sub_items": [
+    {
+     "id": 4651686,
+     "name": "Children (under 15)",
+     "price": "99.99",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "104.83",
+        "service_charges": "4.84",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "4.84",
+        "total_price_no_tax": "104.83"
+       }
+      }
+     }
+    },
+    {
+     "id": 4651684,
+     "name": "Adults (15–64):",
+     "price": "125.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "130.82",
+        "service_charges": "5.82",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "5.82",
+        "total_price_no_tax": "130.82"
+       }
+      }
+     }
+    },
+    {
+     "id": 4651685,
+     "name": "Seniors (65+)",
+     "price": "99.99",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "104.83",
+        "service_charges": "4.84",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "4.84",
+        "total_price_no_tax": "104.83"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Vancouver",
+    "name": "Burrard Queen",
+    "country": "CA",
+    "position": "49.2748994,-123.1088699",
+    "province": "British Columbia",
+    "postal_code": "V6B 5E7",
+    "street_name": "760 Pacific Blvd"
+   },
+   "point_location": "SRID=4326;POINT (-123.1088699 49.2748994)",
+   "is_sponsored": false,
+   "ranking_factor": "0.0143",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "414e2a6a-c209-4dc9-b281-65a0164b97ed",
+   "item_id": 1550814,
+   "type": "event",
+   "venue": {
+    "id": 1010,
+    "name": "Undergraduate Research Opportunities",
+    "slug": "undergraduate-research-opportunities",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.60",
+    "low_inventory_threshold_high": "0.75",
+    "low_inventory_warning_enabled": false,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 1010,
+   "name": "Undergraduate Research Opportunities 2026/27 Membership Sale",
+   "description_without_html": "Thank you for signing up to be a URO member for 2026/27! As a URO member, you will have access to a range of programs and events hosted by URO to help you get involved in research.\nMembership Options\n\nIf you are interested in the Research EXperience Program (REX), please purchase the $10 membership - REX Mentee Deadline has passed.\nIf you are not planning to apply for REX, you may purchase the $5 membership. \nBoth tiers: Exclusive research related opportunities and information, including URO Newsletter, Workshops, apply to participate in Research Involvement Fair and MORE\n\nAs per AMS bylaws, memberships must be purchased annually and are non-refundable.\nHow to Receive Your URO Number\nAfter purchasing your membership, please complete the URO Membership Qualtrics Survey as soon as possible. The survey should take approximately 2–3 minutes to complete.\nWhen completing the survey:\n\nEnter the same email address you used when purchasing your membership through Showpass. You will not receive your URO number if the email addresses do not match.\nEnter your Showpass invoice id as confirmation of payment\nYour invoice id can be found in the confirmation email in the Receipt pdf\n\nOnce you have completed the survey, you can expect to receive your URO number within 24–48 hours. We will do our best to send it as soon as possible. Please keep your URO number in a secure place, as you will need it to access all URO membership-based programs and events.\nIf you do not receive your URO number within 48 hours, or if you have any questions or concerns, please contact us at uro.ubc@gmail.com. You can also talk to us at Clubs Day.\nImportant Information About REX\nGetting a URO membership+REX ($10) does not guarantee that you will become a REX mentee. REX is a competitive program, and all prospective REX mentees must apply through the REX application form. If accepted, you will be matched with a mentor to participate in the program.\nFor all REX-related questions, please contact our REX Chairs at rex.uro.ubc@gmail.com.\nWe look forward to having you as part of URO!",
+   "starts_on": "2026-08-18T01:00:00Z",
+   "ends_on": "2026-12-25T06:55:00Z",
+   "date_time_to_be_determined": false,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "America/Vancouver",
+   "is_recurring": null,
+   "is_recurring_parent": false,
+   "child_count": 0,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/undergraduate-research-opportunities-202627-membership-sale/",
+   "image": null,
+   "image_banner": null,
+   "thumbnail": null,
+   "inventory": null,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": null,
+   "slug": "undergraduate-research-opportunities-202627-membership-sale",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": "oet_virtual_external",
+   "categories": [
+    "education"
+   ],
+   "tags": null,
+   "sub_items": [
+    {
+     "id": 4512150,
+     "name": "URO Membership ($5)",
+     "price": "5.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "0.00",
+        "total_price": "6.47",
+        "service_charges": "1.47",
+        "sum_custom_fees": [],
+        "sum_internal_fees": "1.47",
+        "total_price_no_tax": "6.47"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Vancouver",
+    "name": "Undergraduate Research Opportunities",
+    "country": "Canada",
+    "position": "49.26647790000001,-123.2498647",
+    "province": "British Columbia",
+    "postal_code": "V6T 1Z1",
+    "street_name": "6133 University Blvd"
+   },
+   "point_location": "SRID=4326;POINT (-123.2498647 49.26647790000001)",
+   "is_sponsored": false,
+   "ranking_factor": "0.1847",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  },
+  {
+   "uuid": "a20a74b3-c36d-4813-882d-a8b507dbaf6f",
+   "item_id": 1516368,
+   "type": "event",
+   "venue": {
+    "id": 9436,
+    "name": "Little Mountain Gallery",
+    "slug": "little-mountain-gallery",
+    "currency": "CAD",
+    "low_inventory_threshold_low": "0.50",
+    "low_inventory_threshold_middle": "0.75",
+    "low_inventory_threshold_high": "0.90",
+    "low_inventory_warning_enabled": true,
+    "all_in_pricing_is_enabled": true
+   },
+   "venue_id": 9436,
+   "name": "Fistful of Crime: An Improvised Hong Kong Gangster Film",
+   "description_without_html": "Dive headfirst into the seedy underworld of triads, violence, and all the dumplings you can eat in Fistful of Crime!\nIn this one-of-a-kind improv show, you'll experience the hallmark gangster cinema from 80s and 90s Hong Kong, reimagined and remixed on-the-spot by Vancouver's premiere East Asian improv group, Fistful of Kicks.\nEach show is equal parts drama and comedy, exploring characters caught between the criminal world and polite society, stretched thin between their gang allegiances and their family bonds. All created entirely on the spot based on a single word from the audience! If you're a seasoned HK cinema aficionado, or have no idea what any of those words you just read meant, you'll have a killer time at this show.\nAlso featuring hilarious opening acts from all around the Vancouver comedy scene. Embrace your inner gangster at Fistful of Crime!\nThis show will be presented in the Salazar Stage (Main floor).\nThis show is produced and curated under a rental model, independent of Little Mountain Gallery. If you have questions or comments on this performance please contact the producer at curt.dasilva@gmail.com\nAccessibility\nPlease note that the venue has two separate spaces, upstairs and downstairs. All show listings should indicate which room they’re in on the description. Please ensure you note the location as both spaces do not have the same level of accessibility. \nThe front entrance has power assisted doors. \nThere’s a powered lift from street level to the main performance space. For more information on the limitations of our lift, please check out our website. \nThe venue has six private washrooms on the main floor, one of which is fully accessible with a power assisted door. The theatre doors to the main space are not power assisted at this time. The second floor is not accessible and is up two flights of stairs.\nWe encourage patrons requiring wheelchair seating message us ahead of performances so we can arrange seating at niki@littlemountaingallery.ca\n \n \n \n ",
+   "starts_on": "2026-12-06T02:00:00Z",
+   "ends_on": "2026-12-06T03:15:00Z",
+   "date_time_to_be_determined": null,
+   "date_time_to_be_determined_message": null,
+   "time_to_be_determined_message": null,
+   "timezone": "America/Vancouver",
+   "is_recurring": null,
+   "is_recurring_parent": false,
+   "child_count": 0,
+   "external_link": null,
+   "frontend_details_url": "https://www.showpass.com/fistful-of-crime-an-improvised-hong-kong-gangster-film-8/",
+   "image": "https://doavub8d2uzrx.cloudfront.net/media/images/events/little-mountain-gallery/images/cccf9373-d40.png",
+   "image_banner": "https://doavub8d2uzrx.cloudfront.net/media/images/events/little-mountain-gallery/img-banner/66774c3e-e39.png",
+   "thumbnail": "https://dcm1eeuyachdi.cloudfront.net/fit-in/300x300/filters:format(jpeg)/media/https://doavub8d2uzrx.cloudfront.net/media/images/events/little-mountain-gallery/images/cccf9373-d40.png",
+   "inventory": null,
+   "inventory_sold_out": false,
+   "public_inventory_sold_out": false,
+   "low_ticket_inventory": 0,
+   "no_sub_items": false,
+   "opens_at": "2026-12-06T01:30:00Z",
+   "slug": "fistful-of-crime-an-improvised-hong-kong-gangster-film-8",
+   "sold_out": false,
+   "status": "sp_event_active",
+   "virtual_type": null,
+   "categories": [
+    "arts_and_theatres",
+    "comedy"
+   ],
+   "tags": null,
+   "sub_items": [
+    {
+     "id": 4330924,
+     "name": "Door Tickets",
+     "price": "25.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "1.47",
+        "total_price": "30.72",
+        "service_charges": "4.25",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "1.25"
+         },
+         {
+          "name": "Facility Fee",
+          "fee_total": "3.00"
+         }
+        ],
+        "sum_internal_fees": "1.32",
+        "total_price_no_tax": "29.25"
+       }
+      }
+     }
+    },
+    {
+     "id": 4330923,
+     "name": "General Admission",
+     "price": "22.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "1.31",
+        "total_price": "27.48",
+        "service_charges": "4.17",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "1.10"
+         },
+         {
+          "name": "Facility Fee",
+          "fee_total": "3.00"
+         }
+        ],
+        "sum_internal_fees": "1.23",
+        "total_price_no_tax": "26.17"
+       }
+      }
+     }
+    },
+    {
+     "id": 4330925,
+     "name": "Early Bird",
+     "price": "19.00",
+     "inventory_left": null,
+     "low_ticket_inventory": 0,
+     "fees_pricing_info": {
+      "psp_web": {
+       "2": {
+        "taxes": "1.16",
+        "total_price": "24.25",
+        "service_charges": "4.09",
+        "sum_custom_fees": [
+         {
+          "name": "GST",
+          "fee_total": "0.95"
+         },
+         {
+          "name": "Facility Fee",
+          "fee_total": "3.00"
+         }
+        ],
+        "sum_internal_fees": "1.15",
+        "total_price_no_tax": "23.09"
+       }
+      }
+     }
+    }
+   ],
+   "location": {
+    "city": "Vancouver",
+    "name": "Little Mountain Gallery",
+    "country": "Canada",
+    "position": "49.2837602,-123.1069523",
+    "province": "British Columbia",
+    "postal_code": "V6B 1E5",
+    "street_name": "110 Water St"
+   },
+   "point_location": "SRID=4326;POINT (-123.1069523 49.2837602)",
+   "is_sponsored": false,
+   "ranking_factor": "0.2666",
+   "artists": null,
+   "renewal_frequency": null,
+   "average_rating": null,
+   "total_ratings": null,
+   "ratings_distribution": null
+  }
+ ]
+}

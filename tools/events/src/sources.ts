@@ -4,7 +4,9 @@ import { parseBiblioCommons, lastStartMs, type BcPage } from "./parsers/biblioco
 import { parseBpl, type BplFeed } from "./parsers/bpl";
 import { parseIcal } from "./parsers/ical";
 import { isLwPage, parseLiveWhale } from "./parsers/livewhale";
+import { isSpPage, parseShowpass } from "./parsers/showpass";
 import { parseTicketmaster, type TmPage } from "./parsers/ticketmaster";
+import { resolveArea } from "./area";
 import { fromVan, vanIso } from "./time";
 import type { NormalizedEvent, Source } from "./types";
 
@@ -56,6 +58,8 @@ export function nextPart(src: SourceDef, part: number, more: boolean): number | 
 }
 
 const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+/** Ticketmaster's circle (below), kilometres: Greater Vancouver to Chilliwack, not Squamish or the Sunshine Coast. */
+const SHOWPASS_CIRCLE = "49.15,-122.75,60";
 const DAY = 86_400_000;
 /** "2026-11-01": a Vancouver date, for the sources that take one. */
 const vanDay = (ms: number) => vanIso(ms).slice(0, 10);
@@ -166,6 +170,46 @@ export const SOURCES: SourceDef[] = [
     },
   },
   {
+    // Showpass's every date (src/parsers/showpass.ts): about 600 items in two weeks round Greater
+    // Vancouver, half of them the Christmas Market's and VanDusen's half-hour slots (left out: their
+    // seasons come from "showpass-season"). 20 a page, about 250 KB: a step's 10 ms of CPU.
+    id: "showpass",
+    name: "Showpass",
+    kind: "json",
+    tier: 1,
+    lang: "en",
+    url: `https://www.showpass.com/api/public/events/?location__point_location=${SHOWPASS_CIRCLE}`,
+    maxParts: 40,
+    request(part, _env, w) {
+      return `${this.url}&starts_on__gte=${iso(w.fromMs)}&starts_on__lt=${iso(w.toMs)}&ordering=starts_on,id&page_size=20&page=${part + 1}`;
+    },
+    parse(raw) {
+      const page = JSON.parse(raw) as unknown;
+      if (!isSpPage(page)) throw new Error("not a Showpass page");
+      return { events: showpassOpen(parseShowpass(page, this.id, "events")), more: page.next !== null };
+    },
+  },
+  {
+    // What Showpass sells for more than a day: a market's or a light show's season, a run of
+    // dinners. About 350 products in two weeks, 100 a page (2 KB each); most last a day or less and
+    // come from "showpass" with their dates.
+    id: "showpass-season",
+    name: "Showpass",
+    kind: "json",
+    tier: 1,
+    lang: "en",
+    url: `https://www.showpass.com/api/public/discovery/?location__point_location=${SHOWPASS_CIRCLE}`,
+    maxParts: 6,
+    request(part, _env, w) {
+      return `${this.url}&ends_on__gte=${iso(w.fromMs)}&starts_on__lt=${iso(w.toMs)}&ordering=starts_on&page_size=100&page=${part + 1}`;
+    },
+    parse(raw) {
+      const page = JSON.parse(raw) as unknown;
+      if (!isSpPage(page)) throw new Error("not a Showpass page");
+      return { events: showpassOpen(parseShowpass(page, this.id, "discovery")), more: page.next !== null };
+    },
+  },
+  {
     id: "ticketmaster",
     name: "Ticketmaster",
     kind: "ticketmaster",
@@ -258,5 +302,28 @@ export function sfuOpen(events: NormalizedEvent[]): NormalizedEvent[] {
     const named = /\b(Burnaby|Surrey|Vancouver)\b/.exec(where)?.[1] ?? null;
     const city = e.place.city ?? (campuses.length === 1 ? SFU_CAMPUS[campuses[0]] : named);
     return [{ ...e, place: { ...e.place, city } }];
+  });
+}
+
+/** A student club's or society's: for its members, mostly (UBC's and SFU's calendars have what's open to all). */
+const SP_STUDENTS = /\b(UBC|AMS|SFU|SFSS|GSS|GSA|undergraduate|graduate students?|students?'? (society|association|union|council))\b/i;
+/** On UBC's or SFU's Burnaby campus: the same. */
+const SP_CAMPUS = /^(V6T|V5A ?1S6)/i;
+/** Sold on Showpass, but not an event: a membership, a pass, a month's admission to a garden. */
+const SP_NOT_EVENTS =
+  /\b(memberships?|season pass(es)?|season tickets?|gift cards?|subscriptions?|meal subsidy|annual general meeting|AGM|see you next season)\b|\badmission$|\s-\s(January|February|March|April|May|June|July|August|September|October|November|December)\s\d{4}$/i;
+
+/**
+ * Showpass sells for anyone who has an account, students' clubs included. What's On keeps, as for
+ * UBC and SFU, what anyone can go to: at a real place in Greater Vancouver (not online, nothing past
+ * Chilliwack or on the Sunshine Coast), not a student club's or on a campus, and not a membership,
+ * a pass or a month's admission ("VanDusen Botanical Garden - December 2026").
+ */
+export function showpassOpen(events: NormalizedEvent[]): NormalizedEvent[] {
+  return events.filter((e) => {
+    if (e.online || !e.place || SP_NOT_EVENTS.test(e.title)) return false;
+    if (SP_STUDENTS.test(e.organizer ?? "") || SP_CAMPUS.test(e.place.postalCode ?? "")) return false;
+    const where = resolveArea(e.place);
+    return !!where.area && !where.check && !where.outside;
   });
 }

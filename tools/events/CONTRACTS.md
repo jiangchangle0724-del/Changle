@@ -188,7 +188,7 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
   and the AI's sentence (`summaryZh`); the English page shows the source's name. The source's picture
   (`imageUrl`, over https) sits on top of a row, 3:1, lazy, sent without a referrer; none when there's
   none. Pictures: the library's banner, Ticketmaster's smallest 16:9 at least 600 wide, UBC's ATTACH
-  image, SFU's thumbnail.
+  image, SFU's thumbnail, Showpass's banner.
 - `GET /go/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD&cat=a,b&area=x,y&tag=free,kids`
 - `GET /go/api/events.ics` with the same filters: a calendar to subscribe to (`src/ics.ts`, task C6),
   named by its filters in Chinese and English (`玩什么 · What's On · 亲子家庭 Family & Kids`).
