@@ -16,7 +16,7 @@ import { Icon } from "./chrome";
 import { PenaltyStamp } from "./Penalty";
 import { clockText, Scoreboard, useClock } from "./Play";
 import { ResultTable, resultTitle } from "./Result";
-import { arenaEvents, Awards, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
+import { arenaEvents, Awards, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
 import { useLanded } from "./useLanded";
 import { installAudioUnlock, soundOn, unlockAudio } from "../sound";
 
@@ -167,6 +167,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
   const shown = arenaEvents(game);
   const feasted = useFeast(game.events);
   const drill = useDrill(game, receivedAt);
+  const callout = useCallout(game.events);
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   // the penalty takes the screen first, then the results
   const [stampDone, setStampDone] = useState(false);
@@ -217,6 +218,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
         {/* (the crowd's moment takes the hint's place while it lasts) */}
         {game.phase === "playing" && (game.moment ? <MomentBanner game={game} tv /> : <p class="tv-hint">{t("nobodyMarked")}</p>)}
         <DrillCall drill={drill} tv />
+        <CalloutBanner callout={callout} tv />
         {feasted && game.phase === "playing" && (
           <p class="tv-feast" role="status" key={feasted}>
             <Icon name="firework" size={30} />

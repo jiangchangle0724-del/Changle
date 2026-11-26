@@ -148,9 +148,9 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   assert.equal(view.result?.winner, "Ari");
   assert.equal(view.result?.youWon, true);
   assert.deepEqual(view.result?.penalty, { kind: "sip", who: ["Bo"], times: SCORE_TO_WIN });
-  // the titles: the hunter's sharp eye, the one never spotted
+  // the titles: five in a row is a penta (ahead of the sharpest eye), the most spotted, the one never spotted
   const titles = Object.fromEntries(view.result!.awards.map((item) => [item.name, item.award]));
-  assert.equal(titles.Ari, "eagleEye");
+  assert.equal(titles.Ari, "penta");
   assert.equal(titles.Bo, "punchingBag");
   assert.equal(titles.Cy, "ghost");
   assert.equal(view.result!.awards.find((item) => item.name === "Ari")?.you, true);
@@ -211,6 +211,36 @@ test("a tagger named on a phone stops being named if that body stops being their
   room.advance(later + 170 + STUN_MS + 100);
   const avatars = room.view(second, "player", later + 170 + STUN_MS + 100).game!.avatars;
   assert.equal(avatars.some((avatar) => avatar.by === "Ari"), false);
+});
+
+test("the announcer: first blood, a double kill within ten seconds, a spree; every screen gets the call and who made it", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  const called = (viewer: string, role: "player" | "screen", when: number) =>
+    room.view(viewer, role, when).game!.events.filter((item) => item.call).map((item) => [item.call, item.who]);
+  tag(room, first, second, 20);
+  let at = 20 + 170 + STUN_MS + 100;
+  room.advance(at);
+  for (const [viewer, role] of [[first, "player"], [second, "player"], [third, "player"], [screen, "screen"]] as const) {
+    assert.deepEqual(called(viewer, role, at), [["first", "Ari"]], `${viewer} sees first blood`);
+  }
+  tag(room, first, third, at);
+  at += 170 + STUN_MS + 100;
+  room.advance(at);
+  assert.deepEqual(called(screen, "screen", at), [["first", "Ari"], ["double", "Ari"]]);
+  // more than ten seconds on, a third tag is no triple: it's a spree (three without being spotted)
+  at += 10_500;
+  room.advance(at);
+  tag(room, first, second, at);
+  at += 170 + STUN_MS + 100;
+  room.advance(at);
+  assert.deepEqual(called(second, "player", at).at(-1), ["spree", "Ari"]);
+  // and the one on a spree, tagged, is shut down
+  tag(room, third, first, at);
+  at += 170 + STUN_MS + 100;
+  room.advance(at);
+  assert.deepEqual(called(first, "player", at).at(-1), ["shutdown", "Cy"]);
 });
 
 test("the results tell each player who spotted them and whom they spotted; a big screen gets neither", () => {

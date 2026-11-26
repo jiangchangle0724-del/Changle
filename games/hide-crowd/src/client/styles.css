@@ -3145,6 +3145,111 @@ html.is-tv body::before {
   height: 160px;
   font-size: var(--text-4xl);
 }
+/*
+ * The announcer (roundFx CalloutBanner): first blood, a double kill and on, a spree, a shutdown, on
+ * every screen for a moment, in the middle on a dark band so it reads over the crowd. Who made
+ * it sits above (gel when it was you); the call slams in, in its own colour; the other language
+ * under it. With reduced motion it only fades.
+ */
+.callout {
+  position: absolute;
+  /* (below the notice at the top, so "who got you" still reads) */
+  top: 44%;
+  left: 50%;
+  z-index: 7;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  width: max-content;
+  max-width: 92%;
+  padding: var(--space-2) var(--space-12);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  text-align: center;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--color-bg) 64%, transparent) 22%, color-mix(in oklab, var(--color-bg) 64%, transparent) 78%, transparent);
+  animation:
+    callout-in var(--dur-emphasis) var(--ease-pop) both,
+    fade-out var(--dur-exit) var(--ease-out) calc(var(--dur-emphasis) * 4 + var(--dur-exit)) forwards;
+}
+.callout-who {
+  padding: 2px var(--space-3);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: 700 var(--text-sm) / var(--leading-tight) var(--font-text);
+}
+.callout.is-you .callout-who {
+  background: var(--gel);
+  color: var(--on-gel);
+}
+.callout-call {
+  color: var(--gel);
+  font: 800 var(--text-3xl) / 1 var(--font-display);
+  white-space: nowrap;
+  text-shadow: 0 0 var(--space-6) color-mix(in oklab, currentColor 55%, transparent), 0 3px 0 var(--color-bg);
+}
+.callout-other {
+  color: var(--color-text-2);
+  font: 800 var(--text-xs) / var(--leading-tight) var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.callout.is-first .callout-call,
+.callout.is-quadra .callout-call,
+.callout.is-rampage .callout-call {
+  color: var(--color-danger);
+}
+.callout.is-triple .callout-call,
+.callout.is-spree .callout-call {
+  color: var(--color-warning);
+}
+.callout.is-shutdown .callout-call {
+  color: var(--color-text);
+}
+.callout.is-penta .callout-call {
+  background: linear-gradient(90deg, var(--gel), var(--color-warning), var(--color-danger));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 var(--space-4) color-mix(in oklab, var(--color-warning) 60%, transparent));
+}
+.callout.is-tv {
+  top: 42%;
+  gap: var(--space-2);
+}
+.callout.is-tv .callout-who {
+  font-size: var(--text-xl);
+}
+.callout.is-tv .callout-call {
+  font-size: var(--text-poster);
+}
+.callout.is-tv .callout-other {
+  font-size: var(--text-lg);
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes callout-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .callout {
+    animation:
+      fade-in var(--dur-enter) var(--ease-out) both,
+      fade-out var(--dur-exit) var(--ease-out) calc(var(--dur-emphasis) * 4 + var(--dur-exit)) forwards;
+  }
+}
+[data-reduced="1"] .callout {
+  animation:
+    fade-in var(--dur-enter) var(--ease-out) both,
+    fade-out var(--dur-exit) var(--ease-out) calc(var(--dur-emphasis) * 4 + var(--dur-exit)) forwards;
+}
 @keyframes drill-beat {
   from {
     opacity: 0;

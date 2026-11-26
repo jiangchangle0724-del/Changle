@@ -512,6 +512,12 @@ export class Room {
             const other = nameOf(item.onYou ? event.actor : event.target);
             if (other) item.name = other;
           }
+          // (the announcer: every screen, with who it was, as everyone sees the score go up anyway)
+          if (event.call) {
+            item.call = event.call;
+            const who = nameOf(event.actor);
+            if (who) item.who = who;
+          }
           // (which stall was tasted is for everyone; who tasted it, only for them)
           if (event.stall !== undefined) item.stall = event.stall;
           return item;

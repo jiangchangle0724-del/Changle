@@ -35,7 +35,7 @@ It is one of changle.ca's games, so it wears two looks, one inside the other:
 | Phone, joined mid-round | The arena and the scores, and "you're watching this round, you're in the next one". |
 | Phone, end of a round | The last blow lands first (1.4 s, in slow motion) and every player's name comes up over the body they were (the winner's in the gel, the winner dancing); when someone won, the camera comes down to them and confetti bursts over them (3.4 s in all), then the penalty stamp (when the host has penalties on; held sideways, the word on the left and the rest beside it), then the result, which plays in quickly (about a second and a half; a tap shows it all at once): the title pops, the rows come in best first (the winner's with a crown, the rest with their place), each filling its points a pip at a time, then who spotted you and whom you spotted (names, ×2 when more than once), then the round's titles stamping on: who won, everyone's tags and how often they were spotted, the round's titles (火眼金睛 Eagle Eye, 隐身大师 Ghost, 误伤专业户 Friendly Fire, 空气拳手 Air Puncher, 人肉沙包 Punching Bag, 夜市吃货 Foodie; yours outlined), the host's Play again (the same place) and Pick another arena (back to the lobby; in practice, the picker), and Back to the table. Held sideways the titles and the buttons sit beside the table, so Play again is in reach without scrolling. |
 | Big screen, lobby | A 1920 x 1080 stage: the title, the four arenas with their vote counts, three lines of how to play, a QR code to the changle.ca table with its code, who's here, the penalty, "waiting for the host", and "click for sound" until someone has clicked (a browser plays nothing before). |
-| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, minutes and seconds, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the bike's, the busker's, the lights', the gong's, the drill's, the spot's, the firecrackers' or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). |
+| Big screen, a round | The arena at the screen's own size, and on the stage over it: the arena's name and rule (top left), the clock (top middle, minutes and seconds, red in the last ten seconds), the scores with a pip per tag (top right), and "nobody is marked" along the bottom (the ferry horn's, the bike's, the busker's, the lights', the gong's, the drill's, the spot's, the firecrackers' or the fireworks' pill takes its place while it lasts). In the drill, the stage's count big over the back of the crowd; a player's distraction turns the camera towards the swing for a moment. At the night market, "someone tasted all four: +2" for a moment when someone does (not who). The announcer's calls, big, with who made them (see "The announcer"). |
 | Big screen, end of a round | The last blow in slow motion, every player's name over their body and the winner dancing, the camera down to the winner and the confetti, the penalty stamp for seven seconds, then the result card with the round's titles, playing in the same way as a phone's (but nothing about who spotted whom). |
 | Phone, the menu (⋯) | Language, sound, music, reduced motion, full screen (on an iPhone: the full-screen guide instead), this device as the big screen, where the art comes from, the way back to the table (in a round too; the host's asks first, since it takes everyone back), and the rules. |
 | Practice (`/hide/practice`) | One phone against three computer rivals hidden in the crowd (`src/client/practice.ts`): the game card's one-phone button. It opens on the four places to pick from (`PracticePick` in `ui/Lobby.tsx`): "pick a place to practise", a line with the round's length and target, and four picture cards in a row (held sideways), each with its name and one line about what happens there; a tap starts the round there. At the end, Play again keeps the place and Pick another arena comes back here, the place just played tagged 刚玩过 Just played. `?arena=market` on the address starts there at once (the tests and the capture scripts use it). No penalty. |
@@ -544,6 +544,23 @@ they are with a passer-by at least 24 units from whoever tagged them; every body
 is, so no screen sees anyone jump, and the passer-by gets up where the player fell. Without this a
 player could keep hitting the same rival as soon as they stood up. Their own phone says "new body,
 find yourself" and moves its marker.
+
+## The announcer
+
+As in Honor of Kings (Steve, 2026-11-25): a tag can make a call, and every phone and the big screen
+show it in the middle for 1.9 s on a dark band, with who made it ("你" on your own phone), the call
+big in the player's language and small in the other, and a stab that grows with the moment
+(`sfx.callout`); the one who made it feels it too. One call per tag, the biggest (engine `tagCall`):
+
+* two or more tags in a row, each within 10 s of the last (`MULTI_TAG_MS`): 双杀 Double Kill, 三杀
+  Triple Kill, 四杀 Quadra Kill, 五杀 Penta Kill (green, amber, red, a gel-to-red gradient);
+* the round's first tag: 第一滴血 First Blood (red);
+* tagging someone who had three or more without being spotted: 终结 Shut Down (white);
+* three, then four tags without being spotted in between: 大杀特杀 Killing Spree (amber), 杀人如麻
+  Rampage (red).
+
+Getting tagged ends your run. Naming who made a call tells nobody anything new: everyone sees the
+score go up. The best row of the round is a title of its own (双杀 to 五杀), ahead of the others.
 
 ## The penalty
 
