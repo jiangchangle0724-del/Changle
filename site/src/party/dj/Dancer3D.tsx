@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Mood } from "../../shared/dj/dance";
-import { DANCE_BEATS, danceAt, danceNext, IDLES, idleAt, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
+import { DANCE_BEATS, danceAt, danceNext, danceRate, IDLES, idleAt, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
 import type { Her } from "./dancer/her";
 import { anyGl, glOf, ratioFor, SLOW_MS, WATCH_FRAMES, WATCH_MS, watchFrames } from "./robot3d";
 
@@ -366,8 +366,10 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           // with the music on, her time is its beat (a sway a ballad's dances include too); standing easy
           // with none, the seconds at the idle's own tempo
           // (walking: her walk's beats on the song's, a step on each, or on every other)
-          const rateOf = (id: string) => (id === walk.id ? (on ? bpm * steps : walk.bpm) : on ? bpm : (idleBpm(id) ?? bpm)) / 60;
-          const tWant = on ? b * (want === walk.id ? steps : 1) : sec * rateOf(want);
+          // (a dance half-time to a song too fast for it: danceRate)
+          const half = (id: string) => (on && id !== walk.id ? (danceRate(id, bpm) ?? 1) : 1);
+          const rateOf = (id: string) => (id === walk.id ? (on ? bpm * steps : walk.bpm) : on ? bpm * half(id) : (idleBpm(id) ?? bpm)) / 60;
+          const tWant = on ? b * (want === walk.id ? steps : half(want)) : sec * rateOf(want);
           if (want !== cur) {
             // the new one flows in from wherever the last one is
             from = { dance: cur, t: curT, at: t, rate: rateOf(cur) };
