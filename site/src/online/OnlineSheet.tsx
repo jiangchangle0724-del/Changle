@@ -13,7 +13,7 @@ export function OnlineSheet({ open, onClose, game, focusCode }: { open: boolean;
   const { ui, lang } = useStore();
   const { me, status, openSignIn } = useAccount();
   const [name, setName] = useState(() => savedName() || me?.name.slice(0, 14) || "");
-  const { code, field: codeField } = useCodeField();
+  const { code, ime, field: codeField } = useCodeField();
   const codeRef = useRef<HTMLInputElement>(null);
   const g = game ? GAME_BY_ID[game] : null;
 
@@ -83,6 +83,11 @@ export function OnlineSheet({ open, onClose, game, focusCode }: { open: boolean;
             {ui("takeSeat")}
           </button>
         </div>
+        {ime && !isCode(code) && (
+          <p className="hint code-ime" role="status">
+            {lang === "zh" ? "中文输入法会把字母拼成汉字：切到英文（Mac 按 Shift）再输桌号" : "A Chinese keyboard turns letters into characters: switch to English (Shift on a Mac), then type the code"}
+          </p>
+        )}
       </form>
       <p className="hint" style={{ marginTop: 18 }}>
         {ui("onlineVoice")}

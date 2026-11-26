@@ -11,7 +11,7 @@
  * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
  * the page asks which of the people in the ledger this phone's owner is.
  */
-import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2Off, Lock, LogIn, Paperclip, Plus, ReceiptText, Send, UserPlus, WifiOff } from "lucide-react";
+import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2, Link2Off, Lock, LogIn, Paperclip, Plus, ReceiptText, Send, UserPlus, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -41,6 +41,7 @@ import { LedgerMenu } from "./Sheets";
 import { heldOf, useSaved } from "./store";
 import type { Held } from "./sync";
 import { dismissLost, joinLedger, record, useSync, watch, type Joined } from "./syncing";
+import { ViewLinkSheet } from "./ViewLink";
 import { say } from "./words";
 
 type View = "list" | "settle";
@@ -90,6 +91,7 @@ export function LedgerPage({ id }: { id: string }) {
   useEffect(() => doneStarting(id), [id]);
   const [people, setPeople] = useState(false);
   const [picture, setPicture] = useState(false);
+  const [viewLink, setViewLink] = useState(false);
   /** the expense recorded a moment ago: its row lands (one of the three motions) */
   const [landed, setLanded] = useState<string | null>(null);
   /** what you were owed (or owed) when 记一笔 opened: the figure rolls on from there when it closes */
@@ -257,12 +259,29 @@ export function LedgerPage({ id }: { id: string }) {
         )
       ) : (
         <div className="split-dock">
-          <Button size="lg" block icon={Send} onClick={() => setPicture(true)}>
-            {say(lang, "sendPicture")}
-          </Button>
+          <div className="split-dock-row">
+            {/* 查看链接: the group can look at the ledger too, and change nothing (ViewLink.tsx) */}
+            <button type="button" className="split-day-button split-view-button" onClick={() => setViewLink(true)}>
+              <Link2 aria-hidden="true" />
+              <span className="split-view-label">{say(lang, "viewLink")}</span>
+            </button>
+            <Button size="lg" block icon={Send} onClick={() => setPicture(true)}>
+              {say(lang, "sendPicture")}
+            </Button>
+          </div>
         </div>
       )}
       <PictureSheet open={picture} onClose={() => setPicture(false)} ledger={ledger} plan={plan} lang={lang} />
+      <ViewLinkSheet
+        open={viewLink}
+        onClose={() => setViewLink(false)}
+        ledger={ledger}
+        ledgerKey={held.key}
+        made={held.made}
+        changing={!!held.next}
+        away={sync.away || !!sync.trouble}
+        lang={lang}
+      />
       <LedgerMenu
         open={menu}
         onClose={() => setMenu(false)}
@@ -348,7 +367,7 @@ function SyncNote({ ledger, lost, line, lang, onSignIn }: { ledger: Ledger; lost
  * nothing owed either way the words are the headline themselves. Under it, how much was spent (who
  * by is the faces under that: Crew). (Shown once there is an expense to stand on.)
  */
-function Standing({ ledger, me, lang, rollFrom }: { ledger: Ledger; me: string | undefined; lang: Lang; rollFrom: number | null }) {
+export function Standing({ ledger, me, lang, rollFrom }: { ledger: Ledger; me: string | undefined; lang: Lang; rollFrom: number | null }) {
   // a phone that doesn't know which of these people is its owner says what was spent, and nothing about "you"
   const who = mine(ledger, me);
   const net = who ? (balances(ledger)[who] ?? 0) : 0;
@@ -376,23 +395,33 @@ const CREW_FACES = 4;
 
 /**
  * Who is in the ledger, as their faces, and the way to bring more in: the faces open the people,
- * 邀请 the invitation. A locked ledger takes nobody new (no `onInvite`: no 邀请).
+ * 邀请 the invitation. A locked ledger takes nobody new (no `onInvite`: no 邀请); a 查看链接 shows
+ * the faces and opens nothing (no `onPeople` either).
  */
-function Crew({ ledger, lang, onPeople, onInvite }: { ledger: Ledger; lang: Lang; onPeople: () => void; onInvite?: () => void }) {
+export function Crew({ ledger, lang, onPeople, onInvite }: { ledger: Ledger; lang: Lang; onPeople?: () => void; onInvite?: () => void }) {
   const rest = ledger.members.length - CREW_FACES;
   const people = say(lang, "people", { n: ledger.members.length });
+  const faces = (
+    <>
+      <span className="split-crew-pile" aria-hidden="true">
+        {ledger.members.slice(0, rest > 0 ? CREW_FACES - 1 : CREW_FACES).map((m) => (
+          <Face key={m.id} name={m.name} />
+        ))}
+        {rest > 0 && <span className="split-face is-more">+{rest + 1}</span>}
+      </span>
+      <span className="split-crew-count">{people}</span>
+    </>
+  );
   return (
     <div className="split-crew">
       {/* (named by how many: on the narrowest phones that is read out, and not shown beside the faces) */}
-      <button type="button" className="split-crew-faces" onClick={onPeople}>
-        <span className="split-crew-pile" aria-hidden="true">
-          {ledger.members.slice(0, rest > 0 ? CREW_FACES - 1 : CREW_FACES).map((m) => (
-            <Face key={m.id} name={m.name} />
-          ))}
-          {rest > 0 && <span className="split-face is-more">+{rest + 1}</span>}
-        </span>
-        <span className="split-crew-count">{people}</span>
-      </button>
+      {onPeople ? (
+        <button type="button" className="split-crew-faces" onClick={onPeople}>
+          {faces}
+        </button>
+      ) : (
+        <div className="split-crew-faces is-still">{faces}</div>
+      )}
       {onInvite && (
         <Button tone="quiet" size="sm" icon={UserPlus} onClick={onInvite}>
           {say(lang, "inviteShort")}
@@ -408,7 +437,7 @@ function Crew({ ledger, lang, onPeople, onInvite }: { ledger: Ledger; lang: Lang
  * much. A row opens the expense to change it; in a locked ledger (no `onOpen`) a row is only a row.
  * The one just recorded lands (one of the three motions).
  */
-function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: Ledger; me: string | undefined; lang: Lang; landed: string | null; onLanded: () => void; onOpen?: (id: string) => void }) {
+export function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: Ledger; me: string | undefined; lang: Lang; landed: string | null; onLanded: () => void; onOpen?: (id: string) => void }) {
   const rows = expensesOf(ledger);
   const today = localDay(Date.now());
   const landedRow = useRef<HTMLLIElement>(null);

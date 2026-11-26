@@ -1,0 +1,46 @@
+/* The master account's long-press editor (account/CopyEditor.tsx). */
+.copyedit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.copyedit-was {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--r-field);
+  background: var(--dusk-2);
+  color: var(--moon);
+}
+.copyedit-was span {
+  color: var(--haze);
+  font-size: var(--text-sm);
+}
+.copyedit .field textarea {
+  font-size: var(--text-md);
+}
+.copyedit .hint {
+  margin: 0;
+}
+.copyedit-error {
+  margin: 0;
+  color: var(--stop);
+}
+.copyedit-off {
+  align-self: flex-start;
+  min-height: var(--tap);
+  padding: 0;
+  color: var(--haze);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.copyedit-actions {
+  display: flex;
+  gap: var(--space-3);
+}
+.copyedit-actions > * {
+  flex: 1;
+}

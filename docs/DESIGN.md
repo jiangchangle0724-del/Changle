@@ -170,8 +170,11 @@
 - 手机一栏，最宽 `--page-max` 560。720 以上两栏：左边今晚的人和联机，右边游戏 3 列；1200 以上 4 列（A4）。
   断点没法写成 CSS 变量，统一用 `@media (min-width: 720px)` 和 `@media (min-width: 1200px)`。
 - 游戏壳（`site/src/games/GameShell.tsx`，A5）：顶栏 `--bar-h` 56 加顶部安全区，底部动作区 `--dock-h` 72 加底部安全区。
-  - 顶栏：返回、两种语言的游戏名、轮次或剩余秒数（用字写：第 3 轮、还剩 12 秒）、声音、玩法，最多再加一个游戏自己的按钮（图标加名字）。
+  - 顶栏：返回、两种语言的游戏名、轮次或剩余秒数（用字写：第 3 轮、还剩 12 秒）、中 | EN、声音、玩法，最多再加一个游戏自己的按钮（图标加名字）。
+    中 | EN（`LangSwitch`，正在用的那个亮着）一直在栏里，点一下换这台手机的语言，玩到一半也能换，不收进「⋯」。
     手机上声音、玩法和那个按钮收进「⋯」，菜单里每项都写名字；720 宽以上全摆在栏里。
+    游戏名放得下就在正中；放不下时两边各留够自己的按钮，名字用剩下的地方，太长就省略。
+    联机游戏和等人的桌子（`site/src/online/NetFrame.tsx`）也一样：左边返回和中 | EN，中间游戏名或桌号，右边这桌的人数和玩法。
   - 玩家条：今晚的人。轮到谁谁有圈，并滚到中间；出局的变淡；每次受罚在名字下加一个点。
   - 底部动作区：这一刻的一到两个按钮，主按钮在右边，就在拇指下。游戏正文里不再放这些按钮。
   - 横屏：顶栏变矮，只写一种语言；左边有大画面（瓶子、转盘、骰子……）时，玩家条和按钮在右边一栏。
@@ -186,7 +189,7 @@
 
 ## 组件
 
-12 个组件已实现，接口在 `site/src/ui/types.ts`，一个组件一个文件。`site/ui-preview.html` 展示全部组件，
+13 个组件已实现，接口在 `site/src/ui/types.ts`，一个组件一个文件。`site/ui-preview.html` 展示全部组件，
 每个组件的预览在 `site/src/ui/preview/<Name>.tsx`；迁移旧页面时逐步换用它们。
 
 | 组件 | 用途 | 现在对应的代码 |
@@ -201,7 +204,8 @@
 | Toast | 自己出现、自己消失的一句话 | `site/src/ui/Toast.tsx` |
 | EmptyState | 什么都还没有、或者没加载出来时说的话，带一个动作 | `site/src/ui/EmptyState.tsx` |
 | Skeleton | 加载时的灰色占位，不让屏幕空着 | `site/src/ui/Skeleton.tsx` |
-| GameHeader | 每个游戏顶上 56 高的栏：返回、名字、轮次或倒计时、声音、电视 | `site/src/ui/GameHeader.tsx` |
+| GameHeader | 每个游戏顶上 56 高的栏：返回、名字、轮次或倒计时、中 \| EN、声音、电视 | `site/src/ui/GameHeader.tsx` |
+| LangSwitch | 游戏栏里的中 \| EN：两个都写，正在用的亮着，点一下换另一种 | `site/src/ui/LangSwitch.tsx` |
 | PenaltyCard | 所有游戏共用的惩罚：喝一口、5 个俯卧撑、表演 | `site/src/ui/PenaltyCard.tsx` |
 
 组件之间的约定：
@@ -237,6 +241,7 @@
 - 工具页每个工具一张 amber 的 Tile（Steve 2026-11-13：都像随便那样）。有自己 Worker 的（约时间、随便）点了去它的网址；汇率、世界时间、单价换算点了进站内自己的页 /tools/<id>，顶上是和游戏一样的 GameHeader（‹ 回工具页，中英文名），房间灯是工具的 amber（`site/src/tools/ToolPage.tsx`）。
 - 中文正文行高 1.65、英文 1.5，正文跟着 `--leading`；页面允许双指缩放。只有大屏的画面不行（电视页 `.tv-fit`、只看的手机 `.watch`）：1600x900 的舞台缩小了放，iPhone 的 Safari 放大它时按原尺寸乘倍数去画，内存不够就崩（Steve 2026-11-21）。已经放大了的页面还能两指缩回来（`tv.css`、`Frame.tsx` 的 `useNoPinch`）。
 - 网页上的字不能选、不能复制，双击不放大（Steve 2026-11-05）；输入框里的字照常能选、能粘贴，双指照常能放大。写在 `global.css` 最后的 `@layer page-defaults`：每个元素都带 `touch-action: manipulation`（iPhone 的 Safari 进了能滚动的框就不认外面的设置），别处写了 `touch-action` 或 `user-select` 的照样算数。iPhone 的 Safari 只在点到「有人听点击」的东西附近时才看 touch-action，所以 `main.tsx` 让整页（`<html>`）听着点击（Steve 2026-11-20：哪儿都不许双击放大）。独立应用（/trip /hide /eat /when /tuan /go /party /hang-on）也是这两样：每个元素 `touch-action: manipulation`，再加这一行监听；新应用照做。要复制的东西（邀请链接、打赏邮箱、个人页的 ID）给一个复制按钮。
+- 站长账号（MASTER_EMAIL）可以长按网站上的任何字直接改，所有人一分钟内看到（Steve 2026-11-21，`src/shared/copy.ts`、`account/CopyEditor.tsx`，后台「改字」能逐条恢复）。按原文一模一样地替换，中英文页面都算；代码里的字是原文，线上可能不一样，所以别靠读页面上的字做判断。站长自己的说明和后台的改字列表不跟着换（`data-copy-off`）。
 - 共用的小按钮、芯片和语言开关至少 44，挨得近的分段按钮用 48。
 - 危险按钮已用夜色字，对比度从 3.2:1 到 6.0:1。
 - 面板、弹层和静按钮里的 `.muted` 已从 fog 换成 haze。

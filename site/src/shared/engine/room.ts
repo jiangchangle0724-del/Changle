@@ -96,20 +96,22 @@ export function validPid(pid: unknown): pid is string {
   return typeof pid === "string" && /^[A-Za-z0-9_-]{1,48}$/.test(pid) && !(pid in Object.prototype);
 }
 
+/** Names compared as a table hears them: any case, full-width or not, spaces squeezed. */
+const nameKey = (n: string) => n.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+
 /**
  * The name a seat goes by: the one asked for, unless someone else at the table already has it
  * (in any case, or in full-width letters); then "Steve 2", "Steve 3"... so turns, votes and
  * penalties never leave a table guessing which Steve. Still 14 characters at most.
  */
 export function uniqueName(seats: { id: string; name: string }[], pid: string, name: string): string {
-  const key = (n: string) => n.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
-  const taken = new Set(seats.filter((s) => s.id !== pid).map((s) => key(s.name)));
-  if (!taken.has(key(name))) return name;
+  const taken = new Set(seats.filter((s) => s.id !== pid).map((s) => nameKey(s.name)));
+  if (!taken.has(nameKey(name))) return name;
   const chars = Array.from(name);
   for (let n = 2; n <= MAX_SEATS + 1; n++) {
     const tail = ` ${n}`;
     const next = chars.slice(0, 14 - tail.length).join("").trimEnd() + tail;
-    if (!taken.has(key(next))) return next;
+    if (!taken.has(nameKey(next))) return next;
   }
   return name;
 }
@@ -218,6 +220,28 @@ export class RoomEngine {
     if (back) this.presence(pid, true);
     this.out.changed = true;
     return null;
+  }
+
+  /**
+   * A phone the table doesn't know, sitting down with the name of a seat whose phone has dropped,
+   * or signed in to the same account as one: it's that person back, on another browser or on a
+   * phone that forgot this table (a private tab, WeChat's own browser, a tab the phone closed). They
+   * get their own seat back, game and all, instead of a second one called "Ashley 2" (Steve
+   * 2026-11-23). Only a seat nobody is using; a seat with an account goes only to that account.
+   * Returns the seat's id, for the phone to say hello as (worker/index.ts sends `adopt`).
+   */
+  claim(pid: string, rawName: string, create: boolean, who?: Profile | null): string | null {
+    const d = this.d;
+    if (create || !this.exists || !validPid(pid) || d.banned.includes(pid) || d.seats.some((s) => s.id === pid)) return null;
+    const away = d.seats.filter((s) => !s.on);
+    if (who?.uid) {
+      const mine = away.find((s) => s.uid === who.uid);
+      if (mine) return mine.id;
+    }
+    const k = nameKey(clean(rawName, 14));
+    if (!k) return null;
+    const same = away.find((s) => nameKey(s.name) === k && (!s.uid || s.uid === who?.uid));
+    return same && !d.banned.includes(same.id) ? same.id : null;
   }
 
   /**
@@ -388,12 +412,13 @@ export class RoomEngine {
         return;
       }
       case "kick": {
+        // off the table, not shut out: the code still lets them back in (Steve 2026-11-23); the
+        // site owner's kick from the back office is the one that can ban (adminKick)
         if (!host || a.pid === pid) return;
         const target = d.seats.find((s) => s.id === a.pid);
         if (!target) return;
         const g = this.gameDef();
         d.seats = d.seats.filter((s) => s.id !== a.pid);
-        if (!d.banned.includes(a.pid)) d.banned.push(a.pid);
         if (g && d.game) g.def.leave?.(d.game.s, a.pid, this.api());
         this.out.kicked.push(a.pid);
         this.event({ k: "left", pid: a.pid });

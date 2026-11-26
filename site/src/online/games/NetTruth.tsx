@@ -180,7 +180,6 @@ export function NetTruth({ v, onLeave }: { v: TruthView; onLeave: () => void }) 
               <Cloche open={lid} onOpen={() => setLid(true)}>
                 <div className="prompt-card">
                   <p className="prompt-text">{tr(v.prompt)}</p>
-                  <p className="hint-ink prompt-other">{lang === "zh" ? v.prompt.en : v.prompt.zh}</p>
                 </div>
               </Cloche>
               {/* a dare that names a time: each phone can count it down on its own */}

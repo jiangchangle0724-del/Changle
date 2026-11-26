@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Mood } from "../../shared/dj/dance";
-import { DANCE_BEATS, danceAt, danceNext, IDLES, idleAt, OUTFIT, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
+import { DANCE_BEATS, danceAt, danceNext, IDLES, idleAt, stepsPerBeat, WALKS, type Look } from "./dancer/dances";
 import type { Her } from "./dancer/her";
 import { anyGl, glOf, ratioFor, SLOW_MS, WATCH_FRAMES, WATCH_MS, watchFrames } from "./robot3d";
 
@@ -48,16 +48,18 @@ const BODY_PX = 70;
  * slides along, she walks in place in it, behind the floor's dancers); back to her place on the left
  * when she may not. With reduced motion, or over a video in the corner, she stays in her place.
  */
-export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFail }: { clock: Clock; mood: () => Mood; look: () => Look; roam: () => boolean; light?: boolean; onReady: () => void; onFail: () => void }) {
+export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onReady, onFail }: { clock: Clock; mood: () => Mood; look: () => Look; outfit: () => string; roam: () => boolean; light?: boolean; onReady: () => void; onFail: () => void }) {
   const box = useRef<HTMLDivElement>(null);
   const ready = useRef(onReady);
   const fail = useRef(onFail);
   const moodNow = useRef(mood);
   const lookNow = useRef(look);
+  const outfitNow = useRef(outfit);
   ready.current = onReady;
   fail.current = onFail;
   moodNow.current = mood;
   lookNow.current = look;
+  outfitNow.current = outfit;
   const roamNow = useRef(roam);
   roamNow.current = roam;
   useEffect(() => {
@@ -76,7 +78,7 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadHer }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her")]);
+        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet, standFeet }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant")]);
         if (gone) return;
         // her outfits, each loaded the first time it's wanted (with the dances she's on at the time)
         const outfits = new Map<string, Her>();
@@ -100,9 +102,9 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
           return p;
         };
         // standing easy before she's shown at all, in the look the music has now
-        let her = await fetchOutfit(OUTFIT[lookNow.current()], [firstIdle]);
+        let her = await fetchOutfit(outfitNow.current(), [firstIdle]);
         // (that outfit's file didn't come: her first one)
-        if (!her && OUTFIT[lookNow.current()] !== "club") {
+        if (!her && outfitNow.current() !== "club") {
           loading.delete("club");
           her = await fetchOutfit("club", [firstIdle]);
         }
@@ -194,6 +196,11 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
         let far = 0;
         let farAt = 0;
         let slid = "";
+        const hipsOf = new WeakMap<Her, InstanceType<typeof T.Object3D>>();
+        const feetOfHer = new WeakMap<Her, ReturnType<typeof feetOf>>();
+        const mood = { smile: 0, brows: 0 };
+        const headOf = new WeakMap<Her, { head?: InstanceType<typeof T.Object3D>; neck?: InstanceType<typeof T.Object3D>; yaw: number; pitch: number }>();
+        const at = new T.Vector3();
         // her middle at her own place on the stage; how far right she may go (her middle clear of the
         // stage's edge, and of a song file's card); the floor's dancers' middles and half widths (none
         // on a 3D floor), all in the stage's pixels
@@ -311,8 +318,6 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
             rot += Math.max(-TURN_RAD_S * wdt, Math.min(TURN_RAD_S * wdt, FACE - rot));
             walking = Math.abs(FACE - rot) > 0.3 && her!.knows(walk.id);
           }
-          const slide = x ? `translate3d(${x.toFixed(1)}px, 0, 0)` : "";
-          if (slide !== slid) el.style.transform = slid = slide;
           her!.root.rotation.y = rot;
           const aim = walking ? walk.id : on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
           let want = aim;
@@ -322,8 +327,8 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
             // (not here yet: what she's dancing goes on)
             want = cur;
           }
-          // her look's outfit: fetched the first time, then changed into in a flash
-          const outfit = OUTFIT[lk];
+          // the song's outfit: fetched the first time, then changed into in a flash
+          const outfit = outfitNow.current();
           if (!change && outfit !== her!.outfit) {
             const next = outfits.get(outfit);
             // (in it once it has the dance she's on: the change mid-step, not back to standing)
@@ -371,9 +376,71 @@ export function Dancer3D({ clock, mood, look, roam, light = false, onReady, onFa
           const ease = k * k * (3 - 2 * k);
           if (from) from.t += dt * from.rate;
           her!.pose(cur, curT, from && k < 1 ? from : null, ease);
+          const handing = from && k < 1 ? from : null;
           if (k >= 1) from = null;
+          // where the dance takes her (Nov 21: her feet stay where they stand, so she moves about as
+          // she dances): her canvas goes with her across the stage and she stays in its middle (her
+          // canvas is about her arms' width: moving in it, an arm out would be cut off at its edge)
+          let hips = hipsOf.get(her!);
+          if (!hips) hipsOf.set(her!, (hips = her!.root.getObjectByName("Hips") ?? her!.root));
+          her!.root.position.x = 0;
+          her!.root.updateMatrixWorld(true);
+          // (Nov 21; Steve: 换舞时脚滑) through a hand-over her feet stay where they stand, then step to
+          // where the new dance has them, one and then the other (dancer/plant.ts)
+          let feet = feetOfHer.get(her!);
+          if (feet === undefined) feetOfHer.set(her!, (feet = feetOf(her!.root)));
+          if (feet) {
+            plantFeet(feet, handing, k);
+            // (and between hand-overs, a foot on the floor stays where it came down: plant.ts standFeet)
+            standFeet(feet, dt, !handing && !walking && !still.matches);
+          }
+          const travel = stay ? 0 : hips.getWorldPosition(at).x;
+          her!.root.position.x = -travel;
+          const slide = x || travel ? `translate3d(${(x + travel * pxPerM()).toFixed(1)}px, 0, 0)` : "";
+          if (slide !== slid) el.style.transform = slid = slide;
+          // her head to the room (Nov 21; Steve: "人物面部和头部表情僵硬"): turned a good way toward
+          // the camera when the dance turns it away (not all the way: the dance's own turns stay),
+          // settling there smoothly, and a small nod on each beat while she dances
+          let head = headOf.get(her!);
+          if (!head) headOf.set(her!, (head = { head: her!.root.getObjectByName("Head"), neck: her!.root.getObjectByName("Neck"), yaw: 0, pitch: 0 }));
+          if (head.head && head.neck) {
+            her!.root.updateMatrixWorld(true);
+            const hq = head.head.getWorldQuaternion(new T.Quaternion());
+            const fwd = new T.Vector3(0, 0, 1).applyQuaternion(hq);
+            const to = camera.position.clone().sub(head.head.getWorldPosition(new T.Vector3())).normalize();
+            const yawTo = Math.atan2(to.x, to.z) - Math.atan2(fwd.x, fwd.z);
+            const wrap = Math.atan2(Math.sin(yawTo), Math.cos(yawTo));
+            // (Nov 21, Steve: "侧面人脸看起来还是很怪异": her face kept to the room as much as her neck lets it)
+            const yawWant = still.matches || walking ? 0 : Math.max(-1.0, Math.min(1.0, wrap * 0.85));
+            const pitchWant = still.matches || walking ? 0 : Math.max(-0.2, Math.min(0.2, (Math.asin(to.y) - Math.asin(fwd.y)) * 0.5));
+            const ease = 1 - Math.exp(-dt * 4);
+            head.yaw += (yawWant - head.yaw) * ease;
+            head.pitch += (pitchWant - head.pitch) * ease;
+            const nod = on && !walking && !still.matches ? 0.05 * Math.pow(Math.max(0, Math.cos(2 * Math.PI * (b - Math.floor(b)))), 4) : 0;
+            const turn = (bone: InstanceType<typeof T.Object3D>, part: number, extra: number) => {
+              const parent = bone.parent!.getWorldQuaternion(new T.Quaternion());
+              const world = bone.getWorldQuaternion(new T.Quaternion());
+              const d = new T.Quaternion().setFromEuler(new T.Euler(-(head!.pitch * part) + extra, head!.yaw * part, 0, "YXZ"));
+              bone.quaternion.copy(parent.invert().multiply(d.multiply(world)));
+              bone.updateMatrixWorld(true);
+            };
+            turn(head.neck, 0.4, nod * 0.4);
+            turn(head.head, 0.6, nod * 0.6);
+          }
           // her hair and skirt follow
           her!.swing(dt);
+          // her face (Nov 21; Steve: "表情可以做但要很细致"): a soft smile while she dances, a little more
+          // and less over a phrase, fainter standing easy; her brows lift a moment as each new dance
+          // starts; every change eased over a good part of a second (dancer/her.ts face, expressions.py)
+          {
+            const phrase = on ? b / 32 : sec / 20;
+            const smileWant = walking ? 0.3 : on ? 0.55 + 0.25 * Math.sin(phrase * Math.PI * 2) : 0.3;
+            const browsWant = handing ? Math.sin(Math.min(1, k * 1.6) * Math.PI) * 0.7 : 0;
+            const ease = 1 - Math.exp(-dt * 3);
+            mood.smile += (smileWant - mood.smile) * ease;
+            mood.brows += (browsWant - mood.brows) * Math.min(1, ease * 2);
+            her!.face(mood.smile, mood.brows);
+          }
           // (a blink: shutting in 70 ms, shut 40, opening in 120)
           const bt = (t - blinkAt) / 1000;
           her!.blink(bt < 0 ? 0 : bt < 0.07 ? bt / 0.07 : bt < 0.11 ? 1 : bt < 0.23 ? 1 - (bt - 0.11) / 0.12 : 0);

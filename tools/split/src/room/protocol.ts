@@ -9,6 +9,7 @@
 //   POST /split/api/ledgers/<id>/lock       its owner locks it, or opens it      LockBody → Snapshot
 //   DELETE /split/api/ledgers/<id>          its owner deletes it                 → { ok: true }
 //   POST /split/api/ledgers/<id>/invites    invite a friend on changle.ca, signed in  InviteBody → InviteSent (201 for a new one; 200 when nothing new)
+//   PUT  /split/api/ledgers/<id>/view       make its 查看链接 (the link's key in the VIEW_HEADER)  → { ok: true }
 //
 //   GET    /split/api/ledgers/<id>/files         its receipt photos and files      → Files
 //   PUT    /split/api/ledgers/<id>/files/<file>  store one, signed in; the body is the file (a FILE_TYPES type, at most FILE_MAX) → Stored (201; 200 when it was stored already)
@@ -62,6 +63,14 @@
 // ("off", 403); Google not answering, or failing, is "failed" (502). `read` is null when there was
 // nothing to read: no receipt, or no total on it.
 //
+// A 查看链接 (Steve, 2026-11-23: on 结清, a link for everyone in the group to come and look): a key
+// of its own, which the phones make from the ledger's key (so every one of them makes the same link,
+// and making it again changes nothing), sent by whoever holds the key in the VIEW_HEADER (PUT
+// .../view); the server keeps its fingerprint. In the KEY_HEADER it reads the ledger (GET, as it
+// stands, not its changes since) and nothing else: no changes, no files, no invitations, no reading
+// receipts, no live connection ("key", 403, like any key that doesn't open the ledger). A locked
+// ledger can have one (it isn't a change to the ledger). The owner changing the key lets it go too.
+//
 // Inviting a friend: whoever holds the key, signed in, can invite someone who is their friend on
 // changle.ca (the rooms server says so; "friends", 403, when it doesn't), at most INVITES_PER_DAY a
 // day ("limit"). A locked ledger takes nobody new ("locked"). The invitation waits in the friend's
@@ -77,6 +86,8 @@ import type { Count, ErrorCode, FileInfo, Logged, Snapshot } from "./ledger";
 export const KEY_HEADER = "x-split-key";
 export const OWNER_HEADER = "x-split-owner";
 export const NEXT_HEADER = "x-split-next";
+/** The 查看链接's key, when one is made: it lets people look at the ledger, and nothing else. */
+export const VIEW_HEADER = "x-split-view";
 /** A key as phones make them: 32 random bytes written in letters, digits, - and _ (43 of them); a little shorter or longer is taken too. */
 export const KEY_RE = /^[A-Za-z0-9_-]{22,128}$/;
 export const LIVE_PROTOCOL = "split.v1";

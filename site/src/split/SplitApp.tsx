@@ -8,15 +8,18 @@
  * Starting one needs a changle.ca sign-in, and then the account keeps its ledgers; joining one
  * from an invitation doesn't. It has no card on the Tools tab yet: its address is the only way in.
  */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import { setLight } from "../lib/motion";
 import "../ui/base.css";
 import { ToastProvider } from "../ui/Toast";
+import { viewKeyFrom } from "./invite";
 import { LedgerPage } from "./LedgerPage";
 import { Ledgers } from "./Ledgers";
 import "./split.css";
+import { heldOf } from "./store";
 import { setAccount, startSyncing, syncMine } from "./syncing";
+import { Viewing } from "./ViewLink";
 
 export function SplitApp({ id, onBack }: { id?: string; onBack: () => void }) {
   // a tool's light is amber: the room takes it while 两清 is open
@@ -41,7 +44,27 @@ export function SplitApp({ id, onBack }: { id?: string; onBack: () => void }) {
   return (
     <ToastProvider>
       {/* (a ledger's page starts afresh for each ledger: which view it was on belongs to that ledger) */}
-      <div className="split ui-category-tool">{id ? <LedgerPage key={id} id={id} /> : <Ledgers onBack={onBack} />}</div>
+      <div className="split ui-category-tool">{id ? <OneLedger key={id} id={id} /> : <Ledgers onBack={onBack} />}</div>
     </ToastProvider>
   );
+}
+
+/**
+ * One ledger's address. Opened by a 查看链接 (its key after the #, as `v=`), a phone that doesn't
+ * hold the ledger shows it to look at (ViewLink.tsx). One that does is in the ledger already, so the
+ * link opens the ledger's own page, and comes off the address.
+ */
+function OneLedger({ id }: { id: string }) {
+  const [view, setView] = useState(() => viewKeyFrom(window.location.hash));
+  // (an invitation pasted over it, in the same tab, is the ledger's own page: LedgerPage takes it from there)
+  useEffect(() => {
+    const onHash = () => setView(viewKeyFrom(window.location.hash));
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const looking = view !== null && !heldOf(id);
+  useEffect(() => {
+    if (view !== null && !looking) window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+  }, [view, looking]);
+  return looking ? <Viewing id={id} view={view} /> : <LedgerPage id={id} />;
 }

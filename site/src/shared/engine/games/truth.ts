@@ -14,8 +14,9 @@ type S = {
   dDeck: number[];
 };
 
+/** Mild deals only the mild cards, spicy only the spicy ones. */
 function deckFor(list: { heat: number }[], heat: number, api: Api) {
-  return api.shuffle(range(list.length).filter((i) => list[i].heat <= heat));
+  return api.shuffle(range(list.length).filter((i) => list[i].heat === heat));
 }
 
 function backToSpin(s: S, spinner: string) {

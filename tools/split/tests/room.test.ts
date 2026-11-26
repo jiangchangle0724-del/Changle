@@ -267,6 +267,37 @@ test("the owner locks the ledger, and opens it again", () => {
   assert.deepEqual(new LedgerRoom(memoryStore()).lock("owner", true, NOW), { ok: false, error: "gone" });
 });
 
+test("a 查看链接: its key lets people look, and does nothing else", () => {
+  const { room, store } = make({ ownerHash: "owner" });
+  room.push("key", [expense("e1")], NOW + 1);
+  room.stored({ id: "f1", size: 300_000, type: "image/jpeg", by: "u1", at: NOW + 1 });
+  assert.deepEqual(room.look("view"), { ok: false, error: "key" }, "before it is made, nothing");
+  for (const who of ["view", "wrong", null, "owner"]) assert.deepEqual(room.view(who, "view"), { ok: false, error: "key" }, `not made by ${who ?? "nobody"}: only the key makes it`);
+  for (const same of ["key", "owner"]) assert.deepEqual(room.view("key", same), { ok: false, error: "bad" }, `never the ledger's own key or its owner's (${same})`);
+  assert.deepEqual(room.view("key", "view"), { ok: true, changed: true }, "the key makes it");
+  assert.deepEqual(room.view("key", "view"), { ok: true, changed: false }, "made again, the same: nothing changes");
+  const seen = room.look("view");
+  assert.ok(seen.ok && seen.ledger.entries.length === 1 && seen.seq === 1, "its key looks at the ledger as it stands");
+  assert.deepEqual(room.look("key"), seen, "and so does the ledger's own");
+  assert.deepEqual(
+    [room.read("view"), room.push("view", [expense("e2")], NOW + 2), room.since("view", 0), room.mayStore("view", "f2"), room.file("view", "f1"), room.listFiles("view"), room.unstore("view", "f1"), room.view("view", "view2")],
+    Array(8).fill({ ok: false, error: "key" }),
+    "and nothing else: no changes, no record, no files, no making another",
+  );
+  assert.ok(room.snapshot()!.seq === 1 && !("view" in room.snapshot()!.ledger), "nothing in the ledger, or its record, says it was made");
+  const woken = new LedgerRoom(store);
+  assert.ok(woken.look("view").ok, "it survives a restart");
+  // a locked ledger can have one: it isn't a change to the ledger
+  room.lock("owner", true, NOW + 3);
+  assert.deepEqual(room.view("key", "view3"), { ok: true, changed: true }, "a locked ledger can have one");
+  assert.ok(room.look("view3").ok && !room.look("view").ok, "the one made last is the one that works");
+  // the owner changes the key: the 查看链接 goes with the old one
+  room.rekey("owner", "key2");
+  assert.deepEqual(room.look("view3"), { ok: false, error: "key" }, "the key changed: the old 查看链接 is turned away");
+  assert.deepEqual(room.view("key", "view4"), { ok: false, error: "key" }, "and the old key makes no new one");
+  assert.ok(room.view("key2", "view4").ok && room.look("view4").ok, "the new key makes the next");
+});
+
 test("a locked ledger with its key changed: both hold", () => {
   const { room } = make({ ownerHash: "owner" });
   room.lock("owner", true, NOW + 1);
@@ -566,6 +597,9 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   for (const total of ["0", "0.00", "-5", "12.345", "abc", "123456789.00", ""]) assert.equal(read({ receipt: true, total }), null, `no total: ${JSON.stringify(total)}`);
   assert.equal(read("not json"), null, "an answer that isn't JSON");
   const shop = (x: Record<string, unknown>) => read({ receipt: true, total: "20.00", currency: "CAD", ...x });
+  // the time printed, to tell an itemized receipt and its card slip apart (Steve, 2026-11-21): only when read
+  assert.deepEqual(["21:01:11", "9:05", " 21:04 ", "24:00", "21:61", "9pm", "", null].map((time) => shop({ time })?.time), ["21:01", "09:05", "21:04", undefined, undefined, undefined, undefined, undefined], "a time of day the clock has, seconds dropped; none otherwise");
+  assert.ok(!("time" in (shop({}) ?? {})), "none read: the reading says nothing of it (as one from before it)");
   assert.deepEqual(shop({ merchant: "McDonald's", place: " Aldergrove,\n BC ", payment: "Mastercard" }), { total: "20.00", currency: "CAD", merchant: "McDonald's", tip: null, tax: null, date: null, place: "Aldergrove, BC", payment: "Mastercard" }, "the business, the place and what paid, each made one plain line");
   for (const [said, kept] of [
     ["Mastercard ****1234", "Mastercard"],
@@ -601,7 +635,7 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.deepEqual(extras("10.50", "80", "3200", "JPY"), [null, "80"], "a tip in yen with cents: none");
   assert.equal(read({ receipt: true, total: "9.99" })?.tip, null, "an answer that doesn't mention them: none");
   assert.ok(String(asked.contents[0].parts[0].text).includes("suggested tip"), "and the words say a suggested tip is no tip");
-  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment"], "they are asked for in the shape given");
+  assert.deepEqual(Object.keys((asked.generationConfig.responseSchema as { properties: Record<string, unknown> }).properties), ["receipt", "total", "currency", "merchant", "tip", "tax", "date", "place", "payment", "time"], "they are asked for in the shape given");
 
   // the day it was spent: one the calendar has, from 2000, no later than tomorrow
   const noon = Date.UTC(2026, 10, 15, 12);
@@ -624,6 +658,8 @@ test("reading a receipt: what is asked, what is taken from the answer, and what 
   assert.deepEqual(fake("receipt:none"), { ok: true, read: null, cost: 400 }, "and a file that says it is no receipt is none");
   const dated = fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25 date=2026-11-12");
   assert.deepEqual([dated.ok && dated.read?.date, dated.ok && dated.read?.merchant], ["2026-11-12", "Joe's Diner"], "and a day, out of the shop's name");
+  const timed = fake("receipt:45.30 CAD DEER GARDEN SIGNATURE tip=4.85 time=21:04 date=2026-10-15");
+  assert.deepEqual(timed.ok && [timed.read?.merchant, timed.read?.time, timed.read?.tip], ["DEER GARDEN SIGNATURE", "21:04", "4.85"], "and a time, out of the shop's name");
   const placed = fake("receipt:20.00 CAD McDonald's place=Aldergrove,_BC paid=Mastercard tax=1.38");
   assert.deepEqual(placed.ok && [placed.read?.merchant, placed.read?.place, placed.read?.payment, placed.read?.tax], ["McDonald's", "Aldergrove, BC", "Mastercard", "1.38"], "and a place and what paid (a _ for a space), out of the shop's name");
   assert.deepEqual(fake("receipt:123.00 CAD Joe's Diner tip=18.00 tax=5.25"), { ok: true, read: { total: "123.00", currency: "CAD", merchant: "Joe's Diner", tip: "18.00", tax: "5.25", date: null, place: null, payment: null }, cost: 400 }, "the stand-in reads a tip and tax the file says, after the shop");

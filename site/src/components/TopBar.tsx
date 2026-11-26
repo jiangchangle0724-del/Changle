@@ -42,22 +42,26 @@ export function TopBar({
   title,
   onBack,
   onHelp,
+  left,
   right,
 }: {
   title?: T;
   onBack?: () => void;
   onHelp?: () => void;
+  /** beside the back button, e.g. a game's 中 | EN (LangSwitch) */
+  left?: ReactNode;
   right?: ReactNode;
 }) {
   const { ui } = useStore();
   return (
-    <header className="topbar">
+    <header className={left ? "topbar topbar-fit" : "topbar"}>
       <div className="topbar-side">
         {onBack && (
           <button className="icon-btn" onClick={onBack} aria-label={ui("back")}>
             <ChevronLeft size={22} />
           </button>
         )}
+        {left}
       </div>
       <div className="topbar-title">{title && <BiTitle name={title} size="sm" />}</div>
       <div className="topbar-side topbar-right">

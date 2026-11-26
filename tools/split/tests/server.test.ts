@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type Push, type Pushed, type ReadReply, type Since, type Snapshot, type Stored } from "../src/room/protocol";
+import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, VIEW_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type Push, type Pushed, type ReadReply, type Since, type Snapshot, type Stored } from "../src/room/protocol";
 import { SESSION, STRANGER } from "./accounts";
 
 const PORT = 8794;
@@ -242,6 +242,39 @@ test("the owner's two: the lock, and a new key for the invitation", async () => 
   const plain = await make();
   assert.deepEqual(await call("POST", `/ledgers/${plain.id}/lock`, null, { locked: true }, asOwner), { status: 403, data: { error: "owner" } });
   assert.deepEqual(await call("POST", `/ledgers/${plain.id}/key`, null, undefined, { [OWNER_HEADER]: plain.key, [NEXT_HEADER]: next }), { status: 403, data: { error: "owner" } });
+});
+
+test("a 查看链接: its key reads the ledger, and nothing else", async () => {
+  const { id, key } = await make();
+  await call("POST", `/ledgers/${id}/changes`, key, { changes: [expense("e1")] });
+  const view = newKey();
+  assert.deepEqual(await call("GET", `/ledgers/${id}`, view), { status: 403, data: { error: "key" } }, "before it is made, nothing");
+  assert.deepEqual(await call("PUT", `/ledgers/${id}/view`, key, undefined, { [VIEW_HEADER]: "short" }), { status: 400, data: { error: "bad" } }, "a key that isn't one");
+  assert.deepEqual(await call("PUT", `/ledgers/${id}/view`, newKey(), undefined, { [VIEW_HEADER]: view }), { status: 403, data: { error: "key" } }, "only the ledger's key makes it");
+  assert.deepEqual(await call("PUT", `/ledgers/${id}/view`, key, undefined, { [VIEW_HEADER]: view }), { status: 200, data: { ok: true } }, "made");
+  assert.deepEqual(await call("PUT", `/ledgers/${id}/view`, key, undefined, { [VIEW_HEADER]: view }), { status: 200, data: { ok: true } }, "made again: the same");
+  const seen = await call<Snapshot>("GET", `/ledgers/${id}`, view);
+  assert.ok(seen.status === 200 && seen.data.ledger.entries.length === 1 && seen.data.ledger.name === "周末", "its key reads the ledger as it stands");
+  const refused = { status: 403, data: { error: "key" } };
+  assert.deepEqual(
+    [
+      await call("GET", `/ledgers/${id}?since=0`, view),
+      await call("POST", `/ledgers/${id}/changes`, view, { changes: [expense("e2")] }),
+      await call("GET", `/ledgers/${id}/files`, view),
+      await call("POST", `/ledgers/${id}/invites`, view, { to: "someone" }, someone()),
+      await call("PUT", `/ledgers/${id}/view`, view, undefined, { [VIEW_HEADER]: newKey() }),
+      await call("PUT", `/me/ledgers/${id}`, view, {}, someone()),
+    ],
+    Array(6).fill(refused),
+    "and nothing else: no record, no changes, no files, no invitations, no other link, not kept in my ledgers",
+  );
+  const socket = await new Promise<string>((resolve) => {
+    const ws = new WebSocket(`ws://${HOST}/split/api/ledgers/${id}/live`, [LIVE_PROTOCOL, view]);
+    ws.addEventListener("open", () => resolve("open"));
+    ws.addEventListener("error", () => resolve("refused"));
+    ws.addEventListener("close", () => resolve("refused"));
+  });
+  assert.equal(socket, "refused", "no live connection");
 });
 
 test("addresses that aren't there", async () => {

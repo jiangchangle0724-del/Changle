@@ -19,6 +19,7 @@
 | 荡的助力 | swingBoost 1100 | 按节奏推 3 下荡幅 ≥ 60 px |
 | 摩擦 | 地面 0.85、墙 0.97、随压力缩放 | 能抓着墙爬，不能粘在墙上 |
 | 复活 | 掉出 deathY 后 1 秒回最近检查点 | 不可改成全队重来 |
+| 手卡住（11-23） | 没抓东西的手，手心嵌进硬东西 ≥ 5 px 连着 1 秒，胳膊摆回肩膀旁边一个空地方 | 门槛比录好的回放里最长的一段（0.73 秒）长，回放不变；`src/physics/stuck.test.ts` |
 
 来源：`proto/physics.js` 的 `CFG`，`proto/sim.test.mjs` 的 20 条检查。Rapier 版把这 20 条移植过去，**允许调阈值，不允许删检查**。
 
@@ -298,7 +299,7 @@ type PadInput = {
 - 用完：两只手都松开，每只手报 `slip`，人报 `tired`，`staminaCooldown`（1 秒）抓不了。剩不到 `staminaWarn`（0.3）时抓着的手抖、圈变红、冒汗；没满的时候头顶右上角有一小圈力气（绿、黄、红）。`tired` 的声音是呼一大口气。
 - 手机局快照每个人第 31 个数是力气（老主机不发就当满的）。
 - 大厅「这关教」那一行、手柄菜单在中等、困难的手酸关后面带一句「挂久了手会酸，站一会儿就好 / Hands tire if you hang too long. Stand to rest」。
-- 验收（`npm run levels`）：写了 `stamina: true` 的关开着手酸跑全部回放；简单的关不许写；最后多一行 `stamina: N/M` 报中等、困难里有几关已经按手酸录过。开发页 `play.html` 写了 `stamina: true` 的关自己开着，`?stamina=1` 不管写没写都按关的难度开（重录回放用），`?stamina=0` 关掉。
+- 验收（`npm run levels`）：写了 `stamina: true` 的关开着手酸跑全部回放；简单的关不许写；最后多一行 `stamina: N/M` 报中等、困难里有几关已经按手酸录过。C15、C16、C17 合并以后（11-21）是 40/40，从此成了规矩：中等、困难的关（闯关和多人）没写 `stamina: true` 验收就不过，新做的中等、困难关都按手酸录。开发页 `play.html` 写了 `stamina: true` 的关自己开着，`?stamina=1` 不管写没写都按关的难度开（重录回放用），`?stamina=0` 关掉。
 - 11-18 第一批（现有回放开着手酸也都过的）：van-07…12、kitchen-27/28、house-39…42、space-45…48、multi-04…09，一共 22 关；还差 table-13…18、van-19…24、kitchen-29/30、snow-33…36，要按手酸重录（Codex）。
 
 ## 不做的事（第一版）

@@ -16,6 +16,7 @@ import { useKeeping } from "./Resume";
 import { clearSaved, writeSavedDots } from "./saved";
 import "../ui/base.css";
 import "./GameShell.css";
+import { SoundNudge } from "../components/SoundNudge";
 
 export function usePenalty() {
   const [call, setCall] = useState<PenaltyCall | null>(null);
@@ -73,7 +74,7 @@ export function GameShell({
   /** the screen's one or two buttons, at the bottom by the thumb; the main one goes last (on the right) */
   actions?: ReactNode;
 }) {
-  const { ui, lang, sound, setSound, players } = useStore();
+  const { ui, lang, setLang, sound, setSound, players } = useStore();
   const [rulesOpen, setRulesOpen] = useState(false);
   const run = useGameRun();
   // a game that keeps its progress (Resume.tsx): the penalty count goes with it, and comes back with it
@@ -141,6 +142,7 @@ export function GameShell({
         sound={{ on: sound, onToggle: () => setSound(!sound) }}
         onHelp={() => setRulesOpen(true)}
         extra={right}
+        onLang={() => setLang(lang === "zh" ? "en" : "zh")}
       />
       {roster && players.length > 0 && (
         // a row that scrolls sideways can be reached from the keyboard too (arrow keys scroll it)
@@ -155,6 +157,7 @@ export function GameShell({
           })}
         </div>
       )}
+      <SoundNudge lang={lang} />
       <div className="game-body">{children}</div>
       {actions && <div className="game-actions">{actions}</div>}
       <Sheet open={rulesOpen} onClose={() => setRulesOpen(false)} title={ui("rules")}>

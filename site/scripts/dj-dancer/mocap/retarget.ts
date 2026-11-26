@@ -98,6 +98,8 @@ async function main() {
     tRot.set(n, b.getWorldQuaternion(new THREE.Quaternion()));
   }
   const tHipH = tPos.get("Hips")!.y - Math.min(tPos.get("LeftToeBase")!.y, tPos.get("RightToeBase")!.y);
+  const hipsBone = tBones.get("Hips")!;
+  const hipsRest = hipsBone.position.clone();
 
   for (const file of fbxs) {
     const buf = readFileSync(file);
@@ -142,6 +144,17 @@ async function main() {
     const hips = new Int16Array(frames * 3);
     const world = new Map<string, THREE.Quaternion>();
     const inv = new THREE.Quaternion();
+    let miss = 0;
+    const put = (f: number, i: number, local: THREE.Quaternion) => {
+      local.normalize();
+      // (one hemisphere, so the 16-bit numbers interpolate the short way)
+      const s = local.w < 0 ? -1 : 1;
+      const o = (f * order.length + i) * 4;
+      q[o] = Math.round(local.x * s * 32767);
+      q[o + 1] = Math.round(local.y * s * 32767);
+      q[o + 2] = Math.round(local.z * s * 32767);
+      q[o + 3] = Math.round(local.w * s * 32767);
+    };
     for (let f = 0; f < frames; f++) {
       mixer.setTime(Math.min(clip.duration, f / FPS));
       fbx.updateMatrixWorld(true);
@@ -164,26 +177,65 @@ async function main() {
         const pw = tb.parent && world.get(tb.parent.name);
         const local = pw ? inv.copy(pw).invert().multiply(w) : w.clone();
         local.normalize();
-        // (one hemisphere, so the 16-bit numbers interpolate the short way)
-        const s = local.w < 0 ? -1 : 1;
-        const o = (f * order.length + i) * 4;
-        q[o] = Math.round(local.x * s * 32767);
-        q[o + 1] = Math.round(local.y * s * 32767);
-        q[o + 2] = Math.round(local.z * s * 32767);
-        q[o + 3] = Math.round(local.w * s * 32767);
+        tb.quaternion.copy(local);
+        put(f, i, local);
       }
       const hp = sBones.get("Hips")!.getWorldPosition(new THREE.Vector3());
       const d = hp.sub(sPos0.get("Hips")!).multiplyScalar(k);
       hips[f * 3] = Math.round(d.x * 1000);
       hips[f * 3 + 1] = Math.round(d.y * 1000);
       hips[f * 3 + 2] = Math.round(d.z * 1000);
+      // her feet where the dancer's were (Nov 21): her legs aren't the dancer's legs (longer or shorter
+      // thighs, wider hips), so the same turns put her feet a little elsewhere, and a foot standing
+      // still on the floor slides. Her ankles go where the dancer's went (from the dancer's rest, the
+      // dancer's size to hers), each leg bent to reach (its knee the way the dancer's pointed), each
+      // foot turned as the dancer's.
+      hipsBone.position.copy(hipsRest).add(d);
+      body.updateMatrixWorld(true);
+      for (const side of ["Left", "Right"]) {
+        const up = tBones.get(`${side}UpLeg`);
+        const leg = tBones.get(`${side}Leg`);
+        const foot = tBones.get(`${side}Foot`);
+        const sFoot = sBones.get(`${side}Foot`);
+        if (!up || !leg || !foot || !sFoot || !up.parent) continue;
+        const goal = tPos.get(foot.name)!.clone().add(sFoot.getWorldPosition(new THREE.Vector3()).sub(sPos0.get(foot.name)!).multiplyScalar(k));
+        const j1 = up.getWorldPosition(new THREE.Vector3());
+        const j2 = leg.getWorldPosition(new THREE.Vector3());
+        const j3 = foot.getWorldPosition(new THREE.Vector3());
+        const a = j2.distanceTo(j1);
+        const b = j3.distanceTo(j2);
+        const to = goal.clone().sub(j1);
+        const c = Math.max(Math.abs(a - b) + 1e-4, Math.min((a + b) * 0.9999, to.length()));
+        const dir = to.normalize();
+        const along = (a * a - b * b + c * c) / (2 * c);
+        const pole = j2.clone().sub(j1);
+        pole.sub(dir.clone().multiplyScalar(pole.dot(dir)));
+        if (pole.lengthSq() < 1e-8) pole.set(0, 0, 1).applyQuaternion(world.get(up.parent.name)!);
+        pole.normalize();
+        const knee = j1.clone().add(dir.clone().multiplyScalar(along)).add(pole.multiplyScalar(Math.sqrt(Math.max(0, a * a - along * along))));
+        const end = j1.clone().add(dir.clone().multiplyScalar(c));
+        const turn1 = new THREE.Quaternion().setFromUnitVectors(j2.clone().sub(j1).normalize(), knee.clone().sub(j1).normalize());
+        const shin = j3.clone().sub(j2).normalize().applyQuaternion(turn1);
+        const turn2 = new THREE.Quaternion().setFromUnitVectors(shin, end.sub(knee).normalize());
+        const r1 = turn1.clone().multiply(world.get(up.name)!);
+        const r2 = turn2.multiply(turn1).multiply(world.get(leg.name)!);
+        up.quaternion.copy(inv.copy(world.get(up.parent.name)!).invert().multiply(r1));
+        leg.quaternion.copy(r1.clone().invert().multiply(r2));
+        foot.quaternion.copy(r2.clone().invert().multiply(world.get(foot.name)!));
+        put(f, order.indexOf(up.name), up.quaternion.clone());
+        put(f, order.indexOf(leg.name), leg.quaternion.clone());
+        put(f, order.indexOf(foot.name), foot.quaternion.clone());
+        up.updateMatrixWorld(true);
+        // (how far off it ended up: a goal out of her leg's reach)
+        miss = Math.max(miss, foot.getWorldPosition(new THREE.Vector3()).distanceTo(goal));
+      }
     }
     const name = basename(file).replace(/\.fbx$/i, "");
     const head = { name, frames, fps: FPS, bones: order, seconds: clip.duration, sHipH, tHipH };
     writeFileSync(join(outDir, `${name}.json`), JSON.stringify(head));
     writeFileSync(join(outDir, `${name}.q.bin`), Buffer.from(q.buffer));
     writeFileSync(join(outDir, `${name}.hips.bin`), Buffer.from(hips.buffer));
-    console.log(name, frames, "frames", clip.duration.toFixed(2), "s", "source bones", sBones.size, "k", k.toFixed(3));
+    console.log(name, frames, "frames", clip.duration.toFixed(2), "s", "source bones", sBones.size, "k", k.toFixed(3), "feet off by", (miss * 100).toFixed(1), "cm at most");
   }
 }
 await main();

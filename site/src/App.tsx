@@ -48,6 +48,7 @@ const ChatPage = lazy(() => import("./account/ChatPage").then((m) => ({ default:
 const AdminPage = lazy(() => import("./account/AdminPage").then((m) => ({ default: m.AdminPage })));
 // the 3D figure's prototype (/me/figure): its page here, three.js and the model once it opens
 const FigurePage = lazy(() => import("./account/figure/FigurePage").then((m) => ({ default: m.FigurePage })));
+const EmailCancelPage = lazy(() => import("./account/EmailCancelPage").then((m) => ({ default: m.EmailCancelPage })));
 const SignInSheet = lazy(() => import("./account/SignIn").then((m) => ({ default: m.SignInSheet })));
 // 两清 (changle.ca/split): its screens and its arithmetic load when someone opens it
 const SplitApp = lazy(() => import("./split/SplitApp").then((m) => ({ default: m.SplitApp })));
@@ -174,6 +175,7 @@ function Shell() {
   else if (route.kind === "me") screen = <MePage onBack={back} />;
   else if (route.kind === "admin") screen = <AdminPage onBack={back} />;
   else if (route.kind === "figure") screen = <FigurePage onBack={back} />;
+  else if (route.kind === "emailCancel") screen = <EmailCancelPage onBack={back} />;
   else if (route.kind === "user") screen = <UserPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "chat") screen = <ChatPage key={route.id} id={route.id} onBack={back} />;
   else if (route.kind === "split") screen = <SplitApp id={route.id} onBack={back} />;
@@ -252,7 +254,7 @@ function Shell() {
         ? `room-${route.code}`
         : route.kind === "game"
           ? `${route.id}.${restarts}`
-          : route.kind === "me" || route.kind === "admin" || route.kind === "figure" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
+          : route.kind === "me" || route.kind === "admin" || route.kind === "figure" || route.kind === "emailCancel" || route.kind === "tv" || route.kind === "dev" || route.kind === "djtest"
             ? route.kind
             : `${route.kind}-${route.id}`;
   if (route.kind === "tv")
@@ -270,6 +272,17 @@ function Shell() {
           <DjTestPage />
         </Suspense>
       </SiteGate>
+    );
+  // cancelling a waiting 换邮箱 from the mailed link works whatever the site's state: a pause or a
+  // banned phone mustn't keep an owner from it (the hub keeps its route open too)
+  if (route.kind === "emailCancel")
+    return (
+      <>
+        <div className="room-light" aria-hidden="true" />
+        <main className="app">
+          <Suspense fallback={Loading && <Loading.PageLoading lang={lang} />}>{screen}</Suspense>
+        </main>
+      </>
     );
   // development only: the Punchline show with made-up data
   if (ShowPreview && route.kind === "dev")
@@ -290,6 +303,7 @@ function Shell() {
     >
       <div className="room-light" aria-hidden="true" />
       <PerkNews />
+      <CopyEditing />
       <main className="app" style={route.kind === "game" ? ({ ["--gel" as string]: GAME_BY_ID[route.id].gel } as React.CSSProperties) : undefined}>
         <Scene sceneKey={key}>
           <ScreenGuard key={key} onHome={() => go({ kind: "home", tab: "party" })}>
@@ -306,6 +320,17 @@ function Shell() {
       </main>
     </SiteGate>
   );
+}
+
+const CopyEditor = lazy(() => import("./account/CopyEditor").then((m) => ({ default: m.CopyEditor })));
+/** The master account's long-press editing of the site's words (account/CopyEditor.tsx). */
+function CopyEditing() {
+  const { me } = useAccount();
+  return me?.master ? (
+    <Suspense fallback={null}>
+      <CopyEditor />
+    </Suspense>
+  ) : null;
 }
 
 /** Each screen arrives with a short rise; the previous one is simply replaced. */

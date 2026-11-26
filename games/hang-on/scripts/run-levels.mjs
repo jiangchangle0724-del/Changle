@@ -852,7 +852,8 @@ async function serve(entries, screenshot) {
       readFile(resolve(root, path.slice(1))).then((data) => { res.setHeader('Content-Type', 'image/webp'); res.end(data); }, () => { res.writeHead(404); res.end(); });
     }
     else {
-      const match = /^\/(levels|replays)\/((?:table|van)-\d{2})$/.exec(path);
+      // 后厨、雪山、老宅、太空站的关也认（原来只认 table / van，`--screenshots` 截新场景时 404）；远景画只有 table、van 两张，别的世界程序画
+      const match = /^\/(levels|replays)\/([a-z]+-\d{2})$/.exec(path);
       const entry = match && entries.find((e) => e.level.id === match[2]);
       if (!entry) { res.writeHead(404); res.end(); return; }
       res.setHeader('Content-Type', 'application/json');
@@ -2096,6 +2097,9 @@ try {
   const hardish = new Set(climbing.filter((e) => tierOf(e.level) >= 1).map((e) => e.level.id));
   const tired = new Set(climbing.filter((e) => staminaOn(e.level)).map((e) => e.level.id));
   console.log(`stamina: ${tired.size}/${hardish.size} medium and hard levels replayed with tired hands`);
+  // C15、C16、C17 以后中等、困难的关全都按手酸录过（11-21）：以后新做的中等、困难关也要写 stamina: true、按手酸录
+  const untired = [...hardish].filter((id) => !tired.has(id));
+  assert.deepEqual(untired, [], `medium and hard levels are recorded with tired hands (stamina: true): ${untired.join(', ')}`);
   // 长关（A13）：有几关、各多长
   const longs = climbing.filter((e) => e.level.long);
   console.log(`long: ${longs.length} long levels${longs.length ? ` (${longs.map((e) => `${e.level.id} ${Math.round(routeLength(e.level))} px`).join(', ')})` : ''}`);

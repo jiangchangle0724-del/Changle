@@ -135,6 +135,9 @@ async function fetchRates(): Promise<Fx> {
   return { rates: pick(d.rates ?? {}), at: Date.now(), source: "frankfurter" };
 }
 
+/** where the edge keeps the owner's edits to the site's words (GET /copy) */
+const copyKey = () => new Request("https://rooms.changle.ca/__copy/v1");
+
 async function fx(req: Request, ctx: ExecutionContext) {
   const cache = (caches as unknown as { default: Cache }).default;
   const key = new Request("https://rooms.changle.ca/__fx/v1");
@@ -184,6 +187,17 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
     const keep = new Response(res.clone().body, { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=10" } });
     ctx.waitUntil(cache.put(key, keep));
     return cors(res, req);
+  }
+  // the owner's edits to the site's words, the same for everyone (lib/copy.ts): from the edge for a
+  // minute, and dropped from it here when he saves one
+  if (path === "/copy" && req.method === "GET") {
+    const cache = (caches as unknown as { default: Cache }).default;
+    const hit = await cache.match(copyKey());
+    if (hit) return cors(hit, req, "public, max-age=60");
+    const res = json(await hub.copy());
+    const keep = new Response(res.clone().body, { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=60" } });
+    ctx.waitUntil(cache.put(copyKey(), keep));
+    return cors(res, req, "public, max-age=60");
   }
   // a sign-in kept in the cookie, for a phone whose storage was wiped (no body, no headers:
   // asked without a preflight)
@@ -244,6 +258,7 @@ async function api(req: Request, env: Env, ctx: ExecutionContext, url: URL): Pro
       r.cache ?? "no-store",
       r.status === 200 && /^\/(avatar|figure)\//.test(path),
     );
+  if (path === "/admin/copy" && req.method === "POST" && r.status === 200) ctx.waitUntil((caches as unknown as { default: Cache }).default.delete(copyKey()));
   let res = json(r.json ?? {}, r.status);
   // a new session (signed in, or signed up) goes into the cookie as well; signing out clears it
   const fresh = (r.json as { token?: unknown } | undefined)?.token;
@@ -421,6 +436,12 @@ export class Room extends DurableObject<Env> {
         who = null;
       }
       const screen = msg.screen === true;
+      // someone back on a phone the table doesn't know, as the seat that dropped: that seat is theirs
+      const mine = !block && !screen ? engine.claim(pid, String(msg.name ?? ""), !!msg.create, who) : null;
+      if (mine) {
+        this.send(ws, { t: "adopt", pid: mine });
+        return;
+      }
       const err = block ?? (screen ? engine.screenHello(pid, !!msg.create, typeof msg.game === "string" ? msg.game : undefined) : engine.hello(pid, String(msg.name ?? ""), !!msg.create, who));
       if (err) {
         this.send(ws, { t: "error", code: err });

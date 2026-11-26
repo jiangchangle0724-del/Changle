@@ -21,7 +21,7 @@ Always:
 | [drama-C5](C5-scenes-love.md) | The same for the 20 love scenes (done, #395) | the same |
 | [drama-C6](C6-scenes-office.md) | The same for the 23 office scenes (done, #398) | the same |
 | [drama-C7](C7-scenes-show.md) | The same for the 22 show scenes (done, #400) | the same |
-| [drama-C8](C8-scenes-solo.md) | The same for the 8 monologues added on Nov 20 | the same |
+| [drama-C8](C8-scenes-solo.md) | The same for the 8 monologues added on Nov 20 (done, #735) | the same |
 
 C2 to C7 need the game to ask for `scene-<id>` first; it does once the PR that brought these cards is
 merged. They all add names to `DRAWN_ART`, so send them one at a time: the next once the last is

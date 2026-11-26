@@ -23,7 +23,7 @@ type Clock = { beat: () => number; energy: () => number; bpm: () => number };
  * she may walk the stage (no song's video in the middle, someone on the floor); `light`: an iPhone or
  * iPad as the speaker.
  */
-export function Coach({ clock, mood, look, roam = false, light = false, over }: { clock: Clock; mood: Mood; look: Look; roam?: boolean; light?: boolean; over: boolean }) {
+export function Coach({ clock, mood, look, outfit = "club", roam = false, light = false, over }: { clock: Clock; mood: Mood; look: Look; outfit?: string; roam?: boolean; light?: boolean; over: boolean }) {
   const svg = useRef<SVGSVGElement>(null);
   // the dancer in 3D once she's loaded; the robot where she can't be (her files didn't come, her
   // frames too slow); the drawn one till then, and on a screen without WebGL
@@ -37,6 +37,9 @@ export function Coach({ clock, mood, look, roam = false, light = false, over }: 
   const lookNow = useRef(look);
   lookNow.current = look;
   const [getLook] = useState(() => () => lookNow.current);
+  const outfitNow = useRef(outfit);
+  outfitNow.current = outfit;
+  const [getOutfit] = useState(() => () => outfitNow.current);
   const roamNow = useRef(roam && !over);
   roamNow.current = roam && !over;
   const [getRoam] = useState(() => () => roamNow.current);
@@ -79,7 +82,7 @@ export function Coach({ clock, mood, look, roam = false, light = false, over }: 
     <div className={`dj-coach ${over ? "is-over" : ""}`} aria-hidden="true">
       <div className="dj-coach-stage">
         <svg className={`dj-coach-svg ${three === "on" || three === "robot-on" ? "is-off" : ""}`} viewBox={VIEWBOX} ref={svg} aria-hidden="true" />
-        {(three === "try" || three === "on") && <Dancer3D clock={clock} mood={getMood} look={getLook} roam={getRoam} light={light} onReady={() => setThree("on")} onFail={() => setThree("robot")} />}
+        {(three === "try" || three === "on") && <Dancer3D clock={clock} mood={getMood} look={getLook} outfit={getOutfit} roam={getRoam} light={light} onReady={() => setThree("on")} onFail={() => setThree("robot")} />}
         {(three === "robot" || three === "robot-on") && <Coach3D clock={clock} mood={getMood} onReady={() => setThree("robot-on")} onFail={() => setThree("off")} />}
       </div>
     </div>

@@ -62,13 +62,13 @@ export function appsUsed(sql: Sql, id: string): string[] {
   return rows.map((r) => NOTICE_APP[String(r.aud) as keyof typeof NOTICE_APP]).filter(Boolean);
 }
 
-function b64url(b: Uint8Array) {
+export function b64url(b: Uint8Array) {
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function sha256(s: string) {
+export async function sha256(s: string) {
   return b64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))));
 }
 

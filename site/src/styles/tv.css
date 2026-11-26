@@ -186,6 +186,21 @@ html.tv-mode .room-light {
   color: #5b5873;
   font-size: 18px;
 }
+/* Safari on a Mac can let the site play by itself: how, on a line of its own under the prompt */
+.tv-gate:has(.tv-gate-tip) {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 760px;
+  border-radius: 28px;
+}
+.tv-gate-tip {
+  flex-basis: 100%;
+  color: #5b5873;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+}
 @keyframes tv-nudge {
   0%,
   100% {
@@ -312,6 +327,14 @@ html.tv-mode .room-light {
 .tv-join-row {
   display: flex;
   gap: 12px;
+}
+/* a Chinese keyboard turns the code's letters into characters (codeField.ts) */
+.tv-join-ime {
+  max-width: 420px;
+  margin: 0;
+  color: var(--warn);
+  font-size: 18px;
+  line-height: 1.5;
 }
 .tv-join input {
   width: 220px;

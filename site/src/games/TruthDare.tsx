@@ -20,8 +20,9 @@ type Phase = "spin" | "choose" | "card";
 /** What a game under way keeps on the phone, to pick up after a reload: the heat, the card on the table, the cards still to come. */
 type Kept = { heat: Heat; phase: Phase; kind: "truth" | "dare"; prompt: Prompt | null; chosen: number | null; truths: number[]; dares: number[] };
 
+/** Mild deals only the mild cards, spicy only the spicy ones. */
 const deckOf = (source: readonly Prompt[], heat: Heat, kept?: number[]) => {
-  const deck = new Deck(source.filter((p) => p.heat <= heat));
+  const deck = new Deck(source.filter((p) => p.heat === heat));
   if (kept) deck.restore(kept);
   return deck;
 };
@@ -55,8 +56,8 @@ function TruthDareGame({ onBack, saved }: { onBack: () => void; saved: Kept | nu
   useEffect(() => {
     if (decksHeat.current === heat) return;
     decksHeat.current = heat;
-    truthDeck.current = new Deck(TRUTHS.filter((p) => p.heat <= heat));
-    dareDeck.current = new Deck(DARES.filter((p) => p.heat <= heat));
+    truthDeck.current = deckOf(TRUTHS, heat);
+    dareDeck.current = deckOf(DARES, heat);
   }, [heat]);
   // kept from the first spin on (the game has no end: leaving from the tally drops it)
   const [played, setPlayed] = useState(!!saved);
@@ -238,7 +239,6 @@ function TruthDareGame({ onBack, saved }: { onBack: () => void; saved: Kept | nu
             <Cloche open={lidOpen} onOpen={() => setLidOpen(true)}>
               <div className="prompt-card">
                 <p className="prompt-text">{tr(promptText(prompt, custom))}</p>
-                <p className="hint-ink prompt-other">{lang === "zh" ? promptText(prompt, custom).en : promptText(prompt, custom).zh}</p>
               </div>
             </Cloche>
             <AnimatePresence>

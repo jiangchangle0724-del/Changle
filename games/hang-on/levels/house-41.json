@@ -1,190 +1,274 @@
 {
   "id": "house-41",
-  "stamina": true,
   "world": "house",
   "name": {
-    "zh": "月门递钥",
-    "en": "Key Relay at the Moon Gate"
+    "zh": "回风双塔",
+    "en": "Drafts Between Twin Towers"
   },
   "tier": 2,
-  "teaches": "key",
-  "w": 2560,
-  "h": 720,
+  "long": true,
+  "teaches": "pendulum",
+  "w": 3600,
+  "h": 2160,
   "spawn": {
-    "x": 80,
-    "y": 536
+    "x": 150,
+    "y": 2026
   },
   "goal": {
-    "x": 2480,
-    "y": 240,
-    "w": 70,
-    "h": 160
+    "x": 3340,
+    "y": 460,
+    "w": 240,
+    "h": 200
   },
   "checkpoints": [
     {
-      "x": 1270,
-      "y": 400
+      "x": 1600,
+      "y": 2026
     },
     {
-      "x": 2070,
-      "y": 376
+      "x": 2900,
+      "y": 1346
+    },
+    {
+      "x": 1600,
+      "y": 1346
+    },
+    {
+      "x": 600,
+      "y": 616
+    },
+    {
+      "x": 1900,
+      "y": 616
     }
   ],
   "envelopes": [
     {
-      "x": 587,
-      "y": 402
+      "x": 3218,
+      "y": 1861
     },
     {
-      "x": 1603,
-      "y": 362
+      "x": 3163,
+      "y": 1135
     },
     {
-      "x": 2302,
-      "y": 370
+      "x": 252,
+      "y": 350
     }
   ],
   "rects": [
     {
       "x": 0,
-      "y": 560,
-      "w": 550,
-      "h": 160,
-      "kind": "ground",
-      "material": "brick"
-    },
-    {
-      "x": 550,
-      "y": 700,
-      "w": 160,
-      "h": 20,
-      "kind": "ground",
-      "material": "brick"
-    },
-    {
-      "x": 710,
-      "y": 480,
-      "w": 740,
-      "h": 240,
+      "y": 2070,
+      "w": 3600,
+      "h": 90,
       "kind": "ground",
       "material": "wood"
     },
     {
-      "x": 1450,
-      "y": 700,
-      "w": 160,
-      "h": 20,
+      "x": 0,
+      "y": 1390,
+      "w": 3160,
+      "h": 30,
       "kind": "ground",
-      "material": "brick"
+      "material": "wood"
     },
     {
-      "x": 1610,
-      "y": 400,
-      "w": 950,
-      "h": 320,
+      "x": 300,
+      "y": 660,
+      "w": 3300,
+      "h": 30,
       "kind": "ground",
-      "material": "brick"
+      "material": "wood"
     },
     {
-      "x": 2400,
+      "x": 3160,
       "y": 120,
-      "w": 160,
-      "h": 40,
+      "w": 28,
+      "h": 240,
       "kind": "ground",
-      "material": "wood",
-      "grab": false
-    },
-    {
-      "x": 900,
-      "y": 260,
-      "w": 510,
-      "h": 40,
-      "kind": "ground",
-      "material": "wood",
-      "grab": false
+      "material": "wood"
     }
   ],
+  "ropes": [],
+  "seesaws": [],
+  "crates": [],
+  "fading": [],
+  "springs": [],
   "hazards": [
     {
-      "x": 570,
-      "y": 670,
-      "w": 120,
-      "h": 22,
+      "x": 850,
+      "y": 1845,
+      "w": 50,
+      "h": 18,
       "kind": "spike"
     },
     {
-      "x": 1470,
-      "y": 660,
-      "w": 120,
-      "h": 24,
+      "x": 2050,
+      "y": 1165,
+      "w": 50,
+      "h": 18,
       "kind": "hot"
     },
     {
-      "x": 1280,
-      "y": 300,
-      "w": 60,
-      "h": 16,
+      "x": 1150,
+      "y": 435,
+      "w": 50,
+      "h": 18,
       "kind": "zap"
+    },
+    {
+      "x": 2750,
+      "y": 435,
+      "w": 50,
+      "h": 18,
+      "kind": "hot"
     }
   ],
-  "spinners": [
+  "movers": [
+    {
+      "x": 3160,
+      "y": 2010,
+      "w": 300,
+      "h": 24,
+      "path": [
+        {
+          "x": 3160,
+          "y": 1190
+        }
+      ],
+      "speed": 220,
+      "wait": 6,
+      "material": "metal"
+    },
+    {
+      "x": 0,
+      "y": 1330,
+      "w": 300,
+      "h": 24,
+      "path": [
+        {
+          "x": 0,
+          "y": 460
+        }
+      ],
+      "speed": 220,
+      "wait": 6,
+      "material": "metal"
+    }
+  ],
+  "spinners": [],
+  "deathY": 2340,
+  "par": {
+    "seconds": 290,
+    "deathsPerPlayer": 6
+  },
+  "replay": "replays/house-41.json",
+  "stamina": true,
+  "pendulums": [
     {
       "pivot": {
-        "x": 2420,
-        "y": 210
+        "x": 1050,
+        "y": 1890
       },
-      "arms": 2,
-      "len": 50,
-      "h": 12,
-      "spin": 0.75,
-      "deadly": true,
-      "hazard": "zap"
+      "len": 100,
+      "amp": 0.45,
+      "period": 2.2,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 2350,
+        "y": 1210
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 2,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 1000,
+        "y": 480
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 3,
+      "r": 24
+    },
+    {
+      "pivot": {
+        "x": 2750,
+        "y": 480
+      },
+      "len": 100,
+      "amp": 0.45,
+      "period": 2.8,
+      "r": 24
+    }
+  ],
+  "winds": [
+    {
+      "x": 650,
+      "y": 1850,
+      "w": 360,
+      "h": 220,
+      "dir": "right",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
+    },
+    {
+      "x": 2680,
+      "y": 410,
+      "w": 320,
+      "h": 250,
+      "dir": "right",
+      "force": 0.5,
+      "on": 1.2,
+      "off": 3.4
     }
   ],
   "keys": [
     {
-      "x": 2300,
-      "y": 393,
-      "opens": "moon-lock"
+      "x": 2700,
+      "y": 653,
+      "opens": "towers"
     }
   ],
   "gates": [
     {
-      "id": "moon-lock",
-      "x": 2450,
-      "y": 160,
+      "id": "towers",
+      "x": 3160,
+      "y": 360,
       "w": 28,
-      "h": 240,
+      "h": 300,
       "move": {
         "x": 0,
-        "y": -160
+        "y": -310
       },
-      "grab": false
+      "material": "wood"
     }
   ],
   "dark": [
     {
-      "x": 1960,
-      "y": 160,
-      "w": 600,
-      "h": 560
+      "x": 2050,
+      "y": 340,
+      "w": 1500,
+      "h": 350
     }
   ],
   "lamps": [
     {
-      "x": 1990,
-      "y": 376,
-      "r": 200,
+      "x": 2400,
+      "y": 610,
+      "r": 250,
       "off": true
+    },
+    {
+      "x": 3320,
+      "y": 590,
+      "r": 220
     }
-  ],
-  "par": {
-    "seconds": 120,
-    "deathsPerPlayer": 8
-  },
-  "ropes": [],
-  "seesaws": [],
-  "crates": [],
-  "deathY": 800,
-  "replay": "replays/house-41.json"
+  ]
 }

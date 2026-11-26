@@ -29,7 +29,7 @@ import { balances, convert, expensesOf, isRate, MAX_AMOUNT, MAX_MEMBERS, nextRot
 import { abroad, amountOf, blankDraft, draftOf, draftProblem, extrasOf, extrasOver, paidOf, payIn, rated, readInto, saying, shareBy, sharers, splitOf, type Draft } from "../src/split/draft";
 import { currencyName, dayBefore, decimalsOf, localDay, money, signOf, typed } from "../src/split/format";
 import { asAmountText, press, type Key } from "../src/split/input";
-import { inviteLink, inviteText, keyFrom, qrPath } from "../src/split/invite";
+import { inviteLink, inviteText, keyFrom, qrPath, viewKeyFrom, viewKeyOf, viewLink, viewText } from "../src/split/invite";
 import { fromLegacyHash, parse } from "../src/router";
 import { applyChange, type Change, type Sent } from "../src/split/changes";
 import { byDay, dayLabel, extrasText, lostLine, mine, nameFor, paidBy, paysLine, planText, sharedHow, spentOn, standing, summaryLines, syncLine } from "../src/split/lines";
@@ -46,7 +46,7 @@ import { asDone, asMine, asPushed, asSince, asSnapshot } from "../src/split/shap
 import { newId, newKey, parseSaved } from "../src/split/store";
 import { hold, shown, type Held } from "../src/split/sync";
 import { listed } from "../src/split/syncing";
-import { sameSaid, saidOf, twinIn, twinsOf, type Said } from "../src/split/twins";
+import { joinBill, sameBill, saidOf, twinIn, twinsOf, type Said } from "../src/split/twins";
 import { say, W, type Word } from "../src/split/words";
 import { CURRENCIES } from "../src/tools/money";
 import { randomLedger, rng } from "./split/ledgers";
@@ -679,6 +679,30 @@ const NOW = Date.UTC(2026, 10, 13, 19, 0);
   ok(qrPath("x".repeat(5000)) === null, "a text too long for a code draws nothing, and doesn't throw");
 }
 
+// ---------- 8b. a 查看链接 ----------
+{
+  const id = "Ab3-_xyzAb3-_xyzAb3-_x";
+  const key = newKey();
+  const view = await viewKeyOf(key);
+  // (ok, not eq: no key goes into the log)
+  ok(/^[A-Za-z0-9_-]{43}$/.test(view) && view !== key, "its key: 32 bytes written as a ledger's key is, and not the ledger's key");
+  ok((await viewKeyOf(key)) === view, "the same ledger key always makes the same one, so every phone in the ledger sends the same link");
+  const others = await Promise.all(Array.from({ length: 50 }, () => viewKeyOf(newKey())));
+  ok(new Set([view, ...others]).size === 51, "and another key makes another one (50 of them, none the same)");
+  ok(!view.includes(key.slice(0, 8)) && !key.includes(view.slice(0, 8)), "nothing of the ledger's key shows in it");
+  const link = viewLink("https://changle.ca", id, view);
+  ok(link === `https://changle.ca/split/${id}#v=${view}`, "the link: the ledger's address, and its own key after the # as v=");
+  const url = new URL(link);
+  eq(parse(url.pathname, url.search), { kind: "split", id }, "it opens the ledger's address");
+  ok(viewKeyFrom(url.hash) === view && keyFrom(url.hash) === null, "its key is read back from it, and it is no invitation");
+  ok(viewKeyFrom(`#k=${key}`) === null, "nor is an invitation a 查看链接");
+  ok([`#v=${view}&from=singlemessage`, `#from=timeline&v=${view}`].every((hash) => viewKeyFrom(hash) === view) && viewKeyFrom(`#v=${view}。`) === view, "whatever an app adds around it, or a full stop stuck to it, the key is still found");
+  for (const [what, hash] of [["no # part", ""], ["no key", "#v="], ["a key too short", "#v=abc"], ["another name", `#view=${view}`], ["a name that only ends in v", `#dev=${view}`]] as [string, string][])
+    ok(viewKeyFrom(hash) === null, `${what} is no 查看链接`);
+  ok(viewText("惠斯勒周末", link, "zh") === `「惠斯勒周末」的账目和结清，点开就能看：\n${link}`, "what is pasted into the group: what it is, then the link on a line of its own");
+  ok(viewText("Whistler", link, "en") === `See the expenses and who pays whom in "Whistler" on All Square:\n${link}`, "and in English");
+}
+
 // ---------- 9. words ----------
 const here = fileURLToPath(new URL("..", import.meta.url));
 const read = (p: string) => readFileSync(join(here, p), "utf8");
@@ -1270,7 +1294,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(readInto(d, { ...read, tip: "99.999" }, start, null, Date.now())?.tip, "", "a tip that isn't a sum in it: none");
 }
 
-// ---------- 20. a receipt seen before (几张小票 leaves it out, 记一笔 says so) ----------
+// ---------- 20. one bill seen before, or twice (几张小票 leaves it out or takes it in, 记一笔 says so) ----------
 {
   const both: Split = { how: "equal", among: ["s", "w"] };
   const mc: Expense = { kind: "expense", id: "e1", at: Date.parse("2026-11-16T20:00:00"), payer: "s", amount: 2000, note: "", split: both, rot: 0, merchant: "McDonald's", date: "2026-11-16" };
@@ -1278,7 +1302,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   const abroadOne: Expense = { kind: "expense", id: "e3", at: Date.parse("2026-11-17T21:00:00"), payer: "s", amount: 1401, note: "", split: both, rot: 0, merchant: "Starbucks", date: "2026-11-17", paidIn: { currency: "USD", amount: 1000, rate: "1.4012" } };
   const gone: Expense = { kind: "expense", id: "e4", at: Date.parse("2026-11-15T20:00:00"), payer: "s", amount: 1500, note: "", split: both, rot: 1, merchant: "Kiosk", date: "2026-11-15", gone: 5 };
   const l = { ...startLedger("T", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]), entries: [mc, typedOnly, abroadOne, gone] };
-  const said = (total: number, merchant: string, date = "2026-11-16", currency = "CAD"): Said => ({ total, currency, date, merchant });
+  const said = (total: number, merchant: string, date = "2026-11-16", currency = "CAD", tip = 0, time?: string): Said => ({ total, tip, currency, date, merchant, ...(time ? { time } : {}) });
   eq(twinIn(l, said(2000, "McDonald's"))?.id, "e1", "the same total, day and business: the one recorded");
   eq(twinIn(l, said(2000, "MCDONALDS"))?.id, "e1", "the business told apart only by its letters and digits");
   eq([twinIn(l, said(2001, "McDonald's")), twinIn(l, said(2000, "McDonald's", "2026-11-17")), twinIn(l, said(2000, "Wendy's"))], [null, null, null], "another total, day or business: not the same");
@@ -1292,8 +1316,30 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(twinIn({ ...l, entries: [noDay] }, said(2000, "McDonald's", localDay(noDay.at)))?.id, "e5", "one with no day: the day it was recorded");
   const draft = { ...blankDraft(l, "s", Date.now()), currency: "CAD", text: "20.00", merchant: " McDonald's ", date: "" };
   eq(saidOf(draft, "2026-11-16"), said(2000, "McDonald's"), "what an expense being typed says (no day picked: today's)");
+  eq(saidOf({ ...draft, tip: "2.50" }, "2026-11-16", "21:04"), said(2000, "McDonald's", "2026-11-16", "CAD", 250, "21:04"), "with the tip in it and the time read");
   eq(saidOf({ ...draft, text: "" }, "2026-11-16"), null, "nothing without an amount");
-  ok(sameSaid(said(2000, "McDonald's"), said(2000, "mcdonalds")), "two receipts the same");
+  ok(sameBill(said(2000, "McDonald's"), said(2000, "mcdonalds")), "two receipts the same");
+  // an itemized receipt and its card slip (Steve, 2026-11-21: Deer Garden, $40.45; the slip, $45.30 with a $4.85 tip)
+  const receipt = said(4045, "Deer Garden", "2026-10-15", "CAD", 0, "21:01");
+  const slip = said(4530, "DEER GARDEN SIGNATURE", "2026-10-15", "CAD", 485, "21:04");
+  ok(sameBill(receipt, slip) && sameBill(slip, receipt), "a receipt and the slip that adds the tip: one bill (what was paid before the tip, the day, the name inside the other, the time)");
+  ok(sameBill(receipt, { ...slip, merchant: "SQ *DEER GARDEN" }) && sameBill(receipt, { ...slip, time: undefined }), "a slip's name with something before it; a time read on one only");
+  eq(
+    [sameBill(receipt, { ...slip, tip: 400 }), sameBill(receipt, { ...slip, date: "2026-10-16" }), sameBill(receipt, { ...slip, time: "23:05" }), sameBill(receipt, { ...slip, merchant: "Deer Run" }), sameBill(receipt, { ...slip, currency: "USD" })],
+    [false, false, false, false, false],
+    "not one bill: another sum before the tip, another day, more than two hours apart, another business, another currency",
+  );
+  eq([sameBill(said(900, "A&W"), said(900, "AWESOME SUSHI")), sameBill(said(900, "A&W"), said(900, "a&w"))], [false, true], "a name of fewer than four letters only as itself");
+  eq(sameBill(receipt, { ...slip, merchant: "" }), false, "a name read on one only: not the same");
+  const join = joinBill(
+    { ...draft, text: "40.45", tax: "1.93", merchant: "Deer Garden", place: "Vancouver, BC", payment: "", date: "2026-10-15" },
+    { ...draft, text: "45.30", tip: "4.85", merchant: "Deer Garden Signature", place: "", payment: "Debit", date: "2026-10-15" },
+  );
+  eq([join.text, join.tip, join.tax, join.merchant, join.place, join.payment, join.date], ["45.30", "4.85", "1.93", "Deer Garden", "Vancouver, BC", "Debit", "2026-10-15"], "put together: the total with the tip and its tip, the tax, the shorter name, where and how it was paid");
+  eq(joinBill({ ...draft, text: "45.30", tip: "4.85" }, { ...draft, text: "40.45", tax: "1.93" }).text, "45.30", "the slip first: the same");
+  const dinner: Expense = { ...mc, id: "e6", amount: 4045, merchant: "Deer Garden", date: "2026-10-15", tax: 193 };
+  eq(twinIn({ ...l, entries: [dinner] }, slip)?.id, "e6", "its card slip, once the receipt is recorded: the bill recorded");
+  eq(twinIn({ ...l, entries: [{ ...dinner, amount: 4530, tip: 485 }] }, receipt)?.id, "e6", "and the receipt, once the slip with its tip is");
   // a batch, read in any order: of two the first stays; one recorded already comes first
   const a = said(500, "Tim Hortons", "2026-11-18");
   eq(twinsOf([{ said: a, kept: true }, { said: a, kept: true }, { said: null, kept: false }], l), [null, { row: 0 }, null], "the second of two: like the first; one not read: nothing yet");
@@ -1301,6 +1347,7 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   eq(twinsOf([{ said: a, kept: true }, { said: a, kept: true }], l)[1], { row: 0 }, "once the first is read, the second is like it (read in the other order)");
   eq(twinsOf([{ said: a, kept: false }, { said: a, kept: true }], l), [null, null], "the first left out by hand: the second is the one recorded");
   eq(twinsOf([{ said: said(2000, "McDonald's"), kept: true }, { said: said(2000, "McDonald's"), kept: true }], l), [{ ledger: mc }, { ledger: mc }], "both like one recorded: both say so");
+  eq(twinsOf([{ said: receipt, kept: true }, { said: said(900, "Wendy's", "2026-10-15"), kept: true }, { said: slip, kept: true }], l), [null, null, { row: 0 }], "a slip two rows after its receipt: that row's bill");
 }
 
 if (failed) {

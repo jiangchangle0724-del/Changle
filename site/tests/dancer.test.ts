@@ -24,9 +24,12 @@ import { gunzipSync } from "node:zlib";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFIT, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
+import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
+import { feetOf, plantFeet, standFeet } from "../src/party/dj/dancer/plant";
+import { CAPTURED_SKATE } from "./support/captured";
+import { LIMITS, motionFacts } from "./support/motion";
 
 let failed = 0;
 function ok(cond: unknown, msg: string) {
@@ -121,6 +124,30 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   // her blink: the colour of her lids (where her eyes are is in her picture's alpha, eyes.py)
   const lid = (gltf.scene.userData as { dancer?: { lid?: number[] } }).dancer?.lid;
   ok(Array.isArray(lid) && lid.length === 3 && lid.every((v) => v > 0.3 && v < 1), `${at} her lids' colour, for her blink (${lid?.join(", ")})`);
+  // her expressions (Nov 21; Steve: "表情可以做但要很细致"): a smile and her brows up, as morph targets, each
+  // moving only her face (her head's front, above her chin) and by under 4 mm (3 as made, the file's
+  // compression rounding it a little)
+  {
+    const m = meshes[0];
+    const d = m.morphTargetDictionary ?? {};
+    const tg = m.geometry.morphAttributes.position ?? [];
+    const top = m.geometry.boundingBox ? m.geometry.boundingBox.max.y : (m.geometry.computeBoundingBox(), m.geometry.boundingBox!.max.y);
+    const pos = m.geometry.attributes.position;
+    for (const name of ["smile", "brows"]) {
+      const a = tg[d[name]];
+      let most = 0;
+      let off = 0;
+      let moved = 0;
+      for (let i = 0; a && i < a.count; i++) {
+        const v = Math.hypot(a.getX(i), a.getY(i), a.getZ(i));
+        if (v < 1e-5) continue;
+        moved++;
+        most = Math.max(most, v);
+        if (pos.getY(i) < top - 0.32 || pos.getZ(i) < 0) off++;
+      }
+      ok(!!a && moved > 20 && most < 0.004 && off === 0, `${at} her ${name}: ${moved} points of her face, ${(most * 1000).toFixed(1)} mm at most, none elsewhere`);
+    }
+  }
   // her springs: the hair's bones (and a skirt's), each in her skeleton, the shapes they're kept off on her bones
   const sp = (gltf.scene.userData as { dancer?: { springs?: SpringData } }).dancer?.springs;
   const groups = sp?.groups.map((g) => g.name) ?? [];
@@ -134,11 +161,13 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   const lf = bones.get("LeftFoot") as THREE.Object3D;
   const rf = bones.get("RightFoot") as THREE.Object3D;
   const ankle = lf.getWorldPosition(new THREE.Vector3()).y;
+  const toe = (bones.get("LeftToeBase") as THREE.Object3D).getWorldPosition(new THREE.Vector3()).y;
 
   // 2 and 3. her dances
   m.updateMatrixWorld(true);
   const springs = makeSprings(sp, bones);
   const walks: readonly { id: string; bpm: number; stride?: number }[] = Object.values(WALKS);
+  let lastClip: THREE.AnimationClip | null = null;
   for (const d of [...DANCES, ...IDLES, ...walks]) {
     const f = join(dir, "dance", `${d.id}.bin.gz`);
     if (!existsSync(f)) {
@@ -195,6 +224,104 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       ok(Math.abs(step - d.stride) < 0.06, `${d.id}: a step takes her ${d.stride} m (her planted foot slides back ${step.toFixed(2)} m in one)`);
     }
     ok(far < 0.45, `${at} ${d.id}: her hips stay over her spot (${far.toFixed(2)} m out at most)`);
+    // 6. the common mistakes in motion (Nov 21), on her first outfit: every frame as the page plays it
+    if (!checkedDances.has(`${d.id} motion`)) {
+      checkedDances.add(`${d.id} motion`);
+      const n = h.frames;
+      const pose = (k: number) => {
+        a.time = (k / n) * h.beats;
+        mixer.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        return { at: (b: string) => (bones.get(b) as THREE.Object3D).getWorldPosition(new THREE.Vector3()), turn: (b: string) => (bones.get(b) as THREE.Object3D).quaternion };
+      };
+      const f = motionFacts(n, n / (h.beats * h.beat), pose, { ankle, toe }, !!d.stride);
+      if (process.env.MOTION_TABLE) console.log("MOTION", d.id, JSON.stringify(Object.fromEntries(Object.entries(f).map(([k, v]) => [k, Math.round(v * 1000) / 1000]))));
+      // (her feet may slide as much as the real dancer's did there: support/motion.ts, LIMITS)
+      const limit = { ...LIMITS, skate: Math.max(LIMITS.skate, (CAPTURED_SKATE[d.id] ?? 0) + 0.1) };
+      const bad = (Object.keys(limit) as (keyof typeof limit)[]).filter((k) => f[k] > limit[k]);
+      ok(!bad.length, `${d.id}: moves like a person (${bad.length ? bad.map((k) => `${k} ${f[k].toFixed(2)} over ${limit[k].toFixed(2)}`).join(", ") : "no skating, sinking, floating, knees bending back, hands in her, falling off a foot, jerks or seam"})`);
+    }
+    // 7. the hand-over into it from the dance before (Nov 21; Steve: 换舞时脚滑), blended as the page
+    // blends them, her feet planted (dancer/plant.ts): the foot waiting stays where it stood, the one
+    // stepping comes off the floor on the way, and at the end she stands as the new dance has her
+    if (lastClip && !checkedDances.has(`${d.id} handover`)) {
+      checkedDances.add(`${d.id} handover`);
+      const mx = new THREE.AnimationMixer(gltf.scene);
+      const a1 = mx.clipAction(lastClip), a2 = mx.clipAction(clip);
+      a1.play();
+      a2.play();
+      const feet = feetOf(gltf.scene)!;
+      const token = {};
+      const N = 20;
+      let wait = 0;
+      let lifted = true;
+      let end = 0;
+      const anim = [new THREE.Vector3(), new THREE.Vector3()];
+      for (let s = -1; s <= N; s++) {
+        const k = Math.max(0, s / N);
+        const e = k * k * (3 - 2 * k);
+        a1.time = (lastClip.duration / 2 + (s + 1) * 0.06) % lastClip.duration;
+        a2.time = ((s + 1) * 0.06) % clip.duration;
+        a1.setEffectiveWeight(s < 0 ? 1 : 1 - e);
+        a2.setEffectiveWeight(s < 0 ? 0 : e);
+        mx.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        feet.legs.forEach((l, i) => l.foot.getWorldPosition(anim[i]));
+        plantFeet(feet, s < 0 ? null : token, k);
+        if (s < 0 || !feet.plant) continue;
+        // (a foot waiting for its step, along the floor: its heel may rise, when the new dance stands her
+        // taller than her leg reaches)
+        for (let j = 0; j < 2; j++) {
+          const w = feet.legs[j].foot.getWorldPosition(new THREE.Vector3()).sub(feet.plant[j]);
+          if (k < feet.start[j]) wait = Math.max(wait, Math.hypot(w.x, w.z));
+        }
+        const i = feet.first;
+        const p = (k - feet.start[i]) / 0.45;
+        if (p > 0.3 && p < 0.7 && anim[i].distanceTo(feet.plant[i]) > 0.04) {
+          const y = feet.legs[i].foot.getWorldPosition(new THREE.Vector3()).y;
+          lifted &&= y > Math.min(feet.plant[i].y, anim[i].y) + 0.005;
+        }
+      }
+      feet.legs.forEach((l, i) => (end = Math.max(end, l.foot.getWorldPosition(new THREE.Vector3()).distanceTo(anim[i]))));
+      ok(wait < 0.005 && lifted && end < 0.001, `${at} ${lastClip.name || "before"} into ${d.id}: her feet stay where they stand, then step (waiting foot off ${(wait * 1000).toFixed(1)} mm, at the end ${(end * 1000).toFixed(1)} mm off)`);
+      mx.stopAllAction();
+      mx.uncacheRoot(gltf.scene);
+    }
+    // 8. her standing feet as the page keeps them (Nov 23; Steve: "跳舞的动作太多问题了，仔细核查"; plant.ts
+    // standFeet; not her walks, which the page doesn't hold): seven seconds of the dance, and a foot on the floor doesn't slide (nine in ten of its
+    // moments under 0.15 m a second, as the motion checks ask of a dance), and no foot ever jumps
+    if (!checkedDances.has(`${d.id} stand`) && !walks.some((w) => w.id === d.id)) {
+      checkedDances.add(`${d.id} stand`);
+      const mx = new THREE.AnimationMixer(gltf.scene);
+      const act = mx.clipAction(clip);
+      act.play();
+      const feet = feetOf(gltf.scene)!;
+      const fps = 60;
+      const slides: number[] = [];
+      let fastest = 0;
+      const last: (THREE.Vector3 | null)[] = [null, null];
+      for (let s = 0; s < fps * 7; s++) {
+        act.time = (s / fps) % clip.duration;
+        mx.update(0);
+        gltf.scene.updateMatrixWorld(true);
+        standFeet(feet, 1 / fps, true);
+        feet.legs.forEach((l, i) => {
+          const p = l.foot.getWorldPosition(new THREE.Vector3());
+          const was = last[i];
+          if (was && s > fps) {
+            if (p.y < feet.low[i] + 0.02 && was.y < feet.low[i] + 0.02) slides.push(Math.hypot(p.x - was.x, p.z - was.z) * fps);
+            fastest = Math.max(fastest, p.distanceTo(was) * fps);
+          }
+          last[i] = p;
+        });
+      }
+      slides.sort((a, b) => a - b);
+      const slide = slides.length ? slides[Math.floor(slides.length * 0.9)] : 0;
+      ok(slide < 0.15 && fastest < 7, `${at} ${d.id}: her standing feet stay put (${slide.toFixed(2)} m/s, fastest ${fastest.toFixed(1)} m/s)`);
+      mx.stopAllAction();
+      mx.uncacheRoot(gltf.scene);
+    }
+    lastClip = clip;
     // her hair and skirt swinging through it, as the page swings them: never nowhere, never inside her
     if (springs && sp) {
       springs.reset();
@@ -248,15 +375,20 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
 
 async function main() {
   await MeshoptDecoder.ready;
-  const outfits = [...new Set(Object.values(OUTFIT))];
-  ok(outfits.includes("club") && outfits.includes("sweet") && outfits.includes("party"), `her outfits: ${outfits.join(", ")}`);
+  const outfits = [...new Set(Object.values(OUTFITS).flat())];
+  // (Nov 21, Steve: "直接用第一个人物的模型脸，只给她换几套衣服": the first one, Nov 14's, in every look)
+  ok(outfits.includes("club"), `her outfits: ${outfits.join(", ")}`);
   const checkedDances = new Set<string>();
   for (const outfit of outfits) await oneOutfit(outfit, checkedDances);
 
   // 4. what she wears and dances when
   ok(lookOf(75, "peak") === "sweet" && lookOf(100, "warm") === "party" && lookOf(128, "warm") === "club", "a song's look by its own tempo: a ballad sweet, one in between party, a fast one club");
   ok(lookOf(null, "cool") === "sweet" && lookOf(null, "slow") === "sweet" && lookOf(null, "warm") === "party" && lookOf(null, "build") === "club" && lookOf(null, "peak") === "club", "no song's tempo: the night's stretch's look");
-  ok(LOOKS.every((l) => outfits.includes(OUTFIT[l])), "every look has an outfit to wear");
+  ok(LOOKS.every((l) => OUTFITS[l].length > 0), "every look has an outfit to wear");
+  // (a song wears the same outfit every time; songs spread over the look's outfits)
+  ok(outfitFor("party", "abc") === outfitFor("party", "abc") && outfitFor("sweet", null) === OUTFITS.sweet[0], "a song's outfit is its own");
+  const worn = new Set(Array.from({ length: 40 }, (_, i) => outfitFor("club", `song${i}`)));
+  ok(worn.size === OUTFITS.club.length, `songs wear all of a look's outfits (${[...worn].join(", ")})`);
   ok(LOOKS.every((l) => WALKS[l].stride > 0.4 && WALKS[l].stride < 0.9), "every look has a walk, a step of half a metre or so");
   ok(stepsPerBeat(87.8, 90) === 1 && stepsPerBeat(124.1, 72) === 1 && stepsPerBeat(87.8, 128) === 0.5, "a step on each beat, on every other when the song is much faster than her walk");
   ok(danceAt(40, "club", 125) === danceAt(40, "club", 125), "the same beat, the same dance (on every screen)");

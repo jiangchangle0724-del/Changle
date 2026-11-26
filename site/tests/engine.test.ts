@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { COMMANDS as KING_COMMANDS, commandText } from "../src/data/king";
 import { guessMatches } from "../src/data/postit";
 import { RULES as ROGUE_RULES, ruleWords } from "../src/data/rogue13";
-import { DARES, promptText } from "../src/data/truthDare";
+import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
@@ -102,7 +102,51 @@ test("room basics: join, errors, host transfer, kick", () => {
   ok(t.eng.d.host === "p1", "host moves to next online player after grace");
   t.act("p1", { a: "kick", pid: "p2" });
   ok(!t.eng.d.seats.some((s) => s.id === "p2"), "kicked removed");
-  ok(t.eng.hello("p2", "back", false) === "kicked", "kicked cannot return");
+  // (Steve 2026-11-23: the host's kick isn't a ban; the code lets them back in)
+  ok(t.eng.hello("p2", "back", false) === null && t.eng.d.seats.some((s) => s.id === "p2" && s.name === "back"), "kicked can sit down again with the code");
+  t.eng.adminKick("p2", true);
+  ok(t.eng.hello("p2", "back", false) === "kicked", "the site owner's ban keeps them out");
+});
+
+test("a player back on a phone the table doesn't know gets their own seat, not a second one", () => {
+  const t = setup(3);
+  t.eng.hello("ash", "Ashley", false);
+  t.eng.flush();
+  const away = () => t.eng.setOnline("ash", false);
+  ok(t.eng.claim("new1", "Ashley", false) === null, "Ashley is here: another Ashley is a new person");
+  ok(t.eng.hello("new1", "Ashley", false) === null && t.eng.d.seats.find((s) => s.id === "new1")?.name === "Ashley 2", "and sits down as Ashley 2");
+  t.act("new1", { a: "leave" });
+  away();
+  t.eng.flush();
+  ok(t.eng.claim("new2", "ashley", false) === "ash", "Ashley's phone dropped: the same name (any case) gets her seat");
+  ok(t.eng.claim("new2", "Ａｓｈｌｅｙ", false) === "ash", "full-width letters too");
+  ok(t.eng.claim("new2", "Ash", false) === null, "another name: a new seat");
+  ok(t.eng.claim("new2", "Ashley", true) === null, "opening a table isn't coming back to one");
+  ok(t.eng.claim("p1", "Ashley", false) === null, "a phone with a seat here keeps its own");
+  ok(t.eng.hello("ash", "Ashley", false) === null && t.eng.d.seats.find((s) => s.id === "ash")?.on === true, "saying hello as that seat: back, name and all");
+  ok(t.eng.d.seats.filter((s) => s.name.startsWith("Ashley")).length === 1, "and no second Ashley");
+});
+
+test("a seat with an account goes back only to that account", () => {
+  const t = setup(2);
+  const me = { uid: "u-ash", name: "Ashley", av: 1, ac: 2 };
+  t.eng.hello("ash", "Ashley", false, me);
+  t.eng.setOnline("ash", false);
+  t.eng.flush();
+  ok(t.eng.claim("n1", "Ashley", false) === null, "the same name without the account: not hers to take");
+  ok(t.eng.claim("n1", "Ashley", false, { uid: "u-other", name: "Ashley", av: 0, ac: 0 }) === null, "nor with another account");
+  ok(t.eng.claim("n1", "Ash on WeChat", false, me) === "ash", "her account, whatever name she types: her seat");
+});
+
+test("in a game, the seat that comes back is still in it", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  t.eng.setOnline("p2", false);
+  t.eng.flush();
+  const pid = t.eng.claim("fresh-phone", "P2", false);
+  ok(pid === "p2", "P2's seat is claimed by name");
+  ok(t.eng.hello(pid!, "P2", false) === null && t.eng.d.game?.id === "truth", "back at the table, the game goes on");
+  ok(t.eng.d.seats.length === 3, "three seats, as before");
 });
 
 test("names: two people at one table never share a name", () => {
@@ -411,6 +455,23 @@ test("truth: spin, choose, pass", () => {
   t.g("p2", "pass");
   ok(t.pens().some((p) => p.who.includes("p2")), "pass drinks");
   ok(t.view<Extract<GameView, { id: "truth" }>>("p1").spinner === "p2", "chosen spins next");
+});
+
+test("truth: each heat deals only its own cards", () => {
+  const t = setup(3);
+  t.act("p0", { a: "start", game: "truth" });
+  const decks = () => t.eng.d.game!.s as { tDeck: number[]; dDeck: number[] };
+  const heats = (deck: number[], list: { heat: number }[]) => [...new Set(deck.map((i) => list[i].heat))].join();
+  const count = (list: { heat: number }[], heat: number) => list.filter((p) => p.heat === heat).length;
+  ok(heats(decks().tDeck, TRUTHS) === "1" && heats(decks().dDeck, DARES) === "1", "mild: only mild cards");
+  ok(decks().tDeck.length === count(TRUTHS, 1) && decks().dDeck.length === count(DARES, 1), "mild: every mild card");
+  t.g("p0", "heat", { heat: 2 });
+  ok(heats(decks().tDeck, TRUTHS) === "2" && heats(decks().dDeck, DARES) === "2", "spicy: only spicy cards");
+  ok(decks().tDeck.length === count(TRUTHS, 2) && decks().dDeck.length === count(DARES, 2), "spicy: every spicy card");
+  for (const [name, list] of [["truths", TRUTHS], ["dares", DARES]] as const) {
+    ok(new Set(list.map((p) => p.zh)).size === list.length && new Set(list.map((p) => p.en)).size === list.length, `no two ${name} alike`);
+    ok(count(list, 1) >= 45 && count(list, 2) >= 45, `${name}: ${count(list, 1)} mild, ${count(list, 2)} spicy`);
+  }
 });
 
 test("undercover: words private, vote, win", () => {
@@ -3149,7 +3210,8 @@ test("big screen: sees every game, but nobody's secrets; a kicked id stays out",
   ok(e.view("tv-scr1").game?.id === "punchline", "Punchline goes to the screen in full");
   e.act("p1", { a: "kick", pid: "p3" });
   e.flush();
-  ok(e.screenHello("p3", false) === "kicked", "a kicked id can't come back as a screen");
+  e.adminKick("p3", true);
+  ok(e.screenHello("p3", false) === "kicked", "a banned id can't come back as a screen");
 });
 
 test("到此一游: only the host opens the room, the table and the big screen learn its number", () => {
@@ -5037,6 +5099,11 @@ test("custom penalty: no card, command or note tells anyone to drink", () => {
   for (const c of KING_COMMANDS) ok(!drinks(commandText(c, true)), `king command without drinking (${commandText(c, true).zh})`);
   for (const sl of DEFAULT_SLICES) ok(!drinks(sliceLabel(sl, true)), `wheel slice ${sl.id} without drinking (${sliceLabel(sl, true).zh})`);
   for (const d of DARES) if (d.custom) ok(!drinks(promptText(d, true)), `dare without drinking (${promptText(d, true).zh})`);
+  // the wheel of fate deals the mild cards as they are, so a drinking card is spicy and has a dry version
+  // (told by its Chinese: "turned down" or "get down on one knee" isn't a drink)
+  for (const p of [...TRUTHS, ...DARES]) {
+    if (/喝(?!醉)|酒|干杯/.test(p.zh)) ok(p.heat === 2 && !!p.custom && !drinks(promptText(p, true)), `a drinking card is spicy and has a dry version (${p.zh})`);
+  }
 
   const PEN = "做十个深蹲";
   const notes = (t: ReturnType<typeof setup>, from = 0) => t.pens().slice(from).map((p) => p.note);

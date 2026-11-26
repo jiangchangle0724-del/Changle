@@ -5,8 +5,10 @@
  * its amount, to put right, or to type when nothing was read; one cleared is left out. One button
  * records them all: paid by you, shared by everyone, each with its photo, to change later like any
  * other. Photos not recorded go from the server again when the page closes. A receipt that looks
- * like one already recorded, or like one before it here, is left out, its row saying so (twins.ts):
- * typing its amount back records it after all.
+ * like one already recorded is left out, its row saying so (twins.ts): typing its amount back records
+ * it after all. Two here of one bill (the same receipt twice, or a receipt and the card slip that adds
+ * the tip) are recorded as one: the first takes the second in (its total with the tip, both photos),
+ * and the second's row says so.
  */
 import { ReceiptText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -15,17 +17,17 @@ import { useRates } from "../tools/fx";
 import { Button } from "../ui/Button";
 import { useToast } from "../ui/Toast";
 import { applyChange, type Change } from "./changes";
-import { nextRot, type Ledger } from "./core";
+import { nextRot, toMinor, type Ledger } from "./core";
 import { blankDraft, draftProblem, rated, readInto, saying, type Draft } from "./draft";
 import { decimalsOf, localDay, money, signOf } from "./format";
 import { asAmountText } from "./input";
-import { dayLabel, spentOn } from "./lines";
+import { dayLabel, extrasText, spentOn } from "./lines";
 import { Bar } from "./parts";
 import { Thumb } from "./Photos";
 import { TROUBLE_WORD } from "./photos";
 import { newId } from "./store";
 import { dropPhoto, readPhoto, record, sendPhoto } from "./syncing";
-import { saidOf, twinsOf, type Said, type Twin } from "./twins";
+import { joinBill, saidOf, twinsOf, type Said, type Twin } from "./twins";
 import { say, type Word } from "./words";
 
 /** As many receipts as one go takes (a day's reading has room for 30), and how many go and are read together. */
@@ -44,6 +46,8 @@ type Row = {
   said?: Said | null;
   twin?: Twin;
   touched?: boolean;
+  /** the rows of the same bill taken into this one, whose photos go with it */
+  with?: number[];
 };
 
 type Props = { ledger: Ledger; me: string | undefined; files: File[]; lang: Lang; onClose: () => void; onSaved: (ids: string[]) => void };
@@ -74,10 +78,18 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
   // be, is left out (its amount emptied), unless its amount was typed; once left out, it stays so
   const mark = (all: Row[]): Row[] => {
     const twins = twinsOf(all.map((r) => ({ said: r.status === "done" ? r.said : null, kept: !!r.draft.text })), ledgerNow.current);
-    return all.map((r, i) => {
-      const twin = twins[i];
-      return twin && !r.twin && !r.touched ? { ...r, twin, draft: { ...r.draft, text: "" } } : r;
+    const next = all.slice();
+    twins.forEach((twin, i) => {
+      const r = next[i];
+      if (!twin || r.twin || r.touched) return;
+      next[i] = { ...r, twin, draft: { ...r.draft, text: "" } };
+      // (one bill with a row before it: that row takes this one in, its total and tip unless typed over)
+      if ("row" in twin) {
+        const one = next[twin.row];
+        next[twin.row] = { ...one, draft: one.touched ? one.draft : joinBill(one.draft, r.draft), with: [...(one.with ?? []), i] };
+      }
     });
+    return next;
   };
 
   // each photo goes, then is read; a few at a time, in the order they were chosen. (Each time this
@@ -100,7 +112,7 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
         const got = await readPhoto(ledger.id, sent.file);
         if (gone) return;
         const filled = got && got !== "off" ? readInto(rowsNow.current[n].draft, got, ledger, ratesNow.current, Date.now()) : null;
-        const to: Partial<Row> = filled ? { status: "done", draft: filled, read: true, said: saidOf(filled, localDay(Date.now())) } : { status: "done" };
+        const to: Partial<Row> = filled && got && got !== "off" ? { status: "done", draft: filled, read: true, said: saidOf(filled, localDay(Date.now()), got.time) } : { status: "done" };
         setRows((all) => mark(all.map((r, i) => (i === n ? { ...r, ...to } : r))));
       }
       return one();
@@ -124,6 +136,8 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
     rows.forEach((r, i) => {
       const to = r.status === "done" && r.file ? saying(r.draft, l) : null;
       if (!to || !r.file) return;
+      // (with the photos of the rows of its bill it took in, unless an amount was typed back into one)
+      const photos = [r.file, ...(r.with ?? []).flatMap((n) => (rows[n].draft.text ? [] : [rows[n].file ?? ""]))].filter((f): f is string => !!f);
       const { paidIn, files: _unsaid, tip, tax, date, merchant, place, payment, ...said } = to;
       const id = newId();
       // (one after another, in the order chosen, each with the turn for its odd cents)
@@ -136,7 +150,7 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
           ...said,
           rot: nextRot(l),
           ...(paidIn ? { paidIn } : {}),
-          files: [r.file],
+          files: photos,
           ...(tip ? { tip } : {}),
           ...(tax ? { tax } : {}),
           ...(date ? { date } : {}),
@@ -147,7 +161,7 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
       };
       if (!record(ledger.id, change)) return;
       l = applyChange(l, change) ?? l;
-      kept.current.add(r.file);
+      for (const f of photos) kept.current.add(f);
       ids.push(id);
     });
     if (!ids.length) return toast(say(lang, "notSaved"), { tone: "warning" });
@@ -176,8 +190,10 @@ export function Receipts({ ledger, me, files, lang, onClose, onSaved }: Props) {
           const noRate = r.status === "done" && draftProblem(r.draft, ledger)?.what === "rate";
           // (left out as one seen before: said, until its amount is typed back)
           const twin = r.twin && !r.touched ? r.twin : null;
-          const twinSaid = !twin ? "" : "ledger" in twin ? say(lang, "receiptsTwinSeen", { what: `${dayLabel(spentOn(twin.ledger), today, lang)} ${money(r.said?.total ?? 0, r.said?.currency ?? r.draft.currency, lang)}` }) : say(lang, "receiptsTwinRow", { n: twin.row + 1 });
-          const about = twinSaid || (noRate ? say(lang, "receiptsNoRate", { currency: r.draft.currency }) : r.read ? [dayLabel(r.draft.date || today, today, lang), r.draft.place].filter(Boolean).join(" · ") : "");
+          const twinSaid = !twin ? "" : "ledger" in twin ? say(lang, "receiptsTwinSeen", { what: `${dayLabel(spentOn(twin.ledger), today, lang)} ${money(r.said?.total ?? 0, r.said?.currency ?? r.draft.currency, lang)}` }) : say(lang, "receiptsSameBill", { n: twin.row + 1 });
+          // (the tip, when there is one, before the place: a bill that took in its card slip says why its total grew)
+          const tip = r.draft.tip ? extrasText(toMinor(r.draft.tip, decimalsOf(r.draft.currency)), null, r.draft.currency, lang) : null;
+          const about = twinSaid || (noRate ? say(lang, "receiptsNoRate", { currency: r.draft.currency }) : r.read ? [dayLabel(r.draft.date || today, today, lang), tip, r.draft.place].filter(Boolean).join(" · ") : "");
           return (
             <li key={i} className={`split-batch-row${r.status === "failed" ? " is-off" : ""}`}>
               {/* the photo, with the scan's band over it while it goes and is read */}
