@@ -42,6 +42,7 @@
 - 交来晚的页来了就读，一个图书馆最后一页到了就重新发布清单；一个来源抓到一半失败，保留它之前列着的活动（11 月 11 日 Steve 说开工；#299、#300）。
 - 中文页面（11 月 19 日 Steve 要的）：活动名显示中文译名，原名小字在下面，再一句中文说明是什么活动；有图的配来源网站的图（3:1，懒加载，不带 referrer），没图就不放。中文由 Workers AI 写（`@cf/qwen/qwen3-30b-a3b-fp8`，免费额度内，不用钥匙），每小时补一次；只给没分类的活动分类，不动来源给的分类。名字规则：艺人、乐队、巡演、场馆等保留英文，本地球队用通行中文名（试过不加这条，Canucks 被写成「维多利亚喷气机队」）。Ticketmaster 的活动（演唱会、球赛）不让 AI 起名，一律显示来源的原名，只用它那句介绍；AI 写了「知名」「新生代」这类夸词，或者提到来源里没有的国家、民族，这条不收，下个小时重写，三次不行就只显示英文（v3，11 月 19 日：只靠提示词，正式跑时还是会把乐队 Pooh 写成小熊维尼、给 DJ 编国籍）。同一来源里文字一样的活动（每周的场次、连演几晚）只问一次、全用同一个答案；不同文字的同名活动（不同分馆的 Babytime），中文名统一用最常见的译名（11 月 19 日，「twins」和 `settle`）。
 - 来源出错时的通知：GitHub 每天检查一次前一天那一轮，有问题就在仓库里开一个 issue 并 @ Steve，GitHub 发邮件给他；同样的问题不再说，问题变了才评论，好了自己关。不用钥匙，用任务自己的 GitHub 凭证（只能写 issue）。仓库是公开的，issue 也公开，所以错误里的 key、token 一律抹掉（11 月 18 日 Steve 说「继续」，按这个方案做）。
+- 加来源（11 月 25 日 Steve 要，他用 Google 一搜就有一堆清单上没有的）：只接有公开接口或日历订阅的。Showpass 先接（公开 API，robots 允许 /api/，内容标记 search=yes）。Eventbrite 2020 年关了公开搜索，等 Steve 选：A 他注册拿免费钥匙、只读选定的主办方；B 读它公开的「温哥华活动」页（条款不允许）。不接：小红书、人在温哥华（VanPeople，挡程序）、Vansky（都是帖子和分类广告，不是日历；替代办法是以后做「投稿」）；Daily Hive、Do604、Georgia Straight、Kids Out and About（它们自己编的清单，不整份搬）；Destination Vancouver（robots 禁 /api/ 和 /plugins/）。
 
 ## 现在
 
@@ -69,7 +70,8 @@
 - 页面上的日历订阅（苹果、Google）还没人真订过：Google 和 iCloud 从它们自己的服务器来取，可能被机器人防护挡。上线后请 Steve 用手机点一次 Google 日历的链接，日历里有活动就是通了；空的就先把那个链接拿掉，要放行得改 Cloudflare 的设置，先问 Steve。
 - A3 中文名和介绍已上线；还没做：英文页的一句话介绍（summary_en 一直是空的）、日历订阅里的中文名、预览页显示中文名。AI 写错的名字现在只能等来源改文字或改提示词，没有手动改的地方（summary_by 'steve' 留着给以后）。
 - A4 去重（README 里有 C4、C5 审查留下的注意事项）；验收门 A。
-- 加新来源（11 月 18 日查过）：SFU 已接上（见记录）。还能接的：新西敏图书馆（nwpl.ca 的活动日历页有 JSON-LD，C2 能读）；高贵林图书馆用 Communico（coquitlam.libnet.info）；素里图书馆、北温市图书馆是 Drupal 的活动页，没找到 feed；BiblioCommons 上 surrey、fvrl、coqlibrary、nvcl、portmoody 都有站点但活动是 0。这几个大多是讲故事、英语角、新移民服务，和温哥华、列治文图书馆一类，好处是补上三联市、素里、北岸。SUCCESS 中侨（successbc.ca）有 The Events Calendar 的 iCal（`/events/?ical=1`）和 JSON（`/wp-json/tribe/events/v1/events`），但两周只有 7 个、4 个是线上的，而且都是医护求职说明会，先不接；中华文化园（vancouverchinesegarden.com）有 Cloudflare 的人机验证，读不了；中华文化中心（cccvan.com）是 Wix，没有 feed；华裔博物馆 `/events/` 是 404；陈氏演艺中心、市立剧院、科学馆、温哥华美术馆没找到 feed；vancouver.ca 挡（403）。和 Ticketmaster 重的场馆（比如 Commodore）等 A4 去重做了再接。
+- 加新来源（11 月 25 日查过，接 Showpass 之后的顺序）：Meetup（每个小组有公开的 iCal：`meetup.com/<小组>/events/ical/`，挑一批温哥华活跃、谁都能去的小组）；场馆和社区的日历（The Events Calendar 的公开接口 `/wp-json/tribe/events/v1/events`：Roundhouse 两周 11 个、The Dance Centre 19 个、Richmond Oval 3 个；ISSofBC 也是）；高贵林市（CivicPlus，有 RSS 和 iCal）；北岸旅游局（WordPress，`/events/feed/`）；列治文旅游局（WordPress，页上有 JSON-LD）。Eventbrite 等 Steve 选 A 还是 B。「投稿」：网友或 Steve 贴链接、海报截图，AI 读出时间地点，Steve 点同意才上清单（小红书、微信群的活动只能这样来）。
+- （11 月 18 日查过的）SFU 已接上（见记录）。还能接的：新西敏图书馆（nwpl.ca 的活动日历页有 JSON-LD，C2 能读）；高贵林图书馆用 Communico（coquitlam.libnet.info）；素里图书馆、北温市图书馆是 Drupal 的活动页，没找到 feed；BiblioCommons 上 surrey、fvrl、coqlibrary、nvcl、portmoody 都有站点但活动是 0。这几个大多是讲故事、英语角、新移民服务，和温哥华、列治文图书馆一类，好处是补上三联市、素里、北岸。SUCCESS 中侨（successbc.ca）有 The Events Calendar 的 iCal（`/events/?ical=1`）和 JSON（`/wp-json/tribe/events/v1/events`），但两周只有 7 个、4 个是线上的，而且都是医护求职说明会，先不接；中华文化园（vancouverchinesegarden.com）有 Cloudflare 的人机验证，读不了；中华文化中心（cccvan.com）是 Wix，没有 feed；华裔博物馆 `/events/` 是 404；陈氏演艺中心、市立剧院、科学馆、温哥华美术馆没找到 feed；vancouver.ca 挡（403）。和 Ticketmaster 重的场馆（比如 Commodore）等 A4 去重做了再接。
 
 ## 交给别的对话
 
@@ -79,6 +81,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-25 What's On: Showpass, every date and every season (the Christmas Market, VanDusen's lights)
 - 2026-11-19 What's On: Ticketmaster's long names no longer turn down the sentence that goes with them
 - 2026-11-19 What's On: every date of an event gets the same Chinese, asked once; a name written two ways goes the commonest way
 - 2026-11-19 What's On: a picture cut to 3:1 keeps more of its top, where the faces are
@@ -162,3 +165,4 @@
 - 2026-11-19 12:05 UTC（#676 上线后第一轮）：一步、问了 3 个，Saliah 重写成「Saliah in Vancouver」（原名）加「电子音乐现场演出，阿拉伯DJ Saliah带来高能量表演」，「知名」没了；「阿拉伯」过了检查，说明来源的标签或说明里有 Arab。另外 2 个 Ticketmaster 的（2Dead Boyz、Natalie MacMaster 的圣诞演出）答案还是没过，13:05、14:05 再试，三次不行就只显示英文。
 - 2026-11-19 早上查 SFU 时看到：同一个每周活动每天的中文名不一样，因为每一场单独问 AI（648 个活动只有 309 种文字）。Baby Stay and Play 两周里 9 种译名，Family Stay and Play 有「家庭留宿与玩耍」，Peeling Oranges 三晚两个名字。改成：同一来源、同一文字（text_hash）只问最早那一场，答案和失败次数给所有场次；每小时先 `settle`：场次之间说法不一的取最多的那个，新进来的场次直接照抄；再把同一个英文名的不同译名统一成最常见的（翻译优先于原样保留英文，一样多按字排）。按 13:05 的清单算，第二步会改 144 个名字。Ticketmaster、Steve 写的、来源给的分类不动。
 - 2026-11-19 14:05 UTC（#679 上线后第一轮）：没问 AI 就改了 164 个（场次照抄、名字统一），清单 648 个里 647 个有中文，同一个英文名只剩一个中文名（Babytime 72 场都是「婴儿时间」）。介绍还有 122 组不一样，全是温哥华、列治文图书馆的：它们的行要等今天 GitHub 交来才有 text_hash，之后那一轮会统一。同一轮发现 2Dead Boyz 一直不过的原因：AI 照规矩把 50 多个字的英文原名整个留下，超过 40 字的名字上限，连那句介绍一起被拒；Ticketmaster 的名字反正用来源的，改成不算它的长度（#680）。这一场已经试满三次，明天就结束，不为它重写全部。
+- 2026-11-25 Steve 发来 Google「what to do this weekend vancouver」的截图：VanDusen 灯节、圣诞市集、Hycroft、原住民手工市集都不在清单上，要多接来源（Eventbrite、Daily Hive、人在温哥华、Vansky、小红书等）。查的结果见「定过的事」。Showpass 公开 API：`/api/public/events/`（每一场一条，带票价、说明；圣诞市集和灯节是每半小时一个时段，两周 613 条里 330 多条是时段）和 `/api/public/discovery/`（在卖的产品一条，市集是整季一条，系列是第一场到最后一场一条）。所以分两个来源：`showpass` 读前者、只要一天以内的、不要时段和溜冰场的场次；`showpass-season` 读后者、只要一天以上的、不要系列。UBC 的学生社团大量用 Showpass（会员卡、瑜伽课），按主办方名字和 UBC、SFU 校园的邮编去掉；VanDusen 和 Bloedel 的「某月门票」按名字去掉。Ticketmaster 的圈子（素里和兰里之间 60 公里）。两周大约多 250 个活动。`show_on_calendar` 不能当「不公开」用：Sockeyes 的球赛和舞会也是关的。

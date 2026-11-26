@@ -9,8 +9,10 @@ Where it is: the foundation (gate A's tasks A1, A2, A5). Each morning's run read
 Vancouver calendar, the Vancouver and Richmond public libraries' events (handed over by a GitHub job, see Live), Burnaby's library's own feed, UBC's calendar (only what
 anyone can walk into: open to all or the community, in person on the Vancouver campus), SFU's
 calendar (LiveWhale's JSON, `src/parsers/livewhale.ts`; the same rule: SFU's audience "Public", in
-person, not a defence, info session or student service, except an art student's thesis show), and
-Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
+person, not a defence, info session or student service, except an art student's thesis show),
+Showpass (its public API, `src/parsers/showpass.ts`: every date as "showpass", what runs longer than
+a day, like the Christmas Market's season, as "showpass-season"; no student club's, nothing on a
+campus, no membership or pass), and Ticketmaster; stores them in D1 and publishes the next 14 days to KV (473 events on 1 November);
 `/go/api/events` and `/go/api/status` answer, and `/go/preview` shows what's published day by day
 (in Chinese, or English with `?lang=en`; not linked from anywhere and not indexed) to check the run by eye.
 The page itself is at `/go` (src/page.ts), on the Tools tab of changle.ca since 14 November (Steve's
