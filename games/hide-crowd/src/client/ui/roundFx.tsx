@@ -208,7 +208,7 @@ export function Awards(props: { awards: AwardView[] }) {
   return (
     <ul class="awards" aria-label={t("awards")}>
       {props.awards.map((item, index) => (
-        <li key={index} class={`award${item.you ? " is-you" : ""}`}>
+        <li key={index} class={`award${item.you ? " is-you" : ""}`} style={`--i: ${index}`}>
           <span class="award-name">{item.name}</span>
           <b class="award-title">{t(AWARD[item.award].title)}</b>
           <span class="award-why">{t(AWARD[item.award].why)}</span>

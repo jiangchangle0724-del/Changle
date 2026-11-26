@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARENA, BIKE_MS, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, characterForOwner, rideBike } from "../src/engine";
+import { ARENA, BIKE_MS, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, TAGGER_SHOWN_MS, characterForOwner, rideBike } from "../src/engine";
 import { HOST_GRACE, HOST_HOLD, Room } from "../src/room/room";
 
 const first = "player-one";
@@ -168,6 +168,67 @@ test("a tag scores, the tagged player slips into the crowd, and the round ends i
   room.handle(first, { t: "start" }, at + 2);
   room.advance(at + 2 + MATCH_MS + 5_000);
   assert.equal(room.view(first, "player", at + MATCH_MS + 5_003).result?.penalty, null);
+});
+
+test("a tag names the other player on the two phones it concerns, and the tagged phone sees, for a moment, the body that did it", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  const at = 20;
+  tag(room, first, second, at);
+  const now = at + 200;
+  const event = (viewer: string) => room.view(viewer, "player", now).game!.events.find((item) => item.t === "tag")!;
+  assert.equal(event(second).onYou, true);
+  assert.equal(event(second).name, "Ari", "the tagged phone hears who did it");
+  assert.equal(event(first).byYou, true);
+  assert.equal(event(first).name, "Bo", "the tagger's phone hears whom");
+  assert.equal(event(third).name, undefined, "nobody else hears a name");
+  assert.equal(room.view(screen, "screen", now).game?.events.some((item) => item.name !== undefined) ?? false, false);
+  // the tagger's body is named on the tagged phone (in the shuffled list, where the tagger stands)
+  const tagger = characterForOwner(room.st.game!, first)!;
+  const named = (viewer: string, when: number) => room.view(viewer, "player", when).game!.avatars.filter((avatar) => avatar.by !== undefined);
+  const seen = named(second, now);
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].by, "Ari");
+  assert.deepEqual([seen[0].x, seen[0].y], [Math.round(tagger.x * 100) / 100, Math.round(tagger.y * 100) / 100]);
+  assert.equal(named(first, now).length, 0, "the tagger isn't named on their own phone");
+  assert.equal(named(third, now).length, 0, "nor on anyone else's");
+  // still there once the tagged player has slipped away into another body, then gone
+  room.advance(at + 170 + STUN_MS + 100);
+  assert.equal(named(second, at + 170 + STUN_MS + 100).length, 1);
+  room.advance(at + 170 + TAGGER_SHOWN_MS + 50);
+  assert.equal(named(second, at + 170 + TAGGER_SHOWN_MS + 50).length, 0);
+});
+
+test("a tagger named on a phone stops being named if that body stops being theirs", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  tag(room, first, second, 20);
+  // Cy tags Ari straight away: Ari slips into another body, and the one Bo saw is a passer-by's
+  const later = 20 + 170 + 300;
+  tag(room, third, first, later);
+  room.advance(later + 170 + STUN_MS + 100);
+  const avatars = room.view(second, "player", later + 170 + STUN_MS + 100).game!.avatars;
+  assert.equal(avatars.some((avatar) => avatar.by === "Ari"), false);
+});
+
+test("the results tell each player who spotted them and whom they spotted; a big screen gets neither", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "start" }, 10);
+  let at = 20;
+  for (const [attacker, target] of [[first, second], [third, second], [first, second], [first, third]] as const) {
+    tag(room, attacker, target, at);
+    at += 170 + STUN_MS + 50;
+    room.advance(at);
+  }
+  room.advance(at + MATCH_MS);
+  const mine = (viewer: string) => room.view(viewer, "player", at + MATCH_MS).result!.mine;
+  assert.deepEqual(mine(second), { by: [{ name: "Ari", n: 2 }, { name: "Cy", n: 1 }], got: [] });
+  assert.deepEqual(mine(first), { by: [], got: [{ name: "Bo", n: 2 }, { name: "Cy", n: 1 }] });
+  assert.deepEqual(mine(third), { by: [{ name: "Ari", n: 1 }], got: [{ name: "Bo", n: 1 }] });
+  assert.equal(room.view(screen, "screen", at + MATCH_MS).result!.mine, null);
 });
 
 /** Stand a player still at one of the night market's stalls (everyone else far off) until it's tasted. */

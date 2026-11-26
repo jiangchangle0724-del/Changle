@@ -1152,6 +1152,13 @@ button.arena-option:active {
   background: var(--color-warning);
   color: var(--color-bg);
 }
+/* (getting up in another body: who it was that spotted you, under the line) */
+.play-notice-sub {
+  display: block;
+  margin-top: 2px;
+  font: 700 var(--text-sm) / var(--leading-tight) var(--font-text);
+  opacity: 0.8;
+}
 @keyframes notice-in {
   from {
     opacity: 0;
@@ -1390,7 +1397,8 @@ button.arena-option:active {
   width: 100%;
   max-width: 480px;
   max-height: 100%;
-  overflow: auto;
+  /* (sideways only: a title stamping on mustn't flash a scrollbar) */
+  overflow: hidden auto;
   padding: var(--space-6) var(--space-4) var(--space-4);
   border-radius: var(--r-sheet);
   background: var(--color-sheet);
@@ -1429,6 +1437,126 @@ button.arena-option:active {
 }
 .result-table tr.is-you th {
   color: var(--gel);
+}
+.result-place {
+  display: inline-block;
+  width: 24px;
+  margin-inline-end: var(--space-2);
+  color: var(--color-text-2);
+  font-weight: 800;
+  text-align: center;
+  vertical-align: middle;
+}
+.result-place svg {
+  display: block;
+  margin: 0 auto;
+}
+.result-name {
+  vertical-align: middle;
+}
+.result-table tr.is-winner {
+  background: color-mix(in oklab, var(--gel) 14%, transparent);
+}
+.result-table tr.is-winner .result-place {
+  color: var(--gel);
+}
+.result-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.result-count b {
+  display: inline-block;
+  min-width: 1ch;
+  animation: point-pop var(--dur-emphasis) var(--ease-pop);
+}
+/* who spotted you, whom you spotted (a phone's own round) */
+.result-mine {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  text-align: start;
+}
+.result-mine > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+.result-mine dt {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.result-mine dd {
+  display: contents;
+}
+.result-who {
+  padding: 2px var(--space-2);
+  border-radius: var(--r-pill);
+  background: var(--color-surface);
+  font-weight: 700;
+}
+.result-mine .is-by .result-who {
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+}
+.result-mine .is-got .result-who {
+  box-shadow: inset 0 0 0 2px var(--gel);
+}
+.result-who small {
+  margin-inline-start: var(--space-1);
+  color: var(--color-text-2);
+  font-weight: 600;
+}
+/*
+ * It plays in quickly (Result.tsx): the title pops, the rows come in best first (each half a
+ * --dur-exit after the one above, as ROW_STEP_MS), the titles stamp on, and a tap (.is-now), reduced
+ * motion or the game's own Motion setting shows everything at once.
+ */
+.result-title,
+.tv-result-title {
+  animation: result-pop var(--dur-emphasis) var(--ease-pop) var(--dur-exit) both;
+}
+.result-table tbody tr {
+  animation: result-row var(--dur-enter) var(--ease-out) both;
+  animation-delay: calc(var(--dur-enter) + var(--i, 0) * var(--dur-exit) / 2);
+}
+.result-mine {
+  animation: fade-in var(--dur-enter) var(--ease-out) both;
+  animation-delay: calc(var(--dur-emphasis) * 2);
+}
+.awards .award {
+  animation: award-stamp var(--dur-emphasis) var(--ease-pop) both;
+  animation-delay: calc(var(--dur-emphasis) * 2 + var(--dur-enter) + var(--i, 0) * var(--dur-exit) / 2);
+}
+@keyframes result-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes result-row {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+@keyframes award-stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.2) rotate(-3deg);
+  }
+}
+.result.is-now :is(.result-title, tbody tr, .result-count b, .result-count i, .result-mine, .award) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.result-title, .tv-result-title, .result-table tbody tr, .result-count b, .result-mine, .awards .award) {
+    animation: none;
+  }
+}
+[data-reduced="1"] :is(.result-title, .tv-result-title, .result-table tbody tr, .result-count b, .result-mine, .awards .award) {
+  animation: none;
 }
 .result-actions {
   display: grid;
@@ -2017,6 +2145,20 @@ html.is-tv body::before {
 .tv-result .result-table {
   font-size: var(--text-lg);
 }
+.tv-result .score-pips {
+  gap: var(--space-1);
+}
+.tv-result .score-pips i {
+  width: 14px;
+  height: 14px;
+}
+.tv-result .result-place {
+  width: 32px;
+}
+.tv-result .result-place svg {
+  width: 28px;
+  height: 28px;
+}
 .tv-result .tv-wait {
   margin-top: var(--space-6);
 }
@@ -2310,6 +2452,11 @@ html.is-tv body::before {
 .flat-avatar__you.is-name {
   background: var(--color-surface);
   color: var(--color-text);
+}
+/* whoever just tagged you, for a moment (room.ts): their name over them */
+.flat-avatar__you.is-tagger {
+  background: var(--color-danger);
+  color: var(--on-gel);
 }
 @media (prefers-reduced-motion: reduce) {
   .flat-avatar.pose-dance .flat-avatar__turn {

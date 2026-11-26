@@ -61,6 +61,11 @@ export interface AvatarView {
   n?: string;
   /** once the round is over: this body won it */
   w?: 1;
+  /**
+   * on a tagged player's phone only, for a moment (engine TAGGER_SHOWN_MS): the player in this body,
+   * who just tagged them
+   */
+  by?: string;
 }
 
 export interface EventView {
@@ -72,6 +77,14 @@ export interface EventView {
   byYou: boolean;
   /** this phone's player was tagged (or, a blast or the bike: knocked down by it) */
   onYou: boolean;
+  /** a tag, on the two phones it concerns: who tagged this phone's player, or whom they tagged */
+  name?: string;
+}
+
+/** A rival and a count: who spotted you, or whom you spotted, how many times this round. */
+export interface TallyView {
+  name: string;
+  n: number;
 }
 
 /**
@@ -160,6 +173,8 @@ export interface ResultView {
   /** null when the host turned penalties off */
   penalty: PenaltyView | null;
   awards: AwardView[];
+  /** a player's own round: who spotted them and whom they spotted, most first (a big screen: null) */
+  mine?: { by: TallyView[]; got: TallyView[] } | null;
 }
 
 export interface RoomView {
