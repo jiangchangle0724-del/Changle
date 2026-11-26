@@ -383,10 +383,15 @@ type `records`:
   inside the sealed part, so the server cannot change them, and what they say about which copy
   came from which does not depend on anything the server says.
 - `t` is when the record was last changed, by the clock of the device that changed it.
-- A record takes at most 4,096 bytes as JSON with its id. A chunk with 240 records takes no new
-  one, and a device does not grow its copy of a chunk past 512 KiB. 240 times 4,096 is under the
-  one mebibyte a chunk may hold (1.1), so a single device cannot build a chunk too large to seal.
-  A merge of several devices' copies can; see "too large" below.
+- A record's size is the number of bytes, in UTF-8, of the text it has in the chunk,
+  `"<id>":{"k":"<kind>","t":<t>,"d":{…}}` with no spaces, plus one for the comma after it. It is
+  at most 4,096, that number included. (The record with the id `AAAAAAAAAAAAAAAAAAAAAQ`, the
+  kind `txn`, `t` 5 and one field `n` equal to 1 is written
+  `"AAAAAAAAAAAAAAAAAAAAAQ":{"k":"txn","t":5,"d":{"n":1}}`, 54 bytes, and counts as 55.) A chunk
+  with 240 records takes no new one, and a device does not grow its copy of a chunk past
+  512 KiB. 240 times 4,096 is under the one mebibyte a chunk may hold (1.1), so a single device
+  cannot build a chunk too large to seal. A merge of several devices' copies can; see "too
+  large" below.
 - A reader refuses contents it does not know: a larger `v` is reported as "written by a later
   version of the app", anything else malformed is reported as such, and in both cases the chunk
   is neither used nor written over. Fields of a record that this version does not know are kept
@@ -426,25 +431,38 @@ Record by record, then field by field:
 - "The same" means the same kind and the same fields with the same values. `t` is not compared:
   a record touched and left as it was has not changed.
 - A record that is the same on this device as in the starting copy takes the server's state
-  (changed, removed, or as it was). One that is the same on the server as in the starting copy
-  takes this device's. One that is the same on both sides is that.
+  (changed, removed, or as it was), with the server's `t`. One that is the same on the server as
+  in the starting copy takes this device's, with this device's `t`. One that both sides changed
+  to the same thing is that, with the later of the two `t`s.
 - Otherwise both changed it. If one side removed it, it is removed, whatever the other side did,
   and the app is told that a change was dropped with it.
 - Otherwise both sides have it, changed differently: field by field, by the same three rules (a
   field absent on a side counts as a value of its own). A field both changed to different values
   goes to the side whose record has the later `t`, and the app is told. On the same millisecond
-  the two versions are compared as text (the kind, a space, then the record as JSON with the
-  keys of every object in order) and the greater wins, so that both devices pick the same one.
-  The kind is treated as one more field. The merged record's `t` is the later of the two.
+  the two versions are compared as text (the kind, a space, then the record as JSON, its id
+  included, with the keys of every object in order) and the greater wins, so that both devices
+  pick the same one. The kind is treated as one more field, and a kind both sides changed
+  differently is reported like one. The merged record's `t` is the later of the two.
 - If the merged record would be larger than a record may be (each side filled a different
-  field), the side that would win a clash is kept whole, and the app is told.
+  field), the side that would win a clash is kept whole, with its own `t`, and the app is told.
 - With no starting copy (a cache that was lost), nothing counts as removed: a record on either
   side is kept, and one on both is merged field by field as if it had been empty before.
 
-The result is the same whichever device does the merging, and it is then sent as a write made
-from the server's copy. So no device writes over what another wrote without having read it.
-`t` is used only to settle a field both sides changed. A device that changes a record gives it a
-`t` later than the one it had, so a device whose clock is behind does not lose every such tie.
+The merged kinds and fields are the same whichever device does the merging. So are the times,
+with one exception that changes nothing: a record that one side touched and left as it was takes
+the other side's time, and a time alone is never sent. The result is sent as a write made from
+the server's copy, so no device writes over what another wrote without having read it. `t` is
+used to settle a field both sides changed, and in the one case described next. A device that
+changes a record gives it a `t` later than the one it had, so a device whose clock is behind
+does not lose every such tie.
+
+**The same record in two chunks.** It should never happen: ids are 128 random bits, and a record
+does not move once the server has it. A device gone wrong, or one that used an id twice, could
+still do it, with nothing but the ordinary calls. A device that finds a record in more than one
+chunk merges the copies into one, as above with no starting copy (every field any copy has, and
+where they differ the value of the copy with the later `t`), keeps the result in the chunk with
+the smallest id, takes it out of the others, and tells the app. A change to such a record
+settles it first, so the change is never made to one copy at the cost of the other.
 
 **Sending twice.** A write replaces a whole chunk, so the same write arriving twice is the same
 chunk once. What needs care is a write whose answer never came, because a request that timed out
@@ -473,7 +491,7 @@ change and sends less often, because every send that changes a chunk counts agai
 
 **A server whose copy went back** (a restore, a fault, or a server that means harm). A device
 that has synced before notices at its next sync, in one of these ways, and then stops, says so,
-and changes nothing on either side:
+and changes nothing on either side, its own cache and its place in the server's list included:
 
 - the digest does not match what the device believes the server holds; it then asks for
   everything and finds a chunk it had that is gone, or a chunk whose version number is not
@@ -488,6 +506,17 @@ and changes nothing on either side:
 The way out that exists today is to take the server's copy: empty this device's cache and start
 again from the server, after offering an export of what the device holds. Putting the device's
 copy back on the server is not built (section 3).
+
+**Answers that are not answers.** Whatever comes back from the server is checked before anything
+in it is used: that it is an answer at all, its shape, its ids, that version numbers go up, and
+for a refusal that the reason is one of those above. Anything else is a bad reply: the sync ends
+and says so, and nothing is taken from it. After a push it also leaves what was sent as of
+unknown fate, since such an answer does not say whether the write happened. An answer in pages
+has to end: a pull stops, as a bad reply, after 1,000 pages, 20,000 chunks or 64 MiB, or when one
+chunk has come round more than eight times, all of which are far past what a vault can hold. So
+a server cannot keep a sync running for ever, nor keep the saves that wait behind it from
+happening. A time limit on each request belongs to the code that talks to the server over the
+network, which is not written yet.
 
 **Too large.** A merged chunk can exceed what one chunk may hold. The records this device added
 and has not sent then go to another chunk. If that is not enough (it takes several devices each
@@ -514,7 +543,12 @@ pages closed at random saves, and then checks that all devices and the server ho
 records, that every record added and not removed is there, that every removed record is gone,
 and that a field only one device changed has that device's last value. It runs eight times in CI
 and was run several thousand times before the code was merged. Each check in the code was also
-taken out in turn to see that a test fails without it. The cache in the browser's storage is
+taken out in turn to see that a test fails without it. Another vendor's model then wrote the
+merge from this section alone, before it had seen the code, and compared the two on 24,000
+random cases (they agree on every one, times included, after the fix to its first finding); ran
+schedules of faults of its own against the store; and reviewed the three files line by line. Its
+review, seven findings, and what was done about each are in
+[`reviews/sync-second-opinion.md`](reviews/sync-second-opinion.md). The cache in the browser's storage is
 tried in a real browser (`scripts/check-cache.ts`, part of `npm run test:page`): what IndexedDB
 holds after use is ids, version numbers and sealed bytes in which none of the records' words can
 be read, local and session storage and cookies are empty, a second tab is refused the cache, and
@@ -544,7 +578,8 @@ a page opened again finds every record (T-24).
   help to have such a branch.)
 - **Clocks.** When two devices change the same field of the same record without having seen each
   other's change, the later clock wins. A device with a wrong clock can win or lose such a tie
-  wrongly. Nothing else depends on clocks.
+  wrongly. The same holds for the fields of a record found in two chunks (1.6), which should
+  never happen. Nothing else depends on clocks.
 - **The version byte.** A blob's first byte is checked but not protected on its own. Changing it
   makes the blob fail to open; the app may then say it looks newer than the app, which is a wrong
   message, not an exposure.

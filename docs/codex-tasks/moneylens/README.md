@@ -25,7 +25,8 @@ Always:
 | --- | --- | --- | --- |
 | [C1](C1-vault-second-opinion.md) | A second opinion on the vault's cryptography, from another vendor's model: a reader for the stored format written from the assessment alone, a test that runs it against the code, then a review | `tests/second/vault.ts` (new), `tests/second.test.ts` (new), `docs/moneylens/reviews/vault-second-opinion.md` (new) | merged 2026-11-20 (#692). Verdict: approve. One minor finding, which is C2; one wording note, done in the assessment (0.7) |
 | [C2](C2-recovery-bytes-cleanup.md) | The fix for C1's finding: a new recovery code's bytes are cleared when wrapping fails. Codex writes it, Claude Code reviews it (SEC-9) | `src/vault/crypto.ts` (`wrapUnder` only), `tests/wrap-cleanup.test.ts` (new) | merged 2026-11-21 (#727), after a line-by-line review recorded in the PR |
-| [C3](C3-sync-second-opinion.md) | A second opinion on the storage layer (records in chunks, merging, sync) before it is merged: a merge written from the assessment alone and run against the code, a run of its own against the store, then a review | `tests/second/merge.ts` (new), `tests/second-sync.test.ts` (new), `docs/moneylens/reviews/sync-second-opinion.md` (new) | sent 2026-11-21, branch `codex/moneylens-c3-sync-second-opinion`, into `claude/moneylens-vault-records` |
+| [C3](C3-sync-second-opinion.md) | A second opinion on the storage layer (records in chunks, merging, sync) before it is merged: a merge written from the assessment alone and run against the code, a run of its own against the store, then a review | `tests/second/merge.ts` (new), `tests/second-sync.test.ts` (new), `docs/moneylens/reviews/sync-second-opinion.md` (new) | merged into the branch 2026-11-21 (#736). Verdict: changes needed, seven findings (one major: pages that never end). All seven dealt with; the table is at the end of the review |
+| [C4](C4-sync-second-round.md) | The second round: are the seven findings resolved, did the fixes break anything, and the cache in the browser's storage, which was added since | `docs/moneylens/reviews/sync-second-opinion.md` (first line, and a section at the end), `tests/second-sync.test.ts` if tests are added | sent 2026-11-25, branch `codex/moneylens-c4-sync-second-round`, into `claude/moneylens-vault-records` |
 
 What to send Codex, one card at a time (C1's message; for another card change the branch, the card's file and the line about what matters most):
 
@@ -57,5 +58,15 @@ C3's message:
 按 docs/codex-tasks/moneylens/C3-sync-second-opinion.md 做（这个文件只在那个分支上有）。先读 docs/codex-tasks/moneylens/README.md。
 卡上「先后顺序」那一节是重点：自己的 merge 写完并单独提交之前，不要打开 tools/moneylens/src/vault/ 里的 records.ts、sync.ts、memory.ts，也不要看它们的测试和那个 PR 的改动。
 只加卡上写的三个文件，不要改 src。跑卡上的三条命令都通过后开 PR，PR 的目标分支是 claude/moneylens-vault-records，不是 main；PR 描述里用文字贴测试输出。不要自己开浏览器。
+不要合并，不要推 main，不要部署；代码和提交里都不能出现任何密钥，也不能出现任何真实的财务数据。
+```
+
+C4's message:
+
+```
+本机的 Changle 仓库里别的对话正在干活，所以不要在原来的文件夹里切分支或改文件：只运行 git fetch origin，
+然后用 git worktree add 从 origin/claude/moneylens-vault-records（注意：不是 origin/main）开一个新文件夹和新分支 codex/moneylens-c4-sync-second-round，只在新文件夹里做。
+按 docs/codex-tasks/moneylens/C4-sync-second-round.md 做（这个文件只在那个分支上有）。这是你上次那份审查（C3，结论 CHANGES NEEDED，七条发现）的第二轮：看七条是不是真的改好了、改动有没有带出新问题，再审一个后来加进来的文件 tools/moneylens/src/web/idbcache.ts。
+只改卡上写的两个文件，不要改 src。卡上的命令都通过后开 PR，PR 的目标分支是 claude/moneylens-vault-records，不是 main；PR 描述里用文字贴测试输出。npm run test:page 会不开窗口地启动本机的 Chrome，这个可以跑；除此之外不要自己开浏览器。
 不要合并，不要推 main，不要部署；代码和提交里都不能出现任何密钥，也不能出现任何真实的财务数据。
 ```

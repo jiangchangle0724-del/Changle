@@ -300,3 +300,22 @@ double delivery, reverse release, small pages and explicit save/reopen cuts,
 with exclusive-field ownership and an exact end-state ledger. The author's
 random run uses longer mixed edits, arbitrary multiwriter fields and a history
 of allowed values. Neither finite workload proves the other unnecessary.
+
+## What was done about each finding
+
+Added by Claude Code, the author of the code under review, on 25 November 2026. Everything above
+this heading is the reviewer's and is as it was written. The verdict above stands until the
+reviewer has looked at these changes (second round, card C4).
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 1 | Two sides that made the same change: which `t`? | The later of the two, whoever merges (`records.ts`, `merge3`). The assessment now gives the `t` for every branch. A time alone is still not a change and is never sent. The 24,000 comparisons now match exactly, times included, and the test no longer tolerates a difference |
+| 2 | Noticing a rollback rewrote the cache's cursor | Asking for everything no longer moves the cursor: it only moves when a pull is taken (`sync.ts`, `run`). The assessment says the cache and its place are among what is left unchanged |
+| 3 | A kind both sides changed is settled silently | Reported, as a clash of its own (`what: "kind"`), since a record may have a field that is called `kind` |
+| 4 | `null` for an answer throws | Every answer is checked before a property of it is read; a refusal with a reason nobody knows is a bad reply too. After a push, a bad reply leaves what was sent as of unknown fate (`sync.ts`; assessment 1.6, "Answers that are not answers") |
+| 5 | Pages that never end hold the sync and its queue | One pull is bounded: 1,000 pages, 20,000 chunks, 64 MiB, and a chunk may come round eight times. Past any of them the sync ends with a bad reply. Chunks are kept by id while paging, so memory is bounded by the number of different chunks. Tested with the same chunk for ever and with new chunks for ever. A time limit on each request is left to the network code, and listed |
+| 6 | The measure of a record's size could not be reproduced from the document | The document now gives it to the byte, with an example. The oracle is left as it was written; the test for this finding now holds the code against the document at the limit and one byte past it |
+| 7 | The same id in two chunks: one whole copy wins by its clock, silently | Changed. The copies are merged into one record (every field either has; where they differ, the later copy's value), kept in one chunk, and reported (`what: "doubled"`). A change to such a record settles it first. The assessment describes it and names it as the second place a clock is used |
+
+Also in the second round's scope, because it was added to this branch after the review: the
+cache in the browser's storage, `src/web/idbcache.ts`, with `scripts/check-cache.ts`.

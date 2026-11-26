@@ -92,8 +92,8 @@ await store.flush();                                   // seal what changed and 
   changes that only this device holds. Safari empties a site's storage after seven days without
   a visit, so "saved on this device, not yet on the server" has to be visible.
 - **`sync` says what happened.** `ok`, with `clashes`: changes the merge could not keep (a field
-  both devices changed: the later change won; a record changed here and removed there). Worth a
-  line to the person, not a dialog. Or not `ok`, with why:
+  both devices changed: the later change won; a record changed here and removed there), and two
+  that should never come up (`kind`, `doubled`). Worth a line to the person, not a dialog. Or not `ok`, with why:
 
   | `why` | What to do |
   | --- | --- |
