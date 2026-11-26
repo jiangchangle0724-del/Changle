@@ -69,22 +69,24 @@ export async function openCache(name: string): Promise<Cache & { close(): void }
       const meta = tx.objectStore(META);
       const chunks = tx.objectStore(CHUNKS);
       const was = meta.get(IT) as IDBRequest<Meta | undefined>;
-      let other = false;
+      let failure: unknown;
       was.onsuccess = () => {
-        // a cache holds one vault; the store empties it before it uses it for another
-        if (was.result && was.result.vault !== vault) {
-          other = true;
+        try {
+          // a cache holds one vault; the store empties it before it uses it for another
+          if (was.result && was.result.vault !== vault) throw new Error("cache: it holds another vault");
+          meta.put({ vault, cursor: change.cursor } satisfies Meta, IT);
+          for (const kept of change.put) chunks.put({ id: kept.id, version: kept.version, ...(kept.base ? { base: kept.base } : {}), ...(kept.local ? { local: kept.local } : {}), ...(kept.sent ? { sent: kept.sent } : {}) } satisfies Kept);
+          for (const id of change.drop) chunks.delete(id);
+        } catch (error) {
+          // Whatever was asked for before this goes with it: a save is all or nothing.
+          failure = error;
           tx.abort();
-          return;
         }
-        meta.put({ vault, cursor: change.cursor } satisfies Meta, IT);
-        for (const kept of change.put) chunks.put({ id: kept.id, version: kept.version, ...(kept.base ? { base: kept.base } : {}), ...(kept.local ? { local: kept.local } : {}), ...(kept.sent ? { sent: kept.sent } : {}) } satisfies Kept);
-        for (const id of change.drop) chunks.delete(id);
       };
       try {
         await end;
       } catch (error) {
-        throw other ? new Error("cache: it holds another vault") : error;
+        throw failure ?? error;
       }
     },
 
@@ -114,14 +116,22 @@ export async function holdCache(name = "moneylens"): Promise<Held | "taken" | "u
   if (typeof navigator === "undefined" || !navigator.locks || typeof indexedDB === "undefined") return "unavailable";
   let release!: () => void;
   const until = new Promise<void>((resolve) => (release = resolve));
-  const got = await new Promise<boolean>((resolve) => {
-    // the lock is held for as long as the promise this returns is pending
-    navigator.locks.request(`${name}/cache`, { ifAvailable: true }, (lock) => {
-      resolve(lock !== null);
-      return lock ? until : undefined;
-    }).catch(() => resolve(false));
+  // Three answers, kept apart: the lock was given; another page has it; or the browser would not say (a policy that
+  // refuses locks, say), which is no storage this page can hold alone and not "another tab".
+  const got = await new Promise<"held" | "taken" | "unavailable">((resolve) => {
+    try {
+      navigator.locks
+        // the lock is held for as long as the promise the callback returns is pending
+        .request(`${name}/cache`, { ifAvailable: true }, (lock) => {
+          resolve(lock ? "held" : "taken");
+          return lock ? until : undefined;
+        })
+        .catch(() => resolve("unavailable"));
+    } catch {
+      resolve("unavailable");
+    }
   });
-  if (!got) return "taken";
+  if (got !== "held") return got;
   try {
     const cache = await openCache(name);
     return {

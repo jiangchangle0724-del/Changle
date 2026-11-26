@@ -88,6 +88,42 @@ const api = {
       return String((error as Error).message);
     }
   },
+  /** What the cache says it holds: the vault, how far the last pull reached, and which chunks. */
+  async loaded(): Promise<{ vault: string; cursor: number; ids: string[] } | null> {
+    const kept = await state.held!.cache.load();
+    return kept ? { vault: kept.vault, cursor: kept.cursor, ids: kept.chunks.map((chunk) => chunk.id).sort() } : null;
+  },
+  /**
+   * A save that goes wrong part-way: a new place in the list, one chunk storage can take, one it cannot (a function is
+   * not something storage can copy), and a chunk to drop. Says how the save ended.
+   */
+  async saveBroken(vault: string, drop: string): Promise<string> {
+    try {
+      await state.held!.cache.save(vault, {
+        cursor: 999,
+        put: [
+          { id: "AAAAAAAAAAAAAAAAAAAAzw", version: 7, base: new Uint8Array(40) },
+          { id: "AAAAAAAAAAAAAAAAAAAAzg", version: 8, base: (() => 1) as unknown as Uint8Array },
+        ],
+        drop: [drop],
+      });
+      return "saved";
+    } catch (error) {
+      return `failed: ${(error as Error).name}`;
+    }
+  },
+  /** Leaves the stored layout as a later version of the app would: one this version does not know. */
+  async future(): Promise<number> {
+    const open = indexedDB.open(NAME, 2);
+    open.onupgradeneeded = () => open.result.createObjectStore("later");
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    const version = db.version;
+    db.close();
+    return version;
+  },
   /** A cache opened without holding it, to show what a second tab would do without the lock: it can read. */
   async peek(): Promise<number> {
     const cache = await openCache(NAME);

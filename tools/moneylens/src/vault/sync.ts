@@ -36,10 +36,18 @@
  *
  * A chunk from the server that does not open, or that was written by a later version of the app,
  * stops the sync before anything is changed. A copy that cannot be read is never written over.
+ *
+ * An answer is believed only if it answers the request that was sent (`readPushed`, `isPage`), and
+ * every request has an end (`ask`). An answer that makes no sense, or does not come, leaves what
+ * was sent as of unknown fate.
+ *
+ * The store never takes a record out of a chunk on its own, and never moves one that the server
+ * has had. A record that turns up in more than one chunk (it should not: ids are random) is read
+ * as its copies merged, and a sync makes the copies alike, each in its own chunk (`alike`).
  */
 import { base64url, fromBase64url, isId, newId } from "../core/ids";
 import { MAX_CHUNK_BYTES, type OpenVault } from "./crypto";
-import { HISTORY, MAX_ENTRIES, SOFT_CHUNK_BYTES, differs, entryOf, isGroup, isJson, isKind, merge3, mergeTwo, openContent, sameEntry, sealContent, type Clash, type Content, type Entry, type Json, type Records, type Value } from "./records";
+import { HISTORY, MAX_ENTRIES, SOFT_CHUNK_BYTES, differs, entryOf, isGroup, isJson, isKind, merge3, mergeMany, openContent, sameEntry, sealContent, type Clash, type Content, type Entry, type Json, type Records, type Value } from "./records";
 
 /** A chunk as the server holds it. */
 export type RemoteChunk = { id: string; version: number; blob: Uint8Array };
@@ -125,6 +133,12 @@ const PULL_BYTES = 64 * 1024 * 1024;
 const PULL_REPEATS = 8;
 /** The reasons a server may give for refusing a push without having written anything. */
 const REFUSALS: ReadonlySet<unknown> = new Set(["wrong-vault", "bad-request", "too-big", "quota-bytes", "quota-writes"]);
+/** The smallest a sealed blob can be: version byte, nonce, tag. */
+export const MIN_BLOB = 1 + 12 + 16;
+/** How long one request may take before its answer counts as not known, in milliseconds, unless the caller says otherwise. */
+const PATIENCE = 120_000;
+/** What a chunk's heading takes, at most: left free when the copies of a doubled record are made alike. */
+const HEADROOM = 2048;
 
 /**
  * One chunk in the cache: sealed blobs and a version number. `base` is the server's copy as last
@@ -184,10 +198,15 @@ function equal(a: Uint8Array, b: Uint8Array): boolean {
 
 export class Store {
   private readonly slots = new Map<string, Slot>();
-  /** Which chunk each record is in. */
+  /** Which chunk each record is read from. */
   private where = new Map<string, string>();
-  /** Records found in more than one chunk. Should be none: a record never moves once the server has it. */
-  private doubled = new Set<string>();
+  /**
+   * Records found in more than one chunk, with the chunks that hold them. Should be none: ids are random, and a record
+   * never moves. The store does not move one either, nor take a copy out: see `alike`.
+   */
+  private many = new Map<string, string[]>();
+  /** Of those, the ones whose copies differ, as they are read: all copies merged (`mergeMany`). */
+  private merged = new Map<string, Entry>();
   private cursor = 0;
   private savedCursor = 0;
   private readonly touched = new Set<string>();
@@ -197,7 +216,7 @@ export class Store {
   private readonly unanswered = new Set<string>();
   private queue: Promise<unknown> = Promise.resolve();
   private spoiled = 0;
-  /** Clashes found outside a sync (a doubled record settled by a change): told at the next one. */
+  /** What a sync has still to tell the app: records found doubled in the cache when the store was opened. */
   private owed: Clash[] = [];
   /** Goes up with every change to what the store holds, from here or from the server. */
   changes = 0;
@@ -206,6 +225,7 @@ export class Store {
     private readonly vault: OpenVault,
     private readonly cache: Cache,
     private readonly clock: () => number,
+    private readonly patience: number,
   ) {}
 
   /**
@@ -213,8 +233,8 @@ export class Store {
    * vault is emptied. A cached chunk that does not open is left out and counted in `status()`,
    * and everything is then asked of the server again.
    */
-  static async open(vault: OpenVault, cache: Cache, options: { now?: () => number } = {}): Promise<Store> {
-    const store = new Store(vault, cache, options.now ?? Date.now);
+  static async open(vault: OpenVault, cache: Cache, options: { now?: () => number; patience?: number } = {}): Promise<Store> {
+    const store = new Store(vault, cache, options.now ?? Date.now, options.patience !== undefined && options.patience > 0 ? options.patience : PATIENCE);
     let kept = await cache.load();
     if (kept && kept.vault !== vault.id) {
       await cache.clear();
@@ -235,6 +255,7 @@ export class Store {
       store.cursor = store.savedCursor = isVersion(kept.cursor) && !store.spoiled ? kept.cursor : 0;
     }
     store.reindex();
+    for (const id of store.merged.keys()) store.owed.push({ id, what: "doubled" });
     return store;
   }
 
@@ -271,27 +292,38 @@ export class Store {
 
   /** Every record of one kind, in no particular order. */
   list(kind: string): Value[] {
-    const out: Value[] = [];
-    for (const slot of this.slots.values()) for (const [id, entry] of slot.work) if (entry.kind === kind && this.where.get(id) === slot.id) out.push(entry.value);
-    return out;
+    return this.everything().filter((record) => record.kind === kind).map((record) => record.value);
   }
 
   /** Every record with its kind, for an export or a comparison. */
   everything(): { kind: string; value: Value }[] {
     const out: { kind: string; value: Value }[] = [];
-    for (const slot of this.slots.values()) for (const [id, entry] of slot.work) if (this.where.get(id) === slot.id) out.push({ kind: entry.kind, value: entry.value });
+    for (const slot of this.slots.values()) {
+      for (const [id, own] of slot.work) {
+        // a record found in more than one chunk is listed once
+        if (this.where.get(id) !== slot.id) continue;
+        const entry = this.merged.get(id) ?? own;
+        out.push({ kind: entry.kind, value: entry.value });
+      }
+    }
     return out;
   }
 
+  /** `doubled`: records found in more than one chunk whose copies differ (they are read merged; `sync` makes them alike). */
   status(): { records: number; chunks: number; pending: number; damaged: number; doubled: number } {
     let pending = 0;
     for (const slot of this.slots.values()) if (slot.sent || differs(slot.work, slot.base?.content.records)) pending += 1;
-    return { records: this.where.size, chunks: this.slots.size, pending, damaged: this.spoiled, doubled: this.doubled.size };
+    return { records: this.where.size, chunks: this.slots.size, pending, damaged: this.spoiled, doubled: this.merged.size };
   }
 
   private entry(id: string): Entry | undefined {
-    const at = this.where.get(id);
-    return at === undefined ? undefined : this.slots.get(at)?.work.get(id);
+    return this.merged.get(id) ?? this.slots.get(this.where.get(id) ?? "")?.work.get(id);
+  }
+
+  /** The chunks that hold a record: one, unless something went wrong somewhere. */
+  private holders(id: string): Slot[] {
+    const ids = this.many.get(id) ?? [this.where.get(id) ?? ""];
+    return ids.map((holder) => this.slots.get(holder)).filter((slot): slot is Slot => slot !== undefined && slot.work.has(id));
   }
 
   // ---- changing (in memory; `flush` keeps it, `sync` sends it)
@@ -311,29 +343,40 @@ export class Store {
 
   /** Changes fields of a record. A field given as `undefined` is taken out. The others stay, including ones this version of the app does not know. */
   change(id: string, fields: { readonly [name: string]: Json | undefined }): Outcome {
-    if (this.doubled.has(id)) this.settle(this.owed);
-    const slot = this.slots.get(this.where.get(id) ?? "");
-    const old = slot?.work.get(id);
-    if (!slot || !old) return { ok: false, why: "unknown" };
+    const old = this.entry(id);
+    if (!old) return { ok: false, why: "unknown" };
     if (typeof fields !== "object" || fields === null || (Object.hasOwn(fields, "id") && fields.id !== id)) return { ok: false, why: "invalid" };
     const value = Object.fromEntries(Object.entries({ ...old.value, ...fields }).filter(([, v]) => v !== undefined)) as Value;
     const entry = entryOf(old.kind, this.stamp(old.at + 1), value);
     if (!entry) return { ok: false, why: this.whyNot(old.kind, value) };
     if (sameEntry(entry, old)) return { ok: true };
-    if (entry.size > old.size && this.bytes(slot.work) - old.size + entry.size > SOFT_CHUNK_BYTES) return { ok: false, why: "full" };
-    this.put(slot, entry);
+    // A record found in more than one chunk is changed in every one of them: the copies are the same from then on.
+    const holders = this.holders(id);
+    for (const slot of holders) {
+      const copy = slot.work.get(id)!;
+      if (entry.size > copy.size && this.bytes(slot.work) - copy.size + entry.size > SOFT_CHUNK_BYTES) return { ok: false, why: "full" };
+    }
+    for (const slot of holders) {
+      const next = new Map(slot.work);
+      next.set(id, entry);
+      slot.work = next;
+    }
+    this.merged.delete(id);
+    this.changes += 1;
     return { ok: true };
   }
 
-  /** Removes a record. */
+  /** Removes a record: every copy of it that this device holds. */
   remove(id: string): Outcome {
-    if (this.doubled.has(id)) this.settle(this.owed);
-    const slot = this.slots.get(this.where.get(id) ?? "");
-    if (!slot?.work.has(id)) return { ok: false, why: "unknown" };
-    const next = new Map(slot.work);
-    next.delete(id);
-    slot.work = next;
+    if (!this.where.has(id)) return { ok: false, why: "unknown" };
+    for (const slot of this.holders(id)) {
+      const next = new Map(slot.work);
+      next.delete(id);
+      slot.work = next;
+    }
     this.where.delete(id);
+    this.many.delete(id);
+    this.merged.delete(id);
     this.changes += 1;
     return { ok: true };
   }
@@ -347,6 +390,7 @@ export class Store {
     return isKind(kind) && typeof value === "object" && value !== null && isId(value.id) && isJson(value) ? "too-big" : "invalid";
   }
 
+  /** Puts into this chunk a record that is in none yet, or one that `seal` is moving out of a chunk too large to seal. */
   private put(slot: Slot, entry: Entry): void {
     const next = new Map(slot.work);
     next.set(entry.value.id, entry);
@@ -356,27 +400,22 @@ export class Store {
   }
 
   /**
-   * A record found in more than one chunk (it should never be: ids are random, and a record does
-   * not move) becomes one record again: the copies are merged, every field any of them has, the
-   * later copy's value where they differ. It stays in the chunk with the smallest id and is taken
-   * out of the others, and the caller is told.
+   * The copies of a record found in more than one chunk are made alike: each becomes all of them merged (`mergeMany`).
+   * No copy is taken out of its chunk, here or anywhere. To a device that has not seen the other chunk, a record taken
+   * out of one chunk to be kept in another is a record that was removed, and what that device did to it would go with it.
+   * A record whose merged form does not fit in one of its chunks is left as it is; it is still read merged.
    */
-  private settle(clashes: Clash[]): void {
-    for (const id of [...this.doubled]) {
-      const holders = [...this.slots.values()].filter((slot) => slot.work.has(id)).sort((a, b) => (a.id < b.id ? -1 : 1));
-      this.doubled.delete(id);
-      if (holders.length < 2) continue;
-      let merged = holders[0]!.work.get(id)!;
-      for (const other of holders.slice(1)) merged = mergeTwo(id, merged, other.work.get(id)!, clashes);
-      clashes.push({ id, what: "doubled" });
-      holders.forEach((slot, i) => {
+  private alike(): void {
+    for (const [id, merged] of [...this.merged]) {
+      const holders = this.holders(id);
+      if (holders.some((slot) => this.bytes(slot.work) - slot.work.get(id)!.size + merged.size > MAX_CHUNK_BYTES - HEADROOM)) continue;
+      for (const slot of holders) {
+        if (sameEntry(slot.work.get(id), merged)) continue;
         const next = new Map(slot.work);
-        if (i === 0) next.set(id, merged);
-        else next.delete(id);
+        next.set(id, merged);
         slot.work = next;
-      });
-      this.where.set(id, holders[0]!.id);
-      this.changes += 1;
+      }
+      this.merged.delete(id);
     }
   }
 
@@ -405,22 +444,29 @@ export class Store {
 
   private reindex(): void {
     const where = new Map<string, string>();
-    const doubled = new Set<string>();
+    const many = new Map<string, string[]>();
     for (const slot of this.slots.values()) {
-      for (const [id, entry] of slot.work) {
-        const other = where.get(id);
-        if (other === undefined) {
+      for (const id of slot.work.keys()) {
+        const first = where.get(id);
+        if (first === undefined) {
           where.set(id, slot.id);
           continue;
         }
-        // The same record in two chunks. Until it is settled (`settle`), the one changed last is the one that is read.
-        doubled.add(id);
-        const rival = this.slots.get(other)!.work.get(id)!;
-        if (entry.at > rival.at || (entry.at === rival.at && slot.id < other)) where.set(id, slot.id);
+        // The same record in more than one chunk. It is listed with the chunk that has the smallest id, and read as all its copies merged.
+        const all = many.get(id);
+        if (all) all.push(slot.id);
+        else many.set(id, [first, slot.id]);
+        if (slot.id < first) where.set(id, slot.id);
       }
     }
+    const merged = new Map<string, Entry>();
+    for (const [id, holders] of many) {
+      const copies = holders.map((holder) => this.slots.get(holder)!.work.get(id)!);
+      if (copies.some((copy) => !sameEntry(copy, copies[0]))) merged.set(id, mergeMany(copies));
+    }
     this.where = where;
-    this.doubled = doubled;
+    this.many = many;
+    this.merged = merged;
   }
 
   // ---- keeping and sending
@@ -476,8 +522,9 @@ export class Store {
           continue;
         }
         // Too large for one chunk: only a merge does that. The records this device added and the server has never had go to another chunk.
-        // Not while a copy's fate is unknown: one of them might be in it.
-        const added = slot.sent ? [] : [...work.values()].filter((entry) => !from?.has(entry.value.id));
+        // Not while a copy's fate is unknown: one of them might be in it. And not a record that is in another chunk too: no copy of
+        // such a record is ever taken out of its chunk (`alike`).
+        const added = slot.sent ? [] : [...work.values()].filter((entry) => !from?.has(entry.value.id) && !this.many.has(entry.value.id));
         if (!added.length || slot.work !== work) {
           if (slot.work === work) stuck.add(slot.id);
           else again = true;
@@ -517,18 +564,29 @@ export class Store {
     this.savedCursor = this.cursor;
   }
 
+  /** One request, with an end: an answer that does not come in time is an answer that is not known. */
+  private async ask<T>(request: () => Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("no answer in time")), this.patience);
+    });
+    try {
+      return await Promise.race([request(), late]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private async run(remote: Remote): Promise<Synced> {
-    const clashes: Clash[] = [];
+    const clashes: Clash[] = this.owed.splice(0);
     let received = 0;
     let sent = 0;
     const fail = (why: Trouble, chunks?: string[]): Synced => ({ ok: false, why, received, sent, clashes, ...(chunks?.length ? { chunks } : {}) });
     let recounted = false;
-    /** Ask for everything in the next round: the digest did not add up. (Kept apart from the cursor, which only moves on success.) */
+    /** Ask for everything in the next round: the digest did not add up. (Kept apart from the cursor, which only moves when a pull is taken.) */
     let recount = false;
     for (let round = 0; round < ROUNDS; round++) {
       const everything = recount || this.cursor === 0;
-      clashes.push(...this.owed.splice(0));
-      this.settle(clashes);
       await this.seal();
 
       // What changed on the server since this device last looked.
@@ -540,7 +598,7 @@ export class Store {
       for (let since = from, pages = 0, bytes = 0, count = 0; ; ) {
         let page: Pulled;
         try {
-          page = await remote.pull(this.vault.id, since);
+          page = await this.ask(() => remote.pull(this.vault.id, since));
         } catch {
           return fail("offline");
         }
@@ -578,11 +636,15 @@ export class Store {
         recount = true;
         continue;
       }
+      // The server's count never goes back. A place behind this device's own, with nothing else amiss, is a server whose count did.
+      if (cursor < this.cursor) return fail("server-older");
       const taken = await this.take([...got.values()], clashes);
       if (!taken.ok) return fail(taken.why, taken.chunks);
       received += taken.count;
       this.cursor = cursor;
       recount = false;
+      // (after every look at the server, with or without news: the cache can hold doubled records from before)
+      this.alike();
       const stuck = await this.seal();
 
       // What changed here. A chunk with a copy of unknown fate sends that same copy again.
@@ -601,55 +663,47 @@ export class Store {
         });
         // what is about to leave is on record before it leaves
         await this.save();
-        let reply: Pushed;
         // Until an answer says otherwise, any of these copies may be on the server or still on its way there.
         const unknown = (why: Trouble): Synced => {
           for (const slot of batch) this.unanswered.add(slot.id);
           return fail(why);
         };
+        let reply: unknown;
         try {
-          reply = await remote.push(this.vault.id, writes);
+          reply = await this.ask(() => remote.push(this.vault.id, writes));
         } catch {
           return unknown("offline");
         }
-        if (!isAnswer(reply) || (!reply.ok && reply.why !== "stale" && !REFUSALS.has(reply.why))) return unknown("bad-reply");
-        if (reply.ok) {
-          const versions = new Map<string, number>();
-          if (Array.isArray(reply.versions)) for (const v of reply.versions) if (v && typeof v.id === "string") versions.set(v.id, v.version);
-          if (!batch.every((slot) => isVersion(versions.get(slot.id)) && versions.get(slot.id)! > slot.version)) return unknown("bad-reply");
-          const numbers = batch.map((slot) => versions.get(slot.id)!).sort((a, b) => a - b);
-          for (const slot of batch) this.adopt(slot, slot.sent!, versions.get(slot.id)!);
+        // An answer that is not an answer to these writes says nothing about what became of them.
+        const answer = readPushed(reply, writes, this.cursor);
+        if (!answer) return unknown("bad-reply");
+        if (answer.is === "taken") {
+          const numbers = [...answer.versions.values()].sort((a, b) => a - b);
+          for (const slot of batch) this.adopt(slot, slot.sent!, answer.versions.get(slot.id)!);
           // If nobody else wrote in between, this device has now seen everything up to its own writes.
           if (numbers.every((n, i) => n === this.cursor + 1 + i)) this.cursor += numbers.length;
           sent += batch.length;
           continue;
         }
-        // Refused: this request wrote nothing. A copy that went out in no other request is therefore not on the server
-        // and not on its way; the next round sends whatever is newest. A copy from an unanswered request stays as it is.
-        const theirs: RemoteChunk[] = [];
-        if (reply.why === "stale") {
-          const mine = new Set(batch.map((slot) => slot.id));
-          if (!Array.isArray(reply.chunks) || !reply.chunks.length) return unknown("bad-reply");
-          for (const chunk of reply.chunks) {
-            if (!chunk || !mine.has(chunk.id) || !isVersion(chunk.version)) return unknown("bad-reply");
-            if (chunk.blob instanceof Uint8Array && chunk.version > 0) theirs.push({ id: chunk.id, version: chunk.version, blob: chunk.blob });
-            else if (!(chunk.blob === undefined && chunk.version === 0 && this.slots.get(chunk.id)!.version > 0)) return unknown("bad-reply");
-          }
+        // Refused, and the refusal holds up: this request wrote nothing. Each stale chunk came with what the server holds,
+        // which is merged first. (One that came with nothing is a chunk this device had and the server no longer holds:
+        // the next look at the server finds that, and says so.)
+        if (answer.is === "stale") {
+          const merged = await this.take(answer.theirs, clashes);
+          if (!merged.ok) return fail(merged.why, merged.chunks);
+          received += merged.count;
         }
+        // A copy that went out in no other request is then neither on the server nor on its way, and the next round sends
+        // whatever is newest. A copy from an earlier request that got no answer stays as it is.
         for (const slot of batch) {
-          if (this.unanswered.has(slot.id)) continue;
+          if (!slot.sent || this.unanswered.has(slot.id)) continue;
           slot.sent = undefined;
           this.touched.add(slot.id);
         }
-        if (reply.why !== "stale") {
+        if (answer.is === "refused") {
           await this.save();
-          return fail(reply.why);
+          return fail(answer.why);
         }
-        // Each stale chunk came with what the server holds: merge, and go round again. (One that came with nothing is a chunk
-        // this device had and the server no longer holds: the next look at the server finds that, and says so.)
-        const merged = await this.take(theirs, clashes);
-        if (!merged.ok) return fail(merged.why, merged.chunks);
-        received += merged.count;
         refused = true;
         break;
       }
@@ -685,6 +739,9 @@ export class Store {
       const slot = this.slots.get(chunk.id);
       if (slot?.base && chunk.version === slot.version && equal(chunk.blob, slot.base.blob)) continue; // what this device already has
       if (slot && chunk.version <= slot.version) return { ok: false, why: "server-older", chunks: [chunk.id] };
+      // The very copy this device has, under a later number. A server that keeps its numbers gives one copy one number,
+      // and taking this for "the chunk has moved on" would give up a sent copy that can still arrive.
+      if (slot?.base && markOf(chunk.blob) === markOf(slot.base.blob)) return { ok: false, why: "bad-reply", chunks: [chunk.id] };
       const content = await openContent(this.vault, chunk.id, chunk.blob);
       if (!content.ok) {
         bad[content.why].push(chunk.id);
@@ -717,7 +774,8 @@ export class Store {
           this.adopt(slot, mine, chunk.version);
           continue;
         }
-        // It arrived and another device built on it; or the chunk moved on without it, and then it never can arrive.
+        // It arrived and another device built on it; or the chunk moved on without it (the server's copy is no longer the
+        // one it was made from), and then it never can arrive.
         if (content.history.includes(mine.content.rev)) from = mine.content.records;
         slot.sent = undefined;
         this.unanswered.delete(slot.id);
@@ -731,12 +789,75 @@ export class Store {
       slot.local = undefined;
     }
     if (opened.length) {
+      const known = new Set(this.merged.keys());
       this.reindex();
-      this.settle(clashes);
+      // a record that now turns out to be in more than one chunk: said once, when it is first seen
+      for (const id of this.merged.keys()) if (!known.has(id)) clashes.push({ id, what: "doubled" });
       this.changes += 1;
     }
     return { ok: true, count: opened.length };
   }
+}
+
+type Answer =
+  | { is: "taken"; versions: Map<string, number> }
+  | { is: "stale"; theirs: RemoteChunk[] }
+  | { is: "refused"; why: "wrong-vault" | "bad-request" | "too-big" | "quota-bytes" | "quota-writes" };
+
+/**
+ * Reads the answer to a push. Null: it is not an answer to these writes, and nothing in it is believed.
+ *
+ * "Taken" names every chunk of the request, each once and no other, each with a version number of its own that is
+ * later than the copy it replaces and than anything this device has seen. (The second covers the first unless the
+ * device's place is behind a chunk it wrote itself, which is so after another device wrote between its look and its
+ * write. Both are checked.)
+ *
+ * "Stale" names chunks of the request, each at most once, and for each of them shows why: a copy that is not the one
+ * the write was made from, or that the server holds none where the write named one. An answer that calls a write stale
+ * and shows the very copy it was made from has shown nothing, and is not taken for a refusal.
+ */
+function readPushed(reply: unknown, writes: readonly Write[], cursor: number): Answer | null {
+  if (!isAnswer(reply)) return null;
+  const asked = new Map(writes.map((write) => [write.id, write]));
+  const named = new Set<string>();
+  const one = (x: unknown): { write: Write; version: number; blob: unknown } | null => {
+    if (typeof x !== "object" || x === null) return null;
+    const { id, version, blob } = x as { id?: unknown; version?: unknown; blob?: unknown };
+    const write = typeof id === "string" ? asked.get(id) : undefined;
+    if (!write || named.has(write.id) || !isVersion(version)) return null;
+    named.add(write.id);
+    return { write, version, blob };
+  };
+  if (reply.ok) {
+    const list = (reply as { versions?: unknown }).versions;
+    if (!Array.isArray(list) || list.length !== writes.length) return null;
+    const versions = new Map<string, number>();
+    const numbers = new Set<number>();
+    for (const x of list as unknown[]) {
+      const entry = one(x);
+      if (!entry || entry.version <= entry.write.base || entry.version <= cursor || numbers.has(entry.version)) return null;
+      numbers.add(entry.version);
+      versions.set(entry.write.id, entry.version);
+    }
+    return { is: "taken", versions };
+  }
+  const why = (reply as { why?: unknown }).why;
+  if (why !== "stale") return REFUSALS.has(why) ? { is: "refused", why: why as Extract<Answer, { is: "refused" }>["why"] } : null;
+  const list = (reply as { chunks?: unknown }).chunks;
+  if (!Array.isArray(list) || !list.length) return null;
+  const theirs: RemoteChunk[] = [];
+  for (const x of list as unknown[]) {
+    const entry = one(x);
+    if (!entry) return null;
+    if (entry.blob === undefined) {
+      // "the server holds no such chunk" refuses only a write that named a copy
+      if (entry.version !== 0 || entry.write.base === 0) return null;
+      continue;
+    }
+    if (!(entry.blob instanceof Uint8Array) || entry.blob.length < MIN_BLOB || entry.version === 0 || markOf(entry.blob) === entry.write.mark) return null;
+    theirs.push({ id: entry.write.id, version: entry.version, blob: entry.blob });
+  }
+  return { is: "stale", theirs };
 }
 
 function isPage(page: Extract<Pulled, { ok: true }>, since: number): boolean {
@@ -744,7 +865,7 @@ function isPage(page: Extract<Pulled, { ok: true }>, since: number): boolean {
   if (page.more && !page.chunks.length) return false;
   let last = since;
   for (const chunk of page.chunks) {
-    if (!chunk || !isId(chunk.id) || !isVersion(chunk.version) || chunk.version <= last || !(chunk.blob instanceof Uint8Array)) return false;
+    if (!chunk || !isId(chunk.id) || !isVersion(chunk.version) || chunk.version <= last || !(chunk.blob instanceof Uint8Array) || chunk.blob.length < MIN_BLOB) return false;
     last = chunk.version;
   }
   // (a cursor behind `since` with nothing to show is a server that went back: the caller's to say)

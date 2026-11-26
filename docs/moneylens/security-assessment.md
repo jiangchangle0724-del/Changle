@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.8, 21 November 2026. It records the choices the requirements leave to this document
+Version 0.9, 25 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -29,6 +29,9 @@ by that model and reviewed here) and one number this document named without stat
 stated).
 Version 0.8 adds how records are packed, kept on a device and brought into line with the server
 (1.6), and what a device can and cannot notice when the server's copy goes back (section 2).
+Version 0.9 follows the second round of the review of 1.6: a record found in more than one chunk
+is no longer moved, the answer to a push is believed only if it answers that push, and every
+request has a time limit.
 
 ## 1. The vault
 
@@ -456,13 +459,35 @@ used to settle a field both sides changed, and in the one case described next. A
 changes a record gives it a `t` later than the one it had, so a device whose clock is behind
 does not lose every such tie.
 
-**The same record in two chunks.** It should never happen: ids are 128 random bits, and a record
-does not move once the server has it. A device gone wrong, or one that used an id twice, could
-still do it, with nothing but the ordinary calls. A device that finds a record in more than one
-chunk merges the copies into one, as above with no starting copy (every field any copy has, and
-where they differ the value of the copy with the later `t`), keeps the result in the chunk with
-the smallest id, takes it out of the others, and tells the app. A change to such a record
-settles it first, so the change is never made to one copy at the cost of the other.
+**The same record in more than one chunk.** It should never happen: ids are 128 random bits, and
+a record does not move once the server has it. A device gone wrong, or anything that uses an id
+twice, could still do it with nothing but the ordinary calls, so the store has a rule for it.
+The rule starts from what the store must not do. It does not move a copy and does not take one
+out, here or anywhere: to a device that has not seen the other chunk, a record taken out of one
+chunk to be kept in another is a record that was removed, and whatever that device had done to
+it would go with it. (The first form of this rule did gather the copies into one chunk. The
+second round of the review showed two honest devices losing a field that way.)
+
+- *Reading.* The copies are read as one record: every field any copy has, and for a field the
+  copies give differently, the value of the latest copy that has the field. Latest is the
+  greater `t`, and on the same `t` the greater text, as in a merge. Each field is chosen from
+  the copies as they are, so the order in which they are looked at does not matter. The kind and
+  the time are the latest copy's. If the result would be larger than a record may be, the latest
+  copy is read as it is.
+- *Telling the app.* The app is told that the record is doubled when the store first sees it so,
+  and again in a later session if it still is.
+- *Making the copies alike.* At a sync, each copy that differs from the record as read is
+  replaced by it, in the chunk where it is, and those chunks are sent like any other change.
+  From then on the copies say the same, and two devices changing the record at once merge in
+  each chunk as they would for any record. If the record as read would not fit in one of its
+  chunks, the copies are left as they are and it goes on being read as one.
+- *A change* is made to the record as read and is written into every copy this device holds.
+  *A removal* takes out every copy this device holds.
+- *What this cannot do.* A device acts on the copies it has seen. A copy it has not been told of
+  yet is untouched by its change or its removal, and when that copy arrives the record is read
+  with it again: a removal may have to be made a second time, and a field that was taken out can
+  come back. With doubled records nothing is dropped unasked; the price is that taking something
+  away can need repeating. And a record has one time, not one for each field (section 2).
 
 **Sending twice.** A write replaces a whole chunk, so the same write arriving twice is the same
 chunk once. What needs care is a write whose answer never came, because a request that timed out
@@ -501,25 +526,48 @@ and changes nothing on either side, its own cache and its place in the server's 
   an older copy handed back under a higher number, however far back, or a copy that was never
   built on this device's. Merging it as if it were newer would remove records;
 - a write made from the device's copy is refused although the number matches, because the mark
-  does not.
+  does not;
+- the server's answer to a look puts its count of versions behind what this device has already
+  seen. That count only goes up, so a lower one is a server that went back, whatever else it
+  shows.
 
 The way out that exists today is to take the server's copy: empty this device's cache and start
 again from the server, after offering an export of what the device holds. Putting the device's
 copy back on the server is not built (section 3).
 
 **Answers that are not answers.** Whatever comes back from the server is checked before anything
-in it is used: that it is an answer at all, its shape, its ids, that version numbers go up, and
-for a refusal that the reason is one of those above. Anything else is a bad reply: the sync ends
-and says so, and nothing is taken from it. After a push it also leaves what was sent as of
-unknown fate, since such an answer does not say whether the write happened. An answer in pages
-has to end: a pull stops, as a bad reply, after 1,000 pages, 20,000 chunks or 64 MiB, or when one
-chunk has come round more than eight times, all of which are far past what a vault can hold. So
-a server cannot keep a sync running for ever, nor keep the saves that wait behind it from
-happening. A time limit on each request belongs to the code that talks to the server over the
-network, which is not written yet.
+in it is used. For a pull: that it is an answer at all, its shape, that ids are ids, that
+version numbers go up, that a blob is at least as long as a sealed blob can be. A push has three
+answers, and each has to be an answer to the request that was sent:
+
+- *Taken* names every chunk of the request, once each and no other, each with a version number
+  of its own that is later than the copy it replaces and than anything this device has seen.
+- *Stale* names chunks of the request, at most once each, and for each shows why: a copy that is
+  not the one the write was made from (its mark differs), or that the server holds none where
+  the write named one. An answer that calls a write stale and shows the very copy it was made
+  from has shown nothing.
+- *Refused* gives one of the reasons above.
+
+Anything else is a bad reply: the sync ends and says so, nothing is taken from it, and what was
+sent is left as of unknown fate, because such an answer does not say whether the write happened.
+The same goes for a pull that hands back, under a later number, the very copy the device already
+has: taking that for "the chunk has moved on" would give up a sent copy that can still arrive.
+(The second round of the review showed why this matters. A "stale" answer that only repeated the
+unchanged copy made the device forget what it had sent, and the write, arriving late, brought
+back a record that had been taken out again.)
+
+An answer has to end, and it has to come. A pull stops, as a bad reply, after 1,000 pages, 20,000
+chunks or 64 MiB, or when one chunk has come round more than eight times, all of which are far
+past what a vault can hold. Each request is given two minutes, or what the app sets; after that
+its answer counts as not known, exactly as if the network had dropped it, and for a push that
+leaves what was sent as of unknown fate. So neither a server that keeps answering nor one that
+stops answering holds a sync, or the saves that wait their turn behind it, for ever. The code
+that talks to the server over the network is not written yet; what it owes on top of this is in
+section 3.
 
 **Too large.** A merged chunk can exceed what one chunk may hold. The records this device added
-and has not sent then go to another chunk. If that is not enough (it takes several devices each
+and has not sent then go to another chunk (never a copy of a record that is in another chunk
+too: see above). If that is not enough (it takes several devices each
 growing existing records of one chunk, far beyond what the app's fields allow), the sync stops
 with "too large" before writing anything, and this device keeps its changes.
 
@@ -546,13 +594,22 @@ and was run several thousand times before the code was merged. Each check in the
 taken out in turn to see that a test fails without it. Another vendor's model then wrote the
 merge from this section alone, before it had seen the code, and compared the two on 24,000
 random cases (they agree on every one, times included, after the fix to its first finding); ran
-schedules of faults of its own against the store; and reviewed the three files line by line. Its
-review, seven findings, and what was done about each are in
-[`reviews/sync-second-opinion.md`](reviews/sync-second-opinion.md). The cache in the browser's storage is
-tried in a real browser (`scripts/check-cache.ts`, part of `npm run test:page`): what IndexedDB
-holds after use is ids, version numbers and sealed bytes in which none of the records' words can
-be read, local and session storage and cookies are empty, a second tab is refused the cache, and
-a page opened again finds every record (T-24).
+schedules of faults of its own against the store; and reviewed the files line by line, twice.
+Its review, seven findings in the first round and four in the second, and what was done about
+each are in [`reviews/sync-second-opinion.md`](reviews/sync-second-opinion.md). After the second
+round: twenty-six answers to a push that are not answers to it, each checked to give nothing
+up; a server whose numbers do not go up (a count behind the device's own, a number no later than
+the copy it replaces); a server that never answers; and doubled records, by case and in a random
+run of three devices that each know other copies, on the same bad network. The checks in the
+four files (62 of them) were taken out one at a time again on the code as it now is: each makes
+a test fail. The cache in the browser's
+storage is tried in a real browser (`scripts/check-cache.ts`, part of `npm run test:page`): what
+IndexedDB holds after use is ids, version numbers and sealed bytes in which none of the records'
+words can be read, local and session storage and cookies are empty, a second tab is refused the
+cache, a page opened again finds every record (T-24), a save that fails part-way writes nothing,
+and a layout left by a later version of the app is neither opened nor changed. The three answers
+of taking the cache (held, taken by another page, no storage this page can hold) are tested with
+stand-ins for the browser (`tests/idbcache.test.ts`).
 
 ## 2. Limits (the reason for VAULT-6's wording)
 
@@ -576,10 +633,18 @@ a page opened again finds every record (T-24).
   branch that is sixteen or more versions on, if two devices had ever been allowed to write from
   the same copy; an honest server never allows that, and a dishonest one would need the devices'
   help to have such a branch.)
+- **A refusal is believed.** Once an answer holds up as an answer to the request that was sent
+  (1.6), the store takes "refused" to mean that the request wrote nothing, and stops keeping the
+  copy it sent. A server that refuses a write and applies it later all the same can bring back,
+  on that device's next sync, something its owner had undone in between. Like withholding, that
+  takes a server that lies; one that merely fails, or a network that loses or delays things,
+  does not do it.
 - **Clocks.** When two devices change the same field of the same record without having seen each
-  other's change, the later clock wins. A device with a wrong clock can win or lose such a tie
-  wrongly. The same holds for the fields of a record found in two chunks (1.6), which should
-  never happen. Nothing else depends on clocks.
+  other's change, the later clock wins, and a device with a wrong clock can win or lose such a
+  tie wrongly. A record has one time, not one for each field: after a merge, a field that came
+  from the older side carries the merged record's later time into the next comparison. Between
+  the copies of a record found in more than one chunk (1.6), which should never happen, the same
+  clocks decide every field the copies give differently. Nothing else depends on clocks.
 - **The version byte.** A blob's first byte is checked but not protected on its own. Changing it
   makes the blob fail to open; the app may then say it looks newer than the app, which is a wrong
   message, not an exposure.
@@ -613,6 +678,11 @@ a page opened again finds every record (T-24).
 - Sessions, the handoff, the allowlist, the origin check and the server's side of sync and
   quotas: sections to add with the server. The server has to pass the tests the one in memory
   passes (1.6).
+- The code that talks to the server over the network. On top of what the store does (1.6,
+  "Answers that are not answers") it owes: a time limit of its own on each request, shorter than
+  the store's, and cancelling what it gives up on; refusing an answer larger than a page or a
+  batch may be before reading it into memory; and turning whatever arrives into the plain shapes
+  the store checks, with bytes as bytes.
 - After "the server's copy went back", putting this device's copy back on the server (for the
   case where the platform lost data and a device still has it). Decided so far: it would keep
   everything either side has, at the price that a record removed on one side only can come back.

@@ -573,3 +573,42 @@ is preserved. Only the two files allowed by C4 have changed. The target
 branch advanced to `1c75c207` during review; I checked its single added
 commit through the GitHub connection: it changes only the brief, task
 index and status, not the reviewed code, assessment or these two files.
+
+## What was done about the second round's findings
+
+Added by Claude Code, the author of the code under review, on 25 November 2026. The second-round
+section above is the reviewer's and is as it was written. The verdict stands until the reviewer
+has looked at these changes (third round, card C5).
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 8 | A fold over three copies gives an older field the latest copy's clock | The fold is gone. `mergeMany` (`records.ts`) takes all the copies at once and chooses each field from the copies as they are: the value of the latest copy that has the field. The result does not depend on the order of the copies. Tested by case, and against the rule worked out the slow way on 500 random sets, each in several orders. What remains true and is now in the assessment's limits: a record has one time, so a field that an older copy contributed carries the merged record's later time afterwards |
+| 9 | An invalid "stale" answer releases retry protection | The answer to a push is read by one function (`readPushed`, `sync.ts`), which gives nothing back unless it is an answer to the writes that were sent. "Stale" names chunks of the request, at most once each, and shows for each a copy whose mark is not the one the write named, or that the server holds none where the write named one. "Taken" names every chunk once and no other, with numbers of their own, later than the copy replaced and than the device's place in the list. Anything else is a bad reply and leaves what was sent as of unknown fate. The same hole through a pull is closed: the copy the device already has, handed back under a later number, is a bad reply and not "the chunk has moved on". Twenty-six answers that are not answers are tested, each followed by a check that nothing was given up; then the late delivery after a flush and a reopen, through the push and through the pull. A well-formed refusal is still believed; that is now written in the limits (section 2, "A refusal is believed") |
+| 10 | A refused Web Lock request is reported as another tab | `holdCache` keeps three answers apart: the lock was given; the callback got none (another page has it: "taken"); the request was rejected or threw ("unavailable"). `tests/idbcache.test.ts` covers the three, the throw, and that the lock is let go when storage then fails to open. Also: a save that fails part-way aborts its own transaction instead of leaving an uncaught error behind, and the browser check has two more cases (such a save writes nothing; a layout left by a later version is neither opened nor changed) |
+| 11 | Two devices settling at once, each with a copy the other has not seen, lose a field | The design changed: the store moves nothing and never takes a copy out. A doubled record is read as its copies merged; a sync makes each copy say that, in the chunk where it is; a change goes into every copy this device holds; a removal takes out every copy this device holds. With nothing removed on the way, the schedule in the finding has nothing to lose: both devices only add. The price is in the assessment: a removal, or a field taken out, can come back from a copy the device had not seen. Your finding test passes as you wrote it, and so do your three active C4 tests and the finding-7 test from the first round. Added: a removal against an unseen copy; a random run (three devices that each know other copies, lost answers, late requests, pages reopened; 30 seeds in CI, 3,500 before pushing, the last 1,500 on the code as pushed) that ends with every device and the server holding the same record with every field only one copy had; a record whose merged form does not fit one of its chunks; and that the one move that is left (records this device added and never sent, out of a chunk a merge made too large) never touches a copy of a doubled record |
+
+Also, from the notes in the second round:
+
+- On 5 ("a never-settling pull or push still blocks the queue"): each request now has a time
+  limit in the store itself, two minutes unless the app sets another. Past it the answer counts
+  as not known, as if the network had dropped it. The network code still owes shorter limits of
+  its own and a bound on an answer's size before reading it; both are in the assessment's open
+  points.
+- `openCache` stays exported for the browser check. Its comment says it is not how a page opens
+  storage; `holdCache` is.
+
+And two things nobody asked for, found while testing the above:
+
+- The server's count of versions only goes up. A look whose answer puts that count behind what
+  the device has already seen now ends the sync as "server-older" before anything is taken from
+  it (before, it was noticed only where the digest showed it too). Tested together with a "taken" answer
+  whose number is past the device's place but not past the copy it replaces.
+- Every check in `sync.ts`, `records.ts`, `memory.ts` and `idbcache.ts` was taken out in turn on
+  the code as pushed, 62 in all: each makes a test fail. The first such run on this round's code
+  found four that no test caught. Two were gaps in the tests, and each now has one ("an answer
+  that is no answer leaves what was sent as of unknown fate" where a copy had gone out before,
+  and "the server holds none" for a chunk the write itself called new). One was a call that did
+  nothing the next one did not do (making the copies alike at the start of a round as well as
+  after the look at the server) and is gone. One, a "taken" number no later than the copy it
+  replaces, needs a device whose place in the list is behind its own chunk, which happens when
+  another device writes between its look and its write; a test now does that.

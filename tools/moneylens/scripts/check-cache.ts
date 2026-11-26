@@ -83,13 +83,35 @@ try {
   // the cache holds one vault: a write for another is refused, and nothing changes
   assert.equal(await call(second, "saveAs", "AAAAAAAAAAAAAAAAAAAACA"), "cache: it holds another vault");
   assert.equal((await call(second, "stored", words)).entries, 4);
+  // A save that goes wrong part-way writes nothing: not the new place in the list, not the chunk that could have been
+  // written, and the chunk it was to drop is still there.
+  const before = await call(second, "loaded");
+  assert.ok(before && before.ids.length === 3);
+  assert.match(await call(second, "saveBroken", vault, before.ids[0]!), /^failed: /);
+  assert.deepEqual(await call(second, "loaded"), before);
+  assert.equal((await call(second, "stored", words)).entries, 4);
+  // and the cache still works afterwards
+  assert.deepEqual(await call(second, "add", "txn", "t/acct", { id: idOf(11), posted: "2026-10-04", amount: -1, description: "INVENTED AFTER" }), { ok: true });
+  assert.deepEqual(await call(second, "sync"), { ok: true, why: "", sent: 1, received: 0 });
+  assert.deepEqual((await call(second, "stored", words)).found, []);
   // letting go hands it to the next page
   await call(second, "release");
   const third = await context.newPage();
   watch(third);
   await third.goto(url);
   assert.equal(await call(third, "hold"), "held");
-  assert.deepEqual(await call(third, "open", vault, key), { records: 301, chunks: 3, pending: 0, damaged: 0, doubled: 0 });
+  assert.deepEqual(await call(third, "open", vault, key), { records: 302, chunks: 3, pending: 0, damaged: 0, doubled: 0 });
+  // A layout left by a later version of the app: this version does not open it, does not change it, and says that it has
+  // no storage it can use (the app then runs without a cache), which is not "another tab has it".
+  await call(third, "release");
+  const kept2 = await call(third, "stored", words);
+  assert.equal(await call(third, "future"), 2);
+  assert.equal(await call(third, "hold"), "unavailable");
+  const untouched = await call(third, "stored", words);
+  assert.deepEqual([untouched.entries, untouched.found], [kept2.entries, []]);
+  assert.ok(untouched.shapes.includes("chunks: base,id,version"));
+  // the lock was let go again, so a page that can read the layout is not shut out
+  assert.equal(await third.evaluate("navigator.locks.query().then((q) => q.held.length)"), 0);
   assert.deepEqual(errors, []);
   console.log("cache in the browser: ok");
 } finally {

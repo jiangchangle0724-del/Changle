@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { newId } from "../src/core/ids";
 import { MAX_CHUNK_BYTES } from "../src/vault/crypto";
-import { MAX_ENTRY_BYTES, canonical, decode, differs, encode, entryOf, isJson, merge3, openContent, sealContent, type Content, type Entry, type Json, type Records, type Value } from "../src/vault/records";
+import { MAX_ENTRY_BYTES, canonical, decode, differs, encode, entryOf, isJson, merge3, mergeMany, openContent, sealContent, type Content, type Entry, type Json, type Records, type Value } from "../src/vault/records";
 import { seeded } from "./seeded";
 import { idOf, testVault } from "./vaulthelp";
 
@@ -241,6 +241,60 @@ test("merging: the same change on both sides keeps the later time, whoever merge
   assert.equal(fought.records.get(a)!.kind, "alias");
   assert.deepEqual(fought.clashes, [{ id: a, what: "kind", winner: "there" }]);
   assert.deepEqual(merge3(base, other, renamed).clashes, [{ id: a, what: "kind", winner: "here" }]);
+});
+
+test("several copies of one record: each field from the latest copy that has it, whatever order they come in", () => {
+  const a = idOf(1);
+  const show = (e: Entry) => `${e.kind} ${e.at} ${canonical(e.value)}`;
+  // the reviewer's case (finding 8): the copy with the unrelated field is the latest, and must not carry the old x past the new one
+  const old = entry("txn", 100, { id: a, x: "old" });
+  const unrelated = entry("txn", 300, { id: a, y: "unrelated" });
+  const fresh = entry("txn", 200, { id: a, x: "new" });
+  for (const order of [[old, unrelated, fresh], [fresh, old, unrelated], [unrelated, fresh, old], [unrelated, old, fresh]]) {
+    assert.equal(show(mergeMany(order)), show(entry("txn", 300, { id: a, x: "new", y: "unrelated" })));
+  }
+  // one copy is itself; copies that say the same are that, with the latest time; the kind is the latest copy's
+  assert.equal(show(mergeMany([old])), show(old));
+  assert.equal(show(mergeMany([entry("txn", 5, { id: a, n: 1 }), entry("txn", 9, { id: a, n: 1 })])), show(entry("txn", 9, { id: a, n: 1 })));
+  assert.equal(mergeMany([entry("rule", 5, { id: a }), entry("txn", 9, { id: a }), entry("alias", 7, { id: a })]).kind, "txn");
+  // a field that only an older copy has is kept; one that a later copy has taken out is not known to be taken out, and stays
+  assert.deepEqual(mergeMany([entry("txn", 9, { id: a, kept: 1 }), entry("txn", 5, { id: a, kept: 0, only: "older" })]).value, { id: a, kept: 1, only: "older" });
+  // on the same millisecond the greater text is the later, so the order still does not matter
+  const [p, q] = [entry("txn", 7, { id: a, x: "p" }), entry("txn", 7, { id: a, x: "q" })];
+  assert.equal(show(mergeMany([p, q])), show(mergeMany([q, p])));
+  assert.equal(mergeMany([p, q]).value.x, "q");
+  // too large when put together: the latest copy as it is
+  const left = entry("txn", 20, { id: a, left: "l".repeat(2500) });
+  const right = entry("txn", 30, { id: a, right: "r".repeat(2500) });
+  assert.equal(mergeMany([left, right]), right);
+  assert.equal(mergeMany([right, left]), right);
+
+  // five hundred random sets of copies, each in several orders, against the rule worked out the slow way
+  const random = seeded(8_11);
+  const pick = (n: number) => Math.floor(random() * n);
+  const names = ["a", "b", "c", "d", "e"];
+  for (let round = 0; round < 500; round++) {
+    const copies = Array.from({ length: 2 + pick(4) }, () => entry(["txn", "rule"][pick(2)]!, 100 + pick(4), { id: a, ...Object.fromEntries(names.filter(() => pick(2)).map((n) => [n, pick(3)])) }));
+    const text = (e: Entry) => `${e.kind} ${canonical(e.value)}`;
+    const isLater = (x: Entry, y: Entry) => (x.at !== y.at ? x.at > y.at : text(x) > text(y));
+    const latestOf = (set: Entry[]) => set.reduce((best, e) => (isLater(e, best) ? e : best));
+    const want: { [name: string]: Json } = { id: a };
+    for (const name of names) {
+      const having = copies.filter((copy) => Object.hasOwn(copy.value, name));
+      if (having.length) want[name] = latestOf(having).value[name]!;
+    }
+    const top = latestOf(copies);
+    const expected = `${top.kind} ${top.at} ${canonical(want as Value)}`;
+    for (let turn = 0; turn < 4; turn++) {
+      const shuffled = [...copies].sort(() => random() - 0.5);
+      assert.equal(show(mergeMany(shuffled)), expected, `round ${round}`);
+    }
+    // And merging what is already merged with an older copy changes nothing. (With a copy of the very same millisecond it
+    // can: the merged record has one time for all its fields, and the tie is then between two other texts. Assessment, section 2.)
+    const merged = mergeMany(copies);
+    const older = copies.filter((copy) => copy.at < merged.at);
+    if (older.length) assert.equal(show(mergeMany([merged, older[pick(older.length)]!, merged])), expected, `round ${round}`);
+  }
 });
 
 test("merging: inherited names are not fields", () => {

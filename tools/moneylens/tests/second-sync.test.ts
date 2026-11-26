@@ -498,7 +498,7 @@ test('C4: distinct forever-advancing pages release a flush queued behind sync', 
   assert.equal(reopened.get(id(8200))?.text, 'invented-queued-save');
 });
 
-test('finding 8: three duplicate copies must choose the newest original value of each field', { skip: 'finding 8: settle promotes an older field to the accumulated record timestamp' }, async () => {
+test('finding 8: three duplicate copies must choose the newest original value of each field (fixed after the second round)', async () => {
   const v = await vault(), cache = new MemoryCache();
   const writes = [
     await duplicateWrite(v, 8301, 8310, 100, { x: 'invented-old' }),
@@ -511,7 +511,7 @@ test('finding 8: three duplicate copies must choose the newest original value of
   assert.deepEqual(store.get(id(8310)), { id: id(8310), x: 'invented-new', y: 'invented-unrelated', edited: true });
 });
 
-test('finding 9: duplicate stale-answer ids must leave the sent copy of unknown fate', { skip: 'finding 9: malformed stale replies can discard retry protection and resurrect a flushed removal' }, async () => {
+test('finding 9: duplicate stale-answer ids must leave the sent copy of unknown fate (fixed after the second round)', async () => {
   const v = await vault(), cache = new MemoryCache(), server = new MemoryRemote(v.id);
   let store = await Store.open(v, cache);
   ok(store.add('invented', 'invented-c4', { id: id(8400), text: 'invented-anchor' }));
@@ -557,13 +557,13 @@ test('C4: absent Web Locks returns unavailable without opening storage', async (
   });
 });
 
-test('finding 10: a rejected Web Lock request is unavailable storage, not another tab', { skip: 'finding 10: lock API errors are reported as taken even when no page holds the cache' }, async () => {
+test('finding 10: a rejected Web Lock request is unavailable storage, not another tab (fixed after the second round)', async () => {
   await withCacheGlobals({ locks: { request: () => Promise.reject(new DOMException('invented policy refusal', 'SecurityError')) } }, {}, async () => {
     assert.equal(await holdCache('invented-denied-locks'), 'unavailable');
   });
 });
 
-test('finding 11: simultaneous settlers with different local duplicates must preserve both flushed fields', { skip: 'finding 11: removing the shared holder defeats another device moving an exclusive field into it' }, async () => {
+test('finding 11: simultaneous settlers with different local duplicates must preserve both flushed fields (fixed after the second round)', async () => {
   const v = await vault(), server = new MemoryRemote(v.id);
   const [small, middle, large] = [8501, 8502, 8503].sort((a, b) => id(a) < id(b) ? -1 : 1);
   ok(await server.push(v.id, [await duplicateWrite(v, middle!, 8510, 200, { common: 'invented-common' })]));
