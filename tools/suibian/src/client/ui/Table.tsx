@@ -451,6 +451,19 @@ function Cards({ v }: { v: RoomView }) {
   }, [approve.length]);
   const done = v.members.find((m) => m.id === v.you.id)?.done ?? false;
   const push = (a: string[], x: string | null, finished: boolean) => send({ t: "ballot", approve: a, veto: x, done: finished });
+  const lead = v.you.host || !v.members.find((m) => m.host)?.online;
+  // Everyone at the table ticked the same place (Steve, 2026-11-26): said once, when it happens.
+  const matchLine = useRef<HTMLParagraphElement>(null);
+  const matchKey = v.match.join(",");
+  const lastMatch = useRef(matchKey);
+  useLayoutEffect(() => {
+    if (matchKey && matchKey !== lastMatch.current && matchLine.current) {
+      play(matchLine.current, "match");
+      buzz([10, 40, 10]);
+    }
+    lastMatch.current = matchKey;
+  }, [matchKey]);
+  const matchName = v.cards.find((c) => c.place.id === v.match[0])?.place.name ?? "";
   return (
     <>
       <p class="muted small">{t("round2Hint")}</p>
@@ -458,8 +471,11 @@ function Cards({ v }: { v: RoomView }) {
       <TableLimits l={v.table} />
       <RangeRow v={v} />
       <RankedList
+        key={v.batch}
         sortable
         cards={v.cards}
+        matched={v.match}
+        afterTop={lead && v.moreLeft > 0 ? <MoreBatch v={v} /> : undefined}
         top={TOP_COUNT}
         occasion={v.occasion}
         overBudget={v.overBudget}
@@ -507,11 +523,45 @@ function Cards({ v }: { v: RoomView }) {
         }}
       />
       {!v.demo && <p class="google muted small">{t("google")}</p>}
-      <Dock status={<><p class="picked num" ref={picked}>{t("picked", { n: approve.length })} · {t(veto ? "vetoUsed" : "vetoLeft")}</p><Progress v={v} /></>}>
-        <NextRound v={v} />
-        <Btn kind="primary" wide disabled={done} onClick={() => push(approve, veto, true)}>{t("done")}</Btn>
+      <Dock
+        status={<>
+          {v.match.length > 0 && (
+            <p class="match-line" ref={matchLine} role="status">
+              🎉 {v.match.length === 1 ? t("matchOne", { name: matchName }) : t("matchMany", { n: v.match.length })}
+            </p>
+          )}
+          <p class="picked num" ref={picked}>{t("picked", { n: approve.length })} · {t(veto ? "vetoUsed" : "vetoLeft")}</p>
+          <Progress v={v} />
+        </>}
+      >
+        {v.match.length > 0 ? (
+          <>
+            <Btn kind="quiet" disabled={done} onClick={() => push(approve, veto, true)}>{t("done")}</Btn>
+            <Btn kind="primary" wide class="match-go" onClick={() => send({ t: "match" })}>
+              {v.match.length === 1 ? t("matchGo") : t("matchSpin", { n: v.match.length })}
+            </Btn>
+          </>
+        ) : (
+          <>
+            <NextRound v={v} />
+            <Btn kind="primary" wide disabled={done} onClick={() => push(approve, veto, true)}>{t("done")}</Btn>
+          </>
+        )}
       </Dock>
     </>
+  );
+}
+
+/**
+ * 换一批 (Steve, 2026-11-26): the host brings the next best places of the same search to the top.
+ * Nothing is searched again, so they have no photos; the votes stay.
+ */
+function MoreBatch({ v }: { v: RoomView }) {
+  return (
+    <div class="more-batch">
+      <Btn kind="quiet" wide onClick={() => send({ t: "more", batch: v.batch })}>{t("moreBatch")}</Btn>
+      <p class="muted small">{t("moreBatchNote", { n: v.moreLeft })}</p>
+    </div>
   );
 }
 

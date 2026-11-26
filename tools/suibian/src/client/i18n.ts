@@ -250,6 +250,13 @@ const S = {
   hoursUnknown: ["Google 上没有营业时间，去之前先打个电话", "Google has no opening hours for it: call before you go"],
   home: ["回首页", "Home"],
   stepBack: ["上一步", "Back"],
+  matchOne: ["大家都想去「{name}」！", "Everyone wants {name}!"],
+  matchMany: ["大家都想去这 {n} 家！", "Everyone wants these {n}!"],
+  matchGo: ["就吃这家", "Let's go there"],
+  matchSpin: ["从这 {n} 家里转一个", "Spin between these {n}"],
+  matchTag: ["全员都想去", "Everyone's in"],
+  moreBatch: ["这几家都不想去？换一批", "Not these? Show the next ones"],
+  moreBatchNote: ["还有 {n} 家，不用重新搜，所以没有照片", "{n} more from the same search: no new search, so no photos"],
   backHostOnly: ["要房主点上一步，大家一起回去", "Only the host can take the table back a step"],
   lang: ["English", "中文"],
   // how far
