@@ -7,6 +7,7 @@
  */
 import { heardBy, sfx } from '../audio/sfx';
 import { tr } from '../i18n';
+import { festNow } from '../fest';
 import { levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
 import { keyBanner, tideBanner, tierName } from '../mode-text';
 import { tiered } from '../sides';
@@ -71,7 +72,9 @@ export class PhoneView {
   }
 
   static async create(canvas: HTMLCanvasElement, opts: { render: boolean }): Promise<PhoneView> {
-    const stage = opts.render ? await Stage.create(canvas, { plates: PLATES, compact: true }) : null;
+    // 节日装饰（11-26）：按这部手机的日期（节日关自己带节日）
+    const fest = festNow(new Date(), new URLSearchParams(location.search).get('fest'));
+    const stage = opts.render ? await Stage.create(canvas, { plates: PLATES, compact: true, fest }) : null;
     return new PhoneView(stage);
   }
 

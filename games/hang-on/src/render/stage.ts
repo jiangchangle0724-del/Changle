@@ -1,6 +1,6 @@
 /**
  * 主机画面（A3）：Pixi 8。
- * 屏幕空间：背景（天空和三层视差剪影）→ 背景粒子（蒸汽、雨）→ 世界 → 暗角和闪白。
+ * 屏幕空间：背景（天空和三层视差剪影）→ 节日装饰（节日那几天）→ 背景粒子（蒸汽、雨）→ 世界 → 暗角和闪白。
  * 世界空间（跟镜头）：深渊的汤 → 关卡 → 物件 → 绳子 → 拖尾 → 糯米团 → 粒子 → 汤面（人掉进去就被盖住）。
  * 镜头：跟着活着的人的中心走，把所有人框进来就缩，到关卡边缘就停；摔死时抖一下、慢 0.3 秒。
  * 所有动效读 docs/hang-on.md 的「动效清单」，减弱动效模式下不抖不闪不拉伸。
@@ -19,6 +19,8 @@ import { Backdrop } from './backdrop';
 import { Darkness } from './dark';
 import { Depth } from './depth';
 import { Dumpling, STINK } from './dumpling';
+import { Festive } from './festive';
+import type { FestId } from '../fest';
 import { moodOf } from './mood';
 import { Foreground } from './fore';
 import { FrameWatch } from './framewatch';
@@ -122,6 +124,8 @@ export class Stage {
   private backdrop: Backdrop | null = null;
   /** 近景虚化（A8）：手机上没有。 */
   private fore: Foreground | null = null;
+  /** 节日装饰（11-26）：节日关里挂它自己的节日，别的关挂 `fest`（这台设备今天是哪个节日）。 */
+  private festive: Festive | null = null;
   /**
    * 画多细（A8）：2 全画；1 没有近景光斑和斜光（手机局、小触屏投屏当电视从这一级开始）；
    * 0 台子也不画侧面。一直掉帧（FrameWatch）就降一级，这一局不再升回去。
@@ -160,6 +164,8 @@ export class Stage {
     /** 手机屏幕：镜头拉近一点，糯米团别小得看不清。 */
     private readonly compact: boolean,
     smallTouch: boolean,
+    /** 今天是哪个节日（`festNow`）：不是节日关的关也挂这个节日的装饰。 */
+    private readonly fest: FestId | null,
   ) {
     this.app = app;
     this.detail = compact || smallTouch ? 1 : 2;
@@ -178,9 +184,9 @@ export class Stage {
 
   /**
    * 建画面：Pixi 要异步初始化。plates：每个世界的远景画地址（主机页和开发页给 `src/render/plates.ts` 的）；
-   * compact：画在手机上（手机局），镜头近一些。
+   * compact：画在手机上（手机局），镜头近一些；fest：今天是哪个节日（`festNow`，不是就不给）。
    */
-  static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>>; compact?: boolean } = {}): Promise<Stage> {
+  static async create(canvas: HTMLCanvasElement, opts: { plates?: Partial<Record<WorldId, string>>; compact?: boolean; fest?: FestId | null } = {}): Promise<Stage> {
     const smallTouch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 600;
     const init = {
       canvas,
@@ -206,7 +212,7 @@ export class Stage {
     }
     app.ticker.stop();
     const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const stage = new Stage(app, reduced, opts.plates ?? {}, !!opts.compact, smallTouch);
+    const stage = new Stage(app, reduced, opts.plates ?? {}, !!opts.compact, smallTouch, opts.fest ?? null);
     stage.resize();
     return stage;
   }
@@ -220,6 +226,7 @@ export class Stage {
     this.H = H;
     this.app.renderer.resize(W, H);
     this.backdrop?.resize(W, H);
+    this.festive?.resize(W, H);
     this.fore?.resize(W, H);
     this.dark?.resize(W, H);
     const v = this.vignette.clear();
@@ -258,6 +265,14 @@ export class Stage {
     this.backdrop.resize(this.W, this.H);
     this.backdrop.light = this.detail === 2;
     this.root.addChildAt(this.backdrop.view, 0);
+    // 节日装饰（11-26）：压在远景前面、背景粒子和关卡后面
+    this.festive?.destroy();
+    const fest = level.fest ?? this.fest;
+    this.festive = fest ? new Festive(fest, this.world_, this.screenFx, this.reduced, this.detail < 2) : null;
+    if (this.festive) {
+      this.festive.resize(this.W, this.H);
+      this.root.addChildAt(this.festive.view, 1);
+    }
     this.fore?.destroy();
     this.fore = null;
     this.watch.reset();
@@ -775,6 +790,7 @@ export class Stage {
 
     const level = sim.level;
     this.backdrop?.update(cam.x, cam.y, cam.z, level.w, level.h, dt);
+    this.festive?.update(cam.x, cam.z, dt);
     this.fore?.update(cam.x, cam.y, cam.z, level.h, dt);
     if (this.detail > 0) this.depth?.update(sim, { x: cam.x, y: cam.y, halfW: this.W / 2 / cam.z, halfH: this.H / 2 / cam.z });
     this.terrain?.update(sim, dt);

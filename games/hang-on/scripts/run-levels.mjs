@@ -82,6 +82,19 @@ const sceneIds = Object.values(SCENES).flatMap((s) => s.ids);
 /** 这一关是哪个新场景的（不是就 undefined）。 */
 const sceneOf = (id) => Object.entries(SCENES).find(([, s]) => s.ids.includes(id))?.[0];
 const isScene = (id) => sceneOf(id) !== undefined;
+// C19 节日关（11-26，A27）：levels/fest/<id>.json，回放在 levels/fest/replays/；节日那几天排在闯关、比谁先简单那一串最前面。
+// 一个节日一关，在定好的世界里，按那个新场景的规矩查（教那个场景的东西、用那个场景的机关），另外：简单、没有要命的东西（CONTRACTS「节日关契约」）
+const FESTS = {
+  'fest-xmas': { fest: 'xmas', world: 'snow' },
+  'fest-cny': { fest: 'cny', world: 'kitchen' },
+  'fest-halloween': { fest: 'halloween', world: 'house' },
+  'fest-midautumn': { fest: 'midautumn', world: 'space' },
+};
+const festIds = Object.keys(FESTS);
+const isFest = (id) => Object.hasOwn(FESTS, id);
+const festDir = join(levelsDir, 'fest');
+/** 这关的文件在哪个文件夹（节日关在 levels/fest/，别的在 levels/）。 */
+const dirOf = (id) => (isFest(id) ? festDir : levelsDir);
 /** 关卡 id 前面那半截就是它在哪个世界（table-01 → table，kitchen-25 → kitchen）。 */
 const worldOfId = (id) => id.slice(0, id.lastIndexOf('-'));
 // 难关的 teaches（大厅里显示「难关：…」，中英文在 src/levels.ts）
@@ -601,10 +614,16 @@ function machines(level, id) {
 }
 function validate(level, replay, id) {
   assert.equal(level.id, id);
-  assert.equal(level.world, worldOfId(id));
+  assert.equal(level.world, isFest(id) ? FESTS[id].world : worldOfId(id), `${id}: wrong world`);
   assert(level.name?.zh && level.name.en && level.teaches, 'missing bilingual name / lesson');
   assert(finite(level.w) && level.w > 0 && finite(level.h) && level.h > 0);
-  const scene = sceneOf(id);
+  // 节日关按它那个世界的新场景的规矩查
+  const scene = sceneOf(id) ?? FESTS[id]?.world;
+  if (isFest(id)) {
+    assert.equal(level.fest, FESTS[id].fest, `${id}: fest must be "${FESTS[id].fest}"`);
+    assert.equal(level.tier, 0, `${id}: a holiday level is easy (tier 0): it opens the easy list while the holiday lasts`);
+    assert(!dangersOf(level).length && !level.tide && !(level.pendulums ?? []).some((p) => p.deadly), `${id}: a holiday level is for everyone: nothing deadly (no spikes, heat, shocks, deadly machines, tide or deadly pendulums)`);
+  } else assert(level.fest === undefined, `${id}: only holiday levels (levels/fest/) say fest`);
   const cook = scene !== undefined;
   const long = level.long === true;
   assert(level.long === undefined || cook, `${id}: only levels of the new scenes (and multi levels) can be long`);
@@ -2004,14 +2023,21 @@ try {
   for (const id of found) assert(baseIds.includes(id) || isHard(id) || isScene(id), `unexpected level ${id}: the twelve contracted levels plus hard levels table-13…18 / van-19…24 and the new scenes (${Object.values(SCENES).map((s) => `${s.ids[0]}…${s.ids[5]}`).join(', ')}) only`);
   ids.push(...hardIds.filter((id) => found.includes(id)));
   ids.push(...sceneIds.filter((id) => found.includes(id)));
-  const replayFiles = (await readdir(join(levelsDir, 'replays'))).filter((f) => f.endsWith('.json')).sort();
-  for (const id of ids) assert(replayFiles.includes(`${id}.json`), `${id}: needs its own replay`);
+  // 节日关（C19）：levels/fest/ 里只放这四关，回放在 levels/fest/replays/
+  const listJSON = async (dir) => (await readdir(dir).catch((e) => { if (e.code === 'ENOENT') return []; throw e; })).filter((f) => f.endsWith('.json')).sort();
+  const festFiles = await listJSON(festDir);
+  for (const f of festFiles) assert(isFest(f.slice(0, -'.json'.length)), `unexpected holiday level ${f}: ${festIds.join(', ')} only`);
+  ids.push(...festIds.filter((id) => festFiles.includes(`${id}.json`)));
+  const replayFiles = await listJSON(join(levelsDir, 'replays'));
+  const festReplayFiles = await listJSON(join(festDir, 'replays'));
+  for (const id of ids) assert((isFest(id) ? festReplayFiles : replayFiles).includes(`${id}.json`), `${id}: needs its own replay`);
   // 别的人数的回放：replays/<id>.p<人数>.json，只给按人数摆的关、每种摆法一份
-  const extraReplays = replayFiles.filter((f) => !files.includes(f)).map((f) => {
-    const m = /^((?:table|van|kitchen|snow|house|space)-\d{2})\.p([1-6])\.json$/.exec(f);
-    assert(m && ids.includes(m[1]), `unexpected replay ${f} (extra replays are <level>.p<players>.json)`);
+  const extraOf = (list, mains) => list.filter((f) => !mains.includes(f)).map((f) => {
+    const m = /^((?:table|van|kitchen|snow|house|space)-\d{2}|fest-[a-z]+)\.p([1-6])\.json$/.exec(f);
+    assert(m && ids.includes(m[1]) && isFest(m[1]) === (mains === festFiles), `unexpected replay ${f} (extra replays are <level>.p<players>.json, next to the level's own replay)`);
     return { file: f, id: m[1], players: Number(m[2]) };
   });
+  const extraReplays = [...extraOf(replayFiles, files), ...extraOf(festReplayFiles, festFiles)];
   const entry = join(temporary, 'physics.mjs');
   await build({ stdin: { contents: "export {createSim} from './src/physics/world'; export {runReplay} from './src/physics/replay'; export * from './src/physics/motion'; export {CFG} from './src/physics/config'; export {forPlayers} from './src/physics/level';", resolveDir: root }, bundle: true, platform: 'node', format: 'esm', outfile: entry, logLevel: 'silent' });
   const physics = await import(pathToFileURL(entry).href);
@@ -2067,8 +2093,8 @@ try {
     return { result, evidence };
   }
   for (const id of ids) {
-    const level = await readJSON(join(levelsDir, `${id}.json`));
-    const replay = await readJSON(join(levelsDir, 'replays', `${id}.json`));
+    const level = await readJSON(join(dirOf(id), `${id}.json`));
+    const replay = await readJSON(join(dirOf(id), 'replays', `${id}.json`));
     validate(level, replay, id);
     const { result, evidence } = await check(level, replay, id, true);
     if (id === 'van-12') assert([evidence.ropeGrabs > 0, evidence.propGrabs > 0 && evidence.maxTilt > 0.05, evidence.iceGrabs > 0, evidence.cookieGrabs.length > 0 && evidence.cookieGrabs.every(n => n > 0), evidence.springBounces.length > 0 && evidence.springBounces.every(n => n > 0)].filter(Boolean).length >= 4, id + ': use at least four recap mechanics');
@@ -2087,14 +2113,14 @@ try {
     // 按人数摆的关：每一种摆法都要有一份回放（4 个人那种就是上面这份）
     const mine = extraReplays.filter((r) => r.id === id);
     // 新场景简单、中等的关一个人也要过得去（单人模式也玩这些关）：要一份 1 个人的回放（后厨一个人端着托盘、坐着汽到顶）
-    const soloKitchen = isScene(id) && level.tier < 2;
-    if (soloKitchen) assert(mine.some((r) => r.players === 1), `${id}: an easy or medium ${sceneOf(id)} level needs a one-player replay (replays/${id}.p1.json); solo mode plays it too`);
+    const soloKitchen = (isScene(id) || isFest(id)) && level.tier < 2;
+    if (soloKitchen) assert(mine.some((r) => r.players === 1), `${id}: an easy or medium ${sceneOf(id) ?? 'holiday'} level needs a one-player replay (replays/${id}.p1.json); solo mode plays it too`);
     for (const group of layoutGroups(level)) {
       if (group.includes(4)) {
         assert(!mine.some((r) => group.includes(r.players) && !(soloKitchen && r.players === 1)), `${id}: ${group.join('/')} players share the four-player layout; replays/${id}.json already covers them`);
         if (soloKitchen && group.includes(1)) {
           const solo = mine.find((r) => r.players === 1);
-          const extra = await readJSON(join(levelsDir, 'replays', solo.file));
+          const extra = await readJSON(join(dirOf(id), 'replays', solo.file));
           replayShape(level, extra, id, 1);
           await check(level, extra, id, false);
         }
@@ -2102,7 +2128,7 @@ try {
       }
       const cover = mine.filter((r) => group.includes(r.players));
       assert.equal(cover.length, 1, `${id}: with ${group.join(' or ')} players the level is laid out differently; add exactly one replay for it (replays/${id}.p${group[group.length - 1]}.json)`);
-      const extra = await readJSON(join(levelsDir, 'replays', cover[0].file));
+      const extra = await readJSON(join(dirOf(id), 'replays', cover[0].file));
       replayShape(level, extra, id, cover[0].players);
       await check(level, extra, id, false);
     }
@@ -2159,9 +2185,11 @@ try {
   }
   // 新场景（C10 起）：每关都是自己的关；一个场景六关到齐了才查的搭配
   const sceneEntries = entries.filter((e) => isScene(e.level.id));
-  for (const a of sceneEntries) {
+  // 节日关（C19）也是：整关不能和别的关像
+  const own = (id) => isScene(id) || isFest(id);
+  for (const a of entries.filter((e) => own(e.level.id))) {
     for (const b of entries) {
-      if (b === a || (isScene(b.level.id) && b.level.id < a.level.id)) continue;
+      if (b === a || (own(b.level.id) && b.level.id < a.level.id)) continue;
       const whole = jaccard(surfaceCells(a.level), surfaceCells(b.level));
       assert(whole <= SAME_LEVEL, `${a.level.id} and ${b.level.id} share ${(whole * 100).toFixed(0)}% of their platforms; every level of a new scene needs its own layout (at most ${SAME_LEVEL * 100}%)`);
       if (sceneOf(b.level.id) !== sceneOf(a.level.id)) continue;
@@ -2198,6 +2226,9 @@ try {
   const longs = climbing.filter((e) => e.level.long);
   console.log(`long: ${longs.length} long levels${longs.length ? ` (${longs.map((e) => `${e.level.id} ${Math.round(routeLength(e.level))} px`).join(', ')})` : ''}`);
   console.log(`boulder/scroll: C18 ${c18}; ${climbing.filter((e) => e.level.boulders?.length).length} with boulders, ${climbing.filter((e) => e.level.scroll).length} scrolling`);
+  // 节日关（C19）：做好了几关
+  const festDone = entries.filter((e) => isFest(e.level.id)).map((e) => e.level.id);
+  console.log(`fest: C19 ${festDone.length}/${festIds.length} holiday levels${festDone.length ? ` (${festDone.join(', ')})` : ''}`);
   console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard + ${teamEntries.length}/6 team + ${sceneCounts.join(' + ')} + ${multiEntries.length}/9 multi PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS`);
 } catch (error) {
   console.error(`levels: FAIL — ${error.message}`);

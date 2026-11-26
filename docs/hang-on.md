@@ -304,7 +304,8 @@
 | A25 | 长辈小孩模式：手柄上一个人一个人开，掉的时候手碰到东西自己抓、站稳了自己松，抓得远、不手酸、身子轻；大厅「🐢 慢一点」全场 0.8 倍 | Claude Code | `physics/assist.test.ts`；回放不变；浏览器里走过：加入卡打开、大厅座位卡带 🌱、菜单里关了再开、手柄按 🐢 大屏跟着亮、开局后物理里开着；#818 |
 | A26 | 推大石头和卷屏的机关：大石头（又圆又重，几个人一起推，填沟、压踏板，掉出去回原地）、卷屏（屏幕自己往右或往上走，掉队的被甩掉，复活在屏幕里最靠前的检查点）；样板关 proto-10、proto-11；验收器规矩；任务卡 ho-C18 | Claude Code | `boulder.test.ts`、`scroll.test.ts`；回放不变；#819 |
 | C18 | 用推大石头、卷屏重做长得一样的 6 关长关（kitchen-26、kitchen-28、snow-32、snow-35、house-40、house-41） | Codex | `npm run levels` 全过，`boulder/scroll: C18 6/6 redone` |
-| A27 | 节日关 | Claude Code | |
+| A27 | 节日关的机制：节日日历（春节、中秋、圣诞、万圣节，按本地日期，`?fest=`）、画面上的节日装饰、节日关排在闯关和比谁先简单那一串最前面、大厅「🎄 去玩圣诞关」、验收器规矩（levels/fest/）；任务卡 ho-C19 | Claude Code | `fest.test.ts`；回放不变；#820 |
+| C19 | 四个节日关：fest-xmas（雪山，先交）、fest-cny（后厨）、fest-halloween（老宅）、fest-midautumn（太空站），简单、没有要命的东西 | Codex | `npm run levels` 全过，`fest: C19 4/4 holiday levels` |
 | A28 | 每日一关和排行榜（用现有的房间服务器） | Claude Code | |
 | A29 | 关卡编辑器 | Claude Code | |
 

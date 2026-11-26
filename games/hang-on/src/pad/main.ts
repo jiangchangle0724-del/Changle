@@ -615,7 +615,7 @@ function renderMenu(): void {
     const tiers = $('mTiers');
     tiers.innerHTML = '';
     for (const t of TIERS) radio(tiers, tierName(t), t === m.tier, () => send({ do: 'tier', tier: t }));
-    $('mLevel').textContent = `${m.level.n}. ${pickLang(m.level.name)}${m.level.stars ? ` ${m.level.stars}` : ''}`;
+    $('mLevel').textContent = `${m.level.title ? pickLang(m.level.title) : `${m.level.n}. ${pickLang(m.level.name)}`}${m.level.stars ? ` ${m.level.stars}` : ''}`;
     $('mTeach').textContent = pickLang(m.level.teach);
     $<HTMLButtonElement>('mPrev').disabled = m.level.n <= 1;
     $<HTMLButtonElement>('mNext').disabled = m.level.n >= m.level.of;

@@ -3,7 +3,9 @@
  * 最后附上彩蛋关「桌上杂技」。A1 的手感原型关不进大厅，开发页 `?level=proto-01` 还能开。
  * 每种玩法有自己的一串（`levelsFor`）：闯关和比谁先按难度分三串（简单 1 到 6 关和彩蛋关，中等 7 到 12 关，困难 13 号往后），
  * 大团队用 levels/team/ 里的大关（C9），坐不住用场地（src/physics/arenas.ts）。
+ * 节日关（11-26）：levels/fest/ 里的关，节日那几天排在闯关、比谁先简单那一串最前面（`levelsFor` 的 fest）。
  */
+import { FEST_IDS, FESTS, type FestId } from './fest';
 import { pickLang } from './i18n';
 import { arenaLevels, goldArenas } from './physics/arenas';
 import { boulderLevel, gadgetsLevel, gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, scrollLevel, showcaseLevel, snowLevel, spaceLevel, type Level } from './physics/level';
@@ -13,6 +15,7 @@ import type { Side, Tier } from './sides';
 const files = import.meta.glob('../levels/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
 const teamFiles = import.meta.glob('../levels/team/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
 const multiFiles = import.meta.glob('../levels/multi/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
+const festFiles = import.meta.glob('../levels/fest/*.json', { eager: true, import: 'default' }) as Record<string, Level>;
 
 /** id 末尾的号（table-01 → 1，van-19 → 19），没有号的排最后。 */
 const order = (l: Level): number => Number(/(\d+)$/.exec(l.id)?.[1] ?? Infinity);
@@ -30,6 +33,12 @@ export const GOLD_ARENAS: Level[] = goldArenas();
  * 这一档还没有的时候用和单人一样的那一串。
  */
 export const MULTI_LEVELS: Level[] = sorted(multiFiles);
+/** 节日关（11-26，Codex 的 C19 做，放进 levels/fest/）：一个节日一关，写着 `fest`。 */
+export const FEST_LEVELS: Level[] = Object.values(festFiles).filter((l) => !!l.fest && FEST_IDS.includes(l.fest));
+/** 这个节日的关（还没做好是 undefined）。 */
+export function festLevel(fest: FestId | null | undefined, list: readonly Level[] = FEST_LEVELS): Level | undefined {
+  return fest ? list.find((l) => l.fest === fest) : undefined;
+}
 
 /**
  * 闯关、比谁先的难度（11-13）：1 到 6 关简单（彩蛋关「桌上杂技」bonus-01 也是 1 号，排在简单最后），7 到 12 关中等，13 号往后（难关）困难。
@@ -41,17 +50,24 @@ export function tierOfLevel(l: Level): Tier {
   return n <= 6 ? 0 : n <= 12 ? 1 : 2;
 }
 
-/** 每种玩法从哪一串里选关；闯关、比谁先按难度分（不给难度是全部）。多人的一起闯关这一档有多人的关就用多人的。 */
-export function levelsFor(mode: GameMode, tier?: Tier, side: Side = 'solo'): Level[] {
+/**
+ * 每种玩法从哪一串里选关；闯关、比谁先按难度分（不给难度是全部）。多人的一起闯关这一档有多人的关就用多人的。
+ * fest：现在是哪个节日（`festNow`），有这个节日的关就排在闯关、比谁先简单那一串最前面（单人多人都是）。
+ */
+export function levelsFor(mode: GameMode, tier?: Tier, side: Side = 'solo', fest: FestId | null = null, fests: readonly Level[] = FEST_LEVELS): Level[] {
   if (mode === 'team') return TEAM_LEVELS;
   if (mode === 'last') return ARENAS;
   if (mode === 'gold' || mode === 'rain') return GOLD_ARENAS;
   if (tier === undefined) return LEVELS;
-  if (mode === 'climb' && side === 'multi') {
-    const multi = MULTI_LEVELS.filter((l) => tierOfLevel(l) === tier);
-    if (multi.length) return multi;
-  }
-  return LEVELS.filter((l) => tierOfLevel(l) === tier);
+  const festive = tier === 0 && (mode === 'climb' || mode === 'race') ? festLevel(fest, fests) : undefined;
+  const list = (() => {
+    if (mode === 'climb' && side === 'multi') {
+      const multi = MULTI_LEVELS.filter((l) => tierOfLevel(l) === tier);
+      if (multi.length) return multi;
+    }
+    return LEVELS.filter((l) => tierOfLevel(l) === tier);
+  })();
+  return festive ? [festive, ...list] : list;
 }
 
 export function levelById(id: string | null | undefined): Level | undefined {
@@ -66,7 +82,7 @@ export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-09') return gadgetsLevel();
   if (id === 'proto-10') return boulderLevel();
   if (id === 'proto-11') return scrollLevel();
-  return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id);
+  return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id) ?? FEST_LEVELS.find((l) => l.id === id);
 }
 
 /** 关卡教的那件事，给人看的话。 */
@@ -146,6 +162,17 @@ export function withTiredNote(t: { zh: string; en: string }, on: boolean): { zh:
 }
 
 /** 关卡给人看的名字（当前语言）。 */
-export function levelTitle(l: Level, i: number): string {
-  return `${i + 1}. ${pickLang(l.name, l.id)}`;
+/**
+ * 大厅、倒数里写的关名：「3. 筷子桥」。节日关不编号，写节日的标记（「🎄 …」）；
+ * list：这关所在的那一串，最前面是节日关的话后面的号往前挪一个（节日那几天简单的关还是 1 到 6）。
+ */
+export function levelTitle(l: Level, i: number, list?: readonly Level[]): string {
+  return pickLang(levelLabel(l, i, list));
+}
+/** 关名两种话都要（手柄的菜单跟着手机的语言写，`Menu.level.title`）。 */
+export function levelLabel(l: Level, i: number, list?: readonly Level[]): { zh: string; en: string } {
+  const name = l.name ?? { zh: l.id, en: l.id };
+  if (l.fest) return { zh: `${FESTS[l.fest].emoji} ${name.zh}`, en: `${FESTS[l.fest].emoji} ${name.en}` };
+  const n = i + 1 - (list?.[0]?.fest ? 1 : 0);
+  return { zh: `${n}. ${name.zh}`, en: `${n}. ${name.en}` };
 }

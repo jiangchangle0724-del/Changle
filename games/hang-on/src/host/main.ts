@@ -20,7 +20,8 @@ import { emotePicker } from '../emote-picker';
 import { AchvRound, type AchvId, type Award } from '../achievements';
 import { achvCount, loadAchvs, renderAchvList, saveAchvs, trophyToast, unlockLines } from '../achv-ui';
 import { installReports, reportError, watchCanvas, type ReportContext } from '../report';
-import { levelById, LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
+import { FEST_LEVELS, festLevel, levelById, levelLabel, LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
+import { FESTS, festNow, type FestId } from '../fest';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
 import { cleanLook, DEFAULT_LOOK, GACHA, LOOK_NAMES, lockLook, randomLook, type GachaId, type Look } from '../look';
@@ -118,7 +119,13 @@ installReports(() => {
 });
 const canvas = $<HTMLCanvasElement>('stage');
 watchCanvas(canvas);
-const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode });
+/**
+ * 节日关（11-26）：今天是哪个节日（这台主机的日期；`?fest=xmas` 当成圣诞、`?fest=none` 不要节日）。
+ * `?level=fest-xmas` 开节日关就当是这个节日。节日那几天画面挂装饰，有这个节日的关就排在简单那一串最前面。
+ */
+const askedFest = FEST_LEVELS.find((l) => l.id === params.get('level'));
+const fest: FestId | null = askedFest?.fest ?? festNow(new Date(), params.get('fest'));
+const stage = await Stage.create(canvas, { plates: PLATES, compact: phoneMode, fest });
 /** 玩法（A7）：开局前在大厅里选；`?mode=race` 之类直接开到那个玩法（检查脚本用），`?teams=1` 比谁先分两队。 */
 const MODES: GameMode[] = ['climb', 'team', 'race', 'last', 'gold'];
 let mode: GameMode = MODES.find((m) => m === params.get('mode') && (m !== 'team' || TEAM_LEVELS.length > 0)) ?? 'climb';
@@ -129,10 +136,10 @@ let teamsOn = params.get('teams') === '1';
  */
 let side: Side = cleanSide(params.get('side')) ?? (mode === 'climb' ? 'solo' : 'multi');
 let sideAuto = !params.get('side') && mode === 'climb';
-const askedLevel = LEVELS.find((l) => l.id === params.get('level'));
+const askedLevel = LEVELS.find((l) => l.id === params.get('level')) ?? askedFest;
 let tier: Tier = cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0);
 /** 现在这个玩法、这档难度的那一串关。 */
-const listNow = (): Level[] => levelsFor(mode, tiered(mode) ? tier : undefined, side);
+const listNow = (): Level[] => levelsFor(mode, tiered(mode) ? tier : undefined, side, fest);
 /** 每种玩法、每档难度记着自己选到第几关，换回来还在那。 */
 const levelIndexOf = new Map<string, number>();
 const slot = (): string => `${mode}:${tiered(mode) ? tier : '-'}`;
@@ -708,6 +715,26 @@ function renderEscortBtn(): void {
   b.setAttribute('aria-pressed', String(escortOn));
   b.title = tr('起点放一个大元宝，扛到终点算数（不送也能过关）', 'A big gold ingot waits at the start. Carry it to the top for a bonus (you can finish without it)');
 }
+/**
+ * 节日关（11-26，14 样的第 12 样）：节日那几天有这个节日的关，大厅里一个键直接去玩
+ * （闯关、比谁先简单那一串的第一关；在别的玩法换成闯关）。正在这关上就不出。
+ */
+function renderFestBtn(): void {
+  const b = $<HTMLButtonElement>('festBtn');
+  const fl = festLevel(fest);
+  b.hidden = !fl || !fest || level.id === fl.id;
+  if (!fl || !fest) return;
+  const f = FESTS[fest];
+  b.textContent = tr(`${f.emoji} 去玩${f.zh}关`, `${f.emoji} Play the ${f.en} level`);
+}
+function playFest(): void {
+  if (!festLevel(fest) || phase !== 'lobby') return;
+  levelIndexOf.set(slot(), levelIndex);
+  if (mode !== 'climb' && mode !== 'race') mode = 'climb';
+  tier = 0;
+  levelIndexOf.set(slot(), 0);
+  relist(true);
+}
 /** 慢一点（11-26，长辈小孩模式）：全场慢到 0.8 倍，记在这台主机上。 */
 function setSlow(on: boolean): void {
   if (on === slowMode) return;
@@ -1059,7 +1086,7 @@ function name(i: number): string {
 /** 倒数时写的：不是闯关就带上玩法，分难度的带上难度。 */
 function countLabel(): string {
   const pre = [mode === 'climb' ? '' : modeName(mode), tiered(mode) ? tierName(tier) : ''].filter(Boolean);
-  return [...pre, levelTitle(level, levelIndex)].join(' · ');
+  return [...pre, levelTitle(level, levelIndex, listNow())].join(' · ');
 }
 
 /** 这一局的小目标和红包（A9b）：到顶那一下算好、记下，结算页和发给手机的结算都用它；开新的一局清掉。 */
@@ -1304,7 +1331,7 @@ function pickLevel(i: number): void {
 function renderLevel(): void {
   const list = listNow();
   if (phase === 'lobby') syncMusic();
-  $('levelName').textContent = levelTitle(level, levelIndex);
+  $('levelName').textContent = levelTitle(level, levelIndex, list);
   // 小目标的星（A9b）：这台主机上这一关拿到过几颗
   if (mode === 'climb' || mode === 'team') {
     const keys = goalTargets(level, Math.max(1, playerCount())).map((g) => g.key);
@@ -1314,14 +1341,19 @@ function renderLevel(): void {
     stars.setAttribute('aria-label', tr(`拿到过 ${starsOf(level.id).length} 颗星，一共 ${keys.length} 颗`, `${starsOf(level.id).length} of ${keys.length} stars`));
     $('levelName').append(stars);
   }
-  const allEnv = LEVELS.reduce((s, l) => s + (l.envelopes?.length ?? 0), 0);
+  // 节日关（11-26）的红包也算：节日那几天才拿得到
+  const allEnv = [...LEVELS, ...FEST_LEVELS].reduce((s, l) => s + (l.envelopes?.length ?? 0), 0);
   const et = $('envTotal');
   et.hidden = (mode !== 'climb' && mode !== 'team') || !allEnv;
   et.textContent = tr(`🧧 攒了 ${envelopeTotal()} / ${allEnv} 个红包`, `🧧 ${envelopeTotal()} of ${allEnv} red envelopes saved up`);
   // 红包扭蛋机的键跟着攒的红包变（11-25）
   renderGachaBtn();
   // 闯关、大团队写这关教什么；比谁先、坐不住写这个玩法怎么赢（场地自己的说明和它一样）
-  $('levelTeach').textContent = pickLang(withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()));
+  const teach = pickLang(withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()));
+  // 节日关（11-26）：前面写「🎄 圣诞限定」
+  const f = level.fest ? FESTS[level.fest] : null;
+  $('levelTeach').textContent = f ? `${f.emoji} ${tr(`${f.zh}限定`, `${f.en} special`)} · ${teach}` : teach;
+  renderFestBtn();
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
   $<HTMLButtonElement>('levelNext').disabled = levelIndex >= list.length - 1;
 }
@@ -1720,6 +1752,10 @@ $('assistBtn').addEventListener('click', () => {
 $('escortBtn').addEventListener('click', () => {
   sfx.tick();
   setEscort(!escortOn);
+});
+$('festBtn').addEventListener('click', () => {
+  sfx.tick();
+  playFest();
 });
 $('gachaPull').addEventListener('click', gachaPull);
 $('gachaDone').addEventListener('click', () => gachaDlg.close());
@@ -2144,6 +2180,7 @@ function menuFor(): Menu {
       n: levelIndex + 1,
       of: list.length,
       name: level.name ?? { zh: level.id, en: level.id },
+      title: levelLabel(level, levelIndex, list),
       teach: withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()),
       // 小目标的星（A9b）：这台主机上这一关拿到过的（闯关、大团队）
       ...(mode === 'climb' || mode === 'team' ? { stars: starLine(starsOf(level.id), goalTargets(level, Math.max(1, playerCount())).map((g) => g.key)) } : {}),
