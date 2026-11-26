@@ -155,8 +155,17 @@ export function answerText(out: unknown): string {
 /** A name wrapped whole in quotes, without them ("「读书会」"); 《》 around a work's name inside it stay. */
 const unwrap = (t: string) => t.replace(/^(?:「(.*)」|『(.*)』|“(.*)”|"(.*)")$/s, (_, a, b, c, d) => a ?? b ?? c ?? d).trim();
 
-/** The longest Chinese name kept (Ticketmaster's are the source's own, however long: KEEP_TITLE). */
-export const TITLE_MAX = 40;
+/**
+ * The longest name kept, all of it (Ticketmaster's are the source's own, however long: KEEP_TITLE),
+ * and the most Chinese characters in it: the instructions ask for 20 at most, and the names kept
+ * in English (teams, artists, venues) can be long by themselves ("Coquitlam Express 对阵 Prince
+ * George Spruce Kings" is 45 characters, 2 of them Chinese). Until 26 November a name had 40 in
+ * all, and the colleges' games and Showpass's line-ups were turned down for it.
+ */
+export const TITLE_MAX = 70;
+export const TITLE_ZH_MAX = 24;
+/** A name too long to be one (a sentence, a translation that rambles). */
+export const tooLong = (name: string) => name.length > TITLE_MAX || (name.match(/[㐀-鿿]/g)?.length ?? 0) > TITLE_ZH_MAX;
 
 /** One answer item, checked: a name, a Chinese sentence, a known category or none. */
 function checked(item: unknown): Written | null {
@@ -241,9 +250,11 @@ const twinsOf = (id: number, hash: number, source: number) =>
  * Keeps what was written, for the event and its twins; counts a try against each it couldn't use
  * (and its twins: they're asked as one). A category only where the parsers gave none.
  */
-export async function keepWritten(db: D1Database, events: ToWrite[], written: (Written | null)[]): Promise<{ wrote: number; failed: number }> {
+export async function keepWritten(db: D1Database, events: ToWrite[], written: (Written | null)[]): Promise<{ wrote: number; failed: number; why: Record<string, number> }> {
   const stmts: D1PreparedStatement[] = [];
   let failed = 0;
+  // why each answer turned down was: unreadable (none for it), a long name, praise, an origin
+  const why: Record<string, number> = {};
   events.forEach((e, i) => {
     const got = written[i];
     const twins = [e.textHash ?? null, e.source ?? null] as const;
@@ -251,8 +262,10 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
     // Underachievers - NO1LIVESFOREVER Tour" whole, as told, and the sentence was turned down with it)
     const keep = KEEP_TITLE.has(e.source ?? "");
     const w = got && corrected(keep ? { ...got, titleZh: e.title } : got, e);
-    if (!w || (!keep && w.titleZh.length > TITLE_MAX) || !grounded(w, e)) {
+    const no = !w ? "unreadable" : !keep && tooLong(w.titleZh) ? "long name" : ungrounded(w, e);
+    if (!w || no) {
       failed++;
+      why[no ?? "unreadable"] = (why[no ?? "unreadable"] ?? 0) + 1;
       // an event is asked because its Chinese is missing or out of date (older instructions, a changed
       // text): when the answer can't be used, the old Chinese goes too, and the page shows the source's
       // words until a good one comes (v2's "知名阿拉伯DJ" stayed up after v3 turned the new one down)
@@ -278,7 +291,7 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
     );
   });
   if (stmts.length) await db.batch(stmts);
-  return { wrote: events.length - failed, failed };
+  return { wrote: events.length - failed, failed, why };
 }
 
 /**
@@ -378,10 +391,15 @@ const ORIGINS: [RegExp, RegExp][] = [
  * nothing backs ("中国新生代歌手", "知名阿拉伯 DJ" came from a name alone).
  */
 export function grounded(w: Written, e: ToWrite): boolean {
+  return ungrounded(w, e) === null;
+}
+
+/** What in it nothing in the source backs: "praise", "origin", or null. */
+export function ungrounded(w: Written, e: ToWrite): "praise" | "origin" | null {
   const said = [e.title, e.venue, e.description, labelsOf(e.labels)].filter(Boolean).join(" ");
   const wrote = `${w.titleZh} ${w.summaryZh}`;
-  if (PRAISE.test(wrote) && !PRAISE.test(said)) return false;
-  return ORIGINS.every(([zh, cue]) => !zh.test(wrote) || cue.test(said));
+  if (PRAISE.test(wrote) && !PRAISE.test(said)) return "praise";
+  return ORIGINS.every(([zh, cue]) => !zh.test(wrote) || cue.test(said)) ? null : "origin";
 }
 
 /** A sport, a game or a player after 职业: where 职业 says "professional" (职业顾问, a careers adviser, stays). */
@@ -418,6 +436,8 @@ export interface Wrote {
   error: string | null;
   /** Which model answered (AI_MODELS), when one did. */
   model?: string;
+  /** Why the answers not used weren't, when some weren't: { "long name": 2, praise: 1 }. */
+  why?: Record<string, number>;
 }
 
 /**
@@ -434,8 +454,8 @@ export async function writeSome(db: D1Database, run: RunModel, runId: string, fr
     // the allowance used up, every model away: nothing is counted against the events
     return { asked: events.length, wrote: 0, failed: 0, error: (e instanceof Error ? e.message : String(e)).slice(0, 300) };
   }
-  const { wrote, failed } = await keepWritten(db, events, readAnswer(answer.text, events.length));
-  return { asked: events.length, wrote, failed, error: wrote ? null : `no usable answer: ${answer.text.slice(0, 200)}`, model: answer.model };
+  const { wrote, failed, why } = await keepWritten(db, events, readAnswer(answer.text, events.length));
+  return { asked: events.length, wrote, failed, error: wrote ? null : `no usable answer: ${answer.text.slice(0, 200)}`, model: answer.model, ...(failed ? { why } : {}) };
 }
 
 /** One step of the catch-up, a request of its own (src/worker.ts), logged with the run's steps as "ai". */
@@ -454,7 +474,8 @@ export async function translateStep(env: Env, args: { runId: string; ids: string
 
 /** The log's note on an AI step: what wasn't usable, and the model when it wasn't the first. */
 export function aiNote(r: Wrote): string | null {
-  const notes = [r.failed ? `${r.failed} not usable` : "", r.model && r.model !== AI_MODEL ? `by ${r.model}` : ""].filter(Boolean);
+  const why = Object.entries(r.why ?? {}).map(([reason, n]) => `${reason} ${n}`).join(", ");
+  const notes = [r.failed ? `${r.failed} not usable${why ? ` (${why})` : ""}` : "", r.model && r.model !== AI_MODEL ? `by ${r.model}` : ""].filter(Boolean);
   return notes.length ? notes.join("; ") : null;
 }
 

@@ -9,6 +9,8 @@ import {
   AI_VERSION,
   INSTRUCTIONS,
   TITLE_MAX,
+  TITLE_ZH_MAX,
+  tooLong,
   about,
   answerText,
   labelsOf,
@@ -122,6 +124,7 @@ describe("what the AI is asked", () => {
     expect(sent[0]).toMatchObject({ max_tokens: 10, temperature: 0 });
     await expect(ask(async () => ({ choices: [{ message: { content: "" } }] }), input)).rejects.toThrow('@cf/qwen/qwen3.8-27b answered no text: {"choices":[{"message":{"content":""}}]}');
     expect(aiNote({ asked: 15, wrote: 14, failed: 1, error: null, model: AI_MODELS[0] })).toBe("1 not usable");
+    expect(aiNote({ asked: 15, wrote: 12, failed: 3, error: null, model: AI_MODELS[0], why: { "long name": 2, praise: 1 } })).toBe("3 not usable (long name 2, praise 1)");
     expect(aiNote({ asked: 15, wrote: 15, failed: 0, error: null, model: AI_MODELS[1] })).toBe("by @cf/qwen/qwen3.8-27b");
     expect(aiNote({ asked: 15, wrote: 0, failed: 0, error: "5028" })).toBeNull();
   });
@@ -297,9 +300,17 @@ describe("writing and keeping it", () => {
       { n: items[0].n, t: "阿曼达·马歇尔：肮脏三十巡演", s: "摇滚音乐现场演出", c: "shows" },
       { n: items[1].n, t: "Saliah 温哥华演出", s: "知名阿拉伯DJ带来电子音乐演出", c: "nightlife" },
     ]);
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL, why: { praise: 1 } });
     expect(await row("ticketmaster:e1")).toMatchObject({ title_zh: "Amanda Marshall - The Dirty 30 Tour", summary_zh: "摇滚音乐现场演出" });
     expect(await row("ticketmaster:e2")).toMatchObject({ title_zh: null, ai_tries: 1 });
+  });
+
+  it("a long name is a long Chinese one: teams and artists kept in English can be long by themselves", () => {
+    expect(tooLong("Coquitlam Express 对阵 Prince George Spruce Kings")).toBe(false);
+    expect(tooLong("LIGHTNING TEMPLE WIZARDS 与 CHRISTOPHER HERNANDEZ 演出")).toBe(false);
+    expect(tooLong("一场在温哥华市中心举办的、面向所有年龄段观众的大型节日灯光庆祝活动")).toBe(true);
+    expect(tooLong("x".repeat(TITLE_MAX + 1))).toBe(true);
+    expect(tooLong("中".repeat(TITLE_ZH_MAX))).toBe(false);
   });
 
   it("a name over TITLE_MAX isn't kept, unless it's Ticketmaster's own: there the sentence is kept with the source's name", async () => {
@@ -340,7 +351,7 @@ describe("writing and keeping it", () => {
     await storeEvents(env.DB, RUN, [event(1), event(2)]);
     // the first comes back without Chinese, every time
     const { run } = model((items) => items.map((i) => ({ n: i.n, t: "x", s: i.title === "Event 1" ? "no Chinese" : "一句中文介绍，说说这是什么样的活动。", c: null })));
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL, why: { unreadable: 1 } });
     await writeSome(env.DB, run, RUN, NOW, W.toMs);
     await writeSome(env.DB, run, RUN, NOW, W.toMs);
     expect(await row("vpl:e1")).toMatchObject({ title_zh: null, ai_tries: 3 });
