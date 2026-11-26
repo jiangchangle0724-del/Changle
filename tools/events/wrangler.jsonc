@@ -15,6 +15,9 @@
   "main": "src/worker.ts",
   // (ctx.exports, through which the day's run calls its own steps, is on by default since 2025-11-17)
   "compatibility_date": "2026-10-26",
+  // a deploy keeps what's set in Cloudflare's dashboard: a key added there as plain text (rather
+  // than as a secret) would otherwise be wiped by the next merge
+  "keep_vars": true,
   // changle-events.<account>.workers.dev answers only POST /go/api/handoff and GET /go/api/status
   // (src/worker.ts): the libraries' GitHub job hands its pages over there, and the daily health check
   // reads the status there, because changle.ca's bot protection challenges GitHub's machines
