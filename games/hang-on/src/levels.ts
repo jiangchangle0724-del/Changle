@@ -5,6 +5,7 @@
  * 大团队用 levels/team/ 里的大关（C9），坐不住用场地（src/physics/arenas.ts）。
  * 节日关（11-26）：levels/fest/ 里的关，节日那几天排在闯关、比谁先简单那一串最前面（`levelsFor` 的 fest）。
  */
+import { dailyIndex } from './daily';
 import { FEST_IDS, FESTS, type FestId } from './fest';
 import { pickLang } from './i18n';
 import { arenaLevels, goldArenas } from './physics/arenas';
@@ -35,6 +36,15 @@ export const GOLD_ARENAS: Level[] = goldArenas();
 export const MULTI_LEVELS: Level[] = sorted(multiFiles);
 /** 节日关（11-26，Codex 的 C19 做，放进 levels/fest/）：一个节日一关，写着 `fest`。 */
 export const FEST_LEVELS: Level[] = Object.values(festFiles).filter((l) => !!l.fest && FEST_IDS.includes(l.fest));
+/**
+ * 每日一关（11-26）从哪些关里挑：闯关的简单、中等（不要彩蛋关「桌上杂技」，不要多人才能过的关和节日关），按关卡表的顺序。
+ * 加了新关这一串会变，那天以后的每日一关跟着重排（同一天大家还是同一关）。
+ */
+export const DAILY_LEVELS: Level[] = LEVELS.filter((l) => l.id !== 'bonus-01' && tierOfLevel(l) <= 1);
+/** 这一天（温哥华的日期，`vancouverDay`）的每日一关。 */
+export function dailyLevel(day: string): Level {
+  return DAILY_LEVELS[dailyIndex(day, DAILY_LEVELS.length)] as Level;
+}
 /** 这个节日的关（还没做好是 undefined）。 */
 export function festLevel(fest: FestId | null | undefined, list: readonly Level[] = FEST_LEVELS): Level | undefined {
   return fest ? list.find((l) => l.fest === fest) : undefined;

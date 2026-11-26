@@ -152,6 +152,17 @@
     .gacha-dlg .row { position: sticky; bottom: 0; background: var(--card); margin: 8px 0 0; padding: 6px 0 10px; }
   }
   .achv-dlg .row { display: flex; margin-top: 12px; }
+  /* 每日一关的排行（11-26）：两个榜，一条一行（名次、名字、用时、几个人摔几次），这台设备的那条亮一点 */
+  .board-dlg h3 { font-size: 14px; margin: 12px 0 6px; opacity: .7; }
+  .board-dlg ol { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+  .board-dlg li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; column-gap: 10px; align-items: baseline; padding: 6px 10px; border-radius: 12px; background: rgba(0,0,0,.05); }
+  .board-dlg li.me { background: #f6c453; }
+  .board-dlg .rank { font-weight: 800; text-align: right; }
+  .board-dlg .who { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .board-dlg .time { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .board-dlg .n { grid-column: 2 / 4; font-size: 12px; opacity: .7; }
+  .board-dlg .bnote { font-size: 13px; opacity: .7; margin: 4px 0; }
+  .results .daily-res { font-size: 14px; margin: 8px 0 0; }
   .achv-dlg .row .btn { flex: 1; background: var(--card-ink); color: var(--ink); }
   /* 表情（11-25）：大厅里谁说了一句，挂在他的座位卡上面 */
   .seat .say { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); z-index: 1; white-space: nowrap; padding: 3px 10px; border-radius: 12px;
@@ -429,7 +440,7 @@
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
       </div>
       <!-- 护送大元宝（11-26）的开关；电视局和手机局之间换（11-25 挪到下面一行：上面那一排加了 🏆、🎰，横着的手机上放不下） -->
-      <div class="row2"><button class="btn quiet" id="festBtn" type="button" hidden></button><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="slowBtn" type="button" aria-pressed="false">🐢 慢一点：关</button><button class="btn quiet" id="assistBtn" type="button" hidden aria-pressed="false">🌱 长辈小孩模式：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
+      <div class="row2"><button class="btn quiet" id="festBtn" type="button" hidden></button><button class="btn quiet" id="dailyBtn" type="button">📅 每日一关</button><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="slowBtn" type="button" aria-pressed="false">🐢 慢一点：关</button><button class="btn quiet" id="assistBtn" type="button" hidden aria-pressed="false">🌱 长辈小孩模式：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
     </div>
   </div>
 </div>
@@ -451,8 +462,9 @@
       <ul id="betrayList"></ul>
       <p id="betrayNone" style="opacity:.6;font-size:13px;margin:6px 0 0" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
       <p class="crowd-res" id="crowdLine" hidden></p>
+      <p class="daily-res" id="dailyLine" hidden></p>
       <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button>
-        <button class="btn" id="rainBtn" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button><button class="btn quiet" id="replayBtn" type="button" hidden>▶ 精彩回放</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
+        <button class="btn" id="rainBtn" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button><button class="btn quiet" id="replayBtn" type="button" hidden>▶ 精彩回放</button><button class="btn quiet" id="dailyBoardBtn" type="button" hidden data-en="🏆 Today's board">🏆 今日排行</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
       <p class="padhint" id="padHint" hidden></p>
     </div>
   </div>
@@ -495,6 +507,12 @@
     <button class="btn" id="gachaPull" type="button">扭一个</button>
     <button class="btn quiet" id="gachaDone" type="button" data-en="Done">好了</button>
   </div>
+</dialog>
+<!-- 每日一关（11-26）：今天这一关的单人榜、多人榜 -->
+<dialog class="achv-dlg board-dlg" id="boardDlg" aria-label="每日一关排行" data-en-label="Daily level board">
+  <h2 id="boardTitle" tabindex="-1" autofocus>📅 每日一关</h2>
+  <div class="bbody" id="boardBody"></div>
+  <div class="row"><button class="btn" id="boardDone" type="button" data-en="Done">好了</button></div>
 </dialog>
 <dialog class="achv-dlg" id="achvDlg" aria-label="成就" data-en-label="Achievements">
   <h2 data-en="Achievements" tabindex="-1" autofocus>成就</h2>
