@@ -76,13 +76,11 @@ export class MemoryRemote implements Remote {
         }),
       };
     }
-    // 4. Quotas (LIM-2). A refused batch counts for nothing. A batch that makes an over-full vault smaller is let through.
+    // 4. Quotas (LIM-2). A refused batch counts for nothing and changes nothing, the day it was refused on included. A
+    //    batch that makes an over-full vault smaller is let through.
     const today = this.today();
-    if (today !== this.day) {
-      this.day = today;
-      this.written = 0;
-    }
-    if (this.written + writes.length > this.limits.writesPerDay) return { ok: false, why: "quota-writes" };
+    const written = today === this.day ? this.written : 0;
+    if (written + writes.length > this.limits.writesPerDay) return { ok: false, why: "quota-writes" };
     const before = this.bytes();
     const after = before + writes.reduce((sum, write) => sum + write.blob.length - (this.chunks.get(write.id)?.blob.length ?? 0), 0);
     if (after > this.limits.vaultBytes && after > before) return { ok: false, why: "quota-bytes" };
@@ -93,7 +91,8 @@ export class MemoryRemote implements Remote {
       this.chunks.set(write.id, { version: this.seq, blob: write.blob.slice() });
       versions.push({ id: write.id, version: this.seq });
     }
-    this.written += writes.length;
+    this.day = today;
+    this.written = written + writes.length;
     return { ok: true, versions };
   }
 

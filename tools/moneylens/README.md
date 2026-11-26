@@ -60,6 +60,18 @@ passphrase normalization can only change with a new version that still reads the
 passphrase wrapper was made a second time before this code was first merged; the file's header
 says why. That was the last time.)
 
+## The server's side, so far
+
+`src/server/chunks.ts`: the two calls of sync (pull and push) as the server will run them, as
+plain functions on one person's own SQLite database, which is what a Durable Object has. It is
+the rule book in `src/vault/memory.ts` over again, and `npm test` runs every test of the store
+against both (`tests/sync-sql.test.ts`, on Node's SQLite through `tests/sqlremote.ts`). What its
+database holds, and why the digest is worked out and not kept, is in the assessment (1.6, "The
+server's code").
+
+There is no Worker and no Durable Object class yet: nothing serves these functions. Next come
+the Durable Object around them, sessions and the handoff, the allowlist and the origin check.
+
 ## The store: where records are kept
 
 Everything the app keeps (accounts, transactions, imports, rules, budgets) is a record: an id, a
