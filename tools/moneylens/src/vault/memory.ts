@@ -9,10 +9,7 @@
  * Like the real server it holds sealed blobs, ids, sizes and version numbers, and has no key.
  */
 import { isId } from "../core/ids";
-import { LIMITS, digestOf, isMark, markOf, type Cache, type Kept, type Limits, type Pulled, type Pushed, type Remote, type Write } from "./sync";
-
-/** The smallest a sealed blob can be: version byte, nonce, tag. */
-const MIN_BLOB = 1 + 12 + 16;
+import { LIMITS, MIN_BLOB, digestOf, isMark, markOf, type Cache, type Kept, type Limits, type Pulled, type Pushed, type Remote, type Write } from "./sync";
 
 const isVersion = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
 

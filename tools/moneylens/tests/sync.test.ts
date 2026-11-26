@@ -540,55 +540,280 @@ test("a merged chunk too large to seal: the sync says so, nothing is written, an
   assert.equal(a.store.list("txn").length, filled.size);
 });
 
-test("the same record in two chunks, which should never be: it is merged into one, and the app is told", async () => {
+/** Every copy of a record that the server holds, one for each chunk it is in. */
+async function copiesOn(vault: OpenVault, remote: MemoryRemote, record: string): Promise<string[]> {
+  const out: string[] = [];
+  for (let since = 0; ; ) {
+    const page = (await remote.pull(vault.id, since)) as Extract<Pulled, { ok: true }>;
+    for (const chunk of page.chunks) {
+      const opened = await openContent(vault, chunk.id, chunk.blob);
+      assert.ok(opened.ok);
+      const copy = opened.content.records.get(record);
+      if (copy) out.push(canonical(copy.value));
+      since = chunk.version;
+    }
+    if (!page.more) return out;
+  }
+}
+
+/** A chunk made by hand, as no device makes one, and put on the server or into a cache. */
+async function handMade(vault: OpenVault, records: Entry[], group = "t/x"): Promise<{ id: string; blob: Uint8Array }> {
+  const [id, rev] = [newId(), newId()];
+  const blob = await sealContent(vault, id, { group, n: 1, rev, history: [rev], records: new Map(records.map((e) => [e.value.id, e])) });
+  assert.ok(blob);
+  return { id, blob };
+}
+
+test("the same record in more than one chunk, which should never be: read as one, made alike by a sync, and no copy is taken out", async () => {
   const vault = await testVault();
   const remote = new MemoryRemote(vault.id);
-  // made by hand: no device does this
-  const chunk = async (records: Entry[]) => {
-    const [id, rev] = [newId(), newId()];
-    const blob = await sealContent(vault, id, { group: "t/x", n: 1, rev, history: [rev], records: new Map(records.map((e) => [e.value.id, e])) });
-    assert.ok((await remote.push(vault.id, [{ id, base: 0, blob: blob! }])).ok);
-  };
-  await chunk([entryOf("txn", 10, txn(1, { note: "older", onlyOlder: 1 }))!, entryOf("txn", 10, txn(2, { note: "older" }))!]);
-  await chunk([entryOf("txn", 20, txn(1, { note: "newer", onlyNewer: 2 }))!, entryOf("txn", 20, txn(2, { note: "newer" }))!, entryOf("txn", 20, txn(3))!]);
+  for (const records of [
+    [entryOf("txn", 10, txn(1, { note: "older", onlyOlder: 1 }))!, entryOf("txn", 10, txn(2, { note: "older" }))!],
+    [entryOf("txn", 20, txn(1, { note: "newer", onlyNewer: 2 }))!, entryOf("txn", 20, txn(2, { note: "newer" }))!, entryOf("txn", 20, txn(3))!],
+  ]) {
+    const made = await handMade(vault, records);
+    assert.ok((await remote.push(vault.id, [{ id: made.id, base: 0, blob: made.blob }])).ok);
+  }
   const a = await device(vault, remote);
   const first = ok(await a.store.sync(a.net));
-  // every field either copy had, the later copy's value where they differ; and each of the two is in one chunk again
-  assert.deepEqual(a.store.get(idOf(1)), { ...txn(1), note: "newer", onlyOlder: 1, onlyNewer: 2 });
-  assert.deepEqual(a.store.status(), { records: 3, chunks: 2, pending: 0, damaged: 0, doubled: 0 });
+  // read as one record: every field either copy had, and the later copy's value where they differ
+  const one = { ...txn(1), note: "newer", onlyOlder: 1, onlyNewer: 2 };
+  const two = { ...txn(2), note: "newer" };
+  assert.deepEqual(a.store.get(idOf(1)), one);
+  assert.deepEqual(a.store.get(idOf(2)), two);
+  assert.equal(a.store.list("txn").length, 3, "each is listed once");
+  assert.deepEqual(first.clashes.map((clash) => `${clash.what} ${clash.id}`).sort(), [`doubled ${idOf(1)}`, `doubled ${idOf(2)}`].sort());
+  // the sync made the copies alike where they are: both chunks were written, and each record is still in both
   assert.equal(first.sent, 2);
-  assert.deepEqual(first.clashes.map((clash) => clash.what).sort(), ["doubled", "doubled", "fields", "fields"]);
+  assert.deepEqual(a.store.status(), { records: 3, chunks: 2, pending: 0, damaged: 0, doubled: 0 });
+  assert.deepEqual(await copiesOn(vault, remote, idOf(1)), [canonical(one), canonical(one)]);
+  assert.deepEqual(await copiesOn(vault, remote, idOf(2)), [canonical(two), canonical(two)]);
+  // another device finds them alike: nothing to say, nothing to write
   const b = await device(vault, remote);
   const second = ok(await b.store.sync(b.net));
-  assert.deepEqual(second.clashes, []);
+  assert.deepEqual([second.clashes, second.sent], [[], 0]);
   assert.deepEqual(holds(b.store), holds(a.store));
-  const held = ((await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>).chunks;
-  let copies = 0;
-  for (const c of held) {
-    const opened = await openContent(vault, c.id, c.blob);
-    assert.ok(opened.ok);
-    if (opened.content.records.has(idOf(1))) copies += 1;
-  }
-  assert.equal(copies, 1);
+  // a change goes into every copy
+  assert.deepEqual(b.store.change(idOf(1), { category: "x", onlyOlder: undefined }), { ok: true });
+  assert.equal(ok(await b.store.sync(b.net)).sent, 2);
+  const changed = { ...txn(1), note: "newer", onlyNewer: 2, category: "x" };
+  assert.deepEqual(await copiesOn(vault, remote, idOf(1)), [canonical(changed), canonical(changed)]);
+  ok(await a.store.sync(a.net));
+  assert.deepEqual(a.store.get(idOf(1)), changed);
+  // and a removal takes it out of every chunk
+  assert.deepEqual(a.store.remove(idOf(2)), { ok: true });
+  assert.equal(ok(await a.store.sync(a.net)).sent, 2);
+  assert.deepEqual(await copiesOn(vault, remote, idOf(2)), []);
+  ok(await b.store.sync(b.net));
+  assert.equal(b.store.get(idOf(2)), undefined);
+  assert.equal(b.store.list("txn").length, 2);
 
-  // found in the cache at opening, before any sync: a change settles it first, loses nothing, and the next sync says so
+  // Found in the cache when the store is opened, before any sync: read as one from the start, and a change is made to
+  // the record as it is read, in both copies. The next sync says that it was doubled.
   const remote2 = new MemoryRemote(vault.id);
   const hand = new MemoryCache();
-  const seal = async (records: Entry[]) => {
-    const [id, rev] = [newId(), newId()];
-    const local = await sealContent(vault, id, { group: "t/x", n: 1, rev, history: [rev], records: new Map(records.map((e) => [e.value.id, e])) });
-    await hand.save(vault.id, { cursor: 0, put: [{ id, version: 0, local: local! }], drop: [] });
-  };
-  await seal([entryOf("txn", 10, txn(7, { left: 1 }))!]);
-  await seal([entryOf("txn", 20, txn(7, { right: 2 }))!]);
+  for (const records of [[entryOf("txn", 10, txn(7, { left: 1, both: "older" }))!], [entryOf("txn", 20, txn(7, { right: 2, both: "newer" }))!]]) {
+    const made = await handMade(vault, records);
+    await hand.save(vault.id, { cursor: 0, put: [{ id: made.id, version: 0, local: made.blob }], drop: [] });
+  }
   const c = await Store.open(vault, hand);
   assert.equal(c.status().doubled, 1);
+  assert.deepEqual(c.get(idOf(7)), { ...txn(7), left: 1, right: 2, both: "newer" });
+  assert.deepEqual(c.list("txn"), [c.get(idOf(7))]);
+  assert.equal(c.kind(idOf(7)), "txn");
   assert.deepEqual(c.change(idOf(7), { category: "x" }), { ok: true });
-  assert.deepEqual(c.get(idOf(7)), { ...txn(7), left: 1, right: 2, category: "x" });
   assert.equal(c.status().doubled, 0);
   const told = ok(await c.sync(remote2));
-  assert.deepEqual(told.clashes, [{ id: idOf(7), what: "doubled" }]);
-  assert.equal(remote2.size, 1, "the chunk that was left empty and had never been sent is not sent at all");
+  assert.deepEqual([told.clashes, told.sent, remote2.size], [[{ id: idOf(7), what: "doubled" }], 2, 2]);
+  const after = { ...txn(7), left: 1, right: 2, both: "newer", category: "x" };
+  assert.deepEqual(await copiesOn(vault, remote2, idOf(7)), [canonical(after), canonical(after)]);
+  const fresh = await Store.open(vault, new MemoryCache());
+  assert.deepEqual(ok(await fresh.sync(remote2)).clashes, []);
+  assert.deepEqual(fresh.get(idOf(7)), after);
+});
+
+test("a doubled record: a removal takes out the copies this device has seen, and a copy it has not seen keeps the record", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id);
+  const a = await device(vault, remote);
+  const b = await device(vault, remote, ticking(1_795_000_900_000));
+  // the same id used on two devices before either has seen the other: each has a chunk of its own for it
+  a.store.add("txn", "t/x", txn(1, { fromA: true }));
+  b.store.add("txn", "t/x", txn(1, { fromB: true }));
+  ok(await a.store.sync(a.net));
+  // a removes the record, knowing of one copy
+  a.store.remove(idOf(1));
+  ok(await a.store.sync(a.net));
+  // b's copy arrives afterwards. Nothing b did is dropped: the record is there again, as b had it, and a's removal has to be made again.
+  ok(await b.store.sync(b.net));
+  ok(await a.store.sync(a.net));
+  for (const d of [a, b]) assert.deepEqual(d.store.get(idOf(1)), { ...txn(1), fromB: true });
+  assert.deepEqual(a.store.remove(idOf(1)), { ok: true });
+  ok(await a.store.sync(a.net));
+  ok(await b.store.sync(b.net));
+  for (const d of [a, b]) assert.equal(d.store.get(idOf(1)), undefined);
+  assert.deepEqual(await copiesOn(vault, remote, idOf(1)), []);
+});
+
+test("doubled records on a bad network, each device knowing other copies: they end the same, with every field only one copy had", async (t) => {
+  const runs = Number(process.env.MONEYLENS_SEEDS ?? 30);
+  for (let seed = 1; seed <= runs; seed++) {
+    const random = seeded(seed * 6173);
+    const pick = (n: number) => Math.floor(random() * n);
+    const bytes = seeded(seed * 15_485_863);
+    const restore = t.mock.method(globalThis.crypto, "getRandomValues", (array: Uint8Array) => {
+      for (let i = 0; i < array.length; i++) array[i] = Math.floor(bytes() * 256);
+      return array;
+    });
+    try {
+      const vault = await testVault();
+      const remote = new MemoryRemote(vault.id, { ...LIMITS, writesPerDay: 1e9 });
+      const id = idOf(1);
+      // Every copy says something of its own (`only…`), and something they all say differently (`v`), at a time of its own.
+      const times = [100, 200, 300, 400, 500].sort(() => random() - 0.5);
+      const copy = (n: number) => entryOf("txn", times[n]!, { id, v: n, [`only${n}`]: n })!;
+      // one or two copies are on the server already; each device has one more in a chunk it has never sent
+      const onServer = 1 + pick(2);
+      for (let n = 0; n < onServer; n++) {
+        const made = await handMade(vault, [copy(n)]);
+        assert.ok((await remote.push(vault.id, [{ id: made.id, base: 0, blob: made.blob }])).ok);
+      }
+      const devices: Device[] = [];
+      for (let n = onServer; n < onServer + 3; n++) {
+        const d = await device(vault, remote, ticking(1_795_000_000_000 + n * 3_600_000));
+        const made = await handMade(vault, [copy(n)]);
+        await d.cache.inner.save(vault.id, { cursor: 0, put: [{ id: made.id, version: 0, local: made.blob }], drop: [] });
+        await d.reopen();
+        devices.push(d);
+      }
+      const all = onServer + 3;
+      for (let step = 0; step < 40; step++) {
+        const d = devices[pick(3)]!;
+        const roll = pick(10);
+        if (roll < 6) {
+          d.net.plan = [(["ok", "ok", "lost", "dropped", "late"] as const)[pick(5)]!];
+          if (pick(3) === 0) {
+            const other = devices[pick(3)]!;
+            d.net.between = async () => {
+              if (other !== d) await other.store.sync(new Net(remote));
+            };
+          }
+          await d.store.sync(d.net);
+          d.net.between = undefined;
+        } else if (roll < 8) await devices[pick(3)]!.net.deliver();
+        else {
+          await d.store.flush();
+          await d.reopen();
+        }
+      }
+      for (const d of devices) {
+        d.net.plan = [];
+        while (d.net.late.length) await d.net.deliver();
+      }
+      for (let pass = 0, moving = true; moving; pass++) {
+        assert.ok(pass < 10, `seed ${seed}: the devices never settle`);
+        moving = false;
+        for (const d of devices) {
+          const result = ok(await d.store.sync(d.net));
+          if (result.sent || result.received) moving = true;
+        }
+      }
+      const fresh = await device(vault, remote);
+      ok(await fresh.store.sync(fresh.net));
+      const latest = times.slice(0, all).indexOf(Math.max(...times.slice(0, all)));
+      const want: { [name: string]: Json } = { id, v: latest };
+      for (let n = 0; n < all; n++) want[`only${n}`] = n;
+      for (const d of [...devices, fresh]) {
+        assert.deepEqual(d.store.get(id), want, `seed ${seed}`);
+        assert.deepEqual(d.store.status(), { records: 1, chunks: all, pending: 0, damaged: 0, doubled: 0 }, `seed ${seed}`);
+      }
+      // every chunk still holds the record, and they all say the same
+      assert.deepEqual(await copiesOn(vault, remote, id), Array.from({ length: all }, () => canonical(want as Value)), `seed ${seed}`);
+    } finally {
+      restore.mock.restore();
+    }
+  }
+});
+
+/** A chunk filled by hand to within a few hundred bytes of what `alike` leaves a chunk, around the records given. */
+function nearlyFull(around: Entry[], spare: number): Map<string, Entry> {
+  const filled = new Map(around.map((e) => [e.value.id, e]));
+  const bytes = () => [...filled.values()].reduce((sum, e) => sum + e.size, 0);
+  const limit = MAX_CHUNK_BYTES - 2048 - spare;
+  const big = "n".repeat(3900);
+  for (let i = 100_000; bytes() + 4096 < limit; i++) filled.set(idOf(i), entryOf("txn", 5, txn(i, { note: big }))!);
+  const room = limit - bytes() - entryOf("txn", 5, txn(99_999, { note: "" }))!.size;
+  if (room > 0) filled.set(idOf(99_999), entryOf("txn", 5, txn(99_999, { note: "n".repeat(room) }))!);
+  assert.ok(limit - bytes() >= 0 && limit - bytes() < 8, `${limit - bytes()} bytes short of the limit`);
+  return filled;
+}
+
+test("a doubled record whose merged form does not fit one of its chunks is left as it is, and still read as one", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id, { ...LIMITS, vaultBytes: 8 * 1024 * 1024 });
+  const small = entryOf("txn", 10, { id: idOf(1), a: "from the full chunk" })!;
+  const large = entryOf("txn", 20, { id: idOf(1), b: "y".repeat(2600) })!;
+  // one chunk with 400 bytes to spare, holding the smaller copy; another chunk holding a copy 2,600 bytes larger
+  for (const records of [nearlyFull([small], 400), new Map([[idOf(1), large]])]) {
+    const [id, rev] = [newId(), newId()];
+    const blob = await sealContent(vault, id, { group: "t/big", n: 1, rev, history: [rev], records });
+    assert.ok(blob, "the test's own chunk has to be one that can be sealed");
+    assert.ok((await remote.push(vault.id, [{ id, base: 0, blob }])).ok);
+  }
+  const held = remote.everything();
+  const a = await device(vault, remote);
+  const first = ok(await a.store.sync(a.net));
+  assert.deepEqual([first.clashes, first.sent], [[{ id: idOf(1), what: "doubled" }], 0]);
+  assert.deepEqual(remote.everything(), held, "neither chunk was written");
+  assert.equal(a.store.status().doubled, 1);
+  assert.equal(a.store.status().pending, 0);
+  assert.deepEqual(a.store.get(idOf(1)), { id: idOf(1), a: "from the full chunk", b: "y".repeat(2600) });
+  // it stays so, quietly, sync after sync; a change that would have to grow the full chunk is refused, a removal is not
+  assert.deepEqual([ok(await a.store.sync(a.net)).clashes, a.store.status().doubled], [[], 1]);
+  assert.deepEqual(a.store.change(idOf(1), { c: 1 }), { ok: false, why: "full" });
+  assert.deepEqual(a.store.get(idOf(1)), { id: idOf(1), a: "from the full chunk", b: "y".repeat(2600) });
+  assert.deepEqual(a.store.remove(idOf(1)), { ok: true });
+  assert.equal(ok(await a.store.sync(a.net)).sent, 2);
+  assert.deepEqual(await copiesOn(vault, remote, idOf(1)), []);
+});
+
+test("a chunk made too large by a merge: what this device added moves out, but never a copy of a doubled record", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id, { ...LIMITS, vaultBytes: 8 * 1024 * 1024 });
+  const a = await device(vault, remote);
+  a.store.add("txn", "t/big", txn(0));
+  ok(await a.store.sync(a.net));
+  const [id] = remote.ids();
+  const mine = ((await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>).chunks[0]!;
+  const had = await openContent(vault, id!, mine.blob);
+  assert.ok(had.ok);
+  // Offline, this device adds two records to that chunk. One of them, it turns out, is also in a chunk another device made.
+  a.store.add("txn", "t/big", { id: idOf(1), fromHere: true });
+  a.store.add("txn", "t/big", txn(2, { note: "n".repeat(3900) }));
+  assert.equal(a.store.status().chunks, 1);
+  // Meanwhile other devices fill the chunk to 2,500 bytes short of what a chunk can be, and the other copy arrives.
+  const rev = newId();
+  const filled = await sealContent(vault, id!, { group: "t/big", n: 2, rev, history: [rev, had.content.rev], records: nearlyFull([...had.content.records.values()], 452) });
+  assert.ok(filled);
+  assert.ok((await remote.push(vault.id, [{ id: id!, base: 1, mark: markOf(mine.blob), blob: filled }])).ok);
+  const elsewhere = await handMade(vault, [entryOf("txn", 3, { id: idOf(1), fromThere: true })!], "t/big");
+  assert.ok((await remote.push(vault.id, [{ id: elsewhere.id, base: 0, blob: elsewhere.blob }])).ok);
+  // With both additions the merged chunk cannot be sealed. The record that is this device's alone moves to another chunk
+  // of its group with room, which here is the one the other copy came in. The doubled record stays where it is: moved the
+  // same way, it would have landed on its own other copy and wiped out what that one said.
+  const first = ok(await a.store.sync(a.net));
+  assert.deepEqual(first.clashes, [{ id: idOf(1), what: "doubled" }]);
+  assert.deepEqual(a.store.get(idOf(1)), { id: idOf(1), fromHere: true, fromThere: true });
+  assert.equal(a.store.get(idOf(2))!.note, "n".repeat(3900));
+  assert.equal(a.store.status().chunks, 2);
+  ok(await a.store.sync(a.net));
+  assert.deepEqual(a.store.status().doubled, 0);
+  const merged = canonical({ id: idOf(1), fromHere: true, fromThere: true });
+  assert.deepEqual(await copiesOn(vault, remote, idOf(1)), [merged, merged]);
+  assert.equal((await copiesOn(vault, remote, idOf(2))).length, 1);
+  const b = await device(vault, remote);
+  ok(await b.store.sync(b.net));
+  assert.deepEqual(holds(b.store), holds(a.store));
 });
 
 test("a device whose clock is behind still dates its change after the version it changed", async () => {
@@ -1041,6 +1266,216 @@ test("answers that are not answers: the sync says so, ends, and keeps what it wa
   assert.equal(reader.status().pending, 0);
   ok(await writer.store.sync(writer.net));
   assert.equal(writer.store.list("txn").length, 4);
+});
+
+test("the answer to a push is believed only if it answers that push: any other leaves what was sent as of unknown fate", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id);
+  const a = await device(vault, remote);
+  a.store.add("txn", "t/x", txn(1));
+  a.store.add("txn", "t/y", txn(2));
+  ok(await a.store.sync(a.net));
+  // the copies the next writes are made from
+  const [x] = ((await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>).chunks;
+  const other = new Uint8Array(64).fill(7);
+  // two chunks the server has are changed, and one is new
+  a.store.change(idOf(1), { note: "x" });
+  a.store.change(idOf(2), { note: "y" });
+  a.store.add("txn", "t/z", txn(5));
+  const why = async (push: (writes: readonly Write[]) => unknown) => {
+    const result = await a.store.sync({ pull: (v, n) => remote.pull(v, n), push: async (_v, writes) => (await push(writes)) as Pushed });
+    return result.ok ? "ok" : result.why;
+  };
+  const stale = (...chunks: unknown[]) => () => ({ ok: false, why: "stale", chunks });
+  const taken = (versions: (writes: readonly Write[]) => unknown) => (writes: readonly Write[]) => ({ ok: true, versions: versions(writes) });
+  const answers: [string, (writes: readonly Write[]) => unknown][] = [
+    // "stale" that shows nothing stale, or is not about this request
+    ["stale: the very copy the write was made from", stale(x)],
+    ["stale: that copy, twice", stale(x, x)],
+    ["stale: that copy under a later number", stale({ ...x!, version: 9 })],
+    ["stale: one chunk named twice", stale({ id: x!.id, version: 9, blob: other }, { id: x!.id, version: 9, blob: other })],
+    ["stale: a chunk that was not in the request", stale({ id: idOf(999), version: 9, blob: other })],
+    ["stale: a copy with no number", stale({ id: x!.id, version: 0, blob: other })],
+    ["stale: a copy too short to be one", stale({ id: x!.id, version: 9, blob: new Uint8Array(10) })],
+    ["stale: a number and no copy", stale({ id: x!.id, version: 9 })],
+    ["stale: a copy that is not bytes", stale({ id: x!.id, version: 9, blob: "bytes" })],
+    ["stale: nothing shown", stale()],
+    ["stale: not a list", () => ({ ok: false, why: "stale", chunks: { 0: x } })],
+    ["stale: an entry that is nothing", stale(null)],
+    ["stale: 'the server holds none' for a chunk the write itself called new", (w) => ({ ok: false, why: "stale", chunks: [{ id: w.find((write) => write.base === 0)!.id, version: 0 }] })],
+    // "taken" that does not account for the request
+    ["taken: one chunk missing", taken((w) => w.slice(1).map((write, i) => ({ id: write.id, version: 10 + i })))],
+    ["taken: one chunk named twice", taken((w) => w.map((write, i) => ({ id: (i === 1 ? w[0]! : write).id, version: 10 + i })))],
+    ["taken: a chunk that was not in the request", taken((w) => w.map((write, i) => ({ id: i === 1 ? idOf(999) : write.id, version: 10 + i })))],
+    ["taken: one more than was sent", taken((w) => [...w.map((write, i) => ({ id: write.id, version: 10 + i })), { id: idOf(999), version: 20 }])],
+    ["taken: the same number for two chunks", taken((w) => w.map((write) => ({ id: write.id, version: 10 })))],
+    ["taken: a number no later than the copy it replaces", taken((w) => w.map((write, i) => ({ id: write.id, version: write.base > 0 ? write.base : 10 + i })))],
+    ["taken: a number this device has already been past", taken((w) => w.map((write, i) => ({ id: write.id, version: write.base === 0 ? 2 : 10 + i })))],
+    ["taken: a number that is not a whole number", taken((w) => w.map((write, i) => ({ id: write.id, version: 10.5 + i })))],
+    ["taken: no list", () => ({ ok: true })],
+    ["taken: an entry that is nothing", taken((w) => [null, ...w.slice(1).map((write, i) => ({ id: write.id, version: 10 + i }))])],
+    // neither
+    ["refused for a reason nobody knows", () => ({ ok: false, why: "because" })],
+    ["refused for no reason", () => ({ ok: false })],
+    ["not an answer", () => "stale"],
+  ];
+  for (const [what, push] of answers) {
+    assert.equal(await why(push), "bad-reply", what);
+    assert.equal(a.store.status().pending, 3, what);
+  }
+  // (and a well-formed one is taken as such: the three numbers are what the checks above would let through)
+  assert.equal(await why(() => ({ ok: false, why: "quota-writes" })), "quota-writes");
+  // One such answer came although the server had taken the writes. Then something is undone, and the page is closed and
+  // opened again: the copy that was sent is still known, so what the server holds is recognized and the undo holds.
+  assert.equal(
+    await why(async (writes) => {
+      assert.ok((await remote.push(vault.id, writes)).ok);
+      return { ok: false, why: "stale", chunks: [x] };
+    }),
+    "bad-reply",
+  );
+  a.store.change(idOf(1), { note: undefined });
+  await a.store.flush();
+  await a.reopen();
+  ok(await a.store.sync(a.net));
+  assert.deepEqual(a.store.get(idOf(1)), txn(1));
+  assert.equal(a.store.get(idOf(2))!.note, "y");
+  const b = await device(vault, remote);
+  ok(await b.store.sync(b.net));
+  assert.deepEqual(holds(b.store), holds(a.store));
+
+  // An answer that is no answer, to a request that is still on its way. A proper refusal of the next request (for today's
+  // quota, say) is about that next request only: the first one can still arrive, so what it carried is not forgotten.
+  a.store.add("txn", "t/x", txn(6));
+  let onItsWay: readonly Write[] = [];
+  assert.equal(
+    await why((writes) => {
+      onItsWay = structuredClone(writes);
+      return null;
+    }),
+    "bad-reply",
+  );
+  a.store.remove(idOf(6));
+  assert.equal(await why(() => ({ ok: false, why: "quota-writes" })), "quota-writes");
+  assert.ok((await remote.push(vault.id, onItsWay)).ok, "the first request arrives after all");
+  ok(await a.store.sync(a.net));
+  assert.equal(a.store.get(idOf(6)), undefined, "a record taken out again came back with the request that had no answer");
+  ok(await b.store.sync(b.net));
+  assert.deepEqual(holds(b.store), holds(a.store));
+
+  // The same through a pull: the copy this device already has, handed back under a later number, is not "the chunk has
+  // moved on". Taking it for that would give up a sent copy that can still arrive.
+  a.store.add("txn", "t/x", txn(3));
+  a.net.plan = ["late"];
+  assert.equal((await a.store.sync(a.net)).ok, false);
+  a.store.remove(idOf(3));
+  await a.store.flush();
+  const now = (await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>;
+  const base = now.chunks.find((chunk) => chunk.id === x!.id)!;
+  const renumbered = await a.store.sync({
+    pull: async () => ({ ok: true, cursor: 50, more: false, digest: now.digest, chunks: [{ ...base, version: 50 }] }),
+    push: () => assert.fail("nothing is sent after such an answer"),
+  });
+  assert.deepEqual(renumbered.ok ? [] : [renumbered.why, renumbered.chunks], ["bad-reply", [x!.id]]);
+  await a.reopen();
+  assert.equal((await a.net.deliver())!.ok, true, "the request that was on its way arrives");
+  ok(await a.store.sync(a.net));
+  assert.equal(a.store.get(idOf(3)), undefined, "a record taken out again came back with the late request");
+  ok(await b.store.sync(b.net));
+  assert.deepEqual(holds(b.store), holds(a.store));
+});
+
+test("the server's numbers only go up: a count that went back, or a number at or under the copy it replaces, is not believed", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id);
+  const a = await device(vault, remote);
+  a.store.add("txn", "t/x", txn(1));
+  ok(await a.store.sync(a.net)); // the chunk is number 1, and a has seen up to 1
+  const [x] = remote.ids();
+  // Another device writes between a's look and a's write: a's write gets number 3, and a's place stays at 1 until it looks again.
+  const b = await device(vault, remote);
+  b.store.add("txn", "t/y", txn(2));
+  a.store.change(idOf(1), { note: "one" });
+  a.net.between = async () => {
+    ok(await b.store.sync(b.net));
+  };
+  ok(await a.store.sync(a.net));
+  const mine = ((await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>).chunks.find((chunk) => chunk.id === x)!;
+  assert.equal(mine.version, 3);
+  // A server that answers a's next look as if nothing had happened since (a's own picture agrees), and then gives a's
+  // write a number that is past a's place but not past the copy it replaces.
+  a.store.change(idOf(1), { note: "two" });
+  const low = await a.store.sync({
+    pull: async () => ({ ok: true, cursor: 1, more: false, digest: digestOf([markOf(mine.blob)]), chunks: [] }),
+    push: async (_v, writes) => ({ ok: true, versions: [{ id: writes[0]!.id, version: 2 }] }),
+  });
+  assert.deepEqual([low.ok, low.ok ? "" : low.why], [false, "bad-reply"]);
+  assert.equal(a.store.status().pending, 1);
+  // the honest server sorts it out: a sees the other device's chunk, and its own write goes through
+  ok(await a.store.sync(a.net));
+  assert.equal(a.store.list("txn").length, 2);
+  // A look that puts the server's count behind a's own place, with everything else as a believes it: the count went back.
+  a.store.change(idOf(1), { note: "three" });
+  const now = (await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>;
+  assert.equal(now.cursor, 4);
+  const back = await a.store.sync({
+    pull: async () => ({ ok: true, cursor: 2, more: false, digest: now.digest, chunks: [] }),
+    push: () => assert.fail("nothing is sent to a server whose count went back"),
+  });
+  assert.deepEqual([back.ok, back.ok ? "" : back.why], [false, "server-older"]);
+  assert.equal(a.store.get(idOf(1))!.note, "three");
+  ok(await a.store.sync(a.net));
+  ok(await b.store.sync(b.net));
+  assert.deepEqual(holds(b.store), holds(a.store));
+});
+
+test("a server that never answers: the sync gives that request up, the saves behind it go on, and nothing that was sent is forgotten", async () => {
+  const vault = await testVault();
+  const remote = new MemoryRemote(vault.id);
+  const cache = new MemoryCache();
+  let store = await Store.open(vault, cache, { patience: 40 });
+  store.add("txn", "t/x", txn(1));
+  const never = new Promise<never>(() => undefined);
+  // a pull that never answers
+  const started = Date.now();
+  const hung = store.sync({ pull: () => never, push: (v, w) => remote.push(v, w) });
+  store.add("txn", "t/x", txn(2));
+  const flushing = store.flush(); // waits its turn behind the sync
+  const first = await hung;
+  assert.deepEqual([first.ok, first.ok ? "" : first.why], [false, "offline"]);
+  await flushing;
+  assert.ok(Date.now() - started < 5000);
+  assert.equal(((await Store.open(vault, cache)).list("txn")).length, 2, "what was added while the sync hung is in the cache");
+  // a push that never answers, although the server took it
+  const second = await store.sync({
+    pull: (v, n) => remote.pull(v, n),
+    push: (v, w) => {
+      void remote.push(v, w);
+      return never;
+    },
+  });
+  assert.deepEqual([second.ok, second.ok ? "" : second.why], [false, "offline"]);
+  assert.equal(remote.size, 1);
+  assert.equal(store.status().pending, 1);
+  // something in it is taken back while its fate is unknown, and the page is closed and opened again
+  store.remove(idOf(2));
+  await store.flush();
+  store = await Store.open(vault, cache, { patience: 40 });
+  ok(await store.sync(remote));
+  assert.deepEqual(Object.keys(holds(store)), [idOf(1)]);
+  const other = await Store.open(vault, new MemoryCache());
+  ok(await other.sync(remote));
+  assert.deepEqual(holds(other), holds(store));
+  // an answer that comes in time is not cut short, and a request that throws at once is "no answer", not an exception
+  store.add("txn", "t/x", txn(4));
+  ok(await store.sync({ pull: (v, n) => new Promise((resolve) => setTimeout(() => resolve(remote.pull(v, n)), 10)), push: (v, w) => remote.push(v, w) }));
+  const thrown = await store.sync({
+    pull: () => {
+      throw new Error("no network");
+    },
+    push: (v, w) => remote.push(v, w),
+  });
+  assert.deepEqual([thrown.ok, thrown.ok ? "" : thrown.why], [false, "offline"]);
 });
 
 test("a chunk that cannot be read stops the sync before anything changes", async () => {

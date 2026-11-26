@@ -79,8 +79,9 @@ await store.flush();                                   // seal what changed and 
 
 - **The cache.** In a page: `holdCache()` from `src/web/idbcache.ts`. It answers with the cache,
   or `"taken"` (MoneyLens is open in another tab of this browser: say so, and do nothing else),
-  or `"unavailable"` (a private window, storage switched off: run on `new MemoryCache()` and say
-  that nothing is kept on this device). Let go of it (`release()`) when the vault locks.
+  or `"unavailable"` (a private window, storage switched off, a browser that refuses locks, or
+  storage left by a later version of the app: run on `new MemoryCache()` and say that nothing is
+  kept on this device). Never open storage with `openCache` in a page: that skips the lock. Let go of it (`release()`) when the vault locks.
 - **Groups.** `"book"` for accounts, imports, categories, rules, aliases, budgets and settings;
   `"t/<account id>"` for an account's transactions. A group only decides which records share a
   chunk. One import is then one request that is saved whole or not at all.
@@ -105,6 +106,14 @@ await store.flush();                                   // seal what changed and 
   | `unreadable`, `malformed`, `too-big`, `bad-reply`, `bad-request` | Something is wrong that the person cannot fix: say so, keep working on the device, report it (no contents in the report, OBS-1) |
   | `busy` | Other devices kept writing: try again shortly |
 
+- **Ids are random, always.** Every record gets `newId()`. Never a fixed or worked-out id (not
+  for "the" settings record either: two devices would each make one, in different chunks). If an
+  id does turn up in more than one chunk, the store reads the copies as one record, says so once
+  (`doubled`), and makes the copies alike at the next sync; it never moves or drops a copy on its
+  own, so a removal can come back from a copy this device had not seen (assessment 1.6).
+- **A request that gets no answer** is given up after two minutes (`Store.open(…, { patience })`
+  sets another time, in milliseconds) and counts as `offline`. The code that talks to the server
+  should give up sooner than that itself.
 - **After a merge, two records can disagree** (a transfer paired with different transactions on
   two devices; a transaction whose account was removed elsewhere). Treat a pair as a pair only
   when both sides name each other, and a missing account or category as none.

@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import test, { beforeEach } from 'node:test';
 import { merge, type Rec, type Recs } from './second/merge';
-import { entryOf, merge3, MAX_ENTRY_BYTES, type Entry, type Records } from '../src/vault/records';
+import { entryOf, merge3, sealContent, MAX_ENTRY_BYTES, type Entry, type Records } from '../src/vault/records';
+import { holdCache } from '../src/web/idbcache';
 import { MemoryCache, MemoryRemote } from '../src/vault/memory';
 import { Store, LIMITS, markOf, digestOf, type Cache, type Remote, type Write, type Pulled, type Pushed } from '../src/vault/sync';
 import type { OpenVault } from '../src/vault/crypto';
@@ -424,4 +425,183 @@ test('cache save cuts during sent-history resolution reopen without resurrection
   }
   assert.ok(hit.has(1) && hit.has(2), 'both persistence stages must be exercised');
   console.log(`cache save cuts exercised=${[...hit].join(',')}; attempted cuts=1..6`);
+});
+
+// C4: only invented records; cryptographic keys are generated, nonexportable and never printed.
+async function duplicateWrite(v: OpenVault, chunk: number, record: number, t: number, fields: Rec['fields']): Promise<Write> {
+  const chunkId = id(chunk), rev = id(chunk + 10_000);
+  const blob = await sealContent(v, chunkId, {
+    group: 'invented-c4', n: 1, rev, history: [rev],
+    records: entries({ [id(record)]: { kind: 'invented', t, fields } }),
+  });
+  assert.ok(blob);
+  return { id: chunkId, base: 0, blob };
+}
+
+test('C4: concurrent duplicate settlers and a later third copy preserve exclusive fields and converge', async () => {
+  const v = await vault(), server = new MemoryRemote(v.id);
+  ok(await server.push(v.id, [
+    await duplicateWrite(v, 8001, 8010, 100, { left: 'invented-left' }),
+    await duplicateWrite(v, 8002, 8010, 200, { right: 'invented-right' }),
+  ]));
+  const stores = await Promise.all([new MemoryCache(), new MemoryCache()].map(cache => Store.open(v, cache)));
+  const answers = await Promise.all(stores.map(store => store.sync(server)));
+  for (const answer of answers) ok(answer);
+  await settle(stores, server);
+  ok(await server.push(v.id, [await duplicateWrite(v, 8003, 8010, 300, { third: 'invented-third' })]));
+  await settle(stores, server);
+  const fresh = await Store.open(v, new MemoryCache());
+  ok(await fresh.sync(server));
+  for (const store of [...stores, fresh]) {
+    assert.deepEqual(store.get(id(8010)), { id: id(8010), left: 'invented-left', right: 'invented-right', third: 'invented-third' });
+    assert.equal(store.status().pending, 0);
+    assert.equal(store.status().doubled, 0);
+  }
+});
+
+test('C4: removing a record doubled in the cache before sync removes every copy after reopen', async () => {
+  const v = await vault(), cache = new MemoryCache(), server = new MemoryRemote(v.id);
+  const writes = [
+    await duplicateWrite(v, 8101, 8110, 100, { left: 'invented-left' }),
+    await duplicateWrite(v, 8102, 8110, 200, { right: 'invented-right' }),
+  ];
+  await cache.save(v.id, { cursor: 0, put: writes.map(write => ({ id: write.id, version: 0, local: write.blob })), drop: [] });
+  const store = await Store.open(v, cache);
+  assert.equal(store.status().doubled, 1);
+  ok(store.remove(id(8110)));
+  await store.flush();
+  const reopened = await Store.open(v, cache);
+  ok(await reopened.sync(server));
+  assert.equal(reopened.get(id(8110)), undefined);
+  assert.equal(reopened.status().doubled, 0);
+  assert.equal(server.size, 0);
+});
+
+test('C4: distinct forever-advancing pages release a flush queued behind sync', async () => {
+  const v = await vault(), cache = new MemoryCache(), store = await Store.open(v, cache);
+  let pulls = 0;
+  const remote: Remote = {
+    pull: async (_vault, since) => {
+      assert.ok(++pulls <= 1002, 'test circuit breaker');
+      return { ok: true, cursor: since + 1, more: true, digest: digestOf([]), chunks: [{ id: id(20_000 + since), version: since + 1, blob: new Uint8Array(40) }] };
+    },
+    push: async () => { throw new Error('invented unexpected push'); },
+  };
+  const syncing = store.sync(remote);
+  ok(store.add('invented', 'invented-c4', { id: id(8200), text: 'invented-queued-save' }));
+  const flushing = store.flush();
+  const result = await syncing;
+  assert.ok(!result.ok && result.why === 'bad-reply');
+  assert.equal(pulls, 1001);
+  await flushing;
+  const reopened = await Store.open(v, cache);
+  assert.equal(reopened.get(id(8200))?.text, 'invented-queued-save');
+});
+
+test('finding 8: three duplicate copies must choose the newest original value of each field (fixed after the second round)', async () => {
+  const v = await vault(), cache = new MemoryCache();
+  const writes = [
+    await duplicateWrite(v, 8301, 8310, 100, { x: 'invented-old' }),
+    await duplicateWrite(v, 8302, 8310, 300, { y: 'invented-unrelated' }),
+    await duplicateWrite(v, 8303, 8310, 200, { x: 'invented-new' }),
+  ];
+  await cache.save(v.id, { cursor: 0, put: writes.map(write => ({ id: write.id, version: 0, local: write.blob })), drop: [] });
+  const store = await Store.open(v, cache);
+  ok(store.change(id(8310), { edited: true }));
+  assert.deepEqual(store.get(id(8310)), { id: id(8310), x: 'invented-new', y: 'invented-unrelated', edited: true });
+});
+
+test('finding 9: duplicate stale-answer ids must leave the sent copy of unknown fate (fixed after the second round)', async () => {
+  const v = await vault(), cache = new MemoryCache(), server = new MemoryRemote(v.id);
+  let store = await Store.open(v, cache);
+  ok(store.add('invented', 'invented-c4', { id: id(8400), text: 'invented-anchor' }));
+  ok(await store.sync(server));
+  const old = await server.pull(v.id, 0); assert.ok(old.ok);
+  const held = old.chunks[0]!;
+  ok(store.add('invented', 'invented-c4', { id: id(8401), text: 'invented-removed-in-flight' }));
+  let delayed: readonly Write[] | undefined;
+  const answer = await store.sync({
+    pull: (vaultId, since) => server.pull(vaultId, since),
+    push: async (_vaultId, writes) => {
+      assert.equal(delayed, undefined, 'only one delayed request');
+      delayed = structuredClone(writes);
+      ok(store.remove(id(8401))); // a user edit while the request is in flight
+      return { ok: false, why: 'stale', chunks: [held, held] };
+    },
+  });
+  await store.flush();
+  store = await Store.open(v, cache);
+  assert.ok(delayed);
+  ok(await server.push(v.id, delayed)); // the original request arrives after the removal was flushed
+  ok(await store.sync(server));
+  assert.equal(store.get(id(8401)), undefined, 'a flushed removal must not be resurrected');
+  assert.ok(!answer.ok && answer.why === 'bad-reply');
+});
+
+// These tests exercise unavailable platform APIs in Node; they launch no browser.
+async function withCacheGlobals(navigatorValue: unknown, databaseValue: unknown, run: () => Promise<void>) {
+  const nav = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const db = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: navigatorValue });
+  Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: databaseValue });
+  try { await run(); }
+  finally {
+    if (nav) Object.defineProperty(globalThis, 'navigator', nav); else Reflect.deleteProperty(globalThis, 'navigator');
+    if (db) Object.defineProperty(globalThis, 'indexedDB', db); else Reflect.deleteProperty(globalThis, 'indexedDB');
+  }
+}
+
+test('C4: absent Web Locks returns unavailable without opening storage', async () => {
+  await withCacheGlobals({}, { open: () => { throw new Error('must not open storage'); } }, async () => {
+    assert.equal(await holdCache('invented-missing-locks'), 'unavailable');
+  });
+});
+
+test('finding 10: a rejected Web Lock request is unavailable storage, not another tab (fixed after the second round)', async () => {
+  await withCacheGlobals({ locks: { request: () => Promise.reject(new DOMException('invented policy refusal', 'SecurityError')) } }, {}, async () => {
+    assert.equal(await holdCache('invented-denied-locks'), 'unavailable');
+  });
+});
+
+test('finding 11: simultaneous settlers with different local duplicates must preserve both flushed fields (fixed after the second round)', async () => {
+  const v = await vault(), server = new MemoryRemote(v.id);
+  const [small, middle, large] = [8501, 8502, 8503].sort((a, b) => id(a) < id(b) ? -1 : 1);
+  ok(await server.push(v.id, [await duplicateWrite(v, middle!, 8510, 200, { common: 'invented-common' })]));
+  const aCache = new MemoryCache(), bCache = new MemoryCache();
+  for (const [cache, chunk, t, fields] of [
+    [aCache, small!, 100, { left: 'invented-left' }],
+    [bCache, large!, 300, { right: 'invented-right' }],
+  ] as const) {
+    const write = await duplicateWrite(v, chunk, 8510, t, fields);
+    await cache.save(v.id, { cursor: 0, put: [{ id: write.id, version: 0, local: write.blob }], drop: [] });
+  }
+  const a = await Store.open(v, aCache), b = await Store.open(v, bCache);
+  let bPulled!: () => void, aCommitted!: () => void;
+  const bRead = new Promise<void>(resolve => { bPulled = resolve; });
+  const aWrote = new Promise<void>(resolve => { aCommitted = resolve; });
+  const aSync = a.sync({
+    pull: (vaultId, since) => server.pull(vaultId, since),
+    push: async (vaultId, writes) => {
+      await bRead;
+      const answer = await server.push(vaultId, writes);
+      aCommitted();
+      return answer;
+    },
+  });
+  const bSync = b.sync({
+    pull: async (vaultId, since) => {
+      const answer = await server.pull(vaultId, since);
+      bPulled();
+      return answer;
+    },
+    push: async (vaultId, writes) => { await aWrote; return server.push(vaultId, writes); },
+  });
+  const answers = await Promise.all([aSync, bSync]);
+  for (const answer of answers) ok(answer);
+  await settle([a, b], server);
+  const fresh = await Store.open(v, new MemoryCache());
+  ok(await fresh.sync(server));
+  for (const store of [a, b, fresh]) {
+    assert.deepEqual(store.get(id(8510)), { id: id(8510), common: 'invented-common', left: 'invented-left', right: 'invented-right' });
+  }
 });

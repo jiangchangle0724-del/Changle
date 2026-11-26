@@ -193,7 +193,7 @@ export function differs(a: Records, b: Records | undefined): boolean {
  * record that had been removed elsewhere; the record stays removed. `removed-here`: the reverse.
  * `fields`: both sides changed the same fields; `winner` is whose values were kept, the later
  * change. `kind`: both sides changed what kind of record it is, differently. `doubled`: the same
- * record was found in more than one chunk, and was merged into one (sync.ts).
+ * record was found in more than one chunk, and is read as its copies merged (`mergeMany`, sync.ts).
  */
 export type Clash =
   | { id: string; what: "removed-there" }
@@ -235,10 +235,13 @@ export function merge3(base: Records | undefined, here: Records, there: Records)
   return { records, ahead, clashes };
 }
 
+/** Is `a` the later of two versions of a record? The greater time; on the same millisecond the greater text, an order every device works out alike. */
+const later = (a: Entry, b: Entry): boolean => (a.at !== b.at ? a.at > b.at : `${a.kind} ${canonical(a.value)}` > `${b.kind} ${canonical(b.value)}`);
+
 /** Both sides changed one record, differently: field by field. */
 function mergeFields(id: string, from: Entry | undefined, mine: Entry, theirs: Entry, clashes: Clash[]): Entry {
-  // The later change wins a field both changed. On the same millisecond, an order that both devices work out alike.
-  const hereWins = mine.at !== theirs.at ? mine.at > theirs.at : `${mine.kind} ${canonical(mine.value)}` > `${theirs.kind} ${canonical(theirs.value)}`;
+  // The later change wins a field both changed.
+  const hereWins = later(mine, theirs);
   const fought: string[] = [];
   const fields: [string, Json][] = [["id", id]];
   for (const name of new Set([...Object.keys(theirs.value), ...Object.keys(mine.value)])) {
@@ -275,5 +278,16 @@ function mergeFields(id: string, from: Entry | undefined, mine: Entry, theirs: E
   return hereWins ? mine : theirs;
 }
 
-/** Two copies of one record with no copy they both started from (the same record found in two chunks): every field either has, and the later copy's value where they differ. */
-export const mergeTwo = (id: string, one: Entry, other: Entry, clashes: Clash[]): Entry => mergeFields(id, undefined, one, other, clashes);
+/**
+ * Several copies of one record that have no copy they all started from: the same record, found in more than one chunk.
+ * Every field any copy has, and where copies differ, the value of the latest copy that has the field. The kind and the
+ * time are the latest copy's. Each field is chosen from the copies as they are, so the result does not depend on the
+ * order they come in. If it would be larger than a record may be, the latest copy is the result, as it is.
+ */
+export function mergeMany(copies: readonly Entry[]): Entry {
+  const order = [...copies].sort((a, b) => (later(a, b) ? 1 : later(b, a) ? -1 : 0));
+  const latest = order[order.length - 1]!;
+  const fields = new Map<string, Json>();
+  for (const copy of order) for (const name of Object.keys(copy.value)) fields.set(name, copy.value[name]!);
+  return entryOf(latest.kind, latest.at, Object.fromEntries(fields) as Value, true) ?? latest;
+}
