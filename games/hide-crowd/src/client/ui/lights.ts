@@ -44,8 +44,8 @@ export interface Phones {
   dispose(): void;
 }
 
-/** A soft round glow, white in the middle: the screen's light on a face. */
-function glowTexture(): THREE.CanvasTexture {
+/** A soft round glow, white in the middle: the screen's light on a face (and the light switches' lamps, `switches.ts`). */
+export function glowTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 64;

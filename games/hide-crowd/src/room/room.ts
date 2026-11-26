@@ -18,9 +18,15 @@ import {
   characterForOwner,
   characterMaxSpeed,
   createMatch,
-  crowdMoment,
-  environmentalDrift,
+  driftAt,
+  LIGHT_SWITCHES,
+  momentAt,
   normalizeVector,
+  pullSwitch,
+  pulledDark,
+  switchNear,
+  switchReady,
+  SWITCH_RESET_MS,
   rideBike,
   roundAwards,
   roundPenalty,
@@ -61,13 +67,15 @@ export interface Opening {
 
 /**
  * For the browser tests only (the Worker accepts it with ALLOW_TEST_SETTINGS=1, never set on
- * changle.ca): a short round, the first two players starting face to face, or the first player
- * starting at one of the night market's stalls (0 to 3) with nobody else near it.
+ * changle.ca): a short round, the first two players starting face to face, the first player
+ * starting at one of the night market's stalls (0 to 3) with nobody else near it, or by the
+ * transit hall's left light switch.
  */
 export interface TestSettings {
   roundMs?: number;
   duel?: boolean;
   stall?: number;
+  lights?: boolean;
 }
 
 export interface Member {
@@ -335,11 +343,12 @@ export class Room {
       }
       case "punch":
       case "blend":
-      case "distract": {
+      case "distract":
+      case "lights": {
         if (!this.playing || !this.inRound(id)) return;
         this.advance(now);
         if (!this.st.game || this.st.game.phase !== "playing") return;
-        const start = message.t === "punch" ? startPunch : message.t === "blend" ? startBlend : startDistract;
+        const start = message.t === "punch" ? startPunch : message.t === "blend" ? startBlend : message.t === "lights" ? pullSwitch : startDistract;
         this.st.game = start(this.st.game, id, now);
         return;
       }
@@ -430,6 +439,10 @@ export class Room {
       Object.assign(one, { x: 40, y: 29, facing: 0 });
       Object.assign(two, { x: 45, y: 29, facing: Math.PI });
       for (const other of this.st.game.characters) if (other !== one && other !== two && Math.hypot(other.x - 42, other.y - 29) < 12) other.y = other.y < 29 ? 8 : 50;
+    }
+    if (test?.lights && arena === "metro") {
+      const puller = characterForOwner(this.st.game, players[0].id)!;
+      Object.assign(puller, { x: ARENA.marginX, y: LIGHT_SWITCHES[0].y, velocity: { x: 0, y: 0 } });
     }
     if (test?.stall !== undefined && arena === "market") {
       const taster = characterForOwner(this.st.game, players[0].id)!;
@@ -532,9 +545,9 @@ export class Room {
       gameView = {
         phase: game.phase,
         arena: game.arena,
-        drift: environmentalDrift(game.arena, game.startedAt, now),
+        drift: driftAt(game, now),
         moment: (() => {
-          const moment = game.phase === "playing" ? crowdMoment(game.arena, game.startedAt, now) : null;
+          const moment = game.phase === "playing" ? momentAt(game, now) : null;
           if (!moment) return null;
           if (moment.kind === "spot") {
             // (the theatre's follow spot: its sweep, by the round's dice, and how far along it is)
@@ -560,6 +573,10 @@ export class Room {
           game.phase === "playing" && game.glance && now < game.glance.at + GLANCE_MS && game.glance.by !== id
             ? { x: r2(game.glance.x), y: r2(game.glance.y), endsInMs: game.glance.at + GLANCE_MS - now }
             : null,
+        lights: (() => {
+          const dark = pulledDark(game);
+          return game.phase === "playing" && game.pull && dark && now < dark.to + SWITCH_RESET_MS ? { box: game.pull.box, sinceMs: now - game.pull.at } : null;
+        })(),
         endsAt: game.endsAt,
         remainingMs: game.phase === "playing" ? Math.max(0, game.endsAt - now) : 0,
         scoreToWin: SCORE_TO_WIN,
@@ -588,7 +605,8 @@ export class Room {
           return avatar;
         }),
         // (a distraction is heard of only by whoever made it: everyone else just sees a passer-by swing)
-        events: game.events.filter((event) => event.t !== "decoy" || (!!mine && event.actor === id)).map((event) => {
+        // (a distraction and a pulled light switch: only whoever did it hears it was them)
+        events: game.events.filter((event) => (event.t !== "decoy" && event.t !== "lights") || (!!mine && event.actor === id)).map((event) => {
           // (a blast tells each phone only whether it knocked down this phone's player)
           const onYou = !!mine && (event.target === id || (event.targets ?? []).includes(id));
           const item: EventView = { id: event.id, t: event.t, byYou: !!mine && event.actor === id, onYou };
@@ -613,6 +631,9 @@ export class Room {
               blendReadyAt: mine.blendCooldownUntil,
               maxSpeed: r2(characterMaxSpeed(mine, game.arena, now)),
               distracts: mine.distracts ?? 0,
+              switches: mine.switches ?? 0,
+              canPull:
+                (mine.switches ?? 0) > 0 && now >= mine.stunnedUntil && mine.hideAt === null && switchReady(game, now) && switchNear(mine) >= 0,
               bites: mine.bites ?? 0,
               at: mine.biteStall ?? -1,
               tasting: mine.biteStall >= 0 && mine.biteStall !== undefined ? r2(Math.min(1, (now - mine.biteSince) / BITE_MS)) : 0

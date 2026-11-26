@@ -1301,6 +1301,38 @@ button.arena-option:active {
   font-size: var(--text-xs);
   line-height: 1;
 }
+/* the transit hall's light switch: over Distract, only while you stand by one (it pops in) */
+.move-lights {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  gap: 0;
+  align-content: center;
+  background: var(--color-warning);
+  color: var(--color-on-accent);
+  font-size: var(--text-xs);
+  line-height: 1;
+  animation: lights-in var(--dur-enter) var(--ease-out) both;
+}
+@keyframes lights-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+@keyframes lights-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .move-lights {
+    animation-name: lights-fade-in;
+  }
+}
+[data-reduced="1"] .move-lights {
+  animation-name: lights-fade-in;
+}
 .move-distract.is-waiting .move-count {
   background: var(--color-line);
   color: var(--color-text-3);
@@ -2205,6 +2237,33 @@ html.is-tv body::before {
   background:
     repeating-linear-gradient(0deg, color-mix(in oklab, var(--arena-line) 70%, transparent) 0 1px, transparent 1px 36px),
     linear-gradient(160deg, color-mix(in oklab, var(--arena-accent) 18%, var(--arena-surface)), var(--arena-bg));
+}
+/* the transit hall's light switches at the floor's sides: a box with its lamp, green, red once pulled (lit in the dark too) */
+.flat-switch {
+  position: absolute;
+  z-index: 1;
+  width: 14px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-small);
+  background: var(--arena-steel);
+  pointer-events: none;
+}
+.flat-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: var(--r-pill);
+  background: var(--arena-foliage);
+  box-shadow: 0 0 6px var(--arena-foliage);
+}
+.flat-switch.is-pulled::after {
+  background: var(--arena-danger);
+  box-shadow: 0 0 10px var(--arena-danger);
 }
 /* the night market: the lot's asphalt and its lines; the stalls along the top, their pools of light below */
 .flat-arena--market {

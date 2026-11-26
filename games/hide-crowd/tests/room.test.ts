@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARENA, BIKE_MS, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, TAGGER_SHOWN_MS, THIN_MS, characterForOwner, rideBike } from "../src/engine";
+import { ARENA, BIKE_MS, BITE_MS, LIGHT_SWITCHES, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, SWITCH_DELAY_MS, TAGGER_SHOWN_MS, THIN_MS, characterForOwner, rideBike } from "../src/engine";
 import { HOST_GRACE, HOST_HOLD, Room } from "../src/room/room";
 
 const first = "player-one";
@@ -408,6 +408,35 @@ test("the round's last half minute: every screen hears the crowd is leaving, and
   assert.equal(phone.avatars.filter((avatar) => avatar.o === 1).length, gone, "the same bodies on every screen");
   assert.equal(phone.avatars.some((avatar) => avatar.me && avatar.o), false, "a player never leaves");
   assert.equal(MATCH_MS >= THIN_MS * 2, true);
+});
+
+test("the transit hall's light switch: the phone by one can pull it, only it hears it was them, every screen sees which switch went dark", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "vote", arena: "metro" }, 4);
+  room.handle(second, { t: "vote", arena: "metro" }, 4);
+  room.handle(first, { t: "start" }, 5);
+  const game = room.st.game!;
+  assert.equal(game.arena, "metro");
+  Object.assign(characterForOwner(game, first)!, { x: ARENA.marginX, y: LIGHT_SWITCHES[0].y });
+  Object.assign(characterForOwner(game, second)!, { x: 50, y: 29 });
+  const at = 2_000;
+  room.advance(at);
+  assert.equal(room.view(first, "player", at).game!.me!.canPull, true);
+  assert.equal(room.view(second, "player", at).game!.me!.canPull, false, "too far from a switch");
+  room.handle(first, { t: "lights" }, at + 10);
+  const dark = at + 10 + SWITCH_DELAY_MS + 100;
+  room.advance(dark);
+  const views = { [first]: room.view(first, "player", dark), [second]: room.view(second, "player", dark), [screen]: room.view(screen, "screen", dark) };
+  for (const view of Object.values(views)) {
+    assert.equal(view.game!.lights?.box, 0, "every screen sees which switch went");
+    assert.equal(view.game!.moment?.kind, "blackout");
+  }
+  assert.equal(views[first].game!.events.some((event) => event.t === "lights" && event.byYou), true, "the puller is told");
+  assert.equal(views[second].game!.events.some((event) => event.t === "lights"), false, "nobody else hears whose it was");
+  assert.equal(views[screen].game!.events.some((event) => event.t === "lights"), false);
+  assert.equal(views[first].game!.me!.switches, 1);
+  assert.equal(views[first].game!.me!.canPull, false, "not while the lights are out");
 });
 
 test("someone who joins during a round watches it and plays the next", () => {

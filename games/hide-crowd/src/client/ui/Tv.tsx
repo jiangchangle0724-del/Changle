@@ -190,6 +190,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
     flash: shown.flash,
     moment: game.moment,
     glance: game.glance ?? null,
+    lights: game.lights ?? null,
     intro
   } as const;
   // (the last blow lands, in slow motion, before the penalty and the results take the screen)

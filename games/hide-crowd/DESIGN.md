@@ -442,6 +442,30 @@ The big upgrade's fourth part, its second event (an event for each place; see th
   (the same tell as the horn's).
 * With reduced motion: the lights fade out and back instead of flickering.
 
+## The transit hall's light switches
+
+The Steam original has switches its players can work; this is ours (Steve's list, 2026-11-25): the
+transit hall's lights, on demand.
+
+* **Where**: one on each route sign just off the floor's sides (`LIGHT_SWITCHES` in `src/engine`), a
+  grey box with a red lever and a lamp (`ui/switches.ts`: four draws for both; in the flat view, a box
+  and its lamp at each side).
+* **Pulling**: standing within 8.5 of one (`SWITCH_REACH`: at the floor's edge, by the sign), a
+  player sees 关灯 Lights pop in over Distract, with its count: twice a round (`SWITCHES`; F on a
+  keyboard, B on a gamepad). The walkways carry you off it like anyone. A pull puts the hall's lights
+  out for everyone 0.6 s later (`SWITCH_DELAY_MS`), exactly as when they go by themselves (the same
+  rules for the passers-by, the same screens and sounds), and the walkways stop with the power. A
+  moment of the hall's own due during it, or within 2 s after, doesn't come (`momentAt`). Nobody can
+  pull while any moment is on, or until the lights are back and the switches have reset for 12 s
+  (`SWITCH_RESET_MS`).
+* **The risk**: every screen sees which switch went: its lever drops and its lamp turns from green to
+  red with a flash, lit in the dark, until the reset (`GameView.lights`). Only the puller's phone is
+  told it was them (你拉了电闸，灯马上黑 You pulled the switch: lights out) and hears the lever's clack;
+  the big screen hears it too. Passers-by go and read the route signs now and then (a browse plan), so
+  a body by a switch isn't proof; one walking away from it in the dark is.
+* **Why pull it**: you know when the dark comes; the others find out with the crowd, and whoever's
+  caught walking stands out.
+
 ## The theatre's follow spot
 
 The big upgrade's fourth part, its third event (an event for each place).

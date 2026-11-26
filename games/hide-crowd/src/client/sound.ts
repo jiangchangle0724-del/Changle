@@ -470,6 +470,14 @@ export const sfx = {
     const last = FIREWORK_SHOTS[FIREWORK_SHOTS.length - 1];
     duck(t, (last.at + FIREWORK_RISE_MS) / 1000 + 0.8);
   },
+  /** a light switch pulled: the lever's clack, metal on metal (its puller's phone and the big screen) */
+  lever(): void {
+    const t = now();
+    if (t === null) return;
+    hiss(t, 0.05, 0.22, 3_800, 1_800, 3);
+    voice("square", 220, 90, t, 0.07, 0.06);
+    voice("sine", 130, 60, t + 0.01, 0.16, 0.16);
+  },
   /** your distraction: a sly little whistle down and up, only for you */
   psst(): void {
     const t = now();

@@ -4,7 +4,7 @@
 // then every player's name, the winner's in the gel. The night market's four stalls sit along the
 // top, and light up when someone tastes one.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { ARENA, BIKE_REACH, bikeX, PLAYER_ACCELERATION, PLAYER_BRAKING, SPOT_RADIUS, spotAt, steerVelocity, type ArenaId, type MomentKind } from "../../engine";
+import { ARENA, BIKE_REACH, bikeX, LIGHT_SWITCHES, PLAYER_ACCELERATION, PLAYER_BRAKING, SPOT_RADIUS, spotAt, steerVelocity, type ArenaId, type MomentKind } from "../../engine";
 import type { AvatarView, BikeView, CrackerView, SpotView } from "../../room/protocol";
 import { t } from "../i18n";
 import { reducedNow } from "../prefs";
@@ -26,6 +26,8 @@ export function ArenaFallback(props: {
   flash?: { id: number; stall: number; feast: boolean } | null;
   /** the night market's firecrackers come with their moment, the seawall's bike with its line (and the transit hall goes dark) */
   moment?: { kind?: MomentKind; crackers?: CrackerView[]; bike?: BikeView; spot?: SpotView } | null;
+  /** the transit hall: the light switch pulled last, while it's down */
+  lights?: { box: number; sinceMs: number } | null;
 }) {
   const arenaRef = useRef<HTMLDivElement>(null);
   const avatarNodes = useRef<Array<HTMLDivElement | null>>([]);
@@ -128,6 +130,16 @@ export function ArenaFallback(props: {
       {props.arena === "metro" && (
         <div class={`flat-belt ${props.drift.x < 0 ? "is-left" : props.drift.x > 0 ? "is-right" : ""}`} aria-hidden="true" />
       )}
+      {/* the transit hall's two light switches, at the floor's sides: green, or red once pulled */}
+      {props.arena === "metro" &&
+        LIGHT_SWITCHES.map((box, index) => (
+          <span
+            key={index}
+            class={`flat-switch${props.lights?.box === index ? " is-pulled" : ""}`}
+            style={{ left: `${box.x < ARENA.width / 2 ? 1.6 : 98.4}%`, top: `${(box.y / ARENA.height) * 100}%` }}
+            aria-hidden="true"
+          />
+        ))}
       {props.arena === "gallery" && <div class="flat-spotlight" aria-hidden="true" />}
       {/* the theatre's follow spot: its pool of light (where the room last said) */}
       {props.moment?.spot && (() => {
