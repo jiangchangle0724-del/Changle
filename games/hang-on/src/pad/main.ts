@@ -19,6 +19,8 @@ import { cleanItem, ITEM_ICON, ITEM_IDS, type ItemId } from '../items';
 import { itemHint, itemName } from '../item-text';
 import { applyStatic, getLang, langButton, onLang, pickLang, tr } from '../i18n';
 import { installReports, watchCanvas, type ReportContext } from '../report';
+import { achvCount, gotText, loadAchvs, renderAchvList, saveAchvs, trophyToast } from '../achv-ui';
+import type { AchvId } from '../achievements';
 import { sfx } from '../audio/sfx';
 import { drawLook } from './look-preview';
 import { bindControls } from './controls';
@@ -149,11 +151,14 @@ function join(code: string, name: string): void {
       lastCast = c;
       view?.cast(c);
     },
+    onAchv: (id) => gotAchv(id),
     onMenu: (m) => {
       lastMenu = m;
       renderMenu();
     },
   });
+  // 成就（11-25）：告诉主机这部手机上有哪些，主机只报新的
+  link.setAchvs([...myAchvs]);
   link.setLook(look);
   link.setItem(item);
   $('meName').textContent = name;
@@ -434,6 +439,32 @@ fartBtn.addEventListener('click', () => {
   buzz(25);
 });
 $('itemDone').addEventListener('click', () => itemDlg.close());
+
+// ---------- 成就（11-25） ----------
+const myAchvs = new Set<AchvId>(loadAchvs());
+const achvDlg = $<HTMLDialogElement>('achvDlg');
+function renderAchvBtns(): void {
+  const n = achvCount(myAchvs);
+  $('achvSummary').textContent = tr(`成就 ${n}`, `Achievements ${n}`);
+  $('achvBtn2').textContent = `🏆 ${n}`;
+}
+function openAchvs(): void {
+  renderAchvList($('achvList'), myAchvs);
+  achvDlg.showModal();
+}
+/** 主机说新拿到一个：记下来，抖一下；电视局在自己手机上冒一条（手机局的画面上大家都看得到那一条）。 */
+function gotAchv(id: AchvId): void {
+  if (myAchvs.has(id)) return;
+  myAchvs.add(id);
+  saveAchvs(myAchvs);
+  renderAchvBtns();
+  buzz([40, 30, 40]);
+  if (!document.body.classList.contains('viewing')) trophyToast($('trophies'), gotText(id));
+}
+$('achvBtn').addEventListener('click', openAchvs);
+$('achvBtn2').addEventListener('click', openAchvs);
+$('achvDone').addEventListener('click', () => achvDlg.close());
+renderAchvBtns();
 renderItem();
 /** 道具键也连发几帧（和召唤一样）；冷却里主机不算。 */
 let itemFrames = 0;
@@ -709,6 +740,7 @@ renderConn();
 onLang(() => {
   renderLook();
   renderItem();
+  renderAchvBtns();
   renderMenu();
   disarmBack();
   renderConn();

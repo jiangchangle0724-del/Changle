@@ -10,6 +10,7 @@
  * 契约见 games/hang-on/CONTRACTS.md「输入契约」「房间契约」。
  */
 import type { EmoteId } from '../emotes';
+import type { AchvId } from '../achievements';
 import type { Goal } from '../goals';
 import type { ItemId } from '../items';
 import type { Look } from '../look';
@@ -263,6 +264,7 @@ export interface Cast {
  * - item：手柄选的道具（A9），和 look 一样。
  * - emote：手柄上点的表情（11-25），只走房间。
  * - fart：手柄上按了放屁键（11-25），只走房间。
+ * - achvHave / achv：成就（11-25）：手柄连上时说自己有哪些；主机告诉手柄新拿到一个。只走房间。
  * - snap / cast：手机局里主机发给每部手机的画面快照和样子名单（见上面 Snap、Cast）。
  */
 export type LinkMsg =
@@ -276,6 +278,10 @@ export type LinkMsg =
   | { k: 'emote'; e: EmoteId }
   /** 放屁键（11-25）：只走房间；主机挑声音、挡住太密的。 */
   | { k: 'fart' }
+  /** 成就（11-25）：手柄连上房间时说自己有哪些（每次重新连上再说一遍）。 */
+  | { k: 'achvHave'; ids: AchvId[] }
+  /** 成就（11-25）：主机告诉手柄新拿到一个，手机记下来。 */
+  | { k: 'achv'; id: AchvId }
   /** 手柄当遥控：按了开始、下一关……（走房间，要可靠）。 */
   | { k: 'cmd'; c: PadCmd }
   /** 主机给手柄的菜单（走房间）。 */

@@ -454,6 +454,11 @@ export class Stage {
           this.dumplings[ev.player]?.emote(tr(w.zh, w.en), EMOTE_SHOW_S);
           break;
         }
+        case 'achv': {
+          // 成就（11-25）：那个人头上撒一把金星（字在页面上冒，src/achv-ui.ts）
+          this.fx.burst({ x: ev.x, y: ev.y - CFG.bodyR * 1.6, n: this.reduced ? 4 : 10, texture: 'star', colors: [0xffd27a, 0xffffff, 0xf6c453], speed: [60, 180], life: [0.5, 0.9], size: [6, 11], spin: 8, grow: 0.3, drag: 3 });
+          break;
+        }
         case 'fart': {
           // 放屁键（11-25）：屁股底下冒一团黄绿的烟，慢慢往上飘；自己身子一抖乐一下，旁边的人眯眼皱嘴
           this.fx.burst({ x: ev.x, y: ev.y + CFG.bodyR * 0.7, n: this.reduced ? 4 : 8, texture: 'puff', colors: [STINK, 0xc4cf7a, 0x8d9f4a], speed: [20, 80], angle: Math.PI / 2, spread: 1.8, life: [0.9, 1.4], size: [18, 30], grow: this.reduced ? 1.4 : 2.2, alpha: 0.75, drag: 2.5, gravity: -140 });

@@ -34,6 +34,7 @@ import {
   PLAYER_COLORS,
   TETHER_LEN,
 } from './config';
+import type { AchvId } from '../achievements';
 import type { EmoteId } from '../emotes';
 import type { ItemId } from '../items';
 import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
@@ -344,7 +345,9 @@ export type SimEvent =
   /** 表情（11-25）：不是物理的事，主机收到手柄的表情直接交给画面、声音和手机局的快照；x、y 是说话时人在哪（声音左右用）。 */
   | { type: 'emote'; player: number; emote: EmoteId; x: number; y: number }
   /** 放屁键（11-25）：也不是物理的事，和表情一样由主机直接交出去；kind 是哪种声音（主机挑，大家听到同一种），x、y 是人在哪。 */
-  | { type: 'fart'; player: number; kind: number; x: number; y: number };
+  | { type: 'fart'; player: number; kind: number; x: number; y: number }
+  /** 成就（11-25）：也不是物理的事，主机算出谁新拿到了哪个，交给画面、声音和手机局的快照。 */
+  | { type: 'achv'; player: number; id: AchvId; x: number; y: number };
 
 export interface TeleportOpts {
   /** 每只手摆到哪（世界坐标）；null 用默认收拢姿势。 */
