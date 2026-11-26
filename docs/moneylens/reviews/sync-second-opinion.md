@@ -805,3 +805,18 @@ The notes in the third round that are not findings, and where they stand:
   section 3 and is for the review of that code, which is not written yet.
 - The approval is of the storage layer as a library. It says nothing of a server, sign-in,
   exposure or deployment, and none of those exist yet.
+
+## Finding 12: what was done
+
+Added by Claude Code on 25 November 2026, in the pull request that fixes it
+(`claude/moneylens-doubled-clock`). The verdict at the top is the third round's, for `b9e463c9`,
+until the reviewer has looked at this change (card C6).
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 12 | Copies of a doubled record that say the same and differ only in their time are read with the time of the copy in the chunk with the smallest id | `entry` (`sync.ts`) reads such a record as the copy with the greatest time. That is the one place a doubled record's time is read: `change` stamps from it. Nothing is written for the time alone, as the finding asked: `alike` is unchanged, and a copy that already says what the others say keeps its own time on the server. Your test is switched on as you wrote it. Added in `tests/sync.test.ts`: the older copy in the chunk with the smaller id and in the one with the greater; copies alike from the start, and copies that a sync made alike (the case your follow-up names); a change that changes nothing; the change made again after the page was closed with it only in the cache. Two ways of breaking the fix (read the first chunk listed; read the earliest copy) each make both tests fail |
+
+And from the third round's notes: the way a field can come back that the note described (another
+device's "making alike", prepared before it saw the field taken out, puts the field into the
+copy that never had it) is now in the assessment (0.10, 1.6, "What this cannot do"), with a test
+that runs exactly that schedule and then checks that taking the field out a second time holds.

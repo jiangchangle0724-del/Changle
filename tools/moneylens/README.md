@@ -110,7 +110,8 @@ await store.flush();                                   // seal what changed and 
   for "the" settings record either: two devices would each make one, in different chunks). If an
   id does turn up in more than one chunk, the store reads the copies as one record, says so once
   (`doubled`), and makes the copies alike at the next sync; it never moves or drops a copy on its
-  own, so a removal can come back from a copy this device had not seen (assessment 1.6).
+  own, so a removal, or a field taken out, can come back and may need doing again (assessment
+  1.6, "What this cannot do").
 - **A request that gets no answer** is given up after two minutes (`Store.open(…, { patience })`
   sets another time, in milliseconds) and counts as `offline`. The code that talks to the server
   should give up sooner than that itself.

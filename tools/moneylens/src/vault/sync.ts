@@ -316,8 +316,22 @@ export class Store {
     return { records: this.where.size, chunks: this.slots.size, pending, damaged: this.spoiled, doubled: this.merged.size };
   }
 
+  /**
+   * A record as it is read. One found in more than one chunk is its copies merged, with the latest copy's time. That
+   * holds when the copies say the same and differ only in their time, too: the latest of them is the one read, not the
+   * one in whichever chunk comes first, so that a change is stamped later than every copy this device holds.
+   */
   private entry(id: string): Entry | undefined {
-    return this.merged.get(id) ?? this.slots.get(this.where.get(id) ?? "")?.work.get(id);
+    const merged = this.merged.get(id);
+    if (merged) return merged;
+    const holders = this.many.get(id);
+    if (!holders) return this.slots.get(this.where.get(id) ?? "")?.work.get(id);
+    let latest: Entry | undefined;
+    for (const holder of holders) {
+      const copy = this.slots.get(holder)?.work.get(id);
+      if (copy && (!latest || copy.at > latest.at)) latest = copy;
+    }
+    return latest;
   }
 
   /** The chunks that hold a record: one, unless something went wrong somewhere. */

@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.9, 25 November 2026. It records the choices the requirements leave to this document
+Version 0.10, 25 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -31,7 +31,9 @@ Version 0.8 adds how records are packed, kept on a device and brought into line 
 (1.6), and what a device can and cannot notice when the server's copy goes back (section 2).
 Version 0.9 follows the second round of the review of 1.6: a record found in more than one chunk
 is no longer moved, the answer to a push is believed only if it answers that push, and every
-request has a time limit.
+request has a time limit. The third round approved the layer as 0.9 describes it. Version 0.10
+follows that round: the one thing it found is fixed (a doubled record was not always read with
+its latest copy's time), and one more way a field can come back is written into 1.6.
 
 ## 1. The vault
 
@@ -472,8 +474,10 @@ second round of the review showed two honest devices losing a field that way.)
   copies give differently, the value of the latest copy that has the field. Latest is the
   greater `t`, and on the same `t` the greater text, as in a merge. Each field is chosen from
   the copies as they are, so the order in which they are looked at does not matter. The kind and
-  the time are the latest copy's. If the result would be larger than a record may be, the latest
-  copy is read as it is.
+  the time are the latest copy's, also when the copies say the same and differ only in their
+  time: a change on this device is then stamped later than every copy it holds, however slow
+  its clock. If the result would be larger than a record may be, the latest copy is read as it
+  is.
 - *Telling the app.* The app is told that the record is doubled when the store first sees it so,
   and again in a later session if it still is.
 - *Making the copies alike.* At a sync, each copy that differs from the record as read is
@@ -486,8 +490,14 @@ second round of the review showed two honest devices losing a field that way.)
 - *What this cannot do.* A device acts on the copies it has seen. A copy it has not been told of
   yet is untouched by its change or its removal, and when that copy arrives the record is read
   with it again: a removal may have to be made a second time, and a field that was taken out can
-  come back. With doubled records nothing is dropped unasked; the price is that taking something
-  away can need repeating. And a record has one time, not one for each field (section 2).
+  come back. A field can also come back through copies the device has seen, if another device
+  was making them alike at that moment. That device's write puts the field into a copy that did
+  not have it, and it is merged chunk by chunk: in the chunk that had the field the removal
+  stands, and in the chunk that did not, the other device's write is the only change to that
+  field and stands too. (A removal of the whole record does not come back this way: in every
+  chunk a removal wins over a change.) With doubled records nothing is dropped unasked; the
+  price is that taking something away can need repeating. And a record has one time, not one
+  for each field (section 2).
 
 **Sending twice.** A write replaces a whole chunk, so the same write arriving twice is the same
 chunk once. What needs care is a write whose answer never came, because a request that timed out
@@ -609,7 +619,13 @@ words can be read, local and session storage and cookies are empty, a second tab
 cache, a page opened again finds every record (T-24), a save that fails part-way writes nothing,
 and a layout left by a later version of the app is neither opened nor changed. The three answers
 of taking the cache (held, taken by another page, no storage this page can hold) are tested with
-stand-ins for the browser (`tests/idbcache.test.ts`).
+stand-ins for the browser (`tests/idbcache.test.ts`). The third round approved the layer and
+added tests of its own: every order of four copies, two devices with different copies writing
+in either order, a cache save cut at each point with a third copy arriving later, a push that
+timed out arriving after a removal was saved, and a real change or removal against a write that
+makes copies alike. Its one finding (the time a doubled record is read with when its copies say
+the same) has its test, switched on, and one here for both orders of the chunks and for copies
+that a sync made alike. The way a field can come back that 1.6 now names is a test too.
 
 ## 2. Limits (the reason for VAULT-6's wording)
 
