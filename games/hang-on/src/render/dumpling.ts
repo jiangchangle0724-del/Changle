@@ -11,6 +11,8 @@ import type { PlayerView } from './view';
 import { ARM_COLORS, DEFAULT_LOOK, type Look } from '../look';
 import { CREAM, GLOVES, INK, OUTLINE, hex } from './art';
 import { pickExpression, type Expr, type Mood } from './mood';
+import { drawGachaFace, drawGachaGlasses, drawGachaHat, gachaHatHeight } from '../look-art';
+import { pixiPen } from './pen';
 
 const R = CFG.bodyR;
 /** 表情气泡里的字（11-25）。 */
@@ -429,7 +431,7 @@ export class Dumpling {
       case 'bow':
         return 10;
       default:
-        return 0;
+        return gachaHatHeight(this.look.hat) ?? 0;
     }
   }
 
@@ -771,6 +773,8 @@ export class Dumpling {
         g.arc(0, 3, R - 8, Math.PI - 0.45, 0.45, true).stroke({ width: 1.2, color: 0x3a2418, alpha: 0.6 });
         break;
       default:
+        // 红包扭蛋机（11-25）里扭出来的
+        drawGachaFace(pixiPen(g), this.look.face);
         break;
     }
   }
@@ -803,6 +807,8 @@ export class Dumpling {
         g.moveTo(-1, eyeY - 2).lineTo(1, eyeY - 2).stroke({ width: 2, color: 0xf28ca6 });
         break;
       default:
+        // 红包扭蛋机（11-25）里扭出来的
+        drawGachaGlasses(pixiPen(g), this.look.glasses, eyeY);
         break;
     }
   }
@@ -863,6 +869,8 @@ export class Dumpling {
         g.ellipse(0, top - 12, 15, 5).stroke({ width: 1, color: 0xffffff, alpha: 0.6 });
         break;
       default:
+        // 红包扭蛋机（11-25）里扭出来的
+        drawGachaHat(pixiPen(g), this.look.hat, top);
         break;
     }
   }

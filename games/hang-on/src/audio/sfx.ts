@@ -512,6 +512,12 @@ class Sfx {
         steps.forEach((f, k) => this.tone({ freq: f, wave: 'square', dur: 0.085, attack: 0.004, vol: 0.12, pan, lowpass: 2600, delay: k * 0.08 }));
         return;
       }
+      case 'meow':
+        // 喵（红包扭蛋机里扭的，11-25）：先往上挑，再拖着往下
+        this.tone({ freq: 620, to: 1050, wave: 'triangle', dur: 0.14, attack: 0.02, vol: 0.18, pan });
+        this.tone({ freq: 1050, to: 480, wave: 'sawtooth', dur: 0.55, attack: 0.02, vol: 0.13, vibrato: [25, 9], pan, lowpass: 1800, delay: 0.12 });
+        this.tone({ freq: 2100, to: 960, wave: 'sine', dur: 0.5, attack: 0.02, vol: 0.04, pan, delay: 0.12 });
+        return;
       case 'opera':
         // 歌剧：先唱上去，再长长地滑下来，宽颤音
         this.tone({ freq: 660, to: 880, wave: 'triangle', dur: 0.32, attack: 0.05, vol: 0.22, vibrato: [22, 6], pan });
