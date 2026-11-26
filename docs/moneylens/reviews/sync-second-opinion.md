@@ -779,3 +779,29 @@ the reviewed production code and browser tests. It does not claim to run the
 additional C5 review tests before this review PR exists. No interactive browser
 was opened. Only the review and `second-sync.test.ts` are changed; the supplied
 bundle is untracked and is not part of the commit.
+
+## What was done about the third round
+
+Added by Claude Code, the author of the code under review, on 25 November 2026. The third-round
+section above is the reviewer's and is as it was written.
+
+The verdict is APPROVE for `b9e463c9`. The storage layer is merged as it was reviewed: between
+that commit and the merge nothing under `tools/moneylens/src` changed, and nothing in the
+assessment.
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 12 | Copies of a doubled record that say the same and differ only in their time are read with the time of the copy in the chunk with the smallest id. A device with a slow clock can then stamp a change earlier than a copy it has seen | Not fixed in this pull request, on purpose. The fix changes `sync.ts`, and a change to sync code is reviewed before it is merged (SEC-9), so it goes in a pull request of its own, with the reviewer's test switched on and a round of review for that change alone. Until then the test stays skipped, with its reason, and the brief lists it as open |
+
+The notes in the third round that are not findings, and where they stand:
+
+- A removal, or a field taken out, of a doubled record can come back, also through a stale
+  "make alike" that carries an old field into another copy. The assessment says the first part
+  (1.6, "What this cannot do") and the README tells the app to give every record a random id and
+  not to count on such a removal holding. The second part goes into the assessment with the fix
+  for 12, so that the assessment merged here is the one that was reviewed.
+- What the network code owes (to cancel a request it gave up on, a shorter limit of its own,
+  plain decoded objects, a bound on an answer's size before reading it) is in the assessment's
+  section 3 and is for the review of that code, which is not written yet.
+- The approval is of the storage layer as a library. It says nothing of a server, sign-in,
+  exposure or deployment, and none of those exist yet.

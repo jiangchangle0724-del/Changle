@@ -27,7 +27,7 @@ Always:
 | [C2](C2-recovery-bytes-cleanup.md) | The fix for C1's finding: a new recovery code's bytes are cleared when wrapping fails. Codex writes it, Claude Code reviews it (SEC-9) | `src/vault/crypto.ts` (`wrapUnder` only), `tests/wrap-cleanup.test.ts` (new) | merged 2026-11-21 (#727), after a line-by-line review recorded in the PR |
 | [C3](C3-sync-second-opinion.md) | A second opinion on the storage layer (records in chunks, merging, sync) before it is merged: a merge written from the assessment alone and run against the code, a run of its own against the store, then a review | `tests/second/merge.ts` (new), `tests/second-sync.test.ts` (new), `docs/moneylens/reviews/sync-second-opinion.md` (new) | merged into the branch 2026-11-21 (#736). Verdict: changes needed, seven findings (one major: pages that never end). All seven dealt with; the table is at the end of the review |
 | [C4](C4-sync-second-round.md) | The second round: are the seven findings resolved, did the fixes break anything, and the cache in the browser's storage, which was added since | `docs/moneylens/reviews/sync-second-opinion.md` (first line, and a section at the end), `tests/second-sync.test.ts` if tests are added | merged into the branch 2026-11-25 (#775). Verdict: changes needed. Of the first seven, five resolved, 4 partly, 7 not; four new findings (8 to 11, two of them major). All dealt with; the second table at the end of the review |
-| [C5](C5-sync-third-round.md) | The third round: are findings 8 to 11 resolved, and did the fixes break anything | `docs/moneylens/reviews/sync-second-opinion.md` (first line, and a section at the end), `tests/second-sync.test.ts` if tests are added | written 2026-11-25 for the branch's head after the second-round fixes; branch `codex/moneylens-c5-sync-third-round`, into `claude/moneylens-vault-records`. Whether it has gone out, and how, is in the brief |
+| [C5](C5-sync-third-round.md) | The third round: are findings 8 to 11 resolved, and did the fixes break anything | `docs/moneylens/reviews/sync-second-opinion.md` (first line, and a section at the end), `tests/second-sync.test.ts` if tests are added | merged into the branch 2026-11-25 (#776). Verdict: approve, for `b9e463c9`. Findings 8 to 11 resolved; one new minor finding (12, the time of a doubled record whose copies say the same), which does not block and gets a pull request and a review of its own |
 
 **Since 2026-11-25 the app is different.** After its update, a task in the app's Work tab cannot
 write to the old checkout of the repository, and its shell cannot reach the network (no
@@ -84,13 +84,13 @@ C4's message:
 不要合并，不要推 main，不要部署；代码和提交里都不能出现任何密钥，也不能出现任何真实的财务数据。
 ```
 
-C5's message (it goes into the same task as C4, so that the clone is reused):
+C5's message (it went into the same task as C4, so that the clone was reused; the bundle was `dc47547d..b9e463c9`, 60 KB, written into the clone's root through the folder Steve allowed):
 
 ```
-第三轮。你上一轮（C4）的四条发现 8 到 11 都改了，改动已经在 claude/moneylens-vault-records 上，你的四个 finding 测试原样打开、全过。
-你这个 clone 连不了网，所以我（替 Steve 操作的 Claude）把新提交打成了一个 git bundle，放在 clone 的根目录：moneylens-c5.bundle。在 clone 里运行：
+第三轮。你上一轮（C4）的四条发现 8 到 11 都改了，改动已经在 claude/moneylens-vault-records 上（现在的头是 b9e463c9，GitHub Actions 对它是绿的），你的四个 finding 测试原样打开、全过。
+你这个 clone 连不了网，所以我（替 Steve 操作的 Claude）把新提交打成了一个 git bundle，放在 clone 的根目录：moneylens-c5.bundle（它只需要 clone 里已有的 dc47547d）。在 clone 里运行：
 git fetch ./moneylens-c5.bundle claude/moneylens-vault-records
 git switch -c codex/moneylens-c5-sync-third-round FETCH_HEAD
 然后按 docs/codex-tasks/moneylens/C5-sync-third-round.md 做（fetch 之后才有这个文件）。不用再 npm ci（依赖没变）。npm run test:page 里缓存那一步在你的沙箱里连不了本机地址，照卡上写的办：写明没能跑，以 GitHub Actions 对同一个提交的结果为准，不要让 Steve 跑。
-只改卡上写的两个文件，不要改 src。做完用你的 GitHub 连接把分支推上去、开 PR，目标分支是 claude/moneylens-vault-records，不是 main；PR 描述里用文字贴测试输出。不要合并，不要推 main，不要部署；不能出现任何密钥或真实的财务数据。
+只改卡上写的两个文件，不要改 src；moneylens-c5.bundle 只是用来传提交的，不要提交它。做完用你的 GitHub 连接把分支推上去、开 PR，目标分支是 claude/moneylens-vault-records，不是 main；PR 描述里用文字贴测试输出。不要合并，不要推 main，不要部署；不能出现任何密钥或真实的财务数据。Steve 不在电脑前：有问题先按卡上的说明自己判断，实在定不了就写在 PR 里，不要停下来等他。
 ```
