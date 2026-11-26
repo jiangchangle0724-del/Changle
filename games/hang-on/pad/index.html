@@ -189,6 +189,9 @@
     .bar { gap: 6px; }
     .bar .chip.btn { padding-inline: 10px; }
     .bar .summon { padding-inline: 12px; }
+    /* 放屁键（11-25）：直连时不写「直连」，省出 💨 的地方；名字太长截短 */
+    .bar #path.direct { display: none; }
+    .bar .me #meName { display: inline-block; max-width: 6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   }
   /* 表情（11-25）：顶栏的 😀 打开一排，两行四个，挂在顶栏下面；点一句就收起来 */
   .bar .chip.btn.emo { font-size: 18px; min-width: 44px; padding-inline: 0; justify-content: center; }
@@ -196,9 +199,9 @@
     padding: 10px; background: var(--card); color: var(--card-ink); border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.35); width: max-content; max-width: calc(100vw - 24px); }
   .emote { min-height: 48px; border: 0; border-radius: 14px; background: #fff; color: var(--card-ink); font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.2; padding: 6px 10px; cursor: pointer; }
   .emote:active { transform: scale(.96); }
-  .emote.nope { animation: emote-nope .3s; }
+  .emote.nope, .bar .emo.nope { animation: emote-nope .3s; }
   @keyframes emote-nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
-  @media (prefers-reduced-motion: reduce) { .emote:active { transform: none; } .emote.nope { animation: none; opacity: .6; } }
+  @media (prefers-reduced-motion: reduce) { .emote:active { transform: none; } .emote.nope, .bar .emo.nope { animation: none; opacity: .6; } }
   .zones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); min-height: 0; }
   .stickzone { position: relative; border-radius: 22px; background: rgba(255,255,255,.06); border: 2px dashed rgba(255,255,255,.22); overflow: hidden; }
   .stickzone .hint { position: absolute; inset: 0; padding: 16px; box-sizing: border-box; display: grid; place-items: center; font-size: 14px; color: var(--ink-soft); text-align: center; line-height: 1.5; pointer-events: none; }
@@ -305,6 +308,7 @@
     <button class="chip btn" id="lookBtn2" type="button" data-en="Look">样子</button>
     <button class="chip btn" id="itemBtn2" type="button" data-en="Item">道具</button>
     <button class="chip btn emo" id="emoteBtn" type="button" aria-label="表情" data-en-label="Emotes">😀</button>
+    <button class="chip btn emo" id="fartBtn" type="button" aria-label="放屁" data-en-label="Toot">💨</button>
     <button class="summon" id="summonBtn" type="button" disabled data-en="Summon">召唤队友</button>
     <button class="chip btn back" id="backBtn" type="button" hidden data-en="Lobby">回大厅</button>
     <button class="chip btn back" id="tableBtn2" type="button" hidden data-en="Table">回桌上</button>

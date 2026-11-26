@@ -15,7 +15,7 @@ import { heardBy, sfx } from '../audio/sfx';
 import { moodOf, rawIntensity, Tension } from '../audio/tension';
 import { seedOf, themeFor } from '../audio/themes';
 import { applyStatic, langButton, onLang, pickLang, tr } from '../i18n';
-import { EMOTE_GAP_MS, EMOTE_SHOW_S, EMOTES, emoteWords, type EmoteId } from '../emotes';
+import { EMOTE_GAP_MS, EMOTE_SHOW_S, EMOTES, emoteWords, FART_GAP_MS, FART_WORDS, fartKind, type EmoteId } from '../emotes';
 import { emotePicker } from '../emote-picker';
 import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
@@ -378,6 +378,10 @@ async function start(): Promise<void> {
         const i = seatOrder.indexOf(peer.seat);
         if (i >= 0) emoteFrom(i, e);
       },
+      onFart: (peer) => {
+        const i = seatOrder.indexOf(peer.seat);
+        if (i >= 0) fartFrom(i);
+      },
       onCmd: (_peer, c) => runCmd(c),
       onFatal: (key) => fatal(key),
       onSocket: (open) => {
@@ -705,6 +709,11 @@ emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => {
   const i = localIndex();
   if (i >= 0) emoteFrom(i, e);
 });
+// 放屁键（11-25）：顶栏的 💨，键盘按 P（屁）
+$('fartBtn').addEventListener('click', () => {
+  const i = localIndex();
+  if (i >= 0) fartFrom(i);
+});
 
 // 回大厅：手机局倒数和玩的时候按两下才算（第一下变红，3 秒内再按一下），跟手柄上一样。
 // 房主手机上它挨着 EN，手一滑大家这一局就没了；电视那边（鼠标、键盘）和结算的时候按一下就回。
@@ -756,8 +765,9 @@ modeBtn.addEventListener('click', () => {
 });
 function renderButtons(): void {
   if (tableNo) renderTableBtn();
-  // 表情（11-25）：这台设备上有人在玩（手机局的房主、电视局里键盘加入的）才有 😀
+  // 表情、放屁键（11-25）：这台设备上有人在玩（手机局的房主、电视局里键盘加入的）才有 😀 和 💨
   $('emoteBtn').hidden = !localOn();
+  $('fartBtn').hidden = !localOn();
   modeBtn.textContent = phoneMode ? tr('改成电视局', 'Use a TV instead') : tr('改成手机局', 'Phones only');
   modeBtn.title = phoneMode
     ? tr('这台设备接电视当大屏，大家的手机当手柄', 'This device goes on the TV as the big screen; phones are controllers')
@@ -941,9 +951,24 @@ function seatCard(nm: string, color: string, look: Look, sub: string, off: boole
 
 // ---------------------------------------------------------------- 表情（11-25）
 
-/** 大厅里座位卡头上挂的那句：座位卡每次重画都带上，到点自己没了。 */
-const lobbySays = new Map<number, { e: EmoteId; until: number }>();
+/** 大厅里座位卡头上挂的那句（表情或者放屁）：座位卡每次重画都带上，到点自己没了。 */
+const lobbySays = new Map<number, { zh: string; en: string; until: number }>();
 const emoteAt = new Map<number, number>();
+const fartAt = new Map<number, number>();
+
+/** 大厅里第 i 个人的座位卡上挂一句，挂 seconds 秒。 */
+function sayInLobby(i: number, words: { zh: string; en: string }, seconds: number): void {
+  lobbySays.set(i, { zh: words.zh, en: words.en, until: performance.now() + seconds * 1000 });
+  renderLobby();
+  setTimeout(renderLobby, seconds * 1000 + 50);
+}
+
+/** 一件不是物理的事（表情、放屁）：画面、声音，手机局跟着快照发到每部手机。 */
+function showNow(ev: SimEvent): void {
+  stage.handleEvents(sim, [ev]);
+  sfx.handleEvents(sim, heard([ev]));
+  if (phoneMode) recent.push([ev]);
+}
 
 /**
  * 第 i 个人说了一句：那个人头顶冒气泡、响一声，手机局跟着快照发到每部手机；在大厅里挂在座位卡上。
@@ -954,25 +979,30 @@ function emoteFrom(i: number, e: EmoteId): void {
   if (now - (emoteAt.get(i) ?? -Infinity) < EMOTE_GAP_MS - 300) return;
   emoteAt.set(i, now);
   const p = sim.players[i];
-  const ev: SimEvent = { type: 'emote', player: i, emote: e, x: p?.body.x ?? 0, y: p?.body.y ?? 0 };
-  stage.handleEvents(sim, [ev]);
-  sfx.handleEvents(sim, heard([ev]));
-  if (phoneMode) recent.push([ev]);
-  if (phase === 'lobby') {
-    lobbySays.set(i, { e, until: now + EMOTE_SHOW_S * 1000 });
-    renderLobby();
-    setTimeout(renderLobby, EMOTE_SHOW_S * 1000 + 50);
-  }
+  showNow({ type: 'emote', player: i, emote: e, x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
+  if (phase === 'lobby') sayInLobby(i, emoteWords(e), EMOTE_SHOW_S);
+}
+
+/**
+ * 放屁键（11-25）：第 i 个人噗一下。挑一种声音（大家听到同一种），和表情一样直接交给画面、声音和快照；
+ * 大厅里座位卡上挂「💨 噗」。同一个人太密的挡掉。
+ */
+function fartFrom(i: number): void {
+  const now = performance.now();
+  if (now - (fartAt.get(i) ?? -Infinity) < FART_GAP_MS - 300) return;
+  fartAt.set(i, now);
+  const p = sim.players[i];
+  showNow({ type: 'fart', player: i, kind: fartKind(), x: p?.body.x ?? 0, y: p?.body.y ?? 0 });
+  if (phase === 'lobby') sayInLobby(i, FART_WORDS, 1.4);
 }
 
 /** 座位卡头上挂那个人刚说的一句（还没到点的话）。 */
 function withSay<T extends HTMLElement>(card: T, i: number): T {
   const say = lobbySays.get(i);
   if (!say || say.until <= performance.now()) return card;
-  const w = emoteWords(say.e);
   const el = document.createElement('span');
   el.className = 'say';
-  el.textContent = tr(w.zh, w.en);
+  el.textContent = tr(say.zh, say.en);
   card.append(el);
   return card;
 }
@@ -1117,6 +1147,7 @@ addEventListener('keydown', (e) => {
     const em = EMOTES[Number(say[1]) - 1];
     if (em) emoteFrom(localIndex(), em.id);
   }
+  if (e.code === 'KeyP' && !e.repeat && !typing && localOn()) fartFrom(localIndex());
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());

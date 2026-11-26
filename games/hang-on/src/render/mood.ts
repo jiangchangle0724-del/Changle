@@ -15,7 +15,7 @@ export interface Mood {
   scared?: boolean;
 }
 
-export type Expr = Face | 'dizzy' | 'scared' | 'tired' | 'windy' | 'cheer';
+export type Expr = Face | 'dizzy' | 'scared' | 'tired' | 'windy' | 'stinky' | 'cheer';
 
 /** 水面离脚不到这么多像素就吓。 */
 export const SCARED_GAP = 230;
@@ -42,13 +42,17 @@ export function moodOf(level: Pick<Level, 'winds'>, time: number, tideY: number 
   return mood;
 }
 
-/** 这一帧的表情：摔了、赢了照物理的；不然晕 > 吓 > 累 > 风里 > 乐 > 物理给的。 */
-export function pickExpression(face: Face, dead: boolean, s: { dizzy: number; cheer: number; stamina: number; mood: Mood }): Expr {
+/**
+ * 这一帧的表情：摔了、赢了照物理的；不然晕 > 吓 > 累 > 风里 > 闻到屁（11-25）> 乐 > 物理给的。
+ * stink：旁边有人放屁，还要皱几秒。
+ */
+export function pickExpression(face: Face, dead: boolean, s: { dizzy: number; cheer: number; stamina: number; mood: Mood; stink?: number }): Expr {
   if (face === 'scream' || face === 'win' || dead) return face;
   if (s.dizzy > 0) return 'dizzy';
   if (s.mood.scared) return 'scared';
   if (s.stamina < CFG.staminaWarn) return 'tired';
   if (s.mood.windy) return 'windy';
+  if ((s.stink ?? 0) > 0) return 'stinky';
   if (s.cheer > 0) return 'cheer';
   return face;
 }

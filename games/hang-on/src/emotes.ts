@@ -34,3 +34,25 @@ export function emoteWords(id: EmoteId): { zh: string; en: string } {
   const e = EMOTES.find((q) => q.id === id) ?? EMOTES[0];
   return { zh: e.zh, en: e.en };
 }
+
+// ---------------------------------------------------------------- 放屁键（11-25，14 样的第 2 样）
+
+/**
+ * 手柄顶栏的 💨：噗一声，屁股底下冒一团黄绿的烟，旁边的人眯眼皱嘴。只是好玩，不推人、不进物理和回放。
+ * 走房间（`LinkMsg { k: 'fart' }`），主机挑一种声音（`kind`），做 `SimEvent { type: 'fart' }`，和表情一样交给画面、声音和手机局的快照。
+ */
+/** 同一个人两下至少隔这么久（手柄先挡，主机再挡一次）。 */
+export const FART_GAP_MS = 1500;
+/** 几种声音：短的「噗」、长的「噗噜噜」、尖的「噗～」。 */
+export const FART_KINDS = 3;
+/** 离放屁的人这么近（像素，身体中心到身体中心）的人眯眼皱嘴。 */
+export const FART_REACH = 150;
+/** 旁边的人皱多久（秒）。 */
+export const FART_STINK_S = 1.4;
+/** 大厅里座位卡上挂的那一下。 */
+export const FART_WORDS = { zh: '💨 噗', en: '💨 Pfft' } as const;
+
+/** 主机挑这一下用哪种声音：大家听到的是同一种。 */
+export function fartKind(rand: () => number = Math.random): number {
+  return Math.min(FART_KINDS - 1, Math.floor(rand() * FART_KINDS));
+}

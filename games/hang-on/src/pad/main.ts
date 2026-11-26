@@ -7,6 +7,7 @@
  */
 import { PadLink, seatId } from '../net/pad-link';
 import { emotePicker } from '../emote-picker';
+import { FART_GAP_MS } from '../emotes';
 import { rttLevel } from '../net/latency';
 import { CODE_RE, type Cast, type FatalKey, type Menu, type PadCmd, type PadStatus, type RoomView } from '../net/protocol';
 import { modeLabel, notReadyText, sideName, tierName } from '../mode-text';
@@ -397,6 +398,21 @@ $('itemBtn').addEventListener('click', openItems);
 $('itemBtn2').addEventListener('click', openItems);
 // 表情（11-25）：顶栏的 😀 打开一排，点一句发给主机，大屏上自己头顶冒出来
 emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => link?.emote(e));
+// 放屁键（11-25）：两下至少隔 1.5 秒，太快那一下键抖一抖不发
+const fartBtn = $<HTMLButtonElement>('fartBtn');
+let fartAt = -Infinity;
+fartBtn.addEventListener('click', () => {
+  const now = performance.now();
+  if (now - fartAt < FART_GAP_MS) {
+    fartBtn.classList.remove('nope');
+    void fartBtn.offsetWidth;
+    fartBtn.classList.add('nope');
+    return;
+  }
+  fartAt = now;
+  link?.fart();
+  buzz(25);
+});
 $('itemDone').addEventListener('click', () => itemDlg.close());
 renderItem();
 /** 道具键也连发几帧（和召唤一样）；冷却里主机不算。 */
@@ -665,6 +681,8 @@ function renderConn(): void {
   el.textContent = c.socket ? tr('已连接', 'Connected') : tr('重连中…', 'Reconnecting…');
   el.className = c.socket ? 'conn ok' : 'conn bad';
   if (c.socket) $('path').textContent = c.direct ? tr('直连', 'Direct') : tr('绕路中', 'Relayed');
+  // 窄手机上直连时不写「直连」，顶栏省出 💨 的地方（绕路时照写）
+  $('path').classList.toggle('direct', c.socket && c.direct);
 }
 renderConn();
 

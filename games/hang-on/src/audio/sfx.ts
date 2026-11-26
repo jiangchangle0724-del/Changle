@@ -325,6 +325,23 @@ class Sfx {
           this.tone({ freq: f * 1.5, wave: 'triangle', dur: 0.1, vol: 0.1, pan, delay: 0.07 });
           break;
         }
+        case 'fart': {
+          // 放屁键（11-25）：低的锯齿波加大颤音，滤掉尖的；三种：短的「噗」、长的「噗噜噜」、尖的「噗～」，每个座位音高差一点
+          const pan = this.pan(ev.x, ev.y);
+          const k = 1 + (ev.player % 6) * 0.06;
+          if (ev.kind === 1) {
+            this.tone({ freq: 110 * k, to: 70 * k, wave: 'square', dur: 0.55, vol: 0.16, vibrato: [30, 24], lowpass: 600, attack: 0.02, pan });
+            this.tone({ freq: 90 * k, to: 60 * k, wave: 'sawtooth', dur: 0.16, vol: 0.12, vibrato: [25, 30], lowpass: 600, delay: 0.5, pan });
+            this.noise({ dur: 0.5, vol: 0.04, filter: { type: 'lowpass', freq: 500 }, attack: 0.02, pan });
+          } else if (ev.kind === 2) {
+            this.tone({ freq: 150 * k, to: 110 * k, wave: 'sawtooth', dur: 0.1, vol: 0.12, vibrato: [30, 35], lowpass: 900, pan });
+            this.tone({ freq: 320 * k, to: 200 * k, wave: 'square', dur: 0.32, vol: 0.11, vibrato: [60, 45], lowpass: 1500, delay: 0.06, pan });
+          } else {
+            this.tone({ freq: 140 * k, to: 90 * k, wave: 'sawtooth', dur: 0.2, vol: 0.2, vibrato: [35, 38], lowpass: 900, attack: 0.01, pan });
+            this.noise({ dur: 0.15, vol: 0.05, filter: { type: 'lowpass', freq: 700 }, pan });
+          }
+          break;
+        }
         case 'item': {
           // 道具（A9）：速冻叮一声加冰碴，荷叶呼的一下，拉面吸溜一声；没用成闷闷一声
           const pan = this.pan(ev.x, ev.y);
@@ -661,8 +678,9 @@ export function heardBy(ev: SimEvent, me: number): boolean {
       return ev.ok || ev.player === me;
     case 'itemEnd':
       return true;
-    // 表情（11-25）是说给大家听的
+    // 表情、放屁（11-25）是给大家听的
     case 'emote':
+    case 'fart':
       return true;
     // 红包是大家的
     case 'envelope':
