@@ -5,7 +5,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { METRONOME_ID, ROUTINES, TEST_ROUTINE, routineById } from "../src/shared/catalog";
-import { PREVIEW_BEATS, anchorsOf, buildShow, cachedShows, danceStart, nextChange, phraseStart, planRun, runEnd, runKey, spotAt, type RunBeat } from "../src/shared/show";
+import { SONGS } from "../src/shared/songs";
+import { GOLD_EVERY, PREVIEW_BEATS, anchorsOf, buildShow, cachedShows, danceStart, isGoldBeat, nextChange, phraseStart, planRun, runEnd, runKey, spotAt, type RunBeat } from "../src/shared/show";
+import { goldHit, goldOk } from "../src/shared/taps";
 
 const close = (a: number, b: number, why?: string) => assert.ok(Math.abs(a - b) < 1e-6, `${why ?? ""} ${a} vs ${b}`);
 /** Each beat starts where the one before it ends: no gap, no overlap. */
@@ -56,6 +58,33 @@ describe("the shows", () => {
     const m = buildShow(METRONOME_ID, null)!;
     assert.deepEqual([m.lead.length, m.countIn, m.dance.length, m.tail.length, m.bpm, m.mode, m.routine], [0, 8, 240, 0, 120, null, null]);
     assert.deepEqual(planRun(m, { leadStartAt: null, danceStartAt: null, fromBeat: 0 }), [], "nothing plays until the host starts it");
+  });
+
+  it("gold moves: the last beat of every 64 and the dance's last, none just before the last; only in the dance", () => {
+    assert.equal(GOLD_EVERY, 64);
+    const golds = (n: number) => Array.from({ length: n }, (_, b) => b).filter((b) => isGoldBeat(b, n));
+    assert.deepEqual(golds(192), [63, 127, 191]);
+    assert.deepEqual(golds(200), [63, 127, 199], "191 is too close to the last");
+    assert.deepEqual(golds(16), [15], "a short dance: its last beat");
+    const sq = buildShow("square-easy", "learn")!;
+    assert.deepEqual(sq.dance.flatMap((b, k) => (b.gold ? [k] : [])), [63, 127, 191]);
+    assert.ok(sq.dance.filter((b) => b.gold).every((b) => b.score && b.danceBeat !== null && b.stage === "dance"));
+    assert.ok(!sq.lead.some((b) => b.gold) && !sq.tail.some((b) => b.gold), "none in the warm-up, the teaching, the cool-down");
+    for (const song of SONGS) {
+      const sh = buildShow(song.id, "learn")!;
+      assert.deepEqual(sh.dance.flatMap((b, k) => (b.gold ? [k] : [])), golds(song.beats), song.id);
+      assert.ok(!sh.lead.some((b) => b.gold), `${song.id}: none in the teaching`);
+    }
+    assert.ok(!buildShow(METRONOME_ID, null)!.dance.some((b) => b.gold), "none in the metronome");
+    // a page plans them with the rest
+    const run = planRun(sq, { leadStartAt: null, danceStartAt: 10_000, fromBeat: 0 });
+    assert.deepEqual(run.flatMap((b) => (b.gold ? [b.danceBeat] : [])), [63, 127, 191]);
+  });
+
+  it("a gold move is the player's when they moved on it: on the beat at medium and hard, near it on easy", () => {
+    assert.deepEqual([goldOk("hit", "easy"), goldOk("close", "easy"), goldOk("miss", "easy"), goldOk(null, "easy")], [true, true, false, false]);
+    assert.deepEqual([goldOk("hit", "medium"), goldOk("close", "medium"), goldOk("close", "hard")], [true, false, false]);
+    assert.deepEqual([goldHit(280, "easy"), goldHit(null, "easy"), goldHit(90, "medium"), goldHit(110, "medium"), goldHit(-80, "hard"), goldHit(-81, "hard")], [true, false, true, false, true, false]);
   });
 
   it("unknown dances have no show, and nothing is kept of them; the test dance has one", () => {

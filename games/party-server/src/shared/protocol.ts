@@ -53,10 +53,11 @@ export type ClientMsg =
   | { t: "beats"; from: number; offs: (number | null)[] }
   /**
    * A phone while a dance plays, a few times a second: how much its player is moving (0 to 1), and
-   * with the first one after a beat is judged, that beat's verdict. Passed on to the speaker (each
-   * player's little dancer on the TV) and not kept: the beats above are what counts.
+   * with the first one after a beat is judged, that beat's verdict (g: the beat is a gold move).
+   * Passed on to the speaker (each player's little dancer on the TV, the gold moves' cheer) and not
+   * kept: the beats above are what counts.
    */
-  | { t: "pulse"; e: number; v?: Verdict | null }
+  | { t: "pulse"; e: number; v?: Verdict | null; g?: true }
   /**
    * The speaker, while a song plays from YouTube: when the dance's first beat is (speaker time), as
    * its video is really playing. The room moves the beat there if it's off.
@@ -88,8 +89,8 @@ export type ServerMsg =
   | { t: "pong"; id: number; serverAt: number; speakerAt: number | null }
   | { t: "tap"; at: number; playerId: string }
   | { t: "here"; playerId: string }
-  /** To the speaker: a phone's pulse (its player's movement now, a beat's verdict). */
-  | { t: "pulse"; playerId: string; e: number; v: Verdict | null }
+  /** To the speaker: a phone's pulse (its player's movement now, a beat's verdict, g: on a gold move). */
+  | { t: "pulse"; playerId: string; e: number; v: Verdict | null; g?: true }
   /** To the speaker, each time a phone's beats come in: the floor so far. */
   | ({ t: "floor" } & Floor)
   | { t: "error"; code: string; message: string }
@@ -151,6 +152,8 @@ export interface PlayerResult {
   meanAbsOffsetMs: number | null;
   /** the dancer's own longest run of beats hit */
   bestStreak: number;
+  /** the gold moves they got (taps.ts goldHit), of Results.golds */
+  gold: number;
 }
 
 /** A dance's results: sent with the state while the room shows them. */
@@ -168,6 +171,8 @@ export interface Results {
   bursts: number;
   /** the share of beats moved, over everyone who danced, 0 to 100 */
   together: number;
+  /** the dance's gold moves (show.ts isGoldBeat; none in the metronome) */
+  golds: number;
   /**
    * What the TV and the phones say with these results, the room looking after its dancers: have
    * some water (every WATER_EVERY dances it finishes), or rest a few minutes (once REST_AFTER_MS

@@ -15,7 +15,13 @@ export interface Dancer {
   at: number;
   /** when they last hit a beat (page clock, ms) */
   hitAt: number;
+  /** when they last got a gold move (page clock, ms): a gold ring under them, gold sparks */
+  goldAt?: number;
 }
+
+/** A gold move's colour, and how long a dancer glows with it (ms). */
+const GOLD = "#ffd84a";
+const GOLD_MS = 1100;
 
 /** Each player's colour, in the order they joined: bright on the night background. */
 export const PLAYER_COLORS = ["#7ad7ff", "#ff7aa8", "#ffd84a", "#63d39f", "#b49bff", "#ff9f5a", "#5ef0d8", "#ff6b8b", "#c6f05a", "#8fb7ff", "#ffb0e0", "#9af0a0", "#f0c05a", "#d79bff", "#6bd0ff"];
@@ -48,6 +54,7 @@ export class Crowd {
   private dpr = 1;
   private readonly sparks: Spark[] = [];
   private readonly lastHit = new Map<string, number>();
+  private readonly lastGold = new Map<string, number>();
 
   constructor(private readonly reduced: boolean) {
     this.canvas.className = "crowd-canvas";
@@ -105,6 +112,27 @@ export class Crowd {
       }
       const cx = (i + 0.5) * slot;
       const floorY = this.h * 0.8;
+      // a gold move got: a gold ring on the floor under them, fading, and gold sparks as it comes
+      const goldAge = local - (d.goldAt ?? -1e9);
+      if (goldAge >= 0 && goldAge < GOLD_MS) {
+        if ((d.goldAt ?? 0) > (this.lastGold.get(d.id) ?? 0)) {
+          this.lastGold.set(d.id, d.goldAt ?? 0);
+          if (!this.reduced) for (let k = 0; k < 2; k++) this.spark(cx, this.h * 0.78 - tall * 0.75, GOLD, local);
+        }
+        g.globalAlpha = 1 - goldAge / GOLD_MS;
+        g.strokeStyle = GOLD;
+        g.lineWidth = Math.max(2, slot * 0.025);
+        g.shadowColor = GOLD;
+        g.shadowBlur = 14;
+        // (round the feet, its bottom clear of the name under them)
+        const rx = Math.min(slot * 0.36, tall * 0.42);
+        const ry = rx * 0.18;
+        g.beginPath();
+        g.ellipse(cx, floorY + 2 - ry, rx, ry, 0, 0, Math.PI * 2);
+        g.stroke();
+        g.shadowBlur = 0;
+        g.globalAlpha = 1;
+      }
       this.figure(pose, cx, floorY, scale * (1 + 0.06 * lit), d.color, quiet ? 0.28 : 0.45 + 0.55 * Math.max(e, lit), lit);
       // the name
       g.shadowBlur = 0;

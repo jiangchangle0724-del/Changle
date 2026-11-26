@@ -12,6 +12,8 @@
   --beat: #7ad7ff;
   --good: #63d39f;
   --danger: #ff6170;
+  /* a gold move (show.ts isGoldBeat) */
+  --gold: #ffd84a;
   color-scheme: dark;
 }
 * {
@@ -647,6 +649,41 @@ body.fireworks {
 .dance-pad.is-hit {
   background: var(--good);
   color: #062016;
+}
+/* a gold move got (join.ts renderBeat) */
+.dance-pad.is-gold {
+  background: var(--gold);
+  color: #2a2000;
+  box-shadow: 0 0 32px rgba(255, 216, 74, 0.55);
+}
+.dance-next.is-gold,
+.coach-next.is-gold {
+  color: var(--gold);
+}
+/* the count on a gold move, on the TV */
+.count.is-gold {
+  color: var(--gold);
+  text-shadow: 0 0 28px rgba(255, 216, 74, 0.65);
+}
+/* the floor's cheer once a gold move is judged (screen.ts frameGold), beside the floor's combo */
+.floor-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 18px;
+}
+.coach-gold {
+  color: var(--gold);
+  font-size: clamp(1.1rem, 2.2vw, 2rem);
+  font-weight: 800;
+  text-shadow: 0 0 18px rgba(255, 216, 74, 0.5);
+}
+/* the results: the gold moves each one got */
+.results-gold,
+.my-gold {
+  margin: 0;
+  color: var(--gold);
+  font-weight: 700;
 }
 .dance-pad.is-miss {
   background: var(--accent);
