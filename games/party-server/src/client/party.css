@@ -109,6 +109,34 @@ a.btn {
   color: #24060b;
   border-color: transparent;
 }
+/* while a dance runs, the host's buttons act once held (join.ts holdButton, HOLD_MS): the button
+   fills in as long as it's held; with reduced motion it just lights up */
+.btn.hold {
+  position: relative;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+.btn.hold::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0.22;
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+.btn.hold.is-holding::after {
+  transform: scaleX(1);
+  transition: transform 700ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.hold.is-holding::after {
+    transition: none;
+    opacity: 0.32;
+  }
+}
 
 .start {
   max-width: 520px;

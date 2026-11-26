@@ -538,14 +538,61 @@ function myResults(r: Results): HTMLElement {
   return box;
 }
 
+/** While a dance runs, a host's button needs holding this long (party.css .btn.hold fills in as long). */
+const HOLD_MS = 700;
+
+/**
+ * A button that acts only once held for HOLD_MS: while a dance runs the host dances with the phone in
+ * hand, and a palm brushing the screen mustn't pause or stop it for everyone (the dance apps keep
+ * their dancing screen safe from stray touches the same way). A key held as long works too.
+ */
+function holdButton(label: string, cls: string, fire: () => void): HTMLButtonElement {
+  const b = el("button", `${cls} hold`, `${label}${tr("（按住）", " (hold)")}`);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const stop = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    b.classList.remove("is-holding");
+  };
+  const start = () => {
+    if (timer !== null) return;
+    b.classList.add("is-holding");
+    timer = setTimeout(() => {
+      timer = null;
+      b.classList.remove("is-holding");
+      if (b.isConnected) fire();
+    }, HOLD_MS);
+  };
+  b.addEventListener("pointerdown", (e) => {
+    // (the finger stays this button's while held, even if it slides a little)
+    b.setPointerCapture?.(e.pointerId);
+    start();
+  });
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"] as const) b.addEventListener(ev, stop);
+  b.addEventListener("keydown", (e) => {
+    if ((e.key === " " || e.key === "Enter") && !e.repeat) {
+      e.preventDefault();
+      start();
+    }
+  });
+  b.addEventListener("keyup", stop);
+  b.addEventListener("blur", stop);
+  // (a long press on a phone mustn't open the text menu)
+  b.addEventListener("contextmenu", (e) => e.preventDefault());
+  return b;
+}
+
 function hostPanel(): HTMLElement {
   const box = el("section", "host-panel");
+  // while the warm-up or the dance plays, every button needs a short hold (holdButton)
+  const running = (state?.phase === "dancing" || (state?.phase === "learning" && routine?.leadStartAt != null)) && routine?.pausedAt === undefined;
   const button = (label: string, action: HostAction, cls = "btn") => {
-    const b = el("button", cls, label);
-    b.onclick = () => act(action);
+    const b = running ? holdButton(label, cls, () => act(action)) : el("button", cls, label);
+    if (!running) b.onclick = () => act(action);
     box.append(b);
     return b;
   };
+  if (running) box.append(el("p", "hint", tr("跳舞的时候，按钮要按住一下才算，免得手掌碰到。", "While you dance, hold a button for a moment to use it, so a palm can't press it.")));
   const phase = state?.phase;
   switch (phase) {
     case "lobby": {
@@ -591,7 +638,8 @@ function hostPanel(): HTMLElement {
     default:
       break;
   }
-  if (state && state.phase !== "ended") {
+  // (not while a dance runs: stop it first)
+  if (state && state.phase !== "ended" && !running) {
     const end = el("button", endArmed ? "btn danger" : "btn quiet", endArmed ? tr("确定结束房间", "Yes, end the room") : tr("结束房间", "End the room"));
     end.onclick = () => {
       if (endArmed) act({ type: "END_ROOM" });
