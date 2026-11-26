@@ -13,6 +13,7 @@ import {
   answerText,
   labelsOf,
   catchUp,
+  corrected,
   grounded,
   simplified,
   messages,
@@ -194,13 +195,23 @@ describe("what it may say", () => {
   const e = { id: "x", title: "Saliah in Vancouver", venue: "Celebrities Nightclub", description: null, labels: '["Music","Dance/Electronic"]' };
   const w = (summaryZh: string, titleZh = "Saliah 温哥华演出") => ({ titleZh, summaryZh, category: null });
 
-  it("no professional game unless the source says pro, and Canada's hockey on ice", () => {
-    const game = (title: string) => ({ ...e, title, venue: "Doug Mitchell Thunderbird Sports Centre", labels: null });
-    expect(grounded(w("UBC 女子冰球队的职业冰球比赛", "UBC 女子冰球对阵 Trinity Western University"), game("UBC Women's Hockey vs Trinity Western University"))).toBe(false);
-    expect(grounded(w("大学女子冰球比赛", "UBC 女子冰球对阵 Trinity Western University"), game("UBC Women's Hockey vs Trinity Western University"))).toBe(true);
-    expect(grounded(w("温哥华加人队的职业冰球比赛", "Canucks vs. Flames"), game("Vancouver Canucks vs. Calgary Flames"))).toBe(true);
-    expect(grounded(w("看一场大学曲棍球比赛", "UBC 女子曲棍球对阵 Trinity Western University"), game("UBC Women's Hockey at Trinity Western University"))).toBe(false);
-    expect(grounded(w("大学男子曲棍球比赛", "UBC 男子曲棍球对阵 India FHC"), game("UBC Men's Field Hockey vs India FHC"))).toBe(true);
+  it("no professional game unless the source says pro, and Canada's hockey on ice: put right, not asked again", () => {
+    const game = (title: string, description: string | null = null) => ({ ...e, title, venue: "Doug Mitchell Thunderbird Sports Centre", description, labels: null });
+    const ubc = game("UBC Women's Hockey vs Trinity Western University");
+    expect(corrected(w("UBC 女子冰球队的职业冰球比赛", "UBC 女子冰球对阵 Trinity Western University"), ubc)).toEqual(w("UBC 女子冰球队的冰球比赛", "UBC 女子冰球对阵 Trinity Western University"));
+    expect(corrected(w("Richmond Sockeyes 主场的职业比赛"), game("Richmond Sockeyes v. Ridge Meadows Flames"))).toEqual(w("Richmond Sockeyes 主场的比赛"));
+    // the source says pro: as written
+    const canucks = w("温哥华加人队的职业冰球比赛", "Canucks vs. Flames");
+    expect(corrected(canucks, game("Vancouver Canucks vs. Calgary Flames"))).toBe(canucks);
+    // 职业 that means a career, not a professional
+    const careers = w("与职业顾问一对一谈求职和职业规划", "职业顾问咨询");
+    expect(corrected(careers, { ...e, title: "Ask a Career Counsellor", venue: "Central Library" })).toBe(careers);
+    // hockey is on ice; field hockey, and lacrosse (长曲棍球), are as written
+    expect(corrected(w("看一场大学曲棍球比赛", "UBC 女子曲棍球对阵 Trinity Western University"), game("UBC Women's Hockey at Trinity Western University"))).toEqual(w("看一场大学冰球比赛", "UBC 女子冰球对阵 Trinity Western University"));
+    const field = w("大学男子曲棍球比赛", "UBC 男子曲棍球对阵 India FHC");
+    expect(corrected(field, game("UBC Men's Field Hockey vs India FHC"))).toBe(field);
+    const lacrosse = w("长曲棍球比赛", "Vancouver Warriors 对阵 Saskatchewan Rush");
+    expect(corrected(lacrosse, game("Vancouver Warriors vs. Saskatchewan Rush"))).toBe(lacrosse);
   });
 
   it("simplified characters only: the traditional ones a model slips in are simplified", () => {

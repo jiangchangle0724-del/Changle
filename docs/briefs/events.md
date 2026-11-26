@@ -84,6 +84,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-26 What's On: a school's game called professional, or hockey called field hockey, put right rather than asked again
 - 2026-11-26 What's On: the Chinese in simplified characters, hockey on ice, no school's game called professional (v4)
 - 2026-11-26 What's On: tests get 30 s each, not 5
 - 2026-11-26 What's On: an empty answer from the AI is no answer, and the models are told not to think first
@@ -184,3 +185,4 @@
 - 2026-11-26 早上那一轮（#795 后第一次）：63 步、3 次触发，13:41 UTC 发布 796 个（25 日 639）。Showpass 32 页 142 个、季节 6 页 19 个，都是 200、没有 403；学校：UBC 雷鸟队 16、SFU 3、Capilano 4、Langara 1、Douglas 1、VCC 1（3 页），都没出错。温哥华、列治文图书馆照例 403，等 GitHub 交来。Eventbrite 跳过：钥匙不在（`keys.EVENTBRITE_TOKEN` 是 false，Steve 25 日晚上加的多半是「文本」类型，被 #788 的部署冲掉了；#790 之后不会了），已请他按 Secret 再加。**发现 AI 从 11 月 20 日起一个中文也没写**：Cloudflare 那天下架了 `qwen3-30b-a3b-fp8`（410，错误 5028），每小时的补写全失败，没人知道；清单 796 个里 308 个没有中文（Showpass 的 161 个全没有）。换成 Gemma 4 26B A4B（Cloudflare 推荐的小模型之一，每百万 token 输入 0.10、输出 0.30 美元，和原来差不多；另一个 Qwen 3.8 27B 输入 0.45、输出 3.20，免费额度只够几百个活动），问不到才问 Qwen 3.8。每天的检查加了一条：AI 一整天试了却一个也没写成，就开 issue。
 - 2026-11-26 15:05 UTC（#823 后第一次补写）：Gemma 4 答了，但三次都是空的（`no usable answer: `），45 个活动各记了一次失败。多半是它先「想」、把 3000 个 token 用完了还没开始答。#824：每个模型都传 `chat_template_kwargs: { enable_thinking: false }`（Qwen 再加 /no_think）；空答案当作没答到，换下一个模型，不记在活动头上；都空的话，错误里带上最后一个答了什么（前 400 字），好查原因；`answerText` 也认 OpenAI 的分段内容和 `choices[0].text`。
 - 2026-11-26 16:05 UTC：Gemma 4 这回答了，19 步写了 258 个里的 248 个，没轮到 Qwen 3.8；清单 796 个里 785 个有中文。抽查：大多像样（《胡桃夹子》《第十二夜》、「珠宝节日快闪店」），但有繁体字（「對陣」）、把 UBC 女子冰球写成「曲棍球」、把大学和青少年冰球写成「职业冰球比赛」（提示词里的例子就是「职业冰球比赛」）。v4 修这三样，全部重写一遍（约 54 次请求，免费额度内）。
+- 2026-11-26 v4 重写完了：17:05 写了 450 个里的 426 个，18:05 130 个里的 111 个，没有报错（额度够），全是 Gemma 答的。清单 796 个里 780 个有中文，繁体字 0、冰球写成曲棍球 0。剩 16 个没中文：新答案没通过检查，旧的按规矩先拿掉了，下一小时再问（每个最多三次）。其中一部分是我加的「职业」规则太宽：「职业」也是 career 的意思（VPL 的 Ask a Career Counsellor 写成「职业顾问」被拒了），青少年冰球（Richmond Sockeyes、Spruce Kings）模型照样写「职业」也被拒。改成：「职业」后面跟着球类、比赛、联赛、运动员这类词，来源又没提职业联赛，就把「职业」两个字删掉；Hockey 被写成曲棍球的直接改成冰球（长曲棍球不动）。不再因为这两样拒掉整个答案。另外：Showpass 上 TWU 主场卖票的 UBC 比赛（「TWU vs. UBC (Women's Hockey)」等）和 UBC 雷鸟队来源的同一场重复，等 A4 去重。
