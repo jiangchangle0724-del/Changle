@@ -25,15 +25,32 @@ export function RankedList(p: {
   action: (c: CardView, full: boolean) => ComponentChildren;
   /** Shown once the whole list is on screen. */
   end?: ComponentChildren;
+  /**
+   * Round 2 (Steve, 2026-11-25): each phone can show the list nearest first instead of best match
+   * first. Only this phone's order: the table's ranking and the votes don't change.
+   */
+  sortable?: boolean;
 }) {
   const [shown, setShown] = useState(p.top + STEP);
+  const [order, setOrder] = useState<"best" | "near">("best");
   const initial = useRef(new Map(p.cards.slice(0, shown).map((c, i) => [c.place.id, i])));
-  const more = Math.min(STEP, p.cards.length - shown);
+  const cards = order === "near" ? [...p.cards].sort((a, b) => a.meters - b.meters) : p.cards;
+  const more = Math.min(STEP, cards.length - shown);
   return (
     <>
+      {p.sortable && (
+        <div class="seg sort" role="group" aria-label={t("sortBy")}>
+          {(["best", "near"] as const).map((o) => (
+            <button key={o} type="button" class="press" data-sort={o} aria-pressed={order === o} onClick={() => setOrder(o)}>
+              {t(o === "best" ? "sortBest" : "sortNear")}
+            </button>
+          ))}
+        </div>
+      )}
       <div class="places">
-        {p.cards.slice(0, shown).map((c, i) => (
-          <PlaceCard key={c.place.id} c={c} ranked compact={i >= p.top} occasion={p.occasion} vetoed={p.veto === c.place.id} arrival={initial.current.get(c.place.id) ?? -1}>
+        {cards.slice(0, shown).map((c, i) => (
+          // Nearest first, the rank numbers would jump about: they're the best-match order.
+          <PlaceCard key={c.place.id} c={c} ranked={order === "best"} compact={i >= p.top} occasion={p.occasion} vetoed={p.veto === c.place.id} arrival={initial.current.get(c.place.id) ?? -1}>
             {p.action(c, i < p.top)}
           </PlaceCard>
         ))}

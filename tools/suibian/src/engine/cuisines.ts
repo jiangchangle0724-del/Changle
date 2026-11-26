@@ -57,7 +57,8 @@ export const CUISINES: Record<CuisineId, Text & { emoji: string; group?: Cuisine
   brunch: { zh: "早午餐", en: "Brunch", emoji: "🥞", group: "west", search: { types: ["brunch_restaurant", "breakfast_restaurant"] } },
   cafe: { zh: "咖啡 · 甜品", en: "Café · desserts", emoji: "☕", group: "west", search: { types: ["cafe", "coffee_shop", "dessert_restaurant"] } },
   // Korean BBQ, hot pot, sushi, skewers and buffets: words find them all; Google's buffet type only the last.
-  ayce: { zh: "自助 · 放题", en: "All you can eat", emoji: "🍽️", group: "west", search: { text: "all you can eat restaurant" } },
+  // Not "... restaurant": that word made Google fill the list with any restaurant nearby.
+  ayce: { zh: "自助 · 放题", en: "All you can eat", emoji: "🍽️", group: "west", search: { text: "all you can eat" } },
   other: { zh: "其他", en: "Other", emoji: "🍴" },
 };
 
@@ -455,12 +456,6 @@ export const guessCuisine = (name: string, primaryType: string | undefined, type
 
 /** A search for one cuisine that finds a place of another often finds both: skewers at a Xinjiang place. */
 const FOUND_TOO: Partial<Record<CuisineId, CuisineId[]>> = { chinese_bbq: ["northern"], northern: ["chinese_bbq"] };
-/**
- * What all you can eat is in Greater Vancouver: Korean BBQ, hot pot, sushi and yakiniku, skewers,
- * dim sum, seafood, Brazilian rodizio, Indian lunch buffets, plain buffets. A café or a burger place
- * the search for it lists is there to fill the list.
- */
-const AYCE_KINDS: CuisineId[] = ["kbbq", "korean", "hotpot", "japanese", "izakaya", "chinese_bbq", "northern", "cantonese", "chinese", "seafood", "steak", "mexican", "indian", "sea", "other"];
 /** What a search for a cuisine can make of a place only a vague type named. */
 const VAGUE_FOR: Record<NonNullable<CuisineGuess["vague"]>, CuisineId[]> = {
   bbq: ["chinese_bbq"],
@@ -475,11 +470,11 @@ const VAGUE_FOR: Record<NonNullable<CuisineGuess["vague"]>, CuisineId[]> = {
  */
 export function foundBy(g: CuisineGuess, c: CuisineId): CuisineGuess {
   if (g.cuisine === c || g.also.includes(c)) return g;
-  // The search for all you can eat: a way of eating, not a cuisine, so it adds to what a place is.
-  if (c === "ayce") {
-    if (g.cuisine === "other") return { ...g, cuisine: "ayce", sure: true };
-    return AYCE_KINDS.includes(g.cuisine) ? { ...g, also: [...g.also, "ayce"] } : g;
-  }
+  // All you can eat is a way of eating, and Google's search for it lists plenty of places that
+  // aren't (a sushi bar, a noodle shop nearby): only what the place itself says counts, its name,
+  // its type (a buffet) or Google's description (cuisineGuess). Steve, 2026-11-25: picked all you
+  // can eat near Metrotown, and the places that came first weren't.
+  if (c === "ayce") return g;
   const vague = g.vague && VAGUE_FOR[g.vague].includes(c);
   // A café only its vague type named stays one (a bubble tea shop isn't an HK café): see `vague`.
   if (vague || (!g.sure && g.cuisine !== "cafe" && (g.zh || g.cuisine === "other"))) {

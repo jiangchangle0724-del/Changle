@@ -5,11 +5,11 @@ import type { Ballot, Center, Concern, CuisineId, FitWhy, Lang, Limits, MoodPick
 export type { Lang };
 
 /** Room timings in milliseconds. */
+/**
+ * The rounds have no clock (Steve, 2026-11-25): a round ends when everyone at the table is done, or
+ * when the host taps 不等了，下一步.
+ */
 export const TIMING = {
-  /** Round 1: people who haven't finished by then keep what they tapped. */
-  mood: 90_000,
-  /** Round 2. */
-  cards: 120_000,
   /** The tie-break spinner. */
   spin: 4_500,
   /** Rooms stay this long after the last activity, so people can rate the meal. */
@@ -45,6 +45,8 @@ export type ClientMsg =
   | { t: "next"; phase?: Phase }
   /** Host: back to the lobby for a new search (wider range, someone new). */
   | { t: "again"; range?: RangeId }
+  /** Host, on the result: back to round 2's cards to pick again, everyone's votes cleared. */
+  | { t: "back" }
   /** Host, in the lobby: when the table eats (ms since epoch), or null for now. */
   | { t: "when"; at: number | null }
   /** Host, in the lobby: what the meal is for. */

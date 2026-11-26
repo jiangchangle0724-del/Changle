@@ -11,7 +11,7 @@ import { api } from "../net";
 import { prefs } from "../prefs";
 import { send, serverNow, toast, useApp } from "../store";
 import { buzz, duration, fillFrom, moodTap, play, reduced } from "../motion";
-import { Avatar, Btn, Countdown, DemoBanner, Dock, Message, MotionScreen, Qr, TableLimits, TopBar, memberName, useBackCloses } from "./common";
+import { Avatar, Btn, DemoBanner, Dock, Message, MotionScreen, Qr, TableLimits, TopBar, memberName, useBackCloses } from "./common";
 import { DietCard } from "./DietCard";
 import { PlaceCard } from "./PlaceCard";
 import { RangePicker } from "./RangePicker";
@@ -53,7 +53,6 @@ export function Table({ home }: { home: () => void }) {
       <TopBar
         title={showDiet ? "table" : v.phase === "mood" ? "round1" : v.phase === "cards" ? "round2" : v.phase === "result" || v.phase === "spin" ? "pickTitle" : "table"}
         vars={{ code: v.code }} home={home} noBack={v.phase === "result" || v.phase === "spin"}
-        right={!showDiet && (v.phase === "mood" || v.phase === "cards") ? <Countdown ends={v.phaseEnds} /> : undefined}
       />
       {status === "reconnecting" && <Message>{t("reconnecting")}</Message>}
       <DemoBanner demo={v.demo} />
@@ -409,6 +408,7 @@ function Cards({ v }: { v: RoomView }) {
       {v.at && <p class="planned small">{t("plannedFor", { when: whenLabel(v.at) })}</p>}
       <TableLimits l={v.table} />
       <RankedList
+        sortable
         cards={v.cards}
         top={TOP_COUNT}
         occasion={v.occasion}
@@ -591,9 +591,17 @@ function Result({ v }: { v: RoomView }) {
         {/* The made-up restaurants aren't Google's: the banner says so instead. */}
         {!v.demo && <p class="google muted small">{t("google")}</p>}
         {(v.you.host || !v.members.find((m) => m.host)?.online) && (
-          <Btn kind="quiet" onClick={() => send({ t: "again" })}>
-            {t("again")}
-          </Btn>
+          <>
+            {/* Steve, 2026-11-25: a way back to round 2's cards from here, to pick again. */}
+            {v.ratings.n === 0 && (
+              <Btn kind="quiet" wide onClick={() => send({ t: "back" })}>
+                ‹ {t("backToCards")}
+              </Btn>
+            )}
+            <Btn kind="quiet" onClick={() => send({ t: "again" })}>
+              {t("again")}
+            </Btn>
+          </>
         )}
       </div>
       <Dock><Btn kind="primary" wide reveal onClick={() => void share()}><Share2 aria-hidden="true" />{t("share")}</Btn></Dock>

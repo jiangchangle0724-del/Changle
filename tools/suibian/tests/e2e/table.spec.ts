@@ -439,3 +439,41 @@ test("round 1: closing a group, by its button or the phone's back button, keeps 
   expect(sockets).toBe(1);
   expect(me.errors).toEqual([]);
 });
+
+test("no countdown in either round; round 2 sorts nearest first on this phone; the result goes back to the cards (Steve, 2026-11-25)", async ({ browser }) => {
+  const me = await phone(browser, "sortback");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `sortback-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.locator("select").selectOption("Richmond Centre / Aberdeen");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  await page.locator(".diet .btn.primary").click();
+  await page.getByRole("button", { name: "开始！" }).click();
+  await expect(page.locator("[data-path=cuisine]").first()).toBeVisible();
+  await expect(page.getByRole("timer")).toHaveCount(0);
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  await expect(page.getByRole("timer")).toHaveCount(0);
+  // Best match first, with rank numbers; nearest first, by distance and without them.
+  await expect(page.locator("[data-sort=best]")).toHaveAttribute("aria-pressed", "true");
+  const best = await page.locator(".place").evaluateAll((els) => els.map((e) => e.getAttribute("data-id")));
+  await page.getByRole("button", { name: "距离最近" }).click();
+  const meters = await page.locator(".place").evaluateAll((els) => els.map((e) => Number(e.getAttribute("data-meters"))));
+  expect(meters).toEqual([...meters].sort((a, b) => a - b));
+  await expect(page.locator(".place .rank")).toHaveCount(0);
+  await page.getByRole("button", { name: "最相关" }).click();
+  expect(await page.locator(".place").evaluateAll((els) => els.map((e) => e.getAttribute("data-id")))).toEqual(best);
+  // Pick one, then go back from the result and pick again.
+  const first = await page.locator(".place").first().getAttribute("data-id");
+  await page.locator(".place").first().locator(".approve").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.getByText("今天就吃这家！")).toBeVisible();
+  await page.getByRole("button", { name: "‹ 回到上一步，重新选" }).click();
+  await expect(page.locator(".place").first()).toBeVisible();
+  await expect(page.locator(`.place[data-id="${first}"] .approve`)).toHaveAttribute("aria-pressed", "false");
+  await page.locator(".place").nth(1).locator(".approve").click();
+  await page.getByRole("button", { name: "好了" }).click();
+  await expect(page.getByText("今天就吃这家！")).toBeVisible();
+  expect(me.errors).toEqual([]);
+});
