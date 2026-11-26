@@ -9,7 +9,7 @@ import { Application, Container, FillGradient, Graphics } from 'pixi.js';
 import { CFG } from '../physics/config';
 import type { Level, Pt } from '../physics/level';
 import type { SimEvent } from '../physics/world';
-import { moverAt } from '../physics/motion';
+import { moverAt, scrollFrame } from '../physics/motion';
 import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
 import { EMOTE_SHOW_S, emoteWords, FART_REACH, FART_STINK_S } from '../emotes';
@@ -42,6 +42,30 @@ const PUNCH_ZOOM = 0.04;
 const PUNCH_DECAY = 4;
 /** 出事给镜头加多少抖（A14，三档：轻的落地、开门，中的被撞、台子塌、涨水，重的摔死）。 */
 const TRAUMA = { land: 0.3, key: 0.3, crumble: 0.4, tide: 0.4, bonk: 0.5, death: 0.75 } as const;
+/** 推大石头（11-26）的样子：底色、暗面、斑点；斑点在石头上的位置（角度、离圆心几成、半径几成）。 */
+const BOULDER_STYLE: Record<'table' | 'van' | 'kitchen' | 'snow' | 'house' | 'space', { fill: number; shade: number; spot: number }> = {
+  table: { fill: 0x9a5530, shade: 0x5e2f18, spot: 0x6b3419 },
+  van: { fill: 0x868e95, shade: 0x4f565c, spot: 0x6f8f4e },
+  kitchen: { fill: 0xf6efe4, shade: 0xc9bfb0, spot: 0xf28ca6 },
+  snow: { fill: 0xf4f8fc, shade: 0xb9cfe6, spot: 0xd6e5f4 },
+  house: { fill: 0xa1968c, shade: 0x6b625a, spot: 0x7c7168 },
+  space: { fill: 0x5f566c, shade: 0x2f2939, spot: 0x3f3749 },
+};
+const BOULDER_SPOTS: [number, number, number][] = [
+  [0.3, 0.5, 0.16],
+  [2.2, 0.55, 0.12],
+  [4.1, 0.45, 0.18],
+  [5.4, 0.7, 0.09],
+];
+/** 卷屏（11-26）追过来的那一片的颜色：整片、边上翻滚的团。 */
+const SCROLL_COLORS: Record<'table' | 'van' | 'kitchen' | 'snow' | 'house' | 'space', { fill: number; edge: number }> = {
+  table: { fill: 0x7a1f14, edge: 0xe8584a },
+  van: { fill: 0x2c3e52, edge: 0x9fb8c8 },
+  kitchen: { fill: 0xc9c4bb, edge: 0xffffff },
+  snow: { fill: 0xdfeaf6, edge: 0xffffff },
+  house: { fill: 0x140e1f, edge: 0x3a2a55 },
+  space: { fill: 0x123a5a, edge: 0x7fe3ff },
+};
 
 export interface PlayerStyle {
   name: string;
@@ -77,6 +101,8 @@ export class Stage {
   private readonly world = new Container();
   private readonly abyssBody = new Graphics();
   private readonly abyssTop = new Graphics();
+  /** 卷屏（11-26）：屏幕后面那条边追过来的那一片（盖在人前面）。 */
+  private readonly scrollG = new Graphics();
   private readonly propsG = new Graphics();
   /** 红包（A9b）。 */
   private readonly envG = new Graphics();
@@ -145,7 +171,7 @@ export class Stage {
       this.fx.cap = 150;
       this.screenFx.cap = 60;
     }
-    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.droneG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.holdG, this.fx.view, this.abyssTop);
+    this.world.addChild(this.abyssBody, this.propsG, this.envG, this.droneG, this.shadowsG, this.ropesG, this.trailsG, this.playersC, this.holdG, this.fx.view, this.abyssTop, this.scrollG);
     this.root.addChild(this.screenFx.view, this.world, this.vignette, this.flash);
     app.stage.addChild(this.root);
   }
@@ -359,6 +385,7 @@ export class Stage {
           // 碰到机关死的在出事的地方炸开；掉下去的在深渊面上溅起来
           // 涨潮（A12）淹的在水面上溅起来
           if (ev.cause === 'tide') this.splash(ev.x, ev.y);
+          else if (ev.cause === 'scroll') this.scrollPoof(ev.x, ev.y);
           else if (ev.cause) this.hazardBurst(ev.cause, ev.x, ev.y);
           else this.splash(ev.x, sim.level.deathY);
           sim.players.forEach((q, i) => {
@@ -554,6 +581,58 @@ export class Stage {
     this.fx.burst({ x, y: y - 10, n: 4, texture: 'puff', colors: [0xffffff], speed: [30, 80], angle: -Math.PI / 2, spread: 0.6, life: [0.8, 1.4], size: [40, 80], grow: 2.2, alpha: 0.35, drag: 1 });
   }
 
+  /**
+   * 推大石头（11-26）：年夜饭桌是一个大狮子头，温哥华是花岗岩，后厨是大汤圆，雪山是大雪球，老宅是石绣球，太空站是小行星。
+   * 身上的斑点跟着滚（看得出在滚），左上角的高光不转。
+   */
+  private drawBoulder(g: Graphics, x: number, y: number, angle: number, r: number): void {
+    const k = BOULDER_STYLE[this.world_ as keyof typeof BOULDER_STYLE] ?? BOULDER_STYLE.van;
+    g.circle(x, y, r).fill(k.fill).stroke({ width: 3, color: OUTLINE });
+    g.circle(x + r * 0.16, y + r * 0.2, r * 0.78).fill({ color: k.shade, alpha: 0.32 });
+    for (const [a, d, s] of BOULDER_SPOTS) g.circle(x + Math.cos(angle + a) * r * d, y + Math.sin(angle + a) * r * d, r * s).fill({ color: k.spot, alpha: 0.85 });
+    g.circle(x - r * 0.36, y - r * 0.4, r * 0.24).fill({ color: 0xffffff, alpha: 0.24 });
+    g.circle(x - r * 0.46, y - r * 0.5, r * 0.08).fill({ color: 0xffffff, alpha: 0.5 });
+  }
+
+  /** 卷屏（11-26）：被屏幕甩掉的人在边上噗一团（追过来的那一片的颜色）。 */
+  private scrollPoof(x: number, y: number): void {
+    const c = SCROLL_COLORS[this.world_ as keyof typeof SCROLL_COLORS] ?? SCROLL_COLORS.van;
+    this.fx.burst({ x, y, n: 5, texture: 'puff', colors: [c.fill, c.edge], speed: [40, 140], life: [0.7, 1.2], size: [40, 90], grow: 2.2, alpha: 0.5, drag: 1 });
+    this.fx.burst({ x, y, n: this.reduced ? 6 : 14, texture: 'circle', colors: [c.edge, 0xffffff], speed: [160, 380], life: [0.3, 0.6], size: [5, 10], drag: 3 });
+  }
+
+  /**
+   * 卷屏（11-26）：屏幕后面那条边上追过来的一片（年夜饭桌是辣锅的红雾，温哥华是海雾，后厨是蒸汽，雪山是雪崩，
+   * 老宅是黑影，太空站是能量墙），边上一溜翻滚的团；少动画时不翻滚。
+   */
+  private drawScroll(sim: SimView): void {
+    const g = this.scrollG.clear();
+    const f = scrollFrame(sim.level, sim.time);
+    const sc = sim.level.scroll;
+    if (!f || !sc) return;
+    const c = SCROLL_COLORS[this.world_ as keyof typeof SCROLL_COLORS] ?? SCROLL_COLORS.van;
+    const t = this.reduced ? 0 : this.t;
+    const up = sc.dir === 'up';
+    const deep = 900;
+    if (up) {
+      const y = f.y + f.h;
+      g.rect(0, y, sim.level.w, deep).fill({ color: c.fill, alpha: 0.9 });
+      for (let k = 0; k < 4; k++) g.rect(0, y - 18 * (k + 1), sim.level.w, 18).fill({ color: c.fill, alpha: 0.55 - k * 0.13 });
+      for (let x = 30; x < sim.level.w; x += 70) {
+        const r = 26 + 10 * Math.sin(x * 0.07 + t * 2.4);
+        g.circle(x, y - 6 + 8 * Math.sin(x * 0.05 + t * 3), r).fill({ color: c.edge, alpha: 0.5 });
+      }
+      return;
+    }
+    const x = f.x;
+    g.rect(x - deep, 0, deep, sim.level.h).fill({ color: c.fill, alpha: 0.9 });
+    for (let k = 0; k < 4; k++) g.rect(x + 18 * k, 0, 18, sim.level.h).fill({ color: c.fill, alpha: 0.55 - k * 0.13 });
+    for (let y = 30; y < sim.level.h; y += 70) {
+      const r = 26 + 10 * Math.sin(y * 0.07 + t * 2.4);
+      g.circle(x + 6 + 8 * Math.sin(y * 0.05 + t * 3), y, r).fill({ color: c.edge, alpha: 0.5 });
+    }
+  }
+
   /** 碰到机关的死法：电是一团火花，烫是一股白气加几滴红油，扎是一圈白点。 */
   private hazardBurst(cause: 'spike' | 'hot' | 'zap', x: number, y: number): void {
     const van = this.world_ === 'van';
@@ -606,6 +685,15 @@ export class Stage {
         x1 = Math.max(x1, tray.x);
         y0 = Math.min(y0, tray.y);
         y1 = Math.max(y1, tray.y);
+      }
+      // 卷屏（11-26）：镜头至少看得见整块屏幕（往右卷看得见后面那条边，跑到前头的人也看得见）
+      const f = scrollFrame(level, sim.time);
+      if (f && level.scroll?.dir === 'up') {
+        y0 = Math.min(y0, f.y + 60);
+        y1 = Math.max(y1, f.y + f.h - 60);
+      } else if (f) {
+        x0 = Math.min(x0, f.x + 60);
+        x1 = Math.max(x1, f.x + f.w - 60);
       }
       tx = (x0 + x1) / 2;
       ty = (y0 + y1) / 2 - 50;
@@ -703,6 +791,7 @@ export class Stage {
     sim.players.forEach((p, i) => this.dumplings[i]?.update(p, dt, sim.won && p.face === 'win', this.t, slips, moodOf(sim.level, sim.time, sim.tideY, p.body, p.dead)));
     this.abyssBody.y = (sim.tideY ?? sim.level.deathY) - sim.level.deathY;
     this.drawAbyss(sim, dt);
+    this.drawScroll(sim);
     this.fx.update(dt);
     this.screenFx.update(dt);
     this.dark?.update(sim, this.world, dt);
@@ -790,6 +879,8 @@ export class Stage {
         if (!k?.used) this.drawKey(g, prop.x, prop.y, prop.angle, w, !k?.found);
       } else if (prop.kind === 'lantern') {
         this.drawLantern(g, prop.x, prop.y, prop.angle, w, h);
+      } else if (prop.kind === 'boulder') {
+        this.drawBoulder(g, prop.x, prop.y, prop.angle, w / 2);
       } else {
         // 箱子：年夜饭桌上是蒸笼，温哥华是货箱
         g.poly(pts).fill({ texture: table ? this.tex.wood : this.tex.metal, textureSpace: 'global' });

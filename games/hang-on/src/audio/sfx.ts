@@ -346,6 +346,13 @@ class Sfx {
           this.tone({ freq: f * 1.5, wave: 'triangle', dur: 0.1, vol: 0.1, pan, delay: 0.07 });
           break;
         }
+        case 'boulder': {
+          // 推大石头（11-26）掉出去回到原地：闷闷地咚一下
+          const pan = this.pan(ev.x, ev.y);
+          this.tone({ freq: 90, to: 60, wave: 'sine', dur: 0.35, vol: 0.2, pan });
+          this.noise({ dur: 0.25, vol: 0.1, filter: { type: 'lowpass', freq: 400 }, pan });
+          break;
+        }
         case 'cheer': {
           // 观众起哄（11-26）：轻轻啵一声，起得密了就省掉几声
           if (!this.throttle('cheer', 0.12)) break;

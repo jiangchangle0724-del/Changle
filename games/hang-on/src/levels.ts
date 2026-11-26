@@ -6,7 +6,7 @@
  */
 import { pickLang } from './i18n';
 import { arenaLevels, goldArenas } from './physics/arenas';
-import { gadgetsLevel, gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, showcaseLevel, snowLevel, spaceLevel, type Level } from './physics/level';
+import { boulderLevel, gadgetsLevel, gatesLevel, houseLevel, kitchenLevel, machinesLevel, sampleLevel, scrollLevel, showcaseLevel, snowLevel, spaceLevel, type Level } from './physics/level';
 import type { GameMode } from './physics/world';
 import type { Side, Tier } from './sides';
 
@@ -64,6 +64,8 @@ export function levelById(id: string | null | undefined): Level | undefined {
   if (id === 'proto-07') return houseLevel();
   if (id === 'proto-08') return spaceLevel();
   if (id === 'proto-09') return gadgetsLevel();
+  if (id === 'proto-10') return boulderLevel();
+  if (id === 'proto-11') return scrollLevel();
   return LEVELS.find((l) => l.id === id) ?? MULTI_LEVELS.find((l) => l.id === id) ?? TEAM_LEVELS.find((l) => l.id === id) ?? ARENAS.find((l) => l.id === id) ?? GOLD_ARENAS.find((l) => l.id === id);
 }
 
@@ -105,6 +107,9 @@ const TEACHES: Record<string, { zh: string; en: string }> = {
   crumble: { zh: '台子一踩就塌，踩一下赶紧走', en: 'Platforms crumble under you. Step and go' },
   pendulum: { zh: '躲开荡过来的锤，或者抓着它荡过去', en: 'Dodge the swinging weights, or ride one across' },
   wind: { zh: '起风了先抓紧，风停了再走', en: 'Hold tight when the wind blows, move when it stops' },
+  // 推大石头、卷屏（11-26，C18 做关）
+  boulder: { zh: '大石头几个人一起推：填沟当桥、压住踏板', en: 'Push the boulder together: fill a gap or hold down a plate' },
+  scroll: { zh: '屏幕自己往前走，掉队的会被甩掉', en: 'The screen keeps moving. Fall behind and you are out' },
 };
 
 /** 难关（13 号往后）难在哪：大厅里显示「难关：…」。 */

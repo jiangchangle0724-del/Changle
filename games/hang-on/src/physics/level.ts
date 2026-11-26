@@ -72,6 +72,29 @@ export interface TideDef {
   top?: number;
 }
 
+/**
+ * 推大石头（11-26）：(x, y) 是圆心，r 是半径（36 到 90，不写是 CFG.boulderR）。又圆又重，一个人推得慢，几个人一起推得动；
+ * 能抓、能站在上面（会滚）、能压踏板、能填缝当桥。掉出关卡 CFG.boulderBack 秒后回到原地。
+ */
+export interface BoulderDef extends Pt {
+  r?: number;
+  material?: string;
+  players?: [number, number];
+}
+
+/**
+ * 卷屏（11-26）：开局 delay 秒（不写 CFG.scrollDelay）后，一块 view 大的「屏幕」（不写是 CFG.scrollW × CFG.scrollH）
+ * 从起点那头往 dir（right 往右、up 往上）每秒挪 speed 像素，挪到关卡那头停。落在屏幕后面那条边外头
+ * （CFG.scrollGrace 像素以外）的人被甩掉（死，cause 'scroll'）；复活在屏幕里最靠前的检查点（出生点也算），屏幕里没有就等一等。
+ * 屏幕的位置只由关卡和时间算（motion.ts 的 scrollFrame），物理、画面、手机局都用这一个。
+ */
+export interface ScrollDef {
+  dir: 'right' | 'up';
+  speed: number;
+  delay?: number;
+  view?: { w: number; h: number };
+}
+
 export interface RopeDef {
   anchor: Pt;
   segments: number;
@@ -276,6 +299,10 @@ export interface Level {
   hazards?: HazardDef[];
   movers?: MoverDef[];
   spinners?: SpinnerDef[];
+  /** 推大石头（11-26）。 */
+  boulders?: BoulderDef[];
+  /** 卷屏（11-26）。 */
+  scroll?: ScrollDef;
   /** 踩板门（11-13）：踏板和门。 */
   plates?: PlateDef[];
   gates?: GateDef[];
@@ -330,7 +357,7 @@ export function forCount(item: { players?: [number, number] }, n: number): boole
  * 主机按开局的人数摆；手机局里别的手机按快照里的人数（Snap.np）摆，两边一样。
  */
 export function forPlayers(level: Level, n: number): Level {
-  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers, level.pendulums, level.winds];
+  const lists = [level.rects, level.ropes, level.seesaws, level.crates, level.boulders, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers, level.pendulums, level.winds];
   if (!lists.some((l) => l?.some((x) => x.players))) return level;
   const keep = <T extends { players?: [number, number] }>(l: T[] | undefined): T[] | undefined => l?.filter((x) => forCount(x, n));
   return {
@@ -339,6 +366,7 @@ export function forPlayers(level: Level, n: number): Level {
     ropes: keep(level.ropes),
     seesaws: keep(level.seesaws),
     crates: keep(level.crates),
+    boulders: keep(level.boulders),
     fading: keep(level.fading),
     springs: keep(level.springs),
     hazards: keep(level.hazards),
@@ -751,3 +779,74 @@ export function gadgetsLevel(): Level {
     par: { seconds: 120, deathsPerPlayer: 4 },
   };
 }
+
+/**
+ * 推大石头样板关（11-26，只在开发页：`play.html?level=proto-10&players=2`）：年夜饭桌上，先把一个大狮子头推进一道沟里，
+ * 它正好填平当桥；再把一个小的滚到踏板上压着，门开了大家过去。
+ */
+export function boulderLevel(): Level {
+  return {
+    id: 'proto-10',
+    world: 'table',
+    name: { zh: '推大石头样板', en: 'Boulder sampler' },
+    teaches: 'boulder',
+    w: 2800,
+    h: 1400,
+    spawn: { x: 120, y: 960 },
+    goal: { x: 2480, y: 860, w: 200, h: 140 },
+    checkpoints: [{ x: 1200, y: 966 }],
+    rects: [
+      { x: 0, y: 1000, w: 900, h: 400, kind: 'ground' },
+      // 沟：140 宽，底比两边低 112（大狮子头的直径），推进去正好填平
+      { x: 900, y: 1112, w: 140, h: 288, kind: 'ground' },
+      { x: 1040, y: 1000, w: 1060, h: 400, kind: 'ground' },
+      { x: 1500, y: 988, w: 120, h: 12, kind: 'plate' },
+      { x: 2100, y: 1000, w: 700, h: 400, kind: 'ground' },
+    ],
+    boulders: [
+      { x: 600, y: 944 },
+      { x: 1300, y: 960, r: 40 },
+    ],
+    plates: [{ x: 1500, y: 988, w: 120, h: 12, opens: 'g1' }],
+    gates: [{ id: 'g1', x: 1880, y: 640, w: 44, h: 360, move: { x: 0, y: -330 }, hold: 1.2 }],
+    deathY: 1400,
+    par: { seconds: 90, deathsPerPlayer: 2 },
+  };
+}
+
+/**
+ * 卷屏样板关（11-26，只在开发页：`play.html?level=proto-11&players=2`）：温哥华的一长条码头，开局 5 秒后屏幕往右卷
+ * （每秒 55 像素），后面追着海雾；一路是缝、小钉和绳，落在后面的被甩掉，复活在屏幕里最靠前的检查点。
+ */
+export function scrollLevel(): Level {
+  const ground = [
+    [0, 1100],
+    [1220, 1900],
+    [2030, 2800],
+    [2950, 3700],
+    [3830, 4600],
+    [4760, 5500],
+    [5640, 6400],
+  ];
+  return {
+    id: 'proto-11',
+    world: 'van',
+    name: { zh: '卷屏样板', en: 'Scroll sampler' },
+    teaches: 'scroll',
+    w: 6400,
+    h: 1000,
+    spawn: { x: 240, y: 760 },
+    goal: { x: 6150, y: 660, w: 200, h: 140 },
+    checkpoints: [800, 1700, 2600, 3500, 4400, 5300].map((x) => ({ x, y: 766 })),
+    rects: [
+      ...ground.map(([a, b]) => ({ x: a as number, y: 800, w: (b as number) - (a as number), h: 200, kind: 'ground' })),
+      { x: 2860, y: 700, w: 24, h: 16, kind: 'peg' },
+      { x: 4670, y: 690, w: 24, h: 16, kind: 'peg' },
+    ],
+    ropes: [{ anchor: { x: 5570, y: 420 }, segments: 8, segLen: 38 }],
+    scroll: { dir: 'right', speed: 55, delay: 5, view: { w: 1600, h: 1000 } },
+    deathY: 1300,
+    par: { seconds: 150, deathsPerPlayer: 3 },
+  };
+}
+

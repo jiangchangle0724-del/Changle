@@ -38,8 +38,8 @@ import type { AchvId } from '../achievements';
 import { FX, type CheerId, type FxId, type SimFx } from '../crowd';
 import type { EmoteId } from '../emotes';
 import type { ItemId } from '../items';
-import { forPlayers, gateAt, leverRect, opensOf, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
-import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, pendulumAt, spinnerAngle, spinnerArm, ventColumn, ventState, windDir, windState } from './motion';
+import { forPlayers, gateAt, leverRect, opensOf, type BoulderDef, type FadingDef, type GateDef, type HazardDef, type Level, type LeverDef, type LiftDef, type MoverDef, type PendulumDef, type PlateDef, type Pt, type Rect, type SpinnerDef, type SpringDef, type VentDef, type WindDef } from './level';
+import { circleHitsBar, circleHitsRect, liftChairs, liftParts, moverAt, pendulumAt, scrollFrame, spinnerAngle, spinnerArm, ventColumn, ventState, windDir, windState } from './motion';
 
 type RB = RAPIER.RigidBody;
 type Col = RAPIER.Collider;
@@ -244,7 +244,7 @@ export interface Noodle {
 }
 
 export interface Prop {
-  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern';
+  kind: 'seesaw' | 'crate' | 'ingot' | 'tray' | 'key' | 'lantern' | 'boulder';
   rb: RB;
   w: number;
   h: number;
@@ -256,7 +256,7 @@ export interface Prop {
 }
 
 /** 怎么死的：掉下去，或者碰到尖的、烫的、带电的。 */
-export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap' | 'tide';
+export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap' | 'tide' | 'scroll';
 
 /**
  * 玩法（A7，开局前在大厅里选）：
@@ -369,6 +369,8 @@ export type SimEvent =
    * 观众（11-26）：也不是物理的事，主机直接交给画面、声音和手机局的快照：谁（观众的名字）起了什么哄；
    * 开了一轮投票（左边帮一把、右边捣个乱）；这一局第一个掉的是谁、几个观众押了、押中的观众叫什么。
    */
+  /** 推大石头（11-26）：第几块石头掉出关卡，回到原地了（x、y 是回到哪）。 */
+  | { type: 'boulder'; index: number; phase: 'back'; x: number; y: number }
   | { type: 'cheer'; who: string; cheer: CheerId }
   | { type: 'crowdvote'; a: FxId; b: FxId }
   | { type: 'crowdbet'; fell: number; bets: number; hits: string[] }
@@ -484,6 +486,8 @@ export class Sim {
   rain: { drops: { id: number; x: number; y: number; vy: number; ph: number }[]; caught: number[]; left: number; nextT: number; seq: number; seed: number } | null = null;
   /** 护送大元宝（11-26）：哪个物件、到过哪个检查点、掉了多久、起点、有人碰过没有、送到了没有。 */
   escort: { prop: number; cp: number; lostT: number; home: Pt; touched: boolean; done: boolean } | null = null;
+  /** 推大石头（11-26）：每块是第几个物件、原地在哪、掉出关卡几秒了。 */
+  readonly boulders: { prop: number; home: Pt; lostT: number }[] = [];
   /** 观众投票（11-26）：正在起作用的那一样（变轻、变重、刮风）、还剩几秒、风往哪边（1 右、-1 左）。 */
   crowd: { fx: Exclude<SimFx, 'strong'>; t: number; dir: number } | null = null;
   /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
@@ -560,6 +564,7 @@ export class Sim {
     for (const def of level.ropes ?? []) this.addRope(def.anchor, def.segments, def.segLen);
     for (const def of level.seesaws ?? []) this.addSeesaw(def.pivot, def.w, def.h ?? 14, frictionOf(def.material));
     for (const def of level.crates ?? []) this.addCrate(def, frictionOf(def.material));
+    for (const def of level.boulders ?? []) this.addBoulder(def);
     for (const def of level.movers ?? []) this.addMover(def);
     for (const def of level.pendulums ?? []) this.addPendulum(def);
     for (const def of level.winds ?? []) this.winds.push({ def, on: false, warn: false });
@@ -745,6 +750,95 @@ export class Sim {
     const index = this.props.length;
     this.info.set(col.handle, { kind: 'prop', prop: index });
     this.props.push({ kind: 'crate', rb, w: def.w, h: def.h, x: def.x + def.w / 2, y: def.y + def.h / 2, angle: 0 });
+  }
+
+  /**
+   * 推大石头（11-26）：一个圆的动态刚体，按半径加重（小的一个人拽得动，大的得三个人）；滚得动（角阻尼小），能抓（和箱子一样是 prop）。
+   */
+  private addBoulder(def: BoulderDef): void {
+    const r = def.r ?? CFG.boulderR;
+    const rb = this.world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic().setTranslation(def.x, def.y).setLinearDamping(0.1).setAngularDamping(CFG.boulderDamp).setCcdEnabled(true),
+    );
+    const col = this.world.createCollider(
+      RAPIER.ColliderDesc.ball(r)
+        .setMass(CFG.boulderMass * (r / CFG.boulderR))
+        .setFriction(def.material ? frictionOf(def.material) : CFG.boulderFriction)
+        .setCollisionGroups(groups(GROUP.PROP, GROUP.TERRAIN | GROUP.PLAYER | GROUP.PROP)),
+      rb,
+    );
+    const index = this.props.length;
+    this.info.set(col.handle, { kind: 'prop', prop: index });
+    this.props.push({ kind: 'boulder', rb, w: r * 2, h: r * 2, x: def.x, y: def.y, angle: 0 });
+    this.boulders.push({ prop: index, home: { x: def.x, y: def.y }, lostT: 0 });
+  }
+
+  /** 推大石头（11-26）每一步：掉出关卡的石头过一会儿回到原地（报 boulder back）；卷屏的关落在屏幕后面也算，回到屏幕里。 */
+  private tickBoulders(dt: number): void {
+    this.boulders.forEach((b, i) => {
+      const prop = this.props[b.prop] as Prop;
+      // 掉出关卡，或者（卷屏）落在屏幕后面
+      if (prop.y <= this.level.deathY && !this.behindScrollAt(prop)) {
+        b.lostT = 0;
+        return;
+      }
+      b.lostT += dt;
+      if (b.lostT < CFG.boulderBack) return;
+      b.lostT = 0;
+      const at = this.backSpot(b.home);
+      this.dropProp(prop);
+      prop.rb.setTranslation(at, true);
+      prop.rb.setLinvel({ x: 0, y: 0 }, true);
+      prop.rb.setAngvel(0, true);
+      prop.rb.setRotation(0, true);
+      prop.x = at.x;
+      prop.y = at.y;
+      prop.angle = 0;
+      this.events.push({ type: 'boulder', index: i, phase: 'back', x: at.x, y: at.y });
+    });
+  }
+
+  /** 卷屏（11-26）：这会儿「屏幕」在哪；没有卷屏是 null。 */
+  get scrollView(): Rect | null {
+    return scrollFrame(this.level, this.time);
+  }
+
+  /** 卷屏：这个点在不在屏幕里（离两头都至少 CFG.scrollMargin）。 */
+  private inScroll(f: Rect, p: Pt): boolean {
+    const m = CFG.scrollMargin;
+    return this.level.scroll?.dir === 'up' ? p.y >= f.y + m && p.y <= f.y + f.h - m : p.x >= f.x + m && p.x <= f.x + f.w - m;
+  }
+
+  /** 卷屏：复活在屏幕里最靠前的检查点（出生点也算）；屏幕里一个都没有是 null（等一等）。 */
+  private scrollAnchor(): Pt | null {
+    const f = this.scrollView;
+    if (!f) return null;
+    const spots = [this.level.spawn, ...(this.level.checkpoints ?? [])];
+    for (let j = spots.length - 1; j >= 0; j--) if (this.inScroll(f, spots[j] as Pt)) return spots[j] as Pt;
+    return null;
+  }
+
+  /** 卷屏：这个人落在屏幕后面那条边外头了（往右卷是左边，往上卷是下边）。 */
+  private behindScroll(p: Player): boolean {
+    return this.behindScrollAt(p.body);
+  }
+
+  /** 卷屏：这个点落在屏幕后面那条边外头了。 */
+  private behindScrollAt(q: Pt): boolean {
+    const f = this.scrollView;
+    if (!f) return false;
+    return this.level.scroll?.dir === 'up' ? q.y > f.y + f.h + CFG.scrollGrace : q.x < f.x - CFG.scrollGrace;
+  }
+
+  /**
+   * 卷屏：东西（托盘、钥匙、灯笼、大元宝、大石头）回存档的地方时，那里已经不在屏幕里了，就放到屏幕里最靠前的检查点上
+   * （复活的人头顶上一点），不然落在屏幕后面再也拿不回来。没有卷屏、存档的地方还在屏幕里就照旧。
+   */
+  private backSpot(at: Pt): Pt {
+    const f = this.scrollView;
+    if (!f || this.inScroll(f, at)) return at;
+    const a = this.scrollAnchor();
+    return a ? { x: a.x + 45, y: a.y - 40 } : at;
   }
 
   /** 蒸笼喷汽（后厨，A10）：蒸笼本身是普通的台子（能站能抓），汽柱只是个范围，喷的时候在 tickVents 里往上托。 */
@@ -963,7 +1057,7 @@ export class Sim {
       let on = this.players.some((p) => !p.dead && !p.done && circleHitsRect(p.body, CFG.bodyR, top));
       if (!on)
         on = this.props.some(
-          (pr) => pr.kind === 'crate' && pr.y + pr.h / 2 >= pl.y - reach && pr.y + pr.h / 2 <= pl.y + reach && pr.x + pr.w / 2 > pl.x && pr.x - pr.w / 2 < pl.x + pl.w,
+          (pr) => (pr.kind === 'crate' || pr.kind === 'boulder') && pr.y + pr.h / 2 >= pl.y - reach && pr.y + pr.h / 2 <= pl.y + reach && pr.x + pr.w / 2 > pl.x && pr.x - pr.w / 2 < pl.x + pl.w,
         );
       if (on !== pl.on) {
         pl.on = on;
@@ -1276,7 +1370,8 @@ export class Sim {
     tr.grace = Math.max(0, tr.grace - dt);
     const a = Math.atan2(Math.sin(prop.angle), Math.cos(prop.angle));
     tr.tiltT = Math.abs(a) > CFG.traySpill ? tr.tiltT + dt : 0;
-    const fell = prop.y > this.deathLine();
+    // 卷屏（11-26）：落在屏幕后面也算翻了
+    const fell = prop.y > this.deathLine() || this.behindScrollAt(prop);
     if (fell || this.trayBurnt(prop) || (tr.grace <= 0 && tr.tiltT >= CFG.traySpillTime)) {
       tr.spilled = true;
       tr.spillT = 0;
@@ -1317,7 +1412,7 @@ export class Sim {
     if (!tr) return;
     const prop = this.props[tr.prop] as Prop;
     const spots = this.level.tray ?? [];
-    const at = spots[Math.min(spots.length - 1, tr.cp + 1)] ?? spots[0] ?? { x: prop.x, y: prop.y };
+    const at = this.backSpot(spots[Math.min(spots.length - 1, tr.cp + 1)] ?? spots[0] ?? { x: prop.x, y: prop.y });
     for (const [, e] of [...this.grips]) if (e.g.target === prop.rb) this.release(this.players[e.player] as Player, e.arm);
     prop.rb.setTranslation(at, true);
     prop.rb.setLinvel({ x: 0, y: 0 }, true);
@@ -1393,12 +1488,13 @@ export class Sim {
   private tickLost(c: { cp: number; lostT: number; home: Pt }, prop: Prop, dt: number): boolean {
     const cps = this.level.checkpoints ?? [];
     for (let j = c.cp + 1; j <= this.checkpoint && j < cps.length; j++) if (dist(prop, cps[j] as Pt) < CFG.keyCpR) c.cp = j;
-    const lost = prop.y > this.deathLine() || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 8, h));
+    // 卷屏（11-26）：落在屏幕后面也算丢了
+    const lost = prop.y > this.deathLine() || (this.level.hazards ?? []).some((h) => circleHitsRect(prop, 8, h)) || this.behindScrollAt(prop);
     c.lostT = lost ? c.lostT + dt : 0;
     if (c.lostT < CFG.keyBack) return false;
     const cp = cps[c.cp];
-    // 存档的检查点：放在复活的人头顶上一点、第一第二个人中间，掉下来落在脚边
-    const at = cp ? { x: cp.x + 45, y: cp.y - 40 } : c.home;
+    // 存档的检查点：放在复活的人头顶上一点、第一第二个人中间，掉下来落在脚边（卷屏：那里不在屏幕里了就放到屏幕里）
+    const at = this.backSpot(cp ? { x: cp.x + 45, y: cp.y - 40 } : c.home);
     this.dropProp(prop);
     prop.rb.setTranslation(at, true);
     prop.rb.setLinvel({ x: 0, y: 0 }, true);
@@ -1757,7 +1853,7 @@ export class Sim {
    * 照常的位置空着就不动，所以回放里没人挡道的复活和以前一模一样。
    */
   private respawnPoint(i: number): Pt {
-    const s = this.spawnPoint(i);
+    const s = this.respawnBase(i);
     const minGap = CFG.bodyR * 2;
     const others = this.players.filter((q) => q.id !== i && !q.dead && !q.done).map((q) => q.body);
     const gap = (x: number): number => others.reduce((m, b) => Math.min(m, Math.hypot(b.x - x, b.y - s.y)), Infinity);
@@ -1780,7 +1876,13 @@ export class Sim {
       }
     }
     // 两边都站不住：回 1 号的位置（每一关都保证那里有落脚），和别人叠着也比掉下去好
-    return best ?? this.spawnPoint(0);
+    return best ?? this.respawnBase(0);
+  }
+
+  /** 复活照常回哪：检查点（spawnPoint）；卷屏（11-26）回屏幕里最靠前的检查点（出生点也算），到没到过都一样。 */
+  private respawnBase(i: number): Pt {
+    const anchor = this.level.scroll ? this.scrollAnchor() : null;
+    return anchor ? { x: anchor.x + i * 30, y: anchor.y } : this.spawnPoint(i);
   }
 
   /** 开局放人的位置：前 4 个人照关卡摆的（回放靠它）；第 5、6 个人那里站不住就往旁边找。 */
@@ -1995,6 +2097,7 @@ export class Sim {
     this.tickGold(dt);
     this.tickRain(dt);
     this.tickCrowd(dt);
+    this.tickBoulders(dt);
     this.acts();
     this.pickEnvelopes();
     this.checkpoints();
@@ -2748,6 +2851,8 @@ export class Sim {
       if (p.done) continue;
       if (!p.dead && p.body.y > this.level.deathY) this.kill(p, 'fall', p.body);
       else if (!p.dead && this.tideY !== null && p.body.y > this.tideY) this.kill(p, 'tide', { x: p.body.x, y: this.tideY });
+      // 卷屏（11-26）：落在屏幕后面被甩掉
+      else if (!p.dead && this.behindScroll(p)) this.kill(p, 'scroll', p.body);
       if (!p.dead) {
         const hit = this.hazardHit(p);
         if (hit) this.kill(p, hit.cause, hit.at);
@@ -2760,6 +2865,8 @@ export class Sim {
           continue;
         }
         if (p.deadT >= CFG.respawnDelay) {
+          // 卷屏：屏幕里还没有能复活的检查点，等一等
+          if (this.level.scroll && !this.scrollAnchor()) continue;
           const s = this.respawnPoint(p.id);
           this.pushTide(s.y);
           this.teleport(p.id, s.x, s.y);

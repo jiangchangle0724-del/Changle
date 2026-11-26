@@ -16,8 +16,8 @@ const baseIds = Array.from({ length: 12 }, (_, i) => `${i < 6 ? 'table' : 'van'}
 // C8 的难关：table-13…18、van-19…24（CONTRACTS「关卡契约 · 难关」）。可以分批交，在的每一关都要过全部难关规则。
 const hardIds = Array.from({ length: 12 }, (_, i) => `${i < 6 ? 'table' : 'van'}-${String(i + 13).padStart(2, '0')}`);
 const isHard = (id) => hardIds.includes(id);
-// 新机关（A12）教的词，长关（A13）多半教这几个
-const NEW_TEACHES = ['tide', 'crumble', 'pendulum', 'wind'];
+// 新机关（A12）教的词，长关（A13）多半教这几个；推大石头、卷屏（11-26，C18 重做长关）也算
+const NEW_TEACHES = ['tide', 'crumble', 'pendulum', 'wind', 'boulder', 'scroll'];
 // 第三轮的新场景（A10 起，Codex 的 C10…C13 做关），每个场景六关、写明难度（简单、中等、困难各两关）。可以分批交，在的每一关都要过这个场景的全部规则。
 // need：这个场景的关得有它自己的机关；mix：六关到齐了才查的搭配（返回没过的那一条，或者 null）。
 const SCENE_TEACHES = ['combine', 'spike', 'hot', 'zap', 'mover', 'spinner', 'gauntlet', ...NEW_TEACHES];
@@ -133,7 +133,7 @@ const together = (a, b) => {
   const [b0, b1] = b.players ?? [1, 6];
   return a0 <= b1 && b0 <= a1;
 };
-const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers];
+const layoutLists = (level) => [level.rects, level.ropes, level.seesaws, level.crates, level.boulders, level.fading, level.springs, level.hazards, level.movers, level.spinners, level.plates, level.gates, level.vents, level.lifts, level.keys, level.lanterns, level.lamps, level.dark, level.zerog, level.levers];
 /**
  * 1 到 TESTED_PLAYERS 个人各摆出来什么样，一样的归一组。每组都要有一份回放证明能过：
  * 4 个人的是 replays/<id>.json，别的组是 replays/<id>.p<人数>.json。
@@ -382,6 +382,9 @@ function newMechanics(level, id) {
     range(p.phase, 0, 30, 'pendulum phase');
     for (const a of [-p.amp, p.amp]) assert(inside(level, { x: p.pivot.x + Math.sin(a) * p.len, y: p.pivot.y + Math.cos(a) * p.len }), `${id}: pendulum ${k} swings out of the level`);
   }
+  boulders(level, id, range);
+  scrollRules(level, id, range);
+  c18Shape(level, id);
   for (const [k, w] of (level.winds ?? []).entries()) {
     rectangle(w);
     assert(['left', 'right', 'up', 'down'].includes(w.dir), `${id}: wind ${k} needs dir left / right / up / down`);
@@ -392,6 +395,84 @@ function newMechanics(level, id) {
     range(w.phase, 0, 30, 'wind phase');
     assert(inside(level, w) && inside(level, { x: w.x + w.w, y: w.y + w.h }), `${id}: wind ${k} leaves the level`);
   }
+}
+
+/**
+ * 推大石头（11-26）：最多 3 块，半径 36 到 90，在关卡里，开局不和台子、箱子、要命的东西叠着，
+ * 底下 40 像素内有台子接着（开局不会掉老远）。回放里要真推（check 里查主回放每块至少挪 BOULDER_MOVE 像素）。
+ */
+const BOULDER_MOVE = 200;
+function boulders(level, id, range) {
+  const list = level.boulders ?? [];
+  assert(list.length <= 3, `${id}: at most 3 boulders, has ${list.length}`);
+  for (const [k, b] of list.entries()) {
+    point(b);
+    range(b.r, 36, 90, `boulder ${k} r`);
+    const r = b.r ?? 56;
+    assert(inside(level, { x: b.x - r, y: b.y - r }) && inside(level, { x: b.x + r, y: b.y + r }), `${id}: boulder ${k} is outside the level`);
+    for (const t of [...level.rects, ...(level.crates ?? []), ...(level.gates ?? [])]) {
+      if (!together(b, t)) continue;
+      assert(!circleHits(b, r - 2, t), `${id}: boulder ${k} at (${b.x}, ${b.y}) starts inside a platform, crate or gate`);
+    }
+    for (const h of level.hazards ?? []) assert(!circleHits(b, r + 20, h), `${id}: boulder ${k} starts on something deadly`);
+    const under = level.rects.some((t) => together(b, t) && b.x >= t.x && b.x <= t.x + t.w && t.y - (b.y + r) >= -2 && t.y - (b.y + r) <= 40);
+    assert(under, `${id}: boulder ${k} needs a platform within 40 px under it at the start`);
+  }
+}
+
+/**
+ * 卷屏（11-26）：往右或往上卷，每秒 25 到 90 像素，开局 2 到 10 秒后开始挪；屏幕 1200 到 2000 × 700 到 1100。
+ * 关卡顺着卷的方向至少是屏幕的 2.5 倍长；出生点在开局的屏幕里；检查点顺着卷的方向排；出生点、检查点、终点相邻两个
+ * 顺着卷的方向隔不到屏幕长减两个 CFG.scrollMargin（任何时候屏幕里都有一个能复活的地方）；终点在关卡那头。
+ */
+function scrollRules(level, id, range) {
+  const sc = level.scroll;
+  if (!sc) return;
+  assert(sc.dir === 'right' || sc.dir === 'up', `${id}: scroll dir is right or up`);
+  assert(finite(sc.speed), `${id}: scroll needs a speed`);
+  range(sc.speed, 25, 90, 'scroll speed');
+  range(sc.delay, 2, 10, 'scroll delay');
+  const view = { w: sc.view?.w ?? 1600, h: sc.view?.h ?? 900 };
+  range(view.w, 1200, 2000, 'scroll view w');
+  range(view.h, 700, 1100, 'scroll view h');
+  const up = sc.dir === 'up';
+  const len = up ? level.h : level.w;
+  const span = up ? view.h : view.w;
+  assert(len >= span * 2.5, `${id}: a scrolling level is at least 2.5 screens long along the scroll (${len} < ${span * 2.5})`);
+  const along = (p) => (up ? level.h - p.y : p.x);
+  const margin = 200;
+  assert(along(level.spawn) >= margin && along(level.spawn) <= span - margin, `${id}: the spawn must be inside the first screen, ${margin}+ px from its edges`);
+  const goal = { x: level.goal.x + level.goal.w / 2, y: level.goal.y + level.goal.h / 2 };
+  assert(along(goal) >= len - span, `${id}: the goal must be on the last screen`);
+  const stops = [level.spawn, ...(level.checkpoints ?? []), goal].map(along);
+  stops.slice(1).forEach((d, k) => {
+    assert(d > stops[k], `${id}: checkpoints must follow the scroll (${up ? 'upward' : 'rightward'})`);
+    assert(d - stops[k] <= span - 2 * margin, `${id}: spawn, checkpoints and goal are at most ${span - 2 * margin} px apart along the scroll (somewhere to respawn on every screen), ${k}→${k + 1} is ${Math.round(d - stops[k])}`);
+  });
+}
+
+/**
+ * C18（11-26，Steve「长关 8 关里 6 关长得差不多」）：这 6 关用推大石头、卷屏重做。重做了（用了推大石头或卷屏）的这几关
+ * 不能再是「三层长台子之字形」：宽过 600 的台子最多 3 块，没有宽过 1200 的。6 关都重做了（都用了推大石头或卷屏）再查搭配：
+ * 至少 3 关卷屏（往右、往上至少各 1 关）、至少 3 关有大石头。
+ */
+const C18_IDS = ['kitchen-26', 'kitchen-28', 'snow-32', 'snow-35', 'house-40', 'house-41'];
+const redone = (level) => (level.boulders?.length ?? 0) > 0 || !!level.scroll;
+function c18Shape(level, id) {
+  if (!C18_IDS.includes(id) || !redone(level)) return;
+  const wide = level.rects.filter((r) => r.w > 600);
+  assert(wide.length <= 3, `${id}: a boulder or scrolling level has at most 3 platforms wider than 600 px (no more three long layers), has ${wide.length}`);
+  const huge = level.rects.find((r) => r.w > 1200);
+  assert(!huge, `${id}: a boulder or scrolling level has no platform wider than 1200 px (${huge?.w} at ${huge?.x}, ${huge?.y})`);
+}
+function c18Mix(entries) {
+  const mine = entries.filter((e) => C18_IDS.includes(e.level.id) && redone(e.level));
+  if (mine.length < C18_IDS.length) return `${mine.length}/${C18_IDS.length} redone`;
+  const n = (pred) => mine.filter((e) => pred(e.level)).length;
+  assert(n((l) => l.scroll) >= 3, `C18 levels: at least 3 scroll`);
+  assert(n((l) => l.scroll?.dir === 'right') >= 1 && n((l) => l.scroll?.dir === 'up') >= 1, `C18 levels: at least one scrolls right and one scrolls up`);
+  assert(n((l) => l.boulders?.length) >= 3, `C18 levels: at least 3 have boulders`);
+  return `${mine.length}/${C18_IDS.length} redone`;
 }
 
 /**
@@ -412,7 +493,7 @@ const fastMachines = (level) =>
   (level.spinners ?? []).filter((sp) => Math.abs(sp.spin) >= 1.5).length +
   (level.pendulums ?? []).filter((p) => p.period <= 2.4).length;
 const machineCount = (level) => (level.movers?.length ?? 0) + (level.spinners?.length ?? 0) + (level.pendulums?.length ?? 0);
-const newKinds = (level) => [level.tide, level.rects.some((r) => r.crumble !== undefined), level.pendulums?.length, level.winds?.length].filter(Boolean).length;
+const newKinds = (level) => [level.tide, level.rects.some((r) => r.crumble !== undefined), level.pendulums?.length, level.winds?.length, level.boulders?.length, level.scroll].filter(Boolean).length;
 function longLevel(level, id, tier) {
   if (level.long === undefined) return;
   assert.equal(level.long, true, `${id}: long is true or left out`);
@@ -420,7 +501,7 @@ function longLevel(level, id, tier) {
   assert(cps.length >= LONG_CHECKPOINTS, `${id}: a long level needs at least ${LONG_CHECKPOINTS} checkpoints (${LONG_CHECKPOINTS + 1} segments), has ${cps.length}`);
   const route = routeLength(level);
   assert(route >= LONG_ROUTE, `${id}: a long level's route (spawn → checkpoints → goal) must be at least ${LONG_ROUTE} px, is ${Math.round(route)}`);
-  assert(newKinds(level) >= 2, `${id}: a long level uses at least two of the new machines (tide, crumbling platforms, pendulums, wind)`);
+  assert(newKinds(level) >= 2, `${id}: a long level uses at least two of the new machines (tide, crumbling platforms, pendulums, wind, boulders, scroll)`);
   // 简单的长关不追人：不涨潮，摆锤不烫
   if (tier === 0) assert(!level.tide && !(level.pendulums ?? []).some((p) => p.deadly), `${id}: an easy long level has no tide and no deadly pendulums`);
   if (tier >= 1) assert.equal(level.stamina, true, `${id}: a medium or hard long level is recorded with tired hands (stamina: true)`);
@@ -539,13 +620,15 @@ function validate(level, replay, id) {
     assert.deepEqual(level.name, identities[id].name, id + ': C1 name changed');
     assert.equal(level.teaches, identities[id].teaches, id + ': C1 lesson changed');
   }
-  // 难关按形状分：高过一屏的是攀爬关
+  // 难关按形状分：高过一屏的是攀爬关。卷屏（11-26）的关顺着卷的方向可以长到 6400（往右）、4400（往上），长短 scrollRules 查
+  const scrollRight = level.scroll?.dir === 'right';
+  const scrollUp = level.scroll?.dir === 'up';
   const vertical = hard || cook ? level.h > 720 : id === 'table-04' || id === 'van-08';
-  if (vertical) {
+  if (vertical && !level.scroll) {
     assert(level.h >= 1400 && level.h <= 2200, id + ': climb height must be 1400–2200');
     assert(level.spawn.y - (level.goal.y + level.goal.h) >= 720, id + ': climb route must rise at least one screen');
-  } else assert(level.w >= 2400 && level.w <= 3600, id + ': width must be 2400–3600');
-  assert(level.w <= 3600 && level.h <= 2200, id + ': at most three screens per axis');
+  } else if (!vertical && !level.scroll) assert(level.w >= 2400 && level.w <= 3600, id + ': width must be 2400–3600');
+  assert(level.w <= (scrollRight ? 6400 : 3600) && level.h <= (scrollUp ? 4400 : 2200), id + ': at most three screens per axis (a scrolling level: 6400 wide or 4400 high along the scroll)');
   assert(level.goal.x >= level.w - 480 && level.goal.w <= 400 && level.goal.x + level.goal.w >= level.w - 160, id + ': goal must use the extended level');
   assert(level.spawn.x <= 600, id + ': spawn must retain the first-screen lesson');
   const chairs = (level.lifts ?? []).reduce((sum, l) => sum + Math.floor(Math.hypot(l.to.x - l.from.x, l.to.y - l.from.y) / Math.max(40, l.gap)) + 1, 0);
@@ -682,7 +765,9 @@ async function inspect(physics, level, replay) {
     ventRide: (laid.vents ?? []).map(() => 0), traySpills: 0, liftRide: (laid.lifts ?? []).map(() => 0), icyGrabs: laid.rects.map(() => 0),
     floatTime: (laid.zerog ?? []).map(() => 0), leverPulled: (laid.levers ?? []).map(() => false),
     // 新机关（A12）：涨潮离最低的活人最近多少、会塌的台子哪块塌过、摆锤有没有人靠近（锤心 1.5 个锤宽内）或被撞、阵风刮的时候有没有人在里面
-    tideGap: Infinity, crumbled: laid.rects.map(() => false), pendulumNear: (laid.pendulums ?? []).map(() => false), windHit: (laid.winds ?? []).map(() => 0) };
+    tideGap: Infinity, crumbled: laid.rects.map(() => false), pendulumNear: (laid.pendulums ?? []).map(() => false), windHit: (laid.winds ?? []).map(() => 0),
+    // 推大石头（11-26）：每块离开局的地方最远挪了多少；卷屏：被屏幕甩掉了几次
+    boulderMoved: (laid.boulders ?? []).map(() => 0), scrollDeaths: 0 };
   const bars = (s) => { const angle = spinnerAngle(s, sim.time); return Array.from({ length: s.arms }, (_, j) => spinnerArm(s, j, angle)); };
   const holding = (p, hit) => p.arms.some((a) => a.grip?.kind === 'terrain' && hit(a.hand, CFG.handR + CFG.grabPad));
   sim.step = (dt) => {
@@ -766,6 +851,11 @@ async function inspect(physics, level, replay) {
       if (live.some((p) => Math.hypot(p.body.x - at.x, p.body.y - at.y) <= (pd.r ?? 34) * 3 + CFG.bodyR)) evidence.pendulumNear[k] = true;
     });
     (laid.winds ?? []).forEach((w, k) => { if (physics.windState(w, sim.time).on && live.some((p) => contains(w, p.body))) evidence.windHit[k] += dt; });
+    sim.boulders.forEach((b, k) => {
+      const prop = sim.props[b.prop];
+      evidence.boulderMoved[k] = Math.max(evidence.boulderMoved[k], Math.hypot(prop.x - b.home.x, prop.y - b.home.y));
+    });
+    for (const e of sim.events) if (e.type === 'death' && e.cause === 'scroll') evidence.scrollDeaths++;
     dangers.forEach((d, k) => {
       if (evidence.near[k]) return;
       let hit;
@@ -804,7 +894,7 @@ const replay=await (await fetch('/replays/'+id)).json();
 const sim=await createSim(level,replay.players||4), canvas=document.querySelector('canvas');
 const stage=await Stage.create(canvas,{plates:{table:'/art/table-far.webp',van:'/art/van-far.webp'}});
 stage.setLevel(sim.level);stage.syncPlayers(sim);
-const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet',steam:'后厨 · 蒸笼喷汽 / Kitchen · Ride the steam',tray:'后厨 · 端托盘 / Kitchen · Carry the tray',lift:'雪山 · 坐缆车 / Snow · Ride the lift',slip:'雪山 · 冰溜子 / Snow · Icy holds',key:'老宅 · 找钥匙开门 / Old house · Find the key',dark:'老宅 · 黑屋子 / Old house · In the dark',float:'太空站 · 失重 / Space · Zero gravity',lever:'太空站 · 一起拉杆 / Space · Pull the levers together',tide:'涨潮 / Rising tide',crumble:'会塌的台子 / Crumbling platforms',pendulum:'摆锤 / Pendulums',wind:'阵风 / Gusts'};
+const lessons={crawl:'抓地爬行 / Crawl',gap:'过缝 / Cross a gap',swing:'荡过筷子 / Swing',climb:'攀爬 / Climb',rope:'面条绳索 / Rope swing',chain:'两人成链 / Form a chain',door:'夹门翻越 / Door handles',balance:'浮筒平衡 / Balance',throw:'丢队友 / Toss a teammate',ice:'雨天快抓 / Rain grips',combine:'连续机关 / Combined route',spike:'难关 · 尖刺 / Hard · Spikes',hot:'难关 · 烫手 / Hard · Hot stuff',zap:'难关 · 带电 / Hard · Live wires',mover:'难关 · 会动的台子 / Hard · Moving platforms',spinner:'难关 · 转杆 / Hard · Spinning bars',gauntlet:'难关 · 连环机关 / Hard · Gauntlet',steam:'后厨 · 蒸笼喷汽 / Kitchen · Ride the steam',tray:'后厨 · 端托盘 / Kitchen · Carry the tray',lift:'雪山 · 坐缆车 / Snow · Ride the lift',slip:'雪山 · 冰溜子 / Snow · Icy holds',key:'老宅 · 找钥匙开门 / Old house · Find the key',dark:'老宅 · 黑屋子 / Old house · In the dark',float:'太空站 · 失重 / Space · Zero gravity',lever:'太空站 · 一起拉杆 / Space · Pull the levers together',tide:'涨潮 / Rising tide',crumble:'会塌的台子 / Crumbling platforms',pendulum:'摆锤 / Pendulums',wind:'阵风 / Gusts',boulder:'推大石头 / Boulders',scroll:'卷屏 / Scrolling screen'};
 document.querySelector('h1').textContent=id+' · '+level.name.zh+' · '+level.name.en;
 document.querySelector('#lesson').textContent=lessons[level.teaches];
 const marks=document.querySelector('#marks');
@@ -1972,6 +2062,8 @@ try {
     if (main) laid.rects.forEach((r, k) => assert(r.crumble === undefined || evidence.crumbled[k], `${id}: crumbling platform ${k} at (${r.x}, ${r.y}) is never touched`));
     evidence.pendulumNear.forEach((near, k) => assert(near, `${id} (${replay.players} players): nobody passes pendulum ${k}`));
     evidence.windHit.forEach((t, k) => assert(t >= 0.5, `${id} (${replay.players} players): nobody is caught by wind ${k}`));
+    // 推大石头（11-26）：主回放里每块石头都真推过（离开局的地方至少 BOULDER_MOVE 像素）
+    if (main) evidence.boulderMoved.forEach((d, k) => assert(d >= BOULDER_MOVE, `${id}: boulder ${k} is never pushed (moved ${Math.round(d)} px, needs ${BOULDER_MOVE})`));
     return { result, evidence };
   }
   for (const id of ids) {
@@ -2077,6 +2169,8 @@ try {
       assert(start <= SAME_START, `${a.level.id} and ${b.level.id} open with the same first screen (${(start * 100).toFixed(0)}% alike)`);
     }
   }
+  // C18（11-26）：6 关长关重做的搭配（都重做了才查）
+  const c18 = c18Mix(entries);
   const sceneCounts = [];
   for (const [name, sc] of Object.entries(SCENES)) {
     const mine = sceneEntries.filter((e) => sceneOf(e.level.id) === name);
@@ -2103,6 +2197,7 @@ try {
   // 长关（A13）：有几关、各多长
   const longs = climbing.filter((e) => e.level.long);
   console.log(`long: ${longs.length} long levels${longs.length ? ` (${longs.map((e) => `${e.level.id} ${Math.round(routeLength(e.level))} px`).join(', ')})` : ''}`);
+  console.log(`boulder/scroll: C18 ${c18}; ${climbing.filter((e) => e.level.boulders?.length).length} with boulders, ${climbing.filter((e) => e.level.scroll).length} scrolling`);
   console.log(`levels: ${baseIds.length}/${baseIds.length} base + ${hardEntries.length}/${hardIds.length} hard + ${teamEntries.length}/6 team + ${sceneCounts.join(' + ')} + ${multiEntries.length}/9 multi PASS; geometry, materials, pads/frame, par, deaths, mechanics, machines, hazards on the route, layouts per team size, sizes, checkpoint segments, cookies/candles, red envelopes, object budgets and solo controls PASS`);
 } catch (error) {
   console.error(`levels: FAIL — ${error.message}`);
