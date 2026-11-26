@@ -47,6 +47,11 @@ export type ClientMsg =
   | { t: "again"; range?: RangeId }
   /** Host, on the result: back to round 2's cards to pick again, everyone's votes cleared. */
   | { t: "back" }
+  /**
+   * Host, in round 2: search Google again with another range (Steve, 2026-11-25). Round 1's picks
+   * stay, everyone's votes are cleared. It counts toward the table's searches (MAX_SEARCHES).
+   */
+  | { t: "research"; range: RangeId }
   /** Host, in the lobby: when the table eats (ms since epoch), or null for now. */
   | { t: "when"; at: number | null }
   /** Host, in the lobby: what the meal is for. */
@@ -177,6 +182,8 @@ export interface RoomView {
   };
   members: MemberView[];
   range: RangeId;
+  /** Google searches this table can still run (see MAX_SEARCHES). */
+  searchesLeft: number;
   /** When the table eats (ms since epoch), or null for now. */
   at: number | null;
   /** What the meal is for. */
