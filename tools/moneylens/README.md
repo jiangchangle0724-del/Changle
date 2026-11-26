@@ -123,6 +123,38 @@ await store.flush();                                   // seal what changed and 
 - `store.changes` goes up whenever anything in the store changes, from here or from the server:
   a view that remembers what it showed compares it.
 
+## A statement's way into the vault
+
+`src/app/ledger.ts` is the typed side of the store (`accounts`, `txns`, `imports`, `bookOf`) and
+the one way a statement is saved. Two steps, because the person has to see it first (IMP-6):
+
+```ts
+const shown = preview(store, statement);               // changes nothing
+// shown.account         the account it belongs to; null: the person picks (shown.candidates) or makes one
+// shown.reconciliation  whether the lines add up to the balances the file states (ACC-2)
+// shown.rows            every line: fresh, exact (the account holds it) or likely (it probably does: ask)
+// shown.rows[i].classified  what a new line would be filed under, and why (CLS-1, CLS-2)
+const saved = save(store, shown, { account: shown.account.id, alsoNew: [3] });
+await store.flush();
+await store.sync(remote);
+```
+
+- **Another account than the preview's?** Make the preview again, `preview(store, statement, id)`:
+  which lines count as held depends on the account, and `save` refuses a preview made for another
+  one (`another-account`). A new account is `{ account: { name, kind } }`, with a preview that
+  found none.
+- **All of it or none.** `save` adds the account if it is new, the new lines and a record of the
+  import, or nothing (`nothing-new`, `too-big`). They go to the server as one batch, so the same
+  holds there.
+- **`likely` lines are left out** unless the person says they are new (`alsoNew`, by their place
+  in `rows`). `exact` ones are always left out.
+- **A file that states only its closing balance** is checked against the balance the account's
+  last import ended on, when the file carries on from that import. A line missing in between
+  then shows as a mismatch.
+- **What comes out of the store is checked.** A record that is not what its kind says (written
+  by another version, or merged from two devices) is left out, not trusted.
+- A CSV layout the person confirmed is kept with the account (`layout`), for the next file.
+
 ## Any bank's file
 
 There is no list of banks: people upload the statement their own bank gives them (the operator's
