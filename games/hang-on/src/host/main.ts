@@ -20,7 +20,7 @@ import { emotePicker } from '../emote-picker';
 import { AchvRound, type AchvId, type Award } from '../achievements';
 import { achvCount, loadAchvs, renderAchvList, saveAchvs, trophyToast, unlockLines } from '../achv-ui';
 import { installReports, reportError, watchCanvas, type ReportContext } from '../report';
-import { LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
+import { levelById, LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
 import { cleanLook, DEFAULT_LOOK, GACHA, LOOK_NAMES, lockLook, randomLook, type GachaId, type Look } from '../look';
@@ -33,7 +33,8 @@ import { createSim, type GameMode, type PadInput, type Rules, type Sim, type Sim
 import { rttLevel } from '../net/latency';
 import { HostLink, openRoom, type PadPeer } from '../net/host-link';
 import { CAST_MS, CODE_RE, HOST_KEY_RE, MAX_SEATS, SNAP_MS, SNAP_RELAY_MS, STATUS_MS, type Cast, type FatalKey, type Menu, type PadCmd, type Phase, type RoomView } from '../net/protocol';
-import { encodeSnap, EventWindow } from '../net/snap';
+import { encodeSnap, EventWindow, RemoteSim } from '../net/snap';
+import { Highlights, momentOf, SNAP_EVERY, type Clip } from './highlights';
 import { bindControls } from '../pad/controls';
 import { drawLook } from '../pad/look-preview';
 import { PLATES } from '../render/plates';
@@ -296,6 +297,89 @@ function goNext(): void {
   levelIndexOf.set(slot(), 0);
   relist(true);
 }
+// ---------------------------------------------------------------- 精彩回放（11-26）
+
+const highlights = new Highlights();
+/** 上一张录在局里第几秒、快照的序号、两张之间出的事（跟着下一张走）和它们的编号。 */
+let hlAt = -Infinity;
+let hlSeq = 0;
+let hlK = 0;
+let hlEvents: SimEvent[] = [];
+/** 慢放：原速的几成。 */
+const REPLAY_SPEED = 0.6;
+/** 正在放的：用手机局那一套（RemoteSim）把录下的快照一张张喂进去。 */
+let replay: { view: RemoteSim; clip: Clip; start: number; next: number; t0: number; endAt: number } | null = null;
+
+function resetHighlights(): void {
+  highlights.reset();
+  hlAt = -Infinity;
+  hlEvents = [];
+}
+
+/** 玩的时候每一步调：攒着这一步出的事，到了 0.05 秒录一张。 */
+function recordHighlight(): void {
+  hlEvents.push(...sim.events);
+  if (sim.time - hlAt < SNAP_EVERY) return;
+  highlights.push(sim.time, encodeSnap(sim, hlSeq++, { k: hlK, list: hlEvents }));
+  hlK += hlEvents.length;
+  hlEvents = [];
+  hlAt = sim.time;
+}
+
+/** 结算页上点了：盖住结算页，左上角写「⏪ 精彩回放 · 阿一 松手了」，慢放那一段。 */
+function playReplay(): void {
+  const clip = highlights.best;
+  if (!clip || phase !== 'results' || replay) return;
+  const view = new RemoteSim((id) => levelById(id), sim.level);
+  view.rules = sim.rules;
+  const t0 = (clip.snaps[0] as { t: number }).t;
+  const last = (clip.snaps[clip.snaps.length - 1] as { t: number }).t;
+  const now = performance.now();
+  replay = { view, clip, start: now, next: 0, t0, endAt: now + ((last - t0) / REPLAY_SPEED) * 1000 + 700 };
+  $('results').hidden = true;
+  const badge = $('replayBadge');
+  badge.hidden = false;
+  badge.textContent = replayLabel(clip);
+  $('replaySkip').hidden = false;
+  menuDirty = true;
+}
+
+function replayLabel(clip: Clip): string {
+  return tr(`⏪ 精彩回放 · ${clip.moment.zh}`, `⏪ Replay · ${clip.moment.en}`);
+}
+
+/** 放一帧：到点的快照喂进去（里面的事照样出声、出特效），匀好，画。放完了回结算页。 */
+function drawReplay(now: number, dt: number): void {
+  const r = replay;
+  if (!r) return;
+  const elapsed = ((now - r.start) / 1000) * REPLAY_SPEED;
+  while (r.next < r.clip.snaps.length && (r.clip.snaps[r.next] as { t: number }).t - r.t0 <= elapsed) {
+    const first = r.next === 0;
+    const evs = r.view.apply((r.clip.snaps[r.next] as { s: Parameters<RemoteSim['apply']>[0] }).s, now);
+    if (first) stage.syncPlayers(r.view);
+    if (evs.length) {
+      stage.handleEvents(r.view, evs);
+      sfx.handleEvents(r.view, heard(evs));
+    }
+    r.next++;
+  }
+  r.view.advance(now);
+  stage.updateCamera(r.view, dt);
+  stage.draw(r.view, dt);
+  if (now >= r.endAt) endReplay();
+}
+
+/** 不放了（放完了、点了跳过、换阶段）：结算页回来，画面换回这一局。 */
+function endReplay(): void {
+  if (!replay) return;
+  replay = null;
+  $('replayBadge').hidden = true;
+  $('replaySkip').hidden = true;
+  $('results').hidden = phase !== 'results';
+  stage.syncPlayers(sim);
+  menuDirty = true;
+}
+
 // ---------------------------------------------------------------- 红包雨（11-26，彩蛋小游戏）
 
 /** 红包雨之前在玩什么（玩法、第几关），下完了回去接着玩。 */
@@ -584,6 +668,10 @@ $('fatalTableBtn').addEventListener('click', () => backToTable(false));
 function onPhase(next: Phase): void {
   const prev = phase;
   phase = next;
+  // 精彩回放（11-26）：换阶段就不放了；新的一局重新录，一局完了收下还在录的
+  endReplay();
+  if (next === 'countdown') resetHighlights();
+  if (next === 'results') highlights.close();
   $('lobby').hidden = next !== 'lobby';
   $('countdown').hidden = next !== 'countdown';
   $('results').hidden = next !== 'results';
@@ -784,6 +872,10 @@ function showResults(): void {
   // 红包雨（11-26）：彩蛋只下一次，不能再来；这一关红包全拿到了才出「彩蛋：红包雨」
   $('againBtn').hidden = mode === 'rain';
   $('rainBtn').hidden = !rainReady();
+  // 精彩回放（11-26）：这一局录下了一段才有
+  const hl = highlights.best;
+  $('replayBtn').hidden = !hl;
+  if (hl) $('replayBtn').textContent = tr(`▶ 精彩回放：${hl.moment.zh}`, `▶ Replay: ${hl.moment.en}`);
   // 电视局：手机上也能选下一步（电视那边可以不碰）
   $('padHint').hidden = phoneMode;
   $('padHint').textContent = tr('手机上按「下一关」「再来一次」「回大厅」都行', 'Anyone can pick Next, Again or Lobby on their phone');
@@ -803,6 +895,8 @@ $('nextBtn').addEventListener('click', () => {
   link?.act({ type: 'START' });
 });
 $('rainBtn').addEventListener('click', startRain);
+$('replayBtn').addEventListener('click', playReplay);
+$('replaySkip').addEventListener('click', endReplay);
 // 表情（11-25）：这台设备上玩的人（手机局的房主、电视局里键盘加入的）顶栏的 😀
 emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => {
   const i = localIndex();
@@ -1437,6 +1531,7 @@ function renderAll(): void {
   if (lastFatal) $('fatalLine').textContent = fatalLine(lastFatal);
   if (phase === 'results') showResults();
   if (phase === 'countdown') $('countLevel').textContent = countLabel();
+  if (replay) $('replayBadge').textContent = replayLabel(replay.clip);
   syncPlayers();
 }
 onLang(renderAll);
@@ -1605,6 +1700,9 @@ function onEvents(): void {
   for (const ev of sim.events) {
     // 成就（11-25）：松手、召唤、接住、红包、道具、被撞晕、掉进汤里
     award(roundNow().onEvent(ev));
+    // 精彩回放（11-26）：值得回放的事记一下，从事前 3 秒录到事后 1.5 秒
+    const hm = momentOf(ev, sim.time, name);
+    if (hm) highlights.mark(hm);
     if (ev.type === 'win' && sim.rules.mode === 'gold') {
       goldWin(ev.who?.[0]);
       continue;
@@ -1728,6 +1826,8 @@ function menuFor(): Menu {
     gacha: { coins: coins(gacha, envelopeTotal()), price: GACHA_PRICE, got: gacha.got, left: leftToWin(gacha) },
     ...(mode === 'climb' || mode === 'team' ? { escort: escortOn } : {}),
     ...(rainReady() ? { rain: true } : {}),
+    // 精彩回放在电视上放（手机局里只有房主的手机放，别的手机不出这个键）
+    ...(phase === 'results' && !phoneMode && highlights.best ? { replay: { zh: highlights.best.moment.zh, en: highlights.best.moment.en } } : {}),
   };
 }
 
@@ -1752,6 +1852,9 @@ function runCmd(c: PadCmd): void {
       break;
     case 'rain':
       startRain();
+      break;
+    case 'replay':
+      playReplay();
       break;
     case 'lobby':
       if (phase === 'lobby') return;
@@ -1872,6 +1975,7 @@ function frameBody(now: number): void {
       tension.events(sim.events);
       if (phoneMode) recent.push(sim.events);
       onEvents();
+      recordHighlight();
       acc -= DT;
     }
     // 背景音乐跟着局面紧张起来（有人一只手挂在深坑上、贴着要命的东西、在往下掉、快到了）
@@ -1885,7 +1989,8 @@ function frameBody(now: number): void {
     renderButtons();
   }
   broadcast(now);
-  if (renderOn) {
+  if (renderOn && replay) drawReplay(now, dt);
+  else if (renderOn) {
     stage.updateCamera(sim, dt);
     stage.draw(sim, dt);
   }

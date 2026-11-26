@@ -295,6 +295,15 @@
   .row2 { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin-top: 8px; }
   /* 红包雨（11-26）的彩蛋键：金色，一眼看得到 */
   #rainBtn { background: #f6c453; color: var(--card-ink); }
+  /* 精彩回放（11-26）：慢放的时候画面四周压暗一圈（像录像），左上角一块牌子，底下一个跳过 */
+  .replay-badge { position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 27; background: var(--bad); color: var(--card-ink); font-weight: 800; font-size: 22px;
+    padding: 8px 18px; border-radius: 999px; box-shadow: 0 6px 18px rgba(0,0,0,.35); pointer-events: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  .replay-badge::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--card-ink); margin-right: 10px; vertical-align: middle; animation: rec-blink 1s steps(2, start) infinite; }
+  @keyframes rec-blink { to { visibility: hidden; } }
+  .replay-skip { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); z-index: 27; }
+  /* 手机局：右上角一排键，牌子放在它们底下 */
+  body.phone .replay-badge { top: calc(62px + env(safe-area-inset-top, 0px)); font-size: 15px; padding: 6px 14px; }
+  @media (prefers-reduced-motion: reduce) { .replay-badge::before { animation: none; } }
   #escortBtn[aria-pressed="true"] { background: #f6c453; color: var(--card-ink); }
   .row2:not(:has(> :not([hidden]))) { display: none; }
   :is(body.phone, body.short) :is(#lobby, #results) .card .row { position: sticky; bottom: 0; z-index: 1; margin: 0 0 -6px; padding: 10px 0 max(6px, env(safe-area-inset-bottom, 0px));
@@ -414,13 +423,16 @@
       <ul id="betrayList"></ul>
       <p id="betrayNone" style="opacity:.6;font-size:13px;margin:6px 0 0" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
       <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button>
-        <button class="btn" id="rainBtn" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
+        <button class="btn" id="rainBtn" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button><button class="btn quiet" id="replayBtn" type="button" hidden>▶ 精彩回放</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
       <p class="padhint" id="padHint" hidden></p>
     </div>
   </div>
 </div>
 
 <div class="banner" id="banner" aria-live="polite"></div>
+<!-- 精彩回放（11-26）：慢放的时候左上角写是什么事，底下一个「跳过」 -->
+<div class="replay-badge" id="replayBadge" hidden></div>
+<button class="btn replay-skip" id="replaySkip" type="button" hidden data-en="Skip">跳过</button>
 <!-- 成就（11-25）：谁解锁了什么，冒在底下 -->
 <div class="trophies" id="trophies" aria-live="polite"></div>
 <!-- 红包扭蛋机（11-25）：攒的红包扭新的帽子、眼镜、脸、袖子、嗓子 -->

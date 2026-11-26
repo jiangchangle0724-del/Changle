@@ -593,6 +593,10 @@ function renderMenu(): void {
   }
   // 红包雨（11-26）：这一关红包全拿到了，结算页多一个「彩蛋：红包雨」
   for (const id of ['mRain', 'vRain']) $(id).hidden = !m.rain;
+  // 精彩回放（11-26，电视局）：这一局录下了一段，点了在电视上慢放
+  const rp = $('mReplay');
+  rp.hidden = !m.replay;
+  if (m.replay) rp.textContent = tr(`▶ 精彩回放：${m.replay.zh}`, `▶ Replay: ${m.replay.en}`);
 }
 $('mPrev').addEventListener('click', () => send({ do: 'level', d: -1 }));
 $('mNext').addEventListener('click', () => send({ do: 'level', d: 1 }));
@@ -603,6 +607,7 @@ for (const pre of ['m', 'v']) {
   $(`${pre}ToLobby`).addEventListener('click', () => send({ do: 'lobby' }));
   $(`${pre}Rain`).addEventListener('click', () => send({ do: 'rain' }));
 }
+$('mReplay').addEventListener('click', () => send({ do: 'replay' }));
 // 联机桌（A15）：回桌子。加入那页按一下就走；玩的时候顶栏那个按两下（第一下变红，3 秒内再按一下），这局照玩
 $('tableBtn').hidden = $('tableBtn2').hidden = !tableNo;
 $('tableBtn').addEventListener('click', () => backToTable());
