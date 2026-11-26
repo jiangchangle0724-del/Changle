@@ -84,6 +84,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
+- 2026-11-26 What's On: a name kept in English may be long; the log says why answers were turned down
 - 2026-11-26 What's On: the answers turned down get their tries again; a team's season package isn't an event
 - 2026-11-26 What's On: a school's game called professional, or hockey called field hockey, put right rather than asked again
 - 2026-11-26 What's On: the Chinese in simplified characters, hockey on ice, no school's game called professional (v4)
@@ -188,3 +189,4 @@
 - 2026-11-26 16:05 UTC：Gemma 4 这回答了，19 步写了 258 个里的 248 个，没轮到 Qwen 3.8；清单 796 个里 785 个有中文。抽查：大多像样（《胡桃夹子》《第十二夜》、「珠宝节日快闪店」），但有繁体字（「對陣」）、把 UBC 女子冰球写成「曲棍球」、把大学和青少年冰球写成「职业冰球比赛」（提示词里的例子就是「职业冰球比赛」）。v4 修这三样，全部重写一遍（约 54 次请求，免费额度内）。
 - 2026-11-26 v4 重写完了：17:05 写了 450 个里的 426 个，18:05 130 个里的 111 个，没有报错（额度够），全是 Gemma 答的。清单 796 个里 780 个有中文，繁体字 0、冰球写成曲棍球 0。剩 16 个没中文：新答案没通过检查，旧的按规矩先拿掉了，下一小时再问（每个最多三次）。其中一部分是我加的「职业」规则太宽：「职业」也是 career 的意思（VPL 的 Ask a Career Counsellor 写成「职业顾问」被拒了），青少年冰球（Richmond Sockeyes、Spruce Kings）模型照样写「职业」也被拒。改成：「职业」后面跟着球类、比赛、联赛、运动员这类词，来源又没提职业联赛，就把「职业」两个字删掉；Hockey 被写成曲棍球的直接改成冰球（长曲棍球不动）。不再因为这两样拒掉整个答案。另外：Showpass 上 TWU 主场卖票的 UBC 比赛（「TWU vs. UBC (Women's Hockey)」等）和 UBC 雷鸟队来源的同一场重复，等 A4 去重。
 - 2026-11-26 19:05 UTC：只问了 5 个（写成 4 个），剩 11 个还是没中文：它们的三次机会在 17:05 那一轮里就用完了（一轮补写里同一个活动失败后会在下一小步再被问），用的还是没改的检查。迁移 0008 把被拒过的活动的次数清零（只动次数），下一小时用新检查再问。顺手：Showpass 上「Richmond Sockeyes Season Packages」这种球队季票、flex pack 不算活动。
+- 2026-11-26 20:05 UTC：问了 10 个，写成 3 个（Ask a Career Counsellor 有了：「咨询职业顾问」），796 个里 788 个有中文。剩下 8 个（两场 UBC 女排、Spruce Kings、Richmond Sockeyes v. Ridge Meadows、K-1 踢拳、Father Funk、LIGHTNING TEMPLE WIZARDS、Don't Tell）多半是名字太长：保留英文的队名、艺人名本身就长，「Coquitlam Express 对阵 Prince George Spruce Kings」45 个字符，过了 40 的上限。改成整个名字不超过 70、其中汉字不超过 24（提示词要求 20 个字以内）。拒掉的原因以后写进日志的 note（「3 not usable (long name 2, praise 1)」），不用再猜。迁移 0009 再清零一次次数。
