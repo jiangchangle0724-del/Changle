@@ -95,7 +95,8 @@ button.rg-back:active {
 .rg-top .rg-draw {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  padding-right: 12px;
   transition: background var(--dur-exit), color var(--dur-exit);
 }
 .rg-top.is-armed .rg-draw {
@@ -116,8 +117,8 @@ button.rg-back:active {
     translate: 0 3px;
   }
 }
-.rg-back svg,
-.rg-face svg {
+.rg-back > svg,
+.rg-face > svg {
   display: block;
   width: 100%;
   height: 100%;
