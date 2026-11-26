@@ -1,6 +1,6 @@
 # 任务卡 ho-C19 · 四个节日关：圣诞、春节、万圣节、中秋
 
-**负责**：Codex　**审查**：Claude Code　**分支**：先 `codex/ho-c19-fest-xmas`（只放圣诞关），再 `codex/ho-c19-fest-levels`（另外三关）　**前提**：节日关的机制（A27，#PR）已合并，先把 main 合进分支。
+**负责**：Codex　**审查**：Claude Code　**分支**：先 `codex/ho-c19-fest-xmas`（只放圣诞关），再 `codex/ho-c19-fest-levels`（另外三关）　**前提**：节日关的机制（A27，#820）已合并，先把 main 合进分支。
 
 ## 为什么
 
