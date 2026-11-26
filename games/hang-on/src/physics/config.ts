@@ -169,6 +169,14 @@ export const CFG = {
   goldHold: 5,
   goldRounds: 5,
   ingotBack: 1,
+  /**
+   * 红包雨（11-26，彩蛋小游戏）：下多久（秒）；隔多久掉一个（秒，加一点随机）；往下掉多快（像素/秒，加一点随机）；
+   * 身体、手离红包多近算接到（像素，各自的半径再加这么多）。
+   */
+  rainTime: 40,
+  rainGap: 0.3,
+  rainFall: 95,
+  rainReach: 14,
   /** 踩板门（11-13）：门每秒挪多少像素，没人踩了还开着几秒，踏板上面多高以内算压着。 */
   gateSpeed: 260,
   gateHold: 0.4,

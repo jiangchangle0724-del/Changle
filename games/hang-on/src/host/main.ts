@@ -283,7 +283,7 @@ function followCount(): void {
 /** 这一边能选的玩法（大团队要有大关）。 */
 const modesNow = (): GameMode[] => SIDE_MODES[side].filter((m) => m !== 'team' || TEAM_LEVELS.length > 0);
 /** 结算页有没有「下一关」：这一档还有，或者这一档打完了接着下一档。 */
-const hasNext = (): boolean => levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2);
+const hasNext = (): boolean => mode === 'rain' || levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2);
 /** 下一关：这一档的下一关；这一档打完了是下一档的第一关。 */
 function goNext(): void {
   if (levelIndex < listNow().length - 1) {
@@ -296,6 +296,47 @@ function goNext(): void {
   levelIndexOf.set(slot(), 0);
   relist(true);
 }
+// ---------------------------------------------------------------- 红包雨（11-26，彩蛋小游戏）
+
+/** 红包雨之前在玩什么（玩法、第几关），下完了回去接着玩。 */
+let rainFrom: { mode: GameMode; levelIndex: number } | null = null;
+
+/** 这一关（闯关、大团队）的红包这一局全拿到了：结算页出「彩蛋：红包雨」。 */
+function rainReady(): boolean {
+  const e = lastGoals?.envelopes;
+  return phase === 'results' && (mode === 'climb' || mode === 'team') && !!e && e.of > 0 && e.got >= e.of;
+}
+
+/** 进彩蛋：记下在玩什么，换成红包雨（抢元宝的场地，跟着这一关的世界挑），直接倒数开局。 */
+function startRain(): void {
+  if (!rainReady()) return;
+  rainFrom = { mode, levelIndex };
+  const world = level.world;
+  mode = 'rain';
+  const list = listNow();
+  levelIndex = Math.max(0, list.findIndex((l) => l.world === world));
+  level = list[levelIndex] as Level;
+  renderModes();
+  renderLevel();
+  menuDirty = true;
+  castDirty = true;
+  banner(tr('🧧 找到彩蛋了：红包雨！', '🧧 You found a secret: envelope rain!'));
+  link?.act({ type: 'START' });
+}
+
+/** 红包雨完了：换回原来的玩法和那一关（「接着闯关」再往下走一关）。 */
+function endRain(): void {
+  if (!rainFrom) return;
+  mode = rainFrom.mode;
+  levelIndex = rainFrom.levelIndex;
+  level = listNow()[levelIndex] as Level;
+  rainFrom = null;
+  renderModes();
+  renderLevel();
+  menuDirty = true;
+  castDirty = true;
+}
+
 /** 护送大元宝（11-26）：大厅里开关，开了重摆这一关（起点放一个大元宝）。 */
 let escortOn = false;
 function setEscort(on: boolean): void {
@@ -555,7 +596,9 @@ function onPhase(next: Phase): void {
   // 坐不住：数还有几个人挂着，不数摔了几次
   $('deathChip').hidden = !playing || mode === 'last';
   $('aliveChip').hidden = !playing || mode !== 'last';
-  $('goldChip').hidden = !playing || mode !== 'gold';
+  $('goldChip').hidden = !playing || (mode !== 'gold' && mode !== 'rain');
+  // 红包雨借抢元宝的比分条，前面不要元宝
+  $('goldIcon').hidden = mode === 'rain';
   // 底下那条说明只在大厅里有用，玩的时候别挡着画面
   $('note').hidden = next !== 'lobby';
   // 手机局：倒数和玩的时候房主的摇杆、抓键压在画面上；页面的样式（横过来的提示）按阶段走
@@ -563,6 +606,8 @@ function onPhase(next: Phase): void {
   document.body.dataset.phase = next;
   castDirty = true;
   menuDirty = true;
+  // 红包雨（11-26）完了回大厅：先换回闯关
+  if (next === 'lobby' && mode === 'rain') endRain();
   if (next === 'lobby') void resetSim();
   // 从结算页直接开下一关（或再来一次）：大厅那步的重置没走，在这里换上新的一局
   // 结算页的「再来一次」「下一关」从头开；从大厅开局时人数和摆关卡时不一样也重摆
@@ -734,8 +779,11 @@ function showResults(): void {
   renderResults(resultsDom, fullResults(), name, (i) => sim.players[i]?.color ?? '#fff', level.par?.seconds);
   const next = $<HTMLButtonElement>('nextBtn');
   next.hidden = !hasNext();
-  next.textContent = mode === 'last' || mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
+  next.textContent = mode === 'rain' ? tr('接着闯关', 'Back to climbing') : mode === 'last' || mode === 'gold' ? tr('换个场地', 'Next arena') : tr('下一关', 'Next level');
   $('againBtn').textContent = mode === 'climb' || mode === 'team' ? tr('再来一次', 'Play again') : tr('再来一局', 'Rematch');
+  // 红包雨（11-26）：彩蛋只下一次，不能再来；这一关红包全拿到了才出「彩蛋：红包雨」
+  $('againBtn').hidden = mode === 'rain';
+  $('rainBtn').hidden = !rainReady();
   // 电视局：手机上也能选下一步（电视那边可以不碰）
   $('padHint').hidden = phoneMode;
   $('padHint').textContent = tr('手机上按「下一关」「再来一次」「回大厅」都行', 'Anyone can pick Next, Again or Lobby on their phone');
@@ -749,9 +797,12 @@ $('startBtn').addEventListener('click', () => {
 // 结算页：再来一次、下一关都直接倒数开局；要换人、换关走顶栏的「回大厅」
 $('againBtn').addEventListener('click', () => link?.act({ type: 'START' }));
 $('nextBtn').addEventListener('click', () => {
+  // 红包雨下完了：换回闯关，接着下一关
+  if (mode === 'rain') endRain();
   goNext();
   link?.act({ type: 'START' });
 });
+$('rainBtn').addEventListener('click', startRain);
 // 表情（11-25）：这台设备上玩的人（手机局的房主、电视局里键盘加入的）顶栏的 😀
 emotePicker($<HTMLButtonElement>('emoteBtn'), (e) => {
   const i = localIndex();
@@ -1558,6 +1609,12 @@ function onEvents(): void {
       goldWin(ev.who?.[0]);
       continue;
     }
+    if (ev.type === 'win' && sim.rain) {
+      // 红包雨（11-26）：接到的都放进扭蛋机
+      gacha = { ...gacha, bonus: (gacha.bonus ?? 0) + sim.rain.caught.reduce((s, n) => s + n, 0) };
+      saveGacha(gacha);
+      renderGachaBtn();
+    }
     if (ev.type === 'win') {
       music.win();
       scoreGoals();
@@ -1670,6 +1727,7 @@ function menuFor(): Menu {
       : {}),
     gacha: { coins: coins(gacha, envelopeTotal()), price: GACHA_PRICE, got: gacha.got, left: leftToWin(gacha) },
     ...(mode === 'climb' || mode === 'team' ? { escort: escortOn } : {}),
+    ...(rainReady() ? { rain: true } : {}),
   };
 }
 
@@ -1683,13 +1741,17 @@ function runCmd(c: PadCmd): void {
       link?.act({ type: 'START' });
       break;
     case 'again':
-      if (phase !== 'results') return;
+      if (phase !== 'results' || mode === 'rain') return;
       link?.act({ type: 'START' });
       break;
     case 'next':
       if (phase !== 'results' || !hasNext()) return;
+      if (mode === 'rain') endRain();
       goNext();
       link?.act({ type: 'START' });
+      break;
+    case 'rain':
+      startRain();
       break;
     case 'lobby':
       if (phase === 'lobby') return;
@@ -1834,6 +1896,10 @@ function frameBody(now: number): void {
   // 抢金元宝（A9d）：第几局、比分
   if (mode === 'gold' && phase === 'playing') {
     renderGoldScore($('goldScore'), goldRound, goldWins(), name, (i) => sim.players[i]?.color ?? '#fff');
+  }
+  // 红包雨（11-26）：还剩几秒、每个人接到几个
+  if (mode === 'rain' && phase === 'playing' && sim.rain) {
+    renderGoldScore($('goldScore'), 0, sim.rain.caught.slice(0, sim.players.length), name, (i) => sim.players[i]?.color ?? '#fff', tr(`🧧 还剩 ${Math.ceil(sim.rain.left)} 秒`, `🧧 ${Math.ceil(sim.rain.left)} s left`));
   }
   // 红包（A9b）：这一局拿到几个了
   const envN = sim.envelopes.length;

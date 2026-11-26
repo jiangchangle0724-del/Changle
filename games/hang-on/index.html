@@ -293,6 +293,8 @@
    */
   body.quiet-note #lobby { padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
   .row2 { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin-top: 8px; }
+  /* 红包雨（11-26）的彩蛋键：金色，一眼看得到 */
+  #rainBtn { background: #f6c453; color: var(--card-ink); }
   #escortBtn[aria-pressed="true"] { background: #f6c453; color: var(--card-ink); }
   .row2:not(:has(> :not([hidden]))) { display: none; }
   :is(body.phone, body.short) :is(#lobby, #results) .card .row { position: sticky; bottom: 0; z-index: 1; margin: 0 0 -6px; padding: 10px 0 max(6px, env(safe-area-inset-bottom, 0px));
@@ -346,7 +348,7 @@
     <span class="chip" id="deathChip" hidden>💀 <b id="deaths">0</b></span>
     <span class="chip" id="envChip" hidden title="红包" data-en-title="Red envelopes">🧧 <b id="envs">0</b></span>
     <span class="chip" id="aliveChip" hidden title="还挂着的" data-en-title="Still hanging">🙋 <b id="alive">0</b></span>
-    <span class="chip" id="goldChip" hidden title="抢元宝的比分" data-en-title="Gold score">🪙 <span id="goldScore"></span></span>
+    <span class="chip" id="goldChip" hidden title="抢元宝的比分" data-en-title="Gold score"><span id="goldIcon" aria-hidden="true">🪙 </span><span id="goldScore"></span></span>
     <button class="btn quiet emo" id="emoteBtn" type="button" hidden aria-label="表情" data-en-label="Emotes">😀</button>
     <button class="btn quiet emo" id="fartBtn" type="button" hidden aria-label="放屁" data-en-label="Toot">💨</button>
     <button class="btn quiet" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
@@ -411,7 +413,8 @@
       <h3 id="betrayTitle" data-en="Betrayals">背叛榜</h3>
       <ul id="betrayList"></ul>
       <p id="betrayNone" style="opacity:.6;font-size:13px;margin:6px 0 0" data-en="Nobody dropped anybody. Good team.">没人松手害人，好队友。</p>
-      <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
+      <div class="row"><button class="btn" id="nextBtn" type="button">下一关</button>
+        <button class="btn" id="rainBtn" type="button" hidden data-en="🧧 Secret: envelope rain!">🧧 彩蛋：红包雨！</button><button class="btn quiet" id="againBtn" type="button">再来一次</button></div>
       <p class="padhint" id="padHint" hidden></p>
     </div>
   </div>

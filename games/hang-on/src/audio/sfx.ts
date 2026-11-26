@@ -205,6 +205,15 @@ class Sfx {
           this.tone({ freq: 2640, wave: 'sine', dur: 0.25, vol: 0.08, pan, delay: 0.08 });
           break;
         }
+        case 'raincatch': {
+          // 红包雨（11-26）：接到一个叮一声，短一点（一会儿接好多个，不能太吵），每个人音高差一点
+          if (!this.throttle(`rain${ev.player}`, 0.06)) break;
+          const pan = this.pan(ev.x, ev.y);
+          const f = 1320 * (1 + (ev.player % 6) * 0.05);
+          this.tone({ freq: f, wave: 'triangle', dur: 0.08, vol: 0.18, pan });
+          this.tone({ freq: f * 1.33, wave: 'triangle', dur: 0.14, vol: 0.14, pan, delay: 0.05 });
+          break;
+        }
         case 'gold': {
           // 抢金元宝（A9d）：抓住叮当一声；每攒一秒响一下，越来越高；元宝回到中间呼一声
           const pan = this.pan(ev.x, ev.y);
@@ -708,8 +717,9 @@ export function heardBy(ev: SimEvent, me: number): boolean {
     case 'fart':
     case 'achv':
       return true;
-    // 红包是大家的
+    // 红包是大家的（红包雨也是）
     case 'envelope':
+    case 'raincatch':
       return true;
     default:
       return !('player' in ev) || ev.player === me;

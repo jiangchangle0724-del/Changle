@@ -259,8 +259,10 @@ export type DeathCause = 'fall' | 'spike' | 'hot' | 'zap' | 'tide';
  * - race 比谁先：各跑各的（或者分两队），先到终点的赢；每个人（每队）有自己的检查点，到了终点就停在那。
  * - last 坐不住：摔了不复活，平台一块块塌，一个地方抓久了手会滑，最后还挂着的赢。
  * - gold 抢金元宝（A9d）：场地中间一个金元宝，抓在手里（只有你一个人抓着）攒够 CFG.goldHold 秒赢一局；摔了回自己那边。
+ * - rain 红包雨（11-26，彩蛋小游戏）：大厅里选不到。闯关、大团队一关的红包全拿到了，结算页出「彩蛋：红包雨」；
+ *   抢元宝的场地上天上掉红包，40 秒，身体或手碰到就算接到，接得多的赢；摔了回自己那边。
  */
-export type GameMode = 'climb' | 'team' | 'race' | 'last' | 'gold';
+export type GameMode = 'climb' | 'team' | 'race' | 'last' | 'gold' | 'rain';
 export interface Rules {
   mode: GameMode;
   /** 比谁先分两队时：每个人在第几队（0 或 1）。不写就是各跑各的。 */
@@ -335,6 +337,8 @@ export type SimEvent =
   | { type: 'tray'; phase: 'spill' | 'back' | 'home'; x: number; y: number }
   /** 护送大元宝（11-26）：扛着的时候掉了，回到它到过的检查点（back）；送进终点（home）。 */
   | { type: 'escort'; phase: 'back' | 'home'; x: number; y: number }
+  /** 红包雨（11-26）：谁接到一个（x、y 是在哪接到的）。 */
+  | { type: 'raincatch'; player: number; x: number; y: number }
   /**
    * 老宅找钥匙（A10）：第几把钥匙头一回被人抓住（found）、开了门（unlock，x、y 是门的中间）、掉了回到存档的地方（back）；
    * 有人碰着它那扇锁着的门、钥匙还没开（locked，隔 CFG.lockedHint 秒报一次，x、y 是门的中间）。
@@ -458,6 +462,11 @@ export class Sim {
    */
   readonly keys: { prop: number; gate: number; found: boolean; used: boolean; cp: number; lostT: number; home: Pt }[] = [];
   readonly lanterns: { prop: number; cp: number; lostT: number; home: Pt }[] = [];
+  /**
+   * 红包雨（11-26）：天上正在掉的红包（编号、位置、往下掉多快、左右晃的相位）、每个人接到几个、还剩几秒、下一个什么时候掉。
+   * 随机数自己带种子（同一局一样，测试好测）。
+   */
+  rain: { drops: { id: number; x: number; y: number; vy: number; ph: number }[]; caught: number[]; left: number; nextT: number; seq: number; seed: number } | null = null;
   /** 护送大元宝（11-26）：哪个物件、到过哪个检查点、掉了多久、起点、有人碰过没有、送到了没有。 */
   escort: { prop: number; cp: number; lostT: number; home: Pt; touched: boolean; done: boolean } | null = null;
   /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
@@ -563,6 +572,8 @@ export class Sim {
       (this.props[prop] as Prop).kind = 'ingot';
       this.gold = { prop, holdT: this.players.map(() => 0), need: CFG.goldHold, lostT: 0, holder: -1 };
     }
+    // 红包雨（11-26）
+    if (rules.mode === 'rain') this.rain = { drops: [], caught: this.players.map(() => 0), left: CFG.rainTime, nextT: 0.6, seq: 0, seed: 20261126 };
     // 护送大元宝（11-26）：悬在第一第二个人头顶上，开局落下来
     if (rules.escort && (rules.mode === 'climb' || rules.mode === 'team') && !level.arena) {
       const home = { x: level.spawn.x + 22, y: level.spawn.y - 80 };
@@ -1093,6 +1104,55 @@ export class Sim {
   }
 
   /**
+   * 红包雨（11-26）每一步：隔一会儿从顶上随便哪儿掉一个红包，慢慢往下飘、左右晃；活着的人身体或手碰到就接到
+   * （报 raincatch）；掉出场地的不要了。时间到了接得最多的赢（几个人一样多都算赢，一个都没接到就没人赢）。
+   */
+  private tickRain(dt: number): void {
+    const r = this.rain;
+    if (!r || this.won) return;
+    while (r.caught.length < this.players.length) r.caught.push(0);
+    const rnd = (): number => {
+      // mulberry32
+      r.seed = (r.seed + 0x6d2b79f5) | 0;
+      let t = r.seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    r.left -= dt;
+    r.nextT -= dt;
+    while (r.nextT <= 0) {
+      const w = this.level.w;
+      r.drops.push({ id: r.seq++, x: 90 + rnd() * (w - 180), y: -30, vy: CFG.rainFall * (0.8 + rnd() * 0.6), ph: rnd() * Math.PI * 2 });
+      r.nextT += CFG.rainGap * (0.7 + rnd() * 0.6);
+    }
+    const reachB = CFG.bodyR + CFG.rainReach;
+    const reachH = CFG.handR + CFG.rainReach;
+    r.drops = r.drops.filter((d) => {
+      d.y += d.vy * dt;
+      d.x += Math.sin(this.time * 2.2 + d.ph) * 34 * dt;
+      for (const p of this.players) {
+        if (p.dead) continue;
+        const near = dist(p.body, d) <= reachB || p.arms.some((a) => dist(a.hand, d) <= reachH);
+        if (!near) continue;
+        r.caught[p.id] = (r.caught[p.id] ?? 0) + 1;
+        this.events.push({ type: 'raincatch', player: p.id, x: d.x, y: d.y });
+        return false;
+      }
+      return d.y < this.level.h + 40;
+    });
+    if (r.left > 0) return;
+    r.left = 0;
+    const best = Math.max(0, ...r.caught.slice(0, this.players.length));
+    const winners = best > 0 ? this.players.filter((p) => (r.caught[p.id] ?? 0) === best).map((p) => p.id) : [];
+    this.won = true;
+    this.winT = 0;
+    this.winners = winners;
+    for (const id of winners) (this.players[id] as Player).face = 'win';
+    this.events.push({ type: 'win', who: winners });
+  }
+
+  /**
    * 蒸笼喷汽（后厨，A10）每一步：快喷了、喷了报一声；喷着的那几摞把汽柱里的身体、胳膊、箱子、托盘往上托
    * （往上的速度没到 ventLift 就加，汽柱最上面那几成越往上越弱）。冻住的人不动（钉住了）。
    */
@@ -1612,7 +1672,7 @@ export class Sim {
   /** 第 i 个玩家的复活点：最近激活的检查点，没有就是起点；几个人并排错开。 */
   private spawnPoint(i: number): Pt {
     // 抢金元宝：每个人站自己那个位置（摔了也回那）
-    const sp = this.rules.mode === 'gold' ? this.level.spawns : undefined;
+    const sp = this.rules.mode === 'gold' || this.rules.mode === 'rain' ? this.level.spawns : undefined;
     if (sp?.length) return sp[i % sp.length] as Pt;
     // 比谁先：回自己（自己那一队）到过的检查点
     const at = this.rules.mode === 'race' ? (this.cpOf[this.teamOf(i)] ?? -1) : this.checkpoint;
@@ -1836,6 +1896,7 @@ export class Sim {
     this.tickTide(dt);
     this.lifeAndDeath(dt);
     this.tickGold(dt);
+    this.tickRain(dt);
     this.acts();
     this.pickEnvelopes();
     this.checkpoints();
@@ -2000,7 +2061,7 @@ export class Sim {
       p.pendingAct = null;
       if (!act || p.dead || p.done || act !== 'summon') continue;
       // 坐不住摔了就出局；比谁先各跑各的没有队友可以拉
-      if (this.rules.mode === 'last' || this.rules.mode === 'gold' || (this.rules.mode === 'race' && !this.rules.teams)) continue;
+      if (this.rules.mode === 'last' || this.rules.mode === 'gold' || this.rules.mode === 'rain' || (this.rules.mode === 'race' && !this.rules.teams)) continue;
       const who: number[] = [];
       for (const q of this.players) {
         if (!q.dead || q.done) continue;
@@ -2670,7 +2731,7 @@ export class Sim {
     if (this.won || this.players.length === 0) return;
     if (this.rules.mode === 'race') return this.checkRace();
     if (this.rules.mode === 'last') return this.checkLast();
-    if (this.rules.mode === 'gold') return;
+    if (this.rules.mode === 'gold' || this.rules.mode === 'rain') return;
     // 端托盘的关：托盘也要端进终点（点心没翻）
     const allIn = this.players.every((p) => !p.dead && this.inGoal(p)) && (!this.tray || this.tray.home);
     if (allIn) {

@@ -189,9 +189,10 @@ export class PhoneView {
     $('vWait').hidden = this.phase !== 'lobby';
     $('vLevel').textContent = this.levelName();
     $('vCount').hidden = this.phase !== 'countdown' || !this.countTimer;
-    // 抢金元宝的比分（「第 2 局 · 阿一 1 · 阿二 0」）
+    // 抢金元宝的比分（「第 2 局 · 阿一 1 · 阿二 0」）；红包雨（11-26）每一帧自己画（frameBody）
     const gold = this.phase === 'playing' && this.cast_?.mode === 'gold' ? this.cast_.gold : undefined;
-    $('vGold').hidden = !gold;
+    $('vGold').hidden = !gold && !(this.phase === 'playing' && this.cast_?.mode === 'rain');
+    $('vGoldIcon').hidden = this.cast_?.mode === 'rain';
     if (gold) {
       const players = this.cast_?.players ?? [];
       renderGoldScore($('vGoldScore'), gold.round, gold.wins, (i) => players[i]?.name || `P${i + 1}`, (i) => players[i]?.color ?? '#fff');
@@ -223,6 +224,12 @@ export class PhoneView {
     const dt = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     this.sim.advance(now);
+    // 红包雨（11-26）：还剩几秒、每个人接到几个（快照带来的，变了才重画）
+    const rain = this.sim.rain;
+    if (rain && this.phase === 'playing') {
+      const players = this.cast_?.players ?? [];
+      renderGoldScore($('vGoldScore'), 0, rain.caught.slice(0, this.sim.players.length), (i) => players[i]?.name || `P${i + 1}`, (i) => players[i]?.color ?? '#fff', tr(`🧧 还剩 ${Math.ceil(rain.left)} 秒`, `🧧 ${Math.ceil(rain.left)} s left`));
+    }
     if (this.pending.length) {
       const evs = this.pending;
       this.pending = [];

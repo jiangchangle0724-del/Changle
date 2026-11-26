@@ -45,7 +45,7 @@ export function tierOfLevel(l: Level): Tier {
 export function levelsFor(mode: GameMode, tier?: Tier, side: Side = 'solo'): Level[] {
   if (mode === 'team') return TEAM_LEVELS;
   if (mode === 'last') return ARENAS;
-  if (mode === 'gold') return GOLD_ARENAS;
+  if (mode === 'gold' || mode === 'rain') return GOLD_ARENAS;
   if (tier === undefined) return LEVELS;
   if (mode === 'climb' && side === 'multi') {
     const multi = MULTI_LEVELS.filter((l) => tierOfLevel(l) === tier);
