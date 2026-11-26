@@ -1,4 +1,4 @@
-VERDICT: CHANGES NEEDED
+VERDICT: CHANGES NEEDED (second round; the first round said CHANGES NEEDED)
 
 Review by Codex, 21 November 2026, of assessment 0.8 and the storage layer at
 `c1cfcc64` (the tip of `claude/moneylens-vault-records` used for this work).
@@ -319,3 +319,257 @@ reviewer has looked at these changes (second round, card C4).
 
 Also in the second round's scope, because it was added to this branch after the review: the
 cache in the browser's storage, `src/web/idbcache.ts`, with `scripts/check-cache.ts`.
+
+## Second round
+
+Reviewed by Codex on 25 November 2026, at `dc47547db44d914e1c553575ff029c0e4cdfbdc2`
+on `claude/moneylens-vault-records`. This is a review of the storage prototype,
+not permission to expose, merge or deploy it. Only this review and
+`tools/moneylens/tests/second-sync.test.ts` are changed. The first-round text
+and the author's response table above are preserved.
+
+### Scope and method
+
+I read C4, the task README, the brief, assessment 1.6 and section 2, and the
+diff from `c1cfcc64` to the reviewed head. I traced `records.ts`, `sync.ts`
+and `memory.ts`, then read every line of `src/web/idbcache.ts`,
+`tests/browser/cache.entry.ts` and `scripts/check-cache.ts`. I compared the
+rewritten finding tests with both the assessment and the implementation;
+the original document-only oracle remains untouched.
+
+The added active tests cover two simultaneous settlers with the same view,
+a third copy arriving later, removal of duplicates restored from a cache,
+an endless sequence of distinct chunk ids with a flush queued behind sync,
+and missing Web Locks. Four additional tests describe the newly found
+failures below. They are committed with `{ skip: "finding N: ..." }`, as C4
+requires; these skips are findings, not evidence that those cases pass.
+All records are invented; vault keys are generated nonexportable by WebCrypto
+and are neither printed nor saved. No real financial data was used.
+
+### Disposition of the seven first-round findings
+
+| # | Second-round conclusion | Evidence and remaining boundary |
+| --- | --- | --- |
+| 1 | Resolved | The equal-changed-content branch now chooses max(t). The assessment specifies each shortcut, the overflow winner's own time, the metadata-only exception, and that a time alone is not sent. The 24,000 comparisons now assert exact equality including times. This accepts content convergence without requiring metadata-only writes. |
+| 2 | Resolved | `recount` is separate from the saved cursor; a digest mismatch requests a full traversal without first resetting the persistent position. The rollback fixture preserves the cursor, sealed chunks, records and remote state. This does not promise to undo independent local work already waiting to be flushed. |
+| 3 | Resolved | Incompatible kind changes produce `what: "kind"`, distinct from a normal field named `kind`. The winner still follows the documented merge. |
+| 4 | Partly resolved | Null envelopes, invalid discriminants, unknown refusal reasons, missing acknowledgments and the checked stale shapes now use the result protocol. Malformed pushes in these checked cases retain the sent copy. The stale validator still accepts a response that repeats an unchanged base chunk and clears retry protection: finding 9. |
+| 5 | Resolved for this prototype | One traversal has explicit page, chunk, byte and per-id repeat limits, and keeps only the latest version of each id. Repeated-id and distinct-id streams terminate; the queued-flush test exercises subsequent durable work. A never-settling `pull`/`push` promise still blocks this serialized queue. Assessment 1.6 expressly assigns request deadlines to the unbuilt network adapter, which is acceptable for this in-memory-server PR only. Before an HTTP adapter is approved, it must enforce and test deadlines/cancellation and bound an individual response before materializing it. The assessment's statement about never blocking saves must be read with that qualification. |
+| 6 | Resolved; rewrite accepted | The UTF-8 representation, separator allowance and inclusive 4,096-byte bound are now specified with a numeric example. The rewritten test checks exactly that limit and one byte beyond it. Keeping the earlier oracle's different assumption intact is correct; it remains historical evidence rather than the boundary oracle. |
+| 7 | Not resolved overall; rewrite accepted as a basic regression | The two-copy field union and explicit `doubled` report are improvements, and the rewritten test correctly asks for those new semantics. It no longer needs to demand the old whole-record choice. It is insufficient for the advertised general repair: a three-copy fold picks the wrong field (finding 8), and simultaneous settlers with different local copies lose a durably cached exclusive field against an honest server (finding 11). |
+
+### Cache and surrounding changes
+
+`save` queues the metadata, every chunk put and every drop inside one
+readwrite transaction with strict durability, and waits for completion.
+The other-vault check aborts that transaction. An IndexedDB request error
+or an uncaught exception in the success callback aborts it, rather than
+committing only the earlier queued writes. `clear` likewise uses one
+transaction. `load` reads both stores in a single transaction; its projection
+contains only ids, versions and byte copies for the Store to validate.
+The Store, rather than this adapter, is responsible for sealing and
+validating those copies. There is no path from a generated vault key or
+readable record into an ordinary Store cache save.
+
+`holdCache` uses an origin-scoped, exclusive Web Lock with `ifAvailable`.
+The callback's promise stays pending while the holder uses the cache.
+Release closes the connection before resolving that promise; page destruction
+also releases the browser-managed lock. Two cooperating holders cannot both
+receive the cache under the same name. Exported `openCache` deliberately
+bypasses that ownership check and must remain a low-level/test API, not the
+screen's way to open storage. A missing lock API or IndexedDB returns
+`unavailable`; a failed database open releases the acquired lock and also
+returns `unavailable`. A rejected lock request is incorrectly conflated with
+an occupied lock, however (finding 10).
+
+Opening a database whose stored version exceeds 1 produces a VersionError;
+the holder catches it as unavailable and does not downgrade or clear that
+database. An actual version-change notification closes this connection;
+its owner must then release/reopen rather than continue saving on a closed
+connection. No migration or transparent upgrade is approved by this review.
+
+The browser script uses a fresh browser context and synthetic contents. It
+checks the expected object-store shapes, searches stored ids/values/bytes
+for the specified plaintext markers, checks local/session storage and
+cookies, reopens the Store after closing a tab, and checks lock handoff and
+refusal of another vault. That supports its ordinary persistence and
+confidentiality claims for the exercised data. It does not inject a
+mid-save transaction failure, a denied lock request, a blocked database
+upgrade or a future layout, nor scan arbitrary browser-managed storage
+outside those APIs. The source trace supports transaction atomicity;
+the happy-path script alone is not a crash/quota/policy-failure test.
+
+The changed `remove` works for cached duplicates before sync in the added
+reopen test. `put` is safe only after correct settlement; it cannot recover
+data already dropped by settlement. Pull recounting stages server pages
+before adoption and rejects the bounded traversals without advancing the
+cursor. The latest-per-id map correctly handles a legitimate repeated
+chunk during pagination, while bounding repeats. These improvements do not
+repair the cross-chunk relocation race below.
+
+### 8. MINOR: a three-copy settlement promotes an older field's clock
+
+**Where:** `sync.ts:364` (`settle`); `records.ts:241`, `267`, `279`.
+
+**Reproduce:** enable `finding 8`. The cache has the same invented record
+in three ascending chunk ids: `{x: "invented-old"}` at 100,
+`{y: "invented-unrelated"}` at 300, and `{x: "invented-new"}` at 200.
+A change triggers settlement before editing. The fold first unions x and y
+and assigns the aggregate time 300, then uses that time to defeat the
+original x value at 200. Actual x is `invented-old`, not `invented-new`.
+
+**Cost:** this contradicts the specified later-copy-per-field choice for
+more than two copies. Deterministic chunk ordering does not make that
+choice correct. The record can be saved and sent with the wrong value.
+
+**Fix:** choose each field and kind from the original candidates, retaining
+their original comparison priority throughout this settlement rather than
+using the accumulating record clock. Specify the tie and overflow rules
+for an arbitrary number of copies and test different chunk orders. Also
+state what provenance remains available when another copy arrives after
+a previous settlement; a single aggregate time is not a per-field clock.
+
+### 9. MAJOR: an invalid stale answer can release retry protection
+
+**Where:** `sync.ts:629-650`, before `take` and the clearing of `sent`.
+
+**Reproduce:** enable `finding 9`. After syncing an anchor, add a second
+invented record to its chunk. Hold that write in transit and remove the
+second record locally while push awaits its answer. Return a purported
+stale answer containing the unchanged base chunk twice. Its ids are in the
+batch, so the current validator accepts it, although ids repeat and neither
+entry actually demonstrates a stale base. `sent` is cleared; `take` skips
+the identical old copies; sync can report success. Flush and reopen, then
+deliver the original request and sync honestly. The removed record returns.
+
+**Cost:** even a successfully flushed removal loses its protection against
+a late request. The test uses an intentionally invalid server response,
+not a forged encrypted payload or access to another person's vault. It
+exposes an unvalidated response shape; it does not imply a client can
+prove that a malicious server's otherwise valid refusal is truthful.
+
+**Fix:** reject repeated stale ids and entries that do not show a stale
+version/mark before treating the batch as refused. Keep the sent copy as
+unknown on an invalid answer. Review the complete acknowledgment/stale
+validation for membership, uniqueness and internal consistency, with
+late-delivery plus post-flush/reopen tests, rather than envelope checks only.
+
+### 10. MINOR: Web Lock errors are reported as another tab holding storage
+
+**Where:** `src/web/idbcache.ts:119-124`.
+
+**Reproduce:** enable `finding 10`. In a Node test, replace the platform
+globals temporarily so `locks.request` rejects with an invented
+SecurityError and IndexedDB is present. `holdCache` returns `taken`, not
+`unavailable`. No browser is launched by this test. A synchronous throw
+from `request` also escapes the acquisition's outer await rather than
+following the documented fallback.
+
+**Cost:** when policy disables locking, there need not be any other tab.
+The caller follows the README's instruction to do nothing on `taken`, so
+the promised memory-only fallback is never reached. No second writer is
+admitted, so this is an availability/reporting defect, not broken exclusion.
+
+**Fix:** distinguish an acquired lock, a callback with null (actually
+occupied), and an API failure. Convert both rejection and synchronous
+failure to unavailable while ensuring any acquired lock is released.
+
+### 11. MAJOR: simultaneous duplicate settlers lose an exclusive field
+
+**Where:** `sync.ts:364-381`, settlement before sending, and the removal-wins
+merge at `sync.ts:725` after another writer changes the shared holder.
+
+**Reproduce:** enable `finding 11`. The honest server holds the record in
+middle-id chunk M with field `common`. Device A's cache also holds a
+durable, offline copy in smaller chunk L with field `left`; device B's
+cache holds one in larger chunk H with field `right`. Both pull M before
+either pushes. A settles into L and removes the record from M. B settles
+into M, adding `right`, and its never-sent H is discarded as empty.
+Let A's batch commit first. B's stale M is now empty; the ordinary
+three-way removal-wins rule removes B's merged record. After both finish
+and sync again, a fresh device has `common` and `left`, but no `right`.
+Both sync promises report success. The barriers control this finite
+interleaving without timers or a dishonest server.
+
+**Cost:** a field that was durably cached before sync disappears from all
+live records and normal exports as a result of the repair itself. Choosing
+the same smallest id is insufficient when the devices know different
+sets of copies. The ordinary two-copy test and the added same-view
+concurrency test both pass; neither covers this differing-view case.
+Honest random-id collisions remain extraordinarily unlikely, but reuse
+or deliberate duplication of a known record id reaches this state. This
+does not widen one vault's authorization to another vault.
+
+**Fix before approving:** give cross-chunk settlement a protocol that
+preserves the source until its merged contents are durably acknowledged
+at the surviving destination, including when a smaller holder appears.
+Do not let ordinary record removal erase another device's in-flight
+relocation. Keep this honest-server schedule, reversed commit orders,
+cache interruption and later-third-copy schedules as regressions.
+
+### Second-round validation
+
+The available runtime was Node **24.21.0**, npm **11.19.0**. These are
+results on that runtime, not a claim of an additional Node 22 run.
+The task's sandbox could not resolve registry.npmjs.org; Steve ran the
+same installation against this isolated clone in his existing PowerShell.
+He also ran `test:page` there because the sandbox-run cache check reached
+Chrome but its localhost navigation was denied (`ERR_NETWORK_ACCESS_DENIED`).
+I read back both successful runs from his screenshots. The other commands
+below ran directly in this isolated clone. No interactive browser was opened.
+
+```text
+npm ci
+added 10 packages, and audited 11 packages in 3s
+found 0 vulnerabilities
+
+node --import tsx --test tests/second-sync.test.ts
+seed=3276808230; compared=24000; ids, kinds, fields and t all matched
+cache save cuts exercised=1,2,3; attempted cuts=1..6
+tests 23
+pass 19
+fail 0
+skipped 4
+exit 0
+
+npm run typecheck
+> moneylens@0.1.0 typecheck
+> tsc --noEmit
+exit 0
+
+npm test
+> moneylens@0.1.0 test
+> tsx --test tests/*.test.ts
+tests 245
+pass 241
+fail 0
+skipped 4
+exit 0
+
+npm run test:page
+> moneylens@0.1.0 test:page
+> npm run build && tsx scripts/check-page.ts && tsx scripts/check-cache.ts
+> moneylens@0.1.0 build
+> node scripts/build-check.mjs
+dist/moneylens-check.html: 1669 KB
+statement check page: ok
+cache in the browser: ok
+```
+
+After installation I temporarily enabled only the four new finding tests,
+ran `node --import tsx --test --test-name-pattern "finding (8|9|10|11):"
+tests/second-sync.test.ts`, and restored all four skips in a `finally`
+block. Output: **4 tests, 0 pass, 4 fail, 0 skipped** (exit 1, expected).
+The failures respectively retain `invented-old` instead of `invented-new`,
+resurrect `invented-removed-in-flight`, report `taken` instead of
+`unavailable`, and drop `invented-right`. This confirms each report with
+the installed tsx runner, independently of the earlier exploratory
+Node TypeScript-transformer run. The committed default suite stays green;
+the four explicitly skipped bugs remain reasons to withhold approval.
+
+`git diff --check` passed. I also compared the review against its original
+Git blob: apart from the requested first line, the entire preceding text
+is preserved. Only the two files allowed by C4 have changed. The target
+branch advanced to `1c75c207` during review; I checked its single added
+commit through the GitHub connection: it changes only the brief, task
+index and status, not the reviewed code, assessment or these two files.
