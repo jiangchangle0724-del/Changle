@@ -73,10 +73,15 @@ test("two phones join, vote and play a round: a tag scores, the most spotted tak
   await expect(mia.getByText("Waiting for the host to start the next round")).toBeVisible();
   await shot(steve, "phone-result");
 
-  // play again, straight into the next round
-  await steve.getByRole("button", { name: "再来一局" }).click();
-  await until(mia, (v) => v.phase === "playing" && v.round === 2);
+  // a whole match (on unless the host turns it off): the first of three places, the points so far,
+  // where it goes next; then straight into the next place
+  await expect(steve.locator(".result-round")).toHaveText("第 1/3 场结束");
+  await expect(steve.locator(".result-table .result-total").first()).toHaveText("1");
+  await expect(steve.locator(".result-next")).toContainText("下一场");
+  await steve.getByRole("button", { name: "下一场", exact: true }).click();
+  await until(mia, (v) => v.phase === "playing" && v.round === 2 && v.match?.index === 2);
   await expect(mia.locator(".controls")).toBeVisible();
+  await expect(mia.locator(".hud-what")).toContainText("Place 2 of 3");
   noErrors(steve, mia, tv);
 });
 
@@ -88,7 +93,7 @@ test("the host turns the penalty off; someone who joins mid-round watches and pl
   await expect(steve.locator(".lobby")).toBeVisible();
   await mia.goto(`/hide/r/${code}?flat=1`);
   await expect(steve.locator(".chips")).toContainText("Mia");
-  await steve.locator(".switch-row").click();
+  await steve.locator(".switch-row").filter({ hasText: "每局结束的惩罚" }).click();
   await until(mia, (v) => v.settings.penalties === false);
   await expect(mia.getByText("这桌不罚")).toBeVisible();
   await steve.getByRole("button", { name: "开始" }).click();
@@ -99,7 +104,7 @@ test("the host turns the penalty off; someone who joins mid-round watches and pl
   await until(steve, (v) => v.phase === "over", 30_000);
   await expect(steve.locator("dialog.stamp")).toHaveCount(0);
   await expect(steve.locator(".result")).toBeVisible();
-  await steve.getByRole("button", { name: "再来一局" }).click();
+  await steve.getByRole("button", { name: "下一场", exact: true }).click();
   await until(kev, (v) => v.phase === "playing" && v.round === 2 && !!v.game?.me, 25_000);
   await expect(kev.locator(".controls")).toBeVisible();
   noErrors(steve, mia, kev);

@@ -271,10 +271,10 @@ const AWARD: Record<AwardView["award"], { title: Key; why: Key }> = {
 };
 
 /** The round's nicknames, one per player at most. */
-export function Awards(props: { awards: AwardView[] }) {
+export function Awards(props: { awards: AwardView[]; label?: Key }) {
   if (!props.awards.length) return null;
   return (
-    <ul class="awards" aria-label={t("awards")}>
+    <ul class="awards" aria-label={t(props.label ?? "awards")}>
       {props.awards.map((item, index) => (
         <li key={index} class={`award${item.you ? " is-you" : ""}`} style={`--i: ${index}`}>
           <span class="award-name">{item.name}</span>

@@ -94,6 +94,8 @@ export function openPractice(lang: Lang, name: string, onMessage: (message: Serv
   const start = Date.now();
   const room = Room.create("0000", start, Math.floor(Math.random() * 0x7fffffff));
   room.st.settings.penalties = false;
+  // (practice is a place at a time: the picker chooses each one)
+  room.st.settings.match = false;
   room.join(ME, name, lang, "player", start);
   const brains: Brain[] = [];
   for (let index = 0; index < RIVALS; index++) {

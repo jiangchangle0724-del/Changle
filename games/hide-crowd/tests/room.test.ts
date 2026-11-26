@@ -100,7 +100,9 @@ test("players vote for an arena and the winning rule starts for every screen; no
   assert.equal(room.view(first, "player", 6).you.vote, "gallery");
   room.handle(first, { t: "start" }, 7);
   assert.ok(["metro", "gallery"].includes(room.view(second, "player", 8).game!.arena));
+  // (one place at a time, with nobody voting: each round goes to the next place)
   const quiet = twoPlayerRoom();
+  quiet.handle(first, { t: "match", on: false }, 9);
   const arenas: string[] = [];
   for (let round = 0; round < 5; round++) {
     quiet.handle(first, { t: "start" }, 10 + round * (MATCH_MS + 20_000));
@@ -108,6 +110,71 @@ test("players vote for an arena and the winning rule starts for every screen; no
     quiet.advance(10 + round * (MATCH_MS + 20_000) + MATCH_MS + 5_000);
   }
   assert.deepEqual(arenas, ["plaza", "metro", "gallery", "market", "plaza"]);
+});
+
+test("a match: three places in a row, the lobby's pick first, the points adding up; then a winner and its titles", () => {
+  const room = twoPlayerRoom();
+  room.join(third, "Cy", "en", "player", 3);
+  room.handle(first, { t: "vote", arena: "market" }, 4);
+  assert.equal(room.view(first, "player", 5).settings.match, true, "a match unless the host turns it off");
+  let at = 10;
+  const places: string[] = [];
+  for (let index = 1; index <= 3; index++) {
+    room.handle(first, { t: "start" }, at);
+    places.push(room.st.game!.arena);
+    assert.deepEqual(room.view(second, "player", at + 1).match, { index, of: 3 }, `place ${index} of 3 while it's on`);
+    // Ari tags Bo once a round; in the second, Cy tags Bo twice
+    tag(room, first, second, at + 20);
+    if (index === 2) {
+      for (const step of [1, 2]) {
+        room.advance(at + 20 + step * (170 + STUN_MS + 100));
+        tag(room, third, second, at + 20 + step * (170 + STUN_MS + 100));
+      }
+    }
+    at += MATCH_MS + 1_000;
+    room.advance(at);
+    const view = room.view(first, "player", at);
+    assert.equal(view.phase, "over");
+    assert.equal(view.result!.match!.index, index);
+    assert.equal(view.result!.match!.done, index === 3);
+    assert.equal(view.result!.match!.next, index === 3 ? null : room.st.match!.places[index]);
+    at += 1_000;
+  }
+  assert.equal(places[0], "market", "the lobby's pick first");
+  assert.equal(new Set(places).size, 3, "three different places");
+  const end = room.view(first, "player", at);
+  const totals = Object.fromEntries(end.players.map((player) => [player.name, player.total]));
+  assert.deepEqual(totals, { Ari: 3, Bo: 0, Cy: 2 });
+  assert.equal(end.result!.match!.winner, "Ari");
+  assert.equal(end.result!.match!.youWon, true);
+  assert.equal(room.view(third, "player", at).result!.match!.youWon, false);
+  const titles = Object.fromEntries(end.result!.match!.awards.map((item) => [item.name, item.award]));
+  assert.equal(titles.Cy, "double", "Cy's two in a row, in the second place");
+  assert.equal(titles.Bo, "punchingBag");
+  // the next start is a new match
+  room.handle(first, { t: "start" }, at);
+  assert.deepEqual(room.view(first, "player", at + 1).match, { index: 1, of: 3 });
+  assert.equal(room.view(first, "player", at + 1).players.find((player) => player.name === "Ari")!.total, 0);
+});
+
+test("one place at a time, the host's choice: no match, no totals; back to the lobby ends a match", () => {
+  const room = twoPlayerRoom();
+  room.handle(second, { t: "match", on: false }, 3);
+  assert.equal(room.view(first, "player", 4).settings.match, true, "only the host can turn it off");
+  room.handle(first, { t: "match", on: false }, 5);
+  room.handle(first, { t: "start" }, 10);
+  room.advance(10 + MATCH_MS + 1_000);
+  const view = room.view(first, "player", 10 + MATCH_MS + 1_000);
+  assert.equal(view.match, null);
+  assert.equal(view.result!.match, null);
+  assert.equal(view.players[0].total, undefined);
+  // with a match on, the lobby ends it
+  room.handle(first, { t: "match", on: true }, 10 + MATCH_MS + 2_000);
+  room.handle(first, { t: "start" }, 10 + MATCH_MS + 3_000);
+  room.advance(10 + 2 * MATCH_MS + 4_000);
+  assert.equal(room.view(first, "player", 10 + 2 * MATCH_MS + 4_000).result!.match!.index, 1);
+  room.handle(first, { t: "lobby" }, 10 + 2 * MATCH_MS + 5_000);
+  assert.equal(room.st.match, null);
 });
 
 test("the big screen sees the crowd and the scores but never who is a player", () => {

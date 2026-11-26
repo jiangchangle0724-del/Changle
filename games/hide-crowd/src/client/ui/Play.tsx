@@ -195,7 +195,10 @@ export function Play(props: {
         <IconButton icon="more" label={t("menu")} onClick={props.onMenu} class="hud-btn" />
         <div class="hud-what">
           <strong>{t(game.arena)}</strong>
-          <span>{t("firstTo", { n: game.scoreToWin })}</span>
+          <span>
+            {t("firstTo", { n: game.scoreToWin })}
+            {view.match && ` · ${t("matchPlace", { i: view.match.index, n: view.match.of })}`}
+          </span>
         </div>
         <div class={`hud-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
           {clockText(game.phase === "playing" ? seconds : 0)}
