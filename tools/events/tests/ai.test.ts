@@ -14,6 +14,7 @@ import {
   labelsOf,
   catchUp,
   grounded,
+  simplified,
   messages,
   readAnswer,
   settle,
@@ -192,6 +193,25 @@ describe("reading the answer", () => {
 describe("what it may say", () => {
   const e = { id: "x", title: "Saliah in Vancouver", venue: "Celebrities Nightclub", description: null, labels: '["Music","Dance/Electronic"]' };
   const w = (summaryZh: string, titleZh = "Saliah 温哥华演出") => ({ titleZh, summaryZh, category: null });
+
+  it("no professional game unless the source says pro, and Canada's hockey on ice", () => {
+    const game = (title: string) => ({ ...e, title, venue: "Doug Mitchell Thunderbird Sports Centre", labels: null });
+    expect(grounded(w("UBC 女子冰球队的职业冰球比赛", "UBC 女子冰球对阵 Trinity Western University"), game("UBC Women's Hockey vs Trinity Western University"))).toBe(false);
+    expect(grounded(w("大学女子冰球比赛", "UBC 女子冰球对阵 Trinity Western University"), game("UBC Women's Hockey vs Trinity Western University"))).toBe(true);
+    expect(grounded(w("温哥华加人队的职业冰球比赛", "Canucks vs. Flames"), game("Vancouver Canucks vs. Calgary Flames"))).toBe(true);
+    expect(grounded(w("看一场大学曲棍球比赛", "UBC 女子曲棍球对阵 Trinity Western University"), game("UBC Women's Hockey at Trinity Western University"))).toBe(false);
+    expect(grounded(w("大学男子曲棍球比赛", "UBC 男子曲棍球对阵 India FHC"), game("UBC Men's Field Hockey vs India FHC"))).toBe(true);
+  });
+
+  it("simplified characters only: the traditional ones a model slips in are simplified", () => {
+    expect(simplified("UBC 女子冰球對陣 Trinity Western University")).toBe("UBC 女子冰球对阵 Trinity Western University");
+    expect(simplified("與家人一起欣賞節日音樂會")).toBe("与家人一起欣赏节日音乐会");
+    expect(simplified("温哥华加人队对阵卡尔加里火焰队")).toBe("温哥华加人队对阵卡尔加里火焰队");
+    expect(readAnswer('[{"n":1,"t":"UBC 女子冰球對陣 TWU","s":"大學女子冰球比賽，歡迎觀看。","c":"outdoors"}]', 1)).toEqual([{ titleZh: "UBC 女子冰球对阵 TWU", summaryZh: "大学女子冰球比赛，欢迎观看。", category: "outdoors" }]);
+    expect(INSTRUCTIONS).toContain("只用简体字");
+    expect(INSTRUCTIONS).toContain("Field Hockey 才是曲棍球");
+    expect(INSTRUCTIONS).not.toContain("职业冰球比赛");
+  });
 
   it("no praise the source doesn't give, and no people or country it doesn't name", () => {
     expect(grounded(w("电子舞曲现场演出"), e)).toBe(true);

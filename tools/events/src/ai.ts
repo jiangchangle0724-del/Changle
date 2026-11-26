@@ -53,8 +53,11 @@ export const AI_TRIES = 3;
  * The instructions' version, kept with what they wrote (ai_hash = "<text_hash>:<version>"): a new
  * version writes every event again. v2 (19 November): the source's labels, and nothing guessed.
  * v3 (the same day): Ticketmaster's names kept as they are, and praise or origins nothing backs left out.
+ * v4 (26 November): simplified characters only, Canada's hockey on ice, and no school's or junior
+ * league's game called professional; and everything written again by Gemma 4 (Qwen 3 is gone),
+ * so the names come from one model under one set of rules.
  */
-export const AI_VERSION = "v3";
+export const AI_VERSION = "v4";
 
 /** What the AI is given about an event. */
 export interface ToWrite {
@@ -81,11 +84,23 @@ export interface Written {
 
 export const INSTRUCTIONS = `你是温哥华中文活动网站「玩什么」的编辑。输入是一组本地活动，信息多是英文：名字（title）、场地（venue）、来源给的分类标签（labels）和说明（about），有的没有说明。为每个活动写：
 1. "t"：活动名的简体中文译名，简短自然，像中文海报上的活动名，最多 20 个字。艺人、乐队、DJ、球队、巡演、剧名、书名、品牌、场馆、俱乐部等名字保留英文原文，不要音译或意译，只翻译其余部分；名字看起来像普通词也一样，比如乐队 Pooh 不要译成小熊维尼。作品名有通行中文名的可以用中文加书名号，比如《美女与野兽》。下面这些本地球队例外，用通行的中文名：Vancouver Canucks 温哥华加人队，Abbotsford Canucks 阿伯茨福德加人队，Vancouver Whitecaps 温哥华白帽队，BC Lions 卑诗雄狮队，Vancouver Giants 温哥华巨人队，Vancouver Warriors 温哥华勇士队。
-2. "s"：一句简体中文介绍，15 到 45 个字，说清楚这是什么样的活动、去了做什么、适合谁。只用给出的信息：没有说明的，只按名字和标签说是什么类型的活动（比如「电子音乐现场演出」「职业冰球比赛」），不介绍艺人的国籍、风格和来历，不用「知名」「著名」「世界级」这类词，拿不准适合谁就不写；不写日期、时间、地点和价格，页面上另有。
+2. "s"：一句简体中文介绍，15 到 45 个字，说清楚这是什么样的活动、去了做什么、适合谁。只用给出的信息：没有说明的，只按名字和标签说是什么类型的活动（比如「电子音乐现场演出」「冰球比赛」），不介绍艺人的国籍、风格和来历，不用「知名」「著名」「世界级」这类词，拿不准适合谁就不写；不写日期、时间、地点和价格，页面上另有。大学、学院、中学、青少年和业余球队的比赛不是职业比赛，不要写「职业」。
 3. "c"：从这些分类代码里选一个：social（社交聚会：语言交换、聊天角、桌游、行业和技术聚会）、shows（演出音乐：音乐会、戏剧、音乐剧、喜剧、舞蹈、歌剧）、food（吃喝市集：夜市、美食节、农夫市集、品鉴）、outdoors（户外运动：徒步、滑雪、跑步、看球赛、运动）、arts（文化展览：博物馆、展览、讲座、作者活动、读书会、电影）、festivals（节日庆典：烟花、灯会、农历新年、圣诞市集）、family（亲子家庭：专为儿童、婴幼儿或家庭办的，比如故事时间、婴儿活动、儿童手工、儿童演出）、nightlife（夜生活派对：酒吧活动、夜店、DJ 之夜、派对）。专为儿童或婴幼儿的选 family；都不合适（比如报税、求职、电脑辅导、专业培训）填 null。
+只用简体字，不用繁体字。Hockey 在加拿大指冰球，Field Hockey 才是曲棍球。
 只输出一个 JSON 数组，每个活动一个对象 {"n": 序号, "t": "...", "s": "...", "c": "..."}，顺序和输入相同，不要输出任何别的文字。`;
 
 const CJK = /[㐀-鿿]/;
+
+/**
+ * Traditional characters a model slips into simplified Chinese (Gemma 4 wrote 「對陣」 on its first
+ * day), and their simplified forms: only characters simplified Chinese never uses.
+ */
+const TRADITIONAL =
+  "對对陣阵賽赛與与會会場场樂乐動动開开藝艺術术節节書书區区學学館馆華华時时間间們们這这個个來来為为說说讀读參参觀观戲戏劇剧電电團团隊队際际傳传統统豐丰體体驗验歡欢適适兒儿親亲飲饮嘗尝現现講讲覽览頒颁獎奖慶庆燈灯煙烟聖圣誕诞農农曆历運运籃篮網网遊游語语換换圖图嬰婴計计劃划稅税職职腦脑輔辅導导專专業业訓训線线實实歷历選选購购禮礼設设師师頭头髮发鐘钟點点價价錢钱門门費费優优經经舊旧鮮鲜溫温詩诗雜杂誌志漢汉粵粤國国臺台灣湾韓韩義义龍龙鳳凤馬马鳥鸟魚鱼車车風风飛飞雲云陽阳燒烧麵面湯汤雞鸡豬猪蝦虾餅饼壽寿誰谁讓让給给從从還还進进過过邊边裡里後后麼么樣样種种類类級级歲岁長长員员雙双單单號号關关係系環环錄录寫写畫画攝摄編编織织紙纸鋼钢聲声響响鬧闹熱热鬥斗獅狮輕轻鬆松簡简認认識识課课練练習习試试題题問问機机數数據据權权歸归屬属縣县鎮镇鄉乡莊庄園园廳厅樓楼層层處处辦办務务戶户發发報报廣广視视頻频絡络遠远東东寶宝貝贝媽妈爺爷孫孙婦妇愛爱戀恋憶忆夢梦樹树葉叶蘭兰衛卫護护醫医藥药療疗壓压減减靜静禪禅勝胜負负決决準准備备軍军盃杯盤盘圓圆鄰邻聯联誼谊競竞讚赞請请謝谢賀贺願愿飯饭廚厨麥麦釀酿賣卖買买攤摊販贩貨货幣币賞赏見见將将並并於于幾几條条張张";
+const SIMPLIFIED = new Map<string, string>(Array.from({ length: TRADITIONAL.length / 2 }, (_, i) => [TRADITIONAL[2 * i], TRADITIONAL[2 * i + 1]]));
+const TRADITIONAL_RE = new RegExp(`[${[...SIMPLIFIED.keys()].join("")}]`, "g");
+/** The text with those characters simplified. */
+export const simplified = (text: string) => text.replace(TRADITIONAL_RE, (c) => SIMPLIFIED.get(c) ?? c);
 
 /** What the AI reads of a description: without the libraries' standing notes, at most 400 characters. */
 export function about(description: string | null): string {
@@ -146,8 +161,8 @@ export const TITLE_MAX = 40;
 /** One answer item, checked: a name, a Chinese sentence, a known category or none. */
 function checked(item: unknown): Written | null {
   const o = item as { t?: unknown; s?: unknown; c?: unknown } | null;
-  const t = typeof o?.t === "string" ? unwrap(o.t.trim()) : "";
-  const s = typeof o?.s === "string" ? o.s.trim() : "";
+  const t = typeof o?.t === "string" ? simplified(unwrap(o.t.trim())) : "";
+  const s = typeof o?.s === "string" ? simplified(o.s.trim()) : "";
   // (a sentence can be short: "职业冰球比赛" is all an event with only a name and labels gets)
   if (!t || !s || !CJK.test(s) || s.length < 4 || s.length > 90) return null;
   const c = typeof o?.c === "string" && (CATEGORIES as readonly string[]).includes(o.c) ? (o.c as Category) : null;
@@ -366,8 +381,16 @@ export function grounded(w: Written, e: ToWrite): boolean {
   const said = [e.title, e.venue, e.description, labelsOf(e.labels)].filter(Boolean).join(" ");
   const wrote = `${w.titleZh} ${w.summaryZh}`;
   if (PRAISE.test(wrote) && !PRAISE.test(said)) return false;
+  // a university's game, a junior league's, is no professional one (the first answers on 26
+  // November called UBC's hockey and the Langley Trappers' 职业)
+  if (/职业/.test(wrote) && !PRO.test(said)) return false;
+  // Canada's hockey is played on ice
+  if (/曲棍球/.test(wrote) && /\bhockey\b/i.test(said) && !/\bfield hockey\b/i.test(said)) return false;
   return ORIGINS.every(([zh, cue]) => !zh.test(wrote) || cue.test(said));
 }
+
+/** What in a source would back calling a game, or a player, professional. */
+const PRO = /\b(pro|professional|NHL|AHL|ECHL|PWHL|NBA|WNBA|MLB|MLS|NWSL|CFL|NFL|NLL|Canucks|Whitecaps|Lions|Warriors|Seawolves|UFC)\b|职业/i;
 
 /** The model, as the Worker's AI binding offers it (and tests stand in for). */
 export type RunModel = (model: string, input: Record<string, unknown>) => Promise<unknown>;
