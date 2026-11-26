@@ -66,7 +66,7 @@
 
 提交记录原文，最新的在上面。代码 2026-10-29 搬进这个仓库，更早的历史不在 git 里。
 
-- 2026-11-25 随便: the host searches again with another range in round 2 (#PR)
+- 2026-11-25 随便: the host searches again with another range in round 2 (#783)
 - 2026-11-25 随便: all you can eat only when a place says so; no clock; sort round 2 nearest first; back from the result (#781)
 - 2026-11-21 随便 S3: motion and feel, haptics, the tie wheel and the result's stamp (#731)
 - 2026-11-20 随便 S2: the screens as drawn, with a top bar and a dock (#696)
