@@ -188,6 +188,39 @@ test("Distract, twice a round: a passer-by across the crowd swings at nothing, a
   noErrors(steve, mia);
 });
 
+test("the transit hall: by a light switch, Lights comes up; pulling it puts every screen in the dark, and only you are told", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { lights: true, roundMs: 30_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en");
+  const tv = await screen(browser);
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await tv.goto(`/hide/tv/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await steve.getByRole("button", { name: /温哥华交通站厅/ }).click();
+  await until(steve, (v) => v.arenaVotes.metro === 1);
+  await steve.getByRole("button", { name: "开始", exact: true }).click();
+  await until(mia, (v) => v.phase === "playing" && v.game?.arena === "metro");
+  // Steve starts by the left switch: Lights is up on his phone only (Mia's isn't by one)
+  const lights = steve.getByRole("button", { name: "拉电闸关灯，还剩 2 次" });
+  await expect(lights).toBeVisible();
+  await expect(mia.locator(".move-lights")).toHaveCount(0);
+  await bigTargets(steve);
+  await lights.dispatchEvent("pointerdown");
+  await expect(steve.locator(".play-notice")).toHaveText("你拉了电闸，灯马上黑");
+  await shot(steve, "phone-lights");
+  // every screen goes dark and sees the left switch go; nobody else is told whose it was
+  await expect(mia.locator(".moment-banner")).toContainText("Lights out");
+  await expect(tv.locator(".moment-banner")).toContainText("灯黑了");
+  await expect(tv.locator(".flat-switch.is-pulled")).toHaveCount(1);
+  expect((await view(mia))!.game!.events.some((e) => e.t === "lights")).toBe(false);
+  await expect(mia.locator(".play-notice")).toHaveCount(0);
+  await expect(steve.locator(".move-lights")).toHaveCount(0);
+  await shot(tv, "tv-lights");
+  noErrors(steve, mia, tv);
+});
+
 test("the theatre: a distraction turns the others' cameras; then the stage counts three, two, one, Punch lights up, and a punch on the call is the crowd's", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { roundMs: 40_000 } });
   const steve = await phone(browser, "Steve");

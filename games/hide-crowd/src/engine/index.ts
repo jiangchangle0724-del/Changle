@@ -131,6 +131,26 @@ export const DECOY_MS = PUNCH_WINDUP_MS + 220 + 420;
 /** A distraction turns every other screen's camera towards the passer-by for this long (as the Steam game pans away). */
 export const GLANCE_MS = 1_500;
 /**
+ * The transit hall's light switches (after the Steam game's light switches): one on each route sign
+ * just off the floor's sides (the dressing's totems, scene x ±8.9, z -1.1, at SCENE_PER_WORLD 0.175).
+ * A player standing by one can pull it, twice a round: the hall's lights go out for everyone, as when
+ * they go by themselves, and every screen sees which switch went. Passers-by stop by the signs too.
+ */
+export const LIGHT_SWITCHES: readonly Vector[] = [
+  { x: -0.9, y: 23.9 },
+  { x: 100.9, y: 23.9 }
+];
+/** How close to a switch a player has to stand to pull it (from the floor's edge it's about 6). */
+export const SWITCH_REACH = 8.5;
+/** Pulls of the light switches a player has a round. */
+export const SWITCHES = 2;
+/** From the pull to the lights going out: the lever's clunk (the puller has a beat to settle). */
+export const SWITCH_DELAY_MS = 600;
+/** Once the lights are back, the switches reset for this long before anyone can pull one again. */
+export const SWITCH_RESET_MS = 12_000;
+/** A place's own moment due during pulled lights, or this soon after them, doesn't come. */
+const MOMENT_GAP_MS = 2_000;
+/**
  * The theatre's drill (after the Steam game's gym, where the instructor counts and every robot
  * punches): the performer calls three beats, and on the fourth the whole crowd throws a punch at once.
  */
@@ -247,6 +267,8 @@ export interface Character {
   biteSince: number;
   /** a player: distractions left this round */
   distracts: number;
+  /** a player: pulls of the transit hall's light switches left this round */
+  switches: number;
   /** a passer-by throwing a punch at nothing for someone's distraction: since when (null: not) */
   decoyAt: number | null;
   /** a passer-by that has walked off at the end of a round (THIN_MS): no longer in the crowd */
@@ -294,12 +316,13 @@ export interface Plan {
 /**
  * tag: a rival was hit; foul: a passer-by was hit; swing: a miss; hide: a tagged player slipped away;
  * bite: a player tasted a stall (which one is public, who isn't); feast: all four, for 2 points;
- * decoy: a player's distraction (only they hear of it); blast: a firecracker knocked people down;
+ * decoy: a player's distraction (only they hear of it); lights: a player pulled a light switch (only
+ * they hear it was them; every screen sees the switch go); blast: a firecracker knocked people down;
  * bike: the seawall's bike knocked people down; over: the round ended
  */
 export interface MatchEvent {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "bike" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "lights" | "blast" | "bike" | "over";
   actor: string | null;
   target: string | null;
   /** bite: the stall */
@@ -346,6 +369,15 @@ export interface MatchState {
   runs?: Record<string, Run>;
   /** whoever tagged first this round (first blood) */
   firstBlood?: string;
+  /** the latest pull of a light switch this round: which switch, when, whose */
+  pull?: Pull | null;
+}
+
+/** A pull of the transit hall's light switch: the lights go out SWITCH_DELAY_MS after `at`, for BLACKOUT_MS. */
+export interface Pull {
+  box: number;
+  at: number;
+  by: string;
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -364,6 +396,7 @@ const IDENTITY = [
   "snacks",
   "feasts",
   "distracts",
+  "switches",
   "npcStyle",
   "npcOffset",
   "attackResolveAt",
@@ -469,6 +502,7 @@ function blankCharacter(fields: Pick<Character, "id" | "ownerId" | "name" | "kin
     biteStall: -1,
     biteSince: 0,
     distracts: fields.kind === "player" ? DISTRACTS : 0,
+    switches: fields.kind === "player" ? SWITCHES : 0,
     decoyAt: null,
     pose: "idle",
     attackResolveAt: null,
@@ -600,6 +634,22 @@ export function startDistract(state: MatchState, ownerId: string, now: number): 
   return next;
 }
 
+/**
+ * A pull of a light switch: the player stands by one of the transit hall's two, with a pull left, the
+ * switches ready. The lights go out for everyone SWITCH_DELAY_MS later. Only the player hears it was them.
+ */
+export function pullSwitch(state: MatchState, ownerId: string, now: number): MatchState {
+  const actor = characterForOwner(state, ownerId);
+  if (!actor || (actor.switches ?? 0) <= 0 || now < actor.stunnedUntil || actor.hideAt !== null || !switchReady(state, now)) return state;
+  const box = switchNear(actor);
+  if (box < 0) return state;
+  const next = { ...state, events: [...state.events], characters: state.characters.map((character) => (character.id === actor.id ? { ...character } : character)) };
+  characterForOwner(next, ownerId)!.switches = (actor.switches ?? 0) - 1;
+  next.pull = { box, at: now, by: ownerId };
+  addEvent(next, "lights", ownerId, null);
+  return next;
+}
+
 export function startBlend(state: MatchState, ownerId: string, now: number): MatchState {
   if (state.phase !== "playing") return state;
   const actor = characterForOwner(state, ownerId);
@@ -673,6 +723,14 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
     const x = middle + (random() * 2 - 1) * (STALL_REACH.halfWidth - 1);
     const y = ARENA.marginY + 1.5 + random() * (STALL_REACH.depth - 2.5);
     return { mode: "browse", x, y, pace: low + random() * (high - low), since: now, until: now + 14_000, other: null, count, dwell: 1_200 + random() * 2_600 };
+  }
+  if (arena === "metro" && previous.mode !== "browse" && roll < 0.61) {
+    // the transit hall: over to a route sign at the floor's side, to read it (so whoever stands by one
+    // of its light switches has company)
+    const sign = LIGHT_SWITCHES[Math.floor(random() * LIGHT_SWITCHES.length)];
+    const x = sign.x < ARENA.width / 2 ? ARENA.marginX + random() * 2.5 : ARENA.width - ARENA.marginX - random() * 2.5;
+    const y = sign.y + (random() * 2 - 1) * 4;
+    return { mode: "browse", x, y, pace: low + random() * (high - low), since: now, until: now + 14_000, other: null, count, dwell: 1_500 + random() * 3_000 };
   }
   const run = random() < 0.1;
   const angle = random() * Math.PI * 2;
@@ -754,6 +812,44 @@ export function crowdMoment(arena: ArenaId, startedAt: number, now: number): Cro
   if (into >= beat.lasts) return null;
   const startsAt = now - into;
   return { kind: beat.kind, startsAt, endsAt: startsAt + beat.lasts, look: beat.look };
+}
+
+/** When the lights a player pulled are out ([from, to)), or null. */
+export function pulledDark(game: Pick<MatchState, "pull">): { from: number; to: number } | null {
+  if (!game.pull) return null;
+  const from = game.pull.at + SWITCH_DELAY_MS;
+  return { from, to: from + BLACKOUT_MS };
+}
+
+/**
+ * The whole crowd's moment now: the lights a player pulled while they're out, else the place's own
+ * (one due during the pulled lights, or just after them, doesn't come). Every rule asks this.
+ */
+export function momentAt(game: Pick<MatchState, "arena" | "startedAt" | "pull">, now: number): CrowdMoment | null {
+  const dark = pulledDark(game);
+  if (dark && now >= dark.from && now < dark.to) return { kind: "blackout", startsAt: dark.from, endsAt: dark.to, look: null };
+  const moment = crowdMoment(game.arena, game.startedAt, now);
+  if (moment && dark && moment.endsAt > game.pull!.at && moment.startsAt < dark.to + MOMENT_GAP_MS) return null;
+  return moment;
+}
+
+/** The walkways' pull now: they stop while pulled lights are out (the power's off), as in their quiet spells. */
+export function driftAt(game: Pick<MatchState, "arena" | "startedAt" | "pull">, now: number): Vector {
+  const dark = pulledDark(game);
+  if (dark && now >= dark.from && now < dark.to) return { x: 0, y: 0 };
+  return environmentalDrift(game.arena, game.startedAt, now);
+}
+
+/** Whether a light switch can be pulled now: in the transit hall, no moment on, the last pulled lights back on and reset. */
+export function switchReady(game: Pick<MatchState, "arena" | "startedAt" | "pull" | "phase">, now: number): boolean {
+  if (game.arena !== "metro" || game.phase !== "playing" || momentAt(game, now)) return false;
+  const dark = pulledDark(game);
+  return !dark || now >= dark.to + SWITCH_RESET_MS;
+}
+
+/** The light switch a body stands within reach of (-1: none). */
+export function switchNear(body: Pick<Character, "x" | "y">): number {
+  return LIGHT_SWITCHES.findIndex((box) => Math.hypot(box.x - body.x, box.y - body.y) <= SWITCH_REACH);
 }
 
 /** How long a body takes to react to a moment: people don't all turn at once. */
@@ -936,10 +1032,10 @@ export interface CrowdStep {
 export function crowdStep(
   body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan" | "facing">,
   others: readonly Neighbour[],
-  game: Pick<MatchState, "arena" | "startedAt" | "endsAt" | "seed" | "commotions" | "crackers">,
+  game: Pick<MatchState, "arena" | "startedAt" | "endsAt" | "seed" | "commotions" | "crackers" | "pull">,
   now: number
 ): CrowdStep {
-  const moment = crowdMoment(game.arena, game.startedAt, now);
+  const moment = momentAt(game, now);
   let plan = body.plan ?? restingPlan(body.x, body.y);
   // the end of the round: off past the nearer side, at a brisk walk (one already past the edge keeps
   // going whatever happens; on the floor, a moment or a fuss stops a leaver like anyone, first)
@@ -999,9 +1095,13 @@ export function crowdStep(
       return { plan, heading: { x: dx / (distance || 1), y: dy / (distance || 1) }, pace: plan.pace * Math.min(1, 0.45 + distance / 6), face: null, glance: false };
     }
     if (plan.arrivedAt === undefined) plan = { ...plan, arrivedAt: now };
-    // at the counter, looking it over (and around, now and then)
-    const middle = STALLS.reduce((best, item) => (Math.abs(item - body.x) < Math.abs(best - body.x) ? item : best), STALLS[0]);
+    // at the counter, looking it over (and around, now and then); in the transit hall, reading a route sign
     const glance = now - plan.arrivedAt! > (plan.dwell ?? 0) * 0.6;
+    if (game.arena === "metro") {
+      const sign = LIGHT_SWITCHES.reduce((best, item) => (Math.abs(item.x - body.x) < Math.abs(best.x - body.x) ? item : best), LIGHT_SWITCHES[0]);
+      return { plan, heading: { x: 0, y: 0 }, pace: 0, face: glance ? null : Math.atan2(sign.y - body.y, sign.x - body.x), glance };
+    }
+    const middle = STALLS.reduce((best, item) => (Math.abs(item - body.x) < Math.abs(best - body.x) ? item : best), STALLS[0]);
     return { plan, heading: { x: 0, y: 0 }, pace: 0, face: glance ? null : Math.atan2(ARENA.marginY - 3 - body.y, middle - body.x), glance };
   }
   if (plan.mode === "walk") {
@@ -1034,7 +1134,7 @@ function angleDifference(a: number, b: number): number {
 
 function resolvePunch(state: MatchState, attacker: Character, now: number): void {
   // in the theatre's drill everyone is punching: a player's punch then goes through the passers-by
-  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const moment = momentAt(state, now);
   const drill = moment?.kind === "drill" && now >= moment.startsAt + DRILL_WINDOW[0] && now <= moment.startsAt + DRILL_WINDOW[1];
   const candidates = state.characters
     .filter((character) => character.id !== attacker.id && !character.gone && now >= character.stunnedUntil && character.hideAt === null && !(drill && character.kind === "npc"))
@@ -1293,9 +1393,9 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     commotions: (state.commotions ?? []).filter((fuss) => now - fuss.at < COMMOTION_MS)
   };
   const dt = bounded(now - state.lastTickAt, 0, 120) / 1_000;
-  const laneDrift = environmentalDrift(state.arena, state.startedAt, now).x;
+  const laneDrift = driftAt(state, now).x;
   // while the busker plays, anyone standing still dances (players too: it's how they blend in)
-  const moment = crowdMoment(state.arena, state.startedAt, now);
+  const moment = momentAt(state, now);
   const dancing = moment?.kind === "dance";
   // the drill's call: every passer-by throws its punch (nearly together)
   const drillGo = moment?.kind === "drill" ? moment.startsAt + DRILL_GO_MS : null;

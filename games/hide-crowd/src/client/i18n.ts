@@ -24,7 +24,7 @@ const S = {
   gallery: ["中式庭院戏台", "Courtyard Theatre"],
   market: ["列治文夜市", "Richmond Night Market"],
   plazaRule: ["渡轮一鸣笛，路人都停下来看海。跟着停，往上轻推一下摇杆，你也在看海。有人按着车铃骑车穿过人群时，路人都会让开，站着看它过去：你也得让，被撞倒就露馅了。地上会亮出它要走的那条线。", "When the ferry horn sounds, the passers-by stop and look out to sea. Stop with them: a light nudge up turns you to the sea too. When a cyclist rings their bell and rides through the crowd, the passers-by step out of the way and watch it go by: so must you, or you go down for all to see. Its line lights up on the ground."],
-  metroRule: ["传送带每隔几秒换方向，人人都被带着走。街头艺人一开唱，路人都原地跳舞：站着别动，你也会跟着跳。灯一黑，路人都停下来看手机：你也停，你的手机也会亮；黑里还在走的人最显眼。", "The moving walkways switch direction every few seconds and carry everyone along. When the busker strikes up, everyone dances on the spot: stand still and you dance too. When the lights go out, the crowd stops and looks at their phones: stop too, and yours lights up; whoever walks on in the dark stands out."],
+  metroRule: ["传送带每隔几秒换方向，人人都被带着走。街头艺人一开唱，路人都原地跳舞：站着别动，你也会跟着跳。灯一黑，路人都停下来看手机：你也停，你的手机也会亮；黑里还在走的人最显眼。路牌上有电闸：站到旁边能关灯，每局两次，可谁都看得见是哪个电闸。", "The moving walkways switch direction every few seconds and carry everyone along. When the busker strikes up, everyone dances on the spot: stand still and you dance too. When the lights go out, the crowd stops and looks at their phones: stop too, and yours lights up; whoever walks on in the dark stands out. The route signs have light switches: stand by one to turn the lights off, twice a round, but everyone sees which switch went."],
   galleryRule: ["聚光灯里走得更快也更显眼。锣一响，路人都停下看戏台：跟着停，往上轻推一下。台上喊「三、二、一」，全场一起出拳：跟着出拳，这一拳会穿过路人，只打得中对手；不出拳的人最显眼。追光灯扫过场地时，被照到的人都会定住、面朝戏台，等光过去：照到你也要定住，不然光里只有你在动。", "You move faster in the spotlight, and everyone can see you. When the gong sounds, the crowd stops to watch the stage: stop too, with a light nudge up. When the stage counts three, two, one, everyone punches: punch with them, and your punch goes through the passers-by and only lands on a rival. Whoever doesn't punch stands out. When the follow spot sweeps the floor, whoever it lands on freezes, facing the stage, until it has passed: freeze too if it lands on you, or you're the one moving in the light."],
   // (shorter, for the practice picker's cards)
   plazaShort: ["鸣笛停下看海，车铃一响快让开", "Stop for the ferry horn, step aside for the bike"],
@@ -144,6 +144,9 @@ const S = {
   punch: ["出拳", "Punch"],
   blend: ["融入", "Blend in"],
   distract: ["分心", "Distract"],
+  lights: ["关灯", "Lights"],
+  lightsLeft: ["拉电闸关灯，还剩 {n} 次", "Pull the switch: lights off, {n} left"],
+  lightsDone: ["你拉了电闸，灯马上黑", "You pulled the switch: lights out"],
   distractLeft: ["分心，还剩 {n} 次", "Distract, {n} left"],
   decoyDone: ["人群另一头有人挥了一拳，大家都在看那边", "Someone across the crowd swung at nothing. All eyes are there"],
   wait: ["稍等", "Wait"],

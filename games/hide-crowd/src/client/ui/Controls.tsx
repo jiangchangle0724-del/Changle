@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { SIMULATION_STEP_MS } from "../../engine";
 import type { ClientMsg, MeView } from "../../room/protocol";
 import { t } from "../i18n";
+import { Icon } from "./chrome";
 import type { Drill } from "./roundFx";
 
 type Vec = { x: number; y: number };
@@ -22,7 +23,7 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
   const vectorRef = useRef(vector);
   const lastSent = useRef<{ v: Vec; at: number }>({ v: ZERO, at: 0 });
   const heldKeys = useRef(new Set<string>());
-  const gamepadButtons = useRef({ punch: false, blend: false, distract: false });
+  const gamepadButtons = useRef({ punch: false, blend: false, distract: false, lights: false });
   const gamepadDriving = useRef(false);
   const { send, onVector } = props;
   vectorRef.current = vector;
@@ -90,6 +91,10 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
         event.preventDefault();
         heldKeys.current.add(key);
         keysVector();
+      } else if (!event.repeat && key === "f" && !(event.target instanceof HTMLButtonElement)) {
+        // (the transit hall's light switch you stand by: the room says no if there's none)
+        event.preventDefault();
+        send({ t: "lights" });
       } else if (!event.repeat && (key === "Shift" || key === " " || key === "e") && !(event.target instanceof HTMLButtonElement)) {
         event.preventDefault();
         send({ t: key === "Shift" ? "blend" : key === "e" ? "distract" : "punch" });
@@ -142,7 +147,7 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
     const timer = window.setInterval(() => {
       const pad = Array.from(navigator.getGamepads()).find((candidate) => candidate?.connected);
       if (!pad) {
-        gamepadButtons.current = { punch: false, blend: false, distract: false };
+        gamepadButtons.current = { punch: false, blend: false, distract: false, lights: false };
         if (gamepadDriving.current) {
           gamepadDriving.current = false;
           apply(ZERO);
@@ -156,7 +161,8 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
       const punch = Boolean(pad.buttons[0]?.pressed);
       const blend = Boolean(pad.buttons[2]?.pressed);
       const distract = Boolean(pad.buttons[3]?.pressed);
-      const active = Math.hypot(x, y) > 0 || punch || blend || distract;
+      const lights = Boolean(pad.buttons[1]?.pressed);
+      const active = Math.hypot(x, y) > 0 || punch || blend || distract || lights;
       if (active || gamepadDriving.current) {
         gamepadDriving.current = active;
         apply({ x, y });
@@ -164,7 +170,8 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
       if (punch && !gamepadButtons.current.punch) send({ t: "punch" });
       if (blend && !gamepadButtons.current.blend) send({ t: "blend" });
       if (distract && !gamepadButtons.current.distract) send({ t: "distract" });
-      gamepadButtons.current = { punch, blend, distract };
+      if (lights && !gamepadButtons.current.lights) send({ t: "lights" });
+      gamepadButtons.current = { punch, blend, distract, lights };
     }, 50);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,6 +180,8 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
   const punchReady = props.now >= props.me.punchReadyAt;
   const blendReady = props.now >= props.me.blendReadyAt;
   const distracts = props.me.distracts ?? 0;
+  // (the transit hall: standing by a light switch, with a pull left, the switches ready)
+  const canPull = !!props.me.canPull;
   const drill = punchReady ? props.drill : null;
   const cue = drill ? (drill.cue ? " is-cue" : drill.beat < 3 ? " is-drill" : "") : "";
   return (
@@ -197,6 +206,27 @@ export function Controls(props: { me: MeView; now: number; send: (message: Clien
       </div>
       <div class="moves">
         <div class="moves-side">
+          {canPull && (
+            <button
+              type="button"
+              class="move-btn move-lights"
+              aria-label={t("lightsLeft", { n: props.me.switches })}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                send({ t: "lights" });
+                navigator.vibrate?.(18);
+              }}
+              onClick={(event) => {
+                if (event.detail === 0) send({ t: "lights" });
+              }}
+            >
+              <Icon name="bulb" size={20} />
+              <span>{t("lights")}</span>
+              <b class="move-count tabular" aria-hidden="true">
+                {props.me.switches}
+              </b>
+            </button>
+          )}
           <button
             type="button"
             class={`move-btn move-distract${distracts > 0 ? "" : " is-waiting"}`}

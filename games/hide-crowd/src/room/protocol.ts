@@ -12,6 +12,8 @@ export type ClientMsg =
   | { t: "blend" }
   /** a passer-by across the crowd throws a punch at nothing (twice a round) */
   | { t: "distract" }
+  /** the transit hall: pull the light switch you stand by (twice a round) */
+  | { t: "lights" }
   | { t: "vote"; arena: ArenaId }
   /** the host: start a round (from the lobby, or again after one) */
   | { t: "start" }
@@ -76,7 +78,7 @@ export interface AvatarView {
 
 export interface EventView {
   id: number;
-  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "blast" | "bike" | "over";
+  t: "tag" | "foul" | "swing" | "hide" | "bite" | "feast" | "decoy" | "lights" | "blast" | "bike" | "over";
   /** bite: the night market's stall that was tasted (everyone sees which; only the taster's phone sees byYou) */
   stall?: number;
   /** this phone did it (a tag, a foul, a miss) or it happened to this phone's player (slipped away) */
@@ -131,6 +133,9 @@ export interface MeView {
   maxSpeed: number;
   /** distractions left this round */
   distracts: number;
+  /** the transit hall: pulls of the light switches left this round, and whether you can pull one now (you stand by one, they're ready) */
+  switches: number;
+  canPull: boolean;
   /** the night market: the stalls you've tasted since your last feast (one bit each), the one you're tasting now (-1: none) and how far along (0 to 1) */
   bites: number;
   at: number;
@@ -161,6 +166,11 @@ export interface GameView {
    * turns its camera there, as the Steam game pans away; nothing says whose it was)
    */
   glance?: { x: number; y: number; endsInMs: number } | null;
+  /**
+   * the transit hall: the light switch pulled last, while it's down (its lever down, its lamp red) and
+   * until it's reset: which one and how long ago. Every screen sees it; nothing says whose it was.
+   */
+  lights?: { box: number; sinceMs: number } | null;
 }
 
 /** A nickname for the round (火眼金睛 Eagle Eye...), by name; `you` on that player's own phone. */

@@ -28,6 +28,13 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
     if (game.thinning) sfx.thinning();
   }, [game.thinning]);
 
+  // the transit hall: a light switch pulled, its lever's clack on the big screen (its puller's phone
+  // hears it from the event, below; it's the only one told)
+  const pulled = game.lights ? game.lights.box : -1;
+  useEffect(() => {
+    if (screen && pulled >= 0 && (game.lights?.sinceMs ?? Infinity) < 1_000) sfx.lever();
+  }, [pulled, screen]);
+
   // what just happened
   const seen = useRef(game.events.length ? game.events[game.events.length - 1].id : 0);
   useEffect(() => {
@@ -62,6 +69,9 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
       } else if (event.t === "decoy" && event.byYou) {
         // (only its maker hears of a distraction)
         sfx.psst();
+      } else if (event.t === "lights" && event.byYou) {
+        sfx.lever();
+        buzz(24);
       }
     }
   }, [game.events]);
@@ -103,7 +113,7 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
 /** a screen that shows a round within this long of its start opens on the camera's sweep (Arena3D) */
 export const INTRO_WINDOW_MS = 2_500;
 
-type Blow = Exclude<EventView["t"], "bite" | "feast" | "decoy">;
+type Blow = Exclude<EventView["t"], "bite" | "feast" | "decoy" | "lights">;
 
 /**
  * What the arena shows of the round's events: the latest blow (the shake, how a body falls), and the
@@ -117,7 +127,7 @@ export function arenaEvents(game: GameView): { impactId: number; impactType: Blo
     const event = game.events[index];
     if (event.t === "bite") bite ??= event;
     else if (event.t === "feast") feast = bite ? feast : event.id;
-    else if (event.t !== "decoy") blow ??= event;
+    else if (event.t !== "decoy" && event.t !== "lights") blow ??= event;
   }
   return {
     impactId: blow?.id ?? 0,

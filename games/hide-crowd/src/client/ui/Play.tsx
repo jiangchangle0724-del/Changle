@@ -16,7 +16,7 @@ import { BarsHint } from "./HomeScreen";
 import { Coach, COACH, useCoach } from "./Coach";
 import { arenaEvents, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
 
-const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", blast: "blasted", bike: "biked" };
+const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", lights: "lightsDone", blast: "blasted", bike: "biked" };
 const BAD: readonly Key[] = ["spotted", "spottedBy", "foul", "blasted", "biked"];
 const GOOD: readonly Key[] = ["hit", "hitName", "feast"];
 /** the night market's four stalls, left to right: their snacks */
@@ -63,7 +63,7 @@ function useNotice(events: EventView[], me: MeView | null): Notice | null {
     const sub = tagged?.name ? t("spottedByAfter", { name: tagged.name }) : undefined;
     setNotice({ key, id: mine.id, vars, sub });
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" || mine.t === "blast" || mine.t === "bike" ? 2_600 : 1_400);
+    timer.current = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" || mine.t === "lights" || mine.t === "blast" || mine.t === "bike" ? 2_600 : 1_400);
   }, [latest]);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   return notice;
@@ -184,6 +184,7 @@ export function Play(props: {
     flash: shown.flash,
     moment: game.moment,
     glance: game.glance ?? null,
+    lights: game.lights ?? null,
     intro
   } as const;
   return (
