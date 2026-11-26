@@ -69,8 +69,21 @@ against both (`tests/sync-sql.test.ts`, on Node's SQLite through `tests/sqlremot
 database holds, and why the digest is worked out and not kept, is in the assessment (1.6, "The
 server's code").
 
+`src/server/sessions.ts`: who is signed in, kept in the same database. Signing a device in,
+recognizing its token (only the token's hash is kept), the two time limits (30 minutes quiet,
+12 hours in all), ending one session or all of them, and the list a person sees.
+`src/server/request.ts`: the two cookies as text, and whether a request came from a page of
+ours (`Origin`, exactly). Both are in the assessment (1.7). For whoever writes the Worker:
+
+- Hash first, then ask: `checkSession(db, await hashOf(token), Date.now())`. Nothing that waits
+  may come between a function's first read and its last write.
+- The account id in the cookie only picks the database. Never answer from it.
+- Everything that reads or changes a person's data is a POST, refused unless `fromOurOrigin`
+  says yes. A GET hands out pages and nothing else.
+- `ctx.storage.transactionSync` goes behind `atomically`. No `BEGIN` in a Durable Object.
+
 There is no Worker and no Durable Object class yet: nothing serves these functions. Next come
-the Durable Object around them, sessions and the handoff, the allowlist and the origin check.
+the Durable Object around them, trading the handoff code, and the allowlist.
 
 ## The store: where records are kept
 

@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.11, 25 November 2026. It records the choices the requirements leave to this document
+Version 0.12, 25 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -34,8 +34,9 @@ is no longer moved, the answer to a push is believed only if it answers that pus
 request has a time limit. The third round approved the layer as 0.9 describes it. Version 0.10
 follows that round: the one thing it found is fixed (a doubled record was not always read with
 its latest copy's time), and one more way a field can come back is written into 1.6. Version
-0.11 adds the server's own code for the two calls of sync (1.6, "The server's code"). The rest
-of the server is not written.
+0.11 adds the server's own code for the two calls of sync (1.6, "The server's code"). Version
+0.12 adds sessions and what a request has to show (1.7). The Worker and the Durable Object
+around them are not written.
 
 ## 1. The vault
 
@@ -657,6 +658,83 @@ database is made of, which vault it is for, bytes in and out, a batch failing ha
 count of versions, and what a call costs (`tests/chunks.test.ts`); each of its checks was taken
 out in turn as well.
 
+### 1.7 Sessions, and what a request has to show (ARCH-4, SEC-4)
+
+Written and tested as two files of plain functions. The Worker that will use them is not
+written, so nothing here can be reached yet. `src/server/sessions.ts` works on the person's own
+database, beside the chunks (1.6). `src/server/request.ts` reads a request's headers and nothing
+else.
+
+**What a session is.** After a handoff code from the main site has been traded for an account
+(ARCH-3, not written), the server makes a token of 256 random bits and gives it to the browser
+in a cookie. The account's database keeps the SHA-256 of the token, a random id for the session,
+when it was made, when it was last seen, and a short label for the list its owner sees. The
+token itself is kept nowhere on the server: a copy of the database signs nobody in. A token is
+long and random, so there is nothing to guess that a slow hash would slow down, and the plain
+hash is enough.
+
+**The cookie.** `__Host-ml=<account id>.<token>`, with `Path=/; Secure; HttpOnly;
+SameSite=Strict` and no `Domain`. The `__Host-` prefix makes a browser take such a cookie only
+from this origin over HTTPS, so a page on changle.ca or on another subdomain cannot plant one.
+The account id in it is an address and not a permission (ISO-2): it says whose database to ask,
+and that database checks the token. Whoever sends another person's id is asked for a token they
+do not have. A request with two cookies of this name is treated as having none, because which
+of two a server ends up reading is not the server's choice. Names are compared exactly:
+`__host-ml` is another cookie.
+
+**When a session ends.** Thirty minutes after it was last seen, and twelve hours after it was
+made whatever its use (ARCH-4). "Last seen" is written at most once a minute and not on every
+request (LIM-1: rows written are counted across the whole site), so a quiet session ends between
+29 and 30 minutes after its last request. The browser is told to drop the cookie after twelve
+hours; the server ends the session then whatever the browser does. A session can be ended from
+the server at any time: one by its id (signing out, or signing another device out), all of
+them, or all but the one that asks (ARCH-8). All of them is also what a changed email address
+does (ARCH-9). A session found to have ended is deleted, so it cannot come back.
+
+**The clock** is the server's, and the only one there is. If it reads more than a minute
+earlier than a session was last seen, that session was seen under a clock that has since gone
+back, and how long ago that really was cannot be told. It has ended, and its owner signs in
+again. Within the minute, which is room for two machines that do not agree to the millisecond,
+nothing changes.
+
+**How many.** An account has at most eight sessions. A new sign-in first removes those that
+have ended; if there would still be more than eight, the ones seen longest ago end. So every
+call reads at most eight short rows. A check that finds nothing writes nothing: sending wrong
+tokens costs the site reads and no writes.
+
+**Where a request came from** (SEC-4, T-22). changle.ca and money.changle.ca are one site to a
+browser, so `SameSite` does not keep a page of the main site from sending a request here with
+the cookie on it. This rule does: everything that reads or changes a person's data is a POST,
+and a POST is refused unless its `Origin` header is exactly the MoneyLens origin. A browser
+sends `Origin` with every request that is not a plain GET or HEAD, and no page can set or
+remove it. Where the browser also says how the two origins relate (`Sec-Fetch-Site`), that has
+to be "same-origin". A request with no `Origin` is refused. The pages themselves are plain GETs
+and carry nobody's data. The origin to expect is configuration, so that a staging deployment
+has its own (SEC-11); one that is not a bare `https://` origin lets nothing in.
+
+**The nonce cookie** (`__Host-ml-n`, five minutes, the same attributes) is set when the browser
+sets off for the main site to fetch a handoff code, and is compared with the nonce the code
+comes back with. Without it somebody could get a code for their own account and slip it into
+another person's browser, who would then put their statements into the attacker's vault
+(ARCH-3).
+
+**What was tested** (`tests/sessions.test.ts`, `tests/request.test.ts`, in CI, on Node's SQLite
+shaped like a Durable Object's): a token's shape, and the hash of a known one against the value
+two other tools give; that no column of the database holds a token; that a token is recognized
+only in its own database, and that a session's id, or the token where its hash belongs, signs
+nobody in; both time limits to the millisecond; the clock going back by less and by more than a
+minute; how many statements read and write, with a thousand wrong tokens writing nothing; the
+ninth sign-in; fourteen sign-ins that are refused and write nothing; ending one, all, and all
+but one; the database failing half-way through a sign-in; the cookies as exact text; twenty-two
+cookie headers that are not a session, a planted second cookie among them; eighteen origins that
+are not ours. Each of the 58 checks in the two files was taken out in turn: each makes a test
+fail.
+
+Not written, and not reviewed with this: the Worker and the Durable Object that call these
+functions, trading the handoff code, the allowlist (SEC-10), the content security policy, the
+security event log (SEC-17), and any limit on how often an account signs in beyond the main
+site's own limit on handoff codes.
+
 ## 2. Limits (the reason for VAULT-6's wording)
 
 - **The code the site serves.** The browser runs what `money.changle.ca` sends. Whoever can change
@@ -721,8 +799,8 @@ out in turn as well.
   and what each input method then does to the punctuation keys, is for the screens.
 - Limiting unlock attempts: the check happens in the browser, so the limit has to be on fetching
   wrappers, per session and per account (threat 1). Not built.
-- Sessions, the handoff, the allowlist, the origin check, the Durable Object and resetting a
-  vault: sections to add with the server. The server's side of the two sync calls, with its
+- The handoff, the allowlist, the Worker, the Durable Object and resetting a vault: sections to
+  add with the server. Sessions and the origin check are written (1.7). The server's side of the two sync calls, with its
   quotas, is written and passes the tests the one in memory passes (1.6, "The server's code").
   The operator's way of changing the quotas (LIM-2) comes with the Durable Object.
 - The code that talks to the server over the network. On top of what the store does (1.6,
