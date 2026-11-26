@@ -7,8 +7,9 @@
  */
 import { heardBy, sfx } from '../audio/sfx';
 import { tr } from '../i18n';
+import { customId, decodeLevel } from '../custom';
 import { festNow } from '../fest';
-import { levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
+import { addCustom, levelById, LEVELS, levelsFor, levelTitle, tierOfLevel } from '../levels';
 import { keyBanner, tideBanner, tierName } from '../mode-text';
 import { tiered } from '../sides';
 import type { Level } from '../physics/level';
@@ -114,6 +115,8 @@ export class PhoneView {
     if (c.gold && was !== undefined && c.gold.round > was && this.phase === 'playing') this.banner(tr(`第 ${c.gold.round} 局`, `Round ${c.gold.round}`));
     this.cast_ = c;
     this.me = c.me;
+    // 自制关（11-26）：带着码就解开放进关卡表，快照找得到了画面才跟上
+    if (c.custom && !levelById(customId(c.custom))) void decodeLevel(c.custom).then((l) => l && addCustom(l));
     // 玩法：坐不住时手抓久了要抖；比谁先分队时头顶的名字带上队
     this.sim.rules = { mode: c.mode ?? 'climb', ...(c.teams ? { teams: c.teams } : {}) };
     c.players.forEach((p, i) => {

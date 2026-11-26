@@ -283,6 +283,8 @@ export interface Cast {
   teams?: number[];
   /** 抢金元宝（A9d）这一场：打到第几局、每个人赢了几局（手机局的手机上写比分）。 */
   gold?: { round: number; wins: number[] };
+  /** 自制关（11-26，关卡编辑器）：在玩自制关的时候带上它的码，手机自己解开（快照里只有 id）。 */
+  custom?: string;
 }
 
 /**

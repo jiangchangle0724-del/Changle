@@ -11,14 +11,14 @@ const commit = (): string => {
 };
 const BUILD = (process.env.WORKERS_CI_COMMIT_SHA || commit() || 'dev').slice(0, 7);
 
-// 五个页面：/（主机）、/pad/（手柄）、/watch/（观众，11-26）、/play.html（物理开发页）、/music.html（背景音乐试听）。
-// build 出到 dist/hang-on，Worker 的静态资源根是 dist，所以线上就是 changle.ca/hang-on/、/hang-on/pad/、/hang-on/watch/。
+// 六个页面：/（主机）、/pad/（手柄）、/watch/（观众，11-26）、/editor/（关卡编辑器，11-26）、/play.html（物理开发页）、/music.html（背景音乐试听）。
+// build 出到 dist/hang-on，Worker 的静态资源根是 dist，所以线上就是 changle.ca/hang-on/、/hang-on/pad/、/hang-on/watch/、/hang-on/editor/。
 export default defineConfig({
   base: '/hang-on/',
   define: { __BUILD__: JSON.stringify(BUILD) },
   build: {
     outDir: 'dist/hang-on',
-    rollupOptions: { input: { host: 'index.html', pad: 'pad/index.html', watch: 'watch/index.html', play: 'play.html', music: 'music.html' } },
+    rollupOptions: { input: { host: 'index.html', pad: 'pad/index.html', watch: 'watch/index.html', editor: 'editor/index.html', play: 'play.html', music: 'music.html' } },
     target: 'es2022',
     chunkSizeWarningLimit: 4000,
   },

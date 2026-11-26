@@ -22,6 +22,7 @@ import { achvCount, loadAchvs, renderAchvList, saveAchvs, trophyToast, unlockLin
 import { installReports, reportError, watchCanvas, type ReportContext } from '../report';
 import { dailyLevel, FEST_LEVELS, festLevel, levelById, levelLabel, LEVELS, levelsFor, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
 import { clock, vancouverDay, type Board, type BoardEntry, type DailyAnswer, type DailyRun } from '../daily';
+import { decodeLevel, isCustom } from '../custom';
 import { FESTS, festNow, type FestId } from '../fest';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
@@ -146,12 +147,20 @@ const today = vancouverDay(Date.now());
 const daily = dailyLevel(today);
 let dailyOn = params.get('daily') === '1';
 if (dailyOn) mode = 'climb';
+/**
+ * 关卡编辑器（11-26，14 样的第 14 样）：`?custom=码` 开别人做的关（码解不开就当没有）。这一串只有这一关，闯关、比谁先都行；
+ * 换难度、换别的玩法就出来，大厅「🛠 自制关」回来。没有星、没有红包、不算成就。
+ */
+const customCode = params.get('custom') ?? '';
+const custom = customCode ? await decodeLevel(customCode) : null;
+let customOn = !!custom && !dailyOn;
+if (customOn && mode !== 'race') mode = 'climb';
 let tier: Tier = dailyOn ? tierOfLevel(daily) : (cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0));
 /** 现在这个玩法、这档难度的那一串关（每日一关只有那一关）。 */
-const listNow = (): Level[] => (dailyOn ? [daily] : levelsFor(mode, tiered(mode) ? tier : undefined, side, fest));
+const listNow = (): Level[] => (dailyOn ? [daily] : customOn && custom ? [custom] : levelsFor(mode, tiered(mode) ? tier : undefined, side, fest));
 /** 每种玩法、每档难度记着自己选到第几关，换回来还在那。 */
 const levelIndexOf = new Map<string, number>();
-const slot = (): string => `${dailyOn ? 'daily' : mode}:${tiered(mode) ? tier : '-'}`;
+const slot = (): string => `${dailyOn ? 'daily' : customOn ? 'custom' : mode}:${tiered(mode) ? tier : '-'}`;
 let levelIndex = Math.max(0, listNow().findIndex((l) => l.id === params.get('level')));
 let level: Level = listNow()[levelIndex] as Level;
 /** 画面上现在画的是哪一版关卡（按人数摆出来的那个对象）。 */
@@ -290,14 +299,17 @@ function setMode(m: GameMode): void {
   if (m === mode && !dailyOn) return;
   levelIndexOf.set(slot(), levelIndex);
   dailyOn = false;
+  // 自制关闯关、比谁先都能玩；换到别的玩法才出来
+  if (m !== 'climb' && m !== 'race') customOn = false;
   mode = m;
   relist(true);
 }
 /** 难度（闯关、比谁先）。在每日一关上点哪个难度都是出来回到那一串。 */
 function setTier(t: Tier): void {
-  if ((t === tier && !dailyOn) || !tiered(mode)) return;
+  if ((t === tier && !dailyOn && !customOn) || !tiered(mode)) return;
   levelIndexOf.set(slot(), levelIndex);
   dailyOn = false;
+  customOn = false;
   tier = t;
   relist(true);
 }
@@ -332,7 +344,7 @@ function followCount(): void {
 /** 这一边能选的玩法（大团队要有大关）。 */
 const modesNow = (): GameMode[] => SIDE_MODES[side].filter((m) => m !== 'team' || TEAM_LEVELS.length > 0);
 /** 结算页有没有「下一关」：这一档还有，或者这一档打完了接着下一档。 */
-const hasNext = (): boolean => !dailyOn && (mode === 'rain' || levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2));
+const hasNext = (): boolean => !dailyOn && !customOn && (mode === 'rain' || levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2));
 /** 下一关：这一档的下一关；这一档打完了是下一档的第一关。 */
 function goNext(): void {
   if (levelIndex < listNow().length - 1) {
@@ -742,6 +754,7 @@ function playFest(): void {
   if (!festLevel(fest) || phase !== 'lobby') return;
   levelIndexOf.set(slot(), levelIndex);
   dailyOn = false;
+  customOn = false;
   if (mode !== 'climb' && mode !== 'race') mode = 'climb';
   tier = 0;
   levelIndexOf.set(slot(), 0);
@@ -756,15 +769,29 @@ function titleNow(): { zh: string; en: string } {
 }
 /** 正在闯今天的每日一关（怎么进的这关都算）。 */
 const dailyNow = (): boolean => mode === 'climb' && level.id === daily.id;
-/** 大厅第二排：不在每日一关上是「📅 每日一关」（去玩），在上面是「🏆 今日排行」。 */
+/** 大厅第二排：不在每日一关上是「📅 每日一关」（去玩），在上面是「🏆 今日排行」；带着自制关来的，不在它上面时「🛠 自制关」。 */
 function renderDailyBtn(): void {
   const b = $<HTMLButtonElement>('dailyBtn');
   b.textContent = dailyNow() ? tr('🏆 今日排行', "🏆 Today's board") : tr('📅 每日一关', '📅 Daily level');
+  const c = $<HTMLButtonElement>('customBtn');
+  c.hidden = !custom || customOn;
+  if (custom) c.textContent = tr(`🛠 自制关：${custom.name?.zh ?? ''}`, `🛠 Custom: ${custom.name?.en ?? ''}`);
+}
+/** 回到带来的自制关（闯关；正在比谁先就留着）。 */
+function startCustom(): void {
+  if (phase !== 'lobby' || !custom || customOn) return;
+  levelIndexOf.set(slot(), levelIndex);
+  customOn = true;
+  dailyOn = false;
+  if (mode !== 'race') mode = 'climb';
+  levelIndexOf.set(slot(), 0);
+  relist(true);
 }
 function startDaily(): void {
   if (phase !== 'lobby' || dailyOn) return;
   levelIndexOf.set(slot(), levelIndex);
   dailyOn = true;
+  customOn = false;
   mode = 'climb';
   tier = tierOfLevel(daily);
   levelIndexOf.set(slot(), 0);
@@ -899,6 +926,10 @@ $('dailyBtn').addEventListener('click', () => {
   sfx.tick();
   if (dailyNow()) void openBoard();
   else startDaily();
+});
+$('customBtn').addEventListener('click', () => {
+  sfx.tick();
+  startCustom();
 });
 $('dailyBoardBtn').addEventListener('click', () => void openBoard());
 $('boardDone').addEventListener('click', () => boardDlg.close());
@@ -1343,6 +1374,8 @@ function goldWin(w: number | undefined): void {
 /** 闯关、大团队：到顶了，算这一局的小目标、记下拿到的星和红包。 */
 function scoreGoals(): void {
   if (sim.rules.mode !== 'climb' && sim.rules.mode !== 'team') return;
+  // 自制关（11-26）：没有星、没有红包
+  if (isCustom(sim.level)) return;
   const got = sim.envelopes.flatMap((e, k) => (e.got ? [k] : []));
   const goals = goalsOf(sim.level, sim.players.length, { time: sim.time, deaths: sim.players.map((p) => p.deaths), envelopes: got.length });
   const rec = record(sim.level.id, goals, got);
@@ -1502,7 +1535,7 @@ function renderLevel(): void {
   if (phase === 'lobby') syncMusic();
   $('levelName').textContent = pickLang(titleNow());
   // 小目标的星（A9b）：这台主机上这一关拿到过几颗
-  if (mode === 'climb' || mode === 'team') {
+  if ((mode === 'climb' || mode === 'team') && !isCustom(level)) {
     const keys = goalTargets(level, Math.max(1, playerCount())).map((g) => g.key);
     const stars = document.createElement('span');
     stars.className = 'stars';
@@ -1522,7 +1555,8 @@ function renderLevel(): void {
   // 节日关（11-26）：前面写「🎄 圣诞限定」；今天的每日一关（闯关）前面写「📅 每日一关」
   const f = level.fest ? FESTS[level.fest] : null;
   const pre = f ? `${f.emoji} ${tr(`${f.zh}限定`, `${f.en} special`)} · ` : dailyNow() ? `📅 ${tr('每日一关', 'Daily level')} · ` : '';
-  $('levelTeach').textContent = pre + teach;
+  // 自制关（11-26）：没有「这关教」，写它是哪来的
+  $('levelTeach').textContent = isCustom(level) ? tr('🛠 自制关：关卡编辑器做的，没有星和红包', '🛠 Custom level from the editor: no stars or envelopes') : pre + teach;
   renderFestBtn();
   renderDailyBtn();
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
@@ -1765,6 +1799,8 @@ function haveOf(key: string): Set<AchvId> {
  * 大屏上冒一条、响一声，手机局跟着快照发到每部手机。
  */
 function award(list: readonly Award[]): void {
+  // 自制关（11-26）不算成就：谁都能做一关出生点挨着终点的
+  if (isCustom(sim.level)) return;
   const fresh: { name: string; id: AchvId }[] = [];
   for (const a of list) {
     const key = achvKey(a.player);
@@ -2325,6 +2361,7 @@ function castFor(seat: string): Cast {
     mode: sim.rules.mode,
     ...(sim.rules.teams ? { teams: sim.rules.teams } : {}),
     ...(sim.rules.mode === 'gold' ? { gold: { round: goldRound, wins: goldWins() } } : {}),
+    ...(isCustom(sim.level) && customCode ? { custom: customCode } : {}),
   };
 }
 

@@ -5,6 +5,7 @@
  * 大团队用 levels/team/ 里的大关（C9），坐不住用场地（src/physics/arenas.ts）。
  * 节日关（11-26）：levels/fest/ 里的关，节日那几天排在闯关、比谁先简单那一串最前面（`levelsFor` 的 fest）。
  */
+import { isCustom } from './custom';
 import { dailyIndex } from './daily';
 import { FEST_IDS, FESTS, type FestId } from './fest';
 import { pickLang } from './i18n';
@@ -80,7 +81,14 @@ export function levelsFor(mode: GameMode, tier?: Tier, side: Side = 'solo', fest
   return festive ? [festive, ...list] : list;
 }
 
+/** 自制关（11-26，关卡编辑器）：手机局里收到房主发来的码、解开以后放在这里，快照按 id 找得到。 */
+const customs = new Map<string, Level>();
+export function addCustom(level: Level): void {
+  if (customs.size > 20) customs.clear();
+  customs.set(level.id, level);
+}
 export function levelById(id: string | null | undefined): Level | undefined {
+  if (id && customs.has(id)) return customs.get(id);
   if (id === 'proto-01') return sampleLevel();
   if (id === 'proto-02') return machinesLevel('table');
   if (id === 'proto-03') return machinesLevel('van');
@@ -183,6 +191,7 @@ export function levelTitle(l: Level, i: number, list?: readonly Level[]): string
 export function levelLabel(l: Level, i: number, list?: readonly Level[]): { zh: string; en: string } {
   const name = l.name ?? { zh: l.id, en: l.id };
   if (l.fest) return { zh: `${FESTS[l.fest].emoji} ${name.zh}`, en: `${FESTS[l.fest].emoji} ${name.en}` };
+  if (isCustom(l)) return { zh: `🛠 ${name.zh}`, en: `🛠 ${name.en}` };
   const n = i + 1 - (list?.[0]?.fest ? 1 : 0);
   return { zh: `${n}. ${name.zh}`, en: `${n}. ${name.en}` };
 }

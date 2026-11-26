@@ -39,6 +39,8 @@ changle.ca 的合作攀爬游戏：两只长胳膊抓来荡去，几个人连成
 | `src/levels.ts` | 关卡表：`levels/*.json`（C1 的 12 关，13 号往后是难关）按 id 末尾的号排，最后是彩蛋关「桌上杂技」；`levelsFor(玩法)` 给每种玩法自己的一串（大团队是 `levels/team/`，坐不住是场地）；节日关 `levels/fest/` 节日那几天排在简单那一串最前面 |
 | `src/fest.ts`、`src/render/festive.ts` | 节日关（11-26）：哪天是哪个节日（春节、中秋、圣诞、万圣节，按本地日期；`?fest=xmas` 当成圣诞、`?fest=none` 不要节日），画面上挂的装饰（灯笼、彩灯、南瓜灯、月亮、烟花、孔明灯、蝙蝠）。`src/fest.test.ts` 测日历和节日关排在哪（CONTRACTS「节日关契约」） |
 | `src/server/` | 房间服务（A2）：`worker.ts` 是 Cloudflare Worker 和 Durable Object `HangOnRoom`，`room.ts` 是房间逻辑（纯，有测试）。Cloudflare 只做三件事：发房间码、交换 WebRTC 信令、直连失败时中转输入。联机桌（A15）：`GET /hang-on/api/rooms/CODE` 回这局在大厅、在玩还是结束了；主机连房间带钥匙，一局只有一个主机（另一台是 `hostTaken`）。闪退自动记录（11-25）：`reports.ts` 和 Durable Object `HangOnReports`（一个盒子），页面那头是 `src/report.ts`，见 CONTRACTS「闪退记录契约」。每日一关的排行榜（11-26）：`board.ts` 和 Durable Object `HangOnBoard`（一个盒子），`POST/GET /hang-on/api/daily`，见 CONTRACTS「每日一关契约」 |
+| `editor/index.html` + `src/editor/` | 关卡编辑器（11-26）：`/hang-on/editor/`，画关、试玩、分享（整关在链接里）；`model.ts` 是关和工具（`model.test.ts` 测它），`main.ts` 画和点、试玩、分享、草稿和「我的关」。见 CONTRACTS「关卡编辑器契约」 |
+| `src/custom.ts` | 自制关（11-26）：码怎么压、怎么解，别人给的关怎么收拾（`cleanCustom`，只留编辑器放得出来的、数夹在范围里）；主机页 `?custom=码`、手机局的 `Cast.custom` 用。`src/custom.test.ts` 测它 |
 | `src/daily.ts` | 每日一关（11-26）：温哥华的日期、每天挑第几关、成绩怎么收拾和排（主机页和房间服务器共用）；挑哪关在 `src/levels.ts` 的 `dailyLevel`。`src/daily.test.ts`、`src/server/board.test.ts` 测它们 |
 | `src/net/` | 链路（A2）：`protocol.ts` 房间和链路的消息，`host-link.ts` 主机这头（发 offer、不可靠无序的数据通道、每 250 ms 量往返、3 秒没通就绕路），`pad-link.ts` 手柄这头（答 offer、每帧发输入、断了自己回来），`latency.ts` 往返统计，`snap.ts` 手机局的画面快照（主机压、手机拼成 `RemoteSim`） |
 | `index.html` + `src/host/` | 主机页：开房、房间码和二维码、选关、座位、左上角延迟表、跑物理画画面、横幅（「×× 松手了」）、结算页（摔死排行、背叛榜，画法在 `src/results.ts`；精彩回放在 `highlights.ts`）、声音开关，键盘也能加入。在手机上打开就是手机局（见下） |
