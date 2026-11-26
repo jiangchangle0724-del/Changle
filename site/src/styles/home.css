@@ -15,6 +15,19 @@
   align-items: center;
   gap: 4px;
 }
+/* the music switch: in the bar where it fits beside the wordmark (most phones keep it in settings) */
+.home-music {
+  display: none;
+}
+@media (min-width: 420px) {
+  .home-music {
+    display: inline-grid;
+  }
+}
+.home-music[aria-pressed="true"] {
+  background: var(--color-text);
+  color: var(--night);
+}
 
 .wordmark {
   display: inline-flex;
@@ -870,4 +883,7 @@
   .board {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+.home-music[aria-pressed="true"]:hover {
+  background: var(--color-text);
 }
