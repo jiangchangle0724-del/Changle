@@ -248,7 +248,8 @@ export interface Menu {
   tier: Tier;
   tiered: boolean;
   /** 第几关、一共几关、关名、这关教什么（中英都给，手柄按自己的语言显示）；闯关、大团队带这关拿到过的星（「★★☆」）。 */
-  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string }; stars?: string };
+  /** title（11-26）：大厅里写的关名（「3. 筷子桥」，节日关「🎄 …」不编号）；老主机没有就用 n 和 name 拼。 */
+  level: { n: number; of: number; name: { zh: string; en: string }; teach: { zh: string; en: string }; stars?: string; title?: { zh: string; en: string } };
   players: number;
   /** 这个玩法至少几个人。 */
   min: number;

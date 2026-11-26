@@ -6,8 +6,8 @@
 // 有人挂在边上、荡上去、伸手够到过的地方，够得着，但站在路上拿不到，得特意去够。
 // 离出生点、检查点、终点、别的红包太近的不要，碰到台子的往外挪，挨着要命的东西的不要。
 //
-// 用法：npm run envelopes            挑所有闯关的关（levels/*.json），已经有的重挑
-//       npm run envelopes -- table-02  只挑这几关
+// 用法：npm run envelopes            挑所有闯关的关（levels/*.json）和节日关（levels/fest/*.json），已经有的重挑
+//       npm run envelopes -- table-02  只挑这几关（节日关写 fest-xmas 这样的 id）
 // 回放或关卡改了以后重跑一遍；`npm run levels` 会查每个红包回放里都有人拿到过。
 import { build } from 'esbuild';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -131,10 +131,18 @@ function withEnvelopes(level, envelopes) {
   return out;
 }
 
-const dir = join(root, 'levels');
-const files = (await readdir(dir)).filter((f) => f.endsWith('.json')).sort();
+// 节日关（11-26，C19）在 levels/fest/，回放在 levels/fest/replays/（level.replay 从它自己的文件夹算）
+const dirs = [join(root, 'levels'), join(root, 'levels', 'fest')];
+const jobs = [];
+for (const d of dirs) {
+  const list = await readdir(d).catch((e) => {
+    if (e.code === 'ENOENT') return [];
+    throw e;
+  });
+  for (const f of list.filter((x) => x.endsWith('.json')).sort()) jobs.push({ dir: d, f });
+}
 let done = 0;
-for (const f of files) {
+for (const { dir, f } of jobs) {
   const id = f.replace(/\.json$/, '');
   if (only.length && !only.includes(id)) continue;
   const level = JSON.parse(await readFile(join(dir, f), 'utf8'));

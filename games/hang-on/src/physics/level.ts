@@ -2,6 +2,7 @@
  * 关卡数据（契约见 games/hang-on/CONTRACTS.md「关卡契约」）。关卡是 JSON，不是代码。
  * 坐标：像素，y 向下，矩形以左上角为原点。
  */
+import type { FestId } from '../fest';
 
 export interface Pt {
   x: number;
@@ -279,6 +280,11 @@ export interface Level {
    * 大厅里「这关教」前面写「长关」。
    */
   long?: boolean;
+  /**
+   * 节日关（11-26）：这是哪个节日的关（levels/fest/，C19 做）。节日那几天排在闯关、比谁先简单那一串最前面，
+   * 画面挂这个节日的装饰；平常不出现（开发页 `?level=fest-xmas` 还能开）。
+   */
+  fest?: FestId;
   world?: string;
   name?: { zh: string; en: string };
   teaches?: string;

@@ -6,7 +6,9 @@
  * `?phone=1` 照手机上的画法画（镜头近一些，没有近景光斑和斜光）。
  * 道具（A9）：`?item=freeze` / `noodle` / `leaf` 给每个人带上，P1 按 F 用，P2 按 P 用。
  * 手酸（A11）：写了 `stamina: true` 的中等、困难的关自己开着；`?stamina=1` 不管写没写都按关的难度开（按手酸重录回放用），`?stamina=0` 关掉。
+ * 节日（11-26）：`?fest=xmas`（cny、midautumn、halloween）挂这个节日的装饰；不写就不挂（节日关 `?level=fest-xmas` 自己带）。
  */
+import { cleanFest } from '../fest';
 import { cleanItem } from '../items';
 import { LEVELS, levelById, tierOfLevel } from '../levels';
 import { CFG } from '../physics/config';
@@ -25,7 +27,8 @@ const $ = <T extends HTMLElement>(id: string): T => {
 const canvas = $<HTMLCanvasElement>('stage');
 const query = new URLSearchParams(location.search);
 const level = levelById(query.get('level')) ?? (LEVELS[LEVELS.length - 1] as (typeof LEVELS)[number]);
-const stage = await Stage.create(canvas, { plates: PLATES, compact: query.get('phone') === '1' });
+const festAsked = cleanFest(query.get('fest'));
+const stage = await Stage.create(canvas, { plates: PLATES, compact: query.get('phone') === '1', fest: festAsked === 'none' ? null : festAsked });
 let nPlayers = Math.max(1, Math.min(6, Number(query.get('players')) || 1));
 const mode = (['climb', 'team', 'race', 'last', 'gold'] as GameMode[]).find((m) => m === query.get('mode')) ?? 'climb';
 // 手酸（A11）：写了 stamina: true 的中等、困难的关和游戏里一样开着；?stamina=1 不管写没写都按关的难度开
