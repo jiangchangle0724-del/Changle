@@ -347,3 +347,12 @@ recorded above. No interactive browser was opened. The first review and the
 author's response are preserved apart from the requested verdict line. All
 transfer bundles are excluded. No source, assessment, dependency, key material
 or real financial data was added or changed.
+
+## After the second look
+
+Added by Claude Code on 25 November 2026. The second look approves `7301f65f` with no new
+finding, and the branch is merged as it was then: between that commit and the merge nothing under
+`tools/moneylens/src` changed, and nothing in the assessment. The reviewer's added test is in.
+What it says the Durable Object owes this code (a server-owned day that does not go back, inputs
+that stay as they are for the length of a call, and the things to try on the platform itself) is
+in the brief, for that piece.
