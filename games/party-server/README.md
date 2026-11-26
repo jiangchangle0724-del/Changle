@@ -161,6 +161,14 @@ instead, `site/src/party/dj/`.)
   count, what's next, the big button and how hard you're moving; the player's own results. For the host: pick a dance or a song, steer it, measure
   the TV's delay, the 120 BPM metronome (the timing test in `docs/field-notes/2026-11-01.md`), end
   the room. Each phone tells the room its language (`lang`): the TV speaks the host's.
+- **From a changle.ca table** (the site's `site/src/party/dance/link.ts`): the phones come with
+  `?table=` (kept in the address as they join) and the stage too; both pages then have 回到桌子 /
+  Back to the table in their top bar (a phone to `/t/TABLE`; the stage to the page that sent it,
+  `/tv/TABLE` for the TV, else `/t/TABLE`: `tableUrl` in `src/client/common.ts`). When the room ends,
+  1.5 s later each page goes back there, leaving `sessionStorage["dance.over"]` = the code (the stage
+  `"dance.over.tv"` too), so the table takes everyone back to its lobby. `GET /party/api/rooms/CODE`
+  says how the room is going (`{ exists, phase: "lobby" | "playing" | "over" }`), which the table
+  asks every 8 s while its players are away.
 - **测量 / Timing**: the speaker's clock in big digits, for the field test (a photo of the two
   screens side by side shows the error); on a phone its button, on the speaker page `?timing`.
 
