@@ -22,12 +22,15 @@
     "bindings": [
       { "name": "ROOMS", "class_name": "HangOnRoom" },
       // 闪退自动记录（11-25）：所有页面的报放在一个盒子里（src/server/reports.ts）
-      { "name": "REPORTS", "class_name": "HangOnReports" }
+      { "name": "REPORTS", "class_name": "HangOnReports" },
+      // 每日一关的排行榜（11-26）：所有的榜放在一个盒子里（src/server/board.ts）
+      { "name": "BOARD", "class_name": "HangOnBoard" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["HangOnRoom"] },
-    { "tag": "v2", "new_sqlite_classes": ["HangOnReports"] }
+    { "tag": "v2", "new_sqlite_classes": ["HangOnReports"] },
+    { "tag": "v3", "new_sqlite_classes": ["HangOnBoard"] }
   ],
   "build": { "command": "npm run build" },
   "observability": { "enabled": true, "traces": { "enabled": true } }

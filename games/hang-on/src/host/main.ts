@@ -20,7 +20,8 @@ import { emotePicker } from '../emote-picker';
 import { AchvRound, type AchvId, type Award } from '../achievements';
 import { achvCount, loadAchvs, renderAchvList, saveAchvs, trophyToast, unlockLines } from '../achv-ui';
 import { installReports, reportError, watchCanvas, type ReportContext } from '../report';
-import { FEST_LEVELS, festLevel, levelById, levelLabel, LEVELS, levelsFor, levelTitle, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
+import { dailyLevel, FEST_LEVELS, festLevel, levelById, levelLabel, LEVELS, levelsFor, TEAM_LEVELS, teachText, tierOfLevel, withTiredNote } from '../levels';
+import { clock, vancouverDay, type Board, type BoardEntry, type DailyAnswer, type DailyRun } from '../daily';
 import { FESTS, festNow, type FestId } from '../fest';
 import { keyBanner, modeHintText, modeLabel, modeName, notReadyText, sideName, tideBanner, tierName } from '../mode-text';
 import { cleanSide, cleanTier, maxPlayers, minPlayers, SIDE_MODES, sideFor, SIDES, tiered, TIERS, type Side, type Tier } from '../sides';
@@ -137,12 +138,20 @@ let teamsOn = params.get('teams') === '1';
 let side: Side = cleanSide(params.get('side')) ?? (mode === 'climb' ? 'solo' : 'multi');
 let sideAuto = !params.get('side') && mode === 'climb';
 const askedLevel = LEVELS.find((l) => l.id === params.get('level')) ?? askedFest;
-let tier: Tier = cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0);
-/** 现在这个玩法、这档难度的那一串关。 */
-const listNow = (): Level[] => levelsFor(mode, tiered(mode) ? tier : undefined, side, fest);
+/**
+ * 每日一关（11-26，14 样的第 13 样）：今天（温哥华的日期）大家同一关。大厅「📅 每日一关」点了这一串就只有这一关
+ * （闯关，难度是它自己的；`?daily=1` 直接开到这里），换玩法、换难度就出来。这一天在闯关里到顶就交成绩，怎么进的这关都算。
+ */
+const today = vancouverDay(Date.now());
+const daily = dailyLevel(today);
+let dailyOn = params.get('daily') === '1';
+if (dailyOn) mode = 'climb';
+let tier: Tier = dailyOn ? tierOfLevel(daily) : (cleanTier(Number(params.get('tier') ?? NaN)) ?? (askedLevel ? tierOfLevel(askedLevel) : 0));
+/** 现在这个玩法、这档难度的那一串关（每日一关只有那一关）。 */
+const listNow = (): Level[] => (dailyOn ? [daily] : levelsFor(mode, tiered(mode) ? tier : undefined, side, fest));
 /** 每种玩法、每档难度记着自己选到第几关，换回来还在那。 */
 const levelIndexOf = new Map<string, number>();
-const slot = (): string => `${mode}:${tiered(mode) ? tier : '-'}`;
+const slot = (): string => `${dailyOn ? 'daily' : mode}:${tiered(mode) ? tier : '-'}`;
 let levelIndex = Math.max(0, listNow().findIndex((l) => l.id === params.get('level')));
 let level: Level = listNow()[levelIndex] as Level;
 /** 画面上现在画的是哪一版关卡（按人数摆出来的那个对象）。 */
@@ -278,15 +287,17 @@ function tagName(i: number, nm: string): string {
   return t === undefined ? `${a}${nm}` : `${a}${nm} · ${t === 0 ? tr('甜', 'Sweet') : tr('咸', 'Savory')}`;
 }
 function setMode(m: GameMode): void {
-  if (m === mode) return;
+  if (m === mode && !dailyOn) return;
   levelIndexOf.set(slot(), levelIndex);
+  dailyOn = false;
   mode = m;
   relist(true);
 }
-/** 难度（闯关、比谁先）。 */
+/** 难度（闯关、比谁先）。在每日一关上点哪个难度都是出来回到那一串。 */
 function setTier(t: Tier): void {
-  if (t === tier || !tiered(mode)) return;
+  if ((t === tier && !dailyOn) || !tiered(mode)) return;
   levelIndexOf.set(slot(), levelIndex);
+  dailyOn = false;
   tier = t;
   relist(true);
 }
@@ -321,7 +332,7 @@ function followCount(): void {
 /** 这一边能选的玩法（大团队要有大关）。 */
 const modesNow = (): GameMode[] => SIDE_MODES[side].filter((m) => m !== 'team' || TEAM_LEVELS.length > 0);
 /** 结算页有没有「下一关」：这一档还有，或者这一档打完了接着下一档。 */
-const hasNext = (): boolean => mode === 'rain' || levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2);
+const hasNext = (): boolean => !dailyOn && (mode === 'rain' || levelIndex < listNow().length - 1 || (tiered(mode) && tier < 2));
 /** 下一关：这一档的下一关；这一档打完了是下一档的第一关。 */
 function goNext(): void {
   if (levelIndex < listNow().length - 1) {
@@ -730,11 +741,167 @@ function renderFestBtn(): void {
 function playFest(): void {
   if (!festLevel(fest) || phase !== 'lobby') return;
   levelIndexOf.set(slot(), levelIndex);
+  dailyOn = false;
   if (mode !== 'climb' && mode !== 'race') mode = 'climb';
   tier = 0;
   levelIndexOf.set(slot(), 0);
   relist(true);
 }
+// ---------------------------------------------------------------- 每日一关和排行榜（11-26，14 样的第 13 样）
+/** 大厅、倒数、手柄菜单写的关名：每日一关「📅 筷子桥」不编号，别的照 `levelLabel`。 */
+function titleNow(): { zh: string; en: string } {
+  if (!dailyOn) return levelLabel(level, levelIndex, listNow());
+  const n = level.name ?? { zh: level.id, en: level.id };
+  return { zh: `📅 ${n.zh}`, en: `📅 ${n.en}` };
+}
+/** 正在闯今天的每日一关（怎么进的这关都算）。 */
+const dailyNow = (): boolean => mode === 'climb' && level.id === daily.id;
+/** 大厅第二排：不在每日一关上是「📅 每日一关」（去玩），在上面是「🏆 今日排行」。 */
+function renderDailyBtn(): void {
+  const b = $<HTMLButtonElement>('dailyBtn');
+  b.textContent = dailyNow() ? tr('🏆 今日排行', "🏆 Today's board") : tr('📅 每日一关', '📅 Daily level');
+}
+function startDaily(): void {
+  if (phase !== 'lobby' || dailyOn) return;
+  levelIndexOf.set(slot(), levelIndex);
+  dailyOn = true;
+  mode = 'climb';
+  tier = tierOfLevel(daily);
+  levelIndexOf.set(slot(), 0);
+  relist(true);
+}
+/** 这台主机在排行榜上的随机号（`hang-on:board-id`）：同一台一天一榜只留最好的一次，不给别人看。 */
+const boardId = ((): string => {
+  try {
+    const v = localStorage.getItem('hang-on:board-id');
+    if (v && /^[A-Za-z0-9]{16}$/.test(v)) return v;
+  } catch {
+    // 记不住就每次新的
+  }
+  const abc = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const id = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => abc[x % abc.length]).join('');
+  try {
+    localStorage.setItem('hang-on:board-id', id);
+  } catch {
+    // 同上
+  }
+  return id;
+})();
+/** 这一局交成绩交得怎么样了（是哪一局的：换了局就不显示）。 */
+let dailyRes: { sim: Sim; state: 'sending' } | { sim: Sim; state: 'done'; a: DailyAnswer } | { sim: Sim; state: 'failed' } | null = null;
+/** 到顶了：今天的每日一关就把成绩交上去（时间是模拟的秒，「慢一点」不影响）。 */
+async function submitDaily(): Promise<void> {
+  const s = sim;
+  const run: DailyRun = {
+    day: today,
+    level: daily.id,
+    players: s.players.length,
+    seconds: Math.round(s.time * 100) / 100,
+    falls: s.players.reduce((n, p) => n + p.deaths, 0),
+    names: s.players.map((_, i) => name(i)),
+    ...(s.players.some((_, i) => assistOf(i)) ? { assist: true } : {}),
+    who: boardId,
+  };
+  dailyRes = { sim: s, state: 'sending' };
+  renderDailyLine();
+  try {
+    const r = await fetch(new URL('/hang-on/api/daily', location.origin), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(run) });
+    if (!r.ok) throw new Error(String(r.status));
+    dailyRes = { sim: s, state: 'done', a: (await r.json()) as DailyAnswer };
+  } catch {
+    dailyRes = { sim: s, state: 'failed' };
+  }
+  renderDailyLine();
+}
+/** 结算页的一行：交上去了没有、排第几。 */
+function renderDailyLine(): void {
+  const el = $('dailyLine');
+  const r = dailyRes?.sim === sim ? dailyRes : null;
+  el.hidden = !r;
+  $('dailyBoardBtn').hidden = !r || r.state === 'failed';
+  if (!r) return;
+  if (r.state === 'sending') el.textContent = tr('📅 每日一关：成绩交上去了……', '📅 Daily level: sending your time…');
+  else if (r.state === 'failed') el.textContent = tr('📅 每日一关：成绩没交上去（网不好），这次不算', '📅 Daily level: could not send your time (connection), so this run does not count');
+  else {
+    const { side, rank, of, best } = r.a;
+    const solo = side === 'solo';
+    const who = solo ? tr('人', 'players') : tr('队', 'teams');
+    const board = solo ? tr('单人榜', 'solo board') : tr('多人榜', 'team board');
+    el.textContent =
+      rank === null
+        ? tr(`📅 每日一关：今天${board}已经满 ${of} ${who}，这次没排进去`, `📅 Daily level: the ${board} already has ${of} ${who} today and this run did not make it`)
+        : tr(`📅 每日一关：${board}第 ${rank} 名，今天一共 ${of} ${who}${best ? '' : '（今天你们还有更快的一次）'}`, `📅 Daily level: #${rank} on the ${board}, ${of} ${who} today${best ? '' : ' (your best today is faster)'}`);
+  }
+}
+/** 今日排行：今天这一关的单人榜、多人榜各前 10。 */
+const boardDlg = $<HTMLDialogElement>('boardDlg');
+async function openBoard(): Promise<void> {
+  const [, m, d] = today.split('-').map(Number) as [number, number, number];
+  const dn = daily.name ?? { zh: daily.id, en: daily.id };
+  $('boardTitle').textContent = tr(`📅 每日一关 · ${m} 月 ${d} 日 · ${dn.zh}`, `📅 Daily level · ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${d} · ${dn.en}`);
+  const body = $('boardBody');
+  body.replaceChildren(boardNote(tr('正在拿排行榜……', 'Loading the board…')));
+  if (!boardDlg.open) boardDlg.showModal();
+  try {
+    const url = new URL('/hang-on/api/daily', location.origin);
+    url.search = new URLSearchParams({ day: today, level: daily.id, who: boardId }).toString();
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(String(r.status));
+    renderBoard((await r.json()) as Board);
+  } catch {
+    body.replaceChildren(boardNote(tr('排行榜打不开（网不好），等会儿再试', 'Could not load the board (connection). Try again in a bit')));
+  }
+}
+function boardNote(text: string): HTMLElement {
+  const p = document.createElement('p');
+  p.className = 'bnote';
+  p.textContent = text;
+  return p;
+}
+/** 两个榜：名次、名字（玩家自己起的，只当文字放）、几个人、用时、摔了几次；这台主机的那条亮一点。 */
+function renderBoard(b: Board): void {
+  const body = $('boardBody');
+  body.replaceChildren();
+  for (const side of ['solo', 'multi'] as const) {
+    const h = document.createElement('h3');
+    h.textContent = side === 'solo' ? tr(`单人榜 · ${b.count.solo} 人`, `Solo · ${b.count.solo}`) : tr(`多人榜 · ${b.count.multi} 队`, `Teams · ${b.count.multi}`);
+    body.append(h);
+    const list: BoardEntry[] = b[side];
+    if (!list.length) {
+      body.append(boardNote(tr('还没人上榜，第一个就是你们', 'Nobody yet. Be the first')));
+      continue;
+    }
+    const ol = document.createElement('ol');
+    list.forEach((e, i) => {
+      const li = document.createElement('li');
+      if (e.me) li.className = 'me';
+      const rank = document.createElement('span');
+      rank.className = 'rank';
+      rank.textContent = String(i + 1);
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = `${e.assist ? '🌱 ' : ''}${e.names.join(tr('、', ', '))}`;
+      const t = document.createElement('span');
+      t.className = 'time';
+      t.textContent = e.seconds < 60 ? tr(`${clock(e.seconds)} 秒`, `${clock(e.seconds)} s`) : clock(e.seconds);
+      const n = document.createElement('span');
+      n.className = 'n';
+      n.textContent = [side === 'multi' ? tr(`${e.players} 人`, `${e.players} players`) : '', tr(`摔 ${e.falls} 次`, `${e.falls} ${e.falls === 1 ? 'fall' : 'falls'}`)].filter(Boolean).join(' · ');
+      li.append(rank, who, t, n);
+      ol.append(li);
+    });
+    body.append(ol);
+    const mine = b.mine[side];
+    if (mine !== null && mine > list.length) body.append(boardNote(tr(`这台设备今天排第 ${mine}`, `This screen is #${mine} today`)));
+  }
+}
+$('dailyBtn').addEventListener('click', () => {
+  sfx.tick();
+  if (dailyNow()) void openBoard();
+  else startDaily();
+});
+$('dailyBoardBtn').addEventListener('click', () => void openBoard());
+$('boardDone').addEventListener('click', () => boardDlg.close());
 /** 慢一点（11-26，长辈小孩模式）：全场慢到 0.8 倍，记在这台主机上。 */
 function setSlow(on: boolean): void {
   if (on === slowMode) return;
@@ -1086,7 +1253,7 @@ function name(i: number): string {
 /** 倒数时写的：不是闯关就带上玩法，分难度的带上难度。 */
 function countLabel(): string {
   const pre = [mode === 'climb' ? '' : modeName(mode), tiered(mode) ? tierName(tier) : ''].filter(Boolean);
-  return [...pre, levelTitle(level, levelIndex, listNow())].join(' · ');
+  return [...pre, pickLang(titleNow())].join(' · ');
 }
 
 /** 这一局的小目标和红包（A9b）：到顶那一下算好、记下，结算页和发给手机的结算都用它；开新的一局清掉。 */
@@ -1212,13 +1379,15 @@ function showResults(): void {
   $('rainBtn').hidden = !rainReady();
   // 观众（11-26）：这一局谁先掉、押中没有；最准的观众
   renderCrowdLine();
+  // 每日一关（11-26）：交上去了没有、排第几
+  renderDailyLine();
   // 精彩回放（11-26）：这一局录下了一段才有
   const hl = highlights.best;
   $('replayBtn').hidden = !hl;
   if (hl) $('replayBtn').textContent = tr(`▶ 精彩回放：${hl.moment.zh}`, `▶ Replay: ${hl.moment.en}`);
   // 电视局：手机上也能选下一步（电视那边可以不碰）
   $('padHint').hidden = phoneMode;
-  $('padHint').textContent = tr('手机上按「下一关」「再来一次」「回大厅」都行', 'Anyone can pick Next, Again or Lobby on their phone');
+  $('padHint').textContent = hasNext() ? tr('手机上按「下一关」「再来一次」「回大厅」都行', 'Anyone can pick Next, Again or Lobby on their phone') : tr('手机上按「再来一次」「回大厅」都行', 'Anyone can pick Again or Lobby on their phone');
 }
 
 $('startBtn').addEventListener('click', () => {
@@ -1331,7 +1500,7 @@ function pickLevel(i: number): void {
 function renderLevel(): void {
   const list = listNow();
   if (phase === 'lobby') syncMusic();
-  $('levelName').textContent = levelTitle(level, levelIndex, list);
+  $('levelName').textContent = pickLang(titleNow());
   // 小目标的星（A9b）：这台主机上这一关拿到过几颗
   if (mode === 'climb' || mode === 'team') {
     const keys = goalTargets(level, Math.max(1, playerCount())).map((g) => g.key);
@@ -1350,10 +1519,12 @@ function renderLevel(): void {
   renderGachaBtn();
   // 闯关、大团队写这关教什么；比谁先、坐不住写这个玩法怎么赢（场地自己的说明和它一样）
   const teach = pickLang(withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()));
-  // 节日关（11-26）：前面写「🎄 圣诞限定」
+  // 节日关（11-26）：前面写「🎄 圣诞限定」；今天的每日一关（闯关）前面写「📅 每日一关」
   const f = level.fest ? FESTS[level.fest] : null;
-  $('levelTeach').textContent = f ? `${f.emoji} ${tr(`${f.zh}限定`, `${f.en} special`)} · ${teach}` : teach;
+  const pre = f ? `${f.emoji} ${tr(`${f.zh}限定`, `${f.en} special`)} · ` : dailyNow() ? `📅 ${tr('每日一关', 'Daily level')} · ` : '';
+  $('levelTeach').textContent = pre + teach;
   renderFestBtn();
+  renderDailyBtn();
   $<HTMLButtonElement>('levelPrev').disabled = levelIndex === 0;
   $<HTMLButtonElement>('levelNext').disabled = levelIndex >= list.length - 1;
 }
@@ -2081,6 +2252,8 @@ function onEvents(): void {
     if (ev.type === 'win') {
       music.win();
       scoreGoals();
+      // 每日一关（11-26）：今天这一关在闯关里到顶就交成绩
+      if (sim.rules.mode === 'climb' && dailyNow() && !sim.rain) void submitDaily();
       // 成就：到顶（大家）、比谁先和坐不住赢的人
       award(roundNow().onWin(ev.who, roundEnd()));
       // 先让电视上撒一会儿纸屑、大家一起跳，再出结算页；比谁先、坐不住的横幅写谁赢了
@@ -2180,7 +2353,7 @@ function menuFor(): Menu {
       n: levelIndex + 1,
       of: list.length,
       name: level.name ?? { zh: level.id, en: level.id },
-      title: levelLabel(level, levelIndex, list),
+      title: titleNow(),
       teach: withTiredNote(mode === 'climb' || mode === 'team' ? teachText(level) : modeHintText(mode, teamsOn), !!staminaNow()),
       // 小目标的星（A9b）：这台主机上这一关拿到过的（闯关、大团队）
       ...(mode === 'climb' || mode === 'team' ? { stars: starLine(starsOf(level.id), goalTargets(level, Math.max(1, playerCount())).map((g) => g.key)) } : {}),

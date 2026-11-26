@@ -6,11 +6,15 @@
 //                                           （联机桌开的房先没有主机，主机页带 ?room=CODE 进来就是 role=host）
 //   POST /hang-on/api/report                页面出了事自己报（闪退自动记录，src/report.ts）-> 204
 //   GET  /hang-on/api/reports               报过的毛病汇总（src/server/reports.ts，`npm run reports` 打出来）
+//   POST /hang-on/api/daily                 每日一关到顶的成绩（11-26，src/daily.ts 的 DailyRun）-> { side, rank, of, best }
+//   GET  /hang-on/api/daily?day=&level=&who= 这一天这一关的单人榜、多人榜（src/server/board.ts）-> Board
 //   GET  /hang-on/r/CODE                    二维码的链接：手柄页，房间码填好
 //   /hang-on/、/hang-on/pad/、/hang-on/watch/ 页面（dist/hang-on，vite build；watch 是观众页，11-26）
 import { DurableObject } from 'cloudflare:workers';
 import { CODE_ALPHABET, CODE_RE, HOST_KEY_RE, SEAT_ID_RE, type ClientMsg, type FatalKey, type ServerMsg } from '../net/protocol';
 import { browserOf, keepReport, makeLimiter, readReport, reportSummary, topFrame, type ReportIn, type ReportStore } from './reports';
+import { boardOf, keepRun, type BoardStore } from './board';
+import { cleanRun, DAY_RE, LEVEL_RE, WHO_RE, type DailyRun } from '../daily';
 import { makeCode, NO_ROOM, Room, type From, type Out, type RoomData, type TableStatus } from './room';
 
 /** 一条消息的上限：SDP offer 两三千字节，再大就不对了。 */
@@ -240,6 +244,46 @@ async function report(req: Request, env: Env, ctx: ExecutionContext): Promise<Re
   return new Response(null, { status: 204 });
 }
 
+/** 每日一关（11-26）：所有的榜放在一个盒子里（名字 all）。 */
+export class HangOnBoard extends DurableObject<Env> {
+  private store(): BoardStore {
+    const s = this.ctx.storage;
+    return {
+      get: (key) => s.get(key),
+      put: (key, value) => s.put(key, value),
+      delete: (key) => s.delete(key),
+      list: (opts) => s.list(opts),
+    };
+  }
+
+  async keep(run: DailyRun) {
+    return keepRun(this.store(), run, Date.now());
+  }
+
+  async board(day: string, level: string, who?: string) {
+    return boardOf(this.store(), day, level, who);
+  }
+}
+
+const runsFrom = makeLimiter(20);
+const boardBox = (env: Env) => env.BOARD.get(env.BOARD.idFromName('all'));
+
+/** 每日一关的一份成绩：收拾，不对的不收，一个地址十分钟最多 20 份。 */
+async function daily(req: Request, env: Env): Promise<Response> {
+  const text = await req.text().catch(() => '');
+  if (text.length > 4096) return new Response(null, { status: 413 });
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return refused('not JSON', req, text.length);
+  }
+  const run = cleanRun(body, Date.now());
+  if (!run) return refused('not a run', req, text.length);
+  if (!runsFrom(req.headers.get('cf-connecting-ip') ?? '?', Date.now())) return new Response(null, { status: 429 });
+  return json(await boardBox(env).keep(run));
+}
+
 function randomInt(n: number): number {
   const a = new Uint32Array(1);
   crypto.getRandomValues(a);
@@ -257,6 +301,15 @@ export default {
     if (path === '/hang-on/api/reports') {
       if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
       return json(await reportBox(env).summary());
+    }
+    if (path === '/hang-on/api/daily') {
+      if (req.method === 'POST') return daily(req, env);
+      if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+      const day = url.searchParams.get('day') ?? '';
+      const level = url.searchParams.get('level') ?? '';
+      const who = url.searchParams.get('who') ?? '';
+      if (!DAY_RE.test(day) || !LEVEL_RE.test(level)) return json({ error: 'bad day or level' }, 400);
+      return json(await boardBox(env).board(day, level, WHO_RE.test(who) ? who : undefined));
     }
     if (path === '/hang-on/api/rooms') {
       if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
