@@ -24,7 +24,7 @@ import { gunzipSync } from "node:zlib";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
-import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
+import { danceAt, DANCE_BEATS, danceRate, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OUTFITS, outfitFor, readDance, stepsPerBeat, WALKS, type Look } from "../src/party/dj/dancer/dances";
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
 import { feetOf, plantFeet, standFeet } from "../src/party/dj/dancer/plant";
@@ -433,6 +433,24 @@ async function main() {
     }
   const near = (bpm: number) => Math.abs(Math.log(bpm / (DANCES.find((d) => d.id === danceAt(0, "club", bpm)) as { bpm: number }).bpm));
   ok(near(118) < Math.log(1.25), "a song at 118: a dance near its tempo");
+  // (Nov 25: never hurried: in every look and at every tempo with dances enough, each dance chosen goes at
+  // most 12% faster than it was danced, or half-time)
+  {
+    let hurried = 0;
+    let checked = 0;
+    for (const look of LOOKS)
+      for (let bpm = 70; bpm <= 175; bpm += 5)
+        for (let k = 0; k < 8; k++) {
+          const id = danceAt(k * DANCE_BEATS, look, bpm);
+          const r = danceRate(id, bpm);
+          const d = DANCES.find((x) => x.id === id)!;
+          const pool = DANCES.filter((x) => x.looks.includes(look) && danceRate(x.id, bpm) !== null);
+          if (pool.length < 2) continue;
+          checked++;
+          if (r === null || (bpm * r) / d.bpm > 1.1201) hurried++;
+        }
+    ok(checked > 200 && hurried === 0, `no dance hurried: ${checked} choices, ${hurried} more than 12% faster than it was danced`);
+  }
   ok(IDLES.some((i) => i.id === idleAt(5).id) && idleAt(5).id !== idleAt(65).id, "with no song, one idle, then the other");
 }
 
