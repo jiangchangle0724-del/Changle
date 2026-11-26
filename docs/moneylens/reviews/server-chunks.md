@@ -3,7 +3,8 @@ VERDICT: APPROVE
 C7 review by Codex, 25 November 2026, of
 `727f2989986a9485c2a6b535b8848cba03e16017` on
 `claude/moneylens-server-chunks` (PR #782). Approve these synchronous SQLite
-functions, with the nonblocking rule-book/date-rewind nit below. This is a new
+functions, with the nonblocking date-rewind nit and shared-buffer compatibility
+finding below. This is a new
 server-code review, not an extension of the earlier client-storage approval.
 It does not approve account routing, authentication, a Worker, a Durable Object
 class, reset handling, exposure or deployment; none is implemented here.
@@ -18,7 +19,8 @@ code, assessment and author's tests are unchanged by this review.
 
 `tests/second-chunks.test.ts` uses its own `node:sqlite` adapter, rather than the
 author's `sqlremote.ts` or fault helpers. It consumes results eagerly, changes
-only BLOB representation at the Node/declared-SQL boundary, and does not coerce
+only ordinary BLOB representation at the Node/declared-SQL boundary, enforces
+the declared ArrayBuffer binding type, and does not coerce
 returned numbers or text on behalf of the implementation. Every id, date and
 opaque byte sample is invented; these tests do not contain vault keys or real
 financial records and do not use the network.
@@ -143,8 +145,9 @@ Once the Durable Object exists, its integration tests should verify the real
 binding's byte-view/BLOB types, row/parameter limits at default maximum sizes,
 rollback on mid-batch and quota/storage errors, output durability across restart,
 cursor counters for insert/update/pull/stale paths, and safe handling of large
-or malformed stored integers. Node accepts a shared-buffer byte view in the
-additional test; that is explicitly not proof that the real binding does so.
+or malformed stored integers. Node 24 accepted a shared-buffer byte view in the
+initial experiment, but Node 22 does not (finding 2). Neither result establishes
+the real platform's binding behavior.
 The wrapper also owes private session-derived routing, server-owned UTC day and
 limits, fully initialized schema, reset behavior, and bounded request decoding.
 These are integration obligations, not findings against an absent Worker/class.
@@ -177,6 +180,38 @@ Do not add SQL writes to denied requests merely to mimic the incidental reset.
 The submitted reproducer is skipped with its reason, per C7; enabling it produces
 the exact differing replies above.
 
+### 2. MINOR, nonblocking: a shared-backed byte view crosses the declared SQL binding boundary unchanged
+
+**Where:** `src/server/chunks.ts:49` (`toSql`) and its INSERT/UPDATE calls.
+
+**Reproduce:** enable `finding 2`. Give push a valid Uint8Array view into a
+SharedArrayBuffer. MemoryRemote accepts it. `toSql` calls the backing buffer's
+slice method, which still returns a SharedArrayBuffer, despite the asserted
+ArrayBuffer return type and the `Db` binding contract. A binding enforcing that
+declared contract rejects the batch. The final independent adapter enforces it
+explicitly so this reproduces locally too.
+
+**Independent runtime evidence:** the first version of this review's shared-view
+test passed on local Node 24.21.0, but failed on Node 22.23.5 in
+[review PR run 45759123814](https://github.com/jiangchangle0724-del/Changle/actions/runs/45759123814),
+job 139704682375: `ERR_INVALID_ARG_TYPE`, `Provided value cannot be bound to
+SQLite parameter 5.` The stack reaches `chunks.ts:159`. Thus a permissive Node
+version had hidden the boundary mismatch. This is not evidence of a failure
+observed on Cloudflare; that runtime still needs its own test.
+
+**Cost and disposition:** this valid in-process Uint8Array representation can
+throw instead of matching the memory rule book. The transaction rolls back; no
+partial write or data exposure was found. Normal network-decoded ArrayBuffer
+views pass. No transport exists, and this representation is not yet a remote
+input path, so it does not block this inaccessible-library approval.
+
+**Follow-up:** make `toSql` allocate an ordinary ArrayBuffer with precisely the
+view's bytes, rather than asserting the result type of an arbitrary backing
+buffer's slice. Alternatively define and enforce a narrower input contract at
+the boundary before the server can be reached. The repro is explicitly skipped
+as a finding, not silently adapted away. The earlier failed review CI run is
+retained as evidence; the reviewed production head itself remains green.
+
 ## Validation
 
 Local runtime: Node **24.21.0**, npm **11.19.0**. Dependencies did not change and
@@ -185,7 +220,7 @@ Local runtime: Node **24.21.0**, npm **11.19.0**. Dependencies did not change an
 ```text
 node --import tsx --test tests/second-chunks.test.ts
 C7 compared=6000; result counts={"bad-request":2048,"taken":249,"too-big":1090,"wrong-vault":417,"stale":409,"quota-bytes":595,"quota-writes":5}
-tests 7; pass 6; fail 0; skipped 1
+tests 7; pass 5; fail 0; skipped 2
 exit 0
 
 npm run typecheck
@@ -194,13 +229,14 @@ npm run typecheck
 exit 0
 
 npm test
-tests 328; pass 327; fail 0; skipped 1
+tests 328; pass 326; fail 0; skipped 2
 exit 0
 
-# Diagnostic only: temporarily enabled finding 1, then restored its skip
-node --import tsx --test --test-name-pattern "^finding 1:" tests/second-chunks.test.ts
-tests 1; pass 0; fail 1; skipped 0
+# Diagnostic only: temporarily enabled both findings, then restored their skips
+node --import tsx --test --test-name-pattern "^finding [12]:" tests/second-chunks.test.ts
+tests 2; pass 0; fail 2; skipped 0
 SQL: quota-writes; MemoryRemote: accepted, version 2
+TypeError: invented adapter: blob binding must be an ordinary ArrayBuffer
 exit 1 (expected)
 ```
 

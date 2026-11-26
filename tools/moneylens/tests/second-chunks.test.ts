@@ -28,6 +28,9 @@ function database() {
   const db: Db = {
     sql: { exec(query, ...args) {
       intercept?.(query, 'before');
+      for (const arg of args) {
+        if (arg !== null && typeof arg === 'object' && !(arg instanceof ArrayBuffer)) throw new TypeError('invented adapter: blob binding must be an ordinary ArrayBuffer');
+      }
       const values = args.map(arg => arg instanceof ArrayBuffer ? new Uint8Array(arg) : arg);
       const rows = raw.prepare(query).all(...values) as Record<string, unknown>[];
       const copied = rows.map(row => Object.fromEntries(Object.entries(row).map(([name, value]) => [name,
@@ -200,7 +203,7 @@ test('C7: SQL text affinity and the last safe integer are observed without test-
   } finally { sql.raw.close(); }
 });
 
-test('C7: Node SQLite accepts a shared-buffer byte view (not proof of platform binding support)', async () => {
+test('finding 2: a shared-buffer byte view must be normalized to the declared ArrayBuffer binding', { skip: 'finding 2: toSql preserves SharedArrayBuffer backing; the declared binding and Node 22 reject it' }, async () => {
   const sql = database(), v = id(700);
   try {
     startVault(sql.db, v);
