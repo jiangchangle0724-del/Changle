@@ -5,9 +5,9 @@
 // in practice): every punch, hit and bite in the room, and a light loop for the place. And the
 // theatre's drill, counted big in the middle of the screen.
 import { useEffect, useRef, useState } from "preact/hooks";
-import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS } from "../../engine";
+import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS, type TagCall } from "../../engine";
 import type { AwardView, EventView, GameView } from "../../room/protocol";
-import { t, type Key } from "../i18n";
+import { other, t, type Key } from "../i18n";
 import { buzz, installAudioUnlock, sfx, startMusic, stopMusic } from "../sound";
 import { Icon, type IconName } from "./chrome";
 
@@ -193,7 +193,75 @@ export function DrillCall(props: { drill: Drill | null; tv?: boolean }) {
   );
 }
 
+const CALL: Record<TagCall, Key> = {
+  first: "callFirst",
+  double: "callDouble",
+  triple: "callTriple",
+  quadra: "callQuadra",
+  penta: "callPenta",
+  spree: "callSpree",
+  rampage: "callRampage",
+  shutdown: "callShutdown"
+};
+/** How big a moment each call is: its sound, from a first blood or a double up to a penta. */
+const TIER: Record<TagCall, number> = { first: 1, double: 1, spree: 2, triple: 2, shutdown: 2, rampage: 3, quadra: 3, penta: 4 };
+/** How long a call stays up (its CSS fades it out over the last --dur-exit). */
+const CALL_MS = 1_900;
+
+export interface Callout {
+  call: TagCall;
+  who?: string;
+  you: boolean;
+  id: number;
+}
+
+/**
+ * The announcer, as in Honor of Kings (Steve, 2026-11-25): when a tag makes a call (engine tagCall:
+ * first blood, a double kill and on, a spree, a rampage, a shutdown), every screen shows it for a
+ * moment with who made it, and plays its stab; the one who made it feels it too.
+ */
+export function useCallout(events: readonly EventView[]): Callout | null {
+  const last = events.length ? events[events.length - 1].id : 0;
+  const seen = useRef(last);
+  const [shown, setShown] = useState<Callout | null>(null);
+  useEffect(() => {
+    const fresh = events.filter((event) => event.id > seen.current);
+    if (!fresh.length) return;
+    seen.current = fresh[fresh.length - 1].id;
+    const called = [...fresh].reverse().find((event) => event.call);
+    if (!called?.call) return;
+    setShown({ call: called.call, who: called.who, you: called.byYou, id: called.id });
+    sfx.callout(TIER[called.call]);
+    if (called.byYou) buzz([20, 40, 20, 40, 70]);
+  }, [last]);
+  useEffect(() => {
+    if (!shown) return;
+    const timer = window.setTimeout(() => setShown(null), CALL_MS);
+    return () => window.clearTimeout(timer);
+  }, [shown?.id]);
+  return shown;
+}
+
+/** The call on screen: who made it (you, on your own phone), the call big, and the other language under it. */
+export function CalloutBanner(props: { callout: Callout | null; tv?: boolean }) {
+  const callout = props.callout;
+  if (!callout) return null;
+  return (
+    <div class={`callout is-${callout.call}${callout.you ? " is-you" : ""}${props.tv ? " is-tv" : ""}`} role="status" key={callout.id}>
+      {(callout.you || callout.who) && <span class="callout-who">{callout.you ? t("marker") : callout.who}</span>}
+      <strong class="callout-call">{t(CALL[callout.call])}</strong>
+      <span class="callout-other" aria-hidden="true">
+        {other(CALL[callout.call])}
+      </span>
+    </div>
+  );
+}
+
 const AWARD: Record<AwardView["award"], { title: Key; why: Key }> = {
+  double: { title: "awardDouble", why: "awardDoubleWhy" },
+  triple: { title: "awardTriple", why: "awardTripleWhy" },
+  quadra: { title: "awardQuadra", why: "awardQuadraWhy" },
+  penta: { title: "awardPenta", why: "awardPentaWhy" },
   eagleEye: { title: "awardEagleEye", why: "awardEagleEyeWhy" },
   ghost: { title: "awardGhost", why: "awardGhostWhy" },
   friendlyFire: { title: "awardFriendlyFire", why: "awardFriendlyFireWhy" },

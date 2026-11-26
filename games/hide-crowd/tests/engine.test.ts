@@ -44,6 +44,7 @@ import {
   createMatch,
   normalizeVector,
   roundAwards,
+  tagCall,
   roundPenalty,
   startBlend,
   startDistract,
@@ -457,6 +458,35 @@ test("the round's titles: the sharpest eye, the ones never spotted, the most pas
   owner("player-three").tagged = 1;
   const titles = Object.fromEntries(roundAwards(match).map((item) => [item.owner, item.award]));
   assert.deepEqual(titles, { "player-one": "eagleEye", "player-two": "friendlyFire", "player-three": "airPunch", "player-four": "ghost" });
+});
+
+test("the announcer calls the biggest thing a tag makes: a row first, then first blood, a shutdown, a spree", () => {
+  assert.equal(tagCall(1, 1, 0, true), "first");
+  assert.equal(tagCall(2, 2, 0, false), "double");
+  assert.equal(tagCall(3, 3, 0, false), "triple");
+  assert.equal(tagCall(4, 4, 0, false), "quadra");
+  assert.equal(tagCall(5, 5, 0, false), "penta");
+  assert.equal(tagCall(7, 7, 0, false), "penta", "past five, still a penta");
+  assert.equal(tagCall(2, 3, 4, false), "double", "a row beats a shutdown");
+  assert.equal(tagCall(1, 1, 3, false), "shutdown");
+  assert.equal(tagCall(1, 3, 0, false), "spree");
+  assert.equal(tagCall(1, 4, 0, false), "rampage");
+  assert.equal(tagCall(1, 2, 0, false), null);
+  assert.equal(tagCall(1, 5, 2, false), null);
+});
+
+test("a double kill or better is a round's title of its own, ahead of the sharpest eye", () => {
+  const match = createMatch([...players, { id: "player-three", name: "Three" }], 0, 5);
+  const owner = (id: string) => match.characters.find((character) => character.ownerId === id)!;
+  owner("player-one").score = 3;
+  owner("player-two").score = 2;
+  match.runs = {
+    "player-one": { streak: 3, chain: 1, until: 0, best: 3 },
+    "player-two": { streak: 0, chain: 0, until: 0, best: 1 }
+  };
+  const titles = roundAwards(match);
+  assert.deepEqual(titles[0], { owner: "player-one", award: "triple" });
+  assert.equal(titles.some((item) => item.award === "eagleEye"), false, "the sharpest eye was the one with the triple");
 });
 
 test("the round's penalty lands on whoever was spotted most, or on everyone when nobody was", () => {

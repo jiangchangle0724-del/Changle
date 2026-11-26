@@ -14,7 +14,7 @@ import { Icon, IconButton, type IconName } from "./chrome";
 import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
 import { Coach, COACH, useCoach } from "./Coach";
-import { arenaEvents, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
+import { arenaEvents, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", blast: "blasted", bike: "biked" };
 const BAD: readonly Key[] = ["spotted", "spottedBy", "foul", "blasted", "biked"];
@@ -168,6 +168,7 @@ export function Play(props: {
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
   const notice = useNotice(game.events, me);
   const drill = useDrill(game, props.receivedAt);
+  const callout = useCallout(game.events);
   const meScore = view.players.find((player) => player.you);
   const coach = useCoach(game, !!props.coach && !!me);
   const pointing = coach.index >= 0 && !notice ? COACH[coach.index].point : undefined;
@@ -216,6 +217,7 @@ export function Play(props: {
       <MomentBanner game={game} />
       {/* (a word about your own punch takes the count's place) */}
       {!notice && <DrillCall drill={drill} />}
+      <CalloutBanner callout={callout} />
       {game.arena === "market" && me && game.phase === "playing" && <Quest me={me} />}
       {props.fullGuide && game.phase === "playing" && <BarsHint onMore={props.fullGuide} />}
       {/* (a word about your own punch or fall comes first) */}

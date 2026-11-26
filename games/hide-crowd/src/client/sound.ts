@@ -194,6 +194,23 @@ export const sfx = {
     voice("sine", 95 * pitch, 40 * pitch, t + delay, 0.28, 0.5);
     hiss(t + delay, 0.14, 0.18, 500 * pitch, 160 * pitch, 0.7);
   },
+  /**
+   * the announcer's stab (roundFx useCallout): a boom, a rush, and a chord that climbs and widens
+   * with the moment (1 a first blood or a double, 4 a penta)
+   */
+  callout(tier: number): void {
+    const t = now();
+    if (t === null) return;
+    duck(t, 1.1);
+    voice("sine", 110, 38, t, 0.6, 0.55);
+    hiss(t, 0.4, 0.22, 3_200, 500, 0.7);
+    const root = 55 + tier * 3;
+    const steps = [0, 7, 12, 16, 19, 24].slice(0, 2 + tier);
+    steps.forEach((step, index) => {
+      voice("sawtooth", midi(root + step), midi(root + step), t + 0.05 + index * 0.05, 0.7, 0.06);
+      voice("triangle", midi(root + step + 12), midi(root + step + 12), t + 0.05 + index * 0.05, 0.5, 0.05);
+    });
+  },
   /** you hit a passer-by: a sheepish two-note slide */
   oops(): void {
     const t = now();

@@ -50,6 +50,39 @@ export const HIDE_AWAY_DISTANCE = 24;
  * while they're down, and a moment after they slip away (Steve, 2026-11-25: you should know who got you).
  */
 export const TAGGER_SHOWN_MS = 2_600;
+/**
+ * The announcer, as in Honor of Kings (Steve, 2026-11-25): a tag this soon after your last one makes
+ * a double, then a triple, a quadra, a penta. Getting tagged ends your run.
+ */
+export const MULTI_TAG_MS = 10_000;
+
+/**
+ * What the announcer calls out on a tag, the biggest one only: the round's first tag (first blood),
+ * two or more in a row within MULTI_TAG_MS, three or four tags without being spotted in between (a
+ * spree, a rampage), or tagging someone on a spree (a shutdown).
+ */
+export type TagCall = "first" | "double" | "triple" | "quadra" | "penta" | "spree" | "rampage" | "shutdown";
+
+/** A player's run of tags: since they were last spotted, in a row, until when the next one counts, the best row. */
+export interface Run {
+  streak: number;
+  chain: number;
+  until: number;
+  best: number;
+}
+
+const NO_RUN: Run = { streak: 0, chain: 0, until: 0, best: 0 };
+const CHAIN_CALLS: TagCall[] = ["double", "triple", "quadra", "penta"];
+
+/** The biggest call for a tag: a row first, then first blood, a shutdown, a spree. */
+export function tagCall(chain: number, streak: number, theirStreak: number, first: boolean): TagCall | null {
+  if (chain >= 2) return CHAIN_CALLS[Math.min(chain, 5) - 2];
+  if (first) return "first";
+  if (theirStreak >= 3) return "shutdown";
+  if (streak === 3) return "spree";
+  if (streak === 4) return "rampage";
+  return null;
+}
 /** The night market's four snack stalls along the back, left to right (their middles). */
 export const STALLS: readonly number[] = [20, 40, 60, 80];
 /** In front of a stall, how far either side of its middle, and how far into the floor from the back, you can eat. */
@@ -240,6 +273,8 @@ export interface MatchEvent {
   stall?: number;
   /** blast, bike: the players it knocked down (each phone is told only whether it was them) */
   targets?: string[];
+  /** tag: what the announcer calls out, if anything */
+  call?: TagCall;
 }
 
 /** Someone knocked down: where, when, and who (they don't stare at themselves). */
@@ -274,6 +309,10 @@ export interface MatchState {
    * player's phone names them over it (a player never shows on anyone else's)
    */
   taggers?: Record<string, { by: string; body: number; until: number }>;
+  /** each player's run of tags, for the announcer and the round's titles */
+  runs?: Record<string, Run>;
+  /** whoever tagged first this round (first blood) */
+  firstBlood?: string;
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -1005,6 +1044,19 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   target.recoil = { x: Math.cos(attacker.facing) * 17, y: Math.sin(attacker.facing) * 17 };
   target.pose = "stunned";
   addEvent(state, "tag", attacker.ownerId, target.ownerId);
+  // the announcer: the tagger's run grows, the tagged player's ends
+  const run = state.runs?.[hunter] ?? NO_RUN;
+  const ended = state.runs?.[hunted] ?? NO_RUN;
+  const chain = now <= run.until ? run.chain + 1 : 1;
+  const streak = run.streak + 1;
+  state.runs = {
+    ...state.runs,
+    [hunter]: { streak, chain, until: now + MULTI_TAG_MS, best: Math.max(run.best, chain) },
+    [hunted]: { ...ended, streak: 0, chain: 0, until: 0 }
+  };
+  const call = tagCall(chain, streak, ended.streak, !state.firstBlood);
+  state.firstBlood ??= hunter;
+  if (call) state.events[state.events.length - 1].call = call;
   if (attacker.score >= SCORE_TO_WIN) {
     state.phase = "over";
     state.winnerId = attacker.ownerId;
@@ -1352,11 +1404,16 @@ export interface RoundPenalty {
 }
 
 /** The round's nicknames, from what each player did (each gets one at most, the first that fits). */
-export type AwardKey = "eagleEye" | "foodie" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
+export type AwardKey = "double" | "triple" | "quadra" | "penta" | "eagleEye" | "foodie" | "ghost" | "friendlyFire" | "airPunch" | "punchingBag";
 
-export function roundAwards(state: Pick<MatchState, "characters">): { owner: string; award: AwardKey }[] {
+export function roundAwards(state: Pick<MatchState, "characters" | "runs">): { owner: string; award: AwardKey }[] {
   const players = state.characters.filter((character) => character.kind === "player" && character.ownerId);
   const given = new Map<string, AwardKey>();
+  // (a double kill or better is a title of its own, ahead of the rest: the best row of tags this round)
+  for (const player of players) {
+    const best = state.runs?.[player.ownerId!]?.best ?? 0;
+    if (best >= 2) given.set(player.ownerId!, (["double", "triple", "quadra", "penta"] as const)[Math.min(best, 5) - 2]);
+  }
   const most = (value: (player: Character) => number, least: number, award: AwardKey) => {
     const top = Math.max(0, ...players.map(value));
     if (top < least) return;
@@ -1369,7 +1426,7 @@ export function roundAwards(state: Pick<MatchState, "characters">): { owner: str
   most((player) => player.fouls, 1, "friendlyFire");
   most((player) => player.swings ?? 0, 2, "airPunch");
   most((player) => player.tagged, 2, "punchingBag");
-  const order: AwardKey[] = ["eagleEye", "foodie", "ghost", "friendlyFire", "airPunch", "punchingBag"];
+  const order: AwardKey[] = ["penta", "quadra", "triple", "double", "eagleEye", "foodie", "ghost", "friendlyFire", "airPunch", "punchingBag"];
   return players
     .filter((player) => given.has(player.ownerId!))
     .map((player) => ({ owner: player.ownerId!, award: given.get(player.ownerId!)! }))

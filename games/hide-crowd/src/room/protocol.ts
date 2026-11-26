@@ -1,6 +1,6 @@
 // What the room's server and the pages say to each other. Every word a player reads is chosen by
 // the page (src/client/i18n.ts) from these keys and numbers, in its own language.
-import type { ArenaId, AwardKey, MomentKind, Pose } from "../engine";
+import type { ArenaId, AwardKey, MomentKind, Pose, TagCall } from "../engine";
 
 export type Lang = "zh" | "en";
 /** a phone in someone's hand, or a big screen (a TV, a computer, a phone mirrored to a TV) */
@@ -79,6 +79,10 @@ export interface EventView {
   onYou: boolean;
   /** a tag, on the two phones it concerns: who tagged this phone's player, or whom they tagged */
   name?: string;
+  /** a tag the announcer calls out (engine TagCall), on every screen */
+  call?: TagCall;
+  /** with a call: who made it (every screen sees it, as every screen sees the score go up) */
+  who?: string;
 }
 
 /** A rival and a count: who spotted you, or whom you spotted, how many times this round. */

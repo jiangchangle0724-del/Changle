@@ -33,7 +33,12 @@ test("two phones join, vote and play a round: a tag scores, the most spotted tak
   await steve.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
   await until(steve, (v) => v.players.find((p) => p.you)?.score === 1);
   // each knows who it was: Steve whom he got, Mia who got her (and, for a moment, which body it was)
-  await expect(steve.locator(".play-notice")).toHaveText("打中 Mia！+1");
+  // (and the announcer calls first blood on both phones, Steve's own as "you")
+  await Promise.all([
+    expect(steve.locator(".play-notice")).toHaveText("打中 Mia！+1"),
+    expect(steve.locator(".callout")).toContainText("你第一滴血"),
+    expect(mia.locator(".callout")).toContainText("SteveFirst Blood")
+  ]);
   await until(mia, (v) => v.players.find((p) => p.you)?.tagged === 1 && v.game!.avatars.some((a) => a.by === "Steve"));
   expect((await view(steve))!.game!.avatars.some((a) => a.by !== undefined)).toBe(false);
   await expect(mia.locator(".play-notice")).toContainText("Steve");
