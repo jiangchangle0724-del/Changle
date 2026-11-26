@@ -56,6 +56,19 @@ export type ClientMsg =
    * stay, everyone's votes are cleared. It counts toward the table's searches (MAX_SEARCHES).
    */
   | { t: "research"; range: RangeId }
+  /**
+   * Anyone at the table, in round 2, once everyone there ticked the same place and nobody vetoed
+   * it (RoomView.match; Steve, 2026-11-26): that's where they eat, without waiting for the rest of
+   * the votes. Several such places: the wheel picks among them.
+   */
+  | { t: "match" }
+  /**
+   * Host, in round 2 ("换一批", Steve 2026-11-26): the next best places of the same search at the
+   * top, the ones shown before below them. Nothing is searched, so they come without photos. The
+   * votes stay; everyone can look again. `batch` is the list the tap was on (RoomView.batch): a
+   * second tap is ignored.
+   */
+  | { t: "more"; batch: number }
   /** Host, in the lobby: when the table eats (ms since epoch), or null for now. */
   | { t: "when"; at: number | null }
   /** Host, in the lobby: what the meal is for. */
@@ -188,6 +201,12 @@ export interface RoomView {
   range: RangeId;
   /** Google searches this table can still run (see MAX_SEARCHES). */
   searchesLeft: number;
+  /** Round 2: places everyone at the table ticked and nobody vetoed, best first (two phones or more). */
+  match: string[];
+  /** Round 2: places of this search that haven't been at the top yet ("换一批", the "more" message). */
+  moreLeft: number;
+  /** Which list round 2 is on: one more for each new list and each "换一批". */
+  batch: number;
   /** When the table eats (ms since epoch), or null for now. */
   at: number | null;
   /** What the meal is for. */

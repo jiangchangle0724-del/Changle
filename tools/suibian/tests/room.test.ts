@@ -599,3 +599,84 @@ test("after a restart, phones that were at the table get the usual grace: round 
   room.tick();
   assert.equal(room.st.phase, "finding", "one never came back: the round goes on without it");
 });
+
+/** Round 2 with the demo places, nobody liked anything in round 1. */
+function round2() {
+  const s = setup();
+  s.room.handle(s.ids[0], { t: "start" });
+  for (const id of s.ids) s.room.handle(id, { t: "mood", picks: {}, done: true });
+  s.room.flush();
+  s.room.found(s.places());
+  s.room.flush();
+  return s;
+}
+
+test("everyone at the table ticks the same place and nobody vetoes it: a match, and anyone takes it straight to the result (Steve, 2026-11-26)", () => {
+  const { room, ids } = round2();
+  const [a, b] = room.st.cards;
+  assert.deepEqual(room.view(ids[0]).match, []);
+  room.handle(ids[0], { t: "ballot", approve: [a, b], veto: null, done: false });
+  room.handle(ids[1], { t: "ballot", approve: [a], veto: null, done: false });
+  assert.deepEqual(room.view(ids[0]).match, [], "not everyone yet");
+  room.handle(ids[2], { t: "match" });
+  assert.equal(room.st.phase, "cards", "no match, nothing to take");
+  room.handle(ids[2], { t: "ballot", approve: [a, b], veto: null, done: false });
+  assert.deepEqual(room.view(ids[1]).match, [a]);
+  room.handle(ids[1], { t: "ballot", approve: [a, b], veto: null, done: false });
+  assert.deepEqual(room.view(ids[1]).match, [a, b], "best first");
+  room.handle(ids[2], { t: "ballot", approve: [a], veto: b, done: false });
+  assert.deepEqual(room.view(ids[1]).match, [a], "a veto takes a place out");
+  room.handle(ids[2], { t: "match" });
+  assert.equal(room.st.phase, "result", "not only the host");
+  assert.equal(room.st.result!.winner, a);
+});
+
+test("a match takes everyone at the table, not phones that are gone; alone, a tick is just a tick", () => {
+  const { room, ids, advance } = round2();
+  const [a, b] = room.st.cards;
+  room.leave(ids[2]);
+  advance(TIMING.awayGrace + 1);
+  room.tick();
+  room.handle(ids[0], { t: "ballot", approve: [a], veto: null, done: false });
+  room.handle(ids[1], { t: "ballot", approve: [a, b], veto: null, done: false });
+  assert.deepEqual(room.view(ids[0]).match, [a]);
+  room.leave(ids[1]);
+  advance(TIMING.awayGrace + 1);
+  room.tick();
+  assert.deepEqual(room.view(ids[0]).match, []);
+});
+
+test("several matches: the wheel picks among them only", () => {
+  const { room, ids } = round2();
+  const [a, b, c] = room.st.cards;
+  for (const id of ids) room.handle(id, { t: "ballot", approve: [a, b], veto: null, done: false });
+  room.handle(ids[1], { t: "ballot", approve: [a, b, c], veto: null, done: false });
+  room.handle(ids[0], { t: "match" });
+  assert.equal(room.st.phase, "spin");
+  assert.deepEqual([...room.st.result!.tied].sort(), [a, b].sort());
+});
+
+test("换一批: the host brings the next best places of the same search to the top; the votes stay, everyone can look again (Steve, 2026-11-26)", () => {
+  const { room, ids } = round2();
+  const first = room.st.cards.slice(0, TOP_COUNT);
+  const all = [...room.st.cards].sort();
+  assert.ok(room.view(ids[0]).moreLeft >= TOP_COUNT);
+  room.handle(ids[1], { t: "ballot", approve: [first[0]], veto: first[1], done: true });
+  const batch = room.view(ids[0]).batch;
+  room.handle(ids[1], { t: "more", batch });
+  assert.deepEqual(room.st.cards.slice(0, TOP_COUNT), first, "only the host");
+  room.handle(ids[0], { t: "more", batch });
+  const second = room.st.cards.slice(0, TOP_COUNT);
+  assert.ok(second.every((c) => !first.includes(c)), "new places at the top");
+  assert.deepEqual([...room.st.cards].sort(), all, "nothing lost: the first ones are below them");
+  assert.deepEqual(room.st.members[ids[1]].ballot, { approve: [first[0]], veto: first[1] }, "the votes stay");
+  assert.equal(room.st.members[ids[1]].ballotDone, false, "everyone can look again");
+  assert.equal(room.flush().want, null, "no search, no details: Google isn't asked");
+  room.handle(ids[0], { t: "more", batch });
+  assert.deepEqual(room.st.cards.slice(0, TOP_COUNT), second, "a second tap on the same list is ignored");
+  // Until every place has been at the top.
+  while (room.view(ids[0]).moreLeft > 0) room.handle(ids[0], { t: "more", batch: room.view(ids[0]).batch });
+  const last = [...room.st.cards];
+  room.handle(ids[0], { t: "more", batch: room.view(ids[0]).batch });
+  assert.deepEqual(room.st.cards, last);
+});

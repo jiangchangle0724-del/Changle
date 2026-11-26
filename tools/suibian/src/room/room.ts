@@ -72,6 +72,10 @@ export interface RoomState {
   searchedFor?: string;
   /** Places whose details were asked for, once each per search (Google bills every ask). */
   detailed?: string[];
+  /** Round 2's places that have been at the top of the list ("换一批" shows the ones that haven't). */
+  featured?: string[];
+  /** Round 2's list: one more for each new list and each "换一批" (RoomView.batch). */
+  batch?: number;
   error: RoomView["error"];
 }
 
@@ -261,6 +265,25 @@ export class Room {
         for (const x of Object.values(this.st.members)) Object.assign(x, { ballot: { approve: [], veto: null }, ballotDone: false });
         this.search();
         break;
+      case "match": {
+        // Everyone at the table ticked it and nobody vetoed it: that's where they eat.
+        const ids = ph === "cards" && this.present(m) ? this.matches() : [];
+        if (!ids.length) return;
+        this.count(ids);
+        break;
+      }
+      case "more": {
+        // 换一批: the next best places of the same search at the top. No search, no new photos.
+        if (ph !== "cards" || !this.isHost(id) || msg.batch !== (this.st.batch ?? 0)) return;
+        const next = this.unfeatured().slice(0, E.TOP_COUNT);
+        if (!next.length) return;
+        this.st.cards = [...next, ...this.st.cards.filter((c) => !next.includes(c))];
+        this.st.featured = [...(this.st.featured ?? []), ...next];
+        this.st.batch = (this.st.batch ?? 0) + 1;
+        for (const x of Object.values(this.st.members)) x.ballotDone = false;
+        this.bump();
+        break;
+      }
       case "back":
         // One step back (Steve, 2026-11-26). A tap meant for another screen (two quick taps on the
         // same corner) must not go back twice.
@@ -482,6 +505,8 @@ export class Room {
     });
     if (!ids.length) return this.fail("nothingFits");
     this.st.cards = ids;
+    this.st.featured = ids.slice(0, E.TOP_COUNT);
+    this.st.batch = (this.st.batch ?? 0) + 1;
     this.st.phase = "cards";
     this.st.phaseEnds = null; // no clock: see TIMING
     for (const m of Object.values(this.st.members)) m.moodDone = true;
@@ -503,8 +528,30 @@ export class Room {
     });
   }
 
-  private count() {
+  /**
+   * Round 2's places that everyone at the table ticked and nobody vetoed, best first. Two phones or
+   * more: alone, a tick is just a tick.
+   */
+  private matches(): string[] {
+    if (this.st.phase !== "cards") return [];
+    const members = Object.values(this.st.members);
+    const here = members.filter((m) => this.present(m));
+    if (here.length < 2) return [];
     const cards = this.liveCards();
+    const ballots = new Map(members.map((m) => [m.id, E.cleanBallot(m.ballot, cards)]));
+    const vetoed = new Set(members.map((m) => ballots.get(m.id)!.veto));
+    return cards.filter((c) => !vetoed.has(c) && here.every((m) => ballots.get(m.id)!.approve.includes(c)));
+  }
+
+  /** Round 2's places that haven't been at the top of the list yet, best first. */
+  private unfeatured(): string[] {
+    const seen = new Set(this.st.featured ?? []);
+    return this.liveCards().filter((c) => !seen.has(c));
+  }
+
+  /** Round 2 is over: the votes counted, over `only` these places when everyone already agreed on them. */
+  private count(only?: string[]) {
+    const cards = only ?? this.liveCards();
     if (!cards.length) return this.fail("nothingFits");
     const ballots = Object.values(this.st.members).map((m) => E.cleanBallot(m.ballot, cards));
     const t = E.tally(cards, ballots, this.env.random);
@@ -642,6 +689,9 @@ export class Room {
         .map((m) => ({ id: m.id, name: m.name, online: this.present(m), host: m.id === st.hostId, ready: m.limits !== null, done: phaseDone(m) })),
       range: st.range,
       searchesLeft: Math.max(0, MAX_SEARCHES - (st.searches ?? 0)),
+      match: this.matches(),
+      moreLeft: st.phase === "cards" ? this.unfeatured().length : 0,
+      batch: st.batch ?? 0,
       // Planned and still ahead; a time that has come (or passed) is "now".
       at: this.when(now) === now ? null : this.when(now),
       occasion: st.occasion ?? "casual",

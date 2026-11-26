@@ -60,11 +60,23 @@ function play(seed: number, steps: number) {
       null as unknown as ClientMsg,
       { t: "mood", picks: { notACuisine: "like", ramen: "maybe" }, done: true } as unknown as ClientMsg,
       { t: "ballot", approve: ["not-a-card", ...cards], veto: "not-a-card", done: true },
+      // Everyone ticking the first card, so matches happen.
+      { t: "ballot", approve: cards.slice(0, 1), veto: null, done: false },
+      { t: "ballot", approve: cards.slice(0, 1), veto: null, done: false },
+      { t: "match" },
+      { t: "match" },
+      { t: "more", batch: room.st.batch ?? 0 },
+      { t: "more", batch: -1 },
     ]);
   };
 
   for (let step = 0; step < steps; step++) {
     const before = room.st.phase;
+    let sent: ClientMsg | null = null;
+    const match0 = room.view(ids[0]).match;
+    const cards0 = [...room.st.cards].sort();
+    const ballots0 = JSON.stringify(Object.values(room.st.members).map((m) => m.ballot));
+    const batch0 = room.st.batch ?? 0;
     const searches0 = room.st.searches ?? 0;
     const key0 = (room as unknown as { searchKey(): string }).searchKey();
     const a = r();
@@ -101,10 +113,21 @@ function play(seed: number, steps: number) {
       did = `tick +${ms}`;
       now += ms;
       room.tick();
+    } else if (a < 0.58) {
+      // The whole table moves along together, so round 2 (matches, 换一批) gets played a lot.
+      did = "everyone";
+      const at = Object.keys(room.st.members);
+      const ph = room.st.phase;
+      if (ph === "lobby") room.handle(ids[0], { t: "start" });
+      else if (ph === "mood") for (const id of at) room.handle(id, { t: "mood", picks: r() < 0.5 ? {} : { [pick(MENU)]: "like" }, done: true });
+      else if (ph === "cards" && r() < 0.3) room.handle(ids[0], (sent = { t: "more", batch: room.st.batch ?? 0 }));
+      else if (ph === "cards" && r() < 0.3) room.handle(pick(at), (sent = { t: "match" }));
+      else if (ph === "cards") for (const id of at) room.handle(id, { t: "ballot", approve: room.st.cards.slice(0, 1 + Math.floor(r() * 2)), veto: r() < 0.2 ? pick(room.st.cards) : null, done: r() < 0.2 });
+      else if (ph === "result") room.handle(ids[0], { t: "again" });
     } else {
-      const m = msg();
-      did = `${who} ${JSON.stringify(m)?.slice(0, 80)}`;
-      room.handle(who, m);
+      sent = msg();
+      did = `${who} ${JSON.stringify(sent)?.slice(0, 80)}`;
+      room.handle(who, sent);
     }
     const out = room.flush();
     if (out.want?.k === "search") pending = out.want;
@@ -145,6 +168,18 @@ function play(seed: number, steps: number) {
       const here = Object.values(st.members).filter((m) => m.online > 0 || (m.leftAt !== undefined && now - m.leftAt < TIMING.awayGrace));
       const done = here.length > 0 && here.every((m) => (st.phase === "mood" ? m.moodDone : m.ballotDone));
       assert.ok(!done, `everyone at the table is done but the round waits: ${where()}`);
+    }
+    // A match ends round 2 with one of the places everyone ticked; nothing else does it but the count.
+    if (sent?.t === "match" && before === "cards" && st.phase !== "cards") assert.ok(match0.includes(st.result!.winner), `a match won by another place: ${where()}`);
+    if (st.phase === "cards") for (const c of room.view(ids[0]).match) {
+      for (const x of Object.values(st.members)) assert.notEqual(x.ballot.veto, c, `a vetoed match: ${where()}`);
+    }
+    // 换一批 changes the order, never the places or the votes; everyone looks again.
+    if (sent?.t === "more" && (st.batch ?? 0) !== batch0) {
+      assert.equal(st.phase, "cards", where());
+      assert.deepEqual([...st.cards].sort(), cards0, `换一批 lost or added places: ${where()}`);
+      assert.equal(JSON.stringify(Object.values(st.members).map((m) => m.ballot)), ballots0, `换一批 changed votes: ${where()}`);
+      for (const x of Object.values(st.members)) assert.ok(!x.ballotDone, where());
     }
     const wake = room.nextWake();
     assert.ok(wake !== null && Number.isFinite(wake), where());
