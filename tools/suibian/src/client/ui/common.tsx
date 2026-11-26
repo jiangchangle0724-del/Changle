@@ -45,6 +45,14 @@ export function MotionScreen({ scene, children }: { scene: string; children: Com
 }
 
 /** The page title stays the reader's language; its companion line has its own language. */
+/** Something open (a group of round 1, the diet card being changed): back closes it first, as the phone's back button does (useBackCloses). */
+function closeOpen(e: Event): boolean {
+  if (!history.state?.suibianSheet) return false;
+  e.preventDefault();
+  history.back();
+  return true;
+}
+
 export function TopBar({ title, vars = {}, home, back, tools, noBack, right }: {
   title: Key; vars?: Record<string, string | number>; home?: () => void;
   /** One step back inside the page (a table's rounds), instead of leaving it. */
@@ -58,10 +66,10 @@ export function TopBar({ title, vars = {}, home, back, tools, noBack, right }: {
   return (
     <header class="topbar">
       <div class="topbar-back">
-        {!noBack && back && <button type="button" class="btn quiet press back" aria-label={t("stepBack")} onClick={back}>
+        {!noBack && back && <button type="button" class="btn quiet press back" aria-label={t("stepBack")} onClick={(e) => closeOpen(e) || back()}>
           <ChevronLeft aria-hidden="true" />
         </button>}
-        {!noBack && !back && <a class="btn quiet press back" href={tools ? "/tools" : `${BASE}/`} aria-label={t(tools ? "toTools" : "home")} onClick={home ? (e) => { e.preventDefault(); home(); } : undefined}>
+        {!noBack && !back && <a class="btn quiet press back" href={tools ? "/tools" : `${BASE}/`} aria-label={t(tools ? "toTools" : "home")} onClick={(e) => { if (closeOpen(e) || !home) return; e.preventDefault(); home(); }}>
           <ChevronLeft aria-hidden="true" />
         </a>}
       </div>

@@ -553,7 +553,7 @@ test("the top bar's back in round 2 takes the whole table to round 1: the picks 
   for (const id of ids) done(id);
   assert.equal(room.st.phase, "cards");
   assert.deepEqual([...room.st.cards].sort(), [...cards].sort());
-  assert.equal((room.flush().want as { k: string }).k, "details");
+  assert.equal(room.flush().want, null, "the same top places: their details aren't asked for twice");
   assert.equal(room.st.searches, 1);
   // Someone changes their picks: a new search.
   room.handle(ids[0], { t: "back", phase: "cards" });
@@ -583,4 +583,19 @@ test("the top bar's back in round 1 takes the table to the lobby, the picks kept
   room.handle(ids[0], { t: "back", phase: "mood" });
   room.handle(ids[0], { t: "back" });
   assert.equal(room.st.phase, "lobby", "the lobby has no step before it");
+});
+
+test("after a restart, phones that were at the table get the usual grace: round 1 neither moves on without them nor waits forever", () => {
+  const { room, ids, advance } = setup();
+  room.handle(ids[0], { t: "start" });
+  room.handle(ids[0], { t: "mood", picks: {}, done: true });
+  room.handle(ids[1], { t: "mood", picks: {}, done: true });
+  // An update restarts the server and drops every phone: only the host's is back so far.
+  room.presence([ids[0]]);
+  room.tick();
+  assert.equal(room.st.phase, "mood", "the others are coming back");
+  assert.ok(room.view(ids[0]).members.every((m) => m.online), "still at the table");
+  advance(TIMING.awayGrace + 1);
+  room.tick();
+  assert.equal(room.st.phase, "finding", "one never came back: the round goes on without it");
 });

@@ -1,4 +1,5 @@
 // "Order delivery" on a card: a fold with the four apps (see delivery.ts for how each link works).
+import { copyText } from "../copy";
 import { DELIVERY_APPS } from "../delivery";
 import { t, tx } from "../i18n";
 import { toast } from "../store";
@@ -6,10 +7,7 @@ import { toast } from "../store";
 export function Delivery({ name }: { name: string }) {
   const copy = (text: string) => {
     // Inside the tap, so the browser allows it; the app's site opens in a new tab either way.
-    navigator.clipboard?.writeText(text).then(
-      () => toast(t("nameCopied")),
-      () => {},
-    );
+    void copyText(text).then((ok) => ok && toast(t("nameCopied")));
   };
   return (
     <details class="delivery">

@@ -70,6 +70,8 @@ export interface RoomState {
   searches?: number;
   /** What the last search was for (searchKey): back in round 1 with nothing changed, no new search. */
   searchedFor?: string;
+  /** Places whose details were asked for, once each per search (Google bills every ask). */
+  detailed?: string[];
   error: RoomView["error"];
 }
 
@@ -179,9 +181,19 @@ export class Room {
     return m.online > 0 || (m.leftAt !== undefined && this.env.now() - m.leftAt < TIMING.awayGrace);
   }
 
-  /** After a restart: these ids have open sockets, nobody else does. */
+  /**
+   * After a restart: these ids have open sockets, nobody else does. A phone that was here before it
+   * gets the same grace as one that dropped off (an update drops every phone at once: they come back
+   * within seconds), and when the grace ends the round stops waiting for it (tick).
+   */
   presence(ids: string[]) {
-    for (const m of Object.values(this.st.members)) m.online = ids.filter((x) => x === m.id).length;
+    const now = this.env.now();
+    for (const m of Object.values(this.st.members)) {
+      const was = m.online;
+      m.online = ids.filter((x) => x === m.id).length;
+      if (m.online) delete m.leftAt;
+      else if (was && m.leftAt === undefined) m.leftAt = now;
+    }
     this.changed = true;
   }
 
@@ -295,6 +307,7 @@ export class Room {
   found(places: E.Place[]) {
     if (this.st.phase !== "finding") return;
     this.st.places = places;
+    this.st.detailed = [];
     if (!places.length) return this.fail("nothingNearby");
     this.toCards();
   }
@@ -414,7 +427,7 @@ export class Room {
   }
 
   private toLobby(o: { keepMoods?: boolean } = {}) {
-    Object.assign(this.st, { phase: "lobby", phaseEnds: null, places: [], cards: [], result: null, ratings: {}, error: null });
+    Object.assign(this.st, { phase: "lobby", phaseEnds: null, places: [], detailed: [], cards: [], result: null, ratings: {}, error: null });
     for (const m of Object.values(this.st.members)) Object.assign(m, { mood: o.keepMoods ? m.mood : {}, moodDone: false, ballot: { approve: [], veto: null }, ballotDone: false });
     this.bump();
   }
@@ -472,8 +485,12 @@ export class Room {
     this.st.phase = "cards";
     this.st.phaseEnds = null; // no clock: see TIMING
     for (const m of Object.values(this.st.members)) m.moodDone = true;
-    // Photos and reviews only for the top of the list (Google bills each place's details).
-    this.want = { k: "details", ids: ids.slice(0, E.TOP_COUNT) };
+    // Photos and reviews only for the top of the list, and only once (Google bills each place's
+    // details): back in round 1 and here again with the same places, nothing is asked twice.
+    const asked = (this.st.detailed ??= []);
+    const need = ids.slice(0, E.TOP_COUNT).filter((id) => !asked.includes(id));
+    asked.push(...need);
+    if (need.length) this.want = { k: "details", ids: need };
     this.bump();
   }
 

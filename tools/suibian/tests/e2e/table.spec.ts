@@ -501,8 +501,19 @@ test("the top bar's back is the step before, for the whole table: round 2 → ro
   await page.locator(".diet .btn.primary").click();
   await friend.page.goto(room);
   await friend.page.locator(".diet .btn.primary").click();
+  // A friend changing their diet card when the host starts keeps the card on screen until it's saved.
+  await friend.page.getByRole("button", { name: "改饮食卡" }).click();
+  await expect(friend.page.locator(".diet")).toBeVisible();
   await page.getByRole("button", { name: "开始！" }).click();
   await page.locator("[data-path=cuisine]").click();
+  await expect(friend.page.locator(".diet")).toBeVisible();
+  await friend.page.locator(".diet .btn.primary").click();
+  await expect(friend.page.locator("[data-path=cuisine]")).toBeVisible();
+  // With a group open, back closes it first; the table stays in round 1.
+  await page.getByRole("button", { name: "中餐：细分" }).click();
+  await expect(page.locator("[data-cuisine=sichuan]")).toBeVisible();
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(page.locator("[data-group=chinese]")).toBeVisible();
   await page.locator("[data-group=chinese]").click();
   await page.getByRole("button", { name: "好了" }).click();
   // Only the host takes the table back: a friend's tap says so and stays.
@@ -522,4 +533,37 @@ test("the top bar's back is the step before, for the whole table: round 2 → ro
   await page.getByRole("link", { name: "回首页" }).click();
   await expect(page).toHaveURL(/\/eat\/$/);
   expect([...me.errors, ...friend.errors]).toEqual([]);
+});
+
+test("a table that eats twice: the second meal can be rated on the same phone", async ({ browser }) => {
+  const me = await phone(browser, "twice");
+  const page = me.page;
+  expect((await page.request.post("/eat/api/test/login", { data: { sub: `twice-${Date.now()}`, name: "小王" } })).ok()).toBeTruthy();
+  await page.goto("/eat/");
+  await page.getByRole("button", { name: "开一桌" }).click();
+  await expect(page).toHaveURL(/\/eat\/r\/\d{4}$/);
+  const room = page.url();
+  await page.locator(".diet .btn.primary").click();
+  const eat = async (nth: number) => {
+    await page.getByRole("button", { name: "开始！" }).click();
+    await page.getByRole("button", { name: "好了" }).click();
+    await page.locator(".place").nth(nth).locator(".approve").click();
+    await page.getByRole("button", { name: "好了" }).click();
+    await expect(page.getByText("今天就吃这家！")).toBeVisible();
+    const name = await page.locator(".winner-card h3").first().innerText();
+    await page.getByRole("link", { name: "吃完回来评分 ⭐" }).click();
+    await expect(page.getByText(/怎么样？/)).toBeVisible();
+    await page.getByRole("button", { name: "👍" }).click();
+    await page.getByRole("button", { name: "是" }).click();
+    await page.getByRole("button", { name: "15 分钟" }).click();
+    await page.getByRole("button", { name: "提交" }).click();
+    await expect(page.getByText("谢谢！")).toBeVisible();
+    return name;
+  };
+  const first = await eat(0);
+  await page.goto(room);
+  await page.getByRole("button", { name: "重新来一轮" }).click();
+  const second = await eat(1);
+  expect(second).not.toEqual(first);
+  expect(me.errors).toEqual([]);
 });
