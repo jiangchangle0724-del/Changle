@@ -162,7 +162,7 @@ Phase 1（合成数据上搭）：
 - [x] 夹具工具第一版：「账单试读」页面，CSV 和 PDF 都能变成版式一样、内容全编的版本，外加一份没有内容的摘要（IMP-9）
 - [ ] 夹具工具下一步：编出来的 CSV 账还对得上（余额按编的金额重算）；PDF 读取器有了以后，编出来的 PDF 版式也一样
 - [x] 服务器存块的那一半（#782，2026-11-25）：`src/server/chunks.ts`，同步的两个调用跑在每人自己的 SQLite 上，通过了规矩本通过的全部测试。Codex 审了两眼（C7：#784、#787），都是通过
-- [ ] 会话和请求检查（#PRNUM）：`src/server/sessions.ts`、`src/server/request.ts`。等 Codex 审过（C8）才合并
+- [ ] 会话和请求检查（#789）：`src/server/sessions.ts`、`src/server/request.ts`。等 Codex 审过（C8）才合并
 - [ ] Worker 和 Durable Object 的外壳：兑换交接码、允许名单、把请求送到「这个会话自己的」那个库、配额怎么由 Steve 调、重置保险库、安全事件记录（T-1 到 T-3、T-14、T-22、T-23）。账号对话的交接码已经上线（#690：主站 `POST /api/handoff` 发码，`Handoff` 入口的 `redeem`、`exists`），可以直接接。主站那一页（`changle.ca/tools/finance?handoff=<nonce>` 要码再跳回来）归这个对话写
 - [ ] 应用页面（Preact）：建保险库、解锁、导入、流水、分类、看板、隐私和数据页
 - [ ] 演示、介绍页、工具页卡片
@@ -185,7 +185,7 @@ Phase 1（合成数据上搭）：
 
 ## 最近的改动
 
-- 2026-11-25 moneylens: 会话和请求检查（`src/server/sessions.ts`、`request.ts`），评估 0.12，审查卡 C8（#PRNUM，等 Codex 审过才合并）
+- 2026-11-25 moneylens: 会话和请求检查（`src/server/sessions.ts`、`request.ts`），评估 0.12，审查卡 C8（#789，等 Codex 审过才合并）
 - 2026-11-25 moneylens: 服务器存块的那一半（`src/server/chunks.ts`，同步的两个调用跑在 SQLite 上），评估 0.11；Codex 审了两眼，通过（#782、#784、#787）。只有库，没有 Worker，线上没有变化
 - 2026-11-25 moneylens: 第三轮的发现 12 改了（重复记录读的时间取最晚的那份），评估 0.10；Codex 审过这一处，通过（#778、#779）
 - 2026-11-25 moneylens: 账单进库的预览和保存（`src/app/ledger.ts`，#777）。只有库，没有页面
