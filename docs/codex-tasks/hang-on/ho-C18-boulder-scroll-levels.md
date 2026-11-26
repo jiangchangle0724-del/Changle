@@ -1,6 +1,6 @@
 # 任务卡 ho-C18 · 用推大石头、卷屏重做长得一样的 6 关长关
 
-**负责**：Codex　**审查**：Claude Code　**分支**：`codex/ho-c18-boulder-scroll-levels`　**前提**：推大石头、卷屏（A26，#PR）已合并，先把 main 合进分支。
+**负责**：Codex　**审查**：Claude Code　**分支**：`codex/ho-c18-boulder-scroll-levels`　**前提**：推大石头、卷屏（A26，#819）已合并，先把 main 合进分支。
 
 ## 为什么
 
