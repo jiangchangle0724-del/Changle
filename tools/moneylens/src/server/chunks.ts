@@ -45,8 +45,12 @@ export type Db = {
 
 const isVersion = (n: unknown): n is number => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
 
-/** Bytes as SQL takes them: a buffer of exactly these bytes, whatever larger buffer they were a view of. */
-const toSql = (bytes: Uint8Array): ArrayBuffer => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+/** Bytes as SQL takes them: a buffer of their own holding exactly these bytes, whatever they were a view of (a larger buffer, a shared one). */
+function toSql(bytes: Uint8Array): ArrayBuffer {
+  const own = new Uint8Array(bytes.byteLength);
+  own.set(bytes);
+  return own.buffer;
+}
 /** Bytes as SQL gives them. */
 const fromSql = (x: unknown): Uint8Array => (x instanceof ArrayBuffer ? new Uint8Array(x) : x instanceof Uint8Array ? x.slice() : new Uint8Array(0));
 
@@ -143,7 +147,8 @@ export function pushChunks(db: Db, vault: string, writes: readonly Write[], limi
       }),
     };
   }
-  // 4. Quotas (LIM-2). A refused batch counts for nothing. A batch that makes an over-full vault smaller is let through.
+  // 4. Quotas (LIM-2). A refused batch counts for nothing and changes nothing, the day it was refused on included. A
+  //    batch that makes an over-full vault smaller is let through.
   const written = held.day === today ? held.written : 0;
   if (written + writes.length > limits.writesPerDay) return { ok: false, why: "quota-writes" };
   const before = [...now.values()].reduce((sum, chunk) => sum + chunk.bytes, 0);

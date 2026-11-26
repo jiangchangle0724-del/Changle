@@ -1171,6 +1171,30 @@ test("a pull comes in pages, and nothing is missed between them", async () => {
   assert.deepEqual(seen, Array.from({ length: 30 }, (_, i) => i + 1));
 });
 
+test("a refused batch changes nothing, the day's count included: a refusal on a new day does not start that day", async () => {
+  const vault = await testVault();
+  let day = "2026-11-25";
+  const remote = new MemoryRemote(vault.id, { ...LIMITS, writesPerDay: 2, vaultBytes: 1000 }, () => day);
+  const of = (bytes: number, fill: number) => new Uint8Array(bytes).fill(fill);
+  const [x, y] = [newId(), newId()];
+  assert.ok((await remote.push(vault.id, [{ id: x, base: 0, blob: of(400, 1) }, { id: y, base: 0, blob: of(400, 2) }])).ok);
+  // the day's two writes are used up
+  assert.deepEqual(await remote.push(vault.id, [{ id: x, base: 1, mark: markOf(of(400, 1)), blob: of(400, 3) }]), { ok: false, why: "quota-writes" });
+  // The next day, a batch that is refused for its size. It wrote nothing, so it is not the first write of that day.
+  day = "2026-11-26";
+  const held = remote.everything();
+  assert.deepEqual(await remote.push(vault.id, [{ id: x, base: 1, mark: markOf(of(400, 1)), blob: of(700, 3) }]), { ok: false, why: "quota-bytes" });
+  assert.deepEqual(remote.everything(), held);
+  // If the server's day then reads as the day before again (its clock was set back), that day's count is still what it was.
+  day = "2026-11-25";
+  assert.deepEqual(await remote.push(vault.id, [{ id: x, base: 1, mark: markOf(of(400, 1)), blob: of(400, 3) }]), { ok: false, why: "quota-writes" });
+  // and on the new day the count starts with the first batch that is taken
+  day = "2026-11-26";
+  assert.ok((await remote.push(vault.id, [{ id: x, base: 1, mark: markOf(of(400, 1)), blob: of(400, 3) }])).ok);
+  assert.ok((await remote.push(vault.id, [{ id: y, base: 2, mark: markOf(of(400, 2)), blob: of(400, 4) }])).ok);
+  assert.deepEqual(await remote.push(vault.id, [{ id: y, base: 4, mark: markOf(of(400, 4)), blob: of(400, 5) }]), { ok: false, why: "quota-writes" });
+});
+
 test("a vault over its size (the operator lowered it) can still be made smaller, and not larger", async () => {
   const vault = await testVault();
   const limits = { ...LIMITS, vaultBytes: 40_000 };

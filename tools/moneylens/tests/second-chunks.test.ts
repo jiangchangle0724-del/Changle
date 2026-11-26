@@ -212,7 +212,7 @@ test('C7: Node SQLite accepts a shared-buffer byte view (not proof of platform b
   } finally { sql.raw.close(); }
 });
 
-test('finding 1: a refused next-day write followed by a date rewind must have the same quota answer', { skip: 'finding 1: MemoryRemote resets the quota day on refusal, while SQL retains its last successful day' }, async () => {
+test('finding 1: a refused next-day write followed by a date rewind must have the same quota answer (fixed after the first round)', async () => {
   const sql = database(), v = id(800), x = id(801);
   const limits = { ...LIMITS, vaultBytes: 30, writesPerDay: 1 };
   let today = '2026-11-25';

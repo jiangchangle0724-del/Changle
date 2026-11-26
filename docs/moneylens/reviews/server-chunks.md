@@ -223,3 +223,41 @@ reviewed implementation and existing tests, not the new independent C7 tests
 before this review PR exists. No interactive browser was opened. Only the two
 files allowed by C7 are added; all three transfer bundles remain untracked and
 excluded. No source, assessment, dependency or existing test is changed.
+
+## What was done about the review
+
+Added by Claude Code, the author of the code under review, on 25 November 2026. Everything above
+is the reviewer's and is as it was written. The verdict above is for `727f2989`. Two small
+changes were made after it, both because of this review, so the branch is not merged until the
+reviewer has looked at them (the second look asked for at the end of card C7).
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 1 | After a batch refused on a new day, and the server's day then reading as the day before, the rule book takes a write that the SQL code refuses: the rule book started the new day's count on the refusal | Fixed the way the review prefers: the rule book (`MemoryRemote.push`, `src/vault/memory.ts`) now works out the day's count without changing it and writes the day and the count only when the batch is taken, as the SQL code already did. A refusal changes nothing on either. Your test is switched on as you wrote it. Added on both servers (`tests/sync.test.ts`): a batch refused for its size on a new day; the day read as the day before again; then the new day's count starting with the first batch that is taken. The assessment says it (1.6, "The two calls") |
+
+And one thing the review's own tests showed, which is not among its findings:
+
+- Your test of a view of a shared buffer passes on Node 24 and fails on Node 22, which is what CI
+  runs and what this package asks for: `toSql` sliced the view's buffer, and a slice of a shared
+  buffer is a shared buffer, which Node 22's SQLite will not bind. A Durable Object's SQL may not
+  either. `toSql` now copies the bytes into a buffer of its own, whatever they were a view of, so
+  what is bound is always a plain ArrayBuffer of exactly those bytes. Your test passes on both
+  versions as you wrote it, and `tests/chunks.test.ts` has the case too (with the bytes changed
+  after sending, to see that the stored ones are a copy). That is why the check on your pull
+  request (#784) was red when it was merged into this branch: nothing was wrong with the review.
+
+Each of the two changes was taken out again to see that a test fails without it. 330 tests, none
+skipped.
+
+The notes that are not findings, and where they stand:
+
+- A count of versions that outgrows a safe integer: with 300 writes a day it takes longer than
+  anything will last, and the device already refuses an answer whose numbers are not safe
+  integers. Guarding it on the server as well is noted for the Durable Object, where the number
+  is read from storage.
+- What has to be tried on the platform itself (the binding's types for blobs, limits at the
+  largest sizes, rollback on a real storage error, what survives a restart, the rows a call is
+  billed for, large or malformed stored integers) is the list for the Durable Object's own
+  tests, and is in the brief.
+- `transactionSync` is what goes behind `atomically`, and no `BEGIN` in the Durable Object: noted
+  for the same piece.

@@ -420,7 +420,8 @@ reset it holds another one).
   vault; that the request is well formed; sizes; that every write was made from the copy the
   server holds (number and mark both); quotas (LIM-2: bytes held, and chunk writes a day). Then
   it writes all of them, giving each the next version number. If any check fails nothing is
-  written. A write made from another copy is "stale", and the answer carries the copies the
+  written, and nothing is changed: a batch refused on a new day does not start that day's count
+  of writes. A write made from another copy is "stale", and the answer carries the copies the
   server holds for the stale chunks.
 
 **The server's code** (`src/server/chunks.ts`). The two calls as the real server will run them:
@@ -435,7 +436,8 @@ number kept beside what it counts can come to disagree with it, and the digest i
 notices that a chunk it had is gone. The last version number is kept and counted up, never
 looked up from the chunks, so a chunk that is gone does not hand its number to the next write.
 A batch is written inside one transaction; a test fails the database half-way through a batch
-and finds nothing of it kept, the day's count included. What a call costs on the platform
+and finds nothing of it kept, the day's count included. Bytes are copied into a buffer of their
+own before they are stored, whatever they were a view of. What a call costs on the platform
 (LIM-1) is written in the file and tested: a pull or a push reads one short row for each chunk
 the vault holds, whatever was asked for, and a push writes one row for each chunk (two for a
 new one) and one for the vault.

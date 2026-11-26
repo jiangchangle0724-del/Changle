@@ -87,6 +87,13 @@ test("bytes come out as they went in, whatever larger buffer they were part of, 
   assert.equal(first.digest, digestOf([markOf(part)]));
   first.chunks[0]!.blob.fill(0);
   assert.deepEqual([...page(pullChunks(db, vault, 0, LIMITS)).chunks[0]!.blob], [...part]);
+  // a view of a shared buffer is stored as its bytes too
+  const shared = new Uint8Array(new SharedArrayBuffer(300), 50, 120);
+  shared.set(blob(9, 120));
+  const other = newId();
+  taken(pushChunks(db, vault, [{ id: other, base: 0, blob: shared }], LIMITS, DAY));
+  shared.fill(0);
+  assert.deepEqual([...page(pullChunks(db, vault, 1, LIMITS)).chunks[0]!.blob], [...blob(9, 120)], "and changing what was sent, afterwards, changes nothing here");
   // the same for the copy a stale answer shows
   const stale = pushChunks(db, vault, [{ id, base: 7, mark: markOf(part), blob: blob(4) }], LIMITS, DAY);
   assert.ok(!stale.ok && stale.why === "stale");

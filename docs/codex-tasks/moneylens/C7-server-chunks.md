@@ -72,3 +72,27 @@ vault. Notes on what those will owe this code are welcome; they are not findings
 
 The commands pass, the PR (into `claude/moneylens-server-chunks`) shows their output as text, and
 the review file exists with its first line. Don't merge.
+
+## Second look
+
+Your review approved `727f2989` with one nit (finding 1). Two small changes followed, both from
+your review, so the branch waits for you once more. The table at the end of your review file says
+what was done. `git diff 727f2989 HEAD -- tools/moneylens/src docs/moneylens/security-assessment.md`
+shows all of it:
+
+- `src/vault/memory.ts`, `MemoryRemote.push`: the day and the day's count are written only when
+  a batch is taken (your finding 1, resolved the way you preferred). Your test is switched on.
+- `src/server/chunks.ts`, `toSql`: the bytes are copied into a buffer of their own. Your test of
+  a view of a shared buffer failed on Node 22, which CI runs: a slice of a shared buffer is a
+  shared buffer, and Node 22's SQLite does not bind one. It passes now on both versions.
+- Two sentences in the assessment (1.6), one test added to `tests/sync.test.ts` (both servers)
+  and one case to `tests/chunks.test.ts`.
+
+**What to do:** read the two changes; say whether finding 1 is resolved and whether either
+change broke anything (the rule book is what the device's store was reviewed against: does any
+honest schedule now get a different answer than before?). Then, in
+`docs/moneylens/reviews/server-chunks.md`: the first line becomes `VERDICT: APPROVE` or
+`VERDICT: CHANGES NEEDED`, followed on the same line by `(second look; the first approved
+727f2989)`, and a section `## Second look` at the end. Your tests go in
+`tests/second-chunks.test.ts` as before. Branch `codex/moneylens-c7-second-look` from the head of
+`claude/moneylens-server-chunks`, pull request into `claude/moneylens-server-chunks`. Don't merge.
