@@ -48,6 +48,8 @@
   .gold-score .gs .nm { max-width: 5.5em; overflow: hidden; text-overflow: ellipsis; }
   button { font: inherit; }
   .btn { background: var(--ink); color: var(--card-ink); border: 0; border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 15px; cursor: pointer; min-height: 44px; }
+  a.btn { display: inline-flex; align-items: center; text-decoration: none; box-sizing: border-box; }
+  body.phone #editorLink { display: none; }
   .btn:focus-visible { outline: 3px solid var(--p3); outline-offset: 2px; }
   .btn.quiet { background: var(--panel); color: var(--ink); }
   /* 联机桌的「回到桌上」、手机局玩的时候的「回大厅」按第一下变红：再按一下才算（红底上是深色字） */
@@ -437,10 +439,12 @@
         <button class="btn quiet" id="itemBtn" type="button" hidden></button>
         <button class="btn quiet" id="achvBtn" type="button" hidden aria-label="成就" data-en-label="Achievements">🏆</button>
         <button class="btn quiet" id="gachaBtn" type="button">🎰 扭蛋机</button>
+        <!-- 关卡编辑器（11-26）：电脑上开的大屏才有（手机局里大家是来玩的，做关用电脑） -->
+        <a class="btn quiet" id="editorLink" href="/hang-on/editor/" target="_blank" rel="noopener" data-en="🛠 Make a level">🛠 做一关</a>
         <button class="btn quiet" id="relayBtn" type="button" title="测试用：不直连，全部经 Cloudflare 中转" data-en-title="For testing: skip the direct link and send everything through Cloudflare">绕路模式：关</button>
       </div>
       <!-- 护送大元宝（11-26）的开关；电视局和手机局之间换（11-25 挪到下面一行：上面那一排加了 🏆、🎰，横着的手机上放不下） -->
-      <div class="row2"><button class="btn quiet" id="festBtn" type="button" hidden></button><button class="btn quiet" id="dailyBtn" type="button">📅 每日一关</button><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="slowBtn" type="button" aria-pressed="false">🐢 慢一点：关</button><button class="btn quiet" id="assistBtn" type="button" hidden aria-pressed="false">🌱 长辈小孩模式：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
+      <div class="row2"><button class="btn quiet" id="festBtn" type="button" hidden></button><button class="btn quiet" id="dailyBtn" type="button">📅 每日一关</button><button class="btn quiet" id="customBtn" type="button" hidden></button><button class="btn quiet" id="escortBtn" type="button" aria-pressed="false">🪙 护送大元宝：关</button><button class="btn quiet" id="slowBtn" type="button" aria-pressed="false">🐢 慢一点：关</button><button class="btn quiet" id="assistBtn" type="button" hidden aria-pressed="false">🌱 长辈小孩模式：关</button><button class="btn quiet" id="modeBtn" type="button" hidden></button></div>
     </div>
   </div>
 </div>
