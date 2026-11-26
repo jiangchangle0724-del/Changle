@@ -78,10 +78,11 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet, standFeet }, { entryOf }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant"), import("./dancer/entry")]);
+        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet, standFeet }, { entryOf }, { bodyOf, keepHands }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant"), import("./dancer/entry"), import("./dancer/hands")]);
         if (gone) return;
         // her outfits, each loaded the first time it's wanted (with the dances she's on at the time)
         const outfits = new Map<string, Her>();
+        const bodyOfHer = new WeakMap<Her, ReturnType<typeof bodyOf>>();
         const loading = new Map<string, Promise<Her | null>>();
         const firstIdle = idleAt(0).id;
         const fetchOutfit = (outfit: string, dances: string[]) => {
@@ -94,6 +95,8 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
                 h.dispose();
                 return null;
               }
+              // (her shape for her hands, read now, while she loads, not the first time she dances)
+              bodyOfHer.set(h, bodyOf(h.root));
               outfits.set(outfit, h);
               return h;
             })().catch(() => null);
@@ -321,7 +324,9 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
             walking = Math.abs(FACE - rot) > 0.3 && her!.knows(walk.id);
           }
           her!.root.rotation.y = rot;
-          const aim = walking ? walk.id : on ? danceAt(Math.floor(b), lk, bpm) : idle.id;
+          // (checking her, on a page of the developer's own: one dance all the time)
+          const only = import.meta.env.DEV ? (window as unknown as { __djDance?: string }).__djDance : undefined;
+          const aim = walking ? walk.id : on ? (only ?? danceAt(Math.floor(b), lk, bpm)) : idle.id;
           let want = aim;
           if (on) void her!.learn(danceNext(Math.floor(b), lk, bpm)).catch(() => {});
           if (!her!.knows(want)) {
@@ -406,6 +411,14 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           her!.root.position.x = -travel;
           const slide = x || travel ? `translate3d(${(x + travel * pxPerM()).toFixed(1)}px, 0, 0)` : "";
           if (slide !== slid) el.style.transform = slid = slide;
+          // (Nov 25; Steve: "帮我查这个舞蹈，手会穿身体") her hands kept out of her: an arm whose hand or forearm
+          // the dance puts in her hips, waist, thighs or skirt turned out until it rests on her (dancer/hands.ts)
+          let body = bodyOfHer.get(her!);
+          if (body === undefined) bodyOfHer.set(her!, (body = bodyOf(her!.root)));
+          if (body) {
+            her!.root.updateMatrixWorld(true);
+            keepHands(body);
+          }
           // her head to the room (Nov 21; Steve: "人物面部和头部表情僵硬"): turned a good way toward
           // the camera when the dance turns it away (not all the way: the dance's own turns stay),
           // settling there smoothly, and a small nod on each beat while she dances
@@ -459,7 +472,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           her!.root.updateMatrixWorld(true);
           renderer.render(scene, camera);
           // (the checks read what she dances and wears, and what drawing her costs: dj_dancer_check.py)
-          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, dancing: on, beat: b, look: lk, outfit: her!.outfit, outfits: [...outfits.keys()], x: Math.round(x), walking, roam: roamNow.current(), calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
+          if (import.meta.env.DEV) (window as unknown as { __coach3d?: unknown }).__coach3d = { move: cur, at: curT, dancing: on, beat: b, look: lk, outfit: her!.outfit, outfits: [...outfits.keys()], x: Math.round(x), walking, roam: roamNow.current(), calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
         };
         tell(watch ? "watching" : "on");
         frame();
