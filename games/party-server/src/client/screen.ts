@@ -14,7 +14,8 @@
 import qrcode from "qrcode-generator";
 import { calibrateFromTaps, type CalibrationResult, type RoomState } from "../../../party-base/src/index";
 import { COMBO_FULL, SONG_SYNC_MS, type Floor, type Results, type RoutineInfo, type ServerMsg } from "../shared/protocol";
-import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, introOf, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
+import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, goldIn, introOf, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
+import { goldOk } from "../shared/taps";
 import { SONGS, type Song } from "../shared/songs";
 import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tr, wsUrl } from "./common";
 import { anyGl, canCoach, doingAt, glowOf } from "./coach/index";
@@ -23,7 +24,7 @@ import { CoachStage } from "./coach/stage";
 import { Synth, playBeat } from "./synth";
 import { Tube, tapFirst } from "./tube";
 import { tuneFor } from "./tunes";
-import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, litCount, moveHow, moveName, moveOther, remindBox, routineName, songArtist, songTitle, stageHint, stageName, stepsList } from "./words";
+import { awardName, awardWhy, bodyHint, clockOf, danceName, difficultyName, goldAheadText, goldCheerText, litCount, moveHow, moveName, moveOther, remindBox, routineName, songArtist, songTitle, stageHint, stageName, stepsList } from "./words";
 
 /** Calibration: 8 clicks, 1.2 s apart (so a tap up to 400 ms late still pairs with the right click). */
 const CAL_CLICKS = 8;
@@ -73,7 +74,15 @@ let fireworksUntil = 0;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 /** Everyone's little dancer along the bottom of the TV (2D: every device draws it), and their pulses. */
 const crowd = new Crowd(reducedMotion);
-const pulses = new Map<string, { e: number; at: number; hitAt: number; shown: number; shownAt: number }>();
+const pulses = new Map<string, { e: number; at: number; hitAt: number; goldAt: number; shown: number; shownAt: number }>();
+/**
+ * The gold move just danced (show.ts isGoldBeat): when the speaker played it, who has said how they
+ * did on it (their phones' pulses with g) and who got it; the floor's cheer once they've all said.
+ */
+let goldTally: { at: number; seen: Set<string>; ok: Set<string>; shown: boolean } | null = null;
+/** The cheer for a gold move: on the TV this long (ms). */
+const GOLD_CHEER_MS = 2600;
+let goldCheerUntil = 0;
 /** How slowly a little dancer calms down between its player's moves (ms): it shouldn't flicker beat by beat. */
 const CALM_MS = 700;
 /** The last hit's pop, and how many in a row (each a note higher) */
@@ -378,7 +387,13 @@ function onMsg(m: ServerMsg) {
       const local = performance.now();
       const was = pulses.get(m.playerId);
       const hit = m.v === "hit";
-      pulses.set(m.playerId, { e: m.e, at: local, hitAt: hit ? local : (was?.hitAt ?? 0), shown: was?.shown ?? 0, shownAt: was?.shownAt ?? local });
+      // a verdict on a gold move: counted for the floor's cheer, and the dancer turns gold
+      const gold = !!m.g && goldOk(m.v, state?.difficulty ?? "easy");
+      if (m.g && goldTally && !goldTally.shown) {
+        goldTally.seen.add(m.playerId);
+        if (gold) goldTally.ok.add(m.playerId);
+      }
+      pulses.set(m.playerId, { e: m.e, at: local, hitAt: hit ? local : (was?.hitAt ?? 0), goldAt: gold ? local : (was?.goldAt ?? 0), shown: was?.shown ?? 0, shownAt: was?.shownAt ?? local });
       if (hit && local - popAt > 90) {
         popStep = local - popAt < 700 ? popStep + 1 : 0;
         popAt = local;
@@ -499,6 +514,8 @@ const parts: {
   steps?: HTMLElement;
   body?: HTMLElement;
   next?: HTMLElement;
+  /** the floor's cheer for a gold move */
+  gold?: HTMLElement;
   progress?: HTMLElement;
   floorBar?: HTMLElement;
   floorText?: HTMLElement;
@@ -729,6 +746,8 @@ function coach(): HTMLElement {
   parts.body = el("p", "coach-body");
   parts.count = el("div", "count");
   parts.next = el("p", "coach-next");
+  parts.gold = el("span", "coach-gold");
+  parts.gold.setAttribute("aria-live", "polite");
   if (stage3d) {
     const host = el("div", "coach-3d");
     words.append(parts.stage, parts.hint, parts.move, parts.other, parts.how, parts.steps, parts.body);
@@ -745,7 +764,10 @@ function coach(): HTMLElement {
   parts.floorBar = el("div", "floor-bar");
   parts.floorBar.append(el("i"));
   parts.floorText = el("span", "floor-text");
-  fl.append(parts.floorBar, parts.floorText);
+  // (the floor's cheer for a gold move beside its combo: in view on every screen)
+  const line = el("div", "floor-line");
+  line.append(parts.floorText, parts.gold);
+  fl.append(parts.floorBar, line);
   if (stage3d) box.append(top, main, fl);
   else box.append(top, main, parts.next, fl);
   return box;
@@ -774,6 +796,8 @@ function resultsCard(r: Results): HTMLElement {
   const bits = [tr(`全场一起动了 ${r.together}%`, `Together: ${r.together}% of the beats`), tr(`最长连击 ${r.bestStreak} 拍`, `Best streak: ${r.bestStreak} beats`)];
   if (r.bursts) bits.push(tr(`放了 ${r.bursts} 次烟花`, `${r.bursts}× fireworks`));
   box.append(el("p", "lead", bits.join(" · ")));
+  // the gold moves each one got (when anyone did)
+  if (r.golds && r.players.some((p) => p.gold)) box.append(el("p", "results-gold", `${tr(`金色动作（共 ${r.golds} 个）：`, `Gold moves (${r.golds}): `)}${r.players.map((p) => `${p.name} ${p.gold}`).join(" · ")}`));
   // easy: no ranking, only the awards; medium and hard: the scores
   if (r.difficulty !== "easy") {
     const board = el("ol", "board");
@@ -864,7 +888,11 @@ function frameCoach(now: number) {
   parts.how!.textContent = b.move ? moveHow(b.move) : "";
   parts.body!.textContent = b.move ? bodyHint(b.move) : "";
   parts.count!.textContent = String(b.count);
-  parts.next!.textContent = preview ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}${preview.stage !== b.stage && preview.move ? ` · ${stageName(preview.stage)}` : ""}` : "";
+  parts.count!.classList.toggle("is-gold", !!b.gold);
+  const g = goldIn(p.run, spot!.i, 4);
+  // (on the gold move itself, only that)
+  parts.next!.textContent = [g === null ? "" : goldAheadText(g), preview && g !== 0 ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}${preview.stage !== b.stage && preview.move ? ` · ${stageName(preview.stage)}` : ""}` : ""].filter(Boolean).join(" · ");
+  parts.next!.classList.toggle("is-gold", g !== null);
   parts.progress!.textContent = into === null ? "" : `${clockOf(into)} / ${clockOf(show.danceMs)}`;
 }
 
@@ -903,7 +931,37 @@ function frame3d(now: number) {
   }
   const b = p.run[spot.i]!;
   const { doing, p: pos } = doingAt(b, spot.frac);
-  c.frame({ doing, p: pos, beat: spot.i + spot.frac, now, glow: glowOf(b.move), hype });
+  // (a gold move: lit up all over, the stage at full)
+  c.frame({ doing, p: pos, beat: spot.i + spot.frac, now, glow: b.gold ? { hands: 1, feet: 1 } : glowOf(b.move), hype: b.gold ? 1 : hype });
+}
+
+/**
+ * The gold moves: as one is played, a new tally; once every dancer's phone has said how they did on
+ * it (or a second after the phones have heard it), the floor's cheer: how many got it, with
+ * fireworks when half or more did. Nothing when nobody got it.
+ */
+function frameGold(now: number) {
+  const spot = spotAt(playing.run, now);
+  const b = spot ? playing.run[spot.i]! : null;
+  if (b?.gold && goldTally?.at !== b.t) goldTally = { at: b.t, seen: new Set(), ok: new Set(), shown: false };
+  const g = goldTally;
+  if (g && !g.shown && state) {
+    const dancers = Math.max(1, floor?.dancers ?? state.players.length);
+    const heard = g.at + state.audioOffsetMs;
+    if (g.seen.size >= dancers || now > heard + 1300) {
+      g.shown = true;
+      const n = g.ok.size;
+      if (n > 0 && parts.gold) {
+        parts.gold.textContent = goldCheerText(n, dancers);
+        goldCheerUntil = now + GOLD_CHEER_MS;
+        if (n >= Math.ceil(dancers / 2)) {
+          coach3d?.burst(now);
+          synth.boom(0.35);
+        } else synth.sparkle();
+      }
+    }
+  }
+  if (parts.gold?.textContent && now > goldCheerUntil) parts.gold.textContent = "";
 }
 
 /** Everyone's little dancer: the coach's move now, as hard as each of them is moving. */
@@ -920,7 +978,7 @@ function frameCrowd(now: number) {
       pu.shown = Math.max(pu.e, pu.shown * Math.exp(-Math.max(0, local - pu.shownAt) / CALM_MS));
       pu.shownAt = local;
     }
-    return { id: pl.id, name: pl.name, color: PLAYER_COLORS[i % PLAYER_COLORS.length]!, e: pu?.shown ?? 0, at: pu?.at ?? -1e9, hitAt: pu?.hitAt ?? 0 };
+    return { id: pl.id, name: pl.name, color: PLAYER_COLORS[i % PLAYER_COLORS.length]!, e: pu?.shown ?? 0, at: pu?.at ?? -1e9, hitAt: pu?.hitAt ?? 0, goldAt: pu?.goldAt ?? 0 };
   });
   crowd.frame(doing, pos, now / 1000, local, list);
 }
@@ -1003,6 +1061,7 @@ function frame() {
     frameCoach(now);
     frame3d(now);
     frameCrowd(now);
+    frameGold(now);
   } else {
     // (the metronome before its start: nothing to count)
     if (parts.count?.textContent) parts.count.textContent = "";
@@ -1035,7 +1094,7 @@ Object.assign(window, {
   partyDebug: {
     cal: () => cal,
     grid: danceGrid,
-    run: () => playing.run.map((b) => ({ t: b.t, ms: b.ms, stage: b.stage, move: b.move?.id ?? null, count: b.count, score: b.score, danceBeat: b.danceBeat })),
+    run: () => playing.run.map((b) => ({ t: b.t, ms: b.ms, stage: b.stage, move: b.move?.id ?? null, count: b.count, score: b.score, danceBeat: b.danceBeat, ...(b.gold ? { gold: true } : {}) })),
     floor: () => floor,
     results: () => results,
     plans: () => plans,

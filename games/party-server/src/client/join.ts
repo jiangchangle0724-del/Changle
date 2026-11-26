@@ -11,11 +11,11 @@ import type { RoomState } from "../../../party-base/src/index";
 import { METRONOME_ID, ROUTINES } from "../shared/catalog";
 import { SONGS } from "../shared/songs";
 import type { HostAction, Results, RoutineInfo, ServerMsg } from "../shared/protocol";
-import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
-import { BeatJudge, type Batch, type Judged, type Verdict } from "../shared/taps";
+import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, goldIn, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
+import { BeatJudge, goldOk, type Batch, type Judged, type Verdict } from "../shared/taps";
 import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tapTime, tr, wsUrl } from "./common";
 import { MotionSense } from "./motion";
-import { awardName, bodyHint, danceName, difficultyName, moveName, remindBox, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
+import { awardName, bodyHint, danceName, difficultyName, goldAheadText, goldVerdictText, moveName, remindBox, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
 
 const app = document.getElementById("app")!;
 const flash = document.getElementById("flash")!;
@@ -241,6 +241,7 @@ function track() {
     const heard = show && a && s ? planRun(show, a, s.audioOffsetMs) : [];
     const start = show && a ? danceStart(show, a) : null;
     tracking = { key, show, heard, zero: show && a && s && start !== null ? start - a.fromBeat * show.beatMs + s.audioOffsetMs : null, judge: null, last: null, recent: [], batches: [], sent: 0 };
+    goldShown = { i: -1, until: 0 };
   }
   const now = speakerNow();
   if (!tracking.judge && tracking.heard.length && now !== null && s?.difficulty) tracking.judge = new BeatJudge(tracking.heard, s.difficulty, now);
@@ -534,6 +535,7 @@ function myResults(r: Results): HTMLElement {
     const mine = (["steady", "hype", "effort"] as const).filter((k) => r.awards[k] === myId);
     if (mine.length) box.append(el("p", "my-award", `${tr("你拿到：", "You won: ")}${mine.map(awardName).join(" · ")}`));
     box.append(el("p", "lead", tr(`连着踩准最多 ${me.bestStreak} 拍`, `Your best run: ${me.bestStreak} beats on the beat`)));
+    if (r.golds) box.append(el("p", "my-gold", tr(`金色动作跳中 ${me.gold} / ${r.golds}`, `Gold moves: ${me.gold} of ${r.golds}`)));
   }
   return box;
 }
@@ -738,9 +740,18 @@ function renderSync() {
 /** The verdict on the last beat (or, while nothing is scored, what to do) and this player's meter. */
 function renderBeat() {
   if (parts.verdict) {
-    const v = heardBeat.scored ? (tracking.last?.verdict ?? null) : null;
-    parts.verdict.textContent = heardBeat.scored || !heardBeat.stage ? verdictText(v) : restHint(heardBeat.stage);
-    parts.pad?.classList.toggle("is-hit", v === "hit");
+    const j = heardBeat.scored ? tracking.last : null;
+    const v = j?.verdict ?? null;
+    // a gold move got: gold for a moment, whatever comes next, and one buzz (phones that can; not iPhones)
+    if (j?.beat.gold && goldOk(v, state?.difficulty ?? "easy") && j.i !== goldShown.i) {
+      goldShown = { i: j.i, until: performance.now() + GOLD_SHOW_MS };
+      navigator.vibrate?.([60, 40, 90]);
+      setTimeout(renderBeat, GOLD_SHOW_MS + 20);
+    }
+    const gold = performance.now() < goldShown.until;
+    parts.verdict.textContent = gold ? goldVerdictText() : heardBeat.scored || !heardBeat.stage ? verdictText(v) : restHint(heardBeat.stage);
+    parts.pad?.classList.toggle("is-gold", gold);
+    parts.pad?.classList.toggle("is-hit", v === "hit" && !gold);
     parts.pad?.classList.toggle("is-miss", v === "miss");
   }
   if (parts.meter) {
@@ -752,6 +763,9 @@ function renderBeat() {
 // ---------- the beat
 
 let lastBeat: number | null = null;
+/** The gold move this phone last showed (its index in the run) and until when (page clock, ms). */
+let goldShown = { i: -1, until: 0 };
+const GOLD_SHOW_MS = 1200;
 
 /** Every frame: on each beat the room hears, a flash; the move and the count; the judge. */
 function frame() {
@@ -808,6 +822,7 @@ function showBeat(t: number) {
     const before = run.length > 0 && t < run[0]!.t;
     if (parts.stage) parts.stage.textContent = before ? tr("马上开始，看大屏", "Starting in a moment: watch the TV") : t >= runEnd(run) ? tr("跳完了", "That's the song") : "";
     for (const x of [parts.move, parts.body, parts.count, parts.next]) if (x) x.textContent = "";
+    parts.count?.classList.remove("is-gold");
     parts.pad?.classList.add("is-rest");
     renderBeat();
     return;
@@ -816,7 +831,13 @@ function showBeat(t: number) {
   if (parts.move) parts.move.textContent = b.move ? moveName(b.move) : "";
   if (parts.body) parts.body.textContent = b.move && (b.stage === "watch" || b.stage === "warmup") ? bodyHint(b.move) : "";
   parts.count.textContent = String(b.count);
-  if (parts.next) parts.next.textContent = preview ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}` : "";
+  parts.count.classList.toggle("is-gold", !!b.gold);
+  if (parts.next) {
+    const g = goldIn(run, spot!.i, 4);
+    // (on the gold move itself, only that)
+    parts.next.textContent = [g === null ? "" : goldAheadText(g), preview && g !== 0 ? `${tr("接下来：", "Next: ")}${preview.move ? moveName(preview.move) : stageName(preview.stage)}` : ""].filter(Boolean).join(" · ");
+    parts.next.classList.toggle("is-gold", g !== null);
+  }
   // the big button counts on the beats that are scored (your turn, the dance); it rests otherwise
   parts.pad?.classList.toggle("is-rest", !b.score);
   renderBeat();
@@ -845,7 +866,7 @@ setInterval(() => {
   }
   // (nothing new: one now and then, so the TV sees a player who stopped)
   if (!fresh && Math.abs(e - pulse.e) < 0.04 && now - pulse.at < 600) return;
-  sock.send({ t: "pulse", e, v: fresh ? fresh.verdict : null });
+  sock.send({ t: "pulse", e, v: fresh ? fresh.verdict : null, ...(fresh?.beat.gold ? { g: true as const } : {}) });
   pulse = { at: now, e, judged: fresh ? fresh.i : pulse.judged };
 }, 125);
 

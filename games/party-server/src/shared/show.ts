@@ -31,6 +31,30 @@ export interface ShowBeat {
   score: boolean;
   /** its place in the dance when it counts for the results and the floor's combo, else null */
   danceBeat: number | null;
+  /** a gold move (isGoldBeat): the coach and the TV light it up, a player who moves on it gets a gold */
+  gold?: true;
+}
+
+/**
+ * Gold moves, as in the dance games: a few beats of a dance that count big. The last beat of every
+ * GOLD_EVERY beats (8 eight-counts, the end of a long phrase of the music) and the dance's very last
+ * beat; none in the 16 beats before the last, so two don't come close together.
+ */
+export const GOLD_EVERY = 64;
+export function isGoldBeat(danceBeat: number, totalBeats: number): boolean {
+  if (danceBeat === totalBeats - 1) return true;
+  return (danceBeat + 1) % GOLD_EVERY === 0 && danceBeat < totalBeats - 16;
+}
+
+/** Beats from run beat `i` to the next gold move (0: it's this one), when it's at most `within` away; else null. */
+export function goldIn(run: readonly RunBeat[], i: number, within: number): number | null {
+  for (let k = Math.max(0, i); k < run.length && k <= i + within; k++) if (run[k]!.gold) return k - i;
+  return null;
+}
+
+/** A dance's beats with its gold moves marked (scored dance beats only). */
+function withGold(dance: ShowBeat[]): ShowBeat[] {
+  return dance.map((b, k) => (b.score && b.danceBeat !== null && isGoldBeat(k, dance.length) ? { ...b, gold: true } : b));
 }
 
 export interface Show {
@@ -98,7 +122,7 @@ function make(id: string, mode: Mode): Show | null {
   const beat = (e: TimelineEntry, at: number): ShowBeat => ({ stage: e.phase, move: e.move, count: e.count, at, ms: e.durationMs, score: e.score, danceBeat: e.countsForResults ? e.routineBeat : null });
   const lead = timeline.slice(0, firstCount).map((e) => beat(e, e.atMs));
   // (the dance on its exact grid, beat b at b beats: what the phones score against)
-  const dance = timeline.slice(firstDance, firstCool).map((e, b) => beat(e, b * beatMs));
+  const dance = withGold(timeline.slice(firstDance, firstCool).map((e, b) => beat(e, b * beatMs)));
   const danceMs = dance.length * beatMs;
   const coolAt = timeline[firstCool]!.atMs;
   const tail = timeline.slice(firstCool).map((e) => beat(e, danceMs + (e.atMs - coolAt)));
@@ -150,10 +174,12 @@ function makeSong(song: Song, mode: Mode): Show {
     }
   }
   const leadMs = lead.length ? lead[lead.length - 1]!.at + lead[lead.length - 1]!.ms : 0;
-  const dance: ShowBeat[] = Array.from({ length: song.beats }, (_, b) => {
-    const { move, count } = songBeat(song, b);
-    return { stage: "dance", move: moveById(move), count, at: b * beatMs, ms: beatMs, score: true, danceBeat: b };
-  });
+  const dance: ShowBeat[] = withGold(
+    Array.from({ length: song.beats }, (_, b) => {
+      const { move, count } = songBeat(song, b);
+      return { stage: "dance", move: moveById(move), count, at: b * beatMs, ms: beatMs, score: true, danceBeat: b };
+    }),
+  );
   return {
     id: song.id,
     kind: "song",

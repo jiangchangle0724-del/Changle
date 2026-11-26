@@ -201,7 +201,7 @@ export class Session {
         this.beats(from, msg.from, msg.offs);
         return;
       case "pulse":
-        this.pulse(from, msg.e, msg.v);
+        this.pulse(from, msg.e, msg.v, msg.g);
         return;
       case "songAt":
         this.songAt(from, msg.startAt);
@@ -309,7 +309,7 @@ export class Session {
    * A phone's pulse, while a dance plays: on to the speaker, at most one movement-only pulse every
    * PULSE_GAP_MS from a phone (one with a verdict always goes: there's one a beat).
    */
-  private pulse(from: From, e: unknown, v: unknown): void {
+  private pulse(from: From, e: unknown, v: unknown, g: unknown): void {
     const st = this.d.state;
     if (from.role !== "player" || !from.playerId || (st.phase !== "learning" && st.phase !== "dancing")) return;
     if (!st.players.some((p) => p.id === from.playerId) || typeof e !== "number" || !Number.isFinite(e)) return;
@@ -318,7 +318,7 @@ export class Session {
     const before = this.pulsedAt.get(from.playerId);
     if (!verdict && before !== undefined && now - before < PULSE_GAP_MS) return;
     this.pulsedAt.set(from.playerId, now);
-    this.out.push({ to: "speaker", msg: { t: "pulse", playerId: from.playerId, e: Math.round(Math.min(1, Math.max(0, e)) * 100) / 100, v: verdict } });
+    this.out.push({ to: "speaker", msg: { t: "pulse", playerId: from.playerId, e: Math.round(Math.min(1, Math.max(0, e)) * 100) / 100, v: verdict, ...(verdict && g === true ? { g: true as const } : {}) } });
   }
 
   /** A phone's beats of the dance being danced: kept, and the floor so far goes to the speaker. */

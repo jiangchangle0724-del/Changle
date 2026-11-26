@@ -27,6 +27,14 @@ export interface Batch {
 
 /** A beat counts as moved when a move is this close to it (party-base's scoreBeats). */
 export const movedWindowMs = (d: Difficulty) => Math.min(300, WINDOW_MS[d] * 2);
+
+/**
+ * A gold move (show.ts's isGoldBeat) is the player's when they moved on it: on the beat at medium and
+ * hard, near it on easy, as each difficulty counts a beat for the results (party-base's summarize).
+ */
+export const goldOk = (v: Verdict | null, d: Difficulty): boolean => v === "hit" || (v === "close" && d === "easy");
+/** The same from the beat's offset as the room keeps it (ms; null: no move near it). */
+export const goldHit = (off: number | null, d: Difficulty): boolean => off !== null && Math.abs(off) <= (d === "easy" ? movedWindowMs(d) : WINDOW_MS[d]);
 /** A batch holds at most this many beats (a bar is 4; protocol.ts lets the room take 16). */
 const MAX_BATCH = 8;
 
