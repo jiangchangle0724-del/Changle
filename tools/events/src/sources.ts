@@ -5,6 +5,8 @@ import { parseBpl, type BplFeed } from "./parsers/bpl";
 import { parseIcal } from "./parsers/ical";
 import { isLwPage, parseLiveWhale } from "./parsers/livewhale";
 import { isSpPage, parseShowpass } from "./parsers/showpass";
+import { isEbPage, parseEventbrite } from "./parsers/eventbrite";
+import { followedOrganizations } from "./follows";
 import { parseTicketmaster, type TmPage } from "./parsers/ticketmaster";
 import { resolveArea } from "./area";
 import { fromVan, vanIso } from "./time";
@@ -22,11 +24,16 @@ export interface Parsed {
 }
 
 /** What a source's request needs from the Worker's settings: its key, if it has one. */
-export type RequestEnv = Pick<Env, "TICKETMASTER_KEY">;
+export type RequestEnv = Pick<Env, "TICKETMASTER_KEY" | "EVENTBRITE_TOKEN">;
 
 export interface SourceDef extends Source {
-  /** The URL for part `part` (a page), with any key; never logged. */
-  request(part: number, env: RequestEnv, w: Window): string;
+  /** The URL for part `part` (a page, or the `key`'s list), with any key; never logged. */
+  request(part: number, env: RequestEnv, w: Window, key?: string): string;
+  /**
+   * A source read one list at a time (each organization followed on Eventbrite): what each part
+   * reads, asked for at every step; part 0 may first learn what's new. Its parts are these and no more.
+   */
+  keys?(env: Env, part: number): Promise<string[]>;
   /** Read one part. `more`: there's a next part worth fetching. (May be async: HTMLRewriter is.) */
   parse(raw: string, part: number, w: Window): Parsed | Promise<Parsed>;
   /** At most this many parts in a run. */
@@ -48,8 +55,8 @@ export const MAX_BYTES = 6_000_000;
  * How a part is asked for: its URL and the headers every request sends. The run's steps ask with
  * it, and so does the GitHub job that reads the libraries for the run (src/handoff.ts).
  */
-export function requestOf(src: SourceDef, part: number, env: RequestEnv, w: Window): { url: string; headers: Record<string, string> } {
-  return { url: src.request(part, env, w), headers: { "user-agent": USER_AGENT, accept: "application/json, text/calendar, text/html;q=0.8, */*;q=0.5" } };
+export function requestOf(src: SourceDef, part: number, env: RequestEnv, w: Window, key?: string): { url: string; headers: Record<string, string> } {
+  return { url: src.request(part, env, w, key), headers: { "user-agent": USER_AGENT, accept: "application/json, text/calendar, text/html;q=0.8, */*;q=0.5" } };
 }
 
 /** The part to read after this one: when the parser says there's more and the source allows another. */
@@ -210,6 +217,27 @@ export const SOURCES: SourceDef[] = [
     },
   },
   {
+    // Eventbrite, with Steve's own token (src/follows.ts): each organization followed, one a part,
+    // its public events still to come (50 a page: the soonest, more than two weeks of them)
+    id: "eventbrite",
+    name: "Eventbrite",
+    kind: "json",
+    tier: 1,
+    lang: "en",
+    needs: "EVENTBRITE_TOKEN",
+    url: "https://www.eventbriteapi.com/v3/organizations/",
+    maxParts: 60,
+    keys: (env, part) => followedOrganizations(env, part === 0),
+    request(_part, env, _w, key) {
+      return `${this.url}${encodeURIComponent(key ?? "")}/events/?status=live&order_by=start_asc&time_filter=current_future&page_size=50&expand=venue,ticket_availability,organizer&token=${encodeURIComponent(env.EVENTBRITE_TOKEN ?? "")}`;
+    },
+    parse(raw) {
+      const page = JSON.parse(raw) as unknown;
+      if (!isEbPage(page)) throw new Error("not an Eventbrite events page");
+      return { events: eventbriteOpen(parseEventbrite(page, this.id)), more: false };
+    },
+  },
+  {
     id: "ticketmaster",
     name: "Ticketmaster",
     kind: "ticketmaster",
@@ -323,6 +351,15 @@ export function showpassOpen(events: NormalizedEvent[]): NormalizedEvent[] {
   return events.filter((e) => {
     if (e.online || !e.place || SP_NOT_EVENTS.test(e.title)) return false;
     if (SP_STUDENTS.test(e.organizer ?? "") || SP_CAMPUS.test(e.place.postalCode ?? "")) return false;
+    const where = resolveArea(e.place);
+    return !!where.area && !where.check && !where.outside;
+  });
+}
+
+/** An organization's events on Eventbrite, as What's On keeps them: at a real place in Greater Vancouver (not online). */
+export function eventbriteOpen(events: NormalizedEvent[]): NormalizedEvent[] {
+  return events.filter((e) => {
+    if (e.online || !e.place) return false;
     const where = resolveArea(e.place);
     return !!where.area && !where.check && !where.outside;
   });

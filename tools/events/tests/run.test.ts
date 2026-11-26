@@ -104,8 +104,8 @@ describe("a morning run", () => {
     const calls = sources();
     const r = await runDay(steps, env.DB, "2026-10-31");
     // Luma, Vancouver's two pages, Richmond's two, Burnaby's feed, UBC's two, SFU's one, Showpass's two
-    // answers, one each, Ticketmaster (skipped: no key)
-    expect(r).toEqual({ steps: 12, done: true, published: true });
+    // answers, one each, Eventbrite and Ticketmaster (skipped: no key)
+    expect(r).toEqual({ steps: 13, done: true, published: true });
     expect(calls.some((u) => u.includes("ticketmaster"))).toBe(false);
     const log = await logOf("2026-10-31");
     // (nothing was handed over for the libraries, and they answer: they're fetched as they always were)
@@ -124,6 +124,7 @@ describe("a morning run", () => {
       { source: "sfu", part: 0, http_status: 200, found: 0, error: null },
       { source: "showpass", part: 0, http_status: 200, found: 0, error: null },
       { source: "showpass-season", part: 0, http_status: 200, found: 0, error: null },
+      { source: "eventbrite", error: "skipped: EVENTBRITE_TOKEN is not set" },
       { source: "ticketmaster", error: "skipped: TICKETMASTER_KEY is not set" },
       { source: "publish", error: null },
     ]);
@@ -158,13 +159,14 @@ describe("a morning run", () => {
     expect(await morning()).toEqual({ steps: 2, done: false, published: false });
     expect(await morning()).toEqual({ steps: 2, done: false, published: false });
     expect(await morning()).toEqual({ steps: 2, done: false, published: false });
-    expect(await morning()).toEqual({ steps: 2, done: true, published: true });
+    expect(await morning()).toEqual({ steps: 2, done: false, published: false });
+    expect(await morning()).toEqual({ steps: 1, done: true, published: true });
     expect(await morning({ final: true })).toEqual({ steps: 0, done: true, published: false });
     // each step once, in order, then one publish
     const log = await logOf("2026-10-31");
-    expect(log.map((l) => `${l.source}:${l.part}`)).toEqual(["luma-vancouver:0", "vpl:0", "vpl:1", "rpl:0", "rpl:1", "bpl:0", "ubc:0", "ubc:1", "sfu:0", "showpass:0", "showpass-season:0", "ticketmaster:0", "publish:0"]);
+    expect(log.map((l) => `${l.source}:${l.part}`)).toEqual(["luma-vancouver:0", "vpl:0", "vpl:1", "rpl:0", "rpl:1", "bpl:0", "ubc:0", "ubc:1", "sfu:0", "showpass:0", "showpass-season:0", "eventbrite:0", "ticketmaster:0", "publish:0"]);
     const run = (await env.DB.prepare("SELECT next_source, steps, triggers, published_at FROM runs WHERE run_id = '2026-10-31'").first())!;
-    expect(run).toMatchObject({ next_source: null, steps: 12, triggers: 7 });
+    expect(run).toMatchObject({ next_source: null, steps: 13, triggers: 8 });
     expect(run.published_at).toBeTruthy();
     expect((await env.CACHE.get<Published>(LIVE_KEY, "json"))!.count).toBe(103);
   });
@@ -251,7 +253,7 @@ describe("the libraries' hand-over (src/handoff.ts)", () => {
     // Since 2 November the libraries refuse the Worker; at 05:50 the job handed their pages over.
     const calls = sources({ librariesRefuse: true });
     await handedOver("2026-10-31", [["vpl", vpl], ["rpl", rpl]]);
-    expect(await runDay(steps, env.DB, "2026-10-31")).toEqual({ steps: 12, done: true, published: true });
+    expect(await runDay(steps, env.DB, "2026-10-31")).toEqual({ steps: 13, done: true, published: true });
     expect(calls.filter((u) => u.includes("bibliocommons"))).toEqual([]);
     const log = await logOf("2026-10-31");
     const handed = { via: "handoff", http_status: null, error: null };
@@ -281,6 +283,7 @@ describe("the libraries' hand-over (src/handoff.ts)", () => {
       "sfu:fetch",
       "showpass:fetch",
       "showpass-season:fetch",
+      "eventbrite:null",
       "ticketmaster:null",
       "publish:null",
     ]);
@@ -421,8 +424,8 @@ describe("the API", () => {
     expect(onDay.some((e) => e.title === "Cambie Scavenger Hunt")).toBe(true);
     const status = await api("/go/api/status");
     expect(status.body.run).toBe("2026-10-31");
-    expect((status.body.steps as unknown[]).length).toBe(13);
-    expect(status.body.progress).toMatchObject({ nextSource: null, steps: 12, triggers: 1 });
+    expect((status.body.steps as unknown[]).length).toBe(14);
+    expect(status.body.progress).toMatchObject({ nextSource: null, steps: 13, triggers: 1 });
     // for the daily health check (src/health.ts): how each source last went, and what the runs published
     const ids = (status.body.sources as { id: string }[]).map((s) => s.id);
     expect(ids).toEqual(SOURCES.map((s) => s.id).sort());

@@ -50,6 +50,12 @@ describe("the daily check", () => {
     expect(checkHealth(s, NOW).problems[1]).toEqual({ key: "source:ticketmaster", text: "Ticketmaster（ticketmaster）11月18日没读完，还从来没读完过。" });
   });
 
+  it("a source waiting for its key (Eventbrite until Steve adds the token) isn't a problem", () => {
+    const s = fine();
+    s.sources.push({ id: "eventbrite", name: "Eventbrite", enabled: 1, lastOkRun: null, lastError: "skipped: EVENTBRITE_TOKEN is not set" });
+    expect(checkHealth(s, NOW).ok).toBe(true);
+  });
+
   it("never puts a key or token from an error into the issue", () => {
     const s = fine();
     s.sources[2] = { ...s.sources[2], lastOkRun: "2026-11-17", lastError: "Invalid URL: https://app.ticketmaster.com/discovery/v2/events.json?apikey=abc123SECRET&size=200" };

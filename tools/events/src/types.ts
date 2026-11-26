@@ -105,7 +105,7 @@ export interface Source {
   /** 1 official API or feed, 2 structured data on pages, 3 articles, 4 the Chinese community. */
   tier: 1 | 2 | 3 | 4;
   /** The secret it can't run without; skipped (and logged) until it's set. */
-  needs?: "TICKETMASTER_KEY";
+  needs?: "TICKETMASTER_KEY" | "EVENTBRITE_TOKEN";
   /** The language its events are usually in. */
   lang?: Lang;
 }

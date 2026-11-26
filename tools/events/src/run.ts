@@ -72,19 +72,26 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
     }
     const w = windowOf(args.runId);
     const win: Window = { runId: args.runId, fromMs: w.fromMs, toMs: w.toMs };
+    // a source read one list at a time (each organization followed): this part's, if there's one left
+    const keys = src.keys ? await src.keys(env, args.part) : null;
+    if (keys && args.part >= keys.length) {
+      log.note = keys.length ? `${keys.length} read` : "nothing followed yet";
+    }
     let raw: string | null = null;
     let etag: string | null = null;
     let lastModified: string | null = null;
     // A library that refuses the Worker: its page as the GitHub job read it this morning, if it came.
     const handed = src.handoff ? await takeHandoff(env.CACHE, args.runId, src.id, args.part) : null;
-    if (handed) {
+    if (keys && args.part >= keys.length) {
+      // nothing to ask: the source is done for today
+    } else if (handed) {
       log.via = "handoff";
       log.note = `handed over at ${handed.at ?? "an unknown time"}${args.arrived ? ", read when it came" : ""}`;
       raw = handed.raw;
     } else {
       log.via = "fetch";
       if (src.handoff) log.note = "nothing handed over for this page today: fetched directly";
-      const { url, headers } = requestOf(src, args.part, env, win);
+      const { url, headers } = requestOf(src, args.part, env, win, keys?.[args.part]);
       // A single-part source answers "not changed" when it hasn't (ETag / Last-Modified).
       const single = src.maxParts === 1;
       if (single) {
@@ -117,7 +124,7 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
       const stored = await storeEvents(env.DB, args.runId, inWindow);
       log.added = stored.added;
       log.updated = stored.updated;
-      next = nextPart(src, args.part, more);
+      next = keys ? (args.part + 1 < Math.min(keys.length, src.maxParts) ? args.part + 1 : null) : nextPart(src, args.part, more);
     }
     // The source is done for today only once its last page is read, and every page before it was.
     // Until then (a later page failed) publish keeps its events from before today (src/publish.ts):
