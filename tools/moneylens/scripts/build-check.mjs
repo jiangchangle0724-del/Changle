@@ -7,7 +7,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 // PDF.js ships its worker as a module. A page opened from a file can start a worker from a string
 // of plain script, but not from a string that is a module, so the worker is wrapped as plain script.
 const wrapped = await build({
-  entryPoints: ["node_modules/pdfjs-dist/build/pdf.worker.min.mjs"],
+  // (the build for browsers that are not the newest, as the page's own half of PDF.js is: web/check/main.ts)
+  entryPoints: ["node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs"],
   bundle: true,
   format: "iife",
   target: "es2022",

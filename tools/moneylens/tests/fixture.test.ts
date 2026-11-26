@@ -64,6 +64,59 @@ test("a CSV statement written again: the same layout, and nothing of what was in
   }
 });
 
+test("one card stays one card: a number that names an account is invented once, and a year-like last four is not kept", () => {
+  // a card's export: the number with stars on every line, and the cardholder's name
+  const head = "Date,Posted Date,Card Number,Merchant Name,Amount,Name on Card";
+  const line = (day: string, card: string, shop: string, amount: string) => `2026-10-${day},2026-10-${day},${card},${shop},${amount},A SAMPLE`;
+  const file = [head, line("02", "************2019", "CAFE MAPLE", "$4.50"), line("03", "************2019", "NORTH SHORE GROCER", "$82.17"), line("05", "************4821", "ACME WIDGETS", "$14.95"), line("08", "************2019", "PAYMENT THANK YOU", "-$101.62")].join("\r\n");
+  for (let seed = 1; seed <= 40; seed++) {
+    const made = inventCsv(file, seeded(seed));
+    const rows = made.text.split("\r\n").map((row) => row.split(","));
+    assert.equal(made.text.split("\r\n")[0], head);
+    const cards = rows.slice(1).map((row) => row[2]!);
+    // the stars stay, the digits go, and the three lines of one card still show one number: two cards in, two cards out
+    for (const card of cards) assert.match(card, /^\*{12}\d{4}$/);
+    assert.deepEqual([cards[0] === cards[1], cards[1] === cards[3], cards[0] === cards[2]], [true, true, false], `seed ${seed}`);
+    // "2019" could be a year, and years stay as they are; behind a mask it is the end of a card number, and goes
+    assert.ok(!made.text.includes("2019") && !made.text.includes("4821"), `seed ${seed}`);
+    // so the invented copy reads as the file did: two accounts, three lines and one
+    const real = readAnyCsv(file, { kind: "credit" });
+    const copy = readAnyCsv(made.text, { kind: "credit" });
+    assert.ok(real.ok && copy.ok);
+    assert.deepEqual(copy.statements.map((s) => s.lines.length).sort(), real.statements.map((s) => s.lines.length).sort(), `seed ${seed}`);
+  }
+  // an account number written plainly, in the column the reader takes the account from: the same on every line, and gone
+  const plain = ["Account Number,Date,Description,Amount,Balance", "2015,2026-10-01,PAYROLL DEPOSIT,2500.00,3500.00", "2015,2026-10-02,CAFE MAPLE,-4.50,3495.50", "00123-4567890,2026-10-02,OTHER ACCOUNT,-1.00,10.00"].join("\n");
+  for (let seed = 1; seed <= 40; seed++) {
+    const rows = inventCsv(plain, seeded(seed)).text.split("\n").map((row) => row.split(","));
+    assert.equal(rows[1]![0], rows[2]![0], `seed ${seed}`);
+    assert.match(rows[1]![0]!, /^\d{4}$/);
+    assert.notEqual(rows[1]![0], "2015", `seed ${seed}`);
+    assert.match(rows[3]![0]!, /^\d{5}-\d{7}$/);
+    assert.notEqual(rows[3]![0], "00123-4567890");
+    // a year in a date is still a year
+    assert.equal(rows[1]![1]!.slice(0, 4), "2026");
+  }
+  // A table the reader cannot read (no amounts in it) is the one most worth passing on, and nothing says which column is
+  // the account's. A cell that is one number and nothing else gets one invented number wherever it stands in its column.
+  const unread = ["Account,Date,Note", "12345678,2026-10-01,PAYROLL DEPOSIT", "12345678,2026-10-02,CAFE MAPLE", "87654321,2026-10-02,CAFE MAPLE"].join("\n");
+  assert.ok(!readAnyCsv(unread).ok);
+  for (let seed = 1; seed <= 20; seed++) {
+    const cells = inventCsv(unread, seeded(seed)).text.split("\n").slice(1).map((row) => row.split(",")[0]!);
+    assert.ok(cells[0] === cells[1] && cells[0] !== "12345678" && /^\d{8}$/.test(cells[0]!), `seed ${seed}: ${cells.join(" ")}`);
+  }
+  // a mask written with x's stays a mask, and the number behind it is the same wherever it stands in the file
+  const lettered = ["Date,Description,Amount", "2026-10-02,TRANSFER TO XXXX XXXX XXXX 1234,-200.00", "2026-10-09,TRANSFER TO XXXX XXXX XXXX 1234,-50.00", "2026-10-11,CARD xxxx-5678 FEE,-1.00"].join("\n");
+  const out = inventCsv(lettered, seeded(7)).text.split("\n");
+  const ends = out.slice(1).map((row) => /(?:XXXX XXXX XXXX |xxxx-)(\d{4})/.exec(row)?.[1]);
+  assert.ok(ends[0] && ends[0] === ends[1] && ends[0] !== "1234" && ends[2] && ends[2] !== "5678" && ends[2] !== ends[0], out.join(" | "));
+  // A source of numbers that never varies (every digit a 2) still gives each card a number that is not its own, and
+  // still gives two cards two numbers.
+  const stuck = (text: string): string[] => inventCsv(text, () => 0.2).text.split("\r\n").slice(1).map((row) => row.split(",")[2]!);
+  assert.deepEqual(stuck(file), ["************2222", "************2222", "************2223", "************2222"]);
+  assert.deepEqual(stuck(file.replace(/2019/g, "2222")), ["************2223", "************2223", "************2222", "************2223"]);
+});
+
 test("other ways a CSV is written survive being written again", () => {
   // semicolons, a comma before the cents, a space in the thousands, the day first, no quotes, lines ended the Unix way
   const french = ["Date;Libellé;Montant", "01/10/2026;PAIE ACME;2 500,00", "13/10/2026;CAFÉ ÉRABLE;-4,50", "31/10/2026;ÉPICERIE;-82,17"].join("\n");
@@ -140,6 +193,19 @@ test("a PDF's layout written again: every run where it was, with invented conten
     for (const secret of ["Avery", "Sample", "CAFE", "MAPLE", "GROCER", "1,000.00", "995.50", "82.17", "913.33", "October"]) assert.ok(!all.includes(secret), `${secret} (seed ${seed})`);
   }
   for (const junk of [null, 5, {}, { kind: "moneylens-pdf-layout", version: 1, invented: false, pages: [] }, { kind: "moneylens-pdf-layout", version: 2, invented: true, pages: [] }, { kind: "moneylens-pdf-layout", version: 1, invented: true, pages: [{ width: 1, height: 1, runs: [{ text: 5, x: 0, y: 0, w: 0, h: 0 }] }] }, { kind: "moneylens-pdf-layout", version: 1, invented: true, pages: [{ width: "1", height: 1, runs: [] }] }]) assert.equal(isPdfFixture(junk), false);
+});
+
+test("a PDF's masked account number is the same invented number on every page", () => {
+  const page = (y: number): PdfPage => ({ width: 612, height: 792, runs: [{ text: "Card number", x: 72, y, w: 60, h: 10 }, { text: "**** **** **** 2019", x: 200, y, w: 110, h: 10 }, { text: "Statement date", x: 72, y: y + 20, w: 70, h: 10 }, { text: "Oct 31, 2019", x: 200, y: y + 20, w: 70, h: 10 }] });
+  for (let seed = 1; seed <= 20; seed++) {
+    const made = inventPdf([page(80), page(80)], seeded(seed));
+    const numbers = made.pages.map((p) => p.runs.find((run) => run.text.startsWith("****"))!.text);
+    assert.match(numbers[0]!, /^\*{4} \*{4} \*{4} \d{4}$/);
+    assert.equal(numbers[0], numbers[1], `seed ${seed}`);
+    assert.notEqual(numbers[0], "**** **** **** 2019");
+    // the year of the statement's date is a year, and stays
+    assert.ok(made.pages.every((p) => p.runs.some((run) => / 2019$/.test(run.text))), `seed ${seed}`);
+  }
 });
 
 test("the summary to pass on holds the layout and nothing that was in the file", () => {

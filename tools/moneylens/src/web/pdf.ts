@@ -14,7 +14,18 @@ import { MAX_PDF_MS, MAX_PDF_PAGES, MAX_PDF_RUNS, type PdfPage, type PdfRun } fr
 import { MAX_FILE_BYTES } from "../core/sniff";
 
 export type PdfError = "too-big" | "too-long" | "too-slow" | "locked" | "no-text" | "malformed";
-export type PdfRead = { ok: true; pages: PdfPage[] } | { ok: false; error: PdfError };
+export type PdfRead =
+  | { ok: true; pages: PdfPage[] }
+  | {
+      ok: false;
+      error: PdfError;
+      /**
+       * With "malformed": the kind of error the reader stopped with, by its name only (a message can quote the file).
+       * PDF.js says "InvalidPDFException" of a file it cannot open at all; any other name is the reader's own trouble
+       * with the file, which another program may open without complaint.
+       */
+      cause?: string;
+    };
 
 /** The part of PDF.js this file uses. */
 type TextItem = { str?: string; transform?: number[]; width?: number; height?: number };
@@ -25,6 +36,9 @@ type Task = { promise: Promise<Doc>; destroy(): Promise<void> };
 export type PdfLib = { getDocument(source: object): Task };
 
 export type PdfLimits = { bytes?: number; pages?: number; ms?: number; runs?: number };
+
+/** How long the reader is waited on to let a file go. */
+const LET_GO_MS = 1000;
 
 export async function pdfPages(lib: PdfLib, bytes: Uint8Array, limits: PdfLimits = {}): Promise<PdfRead> {
   if (bytes.length > (limits.bytes ?? MAX_FILE_BYTES)) return { ok: false, error: "too-big" };
@@ -73,14 +87,17 @@ export async function pdfPages(lib: PdfLib, bytes: Uint8Array, limits: PdfLimits
   try {
     return await Promise.race([read(), late]);
   } catch (e) {
-    return { ok: false, error: (e as { name?: string } | null)?.name === "PasswordException" ? "locked" : "malformed" };
+    const name = (e as { name?: unknown } | null)?.name;
+    if (name === "PasswordException") return { ok: false, error: "locked" };
+    return { ok: false, error: "malformed", ...(typeof name === "string" && /^[A-Za-z]{1,40}$/.test(name) ? { cause: name } : {}) };
   } finally {
     clearTimeout(timer);
-    try {
-      await task?.destroy();
-    } catch {
-      // (already gone)
-    }
+    // PDF.js asks its worker to let the file go, and waits for the answer. A worker still busy with a file that ran past
+    // the limit does not answer, so the wait is a short one: the caller ends such a worker (IMP-4).
+    const gone = Promise.resolve()
+      .then(() => task?.destroy())
+      .catch(() => undefined);
+    await Promise.race([gone, new Promise((resolve) => setTimeout(resolve, LET_GO_MS))]);
   }
 }
 

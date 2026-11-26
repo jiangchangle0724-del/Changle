@@ -8,9 +8,9 @@
  * its amounts. A file whose sums still add up needs the reader's understanding of the layout, and
  * is the next step for this tool.
  */
-import { csvPreview } from "../core/anycsv";
+import { csvPreview, readAnyCsv } from "../core/anycsv";
 import { maskNumbers, tidy } from "../core/text";
-import { Inventor, type Random } from "./invent";
+import { Inventor, isPlainNumber, type Random } from "./invent";
 
 type Field = { value: string; quoted: boolean; lead: string; trail: string };
 type Line = { fields: Field[]; end: string };
@@ -74,10 +74,23 @@ export function inventCsv(text: string, random: Random): CsvFixture {
   lines.forEach((line, n) => {
     if (n !== header) for (const field of line.fields) inventor.learn(field.value);
   });
+  // The column the reader takes the account from, when it can read the file. A reader tells the accounts in a file apart
+  // by what stands there, so one real account has to come out as one invented account, and two as two.
+  const read = readAnyCsv(body);
+  const account = read.ok ? read.layout.account : undefined;
+  /** What a cell that is one number and nothing else was given: the same number again gets the same again. */
+  const given = new Map<string, string>();
   const written = lines.map((line, n) => {
-    const fields = line.fields.map((field) => {
+    const fields = line.fields.map((field, column) => {
+      let value: string;
       // (in the row of names the words stay; a number there is nobody's column name, so it goes)
-      const value = n === header ? field.value.replace(/\d/g, () => String(Math.floor(random() * 10))) : inventor.text(field.value);
+      if (n === header) value = field.value.replace(/\d/g, () => String(Math.floor(random() * 10)));
+      else if (column === account) value = inventor.account(field.value);
+      else if (isPlainNumber(field.value)) {
+        // (a file the reader can't read yet may keep its account in such a column too, and is the file most worth sharing)
+        if (!given.has(field.value)) given.set(field.value, inventor.text(field.value));
+        value = given.get(field.value)!;
+      } else value = inventor.text(field.value);
       const quote = field.quoted || value.includes(delimiter) || /["\r\n]/.test(value);
       return `${field.lead}${quote ? `"${value.replace(/"/g, '""')}"` : value}${field.trail}`;
     });
