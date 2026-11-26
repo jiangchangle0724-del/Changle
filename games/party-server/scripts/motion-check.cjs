@@ -9,6 +9,17 @@
 const { chromium, devices } = require("playwright");
 const BASE = process.env.BASE || "http://127.0.0.1:8787";
 const OUT = process.argv[2] || ".";
+
+/** A host's button while a dance plays: held for 0.85 s, as it has to be (join.ts holdButton), not tapped. */
+async function hold(page, name) {
+  const b = page.getByRole("button", { name });
+  await b.scrollIntoViewIfNeeded();
+  const box = await b.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(850);
+  await page.mouse.up();
+}
 (async () => {
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
   const errs = [];
@@ -65,7 +76,7 @@ const OUT = process.argv[2] || ".";
   await speaker.screenshot({ path: `${OUT}/motion-dance.png` });
   const p2 = await speaker.evaluate(() => window.partyDebug.pulses());
   await ann.getByRole("button", { name: "看结果" }).waitFor({ timeout: 60000 });
-  await ann.getByRole("button", { name: "看结果" }).click();
+  await hold(ann, "看结果");
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "results" && window.partyDebug.results());
   const r = await speaker.evaluate(() => window.partyDebug.results());
   await speaker.waitForTimeout(800);

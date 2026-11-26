@@ -16,6 +16,17 @@ const BASE = process.env.BASE || "http://127.0.0.1:8787";
 const TV_DELAY = Number(process.env.TV_DELAY || 180);
 const BOB_LATE = 90;
 
+/** A host's button while a dance plays: held for 0.85 s, as it has to be (join.ts holdButton), not tapped. */
+async function hold(page, name) {
+  const b = page.getByRole("button", { name });
+  await b.scrollIntoViewIfNeeded();
+  const box = await b.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(850);
+  await page.mouse.up();
+}
+
 (async () => {
   const browser = await chromium.launch({ args: ["--autoplay-policy=no-user-gesture-required"] });
   const errors = [];
@@ -124,7 +135,7 @@ const BOB_LATE = 90;
   const plansAfter = await speaker.evaluate(() => window.partyDebug.plans());
   await ann.getByRole("button", { name: "看结果" }).waitFor({ timeout: 30000 });
   const floor1 = await stopFloor1();
-  await ann.getByRole("button", { name: "看结果" }).click();
+  await hold(ann, "看结果");
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "results" && window.partyDebug.results());
   const results1 = await speaker.evaluate(() => window.partyDebug.results());
   const tvAwards = await speaker.locator(".award-who").allTextContents();
@@ -141,7 +152,7 @@ const BOB_LATE = 90;
   const beat10 = run2.find((b) => b.danceBeat === 10).t + audioOffsetMs;
   await speaker.waitForFunction((t) => window.partyDebug.now() > t + 100, beat10, { timeout: 20000, polling: 50 });
   const plansBeforeRestart = await speaker.evaluate(() => window.partyDebug.plans());
-  await ann.getByRole("button", { name: "这一段再来" }).click();
+  await hold(ann, "这一段再来");
   await speaker.waitForFunction((n) => window.partyDebug.plans() > n, plansBeforeRestart, { timeout: 5000 });
   const run3 = await speaker.evaluate(() => window.partyDebug.run());
   const restartedFrom = run3.find((b) => b.stage === "dance").danceBeat;
@@ -153,7 +164,7 @@ const BOB_LATE = 90;
   await speaker.waitForFunction((t) => window.partyDebug.now() > t + 200, firstAgain, { timeout: 10000, polling: 50 });
   await bob.evaluate(() => window.partyDebug.drop(2500));
   await ann.getByRole("button", { name: "看结果" }).waitFor({ timeout: 30000 });
-  await ann.getByRole("button", { name: "看结果" }).click();
+  await hold(ann, "看结果");
   await speaker.waitForFunction(() => window.partyDebug.state()?.phase === "results" && window.partyDebug.results());
   const results2 = await speaker.evaluate(() => window.partyDebug.results());
 
