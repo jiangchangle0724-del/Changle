@@ -28,6 +28,15 @@ Always:
 | [C3](C3-sync-second-opinion.md) | A second opinion on the storage layer (records in chunks, merging, sync) before it is merged: a merge written from the assessment alone and run against the code, a run of its own against the store, then a review | `tests/second/merge.ts` (new), `tests/second-sync.test.ts` (new), `docs/moneylens/reviews/sync-second-opinion.md` (new) | merged into the branch 2026-11-21 (#736). Verdict: changes needed, seven findings (one major: pages that never end). All seven dealt with; the table is at the end of the review |
 | [C4](C4-sync-second-round.md) | The second round: are the seven findings resolved, did the fixes break anything, and the cache in the browser's storage, which was added since | `docs/moneylens/reviews/sync-second-opinion.md` (first line, and a section at the end), `tests/second-sync.test.ts` if tests are added | sent 2026-11-25, branch `codex/moneylens-c4-sync-second-round`, into `claude/moneylens-vault-records` |
 
+**Since 2026-11-25 the app is different.** After its update, a task in the app's Work tab cannot
+write to the old checkout of the repository and cannot reach the network (no `git fetch`, no
+`npm ci`, no `git push`). C4 only got going because Steve was at the computer and ran, in
+PowerShell, what Codex asked for: a fresh clone of the branch into the task's own folder, `npm ci`
+there, and the push at the end. Until someone finds how to give a Work task the repository and the
+network (its "Choose project" may be the way; not tried), a card needs Steve at the computer, and
+the message should say so up front instead of asking for a worktree. The effort was also set to
+Light; C4 was sent at High, like the three before it.
+
 What to send Codex, one card at a time (C1's message; for another card change the branch, the card's file and the line about what matters most):
 
 ```
