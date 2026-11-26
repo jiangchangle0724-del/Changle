@@ -32,8 +32,11 @@ test("two phones join, vote and play a round: a tag scores, the most spotted tak
   // face to face (the test room's start): Steve punches Mia
   await steve.getByRole("button", { name: "出拳" }).dispatchEvent("pointerdown");
   await until(steve, (v) => v.players.find((p) => p.you)?.score === 1);
-  await expect(steve.locator(".play-notice")).toHaveText("打中了！+1");
-  await until(mia, (v) => v.players.find((p) => p.you)?.tagged === 1);
+  // each knows who it was: Steve whom he got, Mia who got her (and, for a moment, which body it was)
+  await expect(steve.locator(".play-notice")).toHaveText("打中 Mia！+1");
+  await until(mia, (v) => v.players.find((p) => p.you)?.tagged === 1 && v.game!.avatars.some((a) => a.by === "Steve"));
+  expect((await view(steve))!.game!.avatars.some((a) => a.by !== undefined)).toBe(false);
+  await expect(mia.locator(".play-notice")).toContainText("Steve");
   // and she slips into another body, somewhere else
   await until(mia, (v) => v.game!.events.some((e) => e.t === "hide" && e.byYou), 5_000);
   const mine = (await view(mia))!.game!.avatars.findIndex((a) => a.me);
@@ -55,9 +58,13 @@ test("two phones join, vote and play a round: a tag scores, the most spotted tak
   await expect(steve.locator(".result-title")).toHaveText("你赢了！");
   // the round's titles: the hunter's sharp eye on their own phone, in its language
   await expect(steve.locator(".award.is-you .award-title")).toHaveText("火眼金睛");
+  // the winner's row first, with the crown; and whom you spotted
+  await expect(steve.locator(".result-table tbody tr").first()).toHaveClass(/is-winner/);
+  await expect(steve.locator(".result-mine .is-got")).toContainText("Mia");
   await expect(mia.locator("dialog.stamp")).toBeVisible();
   await mia.getByRole("button", { name: "Continue" }).click();
   await expect(mia.locator(".result-title")).toHaveText("Steve wins!");
+  await expect(mia.locator(".result-mine .is-by")).toContainText("Steve");
   await expect(mia.getByText("Waiting for the host to start the next round")).toBeVisible();
   await shot(steve, "phone-result");
 

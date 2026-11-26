@@ -180,6 +180,8 @@ export function ArenaFallback(props: {
           </span>
           {avatar.n !== undefined ? (
             <span class={`flat-avatar__you${avatar.w ? "" : " is-name"}`}>{avatar.n}</span>
+          ) : avatar.by !== undefined ? (
+            <span class="flat-avatar__you is-tagger">{avatar.by}</span>
           ) : (
             avatar.me && <span class="flat-avatar__you">{t("marker")}</span>
           )}

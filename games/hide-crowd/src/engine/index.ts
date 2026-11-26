@@ -45,6 +45,11 @@ export const BLEND_MS = 1_450;
 export const BLEND_COOLDOWN_MS = 6_000;
 /** A tagged player's new body is at least this far from whoever tagged them (when the crowd allows). */
 export const HIDE_AWAY_DISTANCE = 24;
+/**
+ * How long a tagged player's phone names whoever tagged them, over the body that threw the punch:
+ * while they're down, and a moment after they slip away (Steve, 2026-11-25: you should know who got you).
+ */
+export const TAGGER_SHOWN_MS = 2_600;
 /** The night market's four snack stalls along the back, left to right (their middles). */
 export const STALLS: readonly number[] = [20, 40, 60, 80];
 /** In front of a stall, how far either side of its middle, and how far into the floor from the back, you can eat. */
@@ -262,6 +267,13 @@ export interface MatchState {
   glance?: { x: number; y: number; at: number; by: string } | null;
   /** the night market's firecrackers of the moment on now (thrown where the crowd was when it began) */
   crackers?: Cracker[];
+  /** this round's tags, for the results: a tagged player, whoever tagged them, how many times */
+  spottedBy?: Record<string, Record<string, number>>;
+  /**
+   * who just tagged a player: their id, the body they threw the punch from, and until when that
+   * player's phone names them over it (a player never shows on anyone else's)
+   */
+  taggers?: Record<string, { by: string; body: number; until: number }>;
 }
 
 /** The fields that say who a body is; everything else says where and how it moves. */
@@ -978,6 +990,12 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   }
   attacker.score++;
   target.tagged++;
+  // (the results say who spotted whom; the tagged player's phone, for a moment, who it was)
+  const hunter = attacker.ownerId!;
+  const hunted = target.ownerId!;
+  const theirs = state.spottedBy?.[hunted] ?? {};
+  state.spottedBy = { ...state.spottedBy, [hunted]: { ...theirs, [hunter]: (theirs[hunter] ?? 0) + 1 } };
+  state.taggers = { ...state.taggers, [hunted]: { by: hunter, body: state.characters.indexOf(attacker), until: now + TAGGER_SHOWN_MS } };
   target.stunnedUntil = now + STUN_MS;
   target.hideAt = now + STUN_MS;
   target.blendUntil = 0;
