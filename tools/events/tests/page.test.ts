@@ -220,7 +220,9 @@ describe("the page", () => {
   it("carries the language in every link, and switches it keeping the view", () => {
     const html = render("day=2026-11-21&cat=outdoors");
     expect(html).toContain('<a class="lang" href="/go/?lang=en&#38;day=2026-11-21&#38;cat=outdoors" data-lang="en" lang="en">English</a>');
-    for (const m of html.matchAll(/href="(\/go[^"]*)"/g)) expect(m[1]).toMatch(/^\/go\/\?lang=(zh|en)/);
+    for (const m of html.matchAll(/href="(\/go[^"]*)"/g)) expect(m[1]).toMatch(/^\/go\/(submit)?\?lang=(zh|en)/);
+    // and the way to send an event in
+    expect(html).toContain('<a href="/go/submit?lang=zh">知道一个活动清单上没有？投稿给我们</a>');
     expect(render("", "en")).toContain('<a class="lang" href="/go/?lang=zh" data-lang="zh" lang="zh-CN">中文</a>');
   });
 

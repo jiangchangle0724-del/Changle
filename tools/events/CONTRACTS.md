@@ -182,6 +182,16 @@ has under half of yesterday's events, yesterday's stay up and the log says so.
 
 ## The API
 
+- Submissions (`src/submit.ts`, `src/forms.ts`, `src/owner.ts`; migration 0007 `submissions`):
+  `GET /go/submit?lang=` the form; `POST /go/api/submit` (JSON: link, text, image as a data URL
+  under 1.5 MB, contact, lang, and `website`, a field only programs fill in) keeps it, the poster in
+  KV for 60 days, and reads a draft: an Eventbrite event through its API, a page's schema.org Event,
+  else the words (the page's, or what was typed; never 小红书's or Instagram's pages) by the AI. Ten a
+  day from one network, a hundred in all. `GET /go/admin` and `/go/api/admin/…` are the owner's:
+  the page sends the phone's changle.ca session and the rooms server (`ROOMS`) says if it's the
+  owner's. Let in, a draft is an event of the source "submitted" (its poster at `/go/poster/{id}`,
+  public from then on), an Eventbrite event's organization is followed, and the page is published
+  again. The owner's email is remembered on their first visit, for the mail door (`MAIL`).
 - `GET /go/?lang=zh|en&day=YYYY-MM-DD&cat=x&area=y&price=free|20` (or bare `/go`): the page (`src/page.ts`), one day
   at a time (today by default), at most one category and one area, free or at most $20. Without
   `lang`, the browser's first language decides (Chinese if Chinese, English otherwise), and a few lines
