@@ -250,7 +250,7 @@ export async function keepWritten(db: D1Database, events: ToWrite[], written: (W
     // a long name is a bad one, unless it's the source's (the AI keeps "2Dead Boyz x The
     // Underachievers - NO1LIVESFOREVER Tour" whole, as told, and the sentence was turned down with it)
     const keep = KEEP_TITLE.has(e.source ?? "");
-    const w = got && keep ? { ...got, titleZh: e.title } : got;
+    const w = got && corrected(keep ? { ...got, titleZh: e.title } : got, e);
     if (!w || (!keep && w.titleZh.length > TITLE_MAX) || !grounded(w, e)) {
       failed++;
       // an event is asked because its Chinese is missing or out of date (older instructions, a changed
@@ -381,12 +381,27 @@ export function grounded(w: Written, e: ToWrite): boolean {
   const said = [e.title, e.venue, e.description, labelsOf(e.labels)].filter(Boolean).join(" ");
   const wrote = `${w.titleZh} ${w.summaryZh}`;
   if (PRAISE.test(wrote) && !PRAISE.test(said)) return false;
-  // a university's game, a junior league's, is no professional one (the first answers on 26
-  // November called UBC's hockey and the Langley Trappers' 职业)
-  if (/职业/.test(wrote) && !PRO.test(said)) return false;
-  // Canada's hockey is played on ice
-  if (/曲棍球/.test(wrote) && /\bhockey\b/i.test(said) && !/\bfield hockey\b/i.test(said)) return false;
   return ORIGINS.every(([zh, cue]) => !zh.test(wrote) || cue.test(said));
+}
+
+/** A sport, a game or a player after 职业: where 职业 says "professional" (职业顾问, a careers adviser, stays). */
+const PRO_GAME = /职业(?=(冰球|篮球|足球|排球|棒球|垒球|橄榄球|曲棍球|长曲棍球|网球|拳击|搏击|格斗|摔跤|比赛|联赛|球赛|赛事|球队|运动员|选手))/g;
+
+/**
+ * Two words the model gets wrong that can be put right rather than asked again: a university's or a
+ * junior league's game called professional (职业冰球比赛, when nothing in the source says pro: the
+ * first answers on 26 November said it of UBC's hockey and the Langley Trappers'), and Canada's
+ * hockey called field hockey (曲棍球 for "Hockey").
+ */
+export function corrected(w: Written, e: ToWrite): Written {
+  const said = [e.title, e.venue, e.description, labelsOf(e.labels)].filter(Boolean).join(" ");
+  const fix = (text: string) => {
+    let out = PRO.test(said) ? text : text.replace(PRO_GAME, "");
+    if (/\bhockey\b/i.test(said) && !/\bfield hockey\b/i.test(said)) out = out.replace(/(?<!长)曲棍球/g, "冰球");
+    return out;
+  };
+  const [titleZh, summaryZh] = [fix(w.titleZh), fix(w.summaryZh)];
+  return titleZh === w.titleZh && summaryZh === w.summaryZh ? w : { ...w, titleZh, summaryZh };
 }
 
 /** What in a source would back calling a game, or a player, professional. */
