@@ -57,6 +57,7 @@ jobs:
       - run: npx tsx tests/routes.test.ts
       - run: npx tsx tests/duration.test.ts
       - run: npx tsx tests/tools.test.ts
+      - run: npx tsx tests/scan.test.ts
       - run: npx tsx tests/split.test.ts
       - run: npx tsx tests/split-second.test.ts
       - run: npx tsx tests/split-screens.test.ts
