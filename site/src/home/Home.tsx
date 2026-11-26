@@ -1,7 +1,6 @@
 import { Music, SlidersHorizontal } from "lucide-react";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LangTab } from "../components/TopBar";
-import { SettingsSheet } from "../components/SettingsSheet";
 import type { GameId } from "../games/registry";
 import { EASE, LIGHTS, play, reduced, setLight } from "../lib/motion";
 import { unlockAudio } from "../lib/sfx";
@@ -16,6 +15,8 @@ export const loadTools = () => import("../tools/ToolsTab");
 const loadWishlist = () => import("./WishlistTab");
 const ToolsTab = lazy(() => loadTools().then((m) => ({ default: m.ToolsTab })));
 const WishlistTab = lazy(() => loadWishlist().then((m) => ({ default: m.WishlistTab })));
+// the settings: downloaded when first opened (the first download stays under its budget)
+const SettingsSheet = lazy(() => import("../components/SettingsSheet").then((m) => ({ default: m.SettingsSheet })));
 // only with the music on: nothing else on the front door plays (and the first download stays small)
 const SoundNudge = lazy(() => import("../components/SoundNudge").then((m) => ({ default: m.SoundNudge })));
 import { AccountButton } from "../account/AccountButton";
@@ -54,6 +55,10 @@ export function Home({
     unlockAudio();
   };
   const [settingsOpen, setSettingsOpen] = useState(!!openSettings);
+  const [settingsUsed, setSettingsUsed] = useState(!!openSettings);
+  useEffect(() => {
+    if (settingsOpen) setSettingsUsed(true);
+  }, [settingsOpen]);
   const prev = useRef(tab);
   const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
   useEffect(() => {
@@ -65,9 +70,9 @@ export function Home({
     else if (tab === "wish") setLight(LIGHTS.wish);
   }, [tab]);
 
-  // fetch the other two tabs once the page is idle, so switching to them is instant
+  // fetch the other two tabs (and the settings) once the page is idle, so opening them is instant
   useEffect(() => {
-    const fetchTabs = () => void Promise.all([loadTools(), loadWishlist()]).catch(() => {});
+    const fetchTabs = () => void Promise.all([loadTools(), loadWishlist(), import("../components/SettingsSheet")]).catch(() => {});
     // (Safari has no requestIdleCallback)
     const idle = (window as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback;
     if (idle) idle(fetchTabs, { timeout: 4000 });
@@ -111,7 +116,11 @@ export function Home({
         </Suspense>
       </Panel>
       <TipButton />
-      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {settingsUsed && (
+        <Suspense fallback={null}>
+          <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }
