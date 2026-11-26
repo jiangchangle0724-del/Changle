@@ -188,7 +188,7 @@ export function Result(props: { view: RoomView; send: (message: ClientMsg) => vo
         </div>
         <div class="result-side">
           {mine && <Mine mine={mine} />}
-          <Awards awards={awards} label={match?.done ? "matchTitles" : "awards"} />
+          <Awards awards={awards} label={match?.done ? "matchTitles" : "awards"} quest={match?.done ? null : props.view.game?.arena ?? null} />
           {match?.next && <p class="result-next">{t("matchNext", { place: t(match.next) })}</p>}
           <div class="result-actions">
             {view.you.host ? (

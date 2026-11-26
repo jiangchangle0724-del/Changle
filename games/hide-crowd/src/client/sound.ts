@@ -432,12 +432,27 @@ export const sfx = {
     });
     duck(t, riff.length * eighth + 0.2);
   },
-  /** a bite at one of the night market's stalls: a crunch and a little bell, each stall its own note */
-  bite(stall: number): void {
+  /** a side quest spot done: the night market's crunch, the seawall's shutter, the train door's chime, a lantern's whoomp; then a little bell, each spot its own note */
+  bite(stall: number, place: "plaza" | "metro" | "gallery" | "market" = "market"): void {
     const t = now();
     if (t === null) return;
-    hiss(t, 0.07, 0.26, 3_400, 1_400, 1.1);
-    hiss(t + 0.06, 0.05, 0.18, 2_800, 1_200, 1.1);
+    if (place === "plaza") {
+      // a camera's shutter: two quick clicks
+      hiss(t, 0.018, 0.3, 6_000, 4_000, 2.5);
+      hiss(t + 0.075, 0.022, 0.24, 5_000, 3_000, 2.5);
+    } else if (place === "metro") {
+      // the doors' chime: a high note and its fourth below (the bell, after, is the door's own)
+      const high = midi([84, 86, 88, 91][stall % 4]);
+      voice("sine", high, high, t, 0.22, 0.13, master!, 0.004);
+      voice("sine", high * 0.75, high * 0.75, t + 0.2, 0.34, 0.13, master!, 0.004);
+      return;
+    } else if (place === "gallery") {
+      // a lantern catching: a soft whoomp of flame
+      hiss(t, 0.22, 0.14, 500, 1_600, 0.8);
+    } else {
+      hiss(t, 0.07, 0.26, 3_400, 1_400, 1.1);
+      hiss(t + 0.06, 0.05, 0.18, 2_800, 1_200, 1.1);
+    }
     const note = midi([79, 81, 84, 86][stall % 4]);
     voice("sine", note, note, t + 0.08, 0.32, 0.16, master!, 0.004);
     voice("triangle", note * 2, note * 2, t + 0.08, 0.12, 0.04, master!, 0.003);

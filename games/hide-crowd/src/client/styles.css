@@ -2294,6 +2294,11 @@ html.is-tv body::before {
   border-radius: 0 0 var(--r-small) var(--r-small);
   background: var(--stall-color);
 }
+/* the other places' side quest spots (a view, a train door, a lantern): a small mark at the back */
+.flat-stalls:not(.flat-stalls--market) .flat-stall::before {
+  inset: 0 32% 74%;
+  border-radius: 0 0 var(--r-pill) var(--r-pill);
+}
 .flat-stall.stall-0 {
   left: 20%;
 }

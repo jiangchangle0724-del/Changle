@@ -272,6 +272,30 @@ here the collecting gives a player away while they do it:
   on the body they were (the next round shuffles the crowd again, so it gives nothing away), and the
   winner's body dances. Everyone stops where they are.
 
+## Every place's side quest
+
+The Steam original gives several of its places a side task (collect things, then score); since
+2026-11-25 (Steve's list) every place here has one, the night market's rules for all (`STALLS`,
+`taste` in `src/engine`): four spots along the back, 4.5 either side of x 20, 40, 60, 80 and up to 6 in
+from the back edge; a player standing still at one they haven't done does it after 1.2 s; all four is 2
+points and they start over; every one done flares on every screen, and only the doer's phone knows it
+was them. Each place dresses its four in the stalls' colours (red, teal, purple, amber, as on the
+phone's chip), with its own words (`ui/quest.ts`), sound (`sfx.bite`) and title:
+
+| Place | The quest | The four | When one's done | Title |
+| --- | --- | --- | --- | --- |
+| Night market | 尝遍四样 Taste all four | the stalls (`market.ts`) | its pool flashes, sparks | 夜市吃货 Foodie |
+| Seawall | 拍遍四景 Snap all four views | photo frames at the back of the lawn: 狮门大桥, 北岸群山, 水上飞机, 加拿大广场 | a camera's white flash, then its colour | 打卡达人 Shutterbug |
+| Transit hall | 等遍四扇门 Wait at all four doors | the train's four doors, a lamp strip over each | the lamp lights, a chime | 老乘客 Regular |
+| Theatre | 点亮四盏灯 Light all four lanterns | lanterns hung before the stage: 福, 禄, 寿, 喜 | the lantern glows, a whoomp | 点灯人 Lamplighter |
+
+* The frames, lamps and lanterns are `ui/questSpots.ts` (three draws for the four); the flat view marks
+  the four at the top edge, as it does the stalls.
+* About a third of the passers-by are at one of the four at any time (`browse`, in every place now), so
+  a player doing one has company. Players never start a round on one (`createMatch`): standing still
+  there would do it and light it up.
+* Over a whole match the title is 副任务达人 Side-quest star.
+
 ## The camera's big moves, and Distract
 
 Steve, 2026-11-13, the second half of "more of the big games' 3D": the camera moves the way a big

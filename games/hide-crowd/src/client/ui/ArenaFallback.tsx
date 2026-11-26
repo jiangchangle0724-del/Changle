@@ -120,8 +120,9 @@ export function ArenaFallback(props: {
 
   return (
     <div ref={arenaRef} class={`flat-arena flat-arena--${props.arena}${shaking ? " is-hit" : ""}${props.moment?.kind === "blackout" ? " is-dark" : ""}`} role="img" aria-label={t("arena")}>
-      {props.arena === "market" && (
-        <div class="flat-stalls" aria-hidden="true">
+      {/* the side quest's four spots along the back (the night market's stalls; a view, a door, a lantern elsewhere) */}
+      {(
+        <div class={`flat-stalls flat-stalls--${props.arena}`} aria-hidden="true">
           {[0, 1, 2, 3].map((stall) => (
             <span key={stall} class={`flat-stall stall-${stall}${lit === stall ? " is-lit" : ""}`} />
           ))}

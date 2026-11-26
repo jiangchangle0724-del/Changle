@@ -5,27 +5,21 @@
 // the round watches until the next one.
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { MATCH_MS } from "../../engine";
+import { ARENAS, MATCH_MS, type ArenaId } from "../../engine";
 import type { ClientMsg, EventView, GameView, MeView, RoomView } from "../../room/protocol";
 import { t, type Key } from "../i18n";
 import { Arena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
-import { Icon, IconButton, type IconName } from "./chrome";
+import { Icon, IconButton } from "./chrome";
 import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
 import { Coach, COACH, useCoach } from "./Coach";
+import { QUESTS } from "./quest";
 import { arenaEvents, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", lights: "lightsDone", blast: "blasted", bike: "biked" };
 const BAD: readonly Key[] = ["spotted", "spottedBy", "foul", "blasted", "biked"];
-const GOOD: readonly Key[] = ["hit", "hitName", "feast"];
-/** the night market's four stalls, left to right: their snacks */
-export const SNACKS: readonly { icon: IconName; name: Key }[] = [
-  { icon: "squid", name: "snack0" },
-  { icon: "fishball", name: "snack1" },
-  { icon: "tea", name: "snack2" },
-  { icon: "potato", name: "snack3" }
-];
+const GOOD: readonly Key[] = ["hit", "hitName", ...ARENAS.map((arena) => QUESTS[arena].feast)];
 const tastedCount = (bites: number) => [0, 1, 2, 3].filter((stall) => bites & (1 << stall)).length;
 
 interface Notice {
@@ -37,7 +31,7 @@ interface Notice {
 }
 
 /** The latest thing that happened to this phone's player, as a word on screen for a moment. */
-function useNotice(events: EventView[], me: MeView | null): Notice | null {
+function useNotice(events: EventView[], me: MeView | null, arena: ArenaId): Notice | null {
   const [notice, setNotice] = useState<Notice | null>(null);
   const seen = useRef(events.length ? events[events.length - 1].id : 0);
   const timer = useRef(0);
@@ -50,9 +44,11 @@ function useNotice(events: EventView[], me: MeView | null): Notice | null {
     seen.current = fresh[fresh.length - 1].id;
     const mine = [...fresh].reverse().find((event) => event.onYou || (event.byYou && NOTICE[event.t]));
     if (!mine) return;
-    let key = mine.onYou && mine.t === "tag" ? "spotted" : NOTICE[mine.t];
+    // (the side quest's words are the place's own: a snack tasted, a view snapped, a door, a lantern)
+    const quest = QUESTS[arena];
+    let key = mine.onYou && mine.t === "tag" ? "spotted" : mine.t === "bite" ? quest.done : mine.t === "feast" ? quest.feast : NOTICE[mine.t];
     if (!key) return;
-    let vars: Notice["vars"] = mine.t === "bite" ? { snack: t(SNACKS[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
+    let vars: Notice["vars"] = mine.t === "bite" ? { snack: t(quest.spots[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
     // a tag names the other player: who spotted you, or whom you got
     if (mine.t === "tag" && mine.name) {
       key = mine.onYou ? "spottedBy" : "hitName";
@@ -73,12 +69,13 @@ function useNotice(events: EventView[], me: MeView | null): Notice | null {
  * The night market's side quest on your phone: the four snacks, lit once you've tasted them, and a
  * ring filling round the one you're standing at.
  */
-function Quest(props: { me: MeView }) {
+function Quest(props: { me: MeView; arena: ArenaId }) {
   const { me } = props;
+  const quest = QUESTS[props.arena];
   return (
-    <div class="quest" role="group" aria-label={t("questLabel", { n: tastedCount(me.bites) })}>
-      <span class="quest-title">{t("questTitle")}</span>
-      {SNACKS.map((snack, stall) => {
+    <div class={`quest quest--${props.arena}`} role="group" aria-label={t(quest.label, { n: tastedCount(me.bites) })}>
+      <span class="quest-title">{t(quest.title)}</span>
+      {quest.spots.map((snack, stall) => {
         const done = (me.bites & (1 << stall)) !== 0;
         const tasting = !done && me.at === stall && me.tasting > 0;
         return (
@@ -166,7 +163,7 @@ export function Play(props: {
   // (the camera's opening sweep when the arena comes up: only if the round has just begun, not for a
   // phone that comes in late; the next round on the same arena starts its own, Arena3D)
   const intro = game.phase === "playing" && game.remainingMs > MATCH_MS - INTRO_WINDOW_MS;
-  const notice = useNotice(game.events, me);
+  const notice = useNotice(game.events, me, game.arena);
   const drill = useDrill(game, props.receivedAt);
   const callout = useCallout(game.events);
   const meScore = view.players.find((player) => player.you);
@@ -222,7 +219,7 @@ export function Play(props: {
       {/* (a word about your own punch takes the count's place) */}
       {!notice && <DrillCall drill={drill} />}
       <CalloutBanner callout={callout} />
-      {game.arena === "market" && me && game.phase === "playing" && <Quest me={me} />}
+      {me && game.phase === "playing" && <Quest me={me} arena={game.arena} />}
       {props.fullGuide && game.phase === "playing" && <BarsHint onMore={props.fullGuide} />}
       {/* (a word about your own punch or fall comes first) */}
       {!notice && <Coach index={coach.index} onDismiss={coach.dismiss} />}

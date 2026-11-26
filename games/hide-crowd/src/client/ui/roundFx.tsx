@@ -6,11 +6,12 @@
 // theatre's drill, counted big in the middle of the screen.
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS, THIN_MS, type TagCall } from "../../engine";
+import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS, THIN_MS, type ArenaId, type TagCall } from "../../engine";
 import type { AwardView, EventView, GameView } from "../../room/protocol";
 import { other, t, type Key } from "../i18n";
 import { buzz, installAudioUnlock, sfx, startMusic, stopMusic } from "../sound";
 import { Icon, type IconName } from "./chrome";
+import { QUESTS } from "./quest";
 
 export function useRoundSounds(game: GameView, seconds: number, options: { screen: boolean; music: boolean }) {
   const { screen, music } = options;
@@ -57,7 +58,7 @@ export function useRoundSounds(game: GameView, seconds: number, options: { scree
         sfx.thud(0.32);
         if (event.byYou) buzz(30);
       } else if (event.t === "bite" && (screen || event.byYou)) {
-        sfx.bite(event.stall ?? 0);
+        sfx.bite(event.stall ?? 0, game.arena);
         if (event.byYou) buzz(20);
       } else if (event.t === "feast" && (screen || event.byYou)) {
         sfx.feast();
@@ -312,16 +313,21 @@ const AWARD: Record<AwardView["award"], { title: Key; why: Key }> = {
   foodie: { title: "awardFoodie", why: "awardFoodieWhy" }
 };
 
-/** The round's nicknames, one per player at most. */
-export function Awards(props: { awards: AwardView[]; label?: Key }) {
+/**
+ * The round's nicknames, one per player at most. The side quest's is the place's own (`quest`: 夜市吃货,
+ * 打卡达人...); over a whole match (null), a plain one.
+ */
+export function Awards(props: { awards: AwardView[]; label?: Key; quest?: ArenaId | null }) {
   if (!props.awards.length) return null;
+  const name = (award: AwardView["award"]) =>
+    award !== "foodie" ? AWARD[award] : props.quest ? { title: QUESTS[props.quest].award, why: QUESTS[props.quest].awardWhy } : { title: "awardQuester" as Key, why: "awardQuesterWhy" as Key };
   return (
     <ul class="awards" aria-label={t(props.label ?? "awards")}>
       {props.awards.map((item, index) => (
         <li key={index} class={`award${item.you ? " is-you" : ""}`} style={`--i: ${index}`}>
           <span class="award-name">{item.name}</span>
-          <b class="award-title">{t(AWARD[item.award].title)}</b>
-          <span class="award-why">{t(AWARD[item.award].why)}</span>
+          <b class="award-title">{t(name(item.award).title)}</b>
+          <span class="award-why">{t(name(item.award).why)}</span>
         </li>
       ))}
     </ul>
