@@ -34,6 +34,12 @@
   "kv_namespaces": [{ "binding": "CACHE" }],
   // Workers AI, for the Chinese names and sentences (src/ai.ts): the free daily allowance, no key.
   "ai": { "binding": "AI" },
+  // The rooms server (site/worker), Worker to Worker: who a changle.ca session is, so only the site's
+  // owner gets into /go/admin (src/owner.ts), and its mail door, to tell the owner a submission came in
+  "services": [
+    { "binding": "ROOMS", "service": "changle-rooms" },
+    { "binding": "MAIL", "service": "changle-rooms", "entrypoint": "Mail" }
+  ],
   // The schema files are part of the Worker (applied by src/schema.ts).
   "rules": [{ "type": "Text", "globs": ["**/*.sql"], "fallthrough": true }],
   "observability": { "enabled": true, "traces": { "enabled": true } }

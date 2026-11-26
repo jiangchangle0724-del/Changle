@@ -267,7 +267,7 @@ export const TOKENS: Record<string, string> = {
   "--page-max": "560px",
 };
 
-const CSS = `:root{${Object.entries(TOKENS)
+export const CSS = `:root{${Object.entries(TOKENS)
   .map(([k, v]) => `${k}:${v}`)
   .join(";")};--gel:var(--gel-amber);--on-gel:var(--night);--leading:var(--leading-zh);--font-text:-apple-system,var(--font-zh);color-scheme:dark}
 :root:lang(en){--leading:var(--leading-en)}
@@ -343,7 +343,7 @@ footer a{color:var(--gel)}
  */
 // (the first line: a double tap never zooms. iPhone Safari honours the touch-action in CSS only on a tap
 // near something that listens for clicks, so the page itself listens)
-const SCRIPT = `document.documentElement.addEventListener("click",function(){});(function(){var K="lazysusan.settings.v1";try{var u=new URL(location.href),s=JSON.parse(localStorage.getItem(K)||"{}"),l=document.documentElement.getAttribute("data-lang");if(!u.searchParams.has("lang")&&(s.lang==="zh"||s.lang==="en")&&s.lang!==l){u.searchParams.set("lang",s.lang);u.pathname="/go/";location.replace(u.href);return}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[data-lang]");if(!a)return;try{var t=JSON.parse(localStorage.getItem(K)||"{}");t.lang=a.getAttribute("data-lang");localStorage.setItem(K,JSON.stringify(t))}catch(_){}})}catch(_){}})();`;
+export const SCRIPT = `document.documentElement.addEventListener("click",function(){});(function(){var K="lazysusan.settings.v1";try{var u=new URL(location.href),s=JSON.parse(localStorage.getItem(K)||"{}"),l=document.documentElement.getAttribute("data-lang");if(!u.searchParams.has("lang")&&(s.lang==="zh"||s.lang==="en")&&s.lang!==l){u.searchParams.set("lang",s.lang);u.pathname="/go/";location.replace(u.href);return}document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[data-lang]");if(!a)return;try{var t=JSON.parse(localStorage.getItem(K)||"{}");t.lang=a.getAttribute("data-lang");localStorage.setItem(K,JSON.stringify(t))}catch(_){}})}catch(_){}})();`;
 
 function shell(lang: Lang, langLink: string, body: string): string {
   const zh = lang === "zh";
@@ -417,6 +417,6 @@ export function renderPage(pub: Published | null, params: URLSearchParams, lang:
 
   const sources = [...new Set(pub.events.map((e) => sourceName(e.sourceName, lang)))];
   const from = sources.length ? (zh ? `活动来自 ${sources.map(esc).join("、")}。` : `From ${sources.map(esc).join(", ")}. `) : "";
-  const footer = `<footer>${feedLinks(v)}<p>${from}${zh ? "时间、地点和票价以主办方的页面为准。" : "Check the organiser's page for the latest times, places and prices."}</p><p><a href="https://changle.ca">changle.ca</a></p></footer>`;
+  const footer = `<footer>${feedLinks(v)}<p>${from}${zh ? "时间、地点和票价以主办方的页面为准。" : "Check the organiser's page for the latest times, places and prices."}</p><p><a href="/go/submit?lang=${lang}">${zh ? "知道一个活动清单上没有？投稿给我们" : "Know an event that isn't here? Send it to us"}</a></p><p><a href="https://changle.ca">changle.ca</a></p></footer>`;
   return shell(lang, href(v, { lang: zh ? "en" : "zh" }, first), `<p class="lead">${lead}</p>${stale}${dayStrip(pub, v, first, today)}${filters}${head}${body}${footer}`);
 }

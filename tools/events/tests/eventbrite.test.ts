@@ -14,7 +14,7 @@ const RUN = "2026-11-26";
 const withToken = { ...env, EVENTBRITE_TOKEN: "test-token" } as Env;
 
 async function reset() {
-  for (const t of ["events", "venues", "sources", "fetch_log", "runs", "eventbrite_follows"]) await env.DB.prepare(`DROP TABLE IF EXISTS ${t}`).run();
+  for (const t of ["events", "venues", "sources", "fetch_log", "review_queue", "runs", "submissions", "eventbrite_follows"]) await env.DB.prepare(`DROP TABLE IF EXISTS ${t}`).run();
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)").run();
   await env.DB.prepare("DELETE FROM schema_migrations").run();
   await ensureSchema(env.DB);
