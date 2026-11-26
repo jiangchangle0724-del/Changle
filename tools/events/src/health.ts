@@ -52,7 +52,8 @@ export function checkHealth(status: StatusForHealth, now = Date.now()): Health {
   const run = status.history.find((h) => h.run === day);
   if (!run) problems.push({ key: "publish", text: `${md(day)}那一轮没有发布新清单，页面上还是之前的活动。` });
   for (const s of status.sources) {
-    if (!s.enabled || (s.lastOkRun !== null && s.lastOkRun >= day)) continue;
+    // (one waiting for its key, "skipped: EVENTBRITE_TOKEN is not set", is waiting for Steve: not broken)
+    if (!s.enabled || (s.lastOkRun !== null && s.lastOkRun >= day) || /^skipped:/.test(s.lastError ?? "")) continue;
     const since = s.lastOkRun ? `上次读完是${md(s.lastOkRun)}` : "还从来没读完过";
     const error = s.lastError ? `，最后的错误是 ${scrub(s.lastError)}` : "";
     problems.push({ key: `source:${s.id}`, text: `${SOURCE_ZH[s.name] ?? s.name}（${s.id}）${md(day)}没读完，${since}${error}。` });

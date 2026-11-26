@@ -124,6 +124,11 @@ current `AI_VERSION` count; Steve's words, the parsers' categories and Ticketmas
 Never edit a migration that has gone out; add the next number and list it in `src/schema.ts`.
 Each `fetch_log` row says how its step got its answer: `via` is `fetch` or `handoff` (below), and
 `note` why, in a few words.
+Eventbrite (0006, `eventbrite_follows`): an organization followed is learned from one of its events
+(`src/follows.ts`: a seed there, or an event let in from a submission): part 0 of the morning's
+"eventbrite" step asks Eventbrite (`/v3/events/{id}/`) for up to 10 not yet known (404: set aside),
+then each part reads one organization's events (`/v3/organizations/{id}/events/`). A source with
+`keys` has exactly as many parts as keys; none followed yet: nothing asked, done for the day.
 
 KV: `events:live` (the published `Published`), `raw:<runId>:<source>:<part>` (the raw answer of
 every step, kept 30 days: rerun a parser without fetching again), `handoff:<date>:<source>:<part>`
