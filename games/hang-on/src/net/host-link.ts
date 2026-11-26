@@ -57,6 +57,8 @@ export interface HostLinkEvents {
   onItem?(peer: PadPeer, item: ItemId): void;
   /** 表情（11-25）：已经收拾过（不认识的不报）。 */
   onEmote?(peer: PadPeer, e: EmoteId): void;
+  /** 放屁键（11-25）。 */
+  onFart?(peer: PadPeer): void;
   /** 手柄当遥控：按了开始、下一关……。 */
   onCmd?(peer: PadPeer, cmd: PadCmd): void;
   onFatal?(key: FatalKey): void;
@@ -204,6 +206,9 @@ export class HostLink {
         if (e) this.ev.onEmote?.(p, e);
         return;
       }
+      case 'fart':
+        this.ev.onFart?.(p);
+        return;
       case 'cmd':
         if (data.c && typeof data.c === 'object') this.ev.onCmd?.(p, data.c);
         return;

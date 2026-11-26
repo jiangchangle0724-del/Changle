@@ -105,6 +105,11 @@ export class PadLink {
     if (this.socketOpen) this.relay({ k: 'emote', e });
   }
 
+  /** 放屁键（11-25）：走房间（要可靠）；没连上就不发。 */
+  fart(): void {
+    if (this.socketOpen) this.relay({ k: 'fart' });
+  }
+
   /** 告诉主机自己带哪样道具（A9）；每次重新连上房间也会再说一遍。 */
   setItem(item: ItemId): void {
     this.item = item;

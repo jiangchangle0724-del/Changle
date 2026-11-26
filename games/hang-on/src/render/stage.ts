@@ -12,13 +12,13 @@ import type { SimEvent } from '../physics/world';
 import { moverAt } from '../physics/motion';
 import type { SimView } from './view';
 import { DEFAULT_LOOK, type Look } from '../look';
-import { EMOTE_SHOW_S, emoteWords } from '../emotes';
+import { EMOTE_SHOW_S, emoteWords, FART_REACH, FART_STINK_S } from '../emotes';
 import { tr } from '../i18n';
 import { CONFETTI, glow, hex, OUTLINE, PALETTES, textures, worldOf, type Palette, type Textures, type WorldId } from './art';
 import { Backdrop } from './backdrop';
 import { Darkness } from './dark';
 import { Depth } from './depth';
-import { Dumpling } from './dumpling';
+import { Dumpling, STINK } from './dumpling';
 import { moodOf } from './mood';
 import { Foreground } from './fore';
 import { FrameWatch } from './framewatch';
@@ -452,6 +452,16 @@ export class Stage {
           // 表情（11-25）：那个人头顶冒一句（各自的手机用各自的语言）
           const w = emoteWords(ev.emote);
           this.dumplings[ev.player]?.emote(tr(w.zh, w.en), EMOTE_SHOW_S);
+          break;
+        }
+        case 'fart': {
+          // 放屁键（11-25）：屁股底下冒一团黄绿的烟，慢慢往上飘；自己身子一抖乐一下，旁边的人眯眼皱嘴
+          this.fx.burst({ x: ev.x, y: ev.y + CFG.bodyR * 0.7, n: this.reduced ? 4 : 8, texture: 'puff', colors: [STINK, 0xc4cf7a, 0x8d9f4a], speed: [20, 80], angle: Math.PI / 2, spread: 1.8, life: [0.9, 1.4], size: [18, 30], grow: this.reduced ? 1.4 : 2.2, alpha: 0.75, drag: 2.5, gravity: -140 });
+          this.dumplings[ev.player]?.onFart();
+          sim.players.forEach((q, j) => {
+            if (j === ev.player || q.dead) return;
+            if (Math.hypot(q.body.x - ev.x, q.body.y - ev.y) <= FART_REACH) this.dumplings[j]?.onStink(FART_STINK_S);
+          });
           break;
         }
         case 'itemEnd': {
