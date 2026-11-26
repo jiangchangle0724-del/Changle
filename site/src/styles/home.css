@@ -248,10 +248,14 @@
   font-size: var(--text-sm);
   color: var(--haze);
   line-height: 1.35;
+  /* beside the key and the scan, a narrow phone wraps this line: at the comma, not mid-phrase */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 .online-code {
   width: 64px;
-  height: 64px;
+  height: auto;
+  min-height: 64px;
   border-radius: var(--r-panel);
   background: var(--dusk-2);
   box-shadow: var(--shadow-flat);
