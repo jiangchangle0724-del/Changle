@@ -21,6 +21,7 @@ import { addEffects } from "./effects";
 import { addExtras, type Extras } from "./extras";
 import { addPhones, blackoutDark, DARK_KEEPS } from "./lights";
 import { addSwitches } from "./switches";
+import { addQuestSpots } from "./questSpots";
 import { addSpot } from "./spot";
 import { addMarket, paintAsphalt, type Market, type MarketPalette } from "./market";
 import { Shake, TRAUMA } from "./shake";
@@ -1023,6 +1024,13 @@ export function Arena3D(props: Props) {
     const ruleMarks = addRuleMarks(scene, props.arena, palette);
     // (the night market's lights, its stalls' pools and its fireworks stay whichever set is showing)
     const market: Market | null = props.arena === "market" ? addMarket(scene, marketPalette(palette), ambient, key, fill) : null;
+    // the other places' side quest spots: the seawall's photo frames, the train doors' lamps, the stage's lanterns
+    const questSpots = addQuestSpots(scene, props.arena, {
+      spots: [palette.stall0, palette.stall1, palette.stall2, palette.stall3],
+      trim: props.arena === "gallery" ? palette.bulb : props.arena === "metro" ? palette.steel : palette.inlay,
+      idle: props.arena === "gallery" ? palette.cracker : palette.grime,
+      flash: palette.marking
+    });
     // (the opening sweep, the move to the winner and the confetti stay whichever set is showing)
     const cinema = addCinema(scene, [palette.me, palette.accent, palette.warn, palette.stall1, palette.stall2, palette.ink], !!props.intro);
     // (and the punches' swooshes, the dizzy stars and the dust)
@@ -1432,6 +1440,16 @@ export function Arena3D(props: Props) {
       const lookingKey = looking ? `${looking.x},${looking.y}` : null;
       if (looking && lookingKey !== glanceSeen) cinema.glance(time, sceneX(looking.x), sceneZ(looking.y), looking.endsInMs - Math.max(0, Date.now() - receivedAt.current));
       glanceSeen = lookingKey;
+      if (questSpots) {
+        // a spot done (a view snapped, a door waited at, a lantern lit): it flares, and a few sparks fly
+        const lit = flash.current;
+        if (lit && lit.id !== lastFlash) {
+          lastFlash = lit.id;
+          questSpots.flash(lit.stall, time);
+          if (!reduced) burst((STALLS[lit.stall] - ARENA.width / 2) * SCENE_PER_WORLD, -4.25, time, "spark");
+        }
+        questSpots.update(time, camera, reduced);
+      }
       if (market) {
         // a stall tasted: its pool flashes, and a few sparks fly off its counter
         const lit = flash.current;
@@ -1738,6 +1756,7 @@ export function Arena3D(props: Props) {
       bike?.dispose();
       phones?.dispose();
       switches?.dispose();
+      questSpots?.dispose();
       spot?.dispose();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.InstancedMesh) {

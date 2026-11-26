@@ -114,9 +114,13 @@ export function tagCall(chain: number, streak: number, theirStreak: number, firs
   if (streak === 4) return "rampage";
   return null;
 }
-/** The night market's four snack stalls along the back, left to right (their middles). */
+/**
+ * Every place's side quest, four spots along the back, left to right (their middles): the night
+ * market's snack stalls, the seawall's photo spots, the transit hall's train doors, the theatre's
+ * lanterns. A player standing at each for a moment (BITE_MS) gets FEAST_POINTS for all four.
+ */
 export const STALLS: readonly number[] = [20, 40, 60, 80];
-/** In front of a stall, how far either side of its middle, and how far into the floor from the back, you can eat. */
+/** In front of a spot, how far either side of its middle, and how far into the floor from the back, it counts. */
 export const STALL_REACH = { halfWidth: 4.5, depth: 6 } as const;
 /** How long a player stands at a stall to taste it. */
 export const BITE_MS = 1_200;
@@ -526,8 +530,9 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: Are
   if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) throw new RangeError("A match needs 2 to 8 players");
   const random = seeded(seed);
   const positions = slots();
-  // the players take random spots on the grid, and the passers-by fill the rest in order
-  const free = positions.map((_, index) => index);
+  // the players take random spots on the grid (never at one of the side quest's spots: standing still
+  // there at the start would do it, and light it up for everyone), and the passers-by fill the rest in order
+  const free = positions.map((_, index) => index).filter((index) => stallAt(positions[index].x, positions[index].y) < 0);
   const occupied = new Set<number>();
   const characters: Character[] = [];
   players.forEach((player, index) => {
@@ -716,15 +721,15 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
     }
   }
   const [low, high] = PACES[((body.npcStyle % 3) + 3) % 3];
-  if (arena === "market" && previous.mode !== "browse" && roll < 0.66) {
-    // the night market: up to a stall, to look it over (about a third of the crowd is at one, so a player
-    // tasting has company)
+  if (previous.mode !== "browse" && roll < 0.66) {
+    // up to one of the side quest's spots, to look it over (a stall, a view, a train door, a lantern;
+    // about a third of the crowd is at one, so a player there has company)
     const middle = STALLS[Math.floor(random() * STALLS.length)];
     const x = middle + (random() * 2 - 1) * (STALL_REACH.halfWidth - 1);
     const y = ARENA.marginY + 1.5 + random() * (STALL_REACH.depth - 2.5);
     return { mode: "browse", x, y, pace: low + random() * (high - low), since: now, until: now + 14_000, other: null, count, dwell: 1_200 + random() * 2_600 };
   }
-  if (arena === "metro" && previous.mode !== "browse" && roll < 0.61) {
+  if (arena === "metro" && previous.mode !== "browse" && roll < 0.7) {
     // the transit hall: over to a route sign at the floor's side, to read it (so whoever stands by one
     // of its light switches has company)
     const sign = LIGHT_SWITCHES[Math.floor(random() * LIGHT_SWITCHES.length)];
@@ -1095,9 +1100,9 @@ export function crowdStep(
       return { plan, heading: { x: dx / (distance || 1), y: dy / (distance || 1) }, pace: plan.pace * Math.min(1, 0.45 + distance / 6), face: null, glance: false };
     }
     if (plan.arrivedAt === undefined) plan = { ...plan, arrivedAt: now };
-    // at the counter, looking it over (and around, now and then); in the transit hall, reading a route sign
+    // at a spot, looking it over (and around, now and then); in the transit hall, maybe reading a route sign
     const glance = now - plan.arrivedAt! > (plan.dwell ?? 0) * 0.6;
-    if (game.arena === "metro") {
+    if (game.arena === "metro" && plan.y > ARENA.marginY + STALL_REACH.depth) {
       const sign = LIGHT_SWITCHES.reduce((best, item) => (Math.abs(item.x - body.x) < Math.abs(best.x - body.x) ? item : best), LIGHT_SWITCHES[0]);
       return { plan, heading: { x: 0, y: 0 }, pace: 0, face: glance ? null : Math.atan2(sign.y - body.y, sign.x - body.x), glance };
     }
@@ -1481,7 +1486,7 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     if (character.x !== nextX) character.velocity.x = 0;
     if (character.y !== nextY) character.velocity.y = 0;
     // (a player standing at a stall tastes it however the crowd jostles them: it's the stick that counts)
-    if (next.arena === "market" && character.kind === "player" && next.phase === "playing") taste(next, character, Math.hypot(vector.x, vector.y) > 0.2, now);
+    if (character.kind === "player" && next.phase === "playing") taste(next, character, Math.hypot(vector.x, vector.y) > 0.2, now);
     if (character.attackResolveAt !== null && now < character.attackResolveAt) character.pose = "windup";
     else if (character.attackResolveAt !== null && !character.attackResolved && now >= character.attackResolveAt) {
       character.attackResolved = true;
@@ -1515,8 +1520,9 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
 }
 
 /**
- * The night market: a player standing at a stall they haven't tasted yet tastes it after a moment
- * (the stall lights up on every screen: only a player's bite does that). All four is a feast: 2
+ * The side quest, in every place: a player standing at a spot they haven't done yet does it after a
+ * moment (the night market's stall is tasted, the seawall's photo taken, the train door waited at, the
+ * lantern lit): it lights up on every screen (only a player's does that). All four is a feast: 2
  * points, and they can start again.
  */
 function taste(state: MatchState, body: Character, steering: boolean, now: number): void {

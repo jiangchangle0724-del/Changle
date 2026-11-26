@@ -68,8 +68,8 @@ export interface Opening {
 /**
  * For the browser tests only (the Worker accepts it with ALLOW_TEST_SETTINGS=1, never set on
  * changle.ca): a short round, the first two players starting face to face, the first player
- * starting at one of the night market's stalls (0 to 3) with nobody else near it, or by the
- * transit hall's left light switch.
+ * starting at one of the side quest's spots (0 to 3: a night market stall, a view, a door, a lantern)
+ * with nobody else near it, or by the transit hall's left light switch.
  */
 export interface TestSettings {
   roundMs?: number;
@@ -444,7 +444,7 @@ export class Room {
       const puller = characterForOwner(this.st.game, players[0].id)!;
       Object.assign(puller, { x: ARENA.marginX, y: LIGHT_SWITCHES[0].y, velocity: { x: 0, y: 0 } });
     }
-    if (test?.stall !== undefined && arena === "market") {
+    if (test?.stall !== undefined) {
       const taster = characterForOwner(this.st.game, players[0].id)!;
       Object.assign(taster, { x: STALLS[test.stall], y: ARENA.marginY + 2, velocity: { x: 0, y: 0 }, facing: -Math.PI / 2 });
       for (const other of this.st.game.characters) if (other !== taster && Math.abs(other.x - taster.x) < 14) other.y = Math.max(other.y, 40);

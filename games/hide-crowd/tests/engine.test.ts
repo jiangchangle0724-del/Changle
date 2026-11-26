@@ -122,6 +122,8 @@ test("player movement accelerates, brakes, and turns without snapping", () => {
   let match: MatchState = createMatch(players, 0, 18);
   const playerId = "player-one";
   const startX = match.characters.find((character) => character.ownerId === playerId)!.x;
+  // (a clear way ahead: nobody to bump into)
+  for (const other of match.characters) if (other.ownerId !== playerId) other.y = 50;
   for (let now = 65; now <= 650; now += 65) match = advanceMatch(match, now, { [playerId]: { x: 1, y: 0 } });
   const cruising = match.characters.find((character) => character.ownerId === playerId)!;
   assert.ok(cruising.x - startX > PLAYER_SPEED * 0.45, "a held input should build speed over several server ticks");
@@ -723,10 +725,12 @@ test("a player's punch with the drill goes through the passers-by: no foul, and 
   // pressed just before the call: it lands in the window
   const pressed = 12_000 + DRILL_GO_MS - 150;
   for (let now = 12_050; now < pressed; now += 50) match = advanceMatch(match, now, {});
+  // (what happened before, while they stood about, isn't this test's: a lantern lit, say)
+  const before = match.events.length;
   match = startPunch(match, "player-one", pressed);
   for (let now = pressed + 10; now <= pressed + 400; now += 50) match = advanceMatch(match, now, {});
   assert.ok(pressed + 160 >= 12_000 + DRILL_WINDOW[0] && pressed + 160 <= 12_000 + DRILL_WINDOW[1]);
-  assert.deepEqual(match.events.map((event) => [event.t, event.actor, event.target]), [["tag", "player-one", "player-two"]]);
+  assert.deepEqual(match.events.slice(before).map((event) => [event.t, event.actor, event.target]), [["tag", "player-one", "player-two"]]);
   assert.equal(characterForOwner(match, "player-one")!.fouls, 0);
   assert.equal(match.characters.find((body) => body.id === passerBy.id)!.pose === "stunned", false, "the passer-by stays up");
 });
@@ -739,9 +743,10 @@ test("outside the drill a punch at a passer-by is still a foul, and one at nothi
   for (const body of match.characters) if (body !== one && body !== passerBy) Object.assign(body, { x: 90, y: 50 });
   Object.assign(one, { x: 40, y: 30, facing: 0, velocity: { x: 0, y: 0 } });
   Object.assign(passerBy, { x: 42.5, y: 30, velocity: { x: 0, y: 0 } });
+  const before = match.events.length;
   match = startPunch(match, "player-one", 5_010);
   for (let now = 5_050; now <= 5_400; now += 50) match = advanceMatch(match, now, {});
-  assert.deepEqual(match.events.map((event) => event.t), ["foul"]);
+  assert.deepEqual(match.events.slice(before).map((event) => event.t), ["foul"]);
 });
 
 test("a distraction leaves a glance at its passer-by for every other screen's camera", () => {

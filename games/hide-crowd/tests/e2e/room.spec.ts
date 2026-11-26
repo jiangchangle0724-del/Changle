@@ -151,6 +151,31 @@ test("the night market: standing still at a stall tastes it, the stall lights up
   noErrors(steve, mia, tv);
 });
 
+test("every place has a side quest of its own: in the theatre, standing under a lantern lights it, in the place's own words", async ({ browser, request }) => {
+  const code = await newRoom(request, { test: { stall: 2, roundMs: 30_000 } });
+  const steve = await phone(browser, "Steve");
+  const mia = await phone(browser, "Mia", "en");
+  await steve.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".lobby")).toBeVisible();
+  await mia.goto(`/hide/r/${code}?flat=1`);
+  await expect(steve.locator(".chips")).toContainText("Mia");
+  await steve.getByRole("button", { name: /中式庭院戏台/ }).click();
+  await until(steve, (v) => v.arenaVotes.gallery === 1);
+  await steve.getByRole("button", { name: "开始", exact: true }).click();
+  await until(mia, (v) => v.phase === "playing" && v.game?.arena === "gallery");
+  // the theatre's quest: four lanterns
+  await expect(mia.locator(".quest")).toHaveAttribute("aria-label", "Light all four lanterns: 0 lit");
+  await expect(steve.locator(".quest .quest-snack")).toHaveCount(4);
+  // Steve starts under the third lantern and stands still: a moment later it's lit
+  await until(steve, (v) => v.game!.events.some((e) => e.t === "bite" && e.stall === 2 && e.byYou), 6_000);
+  await expect(steve.locator(".play-notice")).toHaveText("寿字灯笼亮了，还差 3 盏");
+  await expect(steve.locator(".quest")).toHaveAttribute("aria-label", "点亮四盏灯：亮了 1 盏");
+  await expect(steve.locator(".flat-stall.stall-2")).toHaveClass(/is-lit/);
+  await shot(steve, "phone-gallery-lantern");
+  await expect(mia.locator(".play-notice")).toHaveCount(0);
+  noErrors(steve, mia);
+});
+
 test("Distract, twice a round: a passer-by across the crowd swings at nothing, and only you are told", async ({ browser, request }) => {
   const code = await newRoom(request, { test: { roundMs: 30_000 } });
   const steve = await phone(browser, "Steve");

@@ -13,6 +13,7 @@ import { Arena, preloadArena } from "./Arena";
 import { ArenaFallback } from "./ArenaFallback";
 import { ArenaVote, ARENA_RULE, penaltyLine, PlayerChips } from "./Lobby";
 import { Icon } from "./chrome";
+import { QUESTS } from "./quest";
 import { PenaltyStamp } from "./Penalty";
 import { clockText, Scoreboard, useClock } from "./Play";
 import { ResultTable, resultLabel, resultTitle } from "./Result";
@@ -226,7 +227,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
         {feasted && game.phase === "playing" && (
           <p class="tv-feast" role="status" key={feasted}>
             <Icon name="firework" size={30} />
-            {t("feastTv")}
+            {t(QUESTS[game.arena].feastTv)}
           </p>
         )}
         {over && (
@@ -238,7 +239,11 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
                 <p class="result-round">{resultLabel(view)}</p>
                 <h2 class="tv-result-title">{resultTitle(view)}</h2>
                 <ResultTable view={view} />
-                <Awards awards={view.result!.match?.done ? view.result!.match.awards : view.result!.awards ?? []} label={view.result!.match?.done ? "matchTitles" : "awards"} />
+                <Awards
+                  awards={view.result!.match?.done ? view.result!.match.awards : view.result!.awards ?? []}
+                  label={view.result!.match?.done ? "matchTitles" : "awards"}
+                  quest={view.result!.match?.done ? null : game.arena}
+                />
                 {view.result!.match?.next && <p class="result-next">{t("matchNext", { place: t(view.result!.match.next) })}</p>}
                 <p class="tv-wait">{t("nextWhenReady")}</p>
               </section>
