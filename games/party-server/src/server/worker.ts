@@ -2,6 +2,8 @@
 // room keeps the session (src/server/session.ts) around party-base's state machine; the pages talk
 // to it over one WebSocket each.
 //   POST /party/api/rooms                 open a room: { speakerAt } -> { code }
+//   GET  /party/api/rooms/CODE            how the room is going: { exists, phase: lobby | playing | over }
+//                                         (a changle.ca table that sent its players here asks every 8 s)
 //   GET  /party/api/rooms/CODE/ws         the room's WebSocket: ?role=speaker, or ?id=…&name=… for a phone
 //   GET  /party/r/CODE                    the QR code's link: the phone page with the code filled in
 //   /party/screen, /party/join            the pages (dist/client/party, built by scripts/build.mjs)
@@ -40,6 +42,18 @@ export class PartyRoom extends DurableObject<Env> {
       }
       this.alarmAt = await ctx.storage.getAlarm();
     });
+  }
+
+  /**
+   * How the room is going, for a changle.ca table that sent its players here: playing while the
+   * warm-up, the teaching or a dance plays; over once it has ended (or gone quiet for good).
+   */
+  async status(): Promise<{ exists: boolean; phase: "lobby" | "playing" | "over" }> {
+    const s = this.s;
+    if (!s) return { exists: false, phase: "over" };
+    const phase = s.d.state.phase;
+    if (phase === "ended" || s.expired()) return { exists: true, phase: "over" };
+    return { exists: true, phase: phase === "learning" || phase === "dancing" ? "playing" : "lobby" };
   }
 
   /** Open the room under this code. False when the code is already a room in use. */
@@ -222,6 +236,13 @@ export default {
         if (await env.ROOMS.get(env.ROOMS.idFromName(code)).open(code, speakerAt)) return json({ code });
       }
       return json({ error: "busy" }, 503);
+    }
+    const st = /^\/party\/api\/rooms\/([A-Za-z0-9]{4})$/.exec(path);
+    if (st) {
+      if (req.method !== "GET") return json({ error: "method not allowed" }, 405);
+      const code = st[1]!.toUpperCase();
+      if (!CODE_RE.test(code)) return json({ exists: false, phase: "over" });
+      return json(await env.ROOMS.get(env.ROOMS.idFromName(code)).status());
     }
     const ws = /^\/party\/api\/rooms\/([A-Za-z0-9]{4})\/ws$/.exec(path);
     if (ws) {

@@ -13,7 +13,7 @@ import { SONGS } from "../shared/songs";
 import type { HostAction, Results, RoutineInfo, ServerMsg } from "../shared/protocol";
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, goldIn, nextChange, planRun, runEnd, runKey, spotAt, type Mode, type RunBeat, type Show } from "../shared/show";
 import { BeatJudge, goldOk, type Batch, type Judged, type Verdict } from "../shared/taps";
-import { ClockSync, RoomSocket, ScreenAwake, clockText, el, getLang, setLang, tapTime, tr, wsUrl } from "./common";
+import { ClockSync, RoomSocket, ScreenAwake, TABLE, backToTable, clockText, el, getLang, setLang, tableUrl, tapTime, tr, wsUrl } from "./common";
 import { MotionSense } from "./motion";
 import { awardName, bodyHint, danceName, difficultyName, goldAheadText, goldVerdictText, moveName, remindBox, restHint, routineName, showMinutes, songArtist, songTitle, stageName, styleName, verdictText } from "./words";
 
@@ -102,7 +102,7 @@ function join() {
     // fine
   }
   void awake.on();
-  history.replaceState(null, "", `?code=${code}`);
+  history.replaceState(null, "", `?code=${code}${TABLE ? `&table=${TABLE}` : ""}`);
   try {
     // a reload of this tab goes straight back in
     sessionStorage.setItem("party:room", code);
@@ -136,6 +136,7 @@ function onMsg(m: ServerMsg) {
       results = m.results;
       if (state.phase === "calibrating" && before !== "calibrating") taps = 0;
       endArmed = false;
+      if (state.phase === "ended") leaveForTable();
       track();
       // (bars sent while the connection was down never got there; the room keeps the newest of
       // each beat, so sending one twice does no harm. After the state: a bar of a dance the room
@@ -166,6 +167,7 @@ function onMsg(m: ServerMsg) {
       return;
     case "fatal":
       fatal = m;
+      if (m.key === "ended" || m.key === "noRoom") leaveForTable();
       render();
       return;
     default:
@@ -175,6 +177,15 @@ function onMsg(m: ServerMsg) {
 
 function act(action: HostAction) {
   sock?.send({ t: "act", action });
+}
+
+/** From a changle.ca table: once the room is over, back there (a moment later, its end on the screen first). */
+let leaving = false;
+function leaveForTable() {
+  if (!TABLE || leaving) return;
+  leaving = true;
+  const over = code;
+  setTimeout(() => backToTable(over), 1500);
 }
 
 function errorText(code: string, message: string): string {
@@ -360,6 +371,13 @@ function topBar(): HTMLElement {
   const bar = el("header", "bar");
   bar.append(el("span", "brand", tr("一起跳", "Dance Along")));
   const tools = el("span", "bar-tools");
+  // from a changle.ca table: the way back to it
+  const back = tableUrl();
+  if (back) {
+    const a = el("a", "chip", tr("回到桌子", "Back to the table"));
+    a.href = back;
+    tools.append(a);
+  }
   if (sock) {
     const m = el("button", "chip", measure ? tr("收起测量", "Hide timing") : tr("测量", "Timing"));
     m.onclick = () => {

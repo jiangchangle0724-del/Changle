@@ -17,7 +17,7 @@ import { COMBO_FULL, SONG_SYNC_MS, type Floor, type Results, type RoutineInfo, t
 import { PREVIEW_BEATS, anchorsOf, buildShow, danceStart, goldIn, introOf, nextChange, planRun, runKey, spotAt, type RunBeat, type Show } from "../shared/show";
 import { goldOk } from "../shared/taps";
 import { SONGS, type Song } from "../shared/songs";
-import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, clockText, el, getLang, pageClock, setLang, tr, wsUrl } from "./common";
+import { ClockSync, PAGE_ORIGIN, RoomSocket, ScreenAwake, TABLE, backToTable, clockText, el, getLang, pageClock, setLang, tableUrl, tr, wsUrl } from "./common";
 import { anyGl, canCoach, doingAt, glowOf } from "./coach/index";
 import { Crowd, PLAYER_COLORS, type Dancer } from "./coach/crowd";
 import { CoachStage } from "./coach/stage";
@@ -338,6 +338,7 @@ function onMsg(m: ServerMsg) {
       calibrated = m.calibrated === true;
       learned = m.learned === true;
       rejoining = false;
+      if (state.phase === "ended") leaveForTable();
       // (this page has no buttons: it speaks its host's language)
       if (m.lang && m.lang !== getLang()) setLang(m.lang, false);
       if (state.phase !== "dancing") floor = null;
@@ -402,6 +403,14 @@ function onMsg(m: ServerMsg) {
       return;
     }
     case "fatal":
+      // from a changle.ca table: a room that's over or gone sends this stage back there
+      if (TABLE && (m.key === "noRoom" || m.key === "ended")) {
+        fatal = m;
+        synth.hush();
+        leaveForTable();
+        render();
+        return;
+      }
       // a reload of a room that's gone: open a new one
       if (rejoining && (m.key === "noRoom" || m.key === "ended")) {
         void openRoom();
@@ -631,7 +640,25 @@ function rotatePrompt(): HTMLElement {
 function topBar(): HTMLElement {
   const bar = el("header", "bar");
   bar.append(el("span", "brand", tr("一起跳", "Dance Along")));
+  // from a changle.ca table: the way back to it (the TV's page there, or the phone's)
+  const back = tableUrl(true);
+  if (back) {
+    const tools = el("span", "bar-tools");
+    const a = el("a", "chip", tr("回到桌子", "Back to the table"));
+    a.href = back;
+    tools.append(a);
+    bar.append(tools);
+  }
   return bar;
+}
+
+/** From a changle.ca table: once the room is over, back there (a moment later, its end on the screen first). */
+let leaving = false;
+function leaveForTable() {
+  if (!TABLE || leaving) return;
+  leaving = true;
+  const over = code;
+  setTimeout(() => backToTable(over, true), 1500);
 }
 
 /**

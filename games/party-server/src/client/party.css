@@ -69,12 +69,16 @@ a.btn {
   gap: 8px;
 }
 .chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   background: transparent;
   color: var(--muted);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   font-size: 0.85rem;
+  text-decoration: none;
   cursor: pointer;
 }
 
