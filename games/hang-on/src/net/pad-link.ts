@@ -2,6 +2,7 @@
  * 手柄这头的链路：连房间，每次连上就对主机说 hello，收到 offer 就答，拿到数据通道就把每帧输入
  * 从通道发；通道没开就绕房间（30 Hz）。主机的 ping 原路回，小包交给页面。
  */
+import type { EmoteId } from '../emotes';
 import {
   RELAY_INPUT_HZ,
   type FatalKey,
@@ -97,6 +98,11 @@ export class PadLink {
   /** 手柄当遥控：按了开始、下一关……走房间（要可靠）。 */
   command(c: PadCmd): void {
     if (this.socketOpen) this.relay({ k: 'cmd', c });
+  }
+
+  /** 表情（11-25）：点了一句，走房间（要可靠）；没连上就不发。 */
+  emote(e: EmoteId): void {
+    if (this.socketOpen) this.relay({ k: 'emote', e });
   }
 
   /** 告诉主机自己带哪样道具（A9）；每次重新连上房间也会再说一遍。 */

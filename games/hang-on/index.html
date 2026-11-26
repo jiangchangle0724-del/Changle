@@ -69,7 +69,19 @@
   .qr svg { width: 100%; height: 100%; display: block; }
   /* 大厅的座位：六张卡，每张画出这个人的糯米团 */
   .seats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 10px 0 4px; }
-  .seat { display: grid; justify-items: center; align-content: start; gap: 2px; border-radius: 16px; padding: 8px 6px 10px; background: rgba(42,31,58,.06); text-align: center; min-width: 0; }
+  .seat { position: relative; display: grid; justify-items: center; align-content: start; gap: 2px; border-radius: 16px; padding: 8px 6px 10px; background: rgba(42,31,58,.06); text-align: center; min-width: 0; }
+  /* 表情（11-25）：大厅里谁说了一句，挂在他的座位卡上面 */
+  .seat .say { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); z-index: 1; white-space: nowrap; padding: 3px 10px; border-radius: 12px;
+    background: var(--card); color: var(--card-ink); border: 2px solid var(--card-ink); font-weight: 800; font-size: 13px; box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+  /* 顶栏的 😀 打开一排，两行四个，挂在顶栏下面；点一句就收起来 */
+  .hud .emo { font-size: 18px; }
+  .emotes { position: fixed; left: 50%; transform: translateX(-50%); z-index: 30; display: grid; grid-template-columns: repeat(4, minmax(84px, 1fr)); gap: 8px;
+    padding: 10px; background: var(--card); color: var(--card-ink); border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.35); width: max-content; max-width: calc(100vw - 24px); }
+  .emote { min-height: 48px; border: 0; border-radius: 14px; background: #fff; color: var(--card-ink); font-family: inherit; font-weight: 700; font-size: 16px; line-height: 1.2; padding: 6px 10px; cursor: pointer; }
+  .emote:active { transform: scale(.96); }
+  .emote.nope { animation: emote-nope .3s; }
+  @keyframes emote-nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  @media (prefers-reduced-motion: reduce) { .emote:active { transform: none; } .emote.nope { animation: none; opacity: .6; } }
   .seat canvas { width: 60px; height: 60px; }
   .seat .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 14px; }
   .seat .sub { font-size: 11px; opacity: .65; }
@@ -249,6 +261,7 @@
     <span class="chip" id="envChip" hidden title="红包" data-en-title="Red envelopes">🧧 <b id="envs">0</b></span>
     <span class="chip" id="aliveChip" hidden title="还挂着的" data-en-title="Still hanging">🙋 <b id="alive">0</b></span>
     <span class="chip" id="goldChip" hidden title="抢元宝的比分" data-en-title="Gold score">🪙 <span id="goldScore"></span></span>
+    <button class="btn quiet emo" id="emoteBtn" type="button" hidden aria-label="表情" data-en-label="Emotes">😀</button>
     <button class="btn quiet" id="muteBtn" type="button" aria-pressed="false">🔊 声音</button>
     <button class="btn quiet" id="langBtn" type="button">EN</button>
     <button class="btn quiet" id="lobbyBtn" type="button" hidden data-en="Lobby">回大厅</button>
