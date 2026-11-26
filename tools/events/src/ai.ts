@@ -22,15 +22,21 @@ export const AI_MODELS = ["@cf/google/gemma-4-26b-a4b-it", "@cf/qwen/qwen3.8-27b
 export const AI_MODEL = AI_MODELS[0];
 
 /**
- * Asks the models in turn (AI_MODELS) until one answers: its text, and which it was. Qwen's are told
- * /no_think (answer at once, no reasoning written out first); Gemma 4 only thinks when asked to.
+ * Asks the models in turn (AI_MODELS) until one answers with some text: that text, and which model
+ * it was. Each is told not to think first (`enable_thinking: false` for the chat template, and
+ * /no_think for Qwen's): a model that thinks spends the answer's tokens on it and says nothing
+ * (Gemma 4's first answers, 26 November, were empty). An empty answer goes on to the next model, as
+ * an error does; when none has any text, the error says what the last one sent, to see why.
  */
 export async function ask(run: RunModel, input: { messages: { role: string; content: string }[]; max_tokens: number; temperature: number }): Promise<{ text: string; model: string }> {
   let failed: unknown = new Error("no model to ask");
   for (const model of AI_MODELS) {
     const messages = /\/qwen\//.test(model) ? input.messages.map((m, i, all) => (i === all.length - 1 && m.role === "user" ? { ...m, content: `${m.content}\n/no_think` } : m)) : input.messages;
     try {
-      return { text: answerText(await run(model, { ...input, messages })), model };
+      const out = await run(model, { ...input, messages, chat_template_kwargs: { enable_thinking: false } });
+      const text = answerText(out);
+      if (text.trim()) return { text, model };
+      failed = new Error(`${model} answered no text: ${JSON.stringify(out ?? null).slice(0, 400)}`);
     } catch (e) {
       failed = e;
     }
@@ -116,13 +122,19 @@ export function messages(events: ToWrite[]): { role: "system" | "user"; content:
   ];
 }
 
-/** The text of a Workers AI answer, whichever shape it comes in. */
+/**
+ * The text of a Workers AI answer, whichever shape it comes in: `response` (a string, or the JSON
+ * itself), or OpenAI's `choices[0].message.content` (a string, or parts with text), or `choices[0].text`.
+ */
 export function answerText(out: unknown): string {
-  const o = out as { response?: unknown; choices?: { message?: { content?: unknown } }[] } | null;
-  if (typeof o?.response === "string") return o.response;
+  const o = out as { response?: unknown; choices?: { text?: unknown; message?: { content?: unknown } }[] } | null;
+  if (typeof o?.response === "string" && o.response.trim()) return o.response;
   if (o?.response && typeof o.response === "object") return JSON.stringify(o.response);
-  const content = o?.choices?.[0]?.message?.content;
-  return typeof content === "string" ? content : "";
+  const choice = o?.choices?.[0];
+  const content = choice?.message?.content;
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.map((p) => (typeof p === "string" ? p : typeof (p as { text?: unknown })?.text === "string" ? (p as { text: string }).text : "")).join("");
+  return typeof choice?.text === "string" ? choice.text : "";
 }
 
 /** A name wrapped whole in quotes, without them ("「读书会」"); 《》 around a work's name inside it stay. */
