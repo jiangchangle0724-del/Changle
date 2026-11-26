@@ -11,5 +11,6 @@
     "isolatedModules": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "web", "scripts"]
+  "include": ["src", "tests", "web", "scripts"],
+  "exclude": ["src/server/worker.ts", "tests/accounts"]
 }

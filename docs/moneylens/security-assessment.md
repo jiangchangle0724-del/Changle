@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.12, 25 November 2026. It records the choices the requirements leave to this document
+Version 0.13, 26 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -35,8 +35,9 @@ request has a time limit. The third round approved the layer as 0.9 describes it
 follows that round: the one thing it found is fixed (a doubled record was not always read with
 its latest copy's time), and one more way a field can come back is written into 1.6. Version
 0.11 adds the server's own code for the two calls of sync (1.6, "The server's code"). Version
-0.12 adds sessions and what a request has to show (1.7). The Worker and the Durable Object
-around them are not written.
+0.12 adds sessions and what a request has to show (1.7). Version 0.13 adds the Worker and the
+Durable Objects around all of it: a request's way in, the gate, and sync as it travels (1.8).
+None of it is published.
 
 ## 1. The vault
 
@@ -730,10 +731,127 @@ cookie headers that are not a session, a planted second cookie among them; eight
 are not ours. Each of the 58 checks in the two files was taken out in turn: each makes a test
 fail.
 
-Not written, and not reviewed with this: the Worker and the Durable Object that call these
-functions, trading the handoff code, the allowlist (SEC-10), the content security policy, the
-security event log (SEC-17), and any limit on how often an account signs in beyond the main
-site's own limit on handoff codes.
+Not written with 1.7, and now in 1.8: the Worker and the Durable Object that call these
+functions, trading the handoff code, the gate (SEC-10), the events log (SEC-17), and a limit on
+how often an account signs in.
+
+### 1.8 The server's shell: a request's way in (ARCH-3, ISO-1, ISO-2, SEC-1, SEC-4, SEC-5, SEC-10)
+
+One Worker, `moneylens`, to be served on `money.changle.ca` and nothing else there (D2). It is
+not published: no Workers Build is connected to its folder, and its gate is shut in the
+repository. Two classes of Durable Object, both on SQLite. `VaultDO` is one person's: named by
+the account's id, it holds that person's sessions (1.7), sealed chunks (1.6), an events log, and
+one row saying whose it is. `Registry` is one object that knows which accounts have ever signed
+in, and nothing else about them.
+
+The rules stay in plain functions, tested on Node's SQLite: `gate.ts`, `account.ts`,
+`registry.ts`, `wire.ts`, beside `sessions.ts`, `request.ts`, `chunks.ts`. `worker.ts` reads
+requests and adapts storage. It is tested on Cloudflare's own runtime on a developer's machine
+and in CI (`npm run test:server`), with a stand-in for the accounts service.
+
+**What comes in.** `GET /enter` and `POST /api/...`; everything else is "no such thing".
+
+- `/enter` makes a nonce (256 random bits), sets it in the `__Host-ml-n` cookie and sends the
+  browser to the main site with it. The main site has the accounts service make a handoff code
+  bound to that nonce and sends the browser back (ARCH-3).
+- Every `/api` request is refused unless it is a POST whose `Origin` is exactly the configured
+  origin (`fromOurOrigin`, SEC-4; the expected origin is the setting `ORIGIN`, and with no such
+  setting nothing is answered at all), unless the gate is open, unless its body says what kind
+  it is (`application/json`, or `application/octet-stream` for a push) and states a length no
+  greater than that kind may have: 4,096 bytes, or for a push 8 MiB of blobs and a 64 KiB head
+  (SEC-5). No `Access-Control-*` header is ever sent, and `OPTIONS` is refused.
+- `POST /api/session` trades the code, Worker to Worker (`ACCOUNTS.redeem(code, "moneylens")`),
+  and compares the nonce the code was bound to with the cookie's, every character. A code that
+  is wrong, used, out of time, for another audience or bound to another browser gets one answer.
+  Then the gate is asked, a token and a session id are made here (never taken from the caller),
+  the account is noted in the registry, and `signIn` opens the session in that account's own
+  object. The answer sets `__Host-ml` and clears the nonce's cookie. The session's label is
+  worked out from the User-Agent out of a fixed set of words ("Chrome on Windows"); none of the
+  request's own text goes into it. The code, the nonce and the token are never logged; what is
+  logged of an error is its kind.
+- Any other request names its account in its cookie. That name picks the object and is compared
+  there with the account the object belongs to; it grants nothing (ISO-2). The Worker hashes
+  the token and hands the request on with its body unread, as a stream. The object looks for
+  the session before it reads the body, so that someone with no session cannot make it hold
+  megabytes; then it reads the body; then, with nothing that waits in between, `act` checks the
+  session again and does what was asked (the third obligation of the review of 1.7). A request
+  that names an account, a session or a vault in its body has those used as what they are: a
+  session id is looked up among this account's own, and a vault id is compared with the one
+  this database holds.
+- Every answer carries `Cache-Control: no-store`, HSTS, `nosniff`, `Referrer-Policy:
+  no-referrer`, `frame-ancestors 'none'` and a policy that loads nothing (SEC-1). An answer that
+  there is no session, or that the account is not let in, clears the cookie. A database that
+  cannot be read, or a row in it that holds nonsense (a count that is not a count: `chunks.ts`
+  now checks), is answered with "unavailable" and nothing is done.
+
+**The gate (SEC-10, T-23).** The setting `GATE`: `closed` (what the repository says), `owner`,
+or `list`; anything else reads as `closed`. With `owner`, a sign-in is let in when the accounts
+service says the account is the owner's, the object remembers what was said at the latest
+sign-in, and every request is asked for it. With `list`, a sign-in is let in when the account's
+id is in `ALLOWED_ACCOUNTS`, and the Worker asks the list on every request before any object is
+reached, so taking an id off the list takes effect at once; the owner is on the list or is not
+let in. A sign-in that is not let in writes nothing anywhere, the registry included. Opening
+the gate is the operator changing that setting.
+
+**What a wrong guess costs.** An address someone made up reaches an object only with the gate
+open to the owner (with a list, the Worker stops it). There it costs one request and one read:
+a database nobody signed in to has no tables, and none is made. A wrong token for a real account
+costs one request and at most eight short rows read, and writes nothing. Neither is limited in
+this code, because an object cannot refuse a request without having been asked. A rule on
+`/api/*` in Cloudflare's own rate limiting is a setting, to be asked of the operator before
+Phase 3. Sign-ins are limited here: twelve an hour for one account (eight sessions are kept, so
+signing in over and over would push a person's other devices out).
+
+**Sync as it travels (`wire.ts`).** Blobs are not put into JSON. A push's body and the answers
+to a push and a pull are a frame: four bytes of length, that many bytes of JSON naming each blob
+and its length, then the blobs. Reading a frame checks its form (the blobs use up the bytes
+exactly); what the names and numbers are worth is checked by whoever asked, `pushChunks` on the
+server and `sync` on the device, as before. The reason is the platform: a Worker on the Free
+plan has 10 ms of processor time for a request, which base64 and JSON of eight megabytes would
+pass. It is not known whether a Free-plan Durable Object is held to the same 10 ms (Cloudflare's
+page gives 30 seconds, and says objects have "the same per invocation CPU limits as any
+Workers"). The local runtime does not enforce either. **To be measured at the first deploy,
+before any real statement goes in:** a push of the largest size.
+
+**Quotas (LIM-2, T-14).** `QUOTA_VAULT_BYTES` and `QUOTA_WRITES_PER_DAY`, each taken only as a
+whole number within bounds (1 MiB to 100 MiB; 10 to 5,000), otherwise the default of 1.6. The
+day the writes are counted for is the object's own UTC day and never an earlier one than the
+last day it wrote on: a clock set back does not hand out a second day's writes.
+
+**The events log (SEC-17).** In the person's own database: what happened (a sign-in, a
+sign-out, a session ended from another device, a vault started, an email change), when, and in
+which session. No contents. Twelve months are kept and at most 500 lines; the person is shown
+the newest 50. Failed attempts are not logged there: they would let a stranger write to a
+person's database. Unlocks, exports, deletions and consent changes are not logged yet; they
+come with the screens that do them.
+
+**The other way in.** `Internal`, reachable only over a service binding from the accounts
+service: `accountGone(id)` empties the account's object (`deleteAll`) and takes it off the
+registry, `accountChanged(id)` ends all its sessions, `count()` says how many accounts are
+noted. All answer normally for an account that was never here, and the first two throw when
+they fail, so that the caller tries again.
+
+**Decided here.** A restored database can bring back sessions that had been ended, up to
+twelve hours' worth: the restore runbook ends every session of a restored account
+(`accountChanged` does it). The device's `Remote` over HTTP (`web/remote.ts`) throws for every
+answer that is not the store's, which `sync` reports as no answer, and marks apart the one the
+screen must act on: the server saying this browser has no session.
+
+**Tested.** On Node: every rule above that is a function, and each of 51 of their checks taken
+out in turn fails a test. On the local runtime: T-1 and T-2 (two people, through every route,
+with each other's names, tokens and ids), T-3, T-22 (every route, sync included, from other
+origins and from the main site), T-23 (each gate), T-14, T-6 (two devices sync real sealed
+records through the Worker, and every file the runtime kept is searched for what they wrote),
+the body limits, `Internal`, the registry, and that everything is still there after the
+runtime stops and starts. Twelve checks in `worker.ts` were taken out in turn: each fails a
+test there.
+
+**Not in this.** Erasing a vault and its seven-day delay (VAULT-5, VAULT-7), which needs a
+design on the device's side for proving that a session has the vault unlocked. The weekly sweep
+(ARCH-10); the registry it will read exists. Consent and eligibility. The app's pages, and with
+them the page that finishes a sign-in and the content security policy of pages that load
+something (SEC-2). The main site's page that asks for the code. The limits of the platform at
+their real sizes, and what a call is billed, which only a deploy can show.
 
 ## 2. Limits (the reason for VAULT-6's wording)
 

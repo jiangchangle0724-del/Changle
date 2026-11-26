@@ -83,8 +83,23 @@ ours (`Origin`, exactly). Both are in the assessment (1.7). For whoever writes t
   says yes. A GET hands out pages and nothing else.
 - `ctx.storage.transactionSync` goes behind `atomically`. No `BEGIN` in a Durable Object.
 
-There is no Worker and no Durable Object class yet: nothing serves these functions. Next come
-the Durable Object around them, trading the handoff code, and the allowlist.
+`src/server/worker.ts` is the Worker that serves them, with each person's Durable Object
+(`VaultDO`), the registry of accounts (`Registry`) and the accounts service's way in
+(`Internal`). It decides nothing itself: `gate.ts` reads the operator's settings (the origin,
+the gate, the quotas), `account.ts` is everything one person's object does (signing in, and
+every request that comes with a session), `registry.ts` notes which accounts have signed in,
+and `wire.ts` is how a push and the answers to sync are written for HTTP (a frame, not JSON:
+the reason is in the assessment, 1.8). `src/web/remote.ts` is the device's end of it.
+`src/vault/protocol.ts` is what both ends go by; neither imports the other.
+
+**Not published.** `wrangler.jsonc` is the Worker's settings, with the gate shut (`GATE`:
+`closed`, `owner` or `list`). Nothing is live until a Workers Build is connected to this folder
+in Cloudflare, which is Steve's to do, and the gate is his to open.
+
+`npm run test:server` runs the Worker on Cloudflare's own runtime on this machine (`wrangler
+dev`) with a stand-in for the accounts service (`tests/accounts`), which is also the door the
+tests come in by. It is not part of `npm test`. The Worker's own files are type-checked against
+Cloudflare's types by `src/server/tsconfig.json` (`npm run typecheck` runs both).
 
 ## The store: where records are kept
 

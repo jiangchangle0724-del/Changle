@@ -94,3 +94,15 @@ export function fromOurOrigin(headers: { get(name: string): string | null }, ori
   const site = headers.get("Sec-Fetch-Site");
   return site === null || site === "same-origin";
 }
+
+/**
+ * A short name for the device a session was opened from, for the list its owner sees (ARCH-8): the browser and the
+ * system, as far as the User-Agent names them ("Chrome on Windows"). Worked out here from a fixed set of words: no
+ * text of the request's own goes into it.
+ */
+export function labelOf(userAgent: unknown): string {
+  const ua = typeof userAgent === "string" ? userAgent.slice(0, 400) : "";
+  const browser = /\bEdg(?:e|A|iOS)?\//.test(ua) ? "Edge" : /\bOPR\//.test(ua) ? "Opera" : /\bFirefox\/|\bFxiOS\//.test(ua) ? "Firefox" : /\bChrome\/|\bCriOS\//.test(ua) ? "Chrome" : /\bSafari\//.test(ua) ? "Safari" : "";
+  const system = /\biPhone\b/.test(ua) ? "iPhone" : /\biPad\b/.test(ua) ? "iPad" : /\bAndroid\b/.test(ua) ? "Android" : /\bWindows\b/.test(ua) ? "Windows" : /\bCrOS\b/.test(ua) ? "ChromeOS" : /\bMac OS X\b|\bMacintosh\b/.test(ua) ? "Mac" : /\bLinux\b/.test(ua) ? "Linux" : "";
+  return browser && system ? `${browser} on ${system}` : browser || system || "Browser";
+}

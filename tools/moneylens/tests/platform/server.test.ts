@@ -1,0 +1,547 @@
+// The server itself, on Cloudflare's own runtime on this machine (`wrangler dev`): the Worker, each
+// person's Durable Object with its SQLite, the registry, and `Internal`, with a stand-in for the
+// accounts service beside it (tests/accounts). `npm run test:server`. It is not part of `npm test`,
+// which needs no runtime but Node's.
+//
+// The rules are tested where they are written, on Node (tests/shell.test.ts, sessions, chunks,
+// request, wire). What is tested here is that the Worker applies them to real requests: T-1 and
+// T-2 (two people), T-3 (sessions and handoff codes), T-6 (no marker in what the server stores),
+// T-14 (quotas), T-22 (the Origin), T-23 (the gate), and what Node's SQLite cannot show: that a
+// Durable Object's storage takes and gives what the code expects, and keeps it over a restart.
+//
+// Every request goes in through the stand-in, which passes it on untouched as if it had come to
+// money.changle.test. The settings are wrangler.jsonc's own, with the gate and the origin of a test.
+import assert from "node:assert/strict";
+import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import http from "node:http";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import test, { after, before } from "node:test";
+import { base64url, newId } from "../../src/core/ids";
+import { HEAD_MAX, packPush, unpackPulled, unpackPushed } from "../../src/server/wire";
+import { MemoryCache } from "../../src/vault/memory";
+import { LIMITS, Store } from "../../src/vault/sync";
+import { HttpRemote } from "../../src/web/remote";
+import { testVault } from "../vaulthelp";
+
+const ORIGIN = "https://money.changle.test";
+const MAIN = "https://main.changle.test";
+/** Two people who are let in, and one who is not. */
+const [A, B, C] = ["utestaaaa1", "utestbbbb2", "utestcccc3"];
+const MARKER = "MARKER-CAFE-MAPLE-7731";
+
+/** A file with comments in it, as plain JSON. */
+function plainJson(text: string): string {
+  let out = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (quoted) {
+      out += c;
+      if (c === "\\") out += text[++i];
+      else if (c === '"') quoted = false;
+    } else if (c === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      out += "\n";
+    } else {
+      if (c === '"') quoted = true;
+      out += c;
+    }
+  }
+  return out;
+}
+
+type Server = { base: string; kept: string; stop(): Promise<void> };
+
+/** Starts the Worker with wrangler.jsonc's own settings, except for `vars` (and no address on the internet). `kept`: where its storage is, to start it again on the same. */
+async function start(port: number, vars: Record<string, string | undefined>, kept = mkdtempSync(join(tmpdir(), "moneylens-server-"))): Promise<Server> {
+  const settings = JSON.parse(plainJson(readFileSync("wrangler.jsonc", "utf8"))) as { vars: Record<string, string>; main: string; routes?: unknown; $schema?: unknown };
+  delete settings.routes;
+  delete settings.$schema;
+  settings.main = resolve(settings.main);
+  settings.vars = { ...settings.vars, ORIGIN, MAIN_SITE: MAIN };
+  for (const [name, value] of Object.entries(vars)) {
+    if (value === undefined) delete settings.vars[name];
+    else settings.vars[name] = value;
+  }
+  const file = join(kept, "moneylens.jsonc");
+  writeFileSync(file, JSON.stringify(settings));
+  const child: ChildProcess = spawn("npx", ["wrangler", "dev", "-c", "tests/accounts/wrangler.jsonc", "-c", file, "--port", String(port), "--ip", "127.0.0.1", "--persist-to", join(kept, "state")], {
+    stdio: "ignore",
+    detached: true,
+    env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" },
+  });
+  const base = `http://127.0.0.1:${port}`;
+  const until = Date.now() + 90_000;
+  for (;;) {
+    try {
+      const answer = await fetch(`${base}/nothing-here`);
+      if ([404, 503].includes(answer.status) && (await answer.text()).includes('"ok":false')) break;
+    } catch {
+      // not up yet
+    }
+    if (Date.now() > until) throw new Error("wrangler dev did not start");
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return {
+    base,
+    kept,
+    stop: async () => {
+      // wrangler and the runtime it started are one group: ask, then insist
+      for (const signal of ["SIGTERM", "SIGKILL"] as const) {
+        try {
+          process.kill(-child.pid!, signal);
+        } catch {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// A browser, as far as these tests need one
+// ---------------------------------------------------------------------------------------------
+
+/** The cookies a browser would hold for this origin. */
+type Jar = Map<string, string>;
+
+/** What every answer carries (SEC-1), and what none does. */
+function checked(answer: Response): Response {
+  assert.equal(answer.headers.get("Cache-Control"), "no-store");
+  assert.equal(answer.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(answer.headers.get("Referrer-Policy"), "no-referrer");
+  assert.equal(answer.headers.get("Strict-Transport-Security"), "max-age=31536000; includeSubDomains");
+  assert.equal(answer.headers.get("X-Frame-Options"), "DENY");
+  assert.match(answer.headers.get("Content-Security-Policy") ?? "", /default-src 'none'; frame-ancestors 'none'/);
+  for (const [name] of answer.headers) assert.ok(!/^access-control-|^x-ml-/i.test(name), `an answer carries ${name}`);
+  return answer;
+}
+
+function took(jar: Jar, answer: Response): void {
+  for (const set of answer.headers.getSetCookie()) {
+    const [, name, value] = /^([^=]+)=([^;]*)/.exec(set)!;
+    // every cookie is host-only, for this origin's own requests, and out of scripts' reach (ARCH-4)
+    assert.match(set, /^__Host-ml(-n)?=[^;]*; Max-Age=\d+; Path=\/; Secure; HttpOnly; SameSite=Strict$/, set);
+    if (/Max-Age=0;/.test(set)) jar.delete(name!);
+    else jar.set(name!, value!);
+  }
+}
+
+type Sent = { headers?: Record<string, string>; origin?: string | null; method?: string };
+
+async function send(server: Server, path: string, body: string | Uint8Array | null, jar: Jar, { headers = {}, origin = ORIGIN, method = "POST" }: Sent = {}): Promise<Response> {
+  const answer = checked(
+    await fetch(`${server.base}${path}`, {
+      method,
+      redirect: "manual",
+      headers: {
+        ...(origin === null ? {} : { Origin: origin }),
+        ...(body === null ? {} : { "Content-Type": typeof body === "string" ? "application/json" : "application/octet-stream" }),
+        ...(jar.size ? { Cookie: [...jar].map(([name, value]) => `${name}=${value}`).join("; ") } : {}),
+        ...headers,
+      },
+      ...(body === null ? {} : { body: body as BodyInit }),
+    }),
+  );
+  took(jar, answer);
+  return answer;
+}
+const said = async (answer: Response): Promise<[number, unknown]> => [answer.status, ((await answer.json()) as { why?: unknown }).why];
+
+/** A handoff code, made by the stand-in for the accounts service as the main site would have one made for whoever is signed in there. */
+async function codeFor(server: Server, id: string, nonce: string, more: { master?: boolean; aud?: string } = {}): Promise<string> {
+  const made = await fetch(`${server.base}/test/mint`, { method: "POST", body: JSON.stringify({ id, nonce, master: more.master ?? false, aud: more.aud ?? "moneylens" }) });
+  return ((await made.json()) as { code: string }).code;
+}
+
+/** Signs in as an account, the whole way round: /enter, the nonce to the main site, a code back, the trade. */
+async function signInAs(server: Server, account: string, more: { master?: boolean } = {}): Promise<{ jar: Jar; answer: Response }> {
+  const jar: Jar = new Map();
+  const entered = await send(server, "/enter", null, jar, { method: "GET", origin: null });
+  assert.equal(entered.status, 302);
+  const nonce = new URL(entered.headers.get("Location")!).searchParams.get("handoff")!;
+  const answer = await send(server, "/api/session", JSON.stringify({ code: await codeFor(server, account, nonce, more) }), jar);
+  return { jar, answer };
+}
+
+/** The device's own way to the server (web/remote.ts), with this jar's cookies. */
+const remoteFor = (server: Server, jar: Jar): HttpRemote =>
+  new HttpRemote(async (input, init) => {
+    const { headers, body } = init as { headers: Record<string, string>; body: string | Uint8Array };
+    return send(server, new URL(String(input), "https://x").pathname, body, jar, { headers });
+  });
+
+// ---------------------------------------------------------------------------------------------
+// The gate open to a list
+// ---------------------------------------------------------------------------------------------
+
+let server: Server;
+before(async () => {
+  server = await start(8795, { GATE: "list", ALLOWED_ACCOUNTS: `${A},${B}`, QUOTA_WRITES_PER_DAY: "10" });
+});
+after(async () => {
+  await server.stop();
+  rmSync(server.kept, { recursive: true, force: true });
+});
+
+test("only /enter and POST /api answer, with the same headers on everything", async () => {
+  const none: Jar = new Map();
+  for (const path of ["/", "/index.html", "/api", "/enterprise", "/enter/", "/.well-known/security.txt", "/API/sessions"]) assert.deepEqual(await said(await send(server, path, null, none, { method: "GET", origin: null })), [404, "no-such-thing"], path);
+  assert.deepEqual(await said(await send(server, "/api/nothing", "{}", none)), [404, "no-such-thing"]);
+  // /api is POST only, whatever is asked for
+  for (const method of ["GET", "PUT", "DELETE", "PATCH", "OPTIONS"]) {
+    const answer = await send(server, "/api/sessions", null, none, { method });
+    assert.deepEqual([answer.status, answer.headers.get("Allow")], [405, "POST"], method);
+  }
+  assert.equal((await send(server, "/enter", "{}", none)).status, 405);
+  // /enter: a nonce in a cookie, and the same nonce on its way to the main site
+  const jar: Jar = new Map();
+  const entered = await send(server, "/enter", null, jar, { method: "GET", origin: null });
+  const to = new URL(entered.headers.get("Location")!);
+  assert.deepEqual([entered.status, to.origin, to.pathname, [...to.searchParams.keys()]], [302, MAIN, "/tools/finance", ["handoff"]]);
+  assert.match(to.searchParams.get("handoff")!, /^[A-Za-z0-9_-]{43}$/);
+  assert.deepEqual([...jar], [["__Host-ml-n", to.searchParams.get("handoff")]]);
+  // (each one is new)
+  const again: Jar = new Map();
+  await send(server, "/enter", null, again, { method: "GET", origin: null });
+  assert.notEqual(again.get("__Host-ml-n"), jar.get("__Host-ml-n"));
+});
+
+test("a request whose Origin is not this origin gets nothing, sync included (T-22)", async () => {
+  const { jar } = await signInAs(server, A);
+  const paths = ["session", "session/end", "sessions", "sessions/end", "vault", "vault/start", "sync/pull", "sync/push", "events", "nothing"];
+  for (const path of paths) {
+    const body = path === "sync/push" ? new Uint8Array(8) : "{}";
+    for (const origin of [null, "https://changle.ca", "https://evil.example", "http://money.changle.test", "https://money.changle.test.evil.example", "https://MONEY.changle.test", "null", `${ORIGIN}/`])
+      assert.deepEqual(await said(await send(server, `/api/${path}`, body, new Map(jar), { origin })), [403, "origin"], `${path} from ${origin}`);
+    // the right Origin on a request the browser says came from another site, or from a page of the main site
+    for (const site of ["cross-site", "same-site", "none"]) assert.deepEqual(await said(await send(server, `/api/${path}`, body, new Map(jar), { headers: { "Sec-Fetch-Site": site } })), [403, "origin"], `${path} ${site}`);
+  }
+  // and with it, from this origin's own page, the same request is answered
+  assert.equal((await send(server, "/api/sessions", "{}", jar, { headers: { "Sec-Fetch-Site": "same-origin" } })).status, 200);
+  // nothing above signed anyone out
+  assert.equal((await send(server, "/api/sessions", "{}", jar)).status, 200);
+});
+
+test("a handoff code works once, for its audience and its browser, and a session is what gets in (T-3)", async () => {
+  const fresh = async (): Promise<{ jar: Jar; nonce: string }> => {
+    const jar: Jar = new Map();
+    const entered = await send(server, "/enter", null, jar, { method: "GET", origin: null });
+    return { jar, nonce: new URL(entered.headers.get("Location")!).searchParams.get("handoff")! };
+  };
+  // the trade: a session cookie, and the nonce's cookie is gone
+  const one = await fresh();
+  const code = await codeFor(server, A, one.nonce);
+  assert.match(code, /^[A-Za-z0-9_-]{43}$/);
+  const traded = await send(server, "/api/session", JSON.stringify({ code }), one.jar);
+  assert.deepEqual([traded.status, await traded.json()], [200, { ok: true }]);
+  assert.deepEqual([...one.jar.keys()], ["__Host-ml"]);
+  assert.match(one.jar.get("__Host-ml")!, new RegExp(`^${A}\\.[A-Za-z0-9_-]{43}$`));
+  assert.equal((await send(server, "/api/sessions", "{}", one.jar)).status, 200);
+  // the same code again, from the same browser state: nothing
+  const replay: Jar = new Map([["__Host-ml-n", one.nonce]]);
+  assert.deepEqual(await said(await send(server, "/api/session", JSON.stringify({ code }), replay)), [401, "code"]);
+  assert.deepEqual([...replay], []);
+  // a code made for another audience; one bound to another browser's nonce; one for an id that is no account
+  for (const make of [(nonce: string) => codeFor(server, A, nonce, { aud: "split" }), () => codeFor(server, A, newId() + newId()), (nonce: string) => codeFor(server, "not an account", nonce), async () => base64url(crypto.getRandomValues(new Uint8Array(32)))]) {
+    const next = await fresh();
+    assert.deepEqual(await said(await send(server, "/api/session", JSON.stringify({ code: await make(next.nonce) }), next.jar)), [401, "code"]);
+    assert.deepEqual([...next.jar], []);
+  }
+  // without the cookie from /enter nothing is traded, and the code is not spent on it
+  const lost = await fresh();
+  const kept = await codeFor(server, A, lost.nonce);
+  assert.deepEqual(await said(await send(server, "/api/session", JSON.stringify({ code: kept }), new Map())), [400, "no-nonce"]);
+  assert.equal((await send(server, "/api/session", JSON.stringify({ code: kept }), lost.jar)).status, 200);
+  // what is no code at all
+  for (const body of ["{}", "[]", "nope", JSON.stringify({ code: 5 }), JSON.stringify({ code: "short" }), JSON.stringify({ code: "has spaces in it, and is long enough" })]) {
+    const next = await fresh();
+    assert.deepEqual(await said(await send(server, "/api/session", body, next.jar)), [400, "bad-request"], body);
+  }
+  // no session, a made-up one, another site's token, two cookies of the name: nothing, and the cookie is cleared
+  for (const cookie of [null, `${A}.${"x".repeat(43)}`, "eyJhbGciOiJIUzI1NiJ9.e30.abc", `${A}.short`, "garbage"]) {
+    const jar: Jar = new Map(cookie === null ? [] : [["__Host-ml", cookie]]);
+    assert.deepEqual(await said(await send(server, "/api/sessions", "{}", jar)), [401, "signed-out"], String(cookie));
+    assert.deepEqual([...jar], []);
+  }
+  const doubled = await send(server, "/api/sessions", "{}", new Map(), { headers: { Cookie: `__Host-ml=${one.jar.get("__Host-ml")}; __Host-ml=${one.jar.get("__Host-ml")}` } });
+  assert.equal(doubled.status, 401);
+  // signing out ends it here and now, and clears the cookie
+  const out = await send(server, "/api/session/end", "{}", one.jar);
+  assert.deepEqual([out.status, [...one.jar]], [200, []]);
+});
+
+test("the gate: an account that is not on the list gets nothing from any route (T-23)", async () => {
+  const refused = await signInAs(server, C);
+  assert.deepEqual(await said(refused.answer), [403, "not-admitted"]);
+  assert.deepEqual([...refused.jar], []);
+  // the owner is not on the list either
+  assert.deepEqual(await said((await signInAs(server, C, { master: true })).answer), [403, "not-admitted"]);
+  // a cookie that names such an account, with any token, and with the token of someone who is let in
+  const { jar } = await signInAs(server, A);
+  const token = jar.get("__Host-ml")!.split(".")[1]!;
+  for (const path of ["session/end", "sessions", "sessions/end", "vault", "vault/start", "sync/pull", "events"]) {
+    for (const cookie of [`${C}.${"y".repeat(43)}`, `${C}.${token}`]) {
+      const forged: Jar = new Map([["__Host-ml", cookie]]);
+      assert.deepEqual(await said(await send(server, `/api/${path}`, "{}", forged)), [403, "not-admitted"], path);
+      assert.deepEqual([...forged], []);
+    }
+  }
+  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(8), new Map([["__Host-ml", `${C}.${token}`]]))), [403, "not-admitted"]);
+});
+
+test("two people: each gets their own, through every route, and neither the other's (T-1, T-2)", async () => {
+  const [a, b] = [await signInAs(server, A), await signInAs(server, B)];
+  const [vaultA, vaultB] = [newId(), newId()];
+  assert.equal((await send(server, "/api/vault/start", JSON.stringify({ vault: vaultA }), a.jar)).status, 200);
+  assert.equal((await send(server, "/api/vault/start", JSON.stringify({ vault: vaultB }), b.jar)).status, 200);
+  const blob = (fill: number): Uint8Array => new Uint8Array(100).fill(fill);
+  const [chunkA, chunkB] = [newId(), newId()];
+  const push = async (jar: Jar, vault: string, id: string, fill: number): Promise<unknown> => unpackPushed(new Uint8Array(await (await send(server, "/api/sync/push", packPush(vault, [{ id, base: 0, blob: blob(fill) }]), jar)).arrayBuffer()));
+  const pull = async (jar: Jar, vault: string): Promise<unknown> => unpackPulled(new Uint8Array(await (await send(server, "/api/sync/pull", JSON.stringify({ vault, since: 0 }), jar)).arrayBuffer()));
+  assert.deepEqual(await push(a.jar, vaultA, chunkA, 1), { ok: true, versions: [{ id: chunkA, version: 1 }] });
+  assert.deepEqual(await push(b.jar, vaultB, chunkB, 2), { ok: true, versions: [{ id: chunkB, version: 1 }] });
+  // each pulls what is theirs
+  const mine = (await pull(a.jar, vaultA)) as { ok: true; chunks: { id: string; blob: Uint8Array }[] };
+  assert.deepEqual(mine.chunks, [{ id: chunkA, version: 1, blob: blob(1) }]);
+  // A names B's vault, and B's chunk: A's own database is asked, which holds neither
+  assert.deepEqual(await pull(a.jar, vaultB), { ok: false, why: "wrong-vault" });
+  assert.deepEqual(await push(a.jar, vaultB, chunkB, 9), { ok: false, why: "wrong-vault" });
+  assert.deepEqual(await push(a.jar, vaultA, chunkB, 9), { ok: true, versions: [{ id: chunkB, version: 2 }] });
+  assert.deepEqual(((await pull(b.jar, vaultB)) as typeof mine).chunks, [{ id: chunkB, version: 1, blob: blob(2) }]);
+  // A's token under B's name is asked for in B's database, which does not know it; and is not signed in as A either way
+  const tokenA = a.jar.get("__Host-ml")!.split(".")[1]!;
+  for (const path of ["sessions", "vault", "events", "sync/pull", "session/end", "sessions/end", "vault/start"]) assert.deepEqual(await said(await send(server, `/api/${path}`, "{}", new Map([["__Host-ml", `${B}.${tokenA}`]]))), [401, "signed-out"], path);
+  // the lists are each person's own, and one cannot end the other's session by its id
+  const sessionsOf = async (jar: Jar): Promise<{ id: string; here: boolean }[]> => ((await (await send(server, "/api/sessions", "{}", jar)).json()) as { sessions: { id: string; here: boolean }[] }).sessions;
+  const [listA, listB] = [await sessionsOf(a.jar), await sessionsOf(b.jar)];
+  assert.ok(listA.every((one) => !listB.some((other) => other.id === one.id)));
+  const hers = listB.find((one) => one.here)!.id;
+  assert.deepEqual(await said(await send(server, "/api/sessions/end", JSON.stringify({ id: hers }), a.jar)), [404, "no-session"]);
+  assert.equal((await send(server, "/api/sessions", "{}", b.jar)).status, 200);
+  assert.equal(((await (await send(server, "/api/vault", "{}", b.jar)).json()) as { vault: string }).vault, vaultB);
+  // signing out everywhere else is everywhere else of one's own
+  assert.equal((await send(server, "/api/sessions/end", JSON.stringify({ others: true }), a.jar)).status, 200);
+  assert.equal((await send(server, "/api/sessions", "{}", b.jar)).status, 200);
+});
+
+test("devices sync through it, and what it stores holds none of what they wrote (T-6)", async () => {
+  const account = "utestsync4";
+  const listed = await start(8796, { GATE: "list", ALLOWED_ACCOUNTS: account });
+  try {
+    const vault = await testVault();
+    const [phone, laptop] = [await signInAs(listed, account), await signInAs(listed, account)];
+    assert.equal((await send(listed, "/api/vault/start", JSON.stringify({ vault: vault.id }), phone.jar)).status, 200);
+    const [one, two] = [await Store.open(vault, new MemoryCache()), await Store.open(vault, new MemoryCache())];
+    const ids = Array.from({ length: 40 }, () => newId());
+    ids.forEach((id, i) => assert.deepEqual(one.add("txn", "t/2026-10", { id, description: `${MARKER} ${i}`, amount: -450 - i, posted: "2026-10-02" }), { ok: true }));
+    const first = await one.sync(remoteFor(listed, phone.jar));
+    assert.ok(first.ok && first.sent > 0, JSON.stringify(first));
+    const second = await two.sync(remoteFor(listed, laptop.jar));
+    assert.ok(second.ok && second.received > 0, JSON.stringify(second));
+    assert.equal(two.list("txn").length, 40);
+    // each changes something else, and they come to the same
+    assert.deepEqual(one.change(ids[0]!, { note: `${MARKER} from the phone` }), { ok: true });
+    assert.deepEqual(two.change(ids[1]!, { note: `${MARKER} from the laptop` }), { ok: true });
+    for (const [store, jar] of [[one, phone.jar], [two, laptop.jar], [one, phone.jar]] as const) assert.ok((await store.sync(remoteFor(listed, jar))).ok);
+    const sorted = (store: Store): string => JSON.stringify(store.list("txn").map((value) => JSON.stringify(value)).sort());
+    assert.equal(sorted(one), sorted(two));
+    assert.ok(sorted(one).includes(`${MARKER} from the laptop`) && sorted(two).includes(`${MARKER} from the phone`));
+    // a device that is signed out: its sync reports no answer, and its way to the server says why
+    const way = remoteFor(listed, laptop.jar);
+    assert.ok((await two.sync(way)).ok);
+    assert.equal(way.signedOut, null);
+    await send(listed, "/api/session/end", "{}", laptop.jar);
+    const cut = await two.sync(way);
+    assert.deepEqual([cut.ok, !cut.ok && cut.why, way.signedOut], [false, "offline", 401]);
+    // Stopped, so that everything is on disk; then every file the runtime kept is searched for the marker, as text and
+    // as the UTF-16 some stores use. (That there is something to search is checked too.)
+    await listed.stop();
+    const files: string[] = [];
+    const walk = (dir: string): void => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else files.push(path);
+      }
+    };
+    walk(join(listed.kept, "state"));
+    let bytes = 0;
+    for (const file of files) {
+      const held = readFileSync(file);
+      bytes += held.length;
+      for (const needle of [Buffer.from(MARKER, "utf8"), Buffer.from(MARKER, "utf16le"), Buffer.from("from the phone", "utf8")]) assert.equal(held.indexOf(needle), -1, `${file} holds what a device wrote`);
+    }
+    assert.ok(bytes > 10_000, `only ${bytes} bytes were kept`);
+  } finally {
+    await listed.stop();
+    rmSync(listed.kept, { recursive: true, force: true });
+  }
+});
+
+test("bodies: of the stated kind, with a stated length, and no longer than the kind may be (SEC-5)", async () => {
+  const { jar } = await signInAs(server, A);
+  // the wrong kind for the route, or none
+  assert.deepEqual(await said(await send(server, "/api/sessions", "{}", jar, { headers: { "Content-Type": "text/plain" } })), [415, "content-type"]);
+  assert.deepEqual(await said(await send(server, "/api/sessions", "{}", jar, { headers: { "Content-Type": "application/x-www-form-urlencoded" } })), [415, "content-type"]);
+  assert.deepEqual(await said(await send(server, "/api/sync/push", "{}", jar)), [415, "content-type"]);
+  assert.deepEqual(await said(await send(server, "/api/sync/pull", new Uint8Array(4), jar)), [415, "content-type"]);
+  assert.equal((await send(server, "/api/sessions", "{}", jar, { headers: { "Content-Type": "application/json; charset=utf-8" } })).status, 200);
+  // too long for what it is
+  assert.deepEqual(await said(await send(server, "/api/sessions", JSON.stringify({ pad: "x".repeat(5000) }), jar)), [413, "too-big"]);
+  assert.deepEqual(await said(await send(server, "/api/session", JSON.stringify({ code: "x".repeat(5000) }), new Map([["__Host-ml-n", newId() + newId()]]))), [413, "too-big"]);
+  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(LIMITS.batchBytes + HEAD_MAX + 1), jar)), [413, "too-big"]);
+  // as long as a push may be, and no frame: read, and refused for what it is
+  assert.deepEqual(await said(await send(server, "/api/sync/push", new Uint8Array(LIMITS.batchBytes + HEAD_MAX), jar)), [400, "bad-request"]);
+  // a body sent in pieces, with no length stated
+  const status = await new Promise<number>((done, failed) => {
+    const request = http.request(`${server.base}/api/sessions`, { method: "POST", headers: { Origin: ORIGIN, "Content-Type": "application/json", Cookie: `__Host-ml=${jar.get("__Host-ml")}`, "Transfer-Encoding": "chunked" } }, (answer) => {
+      answer.resume();
+      done(answer.statusCode ?? 0);
+    });
+    request.on("error", failed);
+    request.write("{");
+    request.end("}");
+  });
+  assert.equal(status, 411);
+  assert.equal((await send(server, "/api/sessions", "{}", jar)).status, 200);
+});
+
+test("the day's writes are counted, and the count holds (T-14)", async () => {
+  const { jar } = await signInAs(server, B);
+  const held = ((await (await send(server, "/api/vault", "{}", jar)).json()) as { vault: string | null; limits: { writesPerDay: number } });
+  assert.equal(held.limits.writesPerDay, 10);
+  const vault = held.vault ?? newId();
+  if (held.vault === null) assert.equal((await send(server, "/api/vault/start", JSON.stringify({ vault }), jar)).status, 200);
+  const push = async (count: number): Promise<{ ok: boolean; why?: string }> => unpackPushed(new Uint8Array(await (await send(server, "/api/sync/push", packPush(vault, Array.from({ length: count }, () => ({ id: newId(), base: 0, blob: new Uint8Array(64).fill(7) }))), jar)).arrayBuffer())) as { ok: boolean; why?: string };
+  // (whatever this account wrote in the tests before this one counts too: fill the day, then one more)
+  let room = 10;
+  while (room > 0 && !(await push(room)).ok) room--;
+  assert.deepEqual(await push(1), { ok: false, why: "quota-writes" });
+  assert.deepEqual(await push(1), { ok: false, why: "quota-writes" });
+  // reading is not writing
+  assert.equal((await send(server, "/api/sync/pull", JSON.stringify({ vault, since: 0 }), jar)).status, 200);
+});
+
+test("the accounts service says an email changed, or an account is gone (ARCH-9, ARCH-10)", async () => {
+  const account = "utestgone5";
+  const open = await start(8797, { GATE: "list", ALLOWED_ACCOUNTS: `${account},${A}` });
+  try {
+    const tell = async (what: "gone" | "changed", id: string): Promise<number> => (await fetch(`${open.base}/test/${what}?id=${encodeURIComponent(id)}`)).status;
+    const noted = async (): Promise<number> => ((await (await fetch(`${open.base}/test/count`)).json()) as { accounts: number }).accounts;
+    // The registry: an account is noted the first time it signs in, and once. One that is not let in is not noted.
+    assert.equal(await noted(), 0);
+    assert.equal((await signInAs(open, C)).answer.status, 403);
+    assert.equal(await noted(), 0);
+    const [phone, laptop, bystander] = [await signInAs(open, account), await signInAs(open, account), await signInAs(open, A)];
+    assert.equal(await noted(), 2);
+    const vault = newId();
+    assert.equal((await send(open, "/api/vault/start", JSON.stringify({ vault }), phone.jar)).status, 200);
+    const chunk = newId();
+    assert.equal((await send(open, "/api/sync/push", packPush(vault, [{ id: chunk, base: 0, blob: new Uint8Array(64).fill(3) }]), phone.jar)).status, 200);
+    // the email changed: every device signs in again, and what is kept stays
+    assert.equal(await tell("changed", account), 200);
+    for (const jar of [phone.jar, laptop.jar]) assert.deepEqual(await said(await send(open, "/api/sessions", "{}", new Map(jar))), [401, "signed-out"]);
+    const back = await signInAs(open, account);
+    assert.equal(((await (await send(open, "/api/vault", "{}", back.jar)).json()) as { vault: string }).vault, vault);
+    const events = ((await (await send(open, "/api/events", "{}", back.jar)).json()) as { events: { kind: string }[] }).events.map((e) => e.kind);
+    assert.deepEqual(events.slice(0, 2), ["sign-in", "email-changed"]);
+    // the account is gone: nothing of it is left, and saying so twice is saying it once
+    assert.equal(await tell("gone", account), 200);
+    assert.equal(await noted(), 1);
+    assert.equal(await tell("gone", account), 200);
+    assert.equal(await noted(), 1);
+    assert.deepEqual(await said(await send(open, "/api/sessions", "{}", new Map(back.jar))), [401, "signed-out"]);
+    // (were the account to exist again, it would start from nothing: no vault, no chunk, no event before this sign-in)
+    const reborn = await signInAs(open, account);
+    assert.equal(((await (await send(open, "/api/vault", "{}", reborn.jar)).json()) as { vault: null }).vault, null);
+    assert.deepEqual(((await (await send(open, "/api/events", "{}", reborn.jar)).json()) as { events: { kind: string }[] }).events.map((e) => e.kind), ["sign-in"]);
+    // an account that was never here, either way: done, without complaint. What is no account: an error, for the caller to see.
+    assert.deepEqual([await tell("gone", "utestnever6"), await tell("changed", "utestnever6")], [200, 200]);
+    assert.deepEqual([await tell("gone", "not an account"), await tell("changed", "")], [500, 500]);
+    // nobody else was touched
+    assert.equal((await send(open, "/api/sessions", "{}", bystander.jar)).status, 200);
+  } finally {
+    await open.stop();
+    rmSync(open.kept, { recursive: true, force: true });
+  }
+});
+
+test("what is kept is still there after the server stops and starts", async () => {
+  const account = "utestkeep7";
+  let run = await start(8798, { GATE: "list", ALLOWED_ACCOUNTS: account });
+  try {
+    const { jar } = await signInAs(run, account);
+    const vault = newId();
+    await send(run, "/api/vault/start", JSON.stringify({ vault }), jar);
+    const blob = Uint8Array.from({ length: 300_000 }, (_, i) => (i * 31) % 251);
+    const chunk = newId();
+    assert.equal((await send(run, "/api/sync/push", packPush(vault, [{ id: chunk, base: 0, blob }]), jar)).status, 200);
+    await run.stop();
+    run = await start(8798, { GATE: "list", ALLOWED_ACCOUNTS: account }, run.kept);
+    // the same cookie, the same vault, the same bytes
+    const pulled = unpackPulled(new Uint8Array(await (await send(run, "/api/sync/pull", JSON.stringify({ vault, since: 0 }), jar)).arrayBuffer())) as { ok: true; chunks: { id: string; version: number; blob: Uint8Array }[] };
+    assert.deepEqual([pulled.chunks.length, pulled.chunks[0]!.id, pulled.chunks[0]!.version], [1, chunk, 1]);
+    assert.deepEqual(pulled.chunks[0]!.blob, blob);
+    // and with the gate shut on the same storage, the same cookie gets nothing
+    await run.stop();
+    run = await start(8798, { GATE: "closed" }, run.kept);
+    assert.deepEqual(await said(await send(run, "/api/sessions", "{}", new Map(jar))), [403, "closed"]);
+  } finally {
+    await run.stop();
+    rmSync(run.kept, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// The gate shut, the gate open to the owner, and no origin set
+// ---------------------------------------------------------------------------------------------
+
+test("the gate as the repository sets it: shut, to everyone, on every route (SEC-10)", async () => {
+  // (no setting changed: this is wrangler.jsonc's own gate)
+  const shut = await start(8799, {});
+  try {
+    const entered = await send(shut, "/enter", null, new Map(), { method: "GET", origin: null });
+    const page = await entered.text();
+    assert.deepEqual([entered.status, entered.headers.get("Location"), entered.headers.getSetCookie()], [403, null, []]);
+    // in both languages, and with nothing in it to load or run
+    assert.ok(page.includes("心里有数还没有开放。") && page.includes("MoneyLens is not open yet."));
+    assert.ok(!/<script|<link|<img|<style|href=|src=/i.test(page));
+    for (const path of ["session", "session/end", "sessions", "sessions/end", "vault", "vault/start", "sync/pull", "events", "nothing"]) assert.deepEqual(await said(await send(shut, `/api/${path}`, "{}", new Map([["__Host-ml", `${A}.${"x".repeat(43)}`], ["__Host-ml-n", newId() + newId()]]))), [403, "closed"], path);
+    // the Origin is asked before the gate says anything
+    assert.deepEqual(await said(await send(shut, "/api/sessions", "{}", new Map(), { origin: "https://changle.ca" })), [403, "origin"]);
+  } finally {
+    await shut.stop();
+    rmSync(shut.kept, { recursive: true, force: true });
+  }
+});
+
+test("the gate open to the owner: the account the accounts service calls the owner's, and no other", async () => {
+  const owners = await start(8800, { GATE: "owner", ALLOWED_ACCOUNTS: B });
+  try {
+    assert.deepEqual(await said((await signInAs(owners, B)).answer), [403, "not-admitted"]);
+    const owner = await signInAs(owners, A, { master: true });
+    assert.equal(owner.answer.status, 200);
+    assert.equal((await send(owners, "/api/sessions", "{}", owner.jar)).status, 200);
+    assert.deepEqual(await said((await signInAs(owners, A)).answer), [403, "not-admitted"]);
+    // a dozen sign-ins an hour, and no more (the one above counts; the two that were not let in do not)
+    for (let i = 0; i < 11; i++) assert.equal((await signInAs(owners, A, { master: true })).answer.status, 200, `sign-in ${i}`);
+    assert.deepEqual(await said((await signInAs(owners, A, { master: true })).answer), [429, "too-many"]);
+  } finally {
+    await owners.stop();
+    rmSync(owners.kept, { recursive: true, force: true });
+  }
+});
+
+test("with no origin set, nothing is answered at all", async () => {
+  const unset = await start(8801, { ORIGIN: undefined, GATE: "owner" });
+  try {
+    for (const [path, method] of [["/enter", "GET"], ["/api/sessions", "POST"], ["/", "GET"]] as const) assert.deepEqual(await said(await send(unset, path, method === "POST" ? "{}" : null, new Map(), { method })), [503, "not-set-up"], path);
+  } finally {
+    await unset.stop();
+    rmSync(unset.kept, { recursive: true, force: true });
+  }
+});

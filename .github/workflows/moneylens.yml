@@ -1,6 +1,7 @@
 # Runs every time MoneyLens changes (tools/moneylens): types, the unit tests of its rules (amounts,
 # statement parsers, reconciliation, duplicates, pairing, classification, totals), an audit of the
-# packages it ships, and the statement check page, built and opened in the runner's own Chrome. Its
+# packages it ships, the statement check page, built and opened in the runner's own Chrome, and
+# the server run on Cloudflare's own runtime (wrangler dev). Its
 # samples are synthetic: no real statement ever enters this repository (docs/moneylens.md, SEC-12).
 # The actions are pinned by commit (SEC-7).
 name: moneylens
@@ -24,7 +25,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: tools/moneylens
@@ -41,3 +42,5 @@ jobs:
       - run: npm test
       # the page as one file, then a made-up statement and a made-up PDF through it in a real browser
       - run: npm run test:page
+      # the server on Cloudflare's own runtime (wrangler dev), with a stand-in for the accounts service
+      - run: npm run test:server

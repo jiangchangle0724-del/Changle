@@ -28,6 +28,7 @@
  * stored vault in tests/golden.ts: a change that would stop an existing vault from opening fails
  * that test.
  */
+import { MAX_CHUNK_BYTES } from "./sizes";
 import { base64url, fromBase64url, isId, newId } from "../core/ids";
 import { normalizePassphrase, weakness, type Weak } from "./passphrase";
 import { newRecovery, parseRecovery } from "./recovery";
@@ -46,8 +47,7 @@ export const PBKDF2_ITERATIONS = 600_000;
 export const PBKDF2_FLOOR = 600_000;
 /** A ceiling, because the count comes from storage: a wrapper can't make a phone grind for minutes. */
 export const PBKDF2_CEILING = 2_000_000;
-/** The most a chunk may hold before sealing: 1 MiB. */
-export const MAX_CHUNK_BYTES = 1024 * 1024;
+export { MAX_CHUNK_BYTES };
 
 const SALT_BYTES = 32;
 const NONCE_BYTES = 12;

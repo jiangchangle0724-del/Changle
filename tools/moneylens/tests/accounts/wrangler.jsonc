@@ -1,0 +1,14 @@
+// The stand-in for the accounts service (worker.ts), under the real one's name, so that MoneyLens's
+// binding to `changle-rooms` reaches it on this machine (`npm run test:server`). It is bound back
+// to MoneyLens twice: to pass the tests' requests on, and to its `Internal` entrypoint, as the real
+// accounts service will be. Never published.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "changle-rooms",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "services": [
+    { "binding": "APP", "service": "moneylens" },
+    { "binding": "MONEY", "service": "moneylens", "entrypoint": "Internal" }
+  ]
+}
