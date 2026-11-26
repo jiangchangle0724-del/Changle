@@ -380,7 +380,7 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       </div>
 
       <div className="card-stage">
-        <RogueTable card={card} remaining={remaining} drawn={drawn} canDraw={!card && !gathering && !shuffling} onDraw={draw} drawLabel={zh ? "抽牌" : "Draw"} shuffling={shuffling} leaveTo={leaveTo} />
+        <RogueTable card={card} remaining={remaining} drawn={drawn} canDraw={!card && !gathering && !shuffling} onDraw={draw} drawLabel={zh ? "下滑抽牌" : "Swipe down"} shuffling={shuffling} leaveTo={leaveTo} />
       </div>
 
       <AnimatePresence mode="wait">

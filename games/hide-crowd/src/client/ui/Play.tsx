@@ -17,6 +17,8 @@ import { Coach, COACH, useCoach } from "./Coach";
 import { arenaEvents, DrillCall, INTRO_WINDOW_MS, MomentBanner, useDrill, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", blast: "blasted", bike: "biked" };
+const BAD: readonly Key[] = ["spotted", "spottedBy", "foul", "blasted", "biked"];
+const GOOD: readonly Key[] = ["hit", "hitName", "feast"];
 /** the night market's four stalls, left to right: their snacks */
 export const SNACKS: readonly { icon: IconName; name: Key }[] = [
   { icon: "squid", name: "snack0" },
@@ -30,6 +32,8 @@ interface Notice {
   key: Key;
   id: number;
   vars?: Record<string, string | number>;
+  /** a smaller line under it (getting up in another body: who it was that spotted you) */
+  sub?: string;
 }
 
 /** The latest thing that happened to this phone's player, as a word on screen for a moment. */
@@ -46,10 +50,18 @@ function useNotice(events: EventView[], me: MeView | null): Notice | null {
     seen.current = fresh[fresh.length - 1].id;
     const mine = [...fresh].reverse().find((event) => event.onYou || (event.byYou && NOTICE[event.t]));
     if (!mine) return;
-    const key = mine.onYou && mine.t === "tag" ? "spotted" : NOTICE[mine.t];
+    let key = mine.onYou && mine.t === "tag" ? "spotted" : NOTICE[mine.t];
     if (!key) return;
-    const vars = mine.t === "bite" ? { snack: t(SNACKS[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
-    setNotice({ key, id: mine.id, vars });
+    let vars: Notice["vars"] = mine.t === "bite" ? { snack: t(SNACKS[mine.stall ?? 0].name), n: 4 - tastedCount(me?.bites ?? 0) } : undefined;
+    // a tag names the other player: who spotted you, or whom you got
+    if (mine.t === "tag" && mine.name) {
+      key = mine.onYou ? "spottedBy" : "hitName";
+      vars = { name: mine.name };
+    }
+    // getting up in another body after a tag: who it was stays on screen, under it
+    const tagged = mine.t === "hide" ? [...events].reverse().find((event) => event.t === "tag" && event.onYou && event.id < mine.id) : undefined;
+    const sub = tagged?.name ? t("spottedByAfter", { name: tagged.name }) : undefined;
+    setNotice({ key, id: mine.id, vars, sub });
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setNotice((now) => (now?.id === mine.id ? null : now)), mine.t === "hide" || mine.t === "feast" || mine.t === "decoy" || mine.t === "blast" || mine.t === "bike" ? 2_600 : 1_400);
   }, [latest]);
@@ -209,8 +221,9 @@ export function Play(props: {
       {/* (a word about your own punch or fall comes first) */}
       {!notice && <Coach index={coach.index} onDismiss={coach.dismiss} />}
       {notice && (
-        <p class={`play-notice${notice.key === "spotted" || notice.key === "foul" || notice.key === "blasted" || notice.key === "biked" ? " is-bad" : notice.key === "hit" || notice.key === "feast" ? " is-good" : ""}`} role="status" key={notice.id}>
+        <p class={`play-notice${BAD.includes(notice.key) ? " is-bad" : GOOD.includes(notice.key) ? " is-good" : ""}`} role="status" key={notice.id}>
           {t(notice.key, notice.vars)}
+          {notice.sub && <small class="play-notice-sub">{notice.sub}</small>}
         </p>
       )}
       {game.phase === "playing" &&

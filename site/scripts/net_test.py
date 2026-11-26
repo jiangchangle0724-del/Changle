@@ -63,6 +63,17 @@ def by_pid(pages, pid):
             return g
     return None
 
+
+def pull_deck(pg):
+    """流氓十三张 draws by pulling the top card down and letting go (a tap only nudges it)."""
+    b = pg.locator(".rg-top").bounding_box()
+    x, y = b["x"] + b["width"] / 2, b["y"] + b["height"] / 2
+    pg.mouse.move(x, y)
+    pg.mouse.down()
+    for i in range(1, 9):
+        pg.mouse.move(x, y + 15 * i)
+    pg.mouse.up()
+
 def stamps_up(pages):
     return any(g.locator(".stamp-layer").count() for g in pages)
 
@@ -434,7 +445,7 @@ def t_rogue(host, everyone):
         if v["phase"] != "draw":
             break
         turn = by_pid(everyone, v["turn"])
-        turn.locator(".rg-back").click()
+        pull_deck(turn)
         until(lambda: view(host)["card"] is not None)
         time.sleep(1.0)
         v = view(host)

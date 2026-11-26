@@ -1,4 +1,4 @@
-VERDICT: CHANGES NEEDED (second round; the first round said CHANGES NEEDED)
+VERDICT: APPROVE (third round; the first two said CHANGES NEEDED)
 
 Review by Codex, 21 November 2026, of assessment 0.8 and the storage layer at
 `c1cfcc64` (the tip of `claude/moneylens-vault-records` used for this work).
@@ -612,3 +612,196 @@ And two things nobody asked for, found while testing the above:
   after the look at the server) and is gone. One, a "taken" number no later than the copy it
   replaces, needs a device whose place in the list is behind its own chunk, which happens when
   another device writes between its look and its write; a test now does that.
+
+## Third round
+
+Reviewed by Codex on 25 November 2026, at
+`b9e463c9d9f8a724a5577dfdfe4faab249d370b1`, imported from the supplied Git bundle
+into a new local C5 branch. **Approve this storage-prototype revision with the
+nonblocking timestamp note in finding 12 below.** The four C4 defects are resolved
+in their original reproducers and in the additional schedules described here.
+This does not approve an unbuilt HTTP server/adapter, authentication, exposure
+of the app, or deployment. No merge was performed.
+
+### What I read and checked
+
+I read C5 and the complete changes from `d42b3459` to this head in `records.ts`,
+`sync.ts`, `memory.ts`, `idbcache.ts` and assessment 0.9. I traced the new
+`mergeMany`, read/holder indexes, `change`, `remove`, `alike`, overflow movement,
+`ask`, pull/recount/cursor handling, `readPushed`, and the order of stale adoption
+and clearing `sent`. I also read the updated cache tests and browser entry/check,
+and the author's new merge, malformed-answer, timeout and duplicate schedules.
+The original document-only oracle and all first- and second-round review text
+remain unchanged, apart from the requested verdict line.
+
+The four existing finding-8 through finding-11 test bodies are unchanged and
+enabled; I ran them. New independent tests add all 24 orders of a four-copy merge
+with equal-time kind ties, a UTF-8 overflow fallback, both first-commit orders for
+different-view duplicate writers, cache-save interruptions and reopening with a
+third copy arriving later, a timed-out push delivered after a queued durable
+removal, and a real edit or whole-record removal racing an already prepared
+`alike` request. The duplicate cache cuts actually reached saves 1, 2 and 3;
+attempts 4 and 5 complete without an injected interruption. The tests require a
+quiet subsequent sync to send nothing. These are finite checks, not a proof over
+every interleaving or over arbitrarily large hostile decoded state.
+
+### Findings 8 through 11
+
+| # | Third-round conclusion | Why |
+| --- | --- | --- |
+| 8 | Resolved, with the distinct note in 12 | `mergeMany` ranks original copies once; it does not compare a partly accumulated record against the remaining candidates. Each present field comes from its highest-ranked original provider. The latest original supplies kind/time; inclusive record overflow falls back to that complete original. The order permutations, ties and UTF-8 overflow case pass. Once the result is used in a later merge, it has only one record clock; assessment section 2 now explicitly discloses that loss of per-field provenance. |
+| 9 | Resolved within the stated trust boundary | `readPushed` checks membership, cardinality and uniqueness before adoption: acknowledgments cover the exact batch with distinct increasing-beyond-base/cursor numbers; stale entries name actual request members once and show a different mark or a valid missing old chunk. `take` also rejects an unchanged base reissued under a higher number. A stale merge is attempted before discarding a sent copy, and a copy from an earlier unanswered request remains tracked. The original late-delivery-after-reopen reproducer passes, as do the author's malformed-reply and pull variants. A well-formed refusal is believed; the server applying that refused write later is explicitly a dishonest-server limitation, not a guarantee supplied by encryption. |
+| 10 | Resolved | Lock acquisition now distinguishes a held lock, a null callback and an API failure. Both rejection and synchronous throw return unavailable; a database-open failure releases the hold. `save` catches synchronous enqueue errors and aborts the transaction itself, retaining the original failure. The cache tests cover these cases; CI additionally exercises a partial-save failure and a later database layout without modifying that layout. |
+| 11 | Resolved for the documented duplicate policy | Reconciliation no longer removes or relocates a duplicate source. Every differing holder is updated in place, and `change` checks all holders' capacities before modifying any. `remove` removes all known copies. The original different-view race and both reversed commit orders retain exclusive fields; the interrupted-save/third-copy tests do too. A whole-record removal or genuine newer edit wins against the prepared reconciliation request in the added race. A later session still has the original source copies if normalization cannot fit or has not been saved. |
+
+This also closes the outstanding parts of original findings 4 and 7 under the
+now-explicit answer and duplicate policies. Original finding 5 is strengthened:
+the Store itself bounds each request, including a never-settling one. Its timeout
+marks a push as unknown and releases the serialized queue; the losing promise's
+late fulfillment does not later adopt into the Store. The queued-flush/late-push
+test checks that a flushed removal remains removed after reopening.
+
+### Invariants and accepted limits
+
+The new server-count check did not produce a false rollback in the existing
+independent fault schedules, the save-cut/reopen runs, the new differing-view
+schedules, or the author's normal and duplicated-record random runs. The cursor
+comes from a validated pull or a contiguous acknowledgment of actual writes;
+noncontiguous own writes can leave a slot ahead of the cursor, not the cursor
+ahead of an honest server's global count. A recount requests from zero without
+first changing that saved position, then compares the final global count with
+the previous one. Losing an answer or closing at an atomic cache-save boundary
+does not make an honest server's count decrease.
+
+`alike` does not bump a record's clock just for reconciliation. It leaves copies
+where they are and only writes changed contents. With a finite set of inputs and
+no further edits the exercised schedules settle, rather than continually
+generating new writes. If a merged record cannot fit a holder, all its copies
+remain available for the merged read; the implementation can report a doubled
+record while having no pending write. That is an intentional documented outcome,
+not an unfinished operation that should retry forever. A growing change can
+return `full`; export/read and explicit removal remain possible.
+
+The overflow mover excludes ids in `many` as well as chunks with an uncertain
+sent copy; it does not reintroduce the old move-over-another-copy race. Moving
+only never-sent additions after a merge cannot change the expected-version base
+of a record already on the server. The save-before-send and deferred-base-save
+guards are still present. The observed interruption tests preserve the explicit
+local edit and the other device's field after reopening.
+
+The price of preserving duplicate copies is real: without cross-chunk deletion
+markers, a missing field or removed record can be reintroduced by a copy/version
+the edit did not incorporate. This includes a stale reconciliation propagating
+an old field into another holder, not only a completely new physical chunk.
+Do not describe duplicate handling to the app as durable, global deletion.
+Repeat the deletion after learning those copies, and always generate random
+record ids. Assessment 1.6 already states the repeat-removal/field-return tradeoff;
+this note makes its concurrency interpretation explicit. Record overflow can
+also select the latest whole original, as expressly specified. Neither is an
+unqualified promise to preserve every field in all circumstances.
+
+`ask` releases its timer in both success and failure. It does not cancel the
+underlying request; the transport still owes cancellation, an earlier deadline,
+plain decoded reply objects, and a response-size cap before materialization.
+The fixed traversal limits bound Store-level work only after an answer has been
+received. These responsibilities are now listed in assessment section 3 and
+remain requirements for the separate transport review.
+
+### 12. MINOR, nonblocking: identical duplicate contents lose the latest clock
+
+**Where:** `sync.ts:319`, `350`, `445-465`; also the content-only skip in
+`alike` at 413.
+
+**Reproduce:** enable `finding 12`. A cache holds identical invented record
+contents in two chunks, at times 100 and 300. The lexically smaller chunk has
+time 100. Open with a device clock of zero, change the text, and flush. Both
+newly sealed entries have time **101**, not **301**. The test reads back the
+sealed cache entries to check the clock; it exports no key material.
+
+**Cause and cost:** `reindex` only retains a `merged` entry when contents differ;
+otherwise `entry` uses the smallest-id holder's time. The same effect can occur
+after `alike` skips a content-identical older holder. This loses the maximum
+observed timestamp for the minimum-time rule and can make a slow-clock device
+lose a later field conflict unnecessarily. It does not lose an exclusive field
+in these equal-content copies, violate cache atomicity, or undo the four C4 fixes.
+It is confined to duplicate-id metadata, an already exceptional path with
+documented clock limitations, so it does not block this prototype approval.
+
+**Follow-up:** retain the maximum observed time for the merged read / next edit
+even when all contents match, without forcing a timestamp-only remote write.
+Check the same case after normalization, not just on opening. The committed
+reproducer stays explicitly skipped as required for a new finding; it is not
+counted as passing.
+
+### Third-round validation
+
+Local runtime: Node **24.21.0**, npm **11.19.0**. Dependencies did not change;
+`npm ci` was not rerun. After adding the tests:
+
+```text
+node --import tsx --test tests/second-sync.test.ts
+seed=3276808230; compared=24000; ids, kinds, fields and t all matched
+cache save cuts exercised=1,2,3; attempted cuts=1..6
+C5 duplicate cache cuts exercised=1,2,3; attempted=1..5
+tests 29; pass 28; fail 0; skipped 1
+exit 0
+
+npm run typecheck
+> moneylens@0.1.0 typecheck
+> tsc --noEmit
+exit 0
+
+npm test
+tests 262; pass 261; fail 0; skipped 1
+exit 0
+
+# Diagnostic only: temporarily enabled finding 12, then restored its skip
+node --import tsx --test --test-name-pattern "finding 12:" tests/second-sync.test.ts
+tests 1; pass 0; fail 1; skipped 0
+AssertionError: 101 !== 301
+exit 1 (expected)
+
+npm run test:page
+dist/moneylens-check.html: 1669 KB
+statement check page: ok
+page.goto: net::ERR_NETWORK_ACCESS_DENIED at http://127.0.0.1:61496/
+exit 1 (sandbox restriction; local browser-cache check not completed)
+```
+
+Per C5, I did not ask Steve to rerun the browser command. I verified the
+[successful moneylens workflow run 45750660131](https://github.com/jiangchangle0724-del/Changle/actions/runs/45750660131)
+attached to the exact reviewed head `b9e463c9`, including the `test:page` step
+and its `statement check page: ok` / `cache in the browser: ok` log lines.
+It uses Node **22.23.5**. Actions checked out synthetic PR merge `c99da0c`;
+I compared its MoneyLens subtree with the reviewed head: both are
+`c7adbfc78782b7cb8f81d35eecee7013d85824f5`. Thus that browser result covers
+the reviewed production code and browser tests. It does not claim to run the
+additional C5 review tests before this review PR exists. No interactive browser
+was opened. Only the review and `second-sync.test.ts` are changed; the supplied
+bundle is untracked and is not part of the commit.
+
+## What was done about the third round
+
+Added by Claude Code, the author of the code under review, on 25 November 2026. The third-round
+section above is the reviewer's and is as it was written.
+
+The verdict is APPROVE for `b9e463c9`. The storage layer is merged as it was reviewed: between
+that commit and the merge nothing under `tools/moneylens/src` changed, and nothing in the
+assessment.
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 12 | Copies of a doubled record that say the same and differ only in their time are read with the time of the copy in the chunk with the smallest id. A device with a slow clock can then stamp a change earlier than a copy it has seen | Not fixed in this pull request, on purpose. The fix changes `sync.ts`, and a change to sync code is reviewed before it is merged (SEC-9), so it goes in a pull request of its own, with the reviewer's test switched on and a round of review for that change alone. Until then the test stays skipped, with its reason, and the brief lists it as open |
+
+The notes in the third round that are not findings, and where they stand:
+
+- A removal, or a field taken out, of a doubled record can come back, also through a stale
+  "make alike" that carries an old field into another copy. The assessment says the first part
+  (1.6, "What this cannot do") and the README tells the app to give every record a random id and
+  not to count on such a removal holding. The second part goes into the assessment with the fix
+  for 12, so that the assessment merged here is the one that was reviewed.
+- What the network code owes (to cancel a request it gave up on, a shorter limit of its own,
+  plain decoded objects, a bound on an answer's size before reading it) is in the assessment's
+  section 3 and is for the review of that code, which is not written yet.
+- The approval is of the storage layer as a library. It says nothing of a server, sign-in,
+  exposure or deployment, and none of those exist yet.

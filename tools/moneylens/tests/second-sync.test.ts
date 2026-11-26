@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import test, { beforeEach } from 'node:test';
 import { merge, type Rec, type Recs } from './second/merge';
-import { entryOf, merge3, sealContent, MAX_ENTRY_BYTES, type Entry, type Records } from '../src/vault/records';
+import { entryOf, merge3, mergeMany, openContent, sealContent, MAX_ENTRY_BYTES, type Entry, type Records } from '../src/vault/records';
 import { holdCache } from '../src/web/idbcache';
 import { MemoryCache, MemoryRemote } from '../src/vault/memory';
 import { Store, LIMITS, markOf, digestOf, type Cache, type Remote, type Write, type Pulled, type Pushed } from '../src/vault/sync';
@@ -603,5 +603,159 @@ test('finding 11: simultaneous settlers with different local duplicates must pre
   ok(await fresh.sync(server));
   for (const store of [a, b, fresh]) {
     assert.deepEqual(store.get(id(8510)), { id: id(8510), common: 'invented-common', left: 'invented-left', right: 'invented-right' });
+  }
+});
+
+// C5: independent schedules, in addition to the unchanged finding-8 through finding-11 bodies.
+test('C5: mergeMany chooses original fields in every permutation, including ties and UTF-8 overflow', () => {
+  const key = id(8600);
+  const made = (kind: string, at: number, fields: Rec['fields']) => [...entries({ [key]: { kind, t: at, fields } }).values()][0]!;
+  const copies = [made('invented-a', 100, { x: 'invented-old' }), made('invented-a', 300, { y: 1 }),
+    made('invented-a', 200, { x: 'invented-new' }), made('invented-b', 300, { z: 2, constructor: 'invented-own' })];
+  function permutations<T>(left: T[]): T[][] {
+    return left.length ? left.flatMap((value, at) => permutations(left.filter((_, i) => i !== at)).map(tail => [value, ...tail])) : [[]];
+  }
+  for (const order of permutations(copies)) {
+    const got = mergeMany(order);
+    assert.deepEqual(got.value, { id: key, x: 'invented-new', y: 1, z: 2, constructor: 'invented-own' });
+    assert.equal(got.kind, 'invented-b');
+    assert.equal(got.at, 300);
+  }
+  const one = made('invented-a', 400, { a: '界'.repeat(900) });
+  const two = made('invented-b', 400, { b: 'invented'.repeat(350) });
+  for (const order of [[one, two], [two, one], [two, one, two]]) {
+    assert.deepEqual(mergeMany(order), two, 'oversize union keeps the latest whole original, including a tie');
+  }
+});
+
+test('C5: differing-view duplicate writers converge in either commit order, then stop writing', async () => {
+  for (const first of [0, 1]) {
+    const v = await vault(), server = new MemoryRemote(v.id);
+    ok(await server.push(v.id, [await duplicateWrite(v, 8702, 8710, 200, { common: 'invented-common' })]));
+    const caches = [new MemoryCache(), new MemoryCache()];
+    for (const [who, chunk, fields] of [[0, 8701, { left: 'invented-left' }], [1, 8703, { right: 'invented-right' }]] as const) {
+      const write = await duplicateWrite(v, chunk, 8710, 100 + who * 200, fields);
+      await caches[who]!.save(v.id, { cursor: 0, put: [{ id: write.id, version: 0, local: write.blob }], drop: [] });
+    }
+    const stores = await Promise.all(caches.map(cache => Store.open(v, cache)));
+    let seen = 0, bothRead!: () => void, firstWrote!: () => void;
+    const reads = new Promise<void>(resolve => { bothRead = resolve; });
+    const wrote = new Promise<void>(resolve => { firstWrote = resolve; });
+    const answers = await Promise.all(stores.map((store, who) => store.sync({
+      pull: async (vaultId, since) => { const page = await server.pull(vaultId, since); if (++seen === 2) bothRead(); return page; },
+      push: async (vaultId, writes) => {
+        await reads;
+        if (who !== first) await wrote;
+        const answer = await server.push(vaultId, writes);
+        if (who === first) firstWrote();
+        return answer;
+      },
+    })));
+    for (const answer of answers) ok(answer);
+    await settle(stores, server);
+    const fresh = await Store.open(v, new MemoryCache()); ok(await fresh.sync(server));
+    for (const store of [...stores, fresh]) {
+      assert.deepEqual(store.get(id(8710)), { id: id(8710), common: 'invented-common', left: 'invented-left', right: 'invented-right' }, `first=${first}`);
+      const quiet = await store.sync(server); ok(quiet);
+      assert.equal(quiet.sent, 0, 'alike must reach a fixed point');
+      assert.equal(store.status().doubled, 0);
+    }
+  }
+});
+
+test('C5: duplicate-copy reconciliation survives cache cuts and a third copy arriving later', async () => {
+  const hit = new Set<number>();
+  for (let cut = 1; cut <= 5; cut++) {
+    const v = await vault(), server = new MemoryRemote(v.id), disk = new MemoryCache();
+    let armed = false, saves = 0;
+    const cache: Cache = { load: () => disk.load(), clear: () => disk.clear(), save: async (vaultId, change) => {
+      if (armed && ++saves === cut) { hit.add(cut); throw new Error('invented C5 interrupted cache transaction'); }
+      await disk.save(vaultId, change);
+    } };
+    ok(await server.push(v.id, [await duplicateWrite(v, 8801, 8810, 100, { left: 'invented-left' }),
+      await duplicateWrite(v, 8802, 8810, 200, { right: 'invented-right' })]));
+    let a = await Store.open(v, cache, { now: () => 1000 });
+    const b = await Store.open(v, new MemoryCache(), { now: () => 2000 });
+    await settle([a, b], server);
+    ok(a.change(id(8810), { left: 'invented-durable-edit' })); await a.flush();
+    ok(b.change(id(8810), { right: 'invented-other-edit' })); ok(await b.sync(server));
+    ok(await server.push(v.id, [await duplicateWrite(v, 8803, 8810, 300, { third: 'invented-later-copy' })]));
+    armed = true;
+    try { ok(await a.sync(server)); } catch (error) { assert.match(String(error), /invented C5 interrupted cache transaction/); }
+    armed = false;
+    a = await Store.open(v, cache, { now: () => 1000 });
+    await settle([a, b], server);
+    const fresh = await Store.open(v, new MemoryCache()); ok(await fresh.sync(server));
+    for (const store of [a, b, fresh]) assert.deepEqual(store.get(id(8810)), {
+      id: id(8810), left: 'invented-durable-edit', right: 'invented-other-edit', third: 'invented-later-copy',
+    }, `cache cut=${cut}`);
+  }
+  assert.ok(hit.has(1) && hit.has(2), 'the pre-push and acknowledgment persistence stages must both be cut');
+  console.log(`C5 duplicate cache cuts exercised=${[...hit].join(',')}; attempted=1..5`);
+});
+
+test('C5: timed-out push releases a queued flush and its late answer cannot resurrect the removal', async () => {
+  const v = await vault(), cache = new MemoryCache(), server = new MemoryRemote(v.id);
+  let store = await Store.open(v, cache, { patience: 8 });
+  ok(store.add('invented', 'invented-c5', { id: id(8900), text: 'invented-anchor' })); ok(await store.sync(server));
+  ok(store.add('invented', 'invented-c5', { id: id(8901), text: 'invented-doomed' }));
+  let entered!: () => void, finish!: (answer: Pushed) => void, delayed: readonly Write[] | undefined;
+  const inPush = new Promise<void>(resolve => { entered = resolve; });
+  const syncing = store.sync({ pull: (vaultId, since) => server.pull(vaultId, since), push: async (_vaultId, writes) => {
+    delayed = structuredClone(writes); entered();
+    return new Promise<Pushed>(resolve => { finish = resolve; });
+  } });
+  await inPush;
+  ok(store.remove(id(8901)));
+  const flushing = store.flush();
+  const result = await syncing;
+  assert.ok(!result.ok && result.why === 'offline');
+  await flushing;
+  store = await Store.open(v, cache);
+  assert.ok(delayed); const late = await server.push(v.id, delayed); ok(late); finish(late);
+  ok(await store.sync(server));
+  assert.equal(store.get(id(8901)), undefined);
+  const fresh = await Store.open(v, new MemoryCache()); ok(await fresh.sync(server));
+  assert.deepEqual(view(fresh), view(store));
+});
+
+test('C5: a real edit or whole-record removal wins against an already prepared alike request', async () => {
+  for (const action of ['edit', 'remove'] as const) {
+    const v = await vault(), server = new MemoryRemote(v.id);
+    ok(await server.push(v.id, [await duplicateWrite(v, 9101, 9110, 100, { left: 'invented-old' }),
+      await duplicateWrite(v, 9102, 9110, 200, { right: 'invented-right' })]));
+    const a = await Store.open(v, new MemoryCache());
+    let intervened = false;
+    const result = await a.sync({ pull: (vaultId, since) => server.pull(vaultId, since), push: async (vaultId, writes) => {
+      if (!intervened) {
+        intervened = true;
+        const b = await Store.open(v, new MemoryCache(), { now: () => 1000 });
+        ok(await b.sync(server));
+        if (action === 'remove') ok(b.remove(id(9110)));
+        else ok(b.change(id(9110), { left: 'invented-real-edit' }));
+        await b.flush(); ok(await b.sync(server));
+      }
+      return server.push(vaultId, writes);
+    } });
+    ok(result); assert.equal(intervened, true);
+    const fresh = await Store.open(v, new MemoryCache()); ok(await fresh.sync(server));
+    for (const store of [a, fresh]) {
+      assert.deepEqual(store.get(id(9110)), action === 'remove' ? undefined : { id: id(9110), left: 'invented-real-edit', right: 'invented-right' });
+    }
+  }
+});
+
+test('finding 12: a clock-behind edit of identical duplicate copies must be later than every copy', { skip: 'finding 12: identical-content duplicates discard the maximum timestamp when choosing their read holder' }, async () => {
+  const v = await vault(), cache = new MemoryCache();
+  const chunks = [9001, 9002].sort((a, b) => id(a) < id(b) ? -1 : 1);
+  const writes = [await duplicateWrite(v, chunks[0]!, 9010, 100, { text: 'invented-same' }),
+    await duplicateWrite(v, chunks[1]!, 9010, 300, { text: 'invented-same' })];
+  await cache.save(v.id, { cursor: 0, put: writes.map(write => ({ id: write.id, version: 0, local: write.blob })), drop: [] });
+  const store = await Store.open(v, cache, { now: () => 0 });
+  ok(store.change(id(9010), { text: 'invented-edit' })); await store.flush();
+  for (const chunk of (await cache.load())!.chunks) {
+    assert.ok(chunk.local);
+    const opened = await openContent(v, chunk.id, chunk.local); assert.ok(opened.ok);
+    assert.equal(opened.content.records.get(id(9010))!.at, 301);
   }
 });

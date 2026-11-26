@@ -19,7 +19,7 @@ changle.ca 按对话分工：一个 Claude Project 下面 30 个对话，每个�
 | 对话名 | 档案 | 网址 |
 | --- | --- | --- |
 | 游戏 · 真心话大冒险 | [truth.md](truth.md) | changle.ca/g/truth-or-dare |
-| 游戏 · 流氓十三张 | [rogue.md](rogue.md) | changle.ca/g/rogue-thirteen |
+| 游戏 · 流氓十三张 | [rogue.md](rogue.md) | changle.ca/g/rogue-thirteen（简短状态在 `docs/status/rogue.md`） |
 | 游戏 · 最佳称号 | [superlatives.md](superlatives.md) | changle.ca/g/superlatives |
 | 游戏 · 国王游戏 | [king.md](king.md) | changle.ca/g/kings-game |
 | 游戏 · 戏精大赏 | [drama.md](drama.md) | changle.ca/g/drama-queens |

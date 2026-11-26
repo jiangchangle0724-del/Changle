@@ -32,7 +32,7 @@ import {
   type RoundPenalty,
   type Vector
 } from "../engine";
-import type { AvatarView, ClientMsg, EventView, Lang, Role, RoomInfo, RoomView } from "./protocol";
+import type { AvatarView, ClientMsg, EventView, Lang, Role, RoomInfo, RoomView, TallyView } from "./protocol";
 
 const ROOM_TTL_MS = 3 * 60 * 60_000;
 /** a room nobody ever came into is let go sooner */
@@ -83,6 +83,8 @@ export interface RoundResult {
   penalty: RoundPenalty | null;
   /** the round's nicknames (missing in a room saved before they existed) */
   awards?: { owner: string; award: AwardKey }[];
+  /** who spotted whom (engine MatchState.spottedBy; missing in a room saved before it existed) */
+  spottedBy?: Record<string, Record<string, number>>;
 }
 
 export interface RoomState {
@@ -404,7 +406,8 @@ export class Room {
         round: this.st.round,
         winnerId: next.winnerId,
         penalty: this.st.settings.penalties ? roundPenalty(next) : null,
-        awards: roundAwards(next)
+        awards: roundAwards(next),
+        spottedBy: next.spottedBy ?? {}
       };
       this.dirty = true;
     }
@@ -438,6 +441,11 @@ export class Room {
     let gameView: RoomView["game"] = null;
     if (game) {
       const mine = asPlayer ? characterForOwner(game, id) : undefined;
+      // (whoever just tagged this phone's player: named over the body they punched from, on this phone
+      // only, for a moment, and only while that body is still theirs)
+      const tagger = mine && game.phase === "playing" ? game.taggers?.[id] : undefined;
+      const taggerBody = tagger && now < tagger.until && game.characters[tagger.body]?.ownerId === tagger.by ? tagger.body : -1;
+      const taggerName = tagger && taggerBody >= 0 ? nameOf(tagger.by) : null;
       gameView = {
         phase: game.phase,
         arena: game.arena,
@@ -472,7 +480,7 @@ export class Room {
         endsAt: game.endsAt,
         remainingMs: game.phase === "playing" ? Math.max(0, game.endsAt - now) : 0,
         scoreToWin: SCORE_TO_WIN,
-        avatars: game.characters.map((character) => {
+        avatars: game.characters.map((character, index) => {
           const avatar: AvatarView = {
             x: r2(character.x),
             y: r2(character.y),
@@ -482,6 +490,7 @@ export class Room {
             p: character.pose
           };
           if (mine && character === mine) avatar.me = 1;
+          if (index === taggerBody && taggerName) avatar.by = taggerName;
           // the round is over: every screen finds out who was who (the next round shuffles the crowd
           // again), and the winner dances
           if (game.phase === "over" && character.kind === "player") {
@@ -498,6 +507,11 @@ export class Room {
           // (a blast tells each phone only whether it knocked down this phone's player)
           const onYou = !!mine && (event.target === id || (event.targets ?? []).includes(id));
           const item: EventView = { id: event.id, t: event.t, byYou: !!mine && event.actor === id, onYou };
+          // (a tag names the other player on the two phones it concerns: who did it, whom it was)
+          if (event.t === "tag" && (item.onYou || item.byYou)) {
+            const other = nameOf(item.onYou ? event.actor : event.target);
+            if (other) item.name = other;
+          }
           // (which stall was tasted is for everyone; who tasted it, only for them)
           if (event.stall !== undefined) item.stall = event.stall;
           return item;
@@ -535,7 +549,8 @@ export class Room {
             penalty: result.penalty
               ? { kind: result.penalty.kind, who: result.penalty.who.map((owner) => nameOf(owner) ?? "?"), times: result.penalty.times }
               : null,
-            awards: (result.awards ?? []).map((item) => ({ name: nameOf(item.owner) ?? "?", award: item.award, you: asPlayer && item.owner === id }))
+            awards: (result.awards ?? []).map((item) => ({ name: nameOf(item.owner) ?? "?", award: item.award, you: asPlayer && item.owner === id })),
+            mine: asPlayer ? tallies(result.spottedBy ?? {}, id, nameOf) : null
           }
         : null,
       ended: this.st.ended,
@@ -552,6 +567,16 @@ export class Room {
     this.st.inputs[id] = normalizeVector(vector);
     this.st.inputUpdatedAt[id] = now;
   }
+}
+
+/** A player's round in tags: who spotted them and whom they spotted, most first (then by name). */
+function tallies(spottedBy: Record<string, Record<string, number>>, id: string, nameOf: (owner: string | null) => string | null): { by: TallyView[]; got: TallyView[] } {
+  const order = (a: TallyView, b: TallyView) => b.n - a.n || a.name.localeCompare(b.name);
+  const by = Object.entries(spottedBy[id] ?? {}).map(([owner, n]) => ({ name: nameOf(owner) ?? "?", n }));
+  const got = Object.entries(spottedBy)
+    .filter(([victim, hunters]) => victim !== id && hunters[id])
+    .map(([victim, hunters]) => ({ name: nameOf(victim) ?? "?", n: hunters[id] }));
+  return { by: by.sort(order), got: got.sort(order) };
 }
 
 export function createRoomView(state: RoomState, id: string, role: Role, now = Date.now()): RoomView {

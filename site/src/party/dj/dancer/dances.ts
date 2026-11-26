@@ -66,7 +66,6 @@ export function lookOf(songBpm: number | null | undefined, mood: Mood): Look {
  */
 export const DANCES: readonly { id: string; bpm: number; looks: readonly Look[]; rare?: boolean }[] = [
   { id: "rumba", bpm: 101.4, looks: ["sweet", "party"] },
-  { id: "belly_slow", bpm: 83.2, looks: ["sweet"] },
   { id: "bodywave", bpm: 128.6, looks: ["club"] },
   // (Nov 21, Steve: "这个舞蹈动作我不喜欢少出现一点": half as often as the others)
   { id: "belly", bpm: 124.1, looks: ["party", "club"] },

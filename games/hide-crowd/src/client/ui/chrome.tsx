@@ -34,6 +34,8 @@ const ICONS = {
   // the theatre's drill: a fist, its knuckles on top and the thumb across
   fist: "M6 10.5V9a2 2 0 0 1 2-2h8a3 3 0 0 1 3 3v4a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6zM9.5 7v3.5M13 7v3.5M16.5 7.5v3M6 12.5h5a1.5 1.5 0 0 0 0-3H6",
   sound: "M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11",
+  // the round's winner, on the results
+  crown: "M4.5 19h15M5.5 16L3.5 7.5l5 3.5L12 4.5l3.5 6.5 5-3.5-2 8.5z",
   note: "M9 18V6l10-2v12M9 18a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM19 16a2.5 2.5 0 1 1-5 0a2.5 2.5 0 0 1 5 0zM9 10l10-2",
   // Safari's page menu, as iOS draws it at the left of the address bar
   pageMenu: "M4 7h16M4 12h16M4 17h10",

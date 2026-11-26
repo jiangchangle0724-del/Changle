@@ -1576,6 +1576,19 @@ export function Arena3D(props: Props) {
           tag.winner = !!avatar.w;
           tag.sprite.visible = true;
         }
+        // whoever just tagged this phone's player: their name over them, in red, for a moment (room.ts)
+        if (avatar.by !== undefined) {
+          const tag = tagAt(tagCount++);
+          const key = "2" + avatar.by;
+          if (tag.painted !== key) {
+            paintPill(tag.context, tag.texture, palette.danger, palette.onMe, avatar.by);
+            tag.painted = key;
+          }
+          tag.sprite.position.set(visual.x, MARKER_Y, visual.z);
+          tag.sprite.scale.set(2.4, 0.6, 1);
+          tag.winner = false;
+          tag.sprite.visible = true;
+        }
       }
       phones?.end();
       for (let index = tagCount; index < tags.length; index++) tags[index].sprite.visible = false;

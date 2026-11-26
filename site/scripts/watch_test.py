@@ -794,6 +794,17 @@ def by_pid(t, pid):
     return next(g for g in t.players if me(g) == pid)
 
 
+
+def pull_deck(pg):
+    """流氓十三张 draws by pulling the top card down and letting go (a tap only nudges it)."""
+    b = pg.locator(".rg-top").bounding_box()
+    x, y = b["x"] + b["width"] / 2, b["y"] + b["height"] / 2
+    pg.mouse.move(x, y)
+    pg.mouse.down()
+    for i in range(1, 9):
+        pg.mouse.move(x, y + 15 * i)
+    pg.mouse.up()
+
 def pen_on(t, timeout=5000):
     """The penalty on the screens: the strip along the bottom of the TV."""
     return until(lambda: t.tv.locator(".tv-stamp").count() > 0, timeout)
@@ -950,7 +961,7 @@ def t_rogue(t):
         v = view(t.host)
         if v["phase"] != "draw" or v["interrupt"]:
             break
-        by_pid(t, v["turn"]).locator(".rg-back").click()
+        pull_deck(by_pid(t, v["turn"]))
         ok(until(lambda: view(t.tv)["phase"] != "draw", 4000), f"rogue: draw {r}")
         t.tv.wait_for_timeout(1000)
         v = view(t.tv)
