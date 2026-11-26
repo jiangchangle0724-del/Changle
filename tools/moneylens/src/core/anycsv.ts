@@ -104,6 +104,8 @@ function wayOf(cell: string): "in" | "out" | null {
 const PENDING = /^(pending|en attente|en suspens|authorized|authorised|processing|待入账|处理中|未入账)$/;
 /** A payment to a credit card, in the words statements use for it. */
 const PAYMENT = /\b(payment|paiement|pmt|thank you|merci|autopay)\b|还款/;
+/** The card's own line for a payment it received. A bare "payment" can also be a shop's name, or a bill paid with the card. */
+const THANKED = /\b(thank you|merci|payment received|paiement recu|autopay)\b|还款/;
 
 /** The kind of account a cell names ("Chequing", "Visa Infinite"). */
 function kindOf(cell: string): AccountKind | undefined {
@@ -560,8 +562,13 @@ function guess(table: Table, hints: CsvHints): Guess | "none" | "unclear" {
       if (!values.some((v) => v !== null && v < 0)) doubts.push("sign-guessed");
     } else {
       // On a card, exports go both ways. A payment is money in, so the sign its lines carry is the sign of money in.
-      const words = [...(named.description ?? []), ...all.filter((c) => !taken.has(c) && !isAmounts(c))];
-      const payments = data.map((row, i) => (words.some((c) => PAYMENT.test(plain(row[c]!))) ? firsts[i] : null)).filter((v): v is number => typeof v === "number" && v !== 0);
+      // The words are looked for where a line is described, when the file names that column. Its other columns say other
+      // things: an export can give each merchant's trade in one of them, and a trade can be a "payment service".
+      const words = named.description?.length ? named.description : all.filter((c) => !taken.has(c) && !isAmounts(c));
+      const said = (how: RegExp): number[] => data.map((row, i) => (words.some((c) => how.test(plain(row[c]!))) ? firsts[i] : null)).filter((v): v is number => typeof v === "number" && v !== 0);
+      // lines that thank for a payment settle it; "payment" by itself is gone by only when no line does
+      const thanked = said(THANKED);
+      const payments = thanked.length > 0 ? thanked : said(PAYMENT);
       const minus = payments.filter((v) => v < 0).length;
       if (payments.length > 0 && minus * 2 !== payments.length) amount.out = minus * 2 > payments.length ? "plus" : "minus";
       else {

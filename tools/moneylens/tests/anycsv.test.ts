@@ -301,6 +301,50 @@ test("a card with one column of amounts and what is owed after each line", () =>
   same(one(readAnyCsv(csv(CARD, CARD_OPENING, { cols: ["date", "text", "amount", "balance"] }), { kind: "credit" })), CARD, CARD_OPENING);
 });
 
+test("a card's export that names each merchant's trade: a trade with \"payment\" in it is not a payment", () => {
+  // The shape of the first real file this reader met: two dates, the card number with stars, the merchant's trade in a
+  // column of its own, the merchant's town and postal code, a dollar sign on every amount, purchases as a plus, and the
+  // cardholder's name on every line. The column names are the file's, as its invented copy kept them (IMP-9); every
+  // line under them is made up here, the trades too.
+  const text = [
+    "Date,Posted Date,Reference Number,Activity Type,Activity Status,Card Number,Merchant Category Description,Merchant Name,Merchant City,Merchant State or Province,Merchant Country Code,Merchant Postal Code,Amount,Rewards,Name on Card",
+    '2026-10-02,2026-10-03,"11111111111111111111111",TRANS,APPROVED,************4821,Payment Service Providers-Kiosks,INVENTED BURGER 12,VANCOUVER,BC,CAN,V5K 0A1,$12.49,,A SAMPLE',
+    '2026-10-03,2026-10-04,"22222222222222222222222",TRANS,APPROVED,************4821,Grocery Stores and Supermarkets,NORTH SHORE GROCER,BURNABY,BC,CAN,V5H 0A1,$64.20,,A SAMPLE',
+    '2026-10-04,2026-10-05,"33333333333333333333333",TRANS,APPROVED,************4821,Payment Service Providers-Kiosks,INVENTED NOODLE BAR,RICHMOND,BC,CAN,V6X 0A1,$18.99,,A SAMPLE',
+    '2026-10-05,2026-10-06,"44444444444444444444444",TRANS,APPROVED,************4821,Telecommunication Services,INVENTED TEL PRE-AUTH PAYMENT,TORONTO,ON,CAN,M5V 0A1,$76.35,,A SAMPLE',
+    '2026-10-06,2026-10-07,"10000ABCD-000001-000001",PYMT,APPROVED,************4821,,PAYMENT THANK YOU,,,,,-$412.50,,A SAMPLE',
+    '2026-10-07,2026-10-08,"55555555555555555555555",TRANS,APPROVED,************4821,Payment Service Providers-Kiosks,CAFE MAPLE,VANCOUVER,BC,CAN,V6B 0A1,$4.75,,A SAMPLE',
+    '2026-10-08,2026-10-09,"66666666666666666666666",TRANS,APPROVED,************4821,,INVENTED STORE / REFUND,TORONTO,ON,CAN,00000,-$26.70,,A SAMPLE',
+  ].join("\r\n");
+  const read = readAnyCsv(text, { kind: "credit" });
+  const card = one(read);
+  // purchases are money out, and the payment and the refund are money in: three trades and one shop that say "payment" do not outvote the line that thanks for one
+  assert.deepEqual(
+    card.lines.map((l) => [l.posted, l.date, l.amount, l.description]),
+    [
+      ["2026-10-03", "2026-10-02", -1249, "INVENTED BURGER 12"],
+      ["2026-10-04", "2026-10-03", -6420, "NORTH SHORE GROCER"],
+      ["2026-10-05", "2026-10-04", -1899, "INVENTED NOODLE BAR"],
+      ["2026-10-06", "2026-10-05", -7635, "INVENTED TEL PRE-AUTH PAYMENT"],
+      ["2026-10-07", "2026-10-06", 41250, "PAYMENT THANK YOU"],
+      ["2026-10-08", "2026-10-07", -475, "CAFE MAPLE"],
+      ["2026-10-09", "2026-10-08", 2670, "INVENTED STORE / REFUND"],
+    ],
+  );
+  assert.deepEqual(card.account, { kind: "credit", currency: "CAD", last4: "4821" });
+  assert.deepEqual(card.warnings, ["no-closing-balance"]);
+  assert.equal(card.unread, 0);
+  assert.ok(read.ok && read.layout.amount.kind === "signed" && read.layout.amount.out === "plus");
+  // nothing of the cardholder's name, and nothing of where the merchants are, is kept
+  assert.ok(!JSON.stringify(card).includes("SAMPLE") && !JSON.stringify(card).includes("V5K"));
+  // With no line that thanks for a payment, "payment" where the lines are described is what there is to go by, and the
+  // trades still do not count: two payments with a minus against one shop with the word in its name.
+  const bare = text.replace("PAYMENT THANK YOU", "PAYMENT").replace("INVENTED STORE / REFUND", "ONLINE PAYMENT");
+  const second = one(readAnyCsv(bare, { kind: "credit" }));
+  assert.deepEqual(second.lines.map((l) => l.amount), [-1249, -6420, -1899, -7635, 41250, -475, 2670]);
+  assert.deepEqual(second.warnings, ["no-closing-balance"]);
+});
+
 test("a card's file read without being told that it is a card", () => {
   // purchases as a minus, and what is owed as a plus: the balance goes down as the amounts go up
   const text = ["Date,Description,Amount,Balance", "2026-10-02,CAFE MAPLE,-18.99,431.49", "2026-10-03,NORTH SHORE GROCER,-64.20,495.69", "2026-10-08,PAYMENT - THANK YOU,412.50,83.19"].join("\n");

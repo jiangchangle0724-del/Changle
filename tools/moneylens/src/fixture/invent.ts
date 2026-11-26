@@ -107,6 +107,41 @@ function tokensOf(text: string): Token[] {
   return tokens;
 }
 
+/** What stands in for the digits nobody should see: a star or a bullet, or a run of x's ("XXXX"). It is nobody's data, and stays. */
+const isMask = (token: Token): boolean => (token.kind === "other" && /^[*•]$/.test(token.raw)) || (token.kind === "word" && /^[xX]{2,}$/.test(token.raw));
+
+/**
+ * Another number for one that names something (a card, an account): every digit drawn again, zeros too, so that nothing
+ * of the real number is left, where `digits` keeps a number's size. It is never the number it was, and not one of
+ * `taken`, the numbers other real ones were given, while there is a number left that is neither.
+ */
+export function renamed(real: string, taken: ReadonlySet<string>, digit: () => number): string {
+  const fresh = (made: string): boolean => made !== real && !taken.has(made);
+  const draw = (): string => real.replace(/\d/g, () => String(digit()));
+  const next = (made: string): string => made.replace(/\d$/, (d) => String((Number(d) + 1) % 10));
+  let made = draw();
+  for (let tries = 0; tries < 8 && !fresh(made); tries++) made = draw();
+  // (a source of numbers that keeps giving the same ones: the last digit moves on until the number is a new one)
+  for (let tries = 0; tries < 10 && !fresh(made); tries++) made = next(made);
+  // (every number of this length is taken, as when ten cards are told apart by one digit: two then share a number, and none keeps its own)
+  return made === real ? next(made) : made;
+}
+
+/**
+ * Is this text one number and nothing else: digits, with the spaces, hyphens, stars or x's such numbers are written
+ * with, and at least four digits? An account, a card, a reference. Not a date, not an amount with cents, and not an
+ * amount with a minus before or after it.
+ */
+export function isPlainNumber(text: string): boolean {
+  if (/^\s*-|-\s*$/.test(text)) return false;
+  let digits = 0;
+  for (const token of tokensOf(text)) {
+    if (token.kind === "number" && token.role === undefined && /^\d+$/.test(token.raw) && !compact(token.raw)) digits += token.raw.length;
+    else if (!(token.kind === "other" && /^[\s\-*•]$/.test(token.raw)) && !isMask(token)) return false;
+  }
+  return digits >= 4;
+}
+
 /** "20261005": a year, a month and a day run together. */
 const compact = (raw: string): RegExpExecArray | null => /^((?:19|20)\d\d)(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/.exec(raw);
 
@@ -117,6 +152,13 @@ export class Inventor {
   private readonly pairs: [number, number][] = [];
   private padded = false;
   private settled: { shift: number; dayFirst: boolean; day: Map<number, number> } | null = null;
+  /**
+   * The numbers that name something (what stands behind a mask, "****1234", and what stands in the column a file keeps
+   * its account in) and the number each was given. A card or an account keeps one invented number through the whole
+   * file, as it had one real one, and two keep two: a reader tells the accounts in a file apart by them.
+   */
+  private readonly named = new Map<string, string>();
+  private readonly names = new Set<string>();
 
   constructor(private readonly random: Random) {}
 
@@ -213,6 +255,26 @@ export class Inventor {
     return out;
   }
 
+  /** The number kept for one that names something (a card, an account), made the first time it is met (`renamed`). */
+  private nameFor(real: string): string {
+    const kept = this.named.get(real);
+    if (kept !== undefined) return kept;
+    const made = renamed(real, this.names, () => this.pick(10));
+    this.named.set(real, made);
+    this.names.add(made);
+    return made;
+  }
+
+  /**
+   * A cell of the column a file keeps its account in: invented as any text is, except that every run of digits in it
+   * is a number that names something. One that looks like a year goes too, and so do its zeros.
+   */
+  account(text: string): string {
+    return this.pieces(text, true)
+      .map((piece) => piece.out)
+      .join("");
+  }
+
   private letters(raw: string): string {
     let out = "";
     for (const c of raw) {
@@ -239,9 +301,19 @@ export class Inventor {
   }
 
   /** Second pass, piece by piece: each word, number or mark of the text with where it started and how long it was, and what stands in its place. */
-  pieces(text: string): { at: number; length: number; out: string }[] {
+  pieces(text: string, naming = false): { at: number; length: number; out: string }[] {
     const { shift, dayFirst } = this.settle();
-    return tokensOf(text).map((token) => {
+    const tokens = tokensOf(text);
+    /** Does this number stand right behind a mask, with at most a space or a hyphen between? */
+    const behindMask = (i: number): boolean => {
+      for (let k = i - 1, skipped = 0; k >= 0 && skipped <= 1; k--, skipped++) {
+        const before = tokens[k]!;
+        if (isMask(before)) return true;
+        if (!(before.kind === "other" && /^[\s-]$/.test(before.raw))) return false;
+      }
+      return false;
+    };
+    return tokens.map((token, i) => {
       const p = token.parts;
       let out: string;
       if (token.kind === "iso") out = `${p[0]}${p[1]}${this.month(p[2]!)}${p[1]}${this.day(p[3]!)}`;
@@ -252,13 +324,15 @@ export class Inventor {
       else if (token.kind === "number") {
         const run = compact(token.raw);
         if (token.role === "day") out = this.day(token.raw);
+        // (before the rule for years: the last four digits of a card can look like one, and are not)
+        else if (token.role === undefined && /^\d+$/.test(token.raw) && (naming || behindMask(i))) out = this.nameFor(token.raw);
         else if (token.role === "year" || /^(19|20)\d\d$/.test(token.raw)) out = token.raw;
         else if (run) out = `${run[1]}${this.month(run[2]!).padStart(2, "0")}${this.day(run[3]!).padStart(2, "0")}`;
         else out = this.digits(token.raw);
       } else {
         const month = token.role === "month" ? monthOf(token.raw) : null;
         if (month) out = cased(MONTHS[month.form]![(((month.month + shift) % 12) + 12) % 12]!, token.raw);
-        else if (known(token.raw)) out = token.raw;
+        else if (isMask(token) || known(token.raw)) out = token.raw;
         else out = this.letters(token.raw);
       }
       return { at: token.at, length: token.raw.length, out };

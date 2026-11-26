@@ -215,9 +215,18 @@ Limits, known and left for now:
 - In a file of several accounts, one rule for the signs is applied to all of them.
 - A card that is in credit for most of a file, with what is owed as its balance, reads the wrong
   way round.
+- A card's file with no balances and no line that names a payment has its signs guessed
+  (`sign-guessed`), and the person is asked.
 
-Each of these shows in the preview or refuses the file. None has been checked against a real
-export yet: that is Phase 2, with the operator's own statements, through the fixture tool (IMP-9).
+Each of these shows in the preview or refuses the file. Checking against real exports is Phase 2,
+with the operator's own statements, through the fixture tool (IMP-9). The first one came on
+25 November 2026, a card's, and was read the wrong way round: with no balances in the file, the
+reader takes a card's signs from its payments (a payment is money in), and it looked for the word
+in every column of text. That export gives each merchant's trade in a column of its own, and a
+trade can be a "payment service". Now the reader looks where the lines are described, when the
+file names that column, and a line that thanks for a payment ("PAYMENT - THANK YOU", "PAIEMENT -
+MERCI") settles it before a bare "payment" is gone by, which can be a shop's name or a bill paid
+with the card.
 
 A parser for one bank can still be registered in `CSV_PARSERS` (`read.ts`), and is tried first,
 for a bank whose export the general reader gets wrong. It is written from a synthetic sample
@@ -240,7 +249,11 @@ statement itself stays where it is (SEC-12):
   stays a month and a day a day, moved, so the lines keep their order. A PDF comes back as its
   layout (`pdftext.ts`): every run of text where it sat on the page, with invented contents. The
   words statements are built from ("Balance", "Withdrawals", "Solde", "余额") are kept, because a
-  reader looks for them.
+  reader looks for them. A number that names an account is invented once for each real number,
+  through the whole file: what stands behind a mask ("****1234", "XXXX 1234"; the mask stays), and
+  what stands in the column the reader takes the account from. One card in is one card out, and
+  two are two, because a reader tells the accounts in a file apart by that number. Every digit of
+  such a number is drawn again, the zeros and what looks like a year too (`renamed`).
 - **The summary** (`summary.ts`): which reader took the file, the layout it worked out, how many
   lines it read, whether the sums agreed, and the shape of the first rows (9 for a digit, A for a
   letter). Nothing that was in the file.
@@ -256,6 +269,22 @@ transactions yet: the layouts collected this way are what the PDF reader will be
 `src/web/pdf.ts` is PDF.js used for one thing, text and where it sits (IMP-4): version 6.5.438
 (4.2.67 or later is required), `isEvalSupported: false`, no fonts loaded into the page, nothing
 drawn, nothing fetched, in a Web Worker in the browser, within 10 MB, 100 pages and 30 seconds.
+The page uses PDF.js's `legacy` build, the one for browsers that are not the newest, for the page
+and for the worker alike. The worker says when all of its script has run, and only then is it
+handed to PDF.js; a worker that ran past the 30 seconds is ended, and the next file gets a new one.
+
+When the page stops, it says where and with what kind of error, in words a person can act on and
+with a code for whoever is asked about it: the step (`open`, `sort`, `reader`, `pdf`, `read`,
+`summary`, `copy`) and the error's name ("reader · SecurityError"). Never the error's message,
+which can quote the file (OBS-1). The summary carries the same, and the page's revision (`PAGE` in
+`web/check/main.ts`: raise it whenever the page changes what it does, so that a summary says which
+copy of the page it came from). Three stops have their own advice. A file the browser cannot open
+(moved, held by another program, not yet down from a cloud folder): copy it to the desktop. A
+reader that cannot start (a preview inside another program can forbid workers, and PDF.js parses in
+one: IMP-4, so there is no reading without it): open the page's file in a browser directly. A PDF
+that PDF.js cannot open at all ("InvalidPDFException") is called damaged; any other error of the
+reader's is said to be the reader's, since another program may open the same file without
+complaint. Shown inside another page, the page says so before a file is chosen.
 
 ## Run it
 

@@ -44,6 +44,22 @@ test("a PDF past the limits, or not readable, is refused (IMP-4, T-11)", async (
   const stuck: PdfLib = { getDocument: () => ({ promise: new Promise(() => {}), destroy: async () => void destroyed++ }) };
   assert.deepEqual(await pdfPages(stuck, one, { ms: 20 }), { ok: false, error: "too-slow" });
   assert.equal(destroyed, 1);
+  // A reader still busy with the file never answers when told to let it go. The page is not held up by that: the wait
+  // for the answer is a short one, and whoever started the reader ends it.
+  const deaf: PdfLib = { getDocument: () => ({ promise: new Promise(() => {}), destroy: () => new Promise(() => {}) }) };
+  const began = Date.now();
+  assert.deepEqual(await pdfPages(deaf, one, { ms: 20 }), { ok: false, error: "too-slow" });
+  assert.ok(Date.now() - began < 5000, "waited on a reader that does not answer");
+  // (and one that fails at being told so changes nothing)
+  const rude: PdfLib = {
+    getDocument: () => ({
+      promise: new Promise(() => {}),
+      destroy: () => {
+        throw new Error("gone already");
+      },
+    }),
+  };
+  assert.deepEqual(await pdfPages(rude, one, { ms: 20 }), { ok: false, error: "too-slow" });
   // one that needs a password
   const locked: PdfLib = { getDocument: () => ({ promise: Promise.reject(Object.assign(new Error("No password given"), { name: "PasswordException" })), destroy: async () => {} }) };
   assert.deepEqual(await pdfPages(locked, one), { ok: false, error: "locked" });
@@ -53,4 +69,12 @@ test("a PDF past the limits, or not readable, is refused (IMP-4, T-11)", async (
   assert.equal(await error(new TextEncoder().encode("%PDF-1.4\nnot really a pdf")), "malformed");
   assert.equal(await error(one.slice(0, 200)), "malformed");
   assert.equal(await error(new Uint8Array(0)), "malformed");
+  // PDF.js's own verdict on such a file comes with its name: the file cannot be opened at all
+  assert.deepEqual(await pdfPages(lib, new TextEncoder().encode("%PDF-1.4\nnot really a pdf")), { ok: false, error: "malformed", cause: "InvalidPDFException" });
+  // Any other error is the reader's own trouble with the file, told apart by its name. Only a name is passed on, and only
+  // one that is a plain word: an error's message can quote the file (OBS-1).
+  const failing = (name: unknown): PdfLib => ({ getDocument: () => ({ promise: Promise.reject(Object.assign(new Error("CAFE MAPLE 4.50"), { name })), destroy: async () => {} }) });
+  assert.deepEqual(await pdfPages(failing("TypeError"), one), { ok: false, error: "malformed", cause: "TypeError" });
+  assert.deepEqual(await pdfPages(failing("CAFE MAPLE 4.50"), one), { ok: false, error: "malformed" });
+  assert.deepEqual(await pdfPages(failing(42), one), { ok: false, error: "malformed" });
 });
