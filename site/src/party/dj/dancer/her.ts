@@ -67,6 +67,10 @@ export type Her = {
   knows(id: string): boolean;
   /** her pose: `dance` at `t` beats into it, eased in from `from` (k of the way) */
   pose(dance: string, t: number, from?: { dance: string; t: number } | null, k?: number): void;
+  /** which way `dance` has her hips facing `t` beats into it (radians round her up axis, 0 the room), or
+   * null before it's learnt; and its loop's length in beats */
+  facing(dance: string, t: number): number | null;
+  beats(dance: string): number | null;
   /** after `pose`: her hair and skirt swing on `dt` seconds */
   swing(dt: number): void;
   /** her eyes closed this much (0 open, 1 shut): her lids come down them (a blink) */
@@ -160,6 +164,23 @@ export async function loadHer(outfit = "club"): Promise<Her> {
     return p;
   };
 
+  const facingOf = new Map<string, THREE.Interpolant>();
+  const facing = (dance: string, t: number) => {
+    const a = actions.get(dance);
+    if (!a) return null;
+    let f = facingOf.get(dance);
+    if (!f) {
+      const tr = a.getClip().tracks.find((x) => x.name === "Hips.quaternion");
+      if (!tr) return null;
+      f = new THREE.QuaternionLinearInterpolant(tr.times, tr.values, 4, new Float32Array(4));
+      facingOf.set(dance, f);
+    }
+    const d = a.getClip().duration;
+    const v = f.evaluate((((t % d) + d) % d));
+    const q = new THREE.Quaternion(v[0], v[1], v[2], v[3]);
+    const ahead = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    return Math.atan2(ahead.x, ahead.z);
+  };
   const pose = (dance: string, t: number, from: { dance: string; t: number } | null = null, k = 1) => {
     const a = actions.get(dance);
     const f = from ? actions.get(from.dance) : null;
@@ -204,6 +225,8 @@ export async function loadHer(outfit = "club"): Promise<Her> {
     knows: (id) => actions.has(id),
     pose,
     swing: (dt) => springs?.update(root, dt),
+    facing,
+    beats: (dance) => actions.get(dance)?.getClip().duration ?? null,
     face: (smile, brows) => {
       for (const m of faces) {
         const d = m.morphTargetDictionary!, w = m.morphTargetInfluences!;

@@ -28,6 +28,7 @@ import { danceAt, DANCE_BEATS, DANCES, herFile, IDLES, idleAt, lookOf, LOOKS, OU
 import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
 import { feetOf, plantFeet, standFeet } from "../src/party/dj/dancer/plant";
+import { entryOf } from "../src/party/dj/dancer/entry";
 import { CAPTURED_SKATE } from "./support/captured";
 import { LIMITS, motionFacts } from "./support/motion";
 
@@ -320,6 +321,26 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       ok(slide < 0.15 && fastest < 7, `${at} ${d.id}: her standing feet stay put (${slide.toFixed(2)} m/s, fastest ${fastest.toFixed(1)} m/s)`);
       mx.stopAllAction();
       mx.uncacheRoot(gltf.scene);
+    }
+    // 9. where it starts when it comes in (Nov 25; dancer/entry.ts): on a whole bar, and the bar where her hips
+    // face nearest the room through its first beats (or the first bar, unless another is much nearer)
+    if (!checkedDances.has(`${d.id} entry`) && DANCES.some((x) => x.id === d.id)) {
+      checkedDances.add(`${d.id} entry`);
+      const tr = clip.tracks.find((x) => x.name === "Hips.quaternion")!;
+      const it = new THREE.QuaternionLinearInterpolant(tr.times, tr.values, 4, new Float32Array(4));
+      const turns = {
+        beats: () => clip.duration,
+        facing: (_: string, t: number) => {
+          const v = it.evaluate(((t % clip.duration) + clip.duration) % clip.duration);
+          const f = new THREE.Vector3(0, 0, 1).applyQuaternion(new THREE.Quaternion(v[0], v[1], v[2], v[3]));
+          return Math.atan2(f.x, f.z);
+        },
+      };
+      const off = (skip: number) => Math.max(...[0, 0.5, 1, 1.5].map((s) => Math.abs(turns.facing("", skip + s))));
+      const skip = entryOf(turns, d.id, 0, 0);
+      const bars = Array.from({ length: Math.ceil(clip.duration / 4) }, (_, i) => off(i * 4));
+      ok(skip % 4 === 0 && skip < clip.duration && off(skip) <= Math.min(...bars) + 0.3 + 1e-6,
+        `${at} ${d.id} comes in ${skip / 4} bars in, her hips ${Math.round((off(skip) * 180) / Math.PI)} degrees from the room at most`);
     }
     lastClip = clip;
     // her hair and skirt swinging through it, as the page swings them: never nowhere, never inside her

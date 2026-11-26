@@ -78,7 +78,7 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
     let stop = () => {};
     void (async () => {
       try {
-        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet, standFeet }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant")]);
+        const [T, { RoomEnvironment }, { loadHer }, { feetOf, plantFeet, standFeet }, { entryOf }] = await Promise.all([import("three"), import("three/examples/jsm/environments/RoomEnvironment.js"), import("./dancer/her"), import("./dancer/plant"), import("./dancer/entry")]);
         if (gone) return;
         // her outfits, each loaded the first time it's wanted (with the dances she's on at the time)
         const outfits = new Map<string, Her>();
@@ -222,6 +222,8 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
 
         let cur = firstIdle;
         let curT = 0;
+        // (whole bars into a new dance it starts, so she goes on facing the way she was: entryOf)
+        let skip = 0;
         let from: { dance: string; t: number; at: number; rate: number } | null = null;
         let gelAt = 0;
         let prev = performance.now();
@@ -369,9 +371,13 @@ export function Dancer3D({ clock, mood, look, outfit, roam, light = false, onRea
           if (want !== cur) {
             // the new one flows in from wherever the last one is
             from = { dance: cur, t: curT, at: t, rate: rateOf(cur) };
+            // (Nov 25; Steve: "继续", after "跳舞的动作太多问题了": a dance that opens with her back to the
+            // room spun her round in the moment of the hand-over. Now it starts that many whole bars in, so
+            // she goes on facing much the way she was through the hand-over: dancer/entry.ts)
+            skip = want === walk.id ? 0 : entryOf(her!, want, tWant, her!.facing(cur, curT));
             cur = want;
           }
-          curT = tWant;
+          curT = tWant + skip;
           const k = from ? Math.min(1, (t - from.at) / 1000 / BLEND_S) : 1;
           const ease = k * k * (3 - 2 * k);
           if (from) from.t += dt * from.rate;
