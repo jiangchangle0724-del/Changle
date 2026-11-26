@@ -1,11 +1,14 @@
 /**
  * 流氓十三张's five standing powers, each with a sound of its own (Steve, 11-11): a woman's flirty
- * "Hi~" for 陪酒, a paparazzi burst for 照相机, a clown's horn and nose for 摸鼻子, a toilet flushing
- * for WC 票, a wolf whistle and a cuckoo for 神经病. Synthesized like the rest of the table's sounds
- * (lib/sfx), so there is nothing to download; the "Hi" is the phone's own voice where it has one,
- * and a voice built from parts where it hasn't. A cue plays when its card comes up and whenever
- * the power is used, on one phone and online alike; `render` draws one into any bus, which is how
- * the check script listens to them without a sound card.
+ * "hello" for 陪酒, a paparazzi burst for 照相机, a clown's horn and nose for 摸鼻子, a toilet flushing
+ * for WC 票, a wolf whistle and a cuckoo for 神经病. All but the voice are synthesized like the rest
+ * of the table's sounds (lib/sfx). The voice is a recording (Steve, 11-21: a real woman, and
+ * sultry): `public/sounds/rogue/hi.mp3`, see the README there; a phone that hasn't got it yet
+ * (first use, offline) hears a voice built from parts instead. Not the browser's own speech voice:
+ * on an iPhone that stops the page's music, and it may not come back (WebKit bugs 218815 and
+ * 273511). A cue plays when its card comes up and whenever the power is used, on one phone and
+ * online alike; `render` draws one into any bus, which is how the check script listens to them
+ * without a sound card.
  */
 import { burst, bus, midiHz, noise, tone, voice, type Bus } from "../lib/audio/engine";
 import type { Power } from "../data/rogue13";
@@ -37,68 +40,61 @@ function held(b: Bus, o: { f: number; f2?: number; at: number; dur: number; peak
   osc.stop(t0 + o.dur + 0.05);
 }
 
-/* ---------------- 陪酒: a woman's "Hi~" ---------------- */
+/* ---------------- 陪酒: a woman's "hello" ---------------- */
 
-const FEMALE = /samantha|karen|moira|tessa|fiona|victoria|allison|ava|susan|zoe|nicky|serena|kate|martha|zira|aria|jenny|michelle|libby|sonia|natasha|hazel|female|女|ting|tingting|mei|meijia|sin-?ji|xiaoxiao|xiaoyi|yaoyao|huihui|hanhan|yating|hiujin|wan/i;
-const MALE = /daniel|alex|fred|tom|aaron|arthur|gordon|rishi|david|mark|george|james|oliver|ryan|guy|male|男|yunxi|yunyang|yunjian|kangkang|wayne|liang|sin-?ho/i;
+/** The recording on the site (trimmed and levelled from a CC0 clip: public/sounds/rogue/README.md). */
+export const HI_URL = "/sounds/rogue/hi.mp3";
 
-/** The phone's own voices: a woman's, English or Mandarin, if it has one; otherwise whatever it has. */
-function flirtyVoice(): SpeechSynthesisVoice | null {
-  if (typeof speechSynthesis === "undefined") return null;
-  const all = speechSynthesis.getVoices();
-  if (!all.length) return null;
-  const score = (v: SpeechSynthesisVoice) => {
-    const lang = v.lang.replace("_", "-").toLowerCase();
-    let s = 0;
-    if (lang.startsWith("en")) s += 2;
-    else if (lang.startsWith("zh") && !/hk|yue/.test(lang)) s += 1;
-    else s -= 4;
-    if (FEMALE.test(v.name)) s += 4;
-    if (MALE.test(v.name)) s -= 4;
-    if (v.localService) s += 1;
-    if (v.default) s += 0.5;
-    return s;
-  };
-  return [...all].sort((x, y) => score(y) - score(x))[0] ?? null;
+let hiBytes: Promise<ArrayBuffer | null> | null = null;
+const hiClips = new Map<number, AudioBuffer>();
+const hiDecoding = new Set<number>();
+
+/** Fetch the recording once (no sound needed yet), and decode it for the bus at hand when there is one. */
+export function warmHi() {
+  if (typeof window === "undefined") return;
+  hiBytes ??= fetch(HI_URL)
+    .then((res) => (res.ok && /audio|octet/.test(res.headers.get("content-type") ?? "") ? res.arrayBuffer() : null))
+    .catch(() => null);
+  const b = bus();
+  if (b) void decodeHi(b);
 }
 
-/** The phone says it: slow, a little low, as if leaning in. False when this phone has no voice. */
-function sayHi(vol: number): boolean {
-  if (typeof speechSynthesis === "undefined" || typeof SpeechSynthesisUtterance === "undefined") return false;
-  const v = flirtyVoice();
-  if (!v) return false;
+/** The recording as this bus's sample rate (decoded once per rate; null until it is, or if it never arrives). */
+async function decodeHi(b: Bus): Promise<AudioBuffer | null> {
+  const rate = b.c.sampleRate;
+  const got = hiClips.get(rate);
+  if (got) return got;
+  if (hiDecoding.has(rate) || !hiBytes) return null;
+  hiDecoding.add(rate);
   try {
-    const u = new SpeechSynthesisUtterance(v.lang.toLowerCase().startsWith("zh") ? "嗨" : "Hi");
-    u.voice = v;
-    u.lang = v.lang;
-    u.rate = 0.7;
-    u.pitch = 0.9;
-    u.volume = Math.max(0, Math.min(1, vol));
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-    return true;
+    const bytes = await hiBytes;
+    if (!bytes) return null;
+    // (decodeAudioData detaches the buffer it is given: hand it a copy, so other rates can decode it too)
+    const buf = await b.c.decodeAudioData(bytes.slice(0));
+    hiClips.set(rate, buf);
+    return buf;
   } catch {
-    return false;
+    return null;
+  } finally {
+    hiDecoding.delete(rate);
   }
 }
 
-/** Phones only let a page talk after a tap: the first tap on the page says nothing, so the "Hi" can come later. */
-function primeVoice() {
-  if (typeof window === "undefined" || typeof speechSynthesis === "undefined") return;
-  const events = ["touchend", "pointerup", "click", "keydown"] as const;
-  const prime = () => {
-    events.forEach((e) => window.removeEventListener(e, prime, true));
-    try {
-      const u = new SpeechSynthesisUtterance(" ");
-      u.volume = 0;
-      speechSynthesis.speak(u);
-    } catch {
-      /* no voice here: the built one speaks instead */
-    }
-  };
-  events.forEach((e) => window.addEventListener(e, prime, { capture: true, passive: true }));
+/** Her "hello", if this phone has the recording ready; false if not (the built voice speaks instead, and the recording is fetched for next time). */
+function sayHi(b: Bus, vol: number): boolean {
+  const buf = hiClips.get(b.c.sampleRate);
+  if (!buf) {
+    warmHi();
+    return false;
+  }
+  const src = b.c.createBufferSource();
+  src.buffer = buf;
+  const amp = b.c.createGain();
+  amp.gain.value = vol;
+  src.connect(amp).connect(voice(b, 0.18));
+  src.start();
+  return true;
 }
-primeVoice();
 
 /**
  * A "Hi~" built from a voice's parts, for a phone with no voice of its own: a breath, the folds'
@@ -346,12 +342,12 @@ export const POWER_SOUND_SECONDS: Record<Power, number> = { buddy: 1.1, camera: 
 export function playPower(power: Power, vol = 1) {
   const b = bus();
   if (!b) return;
-  // the buddy's "Hi": the phone's own voice, when it has one
-  if (power === "buddy" && sayHi(vol)) return;
+  // the buddy's "hello": the recording, once this phone has it
+  if (power === "buddy" && sayHi(b, vol)) return;
   cues[power](b, vol);
 }
 
-/** Draw a power's cue into `b` (an offline bus, say) instead of the speakers. */
+/** Draw a power's cue into `b` (an offline bus, say) instead of the speakers: the built sounds, the voice included. */
 export function render(power: Power, b: Bus, vol = 1) {
   cues[power](b, vol);
 }
