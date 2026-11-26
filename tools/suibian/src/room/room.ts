@@ -236,6 +236,12 @@ export class Room {
         this.toLobby({ keepMoods: ph === "lobby" });
         break;
       }
+      case "back":
+        // The result, back to round 2's cards: the same places, everyone votes again. Not once
+        // someone has rated the meal (the ratings belong to this winner).
+        if (ph !== "result" || !this.isHost(id) || Object.keys(this.st.ratings).length) return;
+        this.backToCards();
+        break;
       case "mood": {
         if (ph !== "mood") return;
         const picks: Member["mood"] = {};
@@ -326,7 +332,7 @@ export class Room {
   /** Round 1: the whole menu, nothing searched yet. */
   private toMood() {
     this.st.phase = "mood";
-    this.st.phaseEnds = this.env.now() + TIMING.mood;
+    this.st.phaseEnds = null; // no clock: see TIMING
     this.st.error = null;
     this.changed = true;
   }
@@ -362,6 +368,13 @@ export class Room {
       for (const c of mine) weight[c] = (weight[c] ?? 0) + 1 / mine.length;
     }
     return E.MENU.filter((c) => net(c) > 0).sort((a, b) => net(b) - net(a) || (weight[b] ?? 0) - (weight[a] ?? 0));
+  }
+
+  /** From the result back to round 2: the same cards, no votes yet. */
+  private backToCards() {
+    Object.assign(this.st, { phase: "cards", phaseEnds: null, result: null, error: null });
+    for (const m of Object.values(this.st.members)) Object.assign(m, { ballot: { approve: [], veto: null }, ballotDone: false });
+    this.bump();
   }
 
   private toLobby(o: { keepMoods?: boolean } = {}) {
@@ -421,7 +434,7 @@ export class Room {
     if (!ids.length) return this.fail("nothingFits");
     this.st.cards = ids;
     this.st.phase = "cards";
-    this.st.phaseEnds = this.env.now() + TIMING.cards;
+    this.st.phaseEnds = null; // no clock: see TIMING
     for (const m of Object.values(this.st.members)) m.moodDone = true;
     // Photos and reviews only for the top of the list (Google bills each place's details).
     this.want = { k: "details", ids: ids.slice(0, E.TOP_COUNT) };

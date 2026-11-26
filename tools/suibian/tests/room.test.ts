@@ -101,23 +101,50 @@ test("details fill in a card's description only when the search had none", () =>
   assert.equal(b.about, "From details");
 });
 
-test("rounds end on the clock for people who don't finish", () => {
+test("the rounds have no clock: they wait for everyone, or the host's 不等了 (Steve, 2026-11-25)", () => {
   const { room, ids, places, advance } = setup();
   room.handle(ids[0], { t: "start" });
+  assert.equal(room.st.phaseEnds, null);
   room.handle(ids[0], { t: "mood", picks: { ramen: "like" }, done: false });
-  advance(TIMING.mood);
+  advance(30 * 60_000);
   room.tick();
+  assert.equal(room.st.phase, "mood", "half an hour later, still round 1");
+  room.handle(ids[0], { t: "next", phase: "mood" });
   assert.equal(room.st.phase, "finding");
   assert.deepEqual((room.flush().want as { liked: CuisineId[] }).liked, ["ramen"], "a pick counts even if not finished");
   room.found(places());
   assert.equal(room.st.phase, "cards");
-  advance(TIMING.cards);
+  assert.equal(room.st.phaseEnds, null);
+  advance(30 * 60_000);
   room.tick();
+  assert.equal(room.st.phase, "cards", "half an hour later, still round 2");
+  room.handle(ids[0], { t: "next", phase: "cards" });
   // Nobody voted: everything ties and the spinner picks.
   assert.equal(room.st.phase, "spin");
   advance(TIMING.spin);
   room.tick();
   assert.equal(room.st.phase, "result");
+});
+
+test("from the result the host goes back to round 2: the same cards, everyone's votes cleared (Steve, 2026-11-25)", () => {
+  const { room, ids, places } = setup();
+  room.handle(ids[0], { t: "start" });
+  for (const id of ids) room.handle(id, { t: "mood", picks: {}, done: true });
+  room.found(places());
+  const cards = [...room.st.cards];
+  for (const id of ids) room.handle(id, { t: "ballot", approve: [cards[0]], veto: null, done: true });
+  assert.equal(room.st.phase, "result");
+  room.handle(ids[1], { t: "back" });
+  assert.equal(room.st.phase, "result", "only the host");
+  room.handle(ids[0], { t: "back" });
+  assert.equal(room.st.phase, "cards");
+  assert.deepEqual(room.st.cards, cards);
+  assert.equal(room.st.result, null);
+  for (const id of ids) assert.deepEqual([room.st.members[id].ballot, room.st.members[id].ballotDone], [{ approve: [], veto: null }, false]);
+  // And on to a new pick.
+  for (const id of ids) room.handle(id, { t: "ballot", approve: [cards[1]], veto: null, done: true });
+  assert.equal(room.st.phase, "result");
+  assert.equal((room.st.result as { winner: string } | null)?.winner, cards[1]);
 });
 
 test("someone who joins late: a severe allergy only adds notes, a lower budget takes places over it off", () => {

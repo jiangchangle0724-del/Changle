@@ -105,7 +105,7 @@ export function PlaceCard({ c, ranked, compact, occasion, children, vetoed, win,
   const until = c.at !== undefined ? c.closesAt : undefined;
   const lines = notes(c, occasion);
   return (
-    <article ref={article} class={`place${compact ? " compact" : ""}${vetoed ? " vetoed" : ""}${win ? " win" : ""}`} data-id={p.id} data-rank={c.rank}>
+    <article ref={article} class={`place${compact ? " compact" : ""}${vetoed ? " vetoed" : ""}${win ? " win" : ""}`} data-id={p.id} data-rank={c.rank} data-meters={c.meters}>
       {open && p.photo && (
         <figure class="photo">
           <img src={p.photo} alt="" loading="lazy" referrerpolicy="no-referrer" />

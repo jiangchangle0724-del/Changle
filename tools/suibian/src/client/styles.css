@@ -223,25 +223,6 @@ a {
 .picked {
   font-size: var(--text-sm);
 }
-.countdown {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  min-height: var(--tap);
-  padding: 0 var(--space-2);
-  border-radius: var(--r-pill);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-flat);
-  font-family: var(--font-text);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  text-align: center;
-}
-.countdown.urgent {
-  background: var(--color-danger);
-  color: var(--color-on-danger);
-}
 svg.lucide {
   width: var(--icon-sm);
   height: var(--icon-sm);
@@ -1388,8 +1369,6 @@ a.badge {
   25% { transform: translateX(calc(var(--motion-shift) / -3)); }
   75% { transform: translateX(calc(var(--motion-shift) / 3)); }
 }
-.countdown-tick { animation: tick var(--dur-emphasis) var(--ease-out); }
-@keyframes tick { 0%, 100% { transform: none; } 30% { transform: scale(1.18); } }
 .progress-dot[data-anim="dot"] { animation: dot var(--dur-emphasis) var(--ease-pop); }
 @keyframes dot { 0%, 100% { transform: none; } 40% { transform: scale(1.4); } }
 .place { transition: opacity var(--dur-enter) var(--ease-out); }
@@ -1500,7 +1479,7 @@ a.badge {
   }
   .press { transition: opacity var(--dur-enter) var(--ease-out); }
   .press:active:not(:disabled) { transform: none; }
-  .countdown-tick, .wheel-in, .wheel-out { animation: none; }
+  .wheel-in, .wheel-out { animation: none; }
   .wheel-out, .spark-burst { display: none; }
   .place .head h3::after { transform: none; opacity: 0; transition: opacity var(--dur-enter) var(--ease-out); }
   .place.vetoed .head h3::after { opacity: 1; }

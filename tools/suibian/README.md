@@ -17,13 +17,13 @@ their SIL Open Font License 1.1 texts live in `src/client/fonts/` (licences in `
 from 约时间; the build serves the fonts under `/eat/fonts/` and both licences at `/eat/licences.txt`.
 
 **Motion and feel.** Presses spring back, new people and ready marks arrive once, menu taps answer
-with a jump or a shake, and the last ten countdown seconds tick with brief haptics where supported.
+with a jump or a shake and a brief buzz where phones allow it.
 Cards enter in a short stagger; ticks fill from the touch point and vetoes dim and strike the name.
 A tie wheel slows to the server's winner on time, even after joining mid-spin, then the result dims
 the room, pops the card and lands its stamp with twelve sparks. CSS and the Web Animations API use
 the shared duration/easing tokens, and completed triggers are removed so state updates cannot replay
-them. With reduced motion, movement becomes a short fade: no press scaling, sliding, shaking, wheel,
-sparks or countdown ticking. Nothing continues animating while the table is idle.
+them. With reduced motion, movement becomes a short fade: no press scaling, sliding, shaking, wheel
+or sparks. Nothing continues animating while the table is idle.
 
 How a table goes:
 
@@ -67,9 +67,16 @@ How a table goes:
    what it mainly serves from its name and Google type, price range), distance and rough walking
    and driving minutes, rating, last-order time, a 🟢/🟡/🔴 wait estimate, call and map buttons,
    and Google's AI summary when it has one. Tick every place you'd go; one secret veto each.
+   Each phone can show the list **nearest first** instead (最相关 / 距离最近, Steve 2026-11-25): only
+   its own order, without the rank numbers; the ranking and the votes stay the table's.
 5. Most ticks wins; a tie spins (with no ticks at all, between the top six). The result card goes
    to the group chat with a link to rate the meal afterwards (three taps). Those ratings feed back
-   into scores and wait estimates.
+   into scores and wait estimates. Until someone has rated, the host can go **back to the cards**
+   (‹ 回到上一步，重新选, Steve 2026-11-25): the same list, everyone's ticks and vetoes cleared.
+
+**No clock** (Steve, 2026-11-25): neither round counts down. A round ends when everyone at the
+table has tapped 好了, or when the host taps 不等了，下一步 (someone who dropped off counts as gone
+after `TIMING.awayGrace`). Only the tie wheel is timed (`TIMING.spin`).
 
 **On your own?** Start a table and choose "一个人" (just me): round 1 and the list work the same
 for one phone, with cheap quick places and noodles a little higher and hot pot and Korean BBQ a
@@ -106,6 +113,13 @@ time; for any distance, other neighbourhoods picked at random. A search that fai
 others. Everything those searches find that is open and within budget is on the list, in a fixed
 order: the same places give the same ranking (no random nudge, no "seen lately"; both went with the
 list, 2026-11-11).
+
+A Text Search names a cuisine for the places it finds that said nothing else ("Chinese restaurant"
+found by a search for Sichuan is Sichuan, `foundBy()`), with one exception: **all you can eat**
+(Steve, 2026-11-25: picked near Metrotown, and the first places weren't). Google's search for it
+("all you can eat") also lists the sushi bar and the noodle shop next door, so a place only counts
+as all you can eat when it says so itself: a buffet type, or 自助 / 放题 / AYCE / all-you-can-eat in
+its name or in Google's description of it.
 
 **What a place is** (`cuisineGuess()` in `src/engine/cuisines.ts`). Steve, 2026-11-13: a table that
 wanted 中式烧烤 · 串串 got Earls and Cactus Club before The Meat Up BBQ, an all-you-can-eat skewer

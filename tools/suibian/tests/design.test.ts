@@ -61,7 +61,7 @@ test("one reduced-motion block replaces moves with token fades and stops ticks a
   assert.equal([...styles.matchAll(/@media\s*\(prefers-reduced-motion:\s*reduce\)/g)].length, 1);
   const fallback = styles.slice(styles.indexOf("@media (prefers-reduced-motion: reduce)"));
   assert.match(fallback, /\[data-anim\][\s\S]*animation:\s*fade var\(--dur-enter\)/);
-  assert.match(fallback, /\.countdown-tick[^{}]*\{\s*animation:\s*none/);
+  assert.match(fallback, /\.wheel-in[^{}]*\{\s*animation:\s*none/);
   assert.match(fallback, /\.spark-burst[^{}]*\{\s*display:\s*none/);
   assert.match(fallback, /\.press:active:not\(:disabled\)\s*\{\s*transform:\s*none/);
 });

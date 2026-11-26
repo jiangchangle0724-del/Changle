@@ -125,6 +125,10 @@ const S = {
     "Tap once 👍 for yes, twice 🚫 for no. A big group counts all of it; tap “More” to choose inside. 👍 gets searched for and goes first; 🚫 goes further down.",
   ],
   pathAsk: ["先从哪儿挑？", "Where do you want to start?"],
+  sortBest: ["最相关", "Best match"],
+  sortNear: ["距离最近", "Nearest"],
+  sortBy: ["排序", "Sort"],
+  backToCards: ["回到上一步，重新选", "Back to the cards, pick again"],
   byCuisine: ["按菜系", "By cuisine"],
   byCuisineEg: ["中餐、日料、韩餐、意大利菜…", "Chinese, Japanese, Korean, Italian…"],
   byDish: ["按想吃的", "By dish"],
@@ -138,7 +142,6 @@ const S = {
   done: ["好了", "Done"],
   waitingOthers: ["{n}/{m} 人好了", "{n}/{m} done"],
   skipAhead: ["不等了，下一步", "Don't wait, next"],
-  secondsLeft: ["还剩 {s} 秒", "{s}s left"],
   // round 2
   round2: ["第 2 轮 · 抢卡", "Round 2 · Pick your cards"],
   round2Hint: [
