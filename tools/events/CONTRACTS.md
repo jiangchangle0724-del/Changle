@@ -128,7 +128,10 @@ Eventbrite (0006, `eventbrite_follows`): an organization followed is learned fro
 (`src/follows.ts`: a seed there, or an event let in from a submission): part 0 of the morning's
 "eventbrite" step asks Eventbrite (`/v3/events/{id}/`) for up to 10 not yet known (404: set aside),
 then each part reads one organization's events (`/v3/organizations/{id}/events/`). A source with
-`keys` has exactly as many parts as keys; none followed yet: nothing asked, done for the day.
+`keys` has exactly as many parts as keys; none: nothing asked, done for the day (the log's note is
+the source's `noKeys`). VCC's (`vccPages`): part 0 reads its list of community events and keeps
+the pages of those coming up in KV (`vcc:pages:<date>`, 2 days) for the day's other parts, one page
+a part.
 
 KV: `events:live` (the published `Published`), `raw:<runId>:<source>:<part>` (the raw answer of
 every step, kept 30 days: rerun a parser without fetching again), `handoff:<date>:<source>:<part>`
@@ -274,7 +277,11 @@ saved inputs in `tests/fixtures/`.
 
 An entry in `src/sources.ts` (id, name, kind, tier, url, how to ask for a part, how to read it,
 how many parts at most), a parser in `src/parsers/`, a saved real response in `tests/fixtures/`,
-tests. Be a good guest: the `USER_AGENT` in `src/sources.ts`, official feeds and APIs first, robots.txt
+tests. A site with no feed (kind "html", the colleges' in `src/parsers/schools.ts`): its parser
+first checks the page is its listing and throws if not, so a redesign or an error page is a failed
+step and not an empty fortnight; and it reads only what the listing's cards say. A calendar of a
+whole season (SIDEARM's, `src/parsers/sidearm.ts`) is cut to the window's games before ical.js
+reads it: the whole of it is more than a step's 10 ms of CPU. Be a good guest: the `USER_AGENT` in `src/sources.ts`, official feeds and APIs first, robots.txt
 respected, at most one request a second to a site, never Facebook, Instagram, WeChat or Xiaohongshu.
 
 ## Commands (in `tools/events`, Node 22)

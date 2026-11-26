@@ -75,7 +75,7 @@ export async function fetchStep(env: Env, args: StepArgs): Promise<StepResult> {
     // a source read one list at a time (each organization followed): this part's, if there's one left
     const keys = src.keys ? await src.keys(env, args.part) : null;
     if (keys && args.part >= keys.length) {
-      log.note = keys.length ? `${keys.length} read` : "nothing followed yet";
+      log.note = keys.length ? `${keys.length} read` : (src.noKeys ?? "nothing to read");
     }
     let raw: string | null = null;
     let etag: string | null = null;
