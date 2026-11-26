@@ -307,7 +307,7 @@
 | A27 | 节日关的机制：节日日历（春节、中秋、圣诞、万圣节，按本地日期，`?fest=`）、画面上的节日装饰、节日关排在闯关和比谁先简单那一串最前面、大厅「🎄 去玩圣诞关」、验收器规矩（levels/fest/）；任务卡 ho-C19 | Claude Code | `fest.test.ts`；回放不变；#820 |
 | C19 | 四个节日关：fest-xmas（雪山，先交）、fest-cny（后厨）、fest-halloween（老宅）、fest-midautumn（太空站），简单、没有要命的东西 | Codex | `npm run levels` 全过，`fest: C19 4/4 holiday levels` |
 | A28 | 每日一关和排行榜：每天（温哥华的日期）大家同一关，大厅「📅 每日一关」，到顶交成绩，单人榜、多人榜各前 10（一台主机一天一榜留最好的），结算页写排第几、「🏆 今日排行」；房间服务器多一个 Durable Object `HangOnBoard`（不花钱） | Claude Code | `daily.test.ts`、`server/board.test.ts`；回放不变；#821 |
-| A29 | 关卡编辑器：`/hang-on/editor/` 画关（台子、把手、出生点、终点、检查点、绳子、弹簧、饼干、要命的、箱子、大石头）、试玩、分享（整关压成码放进链接，不存服务器）；主机页 `?custom=码` 开自制关（闯关、比谁先，电视局和手机局），没有星、红包、成就 | Claude Code | `custom.test.ts`、`editor/model.test.ts`；回放不变；#PR |
+| A29 | 关卡编辑器：`/hang-on/editor/` 画关（台子、把手、出生点、终点、检查点、绳子、弹簧、饼干、要命的、箱子、大石头）、试玩、分享（整关压成码放进链接，不存服务器）；主机页 `?custom=码` 开自制关（闯关、比谁先，电视局和手机局），没有星、红包、成就 | Claude Code | `custom.test.ts`、`editor/model.test.ts`；回放不变；#822 |
 
 顺序：A1 先，它定了所有人的契约。A1 合并后 C1、C4 可以并行；A2 合并后 A4；A3 和 C2 并行；C1 和 A3 合并后 C7、C4 并行（C7 只改关卡，C4 只加测试和脚本）；C6 最后。A6 合并后 C8；A7 合并后 C9。每张 Codex 任务卡都写明只改哪些路径。
 
