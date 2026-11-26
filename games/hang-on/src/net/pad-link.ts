@@ -70,6 +70,7 @@ export class PadLink {
   private look: Look | null = null;
   private item: ItemId | null = null;
   private achvs: AchvId[] | null = null;
+  private assist = false;
 
   constructor(
     readonly code: string,
@@ -87,6 +88,7 @@ export class PadLink {
           this.relay({ k: 'hello' });
           if (this.look) this.relay({ k: 'look', look: this.look });
           if (this.item) this.relay({ k: 'item', item: this.item });
+          if (this.assist) this.relay({ k: 'assist', on: true });
           if (this.achvs) this.relay({ k: 'achvHave', ids: this.achvs });
         }
         this.ev.onConn?.({ socket: open, direct: this.direct });
@@ -119,6 +121,12 @@ export class PadLink {
   setAchvs(ids: AchvId[]): void {
     this.achvs = ids;
     if (this.socketOpen) this.relay({ k: 'achvHave', ids });
+  }
+
+  /** 长辈小孩模式（11-26）：告诉主机开没开；每次重新连上房间（开着时）也会再说一遍。 */
+  setAssist(on: boolean): void {
+    this.assist = on;
+    if (this.socketOpen) this.relay({ k: 'assist', on });
   }
 
   /** 告诉主机自己带哪样道具（A9）；每次重新连上房间也会再说一遍。 */

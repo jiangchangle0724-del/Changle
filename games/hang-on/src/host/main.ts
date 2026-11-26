@@ -162,6 +162,12 @@ const hostName = (): string => stored('hang-on:name', (v) => v.trim().slice(0, 1
 /** 道具（A9）：手机局的房主记在这部手机上（和它当手柄时同一个），键盘玩家只记这一回。 */
 let hostItem: ItemId = stored('hang-on:item', cleanItem) ?? 'freeze';
 let kbItem: ItemId = 'freeze';
+/** 长辈小孩模式（11-26）：手机局的房主记在这部手机上（和它当手柄时同一个），键盘玩家只记这一回。 */
+let hostAssist = stored('hang-on:assist', (v) => v === '1') ?? false;
+let kbAssist = false;
+/** 慢一点（11-26）：全场慢到 SLOW_MODE 倍，记在这台主机上。 */
+let slowMode = stored('hang-on:slow', (v) => v === '1') ?? false;
+const SLOW_MODE = 0.8;
 /** 每个人道具没用成（拉面没抓着墙）几次了：小包里带上，手柄看到变了就提示。 */
 let itemFails: number[] = [];
 /** 手机局：样子名单要不要马上补发（有人进出、换样子、换阶段）。 */
@@ -198,6 +204,26 @@ function setLocalItem(id: ItemId): void {
 }
 /** 自己那个人是第几个（没有是 -1）。 */
 const localIndex = (): number => (localOn() ? seatOrder.length : -1);
+const localAssist = (): boolean => (phoneMode ? hostAssist : kbAssist);
+function setLocalAssist(on: boolean): void {
+  if (phoneMode) {
+    hostAssist = on;
+    try {
+      localStorage.setItem('hang-on:assist', on ? '1' : '0');
+    } catch {
+      // 记不住就记不住
+    }
+  } else kbAssist = on;
+  renderAssistBtn();
+  syncPlayers();
+  renderLobby();
+}
+/** 第 i 个人开没开长辈小孩模式（11-26）。 */
+function assistOf(i: number): boolean {
+  if (i === localIndex()) return localAssist();
+  const id = seatOrder[i];
+  return !!(id && link?.peers.get(id)?.assist);
+}
 
 sfx.attach(document);
 // 背景音乐（11-13）：只在开房这台设备上放（电视局是电视，手机局是房主的手机），接在音效上，静音一起管
@@ -240,7 +266,9 @@ const teamOf = (i: number): number | undefined => sim.rules.teams?.[i] ?? (sim.r
 /** 头顶上的名字：分队时带上队。 */
 function tagName(i: number, nm: string): string {
   const t = teamOf(i);
-  return t === undefined ? nm : `${nm} · ${t === 0 ? tr('甜', 'Sweet') : tr('咸', 'Savory')}`;
+  // 长辈小孩模式（11-26）：名字前面一棵小苗
+  const a = assistOf(i) ? '🌱 ' : '';
+  return t === undefined ? `${a}${nm}` : `${a}${nm} · ${t === 0 ? tr('甜', 'Sweet') : tr('咸', 'Savory')}`;
 }
 function setMode(m: GameMode): void {
   if (m === mode) return;
@@ -680,6 +708,33 @@ function renderEscortBtn(): void {
   b.setAttribute('aria-pressed', String(escortOn));
   b.title = tr('起点放一个大元宝，扛到终点算数（不送也能过关）', 'A big gold ingot waits at the start. Carry it to the top for a bonus (you can finish without it)');
 }
+/** 慢一点（11-26，长辈小孩模式）：全场慢到 0.8 倍，记在这台主机上。 */
+function setSlow(on: boolean): void {
+  if (on === slowMode) return;
+  slowMode = on;
+  try {
+    localStorage.setItem('hang-on:slow', on ? '1' : '0');
+  } catch {
+    // 记不住就记不住
+  }
+  renderSlowBtn();
+  menuDirty = true;
+}
+function renderSlowBtn(): void {
+  const b = $<HTMLButtonElement>('slowBtn');
+  b.textContent = slowMode ? tr('🐢 慢一点：开', '🐢 Slower: on') : tr('🐢 慢一点：关', '🐢 Slower: off');
+  b.setAttribute('aria-pressed', String(slowMode));
+  b.title = tr('全场慢到 0.8 倍，家里有老人小孩时开', 'Everything runs at 0.8× speed. Good when grandparents or kids play');
+}
+/** 这台设备上自己玩的人（手机局的房主、键盘加入的）的长辈小孩模式开关；没有自己玩的人就不出。 */
+function renderAssistBtn(): void {
+  const b = $<HTMLButtonElement>('assistBtn');
+  b.hidden = !localOn();
+  const on = localAssist();
+  b.textContent = on ? tr('🌱 长辈小孩模式：开', '🌱 Easy hands: on') : tr('🌱 长辈小孩模式：关', '🌱 Easy hands: off');
+  b.setAttribute('aria-pressed', String(on));
+  b.title = tr('掉的时候手碰到东西自己抓住，站稳了自己松开；抓得远一点、不会手酸、身子轻一点', 'Hands grab on their own while falling and let go once you stand; longer reach, no tired hands, a lighter body');
+}
 function setTeams(on: boolean): void {
   if (on === teamsOn) return;
   teamsOn = on;
@@ -708,6 +763,8 @@ function radioBtn(box: HTMLElement, label: string, on: boolean, click: () => voi
  */
 function renderModes(): void {
   renderEscortBtn();
+  renderSlowBtn();
+  renderAssistBtn();
   const sides = $('sides');
   sides.innerHTML = '';
   for (const s of SIDES) radioBtn(sides, sideName(s), s === side, () => setSide(s));
@@ -766,6 +823,7 @@ async function start(): Promise<void> {
         syncPlayers();
         renderLobby();
         renderLatency();
+        renderNote();
         noteAudience(r);
       },
       onPeers: () => {
@@ -780,6 +838,10 @@ async function start(): Promise<void> {
         renderLobby();
       },
       onItem: () => {
+        syncPlayers();
+        renderLobby();
+      },
+      onAssist: () => {
         syncPlayers();
         renderLobby();
       },
@@ -818,9 +880,12 @@ function renderNote(): void {
   // 手机局屏幕小、触屏开的电视局没有键盘：底下那条只在断线时出来
   // 房间已经关了（fatal 那张卡在说为什么）就不再说「正在重连」
   const down = socketDown && !lastFatal;
-  $('note').classList.toggle('quiet', (phoneMode || touchHost) && !down);
+  // 有人进来了（手机、键盘）：那条「只在一台电脑上开、键盘怎么玩」用不着了，大厅的卡片长了（座位、观众那一行），别压着底下那排键
+  const joined = (room?.seats.length ?? 0) > 0 || keyboard;
+  const quiet = (phoneMode || touchHost || joined) && !down;
+  $('note').classList.toggle('quiet', quiet);
   // 底下那条不出来时大厅也不用给它留地方（开始那一排贴在底下时贴到屏幕底，不是悬在半中间）
-  document.body.classList.toggle('quiet-note', (phoneMode || touchHost) && !down);
+  document.body.classList.toggle('quiet-note', quiet);
   $('note').innerHTML = down
     ? tr('和房间的连接断了，正在重连……', 'Lost the room connection. Reconnecting…')
     : phoneMode || touchHost
@@ -1179,6 +1244,8 @@ lobbyBtn.addEventListener('click', () => {
 $('kbBtn').addEventListener('click', () => {
   keyboard = !keyboard;
   renderButtons();
+  renderAssistBtn();
+  renderNote();
   syncPlayers();
   renderLobby();
 });
@@ -1306,6 +1373,7 @@ function syncPlayers(): void {
     if (!p || !peer) return;
     p.color = PLAYER_COLORS[peer.color] ?? p.color;
     sim.setItem(i, peer.item);
+    sim.setAssist(i, peer.assist);
     // 扭蛋机里的没在这台设备上扭到的，画默认的（11-25）
     const look = lockLook(peer.look ?? DEFAULT_LOOK, gachaSet);
     stage.setPlayerStyle(i, { name: tagName(i, peer.name), color: p.color, look });
@@ -1317,6 +1385,7 @@ function syncPlayers(): void {
     if (p) {
       p.color = PLAYER_COLORS[localColor()] ?? p.color;
       sim.setItem(i, localItem());
+      sim.setAssist(i, localAssist());
       stage.setPlayerStyle(i, { name: tagName(i, localName()), color: p.color, look: localLook() });
       sfx.setVoice(i, localLook().voice);
     }
@@ -1640,6 +1709,14 @@ function gachaPull(): void {
 }
 
 $('gachaBtn').addEventListener('click', openGacha);
+$('slowBtn').addEventListener('click', () => {
+  sfx.tick();
+  setSlow(!slowMode);
+});
+$('assistBtn').addEventListener('click', () => {
+  sfx.tick();
+  setLocalAssist(!localAssist());
+});
 $('escortBtn').addEventListener('click', () => {
   sfx.tick();
   setEscort(!escortOn);
@@ -1669,10 +1746,10 @@ function renderLobby(): void {
   seats.forEach((s, i) => {
     const peer = link?.peers.get(s.id);
     const sub = !s.connected ? tr('掉线', 'Offline') : peer?.direct ? tr('直连', 'Direct') : peer?.relayed ? tr('绕路', 'Relayed') : tr('连接中', 'Connecting');
-    box.append(withSay(seatCard(s.name, PLAYER_COLORS[s.color] ?? '#fff', lockLook(peer?.look ?? DEFAULT_LOOK, gachaSet), sub, !s.connected, team(i), items ? (peer?.item ?? 'freeze') : undefined), i));
+    box.append(withSay(seatCard((peer?.assist ? '🌱 ' : '') + s.name, PLAYER_COLORS[s.color] ?? '#fff', lockLook(peer?.look ?? DEFAULT_LOOK, gachaSet), sub, !s.connected, team(i), items ? (peer?.item ?? 'freeze') : undefined), i));
   });
   if (localOn()) {
-    const card = withSay(seatCard(localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false, team(seats.length), items ? localItem() : undefined), seats.length);
+    const card = withSay(seatCard((localAssist() ? '🌱 ' : '') + localName(), PLAYER_COLORS[localColor()] ?? '#fff', localLook(), phoneMode ? tr('这部手机 · 点一下换样子', 'This phone · tap for a new look') : tr('这台电脑', 'This computer'), false, team(seats.length), items ? localItem() : undefined), seats.length);
     // 手机局：点自己那张卡换个样子（随机），这部手机以后当手柄也用这个
     if (phoneMode) {
       const b = document.createElement('button');
@@ -1782,6 +1859,8 @@ function renderAll(): void {
   if (replay) $('replayBadge').textContent = replayLabel(replay.clip);
   renderCrowd();
   voteShown = '';
+  renderSlowBtn();
+  renderAssistBtn();
   syncPlayers();
 }
 onLang(renderAll);
@@ -2078,6 +2157,7 @@ function menuFor(): Menu {
       : {}),
     gacha: { coins: coins(gacha, envelopeTotal()), price: GACHA_PRICE, got: gacha.got, left: leftToWin(gacha) },
     ...(mode === 'climb' || mode === 'team' ? { escort: escortOn } : {}),
+    slow: slowMode,
     ...(rainReady() ? { rain: true } : {}),
     // 精彩回放在电视上放（手机局里只有房主的手机放，别的手机不出这个键）
     ...(phase === 'results' && !phoneMode && highlights.best ? { replay: { zh: highlights.best.moment.zh, en: highlights.best.moment.en } } : {}),
@@ -2148,6 +2228,11 @@ function runCmd(c: PadCmd): void {
       if (phase !== 'lobby') return;
       sfx.tick();
       setTeams(!!c.on);
+      break;
+    case 'slow':
+      if (phase !== 'lobby') return;
+      sfx.tick();
+      setSlow(!!c.on);
       break;
     case 'escort':
       if (phase !== 'lobby') return;
@@ -2220,8 +2305,8 @@ function frameBody(now: number): void {
   last = now;
   feedInputs();
   if (phase === 'playing') {
-    // 观众投的慢动作（11-26）：大屏自己放慢
-    acc += dt * stage.timeScale * (now < slowUntil ? SLOW_SCALE : 1);
+    // 观众投的慢动作（11-26）、大厅里开的「慢一点」（长辈小孩模式）：大屏自己放慢
+    acc += dt * stage.timeScale * (now < slowUntil ? SLOW_SCALE : 1) * (slowMode ? SLOW_MODE : 1);
     while (acc >= DT) {
       sim.step(DT);
       stage.handleEvents(sim, sim.events);

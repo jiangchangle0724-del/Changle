@@ -144,6 +144,11 @@
   .mlevel .nm { text-align: center; font-weight: 800; font-size: 17px; line-height: 1.35; }
   .mlevel .nm small { display: block; font-weight: 500; font-size: 13px; opacity: .7; }
   .mline { margin: 0; font-size: 14px; opacity: .75; text-align: center; }
+  /* 长辈小孩模式（11-26）的开关：两行字，开着是金色 */
+  .btn.easy { display: flex; align-items: center; justify-content: center; gap: 10px; text-align: left; line-height: 1.3; }
+  .btn.easy small { display: block; font-size: 12px; font-weight: 600; opacity: .7; }
+  .btn.easy[aria-pressed="true"] { background: #f6c453 !important; color: var(--card-ink) !important; }
+  .mcard .btn.easy { background: rgba(42,31,58,.1); color: var(--card-ink); border: 0; border-radius: 16px; min-height: 52px; padding: 8px 16px; }
   .mcard .row { display: flex; gap: 8px; flex-wrap: wrap; }
   .mcard .row .btn { flex: 1 1 120px; background: var(--card-ink); color: var(--ink); }
   .mcard .row .btn.quiet { background: rgba(42,31,58,.1); color: var(--card-ink); }
@@ -324,6 +329,8 @@
     <button class="btn quiet" id="lookBtn" type="button"><canvas id="lookMini" width="44" height="44" style="width:22px;height:22px" aria-hidden="true"></canvas><span id="lookSummary">换个样子</span></button>
     <button class="btn quiet" id="itemBtn" type="button"><span id="itemIcon" aria-hidden="true">🧊</span><span id="itemSummary">道具：速冻</span></button>
     <button class="btn quiet" id="achvBtn" type="button"><span aria-hidden="true">🏆</span><span id="achvSummary">成就</span></button>
+    <!-- 长辈小孩模式（11-26）：自己这个人开 / 关，记在这部手机上 -->
+    <button class="btn quiet easy" id="assistBtn" type="button" aria-pressed="false"><span aria-hidden="true">🌱</span><span><b class="st">长辈小孩模式：关</b><small data-en="Hands grab on their own when you fall">掉的时候手自己抓，不会手酸</small></span></button>
     <p class="err" id="err" role="alert"></p>
     <button class="btn" id="joinBtn" type="submit" data-en="Join">加入</button>
     <button class="btn quiet" id="tableBtn" type="button" hidden data-en="Back to the table">回到桌上</button>
@@ -380,7 +387,8 @@
         <button id="mNext" type="button" aria-label="下一关" data-en-label="Next level">›</button>
       </div>
       <p class="mline" id="mLine"></p>
-      <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button><button class="btn quiet mach" id="achvBtn2" type="button" aria-label="成就" data-en-label="Achievements">🏆</button><button class="btn quiet mach" id="gachaBtn2" type="button" hidden>🎰</button><button class="btn quiet mach" id="escortBtn2" type="button" hidden aria-pressed="false">🪙</button></div>
+      <button class="btn quiet easy" id="assistBtn2" type="button" aria-pressed="false"><span aria-hidden="true">🌱</span><span><b class="st">长辈小孩模式：关</b><small data-en="Just for you: hands grab on their own when you fall">只管你自己：掉的时候手自己抓，不会手酸</small></span></button>
+      <div class="row"><button class="btn" id="mStart" type="button" data-en="Start">开始</button><button class="btn quiet mach" id="achvBtn2" type="button" aria-label="成就" data-en-label="Achievements">🏆</button><button class="btn quiet mach" id="gachaBtn2" type="button" hidden>🎰</button><button class="btn quiet mach" id="escortBtn2" type="button" hidden aria-pressed="false">🪙</button><button class="btn quiet mach" id="slowBtn2" type="button" hidden aria-pressed="false">🐢</button></div>
     </div>
     <div class="mcard" id="mResults" hidden>
       <div class="res-a">

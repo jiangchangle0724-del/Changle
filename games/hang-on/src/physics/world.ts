@@ -130,6 +130,8 @@ export interface Arm {
   slipCd: number;
   /** 没抓东西的手，手心嵌在台子、动台这些硬东西里头多少秒了（unstickHands）。 */
   stuckT: number;
+  /** 长辈小孩模式（11-26）：这只手抓着的是掉的时候自己抓住的（没按键）。按一下键、站稳了就松开。 */
+  auto: boolean;
 }
 
 export type Face = 'idle' | 'grab' | 'fly' | 'scream' | 'win';
@@ -182,6 +184,9 @@ export interface Player {
   floating: boolean;
   /** 力气（A11 手酸）：1 是满的，挂着往下掉，站着回来，到 0 两只手都松开。没开手酸时一直是 1。 */
   stamina: number;
+  /** 长辈小孩模式（11-26）：开着没有；站稳了几秒（自己抓住的手站稳了就松开）。 */
+  assist: boolean;
+  steadyT: number;
 }
 
 /** 饼干平台的当前样子（画面用）。 */
@@ -494,6 +499,8 @@ export class Sim {
   private readonly spinners: { def: SpinnerDef; rb: RB }[] = [];
   private readonly terrain: RB;
   private readonly grabShape: RAPIER.Ball;
+  /** 长辈小孩模式（11-26）抓的范围大一点。 */
+  private readonly grabShapeEasy: RAPIER.Ball;
   /** 查胳膊摆的地方空不空用的：比手和每节小 2 px，贴着表面不算碰着。 */
   private readonly handTest: RAPIER.Ball;
   private readonly segTest: RAPIER.Capsule;
@@ -541,6 +548,7 @@ export class Sim {
     world.numSolverIterations = CFG.solverIterations;
     this.world = world;
     this.grabShape = new RAPIER.Ball(GRAB_R);
+    this.grabShapeEasy = new RAPIER.Ball(GRAB_R + CFG.assistReach);
     this.handTest = new RAPIER.Ball(CFG.handR - 2);
     this.segTest = new RAPIER.Capsule(Math.max(1, CFG.segLen / 2 - CFG.segR), Math.max(1, CFG.segR - 2));
 
@@ -1425,7 +1433,7 @@ export class Sim {
       const on = !p.dead && !p.done && inZone(p.body);
       if (on === p.floating) continue;
       p.floating = on;
-      p.rb.setGravityScale(on ? 0 : 1, true);
+      p.rb.setGravityScale(on ? 0 : p.assist ? CFG.assistGravity : 1, true);
       for (const arm of p.arms) {
         for (const rb of arm.segs) {
           rb.setGravityScale(on ? 0 : CFG.armGravity, true);
@@ -1650,6 +1658,8 @@ export class Sim {
       itemFailAt: -10,
       floating: false,
       stamina: 1,
+      assist: false,
+      steadyT: 0,
     };
     this.players.push(p);
     this.refreshPlayer(p);
@@ -1716,7 +1726,7 @@ export class Sim {
         ),
       );
     }
-    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [], slipCd: 0, stuckT: 0 };
+    return { side, segs, cols, shoulder: shoulderJoint, elbows, grip: null, hand: { ...pose.end }, pts: [], slipCd: 0, stuckT: 0, auto: false };
   }
 
   private removePlayer(): void {
@@ -1827,6 +1837,24 @@ export class Sim {
     if (p) p.item = item;
   }
 
+  /**
+   * 长辈小孩模式（11-26）：第 i 个人开 / 关。开着：掉的时候手碰到能抓的自己抓住、站稳了自己松开，抓的范围大一点，
+   * 不会手酸，身子轻一点。关上时自己抓住的手跟着按键走（没按着就松开）。
+   */
+  setAssist(i: number, on: boolean): void {
+    const p = this.players[i];
+    if (!p || p.assist === on) return;
+    p.assist = on;
+    p.steadyT = 0;
+    if (!on) for (const arm of p.arms) arm.auto = false;
+    if (!p.floating) p.rb.setGravityScale(on ? CFG.assistGravity : 1, true);
+  }
+
+  /** 长辈小孩模式：这会儿在往下掉（没站在东西上、不在失重区里、往下快过 assistCatchVy），手碰到就抓。 */
+  private catching(p: Player): boolean {
+    return !p.ground && !p.floating && p.body.vy > CFG.assistCatchVy;
+  }
+
   /** 这一局用不用得了道具：闯关和大团队用得了。 */
   get itemsOn(): boolean {
     return this.rules.mode === 'climb' || this.rules.mode === 'team';
@@ -1918,10 +1946,19 @@ export class Sim {
     for (const p of this.players) {
       // 冻住的人手也冻住了：抓着的照旧抓着，没抓的抓不了
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
+      // 长辈小孩模式（11-26）：站稳了几秒
+      p.steadyT = p.assist && p.ground ? p.steadyT + dt : 0;
       p.arms.forEach((arm, k) => {
         if (arm.slipCd > 0) arm.slipCd = Math.max(0, arm.slipCd - dt);
+        // 按着键就是自己在抓：自己抓住的那只手交回给按键（松开键就松手）
+        if (p.grab[k]) arm.auto = false;
         if (p.grab[k] && !arm.grip && arm.slipCd <= 0) this.tryGrab(p, k);
-        else if (!p.grab[k] && arm.grip) this.release(p, k);
+        else if (!p.grab[k] && arm.grip && !arm.auto) this.release(p, k);
+        else if (p.assist && !p.grab[k] && !arm.grip && arm.slipCd <= 0 && this.catching(p)) {
+          // 长辈小孩模式：掉的时候手碰到能抓的自己抓住
+          this.tryGrab(p, k);
+          if (arm.grip) arm.auto = true;
+        } else if (arm.auto && arm.grip && p.steadyT >= CFG.assistLetGo) this.release(p, k);
         if (arm.grip) {
           arm.grip.t += dt;
           // 坐不住：一个地方抓太久手就滑了，一会儿抓不了（按着键也不会马上又抓回去）；雪山的冰溜子抓久了也滑
@@ -2273,7 +2310,9 @@ export class Sim {
     const arm = p.arms[k] as Arm;
     const h = arm.hand;
     let best: { col: Col; point: Pt; d: number; info: ColInfo } | null = null;
-    this.world.intersectionsWithShape(h, 0, this.grabShape, (col) => {
+    // 长辈小孩模式（11-26）抓的范围大一点
+    const reach = p.assist ? GRAB_R + CFG.assistReach : GRAB_R;
+    this.world.intersectionsWithShape(h, 0, p.assist ? this.grabShapeEasy : this.grabShape, (col) => {
       const info = this.info.get(col.handle);
       // 关掉的碰撞体（消失中的饼干）这一步查询还查得到，自己跳过
       if (!info || !col.isEnabled()) return true;
@@ -2286,7 +2325,7 @@ export class Sim {
       const proj = col.projectPoint(h, true);
       if (!proj) return true;
       const d = proj.isInside ? 0 : dist(proj.point, h);
-      if (d <= GRAB_R && (!best || d < best.d)) best = { col, point: { x: proj.point.x, y: proj.point.y }, d, info };
+      if (d <= reach && (!best || d < best.d)) best = { col, point: { x: proj.point.x, y: proj.point.y }, d, info };
       return true;
     });
     if (!best) return;
@@ -2348,6 +2387,11 @@ export class Sim {
     }
     for (const p of this.players) {
       if (p.dead || p.done || p.itemOn === 'freeze') continue;
+      // 长辈小孩模式（11-26）不会手酸
+      if (p.assist) {
+        p.stamina = 1;
+        continue;
+      }
       const hands = p.arms.reduce((n, a) => n + (a.grip ? 1 : 0), 0);
       if (p.ground || p.floating || hands === 0) {
         p.stamina = Math.min(1, p.stamina + (p.ground || p.floating ? rest : CFG.staminaAir) * dt);
@@ -2374,6 +2418,7 @@ export class Sim {
     this.world.removeImpulseJoint(g.tether, true);
     this.grips.delete(g.joint);
     arm.grip = null;
+    arm.auto = false;
     // 松开的是队友，而队友此刻悬空又没抓着别的：记下来，几秒内摔死就是背叛
     if (g.kind === 'player' && g.player !== undefined && !p.dead) {
       const victim = this.players[g.player];

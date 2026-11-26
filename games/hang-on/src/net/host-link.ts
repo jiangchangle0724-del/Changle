@@ -43,6 +43,8 @@ export interface PadPeer {
   look: Look;
   /** 手柄选的道具（A9）。 */
   item: ItemId;
+  /** 长辈小孩模式（11-26）开着没有。 */
+  assist: boolean;
   input: PadInput | null;
   /** 上一条输入到的时刻（performance.now()）。 */
   lastInputAt: number;
@@ -57,6 +59,8 @@ export interface HostLinkEvents {
   onInput?(peer: PadPeer, input: PadInput): void;
   onLook?(peer: PadPeer, look: Look): void;
   onItem?(peer: PadPeer, item: ItemId): void;
+  /** 长辈小孩模式（11-26）开了 / 关了。 */
+  onAssist?(peer: PadPeer, on: boolean): void;
   /** 表情（11-25）：已经收拾过（不认识的不报）。 */
   onEmote?(peer: PadPeer, e: EmoteId): void;
   /** 放屁键（11-25）。 */
@@ -195,7 +199,7 @@ export class HostLink {
       seen.add(s.id);
       let p = this.peers.get(s.id);
       if (!p) {
-        p = { seat: s.id, name: s.name, color: s.color, connected: s.connected, direct: false, relayed: false, rtt: new RttMeter(), look: DEFAULT_LOOK, item: DEFAULT_ITEM, input: null, lastInputAt: 0, pc: null, dc: null, directTimer: null };
+        p = { seat: s.id, name: s.name, color: s.color, connected: s.connected, direct: false, relayed: false, rtt: new RttMeter(), look: DEFAULT_LOOK, item: DEFAULT_ITEM, assist: false, input: null, lastInputAt: 0, pc: null, dc: null, directTimer: null };
         this.peers.set(s.id, p);
       }
       p.name = s.name;
@@ -225,6 +229,10 @@ export class HostLink {
       case 'item':
         p.item = cleanItem(data.item);
         this.ev.onItem?.(p, p.item);
+        return;
+      case 'assist':
+        p.assist = data.on === true;
+        this.ev.onAssist?.(p, p.assist);
         return;
       case 'emote': {
         const e = cleanEmote(data.e);

@@ -187,6 +187,15 @@ export const CFG = {
   crowdHeavyG: 1.6,
   crowdWindAccel: 1400,
   crowdWindMax: 200,
+  /**
+   * 长辈小孩模式（11-26，一个人一个人在手柄上开）：往下掉得比这快（px/s）、没站在东西上时，手碰到能抓的就自己抓住，
+   * 不用按键；站稳这么多秒，自己抓住的手自己松开（按一下那只手的键也松开）。抓的范围大多少（像素）；身子轻一点（重力倍数）。
+   * 不会手酸。
+   */
+  assistCatchVy: 140,
+  assistLetGo: 0.35,
+  assistReach: 12,
+  assistGravity: 0.8,
   /** 踩板门（11-13）：门每秒挪多少像素，没人踩了还开着几秒，踏板上面多高以内算压着。 */
   gateSpeed: 260,
   gateHold: 0.4,
