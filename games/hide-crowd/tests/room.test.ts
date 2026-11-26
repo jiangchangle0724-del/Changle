@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ARENA, BIKE_MS, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, TAGGER_SHOWN_MS, characterForOwner, rideBike } from "../src/engine";
+import { ARENA, BIKE_MS, BITE_MS, MATCH_MS, SCORE_TO_WIN, SIMULATION_STEP_MS, STALLS, STUN_MS, TAGGER_SHOWN_MS, THIN_MS, characterForOwner, rideBike } from "../src/engine";
 import { HOST_GRACE, HOST_HOLD, Room } from "../src/room/room";
 
 const first = "player-one";
@@ -383,6 +383,31 @@ test("all four stalls is a feast: 2 points, a fresh start, and the round's foodi
   room.advance(5 + MATCH_MS + 10);
   const titles = Object.fromEntries(room.view(first, "player", 5 + MATCH_MS + 20).result!.awards.map((item) => [item.name, item.award]));
   assert.equal(titles.Ari, "foodie");
+});
+
+test("the round's last half minute: every screen hears the crowd is leaving, and a body that walked off is marked gone", () => {
+  const room = twoPlayerRoom();
+  assert.equal(room.join(screen, "TV", "en", "screen", 3), "ok");
+  room.handle(first, { t: "start" }, 4);
+  const game = room.st.game!;
+  const quiet = game.endsAt - THIN_MS - 1_000;
+  for (let at = 4 + SIMULATION_STEP_MS; at < quiet; at += SIMULATION_STEP_MS * 4) room.advance(at);
+  for (const [viewer, kind] of [[first, "player"], [screen, "screen"]] as const) {
+    const view = room.view(viewer, kind, quiet).game!;
+    assert.equal(view.thinning, false);
+    assert.equal(view.avatars.some((avatar) => avatar.o), false);
+  }
+  const late = game.endsAt - 2_000;
+  for (let at = quiet; at < late; at += SIMULATION_STEP_MS) room.advance(at);
+  const tv = room.view(screen, "screen", late).game!;
+  const phone = room.view(first, "player", late).game!;
+  assert.equal(tv.thinning, true);
+  assert.equal(phone.thinning, true);
+  const gone = tv.avatars.filter((avatar) => avatar.o === 1).length;
+  assert.ok(gone >= 4, `${gone} walked off`);
+  assert.equal(phone.avatars.filter((avatar) => avatar.o === 1).length, gone, "the same bodies on every screen");
+  assert.equal(phone.avatars.some((avatar) => avatar.me && avatar.o), false, "a player never leaves");
+  assert.equal(MATCH_MS >= THIN_MS * 2, true);
 });
 
 test("someone who joins during a round watches it and plays the next", () => {

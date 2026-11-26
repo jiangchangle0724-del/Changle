@@ -211,6 +211,15 @@ export const sfx = {
       voice("triangle", midi(root + step + 12), midi(root + step + 12), t + 0.05 + index * 0.05, 0.5, 0.05);
     });
   },
+  /** the round's last half minute: a station's three-note chime as the crowd starts to leave */
+  thinning(): void {
+    const t = now();
+    if (t === null) return;
+    [76, 72, 67].forEach((note, index) => {
+      voice("triangle", midi(note), midi(note), t + index * 0.22, 0.7, 0.13);
+      voice("sine", midi(note + 12), midi(note + 12), t + index * 0.22, 0.4, 0.04);
+    });
+  },
   /** you hit a passer-by: a sheepish two-note slide */
   oops(): void {
     const t = now();

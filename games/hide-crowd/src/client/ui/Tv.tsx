@@ -219,7 +219,7 @@ function TvRound({ view, receivedAt }: { view: RoomView; receivedAt: number }) {
           <Scoreboard view={view} target={game.scoreToWin} />
         </div>
         {/* (the crowd's moment takes the hint's place while it lasts) */}
-        {game.phase === "playing" && (game.moment ? <MomentBanner game={game} tv /> : <p class="tv-hint">{t("nobodyMarked")}</p>)}
+        {game.phase === "playing" && <MomentBanner game={game} tv idle={<p class="tv-hint">{t("nobodyMarked")}</p>} />}
         <DrillCall drill={drill} tv />
         <CalloutBanner callout={callout} tv />
         {feasted && game.phase === "playing" && (

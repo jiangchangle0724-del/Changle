@@ -70,6 +70,8 @@ export interface AvatarView {
    * who just tagged them
    */
   by?: string;
+  /** a passer-by that has walked off at the end of the round (engine THIN_MS): drawn no more */
+  o?: 1;
 }
 
 export interface EventView {
@@ -142,6 +144,8 @@ export interface GameView {
   endsAt: number;
   remainingMs: number;
   scoreToWin: number;
+  /** the crowd is thinning now: the round's last THIN_MS, in a round long enough (engine leavesAt) */
+  thinning: boolean;
   avatars: AvatarView[];
   events: EventView[];
   /** this phone's player, when it plays this round */

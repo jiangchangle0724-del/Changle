@@ -57,6 +57,35 @@ export const TAGGER_SHOWN_MS = 2_600;
 export const MULTI_TAG_MS = 10_000;
 /** How many places a whole match visits (the room's settings.match): the lobby's pick, then others. */
 export const MATCH_PLACES = 3;
+/**
+ * The crowd thins in a round's last half minute, as the Steam original's robots run out of battery:
+ * passers-by walk off past the sides one by one, about LEAVE_SHARE of them, the rest stay to the end.
+ * Only in a round of at least twice that long (a test's short round never thins).
+ */
+export const THIN_MS = 30_000;
+export const LEAVE_SHARE = 0.55;
+/** How far past the arena's sides a passer-by walks before it's gone: past the edge of every screen, a 21:9 one
+ * included, so nobody vanishes in sight (measured with the 3D view's framing, camera.ts). */
+export const EXIT_PAST = 38;
+
+/** When a passer-by sets off to leave (by its id and the round's seed), or null if it stays. */
+export function leavesAt(game: Pick<MatchState, "seed" | "startedAt" | "endsAt">, id: string): number | null {
+  if (game.endsAt - game.startedAt < THIN_MS * 2) return null;
+  // (FNV over the seed and the id, then a full mix: ids differ by one digit, so the mix matters)
+  let hash = Math.imul(game.seed ^ 0x811c9dc5, 0x01000193);
+  for (let index = 0; index < id.length; index++) hash = Math.imul(hash ^ id.charCodeAt(index), 0x01000193);
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash = (hash ^ (hash >>> 16)) >>> 0;
+  // who leaves: a seeded stride over the passers-by's numbers (npc-07), so close to LEAVE_SHARE of
+  // every twenty go, a different set each round, and a round never keeps or loses nearly everyone
+  const number = Number(id.slice(id.lastIndexOf("-") + 1));
+  if (!Number.isInteger(number) || (number * 7 + (game.seed >>> 0)) % 20 >= Math.round(LEAVE_SHARE * 20)) return null;
+  // (spread over the half minute, the last of them well before the end so most are off by then)
+  return game.endsAt - THIN_MS + Math.floor(((hash >>> 10) % 1000) / 1000 * (THIN_MS - 12_000));
+}
 
 /**
  * What the announcer calls out on a tag, the biggest one only: the round's first tag (first blood),
@@ -220,6 +249,8 @@ export interface Character {
   distracts: number;
   /** a passer-by throwing a punch at nothing for someone's distraction: since when (null: not) */
   decoyAt: number | null;
+  /** a passer-by that has walked off at the end of a round (THIN_MS): no longer in the crowd */
+  gone?: boolean;
   pose: Pose;
   npcStyle: number;
   npcOffset: number;
@@ -554,7 +585,7 @@ export function startDistract(state: MatchState, ownerId: string, now: number): 
   if (!actor || (actor.distracts ?? 0) <= 0 || now < actor.stunnedUntil || actor.hideAt !== null) return state;
   const free = (body: Character) => body.decoyAt === null || body.decoyAt === undefined || now > body.decoyAt + DECOY_MS;
   const candidates = state.characters.filter(
-    (body) => body.kind === "npc" && now >= body.stunnedUntil && free(body) && Math.hypot(body.x - actor.x, body.y - actor.y) >= DECOY_DISTANCE
+    (body) => body.kind === "npc" && !body.gone && now >= body.stunnedUntil && free(body) && Math.hypot(body.x - actor.x, body.y - actor.y) >= DECOY_DISTANCE
   );
   if (!candidates.length) return state;
   const pick = candidates[Math.floor(seeded(Math.imul(state.seed, 31) + now)() * candidates.length)];
@@ -605,7 +636,7 @@ function clampGoal(x: number, y: number): Vector {
 }
 
 /** The next thing a passer-by does, rolled with its own dice. */
-type Neighbour = Pick<Character, "id" | "x" | "y" | "velocity" | "stunnedUntil" | "plan">;
+type Neighbour = Pick<Character, "id" | "x" | "y" | "velocity" | "stunnedUntil" | "plan" | "gone">;
 
 export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan">, others: readonly Neighbour[], seed: number, now: number, arena: ArenaId = "plaza"): Plan {
   const previous = body.plan ?? restingPlan(body.x, body.y);
@@ -614,7 +645,7 @@ export function nextPlan(body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "
   const roll = random();
   const near = (radius: number, moving: boolean) =>
     others.filter((other) => {
-      if (other.id === body.id || now < other.stunnedUntil) return false;
+      if (other.id === body.id || other.gone || now < other.stunnedUntil) return false;
       if (Math.hypot(other.x - body.x, other.y - body.y) > radius) return false;
       return !moving || Math.hypot(other.velocity?.x ?? 0, other.velocity?.y ?? 0) > 1.5;
     });
@@ -898,16 +929,24 @@ export interface CrowdStep {
   face: number | null;
   /** looking around while standing */
   glance: boolean;
+  /** walking off at the end of a round (leavesAt): it may go past the sides, and is gone there */
+  leaving?: boolean;
 }
 
 export function crowdStep(
   body: Pick<Character, "id" | "x" | "y" | "npcStyle" | "plan" | "facing">,
   others: readonly Neighbour[],
-  game: Pick<MatchState, "arena" | "startedAt" | "seed" | "commotions" | "crackers">,
+  game: Pick<MatchState, "arena" | "startedAt" | "endsAt" | "seed" | "commotions" | "crackers">,
   now: number
 ): CrowdStep {
   const moment = crowdMoment(game.arena, game.startedAt, now);
   let plan = body.plan ?? restingPlan(body.x, body.y);
+  // the end of the round: off past the nearer side, at a brisk walk (one already past the edge keeps
+  // going whatever happens; on the floor, a moment or a fuss stops a leaver like anyone, first)
+  const leaving = leavesAt(game, body.id);
+  const leave: CrowdStep | null =
+    leaving !== null && now >= leaving ? { plan, heading: { x: body.x < ARENA.width / 2 ? -1 : 1, y: 0 }, pace: 0.9, face: null, glance: false, leaving: true } : null;
+  if (leave && (body.x < ARENA.marginX || body.x > ARENA.width - ARENA.marginX)) return leave;
   if (moment?.kind === "crackers") {
     // firecrackers: get clear of any hissing near you, at a run; stop and stare at one hissing nearby
     const crackers = game.crackers ?? [];
@@ -939,6 +978,7 @@ export function crowdStep(
   // someone knocked down nearby: stop and look
   const fuss = commotionFor(body, game.commotions, now);
   if (fuss) return { plan, heading: { x: 0, y: 0 }, pace: 0, face: Math.atan2(fuss.y - body.y, fuss.x - body.x), glance: false };
+  if (leave) return leave;
   const done = (current: Plan) => {
     if (now >= current.until) return true;
     if (current.mode === "walk") return Math.hypot(current.x - body.x, current.y - body.y) < 1.6;
@@ -997,7 +1037,7 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   const moment = crowdMoment(state.arena, state.startedAt, now);
   const drill = moment?.kind === "drill" && now >= moment.startsAt + DRILL_WINDOW[0] && now <= moment.startsAt + DRILL_WINDOW[1];
   const candidates = state.characters
-    .filter((character) => character.id !== attacker.id && now >= character.stunnedUntil && character.hideAt === null && !(drill && character.kind === "npc"))
+    .filter((character) => character.id !== attacker.id && !character.gone && now >= character.stunnedUntil && character.hideAt === null && !(drill && character.kind === "npc"))
     .map((character) => {
       const dx = character.x - attacker.x;
       const dy = character.y - attacker.y;
@@ -1072,13 +1112,20 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
  * is picked from the passers-by at least HIDE_AWAY_DISTANCE from whoever tagged them (else the
  * farthest one), by the round's seed.
  */
+/** A passer-by on its way out at the end of a round (leavesAt). */
+function leavingNow(state: MatchState, character: Character, now: number): boolean {
+  if (character.kind !== "npc") return false;
+  const at = leavesAt(state, character.id);
+  return at !== null && now >= at;
+}
+
 function hideAway(state: MatchState, index: number, now: number): void {
   const tagged = state.characters[index];
   const tag = [...state.events].reverse().find((event) => event.t === "tag" && event.target === tagged.ownerId);
   const hunter = tag?.actor ? characterForOwner(state, tag.actor) : undefined;
   const npcs = state.characters
     .map((character, at) => ({ character, at }))
-    .filter(({ character }) => character.kind === "npc" && now >= character.stunnedUntil);
+    .filter(({ character }) => character.kind === "npc" && !character.gone && now >= character.stunnedUntil && !leavingNow(state, character, now));
   if (npcs.length === 0) {
     tagged.hideAt = null;
     return;
@@ -1111,7 +1158,7 @@ function blast(state: MatchState, cracker: Cracker, now: number): void {
     const dx = body.x - cracker.x;
     const dy = body.y - cracker.y;
     const distance = Math.hypot(dx, dy);
-    if (distance >= BLAST_RADIUS || now < body.stunnedUntil || body.hideAt !== null) continue;
+    if (body.gone || distance >= BLAST_RADIUS || now < body.stunnedUntil || body.hideAt !== null) continue;
     anyone = true;
     const angle = distance < 0.05 ? ((idHash(body.id) % 628) / 100) - Math.PI : Math.atan2(dy, dx);
     const force = 9 + 9 * (1 - distance / BLAST_RADIUS);
@@ -1146,7 +1193,7 @@ function runOver(state: MatchState, ride: BikeRide, from: number, to: number, no
   let anyone = false;
   for (const body of state.characters) {
     const side = body.y - ride.y;
-    if (Math.abs(side) >= BIKE_REACH || body.x < low || body.x > high || now < body.stunnedUntil || body.hideAt !== null) continue;
+    if (body.gone || Math.abs(side) >= BIKE_REACH || body.x < low || body.x > high || now < body.stunnedUntil || body.hideAt !== null) continue;
     anyone = true;
     body.stunnedUntil = now + STUN_MS;
     body.velocity = { x: 0, y: 0 };
@@ -1167,13 +1214,21 @@ function runOver(state: MatchState, ride: BikeRide, from: number, to: number, no
   if (anyone) addEvent(state, "bike", null, null, undefined, victims);
 }
 
+/** A push or a stagger keeps a body inside the edges, except one already past them: a passer-by
+ * walking off at the end of a round keeps going rather than snapping back to the edge. */
+function edgeX(body: Character, x: number): number {
+  return bounded(x, Math.min(ARENA.marginX, body.x), Math.max(ARENA.width - ARENA.marginX, body.x));
+}
+
 function resolveCrowdCollisions(characters: Character[]): void {
   const diameter = CHARACTER_COLLISION_DIAMETER;
   for (let pass = 0; pass < 2; pass++) {
     for (let first = 0; first < characters.length; first++) {
       const a = characters[first];
+      if (a.gone) continue;
       for (let second = first + 1; second < characters.length; second++) {
         const b = characters[second];
+        if (b.gone) continue;
         let dx = a.x - b.x;
         let dy = a.y - b.y;
         let distance = Math.hypot(dx, dy);
@@ -1187,9 +1242,9 @@ function resolveCrowdCollisions(characters: Character[]): void {
           dy /= distance;
         }
         const correction = (diameter - distance) * 0.5;
-        a.x = bounded(a.x + dx * correction, ARENA.marginX, ARENA.width - ARENA.marginX);
+        a.x = edgeX(a, a.x + dx * correction);
         a.y = bounded(a.y + dy * correction, ARENA.marginY, ARENA.height - ARENA.marginY);
-        b.x = bounded(b.x - dx * correction, ARENA.marginX, ARENA.width - ARENA.marginX);
+        b.x = edgeX(b, b.x - dx * correction);
         b.y = bounded(b.y - dy * correction, ARENA.marginY, ARENA.height - ARENA.marginY);
         const closing = (a.velocity.x - b.velocity.x) * dx + (a.velocity.y - b.velocity.y) * dy;
         if (closing < 0) {
@@ -1262,8 +1317,9 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     if (character.kind === "player" && character.hideAt !== null && now >= character.hideAt) hideAway(next, index, now);
   });
   for (const character of next.characters) {
+    if (character.gone) continue;
     if (now < character.stunnedUntil) {
-      character.x = bounded(character.x + character.recoil.x * dt, ARENA.marginX, ARENA.width - ARENA.marginX);
+      character.x = edgeX(character, character.x + character.recoil.x * dt);
       character.y = bounded(character.y + character.recoil.y * dt, ARENA.marginY, ARENA.height - ARENA.marginY);
       character.velocity = { x: 0, y: 0 };
       const drag = Math.exp(-dt * 6);
@@ -1314,7 +1370,13 @@ export function advanceMatch(state: MatchState, now: number, inputs: Record<stri
     else if (moving) character.facing = turnToward(character.facing, Math.atan2(moveY, moveX), TURN_RATE * dt);
     const nextX = character.x + moveX * dt;
     const nextY = character.y + moveY * dt;
-    character.x = bounded(nextX, ARENA.marginX, ARENA.width - ARENA.marginX);
+    // (walking off at the end of a round: past the sides, and gone once out of the picture)
+    // (a body already past an edge and not leaving this tick, stopped by a moment, stays where it is)
+    character.x = step?.leaving ? bounded(nextX, -EXIT_PAST - 2, ARENA.width + EXIT_PAST + 2) : edgeX(character, nextX);
+    if (step?.leaving && (character.x <= -EXIT_PAST || character.x >= ARENA.width + EXIT_PAST)) {
+      character.gone = true;
+      character.velocity = { x: 0, y: 0 };
+    }
     character.y = bounded(nextY, ARENA.marginY, ARENA.height - ARENA.marginY);
     if (character.x !== nextX) character.velocity.x = 0;
     if (character.y !== nextY) character.velocity.y = 0;

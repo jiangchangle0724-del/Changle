@@ -1459,6 +1459,14 @@ export function Arena3D(props: Props) {
       phones?.begin();
       for (let index = 0; index < snapshot.length; index++) {
         const avatar = snapshot[index];
+        // a passer-by that walked off at the end of the round (out of the picture by then): nothing to draw
+        if (avatar.o) {
+          writeInstance(shadows, index, dummy, 0, -40, 0, 0, 0, 0, 0);
+          writeInstance(standInBodies, index, dummy, 0, -40, 0, 0, 0, 0, 0);
+          writeInstance(standInHeads, index, dummy, 0, -40, 0, 0, 0, 0, 0);
+          if (people[index]) people[index].root.visible = false;
+          continue;
+        }
         let worldX = avatar.x;
         let worldY = avatar.y;
         let velocityX = avatar.vx;

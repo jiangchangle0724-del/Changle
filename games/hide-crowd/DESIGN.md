@@ -578,6 +578,24 @@ big in the player's language and small in the other, and a stab that grows with 
 Getting tagged ends your run. Naming who made a call tells nobody anything new: everyone sees the
 score go up. The best row of the round is a title of its own (双杀 to 五杀), ahead of the others.
 
+## The crowd leaves at the end
+
+As in the Steam original, the crowd thins out at the end of a round, so the last players standing
+have fewer bodies to hide among. In a round's last 30 s (`THIN_MS`, rounds of a minute or more):
+
+* About half the passers-by (`LEAVE_SHARE`, a seeded stride over their numbers, so 50 to 61 % every
+  round, a different set each time) set off one by one over the first 18 s, at a brisk walk,
+  straight out past the nearer side (the transit hall's EXIT signs are on those sides). On the
+  floor, a moment or a fuss stops a leaver like anyone, first; one already past the edge keeps
+  going. A push never pulls one back to the edge (`edgeX`).
+* Once 38 units past a side (`EXIT_PAST`: past the edge of every screen, a 21:9 one included,
+  measured with `frameFloor`), a passer-by is gone (`gone`): nobody can hit it, hide in it or bump
+  it, and every screen stops drawing it (`AvatarView.o`). Players never leave: walking with the
+  leavers is a way to blend in, until the edge stops you.
+* Every phone and the big screen say 最后 30 秒：路人开始散场 / Last 30 seconds: the crowd is leaving
+  for 5 s (`GameView.thinning`; after a moment's own banner, when one is up), with a door icon and a
+  station's three-note chime (`sfx.thinning`).
+
 ## The penalty
 
 Every round ends in a penalty moment, as on the rest of changle.ca:
