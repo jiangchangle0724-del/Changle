@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   AI_BATCH,
   AI_MODEL,
+  AI_MODELS,
+  aiNote,
+  ask,
   AI_VERSION,
   INSTRUCTIONS,
   TITLE_MAX,
@@ -74,8 +77,9 @@ describe("what the AI is asked", () => {
       { id: "b", title: "SYML: Beard Tour", venue: null, description: null, labels: '["Music","Rock"]' },
     ]);
     expect(system).toEqual({ role: "system", content: INSTRUCTIONS });
-    expect(user.content.endsWith("\n/no_think")).toBe(true);
-    expect(JSON.parse(user.content.replace(/\n\/no_think$/, ""))).toEqual([
+    // (Qwen's /no_think is added by ask, for Qwen only)
+    expect(user.content).not.toContain("no_think");
+    expect(JSON.parse(user.content)).toEqual([
       { n: 1, title: "Family Stay and Play", venue: "Firehall Branch", labels: "Storytimes, Families", about: "Drop in to explore books and toys." },
       { n: 2, title: "SYML: Beard Tour", labels: "Music, Rock" },
     ]);
@@ -84,6 +88,32 @@ describe("what the AI is asked", () => {
     expect(labelsOf('["a","b","c","d","e","f","g"]')).toBe("a, b, c, d, e, f");
     expect(labelsOf("not json")).toBe("");
     expect(labelsOf(null)).toBe("");
+  });
+
+  it("asks Gemma 4 first, and Qwen 3.8 (told /no_think) only when Gemma can't be asked at all", async () => {
+    expect(AI_MODELS).toEqual(["@cf/google/gemma-4-26b-a4b-it", "@cf/qwen/qwen3.8-27b"]);
+    const input = { messages: [{ role: "system", content: "rules" }, { role: "user", content: "[1]" }], max_tokens: 10, temperature: 0 };
+    const calls: [string, string][] = [];
+    const gone = (model: string) => Object.assign(new Error(`5028: ${model} was deprecated on 2026-11-20.`), { status: 410 });
+    const answers: RunModel = async (model, i) => {
+      calls.push([model, (i.messages as { content: string }[])[1].content]);
+      if (model === AI_MODELS[0]) throw gone(model);
+      return { choices: [{ message: { content: "[]" } }] };
+    };
+    expect(await ask(answers, input)).toEqual({ text: "[]", model: "@cf/qwen/qwen3.8-27b" });
+    expect(calls).toEqual([
+      ["@cf/google/gemma-4-26b-a4b-it", "[1]"],
+      ["@cf/qwen/qwen3.8-27b", "[1]\n/no_think"],
+    ]);
+    // the first one answering: only it is asked
+    calls.length = 0;
+    expect(await ask(async (model, i) => (calls.push([model, String((i.messages as { content: string }[])[1].content)]), { response: "ok" }), input)).toEqual({ text: "ok", model: AI_MODELS[0] });
+    expect(calls).toHaveLength(1);
+    // none: the last one's error
+    await expect(ask(async (model) => Promise.reject(gone(model)), input)).rejects.toThrow("5028: @cf/qwen/qwen3.8-27b was deprecated");
+    expect(aiNote({ asked: 15, wrote: 14, failed: 1, error: null, model: AI_MODELS[0] })).toBe("1 not usable");
+    expect(aiNote({ asked: 15, wrote: 15, failed: 0, error: null, model: AI_MODELS[1] })).toBe("by @cf/qwen/qwen3.8-27b");
+    expect(aiNote({ asked: 15, wrote: 0, failed: 0, error: "5028" })).toBeNull();
   });
 
   it("the instructions keep names as they are, except the local teams Chinese readers know, and guess nothing", () => {
@@ -166,7 +196,7 @@ describe("writing and keeping it", () => {
     await storeEvents(env.DB, RUN, [event(1), event(2, { category: "family" }), event(3, { start: "2026-11-30T10:00:00-07:00" })]);
     const { run, asked } = model();
     const r = await writeSome(env.DB, run, RUN, NOW, W.toMs);
-    expect(r).toEqual({ asked: 3, wrote: 3, failed: 0, error: null });
+    expect(r).toEqual({ asked: 3, wrote: 3, failed: 0, error: null, model: AI_MODEL });
     expect(asked[0].map((i) => i.title)).toEqual(["Event 1", "Event 2", "Event 3"]);
     expect(await row("vpl:e1")).toMatchObject({ title_zh: "中文名1", summary_zh: "一句中文介绍，说说这是什么样的活动。", summary_by: "ai", category: "arts", category_by: "ai", ai_tries: 0 });
     // the parsers' category stays
@@ -213,7 +243,7 @@ describe("writing and keeping it", () => {
       { n: items[0].n, t: "阿曼达·马歇尔：肮脏三十巡演", s: "摇滚音乐现场演出", c: "shows" },
       { n: items[1].n, t: "Saliah 温哥华演出", s: "知名阿拉伯DJ带来电子音乐演出", c: "nightlife" },
     ]);
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL });
     expect(await row("ticketmaster:e1")).toMatchObject({ title_zh: "Amanda Marshall - The Dirty 30 Tour", summary_zh: "摇滚音乐现场演出" });
     expect(await row("ticketmaster:e2")).toMatchObject({ title_zh: null, ai_tries: 1 });
   });
@@ -256,7 +286,7 @@ describe("writing and keeping it", () => {
     await storeEvents(env.DB, RUN, [event(1), event(2)]);
     // the first comes back without Chinese, every time
     const { run } = model((items) => items.map((i) => ({ n: i.n, t: "x", s: i.title === "Event 1" ? "no Chinese" : "一句中文介绍，说说这是什么样的活动。", c: null })));
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 1, failed: 1, error: null, model: AI_MODEL });
     await writeSome(env.DB, run, RUN, NOW, W.toMs);
     await writeSome(env.DB, run, RUN, NOW, W.toMs);
     expect(await row("vpl:e1")).toMatchObject({ title_zh: null, ai_tries: 3 });
@@ -270,7 +300,7 @@ describe("writing and keeping it", () => {
     const baby = (n: number) => event(n, { title: "Babytime", description: "Songs and rhymes for babies." });
     await storeEvents(env.DB, RUN, [baby(1), baby(2), baby(3), event(4)]);
     const { run, asked } = model();
-    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 2, failed: 0, error: null });
+    expect(await writeSome(env.DB, run, RUN, NOW, W.toMs)).toEqual({ asked: 2, wrote: 2, failed: 0, error: null, model: AI_MODEL });
     // the soonest date stands for them all
     expect(asked[0].map((i) => i.title)).toEqual(["Babytime", "Event 4"]);
     for (const id of ["vpl:e1", "vpl:e2", "vpl:e3"]) expect(await row(id)).toMatchObject({ title_zh: "中文名1", summary_by: "ai", category: "arts", ai_tries: 0 });
@@ -313,9 +343,9 @@ describe("writing and keeping it", () => {
     const ai = { ...env, AI: { run } } as unknown as Env;
     const ids = (list: NormalizedEvent[]) => list.map((e) => `vpl:${e.sourceEventId}`);
     const second = await translateStep(ai, { runId: RUN, ids: [...ids(many.slice(AI_BATCH)), "vpl:e90", "vpl:e91"], part: 1 }, NOW);
-    expect(second).toEqual({ asked: 5, wrote: 5, failed: 0, error: null });
+    expect(second).toEqual({ asked: 5, wrote: 5, failed: 0, error: null, model: AI_MODEL });
     const first = await translateStep(ai, { runId: RUN, ids: ids(many.slice(0, AI_BATCH)), part: 0 }, NOW);
-    expect(first).toEqual({ asked: AI_BATCH, wrote: AI_BATCH, failed: 0, error: null });
+    expect(first).toEqual({ asked: AI_BATCH, wrote: AI_BATCH, failed: 0, error: null, model: AI_MODEL });
     expect(asked.flat().some((i) => i.title === "Event 90" || i.title === "Event 91")).toBe(false);
     const log = (await env.DB.prepare("SELECT part, found, updated, error FROM fetch_log WHERE run_id = ?1 AND source = 'ai' ORDER BY id").bind(RUN).all()).results;
     expect(log).toEqual([
