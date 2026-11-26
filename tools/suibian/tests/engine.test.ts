@@ -39,6 +39,8 @@ import {
   rank,
   RANGE_MODES,
   RANGES,
+  NEIGHBOURHOODS,
+  distanceMeters,
   MENU,
   OCCASIONS,
   OCCASION_IDS,
@@ -293,6 +295,14 @@ test("cuisine guesses: names, types and Google's descriptions, for every cuisine
   }
   // Every cuisine on the menu is in there, as the main one or as another.
   for (const c of MENU) assert.ok(KNOWN.some(([, , , , main, also]) => main === c || also.includes(c)), c);
+});
+
+test("Metrotown is the mall: The Meat Up BBQ, all you can eat by Google's buffet type, is inside walking 15 minutes (Steve, 2026-11-26)", () => {
+  const metrotown = NEIGHBOURHOODS.find((n) => n.en === "Burnaby Metrotown")!;
+  const meatUpAt = { lat: 49.2256, lng: -122.99 }; // 5137 Kingsway, Google's point
+  assert.ok(distanceMeters(metrotown, meatUpAt) < RANGES.walk15.meters, "the old point was 1.3 km from it, past the 1.2 km circle");
+  const meatUp = cuisineGuess("The Meat Up BBQ", "barbecue_restaurant", ["barbecue_restaurant", "buffet_restaurant", "hot_pot_restaurant", "restaurant", "food"]);
+  assert.ok(foundBy(meatUp, "ayce").also?.includes("ayce"));
 });
 
 test("a cuisine search tells what a vague place is, whatever search found it first; it never overrides what's known", () => {
