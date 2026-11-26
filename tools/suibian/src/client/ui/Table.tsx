@@ -7,6 +7,7 @@ import { CUISINES, OCCASIONS, RANGES, TOP_COUNT, type Limits, type MoodPick, typ
 import { PATHS, groupState, leafText, setAll, type Group, type Leaf, type PathId, type Picks } from "../paths";
 import { TIMING, type RoomView } from "../../room/protocol";
 import { t, tx, type Key } from "../i18n";
+import { copyText } from "../copy";
 import { api } from "../net";
 import { prefs } from "../prefs";
 import { send, serverNow, toast, useApp } from "../store";
@@ -34,6 +35,14 @@ function lowBudget(v: RoomView): boolean {
 
 export function Table({ home }: { home: () => void }) {
   const { view: v, status, fatal, me } = useApp();
+  // Changing one's diet card, opened in the lobby: kept here so the host starting round 1 doesn't
+  // throw away what's being typed. It closes on the phone's back button, and the top bar's back.
+  const [editing, setEditing] = useState(false);
+  const edit = editing && !!v?.you.limits && v.phase !== "spin" && v.phase !== "result";
+  useBackCloses(edit, () => setEditing(false));
+  useEffect(() => {
+    if (editing && !edit && v) setEditing(false);
+  }, [edit]);
   if (fatal) {
     return (
       <main class="page">
@@ -51,19 +60,19 @@ export function Table({ home }: { home: () => void }) {
   // In the rounds, the top bar's back is the step before, for the whole table (Steve, 2026-11-26);
   // only the host (or anyone once the host's phone is gone) moves the table.
   const lead = v.you.host || !v.members.find((m) => m.host)?.online;
-  const step = !showDiet && (v.phase === "mood" || v.phase === "cards");
+  const step = !showDiet && !edit && (v.phase === "mood" || v.phase === "cards");
   const back = () => (lead ? send({ t: "back", phase: v.phase }) : toast(t("backHostOnly")));
   return (
     <main class={`page phase-${v.phase}`}>
       <TopBar
-        title={showDiet ? "table" : v.phase === "mood" ? "round1" : v.phase === "cards" ? "round2" : v.phase === "result" || v.phase === "spin" ? "pickTitle" : "table"}
+        title={showDiet || edit ? "table" : v.phase === "mood" ? "round1" : v.phase === "cards" ? "round2" : v.phase === "result" || v.phase === "spin" ? "pickTitle" : "table"}
         vars={{ code: v.code }} home={home} back={step ? back : undefined}
         noBack={v.phase === "result" || v.phase === "spin" || v.phase === "finding"}
       />
       {status === "reconnecting" && <Message>{t("reconnecting")}</Message>}
       <DemoBanner demo={v.demo} />
       {showDiet && v.phase !== "lobby" && <Message>{t("dietLate")}</Message>}
-      <MotionScreen scene={showDiet ? "diet" : v.phase}>
+      <MotionScreen scene={showDiet ? "diet" : edit ? "edit" : v.phase}>
         {showDiet ? (
           <DietCard
             initial={me?.card ?? null}
@@ -73,8 +82,10 @@ export function Table({ home }: { home: () => void }) {
               if (me?.user) void api("/api/me/card", { method: "PUT", body: JSON.stringify(l) });
             }}
           />
+        ) : edit ? (
+          <DietCard initial={v.you.limits} onDone={(l: Limits) => (send({ t: "limits", limits: l }), setEditing(false))} />
         ) : v.phase === "lobby" || v.phase === "finding" ? (
-          <Lobby v={v} />
+          <Lobby v={v} edit={() => setEditing(true)} />
         ) : v.phase === "mood" ? (
           <Mood v={v} />
         ) : v.phase === "cards" ? (
@@ -93,7 +104,7 @@ const needsServer = (v: RoomView) => Object.keys(v.table.allergies).length > 0 |
 /** The link in the QR code and the copy button: changle.ca/eat/r/1234. */
 const joinUrl = (code: string) => `${location.origin}${BASE}/r/${code}`;
 
-function Lobby({ v }: { v: RoomView }) {
+function Lobby({ v, edit }: { v: RoomView; edit: () => void }) {
   const { me } = useApp();
   const [copied, setCopied] = useState(false);
   const [name, setName] = useState(v.you.name || prefs.name);
@@ -105,7 +116,6 @@ function Lobby({ v }: { v: RoomView }) {
     prefs.name = n;
     send({ t: "name", name: n });
   }, [me?.user?.name]);
-  const [editing, setEditing] = useState(false);
   const [range, setRange] = useState<RangeId>(v.range);
   const [when, setWhen] = useState<number | null>(null);
   const [occasion, setOccasion] = useState<OccasionId>(v.occasion);
@@ -133,7 +143,6 @@ function Lobby({ v }: { v: RoomView }) {
     }
     // Do not cancel arrivals when another member's state arrives during the animation.
   });
-  if (editing) return <DietCard initial={v.you.limits} onDone={(l: Limits) => (send({ t: "limits", limits: l }), setEditing(false))} />;
   if (v.phase === "finding") return <p class="big center">{t("finding")}</p>;
   return (
     <>
@@ -145,7 +154,7 @@ function Lobby({ v }: { v: RoomView }) {
           <Btn
             kind="quiet"
             onClick={() => {
-              void navigator.clipboard?.writeText(joinUrl(v.code)).then(() => setCopied(true));
+              void copyText(joinUrl(v.code)).then((ok) => (ok ? setCopied(true) : toast(t("copyFailed"))));
             }}
           >
             <Copy aria-hidden="true" />{copied ? t("copied") : t("copyLink")}
@@ -191,7 +200,7 @@ function Lobby({ v }: { v: RoomView }) {
         {lowBudget(v) && (
           <p class="budget-low">
             <span class="budget-warning"><TriangleAlert aria-hidden="true" />{t("budgetLow", { n: v.you.limits!.budget, occasion: t(`occFor_${v.occasion}` as Key) })}</span>
-            <Btn kind="quiet" class="change-budget" onClick={() => setEditing(true)}>
+            <Btn kind="quiet" class="change-budget" onClick={edit}>
               {t("budgetChange")}
             </Btn>
           </p>
@@ -243,7 +252,7 @@ function Lobby({ v }: { v: RoomView }) {
       )}
 
       {!v.error && <Dock status={host ? t("readyCount", { n: ready, m: v.members.length }) : undefined}>
-        <Btn kind="quiet" onClick={() => setEditing(true)}>{t("editCard")}</Btn>
+        <Btn kind="quiet" onClick={edit}>{t("editCard")}</Btn>
         {host ? <Btn kind="primary" wide onClick={() => send({ t: "start" })}>{t("start")}</Btn> : <p class="muted center">{t("waitHost")}</p>}
       </Dock>}
     </>
@@ -597,12 +606,12 @@ function Result({ v }: { v: RoomView }) {
       try {
         await navigator.share({ text });
         return;
-      } catch {
-        // cancelled: fall back to copying
+      } catch (e) {
+        // Closed without sharing: that's all. Anything else (sharing not allowed here): copy instead.
+        if ((e as Error)?.name === "AbortError") return;
       }
     }
-    await navigator.clipboard?.writeText(text);
-    toast(t("copied"));
+    toast(t((await copyText(text)) ? "copied" : "copyFailed"));
   };
   return (
     <Reveal key={r.winner}>

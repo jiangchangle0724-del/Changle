@@ -48,7 +48,7 @@ export function Home({ go }: { go: (path: string) => void }) {
   const loginHref = `${BASE}/auth/google?back=${encodeURIComponent(location.pathname)}`;
   // The last table, within three days: rated on its own page.
   const last = me?.last?.code && Date.now() - me.last.at < 3 * 24 * 3600_000 ? me.last : null;
-  const askRating = last && !last.rated && !prefs.rated(last.code) ? last : null;
+  const askRating = last && !last.rated && !prefs.rated(last.code, last.name) ? last : null;
 
   return (
     <main class="home">

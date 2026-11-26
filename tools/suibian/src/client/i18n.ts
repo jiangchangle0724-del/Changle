@@ -99,6 +99,7 @@ const S = {
   scan: ["扫码加入，或在 {host} 输入桌号", "Scan to join, or enter the code at {host}"],
   copyLink: ["复制邀请链接", "Copy invite link"],
   copied: ["已复制", "Copied"],
+  copyFailed: ["这个浏览器不让复制，请截图或换个浏览器打开", "This browser won't copy: take a screenshot, or open it in another browser"],
   people: ["在座", "At the table"],
   ready: ["饮食卡 ✓", "diet card ✓"],
   notReady: ["还没填饮食卡", "no diet card yet"],
