@@ -29,6 +29,7 @@ import { danceClip } from "../src/party/dj/dancer/her";
 import { makeSprings, type SpringData } from "../src/party/dj/dancer/springs";
 import { feetOf, plantFeet, standFeet } from "../src/party/dj/dancer/plant";
 import { entryOf } from "../src/party/dj/dancer/entry";
+import { bodyOf, handDepth, keepHands } from "../src/party/dj/dancer/hands";
 import { CAPTURED_SKATE } from "./support/captured";
 import { LIMITS, motionFacts } from "./support/motion";
 
@@ -167,6 +168,9 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
   // 2 and 3. her dances
   m.updateMatrixWorld(true);
   const springs = makeSprings(sp, bones);
+  // her shape, that her hands are kept out of (Nov 25; dancer/hands.ts)
+  const body = bodyOf(gltf.scene);
+  ok(body && body.parts.length === 6 && body.arms.length === 2, `${at} her trunk's and thighs' shape read from her, for her hands (${body?.parts.map((p) => p.bone.name).join(", ")})`);
   const walks: readonly { id: string; bpm: number; stride?: number }[] = Object.values(WALKS);
   let lastClip: THREE.AnimationClip | null = null;
   for (const d of [...DANCES, ...IDLES, ...walks]) {
@@ -225,7 +229,8 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
       ok(Math.abs(step - d.stride) < 0.06, `${d.id}: a step takes her ${d.stride} m (her planted foot slides back ${step.toFixed(2)} m in one)`);
     }
     ok(far < 0.45, `${at} ${d.id}: her hips stay over her spot (${far.toFixed(2)} m out at most)`);
-    // 6. the common mistakes in motion (Nov 21), on her first outfit: every frame as the page plays it
+    // 6. the common mistakes in motion (Nov 21), on her first outfit: every frame as the page plays it,
+    // her hands kept out of her as the page keeps them (Nov 25; Steve: "帮我查这个舞蹈，手会穿身体")
     if (!checkedDances.has(`${d.id} motion`)) {
       checkedDances.add(`${d.id} motion`);
       const n = h.frames;
@@ -233,7 +238,8 @@ async function oneOutfit(outfit: string, checkedDances: Set<string>) {
         a.time = (k / n) * h.beats;
         mixer.update(0);
         gltf.scene.updateMatrixWorld(true);
-        return { at: (b: string) => (bones.get(b) as THREE.Object3D).getWorldPosition(new THREE.Vector3()), turn: (b: string) => (bones.get(b) as THREE.Object3D).quaternion };
+        if (body) keepHands(body);
+        return { at: (b: string) => (bones.get(b) as THREE.Object3D).getWorldPosition(new THREE.Vector3()), turn: (b: string) => (bones.get(b) as THREE.Object3D).quaternion, inside: body ? handDepth(body).depth : undefined };
       };
       const f = motionFacts(n, n / (h.beats * h.beat), pose, { ankle, toe }, !!d.stride);
       if (process.env.MOTION_TABLE) console.log("MOTION", d.id, JSON.stringify(Object.fromEntries(Object.entries(f).map(([k, v]) => [k, Math.round(v * 1000) / 1000]))));
