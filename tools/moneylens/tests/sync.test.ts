@@ -1,14 +1,43 @@
 // The store: records in sealed chunks, on this device and on the server (VAULT-4; T-6, T-14, T-24).
 // Every value here is invented. Nothing here uses the network: the server is the one in memory.ts.
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test as nodeTest } from "node:test";
 import { newId } from "../src/core/ids";
 import { MAX_CHUNK_BYTES, type OpenVault } from "../src/vault/crypto";
-import { MemoryCache, MemoryRemote } from "../src/vault/memory";
+import { MemoryCache, MemoryRemote as RuleBook } from "../src/vault/memory";
 import { MAX_ENTRIES, SOFT_CHUNK_BYTES, canonical, encode, entryOf, openContent, sealContent, type Entry, type Json, type Value } from "../src/vault/records";
-import { LIMITS, Store, digestOf, markOf, type Cache, type Kept, type Pulled, type Pushed, type Remote, type Synced, type Write } from "../src/vault/sync";
+import { LIMITS, Store, digestOf, markOf, type Cache, type Kept, type Limits, type Pulled, type Pushed, type Remote, type Synced, type Write } from "../src/vault/sync";
 import { idOf, testVault } from "./vaulthelp";
 import { seeded } from "./seeded";
+import { SqlRemote } from "./sqlremote";
+
+/** What the tests ask of a server besides being one: a look at what it holds, and the faults a server can have. */
+interface Server extends Remote {
+  readonly size: number;
+  bytes(): number;
+  everything(): Uint8Array[];
+  ids(): string[];
+  corrupt(id: string, change: (blob: Uint8Array) => Uint8Array): void;
+  snapshot(): unknown;
+  restore(to: unknown): void;
+}
+type MemoryRemote = Server;
+const onSql = process.env.MONEYLENS_REMOTE === "sql";
+/** (run against the SQL server, a test says so in its name) */
+const test = (onSql ? (name: string, ...rest: unknown[]) => (nodeTest as (...args: unknown[]) => unknown)(`${name} [on the server's SQL]`, ...rest) : nodeTest) as typeof nodeTest;
+
+/** A chunk goes missing from the server, and its count of versions stays where it was. */
+function lose(remote: Server, id: string): void {
+  const now = remote.snapshot() as { chunks: Map<string, unknown> | { id: string }[] };
+  if (now.chunks instanceof Map) now.chunks.delete(id);
+  else now.chunks.splice(now.chunks.findIndex((chunk) => chunk.id === id), 1);
+  remote.restore(now);
+}
+/**
+ * The server these tests run against: the rule book in memory (vault/memory.ts), or with MONEYLENS_REMOTE=sql the real
+ * server's own code on SQLite (src/server/chunks.ts, through tests/sqlremote.ts). Every test here has to pass on both.
+ */
+const MemoryRemote: new (vault: string, limits?: Limits, today?: () => string) => Server = process.env.MONEYLENS_REMOTE === "sql" ? SqlRemote : RuleBook;
 
 /** A clock that moves a second each time it is read, from a start of its own. */
 const ticking = (start = 1_795_000_000_000) => {
@@ -1120,6 +1149,52 @@ test("a pull comes in pages, and nothing is missed between them", async () => {
   ok(await b.store.sync(b.net));
   assert.ok(b.net.pulls >= 5, `${b.net.pulls} pages`);
   assert.deepEqual(holds(b.store), holds(a.store));
+  // What each page says of itself: a page that is not the last reaches as far as its last chunk, and asking again from
+  // there gives the next; the last one reaches as far as the server has counted. Every page carries the digest of the
+  // whole vault, not of the page.
+  const all = (await remote.pull(vault.id, 0)) as Extract<Pulled, { ok: true }>;
+  const seen: number[] = [];
+  let pages = 0;
+  for (let since = 0; ; pages++) {
+    const page = (await remote.pull(vault.id, since)) as Extract<Pulled, { ok: true }>;
+    assert.ok(page.chunks.length > 0);
+    seen.push(...page.chunks.map((chunk) => chunk.version));
+    assert.equal(page.digest, all.digest);
+    if (!page.more) {
+      assert.equal(page.cursor, 30);
+      break;
+    }
+    assert.equal(page.cursor, page.chunks[page.chunks.length - 1]!.version);
+    since = page.cursor;
+  }
+  assert.ok(pages >= 4);
+  assert.deepEqual(seen, Array.from({ length: 30 }, (_, i) => i + 1));
+});
+
+test("a vault over its size (the operator lowered it) can still be made smaller, and not larger", async () => {
+  const vault = await testVault();
+  const limits = { ...LIMITS, vaultBytes: 40_000 };
+  const remote = new MemoryRemote(vault.id, limits);
+  const of = (bytes: number, fill: number) => new Uint8Array(bytes).fill(fill);
+  const [x, y] = [newId(), newId()];
+  assert.ok((await remote.push(vault.id, [{ id: x, base: 0, blob: of(15_000, 1) }, { id: y, base: 0, blob: of(15_000, 2) }])).ok);
+  limits.vaultBytes = 20_000;
+  assert.equal(remote.bytes(), 30_000);
+  // larger, by a new chunk or by a chunk rewritten larger: refused, and nothing is written
+  assert.deepEqual(await remote.push(vault.id, [{ id: newId(), base: 0, blob: of(100, 3) }]), { ok: false, why: "quota-bytes" });
+  assert.deepEqual(await remote.push(vault.id, [{ id: x, base: 1, mark: markOf(of(15_000, 1)), blob: of(15_001, 4) }]), { ok: false, why: "quota-bytes" });
+  assert.equal(remote.bytes(), 30_000);
+  // the same size, or smaller though still over: taken
+  assert.ok((await remote.push(vault.id, [{ id: x, base: 1, mark: markOf(of(15_000, 1)), blob: of(15_000, 5) }])).ok);
+  assert.ok((await remote.push(vault.id, [{ id: y, base: 2, mark: markOf(of(15_000, 2)), blob: of(9_000, 6) }])).ok);
+  assert.equal(remote.bytes(), 24_000);
+  // one chunk smaller and one new in the same batch: what counts is the whole batch
+  assert.ok((await remote.push(vault.id, [{ id: x, base: 3, mark: markOf(of(15_000, 5)), blob: of(5_000, 7) }, { id: newId(), base: 0, blob: of(1_000, 8) }])).ok);
+  assert.equal(remote.bytes(), 15_000);
+  // and once under its size it may grow again, up to it
+  assert.ok((await remote.push(vault.id, [{ id: newId(), base: 0, blob: of(5_000, 9) }])).ok);
+  assert.equal(remote.bytes(), 20_000);
+  assert.deepEqual(await remote.push(vault.id, [{ id: newId(), base: 0, blob: of(100, 10) }]), { ok: false, why: "quota-bytes" });
 });
 
 test("the server holds another vault: nothing is sent and nothing is changed", async () => {
@@ -1170,9 +1245,7 @@ test("a server that went back is noticed by a device that had seen more, and not
   c.store.add("txn", "t/x", txn(1));
   c.store.add("txn", "t/y", txn(2));
   ok(await c.store.sync(c.net));
-  const now = remote2.snapshot();
-  now.chunks.delete([...now.chunks.keys()][0]!);
-  remote2.restore(now);
+  lose(remote2, remote2.ids()[0]!);
   c.store.change(idOf(1), { note: "x" });
   c.store.change(idOf(2), { note: "y" });
   const gone = await c.store.sync(c.net);

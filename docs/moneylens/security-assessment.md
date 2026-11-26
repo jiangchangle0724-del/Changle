@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.10, 25 November 2026. It records the choices the requirements leave to this document
+Version 0.11, 25 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -33,7 +33,9 @@ Version 0.9 follows the second round of the review of 1.6: a record found in mor
 is no longer moved, the answer to a push is believed only if it answers that push, and every
 request has a time limit. The third round approved the layer as 0.9 describes it. Version 0.10
 follows that round: the one thing it found is fixed (a doubled record was not always read with
-its latest copy's time), and one more way a field can come back is written into 1.6.
+its latest copy's time), and one more way a field can come back is written into 1.6. Version
+0.11 adds the server's own code for the two calls of sync (1.6, "The server's code"). The rest
+of the server is not written.
 
 ## 1. The vault
 
@@ -421,6 +423,28 @@ reset it holds another one).
   written. A write made from another copy is "stale", and the answer carries the copies the
   server holds for the stale chunks.
 
+**The server's code** (`src/server/chunks.ts`). The two calls as the real server will run them:
+plain functions on one person's own SQLite database, which is what a Durable Object has (ISO-1).
+It is the rule book over again, check for check and in the same order, and every test of the
+store runs against both (`tests/sync-sql.test.ts`, on Node's SQLite shaped like a Durable
+Object's). The database has two tables. A row for each chunk: its id, version number, mark,
+size and blob. One row for the vault: its id, the last version number given out, and the day's
+count of writes. Nothing else is kept, and a test names every column. The digest and the vault's
+size are worked out from the chunks that are there, each time, and are not kept beside them: a
+number kept beside what it counts can come to disagree with it, and the digest is how a device
+notices that a chunk it had is gone. The last version number is kept and counted up, never
+looked up from the chunks, so a chunk that is gone does not hand its number to the next write.
+A batch is written inside one transaction; a test fails the database half-way through a batch
+and finds nothing of it kept, the day's count included. What a call costs on the platform
+(LIM-1) is written in the file and tested: a pull or a push reads one short row for each chunk
+the vault holds, whatever was asked for, and a push writes one row for each chunk (two for a
+new one) and one for the vault.
+
+Not written yet, and not reviewed with it: the Durable Object around these functions, which
+person's database a request reaches (ISO-2: only ever the session's own), sessions, the handoff,
+the allowlist, the origin check, and resetting a vault. Until those exist, nothing outside can
+call this code.
+
 **Mark and digest.** A blob's mark is its nonce, twelve bytes, random and new every time a chunk
 is sealed. It is in the blob in the clear already, so it tells the server nothing, and it names
 one sealed copy. A write names the mark of the copy it was made from because the version number
@@ -625,7 +649,11 @@ in either order, a cache save cut at each point with a third copy arriving later
 timed out arriving after a removal was saved, and a real change or removal against a write that
 makes copies alike. Its one finding (the time a doubled record is read with when its copies say
 the same) has its test, switched on, and one here for both orders of the chunks and for copies
-that a sync made alike. The way a field can come back that 1.6 now names is a test too.
+that a sync made alike. The way a field can come back that 1.6 now names is a test too. The
+server's code runs every test of the store once more, and has tests of its own for what its
+database is made of, which vault it is for, bytes in and out, a batch failing half-way, the
+count of versions, and what a call costs (`tests/chunks.test.ts`); each of its checks was taken
+out in turn as well.
 
 ## 2. Limits (the reason for VAULT-6's wording)
 
@@ -691,9 +719,10 @@ that a sync made alike. The way a field can come back that 1.6 now names is a te
   and what each input method then does to the punctuation keys, is for the screens.
 - Limiting unlock attempts: the check happens in the browser, so the limit has to be on fetching
   wrappers, per session and per account (threat 1). Not built.
-- Sessions, the handoff, the allowlist, the origin check and the server's side of sync and
-  quotas: sections to add with the server. The server has to pass the tests the one in memory
-  passes (1.6).
+- Sessions, the handoff, the allowlist, the origin check, the Durable Object and resetting a
+  vault: sections to add with the server. The server's side of the two sync calls, with its
+  quotas, is written and passes the tests the one in memory passes (1.6, "The server's code").
+  The operator's way of changing the quotas (LIM-2) comes with the Durable Object.
 - The code that talks to the server over the network. On top of what the store does (1.6,
   "Answers that are not answers") it owes: a time limit of its own on each request, shorter than
   the store's, and cancelling what it gives up on; refusing an answer larger than a page or a
