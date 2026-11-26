@@ -176,13 +176,14 @@ export function renderResults(dom: ResultsDom, r: Results, name: (i: number) => 
   renderGoals(dom, r);
 }
 
-/** 小目标（A9b）：一行一个，达到的打勾，这一局第一次拿到的星带个「新」；下面一行红包。 */
+/** 小目标（A9b）：一行一个，达到的打勾，这一局第一次拿到的星带个「新」；下面一行红包，再下面一行大元宝（开着的话）。 */
 function renderGoals(dom: ResultsDom, r: Results): void {
   if (!dom.goalTitle || !dom.goalList) return;
   const goals = r.goals ?? [];
-  dom.goalTitle.hidden = goals.length === 0;
+  const show = goals.length > 0 || r.escort !== undefined;
+  dom.goalTitle.hidden = !show;
   dom.goalList.innerHTML = '';
-  dom.goalList.hidden = goals.length === 0;
+  dom.goalList.hidden = !show;
   for (const g of goals) {
     const li = document.createElement('li');
     li.className = g.ok ? 'ok' : 'miss';
@@ -207,6 +208,12 @@ function renderGoals(dom: ResultsDom, r: Results): void {
     li.className = 'env';
     const fresh = e.fresh ? tr(`，新拿到 ${e.fresh} 个`, `, ${e.fresh} new`) : '';
     li.textContent = tr(`🧧 这一局拿到 ${e.got} / ${e.of} 个红包${fresh}，一共攒了 ${e.total} 个`, `🧧 ${e.got} of ${e.of} red envelopes this run${fresh}. ${e.total} saved up in all`);
+    dom.goalList.append(li);
+  }
+  if (r.escort !== undefined) {
+    const li = document.createElement('li');
+    li.className = `env ${r.escort ? 'ok' : 'miss'}`;
+    li.textContent = r.escort ? tr('🪙 大元宝送到顶了！', '🪙 The big gold ingot made it to the top!') : tr('🪙 大元宝没送到', '🪙 The big gold ingot was left behind');
     dom.goalList.append(li);
   }
 }

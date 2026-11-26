@@ -197,6 +197,8 @@ export interface Results {
   rounds?: number[];
   /** 红包（A9b）：这一局拿到几个、这关一共几个、这一局新拿到几个（以前没拿过的）、这台主机一共攒了几个。 */
   envelopes?: { got: number; of: number; fresh: number; total: number };
+  /** 护送大元宝（11-26，大厅里打开了才有）：送到终点没有。 */
+  escort?: boolean;
 }
 
 /**
@@ -214,7 +216,9 @@ export type PadCmd =
   | { do: 'side'; side: Side }
   | { do: 'tier'; tier: Tier }
   /** 红包扭蛋机（11-25）：扭一个（大厅里，谁按都行，电视上扭）。 */
-  | { do: 'gacha' };
+  | { do: 'gacha' }
+  /** 护送大元宝（11-26）：大厅里打开 / 关上。 */
+  | { do: 'escort'; on: boolean };
 
 /** 主机发给每个手柄的菜单：现在哪一步、玩法、关卡、人够不够、结算。变了就发、每 2 秒补一次（走房间）。 */
 export interface Menu {
@@ -242,6 +246,8 @@ export interface Menu {
   par?: number;
   /** 红包扭蛋机（11-25）：能花的红包、扭一次几个、扭到了哪些（换装时能选）、还剩几样。 */
   gacha?: { coins: number; price: number; got: GachaId[]; left: number };
+  /** 护送大元宝（11-26）：开着没有（闯关、大团队才有这一项）。 */
+  escort?: boolean;
 }
 
 /** 手机局：主机的样子名单（谁叫什么、什么颜色、什么样子），变了就发，每 2 秒也补一次。 */

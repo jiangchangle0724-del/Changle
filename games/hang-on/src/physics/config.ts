@@ -218,6 +218,12 @@ export const CFG = {
   keyMass: 0.1,
   keyReach: 26,
   keyBack: 1,
+  /** 护送大元宝（11-26）：比抢元宝的大一圈、重一点，一个人扛得动，两个人轻松。 */
+  escortW: 60,
+  escortH: 32,
+  escortMass: 0.7,
+  /** 元宝中心进了终点框外扩这么多像素就算送到了。 */
+  escortHomeR: 30,
   keyCpR: 160,
   lockedHint: 5,
   /** 手提的灯笼：多宽多高多重。 */

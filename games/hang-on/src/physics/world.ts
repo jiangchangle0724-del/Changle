@@ -268,6 +268,11 @@ export interface Rules {
   /** 卡太久来帮手（A9c，外卖无人机）：主机开局时给闯关、大团队打开；回放、验收、测试默认没有（回放不变）。 */
   helper?: boolean;
   /**
+   * 护送大元宝（11-26）：闯关、大团队里起点放一个大元宝，扛到终点算数（附加的，不送也能过关）。
+   * 大厅里打开才有；回放、验收、测试没有（回放不变）。
+   */
+  escort?: boolean;
+  /**
    * 手酸（A11）：中等、困难的关里挂着会累（见 CFG.stamina*）。主机按选的难度给；验收按关的难度给。
    * 不写就是抓多久都行（简单、别的玩法）。
    */
@@ -328,6 +333,8 @@ export type SimEvent =
   | { type: 'vent'; index: number; phase: 'warn' | 'on'; x: number; y: number }
   /** 端托盘（后厨，A10）：点心翻了（spill）、托盘回到存档的地方（back）、端进终点了（home）；x、y 是托盘在哪。 */
   | { type: 'tray'; phase: 'spill' | 'back' | 'home'; x: number; y: number }
+  /** 护送大元宝（11-26）：扛着的时候掉了，回到它到过的检查点（back）；送进终点（home）。 */
+  | { type: 'escort'; phase: 'back' | 'home'; x: number; y: number }
   /**
    * 老宅找钥匙（A10）：第几把钥匙头一回被人抓住（found）、开了门（unlock，x、y 是门的中间）、掉了回到存档的地方（back）；
    * 有人碰着它那扇锁着的门、钥匙还没开（locked，隔 CFG.lockedHint 秒报一次，x、y 是门的中间）。
@@ -451,6 +458,8 @@ export class Sim {
    */
   readonly keys: { prop: number; gate: number; found: boolean; used: boolean; cp: number; lostT: number; home: Pt }[] = [];
   readonly lanterns: { prop: number; cp: number; lostT: number; home: Pt }[] = [];
+  /** 护送大元宝（11-26）：哪个物件、到过哪个检查点、掉了多久、起点、有人碰过没有、送到了没有。 */
+  escort: { prop: number; cp: number; lostT: number; home: Pt; touched: boolean; done: boolean } | null = null;
   /** 墙上的灯（老宅，A10）：在哪、照多远、亮着没有。 */
   readonly lamps: { x: number; y: number; r: number; on: boolean }[] = [];
   /** 太空站的拉杆（A10）：把手在哪（抓的是这块地形）、有没有人抓着。 */
@@ -553,6 +562,12 @@ export class Sim {
       this.addCrate({ x: level.ingot.x - 23, y: level.ingot.y - 13, w: 46, h: 26, mass: 0.6 }, 0.9);
       (this.props[prop] as Prop).kind = 'ingot';
       this.gold = { prop, holdT: this.players.map(() => 0), need: CFG.goldHold, lostT: 0, holder: -1 };
+    }
+    // 护送大元宝（11-26）：悬在第一第二个人头顶上，开局落下来
+    if (rules.escort && (rules.mode === 'climb' || rules.mode === 'team') && !level.arena) {
+      const home = { x: level.spawn.x + 22, y: level.spawn.y - 80 };
+      const prop = this.addCarry('ingot', home, CFG.escortW, CFG.escortH, CFG.escortMass);
+      this.escort = { prop, cp: -1, lostT: 0, home, touched: false, done: false };
     }
   }
 
@@ -750,7 +765,7 @@ export class Sim {
   }
 
   /** 钥匙、手提的灯笼（老宅，A10）：一个轻的小方块（at 是中心），能抓能拽能丢。返回它是第几个物件。 */
-  private addCarry(kind: 'key' | 'lantern', at: Pt, w: number, h: number, mass: number): number {
+  private addCarry(kind: 'key' | 'lantern' | 'ingot', at: Pt, w: number, h: number, mass: number): number {
     const rb = this.world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic().setTranslation(at.x, at.y).setLinearDamping(0.3).setAngularDamping(1.5).setCcdEnabled(true),
     );
@@ -1222,6 +1237,25 @@ export class Sim {
       if (this.tickLost(k, prop, dt)) this.events.push({ type: 'key', index: i, phase: 'back', x: prop.x, y: prop.y });
     });
     for (const l of this.lanterns) this.tickLost(l, this.props[l.prop] as Prop, dt);
+  }
+
+  /**
+   * 护送大元宝（11-26）每一步：有人碰过就记下；中心进了终点（外扩 CFG.escortHomeR）就算送到了，报一声，以后不再管；
+   * 掉出去了照钥匙的办法回到它到过的检查点（没人碰过的悄悄回起点，不报）。
+   */
+  private tickEscort(dt: number): void {
+    const e = this.escort;
+    if (!e || e.done || this.won) return;
+    const prop = this.props[e.prop] as Prop;
+    if (!e.touched && this.heldProp(e.prop)) e.touched = true;
+    const g = this.level.goal;
+    const r = CFG.escortHomeR;
+    if (prop.x > g.x - r && prop.x < g.x + g.w + r && prop.y > g.y - r && prop.y < g.y + g.h + r) {
+      e.done = true;
+      this.events.push({ type: 'escort', phase: 'home', x: prop.x, y: prop.y });
+      return;
+    }
+    if (this.tickLost(e, prop, dt) && e.touched) this.events.push({ type: 'escort', phase: 'back', x: prop.x, y: prop.y });
   }
 
   /**
@@ -1807,6 +1841,7 @@ export class Sim {
     this.checkpoints();
     this.tickTray(dt);
     this.tickKeys(dt);
+    this.tickEscort(dt);
     this.tickLamps();
     this.checkEnd();
     for (const p of this.players) this.updateFace(p);

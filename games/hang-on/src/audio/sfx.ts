@@ -243,6 +243,18 @@ class Sfx {
           }
           break;
         }
+        case 'escort': {
+          // 护送大元宝（11-26）：送到了是一串金币叮当往上走；掉了回去是低低两声
+          const pan = this.pan(ev.x, ev.y);
+          if (ev.phase === 'home') {
+            for (const [k, f] of [1047, 1319, 1568, 2093].entries()) this.tone({ freq: f, wave: 'triangle', dur: 0.18, vol: 0.16, pan, delay: k * 0.07 });
+            this.tone({ freq: 2637, wave: 'sine', dur: 0.4, vol: 0.08, pan, delay: 0.3 });
+          } else {
+            this.tone({ freq: 392, to: 330, wave: 'triangle', dur: 0.16, vol: 0.14, pan });
+            this.tone({ freq: 294, to: 247, wave: 'triangle', dur: 0.22, vol: 0.14, pan, delay: 0.14 });
+          }
+          break;
+        }
         case 'tray': {
           // 端托盘（后厨，A10）：翻了是盘子哐当一声加点心掉一地；回来了轻轻叮咚；端进终点亮三声
           const pan = this.pan(ev.x, ev.y);
