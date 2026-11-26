@@ -1,9 +1,10 @@
-import { SlidersHorizontal } from "lucide-react";
+import { Music, SlidersHorizontal } from "lucide-react";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LangTab } from "../components/TopBar";
 import { SettingsSheet } from "../components/SettingsSheet";
 import type { GameId } from "../games/registry";
 import { EASE, LIGHTS, play, reduced, setLight } from "../lib/motion";
+import { unlockAudio } from "../lib/sfx";
 import { useStore } from "../store";
 import { labels } from "../ui/labels";
 import { PartyTab } from "./PartyTab";
@@ -15,6 +16,8 @@ export const loadTools = () => import("../tools/ToolsTab");
 const loadWishlist = () => import("./WishlistTab");
 const ToolsTab = lazy(() => loadTools().then((m) => ({ default: m.ToolsTab })));
 const WishlistTab = lazy(() => loadWishlist().then((m) => ({ default: m.WishlistTab })));
+// only with the music on: nothing else on the front door plays (and the first download stays small)
+const SoundNudge = lazy(() => import("../components/SoundNudge").then((m) => ({ default: m.SoundNudge })));
 import { AccountButton } from "../account/AccountButton";
 
 export type HomeTab = "party" | "tools" | "wish";
@@ -39,7 +42,17 @@ export function Home({
   onCard: (id: GameId | null) => void;
   onPlay: (id: GameId) => void;
 }) {
-  const { ui, lang } = useStore();
+  const { ui, lang, sound, setSound, music, setMusic } = useStore();
+  // the background music, in sight where there's room (Steve 2026-11-25: a computer opened
+  // changle.ca and heard nothing, the music being off on a new device and its switch in settings);
+  // switching it on is a tap, so the browser lets the sound start right away
+  const musicOn = sound && music;
+  const toggleMusic = () => {
+    if (musicOn) return setMusic(false);
+    if (!sound) setSound(true);
+    setMusic(true);
+    unlockAudio();
+  };
   const [settingsOpen, setSettingsOpen] = useState(!!openSettings);
   const prev = useRef(tab);
   const dir = ORDER.indexOf(tab) - ORDER.indexOf(prev.current);
@@ -67,12 +80,21 @@ export function Home({
         <Wordmark />
         <div className="home-head-right">
           <LangTab />
+          <button type="button" className="icon-btn home-music" aria-pressed={musicOn} onClick={toggleMusic} aria-label={ui("music")}>
+            <Music size={20} />
+          </button>
           <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)} aria-label={ui("settings")}>
             <SlidersHorizontal size={20} />
           </button>
           <AccountButton />
         </div>
       </header>
+      {/* music on, but the browser waits for a tap (a computer just opened, a phone back from its lock screen) */}
+      {musicOn && (
+        <Suspense fallback={null}>
+          <SoundNudge lang={lang} />
+        </Suspense>
+      )}
       <Tabs value={tab} onChange={onTab} />
       <Panel key={tab} dir={dir}>
         {tab === "party" && <PartyTab card={game} onCard={onCard} onPlay={onPlay} onWishlist={() => onTab("wish")} />}
