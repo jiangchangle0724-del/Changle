@@ -37,7 +37,8 @@ and tests). The decisions taken, where it stands and what is next: `docs/briefs/
 | `classify.ts` | Categories, rules, merchant aliases, the dictionary, and their order (CLS-1 to CLS-3) |
 | `analytics.ts` | Income, spending and totals by category, per currency |
 | `recurring.ts` | Subscriptions and regular bills found in past transactions |
-| `pdftext.ts` | The text of a PDF as runs with where they sit on the page, and those runs gathered into lines: what a PDF statement reader will read (IMP-4) |
+| `pdftext.ts` | The text of a PDF as runs with where they sit on the page, and those runs gathered into lines (IMP-4) |
+| `pdfstatement.ts` | A statement in PDF read into its lines and its balances, from those runs: the table found by its row of column names (IMP-3) |
 | `model.ts`, `ids.ts` | The shapes kept in the vault; random 128-bit identifiers (ISO-3) |
 
 `src/vault/`: the vault's cryptography (the browser's own WebCrypto and nothing else), and keeping
@@ -205,7 +206,7 @@ What a screen that imports a file has to do:
 
 Limits, known and left for now:
 
-- PDF statements are not read yet.
+- A statement in PDF is read by `pdfstatement.ts`, which has rules and limits of its own (below).
 - A row whose width differs from the table's is not read as a line. It is counted and said, and a
   file with many such rows (one that drops the empty cells at the end of its lines) is refused.
 - A date with a two-digit year first ("26/10/05") is refused.
@@ -263,8 +264,60 @@ the row of column names, by itself.
 
 Not yet: the numbers in an invented copy are invented one by one, so its balances no longer follow
 from its amounts (the reader leaves such a balance out). A copy whose sums still add up needs the
-reader's understanding of the layout and is the tool's next step. PDF statements are not read into
-transactions yet: the layouts collected this way are what the PDF reader will be built from.
+reader's understanding of the layout and is the tool's next step. The layouts of PDF statements
+collected this way are what the PDF reader is built from (next section).
+
+## A statement in PDF
+
+Most people's "bank statement" is a PDF. A PDF has no columns, only text at places, so
+`pdfstatement.ts` reads one by rules, from the runs of text PDF.js gives (`src/web/pdf.ts`,
+`pdftext.ts`):
+
+- The table of transactions is found by its row of column names ("DATE", "DESCRIPTION", "AMOUNT
+  ($)", "Withdrawals", "Deposits", "Balance", and the French and Chinese for them). A second row
+  above it may finish the names ("POSTING" over "DATE"). A statement whose table has no such row
+  is refused (`layout-unclear`); it is not guessed at.
+- A line of the table starts with a date where the date column is, and ends with an amount where a
+  column of money is (an amount has its cents). What stands between is its description. Up to
+  three lines right under it, starting where descriptions start and ending with no amount, are
+  more of its wording (`memo`): a town that did not fit, a purchase's foreign currency.
+- Money: a column of withdrawals or debits is money out, one of deposits or credits money in.
+  With one column for both, "CR" is money in and "DR" money out; a plain number is money out on a
+  card's statement and money in on a bank account's; a minus or brackets turn it round. Whether
+  the statement is a card's is what the person said, or else what its first page says
+  ("Mastercard", "credit limit").
+- The balances are read where the statement names them, a label and the amount beside it
+  ("Previous balance", "New balance", "Total balance", "Opening balance"; a label, not a sentence
+  that happens to start with one). A card's balance is what is owed: a balance below zero here,
+  unless it says "CR". With no such labels, a balance after every line says both.
+- A date without a year takes the statement's: the latest year that does not put the line more
+  than a week past the statement's date or the end of its period. A statement that gives neither
+  has those lines counted as not read.
+- A line that starts like a transaction and could not be read is counted (`unread`,
+  `lines-left-out`), never dropped silently.
+
+What comes back is a `ReadResult` like any other reader's, and goes through the same check:
+opening balance plus lines against closing balance (ACC-2). That check matters more here than for
+any other kind of file: a table that was misread shows there, and almost nowhere else. The screen
+that imports a PDF has to make an unreconciled one hard to save by accident.
+
+Built from the operator's own statements, passed on as invented copies (IMP-9). The first was a
+credit card's (25 November 2026): a summary page with the balances and the period, and a table
+with two dates, a description, and one column of amounts. `tests/pdfsamples.ts` is a made-up
+statement in that layout, through PDF.js in the tests and through the built page in
+`scripts/check-page.ts`. Known limits, left for when a real statement shows them:
+
+- A bank account's statement (money out, money in, balance) is read by the same rules and has not
+  met a real one yet. Nor has a statement in French, or one with dates in numbers only.
+- One statement comes back for the file. A card with a second cardholder is one account and reads
+  as one; a PDF with two accounts in it will not reconcile.
+- Interest and fees that a statement states only in its summary, and not as lines of the table,
+  are not made into lines: the sums will differ by them, and the page says by how much.
+- A scan has no text at all and is refused (IN-1). Text set in a font the PDF does not map to
+  Unicode comes out as other characters: such a statement is not recognised, or does not
+  reconcile.
+- `readStatementFile` still answers `pdf-not-yet` for a PDF's bytes: it has no PDF.js. A screen
+  calls `pdfPages` (in a worker) and then `readPdfStatement`.
 
 `src/web/pdf.ts` is PDF.js used for one thing, text and where it sits (IMP-4): version 6.5.438
 (4.2.67 or later is required), `isEvalSupported: false`, no fonts loaded into the page, nothing

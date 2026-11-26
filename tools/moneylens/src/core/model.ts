@@ -80,7 +80,7 @@ export type ImportError =
   | "empty"
   | "too-big"
   | "not-a-statement" // a photo, a spreadsheet, a web page, anything that isn't a statement export
-  | "pdf-not-yet" // a PDF: not read in this version
+  | "pdf-not-yet" // a PDF handed over as bytes: its text has to be taken out first (web/pdf.ts), and is then read by pdfstatement.ts
   | "no-parser" // text, but not a table of dated amounts
   | "layout-unclear" // a table, but which column is the day or the money can't be told: the person says (anycsv.ts)
   | "malformed" // recognized, but it breaks its own format

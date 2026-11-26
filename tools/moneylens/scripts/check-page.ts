@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
 import { isPdfFixture } from "../src/fixture/pdf";
 import { makePdf } from "../tests/pdfmake";
+import { CARD_SUMMARY, CARD_TABLE } from "../tests/pdfsamples";
 
 const CSV = ["Date,Description,Amount,Balance", "2026-10-01,PAYROLL DEPOSIT ACME WIDGETS,2500.00,3500.00", "2026-10-02,CAFE MAPLE #12,-4.50,3495.50", "2026-10-15,NORTH SHORE GROCER,-82.17,3413.33"].join("\r\n");
 const PDF_RUNS = [
@@ -73,13 +74,13 @@ try {
   // --- where the page stops, it says at which step and with what kind of error, and nothing of the file (OBS-1)
   const pdfFile = { name: "statement.pdf", mimeType: "application/pdf", buffer: Buffer.from(makePdf([{ runs: PDF_RUNS }, { runs: [{ text: "Page 2 of 2", x: 72, y: 60 }] }])) };
   const lastSummary = async (): Promise<unknown> => JSON.parse(await page.locator("textarea").last().inputValue());
-  await page.getByText("页面第 2 版").waitFor();
+  await page.getByText("页面第 3 版").waitFor();
   assert.equal(await page.getByText("嵌在别的窗口里").count(), 0);
   // a place that lets no worker start (PDF.js reads in a worker: IMP-4): by an exception...
   await page.evaluate(`(() => { window.__Worker = window.Worker; window.Worker = function () { throw new DOMException("no workers here", "SecurityError"); }; })()`);
   await page.locator("input[type=file]").setInputFiles(pdfFile);
   await page.getByText("PDF 阅读器在这里启动不了（reader · SecurityError）").waitFor();
-  assert.deepEqual(await lastSummary(), { tool: "moneylens-check", version: 1, read: "page-error", stage: "reader", error: "SecurityError", page: 2 });
+  assert.deepEqual(await lastSummary(), { tool: "moneylens-check", version: 1, read: "page-error", stage: "reader", error: "SecurityError", page: 3 });
   // ...or, as a browser does when a policy stops the worker's script, by an event on a worker that never runs
   await page.evaluate(`(() => { window.Worker = class extends EventTarget { constructor() { super(); setTimeout(() => this.dispatchEvent(new Event("error")), 10); } terminate() {} postMessage() {} }; })()`);
   await page.locator("input[type=file]").setInputFiles(pdfFile);
@@ -92,13 +93,15 @@ try {
   await page.evaluate(`(() => { window.__arrayBuffer = Blob.prototype.arrayBuffer; Blob.prototype.arrayBuffer = () => Promise.reject(new DOMException("C:\\Users\\A SAMPLE\\statement.csv", "NotReadableError")); })()`);
   await page.locator("input[type=file]").setInputFiles({ name: "statement.csv", mimeType: "text/csv", buffer: Buffer.from(CSV) });
   await page.getByText("浏览器没能打开这个文件（open · NotReadableError）").waitFor();
-  assert.deepEqual(await lastSummary(), { tool: "moneylens-check", version: 1, read: "page-error", stage: "open", error: "NotReadableError", page: 2 });
+  assert.deepEqual(await lastSummary(), { tool: "moneylens-check", version: 1, read: "page-error", stage: "open", error: "NotReadableError", page: 3 });
   assert.ok(!(await page.locator("body").innerText()).includes("SAMPLE"), "an error's message was shown");
   await page.evaluate(`(() => { Blob.prototype.arrayBuffer = window.__arrayBuffer; })()`);
 
-  // --- a PDF: its layout is recorded with invented contents (the reader starts now, after failing to twice)
+  // --- a PDF with no table this reader knows: said so, and its layout is recorded with invented contents
+  // (the reader starts now, after failing to twice)
   await page.locator("input[type=file]").setInputFiles(pdfFile);
-  await page.getByText("这份 PDF 有 2 页，读出了 7 段文字。").waitFor({ timeout: 30_000 });
+  await page.getByText("这份 PDF 有 2 页，读出了 7 段文字，但这个版本还认不出它的交易表。").waitFor({ timeout: 30_000 });
+  assert.equal(((await lastSummary()) as { read: string }).read, "layout-unclear");
   const pdfDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "下载" }).click();
   const layout: unknown = JSON.parse(await readFile((await (await pdfDownload).path())!, "utf8"));
@@ -115,6 +118,17 @@ try {
   assert.match(layout.pages[1]!.runs[0]!.text, /^Page \d of \d$/);
   for (const secret of ["CAFE", "MAPLE", "1,000.00", "995.50"]) assert.ok(!JSON.stringify(layout).includes(secret), `the layout holds ${secret}`);
 
+  // --- a card's statement in PDF: read into its lines, and the sums agree (the kind of account is still "credit card")
+  await page.locator("input[type=file]").setInputFiles({ name: "card.pdf", mimeType: "application/pdf", buffer: Buffer.from(makePdf([{ runs: CARD_SUMMARY }, { runs: CARD_TABLE }])) });
+  await page.getByRole("heading", { name: "信用卡 · CAD · ****4821" }).waitFor({ timeout: 30_000 });
+  await page.getByText("读出 5 笔交易。").waitFor();
+  await page.getByText("对上了：期初 -250.00，加上各笔合计 137.63，等于期末 -112.37。").waitFor();
+  assert.deepEqual(await page.locator("tbody tr").nth(2).locator("td").allInnerTexts(), ["2026-09-29", "PAYMENT RECEIVED - THANK YOU", "250.00", ""]);
+  const cardTold = (await lastSummary()) as { read: string; statements: unknown; pdf: { pages: number } };
+  assert.deepEqual([cardTold.read, cardTold.statements, cardTold.pdf.pages], ["ok", [{ parser: "pdf", kind: "credit", currency: "CAD", lines: 5, balance: true, sums: "reconciled", unread: 0, warnings: [] }], 2]);
+  const cardCopy = await page.locator("textarea").nth(0).inputValue();
+  for (const secret of ["SAMPLE", "CAFE", "MAPLE", "GROCER", "ACME", "82.17", "250.00", "112.37", "4821", "9012"]) assert.ok(!cardCopy.includes(secret) && !JSON.stringify(cardTold).includes(secret), `what is passed on holds ${secret}`);
+
   // --- files that are not statements are refused in words
   await page.locator("input[type=file]").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("Dear customer,\nyour statement is ready.\n") });
   await page.getByText("这不像是银行导出的交易明细。").waitFor();
@@ -122,6 +136,7 @@ try {
   await page.getByText("认不出这是什么文件：它不是 PDF、CSV、OFX 或 QFX。").waitFor();
   await page.locator("input[type=file]").setInputFiles({ name: "broken.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\nnot really") });
   await page.getByText("这份 PDF 有损坏，读不了。").waitFor({ timeout: 30_000 });
+  assert.equal(await page.locator("tbody tr").count(), 0);
 
   // --- in English
   await page.getByRole("button", { name: "English" }).click();
