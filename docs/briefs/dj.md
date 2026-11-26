@@ -219,6 +219,7 @@
 - 11-21 Steve 拍了电视：脸扭曲、跳得不自然、手机当音箱放完一首就停。他选了一张参考图的脸（他发的第三张，粉色盘扣那位，他说是 AI 生成的人），三套衣服都换成这张脸（`facekit.py`），脸按照片原来的光画（`_FACE`），不再被舞台灯照出凹凸。接下来：照他的参考图设计更多衣服（白色蕾丝、皮衣蕾丝、新中式、白色连衣裙、黑白开衫长裙），摩登舞配大摆裙、古典舞配水袖，不同的歌配不同的衣服和舞；动作要过一组查 AI 动作毛病的检查（打滑、穿地、浮空、反关节、穿模、重心、抖动）。
 - 11-21 手机当音箱放完一首就回到「这台设备当音箱」：页面重新加载了（和 11-2 的「经常闪退」一样，最可能是屏幕自动锁了）。iPhone、iPad 现在两种办法一起保持亮屏（系统的亮屏请求，加一个看不见的小视频一直放），系统收回亮屏请求时再要一次；开始卡片上告诉 iPhone 先把自动锁定设成「永不」。
 - 11-21 Steve 又说投屏的手机「偶尔还是会突然刷新」：网站一更新（任何一个聊天合并到 main 都会），页面再要一个还没下载的文件就拿不到（文件名每次构建都变），`lib/freshness.ts` 就重新加载页面，歌就断了。现在当音箱放着歌的时候不重新加载（`holdNewVersion`），缺文件的那部分自己退回去（舞者退回画的那个），离开页面时再换新版。
+- 11-25 量了每支舞背对观众的时间（胯转开 100 度以上）：belly_slow 一个循环里 29%，最长连续近 7 拍（慢歌里约 5 秒背对），拿掉（文件留着）；shenyun5 24%（最长 4 拍）、belly 19%（3 拍，举手转一圈）、samba 13%（2 拍）是舞里的转身，留着；其余 0。又用本地页面录了慢歌甜美造型 24 秒、派对造型 24 秒：换舞两次都面向观众、脚先站住再迈步。剩 22 支。
 - 11-25 Steve「继续」：做了一个本地页面看页面上真正的她（`site/her-live.html`，不进 git：真的 Dancer3D，时间一帧一帧手动走，软件画图也看得到每一帧）。看到换舞时如果新舞开头背对观众（belly），她在交接的 0.3 秒里猛转半圈。现在新舞从第几小节开始由 `dancer/entry.ts` 选：整小节，选交接那一拍半里胯的朝向离她现在最近的那一小节（不比第一小节近 17 度以上就从头开始）。`her.ts` 加了 `facing`、`beats`。测试第 9 项。录了两次换舞：不再转身，脚是先站住再迈步。
 - 11-23 Steve「跳舞的动作太多问题了，仔细核查」：28 支舞全看了一遍（每支 8 拍截图 + 动作数据，记录在 her-work/AUDIT-nov23.md）。问题和处理：
   - 站着的脚在地上滑（house 0.42 m/s、samba 0.33、rumba 0.19、salsa_side 0.18）：页面加了站脚锁定（`plant.ts` 的 `standFeet`），脚踩在地上时（离最低处 2 厘米内）钉在落脚的地方，腿用 IK 够过去，抬起 3.5 厘米或被舞带出 12 厘米才放开，0.1 秒回到舞里；换舞、走路、减少动态时不锁。测试第 8 项：每支舞 7 秒里站着的脚 90% 的时刻 < 0.15 m/s，没有跳变。锁上以后只有 house 还滑（0.27，舞本身在地上搓），拿掉了。
@@ -309,6 +310,7 @@
 - 2026-11-21 DJ: the light smooth over her face
 - 2026-11-23 DJ: dance audit: standing feet held, learnt dances smoothed, five weak dances out
 - 2026-11-25 DJ: a new dance comes in where she already faces
+- 2026-11-25 DJ: belly_slow out (five seconds with her back to the room)
 - 2026-11-20 DJ: the dancer walks the stage
 - 2026-11-20 DJ: six more dances for the dancer, and her outfit changes sooner
 - 2026-11-20 DJ: the dancer's party dress, and the new outfits' faces put right
