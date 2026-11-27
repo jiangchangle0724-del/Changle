@@ -8,6 +8,7 @@
  * the most this deck, everyone's count (the powers' penalties included), then the whole log, and
  * the button that deals the next deck for whoever may.
  */
+import type { ReactNode } from "react";
 import { RANKS, RULE_BY_RANK, ruleWords, SUIT_GLYPH, SUIT_RED, type Rank, type Suit } from "../data/rogue13";
 import { GAME_BY_ID } from "./registry";
 import { usePenaltyText, useStore } from "../store";
@@ -36,6 +37,7 @@ export function RogueLog({
   nameOf = (s) => s,
   recap = null,
   onShuffle,
+  recapExtra,
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,6 +51,8 @@ export function RogueLog({
   recap?: RecapRow[] | null;
   /** the deck has run out and this phone may deal the next: the footer's button does */
   onShuffle?: () => void;
+  /** a line under the recap (the shake-to-shuffle hint) */
+  recapExtra?: ReactNode;
 }) {
   const { lang, tr } = useStore();
   const zh = lang === "zh";
@@ -86,7 +90,7 @@ export function RogueLog({
         ) : undefined
       }
     >
-      {recap && <Recap rows={recap} zh={zh} custom={custom} lang={lang} and={and} />}
+      {recap && <Recap rows={recap} zh={zh} custom={custom} lang={lang} and={and} extra={recapExtra} />}
       {stock.length > 0 && !recap && (
         <section className="rg-log-section" aria-labelledby="rg-stock-h">
           <h3 id="rg-stock-h" className="rg-log-h">
@@ -144,7 +148,7 @@ export function RogueLog({
 }
 
 /** The deck's recap: who paid the most, who never did, everyone's count. */
-function Recap({ rows, zh, custom, lang, and }: { rows: RecapRow[]; zh: boolean; custom: boolean; lang: "zh" | "en"; and: string }) {
+function Recap({ rows, zh, custom, lang, and, extra }: { rows: RecapRow[]; zh: boolean; custom: boolean; lang: "zh" | "en"; and: string; extra?: ReactNode }) {
   const sorted = [...rows].sort((a, b) => b.n - a.n);
   const top = sorted[0]?.n ?? 0;
   const leaders = top > 0 ? sorted.filter((r) => r.n === top).map((r) => r.name) : [];
@@ -174,6 +178,7 @@ function Recap({ rows, zh, custom, lang, and }: { rows: RecapRow[]; zh: boolean;
           </li>
         ))}
       </ul>
+      {extra}
     </section>
   );
 }

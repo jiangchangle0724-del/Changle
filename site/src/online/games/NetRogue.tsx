@@ -5,6 +5,7 @@ import { TimerArc } from "../../components/TimerArc";
 import { ROGUE_MS, RANKS, RULES, RULE_BY_RANK, ruleWords, SUITS, type Rank } from "../../data/rogue13";
 import { HeldCard, RogueTable, type LeaveTo } from "../../games/rogueCards";
 import { RogueLog } from "../../games/rogueLog";
+import { ShakeHint, useShakeToShuffle } from "../../games/rogueShake";
 import { playPower } from "../../games/rogueSounds";
 import { UI, type T } from "../../i18n";
 import { haptic } from "../../lib/sfx";
@@ -119,6 +120,12 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
   const seats = usePlayers();
   const recap = useMemo(() => (out ? seats.map((p) => ({ name: p.name, n: v.tally?.[p.id] ?? 0 })) : null), [out, seats, v.tally]);
   const canDeal = out && (myTurn || isHost) && !v.interrupt;
+  const deal = () => {
+    g("draw");
+    haptic(10);
+  };
+  // a shake of the phone deals the next deck too
+  const shake = useShakeToShuffle(canDeal, deal);
 
   const rules = (
     <ul className="rule-list">
@@ -173,15 +180,10 @@ export function NetRogue({ v, onLeave }: { v: RogueView; onLeave: () => void }) 
         log={v.log ?? []}
         nameOf={nameOf}
         recap={recap}
-        onShuffle={
-          canDeal
-            ? () => {
-                g("draw");
-                haptic(10);
-              }
-            : undefined
-        }
+        onShuffle={canDeal ? deal : undefined}
+        recapExtra={<ShakeHint shake={shake} />}
       />
+      {canDeal && <ShakeHint shake={shake} />}
 
       <AnimatePresence mode="wait">
         {up && v.card && rule && words && (
