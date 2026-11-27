@@ -463,6 +463,17 @@ export const W = {
   markPaid: { zh: "标成已转", en: "Mark as paid" },
   undoPaid: { zh: "撤销已转", en: "Undo paid" },
   copyAmount: { zh: "复制金额", en: "Copy the amount" },
+  // 收款方式 (2026-11-26): how someone takes money, for whoever pays them
+  payLabel: { zh: "收款方式", en: "Payment details" },
+  payHint: { zh: "e-Transfer 邮箱或电话", en: "e-Transfer email or phone" },
+  payNote: { zh: "转钱给 TA 的人在结清页一点就能复制。\n查看链接看不到。", en: "Whoever pays them can copy it on Settle up.\nView links don't show it." },
+  payOf: { zh: "{who}的收款方式", en: "{who}'s payment details" },
+  payOfYou: { zh: "你的收款方式", en: "Your payment details" },
+  payMissing: { zh: "{who}还没填收款方式。", en: "{who} hasn't added payment details." },
+  payAddMine: { zh: "填上你的收款方式，转钱给你的人一点就能复制。", en: "Add your payment details so whoever pays you can copy them." },
+  paySave: { zh: "存上", en: "Save" },
+  copyPay: { zh: "复制", en: "Copy" },
+  planPay: { zh: "{who}的收款方式：{pay}", en: "Pay {who} at {pay}" },
   copied: { zh: "复制好了", en: "Copied" },
   copyFailed: { zh: "没复制上，再点一次", en: "That didn't copy. Tap again" },
   // (on a button half the width of the screen)

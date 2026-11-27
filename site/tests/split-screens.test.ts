@@ -1470,6 +1470,19 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
 
 // ---------- 23. 收款方式 in the record, and when it didn't stick ----------
 {
+  {
+    // the plan copied as text: how each one still to be paid takes money, a line each, after the transfers
+    const people = [{ id: "s", name: "Steve", pay: "steve@example.com" }, { id: "w", name: "小王" }, { id: "m", name: "阿美", pay: "604 555 0101" }];
+    const l: Ledger = { ...startLedger("X", "周末", "CAD", people), members: people };
+    const dinner: Expense = { kind: "expense", id: "e1", at: 1, payer: "s", amount: 9000, note: "晚饭", split: { how: "equal", among: ["s", "w", "m"] }, rot: 0 };
+    const lunch: Expense = { ...dinner, id: "e2", payer: "m", amount: 6000, split: { how: "equal", among: ["w"] } };
+    const withBoth: Ledger = { ...l, entries: [dinner, lunch] };
+    const text = planText(withBoth, settlement(withBoth), "zh").split("\n");
+    eq(text.slice(-2), ["Steve的收款方式：steve@example.com", "阿美的收款方式：604 555 0101"], "each one to be paid, with how they take money, after the transfers");
+    eq(planText(withBoth, settlement(withBoth), "en").split("\n").slice(-2), ["Pay Steve at steve@example.com", "Pay 阿美 at 604 555 0101"], "in English");
+    const plainText = planText({ ...withBoth, members: people.map(({ id, name }) => ({ id, name })) }, settlement(withBoth), "zh");
+    eq(plainText.includes("收款方式"), false, "nobody has said: nothing more than the transfers");
+  }
   const start = startLedger("p", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]);
   const steps: Change[] = [{ do: "pay", member: "s", pay: "steve@example.com" }, { do: "pay", member: "s", pay: " " }];
   let now = start;
