@@ -398,6 +398,35 @@
 .unit-chips .price-per {
   margin-right: 4px;
 }
+/* how much the big field's price buys, before the unit: 每 [750] 毫升 (empty is 1) */
+.price-qty {
+  display: inline-flex;
+  min-height: var(--tap);
+  width: 72px;
+  border-radius: var(--r-pill);
+  background: var(--dusk-2);
+  cursor: text;
+}
+.price-qty:focus-within {
+  outline: 2px solid var(--light);
+  outline-offset: -2px;
+}
+.price-qty input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 12px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--moon);
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.price-qty input::placeholder {
+  color: var(--color-text-3);
+}
 .price-list {
   list-style: none;
   margin: 0;
