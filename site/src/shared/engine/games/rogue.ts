@@ -26,6 +26,8 @@ type S = {
   used?: { camera?: boolean; nose?: boolean };
   /** this deck's cards as they came (牌谱): the card, who drew it, who its own penalty landed on (tables from before this field start theirs late) */
   log?: { c: number; by: string; hit: string[] }[];
+  /** this deck's penalties by player, the powers' included (the deck's recap when it runs out) */
+  tally?: Record<string, number>;
 };
 
 const HOLD_KEY: Partial<Record<Rank, keyof RogueHolders>> = { "2": "buddy", "5": "camera", "6": "nose", "8": "wc", "10": "trouble" };
@@ -44,16 +46,24 @@ function noteFor(s: S, api: Api) {
   return s.card !== null ? ruleWords(RULE_BY_RANK[DECK[s.card].rank], api.customPenalty).title : undefined;
 }
 
+/** One more against each of them in this deck's tally. */
+function count(s: S, who: string[]) {
+  const t = (s.tally ??= {});
+  for (const id of who) t[id] = (t[id] ?? 0) + 1;
+}
+
 /** The card's own penalty: the stamp, and the names on the card's line of the deck's log. */
 function pen(s: S, api: Api, who: string[], kind: "sip" | "full", note = noteFor(s, api), delay = 0) {
   api.penalty(who, kind, note, { buddy: s.holders.buddy, delay });
   const line = s.log?.[s.log.length - 1];
   if (line && line.c === s.card) line.hit.push(...who);
+  count(s, who);
 }
 
-/** A power's penalty: it lands during someone else's card, so it stays off that card's line. */
+/** A power's penalty: it lands during someone else's card, so it stays off that card's line (it still counts in the deck's tally). */
 function penPower(s: S, api: Api, who: string[], note: T) {
   api.penalty(who, "sip", note, { buddy: s.holders.buddy });
+  count(s, who);
 }
 
 /** How many of each rank are still in the deck, in RANKS order (剩牌). */
@@ -128,6 +138,7 @@ export const rogue: GameDef<S> = {
       interrupt: null,
       used: {},
       log: [],
+      tally: {},
     };
   },
 
@@ -145,6 +156,7 @@ export const rogue: GameDef<S> = {
           s.wcUsed = false;
           s.used = {};
           s.log = [];
+          s.tally = {};
           s.reshuffled = true;
           api.fx("shuffle");
         }
@@ -423,6 +435,7 @@ export const rogue: GameDef<S> = {
       reshuffled: s.reshuffled,
       stock: stockOf(s.deck),
       log: (s.log ?? []).map((e) => ({ rank: DECK[e.c].rank, suit: DECK[e.c].suit, by: e.by, hit: e.hit })),
+      tally: s.tally ?? {},
       garden: s.garden,
       grab: s.grab ? { next: s.grab.next, claimed: s.grab.claimed, endsAt: s.grab.endsAt } : null,
       sevens: s.sevens ? { n: s.sevens.n, speaker: s.sevens.speaker, endsAt: s.sevens.endsAt, log: s.sevens.log } : null,
