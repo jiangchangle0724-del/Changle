@@ -57,6 +57,30 @@ export const TAGGER_SHOWN_MS = 2_600;
 export const MULTI_TAG_MS = 10_000;
 /** How many places a whole match visits (the room's settings.match): the lobby's pick, then others. */
 export const MATCH_PLACES = 3;
+
+/**
+ * The knockout (Steve, 2026-11-26: 8 players, 5 go through, then 3, then one wins): how many of a
+ * stage's players go through to the next, about three in five; with three or fewer it's the final, and
+ * one wins. 8 → 5 → 3 → 1, 6 → 4 → 2 → 1, 4 → 2 → 1.
+ */
+export function knockoutCut(players: number): number {
+  return players <= 3 ? 1 : Math.round(players * 0.6);
+}
+
+/** The knockout's road from a room's players down to its champion (8 → [8, 5, 3, 1]). */
+export function knockoutPath(players: number): number[] {
+  const path = [Math.max(1, players)];
+  while (path[path.length - 1] > 1) path.push(knockoutCut(path[path.length - 1]));
+  return path;
+}
+
+/**
+ * How many passers-by a round has: fewer when more play, so a room of eight isn't packed (the floor
+ * stays the same size: Steve, 2026-11-26). 2 to 4 players: 18; 8: 14.
+ */
+export function crowdFor(players: number): number {
+  return Math.max(14, Math.min(NPC_COUNT, 22 - players));
+}
 /**
  * The crowd thins in a round's last half minute, as the Steam original's robots run out of battery:
  * passers-by walk off past the sides one by one, about LEAVE_SHARE of them, the rest stay to the end.
@@ -254,6 +278,8 @@ export interface Character {
   score: number;
   /** how many times this player was tagged this round */
   tagged: number;
+  /** a player: when their last point came (a knockout stage's tie-break) */
+  scoredAt?: number;
   /** how many times this player punched a passer-by this round */
   fouls: number;
   /** how many times this player punched the air this round */
@@ -373,6 +399,8 @@ export interface MatchState {
   runs?: Record<string, Run>;
   /** whoever tagged first this round (first blood) */
   firstBlood?: string;
+  /** the points that end the round early (null: never; missing in a round saved before it existed: SCORE_TO_WIN) */
+  scoreToWin?: number | null;
   /** the latest pull of a light switch this round: which switch, when, whose */
   pull?: Pull | null;
 }
@@ -526,7 +554,11 @@ function restingPlan(x: number, y: number): Plan {
   return { mode: "wait", x, y, pace: 1, since: 0, until: 0, other: null, count: 0 };
 }
 
-export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: ArenaId = "plaza"): MatchState {
+/**
+ * A new round. `scoreToWin`: the points that end it early (null: it runs its whole time, as a
+ * knockout's stages do).
+ */
+export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: ArenaId = "plaza", options: { scoreToWin?: number | null } = {}): MatchState {
   if (players.length < MIN_PLAYERS || players.length > MAX_PLAYERS) throw new RangeError("A match needs 2 to 8 players");
   const random = seeded(seed);
   const positions = slots();
@@ -552,7 +584,7 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: Are
     }));
   });
   let nextSlot = 0;
-  for (let i = 0; i < NPC_COUNT; i++) {
+  for (let i = 0; i < crowdFor(players.length); i++) {
     while (occupied.has(nextSlot)) nextSlot++;
     const point = positions[nextSlot];
     occupied.add(nextSlot);
@@ -579,6 +611,7 @@ export function createMatch(players: PlayerSeed[], now = 0, seed = 1, arena: Are
     arena,
     startedAt: now,
     endsAt: now + MATCH_MS,
+    scoreToWin: options.scoreToWin === undefined ? SCORE_TO_WIN : options.scoreToWin,
     lastTickAt: now,
     seed,
     characters,
@@ -1175,6 +1208,7 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
     return;
   }
   attacker.score++;
+  attacker.scoredAt = now;
   target.tagged++;
   // (the results say who spotted whom; the tagged player's phone, for a moment, who it was)
   const hunter = attacker.ownerId!;
@@ -1204,7 +1238,7 @@ function resolvePunch(state: MatchState, attacker: Character, now: number): void
   const call = tagCall(chain, streak, ended.streak, !state.firstBlood);
   state.firstBlood ??= hunter;
   if (call) state.events[state.events.length - 1].call = call;
-  if (attacker.score >= SCORE_TO_WIN) {
+  if (attacker.score >= (state.scoreToWin === undefined ? SCORE_TO_WIN : state.scoreToWin ?? Infinity)) {
     state.phase = "over";
     state.winnerId = attacker.ownerId;
     addEvent(state, "over", attacker.ownerId, target.ownerId);
@@ -1545,8 +1579,9 @@ function taste(state: MatchState, body: Character, steering: boolean, now: numbe
   body.bites = 0;
   body.feasts = (body.feasts ?? 0) + 1;
   body.score += FEAST_POINTS;
+  body.scoredAt = now;
   addEvent(state, "feast", body.ownerId, null);
-  if (body.score >= SCORE_TO_WIN) {
+  if (body.score >= (state.scoreToWin === undefined ? SCORE_TO_WIN : state.scoreToWin ?? Infinity)) {
     state.phase = "over";
     state.winnerId = body.ownerId;
     addEvent(state, "over", body.ownerId, null);
@@ -1601,6 +1636,22 @@ export function roundAwards(state: Pick<MatchState, "characters" | "runs">): { o
     .filter((player) => given.has(player.ownerId!))
     .map((player) => ({ owner: player.ownerId!, award: given.get(player.ownerId!)! }))
     .sort((a, b) => order.indexOf(a.award) - order.indexOf(b.award));
+}
+
+/**
+ * A round's players, best first, by owner: the most points, then the least spotted, then whoever got
+ * their last point first, then a coin flip from the round's seed (a knockout's stages go by this).
+ */
+export function stageRanking(state: Pick<MatchState, "characters" | "seed">): string[] {
+  const flip = (owner: string) => {
+    let hash = Math.imul(state.seed ^ 0x9e3779b9, 0x85ebca6b);
+    for (let index = 0; index < owner.length; index++) hash = Math.imul(hash ^ owner.charCodeAt(index), 0xc2b2ae35);
+    return (hash ^ (hash >>> 15)) >>> 0;
+  };
+  return state.characters
+    .filter((character) => character.kind === "player" && character.ownerId)
+    .sort((a, b) => b.score - a.score || a.tagged - b.tagged || (a.scoredAt ?? Infinity) - (b.scoredAt ?? Infinity) || flip(a.ownerId!) - flip(b.ownerId!))
+    .map((character) => character.ownerId!);
 }
 
 export function roundPenalty(state: Pick<MatchState, "characters">): RoundPenalty {

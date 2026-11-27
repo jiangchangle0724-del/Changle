@@ -597,7 +597,8 @@ find yourself" and moves its marker.
 
 The Steam original plays several places in a row to a points total; so does this, unless the host
 turns it off in the lobby (`settings.match`, on by default; practice is always one place at a time).
-A match is three places (`MATCH_PLACES`): the lobby's pick first, then two it hasn't been to, in an
+With four or more players it's a knockout instead (next section); with two or three, a match of
+three places (`MATCH_PLACES`): the lobby's pick first, then two it hasn't been to, in an
 order from the room's seed. Each round is a round as ever (first to five, three minutes, its
 penalty); the points add up (`RoomState.match.totals`, `PlayerView.total`).
 
@@ -608,6 +609,39 @@ penalty); the points add up (`RoomState.match.totals`, `PlayerView.total`).
 * After the last: the match's winner as the title (你赢了整场！), the crown on them, the match's
   titles instead of the round's (the round's titles worked out over everything done in the match,
   `matchAwards`), and New match.
+
+## The knockout (晋级赛)
+
+Steve, 2026-11-26: rounds felt short; with eight players, five go through, then three, then one
+wins. With the whole-match switch on and four or more players at the start, the game is a knockout
+(`RoomState.knockout`, `KNOCKOUT_FROM`); the lobby's switch says its road (晋级赛：8 → 5 → 3 → 1).
+
+* **The road** (`knockoutCut`, `knockoutPath`): about three in five of a stage's players go through;
+  with three or fewer it's the final and one wins. 8 → 5 → 3 → 1, 7 → 4 → 2 → 1, 6 → 4 → 2 → 1,
+  5 → 3 → 1, 4 → 2 → 1. A place per stage: the lobby's pick, then ones it hasn't been to.
+* **A stage** is a round that runs its whole three minutes (`createMatch` with `scoreToWin: null`: no
+  first to five), points from zero, the rules as ever (tags, the side quest, the penalty). Its order
+  (`stageRanking`): the most points, then the least spotted, then whoever got their last point first,
+  then a coin flip from the round's seed. Steve picked points over hiding (2026-11-26).
+* **The floor stays the size it is** (Steve's pick): a full room has fewer passers-by instead
+  (`crowdFor`: 18 up to four players, 14 with eight), in every round, knockout or not.
+* **On screen while it's on**: the title's second line says 第 1 关 · 前 5 名晋级 (决赛 · 只有一人胜出
+  in the final); the standings stand in their live order with a dashed 晋级线 under the last one going
+  through (numbers, no pips: no target). With more than five players the rows shrink so eight fit
+  above a phone's buttons, and the big screen shows at most four titles.
+* **After a stage**: 第 1 关结束, this phone's lot as the title (你晋级了！ / 你被淘汰了; the big screen:
+  前 5 名晋级), the table in the stage's order with 晋级 / 淘汰 stamped by each name and the dashed line
+  under the last one through, no titles (who's through is the news), 下一关：温哥华交通站厅，5 人 (决赛：
+  ... in front of the final), and the host's 下一关 / 开始决赛. The stage's crown is its best, if they
+  scored.
+* **Out** means watching: a phone that went out sees the rest on its own screen (你在第 1 关被淘汰了，看他们打完);
+  one that joined during the knockout plays the next one (晋级赛进行中，下一场你再上). One who leaves is out;
+  if one is left, they win it.
+* **After the final**: 冠军：Ann (你是冠军！ on hers), the crown and a 冠军 stamp, the knockout's titles
+  (worked out over every stage, `matchAwards`), and 再来一场晋级赛.
+* **The announcer**: "Final round!" as the final starts (the big screen and the finalists' phones);
+  as a stage's results come up, each phone hears its own lot ("Qualified!", "Eliminated!",
+  "Champion!") and after the final the big screen says "Champion!".
 
 ## The announcer
 

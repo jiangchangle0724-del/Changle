@@ -15,7 +15,7 @@ import { Controls } from "./Controls";
 import { BarsHint } from "./HomeScreen";
 import { Coach, COACH, useCoach } from "./Coach";
 import { QUESTS } from "./quest";
-import { arenaEvents, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
+import { arenaEvents, useFinalCall, CalloutBanner, DrillCall, INTRO_WINDOW_MS, MomentBanner, useCallout, useDrill, useRoundSounds } from "./roundFx";
 
 const NOTICE: Partial<Record<EventView["t"], Key>> = { tag: "hit", foul: "foul", swing: "swing", hide: "hidden", bite: "tasted", feast: "feast", decoy: "decoyDone", lights: "lightsDone", blast: "blasted", bike: "biked" };
 const BAD: readonly Key[] = ["spotted", "spottedBy", "foul", "blasted", "biked"];
@@ -93,23 +93,60 @@ function Quest(props: { me: MeView; arena: ArenaId }) {
   );
 }
 
-export function Scoreboard(props: { view: RoomView; target: number; compact?: boolean }) {
-  const players = props.view.players.filter((player) => player.inRound);
+/**
+ * The round's points. A knockout's stage has no target (it runs its whole time): the players stand in
+ * their order as it's going, best first, a line under the last one going through.
+ */
+export function Scoreboard(props: { view: RoomView; target: number | null; compact?: boolean }) {
+  const knockout = props.target === null ? props.view.knockout : null;
+  let players = props.view.players.filter((player) => player.inRound);
+  if (knockout) players = [...players].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+  // (a full room: smaller rows, so eight fit beside the buttons)
+  const many = players.length > 5;
   return (
-    <ol class={`scores${props.compact ? " is-compact" : ""}`} aria-label={t("score")}>
-      {players.map((player, index) => (
-        <li key={index} class={`score${player.you ? " is-you" : ""}${player.online ? "" : " is-away"}`}>
-          <span class="score-name">{player.name}</span>
-          <span class="score-pips" aria-hidden="true">
-            {Array.from({ length: props.target }, (_, pip) => (
-              <i key={pip} class={pip < player.score ? "is-on" : ""} />
-            ))}
-          </span>
-          <b class="tabular score-num">{player.score}</b>
-        </li>
-      ))}
+    <ol class={`scores${props.compact ? " is-compact" : ""}${knockout ? " is-knockout" : ""}${many ? " is-many" : ""}`} aria-label={t("score")}>
+      {players.flatMap((player, index) => {
+        const row = (
+          <li key={player.name} class={`score${player.you ? " is-you" : ""}${player.online ? "" : " is-away"}${knockout && player.through ? " is-through" : ""}`}>
+            <span class="score-name">{player.name}</span>
+            {props.target !== null && (
+              <span class="score-pips" aria-hidden="true">
+                {Array.from({ length: props.target }, (_, pip) => (
+                  <i key={pip} class={pip < player.score ? "is-on" : ""} />
+                ))}
+              </span>
+            )}
+            <b class="tabular score-num">{player.score}</b>
+          </li>
+        );
+        // the knockout's cut: a line under the last one going through as it stands
+        const cut = !!knockout && !knockout.final && index === knockout.through - 1 && index < players.length - 1;
+        return cut
+          ? [
+              row,
+              <li key="cut" class="score-cut" aria-hidden="true">
+                <span>{t("koCut")}</span>
+              </li>
+            ]
+          : [row];
+      })}
     </ol>
   );
+}
+
+/** Under the place's name: what the round is played to (first to 5, or a knockout's stage), and which of a match's places. */
+export function roundLine(view: RoomView, game: GameView): string {
+  const knockout = view.knockout;
+  const what =
+    game.scoreToWin !== null ? t("firstTo", { n: game.scoreToWin }) : knockout?.final ? t("koFinal") : t("koStage", { i: knockout?.stage ?? 1, n: knockout?.through ?? 1 });
+  return view.match ? `${what} · ${t("matchPlace", { i: view.match.index, n: view.match.of })}` : what;
+}
+
+/** A phone that isn't in the round: why (out of the knockout, or joined while one is on), or just watching. */
+function watchingLine(view: RoomView): string {
+  if (view.knockout?.out) return t("koWatching", { i: view.knockout.out });
+  if (view.knockout && !view.knockout.done) return t("koLate");
+  return t("watching");
 }
 
 /** The round's clock as it reads: minutes and seconds (3:00 down to 0:00). */
@@ -166,6 +203,7 @@ export function Play(props: {
   const notice = useNotice(game.events, me, game.arena);
   const drill = useDrill(game, props.receivedAt);
   const callout = useCallout(game.events, { screen: false, screens: view.screens });
+  useFinalCall(view, false);
   const meScore = view.players.find((player) => player.you);
   const coach = useCoach(game, !!props.coach && !!me);
   const pointing = coach.index >= 0 && !notice ? COACH[coach.index].point : undefined;
@@ -193,10 +231,7 @@ export function Play(props: {
         <IconButton icon="more" label={t("menu")} onClick={props.onMenu} class="hud-btn" />
         <div class="hud-what">
           <strong>{t(game.arena)}</strong>
-          <span>
-            {t("firstTo", { n: game.scoreToWin })}
-            {view.match && ` · ${t("matchPlace", { i: view.match.index, n: view.match.of })}`}
-          </span>
+          <span>{roundLine(view, game)}</span>
         </div>
         <div class={`hud-clock tabular${seconds <= 10 && game.phase === "playing" ? " is-last" : ""}`} role="timer" aria-label={t("secondsLeft", { n: seconds })}>
           {clockText(game.phase === "playing" ? seconds : 0)}
@@ -235,7 +270,7 @@ export function Play(props: {
         ) : (
           <p class="play-watching" role="status">
             <Icon name="eye" size={18} />
-            {t("watching")}
+            {watchingLine(view)}
           </p>
         ))}
       <p class="play-turn" aria-hidden="true">

@@ -7,7 +7,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { BLACKOUT_MS, DRILL_BEAT_MS, DRILL_GO_MS, DRILL_MS, DRILL_WINDOW, PUNCH_WINDUP_MS, SPOT_MS, THIN_MS, type ArenaId, type TagCall } from "../../engine";
-import type { AwardView, EventView, GameView } from "../../room/protocol";
+import type { AwardView, EventView, GameView, RoomView } from "../../room/protocol";
 import { other, t, type Key } from "../i18n";
 import { BASE } from "../base";
 import { buzz, installAudioUnlock, loadVoices, say, sfx, startMusic, stopMusic } from "../sound";
@@ -298,6 +298,46 @@ export function useCallout(events: readonly EventView[], hears: { screen: boolea
     return () => window.clearTimeout(timer);
   }, [shown?.id]);
   return shown;
+}
+
+/** A knockout's announcer, as its final starts: "Final round!" on the big screen and the finalists' phones. */
+export function useFinalCall(view: RoomView, screen: boolean): void {
+  const final = !!view.knockout?.final && view.game?.phase === "playing" && (screen || !!view.game.me);
+  useEffect(() => {
+    if (!final) return;
+    loadVoices(BASE);
+    say("final");
+  }, [final ? view.round : 0]);
+}
+
+/**
+ * A knockout's announcer, once a stage's results are up (call it where they show): a phone's own lot
+ * (Qualified, Eliminated, Champion), and after the final, the big screen's "Champion!". Once a round.
+ */
+export function useLotCall(view: RoomView, screen: boolean): void {
+  const knockout = view.result?.knockout;
+  const lot = !knockout
+    ? null
+    : screen
+      ? knockout.done && knockout.champion
+        ? "champion"
+        : null
+      : knockout.you === "champion"
+        ? "champion"
+        : knockout.you === "through"
+          ? "qualified"
+          : knockout.you === "out"
+            ? "eliminated"
+            : null;
+  useEffect(() => {
+    if (lot) say(lot);
+  }, [lot ? `${view.result?.round}-${lot}` : ""]);
+}
+
+/** The big screen's results: says the knockout's lot as they show (a hook can't sit behind the TV's condition). */
+export function LotCall(props: { view: RoomView }) {
+  useLotCall(props.view, true);
+  return null;
 }
 
 /** The call on screen: who made it (you, on your own phone), the call big, and the other language under it. */
