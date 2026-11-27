@@ -433,6 +433,34 @@ describe("opening and closing", () => {
   });
 });
 
+describe("the goods are in", () => {
+  it("is the merchant's word, with a line on when and where, on the group buy's page and the buyer's order; taken back, it's gone", async () => {
+    const at = await start();
+    const { code } = (await place(at, [["五常大米", 1000]])).data.order;
+    const word = async () => (await page(at)).offer.arrived;
+    const say = (body: unknown, session: string = SESSION.leader) => post<MyOfferPage>(`/my/offers/${at.id}`, body, { session });
+    expect(await word()).toBeNull();
+    await say({ do: "close" });
+    const told = await say({ do: "arrived", note: "  周六下午 2 点以后\n到各自的自提点取  " });
+    expect(said(told)).toBe("ok");
+    expect(told.data.offer.arrived).toEqual({ at: expect.any(Number), note: "周六下午 2 点以后\n到各自的自提点取" });
+    expect(told.data.offer.status).toBe("closed");
+    expect(await word()).toEqual(told.data.offer.arrived);
+    expect((await get<OrderPage>(`/orders/${code}`, { tail: "0134" })).data.offer.arrived).toEqual(told.data.offer.arrived);
+    // a new line replaces the old; a long one is cut short; none is none
+    expect((await say({ do: "arrived", note: "取".repeat(300) })).data.offer.arrived?.note).toBe("取".repeat(200));
+    expect((await say({ do: "arrived" })).data.offer.arrived?.note).toBe("");
+    // only its own people say it, and only in words
+    expect(said(await say({ do: "arrived", note: "x" }, SESSION.visitor))).toBe("403 forbidden");
+    expect(said(await say({ do: "arrived", note: 3 }))).toBe("400 bad");
+    expect(said(await say({ do: "landed" }))).toBe("400 bad");
+    // taken back
+    expect((await say({ do: "unarrived" })).data.offer.arrived).toBeNull();
+    expect(await word()).toBeNull();
+    expect((await get<OrderPage>(`/orders/${code}`, { tail: "0134" })).data.offer.arrived).toBeNull();
+  });
+});
+
 describe("a shop's own page", () => {
   it("shows who the shop is and its group buys, the one that closes last first; no drafts", async () => {
     const at = await start();

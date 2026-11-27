@@ -27,7 +27,7 @@
 //   POST /tuan/api/my/shops/<slug>            change it: name, kind, about, contact, how to pay, permit, whether home shows it (not its address, who runs it, or whether it's live)
 //   POST /tuan/api/my/shops/<slug>/offers     start a group buy
 //   GET  /tuan/api/my/offers/<id>             every order in it, and the sheets (src/engine/summary.ts)
-//   POST /tuan/api/my/offers/<id>             open it, close it
+//   POST /tuan/api/my/offers/<id>             open it, close it, say the goods are in (a line on when and where) or take that back
 //   GET  /tuan/api/my/offers/<id>/doc         the group buy as its document, each part under its id (to change it, or to start the next one from)
 //   POST /tuan/api/my/offers/<id>/doc         change it: the whole document again (src/engine/edit.ts)
 //   POST /tuan/api/my/orders/<code>           confirm, mark paid or handed over, cancel, weigh
@@ -40,11 +40,12 @@ import { appliedNotice, decidedNotice, readApplication, readDecision, type NewAp
 import { planEdit, type Used } from "../engine/edit";
 import { makeCode, OFFER_LENGTH, OFFER_RE, ORDER_LENGTH, ORDER_RE, PHOTO_RE, SLUG_RE, tidyOrderCode } from "../engine/ids";
 import { finalGoods, MILLI } from "../engine/money";
-import { readOffer } from "../engine/offer";
+import { ARRIVED_NOTE_MAX, readOffer } from "../engine/offer";
 import { isOpen, KEY_RE, LINES_MAX, ORDERS_MAX, takeOrder, without, type Refused } from "../engine/order";
 import { phoneDigits, phoneKey, TAIL_RE, tailOf } from "../engine/phone";
 import { readShop, readShopWords } from "../engine/shop";
 import { summarize } from "../engine/summary";
+import { cleanLines } from "../engine/text";
 import { weighed, type OfferBook, type Order, type Shop } from "../engine/types";
 import { offerPage, orderPage, stateOf } from "../engine/view";
 import { bump, networkOf, used } from "./gate";
@@ -82,6 +83,7 @@ import {
   saveShop,
   saveShopWords,
   sawOwner,
+  setArrived,
   setOfferStatus,
   setShopListed,
   shopBySlug,
@@ -406,11 +408,15 @@ async function saveMyShop(req: Request, db: D1Database, who: Who, slug: string):
 
 async function moveOffer(req: Request, db: D1Database, who: Who, offerId: string, now: number): Promise<Response> {
   const input = await body(req, ORDER_BODY_MAX);
-  if (!input || (input.do !== "open" && input.do !== "close")) return refuse("bad");
+  if (!input || !["open", "close", "arrived", "unarrived"].includes(input.do as string)) return refuse("bad");
+  // (the goods are in: a line on when and where, as typed, or none)
+  const note = input.do === "arrived" ? cleanLines(input.note ?? "", ARRIVED_NOTE_MAX) : "";
+  if (input.do === "arrived" && input.note !== undefined && typeof input.note !== "string") return refuse("bad");
   const book = await loadBook(db, offerId);
   if (!book) return refuse("notfound");
   if (!(await runs(db, who, book.shop.id))) return refuse("forbidden");
-  await setOfferStatus(db, offerId, input.do === "open" ? "open" : "closed");
+  if (input.do === "arrived" || input.do === "unarrived") await setArrived(db, offerId, input.do === "arrived" ? { at: now, note } : null);
+  else await setOfferStatus(db, offerId, input.do === "open" ? "open" : "closed");
   return myOffer(db, who, offerId, now);
 }
 

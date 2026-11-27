@@ -18,7 +18,7 @@ export function offerPage(book: OfferBook, standing: readonly RosterEntry[], now
   const roster: RosterRow[] = offer.roster === "off" ? [] : standing.map((order) => ({ seq: order.seq, name: offer.roster === "names" ? order.name : null, pieces: order.pieces }));
   return {
     shop: { slug: shop.slug, name: shop.name, kind: shop.kind, about: shop.about, contact: shop.contact, pay: shop.pay, permit: shop.permit },
-    offer: { id: offer.id, title: offer.title, note: offer.note, closesAt: offer.closesAt, state: stateOf(book, now), roster: offer.roster },
+    offer: { id: offer.id, title: offer.title, note: offer.note, closesAt: offer.closesAt, state: stateOf(book, now), roster: offer.roster, arrived: offer.arrived },
     items: book.items.map((item) => ({
       id: item.id,
       section: item.section,
@@ -71,7 +71,7 @@ export function orderPage(book: OfferBook, order: Order, now: number): OrderPage
   const { shop, offer } = book;
   return {
     order: buyerOrder(order),
-    offer: { id: offer.id, title: offer.title, closesAt: offer.closesAt, state: stateOf(book, now) },
+    offer: { id: offer.id, title: offer.title, closesAt: offer.closesAt, state: stateOf(book, now), arrived: offer.arrived },
     shop: { slug: shop.slug, name: shop.name, contact: shop.contact, pay: shop.pay },
     point: book.points.find((p) => p.id === order.pickupId) ?? null,
     rule: book.rules.find((r) => r.id === order.ruleId) ?? null,

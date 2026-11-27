@@ -592,7 +592,7 @@ describe("who is shown what", () => {
   it("shows the public the goods, what's left and who's in, never a phone number", () => {
     b.items[0].sold = 38_000;
     const page = offerPage(b, [{ seq: 7, name: "王阿姨", pieces: 2 }], NOW);
-    expect(page.offer).toEqual({ id: "aaaa2222", title: "本周大米团 · 周五到货", note: "", closesAt: NOW + 86_400_000, state: "open", roster: "names" });
+    expect(page.offer).toEqual({ id: "aaaa2222", title: "本周大米团 · 周五到货", note: "", closesAt: NOW + 86_400_000, state: "open", roster: "names", arrived: null });
     expect(page.items[0]).toEqual({ id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, left: 2000, perBuyer: null, case: null, held: null, allergens: "" });
     expect(page.items[1].left).toBeNull();
     expect(page.roster).toEqual([{ seq: 7, name: "王阿姨", pieces: 2 }]);
@@ -627,5 +627,13 @@ describe("who is shown what", () => {
     expect(page.shop).toEqual({ slug: "rice-test", name: "大米团（测试）", contact: "微信 rice-test", pay: "e-Transfer: pay@example.com" });
     expect(page.mayChange).toBe(true);
     expect(orderPage(b, { ...mine, paidAt: NOW }, NOW).mayChange).toBe(false);
+  });
+
+  it("tells buyers the goods are in, on the group buy's page and their order's, with the merchant's line", () => {
+    const arrived = { at: NOW, note: "周六下午 2 点以后来取" };
+    const there = { ...b, offer: { ...b.offer, status: "closed" as const, arrived } };
+    expect(offerPage(there, [], NOW).offer.arrived).toEqual(arrived);
+    expect(orderPage(there, mine, NOW).offer).toMatchObject({ state: "closed", arrived });
+    expect(orderPage(b, mine, NOW).offer.arrived).toBeNull();
   });
 });

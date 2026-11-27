@@ -348,3 +348,17 @@ export function Toast({ text, action, onAction }: { text: string | null; action?
 export function Lines({ text, class: className }: { text: string; class?: string }) {
   return <p class={`lines${className ? ` ${className}` : ""}`}>{text}</p>;
 }
+
+/** The merchant's word that the goods are in: what it means here (`line`), their own line on when and where, and anything more (`children`). */
+export function ArrivedNote({ line, note, children }: { line: string; note: string; children?: ComponentChildren }) {
+  return (
+    <div class="arrived">
+      <IconCheck size={18} />
+      <div class="arrived-what">
+        <strong>{line}</strong>
+        {note && <Lines class="arrived-note" text={note} />}
+        {children}
+      </div>
+    </div>
+  );
+}

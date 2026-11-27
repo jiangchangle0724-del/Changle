@@ -12,7 +12,7 @@ import { PHOTO_RE } from "../engine/ids";
 import type { NewOffer } from "../engine/offer";
 import type { Before, Taken } from "../engine/order";
 import type { NewShop, ShopWords } from "../engine/shop";
-import { weighed, type DeliveryRule, type Item, type Offer, type OfferBook, type OfferStatus, type Order, type OrderLine, type PickupPoint, type Roster, type Shop, type ShopKind, type Unit } from "../engine/types";
+import { weighed, type Arrived, type DeliveryRule, type Item, type Offer, type OfferBook, type OfferStatus, type Order, type OrderLine, type PickupPoint, type Roster, type Shop, type ShopKind, type Unit } from "../engine/types";
 import type { RosterEntry } from "../engine/view";
 
 type Row = Record<string, unknown>;
@@ -24,6 +24,8 @@ const textOrNull = (v: unknown): string | null => (typeof v === "string" ? v : n
 // ---------- a group buy and what's in it ----------
 
 const shopOf = (r: Row): Shop => ({ id: text(r.id), slug: text(r.slug), name: text(r.name), kind: r.kind as Shop["kind"], about: text(r.about), contact: text(r.contact), pay: text(r.pay), permit: text(r.permit), status: r.status as Shop["status"] });
+/** The merchant's word that the goods are in, as a group buy's row keeps it. */
+const arrivedOf = (r: Row): Arrived | null => (r.arrived_at === null || r.arrived_at === undefined ? null : { at: num(r.arrived_at), note: text(r.arrived_note) });
 const itemOf = (r: Row): Item => ({
   id: text(r.id),
   section: text(r.section),
@@ -51,7 +53,7 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
   const [offers, items, points, rules] = await db.batch<Row>([
     db
       .prepare(
-        "SELECT f.id AS offer_id, f.title, f.note, f.status AS offer_status, f.closes_at, f.roster, s.id, s.slug, s.name, s.kind, s.about, s.contact, s.pay, s.permit, s.status FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ?",
+        "SELECT f.id AS offer_id, f.title, f.note, f.status AS offer_status, f.closes_at, f.roster, f.arrived_at, f.arrived_note, s.id, s.slug, s.name, s.kind, s.about, s.contact, s.pay, s.permit, s.status FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ?",
       )
       .bind(offerId),
     db.prepare("SELECT id, section, name, detail, photo, price, unit, step, least, stock, per_buyer, case_qty, sold, allergens FROM items WHERE offer_id = ? ORDER BY pos").bind(offerId),
@@ -61,7 +63,7 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
   const row = offers.results[0];
   if (!row) return null;
   const shop = shopOf(row);
-  const offer: Offer = { id: text(row.offer_id), shopId: shop.id, title: text(row.title), note: text(row.note), status: row.offer_status as Offer["status"], closesAt: num(row.closes_at), roster: row.roster as Offer["roster"] };
+  const offer: Offer = { id: text(row.offer_id), shopId: shop.id, title: text(row.title), note: text(row.note), status: row.offer_status as Offer["status"], closesAt: num(row.closes_at), roster: row.roster as Offer["roster"], arrived: arrivedOf(row) };
   return {
     shop,
     offer,
@@ -396,8 +398,8 @@ export async function homeBook(db: D1Database, now: number): Promise<{ offers: H
 
 /** A shop's group buys as anyone may see them (no drafts), the one that closes last first. */
 export async function shopOffers(db: D1Database, shopId: string): Promise<Offer[]> {
-  const rows = (await db.prepare("SELECT id, shop_id, title, note, status, closes_at, roster FROM offers WHERE shop_id = ? AND status != 'draft' ORDER BY closes_at DESC LIMIT 30").bind(shopId).all<Row>()).results;
-  return rows.map((row) => ({ id: text(row.id), shopId: text(row.shop_id), title: text(row.title), note: text(row.note), status: row.status as OfferStatus, closesAt: num(row.closes_at), roster: row.roster as Roster }));
+  const rows = (await db.prepare("SELECT id, shop_id, title, note, status, closes_at, roster, arrived_at, arrived_note FROM offers WHERE shop_id = ? AND status != 'draft' ORDER BY closes_at DESC LIMIT 30").bind(shopId).all<Row>()).results;
+  return rows.map((row) => ({ id: text(row.id), shopId: text(row.shop_id), title: text(row.title), note: text(row.note), status: row.status as OfferStatus, closesAt: num(row.closes_at), roster: row.roster as Roster, arrived: arrivedOf(row) }));
 }
 
 export async function isMember(db: D1Database, shopId: string, email: string): Promise<boolean> {
@@ -645,6 +647,11 @@ export async function saveEdit(db: D1Database, offerId: string, edit: Edit, newI
 }
 
 /** Open a group buy for orders, or close it. */
+/** The merchant's word that the goods are in (a time and a line), or its taking back (null). */
+export async function setArrived(db: D1Database, offerId: string, arrived: Arrived | null): Promise<void> {
+  await db.prepare("UPDATE offers SET arrived_at = ?, arrived_note = ? WHERE id = ?").bind(arrived?.at ?? null, arrived?.note ?? "", offerId).run();
+}
+
 export async function setOfferStatus(db: D1Database, offerId: string, status: "open" | "closed"): Promise<void> {
   await db.prepare("UPDATE offers SET status = ? WHERE id = ?").bind(status, offerId).run();
 }
