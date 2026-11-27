@@ -99,7 +99,10 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
     crowdFor(v.level);
     haptic([12, 30, 12]);
   });
-  useCue(failed, () => sfx.sadTrombone(0.7));
+  useCue(failed, () => {
+    sfx.sadTrombone(0.7);
+    haptic([60, 40, 60]);
+  });
 
   // this phone measures its own player, whichever kind of bar it is
   const trying = !blind && v.phase === "go" && open && alive && !passed && !failed && sensors === "on";
@@ -114,10 +117,10 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
     !trying
       ? QUIET
       : kind === "classic"
-        ? coaching("classic", { lean: classic.lean, target: v.angle, hold: classic.hold })
+        ? coaching("classic", { lean: classic.lean, target: v.angle, hold: classic.hold, over: classic.over })
         : moving
           ? coaching("moving", { lean: follow.lean, target: follow.at, lost: follow.lost })
-          : coaching(kind, { lean: pose.lean, target: v.angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt }),
+          : coaching(kind, { lean: pose.lean, target: v.angle, hold: pose.hold, side: pose.side, want: kind === "tilt" ? bar.side : 0, wobbleAt: pose.wobbleAt, over: pose.over, sideOver: pose.sideOver }),
     grid,
     zh ? "zh" : "en",
   );
@@ -342,7 +345,7 @@ export function NetLimbo({ v, onLeave }: { v: LimboView; onLeave: () => void }) 
               ) : moving ? (
                 <FollowMeter follow={follow} />
               ) : (
-                <LeanGauge lean={classic.lean} target={v.angle} hold={classic.hold} />
+                <LeanGauge lean={classic.lean} target={v.angle} hold={classic.hold} over={classic.over} />
               )
             ) : (
               // the phone is the judge; after a reload its sensor needs turning on again, from a tap

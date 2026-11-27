@@ -82,18 +82,25 @@ export function useSensorStatus() {
   return s;
 }
 
-/** Live tilt while `on`: beta is front-back (90 = upright, 0 = flat facing up, ±180 = facing down). */
-export function useTilt(on: boolean) {
+/**
+ * Live tilt while `on`: beta is front-back (90 = upright, 0 = flat facing up, ±180 = facing down).
+ * With `smooth`, the readings go through `smoother()` first (every one of them, not only the twenty
+ * a second that reach the screen): a body holding a lean shakes, and a game that measures the lean
+ * shouldn't shake with it.
+ */
+export function useTilt(on: boolean, smooth = false) {
   const [tilt, setTilt] = useState<{ beta: number; gamma: number } | null>(null);
   useEffect(() => {
     if (!on) return;
     let last = 0;
+    const sm = smooth ? smoother() : null;
     const fn = (e: DeviceOrientationEvent) => {
       if (e.beta === null) return;
       const now = performance.now();
+      const r = sm ? sm(e.beta, e.gamma ?? 0, now / 1000) : { beta: e.beta, gamma: e.gamma ?? 0 };
       if (now - last < 50) return;
       last = now;
-      setTilt({ beta: e.beta, gamma: e.gamma ?? 0 });
+      setTilt(r);
     };
     window.addEventListener("deviceorientation", fn);
     return () => {
@@ -101,7 +108,7 @@ export function useTilt(on: boolean) {
       // the next turn starts from a fresh reading, not where this one left off
       setTilt(null);
     };
-  }, [on]);
+  }, [on, smooth]);
   return on ? tilt : null;
 }
 
@@ -135,6 +142,52 @@ export function degreesApart(a: [number, number, number], b: [number, number, nu
   const n = Math.hypot(...a) * Math.hypot(...b);
   if (!n) return 0;
   return Math.acos(Math.max(-1, Math.min(1, (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / n))) / RAD;
+}
+
+/**
+ * `upOf` backwards: the beta and gamma that put "up" there. Beta keeps its half (a phone tipped
+ * forward past upright reads over 90, as the sensor says it), gamma stays within ±90 as the sensor
+ * keeps it; at exactly upright gamma is anyone's, and comes back 0.
+ */
+export function eulerOf([x, y, z]: [number, number, number]) {
+  const sg = z < 0 ? -1 : 1;
+  return { beta: Math.atan2(y, sg * Math.hypot(x, z)) / RAD, gamma: Math.atan2(-x * sg, Math.abs(z)) / RAD };
+}
+
+/**
+ * Readings smoothed the 1€ way (Casiez, Roussel and Vogel, CHI 2012, gery.casiez.net/1euro: a
+ * low-pass filter whose cutoff opens with speed, so a phone held still stops jittering and a quick
+ * lean still comes through at once). It smooths the direction of "up", not beta and gamma
+ * themselves: near upright gamma jumps about, the direction doesn't. `minCutoff` (Hz) is how much
+ * smoothing there is at rest; `beta` is how far each degree a second of turning opens it up (the
+ * defaults, from tests/limbo-measure.test.ts: a ±2° shake comes through a fifth as big, a lean of
+ * 30° reads within a degree 170 ms later at 60 readings a second, and a lean at 25° a second reads
+ * 2° behind). Call it with every reading and the time in seconds; it gives back the smoothed beta
+ * and gamma.
+ */
+export function smoother(minCutoff = 1, beta = 0.007, dCutoff = 1) {
+  let up: [number, number, number] | null = null;
+  let speed = 0;
+  let last = 0;
+  const alpha = (cutoff: number, dt: number) => 1 / (1 + 1 / (2 * Math.PI * cutoff * dt));
+  return (b: number, g: number, t: number) => {
+    const u = upOf(b, g);
+    if (!up || t <= last) {
+      up = u;
+      last = t;
+      return { beta: b, gamma: g };
+    }
+    // (a long gap, the tab away say, is not a slow turn)
+    const dt = Math.min(0.25, t - last);
+    last = t;
+    // how fast it's turning (degrees a second, itself steadied a little) opens the cutoff
+    speed += (degreesApart(up, u) / dt - speed) * alpha(dCutoff, dt);
+    const a = alpha(minCutoff + beta * speed, dt);
+    const v: [number, number, number] = [up[0] + (u[0] - up[0]) * a, up[1] + (u[1] - up[1]) * a, up[2] + (u[2] - up[2]) * a];
+    const n = Math.hypot(v[0], v[1], v[2]) || 1;
+    up = [v[0] / n, v[1] / n, v[2] / n];
+    return eulerOf(up);
+  };
 }
 
 /**
