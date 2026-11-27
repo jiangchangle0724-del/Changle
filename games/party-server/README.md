@@ -74,7 +74,9 @@ instead, `site/src/party/dj/`.)
   the camera counted half), the coach's worked out from its Pose with the rig's own sizes, turns
   and bends (`coach/sizes.ts`), a player's from the model's landmarks; `match.ts` judges each beat:
   where the player's moves from half a beat before it to a quarter after best line up with the
-  coach's (poses and how much each part moves, weighted to the parts the move is about), and if
+  coach's (poses, and how each part moves: the same way as the coach's, and at least a share as
+  much, so standing still or a shaky picture isn't dancing; weighted to the parts the move is
+  about), and if
   alike enough (`ALIKE`: 0.55 easy, 0.62 medium, 0.7 hard; guesses to tune with real dancers) the
   beat was danced then, else not. It tells the page's judge beat by beat (`BeatJudge.decide` in
   `src/shared/taps.ts`), which settles each beat a little later for it (`lagMs`), and from there all

@@ -8,7 +8,7 @@ import type { Difficulty } from "../../../../party-base/src/index";
 import { spotAt, type RunBeat } from "../../shared/show";
 import { movedWindowMs } from "../../shared/taps";
 import { moveAnim, poseOf, type Doing } from "../coach/moves";
-import { angleOf, coachBody, likeness, moveWeights, type Body } from "./body";
+import { coachBody, likeness, moveWeights, type Body } from "./body";
 
 /** How alike (0 to 1) a moment has to be to count as doing the move, by difficulty. */
 export const ALIKE: Record<Difficulty, number> = { easy: 0.55, medium: 0.62, hard: 0.7 };
@@ -90,6 +90,8 @@ export function fit(seen: readonly (Body | null)[], coach: readonly (Body | null
   pose /= of;
   let move = 0;
   let moved = 0;
+  let mine = 0;
+  let theirs = 0;
   for (let j = 0; j + 1 < seen.length; j++) {
     const p0 = seen[j];
     const p1 = seen[j + 1];
@@ -99,20 +101,46 @@ export function fit(seen: readonly (Body | null)[], coach: readonly (Body | null
     for (let k = 0; k < weight.length; k++) {
       const sure = Math.min(p0.sure[k]!, p1.sure[k]!);
       if (sure <= 0) continue;
-      const tc = angleOf(c0, c1, k);
-      const tp = angleOf(p0, p1, k);
+      // how each part's direction changed from one moment to the next, the player's and the coach's:
+      // alike when it changed the same way (a shake of the picture changes it any old way)
+      let tc = 0;
+      let tp = 0;
+      let off = 0;
+      let along = 0;
+      for (let a = 0; a < 3; a++) {
+        const dc = c1.dir[3 * k + a]! - c0.dir[3 * k + a]!;
+        const dp = p1.dir[3 * k + a]! - p0.dir[3 * k + a]!;
+        tc += dc * dc;
+        tp += dp * dp;
+        off += (dp - dc) ** 2;
+        along += dp * dc;
+      }
+      tc = Math.sqrt(tc);
+      tp = Math.sqrt(tp);
       const m = weight[k]! * sure * Math.max(tc, tp);
-      move += m * Math.exp(-(((tp - tc) / MOVE_SIGMA) ** 2));
+      move += m * Math.exp(-((Math.sqrt(off) / MOVE_SIGMA) ** 2));
       moved += m;
+      if (tc > 1e-6) mine += weight[k]! * sure * Math.max(0, along / tc);
+      theirs += weight[k]! * sure * tc;
     }
   }
   // (nothing much moving, the player's or the coach's: the poses say it all)
   if (moved < 0.15) return pose;
-  return (1 - MOVE_SHARE) * pose + (MOVE_SHARE * move) / moved;
+  const alike = (1 - MOVE_SHARE) * pose + (MOVE_SHARE * move) / moved;
+  // standing still while the coach dances isn't dancing, however like the coach's pose it is: the
+  // player has to move at least a share of what the coach does, the way it does (small moves are
+  // fine; a shaky picture doesn't count as moving)
+  const enough = theirs > STILL_FROM ? Math.min(1, mine / (STILL_SHARE * theirs)) : 1;
+  return alike * enough;
 }
 
+/** The coach moving this much around a beat (weighted radians) asks the player to move too */
+const STILL_FROM = 0.6;
+/** ... at least this share of it */
+const STILL_SHARE = 0.3;
 
-/** How differently a part may move from the coach's between two moments (radians) */
+
+/** How differently a part may move from the coach's between two moments (its direction's change) */
 const MOVE_SIGMA = 0.3;
 /** How much the moving counts against the poses */
 const MOVE_SHARE = 0.45;
