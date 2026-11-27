@@ -9,9 +9,9 @@ export const PACK_NAMES: Record<Pack, T> = {
   vancouver: { zh: "温村", en: "Vancouver" },
   work: { zh: "职场", en: "Work" },
   family: { zh: "过年全家", en: "Family" },
-  spicy: { zh: "辣一点", en: "Spicy" },
+  spicy: { zh: "辣一点 18+", en: "Spicy 18+" },
 };
-/** What a table starts with: the packs that suit any night out (work, family and spicy are picked on purpose). */
+/** What a table starts with: the packs that suit any night out (work, family and the 18+ pack are picked on purpose). */
 export const DEFAULT_PACKS: Pack[] = ["daily", "table", "vancouver"];
 export const isPack = (p: unknown): p is Pack => typeof p === "string" && (PACKS as readonly string[]).includes(p);
 
@@ -196,6 +196,35 @@ const ALL = [
   s("最会吃醋", "Gets Jealous Fastest", "spicy"),
   s("藏着最大的秘密", "Keeping the Biggest Secret", "spicy"),
   s("喝多了就唱情歌", "Sings Love Songs When Drunk", "spicy"),
+  // spicy, 18+
+  s("最可能有一夜情", "Most Likely to Have a One-Night Stand", "spicy"),
+  s("婚礼上最可能有艳遇", "Hooks Up at a Wedding", "spicy"),
+  s("床上最吵", "Loudest in Bed", "spicy"),
+  s("技术最好（你懂的）", "Best in Bed (Allegedly)", "spicy"),
+  s("最可能看小电影被抓包", "Caught Watching Porn", "spicy"),
+  s("最可能第一次约会就上床", "Sleeps Together on the First Date", "spicy"),
+  s("最可能在车里做过", "Has Done It in a Car", "spicy"),
+  s("最可能有一抽屉情趣用品", "Owns a Drawer of Toys", "spicy"),
+  s("最可能有个秘密炮友", "Has a Secret Friend with Benefits", "spicy"),
+  s("最可能留个备胎", "Keeps a Backup Lover", "spicy"),
+  s("最可能脚踏两条船", "The Two-Timer", "spicy"),
+  s("前任最多", "Most Exes", "spicy"),
+  s("最可能被所有前任拉黑", "Blocked by Every Ex", "spicy"),
+  s("最可能和前任复合又分手", "Gets Back with the Ex, Again", "spicy"),
+  s("最可能把暧昧消息发错人", "Sends the Spicy Text to the Wrong Person", "spicy"),
+  s("黄段子发错家族群", "Posts the Dirty Joke in the Family Chat", "spicy"),
+  s("最可能喝多了亲错人", "Kisses the Wrong Person When Drunk", "spicy"),
+  s("最可能和同事有一腿", "The Office Romance", "spicy"),
+  s("最可能被爸妈撞见", "Walked In On by the Parents", "spicy"),
+  s("公共场合亲热冠军", "PDA Champion", "spicy"),
+  s("最可能裸奔", "Most Likely to Streak", "spicy"),
+  s("最可能偷看对象的手机", "Snoops Through Their Partner's Phone", "spicy"),
+  s("交友软件常驻居民", "Lives on the Dating Apps", "spicy"),
+  s("最可能网恋奔现", "Meets the Online Date in Real Life", "spicy"),
+  s("有个没人见过的纹身", "Has a Tattoo Nobody Has Seen", "spicy"),
+  s("最可能开房忘带证件", "Forgets ID at the Hotel Check-In", "spicy"),
+  s("最可能谈姐弟恋", "Dates Much Younger", "spicy"),
+  s("酒后给暗恋对象打电话", "Drunk-Dials Their Crush", "spicy"),
 ];
 
 /** The titles, as the engine and the one-phone game draw them: by place in this list. */

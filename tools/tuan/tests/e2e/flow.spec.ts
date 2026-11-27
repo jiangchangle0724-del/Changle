@@ -505,6 +505,37 @@ test("home: the group buys open now, found by a word or a kind of shop, each car
   await expect(page.locator(".hero h1")).toHaveText(`菜园的团 ${w}`);
 });
 
+test("by the case: buyers see what the case still wants, their cart counted; the merchant sees what's short", async ({ browser, request }) => {
+  const { id, url } = await start(request, { items: offerDoc(0).items.map((item) => (item.unit === "lb" ? { ...item, case: 10_000 } : item)) });
+  await order(request, id, { name: "小林", phone: "604-555-0188" }, [["手切羊肉片", 6000]]);
+  const page = await phone(browser);
+  await page.goto(url);
+  const lamb = row(page, "手切羊肉片");
+  await expect(lamb.locator(".case")).toHaveText("这一箱还差 4 lb");
+  await expect(row(page, "五常大米 10kg").locator(".case")).toHaveCount(0);
+  // two pounds in this cart count
+  await page.getByRole("button", { name: "选重量：手切羊肉片" }).click();
+  const picker = page.getByRole("dialog", { name: "手切羊肉片" });
+  await picker.getByRole("button", { name: "增加 手切羊肉片" }).click();
+  await picker.getByRole("button", { name: "增加 手切羊肉片" }).click();
+  await expect(picker.locator(".step-n")).toHaveText("2 lb");
+  await picker.getByRole("button", { name: /^加入/ }).click();
+  await expect(lamb.locator(".case")).toHaveText("算上你的 · 这一箱还差 2 lb");
+  // its details say how it goes
+  await page.getByRole("button", { name: "详情：手切羊肉片" }).click();
+  const look = page.getByRole("dialog", { name: "手切羊肉片" });
+  await expect(look.locator(".case")).toHaveText("算上你的 · 这一箱还差 2 lb");
+  await expect(look.getByText("商家按整箱进这样东西，一箱 10 lb。")).toBeVisible();
+  await look.getByRole("button", { name: "关闭" }).click();
+  await fits(page, "a group buy with a case to fill");
+
+  // the merchant: one item short of a full case, and how short, on the list of what to get ready
+  const merchant = await phone(browser, { session: SESSION.leader });
+  await merchant.goto(`/tuan/my/t/${id}`);
+  await merchant.getByRole("button", { name: "1 样没凑满整箱，看备货单" }).click();
+  await expect(merchant.locator(".case-line")).toHaveText("第 1 箱还差 4 lb");
+});
+
 test("a long note folds, every item opens its details, the top says how many have joined, and a new order's page shows at once", async ({ browser, request }) => {
   const note = Array.from({ length: 12 }, (_, at) => `第 ${at + 1} 条：周三晚上截单，周五送货或自提。`).join("\n");
   const { url } = await start(request, { note });

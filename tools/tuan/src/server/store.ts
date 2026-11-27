@@ -36,6 +36,7 @@ const itemOf = (r: Row): Item => ({
   least: num(r.least),
   stock: numOrNull(r.stock),
   perBuyer: numOrNull(r.per_buyer),
+  case: numOrNull(r.case_qty),
   sold: num(r.sold),
   allergens: text(r.allergens),
 });
@@ -53,7 +54,7 @@ export async function loadBook(db: D1Database, offerId: string): Promise<OfferBo
         "SELECT f.id AS offer_id, f.title, f.note, f.status AS offer_status, f.closes_at, f.roster, s.id, s.slug, s.name, s.kind, s.about, s.contact, s.pay, s.permit, s.status FROM offers f JOIN shops s ON s.id = f.shop_id WHERE f.id = ?",
       )
       .bind(offerId),
-    db.prepare("SELECT id, section, name, detail, photo, price, unit, step, least, stock, per_buyer, sold, allergens FROM items WHERE offer_id = ? ORDER BY pos").bind(offerId),
+    db.prepare("SELECT id, section, name, detail, photo, price, unit, step, least, stock, per_buyer, case_qty, sold, allergens FROM items WHERE offer_id = ? ORDER BY pos").bind(offerId),
     db.prepare("SELECT id, name, address, hours FROM pickup_points WHERE offer_id = ? ORDER BY pos").bind(offerId),
     db.prepare("SELECT id, label, min_total, fee, free_from, hours FROM delivery_rules WHERE offer_id = ? ORDER BY pos").bind(offerId),
   ]);
@@ -561,9 +562,9 @@ export async function insertOffer(db: D1Database, shopId: string, offer: NewOffe
       db.prepare("INSERT INTO offers (id, shop_id, title, note, status, closes_at, roster, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(id, shopId, offer.title, offer.note, offer.open ? "open" : "draft", offer.closesAt, offer.roster, now),
       db
         .prepare(
-          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, allergens)
+          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, case_qty, allergens)
            SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.section'), json_extract(j.value, '$.name'), json_extract(j.value, '$.detail'), json_extract(j.value, '$.photo'),
-             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
+             json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.case'), json_extract(j.value, '$.allergens')
            FROM json_each(?2) AS j`,
         )
         .bind(id, withIds(offer.items)),
@@ -613,12 +614,12 @@ export async function saveEdit(db: D1Database, offerId: string, edit: Edit, newI
       // (WHERE true: without it SQLite reads the ON of ON CONFLICT as the join's. A picture stays as it is: the document has none.)
       db
         .prepare(
-          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, allergens)
+          `INSERT INTO items (id, offer_id, pos, section, name, detail, photo, price, unit, step, least, stock, per_buyer, case_qty, allergens)
            SELECT json_extract(j.value, '$.id'), ?1, j.key, json_extract(j.value, '$.section'), json_extract(j.value, '$.name'), json_extract(j.value, '$.detail'),
-             json_extract(j.value, '$.photo'), json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.allergens')
+             json_extract(j.value, '$.photo'), json_extract(j.value, '$.price'), json_extract(j.value, '$.unit'), json_extract(j.value, '$.step'), json_extract(j.value, '$.least'), json_extract(j.value, '$.stock'), json_extract(j.value, '$.perBuyer'), json_extract(j.value, '$.case'), json_extract(j.value, '$.allergens')
            FROM json_each(?2) AS j WHERE true
            ON CONFLICT (id) DO UPDATE SET pos = excluded.pos, section = excluded.section, name = excluded.name, detail = excluded.detail, photo = excluded.photo, price = excluded.price, unit = excluded.unit,
-             step = excluded.step, least = excluded.least, stock = excluded.stock, per_buyer = excluded.per_buyer, allergens = excluded.allergens
+             step = excluded.step, least = excluded.least, stock = excluded.stock, per_buyer = excluded.per_buyer, case_qty = excluded.case_qty, allergens = excluded.allergens
            WHERE items.offer_id = ?1`,
         )
         .bind(offerId, withIds(edit.items)),

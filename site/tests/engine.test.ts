@@ -32,6 +32,7 @@ import { guessMatches } from "../src/data/postit";
 import { deckFor, TITLES as SUPER_TITLES } from "../src/data/superlatives";
 import { RANKS as ROGUE_RANKS, RULES as ROGUE_RULES, ruleWords, type Rank } from "../src/data/rogue13";
 import { DARES, promptText, TRUTHS } from "../src/data/truthDare";
+import { SLIP_MAX } from "../src/shared/engine/games/truth";
 import { DECK_GROUPS as HEADS_DECK_GROUPS, HEADS_DECKS, NOTES } from "../src/data/postit";
 import { DEFAULT_SLICES, sliceLabel } from "../src/data/wheel";
 import { SONG_ROWS } from "../src/data/songs";
@@ -475,6 +476,82 @@ test("truth: each heat deals only its own cards", () => {
     ok(new Set(list.map((p) => p.zh)).size === list.length && new Set(list.map((p) => p.en)).size === list.length, `no two ${name} alike`);
     ok(count(list, 1) >= 45 && count(list, 2) >= 45, `${name}: ${count(list, 1)} mild, ${count(list, 2)} spicy`);
   }
+});
+
+test("truth: the bottle keeps count, chance picks, one swap a game", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  // the later tests were written against the dice as they fell before these two: put them back after
+  const was = { seed, clock };
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "truth" });
+  t.act("p0", { a: "spin", scope: "truth", index: 1, delta: 720, duration: 1 });
+  ok(t.view<TV>("p2").picked?.p1 === 1, "the bottle counts who it picks, for the spinning phone to even out");
+  clock += 1200;
+  t.g("p1", "pick", { kind: "random" });
+  let v = t.view<TV>("p1");
+  ok(v.phase === "card" && v.rand === true && (v.kind === "truth" || v.kind === "dare") && !!v.prompt, "听天由命: a card of either kind, marked as chance");
+  const first = v.prompt!.zh;
+  const kind = v.kind;
+  ok(v.swapLeft === true, "everyone starts with a swap");
+  t.g("p2", "swap");
+  ok(t.view<TV>("p1").prompt!.zh === first, "only the one picked can swap their card");
+  t.g("p1", "swap");
+  v = t.view<TV>("p1");
+  ok(v.prompt!.zh !== first && v.kind === kind && v.rand === true && v.swapLeft === false, "a swap deals another card of the same kind, once");
+  t.g("p1", "swap");
+  ok(t.view<TV>("p1").prompt!.zh === v.prompt!.zh, "no second swap in a game");
+  ok(t.view<TV>("p2").swapLeft === true, "the others still have theirs");
+  t.g("p1", "done");
+  v = t.view<TV>("p1");
+  ok(v.phase === "spin" && v.spinner === "p1" && v.rand === false && v.own === false, "back to the bottle, the one picked spins");
+  // a room that started before the game kept these still plays
+  const st = t.eng.d.game!.s as Record<string, unknown>;
+  delete st.picked;
+  delete st.swapped;
+  delete st.slips;
+  delete st.slipN;
+  t.act("p1", { a: "spin", scope: "truth", index: 2, delta: 720, duration: 1 });
+  ok(t.view<TV>("p0").picked?.p2 === 1 && t.view<TV>("p0").slips?.truth === 0, "a game under way when this shipped carries on");
+  ({ seed, clock } = was);
+});
+
+test("truth: the table's own cards", () => {
+  type TV = Extract<GameView, { id: "truth" }>;
+  const was = { seed, clock };
+  const t = setup(4);
+  t.act("p0", { a: "start", game: "truth" });
+  t.g("p2", "add", { kind: "dare", text: "  学  p0 说话的样子  " });
+  t.g("p2", "add", { kind: "dare", text: "学 p0 说话的样子" });
+  t.g("p3", "add", { kind: "truth", text: "问".repeat(200) });
+  t.g("p3", "add", { kind: "truth", text: "   " });
+  const pile = t.view<TV>("p0").slips!;
+  ok(pile.dare === 1 && pile.truth === 1 && pile.mine === 0, `the pile shows counts, the same card once, nothing empty (${JSON.stringify(pile)})`);
+  ok(t.view<TV>("p2").slips!.mine === 1 && t.view<TV>("p3").slips!.mine === 1, "each phone sees how many it wrote");
+  ok(!JSON.stringify(t.view<TV>("p0")).includes("说话的样子"), "nobody sees the words before they come up");
+  // never dealt to the one who wrote it
+  t.act("p0", { a: "spin", scope: "truth", index: 2, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p2", "pick", { kind: "dare" });
+  let v = t.view<TV>("p2");
+  ok(v.own === false && t.view<TV>("p0").slips!.dare === 1, "the writer gets a built-in card; theirs stays in the pile");
+  t.g("p2", "done");
+  t.act("p2", { a: "spin", scope: "truth", index: 3, delta: 720, duration: 1 });
+  clock += 1200;
+  t.g("p3", "pick", { kind: "dare" });
+  v = t.view<TV>("p3");
+  ok(v.own === true && v.prompt?.zh === "学 p0 说话的样子" && v.prompt.en === v.prompt.zh, `someone else gets it first, as written (${v.prompt?.zh})`);
+  ok(t.view<TV>("p0").slips!.dare === 0, "and it leaves the pile");
+  // a pile has a limit, and the host can empty it
+  for (let i = 0; i < 50; i++) t.g("p1", "add", { kind: i % 2 ? "truth" : "dare", text: `第 ${i} 题` });
+  const full = t.view<TV>("p0").slips!;
+  ok(full.truth + full.dare === SLIP_MAX, `at most ${SLIP_MAX} waiting (${full.truth + full.dare})`);
+  t.g("p3", "clearOwn");
+  ok(t.view<TV>("p0").slips!.truth > 0, "only the host can empty the pile");
+  t.g("p0", "clearOwn");
+  ok(t.view<TV>("p0").slips!.truth === 0 && t.view<TV>("p0").slips!.dare === 0, "the host empties it");
+  const words = (t.eng.d.game!.s as { slips: { text: string }[] }).slips;
+  ok(words.length === 0, "nothing left behind");
+  ({ seed, clock } = was);
 });
 
 test("undercover: words private, vote, win", () => {
@@ -1322,7 +1399,17 @@ test("buddy: penalized player calls the 2-holder", () => {
 
 type V<K extends GameView["id"]> = Extract<GameView, { id: K }>;
 
-test("superlatives: the host's setup (packs, how many awards), then the first ballot", () => {
+/** The superlatives tests leave the shared dice as they found them: the deck they shuffle grows with every new title, and the tests after them must not feel it. */
+const ownDice = (fn: () => void) => () => {
+  const was = seed;
+  try {
+    fn();
+  } finally {
+    seed = was;
+  }
+};
+
+test("superlatives: the host's setup (packs, how many awards), then the first ballot", ownDice(() => {
   const nothing = (o: Output) => !o.changed && !o.light && !o.persist && o.events.length === 0;
   const t = setup(4);
   t.act("p0", { a: "start", game: "superlatives" });
@@ -1346,9 +1433,9 @@ test("superlatives: the host's setup (packs, how many awards), then the first ba
   t.g("p0", "skip");
   ok(spicy.includes(t.view<V<"superlatives">>("p1").title.zh), "and so does the next one");
   ok(nothing(t.g("p0", "config", { total: 5 })), "no setting up once started");
-});
+}));
 
-test("superlatives: secret votes, award, ceremony", () => {
+test("superlatives: secret votes, award, ceremony", ownDice(() => {
   const t = setup(4);
   t.act("p0", { a: "start", game: "superlatives" });
   t.g("p0", "start");
@@ -1402,9 +1489,9 @@ test("superlatives: secret votes, award, ceremony", () => {
   v = t.view<V<"superlatives">>("p0");
   ok(v.custom && v.title.zh === "最会点歌", "the host can write a title");
   ok(v.ballot === 4, "a title the host wrote is a new ballot");
-});
+}));
 
-test("superlatives: the same winner award after award counts a streak; another winner starts over", () => {
+test("superlatives: the same winner award after award counts a streak; another winner starts over", ownDice(() => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
   t.g("p0", "start");
@@ -1423,9 +1510,9 @@ test("superlatives: the same winner award after award counts a streak; another w
   ok(v.streak === 3 && v.hits.p0 === 3 && v.hits.p2 === 3 && !v.hits.p1, "three in a row for p1; p0 and p2 called every one");
   ok(round("p2").streak === 1, "p2 wins: the streak starts over");
   ok(t.view<V<"superlatives">>("p0").streak === 0, "the streak is a reveal thing: 0 while voting");
-});
+}));
 
-test("superlatives: a skipped title is a new ballot; the winner who leaves still won", () => {
+test("superlatives: a skipped title is a new ballot; the winner who leaves still won", ownDice(() => {
   const t = setup(3);
   t.act("p0", { a: "start", game: "superlatives" });
   t.g("p0", "start");
@@ -1449,7 +1536,7 @@ test("superlatives: a skipped title is a new ballot; the winner who leaves still
   ok(!t.pens().length, "no stamp for a winner who left");
   t.g("p0", "next");
   ok(t.view<V<"superlatives">>("p0").phase === "vote", "and the host moves on");
-});
+}));
 
 test("punchline: writers and audience, the show's phases, sweep, safety, final picks", () => {
   const t = setup(10);

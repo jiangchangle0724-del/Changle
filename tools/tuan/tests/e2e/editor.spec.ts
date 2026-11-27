@@ -71,11 +71,15 @@ test("a merchant starts a group buy from nothing, and buyers see it as it was wr
   await expect(field(page, "item-step")).toHaveValue("500");
   await field(page, "item-least").fill("1");
   await field(page, "item-section").fill("蛋肉");
+  // it comes by the case: a case holds whole half pounds, more than one
+  await field(page, "item-case").fill("0.5");
+  await expect(page.locator(".sheet .problem")).toHaveText("一箱要比一次能买的最小量多。");
+  await field(page, "item-case").fill("30");
   await field(page, "item-stock").fill("1.3");
   await expect(page.locator(".sheet .problem")).toHaveText("要是 0.5 的整数倍。");
   await field(page, "item-stock").fill("");
   await done(page).click();
-  await expect(row(page, "手切羊肉片")).toContainText("$16.99 / 磅 · 蛋肉");
+  await expect(row(page, "手切羊肉片")).toContainText("$16.99 / 磅 · 蛋肉 · 一箱 30");
 
   await open.click();
   await expect(page.locator(".problem")).toHaveText("至少要有一个自提点或者送货区。");
@@ -125,8 +129,8 @@ test("a merchant starts a group buy from nothing, and buyers see it as it was wr
   expect(made.offer).toMatchObject({ title: "本周大米团 · 周五到货", note: "周三晚上截单，周五送货或自提。", state: "open", roster: "anon" });
   expect(vancouverClock(made.offer.closesAt).replace(" ", "T")).toBe(closes);
   expect(made.items.map(({ id: _id, ...item }) => item)).toEqual([
-    { section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, left: 40_000, perBuyer: 3000, allergens: "无" },
-    { section: "蛋肉", name: "手切羊肉片", detail: "", photo: null, price: 1699, unit: "lb", step: 500, least: 1000, left: null, perBuyer: null, allergens: "" },
+    { section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, left: 40_000, perBuyer: 3000, case: null, held: null, allergens: "无" },
+    { section: "蛋肉", name: "手切羊肉片", detail: "", photo: null, price: 1699, unit: "lb", step: 500, least: 1000, left: null, perBuyer: null, case: 30_000, held: 0, allergens: "" },
   ]);
   expect(made.points.map(({ id: _id, ...point }) => point)).toEqual([{ name: "温哥华西区", address: "下单后发具体门牌", hours: "周五 4–7pm" }]);
   expect(made.rules.map(({ id: _id, ...rule }) => rule)).toEqual([{ label: "列治文", min: 0, fee: 500, freeFrom: 6800, hours: "每天 6–9pm" }]);

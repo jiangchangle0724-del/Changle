@@ -114,6 +114,16 @@ said; an order's `final` (goods and delivery) is empty until every weighed line 
 An item has a `step` (weight comes by the half pound unless the merchant says otherwise) and a
 `least` (a merchant who weighs by the half pound may still sell no less than a pound).
 
+An item may come only by the case (`case`: what one case holds, whole steps, more than one;
+`items.case_qty`, `migrations/0007_case.sql`), as Foodsoft's "unit quantity" does. Its row on the
+group buy's page has a thin bar and says what the case being filled still wants ("这一箱还差 6
+lb"), counting what's in this phone's cart ("算上你的"); its details say how it goes. So the page
+gets how much the orders hold (`held`), for such items only, even where the list of who's in is
+off: filling a case needs it. The merchant's page says how many items' last case isn't full and
+leads to the list of what to get ready, where each says how short it is; the 接龙 text says it
+too. Nothing is cancelled for a case that isn't full when orders close: that's the merchant's call
+(`src/engine/cases.ts`).
+
 A delivery area has a minimum (`min`: under it, no delivery), a fee, and optionally a mark from
 which delivery is free (`freeFrom`). The fee is settled on the goods as ordered, when the order is
 placed or changed; weighing doesn't move it.

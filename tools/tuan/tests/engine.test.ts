@@ -1,6 +1,7 @@
 // The rules alone (src/engine): no database, no network.
 import { describe, expect, it } from "vitest";
 import { appliedNotice, DECLARATION, decidedNotice, NOTE_MAX, readApplication, readDecision, REPLY_MAX } from "../src/engine/apply";
+import { caseFill } from "../src/engine/cases";
 import { chainText, type ChainWords } from "../src/engine/chain";
 import { makeCode, OFFER_RE, ORDER_RE, SLUG_RE, tidyOrderCode } from "../src/engine/ids";
 import { amountText, dollars, finalGoods, goodsOf, lineAmount, piecesOf } from "../src/engine/money";
@@ -279,11 +280,23 @@ describe("starting a group buy", () => {
     if (!got.ok) throw new Error(got.error);
     expect(got.offer).toMatchObject({ title: "本周大米团 · 周五到货", roster: "names", open: true, closesAt: NOW + 86_400_000 });
     expect(got.offer.items).toHaveLength(5);
-    expect(got.offer.items[0]).toEqual({ section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null, allergens: "" });
+    expect(got.offer.items[0]).toEqual({ section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, stock: 40_000, perBuyer: null, case: null, allergens: "" });
     // weight comes by the half pound unless the merchant says otherwise; this merchant sells no less than a pound
     expect(got.offer.items[4]).toMatchObject({ unit: "lb", step: 500, least: 1000, stock: null });
     expect(got.offer.points.map((p) => p.name)).toEqual(["温哥华西区", "大学区", "本拿比"]);
     expect(got.offer.rules.map((r) => [r.label, r.min, r.fee, r.freeFrom])).toEqual([["温哥华（Downtown 除外）", 9800, 0, null], ["本拿比", 9800, 0, null], ["列治文", 0, 500, 6800]]);
+  });
+
+  it("takes what a case holds, for what comes only by the case: whole steps, more than one", () => {
+    const one = (item: Record<string, unknown>) => doc({ items: [{ name: "手切羊肉片", price: 1699, unit: "lb", ...item }] });
+    const got = readOffer(one({ case: 30_000 }), NOW);
+    expect(got.ok && got.offer.items[0].case).toBe(30_000);
+    const plain = readOffer(one({}), NOW);
+    expect(plain.ok && plain.offer.items[0].case).toBeNull();
+    // one half pound is no case; a case holds whole half pounds; a number
+    for (const size of [500, 30_250, -1000, 0, "30"]) expect([size, error(one({ case: size }))]).toEqual([size, "item 0"]);
+    expect(error(doc({ items: [{ name: "土鸡蛋 30 枚", price: 1350, unit: "box", case: 1000 }] }))).toBe("item 0");
+    expect(error(doc({ items: [{ name: "土鸡蛋 30 枚", price: 1350, unit: "box", case: 12_000 }] }))).toBe("ok");
   });
 
   it("can be kept as a draft, and lists who's in by name unless told otherwise", () => {
@@ -454,8 +467,33 @@ describe("the merchant's sheets", () => {
   });
 });
 
+describe("filling cases", () => {
+  it("says how far what's ordered fills cases, and what the one being filled still wants", () => {
+    expect(caseFill(30_000, 0)).toEqual({ size: 30_000, full: 0, part: 0, short: 30_000 });
+    expect(caseFill(30_000, 24_000)).toEqual({ size: 30_000, full: 0, part: 24_000, short: 6_000 });
+    expect(caseFill(30_000, 30_000)).toEqual({ size: 30_000, full: 1, part: 0, short: 0 });
+    expect(caseFill(30_000, 54_500)).toEqual({ size: 30_000, full: 1, part: 24_500, short: 5_500 });
+    expect(caseFill(12_000, 36_000)).toEqual({ size: 12_000, full: 3, part: 0, short: 0 });
+  });
+
+  it("is on the list of what to get ready, for what comes by the case only", () => {
+    const b = book();
+    const cased = { ...b, items: b.items.map((item) => (item.id === "lamb" ? { ...item, case: 2000 } : item)) };
+    const wang = kept(taken(sent({ lines: [{ itemId: "rice", qty: 1000 }, { itemId: "lamb", qty: 1500 }] }), cased), 1);
+    const sum = summarize(cased, [wang]);
+    expect(sum.items.map((item) => [item.itemId, item.case])).toEqual([["rice", null], ["lamb", { size: 2000, full: 0, part: 1500, short: 500 }]]);
+    expect(sum.places.flatMap((place) => place.items).every((item) => item.case === null)).toBe(true);
+  });
+
+  it("shows buyers how much is ordered only of what comes by the case", () => {
+    const b = book();
+    const page = offerPage({ ...b, items: b.items.map((item) => (item.id === "lamb" ? { ...item, case: 30_000, sold: 24_000 } : { ...item, sold: 3000 })) }, [], NOW);
+    expect(page.items.map((item) => [item.id, item.case, item.held])).toEqual([["rice", null, null], ["pearl", null, null], ["millet", null, null], ["eggs", null, null], ["lamb", 30_000, 24_000]]);
+  });
+});
+
 describe("the 接龙 text a merchant pastes into a group", () => {
-  const words: ChainWords = { closes: "截单：11月21日 周五 20:00", link: (to) => `下单：${to}`, joined: (n) => `接龙（${n} 单）`, none: "还没有人下单，点上面的链接就能跟团。", least: (n) => `${n}起`, perBuyer: (n) => `每人限 ${n}`, and: "、", unit: { bag: "袋", pack: "包", box: "盒", each: "个", portion: "份", lb: "磅" } };
+  const words: ChainWords = { closes: "截单：11月21日 周五 20:00", link: (to) => `下单：${to}`, joined: (n) => `接龙（${n} 单）`, none: "还没有人下单，点上面的链接就能跟团。", least: (n) => `${n}起`, perBuyer: (n) => `每人限 ${n}`, caseSize: (n) => `整箱 ${n}`, caseShort: (n) => `这一箱还差 ${n}`, and: "、", unit: { bag: "袋", pack: "包", box: "盒", each: "个", portion: "份", lb: "磅" } };
   const link = "https://changle.ca/tuan/t/aaaa2222";
   const write = (b: OfferBook, orders: Order[]) => chainText(b, b.shop.name, orders, link, words);
 
@@ -477,6 +515,14 @@ describe("the 接龙 text a merchant pastes into a group", () => {
       "接龙（0 单）",
       "还没有人下单，点上面的链接就能跟团。",
     ]);
+  });
+
+  it("says what a case holds before anyone orders, then what it still wants, and nothing once it's just full", () => {
+    const b = book();
+    const cased = (sold: number) => ({ ...b, items: b.items.map((item) => (item.id === "lamb" ? { ...item, case: 30_000, sold } : item)) });
+    expect(write(cased(0), [])).toContain("· 手切羊肉片 $16.99/磅（1 磅起、整箱 30 磅）\n");
+    expect(write(cased(24_000), [])).toContain("· 手切羊肉片 $16.99/磅（1 磅起、这一箱还差 6 磅）\n");
+    expect(write(cased(30_000), [])).toContain("· 手切羊肉片 $16.99/磅（1 磅起）\n");
   });
 
   it("lists the orders that stand, in order, with names only when the page shows them, and nothing when the list is off", () => {
@@ -547,7 +593,7 @@ describe("who is shown what", () => {
     b.items[0].sold = 38_000;
     const page = offerPage(b, [{ seq: 7, name: "王阿姨", pieces: 2 }], NOW);
     expect(page.offer).toEqual({ id: "aaaa2222", title: "本周大米团 · 周五到货", note: "", closesAt: NOW + 86_400_000, state: "open", roster: "names" });
-    expect(page.items[0]).toEqual({ id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, left: 2000, perBuyer: null, allergens: "" });
+    expect(page.items[0]).toEqual({ id: "rice", section: "米面", name: "五常大米 10kg", detail: "当季新米", photo: null, price: 3800, unit: "bag", step: 1000, least: 1000, left: 2000, perBuyer: null, case: null, held: null, allergens: "" });
     expect(page.items[1].left).toBeNull();
     expect(page.roster).toEqual([{ seq: 7, name: "王阿姨", pieces: 2 }]);
     expect(page.orders).toBe(1);

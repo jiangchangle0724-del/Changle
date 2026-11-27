@@ -176,6 +176,16 @@ export type TruthView = {
   revealAt: number;
   kind: "truth" | "dare" | null;
   prompt: T | null;
+  /** how often the bottle has picked each player this game: the spinning phone evens it out */
+  picked?: Record<string, number>;
+  /** 听天由命: truth or dare was left to chance */
+  rand?: boolean;
+  /** the card on the table is one the table wrote */
+  own?: boolean;
+  /** the table's own cards still to come, and how many this phone wrote (never their words) */
+  slips?: { truth: number; dare: number; mine: number };
+  /** this phone's player still has their one free swap */
+  swapLeft?: boolean;
 };
 
 export type UcRole = "civ" | "uc" | "blank";
