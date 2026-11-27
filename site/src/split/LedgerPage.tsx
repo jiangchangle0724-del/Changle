@@ -11,7 +11,7 @@
  * after the # (invite.ts). The ledger is read from the server, the key comes off the address, and
  * the page asks which of the people in the ledger this phone's owner is.
  */
-import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2, Link2Off, Lock, LogIn, Paperclip, Plus, ReceiptText, Send, UserPlus, WifiOff } from "lucide-react";
+import { CircleAlert, CloudOff, Ellipsis, FileQuestion, Link2, Link2Off, Lock, LogIn, Paperclip, Plus, ReceiptText, Search, Send, UserPlus, WifiOff, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "../account/AccountContext";
 import type { Lang } from "../i18n";
@@ -41,6 +41,7 @@ import { LedgerMenu } from "./Sheets";
 import { heldOf, useSaved } from "./store";
 import type { Held } from "./sync";
 import { dismissLost, joinLedger, record, useSync, watch, type Joined } from "./syncing";
+import { matches, SEARCH_FROM } from "./search";
 import { ViewLinkSheet } from "./ViewLink";
 import { say } from "./words";
 
@@ -94,6 +95,8 @@ export function LedgerPage({ id }: { id: string }) {
   const [viewLink, setViewLink] = useState(false);
   /** the expense recorded a moment ago: its row lands (one of the three motions) */
   const [landed, setLanded] = useState<string | null>(null);
+  // 搜索账目: what is typed over the list (search.ts)
+  const [query, setQuery] = useState("");
   /** what you were owed (or owed) when 记一笔 opened: the figure rolls on from there when it closes */
   const [rollFrom, setRollFrom] = useState<number | null>(null);
   useBackCloses(!!entry, () => setEntry(null));
@@ -227,7 +230,8 @@ export function LedgerPage({ id }: { id: string }) {
           {/* an empty ledger says so once, in the list's own empty state */}
           {hasExpenses && <Standing ledger={ledger} me={me} lang={lang} rollFrom={rollFrom} />}
           <Crew ledger={ledger} lang={lang} onPeople={() => setPeople(true)} onInvite={locked ? undefined : () => setInviting("send")} />
-          <ExpenseList ledger={ledger} me={me} lang={lang} landed={landed} onLanded={() => setLanded(null)} onOpen={locked ? undefined : openEntry} />
+          {(expensesOf(ledger).length >= SEARCH_FROM || query) && <ExpenseSearch value={query} onChange={setQuery} lang={lang} />}
+          <ExpenseList ledger={ledger} me={me} lang={lang} landed={landed} onLanded={() => setLanded(null)} onOpen={locked ? undefined : openEntry} query={query} />
         </section>
       ) : (
         <section className="split-panel" id="split-settle" role="tabpanel" aria-labelledby="split-settle-tab">
@@ -437,14 +441,61 @@ export function Crew({ ledger, lang, onPeople, onInvite }: { ledger: Ledger; lan
  * much. A row opens the expense to change it; in a locked ledger (no `onOpen`) a row is only a row.
  * The one just recorded lands (one of the three motions).
  */
-export function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { ledger: Ledger; me: string | undefined; lang: Lang; landed: string | null; onLanded: () => void; onOpen?: (id: string) => void }) {
-  const rows = expensesOf(ledger);
+/**
+ * 搜索账目: a field over the list, from SEARCH_FROM expenses on (search.ts says what it finds). Its
+ * own clear button empties it; the keyboard's search key puts the keyboard away.
+ */
+export function ExpenseSearch({ value, onChange, lang }: { value: string; onChange: (v: string) => void; lang: Lang }) {
+  return (
+    <label className="split-search">
+      <Search aria-hidden="true" />
+      <input
+        type="text"
+        inputMode="search"
+        enterKeyHint="search"
+        autoComplete="off"
+        maxLength={60}
+        value={value}
+        placeholder={say(lang, "searchHint")}
+        aria-label={say(lang, "search")}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      />
+      {value && (
+        <button type="button" className="split-search-clear" aria-label={say(lang, "searchClear")} onClick={() => onChange("")}>
+          <X aria-hidden="true" />
+        </button>
+      )}
+    </label>
+  );
+}
+
+export function ExpenseList({
+  ledger,
+  me,
+  lang,
+  landed,
+  onLanded,
+  onOpen,
+  query = "",
+}: {
+  ledger: Ledger;
+  me: string | undefined;
+  lang: Lang;
+  landed: string | null;
+  onLanded: () => void;
+  onOpen?: (id: string) => void;
+  /** what 搜索账目 holds: only the expenses it finds are listed (search.ts) */
+  query?: string;
+}) {
+  const every = expensesOf(ledger);
+  const rows = query.trim() ? every.filter((e) => matches(e, ledger, query, me, lang)) : every;
   const today = localDay(Date.now());
   const landedRow = useRef<HTMLLIElement>(null);
   useEffect(() => {
     if (landed) landedRow.current?.scrollIntoView({ block: "nearest" });
   }, [landed]);
-  if (!rows.length)
+  if (!every.length)
     return (
       <EmptyState
         icon={ReceiptText}
@@ -488,6 +539,12 @@ export function ExpenseList({ ledger, me, lang, landed, onLanded, onOpen }: { le
   );
   return (
     <>
+      {/* what a search found, said once as it changes */}
+      {query.trim() && (
+        <p className="split-found" role="status">
+          {!rows.length ? say(lang, "searchNone") : rows.length === 1 ? say(lang, "searchFoundOne") : say(lang, "searchFound", { n: rows.length })}
+        </p>
+      )}
       {byDay(rows).map(([day, spent]) => (
         <section key={day} className="split-day">
           <h3 className="split-day-head">{dayLabel(day, today, lang, true)}</h3>
