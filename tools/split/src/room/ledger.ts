@@ -205,7 +205,11 @@ export class LedgerRoom {
   /** The ledger as it stands, to look at: with its key, or only its 查看链接's (`read` is for the key alone). */
   look(keyHash: string | null): Ok<Snapshot> | Fail {
     if (!this.meta) return fail("gone");
-    return this.shows(keyHash) ? { ok: true, ...this.snapshot()! } : fail("key");
+    if (this.opens(keyHash)) return { ok: true, ...this.snapshot()! };
+    if (!this.shows(keyHash)) return fail("key");
+    // a 查看链接 sees the ledger as its people do, but nobody's 收款方式: that is for the people paying them
+    const { seq, ledger } = this.snapshot()!;
+    return { ok: true, seq, ledger: { ...ledger, members: ledger.members.map((m) => ({ id: m.id, name: m.name })) } };
   }
 
   /**

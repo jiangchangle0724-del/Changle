@@ -12,6 +12,8 @@ import { MAX_MEMBERS, nextRot, problem, soundTransfer, type Entry, type Expense,
 export const NAME_MAX = 20;
 export const LEDGER_NAME_MAX = 30;
 export const NOTE_MAX = 40;
+/** As long as someone's 收款方式 may be: an email address fits. */
+export const PAY_MAX = 80;
 /** As long as an expense's business, place or what paid it may be (the same as a note). */
 export const DETAIL_MAX = 40;
 /** An expense's lines about where it was bought and how it was paid (core/types.ts). */
@@ -214,6 +216,13 @@ export function renameMember(l: Ledger, id: string, to: string): Ledger {
   const name = tidy(to, NAME_MAX);
   if (!name || nameTaken(l, name, id)) return l;
   return { ...l, members: l.members.map((m) => (m.id === id ? { ...m, name } : m)) };
+}
+
+/** Someone's 收款方式 set (tidied), or taken off (nothing left once tidied). Someone not in the ledger changes nothing. */
+export function setPay(l: Ledger, id: string, to: string): Ledger {
+  if (!l.members.some((m) => m.id === id)) return l;
+  const pay = tidy(to, PAY_MAX);
+  return { ...l, members: l.members.map((m) => (m.id !== id ? m : pay ? { ...m, pay } : { id: m.id, name: m.name })) };
 }
 
 /** Does any entry, even one taken out, name this person? */

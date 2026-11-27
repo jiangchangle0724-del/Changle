@@ -49,11 +49,13 @@ function isEntry(x: unknown): x is Entry {
 }
 
 const isMember = (x: unknown): x is Member => isRecord(x) && isText(x.id) && isText(x.name);
+/** A member as kept: their id and name, and their 收款方式 when it is a line of words. */
+const asMember = (m: Member): Member => (typeof m.pay === "string" && m.pay ? { id: m.id, name: m.name, pay: m.pay } : { id: m.id, name: m.name });
 
 /** A ledger, with anything that isn't the shape of a member or an entry left out; null when it isn't a ledger, or has nobody in it. */
 export function asLedger(x: unknown): Ledger | null {
   if (!isRecord(x) || !isText(x.id) || !isText(x.name) || !isText(x.currency) || !Array.isArray(x.members) || !Array.isArray(x.entries)) return null;
-  const members = x.members.filter(isMember);
+  const members = x.members.filter(isMember).map(asMember);
   if (!members.length) return null;
   const ledger: Ledger = { id: x.id, name: x.name, currency: x.currency, members, entries: x.entries.filter(isEntry) };
   if (isCount(x.locked)) ledger.locked = x.locked;

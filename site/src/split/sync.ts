@@ -11,7 +11,7 @@
  */
 import { applyChange, rebase, type Change, type Sent, type Took } from "./changes";
 import type { Ledger, Member } from "./core";
-import { LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, tidy } from "./ops";
+import { LEDGER_NAME_MAX, NAME_MAX, NOTE_MAX, PAY_MAX, tidy } from "./ops";
 
 /** The server's ledger and the number of its last change. */
 export type Snapshot = { seq: number; ledger: Ledger };
@@ -165,6 +165,8 @@ export function holds(l: Ledger, c: Change): boolean {
       return l.members.some((m) => m.id === c.member.id);
     case "rename":
       return l.members.find((m) => m.id === c.member)?.name === tidy(c.name, NAME_MAX);
+    case "pay":
+      return (l.members.find((m) => m.id === c.member)?.pay ?? "") === tidy(c.pay, PAY_MAX);
     case "remove":
       return !l.members.some((m) => m.id === c.member);
     case "title":

@@ -1468,6 +1468,21 @@ ok(read("src/lib/api.ts").includes(`const TOKEN = "${SESSION_KEY}";`), `两清 s
   ok(!bad, `200 random ledgers: nothing typed finds all, and each expense's own note and own amount find it${bad ? ` (${bad})` : ""}`);
 }
 
+// ---------- 23. 收款方式 in the record, and when it didn't stick ----------
+{
+  const start = startLedger("p", "周末", "CAD", [{ id: "s", name: "Steve" }, { id: "w", name: "小王" }]);
+  const steps: Change[] = [{ do: "pay", member: "s", pay: "steve@example.com" }, { do: "pay", member: "s", pay: " " }];
+  let now = start;
+  const log: Logged[] = steps.map((change, i) => {
+    now = applyChange(now, change) ?? now;
+    return { seq: i + 1, at: 1000 + i, sent: { id: `p${i}`, at: 1000 + i, change, by: "w" } };
+  });
+  eq(historyOf(now, log, [], "s", "zh", 5000).map((l) => l.text), ["去掉了Steve的收款方式", "填了Steve的收款方式"], "the record says it was set, and taken off, and not what it said");
+  eq(historyOf(now, log, [], "s", "en", 5000).map((l) => l.text), ["Payment details removed: Steve", "Payment details set: Steve"], "in English");
+  eq(historyOf(now, log, [], "s", "zh", 5000).some((l) => l.action), false, "and offers nothing to change back");
+  eq([lostLine(start, { id: "x", at: 1, change: steps[0] }, "zh"), lostLine(start, { id: "x", at: 1, change: { do: "pay", member: "zz", pay: "x" } }, "en")], ["收款方式：Steve", "Another change"], "one that didn't stick: whose it was");
+}
+
 if (failed) {
   console.log(`\n${failed} failure(s)`);
   process.exit(1);
