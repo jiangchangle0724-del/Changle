@@ -1,6 +1,6 @@
 # MoneyLens security assessment
 
-Version 0.14, 26 November 2026. It records the choices the requirements leave to this document
+Version 0.15, 26 November 2026. It records the choices the requirements leave to this document
 ([`docs/moneylens.md`](../moneylens.md): VAULT-2, VAULT-6, VAULT-7) and grows with the code. So far
 it covers the vault's cryptography, which is the only security-sensitive code that exists
 (`tools/moneylens/src/vault/`). Sessions, the handoff, sync, the allowlist and the content security
@@ -38,8 +38,9 @@ its latest copy's time), and one more way a field can come back is written into 
 0.12 adds sessions and what a request has to show (1.7). Version 0.13 adds the Worker and the
 Durable Objects around all of it: a request's way in, the gate, and sync as it travels (1.8).
 Version 0.14 follows the review of 1.8: a sign-in and a notice from the accounts service are put
-in order ("A sign-in and a notice at the same time"), and signing in is one transaction. None of
-it is published.
+in order ("A sign-in and a notice at the same time"), and signing in is one transaction. Version
+0.15 adds where the wrapped keys are kept and what a device has to show to be given one (1.9).
+None of it is published.
 
 ## 1. The vault
 
@@ -930,6 +931,117 @@ them the page that finishes a sign-in and the content security policy of pages t
 something (SEC-2). The main site's page that asks for the code. The limits of the platform at
 their real sizes, and what a call is billed, which only a deploy can show.
 
+### 1.9 The ways in: where wrapped keys are kept, and proving a secret (VAULT-1, VAULT-7, threat 1)
+
+Until this version the wrappers of 1.1 were kept nowhere but on the device that made them. They
+are the "wrapped keys" VAULT-1 has the server store, so that a second device can open the vault.
+The question this section answers is who the server gives one to.
+
+**Not to everyone who is signed in.** A session takes the account's mailbox and nothing else
+(ARCH-6). If a session were enough to fetch the passphrase wrapper, whoever took over the
+mailbox could fetch it once and test passphrases against it on their own machine for as long as
+they liked: the floor of 1.4 would be all that stood in the way, and the threat model's "unlock
+attempts are rate-limited and logged" (threat 1) would limit nothing. So a wrapper is handed
+only to a session that first proves it knows that wrapper's secret, and every wrong proof is a
+guess the server counts.
+
+**A proof (`vault/proof.ts`).** 32 bytes made from the secret the way a wrapping key is made,
+and separately from it:
+
+- for a passphrase, PBKDF2-HMAC-SHA-256 over the normalized passphrase (1.4), with the same
+  count as a new wrapper's (600,000), and a salt of its own: the bytes of
+  `moneylens/v1/proof/passphrase/<vault id>`, a line feed, then 32 random bytes;
+- for the recovery code, HKDF-SHA-256 over its 20 bytes, with a 32-byte random salt and `info`
+  `moneylens/v1/proof/recovery/<vault id>`.
+
+The words that go into a wrapping key begin `moneylens/v1/passphrase/` and
+`moneylens/v1/recovery/` (1.1); a proof's say "proof" before that, and a vault's id cannot
+contain a slash, so no vault and no salt make the one into the other. A proof therefore says
+nothing about the wrapping key made from the same secret, or about the proof for another vault.
+
+The server keeps, for each way in: the wrapper as text, the proof's parameters (version, kind,
+the salt, the count), and the SHA-256 of the proof (`server/ways.ts`). It understands none of
+it. What it holds is worth to someone who reads its storage exactly what the wrapper alone was
+worth: something to test guesses against at the full price of each guess. The proof adds no
+cheaper test, because it costs what the wrapping key costs.
+
+The parameters come back from the server, so a device checks them as it checks a wrapper from
+storage (`isProofParams`): a count under the floor is refused. A server that asked for a
+cheaply made proof would be asking for a cheap way to test guesses.
+
+**Opening a vault on a device** (the requests, all behind a session, 1.8):
+
+1. `vault` says which vault there is, which ways in (their ids and kinds, nothing to open
+   anything with), and whether this session is unlocked.
+2. `vault/way` gives the parameters of one way in's proof. Nothing secret is in them.
+3. The device makes the proof from what the person typed and shows it: `vault/unlock`. The
+   object hashes it before anything else (`proofsIn`; hashing waits, and `act` does not), and
+   compares hashes, every character.
+4. Right: the wrapper is the answer, the session is marked unlocked, and the device opens the
+   wrapper as in 1.1. Wrong: no wrapper, the guess is counted, and the answer says how many
+   more may be wrong.
+
+A wrong passphrase and an altered wrapper are no longer one case: the server's "wrong" means
+the proof was wrong, and a wrapper that then does not open under the same secret was altered
+(or the proof's parameters were). The screens can say which.
+
+**Counting.** Wrong proofs are counted for the account, across its sessions and its ways in:
+ten in an hour, thirty in a day. Past either, every proof is turned away unlooked at, the right
+one included, with the time until one more may be shown. Looking at the right one past the
+count would be looking at all of them, and the count would count nothing. A right proof is not
+counted and can be shown as often as a device needs. Each wrong proof is a line in the events
+log (SEC-17), and so is each unlocking; what is turned away past the count writes nothing, so a
+stranger with a session cannot fill the log or the table. A clock that goes back does not hand
+guesses back: a try made under the later clock counts until the clock has passed it again, and
+a day more. Thirty a day is about eleven thousand guesses a year against the floor of 1.4.
+
+**What this costs the owner.** Someone who holds the mailbox can guess wrong on purpose, thirty
+times a day, and keep the owner from opening the vault for as long as they keep at it. They
+cannot read anything, and the owner sees every one of those tries in the log, and can end the
+other sessions; but only taking the mailbox back ends it. The same person could already sign
+the owner out and start the vault's erasing. A count per device, kept apart for devices that
+have opened the vault before, would spare the owner; it is not built (section 3).
+
+**Unlocked sessions.** A session that has shown a right proof is unlocked until it ends or
+says it has locked (`vault/lock`, sent when the device drops the key: the fifteen idle minutes
+of VAULT-3, or the person locking). The session that makes a vault is unlocked by making it.
+Sync, both calls, is for unlocked sessions only: a session that has not unlocked reads nothing,
+not even ciphertext (threat 1: "a session that has not unlocked can never read"). This is also
+what erasing a vault will go by, when that is built: an unlocked session may erase at once, any
+other only after the seven days.
+
+**Making a vault.** `vault/start` takes the vault's id and its two ways in, one by passphrase
+and one by recovery code, each with its parameters and its proof, and keeps all of it or none:
+the vault's row, the ways in, the maker's unlocking and the line in the log are one
+transaction. Asked again for the vault that is already there, it answers as before and does
+nothing: the ways in stay as they are and the session that asked is not unlocked, so a session
+cannot unlock itself, or swap the ways in for its own, by "starting" a vault whose id it was
+told. Another vault is refused; replacing one is a reset.
+
+**What the device must not do.** Keep a wrapper once the vault is locked, in storage or in
+memory: a wrapper on the device is what the count exists to keep away from guessing. So
+opening a vault needs the server each time. The device's cache (1.6) holds sealed chunks only,
+as before.
+
+**Not changed.** The format of wrappers and of sealed chunks, how a passphrase becomes a
+wrapping key, and `tests/golden.ts`. A proof has its own version number: changing how one is
+made would lock people out as surely as changing a wrapper would, so it is added to, never
+changed. Two proofs are written down in `tests/proof.test.ts`.
+
+**Tested.** The proof against Node's own PBKDF2 and HKDF, which share no code with WebCrypto's;
+that it differs from the wrapping key's bits for the same secret and the same random bytes;
+what parameters are refused. The server's rules on Node's SQLite (`tests/ways.test.ts`): what a
+vault may be started with, who is given parameters and who a wrapper, the counts to the
+millisecond at both edges, who is unlocked and what ends it, and that sync answers "locked" to
+everyone else. On the local runtime, a second and a third device open a real vault, by
+passphrase and by recovery code, with a wrong passphrase in between, and sync through it. Each
+of 75 checks in this code taken out in turn fails a test.
+
+**Not in this.** Changing the passphrase, a new recovery code, removing a way in, passkeys
+(VAULT-7's lifecycle: each is "show the proof again, then replace the way in"). The screens. A
+fingerprint of the ways in kept on the device, so that it can tell when they were replaced
+behind its back.
+
 ## 2. Limits (the reason for VAULT-6's wording)
 
 - **The code the site serves.** The browser runs what `money.changle.ca` sends. Whoever can change
@@ -992,8 +1104,11 @@ their real sizes, and what a call is billed, which only a deploy can show.
 - A passphrase in Chinese needs an input method, which a password field switches off, so the
   field has to be a text field at least while such a passphrase is typed. How that is offered,
   and what each input method then does to the punctuation keys, is for the screens.
-- Limiting unlock attempts: the check happens in the browser, so the limit has to be on fetching
-  wrappers, per session and per account (threat 1). Not built.
+- Limiting unlock attempts: built on the server (1.9): a wrapper is handed only against a proof,
+  and wrong proofs are counted for the account. Still open: the count is one for the whole
+  account, so whoever holds the mailbox can lock the owner out by guessing wrong on purpose. A
+  second count for devices that have opened the vault before (a device secret kept in the
+  browser, its hash on the server) would keep such a device out of the stranger's count.
 - The handoff, the allowlist, the Worker, the Durable Object and resetting a vault: sections to
   add with the server. Sessions and the origin check are written (1.7). The server's side of the two sync calls, with its
   quotas, is written and passes the tests the one in memory passes (1.6, "The server's code").

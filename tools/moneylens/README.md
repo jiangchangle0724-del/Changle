@@ -103,6 +103,29 @@ knows of every database there is. In `VaultDO.signIn` nothing that waits may com
 `signInHere` has asked the registry; and a method that does a notice's work on an object counts
 it first (`this.noticed++`) and only then does the work (`tests/objects.test.ts`).
 
+`ways.ts` is the ways into a vault as the server keeps them: each wrapper, with what a device
+has to show to be given it. For whoever writes the screens, opening a vault is four requests
+(assessment 1.9):
+
+```ts
+const { vault, ways, unlocked } = await post("vault");                 // which vault, which ways in; nothing to open anything with
+const { id, params } = await post("vault/way", { kind: "passphrase" }); // the proof's parameters: check them (isProofParams)
+const proof = await proofOf(vault, params, { kind: "passphrase", passphrase });
+const answer = await post("vault/unlock", { id, proof });               // 200 { wrapper } | 422 wrong-secret { left } | 429 too-many { again }
+const opened = await unlock(answer.wrapper, { kind: "passphrase", passphrase }, vault);
+```
+
+- Making a vault: `createVault(passphrase)`, a `newProof` for each of its two wrappers with that
+  wrapper's secret, then `vault/start` with `{ vault, ways: [{ wrapper, params, proof }, …] }`.
+  The session that made it is unlocked.
+- 422 with `left` is a wrong passphrase: say how many tries are left when it is three or fewer.
+  429 with `again` (milliseconds) means wait; say until when. A wrapper that came back and does
+  not open is not a wrong passphrase: the stored ways in were changed (`unlock` says why).
+- Sync answers 423 until the session has unlocked: `HttpRemote.locked`. Ask for the passphrase.
+- When the vault locks (fifteen idle minutes, VAULT-3, or the person locks it): drop the key
+  and the wrapper from memory, and tell the server (`vault/lock`). Never keep a wrapper in
+  storage: a wrapper on the device is what the server's count keeps away from guessing.
+
 **Not published.** `wrangler.jsonc` is the Worker's settings, with the gate shut (`GATE`:
 `closed`, `owner` or `list`). Nothing is live until a Workers Build is connected to this folder
 in Cloudflare, which is Steve's to do, and the gate is his to open.
