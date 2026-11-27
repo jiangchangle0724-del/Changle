@@ -1,7 +1,8 @@
 /** The small pieces 两清's screens share: the top bar, a figure that rolls to its new value, copying, the keypad. */
-import { ChevronLeft, Delete, Plus, X } from "lucide-react";
+import { BedDouble, Car, ChevronLeft, Delete, Plus, Shapes, ShoppingBag, ShoppingCart, Ticket, UtensilsCrossed, X, type LucideIcon } from "lucide-react";
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Lang } from "../i18n";
+import type { Category } from "./categories";
 import { reduced } from "../lib/motion";
 import { haptic } from "../lib/sound";
 import { Button } from "../ui/Button";
@@ -143,5 +144,18 @@ export function Keypad({ onKey, decimals, lang }: { onKey: (k: Key) => void; dec
         </button>
       ))}
     </div>
+  );
+}
+
+/** Each kind of spending's picture (categories.ts): its name is always said beside it, or for a screen reader. */
+export const KIND_ICONS: Record<Category, LucideIcon> = { food: UtensilsCrossed, groceries: ShoppingCart, transport: Car, lodging: BedDouble, fun: Ticket, shopping: ShoppingBag, other: Shapes };
+
+/** A kind's picture in a small round, as each expense in the list and each line of 按分类 begins. */
+export function KindMark({ kind }: { kind: Category }) {
+  const Icon = KIND_ICONS[kind];
+  return (
+    <span className="split-kind-mark" aria-hidden="true">
+      <Icon />
+    </span>
   );
 }

@@ -644,6 +644,81 @@
   font-size: var(--text-sm);
   font-weight: 400;
 }
+/* 分类: a kind's picture in a small round, at the start of each expense and of each line of 按分类 */
+.split-kind-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--r-pill);
+  color: var(--color-text-2);
+  background: var(--color-raised);
+}
+.split-kind-mark svg {
+  width: calc(var(--icon-sm) - var(--space-1));
+  height: calc(var(--icon-sm) - var(--space-1));
+}
+/* picking one in 详情: seven pills side by side, each a crowded target's height */
+.split-kinds .ui-pill-toggle {
+  min-height: var(--tap-crowded);
+}
+.split-kinds .split-note {
+  margin: var(--space-2) 0 0;
+}
+/* 按分类: the picture, the kind's name and how many expenses, the sum and its share; under them, a bar
+   as long as the share */
+.split-kinds-spent {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.split-kinds-spent > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-line-soft);
+}
+.split-kinds-spent .split-kind-mark {
+  grid-row: span 2;
+}
+.split-kinds-spent-bar {
+  grid-column: 2 / -1;
+  width: 100%;
+  height: var(--space-1);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.split-kinds-spent-bar rect {
+  fill: var(--color-raised);
+}
+.split-kinds-spent-bar rect + rect {
+  fill: var(--color-text-2);
+}
+.split-kinds-spent-name,
+.split-kinds-spent-sum {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  line-height: var(--leading-tight);
+}
+.split-kinds-spent-name {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.split-kinds-spent-sum {
+  justify-items: end;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+.split-kinds-spent small {
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
 /* 搜索账目: a field over the list, the light along its edge while it is typed in */
 .split-search {
   display: flex;
