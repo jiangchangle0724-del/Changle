@@ -21,6 +21,7 @@ import { askOver, draft, keep, leave, open, standing, type Ask } from "../src/ap
 import { act, proofsIn, signIn } from "../src/server/account";
 import type { Db } from "../src/server/chunks";
 import { configOf } from "../src/server/gate";
+import { addressKey } from "../src/server/request";
 import { hashOf, newToken } from "../src/server/sessions";
 import { startWays, tryUnlock, wayTables } from "../src/server/ways";
 import { packPush } from "../src/server/wire";
@@ -385,7 +386,7 @@ test("the page: what is asked of the file store, and what goes out", async () =>
 // Findings (todo: each fails while its finding stands)
 // ---------------------------------------------------------------------------------------------
 
-test("finding 1: one machine's IPv6 addresses share one count", { todo: "finding 1: the limiters key on the whole IPv6 address, so one /64 has 2^64 lids" }, async () => {
+test("finding 1 (fixed at c601285d): one machine's IPv6 addresses share one count", async () => {
   const w = await world();
   for (const from of ["2001:db8:5:6::1", "2001:db8:5:6::2", "2001:db8:5:6:aaaa:bbbb:cccc:dddd"]) {
     const b = w.browser(from);
@@ -396,7 +397,7 @@ test("finding 1: one machine's IPv6 addresses share one count", { todo: "finding
   assert.equal(new Set(w.keys).size, 1, `counted under ${new Set(w.keys).size} keys: ${[...new Set(w.keys)].join(", ")}`);
 });
 
-test("finding 2: after thirty wrong proofs and an afternoon of signing in and out, the owner is still shown that wrong proofs were made", { todo: "finding 2: the 50 events shown (and the 500 kept) can be filled by whoever holds a session, pushing the wrong proofs out" }, async () => {
+test("finding 2: after thirty wrong proofs and an afternoon of signing in and out, the owner is still shown that wrong proofs were made", { todo: "finding 2: the 50 events shown can still be filled by whoever holds a session (kept apart since c601285d, not yet shown apart)" }, async () => {
   const db = sqlite();
   const cfg = configOf({ ORIGIN, GATE: "owner", ALLOWED_ACCOUNTS: OWNER })!;
   const T0 = Date.UTC(2026, 10, 27, 9, 0, 0);
@@ -435,7 +436,7 @@ test("finding 2: after thirty wrong proofs and an afternoon of signing in and ou
   );
 });
 
-test("finding 3: signing out when the account is no longer let in: the cookie is gone, and the screen must not say the person is still signed in", { todo: "finding 3: leave() treats 403 not-admitted, whose answer clears the cookie, as a sign-out that failed" }, async () => {
+test("finding 3 (fixed at c601285d): signing out when the account is no longer let in: the cookie is gone, and the screen does not say the person is still signed in", async () => {
   const w = await world();
   const b = w.browser();
   await b.signInAs(OWNER);
@@ -445,7 +446,90 @@ test("finding 3: signing out when the account is no longer let in: the cookie is
   assert.equal(over, true);
 });
 
-test("finding 5: a request told to slow down is not said to be the server's fault", { todo: "finding 5: standing() and keep() turn 429 slow-down into 'the server didn't answer properly'" }, async () => {
+test("finding 5 (fixed at c601285d): a request told to slow down is not said to be the server's fault", async () => {
   const slow: Ask = async () => ({ status: 429, json: { ok: false, why: "slow-down" } });
-  assert.notDeepEqual(await standing(slow), { at: "trouble", why: "server" });
+  assert.deepEqual(await standing(slow), { at: "trouble", why: "busy" });
+  const made = await draft(PASSPHRASE);
+  assert.ok(made.ok);
+  assert.equal(await keep(slow, made.draft), "busy");
+});
+
+// ---------------------------------------------------------------------------------------------
+// Second look (c601285d): what the fixes might have broken
+// ---------------------------------------------------------------------------------------------
+
+test("second look: the address key: one machine one key, two machines two keys, whatever the spelling", () => {
+  // one /64, however written, and an IPv4 address however it comes
+  const same = [
+    ["2001:db8:5:6::1", "2001:DB8:5:6:ffff:ffff:ffff:ffff", "2001:0db8:0005:0006:0:0:0:1", "2001:db8:5:6:1:2:3.4.5.6"],
+    ["192.0.2.7", "::ffff:192.0.2.7", "::FFFF:c000:207", "0:0:0:0:0:ffff:192.0.2.7"],
+  ];
+  for (const spellings of same) assert.equal(new Set(spellings.map(addressKey)).size, 1, spellings.join(" "));
+  // neighbours are apart: the next /64, the next IPv4 address, and a mapped address from its IPv6 neighbour
+  const apart = ["2001:db8:5:6::1", "2001:db8:5:7::1", "192.0.2.7", "192.0.2.8", "::fffe:192.0.2.7", "64:ff9b::192.0.2.7"];
+  assert.equal(new Set(apart.map(addressKey)).size, apart.length, apart.map(addressKey).join(" | "));
+  // (a /56 is 256 keys: 1.8 says so)
+  assert.notEqual(addressKey("2001:db8:5:600::1"), addressKey("2001:db8:5:6ff::1"));
+  // what is not an address is the one key, and is never somebody's address
+  for (const bad of ["", "nowhere", "1.2.3", "1.2.3.256", "2001:db8::1::2", "1:2:3:4:5:6:7:8:9", "fe80::1%eth0", "::ffff:1.2.3.4.5", "1.2.3.4:5", " 1.2.3.4", null, 7]) assert.equal(addressKey(bad), "nowhere", String(bad));
+});
+
+test("second look: /enter begins a sign-in only from this origin's own page, or a browser that does not say", async () => {
+  const { default: worker } = await shell;
+  const w = await world();
+  const enter = (site: string | null) => worker.fetch(new Request(`${ORIGIN}/enter`, { headers: site === null ? {} : { "Sec-Fetch-Site": site }, redirect: "manual" }), w.env);
+  for (const site of ["cross-site", "same-site", "none", "Same-Origin", "same-origin, cross-site", ""]) {
+    const answer = await enter(site);
+    assert.equal(answer.status, 302, site);
+    assert.equal(answer.headers.get("Location"), `${ORIGIN}/`, site);
+    assert.deepEqual(answer.headers.getSetCookie(), [], site);
+  }
+  for (const site of ["same-origin", null]) {
+    const answer = await enter(site);
+    assert.equal(answer.status, 302);
+    assert.match(answer.headers.get("Location")!, /^https:\/\/changle\.ca\/tools\/finance\?handoff=/);
+    assert.ok(answer.headers.getSetCookie().some((c) => c.startsWith("__Host-ml-n=")));
+  }
+});
+
+test("second look: the events log keeps wrong proofs and everything else apart, 500 of each, and neither pushes the other out", async () => {
+  const db = sqlite();
+  const cfg = configOf({ ORIGIN, GATE: "owner", ALLOWED_ACCOUNTS: OWNER })!;
+  let now = Date.UTC(2026, 10, 27, 9, 0, 0);
+  const minute = 60_000;
+  const session = async () => {
+    const hash = (await hashOf(newToken()))!;
+    assert.equal(signIn(db, { account: OWNER, session: newId(), hash, label: "Firefox on Linux", owner: true }, now, cfg.gate), "ok");
+    return hash;
+  };
+  const ask = async (hash: string, action: string, body: object) => {
+    const bytes = new TextEncoder().encode(JSON.stringify(body));
+    return act(db, { account: OWNER, hash, action, body: bytes, proofs: (await proofsIn(action, bytes))! }, now, cfg);
+  };
+  const count = (where: string) => Number((db.raw.prepare(`SELECT COUNT(*) AS n FROM events WHERE ${where}`).all()[0] as { n: number }).n);
+  const maker = await session();
+  const vault = newId();
+  const ways = (["passphrase", "recovery"] as const).map((kind) => ({ wrapper: { v: 1, id: newId(), vault, kind }, params: { v: 1, kind }, proof: newToken() }));
+  assert.equal((await ask(maker, "vault/start", { vault, ways })).status, 200);
+  // 520 wrong proofs, one every 50 minutes (under ten an hour and thirty a day), each from a new session: the oldest twenty go, and nothing else does
+  for (let i = 0; i < 520; i++) {
+    now += 50 * minute;
+    const s = await session();
+    assert.equal((await ask(s, "vault/unlock", { id: ways[0]!.wrapper.id, proof: newToken() })).status, 422);
+  }
+  // (the 521 sign-ins are the other sort: held to their own 500, the vault's start among the oldest that went)
+  assert.equal(count("kind = 'unlock-failed'"), 500);
+  assert.equal(count("kind != 'unlock-failed'"), 500);
+  const oldestWrong = Number((db.raw.prepare(`SELECT MIN(n) AS n FROM events WHERE kind = 'unlock-failed'`).all()[0] as { n: number }).n);
+  // then 600 right proofs: the other sort stays at 500, and not one wrong proof goes
+  const opener = await session();
+  for (let i = 0; i < 600; i++) assert.equal((await ask(opener, "vault/unlock", { id: ways[0]!.wrapper.id, proof: ways[0]!.proof })).status, 200);
+  assert.equal(Number((db.raw.prepare(`SELECT MIN(n) AS n FROM events WHERE kind = 'unlock-failed'`).all()[0] as { n: number }).n), oldestWrong);
+  assert.equal(count("kind != 'unlock-failed'"), 500);
+  assert.equal(count("kind = 'unlock-failed'"), 500);
+  // and the twelve months still hold for both
+  now += 367 * 24 * 60 * minute;
+  await session();
+  assert.equal(count("kind = 'unlock-failed'"), 0);
+  assert.equal(count("1 = 1"), 1);
 });

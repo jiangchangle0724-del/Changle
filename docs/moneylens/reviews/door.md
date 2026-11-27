@@ -1,4 +1,6 @@
-VERDICT: APPROVE (with six findings, none of which blocks the merge; finding 1 blocks opening the gate)
+VERDICT (second look, c601285d): APPROVE for merging with the gate shut; APPROVE for opening the gate to the owner alone once the two deployment checks are done
+
+(First look, 342bbbb3: APPROVE with six findings, none of which blocked the merge; finding 1 blocked opening the gate.)
 
 # C10: the door (the ways in, the app's first pages, the main site's page, and the settling of the shell review)
 
@@ -381,5 +383,126 @@ take the `ways` table.
 - Parsed statement text is written as text only.
 - Nothing parsed goes into `localStorage`.
 - The idle lock covers the import screens, including a long parse.
+
+## Second look: the fixes at c601285d
+
+Reviewed on 27 November 2026, in a clean worktree detached at `c601285d`, by the same reviewer
+(Claude Opus 5.5, a separate agent, the same limit on independence as above). I read
+`git diff 7c2eb601 c601285d`: the source, the tests, the assessment and `wrangler.jsonc`. My three
+files in `7c2eb601` are identical to the copies I wrote.
+
+### Verdicts
+
+- **(a) Merging into main with the gate shut: APPROVE.**
+- **(b) Opening the gate to the owner alone: APPROVE**, once the two deployment checks of "One more
+  question" are done:
+  - Workers Logs keep nothing of a request. `invocation_logs: false` is now set, so this is a
+    look to confirm and not a decision to make.
+  - The rate-limiting binding answers on the account's plan.
+
+  Finding 1, which blocked (b), is fixed.
+
+### Each finding
+
+1. **IPv6 keys: fixed.**
+   - `addressKey` (`request.ts`) parses the address into numbers, so every spelling of one /64 is
+     one key: leading zeros, capitals, `::` anywhere, a dotted tail.
+   - An IPv4-mapped address is its IPv4 address, so one machine cannot get two keys by switching
+     forms.
+   - Anything that is not an address is "nowhere". Cloudflare always sends an address, so that
+     key is never a real person's.
+   - `within` uses it.
+   - My test is now plain. So is a new one, `second look: the address key ...`: spellings,
+     neighbours, the mapped form and 14 kinds of nonsense.
+   - Many machines on one key, beyond what 1.8 admits: none that matters.
+     - IPv4-compatible `::a.b.c.d` (deprecated, never seen from Cloudflare) all lands under
+       `0:0:0:0::/64`.
+     - NAT64 clients reach Cloudflare as their IPv4 gateway, which is ordinary address sharing.
+     - Teredo clients share their server's /64. Teredo is effectively gone.
+   - One machine with many keys: a /56 or /48 delegation, which 1.8 now states in "What an address
+     is". Also 6to4 (`2002::/16`), where one IPv4 address holds a /48. It is the same case and
+     already covered by that sentence.
+2. **Events: half done, as agreed.**
+   - `tidyEvents` keeps the newest 500 `unlock-failed` lines and the newest 500 of all other
+     kinds, by `n` within each kind, and drops anything older than twelve months.
+   - When a kind has 500 lines or fewer, its subquery is NULL and `n <= NULL` deletes nothing.
+   - It touches the `events` table only. It runs inside the same `atomically` as the line it
+     follows, both in sign-in and in unlock.
+   - New plain test `second look: the events log keeps wrong proofs and everything else apart ...`:
+     - 520 wrong proofs keep the newest 500. The 521 sign-ins are held to their own 500.
+     - 600 right proofs afterwards remove not one wrong proof (the oldest kept `n` is unchanged).
+     - After twelve months both sorts go.
+   - Note: the vault's `vault-started` line is "everything else" and is pushed out by 500 later
+     sign-ins. That is acceptable, but the events screen should not promise to show it.
+   - What remains: the events call still answers the newest 50 lines of both sorts together, so
+     whoever holds a session can still hide wrong proofs from what is shown. My test stays `todo`
+     (`finding 2: ...`), and the obligation stands on the events and devices slice.
+   - The new open point in section 3 (a right proof writes a line with each request) is right to
+     settle before anyone but the owner is let in.
+   - 1.8, 1.9 and the comment in `ways.ts` now say all of this truthfully.
+3. **`leave`: fixed.** 403 `not-admitted` or `closed` counts as over, and my test is plain. A nit,
+   not a finding: a 403 `closed` from the Worker does not clear the cookie. After "signed out" the
+   browser still holds a session that would work again if the gate reopened within its lifetime.
+   "Signed out" is true for every purpose while the gate is shut, and `standing` already treats
+   `closed` the same way.
+4. **The two sentences: fixed.** 1.10 now describes what `vault/start` asked twice does, and 1.8
+   lists the unlock lines.
+5. **Slow down: fixed.** `standing` gives `trouble`/`busy` and `keep` gives `busy`. The screens
+   use `busyTitle`/`busy` and `keepBusy`, both in Chinese and English. My test is plain and now
+   covers `keep` too.
+6. **`/enter`: fixed in the Worker, and sound.**
+   - `Sec-Fetch-Site` is set by the browser and cannot be set by a page.
+   - A cross-site link, a same-site page (the main site or any other changle.ca subdomain), a
+     typed address (`none`) and a redirect chain that began elsewhere (browsers report the whole
+     chain) all get a 302 to the app's own page, with no cookie.
+   - Only a press on the app's own link (`same-origin`) or a browser that sends no such header
+     begins a sign-in.
+   - New plain test `second look: /enter begins a sign-in only ...` covers `cross-site`,
+     `same-site`, `none`, odd casing, a doubled value and an empty value (all refused), and
+     `same-origin` and absent (both begin).
+   - Ways round it that I looked for and did not find: no page on money.changle.ca other than the
+     app's own, so there is no same-origin content an attacker could place. Framing is refused on
+     both sites. A missing header can only come from a browser too old to send it, which 1.10
+     states.
+   - The main site's page still goes on by itself. That is fine now, because the round can only
+     start from the press.
+
+### What the fixes may have opened
+
+- **The recovery-code screen's fifteen minutes and `done` (low, does not block either verdict).**
+  The guard is right: an idle drop to "new" makes a late `done` do nothing, so no unkept or
+  dropped draft is ever opened.
+  - One ordering leaves the screen saying something untrue. The person presses "create", which
+    counts as activity. The machine sleeps with `vault/start` already delivered, and wakes more
+    than fifteen minutes later. `look` drops the draft and shows `newTimedOut` ("Nothing was
+    stored"), but the server did keep the vault. Pressing on gets "another", and the passphrase
+    just chosen opens that vault, so nothing is lost.
+  - This needs a sleep in the 20 seconds a request may take.
+  - Fix, when convenient: do not drop while `keep` is in flight, or word the note as "may not have
+    been stored". Not worth a test from here: it needs the screen, and the browser check is the
+    author's.
+- **`addressKey`, `tidyEvents`, `enter`, `leave`:** nothing else found (above).
+- `wrangler.jsonc`: `invocation_logs: false`, `redact_query_string: true`. The first look's
+  deployment item becomes a confirmation.
+
+### Tests changed in this look
+
+- `second-door.test.ts`:
+  - Findings 1, 3 and 5 are plain tests. Finding 5 also checks `keep`.
+  - Finding 2 stays `todo`, with a new label.
+  - Three new plain tests: the address key, `/enter`, and the events log's two sorts.
+- `second-shell.test.ts`: unchanged.
+
+### What was run at c601285d
+
+In `tools/moneylens` of `/home/claude/review-c10b`:
+- `npx tsc --noEmit`: clean.
+- `npx tsc --noEmit -p src/server/tsconfig.json`: clean.
+- `node --import tsx --test tests/second-door.test.ts`: 15 tests, 14 pass, 0 fail, 1 todo
+  (finding 2).
+- `npm test`: 520 tests, 519 pass, 0 fail, 0 skipped, 1 todo (finding 2).
+
+Not run, as asked: `npm run test:server`, `npm run test:app`, wrangler, any browser. Nothing was
+run in `/home/claude/changle`, nothing was committed, and no network was used.
 
 No real account, statement, key or token is in this review or its tests. Every value is invented.
