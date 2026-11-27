@@ -293,7 +293,7 @@ const pastInvite = async (page: Page) => {
   await page.keyboard.press("Escape");
   await closed(page);
 };
-const key = (page: Page, d: string) => page.locator(".split-key", { hasText: new RegExp(`^${d === "." ? "\\." : d}$`) }).click();
+const key = (page: Page, d: string) => (d === "+" ? page.locator(".split-key.is-plus") : page.locator(".split-key", { hasText: new RegExp(`^${d === "." ? "\\." : d}$`) })).click();
 const type = async (page: Page, digits: string) => {
   for (const d of digits) await key(page, d);
 };
@@ -484,7 +484,11 @@ async function walk(lang: Lang, width: number, height: number) {
   await button("done").click();
   await fill("120", null, "油费");
   await button("done").click();
-  await fill("81.50", "阿美", "早餐");
+  // (breakfast typed as two amounts, with the keypad's +: it comes to the same $81.50)
+  await fill("60+21.50", "阿美", "早餐");
+  await shot("04b-add-sum");
+  const summed = { figure: await page.locator(".split-add-amount .split-figure").innerText(), line: await page.locator(".split-add-sum").innerText(), keys: await page.locator(".split-key").count() };
+  ok(summed.figure === "$81.50" && summed.line === "$60 + $21.50" && summed.keys === 13, `${lang} ${width}x${height}: 60 + 21.50 on the keypad comes to ${summed.figure}, the amounts under it (${summed.line}), thirteen keys`);
   await button("done").click();
   await button("addExpense").waitFor();
   await shot("05-ledger");
@@ -1209,7 +1213,7 @@ async function walk(lang: Lang, width: number, height: number) {
   await type(page, "9999999999");
   await shot("47-yen-most");
   await whole("the most yen there can be");
-  for (let i = 0; i < 10; i++) await page.locator(".split-key").last().click();
+  for (let i = 0; i < 10; i++) await page.locator(".split-key.is-back").click();
   await corner.click();
   await cur("韩元", "KRW").click();
   await closed(page);
@@ -1274,7 +1278,7 @@ async function fits() {
       await page.goto(`${base}/split/${id}`);
       await page.locator(".split-row").first().click();
       await page.locator(".split-key").first().waitFor();
-      for (let i = 0; i < 4; i++) await page.locator(".split-key").last().click(); // 100.00 becomes 10
+      for (let i = 0; i < 4; i++) await page.locator(".split-key.is-back").click(); // 100.00 becomes 10
       await page.waitForTimeout(200);
       const m = (await page.evaluate(`(() => {
         const box = (s) => document.querySelector(s).getBoundingClientRect();
@@ -1905,7 +1909,7 @@ async function behave() {
       await closed(page);
     };
     const wipe = async (digits: number) => {
-      for (let i = 0; i < digits; i++) await page.locator(".split-key").last().click();
+      for (let i = 0; i < digits; i++) await page.locator(".split-key.is-back").click();
     };
     const top = async () => ((await page.locator(".split-row-amount").first().textContent()) ?? "").replace(/\s+/g, "");
 
@@ -2368,7 +2372,7 @@ async function behave() {
 
       await pb.locator("button.split-row").first().click();
       await pb.locator(".split-add-comes").waitFor();
-      for (let i = 0; i < 4; i++) await pb.locator(".split-key").last().click();
+      for (let i = 0; i < 4; i++) await pb.locator(".split-key.is-back").click();
       await type(pb, "5000");
       await button(pb, "saveChanges").click();
       await pa.locator(".split-row-amount", { hasText: "JP¥5,000" }).waitFor({ timeout: 8000 });
@@ -2376,7 +2380,7 @@ async function behave() {
 
       await pa.locator("button.split-row").first().click();
       await pick(pa, "加元");
-      for (let i = 0; i < 4; i++) await pa.locator(".split-key").last().click();
+      for (let i = 0; i < 4; i++) await pa.locator(".split-key.is-back").click();
       await type(pa, "45");
       await button(pa, "saveChanges").click();
       await pb.locator(".split-row-amount", { hasText: /^\$45\.00$/ }).waitFor({ timeout: 8000 });
@@ -2561,7 +2565,7 @@ async function behave() {
       // changed on the first phone while the record is open on the second: it reads it again
       await pa.locator("button.split-row").first().click();
       await pa.locator(".split-keys").waitFor();
-      while (((await amountShown(pa)) ?? "").replace(/[^0-9.]/g, "") !== "0") await pa.locator(".split-key").last().click();
+      while (((await amountShown(pa)) ?? "").replace(/[^0-9.]/g, "") !== "0") await pa.locator(".split-key.is-back").click();
       await type(pa, "45");
       await button(pa, "saveChanges").click();
       await pa.locator(".split-keys").waitFor({ state: "hidden" });
@@ -2670,7 +2674,7 @@ async function behave() {
       await button(pa, "markPaid").click();
       await closed(pa);
       await pa.waitForTimeout(500);
-      ok((await pa.locator(".split-stale").count()) === 0 && (await pa.locator(".split-row", { hasText: t("paid") }).count()) === 1, "a new picture: up to date; a transfer marked as paid since doesn't put it out of date");
+      ok((await pa.locator(".split-stale").count()) === 0 && (await pa.locator(".split-rows:not(.split-people) .split-row", { hasText: t("paid") }).count()) === 1, "a new picture: up to date; a transfer marked as paid since doesn't put it out of date");
 
       // 导出账目 through the same share sheet: the ledger as one CSV file
       await button(pa, "more").click();
@@ -2866,7 +2870,7 @@ async function gate() {
     await page.locator("button.split-row", { hasText: from }).click();
     await page.locator(".split-keys").waitFor();
     // (an expense opened again shows its amount with its cents: "11.00")
-    while (((await amountShown(page)) ?? "").replace(/[^0-9.]/g, "") !== "0") await page.locator(".split-key").last().click();
+    while (((await amountShown(page)) ?? "").replace(/[^0-9.]/g, "") !== "0") await page.locator(".split-key.is-back").click();
     await type(page, to);
     await button(page, "saveChanges").click();
     await page.locator(".split-keys").waitFor({ state: "hidden" });
@@ -3132,7 +3136,7 @@ async function reading() {
   await pa.locator(".split-photo-button img, .split-photo-button .split-thumb").first().waitFor({ timeout: 15_000 });
   await pa.waitForTimeout(800);
   ok(asked.length === 1 && (await amount()) === "$9", "with an amount typed first, the receipt isn't read: what was typed stands");
-  await pa.locator(".split-key").last().click();
+  await pa.locator(".split-key.is-back").click();
   await pa.waitForTimeout(300);
   ok(!(await amount())?.match(/[1-9]/) && (await hint.count()) === 0, "a receipt already there, the amount taken back to nothing: no hint");
   await button(pa, "close").first().click();
@@ -3145,7 +3149,7 @@ async function reading() {
   await pa.locator(".split-keys").waitFor({ state: "hidden" });
   await pa.locator(".split-row").first().click();
   await pa.locator(".split-keys").waitFor();
-  for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
+  for (let i = 0; i < 6; i++) await pa.locator(".split-key.is-back").click();
   await pa.waitForTimeout(300);
   ok(!(await amount())?.match(/[1-9]/) && (await hint.count()) === 0, "an expense being changed, its amount taken back to nothing: no hint");
   await button(pa, "close").first().click();
@@ -3240,7 +3244,7 @@ async function reading() {
   await pa.locator(".split-row", { hasText: "Joe's Diner" }).click();
   await pa.locator(".split-keys").waitFor();
   ok((await extras.textContent())?.includes("含小费 $20.50 · 税 $5.25") && !(await extras.textContent())?.includes("从小票"), "opened again, the line says the tip and tax it keeps");
-  for (let i = 0; i < 6; i++) await pa.locator(".split-key").last().click();
+  for (let i = 0; i < 6; i++) await pa.locator(".split-key.is-back").click();
   await type(pa, "10");
   ok((await extras.count()) === 0 && (await detailsLine(pa).innerText()).includes("Joe's Diner"), "the amount typed down below them: the line under it goes (they wouldn't be kept), the business stays on the 详情 line");
   await button(pa, "close").first().click();
@@ -3584,7 +3588,7 @@ async function reading() {
   await pb.locator(".split-photo-button.is-scanning:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
   await type(pb, "5");
   ok((await scan.count()) === 0 && (await pb.locator(".split-add-read").count()) === 0 && (await shot.textContent()) === "$5", "a key pressed while it is read: the scan stops there, and what is typed stands");
-  await pb.locator(".split-key").last().click();
+  await pb.locator(".split-key.is-back").click();
   await scan.waitFor({ timeout: 5_000 });
   ok(true, "taken back to nothing while it is still being read: the scan is there again");
   held = false;
@@ -3603,7 +3607,7 @@ async function reading() {
   await type(pb, "4");
   going = "go";
   await pb.locator(".split-photo-button:not(.is-sending) .split-thumb").waitFor({ timeout: 15_000 });
-  await pb.locator(".split-key").last().click();
+  await pb.locator(".split-key.is-back").click();
   await pb.waitForTimeout(400);
   ok((await scan.count()) === 0 && (await receiptLine.count()) === 0 && (await shot.textContent()) === "$0", "a key pressed while the photo was still going: it isn't read, and no scan is left waiting once the amount is taken back");
   await button(pb, "close").first().click();
