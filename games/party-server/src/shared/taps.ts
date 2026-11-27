@@ -40,6 +40,7 @@ const MAX_BATCH = 8;
 
 export class BeatJudge {
   private moves: number[] = [];
+  private readonly decided = new Map<number, number | null>();
   private next = 0;
   private pending: Batch | null = null;
   private ready: Batch[] = [];
@@ -65,6 +66,13 @@ export class BeatJudge {
     if (!Number.isFinite(t)) return;
     this.moves.push(t);
   }
+  /**
+   * Beat `i` of the run judged already, by the camera (client/camera): danced at speaker time t, or
+   * not danced (null). It stands instead of the moves near the beat, which could belong to the next.
+   */
+  decide(i: number, t: number | null): void {
+    if (i >= this.next && (t === null || Number.isFinite(t))) this.decided.set(i, t);
+  }
 
   /** Every scored beat whose window has closed by `now` (speaker time), oldest first. */
   settle(now: number): Judged[] {
@@ -73,7 +81,9 @@ export class BeatJudge {
       const i = this.next++;
       const beat = this.run[i]!;
       if (!beat.score || beat.t - this.win < this.since) continue;
-      const off = nearestPeakOffset(this.moves, beat.t, this.win);
+      const said = this.decided.get(i);
+      this.decided.delete(i);
+      const off = said === undefined ? nearestPeakOffset(this.moves, beat.t, this.win) : said !== null && Math.abs(said - beat.t) <= this.win ? said - beat.t : null;
       const verdict: Verdict = off === null ? "miss" : Math.abs(off) <= WINDOW_MS[this.difficulty] ? "hit" : "close";
       if (off !== null) this.dancing = true;
       out.push({ i, beat, off: off === null ? null : Math.round(off), verdict });
