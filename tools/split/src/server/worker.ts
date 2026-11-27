@@ -23,7 +23,7 @@ import type { Ledger } from "../../../../site/src/split/core";
 import { AccountRoom, INVITES_PER_DAY, STARTS_PER_DAY, type AccountFile, type AccountStore, type Invite, type Invited, type Kept, type Mine, type Reserved, type Storage } from "../room/account";
 import { ID_RE, LedgerRoom, SETTLING_MS, type Count, type ErrorCode, type Fail, type FileInfo, type Logged, type Meta, type Store, type StoredFile, type Usage } from "../room/ledger";
 import { nextNight } from "../room/nightly";
-import { fakeRead, monthOf, READ_BUDGET, READS_PER_DAY, readReceipt, type ReadReply } from "./read";
+import { fakeItems, fakeRead, monthOf, READ_BUDGET, READS_PER_DAY, readItems, readReceipt, type ItemsReply, type ReadReply } from "./read";
 import {
   ACCOUNT_RE,
   FILE_MAX,
@@ -373,8 +373,10 @@ async function myInvites(req: Request, env: Env, ctx: ExecutionContext, ledger: 
  * READS_PER_DAY a day ("limit", 429), and the month READ_BUDGET ("budget", 429: nothing more is
  * read until the month is over). Without Google's key nothing is read ("off", 403). What Google
  * couldn't do is "failed" (502). The file goes to Google only for this, and nothing is kept.
+ * `items` (…/items, 小票逐项分, 2026-11-27): its lines instead, each with what it came to, counted
+ * against the same day and month as a reading.
  */
-async function readFile(req: Request, env: Env, ctx: ExecutionContext, stub: DurableObjectStub<LedgerDO>, ledger: string, id: string, keyHash: string | null): Promise<Response> {
+async function readFile(req: Request, env: Env, ctx: ExecutionContext, stub: DurableObjectStub<LedgerDO>, ledger: string, id: string, keyHash: string | null, items = false): Promise<Response> {
   if (req.method !== "POST" || !ID_RE.test(id)) return refuse("notfound", 404);
   const fake = fakeReading(env);
   if (!env.GEMINI_API_KEY && !fake) return refuse("off", 403);
@@ -393,6 +395,15 @@ async function readFile(req: Request, env: Env, ctx: ExecutionContext, stub: Dur
   if (!object) return refuse("gone", 404);
   const bytes = new Uint8Array(await object.arrayBuffer());
   const currency = there.ledger.currency;
+  if (items) {
+    const lines = fake ? fakeItems(bytes, currency) : await readItems(env.GEMINI_API_KEY ?? "", bytes, file.file.type, currency, env.GEMINI_READ_MODEL);
+    if (lines.cost) await budget(env).spend(month, lines.cost);
+    if (!lines.ok) {
+      console.error("split: a receipt's lines weren't read", lines.why, lines.detail ?? "");
+      return refuse("failed", 502);
+    }
+    return json({ items: lines.items } satisfies ItemsReply);
+  }
   const reading = fake ? fakeRead(bytes, currency) : await readReceipt(env.GEMINI_API_KEY ?? "", bytes, file.file.type, currency, env.GEMINI_READ_MODEL);
   if (reading.cost) await budget(env).spend(month, reading.cost);
   if (!reading.ok) {
@@ -443,7 +454,7 @@ export default {
     if (parts[0] === "me" && parts[1] === "invites" && parts.length <= 3) return myInvites(req, env, ctx, parts[2]);
     if (parts[0] === "test" && parts.length === 2) return testOnly(req, env, parts[1]);
     // (a ledger's address has at most four parts; a file read as a receipt, five)
-    if (parts[0] !== "ledgers" || parts.length > 5 || (parts.length === 5 && !(parts[2] === "files" && parts[4] === "read"))) return refuse("notfound", 404);
+    if (parts[0] !== "ledgers" || parts.length > 5 || (parts.length === 5 && !(parts[2] === "files" && (parts[4] === "read" || parts[4] === "items")))) return refuse("notfound", 404);
 
     // the live connection: its key comes as a protocol name, because a browser can't give it a header
     if (parts.length === 3 && parts[2] === "live" && req.method === "GET") {
@@ -500,7 +511,7 @@ export default {
 
     if (!ID_RE.test(parts[1] ?? "")) return refuse("notfound", 404);
     const stub = env.LEDGERS.get(env.LEDGERS.idFromName(parts[1]));
-    if (parts.length === 5) return readFile(req, env, ctx, stub, parts[1], parts[3], keyHash);
+    if (parts.length === 5) return readFile(req, env, ctx, stub, parts[1], parts[3], keyHash, parts[4] === "items");
     if (parts[2] === "files") return files(req, env, ctx, stub, parts[1], parts[3], keyHash);
     if (parts.length > 3) return refuse("notfound", 404);
 

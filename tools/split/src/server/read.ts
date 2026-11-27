@@ -27,6 +27,16 @@ export type ReadReply = { read: Read | null };
 /** A reading's cost, and what came of it. `cost`: millionths of a dollar. */
 export type Reading = { ok: true; read: Read | null; cost: number } | { ok: false; why: "key" | "busy" | "failed"; detail?: string; cost: number };
 
+/**
+ * 小票逐项分 (2026-11-27): what a receipt says was bought, line by line, each written as a total is,
+ * and the total paid (none when it can't be read), for the phone to share out item by item.
+ */
+export type Items = { total: string | null; items: { name: string; amount: string }[] };
+export type ItemsReply = { items: Items | null };
+export type ItemsReading = { ok: true; items: Items | null; cost: number } | { ok: false; why: "key" | "busy" | "failed"; detail?: string; cost: number };
+/** The most lines read off one receipt. */
+export const MAX_ITEMS = 40;
+
 /** The models tried, cheapest first, with their prices in dollars per million tokens (in, and out with thinking). */
 export const READ_MODELS: { model: string; inPrice: number; outPrice: number }[] = [
   { model: "gemini-3.1-flash-lite", inPrice: 0.25, outPrice: 1.5 },
@@ -94,6 +104,62 @@ export function readRequest(b64: string, type: string, currency: string, thinkin
   };
 }
 
+/**
+ * What Gemini is asked for 小票逐项分: the lines bought, each with its name as printed and what the
+ * line came to, and the total paid, in JSON of a fixed shape. Asked only when someone shares a
+ * receipt out item by item, so a plain reading stays as quick and cheap as it was.
+ */
+export function itemsRequest(b64: string, type: string, currency: string, thinking: boolean): unknown {
+  const words = [
+    "This is a photo of a receipt or a bill (or a PDF of one).",
+    `List what was bought, a line each as the receipt prints them: its name, short, as printed (translate nothing), and what that line came to in all (its quantity times its price), written as digits with a dot before the cents, no currency sign and no thousands separators${currency === "JPY" || currency === "KRW" ? " (whole numbers, when the currency has no cents)" : ""}.`,
+    "A discount printed under an item comes off that item. Leave out subtotals, taxes, tips, service charges, totals, payments and change.",
+    "Read the total paid too, written the same way.",
+    "If it isn't a receipt or a bill, or nothing bought can be read, say receipt false, and nothing else.",
+  ].join(" ");
+  return {
+    contents: [{ role: "user", parts: [{ text: words }, { inline_data: { mime_type: type, data: b64 } }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          receipt: { type: "BOOLEAN" },
+          total: { type: "STRING", nullable: true },
+          items: {
+            type: "ARRAY",
+            nullable: true,
+            items: { type: "OBJECT", properties: { name: { type: "STRING" }, amount: { type: "STRING" } }, required: ["name", "amount"] },
+          },
+        },
+        required: ["receipt"],
+      },
+      temperature: 0,
+      ...(thinking ? { thinkingConfig: { thinkingLevel: "minimal" } } : {}),
+    },
+  };
+}
+
+/**
+ * What Google answered for 小票逐项分, read: each line with a name and an amount written as a total
+ * is (a line without one goes), at most MAX_ITEMS of them; and the total. Null when it isn't a
+ * receipt, or no line could be read.
+ */
+export function itemsAnswer(answer: unknown, currency: string): Items | null {
+  const said = saidIn(answer);
+  if (!said || said.receipt !== true || !Array.isArray(said.items)) return null;
+  const items = said.items
+    .map((x: unknown) => {
+      const line = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
+      const amount = asTotal(line.amount, currency);
+      const name = lineOf(line.name);
+      return amount && name ? { name, amount } : null;
+    })
+    .filter((x): x is { name: string; amount: string } => x !== null)
+    .slice(0, MAX_ITEMS);
+  return items.length ? { total: asTotal(said.total, currency), items } : null;
+}
+
 /** A total as the phone takes it: digits with at most one dot and two decimals (none for a currency without cents), more than nothing, and no more than a ledger takes. */
 function asTotal(x: unknown, currency: string): string | null {
   // (money back, written with a minus or in brackets, is no total to pay)
@@ -114,16 +180,21 @@ function asTotal(x: unknown, currency: string): string | null {
  * (one the calendar has, from 2000 to no later than tomorrow, by `now`). `currency` is the ledger's,
  * for a total with none of its own.
  */
-export function readAnswer(answer: unknown, currency: string, now = Date.now()): Read | null {
+/** Google's answer as the JSON it wrote; null when it wrote none. */
+function saidIn(answer: unknown): Record<string, unknown> | null {
   const text = (answer as { candidates?: { content?: { parts?: { text?: unknown }[] } }[] } | null)?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text;
   if (typeof text !== "string") return null;
-  let said: Record<string, unknown>;
   try {
-    said = JSON.parse(text) as Record<string, unknown>;
+    const said: unknown = JSON.parse(text);
+    return said && typeof said === "object" && !Array.isArray(said) ? (said as Record<string, unknown>) : null;
   } catch {
     return null;
   }
-  if (!said || typeof said !== "object" || said.receipt !== true) return null;
+}
+
+export function readAnswer(answer: unknown, currency: string, now = Date.now()): Read | null {
+  const said = saidIn(answer);
+  if (!said || said.receipt !== true) return null;
   const code = typeof said.currency === "string" ? said.currency.trim().toUpperCase() : "";
   const known = KNOWN.includes(code) ? code : null;
   const total = asTotal(said.total, known ?? currency);
@@ -196,10 +267,22 @@ export function base64(bytes: Uint8Array): string {
  * answer said it used.
  */
 export async function readReceipt(key: string, bytes: Uint8Array, type: string, currency: string, model?: string): Promise<Reading> {
+  const got = await ask(key, bytes, model, (b64, thinking) => readRequest(b64, type, currency, thinking), (answer) => readAnswer(answer, currency));
+  return got.ok ? { ok: true, read: got.got, cost: got.cost } : got;
+}
+
+/** 小票逐项分: a receipt's lines, read by Google as readReceipt reads its total (the same models, the same budget). */
+export async function readItems(key: string, bytes: Uint8Array, type: string, currency: string, model?: string): Promise<ItemsReading> {
+  const got = await ask(key, bytes, model, (b64, thinking) => itemsRequest(b64, type, currency, thinking), (answer) => itemsAnswer(answer, currency));
+  return got.ok ? { ok: true, items: got.got, cost: got.cost } : got;
+}
+
+/** One file asked of Google: each model in turn (cheapest first), with thinking kept small and, if a model won't take that, without. */
+async function ask<T>(key: string, bytes: Uint8Array, model: string | undefined, request: (b64: string, thinking: boolean) => unknown, read: (answer: unknown) => T): Promise<{ ok: true; got: T; cost: number } | { ok: false; why: "key" | "busy" | "failed"; detail?: string; cost: number }> {
   const models = model ? [model, ...READ_MODELS.map((m) => m.model).filter((m) => m !== model)] : READ_MODELS.map((m) => m.model);
   const b64 = base64(bytes);
   let cost = 0;
-  let last: Reading = { ok: false, why: "failed", detail: "no model", cost };
+  let last: { ok: false; why: "key" | "busy" | "failed"; detail?: string; cost: number } = { ok: false, why: "failed", detail: "no model", cost };
   for (const m of models) {
     for (const thinking of [true, false]) {
       let res: Response;
@@ -207,7 +290,7 @@ export async function readReceipt(key: string, bytes: Uint8Array, type: string, 
         res = await fetch(`${BASE}/models/${encodeURIComponent(m)}:generateContent`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key, "user-agent": "changle/1.0 (+https://changle.ca)" },
-          body: JSON.stringify(readRequest(b64, type, currency, thinking)),
+          body: JSON.stringify(request(b64, thinking)),
           signal: AbortSignal.timeout(TIMEOUT),
         });
       } catch (e) {
@@ -215,7 +298,7 @@ export async function readReceipt(key: string, bytes: Uint8Array, type: string, 
       }
       const answer: unknown = await res.json().catch(() => null);
       cost += costOf(answer, m);
-      if (res.ok) return { ok: true, read: readAnswer(answer, currency), cost };
+      if (res.ok) return { ok: true, got: read(answer), cost };
       const detail = JSON.stringify((answer as { error?: unknown } | null)?.error ?? res.status).slice(0, 300);
       if (res.status === 401 || res.status === 403 || /api.?key/i.test(detail)) return { ok: false, why: "key", detail, cost };
       if (res.status === 429 || res.status >= 500) return { ok: false, why: "busy", detail, cost };
@@ -224,7 +307,7 @@ export async function readReceipt(key: string, bytes: Uint8Array, type: string, 
       if (thinking && /thinking/i.test(detail)) continue;
       break;
     }
-    if (!/not.?found|unsupported|not supported|invalid model|unknown/i.test(last.ok ? "" : (last.detail ?? ""))) return last;
+    if (!/not.?found|unsupported|not supported|invalid model|unknown/i.test(last.detail ?? "")) return last;
   }
   return last;
 }
@@ -242,7 +325,24 @@ export function fakeRead(bytes: Uint8Array, currency: string): Reading {
   if (!said || said[1] === "none") return { ok: true, read: null, cost: 400 };
   const rest = said[3] ?? "";
   const part = (k: string) => new RegExp(`(?:^| )${k}=(\\S+)`).exec(rest)?.[1]?.replace(/_/g, " ") ?? null;
-  const merchant = rest.replace(/(?:^| )(?:tip|tax|date|time|place|paid|kind)=\S+/g, "").trim() || null;
+  const merchant = rest.replace(/(?:^| )(?:tip|tax|date|time|place|paid|kind|items)=\S+/g, "").trim() || null;
   const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], currency: said[2] ?? null, merchant, tip: part("tip"), tax: part("tax"), date: part("date"), place: part("place"), payment: part("paid"), time: part("time"), category: part("kind") }) }] } }] };
   return { ok: true, read: readAnswer(answer, currency), cost: 400 };
 }
+
+/**
+ * The stand-in for Google's 小票逐项分: the lines a fake receipt's "items=" says ("Poutine:24.00|Beer:27.00",
+ * with _ for a space), and its total; a receipt without them has none. Costs what a reading does.
+ */
+export function fakeItems(bytes: Uint8Array, currency: string): ItemsReading {
+  const text = new TextDecoder().decode(bytes);
+  const said = /receipt:(\S+)(?: (\S+))?(?: ([^\n]+))?/.exec(text);
+  if (!said || said[1] === "none") return { ok: true, items: null, cost: 400 };
+  const lines = /(?:^| )items=(\S+)/.exec(said[3] ?? "")?.[1]?.split("|").map((x) => {
+    const [name, amount] = x.split(":");
+    return { name: (name ?? "").replace(/_/g, " "), amount: amount ?? "" };
+  });
+  const answer = { candidates: [{ content: { parts: [{ text: JSON.stringify({ receipt: true, total: said[1], items: lines ?? null }) }] } }] };
+  return { ok: true, items: itemsAnswer(answer, currency), cost: 400 };
+}
+

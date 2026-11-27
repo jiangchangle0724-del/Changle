@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import type { Sent } from "../../../site/src/split/changes";
-import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, VIEW_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type Push, type Pushed, type ReadReply, type Since, type Snapshot, type Stored } from "../src/room/protocol";
+import { FILE_MAX, KEY_HEADER, LIVE_PROTOCOL, NEXT_HEADER, OWNER_HEADER, VIEW_HEADER, type Files, type InviteSent, type MineBody, type MyFiles, type MyInvites, type MyLedgers, type ItemsReply, type Push, type Pushed, type ReadReply, type Since, type Snapshot, type Stored } from "../src/room/protocol";
 import { SESSION, STRANGER } from "./accounts";
 
 const PORT = 8794;
@@ -620,6 +620,8 @@ test("an account sends at most fifty invitations a day", async () => {
 /** A photo whose bytes say what the stand-in for Google reads off it ("receipt:42.50 CAD Café"). */
 const saying = (text: string) => Uint8Array.from([0xff, 0xd8, 0xff, ...new TextEncoder().encode(` ${text}`)]);
 const reading = (ledger: string, file: string, key: string | null, headers: Record<string, string>) => call<ReadReply>("POST", `/ledgers/${ledger}/files/${file}/read`, key, undefined, headers);
+/** 小票逐项分: a receipt's lines (src/server/read.ts, fakeItems for the stand-in). */
+const lining = (ledger: string, file: string, key: string | null, headers: Record<string, string>) => call<ItemsReply>("POST", `/ledgers/${ledger}/files/${file}/items`, key, undefined, headers);
 
 test("reading a receipt: signed in, with the key, a file of the ledger's; so many a day, and not past the month's budget", async () => {
   const { id, key } = await make();
@@ -633,6 +635,13 @@ test("reading a receipt: signed in, with the key, a file of the ledger's; so man
   const blank = newId();
   assert.equal((await putFile(id, blank, saying("receipt:none"), key, amy.headers)).status, 201);
   assert.deepEqual(await reading(id, blank, key, ben.headers), { status: 200, data: { read: null } }, "nothing to read on it: said as nothing (and anyone in the ledger may ask, not only who sent it)");
+  // 小票逐项分: its lines, asked for the same way, and counted the same (Ben two more)
+  const cafe = newId();
+  assert.equal((await putFile(id, cafe, saying("receipt:78.60 CAD Cafe items=Poutine:24.00|Burger_and_fries:18.50|Beer:27.00 tax=9.10"), key, amy.headers)).status, 201);
+  assert.deepEqual(await lining(id, cafe, key, ben.headers), { status: 200, data: { items: { total: "78.60", items: [{ name: "Poutine", amount: "24.00" }, { name: "Burger and fries", amount: "18.50" }, { name: "Beer", amount: "27.00" }] } } }, "its lines: each with what it came to, and the total");
+  assert.deepEqual(await lining(id, blank, key, ben.headers), { status: 200, data: { items: null } }, "nothing to read on it: no lines");
+  assert.deepEqual(await lining(id, cafe, key, {}), { status: 401, data: { error: "signin" } }, "signed out, no lines either");
+  assert.deepEqual(await call("GET", `/ledgers/${id}/files/${cafe}/items`, key, undefined, amy.headers), { status: 404, data: { error: "notfound" } }, "asked any other way, no such address");
 
   assert.deepEqual(await reading(id, lunch, key, {}), { status: 401, data: { error: "signin" } }, "signed out, no");
   assert.deepEqual(await reading(id, lunch, newKey(), amy.headers), { status: 403, data: { error: "key" } }, "without the key, no");
@@ -641,11 +650,12 @@ test("reading a receipt: signed in, with the key, a file of the ledger's; so man
   assert.deepEqual(await call("GET", `/ledgers/${id}/files/${lunch}/read`, key, undefined, amy.headers), { status: 404, data: { error: "notfound" } }, "asked any other way, no such address");
   assert.deepEqual(await call("POST", `/ledgers/${id}/files/${lunch}/look`, key, undefined, amy.headers), { status: 404, data: { error: "notfound" } });
 
-  // so many a day for an account (three read above: Amy two, Ben one)
+  // so many a day for an account (five read above: Amy two, Ben one and two lines)
   for (let i = 2; i < 30; i++) assert.equal((await reading(id, lunch, key, amy.headers)).status, 200, `Amy's ${i + 1}th`);
   assert.deepEqual(await reading(id, lunch, key, amy.headers), { status: 429, data: { error: "limit" } }, "a thirty-first today, no");
-  // and the month's budget for the whole site: 31 readings so far (all of Amy's 30, Ben's one), 12,400 of 20,000; nineteen more spend it
-  for (let i = 0; i < 19; i++) assert.equal((await reading(id, lunch, key, i < 15 ? ben.headers : cal.headers)).status, 200, `the ${32 + i}th this month`);
+  // and the month's budget for the whole site: 33 readings so far (all of Amy's 30, Ben's three), 13,200 of 20,000; seventeen more spend it
+  for (let i = 0; i < 17; i++) assert.equal((await reading(id, lunch, key, i < 15 ? ben.headers : cal.headers)).status, 200, `the ${34 + i}th this month`);
+  assert.deepEqual(await lining(id, cafe, key, cal.headers), { status: 429, data: { error: "budget" } }, "and no lines either");
   assert.deepEqual(await reading(id, lunch, key, cal.headers), { status: 429, data: { error: "budget" } }, "the month's money spent: nothing more is read, for anyone");
 });
 
