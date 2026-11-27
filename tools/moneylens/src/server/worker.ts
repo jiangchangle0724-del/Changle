@@ -9,6 +9,10 @@
  *
  * A request's way in:
  *
+ * - `GET /`, `GET /assets/...` and `GET /licences.txt` hand out the app (web/app, built into
+ *   dist/app): one page, its script, styles, fonts and icon, and the licences of the fonts and
+ *   the code in it. They hold nobody's data. With the gate shut, the page is two lines saying so
+ *   and nothing else is handed out.
  * - `GET /enter` starts a sign-in: a nonce in a cookie only this origin can set, and on to the
  *   main site, which asks the accounts service for a handoff code bound to that nonce and sends
  *   the browser back with it (ARCH-3).
@@ -54,6 +58,8 @@ export interface Env extends Settings {
   VAULTS: DurableObjectNamespace<VaultDO>;
   REGISTRY: DurableObjectNamespace<Registry>;
   ACCOUNTS: Accounts;
+  /** The app's pages, as files (dist/app; `assets` in wrangler.jsonc). Every request comes to this Worker first, and it asks for a file here. */
+  ASSETS: Fetcher;
 }
 
 /** The objects as flows.ts reaches them: the registry (one for all), the accounts service, and each account's own. */
@@ -80,7 +86,7 @@ const PUSH_MAX = LIMITS.batchBytes + HEAD_MAX;
 const JSON_TYPE = "application/json";
 const BYTES_TYPE = "application/octet-stream";
 
-/** On every answer (SEC-1). The policy is that of an answer with nothing to load: the app's pages will bring their own. */
+/** On every answer (SEC-1). The policy is that of an answer with nothing to load: the app's page has its own (`PAGE_POLICY`). */
 const HEADERS: Readonly<Record<string, string>> = {
   "Cache-Control": "no-store",
   "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -90,6 +96,14 @@ const HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
 };
+
+/**
+ * What the app's page may load and talk to (SEC-2): its own script, styles, fonts and pictures, from this origin, and
+ * this origin's /api. No script or style written into the page, nothing from anywhere else, no frames, no forms.
+ */
+const PAGE_POLICY = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+/** A file under /assets never changes under one name (scripts/build-app.mjs), so it may be kept for a year. It holds nobody's data. */
+const KEPT = "public, max-age=31536000, immutable";
 
 function reply(status: number, body: BodyInit | null, type: string | null, cookies: readonly string[] = [], more: Readonly<Record<string, string>> = {}): Response {
   const headers = new Headers({ ...HEADERS, ...more });
@@ -123,7 +137,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (!config) return refuse(503, "not-set-up");
   const path = new URL(request.url).pathname;
   if (path === "/enter") return enter(request, config);
-  if (!path.startsWith("/api/")) return refuse(404, "no-such-thing");
+  if (!path.startsWith("/api/")) return page(request, env, config, path);
   if (request.method !== "POST") return reply(405, JSON.stringify({ ok: false, why: "post-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "POST" });
   if (!fromOurOrigin(request.headers, config.origin)) return refuse(403, "origin");
   if (config.gate.mode === "closed") return refuse(403, "closed");
@@ -147,6 +161,19 @@ async function route(request: Request, env: Env): Promise<Response> {
     body: request.body,
   });
   return reply(answer.status, answer.body, answer.headers.get("Content-Type"), answer.headers.get("x-ml-signed-out") ? signedOut : []);
+}
+
+/** The app's page at `/`, what it loads from under `/assets/`, and the licences of what is in it. Nothing else is a page. */
+async function page(request: Request, env: Env, config: Config, path: string): Promise<Response> {
+  const file = path.startsWith("/assets/");
+  if (path !== "/" && path !== "/licences.txt" && !file) return refuse(404, "no-such-thing");
+  if (request.method !== "GET" && request.method !== "HEAD") return reply(405, JSON.stringify({ ok: false, why: "get-only" }), `${JSON_TYPE}; charset=utf-8`, [], { Allow: "GET, HEAD" });
+  // with the gate shut, nobody is handed the app: the page says so, and there is nothing else
+  if (config.gate.mode === "closed") return path === "/" ? reply(403, SHUT, "text/html; charset=utf-8") : refuse(404, "no-such-thing");
+  // (asked for by its path alone: nothing of the request goes with it)
+  const found = await env.ASSETS.fetch(new Request(`https://assets.invalid${path}`, { method: request.method }));
+  if (found.status !== 200) return refuse(404, "no-such-thing");
+  return reply(200, found.body, found.headers.get("Content-Type"), [], file ? { "Cache-Control": KEPT } : path === "/" ? { "Content-Security-Policy": PAGE_POLICY } : {});
 }
 
 /** Starts a sign-in: the nonce goes into a cookie here and, with the browser, to the main site. */

@@ -17,8 +17,12 @@ import { createVault, isWrapper, unlock, type OpenVault, type Secret, type Wrapp
 import type { Weak } from "../vault/passphrase";
 import { isProofParams, newProof, proofOf, type ProofParams } from "../vault/proof";
 
-/** One request to the server's /api: what came back, or null when nothing did (no network, no answer in time, an answer that was not one). */
-export type Ask = (action: string, body?: unknown) => Promise<{ status: number; json: Record<string, unknown> } | null>;
+/**
+ * One request to the server's /api: what came back, or null when nothing did (no network, no answer in time, an
+ * answer that was not one). `parting` is for a request made as the page goes away: the browser is asked to send it
+ * even so, and nobody waits for the answer.
+ */
+export type Ask = (action: string, body?: unknown, parting?: boolean) => Promise<{ status: number; json: Record<string, unknown> } | null>;
 
 const isRecord = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 
@@ -27,11 +31,11 @@ export const ASK_MS = 20_000;
 
 /** `Ask` over `fetch`, to this origin's own /api, with the session's cookie, which the browser sends and this code never sees. */
 export function askOver(fetcher: typeof fetch = (input, init) => fetch(input, init), base = "/api", patience = ASK_MS): Ask {
-  return async (action, body = {}) => {
+  return async (action, body = {}, parting = false) => {
     const stop = new AbortController();
     const timer = setTimeout(() => stop.abort(), patience);
     try {
-      const answer = await fetcher(`${base}/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin", cache: "no-store", redirect: "error", signal: stop.signal });
+      const answer = await fetcher(`${base}/${action}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), credentials: "same-origin", cache: "no-store", redirect: "error", keepalive: parting, signal: stop.signal });
       const json: unknown = await answer.json().catch(() => null);
       return { status: answer.status, json: isRecord(json) ? json : {} };
     } catch {
@@ -192,12 +196,16 @@ export async function open(ask: Ask, vault: string, secret: Secret): Promise<Ope
 }
 
 /** Tells the server this session has locked its vault. Best effort: the key is dropped here whatever the answer. */
-export async function lock(ask: Ask): Promise<void> {
-  await ask("vault/lock");
+export async function lock(ask: Ask, parting = false): Promise<void> {
+  await ask("vault/lock", {}, parting);
 }
 
-/** Signs this browser out. True when the server said so; the screen goes to "signed out" either way. */
+/**
+ * Signs this browser out. True when the server says the session is over: it ended it now, or there was none (401).
+ * False when nothing says so (no answer, or one that was not about that): the session may still be there, and the
+ * screen must not say otherwise.
+ */
 export async function leave(ask: Ask): Promise<boolean> {
   const answer = await ask("session/end");
-  return answer?.status === 200;
+  return answer !== null && (answer.status === 200 || answer.status === 401);
 }

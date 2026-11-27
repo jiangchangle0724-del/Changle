@@ -176,7 +176,19 @@ test("a vault is made on the device, kept by the server with its two ways in, an
   // signing out
   assert.equal(await leave(tablet), true);
   assert.deepEqual(await standing(tablet), { at: "signed-out", why: "no-session" });
-  assert.equal(await leave(tablet), false);
+  // (signed out already: the session is over, which is what was asked)
+  assert.equal(await leave(tablet), true);
+  // with no answer, or an answer that says nothing of the session, it is not said to be over
+  assert.equal(await leave(async () => null), false);
+  for (const status of [403, 404, 429, 500, 503]) assert.equal(await leave(async () => ({ status, json: {} })), false, String(status));
+  // and what is asked is to end this session, as the page goes on (nothing here is a parting request)
+  const asked: unknown[][] = [];
+  const noting: Ask = async (...args) => (asked.push(args), { status: 200, json: {} });
+  await leave(noting);
+  assert.deepEqual(asked, [["session/end"]]);
+  await lock(noting);
+  await lock(noting, true);
+  assert.deepEqual(asked.slice(1), [["vault/lock", {}, false], ["vault/lock", {}, true]]);
   assert.deepEqual(await open(tablet, vault, { kind: "passphrase", passphrase: PASSPHRASE }), { ok: false, why: "signed-out" });
 });
 

@@ -11,12 +11,12 @@
 //
 // Every request goes in through the stand-in, which passes it on untouched as if it had come to
 // money.changle.test. The settings are wrangler.jsonc's own, with the gate and the origin of a test.
+// The app's pages are built first (scripts/build-app.mjs), and handed out from where they were built.
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import http from "node:http";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import test, { after, before } from "node:test";
 import { base64url, newId } from "../../src/core/ids";
 import { HEAD_MAX, packPush, unpackPulled, unpackPushed } from "../../src/server/wire";
@@ -26,82 +26,11 @@ import { isProofParams, newProof, proofOf } from "../../src/vault/proof";
 import { LIMITS, Store } from "../../src/vault/sync";
 import { HttpRemote } from "../../src/web/remote";
 import { testVault } from "../vaulthelp";
+import { MAIN, ORIGIN, start, type Server } from "./run";
 
-const ORIGIN = "https://money.changle.test";
-const MAIN = "https://main.changle.test";
 /** Two people who are let in, and one who is not. */
 const [A, B, C] = ["utestaaaa1", "utestbbbb2", "utestcccc3"];
 const MARKER = "MARKER-CAFE-MAPLE-7731";
-
-/** A file with comments in it, as plain JSON. */
-function plainJson(text: string): string {
-  let out = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]!;
-    if (quoted) {
-      out += c;
-      if (c === "\\") out += text[++i];
-      else if (c === '"') quoted = false;
-    } else if (c === "/" && text[i + 1] === "/") {
-      while (i < text.length && text[i] !== "\n") i++;
-      out += "\n";
-    } else {
-      if (c === '"') quoted = true;
-      out += c;
-    }
-  }
-  return out;
-}
-
-type Server = { base: string; kept: string; stop(): Promise<void> };
-
-/** Starts the Worker with wrangler.jsonc's own settings, except for `vars` (and no address on the internet). `kept`: where its storage is, to start it again on the same. */
-async function start(port: number, vars: Record<string, string | undefined>, kept = mkdtempSync(join(tmpdir(), "moneylens-server-"))): Promise<Server> {
-  const settings = JSON.parse(plainJson(readFileSync("wrangler.jsonc", "utf8"))) as { vars: Record<string, string>; main: string; routes?: unknown; $schema?: unknown };
-  delete settings.routes;
-  delete settings.$schema;
-  settings.main = resolve(settings.main);
-  settings.vars = { ...settings.vars, ORIGIN, MAIN_SITE: MAIN };
-  for (const [name, value] of Object.entries(vars)) {
-    if (value === undefined) delete settings.vars[name];
-    else settings.vars[name] = value;
-  }
-  const file = join(kept, "moneylens.jsonc");
-  writeFileSync(file, JSON.stringify(settings));
-  const child: ChildProcess = spawn("npx", ["wrangler", "dev", "-c", "tests/accounts/wrangler.jsonc", "-c", file, "--port", String(port), "--ip", "127.0.0.1", "--persist-to", join(kept, "state")], {
-    stdio: "ignore",
-    detached: true,
-    env: { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "1" },
-  });
-  const base = `http://127.0.0.1:${port}`;
-  const until = Date.now() + 90_000;
-  for (;;) {
-    try {
-      const answer = await fetch(`${base}/nothing-here`);
-      if ([404, 503].includes(answer.status) && (await answer.text()).includes('"ok":false')) break;
-    } catch {
-      // not up yet
-    }
-    if (Date.now() > until) throw new Error("wrangler dev did not start");
-    await new Promise((r) => setTimeout(r, 400));
-  }
-  return {
-    base,
-    kept,
-    stop: async () => {
-      // wrangler and the runtime it started are one group: ask, then insist
-      for (const signal of ["SIGTERM", "SIGKILL"] as const) {
-        try {
-          process.kill(-child.pid!, signal);
-        } catch {
-          break;
-        }
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-    },
-  };
-}
 
 // ---------------------------------------------------------------------------------------------
 // A browser, as far as these tests need one
@@ -205,6 +134,7 @@ const remoteFor = (server: Server, jar: Jar): HttpRemote =>
 
 let server: Server;
 before(async () => {
+  execFileSync("node", ["scripts/build-app.mjs"], { stdio: "ignore" });
   server = await start(8795, { GATE: "list", ALLOWED_ACCOUNTS: `${A},${B}`, QUOTA_WRITES_PER_DAY: "10" });
 });
 after(async () => {
@@ -212,9 +142,10 @@ after(async () => {
   rmSync(server.kept, { recursive: true, force: true });
 });
 
-test("only /enter and POST /api answer, with the same headers on everything", async () => {
+test("only the app's page, /enter and POST /api answer, with the same headers on everything", async () => {
   const none: Jar = new Map();
-  for (const path of ["/", "/index.html", "/api", "/enterprise", "/enter/", "/.well-known/security.txt", "/API/sessions"]) assert.deepEqual(await said(await send(server, path, null, none, { method: "GET", origin: null })), [404, "no-such-thing"], path);
+  for (const path of ["/index.html", "/index", "/api", "/enterprise", "/enter/", "/.well-known/security.txt", "/API/sessions", "/assets", "/assets/", "/assets/nothing.js", "/assets/fonts", "/licences", "/Licences.txt", "//"])
+    assert.deepEqual(await said(await send(server, path, null, none, { method: "GET", origin: null })), [404, "no-such-thing"], path);
   assert.deepEqual(await said(await send(server, "/api/nothing", "{}", none)), [404, "no-such-thing"]);
   // /api is POST only, whatever is asked for
   for (const method of ["GET", "PUT", "DELETE", "PATCH", "OPTIONS"]) {
@@ -661,6 +592,67 @@ test("what is kept is still there after the server stops and starts", async () =
 });
 
 // ---------------------------------------------------------------------------------------------
+// The app's pages
+// ---------------------------------------------------------------------------------------------
+
+const PAGE_POLICY = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+const NOTHING_POLICY = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+
+/** A page or a file of the app, asked for as a browser asks. What every answer carries (SEC-1) is checked; what differs between them is given back. */
+async function got(from: Server, path: string, method = "GET"): Promise<{ status: number; type: string | null; kept: string | null; policy: string | null; body: Uint8Array }> {
+  const answer = await fetch(`${from.base}${path}`, { method, redirect: "manual", headers: { Cookie: `__Host-ml=${A}.${"x".repeat(43)}` } });
+  assert.equal(answer.headers.get("X-Content-Type-Options"), "nosniff", path);
+  assert.equal(answer.headers.get("Referrer-Policy"), "no-referrer", path);
+  assert.equal(answer.headers.get("Strict-Transport-Security"), "max-age=31536000; includeSubDomains", path);
+  assert.equal(answer.headers.get("X-Frame-Options"), "DENY", path);
+  assert.equal(answer.headers.get("Cross-Origin-Resource-Policy"), "same-origin", path);
+  assert.deepEqual(answer.headers.getSetCookie(), [], `${path} sets a cookie`);
+  for (const [name] of answer.headers) assert.ok(!/^access-control-|^x-ml-|^etag$|^last-modified$/i.test(name), `${path} carries ${name}`);
+  return { status: answer.status, type: answer.headers.get("Content-Type"), kept: answer.headers.get("Cache-Control"), policy: answer.headers.get("Content-Security-Policy"), body: new Uint8Array(await answer.arrayBuffer()) };
+}
+const text = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
+
+test("the app's page: one page that may load its own files and talk to its own /api, and nothing else (SEC-2, T-8)", async () => {
+  const page = await got(server, "/");
+  assert.deepEqual([page.status, page.type, page.kept, page.policy], [200, "text/html; charset=utf-8", "no-store", PAGE_POLICY]);
+  const html = text(page.body);
+  assert.equal(html, readFileSync("dist/app/index.html", "utf8"));
+  // nothing written into the page to run or to style, and nothing from anywhere else
+  assert.ok(!/<script(?![^>]*\ssrc=)[^>]*>|<style|\son[a-z]+=|style=|javascript:/i.test(html), "the page carries script or style of its own");
+  const loads = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]!);
+  assert.equal(loads.length, 3);
+  for (const load of loads) assert.match(load, /^\/assets\/(icon\.svg|app-[0-9A-Z]{8}\.(js|css))$/, load);
+  // the same page whoever asks, and with whatever before or after the address
+  assert.equal(text((await got(server, "/?x=1")).body), html);
+  const head = await got(server, "/", "HEAD");
+  assert.deepEqual([head.status, head.type, head.policy, head.body.length], [200, "text/html; charset=utf-8", PAGE_POLICY, 0]);
+
+  // what it loads: kept for a year under a name that says what is in it, and each of the kind it says it is
+  const kinds: Record<string, RegExp> = { js: /^text\/javascript\b/, css: /^text\/css\b/, svg: /^image\/svg\+xml\b/, woff2: /^font\/woff2$/ };
+  const css = loads.find((load) => load.endsWith(".css"))!;
+  const fonts = [...text((await got(server, css)).body).matchAll(/url\(([^)]+)\)/g)].map((m) => m[1]!.replace(/["']/g, ""));
+  assert.deepEqual(fonts.sort(), ["/assets/fonts/figtree.woff2", "/assets/fonts/unbounded.woff2"], "the styles load the two fonts, from here");
+  for (const path of [...loads, ...fonts]) {
+    const file = await got(server, path);
+    assert.deepEqual([file.status, file.kept, file.policy], [200, "public, max-age=31536000, immutable", NOTHING_POLICY], path);
+    assert.match(file.type ?? "", kinds[path.split(".").pop()!]!, path);
+    assert.deepEqual(file.body, new Uint8Array(readFileSync(`dist/app${path}`)), path);
+  }
+  // the licences of the fonts and the code in it: a page of text, not kept
+  const licences = await got(server, "/licences.txt");
+  assert.deepEqual([licences.status, licences.kept, licences.policy], [200, "no-store", NOTHING_POLICY]);
+  assert.match(licences.type ?? "", /^text\/plain\b/);
+  assert.match(text(licences.body), /SIL Open Font License[\s\S]*MIT License/);
+
+  // only to be read: anything else is turned away before the files are asked
+  for (const path of ["/", css, "/licences.txt"]) {
+    for (const method of ["POST", "PUT", "DELETE", "PATCH", "OPTIONS"]) {
+      const answer = await send(server, path, method === "OPTIONS" ? null : "{}", new Map(), { method });
+      assert.deepEqual([answer.status, answer.headers.get("Allow"), ((await answer.json()) as { why: string }).why], [405, "GET, HEAD", "get-only"], `${method} ${path}`);
+    }
+  }
+});
+
 // The gate shut, the gate open to the owner, and no origin set
 // ---------------------------------------------------------------------------------------------
 
@@ -674,6 +666,13 @@ test("the gate as the repository sets it: shut, to everyone, on every route (SEC
     // in both languages, and with nothing in it to load or run
     assert.ok(page.includes("心里有数还没有开放。") && page.includes("MoneyLens is not open yet."));
     assert.ok(!/<script|<link|<img|<style|href=|src=/i.test(page));
+    // the app's own address says the same, and hands out nothing: no script, no styles, no licences
+    const front = await got(shut, "/");
+    assert.deepEqual([front.status, front.type, front.kept, front.policy, text(front.body)], [403, "text/html; charset=utf-8", "no-store", NOTHING_POLICY, page]);
+    for (const path of [...[...readFileSync("dist/app/index.html", "utf8").matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]!), "/assets/fonts/figtree.woff2", "/licences.txt"]) {
+      const file = await got(shut, path);
+      assert.deepEqual([file.status, file.kept, text(file.body)], [404, "no-store", '{"ok":false,"why":"no-such-thing"}'], path);
+    }
     for (const path of ["session", "session/end", "sessions", "sessions/end", "vault", "vault/start", "sync/pull", "events", "nothing"]) assert.deepEqual(await said(await send(shut, `/api/${path}`, "{}", new Map([["__Host-ml", `${A}.${"x".repeat(43)}`], ["__Host-ml-n", newId() + newId()]]))), [403, "closed"], path);
     // the Origin is asked before the gate says anything
     assert.deepEqual(await said(await send(shut, "/api/sessions", "{}", new Map(), { origin: "https://changle.ca" })), [403, "origin"]);

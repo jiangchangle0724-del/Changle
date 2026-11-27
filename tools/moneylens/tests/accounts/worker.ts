@@ -15,6 +15,10 @@
 // with it (`during`): the notice is sent, and heard, after the code is traded and before the
 // trade is answered, which is the one moment a test cannot otherwise hit (src/server/flows.ts).
 //
+// For the test with a real browser (scripts/check-app.ts) it also stands in for the main site's own
+// page for MoneyLens, at main.changle.test/tools/finance: whoever a test said is signed in there
+// (`POST /test/who`) gets a code for the nonce the browser came with, and is sent back with it.
+//
 // `Probe` is not part of the stand-in at all: it shows what this platform does with a transaction
 // inside a transaction, which signing in relies on (src/server/account.ts, `signIn`).
 import { DurableObject, WorkerEntrypoint } from "cloudflare:workers";
@@ -29,6 +33,15 @@ type Env = {
 type Stood = { id: string; master: boolean; nonce: string; aud: string; during?: Notice };
 const codes = new Map<string, Stood>();
 const gone = new Set<string>();
+/** Who is signed in at the main site, for the test with a real browser. Nobody, until a test says. */
+let who: { id: string; master: boolean } | null = null;
+
+/** A code as the real accounts service makes one: 256 random bits. */
+function mint(stood: Stood): string {
+  const code = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  codes.set(code, stood);
+  return code;
+}
 
 /** What the real accounts service does when an account is deleted or its address changes: its own part first, then the app is told. */
 async function tell(env: Env, notice: Notice): Promise<void> {
@@ -58,10 +71,20 @@ export default {
     const id = url.searchParams.get("id") ?? "";
     if (url.pathname === "/test/mint") {
       const asked = (await request.json()) as Stood;
-      const code = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       const during: Notice | undefined = asked.during && (asked.during.what === "gone" || asked.during.what === "changed") ? { what: asked.during.what, id: String(asked.during.id) } : undefined;
-      codes.set(code, { id: String(asked.id), master: asked.master === true, nonce: String(asked.nonce), aud: String(asked.aud), ...(during ? { during } : {}) });
-      return Response.json({ code });
+      return Response.json({ code: mint({ id: String(asked.id), master: asked.master === true, nonce: String(asked.nonce), aud: String(asked.aud), ...(during ? { during } : {}) }) });
+    }
+    if (url.pathname === "/test/who") {
+      const asked = (await request.json()) as { id?: string; master?: boolean };
+      who = asked.id ? { id: String(asked.id), master: asked.master === true } : null;
+      return new Response("done");
+    }
+    // The main site, as far as a browser on its way into MoneyLens sees it.
+    if (url.hostname === "main.changle.test") {
+      const nonce = url.searchParams.get("handoff") ?? "";
+      if (url.pathname !== "/tools/finance" || !/^[A-Za-z0-9_-]{20,64}$/.test(nonce)) return new Response("the stand-in has no such page", { status: 404 });
+      if (!who) return new Response("nobody is signed in at the main site", { status: 200 });
+      return new Response(null, { status: 302, headers: { Location: `https://money.changle.test/#h=${mint({ ...who, nonce, aud: "moneylens" })}` } });
     }
     if (url.pathname === "/test/nested") return Response.json(await env.PROBE.get(env.PROBE.idFromName("probe")).nested());
     if (url.pathname === "/test/count") return Response.json({ accounts: await env.MONEY.count() });
@@ -73,7 +96,12 @@ export default {
         return new Response("threw", { status: 500 });
       }
     }
-    return env.APP.fetch(new Request(`https://money.changle.test${url.pathname}${url.search}`, request));
+    const passed = new Request(`https://money.changle.test${url.pathname}${url.search}`, request);
+    // A real browser comes by name and over HTTPS, to a server wrangler puts in front of this one. That server hands
+    // the request on over plain HTTP and rewrites the page's own `Origin` to match ("http://money.changle.test"),
+    // which no deployed Worker ever sees. It is put back as the browser sent it; no other Origin is touched.
+    if (url.hostname === "money.changle.test" && request.headers.get("Origin") === "http://money.changle.test") passed.headers.set("Origin", "https://money.changle.test");
+    return env.APP.fetch(passed);
   },
 };
 

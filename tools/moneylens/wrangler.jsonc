@@ -10,6 +10,11 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": false,
   "routes": [{ "pattern": "money.changle.ca", "custom_domain": true }],
+  // The app's pages (web/app), built into dist/app before every deploy. Every request comes to the
+  // Worker first, pages included: it is the Worker that says whether the gate is open, and that
+  // puts the security headers on what goes out (src/server/worker.ts, `page`).
+  "build": { "command": "node scripts/build-app.mjs" },
+  "assets": { "directory": "./dist/app", "binding": "ASSETS", "not_found_handling": "none", "run_worker_first": true },
   // One Durable Object for each person, named by their account's id, with its own SQLite database
   // (ISO-1): sessions, the vault's sealed chunks, the events log. And one, "registry", that only
   // knows which accounts have ever signed in (src/server/registry.ts).
