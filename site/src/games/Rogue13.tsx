@@ -9,6 +9,7 @@ import { GameShell, usePenalty, useTurnOrder } from "./GameShell";
 import { Resume, useKeepProgress } from "./Resume";
 import { HeldCard, RogueTable, type LeaveTo } from "./rogueCards";
 import { RogueLog, stockOf, type LogLine } from "./rogueLog";
+import { ShakeHint, useShakeToShuffle } from "./rogueShake";
 import { playPower } from "./rogueSounds";
 import { PlayerPicker } from "../components/PlayerPicker";
 import { TimerArc } from "../components/TimerArc";
@@ -403,6 +404,8 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
   const out = remaining === 0 && !card && phase === "idle" && !gathering && !shuffling;
   useEffect(() => setLogOpen(out), [out]);
   const recap = useMemo(() => (out ? players.map((p) => ({ name: p.name, n: tally[p.name] ?? 0 })) : null), [out, players, tally]);
+  // a shake of the phone deals the next deck too
+  const shake = useShakeToShuffle(out, draw);
 
   return (
     <GameShell title={UI.gameRogue} rules={rules} onBack={onBack} penalty={penalty.call} onPenaltyDone={penalty.done} roster={{ turn: turn.current?.id }} actions={actions}>
@@ -415,7 +418,8 @@ function RogueGame({ onBack, saved }: { onBack: () => void; saved: Kept | null }
       <div className="card-stage">
         <RogueTable card={card} remaining={remaining} drawn={drawn} canDraw={!card && !gathering && !shuffling} onDraw={draw} drawLabel={zh ? "下滑抽牌" : "Swipe down"} shuffling={shuffling} leaveTo={leaveTo} onPile={() => setLogOpen(true)} />
       </div>
-      <RogueLog open={logOpen} onClose={() => setLogOpen(false)} stock={stock} log={log} recap={recap} onShuffle={out ? draw : undefined} />
+      {out && <ShakeHint shake={shake} />}
+      <RogueLog open={logOpen} onClose={() => setLogOpen(false)} stock={stock} log={log} recap={recap} onShuffle={out ? draw : undefined} recapExtra={<ShakeHint shake={shake} />} />
 
       <AnimatePresence mode="wait">
         {card && rule && words && phase === "revealed" && (

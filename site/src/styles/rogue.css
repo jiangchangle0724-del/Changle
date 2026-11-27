@@ -405,6 +405,22 @@ button.rg-pile .rg-pile-count {
   flex: 1;
 }
 
+/* shake to shuffle: the line under the empty deck and under the recap, or the tap that allows the sensor first */
+.rg-shake-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-align: center;
+}
+.rg-shake-hint svg {
+  flex: none;
+}
+
 /* the deck runs out: the pile comes back and the deck shuffles, each card flying out to a side and back, bottom first (游戏编排, longer than a token) */
 @media (prefers-reduced-motion: no-preference) {
   .rg-deck.is-shuffling .rg-under,
